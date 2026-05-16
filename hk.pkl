@@ -1,0 +1,12 @@
+amends "package://github.com/jdx/hk/releases/download/v1.45.0/hk@1.45.0#/Config.pkl"
+
+hooks {
+    ["commit-msg"] {
+        steps {
+            ["commitlint"] {
+                check = "mise run commitlint:edit {{commit_msg_file}}"
+                exclusive = true
+            }
+        }
+    }
+}
