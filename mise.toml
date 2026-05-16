@@ -1,0 +1,51 @@
+[settings]
+experimental = true
+
+[env]
+HK_MISE = "1"
+HK_PKL_BACKEND = "pkl"
+
+[tools]
+bun = "1"
+hk = "1"
+pkl = "0.31"
+"npm:@fission-ai/openspec" = "1"
+"npm:@commitlint/cli" = "20"
+"npm:@commitlint/config-conventional" = "20"
+
+[hooks]
+postinstall = "hk install --mise"
+
+[tasks."commitlint:edit"]
+description = "Validate one commit message file with commitlint"
+usage = '''
+arg "<commit_msg_file>" help="Path to the commit message file"
+'''
+run = """
+set -euo pipefail
+
+commitlint_config_dir="$(mise where npm:@commitlint/config-conventional)/lib/node_modules"
+export NODE_PATH="${commitlint_config_dir}${NODE_PATH:+:${NODE_PATH}}"
+commitlint --edit "${usage_commit_msg_file}"
+"""
+
+[tasks."commitlint:history"]
+description = "Validate every commit on the current branch with commitlint"
+run = """
+set -euo pipefail
+
+commitlint_config_dir="$(mise where npm:@commitlint/config-conventional)/lib/node_modules"
+export NODE_PATH="${commitlint_config_dir}${NODE_PATH:+:${NODE_PATH}}"
+
+tmp_dir="$(mktemp -d)"
+cleanup() {
+  rm -f "$tmp_dir/root-message.txt"
+  rmdir "$tmp_dir"
+}
+trap cleanup EXIT
+
+root_sha="$(git rev-list --max-parents=0 --reverse HEAD | head -n 1)"
+git log -1 --format=%B "$root_sha" > "$tmp_dir/root-message.txt"
+commitlint --edit "$tmp_dir/root-message.txt"
+commitlint --from "$root_sha" --to HEAD
+"""
