@@ -29,6 +29,40 @@ export NODE_PATH="${commitlint_config_dir}${NODE_PATH:+:${NODE_PATH}}"
 commitlint --edit "${usage_commit_msg_file}"
 """
 
+[tasks."openspec:validate-all"]
+description = "Strictly validate all OpenSpec changes and specs"
+run = "openspec validate --all --strict"
+
+[tasks."openspec:validate-changed"]
+description = "Strictly validate OpenSpec changes/specs touched by staged files in parallel"
+run = """
+set -euo pipefail
+
+concurrency="${OPENSPEC_CONCURRENCY:-6}"
+
+items="$(
+  git diff --cached --name-only --diff-filter=ACMR -- \
+    'openspec/changes/*' 'openspec/specs/*' \
+  | awk -F'/' '
+      $2 == "changes" && $3 != "" && $3 != "archive" { print "change " $3 }
+      $2 == "specs" && $3 != "" { print "spec " $3 }
+    ' \
+  | sort -u
+)"
+
+if [ -z "$items" ]; then
+  echo "openspec: no staged changes or specs; skipping validation."
+  exit 0
+fi
+
+printf '%s\n' "$items" | xargs -P "$concurrency" -L 1 sh -c '
+  kind="$1"
+  name="$2"
+  printf "openspec: validating %s %s\\n" "$kind" "$name"
+  openspec validate "$name" --type "$kind" --strict
+' _
+"""
+
 [tasks."commitlint:history"]
 description = "Validate every commit on the current branch with commitlint"
 run = """
