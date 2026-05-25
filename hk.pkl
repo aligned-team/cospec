@@ -9,4 +9,20 @@ hooks {
             }
         }
     }
+    ["pre-commit"] {
+        steps {
+            ["openspec-validate-changed"] {
+                check = "mise run openspec:validate-changed"
+                exclusive = true
+            }
+        }
+    }
+    ["pre-push"] {
+        steps {
+            ["openspec-validate-all"] {
+                check = "mise run openspec:validate-all"
+                exclusive = true
+            }
+        }
+    }
 }
