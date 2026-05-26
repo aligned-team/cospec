@@ -10,10 +10,24 @@ hooks {
         }
     }
     ["pre-commit"] {
+        fix = true
+        stash = "git"
         steps {
             ["openspec-validate-changed"] {
                 check = "mise run openspec:validate-changed"
                 exclusive = true
+            }
+            ["oxlint"] {
+                glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.mjs", "**/*.cjs")
+                batch = true
+                check = "mise exec -- oxlint {{ files }}"
+                fix = "mise exec -- oxlint --fix {{ files }}"
+            }
+            ["oxfmt"] {
+                glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.mjs", "**/*.cjs", "**/*.json", "**/*.jsonc", "**/*.md", "**/*.css", "**/*.yaml", "**/*.yml")
+                batch = true
+                check = "mise exec -- oxfmt --check {{ files }}"
+                fix = "mise exec -- oxfmt {{ files }}"
             }
         }
     }
@@ -21,6 +35,10 @@ hooks {
         steps {
             ["openspec-validate-all"] {
                 check = "mise run openspec:validate-all"
+                exclusive = true
+            }
+            ["cli-build"] {
+                check = "mise run //apps/cli:build"
                 exclusive = true
             }
         }

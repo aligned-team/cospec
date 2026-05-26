@@ -1,17 +1,27 @@
+experimental_monorepo_root = true
+
+[monorepo]
+config_roots = [
+  "apps/*",
+]
+
 [settings]
 experimental = true
+lockfile = true
 
 [env]
 HK_MISE = "1"
 HK_PKL_BACKEND = "pkl"
 
 [tools]
-bun = "1"
 hk = "1"
 pkl = "0.31"
 "npm:@fission-ai/openspec" = "1"
 "npm:@commitlint/cli" = "20"
 "npm:@commitlint/config-conventional" = "20"
+bun = "1"
+oxlint = "1"
+oxfmt = "0.51"
 
 [hooks]
 postinstall = "hk install --mise"
