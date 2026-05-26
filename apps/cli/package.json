@@ -1,0 +1,14 @@
+{
+  "name": "@aligned-team/conventional-openspec",
+  "bin": {
+    "copsx": "./dist/copsx"
+  },
+  "type": "module",
+  "module": "src/index.ts",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
