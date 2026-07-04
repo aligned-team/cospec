@@ -1,0 +1,59 @@
+# Per-harness rendering manifest (DESIGN 6.1). Consumed by src/harness/render.ts.
+# Workflow bodies are single-sourced in the sibling <id>.md files; render.ts pairs each
+# workflow with each selected harness surface and stamps generatedBy/contentHash frontmatter.
+#
+# Skill directories exist for every harness. Command (slash) surfaces exist for claude and
+# opencode only; codex gets skills plus a prefix-rule allowlist (rulesPath) and no slash
+# commands. Path templates use {command} and {skill} placeholders.
+
+workflows:
+  - id: propose
+    command: propose
+    skill: cospec-propose
+    title: Propose
+    description: >-
+      Propose a new change and generate every artifact its type requires, in one guided pass.
+    injectTypeTable: true
+  - id: continue
+    command: continue
+    skill: cospec-continue-change
+    title: Continue
+    description: >-
+      Resume a partially-built change and finish its remaining artifacts.
+  - id: apply
+    command: apply
+    skill: cospec-apply-change
+    title: Apply
+    description: >-
+      Run the apply gate for a change and implement its tasks, obeying the gate's exit code.
+  - id: archive
+    command: archive
+    skill: cospec-archive-change
+    title: Archive
+    description: >-
+      Archive a completed change — validate, merge specs, verify, and fan blockers out.
+  - id: sync-specs
+    command: sync-specs
+    skill: cospec-sync-specs
+    title: Sync specs
+    description: >-
+      Explain how spec sync works (it runs inside archive) and preview what would merge.
+  - id: explore
+    command: explore
+    skill: cospec-explore
+    title: Explore
+    description: >-
+      Investigate the codebase or a spec question without writing implementation code.
+
+harnesses:
+  claude:
+    commandDir: .claude/commands/cospec
+    commandFile: '{command}.md'
+    skillDir: .claude/skills/{skill}
+  codex:
+    skillDir: .codex/skills/{skill}
+    rulesPath: .codex/rules/cospec.rules
+  opencode:
+    commandDir: .opencode/commands
+    commandFile: 'cospec-{command}.md'
+    skillDir: .opencode/skills/{skill}
