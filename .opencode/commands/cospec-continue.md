@@ -1,0 +1,52 @@
+---
+description: Resume a partially-built change and finish its remaining artifacts.
+metadata:
+  author: cospec
+  generatedBy: cospec@0.1.0
+  contentHash: sha256:6d68414084b4bc3b71c5400e55fcb897ae0a6583f7d87aaf8fdaedee80d3ec26
+---
+
+Resume a change that was started but is not yet apply-ready, and finish its
+remaining artifacts. All work goes through `cospec`.
+
+`cospec` is self-describing: `cospec status` names what is missing and
+`cospec instructions <artifact>` prints the authoritative template, format, and
+project rules for it. Trust that output — do NOT read `openspec/schemas/` or
+other repo files to reverse-engineer an artifact's shape.
+
+## 1. Pick the change
+
+```
+cospec list --json
+```
+
+If the user named a change, use it. Otherwise choose the in-progress one; if
+more than one is plausible, ask with AskUserQuestion, showing each change's type
+and gate state.
+
+## 2. Find what is missing
+
+```
+cospec status --change <slug> --json
+```
+
+Read which `apply.requires` artifacts are still missing and which are ready to
+write next.
+
+## 3. Finish the artifacts
+
+Run the same loop as `/cospec-propose` step 3: for each ready artifact, call
+`cospec instructions <artifact> --change <slug> --json`, write it to the named
+path, and repeat until every required artifact exists. Apply `context` and
+`rules` as constraints, never copy them into the output. Follow the
+machine-parsed formats for `blocking-changes.md` and the `specs/**/spec.md`
+deltas exactly.
+
+## 4. Validate and hand off
+
+```
+cospec validate <slug> --strict
+```
+
+Fix all issues, then tell the user the change is apply-ready — next step
+`/cospec-apply`.
