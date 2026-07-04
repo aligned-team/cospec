@@ -1,0 +1,55 @@
+# blocking-changes artifact. One template (DESIGN §3.8, binding). Two instruction
+# variants: `full` (feat/fix/perf/refactor/revert) and `lite` (build/chore/ci/
+# docs/style/test). The lite body substitutes {{type}} and {{domain}} per type.
+id: blocking-changes
+generates: blocking-changes.md
+template: blocking-changes.md
+requires: [proposal]
+descriptions:
+  full: Cross-change dependency ledger — which changes must ship first
+  lite: Cross-change dependency ledger
+templateBody: |
+  # Dependencies
+
+  ## Blocked by
+
+  <!-- Changes that MUST be archived before this change can be applied. -->
+  <!-- Format: - [ ] `change-slug` — what it provides -->
+  <!-- cospec checks the box and appends *(archived YYYY-MM-DD)* when the dependency ships. -->
+
+  None.
+
+  ## Soft-blocked by
+
+  <!-- Changes that improve this one but aren't strictly required. -->
+  <!-- Format: - [ ] `change-slug` — what degrades without it -->
+
+  None.
+instructions:
+  full: |
+    Determine which other openspec changes must ship before this one.
+    PROCESS — do all of these before writing the artifact:
+    1. Read this change's proposal.md for everything it consumes (modules,
+       files, schemas, endpoints, business/safety prerequisites).
+    2. Scan EVERY active change in openspec/changes/ — read each proposal.md
+       ("What Changes" at minimum) to map what each change PROVIDES.
+    3. Scan openspec/changes/archive/ for already-shipped providers.
+    4. Classify each dependency: **Blocked by** (hard — this change cannot
+       function without it) vs **Soft-blocked by** (works, but degrades).
+    5. Confirm the list with the user before finalizing.
+    FORMAT (machine-parsed — deviations fail `cospec validate`):
+    - entry:    - [ ] `change-slug` — what it provides
+    - shipped:  - [x] `change-slug` — what it provides *(archived YYYY-MM-DD)*
+    - empty section: the literal line `None.`
+    Extra sections (## Siblings, ## Phase Gates, …) are allowed and ignored by
+    the gate. `cospec sync-blockers` keeps checkboxes current; `cospec apply`
+    hard-gates on this file.
+  lite: |
+    Most {{type}} changes are independent. Quickly scan the NAMES of active changes
+    in openspec/changes/ for obvious collisions with the {{domain}}
+    this change touches — do NOT read every proposal. If nothing collides,
+    write `None.` under both sections and move on.
+    FORMAT (machine-parsed — deviations fail `cospec validate`):
+    - entry:    - [ ] `change-slug` — what it provides
+    - shipped:  - [x] `change-slug` — what it provides *(archived YYYY-MM-DD)*
+    - empty section: the literal line `None.`

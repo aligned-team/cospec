@@ -1,0 +1,25 @@
+# revert — full workflow, requires ## Reverts citation, design forbidden (DESIGN §3.7).
+type: revert
+description: Roll back a previously shipped change
+summary: 'proposal (+ Reverts) → blocking-changes → tasks'
+schemaDescription: 'revert — roll back a shipped change. Workflow: proposal (+ Reverts) → blocking-changes → tasks'
+proposal: full
+blocking: full
+artifacts:
+  specs: optional
+  design: forbidden
+apply_requires: [proposal, blocking-changes, tasks]
+proposalDescription: What is being rolled back and why
+proposalInstruction: |
+  Write the proposal for a REVERT (conventional-commit type: revert). State why
+  the original is being rolled back and what re-landing it would require.
+  Sections: ## Why (at least two sentences), ## What Changes (what returns to
+  the prior state), ## Reverts (a backticked archived change slug and/or a
+  7–40-hex commit hash), ## Impact (files, APIs affected).
+specsDescription: Inverse delta specs — only if the reverted change carried specs
+specsLead: |
+  If the reverted change carried spec deltas, write the INVERSE deltas (REMOVE
+  what it ADDED, restore what it MODIFIED) so the living specs match reality.
+tasksInstruction: |
+  One group: revert the change, then verify (tests/build green). Use `## N.
+  Group` and `- [ ] N.M task` exactly — the checkbox format is parsed.

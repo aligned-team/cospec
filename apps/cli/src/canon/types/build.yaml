@@ -1,0 +1,21 @@
+# build — light workflow, dependency/build-config only (DESIGN §3.7).
+type: build
+description: Dependency or build-config change
+summary: 'proposal → blocking-changes → tasks (3 short artifacts)'
+schemaDescription: 'build — a dependency or build-config change. Light workflow: proposal → blocking-changes → tasks'
+proposal: lite
+blocking: lite
+liteDomain: manifests and lockfiles
+artifacts:
+  specs: forbidden
+  design: forbidden
+apply_requires: [proposal, blocking-changes, tasks]
+proposalDescription: One-paragraph why + what for a build or dependency change
+proposalInstruction: |
+  This is a build/dependency change (manifests, lockfiles, build config) — no
+  application source or specs. Keep it short: ## Why — one or two sentences.
+  ## What Changes — name each manifest/lockfile touched. ## Impact — build,
+  install, or release steps affected.
+tasksInstruction: |
+  Include a lockfile-regeneration task where applicable. `## N. Group` +
+  `- [ ] N.M task` exactly — the checkbox format is parsed.

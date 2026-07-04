@@ -1,0 +1,17 @@
+# chore — light workflow, maintenance not affecting src or tests (DESIGN §3.7).
+type: chore
+description: Maintenance not affecting src or tests
+summary: 'proposal → blocking-changes → tasks (3 short artifacts)'
+schemaDescription: 'chore — maintenance not affecting src or tests. Light workflow: proposal → blocking-changes → tasks'
+proposal: lite
+blocking: lite
+liteDomain: files
+artifacts:
+  specs: forbidden
+  design: forbidden
+apply_requires: [proposal, blocking-changes, tasks]
+proposalDescription: One-paragraph why + what for a maintenance change
+proposalInstruction: |
+  This is a maintenance chore not affecting application source or tests. Keep it
+  short: ## Why — one or two sentences. ## What Changes — bulleted list of what
+  you touched. ## Impact — anything downstream that notices.

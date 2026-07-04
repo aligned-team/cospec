@@ -1,0 +1,23 @@
+# ci — the minimal end (DESIGN §3.2/§3.5, binding schema output).
+type: ci
+description: CI configuration and automation pipeline change
+summary: 'proposal → blocking-changes → tasks (3 short artifacts)'
+schemaDescription: 'ci — CI configuration and automation pipelines. Light workflow: proposal → blocking-changes → tasks'
+proposal: lite
+blocking: lite
+liteDomain: workflows/scripts
+artifacts:
+  specs: forbidden
+  design: forbidden
+apply_requires: [proposal, blocking-changes, tasks]
+proposalDescription: One-paragraph why + what for a CI change
+proposalInstruction: |
+  This is a CI-only change (workflows, pipelines, automation scripts). Keep
+  it short: ## Why — one or two sentences. ## What Changes — bulleted list
+  of workflow/script paths. ## Impact — jobs, secrets, required checks
+  affected. A ci change must not modify application source or specs — if it
+  does, retype it: `cospec new <correct-type> <slug>`.
+tasksInstruction: |
+  Usually one group: the edits plus one verification task (e.g.
+  "- [ ] 1.2 actionlint passes / workflow dry-run"). Use `## N. Group` and
+  `- [ ] N.M task` exactly — the checkbox format is parsed.
