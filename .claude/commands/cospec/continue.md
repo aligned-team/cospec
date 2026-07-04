@@ -8,7 +8,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@0.1.0
-  contentHash: sha256:95978b57e5875805f0f9a722bb12ef962276368f3acc71f9a111e889f02724d4
+  contentHash: sha256:8ad674a6dd0afa94c5a2df7c68cb4def90be0b3c8d0c4859580ec007934bc0c1
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -47,11 +47,17 @@ path, and repeat until every required artifact exists. Apply `context` and
 machine-parsed formats for `blocking-changes.md` and the `specs/**/spec.md`
 deltas exactly.
 
-## 4. Validate and hand off
+## 4. Format, validate, and hand off
+
+If this repo has a formatter task (for example `mise run format:fix`; check its
+task list / docs), run it over the change directory before validating — an
+artifact that passes `validate --strict` can still fail the repo's format gate
+because the formatter rewraps markdown, and formatting must never be committed
+unformatted.
 
 ```
 cospec validate <slug> --strict
 ```
 
-Fix all issues, then tell the user the change is apply-ready — next step
-`/cospec:apply`.
+Fix all issues (re-running the formatter over anything you edit), then tell the
+user the change is apply-ready — next step `/cospec:apply`.

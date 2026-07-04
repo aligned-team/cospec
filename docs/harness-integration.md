@@ -34,7 +34,10 @@ entry covers the whole loop.
 
 - **propose** — parse `<type>: <desc>` or ask via the eleven-type table; run
   `cospec new`; loop `cospec status --json` → `cospec instructions <artifact>` →
-  write the artifact, until every `apply.requires` artifact is done.
+  write the artifact, until every `apply.requires` artifact is done. Each
+  artifact in the status JSON carries `ready` (its `requires` are all done, so
+  it can be authored next) alongside `done` and `required`, so the loop can pick
+  what to write without re-deriving the dependency graph.
 - **continue** — resume the propose loop for a partially-built change.
 - **apply** — run `cospec apply <c> --json` and obey the exit code (0 work the
   tasks, 2 stop and relay blockers, 3 confirm then `--allow-soft`). Never

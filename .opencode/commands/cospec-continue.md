@@ -3,7 +3,7 @@ description: Resume a partially-built change and finish its remaining artifacts.
 metadata:
   author: cospec
   generatedBy: cospec@0.1.0
-  contentHash: sha256:6d68414084b4bc3b71c5400e55fcb897ae0a6583f7d87aaf8fdaedee80d3ec26
+  contentHash: sha256:926bcda293ff2b2be39423d6bcbc091d4bced8bd7943908d100b458d65719329
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -42,11 +42,17 @@ path, and repeat until every required artifact exists. Apply `context` and
 machine-parsed formats for `blocking-changes.md` and the `specs/**/spec.md`
 deltas exactly.
 
-## 4. Validate and hand off
+## 4. Format, validate, and hand off
+
+If this repo has a formatter task (for example `mise run format:fix`; check its
+task list / docs), run it over the change directory before validating — an
+artifact that passes `validate --strict` can still fail the repo's format gate
+because the formatter rewraps markdown, and formatting must never be committed
+unformatted.
 
 ```
 cospec validate <slug> --strict
 ```
 
-Fix all issues, then tell the user the change is apply-ready — next step
-`/cospec-apply`.
+Fix all issues (re-running the formatter over anything you edit), then tell the
+user the change is apply-ready — next step `/cospec-apply`.

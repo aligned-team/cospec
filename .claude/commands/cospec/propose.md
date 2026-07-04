@@ -8,7 +8,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@0.1.0
-  contentHash: sha256:270bf20221cdb9a6c03593a0c9dfdf67c2f38c8f25b1380761785c1d1cecffc8
+  contentHash: sha256:f8d15c8b5d87ac57f2744f3675b7750aa2633e0c9fe836146d76d940287381bf
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -82,13 +82,19 @@ For `blocking-changes.md`, scan the other active changes and the archive as the
 instruction directs, classify each dependency as hard (Blocked by) or soft
 (Soft-blocked by), and confirm the list with the user before finalizing it.
 
-## 4. Validate
+## 4. Format, then validate
+
+If this repo has a formatter task (for example `mise run format:fix`; check its
+task list / docs), run it over the change directory now — an artifact that
+passes `validate --strict` can still fail the repo's format gate because the
+formatter rewraps markdown, and formatting must never be committed unformatted.
 
 ```
 cospec validate <slug> --strict
 ```
 
-Fix every ERROR and every WARNING, then re-run until it is clean.
+Fix every ERROR and every WARNING; if you edit an artifact to fix one, re-run
+the formatter over it before re-validating. Re-run until it is clean.
 
 ## 5. Hand off
 

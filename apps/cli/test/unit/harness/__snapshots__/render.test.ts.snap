@@ -48,7 +48,7 @@ compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:1140fb3d7b92408df3bcdd34db0671ad3c01e665bd501eecb860e350ec86f2e1
+  contentHash: sha256:214efeebc1d5d02d40d24c3148e0bf8134529b8abe37337d186617ddc65827a4
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -122,13 +122,19 @@ For \`blocking-changes.md\`, scan the other active changes and the archive as th
 instruction directs, classify each dependency as hard (Blocked by) or soft
 (Soft-blocked by), and confirm the list with the user before finalizing it.
 
-## 4. Validate
+## 4. Format, then validate
+
+If this repo has a formatter task (for example \`mise run format:fix\`; check its
+task list / docs), run it over the change directory now — an artifact that
+passes \`validate --strict\` can still fail the repo's format gate because the
+formatter rewraps markdown, and formatting must never be committed unformatted.
 
 \`\`\`
 cospec validate <slug> --strict
 \`\`\`
 
-Fix every ERROR and every WARNING, then re-run until it is clean.
+Fix every ERROR and every WARNING; if you edit an artifact to fix one, re-run
+the formatter over it before re-validating. Re-run until it is clean.
 
 ## 5. Hand off
 
@@ -152,7 +158,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:1140fb3d7b92408df3bcdd34db0671ad3c01e665bd501eecb860e350ec86f2e1
+  contentHash: sha256:214efeebc1d5d02d40d24c3148e0bf8134529b8abe37337d186617ddc65827a4
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -226,13 +232,19 @@ For \`blocking-changes.md\`, scan the other active changes and the archive as th
 instruction directs, classify each dependency as hard (Blocked by) or soft
 (Soft-blocked by), and confirm the list with the user before finalizing it.
 
-## 4. Validate
+## 4. Format, then validate
+
+If this repo has a formatter task (for example \`mise run format:fix\`; check its
+task list / docs), run it over the change directory now — an artifact that
+passes \`validate --strict\` can still fail the repo's format gate because the
+formatter rewraps markdown, and formatting must never be committed unformatted.
 
 \`\`\`
 cospec validate <slug> --strict
 \`\`\`
 
-Fix every ERROR and every WARNING, then re-run until it is clean.
+Fix every ERROR and every WARNING; if you edit an artifact to fix one, re-run
+the formatter over it before re-validating. Re-run until it is clean.
 
 ## 5. Hand off
 
@@ -254,7 +266,7 @@ compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:95978b57e5875805f0f9a722bb12ef962276368f3acc71f9a111e889f02724d4
+  contentHash: sha256:8ad674a6dd0afa94c5a2df7c68cb4def90be0b3c8d0c4859580ec007934bc0c1
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -293,14 +305,20 @@ path, and repeat until every required artifact exists. Apply \`context\` and
 machine-parsed formats for \`blocking-changes.md\` and the \`specs/**/spec.md\`
 deltas exactly.
 
-## 4. Validate and hand off
+## 4. Format, validate, and hand off
+
+If this repo has a formatter task (for example \`mise run format:fix\`; check its
+task list / docs), run it over the change directory before validating — an
+artifact that passes \`validate --strict\` can still fail the repo's format gate
+because the formatter rewraps markdown, and formatting must never be committed
+unformatted.
 
 \`\`\`
 cospec validate <slug> --strict
 \`\`\`
 
-Fix all issues, then tell the user the change is apply-ready — next step
-\`/cospec:apply\`.
+Fix all issues (re-running the formatter over anything you edit), then tell the
+user the change is apply-ready — next step \`/cospec:apply\`.
 "
 ,
     "kind": "skill",
@@ -318,7 +336,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:95978b57e5875805f0f9a722bb12ef962276368f3acc71f9a111e889f02724d4
+  contentHash: sha256:8ad674a6dd0afa94c5a2df7c68cb4def90be0b3c8d0c4859580ec007934bc0c1
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -357,14 +375,20 @@ path, and repeat until every required artifact exists. Apply \`context\` and
 machine-parsed formats for \`blocking-changes.md\` and the \`specs/**/spec.md\`
 deltas exactly.
 
-## 4. Validate and hand off
+## 4. Format, validate, and hand off
+
+If this repo has a formatter task (for example \`mise run format:fix\`; check its
+task list / docs), run it over the change directory before validating — an
+artifact that passes \`validate --strict\` can still fail the repo's format gate
+because the formatter rewraps markdown, and formatting must never be committed
+unformatted.
 
 \`\`\`
 cospec validate <slug> --strict
 \`\`\`
 
-Fix all issues, then tell the user the change is apply-ready — next step
-\`/cospec:apply\`.
+Fix all issues (re-running the formatter over anything you edit), then tell the
+user the change is apply-ready — next step \`/cospec:apply\`.
 "
 ,
     "kind": "command",
@@ -767,7 +791,7 @@ compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:1140fb3d7b92408df3bcdd34db0671ad3c01e665bd501eecb860e350ec86f2e1
+  contentHash: sha256:214efeebc1d5d02d40d24c3148e0bf8134529b8abe37337d186617ddc65827a4
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -841,13 +865,19 @@ For \`blocking-changes.md\`, scan the other active changes and the archive as th
 instruction directs, classify each dependency as hard (Blocked by) or soft
 (Soft-blocked by), and confirm the list with the user before finalizing it.
 
-## 4. Validate
+## 4. Format, then validate
+
+If this repo has a formatter task (for example \`mise run format:fix\`; check its
+task list / docs), run it over the change directory now — an artifact that
+passes \`validate --strict\` can still fail the repo's format gate because the
+formatter rewraps markdown, and formatting must never be committed unformatted.
 
 \`\`\`
 cospec validate <slug> --strict
 \`\`\`
 
-Fix every ERROR and every WARNING, then re-run until it is clean.
+Fix every ERROR and every WARNING; if you edit an artifact to fix one, re-run
+the formatter over it before re-validating. Re-run until it is clean.
 
 ## 5. Hand off
 
@@ -869,7 +899,7 @@ compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:95978b57e5875805f0f9a722bb12ef962276368f3acc71f9a111e889f02724d4
+  contentHash: sha256:8ad674a6dd0afa94c5a2df7c68cb4def90be0b3c8d0c4859580ec007934bc0c1
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -908,14 +938,20 @@ path, and repeat until every required artifact exists. Apply \`context\` and
 machine-parsed formats for \`blocking-changes.md\` and the \`specs/**/spec.md\`
 deltas exactly.
 
-## 4. Validate and hand off
+## 4. Format, validate, and hand off
+
+If this repo has a formatter task (for example \`mise run format:fix\`; check its
+task list / docs), run it over the change directory before validating — an
+artifact that passes \`validate --strict\` can still fail the repo's format gate
+because the formatter rewraps markdown, and formatting must never be committed
+unformatted.
 
 \`\`\`
 cospec validate <slug> --strict
 \`\`\`
 
-Fix all issues, then tell the user the change is apply-ready — next step
-\`/cospec:apply\`.
+Fix all issues (re-running the formatter over anything you edit), then tell the
+user the change is apply-ready — next step \`/cospec:apply\`.
 "
 ,
     "kind": "skill",
@@ -1141,7 +1177,7 @@ compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:698547bdc5668aa4122f971f724098ac71cdb9fb198ca93430913a4eba2502b6
+  contentHash: sha256:8e5198b054e1f42298a7d2d6a092c99314ca4bf6c7f8e5eadca5ff1a40a6e9a5
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -1215,13 +1251,19 @@ For \`blocking-changes.md\`, scan the other active changes and the archive as th
 instruction directs, classify each dependency as hard (Blocked by) or soft
 (Soft-blocked by), and confirm the list with the user before finalizing it.
 
-## 4. Validate
+## 4. Format, then validate
+
+If this repo has a formatter task (for example \`mise run format:fix\`; check its
+task list / docs), run it over the change directory now — an artifact that
+passes \`validate --strict\` can still fail the repo's format gate because the
+formatter rewraps markdown, and formatting must never be committed unformatted.
 
 \`\`\`
 cospec validate <slug> --strict
 \`\`\`
 
-Fix every ERROR and every WARNING, then re-run until it is clean.
+Fix every ERROR and every WARNING; if you edit an artifact to fix one, re-run
+the formatter over it before re-validating. Re-run until it is clean.
 
 ## 5. Hand off
 
@@ -1240,7 +1282,7 @@ description: Propose a new change and generate every artifact its type requires,
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:698547bdc5668aa4122f971f724098ac71cdb9fb198ca93430913a4eba2502b6
+  contentHash: sha256:8e5198b054e1f42298a7d2d6a092c99314ca4bf6c7f8e5eadca5ff1a40a6e9a5
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -1314,13 +1356,19 @@ For \`blocking-changes.md\`, scan the other active changes and the archive as th
 instruction directs, classify each dependency as hard (Blocked by) or soft
 (Soft-blocked by), and confirm the list with the user before finalizing it.
 
-## 4. Validate
+## 4. Format, then validate
+
+If this repo has a formatter task (for example \`mise run format:fix\`; check its
+task list / docs), run it over the change directory now — an artifact that
+passes \`validate --strict\` can still fail the repo's format gate because the
+formatter rewraps markdown, and formatting must never be committed unformatted.
 
 \`\`\`
 cospec validate <slug> --strict
 \`\`\`
 
-Fix every ERROR and every WARNING, then re-run until it is clean.
+Fix every ERROR and every WARNING; if you edit an artifact to fix one, re-run
+the formatter over it before re-validating. Re-run until it is clean.
 
 ## 5. Hand off
 
@@ -1342,7 +1390,7 @@ compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:6d68414084b4bc3b71c5400e55fcb897ae0a6583f7d87aaf8fdaedee80d3ec26
+  contentHash: sha256:926bcda293ff2b2be39423d6bcbc091d4bced8bd7943908d100b458d65719329
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -1381,14 +1429,20 @@ path, and repeat until every required artifact exists. Apply \`context\` and
 machine-parsed formats for \`blocking-changes.md\` and the \`specs/**/spec.md\`
 deltas exactly.
 
-## 4. Validate and hand off
+## 4. Format, validate, and hand off
+
+If this repo has a formatter task (for example \`mise run format:fix\`; check its
+task list / docs), run it over the change directory before validating — an
+artifact that passes \`validate --strict\` can still fail the repo's format gate
+because the formatter rewraps markdown, and formatting must never be committed
+unformatted.
 
 \`\`\`
 cospec validate <slug> --strict
 \`\`\`
 
-Fix all issues, then tell the user the change is apply-ready — next step
-\`/cospec-apply\`.
+Fix all issues (re-running the formatter over anything you edit), then tell the
+user the change is apply-ready — next step \`/cospec-apply\`.
 "
 ,
     "kind": "skill",
@@ -1401,7 +1455,7 @@ description: Resume a partially-built change and finish its remaining artifacts.
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:6d68414084b4bc3b71c5400e55fcb897ae0a6583f7d87aaf8fdaedee80d3ec26
+  contentHash: sha256:926bcda293ff2b2be39423d6bcbc091d4bced8bd7943908d100b458d65719329
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -1440,14 +1494,20 @@ path, and repeat until every required artifact exists. Apply \`context\` and
 machine-parsed formats for \`blocking-changes.md\` and the \`specs/**/spec.md\`
 deltas exactly.
 
-## 4. Validate and hand off
+## 4. Format, validate, and hand off
+
+If this repo has a formatter task (for example \`mise run format:fix\`; check its
+task list / docs), run it over the change directory before validating — an
+artifact that passes \`validate --strict\` can still fail the repo's format gate
+because the formatter rewraps markdown, and formatting must never be committed
+unformatted.
 
 \`\`\`
 cospec validate <slug> --strict
 \`\`\`
 
-Fix all issues, then tell the user the change is apply-ready — next step
-\`/cospec-apply\`.
+Fix all issues (re-running the formatter over anything you edit), then tell the
+user the change is apply-ready — next step \`/cospec-apply\`.
 "
 ,
     "kind": "command",

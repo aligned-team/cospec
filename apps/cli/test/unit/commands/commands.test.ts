@@ -126,6 +126,47 @@ describe('status', () => {
     expect(status.archiveReady).toBe(true)
     const specs = status.artifacts.find((a) => a.id === 'proposal')
     expect(specs?.done).toBe(true)
+    // Every artifact is done, so every artifact's deps are satisfied.
+    expect(status.artifacts.every((a) => a.ready)).toBe(true)
+  })
+
+  test('ready reflects the dependency graph — deps unmet means not ready', () => {
+    const cwd = repo()
+    // blocking-changes present but proposal (its only dep) is missing.
+    const dir = writeChange(cwd, 'partial', 'ci', {
+      'blocking-changes.md': EMPTY_BLOCKERS,
+    })
+    const status = computeStatus(cwd, { id: 'partial', dir, schema: 'ci' })
+    const byId = (id: string) => status.artifacts.find((a) => a.id === id)!
+    // proposal has no deps → ready even though it is not written yet.
+    expect(byId('proposal')).toMatchObject({ done: false, ready: true })
+    // blocking-changes requires proposal, which is not done → not ready.
+    expect(byId('blocking-changes')).toMatchObject({ done: true, ready: false })
+    // tasks requires proposal → not ready.
+    expect(byId('tasks')).toMatchObject({ done: false, ready: false })
+  })
+
+  test('feat tasks stay not-ready until specs exists (dependency graph)', () => {
+    const cwd = repo()
+    // feat: tasks requires [proposal, specs]; design requires [proposal].
+    const dir = writeChange(cwd, 'f', 'feat', {
+      'proposal.md': LITE_PROPOSAL,
+      'blocking-changes.md': EMPTY_BLOCKERS,
+    })
+    const status = computeStatus(cwd, { id: 'f', dir, schema: 'feat' })
+    const byId = (id: string) => status.artifacts.find((a) => a.id === id)!
+    expect(byId('specs').ready).toBe(true) // only needs proposal (done)
+    expect(byId('design').ready).toBe(true) // only needs proposal (done)
+    expect(byId('tasks').ready).toBe(false) // needs specs, which is not written
+  })
+
+  test('human output marks each unwritten artifact ready or waiting', async () => {
+    const cwd = repo()
+    writeChange(cwd, 'partial', 'ci', { 'blocking-changes.md': EMPTY_BLOCKERS })
+    const r = await runCmd(statusRun, ctx(cwd, ['--change', 'partial']))
+    expect(r.code).toBe(0)
+    expect(r.out).toMatch(/proposal.*ready/)
+    expect(r.out).toMatch(/tasks.*waiting/)
   })
 
   test('archiveReady is false while a hard blocker is unchecked', () => {

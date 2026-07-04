@@ -57,13 +57,19 @@ For `blocking-changes.md`, scan the other active changes and the archive as the
 instruction directs, classify each dependency as hard (Blocked by) or soft
 (Soft-blocked by), and confirm the list with the user before finalizing it.
 
-## 4. Validate
+## 4. Format, then validate
+
+If this repo has a formatter task (for example `mise run format:fix`; check its
+task list / docs), run it over the change directory now — an artifact that
+passes `validate --strict` can still fail the repo's format gate because the
+formatter rewraps markdown, and formatting must never be committed unformatted.
 
 ```
 cospec validate <slug> --strict
 ```
 
-Fix every ERROR and every WARNING, then re-run until it is clean.
+Fix every ERROR and every WARNING; if you edit an artifact to fix one, re-run
+the formatter over it before re-validating. Re-run until it is clean.
 
 ## 5. Hand off
 

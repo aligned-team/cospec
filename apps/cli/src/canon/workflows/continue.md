@@ -34,11 +34,17 @@ path, and repeat until every required artifact exists. Apply `context` and
 machine-parsed formats for `blocking-changes.md` and the `specs/**/spec.md`
 deltas exactly.
 
-## 4. Validate and hand off
+## 4. Format, validate, and hand off
+
+If this repo has a formatter task (for example `mise run format:fix`; check its
+task list / docs), run it over the change directory before validating — an
+artifact that passes `validate --strict` can still fail the repo's format gate
+because the formatter rewraps markdown, and formatting must never be committed
+unformatted.
 
 ```
 cospec validate <slug> --strict
 ```
 
-Fix all issues, then tell the user the change is apply-ready — next step
-`/cospec:apply`.
+Fix all issues (re-running the formatter over anything you edit), then tell the
+user the change is apply-ready — next step `/cospec:apply`.
