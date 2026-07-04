@@ -1,0 +1,383 @@
+// `cospec doctor` (DESIGN §2.3). Read-only diagnosis of a cospec setup; exits 1
+// on any ERROR finding. Every finding carries a one-line remedy. Checks: the
+// wrapped openspec resolves at the expected version; the manifest is present and
+// schemas/harness files are not drifted (reuses the update engine's dry run);
+// harness files are not stale/mixed-version; slash/skill references in generated
+// bodies all resolve (the structural guard against openspec's dangling-ref
+// failure class); config.yaml parses with a known schema; no leftover opsx files
+// or stale .cospec-new sidecars; changes sit on known schemas; and the git hooks
+// are installed when the gate was scaffolded.
+
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { parse as parseYaml } from 'yaml'
+
+import type { CommandContext } from '../cli.ts'
+import { COSPEC_TYPES, listChanges, openspecDir, resolveSchema } from '../core/change.ts'
+import { CURRENT_GENERATED_BY, readManifest, splitFrontmatter } from '../core/managed-files.ts'
+import { EXPECTED_OPENSPEC_VERSION, openspecPackageDir } from '../core/openspec.ts'
+import { HARNESS_NAMES } from '../harness/render.ts'
+import { detectHarnesses, generate } from './update.ts'
+
+type Level = 'ERROR' | 'WARNING' | 'INFO'
+
+interface Finding {
+  level: Level
+  check: string
+  message: string
+  remedy?: string
+}
+
+/** Workflow id → skill dir name (mirrors canon/workflows/harness.yaml). */
+const WORKFLOW_SKILL: Record<string, string> = {
+  propose: 'cospec-propose',
+  continue: 'cospec-continue-change',
+  apply: 'cospec-apply-change',
+  archive: 'cospec-archive-change',
+  'sync-specs': 'cospec-sync-specs',
+  explore: 'cospec-explore',
+}
+
+const SKILL_BASE: Record<string, string> = {
+  claude: '.claude/skills',
+  codex: '.codex/skills',
+  opencode: '.opencode/skills',
+}
+
+const COMMAND_LOC: Record<string, { dir: string; file: (id: string) => string } | undefined> = {
+  claude: { dir: '.claude/commands/cospec', file: (id) => `${id}.md` },
+  opencode: { dir: '.opencode/commands', file: (id) => `cospec-${id}.md` },
+  codex: undefined,
+}
+
+// --- individual checks ------------------------------------------------------
+
+function checkOpenspecVersion(findings: Finding[]): void {
+  let pkgDir: string
+  try {
+    pkgDir = openspecPackageDir()
+  } catch {
+    findings.push({
+      level: 'ERROR',
+      check: 'openspec-resolve',
+      message: 'cannot resolve the bundled @fission-ai/openspec package',
+      remedy: 'run `bun install` in the repo root',
+    })
+    return
+  }
+  let version = ''
+  try {
+    const pkg = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8')) as {
+      version?: string
+    }
+    version = typeof pkg.version === 'string' ? pkg.version : ''
+  } catch {
+    // fall through to mismatch handling
+  }
+  if (version !== EXPECTED_OPENSPEC_VERSION) {
+    findings.push({
+      level: 'ERROR',
+      check: 'openspec-version',
+      message: `bundled openspec is ${version || '<unknown>'}, expected ${EXPECTED_OPENSPEC_VERSION}`,
+      remedy: 'pin @fission-ai/openspec to the expected version, then re-run the contract suite',
+    })
+  }
+}
+
+function checkDrift(cwd: string, findings: Finding[]): void {
+  const manifest = readManifest(cwd)
+  if (manifest === undefined) {
+    findings.push({
+      level: 'ERROR',
+      check: 'manifest',
+      message: 'openspec/.cospec-manifest.json is missing or unparseable',
+      remedy: 'run `cospec update` (or `cospec init`) to materialize the schemas',
+    })
+  }
+
+  const harnesses = detectHarnesses(cwd)
+  const { results } = generate(cwd, { harnesses, dryRun: true })
+  for (const r of results) {
+    if (r.outcome === 'unchanged') continue
+    if (r.outcome === 'created') {
+      findings.push({
+        level: 'ERROR',
+        check: 'schema-missing',
+        message: `managed file is missing: ${r.path}`,
+        remedy: 'run `cospec update`',
+      })
+    } else if (r.outcome === 'updated' || r.outcome === 'removed') {
+      findings.push({
+        level: 'WARNING',
+        check: 'drift',
+        message: `${r.path} is out of date with canon (${r.outcome})`,
+        remedy: 'run `cospec update`',
+      })
+    } else if (r.outcome === 'preserved-modified' || r.outcome === 'preserved-foreign') {
+      findings.push({
+        level: 'WARNING',
+        check: 'drift',
+        message: `${r.path} has been hand-edited and diverges from canon (${r.outcome})`,
+        remedy: 'reconcile the .cospec-new sidecar, or run `cospec update --force` to overwrite',
+      })
+    }
+  }
+}
+
+function harnessMarkdownFiles(cwd: string): { relpath: string; text: string }[] {
+  const out: { relpath: string; text: string }[] = []
+  const walk = (rel: string): void => {
+    const abs = join(cwd, rel)
+    if (!existsSync(abs)) return
+    for (const entry of readdirSync(abs, { withFileTypes: true })) {
+      const childRel = `${rel}/${entry.name}`
+      if (entry.isDirectory()) walk(childRel)
+      else if (entry.isFile() && entry.name.endsWith('.md')) {
+        out.push({ relpath: childRel, text: readFileSync(join(cwd, childRel), 'utf8') })
+      }
+    }
+  }
+  for (const h of HARNESS_NAMES) walk(`.${h}`)
+  return out
+}
+
+function checkStaleness(files: { relpath: string; text: string }[], findings: Finding[]): void {
+  const versions = new Set<string>()
+  for (const f of files) {
+    const { frontmatter } = splitFrontmatter(f.text)
+    const meta = frontmatter?.metadata
+    if (meta === null || typeof meta !== 'object') continue
+    const record = meta as Record<string, unknown>
+    if (record.author !== 'cospec') continue
+    const gen = typeof record.generatedBy === 'string' ? record.generatedBy : ''
+    versions.add(gen)
+    if (gen !== CURRENT_GENERATED_BY) {
+      findings.push({
+        level: 'WARNING',
+        check: 'stale-harness',
+        message: `${f.relpath} was generated by ${gen || '<unknown>'} (current is ${CURRENT_GENERATED_BY})`,
+        remedy: 'run `cospec update`',
+      })
+    }
+  }
+  if (versions.size > 1) {
+    findings.push({
+      level: 'WARNING',
+      check: 'mixed-versions',
+      message: `harness files carry mixed generator versions: ${[...versions].toSorted().join(', ')}`,
+      remedy: 'run `cospec update` to bring every file to the current version',
+    })
+  }
+}
+
+function checkDanglingRefs(
+  cwd: string,
+  files: { relpath: string; text: string }[],
+  findings: Finding[],
+): void {
+  for (const f of files) {
+    const harness = HARNESS_NAMES.find((h) => f.relpath.startsWith(`.${h}/`))
+    if (harness === undefined) continue
+    const { body } = splitFrontmatter(f.text)
+    const refs = new Set<string>()
+    for (const m of body.matchAll(/\/cospec[:-]([a-z][a-z-]*)/g)) refs.add(m[1]!)
+    for (const id of refs) {
+      const skill = WORKFLOW_SKILL[id]
+      if (skill === undefined) {
+        findings.push({
+          level: 'ERROR',
+          check: 'dangling-ref',
+          message: `${f.relpath} references /cospec:${id}, which is not a known cospec workflow`,
+          remedy: 'run `cospec update` to regenerate from canon',
+        })
+        continue
+      }
+      const skillExists = existsSync(join(cwd, SKILL_BASE[harness]!, skill, 'SKILL.md'))
+      const cmdLoc = COMMAND_LOC[harness]
+      const cmdExists = cmdLoc !== undefined && existsSync(join(cwd, cmdLoc.dir, cmdLoc.file(id)))
+      if (!skillExists && !cmdExists) {
+        findings.push({
+          level: 'ERROR',
+          check: 'dangling-ref',
+          message: `${f.relpath} references /cospec:${id}, but no ${harness} skill or command file for it exists`,
+          remedy: 'run `cospec update` to regenerate the full workflow set',
+        })
+      }
+    }
+  }
+}
+
+function checkConfig(cwd: string, findings: Finding[]): void {
+  const path = join(openspecDir(cwd), 'config.yaml')
+  if (!existsSync(path)) return
+  let doc: unknown
+  try {
+    doc = parseYaml(readFileSync(path, 'utf8'))
+  } catch {
+    findings.push({
+      level: 'ERROR',
+      check: 'config',
+      message: 'openspec/config.yaml does not parse as YAML',
+      remedy: 'fix the YAML syntax',
+    })
+    return
+  }
+  const schema =
+    doc !== null && typeof doc === 'object' ? (doc as Record<string, unknown>).schema : undefined
+  if (typeof schema === 'string' && !(COSPEC_TYPES as readonly string[]).includes(schema)) {
+    findings.push({
+      level: 'INFO',
+      check: 'config',
+      message: `openspec/config.yaml default schema is '${schema}' (not one of the 11 cospec types)`,
+      remedy:
+        'set `schema:` to a cospec type for the full guided workflow, or keep it if intentional',
+    })
+  }
+}
+
+function checkOpsx(cwd: string, findings: Finding[]): void {
+  for (const f of harnessMarkdownFiles(cwd)) {
+    const { frontmatter } = splitFrontmatter(f.text)
+    const meta = frontmatter?.metadata
+    // Provenance-only, matching init's removal set (DESIGN §2.1/§6.6): flag a
+    // file only when its own frontmatter proves openspec authored it. Path/name
+    // conventions alone are not provenance — never warn on user-authored files.
+    const isOpsxSkill =
+      meta !== null &&
+      typeof meta === 'object' &&
+      (meta as Record<string, unknown>).author === 'openspec'
+    const name = frontmatter?.name
+    const isOpsxCommand = typeof name === 'string' && /^"?OPSX:/.test(name)
+    if (isOpsxSkill || isOpsxCommand) {
+      findings.push({
+        level: 'WARNING',
+        check: 'opsx-leftover',
+        message: `leftover openspec (opsx) file: ${f.relpath} — two propose commands confuse agents`,
+        remedy: 'run `cospec init --remove-opsx` to delete provably openspec-generated files',
+      })
+    }
+  }
+}
+
+function checkStaleSidecars(cwd: string, findings: Finding[]): void {
+  const found: string[] = []
+  const walk = (rel: string): void => {
+    const abs = join(cwd, rel)
+    if (!existsSync(abs)) return
+    for (const entry of readdirSync(abs, { withFileTypes: true })) {
+      const childRel = `${rel}/${entry.name}`
+      if (entry.isDirectory()) {
+        if (entry.name === 'archive') continue
+        walk(childRel)
+      } else if (entry.isFile() && entry.name.endsWith('.cospec-new')) found.push(childRel)
+    }
+  }
+  walk('openspec')
+  for (const h of HARNESS_NAMES) walk(`.${h}`)
+  for (const relpath of found) {
+    findings.push({
+      level: 'WARNING',
+      check: 'stale-sidecar',
+      message: `unreconciled sidecar: ${relpath}`,
+      remedy: 'apply or discard the .cospec-new file, then delete it',
+    })
+  }
+}
+
+function checkChangeSchemas(cwd: string, findings: Finding[]): void {
+  for (const change of listChanges(cwd)) {
+    if (change.schema === '') continue
+    const resolution = resolveSchema(cwd, change.schema)
+    if (resolution.kind === 'unknown') {
+      findings.push({
+        level: 'WARNING',
+        check: 'change-schema',
+        message: `change '${change.id}' uses schema '${change.schema}', which resolves nowhere`,
+        remedy: 'retype the change with `cospec new <type> <slug>` or fork the schema',
+      })
+    } else if (resolution.kind === 'legacy') {
+      findings.push({
+        level: 'INFO',
+        check: 'change-schema',
+        message: `change '${change.id}' uses legacy schema '${change.schema}' (structural checks only)`,
+        remedy: 'legacy schemas are validated via openspec delegation; no action needed',
+      })
+    }
+  }
+}
+
+function checkGateHooks(cwd: string, findings: Finding[]): void {
+  if (!existsSync(join(cwd, 'hk.pkl'))) return
+  if (!existsSync(join(cwd, '.git'))) return
+  if (!existsSync(join(cwd, '.git', 'hooks', 'pre-commit'))) {
+    findings.push({
+      level: 'WARNING',
+      check: 'gate-hooks',
+      message: 'hk.pkl is present but git hooks are not installed',
+      remedy: 'run `hk install --mise` (or `mise install`) to wire the commit hooks',
+    })
+  }
+}
+
+// --- command entrypoint -----------------------------------------------------
+
+export function run(ctx: CommandContext): number {
+  const { cwd, flags } = ctx
+  const findings: Finding[] = []
+
+  if (!existsSync(openspecDir(cwd))) {
+    findings.push({
+      level: 'ERROR',
+      check: 'initialized',
+      message: `no openspec/ directory at ${cwd}`,
+      remedy: 'run `cospec init` to scaffold cospec',
+    })
+    return report(findings, flags.json)
+  }
+
+  checkOpenspecVersion(findings)
+  checkDrift(cwd, findings)
+  const mdFiles = harnessMarkdownFiles(cwd)
+  checkStaleness(mdFiles, findings)
+  checkDanglingRefs(cwd, mdFiles, findings)
+  checkConfig(cwd, findings)
+  checkOpsx(cwd, findings)
+  checkStaleSidecars(cwd, findings)
+  checkChangeSchemas(cwd, findings)
+  checkGateHooks(cwd, findings)
+
+  return report(findings, flags.json)
+}
+
+function report(findings: Finding[], json: boolean): number {
+  const errors = findings.filter((f) => f.level === 'ERROR').length
+  const warnings = findings.filter((f) => f.level === 'WARNING').length
+  const infos = findings.filter((f) => f.level === 'INFO').length
+
+  if (json) {
+    process.stdout.write(
+      `${JSON.stringify(
+        { version: 1, findings, summary: { errors, warnings, infos } },
+        null,
+        2,
+      )}\n`,
+    )
+    return errors > 0 ? 1 : 0
+  }
+
+  const lines: string[] = ['cospec doctor', '']
+  if (findings.length === 0) {
+    lines.push('All checks passed.')
+  } else {
+    const width = Math.max(...findings.map((f) => f.level.length))
+    for (const f of findings) {
+      lines.push(`  ${f.level.padEnd(width)}  ${f.check}: ${f.message}`)
+      if (f.remedy !== undefined) lines.push(`  ${' '.repeat(width)}  → ${f.remedy}`)
+    }
+    lines.push('')
+    lines.push(`${errors} error(s), ${warnings} warning(s), ${infos} info`)
+  }
+  process.stdout.write(`${lines.join('\n')}\n`)
+  return errors > 0 ? 1 : 0
+}
