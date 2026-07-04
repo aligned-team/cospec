@@ -2,7 +2,7 @@
 name: cospec-sync-specs
 description: Explain how spec sync works (it runs inside archive) and preview what would merge.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.1.0

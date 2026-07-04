@@ -2,7 +2,7 @@
 name: cospec-apply-change
 description: Run the apply gate for a change and implement its tasks, obeying the gate's exit code.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.1.0

@@ -1,10 +1,10 @@
-# Contributing to conventional-openspec
+# Contributing to cospec
 
 ## Self-hosting
 
-conventional-openspec develops itself through its own cospec workflow: every
-substantive change to this repo is a cospec-typed OpenSpec change, driven by the
-same CLI we ship. The loop is:
+cospec (conventional openspec) develops itself through its own cospec workflow:
+every substantive change to this repo is a cospec-typed OpenSpec change, driven
+by the same CLI we ship. The loop is:
 
 1. **new** — `mise run cospec -- new <type> <slug>` scaffolds the change.
 2. **author** — write each artifact the type requires, guided by
@@ -29,8 +29,8 @@ for the detailed mechanics.
 ### Clone and install
 
 ```bash
-git clone https://github.com/aligned-team/conventional-openspec
-cd conventional-openspec
+git clone https://github.com/aligned-team/cospec
+cd cospec
 mise install     # installs the pinned toolchain
 bun install      # installs workspace dependencies; the postinstall hook wires hk
 ```

@@ -26,7 +26,7 @@ export const CLI_ENTRY = resolve(here, '../../src/index.ts')
 /** apps/cli/test/fixtures — the checked-in fixture trees. */
 export const FIXTURES_DIR = here
 
-/** Monorepo root (…/conventional-openspec). */
+/** Monorepo root (…/cospec). */
 export const REPO_ROOT = resolve(here, '../../../..')
 
 /** The three repo-state fixtures (DESIGN §8.3). */

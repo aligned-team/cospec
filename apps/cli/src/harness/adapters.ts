@@ -39,7 +39,7 @@ export function buildSkillFrontmatter(
     name: w.skill,
     description: w.description,
     license: 'MIT',
-    compatibility: 'Requires the cospec CLI (@aligned-team/conventional-openspec).',
+    compatibility: 'Requires the cospec CLI (@aligned-team/cospec).',
     metadata: provenance(version, contentHash),
   }
 }

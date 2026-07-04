@@ -44,7 +44,7 @@ exports[`renderHarnessFiles — content snapshots claude full render is stable 1
 name: cospec-propose
 description: Propose a new change and generate every artifact its type requires, in one guided pass.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
@@ -262,7 +262,7 @@ here.
 name: cospec-continue-change
 description: Resume a partially-built change and finish its remaining artifacts.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
@@ -400,7 +400,7 @@ user the change is apply-ready — next step \`/cospec:apply\`.
 name: cospec-apply-change
 description: Run the apply gate for a change and implement its tasks, obeying the gate's exit code.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
@@ -506,7 +506,7 @@ step \`/cospec:archive\`.
 name: cospec-archive-change
 description: Archive a completed change — validate, merge specs, verify, and fan blockers out.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
@@ -612,7 +612,7 @@ Never bypass validation. If a change is reported as now unblocked, offer to
 name: cospec-sync-specs
 description: Explain how spec sync works (it runs inside archive) and preview what would merge.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
@@ -702,7 +702,7 @@ living specs on their own, run \`cospec validate --specs\`.
 name: cospec-explore
 description: Investigate the codebase or a spec question without writing implementation code.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
@@ -787,7 +787,7 @@ exports[`renderHarnessFiles — content snapshots codex full render is stable 1`
 name: cospec-propose
 description: Propose a new change and generate every artifact its type requires, in one guided pass.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
@@ -895,7 +895,7 @@ here.
 name: cospec-continue-change
 description: Resume a partially-built change and finish its remaining artifacts.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
@@ -963,7 +963,7 @@ user the change is apply-ready — next step \`/cospec:apply\`.
 name: cospec-apply-change
 description: Run the apply gate for a change and implement its tasks, obeying the gate's exit code.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
@@ -1015,7 +1015,7 @@ step \`/cospec:archive\`.
 name: cospec-archive-change
 description: Archive a completed change — validate, merge specs, verify, and fan blockers out.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
@@ -1067,7 +1067,7 @@ Never bypass validation. If a change is reported as now unblocked, offer to
 name: cospec-sync-specs
 description: Explain how spec sync works (it runs inside archive) and preview what would merge.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
@@ -1111,7 +1111,7 @@ living specs on their own, run \`cospec validate --specs\`.
 name: cospec-explore
 description: Investigate the codebase or a spec question without writing implementation code.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
@@ -1173,7 +1173,7 @@ exports[`renderHarnessFiles — content snapshots opencode full render is stable
 name: cospec-propose
 description: Propose a new change and generate every artifact its type requires, in one guided pass.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
@@ -1386,7 +1386,7 @@ here.
 name: cospec-continue-change
 description: Resume a partially-built change and finish its remaining artifacts.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
@@ -1519,7 +1519,7 @@ user the change is apply-ready — next step \`/cospec-apply\`.
 name: cospec-apply-change
 description: Run the apply gate for a change and implement its tasks, obeying the gate's exit code.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
@@ -1620,7 +1620,7 @@ step \`/cospec-archive\`.
 name: cospec-archive-change
 description: Archive a completed change — validate, merge specs, verify, and fan blockers out.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
@@ -1721,7 +1721,7 @@ Never bypass validation. If a change is reported as now unblocked, offer to
 name: cospec-sync-specs
 description: Explain how spec sync works (it runs inside archive) and preview what would merge.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
@@ -1806,7 +1806,7 @@ living specs on their own, run \`cospec validate --specs\`.
 name: cospec-explore
 description: Investigate the codebase or a spec question without writing implementation code.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test

@@ -2,7 +2,7 @@
 name: cospec-explore
 description: Investigate the codebase or a spec question without writing implementation code.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.1.0

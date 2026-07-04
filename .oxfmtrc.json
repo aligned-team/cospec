@@ -16,13 +16,7 @@
     "order": "asc",
     "ignoreCase": true,
     "newlinesBetween": true,
-    "internalPattern": [
-      "~/",
-      "@/",
-      "~/*",
-      "@/*",
-      "@aligned-team/conventional-openspec/*"
-    ]
+    "internalPattern": ["~/", "@/", "~/*", "@/*", "@aligned-team/*"]
   },
   "overrides": [
     { "files": ["*.json", "*.jsonc"], "options": { "printWidth": 80 } },

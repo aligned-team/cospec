@@ -2,7 +2,7 @@
 
 ## Scope
 
-This policy covers the conventional-openspec (`cospec`) codebase. There is no
+This policy covers the cospec (conventional openspec) codebase. There is no
 hosted service — cospec is a command-line tool that runs on a developer's
 machine and in CI.
 
@@ -22,7 +22,7 @@ versions.
 Report privately via:
 
 - **GitHub private security advisory** — open a draft advisory at
-  `github.com/aligned-team/conventional-openspec/security/advisories/new`
+  `github.com/aligned-team/cospec/security/advisories/new`
 - **Email** — `engineering@aligned.team` (PGP not required; plain text is fine)
 
 Include a description of the issue, reproduction steps, and your assessment of
@@ -35,8 +35,9 @@ file-writing layer, and the eval's jailed tools (`run_command` allowlist and
 
 ## Response expectations
 
-This is a solo-maintained open-source project. There is no SLA, no security
-team, and no warranty of any kind (see [LICENSE](LICENSE)).
+This is an open-source project maintained by [Aligned](https://aligned.team).
+There is no SLA, no dedicated security team, and no warranty of any kind (see
+[LICENSE](LICENSE)).
 
 Best-effort goals (not commitments):
 
