@@ -38,6 +38,10 @@ bun install      # installs workspace dependencies; the postinstall hook wires h
 `bun install`'s postinstall runs `hk install --mise`, so the git hooks are live
 after the first install. No manual hook step.
 
+Always run tooling through mise (`mise exec -- <tool>` or `mise run <task>`) so
+the pinned versions apply — a `bun` already on your `PATH` may be a different
+version than the one mise pins, and running it directly bypasses the pin.
+
 ## Mise task workflow
 
 Every operation runs through a mise task — never a raw tool invocation.

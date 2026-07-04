@@ -67,7 +67,7 @@ jobs:
       - run: mise run format:check
       - run: mise run typecheck
       - name: Unit tests (coverage gate)
-        run: bun test apps/cli/test/unit --coverage
+        run: bun test apps/cli/test/unit --coverage --timeout 30000
       - run: mise run test:contract
       - run: mise run test:integration
       - name: Pack smoke

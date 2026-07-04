@@ -90,21 +90,28 @@ run = ["bun run --filter '*' typecheck", "tsgo --noEmit -p e2e/tsconfig.json"]
 # Test
 # ───────────────────────────────────────────────
 
+# --timeout 30000 gives the subprocess-heavy suites headroom over bun's 5000ms
+# default: contract/integration tests each spawn the real pinned openspec binary
+# (~4.6s apiece) and reliably blow past 5s when `mise run check` runs the suites
+# concurrently. bun has no bunfig timeout key and setDefaultTimeout in a preload
+# does not propagate across files in a directory run, so the flag is set on every
+# `bun test` invocation (these tasks, which hk hooks and CI drive; plus the direct
+# unit run in ci.yml).
 [tasks.test]
 description = "Run unit tests"
-run = "bun test apps/cli/test/unit"
+run = "bun test apps/cli/test/unit --timeout 30000"
 
 [tasks."test:contract"]
 description = "Contract tests against the real pinned openspec binary"
-run = "bun test apps/cli/test/contract"
+run = "bun test apps/cli/test/contract --timeout 30000"
 
 [tasks."test:integration"]
 description = "Integration tests over the 3 repo states + lifecycles"
-run = "bun test apps/cli/test/integration"
+run = "bun test apps/cli/test/integration --timeout 30000"
 
 [tasks."test:pack"]
 description = "Pack smoke: bun pm pack -> tarball install -> bunx cospec"
-run = "bun test apps/cli/test/integration/pack.test.ts"
+run = "bun test apps/cli/test/integration/pack.test.ts --timeout 30000"
 
 # ───────────────────────────────────────────────
 # Generate (canon -> managed files) + drift gate
