@@ -1,0 +1,32 @@
+# fix — the mid-weight representative (DESIGN §3.2/§3.6, binding schema output).
+type: fix
+description: A bug fix
+summary: 'proposal → blocking-changes (+ specs, design) → tasks'
+schemaDescription: 'fix — a bug fix. Workflow: proposal → blocking-changes (+ specs, design) → tasks'
+proposal: full
+blocking: full
+artifacts:
+  specs: optional
+  design: optional
+apply_requires: [proposal, blocking-changes, tasks]
+proposalDescription: What was broken, what correct behavior is, and the impact
+proposalInstruction: |
+  Write the proposal for a BUG FIX (conventional-commit type: fix).
+  Sections: ## Why — what is broken and how it manifests (at least two
+  sentences), ## What Changes — the corrected behavior, ## Capabilities —
+  list any capability whose SPEC was wrong (### Modified Capabilities;
+  leave empty if the spec was right and only the implementation was wrong),
+  ## Impact — files, APIs affected.
+specsDescription: Delta specs — only when the living spec itself was wrong
+specsLead: |
+  Create delta specs ONLY if the bug means the living spec was wrong or
+  incomplete (usually a MODIFIED requirement carrying the corrected full
+  content, plus a regression scenario). If the spec was right and only the
+  implementation was wrong, do not create this artifact.
+designDescription: Technical decisions (optional — only for gnarly fixes)
+designInstruction: |
+  Only for fixes with architectural implications or non-obvious root causes.
+  Sections: ## Context (root cause), ## Decisions, ## Risks / Trade-offs.
+tasksInstruction: |
+  Include a regression-test task that fails before the fix and passes after.
+  `## N. Group` + `- [ ] N.M task` exactly — the checkbox format is parsed.

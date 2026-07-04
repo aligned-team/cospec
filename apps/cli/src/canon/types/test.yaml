@@ -1,0 +1,21 @@
+# test — light workflow, tests for already-specified behavior (DESIGN §3.7).
+type: test
+description: Tests for already-specified behavior
+summary: 'proposal → blocking-changes → tasks (3 short artifacts)'
+schemaDescription: 'test — tests for already-specified behavior. Light workflow: proposal → blocking-changes → tasks'
+proposal: lite
+blocking: lite
+liteDomain: test files
+artifacts:
+  specs: forbidden
+  design: forbidden
+apply_requires: [proposal, blocking-changes, tasks]
+proposalDescription: One-paragraph why + what for a test-only change
+proposalInstruction: |
+  This is a test-only change. Tests document behavior that is ALREADY specified
+  — if you are specifying new behavior, that is a feat. Keep it short: ## Why —
+  one or two sentences. ## What Changes — the test files and what each covers.
+  ## Impact — coverage or CI time affected.
+tasksInstruction: |
+  Name the test files and what each covers. `## N. Group` + `- [ ] N.M task`
+  exactly — the checkbox format is parsed.

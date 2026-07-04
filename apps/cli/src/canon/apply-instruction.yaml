@@ -1,0 +1,17 @@
+# Canonical apply-phase gate prose (DESIGN §3.4/§3.7). Shared verbatim by every
+# type's `apply.instruction`. Stored as YAML (not .md) so the formatter leaves
+# its hand-wrapped lines untouched.
+instruction: |
+  BEFORE any implementation work, run:
+      cospec apply "<change>" --json
+  - exit 0 → gate clear. Read the returned contextFiles, work through pending
+    tasks in order, marking each `- [x]` as you complete it.
+  - exit 2 → BLOCKED (missing artifacts or unchecked hard blockers). STOP.
+    Report each item the command lists and what it provides; suggest
+    implementing and archiving those first. Do NOT proceed or work around it.
+  - exit 3 → soft-blocked. List each soft blocker and what degrades without
+    it, ask the user to confirm, then re-run with --allow-soft. Never skip
+    silently.
+  The command auto-checks entries whose blocker is already archived — trust
+  its output over a manual read of blocking-changes.md. Pause on ambiguity,
+  errors, or scope creep.

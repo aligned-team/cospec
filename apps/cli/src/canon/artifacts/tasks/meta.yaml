@@ -1,0 +1,18 @@
+# tasks artifact. Instruction/description are feat's defaults; most types add a
+# one-line note (canon/types). `requires` is computed per type (tasks_requires):
+# [proposal] plus specs where specs is required, plus design where design is required.
+id: tasks
+generates: tasks.md
+template: tasks.md
+requires: [proposal]
+description: Implementation checklist tracked during apply
+templateBody: |
+  ## 1. <group name>
+
+  - [ ] 1.1 <task>
+  - [ ] 1.2 <task>
+instruction: |
+  Follow the template exactly: `## N. Group` headings, `- [ ] N.M task`
+  checkboxes. The apply phase parses this checkbox format; non-conforming
+  lines are not tracked and fail `cospec validate`. Pair every code task
+  with a test/verification task. Order tasks by dependency.

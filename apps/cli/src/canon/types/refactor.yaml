@@ -1,0 +1,32 @@
+# refactor — full workflow, design is the load-bearing required artifact (DESIGN §3.7).
+type: refactor
+description: A structure change with no behavior change
+summary: 'proposal → blocking-changes, design → tasks'
+schemaDescription: 'refactor — a structure change with no behavior change. Workflow: proposal → blocking-changes, design → tasks'
+proposal: full
+blocking: full
+artifacts:
+  specs: optional
+  design: required
+apply_requires: [proposal, blocking-changes, design, tasks]
+proposalDescription: The structure change and the invariants that must not change
+proposalInstruction: |
+  Write the proposal for a REFACTOR (conventional-commit type: refactor).
+  State the invariants: what observable behavior must NOT change. Sections:
+  ## Why (at least two sentences), ## What Changes (list what moves where),
+  ## Impact (files, APIs affected). If any observable behavior changes, this is
+  a feat or fix — re-create it: `cospec new <correct-type> <slug>`.
+specsDescription: Delta specs — RENAMED deltas only
+specsLead: |
+  ONLY RENAMED deltas belong in a refactor (requirement renames or moves). Any
+  ADDED/MODIFIED/REMOVED operation means this is not a refactor — re-type it.
+designDescription: Structure decisions — the load-bearing artifact for a refactor
+designInstruction: |
+  The load-bearing artifact for a refactor. Capture the structure before and
+  after and the migration steps. Sections: ## Context, ## Goals / Non-Goals,
+  ## Decisions (each with the alternative rejected and why), ## Risks /
+  Trade-offs ([Risk] → Mitigation).
+tasksInstruction: |
+  Order tasks by dependency. Include a no-behavior-change verification task
+  (the existing tests pass unchanged). `## N. Group` + `- [ ] N.M task` exactly
+  — the checkbox format is parsed.

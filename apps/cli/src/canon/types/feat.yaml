@@ -1,0 +1,20 @@
+# feat — the full workflow (DESIGN §3.2/§3.4, binding schema output).
+type: feat
+description: A new feature — the full workflow
+summary: 'proposal → blocking-changes, specs (+ design) → tasks'
+schemaDescription: 'feat — a new feature. Full workflow: proposal → blocking-changes, specs (+ design) → tasks'
+proposal: full
+blocking: full
+artifacts:
+  specs: required
+  design: optional
+apply_requires: [proposal, blocking-changes, specs, tasks]
+proposalDescription: Why this feature exists, what changes, which capabilities it touches
+proposalInstruction: |
+  Write the proposal for a NEW FEATURE (conventional-commit type: feat).
+  Sections: ## Why (motivation, at least two sentences), ## What Changes,
+  ## Capabilities (### New Capabilities / ### Modified Capabilities — each
+  kebab-case name maps to specs/<name>/spec.md), ## Impact (files, APIs,
+  migrations; mark breaking changes with BREAKING).
+  If while writing this you realize the work is really a fix/refactor/etc.,
+  stop and re-create the change: `cospec new <correct-type> <slug>`.

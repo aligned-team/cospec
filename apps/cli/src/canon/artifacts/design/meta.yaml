@@ -1,0 +1,34 @@
+# design artifact. The instruction/description here are feat's defaults; fix and
+# refactor override them in canon/types. Forbidden for revert and the light types.
+id: design
+generates: design.md
+template: design.md
+requires: [proposal]
+description: Technical decisions (optional — create when architecture, data model, or migration is non-trivial)
+templateBody: |
+  ## Context
+
+  <!-- Background, current state, constraints. -->
+
+  ## Goals / Non-Goals
+
+  **Goals:**
+  <!-- What this design achieves. -->
+
+  **Non-Goals:**
+  <!-- Explicitly out of scope. -->
+
+  ## Decisions
+
+  <!-- Key choices, each with the alternative rejected and why. -->
+
+  ## Risks / Trade-offs
+
+  <!-- [Risk] → Mitigation -->
+instruction: |
+  Create design.md when the change involves cross-cutting architecture, new
+  external dependencies, data-model or migration complexity, or
+  implementation-blocking ambiguity. Sections: ## Context,
+  ## Goals / Non-Goals, ## Decisions (each with the alternative rejected and
+  why), ## Risks / Trade-offs ([Risk] → Mitigation). Decisions, not restated
+  requirements.

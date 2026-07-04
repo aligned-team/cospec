@@ -1,0 +1,27 @@
+# specs artifact — delta specs. The instruction below is the shared format-rules
+# block (feat's, DESIGN §3.4). A type may prepend a `specs_lead` (canon/types)
+# that explains WHEN to write specs; the format rules are always appended.
+id: specs
+generates: 'specs/**/*.md'
+template: spec.md
+requires: [proposal]
+description: Delta specs for every new or modified capability
+templateBody: |
+  ## ADDED Requirements
+
+  ### Requirement: <name>
+  <!-- Normative statement using SHALL/MUST. -->
+
+  #### Scenario: <name>
+  - **WHEN** <condition>
+  - **THEN** <expected outcome>
+instruction: |
+  One delta file per capability named in the proposal, at
+  specs/<capability>/spec.md. Delta operations use
+  ## ADDED/MODIFIED/REMOVED/RENAMED Requirements headers. Each requirement:
+  `### Requirement: <name>` with SHALL/MUST normative text. Each scenario:
+  `#### Scenario: <name>` — EXACTLY four hashtags (`cospec validate` rejects
+  three) — with WHEN/THEN bullets. MODIFIED must carry the full updated
+  requirement content. MODIFIED/RENAMED/REMOVED may only target requirements
+  that exist in openspec/specs/<capability>/spec.md — `cospec validate`
+  checks this so archive cannot fail on it later.

@@ -1,0 +1,20 @@
+# style — light workflow, formatting/whitespace only (DESIGN §3.7).
+type: style
+description: Formatting or whitespace only
+summary: 'proposal → blocking-changes → tasks (3 short artifacts)'
+schemaDescription: 'style — formatting or whitespace only. Light workflow: proposal → blocking-changes → tasks'
+proposal: lite
+blocking: lite
+liteDomain: files
+artifacts:
+  specs: forbidden
+  design: forbidden
+apply_requires: [proposal, blocking-changes, tasks]
+proposalDescription: One-paragraph why + what for a formatting change
+proposalInstruction: |
+  This is a formatting/whitespace change with ZERO semantic change. Keep it
+  short: ## Why — one or two sentences. ## What Changes — the formatter or rule
+  applied and the paths. ## Impact — confirm no behavior changes.
+tasksInstruction: |
+  One group: apply the formatter, then verify no behavior diff. Use `## N.
+  Group` and `- [ ] N.M task` exactly — the checkbox format is parsed.

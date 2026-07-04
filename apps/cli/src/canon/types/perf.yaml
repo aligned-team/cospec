@@ -1,0 +1,26 @@
+# perf — full workflow, behavior-identical, requires ## Benchmarks (DESIGN §3.7).
+type: perf
+description: A performance change with identical behavior
+summary: 'proposal (+ Benchmarks) → blocking-changes → tasks'
+schemaDescription: 'perf — a performance change with identical behavior. Workflow: proposal (+ Benchmarks) → blocking-changes → tasks'
+proposal: full
+blocking: full
+artifacts:
+  specs: optional
+  design: optional
+apply_requires: [proposal, blocking-changes, tasks]
+proposalDescription: Why the optimization is needed and the measured improvement
+proposalInstruction: |
+  Write the proposal for a PERFORMANCE change (conventional-commit type: perf).
+  Observable behavior must be IDENTICAL — if a requirement changes, that is a
+  feat or fix, not a perf. Sections: ## Why (the hotspot and its cost, at least
+  two sentences), ## What Changes (the optimization), ## Benchmarks (a
+  before/after table naming the metric and how it was measured), ## Impact
+  (files, APIs affected).
+specsDescription: Delta specs — only if a performance SLO becomes a spec requirement
+specsLead: |
+  Create delta specs ONLY if a performance SLO becomes a spec requirement.
+  Behavior is otherwise identical — most perf changes have no specs.
+tasksInstruction: |
+  Include a task that runs the benchmark and records the after number.
+  `## N. Group` + `- [ ] N.M task` exactly — the checkbox format is parsed.
