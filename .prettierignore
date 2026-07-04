@@ -1,0 +1,15 @@
+# oxfmt/prettier ignore.
+#
+# cospec-generated, generator-owned files. These are composed from
+# apps/cli/src/canon/** by the composer/renderer and are byte-exact drift-gated
+# by `mise run generate:check` (= `cospec update --check`). The generator is
+# their sole formatting authority: running the hand-formatter over them would
+# make `format:fix` and `generate:check` mutually unsatisfiable. They remain
+# git-tracked (committed, reviewable) — only formatting is delegated to cospec.
+openspec/schemas/
+.claude/commands/cospec/
+.claude/skills/cospec-*/
+.codex/skills/cospec-*/
+.codex/rules/cospec.rules
+.opencode/commands/cospec-*.md
+.opencode/skills/cospec-*/
