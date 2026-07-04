@@ -1,3 +1,67 @@
-.claude/**/*
-!.claude/settings.json
+# OS
+.DS_Store
+Thumbs.db
 
+# Logs
+*.log
+logs/
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+out/
+.output/
+
+# Cache
+.cache/
+
+# Test / coverage
+coverage/
+*.lcov
+
+# eval reports (never committed)
+e2e/eval/reports/
+
+# Editor / IDE (selective — workspace settings ARE checked in)
+.idea/
+.vscode/.history/
+*.swp
+*.swo
+*~
+
+# Mise local overrides (do NOT commit machine-specific overrides)
+mise.local.toml
+*.local.toml
+
+# hk local overrides (per-developer hook customizations)
+hk.local.pkl
+
+# Env / secrets (do NOT commit)
+.env
+.env.local
+.env.*.local
+
+# Temporary / scratch
+tmp/
+.tmp/
+
+# Claude Code (local overrides only — generated harness files ARE checked in)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/worktrees/
+CLAUDE.local.md
+
+# Per-developer agent overrides
+AGENTS.local.md
+
+# cospec managed-file conflict artifacts
+*.cospec-new
+
+# Bun pack output
+*.tgz
+
+# TypeScript build info
+*.tsbuildinfo

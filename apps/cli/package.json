@@ -1,14 +1,46 @@
 {
   "name": "@aligned-team/conventional-openspec",
+  "version": "0.1.0",
+  "description": "OpenSpec change management, sized to your commit type. feat gets the full treatment; ci takes two minutes.",
+  "keywords": [
+    "ai-agents",
+    "changelog",
+    "cli",
+    "conventional-commits",
+    "openspec",
+    "spec-driven"
+  ],
+  "homepage": "https://github.com/aligned-team/conventional-openspec",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aligned-team/conventional-openspec.git",
+    "directory": "apps/cli"
+  },
   "bin": {
-    "copsx": "./dist/copsx"
+    "cospec": "./bin/cospec.js"
   },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "type": "module",
-  "module": "src/index.ts",
-  "devDependencies": {
-    "@types/bun": "latest"
+  "publishConfig": {
+    "access": "public"
   },
-  "peerDependencies": {
-    "typescript": "^5"
+  "scripts": {
+    "typecheck": "tsgo --noEmit"
+  },
+  "dependencies": {
+    "@fission-ai/openspec": "1.3.1",
+    "yaml": "2.9.0"
+  },
+  "devDependencies": {
+    "bun-types": "1.3.14"
+  },
+  "engines": {
+    "bun": ">=1.3"
   }
 }

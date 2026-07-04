@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Branch-aware pre-push wrapper. Runs hk's pre-push hook, upgrading to the
+# `slow` profile (typecheck + tests + contract + integration + build) when the
+# push targets the default branch; feature-branch pushes run only the linters.
+#
+# Not auto-installed by `mise run postinstall` (which only runs `hk install
+# --mise`). Wire it manually when you want the slow gate locally:
+#   install -m 755 scripts/hooks/pre-push-gate \
+#     "$(git rev-parse --git-dir)/hooks/pre-push"
+set -euo pipefail
+
+profile=""
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main | refs/heads/master)
+      profile="slow"
+      ;;
+  esac
+done
+
+if [[ -n "$profile" ]]; then
+  HK_PROFILE="$profile" hk run pre-push
+else
+  hk run pre-push
+fi

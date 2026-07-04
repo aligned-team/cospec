@@ -1,46 +1,150 @@
-amends "package://github.com/jdx/hk/releases/download/v1.45.0/hk@1.45.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.48.0/hk@1.48.0#/Config.pkl"
+
+// NOTE: Builtins import omitted — pklr (experimental backend, HK_PKL_BACKEND=pklr)
+// has deserialization issues with Builtins._type fields. All steps are defined
+// explicitly below, which is equivalent and more portable.
+//
+// NOTE: Multiline check strings (#"""..."""#) inside commit-msg steps cause pklr
+// deserialization failures. The commit-msg check delegates to a script in
+// scripts/hooks/ for pklr compatibility.
+
+local tsGlobs = List("**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.mts", "**/*.cts")
+local tomlGlobs = List("**/*.toml")
+local shellGlobs = List("**/*.sh", "**/*.bash")
+local ciGlobs = List(".github/workflows/**/*.yml", ".github/workflows/**/*.yaml")
+
+// Managed files: hand-authored canon + everything cospec generates from it.
+local generatedGlobs = List(
+  "apps/cli/src/canon/**",
+  "openspec/schemas/**",
+  ".claude/**",
+  ".codex/**",
+  ".opencode/**"
+)
+
+local agentGlobs = List(".agents/shared.md", "CLAUDE.md", "AGENTS.md")
+
+local linters = new Mapping<String, Step> {
+  ["oxfmt"] {
+    glob = tsGlobs
+    check = "oxfmt --check {{files}}"
+    fix = "oxfmt {{files}}"
+    batch = true
+    prefix = "mise exec --"
+  }
+  ["oxlint"] {
+    glob = tsGlobs
+    check = "oxlint {{files}}"
+    fix = "oxlint --fix {{files}}"
+    batch = true
+    prefix = "mise exec --"
+  }
+  ["taplo"] {
+    glob = tomlGlobs
+    check = "taplo format --check {{files}}"
+    fix = "taplo format {{files}}"
+    batch = true
+    prefix = "mise exec --"
+  }
+  ["shellcheck"] {
+    glob = shellGlobs
+    check = "shellcheck -x {{files}}"
+    batch = true
+    prefix = "mise exec --"
+  }
+  ["actionlint"] {
+    glob = ciGlobs
+    check = "actionlint {{files}}"
+    batch = true
+    prefix = "mise exec --"
+  }
+}
+
+local agentSteps = new Mapping<String, Step> {
+  ["agents:check"] {
+    glob = agentGlobs
+    check = "mise run agents:check"
+  }
+}
+
+// Drift gate: hand-edits to any managed file fail the commit. This is the
+// self-repo half of `cospec update --check` (a.k.a. `generate:check`).
+local generateSteps = new Mapping<String, Step> {
+  ["generate:check"] {
+    glob = generatedGlobs
+    check = "mise run generate:check"
+  }
+}
+
+// cospec validation + blocker reconciliation over this repo's own openspec tree.
+local cospecSteps = new Mapping<String, Step> {
+  ["cospec-validate"] {
+    glob = List("openspec/**")
+    exclude = List("openspec/changes/archive/**")
+    check = "mise run cospec -- validate --all --strict"
+    exclusive = true
+  }
+  ["cospec-sync-blockers"] {
+    glob = List("openspec/changes/**")
+    exclude = List("openspec/changes/archive/**")
+    check = "mise run cospec -- sync-blockers --check"
+    fix = "mise run cospec -- sync-blockers"
+  }
+}
+
+// Slow profile (HK_PROFILE=slow) — layered on at push time by the pre-push-gate
+// wrapper when pushing to main; feature-branch pushes run only the linters.
+local slowSteps = new Mapping<String, Step> {
+  ["typecheck"] {
+    glob = tsGlobs
+    check = "mise run typecheck"
+    profiles = List("slow")
+    exclusive = true
+  }
+  ["test"] {
+    check = "mise run test"
+    profiles = List("slow")
+    exclusive = true
+  }
+  ["test:contract"] {
+    check = "mise run test:contract"
+    profiles = List("slow")
+    exclusive = true
+  }
+  ["test:integration"] {
+    check = "mise run test:integration"
+    profiles = List("slow")
+    exclusive = true
+  }
+  ["build"] {
+    check = "mise run build"
+    profiles = List("slow")
+    exclusive = true
+  }
+}
 
 hooks {
-    ["commit-msg"] {
-        steps {
-            ["commitlint"] {
-                check = "mise run commitlint:edit {{commit_msg_file}}"
-                exclusive = true
-            }
-        }
+  ["pre-commit"] {
+    fix = true
+    stash = "patch-file"
+    steps = new {
+      ...linters
+      ...agentSteps
+      ...generateSteps
+      ...cospecSteps
     }
-    ["pre-commit"] {
-        fix = true
-        stash = "git"
-        steps {
-            ["openspec-validate-changed"] {
-                check = "mise run openspec:validate-changed"
-                exclusive = true
-            }
-            ["oxlint"] {
-                glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.mjs", "**/*.cjs")
-                batch = true
-                check = "mise exec -- oxlint {{ files }}"
-                fix = "mise exec -- oxlint --fix {{ files }}"
-            }
-            ["oxfmt"] {
-                glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.mjs", "**/*.cjs", "**/*.json", "**/*.jsonc", "**/*.md", "**/*.css", "**/*.yaml", "**/*.yml")
-                batch = true
-                check = "mise exec -- oxfmt --check {{ files }}"
-                fix = "mise exec -- oxfmt {{ files }}"
-            }
-        }
+  }
+  ["pre-push"] {
+    steps = new {
+      ...linters
+      ...slowSteps
     }
-    ["pre-push"] {
-        steps {
-            ["openspec-validate-all"] {
-                check = "mise run openspec:validate-all"
-                exclusive = true
-            }
-            ["cli-build"] {
-                check = "mise run //apps/cli:build"
-                exclusive = true
-            }
-        }
+  }
+  ["commit-msg"] {
+    steps {
+      ["conventional"] {
+        check = #"bash scripts/hooks/check-commit-msg "{{commit_msg_file}}""#
+      }
     }
+  }
 }
