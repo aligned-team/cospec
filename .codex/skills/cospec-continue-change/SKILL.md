@@ -2,7 +2,7 @@
 name: cospec-continue-change
 description: Resume a partially-built change and finish its remaining artifacts.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.1.0

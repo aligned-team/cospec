@@ -1,5 +1,5 @@
 {
-  "name": "@aligned-team/conventional-openspec",
+  "name": "@aligned-team/cospec",
   "version": "0.1.0",
   "description": "OpenSpec change management, sized to your commit type. feat gets the full treatment; ci takes two minutes.",
   "keywords": [
@@ -10,11 +10,16 @@
     "openspec",
     "spec-driven"
   ],
-  "homepage": "https://github.com/aligned-team/conventional-openspec",
+  "homepage": "https://github.com/aligned-team/cospec",
+  "bugs": "https://github.com/aligned-team/cospec/issues",
   "license": "MIT",
+  "author": {
+    "name": "Aligned",
+    "email": "engineering@aligned.team"
+  },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aligned-team/conventional-openspec.git",
+    "url": "git+https://github.com/aligned-team/cospec.git",
     "directory": "apps/cli"
   },
   "bin": {

@@ -2,7 +2,7 @@
 name: cospec-propose
 description: Propose a new change and generate every artifact its type requires, in one guided pass.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.1.0

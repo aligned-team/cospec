@@ -1,7 +1,7 @@
-# @aligned-team/conventional-openspec
+# @aligned-team/cospec
 
-OpenSpec change management, sized to your commit type. `feat` gets the full
-treatment; `ci` takes two minutes.
+**cospec** — conventional openspec: OpenSpec change management, sized to your
+commit type. `feat` gets the full treatment; `ci` takes two minutes.
 
 `cospec` wraps
 [`@fission-ai/openspec`](https://www.npmjs.com/package/@fission-ai/openspec)
@@ -21,7 +21,7 @@ mise run cospec -- init
 Once published:
 
 ```bash
-bunx @aligned-team/conventional-openspec init
+bunx @aligned-team/cospec init
 ```
 
 ## Usage

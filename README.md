@@ -1,7 +1,7 @@
-# conventional-openspec
+# cospec
 
-OpenSpec change management, sized to your commit type. `feat` gets the full
-treatment; `ci` takes two minutes.
+**cospec** — conventional openspec: OpenSpec change management, sized to your
+commit type. `feat` gets the full treatment; `ci` takes two minutes.
 
 ---
 
@@ -10,8 +10,8 @@ treatment; `ci` takes two minutes.
 Not yet published. From a clone of this repo:
 
 ```bash
-git clone https://github.com/aligned-team/conventional-openspec
-cd conventional-openspec
+git clone https://github.com/aligned-team/cospec
+cd cospec
 mise install && bun install
 mise run cospec -- init
 ```
@@ -19,7 +19,7 @@ mise run cospec -- init
 Once published (npm scope reserved, not yet released):
 
 ```bash
-bunx @aligned-team/conventional-openspec init   # not yet published
+bunx @aligned-team/cospec init   # not yet published
 ```
 
 `cospec init` scaffolds `openspec/`, materializes the eleven typed schemas, and

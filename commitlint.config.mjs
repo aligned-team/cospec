@@ -1,4 +1,4 @@
-// commitlint.config.mjs — @commitlint/config-conventional + conventional-openspec overrides.
+// commitlint.config.mjs — @commitlint/config-conventional + cospec overrides.
 // See CONTRIBUTING.md "Commit format" for documentation on valid types and scopes.
 // The 11 types are the same set cospec exposes as change schemas (`cospec new <type>`).
 export default {

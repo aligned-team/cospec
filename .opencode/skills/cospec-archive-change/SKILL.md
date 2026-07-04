@@ -2,7 +2,7 @@
 name: cospec-archive-change
 description: Archive a completed change — validate, merge specs, verify, and fan blockers out.
 license: MIT
-compatibility: Requires the cospec CLI (@aligned-team/conventional-openspec).
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.1.0

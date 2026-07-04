@@ -11,12 +11,11 @@ Claude-specific guidance.
 
 ## Project context
 
-conventional-openspec (cospec) is a thin, opinionated wrapper around OpenSpec
+cospec (conventional openspec) is a thin, opinionated wrapper around OpenSpec
 1.3.1 that sizes the spec-driven workflow to your conventional-commit type.
 `feat` gets the full treatment — proposal, blocking-changes, specs, tasks;
 `ci`/`chore`/`docs` and their siblings take two minutes with three short
-artifacts. It ships as `@aligned-team/conventional-openspec` with one bin,
-`cospec`.
+artifacts. It ships as `@aligned-team/cospec` with one bin, `cospec`.
 
 cospec never replaces OpenSpec — it wraps the real binary (resolved by path,
 never `$PATH`, version-pinned to 1.3.1) and adds: 11 typed schemas that map 1:1
@@ -41,8 +40,8 @@ blocking-changes ledger with auto-sync. The tool self-hosts: this repo's own
 ## Repository layout
 
 ```
-conventional-openspec/
-├── apps/cli/          @aligned-team/conventional-openspec — the cospec CLI
+cospec/
+├── apps/cli/          @aligned-team/cospec — the cospec CLI
 │   ├── src/canon/     single source of truth: schemas + workflows + gate
 │   ├── src/core/      openspec wrapper, parsers, validation, managed files
 │   ├── src/commands/  one file per cospec subcommand
@@ -102,8 +101,7 @@ through `cospec`:
 
 - No semicolons; single quotes; `printWidth` 100 (80 for JSON/Markdown).
 - Trailing commas everywhere; arrow parens always; LF endings.
-- Sorted imports (`internalPattern` scoped to
-  `@aligned-team/conventional-openspec`).
+- Sorted imports (`internalPattern` scoped to `@aligned-team`).
 - TypeScript strict; `noUncheckedIndexedAccess`; `consistent-type-imports`.
 - Comments explain non-obvious constraints only — not what the code plainly
   says.

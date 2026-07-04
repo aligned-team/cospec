@@ -16,7 +16,7 @@ pkl = "0.31"
 oxlint = "1"
 oxfmt = "0.56"
 # cospec is not yet published to npm. Until it is, install from git and run via bunx, or add:
-#   "npm:@aligned-team/conventional-openspec" = "0.1"
+#   "npm:@aligned-team/cospec" = "0.1"
 # For now, ensure `cospec` is on PATH (e.g. `bun link` a local checkout).
 
 [hooks]
