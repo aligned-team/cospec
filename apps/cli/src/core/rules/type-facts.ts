@@ -103,6 +103,26 @@ export const TYPE_ARTIFACTS: Record<CospecType, TypeArtifacts> = {
   },
 }
 
+/**
+ * An artifact's build-order dependencies (the `requires` edges in DESIGN §3.2):
+ * every declared artifact requires `proposal`, and `tasks` additionally requires
+ * `specs` where specs is required (feat) and `design` where design is required
+ * (refactor). Mirrors the composer's `computeTasksRequires` but derived from the
+ * frozen matrix so status stays independent of canon composition. Returns [] for
+ * `proposal` and for artifacts a type does not declare.
+ */
+export function artifactRequires(type: CospecType, id: ArtifactId): ArtifactId[] {
+  const facts = TYPE_ARTIFACTS[type]
+  if (id === 'proposal' || !facts.declared.includes(id)) return []
+  if (id === 'tasks') {
+    const req: ArtifactId[] = ['proposal']
+    if (facts.applyRequires.includes('specs')) req.push('specs')
+    if (facts.applyRequires.includes('design')) req.push('design')
+    return req
+  }
+  return ['proposal']
+}
+
 export interface TypeFacts {
   proposalVariant: 'full' | 'lite'
   /** whether `## Capabilities` is a required proposal H2 (DESIGN §4.3 proposal/sections). */

@@ -11,7 +11,7 @@ import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
 import { isCospecType, listChanges, resolveChange, type Change } from '../core/change.ts'
-import { TYPE_ARTIFACTS } from '../core/rules/type-facts.ts'
+import { artifactRequires, TYPE_ARTIFACTS } from '../core/rules/type-facts.ts'
 import { parseTasks } from '../core/tasks.ts'
 import { archiveMap, artifactDone, closest, computeGate, hasSpecFiles, type Gate } from './apply.ts'
 
@@ -44,6 +44,13 @@ export interface ArtifactStatus {
   id: string
   done: boolean
   required: boolean
+  /**
+   * True when every artifact this one `requires` is done — i.e. it can be
+   * authored next (DESIGN §3.2 dependency graph). A done artifact stays `ready`
+   * (its deps are, by construction, satisfied); the propose loop filters on
+   * `ready && !done` to find what to write next.
+   */
+  ready: boolean
 }
 
 export interface ChangeStatus {
@@ -62,12 +69,15 @@ export interface ChangeStatus {
  * caller has excluded the empty-change and legacy cases.
  */
 export function computeStatus(cwd: string, change: Change): ChangeStatus {
-  const facts = TYPE_ARTIFACTS[change.schema as keyof typeof TYPE_ARTIFACTS]
+  const type = change.schema as keyof typeof TYPE_ARTIFACTS
+  const facts = TYPE_ARTIFACTS[type]
   const applyRequires = new Set(facts.applyRequires)
+  const done = new Map(facts.declared.map((id) => [id, artifactDone(change.dir, id)]))
   const artifacts: ArtifactStatus[] = facts.declared.map((id) => ({
     id,
-    done: artifactDone(change.dir, id),
+    done: done.get(id)!,
     required: applyRequires.has(id),
+    ready: artifactRequires(type, id).every((r) => done.get(r) === true),
   }))
 
   const blockersPath = join(change.dir, 'blocking-changes.md')
@@ -107,7 +117,10 @@ function renderHuman(status: ChangeStatus): string {
   for (const a of status.artifacts) {
     const mark = a.done ? '✓' : ' '
     const tag = a.required ? 'required' : 'optional'
-    lines.push(`  [${mark}] ${a.id.padEnd(16)} ${tag}`)
+    // Surface authoring readiness for artifacts not yet written: `ready` means
+    // its dependencies are satisfied, `waiting` means one is still missing.
+    const readiness = a.done ? '' : a.ready ? '  ready' : '  waiting'
+    lines.push(`  [${mark}] ${a.id.padEnd(16)} ${tag}${readiness}`)
   }
   lines.push(`  gate:          ${status.gate}`)
   lines.push(`  tasks:         ${status.tasks.complete}/${status.tasks.total}`)
