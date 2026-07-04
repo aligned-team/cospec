@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      bun: ${{ steps.filter.outputs.bun || steps.all.outputs.all }}
+      canon: ${{ steps.filter.outputs.canon || steps.all.outputs.all }}
+      openspec_changes: ${{ steps.filter.outputs.openspec_changes || steps.all.outputs.all }}
+      openspec_specs: ${{ steps.filter.outputs.openspec_specs || steps.all.outputs.all }}
+      openspec_schemas: ${{ steps.filter.outputs.openspec_schemas || steps.all.outputs.all }}
+      shell: ${{ steps.filter.outputs.shell || steps.all.outputs.all }}
+      actions: ${{ steps.filter.outputs.actions || steps.all.outputs.all }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - id: all
+        if: github.event_name == 'merge_group'
+        run: echo "all=true" >> "$GITHUB_OUTPUT"
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        if: github.event_name != 'merge_group'
+        id: filter
+        with:
+          filters: |
+            bun:
+              - 'apps/**/*.{ts,tsx,js,jsx,mjs,cjs}'
+              - 'package.json'
+              - 'bun.lock'
+              - 'mise.toml'
+              - 'tsconfig*.json'
+              - '.oxlintrc.json'
+              - '.oxfmtrc.json'
+              - '.github/workflows/ci.yml'
+              - '.github/actions/**'
+            canon:
+              - 'apps/cli/src/canon/**'
+              - 'mise.toml'
+              - '.github/workflows/ci.yml'
+            openspec_changes: ['openspec/changes/**', 'mise.toml', '.github/workflows/ci.yml']
+            openspec_specs: ['openspec/specs/**', 'mise.toml', '.github/workflows/ci.yml']
+            openspec_schemas: ['openspec/schemas/**', 'mise.toml', '.github/workflows/ci.yml']
+            shell: ['scripts/**', '.github/workflows/ci.yml', '.github/actions/**']
+            actions: ['.github/workflows/**', '.github/actions/**']
+
+  ci-bun:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.bun == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/setup-mise
+      - run: bun install --frozen-lockfile
+      - run: mise run lint
+      - run: mise run format:check
+      - run: mise run typecheck
+      - name: Unit tests (coverage gate)
+        run: bun test apps/cli/test/unit --coverage
+      - run: mise run test:contract
+      - run: mise run test:integration
+      - name: Pack smoke
+        run: mise run test:pack
+
+  ci-openspec:
+    needs: detect-changes
+    if: >-
+      needs.detect-changes.outputs.canon == 'true' ||
+      needs.detect-changes.outputs.openspec_changes == 'true' ||
+      needs.detect-changes.outputs.openspec_specs == 'true' ||
+      needs.detect-changes.outputs.openspec_schemas == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/setup-mise
+      - run: bun install --frozen-lockfile
+      - name: Validate changes and specs (strict)
+        run: mise run cospec-validate-all
+      - name: Canon drift gate
+        run: mise run generate:check
+      - name: Validate composed schemas (raw openspec)
+        run: mise run openspec:schema:validate
+      - name: Agent-context sync gate
+        run: mise run agents:check
+
+  ci-shell:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.shell == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/setup-mise
+      - name: ShellCheck hook + task scripts
+        run: mise exec -- shellcheck -x scripts/hooks/check-commit-msg scripts/hooks/pre-push-gate scripts/mise-tasks/agents/sync
+
+  ci-actions-lint:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.actions == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/setup-mise
+      - run: mise exec -- actionlint
+
+  ci-gate:
+    if: always()
+    needs: [detect-changes, ci-bun, ci-openspec, ci-shell, ci-actions-lint]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check upstream job results
+        env:
+          DETECT: ${{ needs.detect-changes.result }}
+          BUN: ${{ needs.ci-bun.result }}
+          OPENSPEC: ${{ needs.ci-openspec.result }}
+          SHELL_JOB: ${{ needs.ci-shell.result }}
+          ACTIONS: ${{ needs.ci-actions-lint.result }}
+        run: |
+          if [[ "$DETECT" != "success" ]]; then
+            echo "detect-changes did not succeed: $DETECT — gate fails"; exit 1
+          fi
+          for r in "$BUN" "$OPENSPEC" "$SHELL_JOB" "$ACTIONS"; do
+            if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
+              echo "Job result '$r' — gate fails"; exit 1
+            fi
+          done
+          echo "All jobs passed or skipped — gate passes"
