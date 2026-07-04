@@ -1,5 +1,24 @@
 # Contributing to conventional-openspec
 
+## Self-hosting
+
+conventional-openspec develops itself through its own cospec workflow: every
+substantive change to this repo is a cospec-typed OpenSpec change, driven by the
+same CLI we ship. The loop is:
+
+1. **new** — `mise run cospec -- new <type> <slug>` scaffolds the change.
+2. **author** — write each artifact the type requires, guided by
+   `cospec instructions`.
+3. **validate** — `cospec validate <slug> --strict` must pass.
+4. **apply** — `cospec apply <slug>` gates the work; obey its exit code.
+5. **implement** — do the work, checking off `tasks.md`.
+6. **archive** — `cospec archive <slug>` merges specs, verifies, and syncs
+   blockers.
+
+If the tool cannot describe and gate a change to this repo, that is a bug in the
+tool. See [The cospec change workflow](#the-cospec-change-workflow-we-self-host)
+for the detailed mechanics.
+
 ## Dev setup
 
 ### Prerequisites
