@@ -1,7 +1,57 @@
 {
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["import", "oxc", "typescript", "unicorn"],
-  "categories": { "correctness": "error" },
-  "rules": {},
-  "env": { "builtin": true }
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/crates/oxc_linter/schemas/oxlintrc.json",
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "import"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "pedantic": "off",
+    "perf": "warn",
+    "style": "off",
+    "restriction": "off",
+    "nursery": "off"
+  },
+  "env": { "node": true, "es2024": true },
+  "rules": {
+    "no-console": "warn",
+    "no-debugger": "error",
+    "typescript/no-explicit-any": "warn",
+    "typescript/consistent-type-imports": [
+      "error",
+      { "prefer": "type-imports" }
+    ],
+    "import/no-cycle": "error",
+    "import/no-duplicates": "error"
+  },
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "build",
+    "**/*.d.ts",
+    "e2e/eval/reports"
+  ],
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/test/**", "**/__tests__/**"],
+      "rules": { "no-console": "off" }
+    },
+    {
+      "files": [
+        "scripts/**",
+        "e2e/**",
+        "apps/cli/src/index.ts",
+        "apps/cli/src/cli.ts",
+        "apps/cli/src/commands/**"
+      ],
+      "rules": { "no-console": "off" }
+    },
+    {
+      "files": ["e2e/eval/**"],
+      "rules": { "no-await-in-loop": "off" }
+    },
+    {
+      "files": ["apps/cli/bin/**"],
+      "rules": { "import/no-unassigned-import": "off" }
+    }
+  ],
+  "options": { "denyWarnings": false, "reportUnusedDisableDirectives": "warn" }
 }

@@ -1,28 +1,34 @@
 {
-  "arrowParens": "avoid",
-  "bracketSameLine": false,
-  "bracketSpacing": true,
-  "embeddedLanguageFormatting": "auto",
-  "endOfLine": "lf",
-  "htmlWhitespaceSensitivity": "css",
-  "ignorePatterns": [],
-  "insertFinalNewline": true,
-  "jsdoc": true,
-  "jsxSingleQuote": true,
-  "objectWrap": "collapse",
-  "overrides": [],
-  "printWidth": 80,
-  "proseWrap": "always",
-  "quoteProps": "as-needed",
   "semi": false,
-  "singleAttributePerLine": true,
   "singleQuote": true,
-  "sortImports": false,
-  "sortPackageJson": true,
-  "sortTailwindcss": true,
-  "svelte": false,
-  "tabWidth": 2,
+  "jsxSingleQuote": false,
   "trailingComma": "all",
+  "printWidth": 100,
+  "tabWidth": 2,
   "useTabs": false,
-  "vueIndentScriptAndStyle": false
+  "bracketSpacing": true,
+  "bracketSameLine": false,
+  "arrowParens": "always",
+  "endOfLine": "lf",
+  "insertFinalNewline": true,
+  "sortPackageJson": true,
+  "sortImports": {
+    "order": "asc",
+    "ignoreCase": true,
+    "newlinesBetween": true,
+    "internalPattern": [
+      "~/",
+      "@/",
+      "~/*",
+      "@/*",
+      "@aligned-team/conventional-openspec/*"
+    ]
+  },
+  "overrides": [
+    { "files": ["*.json", "*.jsonc"], "options": { "printWidth": 80 } },
+    {
+      "files": ["*.md", "*.mdx"],
+      "options": { "proseWrap": "always", "printWidth": 80 }
+    }
+  ]
 }

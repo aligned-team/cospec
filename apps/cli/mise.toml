@@ -1,7 +1,7 @@
 [tasks.build]
-description = "Compile copsx to a single executable at dist/copsx"
-run = "bun build --compile --minify --bytecode src/index.ts --outfile dist/copsx"
+description = "Compile cospec to a single executable at dist/cospec (local convenience)"
+run = "bun build --compile src/index.ts --outfile dist/cospec"
 
 [tasks.dev]
-description = "Run copsx from source"
-run = "bun run src/index.ts"
+description = "Run cospec from source"
+run = "bun run src/index.ts --"

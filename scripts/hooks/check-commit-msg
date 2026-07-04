@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# commit-msg hook entrypoint (wired via hk.pkl).
+#   1. Structural lint (blocking) — commitlint with the repo's config.
+#   2. Type/schema heuristic (advisory) — `cospec check-commit` warns when a
+#      single-change commit's type disagrees with the change's schema. The
+#      command owns its own exit-0 semantics: the heuristic itself never blocks.
+#      We still guard the invocation so a genuine crash (e.g. an openspec
+#      version-mismatch throw) can't fail the commit-msg hook — but unlike a
+#      blanket `|| true` we surface the failure on stderr instead of silently
+#      swallowing it.
+set -euo pipefail
+
+msg_file="${1:?usage: check-commit-msg <commit-msg-file>}"
+
+bunx --bun commitlint --edit "$msg_file"
+
+mise run cospec -- check-commit "$msg_file" \
+  || echo "check-commit-msg: advisory 'cospec check-commit' failed (exit $?); commit not blocked" >&2
