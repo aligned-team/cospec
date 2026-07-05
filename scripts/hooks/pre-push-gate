@@ -9,17 +9,38 @@
 #     "$(git rev-parse --git-dir)/hooks/pre-push"
 set -euo pipefail
 
+zero_sha=0000000000000000000000000000000000000000
+
 profile=""
-while read -r _local_ref _local_sha remote_ref _remote_sha; do
+first_push=""
+while read -r _local_ref _local_sha remote_ref remote_sha; do
   case "$remote_ref" in
     refs/heads/main | refs/heads/master)
       profile="slow"
       ;;
   esac
+  if [[ "$remote_sha" == "$zero_sha" ]]; then
+    first_push=1
+  fi
 done
 
+# hk 1.48 resolves origin/HEAD during pre-push file discovery (even with
+# --all), and that ref cannot exist before the first push to an empty remote
+# lands. Every file is new on a first push anyway, so hand hk an explicit
+# range from a synthetic empty root commit — a local-only object that diffs
+# as the entire tree and is never pushed.
+args=()
+if [[ -n "$first_push" ]]; then
+  empty_tree=$(git hash-object -t tree /dev/null)
+  empty_base=$(GIT_AUTHOR_NAME=pre-push-gate GIT_AUTHOR_EMAIL=gate@localhost \
+    GIT_AUTHOR_DATE=1970-01-01T00:00:00Z GIT_COMMITTER_NAME=pre-push-gate \
+    GIT_COMMITTER_EMAIL=gate@localhost GIT_COMMITTER_DATE=1970-01-01T00:00:00Z \
+    git commit-tree "$empty_tree" -m 'pre-push-gate: empty base for first push' </dev/null)
+  args+=(--from-ref "$empty_base" --to-ref HEAD)
+fi
+
 if [[ -n "$profile" ]]; then
-  HK_PROFILE="$profile" hk run pre-push
+  HK_PROFILE="$profile" hk run pre-push ${args[@]+"${args[@]}"}
 else
-  hk run pre-push
+  hk run pre-push ${args[@]+"${args[@]}"}
 fi
