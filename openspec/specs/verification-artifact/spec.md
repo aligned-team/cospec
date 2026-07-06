@@ -50,8 +50,8 @@ where `<state>` is one of a space (planned), `x` (verified), or `~` (deferred).
 
 - **WHEN** the artifact table resolves the `generates` path for `verification`
 - **THEN** the path resolves to the change root and no segment is literally
-  `specs`, so openspec 1.3.1's hardcoded `CHANGE_NO_DELTAS` rule is never
-  tripped
+  `specs`, so the pinned openspec binary's hardcoded `CHANGE_NO_DELTAS` rule —
+  behavior cospec has relied on since 1.3.1 — is never tripped
 
 ### Requirement: Closed layer vocabulary
 

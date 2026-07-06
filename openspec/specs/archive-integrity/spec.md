@@ -67,8 +67,8 @@ that `openspec archive` would otherwise wave through at exit 0.
 
 #### Scenario: Refusal precedes a green openspec archive
 
-- **WHEN** the pinned openspec 1.3.1 binary would return exit 0 for a
-  scenario-thinning delta
+- **WHEN** the pinned openspec binary would return exit 0 for a
+  scenario-thinning delta — behavior cospec has relied on since 1.3.1
 - **THEN** cospec refuses first, and a contract test against the pinned binary
   asserts this refusal
 
