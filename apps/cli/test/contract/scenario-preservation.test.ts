@@ -34,6 +34,10 @@ the way; this proposal narrows widget rendering to the one path still in use.
 ## Impact
 
 - No breaking changes.
+
+## Surfaces
+
+- [ ] interactive — a user-visible/interactive surface (UI, TUI, CLI UX)
 `
 
 const BLOCKERS = `# Dependencies

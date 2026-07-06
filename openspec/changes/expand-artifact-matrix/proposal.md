@@ -83,3 +83,14 @@ every capability introduced here is ADDED. -->
 - **Eval**: `e2e/eval/scenarios/*.ts` derive `DECLARED` from `type-facts`.
 - **Migration**: opt-in and versioned. No archived change is touched; no
   in-flight change is hard-blocked by the retrofit. Not BREAKING.
+
+## Surfaces
+
+<!-- Check every surface this change touches; each drives a verification/design expectation (soft). -->
+
+- [ ] interactive — a user-visible/interactive surface (UI, TUI, CLI UX)
+- [ ] deploy — deploy/runtime/CI-execution topology (infra, Dockerfile, workflow
+      runtime, secrets, bind address)
+- [ ] integration — a third-party/external contract (SDK, OAuth, schema/id-type
+      reconciliation)
+- [ ] agent-behavior — prompts, tools, model routing, or agent output shape

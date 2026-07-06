@@ -52,6 +52,17 @@ export interface OpenspecYaml {
 }
 
 /**
+ * A `schemaVersion:` value only counts as stamped when it is a positive integer,
+ * mirroring the `meta/openspec-yaml` rule. Anything else (0, negative, or
+ * fractional) is treated as absent by readers so callers fall back to v1
+ * semantics rather than feeding garbage into `enforcedApplyRequires` — a
+ * `schemaVersion: 0` must not grandfather every artifact out of the gate.
+ */
+export function isValidSchemaVersion(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1
+}
+
+/**
  * Parse a change's `.openspec.yaml`. Returns `undefined` when the file is
  * absent, unparseable, or missing a string `schema:` — validation diagnostics
  * (meta/openspec-yaml) are the validate command's job, not this reader's.
@@ -70,7 +81,9 @@ export function readOpenspecYaml(changeDir: string): OpenspecYaml | undefined {
   const schema = record.schema
   if (typeof schema !== 'string' || schema.length === 0) return undefined
   const created = typeof record.created === 'string' ? record.created : undefined
-  const schemaVersion = typeof record.schemaVersion === 'number' ? record.schemaVersion : undefined
+  const schemaVersion = isValidSchemaVersion(record.schemaVersion)
+    ? record.schemaVersion
+    : undefined
   return { schema, created, schemaVersion }
 }
 

@@ -117,6 +117,10 @@ This change exists to exercise the lifecycle end to end in a test fixture repo.
 ## Impact
 
 - ci
+
+## Surfaces
+
+- [ ] interactive — a user-visible/interactive surface (UI, TUI, CLI UX)
 `
 
 export const DONE_TASKS = `## 1. Group

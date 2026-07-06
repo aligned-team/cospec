@@ -25,6 +25,10 @@ week, so we are adding actionlint before anything else merges.
 ## Impact
 
 - CI workflow only; no application source or specs touched.
+
+## Surfaces
+
+- [ ] interactive — a user-visible/interactive surface (UI, TUI, CLI UX)
 `
 
 const BLOCKERS = `# Dependencies

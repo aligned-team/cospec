@@ -33,6 +33,10 @@ The pipeline is missing a step and we are adding it now.
 ## Impact
 
 - Config only; no application source touched.
+
+## Surfaces
+
+- [ ] interactive — a user-visible/interactive surface (UI, TUI, CLI UX)
 `
 
 const TASKS_DONE = `## 1. Implementation
@@ -82,6 +86,10 @@ the described behavior cannot ship at all, blocking downstream work.
 ## Impact
 
 - New capability widget; no breaking changes.
+
+## Surfaces
+
+- [ ] interactive — a user-visible/interactive surface (UI, TUI, CLI UX)
 `,
       [`${c}/blocking-changes.md`]: BLOCKERS_EMPTY,
       [`${c}/specs/widget/spec.md`]: `## ADDED Requirements
@@ -292,6 +300,67 @@ dependency so the failure actually reproduces before the fix and passes after.
     })
     const res = await cospec(['status', '--change', 'unresolved-status', '--json'], { cwd: root })
     expect(res.exitCode).toBe(0)
+  })
+
+  test('a non-positive schemaVersion is treated as v1, not a grandfather-everything-out version', async () => {
+    const root = await initRepo()
+    const c = 'openspec/changes/bogus-version'
+    // schemaVersion: 0 is invalid (meta/openspec-yaml flags it); it must NOT flow
+    // through as a real version. A raw 0 would filter enforcedApplyRequires down
+    // to nothing, so every artifact — even v1's proposal — would report
+    // required:false. Treated as v1, the v1-introduced artifacts stay required.
+    writeFiles(root, {
+      [`${c}/.openspec.yaml`]: 'schema: feat\ncreated: 2026-07-06\nschemaVersion: 0\n',
+      [`${c}/proposal.md`]: `# change
+
+## Why
+
+This capability does not exist yet and the team needs it end to end; without it
+the described behavior cannot ship at all, blocking downstream work.
+
+## What Changes
+
+- Introduce the widget capability described in the spec deltas.
+
+## Capabilities
+
+### New Capabilities
+
+- widget
+
+## Impact
+
+- New capability widget; no breaking changes.
+
+## Surfaces
+
+- [ ] interactive — a user-visible/interactive surface (UI, TUI, CLI UX)
+`,
+      [`${c}/blocking-changes.md`]: BLOCKERS_EMPTY,
+      [`${c}/specs/widget/spec.md`]: `## ADDED Requirements
+
+### Requirement: widget behavior
+
+The system SHALL provide the widget behavior when requested.
+
+#### Scenario: widget works
+
+- **WHEN** a caller invokes widget
+- **THEN** the expected result is returned
+`,
+      [`${c}/tasks.md`]: `## 1. Implementation
+
+- [x] 1.1 Implement the widget
+`,
+    })
+
+    const res = await cospec(['status', '--change', 'bogus-version', '--json'], { cwd: root })
+    expect(res.exitCode).toBe(0)
+    const parsed = JSON.parse(res.stdout) as {
+      artifacts: { id: string; required: boolean }[]
+    }
+    const proposal = parsed.artifacts.find((a) => a.id === 'proposal')
+    expect(proposal?.required).toBe(true)
   })
 
   test('a v1 feat change with no verification.md reports archiveReady, matching the grandfathered gate', async () => {

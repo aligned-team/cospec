@@ -46,6 +46,10 @@ the described behavior cannot ship at all, blocking downstream work.
 ## Impact
 
 - New capability widget; no breaking changes.
+
+## Surfaces
+
+- [ ] interactive — a user-visible/interactive surface (UI, TUI, CLI UX)
 `
 
 const SPEC_DELTA = `## ADDED Requirements
@@ -167,7 +171,7 @@ Bump the pinned base image to pick up a security fix in the runtime.
     const c = 'openspec/changes/trivial-pin'
     writeFiles(root, {
       [`${c}/.openspec.yaml`]: openspecYamlV2('build'),
-      [`${c}/proposal.md`]: `# change\n\n## Why\n\nBump a transitive dev dependency.\n\n## What Changes\n\n- Bump it.\n\n## Impact\n\n- Dev-only; no runtime effect.\n`,
+      [`${c}/proposal.md`]: `# change\n\n## Why\n\nBump a transitive dev dependency.\n\n## What Changes\n\n- Bump it.\n\n## Impact\n\n- Dev-only; no runtime effect.\n\n## Surfaces\n\n- [ ] interactive\n- [ ] deploy\n- [ ] integration\n- [ ] agent-behavior\n`,
       [`${c}/blocking-changes.md`]: BLOCKERS_EMPTY,
       [`${c}/tasks.md`]: TASKS_DONE,
     })

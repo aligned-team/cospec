@@ -8,7 +8,10 @@ every change type except the four no-surface light types (`chore`, `docs`,
 use checkbox grammar with a closed four-token vocabulary — `interactive`,
 `deploy`, `integration`, `agent-behavior` — all optional and defaulting to
 unchecked. A token outside that set SHALL fail closed as
-`proposal/surfaces-vocab`.
+`proposal/surfaces-vocab`. A surfaces:true type whose proposal omits the
+`## Surfaces` block entirely SHALL fail closed as `proposal/sections`, so a
+dropped block cannot silently suppress its soft-trigger consequences; an
+empty-but-present block satisfies the requirement.
 
 #### Scenario: Valid surface flags parse
 
@@ -20,6 +23,19 @@ unchecked. A token outside that set SHALL fail closed as
 
 - **WHEN** a `## Surfaces` block lists `- [ ] telemetry`
 - **THEN** cospec emits `proposal/surfaces-vocab`
+
+#### Scenario: Surfaces block is mandatory for surfaces types
+
+- **WHEN** a `feat` (or any surfaces:true type) proposal has no `## Surfaces`
+  block at all
+- **THEN** cospec emits `proposal/sections` naming the missing `## Surfaces`
+  section
+
+#### Scenario: Empty-but-present block is accepted
+
+- **WHEN** a `feat` proposal carries a `## Surfaces` block with every flag left
+  unchecked
+- **THEN** neither `proposal/sections` nor `proposal/surfaces-vocab` is emitted
 
 #### Scenario: Light types omit the block
 

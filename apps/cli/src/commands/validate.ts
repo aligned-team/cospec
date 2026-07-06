@@ -13,6 +13,7 @@ import { parse as parseYaml } from 'yaml'
 import type { CommandContext } from '../cli.ts'
 import {
   archiveDir,
+  isValidSchemaVersion,
   listChanges,
   openspecDir,
   resolveChange,
@@ -81,14 +82,13 @@ function loadOpenspecYaml(changeDir: string): LoadedChange['openspecYaml'] {
   const schema = typeof record.schema === 'string' ? record.schema : undefined
   const created = typeof record.created === 'string' ? record.created : undefined
   const rawSchemaVersion = record.schemaVersion
-  const schemaVersion = typeof rawSchemaVersion === 'number' ? rawSchemaVersion : undefined
+  // A present-but-non-positive-integer schemaVersion is reported via
+  // schemaVersionInvalid (meta/openspec-yaml) but must not flow through as a
+  // usable version — otherwise `?? 1` would keep the garbage and mis-filter
+  // enforcedApplyRequires. Treat it as absent, matching readOpenspecYaml.
+  const schemaVersion = isValidSchemaVersion(rawSchemaVersion) ? rawSchemaVersion : undefined
   const schemaVersionInvalid =
-    rawSchemaVersion !== undefined &&
-    !(
-      typeof rawSchemaVersion === 'number' &&
-      Number.isInteger(rawSchemaVersion) &&
-      rawSchemaVersion >= 1
-    )
+    rawSchemaVersion !== undefined && !isValidSchemaVersion(rawSchemaVersion)
   return { present: true, parseable: true, schema, created, schemaVersion, schemaVersionInvalid }
 }
 

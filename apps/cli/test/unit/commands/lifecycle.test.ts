@@ -47,6 +47,10 @@ We need a widget capability so downstream changes can render widgets. Nothing pr
 ## Impact
 
 - New module src/widgets.ts
+
+## Surfaces
+
+- [ ] interactive — a user-visible/interactive surface (UI, TUI, CLI UX)
 `
 
 const WIDGET_DELTA = `## ADDED Requirements

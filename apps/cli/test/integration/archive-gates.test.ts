@@ -43,6 +43,10 @@ actually reproduces before the fix and passes after.
 ## Impact
 
 - No breaking changes.
+
+## Surfaces
+
+- [ ] interactive — a user-visible/interactive surface (UI, TUI, CLI UX)
 `
 
 function openspecYamlV2(schema: string): string {
@@ -134,6 +138,10 @@ the way; this proposal narrows widget rendering to the one path still in use.
 ## Impact
 
 - No breaking changes.
+
+## Surfaces
+
+- [ ] interactive — a user-visible/interactive surface (UI, TUI, CLI UX)
 `
 
   function buildFeat(root: string, name: string, delta: string): void {

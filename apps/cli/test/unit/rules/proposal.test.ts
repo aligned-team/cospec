@@ -27,11 +27,41 @@ describe('proposalRules', () => {
   })
 
   test('lite type does not require ## Capabilities', () => {
+    // ci is surfaces:true, so it still needs a ## Surfaces block — include one so
+    // the only thing this asserts is that ## Capabilities is not demanded.
     const change = makeChange({
-      proposalText: `## Why\n\n${WHY}\n\n## What Changes\n\n- x\n\n## Impact\n\n- y`,
+      proposalText: `## Why\n\n${WHY}\n\n## What Changes\n\n- x\n\n## Impact\n\n- y\n\n## Surfaces\n\n- [ ] interactive — ui`,
     })
     const issues = proposalRules(change, cospecSchema('ci'), ctx(), { strict: false })
     expect(rules(issues)).not.toContain('proposal/sections')
+  })
+
+  test('proposal/sections requires ## Surfaces for a surfaces:true type', () => {
+    const change = makeChange({
+      proposalText: `## Why\n\n${WHY}\n\n## What Changes\n\n- x\n\n## Capabilities\n\n- c\n\n## Impact\n\n- y`,
+    })
+    const sec = proposalRules(change, cospecSchema('feat'), ctx(), { strict: false }).find(
+      (i) => i.rule === 'proposal/sections',
+    )
+    expect(sec?.message).toContain('## Surfaces')
+  })
+
+  test('an empty-but-present ## Surfaces block satisfies proposal/sections', () => {
+    const change = makeChange({
+      proposalText: `## Why\n\n${WHY}\n\n## What Changes\n\n- x\n\n## Capabilities\n\n- c\n\n## Impact\n\n- y\n\n## Surfaces\n\n- [ ] interactive — ui\n- [ ] deploy — infra`,
+    })
+    const rs = rules(proposalRules(change, cospecSchema('feat'), ctx(), { strict: false }))
+    expect(rs).not.toContain('proposal/sections')
+    expect(rs).not.toContain('proposal/surfaces-vocab')
+  })
+
+  test('a light type without ## Surfaces is unaffected by the requirement', () => {
+    const change = makeChange({
+      proposalText: `## Why\n\nshort but present\n\n## What Changes\n\n- x\n\n## Impact\n\n- y`,
+    })
+    expect(
+      rules(proposalRules(change, cospecSchema('chore'), ctx(), { strict: false })),
+    ).not.toContain('proposal/sections')
   })
 
   test('proposal/why-substantive warns on a short Why for full types', () => {

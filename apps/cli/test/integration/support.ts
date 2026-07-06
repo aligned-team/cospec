@@ -68,6 +68,10 @@ without it the described behavior cannot ship at all, blocking downstream work.
 ## Impact
 
 - New capability ${cap}; no breaking changes.
+
+## Surfaces
+
+- [ ] interactive — a user-visible/interactive surface (UI, TUI, CLI UX)
 `
 
 const LITE_PROPOSAL = `# change
@@ -83,6 +87,10 @@ The pipeline is missing a step and we are adding it now.
 ## Impact
 
 - Config only; no application source touched.
+
+## Surfaces
+
+- [ ] interactive — a user-visible/interactive surface (UI, TUI, CLI UX)
 `
 
 export const BLOCKERS_EMPTY = `# Dependencies

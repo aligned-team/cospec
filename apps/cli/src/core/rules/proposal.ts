@@ -51,6 +51,11 @@ export function proposalRules(
     facts.requiresCapabilities === 'always' ||
     (facts.requiresCapabilities === 'if-specs' && change.deltaFiles.length > 0)
   if (needsCapabilities) required.push('Capabilities')
+  // Fail closed on the trigger block: any type whose canon sets surfaces:true
+  // (everything but the four light types) SHALL carry a `## Surfaces` block, so a
+  // silently-dropped block cannot suppress its soft-trigger consequences. The
+  // block's flags stay optional — an empty-but-present block satisfies this.
+  if (facts.hasSurfaces) required.push('Surfaces')
   const missing = required.filter((h) => !hasSection(p, h))
   if (missing.length > 0) {
     issues.push({
