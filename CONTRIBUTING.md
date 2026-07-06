@@ -79,13 +79,17 @@ enforced by commitlint in the `commit-msg` hook. The type IS the change's schema
   `revert`, `style`, `test`.
 - **Scopes** (optional but linted against an allow-list): `cli`, `canon`,
   `schemas`, `harness`, `validate`, `apply`, `archive`, `eval`, `docs`, `ci`,
-  `deps`, `hooks`, `agents`, `chore`.
+  `deps`, `hooks`, `agents`. A scope names an AREA the commit touches — omit it
+  when there's no meaningful area, and never repeat the type as the scope
+  (`chore(chore):` is rejected; use `chore: ...` instead). Archive commits are
+  `chore: archive <slug>`.
 - **Subject**: imperative mood, no trailing period, at most 72 characters.
 
 ```
 feat(validate): add archive-precondition parity checks
 fix(archive): treat exit-0-with-Aborted as a failure
 docs: document the blocking-changes grammar
+chore: archive scope-not-type
 ```
 
 `cospec check-commit` runs alongside commitlint in the same hook. It is
