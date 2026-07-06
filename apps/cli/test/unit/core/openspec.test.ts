@@ -24,15 +24,15 @@ function result(partial: Partial<OpenspecResult>): OpenspecResult {
 
 describe('satisfiesOpenspecRange', () => {
   test('accepts the floor, the pin, and everything up to the ceiling', () => {
-    expect(satisfiesOpenspecRange('1.3.1')).toBe(true) // inclusive floor
+    expect(satisfiesOpenspecRange('1.0.0')).toBe(true) // inclusive floor
     expect(satisfiesOpenspecRange('1.4.0')).toBe(true)
     expect(satisfiesOpenspecRange(PINNED_OPENSPEC_VERSION)).toBe(true) // 1.5.0
     expect(satisfiesOpenspecRange('1.99.99')).toBe(true)
   })
 
   test('rejects below the floor and at/above the ceiling', () => {
-    expect(satisfiesOpenspecRange('1.3.0')).toBe(false) // just below floor
-    expect(satisfiesOpenspecRange('1.2.9')).toBe(false)
+    expect(satisfiesOpenspecRange('0.23.0')).toBe(false) // last 0.x, just below floor
+    expect(satisfiesOpenspecRange('0.9.0')).toBe(false)
     expect(satisfiesOpenspecRange('2.0.0')).toBe(false) // exclusive ceiling
     expect(satisfiesOpenspecRange('2.1.0')).toBe(false)
   })
@@ -46,18 +46,18 @@ describe('satisfiesOpenspecRange', () => {
 describe('checkVersion', () => {
   test('passes on any in-range version, trimming trailing whitespace', () => {
     expect(() => checkVersion(`${PINNED_OPENSPEC_VERSION}\n`, false)).not.toThrow()
-    expect(() => checkVersion('1.3.1', false)).not.toThrow()
+    expect(() => checkVersion('1.0.0', false)).not.toThrow()
   })
 
   test('throws the range-naming message below the floor', () => {
-    expect(() => checkVersion('1.2.0', false)).toThrow(
-      /wrapped openspec is 1\.2\.0, expected a version satisfying >=1\.3\.1 <2\.0\.0 — refusing to run/,
+    expect(() => checkVersion('0.23.0', false)).toThrow(
+      /wrapped openspec is 0\.23\.0, expected a version satisfying >=1\.0\.0 <2\.0\.0 — refusing to run/,
     )
   })
 
   test('throws at the 2.x ceiling', () => {
     expect(() => checkVersion('2.0.0', false)).toThrow(
-      /expected a version satisfying >=1\.3\.1 <2\.0\.0/,
+      /expected a version satisfying >=1\.0\.0 <2\.0\.0/,
     )
   })
 

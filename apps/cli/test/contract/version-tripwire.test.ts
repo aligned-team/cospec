@@ -1,5 +1,5 @@
 // Version tripwire (DESIGN §8.2, risk #3). cospec accepts a semver RANGE at
-// runtime (>=1.3.1 <2.0.0) but pins ONE exact dev/CI build (PINNED_OPENSPEC_VERSION)
+// runtime (>=1.0.0 <2.0.0) but pins ONE exact dev/CI build (PINNED_OPENSPEC_VERSION)
 // that the contract suite is probed against. Three things must stay coherent: the
 // package.json dependency pin, the exact pin the live binary reports, and the
 // range the runtime enforces. A dependency bump breaks THIS file first, pointing
@@ -54,9 +54,9 @@ describe('openspec version tripwire', () => {
   })
 
   test('the runtime range refuses below the floor and at the 2.x ceiling', () => {
-    // Floor is inclusive; the version just below it is refused.
+    // Floor is inclusive; the last 0.x release below it is refused.
     expect(satisfiesOpenspecRange(OPENSPEC_VERSION_FLOOR)).toBe(true)
-    expect(satisfiesOpenspecRange('1.3.0')).toBe(false)
+    expect(satisfiesOpenspecRange('0.23.0')).toBe(false)
     // Ceiling is exclusive: the next major is refused.
     expect(satisfiesOpenspecRange(OPENSPEC_VERSION_CEILING)).toBe(false)
     expect(() => checkVersion('2.0.0', false)).toThrow(/expected a version satisfying/)

@@ -126,7 +126,7 @@ Details and a per-harness smoke checklist:
 ## How it relates to OpenSpec
 
 cospec pins `@fission-ai/openspec` `1.5.0` for its own dev/CI and accepts any
-`>=1.3.1 <2.0.0` at runtime (the range is asserted at startup; the pin is the
+`>=1.0.0 <2.0.0` at runtime (the range is asserted at startup; the pin is the
 build the contract suite is probed against) and adds, on top of it:
 
 - **Typed schemas** — eleven schemas, one per conventional-commit type, with a

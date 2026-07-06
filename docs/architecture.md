@@ -18,7 +18,7 @@ cospec spawns OpenSpec; it never imports it.
   `program.parse()` as a side effect. Deep-importing its `dist/*` internals is
   also forbidden — those are not a stable interface.
 - **Version assertion.** Before the first wrapped call in a process, cospec
-  asserts `openspec --version` satisfies the accepted range `>=1.3.1 <2.0.0`
+  asserts `openspec --version` satisfies the accepted range `>=1.0.0 <2.0.0`
   (the `OPENSPEC_VERSION_RANGE` constant). An out-of-range version exits 1 with
   a refusal message naming the range and a `COSPEC_ALLOW_OPENSPEC_DRIFT=1`
   override for the brave (which makes cospec version-blind but does not make an

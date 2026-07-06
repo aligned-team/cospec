@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path'
 export const PINNED_OPENSPEC_VERSION = '1.5.0'
 
 /** Inclusive floor of the accepted runtime range. */
-export const OPENSPEC_VERSION_FLOOR = '1.3.1'
+export const OPENSPEC_VERSION_FLOOR = '1.0.0'
 /** Exclusive ceiling of the accepted runtime range (next major). */
 export const OPENSPEC_VERSION_CEILING = '2.0.0'
 /**
@@ -214,8 +214,9 @@ export async function runOpenspec(args: string[], opts: RunOptions): Promise<Ope
   return result
 }
 
-// --- Typed JSON shapes for the wrapped commands (probed against 1.3.1,
-// re-probed unchanged against the 1.5.0 pin; 1.5.0 only adds optional fields). ---
+// --- Typed JSON shapes for the wrapped commands (probed across the accepted
+// floor-through-pin span 1.0.0–1.5.0 and found unchanged; 1.5.0 only adds
+// optional fields). ---
 
 export type ArtifactStatus = 'done' | 'ready' | 'blocked'
 
