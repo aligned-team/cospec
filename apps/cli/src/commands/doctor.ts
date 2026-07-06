@@ -22,7 +22,11 @@ import {
   resolveSchema,
 } from '../core/change.ts'
 import { CURRENT_GENERATED_BY, readManifest, splitFrontmatter } from '../core/managed-files.ts'
-import { EXPECTED_OPENSPEC_VERSION, openspecPackageDir } from '../core/openspec.ts'
+import {
+  OPENSPEC_VERSION_RANGE,
+  openspecPackageDir,
+  satisfiesOpenspecRange,
+} from '../core/openspec.ts'
 import { HARNESS_NAMES } from '../harness/render.ts'
 import { detectHarnesses, generate } from './update.ts'
 
@@ -81,12 +85,12 @@ function checkOpenspecVersion(findings: Finding[]): void {
   } catch {
     // fall through to mismatch handling
   }
-  if (version !== EXPECTED_OPENSPEC_VERSION) {
+  if (!satisfiesOpenspecRange(version)) {
     findings.push({
       level: 'ERROR',
       check: 'openspec-version',
-      message: `bundled openspec is ${version || '<unknown>'}, expected ${EXPECTED_OPENSPEC_VERSION}`,
-      remedy: 'pin @fission-ai/openspec to the expected version, then re-run the contract suite',
+      message: `bundled openspec is ${version || '<unknown>'}, expected a version satisfying ${OPENSPEC_VERSION_RANGE}`,
+      remedy: 'pin @fission-ai/openspec within the accepted range, then re-run the contract suite',
     })
   }
 }

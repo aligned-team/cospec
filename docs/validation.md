@@ -183,7 +183,7 @@ gate already uses, and there is no `--force` for either:
   advisory rule runs in the archive-precondition family above so
   `cospec validate --strict` surfaces the same risk before archive time; the
   hard block is the command step, verified against the real pinned openspec
-  1.3.1 binary by a contract test.
+  1.5.0 binary by a contract test.
 
 ### `specs/`
 

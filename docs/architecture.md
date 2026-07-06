@@ -2,7 +2,7 @@
 
 cospec is a wrapper. It owns no spec-format logic of its own that OpenSpec
 already implements correctly — it constrains, validates, and verifies OpenSpec
-`1.3.1`, and closes the specific failure modes that make raw OpenSpec unsafe to
+`1.5.0`, and closes the specific failure modes that make raw OpenSpec unsafe to
 hand to an agent.
 
 ## The wrapping boundary
@@ -18,11 +18,16 @@ cospec spawns OpenSpec; it never imports it.
   `program.parse()` as a side effect. Deep-importing its `dist/*` internals is
   also forbidden — those are not a stable interface.
 - **Version assertion.** Before the first wrapped call in a process, cospec
-  asserts `openspec --version === '1.3.1'` (the `EXPECTED_OPENSPEC_VERSION`
-  constant). A mismatch exits 1 with a refusal message and a
-  `COSPEC_ALLOW_OPENSPEC_DRIFT=1` override for the brave. The dep pin, the
-  constant, and the version tripwire contract test are asserted mutually equal,
-  so a bump breaks the test suite first.
+  asserts `openspec --version` satisfies the accepted range `>=1.3.1 <2.0.0`
+  (the `OPENSPEC_VERSION_RANGE` constant). An out-of-range version exits 1 with
+  a refusal message naming the range and a `COSPEC_ALLOW_OPENSPEC_DRIFT=1`
+  override for the brave (which makes cospec version-blind but does not make an
+  out-of-range binary safe to wrap). Separately, the repo pins one exact build
+  for dev/CI — `PINNED_OPENSPEC_VERSION` (`1.5.0`), the version the contract
+  suite is probed against. The dep pin, the `mise.toml` pin, that constant, and
+  the live binary are held coherent by the version tripwire contract test (the
+  pin is exact and in range; the binary reports it and satisfies the range), so
+  a bump breaks the test suite first.
 
 ## The wrapped-call discipline
 
@@ -89,7 +94,7 @@ because a real breach there must not compute as a clean archive:
   any scenario-count drop that lacks a `Scenario removed: <reason>` note or a
   matching `REMOVED` operation. This is the gate that would have caught the
   archive-time thinning `openspec archive` itself waves through at exit 0. It
-  ships with a contract test against the real pinned openspec 1.3.1 binary
+  ships with a contract test against the real pinned openspec 1.5.0 binary
   proving cospec refuses even though openspec would happily merge the delta — a
   false PASS here is a release blocker, same discipline as the rest of the
   archive-precondition family.

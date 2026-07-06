@@ -2,6 +2,12 @@
 // an invalid delta makes `openspec archive -y` print "Aborted." and NOT move the
 // change, yet exit 0. Each test first pins that real behavior, then asserts
 // cospec never reports success when openspec silently no-ops.
+//
+// Re-probed against the 1.5.0 pin (2026-07-05): the gotcha is unchanged. Each
+// test still observes exit 0 + "Aborted." + unmoved directory on the real
+// binary before asserting cospec refuses; ABORTED_RE/CANCELLED_RE match the same
+// stdout. (1.5.0 adds an opt-in `archive --json` mode with typed diagnostics,
+// but cospec still uses the human-mode path this suite pins.)
 
 import { afterAll, describe, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
@@ -32,7 +38,7 @@ function movedToArchive(root: string, name: string): boolean {
   return !existsSync(join(root, 'openspec/changes', name))
 }
 
-describe('archive gotcha regressions vs openspec 1.3.1', () => {
+describe('archive gotcha regressions vs openspec 1.3.1 (re-probed unchanged at 1.5.0)', () => {
   test('no-op delta: openspec exits 0+Aborted+unmoved; cospec refuses to claim success', async () => {
     const name = 'zero-op-delta'
     // Pin the real openspec gotcha.

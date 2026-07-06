@@ -152,8 +152,12 @@ function isOpsxMarkdown(text: string): boolean {
     const record = meta as Record<string, unknown>
     if (record.author === 'cospec') return false
     const gen = typeof record.generatedBy === 'string' ? record.generatedBy : ''
-    // Skill files (SKILL.md) carry `metadata.author: openspec` + `generatedBy: 1.3.x`.
-    if (record.author === 'openspec' && gen.startsWith('1.3.')) return true
+    // Skill files (SKILL.md) carry `metadata.author: openspec` + a bare-semver
+    // `generatedBy` (e.g. 1.3.1, 1.5.0). cospec stamps its own files with
+    // `author: cospec` (handled above) and a `cospec@x.y.z` tag, never a bare
+    // semver, so any bare semver under an openspec author is a leftover opsx
+    // file to clean up — matched by shape, not by a specific version.
+    if (record.author === 'openspec' && /^\d+\.\d+\.\d+/.test(gen)) return true
   }
   // Command files (e.g. `.claude/commands/opsx/*.md`) carry `name: 'OPSX: …'`.
   const name = frontmatter?.name

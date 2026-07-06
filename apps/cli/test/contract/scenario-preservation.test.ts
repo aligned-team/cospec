@@ -4,6 +4,11 @@
 // regression this gate exists to close). This pins that real behavior, then
 // asserts `cospec archive` refuses BEFORE it ever delegates to the pinned
 // binary — a false PASS here would be a release blocker.
+//
+// Re-probed against the 1.5.0 pin (2026-07-05): unchanged. No upstream
+// scenario-preservation check landed; the real binary still merges the thinned
+// delta cleanly at exit 0, so cospec's gate remains load-bearing and the pinned
+// assertion below is verbatim-correct.
 
 import { afterAll, describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
@@ -106,7 +111,7 @@ function build(root: string, name: string): void {
   })
 }
 
-describe('archive/scenario-preservation vs the pinned openspec 1.3.1 binary', () => {
+describe('archive/scenario-preservation vs the pinned openspec 1.3.1 binary (re-probed unchanged at 1.5.0)', () => {
   test('openspec merges the thinned delta cleanly at exit 0 (the atlas regression)', async () => {
     const root = mkTempRepo({ git: true })
     build(root, 'thin-widget')

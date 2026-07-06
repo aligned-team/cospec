@@ -80,7 +80,7 @@ describe('cospec doctor (DESIGN §2.3)', () => {
     mkdirSync(skill, { recursive: true })
     writeFileSync(
       join(skill, 'SKILL.md'),
-      '---\nname: openspec-apply-change\nmetadata:\n  author: openspec\n  generatedBy: "1.3.1"\n---\nbody\n',
+      '---\nname: openspec-apply-change\nmetadata:\n  author: openspec\n  generatedBy: "1.5.0"\n---\nbody\n',
     )
     const { code, findings } = doctorJson(dir)
     expect(code).toBe(0)

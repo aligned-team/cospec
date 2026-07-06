@@ -2,6 +2,14 @@
 // a "must have deltas" rule that false-errors on light changes; cospec suppresses
 // it only where satisfying it is definitionally wrong, and forbids specs/ on
 // no-specs types instead. README.md must never trip meta/unexpected-file.
+//
+// Re-probed against the 1.5.0 pin (2026-07-05): the landmine is unchanged. Raw
+// `openspec validate --strict` on a delta-less change still exits 1 with the
+// literal "Change must have at least one delta" (CHANGE_NO_DELTAS) and still
+// hardcodes the "specs/ directory" wording. 1.5.0 only APPENDS additive help
+// text ("...Tip: run 'openspec change show ... --deltas-only'"), which changes
+// no exit code and none of the sentence cospec's suppression logic keys on, so
+// the assertions below still hold verbatim.
 
 import { afterAll, describe, expect, test } from 'bun:test'
 import { mkdirSync } from 'node:fs'
