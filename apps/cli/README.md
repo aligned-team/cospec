@@ -7,8 +7,9 @@ commit type. `feat` gets the full treatment; `ci` takes two minutes.
 [`@fission-ai/openspec`](https://www.npmjs.com/package/@fission-ai/openspec)
 `1.5.0` (pinned for dev/CI; any `>=1.0.0 <2.0.0` accepted at runtime) and adds
 typed change schemas (one per conventional-commit type), real validation, a
-gated `apply`, a verified `archive`, and blocker sync — plus generated
-skills/commands for Claude Code, Codex, and OpenCode.
+gated `apply`, a machine-parsed `verification` evidence ledger with hard archive
+gates, a verified `archive`, and blocker sync — plus generated skills/commands
+for Claude Code, Codex, and OpenCode.
 
 ## Install
 

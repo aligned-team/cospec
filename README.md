@@ -35,44 +35,50 @@ cospec is a thin wrapper around
 spec-driven workflow onto your conventional-commit type. One schema per type;
 the heavier the type, the more the workflow asks of you.
 
-| type       | proposal | blocking-changes | specs | design | tasks | what it's for                         |
-| ---------- | -------- | ---------------- | ----- | ------ | ----- | ------------------------------------- |
-| `feat`     | full     | full             | ✅    | opt    | ✅    | a new feature — the full workflow     |
-| `fix`      | full     | full             | opt   | opt    | ✅    | a bug fix                             |
-| `perf`     | full     | full             | opt   | opt    | ✅    | performance, behavior unchanged       |
-| `refactor` | full     | full             | opt   | ✅     | ✅    | restructure, behavior unchanged       |
-| `revert`   | full     | full             | opt   | ✗      | ✅    | roll back a shipped change            |
-| `build`    | lite     | lite             | ✗     | ✗      | ✅    | build config, dependencies, lockfiles |
-| `ci`       | lite     | lite             | ✗     | ✗      | ✅    | CI workflows and automation           |
-| `chore`    | lite     | lite             | ✗     | ✗      | ✅    | maintenance                           |
-| `docs`     | lite     | lite             | ✗     | ✗      | ✅    | documentation                         |
-| `style`    | lite     | lite             | ✗     | ✗      | ✅    | formatting, no semantic change        |
-| `test`     | lite     | lite             | ✗     | ✗      | ✅    | tests for already-specified behavior  |
+| type       | proposal | blocking-changes | specs | design | verification | tasks | what it's for                         |
+| ---------- | -------- | ---------------- | ----- | ------ | ------------ | ----- | ------------------------------------- |
+| `feat`     | full     | full             | ✅    | opt    | ✅           | ✅    | a new feature — the full workflow     |
+| `fix`      | full     | full             | opt   | opt    | ✅           | ✅    | a bug fix                             |
+| `perf`     | full     | full             | opt   | opt    | ✅           | ✅    | performance, behavior unchanged       |
+| `refactor` | full     | full             | opt   | ✅     | ✅           | ✅    | restructure, behavior unchanged       |
+| `revert`   | full     | full             | opt   | ✗      | opt          | ✅    | roll back a shipped change            |
+| `build`    | lite     | lite             | ✗     | ✗      | opt          | ✅    | build config, dependencies, lockfiles |
+| `ci`       | lite     | lite             | ✗     | ✗      | opt          | ✅    | CI workflows and automation           |
+| `chore`    | lite     | lite             | ✗     | ✗      | ✗            | ✅    | maintenance                           |
+| `docs`     | lite     | lite             | ✗     | ✗      | ✗            | ✅    | documentation                         |
+| `style`    | lite     | lite             | ✗     | ✗      | ✗            | ✅    | formatting, no semantic change        |
+| `test`     | lite     | lite             | ✗     | ✗      | ✗            | ✅    | tests for already-specified behavior  |
 
 ✅ required · opt optional · ✗ forbidden (`cospec validate` errors if present).
-Full matrix and per-type rationale: [docs/schemas.md](docs/schemas.md).
+For `verification`, opt means trigger-promoted: absent by default, but checking
+a `## Surfaces` flag in the proposal soft-nudges it into the `apply` gate. Full
+matrix and per-type rationale: [docs/schemas.md](docs/schemas.md).
 
 cospec never replaces OpenSpec — it wraps the real, version-pinned binary
 (resolved by path, spawned, never `$PATH`) and adds typed schemas, real change
 validation with stable rule IDs, a deterministic `apply` gate, a
-filesystem-verified `archive`, and a blocking-changes ledger with auto-sync.
+filesystem-verified `archive`, a machine-parsed `verification` evidence ledger
+enforced by hard archive gates, `## Surfaces` proposal flags that soft-trigger
+verification and design sections, versioned schemas with `schemaVersion`
+grandfathering, and a blocking-changes ledger with auto-sync.
 
 ---
 
 ## Commands
 
-| command                          | what it does                                                    |
-| -------------------------------- | --------------------------------------------------------------- |
-| `cospec init [path]`             | scaffold `openspec/`, schemas, and harness files (idempotent)   |
-| `cospec update [--check]`        | re-generate managed files from canon; `--check` is a drift gate |
-| `cospec doctor`                  | read-only health check with a remedy per finding                |
-| `cospec new <type> <slug>`       | create a typed change; prints the artifact plan                 |
-| `cospec validate [name]`         | validate changes and specs; `--strict` promotes warnings        |
-| `cospec status` / `cospec list`  | change status with type, gate, and archive-readiness columns    |
-| `cospec instructions <artifact>` | print the authoring instruction for one artifact                |
-| `cospec apply <change>`          | the gate — exit 0 clear, 2 blocked, 3 soft-blocked              |
-| `cospec archive <change>`        | validate, archive, verify the move, fan out blocker sync        |
-| `cospec sync-blockers`           | check off blocker entries whose target has shipped              |
+| command                          | what it does                                                                                   |
+| -------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `cospec init [path]`             | scaffold `openspec/`, schemas, and harness files (idempotent)                                  |
+| `cospec update [--check]`        | re-generate managed files from canon; `--check` is a drift gate                                |
+| `cospec doctor`                  | read-only health check, incl. changes still on `schemaVersion` 1                               |
+| `cospec new <type> <slug>`       | create a typed change; prints the artifact plan                                                |
+| `cospec migrate <change>`        | stamp a grandfathered change to the current `schemaVersion`, scaffolding deferred verification |
+| `cospec validate [name]`         | validate changes and specs; `--strict` promotes warnings                                       |
+| `cospec status` / `cospec list`  | change status with type, gate, and archive-readiness columns                                   |
+| `cospec instructions <artifact>` | print the authoring instruction for one artifact                                               |
+| `cospec apply <change>`          | the gate — exit 0 clear, 2 blocked, 3 soft-blocked                                             |
+| `cospec archive <change>`        | validate, archive, verify the move, fan out blocker sync                                       |
+| `cospec sync-blockers`           | check off blocker entries whose target has shipped                                             |
 
 Global flags on every command: `--json`, `--no-color`, `--cwd <path>`. Full
 reference: [docs/validation.md](docs/validation.md) (rules) and
@@ -86,16 +92,21 @@ reference: [docs/validation.md](docs/validation.md) (rules) and
    `.openspec.yaml`; cospec prints how heavy the type is.
 2. **propose** — author each artifact with
    `cospec instructions <artifact> --change add-widget`, then
-   `cospec validate add-widget --strict`.
+   `cospec validate add-widget --strict`. For `feat`/`fix`/`perf`/`refactor`,
+   `cospec instructions verification` plans the acceptance-evidence ledger
+   before you write any code.
 3. **apply** — `cospec apply add-widget` is the gate. Obey the exit code: `0`
    clear (work the tasks), `2` blocked (stop, report the blockers), `3`
    soft-blocked (confirm with the user, then re-run with `--allow-soft`). The
    gate is deterministic — never re-derive it from files.
-4. **implement** — check off `tasks.md` as you go.
-5. **archive** — `cospec archive add-widget` validates, gates on unchecked
-   tasks, delegates to `openspec archive`, verifies the directory actually moved
-   on disk, and checks off this change's slug in every other change's
-   blocking-changes ledger.
+4. **implement** — check off `tasks.md` as you go, and record verification
+   evidence: mark each row `[x]` with the observed result after `->`, or
+   `[~] defer: <reason>` for a row you will not run.
+5. **archive** — `cospec archive add-widget` validates, gates on unchecked tasks
+   and on the two hard verification gates (`archive/verification-incomplete`,
+   `archive/scenario-preservation` — no `--force`), delegates to
+   `openspec archive`, verifies the directory actually moved on disk, and checks
+   off this change's slug in every other change's blocking-changes ledger.
 6. **flywheel** — archiving reports which changes just became unblocked and the
    exact `cospec apply` to run next.
 
@@ -137,6 +148,13 @@ build the contract suite is probed against) and adds, on top of it:
   cannot rationalize past, backed by the same rule in schema prose.
 - **A verified archive** — filesystem verification that catches OpenSpec's
   exit-0-but-aborted failure mode, plus a spec-merge spot-check.
+- **A verification ledger** — a machine-parsed acceptance-evidence artifact
+  (`verification.md`) that archive gates on: every `[critical]` behavior needs
+  recorded evidence, and unfinished rows block the move (no `--force`).
+- **Surface triggers and grandfathering** — closed `## Surfaces` proposal flags
+  that soft-promote verification/design without ever hard-requiring them, and
+  versioned schemas so pre-verification changes stay unblocked until an explicit
+  `cospec migrate`.
 - **Blocker sync** — a machine-parsed dependency ledger that checks itself off
   as dependencies ship.
 
