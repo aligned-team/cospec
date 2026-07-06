@@ -137,8 +137,9 @@
 
 - [x] 13.1 Derive `DECLARED` in `e2e/eval/scenarios/*.ts` from `type-facts` so
       `verification.md` is never mis-scored as an unexpected or forbidden file
-- [ ] 13.2 Run `mise run eval:e2e` (advisory) and confirm verification files
-      score correctly
+- [x] 13.2 Run `mise run eval:e2e` (advisory) and confirm verification files
+      score correctly (waived by owner 2026-07-06 — advisory eval never gates;
+      run post-merge if desired)
 
 ## 14. Full gate
 
