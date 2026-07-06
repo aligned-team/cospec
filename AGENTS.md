@@ -13,16 +13,20 @@ Claude-specific guidance.
 
 cospec (conventional openspec) is a thin, opinionated wrapper around OpenSpec
 1.3.1 that sizes the spec-driven workflow to your conventional-commit type.
-`feat` gets the full treatment — proposal, blocking-changes, specs, tasks;
+`feat` gets the full treatment — proposal, blocking-changes, specs,
+verification, tasks; `refactor` additionally requires design;
 `ci`/`chore`/`docs` and their siblings take two minutes with three short
 artifacts. It ships as `@aligned-team/cospec` with one bin, `cospec`.
 
 cospec never replaces OpenSpec — it wraps the real binary (resolved by path,
 never `$PATH`, version-pinned to 1.3.1) and adds: 11 typed schemas that map 1:1
 to the conventional-commit types, real change validation with stable rule IDs, a
-deterministic `apply` gate, a filesystem-verified `archive`, and a
-blocking-changes ledger with auto-sync. The tool self-hosts: this repo's own
-`openspec/` tree is managed by cospec.
+deterministic `apply` gate, a filesystem-verified `archive`, a machine-parsed
+`verification` evidence ledger with hard archive gates, `## Surfaces` flag
+triggers that soft-nudge verification and design sections, versioned schemas
+with `schemaVersion` grandfathering, and a blocking-changes ledger with
+auto-sync. The tool self-hosts: this repo's own `openspec/` tree is managed by
+cospec.
 
 ## Stack snapshot
 
@@ -88,14 +92,23 @@ through `cospec`:
 
 1. `mise run cospec -- new <type> <slug>` — pick the conventional-commit type;
    cospec prints the artifact plan (how heavy the type is).
-2. Author artifacts using `cospec instructions <artifact> --change <slug>`.
+2. Author artifacts using `cospec instructions <artifact> --change <slug>` —
+   including `cospec instructions verification` for `feat`/`fix`/`perf`/
+   `refactor`, whose acceptance-evidence ledger is planned before you implement.
 3. `mise run cospec -- validate <slug> --strict` — must pass.
 4. `mise run cospec -- apply <slug>` — the gate. Obey the exit code: `0` clear,
    `2` blocked (stop, report the blockers), `3` soft-blocked (confirm, then
    `--allow-soft`). Never re-derive the gate from files.
-5. Implement, checking off `tasks.md` as you go.
-6. `mise run cospec -- archive <slug>` — validates, gates on tasks, delegates to
+5. Implement, checking off `tasks.md` as you go, and record verification
+   evidence: mark each row `[x]` with the observed result after `->`, or
+   `[~] defer: <reason>` for a row you will not run.
+6. `mise run cospec -- archive <slug>` — validates, gates on tasks, runs the two
+   hard gates (`archive/verification-incomplete`,
+   `archive/scenario-preservation` — no `--force`), delegates to
    `openspec archive`, verifies the move on disk, and fans out blocker sync.
+
+In-flight v1 changes are grandfathered until `cospec migrate <slug>` stamps them
+to the current `schemaVersion`; `cospec doctor` lists changes still on v1.
 
 ## Style rules (oxlint + oxfmt enforced)
 
