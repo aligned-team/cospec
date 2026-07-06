@@ -30,12 +30,22 @@ export const COSPEC_TYPES = [
 
 export type CospecType = (typeof COSPEC_TYPES)[number]
 
-/** The 5 canonical artifact ids, in canonical schema order (DESIGN §3.1). */
-export const ARTIFACT_ORDER = ['proposal', 'blocking-changes', 'specs', 'design', 'tasks'] as const
+/** The 6 canonical artifact ids, in canonical schema order (DESIGN §3.1, §1.1). */
+export const ARTIFACT_ORDER = [
+  'proposal',
+  'blocking-changes',
+  'specs',
+  'design',
+  'verification',
+  'tasks',
+] as const
 
 export type ArtifactId = (typeof ARTIFACT_ORDER)[number]
 
 export type ArtifactState = 'required' | 'optional' | 'forbidden'
+
+/** Compact per-type verification placement (DESIGN §2): Required / Optional / Forbidden. */
+export type VerificationState = 'R' | 'O' | 'F'
 
 export type ProposalVariant = 'full' | 'lite'
 
@@ -116,6 +126,10 @@ interface TypeCanon {
   proposal: ProposalVariant
   blocking: ProposalVariant
   liteDomain?: string
+  /** whether this type carries the proposal ## Surfaces block (DESIGN §1.2). */
+  surfaces: boolean
+  /** verification placement for this type (DESIGN §2). */
+  verification: VerificationState
   artifacts: { specs: ArtifactState; design: ArtifactState }
   apply_requires: string[]
   tasks_requires?: string[]
@@ -125,11 +139,14 @@ interface TypeCanon {
   specsLead?: string
   designDescription?: string
   designInstruction?: string
+  verificationInstruction?: string
   tasksInstruction?: string
 }
 
 interface ProposalMeta {
   templates: Record<ProposalVariant, string>
+  /** appended to proposal.md for types whose canon sets `surfaces: true` (DESIGN §1.2). */
+  surfacesBlock: string
 }
 
 interface BlockingMeta {
@@ -161,6 +178,7 @@ interface CanonBundle {
   blocking: BlockingMeta
   specs: SimpleArtifactMeta
   design: SimpleArtifactMeta
+  verification: SimpleArtifactMeta
   tasks: SimpleArtifactMeta
   applyInstruction: string
 }
@@ -172,6 +190,7 @@ function loadCanon(canonDir: string): CanonBundle {
     blocking: readYaml<BlockingMeta>(art('blocking-changes')),
     specs: readYaml<SimpleArtifactMeta>(art('specs')),
     design: readYaml<SimpleArtifactMeta>(art('design')),
+    verification: readYaml<SimpleArtifactMeta>(art('verification')),
     tasks: readYaml<SimpleArtifactMeta>(art('tasks')),
     applyInstruction: readYaml<{ instruction: string }>(join(canonDir, 'apply-instruction.yaml'))
       .instruction,
@@ -257,6 +276,17 @@ export function composeSchema(type: string, opts: ComposeOptions = {}): Composed
     })
   }
 
+  if (t.verification !== 'F') {
+    artifacts.push({
+      id: 'verification',
+      generates: canon.verification.generates,
+      description: canon.verification.description,
+      template: canon.verification.template,
+      instruction: t.verificationInstruction ?? canon.verification.instruction,
+      requires: ['proposal'],
+    })
+  }
+
   artifacts.push({
     id: 'tasks',
     generates: canon.tasks.generates,
@@ -268,7 +298,7 @@ export function composeSchema(type: string, opts: ComposeOptions = {}): Composed
 
   const schema: ComposedSchema = {
     name: t.type,
-    version: 1,
+    version: 2,
     description: t.schemaDescription,
     artifacts,
     apply: {
@@ -288,13 +318,17 @@ export function composeTemplates(type: string, opts: ComposeOptions = {}): Recor
   const canon = loadCanon(canonDir)
   const t = loadType(canonDir, type)
 
+  const proposalBody = t.surfaces
+    ? `${canon.proposal.templates[t.proposal].replace(/\n$/, '')}\n\n${canon.proposal.surfacesBlock}`
+    : canon.proposal.templates[t.proposal]
   const templates: Record<string, string> = {
-    'proposal.md': canon.proposal.templates[t.proposal],
+    'proposal.md': proposalBody,
     'blocking-changes.md': canon.blocking.templateBody,
     'tasks.md': canon.tasks.templateBody,
   }
   if (t.artifacts.specs !== 'forbidden') templates['spec.md'] = canon.specs.templateBody
   if (t.artifacts.design !== 'forbidden') templates['design.md'] = canon.design.templateBody
+  if (t.verification !== 'F') templates['verification.md'] = canon.verification.templateBody
   return templates
 }
 
@@ -448,10 +482,12 @@ export function loadTypeTable(opts: ComposeOptions = {}): CospecTypeInfo[] {
     const declared: ArtifactId[] = ['proposal', 'blocking-changes']
     if (t.artifacts.specs !== 'forbidden') declared.push('specs')
     if (t.artifacts.design !== 'forbidden') declared.push('design')
+    if (t.verification !== 'F') declared.push('verification')
     declared.push('tasks')
     const forbidden: ArtifactId[] = []
     if (t.artifacts.specs === 'forbidden') forbidden.push('specs')
     if (t.artifacts.design === 'forbidden') forbidden.push('design')
+    if (t.verification === 'F') forbidden.push('verification')
     const optional = declared.filter((id) => !t.apply_requires.includes(id))
     return {
       type,

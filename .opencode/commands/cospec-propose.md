@@ -3,7 +3,7 @@ description: Propose a new change and generate every artifact its type requires,
 metadata:
   author: cospec
   generatedBy: cospec@0.1.0
-  contentHash: sha256:de265a2636c53d994001cd77340fa6d920722a8976f1fbcf9a6a05428eccee40
+  contentHash: sha256:f9e56d23172fb59e3f07b79306124b499b5d1b155dc2a71f13ef98337eda5ed5
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -69,8 +69,8 @@ Loop until every artifact in the type's `apply.requires` is written:
    `rules`. Treat `context` and `rules` as constraints on how you write — never
    copy them into the artifact itself.
 3. Write the artifact at the path the instructions name, following the format
-   exactly. `blocking-changes.md` and the `specs/**/spec.md` deltas are
-   machine-parsed — small deviations fail validation.
+   exactly. `blocking-changes.md`, the `specs/**/spec.md` deltas, and
+   `verification.md` are machine-parsed — small deviations fail validation.
 4. Repeat.
 
 For `blocking-changes.md`, scan the other active changes and the archive as the

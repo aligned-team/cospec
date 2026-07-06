@@ -1,6 +1,6 @@
 // `cospec archive <change>` — validate → tasks gate → `openspec archive` →
 // filesystem verification → post-merge spot-check → blocker fan-out (DESIGN
-// §5.2). The 12 numbered steps below are the core product promise: openspec
+// §5.2). The numbered steps below are the core product promise: openspec
 // 1.3.1 can exit 0 while silently aborting an archive (probe §5.5), so cospec
 // never trusts the exit code — it verifies the move on disk (date-agnostically,
 // MF2), spot-checks the spec merge, then fans blocker check-offs out across
@@ -21,11 +21,12 @@ import {
   resolveSchema,
   type Change,
 } from '../core/change.ts'
-import { parseDeltaSpec, parseLivingSpec, type DeltaOp } from '../core/deltas.ts'
+import { findScenarioDrops, parseDeltaSpec, parseLivingSpec, type DeltaOp } from '../core/deltas.ts'
 import { spawnOpenspec } from '../core/openspec.ts'
 import { renderHuman, renderJson, type ItemReport } from '../core/report.ts'
-import { TYPE_ARTIFACTS } from '../core/rules/type-facts.ts'
+import { enforcedApplyRequires, TYPE_ARTIFACTS, type CospecType } from '../core/rules/type-facts.ts'
 import { parseTasks } from '../core/tasks.ts'
+import { computeVerificationVerdict, parseVerification } from '../core/verification.ts'
 import { archiveMap, atomicWrite, closest, computeGate } from './apply.ts'
 import { buildValidateContext, validateChange } from './validate.ts'
 
@@ -171,6 +172,44 @@ export async function run(ctx: CommandContext): Promise<number> {
     return EXIT.failure
   }
 
+  // Step 3b: verification-incomplete gate (DESIGN §3.5 step 1). Runs whenever
+  // verification is enforced for this change's type/schemaVersion — independent
+  // of specs, so it fires for a specs-less fix too. There is no --force: a bare
+  // `[ ]` row must be resolved as `[x] … -> <evidence>` or deferred as
+  // `[~] … -> defer: <reason>` before archive proceeds.
+  if (
+    resolution.kind === 'cospec' &&
+    isCospecType(change.schema) &&
+    enforcedApplyRequires(change.schema as CospecType, change.schemaVersion ?? 1).includes(
+      'verification',
+    )
+  ) {
+    const verificationPath = join(change.dir, 'verification.md')
+    const verificationText = existsSync(verificationPath)
+      ? readFileSync(verificationPath, 'utf8')
+      : undefined
+    // Shares its pass/fail computation with `status --json`'s read-only verdict
+    // (DESIGN §3.6) — the row-level listing below is archive's own presentation.
+    const verdict = computeVerificationVerdict(true, verificationText)
+    if (verdict.blockedReasons.length > 0) {
+      process.stderr.write(
+        `cospec archive: verification.md is not fully resolved — refusing to archive:\n`,
+      )
+      if (verificationText === undefined) {
+        process.stderr.write('  verification.md does not exist yet\n')
+      } else {
+        const unresolved = parseVerification(verificationText).rows.filter(
+          (r) => r.state === 'planned',
+        )
+        for (const row of unresolved) process.stderr.write(`  ${row.raw}\n`)
+      }
+      process.stderr.write(
+        'resolve each row as `[x] … -> <evidence>`, or defer it as `[~] … -> defer: <reason>`.\n',
+      )
+      return EXIT.failure
+    }
+  }
+
   // Step 4: self-blocker sanity (warning only — aborted/superseded work archives too).
   const ownBlockersPath = join(change.dir, 'blocking-changes.md')
   if (existsSync(ownBlockersPath)) {
@@ -196,6 +235,35 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   // Step 7: snapshot.
   const preArchiveDirs = new Set(basenames(archiveDir(cwd)))
+
+  // Step 7b: scenario-preservation gate (DESIGN §3.5 step 2) — before delegating
+  // to `openspec archive`, specs-bearing changes only. openspec 1.3.1 has no
+  // notion of scenario thinning and merges a MODIFIED delta that drops scenarios
+  // at exit 0 (the atlas regression); cospec refuses first.
+  if (!skipSpecs && preOps.length > 0) {
+    const livingSpecs = new Map(
+      [...new Set(preOps.map((c) => c.capability))]
+        .map((cap): [string, ReturnType<typeof parseLivingSpec>] | undefined => {
+          const p = join(openspecDir(cwd), 'specs', cap, 'spec.md')
+          return existsSync(p) ? [cap, parseLivingSpec(readFileSync(p, 'utf8'))] : undefined
+        })
+        .filter((e): e is [string, ReturnType<typeof parseLivingSpec>] => e !== undefined),
+    )
+    const drops = findScenarioDrops(preOps, livingSpecs)
+    if (drops.length > 0) {
+      process.stderr.write(
+        'cospec archive: scenario-preservation gate refused — scenario count dropped without a matching removal note:\n',
+      )
+      for (const d of drops)
+        process.stderr.write(
+          `  ${d.capability}: "${d.name}" ${d.livingCount} -> ${d.deltaCount} scenario(s)\n`,
+        )
+      process.stderr.write(
+        'add a `- Scenario removed: <reason>` line under the requirement, or restore the scenario.\n',
+      )
+      return EXIT.failure
+    }
+  }
 
   // Step 8: execute.
   const archiveArgs = ['archive', change.id, '-y']

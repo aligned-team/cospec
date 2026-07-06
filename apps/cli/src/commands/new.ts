@@ -6,7 +6,10 @@
 // rather than trusting the exit code. Never pre-scaffolds artifact files
 // (openspec marks artifacts done on file existence).
 
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
@@ -22,6 +25,18 @@ import {
 import { OpenspecCallError, runOpenspec } from '../core/openspec.ts'
 import { COSPEC_TYPES, getTypeInfo } from '../core/schema-compose.ts'
 import { closest } from './apply.ts'
+
+/** The schemaVersion `cospec new` stamps into every newly created change (DESIGN §5). */
+export const NEW_SCHEMA_VERSION = 2
+
+/** Stamp `schemaVersion: 2` into a freshly created change's `.openspec.yaml`,
+ * preserving the `schema:`/`created:` fields openspec already wrote. */
+function stampSchemaVersion(changeDir: string): void {
+  const path = join(changeDir, '.openspec.yaml')
+  const doc = (parseYaml(readFileSync(path, 'utf8')) ?? {}) as Record<string, unknown>
+  doc.schemaVersion = NEW_SCHEMA_VERSION
+  writeFileSync(path, stringifyYaml(doc, { lineWidth: 0 }))
+}
 
 // A change slug is exactly a change id — one canonical kebab grammar (change.ts).
 const SLUG_RE = CHANGE_ID_RE
@@ -162,6 +177,8 @@ export async function run(ctx: CommandContext): Promise<number> {
     process.stderr.write(`cospec new: ${msg}\n`)
     return EXIT.failure
   }
+
+  stampSchemaVersion(`${changesDir(cwd)}/${slug}`)
 
   const info = getTypeInfo(type)!
   if (flags.json) {

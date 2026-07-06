@@ -61,6 +61,10 @@ export interface OpenspecYaml {
   parseable: boolean
   schema?: string
   created?: string
+  /** the change-creation schema version (DESIGN §5); absent ⇒ callers treat it as 1. */
+  schemaVersion?: number
+  /** a `schemaVersion:` key present but not a positive integer (meta/openspec-yaml). */
+  schemaVersionInvalid?: boolean
 }
 
 export interface DeltaFileInput {
@@ -78,7 +82,10 @@ export interface LoadedChange {
   proposalText?: string
   blockersText?: string
   tasksText?: string
+  verificationText?: string
   designExists: boolean
+  /** design.md content, when present — the design/* section rules parse this. */
+  designText?: string
   deltaFiles: DeltaFileInput[]
   /** living specs by capability (openspec/specs/<cap>/spec.md), parsed. */
   livingSpecs: Map<string, LivingSpec>
@@ -87,4 +94,6 @@ export interface LoadedChange {
 export interface ValidateContext {
   archiveSlugs: Set<string>
   activeSlugs: Set<string>
+  /** project-extended verification layers (openspec/config.yaml verification.layers). */
+  verificationLayers?: readonly string[]
 }

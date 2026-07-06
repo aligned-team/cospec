@@ -87,3 +87,64 @@ export function revertSlugs(body: string): string[] {
 export function hasCommitSha(body: string): boolean {
   return SHA_RE.test(body)
 }
+
+// --- Surfaces flag block (DESIGN §1.2) -------------------------------------
+
+/** The closed `## Surfaces` vocabulary (DESIGN §1.2). */
+export const SURFACE_TOKENS = ['interactive', 'deploy', 'integration', 'agent-behavior'] as const
+
+export type SurfaceToken = (typeof SURFACE_TOKENS)[number]
+
+/** A checkbox item inside the `## Surfaces` block. */
+export interface SurfaceItem {
+  /** the first token on the line (the flag name; not necessarily a known token). */
+  token: string
+  checked: boolean
+  line: number
+}
+
+const SURFACE_ITEM_RE = /^\s*[-*]\s*\[([ xX])\]\s*(\S+)/
+
+/**
+ * Parse the `## Surfaces` checkbox block, returning every listed flag (checked or
+ * not) with the token exactly as written — so a rule can both read the checked
+ * set and reject unknown tokens. Returns [] when the proposal has no `## Surfaces`
+ * section. Line numbers are relative to the section body (used only for hints).
+ */
+export function parseSurfaces(text: string): SurfaceItem[] {
+  const p = parseProposal(text)
+  const section = getSection(p, 'Surfaces')
+  if (section === undefined) return []
+  const items: SurfaceItem[] = []
+  const bodyLines = section.body.split('\n')
+  // Track fence state so a checkbox-like line inside a fenced code example (an
+  // illustrative `- [x] integration …`) is never parsed as a live flag — the
+  // same guard parseVerification applies to its rows.
+  let inFence = false
+  for (let i = 0; i < bodyLines.length; i++) {
+    const line = bodyLines[i]!
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence
+      continue
+    }
+    if (inFence) continue
+    const m = line.match(SURFACE_ITEM_RE)
+    if (m === null) continue
+    items.push({
+      token: m[2]!,
+      checked: m[1] === 'x' || m[1] === 'X',
+      line: section.line + 1 + i,
+    })
+  }
+  return items
+}
+
+/** The set of CHECKED surface flags declared by a proposal. */
+export function checkedSurfaces(text: string | undefined): Set<string> {
+  if (text === undefined) return new Set()
+  return new Set(
+    parseSurfaces(text)
+      .filter((s) => s.checked)
+      .map((s) => s.token),
+  )
+}

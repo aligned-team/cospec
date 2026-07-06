@@ -3,6 +3,8 @@
 // MANUAL-CHECK / FORMAT) and fix semantics are binding per DESIGN §5.3. One
 // parser serves validate / apply / archive / sync-blockers.
 
+import { splitLines } from './lines.ts'
+
 /** Entry grammar (DESIGN §3.8) — separator tolerant of hyphen/en-dash/em-dash. */
 const ENTRY_RE =
   /^- \[( |x|X)\] `([a-z][a-z0-9-]*)`(?:\s+([—–-])\s+(.+?))?(?:\s*(\*\(archived (\d{4}-\d{2}-\d{2})(?:[^)]*)?\)\*))?\s*$/
@@ -126,7 +128,7 @@ function isIgnorableLine(line: string): boolean {
 }
 
 export function parseBlockers(text: string): ParsedBlockers {
-  const lines = text.split('\n')
+  const lines = splitLines(text)
   const parsed: ParsedBlockers = {
     blocked: emptySection('blocked', 'Blocked by'),
     soft: emptySection('soft', 'Soft-blocked by'),
@@ -266,7 +268,7 @@ export function syncBlockers(
   opts: { fix: boolean },
 ): SyncResult {
   const parsed = parseBlockers(text)
-  const lines = text.split('\n')
+  const lines = splitLines(text)
   const findings: SyncFinding[] = []
   const synced: string[] = []
   let changed = false

@@ -1,9 +1,19 @@
 # proposal artifact — shared structure. Per-type `description` and `instruction`
 # live in canon/types/<type>.yaml; only the two template variants are shared here.
+# `surfacesBlock` is appended to proposal.md by the composer for every type whose
+# canon sets `surfaces: true` (all but chore/docs/style/test) — the §1.2 trigger.
 id: proposal
 generates: proposal.md
 template: proposal.md
 requires: []
+surfacesBlock: |
+  ## Surfaces
+
+  <!-- Check every surface this change touches; each drives a verification/design expectation (soft). -->
+  - [ ] interactive — a user-visible/interactive surface (UI, TUI, CLI UX)
+  - [ ] deploy — deploy/runtime/CI-execution topology (infra, Dockerfile, workflow runtime, secrets, bind address)
+  - [ ] integration — a third-party/external contract (SDK, OAuth, schema/id-type reconciliation)
+  - [ ] agent-behavior — prompts, tools, model routing, or agent output shape
 templates:
   full: |
     ## Why

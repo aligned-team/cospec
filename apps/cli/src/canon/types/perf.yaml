@@ -5,10 +5,12 @@ summary: 'proposal (+ Benchmarks) → blocking-changes → tasks'
 schemaDescription: 'perf — a performance change with identical behavior. Workflow: proposal (+ Benchmarks) → blocking-changes → tasks'
 proposal: full
 blocking: full
+surfaces: true
+verification: R
 artifacts:
   specs: optional
   design: optional
-apply_requires: [proposal, blocking-changes, tasks]
+apply_requires: [proposal, blocking-changes, verification, tasks]
 proposalDescription: Why the optimization is needed and the measured improvement
 proposalInstruction: |
   Write the proposal for a PERFORMANCE change (conventional-commit type: perf).
@@ -21,6 +23,14 @@ specsDescription: Delta specs — only if a performance SLO becomes a spec requi
 specsLead: |
   Create delta specs ONLY if a performance SLO becomes a spec requirement.
   Behavior is otherwise identical — most perf changes have no specs.
+verificationInstruction: |
+  perf's covenant is IDENTICAL behavior at a better cost. Prove both: at least
+  one `@benchmark` row (tied to the proposal's ## Benchmarks, recording the
+  after number) AND at least one `@equivalence` row (the existing suite /
+  characterization passes unchanged, so behavior did not silently drift). Rows:
+  `- [ ] N.M @<layer> (<owner>) <probe> -> <result>`; layers @unit @integration
+  @e2e @manual @runtime @regression @equivalence @benchmark @eval. A `[x]` row
+  needs observed evidence after ` -> `; defer as `[~] … -> defer: <reason>`.
 tasksInstruction: |
   Include a task that runs the benchmark and records the after number.
   `## N. Group` + `- [ ] N.M task` exactly — the checkbox format is parsed.

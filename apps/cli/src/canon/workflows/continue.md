@@ -31,8 +31,8 @@ Run the same loop as `/cospec:propose` step 3: for each ready artifact, call
 `cospec instructions <artifact> --change <slug> --json`, write it to the named
 path, and repeat until every required artifact exists. Apply `context` and
 `rules` as constraints, never copy them into the output. Follow the
-machine-parsed formats for `blocking-changes.md` and the `specs/**/spec.md`
-deltas exactly.
+machine-parsed formats for `blocking-changes.md`, the `specs/**/spec.md` deltas,
+and `verification.md` exactly.
 
 ## 4. Format, validate, and hand off
 

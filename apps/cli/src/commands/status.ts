@@ -11,8 +11,14 @@ import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
 import { isCospecType, listChanges, resolveChange, type Change } from '../core/change.ts'
-import { artifactRequires, TYPE_ARTIFACTS } from '../core/rules/type-facts.ts'
+import {
+  artifactRequires,
+  enforcedApplyRequires,
+  TYPE_ARTIFACTS,
+  type CospecType,
+} from '../core/rules/type-facts.ts'
 import { parseTasks } from '../core/tasks.ts'
+import { computeVerificationVerdict, type VerificationVerdict } from '../core/verification.ts'
 import { archiveMap, artifactDone, closest, computeGate, hasSpecFiles, type Gate } from './apply.ts'
 
 function flagValue(args: string[], flag: string): string | undefined {
@@ -36,6 +42,7 @@ export function hasAnyArtifact(changeDir: string): boolean {
     existsSync(join(changeDir, 'blocking-changes.md')) ||
     existsSync(join(changeDir, 'tasks.md')) ||
     existsSync(join(changeDir, 'design.md')) ||
+    existsSync(join(changeDir, 'verification.md')) ||
     hasSpecFiles(changeDir)
   )
 }
@@ -62,6 +69,9 @@ export interface ChangeStatus {
   gateState: Gate['state']
   tasks: { total: number; complete: number }
   archiveReady: boolean
+  /** read-only verification verdict (DESIGN §3.6) — never a gate; `cospec apply`
+   * and `cospec archive` are the only commands that gate on verification. */
+  verification: VerificationVerdict
 }
 
 /**
@@ -69,9 +79,12 @@ export interface ChangeStatus {
  * caller has excluded the empty-change and legacy cases.
  */
 export function computeStatus(cwd: string, change: Change): ChangeStatus {
-  const type = change.schema as keyof typeof TYPE_ARTIFACTS
+  const type = change.schema as CospecType
   const facts = TYPE_ARTIFACTS[type]
-  const applyRequires = new Set(facts.applyRequires)
+  // Grandfathering: `required` mirrors the schemaVersion-filtered set the
+  // apply/archive gates actually enforce (DESIGN §5), so a v1 change is not
+  // reported archive-blocked on a v2-introduced artifact the gates skip.
+  const applyRequires = new Set(enforcedApplyRequires(type, change.schemaVersion ?? 1))
   const done = new Map(facts.declared.map((id) => [id, artifactDone(change.dir, id)]))
   const artifacts: ArtifactStatus[] = facts.declared.map((id) => ({
     id,
@@ -100,6 +113,15 @@ export function computeStatus(cwd: string, change: Change): ChangeStatus {
   const tasksDone = total > 0 && complete === total
   const archiveReady = requiredDone && tasksDone && gate.state === 'clear'
 
+  const verificationPath = join(change.dir, 'verification.md')
+  const verificationText = existsSync(verificationPath)
+    ? readFileSync(verificationPath, 'utf8')
+    : undefined
+  const verification = computeVerificationVerdict(
+    applyRequires.has('verification'),
+    verificationText,
+  )
+
   return {
     change: change.id,
     type: change.schema,
@@ -109,6 +131,7 @@ export function computeStatus(cwd: string, change: Change): ChangeStatus {
     gateState: gate.state,
     tasks: { total, complete },
     archiveReady,
+    verification,
   }
 }
 
@@ -125,6 +148,12 @@ function renderHuman(status: ChangeStatus): string {
   lines.push(`  gate:          ${status.gate}`)
   lines.push(`  tasks:         ${status.tasks.complete}/${status.tasks.total}`)
   lines.push(`  archive-ready: ${status.archiveReady ? 'yes' : 'no'}`)
+  if (status.verification.declared) {
+    const v = status.verification
+    lines.push(
+      `  verification:  ${v.verified}/${v.total} verified, ${v.deferred} deferred, ${v.unresolved} unresolved`,
+    )
+  }
   return `${lines.join('\n')}\n`
 }
 

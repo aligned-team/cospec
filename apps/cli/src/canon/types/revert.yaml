@@ -5,6 +5,8 @@ summary: 'proposal (+ Reverts) → blocking-changes → tasks'
 schemaDescription: 'revert — roll back a shipped change. Workflow: proposal (+ Reverts) → blocking-changes → tasks'
 proposal: full
 blocking: full
+surfaces: true
+verification: O
 artifacts:
   specs: optional
   design: forbidden
@@ -20,6 +22,13 @@ specsDescription: Inverse delta specs — only if the reverted change carried sp
 specsLead: |
   If the reverted change carried spec deltas, write the INVERSE deltas (REMOVE
   what it ADDED, restore what it MODIFIED) so the living specs match reality.
+verificationInstruction: |
+  Optional for a revert — reverts are often urgent rollbacks. Author it when the
+  revert touches a live surface (check the proposal's ## Surfaces): prove the
+  symptom is gone with at least one row of any layer. Rows: `- [ ] N.M @<layer>
+  (<owner>) <probe> -> <result>`; layers @unit @integration @e2e @manual @runtime
+  @regression @equivalence @benchmark @eval. A `[x]` row needs observed evidence
+  after ` -> `; defer as `[~] … -> defer: <reason>`.
 tasksInstruction: |
   One group: revert the change, then verify (tests/build green). Use `## N.
   Group` and `- [ ] N.M task` exactly — the checkbox format is parsed.

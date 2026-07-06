@@ -7,6 +7,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
+  ARTIFACT_FILES,
+  type ArtifactId,
+  type CospecType,
+  TYPE_ARTIFACTS,
+} from '../../apps/cli/src/core/rules/type-facts.ts'
+import {
   makeRunCommandTool,
   makeWriteFileTool,
   runAgentLoop,
@@ -83,6 +89,21 @@ export async function createSandbox(repoRoot: string): Promise<string> {
 
 export async function teardown(sandbox: string): Promise<void> {
   await rm(sandbox, { recursive: true, force: true })
+}
+
+/**
+ * The non-`specs` artifact file names a type DECLARES (§3.2 matrix), derived
+ * from `type-facts.ts` rather than hand-copied — a scenario hardcoding this
+ * set drifts from the matrix and mis-scores `verification.md` as an
+ * unexpected/forbidden file the moment a type's declared set changes. `specs`
+ * is excluded since scenarios match it by directory prefix (`specs/**`), not
+ * a fixed file name.
+ */
+export function declaredArtifactFiles(type: CospecType): ReadonlySet<string> {
+  const declared = TYPE_ARTIFACTS[type].declared.filter(
+    (id): id is Exclude<ArtifactId, 'specs'> => id !== 'specs',
+  )
+  return new Set(declared.map((id) => ARTIFACT_FILES[id]))
 }
 
 async function exists(path: string): Promise<boolean> {

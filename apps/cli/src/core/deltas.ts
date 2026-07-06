@@ -15,6 +15,13 @@ const SHALL_MUST_RE = /\b(SHALL|MUST)\b/
 const REMOVED_BULLET_RE = /^-\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
 const RENAMED_FROM_RE = /^-?\s*FROM:\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
 const RENAMED_TO_RE = /^-?\s*TO:\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
+/**
+ * The archive/scenario-preservation escape hatch (DESIGN §3.5): a bullet inside
+ * a MODIFIED requirement's body noting why its scenario count intentionally
+ * shrank. Reads as both "a matching REMOVED [scenario]" and "an explicit
+ * reason" from the binding design's wording — one convention satisfies both.
+ */
+const SCENARIO_REMOVED_RE = /^\s*-?\s*Scenario removed:\s*(\S.*)$/i
 
 const SECTION_TITLES: Record<string, DeltaOperation> = {
   'added requirements': 'ADDED',
@@ -32,6 +39,10 @@ export interface DeltaOp {
   line: number
   hasShallMust: boolean
   scenarioCount: number
+  /** `Scenario removed: <reason>` notes found in this requirement's body
+   * (MODIFIED only) — a non-empty list excuses a scenario-count drop from
+   * `archive/scenario-preservation` (DESIGN §3.5). */
+  scenarioRemovalReasons: string[]
 }
 
 export interface ParsedDelta {
@@ -113,12 +124,15 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
           line: lineNo,
           hasShallMust: false,
           scenarioCount: 0,
+          scenarioRemovalReasons: [],
         }
         continue
       }
       if (openReq !== undefined) {
         if (SCENARIO_RE.test(raw)) openReq.scenarioCount++
         else if (SHALL_MUST_RE.test(raw)) openReq.hasShallMust = true
+        const removedNote = raw.match(SCENARIO_REMOVED_RE)
+        if (removedNote !== null) openReq.scenarioRemovalReasons.push(removedNote[1]!.trim())
       }
       continue
     }
@@ -134,6 +148,7 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
           line: lineNo,
           hasShallMust: false,
           scenarioCount: 0,
+          scenarioRemovalReasons: [],
         })
         sectionCounts.set('REMOVED', (sectionCounts.get('REMOVED') ?? 0) + 1)
       }
@@ -149,6 +164,7 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
           line: lineNo,
           hasShallMust: false,
           scenarioCount: 0,
+          scenarioRemovalReasons: [],
         }
         continue
       }
@@ -172,6 +188,8 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
 
 export interface LivingSpec {
   requirementNames: Set<string>
+  /** requirement name → its current `#### Scenario:` count (archive/scenario-preservation). */
+  requirementScenarioCounts: Map<string, number>
   hasPurpose: boolean
   hasRequirements: boolean
   /** a delta header (## ADDED/… Requirements) appearing in a living spec — invalid. */
@@ -183,11 +201,13 @@ export interface LivingSpec {
 export function parseLivingSpec(text: string): LivingSpec {
   const lines = text.split('\n')
   const requirementNames = new Set<string>()
+  const requirementScenarioCounts = new Map<string, number>()
   let hasPurpose = false
   let hasRequirements = false
   let hasDeltaHeaders = false
   let inFence = false
   let inPurpose = false
+  let currentReqName: string | undefined
   const purposeLines: string[] = []
 
   for (const raw of lines) {
@@ -210,14 +230,56 @@ export function parseLivingSpec(text: string): LivingSpec {
     if (inPurpose) purposeLines.push(raw)
 
     const req = raw.match(REQUIREMENT_RE)
-    if (req !== null) requirementNames.add(normalize(req[1]!))
+    if (req !== null) {
+      currentReqName = normalize(req[1]!)
+      requirementNames.add(currentReqName)
+      requirementScenarioCounts.set(currentReqName, 0)
+    } else if (currentReqName !== undefined && SCENARIO_RE.test(raw)) {
+      requirementScenarioCounts.set(
+        currentReqName,
+        (requirementScenarioCounts.get(currentReqName) ?? 0) + 1,
+      )
+    }
   }
 
   return {
     requirementNames,
+    requirementScenarioCounts,
     hasPurpose,
     hasRequirements,
     hasDeltaHeaders,
     purposeText: purposeLines.join('\n').trim(),
   }
+}
+
+export interface ScenarioDrop {
+  capability: string
+  name: string
+  deltaCount: number
+  livingCount: number
+}
+
+/**
+ * MODIFIED requirements whose delta scenario count is lower than the living
+ * spec's, with no `Scenario removed: <reason>` note excusing the drop
+ * (`archive/scenario-preservation`, DESIGN §3.5). ADDED/REMOVED/RENAMED ops and
+ * capabilities with no living spec (new capability — nothing to shrink against)
+ * are out of scope by construction.
+ */
+export function findScenarioDrops(
+  caps: readonly { capability: string; ops: readonly DeltaOp[] }[],
+  livingSpecs: ReadonlyMap<string, LivingSpec>,
+): ScenarioDrop[] {
+  const drops: ScenarioDrop[] = []
+  for (const { capability, ops } of caps) {
+    const living = livingSpecs.get(capability)
+    if (living === undefined) continue
+    for (const op of ops) {
+      if (op.operation !== 'MODIFIED' || op.name === undefined) continue
+      const livingCount = living.requirementScenarioCounts.get(op.name) ?? 0
+      if (op.scenarioCount < livingCount && op.scenarioRemovalReasons.length === 0)
+        drops.push({ capability, name: op.name, deltaCount: op.scenarioCount, livingCount })
+    }
+  }
+  return drops
 }

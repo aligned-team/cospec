@@ -5,10 +5,12 @@ summary: 'proposal → blocking-changes (+ specs, design) → tasks'
 schemaDescription: 'fix — a bug fix. Workflow: proposal → blocking-changes (+ specs, design) → tasks'
 proposal: full
 blocking: full
+surfaces: true
+verification: R
 artifacts:
   specs: optional
   design: optional
-apply_requires: [proposal, blocking-changes, tasks]
+apply_requires: [proposal, blocking-changes, verification, tasks]
 proposalDescription: What was broken, what correct behavior is, and the impact
 proposalInstruction: |
   Write the proposal for a BUG FIX (conventional-commit type: fix).
@@ -27,6 +29,17 @@ designDescription: Technical decisions (optional — only for gnarly fixes)
 designInstruction: |
   Only for fixes with architectural implications or non-obvious root causes.
   Sections: ## Context (root cause), ## Decisions, ## Risks / Trade-offs.
+  If the proposal checks the `deploy` surface, add ## Operational surface (bind
+  address, container-vs-runner, required secrets, binary versions/arches); if it
+  checks `integration`, add ## Integration contract (mount/route ownership,
+  SDK/fixture shape, id-type/schema reconciliation).
+verificationInstruction: |
+  A fix whose defect the green suite never exercised is worthless. Include at
+  least one `@regression` row that FAILS before the fix and PASSES after — real
+  endpoints/behavior, not a mock that enshrines the bug. Rows:
+  `- [ ] N.M @<layer> (<owner>) <probe> -> <result>`; layers @unit @integration
+  @e2e @manual @runtime @regression @equivalence @benchmark @eval. A `[x]` row
+  needs observed evidence after ` -> `; defer as `[~] … -> defer: <reason>`.
 tasksInstruction: |
   Include a regression-test task that fails before the fix and passes after.
   `## N. Group` + `- [ ] N.M task` exactly — the checkbox format is parsed.

@@ -5,10 +5,12 @@ summary: 'proposal → blocking-changes, specs (+ design) → tasks'
 schemaDescription: 'feat — a new feature. Full workflow: proposal → blocking-changes, specs (+ design) → tasks'
 proposal: full
 blocking: full
+surfaces: true
+verification: R
 artifacts:
   specs: required
   design: optional
-apply_requires: [proposal, blocking-changes, specs, tasks]
+apply_requires: [proposal, blocking-changes, specs, verification, tasks]
 proposalDescription: Why this feature exists, what changes, which capabilities it touches
 proposalInstruction: |
   Write the proposal for a NEW FEATURE (conventional-commit type: feat).
@@ -18,3 +20,13 @@ proposalInstruction: |
   migrations; mark breaking changes with BREAKING).
   If while writing this you realize the work is really a fix/refactor/etc.,
   stop and re-create the change: `cospec new <correct-type> <slug>`.
+verificationInstruction: |
+  Plan an acceptance-evidence ledger BEFORE implementing. Each `## N. <behavior>`
+  is one observable behavior; mark the ones whose breakage ships a broken product
+  `[critical]`. EVERY `[critical]` group must carry at least one row whose layer is
+  NOT @unit — an @integration/@e2e/@manual/@runtime proof at the layer that matters
+  (green unit tests are not acceptance). Rows: `- [ ] N.M @<layer> (<owner>) <probe>
+  -> <result>`. Layers: @unit @integration @e2e @manual @runtime @regression
+  @equivalence @benchmark @eval; owner (agent)/(human), @manual defaults to (human).
+  A `[x]` row needs observed evidence after ` -> `; defer as `[~] … -> defer:
+  <reason>`. Archive refuses any bare `[ ]` row.

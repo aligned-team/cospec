@@ -5,7 +5,7 @@
 // may be strictly MORE conservative than the binary; a false PASS is a release
 // blocker (parity is contract-tested). Rule IDs are frozen public API.
 
-import { parseDeltaSpec, type DeltaOp } from '../deltas.ts'
+import { findScenarioDrops, parseDeltaSpec, type DeltaOp } from '../deltas.ts'
 import type { Issue } from './issue.ts'
 import type { LoadedChange } from './schema-info.ts'
 
@@ -14,7 +14,14 @@ function opTargetName(op: DeltaOp): string | undefined {
   return op.name
 }
 
-export function archiveRules(change: LoadedChange): Issue[] {
+export interface ArchiveRuleOptions {
+  strict: boolean
+}
+
+export function archiveRules(
+  change: LoadedChange,
+  opts: ArchiveRuleOptions = { strict: false },
+): Issue[] {
   const issues: Issue[] = []
 
   // Group parsed ops by capability (one delta file per capability in practice,
@@ -128,6 +135,20 @@ export function archiveRules(change: LoadedChange): Issue[] {
           })
       }
     }
+  }
+
+  // archive/scenario-preservation — the advisory mirror of the hard archive-command
+  // step (DESIGN §3.5). WARNING by default, ERROR under --strict; the real block
+  // is the explicit `cospec archive` step, never this validate-time rule.
+  const caps = [...byCap.entries()].map(([capability, group]) => ({ capability, ops: group.ops }))
+  for (const drop of findScenarioDrops(caps, change.livingSpecs)) {
+    issues.push({
+      level: opts.strict ? 'ERROR' : 'WARNING',
+      rule: 'archive/scenario-preservation',
+      path: `specs/${drop.capability}/spec.md`,
+      message: `MODIFIED "${drop.name}" drops scenario count from ${drop.livingCount} to ${drop.deltaCount} with no \`Scenario removed: <reason>\` note or matching REMOVED operation`,
+      hint: 'add a `- Scenario removed: <reason>` line under the requirement, or restore the scenario',
+    })
   }
 
   return issues

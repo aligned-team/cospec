@@ -6,6 +6,8 @@ schemaDescription: 'build — a dependency or build-config change. Light workflo
 proposal: lite
 blocking: lite
 liteDomain: manifests and lockfiles
+surfaces: true
+verification: O
 artifacts:
   specs: forbidden
   design: forbidden
@@ -16,6 +18,13 @@ proposalInstruction: |
   application source or specs. Keep it short: ## Why — one or two sentences.
   ## What Changes — name each manifest/lockfile touched. ## Impact — build,
   install, or release steps affected.
+verificationInstruction: |
+  Optional and light — a trivial pin needs none. Author it only when the
+  proposal checks the `deploy` surface (deploy/runtime/CI-execution topology):
+  then include at least one `@runtime` row proving the artifact runs in its real
+  runtime (right binary arch, config path, env-var type, secret present). Rows:
+  `- [ ] N.M @<layer> (<owner>) <probe> -> <result>`. A `[x]` row needs observed
+  evidence after ` -> `; defer as `[~] … -> defer: <reason>`.
 tasksInstruction: |
   Include a lockfile-regeneration task where applicable. `## N. Group` +
   `- [ ] N.M task` exactly — the checkbox format is parsed.

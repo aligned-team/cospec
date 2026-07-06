@@ -5,10 +5,12 @@ summary: 'proposal → blocking-changes, design → tasks'
 schemaDescription: 'refactor — a structure change with no behavior change. Workflow: proposal → blocking-changes, design → tasks'
 proposal: full
 blocking: full
+surfaces: true
+verification: R
 artifacts:
   specs: optional
   design: required
-apply_requires: [proposal, blocking-changes, design, tasks]
+apply_requires: [proposal, blocking-changes, design, verification, tasks]
 proposalDescription: The structure change and the invariants that must not change
 proposalInstruction: |
   Write the proposal for a REFACTOR (conventional-commit type: refactor).
@@ -25,7 +27,17 @@ designInstruction: |
   The load-bearing artifact for a refactor. Capture the structure before and
   after and the migration steps. Sections: ## Context, ## Goals / Non-Goals,
   ## Decisions (each with the alternative rejected and why), ## Risks /
-  Trade-offs ([Risk] → Mitigation).
+  Trade-offs ([Risk] → Mitigation), and ## Seam ownership — which lane owns each
+  piece of shared runtime state after the move. If the proposal checks the
+  `deploy` surface add ## Operational surface; if it checks `integration` add
+  ## Integration contract.
+verificationInstruction: |
+  refactor's covenant is NO behavior change. Include at least one `@equivalence`
+  row recording that the existing suite / characterization tests pass unchanged,
+  so a shared-state seam did not silently drift. Rows: `- [ ] N.M @<layer>
+  (<owner>) <probe> -> <result>`; layers @unit @integration @e2e @manual @runtime
+  @regression @equivalence @benchmark @eval. A `[x]` row needs observed evidence
+  after ` -> `; defer as `[~] … -> defer: <reason>`.
 tasksInstruction: |
   Order tasks by dependency. Include a no-behavior-change verification task
   (the existing tests pass unchanged). `## N. Group` + `- [ ] N.M task` exactly

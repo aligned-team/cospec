@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.1.0
-  contentHash: sha256:f8d15c8b5d87ac57f2744f3675b7750aa2633e0c9fe836146d76d940287381bf
+  contentHash: sha256:4013a1017e4ac96727bf74a3bcf1616547a603917416eac8a401862ce6fb5ba4
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -72,8 +72,8 @@ Loop until every artifact in the type's `apply.requires` is written:
    `rules`. Treat `context` and `rules` as constraints on how you write — never
    copy them into the artifact itself.
 3. Write the artifact at the path the instructions name, following the format
-   exactly. `blocking-changes.md` and the `specs/**/spec.md` deltas are
-   machine-parsed — small deviations fail validation.
+   exactly. `blocking-changes.md`, the `specs/**/spec.md` deltas, and
+   `verification.md` are machine-parsed — small deviations fail validation.
 4. Repeat.
 
 For `blocking-changes.md`, scan the other active changes and the archive as the

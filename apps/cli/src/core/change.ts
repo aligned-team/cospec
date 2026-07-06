@@ -47,6 +47,8 @@ export function archiveDir(cwd: string): string {
 export interface OpenspecYaml {
   schema: string
   created?: string
+  /** the change-creation schema version (DESIGN §5); absent ⇒ callers treat it as 1. */
+  schemaVersion?: number
 }
 
 /**
@@ -68,7 +70,8 @@ export function readOpenspecYaml(changeDir: string): OpenspecYaml | undefined {
   const schema = record.schema
   if (typeof schema !== 'string' || schema.length === 0) return undefined
   const created = typeof record.created === 'string' ? record.created : undefined
-  return { schema, created }
+  const schemaVersion = typeof record.schemaVersion === 'number' ? record.schemaVersion : undefined
+  return { schema, created, schemaVersion }
 }
 
 export interface Change {
@@ -77,6 +80,8 @@ export interface Change {
   /** Raw `schema:` value; empty string when `.openspec.yaml` is missing/invalid. */
   schema: string
   created?: string
+  /** the change-creation schema version (DESIGN §5); absent ⇒ callers treat it as 1. */
+  schemaVersion?: number
 }
 
 function listDirs(path: string): string[] {
@@ -95,7 +100,13 @@ export function listChanges(cwd: string): Change[] {
     .map((id) => {
       const dir = join(base, id)
       const yaml = readOpenspecYaml(dir)
-      return { id, dir, schema: yaml?.schema ?? '', created: yaml?.created }
+      return {
+        id,
+        dir,
+        schema: yaml?.schema ?? '',
+        created: yaml?.created,
+        schemaVersion: yaml?.schemaVersion,
+      }
     })
 }
 
@@ -117,7 +128,13 @@ export function resolveChange(cwd: string, id: string): Change | undefined {
   const dir = join(changesDir(cwd), id)
   if (!existsSync(dir)) return undefined
   const yaml = readOpenspecYaml(dir)
-  return { id, dir, schema: yaml?.schema ?? '', created: yaml?.created }
+  return {
+    id,
+    dir,
+    schema: yaml?.schema ?? '',
+    created: yaml?.created,
+    schemaVersion: yaml?.schemaVersion,
+  }
 }
 
 const ARCHIVE_ENTRY = /^(\d{4}-\d{2}-\d{2})-(.+)$/

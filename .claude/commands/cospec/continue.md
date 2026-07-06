@@ -8,7 +8,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@0.1.0
-  contentHash: sha256:8ad674a6dd0afa94c5a2df7c68cb4def90be0b3c8d0c4859580ec007934bc0c1
+  contentHash: sha256:ee3707b99320986059fc3788acb757abb17cc698adc582cefbf5a29a4f87cfde
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -44,8 +44,8 @@ Run the same loop as `/cospec:propose` step 3: for each ready artifact, call
 `cospec instructions <artifact> --change <slug> --json`, write it to the named
 path, and repeat until every required artifact exists. Apply `context` and
 `rules` as constraints, never copy them into the output. Follow the
-machine-parsed formats for `blocking-changes.md` and the `specs/**/spec.md`
-deltas exactly.
+machine-parsed formats for `blocking-changes.md`, the `specs/**/spec.md` deltas,
+and `verification.md` exactly.
 
 ## 4. Format, validate, and hand off
 

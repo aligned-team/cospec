@@ -49,8 +49,8 @@ Loop until every artifact in the type's `apply.requires` is written:
    `rules`. Treat `context` and `rules` as constraints on how you write — never
    copy them into the artifact itself.
 3. Write the artifact at the path the instructions name, following the format
-   exactly. `blocking-changes.md` and the `specs/**/spec.md` deltas are
-   machine-parsed — small deviations fail validation.
+   exactly. `blocking-changes.md`, the `specs/**/spec.md` deltas, and
+   `verification.md` are machine-parsed — small deviations fail validation.
 4. Repeat.
 
 For `blocking-changes.md`, scan the other active changes and the archive as the

@@ -6,6 +6,8 @@ schemaDescription: 'ci — CI configuration and automation pipelines. Light work
 proposal: lite
 blocking: lite
 liteDomain: workflows/scripts
+surfaces: true
+verification: O
 artifacts:
   specs: forbidden
   design: forbidden
@@ -17,6 +19,13 @@ proposalInstruction: |
   of workflow/script paths. ## Impact — jobs, secrets, required checks
   affected. A ci change must not modify application source or specs — if it
   does, retype it: `cospec new <correct-type> <slug>`.
+verificationInstruction: |
+  Optional and light — a trivial pipeline tweak needs none. Author it only when
+  the proposal checks the `deploy` surface (CI-execution topology): then include
+  at least one `@runtime` row proving the workflow actually ran in its real
+  runner (correct runtime, secrets, required checks). Name that row's execution
+  environment. Rows: `- [ ] N.M @<layer> (<owner>) <probe> -> <result>`. A `[x]`
+  row needs observed evidence after ` -> `; defer as `[~] … -> defer: <reason>`.
 tasksInstruction: |
   Usually one group: the edits plus one verification task (e.g.
   "- [ ] 1.2 actionlint passes / workflow dry-run"). Use `## N. Group` and

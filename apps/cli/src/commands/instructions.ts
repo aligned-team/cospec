@@ -16,7 +16,15 @@ function flagValue(args: string[], flag: string): string | undefined {
   return eq?.slice(flag.length + 1)
 }
 
-const ARTIFACTS = ['proposal', 'blocking-changes', 'specs', 'design', 'tasks', 'apply']
+const ARTIFACTS = [
+  'proposal',
+  'blocking-changes',
+  'specs',
+  'design',
+  'verification',
+  'tasks',
+  'apply',
+]
 
 export async function run(ctx: CommandContext): Promise<number> {
   const { cwd, flags } = ctx

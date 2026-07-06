@@ -2,6 +2,8 @@
 // `- [ ] N.M task` checkboxes (DESIGN §3.1). Rules built on this cover tasks/*
 // in DESIGN §4.3.
 
+import { splitLines } from './lines.ts'
+
 /** A conforming, trackable checkbox line. */
 const TASK_VALID = /^- \[( |x|X)\] (.+)$/
 /** A checkbox-like line (candidate for a grammar violation). */
@@ -43,7 +45,7 @@ function correctTask(raw: string): string | undefined {
 }
 
 export function parseTasks(text: string): ParsedTasks {
-  const lines = text.split('\n')
+  const lines = splitLines(text)
   const items: TaskItem[] = []
   const malformed: MalformedTask[] = []
   const groups: TaskGroup[] = []
