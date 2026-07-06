@@ -13,6 +13,7 @@ import { parse as parseYaml } from 'yaml'
 import type { CommandContext } from '../cli.ts'
 import {
   archiveDir,
+  isValidSchemaVersion,
   listChanges,
   openspecDir,
   resolveChange,
@@ -40,7 +41,13 @@ import {
   type SchemaInfo,
   type ValidateContext,
 } from '../core/rules/schema-info.ts'
-import { ARTIFACT_GENERATES, TYPE_ARTIFACTS, type ArtifactId } from '../core/rules/type-facts.ts'
+import {
+  ARTIFACT_GENERATES,
+  enforcedApplyRequires,
+  TYPE_ARTIFACTS,
+  type ArtifactId,
+  type CospecType,
+} from '../core/rules/type-facts.ts'
 
 // --- Change loading (filesystem → LoadedChange) ---------------------------
 
@@ -74,11 +81,20 @@ function loadOpenspecYaml(changeDir: string): LoadedChange['openspecYaml'] {
   const record = doc as Record<string, unknown>
   const schema = typeof record.schema === 'string' ? record.schema : undefined
   const created = typeof record.created === 'string' ? record.created : undefined
-  return { present: true, parseable: true, schema, created }
+  const rawSchemaVersion = record.schemaVersion
+  // A present-but-non-positive-integer schemaVersion is reported via
+  // schemaVersionInvalid (meta/openspec-yaml) but must not flow through as a
+  // usable version — otherwise `?? 1` would keep the garbage and mis-filter
+  // enforcedApplyRequires. Treat it as absent, matching readOpenspecYaml.
+  const schemaVersion = isValidSchemaVersion(rawSchemaVersion) ? rawSchemaVersion : undefined
+  const schemaVersionInvalid =
+    rawSchemaVersion !== undefined && !isValidSchemaVersion(rawSchemaVersion)
+  return { present: true, parseable: true, schema, created, schemaVersion, schemaVersionInvalid }
 }
 
 function loadChange(cwd: string, id: string, dir: string): LoadedChange {
   const files = existsSync(dir) ? listFilesRelative(dir) : []
+  const designText = readIfExists(join(dir, 'design.md'))
   const deltaFiles = files
     .filter((f) => /^specs\/[^/]+\/.*\.md$/.test(f) || /^specs\/[^/]+\.md$/.test(f))
     .map((f) => {
@@ -101,20 +117,30 @@ function loadChange(cwd: string, id: string, dir: string): LoadedChange {
     proposalText: readIfExists(join(dir, 'proposal.md')),
     blockersText: readIfExists(join(dir, 'blocking-changes.md')),
     tasksText: readIfExists(join(dir, 'tasks.md')),
-    designExists: existsSync(join(dir, 'design.md')),
+    verificationText: readIfExists(join(dir, 'verification.md')),
+    designExists: designText !== undefined,
+    designText,
     deltaFiles,
     livingSpecs,
   }
 }
 
-function cospecSchemaInfo(type: string): SchemaInfo {
+/**
+ * `applyRequires` is filtered through `enforcedApplyRequires` (DESIGN §5) so a
+ * change stamped (or defaulted to) `schemaVersion` 1 is never flagged for an
+ * artifact introduced at v2 — applied here so both `verification/missing` and
+ * `change/artifact-missing` grandfather identically at validate, apply, and
+ * archive (all three delegate through `validateChange`/this function).
+ */
+function cospecSchemaInfo(type: string, schemaVersion: number): SchemaInfo {
   const ta = TYPE_ARTIFACTS[type as keyof typeof TYPE_ARTIFACTS]
   const artifacts: ArtifactSpec[] = ta.declared.map((id: ArtifactId) => ({
     id,
     generates: ARTIFACT_GENERATES[id],
     requires: [],
   }))
-  return deriveSchemaInfo(type, artifacts, ta.applyRequires, true)
+  const applyRequires = enforcedApplyRequires(type as CospecType, schemaVersion)
+  return deriveSchemaInfo(type, artifacts, applyRequires, true)
 }
 
 // --- openspec delegation ---------------------------------------------------
@@ -226,7 +252,7 @@ export async function validateChange(
   const resolution = resolveSchema(cwd, y.schema)
 
   if (resolution.kind === 'cospec') {
-    const schema = cospecSchemaInfo(y.schema)
+    const schema = cospecSchemaInfo(y.schema, y.schemaVersion ?? 1)
     const issues = runChangeRules(load, schema, ctx, opts)
     // Delegate to openspec only for spec-bearing cospec changes that have a
     // proposal (openspec is blind to artifact-less changes — probe §5.3).

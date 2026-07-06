@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { parseDeltaSpec, parseLivingSpec } from '../../../src/core/deltas.ts'
+import { findScenarioDrops, parseDeltaSpec, parseLivingSpec } from '../../../src/core/deltas.ts'
 
 describe('parseDeltaSpec', () => {
   test('parses an ADDED requirement with SHALL and a scenario', () => {
@@ -102,5 +102,196 @@ The system SHALL display widgets.
     const s = parseLivingSpec('# Title\n\njust text\n')
     expect(s.hasPurpose).toBe(false)
     expect(s.hasRequirements).toBe(false)
+  })
+
+  test('counts scenarios per requirement', () => {
+    const s = parseLivingSpec(`## Purpose
+
+x
+
+## Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render.
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y
+
+#### Scenario: b
+
+- **WHEN** x
+- **THEN** y
+
+### Requirement: Other
+
+The system SHALL other.
+
+#### Scenario: c
+
+- **WHEN** x
+- **THEN** y
+`)
+    expect(s.requirementScenarioCounts.get('Widget rendering')).toBe(2)
+    expect(s.requirementScenarioCounts.get('Other')).toBe(1)
+  })
+})
+
+describe('parseDeltaSpec: scenario removal notes', () => {
+  test('captures a `Scenario removed:` bullet under a MODIFIED requirement', () => {
+    const text = `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render a widget.
+
+- Scenario removed: the empty-state path merged into the primary scenario.
+
+#### Scenario: Render a widget
+
+- **WHEN** a
+- **THEN** b
+`
+    const p = parseDeltaSpec(text, 'specs/x/spec.md', 'x')
+    const op = p.ops[0]!
+    expect(op.scenarioRemovalReasons).toEqual([
+      'the empty-state path merged into the primary scenario.',
+    ])
+  })
+
+  test('a requirement with no note has an empty reasons list', () => {
+    const text = `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render a widget.
+
+#### Scenario: Render a widget
+
+- **WHEN** a
+- **THEN** b
+`
+    const p = parseDeltaSpec(text, 'specs/x/spec.md', 'x')
+    expect(p.ops[0]!.scenarioRemovalReasons).toEqual([])
+  })
+})
+
+describe('findScenarioDrops', () => {
+  const LIVING = parseLivingSpec(`## Purpose
+
+x
+
+## Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render.
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y
+
+#### Scenario: b
+
+- **WHEN** x
+- **THEN** y
+`)
+
+  test('flags a MODIFIED requirement whose scenario count drops with no note', () => {
+    const p = parseDeltaSpec(
+      `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render.
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y
+`,
+      'specs/widgets/spec.md',
+      'widgets',
+    )
+    const drops = findScenarioDrops(
+      [{ capability: 'widgets', ops: p.ops }],
+      new Map([['widgets', LIVING]]),
+    )
+    expect(drops).toEqual([
+      { capability: 'widgets', name: 'Widget rendering', deltaCount: 1, livingCount: 2 },
+    ])
+  })
+
+  test('a `Scenario removed:` note excuses the drop', () => {
+    const p = parseDeltaSpec(
+      `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render.
+
+- Scenario removed: b was redundant with a.
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y
+`,
+      'specs/widgets/spec.md',
+      'widgets',
+    )
+    const drops = findScenarioDrops(
+      [{ capability: 'widgets', ops: p.ops }],
+      new Map([['widgets', LIVING]]),
+    )
+    expect(drops).toEqual([])
+  })
+
+  test('no drop when the scenario count is unchanged or grows', () => {
+    const p = parseDeltaSpec(
+      `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render.
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y
+
+#### Scenario: b
+
+- **WHEN** x
+- **THEN** y
+
+#### Scenario: c
+
+- **WHEN** x
+- **THEN** y
+`,
+      'specs/widgets/spec.md',
+      'widgets',
+    )
+    expect(
+      findScenarioDrops([{ capability: 'widgets', ops: p.ops }], new Map([['widgets', LIVING]])),
+    ).toEqual([])
+  })
+
+  test('a capability with no living spec (new capability) is never flagged', () => {
+    const p = parseDeltaSpec(
+      `## ADDED Requirements
+
+### Requirement: Brand new
+
+The system SHALL do new.
+`,
+      'specs/fresh/spec.md',
+      'fresh',
+    )
+    expect(findScenarioDrops([{ capability: 'fresh', ops: p.ops }], new Map())).toEqual([])
   })
 })

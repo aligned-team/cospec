@@ -29,7 +29,13 @@ import {
   type ApplyInstructionsJson,
 } from '../core/openspec.ts'
 import { renderHuman, renderJson, type ItemReport } from '../core/report.ts'
-import { ARTIFACT_FILES, TYPE_ARTIFACTS, type ArtifactId } from '../core/rules/type-facts.ts'
+import { surfaceUnmetConsequences } from '../core/rules/meta.ts'
+import {
+  ARTIFACT_FILES,
+  enforcedApplyRequires,
+  type ArtifactId,
+  type CospecType,
+} from '../core/rules/type-facts.ts'
 import { buildValidateContext, validateChange } from './validate.ts'
 
 // --- shared primitives (exported for status/list/archive/new) --------------
@@ -146,6 +152,22 @@ export function missingArtifacts(changeDir: string, applyRequires: readonly stri
 
 const BLOCKERS_FILE = 'blocking-changes.md'
 
+// Surface-driven soft rules the fast validation surfaces as WARNINGs and that
+// apply folds into `gate.soft` (DESIGN §3.4). These own the present-file gaps:
+// `design/*` the missing design sections, `verification/*` the missing per-row
+// layers on feat/fix/perf/refactor. The absent-verification.md case on an
+// O(trig) type is owned separately by `meta/surface-unmet` (aggregated below via
+// `surfaceUnmetConsequences`), so these two paths never double-report a row.
+const SURFACE_SOFT_RULES = new Set<string>([
+  'design/operational-surface',
+  'design/integration-contract',
+  'design/seam-ownership',
+  'verification/interactive-required',
+  'verification/eval-check',
+  'verification/integration-check',
+  'verification/deploy-real-layer',
+])
+
 function printReport(report: ItemReport, ctx: CommandContext): void {
   const out = ctx.flags.json
     ? renderJson([report])
@@ -213,8 +235,14 @@ export async function run(ctx: CommandContext): Promise<number> {
     return EXIT.failure
   }
 
-  // Step 3: required-artifact presence (done == file exists).
-  const applyRequires = TYPE_ARTIFACTS[change.schema as keyof typeof TYPE_ARTIFACTS].applyRequires
+  // Step 3: required-artifact presence (done == file exists). `applyRequires`
+  // is the schemaVersion-filtered set (DESIGN §5): a change stamped/defaulted
+  // to v1 is grandfathered out of the v2-introduced artifacts (verification for
+  // feat/fix/perf/refactor) rather than hard-blocked by the retrofit.
+  const applyRequires = enforcedApplyRequires(
+    change.schema as CospecType,
+    change.schemaVersion ?? 1,
+  )
   const missing = missingArtifacts(change.dir, applyRequires)
   if (missing.length > 0) {
     if (flags.json) {
@@ -277,6 +305,35 @@ export async function run(ctx: CommandContext): Promise<number> {
       }
     }
     return EXIT.blocked
+  }
+
+  // Step 4b: surface soft-blockers (DESIGN §3.3 step 2, §3.4). Every
+  // surface-driven consequence is folded into the same `gate.soft` list the
+  // blocking-changes gate already uses — one exit-3 mechanism, one
+  // `--allow-soft` acknowledgment, no new exit-code contract. Two sources,
+  // covering all types uniformly:
+  //   1. `meta/surface-unmet` — an O(trig) type (revert/build/ci) whose
+  //      verification.md is absent, so there is no row to inspect.
+  //   2. the `design/*` section gaps and `verification/*` per-row gaps the fast
+  //      validation (step 2) already reported as WARNINGs against a present
+  //      file — the case that previously only warned and never blocked apply.
+  const proposalPath = join(change.dir, 'proposal.md')
+  const proposalText = existsSync(proposalPath) ? readFileSync(proposalPath, 'utf8') : undefined
+  const verificationExists = artifactDone(change.dir, 'verification')
+  for (const c of surfaceUnmetConsequences(
+    change.schema as CospecType,
+    proposalText,
+    verificationExists,
+  )) {
+    gate.soft.push({
+      slug: `surface:${c.flag}`,
+      description: `the '${c.flag}' surface flag is checked but verification.md does not exist yet`,
+      active: false,
+    })
+  }
+  for (const issue of report.issues) {
+    if (!SURFACE_SOFT_RULES.has(issue.rule)) continue
+    gate.soft.push({ slug: `surface:${issue.rule}`, description: issue.message, active: false })
   }
 
   if (gate.soft.length > 0 && !allowSoft) {

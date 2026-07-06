@@ -16,6 +16,7 @@ import {
   serializeSchema,
   TYPE_TABLE,
   validateComposedSchema,
+  type VerificationState,
 } from '../../../src/core/schema-compose.ts'
 
 const GOLDEN_DIR = join(import.meta.dir, 'golden')
@@ -29,6 +30,7 @@ interface MatrixRow {
   proposal: ProposalVariant
   specs: ArtifactState
   design: ArtifactState
+  verification: VerificationState
   applyRequires: string[]
 }
 
@@ -37,66 +39,77 @@ const MATRIX: Record<string, MatrixRow> = {
     proposal: 'full',
     specs: 'required',
     design: 'optional',
-    applyRequires: ['proposal', 'blocking-changes', 'specs', 'tasks'],
+    verification: 'R',
+    applyRequires: ['proposal', 'blocking-changes', 'specs', 'verification', 'tasks'],
   },
   fix: {
     proposal: 'full',
     specs: 'optional',
     design: 'optional',
-    applyRequires: ['proposal', 'blocking-changes', 'tasks'],
+    verification: 'R',
+    applyRequires: ['proposal', 'blocking-changes', 'verification', 'tasks'],
   },
   perf: {
     proposal: 'full',
     specs: 'optional',
     design: 'optional',
-    applyRequires: ['proposal', 'blocking-changes', 'tasks'],
+    verification: 'R',
+    applyRequires: ['proposal', 'blocking-changes', 'verification', 'tasks'],
   },
   refactor: {
     proposal: 'full',
     specs: 'optional',
     design: 'required',
-    applyRequires: ['proposal', 'blocking-changes', 'design', 'tasks'],
+    verification: 'R',
+    applyRequires: ['proposal', 'blocking-changes', 'design', 'verification', 'tasks'],
   },
   revert: {
     proposal: 'full',
     specs: 'optional',
     design: 'forbidden',
+    verification: 'O',
     applyRequires: ['proposal', 'blocking-changes', 'tasks'],
   },
   build: {
     proposal: 'lite',
     specs: 'forbidden',
     design: 'forbidden',
+    verification: 'O',
     applyRequires: ['proposal', 'blocking-changes', 'tasks'],
   },
   ci: {
     proposal: 'lite',
     specs: 'forbidden',
     design: 'forbidden',
+    verification: 'O',
     applyRequires: ['proposal', 'blocking-changes', 'tasks'],
   },
   chore: {
     proposal: 'lite',
     specs: 'forbidden',
     design: 'forbidden',
+    verification: 'F',
     applyRequires: ['proposal', 'blocking-changes', 'tasks'],
   },
   docs: {
     proposal: 'lite',
     specs: 'forbidden',
     design: 'forbidden',
+    verification: 'F',
     applyRequires: ['proposal', 'blocking-changes', 'tasks'],
   },
   style: {
     proposal: 'lite',
     specs: 'forbidden',
     design: 'forbidden',
+    verification: 'F',
     applyRequires: ['proposal', 'blocking-changes', 'tasks'],
   },
   test: {
     proposal: 'lite',
     specs: 'forbidden',
     design: 'forbidden',
+    verification: 'F',
     applyRequires: ['proposal', 'blocking-changes', 'tasks'],
   },
 }
@@ -153,7 +166,7 @@ describe('structural validity (openspec Zod shape)', () => {
         apply: { requires: string[]; tracks: string; instruction: string }
       }
       expect(doc.name).toBe(type)
-      expect(doc.version).toBe(1)
+      expect(doc.version).toBe(2)
       expect(typeof doc.description).toBe('string')
       expect(doc.artifacts.length).toBeGreaterThanOrEqual(1)
       const ids = new Set(doc.artifacts.map((a) => a.id))
@@ -203,6 +216,7 @@ describe('DESIGN §3.2 artifact matrix', () => {
       const expectedDeclared = ['proposal', 'blocking-changes']
       if (row.specs !== 'forbidden') expectedDeclared.push('specs')
       if (row.design !== 'forbidden') expectedDeclared.push('design')
+      if (row.verification !== 'F') expectedDeclared.push('verification')
       expectedDeclared.push('tasks')
       expect(declared).toEqual(expectedDeclared)
 
@@ -210,6 +224,7 @@ describe('DESIGN §3.2 artifact matrix', () => {
       const expectedForbidden: string[] = []
       if (row.specs === 'forbidden') expectedForbidden.push('specs')
       if (row.design === 'forbidden') expectedForbidden.push('design')
+      if (row.verification === 'F') expectedForbidden.push('verification')
       expect(([...info.forbiddenArtifacts] as string[]).toSorted()).toEqual(
         expectedForbidden.toSorted(),
       )
@@ -257,6 +272,7 @@ describe('templates', () => {
       const expected = ['proposal.md', 'blocking-changes.md', 'tasks.md']
       if (row.specs !== 'forbidden') expected.push('spec.md')
       if (row.design !== 'forbidden') expected.push('design.md')
+      if (row.verification !== 'F') expected.push('verification.md')
       expect(Object.keys(templates).toSorted()).toEqual(expected.toSorted())
       for (const body of Object.values(templates)) expect(body.length).toBeGreaterThan(0)
 
@@ -324,6 +340,57 @@ describe('type table (frozen export)', () => {
 
   test('getTypeInfo returns undefined for a non-cospec type', () => {
     expect(getTypeInfo('wip')).toBeUndefined()
+  })
+})
+
+describe('verification artifact + surfaces (DESIGN §1.1, §1.2, §2)', () => {
+  test('canon enumerates verification for feat/fix/perf/refactor as required + apply-gated', () => {
+    for (const type of ['feat', 'fix', 'perf', 'refactor']) {
+      const schema = composeSchema(type)
+      const v = schema.artifacts.find((a) => a.id === 'verification')
+      expect(v).toBeDefined()
+      expect(v!.generates).toBe('verification.md')
+      expect(v!.requires).toEqual(['proposal'])
+      expect(schema.apply.requires).toContain('verification')
+    }
+  })
+
+  test('verification is declared-but-optional for revert/build/ci, forbidden for the light four', () => {
+    for (const type of ['revert', 'build', 'ci']) {
+      const schema = composeSchema(type)
+      expect(schema.artifacts.some((a) => a.id === 'verification')).toBe(true)
+      expect(schema.apply.requires).not.toContain('verification')
+    }
+    for (const type of ['chore', 'docs', 'style', 'test']) {
+      const schema = composeSchema(type)
+      expect(schema.artifacts.some((a) => a.id === 'verification')).toBe(false)
+      expect(getTypeInfo(type)!.forbiddenArtifacts).toContain('verification')
+    }
+  })
+
+  test('verification sits before tasks in the composed order', () => {
+    const ids = composeSchema('feat').artifacts.map((a) => a.id)
+    expect(ids.indexOf('verification')).toBeLessThan(ids.indexOf('tasks'))
+  })
+
+  test('every schema stamps version 2', () => {
+    for (const type of COSPEC_TYPES) expect(composeSchema(type).version).toBe(2)
+  })
+
+  test('proposal.md carries the Surfaces block for surface types and omits it for the light four', () => {
+    for (const type of ['feat', 'fix', 'perf', 'refactor', 'revert', 'build', 'ci']) {
+      expect(composeTemplates(type)['proposal.md']).toContain('## Surfaces')
+    }
+    for (const type of ['chore', 'docs', 'style', 'test']) {
+      expect(composeTemplates(type)['proposal.md']).not.toContain('## Surfaces')
+    }
+  })
+
+  test('the Surfaces block lists exactly the four closed tokens', () => {
+    const body = composeTemplates('feat')['proposal.md']!
+    for (const token of ['interactive', 'deploy', 'integration', 'agent-behavior']) {
+      expect(body).toContain(token)
+    }
   })
 })
 

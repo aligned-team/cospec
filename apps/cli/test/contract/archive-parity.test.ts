@@ -39,7 +39,7 @@ async function openspecArchives(root: string, name: string): Promise<boolean> {
   return moved && !aborted
 }
 
-describe('archive-precondition parity with openspec 1.3.1', () => {
+describe('archive-precondition parity with openspec 1.3.1 (re-probed unchanged at 1.5.0)', () => {
   for (const fixture of PARITY_FIXTURES) {
     test(fixture.key, async () => {
       const readRepo = mkTempRepo({ git: true })

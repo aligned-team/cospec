@@ -7,11 +7,13 @@
 import { archiveRules } from './archive.ts'
 import { blockersRules } from './blockers.ts'
 import { deltasRules } from './deltas.ts'
+import { designRules } from './design.ts'
 import type { Issue } from './issue.ts'
 import { metaRules } from './meta.ts'
 import { proposalRules } from './proposal.ts'
 import type { LoadedChange, SchemaInfo, ValidateContext } from './schema-info.ts'
 import { tasksRules } from './tasks.ts'
+import { verificationRules } from './verification.ts'
 
 export interface RuleOptions {
   /** promote warnings to blocking (report layer decides exit; recorded per rule). */
@@ -36,18 +38,37 @@ export function runChangeRules(
   const issues: Issue[] = []
   issues.push(...metaRules(change, schema, opts))
   issues.push(...proposalRules(change, schema, ctx, opts))
+  issues.push(...designRules(change, schema, opts))
   issues.push(...blockersRules(change, ctx))
   issues.push(...tasksRules(change))
+
+  if (schema.declared.has('verification')) {
+    issues.push(
+      ...verificationRules(change, schema, {
+        strict: opts.strict,
+        extraLayers: ctx.verificationLayers,
+      }),
+    )
+  }
 
   const declaresSpecs = schema.declared.has('specs')
   const hasDeltaFiles = change.deltaFiles.length > 0
   if (declaresSpecs && hasDeltaFiles) {
     issues.push(...deltasRules(change))
-    if (!opts.fast) issues.push(...archiveRules(change))
+    if (!opts.fast) issues.push(...archiveRules(change, { strict: opts.strict }))
   }
 
   return issues
 }
 
-export { archiveRules, blockersRules, deltasRules, metaRules, proposalRules, tasksRules }
+export {
+  archiveRules,
+  blockersRules,
+  deltasRules,
+  designRules,
+  metaRules,
+  proposalRules,
+  tasksRules,
+  verificationRules,
+}
 export { specsRules } from './specs.ts'

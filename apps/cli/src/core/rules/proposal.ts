@@ -6,7 +6,9 @@ import {
   hasCommitSha,
   hasSection,
   parseProposal,
+  parseSurfaces,
   revertSlugs,
+  SURFACE_TOKENS,
 } from '../proposal.ts'
 import type { Issue } from './issue.ts'
 import type { LoadedChange, SchemaInfo, ValidateContext } from './schema-info.ts'
@@ -49,6 +51,11 @@ export function proposalRules(
     facts.requiresCapabilities === 'always' ||
     (facts.requiresCapabilities === 'if-specs' && change.deltaFiles.length > 0)
   if (needsCapabilities) required.push('Capabilities')
+  // Fail closed on the trigger block: any type whose canon sets surfaces:true
+  // (everything but the four light types) SHALL carry a `## Surfaces` block, so a
+  // silently-dropped block cannot suppress its soft-trigger consequences. The
+  // block's flags stay optional — an empty-but-present block satisfies this.
+  if (facts.hasSurfaces) required.push('Surfaces')
   const missing = required.filter((h) => !hasSection(p, h))
   if (missing.length > 0) {
     issues.push({
@@ -102,6 +109,23 @@ export function proposalRules(
         message:
           '## Reverts must cite a backticked archived change slug and/or a 7–40-hex commit sha',
       })
+    }
+  }
+
+  // proposal/surfaces-vocab (DESIGN §1.2, §3.2) — fail-closed: a token outside
+  // the closed four-token vocabulary is always an ERROR, never a soft nudge.
+  if (facts.hasSurfaces) {
+    const knownTokens: readonly string[] = SURFACE_TOKENS
+    for (const item of parseSurfaces(change.proposalText)) {
+      if (!knownTokens.includes(item.token)) {
+        issues.push({
+          level: 'ERROR',
+          rule: 'proposal/surfaces-vocab',
+          path: PROPOSAL,
+          line: item.line,
+          message: `unknown surface token '${item.token}' — expected one of ${SURFACE_TOKENS.join(', ')}`,
+        })
+      }
     }
   }
 

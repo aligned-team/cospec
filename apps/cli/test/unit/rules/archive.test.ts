@@ -95,3 +95,57 @@ describe('archiveRules', () => {
     expect(archiveRules(change(text, { living: LIVING }))).toHaveLength(0)
   })
 })
+
+const TWO_SCENARIO_LIVING = `# X Specification
+
+## Purpose
+
+Real purpose.
+
+## Requirements
+
+### Requirement: Existing
+
+The system SHALL exist.
+
+#### Scenario: s1
+
+- **WHEN** a
+- **THEN** b
+
+#### Scenario: s2
+
+- **WHEN** c
+- **THEN** d
+`
+
+describe('archiveRules: archive/scenario-preservation (advisory mirror)', () => {
+  test('fires as WARNING by default when a MODIFIED delta drops a scenario', () => {
+    const text =
+      '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n#### Scenario: s1\n\n- **WHEN** a\n'
+    const issues = archiveRules(change(text, { living: TWO_SCENARIO_LIVING }))
+    const issue = issues.find((i) => i.rule === 'archive/scenario-preservation')
+    expect(issue?.level).toBe('WARNING')
+  })
+
+  test('is ERROR under --strict', () => {
+    const text =
+      '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n#### Scenario: s1\n\n- **WHEN** a\n'
+    const issues = archiveRules(change(text, { living: TWO_SCENARIO_LIVING }), { strict: true })
+    expect(issues.find((i) => i.rule === 'archive/scenario-preservation')?.level).toBe('ERROR')
+  })
+
+  test('a `Scenario removed:` note suppresses the mirror rule', () => {
+    const text =
+      '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n- Scenario removed: s2 was redundant.\n\n#### Scenario: s1\n\n- **WHEN** a\n'
+    expect(rules(archiveRules(change(text, { living: TWO_SCENARIO_LIVING })))).not.toContain(
+      'archive/scenario-preservation',
+    )
+  })
+
+  test('an unchanged scenario count never fires', () => {
+    expect(rules(archiveRules(change(ADD), { strict: true }))).not.toContain(
+      'archive/scenario-preservation',
+    )
+  })
+})

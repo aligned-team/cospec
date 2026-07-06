@@ -6,6 +6,8 @@ schemaDescription: 'style — formatting or whitespace only. Light workflow: pro
 proposal: lite
 blocking: lite
 liteDomain: files
+surfaces: false
+verification: F
 artifacts:
   specs: forbidden
   design: forbidden

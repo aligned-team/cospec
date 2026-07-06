@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   benchmarkDataRows,
+  checkedSurfaces,
   getSection,
   hasCommitSha,
   hasSection,
@@ -32,6 +33,28 @@ describe('benchmarkDataRows', () => {
 
   test('a table with only a header has zero data rows', () => {
     expect(benchmarkDataRows('| metric | before | after |\n| --- | --- | --- |')).toBe(0)
+  })
+})
+
+describe('checkedSurfaces', () => {
+  test('reads checked flags from the ## Surfaces block', () => {
+    const text = '## Surfaces\n\n- [x] deploy — runtime pin\n- [ ] interactive\n'
+    expect([...checkedSurfaces(text)]).toEqual(['deploy'])
+  })
+
+  test('a checkbox inside a fenced code example is not a live flag', () => {
+    const text = [
+      '## Surfaces',
+      '',
+      '- [ ] deploy',
+      '',
+      '```',
+      "- [x] integration — illustrative example, don't count this",
+      '```',
+    ].join('\n')
+    // The real items are all unchecked; the fenced line must not leak through.
+    expect(checkedSurfaces(text).has('integration')).toBe(false)
+    expect(checkedSurfaces(text).size).toBe(0)
   })
 })
 

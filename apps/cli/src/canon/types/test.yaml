@@ -6,6 +6,8 @@ schemaDescription: 'test — tests for already-specified behavior. Light workflo
 proposal: lite
 blocking: lite
 liteDomain: test files
+surfaces: false
+verification: F
 artifacts:
   specs: forbidden
   design: forbidden

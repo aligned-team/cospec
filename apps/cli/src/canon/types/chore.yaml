@@ -6,6 +6,8 @@ schemaDescription: 'chore — maintenance not affecting src or tests. Light work
 proposal: lite
 blocking: lite
 liteDomain: files
+surfaces: false
+verification: F
 artifacts:
   specs: forbidden
   design: forbidden

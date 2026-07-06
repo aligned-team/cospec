@@ -6,6 +6,7 @@ import {
   changeFiles,
   changeSchema,
   createSandbox,
+  declaredArtifactFiles,
   driveAgent,
   livingSpecText,
   readFileOr,
@@ -24,7 +25,7 @@ const USER_PROMPT =
   'apply, implement and check off all tasks, then archive. Keep working until ' +
   '`cospec archive` reports success. (ref: EVAL-FEAT-7Q2)'
 
-const DECLARED = new Set(['proposal.md', 'blocking-changes.md', 'design.md', 'tasks.md'])
+const DECLARED = declaredArtifactFiles('feat')
 
 function artifactSetOk(files: readonly string[]): boolean {
   const present = new Set(files)

@@ -20,8 +20,15 @@ export const COSPEC_TYPES = [
 
 export type CospecType = (typeof COSPEC_TYPES)[number]
 
-/** The 5 canonical artifact ids (DESIGN §3.1). */
-export const ARTIFACT_IDS = ['proposal', 'blocking-changes', 'specs', 'design', 'tasks'] as const
+/** The 6 canonical artifact ids (DESIGN §3.1, §1.1). */
+export const ARTIFACT_IDS = [
+  'proposal',
+  'blocking-changes',
+  'specs',
+  'design',
+  'verification',
+  'tasks',
+] as const
 
 export type ArtifactId = (typeof ARTIFACT_IDS)[number]
 
@@ -30,6 +37,7 @@ export const ARTIFACT_FILES: Record<Exclude<ArtifactId, 'specs'>, string> = {
   proposal: 'proposal.md',
   'blocking-changes': 'blocking-changes.md',
   design: 'design.md',
+  verification: 'verification.md',
   tasks: 'tasks.md',
 }
 
@@ -39,6 +47,7 @@ export const ARTIFACT_GENERATES: Record<ArtifactId, string> = {
   'blocking-changes': 'blocking-changes.md',
   specs: 'specs/**/*.md',
   design: 'design.md',
+  verification: 'verification.md',
   tasks: 'tasks.md',
 }
 
@@ -58,31 +67,31 @@ export interface TypeArtifacts {
  */
 export const TYPE_ARTIFACTS: Record<CospecType, TypeArtifacts> = {
   feat: {
-    declared: ['proposal', 'blocking-changes', 'specs', 'design', 'tasks'],
-    applyRequires: ['proposal', 'blocking-changes', 'specs', 'tasks'],
+    declared: ['proposal', 'blocking-changes', 'specs', 'design', 'verification', 'tasks'],
+    applyRequires: ['proposal', 'blocking-changes', 'specs', 'verification', 'tasks'],
   },
   fix: {
-    declared: ['proposal', 'blocking-changes', 'specs', 'design', 'tasks'],
-    applyRequires: ['proposal', 'blocking-changes', 'tasks'],
+    declared: ['proposal', 'blocking-changes', 'specs', 'design', 'verification', 'tasks'],
+    applyRequires: ['proposal', 'blocking-changes', 'verification', 'tasks'],
   },
   perf: {
-    declared: ['proposal', 'blocking-changes', 'specs', 'design', 'tasks'],
-    applyRequires: ['proposal', 'blocking-changes', 'tasks'],
+    declared: ['proposal', 'blocking-changes', 'specs', 'design', 'verification', 'tasks'],
+    applyRequires: ['proposal', 'blocking-changes', 'verification', 'tasks'],
   },
   refactor: {
-    declared: ['proposal', 'blocking-changes', 'specs', 'design', 'tasks'],
-    applyRequires: ['proposal', 'blocking-changes', 'design', 'tasks'],
+    declared: ['proposal', 'blocking-changes', 'specs', 'design', 'verification', 'tasks'],
+    applyRequires: ['proposal', 'blocking-changes', 'design', 'verification', 'tasks'],
   },
   revert: {
-    declared: ['proposal', 'blocking-changes', 'specs', 'tasks'],
+    declared: ['proposal', 'blocking-changes', 'specs', 'verification', 'tasks'],
     applyRequires: ['proposal', 'blocking-changes', 'tasks'],
   },
   build: {
-    declared: ['proposal', 'blocking-changes', 'tasks'],
+    declared: ['proposal', 'blocking-changes', 'verification', 'tasks'],
     applyRequires: ['proposal', 'blocking-changes', 'tasks'],
   },
   ci: {
-    declared: ['proposal', 'blocking-changes', 'tasks'],
+    declared: ['proposal', 'blocking-changes', 'verification', 'tasks'],
     applyRequires: ['proposal', 'blocking-changes', 'tasks'],
   },
   chore: {
@@ -123,6 +132,37 @@ export function artifactRequires(type: CospecType, id: ArtifactId): ArtifactId[]
   return ['proposal']
 }
 
+/**
+ * The schema version at which an artifact BECAME enforced for a type (DESIGN §5,
+ * disagreement G). verification was introduced at v2 for the four types that
+ * gate on it; every other (artifact, type) pair has existed since v1. Values are
+ * monotonic — they may only ever increase — so a future artifact grandfathers
+ * independently, per type.
+ */
+export function introducedAt(artifact: ArtifactId, type: CospecType): number {
+  if (
+    artifact === 'verification' &&
+    (type === 'feat' || type === 'fix' || type === 'perf' || type === 'refactor')
+  ) {
+    return 2
+  }
+  return 1
+}
+
+/**
+ * `apply.requires` filtered to the artifacts a change's stamped `schemaVersion`
+ * actually enforces (DESIGN §5). A uniform monotonic version filter — NOT
+ * content-derived promotion — applied identically at apply and archive: an
+ * artifact whose `introducedAt(artifact, type)` exceeds `schemaVersion` is
+ * grandfathered out. The unfiltered v2 matrix (TYPE_ARTIFACTS) is what
+ * matrix-parity tests; this filter never forks it.
+ */
+export function enforcedApplyRequires(type: CospecType, schemaVersion: number): ArtifactId[] {
+  return TYPE_ARTIFACTS[type].applyRequires.filter(
+    (artifact) => introducedAt(artifact, type) <= schemaVersion,
+  )
+}
+
 export interface TypeFacts {
   proposalVariant: 'full' | 'lite'
   /** whether `## Capabilities` is a required proposal H2 (DESIGN §4.3 proposal/sections). */
@@ -131,6 +171,8 @@ export interface TypeFacts {
   requiresBenchmarks: boolean
   /** revert only: `## Reverts` citation required (DESIGN §4.3 proposal/revert-citation). */
   requiresRevertCitation: boolean
+  /** whether the proposal carries a `## Surfaces` flag block (DESIGN §1.2, canon `surfaces:`). */
+  hasSurfaces: boolean
 }
 
 export const TYPE_FACTS: Record<CospecType, TypeFacts> = {
@@ -139,66 +181,77 @@ export const TYPE_FACTS: Record<CospecType, TypeFacts> = {
     requiresCapabilities: 'always',
     requiresBenchmarks: false,
     requiresRevertCitation: false,
+    hasSurfaces: true,
   },
   fix: {
     proposalVariant: 'full',
     requiresCapabilities: 'if-specs',
     requiresBenchmarks: false,
     requiresRevertCitation: false,
+    hasSurfaces: true,
   },
   perf: {
     proposalVariant: 'full',
     requiresCapabilities: 'never',
     requiresBenchmarks: true,
     requiresRevertCitation: false,
+    hasSurfaces: true,
   },
   refactor: {
     proposalVariant: 'full',
     requiresCapabilities: 'never',
     requiresBenchmarks: false,
     requiresRevertCitation: false,
+    hasSurfaces: true,
   },
   revert: {
     proposalVariant: 'full',
     requiresCapabilities: 'never',
     requiresBenchmarks: false,
     requiresRevertCitation: true,
+    hasSurfaces: true,
   },
   build: {
     proposalVariant: 'lite',
     requiresCapabilities: 'never',
     requiresBenchmarks: false,
     requiresRevertCitation: false,
+    hasSurfaces: true,
   },
   ci: {
     proposalVariant: 'lite',
     requiresCapabilities: 'never',
     requiresBenchmarks: false,
     requiresRevertCitation: false,
+    hasSurfaces: true,
   },
   chore: {
     proposalVariant: 'lite',
     requiresCapabilities: 'never',
     requiresBenchmarks: false,
     requiresRevertCitation: false,
+    hasSurfaces: false,
   },
   docs: {
     proposalVariant: 'lite',
     requiresCapabilities: 'never',
     requiresBenchmarks: false,
     requiresRevertCitation: false,
+    hasSurfaces: false,
   },
   style: {
     proposalVariant: 'lite',
     requiresCapabilities: 'never',
     requiresBenchmarks: false,
     requiresRevertCitation: false,
+    hasSurfaces: false,
   },
   test: {
     proposalVariant: 'lite',
     requiresCapabilities: 'never',
     requiresBenchmarks: false,
     requiresRevertCitation: false,
+    hasSurfaces: false,
   },
 }
 

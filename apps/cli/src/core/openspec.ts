@@ -1,11 +1,57 @@
 import { dirname, join } from 'node:path'
 
 /**
- * The exact bundled openspec version cospec is built and tested against. A
- * mismatch is refused before any wrapped call (DESIGN §1) — the wrapped surface
- * (exit codes, JSON shapes, archive quirks) is a moving target across releases.
+ * The exact `@fission-ai/openspec` version this repo pins for dev/CI (the
+ * `package.json` dependency and the `mise.toml` tool). The contract suite runs
+ * against exactly this build; the version tripwire holds it equal to the pin.
  */
-export const EXPECTED_OPENSPEC_VERSION = '1.3.1'
+export const PINNED_OPENSPEC_VERSION = '1.5.0'
+
+/** Inclusive floor of the accepted runtime range. */
+export const OPENSPEC_VERSION_FLOOR = '1.0.0'
+/** Exclusive ceiling of the accepted runtime range (next major). */
+export const OPENSPEC_VERSION_CEILING = '2.0.0'
+/**
+ * The semver range cospec accepts at runtime. Every release probed from the
+ * floor through the current pin is contract-verified to leave the wrapped
+ * surface (exit codes, JSON shapes, archive quirks) that cospec reads
+ * unchanged; the ceiling stops at the next major, where breaking changes are
+ * allowed. A version outside this range is refused before any wrapped call
+ * (DESIGN §1) unless drift is explicitly overridden.
+ */
+export const OPENSPEC_VERSION_RANGE = `>=${OPENSPEC_VERSION_FLOOR} <${OPENSPEC_VERSION_CEILING}`
+
+type SemverCore = [number, number, number]
+
+/** Parse the `x.y.z` core of a semver string, ignoring any pre-release/build. */
+function parseSemver(raw: string): SemverCore | null {
+  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(raw.trim())
+  if (match === null) return null
+  return [Number(match[1]), Number(match[2]), Number(match[3])]
+}
+
+function compareSemver(a: SemverCore, b: SemverCore): number {
+  return a[0] - b[0] || a[1] - b[1] || a[2] - b[2]
+}
+
+function parseSemverOrThrow(raw: string): SemverCore {
+  const parsed = parseSemver(raw)
+  if (parsed === null) throw new Error(`unparseable semver constant: ${raw}`)
+  return parsed
+}
+
+/**
+ * True when `version` satisfies the accepted range `>=FLOOR <CEILING`. An
+ * unparseable version is never in range (fail closed).
+ */
+export function satisfiesOpenspecRange(version: string): boolean {
+  const parsed = parseSemver(version)
+  if (parsed === null) return false
+  return (
+    compareSemver(parsed, parseSemverOrThrow(OPENSPEC_VERSION_FLOOR)) >= 0 &&
+    compareSemver(parsed, parseSemverOrThrow(OPENSPEC_VERSION_CEILING)) < 0
+  )
+}
 
 export interface OpenspecResult {
   stdout: string
@@ -90,10 +136,11 @@ async function spawnRaw(args: string[], cwd: string): Promise<OpenspecResult> {
 export function checkVersion(actual: string, allowDrift: boolean): void {
   if (allowDrift) return
   const version = actual.trim()
-  if (version !== EXPECTED_OPENSPEC_VERSION)
+  if (!satisfiesOpenspecRange(version))
     throw new Error(
-      `wrapped openspec is ${version || '<unknown>'}, expected ${EXPECTED_OPENSPEC_VERSION} — ` +
-        'refusing to run (COSPEC_ALLOW_OPENSPEC_DRIFT=1 to override)',
+      `wrapped openspec is ${version || '<unknown>'}, expected a version satisfying ` +
+        `${OPENSPEC_VERSION_RANGE} — refusing to run (COSPEC_ALLOW_OPENSPEC_DRIFT=1 to override, ` +
+        'which makes cospec version-blind but does NOT make an out-of-range binary safe to wrap)',
     )
 }
 
@@ -167,7 +214,9 @@ export async function runOpenspec(args: string[], opts: RunOptions): Promise<Ope
   return result
 }
 
-// --- Typed JSON shapes for the wrapped commands (probed against 1.3.1). ---
+// --- Typed JSON shapes for the wrapped commands (probed across the accepted
+// floor-through-pin span 1.0.0–1.5.0 and found unchanged; 1.5.0 only adds
+// optional fields). ---
 
 export type ArtifactStatus = 'done' | 'ready' | 'blocked'
 

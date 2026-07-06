@@ -2,7 +2,7 @@
 
 cospec is a wrapper. It owns no spec-format logic of its own that OpenSpec
 already implements correctly — it constrains, validates, and verifies OpenSpec
-`1.3.1`, and closes the specific failure modes that make raw OpenSpec unsafe to
+`1.5.0`, and closes the specific failure modes that make raw OpenSpec unsafe to
 hand to an agent.
 
 ## The wrapping boundary
@@ -18,11 +18,16 @@ cospec spawns OpenSpec; it never imports it.
   `program.parse()` as a side effect. Deep-importing its `dist/*` internals is
   also forbidden — those are not a stable interface.
 - **Version assertion.** Before the first wrapped call in a process, cospec
-  asserts `openspec --version === '1.3.1'` (the `EXPECTED_OPENSPEC_VERSION`
-  constant). A mismatch exits 1 with a refusal message and a
-  `COSPEC_ALLOW_OPENSPEC_DRIFT=1` override for the brave. The dep pin, the
-  constant, and the version tripwire contract test are asserted mutually equal,
-  so a bump breaks the test suite first.
+  asserts `openspec --version` satisfies the accepted range `>=1.0.0 <2.0.0`
+  (the `OPENSPEC_VERSION_RANGE` constant). An out-of-range version exits 1 with
+  a refusal message naming the range and a `COSPEC_ALLOW_OPENSPEC_DRIFT=1`
+  override for the brave (which makes cospec version-blind but does not make an
+  out-of-range binary safe to wrap). Separately, the repo pins one exact build
+  for dev/CI — `PINNED_OPENSPEC_VERSION` (`1.5.0`), the version the contract
+  suite is probed against. The dep pin, the `mise.toml` pin, that constant, and
+  the live binary are held coherent by the version tripwire contract test (the
+  pin is exact and in range; the binary reports it and satisfies the range), so
+  a bump breaks the test suite first.
 
 ## The wrapped-call discipline
 
@@ -62,6 +67,38 @@ directly — the change directory must be gone and a dated archive entry must
 exist — and reports the abort honestly. Archive preconditions are also checked
 at validate time, moving the failure left.
 
+`openspec archive` also exits 0 while silently **thinning** a spec: a MODIFIED
+delta that drops `#### Scenario:` entries merges cleanly with no complaint.
+cospec closes this with `archive/scenario-preservation` (below).
+
+### 2a. The archive gate ordering (two hard pre-delegation steps)
+
+`cospec archive`'s steps are, in order: fast-validate → tasks gate →
+**`archive/verification-incomplete`** → self-blocker sanity warning → collision
+pre-check → snapshot → **`archive/scenario-preservation`** → delegate to
+`openspec archive` → filesystem verify → post-merge spot-check → blocker
+fan-out. Both new gates are explicit command steps, run _before_ delegation,
+returning `EXIT.failure` (1) — the same refusal convention the tasks gate
+already uses — rather than being folded into the specs-conditional rule family,
+because a real breach there must not compute as a clean archive:
+
+- **`archive/verification-incomplete`** runs whenever `verification` is enforced
+  for the change's type and stamped `schemaVersion` (`enforcedApplyRequires`) —
+  independent of whether the change carries specs, so it fires for a specs-less
+  `fix`. Every row must resolve to `[x]` with non-empty evidence or `[~]` with a
+  reason; there is no `--force`, because deferral (on the record, in git
+  history) is already the escape hatch.
+- **`archive/scenario-preservation`** runs only for specs-bearing changes, right
+  before the `openspec archive` call. It re-parses each
+  `## MODIFIED Requirements` delta and the current living spec, and refuses on
+  any scenario-count drop that lacks a `Scenario removed: <reason>` note or a
+  matching `REMOVED` operation. This is the gate that would have caught the
+  archive-time thinning `openspec archive` itself waves through at exit 0. It
+  ships with a contract test against the real pinned openspec 1.5.0 binary
+  proving cospec refuses even though openspec would happily merge the delta — a
+  false PASS here is a release blocker, same discipline as the rest of the
+  archive-precondition family.
+
 ### 3. OpenSpec's generated files reference skills it never generates
 
 OpenSpec's own scaffolding points at `openspec-sync-specs` /
@@ -71,6 +108,43 @@ references that confuse agents. cospec ships all six workflows (`propose`,
 source, and every generated body references only skills the same generator run
 emits. A unit test greps the rendered output for dangling references, and
 `cospec doctor` enforces the same guard on an installed repo.
+
+## The static-matrix invariant
+
+`apply.requires` is a **static per-type lookup**
+(`TYPE_ARTIFACTS[type].applyRequires` in
+`apps/cli/src/core/rules/type-facts.ts`) — it is never re-derived from a
+change's file content at gate time. There is no
+`effective_apply_requires = static ∪ triggered`. All soft-trigger behavior (the
+`## Surfaces` flags nudging `verification`/`design` sections into existence) is
+layered strictly _on top_, as entries in the same `gate.soft` list
+`blocking-changes` soft-blockers already use — never by mutating
+`apply.requires` itself. Two independent things guard this invariant from
+drifting apart:
+
+1. **The twin-matrix parity test.** Two hand-authored surfaces encode the same
+   matrix: `apps/cli/src/canon/types/*.yaml` (composed into `schema.yaml` by
+   `schema-compose.ts`) and `apps/cli/src/core/rules/type-facts.ts`
+   (`TYPE_ARTIFACTS`, hand-transcribed for validation, which must not depend on
+   the canon composer). `apps/cli/test/unit/schemas/matrix-parity.test.ts`
+   asserts these are byte-identical — `declared` and `apply.requires` — across
+   all 11 types × 6 artifacts. Before `verification`, nothing cross-checked
+   these two matrices; this expansion doubles the twin-matrix surface, so it
+   also pays for the test that ends that risk class.
+2. **`schemaVersion` grandfathering, not content-derived promotion.** The
+   composer stamps `version: 2` into every schema; `cospec new` stamps the
+   change's `.openspec.yaml` with `schemaVersion: 2` (a change with no stamp is
+   treated as `schemaVersion: 1`). `enforcedApplyRequires(type, schemaVersion)`
+   filters the static matrix down to artifacts whose
+   `introducedAt(artifact, type) <= schemaVersion` — a uniform, monotonic
+   version filter applied identically at `apply` and `archive`. `verification`
+   is `introducedAt = 2` for feat/fix/perf/refactor; every other (artifact,
+   type) pair is `1`. This is what lets the matrix gain a dimension without
+   retroactively blocking every in-flight change: a `schemaVersion: 1` change
+   never sees the `verification` gate until `cospec migrate` bumps its stamp.
+   Matrix-parity tests the unfiltered v2 matrix; grandfathering is tested
+   separately (monotonicity: `introducedAt` values only ever increase, and
+   `enforcedApplyRequires` drops `verification` for v1 while keeping it for v2).
 
 ## Single source of truth
 
@@ -95,6 +169,7 @@ apps/cli/src/
 │   ├── blockers.ts         blocking-changes.md parser, sync, lint
 │   ├── deltas.ts           delta parser + archive-precondition checks
 │   ├── tasks.ts / proposal.ts
+│   ├── verification.ts     verification.md parser (groups, rows, layer/owner/state)
 │   ├── schema-compose.ts   canon → schema.yaml + templates per type
 │   └── rules/              one module per rule family
 ├── harness/                per-harness adapters, render, settings merge

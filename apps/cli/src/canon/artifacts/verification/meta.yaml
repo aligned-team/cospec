@@ -1,0 +1,32 @@
+# verification artifact — the acceptance-evidence ledger (DESIGN §1.1). Machine-parsed
+# with the existing checkbox lexer: `## N. behavior [critical]` groups and
+# `- [ ] N.M @layer (owner) probe -> result` rows. Generates at the CHANGE ROOT —
+# never under a directory named `specs/` (openspec 1.3.1 hardcodes that string in
+# CHANGE_NO_DELTAS). Per-type instructions live in canon/types/<type>.yaml.
+id: verification
+generates: verification.md
+template: verification.md
+requires: [proposal]
+description: Acceptance-evidence ledger — each observable behavior, the layer it is exercised at, who runs the check, and the recorded evidence
+templateBody: |
+  ## 1. <primary observable behavior> [critical]
+
+  - [ ] 1.1 @e2e (agent) drive the real flow end to end -> <what you must observe>
+  - [ ] 1.2 @manual (human) exercise the interactive surface in a real browser -> <observable result>
+
+  ## 2. <secondary behavior>
+
+  - [ ] 2.1 @integration (agent) exercise the real dependency, not a mock -> <expected>
+instruction: |
+  A per-behavior ledger, planned before implementation and gated green before
+  archive. Each `## N. <behavior>` names one observable behavior — add a trailing
+  `[critical]` when its breakage ships a broken product. Each row is
+  `- [ ] N.M @<layer> (<owner>) <probe> -> <result>`: the layer the behavior is
+  exercised at, who runs it, the probe/command, and — after ` -> ` — the expected
+  result (fill in the observed evidence before archive). Layers (closed set):
+  @unit @integration @e2e @manual @runtime @regression @equivalence @benchmark
+  @eval. Owner is (agent) or (human); omit it and @manual defaults to (human),
+  every other layer to (agent). A checked `[x]` row needs non-empty evidence
+  after ` -> `; defer a row you will not run as `[~] … -> defer: <reason>`. The
+  archive gate refuses any bare `[ ]` row — there is no --force; defer on the
+  record instead.

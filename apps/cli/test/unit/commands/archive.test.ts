@@ -4,7 +4,8 @@
 // real binary.
 
 import { afterAll, describe, expect, test } from 'bun:test'
-import { rmSync } from 'node:fs'
+import { existsSync, rmSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { run as archiveRun } from '../../../src/commands/archive.ts'
 import {
@@ -76,5 +77,51 @@ describe('archive pre-flight', () => {
     const r = await runCmd(archiveRun, ctx(cwd, ['c']))
     expect(r.code).toBe(1)
     expect(r.out).toContain('proposal/sections')
+  })
+})
+
+/** Stamp `schemaVersion: 2` onto a change already written by `writeChange` —
+ * the v2 gate (verification enforcement) applies from here on. */
+function stampV2(cwd: string, id: string, schema: string): void {
+  writeFileSync(
+    join(cwd, 'openspec', 'changes', id, '.openspec.yaml'),
+    `schema: ${schema}\ncreated: 2026-07-06\nschemaVersion: 2\n`,
+  )
+}
+
+const VALID_FIX = {
+  'proposal.md': LITE_PROPOSAL,
+  'blocking-changes.md': EMPTY_BLOCKERS,
+  'tasks.md': DONE_TASKS,
+}
+
+describe('archive/verification-incomplete (DESIGN §3.5 step 1)', () => {
+  test('a bare unresolved row refuses archive with exit 1, independent of specs', async () => {
+    const cwd = repo()
+    writeChange(cwd, 'c', 'fix', {
+      ...VALID_FIX,
+      'verification.md': [
+        '## 1. Bug is fixed',
+        '- [x] 1.1 @regression reran the failing case -> now passes',
+        '- [ ] 1.2 @unit smoke test -> expected to pass',
+      ].join('\n'),
+    })
+    stampV2(cwd, 'c', 'fix')
+    const r = await runCmd(archiveRun, ctx(cwd, ['c']))
+    expect(r.code).toBe(1)
+    expect(r.err).toContain('not fully resolved')
+    expect(r.err).toContain('1.2 @unit')
+    // No delegation happened — the change must still be in place.
+    expect(existsSync(join(cwd, 'openspec/changes/c'))).toBe(true)
+  })
+
+  test('a missing verification.md on an enforced change refuses archive', async () => {
+    const cwd = repo()
+    writeChange(cwd, 'c', 'fix', VALID_FIX)
+    stampV2(cwd, 'c', 'fix')
+    const r = await runCmd(archiveRun, ctx(cwd, ['c']))
+    expect(r.code).toBe(1)
+    expect(r.err).toContain('does not exist yet')
+    expect(existsSync(join(cwd, 'openspec/changes/c'))).toBe(true)
   })
 })

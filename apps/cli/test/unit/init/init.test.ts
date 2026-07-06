@@ -176,6 +176,6 @@ function plantOpsx(dir: string): void {
   mkdirSync(skill, { recursive: true })
   writeFileSync(
     join(skill, 'SKILL.md'),
-    '---\nname: openspec-apply-change\nmetadata:\n  author: openspec\n  generatedBy: "1.3.1"\n---\nbody\n',
+    '---\nname: openspec-apply-change\nmetadata:\n  author: openspec\n  generatedBy: "1.5.0"\n---\nbody\n',
   )
 }

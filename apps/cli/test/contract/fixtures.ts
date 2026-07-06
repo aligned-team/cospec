@@ -28,6 +28,10 @@ without it the workflow described below cannot be completed at all.
 ## Impact
 
 - New capability; no breaking changes.
+
+## Surfaces
+
+- [ ] interactive — a user-visible/interactive surface (UI, TUI, CLI UX)
 `
 
 /** blocking-changes.md in the canonical §3.8 shape with both sections empty. */

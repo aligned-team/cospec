@@ -31,7 +31,7 @@ clean tree stays clean.
 ## What is this
 
 cospec is a thin wrapper around
-[OpenSpec](https://github.com/Fission-AI/OpenSpec) `1.3.1` that maps the
+[OpenSpec](https://github.com/Fission-AI/OpenSpec) `1.5.0` that maps the
 spec-driven workflow onto your conventional-commit type. One schema per type;
 the heavier the type, the more the workflow asks of you.
 
@@ -125,8 +125,9 @@ Details and a per-harness smoke checklist:
 
 ## How it relates to OpenSpec
 
-cospec wraps `@fission-ai/openspec` `1.3.1` exactly (the pin is load-bearing and
-asserted at startup) and adds, on top of it:
+cospec pins `@fission-ai/openspec` `1.5.0` for its own dev/CI and accepts any
+`>=1.0.0 <2.0.0` at runtime (the range is asserted at startup; the pin is the
+build the contract suite is probed against) and adds, on top of it:
 
 - **Typed schemas** — eleven schemas, one per conventional-commit type, with a
   required/optional/forbidden artifact matrix instead of one generic workflow.

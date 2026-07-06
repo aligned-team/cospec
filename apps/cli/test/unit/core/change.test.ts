@@ -61,6 +61,28 @@ describe('readOpenspecYaml', () => {
     makeChange(cwd, 'no-schema', 'created: 2026-07-03\n')
     expect(readOpenspecYaml(join(cwd, 'openspec', 'changes', 'no-schema'))).toBeUndefined()
   })
+
+  test('reads a positive-integer schemaVersion', () => {
+    const cwd = makeRepo()
+    makeChange(cwd, 'v2', 'schema: feat\nschemaVersion: 2\n')
+    expect(readOpenspecYaml(join(cwd, 'openspec', 'changes', 'v2'))?.schemaVersion).toBe(2)
+  })
+
+  test('treats a non-positive-integer schemaVersion as absent (v1 semantics)', () => {
+    const cwd = makeRepo()
+    // 0/negative/fractional are not stamped versions — leaving them as `undefined`
+    // keeps callers on the v1 fallback instead of grandfathering everything out.
+    makeChange(cwd, 'zero', 'schema: feat\nschemaVersion: 0\n')
+    expect(
+      readOpenspecYaml(join(cwd, 'openspec', 'changes', 'zero'))?.schemaVersion,
+    ).toBeUndefined()
+    makeChange(cwd, 'neg', 'schema: feat\nschemaVersion: -1\n')
+    expect(readOpenspecYaml(join(cwd, 'openspec', 'changes', 'neg'))?.schemaVersion).toBeUndefined()
+    makeChange(cwd, 'frac', 'schema: feat\nschemaVersion: 1.5\n')
+    expect(
+      readOpenspecYaml(join(cwd, 'openspec', 'changes', 'frac'))?.schemaVersion,
+    ).toBeUndefined()
+  })
 })
 
 describe('listChanges / resolveChange', () => {

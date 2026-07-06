@@ -27,11 +27,41 @@ describe('proposalRules', () => {
   })
 
   test('lite type does not require ## Capabilities', () => {
+    // ci is surfaces:true, so it still needs a ## Surfaces block — include one so
+    // the only thing this asserts is that ## Capabilities is not demanded.
     const change = makeChange({
-      proposalText: `## Why\n\n${WHY}\n\n## What Changes\n\n- x\n\n## Impact\n\n- y`,
+      proposalText: `## Why\n\n${WHY}\n\n## What Changes\n\n- x\n\n## Impact\n\n- y\n\n## Surfaces\n\n- [ ] interactive — ui`,
     })
     const issues = proposalRules(change, cospecSchema('ci'), ctx(), { strict: false })
     expect(rules(issues)).not.toContain('proposal/sections')
+  })
+
+  test('proposal/sections requires ## Surfaces for a surfaces:true type', () => {
+    const change = makeChange({
+      proposalText: `## Why\n\n${WHY}\n\n## What Changes\n\n- x\n\n## Capabilities\n\n- c\n\n## Impact\n\n- y`,
+    })
+    const sec = proposalRules(change, cospecSchema('feat'), ctx(), { strict: false }).find(
+      (i) => i.rule === 'proposal/sections',
+    )
+    expect(sec?.message).toContain('## Surfaces')
+  })
+
+  test('an empty-but-present ## Surfaces block satisfies proposal/sections', () => {
+    const change = makeChange({
+      proposalText: `## Why\n\n${WHY}\n\n## What Changes\n\n- x\n\n## Capabilities\n\n- c\n\n## Impact\n\n- y\n\n## Surfaces\n\n- [ ] interactive — ui\n- [ ] deploy — infra`,
+    })
+    const rs = rules(proposalRules(change, cospecSchema('feat'), ctx(), { strict: false }))
+    expect(rs).not.toContain('proposal/sections')
+    expect(rs).not.toContain('proposal/surfaces-vocab')
+  })
+
+  test('a light type without ## Surfaces is unaffected by the requirement', () => {
+    const change = makeChange({
+      proposalText: `## Why\n\nshort but present\n\n## What Changes\n\n- x\n\n## Impact\n\n- y`,
+    })
+    expect(
+      rules(proposalRules(change, cospecSchema('chore'), ctx(), { strict: false })),
+    ).not.toContain('proposal/sections')
   })
 
   test('proposal/why-substantive warns on a short Why for full types', () => {
@@ -81,5 +111,45 @@ describe('proposalRules', () => {
         ),
       ),
     ).not.toContain('proposal/revert-citation')
+  })
+})
+
+describe('proposal/surfaces-vocab', () => {
+  const base = `## Why\n\n${WHY}\n\n## What Changes\n\n- x\n\n## Capabilities\n\n- c\n\n## Impact\n\n- y`
+
+  test('valid surface flags from the closed vocabulary parse cleanly', () => {
+    const change = makeChange({
+      proposalText: `${base}\n\n## Surfaces\n\n- [x] interactive — ui\n- [x] deploy — infra\n- [ ] integration — sdk\n- [ ] agent-behavior — prompts`,
+    })
+    expect(
+      rules(proposalRules(change, cospecSchema('feat'), ctx(), { strict: false })),
+    ).not.toContain('proposal/surfaces-vocab')
+  })
+
+  test('an unknown surface token is rejected (fail-closed)', () => {
+    const change = makeChange({
+      proposalText: `${base}\n\n## Surfaces\n\n- [ ] telemetry — not a real flag`,
+    })
+    expect(rules(proposalRules(change, cospecSchema('feat'), ctx(), { strict: false }))).toContain(
+      'proposal/surfaces-vocab',
+    )
+  })
+
+  test('an unknown token is an ERROR even outside --strict (fail-closed)', () => {
+    const change = makeChange({
+      proposalText: `${base}\n\n## Surfaces\n\n- [ ] telemetry — not a real flag`,
+    })
+    const issues = proposalRules(change, cospecSchema('feat'), ctx(), { strict: false })
+    expect(issues.find((i) => i.rule === 'proposal/surfaces-vocab')!.level).toBe('ERROR')
+  })
+
+  test('light types omit the block — an unknown token is not checked', () => {
+    const liteBase = `## Why\n\nshort but present\n\n## What Changes\n\n- x\n\n## Impact\n\n- y`
+    const change = makeChange({
+      proposalText: `${liteBase}\n\n## Surfaces\n\n- [ ] telemetry — not a real flag`,
+    })
+    expect(
+      rules(proposalRules(change, cospecSchema('chore'), ctx(), { strict: false })),
+    ).not.toContain('proposal/surfaces-vocab')
   })
 })

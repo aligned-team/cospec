@@ -23,6 +23,10 @@
     {
       "files": ["*.md", "*.mdx"],
       "options": { "proseWrap": "always", "printWidth": 80 }
+    },
+    {
+      "files": ["**/verification.md"],
+      "options": { "proseWrap": "preserve" }
     }
   ]
 }

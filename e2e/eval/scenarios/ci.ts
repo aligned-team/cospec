@@ -5,6 +5,7 @@ import {
   changeFiles,
   changeSchema,
   createSandbox,
+  declaredArtifactFiles,
   driveAgent,
   readFileOr,
   resolveChange,
@@ -21,13 +22,18 @@ const USER_PROMPT =
   'type requires, validate with --strict, apply, check off all tasks, then ' +
   'archive. A ci change must not create any specs. (ref: EVAL-CI-4K9)'
 
-const EXPECTED = new Set(['proposal.md', 'blocking-changes.md', 'tasks.md'])
+// ci declares proposal/blocking-changes/tasks (required) plus verification
+// (optional, DESIGN §3.2 "O") — a model may author verification.md without
+// violating proportionality, so it must not be scored as a forbidden file.
+const DECLARED = declaredArtifactFiles('ci')
 
 function artifactSetOk(files: readonly string[]): boolean {
   const present = new Set(files)
   const noSpecs = !files.some((f) => f.startsWith('specs/'))
-  const exact = files.length === EXPECTED.size && files.every((f) => EXPECTED.has(f))
-  return noSpecs && exact && present.has('proposal.md')
+  const noForbidden = files.every((f) => DECLARED.has(f))
+  const hasRequired =
+    present.has('proposal.md') && present.has('blocking-changes.md') && present.has('tasks.md')
+  return noSpecs && noForbidden && hasRequired
 }
 
 export const ciScenario: Scenario = {

@@ -6,7 +6,6 @@ import { join } from 'node:path'
 import {
   checkVersion,
   enforceExpectation,
-  EXPECTED_OPENSPEC_VERSION,
   openspecApplyInstructions,
   openspecArtifactInstructions,
   openspecList,
@@ -14,25 +13,55 @@ import {
   openspecStatus,
   OpenspecCallError,
   type OpenspecResult,
+  PINNED_OPENSPEC_VERSION,
   runOpenspec,
+  satisfiesOpenspecRange,
 } from '../../../src/core/openspec.ts'
 
 function result(partial: Partial<OpenspecResult>): OpenspecResult {
   return { stdout: '', stderr: '', exitCode: 0, ...partial }
 }
 
-describe('checkVersion', () => {
-  test('passes on the expected version', () => {
-    expect(() => checkVersion(`${EXPECTED_OPENSPEC_VERSION}\n`, false)).not.toThrow()
+describe('satisfiesOpenspecRange', () => {
+  test('accepts the floor, the pin, and everything up to the ceiling', () => {
+    expect(satisfiesOpenspecRange('1.0.0')).toBe(true) // inclusive floor
+    expect(satisfiesOpenspecRange('1.4.0')).toBe(true)
+    expect(satisfiesOpenspecRange(PINNED_OPENSPEC_VERSION)).toBe(true) // 1.5.0
+    expect(satisfiesOpenspecRange('1.99.99')).toBe(true)
   })
 
-  test('throws the DESIGN §1 message on mismatch', () => {
-    expect(() => checkVersion('1.4.0', false)).toThrow(
-      /wrapped openspec is 1\.4\.0, expected 1\.3\.1 — refusing to run \(COSPEC_ALLOW_OPENSPEC_DRIFT=1 to override\)/,
+  test('rejects below the floor and at/above the ceiling', () => {
+    expect(satisfiesOpenspecRange('0.23.0')).toBe(false) // last 0.x, just below floor
+    expect(satisfiesOpenspecRange('0.9.0')).toBe(false)
+    expect(satisfiesOpenspecRange('2.0.0')).toBe(false) // exclusive ceiling
+    expect(satisfiesOpenspecRange('2.1.0')).toBe(false)
+  })
+
+  test('fails closed on an unparseable version', () => {
+    expect(satisfiesOpenspecRange('')).toBe(false)
+    expect(satisfiesOpenspecRange('not-a-version')).toBe(false)
+  })
+})
+
+describe('checkVersion', () => {
+  test('passes on any in-range version, trimming trailing whitespace', () => {
+    expect(() => checkVersion(`${PINNED_OPENSPEC_VERSION}\n`, false)).not.toThrow()
+    expect(() => checkVersion('1.0.0', false)).not.toThrow()
+  })
+
+  test('throws the range-naming message below the floor', () => {
+    expect(() => checkVersion('0.23.0', false)).toThrow(
+      /wrapped openspec is 0\.23\.0, expected a version satisfying >=1\.0\.0 <2\.0\.0 — refusing to run/,
     )
   })
 
-  test('drift override skips the check', () => {
+  test('throws at the 2.x ceiling', () => {
+    expect(() => checkVersion('2.0.0', false)).toThrow(
+      /expected a version satisfying >=1\.0\.0 <2\.0\.0/,
+    )
+  })
+
+  test('drift override skips the check even for an out-of-range version', () => {
     expect(() => checkVersion('9.9.9', true)).not.toThrow()
   })
 })
@@ -92,7 +121,7 @@ describe('wrapped calls against the real binary', () => {
 
   test('version assertion passes so wrapped calls run', async () => {
     const res = await runOpenspec(['--version'], { cwd, expect: { exitCodes: [0] } })
-    expect(res.stdout.trim()).toBe(EXPECTED_OPENSPEC_VERSION)
+    expect(res.stdout.trim()).toBe(PINNED_OPENSPEC_VERSION)
   }, 30_000)
 
   test('openspecStatus returns the typed status shape', async () => {

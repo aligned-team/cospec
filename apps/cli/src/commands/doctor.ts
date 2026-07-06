@@ -14,9 +14,19 @@ import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 
 import type { CommandContext } from '../cli.ts'
-import { COSPEC_TYPES, listChanges, openspecDir, resolveSchema } from '../core/change.ts'
+import {
+  COSPEC_TYPES,
+  isCospecType,
+  listChanges,
+  openspecDir,
+  resolveSchema,
+} from '../core/change.ts'
 import { CURRENT_GENERATED_BY, readManifest, splitFrontmatter } from '../core/managed-files.ts'
-import { EXPECTED_OPENSPEC_VERSION, openspecPackageDir } from '../core/openspec.ts'
+import {
+  OPENSPEC_VERSION_RANGE,
+  openspecPackageDir,
+  satisfiesOpenspecRange,
+} from '../core/openspec.ts'
 import { HARNESS_NAMES } from '../harness/render.ts'
 import { detectHarnesses, generate } from './update.ts'
 
@@ -75,12 +85,12 @@ function checkOpenspecVersion(findings: Finding[]): void {
   } catch {
     // fall through to mismatch handling
   }
-  if (version !== EXPECTED_OPENSPEC_VERSION) {
+  if (!satisfiesOpenspecRange(version)) {
     findings.push({
       level: 'ERROR',
       check: 'openspec-version',
-      message: `bundled openspec is ${version || '<unknown>'}, expected ${EXPECTED_OPENSPEC_VERSION}`,
-      remedy: 'pin @fission-ai/openspec to the expected version, then re-run the contract suite',
+      message: `bundled openspec is ${version || '<unknown>'}, expected a version satisfying ${OPENSPEC_VERSION_RANGE}`,
+      remedy: 'pin @fission-ai/openspec within the accepted range, then re-run the contract suite',
     })
   }
 }
@@ -307,6 +317,20 @@ function checkChangeSchemas(cwd: string, findings: Finding[]): void {
   }
 }
 
+/** `cospec doctor` lists active changes still on `schemaVersion` 1 (DESIGN §5). */
+function checkSchemaVersions(cwd: string, findings: Finding[]): void {
+  for (const change of listChanges(cwd)) {
+    if (!isCospecType(change.schema)) continue
+    if ((change.schemaVersion ?? 1) >= 2) continue
+    findings.push({
+      level: 'INFO',
+      check: 'schema-version',
+      message: `change '${change.id}' is still on schemaVersion 1`,
+      remedy: `run \`cospec migrate ${change.id}\` to scaffold verification.md and bump to v2`,
+    })
+  }
+}
+
 function checkGateHooks(cwd: string, findings: Finding[]): void {
   if (!existsSync(join(cwd, 'hk.pkl'))) return
   if (!existsSync(join(cwd, '.git'))) return
@@ -345,6 +369,7 @@ export function run(ctx: CommandContext): number {
   checkOpsx(cwd, findings)
   checkStaleSidecars(cwd, findings)
   checkChangeSchemas(cwd, findings)
+  checkSchemaVersions(cwd, findings)
   checkGateHooks(cwd, findings)
 
   return report(findings, flags.json)

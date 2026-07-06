@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.1.0
-  contentHash: sha256:926bcda293ff2b2be39423d6bcbc091d4bced8bd7943908d100b458d65719329
+  contentHash: sha256:f5ddafb268917ae8fd6f1d8846b81ecff20c4aad942acc3861421e7838d350f2
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -42,8 +42,8 @@ Run the same loop as `/cospec-propose` step 3: for each ready artifact, call
 `cospec instructions <artifact> --change <slug> --json`, write it to the named
 path, and repeat until every required artifact exists. Apply `context` and
 `rules` as constraints, never copy them into the output. Follow the
-machine-parsed formats for `blocking-changes.md` and the `specs/**/spec.md`
-deltas exactly.
+machine-parsed formats for `blocking-changes.md`, the `specs/**/spec.md` deltas,
+and `verification.md` exactly.
 
 ## 4. Format, validate, and hand off
 

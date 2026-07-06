@@ -6,6 +6,8 @@ schemaDescription: 'docs — documentation content only. Light workflow: proposa
 proposal: lite
 blocking: lite
 liteDomain: docs
+surfaces: false
+verification: F
 artifacts:
   specs: forbidden
   design: forbidden

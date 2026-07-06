@@ -1,25 +1,29 @@
-// Version tripwire (DESIGN §8.2, risk #3). Three sources of the openspec version
-// must agree: the runtime constant, the live binary, and the package.json pin. A
-// dependency bump breaks THIS file first, pointing the upgrader at the contract
-// suite and the design doc before anything else surfaces.
+// Version tripwire (DESIGN §8.2, risk #3). cospec accepts a semver RANGE at
+// runtime (>=1.0.0 <2.0.0) but pins ONE exact dev/CI build (PINNED_OPENSPEC_VERSION)
+// that the contract suite is probed against. Three things must stay coherent: the
+// package.json dependency pin, the exact pin the live binary reports, and the
+// range the runtime enforces. A dependency bump breaks THIS file first, pointing
+// the upgrader at the contract suite and the design doc before anything else
+// surfaces. The range assertions below pin the semantics: in-range passes,
+// below-floor and 2.x are refused.
 
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
 import pkg from '../../package.json'
-import { EXPECTED_OPENSPEC_VERSION } from '../../src/core/openspec.ts'
+import {
+  checkVersion,
+  OPENSPEC_VERSION_CEILING,
+  OPENSPEC_VERSION_FLOOR,
+  PINNED_OPENSPEC_VERSION,
+  satisfiesOpenspecRange,
+} from '../../src/core/openspec.ts'
 import { openspec, REPO_ROOT } from '../fixtures/support.ts'
 
 describe('openspec version tripwire', () => {
-  test('EXPECTED_OPENSPEC_VERSION equals the package.json dependency pin', () => {
+  test('the package.json dependency pin equals the exact PINNED_OPENSPEC_VERSION', () => {
     const pin = (pkg.dependencies as Record<string, string>)['@fission-ai/openspec']
-    expect(pin).toBe(EXPECTED_OPENSPEC_VERSION)
-  })
-
-  test('the live bundled binary reports EXPECTED_OPENSPEC_VERSION', async () => {
-    const res = await openspec(['--version'], REPO_ROOT)
-    expect(res.exitCode).toBe(0)
-    expect(res.stdout.trim()).toBe(EXPECTED_OPENSPEC_VERSION)
+    expect(pin).toBe(PINNED_OPENSPEC_VERSION)
   })
 
   test('the pin is an exact version (no range operators)', () => {
@@ -28,5 +32,33 @@ describe('openspec version tripwire', () => {
       '@fission-ai/openspec'
     ]
     expect(pin).toMatch(/^\d+\.\d+\.\d+$/)
+  })
+
+  test('the mise.toml dev/probe pin equals the same exact PINNED_OPENSPEC_VERSION', () => {
+    const raw = readFileSync(`${REPO_ROOT}/mise.toml`, 'utf8')
+    const match = /"npm:@fission-ai\/openspec"\s*=\s*"([^"]+)"/.exec(raw)
+    expect(match?.[1]).toBe(PINNED_OPENSPEC_VERSION)
+  })
+
+  test('the exact pin itself satisfies the accepted runtime range', () => {
+    expect(satisfiesOpenspecRange(PINNED_OPENSPEC_VERSION)).toBe(true)
+  })
+
+  test('the live bundled binary reports the exact pin and satisfies the range', async () => {
+    const res = await openspec(['--version'], REPO_ROOT)
+    expect(res.exitCode).toBe(0)
+    const version = res.stdout.trim()
+    expect(version).toBe(PINNED_OPENSPEC_VERSION)
+    expect(satisfiesOpenspecRange(version)).toBe(true)
+    expect(() => checkVersion(version, false)).not.toThrow()
+  })
+
+  test('the runtime range refuses below the floor and at the 2.x ceiling', () => {
+    // Floor is inclusive; the last 0.x release below it is refused.
+    expect(satisfiesOpenspecRange(OPENSPEC_VERSION_FLOOR)).toBe(true)
+    expect(satisfiesOpenspecRange('0.23.0')).toBe(false)
+    // Ceiling is exclusive: the next major is refused.
+    expect(satisfiesOpenspecRange(OPENSPEC_VERSION_CEILING)).toBe(false)
+    expect(() => checkVersion('2.0.0', false)).toThrow(/expected a version satisfying/)
   })
 })

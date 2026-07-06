@@ -54,6 +54,7 @@ export const COMMANDS: CommandEntry[] = [
   { name: 'update', summary: 'Regenerate managed files from canon' },
   { name: 'doctor', summary: 'Diagnose a cospec setup and report remedies' },
   { name: 'new', summary: 'Create a new typed change (cospec new <type> <slug>)' },
+  { name: 'migrate', summary: 'Migrate a v1 change to schemaVersion 2 (opt-in)' },
   { name: 'validate', summary: 'Validate changes and specs' },
   { name: 'status', summary: "Show a change's status and gate state" },
   { name: 'list', summary: 'List active changes' },
