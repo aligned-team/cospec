@@ -3,6 +3,18 @@
 // The 11 types are the same set cospec exposes as change schemas (`cospec new <type>`).
 export default {
   extends: ['@commitlint/config-conventional'],
+  plugins: [
+    {
+      rules: {
+        // A scope names an AREA the commit touches; it must never just repeat
+        // the type (e.g. `chore(chore):`), which carries no information.
+        'scope-not-type': ({ type, scope }) =>
+          scope === undefined || scope !== type
+            ? [true]
+            : [false, `scope must not repeat the type '${type}' — omit the scope instead`],
+      },
+    },
+  ],
   rules: {
     'type-enum': [
       2,
@@ -38,9 +50,9 @@ export default {
         'deps',
         'hooks',
         'agents',
-        'chore',
       ],
     ],
+    'scope-not-type': [2, 'always'],
     'subject-max-length': [2, 'always', 72],
     'subject-case': [2, 'never', ['sentence-case', 'start-case', 'pascal-case', 'upper-case']],
     'subject-empty': [2, 'never'],
