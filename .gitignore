@@ -15,6 +15,10 @@ build/
 out/
 .output/
 
+# openspec/schemas/build/ is the generated `build`-type schema (managed output),
+# not a build-output directory — keep it tracked despite the build/ rule above.
+!openspec/schemas/build/
+
 # Cache
 .cache/
 
