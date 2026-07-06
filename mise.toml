@@ -128,7 +128,7 @@ run = "mise run cospec -- update --check"
 [tasks."openspec:schema:validate"]
 description = "Structurally validate each composed schema with the raw openspec CLI"
 run = """
-set -euo pipefail
+set -eu
 for t in build chore ci docs feat fix perf refactor revert style test; do
   echo "openspec schema validate $t"
   openspec schema validate "$t"
