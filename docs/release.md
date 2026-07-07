@@ -109,12 +109,19 @@ release).
    `optionalDependencies` resolve the instant it goes live. Everything
    reversible — creating and publishing the GitHub release — happens first, so a
    failure anywhere before `npm publish` always leaves a clean slate for
-   `cleanup` to roll back.
-6. **`cleanup`** — runs only `if: failure()`, which given the ordering above is
-   only reachable when `npm publish` has NOT succeeded. Best-effort deletes the
-   tag via the REST API (app token) and the release (`GITHUB_TOKEN`) — draft or
-   already-published — if either was created. It never touches `main` or the
-   bump commit.
+   `cleanup` to roll back. The publish step itself is **not atomic** (eight
+   per-package publishes), so it is made **idempotent** instead: each publish is
+   guarded by `npm view <name>@<version>`, skipping any package already live. A
+   mid-loop failure that leaves the first N platform packages published is
+   therefore recoverable — a re-dispatch at the same version skips the live
+   packages and resumes with the remaining packages + the main launcher.
+6. **`cleanup`** — runs only `if: failure()`. It may run after some platform
+   packages have already published (the loop is not atomic); deleting the tag +
+   release is still safe because the publish loop is idempotent, so a
+   re-dispatch at the same version recreates them and resumes only the gaps.
+   Best-effort deletes the tag via the REST API (app token) and the release
+   (`GITHUB_TOKEN`) — draft or already-published — if either was created. It
+   never touches `main` or the bump commit.
 
 ## Signed commits without a bypass actor
 

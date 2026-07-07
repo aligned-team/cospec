@@ -59,8 +59,11 @@
 #                   everything reversible (the GitHub release) happens first.
 #   6. cleanup    — on failure only: delete the tag via the REST API and the
 #                   release, draft or already-published (both best-effort).
-#                   Only reachable when npm publish has NOT succeeded, so this
-#                   is always safe. main and the bump commit are left intact
+#                   This is always safe even if some platform packages already
+#                   published: the publish loop is idempotent (`npm view` skips
+#                   what is live), so a re-dispatch at the SAME version recreates
+#                   the tag + release and resumes publishing only the gaps + the
+#                   main package. main and the bump commit are left intact
 #                   (never force-pushed).
 #
 # The git tag and apps/cli/package.json carry the SAME version: `set-version`
@@ -506,15 +509,15 @@ jobs:
       # ── Publish with NO missing-binaries window, and npm publish LAST ───────
       # The draft is created complete: notes + every asset already attached
       # (the tag is already on origin from the bump job). `npm publish` is
-      # IRREVERSIBLE (a version can never be republished once live), so it must
-      # be the last thing this job does — nothing fallible may run after it, or
-      # a failure there trips `cleanup` into deleting the tag/release out from
-      # under an already-live npm version, permanently wedging that version
-      # (re-dispatch recomputes the same version, then `npm publish` 403s
-      # forever). The GitHub release side (create + flip to published) is fully
-      # reversible up to that point — `cleanup` deletes it on any failure here,
-      # draft or already-published, so an early failure always leaves a clean
-      # slate for re-dispatch.
+      # IRREVERSIBLE (a version can never be republished once live), so it is the
+      # last thing this job does — everything reversible (the GitHub release
+      # create + flip to published) happens first, and `cleanup` deletes it on
+      # any failure here, draft or already-published, leaving a clean slate for
+      # re-dispatch. The publish step itself is NOT atomic (8 per-package
+      # publishes), so it is made idempotent instead: each publish is guarded by
+      # `npm view`, so a mid-loop failure that leaves the first N platform
+      # packages live is fully recoverable — a re-dispatch at the same version
+      # skips the live packages and resumes with the rest + main.
       - name: Create draft release with notes and all assets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -585,14 +588,34 @@ jobs:
             ls -la npm-dist >&2
             exit 1
           fi
+
+          # Publishing 8 packages is NOT atomic — npm publish is irreversible and
+          # per-package, so a mid-loop failure (transient 5xx, per-package
+          # token/OIDC hiccup) can leave the first N packages live while the rest,
+          # and the main package, never ship. Make each publish idempotent so a
+          # re-dispatch at the SAME version cleanly resumes instead of wedging:
+          # `cog bump --auto` recomputes the same X (the bump commit stays on
+          # main), and re-publishing an already-live version 403s. Guard every
+          # publish with `npm view <name>@<version>`: skip what is already live,
+          # publish only the gaps, then main. name+version come from the tarball's
+          # own package/package.json so this holds regardless of file naming.
+          publish_if_absent() {
+            tgz="$1"
+            name=$(tar -xzOf "${tgz}" package/package.json | jq -r '.name')
+            if npm view "${name}@${VERSION}" version >/dev/null 2>&1; then
+              echo "Skipping ${name}@${VERSION} — already on npm (idempotent resume)"
+              return 0
+            fi
+            echo "Publishing ${name}@${VERSION} (${tgz})"
+            npm publish "${tgz}" --access public
+          }
+
           for tgz in npm-dist/*.tgz; do
             if [ "${tgz}" != "${MAIN}" ]; then
-              echo "Publishing platform package ${tgz}"
-              npm publish "${tgz}" --access public
+              publish_if_absent "${tgz}"
             fi
           done
-          echo "Publishing main package ${MAIN}"
-          npm publish "${MAIN}" --access public
+          publish_if_absent "${MAIN}"
 
   # ── On failure only: roll the pushed tag + draft release back ──────────────
   cleanup:
@@ -628,9 +651,11 @@ jobs:
       # irreversible step — see the comment on "Create draft release" in the
       # publish job), so a failure that lands us here can find the release
       # either still draft (the flip itself failed) or already published (the
-      # flip succeeded but a later step failed). Either way `cleanup` only ever
-      # runs when npm publish has NOT succeeded, so deleting the release here
-      # is always safe.
+      # flip succeeded but a later step failed). Deleting the release is safe
+      # even if the publish loop already put some platform packages live: that
+      # loop is idempotent (`npm view` skips what is live), so a re-dispatch at
+      # the same version recreates the tag + release and resumes publishing the
+      # remaining packages + main.
       - name: Delete the release, if one was created (best-effort)
         env:
           GH_TOKEN: ${{ github.token }}
