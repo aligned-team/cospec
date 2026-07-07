@@ -2,7 +2,7 @@
 description: Archive a completed change — validate, merge specs, verify, and fan blockers out.
 metadata:
   author: cospec
-  generatedBy: cospec@0.1.0
+  generatedBy: cospec@0.1.1
   contentHash: sha256:ca020d07b9178b6e14f5be79916870a18884c48a6263faef141bd31f432d7def
 ---
 

@@ -80,9 +80,10 @@ fi
 
 # Resolve the repo root: explicit --root wins, else the repo that contains this
 # script (scripts/mise-tasks/release/set-version -> three levels up).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 if [[ -z "$ROOT" ]]; then
-  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+  ROOT="$SCRIPT_REPO_ROOT"
 else
   ROOT="$(cd "$ROOT" && pwd)"
 fi
@@ -94,26 +95,38 @@ require_file() {
 # Set the .version field in a JSON manifest via jq, then normalise with oxfmt
 # so the result matches .oxfmtrc.json. oxfmt runs on the candidate BEFORE the
 # change compare so the on-disk form is a formatter fixed point — running
-# twice is a true no-op. The temp file keeps a `.json` extension so oxfmt
-# formats it as JSON.
+# twice is a true no-op. The temp copy keeps the manifest's REAL basename
+# (e.g. `package.json`) in a scratch directory: oxfmt's package.json-aware
+# array formatting is keyed off the literal filename, not just the `.json`
+# extension, so a mangled temp name (`.package.json.setver.$$.tmp.json`)
+# silently falls back to generic JSON formatting and collapses arrays that
+# oxfmt keeps multi-line for a real `package.json` — the exact drift that
+# went uncaught in the v0.1.0 release bump.
 set_json_version() {
   local target="$1"
   # Optional jq filter (bound with --arg v). Defaults to a bare .version stamp;
   # the main manifest passes a filter that also repins optionalDependencies.
   local filter="${2:-.version = \$v}"
-  local dir base tmp
-  dir="$(dirname "$target")"
+  local base tmpdir tmp
   base="$(basename "$target")"
-  tmp="$dir/.$base.setver.$$.tmp.json"
+  # A sibling of $target, not $TMPDIR: keeps the later `mv` on the same
+  # filesystem (atomic — no cross-device copy+delete), and the RETURN trap
+  # guarantees cleanup even if jq or oxfmt fails partway through.
+  tmpdir="$(mktemp -d "$(dirname "$target")/.setver.XXXXXX")"
+  trap 'rm -rf "$tmpdir"' RETURN
+  tmp="$tmpdir/$base"
   jq --indent 2 --arg v "$VERSION" "$filter" "$target" > "$tmp"
   # Normalise with oxfmt when available; let a real oxfmt failure abort the run
   # (the command -v guard already covers the not-installed case) so we never
   # commit partially-normalised JSON or mask a broken toolchain.
   if command -v oxfmt >/dev/null 2>&1; then
-    oxfmt --write "$tmp" >/dev/null 2>&1
+    # -c pins THIS SCRIPT's own repo config explicitly: $ROOT may be a
+    # throwaway copy of just a few manifests with no .oxfmtrc.json of its own
+    # (e.g. under test via --root), in which case oxfmt's own upward config
+    # search from $tmp would find nothing.
+    oxfmt -c "$SCRIPT_REPO_ROOT/.oxfmtrc.json" --write "$tmp" >/dev/null 2>&1
   fi
   if cmp -s "$tmp" "$target"; then
-    rm -f "$tmp"
     echo "  unchanged: ${target#"$ROOT"/}"
   else
     mv "$tmp" "$target"

@@ -9,24 +9,35 @@ amends "package://github.com/jdx/hk/releases/download/v1.48.0/hk@1.48.0#/Config.
 // scripts/hooks/ for pklr compatibility.
 
 local tsGlobs = List("**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.mts", "**/*.cts")
+// oxfmt (0.56.0, per `.oxfmtrc.json`'s per-type overrides) also formats JSON,
+// JSONC, and Markdown — oxlint has no support for either, so oxlint stays on
+// tsGlobs alone.
+local oxfmtGlobs = tsGlobs + List("**/*.json", "**/*.jsonc", "**/*.md", "**/*.mdx")
 local tomlGlobs = List("**/*.toml")
 local shellGlobs = List("**/*.sh", "**/*.bash")
 local ciGlobs = List(".github/workflows/**/*.yml", ".github/workflows/**/*.yaml")
 
-// Managed files: hand-authored canon + everything cospec generates from it.
-local generatedGlobs = List(
-  "apps/cli/src/canon/**",
+// Hand-authored canon: gated by generate:check below (editing it without
+// regenerating is drift), but it's ordinary source, so it stays in oxfmt's
+// glob — only the generated output below is excluded from oxfmt.
+local canonGlobs = List("apps/cli/src/canon/**")
+// Generated output: produced by cospec's own generator, which is itself the
+// formatter's fixed point (checked by generate:check below) — oxfmt must not
+// fight that.
+local generatedOutputGlobs = List(
   "openspec/schemas/**",
   ".claude/**",
   ".codex/**",
   ".opencode/**"
 )
+local generatedGlobs = canonGlobs + generatedOutputGlobs
 
 local agentGlobs = List(".agents/shared.md", "CLAUDE.md", "AGENTS.md")
 
 local linters = new Mapping<String, Step> {
   ["oxfmt"] {
-    glob = tsGlobs
+    glob = oxfmtGlobs
+    exclude = generatedOutputGlobs
     check = "oxfmt --check {{files}}"
     fix = "oxfmt {{files}}"
     batch = true
