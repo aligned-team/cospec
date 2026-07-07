@@ -397,7 +397,11 @@ jobs:
 
       - name: Validate the staged tarball with npm publish --dry-run
         run: |
-          TARBALL=$(find dist-npm -maxdepth 1 -name '*.tgz')
+          TARBALL=$(find dist-npm -maxdepth 1 -name '*.tgz' -print -quit)
+          if [ -z "${TARBALL}" ]; then
+            echo "::error::no tarball found in dist-npm for npm publish --dry-run" >&2
+            exit 1
+          fi
           npm publish --dry-run "${GITHUB_WORKSPACE}/${TARBALL}"
 
       - name: Upload staged tarball artifact

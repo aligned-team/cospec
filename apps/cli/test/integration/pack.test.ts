@@ -66,7 +66,10 @@ describe('pack smoke', () => {
     // unreachable (proxy env pointed at a closed port). It writes the
     // manifest summary and contents listing to stderr; stdout only carries
     // the final `+ name@version` confirmation line.
-    const res = Bun.spawnSync(['npm', 'publish', '--dry-run', tarball], { cwd: packDir })
+    const res = Bun.spawnSync(['npm', 'publish', '--dry-run', tarball], {
+      cwd: packDir,
+      env: { ...process.env, NO_COLOR: '1' },
+    })
     const stdout = new TextDecoder().decode(res.stdout)
     const stderr = new TextDecoder().decode(res.stderr)
     expect(res.exitCode).toBe(0)
