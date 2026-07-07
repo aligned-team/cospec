@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -11,9 +11,20 @@ import { PINNED_OPENSPEC_VERSION } from '../../../src/core/openspec.ts'
 
 describe('extractEmbeddedOpenspec (memoized entry)', () => {
   // The module memoizes the extracted path per process, so this whole block
-  // observes a single extraction — point XDG_CACHE_HOME at a temp dir first.
+  // observes a single extraction — point XDG_CACHE_HOME at a temp dir first,
+  // and restore it afterward so the mutation doesn't leak into other test
+  // files sharing this process.
   const cache = mkdtempSync(join(tmpdir(), 'cospec-embed-'))
-  process.env.XDG_CACHE_HOME = cache
+  const originalXdgCacheHome = process.env.XDG_CACHE_HOME
+
+  beforeAll(() => {
+    process.env.XDG_CACHE_HOME = cache
+  })
+
+  afterAll(() => {
+    if (originalXdgCacheHome === undefined) delete process.env.XDG_CACHE_HOME
+    else process.env.XDG_CACHE_HOME = originalXdgCacheHome
+  })
 
   test('extracts into a content-addressed, version-scoped layout with a synthesized manifest', () => {
     const binPath = extractEmbeddedOpenspec(PINNED_OPENSPEC_VERSION)
