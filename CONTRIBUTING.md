@@ -13,7 +13,9 @@ by the same CLI we ship. The loop is:
 4. **apply** — `cospec apply <slug>` gates the work; obey its exit code.
 5. **implement** — do the work, checking off `tasks.md`.
 6. **archive** — `cospec archive <slug>` merges specs, verifies, and syncs
-   blockers.
+   blockers. Run this as the final commit on the PR branch, before merge — never
+   post-merge. A PR must never merge leaving its change unarchived in
+   `openspec/changes/` on `main`.
 
 If the tool cannot describe and gate a change to this repo, that is a bug in the
 tool. See [The cospec change workflow](#the-cospec-change-workflow-we-self-host)
@@ -144,7 +146,11 @@ through `cospec`.
 4. `mise run cospec -- apply <slug>` — the gate. Obey the exit code.
 5. Implement, checking off `tasks.md`.
 6. `mise run cospec -- archive <slug>` — validates, gates on tasks, archives,
-   verifies the move, and fans out blocker sync.
+   verifies the move, and fans out blocker sync. Schemas with no specs artifact
+   (`ci`, `chore`, `docs`, …) correctly produce no spec-sync deltas here. Run
+   this as the final commit on the PR branch, before merge — never post-merge. A
+   PR must never merge leaving its change unarchived in `openspec/changes/` on
+   `main`.
 
 `openspec/schemas/**` and the harness directories (`.claude/`, `.codex/`,
 `.opencode/`) are **generated** from `apps/cli/src/canon/`. Edit the canon and
@@ -176,4 +182,7 @@ Every command change lands with a contract or integration test.
 
 PRs land via **squash merge**, so the PR title becomes the landing commit — it
 must be a valid Conventional Commit (linted by `pr-title.yml`). Keep changes
-scoped; surface out-of-scope issues as a follow-up rather than a silent fix.
+scoped; surface out-of-scope issues as a follow-up rather than a silent fix. A
+PR is complete only once it carries its own change's archive commit
+(`chore: archive <slug>`) — never merge leaving a change unarchived in
+`openspec/changes/` on `main`.
