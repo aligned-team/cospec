@@ -55,4 +55,33 @@ describe('pack smoke', () => {
     expect(init.exitCode).toBe(0)
     expect(existsSync(join(target, 'openspec/schemas/feat/schema.yaml'))).toBe(true)
   }, 120_000)
+
+  test('npm publish --dry-run accepts the tarball and lists its key files', async () => {
+    const packDir = mkTempRepo()
+    const tarball = pack(packDir)
+
+    // `npm publish --dry-run` makes no network mutation and needs no auth —
+    // verified empirically: it warns "requires you to be logged in" but still
+    // exits 0 and prints the full contents listing, even with the registry
+    // unreachable (proxy env pointed at a closed port). It writes the
+    // manifest summary and contents listing to stderr; stdout only carries
+    // the final `+ name@version` confirmation line.
+    const res = Bun.spawnSync(['npm', 'publish', '--dry-run', tarball], { cwd: packDir })
+    const stdout = new TextDecoder().decode(res.stdout)
+    const stderr = new TextDecoder().decode(res.stderr)
+    expect(res.exitCode).toBe(0)
+
+    const manifest = (await Bun.file(join(cliDir, 'package.json')).json()) as {
+      name: string
+      version: string
+    }
+    expect(stdout).toContain(`${manifest.name}@${manifest.version}`)
+    expect(stderr).toContain(manifest.name)
+    expect(stderr).toContain(manifest.version)
+
+    // Contents listing must include the files a broken `files` glob would drop.
+    for (const file of ['bin/cospec.js', 'package.json', 'README.md', 'LICENSE', 'src/index.ts']) {
+      expect(stderr).toContain(file)
+    }
+  }, 120_000)
 })

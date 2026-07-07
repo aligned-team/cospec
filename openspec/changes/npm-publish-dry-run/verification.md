@@ -1,0 +1,4 @@
+## 1. `npm publish --dry-run` catches registry-side manifest defects [critical]
+
+- [x] 1.1 @unit (agent) run `mise run test:pack` against a `bun pm pack` tarball -> 2 pass, 0 fail; new test asserts exit 0 and stderr contents listing includes bin/cospec.js, package.json, README.md, LICENSE, src/index.ts; name/version @aligned-team/cospec@0.1.0 matched. Empirically: `npm publish --dry-run` needs no auth and no network (verified with a closed-port proxy set) — it only warns "requires you to be logged in" but still exits 0
+- [~] 1.2 @runtime (agent) `stage-npm` job (GitHub Actions ubuntu-latest runner) runs `npm publish --dry-run` on the staged tarball after the install smoke -> defer: workflow_dispatch not triggered in this session; `mise exec -- actionlint` passed locally against the edited workflow with no findings
