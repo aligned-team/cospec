@@ -1,6 +1,6 @@
 {
   "name": "@aligned-team/cospec-linux-x64-musl",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "The cospec standalone binary for linux x64 (musl). Installed automatically as an optional dependency of @aligned-team/cospec; not used directly.",
   "homepage": "https://github.com/aligned-team/cospec",
   "license": "MIT",
