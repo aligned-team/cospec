@@ -3,11 +3,12 @@
 ## Purpose
 
 Make the standalone compiled cospec binary fully self-contained: it embeds a
-single-file bundle of the pinned OpenSpec CLI and can extract and run it with
-no node_modules, no bun, and no npm, while still preferring a project-installed
+single-file bundle of the pinned OpenSpec CLI and can extract and run it with no
+node_modules, no bun, and no npm, while still preferring a project-installed
 in-range openspec when one exists.
 
 ## Requirements
+
 ### Requirement: Embedded openspec bundle
 
 The compiled `cospec` binary SHALL embed a self-contained single-file JS bundle
@@ -68,4 +69,3 @@ expected path with the expected byte length.
 - **WHEN** cospec extracts the embedded bundle
 - **THEN** the extracted file exists at the expected path and its byte length
   equals the embedded bundle's byte length, or the wrapped call fails
-
