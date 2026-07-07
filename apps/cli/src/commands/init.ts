@@ -10,6 +10,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
+import { canonFile } from '../canon/embedded.ts'
 import type { CommandContext } from '../cli.ts'
 import { openspecDir } from '../core/change.ts'
 import { splitFrontmatter, type WriteResult } from '../core/managed-files.ts'
@@ -113,15 +114,14 @@ interface GateResult {
   snippets: { file: string; content: string }[]
 }
 
-function gateDir(): string {
-  return join(import.meta.dir, '..', 'canon', 'gate')
-}
-
 function scaffoldGate(cwd: string): GateResult {
   const written: string[] = []
   const snippets: { file: string; content: string }[] = []
   for (const target of GATE_TARGETS) {
-    const content = readFileSync(join(gateDir(), target.tpl), 'utf8')
+    // Resolve through the embedded registry, not join(import.meta.dir, ...):
+    // the compiled standalone binary has no canon/ dir on disk, so a path-based
+    // read ENOENTs there (the exact bug the embedded registry exists to fix).
+    const content = readFileSync(canonFile(`gate/${target.tpl}`), 'utf8')
     const dest = join(cwd, target.file)
     if (existsSync(dest)) {
       snippets.push({ file: target.file, content })

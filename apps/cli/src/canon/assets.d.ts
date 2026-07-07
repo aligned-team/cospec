@@ -10,3 +10,8 @@ declare module '*.md' {
   const path: string
   export default path
 }
+
+declare module '*.tpl' {
+  const path: string
+  export default path
+}

@@ -34,15 +34,28 @@ function hostPlatform(): { dir: string; binName: string } {
   return { dir: `linux-${arch}-${libc}`, binName: 'cospec' }
 }
 
-/** PATH with bun removed but node (the launcher's shebang interpreter) kept. */
+/**
+ * PATH with bun removed but node (the launcher's shebang interpreter) kept.
+ * If `node` and `bun` share a directory (e.g. Homebrew, some mise layouts),
+ * keeping that whole directory would put `bun` back on PATH, so a shim
+ * directory containing only a `node` symlink stands in for it instead.
+ */
 function bunlessPath(): string {
   const nodePath = Bun.which('node')
   if (nodePath === null) throw new Error('node not found — required for the bun-less smoke')
   const nodeDir = dirname(nodePath)
+  const nodeEntry =
+    Bun.which('bun', { PATH: nodeDir }) === null
+      ? nodeDir
+      : (() => {
+          const shimDir = mkTempRepo()
+          symlinkSync(nodePath, join(shimDir, 'node'))
+          return shimDir
+        })()
   const kept = (process.env.PATH ?? '')
     .split(delimiter)
     .filter((p) => p.length > 0 && Bun.which('bun', { PATH: p }) === null)
-  return [nodeDir, ...kept, '/usr/bin', '/bin'].join(delimiter)
+  return [nodeEntry, ...kept, '/usr/bin', '/bin'].join(delimiter)
 }
 
 function run(
@@ -125,10 +138,14 @@ describe('standalone pack smoke (bun-less)', () => {
 
     // `init` is the README quickstart and exercises the embedded canon (the
     // compiled binary has no canon/ directory on disk — a regression here means
-    // `bun build --compile` stopped embedding the canon assets).
-    const init = run([bin, 'init', '--harness', 'none', '--no-gate', '--yes'], target, path)
+    // `bun build --compile` stopped embedding the canon assets). The gate is
+    // left ON (state A defaults it on) so the gate .tpl templates are read from
+    // $bunfs too — they are embedded canon just like the schemas, and reading
+    // them via a stale on-disk path is the exact standalone `init` regression.
+    const init = run([bin, 'init', '--harness', 'none', '--yes'], target, path)
     expect(init.code, init.stderr).toBe(0)
     expect(existsSync(join(target, 'openspec/schemas/feat/schema.yaml'))).toBe(true)
+    expect(existsSync(join(target, 'commitlint.config.mjs'))).toBe(true)
 
     // `new` spawns the WRAPPED openspec binary: proves the compiled executable
     // resolves the consumer-installed @fission-ai/openspec dependency and runs

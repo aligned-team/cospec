@@ -17,6 +17,9 @@ import artifactProposal from './artifacts/proposal/meta.yaml' with { type: 'file
 import artifactSpecs from './artifacts/specs/meta.yaml' with { type: 'file' }
 import artifactTasks from './artifacts/tasks/meta.yaml' with { type: 'file' }
 import artifactVerification from './artifacts/verification/meta.yaml' with { type: 'file' }
+import gateCommitlint from './gate/commitlint.config.mjs.tpl' with { type: 'file' }
+import gateHk from './gate/hk.pkl.tpl' with { type: 'file' }
+import gateMise from './gate/mise.toml.tpl' with { type: 'file' }
 import typeBuild from './types/build.yaml' with { type: 'file' }
 import typeChore from './types/chore.yaml' with { type: 'file' }
 import typeCi from './types/ci.yaml' with { type: 'file' }
@@ -45,6 +48,9 @@ const CANON_FILES: Record<string, string> = {
   'artifacts/specs/meta.yaml': artifactSpecs,
   'artifacts/tasks/meta.yaml': artifactTasks,
   'artifacts/verification/meta.yaml': artifactVerification,
+  'gate/commitlint.config.mjs.tpl': gateCommitlint,
+  'gate/hk.pkl.tpl': gateHk,
+  'gate/mise.toml.tpl': gateMise,
   'types/build.yaml': typeBuild,
   'types/chore.yaml': typeChore,
   'types/ci.yaml': typeCi,
