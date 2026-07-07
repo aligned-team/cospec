@@ -10,6 +10,10 @@
 # `mise run vendor:openspec` (drift-gated by `vendor:openspec:check`); it is
 # minified third-party output, not hand-formatted source.
 apps/cli/src/vendor/
+# Generated third-party license notices for the vendored openspec bundle. Built
+# alongside the bundle by `mise run vendor:openspec` (drift-gated); it reproduces
+# upstream license text verbatim and must not be reflowed by the formatter.
+apps/cli/THIRD-PARTY-LICENSES.md
 
 openspec/schemas/
 .claude/commands/cospec/

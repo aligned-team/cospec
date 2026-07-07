@@ -28,7 +28,8 @@
   "files": [
     "bin",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "THIRD-PARTY-LICENSES.md"
   ],
   "type": "module",
   "publishConfig": {

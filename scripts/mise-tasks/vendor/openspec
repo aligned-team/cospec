@@ -4,7 +4,11 @@
 # Regenerate (or drift-check) the vendored, self-contained bundle of the pinned
 # `@fission-ai/openspec` CLI that the compiled cospec binary embeds
 # (apps/cli/src/vendor/openspec.bundle.js.tpl — the `.tpl` suffix keeps it an
-# opaque asset, never resolved as a JS module by tsc/oxlint).
+# opaque asset, never resolved as a JS module by tsc/oxlint), plus the
+# THIRD-PARTY-LICENSES.md that reproduces the bundled packages' MIT/ISC notices
+# (apps/cli/THIRD-PARTY-LICENSES.md — shipped in every package + release archive
+# so the redistributed openspec code carries its required copyright/permission
+# notice).
 #
 # The bundle is one platform-independent JS file produced with
 # `bun build --target=bun --minify` from the pinned openspec's bin entry. It is
@@ -31,6 +35,8 @@ if [[ "${1:-}" == "--check" ]]; then CHECK=1; fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 CLI_DIR="${ROOT}/apps/cli"
 OUT="${CLI_DIR}/src/vendor/openspec.bundle.js.tpl"
+NOTICES="${CLI_DIR}/THIRD-PARTY-LICENSES.md"
+NOTICES_GEN="${ROOT}/scripts/mise-tasks/vendor/third-party-notices.ts"
 
 # Resolve the pinned openspec package dir by path (not $PATH), from apps/cli so
 # the workspace node_modules is on the resolution base.
@@ -57,9 +63,17 @@ if [[ "${CHECK}" == 1 ]]; then
     echo "Run 'mise run vendor:openspec' and commit the result." >&2
     exit 1
   fi
-  echo "vendor:openspec: bundle up to date."
+  bun run "${NOTICES_GEN}" > "${TMP}/THIRD-PARTY-LICENSES.md"
+  if ! cmp -s "${TMP}/THIRD-PARTY-LICENSES.md" "${NOTICES}"; then
+    echo "vendor:openspec: committed THIRD-PARTY-LICENSES.md drifts from the bundled deps." >&2
+    echo "Run 'mise run vendor:openspec' and commit the result." >&2
+    exit 1
+  fi
+  echo "vendor:openspec: bundle and third-party notices up to date."
 else
   mkdir -p "$(dirname "${OUT}")"
   build "${OUT}"
+  bun run "${NOTICES_GEN}" > "${NOTICES}"
   echo "vendor:openspec: wrote ${OUT} ($(wc -c < "${OUT}" | tr -d ' ') bytes)"
+  echo "vendor:openspec: wrote ${NOTICES} ($(grep -c '^## ' "${NOTICES}") packages)"
 fi

@@ -10,7 +10,8 @@
     "directory": "apps/cli/npm/darwin-x64"
   },
   "files": [
-    "bin/cospec"
+    "bin/cospec",
+    "THIRD-PARTY-LICENSES.md"
   ],
   "os": [
     "darwin"

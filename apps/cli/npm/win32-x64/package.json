@@ -10,7 +10,8 @@
     "directory": "apps/cli/npm/win32-x64"
   },
   "files": [
-    "bin/cospec.exe"
+    "bin/cospec.exe",
+    "THIRD-PARTY-LICENSES.md"
   ],
   "os": [
     "win32"

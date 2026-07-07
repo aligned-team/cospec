@@ -10,7 +10,8 @@
     "directory": "apps/cli/npm/linux-arm64-musl"
   },
   "files": [
-    "bin/cospec"
+    "bin/cospec",
+    "THIRD-PARTY-LICENSES.md"
   ],
   "os": [
     "linux"

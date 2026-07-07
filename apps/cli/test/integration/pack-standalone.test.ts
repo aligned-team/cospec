@@ -11,7 +11,7 @@
 // release matrix (see openspec verification rows 4.x).
 
 import { afterAll, describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, readdirSync, symlinkSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, symlinkSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
 
 import { cleanupAll, mkTempRepo, REPO_ROOT, writeFiles } from '../fixtures/support.ts'
@@ -101,6 +101,11 @@ describe('standalone pack smoke (bun-less)', () => {
     expect(compile.exitCode, new TextDecoder().decode(compile.stderr)).toBe(0)
     expect(existsSync(join(platformPkg, 'bin', binName))).toBe(true)
 
+    // The platform package ships the bundled openspec's MIT/ISC notices next to
+    // the binary that embeds them (license compliance) — mirror release.yml's
+    // copy so the packed tarball is exactly what publish uploads.
+    cpSync(join(cliDir, 'THIRD-PARTY-LICENSES.md'), join(platformPkg, 'THIRD-PARTY-LICENSES.md'))
+
     // 2. Pack both packages exactly as `npm publish` would.
     const platformTgz = packNpm(npm, platformPkg)
     const mainTgz = packBun(cliDir)
@@ -124,6 +129,20 @@ describe('standalone pack smoke (bun-less)', () => {
 
     const bin = join(consumer, 'node_modules', '.bin', 'cospec')
     expect(existsSync(bin)).toBe(true)
+
+    // The redistributed openspec bundle's license notices must land on disk with
+    // the installed platform package (a broken `files` glob would drop them).
+    expect(
+      existsSync(
+        join(
+          consumer,
+          'node_modules',
+          '@aligned-team',
+          `cospec-${platformDir}`,
+          'THIRD-PARTY-LICENSES.md',
+        ),
+      ),
+    ).toBe(true)
 
     // 4. Run on Node only: version, then real subcommands (dispatch + embedded
     //    canon, no wrapped openspec call, no bun).

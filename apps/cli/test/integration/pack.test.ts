@@ -71,7 +71,7 @@ describe('pack smoke', () => {
       version: string
     }
     const stamped = mkTempRepo()
-    for (const entry of ['bin', 'README.md', 'LICENSE']) {
+    for (const entry of ['bin', 'README.md', 'LICENSE', 'THIRD-PARTY-LICENSES.md']) {
       cpSync(join(cliDir, entry), join(stamped, entry), { recursive: true })
     }
     writeFileSync(
@@ -108,7 +108,13 @@ describe('pack smoke', () => {
     // Contents listing must include the files a broken `files` glob would drop.
     // No src/ — the package ships only the launcher; the runtime is the
     // per-platform compiled binaries.
-    for (const file of ['bin/cospec.js', 'package.json', 'README.md', 'LICENSE']) {
+    for (const file of [
+      'bin/cospec.js',
+      'package.json',
+      'README.md',
+      'LICENSE',
+      'THIRD-PARTY-LICENSES.md',
+    ]) {
       expect(stderr).toContain(file)
     }
     expect(stderr).not.toContain('src/index.ts')
