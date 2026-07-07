@@ -1,0 +1,39 @@
+# communique configuration — AI-generated GitHub Release notes for cospec.
+#
+# Used by .github/workflows/release.yml:
+#   communique generate <tag> --output RELEASE_NOTES.md
+# which writes the generated notes into a file before the draft release is
+# created. The previous tag is auto-detected, so only the new tag is passed.
+
+[system]
+# Project context the model uses to frame the notes.
+context = """
+cospec (conventional openspec) is a thin, opinionated wrapper around OpenSpec
+1.5.0 that sizes the spec-driven workflow to your conventional-commit type.
+`feat` gets the full treatment — proposal, blocking-changes, specs,
+verification, tasks; `refactor` additionally requires design; `ci`/`chore`/
+`docs` and their siblings take two minutes with three short artifacts. It
+ships as the npm package `@aligned-team/cospec` with one bin, `cospec`, plus
+standalone compiled binaries attached to each GitHub release.
+
+cospec never replaces OpenSpec — it wraps the real binary and adds: 11 typed
+schemas that map 1:1 to the conventional-commit types, real change validation
+with stable rule IDs, a deterministic `apply` gate, a filesystem-verified
+`archive`, a machine-parsed `verification` evidence ledger with hard archive
+gates, `## Surfaces` flag triggers that soft-nudge verification and design
+sections, versioned schemas with `schemaVersion` grandfathering, and a
+blocking-changes ledger with auto-sync. The tool self-hosts: its own
+`openspec/` tree is managed by cospec.
+"""
+
+# Tone hint for the generated release notes.
+system_extra = """
+Write release notes that are concise and factual — do not invent changes that
+aren't in the commit history. Group changes by conventional-commit type
+(features, fixes, ci, etc.). Lead with what changed for `cospec` CLI users:
+new commands, gate behavior, schema changes, or install/upgrade notes. No
+marketing language, no emoji-spam.
+"""
+
+# Pin the model for reproducible release notes.
+model = "claude-sonnet-5"
