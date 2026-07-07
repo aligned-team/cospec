@@ -41,3 +41,14 @@
 ## 7. Verify
 
 - [x] 7.1 `mise run check` passes green
+
+## 8. Review fixes
+
+- [x] 8.1 Reorder `publish`: flip the GitHub draft to published BEFORE
+      `npm publish`, making `npm publish` the job's last, irreversible step so
+      no fallible step after it can trip `cleanup` into deleting the tag/
+      release out from under an already-live npm version; widen `cleanup`'s
+      release lookup to match by tag regardless of draft state
+- [x] 8.2 Pin `cocogitto` and `communique` as exact-version tools in `mise.toml`
+      (`aqua:cocogitto/cocogitto`, `github:jdx/communique`) instead of unpinned
+      `mise use -g` in the workflow; regenerate `mise.lock`

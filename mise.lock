@@ -19,6 +19,10 @@ checksum = "sha256:20446cd714d9fa1b69fbd410deade3731f38fe09a2b980c8488aa388dd320
 url = "https://github.com/cli/cli/releases/download/v2.91.0/gh_2.91.0_macOS_arm64.zip"
 provenance = "github-attestations"
 
+[[tools."aqua:cocogitto/cocogitto"]]
+version = "7.0.0"
+backend = "aqua:cocogitto/cocogitto"
+
 [[tools."aqua:jdx/hk"]]
 version = "1.48.0"
 backend = "aqua:jdx/hk"
@@ -143,6 +147,28 @@ url = "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-windows-
 [tools.bun."platforms.windows-x64-baseline"]
 checksum = "sha256:538f9c846355d9e847b2671bc00c47da4229a0befb24df3282b739770f3b475f"
 url = "https://github.com/oven-sh/bun/releases/download/bun-v1.3.14/bun-windows-x64-baseline.zip"
+
+[[tools."github:jdx/communique"]]
+version = "1.2.0"
+backend = "github:jdx/communique"
+
+[tools."github:jdx/communique"."platforms.linux-arm64"]
+checksum = "sha256:9f5c60c6cb9ada8c8dc491e2c8882770610a6bc9c937939a8998b4fd722ee078"
+url = "https://github.com/jdx/communique/releases/download/v1.2.0/communique-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/communique/releases/assets/457075829"
+provenance = "github-attestations"
+
+[tools."github:jdx/communique"."platforms.linux-x64"]
+checksum = "sha256:817f37cc3d243671fb73aaf8bf3fd104a0e2f912c0c51ef02b9afa81de46ffe8"
+url = "https://github.com/jdx/communique/releases/download/v1.2.0/communique-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/communique/releases/assets/457075387"
+provenance = "github-attestations"
+
+[tools."github:jdx/communique"."platforms.macos-arm64"]
+checksum = "sha256:6f59d1e770f1e9a8104f3f2d3a3f04b83e1d0b9a3c9eed3f1be4203e1d3a0d6a"
+url = "https://github.com/jdx/communique/releases/download/v1.2.0/communique-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/jdx/communique/releases/assets/457075119"
+provenance = "github-attestations"
 
 [[tools."npm:@fission-ai/openspec"]]
 version = "1.5.0"

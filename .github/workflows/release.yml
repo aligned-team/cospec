@@ -29,13 +29,18 @@
 #                   artifacts, generate SHA256SUMS, write AI-generated notes
 #                   via `communique` (no GitHub side effect), create a DRAFT
 #                   release with those notes + every asset already attached,
-#                   `npm publish` the staged tarball, and only if that
-#                   succeeds flip the draft to published by RELEASE ID (NOT by
-#                   tag — draft releases aren't addressable by tag via
-#                   `gh release edit`).
+#                   flip it to published by RELEASE ID (NOT by tag — draft
+#                   releases aren't addressable by tag via `gh release edit`),
+#                   and ONLY THEN `npm publish` the staged tarball, as the
+#                   job's last step. `npm publish` is irreversible (a version
+#                   can never be republished), so nothing fallible may run
+#                   after it — everything reversible (the GitHub release)
+#                   happens first.
 #   6. cleanup    — on failure only: delete the pushed tag from origin and the
-#                   draft release (both best-effort). main and the bump commit
-#                   are left intact (never force-pushed).
+#                   release, draft or already-published (both best-effort).
+#                   Only reachable when npm publish has NOT succeeded, so this
+#                   is always safe. main and the bump commit are left intact
+#                   (never force-pushed).
 #
 # The git tag and apps/cli/package.json carry the SAME version: `set-version`
 # writes the tag's semver into the manifest. cog.toml stays compute-only (no
@@ -78,9 +83,10 @@ jobs:
         with:
           fetch-depth: 0 # cog needs full history + tags to compute the bump
 
+      # cocogitto is a pinned tool in mise.toml (like every other tool here);
+      # setup-mise's `mise install` already fetched it — no ad-hoc `mise use -g`
+      # (which would resolve latest upstream and make the release non-reproducible).
       - uses: ./.github/actions/setup-mise
-      - name: Install cocogitto
-        run: mise use -g aqua:cocogitto/cocogitto # prebuilt binary — no cargo compile
 
       # cog computes the next semver from conventional commits (or the
       # dispatched override) WITHOUT side effects (--dry-run makes no manifest
@@ -331,9 +337,10 @@ jobs:
           ref: ${{ needs.bump.outputs.sha }}
           fetch-depth: 0 # communique reads commit history to write the notes
 
+      # communique is a pinned tool in mise.toml (like every other tool here);
+      # setup-mise's `mise install` already fetched it — no ad-hoc `mise use -g`
+      # (which would resolve latest upstream and make the release non-reproducible).
       - uses: ./.github/actions/setup-mise
-      - name: Install communique
-        run: mise use -g ubi:jdx/communique # prebuilt binary — no cargo compile
 
       - name: Download all artifacts
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
@@ -356,11 +363,18 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: mise exec -- communique generate "${{ needs.version.outputs.tag }}" --output RELEASE_NOTES.md
 
-      # ── Publish with NO missing-binaries window ────────────────────────────
+      # ── Publish with NO missing-binaries window, and npm publish LAST ───────
       # The draft is created complete: notes + every asset already attached
-      # (the tag is already on origin from the bump job). npm publish runs
-      # only after the draft exists; if it fails, the draft simply never gets
-      # flipped to published, and `cleanup` removes it on failure.
+      # (the tag is already on origin from the bump job). `npm publish` is
+      # IRREVERSIBLE (a version can never be republished once live), so it must
+      # be the last thing this job does — nothing fallible may run after it, or
+      # a failure there trips `cleanup` into deleting the tag/release out from
+      # under an already-live npm version, permanently wedging that version
+      # (re-dispatch recomputes the same version, then `npm publish` 403s
+      # forever). The GitHub release side (create + flip to published) is fully
+      # reversible up to that point — `cleanup` deletes it on any failure here,
+      # draft or already-published, so an early failure always leaves a clean
+      # slate for re-dispatch.
       - name: Create draft release with notes and all assets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -372,28 +386,6 @@ jobs:
             --title "${TAG}" \
             --notes-file RELEASE_NOTES.md \
             dist/cospec-*.tar.gz dist/cospec-*.zip dist/*.tgz dist/SHA256SUMS
-
-      # setup-node writes an .npmrc that wires NODE_AUTH_TOKEN to the registry
-      # (a bare `npm publish` never reads NODE_AUTH_TOKEN on its own). The
-      # runner's node is only used for the npm CLI; the package itself is bun.
-      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
-        with:
-          registry-url: 'https://registry.npmjs.org'
-
-      # TODO(provenance): once this repo is public, add `--provenance` here.
-      # Provenance attestation requires a public source repo; this repo is
-      # private today.
-      # TODO(trusted-publishing): once @aligned-team/cospec exists on npm and
-      # trusted publishing (OIDC) is configured for it in npm's package
-      # settings, drop NODE_AUTH_TOKEN/setup-node's .npmrc + the NPM_TOKEN
-      # secret entirely and add `id-token: write` to this job's permissions
-      # (npm exchanges the OIDC token automatically).
-      - name: Publish to npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          TARBALL=$(find dist -maxdepth 1 -name '*.tgz')
-          npm publish "${TARBALL}" --access public
 
       - name: Publish the draft (by release id — drafts aren't addressable by tag)
         env:
@@ -420,6 +412,31 @@ jobs:
           gh api --method PATCH "repos/${{ github.repository }}/releases/${RELEASE_ID}" \
             -F draft=false >/dev/null
 
+      # setup-node writes an .npmrc that wires NODE_AUTH_TOKEN to the registry
+      # (a bare `npm publish` never reads NODE_AUTH_TOKEN on its own). The
+      # runner's node is only used for the npm CLI; the package itself is bun.
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          registry-url: 'https://registry.npmjs.org'
+
+      # TODO(provenance): once this repo is public, add `--provenance` here.
+      # Provenance attestation requires a public source repo; this repo is
+      # private today.
+      # TODO(trusted-publishing): once @aligned-team/cospec exists on npm and
+      # trusted publishing (OIDC) is configured for it in npm's package
+      # settings, drop NODE_AUTH_TOKEN/setup-node's .npmrc + the NPM_TOKEN
+      # secret entirely and add `id-token: write` to this job's permissions
+      # (npm exchanges the OIDC token automatically).
+      #
+      # This is deliberately the LAST step in the job — see the comment above
+      # "Create draft release" for why nothing fallible may follow it.
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          TARBALL=$(find dist -maxdepth 1 -name '*.tgz')
+          npm publish "${TARBALL}" --access public
+
   # ── On failure only: roll the pushed tag + draft release back ──────────────
   cleanup:
     name: Roll back on failure
@@ -444,17 +461,25 @@ jobs:
           echo "Deleting ${TAG} from origin (best-effort)"
           git push origin ":refs/tags/${TAG}" || true
 
-      - name: Delete the draft release, if one was created (best-effort)
+      # Matches on tag_name ONLY (not `.draft`): `publish` now flips the draft
+      # to published BEFORE `npm publish` runs (npm publish is the job's last,
+      # irreversible step — see the comment on "Create draft release" in the
+      # publish job), so a failure that lands us here can find the release
+      # either still draft (the flip itself failed) or already published (the
+      # flip succeeded but a later step failed). Either way `cleanup` only ever
+      # runs when npm publish has NOT succeeded, so deleting the release here
+      # is always safe.
+      - name: Delete the release, if one was created (best-effort)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG=${{ needs.version.outputs.tag }}
           [ -n "${TAG}" ] || exit 0
           RELEASE_ID=$(gh api "repos/${{ github.repository }}/releases" \
-            --jq "map(select(.tag_name == \"${TAG}\" and .draft)) | .[0].id // empty" || true)
+            --jq "map(select(.tag_name == \"${TAG}\")) | .[0].id // empty" || true)
           if [ -n "${RELEASE_ID}" ]; then
-            echo "Deleting draft release ${RELEASE_ID} (${TAG})"
+            echo "Deleting release ${RELEASE_ID} (${TAG})"
             gh api --method DELETE "repos/${{ github.repository }}/releases/${RELEASE_ID}" || true
           else
-            echo "no draft release found for ${TAG}; nothing to delete"
+            echo "no release found for ${TAG}; nothing to delete"
           fi

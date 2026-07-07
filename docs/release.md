@@ -47,14 +47,20 @@ release).
 5. **`publish`** — downloads every artifact, generates `SHA256SUMS`, runs
    `communique` to write `RELEASE_NOTES.md` (using
    `ANTHROPIC_API_KEY_COMMUNIQUE`), creates a **draft** GitHub release with the
-   notes and all binaries + `SHA256SUMS` already attached, then `npm publish`s
-   the staged tarball from `stage-npm` (via `NPM_TOKEN`). Only once that publish
-   succeeds does it flip the draft to published — by release ID, not by tag,
-   since drafts aren't addressable by tag — using a short retry loop (the
-   releases list can lag a moment behind the create call).
-6. **`cleanup`** — runs only `if: failure()`. Best-effort deletes the pushed tag
-   from origin (via the deploy key) and the draft release, if either was
-   created. It never touches `main` or the bump commit.
+   notes and all binaries + `SHA256SUMS` already attached, then flips the draft
+   to published — by release ID, not by tag, since drafts aren't addressable by
+   tag — using a short retry loop (the releases list can lag a moment behind the
+   create call). Only after the release is published does it `npm publish` the
+   staged tarball from `stage-npm` (via `NPM_TOKEN`), as the job's **last**
+   step: `npm publish` is irreversible (a version can never be republished), so
+   nothing fallible runs after it. Everything reversible — creating and
+   publishing the GitHub release — happens first, so a failure anywhere before
+   `npm publish` always leaves a clean slate for `cleanup` to roll back.
+6. **`cleanup`** — runs only `if: failure()`, which given the ordering above is
+   only reachable when `npm publish` has NOT succeeded. Best-effort deletes the
+   pushed tag from origin (via the deploy key) and the release — draft or
+   already-published — if either was created. It never touches `main` or the
+   bump commit.
 
 ## Required secrets
 
