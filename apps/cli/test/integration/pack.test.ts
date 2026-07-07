@@ -38,10 +38,14 @@ describe('pack smoke', () => {
     const bin = join(consumer, 'node_modules/.bin/cospec')
     expect(existsSync(bin)).toBe(true)
 
-    // `cospec --version` needs no wrapped openspec call.
+    // `cospec --version` needs no wrapped openspec call. Compare against the
+    // manifest (not a literal) so the release pipeline's post-bump run of this
+    // suite still passes at the freshly stamped version.
+    const expected = ((await Bun.file(join(cliDir, 'package.json')).json()) as { version: string })
+      .version
     const version = await cospecBin(bin, ['--version'], { cwd: consumer })
     expect(version.exitCode).toBe(0)
-    expect(version.stdout.trim()).toBe('0.1.0')
+    expect(version.stdout.trim()).toBe(expected)
 
     // `cospec init` from the installed copy: canon shipped in the tarball.
     const target = mkTempRepo({ fixture: 'fresh', git: true })

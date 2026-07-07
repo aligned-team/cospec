@@ -1,0 +1,142 @@
+/**
+ * Tests for the `release:set-version` task script
+ * (scripts/mise-tasks/release/set-version).
+ *
+ * cospec ships as ONE versioned npm package (`@aligned-team/cospec`); the
+ * release workflow computes the next semver with cocogitto and then calls
+ * this script to stamp that version into `apps/cli/package.json` and the
+ * matching workspace entry in `bun.lock` — the root `package.json` stays
+ * `private`/`0.0.0` and must never be touched. These tests run the script
+ * against a throwaway copy of just those manifests (via its `--root` flag,
+ * so the real working tree is never touched) and assert the version lands
+ * correctly, the root manifest is untouched, a second run is a byte-for-byte
+ * no-op (idempotent), and a bad version arg is rejected.
+ */
+
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+
+// Absolute path to the script under test and the repo root it lives in.
+const SCRIPT = new URL('../../scripts/mise-tasks/release/set-version', import.meta.url).pathname
+const REPO_ROOT = new URL('../../', import.meta.url).pathname
+
+const ROOT_PACKAGE = 'package.json'
+const CLI_PACKAGE = 'apps/cli/package.json'
+const BUN_LOCK = 'bun.lock'
+
+/** The cospec workspace entry's version in bun.lock (JSONC — parsed by line). */
+const lockCospecVersion = (text: string): string | undefined => {
+  const lines = text.split('\n')
+  let inCospec = false
+  for (const line of lines) {
+    if (line.includes('"name": "@aligned-team/cospec"')) inCospec = true
+    if (inCospec) {
+      const m = line.match(/^\s*"version": "([^"]+)",$/)
+      if (m) return m[1]
+    }
+  }
+  return undefined
+}
+
+/** Run the script against `root`, return its exit code + captured output. */
+async function runScript(
+  version: string,
+  root: string,
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  const proc = Bun.spawn(['bash', SCRIPT, version, '--root', root], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+    env: { ...process.env },
+  })
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ])
+  return { exitCode, stdout, stderr }
+}
+
+describe('release:set-version', () => {
+  let root: string
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'cospec-set-version-'))
+    for (const rel of [ROOT_PACKAGE, CLI_PACKAGE, BUN_LOCK]) {
+      const dest = join(root, rel)
+      mkdirSync(dirname(dest), { recursive: true })
+      cpSync(join(REPO_ROOT, rel), dest)
+    }
+  })
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  test('stamps the target version into apps/cli/package.json', async () => {
+    const target = '9.9.9'
+    const { exitCode, stderr } = await runScript(target, root)
+    expect(stderr).toBe('')
+    expect(exitCode).toBe(0)
+
+    const cli = JSON.parse(readFileSync(join(root, CLI_PACKAGE), 'utf8'))
+    expect(cli.version).toBe(target)
+  })
+
+  test('stamps the workspace version recorded in bun.lock', async () => {
+    const target = '9.9.9'
+    const { exitCode } = await runScript(target, root)
+    expect(exitCode).toBe(0)
+    const lock = readFileSync(join(root, BUN_LOCK), 'utf8')
+    expect(lockCospecVersion(lock)).toBe(target)
+  })
+
+  test('never touches the root package.json (stays private/0.0.0)', async () => {
+    await runScript('9.9.9', root)
+
+    const rootPkg = JSON.parse(readFileSync(join(root, ROOT_PACKAGE), 'utf8'))
+    expect(rootPkg.version).toBe('0.0.0')
+    expect(rootPkg.private).toBe(true)
+  })
+
+  test('is idempotent — a second run makes no byte-level change', async () => {
+    const target = '9.9.9'
+    await runScript(target, root)
+    const first = readFileSync(join(root, CLI_PACKAGE), 'utf8')
+
+    const { exitCode, stdout } = await runScript(target, root)
+    expect(exitCode).toBe(0)
+    expect(stdout).not.toContain('updated:')
+
+    const second = readFileSync(join(root, CLI_PACKAGE), 'utf8')
+    expect(second).toBe(first)
+  })
+
+  test('accepts a prerelease semver', async () => {
+    const target = '9.9.9-rc.1'
+    const { exitCode } = await runScript(target, root)
+    expect(exitCode).toBe(0)
+    const cli = JSON.parse(readFileSync(join(root, CLI_PACKAGE), 'utf8'))
+    expect(cli.version).toBe(target)
+  })
+
+  test('rejects a non-semver version and leaves files untouched', async () => {
+    const before = readFileSync(join(root, CLI_PACKAGE), 'utf8')
+    const { exitCode, stderr } = await runScript('v1.2', root)
+    expect(exitCode).toBe(2)
+    expect(stderr).toContain('not a valid semver')
+    const after = readFileSync(join(root, CLI_PACKAGE), 'utf8')
+    expect(after).toBe(before)
+  })
+
+  test('rejects missing version argument', async () => {
+    const proc = Bun.spawn(['bash', SCRIPT, '--root', root], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    })
+    const [stderr, exitCode] = await Promise.all([new Response(proc.stderr).text(), proc.exited])
+    expect(exitCode).toBe(2)
+    expect(stderr).toContain('missing <version>')
+  })
+})

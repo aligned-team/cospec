@@ -1,0 +1,46 @@
+# cocogitto configuration for cospec.
+#
+# cog's ONLY job here is to COMPUTE the next semver from conventional commits
+# (`cog bump --dry-run`, which prints the version and does nothing else). It
+# must NOT rewrite any manifest — no `bump_profiles`, empty pre/post-bump hooks.
+#
+# The release workflow (.github/workflows/release.yml) takes that computed
+# version and stamps it into apps/cli/package.json (and refreshes bun.lock) via
+# `mise run release:set-version`, commits on main, then tags — so the npm
+# package and the compiled binaries ship at one consistent version. The root
+# package.json stays private/0.0.0 and is never touched.
+
+# Annotated tag with a leading `v`.
+tag_prefix = "v"
+
+# Conventional Commits only — no manifest bumping.
+from_latest_tag = true
+ignore_merge_commits = true
+
+# No package/manifest is declared to cog, so `cog bump` itself never touches
+# any version file — the release workflow's set-version step owns that.
+pre_bump_hooks = []
+post_bump_hooks = []
+
+[changelog]
+# Changelog generation is handled by `communique` (AI release notes), not cog.
+authors = []
+
+[commit_types]
+# Auto-bump policy: every one of cospec's 11 conventional-commit types bumps
+# at least a patch, so `cog bump --auto` always computes a version for any
+# in-scope work. `feat` bumps minor; a breaking change (`!` or a BREAKING
+# CHANGE footer) is still a major bump regardless of type.
+#
+# https://docs.cocogitto.io/guide/bump.html#auto-bump-commit-types
+build = { bump_patch = true }
+chore = { bump_patch = true }
+ci = { bump_patch = true }
+docs = { bump_patch = true }
+feat = { bump_minor = true }
+fix = { bump_patch = true }
+perf = { bump_patch = true }
+refactor = { bump_patch = true }
+revert = { bump_patch = true }
+style = { bump_patch = true }
+test = { bump_patch = true }
