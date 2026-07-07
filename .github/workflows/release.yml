@@ -13,17 +13,22 @@
 #                   `mise run release:set-version`, then create the bump
 #                   commit on main via GitHub's GraphQL `createCommitOnBranch`
 #                   mutation and the tag via the REST git-tags/git-refs API,
-#                   both authenticated with `GITHUB_TOKEN`. `main`'s "Protect
+#                   both authenticated with a short-lived installation token
+#                   minted from the `cospec-release` GitHub App (variable
+#                   RELEASE_APP_ID + secret RELEASE_APP_PRIVATE_KEY; Contents
+#                   RW, installed on this repo only). `main`'s "Protect
 #                   default branch" ruleset requires signed commits with NO
 #                   exempt bypass actors; API-created commits are signed by
-#                   GitHub itself (shown as "Verified") and pass without one.
-#                   The separate "Require PRs" ruleset exempts the GitHub
-#                   Actions integration as a bypass actor, so no PR is needed
-#                   either. The commit is idempotent: if the manifest already
-#                   carries the version, only the tag is created. NOTE: like
-#                   any `GITHUB_TOKEN`-authored write, this commit does NOT
-#                   trigger other workflows — the bump commit gets no `ci.yml`
-#                   run (see docs/release.md for the tradeoff).
+#                   GitHub itself (shown as "Verified", attributed to
+#                   cospec-release[bot]) and pass without one. The separate
+#                   "Require PRs" ruleset exempts the cospec-release app as a
+#                   bypass actor — the GitHub Actions integration cannot be a
+#                   bypass actor on this org (the ruleset API 422s), hence the
+#                   dedicated app. The commit is idempotent: if the manifest
+#                   already carries the version, only the tag is created.
+#                   NOTE: unlike GITHUB_TOKEN writes, app-token commits DO
+#                   trigger other workflows — the bump commit gets a normal
+#                   `ci.yml` run on main (see docs/release.md).
 #   3. build      — cross-compile the 5 bun targets (all on ubuntu-latest —
 #                   bun's `--compile --target=<t>` cross-compiles from one
 #                   host), package each as an archive, and upload as an
@@ -53,9 +58,8 @@
 # writes the tag's semver into the manifest. cog.toml stays compute-only (no
 # manifest rewrite); this workflow owns the commit and tag.
 #
-# See docs/release.md for the full secrets list, the two-ruleset model that
-# lets the API-created bump commit land on `main` without a bypass actor, and
-# the CI-run tradeoff.
+# See docs/release.md for the full secrets/variables list and the two-ruleset
+# model that lets the app's API-created bump commit land on `main`.
 
 name: Release
 
@@ -139,8 +143,10 @@ jobs:
     name: Commit version bump
     needs: version
     runs-on: ubuntu-latest
+    # GITHUB_TOKEN only checks out the repo here; every write (commit, tag)
+    # rides the cospec-release app token minted below.
     permissions:
-      contents: write
+      contents: read
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
     steps:
@@ -158,6 +164,18 @@ jobs:
       - name: Set cospec version
         run: mise run release:set-version -- "${{ needs.version.outputs.version }}"
 
+      # Mint a short-lived installation token from the cospec-release GitHub
+      # App. The app (not GITHUB_TOKEN) authenticates the commit + tag: it is
+      # the exempt bypass actor on the "Require PRs" ruleset (the GitHub
+      # Actions integration cannot be one on this org), and app-token commits
+      # trigger downstream workflows (ci.yml) where GITHUB_TOKEN's would not.
+      - name: Mint app installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       # Idempotent: only create a commit if the stamp actually changed a file
       # (a re-run at the same version skips straight to the current HEAD).
       # Uses GitHub's GraphQL createCommitOnBranch mutation instead of a
@@ -169,7 +187,7 @@ jobs:
       - name: Commit the version bump via the GitHub API
         id: commit
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           TAG=${{ needs.version.outputs.tag }}
           HEAD_SHA=$(git rev-parse HEAD)
@@ -216,12 +234,12 @@ jobs:
           echo "Bump commit: ${SHA}"
           echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
 
-      # Annotated tag object + ref, created via REST with GITHUB_TOKEN.
+      # Annotated tag object + ref, created via REST with the app token.
       # required_signatures on the ruleset does not apply to tag objects, so
       # no signing concern here.
       - name: Create the tag via the GitHub API
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           TAG=${{ needs.version.outputs.tag }}
           SHA=${{ steps.commit.outputs.sha }}
@@ -495,12 +513,23 @@ jobs:
     needs: [version, bump, build, stage-npm, publish]
     if: failure()
     runs-on: ubuntu-latest
+    # contents: write is for the GITHUB_TOKEN release deletion below; the tag
+    # deletion rides the cospec-release app token (the tag was created by the
+    # app, and ref deletion on the protected tree goes through the same
+    # bypass-actor identity).
     permissions:
       contents: write
     steps:
+      - name: Mint app installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - name: Delete the tag via the GitHub API (best-effort)
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           TAG=${{ needs.version.outputs.tag }}
           [ -n "${TAG}" ] || { echo "no tag computed; nothing to clean up"; exit 0; }
