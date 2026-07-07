@@ -26,8 +26,9 @@ release).
    derived tag already exists on origin.
 2. **`bump`** — checks out `main` over SSH using `RELEASE_DEPLOY_KEY`, runs
    `mise run release:set-version -- <v>` to stamp the version into
-   `apps/cli/package.json`, commits as `github-actions[bot]` (skipping hk's
-   `pre-commit`/`commit-msg` hooks via `HK: '0'` and
+   `apps/cli/package.json` (and the matching workspace entry in `bun.lock`,
+   which bun never refreshes on install), commits as `github-actions[bot]`
+   (skipping hk's `pre-commit`/`commit-msg` hooks via `HK: '0'` and
    `HK_SKIP_HOOK: pre-commit,commit-msg` — never `--no-verify`), creates an
    annotated tag, and pushes both. Idempotent: if the manifest is already at
    that version, only the tag is pushed. Outputs the bump commit's `sha`.

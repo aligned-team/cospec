@@ -8,7 +8,8 @@
 #                   --dry-run`, no manifest edit, no commit), derive the tag
 #                   `v<n>.<n>.<n>`, and fail fast if that tag already exists
 #                   on origin.
-#   2. bump       — stamp that ONE version into `apps/cli/package.json` with
+#   2. bump       — stamp that ONE version into `apps/cli/package.json` (and
+#                   the matching `bun.lock` workspace entry) with
 #                   `mise run release:set-version`, commit the bump to main,
 #                   create the annotated tag, and push both over SSH using an
 #                   exempt deploy key (secret RELEASE_DEPLOY_KEY). main has a
