@@ -17,23 +17,27 @@ local tomlGlobs = List("**/*.toml")
 local shellGlobs = List("**/*.sh", "**/*.bash")
 local ciGlobs = List(".github/workflows/**/*.yml", ".github/workflows/**/*.yaml")
 
-// Managed files: hand-authored canon + everything cospec generates from it.
-local generatedGlobs = List(
-  "apps/cli/src/canon/**",
+// Hand-authored canon: gated by generate:check below (editing it without
+// regenerating is drift), but it's ordinary source, so it stays in oxfmt's
+// glob — only the generated output below is excluded from oxfmt.
+local canonGlobs = List("apps/cli/src/canon/**")
+// Generated output: produced by cospec's own generator, which is itself the
+// formatter's fixed point (checked by generate:check below) — oxfmt must not
+// fight that.
+local generatedOutputGlobs = List(
   "openspec/schemas/**",
   ".claude/**",
   ".codex/**",
   ".opencode/**"
 )
+local generatedGlobs = canonGlobs + generatedOutputGlobs
 
 local agentGlobs = List(".agents/shared.md", "CLAUDE.md", "AGENTS.md")
 
 local linters = new Mapping<String, Step> {
   ["oxfmt"] {
     glob = oxfmtGlobs
-    // Generated files are formatted by their own generator (checked by
-    // generate:check below) — oxfmt must not fight that fixed point.
-    exclude = generatedGlobs
+    exclude = generatedOutputGlobs
     check = "oxfmt --check {{files}}"
     fix = "oxfmt {{files}}"
     batch = true

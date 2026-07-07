@@ -109,26 +109,27 @@ set_json_version() {
   local filter="${2:-.version = \$v}"
   local base tmpdir tmp
   base="$(basename "$target")"
-  tmpdir="$(mktemp -d)"
+  # A sibling of $target, not $TMPDIR: keeps the later `mv` on the same
+  # filesystem (atomic — no cross-device copy+delete), and the RETURN trap
+  # guarantees cleanup even if jq or oxfmt fails partway through.
+  tmpdir="$(mktemp -d "$(dirname "$target")/.setver.XXXXXX")"
+  trap 'rm -rf "$tmpdir"' RETURN
   tmp="$tmpdir/$base"
   jq --indent 2 --arg v "$VERSION" "$filter" "$target" > "$tmp"
   # Normalise with oxfmt when available; let a real oxfmt failure abort the run
   # (the command -v guard already covers the not-installed case) so we never
   # commit partially-normalised JSON or mask a broken toolchain.
   if command -v oxfmt >/dev/null 2>&1; then
-    # -c pins THIS SCRIPT's own repo config explicitly (not $ROOT, which may
-    # be a throwaway copy of just a few manifests with no .oxfmtrc.json of
-    # its own — e.g. under test via --root): the temp copy lives outside
-    # $ROOT (in $tmpdir), so oxfmt's own upward config search would miss it
-    # too.
+    # -c pins THIS SCRIPT's own repo config explicitly: $ROOT may be a
+    # throwaway copy of just a few manifests with no .oxfmtrc.json of its own
+    # (e.g. under test via --root), in which case oxfmt's own upward config
+    # search from $tmp would find nothing.
     oxfmt -c "$SCRIPT_REPO_ROOT/.oxfmtrc.json" --write "$tmp" >/dev/null 2>&1
   fi
   if cmp -s "$tmp" "$target"; then
-    rm -rf "$tmpdir"
     echo "  unchanged: ${target#"$ROOT"/}"
   else
     mv "$tmp" "$target"
-    rm -rf "$tmpdir"
     echo "  updated:   ${target#"$ROOT"/}"
   fi
 }
