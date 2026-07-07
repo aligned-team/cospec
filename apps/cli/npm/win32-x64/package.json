@@ -9,15 +9,9 @@
     "url": "git+https://github.com/aligned-team/cospec.git",
     "directory": "apps/cli/npm/win32-x64"
   },
-  "files": [
-    "bin/cospec.exe"
-  ],
-  "os": [
-    "win32"
-  ],
-  "cpu": [
-    "x64"
-  ],
+  "files": ["bin/cospec.exe"],
+  "os": ["win32"],
+  "cpu": ["x64"],
   "publishConfig": {
     "access": "public"
   }

@@ -9,18 +9,10 @@
     "url": "git+https://github.com/aligned-team/cospec.git",
     "directory": "apps/cli/npm/linux-arm64-gnu"
   },
-  "files": [
-    "bin/cospec"
-  ],
-  "os": [
-    "linux"
-  ],
-  "cpu": [
-    "arm64"
-  ],
-  "libc": [
-    "glibc"
-  ],
+  "files": ["bin/cospec"],
+  "os": ["linux"],
+  "cpu": ["arm64"],
+  "libc": ["glibc"],
   "publishConfig": {
     "access": "public"
   }

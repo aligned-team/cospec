@@ -9,15 +9,9 @@
     "url": "git+https://github.com/aligned-team/cospec.git",
     "directory": "apps/cli/npm/darwin-arm64"
   },
-  "files": [
-    "bin/cospec"
-  ],
-  "os": [
-    "darwin"
-  ],
-  "cpu": [
-    "arm64"
-  ],
+  "files": ["bin/cospec"],
+  "os": ["darwin"],
+  "cpu": ["arm64"],
   "publishConfig": {
     "access": "public"
   }
