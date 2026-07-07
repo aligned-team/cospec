@@ -192,17 +192,23 @@ jobs:
           TAG=${{ needs.version.outputs.tag }}
           HEAD_SHA=$(git rev-parse HEAD)
 
-          CHANGED=$(git status --porcelain | awk '{print $2}')
-          if [ -z "${CHANGED}" ]; then
+          if git diff --quiet; then
             echo "apps/cli/package.json already at ${TAG#v} — skipping commit."
             echo "sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
+          # NUL-delimited paths (safe for spaces/renames); each file's
+          # contents are base64-encoded to a temp file and read back via
+          # --rawfile so the blob never sits on jq's argv (avoids ARG_MAX
+          # as bun.lock grows).
           ADDITIONS=$(
-            for f in ${CHANGED}; do
-              jq -n --arg path "$f" --arg contents "$(base64 -w0 "$f")" \
+            git diff --name-only -z | while IFS= read -r -d '' f; do
+              ENC=$(mktemp)
+              base64 -w0 "$f" > "${ENC}"
+              jq -n --arg path "$f" --rawfile contents "${ENC}" \
                 '{path: $path, contents: $contents}'
+              rm -f "${ENC}"
             done | jq -s '.'
           )
 
