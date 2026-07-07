@@ -24,14 +24,18 @@ release).
    regex-validates the result is an exact `x.y.z` (guarding against cog's
    "nothing to bump" message leaking into `$GITHUB_OUTPUT`), and fails if the
    derived tag already exists on origin.
-2. **`bump`** — checks out `main` over SSH using `RELEASE_DEPLOY_KEY`, runs
+2. **`bump`** — checks out `main` normally (no deploy key, no SSH), runs
    `mise run release:set-version -- <v>` to stamp the version into
    `apps/cli/package.json` (and the matching workspace entry in `bun.lock`,
-   which bun never refreshes on install), commits as `github-actions[bot]`
-   (skipping hk's `pre-commit`/`commit-msg` hooks via `HK: '0'` and
-   `HK_SKIP_HOOK: pre-commit,commit-msg` — never `--no-verify`), creates an
-   annotated tag, and pushes both. Idempotent: if the manifest is already at
-   that version, only the tag is pushed. Outputs the bump commit's `sha`.
+   which bun never refreshes on install), then creates the commit via GitHub's
+   GraphQL `createCommitOnBranch` mutation and the annotated tag via the REST
+   git-tags/git-refs API — both authenticated with `GITHUB_TOKEN`.
+   `expectedHeadOid` guards the mutation against a race (main moved since
+   checkout); a mismatch fails the step clean and a re-dispatch recovers.
+   Idempotent: if the manifest is already at that version, the commit is skipped
+   and only the tag is created. Outputs the bump commit's `sha`. See "Signed
+   commits without a bypass actor" below for why this replaces the old SSH
+   deploy-key push.
 3. **`build`** — a matrix on `ubuntu-latest` that cross-compiles
    `bun build --compile --target=<t>` for `bun-linux-x64-musl`,
    `bun-linux-arm64-musl`, `bun-darwin-x64`, `bun-darwin-arm64`, and
@@ -58,31 +62,53 @@ release).
    `npm publish` always leaves a clean slate for `cleanup` to roll back.
 6. **`cleanup`** — runs only `if: failure()`, which given the ordering above is
    only reachable when `npm publish` has NOT succeeded. Best-effort deletes the
-   pushed tag from origin (via the deploy key) and the release — draft or
+   tag via the REST API (`GITHUB_TOKEN`) and the release — draft or
    already-published — if either was created. It never touches `main` or the
    bump commit.
 
+## Signed commits without a bypass actor
+
+`main` carries two rulesets:
+
+- **"Protect default branch"** — applies to everyone, no exempt bypass actors,
+  and requires signed commits. A plain `GITHUB_TOKEN` `git push` produces an
+  unsigned commit and is rejected outright; an SSH deploy-key push is also
+  unsigned and would need to be listed as an exempt bypass actor to get through
+  — which this ruleset does not allow. GitHub's GraphQL `createCommitOnBranch`
+  mutation sidesteps both problems: the resulting commit is authored and signed
+  by GitHub itself (shown as "Verified" in the UI), so it satisfies the
+  signed-commit requirement on its own, with no bypass actor needed.
+- **"Require PRs"** — requires an open, approved PR before a push lands, except
+  for the **GitHub Actions integration**, which is configured as an exempt
+  bypass actor. The `bump` job's `GITHUB_TOKEN` runs as that integration, so its
+  API-created commit lands directly on `main` without opening a PR.
+
+Together these mean the release bump commit needs no deploy key, no bypass list
+entry of its own, and no PR — only the one-time "Require PRs" bypass-actor entry
+for GitHub Actions, which is a repo-settings change outside this workflow.
+
+### The CI-run tradeoff
+
+Commits created via `createCommitOnBranch` with `GITHUB_TOKEN` do not trigger
+other workflows — GitHub applies the same actor-suppression to API-authored
+writes that it applies to any `GITHUB_TOKEN`-authored push, to avoid accidental
+workflow recursion. `ci.yml` triggers on push to `main`, so the bump commit no
+longer gets a CI run of its own. This is an accepted tradeoff: the bump commit
+only touches `apps/cli/package.json` and `bun.lock`'s version field, and the
+`build` and `stage-npm` jobs in this same pipeline already check out and
+exercise that exact tree (compiling binaries, packing the npm tarball, and
+smoke-testing both) before anything is published.
+
 ## Required secrets
 
-| secret                         | purpose                                                                                                         |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `RELEASE_DEPLOY_KEY`           | SSH deploy key with write access, used to push the bump commit + tag to `main` and to delete the tag on cleanup |
-| `ANTHROPIC_API_KEY_COMMUNIQUE` | lets `communique` generate AI release notes                                                                     |
-| `NPM_TOKEN`                    | temporary — an npm automation token, used until trusted publishing is set up                                    |
+| secret                         | purpose                                                                      |
+| ------------------------------ | ---------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY_COMMUNIQUE` | lets `communique` generate AI release notes                                  |
+| `NPM_TOKEN`                    | temporary — an npm automation token, used until trusted publishing is set up |
 
-### Setting up `RELEASE_DEPLOY_KEY`
-
-`main` carries a branch-protection ruleset, so a plain `GITHUB_TOKEN` push is
-rejected. A deploy key sidesteps that by being registered as an **exempt bypass
-actor**:
-
-1. Generate a dedicated SSH key pair
-   (`ssh-keygen -t ed25519 -C "cospec-release-bot"`, no passphrase).
-2. Repo Settings → Deploy keys → add the **public** key with write access.
-3. Repo Settings → Rules → Rulesets → the `main` ruleset → Bypass list → add
-   this deploy key as an exempt bypass actor.
-4. Repo Settings → Secrets and variables → Actions → add the **private** key as
-   `RELEASE_DEPLOY_KEY`.
+`RELEASE_DEPLOY_KEY` has been retired: the bump commit and tag are created via
+GitHub's API with `GITHUB_TOKEN`, so no deploy key, and no bypass-actor entry
+for one, are needed. See "Signed commits without a bypass actor" above.
 
 ### Setting up `ANTHROPIC_API_KEY_COMMUNIQUE`
 

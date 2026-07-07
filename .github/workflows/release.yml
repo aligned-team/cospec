@@ -1,7 +1,7 @@
 # cospec release pipeline — the SINGLE entry point that cuts a new
 # `@aligned-team/cospec` npm release and its compiled-binary GitHub release.
 #
-# Flow: dispatch → version → bump (commit to main via deploy key) → build +
+# Flow: dispatch → version → bump (commit to main via the GitHub API) → build +
 # stage-npm → publish → cleanup.
 #
 #   1. version    — compute the next semver with cocogitto (`cog bump
@@ -10,13 +10,20 @@
 #                   on origin.
 #   2. bump       — stamp that ONE version into `apps/cli/package.json` (and
 #                   the matching `bun.lock` workspace entry) with
-#                   `mise run release:set-version`, commit the bump to main,
-#                   create the annotated tag, and push both over SSH using an
-#                   exempt deploy key (secret RELEASE_DEPLOY_KEY). main has a
-#                   branch-protection ruleset, but deploy keys are an EXEMPT
-#                   bypass actor, so this push is accepted without a PR. The
-#                   commit is idempotent: if the manifest already carries the
-#                   version, only the tag is pushed.
+#                   `mise run release:set-version`, then create the bump
+#                   commit on main via GitHub's GraphQL `createCommitOnBranch`
+#                   mutation and the tag via the REST git-tags/git-refs API,
+#                   both authenticated with `GITHUB_TOKEN`. `main`'s "Protect
+#                   default branch" ruleset requires signed commits with NO
+#                   exempt bypass actors; API-created commits are signed by
+#                   GitHub itself (shown as "Verified") and pass without one.
+#                   The separate "Require PRs" ruleset exempts the GitHub
+#                   Actions integration as a bypass actor, so no PR is needed
+#                   either. The commit is idempotent: if the manifest already
+#                   carries the version, only the tag is created. NOTE: like
+#                   any `GITHUB_TOKEN`-authored write, this commit does NOT
+#                   trigger other workflows — the bump commit gets no `ci.yml`
+#                   run (see docs/release.md for the tradeoff).
 #   3. build      — cross-compile the 5 bun targets (all on ubuntu-latest —
 #                   bun's `--compile --target=<t>` cross-compiles from one
 #                   host), package each as an archive, and upload as an
@@ -36,7 +43,7 @@
 #                   can never be republished), so nothing fallible may run
 #                   after it — everything reversible (the GitHub release)
 #                   happens first.
-#   6. cleanup    — on failure only: delete the pushed tag from origin and the
+#   6. cleanup    — on failure only: delete the tag via the REST API and the
 #                   release, draft or already-published (both best-effort).
 #                   Only reachable when npm publish has NOT succeeded, so this
 #                   is always safe. main and the bump commit are left intact
@@ -46,9 +53,9 @@
 # writes the tag's semver into the manifest. cog.toml stays compute-only (no
 # manifest rewrite); this workflow owns the commit and tag.
 #
-# Secret RELEASE_DEPLOY_KEY: an SSH private key for a repo deploy key with
-# write access that is registered as an exempt bypass actor on the main
-# ruleset. See docs/release.md for the full secrets list and setup steps.
+# See docs/release.md for the full secrets list, the two-ruleset model that
+# lets the API-created bump commit land on `main` without a bypass actor, and
+# the CI-run tradeoff.
 
 name: Release
 
@@ -127,7 +134,7 @@ jobs:
             echo "tag=${TAG}"
           } >> "$GITHUB_OUTPUT"
 
-  # ── Commit the version bump to main + push the tag (over the exempt deploy key)
+  # ── Commit the version bump to main + create the tag, both via the GitHub API
   bump:
     name: Commit version bump
     needs: version
@@ -137,12 +144,10 @@ jobs:
     outputs:
       sha: ${{ steps.commit.outputs.sha }}
     steps:
-      # Check out main over SSH with the deploy key so the later push
-      # authenticates as the exempt bypass actor. fetch-depth 0 keeps history
-      # for the commit/tag.
+      # Plain checkout — no ssh-key. fetch-depth 0 keeps history for the
+      # later tag; HEAD's sha is used as expectedHeadOid below.
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
           ref: main
           fetch-depth: 0
 
@@ -153,39 +158,86 @@ jobs:
       - name: Set cospec version
         run: mise run release:set-version -- "${{ needs.version.outputs.version }}"
 
-      - name: Configure git identity
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      # Idempotent: only commit + push main if the stamp actually changed a
-      # file (a re-run at the same version skips the commit). The annotated
-      # tag is always created at the resulting HEAD and pushed. Both pushes
-      # ride the deploy key, which is exempt from the main branch-protection
-      # ruleset.
-      - name: Commit, tag, and push
+      # Idempotent: only create a commit if the stamp actually changed a file
+      # (a re-run at the same version skips straight to the current HEAD).
+      # Uses GitHub's GraphQL createCommitOnBranch mutation instead of a
+      # local `git commit` + push: commits created this way are signed by
+      # GitHub itself (shown as "Verified"), which satisfies main's
+      # signed-commit ruleset without any bypass actor. expectedHeadOid guards
+      # against a race — if main moved since checkout, the mutation fails
+      # clean and a re-dispatch recovers.
+      - name: Commit the version bump via the GitHub API
         id: commit
-        # The bot's commit + push are mechanical and already normalised
-        # (set-version ran oxfmt), so skip the developer git hooks via hk's
-        # OWN env vars — NOT `git --no-verify`. HK_SKIP_HOOK bypasses hk's
-        # pre-commit + commit-msg (the latter needs dev-only commitlint deps
-        # this job doesn't install); HK=0 bypasses any custom pre-push gate.
         env:
-          HK: '0'
-          HK_SKIP_HOOK: pre-commit,commit-msg
+          GH_TOKEN: ${{ github.token }}
         run: |
           TAG=${{ needs.version.outputs.tag }}
-          if [ -n "$(git status --porcelain)" ]; then
-            git commit -am "chore(release): ${TAG}"
-            git push origin HEAD:main
-          else
+          HEAD_SHA=$(git rev-parse HEAD)
+
+          CHANGED=$(git status --porcelain | awk '{print $2}')
+          if [ -z "${CHANGED}" ]; then
             echo "apps/cli/package.json already at ${TAG#v} — skipping commit."
+            echo "sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-          git tag -a "${TAG}" -m "${TAG}"
-          git push origin "${TAG}"
-          SHA=$(git rev-parse HEAD)
-          echo "Bump HEAD: ${SHA}"
+
+          ADDITIONS=$(
+            for f in ${CHANGED}; do
+              jq -n --arg path "$f" --arg contents "$(base64 -w0 "$f")" \
+                '{path: $path, contents: $contents}'
+            done | jq -s '.'
+          )
+
+          PAYLOAD=$(jq -n \
+            --arg repo "${{ github.repository }}" \
+            --arg headOid "${HEAD_SHA}" \
+            --arg headline "chore(release): ${TAG}" \
+            --argjson additions "${ADDITIONS}" \
+            '{
+              query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
+              variables: {
+                input: {
+                  branch: { repositoryNameWithOwner: $repo, branchName: "main" },
+                  message: { headline: $headline },
+                  expectedHeadOid: $headOid,
+                  fileChanges: { additions: $additions }
+                }
+              }
+            }'
+          )
+
+          RESPONSE=$(echo "${PAYLOAD}" | gh api graphql --input -)
+          echo "${RESPONSE}" | jq -e '.errors' >/dev/null 2>&1 && {
+            echo "::error::createCommitOnBranch failed: $(echo "${RESPONSE}" | jq -c '.errors')" >&2
+            exit 1
+          }
+
+          SHA=$(echo "${RESPONSE}" | jq -r '.data.createCommitOnBranch.commit.oid')
+          echo "Bump commit: ${SHA}"
           echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+
+      # Annotated tag object + ref, created via REST with GITHUB_TOKEN.
+      # required_signatures on the ruleset does not apply to tag objects, so
+      # no signing concern here.
+      - name: Create the tag via the GitHub API
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=${{ needs.version.outputs.tag }}
+          SHA=${{ steps.commit.outputs.sha }}
+
+          TAG_SHA=$(gh api --method POST "repos/${{ github.repository }}/git/tags" \
+            -f tag="${TAG}" \
+            -f message="${TAG}" \
+            -f object="${SHA}" \
+            -f type=commit \
+            --jq '.sha')
+
+          gh api --method POST "repos/${{ github.repository }}/git/refs" \
+            -f ref="refs/tags/${TAG}" \
+            -f sha="${TAG_SHA}" >/dev/null
+
+          echo "Tagged ${SHA} as ${TAG} (tag object ${TAG_SHA})"
 
   # ── Cross-compile every bun target and upload each as an artifact ──────────
   build:
@@ -446,20 +498,14 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
-          ref: main
-          fetch-depth: 0
-
-      - name: Delete the tag from origin (best-effort)
+      - name: Delete the tag via the GitHub API (best-effort)
         env:
-          HK: '0' # skip any custom pre-push gate for the bot's tag-delete push
+          GH_TOKEN: ${{ github.token }}
         run: |
           TAG=${{ needs.version.outputs.tag }}
           [ -n "${TAG}" ] || { echo "no tag computed; nothing to clean up"; exit 0; }
           echo "Deleting ${TAG} from origin (best-effort)"
-          git push origin ":refs/tags/${TAG}" || true
+          gh api --method DELETE "repos/${{ github.repository }}/git/refs/tags/${TAG}" || true
 
       # Matches on tag_name ONLY (not `.draft`): `publish` now flips the draft
       # to published BEFORE `npm publish` runs (npm publish is the job's last,
