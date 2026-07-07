@@ -6,6 +6,11 @@
 # their sole formatting authority: running the hand-formatter over them would
 # make `format:fix` and `generate:check` mutually unsatisfiable. They remain
 # git-tracked (committed, reviewable) — only formatting is delegated to cospec.
+# Generated vendored openspec bundle embedded in the compiled binary. Built by
+# `mise run vendor:openspec` (drift-gated by `vendor:openspec:check`); it is
+# minified third-party output, not hand-formatted source.
+apps/cli/src/vendor/
+
 openspec/schemas/
 .claude/commands/cospec/
 .claude/skills/cospec-*/

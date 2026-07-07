@@ -70,6 +70,8 @@ jobs:
         run: bun test apps/cli/test/unit --coverage --timeout 30000
       - run: mise run test:contract
       - run: mise run test:integration
+      - name: Vendored openspec bundle drift gate
+        run: mise run vendor:openspec:check
       - name: Pack smoke
         run: mise run test:pack
 
@@ -102,7 +104,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-mise
       - name: ShellCheck hook + task scripts
-        run: mise exec -- shellcheck -x scripts/hooks/check-commit-msg scripts/hooks/pre-push-gate scripts/mise-tasks/agents/sync
+        run: mise exec -- shellcheck -x scripts/hooks/check-commit-msg scripts/hooks/pre-push-gate scripts/mise-tasks/agents/sync scripts/mise-tasks/vendor/openspec
 
   ci-actions-lint:
     needs: detect-changes

@@ -139,6 +139,14 @@ run = "mise run cospec -- update"
 description = "Fail if any managed file drifts from canon (CI/pre-commit gate)"
 run = "mise run cospec -- update --check"
 
+[tasks."vendor:openspec"]
+description = "Regenerate the vendored self-contained openspec bundle the compiled binary embeds"
+run = "bash scripts/mise-tasks/vendor/openspec"
+
+[tasks."vendor:openspec:check"]
+description = "Fail if the committed openspec bundle drifts from a fresh build of the pin"
+run = "bash scripts/mise-tasks/vendor/openspec --check"
+
 [tasks."openspec:schema:validate"]
 description = "Structurally validate each composed schema with the raw openspec CLI"
 run = """
@@ -204,6 +212,7 @@ depends = [
   "test:integration",
   "test:release",
   "generate:check",
+  "vendor:openspec:check",
   "agents:check",
   "cospec-validate-all",
   "openspec:schema:validate",

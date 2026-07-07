@@ -157,6 +157,70 @@ describe('standalone pack smoke (bun-less)', () => {
     expect(created.code, created.stderr).toBe(0)
     expect(existsSync(join(target, 'openspec/changes/smoke-change/.openspec.yaml'))).toBe(true)
   }, 180_000)
+
+  // The "fully self-contained" gate. NO npm install, NO node_modules anywhere,
+  // NO bun on PATH — just the compiled binary in a fresh temp dir. Every
+  // wrapped call must resolve via the EMBEDDED openspec bundle (extracted to a
+  // temp XDG_CACHE_HOME and self-spawned via BUN_BE_BUN=1). This is the exact
+  // `mise use github:aligned-team/cospec && cospec init && cospec new …` flow.
+  test('standalone binary runs wrapped calls via the embedded bundle (no node_modules)', async () => {
+    const { binName } = hostPlatform()
+    const binDir = mkTempRepo()
+    const bin = join(binDir, binName)
+    const compile = Bun.spawnSync(['bun', 'build', '--compile', 'src/index.ts', '--outfile', bin], {
+      cwd: cliDir,
+    })
+    expect(compile.exitCode, new TextDecoder().decode(compile.stderr)).toBe(0)
+
+    const path = bunlessPath()
+    expect(Bun.which('bun', { PATH: path })).toBeNull()
+
+    // Per-run cache so the embedded bundle is extracted here (asserted below),
+    // not read from a warm ~/.cache left by a previous run. A fresh HOME makes
+    // this a genuine first-run: it exercises the wrapped tool's first-run
+    // telemetry notice, which prints to stdout and would corrupt `--json` reads
+    // unless cospec opts the wrapped calls out (OPENSPEC_TELEMETRY=0).
+    const cache = mkTempRepo()
+    const home = mkTempRepo()
+    const target = mkTempRepo({ git: true })
+    const env = (cmd: string[]) =>
+      Bun.spawnSync(cmd, {
+        cwd: target,
+        env: { ...process.env, HOME: home, PATH: path, NO_COLOR: '1', XDG_CACHE_HOME: cache },
+      })
+
+    // No openspec resolvable: binDir has no node_modules, target has no
+    // node_modules, and $bunfs (import.meta.dir) misses — so every wrapped call
+    // below MUST come from the embedded bundle.
+    const init = env([bin, 'init', '--harness', 'none', '--yes'])
+    expect(init.exitCode, new TextDecoder().decode(init.stderr)).toBe(0)
+
+    const created = env([bin, 'new', 'feat', 'demo'])
+    expect(created.exitCode, new TextDecoder().decode(created.stderr)).toBe(0)
+    expect(existsSync(join(target, 'openspec/changes/demo/.openspec.yaml'))).toBe(true)
+
+    // A fresh feat change is incomplete, so `validate --strict` returns a
+    // validation verdict (exit 1), and `apply` is blocked on missing artifacts
+    // (exit 2). Both are the WRAPPED tool's own structured outcomes — proof the
+    // embedded openspec ran; a resolution failure would surface a different
+    // error and none of the expected validation/gate text.
+    const validated = env([bin, 'validate', 'demo', '--strict'])
+    const validateOut = new TextDecoder().decode(validated.stdout)
+    expect([0, 1]).toContain(validated.exitCode)
+    expect(validateOut).toContain('demo')
+
+    const applied = env([bin, 'apply', 'demo'])
+    // apply gate: 0 clear / 2 blocked / 3 soft-blocked — all are gate verdicts
+    // that only compute after the wrapped instructions call runs.
+    expect([0, 2, 3]).toContain(applied.exitCode)
+
+    // Post-condition: the embedded bundle was extracted into the per-version
+    // cache — proof the calls above went through the embedded path, not a
+    // stray node_modules copy.
+    const extracted = readdirSync(join(cache, 'cospec')).find((d) => d.startsWith('openspec-'))
+    expect(extracted, 'embedded openspec bundle was not extracted').toBeDefined()
+    expect(existsSync(join(cache, 'cospec', extracted!, 'vendor', 'bin', 'openspec.js'))).toBe(true)
+  }, 180_000)
 })
 
 function packBun(dir: string): string {

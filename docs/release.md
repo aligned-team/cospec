@@ -86,7 +86,12 @@ release).
    `@aligned-team/cospec-<platform>` npm tarball (`npm pack` of the template
    package with the binary dropped into `bin/`). The `bun-linux-x64` (gnu) leg
    additionally runs the compiled binary and asserts `--version` matches the
-   version computed in `version`.
+   version computed in `version`. The embedded OpenSpec bundle
+   (`apps/cli/src/vendor/openspec.bundle.js.tpl`) is **not** produced per leg:
+   it is platform-independent JS, generated once by `mise run vendor:openspec`,
+   committed, drift-gated in CI by `vendor:openspec:check`, and embedded into
+   every target by the ordinary `--compile` static import — the build matrix is
+   unchanged.
 4. **`stage-npm`** — checks out the bump commit, runs `mise run test:pack`, then
    the bun-less standalone gate `mise run test:pack:standalone`: builds the host
    (linux-x64-gnu) platform package, `npm install`s the launcher + platform

@@ -27,7 +27,8 @@
     "dist",
     "build",
     "**/*.d.ts",
-    "e2e/eval/reports"
+    "e2e/eval/reports",
+    "apps/cli/src/vendor"
   ],
   "overrides": [
     {
