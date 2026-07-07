@@ -102,6 +102,10 @@ through `cospec`:
    hard gates (`archive/verification-incomplete`,
    `archive/scenario-preservation` — no `--force`), delegates to
    `openspec archive`, verifies the move on disk, and fans out blocker sync.
+   Schemas with no specs artifact (`ci`, `chore`, `docs`, …) correctly produce
+   no spec-sync deltas here. Run this as the final commit on the PR branch,
+   before merge — never post-merge. A PR must never merge leaving its change
+   unarchived in `openspec/changes/` on `main`.
 
 In-flight v1 changes are grandfathered until `cospec migrate <slug>` stamps them
 to the current `schemaVersion`; `cospec doctor` lists changes still on v1.
