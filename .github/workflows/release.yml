@@ -140,9 +140,52 @@ jobs:
             exit 1
           fi
           TAG="v${VERSION}"
-          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
-            echo "tag ${TAG} already exists on origin" >&2
-            exit 1
+
+          # ── Tag-exists state machine (resume support) ──────────────────
+          # A tag can already exist on origin in two very different states:
+          #   1. Genuine conflict — a DIFFERENT commit was tagged ${TAG}
+          #      (e.g. two dispatches raced, or history diverged). Always
+          #      fail: resuming here would silently rewrite what the tag
+          #      means.
+          #   2. Safe resume — THIS exact dispatch already ran the `bump`
+          #      job (so the tag points at the commit `cog bump` would
+          #      produce again) and `publish` never got the main npm
+          #      package live. This is exactly the state a prior failed
+          #      dispatch leaves behind (see the `cleanup` job): the tag +
+          #      bump commit survive on purpose so a re-dispatch can finish
+          #      the npm publishes the first run didn't reach. Proceed —
+          #      `bump` is idempotent (skips the commit if already at this
+          #      version) and `publish`'s `publish_if_absent()` skips
+          #      whatever is already live.
+          # Query origin directly rather than relying on locally fetched
+          # refs. Peeled (`^{}`) line wins when present (annotated tags,
+          # which is what the `bump` job creates) — it names the commit,
+          # not the tag object.
+          TAG_SHA=$(
+            git ls-remote --tags origin "refs/tags/${TAG}" |
+              awk -v ref="refs/tags/${TAG}" '$2 == ref"^{}" { print $1; found=1 } END { if (!found) print "" }'
+          )
+          if [ -z "${TAG_SHA}" ]; then
+            TAG_SHA=$(
+              git ls-remote --tags origin "refs/tags/${TAG}" |
+                awk -v ref="refs/tags/${TAG}" '$2 == ref { print $1 }'
+            )
+          fi
+          if [ -n "${TAG_SHA}" ]; then
+            EXPECTED_SHA=$(git rev-parse HEAD)
+            MAIN_LIVE=""
+            if npm view "@aligned-team/cospec@${VERSION}" version >/dev/null 2>&1; then
+              MAIN_LIVE=1
+            fi
+            if [ "${TAG_SHA}" != "${EXPECTED_SHA}" ]; then
+              echo "::error::tag ${TAG} already exists on origin and points at a different commit (${TAG_SHA}, expected ${EXPECTED_SHA}) — this is a genuine conflict, not a resumable release" >&2
+              exit 1
+            fi
+            if [ -n "${MAIN_LIVE}" ]; then
+              echo "::error::tag ${TAG} already exists AND @aligned-team/cospec@${VERSION} is already live on npm — nothing left to resume" >&2
+              exit 1
+            fi
+            echo "tag ${TAG} already exists but resolves to the current commit and @aligned-team/cospec@${VERSION} is not yet live on npm — resuming a prior incomplete dispatch"
           fi
           echo "Next version: ${TAG}"
           {
@@ -445,6 +488,11 @@ jobs:
             echo "::error::no tarball found in dist-npm for npm publish --dry-run" >&2
             exit 1
           fi
+          # Already absolute (${GITHUB_WORKSPACE}-prefixed) — NOT the
+          # git-shorthand bug fixed in the `publish` job's
+          # `publish_if_absent()` (npm's arg classifier only misreads a
+          # bare relative path with a slash, not an absolute one).
+          # Verified empirically alongside that fix; left as-is.
           npm publish --dry-run "${GITHUB_WORKSPACE}/${TARBALL}"
 
       - name: Upload staged main tarball artifact
@@ -607,7 +655,14 @@ jobs:
               return 0
             fi
             echo "Publishing ${name}@${VERSION} (${tgz})"
-            npm publish "${tgz}" --access public
+            # `./` is load-bearing: npm's arg classifier treats a bare
+            # relative path with a slash (e.g. `npm-dist/foo.tgz`) as
+            # GitHub owner/repo shorthand and tries
+            # `git ls-remote ssh://git@github.com/npm-dist/foo.tgz.git`
+            # instead of reading the local tarball (confirmed empirically —
+            # this is exactly what broke run 28853072821). A `./` or
+            # absolute prefix forces the local-file interpretation.
+            npm publish "./${tgz}" --access public
           }
 
           for tgz in npm-dist/*.tgz; do
@@ -617,7 +672,37 @@ jobs:
           done
           publish_if_absent "${MAIN}"
 
-  # ── On failure only: roll the pushed tag + draft release back ──────────────
+  # ── On failure only: roll back, but ONLY if nothing went public ────────────
+  #
+  # Publish-phase-aware state machine (see incident run 28853072821, which
+  # this job's original unconditional delete-both logic got exactly
+  # backwards — it deleted the LIVE published release while a branch
+  # ruleset blocked the tag delete, leaving a public-looking void behind):
+  #
+  #   The `publish` job's ordering is: create draft → flip to published →
+  #   npm publish (platforms, then main), each npm publish independently
+  #   guarded by `npm view` for idempotent resume. That means a failure can
+  #   land here in any of these observable states:
+  #
+  #     A. release still draft, nothing on npm            → safe to delete
+  #        the tag + release; a re-dispatch starts clean.
+  #     B. release published, nothing on npm yet           → the flip
+  #        succeeded but every npm publish failed before the first one
+  #        landed (this is exactly what happened in the incident: `publish`
+  #        failed on the FIRST npm publish call). Still safe to delete —
+  #        nothing external depends on this release yet.
+  #     C. release published, ≥1 npm package live          → do NOT delete
+  #        anything. The release is publicly visible and/or npm packages are
+  #        live; tearing down the tag or release here would either dangle a
+  #        live npm package with no matching GitHub release/tag, or (per
+  #        the incident) delete a release users may already be looking at.
+  #        The correct move is to leave it all in place — the `version`
+  #        job's resume guard (above) lets a re-dispatch at the same version
+  #        finish the remaining npm publishes without recreating anything.
+  #
+  #   So: delete iff no package for this version is live on npm. Whether the
+  #   release is draft or published does not change that call — it is
+  #   determined solely by npm state, since that is the irreversible half.
   cleanup:
     name: Roll back on failure
     needs: [version, bump, build, stage-npm, publish]
@@ -637,7 +722,50 @@ jobs:
           app-id: ${{ vars.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
 
+      # Single source of truth for "is it safe to delete": has ANY of the
+      # eight packages (main + seven platform packages, matching the
+      # `build` job's matrix) for this version reached npm? `npm view` is a
+      # public read, no token needed. Checked once here and passed to both
+      # delete steps below so they never disagree with each other. This
+      # deliberately checks every package, not just main: `publish`
+      # publishes platform packages FIRST, so a mid-loop failure typically
+      # leaves platform packages live while main is not — the case the
+      # incident's "cleanup only reachable when npm publish has not
+      # succeeded" assumption missed. A failing `npm publish` step does not
+      # mean nothing published; it means the LOOP didn't finish.
+      - name: Determine whether any npm package for this version is live
+        id: npm-state
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          PACKAGES=(
+            "@aligned-team/cospec"
+            "@aligned-team/cospec-linux-x64-gnu"
+            "@aligned-team/cospec-linux-x64-musl"
+            "@aligned-team/cospec-linux-arm64-gnu"
+            "@aligned-team/cospec-linux-arm64-musl"
+            "@aligned-team/cospec-darwin-x64"
+            "@aligned-team/cospec-darwin-arm64"
+            "@aligned-team/cospec-win32-x64"
+          )
+          LIVE=""
+          if [ -n "${VERSION}" ]; then
+            for pkg in "${PACKAGES[@]}"; do
+              if npm view "${pkg}@${VERSION}" version >/dev/null 2>&1; then
+                echo "${pkg}@${VERSION} is live on npm"
+                LIVE=1
+              fi
+            done
+          fi
+          if [ -n "${LIVE}" ]; then
+            echo "at least one package@${VERSION} is already live on npm — will NOT delete tag/release"
+          else
+            echo "no package@${VERSION} is live on npm — safe to roll back tag/release"
+          fi
+          echo "live=${LIVE}" >> "$GITHUB_OUTPUT"
+
       - name: Delete the tag via the GitHub API (best-effort)
+        if: steps.npm-state.outputs.live == ''
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
@@ -646,17 +774,13 @@ jobs:
           echo "Deleting ${TAG} from origin (best-effort)"
           gh api --method DELETE "repos/${{ github.repository }}/git/refs/tags/${TAG}" || true
 
-      # Matches on tag_name ONLY (not `.draft`): `publish` now flips the draft
-      # to published BEFORE `npm publish` runs (npm publish is the job's last,
-      # irreversible step — see the comment on "Create draft release" in the
-      # publish job), so a failure that lands us here can find the release
-      # either still draft (the flip itself failed) or already published (the
-      # flip succeeded but a later step failed). Deleting the release is safe
-      # even if the publish loop already put some platform packages live: that
-      # loop is idempotent (`npm view` skips what is live), so a re-dispatch at
-      # the same version recreates the tag + release and resumes publishing the
-      # remaining packages + main.
+      # Matches on tag_name ONLY (not `.draft`): a failure landing here can
+      # find the release either still draft or already published (see the
+      # state-machine comment above the `cleanup` job). Gated on the SAME
+      # npm-liveness check as the tag delete above — never delete a release
+      # that npm packages might already point users at.
       - name: Delete the release, if one was created (best-effort)
+        if: steps.npm-state.outputs.live == ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -670,3 +794,11 @@ jobs:
           else
             echo "no release found for ${TAG}; nothing to delete"
           fi
+
+      - name: Leave everything in place for resume (npm already live)
+        if: steps.npm-state.outputs.live != ''
+        run: |
+          echo "@aligned-team/cospec@${{ needs.version.outputs.version }} is already live on npm."
+          echo "Leaving the tag, bump commit, and GitHub release in place."
+          echo "Re-dispatch this workflow at the same version to resume — the version job's"
+          echo "resume guard and publish's per-package npm-view guard pick up where this run left off."
