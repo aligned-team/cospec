@@ -83,8 +83,11 @@ describe('pack smoke', () => {
     expect(stderr).toContain(manifest.version)
 
     // Contents listing must include the files a broken `files` glob would drop.
-    for (const file of ['bin/cospec.js', 'package.json', 'README.md', 'LICENSE', 'src/index.ts']) {
+    // No src/ — the package ships only the launcher; the runtime is the
+    // per-platform compiled binaries.
+    for (const file of ['bin/cospec.js', 'package.json', 'README.md', 'LICENSE']) {
       expect(stderr).toContain(file)
     }
+    expect(stderr).not.toContain('src/index.ts')
   }, 120_000)
 })

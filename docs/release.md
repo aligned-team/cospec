@@ -65,17 +65,17 @@ release).
    manifest — `apps/cli/package.json` (including its `optionalDependencies`
    pins), all seven `apps/cli/npm/<platform>/package.json`, and the matching
    workspace entry + optional-dependency pins in `bun.lock` (which bun never
-   refreshes on install) — mints a short-lived installation token
-   from the `cospec-release` GitHub App (`actions/create-github-app-token`,
-   variable `RELEASE_APP_ID` + secret `RELEASE_APP_PRIVATE_KEY`), then creates
-   the commit via GitHub's GraphQL `createCommitOnBranch` mutation and the
-   annotated tag via the REST git-tags/git-refs API — both authenticated with
-   that app token. `expectedHeadOid` guards the mutation against a race (main
-   moved since checkout); a mismatch fails the step clean and a re-dispatch
-   recovers. Idempotent: if the manifests are already at that version, the
-   commit is skipped and only the tag is created. Outputs the bump commit's
-   `sha`. See "Signed commits without a bypass actor" below for why this
-   replaces the old SSH deploy-key push.
+   refreshes on install) — mints a short-lived installation token from the
+   `cospec-release` GitHub App (`actions/create-github-app-token`, variable
+   `RELEASE_APP_ID` + secret `RELEASE_APP_PRIVATE_KEY`), then creates the commit
+   via GitHub's GraphQL `createCommitOnBranch` mutation and the annotated tag
+   via the REST git-tags/git-refs API — both authenticated with that app token.
+   `expectedHeadOid` guards the mutation against a race (main moved since
+   checkout); a mismatch fails the step clean and a re-dispatch recovers.
+   Idempotent: if the manifests are already at that version, the commit is
+   skipped and only the tag is created. Outputs the bump commit's `sha`. See
+   "Signed commits without a bypass actor" below for why this replaces the old
+   SSH deploy-key push.
 3. **`build`** — a matrix on `ubuntu-latest` that cross-compiles
    `bun build --compile --target=<t>` for `bun-linux-x64`, `bun-linux-x64-musl`,
    `bun-linux-arm64`, `bun-linux-arm64-musl`, `bun-darwin-x64`,
