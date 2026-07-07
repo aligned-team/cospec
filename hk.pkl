@@ -9,6 +9,10 @@ amends "package://github.com/jdx/hk/releases/download/v1.48.0/hk@1.48.0#/Config.
 // scripts/hooks/ for pklr compatibility.
 
 local tsGlobs = List("**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx", "**/*.mts", "**/*.cts")
+// oxfmt (0.56.0, per `.oxfmtrc.json`'s per-type overrides) also formats JSON,
+// JSONC, and Markdown — oxlint has no support for either, so oxlint stays on
+// tsGlobs alone.
+local oxfmtGlobs = tsGlobs + List("**/*.json", "**/*.jsonc", "**/*.md", "**/*.mdx")
 local tomlGlobs = List("**/*.toml")
 local shellGlobs = List("**/*.sh", "**/*.bash")
 local ciGlobs = List(".github/workflows/**/*.yml", ".github/workflows/**/*.yaml")
@@ -26,7 +30,10 @@ local agentGlobs = List(".agents/shared.md", "CLAUDE.md", "AGENTS.md")
 
 local linters = new Mapping<String, Step> {
   ["oxfmt"] {
-    glob = tsGlobs
+    glob = oxfmtGlobs
+    // Generated files are formatted by their own generator (checked by
+    // generate:check below) — oxfmt must not fight that fixed point.
+    exclude = generatedGlobs
     check = "oxfmt --check {{files}}"
     fix = "oxfmt {{files}}"
     batch = true

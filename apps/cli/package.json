@@ -25,7 +25,11 @@
   "bin": {
     "cospec": "./bin/cospec.js"
   },
-  "files": ["bin", "README.md", "LICENSE"],
+  "files": [
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
   "type": "module",
   "publishConfig": {
     "access": "public"
