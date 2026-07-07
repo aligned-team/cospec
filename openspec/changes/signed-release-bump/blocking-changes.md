@@ -13,8 +13,8 @@ None.
 <!-- Changes that improve this one but aren't strictly required. -->
 <!-- Format: - [ ] `change-slug` — what degrades without it -->
 
-- [ ] `npm-release-pipeline` — introduced `.github/workflows/release.yml` and
-      `docs/release.md`, the files this change reworks. Its tasks are already
-      complete and its code is already in the tree; only its own archive is
-      still pending. No hard block since this change edits files that already
-      exist on disk.
+- [x] `npm-release-pipeline` — introduced `.github/workflows/release.yml` and
+      _(archived 2026-07-07)_ `docs/release.md`, the files this change reworks.
+      Its tasks are already complete and its code is already in the tree; only
+      its own archive is still pending. No hard block since this change edits
+      files that already exist on disk.
