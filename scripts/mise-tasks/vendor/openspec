@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+#
+# Regenerate (or drift-check) the vendored, self-contained bundle of the pinned
+# `@fission-ai/openspec` CLI that the compiled cospec binary embeds
+# (apps/cli/src/vendor/openspec.bundle.js.tpl — the `.tpl` suffix keeps it an
+# opaque asset, never resolved as a JS module by tsc/oxlint), plus the
+# THIRD-PARTY-LICENSES.md that reproduces the bundled packages' MIT/ISC notices
+# (apps/cli/THIRD-PARTY-LICENSES.md — shipped in every package + release archive
+# so the redistributed openspec code carries its required copyright/permission
+# notice).
+#
+# The bundle is one platform-independent JS file produced with
+# `bun build --target=bun --minify` from the pinned openspec's bin entry. It is
+# a GENERATED, committed, drift-gated asset: the static `{ type: 'file' }` import
+# that embeds it (apps/cli/src/core/openspec-embedded.ts) must resolve on disk at
+# both `bun run` (dev module-load) and `bun build --compile` time, so it is
+# committed rather than built on the fly.
+#
+# Usage:
+#   scripts/mise-tasks/vendor/openspec            regenerate the vendored bundle
+#   scripts/mise-tasks/vendor/openspec --check    fail if the committed bundle
+#                                                  drifts from a fresh build
+#
+# The bundle is byte-deterministic for a given openspec version + bun version;
+# the `--check` mode rebuilds to a temp file and diffs, mirroring
+# `generate:check` for canon-composed managed files.
+
+set -euo pipefail
+
+CHECK=0
+if [[ "${1:-}" == "--check" ]]; then CHECK=1; fi
+
+# Repo root = two levels up from scripts/mise-tasks/vendor/.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+CLI_DIR="${ROOT}/apps/cli"
+OUT="${CLI_DIR}/src/vendor/openspec.bundle.js.tpl"
+NOTICES="${CLI_DIR}/THIRD-PARTY-LICENSES.md"
+NOTICES_GEN="${ROOT}/scripts/mise-tasks/vendor/third-party-notices.ts"
+
+# Resolve the pinned openspec package dir by path (not $PATH), from apps/cli so
+# the workspace node_modules is on the resolution base.
+PKG_DIR="$(cd "${CLI_DIR}" && bun -e \
+  "console.log(require('node:path').dirname(require.resolve('@fission-ai/openspec/package.json')))")"
+BIN_ENTRY="${PKG_DIR}/bin/openspec.js"
+
+if [[ ! -f "${BIN_ENTRY}" ]]; then
+  echo "vendor:openspec: openspec bin entry not found at ${BIN_ENTRY}" >&2
+  exit 1
+fi
+
+build() {
+  local dest="$1"
+  bun build "${BIN_ENTRY}" --target=bun --minify --outfile "${dest}" >/dev/null
+}
+
+if [[ "${CHECK}" == 1 ]]; then
+  TMP="$(mktemp -d)"
+  trap 'rm -rf "${TMP}"' EXIT
+  build "${TMP}/openspec.bundle.js"
+  if ! cmp -s "${TMP}/openspec.bundle.js" "${OUT}"; then
+    echo "vendor:openspec: committed bundle drifts from a fresh build of the pinned openspec." >&2
+    echo "Run 'mise run vendor:openspec' and commit the result." >&2
+    exit 1
+  fi
+  bun run "${NOTICES_GEN}" > "${TMP}/THIRD-PARTY-LICENSES.md"
+  if ! cmp -s "${TMP}/THIRD-PARTY-LICENSES.md" "${NOTICES}"; then
+    echo "vendor:openspec: committed THIRD-PARTY-LICENSES.md drifts from the bundled deps." >&2
+    echo "Run 'mise run vendor:openspec' and commit the result." >&2
+    exit 1
+  fi
+  echo "vendor:openspec: bundle and third-party notices up to date."
+else
+  mkdir -p "$(dirname "${OUT}")"
+  build "${OUT}"
+  bun run "${NOTICES_GEN}" > "${NOTICES}"
+  echo "vendor:openspec: wrote ${OUT} ($(wc -c < "${OUT}" | tr -d ' ') bytes)"
+  echo "vendor:openspec: wrote ${NOTICES} ($(grep -c '^## ' "${NOTICES}") packages)"
+fi

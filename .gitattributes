@@ -1,0 +1,5 @@
+# THIRD-PARTY-LICENSES.md is generated LF-only by `mise run vendor:openspec`
+# (it normalizes upstream CRLF license text to LF) and drift-gated by
+# `vendor:openspec:check`. Pin its working-tree EOL to LF so the drift check is
+# deterministic regardless of a checkout's core.autocrlf setting.
+apps/cli/THIRD-PARTY-LICENSES.md text eol=lf

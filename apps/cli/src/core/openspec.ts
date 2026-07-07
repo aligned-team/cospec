@@ -1,5 +1,7 @@
 import { dirname, join } from 'node:path'
 
+import { extractEmbeddedOpenspec } from './openspec-embedded.ts'
+
 /**
  * The exact `@fission-ai/openspec` version this repo pins for dev/CI (the
  * `package.json` dependency and the `mise.toml` tool). The contract suite runs
@@ -129,8 +131,23 @@ export function openspecPackageDir(): string {
   )
 }
 
+/**
+ * Path to the wrapped openspec bin, resolved in order:
+ *   1. the project's own `node_modules` copy (dev, and any consumer that
+ *      installs openspec) — resolved by path via `openspecPackageDir()`. Its
+ *      version is still asserted against the accepted range by `assertVersion`.
+ *   2. the embedded bundle — extracted to a per-version cache dir and run via
+ *      the compiled binary's own bun runtime. This is what makes a standalone
+ *      (mise / GitHub-release) install self-contained: no node_modules, no bun,
+ *      no npm. The embedded copy is by construction the pin, so it satisfies the
+ *      version assertion.
+ */
 function openspecBin(): string {
-  return join(openspecPackageDir(), 'bin', 'openspec.js')
+  try {
+    return join(openspecPackageDir(), 'bin', 'openspec.js')
+  } catch {
+    return extractEmbeddedOpenspec(PINNED_OPENSPEC_VERSION)
+  }
 }
 
 /**
@@ -148,7 +165,13 @@ async function spawnRaw(args: string[], cwd: string): Promise<OpenspecResult> {
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
-    env: { ...process.env, NO_COLOR: '1', BUN_BE_BUN: '1' },
+    // OPENSPEC_TELEMETRY=0: openspec prints a first-run "collects anonymous
+    // usage stats" notice to STDOUT (not stderr) on a HOME with no prior
+    // acknowledgment, which corrupts every `--json` read (status, list, apply
+    // instructions). A standalone/embedded user is always first-run, so this is
+    // load-bearing for the self-contained binary — and cospec wraps the tool
+    // deterministically, so it opts the wrapped calls out of telemetry too.
+    env: { ...process.env, NO_COLOR: '1', BUN_BE_BUN: '1', OPENSPEC_TELEMETRY: '0' },
   })
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),

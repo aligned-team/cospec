@@ -417,7 +417,9 @@ jobs:
           STAGING="${ASSET}"
           mkdir -p "${STAGING}"
           cp "apps/cli/${BIN}" "${STAGING}/${BIN}"
-          cp apps/cli/README.md LICENSE "${STAGING}/"
+          # THIRD-PARTY-LICENSES.md ships the bundled openspec's MIT/ISC notices
+          # alongside the binary that embeds it (license-compliance requirement).
+          cp apps/cli/README.md LICENSE apps/cli/THIRD-PARTY-LICENSES.md "${STAGING}/"
           # Binary at the archive root so mise's asset autodetection extracts it.
           if [[ "${ARCHIVE}" == zip ]]; then
             zip -j -r "${ASSET}.zip" "${STAGING}"
@@ -436,6 +438,9 @@ jobs:
           PKG="apps/cli/npm/${NPM_DIR}"
           mkdir -p "${PKG}/bin"
           cp "apps/cli/${BIN}" "${PKG}/bin/${BIN}"
+          # The platform package's `files` lists THIRD-PARTY-LICENSES.md; drop it
+          # in next to the binary so the bundled openspec's notices ship with it.
+          cp apps/cli/THIRD-PARTY-LICENSES.md "${PKG}/THIRD-PARTY-LICENSES.md"
           mkdir -p "${GITHUB_WORKSPACE}/npm-dist"
           ( cd "${PKG}" && npm pack --pack-destination "${GITHUB_WORKSPACE}/npm-dist" )
 

@@ -10,7 +10,8 @@
     "directory": "apps/cli/npm/linux-x64-gnu"
   },
   "files": [
-    "bin/cospec"
+    "bin/cospec",
+    "THIRD-PARTY-LICENSES.md"
   ],
   "os": [
     "linux"
