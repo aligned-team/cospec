@@ -4,5 +4,5 @@
   "compilerOptions": {
     "types": ["bun-types"]
   },
-  "include": ["eval/**/*.ts"]
+  "include": ["eval/**/*.ts", "release/**/*.ts"]
 }

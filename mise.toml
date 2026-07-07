@@ -113,6 +113,10 @@ run = "bun test apps/cli/test/integration --timeout 30000"
 description = "Pack smoke: bun pm pack -> tarball install -> bunx cospec"
 run = "bun test apps/cli/test/integration/pack.test.ts --timeout 30000"
 
+[tasks."test:release"]
+description = "Test the release:set-version script against a throwaway --root (no working-tree mutation)"
+run = "bun test e2e/release --timeout 30000"
+
 # ───────────────────────────────────────────────
 # Generate (canon -> managed files) + drift gate
 # ───────────────────────────────────────────────
@@ -168,6 +172,14 @@ description = "DeepSeek E2E eval of the shipped skills (advisory, never gates CI
 run = "bun run e2e/eval/run.ts"
 
 # ───────────────────────────────────────────────
+# Release
+# ───────────────────────────────────────────────
+
+[tasks."release:set-version"]
+description = "Stamp ONE release version (semver) into apps/cli/package.json and its bun.lock workspace entry. Idempotent. Usage: mise run release:set-version -- 1.2.3"
+run = "bash scripts/mise-tasks/release/set-version"
+
+# ───────────────────────────────────────────────
 # Composed CI gate
 # ───────────────────────────────────────────────
 
@@ -180,6 +192,7 @@ depends = [
   "test",
   "test:contract",
   "test:integration",
+  "test:release",
   "generate:check",
   "agents:check",
   "cospec-validate-all",
