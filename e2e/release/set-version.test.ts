@@ -26,6 +26,18 @@ const ROOT_PACKAGE = 'package.json'
 const CLI_PACKAGE = 'apps/cli/package.json'
 const BUN_LOCK = 'bun.lock'
 
+/** The seven per-platform binary packages the main manifest pins (Linux split by libc). */
+const PLATFORMS = [
+  'linux-x64-gnu',
+  'linux-x64-musl',
+  'linux-arm64-gnu',
+  'linux-arm64-musl',
+  'darwin-x64',
+  'darwin-arm64',
+  'win32-x64',
+] as const
+const platformPackage = (p: string): string => `apps/cli/npm/${p}/package.json`
+
 /** The cospec workspace entry's version in bun.lock (JSONC — parsed by line). */
 const lockCospecVersion = (text: string): string | undefined => {
   const lines = text.split('\n')
@@ -63,7 +75,7 @@ describe('release:set-version', () => {
 
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), 'cospec-set-version-'))
-    for (const rel of [ROOT_PACKAGE, CLI_PACKAGE, BUN_LOCK]) {
+    for (const rel of [ROOT_PACKAGE, CLI_PACKAGE, BUN_LOCK, ...PLATFORMS.map(platformPackage)]) {
       const dest = join(root, rel)
       mkdirSync(dirname(dest), { recursive: true })
       cpSync(join(REPO_ROOT, rel), dest)
@@ -90,6 +102,43 @@ describe('release:set-version', () => {
     expect(exitCode).toBe(0)
     const lock = readFileSync(join(root, BUN_LOCK), 'utf8')
     expect(lockCospecVersion(lock)).toBe(target)
+  })
+
+  test('stamps every per-platform package.json .version', async () => {
+    const target = '9.9.9'
+    const { exitCode } = await runScript(target, root)
+    expect(exitCode).toBe(0)
+    for (const p of PLATFORMS) {
+      const pkg = JSON.parse(readFileSync(join(root, platformPackage(p)), 'utf8'))
+      expect(pkg.version).toBe(target)
+    }
+  })
+
+  test('repins the main package optionalDependencies to the target version', async () => {
+    const target = '9.9.9'
+    const { exitCode } = await runScript(target, root)
+    expect(exitCode).toBe(0)
+    const cli = JSON.parse(readFileSync(join(root, CLI_PACKAGE), 'utf8'))
+    for (const p of PLATFORMS) {
+      expect(cli.optionalDependencies[`@aligned-team/cospec-${p}`]).toBe(target)
+    }
+  })
+
+  test('repins the optionalDependencies recorded in bun.lock', async () => {
+    const target = '9.9.9'
+    const { exitCode } = await runScript(target, root)
+    expect(exitCode).toBe(0)
+    const lock = readFileSync(join(root, BUN_LOCK), 'utf8')
+    for (const p of PLATFORMS) {
+      expect(lock).toContain(`"@aligned-team/cospec-${p}": "${target}",`)
+    }
+  })
+
+  test('fails loudly when a platform manifest is missing', async () => {
+    rmSync(join(root, platformPackage('darwin-arm64')), { force: true })
+    const { exitCode, stderr } = await runScript('9.9.9', root)
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('expected file not found')
   })
 
   test('never touches the root package.json (stays private/0.0.0)', async () => {

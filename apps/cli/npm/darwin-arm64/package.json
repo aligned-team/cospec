@@ -1,0 +1,24 @@
+{
+  "name": "@aligned-team/cospec-darwin-arm64",
+  "version": "0.1.0",
+  "description": "The cospec standalone binary for darwin arm64. Installed automatically as an optional dependency of @aligned-team/cospec; not used directly.",
+  "homepage": "https://github.com/aligned-team/cospec",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aligned-team/cospec.git",
+    "directory": "apps/cli/npm/darwin-arm64"
+  },
+  "files": [
+    "bin/cospec"
+  ],
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

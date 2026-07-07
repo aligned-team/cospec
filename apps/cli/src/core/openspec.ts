@@ -100,26 +100,55 @@ let cachedPackageDir: string | undefined
 /**
  * Directory of the bundled `@fission-ai/openspec` package, resolved by path (not
  * `$PATH`). Also the source of its `schemas/` for legacy-schema resolution.
+ *
+ * Resolution bases, in order: this module's dir (dev/from-source — inside a
+ * compiled binary this is a $bunfs path with no node_modules, so it misses),
+ * then the running executable's dir (the installed platform package sits in
+ * the consumer's node_modules next to the main package's `@fission-ai/openspec`
+ * dependency), then the invocation cwd (a consumer project that installed
+ * openspec directly). Fails with an actionable error, never a raw resolve
+ * throw.
  */
 export function openspecPackageDir(): string {
-  cachedPackageDir ??= dirname(
-    Bun.resolveSync('@fission-ai/openspec/package.json', import.meta.dir),
+  if (cachedPackageDir !== undefined) return cachedPackageDir
+  const bases = [import.meta.dir, dirname(process.execPath), process.cwd()]
+  for (const base of bases) {
+    try {
+      cachedPackageDir = dirname(Bun.resolveSync('@fission-ai/openspec/package.json', base))
+      return cachedPackageDir
+    } catch {
+      // try the next base
+    }
+  }
+  throw new Error(
+    'could not find the @fission-ai/openspec package from the executable or the current ' +
+      'directory. It installs automatically as a dependency of @aligned-team/cospec; for a ' +
+      'standalone (mise/GitHub-release) install, add it to the project: ' +
+      'npm i -D @fission-ai/openspec@' +
+      PINNED_OPENSPEC_VERSION,
   )
-  return cachedPackageDir
 }
 
 function openspecBin(): string {
   return join(openspecPackageDir(), 'bin', 'openspec.js')
 }
 
-/** Raw spawn — no version assertion, no expectation enforcement. */
+/**
+ * Raw spawn — no version assertion, no expectation enforcement.
+ *
+ * The interpreter is the CURRENT executable, not a `bun` looked up on $PATH:
+ * under `bun run` that IS bun, and inside a compiled standalone binary
+ * BUN_BE_BUN=1 makes the executable behave as the bun runtime for the child
+ * (a compiled binary otherwise always runs its embedded entrypoint). This is
+ * what keeps the wrapped openspec calls working on machines with no bun.
+ */
 async function spawnRaw(args: string[], cwd: string): Promise<OpenspecResult> {
-  const proc = Bun.spawn(['bun', openspecBin(), '--no-color', ...args], {
+  const proc = Bun.spawn([process.execPath, openspecBin(), '--no-color', ...args], {
     cwd,
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
-    env: { ...process.env, NO_COLOR: '1' },
+    env: { ...process.env, NO_COLOR: '1', BUN_BE_BUN: '1' },
   })
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),

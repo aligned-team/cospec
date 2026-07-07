@@ -1,7 +1,11 @@
-// Pack smoke — the publish-readiness proof (DESIGN §8.3). Pack the CLI exactly
-// as `npm publish` would, install the tarball into a throwaway project, and drive
-// the installed `cospec` binary: version, then an init from the packaged copy
-// (canon ships in `files`, so init works with zero build step).
+// Pack smoke — the publish-readiness proof (DESIGN §8.3). The main
+// `@aligned-team/cospec` package is a runtime-agnostic launcher plus per-platform
+// optionalDependencies; it ships NO runtime source. Pack it exactly as
+// `npm publish` would, install the tarball into a throwaway project WITHOUT its
+// platform package, and prove the launcher fails loud and clear (the actionable
+// missing-platform-package error, exit 1) instead of a stack trace or a silent
+// success. The full happy path — platform binary installed, bun stripped from
+// PATH, real subcommands including `init` — is pack-standalone.test.ts.
 
 import { afterAll, describe, expect, test } from 'bun:test'
 import { existsSync, readdirSync } from 'node:fs'
@@ -23,11 +27,13 @@ function pack(destDir: string): string {
 }
 
 describe('pack smoke', () => {
-  test('tarball installs and the installed cospec runs init', async () => {
+  test('main tarball installs; launcher without a platform package fails with the actionable error', async () => {
     const packDir = mkTempRepo()
     const tarball = pack(packDir)
 
-    // A clean consumer project that installs only the tarball.
+    // A clean consumer project that installs only the main tarball. The
+    // platform optionalDependencies are unpublished/absent here, so the
+    // launcher must hit its missing-platform-package branch.
     const consumer = mkTempRepo()
     writeFiles(consumer, {
       'package.json': '{\n  "name": "pack-smoke",\n  "version": "1.0.0",\n  "private": true\n}\n',
@@ -38,22 +44,16 @@ describe('pack smoke', () => {
     const bin = join(consumer, 'node_modules/.bin/cospec')
     expect(existsSync(bin)).toBe(true)
 
-    // `cospec --version` needs no wrapped openspec call. Compare against the
-    // manifest (not a literal) so the release pipeline's post-bump run of this
-    // suite still passes at the freshly stamped version.
-    const expected = ((await Bun.file(join(cliDir, 'package.json')).json()) as { version: string })
-      .version
-    const version = await cospecBin(bin, ['--version'], { cwd: consumer })
-    expect(version.exitCode).toBe(0)
-    expect(version.stdout.trim()).toBe(expected)
+    // No platform package installed → the launcher must exit 1 with the
+    // actionable error naming the exact platform package it looked for.
+    const res = await cospecBin(bin, ['--version'], { cwd: consumer })
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toContain('@aligned-team/cospec-')
+    expect(res.stderr).toContain('is not installed')
 
-    // `cospec init` from the installed copy: canon shipped in the tarball.
-    const target = mkTempRepo({ fixture: 'fresh', git: true })
-    const init = await cospecBin(bin, ['init', '--harness', 'none', '--no-gate', '--yes'], {
-      cwd: target,
-    })
-    expect(init.exitCode).toBe(0)
-    expect(existsSync(join(target, 'openspec/schemas/feat/schema.yaml'))).toBe(true)
+    // The launcher ships no runtime source: the tarball must not contain src/.
+    expect(existsSync(join(consumer, 'node_modules/@aligned-team/cospec/src'))).toBe(false)
+    expect(existsSync(join(consumer, 'node_modules/@aligned-team/cospec/bin/cospec.js'))).toBe(true)
   }, 120_000)
 
   test('npm publish --dry-run accepts the tarball and lists its key files', async () => {
@@ -83,8 +83,11 @@ describe('pack smoke', () => {
     expect(stderr).toContain(manifest.version)
 
     // Contents listing must include the files a broken `files` glob would drop.
-    for (const file of ['bin/cospec.js', 'package.json', 'README.md', 'LICENSE', 'src/index.ts']) {
+    // No src/ — the package ships only the launcher; the runtime is the
+    // per-platform compiled binaries.
+    for (const file of ['bin/cospec.js', 'package.json', 'README.md', 'LICENSE']) {
       expect(stderr).toContain(file)
     }
+    expect(stderr).not.toContain('src/index.ts')
   }, 120_000)
 })

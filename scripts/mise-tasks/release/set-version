@@ -98,11 +98,14 @@ require_file() {
 # formats it as JSON.
 set_json_version() {
   local target="$1"
+  # Optional jq filter (bound with --arg v). Defaults to a bare .version stamp;
+  # the main manifest passes a filter that also repins optionalDependencies.
+  local filter="${2:-.version = \$v}"
   local dir base tmp
   dir="$(dirname "$target")"
   base="$(basename "$target")"
   tmp="$dir/.$base.setver.$$.tmp.json"
-  jq --indent 2 --arg v "$VERSION" '.version = $v' "$target" > "$tmp"
+  jq --indent 2 --arg v "$VERSION" "$filter" "$target" > "$tmp"
   # Normalise with oxfmt when available; let a real oxfmt failure abort the run
   # (the command -v guard already covers the not-installed case) so we never
   # commit partially-normalised JSON or mask a broken toolchain.
@@ -134,10 +137,26 @@ write_if_changed() {
   fi
 }
 
-# --- apps/cli/package.json .version (the only manifest published to npm) ----
+# --- apps/cli/package.json: .version + optionalDependencies pins -------------
+# The main package pins each per-platform binary package at the EXACT same
+# version (they are cut from the same commit), so the stamp repins every
+# optionalDependencies entry alongside .version.
 CLI_PACKAGE="$ROOT/apps/cli/package.json"
 require_file "$CLI_PACKAGE"
-set_json_version "$CLI_PACKAGE"
+set_json_version "$CLI_PACKAGE" \
+  '.version = $v | if .optionalDependencies then .optionalDependencies |= with_entries(.value = $v) else . end'
+
+# --- apps/cli/npm/<platform>/package.json .version --------------------------
+# One package per platform — Linux split by libc (gnu/musl; bun's builds are
+# not cross-libc portable), plus darwin and windows — each carrying only the
+# compiled binary. Fail loudly if the set of platform dirs ever drifts from
+# what the main manifest pins.
+for platform in linux-x64-gnu linux-x64-musl linux-arm64-gnu linux-arm64-musl \
+  darwin-x64 darwin-arm64 win32-x64; do
+  PLATFORM_PACKAGE="$ROOT/apps/cli/npm/$platform/package.json"
+  require_file "$PLATFORM_PACKAGE"
+  set_json_version "$PLATFORM_PACKAGE"
+done
 
 # --- bun.lock: the @aligned-team/cospec workspace entry's "version" ----------
 # bun.lock is JSON-with-trailing-commas, so jq can't parse it. The workspace
@@ -151,13 +170,26 @@ if ! grep -q '"name": "@aligned-team/cospec"' "$LOCK"; then
   echo "ERROR: no @aligned-team/cospec workspace entry found in $LOCK" >&2
   exit 1
 fi
+# The rewrite is scoped to the workspace-entry block (from the cospec "name"
+# line down to the top-level "packages": section) so no unrelated package's
+# version moves: the block's first "version" (its own) plus every
+# optionalDependencies pin ("@aligned-team/cospec-<platform>": "x.y.z") are
+# repinned to the same version the main manifest carries.
 awk -v ver="$VERSION" '
-  /"name": "@aligned-team\/cospec"/ { incospec = 1 }
-  incospec && /^[[:space:]]*"version": / {
+  /"name": "@aligned-team\/cospec"/ { inws = 1 }
+  /^[[:space:]]*"packages": {/ { inws = 0 }
+  inws && !versioned && /^[[:space:]]*"version": / {
     match($0, /^[[:space:]]*/)
     indent = substr($0, 1, RLENGTH)
     $0 = indent "\"version\": \"" ver "\","
-    incospec = 0
+    versioned = 1
+  }
+  inws && /^[[:space:]]*"@aligned-team\/cospec-[a-z0-9-]+": "/ {
+    match($0, /^[[:space:]]*/)
+    indent = substr($0, 1, RLENGTH)
+    match($0, /"@aligned-team\/cospec-[a-z0-9-]+"/)
+    key = substr($0, RSTART, RLENGTH)
+    $0 = indent key ": \"" ver "\","
   }
   { print }
 ' "$LOCK" | write_if_changed "$LOCK"

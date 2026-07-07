@@ -1,0 +1,27 @@
+{
+  "name": "@aligned-team/cospec-linux-arm64-musl",
+  "version": "0.1.0",
+  "description": "The cospec standalone binary for linux arm64 (musl). Installed automatically as an optional dependency of @aligned-team/cospec; not used directly.",
+  "homepage": "https://github.com/aligned-team/cospec",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aligned-team/cospec.git",
+    "directory": "apps/cli/npm/linux-arm64-musl"
+  },
+  "files": [
+    "bin/cospec"
+  ],
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "libc": [
+    "musl"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
