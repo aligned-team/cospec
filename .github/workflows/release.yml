@@ -1,0 +1,459 @@
+# cospec release pipeline — the SINGLE entry point that cuts a new
+# `@aligned-team/cospec` npm release and its compiled-binary GitHub release.
+#
+# Flow: dispatch → version → bump (commit to main via deploy key) → build +
+# stage-npm → publish → cleanup.
+#
+#   1. version    — compute the next semver with cocogitto (`cog bump
+#                   --dry-run`, no manifest edit, no commit), derive the tag
+#                   `v<n>.<n>.<n>`, and fail fast if that tag already exists
+#                   on origin.
+#   2. bump       — stamp that ONE version into `apps/cli/package.json` with
+#                   `mise run release:set-version`, commit the bump to main,
+#                   create the annotated tag, and push both over SSH using an
+#                   exempt deploy key (secret RELEASE_DEPLOY_KEY). main has a
+#                   branch-protection ruleset, but deploy keys are an EXEMPT
+#                   bypass actor, so this push is accepted without a PR. The
+#                   commit is idempotent: if the manifest already carries the
+#                   version, only the tag is pushed.
+#   3. build      — cross-compile the 5 bun targets (all on ubuntu-latest —
+#                   bun's `--compile --target=<t>` cross-compiles from one
+#                   host), package each as an archive, and upload as an
+#                   artifact. The bun-linux-x64-musl leg additionally runs the
+#                   compiled binary and asserts `--version` matches.
+#   4. stage-npm  — install + `mise run test:pack`, then `bun pm pack` the
+#                   EXACT tarball `publish` will ship, install that exact
+#                   tarball into a fresh temp project, and smoke-test it.
+#   5. publish    — only after build + stage-npm succeed: download all
+#                   artifacts, generate SHA256SUMS, write AI-generated notes
+#                   via `communique` (no GitHub side effect), create a DRAFT
+#                   release with those notes + every asset already attached,
+#                   `npm publish` the staged tarball, and only if that
+#                   succeeds flip the draft to published by RELEASE ID (NOT by
+#                   tag — draft releases aren't addressable by tag via
+#                   `gh release edit`).
+#   6. cleanup    — on failure only: delete the pushed tag from origin and the
+#                   draft release (both best-effort). main and the bump commit
+#                   are left intact (never force-pushed).
+#
+# The git tag and apps/cli/package.json carry the SAME version: `set-version`
+# writes the tag's semver into the manifest. cog.toml stays compute-only (no
+# manifest rewrite); this workflow owns the commit and tag.
+#
+# Secret RELEASE_DEPLOY_KEY: an SSH private key for a repo deploy key with
+# write access that is registered as an exempt bypass actor on the main
+# ruleset. See docs/release.md for the full secrets list and setup steps.
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump (auto = derive from conventional commits)'
+        type: choice
+        options:
+          - auto
+          - major
+          - minor
+          - patch
+        default: auto
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Compute the next version (no side effects; the tag is NOT pushed here) ──
+  version:
+    name: Compute version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.compute.outputs.version }}
+      tag: ${{ steps.compute.outputs.tag }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0 # cog needs full history + tags to compute the bump
+
+      - uses: ./.github/actions/setup-mise
+      - name: Install cocogitto
+        run: mise use -g aqua:cocogitto/cocogitto # prebuilt binary — no cargo compile
+
+      # cog computes the next semver from conventional commits (or the
+      # dispatched override) WITHOUT side effects (--dry-run makes no manifest
+      # edit / commit). The bump job then stamps it and pushes the commit + tag.
+      # NOTE: with `auto`, cog prints an informational message (not a version)
+      # and still exits 0 when it finds nothing to bump. The guard below
+      # rejects that so the step fails clean instead of corrupting
+      # $GITHUB_OUTPUT. (cog.toml bumps every known type at least a patch, so
+      # in practice this is rare.)
+      - name: Compute version
+        id: compute
+        run: |
+          case "${{ inputs.bump }}" in
+            auto)  VERSION=$(mise exec -- cog bump --auto  --dry-run) ;;
+            major) VERSION=$(mise exec -- cog bump --major --dry-run) ;;
+            minor) VERSION=$(mise exec -- cog bump --minor --dry-run) ;;
+            patch) VERSION=$(mise exec -- cog bump --patch --dry-run) ;;
+            *) echo "unknown bump: ${{ inputs.bump }}" >&2; exit 1 ;;
+          esac || { echo "cog bump --dry-run failed" >&2; exit 1; }
+          VERSION="${VERSION#v}"           # cog may prefix 'v'; set-version rejects it
+          # Require an exact x.y.z. `cog bump --auto` exits 0 and prints a
+          # "no conventional commits ... required a bump" message (not a
+          # version) when nothing is bumpable, so a mere non-empty check would
+          # pass that message straight into $GITHUB_OUTPUT and fail downstream.
+          if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::No release cut: bump='${{ inputs.bump }}' produced no version — cog found nothing to bump (no commits since the last tag, or only unrecognized commit types). Re-dispatch with patch, minor, or major to force a release."
+            echo "cog output was: ${VERSION}" >&2
+            exit 1
+          fi
+          TAG="v${VERSION}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "tag ${TAG} already exists on origin" >&2
+            exit 1
+          fi
+          echo "Next version: ${TAG}"
+          {
+            echo "version=${VERSION}"
+            echo "tag=${TAG}"
+          } >> "$GITHUB_OUTPUT"
+
+  # ── Commit the version bump to main + push the tag (over the exempt deploy key)
+  bump:
+    name: Commit version bump
+    needs: version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      # Check out main over SSH with the deploy key so the later push
+      # authenticates as the exempt bypass actor. fetch-depth 0 keeps history
+      # for the commit/tag.
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+          ref: main
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-mise
+
+      # Stamp the ONE computed version into apps/cli/package.json. Needs only
+      # mise (usage-spec task + oxfmt) and jq — no cocogitto here.
+      - name: Set cospec version
+        run: mise run release:set-version -- "${{ needs.version.outputs.version }}"
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      # Idempotent: only commit + push main if the stamp actually changed a
+      # file (a re-run at the same version skips the commit). The annotated
+      # tag is always created at the resulting HEAD and pushed. Both pushes
+      # ride the deploy key, which is exempt from the main branch-protection
+      # ruleset.
+      - name: Commit, tag, and push
+        id: commit
+        # The bot's commit + push are mechanical and already normalised
+        # (set-version ran oxfmt), so skip the developer git hooks via hk's
+        # OWN env vars — NOT `git --no-verify`. HK_SKIP_HOOK bypasses hk's
+        # pre-commit + commit-msg (the latter needs dev-only commitlint deps
+        # this job doesn't install); HK=0 bypasses any custom pre-push gate.
+        env:
+          HK: '0'
+          HK_SKIP_HOOK: pre-commit,commit-msg
+        run: |
+          TAG=${{ needs.version.outputs.tag }}
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -am "chore(release): ${TAG}"
+            git push origin HEAD:main
+          else
+            echo "apps/cli/package.json already at ${TAG#v} — skipping commit."
+          fi
+          git tag -a "${TAG}" -m "${TAG}"
+          git push origin "${TAG}"
+          SHA=$(git rev-parse HEAD)
+          echo "Bump HEAD: ${SHA}"
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+
+  # ── Cross-compile every bun target and upload each as an artifact ──────────
+  build:
+    name: Build ${{ matrix.target }}
+    needs: [version, bump]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: bun-linux-x64-musl
+            archive: tar.gz
+          - target: bun-linux-arm64-musl
+            archive: tar.gz
+          - target: bun-darwin-x64
+            archive: tar.gz
+          - target: bun-darwin-arm64
+            archive: tar.gz
+          - target: bun-windows-x64
+            archive: zip
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.bump.outputs.sha }}
+
+      - uses: ./.github/actions/setup-mise
+      - run: bun install --frozen-lockfile
+
+      - name: Compile
+        working-directory: apps/cli
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          OUT=cospec
+          if [[ "${TARGET}" == bun-windows-* ]]; then OUT=cospec.exe; fi
+          bun build --compile --target="${TARGET}" src/index.ts --outfile "$OUT"
+
+      - name: Package tar.gz
+        if: matrix.archive == 'tar.gz'
+        shell: bash
+        run: |
+          STAGING=cospec-${{ matrix.target }}
+          mkdir -p "${STAGING}"
+          cp apps/cli/cospec "${STAGING}/cospec"
+          cp apps/cli/README.md "${STAGING}/"
+          cp LICENSE "${STAGING}/"
+          tar -czf "${STAGING}.tar.gz" "${STAGING}"
+
+      - name: Package zip
+        if: matrix.archive == 'zip'
+        shell: bash
+        run: |
+          STAGING=cospec-${{ matrix.target }}
+          mkdir -p "${STAGING}"
+          cp apps/cli/cospec.exe "${STAGING}/cospec.exe"
+          cp apps/cli/README.md "${STAGING}/"
+          cp LICENSE "${STAGING}/"
+          zip -j -r "${STAGING}.zip" "${STAGING}"
+
+      # Only the linux-x64-musl leg actually executes the compiled binary
+      # (every leg here is cross-compiled on ubuntu-latest, so it's the only
+      # native-executable target on this runner).
+      - name: Verify --version on the native leg
+        if: matrix.target == 'bun-linux-x64-musl'
+        run: |
+          ACTUAL=$(./apps/cli/cospec --version)
+          EXPECTED="${{ needs.version.outputs.version }}"
+          if [ "${ACTUAL}" != "${EXPECTED}" ]; then
+            echo "::error::compiled binary reports version '${ACTUAL}', expected '${EXPECTED}'"
+            exit 1
+          fi
+          echo "compiled binary reports version ${ACTUAL} — OK"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: cospec-${{ matrix.target }}
+          path: cospec-${{ matrix.target }}.${{ matrix.archive }}
+          if-no-files-found: error
+
+  # ── Pack + smoke-test the exact npm tarball `publish` will ship ────────────
+  stage-npm:
+    name: Stage npm tarball
+    needs: [version, bump]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.bump.outputs.sha }}
+
+      - uses: ./.github/actions/setup-mise
+      - run: bun install --frozen-lockfile
+
+      - name: Pack smoke (existing gate)
+        run: mise run test:pack
+
+      - name: Pack the exact release tarball
+        working-directory: apps/cli
+        run: bun pm pack --destination "${{ github.workspace }}/dist-npm"
+
+      - name: Install the exact tarball into a fresh temp project and smoke-test it
+        run: |
+          TARBALL=$(find dist-npm -maxdepth 1 -name '*.tgz')
+          if [ -z "${TARBALL}" ]; then
+            echo "::error::no tarball produced by bun pm pack" >&2
+            exit 1
+          fi
+          echo "Staged tarball: ${TARBALL}"
+
+          CONSUMER=$(mktemp -d)
+          printf '{\n  "name": "cospec-release-smoke",\n  "version": "1.0.0",\n  "private": true\n}\n' \
+            > "${CONSUMER}/package.json"
+          (cd "${CONSUMER}" && bun add "${GITHUB_WORKSPACE}/${TARBALL}")
+
+          BIN="${CONSUMER}/node_modules/.bin/cospec"
+          ACTUAL=$("${BIN}" --version)
+          EXPECTED="${{ needs.version.outputs.version }}"
+          if [ "${ACTUAL}" != "${EXPECTED}" ]; then
+            echo "::error::installed tarball reports version '${ACTUAL}', expected '${EXPECTED}'" >&2
+            exit 1
+          fi
+          echo "installed tarball reports version ${ACTUAL} — OK"
+
+          "${BIN}" instructions --help >/dev/null
+          echo "installed tarball runs 'cospec instructions --help' — OK"
+
+      - name: Upload staged tarball artifact
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: npm-tarball
+          path: dist-npm/*.tgz
+          if-no-files-found: error
+
+  # ── Collect artifacts, generate notes, publish atomically ──────────────────
+  publish:
+    name: Publish release
+    needs: [version, bump, build, stage-npm]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.bump.outputs.sha }}
+          fetch-depth: 0 # communique reads commit history to write the notes
+
+      - uses: ./.github/actions/setup-mise
+      - name: Install communique
+        run: mise use -g ubi:jdx/communique # prebuilt binary — no cargo compile
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          path: dist/
+
+      - name: Flatten dist/ (remove per-artifact sub-dirs)
+        run: |
+          find dist/ -mindepth 2 -type f -exec mv {} dist/ \;
+          find dist/ -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} \;
+          ls -lh dist/
+
+      - name: Generate SHA256SUMS
+        working-directory: dist
+        run: sha256sum -- * > SHA256SUMS
+
+      - name: Generate release notes (communique)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_COMMUNIQUE }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: mise exec -- communique generate "${{ needs.version.outputs.tag }}" --output RELEASE_NOTES.md
+
+      # ── Publish with NO missing-binaries window ────────────────────────────
+      # The draft is created complete: notes + every asset already attached
+      # (the tag is already on origin from the bump job). npm publish runs
+      # only after the draft exists; if it fails, the draft simply never gets
+      # flipped to published, and `cleanup` removes it on failure.
+      - name: Create draft release with notes and all assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=${{ needs.version.outputs.tag }}
+          gh release create "${TAG}" \
+            --draft \
+            --verify-tag \
+            --title "${TAG}" \
+            --notes-file RELEASE_NOTES.md \
+            dist/cospec-*.tar.gz dist/cospec-*.zip dist/*.tgz dist/SHA256SUMS
+
+      # setup-node writes an .npmrc that wires NODE_AUTH_TOKEN to the registry
+      # (a bare `npm publish` never reads NODE_AUTH_TOKEN on its own). The
+      # runner's node is only used for the npm CLI; the package itself is bun.
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          registry-url: 'https://registry.npmjs.org'
+
+      # TODO(provenance): once this repo is public, add `--provenance` here.
+      # Provenance attestation requires a public source repo; this repo is
+      # private today.
+      # TODO(trusted-publishing): once @aligned-team/cospec exists on npm and
+      # trusted publishing (OIDC) is configured for it in npm's package
+      # settings, drop NODE_AUTH_TOKEN/setup-node's .npmrc + the NPM_TOKEN
+      # secret entirely and add `id-token: write` to this job's permissions
+      # (npm exchanges the OIDC token automatically).
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          TARBALL=$(find dist -maxdepth 1 -name '*.tgz')
+          npm publish "${TARBALL}" --access public
+
+      - name: Publish the draft (by release id — drafts aren't addressable by tag)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=${{ needs.version.outputs.tag }}
+          # The releases list can lag a moment behind the create above, so
+          # retry briefly. The id is selected in jq (no `head` — a SIGPIPE
+          # there would trip `pipefail`); `// empty` yields nothing until a
+          # match appears.
+          RELEASE_ID=""
+          for attempt in 1 2 3 4 5; do
+            RELEASE_ID=$(gh api "repos/${{ github.repository }}/releases" \
+              --jq "map(select(.tag_name == \"${TAG}\" and .draft)) | .[0].id // empty")
+            if [ -n "${RELEASE_ID}" ]; then break; fi
+            echo "draft for ${TAG} not visible yet (attempt ${attempt}); retrying in 3s…" >&2
+            sleep 3
+          done
+          if [ -z "${RELEASE_ID}" ]; then
+            echo "no draft release found for ${TAG} after retries" >&2
+            exit 1
+          fi
+          echo "Publishing draft release ${RELEASE_ID} (${TAG})"
+          gh api --method PATCH "repos/${{ github.repository }}/releases/${RELEASE_ID}" \
+            -F draft=false >/dev/null
+
+  # ── On failure only: roll the pushed tag + draft release back ──────────────
+  cleanup:
+    name: Roll back on failure
+    needs: [version, bump, build, stage-npm, publish]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+          ref: main
+          fetch-depth: 0
+
+      - name: Delete the tag from origin (best-effort)
+        env:
+          HK: '0' # skip any custom pre-push gate for the bot's tag-delete push
+        run: |
+          TAG=${{ needs.version.outputs.tag }}
+          [ -n "${TAG}" ] || { echo "no tag computed; nothing to clean up"; exit 0; }
+          echo "Deleting ${TAG} from origin (best-effort)"
+          git push origin ":refs/tags/${TAG}" || true
+
+      - name: Delete the draft release, if one was created (best-effort)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=${{ needs.version.outputs.tag }}
+          [ -n "${TAG}" ] || exit 0
+          RELEASE_ID=$(gh api "repos/${{ github.repository }}/releases" \
+            --jq "map(select(.tag_name == \"${TAG}\" and .draft)) | .[0].id // empty" || true)
+          if [ -n "${RELEASE_ID}" ]; then
+            echo "Deleting draft release ${RELEASE_ID} (${TAG})"
+            gh api --method DELETE "repos/${{ github.repository }}/releases/${RELEASE_ID}" || true
+          else
+            echo "no draft release found for ${TAG}; nothing to delete"
+          fi
