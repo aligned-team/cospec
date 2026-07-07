@@ -119,6 +119,10 @@ run = "bun test apps/cli/test/integration --timeout 30000"
 description = "Pack smoke: bun pm pack -> tarball install -> bunx cospec"
 run = "bun test apps/cli/test/integration/pack.test.ts --timeout 30000"
 
+[tasks."test:pack:standalone"]
+description = "Bun-less standalone smoke: build host platform package, npm-install launcher + binary with bun stripped from PATH, run cospec"
+run = "bun test apps/cli/test/integration/pack-standalone.test.ts --timeout 180000"
+
 [tasks."test:release"]
 description = "Test the release:set-version script against a throwaway --root (no working-tree mutation)"
 run = "bun test e2e/release --timeout 30000"

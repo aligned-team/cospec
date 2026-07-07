@@ -3,6 +3,8 @@ import { join } from 'node:path'
 
 import { parse } from 'yaml'
 
+import { canonFile } from '../canon/embedded.ts'
+
 /**
  * Canon → openspec `schema.yaml` composer (DESIGN §3). The 11 `canon/types/<type>.yaml` files plus
  * the 5 shared `canon/artifacts/<id>/meta.yaml` files are the only hand-authored surface; this
@@ -165,11 +167,14 @@ interface SimpleArtifactMeta {
   instruction: string
 }
 
-function defaultCanonDir(): string {
-  return join(import.meta.dir, '..', 'canon')
-}
-
-function readYaml<T>(path: string): T {
+/**
+ * Read a canon-relative YAML file. With no `canonDir` override, paths resolve
+ * through the embedded registry (canon/embedded.ts) so the standalone compiled
+ * binary works — a directory join against `import.meta.dir` does not exist
+ * inside `bun build --compile` output.
+ */
+function readYaml<T>(rel: string, canonDir?: string): T {
+  const path = canonDir === undefined ? canonFile(rel) : join(canonDir, rel)
   return parse(readFileSync(path, 'utf8')) as T
 }
 
@@ -183,22 +188,22 @@ interface CanonBundle {
   applyInstruction: string
 }
 
-function loadCanon(canonDir: string): CanonBundle {
-  const art = (id: string) => join(canonDir, 'artifacts', id, 'meta.yaml')
+function loadCanon(canonDir?: string): CanonBundle {
+  const art = (id: string) => `artifacts/${id}/meta.yaml`
   return {
-    proposal: readYaml<ProposalMeta>(art('proposal')),
-    blocking: readYaml<BlockingMeta>(art('blocking-changes')),
-    specs: readYaml<SimpleArtifactMeta>(art('specs')),
-    design: readYaml<SimpleArtifactMeta>(art('design')),
-    verification: readYaml<SimpleArtifactMeta>(art('verification')),
-    tasks: readYaml<SimpleArtifactMeta>(art('tasks')),
-    applyInstruction: readYaml<{ instruction: string }>(join(canonDir, 'apply-instruction.yaml'))
+    proposal: readYaml<ProposalMeta>(art('proposal'), canonDir),
+    blocking: readYaml<BlockingMeta>(art('blocking-changes'), canonDir),
+    specs: readYaml<SimpleArtifactMeta>(art('specs'), canonDir),
+    design: readYaml<SimpleArtifactMeta>(art('design'), canonDir),
+    verification: readYaml<SimpleArtifactMeta>(art('verification'), canonDir),
+    tasks: readYaml<SimpleArtifactMeta>(art('tasks'), canonDir),
+    applyInstruction: readYaml<{ instruction: string }>('apply-instruction.yaml', canonDir)
       .instruction,
   }
 }
 
-function loadType(canonDir: string, type: string): TypeCanon {
-  return readYaml<TypeCanon>(join(canonDir, 'types', `${type}.yaml`))
+function loadType(type: string, canonDir?: string): TypeCanon {
+  return readYaml<TypeCanon>(`types/${type}.yaml`, canonDir)
 }
 
 // ---------------------------------------------------------------------------
@@ -226,9 +231,8 @@ export function composeSchema(type: string, opts: ComposeOptions = {}): Composed
   if (!(COSPEC_TYPES as readonly string[]).includes(type)) {
     throw new Error(`composeSchema: unknown type '${type}'`)
   }
-  const canonDir = opts.canonDir ?? defaultCanonDir()
-  const canon = loadCanon(canonDir)
-  const t = loadType(canonDir, type)
+  const canon = loadCanon(opts.canonDir)
+  const t = loadType(type, opts.canonDir)
 
   const artifacts: ArtifactDef[] = []
 
@@ -314,9 +318,8 @@ export function composeSchema(type: string, opts: ComposeOptions = {}): Composed
 
 /** Compose the template file map (filename under templates/ → body) for a type. */
 export function composeTemplates(type: string, opts: ComposeOptions = {}): Record<string, string> {
-  const canonDir = opts.canonDir ?? defaultCanonDir()
-  const canon = loadCanon(canonDir)
-  const t = loadType(canonDir, type)
+  const canon = loadCanon(opts.canonDir)
+  const t = loadType(type, opts.canonDir)
 
   const proposalBody = t.surfaces
     ? `${canon.proposal.templates[t.proposal].replace(/\n$/, '')}\n\n${canon.proposal.surfacesBlock}`
@@ -476,9 +479,8 @@ export function serializeSchema(schema: ComposedSchema): string {
 
 /** Load the full conventional-commit type table from canon. */
 export function loadTypeTable(opts: ComposeOptions = {}): CospecTypeInfo[] {
-  const canonDir = opts.canonDir ?? defaultCanonDir()
   return COSPEC_TYPES.map((type) => {
-    const t = loadType(canonDir, type)
+    const t = loadType(type, opts.canonDir)
     const declared: ArtifactId[] = ['proposal', 'blocking-changes']
     if (t.artifacts.specs !== 'forbidden') declared.push('specs')
     if (t.artifacts.design !== 'forbidden') declared.push('design')

@@ -1,9 +1,45 @@
 # Release
 
 `Release` (`.github/workflows/release.yml`) is the single entry point that cuts
-a new `@aligned-team/cospec` npm release together with its compiled-binary
-GitHub release. It is `workflow_dispatch`-only — no push or tag trigger — so a
+a new cospec release: **eight npm packages** plus a compiled-binary GitHub
+release. It is `workflow_dispatch`-only — no push or tag trigger — so a
 maintainer always chooses the moment and the bump explicitly.
+
+## Package layout
+
+cospec is **not** bun-exclusive: it ships standalone `bun build --compile`
+executables so consumers on Node, Deno, or Bun (or with no JS runtime at all,
+via mise) can install and run it. The npm side is an esbuild-style set:
+
+- **`@aligned-team/cospec`** — a runtime-agnostic launcher (`bin/cospec.js`,
+  plain JS, zero deps) plus seven `optionalDependencies` pinned to the exact
+  same version. It ships no runtime source (`files` is `bin`, `README.md`,
+  `LICENSE`).
+- **`@aligned-team/cospec-<platform>`** — one package per platform
+  (`linux-x64-gnu`, `linux-x64-musl`, `linux-arm64-gnu`, `linux-arm64-musl`,
+  `darwin-x64`, `darwin-arm64`, `win32-x64`), each carrying only its compiled
+  binary, gated by `os`/`cpu` (+ `libc` on the Linux packages). Linux is
+  **libc-split** because bun's builds are not cross-libc portable — verified
+  empirically (bun 1.3.14, docker): the glibc build fails on Alpine, and the
+  "musl" build is **not static** (it needs the musl loader plus libstdc++/libgcc
+  and fails on Debian/Ubuntu). So we follow the oxlint/swc pattern: separate
+  `-gnu` (`libc: ["glibc"]`) and `-musl` (`libc: ["musl"]`) packages;
+  npm/pnpm/bun then install the one matching the host libc, and glibc distros
+  are never handed a musl binary. Source templates live in
+  `apps/cli/npm/<platform>/`; binaries are built in CI and never committed.
+
+The launcher resolves the installed platform package via `createRequire` +
+`require.resolve` (detecting musl at runtime via `process.report`, the
+rollup/swc probe), execs the binary with argv/stdio passthrough, and propagates
+exit code + signals. npm/pnpm/bun install only the one platform package matching
+the host, so exactly one binary lands on disk.
+
+For mise, the GitHub release archives are named for the github-backend's asset
+autodetection: os token (`linux`/`macos`/`windows`) + arch token
+(`x64`/`arm64`), a `musl` token on the musl variants, the version, `tar.gz` for
+unix / `zip` for Windows, with the `cospec` binary at the archive root.
+`mise use github:aligned-team/cospec` then picks the right asset (mise scores
+the libc variant too) and verifies it against `SHA256SUMS`.
 
 ## Dispatch input
 
@@ -25,43 +61,55 @@ release).
    "nothing to bump" message leaking into `$GITHUB_OUTPUT`), and fails if the
    derived tag already exists on origin.
 2. **`bump`** — checks out `main` normally (no deploy key, no SSH), runs
-   `mise run release:set-version -- <v>` to stamp the version into
-   `apps/cli/package.json` (and the matching workspace entry in `bun.lock`,
-   which bun never refreshes on install), mints a short-lived installation token
+   `mise run release:set-version -- <v>` to stamp the version into **every**
+   manifest — `apps/cli/package.json` (including its `optionalDependencies`
+   pins), all seven `apps/cli/npm/<platform>/package.json`, and the matching
+   workspace entry + optional-dependency pins in `bun.lock` (which bun never
+   refreshes on install) — mints a short-lived installation token
    from the `cospec-release` GitHub App (`actions/create-github-app-token`,
    variable `RELEASE_APP_ID` + secret `RELEASE_APP_PRIVATE_KEY`), then creates
    the commit via GitHub's GraphQL `createCommitOnBranch` mutation and the
    annotated tag via the REST git-tags/git-refs API — both authenticated with
    that app token. `expectedHeadOid` guards the mutation against a race (main
    moved since checkout); a mismatch fails the step clean and a re-dispatch
-   recovers. Idempotent: if the manifest is already at that version, the commit
-   is skipped and only the tag is created. Outputs the bump commit's `sha`. See
-   "Signed commits without a bypass actor" below for why this replaces the old
-   SSH deploy-key push.
+   recovers. Idempotent: if the manifests are already at that version, the
+   commit is skipped and only the tag is created. Outputs the bump commit's
+   `sha`. See "Signed commits without a bypass actor" below for why this
+   replaces the old SSH deploy-key push.
 3. **`build`** — a matrix on `ubuntu-latest` that cross-compiles
-   `bun build --compile --target=<t>` for `bun-linux-x64-musl`,
-   `bun-linux-arm64-musl`, `bun-darwin-x64`, `bun-darwin-arm64`, and
-   `bun-windows-x64`, packages each as a `tar.gz` (or `zip` for Windows) with
-   `README.md` and `LICENSE`, and uploads it as an artifact. The
-   `bun-linux-x64-musl` leg additionally runs the compiled binary and asserts
-   `--version` matches the version computed in `version`.
+   `bun build --compile --target=<t>` for `bun-linux-x64`, `bun-linux-x64-musl`,
+   `bun-linux-arm64`, `bun-linux-arm64-musl`, `bun-darwin-x64`,
+   `bun-darwin-arm64`, and `bun-windows-x64`. Each leg emits **two** artifacts
+   from the one binary: a GitHub release archive
+   `cospec-<version>-<os>-<arch>[-musl].tar.gz` (or `.zip` for Windows) with the
+   binary at the archive root plus `README.md`/`LICENSE`, and an
+   `@aligned-team/cospec-<platform>` npm tarball (`npm pack` of the template
+   package with the binary dropped into `bin/`). The `bun-linux-x64` (gnu) leg
+   additionally runs the compiled binary and asserts `--version` matches the
+   version computed in `version`.
 4. **`stage-npm`** — checks out the bump commit, runs `mise run test:pack`, then
-   `bun pm pack`s `apps/cli` to produce the **exact** tarball `publish` will
-   ship, installs that tarball into a fresh temp project, smoke-tests
-   `cospec --version` and a real subcommand against it, and uploads the tarball
-   as an artifact.
-5. **`publish`** — downloads every artifact, generates `SHA256SUMS`, runs
-   `communique` to write `RELEASE_NOTES.md` (using
-   `ANTHROPIC_API_KEY_COMMUNIQUE`), creates a **draft** GitHub release with the
-   notes and all binaries + `SHA256SUMS` already attached, then flips the draft
-   to published — by release ID, not by tag, since drafts aren't addressable by
-   tag — using a short retry loop (the releases list can lag a moment behind the
-   create call). Only after the release is published does it `npm publish` the
-   staged tarball from `stage-npm` (via `NPM_TOKEN`), as the job's **last**
-   step: `npm publish` is irreversible (a version can never be republished), so
-   nothing fallible runs after it. Everything reversible — creating and
-   publishing the GitHub release — happens first, so a failure anywhere before
-   `npm publish` always leaves a clean slate for `cleanup` to roll back.
+   the bun-less standalone gate `mise run test:pack:standalone`: builds the host
+   (linux-x64-gnu) platform package, `npm install`s the launcher + platform
+   tarballs with **bun stripped from PATH**, and runs `cospec --version` + a
+   real subcommand on Node only. Then `bun pm pack`s `apps/cli` to produce the
+   **exact** main tarball `publish` ships, and uploads it as an artifact.
+5. **`publish`** — downloads the release archives (`archive-*`) and the eight
+   npm tarballs (`npm-*`), generates `SHA256SUMS` over the archives (the
+   mise-verifiable release assets), runs `communique` to write
+   `RELEASE_NOTES.md` (using `ANTHROPIC_API_KEY_COMMUNIQUE`), creates a
+   **draft** GitHub release with the notes + archives + `SHA256SUMS` attached
+   (npm tarballs are not attached — they ship to npm), then flips the draft to
+   published — by release ID, not by tag, since drafts aren't addressable by tag
+   — using a short retry loop (the releases list can lag a moment behind the
+   create call). Only after the release is published does it `npm publish` all
+   eight packages via `NPM_TOKEN` — **the seven platform packages first, the
+   main package last** — as the job's **last** step: `npm publish` is
+   irreversible (a version can never be republished), so nothing fallible runs
+   after it, and publishing platforms before the main package means its
+   `optionalDependencies` resolve the instant it goes live. Everything
+   reversible — creating and publishing the GitHub release — happens first, so a
+   failure anywhere before `npm publish` always leaves a clean slate for
+   `cleanup` to roll back.
 6. **`cleanup`** — runs only `if: failure()`, which given the ordering above is
    only reachable when `npm publish` has NOT succeeded. Best-effort deletes the
    tag via the REST API (app token) and the release (`GITHUB_TOKEN`) — draft or
@@ -146,11 +194,12 @@ is deleted from both npm and the repo.
 
 ## Trusted-publishing migration (OIDC)
 
-`NPM_TOKEN` is a stopgap. Once `@aligned-team/cospec` exists on npm, move to
-OIDC trusted publishing so no long-lived npm token is stored in the repo at all:
+`NPM_TOKEN` is a stopgap. Once all eight packages exist on npm, move to OIDC
+trusted publishing so no long-lived npm token is stored in the repo at all:
 
-1. Publish v1 the current way, with `NPM_TOKEN`, so the package exists on npm.
-2. In npm's package settings for `@aligned-team/cospec`, enable trusted
+1. Publish v1 the current way, with `NPM_TOKEN`, so all eight packages exist on
+   npm (`@aligned-team/cospec` + the seven `@aligned-team/cospec-<platform>`).
+2. In npm's package settings for **each** of the eight packages, enable trusted
    publishing and point it at this repo + the `release.yml` workflow.
 3. Swap the `publish` job's auth: add `permissions: id-token: write` to the job,
    drop the `NODE_AUTH_TOKEN`/`NPM_TOKEN` env entirely, and let `npm publish`
@@ -165,6 +214,6 @@ change.
 `npm publish` does not pass `--provenance` today because provenance attestation
 requires a **public** source repo, and this repo is currently private. The
 workflow carries a `TODO(provenance)` comment at the exact spot. Once the repo
-goes public, add `--provenance` to the `npm publish` step (no other change
-needed — provenance rides the same OIDC/GitHub Actions identity used for trusted
-publishing).
+goes public, add `--provenance` to the `npm publish` invocations (all eight
+packages — no other change needed; provenance rides the same OIDC/GitHub Actions
+identity used for trusted publishing).

@@ -34,6 +34,10 @@ local linters = new Mapping<String, Step> {
   }
   ["oxlint"] {
     glob = tsGlobs
+    // .oxlintrc.json ignores **/*.d.ts; oxlint exits non-zero ("No files found
+    // to lint") when a batch contains only ignored files, so keep them out of
+    // the hook's file list entirely.
+    exclude = List("**/*.d.ts")
     check = "oxlint {{files}}"
     fix = "oxlint --fix {{files}}"
     batch = true

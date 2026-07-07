@@ -19,6 +19,11 @@ out/
 # not a build-output directory — keep it tracked despite the build/ rule above.
 !openspec/schemas/build/
 
+# Compiled standalone binaries dropped into the per-platform npm package
+# templates by CI (and the local bun-less pack smoke). Never committed — the
+# templates ship only their package.json in git; binaries are built per release.
+apps/cli/npm/*/bin/
+
 # Cache
 .cache/
 

@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { parse } from 'yaml'
 
 import pkg from '../../package.json'
+import { canonFile } from '../canon/embedded.ts'
 import {
   buildClaudeCommandFrontmatter,
   buildOpencodeCommandFrontmatter,
@@ -76,14 +77,17 @@ interface HarnessManifest {
  */
 export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
   const version = opts.version ?? CANON_VERSION
-  const canonDir = opts.canonDir ?? join(import.meta.dir, '../canon/workflows')
-  const manifest = parse(readFileSync(join(canonDir, 'harness.yaml'), 'utf8')) as HarnessManifest
+  // With no canonDir override, resolve through the embedded registry so the
+  // standalone compiled binary works (no canon dir exists on disk there).
+  const workflowFile = (name: string): string =>
+    opts.canonDir === undefined ? canonFile(`workflows/${name}`) : join(opts.canonDir, name)
+  const manifest = parse(readFileSync(workflowFile('harness.yaml'), 'utf8')) as HarnessManifest
 
   const out: RenderedFile[] = []
   for (const harness of opts.harnesses) {
     const surface = manifest.harnesses[harness]
     for (const w of manifest.workflows) {
-      const rawBody = normalizeBody(readFileSync(join(canonDir, `${w.id}.md`), 'utf8'))
+      const rawBody = normalizeBody(readFileSync(workflowFile(`${w.id}.md`), 'utf8'))
       const injected = w.injectTypeTable
         ? rawBody.replace('{{TYPE_TABLE}}', renderTypeTable(opts.typeTable))
         : rawBody

@@ -13,17 +13,36 @@ for Claude Code, Codex, and OpenCode.
 
 ## Install
 
-Not yet published. From a clone of the monorepo:
+cospec ships as standalone executables (one per platform), so it runs with no JS
+runtime required and installs cleanly on Node, Deno, or Bun. Publishing soon.
+
+Via mise (no JS runtime needed):
+
+```bash
+mise use github:aligned-team/cospec
+cospec init
+```
+
+The binary is fully standalone (no JS runtime needed — it even runs the wrapped
+OpenSpec CLI itself). One caveat: commands that call the wrapped OpenSpec
+(`new`, `validate`, `apply`, `archive`, …) resolve `@fission-ai/openspec` from
+your project's `node_modules`, so a mise-only install additionally needs
+`npm i -D @fission-ai/openspec`.
+
+Via a package manager (the launcher execs the prebuilt binary for your
+platform):
+
+```bash
+npm  i -D @aligned-team/cospec && npx cospec init
+pnpm add -D @aligned-team/cospec && pnpm cospec init
+bun  add -d @aligned-team/cospec && bun run cospec init
+```
+
+From a clone of the monorepo (development):
 
 ```bash
 mise install && bun install
 mise run cospec -- init
-```
-
-Once published:
-
-```bash
-bunx @aligned-team/cospec init
 ```
 
 ## Usage

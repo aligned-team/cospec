@@ -7,19 +7,41 @@ commit type. `feat` gets the full treatment; `ci` takes two minutes.
 
 ## Quick start
 
-Not yet published. From a clone of this repo:
+cospec ships as standalone executables — one per platform — so it runs with no
+JS runtime required, and installs cleanly on Node, Deno, or Bun. (Publishing
+soon; the commands below are the shape of it.)
 
-```bash
+### mise
+
+```sh
+mise use github:aligned-team/cospec
+cospec init
+```
+
+The binary is fully standalone (no JS runtime needed — it even runs the wrapped
+OpenSpec CLI itself). One caveat: commands that call the wrapped OpenSpec
+(`new`, `validate`, `apply`, `archive`, …) resolve `@fission-ai/openspec` from
+your project's `node_modules`, so a mise-only install additionally needs
+`npm i -D @fission-ai/openspec`.
+
+### Package managers
+
+Works with Node, Deno, and Bun — the launcher execs the prebuilt binary for your
+platform:
+
+```sh
+npm  i -D @aligned-team/cospec && npx cospec init
+pnpm add -D @aligned-team/cospec && pnpm cospec init
+bun  add -d @aligned-team/cospec && bun run cospec init
+```
+
+### From a clone (development)
+
+```sh
 git clone https://github.com/aligned-team/cospec
 cd cospec
 mise install && bun install
 mise run cospec -- init
-```
-
-Once published (npm scope reserved, not yet released):
-
-```bash
-bunx @aligned-team/cospec init   # not yet published
 ```
 
 `cospec init` scaffolds `openspec/`, materializes the eleven typed schemas, and

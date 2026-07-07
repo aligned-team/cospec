@@ -1,6 +1,4 @@
-import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import pkg from '../package.json'
 
@@ -68,6 +66,32 @@ export const COMMANDS: CommandEntry[] = [
     hidden: true,
   },
 ]
+
+/**
+ * Static command-module registry. Each value is a literal `import()` so
+ * `bun build --compile` can statically bundle every command module into the
+ * standalone binary. A computed import path (the previous
+ * `new URL('./commands/' + name)`) is invisible to the bundler, which silently
+ * drops the modules — the compiled binary then reports every subcommand as "not
+ * yet implemented" and only `--version`/`--help` (which short-circuit before
+ * dispatch) work. A name present in COMMANDS but absent here is treated as
+ * unimplemented.
+ */
+const COMMAND_MODULES: Record<string, () => Promise<Partial<CommandModule>>> = {
+  init: () => import('./commands/init.ts'),
+  update: () => import('./commands/update.ts'),
+  doctor: () => import('./commands/doctor.ts'),
+  new: () => import('./commands/new.ts'),
+  migrate: () => import('./commands/migrate.ts'),
+  validate: () => import('./commands/validate.ts'),
+  status: () => import('./commands/status.ts'),
+  list: () => import('./commands/list.ts'),
+  instructions: () => import('./commands/instructions.ts'),
+  apply: () => import('./commands/apply.ts'),
+  archive: () => import('./commands/archive.ts'),
+  'sync-blockers': () => import('./commands/sync-blockers.ts'),
+  'check-commit': () => import('./commands/check-commit.ts'),
+}
 
 const GLOBAL_OPTIONS = `Global options:
   --json         Machine-readable output
@@ -212,13 +236,13 @@ export async function run(argv: string[]): Promise<number> {
     return EXIT.success
   }
 
-  const modFile = fileURLToPath(new URL(`./commands/${entry.name}.ts`, import.meta.url))
-  if (!existsSync(modFile)) {
+  const loadModule = COMMAND_MODULES[entry.name]
+  if (loadModule === undefined) {
     process.stderr.write(`cospec: '${entry.name}' is not yet implemented\n`)
     return EXIT.failure
   }
 
-  const mod = (await import(modFile)) as Partial<CommandModule>
+  const mod = await loadModule()
   if (typeof mod.run !== 'function') {
     process.stderr.write(`cospec: '${entry.name}' is not yet implemented\n`)
     return EXIT.failure

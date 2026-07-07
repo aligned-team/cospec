@@ -29,27 +29,34 @@
 #                   NOTE: unlike GITHUB_TOKEN writes, app-token commits DO
 #                   trigger other workflows — the bump commit gets a normal
 #                   `ci.yml` run on main (see docs/release.md).
-#   3. build      — cross-compile the 5 bun targets (all on ubuntu-latest —
+#   3. build      — cross-compile the 7 bun targets (all on ubuntu-latest —
 #                   bun's `--compile --target=<t>` cross-compiles from one
-#                   host), package each as an archive, and upload as an
-#                   artifact. The bun-linux-x64-musl leg additionally runs the
-#                   compiled binary and asserts `--version` matches.
-#   4. stage-npm  — install + `mise run test:pack`, then `bun pm pack` the
-#                   EXACT tarball `publish` will ship, install that exact
-#                   tarball into a fresh temp project, smoke-test it, and
-#                   validate it with `npm publish --dry-run` (no network
-#                   mutation, no auth needed).
-#   5. publish    — only after build + stage-npm succeed: download all
-#                   artifacts, generate SHA256SUMS, write AI-generated notes
-#                   via `communique` (no GitHub side effect), create a DRAFT
-#                   release with those notes + every asset already attached,
-#                   flip it to published by RELEASE ID (NOT by tag — draft
-#                   releases aren't addressable by tag via `gh release edit`),
-#                   and ONLY THEN `npm publish` the staged tarball, as the
-#                   job's last step. `npm publish` is irreversible (a version
-#                   can never be republished), so nothing fallible may run
-#                   after it — everything reversible (the GitHub release)
-#                   happens first.
+#                   host). Each leg emits TWO artifacts from the one binary: a
+#                   GitHub release archive named for mise github-backend
+#                   autodetection (os/arch tokens + version; tar.gz unix / zip
+#                   windows; binary at the archive root) AND an
+#                   `@aligned-team/cospec-<platform>` npm tarball. The
+#                   linux-x64 (gnu) leg additionally runs the compiled binary
+#                   and asserts `--version` matches.
+#   4. stage-npm  — `mise run test:pack` (which includes the
+#                   `npm publish --dry-run` tarball validation), then the
+#                   bun-less standalone smoke (`mise run test:pack:standalone`):
+#                   build the host platform package, npm-install launcher +
+#                   platform tarballs with bun stripped from PATH, run cospec on
+#                   Node only. Then `bun pm pack` the EXACT main tarball
+#                   `publish` ships.
+#   5. publish    — only after build + stage-npm succeed: download the release
+#                   archives + the eight npm tarballs, generate SHA256SUMS over
+#                   the archives (mise-verifiable), write AI-generated notes via
+#                   `communique` (no GitHub side effect), create a DRAFT release
+#                   with those notes + the archives + SHA256SUMS attached, flip
+#                   it to published by RELEASE ID (NOT by tag — draft releases
+#                   aren't addressable by tag via `gh release edit`), and ONLY
+#                   THEN `npm publish` all eight packages (the seven platform
+#                   packages first, the main package LAST), as the job's last
+#                   step. `npm publish` is irreversible (a version can never be
+#                   republished), so nothing fallible may run after it —
+#                   everything reversible (the GitHub release) happens first.
 #   6. cleanup    — on failure only: delete the tag via the REST API and the
 #                   release, draft or already-published (both best-effort).
 #                   Only reachable when npm publish has NOT succeeded, so this
@@ -265,9 +272,23 @@ jobs:
 
           echo "Tagged ${SHA} as ${TAG} (tag object ${TAG_SHA})"
 
-  # ── Cross-compile every bun target and upload each as an artifact ──────────
+  # ── Cross-compile every target → GitHub release archive + npm platform pkg ──
+  # Each leg produces TWO artifacts from the one compiled binary:
+  #   1. a GitHub release archive named for mise github-backend autodetection
+  #      (os token linux/macos/windows + arch token x64/arm64 + a musl token on
+  #      the musl variants, version in the name, tar.gz for unix / zip for
+  #      windows, binary at the archive root);
+  #   2. an `@aligned-team/cospec-<platform>` npm tarball (the binary dropped
+  #      into the checked-in template package, packed as `npm publish` ships it).
+  # bun cross-compiles all seven targets from this one ubuntu host. Linux is
+  # libc-split — verified empirically (bun 1.3.14, docker): the glibc build
+  # fails on Alpine, and the "musl" build is NOT static (it needs the musl
+  # loader + libstdc++/libgcc, failing on Debian/Ubuntu), so one Linux binary
+  # cannot cover both libcs. Hence separate gnu + musl packages with explicit
+  # `libc` fields (the oxlint/swc pattern) — see apps/cli/npm/<platform>.
+
   build:
-    name: Build ${{ matrix.target }}
+    name: Build ${{ matrix.asset }}
     needs: [version, bump]
     runs-on: ubuntu-latest
     permissions:
@@ -276,15 +297,33 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - target: bun-linux-x64
+            npm: linux-x64-gnu
+            asset: linux-x64
+            archive: tar.gz
           - target: bun-linux-x64-musl
+            npm: linux-x64-musl
+            asset: linux-x64-musl
+            archive: tar.gz
+          - target: bun-linux-arm64
+            npm: linux-arm64-gnu
+            asset: linux-arm64
             archive: tar.gz
           - target: bun-linux-arm64-musl
+            npm: linux-arm64-musl
+            asset: linux-arm64-musl
             archive: tar.gz
           - target: bun-darwin-x64
+            npm: darwin-x64
+            asset: macos-x64
             archive: tar.gz
           - target: bun-darwin-arm64
+            npm: darwin-arm64
+            asset: macos-arm64
             archive: tar.gz
           - target: bun-windows-x64
+            npm: win32-x64
+            asset: windows-x64
             archive: zip
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -294,6 +333,9 @@ jobs:
       - uses: ./.github/actions/setup-mise
       - run: bun install --frozen-lockfile
 
+      # The bump commit already stamped every manifest — main, platform, and the
+      # optionalDependencies pins — to this version via release:set-version, so
+      # the checked-out platform package.json carries the right version already.
       - name: Compile
         working-directory: apps/cli
         shell: bash
@@ -304,33 +346,11 @@ jobs:
           if [[ "${TARGET}" == bun-windows-* ]]; then OUT=cospec.exe; fi
           bun build --compile --target="${TARGET}" src/index.ts --outfile "$OUT"
 
-      - name: Package tar.gz
-        if: matrix.archive == 'tar.gz'
-        shell: bash
-        run: |
-          STAGING=cospec-${{ matrix.target }}
-          mkdir -p "${STAGING}"
-          cp apps/cli/cospec "${STAGING}/cospec"
-          cp apps/cli/README.md "${STAGING}/"
-          cp LICENSE "${STAGING}/"
-          tar -czf "${STAGING}.tar.gz" "${STAGING}"
-
-      - name: Package zip
-        if: matrix.archive == 'zip'
-        shell: bash
-        run: |
-          STAGING=cospec-${{ matrix.target }}
-          mkdir -p "${STAGING}"
-          cp apps/cli/cospec.exe "${STAGING}/cospec.exe"
-          cp apps/cli/README.md "${STAGING}/"
-          cp LICENSE "${STAGING}/"
-          zip -j -r "${STAGING}.zip" "${STAGING}"
-
-      # Only the linux-x64-musl leg actually executes the compiled binary
-      # (every leg here is cross-compiled on ubuntu-latest, so it's the only
-      # native-executable target on this runner).
+      # Only the linux-x64 (gnu) leg actually executes the compiled binary:
+      # ubuntu-latest is glibc, and the musl build does NOT run there (it is
+      # dynamically linked against the musl loader — verified empirically).
       - name: Verify --version on the native leg
-        if: matrix.target == 'bun-linux-x64-musl'
+        if: matrix.target == 'bun-linux-x64'
         run: |
           ACTUAL=$(./apps/cli/cospec --version)
           EXPECTED="${{ needs.version.outputs.version }}"
@@ -340,11 +360,51 @@ jobs:
           fi
           echo "compiled binary reports version ${ACTUAL} — OK"
 
-      - name: Upload artifact
+      - name: Assemble the GitHub release archive
+        shell: bash
+        env:
+          ASSET: cospec-${{ needs.version.outputs.version }}-${{ matrix.asset }}
+          ARCHIVE: ${{ matrix.archive }}
+        run: |
+          BIN=cospec
+          if [[ "${ARCHIVE}" == zip ]]; then BIN=cospec.exe; fi
+          STAGING="${ASSET}"
+          mkdir -p "${STAGING}"
+          cp "apps/cli/${BIN}" "${STAGING}/${BIN}"
+          cp apps/cli/README.md LICENSE "${STAGING}/"
+          # Binary at the archive root so mise's asset autodetection extracts it.
+          if [[ "${ARCHIVE}" == zip ]]; then
+            zip -j -r "${ASSET}.zip" "${STAGING}"
+          else
+            tar -czf "${ASSET}.tar.gz" -C "${STAGING}" .
+          fi
+
+      - name: Assemble + pack the npm platform package
+        shell: bash
+        env:
+          NPM_DIR: ${{ matrix.npm }}
+          ARCHIVE: ${{ matrix.archive }}
+        run: |
+          BIN=cospec
+          if [[ "${ARCHIVE}" == zip ]]; then BIN=cospec.exe; fi
+          PKG="apps/cli/npm/${NPM_DIR}"
+          mkdir -p "${PKG}/bin"
+          cp "apps/cli/${BIN}" "${PKG}/bin/${BIN}"
+          mkdir -p "${GITHUB_WORKSPACE}/npm-dist"
+          ( cd "${PKG}" && npm pack --pack-destination "${GITHUB_WORKSPACE}/npm-dist" )
+
+      - name: Upload release archive
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
-          name: cospec-${{ matrix.target }}
-          path: cospec-${{ matrix.target }}.${{ matrix.archive }}
+          name: archive-${{ matrix.asset }}
+          path: cospec-${{ needs.version.outputs.version }}-${{ matrix.asset }}.${{ matrix.archive }}
+          if-no-files-found: error
+
+      - name: Upload npm platform tarball
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: npm-${{ matrix.npm }}
+          path: npm-dist/*.tgz
           if-no-files-found: error
 
   # ── Pack + smoke-test the exact npm tarball `publish` will ship ────────────
@@ -365,35 +425,15 @@ jobs:
       - name: Pack smoke (existing gate)
         run: mise run test:pack
 
-      - name: Pack the exact release tarball
+      # THE "not bun-exclusive" gate: builds the host (linux-x64-gnu) platform
+      # package, npm-installs launcher + platform tarballs with bun stripped
+      # from PATH, and runs `cospec --version` + a real subcommand on Node only.
+      - name: Bun-less standalone pack smoke (Node-only install + run)
+        run: mise run test:pack:standalone
+
+      - name: Pack the exact main release tarball
         working-directory: apps/cli
         run: bun pm pack --destination "${{ github.workspace }}/dist-npm"
-
-      - name: Install the exact tarball into a fresh temp project and smoke-test it
-        run: |
-          TARBALL=$(find dist-npm -maxdepth 1 -name '*.tgz')
-          if [ -z "${TARBALL}" ]; then
-            echo "::error::no tarball produced by bun pm pack" >&2
-            exit 1
-          fi
-          echo "Staged tarball: ${TARBALL}"
-
-          CONSUMER=$(mktemp -d)
-          printf '{\n  "name": "cospec-release-smoke",\n  "version": "1.0.0",\n  "private": true\n}\n' \
-            > "${CONSUMER}/package.json"
-          (cd "${CONSUMER}" && bun add "${GITHUB_WORKSPACE}/${TARBALL}")
-
-          BIN="${CONSUMER}/node_modules/.bin/cospec"
-          ACTUAL=$("${BIN}" --version)
-          EXPECTED="${{ needs.version.outputs.version }}"
-          if [ "${ACTUAL}" != "${EXPECTED}" ]; then
-            echo "::error::installed tarball reports version '${ACTUAL}', expected '${EXPECTED}'" >&2
-            exit 1
-          fi
-          echo "installed tarball reports version ${ACTUAL} — OK"
-
-          "${BIN}" instructions --help >/dev/null
-          echo "installed tarball runs 'cospec instructions --help' — OK"
 
       - name: Validate the staged tarball with npm publish --dry-run
         run: |
@@ -404,7 +444,7 @@ jobs:
           fi
           npm publish --dry-run "${GITHUB_WORKSPACE}/${TARBALL}"
 
-      - name: Upload staged tarball artifact
+      - name: Upload staged main tarball artifact
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: npm-tarball
@@ -429,16 +469,29 @@ jobs:
       # (which would resolve latest upstream and make the release non-reproducible).
       - uses: ./.github/actions/setup-mise
 
-      - name: Download all artifacts
+      # GitHub release assets: the per-platform archives (for mise + direct
+      # download). SHA256SUMS covers exactly these, so mise can verify them.
+      - name: Download release archives
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
+          pattern: archive-*
           path: dist/
+          merge-multiple: true
 
-      - name: Flatten dist/ (remove per-artifact sub-dirs)
+      # npm packages: the seven platform tarballs (npm-<platform>) plus the main
+      # launcher tarball (npm-tarball). Kept out of dist/ so they are NOT
+      # attached to the GitHub release — they ship to npm.
+      - name: Download npm tarballs
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          pattern: npm-*
+          path: npm-dist/
+          merge-multiple: true
+
+      - name: List assets
         run: |
-          find dist/ -mindepth 2 -type f -exec mv {} dist/ \;
-          find dist/ -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} \;
-          ls -lh dist/
+          echo "release archives:"; ls -lh dist/
+          echo "npm tarballs:"; ls -lh npm-dist/
 
       - name: Generate SHA256SUMS
         working-directory: dist
@@ -472,7 +525,7 @@ jobs:
             --verify-tag \
             --title "${TAG}" \
             --notes-file RELEASE_NOTES.md \
-            dist/cospec-*.tar.gz dist/cospec-*.zip dist/*.tgz dist/SHA256SUMS
+            dist/cospec-*.tar.gz dist/cospec-*.zip dist/SHA256SUMS
 
       - name: Publish the draft (by release id — drafts aren't addressable by tag)
         env:
@@ -506,23 +559,40 @@ jobs:
         with:
           registry-url: 'https://registry.npmjs.org'
 
-      # TODO(provenance): once this repo is public, add `--provenance` here.
-      # Provenance attestation requires a public source repo; this repo is
-      # private today.
-      # TODO(trusted-publishing): once @aligned-team/cospec exists on npm and
-      # trusted publishing (OIDC) is configured for it in npm's package
-      # settings, drop NODE_AUTH_TOKEN/setup-node's .npmrc + the NPM_TOKEN
-      # secret entirely and add `id-token: write` to this job's permissions
-      # (npm exchanges the OIDC token automatically).
+      # TODO(provenance): once this repo is public, add `--provenance` to EVERY
+      # `npm publish` below (all eight packages). Provenance attestation requires
+      # a public source repo; this repo is private today.
+      # TODO(trusted-publishing): once all eight packages exist on npm
+      # (@aligned-team/cospec + the seven @aligned-team/cospec-<platform>
+      # packages) and trusted publishing (OIDC) is configured for EACH in npm's
+      # package settings, drop NODE_AUTH_TOKEN/setup-node's .npmrc + the
+      # NPM_TOKEN secret entirely and add `id-token: write` to this job's
+      # permissions (npm exchanges the OIDC token automatically per package).
       #
       # This is deliberately the LAST step in the job — see the comment above
-      # "Create draft release" for why nothing fallible may follow it.
-      - name: Publish to npm
+      # "Create draft release" for why nothing fallible may follow it. The seven
+      # platform packages are published FIRST so the main package's
+      # optionalDependencies resolve the instant it goes live; the main package
+      # is published LAST.
+      - name: Publish all packages to npm (platforms first, main last)
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
-          TARBALL=$(find dist -maxdepth 1 -name '*.tgz')
-          npm publish "${TARBALL}" --access public
+          MAIN="npm-dist/aligned-team-cospec-${VERSION}.tgz"
+          if [ ! -f "${MAIN}" ]; then
+            echo "::error::main package tarball not found: ${MAIN}" >&2
+            ls -la npm-dist >&2
+            exit 1
+          fi
+          for tgz in npm-dist/*.tgz; do
+            if [ "${tgz}" != "${MAIN}" ]; then
+              echo "Publishing platform package ${tgz}"
+              npm publish "${tgz}" --access public
+            fi
+          done
+          echo "Publishing main package ${MAIN}"
+          npm publish "${MAIN}" --access public
 
   # ── On failure only: roll the pushed tag + draft release back ──────────────
   cleanup:
