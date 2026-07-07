@@ -36,7 +36,9 @@
 #                   compiled binary and asserts `--version` matches.
 #   4. stage-npm  — install + `mise run test:pack`, then `bun pm pack` the
 #                   EXACT tarball `publish` will ship, install that exact
-#                   tarball into a fresh temp project, and smoke-test it.
+#                   tarball into a fresh temp project, smoke-test it, and
+#                   validate it with `npm publish --dry-run` (no network
+#                   mutation, no auth needed).
 #   5. publish    — only after build + stage-npm succeed: download all
 #                   artifacts, generate SHA256SUMS, write AI-generated notes
 #                   via `communique` (no GitHub side effect), create a DRAFT
@@ -392,6 +394,15 @@ jobs:
 
           "${BIN}" instructions --help >/dev/null
           echo "installed tarball runs 'cospec instructions --help' — OK"
+
+      - name: Validate the staged tarball with npm publish --dry-run
+        run: |
+          TARBALL=$(find dist-npm -maxdepth 1 -name '*.tgz' -print -quit)
+          if [ -z "${TARBALL}" ]; then
+            echo "::error::no tarball found in dist-npm for npm publish --dry-run" >&2
+            exit 1
+          fi
+          npm publish --dry-run "${GITHUB_WORKSPACE}/${TARBALL}"
 
       - name: Upload staged tarball artifact
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
