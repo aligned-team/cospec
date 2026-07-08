@@ -6,10 +6,10 @@
 // registry is sandboxed per-run via XDG_DATA_HOME so tests never pollute it.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { cleanupAll, cospec, mkTempRepo, openspec } from '../fixtures/support.ts'
+import { cleanupAll, cospec, mkTempRepo } from '../fixtures/support.ts'
 import { authorFeat, blockersHard } from './support.ts'
 
 afterAll(cleanupAll)
@@ -29,17 +29,28 @@ function storeArchivedDirs(): string[] {
 }
 
 beforeAll(async () => {
-  // A plain (non-git) cwd: `openspec store setup` refuses a store path nested in
-  // another git repo, and the store becomes its own git repo anyway.
+  // Register a store WITHOUT `openspec store setup`: build the store skeleton and
+  // the machine registry directly, so the test never depends on the git-init /
+  // identity behavior that varies across CI runners. XDG_DATA_HOME sandboxes the
+  // registry into the temp tree; a store's on-disk shape is just
+  // `.openspec-store/store.yaml` + an `openspec/` tree.
   workspace = mkTempRepo()
-  storeDir = join(workspace, 'the-store')
-  // Sandbox the machine-global store registry into the temp tree.
-  env = { XDG_DATA_HOME: join(workspace, 'xdg'), OPENSPEC_TELEMETRY: '0' }
+  storeDir = join(workspace, 'store')
+  const xdg = join(workspace, 'xdg')
+  env = { XDG_DATA_HOME: xdg, OPENSPEC_TELEMETRY: '0' }
 
-  // Create + register the store with the real openspec binary, then drop
-  // cospec's typed schemas into it (init by path — a store is state C).
-  const setup = await openspec(['store', 'setup', STORE_ID, '--path', storeDir], workspace, env)
-  expect(setup.exitCode).toBe(0)
+  mkdirSync(join(storeDir, '.openspec-store'), { recursive: true })
+  writeFileSync(join(storeDir, '.openspec-store', 'store.yaml'), `version: 1\nid: ${STORE_ID}\n`)
+  mkdirSync(join(storeDir, 'openspec', 'changes', 'archive'), { recursive: true })
+  mkdirSync(join(storeDir, 'openspec', 'specs'), { recursive: true })
+  writeFileSync(join(storeDir, 'openspec', 'config.yaml'), 'schema: feat\n')
+  mkdirSync(join(xdg, 'openspec', 'stores'), { recursive: true })
+  writeFileSync(
+    join(xdg, 'openspec', 'stores', 'registry.yaml'),
+    `version: 1\nstores:\n  ${STORE_ID}:\n    backend:\n      type: git\n      local_path: ${storeDir}\n`,
+  )
+
+  // Give the store cospec's typed schemas (init by path — a store is state C).
   const init = await cospec(['init', storeDir, '--harness', 'none', '--yes'], {
     cwd: workspace,
     env,

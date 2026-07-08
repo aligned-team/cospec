@@ -82,12 +82,8 @@ export function cospecBin(
 }
 
 /** Run the real bundled openspec binary in `cwd`. */
-export function openspec(
-  args: string[],
-  cwd: string,
-  env?: Record<string, string>,
-): Promise<SpawnResult> {
-  return spawn(['bun', openspecBinPath(), '--no-color', ...args], cwd, env)
+export function openspec(args: string[], cwd: string): Promise<SpawnResult> {
+  return spawn(['bun', openspecBinPath(), '--no-color', ...args], cwd)
 }
 
 const activeDirs = new Set<string>()
