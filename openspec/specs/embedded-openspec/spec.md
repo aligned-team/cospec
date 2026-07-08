@@ -38,6 +38,12 @@ pin, and the version assertion and wrapped-call discipline (declared exit codes,
 stdout deny-list, observable post-conditions) SHALL be preserved for both
 sources.
 
+Diagnostics SHALL follow the same order: `cospec doctor` SHALL report which
+source resolves — the project copy (with its version asserted against the
+accepted range) or the embedded pinned copy — and SHALL NOT report a resolution
+error when only the embedded copy is available. The doctor check SHALL remain
+read-only: reporting the embedded source MUST NOT extract the bundle to disk.
+
 #### Scenario: Project copy is used when present and in range
 
 - **WHEN** a project has an in-range `@fission-ai/openspec` in `node_modules`
@@ -48,6 +54,20 @@ sources.
 - **WHEN** no `@fission-ai/openspec` resolves from the executable or the project
 - **THEN** cospec spawns the extracted embedded bundle and the version assertion
   passes against the pinned version
+
+#### Scenario: Doctor reports the embedded copy instead of a false error
+
+- **WHEN** `cospec doctor` runs where no `@fission-ai/openspec` resolves from
+  the executable or the project
+- **THEN** the openspec check reports the embedded pinned copy as the resolution
+  source with no `openspec-resolve` ERROR, and no bundle is extracted to disk
+
+#### Scenario: Doctor still flags an out-of-range project copy
+
+- **WHEN** `cospec doctor` runs where a project `@fission-ai/openspec` resolves
+  with a version outside the accepted range
+- **THEN** the check reports the existing `openspec-version` ERROR for the
+  project copy
 
 ### Requirement: Embedded bundle extraction
 
