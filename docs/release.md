@@ -107,19 +107,20 @@ release).
    published — by release ID, not by tag, since drafts aren't addressable by tag
    — using a short retry loop (the releases list can lag a moment behind the
    create call). Only after the release is published does it `npm publish` all
-   eight packages via `NPM_TOKEN` — **the seven platform packages first, the
-   main package last** — as the job's **last** step: `npm publish` is
-   irreversible (a version can never be republished), so nothing fallible runs
-   after it, and publishing platforms before the main package means its
-   `optionalDependencies` resolve the instant it goes live. Everything
-   reversible — creating and publishing the GitHub release — happens first, so a
-   failure anywhere before `npm publish` always leaves a clean slate for
-   `cleanup` to roll back. The publish step itself is **not atomic** (eight
-   per-package publishes), so it is made **idempotent** instead: each publish is
-   guarded by `npm view <name>@<version>`, skipping any package already live. A
-   mid-loop failure that leaves the first N platform packages published is
-   therefore recoverable — a re-dispatch at the same version skips the live
-   packages and resumes with the remaining packages + the main launcher.
+   eight packages — authenticated via **trusted publishing (OIDC)** with
+   `--provenance`, no npm token — **the seven platform packages first, the main
+   package last** — as the job's **last** step: `npm publish` is irreversible (a
+   version can never be republished), so nothing fallible runs after it, and
+   publishing platforms before the main package means its `optionalDependencies`
+   resolve the instant it goes live. Everything reversible — creating and
+   publishing the GitHub release — happens first, so a failure anywhere before
+   `npm publish` always leaves a clean slate for `cleanup` to roll back. The
+   publish step itself is **not atomic** (eight per-package publishes), so it is
+   made **idempotent** instead: each publish is guarded by
+   `npm view <name>@<version>`, skipping any package already live. A mid-loop
+   failure that leaves the first N platform packages published is therefore
+   recoverable — a re-dispatch at the same version skips the live packages and
+   resumes with the remaining packages + the main launcher.
 6. **`cleanup`** — runs only `if: failure()`. It may run after some platform
    packages have already published (the loop is not atomic); deleting the tag +
    release is still safe because the publish loop is idempotent, so a
@@ -174,7 +175,10 @@ been suppressed.
 | `RELEASE_APP_ID`               | variable | app id of the `cospec-release` GitHub App                                     |
 | `RELEASE_APP_PRIVATE_KEY`      | secret   | the app's private key; mints short-lived installation tokens for bump/cleanup |
 | `ANTHROPIC_API_KEY_COMMUNIQUE` | secret   | lets `communique` generate AI release notes                                   |
-| `NPM_TOKEN`                    | secret   | temporary — an npm automation token, used until trusted publishing is set up  |
+
+npm publishing needs **no secret**: the `publish` job authenticates via trusted
+publishing (OIDC) — see below. (`NPM_TOKEN` has been retired; delete the repo
+secret and revoke the token on npm if either still exists.)
 
 `RELEASE_DEPLOY_KEY` has been retired: the bump commit and tag are created via
 GitHub's API with the `cospec-release` app token, so no deploy key, and no
@@ -197,35 +201,24 @@ actor" above.
 Mint a dedicated Anthropic API key for this repo only (never share one across
 repos) and add it as the `ANTHROPIC_API_KEY_COMMUNIQUE` repo secret.
 
-### Setting up `NPM_TOKEN`
+## Trusted publishing (OIDC) and provenance
 
-Generate an npm **automation** token (bypasses 2FA prompts, scoped to publish)
-for the `@aligned-team` org and add it as the `NPM_TOKEN` repo secret. This
-token is temporary — see the trusted-publishing migration below, after which it
-is deleted from both npm and the repo.
+The `publish` job authenticates to npm with **trusted publishing**: the job
+carries `permissions: id-token: write`, and `npm publish` (npm ≥ 11.5.1 — the
+job asserts this) mints and exchanges a short-lived OIDC token per package on
+its own. No `.npmrc`, no `NODE_AUTH_TOKEN`, no long-lived npm token anywhere in
+the repo. Every publish also passes `--provenance`, so each package version
+ships a signed attestation linking it to this repo, the `release.yml` workflow,
+and the exact commit — `--provenance` is a hard gate: the publish fails rather
+than shipping unattested.
 
-## Trusted-publishing migration (OIDC)
+This requires one-time registry-side configuration for **each** of the eight
+packages (`@aligned-team/cospec` + the seven `@aligned-team/cospec-<platform>`):
+in the package's npm settings, add a **GitHub Actions trusted publisher** with
+organization `aligned-team`, repository `cospec`, and workflow filename
+`release.yml` (no environment). A package without a trusted publisher fails its
+`npm publish` with an auth error; the publish loop is idempotent, so configuring
+the missing package and re-dispatching at the same version resumes cleanly.
 
-`NPM_TOKEN` is a stopgap. Once all eight packages exist on npm, move to OIDC
-trusted publishing so no long-lived npm token is stored in the repo at all:
-
-1. Publish v1 the current way, with `NPM_TOKEN`, so all eight packages exist on
-   npm (`@aligned-team/cospec` + the seven `@aligned-team/cospec-<platform>`).
-2. In npm's package settings for **each** of the eight packages, enable trusted
-   publishing and point it at this repo + the `release.yml` workflow.
-3. Swap the `publish` job's auth: add `permissions: id-token: write` to the job,
-   drop the `NODE_AUTH_TOKEN`/`NPM_TOKEN` env entirely, and let `npm publish`
-   authenticate via OIDC.
-4. Delete the `NPM_TOKEN` secret from the repo and revoke the token in npm.
-
-The workflow carries a `TODO(trusted-publishing)` comment at the exact spot to
-change.
-
-## The `--provenance` flip
-
-`npm publish` does not pass `--provenance` today because provenance attestation
-requires a **public** source repo, and this repo is currently private. The
-workflow carries a `TODO(provenance)` comment at the exact spot. Once the repo
-goes public, add `--provenance` to the `npm publish` invocations (all eight
-packages — no other change needed; provenance rides the same OIDC/GitHub Actions
-identity used for trusted publishing).
+Note the workflow-filename coupling: renaming `release.yml` breaks publishing
+until all eight trusted-publisher entries are updated to the new filename.
