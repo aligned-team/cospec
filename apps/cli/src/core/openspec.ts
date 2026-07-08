@@ -131,23 +131,41 @@ export function openspecPackageDir(): string {
   )
 }
 
+/** Where a wrapped call resolves openspec from. */
+export type OpenspecResolution =
+  | { source: 'project'; packageDir: string }
+  | { source: 'embedded'; version: string }
+
 /**
- * Path to the wrapped openspec bin, resolved in order:
+ * The resolution a wrapped call would use, in order:
  *   1. the project's own `node_modules` copy (dev, and any consumer that
  *      installs openspec) — resolved by path via `openspecPackageDir()`. Its
  *      version is still asserted against the accepted range by `assertVersion`.
- *   2. the embedded bundle — extracted to a per-version cache dir and run via
- *      the compiled binary's own bun runtime. This is what makes a standalone
- *      (mise / GitHub-release) install self-contained: no node_modules, no bun,
- *      no npm. The embedded copy is by construction the pin, so it satisfies the
+ *   2. the embedded bundle. This is what makes a standalone (mise /
+ *      GitHub-release) install self-contained: no node_modules, no bun, no npm.
+ *      The embedded copy is by construction the pin, so it satisfies the
  *      version assertion.
+ * Never extracts the bundle — shared with `cospec doctor`, whose report must
+ * stay read-only and must name the same source a spawn would use.
+ */
+export function resolveOpenspec(): OpenspecResolution {
+  try {
+    return { source: 'project', packageDir: openspecPackageDir() }
+  } catch {
+    return { source: 'embedded', version: PINNED_OPENSPEC_VERSION }
+  }
+}
+
+/**
+ * Path to the wrapped openspec bin for the resolved source; the embedded
+ * bundle is extracted to a per-version cache dir and run via the compiled
+ * binary's own bun runtime.
  */
 function openspecBin(): string {
-  try {
-    return join(openspecPackageDir(), 'bin', 'openspec.js')
-  } catch {
-    return extractEmbeddedOpenspec(PINNED_OPENSPEC_VERSION)
-  }
+  const resolved = resolveOpenspec()
+  return resolved.source === 'project'
+    ? join(resolved.packageDir, 'bin', 'openspec.js')
+    : extractEmbeddedOpenspec(resolved.version)
 }
 
 /**

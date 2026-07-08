@@ -21,8 +21,7 @@ cospec init
 The binary is fully self-contained: no JS runtime, no `node_modules`, no extra
 install step. It embeds the pinned OpenSpec CLI as a single-file bundle and runs
 it with its own bun runtime, so every wrapped command (`new`, `validate`,
-`apply`, `archive`, …) works out of the box. (`cospec doctor` still resolves
-`@fission-ai/openspec` from `node_modules` and needs a project install.)
+`apply`, `archive`, …) works out of the box.
 
 ### Package managers
 

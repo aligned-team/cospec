@@ -24,7 +24,8 @@ import {
 import { CURRENT_GENERATED_BY, readManifest, splitFrontmatter } from '../core/managed-files.ts'
 import {
   OPENSPEC_VERSION_RANGE,
-  openspecPackageDir,
+  type OpenspecResolution,
+  resolveOpenspec,
   satisfiesOpenspecRange,
 } from '../core/openspec.ts'
 import { HARNESS_NAMES } from '../harness/render.ts'
@@ -63,22 +64,24 @@ const COMMAND_LOC: Record<string, { dir: string; file: (id: string) => string } 
 
 // --- individual checks ------------------------------------------------------
 
-function checkOpenspecVersion(findings: Finding[]): void {
-  let pkgDir: string
-  try {
-    pkgDir = openspecPackageDir()
-  } catch {
+/** Exported for testing with an injected resolution (no project copy in-process). */
+export function checkOpenspecVersion(
+  findings: Finding[],
+  resolved: OpenspecResolution = resolveOpenspec(),
+): void {
+  if (resolved.source === 'embedded') {
+    // Same order a wrapped spawn uses; reporting the compile-time pin keeps
+    // this check read-only (no bundle extraction).
     findings.push({
-      level: 'ERROR',
+      level: 'INFO',
       check: 'openspec-resolve',
-      message: 'cannot resolve the bundled @fission-ai/openspec package',
-      remedy: 'run `bun install` in the repo root',
+      message: `no project @fission-ai/openspec; wrapped calls use the embedded pinned ${resolved.version}`,
     })
     return
   }
   let version = ''
   try {
-    const pkg = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8')) as {
+    const pkg = JSON.parse(readFileSync(join(resolved.packageDir, 'package.json'), 'utf8')) as {
       version?: string
     }
     version = typeof pkg.version === 'string' ? pkg.version : ''
