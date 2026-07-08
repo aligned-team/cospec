@@ -7,6 +7,7 @@
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { spawnOpenspec } from '../core/openspec.ts'
+import { resolveRoot } from '../core/root.ts'
 import { run as applyRun } from './apply.ts'
 
 function flagValue(args: string[], flag: string): string | undefined {
@@ -27,7 +28,7 @@ const ARTIFACTS = [
 ]
 
 export async function run(ctx: CommandContext): Promise<number> {
-  const { cwd, flags } = ctx
+  const { flags } = ctx
   const artifact = ctx.args.find((a) => !a.startsWith('-'))
   const changeId = flagValue(ctx.args, '--change')
 
@@ -50,9 +51,10 @@ export async function run(ctx: CommandContext): Promise<number> {
     return EXIT.failure
   }
 
+  const root = await resolveRoot(ctx)
   const args = ['instructions', artifact, '--change', changeId]
   if (flags.json) args.push('--json')
-  const res = await spawnOpenspec(args, cwd)
+  const res = await spawnOpenspec([...args, ...root.storeArgs], root.cwd)
   process.stdout.write(res.stdout)
   if (res.stderr.length > 0) process.stderr.write(res.stderr)
   return res.exitCode === 0 ? EXIT.success : EXIT.failure

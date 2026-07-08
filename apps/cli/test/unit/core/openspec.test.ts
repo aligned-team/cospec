@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import {
   checkVersion,
   enforceExpectation,
+  localRoot,
   openspecApplyInstructions,
   openspecArtifactInstructions,
   openspecList,
@@ -125,7 +126,7 @@ describe('wrapped calls against the real binary', () => {
   }, 30_000)
 
   test('openspecStatus returns the typed status shape', async () => {
-    const status = await openspecStatus(cwd, 'try-it')
+    const status = await openspecStatus(localRoot(cwd), 'try-it')
     expect(status.changeName).toBe('try-it')
     expect(status.schemaName).toBe('spec-driven')
     expect(Array.isArray(status.applyRequires)).toBe(true)
@@ -134,28 +135,28 @@ describe('wrapped calls against the real binary', () => {
   }, 30_000)
 
   test('openspecList returns the typed list shape', async () => {
-    const list = await openspecList(cwd)
+    const list = await openspecList(localRoot(cwd))
     const entry = list.changes.find((c) => c.name === 'try-it')
     expect(entry?.totalTasks).toBe(2)
     expect(entry?.completedTasks).toBe(1)
   }, 30_000)
 
   test('openspecApplyInstructions returns state and contextFiles', async () => {
-    const apply = await openspecApplyInstructions(cwd, 'try-it')
+    const apply = await openspecApplyInstructions(localRoot(cwd), 'try-it')
     expect(apply.state).toBe('ready')
     expect(apply.progress).toEqual({ total: 2, complete: 1, remaining: 1 })
     expect(apply.contextFiles.proposal?.[0]).toContain('proposal.md')
   }, 30_000)
 
   test('openspecArtifactInstructions returns template and instruction', async () => {
-    const artifact = await openspecArtifactInstructions(cwd, 'proposal', 'try-it')
+    const artifact = await openspecArtifactInstructions(localRoot(cwd), 'proposal', 'try-it')
     expect(artifact.artifactId).toBe('proposal')
     expect(typeof artifact.template).toBe('string')
     expect(artifact.template.length).toBeGreaterThan(0)
   }, 30_000)
 
   test('a disallowed exit code throws OpenspecCallError', async () => {
-    await expect(openspecStatus(cwd, 'does-not-exist-change')).rejects.toBeInstanceOf(
+    await expect(openspecStatus(localRoot(cwd), 'does-not-exist-change')).rejects.toBeInstanceOf(
       OpenspecCallError,
     )
   }, 30_000)

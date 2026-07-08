@@ -20,13 +20,14 @@ import {
   resolveSchema,
 } from '../core/change.ts'
 import { parseLivingSpec } from '../core/deltas.ts'
-import { spawnOpenspec } from '../core/openspec.ts'
+import { spawnOpenspec, type Root } from '../core/openspec.ts'
 import {
   exitCode as reportExitCode,
   renderHuman,
   renderJson,
   type ItemReport,
 } from '../core/report.ts'
+import { resolveRoot } from '../core/root.ts'
 import { runChangeRules, specsRules } from '../core/rules/index.ts'
 import type { Issue, IssueLevel } from '../core/rules/issue.ts'
 import {
@@ -92,7 +93,7 @@ function loadOpenspecYaml(changeDir: string): LoadedChange['openspecYaml'] {
   return { present: true, parseable: true, schema, created, schemaVersion, schemaVersionInvalid }
 }
 
-function loadChange(cwd: string, id: string, dir: string): LoadedChange {
+function loadChange(base: string, id: string, dir: string): LoadedChange {
   const files = existsSync(dir) ? listFilesRelative(dir) : []
   const designText = readIfExists(join(dir, 'design.md'))
   const deltaFiles = files
@@ -105,7 +106,7 @@ function loadChange(cwd: string, id: string, dir: string): LoadedChange {
 
   const livingSpecs: LoadedChange['livingSpecs'] = new Map()
   for (const cap of new Set(deltaFiles.map((d) => d.capability))) {
-    const livingPath = join(openspecDir(cwd), 'specs', cap, 'spec.md')
+    const livingPath = join(openspecDir(base), 'specs', cap, 'spec.md')
     if (existsSync(livingPath))
       livingSpecs.set(cap, parseLivingSpec(readFileSync(livingPath, 'utf8')))
   }
@@ -185,10 +186,10 @@ function mapDelegated(issue: OpenspecIssue): Issue {
  * yields) resolves to no items rather than throwing — cospec's own rules
  * already diagnose those states.
  */
-async function delegate(cwd: string, args: string[]): Promise<OpenspecItem[]> {
+async function delegate(root: Root, args: string[]): Promise<OpenspecItem[]> {
   const res = await spawnOpenspec(
-    ['validate', ...args, '--strict', '--json', '--no-interactive'],
-    cwd,
+    ['validate', ...args, '--strict', '--json', '--no-interactive', ...root.storeArgs],
+    root.cwd,
   )
   try {
     const parsed = JSON.parse(res.stdout) as OpenspecValidateJson
@@ -217,16 +218,16 @@ function buildReport(
  * other commands (`apply`, `archive`) can run `validateChange` programmatically
  * without re-deriving the indexes.
  */
-export function buildValidateContext(cwd: string): ValidateContext {
+export function buildValidateContext(base: string): ValidateContext {
   const archiveSlugs = new Set(
-    existsSync(archiveDir(cwd))
-      ? readdirSync(archiveDir(cwd), { withFileTypes: true })
+    existsSync(archiveDir(base))
+      ? readdirSync(archiveDir(base), { withFileTypes: true })
           .filter((e) => e.isDirectory())
           .map((e) => /^\d{4}-\d{2}-\d{2}-(.+)$/.exec(e.name)?.[1])
           .filter((s): s is string => s !== undefined)
       : [],
   )
-  return { archiveSlugs, activeSlugs: new Set(listChanges(cwd).map((c) => c.id)) }
+  return { archiveSlugs, activeSlugs: new Set(listChanges(base).map((c) => c.id)) }
 }
 
 /**
@@ -235,12 +236,12 @@ export function buildValidateContext(cwd: string): ValidateContext {
  * skips the archive-precondition family.
  */
 export async function validateChange(
-  cwd: string,
+  root: Root,
   change: { id: string; dir: string; schema: string },
   ctx: ValidateContext,
   opts: { strict: boolean; fast: boolean },
 ): Promise<ItemReport> {
-  const load = loadChange(cwd, change.id, change.dir)
+  const load = loadChange(root.base, change.id, change.dir)
   const y = load.openspecYaml
 
   // meta/openspec-yaml precondition — cannot classify without a schema.
@@ -249,7 +250,7 @@ export async function validateChange(
     return buildReport(change.id, issues, undefined, opts.strict)
   }
 
-  const resolution = resolveSchema(cwd, y.schema)
+  const resolution = resolveSchema(root.base, y.schema)
 
   if (resolution.kind === 'cospec') {
     const schema = cospecSchemaInfo(y.schema, y.schemaVersion ?? 1)
@@ -261,7 +262,7 @@ export async function validateChange(
       load.deltaFiles.length > 0 &&
       load.proposalText !== undefined
     ) {
-      const items = await delegate(cwd, [change.id])
+      const items = await delegate(root, [change.id])
       for (const item of items)
         if (item.id === change.id) issues.push(...item.issues.map(mapDelegated))
     }
@@ -276,15 +277,15 @@ export async function validateChange(
     ...schemaClassificationIssues(stub),
   ]
   if (resolution.kind === 'legacy') {
-    const items = await delegate(cwd, [change.id])
+    const items = await delegate(root, [change.id])
     for (const item of items)
       if (item.id === change.id) issues.push(...item.issues.map(mapDelegated))
   }
   return buildReport(change.id, issues, y.schema, opts.strict)
 }
 
-function livingSpecCaps(cwd: string): string[] {
-  const specsRoot = join(openspecDir(cwd), 'specs')
+function livingSpecCaps(base: string): string[] {
+  const specsRoot = join(openspecDir(base), 'specs')
   if (!existsSync(specsRoot)) return []
   return readdirSync(specsRoot, { withFileTypes: true })
     .filter((e) => e.isDirectory() && existsSync(join(specsRoot, e.name, 'spec.md')))
@@ -292,17 +293,17 @@ function livingSpecCaps(cwd: string): string[] {
     .toSorted()
 }
 
-async function validateSpecs(cwd: string, only: string | undefined): Promise<ItemReport[]> {
-  const caps = livingSpecCaps(cwd).filter((c) => only === undefined || c === only)
+async function validateSpecs(root: Root, only: string | undefined): Promise<ItemReport[]> {
+  const caps = livingSpecCaps(root.base).filter((c) => only === undefined || c === only)
   if (caps.length === 0) return []
 
   const delegated = new Map<string, OpenspecIssue[]>()
-  for (const item of await delegate(cwd, ['--specs'])) delegated.set(item.id, item.issues)
+  for (const item of await delegate(root, ['--specs'])) delegated.set(item.id, item.issues)
 
   return caps.map((cap) => {
     const path = `specs/${cap}/spec.md`
     const living = parseLivingSpec(
-      readFileSync(join(openspecDir(cwd), 'specs', cap, 'spec.md'), 'utf8'),
+      readFileSync(join(openspecDir(root.base), 'specs', cap, 'spec.md'), 'utf8'),
     )
     const issues: Issue[] = [
       ...specsRules(living, path),
@@ -316,7 +317,7 @@ async function validateSpecs(cwd: string, only: string | undefined): Promise<Ite
 // --- command entrypoint -----------------------------------------------------
 
 export async function run(ctx: CommandContext): Promise<number> {
-  const { cwd, flags } = ctx
+  const { flags } = ctx
   const args = ctx.args
   const strict = args.includes('--strict')
   const fast = args.includes('--fast')
@@ -325,23 +326,26 @@ export async function run(ctx: CommandContext): Promise<number> {
   const wantSpecs = args.includes('--specs')
   const name = args.find((a) => !a.startsWith('-'))
 
-  if (!existsSync(openspecDir(cwd))) {
-    process.stderr.write(`cospec: no openspec/ directory at ${cwd} — run 'cospec init' first\n`)
+  const root = await resolveRoot(ctx)
+  const base = root.base
+
+  if (!existsSync(openspecDir(base))) {
+    process.stderr.write(`cospec: no openspec/ directory at ${base} — run 'cospec init' first\n`)
     return 1
   }
 
-  const changes = listChanges(cwd)
-  const ctxRules = buildValidateContext(cwd)
+  const changes = listChanges(base)
+  const ctxRules = buildValidateContext(base)
 
   const items: ItemReport[] = []
 
   if (name !== undefined) {
     // item-name auto-detection: change first, then living spec.
-    const change = resolveChange(cwd, name)
+    const change = resolveChange(base, name)
     if (change !== undefined) {
-      items.push(await validateChange(cwd, change, ctxRules, { strict, fast }))
-    } else if (existsSync(join(openspecDir(cwd), 'specs', name, 'spec.md'))) {
-      items.push(...(await validateSpecs(cwd, name)))
+      items.push(await validateChange(root, change, ctxRules, { strict, fast }))
+    } else if (existsSync(join(openspecDir(base), 'specs', name, 'spec.md'))) {
+      items.push(...(await validateSpecs(root, name)))
     } else {
       process.stderr.write(`cospec: unknown item '${name}'\n`)
       return 1
@@ -351,11 +355,11 @@ export async function run(ctx: CommandContext): Promise<number> {
     const doSpecs = wantSpecs || wantAll || (!wantChanges && !wantSpecs)
     if (doChanges) {
       const reports = await Promise.all(
-        changes.map((change) => validateChange(cwd, change, ctxRules, { strict, fast })),
+        changes.map((change) => validateChange(root, change, ctxRules, { strict, fast })),
       )
       items.push(...reports)
     }
-    if (doSpecs) items.push(...(await validateSpecs(cwd, undefined)))
+    if (doSpecs) items.push(...(await validateSpecs(root, undefined)))
   }
 
   const output = flags.json

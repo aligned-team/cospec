@@ -14,6 +14,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { isCospecType, listChanges, resolveChange } from '../core/change.ts'
+import { resolveRoot } from '../core/root.ts'
 import { composeTemplates } from '../core/schema-compose.ts'
 import { closest } from './apply.ts'
 
@@ -36,7 +37,8 @@ export function scaffoldDeferredVerification(templateBody: string): string {
 }
 
 export async function run(ctx: CommandContext): Promise<number> {
-  const { cwd } = ctx
+  const root = await resolveRoot(ctx)
+  const base = root.base
   const slug = ctx.args.find((a) => !a.startsWith('-'))
 
   if (slug === undefined) {
@@ -44,12 +46,12 @@ export async function run(ctx: CommandContext): Promise<number> {
     return EXIT.failure
   }
 
-  const change = resolveChange(cwd, slug)
+  const change = resolveChange(base, slug)
   if (change === undefined) {
     process.stderr.write(`cospec migrate: unknown change '${slug}'\n`)
     const suggestion = closest(
       slug,
-      listChanges(cwd).map((c) => c.id),
+      listChanges(base).map((c) => c.id),
     )
     if (suggestion !== undefined) process.stderr.write(`Did you mean '${suggestion}'?\n`)
     return EXIT.failure

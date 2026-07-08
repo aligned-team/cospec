@@ -284,6 +284,60 @@ export async function runOpenspec(args: string[], opts: RunOptions): Promise<Ope
   return result
 }
 
+// --- Operating root (local repo vs. registered store) ----------------------
+
+/**
+ * The OpenSpec root a command operates on. For a local repo this is just the
+ * invocation cwd; for a registered store (openspec 1.5.0 `store`) it is the
+ * store's on-disk root plus the `--store <id>` args every wrapped call must
+ * carry. Filesystem readers (change.ts, blockers, archive verification) key on
+ * `base`; wrapped openspec spawns run in `cwd` and append `storeArgs`. Because a
+ * store's on-disk layout is identical to a repo's (`<base>/openspec/...`), the
+ * filesystem helpers need no store-specific branch — they just take `base`.
+ */
+export interface Root {
+  /** Filesystem base whose `openspec/` subdir holds specs + changes. */
+  base: string
+  /** cwd the wrapped openspec binary is spawned in. */
+  cwd: string
+  /** Args that target this root for wrapped calls: `['--store', id]` or `[]`. */
+  storeArgs: readonly string[]
+  /** Store id when the root is a registered store, else undefined. */
+  store?: string
+}
+
+/** The local-repo root: base and spawn-cwd are the same, no store args. */
+export function localRoot(cwd: string): Root {
+  return { base: cwd, cwd, storeArgs: [], store: undefined }
+}
+
+/** One registered store from `openspec store ls --json`. */
+export interface StoreListEntry {
+  id: string
+  root: string
+}
+
+/** Shape of `openspec store ls --json`. */
+export interface StoreListJson {
+  stores: StoreListEntry[]
+}
+
+/**
+ * Typed `openspec store ls --json` — the machine-global store registry. Not
+ * root-scoped (stores are registered per machine), so it takes a plain cwd and
+ * never carries `--store`. Throws `OpenspecCallError` on a non-zero exit or an
+ * unparseable body.
+ */
+export async function openspecStoreList(cwd: string): Promise<StoreListJson> {
+  const res = await runOpenspec(['store', 'ls', '--json'], { cwd, expect: { exitCodes: [0] } })
+  try {
+    const parsed = JSON.parse(res.stdout) as Partial<StoreListJson>
+    return { stores: Array.isArray(parsed.stores) ? parsed.stores : [] }
+  } catch {
+    throw new OpenspecCallError('could not parse JSON from: openspec store ls --json', res)
+  }
+}
+
 // --- Typed JSON shapes for the wrapped commands (probed across the accepted
 // floor-through-pin span 1.0.0–1.5.0 and found unchanged; 1.5.0 only adds
 // optional fields). ---
@@ -353,8 +407,11 @@ export interface ArtifactInstructionsJson {
   unlocks: string[]
 }
 
-async function runJson<T>(cwd: string, args: string[]): Promise<T> {
-  const res = await runOpenspec(args, { cwd, expect: { exitCodes: [0] } })
+async function runJson<T>(root: Root, args: string[]): Promise<T> {
+  const res = await runOpenspec([...args, ...root.storeArgs], {
+    cwd: root.cwd,
+    expect: { exitCodes: [0] },
+  })
   try {
     return JSON.parse(res.stdout) as T
   } catch {
@@ -363,21 +420,21 @@ async function runJson<T>(cwd: string, args: string[]): Promise<T> {
 }
 
 /** Typed `openspec status --change <id> --json`. Throws on unknown change. */
-export function openspecStatus(cwd: string, changeId: string): Promise<StatusJson> {
-  return runJson<StatusJson>(cwd, ['status', '--change', changeId, '--json'])
+export function openspecStatus(root: Root, changeId: string): Promise<StatusJson> {
+  return runJson<StatusJson>(root, ['status', '--change', changeId, '--json'])
 }
 
 /** Typed `openspec list --json`. Throws when no openspec dir exists. */
-export function openspecList(cwd: string): Promise<ListJson> {
-  return runJson<ListJson>(cwd, ['list', '--json'])
+export function openspecList(root: Root): Promise<ListJson> {
+  return runJson<ListJson>(root, ['list', '--json'])
 }
 
 /** Typed `openspec instructions apply --change <id> --json`. */
 export function openspecApplyInstructions(
-  cwd: string,
+  root: Root,
   changeId: string,
 ): Promise<ApplyInstructionsJson> {
-  return runJson<ApplyInstructionsJson>(cwd, [
+  return runJson<ApplyInstructionsJson>(root, [
     'instructions',
     'apply',
     '--change',
@@ -388,11 +445,11 @@ export function openspecApplyInstructions(
 
 /** Typed `openspec instructions <artifact> --change <id> --json`. */
 export function openspecArtifactInstructions(
-  cwd: string,
+  root: Root,
   artifact: string,
   changeId: string,
 ): Promise<ArtifactInstructionsJson> {
-  return runJson<ArtifactInstructionsJson>(cwd, [
+  return runJson<ArtifactInstructionsJson>(root, [
     'instructions',
     artifact,
     '--change',

@@ -11,6 +11,7 @@ import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
 import { isCospecType, listChanges, resolveChange, type Change } from '../core/change.ts'
+import { resolveRoot } from '../core/root.ts'
 import {
   artifactRequires,
   enforcedApplyRequires,
@@ -78,7 +79,7 @@ export interface ChangeStatus {
  * Full status for a cospec-typed change with at least one artifact. Assumes the
  * caller has excluded the empty-change and legacy cases.
  */
-export function computeStatus(cwd: string, change: Change): ChangeStatus {
+export function computeStatus(base: string, change: Change): ChangeStatus {
   const type = change.schema as CospecType
   const facts = TYPE_ARTIFACTS[type]
   // Grandfathering: `required` mirrors the schemaVersion-filtered set the
@@ -97,8 +98,8 @@ export function computeStatus(cwd: string, change: Change): ChangeStatus {
   const gate = existsSync(blockersPath)
     ? computeGate(
         parseBlockers(readFileSync(blockersPath, 'utf8')),
-        archiveMap(cwd),
-        new Set(listChanges(cwd).map((c) => c.id)),
+        archiveMap(base),
+        new Set(listChanges(base).map((c) => c.id)),
       )
     : ({ state: 'clear', hard: [], soft: [] } satisfies Gate)
 
@@ -158,10 +159,12 @@ function renderHuman(status: ChangeStatus): string {
 }
 
 export async function run(ctx: CommandContext): Promise<number> {
-  const { cwd, flags } = ctx
+  const { flags } = ctx
+  const root = await resolveRoot(ctx)
+  const base = root.base
   let id = flagValue(ctx.args, '--change') ?? ctx.args.find((a) => !a.startsWith('-'))
 
-  const active = listChanges(cwd)
+  const active = listChanges(base)
   if (id === undefined) {
     if (active.length === 1) {
       id = active[0]!.id
@@ -175,7 +178,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     }
   }
 
-  const change = resolveChange(cwd, id)
+  const change = resolveChange(base, id)
   if (change === undefined) {
     process.stderr.write(`cospec status: unknown change '${id}'\n`)
     const suggestion = closest(
@@ -226,7 +229,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     return EXIT.success
   }
 
-  const status = computeStatus(cwd, change)
+  const status = computeStatus(base, change)
   process.stdout.write(flags.json ? `${JSON.stringify(status, null, 2)}\n` : renderHuman(status))
   return EXIT.success
 }

@@ -10,6 +10,7 @@ import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
 import { isCospecType, listChanges } from '../core/change.ts'
+import { resolveRoot } from '../core/root.ts'
 import { TYPE_ARTIFACTS } from '../core/rules/type-facts.ts'
 import { parseTasks } from '../core/tasks.ts'
 import { archiveMap, artifactDone, computeGate, type Gate } from './apply.ts'
@@ -26,11 +27,13 @@ interface Row {
 }
 
 export async function run(ctx: CommandContext): Promise<number> {
-  const { cwd, flags } = ctx
+  const { flags } = ctx
+  const root = await resolveRoot(ctx)
+  const base = root.base
   const onlyBlocked = ctx.args.includes('--blocked')
 
-  const changes = listChanges(cwd)
-  const archived = archiveMap(cwd)
+  const changes = listChanges(base)
+  const archived = archiveMap(base)
   const active = new Set(changes.map((c) => c.id))
 
   const rows: Row[] = changes.map((change) => {
