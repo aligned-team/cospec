@@ -23,11 +23,10 @@ mise use github:aligned-team/cospec
 cospec init
 ```
 
-The binary is fully standalone (no JS runtime needed — it even runs the wrapped
-OpenSpec CLI itself). One caveat: commands that call the wrapped OpenSpec
-(`new`, `validate`, `apply`, `archive`, …) resolve `@fission-ai/openspec` from
-your project's `node_modules`, so a mise-only install additionally needs
-`npm i -D @fission-ai/openspec`.
+The binary is fully self-contained: no JS runtime, no `node_modules`, no extra
+install step. It embeds the pinned OpenSpec CLI as a single-file bundle and runs
+it with its own bun runtime, so every wrapped command (`new`, `validate`,
+`apply`, `archive`, …) works out of the box.
 
 Via a package manager (the launcher execs the prebuilt binary for your
 platform):
