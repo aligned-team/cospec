@@ -9,11 +9,12 @@ pin, and the version assertion and wrapped-call discipline (declared exit codes,
 stdout deny-list, observable post-conditions) SHALL be preserved for both
 sources.
 
-Diagnostics SHALL follow the same order: `cospec doctor` SHALL report which
-source resolves — the project copy (with its version asserted against the
-accepted range) or the embedded pinned copy — and SHALL NOT report a resolution
-error when only the embedded copy is available. The doctor check SHALL remain
-read-only: reporting the embedded source MUST NOT extract the bundle to disk.
+Diagnostics SHALL follow the same order: when only the embedded copy is
+available, `cospec doctor` SHALL report it as the resolution source and SHALL
+NOT report a resolution error. A resolving in-range project copy produces no
+finding; an out-of-range project copy remains a version error. The doctor check
+SHALL remain read-only: reporting the embedded source MUST NOT extract the
+bundle to disk.
 
 #### Scenario: Project copy is used when present and in range
 
