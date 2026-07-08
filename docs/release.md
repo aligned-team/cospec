@@ -209,8 +209,11 @@ job asserts this) mints and exchanges a short-lived OIDC token per package on
 its own. No `.npmrc`, no `NODE_AUTH_TOKEN`, no long-lived npm token anywhere in
 the repo. Every publish also passes `--provenance`, so each package version
 ships a signed attestation linking it to this repo, the `release.yml` workflow,
-and the exact commit — `--provenance` is a hard gate: the publish fails rather
-than shipping unattested.
+and the exact commit. The flag is technically redundant — trusted publishing
+generates provenance automatically — but automatic generation is best-effort and
+silently skipped where unsupported (per npm's docs, a private repo still
+publishes, just unattested). The explicit flag makes it a hard gate: the publish
+fails rather than shipping unattested.
 
 This requires one-time registry-side configuration for **each** of the eight
 packages (`@aligned-team/cospec` + the seven `@aligned-team/cospec-<platform>`):

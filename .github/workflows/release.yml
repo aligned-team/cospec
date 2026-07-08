@@ -679,9 +679,13 @@ jobs:
             # instead of reading the local tarball (confirmed empirically —
             # this is exactly what broke run 28853072821). A `./` or
             # absolute prefix forces the local-file interpretation.
-            # --provenance is a hard gate, not a hint: publish fails outright
-            # if the attestation can't be generated, rather than silently
-            # shipping an unattested package.
+            # --provenance is technically redundant — trusted publishing
+            # generates provenance automatically — but automatic generation is
+            # best-effort and SILENTLY skipped where unsupported (npm's own
+            # docs: private repos publish fine, just unattested). The explicit
+            # flag flips that to a hard gate: if the attestation can't be
+            # generated (repo flipped private, auto-detection regression), the
+            # publish fails instead of shipping unattested.
             npm publish "./${tgz}" --access public --provenance
           }
 
