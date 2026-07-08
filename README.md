@@ -202,7 +202,7 @@ build the contract suite is probed against) and adds, on top of it:
 - [self-hosting.md](docs/self-hosting.md) — how cospec manages its own
   `openspec/` tree
 - [release.md](docs/release.md) — the npm + binary release pipeline, required
-  secrets, and the trusted-publishing/provenance migration path
+  secrets, and trusted publishing (OIDC) with provenance
 
 ---
 

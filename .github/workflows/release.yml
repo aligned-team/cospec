@@ -54,7 +54,9 @@
 #                   aren't addressable by tag via `gh release edit`), and ONLY
 #                   THEN `npm publish` all eight packages (the seven platform
 #                   packages first, the main package LAST), as the job's last
-#                   step. `npm publish` is irreversible (a version can never be
+#                   step — authenticated via npm trusted publishing (OIDC,
+#                   `id-token: write`, no npm token) with `--provenance`.
+#                   `npm publish` is irreversible (a version can never be
 #                   republished), so nothing fallible may run after it —
 #                   everything reversible (the GitHub release) happens first.
 #   6. cleanup    — on failure only: delete the tag via the REST API and the
@@ -514,6 +516,13 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # npm trusted publishing (OIDC): `npm publish` mints a workflow identity
+      # token from this permission and exchanges it with the registry per
+      # package — no long-lived npm token anywhere. The same identity signs the
+      # provenance attestations. Requires a trusted publisher configured on npm
+      # for EACH of the eight packages (repo aligned-team/cospec, workflow
+      # release.yml) — see docs/release.md.
+      id-token: write
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -608,23 +617,27 @@ jobs:
           gh api --method PATCH "repos/${{ github.repository }}/releases/${RELEASE_ID}" \
             -F draft=false >/dev/null
 
-      # setup-node writes an .npmrc that wires NODE_AUTH_TOKEN to the registry
-      # (a bare `npm publish` never reads NODE_AUTH_TOKEN on its own). The
-      # runner's node is only used for the npm CLI; the package itself is bun.
+      # No registry-url / NODE_AUTH_TOKEN here: auth is npm trusted publishing
+      # (OIDC), driven by this job's `id-token: write` — npm detects the CI
+      # identity on its own; a leftover _authToken line in .npmrc would
+      # actually shadow it. The runner's node is only used for the npm CLI
+      # (trusted publishing needs npm >= 11.5.1, so Node 24's bundled npm);
+      # the package itself is bun.
       - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
         with:
-          registry-url: 'https://registry.npmjs.org'
+          node-version: 24
 
-      # TODO(provenance): once this repo is public, add `--provenance` to EVERY
-      # `npm publish` below (all eight packages). Provenance attestation requires
-      # a public source repo; this repo is private today.
-      # TODO(trusted-publishing): once all eight packages exist on npm
-      # (@aligned-team/cospec + the seven @aligned-team/cospec-<platform>
-      # packages) and trusted publishing (OIDC) is configured for EACH in npm's
-      # package settings, drop NODE_AUTH_TOKEN/setup-node's .npmrc + the
-      # NPM_TOKEN secret entirely and add `id-token: write` to this job's
-      # permissions (npm exchanges the OIDC token automatically per package).
-      #
+      # Fail fast with a clear message (instead of npm's opaque auth error mid
+      # publish loop) if the bundled npm ever regresses below the OIDC minimum.
+      - name: Assert npm supports trusted publishing (>= 11.5.1)
+        run: |
+          NPM_VERSION=$(npm --version)
+          if ! printf '11.5.1\n%s\n' "${NPM_VERSION}" | sort -V -C; then
+            echo "::error::npm ${NPM_VERSION} is too old for trusted publishing (need >= 11.5.1)"
+            exit 1
+          fi
+          echo "npm ${NPM_VERSION} supports trusted publishing — OK"
+
       # This is deliberately the LAST step in the job — see the comment above
       # "Create draft release" for why nothing fallible may follow it. The seven
       # platform packages are published FIRST so the main package's
@@ -632,7 +645,6 @@ jobs:
       # is published LAST.
       - name: Publish all packages to npm (platforms first, main last)
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ needs.version.outputs.version }}
         run: |
           MAIN="npm-dist/aligned-team-cospec-${VERSION}.tgz"
@@ -667,7 +679,14 @@ jobs:
             # instead of reading the local tarball (confirmed empirically —
             # this is exactly what broke run 28853072821). A `./` or
             # absolute prefix forces the local-file interpretation.
-            npm publish "./${tgz}" --access public
+            # --provenance is technically redundant — trusted publishing
+            # generates provenance automatically — but automatic generation is
+            # best-effort and SILENTLY skipped where unsupported (npm's own
+            # docs: private repos publish fine, just unattested). The explicit
+            # flag flips that to a hard gate: if the attestation can't be
+            # generated (repo flipped private, auto-detection regression), the
+            # publish fails instead of shipping unattested.
+            npm publish "./${tgz}" --access public --provenance
           }
 
           for tgz in npm-dist/*.tgz; do
