@@ -22,5 +22,7 @@
       files changed (the stamped manifests plus any managed files whose
       `generatedBy` tag moved), then revert the simulation cleanly.
 - [x] 2.2 `mise run check` passes with the workflow/docs edits in place.
-- [ ] 2.3 Record the real `workflow_dispatch` release proof in `verification.md`
-      (deferred until a real release runs post-merge).
+- [x] 2.3 Record the real `workflow_dispatch` release proof in `verification.md`
+      (deferred until a real release runs post-merge) -> recorded as
+      `[~] 1.3 defer: requires a real release dispatch after merge` in
+      `verification.md`.
