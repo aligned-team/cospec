@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -233,6 +233,45 @@ describe('list', () => {
     const r = await runCmd(listRun, ctx(cwd, ['--blocked'], { json: true }))
     const parsed = JSON.parse(r.out) as { changes: { change: string }[] }
     expect(parsed.changes.map((c) => c.change)).toEqual(['blocked-one'])
+  })
+
+  test('--specs delegates to `openspec list --specs` and renders a spec table', async () => {
+    const cwd = repo()
+    mkdirSync(join(cwd, 'openspec', 'specs', 'widget'), { recursive: true })
+    writeFileSync(
+      join(cwd, 'openspec', 'specs', 'widget', 'spec.md'),
+      [
+        '# widget Specification',
+        '',
+        '## Purpose',
+        '',
+        'Widgets exist to exercise `list --specs` in a fixture repo.',
+        '',
+        '## Requirements',
+        '',
+        '### Requirement: Widgets spin',
+        '',
+        'The system SHALL spin widgets.',
+        '',
+        '#### Scenario: A widget spins',
+        '',
+        '- **WHEN** a widget is asked to spin',
+        '- **THEN** it spins',
+        '',
+      ].join('\n'),
+    )
+
+    const jsonResult = await runCmd(listRun, ctx(cwd, ['--specs'], { json: true }))
+    expect(jsonResult.code).toBe(0)
+    const parsed = JSON.parse(jsonResult.out) as {
+      specs: { id: string; requirementCount: number }[]
+    }
+    expect(parsed.specs).toEqual([{ id: 'widget', requirementCount: 1 }])
+
+    const humanResult = await runCmd(listRun, ctx(cwd, ['--specs']))
+    expect(humanResult.code).toBe(0)
+    expect(humanResult.out).toContain('widget')
+    expect(humanResult.out).toContain('1 requirement')
   })
 })
 

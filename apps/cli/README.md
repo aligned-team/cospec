@@ -52,6 +52,11 @@ cospec new feat add-widget # create a typed change
 cospec validate --all --strict
 cospec apply add-widget    # gate on blockers + required artifacts
 cospec archive add-widget  # validate, archive, fan out blocker updates
+cospec show add-widget     # read a change or spec (text or --json)
+cospec store setup platform --path ./platform-store  # create + auto-init a store
 ```
 
-See the repository root for full docs.
+Store management (`store setup|register|unregister|remove|ls|doctor`),
+cross-repo context (`context`), and personal worksets (`workset`) are all
+first-class cospec commands — you never drop out to bare `openspec`. See the
+repository root for full docs.
