@@ -7,33 +7,37 @@ description:
 
 # Harness setup
 
-`cospec init --harness <list>` wires cospec's six workflows — `propose`,
-`continue`, `apply`, `archive`, `sync-specs`, `explore` — into your agent
-harness by writing project files directly. There is no marketplace, no plugin
-package, and no global state under your home directory: everything lands inside
-the repo, under version control, and `cospec update` regenerates it in place.
-Every generated workflow body calls only `cospec` commands, never bare
-`openspec`, so a harness needs exactly one permission entry to run the whole
-loop.
+`cospec init --harness <list>` wires cospec's eleven workflows — `propose`,
+`new`, `continue`, `ff`, `apply`, `verify`, `archive`, `bulk-archive`,
+`sync-specs`, `explore`, `onboard` — into your agent harness by writing project
+files directly. This is cospec's full parity set with opsx 1.5.0: every live
+opsx workflow has a cospec-adapted counterpart (opsx `sync` maps to cospec
+`sync-specs`), and cospec always emits the complete set to every configured
+harness — there's no core/custom profile split to opt into. There is no
+marketplace, no plugin package, and no global state under your home directory:
+everything lands inside the repo, under version control, and `cospec update`
+regenerates it in place. Every generated workflow body calls only `cospec`
+commands, never bare `openspec`, so a harness needs exactly one permission entry
+to run the whole loop.
 
 ## What gets written
 
 ::: code-group
 
 ```txt [Claude Code]
-.claude/commands/cospec/{propose,continue,apply,archive,sync-specs,explore}.md
-.claude/skills/cospec-{propose,continue-change,apply-change,archive-change,sync-specs,explore}/SKILL.md
+.claude/commands/cospec/{propose,new,continue,ff,apply,verify,archive,bulk-archive,sync-specs,explore,onboard}.md
+.claude/skills/cospec-{propose,new-change,continue-change,ff-change,apply-change,verify-change,archive-change,bulk-archive-change,sync-specs,explore,onboard}/SKILL.md
 .claude/settings.json   # Bash(cospec *) merged into permissions.allow
 ```
 
 ```txt [Codex]
-.codex/skills/cospec-{same six}/SKILL.md
+.codex/skills/cospec-{same eleven}/SKILL.md
 .codex/rules/cospec.rules   # pre-approves read-only + gate cospec calls
 ```
 
 ```txt [OpenCode]
-.opencode/commands/cospec-{same six}.md   # full workflow bodies
-.opencode/skills/cospec-{same six}/SKILL.md
+.opencode/commands/cospec-{same eleven}.md   # full workflow bodies
+.opencode/skills/cospec-{same eleven}/SKILL.md
 ```
 
 :::
@@ -83,12 +87,18 @@ it:
 3. **OpenCode** — after reloading, `/cospec-propose` runs and drives the
    proposal loop even with `.claude/` absent, since OpenCode's bodies are full
    rather than pointers to a skill file.
+4. **`/cospec:verify`** — the dress-rehearsal command users specifically expect
+   coming from opsx exists in every harness's command/skill list; run it against
+   an in-flight change and confirm it walks the verification ledger and names
+   the two hard archive gates before handing off to `archive`.
 
 All enforcement lives in the `cospec` CLI itself, not in the harness layer, so a
 partially loaded skill can't bypass a gate — worst case, an agent has to be told
 to run the right command by hand. Codex's `cospec.rules` deliberately leaves
 `cospec archive` outside the pre-approved set, since it mutates
-`openspec/changes/` on disk.
+`openspec/changes/` on disk — `bulk-archive` and `onboard` call the same
+`cospec archive` command under the hood, so Codex prompts once per change
+archived, not just once per workflow invocation.
 
 ## Coexisting with OpenSpec's own files
 

@@ -49,18 +49,18 @@
 - [x] 4.1 Update `docs/harness-integration.md` — "Six" -> "Eleven", extend
       workflow list + file trees, add `/opsx:sync` <-> `/cospec:sync-specs`
       mapping note and `/opsx:update` out-of-scope note
-- [ ] 4.2 Update `apps/docs/guide/harness-setup.md` — "six" -> "eleven", extend
+- [x] 4.2 Update `apps/docs/guide/harness-setup.md` — "six" -> "eleven", extend
       command trees + smoke checks (including `/cospec:verify`)
-- [ ] 4.3 Update `docs/architecture.md` — bump the six-workflow enumeration to
+- [x] 4.3 Update `docs/architecture.md` — bump the six-workflow enumeration to
       eleven
-- [ ] 4.4 Update `apps/docs/guide/workflow.md` — add "Optional: verify before
+- [x] 4.4 Update `apps/docs/guide/workflow.md` — add "Optional: verify before
       archive" and "Entry-point variants" notes, linking to harness-setup rather
       than re-listing the inventory
-- [ ] 4.5 Confirm `apps/docs/reference/commands.md` needs no change (no CLI
+- [x] 4.5 Confirm `apps/docs/reference/commands.md` needs no change (no CLI
       subcommand added)
-- [ ] 4.6 Edit `.agents/shared.md` with the verify-dress-rehearsal +
+- [x] 4.6 Edit `.agents/shared.md` with the verify-dress-rehearsal +
       entry-variant line, then run `mise run agents:sync`
-- [ ] 4.7 Run `mise run agents:check` -> green; run `mise run docs:build` ->
+- [x] 4.7 Run `mise run agents:check` -> green; run `mise run docs:build` ->
       passes
 
 ## 5. Verification evidence

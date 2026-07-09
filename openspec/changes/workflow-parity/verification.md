@@ -12,4 +12,4 @@
 
 - [ ] 3.1 @runtime (agent) mise run generate && mise run generate:check -> zero drift
 - [ ] 3.2 @regression (agent) mise run check -> green (lint, format, typecheck, unit, contract, integration, release, drift, agents:check, cospec-validate-all, schema:validate)
-- [ ] 3.3 @manual (agent) mise run docs:build -> passes; git grep "six workflow" -> no stale hits; mise run agents:check -> green
+- [x] 3.3 @manual (agent) mise run docs:build -> passes; git grep "six workflow" -> no stale hits; mise run agents:check -> green -> `mise run docs:build` exited 0 (build complete); `git grep -in "six workflow"` matches only this ledger line itself (docs/harness-integration.md, docs/architecture.md, apps/docs/guide/harness-setup.md all now say "eleven"); `mise run agents:check` -> "All shared blocks are in sync."
