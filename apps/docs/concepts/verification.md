@@ -75,15 +75,15 @@ rule IDs behind every check above (`verification/layer-unknown`,
 
 ## How archive gates on it
 
-`cospec archive` hard-gates on two verification rules, and neither accepts
-`--force`:
+`cospec archive` hard-gates on this ledger via `archive/verification-incomplete`,
+with no `--force`: whenever `verification` is required for the change's type,
+**every row** — not only rows in `[critical]` groups — must resolve to `[x]`
+with a recorded result, or `[~] defer: <reason>`. A single bare `[ ]` row
+blocks the archive outright.
 
-- `archive/verification-incomplete` — every `[critical]` group must have
-  recorded evidence before the change can move.
-- `archive/scenario-preservation` — the ledger's behaviors must still map to
-  what shipped.
-
-An unfinished row blocks the archive outright. See
-[/concepts/apply-and-archive](/concepts/apply-and-archive) for the full gate
-mechanics, including how `verification` fits into `apply.requires` and what
-each exit code means.
+`archive/scenario-preservation` is a separate gate and does not read this
+ledger at all — it compares a specs-bearing change's delta scenarios against
+the living spec's scenario counts. See
+[/concepts/apply-and-archive](/concepts/apply-and-archive), the canonical
+owner of both gates' mechanics, for the full detail — including how
+`verification` fits into `apply.requires` and what each exit code means.
