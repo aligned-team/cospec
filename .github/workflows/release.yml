@@ -288,22 +288,28 @@ jobs:
           # NUL-delimited paths (safe for spaces/renames); each file's
           # contents are base64-encoded to a temp file and read back via
           # --rawfile so the blob never sits on jq's argv (avoids ARG_MAX
-          # as bun.lock grows).
-          ADDITIONS=$(
-            git diff --name-only -z | while IFS= read -r -d '' f; do
-              ENC=$(mktemp)
-              base64 -w0 "$f" > "${ENC}"
-              jq -n --arg path "$f" --rawfile contents "${ENC}" \
-                '{path: $path, contents: $contents}'
-              rm -f "${ENC}"
-            done | jq -s '.'
-          )
+          # as bun.lock grows). The aggregated additions array is ALSO kept
+          # off argv end-to-end: it is written straight to a file
+          # (additions.json) and re-read via --slurpfile below, never passed
+          # as a --argjson string — that was the actual ARG_MAX trigger (run
+          # 29012730195): bun.lock's base64 blob made the aggregated JSON
+          # itself too large for exec's argv, even though each individual
+          # file already avoided argv via --rawfile.
+          ADDITIONS_FILE=$(mktemp)
+          git diff --name-only -z | while IFS= read -r -d '' f; do
+            ENC=$(mktemp)
+            base64 -w0 "$f" > "${ENC}"
+            jq -n --arg path "$f" --rawfile contents "${ENC}" \
+              '{path: $path, contents: $contents}'
+            rm -f "${ENC}"
+          done | jq -s '.' > "${ADDITIONS_FILE}"
 
-          PAYLOAD=$(jq -n \
+          PAYLOAD_FILE=$(mktemp)
+          jq -n \
             --arg repo "${{ github.repository }}" \
             --arg headOid "${HEAD_SHA}" \
             --arg headline "chore(release): ${TAG}" \
-            --argjson additions "${ADDITIONS}" \
+            --slurpfile additions "${ADDITIONS_FILE}" \
             '{
               query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
               variables: {
@@ -311,13 +317,16 @@ jobs:
                   branch: { repositoryNameWithOwner: $repo, branchName: "main" },
                   message: { headline: $headline },
                   expectedHeadOid: $headOid,
-                  fileChanges: { additions: $additions }
+                  fileChanges: { additions: $additions[0] }
                 }
               }
-            }'
-          )
+            }' > "${PAYLOAD_FILE}"
+          rm -f "${ADDITIONS_FILE}"
 
-          RESPONSE=$(echo "${PAYLOAD}" | gh api graphql --input -)
+          # Piped from a file (not a shell variable) so the giant payload
+          # never round-trips through argv or an `echo` of a huge var either.
+          RESPONSE=$(gh api graphql --input "${PAYLOAD_FILE}")
+          rm -f "${PAYLOAD_FILE}"
           echo "${RESPONSE}" | jq -e '.errors' >/dev/null 2>&1 && {
             echo "::error::createCommitOnBranch failed: $(echo "${RESPONSE}" | jq -c '.errors')" >&2
             exit 1
