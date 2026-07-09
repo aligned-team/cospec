@@ -33,11 +33,16 @@ import typeStyle from './types/style.yaml' with { type: 'file' }
 import typeTest from './types/test.yaml' with { type: 'file' }
 import workflowApply from './workflows/apply.md' with { type: 'file' }
 import workflowArchive from './workflows/archive.md' with { type: 'file' }
+import workflowBulkArchive from './workflows/bulk-archive.md' with { type: 'file' }
 import workflowContinue from './workflows/continue.md' with { type: 'file' }
 import workflowExplore from './workflows/explore.md' with { type: 'file' }
+import workflowFf from './workflows/ff.md' with { type: 'file' }
 import workflowHarness from './workflows/harness.yaml' with { type: 'file' }
+import workflowNew from './workflows/new.md' with { type: 'file' }
+import workflowOnboard from './workflows/onboard.md' with { type: 'file' }
 import workflowPropose from './workflows/propose.md' with { type: 'file' }
 import workflowSyncSpecs from './workflows/sync-specs.md' with { type: 'file' }
+import workflowVerify from './workflows/verify.md' with { type: 'file' }
 
 /** Canon-relative path -> readable file path (on-disk in dev, $bunfs compiled). */
 const CANON_FILES: Record<string, string> = {
@@ -64,11 +69,16 @@ const CANON_FILES: Record<string, string> = {
   'types/test.yaml': typeTest,
   'workflows/apply.md': workflowApply,
   'workflows/archive.md': workflowArchive,
+  'workflows/bulk-archive.md': workflowBulkArchive,
   'workflows/continue.md': workflowContinue,
   'workflows/explore.md': workflowExplore,
+  'workflows/ff.md': workflowFf,
   'workflows/harness.yaml': workflowHarness,
+  'workflows/new.md': workflowNew,
+  'workflows/onboard.md': workflowOnboard,
   'workflows/propose.md': workflowPropose,
   'workflows/sync-specs.md': workflowSyncSpecs,
+  'workflows/verify.md': workflowVerify,
 }
 
 /** Resolve a canon-relative path to its embedded/readable file path. */
