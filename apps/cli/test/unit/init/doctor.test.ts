@@ -105,4 +105,19 @@ describe('cospec doctor (DESIGN §2.3)', () => {
     const { findings } = await doctorJson(dir)
     expect(findings.some((f) => f.check === 'stale-sidecar')).toBe(true)
   })
+
+  test('a change on a forked (legacy) schema resolves as change-schema INFO, not WARNING/ERROR', async () => {
+    seed(dir)
+    mkdirSync(join(dir, 'openspec/schemas/my-fork'), { recursive: true })
+    writeFileSync(join(dir, 'openspec/schemas/my-fork/schema.yaml'), 'name: my-fork\nversion: 1\n')
+    mkdirSync(join(dir, 'openspec/changes/forked-change'), { recursive: true })
+    writeFileSync(join(dir, 'openspec/changes/forked-change/.openspec.yaml'), 'schema: my-fork\n')
+    const { findings } = await doctorJson(dir)
+    const changeSchema = (
+      findings as unknown as { level: string; check: string; message: string }[]
+    ).filter((f) => f.check === 'change-schema')
+    expect(changeSchema).toHaveLength(1)
+    expect(changeSchema[0]?.level).toBe('INFO')
+    expect(changeSchema[0]?.message).toMatch(/legacy schema 'my-fork'/)
+  })
 })

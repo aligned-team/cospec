@@ -317,7 +317,7 @@ function checkChangeSchemas(cwd: string, findings: Finding[]): void {
         level: 'WARNING',
         check: 'change-schema',
         message: `change '${change.id}' uses schema '${change.schema}', which resolves nowhere`,
-        remedy: 'retype the change with `cospec new <type> <slug>` or fork the schema',
+        remedy: 'retype the change with `cospec new <type> <slug>` or `cospec schema fork`',
       })
     } else if (resolution.kind === 'legacy') {
       findings.push({

@@ -4,7 +4,7 @@
 // the 11 canon-managed schemas are on disk to inspect.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { cleanupAll, cospec, mkTempRepo } from '../fixtures/support.ts'
@@ -87,21 +87,41 @@ describe('cospec schema validate', () => {
   })
 })
 
-describe('cospec schema fork/init — canon-managed guidance, no side effects', () => {
-  test('fork prints not-supported guidance, exits 1, and touches no schema on disk', async () => {
-    const before = existsSync(join(root, 'openspec/schemas/forked-schema'))
-    expect(before).toBe(false)
+describe('cospec schema fork/init — legacy lane, project-local schemas', () => {
+  test('fork creates a project schema dir + schema.yaml on disk', async () => {
+    const dest = join(root, 'openspec/schemas/forked-schema')
+    expect(existsSync(dest)).toBe(false)
     const res = await cospec(['schema', 'fork', 'feat', 'forked-schema'], { cwd: root })
-    expect(res.exitCode).toBe(1)
-    expect(res.stderr).toMatch(/canon-managed/)
-    expect(existsSync(join(root, 'openspec/schemas/forked-schema'))).toBe(false)
+    expect(res.exitCode).toBe(0)
+    expect(existsSync(join(dest, 'schema.yaml'))).toBe(true)
   })
 
-  test('init prints not-supported guidance, exits 1, and touches no schema on disk', async () => {
-    const res = await cospec(['schema', 'init', 'new-schema'], { cwd: root })
+  test('init creates a project schema dir + schema.yaml on disk', async () => {
+    const dest = join(root, 'openspec/schemas/new-schema')
+    const res = await cospec(
+      ['schema', 'init', 'new-schema', '--description', 'a custom workflow'],
+      { cwd: root },
+    )
+    expect(res.exitCode).toBe(0)
+    expect(existsSync(join(dest, 'schema.yaml'))).toBe(true)
+  })
+
+  test('init refuses a reserved canon name before touching disk', async () => {
+    const canonFeatSchema = join(root, 'openspec/schemas/feat/schema.yaml')
+    const before = readFileSync(canonFeatSchema, 'utf8')
+    const res = await cospec(['schema', 'init', 'feat'], { cwd: root })
     expect(res.exitCode).toBe(1)
-    expect(res.stderr).toMatch(/canon-managed/)
-    expect(existsSync(join(root, 'openspec/schemas/new-schema'))).toBe(false)
+    expect(res.stderr).toMatch(/canon cospec types/)
+    expect(readFileSync(canonFeatSchema, 'utf8')).toBe(before)
+  })
+
+  test('fork refuses an explicit reserved-name destination before touching disk', async () => {
+    const canonFeatSchema = join(root, 'openspec/schemas/feat/schema.yaml')
+    const before = readFileSync(canonFeatSchema, 'utf8')
+    const res = await cospec(['schema', 'fork', 'chore', 'feat'], { cwd: root })
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toMatch(/canon cospec types/)
+    expect(readFileSync(canonFeatSchema, 'utf8')).toBe(before)
   })
 
   test('missing subcommand fails without calling the wrapped binary', async () => {

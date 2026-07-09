@@ -115,6 +115,32 @@ describe('generate engine (DESIGN §6.5)', () => {
     expect(r?.outcome).toBe('removed')
     expect(existsSync(abs)).toBe(false)
   })
+
+  test('a forked/custom schema dir (never in the manifest) is untouched by generate — never tracked or flagged', () => {
+    generate(dir, { harnesses: ['claude'] })
+    // Simulate `cospec schema fork feat my-fork`: a project-local schema dir
+    // that the canon never emits and the manifest never recorded.
+    const rel = 'openspec/schemas/my-fork/schema.yaml'
+    const abs = join(dir, rel)
+    mkdirSync(join(dir, 'openspec/schemas/my-fork'), { recursive: true })
+    const content = 'name: my-fork\nversion: 1\n'
+    writeFileSync(abs, content)
+
+    const { results, manifest } = generate(dir, { harnesses: ['claude'] })
+    // Never appears in the result set — the drift engine only iterates canon
+    // paths (11 schemas) plus whatever the previous manifest tracked.
+    expect(results.some((r) => r.path === rel)).toBe(false)
+    // Never absorbed into the manifest either.
+    expect(manifest.files[rel]).toBeUndefined()
+    // Untouched on disk — byte-identical to what the fork wrote.
+    expect(readFileSync(abs, 'utf8')).toBe(content)
+
+    // A second run (== `generate:check`'s dry-run) reports the same: no drift
+    // for the fork, and every canon path still unchanged.
+    const { results: checkResults } = generate(dir, { harnesses: ['claude'], dryRun: true })
+    expect(checkResults.some((r) => r.path === rel)).toBe(false)
+    expect(checkResults.filter((r) => r.outcome !== 'unchanged')).toEqual([])
+  })
 })
 
 describe('detectHarnesses', () => {

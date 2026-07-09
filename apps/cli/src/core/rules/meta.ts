@@ -122,7 +122,7 @@ export function schemaClassificationIssues(schema: SchemaInfo): Issue[] {
         rule: 'meta/schema-unknown',
         path: '.openspec.yaml',
         message: `schema '${schema.name}' is not a cospec type and resolves nowhere`,
-        hint: 'use one of the 11 cospec types, or `openspec schema fork` for a custom schema',
+        hint: 'use one of the 11 cospec types, or `cospec schema fork` for a custom schema',
       },
     ]
   return [
