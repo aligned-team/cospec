@@ -1,0 +1,219 @@
+/**
+ * aligned.team brand theme for the cospec docs.
+ *
+ * Palette / type source: apps/web/uno.config.ts in the dot-team repo (see the
+ * docs-site change's brand research). Dark mode is the primary aligned.team
+ * surface (charcoal + alabaster); light mode is a derived-but-real second
+ * theme (alabaster/ivory + charcoal text) since VitePress requires both.
+ */
+
+/* ---------------------------------------------------------------------- */
+/* Fonts                                                                   */
+/* ---------------------------------------------------------------------- */
+
+@font-face {
+  font-family: 'ABC Arizona Flare';
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+  src:
+    local('ABC Arizona Flare Thin'),
+    local('ABCArizonaFlare-Thin'),
+    url('/fonts/ABCArizonaFlare-Thin.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Averta PE';
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src:
+    local('Averta PE Regular'),
+    local('AvertaPE-Regular'),
+    url('/fonts/AvertaPE-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Averta PE';
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+  src:
+    local('Averta PE Medium'),
+    local('AvertaPE-Medium'),
+    url('/fonts/AvertaPE-Medium.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Ellograph CF';
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src:
+    local('Ellograph CF Regular'),
+    local('EllographCF-Regular'),
+    url('/fonts/EllographCF-Regular.otf') format('opentype');
+}
+
+:root {
+  --aligned-font-display: 'ABC Arizona Flare', ui-serif, Georgia, serif;
+  --aligned-font-body: 'Averta PE', ui-sans-serif, system-ui, sans-serif;
+  --aligned-font-ui: 'Ellograph CF', ui-monospace, SFMono-Regular, monospace;
+
+  /* Palette (see apps/web/uno.config.ts) */
+  --aligned-alabaster: #f1f0ed;
+  --aligned-ivory: #faf9f7;
+  --aligned-charcoal: #232017;
+  --aligned-charcoal-light: #39362e;
+  --aligned-charcoal-lighter: #4b4840;
+  --aligned-pewter: #a9a599;
+  --aligned-slate: #64625b;
+  --aligned-mauve: #e1dcd5;
+  --aligned-ember: #f3682b;
+  --aligned-flare: #f8fea8;
+
+  --vp-font-family-base: var(--aligned-font-body);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Color scheme — light (default)                                         */
+/* ---------------------------------------------------------------------- */
+
+:root {
+  --vp-c-bg: var(--aligned-alabaster);
+  --vp-c-bg-alt: var(--aligned-ivory);
+  --vp-c-bg-elv: var(--aligned-ivory);
+  --vp-c-bg-soft: var(--aligned-mauve);
+
+  --vp-c-text-1: var(--aligned-charcoal);
+  --vp-c-text-2: var(--aligned-slate);
+  --vp-c-text-3: var(--aligned-pewter);
+
+  --vp-c-border: var(--aligned-mauve);
+  --vp-c-divider: var(--aligned-mauve);
+  --vp-c-gutter: var(--aligned-mauve);
+
+  --vp-c-brand-1: var(--aligned-ember);
+  --vp-c-brand-2: #d9581f;
+  --vp-c-brand-3: #c04d1a;
+  --vp-c-brand-soft: rgba(243, 104, 43, 0.14);
+
+  --vp-c-default-1: var(--aligned-mauve);
+  --vp-c-default-2: var(--aligned-mauve);
+  --vp-c-default-3: var(--aligned-mauve);
+  --vp-c-default-soft: rgba(169, 165, 153, 0.14);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Color scheme — dark                                                    */
+/* ---------------------------------------------------------------------- */
+
+.dark {
+  --vp-c-bg: var(--aligned-charcoal);
+  --vp-c-bg-alt: var(--aligned-charcoal-light);
+  --vp-c-bg-elv: var(--aligned-charcoal-light);
+  --vp-c-bg-soft: var(--aligned-charcoal-lighter);
+
+  --vp-c-text-1: var(--aligned-alabaster);
+  --vp-c-text-2: var(--aligned-pewter);
+  --vp-c-text-3: var(--aligned-slate);
+
+  --vp-c-border: var(--aligned-charcoal-lighter);
+  --vp-c-divider: var(--aligned-charcoal-lighter);
+  --vp-c-gutter: var(--aligned-charcoal);
+
+  --vp-c-brand-1: var(--aligned-ember);
+  --vp-c-brand-2: #f8823f;
+  --vp-c-brand-3: #fa9a5f;
+  --vp-c-brand-soft: rgba(243, 104, 43, 0.18);
+
+  --vp-c-default-1: var(--aligned-charcoal-lighter);
+  --vp-c-default-2: var(--aligned-charcoal-lighter);
+  --vp-c-default-3: var(--aligned-charcoal-light);
+  --vp-c-default-soft: rgba(169, 165, 153, 0.14);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Brand accent — the aligned "sunset" gradient (ember -> flare)          */
+/* ---------------------------------------------------------------------- */
+
+/* Light mode: the ember -> flare gradient reads as almost-invisible on the
+   alabaster background (flare #f8fea8 has near-zero contrast against
+   #f1f0ed). Use an ember -> charcoal gradient instead so the hero name stays
+   on-brand (ember) while landing real contrast against alabaster. */
+:root {
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(
+    120deg,
+    var(--aligned-ember) 30%,
+    var(--aligned-charcoal) 70%
+  );
+
+  --vp-c-brand-1-alpha: var(--vp-c-brand-1);
+}
+
+/* Dark mode keeps the original ember -> flare "sunset" gradient — it has
+   plenty of contrast against the charcoal background. */
+.dark {
+  --vp-home-hero-name-background: linear-gradient(
+    120deg,
+    var(--aligned-ember) 30%,
+    var(--aligned-flare) 70%
+  );
+}
+
+/* ---------------------------------------------------------------------- */
+/* Typography                                                             */
+/* ---------------------------------------------------------------------- */
+
+/* Hero + top-level doc heading: the huge, ultra-light display treatment.
+   h2/h3 stay in Averta so long-form prose remains legible. */
+.VPHero .name,
+.VPHero .text,
+.vp-doc :is(h1) {
+  font-family: var(--aligned-font-display);
+  font-weight: 200;
+  letter-spacing: -0.02em;
+}
+
+.vp-doc :is(h2, h3, h4) {
+  font-family: var(--aligned-font-body);
+  font-weight: 500;
+  letter-spacing: normal;
+}
+
+/* Small nav / sidebar labels use the "UI" face with wide tracking, matching
+   aligned.team's small-detail type role. */
+.VPNavBarTitle .title,
+.VPSidebarItem .text,
+.VPNavBarMenuGroup .title,
+.VPNavBarMenuLink {
+  font-family: var(--aligned-font-ui);
+  letter-spacing: 0.04em;
+}
+
+.VPSidebarItem.level-0 > .item > .text {
+  text-transform: uppercase;
+  font-size: 0.8em;
+  letter-spacing: 0.08em;
+  color: var(--vp-c-text-2);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Shape — pills for buttons, matching aligned.team's rounded-full motif   */
+/* ---------------------------------------------------------------------- */
+
+.VPButton {
+  border-radius: 999px;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Logo — the wordmark SVG ships with an ivory (#faf9f7) fill designed for
+   a dark canvas. Invert it in light mode so it stays legible on the
+   alabaster background; leave it untouched in dark mode. */
+/* ---------------------------------------------------------------------- */
+
+:root:not(.dark) .VPNavBarTitle .logo,
+:root:not(.dark) .VPSidebar .logo {
+  filter: invert(1) brightness(0.15);
+}

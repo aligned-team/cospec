@@ -26,6 +26,7 @@ apps/cli/npm/*/bin/
 
 # Cache
 .cache/
+**/.vitepress/cache/
 
 # Test / coverage
 coverage/

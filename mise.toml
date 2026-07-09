@@ -69,6 +69,18 @@ description = "Build the cospec single-file executable (local convenience)"
 run = "mise run //apps/cli:build"
 
 # ───────────────────────────────────────────────
+# Docs site (VitePress, apps/docs)
+# ───────────────────────────────────────────────
+
+[tasks."docs:dev"]
+description = "Run the docs site dev server (VitePress)"
+run = "bun run --filter @aligned-team/cospec-docs docs:dev"
+
+[tasks."docs:build"]
+description = "Build the docs site for production (VitePress)"
+run = "bun run --filter @aligned-team/cospec-docs docs:build"
+
+# ───────────────────────────────────────────────
 # Lint / format
 # ───────────────────────────────────────────────
 
