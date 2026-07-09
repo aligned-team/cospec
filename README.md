@@ -23,6 +23,13 @@ install step. It embeds the pinned OpenSpec CLI as a single-file bundle and runs
 it with its own bun runtime, so every wrapped command (`new`, `validate`,
 `apply`, `archive`, …) works out of the box.
 
+> mise's github backend applies a default release-age cooldown
+> (`minimum_release_age`) that hides very recent releases from "latest"
+> resolution. If you're testing a release cut in the last day or so and it
+> doesn't show up, pin the exact version instead:
+> `mise use github:aligned-team/cospec@0.4.0` (a full `major.minor.patch`, not
+> `@0.4`) — exact pins bypass the cooldown.
+
 ### Package managers
 
 Works with Node, Deno, and Bun — the launcher execs the prebuilt binary for your
