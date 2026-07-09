@@ -67,10 +67,12 @@ them.
 
 cospec is also **store-aware**: the same typed workflow — schemas, the gate, the
 verified archive, the blocking-changes ledger — runs identically against a
-registered OpenSpec store as it does against the local repo. Store lifecycle
-itself stays OpenSpec's job; cospec only adds `--store <id>` to the commands
-that touch a change. See [Stores](/concepts/stores) for the mechanics and the
-full split of what each CLI owns.
+registered OpenSpec store as it does against the local repo, via a `--store`
+flag. Store lifecycle itself is now a first-class cospec command too —
+`cospec store setup|register|unregister|remove|list|doctor`, plus
+`cospec context` and `cospec workset` — each a disciplined wrap or passthrough
+rather than a bare `openspec` call. See [Stores](/concepts/stores) for the
+mechanics and the full split of what each CLI owns.
 
 ## Three failure modes cospec defends against
 

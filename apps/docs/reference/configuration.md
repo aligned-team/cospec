@@ -62,25 +62,72 @@ rules per type, that's what schema forking (tier 3) is for. :::
 For changes bigger than config can express — a wholly different artifact set, or
 type-specific rules — fork a schema:
 
-```
-openspec schema fork <type> <custom-name>
-```
-
-then point individual changes at it directly through the wrapped binary:
-
-```
-openspec new change <name> --schema <custom-name>
+```sh
+cospec schema fork <type> [name]      # name defaults to <type>-custom
+cospec schema init <name>             # a schema with no cospec-type ancestor
 ```
 
-cospec has no flag for this — schema forking is entirely OpenSpec's surface.
+then create a change against it:
 
-Forked schemas are **legacy** as far as cospec is concerned: cospec runs only
-structural checks against them, delegates real validation to OpenSpec, and
-`cospec doctor` notes the reduced guarantees. cospec never generates,
-regenerates, or otherwise manages a forked schema — it's entirely yours from the
-moment you fork it. See the
-[type and artifact matrix](/concepts/types-and-artifacts) for what you're
-diverging from.
+```sh
+cospec new <name> <slug>
+```
+
+`cospec schema fork`/`init` are disciplined passthroughs to
+`openspec schema fork`/`init` — cospec adds exactly one guard on top: it refuses
+(exit 1, before ever spawning the wrapped binary) a destination name that
+collides with one of the eleven cospec types, since that would overwrite a
+canon-managed `schema.yaml` every other command reads. Any other destination
+name forks normally. `cospec new <name> <slug>` recognizes a resolved
+project-local schema the same way — it delegates to OpenSpec, skips the
+cospec-only `schemaVersion` stamp and typed artifact-plan output, and prints a
+"legacy schema — reduced cospec guarantees" note; a name that resolves to
+neither a cospec type nor a project-local schema still gets today's unknown-type
+error.
+
+::: warning `config.yaml` can't reach what a fork can `context`/`rules` are
+additive prose injected into an instruction — they cannot override which
+sections a template requires or replace an instruction's structure outright. If
+you need a genuinely different artifact set or template body, that's what
+forking is for; config alone can't get you there. :::
+
+Once a fork exists, cospec's own read-only inspection commands work on it the
+same as on any of the eleven built-in schemas:
+
+- **`cospec schemas`** lists every resolvable schema — the eleven cospec types
+  plus your fork — with its artifact chain.
+- **`cospec schema which <change>`** reports which schema a change resolves to.
+- **`cospec schema validate <name>`** validates a schema's own structure,
+  including a forked one.
+- **`cospec templates [--schema <name>]`** shows the resolved per-artifact
+  template paths a schema composes to.
+
+Forked schemas are **legacy** as far as the change lifecycle is concerned:
+`cospec validate` runs only structural checks against a legacy change and
+delegates the rest to `openspec validate` (which validates the fork against its
+own artifact graph), `cospec apply` skips the cospec blocker gate for it, and
+`cospec doctor` notes the reduced guarantees. What cospec does **not** relax for
+a legacy change: `archive` still runs the tasks gate, the scenario-preservation
+gate, the filesystem-move verification, and blocker-ledger fan-out — only the
+verification-ledger gate is scoped out, since a legacy schema has no
+cospec-typed verification artifact to gate on. So a fork trades the eleven
+built-in schemas' mechanically-required artifacts for OpenSpec-delegated
+structural validation of its own graph, while keeping every schema-agnostic
+cospec hard gate at full strength. cospec never generates, regenerates, or
+otherwise manages a forked schema itself — it's entirely yours from the moment
+you fork it. See the [type and artifact matrix](/concepts/types-and-artifacts)
+for what you're diverging from.
+
+::: tip The eleven built-in types can't be weakened by a fork
+`cospec schema fork`/`init` refuse outright before touching disk if the
+destination collides with one of the eleven cospec types — that guard is the
+only thing standing between a fork and overwriting a canon-managed
+`schema.yaml`. If you bypass cospec and run the native
+`openspec schema fork`/`init` directly against a reserved name, cospec's drift
+check (`cospec doctor`, `cospec update --check`) still catches the clobbered
+file as a hand-edit the next time either runs — the same as any other file
+modified outside the managed-file protocol — but that's a reactive backstop, not
+a substitute for going through `cospec schema`. :::
 
 ## The managed-file protocol
 
