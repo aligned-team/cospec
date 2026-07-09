@@ -72,6 +72,13 @@
 #                   the tag + release and resumes publishing only the gaps + the
 #                   main package. main and the bump commit are left intact
 #                   (never force-pushed).
+#   7. deploy-docs — needs: [bump, publish], so it only runs once the GitHub
+#                   release and every npm package for this version are live.
+#                   Calls docs.yml (a `workflow_call` target) with
+#                   `ref: needs.bump.outputs.sha` so the deployed site is
+#                   built from the exact released commit, not whatever ref
+#                   this dispatch started from. Skipped automatically if
+#                   `publish` fails (cleanup runs instead).
 #
 # The git tag and apps/cli/package.json carry the SAME version: `set-version`
 # writes the tag's semver into the manifest. cog.toml stays compute-only (no
@@ -713,6 +720,23 @@ jobs:
             fi
           done
           publish_if_absent "${MAIN}"
+
+  # ── Deploy the docs site, synced to this release ────────────────────────────
+  # Runs only once the GitHub release AND every npm package are live (needs:
+  # publish), building from the exact bump commit (needs.bump.outputs.sha) so
+  # the deployed docs match the released CLI, not a moving `main`. This job's
+  # `permissions` are what docs.yml (the called workflow) actually receives —
+  # a reusable workflow does not inherit the caller's top-level permissions.
+  deploy-docs:
+    name: Deploy docs
+    needs: [bump, publish]
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/docs.yml
+    with:
+      ref: ${{ needs.bump.outputs.sha }}
 
   # ── On failure only: roll back, but ONLY if nothing went public ────────────
   #

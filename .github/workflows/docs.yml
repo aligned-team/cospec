@@ -4,6 +4,14 @@
 # apps/docs/.vitepress/dist to GitHub Pages via Actions (not the legacy
 # branch-based Pages source).
 #
+# Deploy trigger: release-synced, NOT push-to-main. This workflow is a
+# `workflow_call` target invoked by release.yml's `deploy-docs` job (needs:
+# [bump, publish]) once the CLI a given docs build describes is actually
+# live — the GitHub release published and all npm packages published — so
+# the site never gets ahead of what users can install. `workflow_dispatch`
+# remains as a manual escape hatch (e.g. re-deploying after a Pages config
+# change with no new release). There is deliberately no `push` trigger.
+#
 # ONE-TIME REPO SETTING (not managed by this workflow): in
 # Settings -> Pages, set "Build and deployment: Source" to "GitHub Actions"
 # and set the custom domain to `cospec.aligned.team`. The CNAME record for
@@ -15,16 +23,13 @@
 name: Deploy docs
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'apps/docs/**'
-      - '.github/workflows/docs.yml'
-      - 'mise.toml'
-      - 'package.json'
-      - 'bun.lock'
-      - 'bunfig.toml'
-      - '.github/actions/setup-mise/**'
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit SHA/ref to build docs from (defaults to the triggering ref)
+        type: string
+        required: false
+        default: ''
   workflow_dispatch:
 
 concurrency:
@@ -42,6 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          ref: ${{ inputs.ref || github.sha }}
           fetch-depth: 0 # VitePress lastUpdated needs full history
 
       - uses: ./.github/actions/setup-mise
