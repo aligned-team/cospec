@@ -119,12 +119,23 @@ through `cospec`:
    `archive/scenario-preservation` — no `--force`), delegates to
    `openspec archive`, verifies the move on disk, and fans out blocker sync.
    Schemas with no specs artifact (`ci`, `chore`, `docs`, …) correctly produce
-   no spec-sync deltas here. Run this as the final commit on the PR branch,
-   before merge — never post-merge. A PR must never merge leaving its change
-   unarchived in `openspec/changes/` on `main`.
+   no spec-sync deltas here. **Timing is non-negotiable** — see "Branch, PR, and
+   merge flow" below.
 
 In-flight v1 changes are grandfathered until `cospec migrate <slug>` stamps them
 to the current `schemaVersion`; `cospec doctor` lists changes still on v1.
+
+## Branch, PR, and merge flow
+
+- Never commit directly to `main`. Every change goes through a worktree branch
+  and a PR with green checks.
+- Branches rebase onto `main` with `--force-with-lease`; never merge commits.
+- `mise run cospec -- archive <slug>` is the **final commit on the PR branch,
+  before merge**. A PR must never merge leaving its change unarchived in
+  `openspec/changes/` on `main`. Archive commits belong inside the PR that
+  completes the change — never a standalone archive PR after the fact.
+- Recovery: if a change does land on `main` unarchived anyway, the very next
+  action is a follow-up PR whose first commit is the archive.
 
 ## Style rules (oxlint + oxfmt enforced)
 
