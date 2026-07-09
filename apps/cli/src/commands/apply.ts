@@ -27,8 +27,10 @@ import {
   openspecApplyInstructions,
   OpenspecCallError,
   type ApplyInstructionsJson,
+  type Root,
 } from '../core/openspec.ts'
 import { renderHuman, renderJson, type ItemReport } from '../core/report.ts'
+import { resolveRoot } from '../core/root.ts'
 import { surfaceUnmetConsequences } from '../core/rules/meta.ts'
 import {
   ARTIFACT_FILES,
@@ -78,9 +80,9 @@ export function closest(input: string, candidates: string[]): string | undefined
 }
 
 /** slug → archived date map (latest date per slug). */
-export function archiveMap(cwd: string): Map<string, string> {
+export function archiveMap(base: string): Map<string, string> {
   const map = new Map<string, string>()
-  for (const [slug, entry] of readArchiveIndex(cwd).bySlug) map.set(slug, entry.date)
+  for (const [slug, entry] of readArchiveIndex(base).bySlug) map.set(slug, entry.date)
   return map
 }
 
@@ -176,10 +178,10 @@ function printReport(report: ItemReport, ctx: CommandContext): void {
 }
 
 /** Legacy schema: no cospec gate — delegate to openspec and exit per its state. */
-async function applyLegacy(change: Change, ctx: CommandContext): Promise<number> {
+async function applyLegacy(change: Change, ctx: CommandContext, root: Root): Promise<number> {
   let instr: ApplyInstructionsJson
   try {
-    instr = await openspecApplyInstructions(ctx.cwd, change.id)
+    instr = await openspecApplyInstructions(root, change.id)
   } catch (err) {
     process.stderr.write(`cospec apply: ${(err as Error).message}\n`)
     return EXIT.failure
@@ -198,7 +200,9 @@ async function applyLegacy(change: Change, ctx: CommandContext): Promise<number>
 }
 
 export async function run(ctx: CommandContext): Promise<number> {
-  const { cwd, flags } = ctx
+  const { flags } = ctx
+  const root = await resolveRoot(ctx)
+  const base = root.base
   const allowSoft = ctx.args.includes('--allow-soft')
   const name = ctx.args.find((a) => !a.startsWith('-'))
 
@@ -207,29 +211,29 @@ export async function run(ctx: CommandContext): Promise<number> {
     return EXIT.failure
   }
 
-  if (!existsSync(openspecDir(cwd))) {
-    process.stderr.write(`cospec: no openspec/ directory at ${cwd} — run 'cospec init' first\n`)
+  if (!existsSync(openspecDir(base))) {
+    process.stderr.write(`cospec: no openspec/ directory at ${base} — run 'cospec init' first\n`)
     return EXIT.failure
   }
 
-  const change = resolveChange(cwd, name)
+  const change = resolveChange(base, name)
   if (change === undefined) {
     process.stderr.write(`cospec apply: unknown change '${name}'\n`)
     const suggestion = closest(
       name,
-      listChanges(cwd).map((c) => c.id),
+      listChanges(base).map((c) => c.id),
     )
     if (suggestion !== undefined) process.stderr.write(`Did you mean '${suggestion}'?\n`)
     return EXIT.failure
   }
 
   // Step 1: legacy schemas bypass the cospec gate entirely.
-  const resolution = resolveSchema(cwd, change.schema)
-  if (resolution.kind === 'legacy') return applyLegacy(change, ctx)
+  const resolution = resolveSchema(base, change.schema)
+  if (resolution.kind === 'legacy') return applyLegacy(change, ctx, root)
 
   // Step 2: fast validation. Errors block the gate outright.
-  const vctx = buildValidateContext(cwd)
-  const report = await validateChange(cwd, change, vctx, { strict: false, fast: true })
+  const vctx = buildValidateContext(base)
+  const report = await validateChange(root, change, vctx, { strict: false, fast: true })
   if (!report.valid) {
     printReport(report, ctx)
     return EXIT.failure
@@ -267,8 +271,8 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   // Step 4: blocker gate. Self-heal against the archive first (§5.1 step 4c).
   const blockersPath = join(change.dir, BLOCKERS_FILE)
-  const archived = archiveMap(cwd)
-  const active = new Set(listChanges(cwd).map((c) => c.id))
+  const archived = archiveMap(base)
+  const active = new Set(listChanges(base).map((c) => c.id))
   const original = readFileSync(blockersPath, 'utf8')
   const heal = syncBlockers(original, archived, active, { fix: true })
   if (heal.changed) atomicWrite(blockersPath, heal.output)
@@ -365,7 +369,7 @@ export async function run(ctx: CommandContext): Promise<number> {
   // Step 5: fetch the apply payload from openspec.
   let instr: ApplyInstructionsJson
   try {
-    instr = await openspecApplyInstructions(cwd, change.id)
+    instr = await openspecApplyInstructions(root, change.id)
   } catch (err) {
     const msg = err instanceof OpenspecCallError ? err.message : (err as Error).message
     process.stderr.write(`cospec apply: ${msg}\n`)

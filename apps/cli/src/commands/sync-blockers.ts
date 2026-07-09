@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import type { CommandContext } from '../cli.ts'
 import { syncBlockers, type SyncFinding } from '../core/blockers.ts'
 import { listChanges, readArchiveIndex, resolveChange } from '../core/change.ts'
+import { resolveRoot } from '../core/root.ts'
 
 const BLOCKERS_FILE = 'blocking-changes.md'
 
@@ -33,21 +34,23 @@ function hasClass(findings: SyncFinding[], classes: SyncFinding['class'][]): boo
   return findings.some((f) => classes.includes(f.class))
 }
 
-export function run(ctx: CommandContext): number {
-  const { cwd, flags } = ctx
+export async function run(ctx: CommandContext): Promise<number> {
+  const { flags } = ctx
+  const root = await resolveRoot(ctx)
+  const base = root.base
   const check = ctx.args.includes('--check')
   const changeArg = argValue(ctx.args, '--change')
 
-  const archive = readArchiveIndex(cwd)
+  const archive = readArchiveIndex(base)
   const archiveMap = new Map<string, string>()
   for (const [slug, entry] of archive.bySlug) archiveMap.set(slug, entry.date)
 
-  const active = listChanges(cwd)
+  const active = listChanges(base)
   const activeSet = new Set(active.map((c) => c.id))
 
   const targets =
     changeArg !== undefined
-      ? [resolveChange(cwd, changeArg)].filter((c): c is NonNullable<typeof c> => c !== undefined)
+      ? [resolveChange(base, changeArg)].filter((c): c is NonNullable<typeof c> => c !== undefined)
       : active
 
   const results: ChangeResult[] = []

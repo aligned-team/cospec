@@ -8,6 +8,8 @@ export interface GlobalFlags {
   noColor: boolean
   /** Absolute path the command should treat as the repo root. */
   cwd: string
+  /** Registered store id to operate against instead of the local repo, if any. */
+  store?: string
 }
 
 /** What every `src/commands/<name>.ts` module receives. */
@@ -97,6 +99,7 @@ const GLOBAL_OPTIONS = `Global options:
   --json         Machine-readable output
   --no-color     Disable ANSI color
   --cwd <path>   Run as if invoked from <path>
+  --store <id>   Operate against a registered OpenSpec store instead of the local repo
   -h, --help     Show this help`
 
 function helpText(): string {
@@ -170,6 +173,7 @@ export async function run(argv: string[]): Promise<number> {
   let command: string | undefined
   const rest: string[] = []
   let cwdRaw: string | undefined
+  let storeRaw: string | undefined
   let wantVersion = false
   let wantHelp = false
   let badOption: string | undefined
@@ -183,6 +187,8 @@ export async function run(argv: string[]): Promise<number> {
       else if (tok === '--help' || tok === '-h') wantHelp = true
       else if (tok === '--cwd') cwdRaw = argv[++i]
       else if (tok.startsWith('--cwd=')) cwdRaw = tok.slice('--cwd='.length)
+      else if (tok === '--store') storeRaw = argv[++i]
+      else if (tok.startsWith('--store=')) storeRaw = tok.slice('--store='.length)
       else if (tok.startsWith('-')) badOption ??= tok
       else command = tok
       continue
@@ -195,11 +201,14 @@ export async function run(argv: string[]): Promise<number> {
     else if (tok === '--help' || tok === '-h') wantHelp = true
     else if (tok === '--cwd') cwdRaw = argv[++i]
     else if (tok.startsWith('--cwd=')) cwdRaw = tok.slice('--cwd='.length)
+    else if (tok === '--store') storeRaw = argv[++i]
+    else if (tok.startsWith('--store=')) storeRaw = tok.slice('--store='.length)
     else rest.push(tok)
   }
 
   const cwd = cwdRaw !== undefined ? resolve(process.cwd(), cwdRaw) : process.cwd()
   flags.cwd = cwd
+  if (storeRaw !== undefined && storeRaw.length > 0) flags.store = storeRaw
   if (flags.noColor) process.env.NO_COLOR = '1'
 
   if (command === undefined) {

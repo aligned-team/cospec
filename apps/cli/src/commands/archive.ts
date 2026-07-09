@@ -24,6 +24,7 @@ import {
 import { findScenarioDrops, parseDeltaSpec, parseLivingSpec, type DeltaOp } from '../core/deltas.ts'
 import { spawnOpenspec } from '../core/openspec.ts'
 import { renderHuman, renderJson, type ItemReport } from '../core/report.ts'
+import { resolveRoot } from '../core/root.ts'
 import { enforcedApplyRequires, TYPE_ARTIFACTS, type CospecType } from '../core/rules/type-facts.ts'
 import { parseTasks } from '../core/tasks.ts'
 import { computeVerificationVerdict, parseVerification } from '../core/verification.ts'
@@ -114,7 +115,9 @@ function spotCheckMiss(op: DeltaOp, requirementNames: Set<string>): string | und
 }
 
 export async function run(ctx: CommandContext): Promise<number> {
-  const { cwd, flags } = ctx
+  const { flags } = ctx
+  const root = await resolveRoot(ctx)
+  const base = root.base
   const args = ctx.args
   const userSkipSpecs = args.includes('--skip-specs')
   const forceIncomplete = args.includes('--force-incomplete')
@@ -126,17 +129,17 @@ export async function run(ctx: CommandContext): Promise<number> {
   }
 
   // Step 1: resolve change + schema (legacy still archives; step 2 delegates).
-  const change = resolveChange(cwd, name)
+  const change = resolveChange(base, name)
   if (change === undefined) {
     process.stderr.write(`cospec archive: unknown change '${name}'\n`)
     const suggestion = closest(
       name,
-      listChanges(cwd).map((c) => c.id),
+      listChanges(base).map((c) => c.id),
     )
     if (suggestion !== undefined) process.stderr.write(`Did you mean '${suggestion}'?\n`)
     return EXIT.failure
   }
-  const resolution = resolveSchema(cwd, change.schema)
+  const resolution = resolveSchema(base, change.schema)
 
   // Step 6 (decided early — needed for validation scope + snapshot): skip specs
   // when the user asked, the schema declares no specs, or no delta files exist.
@@ -150,8 +153,8 @@ export async function run(ctx: CommandContext): Promise<number> {
   const skipSpecs = userSkipSpecs || !declaresSpecs || preOps.length === 0
 
   // Step 2: full validation (archive-precondition family unless skipping specs).
-  const vctx = buildValidateContext(cwd)
-  const report = await validateChange(cwd, change, vctx, { strict: false, fast: skipSpecs })
+  const vctx = buildValidateContext(base)
+  const report = await validateChange(root, change, vctx, { strict: false, fast: skipSpecs })
   if (!report.valid) {
     printReport(report, ctx)
     return EXIT.failure
@@ -215,8 +218,8 @@ export async function run(ctx: CommandContext): Promise<number> {
   if (existsSync(ownBlockersPath)) {
     const ownGate = computeGate(
       parseBlockers(readFileSync(ownBlockersPath, 'utf8')),
-      archiveMap(cwd),
-      new Set(listChanges(cwd).map((c) => c.id)),
+      archiveMap(base),
+      new Set(listChanges(base).map((c) => c.id)),
     )
     if (ownGate.hard.length > 0)
       process.stderr.write(
@@ -226,7 +229,7 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   // Step 5: collision pre-check for today's slot (openspec archives as YYYY-MM-DD-<name>).
   const today = new Date().toISOString().slice(0, 10)
-  if (existsSync(join(archiveDir(cwd), `${today}-${change.id}`))) {
+  if (existsSync(join(archiveDir(base), `${today}-${change.id}`))) {
     process.stderr.write(
       `cospec archive: archive slot '${today}-${change.id}' already exists — rename or remove it first.\n`,
     )
@@ -234,7 +237,7 @@ export async function run(ctx: CommandContext): Promise<number> {
   }
 
   // Step 7: snapshot.
-  const preArchiveDirs = new Set(basenames(archiveDir(cwd)))
+  const preArchiveDirs = new Set(basenames(archiveDir(base)))
 
   // Step 7b: scenario-preservation gate (DESIGN §3.5 step 2) — before delegating
   // to `openspec archive`, specs-bearing changes only. openspec 1.3.1 has no
@@ -244,7 +247,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     const livingSpecs = new Map(
       [...new Set(preOps.map((c) => c.capability))]
         .map((cap): [string, ReturnType<typeof parseLivingSpec>] | undefined => {
-          const p = join(openspecDir(cwd), 'specs', cap, 'spec.md')
+          const p = join(openspecDir(base), 'specs', cap, 'spec.md')
           return existsSync(p) ? [cap, parseLivingSpec(readFileSync(p, 'utf8'))] : undefined
         })
         .filter((e): e is [string, ReturnType<typeof parseLivingSpec>] => e !== undefined),
@@ -268,16 +271,16 @@ export async function run(ctx: CommandContext): Promise<number> {
   // Step 8: execute.
   const archiveArgs = ['archive', change.id, '-y']
   if (skipSpecs) archiveArgs.push('--skip-specs')
-  const res = await spawnOpenspec(archiveArgs, cwd)
+  const res = await spawnOpenspec([...archiveArgs, ...root.storeArgs], root.cwd)
 
   // Step 9: verify (date-agnostic — survives midnight rollover).
-  const newDirs = basenames(archiveDir(cwd)).filter((d) => !preArchiveDirs.has(d))
+  const newDirs = basenames(archiveDir(base)).filter((d) => !preArchiveDirs.has(d))
   const targetRe = new RegExp(`^\\d{4}-\\d{2}-\\d{2}-${escapeRegExp(change.id)}$`)
   const targets = newDirs.filter((d) => targetRe.test(d))
   const target = targets.length === 1 ? targets[0] : undefined
   const moved = !existsSync(change.dir)
   const targetHasYaml =
-    target !== undefined && existsSync(join(archiveDir(cwd), target, '.openspec.yaml'))
+    target !== undefined && existsSync(join(archiveDir(base), target, '.openspec.yaml'))
   const abortedOutput = ABORTED_RE.test(res.stdout) || CANCELLED_RE.test(res.stdout)
   const success = res.exitCode === 0 && !abortedOutput && moved && targetHasYaml
 
@@ -295,7 +298,7 @@ export async function run(ctx: CommandContext): Promise<number> {
   if (!skipSpecs && preOps.length > 0) {
     const misses: string[] = []
     for (const { capability, ops } of preOps) {
-      const livingPath = join(openspecDir(cwd), 'specs', capability, 'spec.md')
+      const livingPath = join(openspecDir(base), 'specs', capability, 'spec.md')
       const names = existsSync(livingPath)
         ? parseLivingSpec(readFileSync(livingPath, 'utf8')).requirementNames
         : new Set<string>()
@@ -313,8 +316,8 @@ export async function run(ctx: CommandContext): Promise<number> {
   }
 
   // Step 11: blocker fan-out across the remaining active changes.
-  const archivedAfter = archiveMap(cwd)
-  const remaining = listChanges(cwd)
+  const archivedAfter = archiveMap(base)
+  const remaining = listChanges(base)
   const activeAfter = new Set(remaining.map((c) => c.id))
   const checkedOff: string[] = []
   const nowUnblocked: string[] = []

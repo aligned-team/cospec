@@ -103,8 +103,12 @@ grandfathering, and a blocking-changes ledger with auto-sync.
 | `cospec archive <change>`        | validate, archive, verify the move, fan out blocker sync                                       |
 | `cospec sync-blockers`           | check off blocker entries whose target has shipped                                             |
 
-Global flags on every command: `--json`, `--no-color`, `--cwd <path>`. Full
-reference: [docs/validation.md](docs/validation.md) (rules) and
+Global flags on every command: `--json`, `--no-color`, `--cwd <path>`,
+`--store <id>`. `--store` runs the whole change lifecycle against a registered
+OpenSpec store (a standalone planning repo) instead of the local repo — one
+source of truth several code repos can plan against. See
+[docs/stores.md](docs/stores.md). Full reference:
+[docs/validation.md](docs/validation.md) (rules) and
 [docs/apply-archive.md](docs/apply-archive.md) (gate + archive algorithms).
 
 ---

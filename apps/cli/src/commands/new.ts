@@ -23,6 +23,7 @@ import {
   resolveChange,
 } from '../core/change.ts'
 import { OpenspecCallError, runOpenspec } from '../core/openspec.ts'
+import { resolveRoot } from '../core/root.ts'
 import { COSPEC_TYPES, getTypeInfo } from '../core/schema-compose.ts'
 import { closest } from './apply.ts'
 
@@ -93,13 +94,19 @@ function reportUnknownType(type: string): number {
 }
 
 export async function run(ctx: CommandContext): Promise<number> {
-  const { cwd, flags } = ctx
+  const { flags } = ctx
+  const root = await resolveRoot(ctx)
+  const base = root.base
 
   // Detect the missing openspec/ dir directly (as validate/update/doctor do) so a
   // common first-run mistake gets an actionable remedy rather than leaking the raw
   // wrapped-openspec spawn command + exit code from the delegation below.
-  if (!existsSync(openspecDir(cwd))) {
-    process.stderr.write(`cospec new: no openspec/ directory — run 'cospec init' first\n`)
+  if (!existsSync(openspecDir(base))) {
+    process.stderr.write(
+      root.store !== undefined
+        ? `cospec new: store '${root.store}' has no openspec/ directory — run 'cospec init --store ${root.store}' first\n`
+        : `cospec new: no openspec/ directory — run 'cospec init' first\n`,
+    )
     return EXIT.failure
   }
 
@@ -144,11 +151,11 @@ export async function run(ctx: CommandContext): Promise<number> {
   }
 
   // Collision: active change or archive-entry suffix (openspec only checks active).
-  if (resolveChange(cwd, slug) !== undefined) {
+  if (resolveChange(base, slug) !== undefined) {
     process.stderr.write(`cospec new: change '${slug}' already exists in openspec/changes/\n`)
     return EXIT.failure
   }
-  if (readArchiveIndex(cwd).bySlug.has(slug)) {
+  if (readArchiveIndex(base).bySlug.has(slug)) {
     process.stderr.write(
       `cospec new: '${slug}' collides with an archived change suffix — choose a different slug\n`,
     )
@@ -159,12 +166,12 @@ export async function run(ctx: CommandContext): Promise<number> {
   const args = ['new', 'change', slug, '--schema', type]
   if (derivedDescription !== undefined) args.push('--description', derivedDescription)
   try {
-    await runOpenspec(args, {
-      cwd,
+    await runOpenspec([...args, ...root.storeArgs], {
+      cwd: root.cwd,
       expect: {
         exitCodes: [0],
         postCondition: () => {
-          const yaml = readOpenspecYaml(`${changesDir(cwd)}/${slug}`)
+          const yaml = readOpenspecYaml(`${changesDir(base)}/${slug}`)
           if (yaml === undefined)
             return `openspec new did not create a valid .openspec.yaml for '${slug}'`
           if (yaml.schema !== type)
@@ -178,7 +185,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     return EXIT.failure
   }
 
-  stampSchemaVersion(`${changesDir(cwd)}/${slug}`)
+  stampSchemaVersion(`${changesDir(base)}/${slug}`)
 
   const info = getTypeInfo(type)!
   if (flags.json) {
