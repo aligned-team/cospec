@@ -28,31 +28,59 @@ cospec status --store platform                        # list/status against the 
 
 ## What cospec owns vs. what OpenSpec owns
 
-cospec wraps OpenSpec; it does not reimplement store management. The split:
+cospec wraps OpenSpec; it does not reimplement the store registry or its
+resolution semantics. But every store-management, cross-repo-context, and
+workset surface is a **first-class cospec command** — you never have to drop out
+to bare `openspec` for an everyday operation:
 
-- **OpenSpec** owns the store lifecycle and read-only cross-repo context —
-  `openspec store setup|register|ls`, `openspec context`, `openspec workset`,
-  and the `references:` config key (upstream specs surfaced into a code repo's
-  instructions). These are local/read-only and carry no cospec gate, so run them
-  with the native `openspec` CLI.
-- **cospec** owns everything that touches a change: `new`, `validate`, `apply`,
-  `archive`, `status`, `list`, `instructions`, `sync-blockers`, `migrate` — each
-  with `--store`.
+- **cospec** owns everything a user runs:
+  - the change lifecycle — `new`, `validate`, `apply`, `archive`, `status`,
+    `list`, `instructions`, `sync-blockers`, `migrate` — each with `--store`;
+  - the store lifecycle — `cospec store setup|register|unregister|remove|list`
+    (`ls`)`|doctor`, which verifies each mutation on disk rather than trusting
+    the wrapped exit code, and, on a successful `setup`/`register`, **auto-runs
+    `cospec init <root> --harness none`** so a new or newly-registered store
+    gets cospec's eleven typed schemas in the same command (opt out with
+    `--no-cospec-init`);
+  - the read-only cross-repo brief — `cospec context` (with `--json` and
+    `--code-workspace`/`--force`);
+  - personal working views — `cospec workset create|list|remove|open`.
+- **OpenSpec** still owns the underlying machine registry, the on-disk store
+  format, and the `references:` config key (upstream specs surfaced into a code
+  repo's instructions). cospec spawns the pinned binary for all of it, under the
+  same
+  [disciplined-passthrough](/reference/commands#read-only-and-personal-commands)
+  rigor as every other wrapped call; nothing about the registry format itself is
+  reimplemented.
+
+`store`, `context`, and `workset` carry no cospec gate — they're read-only or
+personal, not change-lifecycle steps — but they still get wrapped-call rigor
+(declared exit codes, a stdout deny-list, an observable post-condition) and,
+where the root is store-backed, the same `--store` threading as everything else.
 
 ## Setup
 
+Creating a store is a single command — `cospec store setup` registers the root
+**and** stamps it with cospec's typed schemas in one step:
+
 ```sh
-# 1. Create + register the store (OpenSpec).
-openspec store setup platform --path ./platform-store --remote git@github.com:acme/platform-store.git
+# Create + register the store, and give it cospec's typed schemas in one go.
+# (Auto-runs `cospec init <root> --harness none` on success — a store is
+# planning-only, so no harness. Pass --no-cospec-init to skip that step.)
+cospec store setup platform --path ./platform-store --remote git@github.com:acme/platform-store.git
 
-# 2. Give the store cospec's typed schemas (init by path — a store is an
-#    existing-openspec repo, so this only adds schemas; use --harness none
-#    since a store is planning-only).
-cospec init ./platform-store --harness none
-
-# 3. Work the store from anywhere by id.
+# Work the store from anywhere by id.
 cospec new feat some-epic --store platform
 ```
+
+To adopt an already-existing OpenSpec root instead of creating one,
+`cospec store register <path>` registers it and runs the same auto
+`cospec init`. `cospec store ls` lists the registered stores,
+`cospec store doctor [id]` reports per-store health (git facts, metadata, root
+completeness — folded automatically into plain `cospec doctor` too, see below),
+and `cospec store unregister`/`remove` inherit OpenSpec's confirmation contract
+(`unregister` forgets the registry entry and leaves files on disk; `remove` also
+deletes the folder).
 
 A code repo can also point at a store by default instead of passing `--store`
 every time, via its own `openspec/config.yaml`:
@@ -83,7 +111,7 @@ An unregistered `--store` id fails loudly rather than silently falling back to
 the local repo, so a typo can never write a change to the wrong place:
 
 ```
-cospec: unknown store 'bogus-id' — register it with 'openspec store register <path>' or check 'openspec store ls'. Registered stores: platform
+cospec: unknown store 'bogus-id' — register it with 'cospec store register <path>' or check 'cospec store ls'. Registered stores: platform
 ```
 
 ::: tip Not a gate result This is a usage/resolution error, not a blocked gate —
@@ -91,6 +119,37 @@ it exits `1`, the same code as any other unhandled failure, not the `2`
 `apply`/`archive` use for a blocked change. Don't script against it as if it
 were a gate outcome; see [Apply and archive](/concepts/apply-and-archive) for
 the codes that are. :::
+
+## Cross-repo context and worksets
+
+Two more store-domain surfaces are first-class `cospec` commands, not gated
+change-lifecycle steps:
+
+- **`cospec context [--json] [--code-workspace <path>] [--force]`** — a
+  read-only brief of the current working set across a repo and its `references:`
+  stores: which stores are in play, and what they contribute.
+  `--code-workspace <path>` additionally writes a multi-root VS Code workspace
+  file; cospec checks that the file actually landed on disk before reporting
+  success, rather than trusting the wrapped exit code alone.
+- **`cospec workset create|list|remove|open`** — personal, local working views
+  over a store or repo. `create`/`list`/`remove` behave exactly like their
+  `openspec` counterparts, relayed verbatim. `open` is different in kind: it
+  hands the terminal over to whatever editor or agent session the workset points
+  at — inherited stdio, the child's exact exit code, no `--json` (the wrapped
+  binary itself rejects `--json` on `open`). Worksets never take a `--store`
+  flag at all — they're local views, not store operations — so `cospec workset`
+  never threads `--store` the way every other command on this page does.
+
+## `cospec doctor` also checks store health
+
+Plain `cospec doctor` — no `--store` needed — automatically folds in OpenSpec's
+own relationship diagnostics whenever the operating root is store-backed or
+declares `references:`: root-relationship health from `openspec doctor`, and,
+for a store-backed root, the same git/metadata facts `cospec store doctor`
+reports, as `openspec-*` findings alongside cospec's own checks. This is
+additive and read-only — it never repairs anything, only surfaces what's already
+there. See the `doctor` row on [Commands](/reference/commands) for the full
+finding set.
 
 ## How it works
 

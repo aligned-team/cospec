@@ -5,10 +5,15 @@
 // harness files are not stale/mixed-version; slash/skill references in generated
 // bodies all resolve (the structural guard against openspec's dangling-ref
 // failure class); config.yaml parses with a known schema; no leftover opsx files
-// or stale .cospec-new sidecars; changes sit on known schemas; and the git hooks
-// are installed when the gate was scaffolded.
+// or stale .cospec-new sidecars; changes sit on known schemas; the git hooks
+// are installed when the gate was scaffolded; and, when the operating root is
+// store-backed or declares `references:`, a delegated `openspec doctor --json`
+// (and, for a store root, `openspec store doctor --json`) folds openspec's own
+// root-relationship/reference/store-health diagnostics in (read-only, never
+// repair — WI-8).
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import { parse as parseYaml } from 'yaml'
@@ -24,10 +29,15 @@ import {
 import { CURRENT_GENERATED_BY, readManifest, splitFrontmatter } from '../core/managed-files.ts'
 import {
   OPENSPEC_VERSION_RANGE,
+  OpenspecCallError,
   type OpenspecResolution,
+  type OpenspecStatusEntry,
+  passthroughOpenspec,
   resolveOpenspec,
   satisfiesOpenspecRange,
+  type Root,
 } from '../core/openspec.ts'
+import { resolveRoot } from '../core/root.ts'
 import { HARNESS_NAMES } from '../harness/render.ts'
 import { detectHarnesses, generate } from './update.ts'
 
@@ -307,7 +317,7 @@ function checkChangeSchemas(cwd: string, findings: Finding[]): void {
         level: 'WARNING',
         check: 'change-schema',
         message: `change '${change.id}' uses schema '${change.schema}', which resolves nowhere`,
-        remedy: 'retype the change with `cospec new <type> <slug>` or fork the schema',
+        remedy: 'retype the change with `cospec new <type> <slug>` or `cospec schema fork`',
       })
     } else if (resolution.kind === 'legacy') {
       findings.push({
@@ -347,11 +357,188 @@ function checkGateHooks(cwd: string, findings: Finding[]): void {
   }
 }
 
+// --- openspec relationship/store health (delegated, read-only — WI-8) ------
+
+const SEVERITY_LEVEL: Record<string, Level> = { error: 'ERROR', warning: 'WARNING', info: 'INFO' }
+
+function foldStatus(
+  prefix: string,
+  entries: OpenspecStatusEntry[] | undefined,
+  findings: Finding[],
+): void {
+  if (entries === undefined) return
+  for (const entry of entries) {
+    findings.push({
+      level: SEVERITY_LEVEL[entry.severity] ?? 'INFO',
+      check: `openspec-${prefix}-${entry.code}`,
+      message: entry.message,
+      remedy: entry.fix,
+    })
+  }
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
+/** True when `openspec/config.yaml` declares a non-empty `references:` list. */
+function hasReferencesConfig(cwd: string): boolean {
+  const path = join(openspecDir(cwd), 'config.yaml')
+  if (!existsSync(path)) return false
+  try {
+    const doc = parseYaml(readFileSync(path, 'utf8'))
+    if (doc === null || typeof doc !== 'object') return false
+    const refs = (doc as Record<string, unknown>).references
+    return Array.isArray(refs) && refs.length > 0
+  } catch {
+    // checkConfig already reports unparseable YAML
+    return false
+  }
+}
+
+/** Shape of the `root`/`store`/`references[]` sections of `openspec doctor --json`. */
+interface OpenspecDoctorJson {
+  root: { path?: string; source?: string; healthy?: boolean; status?: OpenspecStatusEntry[] } | null
+  store: { id?: string; status?: OpenspecStatusEntry[] } | null
+  references: { store_id?: string; status?: OpenspecStatusEntry[] }[]
+  status?: OpenspecStatusEntry[]
+}
+
+/** One entry of `openspec store doctor --json`'s `stores[]`. */
+interface OpenspecStoreDoctorEntry {
+  id: string
+  git?: {
+    is_repository?: boolean
+    has_commits?: boolean
+    has_uncommitted_changes?: boolean
+    has_remote?: boolean
+    origin_url?: string | null
+  }
+  status?: OpenspecStatusEntry[]
+}
+
+/**
+ * Delegate `openspec doctor --json` (root-relationship + reference health) and,
+ * for a store-backed root, `openspec store doctor --json` (store metadata + git
+ * facts) — folding both into cospec's findings. Never repairs anything; a
+ * failure to reach openspec surfaces as a WARNING, not a thrown error, since
+ * this is an additive health section, not a gate.
+ */
+async function checkOpenspecRelationship(
+  root: Root,
+  cwd: string,
+  findings: Finding[],
+): Promise<void> {
+  const storeBacked = root.store !== undefined
+  if (!storeBacked && !hasReferencesConfig(cwd)) return
+
+  try {
+    const result = await passthroughOpenspec(['doctor', '--json', ...root.storeArgs], {
+      cwd: root.cwd,
+      expect: { exitCodes: [0, 1] },
+    })
+    const parsed = JSON.parse(result.stdout) as OpenspecDoctorJson
+    foldStatus('root', parsed.root?.status, findings)
+    foldStatus('store', parsed.store?.status, findings)
+    for (const ref of parsed.references)
+      foldStatus(`reference-${ref.store_id ?? 'unknown'}`, ref.status, findings)
+    foldStatus('relationship', parsed.status, findings)
+    if (parsed.root !== null) {
+      findings.push({
+        level: 'INFO',
+        check: 'openspec-root',
+        message: `operating root is ${parsed.root?.source ?? 'unknown'}-sourced at ${
+          parsed.root?.path ?? root.base
+        } (${parsed.root?.healthy === true ? 'healthy' : 'unhealthy'} per openspec doctor)`,
+      })
+    }
+  } catch (err) {
+    findings.push({
+      level: 'WARNING',
+      check: 'openspec-doctor',
+      message: `could not read openspec root-relationship health: ${errorMessage(err)}`,
+      remedy:
+        err instanceof OpenspecCallError ? undefined : 'run `openspec doctor` directly to inspect',
+    })
+  }
+
+  if (!storeBacked) return
+  try {
+    const result = await passthroughOpenspec(['store', 'doctor', root.store!, '--json'], {
+      cwd: root.cwd,
+      expect: { exitCodes: [0, 1] },
+    })
+    const parsed = JSON.parse(result.stdout) as { stores?: OpenspecStoreDoctorEntry[] }
+    const entry = parsed.stores?.find((s) => s.id === root.store)
+    if (entry !== undefined) {
+      foldStatus(`store-${entry.id}`, entry.status, findings)
+      if (entry.git !== undefined) {
+        const git = entry.git
+        findings.push({
+          level: 'INFO',
+          check: 'store-git',
+          message:
+            `store '${entry.id}' git: ${git.is_repository === true ? 'repository' : 'no repository'}` +
+            `${git.has_uncommitted_changes === true ? ', uncommitted changes' : ''}` +
+            `${git.has_remote === true ? ` (remote ${git.origin_url ?? '?'})` : ', no remote'}`,
+        })
+      }
+    }
+  } catch (err) {
+    findings.push({
+      level: 'WARNING',
+      check: 'store-doctor',
+      message: `could not read store doctor facts for '${root.store}': ${errorMessage(err)}`,
+    })
+  }
+}
+
+/**
+ * INFO-level note when openspec's machine-global config (`~/.config/openspec/
+ * config.json`) carries a `profile`/`workflows` block — the instruction-
+ * generation model cospec's canon + harness supersede. Never a WARNING/ERROR:
+ * it is inert under cospec, not a defect.
+ */
+function checkGlobalProfile(findings: Finding[]): void {
+  const configPath = join(
+    process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'),
+    'openspec',
+    'config.json',
+  )
+  if (!existsSync(configPath)) return
+  let doc: unknown
+  try {
+    doc = JSON.parse(readFileSync(configPath, 'utf8'))
+  } catch {
+    return
+  }
+  if (doc === null || typeof doc !== 'object') return
+  const record = doc as Record<string, unknown>
+  const hasProfile = typeof record.profile === 'string' && record.profile.length > 0
+  const hasWorkflows = Array.isArray(record.workflows) && record.workflows.length > 0
+  if (!hasProfile && !hasWorkflows) return
+  const blocks = [hasProfile ? 'profile' : undefined, hasWorkflows ? 'workflows' : undefined]
+    .filter((b): b is string => b !== undefined)
+    .join('/')
+  findings.push({
+    level: 'INFO',
+    check: 'openspec-global-profile',
+    message: `openspec's global config.json carries a ${blocks} block (superseded by cospec's canon-managed schemas/harness)`,
+    remedy: 'no action needed — cospec ignores openspec instruction-generation config',
+  })
+}
+
 // --- command entrypoint -----------------------------------------------------
 
-export function run(ctx: CommandContext): number {
+export async function run(ctx: CommandContext): Promise<number> {
   const { cwd, flags } = ctx
   const findings: Finding[] = []
+  // Resolved up front (not gated on the local `initialized` check below): the
+  // cross-repo relationship section (WI-8) targets the OPERATING ROOT, which
+  // for an explicit `--store` invocation is deliberately allowed to be a plain
+  // workspace with no `openspec/` of its own — that split is the point of
+  // `cospec doctor --store <id>` run from a bare checkout.
+  const root = await resolveRoot(ctx)
 
   if (!existsSync(openspecDir(cwd))) {
     findings.push({
@@ -360,20 +547,22 @@ export function run(ctx: CommandContext): number {
       message: `no openspec/ directory at ${cwd}`,
       remedy: 'run `cospec init` to scaffold cospec',
     })
-    return report(findings, flags.json)
+  } else {
+    checkOpenspecVersion(findings)
+    checkDrift(cwd, findings)
+    const mdFiles = harnessMarkdownFiles(cwd)
+    checkStaleness(mdFiles, findings)
+    checkDanglingRefs(cwd, mdFiles, findings)
+    checkConfig(cwd, findings)
+    checkOpsx(cwd, findings)
+    checkStaleSidecars(cwd, findings)
+    checkChangeSchemas(cwd, findings)
+    checkSchemaVersions(cwd, findings)
+    checkGateHooks(cwd, findings)
+    checkGlobalProfile(findings)
   }
 
-  checkOpenspecVersion(findings)
-  checkDrift(cwd, findings)
-  const mdFiles = harnessMarkdownFiles(cwd)
-  checkStaleness(mdFiles, findings)
-  checkDanglingRefs(cwd, mdFiles, findings)
-  checkConfig(cwd, findings)
-  checkOpsx(cwd, findings)
-  checkStaleSidecars(cwd, findings)
-  checkChangeSchemas(cwd, findings)
-  checkSchemaVersions(cwd, findings)
-  checkGateHooks(cwd, findings)
+  await checkOpenspecRelationship(root, cwd, findings)
 
   return report(findings, flags.json)
 }

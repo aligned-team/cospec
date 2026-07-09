@@ -21,7 +21,8 @@ variant they use.
 
 `quality.md` and `rollout.md` were considered and rejected as vendor-coupled or
 duplicative of `verification`/`design`. Teams that want more use
-`openspec/config.yaml` (`context`/`rules`) or fork a schema.
+`openspec/config.yaml` (`context`/`rules`) or fork a schema with
+`cospec schema fork` (see [Customization tiers](#customization-tiers)).
 
 ### `verification` — the acceptance-evidence ledger
 
@@ -192,12 +193,30 @@ Three strictly separated tiers:
 2. **user-owned** — `openspec/config.yaml` (`context` plus per-artifact `rules`,
    which OpenSpec injects into instructions natively) and all change and spec
    content. Never rewritten by cospec.
-3. **escape hatch** — `openspec schema fork <type> <custom-name>` plus
-   per-change `--schema`. cospec treats non-eleven schemas as **legacy**:
-   structural checks only, OpenSpec-delegated validation, and a `doctor` note
-   about reduced guarantees. cospec never manages forked schemas.
+3. **escape hatch** — `cospec schema fork <type> [name]` (defaults the
+   destination to `<type>-custom`) and `cospec schema init <name>` create a
+   project-local schema under `openspec/schemas/<name>/`. Both are disciplined
+   passthroughs to the wrapped binary, guarded by one cospec-side check: a
+   fork/init whose destination name is one of the 11 canon types is refused with
+   exit 1 before the binary is ever spawned, so a fork can never overwrite a
+   canon-managed `schema.yaml`. cospec never regenerates or manages a forked
+   schema — it is yours to edit.
 
-**Documented limitation:** `config.yaml` `rules` are keyed by artifact id
-repo-wide — they cannot vary per type. Per-type guidance lives only in the
-schema instruction prose. If you need genuinely different rules per type, fork
-the schema.
+   Run a change on a fork with `cospec new <name> <slug>` (or per-change
+   `--schema`). cospec resolves any non-canon schema as **legacy** and routes it
+   down the legacy lane: no cospec `schemaVersion` stamp and no typed
+   artifact-plan, and `cospec new` prints a "reduced cospec guarantees" note.
+   The legacy lane still keeps every **schema-agnostic** hard gate — the archive
+   tasks gate, scenario-preservation, filesystem-move verification, and blocker
+   fan-out — and delegates structural validation to OpenSpec's own check of the
+   fork's declared artifact graph (`cospec validate` emits a
+   `meta/legacy-schema` INFO and no typed `proposal/*`, `verification/*`,
+   `design/*`, or `specs/*` rule). The one cospec gate a fork does **not** get
+   is the verification-evidence ledger, which is scoped to canon types.
+   `cospec doctor` reports a change on a fork as an INFO, not a warning.
+
+**Documented limitation:** `config.yaml` `context`/`rules` are additive prose
+only, keyed by artifact id repo-wide — they cannot vary per type, override a
+template, or replace an instruction. Per-type guidance lives only in the schema
+instruction prose. If you need genuinely different rules or templates per type,
+fork the schema.

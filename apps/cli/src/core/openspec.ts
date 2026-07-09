@@ -457,3 +457,98 @@ export function openspecArtifactInstructions(
     '--json',
   ])
 }
+
+// --- Disciplined passthrough plumbing ---------------------------------------
+//
+// For read-only/mirror commands (`show`, `context`, `workset`, `schemas`, …)
+// cospec adds no gate of its own — it only owes wrapped-call discipline:
+// declared exit codes, a stdout deny-list, and (for `--json` callers) the
+// guarantee that stdout is exactly one JSON document, even on failure.
+// openspec's own failure envelope is `{ status: [{ severity, code, message,
+// fix? }, …] }`; `openspec show <unknown> --json` is the documented quirk
+// where that envelope is emitted while the process still exits 0 — proof that
+// cospec must never trust the raw exit code alone for a `--json` passthrough.
+
+/** One entry of openspec's `status: [...]` diagnostic envelope. */
+export interface OpenspecStatusEntry {
+  severity: 'error' | 'warning' | 'info' | string
+  code: string
+  message: string
+  fix?: string
+}
+
+/**
+ * True when `body` is openspec's own failure envelope: a top-level `status`
+ * array containing at least one `severity: "error"` entry. Pure and exported
+ * for direct unit testing (mirrors `enforceExpectation`).
+ */
+export function isOpenspecErrorStatus(body: unknown): boolean {
+  if (body === null || typeof body !== 'object') return false
+  const status = (body as Record<string, unknown>).status
+  if (!Array.isArray(status)) return false
+  return status.some(
+    (entry) =>
+      entry !== null &&
+      typeof entry === 'object' &&
+      (entry as { severity?: unknown }).severity === 'error',
+  )
+}
+
+/**
+ * Enforce the one-JSON-doc invariant for a `--json` passthrough call (pure,
+ * extracted for testing). Throws `OpenspecCallError` when stdout does not
+ * parse as a single JSON document — a passthrough call must never hand the
+ * caller partial/corrupted JSON. When it parses but carries openspec's
+ * failure envelope while the raw exit code was 0, the returned result's
+ * `exitCode` is normalized to 1 so cospec's own exit-code contract holds;
+ * this never throws past a well-formed openspec-reported failure — the
+ * failure body IS the one JSON document, which is the point.
+ */
+export function enforcePassthroughJson(label: string, result: OpenspecResult): OpenspecResult {
+  let body: unknown
+  try {
+    body = JSON.parse(result.stdout)
+  } catch {
+    throw new OpenspecCallError(
+      `${label} did not emit a single parseable JSON document on stdout`,
+      result,
+    )
+  }
+  if (result.exitCode === 0 && isOpenspecErrorStatus(body)) return { ...result, exitCode: 1 }
+  return result
+}
+
+export interface PassthroughOptions {
+  /** Absolute path the wrapped binary runs in (the target repo root). */
+  cwd: string
+  /** `--store <id>` args to append, from `root.storeArgs` — `[]` for local. */
+  storeArgs?: readonly string[]
+  /**
+   * Declared expectations. `exitCodes` defaults to `[0, 1]` — unlike
+   * `runOpenspec`'s gate-call default of `[0]`, a read-only passthrough
+   * routinely exits 1 for an ordinary negative result (unknown item,
+   * validation failure) that is not a wrapped-call violation, only a result
+   * to relay verbatim. `denyStdout`/`postCondition` still apply.
+   */
+  expect?: RunExpectation
+}
+
+/**
+ * The disciplined passthrough front door (DESIGN §1, WI-1). Version-asserted
+ * spawn via `runOpenspec` (which itself spawns through `spawnOpenspec`),
+ * enforcing the declared `RunExpectation` — and, when `args` requests
+ * `--json`, the one-JSON-doc-on-failure invariant via `enforcePassthroughJson`.
+ * Returns the (possibly exit-code-normalized) `OpenspecResult`; throws
+ * `OpenspecCallError` on a deny-list hit, a disallowed exit code, or (in
+ * `--json` mode) unparseable stdout.
+ */
+export async function passthroughOpenspec(
+  args: string[],
+  opts: PassthroughOptions,
+): Promise<OpenspecResult> {
+  const fullArgs = [...args, ...(opts.storeArgs ?? [])]
+  const expect: RunExpectation = { exitCodes: [0, 1], ...opts.expect }
+  const result = await runOpenspec(fullArgs, { cwd: opts.cwd, expect })
+  if (!fullArgs.includes('--json')) return result
+  return enforcePassthroughJson(`openspec ${fullArgs.join(' ')}`, result)
+}

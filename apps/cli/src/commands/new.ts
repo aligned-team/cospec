@@ -21,6 +21,7 @@ import {
   readArchiveIndex,
   readOpenspecYaml,
   resolveChange,
+  resolveSchema,
 } from '../core/change.ts'
 import { OpenspecCallError, runOpenspec } from '../core/openspec.ts'
 import { resolveRoot } from '../core/root.ts'
@@ -143,7 +144,13 @@ export async function run(ctx: CommandContext): Promise<number> {
     slug = positionals[1]!
   }
 
-  if (!isCospecType(type)) return reportUnknownType(type)
+  // A name that is not one of the 11 cospec types may still resolve as a
+  // project/user/package ("legacy") schema (e.g. one created by `cospec
+  // schema fork/init`) — that rides the legacy lane through validate/apply/
+  // archive, so `new` delegates to it too rather than rejecting it outright.
+  // Only a name that resolves nowhere keeps today's unknown-type error.
+  const legacy = !isCospecType(type) && resolveSchema(base, type).kind === 'legacy'
+  if (!isCospecType(type) && !legacy) return reportUnknownType(type)
 
   if (!SLUG_RE.test(slug)) {
     process.stderr.write(`cospec new: invalid slug '${slug}' — must match ${SLUG_RE.source}\n`)
@@ -183,6 +190,28 @@ export async function run(ctx: CommandContext): Promise<number> {
     const msg = err instanceof OpenspecCallError ? err.message : (err as Error).message
     process.stderr.write(`cospec new: ${msg}\n`)
     return EXIT.failure
+  }
+
+  if (legacy) {
+    // Legacy schemas never carry a cospec `schemaVersion` (that stamp is a
+    // cospec-typed-change concept) and have no typed artifact plan to print.
+    const note =
+      'legacy schema — reduced cospec guarantees (structural checks + openspec-delegated validation only)'
+    if (flags.json) {
+      process.stdout.write(
+        `${JSON.stringify(
+          { change: slug, type, dir: `openspec/changes/${slug}`, legacy: true, note },
+          null,
+          2,
+        )}\n`,
+      )
+    } else {
+      process.stdout.write(
+        `Created change '${slug}' (schema: ${type}) at openspec/changes/${slug}/\n`,
+      )
+      process.stdout.write(`${note}\n`)
+    }
+    return EXIT.success
   }
 
   stampSchemaVersion(`${changesDir(base)}/${slug}`)

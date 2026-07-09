@@ -9,10 +9,15 @@ they win the report.
 cospec validate [name] [--all|--changes|--specs] [--strict] [--json] [--fast]
 ```
 
-- No arguments defaults to `--all`.
+- No arguments (or `--all`) validates **both** active changes and living specs.
+  `--changes` restricts to changes, `--specs` to living specs; a bare `[name]`
+  validates that single change (or spec). Bulk runs exit 1 if any item fails.
 - `--strict` promotes every WARNING to blocking (hooks and CI use it).
 - `--fast` skips the archive-precondition checks (used internally by `apply`).
 - Exit 1 if there are errors (or warnings under `--strict`); otherwise 0.
+
+To enumerate living specs without validating them, use `cospec list --specs`
+(delegates to `openspec list --specs`, renders a spec/requirement-count table).
 
 ## Composition
 

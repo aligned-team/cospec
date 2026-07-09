@@ -2,11 +2,14 @@
 
 ## Purpose
 
-Lets the change lifecycle (`new`, `apply`, `archive`) run against a registered
-OpenSpec store other than the local repository, via `--store <id>` or a `store:`
-config pointer, so agents can drive multi-repo workflows without `cd`-ing
-between checkouts while keeping root resolution deterministic and loud on
-unregistered store ids.
+cospec's change lifecycle (`new`, `validate`, `apply`, `archive`, and related
+commands) must be able to target a registered OpenSpec store instead of the
+local repository, so that a single machine can drive changes against multiple
+`openspec/` trees without ever guessing which root a command should touch. This
+capability defines how a store is selected (`--store <id>` or a `store:` config
+pointer), how that selection is resolved deterministically to exactly one
+operating root, and how it fails loudly rather than silently falling back to the
+local repository.
 
 ## Requirements
 

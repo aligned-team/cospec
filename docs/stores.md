@@ -21,31 +21,57 @@ cospec status --store platform                        # list/status against the 
 
 ## What cospec owns vs. what OpenSpec owns
 
-cospec wraps OpenSpec; it does not reimplement store management. The split:
+cospec wraps OpenSpec; it does not reimplement the store registry or its
+resolution semantics. But every store-management, cross-repo-context, and
+workset surface is now a **first-class cospec command** — you never drop out to
+bare `openspec` for an everyday operation.
 
-- **OpenSpec** owns the store lifecycle and read-only cross-repo context —
-  `openspec store setup|register|ls`, `openspec context`, `openspec workset`,
-  and the `references:` config key (upstream specs surfaced into a code repo's
-  `instructions`). These are local/read-only and carry no cospec gate, so run
-  them with the native `openspec` CLI.
-- **cospec** owns everything that touches a change: `new`, `validate`, `apply`,
-  `archive`, `status`, `list`, `instructions`, `sync-blockers`, `migrate` — each
-  with `--store`.
+- **cospec** owns everything a user runs:
+  - the change lifecycle — `new`, `validate`, `apply`, `archive`, `status`,
+    `list`, `instructions`, `sync-blockers`, `migrate` — each with `--store`;
+  - the store lifecycle — `cospec store setup|register|unregister|remove|list`
+    (`ls`)`|doctor`, a first-class wrap that verifies each mutation on disk (it
+    trusts the filesystem/registry, never the wrapped exit code) and, on a
+    successful `setup`/`register`, **auto-runs
+    `cospec init <root> --harness none`** so a new or newly-registered store
+    gets cospec's 11 typed schemas in one command (opt out with
+    `--no-cospec-init`);
+  - the read-only cross-repo brief — `cospec context` (with `--json` and
+    `--code-workspace`/`--force`);
+  - personal working views — `cospec workset create|list|remove|open`.
+- **OpenSpec** still owns the underlying machine registry, the on-disk store
+  format, and the `references:` config key (upstream specs surfaced into a code
+  repo's `instructions`). cospec spawns the pinned binary for all of it under
+  the [wrapped-call discipline](architecture.md); nothing about the registry
+  format is reimplemented.
+
+`store`, `context`, and `workset` are disciplined passthroughs (or, for `store`,
+first-class wraps): read-only or personal, they carry no cospec gate — they add
+wrapped-call rigor (declared exit codes, a stdout deny-list, an observable
+post-condition) and, where the root is store-backed, `--store` threading.
 
 ## Setup
 
+Creating a store is now a single command — `cospec store setup` registers the
+root **and** stamps it with cospec's typed schemas in one step (the auto
+`cospec init` that used to be a documented manual second step):
+
 ```sh
-# 1. Create + register the store (OpenSpec).
-openspec store setup platform --path ./platform-store --remote git@github.com:acme/platform-store.git
+# 1. Create + register the store, and give it cospec's typed schemas in one go.
+#    (Auto-runs `cospec init <root> --harness none` on success — a store is
+#    planning-only, so no harness. Pass --no-cospec-init to skip that step.)
+cospec store setup platform --path ./platform-store --remote git@github.com:acme/platform-store.git
 
-# 2. Give the store cospec's typed schemas (init by path — a store is an
-#    existing-openspec repo, so this only adds schemas; use --harness none
-#    since a store is planning-only).
-cospec init ./platform-store --harness none
-
-# 3. Work the store from anywhere by id.
+# 2. Work the store from anywhere by id.
 cospec new feat some-epic --store platform
 ```
+
+To adopt an already-existing OpenSpec root, `cospec store register <path>`
+registers it and runs the same auto `cospec init`. `cospec store ls` lists the
+registered stores, `cospec store doctor [id]` reports per-store health (git
+facts, metadata, root completeness), and `cospec store unregister`/`remove`
+inherit OpenSpec's `--yes`/confirmation contract (`unregister` forgets the
+registry entry and leaves files on disk; `remove` also deletes the folder).
 
 A code repo can also point at a store by default instead of passing `--store`
 every time, via its own `openspec/config.yaml`:

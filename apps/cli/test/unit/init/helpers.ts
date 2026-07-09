@@ -42,6 +42,31 @@ export function capture(fn: () => number): { code: number; out: string; err: str
   }
 }
 
+/** Run an async command entrypoint (e.g. `doctor.run`), capturing stdout/stderr. */
+export async function captureAsync(
+  fn: () => Promise<number>,
+): Promise<{ code: number; out: string; err: string }> {
+  const origOut = process.stdout.write.bind(process.stdout)
+  const origErr = process.stderr.write.bind(process.stderr)
+  let out = ''
+  let err = ''
+  process.stdout.write = ((chunk: string | Uint8Array): boolean => {
+    out += chunk.toString()
+    return true
+  }) as typeof process.stdout.write
+  process.stderr.write = ((chunk: string | Uint8Array): boolean => {
+    err += chunk.toString()
+    return true
+  }) as typeof process.stderr.write
+  try {
+    const code = await fn()
+    return { code, out, err }
+  } finally {
+    process.stdout.write = origOut
+    process.stderr.write = origErr
+  }
+}
+
 /**
  * A byte-valid cospec-managed markdown file whose `metadata.contentHash` matches
  * its body — i.e. an "unmodified managed file" the write/remove layer will treat

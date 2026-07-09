@@ -89,25 +89,33 @@ grandfathering, and a blocking-changes ledger with auto-sync.
 
 ## Commands
 
-| command                          | what it does                                                                                   |
-| -------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `cospec init [path]`             | scaffold `openspec/`, schemas, and harness files (idempotent)                                  |
-| `cospec update [--check]`        | re-generate managed files from canon; `--check` is a drift gate                                |
-| `cospec doctor`                  | read-only health check, incl. changes still on `schemaVersion` 1                               |
-| `cospec new <type> <slug>`       | create a typed change; prints the artifact plan                                                |
-| `cospec migrate <change>`        | stamp a grandfathered change to the current `schemaVersion`, scaffolding deferred verification |
-| `cospec validate [name]`         | validate changes and specs; `--strict` promotes warnings                                       |
-| `cospec status` / `cospec list`  | change status with type, gate, and archive-readiness columns                                   |
-| `cospec instructions <artifact>` | print the authoring instruction for one artifact                                               |
-| `cospec apply <change>`          | the gate — exit 0 clear, 2 blocked, 3 soft-blocked                                             |
-| `cospec archive <change>`        | validate, archive, verify the move, fan out blocker sync                                       |
-| `cospec sync-blockers`           | check off blocker entries whose target has shipped                                             |
+| command                          | what it does                                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `cospec init [path]`             | scaffold `openspec/`, schemas, and harness files (idempotent)                                    |
+| `cospec update [--check]`        | re-generate managed files from canon; `--check` is a drift gate                                  |
+| `cospec doctor`                  | read-only health check, incl. changes still on `schemaVersion` 1                                 |
+| `cospec new <type> <slug>`       | create a typed change; prints the artifact plan                                                  |
+| `cospec migrate <change>`        | stamp a grandfathered change to the current `schemaVersion`, scaffolding deferred verification   |
+| `cospec validate [name]`         | validate changes and specs (`--all`/`--changes`/`--specs`); `--strict` promotes warnings         |
+| `cospec status` / `cospec list`  | change status with type, gate, and archive-readiness columns (`list --specs` lists living specs) |
+| `cospec instructions <artifact>` | print the authoring instruction for one artifact                                                 |
+| `cospec apply <change>`          | the gate — exit 0 clear, 2 blocked, 3 soft-blocked                                               |
+| `cospec archive <change>`        | validate, archive, verify the move, fan out blocker sync                                         |
+| `cospec sync-blockers`           | check off blocker entries whose target has shipped                                               |
+| `cospec show <item>`             | read a change or spec's markdown or JSON                                                         |
+| `cospec view`                    | the OpenSpec dashboard                                                                           |
+| `cospec store <sub>`             | manage stores: `setup`/`register` (auto-init) / `unregister` / `remove` / `ls` / `doctor`        |
+| `cospec context`                 | a store's cross-repo working-set brief (`--json`, `--code-workspace`)                            |
+| `cospec workset <sub>`           | personal cross-repo working views: `create` / `list` / `remove` / `open`                         |
+| `cospec schemas` / `schema`      | inspect resolvable schemas (`schema which`/`validate`)                                           |
+| `cospec templates`               | list per-artifact template paths                                                                 |
 
 Global flags on every command: `--json`, `--no-color`, `--cwd <path>`,
 `--store <id>`. `--store` runs the whole change lifecycle against a registered
 OpenSpec store (a standalone planning repo) instead of the local repo — one
-source of truth several code repos can plan against. See
-[docs/stores.md](docs/stores.md). Full reference:
+source of truth several code repos can plan against. `cospec` wraps every store,
+context, and workset operation too, so you never drop out to bare `openspec`.
+See [docs/stores.md](docs/stores.md). Full reference:
 [docs/validation.md](docs/validation.md) (rules) and
 [docs/apply-archive.md](docs/apply-archive.md) (gate + archive algorithms).
 

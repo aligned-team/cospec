@@ -64,6 +64,38 @@ The rule behind all three: **trust post-conditions, never exit codes alone.**
 OpenSpec can exit 0 and still have done nothing (see below). A wrapped call
 without a registered post-condition is a review-blocking omission.
 
+## The disciplined-passthrough runner
+
+Not every wrapped command adds a cospec gate. Read-only reads (`show`, `view`,
+`context`, `schemas`, `schema which`/`validate`, `templates`), personal working
+views (`workset`), and spec/bulk delegation (`list --specs`,
+`validate --all`/`--specs`) are **passthroughs**: cospec forwards the call,
+relays stdout/stderr verbatim, and maps the wrapped exit code onto its own
+`EXIT` contract — but still under the full wrapped-call discipline, never a bare
+`spawn`.
+
+`passthroughOpenspec(args, { cwd, storeArgs, expect })` in `core/openspec.ts` is
+the shared runner. It reuses the version-asserted spawn, enforces a
+`RunExpectation` (an exit-code allow-list defaulting to `[0, 1]`, a stdout
+deny-list, and an optional post-condition), and — this is the invariant that
+makes passthroughs safe for `--json` callers — **guarantees exactly one JSON
+document on stdout**, mirroring OpenSpec's own
+`status:[{severity,code,message,fix?}]` failure shape. It never throws past a
+`--json` boundary; a violation becomes exit 1 with that envelope, not a stack
+trace that corrupts a machine reader. A deny-list trip or a disallowed exit code
+raises `OpenspecCallError` (a cospec bug, not a user error).
+
+`core/passthrough-command.ts` layers the command-level wiring on top: it
+resolves the operating `Root`, threads the three global flags every wrapped call
+owes (`--store` via `root.storeArgs`, `--json`, `--no-color`), and returns both
+the raw `OpenspecResult` (for a command that reshapes stdout, like `store`'s
+ID/Location table) and the mapped exit code. `runPassthrough` is the common case
+— relay verbatim; `callPassthrough` is for commands that inspect the result
+first. Commands that add their own post-condition (e.g. `context` asserting a
+`--code-workspace` file exists on disk, or `store` asserting the registry
+mutated) pass it through `expect.postCondition` — the same mechanism the gated
+commands use.
+
 ## The failure modes cospec defends against
 
 cospec exists because three OpenSpec behaviors are hazardous when an agent is
@@ -183,7 +215,8 @@ apps/cli/src/
 ├── index.ts / cli.ts       argv dispatch, global flags, lazy command import
 ├── commands/               one file per subcommand
 ├── core/
-│   ├── openspec.ts         spawn wrapper, version assert, post-condition registry
+│   ├── openspec.ts         spawn wrapper, version assert, passthroughOpenspec runner
+│   ├── passthrough-command.ts  global-flag threading for passthrough commands
 │   ├── change.ts           change discovery, .openspec.yaml, archive index
 │   ├── report.ts           the Issue model + text/JSON renderers (frozen interface)
 │   ├── managed-files.ts    generatedBy/contentHash protocol + manifest
