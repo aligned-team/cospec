@@ -46,6 +46,12 @@ the closed set of `@<layer>` tokens (`@unit`, `@e2e`, `@manual`, and so on) that
 verification rows can cite — see [Verification](/concepts/verification) for the
 full grammar.
 
+A `store:` key points cospec (and OpenSpec) at a registered OpenSpec store by
+default, so you don't have to pass `--store <id>` on every command. It's a
+root-resolution input rather than a cospec-managed or validated field like
+`context` and `rules` above — see [Stores](/concepts/stores) for the full
+resolution order and what it changes.
+
 ::: warning Documented limitation `rules` are keyed by artifact id **repo-wide**
 — they cannot vary per conventional-commit type. A `proposal` rule applies to
 every `feat` and every `chore` proposal alike. If you genuinely need different

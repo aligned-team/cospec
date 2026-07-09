@@ -76,6 +76,7 @@ export default defineConfig({
           { text: 'Verification', link: '/concepts/verification' },
           { text: 'Apply & archive', link: '/concepts/apply-and-archive' },
           { text: 'Blocking changes', link: '/concepts/blocking-changes' },
+          { text: 'Stores', link: '/concepts/stores' },
           {
             text: 'How it relates to OpenSpec',
             link: '/concepts/how-it-relates-to-openspec',

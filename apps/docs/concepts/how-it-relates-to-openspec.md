@@ -65,6 +65,13 @@ and
 are the source of truth, and cospec links out to them rather than restating
 them.
 
+cospec is also **store-aware**: the same typed workflow — schemas, the gate, the
+verified archive, the blocking-changes ledger — runs identically against a
+registered OpenSpec store as it does against the local repo. Store lifecycle
+itself stays OpenSpec's job; cospec only adds `--store <id>` to the commands
+that touch a change. See [Stores](/concepts/stores) for the mechanics and the
+full split of what each CLI owns.
+
 ## Three failure modes cospec defends against
 
 Raw OpenSpec has a few behaviors that are easy to miss in a terminal but
@@ -105,3 +112,4 @@ documented here. :::
 - [Types and artifacts](/concepts/types-and-artifacts)
 - [Apply and archive](/concepts/apply-and-archive)
 - [Verification](/concepts/verification)
+- [Stores](/concepts/stores)

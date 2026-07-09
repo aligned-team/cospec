@@ -14,6 +14,9 @@ decides how heavy steps 2 and 4 are (see
 the loop itself never changes. This page walks the loop end to end with one
 worked example: adding a widget, slug `add-widget`, type `feat`.
 
+Every step below also accepts `--store <id>` to run against a registered
+OpenSpec store instead of the local repo — see [Stores](/concepts/stores).
+
 ## 1. new
 
 ```sh
