@@ -13,7 +13,7 @@ const KNOWN_SKILLS = new Set<string>(WORKFLOW_SKILLS)
 /**
  * The regression guard against OpenSpec's shipped bug (research openspec-cli-probe §2.3): its
  * generated bodies referenced `openspec-sync-specs` / `openspec-continue-change` skills the
- * generator never emitted. cospec's bodies may only reference the six workflows it always emits.
+ * generator never emitted. cospec's bodies may only reference the eleven workflows it always emits.
  */
 describe('no dangling workflow references', () => {
   test('every /cospec:x or /cospec-x slash token names an emitted workflow', () => {

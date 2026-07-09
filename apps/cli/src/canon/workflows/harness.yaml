@@ -14,24 +14,49 @@ workflows:
     description: >-
       Propose a new change and generate every artifact its type requires, in one guided pass.
     injectTypeTable: true
+  - id: new
+    command: new
+    skill: cospec-new-change
+    title: New
+    description: >-
+      Scaffold a new change and show its typed artifact plan, then stop before authoring anything.
+    injectTypeTable: true
   - id: continue
     command: continue
     skill: cospec-continue-change
     title: Continue
     description: >-
       Resume a partially-built change and finish its remaining artifacts.
+  - id: ff
+    command: ff
+    skill: cospec-ff-change
+    title: Fast-forward
+    description: >-
+      Author every remaining artifact on an already-scaffolded change in one pass, then validate.
   - id: apply
     command: apply
     skill: cospec-apply-change
     title: Apply
     description: >-
       Run the apply gate for a change and implement its tasks, obeying the gate's exit code.
+  - id: verify
+    command: verify
+    skill: cospec-verify-change
+    title: Verify
+    description: >-
+      Dress-rehearse a change before archiving — validate strictly, walk the verification ledger, and name the hard archive gates.
   - id: archive
     command: archive
     skill: cospec-archive-change
     title: Archive
     description: >-
       Archive a completed change — validate, merge specs, verify, and fan blockers out.
+  - id: bulk-archive
+    command: bulk-archive
+    skill: cospec-bulk-archive-change
+    title: Bulk archive
+    description: >-
+      Archive a batch of completed changes in dependency order, one cospec archive call at a time.
   - id: sync-specs
     command: sync-specs
     skill: cospec-sync-specs
@@ -44,6 +69,12 @@ workflows:
     title: Explore
     description: >-
       Investigate the codebase or a spec question without writing implementation code.
+  - id: onboard
+    command: onboard
+    skill: cospec-onboard
+    title: Onboard
+    description: >-
+      Walk a first-time user through one real cospec change end to end, narrating each step.
 
 harnesses:
   claude:

@@ -122,6 +122,11 @@ through `cospec`:
    no spec-sync deltas here. **Timing is non-negotiable** — see "Branch, PR, and
    merge flow" below.
 
+Steps 1–2 also have `/cospec:new` + `/cospec:ff`/`/cospec:continue` as
+entry-point variants of `/cospec:propose`, and you can optionally dress-rehearse
+step 6 with `/cospec:verify` — it walks the verification ledger and names the
+hard archive gates without moving anything.
+
 In-flight v1 changes are grandfathered until `cospec migrate <slug>` stamps them
 to the current `schemaVersion`; `cospec doctor` lists changes still on v1.
 

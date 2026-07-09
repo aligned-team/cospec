@@ -102,6 +102,23 @@ that entry checked off automatically.
 rather than trusting a clean exit code, a successful run means the move
 genuinely happened — not just that the underlying tool claimed it did. :::
 
+### Optional: verify before archive
+
+Before running `archive`, you can dress-rehearse it with `/cospec:verify` (or
+`cospec validate <slug> --strict` plus a manual ledger walk): it re-validates
+strictly, checks every verification row for a real observed result, confirms
+`tasks.md` is fully checked, and names the two hard gates `archive` will enforce
+— all without moving anything. See [Harness setup](/guide/harness-setup) for the
+full command inventory.
+
+### Entry-point variants
+
+Steps 1–2 above (`new` then `propose`'s author loop) can also be driven as
+`/cospec:new` (scaffold and stop) followed by `/cospec:ff` (author every
+remaining artifact in one pass) or `/cospec:continue` (author one artifact at a
+time) — same artifacts, same gate, different pacing. See
+[Harness setup](/guide/harness-setup) for the full list of generated commands.
+
 ## The whole loop, start to finish
 
 ```sh

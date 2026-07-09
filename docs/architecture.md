@@ -156,11 +156,12 @@ because a real breach there must not compute as a clean archive:
 
 OpenSpec's own scaffolding points at `openspec-sync-specs` /
 `openspec-continue-change` skills that its generator does not emit — dangling
-references that confuse agents. cospec ships all six workflows (`propose`,
-`continue`, `apply`, `archive`, `sync-specs`, `explore`) from a single canon
-source, and every generated body references only skills the same generator run
-emits. A unit test greps the rendered output for dangling references, and
-`cospec doctor` enforces the same guard on an installed repo.
+references that confuse agents. cospec ships all eleven workflows (`propose`,
+`new`, `continue`, `ff`, `apply`, `verify`, `archive`, `bulk-archive`,
+`sync-specs`, `explore`, `onboard`) from a single canon source, and every
+generated body references only skills the same generator run emits. A unit test
+greps the rendered output for dangling references, and `cospec doctor` enforces
+the same guard on an installed repo.
 
 ## The static-matrix invariant
 

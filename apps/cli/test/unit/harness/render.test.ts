@@ -23,24 +23,24 @@ describe('renderHarnessFiles — file set', () => {
     expect(paths).toMatchSnapshot()
   })
 
-  test('claude emits 6 commands + 6 skills, no rules', () => {
+  test('claude emits 11 commands + 11 skills, no rules', () => {
     const files = render(['claude'])
-    expect(files.filter((f) => f.kind === 'command')).toHaveLength(6)
-    expect(files.filter((f) => f.kind === 'skill')).toHaveLength(6)
+    expect(files.filter((f) => f.kind === 'command')).toHaveLength(11)
+    expect(files.filter((f) => f.kind === 'skill')).toHaveLength(11)
     expect(files.filter((f) => f.kind === 'rules')).toHaveLength(0)
   })
 
-  test('codex emits 6 skills + 1 rules, no commands', () => {
+  test('codex emits 11 skills + 1 rules, no commands', () => {
     const files = render(['codex'])
-    expect(files.filter((f) => f.kind === 'skill')).toHaveLength(6)
+    expect(files.filter((f) => f.kind === 'skill')).toHaveLength(11)
     expect(files.filter((f) => f.kind === 'rules')).toHaveLength(1)
     expect(files.filter((f) => f.kind === 'command')).toHaveLength(0)
   })
 
-  test('opencode emits 6 commands + 6 skills, no rules', () => {
+  test('opencode emits 11 commands + 11 skills, no rules', () => {
     const files = render(['opencode'])
-    expect(files.filter((f) => f.kind === 'command')).toHaveLength(6)
-    expect(files.filter((f) => f.kind === 'skill')).toHaveLength(6)
+    expect(files.filter((f) => f.kind === 'command')).toHaveLength(11)
+    expect(files.filter((f) => f.kind === 'skill')).toHaveLength(11)
     expect(files.filter((f) => f.kind === 'rules')).toHaveLength(0)
   })
 
@@ -110,10 +110,10 @@ describe('renderHarnessFiles — content hash', () => {
 })
 
 describe('type table injection', () => {
-  test('propose bodies contain the rendered table; others do not', () => {
+  test('propose and new bodies contain the rendered table; others do not', () => {
     const table = renderTypeTable(TYPE_TABLE)
     for (const f of render()) {
-      if (f.workflow === 'propose') {
+      if (f.workflow === 'propose' || f.workflow === 'new') {
         expect(f.body).toContain('| feat | A new feature')
         expect(f.body).not.toContain('{{TYPE_TABLE}}')
       } else if (f.kind !== 'rules') {

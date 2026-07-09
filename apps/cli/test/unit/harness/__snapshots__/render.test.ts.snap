@@ -4,35 +4,60 @@ exports[`renderHarnessFiles — file set emits the expected path set for all thr
 [
   ".claude/commands/cospec/apply.md",
   ".claude/commands/cospec/archive.md",
+  ".claude/commands/cospec/bulk-archive.md",
   ".claude/commands/cospec/continue.md",
   ".claude/commands/cospec/explore.md",
+  ".claude/commands/cospec/ff.md",
+  ".claude/commands/cospec/new.md",
+  ".claude/commands/cospec/onboard.md",
   ".claude/commands/cospec/propose.md",
   ".claude/commands/cospec/sync-specs.md",
+  ".claude/commands/cospec/verify.md",
   ".claude/skills/cospec-apply-change/SKILL.md",
   ".claude/skills/cospec-archive-change/SKILL.md",
+  ".claude/skills/cospec-bulk-archive-change/SKILL.md",
   ".claude/skills/cospec-continue-change/SKILL.md",
   ".claude/skills/cospec-explore/SKILL.md",
+  ".claude/skills/cospec-ff-change/SKILL.md",
+  ".claude/skills/cospec-new-change/SKILL.md",
+  ".claude/skills/cospec-onboard/SKILL.md",
   ".claude/skills/cospec-propose/SKILL.md",
   ".claude/skills/cospec-sync-specs/SKILL.md",
+  ".claude/skills/cospec-verify-change/SKILL.md",
   ".codex/rules/cospec.rules",
   ".codex/skills/cospec-apply-change/SKILL.md",
   ".codex/skills/cospec-archive-change/SKILL.md",
+  ".codex/skills/cospec-bulk-archive-change/SKILL.md",
   ".codex/skills/cospec-continue-change/SKILL.md",
   ".codex/skills/cospec-explore/SKILL.md",
+  ".codex/skills/cospec-ff-change/SKILL.md",
+  ".codex/skills/cospec-new-change/SKILL.md",
+  ".codex/skills/cospec-onboard/SKILL.md",
   ".codex/skills/cospec-propose/SKILL.md",
   ".codex/skills/cospec-sync-specs/SKILL.md",
+  ".codex/skills/cospec-verify-change/SKILL.md",
   ".opencode/commands/cospec-apply.md",
   ".opencode/commands/cospec-archive.md",
+  ".opencode/commands/cospec-bulk-archive.md",
   ".opencode/commands/cospec-continue.md",
   ".opencode/commands/cospec-explore.md",
+  ".opencode/commands/cospec-ff.md",
+  ".opencode/commands/cospec-new.md",
+  ".opencode/commands/cospec-onboard.md",
   ".opencode/commands/cospec-propose.md",
   ".opencode/commands/cospec-sync-specs.md",
+  ".opencode/commands/cospec-verify.md",
   ".opencode/skills/cospec-apply-change/SKILL.md",
   ".opencode/skills/cospec-archive-change/SKILL.md",
+  ".opencode/skills/cospec-bulk-archive-change/SKILL.md",
   ".opencode/skills/cospec-continue-change/SKILL.md",
   ".opencode/skills/cospec-explore/SKILL.md",
+  ".opencode/skills/cospec-ff-change/SKILL.md",
+  ".opencode/skills/cospec-new-change/SKILL.md",
+  ".opencode/skills/cospec-onboard/SKILL.md",
   ".opencode/skills/cospec-propose/SKILL.md",
   ".opencode/skills/cospec-sync-specs/SKILL.md",
+  ".opencode/skills/cospec-verify-change/SKILL.md",
 ]
 `;
 
@@ -259,6 +284,168 @@ here.
   {
     "content": 
 "---
+name: cospec-new-change
+description: Scaffold a new change and show its typed artifact plan, then stop before authoring anything.
+license: MIT
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:415671f0231b51709ce11e29cb78cd4dc68514de6919a1942654f5db6961bcfc
+---
+
+Scaffold a new openspec change and stop. This workflow creates the change and
+shows you its typed artifact plan — it does not author any artifact. Hand off to
+\`/cospec:ff\` or \`/cospec:continue\` to actually write them.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly, and never
+hand-edit the bookkeeping under \`openspec/changes/\`.
+
+## 1. Pick the type and slug
+
+The argument after the command is either \`<type>: <free text>\` (for example
+\`feat: add a greeting endpoint\`) or a bare description.
+
+- If it begins with a known type followed by \`:\`, use that type.
+- Otherwise ask the user to choose a type with AskUserQuestion, offering this
+  table:
+
+| Type | What it is for | Artifacts |
+| --- | --- | --- |
+| feat | A new feature — the full workflow | proposal → blocking-changes, specs (+ design) → tasks |
+| fix | A bug fix | proposal → blocking-changes (+ specs, design) → tasks |
+| perf | A performance change with identical behavior | proposal (+ Benchmarks) → blocking-changes → tasks |
+| refactor | A structure change with no behavior change | proposal → blocking-changes, design → tasks |
+| revert | Roll back a previously shipped change | proposal (+ Reverts) → blocking-changes → tasks |
+| build | Dependency or build-config change | proposal → blocking-changes → tasks (3 short artifacts) |
+| ci | CI configuration and automation pipeline change | proposal → blocking-changes → tasks (3 short artifacts) |
+| chore | Maintenance not affecting src or tests | proposal → blocking-changes → tasks (3 short artifacts) |
+| docs | Documentation content only | proposal → blocking-changes → tasks (3 short artifacts) |
+| style | Formatting or whitespace only | proposal → blocking-changes → tasks (3 short artifacts) |
+| test | Tests for already-specified behavior | proposal → blocking-changes → tasks (3 short artifacts) |
+
+Derive a kebab-case slug matching \`^[a-z][a-z0-9]*(-[a-z0-9]+)*$\` from the
+description, or ask the user for one.
+
+## 2. Create the change
+
+\`\`\`
+cospec new <type> <slug>
+\`\`\`
+
+This writes \`openspec/changes/<slug>/.openspec.yaml\` (its \`schema\` is the type)
+and prints the artifact plan — the exact set of artifacts this type requires.
+Relay the plan to the user verbatim.
+
+## 3. Show the first artifact, but do not write it
+
+\`\`\`
+cospec instructions <first-artifact> --change <slug> --json
+\`\`\`
+
+\`<first-artifact>\` is the first entry in the printed plan (typically
+\`proposal\`). Show the user its template and per-type instruction so they know
+what is coming next. Do NOT write the artifact file here — this workflow only
+scaffolds and previews.
+
+## 4. Stop and hand off
+
+Tell the user the change is scaffolded and offer two ways to continue:
+
+- \`/cospec:ff\` — author every remaining artifact in one pass.
+- \`/cospec:continue\` — author one artifact at a time, reviewing each.
+
+Do not create any artifact file yourself in this workflow.
+"
+,
+    "kind": "skill",
+    "path": ".claude/skills/cospec-new-change/SKILL.md",
+  },
+  {
+    "content": 
+"---
+name: "COSPEC: New"
+description: Scaffold a new change and show its typed artifact plan, then stop before authoring anything.
+category: Workflow
+tags:
+  - cospec
+  - workflow
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:415671f0231b51709ce11e29cb78cd4dc68514de6919a1942654f5db6961bcfc
+---
+
+Scaffold a new openspec change and stop. This workflow creates the change and
+shows you its typed artifact plan — it does not author any artifact. Hand off to
+\`/cospec:ff\` or \`/cospec:continue\` to actually write them.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly, and never
+hand-edit the bookkeeping under \`openspec/changes/\`.
+
+## 1. Pick the type and slug
+
+The argument after the command is either \`<type>: <free text>\` (for example
+\`feat: add a greeting endpoint\`) or a bare description.
+
+- If it begins with a known type followed by \`:\`, use that type.
+- Otherwise ask the user to choose a type with AskUserQuestion, offering this
+  table:
+
+| Type | What it is for | Artifacts |
+| --- | --- | --- |
+| feat | A new feature — the full workflow | proposal → blocking-changes, specs (+ design) → tasks |
+| fix | A bug fix | proposal → blocking-changes (+ specs, design) → tasks |
+| perf | A performance change with identical behavior | proposal (+ Benchmarks) → blocking-changes → tasks |
+| refactor | A structure change with no behavior change | proposal → blocking-changes, design → tasks |
+| revert | Roll back a previously shipped change | proposal (+ Reverts) → blocking-changes → tasks |
+| build | Dependency or build-config change | proposal → blocking-changes → tasks (3 short artifacts) |
+| ci | CI configuration and automation pipeline change | proposal → blocking-changes → tasks (3 short artifacts) |
+| chore | Maintenance not affecting src or tests | proposal → blocking-changes → tasks (3 short artifacts) |
+| docs | Documentation content only | proposal → blocking-changes → tasks (3 short artifacts) |
+| style | Formatting or whitespace only | proposal → blocking-changes → tasks (3 short artifacts) |
+| test | Tests for already-specified behavior | proposal → blocking-changes → tasks (3 short artifacts) |
+
+Derive a kebab-case slug matching \`^[a-z][a-z0-9]*(-[a-z0-9]+)*$\` from the
+description, or ask the user for one.
+
+## 2. Create the change
+
+\`\`\`
+cospec new <type> <slug>
+\`\`\`
+
+This writes \`openspec/changes/<slug>/.openspec.yaml\` (its \`schema\` is the type)
+and prints the artifact plan — the exact set of artifacts this type requires.
+Relay the plan to the user verbatim.
+
+## 3. Show the first artifact, but do not write it
+
+\`\`\`
+cospec instructions <first-artifact> --change <slug> --json
+\`\`\`
+
+\`<first-artifact>\` is the first entry in the printed plan (typically
+\`proposal\`). Show the user its template and per-type instruction so they know
+what is coming next. Do NOT write the artifact file here — this workflow only
+scaffolds and previews.
+
+## 4. Stop and hand off
+
+Tell the user the change is scaffolded and offer two ways to continue:
+
+- \`/cospec:ff\` — author every remaining artifact in one pass.
+- \`/cospec:continue\` — author one artifact at a time, reviewing each.
+
+Do not create any artifact file yourself in this workflow.
+"
+,
+    "kind": "command",
+    "path": ".claude/commands/cospec/new.md",
+  },
+  {
+    "content": 
+"---
 name: cospec-continue-change
 description: Resume a partially-built change and finish its remaining artifacts.
 license: MIT
@@ -397,6 +584,188 @@ user the change is apply-ready — next step \`/cospec:apply\`.
   {
     "content": 
 "---
+name: cospec-ff-change
+description: Author every remaining artifact on an already-scaffolded change in one pass, then validate.
+license: MIT
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:0a98804a126030685dd5f99edae7b567840ad427fc80f4a5cc0c5d4350f9760b
+---
+
+Fast-forward an already-scaffolded change: author every remaining artifact in
+one pass, then validate. Use this after \`/cospec:new\` has already created the
+change. Do NOT scaffold a new change here — if none exists yet, stop and point
+the user at \`/cospec:new\` instead.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly, and never
+hand-edit the bookkeeping under \`openspec/changes/\`.
+
+\`cospec\` is self-describing — you do not need to explore the repo to learn what
+to write. \`cospec instructions <artifact> --change <slug> --json\` prints the
+authoritative template, per-type format, and project rules for each artifact.
+Trust that output: do NOT read \`openspec/schemas/\`, \`openspec/config.yaml\`, or
+other repo files to reverse-engineer an artifact's shape.
+
+## 1. Pick the change
+
+\`\`\`
+cospec list --json
+\`\`\`
+
+If the user named a change, use it. Otherwise choose the in-progress one; if
+more than one is plausible, ask with AskUserQuestion, showing each change's type
+and gate state.
+
+## 2. Read the plan
+
+\`\`\`
+cospec status --change <slug> --json
+\`\`\`
+
+Read the type's full artifact plan and which artifacts in \`apply.requires\` are
+still missing. Respect the plan exactly: write every required artifact, and add
+nothing the type forbids.
+
+## 3. Author every remaining artifact
+
+Loop until every artifact in \`apply.requires\` is written:
+
+1. \`cospec status --change <slug> --json\` — read which artifacts are ready to
+   write next (their dependencies are satisfied) and which are still waiting.
+2. For each ready artifact, run
+   \`cospec instructions <artifact> --change <slug> --json\`. Treat \`context\` and
+   \`rules\` as constraints on how you write — never copy them into the artifact
+   itself.
+3. Write the artifact at the path the instructions name, following the format
+   exactly. \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and
+   \`verification.md\` are machine-parsed — small deviations fail validation.
+4. Repeat.
+
+For \`blocking-changes.md\`, scan the other active changes and the archive as the
+instruction directs, classify each dependency as hard (Blocked by) or soft
+(Soft-blocked by), and confirm the list with the user before finalizing it.
+
+## 4. Format, then validate
+
+If this repo has a formatter task (for example \`mise run format:fix\`; check its
+task list / docs), run it over the change directory now — an artifact that
+passes \`validate --strict\` can still fail the repo's format gate because the
+formatter rewraps markdown, and formatting must never be committed unformatted.
+
+\`\`\`
+cospec validate <slug> --strict
+\`\`\`
+
+Fix every ERROR and every WARNING; if you edit an artifact to fix one, re-run
+the formatter over it before re-validating. Re-run until it is clean.
+
+## 5. Hand off
+
+Tell the user the change is apply-ready and that the next step is
+\`/cospec:apply\` when they want to implement it. Do not start implementation
+here.
+"
+,
+    "kind": "skill",
+    "path": ".claude/skills/cospec-ff-change/SKILL.md",
+  },
+  {
+    "content": 
+"---
+name: "COSPEC: Fast-forward"
+description: Author every remaining artifact on an already-scaffolded change in one pass, then validate.
+category: Workflow
+tags:
+  - cospec
+  - workflow
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:0a98804a126030685dd5f99edae7b567840ad427fc80f4a5cc0c5d4350f9760b
+---
+
+Fast-forward an already-scaffolded change: author every remaining artifact in
+one pass, then validate. Use this after \`/cospec:new\` has already created the
+change. Do NOT scaffold a new change here — if none exists yet, stop and point
+the user at \`/cospec:new\` instead.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly, and never
+hand-edit the bookkeeping under \`openspec/changes/\`.
+
+\`cospec\` is self-describing — you do not need to explore the repo to learn what
+to write. \`cospec instructions <artifact> --change <slug> --json\` prints the
+authoritative template, per-type format, and project rules for each artifact.
+Trust that output: do NOT read \`openspec/schemas/\`, \`openspec/config.yaml\`, or
+other repo files to reverse-engineer an artifact's shape.
+
+## 1. Pick the change
+
+\`\`\`
+cospec list --json
+\`\`\`
+
+If the user named a change, use it. Otherwise choose the in-progress one; if
+more than one is plausible, ask with AskUserQuestion, showing each change's type
+and gate state.
+
+## 2. Read the plan
+
+\`\`\`
+cospec status --change <slug> --json
+\`\`\`
+
+Read the type's full artifact plan and which artifacts in \`apply.requires\` are
+still missing. Respect the plan exactly: write every required artifact, and add
+nothing the type forbids.
+
+## 3. Author every remaining artifact
+
+Loop until every artifact in \`apply.requires\` is written:
+
+1. \`cospec status --change <slug> --json\` — read which artifacts are ready to
+   write next (their dependencies are satisfied) and which are still waiting.
+2. For each ready artifact, run
+   \`cospec instructions <artifact> --change <slug> --json\`. Treat \`context\` and
+   \`rules\` as constraints on how you write — never copy them into the artifact
+   itself.
+3. Write the artifact at the path the instructions name, following the format
+   exactly. \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and
+   \`verification.md\` are machine-parsed — small deviations fail validation.
+4. Repeat.
+
+For \`blocking-changes.md\`, scan the other active changes and the archive as the
+instruction directs, classify each dependency as hard (Blocked by) or soft
+(Soft-blocked by), and confirm the list with the user before finalizing it.
+
+## 4. Format, then validate
+
+If this repo has a formatter task (for example \`mise run format:fix\`; check its
+task list / docs), run it over the change directory now — an artifact that
+passes \`validate --strict\` can still fail the repo's format gate because the
+formatter rewraps markdown, and formatting must never be committed unformatted.
+
+\`\`\`
+cospec validate <slug> --strict
+\`\`\`
+
+Fix every ERROR and every WARNING; if you edit an artifact to fix one, re-run
+the formatter over it before re-validating. Re-run until it is clean.
+
+## 5. Hand off
+
+Tell the user the change is apply-ready and that the next step is
+\`/cospec:apply\` when they want to implement it. Do not start implementation
+here.
+"
+,
+    "kind": "command",
+    "path": ".claude/commands/cospec/ff.md",
+  },
+  {
+    "content": 
+"---
 name: cospec-apply-change
 description: Run the apply gate for a change and implement its tasks, obeying the gate's exit code.
 license: MIT
@@ -503,6 +872,162 @@ step \`/cospec:archive\`.
   {
     "content": 
 "---
+name: cospec-verify-change
+description: Dress-rehearse a change before archiving — validate strictly, walk the verification ledger, and name the hard archive gates.
+license: MIT
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:51f08c47b884a9466591d5b559af25a5d9b80545431b1eb06d7af18ae414eb8c
+---
+
+Dress-rehearse a change before archiving it. This workflow does not archive — it
+runs \`cospec validate --strict\`, walks the verification ledger to observed
+evidence, and names the hard gates \`/cospec:archive\` will enforce.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly, and never
+hand-edit the bookkeeping under \`openspec/changes/\`.
+
+## 1. Select the change
+
+If the user named one, use it. Otherwise run \`cospec list --json\` and pick, or
+ask.
+
+## 2. Validate
+
+\`\`\`
+cospec validate <slug> --strict
+\`\`\`
+
+Fix every ERROR and every WARNING it reports before continuing. This includes
+the archive-precondition checks (targets exist, no zero-op deltas, no ADDED
+collisions, scenarios are well-formed) — do not proceed to the ledger walk with
+a validation failure outstanding.
+
+## 3. Walk the verification ledger
+
+Read \`openspec/changes/<slug>/verification.md\`. For each row shaped
+\`- [ ] N.M @layer (owner) probe -> result\`:
+
+- Run the probe.
+- Record the actual observed result after \`->\`, replacing the placeholder.
+- Flip the box to \`[x]\` once the observed result is recorded.
+- If you will not run a row, do not fake it: write
+  \`- [~] N.M @layer (owner) probe -> defer: <honest reason>\` instead.
+
+No bare \`- [ ]\` row may remain when this step is done. Do not edit the ledger to
+invent evidence for a probe you did not actually run.
+
+## 4. Confirm tasks are complete
+
+Read \`openspec/changes/<slug>/tasks.md\`. Every box must be \`[x]\`. If any are
+not, finish the remaining work (or tell the user which are outstanding) before
+moving on.
+
+## 5. Name the gates archive will enforce
+
+Tell the user \`/cospec:archive\` runs two hard gates, neither of which accepts
+\`--force\`:
+
+- \`archive/verification-incomplete\` — fails if any ledger row is still a bare
+  \`- [ ]\`.
+- \`archive/scenario-preservation\` — fails if a spec delta would drop a scenario
+  the living spec already has.
+
+This workflow only checks these preconditions; it does not run the archive.
+
+## 6. Hand off
+
+Tell the user the change is dress-rehearsed and the next step is
+\`/cospec:archive\`.
+"
+,
+    "kind": "skill",
+    "path": ".claude/skills/cospec-verify-change/SKILL.md",
+  },
+  {
+    "content": 
+"---
+name: "COSPEC: Verify"
+description: Dress-rehearse a change before archiving — validate strictly, walk the verification ledger, and name the hard archive gates.
+category: Workflow
+tags:
+  - cospec
+  - workflow
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:51f08c47b884a9466591d5b559af25a5d9b80545431b1eb06d7af18ae414eb8c
+---
+
+Dress-rehearse a change before archiving it. This workflow does not archive — it
+runs \`cospec validate --strict\`, walks the verification ledger to observed
+evidence, and names the hard gates \`/cospec:archive\` will enforce.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly, and never
+hand-edit the bookkeeping under \`openspec/changes/\`.
+
+## 1. Select the change
+
+If the user named one, use it. Otherwise run \`cospec list --json\` and pick, or
+ask.
+
+## 2. Validate
+
+\`\`\`
+cospec validate <slug> --strict
+\`\`\`
+
+Fix every ERROR and every WARNING it reports before continuing. This includes
+the archive-precondition checks (targets exist, no zero-op deltas, no ADDED
+collisions, scenarios are well-formed) — do not proceed to the ledger walk with
+a validation failure outstanding.
+
+## 3. Walk the verification ledger
+
+Read \`openspec/changes/<slug>/verification.md\`. For each row shaped
+\`- [ ] N.M @layer (owner) probe -> result\`:
+
+- Run the probe.
+- Record the actual observed result after \`->\`, replacing the placeholder.
+- Flip the box to \`[x]\` once the observed result is recorded.
+- If you will not run a row, do not fake it: write
+  \`- [~] N.M @layer (owner) probe -> defer: <honest reason>\` instead.
+
+No bare \`- [ ]\` row may remain when this step is done. Do not edit the ledger to
+invent evidence for a probe you did not actually run.
+
+## 4. Confirm tasks are complete
+
+Read \`openspec/changes/<slug>/tasks.md\`. Every box must be \`[x]\`. If any are
+not, finish the remaining work (or tell the user which are outstanding) before
+moving on.
+
+## 5. Name the gates archive will enforce
+
+Tell the user \`/cospec:archive\` runs two hard gates, neither of which accepts
+\`--force\`:
+
+- \`archive/verification-incomplete\` — fails if any ledger row is still a bare
+  \`- [ ]\`.
+- \`archive/scenario-preservation\` — fails if a spec delta would drop a scenario
+  the living spec already has.
+
+This workflow only checks these preconditions; it does not run the archive.
+
+## 6. Hand off
+
+Tell the user the change is dress-rehearsed and the next step is
+\`/cospec:archive\`.
+"
+,
+    "kind": "command",
+    "path": ".claude/commands/cospec/verify.md",
+  },
+  {
+    "content": 
+"---
 name: cospec-archive-change
 description: Archive a completed change — validate, merge specs, verify, and fan blockers out.
 license: MIT
@@ -605,6 +1130,160 @@ Never bypass validation. If a change is reported as now unblocked, offer to
 ,
     "kind": "command",
     "path": ".claude/commands/cospec/archive.md",
+  },
+  {
+    "content": 
+"---
+name: cospec-bulk-archive-change
+description: Archive a batch of completed changes in dependency order, one cospec archive call at a time.
+license: MIT
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:ca1596ec86d8e05ed725eae1ba632ffbf9d490977f6579ab00fe203e971e477c
+---
+
+Archive a batch of completed changes, one at a time, in dependency order. Every
+change is archived through its own \`cospec archive\` call — never a
+hand-\`mkdir\`/\`mv\` of a change directory, no matter how many changes are in the
+batch.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly.
+
+## 1. List candidates
+
+\`\`\`
+cospec list --json
+\`\`\`
+
+Present the active changes to the user and let them select the completed subset
+to archive in this pass.
+
+## 2. Order providers before consumers
+
+For each selected change, read its \`blocking-changes.md\`. If change B lists
+change A as a blocker, A must archive before B. Where no dependency is declared,
+fall back to creation order. Present the ordered batch to the user as a table
+and get one confirmation before looping.
+
+## 3. Archive each change in order
+
+For each change in the ordered batch:
+
+\`\`\`
+cospec archive <slug>
+\`\`\`
+
+Relay the summary it prints verbatim: what was archived, which spec deltas were
+applied (\`+a ~m -r →n\`) or skipped, which sibling changes had blocker boxes
+checked, and which changes are now unblocked. A non-zero exit is reported and
+the batch continues to the next change — one failure is not fatal to the rest of
+the batch.
+
+## 4. On a per-change failure
+
+Do NOT hand-\`mv\` the change directory, and do NOT force past a failure you do
+not understand:
+
+- "archived nothing (exited 0 but aborted)" means the spec deltas did not apply
+  — fix the delta errors it printed, or re-run
+  \`cospec archive <slug> --skip-specs\` if this change genuinely should not touch
+  specs.
+- Incomplete tasks block the archive — finish them, or re-run with
+  \`--force-incomplete\` only after the user confirms the remaining tasks are
+  intentionally abandoned.
+- A genuine cross-change ADDED-collision (two changes in the batch add the same
+  spec requirement) is caught by the later archive's own spec guard. Resolve it
+  by editing the later change's delta — never \`--force\` past it.
+
+## 5. Report and hand off
+
+Summarize the batch: which changes archived cleanly, which failed and why, and
+which changes are newly unblocked. Offer to \`/cospec:apply\` anything newly
+unblocked.
+"
+,
+    "kind": "skill",
+    "path": ".claude/skills/cospec-bulk-archive-change/SKILL.md",
+  },
+  {
+    "content": 
+"---
+name: "COSPEC: Bulk archive"
+description: Archive a batch of completed changes in dependency order, one cospec archive call at a time.
+category: Workflow
+tags:
+  - cospec
+  - workflow
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:ca1596ec86d8e05ed725eae1ba632ffbf9d490977f6579ab00fe203e971e477c
+---
+
+Archive a batch of completed changes, one at a time, in dependency order. Every
+change is archived through its own \`cospec archive\` call — never a
+hand-\`mkdir\`/\`mv\` of a change directory, no matter how many changes are in the
+batch.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly.
+
+## 1. List candidates
+
+\`\`\`
+cospec list --json
+\`\`\`
+
+Present the active changes to the user and let them select the completed subset
+to archive in this pass.
+
+## 2. Order providers before consumers
+
+For each selected change, read its \`blocking-changes.md\`. If change B lists
+change A as a blocker, A must archive before B. Where no dependency is declared,
+fall back to creation order. Present the ordered batch to the user as a table
+and get one confirmation before looping.
+
+## 3. Archive each change in order
+
+For each change in the ordered batch:
+
+\`\`\`
+cospec archive <slug>
+\`\`\`
+
+Relay the summary it prints verbatim: what was archived, which spec deltas were
+applied (\`+a ~m -r →n\`) or skipped, which sibling changes had blocker boxes
+checked, and which changes are now unblocked. A non-zero exit is reported and
+the batch continues to the next change — one failure is not fatal to the rest of
+the batch.
+
+## 4. On a per-change failure
+
+Do NOT hand-\`mv\` the change directory, and do NOT force past a failure you do
+not understand:
+
+- "archived nothing (exited 0 but aborted)" means the spec deltas did not apply
+  — fix the delta errors it printed, or re-run
+  \`cospec archive <slug> --skip-specs\` if this change genuinely should not touch
+  specs.
+- Incomplete tasks block the archive — finish them, or re-run with
+  \`--force-incomplete\` only after the user confirms the remaining tasks are
+  intentionally abandoned.
+- A genuine cross-change ADDED-collision (two changes in the batch add the same
+  spec requirement) is caught by the later archive's own spec guard. Resolve it
+  by editing the later change's delta — never \`--force\` past it.
+
+## 5. Report and hand off
+
+Summarize the batch: which changes archived cleanly, which failed and why, and
+which changes are newly unblocked. Offer to \`/cospec:apply\` anything newly
+unblocked.
+"
+,
+    "kind": "command",
+    "path": ".claude/commands/cospec/bulk-archive.md",
   },
   {
     "content": 
@@ -776,6 +1455,228 @@ recommended next step.
     "kind": "command",
     "path": ".claude/commands/cospec/explore.md",
   },
+  {
+    "content": 
+"---
+name: cospec-onboard
+description: Walk a first-time user through one real cospec change end to end, narrating each step.
+license: MIT
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:c0acf01721c99e0b50950041c4080c330b709e81b07ef095b69784b1bedc7960
+---
+
+Walk a first-time user through one real cospec change, end to end, narrating
+each step before running it. This is a tutorial: explain, then do, then show the
+result, then pause for the user before continuing. Stop gracefully at any point
+the user wants to.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly.
+
+## 1. Preflight
+
+\`\`\`
+cospec doctor
+\`\`\`
+
+Confirm \`cospec\` is set up in this repo (schemas present, no drift). Explain
+what \`doctor\` checked before moving on.
+
+## 2. Find a small real task
+
+Look for something genuinely small in this repo: a \`TODO\`/\`FIXME\` comment, a
+one-line docs fix, or the shape of a recent small commit
+(\`git log --oneline -10\`). Explain why a small task is the right first change to
+onboard with. If nothing small is at hand, ask the user for one — do not
+manufacture busywork.
+
+## 3. Pick a light type
+
+Steer toward \`chore\` or \`docs\` — three short artifacts, not the full \`feat\`
+treatment — unless the task the user picked is genuinely a feature or fix.
+Explain the tradeoff (lighter type, fewer artifacts, faster loop) before asking
+the user to confirm the type.
+
+## 4. Scaffold the change
+
+\`\`\`
+cospec new <type> <slug>
+\`\`\`
+
+Show the printed artifact plan and explain what each artifact is for. Pause:
+confirm the user wants to continue before authoring anything.
+
+## 5. Author each artifact, pausing between them
+
+For each artifact in the plan, in order:
+
+\`\`\`
+cospec instructions <artifact> --change <slug> --json
+\`\`\`
+
+Explain what the instructions ask for, write the artifact, show the user what
+you wrote, and pause before moving to the next artifact.
+
+## 6. Validate
+
+\`\`\`
+cospec validate <slug> --strict
+\`\`\`
+
+Explain what this checks. Fix anything it flags, narrating the fix, then re-run
+until clean.
+
+## 7. Apply
+
+\`\`\`
+cospec apply <slug> --json
+\`\`\`
+
+Explain the exit code before acting on it: \`0\` clear (proceed to implement), \`2\`
+blocked (a required artifact or a hard blocker — stop and explain which), \`3\`
+soft-blocked (confirm with the user, then re-run with \`--allow-soft\`).
+
+## 8. Implement and record evidence
+
+Work through \`tasks.md\`, checking off each box as you finish it. If the type
+plans a \`verification.md\`, fill in each row's observed result as you go rather
+than leaving it for later. Pause after implementation to show the user the diff
+before archiving.
+
+## 9. Archive
+
+\`\`\`
+cospec archive <slug>
+\`\`\`
+
+Explain what just happened: the change validated, its spec deltas merged (or
+were skipped), the move was verified on disk, and any blocker boxes fanned out
+to sibling changes.
+
+## 10. Wrap up
+
+Tell the user they have now run the full cospec loop once end to end, and point
+at \`/cospec:propose\` (or \`/cospec:new\` plus \`/cospec:ff\` or \`/cospec:continue\`)
+for their next real change.
+"
+,
+    "kind": "skill",
+    "path": ".claude/skills/cospec-onboard/SKILL.md",
+  },
+  {
+    "content": 
+"---
+name: "COSPEC: Onboard"
+description: Walk a first-time user through one real cospec change end to end, narrating each step.
+category: Workflow
+tags:
+  - cospec
+  - workflow
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:c0acf01721c99e0b50950041c4080c330b709e81b07ef095b69784b1bedc7960
+---
+
+Walk a first-time user through one real cospec change, end to end, narrating
+each step before running it. This is a tutorial: explain, then do, then show the
+result, then pause for the user before continuing. Stop gracefully at any point
+the user wants to.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly.
+
+## 1. Preflight
+
+\`\`\`
+cospec doctor
+\`\`\`
+
+Confirm \`cospec\` is set up in this repo (schemas present, no drift). Explain
+what \`doctor\` checked before moving on.
+
+## 2. Find a small real task
+
+Look for something genuinely small in this repo: a \`TODO\`/\`FIXME\` comment, a
+one-line docs fix, or the shape of a recent small commit
+(\`git log --oneline -10\`). Explain why a small task is the right first change to
+onboard with. If nothing small is at hand, ask the user for one — do not
+manufacture busywork.
+
+## 3. Pick a light type
+
+Steer toward \`chore\` or \`docs\` — three short artifacts, not the full \`feat\`
+treatment — unless the task the user picked is genuinely a feature or fix.
+Explain the tradeoff (lighter type, fewer artifacts, faster loop) before asking
+the user to confirm the type.
+
+## 4. Scaffold the change
+
+\`\`\`
+cospec new <type> <slug>
+\`\`\`
+
+Show the printed artifact plan and explain what each artifact is for. Pause:
+confirm the user wants to continue before authoring anything.
+
+## 5. Author each artifact, pausing between them
+
+For each artifact in the plan, in order:
+
+\`\`\`
+cospec instructions <artifact> --change <slug> --json
+\`\`\`
+
+Explain what the instructions ask for, write the artifact, show the user what
+you wrote, and pause before moving to the next artifact.
+
+## 6. Validate
+
+\`\`\`
+cospec validate <slug> --strict
+\`\`\`
+
+Explain what this checks. Fix anything it flags, narrating the fix, then re-run
+until clean.
+
+## 7. Apply
+
+\`\`\`
+cospec apply <slug> --json
+\`\`\`
+
+Explain the exit code before acting on it: \`0\` clear (proceed to implement), \`2\`
+blocked (a required artifact or a hard blocker — stop and explain which), \`3\`
+soft-blocked (confirm with the user, then re-run with \`--allow-soft\`).
+
+## 8. Implement and record evidence
+
+Work through \`tasks.md\`, checking off each box as you finish it. If the type
+plans a \`verification.md\`, fill in each row's observed result as you go rather
+than leaving it for later. Pause after implementation to show the user the diff
+before archiving.
+
+## 9. Archive
+
+\`\`\`
+cospec archive <slug>
+\`\`\`
+
+Explain what just happened: the change validated, its spec deltas merged (or
+were skipped), the move was verified on disk, and any blocker boxes fanned out
+to sibling changes.
+
+## 10. Wrap up
+
+Tell the user they have now run the full cospec loop once end to end, and point
+at \`/cospec:propose\` (or \`/cospec:new\` plus \`/cospec:ff\` or \`/cospec:continue\`)
+for their next real change.
+"
+,
+    "kind": "command",
+    "path": ".claude/commands/cospec/onboard.md",
+  },
 ]
 `;
 
@@ -892,6 +1793,86 @@ here.
   {
     "content": 
 "---
+name: cospec-new-change
+description: Scaffold a new change and show its typed artifact plan, then stop before authoring anything.
+license: MIT
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:415671f0231b51709ce11e29cb78cd4dc68514de6919a1942654f5db6961bcfc
+---
+
+Scaffold a new openspec change and stop. This workflow creates the change and
+shows you its typed artifact plan — it does not author any artifact. Hand off to
+\`/cospec:ff\` or \`/cospec:continue\` to actually write them.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly, and never
+hand-edit the bookkeeping under \`openspec/changes/\`.
+
+## 1. Pick the type and slug
+
+The argument after the command is either \`<type>: <free text>\` (for example
+\`feat: add a greeting endpoint\`) or a bare description.
+
+- If it begins with a known type followed by \`:\`, use that type.
+- Otherwise ask the user to choose a type with AskUserQuestion, offering this
+  table:
+
+| Type | What it is for | Artifacts |
+| --- | --- | --- |
+| feat | A new feature — the full workflow | proposal → blocking-changes, specs (+ design) → tasks |
+| fix | A bug fix | proposal → blocking-changes (+ specs, design) → tasks |
+| perf | A performance change with identical behavior | proposal (+ Benchmarks) → blocking-changes → tasks |
+| refactor | A structure change with no behavior change | proposal → blocking-changes, design → tasks |
+| revert | Roll back a previously shipped change | proposal (+ Reverts) → blocking-changes → tasks |
+| build | Dependency or build-config change | proposal → blocking-changes → tasks (3 short artifacts) |
+| ci | CI configuration and automation pipeline change | proposal → blocking-changes → tasks (3 short artifacts) |
+| chore | Maintenance not affecting src or tests | proposal → blocking-changes → tasks (3 short artifacts) |
+| docs | Documentation content only | proposal → blocking-changes → tasks (3 short artifacts) |
+| style | Formatting or whitespace only | proposal → blocking-changes → tasks (3 short artifacts) |
+| test | Tests for already-specified behavior | proposal → blocking-changes → tasks (3 short artifacts) |
+
+Derive a kebab-case slug matching \`^[a-z][a-z0-9]*(-[a-z0-9]+)*$\` from the
+description, or ask the user for one.
+
+## 2. Create the change
+
+\`\`\`
+cospec new <type> <slug>
+\`\`\`
+
+This writes \`openspec/changes/<slug>/.openspec.yaml\` (its \`schema\` is the type)
+and prints the artifact plan — the exact set of artifacts this type requires.
+Relay the plan to the user verbatim.
+
+## 3. Show the first artifact, but do not write it
+
+\`\`\`
+cospec instructions <first-artifact> --change <slug> --json
+\`\`\`
+
+\`<first-artifact>\` is the first entry in the printed plan (typically
+\`proposal\`). Show the user its template and per-type instruction so they know
+what is coming next. Do NOT write the artifact file here — this workflow only
+scaffolds and previews.
+
+## 4. Stop and hand off
+
+Tell the user the change is scaffolded and offer two ways to continue:
+
+- \`/cospec:ff\` — author every remaining artifact in one pass.
+- \`/cospec:continue\` — author one artifact at a time, reviewing each.
+
+Do not create any artifact file yourself in this workflow.
+"
+,
+    "kind": "skill",
+    "path": ".codex/skills/cospec-new-change/SKILL.md",
+  },
+  {
+    "content": 
+"---
 name: cospec-continue-change
 description: Resume a partially-built change and finish its remaining artifacts.
 license: MIT
@@ -960,6 +1941,96 @@ user the change is apply-ready — next step \`/cospec:apply\`.
   {
     "content": 
 "---
+name: cospec-ff-change
+description: Author every remaining artifact on an already-scaffolded change in one pass, then validate.
+license: MIT
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:0a98804a126030685dd5f99edae7b567840ad427fc80f4a5cc0c5d4350f9760b
+---
+
+Fast-forward an already-scaffolded change: author every remaining artifact in
+one pass, then validate. Use this after \`/cospec:new\` has already created the
+change. Do NOT scaffold a new change here — if none exists yet, stop and point
+the user at \`/cospec:new\` instead.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly, and never
+hand-edit the bookkeeping under \`openspec/changes/\`.
+
+\`cospec\` is self-describing — you do not need to explore the repo to learn what
+to write. \`cospec instructions <artifact> --change <slug> --json\` prints the
+authoritative template, per-type format, and project rules for each artifact.
+Trust that output: do NOT read \`openspec/schemas/\`, \`openspec/config.yaml\`, or
+other repo files to reverse-engineer an artifact's shape.
+
+## 1. Pick the change
+
+\`\`\`
+cospec list --json
+\`\`\`
+
+If the user named a change, use it. Otherwise choose the in-progress one; if
+more than one is plausible, ask with AskUserQuestion, showing each change's type
+and gate state.
+
+## 2. Read the plan
+
+\`\`\`
+cospec status --change <slug> --json
+\`\`\`
+
+Read the type's full artifact plan and which artifacts in \`apply.requires\` are
+still missing. Respect the plan exactly: write every required artifact, and add
+nothing the type forbids.
+
+## 3. Author every remaining artifact
+
+Loop until every artifact in \`apply.requires\` is written:
+
+1. \`cospec status --change <slug> --json\` — read which artifacts are ready to
+   write next (their dependencies are satisfied) and which are still waiting.
+2. For each ready artifact, run
+   \`cospec instructions <artifact> --change <slug> --json\`. Treat \`context\` and
+   \`rules\` as constraints on how you write — never copy them into the artifact
+   itself.
+3. Write the artifact at the path the instructions name, following the format
+   exactly. \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and
+   \`verification.md\` are machine-parsed — small deviations fail validation.
+4. Repeat.
+
+For \`blocking-changes.md\`, scan the other active changes and the archive as the
+instruction directs, classify each dependency as hard (Blocked by) or soft
+(Soft-blocked by), and confirm the list with the user before finalizing it.
+
+## 4. Format, then validate
+
+If this repo has a formatter task (for example \`mise run format:fix\`; check its
+task list / docs), run it over the change directory now — an artifact that
+passes \`validate --strict\` can still fail the repo's format gate because the
+formatter rewraps markdown, and formatting must never be committed unformatted.
+
+\`\`\`
+cospec validate <slug> --strict
+\`\`\`
+
+Fix every ERROR and every WARNING; if you edit an artifact to fix one, re-run
+the formatter over it before re-validating. Re-run until it is clean.
+
+## 5. Hand off
+
+Tell the user the change is apply-ready and that the next step is
+\`/cospec:apply\` when they want to implement it. Do not start implementation
+here.
+"
+,
+    "kind": "skill",
+    "path": ".codex/skills/cospec-ff-change/SKILL.md",
+  },
+  {
+    "content": 
+"---
 name: cospec-apply-change
 description: Run the apply gate for a change and implement its tasks, obeying the gate's exit code.
 license: MIT
@@ -1012,6 +2083,83 @@ step \`/cospec:archive\`.
   {
     "content": 
 "---
+name: cospec-verify-change
+description: Dress-rehearse a change before archiving — validate strictly, walk the verification ledger, and name the hard archive gates.
+license: MIT
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:51f08c47b884a9466591d5b559af25a5d9b80545431b1eb06d7af18ae414eb8c
+---
+
+Dress-rehearse a change before archiving it. This workflow does not archive — it
+runs \`cospec validate --strict\`, walks the verification ledger to observed
+evidence, and names the hard gates \`/cospec:archive\` will enforce.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly, and never
+hand-edit the bookkeeping under \`openspec/changes/\`.
+
+## 1. Select the change
+
+If the user named one, use it. Otherwise run \`cospec list --json\` and pick, or
+ask.
+
+## 2. Validate
+
+\`\`\`
+cospec validate <slug> --strict
+\`\`\`
+
+Fix every ERROR and every WARNING it reports before continuing. This includes
+the archive-precondition checks (targets exist, no zero-op deltas, no ADDED
+collisions, scenarios are well-formed) — do not proceed to the ledger walk with
+a validation failure outstanding.
+
+## 3. Walk the verification ledger
+
+Read \`openspec/changes/<slug>/verification.md\`. For each row shaped
+\`- [ ] N.M @layer (owner) probe -> result\`:
+
+- Run the probe.
+- Record the actual observed result after \`->\`, replacing the placeholder.
+- Flip the box to \`[x]\` once the observed result is recorded.
+- If you will not run a row, do not fake it: write
+  \`- [~] N.M @layer (owner) probe -> defer: <honest reason>\` instead.
+
+No bare \`- [ ]\` row may remain when this step is done. Do not edit the ledger to
+invent evidence for a probe you did not actually run.
+
+## 4. Confirm tasks are complete
+
+Read \`openspec/changes/<slug>/tasks.md\`. Every box must be \`[x]\`. If any are
+not, finish the remaining work (or tell the user which are outstanding) before
+moving on.
+
+## 5. Name the gates archive will enforce
+
+Tell the user \`/cospec:archive\` runs two hard gates, neither of which accepts
+\`--force\`:
+
+- \`archive/verification-incomplete\` — fails if any ledger row is still a bare
+  \`- [ ]\`.
+- \`archive/scenario-preservation\` — fails if a spec delta would drop a scenario
+  the living spec already has.
+
+This workflow only checks these preconditions; it does not run the archive.
+
+## 6. Hand off
+
+Tell the user the change is dress-rehearsed and the next step is
+\`/cospec:archive\`.
+"
+,
+    "kind": "skill",
+    "path": ".codex/skills/cospec-verify-change/SKILL.md",
+  },
+  {
+    "content": 
+"---
 name: cospec-archive-change
 description: Archive a completed change — validate, merge specs, verify, and fan blockers out.
 license: MIT
@@ -1060,6 +2208,82 @@ Never bypass validation. If a change is reported as now unblocked, offer to
 ,
     "kind": "skill",
     "path": ".codex/skills/cospec-archive-change/SKILL.md",
+  },
+  {
+    "content": 
+"---
+name: cospec-bulk-archive-change
+description: Archive a batch of completed changes in dependency order, one cospec archive call at a time.
+license: MIT
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:ca1596ec86d8e05ed725eae1ba632ffbf9d490977f6579ab00fe203e971e477c
+---
+
+Archive a batch of completed changes, one at a time, in dependency order. Every
+change is archived through its own \`cospec archive\` call — never a
+hand-\`mkdir\`/\`mv\` of a change directory, no matter how many changes are in the
+batch.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly.
+
+## 1. List candidates
+
+\`\`\`
+cospec list --json
+\`\`\`
+
+Present the active changes to the user and let them select the completed subset
+to archive in this pass.
+
+## 2. Order providers before consumers
+
+For each selected change, read its \`blocking-changes.md\`. If change B lists
+change A as a blocker, A must archive before B. Where no dependency is declared,
+fall back to creation order. Present the ordered batch to the user as a table
+and get one confirmation before looping.
+
+## 3. Archive each change in order
+
+For each change in the ordered batch:
+
+\`\`\`
+cospec archive <slug>
+\`\`\`
+
+Relay the summary it prints verbatim: what was archived, which spec deltas were
+applied (\`+a ~m -r →n\`) or skipped, which sibling changes had blocker boxes
+checked, and which changes are now unblocked. A non-zero exit is reported and
+the batch continues to the next change — one failure is not fatal to the rest of
+the batch.
+
+## 4. On a per-change failure
+
+Do NOT hand-\`mv\` the change directory, and do NOT force past a failure you do
+not understand:
+
+- "archived nothing (exited 0 but aborted)" means the spec deltas did not apply
+  — fix the delta errors it printed, or re-run
+  \`cospec archive <slug> --skip-specs\` if this change genuinely should not touch
+  specs.
+- Incomplete tasks block the archive — finish them, or re-run with
+  \`--force-incomplete\` only after the user confirms the remaining tasks are
+  intentionally abandoned.
+- A genuine cross-change ADDED-collision (two changes in the batch add the same
+  spec requirement) is caught by the later archive's own spec guard. Resolve it
+  by editing the later change's delta — never \`--force\` past it.
+
+## 5. Report and hand off
+
+Summarize the batch: which changes archived cleanly, which failed and why, and
+which changes are newly unblocked. Offer to \`/cospec:apply\` anything newly
+unblocked.
+"
+,
+    "kind": "skill",
+    "path": ".codex/skills/cospec-bulk-archive-change/SKILL.md",
   },
   {
     "content": 
@@ -1143,6 +2367,116 @@ recommended next step.
 ,
     "kind": "skill",
     "path": ".codex/skills/cospec-explore/SKILL.md",
+  },
+  {
+    "content": 
+"---
+name: cospec-onboard
+description: Walk a first-time user through one real cospec change end to end, narrating each step.
+license: MIT
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:c0acf01721c99e0b50950041c4080c330b709e81b07ef095b69784b1bedc7960
+---
+
+Walk a first-time user through one real cospec change, end to end, narrating
+each step before running it. This is a tutorial: explain, then do, then show the
+result, then pause for the user before continuing. Stop gracefully at any point
+the user wants to.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly.
+
+## 1. Preflight
+
+\`\`\`
+cospec doctor
+\`\`\`
+
+Confirm \`cospec\` is set up in this repo (schemas present, no drift). Explain
+what \`doctor\` checked before moving on.
+
+## 2. Find a small real task
+
+Look for something genuinely small in this repo: a \`TODO\`/\`FIXME\` comment, a
+one-line docs fix, or the shape of a recent small commit
+(\`git log --oneline -10\`). Explain why a small task is the right first change to
+onboard with. If nothing small is at hand, ask the user for one — do not
+manufacture busywork.
+
+## 3. Pick a light type
+
+Steer toward \`chore\` or \`docs\` — three short artifacts, not the full \`feat\`
+treatment — unless the task the user picked is genuinely a feature or fix.
+Explain the tradeoff (lighter type, fewer artifacts, faster loop) before asking
+the user to confirm the type.
+
+## 4. Scaffold the change
+
+\`\`\`
+cospec new <type> <slug>
+\`\`\`
+
+Show the printed artifact plan and explain what each artifact is for. Pause:
+confirm the user wants to continue before authoring anything.
+
+## 5. Author each artifact, pausing between them
+
+For each artifact in the plan, in order:
+
+\`\`\`
+cospec instructions <artifact> --change <slug> --json
+\`\`\`
+
+Explain what the instructions ask for, write the artifact, show the user what
+you wrote, and pause before moving to the next artifact.
+
+## 6. Validate
+
+\`\`\`
+cospec validate <slug> --strict
+\`\`\`
+
+Explain what this checks. Fix anything it flags, narrating the fix, then re-run
+until clean.
+
+## 7. Apply
+
+\`\`\`
+cospec apply <slug> --json
+\`\`\`
+
+Explain the exit code before acting on it: \`0\` clear (proceed to implement), \`2\`
+blocked (a required artifact or a hard blocker — stop and explain which), \`3\`
+soft-blocked (confirm with the user, then re-run with \`--allow-soft\`).
+
+## 8. Implement and record evidence
+
+Work through \`tasks.md\`, checking off each box as you finish it. If the type
+plans a \`verification.md\`, fill in each row's observed result as you go rather
+than leaving it for later. Pause after implementation to show the user the diff
+before archiving.
+
+## 9. Archive
+
+\`\`\`
+cospec archive <slug>
+\`\`\`
+
+Explain what just happened: the change validated, its spec deltas merged (or
+were skipped), the move was verified on disk, and any blocker boxes fanned out
+to sibling changes.
+
+## 10. Wrap up
+
+Tell the user they have now run the full cospec loop once end to end, and point
+at \`/cospec:propose\` (or \`/cospec:new\` plus \`/cospec:ff\` or \`/cospec:continue\`)
+for their next real change.
+"
+,
+    "kind": "skill",
+    "path": ".codex/skills/cospec-onboard/SKILL.md",
   },
   {
     "content": 
@@ -1383,6 +2717,163 @@ here.
   {
     "content": 
 "---
+name: cospec-new-change
+description: Scaffold a new change and show its typed artifact plan, then stop before authoring anything.
+license: MIT
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:212e161866ea20566935035ad1dc58e5c5d6ccf0dbc734a39b4a827560418ce2
+---
+
+Scaffold a new openspec change and stop. This workflow creates the change and
+shows you its typed artifact plan — it does not author any artifact. Hand off to
+\`/cospec-ff\` or \`/cospec-continue\` to actually write them.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly, and never
+hand-edit the bookkeeping under \`openspec/changes/\`.
+
+## 1. Pick the type and slug
+
+The argument after the command is either \`<type>: <free text>\` (for example
+\`feat: add a greeting endpoint\`) or a bare description.
+
+- If it begins with a known type followed by \`:\`, use that type.
+- Otherwise ask the user to choose a type with AskUserQuestion, offering this
+  table:
+
+| Type | What it is for | Artifacts |
+| --- | --- | --- |
+| feat | A new feature — the full workflow | proposal → blocking-changes, specs (+ design) → tasks |
+| fix | A bug fix | proposal → blocking-changes (+ specs, design) → tasks |
+| perf | A performance change with identical behavior | proposal (+ Benchmarks) → blocking-changes → tasks |
+| refactor | A structure change with no behavior change | proposal → blocking-changes, design → tasks |
+| revert | Roll back a previously shipped change | proposal (+ Reverts) → blocking-changes → tasks |
+| build | Dependency or build-config change | proposal → blocking-changes → tasks (3 short artifacts) |
+| ci | CI configuration and automation pipeline change | proposal → blocking-changes → tasks (3 short artifacts) |
+| chore | Maintenance not affecting src or tests | proposal → blocking-changes → tasks (3 short artifacts) |
+| docs | Documentation content only | proposal → blocking-changes → tasks (3 short artifacts) |
+| style | Formatting or whitespace only | proposal → blocking-changes → tasks (3 short artifacts) |
+| test | Tests for already-specified behavior | proposal → blocking-changes → tasks (3 short artifacts) |
+
+Derive a kebab-case slug matching \`^[a-z][a-z0-9]*(-[a-z0-9]+)*$\` from the
+description, or ask the user for one.
+
+## 2. Create the change
+
+\`\`\`
+cospec new <type> <slug>
+\`\`\`
+
+This writes \`openspec/changes/<slug>/.openspec.yaml\` (its \`schema\` is the type)
+and prints the artifact plan — the exact set of artifacts this type requires.
+Relay the plan to the user verbatim.
+
+## 3. Show the first artifact, but do not write it
+
+\`\`\`
+cospec instructions <first-artifact> --change <slug> --json
+\`\`\`
+
+\`<first-artifact>\` is the first entry in the printed plan (typically
+\`proposal\`). Show the user its template and per-type instruction so they know
+what is coming next. Do NOT write the artifact file here — this workflow only
+scaffolds and previews.
+
+## 4. Stop and hand off
+
+Tell the user the change is scaffolded and offer two ways to continue:
+
+- \`/cospec-ff\` — author every remaining artifact in one pass.
+- \`/cospec-continue\` — author one artifact at a time, reviewing each.
+
+Do not create any artifact file yourself in this workflow.
+"
+,
+    "kind": "skill",
+    "path": ".opencode/skills/cospec-new-change/SKILL.md",
+  },
+  {
+    "content": 
+"---
+description: Scaffold a new change and show its typed artifact plan, then stop before authoring anything.
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:212e161866ea20566935035ad1dc58e5c5d6ccf0dbc734a39b4a827560418ce2
+---
+
+Scaffold a new openspec change and stop. This workflow creates the change and
+shows you its typed artifact plan — it does not author any artifact. Hand off to
+\`/cospec-ff\` or \`/cospec-continue\` to actually write them.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly, and never
+hand-edit the bookkeeping under \`openspec/changes/\`.
+
+## 1. Pick the type and slug
+
+The argument after the command is either \`<type>: <free text>\` (for example
+\`feat: add a greeting endpoint\`) or a bare description.
+
+- If it begins with a known type followed by \`:\`, use that type.
+- Otherwise ask the user to choose a type with AskUserQuestion, offering this
+  table:
+
+| Type | What it is for | Artifacts |
+| --- | --- | --- |
+| feat | A new feature — the full workflow | proposal → blocking-changes, specs (+ design) → tasks |
+| fix | A bug fix | proposal → blocking-changes (+ specs, design) → tasks |
+| perf | A performance change with identical behavior | proposal (+ Benchmarks) → blocking-changes → tasks |
+| refactor | A structure change with no behavior change | proposal → blocking-changes, design → tasks |
+| revert | Roll back a previously shipped change | proposal (+ Reverts) → blocking-changes → tasks |
+| build | Dependency or build-config change | proposal → blocking-changes → tasks (3 short artifacts) |
+| ci | CI configuration and automation pipeline change | proposal → blocking-changes → tasks (3 short artifacts) |
+| chore | Maintenance not affecting src or tests | proposal → blocking-changes → tasks (3 short artifacts) |
+| docs | Documentation content only | proposal → blocking-changes → tasks (3 short artifacts) |
+| style | Formatting or whitespace only | proposal → blocking-changes → tasks (3 short artifacts) |
+| test | Tests for already-specified behavior | proposal → blocking-changes → tasks (3 short artifacts) |
+
+Derive a kebab-case slug matching \`^[a-z][a-z0-9]*(-[a-z0-9]+)*$\` from the
+description, or ask the user for one.
+
+## 2. Create the change
+
+\`\`\`
+cospec new <type> <slug>
+\`\`\`
+
+This writes \`openspec/changes/<slug>/.openspec.yaml\` (its \`schema\` is the type)
+and prints the artifact plan — the exact set of artifacts this type requires.
+Relay the plan to the user verbatim.
+
+## 3. Show the first artifact, but do not write it
+
+\`\`\`
+cospec instructions <first-artifact> --change <slug> --json
+\`\`\`
+
+\`<first-artifact>\` is the first entry in the printed plan (typically
+\`proposal\`). Show the user its template and per-type instruction so they know
+what is coming next. Do NOT write the artifact file here — this workflow only
+scaffolds and previews.
+
+## 4. Stop and hand off
+
+Tell the user the change is scaffolded and offer two ways to continue:
+
+- \`/cospec-ff\` — author every remaining artifact in one pass.
+- \`/cospec-continue\` — author one artifact at a time, reviewing each.
+
+Do not create any artifact file yourself in this workflow.
+"
+,
+    "kind": "command",
+    "path": ".opencode/commands/cospec-new.md",
+  },
+  {
+    "content": 
+"---
 name: cospec-continue-change
 description: Resume a partially-built change and finish its remaining artifacts.
 license: MIT
@@ -1516,6 +3007,183 @@ user the change is apply-ready — next step \`/cospec-apply\`.
   {
     "content": 
 "---
+name: cospec-ff-change
+description: Author every remaining artifact on an already-scaffolded change in one pass, then validate.
+license: MIT
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:45fdafc162e7a4e5c780f12716917010320de78ecd125678116282df3fd73b9d
+---
+
+Fast-forward an already-scaffolded change: author every remaining artifact in
+one pass, then validate. Use this after \`/cospec-new\` has already created the
+change. Do NOT scaffold a new change here — if none exists yet, stop and point
+the user at \`/cospec-new\` instead.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly, and never
+hand-edit the bookkeeping under \`openspec/changes/\`.
+
+\`cospec\` is self-describing — you do not need to explore the repo to learn what
+to write. \`cospec instructions <artifact> --change <slug> --json\` prints the
+authoritative template, per-type format, and project rules for each artifact.
+Trust that output: do NOT read \`openspec/schemas/\`, \`openspec/config.yaml\`, or
+other repo files to reverse-engineer an artifact's shape.
+
+## 1. Pick the change
+
+\`\`\`
+cospec list --json
+\`\`\`
+
+If the user named a change, use it. Otherwise choose the in-progress one; if
+more than one is plausible, ask with AskUserQuestion, showing each change's type
+and gate state.
+
+## 2. Read the plan
+
+\`\`\`
+cospec status --change <slug> --json
+\`\`\`
+
+Read the type's full artifact plan and which artifacts in \`apply.requires\` are
+still missing. Respect the plan exactly: write every required artifact, and add
+nothing the type forbids.
+
+## 3. Author every remaining artifact
+
+Loop until every artifact in \`apply.requires\` is written:
+
+1. \`cospec status --change <slug> --json\` — read which artifacts are ready to
+   write next (their dependencies are satisfied) and which are still waiting.
+2. For each ready artifact, run
+   \`cospec instructions <artifact> --change <slug> --json\`. Treat \`context\` and
+   \`rules\` as constraints on how you write — never copy them into the artifact
+   itself.
+3. Write the artifact at the path the instructions name, following the format
+   exactly. \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and
+   \`verification.md\` are machine-parsed — small deviations fail validation.
+4. Repeat.
+
+For \`blocking-changes.md\`, scan the other active changes and the archive as the
+instruction directs, classify each dependency as hard (Blocked by) or soft
+(Soft-blocked by), and confirm the list with the user before finalizing it.
+
+## 4. Format, then validate
+
+If this repo has a formatter task (for example \`mise run format:fix\`; check its
+task list / docs), run it over the change directory now — an artifact that
+passes \`validate --strict\` can still fail the repo's format gate because the
+formatter rewraps markdown, and formatting must never be committed unformatted.
+
+\`\`\`
+cospec validate <slug> --strict
+\`\`\`
+
+Fix every ERROR and every WARNING; if you edit an artifact to fix one, re-run
+the formatter over it before re-validating. Re-run until it is clean.
+
+## 5. Hand off
+
+Tell the user the change is apply-ready and that the next step is
+\`/cospec-apply\` when they want to implement it. Do not start implementation
+here.
+"
+,
+    "kind": "skill",
+    "path": ".opencode/skills/cospec-ff-change/SKILL.md",
+  },
+  {
+    "content": 
+"---
+description: Author every remaining artifact on an already-scaffolded change in one pass, then validate.
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:45fdafc162e7a4e5c780f12716917010320de78ecd125678116282df3fd73b9d
+---
+
+Fast-forward an already-scaffolded change: author every remaining artifact in
+one pass, then validate. Use this after \`/cospec-new\` has already created the
+change. Do NOT scaffold a new change here — if none exists yet, stop and point
+the user at \`/cospec-new\` instead.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly, and never
+hand-edit the bookkeeping under \`openspec/changes/\`.
+
+\`cospec\` is self-describing — you do not need to explore the repo to learn what
+to write. \`cospec instructions <artifact> --change <slug> --json\` prints the
+authoritative template, per-type format, and project rules for each artifact.
+Trust that output: do NOT read \`openspec/schemas/\`, \`openspec/config.yaml\`, or
+other repo files to reverse-engineer an artifact's shape.
+
+## 1. Pick the change
+
+\`\`\`
+cospec list --json
+\`\`\`
+
+If the user named a change, use it. Otherwise choose the in-progress one; if
+more than one is plausible, ask with AskUserQuestion, showing each change's type
+and gate state.
+
+## 2. Read the plan
+
+\`\`\`
+cospec status --change <slug> --json
+\`\`\`
+
+Read the type's full artifact plan and which artifacts in \`apply.requires\` are
+still missing. Respect the plan exactly: write every required artifact, and add
+nothing the type forbids.
+
+## 3. Author every remaining artifact
+
+Loop until every artifact in \`apply.requires\` is written:
+
+1. \`cospec status --change <slug> --json\` — read which artifacts are ready to
+   write next (their dependencies are satisfied) and which are still waiting.
+2. For each ready artifact, run
+   \`cospec instructions <artifact> --change <slug> --json\`. Treat \`context\` and
+   \`rules\` as constraints on how you write — never copy them into the artifact
+   itself.
+3. Write the artifact at the path the instructions name, following the format
+   exactly. \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and
+   \`verification.md\` are machine-parsed — small deviations fail validation.
+4. Repeat.
+
+For \`blocking-changes.md\`, scan the other active changes and the archive as the
+instruction directs, classify each dependency as hard (Blocked by) or soft
+(Soft-blocked by), and confirm the list with the user before finalizing it.
+
+## 4. Format, then validate
+
+If this repo has a formatter task (for example \`mise run format:fix\`; check its
+task list / docs), run it over the change directory now — an artifact that
+passes \`validate --strict\` can still fail the repo's format gate because the
+formatter rewraps markdown, and formatting must never be committed unformatted.
+
+\`\`\`
+cospec validate <slug> --strict
+\`\`\`
+
+Fix every ERROR and every WARNING; if you edit an artifact to fix one, re-run
+the formatter over it before re-validating. Re-run until it is clean.
+
+## 5. Hand off
+
+Tell the user the change is apply-ready and that the next step is
+\`/cospec-apply\` when they want to implement it. Do not start implementation
+here.
+"
+,
+    "kind": "command",
+    "path": ".opencode/commands/cospec-ff.md",
+  },
+  {
+    "content": 
+"---
 name: cospec-apply-change
 description: Run the apply gate for a change and implement its tasks, obeying the gate's exit code.
 license: MIT
@@ -1617,6 +3285,157 @@ step \`/cospec-archive\`.
   {
     "content": 
 "---
+name: cospec-verify-change
+description: Dress-rehearse a change before archiving — validate strictly, walk the verification ledger, and name the hard archive gates.
+license: MIT
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:fa9c999614a012ae1f53397848ad434aa3dbac73f812702ddeb1b10f59fac069
+---
+
+Dress-rehearse a change before archiving it. This workflow does not archive — it
+runs \`cospec validate --strict\`, walks the verification ledger to observed
+evidence, and names the hard gates \`/cospec-archive\` will enforce.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly, and never
+hand-edit the bookkeeping under \`openspec/changes/\`.
+
+## 1. Select the change
+
+If the user named one, use it. Otherwise run \`cospec list --json\` and pick, or
+ask.
+
+## 2. Validate
+
+\`\`\`
+cospec validate <slug> --strict
+\`\`\`
+
+Fix every ERROR and every WARNING it reports before continuing. This includes
+the archive-precondition checks (targets exist, no zero-op deltas, no ADDED
+collisions, scenarios are well-formed) — do not proceed to the ledger walk with
+a validation failure outstanding.
+
+## 3. Walk the verification ledger
+
+Read \`openspec/changes/<slug>/verification.md\`. For each row shaped
+\`- [ ] N.M @layer (owner) probe -> result\`:
+
+- Run the probe.
+- Record the actual observed result after \`->\`, replacing the placeholder.
+- Flip the box to \`[x]\` once the observed result is recorded.
+- If you will not run a row, do not fake it: write
+  \`- [~] N.M @layer (owner) probe -> defer: <honest reason>\` instead.
+
+No bare \`- [ ]\` row may remain when this step is done. Do not edit the ledger to
+invent evidence for a probe you did not actually run.
+
+## 4. Confirm tasks are complete
+
+Read \`openspec/changes/<slug>/tasks.md\`. Every box must be \`[x]\`. If any are
+not, finish the remaining work (or tell the user which are outstanding) before
+moving on.
+
+## 5. Name the gates archive will enforce
+
+Tell the user \`/cospec-archive\` runs two hard gates, neither of which accepts
+\`--force\`:
+
+- \`archive/verification-incomplete\` — fails if any ledger row is still a bare
+  \`- [ ]\`.
+- \`archive/scenario-preservation\` — fails if a spec delta would drop a scenario
+  the living spec already has.
+
+This workflow only checks these preconditions; it does not run the archive.
+
+## 6. Hand off
+
+Tell the user the change is dress-rehearsed and the next step is
+\`/cospec-archive\`.
+"
+,
+    "kind": "skill",
+    "path": ".opencode/skills/cospec-verify-change/SKILL.md",
+  },
+  {
+    "content": 
+"---
+description: Dress-rehearse a change before archiving — validate strictly, walk the verification ledger, and name the hard archive gates.
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:fa9c999614a012ae1f53397848ad434aa3dbac73f812702ddeb1b10f59fac069
+---
+
+Dress-rehearse a change before archiving it. This workflow does not archive — it
+runs \`cospec validate --strict\`, walks the verification ledger to observed
+evidence, and names the hard gates \`/cospec-archive\` will enforce.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly, and never
+hand-edit the bookkeeping under \`openspec/changes/\`.
+
+## 1. Select the change
+
+If the user named one, use it. Otherwise run \`cospec list --json\` and pick, or
+ask.
+
+## 2. Validate
+
+\`\`\`
+cospec validate <slug> --strict
+\`\`\`
+
+Fix every ERROR and every WARNING it reports before continuing. This includes
+the archive-precondition checks (targets exist, no zero-op deltas, no ADDED
+collisions, scenarios are well-formed) — do not proceed to the ledger walk with
+a validation failure outstanding.
+
+## 3. Walk the verification ledger
+
+Read \`openspec/changes/<slug>/verification.md\`. For each row shaped
+\`- [ ] N.M @layer (owner) probe -> result\`:
+
+- Run the probe.
+- Record the actual observed result after \`->\`, replacing the placeholder.
+- Flip the box to \`[x]\` once the observed result is recorded.
+- If you will not run a row, do not fake it: write
+  \`- [~] N.M @layer (owner) probe -> defer: <honest reason>\` instead.
+
+No bare \`- [ ]\` row may remain when this step is done. Do not edit the ledger to
+invent evidence for a probe you did not actually run.
+
+## 4. Confirm tasks are complete
+
+Read \`openspec/changes/<slug>/tasks.md\`. Every box must be \`[x]\`. If any are
+not, finish the remaining work (or tell the user which are outstanding) before
+moving on.
+
+## 5. Name the gates archive will enforce
+
+Tell the user \`/cospec-archive\` runs two hard gates, neither of which accepts
+\`--force\`:
+
+- \`archive/verification-incomplete\` — fails if any ledger row is still a bare
+  \`- [ ]\`.
+- \`archive/scenario-preservation\` — fails if a spec delta would drop a scenario
+  the living spec already has.
+
+This workflow only checks these preconditions; it does not run the archive.
+
+## 6. Hand off
+
+Tell the user the change is dress-rehearsed and the next step is
+\`/cospec-archive\`.
+"
+,
+    "kind": "command",
+    "path": ".opencode/commands/cospec-verify.md",
+  },
+  {
+    "content": 
+"---
 name: cospec-archive-change
 description: Archive a completed change — validate, merge specs, verify, and fan blockers out.
 license: MIT
@@ -1714,6 +3533,155 @@ Never bypass validation. If a change is reported as now unblocked, offer to
 ,
     "kind": "command",
     "path": ".opencode/commands/cospec-archive.md",
+  },
+  {
+    "content": 
+"---
+name: cospec-bulk-archive-change
+description: Archive a batch of completed changes in dependency order, one cospec archive call at a time.
+license: MIT
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:9480ea256cda201063ddfcaa58576c593ed9c600eabfabb097f91db1da61a8ab
+---
+
+Archive a batch of completed changes, one at a time, in dependency order. Every
+change is archived through its own \`cospec archive\` call — never a
+hand-\`mkdir\`/\`mv\` of a change directory, no matter how many changes are in the
+batch.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly.
+
+## 1. List candidates
+
+\`\`\`
+cospec list --json
+\`\`\`
+
+Present the active changes to the user and let them select the completed subset
+to archive in this pass.
+
+## 2. Order providers before consumers
+
+For each selected change, read its \`blocking-changes.md\`. If change B lists
+change A as a blocker, A must archive before B. Where no dependency is declared,
+fall back to creation order. Present the ordered batch to the user as a table
+and get one confirmation before looping.
+
+## 3. Archive each change in order
+
+For each change in the ordered batch:
+
+\`\`\`
+cospec archive <slug>
+\`\`\`
+
+Relay the summary it prints verbatim: what was archived, which spec deltas were
+applied (\`+a ~m -r →n\`) or skipped, which sibling changes had blocker boxes
+checked, and which changes are now unblocked. A non-zero exit is reported and
+the batch continues to the next change — one failure is not fatal to the rest of
+the batch.
+
+## 4. On a per-change failure
+
+Do NOT hand-\`mv\` the change directory, and do NOT force past a failure you do
+not understand:
+
+- "archived nothing (exited 0 but aborted)" means the spec deltas did not apply
+  — fix the delta errors it printed, or re-run
+  \`cospec archive <slug> --skip-specs\` if this change genuinely should not touch
+  specs.
+- Incomplete tasks block the archive — finish them, or re-run with
+  \`--force-incomplete\` only after the user confirms the remaining tasks are
+  intentionally abandoned.
+- A genuine cross-change ADDED-collision (two changes in the batch add the same
+  spec requirement) is caught by the later archive's own spec guard. Resolve it
+  by editing the later change's delta — never \`--force\` past it.
+
+## 5. Report and hand off
+
+Summarize the batch: which changes archived cleanly, which failed and why, and
+which changes are newly unblocked. Offer to \`/cospec-apply\` anything newly
+unblocked.
+"
+,
+    "kind": "skill",
+    "path": ".opencode/skills/cospec-bulk-archive-change/SKILL.md",
+  },
+  {
+    "content": 
+"---
+description: Archive a batch of completed changes in dependency order, one cospec archive call at a time.
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:9480ea256cda201063ddfcaa58576c593ed9c600eabfabb097f91db1da61a8ab
+---
+
+Archive a batch of completed changes, one at a time, in dependency order. Every
+change is archived through its own \`cospec archive\` call — never a
+hand-\`mkdir\`/\`mv\` of a change directory, no matter how many changes are in the
+batch.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly.
+
+## 1. List candidates
+
+\`\`\`
+cospec list --json
+\`\`\`
+
+Present the active changes to the user and let them select the completed subset
+to archive in this pass.
+
+## 2. Order providers before consumers
+
+For each selected change, read its \`blocking-changes.md\`. If change B lists
+change A as a blocker, A must archive before B. Where no dependency is declared,
+fall back to creation order. Present the ordered batch to the user as a table
+and get one confirmation before looping.
+
+## 3. Archive each change in order
+
+For each change in the ordered batch:
+
+\`\`\`
+cospec archive <slug>
+\`\`\`
+
+Relay the summary it prints verbatim: what was archived, which spec deltas were
+applied (\`+a ~m -r →n\`) or skipped, which sibling changes had blocker boxes
+checked, and which changes are now unblocked. A non-zero exit is reported and
+the batch continues to the next change — one failure is not fatal to the rest of
+the batch.
+
+## 4. On a per-change failure
+
+Do NOT hand-\`mv\` the change directory, and do NOT force past a failure you do
+not understand:
+
+- "archived nothing (exited 0 but aborted)" means the spec deltas did not apply
+  — fix the delta errors it printed, or re-run
+  \`cospec archive <slug> --skip-specs\` if this change genuinely should not touch
+  specs.
+- Incomplete tasks block the archive — finish them, or re-run with
+  \`--force-incomplete\` only after the user confirms the remaining tasks are
+  intentionally abandoned.
+- A genuine cross-change ADDED-collision (two changes in the batch add the same
+  spec requirement) is caught by the later archive's own spec guard. Resolve it
+  by editing the later change's delta — never \`--force\` past it.
+
+## 5. Report and hand off
+
+Summarize the batch: which changes archived cleanly, which failed and why, and
+which changes are newly unblocked. Offer to \`/cospec-apply\` anything newly
+unblocked.
+"
+,
+    "kind": "command",
+    "path": ".opencode/commands/cospec-bulk-archive.md",
   },
   {
     "content": 
@@ -1874,6 +3842,223 @@ recommended next step.
 ,
     "kind": "command",
     "path": ".opencode/commands/cospec-explore.md",
+  },
+  {
+    "content": 
+"---
+name: cospec-onboard
+description: Walk a first-time user through one real cospec change end to end, narrating each step.
+license: MIT
+compatibility: Requires the cospec CLI (@aligned-team/cospec).
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:1c6874a1abb688f0e7dc04816ab881a811f3097d1ec25af822c8d322e0d42c76
+---
+
+Walk a first-time user through one real cospec change, end to end, narrating
+each step before running it. This is a tutorial: explain, then do, then show the
+result, then pause for the user before continuing. Stop gracefully at any point
+the user wants to.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly.
+
+## 1. Preflight
+
+\`\`\`
+cospec doctor
+\`\`\`
+
+Confirm \`cospec\` is set up in this repo (schemas present, no drift). Explain
+what \`doctor\` checked before moving on.
+
+## 2. Find a small real task
+
+Look for something genuinely small in this repo: a \`TODO\`/\`FIXME\` comment, a
+one-line docs fix, or the shape of a recent small commit
+(\`git log --oneline -10\`). Explain why a small task is the right first change to
+onboard with. If nothing small is at hand, ask the user for one — do not
+manufacture busywork.
+
+## 3. Pick a light type
+
+Steer toward \`chore\` or \`docs\` — three short artifacts, not the full \`feat\`
+treatment — unless the task the user picked is genuinely a feature or fix.
+Explain the tradeoff (lighter type, fewer artifacts, faster loop) before asking
+the user to confirm the type.
+
+## 4. Scaffold the change
+
+\`\`\`
+cospec new <type> <slug>
+\`\`\`
+
+Show the printed artifact plan and explain what each artifact is for. Pause:
+confirm the user wants to continue before authoring anything.
+
+## 5. Author each artifact, pausing between them
+
+For each artifact in the plan, in order:
+
+\`\`\`
+cospec instructions <artifact> --change <slug> --json
+\`\`\`
+
+Explain what the instructions ask for, write the artifact, show the user what
+you wrote, and pause before moving to the next artifact.
+
+## 6. Validate
+
+\`\`\`
+cospec validate <slug> --strict
+\`\`\`
+
+Explain what this checks. Fix anything it flags, narrating the fix, then re-run
+until clean.
+
+## 7. Apply
+
+\`\`\`
+cospec apply <slug> --json
+\`\`\`
+
+Explain the exit code before acting on it: \`0\` clear (proceed to implement), \`2\`
+blocked (a required artifact or a hard blocker — stop and explain which), \`3\`
+soft-blocked (confirm with the user, then re-run with \`--allow-soft\`).
+
+## 8. Implement and record evidence
+
+Work through \`tasks.md\`, checking off each box as you finish it. If the type
+plans a \`verification.md\`, fill in each row's observed result as you go rather
+than leaving it for later. Pause after implementation to show the user the diff
+before archiving.
+
+## 9. Archive
+
+\`\`\`
+cospec archive <slug>
+\`\`\`
+
+Explain what just happened: the change validated, its spec deltas merged (or
+were skipped), the move was verified on disk, and any blocker boxes fanned out
+to sibling changes.
+
+## 10. Wrap up
+
+Tell the user they have now run the full cospec loop once end to end, and point
+at \`/cospec-propose\` (or \`/cospec-new\` plus \`/cospec-ff\` or \`/cospec-continue\`)
+for their next real change.
+"
+,
+    "kind": "skill",
+    "path": ".opencode/skills/cospec-onboard/SKILL.md",
+  },
+  {
+    "content": 
+"---
+description: Walk a first-time user through one real cospec change end to end, narrating each step.
+metadata:
+  author: cospec
+  generatedBy: cospec@test
+  contentHash: sha256:1c6874a1abb688f0e7dc04816ab881a811f3097d1ec25af822c8d322e0d42c76
+---
+
+Walk a first-time user through one real cospec change, end to end, narrating
+each step before running it. This is a tutorial: explain, then do, then show the
+result, then pause for the user before continuing. Stop gracefully at any point
+the user wants to.
+
+All work goes through \`cospec\`. Never call \`openspec\` directly.
+
+## 1. Preflight
+
+\`\`\`
+cospec doctor
+\`\`\`
+
+Confirm \`cospec\` is set up in this repo (schemas present, no drift). Explain
+what \`doctor\` checked before moving on.
+
+## 2. Find a small real task
+
+Look for something genuinely small in this repo: a \`TODO\`/\`FIXME\` comment, a
+one-line docs fix, or the shape of a recent small commit
+(\`git log --oneline -10\`). Explain why a small task is the right first change to
+onboard with. If nothing small is at hand, ask the user for one — do not
+manufacture busywork.
+
+## 3. Pick a light type
+
+Steer toward \`chore\` or \`docs\` — three short artifacts, not the full \`feat\`
+treatment — unless the task the user picked is genuinely a feature or fix.
+Explain the tradeoff (lighter type, fewer artifacts, faster loop) before asking
+the user to confirm the type.
+
+## 4. Scaffold the change
+
+\`\`\`
+cospec new <type> <slug>
+\`\`\`
+
+Show the printed artifact plan and explain what each artifact is for. Pause:
+confirm the user wants to continue before authoring anything.
+
+## 5. Author each artifact, pausing between them
+
+For each artifact in the plan, in order:
+
+\`\`\`
+cospec instructions <artifact> --change <slug> --json
+\`\`\`
+
+Explain what the instructions ask for, write the artifact, show the user what
+you wrote, and pause before moving to the next artifact.
+
+## 6. Validate
+
+\`\`\`
+cospec validate <slug> --strict
+\`\`\`
+
+Explain what this checks. Fix anything it flags, narrating the fix, then re-run
+until clean.
+
+## 7. Apply
+
+\`\`\`
+cospec apply <slug> --json
+\`\`\`
+
+Explain the exit code before acting on it: \`0\` clear (proceed to implement), \`2\`
+blocked (a required artifact or a hard blocker — stop and explain which), \`3\`
+soft-blocked (confirm with the user, then re-run with \`--allow-soft\`).
+
+## 8. Implement and record evidence
+
+Work through \`tasks.md\`, checking off each box as you finish it. If the type
+plans a \`verification.md\`, fill in each row's observed result as you go rather
+than leaving it for later. Pause after implementation to show the user the diff
+before archiving.
+
+## 9. Archive
+
+\`\`\`
+cospec archive <slug>
+\`\`\`
+
+Explain what just happened: the change validated, its spec deltas merged (or
+were skipped), the move was verified on disk, and any blocker boxes fanned out
+to sibling changes.
+
+## 10. Wrap up
+
+Tell the user they have now run the full cospec loop once end to end, and point
+at \`/cospec-propose\` (or \`/cospec-new\` plus \`/cospec-ff\` or \`/cospec-continue\`)
+for their next real change.
+"
+,
+    "kind": "command",
+    "path": ".opencode/commands/cospec-onboard.md",
   },
 ]
 `;

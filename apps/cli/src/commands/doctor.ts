@@ -53,11 +53,16 @@ interface Finding {
 /** Workflow id → skill dir name (mirrors canon/workflows/harness.yaml). */
 const WORKFLOW_SKILL: Record<string, string> = {
   propose: 'cospec-propose',
+  new: 'cospec-new-change',
   continue: 'cospec-continue-change',
+  ff: 'cospec-ff-change',
   apply: 'cospec-apply-change',
+  verify: 'cospec-verify-change',
   archive: 'cospec-archive-change',
+  'bulk-archive': 'cospec-bulk-archive-change',
   'sync-specs': 'cospec-sync-specs',
   explore: 'cospec-explore',
+  onboard: 'cospec-onboard',
 }
 
 const SKILL_BASE: Record<string, string> = {
