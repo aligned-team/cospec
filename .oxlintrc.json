@@ -52,6 +52,10 @@
     {
       "files": ["apps/cli/bin/**"],
       "rules": { "import/no-unassigned-import": "off" }
+    },
+    {
+      "files": ["apps/docs/.vitepress/theme/**"],
+      "rules": { "import/no-unassigned-import": "off" }
     }
   ],
   "options": { "denyWarnings": false, "reportUnusedDisableDirectives": "warn" }

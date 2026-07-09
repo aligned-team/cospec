@@ -50,6 +50,7 @@ cospec/
 │   ├── src/core/      openspec wrapper, parsers, validation, managed files
 │   ├── src/commands/  one file per cospec subcommand
 │   └── test/          unit / contract / integration / fixtures
+├── apps/docs/         public docs site — https://cospec.aligned.team
 ├── docs/              flat topic docs (architecture, schemas, validation, …)
 ├── e2e/eval/          DeepSeek e2e eval harness (advisory)
 ├── openspec/          self-hosted: cospec-managed schemas + changes + specs
@@ -79,10 +80,25 @@ All operations run through mise tasks — never raw tool invocations:
 | Schema validate     | `mise run openspec:schema:validate` |
 | Sync agent docs     | `mise run agents:sync`              |
 | Agent-doc drift     | `mise run agents:check`             |
+| Docs site (build)   | `mise run docs:build`               |
+| Docs site (dev)     | `mise run docs:dev`                 |
 | E2E eval (advisory) | `mise run eval:e2e`                 |
 | Full CI gate        | `mise run check`                    |
 
 Run `mise run check` before every commit. Never bypass hk with `--no-verify`.
+
+## Docs site
+
+`apps/docs` is the public documentation site at https://cospec.aligned.team —
+exact-pinned VitePress plus vitepress-plugin-llms, which emits
+`llms.txt`/`llms-full.txt`. Deploys are release-synced: the docs build and
+publish only when a release ships, from inside `.github/workflows/release.yml`,
+never on pushes to `main` (to redeploy, re-run that workflow's docs jobs on a
+release run). A dedicated CI job gates every PR that touches `apps/docs` on a
+successful docs build. Each fact (artifact matrix, exit codes, layer and
+Surfaces vocabulary, the OpenSpec pin, …) is owned by exactly one page — other
+pages link to it, and anything that is OpenSpec's job links out to OpenSpec's
+docs.
 
 ## The cospec workflow (we self-host)
 
@@ -159,6 +175,18 @@ running the contract suite and re-probing before updating
 **Tests** — every command change lands with a contract or integration test.
 Contract tests run the real pinned binary; a false archive PASS is a release
 blocker.
+
+**Docs never drift** — zero drift between the published docs site and released
+behavior is non-negotiable. Any change that alters user-facing behavior —
+commands, flags, schemas, validation rules, workflow semantics, exit codes —
+updates `apps/docs` in the same change, on the page that owns the fact, and
+records the docs update in the change's verification ledger (or `tasks.md` where
+the type has none).
+
+**Keep shared.md current** — any change that alters how work gets done here (new
+apps, workflows, tasks, conventions, disciplines) updates `.agents/shared.md` in
+the same change — unprompted — then `mise run agents:sync`. `agents:check`
+enforces propagation only; stale guidance is a defect no tool catches.
 
 **Secrets** — never read or print `.env.local`; the eval reads its key from the
 process environment only. Reports contain counts and rule IDs, never keys, raw

@@ -25,6 +25,7 @@ jobs:
       openspec_schemas: ${{ steps.filter.outputs.openspec_schemas || steps.all.outputs.all }}
       shell: ${{ steps.filter.outputs.shell || steps.all.outputs.all }}
       actions: ${{ steps.filter.outputs.actions || steps.all.outputs.all }}
+      docs: ${{ steps.filter.outputs.docs || steps.all.outputs.all }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - id: all
@@ -54,6 +55,14 @@ jobs:
             openspec_schemas: ['openspec/schemas/**', 'mise.toml', '.github/workflows/ci.yml']
             shell: ['scripts/**', '.github/workflows/ci.yml', '.github/actions/**']
             actions: ['.github/workflows/**', '.github/actions/**']
+            docs:
+              - 'apps/docs/**'
+              - '.github/workflows/release.yml'
+              - '.github/workflows/ci.yml'
+              - 'mise.toml'
+              - 'package.json'
+              - 'bun.lock'
+              - '.github/actions/setup-mise/**'
 
   ci-bun:
     needs: detect-changes
@@ -115,9 +124,28 @@ jobs:
       - uses: ./.github/actions/setup-mise
       - run: mise exec -- actionlint
 
+  ci-docs:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0 # VitePress lastUpdated needs full history
+      - uses: ./.github/actions/setup-mise
+      # VitePress 2.0.0-alpha.18 requires Node >= 22 at build time — see
+      # release.yml's build-docs job for the same requirement on the deploy
+      # path.
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: '22'
+      - run: bun install --frozen-lockfile
+      - name: Build docs
+        run: mise run docs:build
+
   ci-gate:
     if: always()
-    needs: [detect-changes, ci-bun, ci-openspec, ci-shell, ci-actions-lint]
+    needs: [detect-changes, ci-bun, ci-openspec, ci-shell, ci-actions-lint, ci-docs]
     runs-on: ubuntu-latest
     steps:
       - name: Check upstream job results
@@ -127,11 +155,12 @@ jobs:
           OPENSPEC: ${{ needs.ci-openspec.result }}
           SHELL_JOB: ${{ needs.ci-shell.result }}
           ACTIONS: ${{ needs.ci-actions-lint.result }}
+          DOCS: ${{ needs.ci-docs.result }}
         run: |
           if [[ "$DETECT" != "success" ]]; then
             echo "detect-changes did not succeed: $DETECT — gate fails"; exit 1
           fi
-          for r in "$BUN" "$OPENSPEC" "$SHELL_JOB" "$ACTIONS"; do
+          for r in "$BUN" "$OPENSPEC" "$SHELL_JOB" "$ACTIONS" "$DOCS"; do
             if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
               echo "Job result '$r' — gate fails"; exit 1
             fi
