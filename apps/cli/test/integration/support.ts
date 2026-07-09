@@ -19,24 +19,34 @@ export const TYPES = [
   'test',
 ] as const
 
-/** The six workflow ids (DESIGN §6.1). */
+/** The eleven workflow ids (DESIGN §6.1). */
 export const WORKFLOWS = [
   'propose',
+  'new',
   'continue',
+  'ff',
   'apply',
+  'verify',
   'archive',
+  'bulk-archive',
   'sync-specs',
   'explore',
+  'onboard',
 ] as const
 
 /** Skill directory names per workflow (DESIGN §6.1). */
 export const SKILLS = [
   'cospec-propose',
+  'cospec-new-change',
   'cospec-continue-change',
+  'cospec-ff-change',
   'cospec-apply-change',
+  'cospec-verify-change',
   'cospec-archive-change',
+  'cospec-bulk-archive-change',
   'cospec-sync-specs',
   'cospec-explore',
+  'cospec-onboard',
 ] as const
 
 /** Files a Claude init must produce, independent of gate/schema specifics. */

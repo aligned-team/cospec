@@ -28,25 +28,25 @@
 
 ## 3. Tests
 
-- [ ] 3.1 Add the 5 ids/skill names to `unit/harness/fixtures.ts`
+- [x] 3.1 Add the 5 ids/skill names to `unit/harness/fixtures.ts`
       (`WORKFLOW_COMMANDS`, `WORKFLOW_SKILLS`); update the "six canonical" doc
       comment
-- [ ] 3.2 Bump hardcoded workflow counts (6 -> 11) in
+- [x] 3.2 Bump hardcoded workflow counts (6 -> 11) in
       `unit/harness/render.test.ts`
-- [ ] 3.3 Update the type-table test branch so both `propose` and `new` are
+- [x] 3.3 Update the type-table test branch so both `propose` and `new` are
       treated as table-bearing; add a positive assertion for `new`'s rendered
       table row
-- [ ] 3.4 Regenerate `unit/harness/__snapshots__/render.test.ts.snap` and
+- [x] 3.4 Regenerate `unit/harness/__snapshots__/render.test.ts.snap` and
       hand-inspect the diff (only 5 new files, zero existing-body churn)
-- [ ] 3.5 Add the 5 ids/skill names to `integration/support.ts` (`WORKFLOWS`,
+- [x] 3.5 Add the 5 ids/skill names to `integration/support.ts` (`WORKFLOWS`,
       `SKILLS`); update the "six" doc comments
-- [ ] 3.6 Verify `unit/init/generate.test.ts` / `update.test.ts` need no change
+- [x] 3.6 Verify `unit/init/generate.test.ts` / `update.test.ts` need no change
       (scan for hardcoded counts)
-- [ ] 3.7 Run `mise run test && mise run test:integration` -> green
+- [x] 3.7 Run `mise run test && mise run test:integration` -> green
 
 ## 4. Docs + agent context
 
-- [ ] 4.1 Update `docs/harness-integration.md` — "Six" -> "Eleven", extend
+- [x] 4.1 Update `docs/harness-integration.md` — "Six" -> "Eleven", extend
       workflow list + file trees, add `/opsx:sync` <-> `/cospec:sync-specs`
       mapping note and `/opsx:update` out-of-scope note
 - [ ] 4.2 Update `apps/docs/guide/harness-setup.md` — "six" -> "eleven", extend
@@ -65,9 +65,9 @@
 
 ## 5. Verification evidence
 
-- [ ] 5.1 Run every verification.md probe and record observed results after
+- [x] 5.1 Run every verification.md probe and record observed results after
       `->`, flipping each row to `[x]` (or `[~] defer: <reason>`)
 
 ## 6. Final gate
 
-- [ ] 6.1 Run `mise run check` -> green
+- [x] 6.1 Run `mise run check` -> green

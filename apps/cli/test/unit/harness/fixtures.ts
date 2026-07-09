@@ -66,21 +66,31 @@ export const TYPE_TABLE: TypeTableEntry[] = [
 /** A fixed generatedBy stamp so snapshots do not churn on version bumps. */
 export const TEST_VERSION = 'cospec@test'
 
-/** The six canonical workflow ids and their skill names (DESIGN §6.1). */
+/** The eleven canonical workflow ids and their skill names (DESIGN §6.1). */
 export const WORKFLOW_COMMANDS = [
   'propose',
+  'new',
   'continue',
+  'ff',
   'apply',
+  'verify',
   'archive',
+  'bulk-archive',
   'sync-specs',
   'explore',
+  'onboard',
 ] as const
 
 export const WORKFLOW_SKILLS = [
   'cospec-propose',
+  'cospec-new-change',
   'cospec-continue-change',
+  'cospec-ff-change',
   'cospec-apply-change',
+  'cospec-verify-change',
   'cospec-archive-change',
+  'cospec-bulk-archive-change',
   'cospec-sync-specs',
   'cospec-explore',
+  'cospec-onboard',
 ] as const
