@@ -2,7 +2,7 @@
 description: Run the apply gate for a change and implement its tasks, obeying the gate's exit code.
 metadata:
   author: cospec
-  generatedBy: cospec@0.2.1
+  generatedBy: cospec@0.3.0
   contentHash: sha256:a6e6cd5bdc98aac6d00b4cb7dc28ba3ea63e4580953d15d982e592fb1adcf098
 ---
 
