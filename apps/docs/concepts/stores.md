@@ -111,7 +111,7 @@ An unregistered `--store` id fails loudly rather than silently falling back to
 the local repo, so a typo can never write a change to the wrong place:
 
 ```
-cospec: unknown store 'bogus-id' — register it with 'openspec store register <path>' or check 'openspec store ls'. Registered stores: platform
+cospec: unknown store 'bogus-id' — register it with 'cospec store register <path>' or check 'cospec store ls'. Registered stores: platform
 ```
 
 ::: tip Not a gate result This is a usage/resolution error, not a blocked gate —

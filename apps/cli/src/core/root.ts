@@ -56,8 +56,8 @@ export async function resolveStore(cwd: string, id: string): Promise<Root> {
   if (found === undefined) {
     const known = stores.map((s) => s.id).join(', ') || '(none registered)'
     throw new Error(
-      `unknown store '${id}' — register it with 'openspec store register <path>' or check ` +
-        `'openspec store ls'. Registered stores: ${known}`,
+      `unknown store '${id}' — register it with 'cospec store register <path>' or check ` +
+        `'cospec store ls'. Registered stores: ${known}`,
     )
   }
   return { base: found.root, cwd, storeArgs: ['--store', id], store: id }
