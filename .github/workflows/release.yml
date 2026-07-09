@@ -10,9 +10,14 @@
 #                   on origin.
 #   2. bump       — stamp that ONE version into `apps/cli/package.json` (and
 #                   the matching `bun.lock` workspace entry) with
-#                   `mise run release:set-version`, then create the bump
-#                   commit on main via GitHub's GraphQL `createCommitOnBranch`
-#                   mutation and the tag via the REST git-tags/git-refs API,
+#                   `mise run release:set-version`, then run `mise run
+#                   generate` so every managed file's `generatedBy` provenance
+#                   stamp matches the new version too (ORDER IS LOAD-BEARING —
+#                   generate must run after set-version, see the step
+#                   comment), then create the bump commit on main via
+#                   GitHub's GraphQL `createCommitOnBranch` mutation and the
+#                   tag via the REST git-tags/git-refs API — the version stamp
+#                   and any regenerated managed files land in that ONE commit,
 #                   both authenticated with a short-lived installation token
 #                   minted from the `cospec-release` GitHub App (variable
 #                   RELEASE_APP_ID + secret RELEASE_APP_PRIVATE_KEY; Contents
@@ -215,11 +220,24 @@ jobs:
           fetch-depth: 0
 
       - uses: ./.github/actions/setup-mise
+      - run: bun install --frozen-lockfile
 
       # Stamp the ONE computed version into apps/cli/package.json. Needs only
       # mise (usage-spec task + oxfmt) and jq — no cocogitto here.
       - name: Set cospec version
         run: mise run release:set-version -- "${{ needs.version.outputs.version }}"
+
+      # Regenerate every managed file (.claude/, .codex/, .opencode/,
+      # openspec/schemas/) so its `generatedBy: cospec@<version>` provenance
+      # stamp matches the version just written above. ORDERING IS LOAD-BEARING:
+      # this step must run strictly AFTER `release:set-version` and BEFORE the
+      # token-mint + commit steps below — `mise run generate` reads
+      # COSPEC_VERSION from apps/cli/package.json at process start, so running
+      # it first would stamp the OLD version, and running it after the commit
+      # step would split the version bump and the regenerated files across two
+      # commits instead of the one bump commit this job produces.
+      - name: Regenerate managed files
+        run: mise run generate
 
       # Mint a short-lived installation token from the cospec-release GitHub
       # App. The app (not GITHUB_TOKEN) authenticates the commit + tag: it is

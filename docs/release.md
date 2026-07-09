@@ -65,14 +65,23 @@ release).
    manifest — `apps/cli/package.json` (including its `optionalDependencies`
    pins), all seven `apps/cli/npm/<platform>/package.json`, and the matching
    workspace entry + optional-dependency pins in `bun.lock` (which bun never
-   refreshes on install) — mints a short-lived installation token from the
-   `cospec-release` GitHub App (`actions/create-github-app-token`, variable
-   `RELEASE_APP_ID` + secret `RELEASE_APP_PRIVATE_KEY`), then creates the commit
-   via GitHub's GraphQL `createCommitOnBranch` mutation and the annotated tag
-   via the REST git-tags/git-refs API — both authenticated with that app token.
-   `expectedHeadOid` guards the mutation against a race (main moved since
-   checkout); a mismatch fails the step clean and a re-dispatch recovers.
-   Idempotent: if the manifests are already at that version, the commit is
+   refreshes on install) — then runs `mise run generate` so every managed file's
+   `generatedBy: cospec@<version>` provenance stamp (`.claude/`, `.codex/`,
+   `.opencode/`, `openspec/schemas/`) matches the version just stamped. This
+   ordering is load-bearing: `generate` reads `COSPEC_VERSION` from
+   `apps/cli/package.json` at process start, so it must run **after**
+   `release:set-version`. Only then does the job mint a short-lived installation
+   token from the `cospec-release` GitHub App
+   (`actions/create-github-app-token`, variable `RELEASE_APP_ID` + secret
+   `RELEASE_APP_PRIVATE_KEY`) and create the commit via GitHub's GraphQL
+   `createCommitOnBranch` mutation and the annotated tag via the REST
+   git-tags/git-refs API — both authenticated with that app token. Because
+   `generate` runs before the `git diff` that becomes the mutation's
+   `fileChanges`, the version stamp and any regenerated managed files land in
+   the **same** bump commit — never split across two. `expectedHeadOid` guards
+   the mutation against a race (main moved since checkout); a mismatch fails the
+   step clean and a re-dispatch recovers. Idempotent: if the manifests are
+   already at that version (and `generate` finds no drift), the commit is
    skipped and only the tag is created. Outputs the bump commit's `sha`. See
    "Signed commits without a bypass actor" below for why this replaces the old
    SSH deploy-key push.
