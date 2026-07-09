@@ -72,13 +72,18 @@
 #                   the tag + release and resumes publishing only the gaps + the
 #                   main package. main and the bump commit are left intact
 #                   (never force-pushed).
-#   7. deploy-docs — needs: [bump, publish], so it only runs once the GitHub
+#   7. build-docs,
+#      deploy-docs — needs: [bump, publish], so they only run once the GitHub
 #                   release and every npm package for this version are live.
-#                   Calls docs.yml (a `workflow_call` target) with
-#                   `ref: needs.bump.outputs.sha` so the deployed site is
-#                   built from the exact released commit, not whatever ref
-#                   this dispatch started from. Skipped automatically if
-#                   `publish` fails (cleanup runs instead).
+#                   Builds from `needs.bump.outputs.sha` so the deployed site
+#                   is built from the exact released commit, not whatever ref
+#                   this dispatch started from, then publishes it to GitHub
+#                   Pages. Skipped automatically if `publish` fails (cleanup
+#                   runs instead). Inlined here (not a separate callable
+#                   workflow) so the docs deploy is visibly part of the
+#                   release run; a manual redeploy with no new release is
+#                   just re-running these two jobs on a past release run in
+#                   the Actions UI.
 #
 # The git tag and apps/cli/package.json carry the SAME version: `set-version`
 # writes the tag's semver into the manifest. cog.toml stays compute-only (no
@@ -721,22 +726,79 @@ jobs:
           done
           publish_if_absent "${MAIN}"
 
-  # ── Deploy the docs site, synced to this release ────────────────────────────
-  # Runs only once the GitHub release AND every npm package are live (needs:
-  # publish), building from the exact bump commit (needs.bump.outputs.sha) so
-  # the deployed docs match the released CLI, not a moving `main`. This job's
-  # `permissions` are what docs.yml (the called workflow) actually receives —
-  # a reusable workflow does not inherit the caller's top-level permissions.
-  deploy-docs:
-    name: Deploy docs
+  # ── Build + deploy the docs site, synced to this release ────────────────────
+  # Builds apps/docs (VitePress 2.0.0-alpha.18) and publishes
+  # apps/docs/.vitepress/dist to GitHub Pages via Actions (not the legacy
+  # branch-based Pages source).
+  #
+  # Deploy trigger: release-synced, NOT push-to-main. Runs only once the
+  # GitHub release AND every npm package are live (needs: [bump, publish]),
+  # building from the exact bump commit (needs.bump.outputs.sha) so the
+  # deployed docs match the released CLI, not a moving `main`. There is
+  # deliberately no `push` trigger. A manual redeploy (e.g. after a Pages
+  # config change with no new release) means re-running `build-docs` and
+  # `deploy-docs` on a past release run in the Actions UI.
+  #
+  # ONE-TIME REPO SETTING (not managed by this workflow): in
+  # Settings -> Pages, set "Build and deployment: Source" to "GitHub Actions"
+  # and set the custom domain to `cospec.aligned.team`. The CNAME record for
+  # that domain ships inside the built artifact (apps/docs/public/CNAME is
+  # copied into .vitepress/dist by VitePress's public-dir passthrough), so no
+  # separate CNAME-write step is needed here — but the Pages custom-domain
+  # setting must still be configured once in the repo UI.
+  #
+  # These jobs' `permissions` blocks are the ONLY permissions grant for the
+  # docs deploy — the workflow-level `permissions` above stays `contents:
+  # read` and is never widened.
+  build-docs:
+    name: Build docs
     needs: [bump, publish]
+    runs-on: ubuntu-latest
     permissions:
       contents: read
+      pages: read # actions/configure-pages reads repo Pages config via the API
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.bump.outputs.sha }}
+          fetch-depth: 0 # VitePress lastUpdated needs full history
+
+      - uses: ./.github/actions/setup-mise
+
+      # VitePress 2.0.0-alpha.18 requires Node >= 22 at build time even though
+      # the task itself runs via `bun run`/mise — bun's bundled Node-API
+      # compat layer is not a substitute for a real Node runtime here.
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: '22'
+
+      - run: bun install --frozen-lockfile
+
+      - name: Build docs
+        run: mise run docs:build
+
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: apps/docs/.vitepress/dist
+
+  deploy-docs:
+    name: Deploy docs
+    needs: build-docs
+    runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
       pages: write
       id-token: write
-    uses: ./.github/workflows/docs.yml
-    with:
-      ref: ${{ needs.bump.outputs.sha }}
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
 
   # ── On failure only: roll back, but ONLY if nothing went public ────────────
   #

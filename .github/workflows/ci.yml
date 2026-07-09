@@ -57,7 +57,7 @@ jobs:
             actions: ['.github/workflows/**', '.github/actions/**']
             docs:
               - 'apps/docs/**'
-              - '.github/workflows/docs.yml'
+              - '.github/workflows/release.yml'
               - '.github/workflows/ci.yml'
               - 'mise.toml'
               - 'package.json'
@@ -134,7 +134,8 @@ jobs:
           fetch-depth: 0 # VitePress lastUpdated needs full history
       - uses: ./.github/actions/setup-mise
       # VitePress 2.0.0-alpha.18 requires Node >= 22 at build time — see
-      # docs.yml for the same requirement on the deploy path.
+      # release.yml's build-docs job for the same requirement on the deploy
+      # path.
       - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
         with:
           node-version: '22'
