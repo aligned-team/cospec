@@ -2,7 +2,7 @@
 description: Resume a partially-built change and finish its remaining artifacts.
 metadata:
   author: cospec
-  generatedBy: cospec@0.3.0
+  generatedBy: cospec@0.2.1
   contentHash: sha256:f5ddafb268917ae8fd6f1d8846b81ecff20c4aad942acc3861421e7838d350f2
 ---
 
