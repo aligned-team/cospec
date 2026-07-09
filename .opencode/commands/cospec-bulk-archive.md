@@ -2,7 +2,7 @@
 description: Archive a batch of completed changes in dependency order, one cospec archive call at a time.
 metadata:
   author: cospec
-  generatedBy: cospec@0.4.0
+  generatedBy: cospec@0.5.0
   contentHash: sha256:9480ea256cda201063ddfcaa58576c593ed9c600eabfabb097f91db1da61a8ab
 ---
 
