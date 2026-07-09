@@ -23,9 +23,11 @@ agents skip straight to `archive` and get blocked with no guided recovery path.
   from opsx must never find a `/cospec:*` command missing.
 - All 5 new workflows compose only existing `cospec` subcommands (`new`,
   `instructions`, `status`, `validate`, `apply`, `archive`, `list`). No new CLI
-  subcommand, no `src/commands/` change, no `src/core/` change, no
-  wrapped-binary change — this is a canon + harness + tests + docs change
-  end-to-end.
+  subcommand, no `src/core/` change, no wrapped-binary change — this is a
+  canon + harness + tests + docs change end-to-end, with one small
+  `src/commands/` update: `doctor.ts`'s `WORKFLOW_SKILL` map gains the 5 new
+  workflow ids so `checkDanglingRefs` recognizes the new `/cospec:*`
+  cross-references and doesn't false-positive them as dangling.
 
 ## Capabilities
 
@@ -49,6 +51,10 @@ agents skip straight to `archive` and get blocked with no guided recovery path.
 - `apps/cli/src/canon/workflows/adapters.ts` — unchanged (deliberate;
   `bulk-archive`/`onboard` call `cospec archive`, intentionally not pre-approved
   in the codex rules, matching the existing `archive` precedent).
+- `apps/cli/src/commands/doctor.ts` — `WORKFLOW_SKILL` gains 5 entries (`new`,
+  `ff`, `verify`, `bulk-archive`, `onboard`) so `cospec doctor`'s
+  `checkDanglingRefs` maps the new workflow ids to their generated skill refs
+  instead of raising false `dangling-ref` errors.
 - `.claude/`, `.codex/`, `.opencode/` — regenerated managed files
   (`mise run generate`).
 - `apps/cli/test/unit/harness/*`, `apps/cli/test/integration/support.ts` —
