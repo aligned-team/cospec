@@ -41,6 +41,14 @@ unix / `zip` for Windows, with the `cospec` binary at the archive root.
 `mise use github:aligned-team/cospec` then picks the right asset (mise scores
 the libc variant too) and verifies it against `SHA256SUMS`.
 
+mise only matches exact 3-part tags (`v{major}.{minor}.{patch}`) — a partial
+version like `@0.4` does not resolve and 404s. mise's github backend also
+applies a default release-age cooldown (`minimum_release_age`) that hides very
+recent releases from "latest"/fuzzy resolution, so a release cut in the last day
+or so may not resolve as latest yet; pin the exact version (e.g.
+`mise use github:aligned-team/cospec@0.4.0`) to fetch it immediately —
+exact-version pins bypass the cooldown.
+
 ## Dispatch input
 
 | input  | type   | options                           | default |
