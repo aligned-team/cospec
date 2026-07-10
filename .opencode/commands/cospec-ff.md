@@ -2,7 +2,7 @@
 description: Author every remaining artifact on an already-scaffolded change in one pass, then validate.
 metadata:
   author: cospec
-  generatedBy: cospec@0.5.0
+  generatedBy: cospec@0.5.1
   contentHash: sha256:45fdafc162e7a4e5c780f12716917010320de78ecd125678116282df3fd73b9d
 ---
 
