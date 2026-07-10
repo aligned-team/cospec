@@ -15,9 +15,10 @@ pkl = "0.31"
 "npm:@commitlint/config-conventional" = "20"
 oxlint = "1"
 oxfmt = "0.56"
-# cospec is not yet published to npm. Until it is, install from git and run via bunx, or add:
-#   "npm:@aligned-team/cospec" = "0.1"
-# For now, ensure `cospec` is on PATH (e.g. `bun link` a local checkout).
+# cospec itself, pinned to the release this template shipped with. `cospec init`
+# adds this line to an existing mise.toml; the release workflow re-stamps the
+# version on every bump (scripts/mise-tasks/release/set-version).
+"npm:@aligned-team/cospec" = "0.5.0"
 
 [hooks]
 postinstall = "hk install --mise"

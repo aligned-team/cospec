@@ -14,6 +14,7 @@ import { canonFile } from '../canon/embedded.ts'
 import type { CommandContext } from '../cli.ts'
 import { openspecDir } from '../core/change.ts'
 import { splitFrontmatter, type WriteResult } from '../core/managed-files.ts'
+import { mergeMiseToml, type MiseMergeResult } from '../harness/mise-merge.ts'
 import { type HarnessName, HARNESS_NAMES, isHarnessName } from '../harness/render.ts'
 import {
   COSPEC_PERMISSION,
@@ -102,16 +103,21 @@ interface GateTarget {
   tpl: string
 }
 
+// Whole-file configs with no additive-merge story: write if absent, else print
+// the paste-ready snippet. mise.toml is handled separately — it is additively
+// merged into an existing file (see mise-merge.ts).
 const GATE_TARGETS: GateTarget[] = [
   { file: 'commitlint.config.mjs', tpl: 'commitlint.config.mjs.tpl' },
   { file: 'hk.pkl', tpl: 'hk.pkl.tpl' },
-  { file: 'mise.toml', tpl: 'mise.toml.tpl' },
 ]
 
 interface GateResult {
+  /** Files created fresh (incl. mise.toml when it was absent). */
   written: string[]
-  /** file → paste-ready snippet, for files that already exist (never merged). */
+  /** hk.pkl / commitlint (whole-file) → paste-ready snippet when already present. */
   snippets: { file: string; content: string }[]
+  /** The mise.toml merge outcome, present only when a mise.toml already existed. */
+  mise?: MiseMergeResult
 }
 
 function scaffoldGate(cwd: string): GateResult {
@@ -130,7 +136,23 @@ function scaffoldGate(cwd: string): GateResult {
       written.push(target.file)
     }
   }
-  return { written, snippets }
+
+  // mise.toml: additively merge the template into an existing file. The
+  // documented install flow ("add cospec to mise.toml, then cospec init") means
+  // a mise.toml almost always exists, so write-if-absent alone left the gate
+  // useless. Only write when the merge produced new content.
+  const template = readFileSync(canonFile('gate/mise.toml.tpl'), 'utf8')
+  const misePath = join(cwd, 'mise.toml')
+  let mise: MiseMergeResult | undefined
+  if (existsSync(misePath)) {
+    mise = mergeMiseToml(readFileSync(misePath, 'utf8'), template)
+    if (mise.content !== undefined) writeFileSync(misePath, mise.content)
+  } else {
+    writeFileSync(misePath, template)
+    written.push('mise.toml')
+  }
+
+  return { written, snippets, mise }
 }
 
 // --- opsx detection / removal (§6.6) ----------------------------------------
@@ -277,7 +299,19 @@ export function run(ctx: CommandContext): number {
           path: target,
           state,
           harnesses,
-          gate: gate ? { written: gate.written, snippets: gate.snippets.map((s) => s.file) } : null,
+          gate: gate
+            ? {
+                written: gate.written,
+                snippets: gate.snippets.map((s) => s.file),
+                mise: gate.mise
+                  ? {
+                      status: gate.mise.status,
+                      added: gate.mise.added,
+                      conflicts: gate.mise.conflicts,
+                    }
+                  : null,
+              }
+            : null,
           config: { written: configWritten },
           settings: settings ? { status: settings.status, added: settings.added } : null,
           opsx: { found: opsx.map((o) => o.relpath), removed: opsxRemoved },
@@ -381,12 +415,35 @@ function printReceipt(target: string, d: ReceiptData): void {
 
   if (d.gate !== undefined) {
     if (d.gate.written.length > 0) lines.push(`Gate:    wrote ${d.gate.written.join(', ')}`)
+    // hk.pkl / commitlint are whole-file configs: absent → written above,
+    // present → paste-ready snippet (there is no additive-merge story for them).
     for (const snippet of d.gate.snippets) {
       lines.push('')
-      lines.push(
-        `Gate: ${snippet.file} already exists — paste-ready snippet (never merged for you):`,
-      )
+      lines.push(`Gate: ${snippet.file} already exists — paste-ready snippet:`)
       lines.push(indent(snippet.content))
+    }
+    // mise.toml is additively merged; report the outcome.
+    const mise = d.gate.mise
+    if (mise !== undefined) {
+      if (mise.status === 'merged') {
+        lines.push(
+          `Gate:    merged ${mise.added.length} addition(s) into mise.toml (${mise.added.join(', ')})`,
+        )
+      } else if (mise.status === 'conflict') {
+        lines.push('')
+        lines.push(
+          `Gate: mise.toml — merged ${mise.added.length} addition(s); ${mise.conflicts.length} key(s) differ from the gate and were left as-is:`,
+        )
+        for (const c of mise.conflicts) {
+          lines.push(`  ${c.path}: yours=${c.existing} gate=${c.template}`)
+        }
+        lines.push(indent(mise.snippet))
+      } else if (mise.status === 'unparseable') {
+        lines.push('')
+        lines.push('Gate: mise.toml is not valid TOML — add this yourself:')
+        lines.push(indent(mise.snippet))
+      }
+      // 'unchanged' / 'created' (already in `written`) print nothing extra.
     }
   }
 

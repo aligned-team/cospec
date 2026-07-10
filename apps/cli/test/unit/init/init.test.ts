@@ -52,6 +52,34 @@ describe('cospec init (DESIGN §2.1)', () => {
     expect(existsSync(join(dir, 'commitlint.config.mjs'))).toBe(true)
   })
 
+  test('state B with --gate: additively merges the gate into an existing mise.toml, idempotently', () => {
+    writeFileSync(join(dir, 'package.json'), '{"name":"x"}\n')
+    // The documented install-flow mise.toml (the `oops` shape): a cospec pin,
+    // experimental flag, and a top-level bare key. Zero conflicts.
+    writeFileSync(
+      join(dir, 'mise.toml'),
+      'monorepo_root = true\n\n[settings]\nexperimental = true\n\n[tools]\n"github:aligned-team/cospec" = "0.5.0"\n',
+    )
+    const { code } = runInit(dir, ['--harness', 'none', '--gate'])
+    expect(code).toBe(0)
+    const merged = readFileSync(join(dir, 'mise.toml'), 'utf8')
+    // Gate content merged in.
+    expect(merged).toContain('lockfile = true')
+    expect(merged).toContain('[hooks]')
+    expect(merged).toContain('[tasks."cospec:apply"]')
+    // User content survives; no duplicate cospec pin.
+    expect(merged).toContain('monorepo_root = true')
+    expect(merged).toContain('"github:aligned-team/cospec" = "0.5.0"')
+    expect(merged).not.toContain('"npm:@aligned-team/cospec"')
+    // Second init reports mise status `unchanged` and leaves the file identical.
+    const { out } = capture(
+      () => initRun(ctx(dir, ['--harness', 'none', '--gate'], true)) as number,
+    )
+    const json = JSON.parse(out) as { gate: { mise: { status: string } } }
+    expect(json.gate.mise.status).toBe('unchanged')
+    expect(readFileSync(join(dir, 'mise.toml'), 'utf8')).toBe(merged)
+  })
+
   test('config.yaml is written only when absent (never modified)', () => {
     mkdirSync(join(dir, 'openspec'), { recursive: true })
     writeFileSync(join(dir, 'openspec/config.yaml'), 'schema: custom-thing\n')

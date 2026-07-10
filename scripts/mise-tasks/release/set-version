@@ -13,6 +13,9 @@
 #                           manifest cospec ships to npm
 #   bun.lock                the @aligned-team/cospec workspace entry's
 #                           "version" (kept in sync — see below)
+#   apps/cli/src/canon/gate/mise.toml.tpl
+#                           the "npm:@aligned-team/cospec" pin the commit gate
+#                           writes into a user's mise.toml (see below)
 #
 # The root package.json stays `private`/`0.0.0` and is intentionally never
 # touched. Invoked by the release workflow after `cog bump --dry-run` computes
@@ -206,5 +209,20 @@ awk -v ver="$VERSION" '
   }
   { print }
 ' "$LOCK" | write_if_changed "$LOCK"
+
+# --- apps/cli/src/canon/gate/mise.toml.tpl: the pinned cospec tool version ----
+# `cospec init` writes this template into a user's mise.toml (or merges its
+# [tools] cospec pin into an existing one), so the pinned version must track
+# each release. Anchored on the key at column 0 → exactly one line moves.
+GATE_TPL="$ROOT/apps/cli/src/canon/gate/mise.toml.tpl"
+require_file "$GATE_TPL"
+if ! grep -q '^"npm:@aligned-team/cospec" = "' "$GATE_TPL"; then
+  echo "ERROR: cospec pin line not found in $GATE_TPL" >&2
+  exit 1
+fi
+awk -v ver="$VERSION" '
+  /^"npm:@aligned-team\/cospec" = "/ { print "\"npm:@aligned-team/cospec\" = \"" ver "\""; next }
+  { print }
+' "$GATE_TPL" | write_if_changed "$GATE_TPL"
 
 echo "cospec version set to $VERSION"

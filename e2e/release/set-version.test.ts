@@ -4,8 +4,9 @@
  *
  * cospec ships as ONE versioned npm package (`@aligned-team/cospec`); the
  * release workflow computes the next semver with cocogitto and then calls
- * this script to stamp that version into `apps/cli/package.json` and the
- * matching workspace entry in `bun.lock` — the root `package.json` stays
+ * this script to stamp that version into `apps/cli/package.json`, the matching
+ * workspace entry in `bun.lock`, and the cospec pin in the commit-gate template
+ * `apps/cli/src/canon/gate/mise.toml.tpl` — the root `package.json` stays
  * `private`/`0.0.0` and must never be touched. These tests run the script
  * against a throwaway copy of just those manifests (via its `--root` flag,
  * so the real working tree is never touched) and assert the version lands
@@ -25,6 +26,11 @@ const REPO_ROOT = new URL('../../', import.meta.url).pathname
 const ROOT_PACKAGE = 'package.json'
 const CLI_PACKAGE = 'apps/cli/package.json'
 const BUN_LOCK = 'bun.lock'
+const GATE_TPL = 'apps/cli/src/canon/gate/mise.toml.tpl'
+
+/** The pinned cospec version in the gate mise.toml template (anchored at col 0). */
+const gateTplCospecVersion = (text: string): string | undefined =>
+  text.match(/^"npm:@aligned-team\/cospec" = "([^"]+)"/m)?.[1]
 
 /** The seven per-platform binary packages the main manifest pins (Linux split by libc). */
 const PLATFORMS = [
@@ -75,7 +81,13 @@ describe('release:set-version', () => {
 
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), 'cospec-set-version-'))
-    for (const rel of [ROOT_PACKAGE, CLI_PACKAGE, BUN_LOCK, ...PLATFORMS.map(platformPackage)]) {
+    for (const rel of [
+      ROOT_PACKAGE,
+      CLI_PACKAGE,
+      BUN_LOCK,
+      GATE_TPL,
+      ...PLATFORMS.map(platformPackage),
+    ]) {
       const dest = join(root, rel)
       mkdirSync(dirname(dest), { recursive: true })
       cpSync(join(REPO_ROOT, rel), dest)
@@ -134,6 +146,31 @@ describe('release:set-version', () => {
     }
   })
 
+  test('stamps the cospec pin in the gate mise.toml template', async () => {
+    const target = '9.9.9'
+    const { exitCode } = await runScript(target, root)
+    expect(exitCode).toBe(0)
+    const tpl = readFileSync(join(root, GATE_TPL), 'utf8')
+    expect(gateTplCospecVersion(tpl)).toBe(target)
+  })
+
+  test('gate template stamp is idempotent — a second run makes no change', async () => {
+    const target = '9.9.9'
+    await runScript(target, root)
+    const first = readFileSync(join(root, GATE_TPL), 'utf8')
+    const { exitCode, stdout } = await runScript(target, root)
+    expect(exitCode).toBe(0)
+    expect(stdout).not.toContain('updated:')
+    expect(readFileSync(join(root, GATE_TPL), 'utf8')).toBe(first)
+  })
+
+  test('fails loudly when the gate template is missing', async () => {
+    rmSync(join(root, GATE_TPL), { force: true })
+    const { exitCode, stderr } = await runScript('9.9.9', root)
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain('expected file not found')
+  })
+
   test('fails loudly when a platform manifest is missing', async () => {
     rmSync(join(root, platformPackage('darwin-arm64')), { force: true })
     const { exitCode, stderr } = await runScript('9.9.9', root)
@@ -172,11 +209,12 @@ describe('release:set-version', () => {
 
   test('rejects a non-semver version and leaves files untouched', async () => {
     const before = readFileSync(join(root, CLI_PACKAGE), 'utf8')
+    const tplBefore = readFileSync(join(root, GATE_TPL), 'utf8')
     const { exitCode, stderr } = await runScript('v1.2', root)
     expect(exitCode).toBe(2)
     expect(stderr).toContain('not a valid semver')
-    const after = readFileSync(join(root, CLI_PACKAGE), 'utf8')
-    expect(after).toBe(before)
+    expect(readFileSync(join(root, CLI_PACKAGE), 'utf8')).toBe(before)
+    expect(readFileSync(join(root, GATE_TPL), 'utf8')).toBe(tplBefore)
   })
 
   test('rejects missing version argument', async () => {

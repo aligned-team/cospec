@@ -1,6 +1,9 @@
 // --gate scaffolding (DESIGN §2.1 state table, §7). Fresh repos get the gate
-// files written; existing repos never have their hk.pkl/mise.toml/commitlint
-// config merged or overwritten — the paste-ready snippet is printed instead.
+// files written. For an existing repo, hk.pkl and commitlint.config.mjs are
+// whole-file configs with no additive-merge story — they are never overwritten
+// and a paste-ready snippet is printed instead. mise.toml is DIFFERENT: it is
+// additively merged (the documented install flow means a mise.toml always
+// pre-exists), and re-running init leaves it byte-identical (idempotent).
 
 import { afterAll, describe, expect, test } from 'bun:test'
 import { existsSync, readFileSync } from 'node:fs'
@@ -20,23 +23,35 @@ describe('gate scaffolding', () => {
     expect(existsSync(join(root, 'mise.toml'))).toBe(true)
   })
 
-  test('existing repo with --gate never overwrites configs; prints snippets', async () => {
+  test('existing hk.pkl/commitlint are untouched (snippet); mise.toml is merged', async () => {
     const root = mkTempRepo({ fixture: 'plain', git: true })
     const sentinelHk = '# my own hk.pkl — do not touch\n'
-    const sentinelMise = '# my own mise.toml — do not touch\n'
     const sentinelCommit = "export default { extends: ['@my/config'] }\n"
+    // The documented install-flow mise.toml: a cospec pin + experimental flag.
+    const mise =
+      '[settings]\nexperimental = true\n\n[tools]\n"github:aligned-team/cospec" = "0.5.0"\n'
     writeFiles(root, {
       'hk.pkl': sentinelHk,
-      'mise.toml': sentinelMise,
+      'mise.toml': mise,
       'commitlint.config.mjs': sentinelCommit,
     })
     const res = await cospec(['init', '--harness', 'none', '--gate', '--yes'], { cwd: root })
     expect(res.exitCode).toBe(0)
-    // Existing gate configs are left byte-for-byte untouched.
+    // Whole-file configs are left byte-for-byte untouched; snippet surfaced.
     expect(readFileSync(join(root, 'hk.pkl'), 'utf8')).toBe(sentinelHk)
-    expect(readFileSync(join(root, 'mise.toml'), 'utf8')).toBe(sentinelMise)
     expect(readFileSync(join(root, 'commitlint.config.mjs'), 'utf8')).toBe(sentinelCommit)
-    // A paste-ready snippet is surfaced instead.
     expect(res.stdout.toLowerCase()).toContain('snippet')
+    // mise.toml is additively merged: gate content added, original preserved.
+    const merged = readFileSync(join(root, 'mise.toml'), 'utf8')
+    expect(merged).toContain('[tools]')
+    expect(merged).toContain('"github:aligned-team/cospec" = "0.5.0"')
+    expect(merged).toContain('[hooks]')
+    expect(merged).toContain('[tasks."cospec:apply"]')
+    // No duplicate cospec pin was added.
+    expect(merged).not.toContain('"npm:@aligned-team/cospec"')
+    // A second init leaves mise.toml byte-identical (idempotent).
+    const res2 = await cospec(['init', '--harness', 'none', '--gate', '--yes'], { cwd: root })
+    expect(res2.exitCode).toBe(0)
+    expect(readFileSync(join(root, 'mise.toml'), 'utf8')).toBe(merged)
   })
 })
