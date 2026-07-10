@@ -71,15 +71,17 @@ release).
 2. **`bump`** — checks out `main` normally (no deploy key, no SSH), runs
    `mise run release:set-version -- <v>` to stamp the version into **every**
    manifest — `apps/cli/package.json` (including its `optionalDependencies`
-   pins), all seven `apps/cli/npm/<platform>/package.json`, and the matching
+   pins), all seven `apps/cli/npm/<platform>/package.json`, the matching
    workspace entry + optional-dependency pins in `bun.lock` (which bun never
-   refreshes on install) — then runs `mise run generate` so every managed file's
-   `generatedBy: cospec@<version>` provenance stamp (`.claude/`, `.codex/`,
-   `.opencode/`, `openspec/schemas/`) matches the version just stamped. This
-   ordering is load-bearing: `generate` reads `COSPEC_VERSION` from
-   `apps/cli/package.json` at process start, so it must run **after**
-   `release:set-version`. Only then does the job mint a short-lived installation
-   token from the `cospec-release` GitHub App
+   refreshes on install), and the `"npm:@aligned-team/cospec"` pin in the
+   commit-gate template `apps/cli/src/canon/gate/mise.toml.tpl` (which
+   `cospec init` writes into a user's `mise.toml`) — then runs
+   `mise run generate` so every managed file's `generatedBy: cospec@<version>`
+   provenance stamp (`.claude/`, `.codex/`, `.opencode/`, `openspec/schemas/`)
+   matches the version just stamped. This ordering is load-bearing: `generate`
+   reads `COSPEC_VERSION` from `apps/cli/package.json` at process start, so it
+   must run **after** `release:set-version`. Only then does the job mint a
+   short-lived installation token from the `cospec-release` GitHub App
    (`actions/create-github-app-token`, variable `RELEASE_APP_ID` + secret
    `RELEASE_APP_PRIVATE_KEY`) and create the commit via GitHub's GraphQL
    `createCommitOnBranch` mutation and the annotated tag via the REST

@@ -60,6 +60,10 @@ for the exact version pin and accepted range.
 - creates the `openspec/` directory structure
 - materializes the eleven typed schemas cospec maps to conventional-commit types
 - generates agent skills and commands for your coding agent's harness
+- optionally scaffolds a commit gate (mise + hk + commitlint); when a
+  `mise.toml` already exists, `cospec init` additively merges the gate's tasks
+  and tool pins into it, leaving any conflicting values as-is with a paste-ready
+  snippet
 
 It's idempotent — running it again on an already-initialized project leaves a
 clean tree unchanged.
