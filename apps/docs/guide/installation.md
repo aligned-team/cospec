@@ -68,6 +68,18 @@ for the exact version pin and accepted range.
 It's idempotent — running it again on an already-initialized project leaves a
 clean tree unchanged.
 
+By default, the gate is on for a fresh (state A) repo. Re-running `init` on an
+existing repo (state B/C) resyncs an already-adopted gate — detected by a
+`mise.toml` with a `cospec:*` task — without needing `--gate` again, so the gate
+stays current as cospec's tasks evolve. A repo that never adopted the gate stays
+opt-in: re-init prints a one-line hint instead of silently doing nothing —
+
+```
+Gate: no commit gate configured. Run 'cospec init --gate' to add it (merges into your mise.toml).
+```
+
+Pass `--gate`/`--no-gate` to override the default in either direction.
+
 By default `cospec init` detects your harness, but you can target one or more
 explicitly:
 

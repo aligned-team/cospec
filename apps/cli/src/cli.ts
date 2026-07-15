@@ -42,6 +42,10 @@ interface CommandEntry {
   name: string
   summary: string
   hidden?: boolean
+  /** Positional signature shown right after the command name in the Usage line. */
+  usage?: string
+  /** Pre-formatted `--flag  description` lines shown under "Command options:". */
+  options?: string
 }
 
 /**
@@ -50,25 +54,115 @@ interface CommandEntry {
  * file without touching this dispatcher.
  */
 export const COMMANDS: CommandEntry[] = [
-  { name: 'init', summary: 'Scaffold cospec into a repo (schemas + harness files)' },
-  { name: 'update', summary: 'Regenerate managed files from canon' },
+  {
+    name: 'init',
+    summary: 'Scaffold cospec into a repo (schemas + harness files)',
+    usage: '[path]',
+    options: `  --yes              Skip prompts; auto-remove detected opsx leftovers
+  --force            Overwrite conflicting managed files
+  --harness <list>   claude,codex,opencode,all,none (comma-separate for multiple)
+  --gate             Force-enable the commit gate (mise + hk + commitlint)
+  --no-gate          Force-disable the commit gate
+  --remove-opsx      Delete provably openspec-generated leftover files`,
+  },
+  {
+    name: 'update',
+    summary: 'Regenerate managed files from canon',
+    options: `  --check   Drift gate: exit nonzero on drift, write nothing
+  --force   Overwrite conflicting managed files`,
+  },
   { name: 'doctor', summary: 'Diagnose a cospec setup and report remedies' },
-  { name: 'new', summary: 'Create a new typed change (cospec new <type> <slug>)' },
-  { name: 'migrate', summary: 'Migrate a v1 change to schemaVersion 2 (opt-in)' },
-  { name: 'validate', summary: 'Validate changes and specs' },
-  { name: 'status', summary: "Show a change's status and gate state" },
-  { name: 'list', summary: 'List active changes' },
-  { name: 'instructions', summary: 'Print artifact-authoring instructions for a change' },
-  { name: 'apply', summary: 'Gate implementation on blockers and required artifacts' },
-  { name: 'archive', summary: 'Validate, archive, and fan out blocker updates' },
-  { name: 'sync-blockers', summary: 'Reconcile blocking-changes.md checkboxes' },
-  { name: 'store', summary: 'Manage registered OpenSpec stores' },
-  { name: 'context', summary: "Show a store's cross-repo working-set context" },
-  { name: 'workset', summary: 'Manage personal cross-repo worksets' },
-  { name: 'show', summary: 'Show a change or spec (text or JSON)' },
+  {
+    name: 'new',
+    summary: 'Create a new typed change (cospec new <type> <slug>)',
+    usage: '<type> <slug>',
+    options: `  --description <text>   Seed the proposal with a one-line description`,
+  },
+  { name: 'migrate', summary: 'Migrate a v1 change to schemaVersion 2 (opt-in)', usage: '<slug>' },
+  {
+    name: 'validate',
+    summary: 'Validate changes and specs',
+    usage: '[name]',
+    options: `  --strict          Promote warnings to errors
+  --fast             Skip slower cross-checks
+  --all              Validate every change and spec
+  --changes          Validate changes only
+  --specs            Validate specs only
+  --no-interactive   Never prompt, even for an ambiguous change name`,
+  },
+  {
+    name: 'status',
+    summary: "Show a change's status and gate state",
+    options: `  --change <slug>   The change to report on (or pass it positionally)`,
+  },
+  {
+    name: 'list',
+    summary: 'List active changes',
+    options: `  --specs     List living specs by requirement count instead
+  --blocked   Only changes with a non-clear gate state`,
+  },
+  {
+    name: 'instructions',
+    summary: 'Print artifact-authoring instructions for a change',
+    usage: '<artifact>',
+    options: `  --change <slug>   The change the artifact belongs to (required)
+  --allow-soft      Proceed past a soft block`,
+  },
+  {
+    name: 'apply',
+    summary: 'Gate implementation on blockers and required artifacts',
+    usage: '<change>',
+    options: `  --allow-soft   Proceed past a soft block`,
+  },
+  {
+    name: 'archive',
+    summary: 'Validate, archive, and fan out blocker updates',
+    usage: '<change>',
+    options: `  --skip-specs         Skip spec-sync even when the schema has a specs artifact
+  --force-incomplete   Override the tasks-incomplete gate (verification gates never lift)`,
+  },
+  {
+    name: 'sync-blockers',
+    summary: 'Reconcile blocking-changes.md checkboxes',
+    options: `  --check            Report only; write nothing
+  --change <slug>    Limit to one change's blocking-changes.md`,
+  },
+  {
+    name: 'store',
+    summary: 'Manage registered OpenSpec stores',
+    usage: '<setup|register|unregister|remove|list|doctor> [args]',
+    options: `  --no-cospec-init   Skip the auto 'cospec init --harness none' (setup/register only)`,
+  },
+  {
+    name: 'context',
+    summary: "Show a store's cross-repo working-set context",
+    options: `  --code-workspace <path>   Also write/update a VS Code multi-root workspace file
+  --force                   Overwrite a code-workspace file cospec did not author`,
+  },
+  {
+    name: 'workset',
+    summary: 'Manage personal cross-repo worksets',
+    usage: '<create|list|remove|open> [args]',
+  },
+  {
+    name: 'show',
+    summary: 'Show a change or spec (text or JSON)',
+    usage: '<item>',
+    options: `  --type <change|spec>     Disambiguate an id that matches both
+  --deltas-only            Changes only: print deltas, skip the proposal body
+  --requirements-only       Specs only: print requirements, skip prose
+  -r, --requirement <id>   Show a single requirement
+  --no-scenarios           Omit scenario blocks`,
+  },
   { name: 'view', summary: 'Show the OpenSpec dashboard' },
   { name: 'schemas', summary: 'List resolvable schemas' },
-  { name: 'schema', summary: 'Inspect a schema (which/validate)' },
+  {
+    name: 'schema',
+    summary: 'Inspect a schema (which/validate)',
+    usage: '<which|validate|fork|init> [args]',
+    options: `  --description <text>   fork/init only: seed the new schema's description
+  --artifacts <list>      fork/init only: comma-separated artifact ids to include`,
+  },
   { name: 'templates', summary: 'List per-artifact template paths' },
   {
     name: 'check-commit',
@@ -136,13 +230,20 @@ Run 'cospec <command> --help' for command-specific help.
 `
 }
 
-/** Per-command help, reachable via `cospec <command> --help`. */
+/**
+ * Per-command help, reachable via `cospec <command> --help` (or `cospec
+ * <command> help`, see the dispatcher below). Renders the command's own
+ * positionals and flags — not just the shared global options — when the
+ * command table declares them.
+ */
 function commandHelpText(entry: CommandEntry): string {
+  const usage = entry.usage !== undefined ? ` ${entry.usage}` : ''
+  const options = entry.options !== undefined ? `Command options:\n${entry.options}\n\n` : ''
   return `cospec ${entry.name} — ${entry.summary}
 
-Usage: cospec ${entry.name} [options]
+Usage: cospec ${entry.name}${usage} [options]
 
-${GLOBAL_OPTIONS}
+${options}${GLOBAL_OPTIONS}
 `
 }
 
@@ -193,6 +294,13 @@ export async function run(argv: string[]): Promise<number> {
   let wantVersion = false
   let wantHelp = false
   let badOption: string | undefined
+  // Set true for exactly one iteration: the token immediately following the
+  // command name. A bare `help` there means `cospec <command> help` ==
+  // `cospec <command> --help` — a common typo/muscle-memory (other CLIs
+  // accept it) that must never fall through into a state-mutating command's
+  // argv (e.g. `cospec archive help` must not try to archive a change called
+  // "help").
+  let expectHelpToken = false
 
   for (let i = 0; i < argv.length; i++) {
     const tok = argv[i]!
@@ -206,8 +314,18 @@ export async function run(argv: string[]): Promise<number> {
       else if (tok === '--store') storeRaw = argv[++i]
       else if (tok.startsWith('--store=')) storeRaw = tok.slice('--store='.length)
       else if (tok.startsWith('-')) badOption ??= tok
-      else command = tok
+      else {
+        command = tok
+        expectHelpToken = true
+      }
       continue
+    }
+    if (expectHelpToken) {
+      expectHelpToken = false
+      if (tok === 'help') {
+        wantHelp = true
+        continue
+      }
     }
     // After the command name, absorb global flags anywhere; everything else is
     // the command's own argv. --help/-h is intercepted here too so it can never
