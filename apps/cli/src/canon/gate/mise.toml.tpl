@@ -18,7 +18,7 @@ oxfmt = "0.56"
 # cospec itself, pinned to the release this template shipped with. `cospec init`
 # adds this line to an existing mise.toml; the release workflow re-stamps the
 # version on every bump (scripts/mise-tasks/release/set-version).
-"npm:@aligned-team/cospec" = "0.5.1"
+"npm:@aligned-team/cospec" = "0.5.2"
 
 [hooks]
 postinstall = "hk install --mise"
