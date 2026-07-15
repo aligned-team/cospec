@@ -197,6 +197,77 @@ describe('cospec init (DESIGN §2.1)', () => {
     expect(json.harnesses).toEqual(['claude', 'codex'])
     expect(json.config.written).toBe(true)
   })
+
+  test('state C re-init resyncs an already-adopted gate with no --gate flag', () => {
+    mkdirSync(join(dir, 'openspec'), { recursive: true })
+    writeFileSync(
+      join(dir, 'mise.toml'),
+      '[tools]\n"npm:@aligned-team/cospec" = "0.5.1"\n\n[tasks."cospec:apply"]\nrun = "cospec apply"\n',
+    )
+    const { code, out } = runInit(dir, ['--harness', 'none'])
+    expect(code).toBe(0)
+    // Gate ran: hk.pkl/commitlint written fresh, mise.toml merge is idempotent.
+    expect(existsSync(join(dir, 'hk.pkl'))).toBe(true)
+    expect(existsSync(join(dir, 'commitlint.config.mjs'))).toBe(true)
+    expect(out).not.toContain('no commit gate configured')
+
+    const { out: jsonOut } = capture(() => initRun(ctx(dir, ['--harness', 'none'], true)) as number)
+    const json = JSON.parse(jsonOut) as { gate: { mise: { status: string } } | null }
+    expect(json.gate).not.toBeNull()
+    expect(['merged', 'unchanged']).toContain(json.gate!.mise.status)
+  })
+
+  test('state C re-init with no adopted gate prints a hint and touches nothing gate-related', () => {
+    mkdirSync(join(dir, 'openspec'), { recursive: true })
+    writeFileSync(join(dir, 'mise.toml'), '[tools]\nbun = "1.3.0"\n')
+    const before = readFileSync(join(dir, 'mise.toml'), 'utf8')
+    const { code, out } = runInit(dir, ['--harness', 'none'])
+    expect(code).toBe(0)
+    expect(out).toContain(
+      "Gate: no commit gate configured. Run 'cospec init --gate' to add it (merges into your mise.toml).",
+    )
+    expect(readFileSync(join(dir, 'mise.toml'), 'utf8')).toBe(before)
+    expect(existsSync(join(dir, 'hk.pkl'))).toBe(false)
+    expect(existsSync(join(dir, 'commitlint.config.mjs'))).toBe(false)
+
+    const { out: jsonOut } = capture(() => initRun(ctx(dir, ['--harness', 'none'], true)) as number)
+    const json = JSON.parse(jsonOut) as { gate: unknown }
+    expect(json.gate).toBeNull()
+  })
+
+  test('exists-but-empty mise.toml + --gate: template written and reported as a write', () => {
+    writeFileSync(join(dir, 'package.json'), '{"name":"x"}\n')
+    writeFileSync(join(dir, 'mise.toml'), '')
+    const { code, out } = runInit(dir, ['--harness', 'none', '--gate'])
+    expect(code).toBe(0)
+    expect(readFileSync(join(dir, 'mise.toml'), 'utf8').length).toBeGreaterThan(0)
+    expect(out).toContain('Gate:    wrote')
+    expect(out).toContain('mise.toml')
+  })
+
+  test('exists-but-empty mise.toml + --gate: --json gate.written lists mise.toml', () => {
+    const dir2 = makeRepo()
+    try {
+      writeFileSync(join(dir2, 'package.json'), '{"name":"x"}\n')
+      writeFileSync(join(dir2, 'mise.toml'), '')
+      const { out } = capture(
+        () => initRun(ctx(dir2, ['--harness', 'none', '--gate'], true)) as number,
+      )
+      const json = JSON.parse(out) as { gate: { written: string[] } }
+      expect(json.gate.written).toContain('mise.toml')
+    } finally {
+      cleanup(dir2)
+    }
+  })
+
+  test('cospec init help: exit 1, no ./help directory created, no other write', () => {
+    const before = existsSync(join(dir, 'openspec'))
+    const { code, err } = runInit(dir, ['help'])
+    expect(code).toBe(1)
+    expect(err).toContain('--help')
+    expect(existsSync(join(dir, 'help'))).toBe(false)
+    expect(existsSync(join(dir, 'openspec'))).toBe(before)
+  })
 })
 
 function plantOpsx(dir: string): void {

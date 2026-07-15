@@ -54,4 +54,26 @@ describe('gate scaffolding', () => {
     expect(res2.exitCode).toBe(0)
     expect(readFileSync(join(root, 'mise.toml'), 'utf8')).toBe(merged)
   })
+
+  test('state-C re-init with an already-adopted gate resyncs it with no --gate flag', async () => {
+    // vanilla-openspec is state C (openspec/ already exists). Simulate a prior
+    // `cospec init --gate` by giving it a mise.toml that already carries the
+    // gate's tasks — the fix under test: a plain re-init must resync it.
+    const root = mkTempRepo({ fixture: 'vanilla-openspec', git: true })
+    const mise =
+      '[tools]\n"npm:@aligned-team/cospec" = "0.5.1"\n\n[tasks."cospec:apply"]\nrun = "cospec apply"\n'
+    writeFiles(root, { 'mise.toml': mise })
+    const res = await cospec(['init', '--harness', 'none', '--yes'], { cwd: root })
+    expect(res.exitCode).toBe(0)
+    expect(existsSync(join(root, 'hk.pkl'))).toBe(true)
+    expect(existsSync(join(root, 'commitlint.config.mjs'))).toBe(true)
+    const merged = readFileSync(join(root, 'mise.toml'), 'utf8')
+    expect(merged).toContain('[tasks."cospec:apply"]')
+    expect(merged).toContain('[tasks."cospec:validate"]')
+
+    // A second re-init (still no --gate) is idempotent: no diff.
+    const res2 = await cospec(['init', '--harness', 'none', '--yes'], { cwd: root })
+    expect(res2.exitCode).toBe(0)
+    expect(readFileSync(join(root, 'mise.toml'), 'utf8')).toBe(merged)
+  })
 })

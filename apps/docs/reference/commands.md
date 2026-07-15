@@ -21,6 +21,9 @@ the table.
 | `-h`, `--help`                     | show help for the command                                                                              |
 | `-V`, `--version` (top-level only) | print the installed cospec version                                                                     |
 
+`cospec <command> help` — a bare `help` token immediately after the command name
+— is equivalent to `cospec <command> --help`; it never runs the command.
+
 ## Commands
 
 | command                                          | synopsis                                                                                                                                                                                                                                                                                         | key flags                                                                                              | see                                                                                                                                                         |

@@ -33,6 +33,26 @@ function detectState(cwd: string): RepoState {
   return 'A'
 }
 
+/**
+ * True iff `cwd` has a `mise.toml` whose `[tasks]` table already carries a
+ * `"cospec:*"` entry — i.e. the gate was adopted previously. Re-init should
+ * keep an adopted gate synced without requiring `--gate` on every call; a repo
+ * that never adopted the gate must stay opt-in (never auto-enabled on re-init).
+ */
+function gateAlreadyPresent(cwd: string): boolean {
+  const misePath = join(cwd, 'mise.toml')
+  if (!existsSync(misePath)) return false
+  let parsed: object
+  try {
+    parsed = Bun.TOML.parse(readFileSync(misePath, 'utf8'))
+  } catch {
+    return false
+  }
+  const tasks = (parsed as Record<string, unknown>).tasks
+  if (typeof tasks !== 'object' || tasks === null || Array.isArray(tasks)) return false
+  return Object.keys(tasks).some((k) => k.startsWith('cospec:'))
+}
+
 // --- harness selection ------------------------------------------------------
 
 interface HarnessSelection {
@@ -147,6 +167,10 @@ function scaffoldGate(cwd: string): GateResult {
   if (existsSync(misePath)) {
     mise = mergeMiseToml(readFileSync(misePath, 'utf8'), template)
     if (mise.content !== undefined) writeFileSync(misePath, mise.content)
+    // An existing-but-empty mise.toml merges as 'created' (the whole template is
+    // written): that is a real write and must be reported like any other, not
+    // silently absorbed into the mise-only `gate.mise` sub-report.
+    if (mise.status === 'created') written.push('mise.toml')
   } else {
     writeFileSync(misePath, template)
     written.push('mise.toml')
@@ -231,7 +255,12 @@ const RESTART_LINES: Record<HarnessName, string> = {
 // --- command entrypoint -----------------------------------------------------
 
 export function run(ctx: CommandContext): number {
-  const target = resolveTarget(ctx)
+  const resolved = resolveTarget(ctx)
+  if (!resolved.ok) {
+    process.stderr.write(`${resolved.error}\n`)
+    return 1
+  }
+  const target = resolved.target
   const args = ctx.args
   const flags = ctx.flags
   const yes = args.includes('--yes')
@@ -240,11 +269,16 @@ export function run(ctx: CommandContext): number {
   const harnessArg = argValue(args, '--harness')
 
   const state = detectState(target)
+  // A state-A (fresh) repo defaults the gate on; otherwise re-init resyncs an
+  // already-adopted gate by default and stays opt-in when none was adopted —
+  // see gateAlreadyPresent().
   const gateEnabled = args.includes('--gate')
     ? true
     : args.includes('--no-gate')
       ? false
       : state === 'A'
+        ? true
+        : gateAlreadyPresent(target)
 
   const notGitTree = !existsSync(join(target, '.git'))
 
@@ -340,8 +374,16 @@ export function run(ctx: CommandContext): number {
   return 0
 }
 
-/** The positional [path], skipping value-bearing flags (`--harness <v>`). */
-function resolveTarget(ctx: CommandContext): string {
+type TargetResolution = { ok: true; target: string } | { ok: false; error: string }
+
+/**
+ * The positional [path], skipping value-bearing flags (`--harness <v>`). A
+ * bare `help` positional is rejected outright — `cospec init help` is almost
+ * always a typo for `cospec init --help`, and silently scaffolding a
+ * directory literally named `help` would be a surprising, hard-to-notice
+ * mutation. Anyone who really wants that directory can pass `./help`.
+ */
+function resolveTarget(ctx: CommandContext): TargetResolution {
   const args = ctx.args
   for (let i = 0; i < args.length; i++) {
     const tok = args[i]!
@@ -350,9 +392,17 @@ function resolveTarget(ctx: CommandContext): string {
       continue
     }
     if (tok.startsWith('-')) continue
-    return resolve(ctx.cwd, tok)
+    if (tok === 'help') {
+      return {
+        ok: false,
+        error:
+          "cospec: 'help' is not a path — did you mean 'cospec init --help'? " +
+          "To scaffold into a directory literally named 'help', pass './help'.",
+      }
+    }
+    return { ok: true, target: resolve(ctx.cwd, tok) }
   }
-  return ctx.cwd
+  return { ok: true, target: ctx.cwd }
 }
 
 function argValue(args: string[], flag: string): string | undefined {
@@ -445,6 +495,12 @@ function printReceipt(target: string, d: ReceiptData): void {
       }
       // 'unchanged' / 'created' (already in `written`) print nothing extra.
     }
+  } else if (d.state !== 'A' && existsSync(join(target, 'mise.toml'))) {
+    // The gate is off and this isn't a fresh scaffold — never let that go
+    // unmentioned when a mise.toml is already there to merge into.
+    lines.push(
+      "Gate: no commit gate configured. Run 'cospec init --gate' to add it (merges into your mise.toml).",
+    )
   }
 
   if (d.opsx.length > 0) {
