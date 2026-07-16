@@ -59,19 +59,22 @@ describe('judgeArtifacts', () => {
       called = true
       return jsonResponse(verdictReply(FULL_SCORES))
     }) as unknown as typeof fetch
-    expect(await judgeArtifacts(config(fetchImpl), '   \n\t  ')).toBeNull()
+    const result = await judgeArtifacts(config(fetchImpl), '   \n\t  ')
+    expect(result.quality).toBeNull()
+    expect(result.error).toBeUndefined()
     expect(called).toBe(false)
   })
 
   test('parses a normal chain-of-thought-then-verdict reply and averages k samples', async () => {
     const fetchImpl = (async () =>
       jsonResponse(verdictReply(FULL_SCORES))) as unknown as typeof fetch
-    const score = await judgeArtifacts(config(fetchImpl), 'some artifact text')
-    expect(score).not.toBeNull()
-    expect(score?.completeness).toBe(3)
-    expect(score?.ambiguity).toBe(2)
-    expect(score?.samples).toBe(3)
-    expect(score?.overall).toBeCloseTo((3 + 3 + 2 + 3 + 2) / 5, 5)
+    const { quality, error } = await judgeArtifacts(config(fetchImpl), 'some artifact text')
+    expect(quality).not.toBeNull()
+    expect(error).toBeUndefined()
+    expect(quality?.completeness).toBe(3)
+    expect(quality?.ambiguity).toBe(2)
+    expect(quality?.samples).toBe(3)
+    expect(quality?.overall).toBeCloseTo((3 + 3 + 2 + 3 + 2) / 5, 5)
   })
 
   test('stray braces in the reasoning prose before the delimiter do not confuse parsing', async () => {
@@ -85,15 +88,18 @@ describe('judgeArtifacts', () => {
       jsonResponse({
         choices: [{ message: { content }, finish_reason: 'stop' }],
       })) as unknown as typeof fetch
-    const score = await judgeArtifacts(config(fetchImpl), 'artifact text')
-    expect(score?.completeness).toBe(3)
+    const { quality } = await judgeArtifacts(config(fetchImpl), 'artifact text')
+    expect(quality?.completeness).toBe(3)
   })
 
   test('finish_reason "length" (truncated before the verdict) is treated as a failed sample', async () => {
     const fetchImpl = (async () =>
       jsonResponse(verdictReply(FULL_SCORES, 'length'))) as unknown as typeof fetch
-    // All k samples truncated -> no samples parsed -> null.
-    expect(await judgeArtifacts(config(fetchImpl), 'artifact text')).toBeNull()
+    // All k samples truncated -> no samples parsed -> null, WITH a diagnostic.
+    const { quality, error } = await judgeArtifacts(config(fetchImpl), 'artifact text')
+    expect(quality).toBeNull()
+    expect(error).toContain('finish_reason:length')
+    expect(error).toContain('3 sample(s) failed')
   })
 
   test('a bare-JSON reply with no delimiters still parses via the fallback', async () => {
@@ -101,8 +107,8 @@ describe('judgeArtifacts', () => {
       jsonResponse({
         choices: [{ message: { content: JSON.stringify(FULL_SCORES) }, finish_reason: 'stop' }],
       })) as unknown as typeof fetch
-    const score = await judgeArtifacts(config(fetchImpl), 'artifact text')
-    expect(score?.completeness).toBe(3)
+    const { quality } = await judgeArtifacts(config(fetchImpl), 'artifact text')
+    expect(quality?.completeness).toBe(3)
   })
 
   test('clamps out-of-range axis scores into 0-3', async () => {
@@ -110,14 +116,34 @@ describe('judgeArtifacts', () => {
       jsonResponse(
         verdictReply({ ...FULL_SCORES, completeness: 99, ambiguity: -5 }),
       )) as unknown as typeof fetch
-    const score = await judgeArtifacts(config(fetchImpl), 'artifact text')
-    expect(score?.completeness).toBe(3)
-    expect(score?.ambiguity).toBe(0)
+    const { quality } = await judgeArtifacts(config(fetchImpl), 'artifact text')
+    expect(quality?.completeness).toBe(3)
+    expect(quality?.ambiguity).toBe(0)
   })
 
-  test('a non-ok HTTP response counts as a failed sample; null when every sample fails', async () => {
+  test('a non-ok HTTP response counts as a failed sample; null + diagnostic when every sample fails', async () => {
     const fetchImpl = (async () => jsonResponse({}, false)) as unknown as typeof fetch
-    expect(await judgeArtifacts(config(fetchImpl), 'artifact text')).toBeNull()
+    const { quality, error } = await judgeArtifacts(config(fetchImpl), 'artifact text')
+    expect(quality).toBeNull()
+    // `jsonResponse(_, false)` sets status 500 — see the helper above.
+    expect(error).toBe('3 sample(s) failed: http 500 x3')
+  })
+
+  test('a 402 (insufficient balance) response is surfaced verbatim in the diagnostic', async () => {
+    // This is the actual root cause of the first full run's all-44-cells
+    // `quality: null`: the configured DeepSeek key had no account balance, so
+    // every sample got HTTP 402 back — reproduced directly against the real
+    // DeepSeek endpoint via a throwaway scratchpad script during triage.
+    const fetchImpl = (async () =>
+      new Response(JSON.stringify({ error: { message: 'Insufficient Balance' } }), {
+        status: 402,
+      })) as unknown as typeof fetch
+    const { quality, error } = await judgeArtifacts(
+      config(fetchImpl, { samples: 1 }),
+      'artifact text',
+    )
+    expect(quality).toBeNull()
+    expect(error).toBe('1 sample(s) failed: http 402')
   })
 
   test('a reply missing an axis key fails to parse as a sample', async () => {
@@ -129,10 +155,12 @@ describe('judgeArtifacts', () => {
       // traceability intentionally omitted.
     }
     const fetchImpl = (async () => jsonResponse(verdictReply(partial))) as unknown as typeof fetch
-    expect(await judgeArtifacts(config(fetchImpl), 'artifact text')).toBeNull()
+    const { quality, error } = await judgeArtifacts(config(fetchImpl), 'artifact text')
+    expect(quality).toBeNull()
+    expect(error).toBe('3 sample(s) failed: parse_failed x3')
   })
 
-  test('some-failed-some-parsed averages only the samples that parsed', async () => {
+  test('some-failed-some-parsed averages only the samples that parsed, with no error', async () => {
     let call = 0
     const fetchImpl = (async () => {
       call += 1
@@ -140,8 +168,12 @@ describe('judgeArtifacts', () => {
         ? jsonResponse(verdictReply(FULL_SCORES, 'length'))
         : jsonResponse(verdictReply(FULL_SCORES))
     }) as unknown as typeof fetch
-    const score = await judgeArtifacts(config(fetchImpl, { samples: 3 }), 'artifact text')
-    expect(score?.samples).toBe(2)
+    const { quality, error } = await judgeArtifacts(
+      config(fetchImpl, { samples: 3 }),
+      'artifact text',
+    )
+    expect(quality?.samples).toBe(2)
+    expect(error).toBeUndefined()
   })
 
   test('POSTs to <baseUrl>/chat/completions with bearer auth and temperature 0', async () => {

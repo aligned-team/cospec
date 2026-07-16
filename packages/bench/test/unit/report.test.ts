@@ -269,6 +269,25 @@ describe('ensureRunDir + appendCellResult + writeAggregate — redaction guard',
     expect(row.scenarioType).toBe('ci')
   })
 
+  test('judgeError is written verbatim — a judge failure is never invisible', async () => {
+    const runDir = makeRunDir()
+    await ensureRunDir(runDir)
+    await appendCellResult(
+      runDir,
+      result({
+        telemetry: telemetry(),
+        mechanical: mechanical(),
+        quality: null,
+        judgeError: '3 sample(s) failed: http 402 x3',
+      }),
+      NO_SENTINELS,
+    )
+    const text = await Bun.file(join(runDir, 'cells.jsonl')).text()
+    const row = JSON.parse(text.trim().split('\n')[0]!)
+    expect(row.quality).toBeNull()
+    expect(row.judgeError).toBe('3 sample(s) failed: http 402 x3')
+  })
+
   test('appendCellResult throws when a sentinel value leaks into the row', async () => {
     const runDir = makeRunDir()
     await ensureRunDir(runDir)

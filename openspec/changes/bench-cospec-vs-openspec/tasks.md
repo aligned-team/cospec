@@ -171,6 +171,37 @@
       unit-tested (`report.test.ts`: no-op on no change, writes slug/dir/files,
       redacts a planted sentinel, and the self-check still throws on a genuine
       unredacted leak)
+- [x] 6.8 Diagnose: why did the first full run score `quality: null` on all 44
+      cells despite `judgeEnabled: true`? Reproduced without spawning any agent
+      — a throwaway scratchpad script called the REAL DeepSeek
+      `/chat/completions` endpoint with the REAL `DEEPSEEK_API_KEY` (present in
+      the harness process env, confirmed via
+      `mise exec -- bash -c     'echo ${DEEPSEEK_API_KEY:+yes}'`) and logged
+      only status/finish_reason/ parse outcome, never the key or a completion.
+      Result: every call returns HTTP 402
+      `{"error":{"message":"Insufficient Balance", ...}}` — the DeepSeek account
+      backing that key has no balance. Not a wrong endpoint/model/response-shape
+      bug: auth and routing both succeed (DeepSeek's billing check runs after
+      auth), `deepseek-v4-flash` against `https://api.deepseek.com` is correctly
+      resolved. The actual defect was in the harness, not DeepSeek: `judge.ts`'s
+      `oneSample` already treated a non-ok HTTP response as a failed sample
+      (correct), but `judgeArtifacts` collapsed every failure — HTTP 402,
+      `finish_reason: 'length'`, or a parse miss — into a bare `null`, and
+      `run.ts` propagated that `null` into `CellResult.quality` with no trace of
+      WHY. A judge outage was indistinguishable from "judge simply found nothing
+      to say." Fix: `judge.ts`'s `oneSample` now returns a discriminated
+      `SampleOutcome` (`{ok:true, scores}` | `{ok:false, reason}`, reason one of
+      `` `http ${status}` ``/`finish_reason:length`/`parse_failed`/`no-content`
+      — never the key or completion text); `judgeArtifacts` returns
+      `JudgeResult { quality, error? }`, setting `error` only when every sample
+      was attempted and failed (never when there was simply nothing to judge).
+      `run.ts` copies `judged.error` onto a new `CellResult.judgeError` field
+      (`report.ts`) so a judge outage is now visible in `cells.jsonl` instead of
+      silently indistinguishable from a disabled judge -> unit-tested
+      (`judge.test.ts`: every failure path now asserts its `error` string,
+      including a dedicated 402 case naming the reproduced root cause;
+      `report.test.ts`: `judgeError` round-trips through `appendCellResult`
+      verbatim)
 
 ## 7. DeepSeek judge
 

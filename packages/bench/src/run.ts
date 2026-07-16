@@ -93,7 +93,9 @@ async function runCell(
     if (judge !== undefined) {
       const text =
         change === undefined ? '' : await collectArtifactText(sandbox.dir, change.dir, sentinels)
-      base.quality = await judgeArtifacts(judge, text)
+      const judged = await judgeArtifacts(judge, text)
+      base.quality = judged.quality
+      if (judged.error !== undefined) base.judgeError = judged.error
     } else {
       base.quality = null
     }

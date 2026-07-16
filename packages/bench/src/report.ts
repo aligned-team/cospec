@@ -22,6 +22,13 @@ export interface CellResult {
   mechanical?: MechanicalMetrics
   /** DeepSeek-judged quality, or null when the judge was unavailable/failed. */
   quality?: QualityScore | null
+  /**
+   * Set only when quality is null BECAUSE every judge sample failed (not when
+   * the judge was simply disabled or there was nothing to judge). A short,
+   * non-sensitive diagnostic (HTTP status / finish_reason / parse outcome) —
+   * never the API key or a raw completion. See `judge.ts`'s `JudgeResult`.
+   */
+  judgeError?: string
 }
 
 export interface RunMeta {

@@ -190,10 +190,18 @@ function parseSample(raw: string): Record<Axis, number> | undefined {
   return out
 }
 
-async function oneSample(
-  config: JudgeConfig,
-  artifactText: string,
-): Promise<Record<Axis, number> | undefined> {
+/**
+ * One sample's outcome. Failures carry a short, non-sensitive `reason` (an
+ * HTTP status, `finish_reason`, or parse-failure tag — never the API key, the
+ * raw completion, or the artifact text) so a run that scores every cell
+ * `quality: null` can be diagnosed from the report alone instead of silently
+ * vanishing (this shape exists because of exactly that: the first full run
+ * scored `quality: null` on all 44 cells with no diagnostic anywhere — see
+ * `judgeArtifacts`'s doc comment).
+ */
+type SampleOutcome = { ok: true; scores: Record<Axis, number> } | { ok: false; reason: string }
+
+async function oneSample(config: JudgeConfig, artifactText: string): Promise<SampleOutcome> {
   const fetchImpl = config.fetchImpl ?? fetch
   const res = await fetchImpl(`${config.baseUrl}/chat/completions`, {
     method: 'POST',
@@ -211,35 +219,66 @@ async function oneSample(
       max_tokens: MAX_TOKENS_PER_SAMPLE,
     }),
   })
-  if (!res.ok) return undefined
+  if (!res.ok) return { ok: false, reason: `http ${res.status}` }
   const body = (await res.json()) as {
     choices?: { message?: { content?: string }; finish_reason?: string }[]
   }
   const choice = body.choices?.[0]
   // Hit the max_tokens ceiling before finishing reasoning + verdict — the tail
   // is a truncated fragment, not a parseable (or trustworthy) JSON object.
-  if (choice?.finish_reason === 'length') return undefined
+  if (choice?.finish_reason === 'length') return { ok: false, reason: 'finish_reason:length' }
   const content = choice?.message?.content
-  return typeof content === 'string' ? parseSample(content) : undefined
+  if (typeof content !== 'string') return { ok: false, reason: 'no-content' }
+  const parsed = parseSample(content)
+  return parsed === undefined ? { ok: false, reason: 'parse_failed' } : { ok: true, scores: parsed }
+}
+
+export interface JudgeResult {
+  /** null when there was nothing to judge (empty text) or every sample failed. */
+  quality: QualityScore | null
+  /**
+   * Set only when at least one sample was attempted and every one failed —
+   * a short, non-sensitive summary of why (see `SampleOutcome.reason`). Never
+   * set when `artifactText` was empty (nothing to judge is not a failure).
+   * Never contains the API key, a raw completion, or artifact text.
+   */
+  error?: string
+}
+
+function summarizeFailures(reasons: readonly string[]): string {
+  const counts = new Map<string, number>()
+  for (const r of reasons) counts.set(r, (counts.get(r) ?? 0) + 1)
+  const parts = [...counts.entries()].map(([reason, n]) => (n > 1 ? `${reason} x${n}` : reason))
+  return `${reasons.length} sample(s) failed: ${parts.join(', ')}`
 }
 
 /**
- * Judge one change's artifacts. Returns null when there is nothing to judge
- * (empty text) or when every sample failed to parse — callers record
- * `quality: null` rather than fabricating a score.
+ * Judge one change's artifacts. `quality` is null when there is nothing to
+ * judge (empty text) or when every sample failed to parse — callers record
+ * `quality: null` rather than fabricating a score. Unlike the pre-fix
+ * behavior, a failure is never silent: when every attempted sample failed,
+ * `error` carries a short diagnostic (HTTP status / finish_reason / parse
+ * outcome) so the report can surface WHY quality is null instead of just
+ * that it is (root cause of the first full run's all-44-cells `quality:
+ * null`: the configured DeepSeek key had no account balance — every call
+ * returned HTTP 402 — and that failure was swallowed all the way up).
  */
 export async function judgeArtifacts(
   config: JudgeConfig,
   artifactText: string,
-): Promise<QualityScore | null> {
-  if (artifactText.trim().length === 0) return null
+): Promise<JudgeResult> {
+  if (artifactText.trim().length === 0) return { quality: null }
 
   const samples: Record<Axis, number>[] = []
+  const failures: string[] = []
   for (let i = 0; i < config.samples; i += 1) {
-    const sample = await oneSample(config, artifactText)
-    if (sample !== undefined) samples.push(sample)
+    const outcome = await oneSample(config, artifactText)
+    if (outcome.ok) samples.push(outcome.scores)
+    else failures.push(outcome.reason)
   }
-  if (samples.length === 0) return null
+  if (samples.length === 0) {
+    return { quality: null, error: summarizeFailures(failures) }
+  }
 
   const mean = (axis: Axis): number => samples.reduce((sum, s) => sum + s[axis], 0) / samples.length
   const completeness = mean('completeness')
@@ -251,12 +290,14 @@ export async function judgeArtifacts(
     (completeness + internalConsistency + ambiguity + verifiability + traceability) / AXES.length
 
   return {
-    completeness,
-    internalConsistency,
-    ambiguity,
-    verifiability,
-    traceability,
-    overall,
-    samples: samples.length,
+    quality: {
+      completeness,
+      internalConsistency,
+      ambiguity,
+      verifiability,
+      traceability,
+      overall,
+      samples: samples.length,
+    },
   }
 }
