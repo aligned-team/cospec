@@ -163,7 +163,11 @@ export const COMMANDS: CommandEntry[] = [
     options: `  --description <text>   init only: seed the new schema's description
   --artifacts <list>      init only: comma-separated artifact ids to include`,
   },
-  { name: 'templates', summary: 'List per-artifact template paths' },
+  {
+    name: 'templates',
+    summary: 'List per-artifact template paths',
+    options: `  --schema <name>   Schema whose templates to list (default: spec-driven)`,
+  },
   {
     name: 'check-commit',
     summary: 'Warn on commit-type/schema mismatch (hook entrypoint)',
