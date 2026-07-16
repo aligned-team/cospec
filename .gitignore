@@ -34,6 +34,7 @@ coverage/
 
 # eval reports (never committed)
 e2e/eval/reports/
+packages/bench/reports/
 
 # Editor / IDE (selective — workspace settings ARE checked in)
 .idea/

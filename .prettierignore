@@ -22,3 +22,10 @@ openspec/schemas/
 .codex/rules/cospec.rules
 .opencode/commands/cospec-*.md
 .opencode/skills/cospec-*/
+
+# packages/bench `style` scenario fixture: deliberately seeded violating this
+# repo's own oxfmt conventions (double quotes, semicolons) — that IS the bug
+# the scenario's agent is scored on fixing inside its sandbox copy. The
+# checked-in fixture itself must never be reformatted, or the scenario would
+# start pre-completed.
+packages/bench/scenarios/fixtures/style/src/format.ts

@@ -48,26 +48,29 @@ version than the one mise pins, and running it directly bypasses the pin.
 
 Every operation runs through a mise task — never a raw tool invocation.
 
-| task                                | command                             |
-| ----------------------------------- | ----------------------------------- |
-| Run the CLI                         | `mise run cospec -- <args>`         |
-| Build the single-file binary        | `mise run build`                    |
-| Lint                                | `mise run lint`                     |
-| Lint (autofix)                      | `mise run lint:fix`                 |
-| Format (check)                      | `mise run format:check`             |
-| Format (fix)                        | `mise run format:fix`               |
-| Typecheck                           | `mise run typecheck`                |
-| Unit tests                          | `mise run test`                     |
-| Contract tests (real binary)        | `mise run test:contract`            |
-| Integration tests                   | `mise run test:integration`         |
-| Pack smoke                          | `mise run test:pack`                |
-| Regenerate managed files from canon | `mise run generate`                 |
-| Managed-file drift gate             | `mise run generate:check`           |
-| Validate composed schemas           | `mise run openspec:schema:validate` |
-| Sync agent docs                     | `mise run agents:sync`              |
-| Agent-doc drift gate                | `mise run agents:check`             |
-| E2E eval (advisory)                 | `mise run eval:e2e`                 |
-| Full CI gate                        | `mise run check`                    |
+| task                                 | command                             |
+| ------------------------------------ | ----------------------------------- |
+| Run the CLI                          | `mise run cospec -- <args>`         |
+| Build the single-file binary         | `mise run build`                    |
+| Lint                                 | `mise run lint`                     |
+| Lint (autofix)                       | `mise run lint:fix`                 |
+| Format (check)                       | `mise run format:check`             |
+| Format (fix)                         | `mise run format:fix`               |
+| Typecheck                            | `mise run typecheck`                |
+| Unit tests                           | `mise run test`                     |
+| Contract tests (real binary)         | `mise run test:contract`            |
+| Integration tests                    | `mise run test:integration`         |
+| Bench unit tests                     | `mise run test:bench`               |
+| Pack smoke                           | `mise run test:pack`                |
+| Regenerate managed files from canon  | `mise run generate`                 |
+| Managed-file drift gate              | `mise run generate:check`           |
+| Validate composed schemas            | `mise run openspec:schema:validate` |
+| Sync agent docs                      | `mise run agents:sync`              |
+| Agent-doc drift gate                 | `mise run agents:check`             |
+| E2E eval (advisory)                  | `mise run eval:e2e`                 |
+| Bench: cospec vs openspec (advisory) | `mise run bench`                    |
+| Bench smoke (advisory)               | `mise run bench:smoke`              |
+| Full CI gate                         | `mise run check`                    |
 
 Run `mise run check` before every commit — it is the same gate CI runs.
 
@@ -80,11 +83,11 @@ enforced by commitlint in the `commit-msg` hook. The type IS the change's schema
 - **Types**: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`,
   `revert`, `style`, `test`.
 - **Scopes** (optional but linted against an allow-list): `cli`, `canon`,
-  `schemas`, `harness`, `validate`, `apply`, `archive`, `eval`, `docs`, `ci`,
-  `deps`, `hooks`, `agents`. A scope names an AREA the commit touches — omit it
-  when there's no meaningful area, and never repeat the type as the scope
-  (`chore(chore):` is rejected; use `chore: ...` instead). Archive commits are
-  `chore: archive <slug>`.
+  `schemas`, `harness`, `validate`, `apply`, `archive`, `eval`, `bench`, `docs`,
+  `ci`, `deps`, `hooks`, `agents`. A scope names an AREA the commit touches —
+  omit it when there's no meaningful area, and never repeat the type as the
+  scope (`chore(chore):` is rejected; use `chore: ...` instead). Archive commits
+  are `chore: archive <slug>`.
 - **Subject**: imperative mood, no trailing period, at most 72 characters.
 
 ```

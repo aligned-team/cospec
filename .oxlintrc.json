@@ -28,6 +28,7 @@
     "build",
     "**/*.d.ts",
     "e2e/eval/reports",
+    "packages/bench/reports",
     "apps/cli/src/vendor"
   ],
   "overrides": [
@@ -39,6 +40,7 @@
       "files": [
         "scripts/**",
         "e2e/**",
+        "packages/bench/**",
         "apps/cli/src/index.ts",
         "apps/cli/src/cli.ts",
         "apps/cli/src/commands/**"
@@ -46,7 +48,7 @@
       "rules": { "no-console": "off" }
     },
     {
-      "files": ["e2e/eval/**"],
+      "files": ["e2e/eval/**", "packages/bench/**"],
       "rules": { "no-await-in-loop": "off" }
     },
     {
