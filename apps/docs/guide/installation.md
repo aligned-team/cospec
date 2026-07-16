@@ -11,6 +11,25 @@ cospec ships as `@aligned-team/cospec` on npm, and as standalone platform
 binaries on GitHub Releases for environments with no JS runtime at all. Either
 way you get the same CLI.
 
+## Via mise
+
+```sh
+mise use github:aligned-team/cospec
+cospec init
+```
+
+This installs the self-contained binary via mise's `github` backend — no JS
+runtime needed. The binary embeds a pinned build of the OpenSpec CLI and runs it
+with its own bundled runtime, so every wrapped command (`new`, `validate`,
+`apply`, `archive`, …) works out of the box.
+
+> mise's github backend applies a default release-age cooldown
+> (`minimum_release_age`) that hides very recent releases from "latest"
+> resolution. If you're testing a release cut in the last day or so and it
+> doesn't show up, pin the exact version instead:
+> `mise use github:aligned-team/cospec@0.5.2` (a full `major.minor.patch`, not
+> `@0.5`) — exact pins bypass the cooldown.
+
 ## Package managers
 
 ::: code-group

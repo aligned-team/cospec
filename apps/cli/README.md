@@ -14,7 +14,7 @@ for Claude Code, Codex, and OpenCode.
 ## Install
 
 cospec ships as standalone executables (one per platform), so it runs with no JS
-runtime required and installs cleanly on Node, Deno, or Bun. Publishing soon.
+runtime required and installs cleanly on Node, Deno, or Bun.
 
 Via mise (no JS runtime needed):
 
@@ -32,8 +32,8 @@ it with its own bun runtime, so every wrapped command (`new`, `validate`,
 > (`minimum_release_age`) that hides very recent releases from "latest"
 > resolution. If you're testing a release cut in the last day or so and it
 > doesn't show up, pin the exact version instead:
-> `mise use github:aligned-team/cospec@0.4.0` (a full `major.minor.patch`, not
-> `@0.4`) — exact pins bypass the cooldown.
+> `mise use github:aligned-team/cospec@0.5.2` (a full `major.minor.patch`, not
+> `@0.5`) — exact pins bypass the cooldown.
 
 Via a package manager (the launcher execs the prebuilt binary for your
 platform):

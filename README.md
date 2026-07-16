@@ -8,8 +8,7 @@ commit type. `feat` gets the full treatment; `ci` takes two minutes.
 ## Quick start
 
 cospec ships as standalone executables — one per platform — so it runs with no
-JS runtime required, and installs cleanly on Node, Deno, or Bun. (Publishing
-soon; the commands below are the shape of it.)
+JS runtime required, and installs cleanly on Node, Deno, or Bun.
 
 ### mise
 
@@ -27,8 +26,8 @@ it with its own bun runtime, so every wrapped command (`new`, `validate`,
 > (`minimum_release_age`) that hides very recent releases from "latest"
 > resolution. If you're testing a release cut in the last day or so and it
 > doesn't show up, pin the exact version instead:
-> `mise use github:aligned-team/cospec@0.4.0` (a full `major.minor.patch`, not
-> `@0.4`) — exact pins bypass the cooldown.
+> `mise use github:aligned-team/cospec@0.5.2` (a full `major.minor.patch`, not
+> `@0.5`) — exact pins bypass the cooldown.
 
 ### Package managers
 

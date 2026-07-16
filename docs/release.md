@@ -46,7 +46,7 @@ version like `@0.4` does not resolve and 404s. mise's github backend also
 applies a default release-age cooldown (`minimum_release_age`) that hides very
 recent releases from "latest"/fuzzy resolution, so a release cut in the last day
 or so may not resolve as latest yet; pin the exact version (e.g.
-`mise use github:aligned-team/cospec@0.4.0`) to fetch it immediately —
+`mise use github:aligned-team/cospec@0.5.2`) to fetch it immediately —
 exact-version pins bypass the cooldown.
 
 ## Dispatch input

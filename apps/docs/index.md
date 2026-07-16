@@ -59,6 +59,11 @@ features:
 
 ::: code-group
 
+```sh [mise]
+mise use github:aligned-team/cospec
+cospec init
+```
+
 ```sh [npm]
 npm i -D @aligned-team/cospec
 npx cospec init

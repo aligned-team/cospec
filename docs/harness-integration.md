@@ -107,7 +107,7 @@ name: cospec-apply-change
 description: …
 metadata:
   author: cospec
-  generatedBy: 'cospec@0.1.0'
+  generatedBy: 'cospec@<version>'
   contentHash: 'sha256:<hash of the body below the frontmatter>'
 ---
 ```
