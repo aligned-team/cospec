@@ -5,29 +5,12 @@ must ship before this one. It is machine-parsed: the `apply` gate reads it, and
 `sync-blockers` keeps it current as dependencies archive. One parser
 (`core/blockers.ts`) serves validate, apply, archive, and sync.
 
-## The template
-
-Every type ships the same template (the instructions differ by weight, the
-format does not):
-
-```markdown
-# Dependencies
-
-## Blocked by
-
-<!-- Changes that MUST be archived before this change can be applied. -->
-<!-- Format: - [ ] `change-slug` — what it provides -->
-<!-- cospec checks the box and appends *(archived YYYY-MM-DD)* when the dependency ships. -->
-
-None.
-
-## Soft-blocked by
-
-<!-- Changes that improve this one but aren't strictly required. -->
-<!-- Format: - [ ] `change-slug` — what degrades without it -->
-
-None.
-```
+The user-facing account — the template, hard vs. soft sections, how `apply`
+gates on it, and the STALE/DANGLING/MANUAL-CHECK/FORMAT sync diagnostics — is
+owned by the site:
+[Blocking changes](https://cospec.aligned.team/concepts/blocking-changes). This
+page keeps the exact machine grammar `core/blockers.ts` implements, since the
+site describes it in prose rather than as a parseable spec.
 
 ## The grammar
 
@@ -57,36 +40,15 @@ Two sections are machine-gated. Extra sections (`## Phase Gates`,
 - **Outside** the two gated sections everything is ignored by the gate, but
   backticked-slug bullets missing a checkbox are linted (WARNING).
 
-Examples:
+## Sync internals
 
-```markdown
-## Blocked by
-
-- [ ] `add-auth` — the session token this endpoint reads
-- [x] `add-db-pool` — the connection pool _(archived 2026-06-30)_
-
-## Soft-blocked by
-
-None.
-```
-
-## Sync semantics
-
-`cospec sync-blockers [--check] [--change <id>] [--json]` — `fix` is the
-default.
+`cospec sync-blockers [--check] [--change <id>] [--json]` (`fix` is the
+default):
 
 1. Build the archive index (`archive/` dirs → slug → date; duplicate slug →
    latest date + warning; non-matching dirs → warning, ignored).
 2. Build the active index (dirs under `changes/` except `archive/`).
-3. For each active change with a `blocking-changes.md`, classify each entry:
-   - **STALE** — unchecked, target archived. `fix`: rewrite to the canonical
-     checked form with `*(archived <date>)*`, atomic write. `--check`: report.
-   - **DANGLING** — unchecked, target neither archived nor active. Error; never
-     auto-fixed.
-   - **MANUAL-CHECK** — checked but target not archived. Warning (manual
-     check-off is allowed, just surfaced).
-   - **FORMAT** — a backticked-slug bullet without a checkbox in a gated
-     section. Error. Non-canonical separators are normalized in fix mode.
+3. Classify each entry per the site's diagnostic classes, then fix or report.
 4. Report changes that are now fully unblocked (all Blocked-by checked, or
    `None.`).
 5. Exit: `--check` → 1 if any STALE / DANGLING / FORMAT; `fix` → 1 only if
@@ -94,12 +56,3 @@ default.
 
 This runs standalone, as `cospec archive`'s post step across all remaining
 changes, and in the pre-commit hook as a fix/check pair.
-
-## How apply uses it
-
-`cospec apply` self-heals the ledger before gating: any unchecked entry whose
-slug is already archived is checked off in place (and reported in
-`gate.synced`), so a just-shipped dependency never blocks the next change on a
-stale box. What remains unchecked under **Blocked by** is a hard block (exit 2);
-what remains under **Soft-blocked by** is a soft block (exit 3 without
-`--allow-soft`). See [apply-archive.md](apply-archive.md).
