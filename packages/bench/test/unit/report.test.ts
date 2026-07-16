@@ -5,12 +5,13 @@ import { join } from 'node:path'
 
 import type { AgentTelemetry } from '../../src/agent.ts'
 import type { Cell } from '../../src/matrix.ts'
-import type { MechanicalMetrics } from '../../src/mechanical.ts'
+import type { ArtifactSnapshot, MechanicalMetrics } from '../../src/mechanical.ts'
 import {
   aggregate,
   appendCellResult,
   ensureRunDir,
   writeAggregate,
+  writeArtifactSnapshot,
   writeMarkdown,
   type CellResult,
   type RunMeta,
@@ -67,6 +68,16 @@ function result(overrides: Partial<CellResult> = {}): CellResult {
 }
 
 const NO_SENTINELS = {}
+
+function snapshot(overrides: Partial<ArtifactSnapshot> = {}): ArtifactSnapshot {
+  return {
+    slug: 'add-widget',
+    dir: 'openspec/changes/archive/2026-01-01-add-widget',
+    archived: true,
+    files: { 'proposal.md': '## Why\n\nreasons\n' },
+    ...overrides,
+  }
+}
 
 describe('aggregate', () => {
   test('groups by (scenarioType, arm, model) and reduces over repeats', () => {
@@ -282,6 +293,65 @@ describe('ensureRunDir + appendCellResult + writeAggregate — redaction guard',
     const results = [result({ skipped: 'contains SUPER-SECRET-KEY inline' })]
     await expect(
       writeAggregate(runDir, meta, results, { key: 'SUPER-SECRET-KEY' }),
+    ).rejects.toThrow(/redaction self-check failed/)
+  })
+})
+
+describe('writeArtifactSnapshot', () => {
+  test('is a no-op when snapshot is undefined (no change was ever produced)', async () => {
+    const runDir = makeRunDir()
+    await ensureRunDir(runDir)
+    await writeArtifactSnapshot(runDir, 'ci__cospec__claude-sonnet-5__r1', undefined, NO_SENTINELS)
+    const { readdir } = await import('node:fs/promises')
+    await expect(readdir(join(runDir, 'snapshots')).catch(() => [])).resolves.toEqual([])
+  })
+
+  test('writes slug, resolved dir, and files to snapshots/<key>.json', async () => {
+    const runDir = makeRunDir()
+    await ensureRunDir(runDir)
+    await writeArtifactSnapshot(runDir, 'ci__cospec__claude-sonnet-5__r1', snapshot(), NO_SENTINELS)
+    const parsed = JSON.parse(
+      await Bun.file(join(runDir, 'snapshots', 'ci__cospec__claude-sonnet-5__r1.json')).text(),
+    )
+    expect(parsed).toEqual({
+      slug: 'add-widget',
+      dir: 'openspec/changes/archive/2026-01-01-add-widget',
+      archived: true,
+      files: { 'proposal.md': '## Why\n\nreasons\n' },
+    })
+  })
+
+  test('redacts sentinel values found inside artifact file text', async () => {
+    const runDir = makeRunDir()
+    await ensureRunDir(runDir)
+    await writeArtifactSnapshot(
+      runDir,
+      'ci__cospec__claude-sonnet-5__r1',
+      snapshot({ files: { 'proposal.md': 'ref BENCH-SECRET-TOKEN appears here\n' } }),
+      { 'ref:ci:BENCH-SECRET-TOKEN': 'BENCH-SECRET-TOKEN' },
+    )
+    const text = await Bun.file(
+      join(runDir, 'snapshots', 'ci__cospec__claude-sonnet-5__r1.json'),
+    ).text()
+    // The raw ref is gone from its original spot; only the substitution
+    // marker remains there (which, by construction here, embeds the label —
+    // see redact.ts's REDACTED_MARKER comment for why that is not itself a
+    // leak).
+    expect(text).toContain('ref [REDACTED:ref:ci:BENCH-SECRET-TOKEN] appears here')
+  })
+
+  test('throws if a sentinel somehow survives redaction (self-check)', async () => {
+    const runDir = makeRunDir()
+    await ensureRunDir(runDir)
+    // A sentinel appearing in `slug`/`dir` (not passed through redactText) is
+    // exactly the case the assertRedacted self-check exists to catch.
+    await expect(
+      writeArtifactSnapshot(
+        runDir,
+        'ci__cospec__claude-sonnet-5__r1',
+        snapshot({ slug: 'BENCH-SECRET-TOKEN' }),
+        { 'ref:ci:BENCH-SECRET-TOKEN': 'BENCH-SECRET-TOKEN' },
+      ),
     ).rejects.toThrow(/redaction self-check failed/)
   })
 })

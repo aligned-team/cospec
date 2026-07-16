@@ -10,8 +10,8 @@ import { join } from 'node:path'
 import type { AgentTelemetry } from './agent.ts'
 import type { QualityScore } from './judge.ts'
 import { cellKey, type Cell } from './matrix.ts'
-import type { MechanicalMetrics } from './mechanical.ts'
-import { assertRedacted, type Sentinels } from './redact.ts'
+import type { ArtifactSnapshot, MechanicalMetrics } from './mechanical.ts'
+import { assertRedacted, redactText, type Sentinels } from './redact.ts'
 
 export interface CellResult {
   cell: Cell
@@ -47,6 +47,33 @@ export async function appendCellResult(
 ): Promise<void> {
   const guarded = assertRedacted(result, sentinels)
   await appendFile(join(runDir, 'cells.jsonl'), `${JSON.stringify(guarded)}\n`)
+}
+
+/**
+ * Persist a REDACTED snapshot of one cell's change artifacts, before the
+ * sandbox is torn down, so a scoring bug (mechanical or judge) can be
+ * re-scored later without re-running the agent. Written under
+ * `<runDir>/snapshots/<cellKey>.json`. `snapshot === undefined` (no change
+ * ever produced) is a no-op — nothing to persist.
+ */
+export async function writeArtifactSnapshot(
+  runDir: string,
+  key: string,
+  snapshot: ArtifactSnapshot | undefined,
+  sentinels: Sentinels,
+): Promise<void> {
+  if (snapshot === undefined) return
+  const redacted = {
+    slug: snapshot.slug,
+    dir: snapshot.dir,
+    archived: snapshot.archived,
+    files: Object.fromEntries(
+      Object.entries(snapshot.files).map(([rel, text]) => [rel, redactText(text, sentinels)]),
+    ),
+  }
+  const guarded = assertRedacted(redacted, sentinels)
+  await mkdir(join(runDir, 'snapshots'), { recursive: true })
+  await Bun.write(join(runDir, 'snapshots', `${key}.json`), `${JSON.stringify(guarded, null, 2)}\n`)
 }
 
 export async function writeAggregate(

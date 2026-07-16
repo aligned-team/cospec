@@ -121,12 +121,56 @@
       (forbidden/missing sets, `specs/` required vs. forbidden cases)
 - [x] 6.4 Apply-gate obedience and archive integrity capture where the workflow
       reached them -> unit-tested via `scoreMechanical` over an archived-tree
-      fixture (`armNativeValidatePass: true`, `cospecValidate: null` — the
-      archive-integrity short-circuit)
+      fixture (`armNativeValidatePass: true` — the archive-integrity
+      short-circuit; see 6.6 below for `cospecValidate` on archived changes,
+      superseding the stale "null" claim this line originally made)
 - [x] 6.5 Task completion check (did the fixture's requested code change land)
       -> verified live: the smoke cell's `ci` scenario predicate correctly
       reported `taskCompleted: true` after the agent wrote
       `.github/workflows/lint.yml`
+- [x] 6.6 Fix: the first full 44-cell run (`reports/2026-07-16T13-36-57-771Z/`)
+      showed `cospecValidate: null` on every archived cell (43/44), even with
+      `changeProduced`/`changeArchived`/`armNativeValidatePass` all `true` and
+      `artifactFiles` populated. Root cause, confirmed by reproduction without
+      spawning any agent (built a sandbox via `sandbox.ts`, authored + archived
+      a real `ci` change with the working-tree `cospec` CLI, called
+      `scoreMechanical` directly): `cospec validate <slug>` only resolves ACTIVE
+      changes by exact id (`resolveChange` in `apps/cli/src/core/     change.ts`
+      joins the id onto `openspec/changes/`, never
+      `openspec/     changes/archive/`), so pointing it at an archived slug
+      fails with "unknown item" (stderr, exit 1, empty stdout) ->
+      `parseCospecValidateJson('')` -> `null`. `collectArtifactText` was
+      re-checked against the same reproduction and was NOT reproducibly buggy —
+      it already reads from `resolveChange`'s resolved dir (active or archived)
+      and returned non-empty artifact text (377 chars) for the archived fixture;
+      the recorded `quality: null` across all 44 cells is more likely a DeepSeek
+      judge-call failure in that run than a path-resolution bug. Fix
+      (`packages/bench/src/mechanical.ts`, `cospecValidateArchivedCounts`): copy
+      the archived change dir into a disposable scratch repo, `cospec init`'d
+      fresh, at the ACTIVE `openspec/changes/<slug>/` slot, then validate there
+      — a fresh scratch repo (rather than the sandbox's own active slot) avoids
+      a spurious already-archived/duplicate-slug conflict against the sandbox's
+      own `openspec/changes/archive/<date>-<slug>` entry. Confirmed against
+      `git stash` (pre-fix reproduces `cospecValidate: null`; post-fix yields
+      real rule-id counts) -> unit-tested (`mechanical.test.ts`: two real-CLI
+      cases — a clean archived `ci` change scores 0 errors, a defective one
+      scores errors > 0, both non-null) plus the pre-existing archived-tree
+      fixture test updated to drop the stale null expectation
+- [x] 6.7 Persist a snapshot of each cell's resolved change artifacts (slug,
+      resolved dir — active or archived —, and every file's text, REDACTED) into
+      the per-cell report dir before sandbox teardown, so a future scoring bug
+      (like 6.6) can be re-scored offline without re-running the agent ->
+      `mechanical.ts`'s `snapshotChangeArtifacts` + `report.ts`'s
+      `writeArtifactSnapshot` (writes `<runDir>/snapshots/<cellKey>.json`,
+      applies `redactText` per file then `assertRedacted` as a self-check gate
+      before writing). Fixed a latent redaction-guard bug surfaced while wiring
+      this in: `findLeaks` flagged its own substitution marker as a leak
+      whenever a sentinel's LABEL embeds its value (e.g.
+      `ref:<scenarioId>:<ref>` from `scenarioSentinels`) — `redact.ts`'s
+      `findLeaks` now strips `[REDACTED:...]` markers before scanning ->
+      unit-tested (`report.test.ts`: no-op on no change, writes slug/dir/files,
+      redacts a planted sentinel, and the self-check still throws on a genuine
+      unredacted leak)
 
 ## 7. DeepSeek judge
 

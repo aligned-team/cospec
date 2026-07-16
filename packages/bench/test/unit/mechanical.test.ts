@@ -1,7 +1,8 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import {
   ARTIFACT_FILES,
@@ -15,7 +16,11 @@ import {
   requiredArtifactFiles,
   resolveChange,
   scoreMechanical,
+  snapshotChangeArtifacts,
 } from '../../src/mechanical.ts'
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+const REPO_ROOT = join(HERE, '..', '..', '..', '..')
 
 const roots: string[] = []
 
@@ -215,7 +220,7 @@ describe('scoreMechanical', () => {
     )
   })
 
-  test('archived change: skips spawn-backed checks and reports proportionality from files present', async () => {
+  test('archived change: armNativeValidatePass short-circuits true; proportionality reads files present', async () => {
     const sandbox = makeSandbox()
     const changeDir = 'openspec/changes/archive/2026-03-03-add-workflow'
     const base = join(sandbox, changeDir)
@@ -236,9 +241,12 @@ describe('scoreMechanical', () => {
     expect(m.changeProduced).toBe(true)
     expect(m.changeArchived).toBe(true)
     expect(m.stampedSchema).toBe('ci')
-    // Archived short-circuits both spawn-backed checks.
+    // Archived short-circuits armNativeValidatePass only — cospecValidate is
+    // still scored post-hoc via the scratch-repo path (see the dedicated
+    // describe block below; here the `.openspec.yaml` schema is unresolvable
+    // against real canon so it degrades to a non-null-but-possibly-errored
+    // report, never the bug's silent null).
     expect(m.armNativeValidatePass).toBe(true)
-    expect(m.cospecValidate).toBeNull()
     expect(m.forbiddenArtifacts).toEqual(['design.md'])
     expect(m.missingRequiredArtifacts).toEqual([])
     expect(m.tasksAllChecked).toBe(true)
@@ -288,5 +296,151 @@ describe('scoreMechanical', () => {
     const scenario = trivialScenario({ type: 'chore' })
     const m = await scoreMechanical('/repo-root-unused', sandbox, 'cospec', scenario)
     expect(m.forbiddenArtifacts).toContain('specs/')
+  })
+})
+
+// ── cospecValidate over ARCHIVED changes (real binary — reproduces + fixes the
+// first-full-run bug: `cospec validate <slug>` only resolves ACTIVE changes by
+// exact id, so pointing it at an archived slug in the real sandbox used to
+// fail with "unknown item" (empty stdout -> parseCospecValidateJson -> null).
+// These spawn the real working-tree CLI, mirroring contract-test style. ────
+
+describe('scoreMechanical — cospecValidate for archived changes (real CLI)', () => {
+  test('archived change with a valid, clean ci artifact set scores cospecValidate (not null)', async () => {
+    const sandbox = makeSandbox()
+    const changeDir = 'openspec/changes/archive/2026-08-08-clean-ci'
+    const base = join(sandbox, changeDir)
+    mkdirSync(base, { recursive: true })
+    writeFileSync(
+      join(base, '.openspec.yaml'),
+      'schema: ci\ncreated: 2026-08-01\nschemaVersion: 2\n',
+    )
+    writeFileSync(
+      join(base, 'proposal.md'),
+      [
+        '## Why',
+        '',
+        'The release workflow needs a small fix so the archived-change fixture is realistic.',
+        '',
+        '## What Changes',
+        '',
+        '- Update the workflow file.',
+        '',
+        '## Impact',
+        '',
+        'CI only; no runtime behavior change.',
+        '',
+        '## Surfaces',
+        '',
+        'None.',
+        '',
+      ].join('\n'),
+    )
+    writeFileSync(
+      join(base, 'blocking-changes.md'),
+      [
+        '# Dependencies',
+        '',
+        '## Blocked by',
+        '',
+        'None.',
+        '',
+        '## Soft-blocked by',
+        '',
+        'None.',
+        '',
+      ].join('\n'),
+    )
+    writeFileSync(
+      join(base, 'tasks.md'),
+      '## 1. Update workflow\n\n- [x] 1.1 Edit ci.yml -> done\n',
+    )
+
+    const scenario = trivialScenario({ type: 'ci', completed: () => true })
+    const m = await scoreMechanical(REPO_ROOT, sandbox, 'cospec', scenario)
+
+    expect(m.changeArchived).toBe(true)
+    // The bug: this used to be `null` unconditionally for every archived cell.
+    expect(m.cospecValidate).not.toBeNull()
+    expect(m.cospecValidate?.errors).toBe(0)
+  }, 30_000)
+
+  test('archived change with a validation defect still scores non-null counts (errors surfaced)', async () => {
+    const sandbox = makeSandbox()
+    const changeDir = 'openspec/changes/archive/2026-09-09-broken-ci'
+    const base = join(sandbox, changeDir)
+    mkdirSync(base, { recursive: true })
+    writeFileSync(
+      join(base, '.openspec.yaml'),
+      'schema: ci\ncreated: 2026-09-01\nschemaVersion: 2\n',
+    )
+    // Missing required sections on purpose — proposal/sections should fire.
+    writeFileSync(join(base, 'proposal.md'), '## Why\n\nreasons\n')
+    writeFileSync(
+      join(base, 'blocking-changes.md'),
+      [
+        '# Dependencies',
+        '',
+        '## Blocked by',
+        '',
+        'None.',
+        '',
+        '## Soft-blocked by',
+        '',
+        'None.',
+        '',
+      ].join('\n'),
+    )
+    writeFileSync(join(base, 'tasks.md'), '- [x] done\n')
+
+    const scenario = trivialScenario({ type: 'ci', completed: () => true })
+    const m = await scoreMechanical(REPO_ROOT, sandbox, 'cospec', scenario)
+
+    expect(m.changeArchived).toBe(true)
+    expect(m.cospecValidate).not.toBeNull()
+    expect(m.cospecValidate?.errors).toBeGreaterThan(0)
+  }, 30_000)
+})
+
+// ── snapshotChangeArtifacts (filesystem, no spawn) ──────────────────────────
+
+describe('snapshotChangeArtifacts', () => {
+  test('undefined when no change was ever produced', async () => {
+    const sandbox = makeSandbox()
+    expect(await snapshotChangeArtifacts(sandbox)).toBeUndefined()
+  })
+
+  test('captures slug, resolved (archived) dir, and every artifact file verbatim', async () => {
+    const sandbox = makeSandbox()
+    const changeDir = 'openspec/changes/archive/2026-10-10-snap-me'
+    const base = join(sandbox, changeDir)
+    mkdirSync(base, { recursive: true })
+    writeFileSync(join(base, 'proposal.md'), '## Why\n\nreasons\n')
+    writeFileSync(join(base, 'tasks.md'), '- [x] done\n')
+
+    const snap = await snapshotChangeArtifacts(sandbox)
+    expect(snap).toEqual({
+      slug: 'snap-me',
+      dir: changeDir,
+      archived: true,
+      files: {
+        'proposal.md': '## Why\n\nreasons\n',
+        'tasks.md': '- [x] done\n',
+      },
+    })
+  })
+
+  test('captures an ACTIVE (unarchived) change the same way', async () => {
+    const sandbox = makeSandbox()
+    mkdirSync(join(sandbox, 'openspec/changes/active-one'), { recursive: true })
+    writeFileSync(join(sandbox, 'openspec/changes/active-one/proposal.md'), '## Why\n')
+
+    const snap = await snapshotChangeArtifacts(sandbox)
+    expect(snap).toEqual({
+      slug: 'active-one',
+      dir: 'openspec/changes/active-one',
+      archived: false,
+      files: { 'proposal.md': '## Why\n' },
+    })
   })
 })

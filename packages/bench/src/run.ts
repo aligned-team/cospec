@@ -15,12 +15,13 @@ import { SCENARIOS, scenarioById } from '../scenarios/index.ts'
 import { runAgent, type AgentTelemetry } from './agent.ts'
 import { collectArtifactText, judgeArtifacts, type JudgeConfig } from './judge.ts'
 import { cellKey, expandMatrix, parseArgs, type Cell, type MatrixFilters } from './matrix.ts'
-import { resolveChange, scoreMechanical } from './mechanical.ts'
+import { resolveChange, scoreMechanical, snapshotChangeArtifacts } from './mechanical.ts'
 import type { Sentinels } from './redact.ts'
 import {
   appendCellResult,
   ensureRunDir,
   writeAggregate,
+  writeArtifactSnapshot,
   writeMarkdown,
   type CellResult,
   type RunMeta,
@@ -47,6 +48,7 @@ async function runCell(
   cell: Cell,
   judge: JudgeConfig | undefined,
   sentinels: Sentinels,
+  runDir: string,
 ): Promise<CellResult> {
   const scenario = scenarioById(cell.scenarioId)
   if (scenario === undefined) {
@@ -77,8 +79,18 @@ async function runCell(
 
     base.mechanical = await scoreMechanical(REPO_ROOT, sandbox.dir, cell.arm, scenario)
 
+    const change = await resolveChange(sandbox.dir)
+    // Snapshot artifacts BEFORE teardown — see `finally` below — so this and
+    // any future scoring bug can be re-scored offline without re-running the
+    // (expensive, non-deterministic) agent.
+    await writeArtifactSnapshot(
+      runDir,
+      cellKey(cell),
+      await snapshotChangeArtifacts(sandbox.dir),
+      sentinels,
+    )
+
     if (judge !== undefined) {
-      const change = await resolveChange(sandbox.dir)
       const text =
         change === undefined ? '' : await collectArtifactText(sandbox.dir, change.dir, sentinels)
       base.quality = await judgeArtifacts(judge, text)
@@ -174,7 +186,7 @@ async function main(): Promise<number> {
 
   const results: CellResult[] = Array.from({ length: cells.length })
   await runPool(cells, filters.concurrency, async (cell, index) => {
-    const result = await runCell(cell, judge, sentinels)
+    const result = await runCell(cell, judge, sentinels, runDir)
     results[index] = result
     await appendCellResult(runDir, result, sentinels)
     const status =

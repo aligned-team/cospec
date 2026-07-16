@@ -13,7 +13,8 @@
 //       them (filesystem-observable);
 //   (e) fixture task completion (the scenario's own predicate).
 
-import { readdir, stat } from 'node:fs/promises'
+import { cp, mkdtemp, readdir, rm, stat } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
@@ -106,7 +107,7 @@ export async function resolveChange(sandbox: string): Promise<ResolvedChange | u
 }
 
 /** Relative artifact paths under a change dir (excludes .openspec.yaml). */
-async function changeFiles(sandbox: string, changeDir: string): Promise<string[]> {
+export async function changeFiles(sandbox: string, changeDir: string): Promise<string[]> {
   const base = join(sandbox, changeDir)
   if (!(await exists(base))) return []
   const out: string[] = []
@@ -217,6 +218,56 @@ async function cospecValidateCounts(
   return parseCospecValidateJson(res.stdout)
 }
 
+/**
+ * Post-hoc `cospec validate` for an ARCHIVED change. `cospec validate <slug>`
+ * only resolves ACTIVE changes by exact id (`resolveChange` in
+ * `apps/cli/src/core/change.ts` joins the id onto `openspec/changes/`, never
+ * `openspec/changes/archive/`), so pointing it at an archived slug in the real
+ * sandbox fails with "unknown item" (stderr, exit 1, empty stdout) — that is
+ * the `cospecValidate: null` bug for archived cells.
+ *
+ * Fix: copy the archived change dir into a disposable scratch repo,
+ * `cospec init`'d fresh, at `openspec/changes/<slug>/` (the ACTIVE slot), then
+ * validate there. A fresh scratch repo — rather than re-using the sandbox's
+ * own `openspec/changes/<slug>` active slot — avoids a spurious
+ * already-archived/duplicate-slug conflict, since the sandbox's own
+ * `openspec/changes/archive/<date>-<slug>` entry still exists alongside it.
+ */
+export async function cospecValidateArchivedCounts(
+  repoRoot: string,
+  sandbox: string,
+  change: ResolvedChange,
+): Promise<RuleCounts | null> {
+  const scratch = await mkdtemp(join(tmpdir(), 'cospec-bench-archived-validate-'))
+  try {
+    const init = await spawnIn(
+      ['bun', 'run', join(repoRoot, 'apps/cli/src/index.ts'), '--', 'init', '.', '--yes'],
+      scratch,
+    )
+    if (init.exitCode !== 0) return null
+
+    const dest = join(scratch, 'openspec/changes', change.slug)
+    await cp(join(sandbox, change.dir), dest, { recursive: true })
+
+    const res = await spawnIn(
+      [
+        'bun',
+        'run',
+        join(repoRoot, 'apps/cli/src/index.ts'),
+        '--',
+        'validate',
+        change.slug,
+        '--strict',
+        '--json',
+      ],
+      scratch,
+    )
+    return parseCospecValidateJson(res.stdout)
+  } finally {
+    await rm(scratch, { recursive: true, force: true })
+  }
+}
+
 /** Arm-native validation: cospec arm uses the working-tree CLI, openspec arm the pinned binary. */
 async function armNativeValidate(
   repoRoot: string,
@@ -289,7 +340,7 @@ export async function scoreMechanical(
       ? true
       : await armNativeValidate(repoRoot, sandbox, arm, change.slug),
     cospecValidate: change.archived
-      ? null
+      ? await cospecValidateArchivedCounts(repoRoot, sandbox, change)
       : await cospecValidateCounts(repoRoot, sandbox, change.slug),
     artifactFiles: files,
     forbiddenArtifacts: forbidden,
@@ -297,6 +348,37 @@ export async function scoreMechanical(
     tasksAllChecked,
     taskCompleted: await runCompletion(sandbox, scenario),
   }
+}
+
+export interface ArtifactSnapshot {
+  slug: string
+  /** Sandbox-relative dir the change was resolved at (active or archived). */
+  dir: string
+  archived: boolean
+  /** relative path (within `dir`) -> raw file text, UNREDACTED. Caller redacts before persisting. */
+  files: Record<string, string>
+}
+
+/**
+ * Snapshot a resolved change's artifact files verbatim, before the sandbox is
+ * torn down — so a scoring bug (like the archived-cospecValidate bug this
+ * fixes) can be re-scored later without re-running the agent. Returns
+ * undefined when no change was ever produced. Callers MUST redact
+ * (`redactText`/`assertRedacted`) before writing this to a report dir — the
+ * text here is raw, unredacted file content.
+ */
+export async function snapshotChangeArtifacts(
+  sandbox: string,
+): Promise<ArtifactSnapshot | undefined> {
+  const change = await resolveChange(sandbox)
+  if (change === undefined) return undefined
+  const relPaths = await changeFiles(sandbox, change.dir)
+  const files: Record<string, string> = {}
+  for (const rel of relPaths) {
+    const text = await readSandboxFile(sandbox, `${change.dir}/${rel}`)
+    if (text !== undefined) files[rel] = text
+  }
+  return { slug: change.slug, dir: change.dir, archived: change.archived, files }
 }
 
 async function runCompletion(sandbox: string, scenario: Scenario): Promise<boolean> {
