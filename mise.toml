@@ -40,7 +40,12 @@ bun = "1.3.14"
 "github:jdx/communique" = "1.2.0"
 
 [monorepo]
-config_roots = ["apps/*", "packages/*"]
+# "e2e" is a bare directory (single-level globs only per mise's monorepo docs;
+# it needs no glob since it is exactly one dir). It has no package.json — it is
+# not a bun/npm workspace — but config_roots has no such requirement, only a
+# mise.toml at that path; verified empirically (`mise tasks --all`, `//e2e:eval`
+# from root, bare `eval` from inside e2e/ all resolve).
+config_roots = ["apps/*", "packages/*", "e2e"]
 
 # Scripts in scripts/mise-tasks/ are invoked directly by toml tasks
 # (run = "bash scripts/mise-tasks/..."). An empty includes list stops mise from
@@ -61,24 +66,65 @@ description = "Run cospec from source (mise run cospec -- <args>)"
 run = "bun run apps/cli/src/index.ts --"
 
 # ───────────────────────────────────────────────
-# Build
+# Thin root aliases — project-scoped tasks now live in each config root's own
+# mise.toml (apps/cli, apps/docs, packages/bench, e2e); these forward to them
+# by monorepo address (`//path:task`) so every existing `mise run <name>`
+# invocation (CI workflows, hk.pkl, docs, muscle memory) keeps working
+# unchanged. Run the same task without the alias via `//path:task` from
+# anywhere, or the bare name from inside that project's directory.
 # ───────────────────────────────────────────────
 
 [tasks.build]
 description = "Build the cospec single-file executable (local convenience)"
 run = "mise run //apps/cli:build"
 
-# ───────────────────────────────────────────────
-# Docs site (VitePress, apps/docs)
-# ───────────────────────────────────────────────
+[tasks.test]
+description = "Run unit tests"
+run = "mise run //apps/cli:test"
+
+[tasks."test:contract"]
+description = "Contract tests against the real pinned openspec binary"
+run = "mise run //apps/cli:test:contract"
+
+[tasks."test:integration"]
+description = "Integration tests over the 3 repo states + lifecycles"
+run = "mise run //apps/cli:test:integration"
+
+[tasks."test:pack"]
+description = "Pack smoke: bun pm pack -> tarball install -> bunx cospec"
+run = "mise run //apps/cli:test:pack"
+
+[tasks."test:pack:standalone"]
+description = "Bun-less standalone smoke: build host platform package, npm-install launcher + binary with bun stripped from PATH, run cospec"
+run = "mise run //apps/cli:test:pack:standalone"
+
+[tasks."test:release"]
+description = "Test the release:set-version script against a throwaway --root (no working-tree mutation)"
+run = "mise run //e2e:release-test"
 
 [tasks."docs:dev"]
 description = "Run the docs site dev server (VitePress)"
-run = "bun run --filter @aligned-team/cospec-docs docs:dev"
+run = "mise run //apps/docs:dev"
 
 [tasks."docs:build"]
 description = "Build the docs site for production (VitePress)"
-run = "bun run --filter @aligned-team/cospec-docs docs:build"
+run = "mise run //apps/docs:build"
+
+[tasks.bench]
+description = "Run the full cospec-vs-openspec benchmark matrix (advisory, never gates CI)"
+run = "mise run //packages/bench:bench"
+
+[tasks."bench:smoke"]
+description = "Single cheap bench cell: ci scenario, sonnet-5/high, cospec arm (advisory, never gates CI)"
+run = "mise run //packages/bench:smoke"
+
+[tasks."test:bench"]
+description = "Unit tests for the packages/bench harness (matrix, mechanical, report, judge, scenario registry) — no auth/network required"
+run = "mise run //packages/bench:test"
+
+[tasks."eval:e2e"]
+description = "DeepSeek E2E eval of the shipped skills (advisory, never gates CI)"
+run = "mise run //e2e:eval"
 
 # ───────────────────────────────────────────────
 # Lint / format
@@ -103,45 +149,6 @@ run = "oxfmt ."
 [tasks.typecheck]
 description = "Type-check all workspaces (apps/*, packages/*) and the e2e eval sources with tsgo"
 run = ["bun run --filter '*' typecheck", "tsgo --noEmit -p e2e/tsconfig.json"]
-
-# ───────────────────────────────────────────────
-# Test
-# ───────────────────────────────────────────────
-
-# --timeout 30000 gives the subprocess-heavy suites headroom over bun's 5000ms
-# default: contract/integration tests each spawn the real pinned openspec binary
-# (~4.6s apiece) and reliably blow past 5s when `mise run check` runs the suites
-# concurrently. bun has no bunfig timeout key and setDefaultTimeout in a preload
-# does not propagate across files in a directory run, so the flag is set on every
-# `bun test` invocation (these tasks, which hk hooks and CI drive; plus the direct
-# unit run in ci.yml).
-[tasks.test]
-description = "Run unit tests"
-run = "bun test apps/cli/test/unit --timeout 30000"
-
-[tasks."test:contract"]
-description = "Contract tests against the real pinned openspec binary"
-run = "bun test apps/cli/test/contract --timeout 30000"
-
-[tasks."test:integration"]
-description = "Integration tests over the 3 repo states + lifecycles"
-run = "bun test apps/cli/test/integration --timeout 30000"
-
-[tasks."test:bench"]
-description = "Unit tests for the packages/bench harness (matrix, mechanical, report, judge, scenario registry) — no auth/network required"
-run = "bun test packages/bench/test --timeout 30000"
-
-[tasks."test:pack"]
-description = "Pack smoke: bun pm pack -> tarball install -> bunx cospec"
-run = "bun test apps/cli/test/integration/pack.test.ts --timeout 30000"
-
-[tasks."test:pack:standalone"]
-description = "Bun-less standalone smoke: build host platform package, npm-install launcher + binary with bun stripped from PATH, run cospec"
-run = "bun test apps/cli/test/integration/pack-standalone.test.ts --timeout 180000"
-
-[tasks."test:release"]
-description = "Test the release:set-version script against a throwaway --root (no working-tree mutation)"
-run = "bun test e2e/release --timeout 30000"
 
 # ───────────────────────────────────────────────
 # Generate (canon -> managed files) + drift gate
@@ -198,26 +205,6 @@ description = "Lint a PR/commit title (PR_TITLE env) against commitlint"
 run = 'printf "%s\n" "$PR_TITLE" | bunx commitlint'
 
 # ───────────────────────────────────────────────
-# E2E eval (optional; exit-0 skip without DEEPSEEK_API_KEY)
-# ───────────────────────────────────────────────
-
-[tasks."eval:e2e"]
-description = "DeepSeek E2E eval of the shipped skills (advisory, never gates CI)"
-run = "bun run e2e/eval/run.ts"
-
-# ───────────────────────────────────────────────
-# Bench: cospec vs bare openspec (advisory; never gates CI)
-# ───────────────────────────────────────────────
-
-[tasks.bench]
-description = "Run the full cospec-vs-openspec benchmark matrix (advisory, never gates CI)"
-run = "bun run packages/bench/src/run.ts"
-
-[tasks."bench:smoke"]
-description = "Single cheap bench cell: ci scenario, sonnet-5/high, cospec arm (advisory, never gates CI)"
-run = "bun run packages/bench/src/run.ts -- --scenario ci --model claude-sonnet-5 --arm cospec --repeats 1"
-
-# ───────────────────────────────────────────────
 # Release
 # ───────────────────────────────────────────────
 
@@ -235,11 +222,11 @@ depends = [
   "lint",
   "format:check",
   "typecheck",
-  "test",
-  "test:contract",
-  "test:integration",
-  "test:bench",
-  "test:release",
+  "//apps/cli:test",
+  "//apps/cli:test:contract",
+  "//apps/cli:test:integration",
+  "//packages/bench:test",
+  "//e2e:release-test",
   "generate:check",
   "vendor:openspec:check",
   "agents:check",

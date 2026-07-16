@@ -1,0 +1,19 @@
+# ───────────────────────────────────────────────
+# Bench: cospec vs bare openspec (advisory; never gates CI)
+# ───────────────────────────────────────────────
+
+[tasks.bench]
+description = "Run the full cospec-vs-openspec benchmark matrix (advisory, never gates CI)"
+run = "bun run src/run.ts"
+
+[tasks.smoke]
+description = "Single cheap bench cell: ci scenario, sonnet-5/high, cospec arm (advisory, never gates CI)"
+run = "bun run src/run.ts -- --scenario ci --model claude-sonnet-5 --arm cospec --repeats 1"
+
+# `./test` (not bare `test`) is load-bearing: bun's test-runner positional arg
+# is a substring filter over discovered test files, not a directory path — a
+# bare `test` also matches scenarios/fixtures/**/*.test.ts (path contains
+# "test"), pulling fixture specs into the run. `./test` anchors it to the dir.
+[tasks.test]
+description = "Unit tests for the packages/bench harness (matrix, mechanical, report, judge, scenario registry) — no auth/network required"
+run = "bun test ./test --timeout 30000"

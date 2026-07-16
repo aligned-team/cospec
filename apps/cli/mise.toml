@@ -5,3 +5,34 @@ run = "bun build --compile src/index.ts --outfile dist/cospec"
 [tasks.dev]
 description = "Run cospec from source"
 run = "bun run src/index.ts --"
+
+# ───────────────────────────────────────────────
+# Test
+# ───────────────────────────────────────────────
+
+# --timeout 30000 gives the subprocess-heavy suites headroom over bun's 5000ms
+# default: contract/integration tests each spawn the real pinned openspec binary
+# (~4.6s apiece) and reliably blow past 5s when `mise run check` runs the suites
+# concurrently. bun has no bunfig timeout key and setDefaultTimeout in a preload
+# does not propagate across files in a directory run, so the flag is set on every
+# `bun test` invocation (these tasks, which hk hooks and CI drive; plus the direct
+# unit run in ci.yml).
+[tasks.test]
+description = "Run unit tests"
+run = "bun test test/unit --timeout 30000"
+
+[tasks."test:contract"]
+description = "Contract tests against the real pinned openspec binary"
+run = "bun test test/contract --timeout 30000"
+
+[tasks."test:integration"]
+description = "Integration tests over the 3 repo states + lifecycles"
+run = "bun test test/integration --timeout 30000"
+
+[tasks."test:pack"]
+description = "Pack smoke: bun pm pack -> tarball install -> bunx cospec"
+run = "bun test test/integration/pack.test.ts --timeout 30000"
+
+[tasks."test:pack:standalone"]
+description = "Bun-less standalone smoke: build host platform package, npm-install launcher + binary with bun stripped from PATH, run cospec"
+run = "bun test test/integration/pack-standalone.test.ts --timeout 180000"
