@@ -181,4 +181,102 @@ describe('mergeMiseToml', () => {
     expect(r.snippet).not.toContain('hk = "1"')
     expect(r.snippet).not.toContain('[hooks]')
   })
+
+  test('#13 dotted-only [tools] table (no literal [tools] header) merges missing keys in dotted form', () => {
+    const dotted = 'tools.node = "20"\n'
+    const r = merge(dotted)
+    // Before the fix this reported 'unparseable' with a misleading message
+    // and added nothing — assert the corrected behavior instead.
+    expect(r.status).not.toBe('unparseable')
+    expect(['merged', 'conflict']).toContain(r.status)
+    expect(r.added).toContain('tools.hk')
+    expect(r.added).toContain('tools.bun')
+    const c = r.content!
+    // User's existing dotted key is preserved verbatim.
+    expect(c).toContain('tools.node = "20"')
+    // Missing keys land in dotted form, not as a re-opened [tools] header.
+    expect(c).toContain('tools.hk = "1"')
+    expect(c.match(/^\[tools\]/m)).toBeNull()
+    expect(() => Bun.TOML.parse(c)).not.toThrow()
+    const parsed = Bun.TOML.parse(c) as { tools: Record<string, unknown> }
+    expect(parsed.tools.node).toBe('20')
+    expect(parsed.tools.hk).toBeDefined()
+  })
+
+  test('#14 mixed: dotted-key [tools] + literal-header [hooks] both receive missing keys', () => {
+    const mixed = 'tools.node = "20"\n\n[hooks]\n# nothing here yet\n'
+    const r = merge(mixed)
+    expect(r.status).not.toBe('unparseable')
+    const c = r.content!
+    expect(c).toContain('tools.node = "20"')
+    expect(c).toContain('tools.hk = "1"')
+    expect(c).toContain('[hooks]')
+    const parsed = Bun.TOML.parse(c) as {
+      tools: Record<string, unknown>
+      hooks: Record<string, unknown>
+    }
+    expect(parsed.tools.node).toBe('20')
+    expect(parsed.tools.hk).toBeDefined()
+    expect(parsed.hooks.postinstall).toBeDefined()
+  })
+
+  test('#15 dotted [tasks."cospec:validate"] table receives its missing key in dotted form', () => {
+    const dotted = 'tasks."cospec:validate".description = "run the gate"\n'
+    const r = merge(dotted)
+    expect(r.status).not.toBe('unparseable')
+    const c = r.content!
+    expect(c).toContain('tasks."cospec:validate".description = "run the gate"')
+    // The missing `run` key is inserted in dotted form, not a re-opened header.
+    expect(c).toContain('tasks."cospec:validate".run')
+    expect(c.match(/^\[tasks\."cospec:validate"\]/m)).toBeNull()
+    expect(() => Bun.TOML.parse(c)).not.toThrow()
+    const parsed = Bun.TOML.parse(c) as {
+      tasks: Record<string, { description: string; run: unknown }>
+    }
+    expect(parsed.tasks['cospec:validate']!.description).toBe('run the gate')
+    expect(parsed.tasks['cospec:validate']!.run).toBeDefined()
+  })
+
+  test('#15b dotted subkey under an open [tasks] header inserts relative to that context, not root-relative', () => {
+    // Context-relative case the root-level #15 (context = []) doesn't exercise:
+    // the insertion point sits *inside* an already-open `[tasks]` header, so
+    // the missing `run` key must be emitted relative to that open context
+    // (`"cospec:validate".run = ...`), never root-relative
+    // (`tasks."cospec:validate".run = ...`) — the latter would nest under the
+    // open header as `tasks.tasks."cospec:validate".run`, a different path,
+    // and previously made the whole merge falsely report 'unparseable'.
+    const dotted = '[tasks]\n"cospec:validate".description = "run the gate"\n'
+    const r = merge(dotted)
+    expect(r.status).not.toBe('unparseable')
+    const c = r.content!
+    expect(() => Bun.TOML.parse(c)).not.toThrow()
+    const parsed = Bun.TOML.parse(c) as {
+      tasks: Record<string, { description: string; run: unknown }>
+    }
+    expect(parsed.tasks['cospec:validate']!.description).toBe('run the gate')
+    expect(parsed.tasks['cospec:validate']!.run).toBeDefined()
+    // The inserted line must not be root-relative (would double-nest under
+    // the open [tasks] context).
+    expect(c).not.toContain('tasks."cospec:validate".run')
+  })
+
+  test('#16 locator-miss fallback (inline-table [tools]) is honest, never claims invalid TOML', () => {
+    // `tools = { node = "20" }` is valid TOML and the semantic check sees the
+    // table as present, but there is no line-level insertion point inside an
+    // inline table — neither the literal-header nor dotted-key locator can
+    // place the missing keys, so this must degrade to an honest, scoped
+    // fallback rather than the blanket 'unparseable' diagnosis.
+    const inline = 'tools = { node = "20" }\n\n[hooks]\n# nothing here yet\n'
+    const r = merge(inline)
+    expect(r.status).not.toBe('unparseable')
+    expect(r.status).toBe('conflict')
+    expect(r.snippet).not.toContain('not valid TOML')
+    expect(r.snippet.toLowerCase()).toMatch(/dotted-key|insertion point/)
+    expect(r.conflicts.some((c) => c.existing.includes('insertion point not found'))).toBe(true)
+    // The independently-locatable [hooks] table still merges normally.
+    const c = r.content!
+    expect(c).toContain('[hooks]')
+    const parsed = Bun.TOML.parse(c) as { hooks: Record<string, unknown> }
+    expect(parsed.hooks.postinstall).toBeDefined()
+  })
 })
