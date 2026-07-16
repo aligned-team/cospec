@@ -160,8 +160,8 @@ export const COMMANDS: CommandEntry[] = [
     name: 'schema',
     summary: 'Inspect a schema (which/validate)',
     usage: '<which|validate|fork|init> [args]',
-    options: `  --description <text>   fork/init only: seed the new schema's description
-  --artifacts <list>      fork/init only: comma-separated artifact ids to include`,
+    options: `  --description <text>   init only: seed the new schema's description
+  --artifacts <list>      init only: comma-separated artifact ids to include`,
   },
   { name: 'templates', summary: 'List per-artifact template paths' },
   {
