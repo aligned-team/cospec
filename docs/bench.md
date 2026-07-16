@@ -103,10 +103,13 @@ headless Claude Code, not a hand-rolled tool loop. Options are hermetic:
 `strictMcpConfig` (no MCP), `persistSession: false`, an explicit
 code-editing-minimum tool allowance (`Bash`, `Read`, `Write`, `Edit`, `Glob`,
 `Grep` — no `WebFetch`/`WebSearch`/`Task`, so cells stay comparable and
-offline), a per-scenario `maxTurns`, and a hard `maxBudgetUsd` ceiling (default
-5). Telemetry is read verbatim from the SDK's own init and result messages
-(Claude Code version, resolved model, subtype, cost, durations, turns, token and
-per-model usage, terminal reason) — never the assistant's text or tool payloads.
+offline), a per-scenario `maxTurns` (70 for lite types — build, chore, ci, docs,
+style, test; 120 for full types — feat, fix, perf, refactor, revert — calibrated
+for the full propose->author->validate->implement->archive cycle, not direct
+implementation), and a hard `maxBudgetUsd` ceiling (default 10). Telemetry is
+read verbatim from the SDK's own init and result messages (Claude Code version,
+resolved model, subtype, cost, durations, turns, token and per-model usage,
+terminal reason) — never the assistant's text or tool payloads.
 
 ## Mechanical metrics (authoritative — no LLM)
 

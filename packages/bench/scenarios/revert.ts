@@ -21,7 +21,7 @@ export const revertScenario: Scenario = {
   title: 'revert: greet shouting regression',
   prompt: PROMPT,
   fixtureDir: 'fixtures/revert',
-  maxTurns: 60,
+  maxTurns: 120,
   completed: async ({ sandbox }) => {
     const result = await spawnIn(['bun', 'test'], sandbox)
     return result.exitCode === 0

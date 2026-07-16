@@ -21,7 +21,7 @@ export const choreScenario: Scenario = {
   title: 'chore: pin the Bun engines field',
   prompt: PROMPT,
   fixtureDir: 'fixtures/chore',
-  maxTurns: 30,
+  maxTurns: 70,
   completed: async ({ readFile }) => {
     const pkgText = await readFile('package.json')
     if (pkgText === undefined) return false

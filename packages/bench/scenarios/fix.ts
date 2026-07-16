@@ -16,7 +16,7 @@ export const fixScenario: Scenario = {
   title: 'fix: truncate off-by-one',
   prompt: PROMPT,
   fixtureDir: 'fixtures/fix',
-  maxTurns: 60,
+  maxTurns: 120,
   completed: async ({ sandbox }) => {
     const result = await spawnIn(['bun', 'test'], sandbox)
     return result.exitCode === 0

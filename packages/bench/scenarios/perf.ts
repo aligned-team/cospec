@@ -22,7 +22,7 @@ export const perfScenario: Scenario = {
   title: 'perf: dedupe optimization',
   prompt: PROMPT,
   fixtureDir: 'fixtures/perf',
-  maxTurns: 60,
+  maxTurns: 120,
   completed: async ({ sandbox }) => {
     const tests = await spawnIn(['bun', 'test'], sandbox)
     if (tests.exitCode !== 0) return false

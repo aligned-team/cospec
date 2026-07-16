@@ -19,7 +19,7 @@ export const testScenario: Scenario = {
   title: 'test: cover priceRange',
   prompt: PROMPT,
   fixtureDir: 'fixtures/test',
-  maxTurns: 30,
+  maxTurns: 70,
   completed: async ({ sandbox, exists, readFile }) => {
     if (!(await exists('src/priceRange.test.ts'))) return false
     const testSrc = await readFile('src/priceRange.test.ts')

@@ -18,7 +18,7 @@ export const ciScenario: Scenario = {
   title: 'ci: add an actionlint workflow',
   prompt: PROMPT,
   fixtureDir: 'fixtures/ci',
-  maxTurns: 30,
+  maxTurns: 70,
   completed: async ({ readFile }) => {
     const workflow = await readFile('.github/workflows/lint.yml')
     return workflow !== undefined && /actionlint/i.test(workflow)

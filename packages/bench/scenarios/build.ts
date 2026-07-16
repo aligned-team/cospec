@@ -20,7 +20,7 @@ export const buildScenario: Scenario = {
   title: 'build: add a bundling step',
   prompt: PROMPT,
   fixtureDir: 'fixtures/build-script',
-  maxTurns: 30,
+  maxTurns: 70,
   completed: async ({ sandbox, exists }) => {
     const result = await spawnIn(['bun', 'run', 'build'], sandbox)
     if (result.exitCode !== 0) return false

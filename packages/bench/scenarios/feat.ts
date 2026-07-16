@@ -17,7 +17,7 @@ export const featScenario: Scenario = {
   title: 'feat: cart discount capability',
   prompt: PROMPT,
   fixtureDir: 'fixtures/feat',
-  maxTurns: 60,
+  maxTurns: 120,
   completed: async ({ sandbox, readFile }) => {
     const src = await readFile('src/cart.ts')
     if (src === undefined || !/applyDiscount/.test(src)) return false

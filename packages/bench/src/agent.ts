@@ -36,7 +36,10 @@ export const WORKFLOW_SYSTEM_PROMPT =
   'validate it, then implement and complete the change through the workflow.'
 
 // Hard per-cell spend ceiling; the SDK aborts with subtype 'error_max_budget_usd'.
-export const DEFAULT_BUDGET_USD = 5
+// 10 (not 5) because full-cycle opus cells (feat/fix/perf/refactor/revert, now
+// maxTurns 120) can exceed $5 on the propose->author->validate->implement->
+// archive cycle; this stays a defensive cap, not a target spend.
+export const DEFAULT_BUDGET_USD = 10
 
 export interface TokenUsage {
   inputTokens: number

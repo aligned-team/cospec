@@ -21,7 +21,7 @@ export const styleScenario: Scenario = {
   title: 'style: reformat to STYLE.md',
   prompt: PROMPT,
   fixtureDir: 'fixtures/style',
-  maxTurns: 30,
+  maxTurns: 70,
   completed: async ({ sandbox, readFile }) => {
     const src = await readFile('src/format.ts')
     if (src === undefined) return false

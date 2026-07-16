@@ -21,7 +21,7 @@ export const refactorScenario: Scenario = {
   title: 'refactor: deduplicate validators',
   prompt: PROMPT,
   fixtureDir: 'fixtures/refactor',
-  maxTurns: 60,
+  maxTurns: 120,
   completed: async ({ sandbox, readFile }) => {
     const src = await readFile('src/validators.ts')
     if (src === undefined) return false

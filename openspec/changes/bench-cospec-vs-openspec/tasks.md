@@ -84,7 +84,13 @@
       `tasksAllChecked: false`) — the `ci` scenario's `maxTurns: 30` was sized
       for the old direct-implementation path and is tight for a full
       propose->author->validate->implement->archive cycle now that the workflow
-      is actually engaged.
+      is actually engaged. Resolved: retuned all scenario budgets in
+      `packages/bench/scenarios/*.ts` — lite types (`build`, `chore`, `ci`,
+      `docs`, `style`, `test`) 30 -> 70; full types (`feat`, `fix`, `perf`,
+      `refactor`, `revert`) 60 -> 120 — and raised the per-cell
+      `DEFAULT_BUDGET_USD` in `packages/bench/src/agent.ts` from 5 to 10 (a
+      full-cycle opus cell can now exceed $5). `docs/bench.md` updated to
+      document both numbers.
 
 ## 5. Matrix runner + CLI
 

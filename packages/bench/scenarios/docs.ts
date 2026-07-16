@@ -20,7 +20,7 @@ export const docsScenario: Scenario = {
   title: 'docs: document slugify',
   prompt: PROMPT,
   fixtureDir: 'fixtures/docs',
-  maxTurns: 30,
+  maxTurns: 70,
   completed: async ({ sandbox, readFile }) => {
     const src = await readFile('src/slugify.ts')
     if (src === undefined || !JSDOC_ABOVE_SLUGIFY.test(src)) return false
