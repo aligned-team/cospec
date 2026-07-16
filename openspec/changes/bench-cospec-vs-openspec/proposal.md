@@ -18,7 +18,14 @@ validation, artifact fidelity, and DeepSeek-judged quality.
   a scenario fixture), spawning real headless Claude Code via the Claude Agent
   SDK's `query()` with `settingSources: []`, `mcpServers: {}`,
   `strictMcpConfig: true`, explicit `allowedTools`, and a per-scenario
-  `maxTurns`/budget cap.
+  `maxTurns`/budget cap. Scenario prompts are plain engineering tasks with no
+  workflow framing, so `query()`'s `systemPrompt` option uses the preset-with-
+  append form (additive — it keeps Claude Code's own system prompt rather than
+  replacing it) to append one short, tool-neutral, byte-identical instruction to
+  both arms: this repository manages every change through a spec-driven workflow
+  whose skills live under `.claude/skills`, use it before implementing — so the
+  harness measures the workflow each tool ships, not whether the agent notices
+  it exists.
 - Matrix cell =
   `{ scenarioId (one per the 11 cospec schema types), arm: 'cospec' | 'openspec', model: 'claude-sonnet-5' | 'claude-opus-4-8', repeat }`,
   with `--scenario`/`--arm`/`--model`/`--repeats`/`--concurrency` CLI filters.

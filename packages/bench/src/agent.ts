@@ -18,6 +18,23 @@ import { MODEL_EFFORT } from './matrix.ts'
 // no WebFetch/WebSearch/Task — so cells are comparable and offline-hermetic.
 const ALLOWED_TOOLS = ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep']
 
+/**
+ * Appended, byte-identical across both arms. Neither arm's task prompt
+ * (`Scenario.prompt`) mentions the spec-driven workflow at all — without this,
+ * an agent has no reason not to solve the task directly, which measures
+ * nothing about either tool (this is what the harness's first smoke run
+ * showed: `changeProduced: false`). Wording is deliberately tool-neutral —
+ * it names neither tool — so it cannot itself bias which arm looks better; it
+ * only tells the agent that a workflow exists and where to find it, exactly
+ * as this repository's real onboarding (CLAUDE.md's "Claude Code notes")
+ * tells a live agent to look under `.claude/skills`.
+ */
+export const WORKFLOW_SYSTEM_PROMPT =
+  'This repository manages every change through a spec-driven workflow whose ' +
+  'skills are installed under .claude/skills. Before implementing, scaffold or ' +
+  'propose a change using that tooling, author its required artifacts, ' +
+  'validate it, then implement and complete the change through the workflow.'
+
 // Hard per-cell spend ceiling; the SDK aborts with subtype 'error_max_budget_usd'.
 export const DEFAULT_BUDGET_USD = 5
 
@@ -72,6 +89,13 @@ export interface AgentRunConfig {
  * enables exactly that tool's guidance in each arm, symmetrically. Slash
  * commands (`.claude/commands/<tool>/*`) are irrelevant here: nothing invokes
  * them in a single-prompt headless run.
+ *
+ * `systemPrompt` uses the `preset: 'claude_code'` + `append` form, which keeps
+ * Claude Code's own default system prompt and appends `WORKFLOW_SYSTEM_PROMPT`
+ * after it — it does not replace anything (verified against
+ * `@anthropic-ai/claude-agent-sdk`'s `sdk.d.ts`: `systemPrompt` as a bare
+ * string is the only variant that replaces the default; the preset+append
+ * variant is additive). The append is identical for both arms.
  */
 function buildOptions(config: AgentRunConfig): Options {
   const effort = MODEL_EFFORT[config.model]
@@ -85,6 +109,7 @@ function buildOptions(config: AgentRunConfig): Options {
     strictMcpConfig: true,
     settingSources: [],
     skills: 'all',
+    systemPrompt: { type: 'preset', preset: 'claude_code', append: WORKFLOW_SYSTEM_PROMPT },
     persistSession: false,
     maxTurns: config.maxTurns,
     maxBudgetUsd: config.budgetUsd ?? DEFAULT_BUDGET_USD,

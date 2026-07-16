@@ -54,7 +54,9 @@ the matrix stays two-dimensional instead of exploding into a model×effort grid.
 ## The two arms
 
 The task prompt is **identical** across arms and models; only the tool and the
-model/effort vary.
+model/effort vary. The scenario prompt itself is a plain engineering task and
+never mentions a spec-driven workflow — see
+[Workflow framing](#workflow-framing) for how the agent is told one exists.
 
 - **cospec arm** — the sandbox is initialized by the **working-tree CLI**
   (`apps/cli/src/index.ts … init . --harness claude --yes`), so the generated
@@ -71,6 +73,27 @@ only ever contains its own tool's skills, so `'all'` surfaces exactly that
 tool's guidance. This is deliberate: under the hermetic `settingSources: []`
 enabling skills for one arm but not the other would risk running the openspec
 arm with no guidance at all, biasing the comparison.
+
+## Workflow framing
+
+A scenario's `prompt` (see `packages/bench/scenarios/*.ts`) is a plain
+engineering task — it never mentions a spec-driven workflow, cospec, or
+OpenSpec. Left there alone, the agent has no reason not to solve the task
+directly, which measures nothing about either tool. `src/agent.ts` appends one
+extra, **byte-identical** instruction to both arms' SDK `systemPrompt` (via the
+`{ type: 'preset', preset: 'claude_code', append: … }` form, which keeps Claude
+Code's own default system prompt and adds to it rather than replacing it):
+
+> This repository manages every change through a spec-driven workflow whose
+> skills are installed under .claude/skills. Before implementing, scaffold or
+> propose a change using that tooling, author its required artifacts, validate
+> it, then implement and complete the change through the workflow.
+
+The wording is deliberately tool-neutral — it names neither tool — so it tells
+the agent a workflow exists and where to find it without itself favoring either
+arm; each sandbox only ever contains its own tool's skills under
+`.claude/skills/<tool>-*`, so the same sentence resolves to a different concrete
+workflow per arm.
 
 ## Transport
 

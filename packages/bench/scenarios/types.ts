@@ -26,7 +26,12 @@ export interface Scenario {
   /** The cospec schema type this scenario is authored for (drives artifact proportionality). */
   type: CospecType
   title: string
-  /** Identical task prompt across arms and models. Arm-specific workflow framing is added by the runner. */
+  /**
+   * Identical task prompt across arms and models — the scenario itself never
+   * mentions the spec-driven workflow. A byte-identical, tool-neutral
+   * instruction to use it is appended to the SDK system prompt for both arms
+   * in `src/agent.ts` (`WORKFLOW_SYSTEM_PROMPT`), not here.
+   */
   prompt: string
   /**
    * Directory (relative to `packages/bench/scenarios/`) whose contents seed the

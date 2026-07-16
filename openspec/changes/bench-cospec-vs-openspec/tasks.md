@@ -58,6 +58,33 @@
       carries all of these populated with real values ($0.1925, 13006ms,
       13231ms, 4 turns, per-model token usage, `end_turn`/`completed`,
       `2.1.211`)
+- [x] 4.5 Fix: the first smoke cell above (`changeProduced: false`, 4 turns)
+      showed neither arm's prompt ever tells the agent a spec-driven workflow
+      exists, so the benchmark measured nothing about either tool. Append one
+      short, tool-neutral, byte-identical instruction to both arms via
+      `query()`'s `systemPrompt` preset+append form (see
+      `WORKFLOW_SYSTEM_PROMPT` in `packages/bench/src/agent.ts`) — confirmed
+      against `@anthropic-ai/claude-agent-sdk`'s `sdk.d.ts` that this form is
+      additive (keeps Claude Code's default system prompt) and does not replace
+      it; only a bare-string `systemPrompt` would replace it, which this is not.
+      Wording names neither tool. Updated the stale `scenarios/types.ts` doc
+      comment and `docs/bench.md` (new "Workflow framing" section) that had
+      implied this framing already existed -> unit-tested
+      (`test/unit/agent.test.ts`: tool-neutral, mentions `.claude/skills`,
+      short) -> re-verified live via `mise run bench:smoke` (attempt 1 of up to
+      3; success on first try): `changeProduced: true`, `stampedSchema: "ci"`,
+      `armNativeValidatePass: true`, `cospecValidate`
+      `{errors: 0, warnings: 0}`, all required artifacts present with none
+      forbidden, `taskCompleted: true` (agent scaffolded, authored, and
+      validated a real change before writing `.github/workflows/lint.yml`). Cost
+      $0.7844, duration 171749ms (durationApi 141422ms), 31 turns, tokens in/out
+      60/5170 (cache read 1,287,335 / cache creation 53,308). Follow-up (not
+      required by the stated success bar, left for a future change): the cell
+      hit `error_max_turns` (30) before archiving (`changeArchived: false`,
+      `tasksAllChecked: false`) — the `ci` scenario's `maxTurns: 30` was sized
+      for the old direct-implementation path and is tight for a full
+      propose->author->validate->implement->archive cycle now that the workflow
+      is actually engaged.
 
 ## 5. Matrix runner + CLI
 
