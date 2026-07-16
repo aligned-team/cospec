@@ -2,7 +2,7 @@
 description: Scaffold a new change and show its typed artifact plan, then stop before authoring anything.
 metadata:
   author: cospec
-  generatedBy: cospec@0.5.3
+  generatedBy: cospec@0.5.4
   contentHash: sha256:e00db7d75bcb487ceca2dac4fc753606eda21a745cec72ebde29a88de2409e45
 ---
 

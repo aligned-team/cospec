@@ -7,7 +7,7 @@ tags:
   - workflow
 metadata:
   author: cospec
-  generatedBy: cospec@0.5.3
+  generatedBy: cospec@0.5.4
   contentHash: sha256:7bbadeca3aa7ffe0d025f924968d012941b374ad6137838a04f25163a732dd0f
 ---
 
