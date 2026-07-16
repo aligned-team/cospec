@@ -1,6 +1,6 @@
 {
   "name": "@aligned-team/cospec-darwin-x64",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "The cospec standalone binary for darwin x64. Installed automatically as an optional dependency of @aligned-team/cospec; not used directly.",
   "homepage": "https://github.com/aligned-team/cospec",
   "license": "MIT",
