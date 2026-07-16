@@ -81,6 +81,19 @@ describe('cli dispatcher: per-command --help', () => {
     expect(r.out).not.toContain('Command options:')
     expect(r.out).toContain('Global options:')
   })
+
+  // Regression: `templates` forwards `--schema <name>` (default `spec-driven`)
+  // to the wrapped `openspec templates` call (see commands/templates.ts), but
+  // PR #25 ("complete per-command help") left its COMMANDS entry without an
+  // `options` field, so `--help` silently omitted the flag.
+  test('templates --help lists its --schema flag', async () => {
+    const r = await dispatch(['templates', '--help'])
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('Command options:')
+    expect(r.out).toContain('--schema')
+    expect(r.out).toContain('spec-driven')
+    expect(r.out).toContain('Global options:')
+  })
 })
 
 describe('cli dispatcher: bare `help` token', () => {
