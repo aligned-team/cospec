@@ -17,24 +17,11 @@ in `canon/workflows/*.md` and rendered per harness. This is cospec's full opsx
 below). cospec has no core/custom profile split: it always emits the full eleven
 to every configured harness.
 
-```
-Claude Code:
-  .claude/commands/cospec/{propose,new,continue,ff,apply,verify,archive,bulk-archive,sync-specs,explore,onboard}.md
-  .claude/skills/cospec-{propose,new-change,continue-change,ff-change,apply-change,verify-change,archive-change,bulk-archive-change,sync-specs,explore,onboard}/SKILL.md
-  .claude/settings.json                        # additive permissions merge
-
-Codex (project-level only):
-  .codex/skills/cospec-{same 11}/SKILL.md
-  .codex/rules/cospec.rules                    # pre-approves read-only + gate cospec calls
-
-OpenCode:
-  .opencode/commands/cospec-{eleven}.md        # /cospec-propose … — FULL bodies, work with .claude absent
-  .opencode/skills/cospec-{same 11}/SKILL.md
-```
-
-Slash syntax is substituted per harness (`/cospec:x` ↔ `/cospec-x`). Every body
-calls **only** `cospec` commands — never bare `openspec` — so one permission
-entry covers the whole loop.
+The exact per-harness file tree each `cospec init` writes, the slash-syntax
+substitution, the restart/reload notes, and the smoke-test checklist are owned
+by the site: [Harness setup](https://cospec.aligned.team/guide/harness-setup).
+This page covers what each generated workflow body actually does and the canon
+internals behind it — content the site intentionally keeps at a higher level.
 
 ## What each workflow does
 
@@ -165,12 +152,7 @@ merged entry. If it does not parse, cospec prints the snippet and skips.
 ## Per-harness smoke checklist
 
 Codex and OpenCode project-level skill loading is inferred from real repos, not
-vendor docs. All enforcement lives in the CLI, so a half-loaded skill still
-cannot bypass a gate — but confirm loading manually after `init`:
-
-1. **Claude Code** — restart; `/cospec:propose` appears in the command list;
-   `Bash(cospec *)` is in `.claude/settings.json`.
-2. **Codex** — start a session; the `cospec-*` skills are listed; a read-only
-   `cospec status` runs without an approval prompt (`archive` still prompts).
-3. **OpenCode** — reload; `/cospec-propose` runs and drives the loop even with
-   `.claude/` absent (OpenCode bodies are full, not pointers).
+vendor docs — that inference is why this note exists here rather than only on
+the site. All enforcement lives in the CLI, so a half-loaded skill still cannot
+bypass a gate. The actual checklist to run after `init` is owned by the site:
+[Harness setup](https://cospec.aligned.team/guide/harness-setup#smoke-checks).

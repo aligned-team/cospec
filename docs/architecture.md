@@ -99,32 +99,16 @@ commands use.
 ## The failure modes cospec defends against
 
 cospec exists because three OpenSpec behaviors are hazardous when an agent is
-driving.
+driving — `openspec validate` false-erroring on schemas without deltas,
+`openspec archive` exiting 0 while silently aborting or thinning a spec, and
+OpenSpec's generated files referencing skills it never generates. The
+user-facing account of all three, and why each matters, is owned by the site:
+[How cospec relates to OpenSpec](https://cospec.aligned.team/concepts/how-it-relates-to-openspec).
+What follows is the implementation detail behind the two archive-time defenses —
+the exact gate ordering and the dangling-reference guard — which the site
+intentionally doesn't carry.
 
-### 1. `openspec validate` false-errors on schemas without deltas
-
-OpenSpec has a hardcoded `CHANGE_NO_DELTAS` rule: a change with no spec deltas
-fails validation. But a `ci` or `docs` change legitimately has no deltas. cospec
-runs its own rule families over every change and only delegates to
-`openspec validate` for changes whose schema declares a `specs` artifact and
-that actually have delta files — so the one suppressed check is suppressed only
-where satisfying it is definitionally wrong. See [validation.md](validation.md).
-
-### 2. `openspec archive` exits 0 but silently aborts
-
-When a delta cannot merge (a MODIFIED target that does not exist, a zero-op
-delta), OpenSpec prints `Aborted` and **exits 0 without moving the change**. An
-agent trusting the exit code would believe the change shipped. cospec's archive
-verifier (see [apply-archive.md](apply-archive.md)) checks the filesystem
-directly — the change directory must be gone and a dated archive entry must
-exist — and reports the abort honestly. Archive preconditions are also checked
-at validate time, moving the failure left.
-
-`openspec archive` also exits 0 while silently **thinning** a spec: a MODIFIED
-delta that drops `#### Scenario:` entries merges cleanly with no complaint.
-cospec closes this with `archive/scenario-preservation` (below).
-
-### 2a. The archive gate ordering (two hard pre-delegation steps)
+### The archive gate ordering (two hard pre-delegation steps)
 
 `cospec archive`'s steps are, in order: fast-validate → tasks gate →
 **`archive/verification-incomplete`** → self-blocker sanity warning → collision
