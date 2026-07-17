@@ -29,14 +29,17 @@ authenticate is skipped gracefully rather than reported as a zeroed run. Without
 CLI filters narrow each axis (pass after `--`, e.g.
 `mise run bench -- --scenario feat --arm cospec`):
 
-| flag            | default | purpose                                      |
-| --------------- | ------- | -------------------------------------------- |
-| `--scenario`    | all 11  | scenario id(s); repeatable / comma-separated |
-| `--arm`         | both    | `cospec` \| `openspec`                       |
-| `--model`       | both    | `claude-sonnet-5` \| `claude-opus-4-8`       |
-| `--repeats`     | 1       | copies per cell (surfaces variance)          |
-| `--concurrency` | 2       | bounded worker pool size                     |
-| `--smoke`       | off     | collapse to the single cheap cell            |
+| flag                    | default | purpose                                                               |
+| ----------------------- | ------- | --------------------------------------------------------------------- |
+| `--scenario`            | all 11  | scenario id(s); repeatable / comma-separated                          |
+| `--arm`                 | both    | `cospec` \| `openspec`                                                |
+| `--model`               | both    | `claude-sonnet-5` \| `claude-opus-4-8`                                |
+| `--repeats`             | 1       | copies per cell (surfaces variance)                                   |
+| `--concurrency`         | 2       | bounded worker pool size                                              |
+| `--smoke`               | off     | collapse to the single cheap cell                                     |
+| `--hard`                | off     | include the opt-in `-hard` variants in the default matrix — see below |
+| `--review`              | off     | run the adversarial review stage inline (extra agents — see below)    |
+| `--review-report <dir>` | —       | review a past run's persisted diffs; no matrix run                    |
 
 Judge configuration is environment-only, sharing the eval's defaults:
 `DEEPSEEK_API_KEY` (presence gates judging), `DEEPSEEK_MODEL_ID`
@@ -50,6 +53,55 @@ its own `mkdtemp` git repo seeded from the scenario's fixture, with a baseline
 commit so task-completion diffs have a reference point. Effort is tied to the
 model — sonnet-5 → high, opus-4-8 → medium — via `CLAUDE_CODE_EFFORT_LEVEL`, so
 the matrix stays two-dimensional instead of exploding into a model×effort grid.
+
+## Hard-mode variants (opt-in, `--hard`)
+
+> **Cost warning.** Every hard variant is a multi-file fixture with a `maxTurns`
+> of 150 (vs. 70/120 for the standard scenarios) and a task that genuinely spans
+> 3+ files, so a cell can run noticeably longer and cost noticeably more than a
+> standard cell of the same type. They are **never** included by default —
+> running the full matrix with `--hard` grows the scenario-id count from 11 to
+> 16 (roughly **1.45×**), and each hard cell also costs meaningfully more than
+> its standard counterpart. Start with `--scenario feat-hard --hard` (a single
+> scenario) rather than a bare `--hard` full-matrix run.
+
+The 5 "heavy" scenario types (`feat`, `fix`, `perf`, `refactor`, `revert`) each
+have a `-hard` sibling — `scenarios/{feat,fix,perf,refactor,revert}-hard.ts` —
+registered on `scenarios/index.ts`'s `HARD_SCENARIOS` (separate from the
+11-scenario `SCENARIOS` core registry; `ALL_SCENARIOS` is their union). A hard
+variant's `id` is suffixed `-hard` but its `type` stays the BASE cospec type
+(`feat-hard` is `type: 'feat'`), so cospec's artifact-proportionality scoring in
+`src/mechanical.ts` treats it exactly like a `feat` change — only the fixture,
+prompt, hidden suite, and planted bug differ:
+
+- **Multi-file fixtures** (8-15 files each) with edge-case-rich behavior — real
+  state (an inventory ledger, a token-bucket rate limiter), error paths
+  (throwing on invalid input), and boundary conditions (exact-capacity checks,
+  fencepost-prone loops) — rather than the standard scenarios' single-function
+  fixtures.
+- **A task prompt requiring changes across 3+ files** — e.g. `feat-hard` adds
+  store credit to a checkout flow, touching `types.ts`, `pricing.ts`, and
+  `orders.ts`; `fix-hard` has three related bugs, one per file, in a
+  bucket/store/limiter split.
+- **Larger held-out hidden suites** (8-12 cases, vs. 4-8 for the standard
+  scenarios) and their own planted bug, verified with the exact same
+  fail-before/pass-after discipline as the standard scenarios (see
+  `test/unit/hidden-hard.test.ts` and `test/unit/planted-hard.test.ts` —
+  separate files from `hidden.test.ts`/`planted.test.ts` so the core scenarios'
+  tighter case-count bounds and "exactly 11" registry invariants stay untouched,
+  remaining statements about the core-11 registry alone).
+
+**Never run by default.** `src/matrix.ts`'s `expandMatrix` excludes any
+`-hard`-suffixed id from the DEFAULT (no `--scenario` filter) axis unless
+`--hard` is passed. An EXPLICIT `--scenario feat-hard` (or any other hard id)
+always resolves regardless of `--hard` — only the "all scenarios" default set is
+hard-gated:
+
+```bash
+mise run bench -- --scenario feat-hard        # one hard cell, no --hard needed
+mise run bench -- --hard --scenario feat-hard # equivalent
+mise run bench -- --hard                      # full matrix INCLUDING all 5 hard variants
+```
 
 ## The two arms
 
@@ -113,21 +165,113 @@ terminal reason) — never the assistant's text or tool payloads.
 
 ## Mechanical metrics (authoritative — no LLM)
 
-Scored post-hoc against each arm's sandbox tree:
+Scored post-hoc against each arm's sandbox tree. Two of these look similar but
+answer different questions, and the summary table reports them in adjacent
+columns on purpose so neither is mistaken for the other:
 
-- **arm-native validation** — the tool's own validator on its own output
-  (`cospec validate --strict` / `openspec validate --strict`).
-- **post-hoc `cospec validate --json --strict`** over _both_ arms' trees,
-  yielding rule-id hit counts — a shared rubric (with the caveat that it is
-  cospec's own).
-- **artifact proportionality** vs the type's artifact set read from canon
-  type-facts (never hardcoded): over-production is measured against the
-  `declared` set, under-production against the `apply.requires` floor, so an
-  optional-but-declared artifact is not wrongly flagged missing.
+- **arm-native validation** (`native-valid` column) — the tool's OWN validator
+  on its OWN output: `cospec validate --strict` for the cospec arm,
+  `openspec validate --strict` for the openspec arm. This is each tool's own bar
+  for its own output. It is the metric to read as a pass/fail signal.
+- **schema conformance** (`conformance*` column;
+  `MechanicalMetrics.schemaConformance` in `src/mechanical.ts`) — a post-hoc
+  `cospec validate --json --strict` pass over _both_ arms' trees (rule-id hit
+  counts), plus artifact proportionality (files present that cospec's type-facts
+  do not declare, and declared/required files that are missing). **This is
+  explicitly cospec's OWN opinionated rubric, applied after the fact to both
+  arms — including the openspec arm, which was never trying to satisfy it.** It
+  is reported because it is the only apples-to-apples structural comparison
+  available (openspec has no typed schema to reciprocally score cospec's output
+  against), not because a high conformance-issue count means the openspec arm's
+  output is "broken" or "defective." Read it alongside `native-valid`, never as
+  a substitute for it: a cell can have `native-valid: true` (the openspec arm
+  validated cleanly by its own rules) and a nonzero conformance count (it does
+  not match cospec's schema) at the same time — that is expected, not a
+  contradiction.
+  - Artifact proportionality is part of this same rubric: over-production is
+    measured against cospec's `declared` set, under-production against cospec's
+    `apply.requires` floor, so an optional-but-declared artifact is not wrongly
+    flagged missing — but again, both are cospec's own sets, applied to both
+    arms.
 - **task completion** — `tasksAllChecked` from `tasks.md`, plus the scenario's
   own `completed` predicate, which favors real execution (running `bun test` /
   `bun run build` in the sandbox) over string-matching where the fixture has
   runtime behavior.
+- **escaped defects** (`escaped‡` column) — see the next section. This is the
+  benchmark's PRIMARY defect metric; schema conformance above is reported
+  alongside it for structural comparison, not as a substitute.
+- **planted bugs** (`plant¶` column) — see "Planted bugs" below. A separate
+  verification-discipline signal, not folded into escaped defects.
+
+## Escaped defects (primary defect metric)
+
+Every scenario has a **held-out `bun:test` suite** the agent never sees, at
+`packages/bench/scenarios/hidden/<scenarioId>/` — a directory outside every
+scenario's `fixtureDir`, so `src/sandbox.ts`'s `createArmSandbox` (which only
+ever `cp`s `fixtureDir` into the sandbox) never seeds it. After the agent stops,
+`src/mechanical.ts`'s `scoreHiddenTests` copies that suite into the finished
+sandbox at `hidden-tests/` (sibling to `src/`) and runs `bun test .` there
+against whatever tree the agent actually produced, then parses bun's own
+` N pass` / ` N fail` summary line (`parseBunTestSummary`) into
+`MechanicalMetrics.hiddenTests: { total, failed } | null` — null (never a
+fabricated `{total: 0, failed: 0}`) when the scenario has no suite yet or the
+summary couldn't be parsed.
+
+This is the benchmark's **primary defect metric**, distinct from schema
+conformance: a hidden-test failure means the code the arm produced does not do
+what the prompt asked, checked mechanically and identically for both arms —
+neither arm gets to define the rubric for itself, unlike schema conformance
+(which is explicitly cospec's own). Each suite has 4-8 focused cases exercising
+edge cases beyond the scenario's own visible acceptance path (empty inputs,
+boundary values, error paths, idempotency, or — for tasks whose completion
+criterion is structural rather than behavioral, e.g. `docs`/`test`/`chore`/
+`style`/`refactor` — a check on the produced artifact's content/shape rather
+than on unchanged behavior). Every suite is verified, in
+`test/unit/hidden.test.ts`, to report at least one failure against the
+scenario's unmodified fixture (the task not done) and zero failures against a
+scripted correct reference implementation (see that file's `REFERENCE_FIXES` and
+`scenarios/hidden/README.md`'s design notes for the cases where not every
+individual test needs to independently discriminate).
+
+`summary.md`'s `escaped‡` column reports `meanFailed/meanTotal` over repeats for
+each `(type, arm, model)` group — the count of held-out tests that failed
+against the produced code, out of how many ran.
+
+## Planted bugs (verification-discipline signal)
+
+Escaped defects measure whether the produced code does what the TASK PROMPT
+asked. A separate question: does a workflow's verification discipline lead the
+agent to notice and fix a defect ADJACENT to the task — one the prompt never
+mentions, sitting in the same file it was already reading and editing? The 5
+"heavy" scenario types (`feat`, `fix`, `perf`, `refactor`, `revert`) each seed
+one such latent bug into their fixture, e.g. `fix`'s `src/strings.ts` (whose
+task is repairing `truncate`) also ships a sibling `capitalize` function with an
+off-by-one (`input.slice(2)` instead of `input.slice(1)`) that the visible suite
+never exercises.
+
+Each plant is declared on its `Scenario`
+(`plantedBug: {file, description, detector}` in `scenarios/types.ts`) and has
+its own held-out `bun:test` detector at `scenarios/planted/<id>/` — outside
+every `fixtureDir`, so it is never seeded into the agent's sandbox, mirroring
+`scenarios/hidden/`'s discipline exactly. After the agent stops,
+`src/mechanical.ts`'s `scorePlantedBug` copies that detector into the finished
+sandbox at `planted-check/` (a SEPARATE directory and a SEPARATE `bun test`
+invocation from `scoreHiddenTests`), runs it, and parses the result into
+`MechanicalMetrics.plantedBugCaught: boolean | null` — `true` when the detector
+passed (the plant was noticed and fixed), `false` when it still fails, `null`
+when the scenario has no plant or the run was unparseable.
+
+**Not an escaped-defect double-count.** A plant left unfixed is never folded
+into `hiddenTests`/`escapedDefectRate` — those measure the task the prompt
+actually asked for, and a plant is by construction adjacent to it and never
+mentioned. `plantedBugCaught` is its own signal, reported in its own
+`summary.md` column (`plant¶`, mean caught-rate per `(type, arm, model)` group,
+a dash for scenario types with no plant). Every plant is verified, in
+`test/unit/planted.test.ts`, to fail against the fixture as seeded and pass
+against a scripted, targeted fix — independent of both the agent/CLI and the
+scenario's own actual task — and adding each plant was re-checked against its
+scenario's existing visible test suite, completion predicate, and hidden-test
+fail-before/pass-after guarantee (see `scenarios/planted/README.md`).
 
 ## Quality judge (DeepSeek)
 
@@ -140,15 +284,88 @@ token ceiling (`finish_reason: 'length'`) is discarded rather than parsed from a
 truncated fragment. Quality is `null` when the key is unset, there is nothing to
 judge, or every sample fails to parse — never a fabricated score.
 
+## Repeats and statistical significance
+
+`--repeats` (default 1) runs each matrix cell multiple times, so it is the knob
+that determines whether any of the below can say anything about consistency
+rather than a single, possibly-unrepresentative sample. `src/stats.ts` is pure,
+I/O-free, and unit-tested against synthetic rows (`test/unit/stats.test.ts`) —
+it never invokes the agent or the benchmark matrix itself.
+
+- **Repeat spread** (`summary.md`'s "Repeat spread" section) — for every
+  `(type, arm, model)` group with `repeats > 1`, reports mean/min/max/stddev
+  (sample stddev, n-1 denominator) for duration and cost, so a mean does not
+  hide how noisy a cell actually was. Groups with `repeats === 1` render a
+  single explicit "nothing to spread over" line rather than a misleading
+  min=max=mean row.
+- **Paired comparison** (`summary.md`'s "Paired comparison" section) — matches
+  cells with the SAME scenario type + model + repeat across the two arms and
+  compares cost, duration, and schema-conformance issues pairwise: which arm had
+  the lower value on that matched pair, tallied as win/loss/tie across all
+  matched repeats for that `(type, model)`. A simple two-sided exact sign test
+  (H0: either arm is equally likely to win) accompanies the tally. A group is
+  reported as **"not distinguishable at this n"** whenever the two arms' value
+  ranges overlap OR there are fewer than 2 matched pairs — the harness never
+  asserts a winner off a single repeat's noise. At the common `n=1` case, every
+  row states `n=1 — no significance claim` verbatim rather than rendering a bare
+  dash or, worse, a spurious verdict.
+
+## Adversarial review (bugs that slipped through)
+
+Escaped defects catch bugs a held-out test can express; some correctness bugs
+only a reader would notice. The adversarial review stage measures those: it
+reads each cell's produced code diff and counts real correctness bugs that
+survived a skeptical second look.
+
+Before a sandbox is torn down, `src/sandbox.ts`'s `captureSandboxDiff` records
+the agent's change as a unified diff from the seed commit — tracked edits plus
+untracked new files — **excluding** the spec-workflow dirs (`openspec/`,
+`.claude/`, `.codex/`, `.opencode/`) and the injected `hidden-tests/`, so the
+diff is the arm-agnostic engineering change only. It is written **redacted and
+size-capped** to `packages/bench/reports/<ts>/snapshots/<cellKey>.diff`
+(`src/report.ts`'s `writeCellDiff`).
+
+`src/review.ts` then reviews that diff:
+
+- **K=2 independent reviewer runs** — a cheap `claude-haiku-4-5-20251001`
+  (effort high, read-only tools, low `maxTurns`, small budget) each prompted to
+  find real CORRECTNESS bugs (logic errors, off-by-one, unhandled edge cases —
+  explicitly NOT style, formatting, docs, test coverage, or spec-workflow
+  concerns) and return a strict JSON findings array.
+- **Dedup, then refute** — findings are deduped by normalized title + location;
+  each unique finding then gets its own **verifier** run (same model) prompted
+  to REFUTE it against the diff. Only findings the verifier cannot refute count
+  as `MechanicalMetrics.reviewDefects.confirmed` — an unparseable or ambiguous
+  verdict refutes, so the confirmed count is never inflated on a parse failure.
+- **Arm-blind** — reviewers and verifiers never learn which arm produced a diff:
+  the diff and task text are scrubbed of `cospec`/`openspec` identifiers and
+  every prompt passes an `assertArmBlind` guard before it is sent. Contaminating
+  the reviewer with the arm would invalidate the comparison.
+
+Review is **off by default** (it spawns extra agents and costs money). Enable it
+inline with `--review`, or run it **post-hoc** over a finished run with
+`--review-report <dir>` — that mode reviews the persisted diffs with no
+benchmark agent re-run and rewrites the run's `aggregate.json` + `summary.md` in
+place. `summary.md`'s `review§` column reports the mean confirmed review defects
+per `(type, arm, model)` group (a dash when review did not run), and the paired
+comparison gains a `review defects` metric.
+
 ## Output & redaction contract
 
 Reports are written to `packages/bench/reports/<ts>/` (git-ignored): per-cell
-`cells.jsonl`, an aggregate `aggregate.json` (raw rows + means over repeats),
-and a human-readable `summary.md` table (type × arm × model on quality, defects,
-native-valid rate, task-done rate, duration, cost, tokens). Every object passes
-a **sentinel self-check before it touches disk**: reports carry only counts,
-scores, rule ids, durations, and token/cost telemetry — never an API key, raw
-prompt, completion, artifact body, or fixture-unique string. If any sentinel
+`cells.jsonl`, an aggregate `aggregate.json` (raw rows + means, and — per
+"Repeats and statistical significance" above — full mean/min/max/stddev
+summaries over repeats), a human-readable `summary.md` with the main scenario ×
+arm × model table — grouped by SCENARIO ID, not cospec type, so a `-hard`
+variant never merges into its base scenario's row (see "Hard-mode variants"
+above) — reporting quality, schema conformance, native-valid rate, escaped
+defects, confirmed review defects, planted-bug-caught rate, task-done rate,
+duration, cost, and tokens, a "Repeat spread" section, and a "Paired comparison"
+section, plus a `snapshots/` directory holding each cell's redacted artifact
+snapshot (`<cellKey>.json`) and its redacted code diff (`<cellKey>.diff`, the
+input to the adversarial review stage). Every object passes a **sentinel
+self-check before it touches disk**: reports carry only counts, scores, rule
+ids, durations, token/cost telemetry, and redacted artifact/diff text — never an
+API key, raw prompt, completion, or fixture-unique string. If any sentinel
 survives into a report object, the write throws rather than leak. This mirrors
-the [eval's redaction discipline](./eval.md#redaction-contract). </content>
-</invoke>
+the [eval's redaction discipline](./eval.md#redaction-contract).

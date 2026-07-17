@@ -48,11 +48,120 @@ validation, artifact fidelity, and DeepSeek-judged quality.
   verifiability, traceability), temperature 0, k=3 averaged, redacted artifact
   text only, `quality: null` when `DEEPSEEK_API_KEY` is unset.
 - Output: gitignored `reports/` — per-cell JSONL, an aggregate JSON, and a
-  human-readable markdown summary table (arm × type × model on quality, defect
-  counts, duration, tokens, cost).
+  human-readable markdown summary table (arm × type × model on quality, schema
+  conformance, duration, tokens, cost).
+- Metric naming (following user feedback that the forbidden/missing-artifact +
+  post-hoc `cospec validate` metric is cospec's own rubric applied to openspec —
+  a tautology if presented as "defects"): that metric family is named **schema
+  conformance** end to end (`MechanicalMetrics.schemaConformance` in
+  `src/mechanical.ts`, `AggregateRow.meanConformanceIssues` and the `summary.md`
+  `conformance*` column in `src/report.ts`), explicitly framed — in code
+  comments, `summary.md`'s legend, and `docs/bench.md` — as cospec's OWN
+  opinionated rubric applied post-hoc to BOTH arms, NOT a defect measure. Each
+  arm's OWN validator result is reported alongside it, unrenamed, as the actual
+  pass/fail bar per tool (`armNativeValidatePass` / `summary.md`'s
+  `native-valid` column). The underlying data (rule-id counts, forbidden/missing
+  artifact lists) is unchanged — only the naming/framing.
+- Statistics machinery for repeated cells (`src/stats.ts`, machinery only — the
+  44-cell matrix is not re-run to produce this): per-`(type, arm, model)` group
+  mean/min/max/sample-stddev over `--repeats` (`AggregateRow`'s
+  `durationSummary`/`costSummary`/`tokensInSummary`/`tokensOutSummary`, rendered
+  as `summary.md`'s "Repeat spread" section), and a paired
+  per-`(scenarioType, model)` win/loss comparison between the `cospec` and
+  `openspec` arms on matched cells (same scenario+model+repeat) for cost,
+  duration, and schema-conformance issues, with a two-sided exact sign test and
+  a "not distinguishable at this n" flag whenever the two arms' value ranges
+  overlap or there are fewer than 2 matched pairs (`summary.md`'s "Paired
+  comparison" section — renders sensibly, with no significance claim, at the
+  common `n=1` case).
 - Root `mise.toml` tasks `bench` (full matrix) and `bench:smoke` (one cheap
   cell: `ci` scenario, sonnet-5/high, cospec arm) — advisory, never added to
   `check`.
+- **Escaped defects — the benchmark's primary, tool-neutral defect metric**: one
+  held-out `bun:test` suite per scenario
+  (`packages/bench/scenarios/hidden/<id>/`, 4-8 cases each, 11 total),
+  deliberately outside every scenario's `fixtureDir` so the agent's sandbox
+  never sees them. After the agent stops, `src/mechanical.ts`'s new
+  `scoreHiddenTests` copies the suite into the finished sandbox and runs it
+  against whatever the arm actually produced, yielding
+  `MechanicalMetrics.hiddenTests: {total, failed} | null`. Unlike schema
+  conformance (cospec's own rubric, applied post-hoc to both arms), a
+  hidden-test failure means the produced code does not do what the prompt asked
+  — mechanical and identical for both arms. Every suite is verified, both
+  directions, against a scripted correct reference implementation
+  (`test/unit/hidden.test.ts`): at least one failure on the unmodified fixture,
+  zero failures on the reference fix. `summary.md`'s main table gains an
+  `escaped‡` column (`meanFailed/meanTotal`).
+- **Per-cell diff persistence + adversarial review stage**: before teardown,
+  each cell's code change is captured (`src/sandbox.ts`'s `captureSandboxDiff` —
+  the seed-commit `git diff` plus untracked file contents, EXCLUDING
+  `openspec/`, `.claude/`, `.codex/`, `.opencode/`, and the injected
+  `hidden-tests/`) and written REDACTED, size-capped, to
+  `<runDir>/snapshots/<cellKey>.diff` (`src/report.ts`'s
+  `writeCellDiff`/`readCellDiff`). A new `src/review.ts` measures "bugs that
+  slipped through the workflow": K=2 independent, ARM-BLIND reviewer runs (cheap
+  `claude-haiku-4-5-20251001`, effort high, read-only tools, low `maxTurns`)
+  each find real CORRECTNESS bugs in the diff and return strict JSON findings;
+  findings are deduped, then a per-finding verifier run is prompted to REFUTE
+  each against the diff — only findings it cannot refute count as
+  `MechanicalMetrics.reviewDefects.confirmed`. Reviewer/verifier prompts never
+  see which arm produced a diff (tool identifiers scrubbed; every prompt passes
+  an `assertArmBlind` guard). Runs inline behind `--review` (off by default;
+  extra agent spend) or post-hoc standalone via `--review-report <dir>`, which
+  reviews a past run's persisted diffs with no agent re-run and rewrites its
+  `aggregate.json`/`summary.md`. Confirmed review defects are wired into
+  `summary.md`'s main table (`review§` column) and the paired-comparison stats
+  (new `reviewDefects` metric).
+- **Planted latent bugs — a verification-discipline signal, kept separate from
+  escaped defects**: the 5 heavy scenario types (`feat`, `fix`, `perf`,
+  `refactor`, `revert`) each seed one realistic latent bug ADJACENT to (never
+  inside) the task subject — e.g. `fix`'s sibling `capitalize` off-by-one — with
+  its own held-out `bun:test` detector at `scenarios/planted/<id>/` (never
+  seeded into the agent's sandbox; declared on the scenario as
+  `plantedBug: {file, description, detector}`). After the agent stops,
+  `src/mechanical.ts`'s new `scorePlantedBug` runs the detector as a SEPARATE
+  `bun test` invocation from `scoreHiddenTests`, yielding
+  `MechanicalMetrics.plantedBugCaught: boolean | null` — whether the workflow's
+  verification discipline led the agent to notice and fix it, never folded into
+  `hiddenTests`/`escapedDefectRate` (a plant unfixed is not a double-counted
+  escaped defect). Every plant is verified, both directions, via a scripted
+  targeted fix (`test/unit/planted.test.ts`), and adding it was re-checked
+  against the scenario's existing visible tests, completion predicate, and
+  hidden-test fail-before/pass-after guarantee. `summary.md`'s main table gains
+  a `plant¶` column (mean caught-rate, dash for scenario types with no plant).
+- **Opt-in `-hard` variants — multi-file, higher-stakes versions of the 5 heavy
+  types**: `scenarios/{feat,fix,perf,refactor,revert}-hard.ts`, each an 8-15
+  file fixture with real state/error-paths/boundary conditions (an inventory
+  ledger, a token-bucket rate limiter, a batch search index, …), a task prompt
+  requiring changes across 3+ files, `maxTurns: 150`, an 8-12 case held-out
+  hidden suite, and its own planted bug — verified with the exact same
+  fail-before/pass-after discipline as the standard scenarios
+  (`test/unit/{hidden,planted}-hard.test.ts`). Registered on a new
+  `scenarios/index.ts` export, `HARD_SCENARIOS` (`ALL_SCENARIOS` is the union
+  with the 11-scenario `SCENARIOS` core registry, which stays untouched at
+  exactly 11); a hard variant's `id` is suffixed `-hard` while `type` stays the
+  BASE cospec type, so cospec's artifact-proportionality scoring treats it
+  exactly like its base type. **Never run by default** — `src/matrix.ts`'s
+  `expandMatrix` excludes `-hard` ids from the default axis unless a new
+  `--hard` flag is passed; an explicit `--scenario feat-hard` always resolves
+  regardless. Fixed a related latent bug this surfaced: `CellResult`/
+  `AggregateRow`/`PairedComparisonGroup` grouped and displayed by cospec `type`
+  (not scenario `id`), which would have silently merged a `-hard` cell into its
+  base scenario's row/pair the moment both ran in the same matrix — renamed the
+  grouping field to `scenarioId` throughout `report.ts`/`stats.ts` (no behavior
+  change for the 11 core scenarios, where id and type always matched 1:1).
+  `docs/bench.md` gains a "Hard-mode variants" section with a cost warning
+  (multi-file, `maxTurns: 150`, meaningfully pricier per cell).
+- Fixed a real scoring bug found via a live smoke run, not a code read:
+  `scoreHiddenTests`/`scorePlantedBug` (`src/mechanical.ts`) copied a scratch
+  test suite into the finished sandbox (`hidden-tests/`, `planted-check/`) and
+  never removed it, and both run BEFORE `taskCompleted` in `scoreMechanical` — a
+  scenario's own `completed` predicate then ran a bare, unscoped `bun test` at
+  the sandbox root that picked up those leftover suites too, silently corrupting
+  `taskCompleted` for any cell where the leftover suite's own assertions (e.g. a
+  planted bug's detector) failed. Both functions now remove their copy in a
+  `finally` block before returning; 2 new permanent regression tests lock this
+  in.
 
 ## Impact
 

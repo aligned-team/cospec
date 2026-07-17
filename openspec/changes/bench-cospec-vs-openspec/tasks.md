@@ -246,3 +246,597 @@
       `agents:check` OK; also added `docs/bench.md` topic (sibling of
       `docs/eval.md`) documenting the harness, arms, matrix, metrics, judge, and
       redaction contract
+
+## 10. Schema-conformance relabel + repeat statistics
+
+- [x] 10.1 Rename the "defects" metric family to **schema conformance**
+      end-to-end (user feedback: the forbidden/missing-artifact +
+      post-hoc-`cospec-validate` metric is cospec's own rubric applied to
+      openspec — a tautology when presented as "defects"). Renamed in
+      `src/mechanical.ts`: `RuleCounts` -> `ConformanceCounts`,
+      `MechanicalMetrics.cospecValidate` -> `.schemaConformance`,
+      `parseCospecValidateJson` -> `parseSchemaConformanceJson`,
+      `cospecValidateCounts`/`cospecValidateArchivedCounts` ->
+      `schemaConformanceCounts`/`schemaConformanceArchivedCounts`; doc comments
+      rewritten to state explicitly that arm-native validation is each tool's
+      OWN bar while schema conformance is cospec's OWN rubric applied post-hoc
+      to BOTH arms, reported alongside (never as a substitute for) native
+      validation. In `src/report.ts`: `AggregateRow.meanDefects` ->
+      `.meanConformanceIssues`, `defectCount` moved to `mechanical.ts` and
+      renamed `conformanceIssueCount` (avoids a report.ts<->stats.ts import
+      cycle once stats.ts needed it too). The underlying DATA is unchanged —
+      same rule-id counts, same forbidden/missing lists — only names/framing
+      moved -> unit-tested: every renamed symbol re-verified via
+      `mechanical.test.ts`/`report.test.ts` (sed-renamed call sites, typechecked
+      clean) -> verified live: `bunx tsgo --noEmit` clean, `bun test test/unit`
+      132/132 pass (up from the pre-change 99, never reduced)
+- [x] 10.2 `summary.md`'s main table: header `defects` -> `conformance*`
+      (asterisk footnoted), `native-valid` gets a matching `†` footnote; two
+      legend lines added below the table spelling out, in plain language, that
+      conformance is cospec's own opinionated rubric applied post-hoc to both
+      arms and is NOT a defect measure, and that native-valid is each arm's own
+      validator on its own output (the actual pass/fail bar) — reported
+      alongside for contrast, never conflated -> unit-tested (`report.test.ts`:
+      header/legend text assertions) -> verified live via a throwaway
+      `writeMarkdown` script against synthetic rows (see this change's
+      conversation record) confirming the rendered legend reads as intended
+- [x] 10.3 `docs/bench.md` "Mechanical metrics" section rewritten: explicit
+      side-by-side framing of arm-native validation (each tool's own bar) vs.
+      schema conformance (cospec's own rubric, applied post-hoc to both arms,
+      not a defect measure — a cell can be `native-valid: true` for the openspec
+      arm and still carry a nonzero conformance count, and that is expected, not
+      a contradiction). Also fixed a stray `</content>\n</invoke>` tool-call-XML
+      artifact that had leaked onto the end of the file (found while editing
+      this exact section; in scope, not a drive-by) -> verified by rendering the
+      file and reading it end-to-end
+- [x] 10.4 Repeats statistics machinery (`src/stats.ts`, new file) — machinery
+      only, the 44-cell matrix was NOT re-run: `summarizeNumeric` (mean, min,
+      max, sample stddev with n-1 denominator; stddev null, never fabricated as
+      0, when n<2), wired into `report.ts`'s `aggregate()` as new `AggregateRow`
+      fields `durationSummary`/`costSummary`/`tokensInSummary`/
+      `tokensOutSummary` (additive — existing `mean*` fields kept unchanged).
+      `summary.md` gets a new "Repeat spread (n>1 only)" section: renders
+      min/max/stddev per `(type, arm, model)` group when `repeats>1`, and an
+      explicit "nothing to spread over" line when every group is `n=1` ->
+      unit-tested (`stats.test.ts`: empty/all-non-finite/n=1/n>1 cases, a known
+      stddev worked by hand; `report.test.ts`: `aggregate()` populates the new
+      summary fields correctly at both n=1 and n>1, `writeMarkdown` renders the
+      section both ways)
+- [x] 10.5 Paired per-`(scenarioType, model)` win/loss comparison between the
+      `cospec`/`openspec` arms on MATCHED cells (same scenario+model+repeat,
+      neither skipped) for cost, duration, and schema-conformance issues
+      (`src/stats.ts`'s `pairedComparisons`): per-metric win/loss/tie tally,
+      value-range summaries per arm, and a simple two-sided exact sign test
+      (`signTestPValue`, H0: either arm equally likely to win a pair; null when
+      fewer than 2 decided pairs — a single decided pair carries no statistical
+      information). A group is flagged **"not distinguishable at this n"**
+      whenever the two arms' `[min,max]` ranges overlap (the "spread crosses the
+      tie line" case) OR there are fewer than 2 matched pairs, in which case
+      every row states `n=1 — no significance claim` verbatim rather than a bare
+      dash or a spurious verdict. Wired into `summary.md` as a new "Paired
+      comparison" section (`renderPairedComparisonMarkdown`), including at the
+      common n=1 case -> unit-tested (`stats.test.ts`: `rangesOverlap`,
+      `signTestPValue` (null-at-n<2, symmetry, a known-significant lopsided
+      split), and `pairedComparisons` over synthetic `CellResult` fixtures —
+      matched vs. unmatched cells, skipped cells excluded, a metric missing on
+      one side excluding only that metric not the whole pair, all-cospec-wins ->
+      distinguishable, overlapping-range mixed results -> not distinguishable,
+      group sort order; `report.test.ts`: the section renders in `writeMarkdown`
+      and states the n=1 verdict verbatim) -> verified live via the same
+      throwaway `writeMarkdown` script (2 repeats per arm, synthetic
+      cost/duration/conformance data): rendered a correct win tally, sign-test
+      p-value, and "not distinguishable" case
+- [x] 10.6 `docs/bench.md`: new "Repeats and statistical significance" section
+      documenting both 10.4/10.5 (spread + paired comparison, what "not
+      distinguishable at this n" means, the n=1 no-significance-claim
+      convention), and the "Output & redaction contract" section's `summary.md`
+      description updated to name the new sections and the conformance relabel
+      -> verified by reading the rendered doc end-to-end
+- [x] 10.7 Confirm no regression: `bunx tsgo --noEmit` clean,
+      `bun test test/unit` 132/132 pass (99 pre-existing + 33 new across
+      `stats.test.ts` and extended `report.test.ts`/`mechanical.test.ts` cases)
+      -> unit-test count never reduced, per this change's constraint. The full
+      44-cell benchmark matrix was deliberately NOT re-run for this task (10.4
+      /10.5 are machinery-only, per the instruction that spawned them)
+
+## 11. Held-out hidden test suites (escaped-defect rate)
+
+- [x] 11.1 Author one held-out `bun:test` suite per scenario
+      (`packages/bench/scenarios/hidden/<id>/`, 11 dirs, one `*.test.ts` each,
+      4-8 focused cases) — deliberately OUTSIDE every scenario's `fixtureDir` so
+      `src/sandbox.ts`'s `createArmSandbox` (which only ever `cp`s `fixtureDir`
+      into the sandbox) never seeds them; the agent never sees these while doing
+      the task. Each suite targets edge cases beyond the scenario's own visible
+      acceptance path (empty inputs, boundary values, error paths, idempotency),
+      written against the POST-task behavior described in the scenario's own
+      prompt. For behavior-changing scenario types (`feat`, `fix`, `perf`,
+      `revert`, `build`, `ci`) every case is written to fail on the unmodified
+      fixture and pass on a correct fix; for behavior-preserving types
+      (`refactor`, `style`, `chore`, `docs`, `test`, where the completion
+      criterion is structural, not behavioral — the underlying behavior was
+      already correct pre-task and must stay correct post-task) each suite mixes
+      a structural/content check that DOES discriminate with a few
+      behavior-regression guards, documented in `scenarios/hidden/README.md`'s
+      design note. `feat`'s suite uses a dynamic `await import(...)` (rather
+      than a static named import of an export that doesn't exist pre-task) so a
+      missing export fails each affected `test()` individually instead of
+      crashing the whole file at module-link time (verified live: a static
+      import of a nonexistent named export throws `SyntaxError` at load and bun
+      still counts it, just as one lumped failure rather than per-case ->
+      confirmed via a throwaway `/tmp/bt-experiment` repro before choosing the
+      dynamic-import form). `perf`'s two timing cases use data
+      profiles/thresholds DIFFERENT from the scenario's own visible
+      `bench/measure.ts` (N=15000/range=7500/150ms) so an implementation
+      special-cased to that one profile would not also clear these, calibrated
+      empirically on this machine (cold, single-shot `bun` process, no JIT
+      warmup): unmodified nested-loop `dedupe` took ~1000-1400ms on a
+      20000-value/12000-range profile and ~360-395ms on a fully-unique
+      10000-value profile; a Set-backed rewrite took ~1ms on both -> thresholds
+      (400ms, 200ms) sit far below the slow numbers and far above the fast ones
+      -> unit-tested indirectly via 11.3 below (every scenario's
+      fail-before/pass-after check, including `perf`'s, is a real `bun test`
+      spawn against these exact files)
+- [x] 11.2 Wire scoring into the harness (`src/mechanical.ts`): new
+      `parseBunTestSummary` (pure — parses bun's own ` N pass`/` N fail` summary
+      line into `{total, failed}`, null when unparseable, never a fabricated
+      `{total: 0, failed: 0}`) and `scoreHiddenTests` (copies
+      `packages/bench/scenarios/hidden/<scenarioId>/` into the FINISHED sandbox
+      at `hidden-tests/`, sibling to `src/`, then spawns `bun test .` there and
+      parses the summary; null when the scenario has no suite yet).
+      `MechanicalMetrics` gains `hiddenTests: {total, failed} | null`, scored on
+      BOTH branches of `scoreMechanical` (change produced or not) so a cell that
+      never produced a change still gets an escaped-defect signal against
+      whatever source tree exists. New pure helper `escapedDefectRate`
+      (failed/total, null when total is 0) alongside the existing
+      `conformanceIssueCount` -> unit-tested in `mechanical.test.ts`:
+      `parseBunTestSummary` against a normal/all-pass/import-crash/unparseable
+      summary text, `scoreHiddenTests`'s null path (no suite under a fake
+      repoRoot) plus two REAL-CLI cases (the actual `fix` hidden suite scored
+      against a seeded buggy `strings.ts` -> `failed > 0`, and against a correct
+      one -> `failed === 0`), `escapedDefectRate`'s divide-by-total and
+      null-at-zero-total cases
+- [x] 11.3 Verify BOTH directions for all 11 scenarios (per the task's explicit
+      requirement, mirroring how the scenarios stage validated completion
+      predicates against a correct implementation): new
+      `test/unit/hidden.test.ts` scripts a hand-written CORRECT reference fix
+      per scenario id (`REFERENCE_FIXES`, applied directly to a scratch copy of
+      that scenario's fixture — fully independent of the agent/CLI), then runs
+      the real hidden suite via `scoreHiddenTests` against (a) an unmodified
+      scratch copy — asserts `failed > 0` for all 11 — and (b) the same fixture
+      with the reference fix applied — asserts `failed === 0` and `total > 0`
+      for all 11. Also covers registry integrity (every scenario has a hidden
+      suite with 4-8 cases; `hidden/<id>` never overlaps any `fixtureDir`,
+      checked structurally for all 11) and one real integration check: a live
+      `createArmSandbox` call (cospec arm, `ci` fixture) whose resulting sandbox
+      tree is scanned and asserted to contain no `hidden-tests` path anywhere ->
+      all 15 cases in this file pass (11 scenarios' fail-before/pass-after + 4
+      registry/integrity checks)
+- [x] 11.4 Report wiring (`src/report.ts`): `AggregateRow` gains
+      `meanEscapedDefects`/`meanHiddenTestsTotal` (mean failed / mean total
+      hidden-test count over repeats, additive — no existing field touched);
+      `summary.md`'s main table gains an `escaped‡` column
+      (`meanFailed/meanTotal`, dash when unscored) placed next to
+      `native-valid†`, with a new legend line naming it the PRIMARY,
+      tool-neutral defect signal in contrast to `conformance*` (cospec's own
+      rubric) -> unit-tested (`report.test.ts`: aggregate's new fields at both
+      null and populated states, the markdown column/legend text, the
+      dash-rendering path when hidden tests weren't scored)
+- [x] 11.5 `packages/bench/tsconfig.json` excludes `scenarios/hidden/**`: those
+      files assume they'll be copied to `<sandbox>/hidden-tests/` (one level
+      below the fixture root) and import source as `../src/...` accordingly,
+      which does not resolve from their real on-disk location
+      (`scenarios/hidden/<id>/`, two levels from `scenarios/fixtures/<id>/`);
+      `tsgo` cannot type-check them in place, so `bun test` (both at score-time
+      and in 11.3's verification) is the only thing that ever executes them —
+      documented in `scenarios/hidden/README.md`
+- [x] 11.6 `docs/bench.md`: new "Escaped defects (primary defect metric)"
+      section (directory layout, the never-seeded guarantee, the primary-vs-
+      schema-conformance framing, the `escaped‡` column), a new bullet in the
+      existing "Mechanical metrics" list pointing to it, and the "Output &
+      redaction contract" section's `summary.md` description updated to name
+      escaped defects among the reported columns -> verified by reading the
+      rendered doc end-to-end
+- [x] 11.7 Confirm no regression: `bunx tsgo --noEmit` clean (with
+      `scenarios/hidden/**` excluded per 11.5), `mise run lint` exit 0 (no new
+      warnings), `mise run format:check` clean (after one `format:fix` pass),
+      `bun test test/unit` 162/162 pass (132 pre-existing + 30 new: 15 in the
+      new `hidden.test.ts`, 11 in `mechanical.test.ts`
+      (`parseBunTestSummary`/`scoreHiddenTests`/`escapedDefectRate`), 4 in
+      `report.test.ts`, plus the `hiddenTests: null` field added to the shared
+      `mechanical()` fixture factories in `report.test.ts`/`stats.test.ts`) ->
+      unit-test count never reduced, per this change's constraint. The full
+      44-cell benchmark matrix was deliberately NOT run for this task.
+
+## 12. Per-cell diff persistence + adversarial review stage
+
+- [x] 12.1 Persist per-cell code diffs (`src/sandbox.ts`'s new
+      `captureSandboxDiff`): the seed-commit `git diff` for tracked files plus
+      each untracked file's full content (via `git diff --no-index` against
+      /dev/null), EXCLUDING `openspec/`, `.claude/`, `.codex/`, `.opencode/`,
+      and the injected `hidden-tests/` via git pathspec `:(exclude)` magic — so
+      the captured diff is the arm-agnostic engineering change only. `run.ts`
+      captures it after the agent stops but BEFORE `scoreMechanical` seeds
+      `hidden-tests/`, then writes it via `src/report.ts`'s new `writeCellDiff`
+      (REDACTED before a defensive 200k-char size cap — redaction first so a cut
+      never bisects a sentinel) to `<runDir>/snapshots/<cellKey>.diff`
+      (`reports/` is gitignored); `readCellDiff` reads it back. An empty diff is
+      a no-op -> unit-tested: `sandbox.test.ts` (real git — tracked+untracked
+      capture, all five excluded dirs absent from the diff, empty-tree case),
+      `report.test.ts` (`writeCellDiff`/`readCellDiff` round-trip, empty-diff
+      no-op, missing-key undefined, sentinel redaction, oversize truncation
+      marker)
+- [x] 12.2 Adversarial review stage (`src/review.ts`): given a cell's diff +
+      scenario prompt, `reviewDiff` spawns K=2 independent reviewer runs
+      (`claude-haiku-4-5-20251001`, effort high, read-only tools
+      [`Read`,`Grep`,`Glob`], `maxTurns` 15, $1 budget cap, hermetic
+      `settingSources:[]`/`mcpServers:{}`, throwaway empty cwd) each prompted to
+      find real CORRECTNESS bugs (not style, not spec-conformance) and return a
+      strict JSON findings array; findings are deduped (`dedupeFindings`, by
+      normalized title+location), then a per-unique-finding verifier run (same
+      model) is prompted to REFUTE it against the diff — only findings it cannot
+      refute count as confirmed. Result ->
+      `MechanicalMetrics.reviewDefects     {found, confirmed} | null`
+      (optional/absent by default; new `confirmedReviewDefectCount` helper, null
+      when not reviewed). Every LLM boundary is an injected `ReviewRunner`;
+      `defaultReviewRunner` drives the Agent SDK `query()` and returns only the
+      final result text -> unit-tested with a MOCKED runner (`review.test.ts`):
+      finding parse (fenced/prose/empty/ malformed/missing-title), verdict parse
+      (unparseable refutes, never inflates), dedupe, the full K-reviewer ->
+      dedupe -> refute-filter flow (found/confirmed counts), empty-diff
+      short-circuit, refute-all path; `mechanical.test.ts` covers
+      `confirmedReviewDefectCount`
+- [x] 12.3 Reviewer/verifier prompts are ARM-BLIND: `buildReviewPrompt`/
+      `buildVerifierPrompt` scrub every `cospec`/`openspec` identifier from the
+      diff and task (`scrubArmIdentifiers` -> neutral `the-tool`) and pass the
+      built prompt through `assertArmBlind`, which throws if any identifier
+      survives (defense against a programming error reintroducing one) -> unit-
+      tested (`review.test.ts`): `containsArmIdentifier` (case-insensitive, /g
+      lastIndex reset), `scrubArmIdentifiers`, `assertArmBlind` throw/pass, both
+      prompt builders arm-blind against a diff+task that name both tools, and a
+      `reviewDiff` run whose mocked runner asserts every prompt it receives is
+      arm-blind
+- [x] 12.4 Standalone `--review-report <dir>` CLI mode (`run.ts`'s
+      `reviewPastRun`, wired through `matrix.ts`'s `parseArgs`): reviews all
+      cells of a PAST run from its persisted diffs (`snapshots/<cellKey>.diff`)
+      with NO agent re-run, attaches confirmed-defect counts to each cell's
+      mechanical metrics, and rewrites that run's `aggregate.json` +
+      `summary.md` in place; cells with no persisted diff (skipped, or a
+      pre-feature run) are left untouched. The inline version is gated behind
+      `--review` (off by default; documented cost). Confirmed review defects
+      wired into `summary.md`'s main table (`review§` column, dash when
+      unreviewed, with a legend line naming the arm-blind reviewer) and into the
+      paired-comparison stats (new `reviewDefects` metric — lower is better;
+      renders no row when review never ran) -> unit-tested: `matrix.test.ts`
+      (`--review`/`--review-report` parse + missing-value throw),
+      `report.test.ts` (`meanConfirmedReviewDefects` aggregate field
+      null/populated, `review§` column value + dash paths), `stats.test.ts`
+      (`reviewDefects` paired comparison populated + zero-pairs-
+      when-unreviewed)
+- [x] 12.5 `docs/bench.md`: new "Adversarial review (bugs that slipped through)"
+      section (diff persistence + exclusions, K=2 reviewers,
+      refute-then-confirm, arm-blindness, `--review`/`--review-report`, cost
+      note, the `review§` column) and the "Output & redaction contract" section
+      updated to name the persisted diffs and the review column -> verified by
+      reading the rendered doc end-to-end
+- [x] 12.6 Confirm no regression: `mise run typecheck` clean, `mise run lint`
+      exit 0 (no new bench warnings), `mise run format:check` clean (after one
+      `format:fix` pass reformatting `src/sandbox.ts` + `review.test.ts`),
+      `mise run //packages/bench:test` 201/201 pass (162 pre-existing + 39 new
+      across `review.test.ts`, `sandbox.test.ts`, `matrix.test.ts`,
+      `report.test.ts`, `stats.test.ts`, `mechanical.test.ts`),
+      `mise run cospec     -- validate bench-cospec-vs-openspec --strict` passes
+      -> unit-test count never reduced. The full 44-cell benchmark matrix was
+      deliberately NOT run.
+
+## 13. Planted latent bugs (verification-discipline signal)
+
+- [x] 13.1 `scenarios/types.ts` gains a
+      `PlantedBug {file, description,     detector}` interface and an optional
+      `Scenario.plantedBug` field. The 5 heavy scenarios (`feat`, `fix`, `perf`,
+      `refactor`, `revert`) each declare one, seeded ADJACENT to (never inside)
+      that scenario's own task subject: `feat`'s `removeItem` (rewritten to only
+      drop the FIRST matching cart line item, via findIndex/splice instead of
+      filter), `fix`'s new sibling `capitalize` (`input.slice(2)` instead of
+      `input.slice(1)`), `perf`'s new sibling `countUnique` (`seen.size + 1`
+      fencepost error), `refactor`'s new sibling `validateAge` (`age >= 120`
+      instead of `age > 120` at the upper boundary), `revert`'s new sibling
+      `farewell` (`name.length > 1` instead of `name.length > 0`) -> unit-tested
+      (`test/unit/planted.test.ts`): every heavy scenario declares a plant,
+      matched to a real detector file -> verified with a real `bun test` run
+      against each edited fixture (see 13.2)
+- [x] 13.2 Re-verified, for every fixture edited in 13.1, that the plant does
+      NOT break: (a) the scenario's own visible test suite (`bun test` in the
+      fixture root — unchanged pass/fail counts before/after: `feat` 3/3, `perf`
+      2/2, `refactor` 9/9 pass; `fix`/`revert` still fail exactly the one
+      pre-existing, by-design case the task itself must fix); (b) the scenario's
+      `completed` predicate (unaffected — none of it inspects the
+      planted-adjacent function); (c) the existing `scenarios/hidden/<id>/`
+      suite's fail-before/pass-after guarantee in `test/unit/hidden.test.ts`
+      (re-run green; none of those suites reference the newly added functions)
+      -> verified by direct `bun test` runs against each fixture plus a full
+      `mise run //packages/bench:test` pass
+- [x] 13.3 Per-plant held-out detector at `scenarios/planted/<id>/` (never
+      seeded into the agent's sandbox — same discipline as `scenarios/hidden/`,
+      documented in new `scenarios/planted/README.md`): one `planted.test.ts`
+      per heavy scenario, each verified (13.4) to FAIL against the fixture as
+      seeded and PASS once a scripted, targeted, task-independent fix patches
+      only the planted line
+- [x] 13.4 `src/mechanical.ts` gains
+      `scorePlantedBug(repoRoot, sandbox,     scenario)`: copies
+      `scenarios/planted/<id>/` into the FINISHED sandbox at `planted-check/` (a
+      directory and `bun test` invocation SEPARATE from `scoreHiddenTests`'s
+      `hidden-tests/`, so a plant is never folded into the escaped-defect
+      tally), runs it, and returns `boolean | null` — null when the scenario has
+      no plant or the summary is unparseable, else whether the detector passed.
+      Wired into `MechanicalMetrics.plantedBugCaught` (both branches of
+      `scoreMechanical`) -> unit-tested: `mechanical.test.ts`
+      (null-when-no-plant against a real no-plant scenario, false/true against
+      the real `fix` detector run over a seeded/fixed `strings.ts`),
+      `test/unit/planted.test.ts` (registry integrity — every heavy scenario has
+      a matching detector, `planted/<id>/` never overlaps any `fixtureDir`,
+      `createArmSandbox` never seeds `planted-check/` — plus the
+      fail-before/pass-after check per scenario via a scripted targeted fix
+      independent of `hidden.test.ts`'s `REFERENCE_FIXES`)
+- [x] 13.5 `tsconfig.json`'s `exclude` gains `scenarios/planted/**` (same reason
+      as `scenarios/hidden/**` — these files assume they are copied to
+      `<sandbox>/planted-check/` and import accordingly; `tsgo` cannot resolve
+      that in place)
+- [x] 13.6 Reporting: `AggregateRow.plantedBugCaughtRate` (mean of
+      `MechanicalMetrics.plantedBugCaught` over repeats, `rate()` helper — null
+      when the scenario has no plant or no cell scored it) wired into
+      `summary.md`'s main table as a new `plant¶` column (dash when unscored)
+      with a legend line explicitly naming it distinct from `escaped‡` (no
+      double-count) -> unit-tested: `report.test.ts` (`plantedBugCaughtRate`
+      null/populated aggregate cases, `plant¶` column value + dash rendering
+      paths)
+- [x] 13.7 `docs/bench.md`: new "Planted bugs (verification-discipline signal)"
+      section (mechanism, the 5 planted defects, `plantedBugCaught`,
+      explicitly-not-a-double-count framing, the `plant¶` column) plus a bullet
+      in "Mechanical metrics" and an update to "Output & redaction contract"
+      naming the new column -> verified by reading the rendered doc end-to-end
+- [x] 13.8 Confirm no regression: `mise run typecheck` clean, `mise run lint`
+      exit 0 (no new bench warnings — only pre-existing unrelated warnings in
+      `apps/cli`), `mise run format:check` clean (after one `format:fix` pass
+      reformatting `docs/bench.md`, this change's `proposal.md`, `report.ts`,
+      `mechanical.test.ts`, `scenarios/planted/README.md`),
+      `mise run //packages/bench:test` 218/218 pass (201 pre-existing + 17 new
+      across `planted.test.ts` (new file, 10 tests), `mechanical.test.ts` (3),
+      `report.test.ts` (4)),
+      `mise run cospec -- validate     bench-cospec-vs-openspec --strict` passes
+      -> unit-test count never reduced. The full 44-cell benchmark matrix was
+      deliberately NOT run.
+
+## 14. Opt-in `-hard` variants (multi-file, higher-stakes)
+
+- [x] 14.1 5 new multi-file fixtures under `scenarios/fixtures/<type>-hard/`
+      (8-15 files each, real state/error-paths/boundary conditions, a task
+      spanning 3+ files): `feat-hard` (an inventory/cart/pricing/orders checkout
+      library — 11 files; task adds store credit, touching `types.ts`,
+      `pricing.ts`, `orders.ts`), `fix-hard` (a token-bucket rate limiter split
+      into `bucket.ts`/`store.ts`/`limiter.ts` — 10 files; three related bugs,
+      one per file: a `Math.floor` fractional-second refill truncation, a
+      `capacity - 1` reset off-by-one, and a missing `store.set` that silently
+      never persists consumed tokens), `perf-hard`
+      (`dedupe`/`groupBy`/`searchBatch` across 3 files, each O(n^2) or
+      O(queries*docs*words) — 10 files; `bench/measure.ts` checks correctness +
+      an independent speed threshold per function, calibrated empirically: naive
+      ~400ms/~207ms/~400ms vs optimized ~1ms/~2ms/~7ms on this machine),
+      `refactor-hard` (the same non-empty-string guard duplicated across THREE
+      SEPARATE FILES — `email.ts`/`username.ts`/`password.ts`, not three
+      functions in one file — 10 files; task removes the duplication across all
+      three), `revert-hard` (a single "hype rebrand" regressed
+      `greet`/`formatDisplayName`/`formatPrice` across
+      `greet.ts`/`format.ts`/`currency.ts`, documented in one shared
+      CHANGELOG.md — 10 files; task reverts all three) -> every fixture's
+      visible test suite verified green as authored (`bun test .` in each
+      fixture root: feat-hard 20/20, perf-hard 7/7, refactor-hard 9/9 pass;
+      fix-hard 10/15 pass with the 5 expected pre-seeded failures across all 3
+      bug files; revert-hard 0/3 pass, all 3 failing exactly as documented by
+      CHANGELOG.md)
+- [x] 14.2 `scenarios/types.ts` already supports `id !== type` (`PlantedBug` +
+      `Scenario.id`/`Scenario.type` were already separate fields from task #3) —
+      no change needed. New
+      `scenarios/{feat,fix,perf,refactor,revert}     -hard.ts` scenario
+      definitions: `id` suffixed `-hard`, `type` stays the BASE cospec type
+      (e.g. `feat-hard` is `type: 'feat'`, so `src/mechanical.ts`'s
+      artifact-proportionality scoring — keyed off `scenario.type` via canon
+      `TYPE_ARTIFACTS` — treats it exactly like a `feat` change),
+      `maxTurns: 150` (vs. 70/120 for the standard scenarios), a `completed`
+      predicate, and a `plantedBug`. `scenarios/index.ts` gains `HARD_SCENARIOS`
+      (the 5 hard variants, separate from the untouched 11-scenario `SCENARIOS`
+      core registry) and `ALL_SCENARIOS` (their union); `scenarioById` now
+      searches `ALL_SCENARIOS` so a hard id resolves -> unit-tested:
+      `test/unit/scenarios-hard.test.ts` (new, 11 tests) — exactly 5, one per
+      heavy type; ids suffixed `-hard`; a hard variant shares its base `type`
+      with (but never the same `id` as) the regular scenario of that type;
+      `SCENARIOS`' own "exactly 11" invariant left untouched; `ALL_SCENARIOS` is
+      exactly 16 with unique ids; `scenarioById` resolves every id in the union;
+      fixtureDir/maxTurns/prompt/title/completed/ plantedBug all present and
+      well-formed
+- [x] 14.3 `src/matrix.ts` gains a `--hard` boolean flag (`MatrixFilters.hard`).
+      `expandMatrix`'s DEFAULT (no `--scenario` filter) axis excludes any
+      `-hard`-suffixed id unless `--hard` is set; an EXPLICIT
+      `--scenario feat-hard` always resolves regardless of `--hard`, since it is
+      matched directly against `availableIds`. `src/run.ts` passes
+      `ALL_SCENARIOS`' ids as `availableIds` unconditionally (so an explicit
+      hard id is never reported "unknown") and reads `scenarioSentinels()` from
+      `ALL_SCENARIOS` (so hard-variant `BENCH-*-HARD` prompt refs are redacted
+      too) -> unit-tested: `matrix.test.ts` (`--hard` parses with no value; the
+      default axis excludes `-hard` ids unless `--hard` is set; an explicit
+      `--scenario feat-hard` resolves regardless of `--hard`)
+- [x] 14.4 Held-out hidden suites at `scenarios/hidden/<id>-hard/` (8-12 cases
+      each, vs. 4-8 for the standard scenarios — same never-seeded discipline as
+      `scenarios/hidden/<id>/`), and planted-bug detectors at
+      `scenarios/planted/<id>-hard/` (one plant per hard variant, adjacent to
+      but never inside its task subject: `feat-hard`'s `releaseStock` off-by-one
+      capacity cap, `fix-hard`'s `isBucketFull` boundary comparison,
+      `perf-hard`'s `countGroups` fencepost, `refactor-hard`'s `validateAge`
+      boundary, `revert-hard`'s `initials` missing separators) -> unit-tested in
+      two NEW files (kept separate from `hidden.test.ts`/ `planted.test.ts` so
+      those files' tighter 4-8 case bound and the core-11/5-heavy invariants
+      stay pure statements about the core registry):
+      `test/unit/hidden-hard.test.ts` (9 tests — 8-12 case count per suite, no
+      fixtureDir overlap, a scripted reference fix per hard scenario
+      (`REFERENCE_FIXES_HARD`), `createArmSandbox` never seeds `hidden-tests/`
+      into a hard-variant sandbox, and a real fail-before/pass-after
+      `scoreHiddenTests` run per scenario) and `test/unit/planted-hard.test.ts`
+      (10 tests — registry integrity + `PLANTED_FIXES_HARD`
+      fail-before/pass-after `scorePlantedBug` run per scenario)
+- [x] 14.5 Fixed a related latent report/stats bug this feature would have
+      exposed the moment a `-hard` cell and its base scenario ran in the same
+      matrix: `CellResult`/`AggregateRow` (`src/report.ts`) and
+      `PairedComparisonGroup` (`src/stats.ts`) grouped/displayed by
+      `scenarioType` (sourced from `Scenario.type`), which is NOT unique once a
+      hard variant shares a base type with its regular counterpart — a `feat`
+      cell and a `feat-hard` cell would have silently merged into one
+      `summary.md` row and been wrongly cross-paired in the paired-comparison
+      stats. Renamed the field to `scenarioId` throughout (sourced from
+      `Scenario.id`/`Cell.scenarioId`, which is unique across every registered
+      scenario — the 11 core ids never differed from their type anyway, so this
+      is a NO-OP for every existing report), including the `summary.md` column
+      header (`type` -> `scenario`) and the "Paired comparison" table header ->
+      unit-tested: `report.test.ts` (new case: a `feat`/`feat-hard` pair of
+      results produces 2 separate aggregate rows, not 1), `stats.test.ts` (new
+      case: a `feat`/`feat-hard` pair across arms produces 0 matched pairs per
+      metric, never cross-paired) — plus every pre-existing `scenarioType`-keyed
+      test/fixture-factory mechanically renamed to `scenarioId`
+      (behavior-preserving; values unchanged)
+- [x] 14.6 `docs/bench.md`: new "Hard-mode variants (opt-in, `--hard`)" section
+      with a **cost warning** (multi-file, `maxTurns: 150`, meaningfully pricier
+      per cell than a standard cell of the same type; `--hard` grows the
+      scenario-id count from 11 to 16), the mechanism
+      (`HARD_SCENARIOS`/`ALL_SCENARIOS`, id-vs-type distinction, default-axis
+      gating), and usage examples; `--hard` added to the CLI-flags table; the
+      "Output & redaction contract" section updated to name the
+      scenario-id-not-type grouping fix -> verified by reading the rendered doc
+      end-to-end
+- [x] 14.7 Confirm no regression: `mise run typecheck` clean, `mise run lint`
+      exit 0 (no new bench warnings — only pre-existing unrelated warnings in
+      `apps/cli`), `mise run format:check` clean (after one `format:fix` pass
+      reformatting `docs/bench.md`, this change's `tasks.md`/`proposal.md`,
+      `scenarios/index.ts`, `src/matrix.ts`, and several new fixture/test
+      files), `mise run //packages/bench:test` 253/253 pass (218 pre-existing +
+      35 new across `scenarios-hard.test.ts` (11, new file),
+      `hidden-hard.test.ts` (9, new file), `planted-hard.test.ts` (10, new
+      file), `matrix.test.ts` (3), `report.test.ts` (1), `stats.test.ts` (1)),
+      `mise run cospec -- validate bench-cospec-vs-openspec --strict` passes ->
+      unit-test count never reduced. The full 44-cell (or 64-cell with `--hard`)
+      benchmark matrix was deliberately NOT run.
+
+## 15. End-to-end verification pass (full gate + registry integrity + live smokes)
+
+- [x] 15.1 `mise run check` from repo root -> green with no fallout to fix: lint
+      (0 errors; only the 3 pre-existing `apps/cli` unicorn warnings),
+      format:check, typecheck (`cospec`, `cospec-bench`, `e2e/tsconfig.json`),
+      `generate:check` (no drift), `agents:check` (shared blocks in sync),
+      `vendor:openspec:check`, `cospec-validate-all` (0 errors/warnings across 2
+      changes/12 specs), `openspec:schema:validate` (all 11 schemas valid), and
+      every test project: `apps/cli` unit 543/543, integration 92/92, contract
+      29/29; `packages/bench` 253/253; `e2e` release-test 14/14
+- [x] 15.2 Registry invariants re-confirmed: `SCENARIOS` = 11 (one per cospec
+      schema type), `HARD_SCENARIOS` = 5, `ALL_SCENARIOS` = 16 unique ids,
+      `scenarioById` resolves all 16 -> read `scenarios/index.ts` directly
+- [x] 15.3 Wrote one throwaway scratchpad script (deleted after use, per
+      instructions — never checked in) that re-ran, independently of the
+      permanent suite, the scripted fail-on-seed/pass-on-reference check for all
+      16 scenarios across 3 signals: the scenario's own `completed` predicate
+      (false on the unmodified fixture, true after the scripted correct
+      reference fix), the held-out hidden-test suite (`failed > 0` before,
+      `failed === 0` after), and the planted-bug detector where declared
+      (`false` before, `true` after the scripted targeted fix; `n/a` for the 6
+      scenarios with no plant). Result: **16/16 scenarios, all applicable checks
+      OK** (48 cells checked: 16 completed + 16 hidden + 10 planted + 6 n/a) ->
+      full 16x3 matrix:
+
+      | id | completed(before→after) | hidden.failed(before→after) | planted(before→after) |
+      | --- | --- | --- | --- |
+      | build | false→true | 4→0 | n/a |
+      | chore | false→true | 2→0 | n/a |
+      | ci | false→true | 3→0 | n/a |
+      | docs | false→true | 3→0 | n/a |
+      | feat | false→true | 7→0 | false→true |
+      | fix | false→true | 5→0 | false→true |
+      | perf | false→true | 2→0 | false→true |
+      | refactor | false→true | 1→0 | false→true |
+      | revert | false→true | 5→0 | false→true |
+      | style | false→true | 2→0 | n/a |
+      | test | false→true | 4→0 | n/a |
+      | feat-hard | false→true | 10→0 | false→true |
+      | fix-hard | false→true | 9→0 | false→true |
+      | perf-hard | false→true | 3→0 | false→true |
+      | refactor-hard | false→true | 1→0 | false→true |
+      | revert-hard | false→true | 9→0 | false→true |
+
+- [x] 15.4 Live smoke (a):
+      `mise run bench -- --scenario ci --arm openspec     --model claude-sonnet-5`
+      -> ran 1 cell, `done (success)`; confirmed in the fresh report:
+      `hiddenTests: {total:4, failed:0}` and `escaped‡ 0.0/4.0` in `summary.md`;
+      `schemaConformance` populated and the `conformance*` column/legend present
+      (relabel landed); `snapshots/ci__openspec__claude-     sonnet-5__r1.diff`
+      persisted (the `.github/workflows/lint.yml` addition, redacted).
+      Telemetry: 120905ms, $1.1275, 62 tok-in / 6923 tok-out
+- [x] 15.5 Live smoke (b): standalone review mode over that same report dir —
+      `mise run bench -- --review-report <dir>` ->
+      `reviewed     ci__openspec__claude-sonnet-5__r1 — found 0, confirmed 0`;
+      rewrote `aggregate.json`
+      (`mechanical.reviewDefects: {found:0, confirmed:0}`) and `summary.md`
+      (`review§` column now `0.0` instead of a dash) in place. 0 confirmed is a
+      legitimate outcome for a single-file CI-workflow diff; no "review failed"
+      warning was logged, so the K=2 reviewer pass ran for real. Arm-blindness
+      relies on `review.ts`'s `assertArmBlind` (unit-tested in
+      `test/unit/review.test.ts`), not re-verified by hand here
+- [x] 15.6 Live smoke (c): planted-bug cell —
+      `mise run bench -- --scenario fix     --arm cospec --model claude-sonnet-5`
+      -> ran 1 cell, `done (success)`; `mechanical.plantedBugCaught: false`
+      populated (a real, non-fabricated value — the agent correctly fixed
+      `truncate` per the diff and hidden suite
+      (`hiddenTests: {total:5, failed:0}`) but left the adjacent `capitalize`
+      off-by-one untouched, exactly the discrimination the plant is designed to
+      catch). Telemetry: 112729ms, $0.7242, 62 tok-in / 6392 tok-out
+- [x] 15.7 **Harness bug found and fixed via smoke (c)**: `taskCompleted` was
+      `false` for the fix-scenario cell above even though the agent's diff
+      correctly fixed `truncate` alone (confirmed by reproducing the identical
+      diff against a fresh sandbox in isolation, where `completed` returned
+      `true`). Root cause: `scoreMechanical` runs `scoreHiddenTests` and
+      `scorePlantedBug` — which each `cp` a scratch suite into the sandbox at
+      `<sandbox>/hidden-tests/` and `<sandbox>/planted-check/` respectively and
+      never removed it — BEFORE `taskCompleted`, and 8 of the 11 core scenarios'
+      (and all 5 hard variants') own `completed` predicates spawn a bare,
+      unscoped `bun test` at the sandbox ROOT. That later invocation recursively
+      picked up the leftover `hidden-tests/*.test.ts` and
+      `planted-check/*.test.ts` files alongside the real suite — for `fix`,
+      `planted-check/planted.test.ts` asserts the (still-unfixed) `capitalize`
+      plant, which failed and flipped the sandbox-root `bun test` exit code to
+      nonzero, corrupting `taskCompleted` to `false` for a cell that actually
+      completed its task. Reproduced directly (`bun test` at a scratch sandbox
+      root with both leftover dirs present: exit 1, 2 failures) before fixing.
+      **This was invisible to every prior verification pass** (including 15.3's
+      own fresh-scratch-per-check matrix) because those checks always scored
+      `completed`/hidden/planted from separate, independently-seeded scratch
+      copies — never all three against the SAME directory in the same order
+      `scoreMechanical` uses in production, which is the only place the
+      interaction occurs
+- [x] 15.8 Fix: `scoreHiddenTests`/`scorePlantedBug` (`src/mechanical.ts`) now
+      `rm(dest, {recursive:true, force:true})` their copied directory in a
+      `finally` block before returning (success or thrown), so neither
+      `hidden-tests/` nor `planted-check/` ever persists past its own scoring
+      call regardless of downstream call order -> re-verified the exact fix
+      repro (same diff, same sandbox shape): 0 leftover dirs after scoring, bare
+      `bun test` at sandbox root now exits 0
+- [x] 15.9 Re-ran smokes (a) and (c) unaffected by the fix (ci scenario's
+      `completed` never called `bun test` at the point of failure risk — the
+      `openspec` arm result was already correct — but its own generated
+      `.github/workflows/` structure is untouched by this change) and added 2
+      permanent regression tests (`test/unit/mechanical.test.ts`): one per
+      function, seeding a real `src/strings.ts` + passing `src/strings.test.ts`
+      visible suite, asserting the copied directory is gone (`existsSync` false)
+      and that a subsequent bare `spawnIn(['bun',     'test'], sandbox)` at the
+      sandbox root exits 0 -> `mise run     //packages/bench:test` 255/255 pass
+      (253 pre-existing + 2 new; none removed)
+- [x] 15.10 Full gate re-confirmed after the fix: `mise run typecheck` clean,
+      `mise run lint` exit 0 (same 3 pre-existing unrelated warnings only),
+      `mise run format:check` clean (no diff from a `format:fix` pass — this
+      change's edits were already correctly formatted),
+      `mise run     //packages/bench:test` 255/255,
+      `mise run cospec -- validate     bench-cospec-vs-openspec --strict` passes
+      (0 errors/warnings)
