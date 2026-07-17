@@ -20,11 +20,9 @@ mise run bench           # full matrix
 mise run bench:smoke     # one cheap cell: ci scenario, sonnet-5/high, cospec arm
 ```
 
-Auth is inherited from the process environment — a Claude Code session (via
-`CLAUDE_CONFIG_DIR`) or `ANTHROPIC_API_KEY` if set. A cell whose agent cannot
-authenticate is skipped gracefully rather than reported as a zeroed run. Without
-`DEEPSEEK_API_KEY` the run still executes; quality scores are recorded as
-`null`.
+Auth is inherited from the process environment — see [Auth](#auth) below for how
+to route a run to a specific Claude account. Without `DEEPSEEK_API_KEY` the run
+still executes; quality scores are recorded as `null`.
 
 CLI filters narrow each axis (pass after `--`, e.g.
 `mise run bench -- --scenario feat --arm cospec`):
@@ -40,10 +38,36 @@ CLI filters narrow each axis (pass after `--`, e.g.
 | `--hard`                | off     | include the opt-in `-hard` variants in the default matrix — see below |
 | `--review`              | off     | run the adversarial review stage inline (extra agents — see below)    |
 | `--review-report <dir>` | —       | review a past run's persisted diffs; no matrix run                    |
+| `--publish`             | off     | after the run, render the committed publish artifacts — see below     |
+| `--publish-from <dir>`  | —       | render publish artifacts from a past report; no matrix run            |
 
 Judge configuration is environment-only, sharing the eval's defaults:
 `DEEPSEEK_API_KEY` (presence gates judging), `DEEPSEEK_MODEL_ID`
 (`deepseek-v4-flash`), `DEEPSEEK_BASE_URL` (`https://api.deepseek.com`).
+
+## Auth
+
+Auth is inherited from the process environment — a Claude Code session (via
+`CLAUDE_CONFIG_DIR`) or `ANTHROPIC_API_KEY` if set. A cell whose agent cannot
+authenticate is skipped gracefully rather than reported as a zeroed run.
+
+By **default**, a run authenticates as whatever account the invoking shell
+session is already using — the same account `mise run bench` inherits from
+however Claude Code itself was launched. To route a run to a **specific**
+account instead (see this machine's multi-account setup in the root
+`CLAUDE.md`), set `CLAUDE_CONFIG_DIR` before invoking:
+
+```bash
+CLAUDE_CONFIG_DIR=~/.claude-accounts/aligned mise run bench -- --smoke
+```
+
+This works because `src/agent.ts`'s `buildAgentEnv` spreads the harness
+process's own `env` into the Agent SDK's `query()` `env` option BEFORE
+overlaying `CLAUDE_CODE_EFFORT_LEVEL` — the SDK forwards `Options.env` verbatim
+to the spawned Claude Code child process's environment, so every variable the
+invoking shell set (in particular `CLAUDE_CONFIG_DIR`) reaches the agent that
+actually authenticates, exactly as it would for an interactive session.
+`ANTHROPIC_API_KEY`, if set, wins over any session-based auth.
 
 ## The matrix
 
@@ -350,6 +374,62 @@ place. `summary.md`'s `review§` column reports the mean confirmed review defect
 per `(type, arm, model)` group (a dash when review did not run), and the paired
 comparison gains a `review defects` metric.
 
+## Publishing
+
+Every report under `packages/bench/reports/<ts>/` is git-ignored and local-only
+(see "Output & redaction contract" below). **Publishing** renders two COMMITTED,
+tracked artifacts from a run's aggregate — `src/publish.ts`:
+
+- **`packages/bench/RESULTS.md`** — the full human-friendly document: a
+  provenance header, then exactly the same per-scenario × arm × model table,
+  legend/footnotes, "Repeat spread", and "Paired comparison" sections
+  `summary.md` renders (`report.ts`'s `renderSummaryBody`, shared rather than
+  duplicated).
+- **The root `README.md`'s managed block**, between `<!-- bench:start -->` and
+  `<!-- bench:end -->` markers — a compact top-line table, one row per (arm,
+  model) collapsed across every scenario (escaped defects, confirmed review
+  defects, planted-bug catch rate, mean cost, mean duration —
+  `aggregateByArmModel`/`renderCompactArmModelMarkdown`, reusing the exact same
+  `reduceGroup` reduction `summary.md`'s per-scenario rows use), the same
+  provenance header, and a link out to `RESULTS.md` for the full detail. The
+  replace is **idempotent** — re-publishing rewrites only the content between
+  the markers, mirroring `scripts/mise-tasks/agents/sync`'s CLAUDE.md
+  shared-block pattern. If `README.md` has no markers yet, the block is inserted
+  before the first `## License` heading (or appended at the end if there is
+  none).
+
+Two flags drive it:
+
+- **`--publish`** — after a live matrix run finishes, publish from that run's
+  own results (in addition to writing the usual gitignored report).
+- **`--publish-from <reportDir>`** — standalone mode: re-render the publish
+  artifacts from an EXISTING report dir's `aggregate.json`, with no agent re-run
+  at all. Works with a hand-merged report directory too (e.g.
+  `packages/bench/reports/2026-07-16-full-run-merged/`), since it only ever
+  reads `{meta, cells}` back off disk. Mutually exclusive with every
+  cell-selecting flag, `--publish`, and `--review-report` — it is its own
+  standalone mode, like `--review-report`, and only one standalone mode may run
+  per invocation.
+
+**Provenance is point-in-time, not a release guarantee.** Both documents open
+with the same header: the commit SHA (hyperlinked to
+`https://github.com/<org>/<repo>/commit/<sha>`, with org/repo derived from the
+`origin` remote at runtime — never hardcoded), the tag name if HEAD is EXACTLY
+tagged, the publish date (ISO), the Claude Code version, the model ids + efforts
+and arms actually present in the published results, cell/repeat counts, and
+judge status. When the working tree was dirty or the branch wasn't `main` at
+publish time, an explicit **WARNING** banner says so — and the publish still
+happens regardless; the banner is a disclosure, not a gate. This is why the
+**canonical publish** is from a clean `main` checkout: `RESULTS.md`/the README
+block read as "what cospec looked like at commit X," and that claim is only as
+trustworthy as the commit it names. A publish from a dirty branch (e.g. while
+developing this very feature) is legitimate for smoke-testing the mechanism, but
+its WARNING banner is the harness telling you, honestly, not to treat it as that
+release-verified claim.
+
+Every publish passes through the same redaction self-check as every other bench
+artifact (see below) before either file is written.
+
 ## Output & redaction contract
 
 Reports are written to `packages/bench/reports/<ts>/` (git-ignored): per-cell
@@ -369,3 +449,12 @@ ids, durations, token/cost telemetry, and redacted artifact/diff text — never 
 API key, raw prompt, completion, or fixture-unique string. If any sentinel
 survives into a report object, the write throws rather than leak. This mirrors
 the [eval's redaction discipline](./eval.md#redaction-contract).
+
+`packages/bench/RESULTS.md` and the root `README.md`'s managed block (see
+"Publishing" above) are the only bench artifacts that are NOT git-ignored — they
+are the committed, share-with-the-team view of a run, rendered on demand via
+`--publish`/`--publish-from` rather than written automatically by every run.
+They pass through the exact same sentinel self-check before either file is
+written, so a publish carries the same guarantee as every gitignored report:
+only counts, scores, telemetry, and provenance — never a key, prompt,
+completion, or fixture-unique string.

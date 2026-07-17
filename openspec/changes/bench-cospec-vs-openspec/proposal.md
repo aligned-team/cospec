@@ -152,6 +152,31 @@ validation, artifact fidelity, and DeepSeek-judged quality.
   change for the 11 core scenarios, where id and type always matched 1:1).
   `docs/bench.md` gains a "Hard-mode variants" section with a cost warning
   (multi-file, `maxTurns: 150`, meaningfully pricier per cell).
+- **Results publishing** — two flags (`--publish`, run after a live matrix
+  completes; `--publish-from <reportDir>`, standalone, re-renders from an
+  EXISTING report dir's `aggregate.json` with no agent re-run — works with a
+  hand-merged report dir too) render two artifacts that, unlike everything else
+  the harness writes, are COMMITTED rather than git-ignored (`src/publish.ts`):
+  `packages/bench/RESULTS.md` (a provenance header plus exactly `summary.md`'s
+  table/legend/stats sections, reused via `report.ts`'s new `renderSummaryBody`
+  rather than duplicated) and an idempotent managed block in the root
+  `README.md` between `<!-- bench:start -->`/ `<!-- bench:end -->` markers (a
+  compact per-arm×model table via a new `aggregateByArmModel`, plus a link out
+  to `RESULTS.md`), mirroring `scripts/mise-tasks/agents/sync`'s CLAUDE.md
+  shared-block replace pattern and inserting before `## License` when the README
+  has no markers yet. Both documents share one provenance header: the commit SHA
+  (hyperlinked to `https://github.com/<org>/<repo>/commit/<sha>`, org/repo
+  derived from the `origin` remote at runtime, never hardcoded), the tag if HEAD
+  is exactly tagged, ISO publish date, Claude Code version, model ids + efforts,
+  cell/ repeat counts, judge status, and an explicit WARNING banner — never
+  blocking — when the working tree is dirty or the branch isn't `main`, since a
+  publish is a point-in-time claim about a specific commit and the canonical
+  publish is from a clean `main` checkout. Confirmed live that `src/agent.ts`
+  already forwarded the parent process env (in particular `CLAUDE_CONFIG_DIR`,
+  this machine's multi-account switch) to the spawned Agent SDK `query()` before
+  this change; extracted it into a documented, independently-tested
+  `buildAgentEnv` rather than leaving it an inline object literal. Every write
+  passes the existing redaction self-check.
 - Fixed a real scoring bug found via a live smoke run, not a code read:
   `scoreHiddenTests`/`scorePlantedBug` (`src/mechanical.ts`) copied a scratch
   test suite into the finished sandbox (`hidden-tests/`, `planted-check/`) and

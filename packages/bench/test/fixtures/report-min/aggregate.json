@@ -1,0 +1,104 @@
+{
+  "meta": {
+    "version": 1,
+    "startedAt": "2026-07-17T00:00:00.000Z",
+    "claudeCodeVersion": "2.1.211",
+    "judgeModel": "deepseek-v4-flash",
+    "judgeEnabled": true,
+    "totalCells": 2,
+    "ranCells": 2,
+    "skippedCells": 0
+  },
+  "cells": [
+    {
+      "cell": {
+        "scenarioId": "ci",
+        "arm": "cospec",
+        "model": "claude-sonnet-5",
+        "repeat": 1
+      },
+      "scenarioId": "ci",
+      "telemetry": {
+        "isError": false,
+        "claudeCodeVersion": "2.1.211",
+        "resolvedModel": "claude-sonnet-5",
+        "resultSubtype": "success",
+        "durationMs": 100000,
+        "durationApiMs": 90000,
+        "numTurns": 20,
+        "totalCostUsd": 0.5,
+        "stopReason": "end_turn",
+        "terminalReason": "completed",
+        "usage": {
+          "inputTokens": 50,
+          "outputTokens": 5000,
+          "cacheReadInputTokens": 100000,
+          "cacheCreationInputTokens": 10000
+        }
+      },
+      "mechanical": {
+        "changeProduced": true,
+        "changeArchived": true,
+        "stampedSchema": "ci",
+        "armNativeValidatePass": true,
+        "schemaConformance": { "errors": 0, "warnings": 0, "byRule": {} },
+        "artifactFiles": ["proposal.md", "tasks.md"],
+        "forbiddenArtifacts": [],
+        "missingRequiredArtifacts": [],
+        "tasksAllChecked": true,
+        "taskCompleted": true,
+        "hiddenTests": { "total": 4, "failed": 0 },
+        "plantedBugCaught": null
+      },
+      "quality": null,
+      "judgeError": "3 sample(s) failed: http 402 x3"
+    },
+    {
+      "cell": {
+        "scenarioId": "ci",
+        "arm": "openspec",
+        "model": "claude-sonnet-5",
+        "repeat": 1
+      },
+      "scenarioId": "ci",
+      "telemetry": {
+        "isError": false,
+        "claudeCodeVersion": "2.1.211",
+        "resolvedModel": "claude-sonnet-5",
+        "resultSubtype": "success",
+        "durationMs": 120000,
+        "durationApiMs": 110000,
+        "numTurns": 22,
+        "totalCostUsd": 0.8,
+        "stopReason": "end_turn",
+        "terminalReason": "completed",
+        "usage": {
+          "inputTokens": 60,
+          "outputTokens": 6000,
+          "cacheReadInputTokens": 120000,
+          "cacheCreationInputTokens": 12000
+        }
+      },
+      "mechanical": {
+        "changeProduced": true,
+        "changeArchived": true,
+        "armNativeValidatePass": true,
+        "schemaConformance": {
+          "errors": 1,
+          "warnings": 2,
+          "byRule": { "ci-missing-x": 1 }
+        },
+        "artifactFiles": ["proposal.md"],
+        "forbiddenArtifacts": [],
+        "missingRequiredArtifacts": [],
+        "tasksAllChecked": true,
+        "taskCompleted": true,
+        "hiddenTests": { "total": 4, "failed": 1 },
+        "plantedBugCaught": null
+      },
+      "quality": null,
+      "judgeError": "3 sample(s) failed: http 402 x3"
+    }
+  ],
+  "aggregates": []
+}

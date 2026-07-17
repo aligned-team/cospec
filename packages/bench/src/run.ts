@@ -16,6 +16,7 @@ import { runAgent, type AgentTelemetry } from './agent.ts'
 import { collectArtifactText, judgeArtifacts, type JudgeConfig } from './judge.ts'
 import { cellKey, expandMatrix, parseArgs, type Cell, type MatrixFilters } from './matrix.ts'
 import { resolveChange, scoreMechanical, snapshotChangeArtifacts } from './mechanical.ts'
+import { publishFromReportDir, publishResults } from './publish.ts'
 import { redactText, type Sentinels } from './redact.ts'
 import {
   appendCellResult,
@@ -30,6 +31,7 @@ import {
 } from './report.ts'
 import { defaultReviewRunner, reviewDiff } from './review.ts'
 import { captureSandboxDiff, createArmSandbox, teardown } from './sandbox.ts'
+import { buildSentinels } from './sentinels.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = join(HERE, '..', '..', '..')
@@ -37,28 +39,6 @@ const SCENARIOS_DIR = join(HERE, '..', 'scenarios')
 
 function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
-}
-
-/** Fixture-unique refs embedded in scenario prompts, scrubbed from any report. */
-function scenarioSentinels(): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const s of ALL_SCENARIOS) {
-    for (const ref of s.prompt.match(/BENCH-[A-Z0-9-]+/g) ?? []) {
-      out[`ref:${s.id}:${ref}`] = ref
-    }
-  }
-  return out
-}
-
-/** Sentinels for the redaction guard: fixture refs plus any API keys in the env. */
-function buildSentinels(): Sentinels {
-  const deepseekKey = process.env['DEEPSEEK_API_KEY']
-  const anthropicKey = process.env['ANTHROPIC_API_KEY']
-  return {
-    ...scenarioSentinels(),
-    ...(deepseekKey !== undefined && deepseekKey.length > 0 ? { deepseekKey } : {}),
-    ...(anthropicKey !== undefined && anthropicKey.length > 0 ? { anthropicKey } : {}),
-  }
 }
 
 /** Run one cell end-to-end: sandbox → agent → diff capture → mechanical → judge → teardown. */
@@ -217,6 +197,24 @@ async function reviewPastRun(runDir: string): Promise<number> {
   return 0
 }
 
+/**
+ * Standalone `--publish-from <dir>` mode: re-render the committed publish
+ * artifacts (`packages/bench/RESULTS.md`, the README managed block) from an
+ * EXISTING report dir's `aggregate.json`, with no agent re-run — works with
+ * the merged-report layout produced by hand-merging several runs' cells
+ * together (e.g. `packages/bench/reports/2026-07-16-full-run-merged/`).
+ */
+async function publishPastRun(runDir: string): Promise<number> {
+  try {
+    const { resultsPath, readmePath } = await publishFromReportDir({ repoRoot: REPO_ROOT, runDir })
+    console.log(`bench — published ${resultsPath} and ${readmePath} from ${runDir}`)
+    return 0
+  } catch (err) {
+    console.error(`bench — ${errMessage(err)}`)
+    return 2
+  }
+}
+
 async function main(): Promise<number> {
   let filters: MatrixFilters
   try {
@@ -227,6 +225,9 @@ async function main(): Promise<number> {
     // avoids silently running the full, expensive matrix on a typo.
     console.error(`bench — ${err instanceof Error ? err.message : String(err)}`)
     return 2
+  }
+  if (filters.publishFrom !== undefined) {
+    return publishPastRun(filters.publishFrom)
   }
   if (filters.reviewReport !== undefined) {
     return reviewPastRun(filters.reviewReport)
@@ -302,6 +303,17 @@ async function main(): Promise<number> {
   const markdownPath = await writeMarkdown(runDir, meta, results)
   console.log(`bench — aggregate ${aggregatePath}`)
   console.log(`bench — summary ${markdownPath}`)
+
+  if (filters.publish) {
+    const { resultsPath, readmePath } = await publishResults({
+      repoRoot: REPO_ROOT,
+      meta,
+      results,
+      sentinels,
+    })
+    console.log(`bench — published ${resultsPath} and ${readmePath}`)
+  }
+
   return 0
 }
 

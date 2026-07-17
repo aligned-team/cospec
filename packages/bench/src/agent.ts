@@ -100,6 +100,25 @@ export interface AgentRunConfig {
  * string is the only variant that replaces the default; the preset+append
  * variant is additive). The append is identical for both arms.
  */
+/**
+ * Environment for the spawned SDK query — the harness's account-routing
+ * mechanism. The Agent SDK forwards `Options.env` verbatim to the child Claude
+ * Code process's environment (confirmed against the installed
+ * `@anthropic-ai/claude-agent-sdk`'s `sdk.d.ts`: `env?: { [k: string]: string }`
+ * on `Options`, doc'd "Environment variables to set for Claude Code sessions").
+ * Spreading `process.env` FIRST means every parent-process variable — in
+ * particular `CLAUDE_CONFIG_DIR`, this repo's multi-account switch (see the
+ * root `CLAUDE.md`'s "Multi-Account Claude Code Setup") — reaches the spawned
+ * agent, so `CLAUDE_CONFIG_DIR=~/.claude-accounts/<name> mise run bench -- …`
+ * routes that cell's agent auth to the chosen account exactly like an
+ * interactive session would. `CLAUDE_CODE_EFFORT_LEVEL` is overlaid AFTER the
+ * spread so it always wins for this cell's model, without ever stripping
+ * anything the parent process set.
+ */
+export function buildAgentEnv(effort: string): Record<string, string | undefined> {
+  return { ...process.env, CLAUDE_CODE_EFFORT_LEVEL: effort }
+}
+
 function buildOptions(config: AgentRunConfig): Options {
   const effort = MODEL_EFFORT[config.model]
   return {
@@ -117,7 +136,7 @@ function buildOptions(config: AgentRunConfig): Options {
     maxTurns: config.maxTurns,
     maxBudgetUsd: config.budgetUsd ?? DEFAULT_BUDGET_USD,
     executable: 'bun',
-    env: { ...process.env, CLAUDE_CODE_EFFORT_LEVEL: effort },
+    env: buildAgentEnv(effort),
     // stderr from the child subprocess is discarded — it can echo prompt text
     // and must never reach a report or the console.
     stderr: () => {},

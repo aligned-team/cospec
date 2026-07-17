@@ -226,7 +226,53 @@ function rate(bools: readonly (boolean | null)[]): number | null {
   return known.length === 0 ? null : known.filter(Boolean).length / known.length
 }
 
-/** Group cells by (type, arm, model) and reduce over repeats. */
+/** Every `AggregateRow` field EXCEPT the grouping/identity keys — the reduction shared by every grouping. */
+type GroupStats = Omit<AggregateRow, 'scenarioId' | 'arm' | 'model'>
+
+/** Reduce one bucket of same-group `CellResult`s over repeats. Grouping-agnostic — see `aggregate`/`aggregateByArmModel`. */
+function reduceGroup(bucket: readonly CellResult[]): GroupStats {
+  const qualities = bucket
+    .map((r) => r.quality?.overall)
+    .filter((v): v is number => typeof v === 'number')
+  const conformanceIssues = bucket
+    .map((r) => conformanceIssueCount(r.mechanical))
+    .filter((v): v is number => v !== null)
+  const hiddenFailed = bucket
+    .map((r) => r.mechanical?.hiddenTests?.failed)
+    .filter((v): v is number => typeof v === 'number')
+  const hiddenTotal = bucket
+    .map((r) => r.mechanical?.hiddenTests?.total)
+    .filter((v): v is number => typeof v === 'number')
+  const reviewConfirmed = bucket
+    .map((r) => confirmedReviewDefectCount(r.mechanical))
+    .filter((v): v is number => v !== null)
+  return {
+    repeats: bucket.length,
+    meanQualityOverall: mean(qualities),
+    meanConformanceIssues: conformanceIssues.length === 0 ? null : mean(conformanceIssues),
+    armNativeValidatePassRate: rate(bucket.map((r) => r.mechanical?.armNativeValidatePass ?? null)),
+    taskCompletionRate:
+      bucket.filter((r) => r.mechanical?.taskCompleted === true).length / bucket.length,
+    meanEscapedDefects: hiddenFailed.length === 0 ? null : mean(hiddenFailed),
+    meanHiddenTestsTotal: hiddenTotal.length === 0 ? null : mean(hiddenTotal),
+    meanConfirmedReviewDefects: reviewConfirmed.length === 0 ? null : mean(reviewConfirmed),
+    plantedBugCaughtRate: rate(bucket.map((r) => r.mechanical?.plantedBugCaught ?? null)),
+    meanDurationMs: mean(bucket.map((r) => r.telemetry?.durationMs ?? Number.NaN)),
+    meanTotalCostUsd: mean(bucket.map((r) => r.telemetry?.totalCostUsd ?? Number.NaN)),
+    meanTokensInput: mean(bucket.map((r) => r.telemetry?.usage?.inputTokens ?? Number.NaN)),
+    meanTokensOutput: mean(bucket.map((r) => r.telemetry?.usage?.outputTokens ?? Number.NaN)),
+    durationSummary: summarizeNumeric(bucket.map((r) => r.telemetry?.durationMs ?? Number.NaN)),
+    costSummary: summarizeNumeric(bucket.map((r) => r.telemetry?.totalCostUsd ?? Number.NaN)),
+    tokensInSummary: summarizeNumeric(
+      bucket.map((r) => r.telemetry?.usage?.inputTokens ?? Number.NaN),
+    ),
+    tokensOutSummary: summarizeNumeric(
+      bucket.map((r) => r.telemetry?.usage?.outputTokens ?? Number.NaN),
+    ),
+  }
+}
+
+/** Group cells by (scenarioId, arm, model) and reduce over repeats. */
 export function aggregate(results: readonly CellResult[]): AggregateRow[] {
   const groups = new Map<string, CellResult[]>()
   for (const r of results) {
@@ -241,49 +287,11 @@ export function aggregate(results: readonly CellResult[]): AggregateRow[] {
   for (const bucket of groups.values()) {
     const first = bucket[0]
     if (first === undefined) continue
-    const qualities = bucket
-      .map((r) => r.quality?.overall)
-      .filter((v): v is number => typeof v === 'number')
-    const conformanceIssues = bucket
-      .map((r) => conformanceIssueCount(r.mechanical))
-      .filter((v): v is number => v !== null)
-    const hiddenFailed = bucket
-      .map((r) => r.mechanical?.hiddenTests?.failed)
-      .filter((v): v is number => typeof v === 'number')
-    const hiddenTotal = bucket
-      .map((r) => r.mechanical?.hiddenTests?.total)
-      .filter((v): v is number => typeof v === 'number')
-    const reviewConfirmed = bucket
-      .map((r) => confirmedReviewDefectCount(r.mechanical))
-      .filter((v): v is number => v !== null)
     rows.push({
       scenarioId: first.scenarioId,
       arm: first.cell.arm,
       model: first.cell.model,
-      repeats: bucket.length,
-      meanQualityOverall: mean(qualities),
-      meanConformanceIssues: conformanceIssues.length === 0 ? null : mean(conformanceIssues),
-      armNativeValidatePassRate: rate(
-        bucket.map((r) => r.mechanical?.armNativeValidatePass ?? null),
-      ),
-      taskCompletionRate:
-        bucket.filter((r) => r.mechanical?.taskCompleted === true).length / bucket.length,
-      meanEscapedDefects: hiddenFailed.length === 0 ? null : mean(hiddenFailed),
-      meanHiddenTestsTotal: hiddenTotal.length === 0 ? null : mean(hiddenTotal),
-      meanConfirmedReviewDefects: reviewConfirmed.length === 0 ? null : mean(reviewConfirmed),
-      plantedBugCaughtRate: rate(bucket.map((r) => r.mechanical?.plantedBugCaught ?? null)),
-      meanDurationMs: mean(bucket.map((r) => r.telemetry?.durationMs ?? Number.NaN)),
-      meanTotalCostUsd: mean(bucket.map((r) => r.telemetry?.totalCostUsd ?? Number.NaN)),
-      meanTokensInput: mean(bucket.map((r) => r.telemetry?.usage?.inputTokens ?? Number.NaN)),
-      meanTokensOutput: mean(bucket.map((r) => r.telemetry?.usage?.outputTokens ?? Number.NaN)),
-      durationSummary: summarizeNumeric(bucket.map((r) => r.telemetry?.durationMs ?? Number.NaN)),
-      costSummary: summarizeNumeric(bucket.map((r) => r.telemetry?.totalCostUsd ?? Number.NaN)),
-      tokensInSummary: summarizeNumeric(
-        bucket.map((r) => r.telemetry?.usage?.inputTokens ?? Number.NaN),
-      ),
-      tokensOutSummary: summarizeNumeric(
-        bucket.map((r) => r.telemetry?.usage?.outputTokens ?? Number.NaN),
-      ),
+      ...reduceGroup(bucket),
     })
   }
   return rows.toSorted(
@@ -292,6 +300,36 @@ export function aggregate(results: readonly CellResult[]): AggregateRow[] {
       a.arm.localeCompare(b.arm) ||
       a.model.localeCompare(b.model),
   )
+}
+
+export interface ArmModelRow extends GroupStats {
+  arm: string
+  model: string
+}
+
+/**
+ * Group cells by (arm, model) ONLY — collapsing every scenario into one
+ * top-line row per arm×model, for the compact README summary (see
+ * `publish.ts`). Reuses the exact same reduction as `aggregate` (`reduceGroup`)
+ * so the two never drift into different definitions of "mean cost" etc.
+ */
+export function aggregateByArmModel(results: readonly CellResult[]): ArmModelRow[] {
+  const groups = new Map<string, CellResult[]>()
+  for (const r of results) {
+    if (r.skipped !== undefined) continue
+    const key = `${r.cell.arm}|${r.cell.model}`
+    const bucket = groups.get(key) ?? []
+    bucket.push(r)
+    groups.set(key, bucket)
+  }
+
+  const rows: ArmModelRow[] = []
+  for (const bucket of groups.values()) {
+    const first = bucket[0]
+    if (first === undefined) continue
+    rows.push({ arm: first.cell.arm, model: first.cell.model, ...reduceGroup(bucket) })
+  }
+  return rows.toSorted((a, b) => a.arm.localeCompare(b.arm) || a.model.localeCompare(b.model))
 }
 
 function fmt(n: number | null, digits = 2): string {
@@ -310,26 +348,32 @@ function summaryCell(s: NumericSummary | null, digits: number): string {
 }
 
 /** Renders the "escaped‡" column as "meanFailed/meanTotal"; a dash when hidden tests weren't scored. */
-function escapedCell(r: AggregateRow): string {
+function escapedCell(r: GroupStats): string {
   if (r.meanEscapedDefects === null || r.meanHiddenTestsTotal === null) return '—'
   return `${fmt(r.meanEscapedDefects, 1)}/${fmt(r.meanHiddenTestsTotal, 1)}`
 }
 
-/** Human-readable markdown summary: one row per (type, arm, model). */
-export async function writeMarkdown(
-  runDir: string,
-  meta: RunMeta,
-  results: readonly CellResult[],
-): Promise<string> {
-  const rows = aggregate(results)
-  const lines: string[] = [
-    '# cospec vs openspec — benchmark summary',
-    '',
+/** The "run:"/"claude code:"/"judge:"/"cells:" metadata block at the top of `summary.md`. */
+export function renderRunMetaLines(meta: RunMeta): string[] {
+  return [
     `- run: ${meta.startedAt}`,
     `- claude code: ${meta.claudeCodeVersion ?? 'unknown'}`,
     `- judge: ${meta.judgeEnabled ? (meta.judgeModel ?? 'enabled') : 'disabled (no DEEPSEEK_API_KEY)'}`,
     `- cells: ${meta.ranCells} ran, ${meta.skippedCells} skipped, ${meta.totalCells} total`,
-    '',
+  ]
+}
+
+/**
+ * The main scenario × arm × model table, its legend/footnotes, the "Repeat
+ * spread" section, and the "Paired comparison" section — everything in
+ * `summary.md` BELOW the run-metadata block. Shared verbatim by `writeMarkdown`
+ * (`summary.md`) and `publish.ts` (`RESULTS.md`), which differ only in their
+ * title and provenance header — see that module's doc comment for why this is
+ * factored out here rather than duplicated.
+ */
+export function renderSummaryBody(results: readonly CellResult[]): string[] {
+  const rows = aggregate(results)
+  const lines: string[] = [
     '| scenario | arm | model | n | quality | conformance* | native-valid† | escaped‡ | review§ | plant¶ | task-done | dur(ms) | cost($) | tok-in | tok-out |',
     '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
   ]
@@ -383,7 +427,44 @@ export async function writeMarkdown(
   }
 
   lines.push(...renderPairedComparisonMarkdown(pairedComparisons(results)))
+  return lines
+}
 
+/**
+ * Compact top-line table — one row per (arm, model), collapsed across every
+ * scenario — for the README managed block (see `publish.ts`). Deliberately a
+ * small subset of `renderSummaryBody`'s columns: escaped defects, confirmed
+ * review defects, planted-bug catch rate, mean cost, mean duration. Full
+ * per-scenario detail and the metric legend live only in `RESULTS.md`, linked
+ * from the README block rather than duplicated.
+ */
+export function renderCompactArmModelMarkdown(rows: readonly ArmModelRow[]): string[] {
+  const lines: string[] = [
+    '| arm | model | n | escaped‡ | review§ | plant¶ | cost($) | dur(ms) |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- |',
+  ]
+  for (const r of rows) {
+    lines.push(
+      `| ${r.arm} | ${r.model} | ${r.repeats} | ${escapedCell(r)} | ${fmt(r.meanConfirmedReviewDefects, 1)} | ${pct(r.plantedBugCaughtRate)} | ${fmt(r.meanTotalCostUsd, 4)} | ${fmt(r.meanDurationMs, 0)} |`,
+    )
+  }
+  if (rows.length === 0) lines.push('', '_No cells ran._')
+  return lines
+}
+
+/** Human-readable markdown summary: one row per (scenarioId, arm, model). */
+export async function writeMarkdown(
+  runDir: string,
+  meta: RunMeta,
+  results: readonly CellResult[],
+): Promise<string> {
+  const lines: string[] = [
+    '# cospec vs openspec — benchmark summary',
+    '',
+    ...renderRunMetaLines(meta),
+    '',
+    ...renderSummaryBody(results),
+  ]
   const path = join(runDir, 'summary.md')
   await Bun.write(path, lines.join('\n'))
   return path

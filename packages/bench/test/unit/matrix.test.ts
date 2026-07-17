@@ -22,6 +22,57 @@ describe('parseArgs', () => {
     expect(f.hard).toBe(false)
     expect(f.review).toBe(false)
     expect(f.reviewReport).toBeUndefined()
+    expect(f.publish).toBe(false)
+    expect(f.publishFrom).toBeUndefined()
+  })
+
+  test('--publish sets the publish flag with no value', () => {
+    const f = parseArgs(['--publish'])
+    expect(f.publish).toBe(true)
+  })
+
+  test('--publish-from takes a directory value (both forms)', () => {
+    expect(parseArgs(['--publish-from', 'reports/2026-01-01']).publishFrom).toBe(
+      'reports/2026-01-01',
+    )
+    expect(parseArgs(['--publish-from=reports/x']).publishFrom).toBe('reports/x')
+  })
+
+  test('--publish-from throws when its value is missing', () => {
+    expect(() => parseArgs(['--publish-from'])).toThrow(/missing value/)
+  })
+
+  test('--publish-from throws when combined with a cell-selecting flag', () => {
+    expect(() => parseArgs(['--publish-from', 'reports/x', '--scenario', 'ci'])).toThrow(
+      /--publish-from is standalone/,
+    )
+    expect(() => parseArgs(['--publish-from', 'reports/x', '--arm', 'cospec'])).toThrow(
+      /--publish-from is standalone/,
+    )
+    expect(() => parseArgs(['--publish-from', 'reports/x', '--hard'])).toThrow(
+      /--publish-from is standalone/,
+    )
+    expect(() => parseArgs(['--publish-from', 'reports/x', '--review'])).toThrow(
+      /--publish-from is standalone/,
+    )
+  })
+
+  test('--publish-from throws when combined with --publish', () => {
+    expect(() => parseArgs(['--publish-from', 'reports/x', '--publish'])).toThrow(
+      /--publish-from is standalone/,
+    )
+  })
+
+  test('--publish-from throws when combined with --review-report', () => {
+    expect(() =>
+      parseArgs(['--publish-from', 'reports/x', '--review-report', 'reports/y']),
+    ).toThrow(/cannot be combined with --review-report/)
+  })
+
+  test('--publish-from alone (no other flags) parses cleanly', () => {
+    const f = parseArgs(['--publish-from', 'reports/x'])
+    expect(f.publishFrom).toBe('reports/x')
+    expect(f.publish).toBe(false)
   })
 
   test('--hard sets the hard flag with no value', () => {
@@ -117,7 +168,15 @@ describe('parseArgs', () => {
 const SCENARIO_IDS = ['ci', 'feat', 'fix'] as const
 
 function filters(overrides: Partial<MatrixFilters> = {}): MatrixFilters {
-  return { repeats: 1, concurrency: 2, smoke: false, hard: false, review: false, ...overrides }
+  return {
+    repeats: 1,
+    concurrency: 2,
+    smoke: false,
+    hard: false,
+    review: false,
+    publish: false,
+    ...overrides,
+  }
 }
 
 describe('expandMatrix', () => {

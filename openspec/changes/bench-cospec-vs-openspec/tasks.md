@@ -840,3 +840,192 @@
       `mise run     //packages/bench:test` 255/255,
       `mise run cospec -- validate     bench-cospec-vs-openspec --strict` passes
       (0 errors/warnings)
+
+## 16. Results publishing (RESULTS.md + README managed block)
+
+- [x] 16.1 `src/report.ts` refactored (no behavior change for `summary.md`):
+      extracted `renderRunMetaLines` (the `- run:`/`- claude code:`/`- judge:`/
+      `- cells:` block) and `renderSummaryBody` (the table, legend, "Repeat
+      spread", and "Paired comparison" sections — everything below the
+      run-metadata block) out of `writeMarkdown`, which now just concatenates
+      them plus the title and writes the file — byte-identical output.
+      Grouping-reduction itself factored into a new `reduceGroup` (every
+      `AggregateRow` field except the grouping keys), reused by both `aggregate`
+      (groups by scenarioId+arm+model, unchanged behavior) and a new
+      `aggregateByArmModel` (groups by arm+model ONLY, collapsing every scenario
+      into one row — the reduction a new `renderCompactArmModelMarkdown` renders
+      for the README's compact table) — a "mean cost" can never quietly mean two
+      different things between `summary.md` and the README block since both
+      trace back to the same `reduceGroup` -> unit-tested: all 262 pre-existing
+      `report.test.ts`/other bench tests still pass unchanged (byte-identical
+      `writeMarkdown` output confirmed via the pre-existing assertions), new
+      coverage added in 16.5 below
+- [x] 16.2 New `src/sentinels.ts`: `scenarioSentinels`/`buildSentinels` moved
+      out of `run.ts` (which has a top-level `process.exit(await main())` side
+      effect on import — unsafe to import from a standalone tool or test) so
+      both the live runner and the new standalone publish path can build
+      sentinels without executing the CLI entry point. `run.ts` imports from
+      here now; behavior unchanged (verified: full `//packages/bench:test` suite
+      green with no assertions touching sentinel construction affected)
+- [x] 16.3 New `src/publish.ts`: `collectGitInfo` (spawns real
+      `git rev-parse     HEAD` / `git remote get-url origin` /
+      `git describe --tags     --exact-match` / `git status --porcelain` /
+      `git branch --show-current` — no caching, no guessing),
+      `parseGitHubRemote` (handles both `https://` and `git@github.com:` remote
+      URL forms, derives org/repo from whatever remote is actually configured —
+      never hardcoded), `commitUrl`, `buildProvenance`/`renderProvenanceLines`
+      (commit hyperlink, tag if HEAD is exactly tagged, ISO publish date, Claude
+      Code version, distinct arms/model+effort pairs actually present in the
+      results, cell/repeat counts, judge status, and an explicit **WARNING**
+      banner — never blocking, per the design's "still publishes" requirement —
+      when the working tree was dirty or the branch wasn't `main`),
+      `renderResultsMarkdown` (provenance + `report.ts`'s `renderSummaryBody`,
+      REUSED not duplicated), `renderReadmeBlock` (provenance +
+      `renderCompactArmModelMarkdown` + a link out to `RESULTS.md`),
+      `replaceMarkerBlock` (idempotent
+      `<!-- bench:start -->`/`<!-- bench:end -->` replace mirroring
+      `scripts/mise-tasks/agents/sync`'s CLAUDE.md shared-block pattern — insert
+      before the first `## License` heading, or append at the end, when markers
+      are absent), and `publishResults`/`publishFromReportDir` (orchestration,
+      the latter reading a past run's `aggregate.json` back off disk with no
+      agent re-run, rejecting — with an actionable error, not a silent garbage
+      render — a report predating the `scenarioId` field on `CellResult`, per
+      16.7 below). Every write passes through the existing `assertRedacted`
+      self-check before touching disk, exactly like every other bench artifact
+- [x] 16.4 CLI wiring: `src/matrix.ts` gains `--publish` (boolean,
+      `MatrixFilters.publish`) and `--publish-from <dir>`
+      (`MatrixFilters.publishFrom`), the latter validated mutually exclusive
+      with every cell-selecting flag (`--scenario`/`--arm`/`--model`/`--smoke`/
+      `--hard`/`--review`), `--publish`, and `--review-report` (each of
+      `--publish-from`/`--review-report` is its own standalone mode; only one
+      may run per invocation) — `parseArgs` throws immediately on any of these
+      combinations rather than silently picking one. `src/run.ts`'s `main()`
+      dispatches `--publish-from` to a new `publishPastRun` (thin wrapper around
+      `publish.ts`'s `publishFromReportDir`, exit 2 with the thrown message on
+      failure) BEFORE the existing `--review-report` dispatch, and a live run's
+      tail calls `publishResults` when `filters.publish` is set, after the usual
+      `writeAggregate`/`writeMarkdown` -> unit-tested (`matrix.test.ts`: 7 new
+      cases — `--publish` parses with no value, `--publish-from` both
+      `--flag value`/`--flag=value` forms, missing-value throw, and all 4
+      mutual-exclusion throw cases: combined with a cell-selecting flag, with
+      `--publish`, with `--review-report`, and parsing cleanly alone)
+- [x] 16.5 `src/agent.ts`: confirmed (not a new bug — the pre-existing
+      `env: { ...process.env, CLAUDE_CODE_EFFORT_LEVEL: effort }` already spread
+      `process.env` first) that the harness's account-routing mechanism works,
+      and made it independently testable/documented rather than an inline object
+      literal: extracted `buildAgentEnv(effort)`, confirmed against the
+      installed `@anthropic-ai/claude-agent-sdk`'s `sdk.d.ts`
+      (`Options.env?: Record<string, string>`, doc'd "Environment variables to
+      set for Claude Code sessions") that the SDK forwards `env` verbatim to the
+      spawned Claude Code child process, so `CLAUDE_CONFIG_DIR` (this repo's
+      multi-account switch — see the root `CLAUDE.md`) set on the invoking shell
+      reaches the agent that actually authenticates -> new
+      `describe('buildAgentEnv', …)` in `test/unit/agent.test.ts` (3 cases:
+      `CLAUDE_CONFIG_DIR` forwarded verbatim, `CLAUDE_CODE_EFFORT_LEVEL`
+      overlaid without dropping other parent vars — spot-checked against `PATH`
+      — and the overlay always winning even if the parent shell already set
+      `CLAUDE_CODE_EFFORT_LEVEL` to something stale)
+- [x] 16.6 Unit tests (`test/unit/publish.test.ts`, new — 25 cases):
+      `parseGitHubRemote` (https with/without `.git`, ssh form, throws on a
+      non-GitHub remote), `commitUrl` (never hardcodes org/repo — built from
+      whatever `GitInfo` is passed), `renderProvenanceLines` with MOCKED git
+      info (commit link/date/claude-code/models/cells/judge rendering, the tag
+      note, the WARNING banner on dirty and on non-main branch separately,
+      confirmed it never throws — "still publishes" — and the judge-enabled
+      case), `renderResultsMarkdown`/`renderReadmeBlock` (provenance + shared
+      body present in RESULTS.md; the README block is compact — no "Paired
+      comparison" noise — and links out to RESULTS.md), `replaceMarkerBlock`
+      (in-place replace leaving surrounding content untouched, idempotent
+      double-replace, insert-before-License when markers are absent,
+      append-at-end when there's no License section either, and idempotent
+      insert-then-replace across the marker-creation boundary), `publishResults`
+      (writes both files + returns their paths, creates `README.md` fresh when
+      absent, republishing twice never duplicates the marker block, throws the
+      redaction self-check on a planted sentinel), and `publishFromReportDir`
+      OVER TWO NEW FIXTURE REPORT DIRS (`test/fixtures/report-min/` —
+      current-schema, 2 cells, cospec+openspec — publishes correctly with no
+      agent re-run; `test/fixtures/report-stale/` — modeled on the
+      pre-`scenarioId`-rename schema — confirms the predates-scenarioId
+      rejection fires instead of silently grouping under the literal string
+      "undefined"; plus a missing-`aggregate.json` throw)
+- [x] 16.7 **Live-verified real bug found via the merged report named in the
+      task**:
+      `mise run bench -- --publish-from     packages/bench/reports/2026-07-16-full-run-merged`
+      (the exact path named in this task's instructions) does NOT work — that
+      dir predates the `scenarioId` rename (task 14.5) and the
+      `schemaConformance` rename (task 10.1): its cells carry
+      `scenarioType`/`cospecValidate` instead of
+      `scenarioId`/`schemaConformance`, and have no `hiddenTests`/
+      `reviewDefects`/`plantedBugCaught` fields at all. Reproduced BEFORE
+      writing the guard: without it, `aggregate()`/`aggregateByArmModel` would
+      have silently grouped every cell under the literal key
+      `"undefined|cospec|claude-opus-4-8"` and rendered `undefined` scenario
+      names rather than failing loudly. Fixed with the `publishFromReportDir`
+      guard in 16.3 (surfaced as a specific unit test in 16.6); this is a
+      genuine repo-state discovery (that directory is stale, pre-dating several
+      fields this same change's earlier tasks added), not something this stage
+      silently patched — flagging the directory as stale is in-scope for
+      `publish.ts`'s own correctness, migrating or regenerating that old report
+      is not, and is left for whoever wants a fresh full-matrix publish
+- [x] 16.8 Live smokes, both directions, confirming the exact behavior 16.7
+      describes: (a)
+      `mise run bench -- --publish-from reports/2026-07-16-full-run-merged` ->
+      exit 2,
+      `predates the scenarioId field on CellResult and cannot be     republished`,
+      no files written; (b)
+      `mise run bench -- --publish-from     reports/2026-07-17T01-34-09-589Z` (a
+      real current-schema single-cell report from this change's own earlier
+      live-smoke history) -> exit 0,
+      `bench — published <repoRoot>/packages/bench/RESULTS.md and     <repoRoot>/README.md from reports/2026-07-17T01-34-09-589Z`;
+      inspected both files by hand: `RESULTS.md` carried a correct
+      commit-hyperlink provenance header, the `fix`/`cospec`/`claude-sonnet-5`
+      row, the legend, and both stats sections; `README.md` gained a
+      `<!-- bench:start -->`/ `<!-- bench:end -->` block inserted correctly
+      immediately before `## License`, with a matching compact table and a link
+      to `packages/bench/RESULTS.md`. Because the working tree was dirty (this
+      change in progress) and the branch was `worktree-bench-cospec-vs-openspec`
+      (not `main`), the rendered WARNING banner correctly fired in both files,
+      naming both reasons — confirming the disclosure-not-gate behavior live,
+      not just in mocked unit tests. Also live-verified the CLI's
+      mutual-exclusion guards from a real invocation (not just
+      `matrix.test.ts`'s unit coverage):
+      `--publish-from <dir>     --scenario ci`,
+      `--publish-from <dir> --publish`, and
+      `--publish-from     <dir> --review-report <dir2>` each exit 2 with the
+      expected message before touching any file. **Reverted the demo
+      `RESULTS.md`/`README.md` writes afterward** (`git checkout -- README.md`,
+      removed the untracked `RESULTS.md`) — a single-cell smoke run from a
+      dirty, non-main branch is not the real published benchmark result this
+      repo should ship in its README, per the "canonical publish is from a clean
+      main" convention documented in 16.9; the mechanism is proven live, the
+      committed content is left for an actual clean-main full-matrix publish
+- [x] 16.9 `docs/bench.md`: flags table gains `--publish`/`--publish-from` rows;
+      the brief inline auth note in "Running it" replaced with a link to a new
+      "Auth" section (default inherits the session account; override with
+      `CLAUDE_CONFIG_DIR`, with the exact mechanism — `buildAgentEnv` spreading
+      `process.env` before the effort-level overlay — spelled out); new
+      "Publishing" section (the two committed artifacts and what each contains,
+      the two flags and their mutual exclusivity, the full provenance field
+      list, the WARNING-banner-is-a-disclosure-not-a-gate behavior, and the
+      canonical-publish-from-clean-main convention with the
+      point-in-time-honesty rationale); "Output & redaction contract" section
+      gains a closing paragraph naming `RESULTS.md`/the README block as the only
+      two NOT-git-ignored bench artifacts and confirming they pass the same
+      redaction self-check -> verified by reading the rendered doc end-to-end
+- [x] 16.10 Confirm no regression: `mise run typecheck` clean, `mise run lint`
+      exit 0 (same 3 pre-existing unrelated `apps/cli` warnings only),
+      `mise run format:check` clean (after one `format:fix` pass reformatting
+      `docs/bench.md`, `publish.ts`, `publish.test.ts`, and the two new fixture
+      JSON files), `mise run //packages/bench:test` 290/290 pass (255
+      pre-existing + 35 new: 25 in `publish.test.ts`, 7 in `matrix.test.ts`, 3
+      in `agent.test.ts`), `mise run check` green end-to-end from repo root
+      (lint/format/typecheck/`generate:check`/`agents:check`/
+      `vendor:openspec:check`/`cospec-validate-all`/`openspec:schema:validate`
+      plus every test project: `apps/cli` unit 543/543, integration 92/92,
+      contract 29/29; `packages/bench` 290/290; `e2e` release-test 14/14),
+      `mise run cospec -- validate bench-cospec-vs-openspec --strict` passes (0
+      errors/warnings). `git status` confirms only the intended files changed
+      (`docs/bench.md`, `src/{agent,matrix,report,run}.ts`,
+      `test/unit/{agent,matrix}.test.ts` modified; `src/{publish,sentinels}.ts`,
+      `test/unit/publish.test.ts`, `test/fixtures/report-{min,stale}/` new) — no
+      stray `RESULTS.md`/`README.md` demo output left over from 16.8

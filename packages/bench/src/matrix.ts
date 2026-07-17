@@ -55,6 +55,21 @@ export interface MatrixFilters {
    * matrix.
    */
   reviewReport?: string
+  /**
+   * After a matrix run completes, render the committed publish artifacts
+   * (`packages/bench/RESULTS.md`, the README managed block) from the run's own
+   * aggregate — see `src/publish.ts`. Off by default (publishing overwrites two
+   * tracked repo files); ignored when `--publish-from` selects standalone mode.
+   */
+  publish: boolean
+  /**
+   * Standalone publish mode: re-render the committed publish artifacts from an
+   * EXISTING report dir's `aggregate.json` (works with the merged-report layout,
+   * e.g. `packages/bench/reports/2026-07-16-full-run-merged/`), without running
+   * any cell. Mutually exclusive with every cell-selecting flag, `--publish`,
+   * and `--review-report` (each is its own standalone mode; only one may run).
+   */
+  publishFrom?: string
 }
 
 function isArm(v: string): v is Arm {
@@ -89,6 +104,8 @@ export function parseArgs(argv: readonly string[]): MatrixFilters {
   let hard = false
   let review = false
   let reviewReport: string | undefined
+  let publish = false
+  let publishFrom: string | undefined
 
   const tokens = [...argv]
   while (tokens.length > 0) {
@@ -143,8 +160,28 @@ export function parseArgs(argv: readonly string[]): MatrixFilters {
       case '--review-report':
         reviewReport = takeValue()
         break
+      case '--publish':
+        publish = true
+        break
+      case '--publish-from':
+        publishFrom = takeValue()
+        break
       default:
         throw new Error(`unknown flag: ${flag}`)
+    }
+  }
+
+  if (publishFrom !== undefined) {
+    const cellSelecting =
+      scenarios.length > 0 || arms.length > 0 || models.length > 0 || smoke || hard || review
+    if (cellSelecting || publish) {
+      throw new Error(
+        '--publish-from is standalone: it re-renders a past report and cannot be combined with ' +
+          'cell-selecting flags (--scenario/--arm/--model/--smoke/--hard/--review) or --publish',
+      )
+    }
+    if (reviewReport !== undefined) {
+      throw new Error('--publish-from cannot be combined with --review-report — choose one')
     }
   }
 
@@ -158,6 +195,8 @@ export function parseArgs(argv: readonly string[]): MatrixFilters {
     hard,
     review,
     reviewReport,
+    publish,
+    publishFrom,
   }
 }
 
