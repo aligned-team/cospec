@@ -11,7 +11,7 @@ import {
 } from '../../src/matrix.ts'
 
 describe('parseArgs', () => {
-  test('defaults: no filters, repeats=1, concurrency=2, smoke=false', () => {
+  test('defaults: no filters, repeats=1, concurrency=2, smoke=false, review off', () => {
     const f = parseArgs([])
     expect(f.scenarios).toBeUndefined()
     expect(f.arms).toBeUndefined()
@@ -19,6 +19,30 @@ describe('parseArgs', () => {
     expect(f.repeats).toBe(1)
     expect(f.concurrency).toBe(2)
     expect(f.smoke).toBe(false)
+    expect(f.hard).toBe(false)
+    expect(f.review).toBe(false)
+    expect(f.reviewReport).toBeUndefined()
+  })
+
+  test('--hard sets the hard flag with no value', () => {
+    const f = parseArgs(['--hard'])
+    expect(f.hard).toBe(true)
+  })
+
+  test('--review sets the inline-review flag with no value', () => {
+    const f = parseArgs(['--review'])
+    expect(f.review).toBe(true)
+  })
+
+  test('--review-report takes a directory value (both forms)', () => {
+    expect(parseArgs(['--review-report', 'reports/2026-01-01']).reviewReport).toBe(
+      'reports/2026-01-01',
+    )
+    expect(parseArgs(['--review-report=reports/x']).reviewReport).toBe('reports/x')
+  })
+
+  test('--review-report throws when its value is missing', () => {
+    expect(() => parseArgs(['--review-report'])).toThrow(/missing value/)
   })
 
   test('accepts --flag value form', () => {
@@ -93,7 +117,7 @@ describe('parseArgs', () => {
 const SCENARIO_IDS = ['ci', 'feat', 'fix'] as const
 
 function filters(overrides: Partial<MatrixFilters> = {}): MatrixFilters {
-  return { repeats: 1, concurrency: 2, smoke: false, ...overrides }
+  return { repeats: 1, concurrency: 2, smoke: false, hard: false, review: false, ...overrides }
 }
 
 describe('expandMatrix', () => {
@@ -131,6 +155,21 @@ describe('expandMatrix', () => {
   test('--model filter narrows the model axis', () => {
     const cells = expandMatrix(SCENARIO_IDS, filters({ models: ['claude-opus-4-8'] }))
     expect(cells.every((c) => c.model === 'claude-opus-4-8')).toBe(true)
+  })
+
+  test('the default (no --scenario) axis excludes -hard ids unless --hard is set', () => {
+    const availableIds = ['ci', 'feat', 'feat-hard']
+    const withoutHard = expandMatrix(availableIds, filters())
+    expect(new Set(withoutHard.map((c) => c.scenarioId))).toEqual(new Set(['ci', 'feat']))
+
+    const withHard = expandMatrix(availableIds, filters({ hard: true }))
+    expect(new Set(withHard.map((c) => c.scenarioId))).toEqual(new Set(['ci', 'feat', 'feat-hard']))
+  })
+
+  test('an explicit --scenario feat-hard resolves regardless of --hard', () => {
+    const availableIds = ['ci', 'feat', 'feat-hard']
+    const cells = expandMatrix(availableIds, filters({ scenarios: ['feat-hard'] }))
+    expect(new Set(cells.map((c) => c.scenarioId))).toEqual(new Set(['feat-hard']))
   })
 
   test('requested scenario ids not in availableIds are silently dropped', () => {

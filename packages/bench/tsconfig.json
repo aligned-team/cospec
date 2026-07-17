@@ -4,5 +4,6 @@
   "compilerOptions": {
     "types": ["bun-types"]
   },
-  "include": ["src/**/*.ts", "scenarios/**/*.ts", "test/**/*.ts"]
+  "include": ["src/**/*.ts", "scenarios/**/*.ts", "test/**/*.ts"],
+  "exclude": ["scenarios/hidden/**", "scenarios/planted/**"]
 }

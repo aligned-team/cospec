@@ -119,6 +119,48 @@ export async function createArmSandbox(
   return { dir, arm }
 }
 
+// Paths never included in a captured cell diff: the spec-workflow artifacts
+// (which would both reveal the arm and are already snapshotted separately) and
+// the hidden-test suite (`scoreHiddenTests` copies it into the sandbox). Git
+// pathspec `:(exclude)` magic, honored by both `git diff` and `git ls-files`.
+const DIFF_EXCLUDES = [
+  ':(exclude)openspec/**',
+  ':(exclude).claude/**',
+  ':(exclude).codex/**',
+  ':(exclude).opencode/**',
+  ':(exclude)hidden-tests/**',
+] as const
+
+/**
+ * Capture the agent's code change as a unified diff from the seed commit: the
+ * diff of tracked files plus the full content of each untracked file (rendered
+ * via `git diff --no-index` against /dev/null), EXCLUDING the spec-workflow
+ * dirs and the hidden-test suite (see `DIFF_EXCLUDES`) — so the result is the
+ * arm-agnostic engineering change only, never the openspec/cospec artifacts
+ * that would reveal which arm produced it. Raw (unredacted) text; callers MUST
+ * redact before persisting. Best captured before `scoreMechanical` seeds
+ * `hidden-tests/`, though that path is excluded defensively regardless.
+ */
+export async function captureSandboxDiff(dir: string): Promise<string> {
+  const tracked = await run(['git', 'diff', 'HEAD', '--', '.', ...DIFF_EXCLUDES], dir)
+  const untracked = await run(
+    ['git', 'ls-files', '--others', '--exclude-standard', '--', '.', ...DIFF_EXCLUDES],
+    dir,
+  )
+  const parts: string[] = []
+  if (tracked.stdout.trim().length > 0) parts.push(tracked.stdout.trimEnd())
+  for (const rel of untracked.stdout
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean)) {
+    // `git diff --no-index` exits 1 when the files differ (they always do here:
+    // one side is /dev/null); the diff text is on stdout regardless.
+    const added = await run(['git', 'diff', '--no-index', '--', '/dev/null', rel], dir)
+    if (added.stdout.trim().length > 0) parts.push(added.stdout.trimEnd())
+  }
+  return parts.join('\n')
+}
+
 export async function teardown(sandbox: Sandbox): Promise<void> {
   await rm(sandbox.dir, { recursive: true, force: true })
 }

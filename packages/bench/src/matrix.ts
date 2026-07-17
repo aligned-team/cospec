@@ -36,6 +36,25 @@ export interface MatrixFilters {
   repeats: number
   concurrency: number
   smoke: boolean
+  /**
+   * Include the opt-in `-hard` scenario variants (see `scenarios/index.ts`'s
+   * `HARD_SCENARIOS`) in the DEFAULT (no `--scenario` filter) expansion. Off
+   * by default — these are multi-file, larger-turn-budget fixtures, not part
+   * of the standard matrix. An EXPLICIT `--scenario feat-hard` (etc.) always
+   * resolves regardless of this flag, since `availableIds` includes every
+   * registered id unconditionally — only the default "all ids" set is
+   * hard-gated.
+   */
+  hard: boolean
+  /** Run the adversarial review stage inline after scoring each cell (off by default; spawns extra agents). */
+  review: boolean
+  /**
+   * Standalone review mode: review every cell of a PAST run from its persisted
+   * diffs, without re-running any benchmark agent. When set, the harness reviews
+   * `<reviewReport>` and rewrites its aggregate/summary instead of running the
+   * matrix.
+   */
+  reviewReport?: string
 }
 
 function isArm(v: string): v is Arm {
@@ -67,6 +86,9 @@ export function parseArgs(argv: readonly string[]): MatrixFilters {
   let repeats = 1
   let concurrency = 2
   let smoke = false
+  let hard = false
+  let review = false
+  let reviewReport: string | undefined
 
   const tokens = [...argv]
   while (tokens.length > 0) {
@@ -112,6 +134,15 @@ export function parseArgs(argv: readonly string[]): MatrixFilters {
       case '--smoke':
         smoke = true
         break
+      case '--hard':
+        hard = true
+        break
+      case '--review':
+        review = true
+        break
+      case '--review-report':
+        reviewReport = takeValue()
+        break
       default:
         throw new Error(`unknown flag: ${flag}`)
     }
@@ -124,13 +155,21 @@ export function parseArgs(argv: readonly string[]): MatrixFilters {
     repeats,
     concurrency,
     smoke,
+    hard,
+    review,
+    reviewReport,
   }
 }
 
 /**
  * Expand the matrix over the available scenario ids. `--smoke` overrides every
  * axis to the single cheap cell. Otherwise each filter, when present, narrows
- * that axis; absent filters take the full axis. Requested scenarios not in
+ * that axis; absent filters take the full axis — EXCEPT that the default
+ * (no `--scenario` filter) axis excludes `-hard`-suffixed ids unless `--hard`
+ * is set, so the opt-in hard variants (see `scenarios/index.ts`'s
+ * `HARD_SCENARIOS`) never silently join the standard matrix. An EXPLICIT
+ * `--scenario feat-hard` (etc.) always resolves regardless of `--hard`, since
+ * it is matched directly against `availableIds`. Requested scenarios not in
  * `availableIds` are dropped (the caller reports them).
  */
 export function expandMatrix(availableIds: readonly string[], filters: MatrixFilters): Cell[] {
@@ -140,7 +179,10 @@ export function expandMatrix(availableIds: readonly string[], filters: MatrixFil
     return [{ scenarioId, arm: 'cospec', model: 'claude-sonnet-5', repeat: 1 }]
   }
 
-  const scenarioIds = (filters.scenarios ?? availableIds).filter((id) => availableIds.includes(id))
+  const defaultIds = filters.hard
+    ? availableIds
+    : availableIds.filter((id) => !id.endsWith('-hard'))
+  const scenarioIds = (filters.scenarios ?? defaultIds).filter((id) => availableIds.includes(id))
   const arms = filters.arms ?? ARMS
   const models = filters.models ?? MODELS
 

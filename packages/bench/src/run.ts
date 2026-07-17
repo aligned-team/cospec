@@ -11,31 +11,38 @@
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { SCENARIOS, scenarioById } from '../scenarios/index.ts'
+import { ALL_SCENARIOS, scenarioById } from '../scenarios/index.ts'
 import { runAgent, type AgentTelemetry } from './agent.ts'
 import { collectArtifactText, judgeArtifacts, type JudgeConfig } from './judge.ts'
 import { cellKey, expandMatrix, parseArgs, type Cell, type MatrixFilters } from './matrix.ts'
 import { resolveChange, scoreMechanical, snapshotChangeArtifacts } from './mechanical.ts'
-import type { Sentinels } from './redact.ts'
+import { redactText, type Sentinels } from './redact.ts'
 import {
   appendCellResult,
   ensureRunDir,
+  readCellDiff,
   writeAggregate,
   writeArtifactSnapshot,
+  writeCellDiff,
   writeMarkdown,
   type CellResult,
   type RunMeta,
 } from './report.ts'
-import { createArmSandbox, teardown } from './sandbox.ts'
+import { defaultReviewRunner, reviewDiff } from './review.ts'
+import { captureSandboxDiff, createArmSandbox, teardown } from './sandbox.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = join(HERE, '..', '..', '..')
 const SCENARIOS_DIR = join(HERE, '..', 'scenarios')
 
+function errMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
 /** Fixture-unique refs embedded in scenario prompts, scrubbed from any report. */
 function scenarioSentinels(): Record<string, string> {
   const out: Record<string, string> = {}
-  for (const s of SCENARIOS) {
+  for (const s of ALL_SCENARIOS) {
     for (const ref of s.prompt.match(/BENCH-[A-Z0-9-]+/g) ?? []) {
       out[`ref:${s.id}:${ref}`] = ref
     }
@@ -43,18 +50,30 @@ function scenarioSentinels(): Record<string, string> {
   return out
 }
 
-/** Run one cell end-to-end: sandbox → agent → mechanical → judge → teardown. */
+/** Sentinels for the redaction guard: fixture refs plus any API keys in the env. */
+function buildSentinels(): Sentinels {
+  const deepseekKey = process.env['DEEPSEEK_API_KEY']
+  const anthropicKey = process.env['ANTHROPIC_API_KEY']
+  return {
+    ...scenarioSentinels(),
+    ...(deepseekKey !== undefined && deepseekKey.length > 0 ? { deepseekKey } : {}),
+    ...(anthropicKey !== undefined && anthropicKey.length > 0 ? { anthropicKey } : {}),
+  }
+}
+
+/** Run one cell end-to-end: sandbox → agent → diff capture → mechanical → judge → teardown. */
 async function runCell(
   cell: Cell,
   judge: JudgeConfig | undefined,
   sentinels: Sentinels,
   runDir: string,
+  review: boolean,
 ): Promise<CellResult> {
   const scenario = scenarioById(cell.scenarioId)
   if (scenario === undefined) {
-    return { cell, scenarioType: 'unknown', skipped: `no such scenario: ${cell.scenarioId}` }
+    return { cell, scenarioId: cell.scenarioId, skipped: `no such scenario: ${cell.scenarioId}` }
   }
-  const base: CellResult = { cell, scenarioType: scenario.type }
+  const base: CellResult = { cell, scenarioId: scenario.id }
   const fixtureAbsDir = join(SCENARIOS_DIR, scenario.fixtureDir)
 
   let sandboxDir: string | undefined
@@ -77,7 +96,28 @@ async function runCell(
       return { ...base, skipped: `agent did not start (${telemetry.crashed})` }
     }
 
+    // Capture + persist the code diff BEFORE mechanical scoring seeds
+    // `hidden-tests/` into the sandbox, so the snapshot is purely the agent's
+    // change. Redacted on disk; the same redacted text feeds any review.
+    const rawDiff = await captureSandboxDiff(sandbox.dir)
+    const diff = redactText(rawDiff, sentinels)
+    await writeCellDiff(runDir, cellKey(cell), rawDiff, sentinels)
+
     base.mechanical = await scoreMechanical(REPO_ROOT, sandbox.dir, cell.arm, scenario)
+
+    if (review) {
+      try {
+        base.mechanical.reviewDefects = await reviewDiff({
+          diff,
+          taskPrompt: scenario.prompt,
+          runner: defaultReviewRunner,
+        })
+      } catch (err) {
+        // A review failure (e.g. reviewer auth) must not lose the cell's already
+        // scored mechanical/judge metrics — leave reviewDefects unset.
+        console.warn(`  review failed for ${cellKey(cell)}: ${errMessage(err)}`)
+      }
+    }
 
     const change = await resolveChange(sandbox.dir)
     // Snapshot artifacts BEFORE teardown — see `finally` below — so this and
@@ -130,6 +170,53 @@ async function runPool(
   await Promise.all(workers)
 }
 
+/**
+ * Standalone `--review-report <dir>` mode: review every cell of a PAST run from
+ * its persisted, redacted diffs (`snapshots/<cellKey>.diff`) without re-running
+ * any benchmark agent, attach the confirmed-defect counts to each cell's
+ * mechanical metrics, and rewrite that run's `aggregate.json` + `summary.md` in
+ * place. A cell with no persisted diff (skipped, or a run predating diff
+ * capture) is left untouched. Always returns 0 — this is advisory, like the run
+ * itself.
+ */
+async function reviewPastRun(runDir: string): Promise<number> {
+  const aggregatePath = join(runDir, 'aggregate.json')
+  if (!(await Bun.file(aggregatePath).exists())) {
+    console.error(`bench — no aggregate.json under ${runDir}`)
+    return 2
+  }
+  const report = (await Bun.file(aggregatePath).json()) as { meta: RunMeta; cells: CellResult[] }
+  const sentinels = buildSentinels()
+
+  let reviewed = 0
+  for (const cell of report.cells) {
+    if (cell.skipped !== undefined || cell.mechanical === undefined) continue
+    const key = cellKey(cell.cell)
+    const diff = await readCellDiff(runDir, key)
+    if (diff === undefined) continue
+    const scenario = scenarioById(cell.cell.scenarioId)
+    if (scenario === undefined) continue
+    try {
+      cell.mechanical.reviewDefects = await reviewDiff({
+        diff,
+        taskPrompt: scenario.prompt,
+        runner: defaultReviewRunner,
+      })
+      reviewed += 1
+      console.log(
+        `  reviewed ${key} — found ${cell.mechanical.reviewDefects.found}, confirmed ${cell.mechanical.reviewDefects.confirmed}`,
+      )
+    } catch (err) {
+      console.warn(`  review failed for ${key}: ${errMessage(err)}`)
+    }
+  }
+
+  await writeAggregate(runDir, report.meta, report.cells, sentinels)
+  const markdownPath = await writeMarkdown(runDir, report.meta, report.cells)
+  console.log(`bench — reviewed ${reviewed} cell(s); rewrote ${aggregatePath} and ${markdownPath}`)
+  return 0
+}
+
 async function main(): Promise<number> {
   let filters: MatrixFilters
   try {
@@ -141,7 +228,11 @@ async function main(): Promise<number> {
     console.error(`bench — ${err instanceof Error ? err.message : String(err)}`)
     return 2
   }
-  const availableIds = SCENARIOS.map((s) => s.id)
+  if (filters.reviewReport !== undefined) {
+    return reviewPastRun(filters.reviewReport)
+  }
+
+  const availableIds = ALL_SCENARIOS.map((s) => s.id)
 
   if (filters.scenarios !== undefined) {
     const unknown = filters.scenarios.filter((id) => !availableIds.includes(id))
@@ -170,13 +261,7 @@ async function main(): Promise<number> {
     console.log('bench — DEEPSEEK_API_KEY not set; quality judging disabled (quality: null).')
   }
 
-  const sentinels: Sentinels = {
-    ...scenarioSentinels(),
-    ...(deepseekKey !== undefined ? { deepseekKey } : {}),
-    ...(process.env['ANTHROPIC_API_KEY'] !== undefined
-      ? { anthropicKey: process.env['ANTHROPIC_API_KEY'] }
-      : {}),
-  }
+  const sentinels = buildSentinels()
 
   const startedAt = new Date().toISOString()
   const runDir = join(REPO_ROOT, 'packages', 'bench', 'reports', startedAt.replace(/[:.]/g, '-'))
@@ -188,7 +273,7 @@ async function main(): Promise<number> {
 
   const results: CellResult[] = Array.from({ length: cells.length })
   await runPool(cells, filters.concurrency, async (cell, index) => {
-    const result = await runCell(cell, judge, sentinels, runDir)
+    const result = await runCell(cell, judge, sentinels, runDir, filters.review)
     results[index] = result
     await appendCellResult(runDir, result, sentinels)
     const status =

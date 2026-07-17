@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -9,15 +9,23 @@ import {
   COSPEC_TYPES,
   TYPE_ARTIFACTS,
 } from '../../../../apps/cli/src/core/rules/type-facts.ts'
+import { ciScenario } from '../../scenarios/ci.ts'
+import { fixScenario } from '../../scenarios/fix.ts'
 import type { Scenario } from '../../scenarios/types.ts'
 import {
+  confirmedReviewDefectCount,
   declaredArtifactFiles,
-  parseCospecValidateJson,
+  escapedDefectRate,
+  parseBunTestSummary,
+  parseSchemaConformanceJson,
   requiredArtifactFiles,
   resolveChange,
+  scoreHiddenTests,
   scoreMechanical,
+  scorePlantedBug,
   snapshotChangeArtifacts,
 } from '../../src/mechanical.ts'
+import { spawnIn } from '../../src/sandbox.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = join(HERE, '..', '..', '..', '..')
@@ -34,9 +42,9 @@ afterAll(() => {
   for (const dir of roots) rmSync(dir, { recursive: true, force: true })
 })
 
-// ── parseCospecValidateJson (pure — no spawn) ──────────────────────────────
+// ── parseSchemaConformanceJson (pure — no spawn) ──────────────────────────────
 
-describe('parseCospecValidateJson', () => {
+describe('parseSchemaConformanceJson', () => {
   test('reads counts directly from summary.byRule (the real toJson shape)', () => {
     const stdout = JSON.stringify({
       version: 1,
@@ -47,7 +55,7 @@ describe('parseCospecValidateJson', () => {
         byRule: { 'proposal/why-substantive': 1, 'blockers/dangling-ref': 2 },
       },
     })
-    expect(parseCospecValidateJson(stdout)).toEqual({
+    expect(parseSchemaConformanceJson(stdout)).toEqual({
       errors: 1,
       warnings: 2,
       byRule: { 'proposal/why-substantive': 1, 'blockers/dangling-ref': 2 },
@@ -71,7 +79,7 @@ describe('parseCospecValidateJson', () => {
       ],
       summary: { errors: 2, warnings: 1, byRule: {} },
     })
-    expect(parseCospecValidateJson(stdout)).toEqual({
+    expect(parseSchemaConformanceJson(stdout)).toEqual({
       errors: 2,
       warnings: 1,
       byRule: { 'deltas/scenario-depth': 2, 'proposal/why-substantive': 1 },
@@ -79,7 +87,7 @@ describe('parseCospecValidateJson', () => {
   })
 
   test('defaults errors/warnings/byRule to zero/empty when summary is absent', () => {
-    expect(parseCospecValidateJson(JSON.stringify({ version: 1, items: [] }))).toEqual({
+    expect(parseSchemaConformanceJson(JSON.stringify({ version: 1, items: [] }))).toEqual({
       errors: 0,
       warnings: 0,
       byRule: {},
@@ -87,11 +95,308 @@ describe('parseCospecValidateJson', () => {
   })
 
   test('returns null on non-JSON stdout (e.g. an openspec-arm body)', () => {
-    expect(parseCospecValidateJson('not json at all')).toBeNull()
+    expect(parseSchemaConformanceJson('not json at all')).toBeNull()
   })
 
   test('returns null on empty stdout', () => {
-    expect(parseCospecValidateJson('')).toBeNull()
+    expect(parseSchemaConformanceJson('')).toBeNull()
+  })
+})
+
+// ── parseBunTestSummary (pure — no spawn) ─────────────────────────────────
+
+describe('parseBunTestSummary', () => {
+  test('parses a normal bun test summary line', () => {
+    expect(
+      parseBunTestSummary('\n 2 pass\n 1 fail\n 3 expect() calls\nRan 3 tests across 1 file.'),
+    ).toEqual({ total: 3, failed: 1 })
+  })
+
+  test('parses an all-passing summary (0 fail)', () => {
+    expect(parseBunTestSummary('\n 5 pass\n 0 fail\nRan 5 tests across 1 file.')).toEqual({
+      total: 5,
+      failed: 0,
+    })
+  })
+
+  test('parses an all-failing / import-crash summary (0 pass)', () => {
+    expect(
+      parseBunTestSummary(
+        '# Unhandled error between tests\n\n 0 pass\n 1 fail\n 1 error\nRan 1 test across 1 file.',
+      ),
+    ).toEqual({ total: 1, failed: 1 })
+  })
+
+  test('returns null when no pass/fail summary line is present', () => {
+    expect(parseBunTestSummary('not a bun test summary at all')).toBeNull()
+  })
+
+  test('returns null when only one of pass/fail is present', () => {
+    expect(parseBunTestSummary('\n 2 pass\n')).toBeNull()
+  })
+})
+
+// ── scoreHiddenTests / escapedDefectRate ────────────────────────────────────
+
+describe('scoreHiddenTests', () => {
+  test('null when the scenario has no hidden/<id> suite under the given repoRoot', async () => {
+    const sandbox = makeSandbox()
+    const result = await scoreHiddenTests('/repo-root-unused', sandbox, 'ci')
+    expect(result).toBeNull()
+  })
+
+  test('scores the real fix hidden suite: fails against the unmodified (buggy) fixture', async () => {
+    const sandbox = makeSandbox()
+    mkdirSync(join(sandbox, 'src'), { recursive: true })
+    writeFileSync(
+      join(sandbox, 'src/strings.ts'),
+      [
+        'export function truncate(input: string, maxLength: number): string {',
+        '  if (input.length <= maxLength) return input',
+        "  return input.slice(0, maxLength + 1) + '…'",
+        '}',
+        '',
+      ].join('\n'),
+    )
+    const result = await scoreHiddenTests(REPO_ROOT, sandbox, 'fix')
+    expect(result).not.toBeNull()
+    expect(result?.failed).toBeGreaterThan(0)
+  }, 15_000)
+
+  test('scores the real fix hidden suite: 0 failures against a correct fix', async () => {
+    const sandbox = makeSandbox()
+    mkdirSync(join(sandbox, 'src'), { recursive: true })
+    writeFileSync(
+      join(sandbox, 'src/strings.ts'),
+      [
+        'export function truncate(input: string, maxLength: number): string {',
+        '  if (input.length <= maxLength) return input',
+        "  return input.slice(0, maxLength) + '…'",
+        '}',
+        '',
+      ].join('\n'),
+    )
+    const result = await scoreHiddenTests(REPO_ROOT, sandbox, 'fix')
+    expect(result).not.toBeNull()
+    expect(result?.failed).toBe(0)
+    expect(result?.total).toBeGreaterThan(0)
+  }, 15_000)
+
+  // Regression: scoreHiddenTests used to leave `<sandbox>/hidden-tests/` in
+  // place, which a scenario's own `completed` predicate (a bare, unscoped
+  // `bun test` at the sandbox root) would then pick up alongside the real
+  // suite — corrupting taskCompleted with foreign hidden-suite cases. Caught
+  // via a live smoke run against the real fix scenario (see this change's
+  // tasks.md); scoreHiddenTests now removes its copy before returning.
+  test('removes <sandbox>/hidden-tests/ so it does not leak into a later bare `bun test`', async () => {
+    const sandbox = makeSandbox()
+    mkdirSync(join(sandbox, 'src'), { recursive: true })
+    writeFileSync(
+      join(sandbox, 'src/strings.ts'),
+      [
+        'export function truncate(input: string, maxLength: number): string {',
+        '  if (input.length <= maxLength) return input',
+        "  return input.slice(0, maxLength) + '…'",
+        '}',
+        '',
+      ].join('\n'),
+    )
+    writeFileSync(
+      join(sandbox, 'src/strings.test.ts'),
+      [
+        "import { expect, test } from 'bun:test'",
+        '',
+        "import { truncate } from './strings.ts'",
+        '',
+        "test('truncate works', () => {",
+        "  expect(truncate('hello world', 5)).toBe('hello…')",
+        '})',
+        '',
+      ].join('\n'),
+    )
+
+    await scoreHiddenTests(REPO_ROOT, sandbox, 'fix')
+    expect(existsSync(join(sandbox, 'hidden-tests'))).toBe(false)
+
+    const result = await spawnIn(['bun', 'test'], sandbox)
+    expect(result.exitCode).toBe(0)
+  }, 15_000)
+})
+
+// ── scorePlantedBug ─────────────────────────────────────────────────────────
+
+describe('scorePlantedBug', () => {
+  test('null when the scenario declares no plant', async () => {
+    const sandbox = makeSandbox()
+    expect(ciScenario.plantedBug).toBeUndefined()
+    const result = await scorePlantedBug(REPO_ROOT, sandbox, ciScenario)
+    expect(result).toBeNull()
+  })
+
+  test('false against the fix scenario seeded with its planted bug (capitalize)', async () => {
+    const sandbox = makeSandbox()
+    mkdirSync(join(sandbox, 'src'), { recursive: true })
+    writeFileSync(
+      join(sandbox, 'src/strings.ts'),
+      [
+        'export function truncate(input: string, maxLength: number): string {',
+        '  if (input.length <= maxLength) return input',
+        "  return input.slice(0, maxLength) + '…'",
+        '}',
+        '',
+        'export function capitalize(input: string): string {',
+        '  if (input.length === 0) return input',
+        '  return input[0]!.toUpperCase() + input.slice(2)',
+        '}',
+        '',
+      ].join('\n'),
+    )
+    expect(fixScenario.plantedBug).toBeDefined()
+    const result = await scorePlantedBug(REPO_ROOT, sandbox, fixScenario)
+    expect(result).toBe(false)
+  }, 15_000)
+
+  test('true against the fix scenario with the planted bug fixed', async () => {
+    const sandbox = makeSandbox()
+    mkdirSync(join(sandbox, 'src'), { recursive: true })
+    writeFileSync(
+      join(sandbox, 'src/strings.ts'),
+      [
+        'export function truncate(input: string, maxLength: number): string {',
+        '  if (input.length <= maxLength) return input',
+        "  return input.slice(0, maxLength) + '…'",
+        '}',
+        '',
+        'export function capitalize(input: string): string {',
+        '  if (input.length === 0) return input',
+        '  return input[0]!.toUpperCase() + input.slice(1)',
+        '}',
+        '',
+      ].join('\n'),
+    )
+    const result = await scorePlantedBug(REPO_ROOT, sandbox, fixScenario)
+    expect(result).toBe(true)
+  }, 15_000)
+
+  // Regression: same leftover-directory hazard as scoreHiddenTests, for
+  // `<sandbox>/planted-check/`. The fix scenario's own detector patches
+  // src/strings.ts, so an un-cleaned copy left the planted bug's own failing
+  // assertions in the sandbox tree for the next bare `bun test` to trip on —
+  // this is the exact corruption a live `fix` smoke run surfaced.
+  test('removes <sandbox>/planted-check/ so it does not leak into a later bare `bun test`', async () => {
+    const sandbox = makeSandbox()
+    mkdirSync(join(sandbox, 'src'), { recursive: true })
+    writeFileSync(
+      join(sandbox, 'src/strings.ts'),
+      [
+        'export function truncate(input: string, maxLength: number): string {',
+        '  if (input.length <= maxLength) return input',
+        "  return input.slice(0, maxLength) + '…'",
+        '}',
+        '',
+        'export function capitalize(input: string): string {',
+        '  if (input.length === 0) return input',
+        '  return input[0]!.toUpperCase() + input.slice(2)',
+        '}',
+        '',
+      ].join('\n'),
+    )
+    writeFileSync(
+      join(sandbox, 'src/strings.test.ts'),
+      [
+        "import { expect, test } from 'bun:test'",
+        '',
+        "import { truncate } from './strings.ts'",
+        '',
+        "test('truncate works', () => {",
+        "  expect(truncate('hello world', 5)).toBe('hello…')",
+        '})',
+        '',
+      ].join('\n'),
+    )
+
+    const before = await scorePlantedBug(REPO_ROOT, sandbox, fixScenario)
+    expect(before).toBe(false) // the plant (capitalize off-by-one) is still present
+    expect(existsSync(join(sandbox, 'planted-check'))).toBe(false)
+
+    // The real visible suite (truncate) never exercised the plant, so a bare
+    // `bun test` at the sandbox root must stay green even though the plant
+    // itself is unfixed.
+    const result = await spawnIn(['bun', 'test'], sandbox)
+    expect(result.exitCode).toBe(0)
+  }, 15_000)
+})
+
+describe('escapedDefectRate', () => {
+  test('null when mechanical is undefined or hiddenTests is null', () => {
+    expect(escapedDefectRate(undefined)).toBeNull()
+  })
+
+  test('divides failed by total', () => {
+    const m = {
+      changeProduced: false,
+      changeArchived: false,
+      armNativeValidatePass: null,
+      schemaConformance: null,
+      artifactFiles: [],
+      forbiddenArtifacts: [],
+      missingRequiredArtifacts: [],
+      tasksAllChecked: null,
+      taskCompleted: false,
+      hiddenTests: { total: 4, failed: 1 },
+      plantedBugCaught: null,
+    }
+    expect(escapedDefectRate(m)).toBe(0.25)
+  })
+
+  test('null when total is 0 (nothing to divide by)', () => {
+    const m = {
+      changeProduced: false,
+      changeArchived: false,
+      armNativeValidatePass: null,
+      schemaConformance: null,
+      artifactFiles: [],
+      forbiddenArtifacts: [],
+      missingRequiredArtifacts: [],
+      tasksAllChecked: null,
+      taskCompleted: false,
+      hiddenTests: { total: 0, failed: 0 },
+      plantedBugCaught: null,
+    }
+    expect(escapedDefectRate(m)).toBeNull()
+  })
+})
+
+// ── confirmedReviewDefectCount ───────────────────────────────────────────────
+
+describe('confirmedReviewDefectCount', () => {
+  const base = {
+    changeProduced: false,
+    changeArchived: false,
+    armNativeValidatePass: null,
+    schemaConformance: null,
+    artifactFiles: [],
+    forbiddenArtifacts: [],
+    missingRequiredArtifacts: [],
+    tasksAllChecked: null,
+    taskCompleted: false,
+    hiddenTests: null,
+    plantedBugCaught: null,
+  }
+
+  test('null when not reviewed (undefined metrics, or reviewDefects absent/null)', () => {
+    expect(confirmedReviewDefectCount(undefined)).toBeNull()
+    expect(confirmedReviewDefectCount(base)).toBeNull()
+    expect(confirmedReviewDefectCount({ ...base, reviewDefects: null })).toBeNull()
+  })
+
+  test('returns the confirmed count (0 is a real reviewed-clean signal, not null)', () => {
+    expect(confirmedReviewDefectCount({ ...base, reviewDefects: { found: 3, confirmed: 2 } })).toBe(
+      2,
+    )
+    expect(confirmedReviewDefectCount({ ...base, reviewDefects: { found: 1, confirmed: 0 } })).toBe(
+      0,
+    )
   })
 })
 
@@ -188,7 +493,7 @@ describe('resolveChange', () => {
 })
 
 // ── scoreMechanical over ARCHIVED trees (archived short-circuits both
-// armNativeValidate and cospecValidateCounts, so these exercise the
+// armNativeValidate and schemaConformanceCounts, so these exercise the
 // proportionality/tasks/completion logic with zero subprocess spawns) ──────
 
 function trivialScenario(overrides: Partial<Scenario> = {}): Scenario {
@@ -212,7 +517,7 @@ describe('scoreMechanical', () => {
     expect(m.changeProduced).toBe(false)
     expect(m.changeArchived).toBe(false)
     expect(m.armNativeValidatePass).toBeNull()
-    expect(m.cospecValidate).toBeNull()
+    expect(m.schemaConformance).toBeNull()
     expect(m.taskCompleted).toBe(false)
     // feat requires specs/ too.
     expect(new Set(m.missingRequiredArtifacts)).toEqual(
@@ -241,7 +546,7 @@ describe('scoreMechanical', () => {
     expect(m.changeProduced).toBe(true)
     expect(m.changeArchived).toBe(true)
     expect(m.stampedSchema).toBe('ci')
-    // Archived short-circuits armNativeValidatePass only — cospecValidate is
+    // Archived short-circuits armNativeValidatePass only — schemaConformance is
     // still scored post-hoc via the scratch-repo path (see the dedicated
     // describe block below; here the `.openspec.yaml` schema is unresolvable
     // against real canon so it degrades to a non-null-but-possibly-errored
@@ -299,14 +604,14 @@ describe('scoreMechanical', () => {
   })
 })
 
-// ── cospecValidate over ARCHIVED changes (real binary — reproduces + fixes the
+// ── schemaConformance over ARCHIVED changes (real binary — reproduces + fixes the
 // first-full-run bug: `cospec validate <slug>` only resolves ACTIVE changes by
 // exact id, so pointing it at an archived slug in the real sandbox used to
-// fail with "unknown item" (empty stdout -> parseCospecValidateJson -> null).
+// fail with "unknown item" (empty stdout -> parseSchemaConformanceJson -> null).
 // These spawn the real working-tree CLI, mirroring contract-test style. ────
 
-describe('scoreMechanical — cospecValidate for archived changes (real CLI)', () => {
-  test('archived change with a valid, clean ci artifact set scores cospecValidate (not null)', async () => {
+describe('scoreMechanical — schemaConformance for archived changes (real CLI)', () => {
+  test('archived change with a valid, clean ci artifact set scores schemaConformance (not null)', async () => {
     const sandbox = makeSandbox()
     const changeDir = 'openspec/changes/archive/2026-08-08-clean-ci'
     const base = join(sandbox, changeDir)
@@ -361,8 +666,8 @@ describe('scoreMechanical — cospecValidate for archived changes (real CLI)', (
 
     expect(m.changeArchived).toBe(true)
     // The bug: this used to be `null` unconditionally for every archived cell.
-    expect(m.cospecValidate).not.toBeNull()
-    expect(m.cospecValidate?.errors).toBe(0)
+    expect(m.schemaConformance).not.toBeNull()
+    expect(m.schemaConformance?.errors).toBe(0)
   }, 30_000)
 
   test('archived change with a validation defect still scores non-null counts (errors surfaced)', async () => {
@@ -397,8 +702,8 @@ describe('scoreMechanical — cospecValidate for archived changes (real CLI)', (
     const m = await scoreMechanical(REPO_ROOT, sandbox, 'cospec', scenario)
 
     expect(m.changeArchived).toBe(true)
-    expect(m.cospecValidate).not.toBeNull()
-    expect(m.cospecValidate?.errors).toBeGreaterThan(0)
+    expect(m.schemaConformance).not.toBeNull()
+    expect(m.schemaConformance?.errors).toBeGreaterThan(0)
   }, 30_000)
 })
 

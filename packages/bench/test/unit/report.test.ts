@@ -10,8 +10,10 @@ import {
   aggregate,
   appendCellResult,
   ensureRunDir,
+  readCellDiff,
   writeAggregate,
   writeArtifactSnapshot,
+  writeCellDiff,
   writeMarkdown,
   type CellResult,
   type RunMeta,
@@ -53,18 +55,20 @@ function mechanical(overrides: Partial<MechanicalMetrics> = {}): MechanicalMetri
     changeProduced: true,
     changeArchived: false,
     armNativeValidatePass: true,
-    cospecValidate: { errors: 1, warnings: 2, byRule: {} },
+    schemaConformance: { errors: 1, warnings: 2, byRule: {} },
     artifactFiles: ['proposal.md'],
     forbiddenArtifacts: [],
     missingRequiredArtifacts: [],
     tasksAllChecked: true,
     taskCompleted: true,
+    hiddenTests: null,
+    plantedBugCaught: null,
     ...overrides,
   }
 }
 
 function result(overrides: Partial<CellResult> = {}): CellResult {
-  return { cell: cell(), scenarioType: 'ci', ...overrides }
+  return { cell: cell(), scenarioId: 'ci', ...overrides }
 }
 
 const NO_SENTINELS = {}
@@ -80,7 +84,7 @@ function snapshot(overrides: Partial<ArtifactSnapshot> = {}): ArtifactSnapshot {
 }
 
 describe('aggregate', () => {
-  test('groups by (scenarioType, arm, model) and reduces over repeats', () => {
+  test('groups by (scenarioId, arm, model) and reduces over repeats', () => {
     const rows = aggregate([
       result({
         cell: cell({ repeat: 1 }),
@@ -113,7 +117,7 @@ describe('aggregate', () => {
     ])
     expect(rows).toHaveLength(1)
     const row = rows[0]!
-    expect(row.scenarioType).toBe('ci')
+    expect(row.scenarioId).toBe('ci')
     expect(row.arm).toBe('cospec')
     expect(row.model).toBe('claude-sonnet-5')
     expect(row.repeats).toBe(2)
@@ -136,42 +140,71 @@ describe('aggregate', () => {
     const rows = aggregate([
       result({
         cell: cell({ arm: 'openspec' }),
-        scenarioType: 'feat',
+        scenarioId: 'feat',
         telemetry: telemetry(),
         mechanical: mechanical(),
       }),
       result({
         cell: cell({ arm: 'cospec' }),
-        scenarioType: 'ci',
+        scenarioId: 'ci',
         telemetry: telemetry(),
         mechanical: mechanical(),
       }),
       result({
         cell: cell({ model: 'claude-opus-4-8' }),
-        scenarioType: 'ci',
+        scenarioId: 'ci',
         telemetry: telemetry(),
         mechanical: mechanical(),
       }),
     ])
     expect(rows).toHaveLength(3)
-    // Sorted by scenarioType then arm then model.
-    expect(rows.map((r) => `${r.scenarioType}|${r.arm}|${r.model}`)).toEqual([
+    // Sorted by scenarioId then arm then model.
+    expect(rows.map((r) => `${r.scenarioId}|${r.arm}|${r.model}`)).toEqual([
       'ci|cospec|claude-opus-4-8',
       'ci|cospec|claude-sonnet-5',
       'feat|openspec|claude-sonnet-5',
     ])
   })
 
-  test('meanQualityOverall / meanDefects are null when no cell in the group has that data', () => {
+  test("a `-hard` variant never merges into its base scenario's row, even though both share a cospec type", () => {
+    // feat-hard is `type: 'feat'` (see scenarios/feat-hard.ts) — grouping by
+    // the cospec type instead of the scenario id would silently merge these
+    // two into one row whenever both run in the same matrix (e.g. `--hard`
+    // without narrowing to just the hard ids).
+    const rows = aggregate([
+      result({
+        cell: cell(),
+        scenarioId: 'feat',
+        telemetry: telemetry({ durationMs: 1000 }),
+        mechanical: mechanical({ taskCompleted: true }),
+      }),
+      result({
+        cell: cell(),
+        scenarioId: 'feat-hard',
+        telemetry: telemetry({ durationMs: 9000 }),
+        mechanical: mechanical({ taskCompleted: false }),
+      }),
+    ])
+    expect(rows).toHaveLength(2)
+    expect(rows.map((r) => r.scenarioId).toSorted()).toEqual(['feat', 'feat-hard'])
+    const feat = rows.find((r) => r.scenarioId === 'feat')!
+    const featHard = rows.find((r) => r.scenarioId === 'feat-hard')!
+    expect(feat.repeats).toBe(1)
+    expect(featHard.repeats).toBe(1)
+    expect(feat.meanDurationMs).toBe(1000)
+    expect(featHard.meanDurationMs).toBe(9000)
+  })
+
+  test('meanQualityOverall / meanConformanceIssues are null when no cell in the group has that data', () => {
     const rows = aggregate([
       result({
         telemetry: telemetry(),
-        mechanical: mechanical({ cospecValidate: null }),
+        mechanical: mechanical({ schemaConformance: null }),
         quality: null,
       }),
     ])
     expect(rows[0]!.meanQualityOverall).toBeNull()
-    expect(rows[0]!.meanDefects).toBeNull()
+    expect(rows[0]!.meanConformanceIssues).toBeNull()
   })
 
   test('armNativeValidatePassRate ignores null entries and averages known booleans', () => {
@@ -191,18 +224,145 @@ describe('aggregate', () => {
     expect(rows[0]!.armNativeValidatePassRate).toBe(0.5)
   })
 
-  test('meanDefects sums errors+warnings from cospecValidate', () => {
+  test('meanConformanceIssues sums errors+warnings from schemaConformance', () => {
     const rows = aggregate([
       result({
         telemetry: telemetry(),
-        mechanical: mechanical({ cospecValidate: { errors: 2, warnings: 3, byRule: {} } }),
+        mechanical: mechanical({ schemaConformance: { errors: 2, warnings: 3, byRule: {} } }),
       }),
     ])
-    expect(rows[0]!.meanDefects).toBe(5)
+    expect(rows[0]!.meanConformanceIssues).toBe(5)
+  })
+
+  test('meanConfirmedReviewDefects is null when no cell was reviewed', () => {
+    const rows = aggregate([result({ telemetry: telemetry(), mechanical: mechanical() })])
+    expect(rows[0]!.meanConfirmedReviewDefects).toBeNull()
+  })
+
+  test('meanConfirmedReviewDefects averages confirmed counts over reviewed repeats', () => {
+    const rows = aggregate([
+      result({
+        cell: cell({ repeat: 1 }),
+        telemetry: telemetry(),
+        mechanical: mechanical({ reviewDefects: { found: 3, confirmed: 2 } }),
+      }),
+      result({
+        cell: cell({ repeat: 2 }),
+        telemetry: telemetry(),
+        mechanical: mechanical({ reviewDefects: { found: 1, confirmed: 0 } }),
+      }),
+    ])
+    expect(rows[0]!.meanConfirmedReviewDefects).toBe(1)
+  })
+
+  test('meanEscapedDefects/meanHiddenTestsTotal are null when no cell scored hidden tests', () => {
+    const rows = aggregate([
+      result({ telemetry: telemetry(), mechanical: mechanical({ hiddenTests: null }) }),
+    ])
+    expect(rows[0]!.meanEscapedDefects).toBeNull()
+    expect(rows[0]!.meanHiddenTestsTotal).toBeNull()
+  })
+
+  test('meanEscapedDefects/meanHiddenTestsTotal average the failed/total hidden-test counts', () => {
+    const rows = aggregate([
+      result({
+        cell: cell({ repeat: 1 }),
+        telemetry: telemetry(),
+        mechanical: mechanical({ hiddenTests: { total: 6, failed: 2 } }),
+      }),
+      result({
+        cell: cell({ repeat: 2 }),
+        telemetry: telemetry(),
+        mechanical: mechanical({ hiddenTests: { total: 6, failed: 0 } }),
+      }),
+    ])
+    expect(rows[0]!.meanEscapedDefects).toBe(1)
+    expect(rows[0]!.meanHiddenTestsTotal).toBe(6)
+  })
+
+  test('plantedBugCaughtRate is null when no cell scored a plant (undefined scenario plant, or null result)', () => {
+    const rows = aggregate([
+      result({ telemetry: telemetry(), mechanical: mechanical({ plantedBugCaught: null }) }),
+    ])
+    expect(rows[0]!.plantedBugCaughtRate).toBeNull()
+  })
+
+  test('plantedBugCaughtRate is the fraction of repeats that caught the plant', () => {
+    const rows = aggregate([
+      result({
+        cell: cell({ repeat: 1 }),
+        telemetry: telemetry(),
+        mechanical: mechanical({ plantedBugCaught: true }),
+      }),
+      result({
+        cell: cell({ repeat: 2 }),
+        telemetry: telemetry(),
+        mechanical: mechanical({ plantedBugCaught: false }),
+      }),
+    ])
+    expect(rows[0]!.plantedBugCaughtRate).toBe(0.5)
   })
 
   test('empty input yields an empty array', () => {
     expect(aggregate([])).toEqual([])
+  })
+
+  test('durationSummary/costSummary are a full NumericSummary; n=1 has null stddev', () => {
+    const rows = aggregate([
+      result({
+        telemetry: telemetry({ durationMs: 1000, totalCostUsd: 0.5 }),
+        mechanical: mechanical(),
+      }),
+    ])
+    expect(rows[0]!.durationSummary).toEqual({
+      n: 1,
+      mean: 1000,
+      min: 1000,
+      max: 1000,
+      stddev: null,
+    })
+    expect(rows[0]!.costSummary).toEqual({ n: 1, mean: 0.5, min: 0.5, max: 0.5, stddev: null })
+  })
+
+  test('durationSummary/costSummary reflect real spread across repeats (n>1)', () => {
+    const rows = aggregate([
+      result({
+        cell: cell({ repeat: 1 }),
+        telemetry: telemetry({ durationMs: 1000, totalCostUsd: 0.1 }),
+        mechanical: mechanical(),
+      }),
+      result({
+        cell: cell({ repeat: 2 }),
+        telemetry: telemetry({ durationMs: 3000, totalCostUsd: 0.3 }),
+        mechanical: mechanical(),
+      }),
+    ])
+    const row = rows[0]!
+    expect(row.durationSummary?.n).toBe(2)
+    expect(row.durationSummary?.min).toBe(1000)
+    expect(row.durationSummary?.max).toBe(3000)
+    expect(row.durationSummary?.mean).toBe(2000)
+    expect(row.durationSummary?.stddev).not.toBeNull()
+    expect(row.costSummary?.min).toBe(0.1)
+    expect(row.costSummary?.max).toBe(0.3)
+  })
+
+  test('tokensInSummary/tokensOutSummary are populated from telemetry usage', () => {
+    const rows = aggregate([
+      result({
+        telemetry: telemetry({
+          usage: {
+            inputTokens: 10,
+            outputTokens: 20,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+          },
+        }),
+        mechanical: mechanical(),
+      }),
+    ])
+    expect(rows[0]!.tokensInSummary).toEqual({ n: 1, mean: 10, min: 10, max: 10, stddev: null })
+    expect(rows[0]!.tokensOutSummary).toEqual({ n: 1, mean: 20, min: 20, max: 20, stddev: null })
   })
 })
 
@@ -244,6 +404,144 @@ describe('writeMarkdown', () => {
     const text = await Bun.file(path).text()
     expect(text).toContain('judge: deepseek-v4-flash')
   })
+
+  test('the main table header names conformance (not defects) and carries a rubric-caveat legend', async () => {
+    const runDir = makeRunDir()
+    const path = await writeMarkdown(runDir, meta, [
+      result({ telemetry: telemetry(), mechanical: mechanical() }),
+    ])
+    const text = await Bun.file(path).text()
+    expect(text).toContain('conformance*')
+    expect(text).not.toMatch(/\|\s*defects\s*\|/)
+    expect(text).toContain("cospec's OWN opinionated rubric applied to")
+    expect(text).toContain('NOT a defect measure')
+    expect(text).toContain(
+      'native-valid = each arm validating its OWN output with its OWN validator',
+    )
+  })
+
+  test('the main table carries an "escaped‡" column reporting failed/total hidden tests', async () => {
+    const runDir = makeRunDir()
+    const path = await writeMarkdown(runDir, meta, [
+      result({
+        telemetry: telemetry(),
+        mechanical: mechanical({ hiddenTests: { total: 6, failed: 2 } }),
+      }),
+    ])
+    const text = await Bun.file(path).text()
+    expect(text).toContain('escaped‡')
+    expect(text).toContain('2.0/6.0')
+    expect(text).toContain('PRIMARY, tool-neutral')
+  })
+
+  test('the "escaped‡" cell renders a dash when hidden tests were not scored', async () => {
+    const runDir = makeRunDir()
+    const path = await writeMarkdown(runDir, meta, [
+      result({ telemetry: telemetry(), mechanical: mechanical({ hiddenTests: null }) }),
+    ])
+    const text = await Bun.file(path).text()
+    const row = text.split('\n').find((l) => l.startsWith('| ci | cospec |'))
+    expect(row).toBeDefined()
+    expect(row?.split('|').map((c) => c.trim())[8]).toBe('—')
+  })
+
+  test('the main table carries a "review§" column reporting mean confirmed review defects', async () => {
+    const runDir = makeRunDir()
+    const path = await writeMarkdown(runDir, meta, [
+      result({
+        telemetry: telemetry(),
+        mechanical: mechanical({ reviewDefects: { found: 3, confirmed: 2 } }),
+      }),
+    ])
+    const text = await Bun.file(path).text()
+    expect(text).toContain('review§')
+    expect(text).toContain('ARM-BLIND reviewer')
+    const row = text.split('\n').find((l) => l.startsWith('| ci | cospec |'))
+    // Column index 9 (1-based between pipes): quality|conformance|native|escaped|review.
+    expect(row?.split('|').map((c) => c.trim())[9]).toBe('2.0')
+  })
+
+  test('the "review§" cell renders a dash when review did not run for the group', async () => {
+    const runDir = makeRunDir()
+    const path = await writeMarkdown(runDir, meta, [
+      result({ telemetry: telemetry(), mechanical: mechanical() }),
+    ])
+    const text = await Bun.file(path).text()
+    const row = text.split('\n').find((l) => l.startsWith('| ci | cospec |'))
+    expect(row?.split('|').map((c) => c.trim())[9]).toBe('—')
+  })
+
+  test('the main table carries a "plant¶" column reporting the planted-bug-caught rate', async () => {
+    const runDir = makeRunDir()
+    const path = await writeMarkdown(runDir, meta, [
+      result({ telemetry: telemetry(), mechanical: mechanical({ plantedBugCaught: true }) }),
+    ])
+    const text = await Bun.file(path).text()
+    expect(text).toContain('plant¶')
+    expect(text).toContain('ADJACENT to')
+    const row = text.split('\n').find((l) => l.startsWith('| ci | cospec |'))
+    // Column index 10 (1-based between pipes): quality|conformance|native|escaped|review|plant.
+    expect(row?.split('|').map((c) => c.trim())[10]).toBe('100%')
+  })
+
+  test('the "plant¶" cell renders a dash when the scenario has no plant', async () => {
+    const runDir = makeRunDir()
+    const path = await writeMarkdown(runDir, meta, [
+      result({ telemetry: telemetry(), mechanical: mechanical({ plantedBugCaught: null }) }),
+    ])
+    const text = await Bun.file(path).text()
+    const row = text.split('\n').find((l) => l.startsWith('| ci | cospec |'))
+    expect(row?.split('|').map((c) => c.trim())[10]).toBe('—')
+  })
+
+  test('"Repeat spread" section states there is nothing to spread when every group has n=1', async () => {
+    const runDir = makeRunDir()
+    const path = await writeMarkdown(runDir, meta, [
+      result({ telemetry: telemetry(), mechanical: mechanical() }),
+    ])
+    const text = await Bun.file(path).text()
+    expect(text).toContain('## Repeat spread (n>1 only)')
+    expect(text).toContain('_No group has more than one repeat — nothing to spread over._')
+  })
+
+  test('"Repeat spread" section renders min/max/stddev when a group has repeats>1', async () => {
+    const runDir = makeRunDir()
+    const path = await writeMarkdown(runDir, { ...meta, ranCells: 2, totalCells: 2 }, [
+      result({
+        cell: cell({ repeat: 1 }),
+        telemetry: telemetry({ durationMs: 1000, totalCostUsd: 0.1 }),
+        mechanical: mechanical(),
+      }),
+      result({
+        cell: cell({ repeat: 2 }),
+        telemetry: telemetry({ durationMs: 3000, totalCostUsd: 0.3 }),
+        mechanical: mechanical(),
+      }),
+    ])
+    const text = await Bun.file(path).text()
+    expect(text).toContain('## Repeat spread (n>1 only)')
+    expect(text).toContain('| ci | cospec | claude-sonnet-5 | 2 |')
+    expect(text).toContain('1000/3000')
+  })
+
+  test('carries a "Paired comparison" section wired from pairedComparisons', async () => {
+    const runDir = makeRunDir()
+    const path = await writeMarkdown(runDir, { ...meta, ranCells: 2, totalCells: 2 }, [
+      result({
+        cell: cell({ arm: 'cospec' }),
+        telemetry: telemetry({ totalCostUsd: 0.1 }),
+        mechanical: mechanical(),
+      }),
+      result({
+        cell: cell({ arm: 'openspec' }),
+        telemetry: telemetry({ totalCostUsd: 0.9 }),
+        mechanical: mechanical(),
+      }),
+    ])
+    const text = await Bun.file(path).text()
+    expect(text).toContain('## Paired comparison (cospec vs openspec, matched cells)')
+    expect(text).toContain('n=1 — no significance claim')
+  })
 })
 
 describe('ensureRunDir + appendCellResult + writeAggregate — redaction guard', () => {
@@ -266,7 +564,7 @@ describe('ensureRunDir + appendCellResult + writeAggregate — redaction guard',
     )
     const text = await Bun.file(join(runDir, 'cells.jsonl')).text()
     const row = JSON.parse(text.trim().split('\n')[0]!)
-    expect(row.scenarioType).toBe('ci')
+    expect(row.scenarioId).toBe('ci')
   })
 
   test('judgeError is written verbatim — a judge failure is never invisible', async () => {
@@ -313,6 +611,54 @@ describe('ensureRunDir + appendCellResult + writeAggregate — redaction guard',
     await expect(
       writeAggregate(runDir, meta, results, { key: 'SUPER-SECRET-KEY' }),
     ).rejects.toThrow(/redaction self-check failed/)
+  })
+})
+
+describe('writeCellDiff / readCellDiff', () => {
+  test('round-trips a diff to snapshots/<key>.diff and reads it back', async () => {
+    const runDir = makeRunDir()
+    await ensureRunDir(runDir)
+    const diff = 'diff --git a/x.ts b/x.ts\n+export const n = 1\n'
+    await writeCellDiff(runDir, 'ci__cospec__claude-sonnet-5__r1', diff, NO_SENTINELS)
+    const readBack = await readCellDiff(runDir, 'ci__cospec__claude-sonnet-5__r1')
+    expect(readBack).toBe(diff)
+  })
+
+  test('an empty (whitespace-only) diff is a no-op — nothing is written', async () => {
+    const runDir = makeRunDir()
+    await ensureRunDir(runDir)
+    await writeCellDiff(runDir, 'ci__cospec__claude-sonnet-5__r1', '   \n', NO_SENTINELS)
+    expect(await readCellDiff(runDir, 'ci__cospec__claude-sonnet-5__r1')).toBeUndefined()
+  })
+
+  test('readCellDiff returns undefined for a missing key', async () => {
+    const runDir = makeRunDir()
+    await ensureRunDir(runDir)
+    expect(await readCellDiff(runDir, 'nope__cospec__claude-sonnet-5__r1')).toBeUndefined()
+  })
+
+  test('redacts sentinel values in the diff before persisting', async () => {
+    const runDir = makeRunDir()
+    await ensureRunDir(runDir)
+    await writeCellDiff(
+      runDir,
+      'ci__cospec__claude-sonnet-5__r1',
+      '+const ref = "BENCH-SECRET-TOKEN"\n',
+      { 'ref:ci:BENCH-SECRET-TOKEN': 'BENCH-SECRET-TOKEN' },
+    )
+    const readBack = await readCellDiff(runDir, 'ci__cospec__claude-sonnet-5__r1')
+    expect(readBack).toContain('[REDACTED:ref:ci:BENCH-SECRET-TOKEN]')
+    expect(readBack).not.toContain('"BENCH-SECRET-TOKEN"')
+  })
+
+  test('caps an oversized diff and appends a truncation marker', async () => {
+    const runDir = makeRunDir()
+    await ensureRunDir(runDir)
+    const huge = `+${'x'.repeat(300_000)}\n`
+    await writeCellDiff(runDir, 'ci__cospec__claude-sonnet-5__r1', huge, NO_SENTINELS)
+    const readBack = await readCellDiff(runDir, 'ci__cospec__claude-sonnet-5__r1')
+    expect(readBack!.length).toBeLessThan(huge.length)
+    expect(readBack).toContain('[... diff truncated for report ...]')
   })
 })
 
