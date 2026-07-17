@@ -25,4 +25,12 @@ export const featScenario: Scenario = {
     const result = await spawnIn(['bun', 'test'], sandbox)
     return result.exitCode === 0
   },
+  plantedBug: {
+    file: 'src/cart.ts',
+    description:
+      'removeItem only removes the FIRST matching line item, not every match ' +
+      '(findIndex/splice instead of filter) — invisible to the visible ' +
+      'suite, which only ever exercises a single match.',
+    detector: 'planted.test.ts',
+  },
 }

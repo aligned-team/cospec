@@ -30,4 +30,11 @@ export const perfScenario: Scenario = {
     const bench = await spawnIn(['bun', 'bench/measure.ts'], sandbox)
     return bench.exitCode === 0
   },
+  plantedBug: {
+    file: 'src/dedupe.ts',
+    description:
+      'countUnique has a fencepost error (`seen.size + 1`) — the visible ' +
+      'suite never calls `countUnique` at all.',
+    detector: 'planted.test.ts',
+  },
 }

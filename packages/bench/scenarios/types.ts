@@ -20,6 +20,25 @@ export interface CompletionContext {
 
 export type CompletionPredicate = (ctx: CompletionContext) => Promise<boolean> | boolean
 
+/**
+ * A latent bug seeded ADJACENT to (never inside) a scenario's task subject —
+ * a realistic, discoverable-by-careful-reading defect the task prompt never
+ * mentions. See `scenarios/planted/<id>/` and docs/bench.md's "Planted bugs"
+ * section for the full mechanism and report wiring.
+ */
+export interface PlantedBug {
+  /** Path (relative to the scenario's `fixtureDir`) to the file the defect lives in. */
+  file: string
+  /** Human-readable description of the defect, for docs/reports. */
+  description: string
+  /**
+   * Path (relative to `scenarios/planted/<id>/`) to the `bun:test` detector
+   * file: FAILS while the bug is present, PASSES once it is fixed — verified
+   * both directions in `test/unit/planted.test.ts`.
+   */
+  detector: string
+}
+
 export interface Scenario {
   /** Stable id used in the matrix and reports; matches the cospec type it exercises. */
   id: string
@@ -42,4 +61,9 @@ export interface Scenario {
   maxTurns: number
   /** Whether the fixture's requested code change landed (mechanical task-completion signal). */
   completed: CompletionPredicate
+  /**
+   * Optional latent bug seeded adjacent to this scenario's task subject.
+   * Undefined for scenarios with no plant.
+   */
+  plantedBug?: PlantedBug
 }

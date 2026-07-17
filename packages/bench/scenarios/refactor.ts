@@ -31,4 +31,11 @@ export const refactorScenario: Scenario = {
     const result = await spawnIn(['bun', 'test'], sandbox)
     return result.exitCode === 0
   },
+  plantedBug: {
+    file: 'src/validators.ts',
+    description:
+      'validateAge rejects the boundary value 120 (`age >= 120` instead of ' +
+      '`age > 120`) — the visible suite never calls `validateAge` at all.',
+    detector: 'planted.test.ts',
+  },
 }

@@ -11,7 +11,9 @@ export function addItem(cart: Cart, item: CartItem): Cart {
 }
 
 export function removeItem(cart: Cart, name: string): Cart {
-  return cart.filter((item) => item.name !== name)
+  const index = cart.findIndex((item) => item.name === name)
+  if (index === -1) return cart
+  return [...cart.slice(0, index), ...cart.slice(index + 1)]
 }
 
 export function subtotal(cart: Cart): number {

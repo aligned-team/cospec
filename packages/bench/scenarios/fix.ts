@@ -21,4 +21,12 @@ export const fixScenario: Scenario = {
     const result = await spawnIn(['bun', 'test'], sandbox)
     return result.exitCode === 0
   },
+  plantedBug: {
+    file: 'src/strings.ts',
+    description:
+      "capitalize drops the string's second character (`input.slice(2)` " +
+      'instead of `input.slice(1)`) — an off-by-one the visible suite never ' +
+      'exercises since it only ever calls `truncate`.',
+    detector: 'planted.test.ts',
+  },
 }

@@ -26,4 +26,12 @@ export const revertScenario: Scenario = {
     const result = await spawnIn(['bun', 'test'], sandbox)
     return result.exitCode === 0
   },
+  plantedBug: {
+    file: 'src/greet.ts',
+    description:
+      'farewell uses a wrong boundary comparison (`name.length > 1` instead ' +
+      'of `name.length > 0`), so a single-character name incorrectly falls ' +
+      'to the "stranger" branch — the visible suite never calls `farewell`.',
+    detector: 'planted.test.ts',
+  },
 }

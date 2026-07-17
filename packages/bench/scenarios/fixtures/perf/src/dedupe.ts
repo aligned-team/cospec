@@ -12,3 +12,10 @@ export function dedupe(nums: number[]): number[] {
   }
   return result
 }
+
+/** Count of distinct values in `nums`, for callers that only need a count. */
+export function countUnique(nums: number[]): number {
+  const seen = new Set<number>()
+  for (const n of nums) seen.add(n)
+  return seen.size + 1
+}
