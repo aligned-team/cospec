@@ -70,6 +70,20 @@ export interface MatrixFilters {
    * and `--review-report` (each is its own standalone mode; only one may run).
    */
   publishFrom?: string
+  /**
+   * Resume an interrupted run: reuse `<reportDir>` instead of creating a new
+   * one, skip cells already present in its `cells.jsonl` (matched by
+   * `cellKey`, including the repeat index — see `cellKey`), run only the
+   * missing ones, append to the same `cells.jsonl`, and regenerate
+   * `aggregate.json`/`summary.md` over the FULL (old + new) set at the end.
+   * The caller passes the SAME axis flags (`--scenario`/`--arm`/`--model`/
+   * `--repeats`/`--hard`) as the original run, so `expandMatrix` reproduces
+   * the identical cell set and skip-matching lines up; `--review`/`--publish`
+   * also compose normally (see `run.ts`). Mutually exclusive with the two
+   * standalone modes, `--review-report` and `--publish-from` — resume runs
+   * the matrix (or backfills review on it), neither of which those modes do.
+   */
+  resume?: string
 }
 
 function isArm(v: string): v is Arm {
@@ -106,6 +120,7 @@ export function parseArgs(argv: readonly string[]): MatrixFilters {
   let reviewReport: string | undefined
   let publish = false
   let publishFrom: string | undefined
+  let resume: string | undefined
 
   const tokens = [...argv]
   while (tokens.length > 0) {
@@ -166,6 +181,9 @@ export function parseArgs(argv: readonly string[]): MatrixFilters {
       case '--publish-from':
         publishFrom = takeValue()
         break
+      case '--resume':
+        resume = takeValue()
+        break
       default:
         throw new Error(`unknown flag: ${flag}`)
     }
@@ -173,15 +191,30 @@ export function parseArgs(argv: readonly string[]): MatrixFilters {
 
   if (publishFrom !== undefined) {
     const cellSelecting =
-      scenarios.length > 0 || arms.length > 0 || models.length > 0 || smoke || hard || review
+      scenarios.length > 0 ||
+      arms.length > 0 ||
+      models.length > 0 ||
+      smoke ||
+      hard ||
+      review ||
+      resume !== undefined
     if (cellSelecting || publish) {
       throw new Error(
         '--publish-from is standalone: it re-renders a past report and cannot be combined with ' +
-          'cell-selecting flags (--scenario/--arm/--model/--smoke/--hard/--review) or --publish',
+          'cell-selecting flags (--scenario/--arm/--model/--smoke/--hard/--review/--resume) or --publish',
       )
     }
     if (reviewReport !== undefined) {
       throw new Error('--publish-from cannot be combined with --review-report — choose one')
+    }
+  }
+
+  if (resume !== undefined) {
+    if (reviewReport !== undefined) {
+      throw new Error('--resume cannot be combined with --review-report — choose one')
+    }
+    if (publishFrom !== undefined) {
+      throw new Error('--resume cannot be combined with --publish-from — choose one')
     }
   }
 
@@ -197,6 +230,7 @@ export function parseArgs(argv: readonly string[]): MatrixFilters {
     reviewReport,
     publish,
     publishFrom,
+    resume,
   }
 }
 

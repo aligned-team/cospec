@@ -10,7 +10,9 @@ import {
   aggregate,
   appendCellResult,
   ensureRunDir,
+  isStaleSchema,
   readCellDiff,
+  readCellsJsonl,
   writeAggregate,
   writeArtifactSnapshot,
   writeCellDiff,
@@ -82,6 +84,37 @@ function snapshot(overrides: Partial<ArtifactSnapshot> = {}): ArtifactSnapshot {
     ...overrides,
   }
 }
+
+describe('aggregate — resumed run (old + new rows merged)', () => {
+  test('a resumed run merges old + new results into one complete-matrix aggregate', () => {
+    // Simulates what run.ts does at the end of a --resume invocation:
+    // `[...existingResults, ...freshResults]` fed straight into `aggregate`.
+    const existingResults = [
+      result({
+        cell: cell({ scenarioId: 'build', repeat: 1 }),
+        scenarioId: 'build',
+        telemetry: telemetry({ durationMs: 1000 }),
+        mechanical: mechanical({ taskCompleted: true }),
+      }),
+    ]
+    const freshResults = [
+      result({
+        cell: cell({ scenarioId: 'feat', repeat: 1 }),
+        scenarioId: 'feat',
+        telemetry: telemetry({ durationMs: 3000 }),
+        mechanical: mechanical({ taskCompleted: false }),
+      }),
+    ]
+    const rows = aggregate([...existingResults, ...freshResults])
+    expect(rows.map((r) => r.scenarioId)).toEqual(['build', 'feat'])
+    const build = rows.find((r) => r.scenarioId === 'build')!
+    expect(build.meanDurationMs).toBe(1000)
+    expect(build.taskCompletionRate).toBe(1)
+    const feat = rows.find((r) => r.scenarioId === 'feat')!
+    expect(feat.meanDurationMs).toBe(3000)
+    expect(feat.taskCompletionRate).toBe(0)
+  })
+})
 
 describe('aggregate', () => {
   test('groups by (scenarioId, arm, model) and reduces over repeats', () => {
@@ -718,5 +751,60 @@ describe('writeArtifactSnapshot', () => {
         { 'ref:ci:BENCH-SECRET-TOKEN': 'BENCH-SECRET-TOKEN' },
       ),
     ).rejects.toThrow(/redaction self-check failed/)
+  })
+})
+
+describe('readCellsJsonl', () => {
+  test('reads back every appended row as a CellResult, in append order', async () => {
+    const runDir = makeRunDir()
+    await ensureRunDir(runDir)
+    const first = result({ cell: cell({ scenarioId: 'ci', repeat: 1 }) })
+    const second = result({ cell: cell({ scenarioId: 'feat', repeat: 1 }) })
+    await appendCellResult(runDir, first, NO_SENTINELS)
+    await appendCellResult(runDir, second, NO_SENTINELS)
+    const rows = await readCellsJsonl(runDir)
+    expect(rows).toHaveLength(2)
+    expect(rows[0]!.cell.scenarioId).toBe('ci')
+    expect(rows[1]!.cell.scenarioId).toBe('feat')
+  })
+
+  test('throws an actionable error when the dir has no cells.jsonl', async () => {
+    const runDir = makeRunDir()
+    await ensureRunDir(runDir)
+    await expect(readCellsJsonl(runDir)).rejects.toThrow(/no cells\.jsonl under/)
+  })
+
+  test('throws when a row is not valid JSON', async () => {
+    const runDir = makeRunDir()
+    await ensureRunDir(runDir)
+    await Bun.write(join(runDir, 'cells.jsonl'), '{"cell": {}}\nnot json\n')
+    await expect(readCellsJsonl(runDir)).rejects.toThrow(/not valid JSON/)
+  })
+
+  test('ignores trailing blank lines', async () => {
+    const runDir = makeRunDir()
+    await ensureRunDir(runDir)
+    await appendCellResult(runDir, result(), NO_SENTINELS)
+    const existing = await Bun.file(join(runDir, 'cells.jsonl')).text()
+    await Bun.write(join(runDir, 'cells.jsonl'), `${existing}\n\n`)
+    const rows = await readCellsJsonl(runDir)
+    expect(rows).toHaveLength(1)
+  })
+})
+
+describe('isStaleSchema', () => {
+  test('false for current-schema rows (scenarioId present on every non-skipped cell)', () => {
+    const skippedNoScenario = { cell: cell(), skipped: 'x' } as unknown as CellResult
+    expect(isStaleSchema([result(), skippedNoScenario])).toBe(false)
+  })
+
+  test('true when a non-skipped row predates the scenarioId field', () => {
+    const stale = { cell: cell() } as unknown as CellResult
+    expect(isStaleSchema([stale])).toBe(true)
+  })
+
+  test('a skipped row missing scenarioId does not count as stale', () => {
+    const skippedOnly = { cell: cell(), skipped: 'agent did not start' } as unknown as CellResult
+    expect(isStaleSchema([skippedOnly])).toBe(false)
   })
 })

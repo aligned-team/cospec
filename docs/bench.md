@@ -27,19 +27,20 @@ still executes; quality scores are recorded as `null`.
 CLI filters narrow each axis (pass after `--`, e.g.
 `mise run bench -- --scenario feat --arm cospec`):
 
-| flag                    | default | purpose                                                               |
-| ----------------------- | ------- | --------------------------------------------------------------------- |
-| `--scenario`            | all 11  | scenario id(s); repeatable / comma-separated                          |
-| `--arm`                 | both    | `cospec` \| `openspec`                                                |
-| `--model`               | both    | `claude-sonnet-5` \| `claude-opus-4-8`                                |
-| `--repeats`             | 1       | copies per cell (surfaces variance)                                   |
-| `--concurrency`         | 2       | bounded worker pool size                                              |
-| `--smoke`               | off     | collapse to the single cheap cell                                     |
-| `--hard`                | off     | include the opt-in `-hard` variants in the default matrix — see below |
-| `--review`              | off     | run the adversarial review stage inline (extra agents — see below)    |
-| `--review-report <dir>` | —       | review a past run's persisted diffs; no matrix run                    |
-| `--publish`             | off     | after the run, render the committed publish artifacts — see below     |
-| `--publish-from <dir>`  | —       | render publish artifacts from a past report; no matrix run            |
+| flag                    | default | purpose                                                                                                      |
+| ----------------------- | ------- | ------------------------------------------------------------------------------------------------------------ |
+| `--scenario`            | all 11  | scenario id(s); repeatable / comma-separated                                                                 |
+| `--arm`                 | both    | `cospec` \| `openspec`                                                                                       |
+| `--model`               | both    | `claude-sonnet-5` \| `claude-opus-4-8`                                                                       |
+| `--repeats`             | 1       | copies per cell (surfaces variance)                                                                          |
+| `--concurrency`         | 2       | bounded worker pool size                                                                                     |
+| `--smoke`               | off     | collapse to the single cheap cell                                                                            |
+| `--hard`                | off     | include the opt-in `-hard` variants in the default matrix — see below                                        |
+| `--review`              | off     | run the adversarial review stage inline (extra agents — see below)                                           |
+| `--review-report <dir>` | —       | review a past run's persisted diffs; no matrix run                                                           |
+| `--publish`             | off     | after the run, render the committed publish artifacts — see below                                            |
+| `--publish-from <dir>`  | —       | render publish artifacts from a past report; no matrix run                                                   |
+| `--resume <dir>`        | —       | resume an interrupted run into `<dir>` instead of starting a new one — see [Resuming a run](#resuming-a-run) |
 
 Judge configuration is environment-only, sharing the eval's defaults:
 `DEEPSEEK_API_KEY` (presence gates judging), `DEEPSEEK_MODEL_ID`
@@ -373,6 +374,54 @@ benchmark agent re-run and rewrites the run's `aggregate.json` + `summary.md` in
 place. `summary.md`'s `review§` column reports the mean confirmed review defects
 per `(type, arm, model)` group (a dash when review did not run), and the paired
 comparison gains a `review defects` metric.
+
+## Resuming a run
+
+A matrix run can be long (dozens to hundreds of cells) and can be interrupted —
+`Ctrl-C`, a machine sleep, a crashed agent process. **Interrupted runs lose
+nothing**: every cell result is appended to `<runDir>/cells.jsonl` as it
+finishes, so `--resume <reportDir>` picks a partial run back up rather than
+re-running cells that already completed.
+
+```bash
+mise run bench -- --hard --repeats 3 --resume reports/2026-07-17T20-01-31-623Z
+```
+
+**Pass the exact same flags as the original run, plus `--resume <dir>`.**
+`--resume` composes with every axis flag (`--scenario`/`--arm`/`--model`/
+`--repeats`/`--hard`) and with `--review`/`--publish` — it does not change what
+matrix is expanded, only where the run's cells and reports land. The caller is
+responsible for reproducing the original invocation's axis flags; `expandMatrix`
+is a pure function of `(availableIds, filters)`, so the same flags always
+produce the same cell set in the same order, which is what makes skip-matching
+correct. Passing a narrower or wider set of axis flags on resume is more likely
+a mistake than a scenario worth achieving.
+
+What resuming does, in order:
+
+1. Reads `<reportDir>/cells.jsonl` back into `CellResult`s (see `report.ts`'s
+   `readCellsJsonl`) and rejects a dir that does not exist or predates the
+   `scenarioId` field (see `isStaleSchema`, shared with `--publish-from`'s
+   schema check) with an actionable error, rather than resuming from a corrupt
+   or too-old report.
+2. Expands the requested matrix exactly as a fresh run would, then computes each
+   cell's `cellKey` (`scenario__arm__model__rRepeat` — see the "Repeat spread"
+   note above: the repeat index IS part of the key, so a partial `--repeats 3`
+   run resumes per-repeat, not per-scenario) and skips any cell already present
+   in the loaded rows, logging `skipped N already-complete cells`.
+3. Runs only the missing cells, appending each result to the SAME `cells.jsonl`
+   (never truncated or rewritten) and copying new artifact snapshots/diffs
+   alongside the existing ones under `snapshots/`.
+4. If `--review` is set, ALSO backfills the adversarial review stage onto
+   already-complete cells that have no `reviewDefects` yet (mechanical metrics
+   were scored, but review was off, or failed, on the original invocation) —
+   reviewing their persisted diff in place, exactly like `--review-report` does
+   for a whole past run. A cell that already carries `reviewDefects` is left
+   untouched — resuming never re-reviews a cell twice.
+5. Regenerates `aggregate.json`/`summary.md` over the FULL set — pre-existing
+   rows plus this invocation's fresh ones — so a resumed run's report always
+   reads as one complete matrix, never just the tail that was re-run.
+   `--publish` renders the committed artifacts from that same full set.
 
 ## Publishing
 

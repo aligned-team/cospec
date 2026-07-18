@@ -1029,3 +1029,130 @@
       `test/unit/{agent,matrix}.test.ts` modified; `src/{publish,sentinels}.ts`,
       `test/unit/publish.test.ts`, `test/fixtures/report-{min,stale}/` new) — no
       stray `RESULTS.md`/`README.md` demo output left over from 16.8
+
+- [x] 17.1 `src/matrix.ts`: `MatrixFilters` gains `resume?: string`; `parseArgs`
+      gains `--resume <dir>` (both `--flag value` and `--flag=value` forms).
+      Mutually exclusive with the two OTHER standalone modes only —
+      `--review-report` and `--publish-from` — since `--resume` runs the matrix
+      (or backfills review on it), unlike those two; it composes normally with
+      every axis flag plus `--review`/`--publish`, per the task spec ("the
+      caller passes the same flags as the original run, plus `--resume <dir>`").
+      `--publish-from`'s existing cell-selecting-flags guard extended to also
+      reject `--resume` (it is itself a standalone, non-cell-selecting mode, but
+      combining two standalone modes in one invocation is exactly the ambiguity
+      that guard exists to prevent) -> `matrix.test.ts` new cases: value parsing
+      (both forms), missing-value error, composition with `--hard`/`--repeats`/
+      `--review`/`--publish` in one invocation, and both directions of the
+      `--resume`×`--review-report`/`--publish-from` mutual-exclusion errors
+- [x] 17.2 `src/report.ts` gains two exports shared by `--resume` and (via a
+      refactor) `--publish-from`: `readCellsJsonl(runDir)` — parses
+      `cells.jsonl` back into `CellResult[]`, throwing an actionable error for a
+      missing file or an unparseable row (a resumed run may have NO
+      `aggregate.json` yet, since that is only ever written once at the very end
+      of a full run, so `--resume`'s validation reads the live `cells.jsonl`
+      instead) — and `isStaleSchema(cells)` (the predates-`scenarioId` check,
+      factored out of `publish.ts`'s inline version so `--resume` and
+      `--publish-from` share exactly one schema check rather than two that could
+      drift) -> `report.test.ts` new cases: round-trip read of appended rows in
+      order, missing-file error, corrupt-row error, trailing-blank-line
+      tolerance; `isStaleSchema` true/false/ skipped-exempt cases.
+      `publish.ts`/`publish.test.ts` re-verified unaffected by the refactor
+      (same 25 cases still pass, same error message text)
+- [x] 17.3 New `src/resume.ts` — pure logic only (no filesystem/subprocess),
+      deliberately split out of `run.ts` because `run.ts` self-executes
+      `process.exit(await main())` on import and so cannot itself be
+      unit-imported: `completedCellKeys(existing)` (the `cellKey` set already
+      present in a loaded report — confirms point 2 of the task, "cellKey
+      already exists" and already embeds the repeat index, e.g.
+      `perf__cospec__claude-sonnet-5__r2`, so skip-matching is inherently
+      per-repeat, not per-scenario); `partitionResumeCells(cells, existing)` ->
+      `{ toRun, skipped }`, splitting the FULL requested-matrix expansion by
+      `cellKey` membership; `needsReviewBackfill(result)` — true only for a
+      non-skipped, mechanically-scored cell with no `reviewDefects` yet (point 3
+      of the task: review results live on `MechanicalMetrics.reviewDefects`, so
+      "already reviewed" is exactly "`reviewDefects !== undefined`") ->
+      `resume.test.ts` (new, 10 cases): skip-set computation from a constructed
+      multi-scenario/arm/model/repeat matrix (mirrors the real partial run this
+      change dry-verified against — see 17.6), the per-repeat identity case
+      (repeats 1-2 present, 3 missing -> only repeat 3 runs), empty-existing-set
+      (fresh-run equivalence) and all-already-complete (nothing to run) edge
+      cases, and `needsReviewBackfill`'s four cases
+      (unreviewed/already-reviewed/skipped/ no-mechanical)
+- [x] 17.4 `src/run.ts` wired to the above: on `--resume`, `runDir` becomes the
+      given directory (skipping `ensureRunDir`'s fresh-timestamp path entirely)
+      and `readCellsJsonl` + `isStaleSchema` gate it exactly like
+      `publishFromReportDir` gates `--publish-from` (missing dir -> exit 2 with
+      "no cells.jsonl under ..."; stale schema -> exit 2 naming the `scenarioId`
+      field, mirroring `publish.ts`'s message). `expandMatrix` is called exactly
+      as a fresh run would (same `availableIds`/`filters`), then
+      `partitionResumeCells` splits it; only `toRun` goes through `runPool`,
+      each fresh result appended to the SAME `cells.jsonl` via the existing
+      `appendCellResult` (already append-only — no code change needed there) and
+      new snapshots/diffs written into the same `snapshots/` dir via the
+      existing `writeArtifactSnapshot`/`writeCellDiff` (same reason — already
+      keyed by `cellKey` under the given `runDir`, so "copy new snapshots
+      alongside existing ones" falls out for free). `--review` additionally runs
+      a new `backfillReview` pass over `existingResults` first, reviewing any
+      cell `needsReviewBackfill` flags via its persisted diff (`readCellDiff`)
+      and the same `reviewDiff`/`defaultReviewRunner` inline review already uses
+      — mirroring `reviewPastRun`'s per-cell logic exactly, but writing the
+      result back onto the in-memory `CellResult` rather than a whole past run's
+      `aggregate.json`. At the end, `[...existingResults,     ...freshResults]`
+      — old + new — is what `writeAggregate`/`writeMarkdown` (and `--publish`)
+      render from, so a resumed run's report always reads as one complete matrix
+- [x] 17.5 `docs/bench.md`: flags table gains a `--resume <dir>` row, pointing
+      at a new "Resuming a run" section (placed just before "Publishing"):
+      states plainly that interrupted runs lose nothing (every cell result is
+      appended to `cells.jsonl` as it finishes), that the caller passes the SAME
+      flags as the original run plus `--resume <dir>` (with the correctness
+      argument: `expandMatrix` is a pure function of `(availableIds, filters)`,
+      so identical flags reproduce an identical cell set in the same order,
+      which is what makes skip-matching correct), and walks the 5-step mechanism
+      (schema-checked load, skip-matching via `cellKey` including the repeat
+      index, running only the missing cells, the inline-review backfill and its
+      never-re-reviews-a-reviewed-cell guarantee, and the full-set
+      aggregate/summary regeneration) -> verified by reading the rendered
+      section end-to-end against the actual `resume.ts`/`run.ts` behavior
+- [x] 17.6 **Dry-run skip-set verification against the real partial run**,
+      READ-ONLY (no cells run, no files written) — per the task's explicit
+      instruction not to run any cells: identified
+      `packages/bench/reports/2026-07-17T20-01-31-623Z/` (81 rows in
+      `cells.jsonl`, the newest report dir at/after 2026-07-17T19:5x with no
+      `aggregate.json`, i.e. genuinely interrupted mid-run) as the target. A
+      throwaway scratchpad script
+      (`packages/bench/scripts_dry_verify_scratch.ts`, deleted after use, per
+      15.3's convention) called `readCellsJsonl` + `isStaleSchema` on that dir,
+      `parseArgs(['--hard',     '--repeats', '3'])` + `expandMatrix` over
+      `ALL_SCENARIOS` to reconstruct the original run's full 192-cell matrix (16
+      scenario ids incl. `-hard` × 2 arms × 2 models × 3 repeats), then
+      `partitionResumeCells` against the 81 loaded rows. Result: **81 skipped
+      (already-complete), 111 to run** — matching the task's stated expectation
+      exactly. `isStaleSchema` was `false` (current schema, resumable). The 111
+      missing cells break down as `perf` (3 — only the `claude-opus-4-8` repeats
+      never ran) plus 9 whole scenarios untouched (`refactor`, `revert`,
+      `style`, `test`, `feat-hard`, `fix-hard`, `perf-hard`, `refactor-hard`,
+      `revert-hard`) × 2 arms × 2 models × 3 repeats = 12 each. Full
+      missing-cell-key listing captured in this task's PR description /
+      conversation log. `git status` confirmed no report dirs were touched by
+      this verification
+- [x] 17.7 Confirm no regression: `mise run typecheck` clean (both
+      `@aligned-team/cospec-bench` and `@aligned-team/cospec` projects, plus
+      `e2e`), `mise run lint` exit 0 (same 3 pre-existing unrelated `apps/cli`
+      warnings only, none new), `mise run format:check` clean (after one
+      `format:fix` pass reformatting `docs/bench.md`, `run.ts`, and
+      `resume.test.ts`'s import ordering), `mise run //packages/bench:test`
+      313/313 pass (290 pre-existing + 23 new: 10 in `resume.test.ts`, 9 in
+      `report.test.ts` (`readCellsJsonl` ×4, `isStaleSchema` ×3, the merged
+      old+new aggregate case ×1 — plus the pre-existing publish-refactor
+      coverage unaffected), 4 in `matrix.test.ts`), `mise run check` green
+      end-to-end from repo root (lint/format/typecheck/`generate:check`/
+      `agents:check`/`vendor:openspec:check`/`cospec-validate-all`/
+      `openspec:schema:validate` plus every test project: `apps/cli` unit
+      543/543, integration 92/92, contract 29/29; `packages/bench` 313/313;
+      `e2e` release-test 14/14),
+      `mise run cospec -- validate     bench-cospec-vs-openspec --strict` passes
+      (0 errors/warnings). `git     status` confirms only the intended files
+      changed (`docs/bench.md`, `src/{matrix,publish,report,run}.ts`,
+      `test/unit/{matrix,report}.test.ts` modified; `src/resume.ts`,
+      `test/unit/resume.test.ts` new) — no stray report-dir writes or demo
+      output left over from 17.6's dry-run

@@ -134,6 +134,42 @@ export async function writeCellDiff(
   await Bun.write(join(runDir, 'snapshots', `${key}.diff`), guarded)
 }
 
+/**
+ * Read a run dir's per-cell JSONL rows back into `CellResult` objects — the
+ * live source `--resume` computes its already-complete-cell set from (an
+ * interrupted run may have no `aggregate.json` yet, since that is only
+ * written once at the very end of a run). Throws an actionable error if the
+ * file is missing or a row fails to parse, rather than resuming from a
+ * silently-partial read.
+ */
+export async function readCellsJsonl(runDir: string): Promise<CellResult[]> {
+  const path = join(runDir, 'cells.jsonl')
+  const file = Bun.file(path)
+  if (!(await file.exists())) {
+    throw new Error(`no cells.jsonl under ${runDir} — --resume requires an existing report dir`)
+  }
+  const text = await file.text()
+  const lines = text.split('\n').filter((l) => l.trim().length > 0)
+  const results: CellResult[] = []
+  for (const [i, line] of lines.entries()) {
+    try {
+      results.push(JSON.parse(line) as CellResult)
+    } catch {
+      throw new Error(`${path}:${i + 1} is not valid JSON — cannot resume from a corrupt report`)
+    }
+  }
+  return results
+}
+
+/**
+ * True when any non-skipped row predates the `scenarioId` field on
+ * `CellResult` (see its doc comment) — a report too old for `--resume` or
+ * `--publish-from` to build on.
+ */
+export function isStaleSchema(cells: readonly CellResult[]): boolean {
+  return cells.some((c) => c.skipped === undefined && typeof c.scenarioId !== 'string')
+}
+
 /** Read a persisted cell diff, or undefined when none was written (empty / never captured). */
 export async function readCellDiff(runDir: string, key: string): Promise<string | undefined> {
   const path = join(runDir, 'snapshots', `${key}.diff`)

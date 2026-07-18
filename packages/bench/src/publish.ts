@@ -21,6 +21,7 @@ import { MODEL_EFFORT } from './matrix.ts'
 import { assertRedacted, type Sentinels } from './redact.ts'
 import {
   aggregateByArmModel,
+  isStaleSchema,
   renderCompactArmModelMarkdown,
   renderSummaryBody,
   type CellResult,
@@ -305,10 +306,7 @@ export async function publishFromReportDir(
     throw new Error(`no aggregate.json under ${input.runDir}`)
   }
   const report = (await file.json()) as { meta: RunMeta; cells: CellResult[] }
-  const preScenarioId = report.cells.some(
-    (c) => c.skipped === undefined && typeof c.scenarioId !== 'string',
-  )
-  if (preScenarioId) {
+  if (isStaleSchema(report.cells)) {
     throw new Error(
       `${input.runDir} predates the scenarioId field on CellResult and cannot be republished; ` +
         're-run the matrix (or --review-report a current-schema run) to publish fresh results.',

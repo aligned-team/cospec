@@ -21,7 +21,9 @@ import { redactText, type Sentinels } from './redact.ts'
 import {
   appendCellResult,
   ensureRunDir,
+  isStaleSchema,
   readCellDiff,
+  readCellsJsonl,
   writeAggregate,
   writeArtifactSnapshot,
   writeCellDiff,
@@ -29,6 +31,7 @@ import {
   type CellResult,
   type RunMeta,
 } from './report.ts'
+import { needsReviewBackfill, partitionResumeCells } from './resume.ts'
 import { defaultReviewRunner, reviewDiff } from './review.ts'
 import { captureSandboxDiff, createArmSandbox, teardown } from './sandbox.ts'
 import { buildSentinels } from './sentinels.ts'
@@ -204,6 +207,41 @@ async function reviewPastRun(runDir: string): Promise<number> {
  * the merged-report layout produced by hand-merging several runs' cells
  * together (e.g. `packages/bench/reports/2026-07-16-full-run-merged/`).
  */
+/**
+ * `--resume`'s inline-review backfill: for every already-complete cell that
+ * has no `reviewDefects` yet (mechanical scored, but review was off or failed
+ * on the original run), review its persisted diff in place — mirroring
+ * `reviewPastRun`'s per-cell logic — without re-running its agent. A cell
+ * that already carries `reviewDefects` (point 3 of the task: "must not
+ * re-review already-reviewed cells") or has no persisted diff is left
+ * untouched.
+ */
+async function backfillReview(runDir: string, existing: readonly CellResult[]): Promise<number> {
+  let backfilled = 0
+  for (const r of existing) {
+    if (!needsReviewBackfill(r) || r.mechanical === undefined) continue
+    const key = cellKey(r.cell)
+    const diff = await readCellDiff(runDir, key)
+    if (diff === undefined) continue
+    const scenario = scenarioById(r.cell.scenarioId)
+    if (scenario === undefined) continue
+    try {
+      r.mechanical.reviewDefects = await reviewDiff({
+        diff,
+        taskPrompt: scenario.prompt,
+        runner: defaultReviewRunner,
+      })
+      backfilled += 1
+      console.log(
+        `  reviewed ${key} (resume backfill) — found ${r.mechanical.reviewDefects.found}, confirmed ${r.mechanical.reviewDefects.confirmed}`,
+      )
+    } catch (err) {
+      console.warn(`  review failed for ${key}: ${errMessage(err)}`)
+    }
+  }
+  return backfilled
+}
+
 async function publishPastRun(runDir: string): Promise<number> {
   try {
     const { resultsPath, readmePath } = await publishFromReportDir({ repoRoot: REPO_ROOT, runDir })
@@ -248,6 +286,47 @@ async function main(): Promise<number> {
     return 0
   }
 
+  // `--resume`: reuse an existing report dir instead of minting a new one.
+  // Its `cells.jsonl` is the live source of already-complete cells — an
+  // interrupted run has no `aggregate.json` yet, since that is only written
+  // once at the very end of a full run.
+  let runDir: string
+  let existingResults: CellResult[] = []
+  if (filters.resume !== undefined) {
+    runDir = filters.resume
+    try {
+      existingResults = await readCellsJsonl(runDir)
+    } catch (err) {
+      console.error(`bench — ${errMessage(err)}`)
+      return 2
+    }
+    if (isStaleSchema(existingResults)) {
+      console.error(
+        `bench — ${runDir} predates the scenarioId field on CellResult and cannot be resumed; ` +
+          're-run the matrix (or --review-report a current-schema run) to produce fresh results.',
+      )
+      return 2
+    }
+  } else {
+    const startedAt = new Date().toISOString()
+    runDir = join(REPO_ROOT, 'packages', 'bench', 'reports', startedAt.replace(/[:.]/g, '-'))
+    await ensureRunDir(runDir)
+  }
+
+  const { toRun: cellsToRun, skipped: skippedCells } = partitionResumeCells(cells, existingResults)
+  if (filters.resume !== undefined) {
+    console.log(
+      `bench — resuming ${runDir}: skipped ${skippedCells.length} already-complete cell(s); ` +
+        `${cellsToRun.length} to run`,
+    )
+    if (filters.review) {
+      const backfilled = await backfillReview(runDir, existingResults)
+      if (backfilled > 0) {
+        console.log(`bench — backfilled review on ${backfilled} already-complete cell(s)`)
+      }
+    }
+  }
+
   const deepseekKey = process.env['DEEPSEEK_API_KEY']
   const judgeEnabled = deepseekKey !== undefined && deepseekKey.trim().length > 0
   const judge: JudgeConfig | undefined = judgeEnabled
@@ -263,27 +342,28 @@ async function main(): Promise<number> {
   }
 
   const sentinels = buildSentinels()
-
   const startedAt = new Date().toISOString()
-  const runDir = join(REPO_ROOT, 'packages', 'bench', 'reports', startedAt.replace(/[:.]/g, '-'))
-  await ensureRunDir(runDir)
 
   console.log(
-    `bench — ${cells.length} cell(s), concurrency ${filters.concurrency}; report ${runDir}`,
+    `bench — ${cellsToRun.length} cell(s) to run, concurrency ${filters.concurrency}; report ${runDir}`,
   )
 
-  const results: CellResult[] = Array.from({ length: cells.length })
-  await runPool(cells, filters.concurrency, async (cell, index) => {
+  const freshResults: CellResult[] = Array.from({ length: cellsToRun.length })
+  await runPool(cellsToRun, filters.concurrency, async (cell, index) => {
     const result = await runCell(cell, judge, sentinels, runDir, filters.review)
-    results[index] = result
+    freshResults[index] = result
     await appendCellResult(runDir, result, sentinels)
     const status =
       result.skipped !== undefined
         ? `SKIP (${result.skipped})`
         : `done (${result.telemetry?.resultSubtype ?? 'no-result'})`
-    console.log(`  [${index + 1}/${cells.length}] ${cellKey(cell)} — ${status}`)
+    console.log(`  [${index + 1}/${cellsToRun.length}] ${cellKey(cell)} — ${status}`)
   })
 
+  // The FULL set — pre-existing (resumed) rows plus this invocation's fresh
+  // ones — is what aggregate.json/summary.md (and --publish) are rendered
+  // from, so a resumed run's report always reads as one complete matrix.
+  const results = [...existingResults, ...freshResults]
   const ran = results.filter((r) => r.skipped === undefined)
   const claudeCodeVersion = ran
     .map((r) => r.telemetry?.claudeCodeVersion)

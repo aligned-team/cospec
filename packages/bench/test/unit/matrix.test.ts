@@ -24,6 +24,7 @@ describe('parseArgs', () => {
     expect(f.reviewReport).toBeUndefined()
     expect(f.publish).toBe(false)
     expect(f.publishFrom).toBeUndefined()
+    expect(f.resume).toBeUndefined()
   })
 
   test('--publish sets the publish flag with no value', () => {
@@ -94,6 +95,50 @@ describe('parseArgs', () => {
 
   test('--review-report throws when its value is missing', () => {
     expect(() => parseArgs(['--review-report'])).toThrow(/missing value/)
+  })
+
+  test('--resume takes a directory value (both forms)', () => {
+    expect(parseArgs(['--resume', 'reports/2026-01-01']).resume).toBe('reports/2026-01-01')
+    expect(parseArgs(['--resume=reports/x']).resume).toBe('reports/x')
+  })
+
+  test('--resume throws when its value is missing', () => {
+    expect(() => parseArgs(['--resume'])).toThrow(/missing value/)
+  })
+
+  test('--resume composes with axis flags and --review/--publish', () => {
+    const f = parseArgs([
+      '--resume',
+      'reports/x',
+      '--hard',
+      '--repeats',
+      '3',
+      '--review',
+      '--publish',
+    ])
+    expect(f.resume).toBe('reports/x')
+    expect(f.hard).toBe(true)
+    expect(f.repeats).toBe(3)
+    expect(f.review).toBe(true)
+    expect(f.publish).toBe(true)
+  })
+
+  test('--resume throws when combined with --review-report', () => {
+    expect(() => parseArgs(['--resume', 'reports/x', '--review-report', 'reports/y'])).toThrow(
+      /--resume cannot be combined with --review-report/,
+    )
+  })
+
+  test('--resume throws when combined with --publish-from', () => {
+    expect(() => parseArgs(['--resume', 'reports/x', '--publish-from', 'reports/y'])).toThrow(
+      /(--resume cannot be combined with --publish-from|--publish-from is standalone)/,
+    )
+  })
+
+  test('--publish-from throws when combined with --resume', () => {
+    expect(() => parseArgs(['--publish-from', 'reports/x', '--resume', 'reports/y'])).toThrow(
+      /--publish-from is standalone/,
+    )
   })
 
   test('accepts --flag value form', () => {
