@@ -71,9 +71,8 @@
       without a surviving alias.
 - [x] 4.2 `mise run agents:sync` — re-run if `.agents/shared.md`'s task table is
       later edited to describe the new per-project layout (not required for this
-      change: every cited command string is unchanged) -> ran anyway to
-      confirm: no diff produced, `agents:check` still reports both files in
-      sync.
+      change: every cited command string is unchanged) -> ran anyway to confirm:
+      no diff produced, `agents:check` still reports both files in sync.
 
 ## 5. Verification
 
