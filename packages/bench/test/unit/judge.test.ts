@@ -3,7 +3,12 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { collectArtifactText, judgeArtifacts, type JudgeConfig } from '../../src/judge.ts'
+import {
+  collectArtifactText,
+  judgeArtifacts,
+  judgeInputFromArtifactFiles,
+  type JudgeConfig,
+} from '../../src/judge.ts'
 
 const roots: string[] = []
 
@@ -244,5 +249,93 @@ describe('collectArtifactText', () => {
     const text = await collectArtifactText(sandbox, 'openspec/changes/add-widget', {})
     expect(text.length).toBeLessThan(21_000)
     expect(text).toContain('[... truncated for judge input ...]')
+  })
+})
+
+describe('judgeInputFromArtifactFiles — snapshot→judge-input reconstruction', () => {
+  // `--judge-report` (run.ts) rebuilds this from `snapshots/<cellKey>.json`'s
+  // `files` map instead of reading the live sandbox filesystem
+  // `collectArtifactText` does — these cases confirm the two produce
+  // equivalent text for the same artifact set.
+
+  test('empty files map yields an empty string, mirroring an absent change dir', () => {
+    expect(judgeInputFromArtifactFiles({}, {})).toBe('')
+  })
+
+  test('orders present artifact files by the fixed ARTIFACT_FILE_ORDER, with headers', () => {
+    const text = judgeInputFromArtifactFiles(
+      { 'tasks.md': '- [x] done\n', 'proposal.md': '## Why\n\nreasons\n' },
+      {},
+    )
+    const proposalIdx = text.indexOf('### proposal.md')
+    const tasksIdx = text.indexOf('### tasks.md')
+    expect(proposalIdx).toBeGreaterThanOrEqual(0)
+    expect(tasksIdx).toBeGreaterThan(proposalIdx)
+    expect(text).toContain('## Why\n\nreasons')
+    expect(text).toContain('- [x] done')
+  })
+
+  test('a file absent from the snapshot is simply skipped, not rendered empty', () => {
+    const text = judgeInputFromArtifactFiles({ 'proposal.md': '## Why\n' }, {})
+    expect(text).not.toContain('### tasks.md')
+    expect(text).not.toContain('### verification.md')
+  })
+
+  test('includes "specs/**/*.md" keys under their own header, sorted', () => {
+    const text = judgeInputFromArtifactFiles(
+      {
+        'proposal.md': '## Why\n',
+        'specs/widgets/spec.md': '#### Scenario: widgets\n',
+        'specs/aardvarks/spec.md': '#### Scenario: aardvarks\n',
+      },
+      {},
+    )
+    expect(text).toContain('### specs/widgets/spec.md')
+    expect(text).toContain('### specs/aardvarks/spec.md')
+    expect(text).toContain('#### Scenario: widgets')
+    // Sorted alphabetically: aardvarks before widgets.
+    expect(text.indexOf('specs/aardvarks')).toBeLessThan(text.indexOf('specs/widgets'))
+  })
+
+  test('a non-.md file under specs/ is excluded (matches the .md-only walk collectArtifactText does)', () => {
+    const text = judgeInputFromArtifactFiles({ 'specs/widgets/notes.txt': 'not markdown' }, {})
+    expect(text).not.toContain('notes.txt')
+    expect(text).not.toContain('not markdown')
+  })
+
+  test('applies redaction defensively even on already-redacted snapshot text', () => {
+    const text = judgeInputFromArtifactFiles(
+      { 'proposal.md': 'see BENCH-SECRET-REF for context' },
+      { 'ref:x:secret': 'BENCH-SECRET-REF' },
+    )
+    expect(text).not.toContain('BENCH-SECRET-REF')
+    expect(text).toContain('[REDACTED:ref:x:secret]')
+  })
+
+  test('truncates after the same char ceiling collectArtifactText uses', () => {
+    const text = judgeInputFromArtifactFiles(
+      { 'proposal.md': '## Why\n\n' + 'x'.repeat(25_000) + '\n' },
+      {},
+    )
+    expect(text.length).toBeLessThan(21_000)
+    expect(text).toContain('[... truncated for judge input ...]')
+  })
+
+  test('produces text equivalent to collectArtifactText for the same artifact set', async () => {
+    const sandbox = makeSandbox()
+    const base = join(sandbox, 'openspec/changes/add-widget')
+    mkdirSync(join(base, 'specs/widgets'), { recursive: true })
+    writeFileSync(join(base, 'proposal.md'), '## Why\n\nreasons\n')
+    writeFileSync(join(base, 'tasks.md'), '- [x] done\n')
+    writeFileSync(join(base, 'specs/widgets/spec.md'), '#### Scenario: works\n')
+
+    const liveText = await collectArtifactText(sandbox, 'openspec/changes/add-widget', {})
+    const files = {
+      'proposal.md': '## Why\n\nreasons\n',
+      'tasks.md': '- [x] done\n',
+      'specs/widgets/spec.md': '#### Scenario: works\n',
+    }
+    const snapshotText = judgeInputFromArtifactFiles(files, {})
+    expect(snapshotText).toBe(liveText)
   })
 })

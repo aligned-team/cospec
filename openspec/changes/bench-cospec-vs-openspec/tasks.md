@@ -1030,6 +1030,8 @@
       `test/unit/publish.test.ts`, `test/fixtures/report-{min,stale}/` new) — no
       stray `RESULTS.md`/`README.md` demo output left over from 16.8
 
+## 17. Resumable runs (`--resume`)
+
 - [x] 17.1 `src/matrix.ts`: `MatrixFilters` gains `resume?: string`; `parseArgs`
       gains `--resume <dir>` (both `--flag value` and `--flag=value` forms).
       Mutually exclusive with the two OTHER standalone modes only —
@@ -1156,3 +1158,124 @@
       `test/unit/{matrix,report}.test.ts` modified; `src/resume.ts`,
       `test/unit/resume.test.ts` new) — no stray report-dir writes or demo
       output left over from 17.6's dry-run
+
+## 18. Judge backfill from artifact snapshots (`--judge-report`)
+
+- [x] 18.1 `src/matrix.ts`: `MatrixFilters` gains `judgeReport?: string`;
+      `parseArgs` gains `--judge-report <dir>` (both `--flag value`/
+      `--flag=value` forms). Standalone, mirroring `--review-report`/
+      `--publish-from`: mutually exclusive with every cell-selecting flag
+      (`--scenario`/`--arm`/`--model`/`--smoke`/`--hard`/`--review`),
+      `--publish`, `--review-report`, `--publish-from`, and `--resume` — the
+      existing `--publish-from`/`--resume` guards extended to also reject
+      `--judge-report`, and a new symmetric `--judge-report` guard rejects all
+      of the above -> `matrix.test.ts` new cases (10): value parsing (both
+      forms), missing-value throw, parses cleanly alone, all 4
+      cell-selecting-flag combinations throw, `--publish` throws, and both
+      directions of the `--judge-report`×`--review-report`/`--publish-from`/
+      `--resume` mutual-exclusion errors (the reciprocal `--publish-from`/
+      `--resume` throw-on-`--judge-report` cases added to their existing
+      describe blocks)
+- [x] 18.2 `src/judge.ts` gains `judgeInputFromArtifactFiles(files, sentinels)`
+      — rebuilds the exact judge input `collectArtifactText` would have
+      produced, from a persisted `ArtifactSnapshot.files` map instead of the
+      live sandbox filesystem: same `ARTIFACT_FILE_ORDER`, same `specs/**/*.md`
+      inclusion (sorted), same redact-then-truncate contract
+      (`collectArtifactText` refactored to share a new private
+      `redactAndTruncate` helper with it, so the two paths cannot drift into
+      different truncation behavior) -> unit-tested (`judge.test.ts`, 8 new
+      cases): empty map -> empty string, fixed file order with headers, an
+      absent file is skipped not rendered empty, `specs/**/*.md` keys included
+      under their own header and sorted, a non-`.md` file under `specs/`
+      excluded, defensive redaction of already-redacted snapshot text, the
+      truncation ceiling, and a byte-equivalence check against
+      `collectArtifactText` for the same artifact set
+- [x] 18.3 `src/report.ts` gains `writeCellsJsonl(runDir, results, sentinels)` —
+      overwrites `cells.jsonl` wholesale (guarded by the same `assertRedacted`
+      self-check `appendCellResult` uses), the update path `--judge-report`
+      needs after mutating already-written rows in place (unlike
+      `appendCellResult`'s append-only writes during a live run) -> unit-tested
+      (`report.test.ts`, 3 new cases): a full load-mutate-rewrite-reload round
+      trip (backfills one row, clears its `judgeError`, leaves an untouched
+      row's stale `judgeError` intact), an empty result set writes an empty file
+      rather than throwing, and the redaction self-check throws on a planted
+      sentinel
+- [x] 18.4 `src/resume.ts` gains `needsJudgeBackfill(result)` — true exactly
+      when a cell ran (not skipped) and its `quality` is exactly `null`; false
+      once a cell already carries a real `QualityScore`, and false for a skipped
+      cell (never had a `quality` field) — the `--judge-report` analogue of
+      `needsReviewBackfill`, added to the same module (its module doc comment
+      updated to name both standalone modes it now backs) -> unit-tested
+      (`resume.test.ts`, 5 new cases): true for a ran cell with null quality
+      (with and without an accompanying `judgeError`), false once a real score
+      is present, false for a skipped cell, false when `quality` is `undefined`
+      (judge never even attempted)
+- [x] 18.5 `src/run.ts` gains standalone `--judge-report <dir>` mode
+      (`judgeReportPastRun`), wired into `main()`'s dispatch alongside
+      `--publish-from`/`--review-report`: requires `DEEPSEEK_API_KEY` (exit 2
+      with an actionable message if unset — there is nothing to backfill scores
+      WITH otherwise) and an existing `aggregate.json` (exit 2 if missing, for
+      its `meta`), loads `cells.jsonl` via `readCellsJsonl`, and for every row
+      `needsJudgeBackfill` flags: looks up `snapshots/<cellKey>.json`,
+      logs-and-skips (never throws) when absent or unparseable, else rebuilds
+      the judge input via `judgeInputFromArtifactFiles` and calls the REAL
+      `judgeArtifacts`, writing the result back onto the row (`quality` set; a
+      successful score clears any stale `judgeError`, a repeat failure records a
+      fresh one). Rewrites the FULL `cells.jsonl` (`writeCellsJsonl`) and
+      regenerates `aggregate.json`/`summary.md` from the updated set, mirroring
+      `--review-report`'s structure exactly. Logs a final
+      scored/still-null/no-snapshot tally
+- [x] 18.6 `docs/bench.md`: flags table gains a `--judge-report <dir>` row
+      linking to a new "Judge backfill (`--judge-report`)" section (placed right
+      after "Quality judge (DeepSeek)"), walking the 3-step mechanism
+      (skip-matching via `needsJudgeBackfill`, snapshot -> judge-input rebuild,
+      row update + full aggregate/summary regeneration), the
+      `DEEPSEEK_API_KEY`-required exit-2 behavior, and its standalone
+      mutual-exclusion set; "Output & redaction contract" section gains a
+      sentence naming the artifact snapshot as `--judge-report`'s input ->
+      verified by reading the rendered section end-to-end
+- [x] 18.7 **Real backfill run against the actual stale report** named in this
+      task: `packages/bench/reports/2026-07-17T20-01-31-623Z/` (192 cells, 83
+      with `quality: null` — 80 carrying
+      `judgeError: "3 sample(s) failed:     http 402 x3"` from the first-attempt
+      DeepSeek-balance outage, plus 3 with no `judgeError` and no persisted
+      snapshot, i.e. genuinely nothing to judge). `DEEPSEEK_API_KEY` confirmed
+      present in the harness process env (now funded, per this task's premise)
+      before running:
+      `mise run bench -- --judge-report /Users/rg/repos/sqf/aligned/cospec/.claude/worktrees/bench-cospec-vs-openspec/packages/bench/reports/2026-07-17T20-01-31-623Z`
+      ->
+      `bench — judge-report: scored 80, still null 0, no snapshot 3;     rewrote cells.jsonl, aggregate.json, and summary.md`.
+      Every one of the 80 snapshot-backed cells scored on the first attempt (0
+      judge failures this time — DeepSeek responded normally); the 3 no-snapshot
+      cells were logged (`no snapshot for <key> — leaving quality: null`) and
+      left untouched, exactly as designed — confirmed post-run: 189/192 cells
+      now carry a real `quality.overall` (range observed ~2.13-3.00), exactly 3
+      still `null` (the same 3 no-snapshot cells, unchanged)
+- [x] 18.8 Republished from the now-complete report:
+      `mise run bench -- --publish-from /Users/rg/repos/sqf/aligned/cospec/.claude/worktrees/bench-cospec-vs-openspec/packages/bench/reports/2026-07-17T20-01-31-623Z`
+      -> `packages/bench/RESULTS.md` and the `README.md` managed block
+      rewritten; every scenario × arm × model row in `RESULTS.md` now shows a
+      real `quality` value (previously `—` for the 80 backfilled + 3
+      unscored-from-the-start groups) confirmed by inspection. Per-(arm, model)
+      mean quality overall, computed directly from the republished `cells.jsonl`
+      (189 scored cells): `cospec/claude-opus-4-8` 2.871 (n=47),
+      `cospec/claude-sonnet-5` 2.833 (n=48), `openspec/claude-opus-4-8` 2.967
+      (n=47), `openspec/claude-sonnet-5` 2.956 (n=47) — both arms cluster
+      tightly in the high-2s on this rubric; the openspec arm reads marginally
+      higher on raw quality here, though `RESULTS.md`'s paired comparison
+      (schema-conformance/cost/duration, not quality) remains the change's
+      authoritative win/loss signal, not this single aggregate number
+- [x] 18.9 Confirm no regression: `mise run //packages/bench:typecheck` (via
+      `bun run typecheck`) clean, `mise run lint` exit 0 (same 3 pre-existing
+      unrelated `apps/cli` warnings only, none new), `mise run format:check`
+      clean (after one `format:fix` pass reformatting `docs/bench.md`, `run.ts`,
+      and `matrix.test.ts`'s line wrapping), `mise run //packages/bench:test`
+      339/339 pass (313 pre-existing + 26 new: 8 in `judge.test.ts`, 10 in
+      `matrix.test.ts`, 5 in `resume.test.ts`, 3 in `report.test.ts`),
+      `mise run cospec -- validate     bench-cospec-vs-openspec --strict` passes
+      (0 errors/warnings). `git     status` confirms only the intended files
+      changed (`docs/bench.md`, `src/{judge,matrix,report,resume,run}.ts`,
+      `test/unit/{judge,matrix,report,resume}.test.ts` modified;
+      `packages/bench/reports/2026-07-17T20-01-31-623Z/` backfilled in place
+      (gitignored — never a git change); `packages/bench/RESULTS.md` and
+      `README.md` republished with the complete quality data)

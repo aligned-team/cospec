@@ -13,7 +13,12 @@ import { fileURLToPath } from 'node:url'
 
 import { ALL_SCENARIOS, scenarioById } from '../scenarios/index.ts'
 import { runAgent, type AgentTelemetry } from './agent.ts'
-import { collectArtifactText, judgeArtifacts, type JudgeConfig } from './judge.ts'
+import {
+  collectArtifactText,
+  judgeArtifacts,
+  judgeInputFromArtifactFiles,
+  type JudgeConfig,
+} from './judge.ts'
 import { cellKey, expandMatrix, parseArgs, type Cell, type MatrixFilters } from './matrix.ts'
 import { resolveChange, scoreMechanical, snapshotChangeArtifacts } from './mechanical.ts'
 import { publishFromReportDir, publishResults } from './publish.ts'
@@ -27,11 +32,12 @@ import {
   writeAggregate,
   writeArtifactSnapshot,
   writeCellDiff,
+  writeCellsJsonl,
   writeMarkdown,
   type CellResult,
   type RunMeta,
 } from './report.ts'
-import { needsReviewBackfill, partitionResumeCells } from './resume.ts'
+import { needsJudgeBackfill, needsReviewBackfill, partitionResumeCells } from './resume.ts'
 import { defaultReviewRunner, reviewDiff } from './review.ts'
 import { captureSandboxDiff, createArmSandbox, teardown } from './sandbox.ts'
 import { buildSentinels } from './sentinels.ts'
@@ -201,6 +207,100 @@ async function reviewPastRun(runDir: string): Promise<number> {
 }
 
 /**
+ * Standalone `--judge-report <dir>` mode: score every cell of a PAST run whose
+ * `quality` came back exactly `null` (judge disabled/failed at run time — most
+ * notably DeepSeek returning HTTP 402 with no account balance on this
+ * benchmark's first full run, see `judge.ts`'s `judgeArtifacts` doc comment)
+ * from its persisted, already-redacted artifact snapshot
+ * (`snapshots/<cellKey>.json` — see `mechanical.ts`'s `ArtifactSnapshot`),
+ * with NO benchmark agent re-run. Rebuilds the exact judge input
+ * `collectArtifactText` would have produced from the snapshot's `files` map
+ * (`judgeInputFromArtifactFiles`), calls the real `judgeArtifacts`, updates
+ * the row in `cells.jsonl` (`writeCellsJsonl` — clearing a stale `judgeError`
+ * on success), and rewrites that run's `aggregate.json` + `summary.md` in
+ * place, mirroring `--review-report`'s structure. A cell that already carries
+ * a real quality score is left untouched (`needsJudgeBackfill`); a cell with
+ * no persisted snapshot (the agent never produced a change) is counted and
+ * logged, not silently dropped. Requires `DEEPSEEK_API_KEY` — there is nothing
+ * to backfill scores WITH otherwise, so a missing key is a hard exit-2, unlike
+ * a live run where the judge is simply disabled.
+ */
+async function judgeReportPastRun(runDir: string): Promise<number> {
+  const aggregatePath = join(runDir, 'aggregate.json')
+  if (!(await Bun.file(aggregatePath).exists())) {
+    console.error(`bench — no aggregate.json under ${runDir}`)
+    return 2
+  }
+  const meta = ((await Bun.file(aggregatePath).json()) as { meta: RunMeta }).meta
+
+  const deepseekKey = process.env['DEEPSEEK_API_KEY']
+  if (deepseekKey === undefined || deepseekKey.trim().length === 0) {
+    console.error('bench — DEEPSEEK_API_KEY not set; --judge-report has nothing to score with.')
+    return 2
+  }
+  const judge: JudgeConfig = {
+    apiKey: deepseekKey,
+    baseUrl: process.env['DEEPSEEK_BASE_URL'] ?? 'https://api.deepseek.com',
+    model: process.env['DEEPSEEK_MODEL_ID'] ?? 'deepseek-v4-flash',
+    samples: 3,
+  }
+
+  let results: CellResult[]
+  try {
+    results = await readCellsJsonl(runDir)
+  } catch (err) {
+    console.error(`bench — ${errMessage(err)}`)
+    return 2
+  }
+  const sentinels = buildSentinels()
+
+  let scored = 0
+  let stillNull = 0
+  let noSnapshot = 0
+  for (const r of results) {
+    if (!needsJudgeBackfill(r)) continue
+    const key = cellKey(r.cell)
+    const snapshotFile = Bun.file(join(runDir, 'snapshots', `${key}.json`))
+    if (!(await snapshotFile.exists())) {
+      noSnapshot += 1
+      console.warn(`  no snapshot for ${key} — leaving quality: null`)
+      continue
+    }
+    let snapshot: { files?: Record<string, string> }
+    try {
+      snapshot = (await snapshotFile.json()) as { files?: Record<string, string> }
+    } catch (err) {
+      noSnapshot += 1
+      console.warn(
+        `  snapshot for ${key} failed to parse: ${errMessage(err)} — leaving quality: null`,
+      )
+      continue
+    }
+    const text = judgeInputFromArtifactFiles(snapshot.files ?? {}, sentinels)
+    const judged = await judgeArtifacts(judge, text)
+    r.quality = judged.quality
+    if (judged.error !== undefined) r.judgeError = judged.error
+    else delete r.judgeError
+    if (judged.quality !== null) {
+      scored += 1
+      console.log(`  judged ${key} — overall ${judged.quality.overall.toFixed(2)}`)
+    } else {
+      stillNull += 1
+      console.log(`  judged ${key} — still null (${judged.error ?? 'nothing to judge'})`)
+    }
+  }
+
+  await writeCellsJsonl(runDir, results, sentinels)
+  await writeAggregate(runDir, meta, results, sentinels)
+  const markdownPath = await writeMarkdown(runDir, meta, results)
+  console.log(
+    `bench — judge-report: scored ${scored}, still null ${stillNull}, no snapshot ${noSnapshot}; ` +
+      `rewrote cells.jsonl, ${aggregatePath}, and ${markdownPath}`,
+  )
+  return 0
+}
+
+/**
  * Standalone `--publish-from <dir>` mode: re-render the committed publish
  * artifacts (`packages/bench/RESULTS.md`, the README managed block) from an
  * EXISTING report dir's `aggregate.json`, with no agent re-run — works with
@@ -269,6 +369,9 @@ async function main(): Promise<number> {
   }
   if (filters.reviewReport !== undefined) {
     return reviewPastRun(filters.reviewReport)
+  }
+  if (filters.judgeReport !== undefined) {
+    return judgeReportPastRun(filters.judgeReport)
   }
 
   const availableIds = ALL_SCENARIOS.map((s) => s.id)

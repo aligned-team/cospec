@@ -109,6 +109,20 @@ async function exists(path: string): Promise<boolean> {
 }
 
 /**
+ * Redact (defensively — see below) then cap `text` at `MAX_ARTIFACT_CHARS`,
+ * appending the same truncation marker `collectArtifactText` uses. Shared by
+ * `collectArtifactText` (live sandbox filesystem) and
+ * `judgeInputFromArtifactFiles` (a persisted snapshot) so the two paths can
+ * never drift into two different truncation behaviors.
+ */
+function redactAndTruncate(joined: string, sentinels: Sentinels): string {
+  const redacted = redactText(joined, sentinels)
+  return redacted.length > MAX_ARTIFACT_CHARS
+    ? `${redacted.slice(0, MAX_ARTIFACT_CHARS)}\n\n[... truncated for judge input ...]`
+    : redacted
+}
+
+/**
  * Concatenate the change's artifact text (the standard files plus any specs/
  * deltas), REDACTED, for the judge. Returns '' when the change dir is absent or
  * empty — the caller treats an empty body as "nothing to judge".
@@ -138,13 +152,42 @@ export async function collectArtifactText(
     }
     await walk(specsDir, '')
   }
-  const joined = redactText(parts.join('\n\n'), sentinels)
   // Truncate after redaction, never before: slicing raw text first could cut a
   // sentinel in half, leaving an unmatched fragment that redactText can no
   // longer find and would leak into the judge prompt.
-  return joined.length > MAX_ARTIFACT_CHARS
-    ? `${joined.slice(0, MAX_ARTIFACT_CHARS)}\n\n[... truncated for judge input ...]`
-    : joined
+  return redactAndTruncate(parts.join('\n\n'), sentinels)
+}
+
+/**
+ * Rebuild the exact judge input text `collectArtifactText` would have
+ * produced, from an already-persisted artifact snapshot's `files` map (see
+ * `mechanical.ts`'s `ArtifactSnapshot` / `report.ts`'s `writeArtifactSnapshot`)
+ * instead of the live sandbox filesystem — this is what `--judge-report`
+ * (`run.ts`) uses to re-run the judge on a PAST cell from
+ * `snapshots/<cellKey>.json`, with no agent re-run. Mirrors
+ * `collectArtifactText`'s file order (`ARTIFACT_FILE_ORDER`, then
+ * `specs/**\/*.md` sorted) exactly, so a cell re-judged this way sees text
+ * equivalent to what a live run would have produced. Snapshot file text is
+ * already redacted by `writeArtifactSnapshot`, so passing `sentinels` again
+ * here is defensive (normally a no-op) rather than load-bearing — it keeps
+ * this path honoring the same redact-then-truncate contract as the live one.
+ */
+export function judgeInputFromArtifactFiles(
+  files: Readonly<Record<string, string>>,
+  sentinels: Sentinels,
+): string {
+  const parts: string[] = []
+  for (const name of ARTIFACT_FILE_ORDER) {
+    const text = files[name]
+    if (text !== undefined) parts.push(`### ${name}\n${text}`)
+  }
+  const specRels = Object.keys(files)
+    .filter((rel) => rel.startsWith('specs/') && rel.endsWith('.md'))
+    .toSorted()
+  for (const rel of specRels) {
+    parts.push(`### ${rel}\n${files[rel]}`)
+  }
+  return redactAndTruncate(parts.join('\n\n'), sentinels)
 }
 
 function clamp03(n: number): number {

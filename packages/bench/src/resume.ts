@@ -1,12 +1,14 @@
 // Pure `--resume` support logic (see `run.ts`'s usage and `docs/bench.md`'s
-// "Resuming a run" section). Kept in its own module — rather than inline in
-// `run.ts` — because `run.ts` self-executes its `main()` on import
-// (`process.exit(await main())` at the bottom), so nothing in it can be
-// imported by a unit test without also running the whole harness. Everything
+// "Resuming a run" section), plus the analogous skip predicate `--judge-report`
+// (`docs/bench.md`'s "Judge backfill" section) reuses. Kept in its own module —
+// rather than inline in `run.ts` — because `run.ts` self-executes its `main()`
+// on import (`process.exit(await main())` at the bottom), so nothing in it can
+// be imported by a unit test without also running the whole harness. Everything
 // here is a plain function over `Cell`/`CellResult` values: no filesystem, no
 // subprocess, no LLM call — those live in `report.ts` (`readCellsJsonl`,
-// `isStaleSchema`) and `review.ts` (`reviewDiff`), which `run.ts` composes
-// with this module's pure partitioning/predicate logic.
+// `isStaleSchema`, `writeCellsJsonl`) and `review.ts`/`judge.ts` (`reviewDiff`,
+// `judgeArtifacts`), which `run.ts` composes with this module's pure
+// partitioning/predicate logic.
 
 import { cellKey, type Cell } from './matrix.ts'
 import type { CellResult } from './report.ts'
@@ -60,4 +62,21 @@ export function needsReviewBackfill(result: CellResult): boolean {
     result.mechanical !== undefined &&
     result.mechanical.reviewDefects === undefined
   )
+}
+
+/**
+ * True when a PAST run's cell needs its quality judge backfilled from a
+ * persisted artifact snapshot: it ran (not skipped) but its `quality` came
+ * back exactly `null` — judge disabled, every sample failed (e.g. DeepSeek's
+ * HTTP 402 on this benchmark's first full run), or nothing was there to judge
+ * at the time. `--judge-report` (`run.ts`) rebuilds the judge input from
+ * `snapshots/<cellKey>.json` for exactly this set. False once a cell already
+ * carries a real `QualityScore` (`quality` is an object, not `null`) — a cell
+ * `--judge-report` must never re-judge — and false for a skipped cell (never
+ * had a `quality` field to begin with, so `undefined !== null` excludes it
+ * without a separate `skipped` check, but the explicit check documents the
+ * intent rather than relying on that coincidence).
+ */
+export function needsJudgeBackfill(result: CellResult): boolean {
+  return result.skipped === undefined && result.quality === null
 }

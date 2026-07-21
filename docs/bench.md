@@ -27,20 +27,21 @@ still executes; quality scores are recorded as `null`.
 CLI filters narrow each axis (pass after `--`, e.g.
 `mise run bench -- --scenario feat --arm cospec`):
 
-| flag                    | default | purpose                                                                                                      |
-| ----------------------- | ------- | ------------------------------------------------------------------------------------------------------------ |
-| `--scenario`            | all 11  | scenario id(s); repeatable / comma-separated                                                                 |
-| `--arm`                 | both    | `cospec` \| `openspec`                                                                                       |
-| `--model`               | both    | `claude-sonnet-5` \| `claude-opus-4-8`                                                                       |
-| `--repeats`             | 1       | copies per cell (surfaces variance)                                                                          |
-| `--concurrency`         | 2       | bounded worker pool size                                                                                     |
-| `--smoke`               | off     | collapse to the single cheap cell                                                                            |
-| `--hard`                | off     | include the opt-in `-hard` variants in the default matrix — see below                                        |
-| `--review`              | off     | run the adversarial review stage inline (extra agents — see below)                                           |
-| `--review-report <dir>` | —       | review a past run's persisted diffs; no matrix run                                                           |
-| `--publish`             | off     | after the run, render the committed publish artifacts — see below                                            |
-| `--publish-from <dir>`  | —       | render publish artifacts from a past report; no matrix run                                                   |
-| `--resume <dir>`        | —       | resume an interrupted run into `<dir>` instead of starting a new one — see [Resuming a run](#resuming-a-run) |
+| flag                    | default | purpose                                                                                                                           |
+| ----------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `--scenario`            | all 11  | scenario id(s); repeatable / comma-separated                                                                                      |
+| `--arm`                 | both    | `cospec` \| `openspec`                                                                                                            |
+| `--model`               | both    | `claude-sonnet-5` \| `claude-opus-4-8`                                                                                            |
+| `--repeats`             | 1       | copies per cell (surfaces variance)                                                                                               |
+| `--concurrency`         | 2       | bounded worker pool size                                                                                                          |
+| `--smoke`               | off     | collapse to the single cheap cell                                                                                                 |
+| `--hard`                | off     | include the opt-in `-hard` variants in the default matrix — see below                                                             |
+| `--review`              | off     | run the adversarial review stage inline (extra agents — see below)                                                                |
+| `--review-report <dir>` | —       | review a past run's persisted diffs; no matrix run                                                                                |
+| `--judge-report <dir>`  | —       | backfill quality scores for a past run's null-quality cells; no matrix run — see [Judge backfill](#judge-backfill---judge-report) |
+| `--publish`             | off     | after the run, render the committed publish artifacts — see below                                                                 |
+| `--publish-from <dir>`  | —       | render publish artifacts from a past report; no matrix run                                                                        |
+| `--resume <dir>`        | —       | resume an interrupted run into `<dir>` instead of starting a new one — see [Resuming a run](#resuming-a-run)                      |
 
 Judge configuration is environment-only, sharing the eval's defaults:
 `DEEPSEEK_API_KEY` (presence gates judging), `DEEPSEEK_MODEL_ID`
@@ -309,6 +310,42 @@ token ceiling (`finish_reason: 'length'`) is discarded rather than parsed from a
 truncated fragment. Quality is `null` when the key is unset, there is nothing to
 judge, or every sample fails to parse — never a fabricated score.
 
+## Judge backfill (`--judge-report`)
+
+A judge outage (most notably DeepSeek returning HTTP 402 — no account balance —
+on this benchmark's first full run) leaves some cells' `quality: null` with a
+`judgeError` even though the run itself completed and produced real artifacts.
+`--judge-report <reportDir>` re-scores exactly those cells with NO benchmark
+agent re-run, mirroring `--review-report`'s standalone-mode structure:
+
+1. Loads `<reportDir>/cells.jsonl` (the row-level source of truth) and, for
+   every row where `needsJudgeBackfill` is true — the cell ran and its `quality`
+   is exactly `null` — looks up its persisted artifact snapshot at
+   `snapshots/<cellKey>.json` (see "Output & redaction contract" below). A row
+   that already carries a real quality score is left untouched; a row with no
+   persisted snapshot (the agent never produced a change) is counted and logged,
+   not silently dropped.
+2. Rebuilds the exact judge input `collectArtifactText` would have produced from
+   the snapshot's `files` map (`judgeInputFromArtifactFiles` — same
+   `ARTIFACT_FILE_ORDER`, same `specs/**/*.md` inclusion, same truncation
+   ceiling) and calls the real `judgeArtifacts` against it.
+3. Updates the row in place — a successful score clears any stale `judgeError`;
+   a repeat failure records a fresh one — and rewrites the WHOLE `cells.jsonl`
+   (`writeCellsJsonl`), then regenerates that run's `aggregate.json` and
+   `summary.md` from the updated rows, exactly like `--review-report` does for
+   its own file pair.
+
+Requires `DEEPSEEK_API_KEY` — there is nothing to backfill scores WITH
+otherwise, so a missing key exits 2 rather than silently doing nothing (unlike a
+live run, where the judge is simply disabled). `--judge-report` is its own
+standalone mode: mutually exclusive with every cell-selecting flag, `--publish`,
+`--review-report`, `--publish-from`, and `--resume` — only one standalone mode
+may run per invocation.
+
+```bash
+mise run bench -- --judge-report packages/bench/reports/2026-07-17T20-01-31-623Z
+```
+
 ## Repeats and statistical significance
 
 `--repeats` (default 1) runs each matrix cell multiple times, so it is the knob
@@ -492,12 +529,14 @@ defects, confirmed review defects, planted-bug-caught rate, task-done rate,
 duration, cost, and tokens, a "Repeat spread" section, and a "Paired comparison"
 section, plus a `snapshots/` directory holding each cell's redacted artifact
 snapshot (`<cellKey>.json`) and its redacted code diff (`<cellKey>.diff`, the
-input to the adversarial review stage). Every object passes a **sentinel
-self-check before it touches disk**: reports carry only counts, scores, rule
-ids, durations, token/cost telemetry, and redacted artifact/diff text — never an
-API key, raw prompt, completion, or fixture-unique string. If any sentinel
-survives into a report object, the write throws rather than leak. This mirrors
-the [eval's redaction discipline](./eval.md#redaction-contract).
+input to the adversarial review stage). The artifact snapshot is also the input
+`--judge-report` (see above) rebuilds a past cell's judge text from, without
+re-running any agent. Every object passes a **sentinel self-check before it
+touches disk**: reports carry only counts, scores, rule ids, durations,
+token/cost telemetry, and redacted artifact/diff text — never an API key, raw
+prompt, completion, or fixture-unique string. If any sentinel survives into a
+report object, the write throws rather than leak. This mirrors the
+[eval's redaction discipline](./eval.md#redaction-contract).
 
 `packages/bench/RESULTS.md` and the root `README.md`'s managed block (see
 "Publishing" above) are the only bench artifacts that are NOT git-ignored — they

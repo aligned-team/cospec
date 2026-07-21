@@ -56,6 +56,17 @@ export interface MatrixFilters {
    */
   reviewReport?: string
   /**
+   * Standalone judge-backfill mode: re-score every cell of a PAST run whose
+   * `quality` came back null (judge disabled/failed at run time — see
+   * `judge.ts`'s `judgeArtifacts` doc comment) from its persisted artifact
+   * snapshot (`snapshots/<cellKey>.json`), without re-running any benchmark
+   * agent. When set, the harness judges `<judgeReport>` and rewrites its
+   * `cells.jsonl`/aggregate/summary instead of running the matrix. Mutually
+   * exclusive with every cell-selecting flag, `--publish`, `--review-report`,
+   * `--publish-from`, and `--resume` — its own standalone mode, like those two.
+   */
+  judgeReport?: string
+  /**
    * After a matrix run completes, render the committed publish artifacts
    * (`packages/bench/RESULTS.md`, the README managed block) from the run's own
    * aggregate — see `src/publish.ts`. Off by default (publishing overwrites two
@@ -121,6 +132,7 @@ export function parseArgs(argv: readonly string[]): MatrixFilters {
   let publish = false
   let publishFrom: string | undefined
   let resume: string | undefined
+  let judgeReport: string | undefined
 
   const tokens = [...argv]
   while (tokens.length > 0) {
@@ -184,6 +196,9 @@ export function parseArgs(argv: readonly string[]): MatrixFilters {
       case '--resume':
         resume = takeValue()
         break
+      case '--judge-report':
+        judgeReport = takeValue()
+        break
       default:
         throw new Error(`unknown flag: ${flag}`)
     }
@@ -207,6 +222,9 @@ export function parseArgs(argv: readonly string[]): MatrixFilters {
     if (reviewReport !== undefined) {
       throw new Error('--publish-from cannot be combined with --review-report — choose one')
     }
+    if (judgeReport !== undefined) {
+      throw new Error('--publish-from cannot be combined with --judge-report — choose one')
+    }
   }
 
   if (resume !== undefined) {
@@ -215,6 +233,32 @@ export function parseArgs(argv: readonly string[]): MatrixFilters {
     }
     if (publishFrom !== undefined) {
       throw new Error('--resume cannot be combined with --publish-from — choose one')
+    }
+    if (judgeReport !== undefined) {
+      throw new Error('--resume cannot be combined with --judge-report — choose one')
+    }
+  }
+
+  if (judgeReport !== undefined) {
+    const cellSelecting =
+      scenarios.length > 0 ||
+      arms.length > 0 ||
+      models.length > 0 ||
+      smoke ||
+      hard ||
+      review ||
+      resume !== undefined
+    if (cellSelecting || publish) {
+      throw new Error(
+        '--judge-report is standalone: it re-judges a past report and cannot be combined with ' +
+          'cell-selecting flags (--scenario/--arm/--model/--smoke/--hard/--review/--resume) or --publish',
+      )
+    }
+    if (reviewReport !== undefined) {
+      throw new Error('--judge-report cannot be combined with --review-report — choose one')
+    }
+    if (publishFrom !== undefined) {
+      throw new Error('--judge-report cannot be combined with --publish-from — choose one')
     }
   }
 
@@ -231,6 +275,7 @@ export function parseArgs(argv: readonly string[]): MatrixFilters {
     publish,
     publishFrom,
     resume,
+    judgeReport,
   }
 }
 

@@ -16,6 +16,7 @@ import {
   writeAggregate,
   writeArtifactSnapshot,
   writeCellDiff,
+  writeCellsJsonl,
   writeMarkdown,
   type CellResult,
   type RunMeta,
@@ -789,6 +790,78 @@ describe('readCellsJsonl', () => {
     await Bun.write(join(runDir, 'cells.jsonl'), `${existing}\n\n`)
     const rows = await readCellsJsonl(runDir)
     expect(rows).toHaveLength(1)
+  })
+})
+
+describe('writeCellsJsonl — the --judge-report row-update path', () => {
+  test('overwrites cells.jsonl so readCellsJsonl reads the updated rows back', async () => {
+    const runDir = makeRunDir()
+    await ensureRunDir(runDir)
+    // Simulate the original (pre-backfill) state, exactly as a live run would
+    // have appended it: null quality with a judge failure diagnostic.
+    const original = [
+      result({
+        cell: cell({ scenarioId: 'ci' }),
+        telemetry: telemetry(),
+        mechanical: mechanical(),
+        quality: null,
+        judgeError: '3 sample(s) failed: http 402 x3',
+      }),
+      result({
+        cell: cell({ scenarioId: 'feat', repeat: 2 }),
+        scenarioId: 'feat',
+        telemetry: telemetry(),
+        mechanical: mechanical(),
+        quality: null,
+        judgeError: '3 sample(s) failed: http 402 x3',
+      }),
+    ]
+    for (const r of original) await appendCellResult(runDir, r, NO_SENTINELS)
+
+    // `--judge-report` loads, mutates in place (backfills the first row,
+    // clearing its judgeError; leaves the second's failure as-is), then
+    // rewrites the whole file.
+    const loaded = await readCellsJsonl(runDir)
+    loaded[0]!.quality = {
+      completeness: 3,
+      internalConsistency: 2,
+      ambiguity: 2,
+      verifiability: 3,
+      traceability: 2,
+      overall: 2.4,
+      samples: 3,
+    }
+    delete loaded[0]!.judgeError
+
+    await writeCellsJsonl(runDir, loaded, NO_SENTINELS)
+
+    const rows = await readCellsJsonl(runDir)
+    expect(rows).toHaveLength(2)
+    expect(rows[0]!.scenarioId).toBe('ci')
+    expect(rows[0]!.quality).not.toBeNull()
+    expect(rows[0]!.quality?.overall).toBeCloseTo(2.4, 5)
+    expect(rows[0]!.judgeError).toBeUndefined()
+    // The untouched row is preserved byte-for-byte in outcome.
+    expect(rows[1]!.scenarioId).toBe('feat')
+    expect(rows[1]!.quality).toBeNull()
+    expect(rows[1]!.judgeError).toBe('3 sample(s) failed: http 402 x3')
+  })
+
+  test('an empty result set writes an empty file rather than throwing', async () => {
+    const runDir = makeRunDir()
+    await ensureRunDir(runDir)
+    await writeCellsJsonl(runDir, [], NO_SENTINELS)
+    const text = await Bun.file(join(runDir, 'cells.jsonl')).text()
+    expect(text).toBe('')
+  })
+
+  test('throws when a sentinel leaks into a row — same redaction guard as appendCellResult', async () => {
+    const runDir = makeRunDir()
+    await ensureRunDir(runDir)
+    const leaking = result({ skipped: 'BENCH-SECRET-TOKEN failed to start' })
+    await expect(
+      writeCellsJsonl(runDir, [leaking], { 'ref:ci:BENCH-SECRET-TOKEN': 'BENCH-SECRET-TOKEN' }),
+    ).rejects.toThrow(/redaction self-check failed/)
   })
 })
 

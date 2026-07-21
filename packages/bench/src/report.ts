@@ -78,6 +78,24 @@ export async function appendCellResult(
 }
 
 /**
+ * Overwrite `<runDir>/cells.jsonl` wholesale with `results`, guarded by the
+ * same redaction self-check `appendCellResult` uses. Unlike `appendCellResult`
+ * (append-only, for a live run in progress), this is the update path
+ * `--judge-report` (`run.ts`) needs after mutating already-written rows in
+ * place — filling in a backfilled `quality`, clearing a stale `judgeError` —
+ * having loaded them via `readCellsJsonl`. An empty `results` writes an empty
+ * file rather than throwing.
+ */
+export async function writeCellsJsonl(
+  runDir: string,
+  results: readonly CellResult[],
+  sentinels: Sentinels,
+): Promise<void> {
+  const lines = results.map((r) => JSON.stringify(assertRedacted(r, sentinels)))
+  await Bun.write(join(runDir, 'cells.jsonl'), lines.length > 0 ? `${lines.join('\n')}\n` : '')
+}
+
+/**
  * Persist a REDACTED snapshot of one cell's change artifacts, before the
  * sandbox is torn down, so a scoring bug (mechanical or judge) can be
  * re-scored later without re-running the agent. Written under

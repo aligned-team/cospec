@@ -25,6 +25,7 @@ describe('parseArgs', () => {
     expect(f.publish).toBe(false)
     expect(f.publishFrom).toBeUndefined()
     expect(f.resume).toBeUndefined()
+    expect(f.judgeReport).toBeUndefined()
   })
 
   test('--publish sets the publish flag with no value', () => {
@@ -135,9 +136,83 @@ describe('parseArgs', () => {
     )
   })
 
+  test('--resume throws when combined with --judge-report', () => {
+    expect(() => parseArgs(['--resume', 'reports/x', '--judge-report', 'reports/y'])).toThrow(
+      /--resume cannot be combined with --judge-report/,
+    )
+  })
+
   test('--publish-from throws when combined with --resume', () => {
     expect(() => parseArgs(['--publish-from', 'reports/x', '--resume', 'reports/y'])).toThrow(
       /--publish-from is standalone/,
+    )
+  })
+
+  test('--publish-from throws when combined with --judge-report', () => {
+    expect(() => parseArgs(['--publish-from', 'reports/x', '--judge-report', 'reports/y'])).toThrow(
+      /cannot be combined with --judge-report/,
+    )
+  })
+
+  test('--judge-report takes a directory value (both forms)', () => {
+    expect(parseArgs(['--judge-report', 'reports/2026-01-01']).judgeReport).toBe(
+      'reports/2026-01-01',
+    )
+    expect(parseArgs(['--judge-report=reports/x']).judgeReport).toBe('reports/x')
+  })
+
+  test('--judge-report throws when its value is missing', () => {
+    expect(() => parseArgs(['--judge-report'])).toThrow(/missing value/)
+  })
+
+  test('--judge-report alone (no other flags) parses cleanly', () => {
+    const f = parseArgs(['--judge-report', 'reports/x'])
+    expect(f.judgeReport).toBe('reports/x')
+    expect(f.publish).toBe(false)
+  })
+
+  test('--judge-report throws when combined with a cell-selecting flag', () => {
+    expect(() => parseArgs(['--judge-report', 'reports/x', '--scenario', 'ci'])).toThrow(
+      /--judge-report is standalone/,
+    )
+    expect(() => parseArgs(['--judge-report', 'reports/x', '--arm', 'cospec'])).toThrow(
+      /--judge-report is standalone/,
+    )
+    expect(() => parseArgs(['--judge-report', 'reports/x', '--hard'])).toThrow(
+      /--judge-report is standalone/,
+    )
+    expect(() => parseArgs(['--judge-report', 'reports/x', '--review'])).toThrow(
+      /--judge-report is standalone/,
+    )
+  })
+
+  test('--judge-report throws when combined with --publish', () => {
+    expect(() => parseArgs(['--judge-report', 'reports/x', '--publish'])).toThrow(
+      /--judge-report is standalone/,
+    )
+  })
+
+  test('--judge-report throws when combined with --review-report', () => {
+    expect(() =>
+      parseArgs(['--judge-report', 'reports/x', '--review-report', 'reports/y']),
+    ).toThrow(/cannot be combined with --review-report/)
+  })
+
+  test('--judge-report throws when combined with --publish-from', () => {
+    // parseArgs validates --publish-from's own standalone-exclusivity block
+    // first, so this exact combination surfaces THAT block's message; see the
+    // reciprocal "--publish-from throws when combined with --judge-report"
+    // case above for the other direction.
+    expect(() => parseArgs(['--judge-report', 'reports/x', '--publish-from', 'reports/y'])).toThrow(
+      /cannot be combined with --judge-report/,
+    )
+  })
+
+  test('--judge-report throws when combined with --resume', () => {
+    // Likewise, --resume's own block validates first — see the reciprocal
+    // "--resume throws when combined with --judge-report" case above.
+    expect(() => parseArgs(['--judge-report', 'reports/x', '--resume', 'reports/y'])).toThrow(
+      /--resume cannot be combined with --judge-report/,
     )
   })
 

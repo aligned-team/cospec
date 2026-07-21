@@ -4,7 +4,12 @@ import type { AgentTelemetry } from '../../src/agent.ts'
 import { expandMatrix, type Cell, type MatrixFilters } from '../../src/matrix.ts'
 import type { MechanicalMetrics } from '../../src/mechanical.ts'
 import type { CellResult } from '../../src/report.ts'
-import { completedCellKeys, needsReviewBackfill, partitionResumeCells } from '../../src/resume.ts'
+import {
+  completedCellKeys,
+  needsJudgeBackfill,
+  needsReviewBackfill,
+  partitionResumeCells,
+} from '../../src/resume.ts'
 
 function cell(overrides: Partial<Cell> = {}): Cell {
   return { scenarioId: 'ci', arm: 'cospec', model: 'claude-sonnet-5', repeat: 1, ...overrides }
@@ -143,5 +148,59 @@ describe('needsReviewBackfill', () => {
 
   test('false for a cell with no mechanical metrics at all', () => {
     expect(needsReviewBackfill(result())).toBe(false)
+  })
+})
+
+describe('needsJudgeBackfill', () => {
+  // The `--judge-report` skip-logic predicate: a cell is a backfill candidate
+  // exactly when it ran and its quality is exactly `null` (judge disabled,
+  // every sample failed, or nothing was there to judge at run time).
+
+  test('true for a ran cell whose quality is exactly null', () => {
+    expect(
+      needsJudgeBackfill(
+        result({ telemetry: telemetry(), mechanical: mechanical(), quality: null }),
+      ),
+    ).toBe(true)
+  })
+
+  test('true even when a judgeError diagnostic accompanies the null quality', () => {
+    expect(
+      needsJudgeBackfill(
+        result({
+          telemetry: telemetry(),
+          mechanical: mechanical(),
+          quality: null,
+          judgeError: '3 sample(s) failed: http 402 x3',
+        }),
+      ),
+    ).toBe(true)
+  })
+
+  test('false once a cell already carries a real quality score — never re-judges', () => {
+    const scored = result({
+      telemetry: telemetry(),
+      mechanical: mechanical(),
+      quality: {
+        completeness: 3,
+        internalConsistency: 3,
+        ambiguity: 3,
+        verifiability: 3,
+        traceability: 3,
+        overall: 3,
+        samples: 3,
+      },
+    })
+    expect(needsJudgeBackfill(scored)).toBe(false)
+  })
+
+  test('false for a skipped cell (never had a quality field to begin with)', () => {
+    expect(needsJudgeBackfill(result({ skipped: 'agent did not start' }))).toBe(false)
+  })
+
+  test('false when quality is undefined (the judge was never even attempted for this row)', () => {
+    expect(needsJudgeBackfill(result({ telemetry: telemetry(), mechanical: mechanical() }))).toBe(
+      false,
+    )
   })
 })
