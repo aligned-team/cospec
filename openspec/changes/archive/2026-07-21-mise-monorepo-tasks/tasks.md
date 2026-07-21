@@ -69,9 +69,11 @@
       `test:pack:standalone`, `docs:build`, `build`), so none require edits;
       confirmed no doc/workflow/hook references any bare task name that moved
       without a surviving alias.
-- [ ] 4.2 `mise run agents:sync` — re-run if `.agents/shared.md`'s task table is
+- [x] 4.2 `mise run agents:sync` — re-run if `.agents/shared.md`'s task table is
       later edited to describe the new per-project layout (not required for this
-      change: every cited command string is unchanged).
+      change: every cited command string is unchanged) -> ran anyway to
+      confirm: no diff produced, `agents:check` still reports both files in
+      sync.
 
 ## 5. Verification
 
