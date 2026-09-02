@@ -6,6 +6,7 @@
 
 import { afterAll, describe, expect, test } from 'bun:test'
 
+import { parseTasks } from '../../src/core/tasks.ts'
 import { cleanupAll, cospec, mkTempRepo, writeFiles } from '../fixtures/support.ts'
 
 afterAll(cleanupAll)
@@ -50,6 +51,28 @@ the described behavior cannot ship at all, blocking downstream work.
 ## Surfaces
 
 - [ ] interactive — a user-visible/interactive surface (UI, TUI, CLI UX)
+`
+
+const LITE_CI_PROPOSAL = `# change
+
+## Why
+
+Bump a pinned CI script version.
+
+## What Changes
+
+- Adjust the workflow.
+
+## Impact
+
+- CI only; no application source touched.
+
+## Surfaces
+
+- [ ] deploy
+- [ ] interactive
+- [ ] integration
+- [ ] agent-behavior
 `
 
 const SPEC_DELTA = `## ADDED Requirements
@@ -278,5 +301,107 @@ the described behavior cannot ship at all, blocking downstream work.
     expect(
       payload.gate.softBlockers.some((b) => b.slug === 'surface:verification/interactive-required'),
     ).toBe(true)
+  })
+})
+
+// `skip_specs` apply-gate parity (DESIGN §5, OpenSpec 1.7 parity, W7). Precedence:
+// CLI flag > persisted `.openspec.yaml` marker > structural default (a
+// spec-bearing type must show deltas). The conflict case — a marker declared
+// alongside real files under `specs/` — is a validate-time concern, not this
+// gate's; these cases hold `specs/` empty throughout.
+describe('apply gate: skip_specs satisfies the specs requirement', () => {
+  const CRITICAL_E2E =
+    '## 1. Widget works end to end [critical]\n- [ ] 1.1 @e2e drive the real flow -> observe the widget\n'
+
+  function authorFeatNoSpecs(root: string, extraYaml: string): void {
+    const c = 'openspec/changes/no-deltas'
+    writeFiles(root, {
+      [`${c}/.openspec.yaml`]: `schema: feat\ncreated: 2026-07-05\nschemaVersion: 2\n${extraYaml}`,
+      [`${c}/proposal.md`]: FEAT_PROPOSAL,
+      [`${c}/blocking-changes.md`]: BLOCKERS_EMPTY,
+      [`${c}/tasks.md`]: TASKS_DONE,
+      [`${c}/verification.md`]: CRITICAL_E2E,
+    })
+  }
+
+  test('structural default: a feat change with no specs/ deltas and no marker is blocked on specs', async () => {
+    const root = await initRepo()
+    authorFeatNoSpecs(root, '')
+
+    const res = await cospec(['apply', 'no-deltas', '--json'], { cwd: root })
+    expect(res.exitCode).toBe(2)
+    const payload = JSON.parse(res.stdout) as { gate: { missingArtifacts: string[] } }
+    expect(payload.gate.missingArtifacts).toContain('specs')
+  })
+
+  test('persisted skip_specs: true satisfies specs with an empty specs/ (exit 0)', async () => {
+    const root = await initRepo()
+    authorFeatNoSpecs(root, 'skip_specs: true\n')
+
+    const res = await cospec(['apply', 'no-deltas', '--json'], { cwd: root })
+    expect(res.exitCode).toBe(0)
+  })
+
+  test('the one-shot --skip-specs CLI flag satisfies specs without a persisted marker (exit 0)', async () => {
+    const root = await initRepo()
+    authorFeatNoSpecs(root, '')
+
+    const res = await cospec(['apply', 'no-deltas', '--skip-specs', '--json'], { cwd: root })
+    expect(res.exitCode).toBe(0)
+  })
+})
+
+// W21 — reconciling cospec's own task count (`core/tasks.ts parseTasks`, flat
+// `- [ ] N.M` lines only) with the wrapped `openspec instructions apply --json`
+// payload's `progress`/`tasks` (1.8+ nested-checkbox-aware counting, merged
+// verbatim into cospec's own `--json` at step 6). Resolution: cospec's own
+// tasks.md grammar is deliberately flat (DESIGN §3.1) and `tasks/checkbox-
+// grammar` is an ERROR that fast validation (apply step 2) always runs, so a
+// tasks.md with a nested/indented checkbox never reaches step 6 (the merged
+// payload) in the first place — it is blocked before `instr.progress` is ever
+// read. On every tasks.md that *does* reach the clear gate, both counters
+// therefore agree, because there is nothing nested left to disagree about.
+describe('apply gate: cospec/wrapped task-count reconciliation (W21)', () => {
+  const V2_YAML = 'schema: ci\ncreated: 2026-07-05\nschemaVersion: 2\n'
+
+  test('a nested checkbox is blocked at fast validation, before the wrapped call ever runs', async () => {
+    const root = await initRepo()
+    const c = 'openspec/changes/nested-tasks'
+    writeFiles(root, {
+      [`${c}/.openspec.yaml`]: V2_YAML,
+      [`${c}/proposal.md`]: LITE_CI_PROPOSAL,
+      [`${c}/blocking-changes.md`]: BLOCKERS_EMPTY,
+      [`${c}/tasks.md`]:
+        '## 1. Implementation\n\n- [ ] 1.1 Implement the capability\n  - [ ] 1.1.1 A nested sub-task\n',
+    })
+
+    const res = await cospec(['apply', 'nested-tasks', '--json'], { cwd: root })
+    expect(res.exitCode).toBe(1)
+    const payload = JSON.parse(res.stdout) as { items: { issues: { rule: string }[] }[] }
+    expect(payload.items[0]?.issues.some((i) => i.rule === 'tasks/checkbox-grammar')).toBe(true)
+    // Never got as far as the merged apply payload the wrapped call would add.
+    expect(res.stdout).not.toContain('"progress"')
+  })
+
+  test("a flat tasks.md that clears the gate: cospec's count matches the wrapped payload's", async () => {
+    const root = await initRepo()
+    const c = 'openspec/changes/flat-tasks'
+    const tasksText =
+      '## 1. Implementation\n\n- [x] 1.1 Implement the capability\n- [ ] 1.2 Write tests\n'
+    writeFiles(root, {
+      [`${c}/.openspec.yaml`]: V2_YAML,
+      [`${c}/proposal.md`]: LITE_CI_PROPOSAL,
+      [`${c}/blocking-changes.md`]: BLOCKERS_EMPTY,
+      [`${c}/tasks.md`]: tasksText,
+    })
+
+    const res = await cospec(['apply', 'flat-tasks', '--json'], { cwd: root })
+    expect(res.exitCode).toBe(0)
+    const payload = JSON.parse(res.stdout) as {
+      apply: { progress: { total: number; complete: number } }
+    }
+    const cospecCount = parseTasks(tasksText)
+    expect(payload.apply.progress.total).toBe(cospecCount.items.length)
+    expect(payload.apply.progress.complete).toBe(cospecCount.items.filter((t) => t.checked).length)
   })
 })

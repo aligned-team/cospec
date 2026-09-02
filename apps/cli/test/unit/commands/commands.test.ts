@@ -201,6 +201,84 @@ describe('status', () => {
   })
 })
 
+describe('status --all (OpenSpec 1.11 parity)', () => {
+  test('--all and --change are mutually exclusive', async () => {
+    const cwd = repo()
+    const r = await runCmd(statusRun, ctx(cwd, ['--all', '--change', 'bare']))
+    expect(r.code).toBe(1)
+    expect(r.err).toContain('--all and --change options are mutually exclusive')
+  })
+
+  test('--all and a positional change name are mutually exclusive', async () => {
+    const cwd = repo()
+    const r = await runCmd(statusRun, ctx(cwd, ['--all', 'bare']))
+    expect(r.code).toBe(1)
+    expect(r.err).toContain('mutually exclusive')
+  })
+
+  test('no active changes: reports the empty case and exits 0', async () => {
+    const cwd = repo()
+    const r = await runCmd(statusRun, ctx(cwd, ['--all']))
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('no active changes')
+  })
+
+  test('--all --json sweeps every change, sorted by id, in one envelope', async () => {
+    const cwd = repo()
+    writeChange(cwd, 'zeta', 'ci')
+    writeChange(cwd, 'alpha', 'ci', {
+      'proposal.md': LITE_PROPOSAL,
+      'blocking-changes.md': EMPTY_BLOCKERS,
+      'tasks.md': DONE_TASKS,
+    })
+    const r = await runCmd(statusRun, ctx(cwd, ['--all'], { json: true }))
+    expect(r.code).toBe(0)
+    const parsed = JSON.parse(r.out) as { changes: { change: string }[]; root: string }
+    expect(parsed.changes.map((c) => c.change)).toEqual(['alpha', 'zeta'])
+    expect(parsed.root).toBe(cwd)
+  })
+
+  test('single-change JSON shape is unchanged by the --all addition', async () => {
+    const cwd = repo()
+    const dir = writeChange(cwd, 'c', 'ci', {
+      'proposal.md': LITE_PROPOSAL,
+      'blocking-changes.md': EMPTY_BLOCKERS,
+      'tasks.md': DONE_TASKS,
+    })
+    const single = await runCmd(statusRun, ctx(cwd, ['--change', 'c'], { json: true }))
+    const swept = await runCmd(statusRun, ctx(cwd, ['--all'], { json: true }))
+    const sweptParsed = JSON.parse(swept.out) as { changes: unknown[] }
+    expect(sweptParsed.changes).toEqual([JSON.parse(single.out)])
+    expect(computeStatus(cwd, { id: 'c', dir, schema: 'ci' }).change).toBe('c')
+  })
+
+  test('one bad change does not abort the sweep — it becomes a failure entry, exit 1', async () => {
+    const cwd = repo()
+    writeChange(cwd, 'good', 'ci', {
+      'proposal.md': LITE_PROPOSAL,
+      'blocking-changes.md': EMPTY_BLOCKERS,
+      'tasks.md': DONE_TASKS,
+    })
+    // A change directory with a blocking-changes.md that hasAnyArtifact sees but
+    // whose content computeStatus's blocker parse can't make sense of is hard to
+    // provoke deterministically; instead corrupt the artifact-presence path by
+    // making blocking-changes.md a directory, so `readFileSync` throws in
+    // `computeStatus`'s gate lookup.
+    const badDir = writeChange(cwd, 'bad', 'ci', { 'proposal.md': LITE_PROPOSAL })
+    mkdirSync(join(badDir, 'blocking-changes.md'))
+
+    const r = await runCmd(statusRun, ctx(cwd, ['--all'], { json: true }))
+    expect(r.code).toBe(1)
+    const parsed = JSON.parse(r.out) as {
+      changes: ({ change: string; error: string } | { change: string })[]
+    }
+    const bad = parsed.changes.find((c) => c.change === 'bad') as { error?: string }
+    expect(bad?.error).toBeDefined()
+    const good = parsed.changes.find((c) => c.change === 'good') as { archiveReady?: boolean }
+    expect(good?.archiveReady).toBe(true)
+  })
+})
+
 describe('list', () => {
   test('renders one row per change; empty change shows "no artifacts yet"', async () => {
     const cwd = repo()

@@ -158,8 +158,104 @@ function renderHuman(status: ChangeStatus): string {
   return `${lines.join('\n')}\n`
 }
 
+/** The empty-change entry shape (`.openspec.yaml` present, no artifacts yet). */
+function emptyChangeEntry(change: Change) {
+  return {
+    change: change.id,
+    type: change.schema,
+    state: 'in-progress' as const,
+    artifacts: [] as ArtifactStatus[],
+    gate: 'clear',
+    archiveReady: false,
+    next: `cospec instructions proposal --change ${change.id}`,
+  }
+}
+
+/** The legacy/unknown-schema entry shape. */
+function legacyChangeEntry(change: Change) {
+  return { change: change.id, type: change.schema, legacy: true as const }
+}
+
+export type ChangeEntry =
+  | ReturnType<typeof emptyChangeEntry>
+  | ReturnType<typeof legacyChangeEntry>
+  | ChangeStatus
+
+export interface ChangeEntryFailure {
+  change: string
+  error: string
+}
+
+/**
+ * One change's status entry — empty, legacy, or full — for a single change.
+ * Never throws itself; a caller sweeping every change (`--all`) wraps this in
+ * a try/catch per change so one bad change cannot abort the sweep.
+ */
+export function buildChangeEntry(base: string, change: Change): ChangeEntry {
+  if (!hasAnyArtifact(change.dir)) return emptyChangeEntry(change)
+  if (!isCospecType(change.schema)) return legacyChangeEntry(change)
+  return computeStatus(base, change)
+}
+
+function isFailure(entry: ChangeEntry | ChangeEntryFailure): entry is ChangeEntryFailure {
+  return 'error' in entry
+}
+
+function renderEntryHuman(entry: ChangeEntry | ChangeEntryFailure): string {
+  if (isFailure(entry)) return `${entry.change}: ERROR — ${entry.error}\n`
+  if ('legacy' in entry) {
+    return `${entry.change} (${entry.type}): legacy schema — use \`openspec status --change ${entry.change}\` for details\n`
+  }
+  if ('next' in entry) {
+    return `${entry.change} (${entry.type}): in progress — no artifacts yet; next: ${entry.next}\n`
+  }
+  return renderHuman(entry)
+}
+
+/**
+ * `cospec status --all` (OpenSpec 1.11 parity): a cospec-native sweep over
+ * every active change, sorted by id. Unlike a single change lookup, one bad
+ * change never aborts the sweep — it becomes a per-change failure entry and
+ * the whole run still exits nonzero.
+ */
+async function runAll(ctx: CommandContext): Promise<number> {
+  const { flags } = ctx
+  const root = await resolveRoot(ctx)
+  const base = root.base
+  const changes = listChanges(base).toSorted((a, b) => a.id.localeCompare(b.id))
+
+  const entries: (ChangeEntry | ChangeEntryFailure)[] = changes.map((change) => {
+    try {
+      return buildChangeEntry(base, change)
+    } catch (err) {
+      return { change: change.id, error: (err as Error).message }
+    }
+  })
+
+  if (flags.json) {
+    process.stdout.write(`${JSON.stringify({ changes: entries, root: base }, null, 2)}\n`)
+  } else if (entries.length === 0) {
+    process.stdout.write('cospec status: no active changes\n')
+  } else {
+    process.stdout.write(entries.map(renderEntryHuman).join('\n'))
+  }
+
+  return entries.some(isFailure) ? EXIT.failure : EXIT.success
+}
+
 export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
+
+  if (ctx.args.includes('--all')) {
+    if (flagValue(ctx.args, '--change') !== undefined || ctx.args.some((a) => !a.startsWith('-'))) {
+      process.stderr.write(
+        'cospec status: The --all and --change options are mutually exclusive.\n',
+      )
+      return EXIT.failure
+    }
+    return runAll(ctx)
+  }
+
   const root = await resolveRoot(ctx)
   const base = root.base
   let id = flagValue(ctx.args, '--change') ?? ctx.args.find((a) => !a.startsWith('-'))
