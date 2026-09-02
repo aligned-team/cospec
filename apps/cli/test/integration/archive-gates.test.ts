@@ -215,6 +215,46 @@ The system SHALL render a widget when requested.
     expect(existsSync(join(root, 'openspec/changes/thin-widget-ok'))).toBe(true)
   })
 
+  // W4's masking is load-bearing on this gate: a scenario heading that only
+  // survives inside an HTML comment or a code fence is documentation, not a
+  // preserved scenario. Both cases must read as a drop to zero, not as two
+  // scenarios kept. Here the shape ERROR and the gate WARNING are reported
+  // together by the pre-delegation validation pass, so they land on stdout.
+  for (const [name, masked] of [
+    ['masked-comment', '<!--\n$BODY\n-->'],
+    ['masked-fence', '````\n$BODY\n````'],
+  ] as const) {
+    test(`scenarios that survive only inside ${name.slice(7)} markup are not preserved`, async () => {
+      const root = await initRepo()
+      const body = `#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered
+
+#### Scenario: Render an empty widget
+
+- **WHEN** a caller requests an empty widget
+- **THEN** a placeholder is rendered`
+      buildFeat(
+        root,
+        name,
+        `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested.
+
+${masked.replace('$BODY', body)}
+`,
+      )
+      const res = await cospec(['archive', name], { cwd: root })
+      expect(res.exitCode).toBe(1)
+      expect(res.stdout).toContain('archive/scenario-preservation')
+      expect(res.stdout).toContain('drops scenario count from 2 to 0')
+      expect(existsSync(join(root, `openspec/changes/${name}`))).toBe(true)
+    })
+  }
+
   test('keeping every living scenario in the MODIFIED block archives normally', async () => {
     const root = await initRepo()
     buildFeat(
