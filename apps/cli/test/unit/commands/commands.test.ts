@@ -209,6 +209,20 @@ describe('status --all (OpenSpec 1.11 parity)', () => {
     expect(r.err).toContain('--all and --change options are mutually exclusive')
   })
 
+  test('--json turns the mutex error into a JSON envelope on stdout', async () => {
+    // A caller that asked for JSON must always get something parseable — a
+    // bare stderr line leaves it with nothing to parse.
+    const cwd = repo()
+    const r = await runCmd(statusRun, ctx(cwd, ['--all', '--change', 'bare'], { json: true }))
+    expect(r.code).toBe(1)
+    expect(r.err).toBe('')
+    expect(JSON.parse(r.out)).toEqual({
+      changes: [],
+      root: null,
+      error: 'The --all and --change options are mutually exclusive.',
+    })
+  })
+
   test('--all and a positional change name are mutually exclusive', async () => {
     const cwd = repo()
     const r = await runCmd(statusRun, ctx(cwd, ['--all', 'bare']))

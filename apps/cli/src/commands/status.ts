@@ -243,14 +243,24 @@ async function runAll(ctx: CommandContext): Promise<number> {
   return entries.some(isFailure) ? EXIT.failure : EXIT.success
 }
 
+const MUTEX_MESSAGE = 'The --all and --change options are mutually exclusive.'
+
 export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
 
   if (ctx.args.includes('--all')) {
     if (flagValue(ctx.args, '--change') !== undefined || ctx.args.some((a) => !a.startsWith('-'))) {
-      process.stderr.write(
-        'cospec status: The --all and --change options are mutually exclusive.\n',
-      )
+      // Under --json the failure is a JSON envelope on stdout, never a bare
+      // stderr line: a caller that asked for JSON must always get something
+      // parseable, and openspec's own `--all`/`--change` mutex check is caught
+      // by a handler that honours --json the same way.
+      if (flags.json) {
+        process.stdout.write(
+          `${JSON.stringify({ changes: [], root: null, error: MUTEX_MESSAGE }, null, 2)}\n`,
+        )
+      } else {
+        process.stderr.write(`cospec status: ${MUTEX_MESSAGE}\n`)
+      }
       return EXIT.failure
     }
     return runAll(ctx)
