@@ -30,3 +30,13 @@ pair. The single parser both `apply`'s blocker gate and `sync-blockers` share
 lives in `core/blockers.ts` — see [blocking-changes.md](blocking-changes.md) for
 its grammar. `fix` is the default mode; fix idempotence
 (`fix(fix(x)) == fix(x)`) is a tested property.
+
+## The `Scenario removed: <reason>` escape hatch is retired
+
+As of openspec 1.8.0, `archive/scenario-preservation`'s upstream twin refuses
+any `MODIFIED` block that drops a living scenario regardless of a
+`Scenario removed: <reason>` note — the note can no longer excuse the drop.
+cospec's own gate still fires first with its own rule id (the sole defence on
+openspec 1.0.0–1.7.x; defence-in-depth from 1.8.0 on). The user-facing remedy
+and the full `warnings`/`retired[]` archive-JSON fields are owned by the site:
+[Apply and archive](https://cospec.aligned.team/concepts/apply-and-archive).

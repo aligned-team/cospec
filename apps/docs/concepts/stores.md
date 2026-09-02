@@ -102,10 +102,16 @@ precedence:
 
 1. an explicit `--store <id>` flag;
 2. else a `store:` pointer in the local `openspec/config.yaml`;
-3. else the local repo at the current directory.
+3. else the local repo at the current directory, if `openspec/` exists there;
+4. else, as a **fallback**, the machine-global `defaultStore`
+   (`openspec config get defaultStore` — a raw value on stdout, no `--json`,
+   exit `1` when unset).
 
-`references:` is read-only context, never a root override — it does not change
-where a change is created or gated.
+`defaultStore` is consulted only once local-root resolution has already failed —
+it is a fallback for "no local repo, no explicit store," never a precedence tier
+that could redirect a command already running inside an existing local
+`openspec/` repo. `references:` is read-only context, never a root override
+either — it does not change where a change is created or gated.
 
 An unregistered `--store` id fails loudly rather than silently falling back to
 the local repo, so a typo can never write a change to the wrong place:

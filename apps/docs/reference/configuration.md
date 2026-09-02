@@ -46,6 +46,34 @@ the closed set of `@<layer>` tokens (`@unit`, `@e2e`, `@manual`, and so on) that
 verification rows can cite — see [Verification](/concepts/verification) for the
 full grammar.
 
+### Per-change metadata: `skip_specs` and `retire_capabilities`
+
+A change's own `.openspec.yaml` (not the repo-wide `config.yaml` above) carries
+two boolean keys:
+
+- **`skip_specs: true`** — a persisted alternative to passing `--skip-specs` on
+  every `cospec apply`/`cospec archive` call for a spec-bearing type that
+  legitimately has no deltas this run. Precedence, from strongest to weakest:
+  the CLI `--skip-specs` flag, then this marker, then the structural default (a
+  spec-bearing type must show deltas). Declaring the marker while files actually
+  exist under `specs/` is a validate-time ERROR (`deltas/skip-specs-conflict`) —
+  the marker makes `specs` optional, not forbidden.
+- **`retire_capabilities: true`** — authorizes openspec 1.8.0+ to delete a
+  capability's living `spec.md` when a change's `REMOVED` operation takes its
+  last requirement. Without the marker, the merge refuses outright and cospec
+  relays the refusal with the change and spec untouched. Two footguns worth
+  knowing: the marker is only honored when the whole `.openspec.yaml` is valid
+  to openspec — in a repo whose `schema:` isn't registered with openspec, the
+  binary reports
+  `The marker present now cannot be honored (schema: unknown schema '<type>')`
+  and refuses regardless of the marker; and a retirement that _does_ go through
+  is reported by `cospec archive` as a `Retired:` line (and a `retired[]` array
+  in `--json`) — a living spec disappearing **without** the marker is treated as
+  an invariant breach, never silently accepted.
+
+A key present but set to a non-boolean value is a validate-time ERROR
+(`meta/skip-specs-type`, `meta/retire-capabilities-type`).
+
 A `store:` key points cospec (and OpenSpec) at a registered OpenSpec store by
 default, so you don't have to pass `--store <id>` on every command. It's a
 root-resolution input rather than a cospec-managed or validated field like

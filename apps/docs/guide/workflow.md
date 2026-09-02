@@ -119,6 +119,12 @@ remaining artifact in one pass) or `/cospec:continue` (author one artifact at a
 time) — same artifacts, same gate, different pacing. See
 [Harness setup](/guide/harness-setup) for the full list of generated commands.
 
+Once artifacts exist, `/cospec:update` revises them in place — it never creates
+an artifact that doesn't exist yet (that's still `/cospec:continue`'s job) and
+never edits code (that's `/cospec:apply`'s). Use it when a proposal's answer
+needs correcting, or a spec delta needs a change, after some artifacts are
+already written but before `apply`/`archive` locks the change in.
+
 ## The whole loop, start to finish
 
 ```sh

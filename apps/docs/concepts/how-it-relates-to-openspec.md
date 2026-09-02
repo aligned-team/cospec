@@ -25,10 +25,26 @@ cospec adds typed schemas, a real gate, and a verified archive on top.
 cospec accepts OpenSpec **`>=1.0.0 <2.0.0`** at runtime — that range is asserted
 the first time cospec calls out to it in a process, and an out-of-range binary
 is refused outright. cospec's own dev and CI pin one exact build inside that
-range, **`1.5.0`**, which is the version its contract test suite runs against.
+range, **`1.11.0`**, which is the version its contract test suite runs against.
 Those two numbers are meant to drift apart over time (the accepted range is
-wide; the pin is narrow and load-bearing) but never to fall out of sync with
-each other — a version tripwire test fails first if they do.
+wide; the pin is narrow and load-bearing, and the floor is deliberately not
+raised just because the pin moved) but never to fall out of sync with each other
+— a version tripwire test fails first if they do.
+
+A few cospec behaviors are explicitly **version-scoped** rather than uniform
+across the whole accepted range, because upstream itself changed between 1.0.0
+and the current pin:
+
+- **The exit-0-on-abort failure mode is real only below 1.7.0.** From 1.7.0 on,
+  an aborted `openspec archive` exits `1`. cospec's filesystem-verification
+  discipline (below) doesn't relax because of this — the accepted floor is still
+  `1.0.0`, where the old behavior is real, so success is still computed from
+  what's actually on disk, with the exit code ANDed in as one term, never
+  trusted alone.
+- **The scenario-preservation defense is cospec's sole guard only below 1.6.0.**
+  From 1.6.0 on, `openspec archive` ships its own overlapping scenario-loss
+  check, making cospec's gate defence-in-depth rather than the only thing
+  standing between an author and a silently thinned spec.
 
 ## cospec never replaces OpenSpec
 

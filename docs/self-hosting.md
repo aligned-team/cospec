@@ -25,7 +25,7 @@ Each step leaves the repo green.
    the sync-blockers steps.
 3. Materialize `openspec/{config.yaml, schemas/**, .cospec-manifest.json}`.
    `config.yaml` sets `schema: feat`; `context:` describes cospec itself (wraps
-   OpenSpec 1.5.0, is a Bun CLI, treats the wrapped-tool failure modes as
+   OpenSpec 1.11.0, is a Bun CLI, treats the wrapped-tool failure modes as
    standing constraints); `rules:` are seeded, e.g. "every command change needs
    a contract or integration test task". Commit.
 4. Land apply / archive / init / update / doctor and the harness generator; run

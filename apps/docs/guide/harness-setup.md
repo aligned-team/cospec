@@ -7,37 +7,38 @@ description:
 
 # Harness setup
 
-`cospec init --harness <list>` wires cospec's eleven workflows — `propose`,
+`cospec init --harness <list>` wires cospec's twelve workflows — `propose`,
 `new`, `continue`, `ff`, `apply`, `verify`, `archive`, `bulk-archive`,
-`sync-specs`, `explore`, `onboard` — into your agent harness by writing project
-files directly. This is cospec's full parity set with opsx 1.5.0: every live
-opsx workflow has a cospec-adapted counterpart (opsx `sync` maps to cospec
-`sync-specs`), and cospec always emits the complete set to every configured
-harness — there's no core/custom profile split to opt into. There is no
-marketplace, no plugin package, and no global state under your home directory:
-everything lands inside the repo, under version control, and `cospec update`
-regenerates it in place. Every generated workflow body calls only `cospec`
-commands, never bare `openspec`, so a harness needs exactly one permission entry
-to run the whole loop.
+`sync-specs`, `explore`, `onboard`, `update` — into your agent harness by
+writing project files directly. This is cospec's full parity set with opsx
+1.11.0: every live opsx workflow has a cospec-adapted counterpart (opsx `sync`
+maps to cospec `sync-specs`, opsx `update` to cospec `update`), and cospec
+always emits the complete set to every configured harness — there's no
+core/custom profile split to opt into. There is no marketplace, no plugin
+package, and no global state under your home directory: everything lands inside
+the repo, under version control, and `cospec update` regenerates it in place.
+Every generated workflow body calls only `cospec` commands, never bare
+`openspec`, so a harness needs exactly one permission entry to run the whole
+loop.
 
 ## What gets written
 
 ::: code-group
 
 ```txt [Claude Code]
-.claude/commands/cospec/{propose,new,continue,ff,apply,verify,archive,bulk-archive,sync-specs,explore,onboard}.md
-.claude/skills/cospec-{propose,new-change,continue-change,ff-change,apply-change,verify-change,archive-change,bulk-archive-change,sync-specs,explore,onboard}/SKILL.md
+.claude/commands/cospec/{propose,new,continue,ff,apply,verify,archive,bulk-archive,sync-specs,explore,onboard,update}.md
+.claude/skills/cospec-{propose,new-change,continue-change,ff-change,apply-change,verify-change,archive-change,bulk-archive-change,sync-specs,explore,onboard,update-change}/SKILL.md
 .claude/settings.json   # Bash(cospec *) merged into permissions.allow
 ```
 
 ```txt [Codex]
-.codex/skills/cospec-{same eleven}/SKILL.md
+.codex/skills/cospec-{same twelve}/SKILL.md
 .codex/rules/cospec.rules   # pre-approves read-only + gate cospec calls
 ```
 
 ```txt [OpenCode]
-.opencode/commands/cospec-{same eleven}.md   # full workflow bodies
-.opencode/skills/cospec-{same eleven}/SKILL.md
+.opencode/commands/cospec-{same twelve}.md   # full workflow bodies
+.opencode/skills/cospec-{same twelve}/SKILL.md
 ```
 
 :::
@@ -46,7 +47,22 @@ Slash command syntax is adapted per harness — `/cospec:propose` in Claude Code
 `/cospec-propose` in OpenCode. Codex has no project-level slash commands, so its
 skills are invoked by description. OpenCode's command bodies are self-contained
 (they work even when `.claude/` is absent), whereas Claude Code's commands point
-at the paired skill.
+at the paired skill. For a workflow that reads a positional argument (a type +
+description, or a change slug), OpenCode's **command** body additionally gets a
+`$ARGUMENTS` placeholder inserted before its first section — OpenCode only
+forwards a slash command's typed arguments through an explicit placeholder,
+unlike Claude Code and Codex, which bind the argument implicitly. The paired
+**skill** body never gets this placeholder, so the two rendered bodies
+legitimately differ for the same workflow on OpenCode.
+
+::: tip Migrating from an OpenSpec install that used `.agents/skills/` If a
+project was previously initialized with `openspec` **1.7.0+** (its
+vendor-neutral `agents` target, or 1.8.0's Codex output, 1.10's `zed`, or 1.11's
+`antigravity`), its skills may live under the shared `.agents/skills/` root
+instead of a per-harness `.<tool>/` dir. cospec's opsx-leftover scan checks that
+root too, so `cospec init --remove-opsx` finds and offers to clean those up the
+same as any other harness's leftovers — cospec's own generated output never
+writes to `.agents/skills/`. :::
 
 For Claude Code specifically, init reads `.claude/settings.json` (creating `{}`
 if it doesn't exist yet) and additively merges `Bash(cospec *)` into
