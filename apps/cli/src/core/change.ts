@@ -49,6 +49,20 @@ export interface OpenspecYaml {
   created?: string
   /** the change-creation schema version (DESIGN §5); absent ⇒ callers treat it as 1. */
   schemaVersion?: number
+  /**
+   * `skip_specs:` — a persisted request that a spec-bearing type accepts no
+   * delta files (the durable equivalent of `cospec archive --skip-specs`). A
+   * present-but-non-boolean value is treated as absent here — flagging it is
+   * `meta/skip-specs-type`'s job at validate time, not this reader's.
+   */
+  skipSpecs?: boolean
+  /**
+   * `retire_capabilities:` — this change intentionally retires (deletes) one
+   * or more living-spec capabilities rather than modifying them. A
+   * present-but-non-boolean value is treated as absent here — flagging it is
+   * `meta/retire-capabilities-type`'s job at validate time, not this reader's.
+   */
+  retireCapabilities?: boolean
 }
 
 /**
@@ -84,7 +98,10 @@ export function readOpenspecYaml(changeDir: string): OpenspecYaml | undefined {
   const schemaVersion = isValidSchemaVersion(record.schemaVersion)
     ? record.schemaVersion
     : undefined
-  return { schema, created, schemaVersion }
+  const skipSpecs = typeof record.skip_specs === 'boolean' ? record.skip_specs : undefined
+  const retireCapabilities =
+    typeof record.retire_capabilities === 'boolean' ? record.retire_capabilities : undefined
+  return { schema, created, schemaVersion, skipSpecs, retireCapabilities }
 }
 
 export interface Change {
@@ -95,6 +112,10 @@ export interface Change {
   created?: string
   /** the change-creation schema version (DESIGN §5); absent ⇒ callers treat it as 1. */
   schemaVersion?: number
+  /** `skip_specs:` from `.openspec.yaml`, when boolean. */
+  skipSpecs?: boolean
+  /** `retire_capabilities:` from `.openspec.yaml`, when boolean. */
+  retireCapabilities?: boolean
 }
 
 function listDirs(path: string): string[] {
@@ -119,6 +140,8 @@ export function listChanges(cwd: string): Change[] {
         schema: yaml?.schema ?? '',
         created: yaml?.created,
         schemaVersion: yaml?.schemaVersion,
+        skipSpecs: yaml?.skipSpecs,
+        retireCapabilities: yaml?.retireCapabilities,
       }
     })
 }
@@ -147,6 +170,8 @@ export function resolveChange(cwd: string, id: string): Change | undefined {
     schema: yaml?.schema ?? '',
     created: yaml?.created,
     schemaVersion: yaml?.schemaVersion,
+    skipSpecs: yaml?.skipSpecs,
+    retireCapabilities: yaml?.retireCapabilities,
   }
 }
 

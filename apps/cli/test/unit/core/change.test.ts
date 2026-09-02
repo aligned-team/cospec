@@ -83,6 +83,36 @@ describe('readOpenspecYaml', () => {
       readOpenspecYaml(join(cwd, 'openspec', 'changes', 'frac'))?.schemaVersion,
     ).toBeUndefined()
   })
+
+  test('reads boolean skip_specs and retire_capabilities', () => {
+    const cwd = makeRepo()
+    makeChange(cwd, 'skip', 'schema: feat\nskip_specs: true\n')
+    expect(readOpenspecYaml(join(cwd, 'openspec', 'changes', 'skip'))?.skipSpecs).toBe(true)
+    makeChange(cwd, 'retire', 'schema: feat\nretire_capabilities: false\n')
+    expect(readOpenspecYaml(join(cwd, 'openspec', 'changes', 'retire'))?.retireCapabilities).toBe(
+      false,
+    )
+  })
+
+  test('treats a non-boolean skip_specs / retire_capabilities as absent', () => {
+    const cwd = makeRepo()
+    makeChange(cwd, 'skip-bad', 'schema: feat\nskip_specs: yes\n')
+    expect(
+      readOpenspecYaml(join(cwd, 'openspec', 'changes', 'skip-bad'))?.skipSpecs,
+    ).toBeUndefined()
+    makeChange(cwd, 'retire-bad', 'schema: feat\nretire_capabilities: "true"\n')
+    expect(
+      readOpenspecYaml(join(cwd, 'openspec', 'changes', 'retire-bad'))?.retireCapabilities,
+    ).toBeUndefined()
+  })
+
+  test('leaves skip_specs / retire_capabilities undefined when absent', () => {
+    const cwd = makeRepo()
+    makeChange(cwd, 'plain', 'schema: feat\n')
+    const yaml = readOpenspecYaml(join(cwd, 'openspec', 'changes', 'plain'))
+    expect(yaml?.skipSpecs).toBeUndefined()
+    expect(yaml?.retireCapabilities).toBeUndefined()
+  })
 })
 
 describe('listChanges / resolveChange', () => {
@@ -97,6 +127,17 @@ describe('listChanges / resolveChange', () => {
     const resolved = resolveChange(cwd, 'zeta')
     expect(resolved?.schema).toBe('ci')
     expect(resolveChange(cwd, 'missing')).toBeUndefined()
+  })
+
+  test('propagates skip_specs / retire_capabilities onto listChanges and resolveChange', () => {
+    const cwd = makeRepo()
+    makeChange(cwd, 'skippable', 'schema: feat\nskip_specs: true\nretire_capabilities: true\n')
+    const changes = listChanges(cwd)
+    expect(changes[0]!.skipSpecs).toBe(true)
+    expect(changes[0]!.retireCapabilities).toBe(true)
+    const resolved = resolveChange(cwd, 'skippable')
+    expect(resolved?.skipSpecs).toBe(true)
+    expect(resolved?.retireCapabilities).toBe(true)
   })
 
   test('change with missing yaml has empty schema', () => {

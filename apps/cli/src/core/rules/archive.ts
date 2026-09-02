@@ -5,7 +5,13 @@
 // may be strictly MORE conservative than the binary; a false PASS is a release
 // blocker (parity is contract-tested). Rule IDs are frozen public API.
 
-import { findScenarioDrops, parseDeltaSpec, type DeltaOp } from '../deltas.ts'
+import {
+  findScenarioDrops,
+  parseDeltaSpec,
+  SCENARIO_DROP_HINT,
+  SCENARIO_DROP_NOTE_RETIRED,
+  type DeltaOp,
+} from '../deltas.ts'
 import type { Issue } from './issue.ts'
 import type { LoadedChange } from './schema-info.ts'
 
@@ -146,8 +152,10 @@ export function archiveRules(
       level: opts.strict ? 'ERROR' : 'WARNING',
       rule: 'archive/scenario-preservation',
       path: `specs/${drop.capability}/spec.md`,
-      message: `MODIFIED "${drop.name}" drops scenario count from ${drop.livingCount} to ${drop.deltaCount} with no \`Scenario removed: <reason>\` note or matching REMOVED operation`,
-      hint: 'add a `- Scenario removed: <reason>` line under the requirement, or restore the scenario',
+      message: `MODIFIED "${drop.name}" drops scenario count from ${drop.livingCount} to ${drop.deltaCount}`,
+      hint: drop.noted
+        ? `${SCENARIO_DROP_NOTE_RETIRED} — ${SCENARIO_DROP_HINT}`
+        : SCENARIO_DROP_HINT,
     })
   }
 

@@ -95,6 +95,48 @@ export function openspecYamlIssues(y: LoadedChange['openspecYaml']): Issue[] {
   return issues
 }
 
+/**
+ * `meta/skip-specs-type` / `meta/retire-capabilities-type` (DESIGN §5,
+ * OpenSpec 1.7/1.8 parity): a change may persist `skip_specs:` /
+ * `retire_capabilities:` in `.openspec.yaml` as durable booleans, but a
+ * present-and-not-boolean value is an ERROR.
+ *
+ * Standalone from `openspecYamlIssues` rather than folded into
+ * `LoadedChange['openspecYaml']`: the raw-record `*Invalid` flags these two
+ * keys need mirror `schemaVersionInvalid`, but that struct (schema-info.ts)
+ * and its populator (validate.ts's `loadOpenspecYaml`) are owned outside this
+ * unit — this is the metadata-key *interface* only. Once that plumbing lands,
+ * the caller derives `MetadataKeyFlags` from the same raw record and folds
+ * these issues into the change's diagnostics; gate behaviour (honouring
+ * `skipSpecs`/`retireCapabilities`, not just recognising them) is also a
+ * later unit.
+ */
+export interface MetadataKeyFlags {
+  /** `skip_specs:` present but not a boolean. */
+  skipSpecsInvalid?: boolean
+  /** `retire_capabilities:` present but not a boolean. */
+  retireCapabilitiesInvalid?: boolean
+}
+
+export function metadataKeyIssues(flags: MetadataKeyFlags): Issue[] {
+  const issues: Issue[] = []
+  if (flags.skipSpecsInvalid === true)
+    issues.push({
+      level: 'ERROR',
+      rule: 'meta/skip-specs-type',
+      path: '.openspec.yaml',
+      message: 'skip_specs must be a boolean when present',
+    })
+  if (flags.retireCapabilitiesInvalid === true)
+    issues.push({
+      level: 'ERROR',
+      rule: 'meta/retire-capabilities-type',
+      path: '.openspec.yaml',
+      message: 'retire_capabilities must be a boolean when present',
+    })
+  return issues
+}
+
 /** `meta/name-kebab` (DESIGN §4.3). Exported for all schema-classification paths. */
 export function nameKebabIssues(id: string): Issue[] {
   if (KEBAB_RE.test(id) && !ARCHIVE_PREFIX_RE.test(id)) return []

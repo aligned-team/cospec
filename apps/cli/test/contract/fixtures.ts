@@ -107,6 +107,14 @@ export interface ParityFixture {
   /** cospec archive/* (or deltas/*) rule expected to fire when abort is predicted. */
   rule?: string
   expectAbort: boolean
+  /**
+   * Set only where cospec is DELIBERATELY stricter than the binary: openspec
+   * archives the fixture, cospec still flags it, and the named rule is the one
+   * that must fire. The suite's policy allows cospec to be more conservative
+   * (a false PASS is the release blocker, not a false flag) — naming the rule
+   * here keeps that from drifting into an unrelated failure.
+   */
+  conservative?: string
   build(root: string): { name: string }
 }
 
@@ -258,9 +266,56 @@ The system SHALL render a widget when requested.
 `,
         ),
       )
-      // ADDED a requirement whose name already exists in the living spec.
-      writeChangeShell(root, 'added-already-exists', { 'widgets/spec.md': ADDED_DELTA })
+      // ADDED a requirement whose name already exists in the living spec, with a
+      // DIFFERENT body. openspec 1.7.0 made an ADDED block identical to the
+      // living one a no-op (the early-sync pattern — see the fixture below);
+      // differing content is still the genuine collision it aborts on.
+      writeChangeShell(root, 'added-already-exists', {
+        'widgets/spec.md': `## ADDED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested, and cache it.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a cached widget is rendered
+`,
+      })
       return { name: 'added-already-exists' }
+    },
+  },
+  {
+    // openspec 1.7.0 `archive-early-sync-existing-workflow-behavior`: an ADDED
+    // block byte-identical to the living requirement means the spec was already
+    // synced to the baseline, so re-applying it is a no-op and the archive
+    // succeeds. cospec's `archive/added-exists` is name-based and still flags
+    // it — a deliberate conservatism, recorded here rather than relaxed:
+    // relaxing it needs raw-block capture and openspec's own normalization.
+    key: 'added-identical-early-sync',
+    conservative: 'archive/added-exists',
+    expectAbort: false,
+    build(root) {
+      writeLivingSpec(
+        root,
+        'widgets',
+        livingSpec(
+          'widgets',
+          `
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered
+`,
+        ),
+      )
+      writeChangeShell(root, 'added-identical-early-sync', { 'widgets/spec.md': ADDED_DELTA })
+      return { name: 'added-identical-early-sync' }
     },
   },
   {
