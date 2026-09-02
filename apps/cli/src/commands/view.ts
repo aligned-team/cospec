@@ -1,11 +1,14 @@
 // `cospec view` (WI-5) — a thin read-only passthrough of `openspec view`, the
-// summary dashboard. Unlike `show`, the wrapped `view` subcommand (verified
-// against the pinned 1.5.0 binary) takes neither `--json` nor `--store` at
-// all — passing either is an "unknown option" from openspec itself. So this
-// command never threads those globals onto the wrapped call; instead, for a
-// store-backed root it spawns `openspec view` with the store's own root as
-// the working directory (`root.base`), which shows that store's dashboard
-// without needing a `--store` flag the subcommand doesn't accept.
+// summary dashboard. Unlike `show`, the wrapped `view` subcommand takes no
+// `--json` at all — passing it is an "unknown option" from openspec itself
+// (re-probed at the 1.11.0 pin: `error: unknown option '--json'`). `--store`
+// was likewise rejected at 1.5.0 but IS accepted from a later minor (1.11.0
+// resolves it and reports an unknown store id). cospec still threads neither
+// global onto the wrapped call: the accepted runtime range starts at 1.0.0,
+// where `view --store` is an unknown option, so for a store-backed root this
+// command spawns `openspec view` with the store's own root as the working
+// directory (`root.base`) instead. That shows the same dashboard on every
+// binary in the range.
 //
 // cospec adds one observable pre-condition of its own rather than trusting
 // the wrapped exit code alone (DESIGN §1): it checks for `openspec/` under

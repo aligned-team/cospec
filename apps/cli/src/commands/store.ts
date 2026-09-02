@@ -33,7 +33,7 @@ function isSubcommand(value: string | undefined): value is Subcommand {
   return value !== undefined && (SUBCOMMANDS as readonly string[]).includes(value)
 }
 
-// --- typed JSON shapes (mirrors openspec 1.5.0's commands/store.js output
+// --- typed JSON shapes (mirrors openspec's commands/store.js output
 // builders — toStoreOutput/toMutationOutput/toCleanupOutput/toListOutput/
 // toDoctorOutput) --------------------------------------------------------
 

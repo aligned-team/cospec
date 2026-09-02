@@ -1,6 +1,6 @@
 // `cospec workset <sub>` — disciplined passthrough of `openspec workset
 // create|list|remove` plus a terminal-handover exec for `workset open` (WI-4).
-// Worksets are purely local/personal working views (openspec 1.5.0) — unlike
+// Worksets are purely local/personal working views (added in openspec 1.5.0) — unlike
 // `store`/`context`, the wrapped `openspec workset` subcommands take no
 // `--store` flag at all (verified against the pinned binary: `--store` is an
 // "unknown option" here), so this command never threads `root.storeArgs` the
