@@ -8,17 +8,34 @@
 // below-floor and 2.x are refused.
 
 import { describe, expect, test } from 'bun:test'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 
 import pkg from '../../package.json'
 import {
   checkVersion,
   OPENSPEC_VERSION_CEILING,
   OPENSPEC_VERSION_FLOOR,
+  openspecPackageDir,
   PINNED_OPENSPEC_VERSION,
   satisfiesOpenspecRange,
+  WRAPPED_ENV,
 } from '../../src/core/openspec.ts'
 import { openspec, REPO_ROOT } from '../fixtures/support.ts'
+
+/** Concatenated JS the pinned openspec package actually ships. */
+function shippedSource(): string {
+  const chunks: string[] = []
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry)
+      if (statSync(full).isDirectory()) walk(full)
+      else if (entry.endsWith('.js')) chunks.push(readFileSync(full, 'utf8'))
+    }
+  }
+  walk(join(openspecPackageDir(), 'dist'))
+  return chunks.join('\n')
+}
 
 describe('openspec version tripwire', () => {
   test('the package.json dependency pin equals the exact PINNED_OPENSPEC_VERSION', () => {
@@ -40,6 +57,15 @@ describe('openspec version tripwire', () => {
     expect(match?.[1]).toBe(PINNED_OPENSPEC_VERSION)
   })
 
+  test('the mise.lock entry pins the same exact version as mise.toml', () => {
+    // mise.toml and mise.lock disagreeing means CI resolves a different build
+    // from the one this suite probes. The npm backend records only a version
+    // (no per-platform rows), so this single entry is the whole lock surface.
+    const raw = readFileSync(`${REPO_ROOT}/mise.lock`, 'utf8')
+    const match = /\[\[tools\."npm:@fission-ai\/openspec"\]\]\nversion = "([^"]+)"/.exec(raw)
+    expect(match?.[1]).toBe(PINNED_OPENSPEC_VERSION)
+  })
+
   test('the exact pin itself satisfies the accepted runtime range', () => {
     expect(satisfiesOpenspecRange(PINNED_OPENSPEC_VERSION)).toBe(true)
   })
@@ -51,6 +77,22 @@ describe('openspec version tripwire', () => {
     expect(version).toBe(PINNED_OPENSPEC_VERSION)
     expect(satisfiesOpenspecRange(version)).toBe(true)
     expect(() => checkVersion(version, false)).not.toThrow()
+  })
+
+  test('the pinned binary still reads the env gates cospec forces on every spawn', () => {
+    // cospec suppresses openspec's first-run notices by environment, not by
+    // writing openspec's global config. That only works while these exact env
+    // keys remain the gates upstream reads: OPENSPEC_TELEMETRY silences the
+    // stdout telemetry notice AND openspec's per-command update check, and
+    // OPENSPEC_NO_COMPLETIONS (added 1.10.0) silences the stderr completion tip
+    // that `runPassthrough` would otherwise relay verbatim to a cospec user.
+    // A rename upstream fails here rather than leaking a notice into output.
+    const src = shippedSource()
+    expect(src).toContain('OPENSPEC_TELEMETRY')
+    expect(src).toContain('OPENSPEC_NO_COMPLETIONS')
+    expect(Object.keys(WRAPPED_ENV)).toEqual(
+      expect.arrayContaining(['OPENSPEC_TELEMETRY', 'OPENSPEC_NO_COMPLETIONS']),
+    )
   })
 
   test('the runtime range refuses below the floor and at the 2.x ceiling', () => {

@@ -7,7 +7,7 @@ import { extractEmbeddedOpenspec } from './openspec-embedded.ts'
  * `package.json` dependency and the `mise.toml` tool). The contract suite runs
  * against exactly this build; the version tripwire holds it equal to the pin.
  */
-export const PINNED_OPENSPEC_VERSION = '1.5.0'
+export const PINNED_OPENSPEC_VERSION = '1.11.0'
 
 /** Inclusive floor of the accepted runtime range. */
 export const OPENSPEC_VERSION_FLOOR = '1.0.0'
@@ -169,6 +169,37 @@ function openspecBin(): string {
 }
 
 /**
+ * Environment overrides forced onto EVERY wrapped openspec spawn. Exported so
+ * the discipline is testable rather than buried in the spawn call.
+ *
+ * - `NO_COLOR` / `BUN_BE_BUN`: deterministic, parseable output, and the child
+ *   behaves as the bun runtime even under a compiled standalone binary.
+ * - `OPENSPEC_TELEMETRY=0`: openspec prints a first-run "collects anonymous
+ *   usage stats" notice to STDOUT (not stderr) on a HOME with no prior
+ *   acknowledgment, which corrupts every `--json` read (status, list, apply
+ *   instructions). A standalone/embedded user is always first-run, so this is
+ *   load-bearing for the self-contained binary — and cospec wraps the tool
+ *   deterministically, so it opts the wrapped calls out of telemetry too. It is
+ *   ALSO what disables openspec's own update check: that check is wired into
+ *   openspec's CLI entry, so it runs on every command rather than just
+ *   `init`/`update`, and its `isCheckEnabled()` returns false precisely because
+ *   `OPENSPEC_TELEMETRY` is `'0'`. Dropping this key would silently re-enable an
+ *   outbound npm registry request on every wrapped call.
+ * - `OPENSPEC_NO_COMPLETIONS=1`: 1.10.0 added a SECOND one-shot first-run
+ *   notice — "Tip: Run 'openspec completion install' for shell completions" —
+ *   on stderr, behind its own env gate rather than the telemetry one.
+ *   `runPassthrough` relays wrapped stderr verbatim, and cospec users must
+ *   never be told to run a bare `openspec` command. Honoured only >=1.10.0; an
+ *   unrecognised env var is inert on older runtimes in the accepted range.
+ */
+export const WRAPPED_ENV: Readonly<Record<string, string>> = {
+  NO_COLOR: '1',
+  BUN_BE_BUN: '1',
+  OPENSPEC_TELEMETRY: '0',
+  OPENSPEC_NO_COMPLETIONS: '1',
+}
+
+/**
  * Raw spawn — no version assertion, no expectation enforcement.
  *
  * The interpreter is the CURRENT executable, not a `bun` looked up on $PATH:
@@ -183,13 +214,7 @@ async function spawnRaw(args: string[], cwd: string): Promise<OpenspecResult> {
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
-    // OPENSPEC_TELEMETRY=0: openspec prints a first-run "collects anonymous
-    // usage stats" notice to STDOUT (not stderr) on a HOME with no prior
-    // acknowledgment, which corrupts every `--json` read (status, list, apply
-    // instructions). A standalone/embedded user is always first-run, so this is
-    // load-bearing for the self-contained binary — and cospec wraps the tool
-    // deterministically, so it opts the wrapped calls out of telemetry too.
-    env: { ...process.env, NO_COLOR: '1', BUN_BE_BUN: '1', OPENSPEC_TELEMETRY: '0' },
+    env: { ...process.env, ...WRAPPED_ENV },
   })
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
@@ -288,7 +313,7 @@ export async function runOpenspec(args: string[], opts: RunOptions): Promise<Ope
 
 /**
  * The OpenSpec root a command operates on. For a local repo this is just the
- * invocation cwd; for a registered store (openspec 1.5.0 `store`) it is the
+ * invocation cwd; for a registered store (openspec `store`, added in 1.5.0) it is the
  * store's on-disk root plus the `--store <id>` args every wrapped call must
  * carry. Filesystem readers (change.ts, blockers, archive verification) key on
  * `base`; wrapped openspec spawns run in `cwd` and append `storeArgs`. Because a
@@ -339,10 +364,15 @@ export async function openspecStoreList(cwd: string): Promise<StoreListJson> {
 }
 
 // --- Typed JSON shapes for the wrapped commands (probed across the accepted
-// floor-through-pin span 1.0.0–1.5.0 and found unchanged; 1.5.0 only adds
-// optional fields). ---
+// floor-through-pin span 1.0.0–1.11.0). Each declares only the fields cospec
+// reads; upstream emits more, and every release in the span has only added
+// fields to these payloads. ---
 
-export type ArtifactStatus = 'done' | 'ready' | 'blocked'
+/**
+ * Per-artifact status in `openspec status --json`. `'skipped'` was added in
+ * 1.7.0 for artifacts satisfied by a change's `skip_specs` marker.
+ */
+export type ArtifactStatus = 'done' | 'skipped' | 'ready' | 'blocked'
 
 export interface StatusArtifact {
   id: string
@@ -350,11 +380,19 @@ export interface StatusArtifact {
   status: ArtifactStatus
 }
 
-/** Shape of `openspec status --change <id> --json`. */
+/**
+ * Shape of `openspec status --change <id> --json`.
+ *
+ * 1.8.0 renamed `isComplete` to `isPlanningComplete` and kept `isComplete` as a
+ * compatibility alias, so both are present across the whole accepted range;
+ * `isComplete` is declared required and `isPlanningComplete` optional so a
+ * reader is correct from the floor up.
+ */
 export interface StatusJson {
   changeName: string
   schemaName: string
   isComplete: boolean
+  isPlanningComplete?: boolean
   applyRequires: string[]
   artifacts: StatusArtifact[]
 }
@@ -380,7 +418,16 @@ export interface ApplyTask {
   done: boolean
 }
 
-/** Shape of `openspec instructions apply --change <id> --json`. */
+/**
+ * Shape of `openspec instructions apply --change <id> --json`.
+ *
+ * Field names are unchanged across the accepted range, but 1.8.0 changed how
+ * `progress` is counted: it now covers every checkbox line in `tasks.md`,
+ * nested sub-tasks included, while `tasks[]` still lists only the entries with
+ * a description. cospec's own `core/tasks.ts` counts top-level `- [ ] N.M`
+ * lines only, so the two can legitimately disagree on a file with nested
+ * checkboxes — see the apply-command reconciliation.
+ */
 export interface ApplyInstructionsJson {
   changeName: string
   changeDir: string
@@ -393,7 +440,13 @@ export interface ApplyInstructionsJson {
   instruction: string
 }
 
-/** Shape of `openspec instructions <artifact> --change <id> --json`. */
+/**
+ * Shape of `openspec instructions <artifact> --change <id> --json`.
+ *
+ * `instruction` is optional upstream (a schema need not define one), and 1.10.0
+ * added `skipped` for an artifact a change's `skip_specs` marker satisfies —
+ * when it is true the consumer is told not to create the artifact at all.
+ */
 export interface ArtifactInstructionsJson {
   changeName: string
   artifactId: string
@@ -401,10 +454,11 @@ export interface ArtifactInstructionsJson {
   changeDir: string
   outputPath: string
   description: string
-  instruction: string
+  instruction?: string
   template: string
   dependencies: unknown[]
   unlocks: string[]
+  skipped?: boolean
 }
 
 async function runJson<T>(root: Root, args: string[]): Promise<T> {

@@ -12,6 +12,15 @@
 // XDG_DATA_HOME sandboxes the machine-global store registry per test run
 // (mirrors test/integration/store-aware.test.ts) so this suite never touches
 // the real machine's registered stores.
+//
+// Re-probed against the 1.11.0 pin (2026-09-01): `payload.store.{id,root}` and
+// `payload.registry.{registered,already_registered}` are unchanged, so the
+// shape tripwire above still holds. The store DIAGNOSTIC vocabulary did move
+// across 1.6.0–1.11.0 (the `openspec_*_missing` codes went away;
+// `invalid_store_pointer` and `store_root_pointer_declared` arrived), but
+// cospec renders diagnostics through a generic status-array renderer that keys
+// on `severity`/`message`, never on a code allow-list — which is why that churn
+// lands here as no assertion change at all.
 
 import { afterAll, describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync } from 'node:fs'
