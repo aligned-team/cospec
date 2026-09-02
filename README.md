@@ -232,6 +232,36 @@ to this repo is a cospec-typed OpenSpec change.
 
 See [SECURITY.md](SECURITY.md).
 
+<!-- bench:start -->
+
+## Benchmark: cospec vs openspec
+
+> **WARNING:** published while the working tree had uncommitted changes and the
+> current branch was `worktree-bench-cospec-vs-openspec` (not `main`) — treat
+> this as a point-in-time snapshot, not a release-verified result.
+
+- commit:
+  [`caf32af1414a`](https://github.com/aligned-team/cospec/commit/caf32af1414a77b367d4aa0cd27ef8e8d1941d37)
+  on branch `worktree-bench-cospec-vs-openspec`
+- published: 2026-07-21T17:20:34.706Z
+- claude code: 2.1.211
+- arms: cospec, openspec
+- models: claude-opus-4-8/medium, claude-sonnet-5/high
+- cells: 192 ran, 0 skipped, 192 total (repeats=3)
+- judge: deepseek-v4-flash
+
+| arm      | model           | n   | escaped‡ | review§ | plant¶ | cost($) | dur(ms) |
+| -------- | --------------- | --- | -------- | ------- | ------ | ------- | ------- |
+| cospec   | claude-opus-4-8 | 48  | 0.0/6.1  | 0.3     | 0%     | 1.0201  | 160185  |
+| cospec   | claude-sonnet-5 | 48  | 0.0/6.1  | 0.4     | 0%     | 1.1197  | 192095  |
+| openspec | claude-opus-4-8 | 48  | 0.0/6.1  | 0.3     | 0%     | 0.8172  | 127700  |
+| openspec | claude-sonnet-5 | 48  | 0.0/6.1  | 0.4     | 0%     | 0.8894  | 168573  |
+
+Full per-scenario metrics, statistics, and the metric legend:
+[`packages/bench/RESULTS.md`](packages/bench/RESULTS.md).
+
+<!-- bench:end -->
+
 ## License
 
 [MIT](LICENSE) © 2026 [Aligned](https://aligned.team).

@@ -1,0 +1,11 @@
+# ───────────────────────────────────────────────
+# Docs site (VitePress)
+# ───────────────────────────────────────────────
+
+[tasks.dev]
+description = "Run the docs site dev server (VitePress)"
+run = "bun run docs:dev"
+
+[tasks.build]
+description = "Build the docs site for production (VitePress)"
+run = "bun run docs:build"

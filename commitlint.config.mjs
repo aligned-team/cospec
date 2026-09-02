@@ -45,6 +45,7 @@ export default {
         'apply',
         'archive',
         'eval',
+        'bench',
         'docs',
         'ci',
         'deps',

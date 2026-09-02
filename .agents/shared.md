@@ -36,6 +36,7 @@ self-hosts: this repo's own `openspec/` tree is managed by cospec.
 | Git hooks     | hk (jdx/hk) via mise                                             |
 | Tests         | bun test — unit, contract (real binary), integration, pack smoke |
 | Eval          | DeepSeek v4 Flash (native API) — advisory, never gates CI        |
+| Bench         | Claude Agent SDK drives both arms; DeepSeek-judged — advisory    |
 
 ## Repository layout
 
@@ -49,6 +50,7 @@ cospec/
 ├── apps/docs/         public docs site — https://cospec.aligned.team
 ├── docs/              flat topic docs (architecture, schemas, validation, …)
 ├── e2e/eval/          DeepSeek e2e eval harness (advisory)
+├── packages/bench/    cospec-vs-openspec benchmark harness (advisory)
 ├── openspec/          self-hosted: cospec-managed schemas + changes + specs
 ├── scripts/           hook entrypoints + mise task scripts
 └── .agents/shared.md  source for the shared block in CLAUDE.md / AGENTS.md
@@ -70,6 +72,7 @@ All operations run through mise tasks — never raw tool invocations:
 | Unit tests          | `mise run test`                     |
 | Contract tests      | `mise run test:contract`            |
 | Integration tests   | `mise run test:integration`         |
+| Bench unit tests    | `mise run test:bench`               |
 | Pack smoke          | `mise run test:pack`                |
 | Regenerate managed  | `mise run generate`                 |
 | Drift check         | `mise run generate:check`           |
@@ -79,6 +82,8 @@ All operations run through mise tasks — never raw tool invocations:
 | Docs site (build)   | `mise run docs:build`               |
 | Docs site (dev)     | `mise run docs:dev`                 |
 | E2E eval (advisory) | `mise run eval:e2e`                 |
+| Bench (advisory)    | `mise run bench`                    |
+| Bench smoke         | `mise run bench:smoke`              |
 | Full CI gate        | `mise run check`                    |
 
 Run `mise run check` before every commit. Never bypass hk with `--no-verify`.
@@ -206,9 +211,11 @@ apps, workflows, tasks, conventions, disciplines) updates `.agents/shared.md` in
 the same change — unprompted — then `mise run agents:sync`. `agents:check`
 enforces propagation only; stale guidance is a defect no tool catches.
 
-**Secrets** — never read or print `.env.local`; the eval reads its key from the
-process environment only. Reports contain counts and rule IDs, never keys, raw
-prompts, or completions.
+**Secrets** — never read or print `.env.local`; the eval and the bench harness
+read their keys (`DEEPSEEK_API_KEY`, `ANTHROPIC_API_KEY`) from the process
+environment only. Reports contain counts, scores, and rule IDs, never keys, raw
+prompts, completions, or artifact bodies — a redaction self-check gates every
+write.
 
 **Decisiveness** — research before asking; if the answer is in the codebase or
 DESIGN, find it. Lead with a recommendation when presenting options.

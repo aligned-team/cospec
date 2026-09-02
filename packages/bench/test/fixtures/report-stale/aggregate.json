@@ -1,0 +1,41 @@
+{
+  "meta": {
+    "version": 1,
+    "startedAt": "2026-07-16T14:34:17.322Z",
+    "claudeCodeVersion": "2.1.211",
+    "judgeModel": "deepseek-v4-flash",
+    "judgeEnabled": true,
+    "totalCells": 1,
+    "ranCells": 1,
+    "skippedCells": 0
+  },
+  "cells": [
+    {
+      "cell": {
+        "scenarioId": "build",
+        "arm": "cospec",
+        "model": "claude-opus-4-8",
+        "repeat": 1
+      },
+      "scenarioType": "build",
+      "telemetry": {
+        "isError": false,
+        "durationMs": 105858,
+        "totalCostUsd": 0.6552
+      },
+      "mechanical": {
+        "changeProduced": true,
+        "changeArchived": false,
+        "armNativeValidatePass": true,
+        "cospecValidate": { "errors": 0, "warnings": 0, "byRule": {} },
+        "artifactFiles": ["proposal.md"],
+        "forbiddenArtifacts": [],
+        "missingRequiredArtifacts": [],
+        "tasksAllChecked": true,
+        "taskCompleted": true
+      },
+      "quality": null
+    }
+  ],
+  "aggregates": []
+}

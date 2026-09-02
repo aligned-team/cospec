@@ -1,0 +1,14 @@
+# ───────────────────────────────────────────────
+# E2E: eval + release-script tests (advisory / narrow; never gate the full
+# `mise run check` for eval — see the `eval` task; `release-test` does gate).
+# ───────────────────────────────────────────────
+
+[tasks.eval]
+description = "DeepSeek E2E eval of the shipped skills (advisory, never gates CI; exit-0 skip without DEEPSEEK_API_KEY)"
+run = "bun run eval/run.ts"
+
+# `./release` (not bare `release`) is load-bearing — see packages/bench/mise.toml's
+# `test` task comment: bun's positional arg is a substring filter, not a path.
+[tasks."release-test"]
+description = "Test the release:set-version script against a throwaway --root (no working-tree mutation)"
+run = "bun test ./release --timeout 30000"
