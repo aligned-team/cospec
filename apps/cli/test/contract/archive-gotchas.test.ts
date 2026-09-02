@@ -110,8 +110,11 @@ describe('archive gotcha regressions (re-probed at 1.11.0: aborts now exit 1)', 
   const SKEWED_ZONE = new Date().getUTCHours() >= 12 ? 'Pacific/Kiritimati' : 'Etc/GMT+12'
   const ORIGINAL_ZONE = process.env.TZ ?? Intl.DateTimeFormat().resolvedOptions().timeZone
 
-  // Assigning TZ also reaches every child: `spawn` passes `{...process.env}`.
-  // Restored by assignment, never `delete` — Bun only re-reads the zone on a set.
+  // `process.env.TZ = …` changes the SUITE process's zone (Bun re-reads it on a
+  // set, which is also why it is restored by assignment and never `delete`d),
+  // but it does NOT survive `{ ...process.env }` — a spawned child inherits the
+  // machine's zone instead. So every child below is handed `TZ` explicitly; the
+  // assignment here only makes `formatLocalDate()` agree with them.
   beforeAll(() => {
     process.env.TZ = SKEWED_ZONE
   })
@@ -126,7 +129,7 @@ describe('archive gotcha regressions (re-probed at 1.11.0: aborts now exit 1)', 
 
     const oRepo = mkTempRepo({ git: true })
     fixture(name).build(oRepo)
-    const o = await openspec(['archive', name, '-y'], oRepo)
+    const o = await openspec(['archive', name, '-y'], oRepo, { TZ: SKEWED_ZONE })
     expect(o.exitCode).toBe(0)
     expect(o.stdout).toContain(`archived as '${localDate}-${name}'`)
     expect(existsSync(join(oRepo, 'openspec/changes/archive', `${localDate}-${name}`))).toBe(true)
@@ -136,7 +139,7 @@ describe('archive gotcha regressions (re-probed at 1.11.0: aborts now exit 1)', 
     const cRepo = mkTempRepo({ git: true })
     fixture(name).build(cRepo)
     markDone(cRepo, name)
-    const c = await cospec(['archive', name], { cwd: cRepo })
+    const c = await cospec(['archive', name], { cwd: cRepo, env: { TZ: SKEWED_ZONE } })
     expect(c.exitCode).toBe(0)
     expect(c.stdout).toContain(`openspec/changes/archive/${localDate}-${name}/`)
     expect(movedToArchive(cRepo, name)).toBe(true)
@@ -152,7 +155,7 @@ describe('archive gotcha regressions (re-probed at 1.11.0: aborts now exit 1)', 
     writeFiles(cRepo, {
       [`openspec/changes/archive/${localDate}-${name}/.openspec.yaml`]: 'schema: feat\n',
     })
-    const c = await cospec(['archive', name], { cwd: cRepo })
+    const c = await cospec(['archive', name], { cwd: cRepo, env: { TZ: SKEWED_ZONE } })
     expect(c.exitCode).toBe(1)
     expect(c.stderr).toContain(`${localDate}-${name}`)
     // The live change must remain in place (not half-archived).
