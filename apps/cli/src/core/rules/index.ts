@@ -6,10 +6,10 @@
 
 import { archiveRules } from './archive.ts'
 import { blockersRules } from './blockers.ts'
-import { deltasRules } from './deltas.ts'
+import { deltasRules, skipSpecsConflictIssues } from './deltas.ts'
 import { designRules } from './design.ts'
 import type { Issue } from './issue.ts'
-import { metaRules } from './meta.ts'
+import { metadataKeyIssues, metaRules } from './meta.ts'
 import { proposalRules } from './proposal.ts'
 import type { LoadedChange, SchemaInfo, ValidateContext } from './schema-info.ts'
 import { tasksRules } from './tasks.ts'
@@ -24,7 +24,9 @@ export interface RuleOptions {
 
 /**
  * Every cospec rule for a change whose schema is one of the 11 types. Always
- * runs meta/proposal/blockers/tasks; runs deltas (and, unless `fast`, the
+ * runs meta/proposal/blockers/tasks and the two `.openspec.yaml` metadata-key
+ * families (`meta/skip-specs-type`, `meta/retire-capabilities-type`,
+ * `deltas/skip-specs-conflict`); runs deltas (and, unless `fast`, the
  * archive-precondition family) only when the schema declares specs and the
  * change actually carries delta files. `meta/forbidden-artifact` for a specs/
  * dir under a light type is emitted by `metaRules` (via `schema.forbidden`).
@@ -41,6 +43,16 @@ export function runChangeRules(
   issues.push(...designRules(change, schema, opts))
   issues.push(...blockersRules(change, ctx))
   issues.push(...tasksRules(change))
+  issues.push(
+    ...metadataKeyIssues({
+      skipSpecsInvalid: change.openspecYaml.skipSpecsInvalid,
+      retireCapabilitiesInvalid: change.openspecYaml.retireCapabilitiesInvalid,
+    }),
+  )
+  // Runs for every type, not only spec-bearing ones: a light type carrying both
+  // the marker and a stray specs/ file is the same contradiction, and
+  // `deltasRules` below never sees it.
+  issues.push(...skipSpecsConflictIssues(change))
 
   if (schema.declared.has('verification')) {
     issues.push(
@@ -68,6 +80,7 @@ export {
   designRules,
   metaRules,
   proposalRules,
+  skipSpecsConflictIssues,
   tasksRules,
   verificationRules,
 }

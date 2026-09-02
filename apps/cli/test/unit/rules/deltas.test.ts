@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { deltasRules } from '../../../src/core/rules/deltas.ts'
+import { deltasRules, skipSpecsConflictIssues } from '../../../src/core/rules/deltas.ts'
 import { makeChange, rules } from './helpers.ts'
 
 function delta(path: string, capability: string, text: string) {
@@ -54,5 +54,75 @@ describe('deltasRules', () => {
     expect(rules(deltasRules(delta('specs/BadCap/spec.md', 'BadCap', GOOD)))).toContain(
       'deltas/capability-kebab',
     )
+  })
+})
+
+describe('nested capability paths', () => {
+  test('specs/<area>/<capability>/spec.md is valid', () => {
+    expect(
+      deltasRules(delta('specs/platform/session-layout/spec.md', 'platform/session-layout', GOOD)),
+    ).toHaveLength(0)
+  })
+
+  test('deltas/capability-kebab on a non-kebab segment anywhere in the path', () => {
+    expect(
+      rules(
+        deltasRules(
+          delta('specs/Platform/session-layout/spec.md', 'Platform/session-layout', GOOD),
+        ),
+      ),
+    ).toContain('deltas/capability-kebab')
+  })
+
+  test('deltas/capability-kebab on a delta file that is not spec.md', () => {
+    expect(rules(deltasRules(delta('specs/web/extra.md', 'web', GOOD)))).toContain(
+      'deltas/capability-kebab',
+    )
+  })
+})
+
+describe('deltas/spec-at-specs-root', () => {
+  test('a spec.md at the specs/ root is an ERROR and nothing else', () => {
+    // The merge path drops it, so the change would otherwise validate clean and
+    // archive while its requirements never reach openspec/specs/.
+    const issues = deltasRules(delta('specs/spec.md', '', GOOD))
+    expect(issues).toHaveLength(1)
+    expect(issues[0]!.rule).toBe('deltas/spec-at-specs-root')
+    expect(issues[0]!.level).toBe('ERROR')
+  })
+
+  test('a DIRECTORY named spec.md is a capability, not the root-level case', () => {
+    // It still fails deltas/capability-kebab (a dot is not kebab-case), but it
+    // must not be reported as the root-level delta openspec blocks outright.
+    expect(rules(deltasRules(delta('specs/spec.md/spec.md', 'spec.md', GOOD)))).toEqual([
+      'deltas/capability-kebab',
+    ])
+  })
+})
+
+describe('skipSpecsConflictIssues', () => {
+  test('no marker, no issue — whatever is under specs/', () => {
+    expect(skipSpecsConflictIssues(makeChange({ files: ['specs/x/spec.md'] }))).toHaveLength(0)
+  })
+
+  test('the marker with an empty specs/ is accepted', () => {
+    const change = makeChange({
+      openspecYaml: { present: true, parseable: true, schema: 'feat', skipSpecs: true },
+      files: ['proposal.md', 'tasks.md'],
+    })
+    expect(skipSpecsConflictIssues(change)).toHaveLength(0)
+  })
+
+  test('the marker plus ANY file under specs/ is an ERROR', () => {
+    // Not just parsed deltas: a headerless or stray file is dropped at archive
+    // while the change claims to carry nothing.
+    const change = makeChange({
+      openspecYaml: { present: true, parseable: true, schema: 'feat', skipSpecs: true },
+      files: ['proposal.md', 'specs/notes.txt'],
+    })
+    const issues = skipSpecsConflictIssues(change)
+    expect(issues).toHaveLength(1)
+    expect(issues[0]!.rule).toBe('deltas/skip-specs-conflict')
+    expect(issues[0]!.level).toBe('ERROR')
   })
 })
