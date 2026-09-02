@@ -32,12 +32,25 @@ local generatedOutputGlobs = List(
 )
 local generatedGlobs = canonGlobs + generatedOutputGlobs
 
+// Files `.oxfmtignore` excludes that are NOT under generatedOutputGlobs: the
+// vendored openspec bundle and its license notices (both built by
+// `mise run vendor:openspec` and drift-gated by `vendor:openspec:check`), and
+// the bench `style` fixture that is deliberately seeded mis-formatted. oxfmt
+// exits non-zero ("Expected at least one target file") when a batch contains
+// only ignored files, so — as with oxlint and `**/*.d.ts` below — they must be
+// kept out of the hook's file list entirely, not merely ignored by oxfmt.
+local formatterIgnoredGlobs = List(
+  "apps/cli/src/vendor/**",
+  "apps/cli/THIRD-PARTY-LICENSES.md",
+  "packages/bench/scenarios/fixtures/style/src/format.ts"
+)
+
 local agentGlobs = List(".agents/shared.md", "CLAUDE.md", "AGENTS.md")
 
 local linters = new Mapping<String, Step> {
   ["oxfmt"] {
     glob = oxfmtGlobs
-    exclude = generatedOutputGlobs
+    exclude = generatedOutputGlobs + formatterIgnoredGlobs
     check = "oxfmt --check {{files}}"
     fix = "oxfmt {{files}}"
     batch = true
