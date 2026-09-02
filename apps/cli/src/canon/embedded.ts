@@ -42,6 +42,7 @@ import workflowNew from './workflows/new.md' with { type: 'file' }
 import workflowOnboard from './workflows/onboard.md' with { type: 'file' }
 import workflowPropose from './workflows/propose.md' with { type: 'file' }
 import workflowSyncSpecs from './workflows/sync-specs.md' with { type: 'file' }
+import workflowUpdate from './workflows/update.md' with { type: 'file' }
 import workflowVerify from './workflows/verify.md' with { type: 'file' }
 
 /** Canon-relative path -> readable file path (on-disk in dev, $bunfs compiled). */
@@ -78,6 +79,7 @@ const CANON_FILES: Record<string, string> = {
   'workflows/onboard.md': workflowOnboard,
   'workflows/propose.md': workflowPropose,
   'workflows/sync-specs.md': workflowSyncSpecs,
+  'workflows/update.md': workflowUpdate,
   'workflows/verify.md': workflowVerify,
 }
 

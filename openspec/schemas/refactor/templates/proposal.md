@@ -9,11 +9,11 @@
 ## Capabilities
 
 ### New Capabilities
-<!-- Each becomes specs/<name>/spec.md. Use kebab-case names (e.g. user-auth). -->
-- `<name>`: <what this capability covers>
+<!-- Each becomes specs/<capability-path>/spec.md. A capability path is relative to specs/: kebab-case per segment, one segment on a flat layout (user-auth), nested only where the project already nests (identity/user-auth). -->
+- `<capability-path>`: <what this capability covers>
 
 ### Modified Capabilities
-<!-- Existing capabilities whose requirements change; each needs a delta spec. Leave empty if none. -->
+<!-- Existing capabilities whose requirements change; each needs a delta spec at its existing path, unmoved and unrenamed. Leave empty if none. -->
 
 ## Impact
 

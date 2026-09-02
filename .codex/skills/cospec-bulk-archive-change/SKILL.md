@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.5.4
-  contentHash: sha256:ca1596ec86d8e05ed725eae1ba632ffbf9d490977f6579ab00fe203e971e477c
+  contentHash: sha256:3b79b54dd7063074630d38b7d2e3a71240c31e1410fef4577acc1efa21d44599
 ---
 
 Archive a batch of completed changes, one at a time, in dependency order. Every
@@ -30,7 +30,9 @@ to archive in this pass.
 For each selected change, read its `blocking-changes.md`. If change B lists
 change A as a blocker, A must archive before B. Where no dependency is declared,
 fall back to creation order. Present the ordered batch to the user as a table
-and get one confirmation before looping.
+and get one confirmation before looping. If the user declines, stop here and
+archive nothing — do not archive a subset, and do not re-ask with a smaller
+batch unless the user asks for one.
 
 ## 3. Archive each change in order
 

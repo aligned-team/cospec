@@ -46,14 +46,28 @@ artifacts:
       If the reverted change carried spec deltas, write the INVERSE deltas (REMOVE
       what it ADDED, restore what it MODIFIED) so the living specs match reality.
       One delta file per capability named in the proposal, at
-      specs/<capability>/spec.md. Delta operations use
-      ## ADDED/MODIFIED/REMOVED/RENAMED Requirements headers. Each requirement:
-      `### Requirement: <name>` with SHALL/MUST normative text. Each scenario:
-      `#### Scenario: <name>` — EXACTLY four hashtags (`cospec validate` rejects
-      three) — with WHEN/THEN bullets. MODIFIED must carry the full updated
-      requirement content. MODIFIED/RENAMED/REMOVED may only target requirements
-      that exist in openspec/specs/<capability>/spec.md — `cospec validate`
-      checks this so archive cannot fail on it later.
+      specs/<capability-path>/spec.md. `<capability-path>` is the spec directory
+      relative to specs/ — one segment for a flat layout (`user-auth`), more when
+      the project nests (`identity/user-auth`). Preserve the whole path: a new
+      capability keeps the exact path the proposal gave it (every newly introduced
+      segment kebab-case, following the project's existing organisation — do not
+      add a domain level to a flat layout), and a modified capability reuses its
+      existing path verbatim rather than moving or renaming it.
+
+      Delta operations use ## ADDED/MODIFIED/REMOVED/RENAMED Requirements headers.
+      Each requirement: `### Requirement: <name>` with SHALL/MUST normative text.
+      Each scenario: `#### Scenario: <name>` — EXACTLY four hashtags (`cospec
+      validate` rejects three) — with WHEN/THEN bullets. MODIFIED must carry the
+      full updated requirement content.
+
+      MODIFIED/RENAMED/REMOVED may only target requirements that exist in the
+      living spec at <planningHome.root>/openspec/specs/<capability-path>/spec.md —
+      `cospec validate` checks this so archive cannot fail on it later.
+      `planningHome.root` comes from the `cospec instructions … --json` response;
+      always use it instead of a repo-relative path. It resolves to the store when
+      the change lives in one (from `--store`, a project `store:` pointer, or a
+      global default store) and to this repository otherwise — the field has
+      already worked out which.
     requires: [proposal]
   - id: verification
     generates: verification.md

@@ -186,6 +186,9 @@ interface OpsxFile {
   relpath: string
 }
 
+/** Shared skills root openspec ≥1.8.0 writes Codex (and agents/zed/antigravity) skills into. */
+export const OPSX_SHARED_SKILL_ROOT = '.agents/skills'
+
 // Provenance-only: a file is opsx only when its own frontmatter proves openspec
 // authored it (DESIGN §2.1/§6.6 — "user-authored files (no generatedBy) never
 // touched"). Path/name conventions alone are NOT provenance: a plain
@@ -227,6 +230,12 @@ function findOpsxFiles(cwd: string): OpsxFile[] {
     }
   }
   for (const h of HARNESS_NAMES) walk(`.${h}`)
+  // Scanned but never generated into: from openspec 1.8.0 its Codex skills land in
+  // `.agents/skills/openspec-*/SKILL.md` (1.7.0's `agents` target, 1.10's `zed` and
+  // 1.11's `antigravity` share the same root), so an install done with any of those
+  // leaves no trace under the three `.<harness>` dirs. cospec's own Codex output
+  // stays at `.codex/skills` — `.agents/` is a foreign root we only clean up in.
+  walk(OPSX_SHARED_SKILL_ROOT)
   return out.toSorted((a, b) => a.relpath.localeCompare(b.relpath))
 }
 

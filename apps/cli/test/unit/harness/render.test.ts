@@ -7,7 +7,13 @@ import {
   renderHarnessFiles,
   renderTypeTable,
 } from '../../../src/harness/render.ts'
-import { TEST_VERSION, TYPE_TABLE, WORKFLOW_COMMANDS, WORKFLOW_SKILLS } from './fixtures.ts'
+import {
+  ARG_WORKFLOWS,
+  TEST_VERSION,
+  TYPE_TABLE,
+  WORKFLOW_COMMANDS,
+  WORKFLOW_SKILLS,
+} from './fixtures.ts'
 
 const ALL: HarnessName[] = ['claude', 'codex', 'opencode']
 
@@ -23,24 +29,24 @@ describe('renderHarnessFiles — file set', () => {
     expect(paths).toMatchSnapshot()
   })
 
-  test('claude emits 11 commands + 11 skills, no rules', () => {
+  test('claude emits 12 commands + 12 skills, no rules', () => {
     const files = render(['claude'])
-    expect(files.filter((f) => f.kind === 'command')).toHaveLength(11)
-    expect(files.filter((f) => f.kind === 'skill')).toHaveLength(11)
+    expect(files.filter((f) => f.kind === 'command')).toHaveLength(12)
+    expect(files.filter((f) => f.kind === 'skill')).toHaveLength(12)
     expect(files.filter((f) => f.kind === 'rules')).toHaveLength(0)
   })
 
-  test('codex emits 11 skills + 1 rules, no commands', () => {
+  test('codex emits 12 skills + 1 rules, no commands', () => {
     const files = render(['codex'])
-    expect(files.filter((f) => f.kind === 'skill')).toHaveLength(11)
+    expect(files.filter((f) => f.kind === 'skill')).toHaveLength(12)
     expect(files.filter((f) => f.kind === 'rules')).toHaveLength(1)
     expect(files.filter((f) => f.kind === 'command')).toHaveLength(0)
   })
 
-  test('opencode emits 11 commands + 11 skills, no rules', () => {
+  test('opencode emits 12 commands + 12 skills, no rules', () => {
     const files = render(['opencode'])
-    expect(files.filter((f) => f.kind === 'command')).toHaveLength(11)
-    expect(files.filter((f) => f.kind === 'skill')).toHaveLength(11)
+    expect(files.filter((f) => f.kind === 'command')).toHaveLength(12)
+    expect(files.filter((f) => f.kind === 'skill')).toHaveLength(12)
     expect(files.filter((f) => f.kind === 'rules')).toHaveLength(0)
   })
 
@@ -143,5 +149,52 @@ describe('slash-syntax substitution', () => {
 
     const codex = render(['codex']).find((f) => f.workflow === 'apply')!
     expect(codex.body).toContain('/cospec:archive')
+  })
+})
+
+describe('OpenCode $ARGUMENTS injection', () => {
+  const argWorkflows = new Set<string>(ARG_WORKFLOWS)
+
+  test('every arg-taking opencode command names the placeholder exactly once', () => {
+    for (const f of render(['opencode'])) {
+      if (f.kind !== 'command') continue
+      const occurrences = f.body.split('$ARGUMENTS').length - 1
+      expect([f.workflow, occurrences]).toEqual([f.workflow, argWorkflows.has(f.workflow!) ? 1 : 0])
+    }
+  })
+
+  test('skill bodies never carry the placeholder — nothing substitutes it there', () => {
+    for (const f of render()) {
+      if (f.kind === 'skill') expect(f.body).not.toContain('$ARGUMENTS')
+    }
+  })
+
+  test('claude commands never carry it either (Claude binds arguments implicitly)', () => {
+    for (const f of render(['claude'])) expect(f.body).not.toContain('$ARGUMENTS')
+  })
+
+  test('an opencode command and its skill hash differently when args are injected', () => {
+    const files = render(['opencode'])
+    for (const id of ARG_WORKFLOWS) {
+      const command = files.find((f) => f.kind === 'command' && f.workflow === id)!
+      const skill = files.find((f) => f.kind === 'skill' && f.workflow === id)!
+      expect(command.contentHash).not.toBe(skill.contentHash)
+    }
+    // ...and identically when they are not.
+    const command = files.find((f) => f.kind === 'command' && f.workflow === 'onboard')!
+    const skill = files.find((f) => f.kind === 'skill' && f.workflow === 'onboard')!
+    expect(command.contentHash).toBe(skill.contentHash)
+  })
+})
+
+describe('runtime-neutral prose', () => {
+  // Bodies render byte-identically into Codex and OpenCode, neither of which has
+  // Claude Code's AskUserQuestion or TodoWrite tools; naming them there is an
+  // instruction the runtime cannot follow (OpenSpec's own #1403/#1464 bug).
+  test('no generated body names a Claude-only tool', () => {
+    for (const f of render()) {
+      expect(f.body).not.toContain('AskUserQuestion')
+      expect(f.body).not.toContain('TodoWrite')
+    }
   })
 })

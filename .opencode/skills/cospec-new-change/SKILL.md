@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.5.4
-  contentHash: sha256:e00db7d75bcb487ceca2dac4fc753606eda21a745cec72ebde29a88de2409e45
+  contentHash: sha256:f2f85de333ba1c4c270e92f31a29c166fb8921c46f22c7a316ca5b5c1aa18b24
 ---
 
 Scaffold a new openspec change and stop. This workflow creates the change and
@@ -22,8 +22,7 @@ The argument after the command is either `<type>: <free text>` (for example
 `feat: add a greeting endpoint`) or a bare description.
 
 - If it begins with a known type followed by `:`, use that type.
-- Otherwise ask the user to choose a type with AskUserQuestion, offering this
-  table:
+- Otherwise ask the user to choose a type, offering this table:
 
 | Type | What it is for | Artifacts |
 | --- | --- | --- |

@@ -3,7 +3,7 @@ description: Propose a new change and generate every artifact its type requires,
 metadata:
   author: cospec
   generatedBy: cospec@0.5.4
-  contentHash: sha256:f9e56d23172fb59e3f07b79306124b499b5d1b155dc2a71f13ef98337eda5ed5
+  contentHash: sha256:b42f2e59fe0438304552449144fd38df0787151c4fa83ba3673d57f7c3c1a469
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -21,14 +21,15 @@ files to reverse-engineer an artifact's shape. Create the change first with
 `cospec new`, then let the instructions drive each artifact; every wasted
 exploration step is a turn you do not spend authoring.
 
+**Provided arguments**: $ARGUMENTS
+
 ## 1. Pick the type and slug
 
 The argument after the command is either `<type>: <free text>` (for example
 `feat: add a greeting endpoint`) or a bare description.
 
 - If it begins with a known type followed by `:`, use that type.
-- Otherwise ask the user to choose a type with AskUserQuestion, offering this
-  table:
+- Otherwise ask the user to choose a type, offering this table:
 
 | Type | What it is for | Artifacts |
 | --- | --- | --- |
@@ -67,7 +68,9 @@ Loop until every artifact in the type's `apply.requires` is written:
    `cospec instructions <artifact> --change <slug> --json`. The JSON carries the
    template, the type-specific instruction, and any project `context` and
    `rules`. Treat `context` and `rules` as constraints on how you write — never
-   copy them into the artifact itself.
+   copy them into the artifact itself. Re-read every completed dependency
+   artifact from disk before writing against it, even if you wrote it earlier in
+   this session — the user may have edited it since.
 3. Write the artifact at the path the instructions name, following the format
    exactly. `blocking-changes.md`, the `specs/**/spec.md` deltas, and
    `verification.md` are machine-parsed — small deviations fail validation.

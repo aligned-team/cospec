@@ -11,8 +11,7 @@ The argument after the command is either `<type>: <free text>` (for example
 `feat: add a greeting endpoint`) or a bare description.
 
 - If it begins with a known type followed by `:`, use that type.
-- Otherwise ask the user to choose a type with AskUserQuestion, offering this
-  table:
+- Otherwise ask the user to choose a type, offering this table:
 
 {{TYPE_TABLE}}
 

@@ -76,6 +76,9 @@ describe('cospec doctor (DESIGN §2.3)', () => {
     expect(findings.some((f) => f.check === 'config' && f.level === 'INFO')).toBe(true)
   })
 
+  // `generatedBy` here is an arbitrary openspec version, not cospec's pin: the
+  // detector matches the SHAPE (`author: openspec` + a bare semver), and the
+  // `.agents/` case below deliberately uses a different one.
   test('a leftover opsx file is a WARNING', async () => {
     seed(dir)
     const skill = join(dir, '.claude/skills/openspec-apply-change')
@@ -87,6 +90,19 @@ describe('cospec doctor (DESIGN §2.3)', () => {
     const { code, findings } = await doctorJson(dir)
     expect(code).toBe(0)
     expect(findings.some((f) => f.check === 'opsx-leftover' && f.level === 'WARNING')).toBe(true)
+  })
+
+  test('a leftover under `.agents/skills/` is a WARNING (openspec ≥1.8 Codex root)', async () => {
+    seed(dir)
+    const skill = join(dir, '.agents/skills/openspec-propose')
+    mkdirSync(skill, { recursive: true })
+    writeFileSync(
+      join(skill, 'SKILL.md'),
+      '---\nname: openspec-propose\nmetadata:\n  author: openspec\n  generatedBy: "1.11.0"\n---\nbody\n',
+    )
+    const { findings } = await doctorJson(dir)
+    const opsx = findings.filter((f) => f.check === 'opsx-leftover')
+    expect(opsx.some((f) => f.level === 'WARNING')).toBe(true)
   })
 
   test('a user-authored path-matching file is NOT flagged as opsx (provenance-only)', async () => {

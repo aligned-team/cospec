@@ -19,7 +19,9 @@ to archive in this pass.
 For each selected change, read its `blocking-changes.md`. If change B lists
 change A as a blocker, A must archive before B. Where no dependency is declared,
 fall back to creation order. Present the ordered batch to the user as a table
-and get one confirmation before looping.
+and get one confirmation before looping. If the user declines, stop here and
+archive nothing — do not archive a subset, and do not re-ask with a smaller
+batch unless the user asks for one.
 
 ## 3. Archive each change in order
 

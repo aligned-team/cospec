@@ -11,6 +11,7 @@ import {
   buildOpencodeCommandFrontmatter,
   buildSkillFrontmatter,
   type HarnessName,
+  injectOpenCodeArgs,
   renderCodexRules,
   serializeFrontmatter,
   transformBodyForHarness,
@@ -91,9 +92,16 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
       const injected = w.injectTypeTable
         ? rawBody.replace('{{TYPE_TABLE}}', renderTypeTable(opts.typeTable))
         : rawBody
-      const body = transformBodyForHarness(injected, harness)
-      const bodySection = `\n${body}`
-      const contentHash = hashBody(bodySection)
+      const skillBody = transformBodyForHarness(injected, harness)
+      // OpenCode drops a slash command's arguments unless the body names them, so an
+      // arg-taking workflow's COMMAND body carries `$ARGUMENTS` while its skill body
+      // does not — which is why each surface hashes its own body.
+      const commandBody =
+        harness === 'opencode' && w.takesArguments === true
+          ? injectOpenCodeArgs(skillBody)
+          : skillBody
+      const skillSection = `\n${skillBody}`
+      const skillHash = hashBody(skillSection)
 
       out.push(
         assemble({
@@ -101,14 +109,16 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
           kind: 'skill',
           workflow: w.id,
           path: `${fill(surface.skillDir, { skill: w.skill })}/SKILL.md`,
-          frontmatter: buildSkillFrontmatter(w, version, contentHash),
-          body,
-          bodySection,
-          contentHash,
+          frontmatter: buildSkillFrontmatter(w, version, skillHash),
+          body: skillBody,
+          bodySection: skillSection,
+          contentHash: skillHash,
         }),
       )
 
       if (surface.commandDir && surface.commandFile) {
+        const commandSection = `\n${commandBody}`
+        const commandHash = hashBody(commandSection)
         out.push(
           assemble({
             harness,
@@ -117,11 +127,11 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
             path: `${surface.commandDir}/${fill(surface.commandFile, { command: w.command })}`,
             frontmatter:
               harness === 'claude'
-                ? buildClaudeCommandFrontmatter(w, version, contentHash)
-                : buildOpencodeCommandFrontmatter(w, version, contentHash),
-            body,
-            bodySection,
-            contentHash,
+                ? buildClaudeCommandFrontmatter(w, version, commandHash)
+                : buildOpencodeCommandFrontmatter(w, version, commandHash),
+            body: commandBody,
+            bodySection: commandSection,
+            contentHash: commandHash,
           }),
         )
       }

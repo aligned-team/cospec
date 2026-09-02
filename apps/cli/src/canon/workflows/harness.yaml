@@ -5,6 +5,11 @@
 # Skill directories exist for every harness. Command (slash) surfaces exist for claude and
 # opencode only; codex gets skills plus a prefix-rule allowlist (rulesPath) and no slash
 # commands. Path templates use {command} and {skill} placeholders.
+#
+# `takesArguments` is audited per workflow: true when the body reads a positional
+# argument (a `<type>: <text>` or a change slug). It drives the OpenCode $ARGUMENTS
+# injection in src/harness/adapters.ts — OpenCode drops whatever the user typed after
+# the slash command unless the command body names the placeholder.
 
 workflows:
   - id: propose
@@ -14,6 +19,7 @@ workflows:
     description: >-
       Propose a new change and generate every artifact its type requires, in one guided pass.
     injectTypeTable: true
+    takesArguments: true
   - id: new
     command: new
     skill: cospec-new-change
@@ -21,36 +27,50 @@ workflows:
     description: >-
       Scaffold a new change and show its typed artifact plan, then stop before authoring anything.
     injectTypeTable: true
+    takesArguments: true
   - id: continue
     command: continue
     skill: cospec-continue-change
     title: Continue
     description: >-
       Resume a partially-built change and finish its remaining artifacts.
+    takesArguments: true
   - id: ff
     command: ff
     skill: cospec-ff-change
     title: Fast-forward
     description: >-
       Author every remaining artifact on an already-scaffolded change in one pass, then validate.
+    takesArguments: true
+  - id: update
+    command: update
+    skill: cospec-update-change
+    title: Update
+    description: >-
+      Revise an existing change's already-written artifacts and keep them coherent, without
+      creating new artifacts or editing code.
+    takesArguments: true
   - id: apply
     command: apply
     skill: cospec-apply-change
     title: Apply
     description: >-
       Run the apply gate for a change and implement its tasks, obeying the gate's exit code.
+    takesArguments: true
   - id: verify
     command: verify
     skill: cospec-verify-change
     title: Verify
     description: >-
       Dress-rehearse a change before archiving — validate strictly, walk the verification ledger, and name the hard archive gates.
+    takesArguments: true
   - id: archive
     command: archive
     skill: cospec-archive-change
     title: Archive
     description: >-
       Archive a completed change — validate, merge specs, verify, and fan blockers out.
+    takesArguments: true
   - id: bulk-archive
     command: bulk-archive
     skill: cospec-bulk-archive-change
@@ -63,12 +83,14 @@ workflows:
     title: Sync specs
     description: >-
       Explain how spec sync works (it runs inside archive) and preview what would merge.
+    takesArguments: true
   - id: explore
     command: explore
     skill: cospec-explore
     title: Explore
     description: >-
       Investigate the codebase or a spec question without writing implementation code.
+    takesArguments: true
   - id: onboard
     command: onboard
     skill: cospec-onboard
