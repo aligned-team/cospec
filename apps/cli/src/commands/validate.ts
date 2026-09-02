@@ -49,7 +49,7 @@ import {
   type ArtifactId,
   type CospecType,
 } from '../core/rules/type-facts.ts'
-import { capabilityForDeltaFile, discoverSpecFiles } from '../core/spec-paths.ts'
+import { capabilityForDeltaFile, discoverSpecFiles, isDeltaSpecFile } from '../core/spec-paths.ts'
 
 // --- Change loading (filesystem → LoadedChange) ---------------------------
 
@@ -119,8 +119,12 @@ function loadChange(base: string, id: string, dir: string): LoadedChange {
   // its living spec, its report path, and the archive merge all use. A file with
   // no capability at all (`specs/spec.md`) keeps an empty capability and is
   // reported by `deltas/spec-at-specs-root`.
+  //
+  // Only `spec.md` is a delta: openspec's own change parser reads nothing else,
+  // so validating a companion `README.md`/`notes.md` sitting in a capability
+  // directory would report issues against content openspec never sees.
   const deltaFiles = files
-    .filter((f) => f.startsWith('specs/') && f.endsWith('.md'))
+    .filter((f) => f.startsWith('specs/') && isDeltaSpecFile(f))
     .map((f) => ({
       path: f,
       capability: capabilityForDeltaFile(f) ?? '',

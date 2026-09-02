@@ -148,6 +148,26 @@ export function discoverSpecFiles(specsRoot: string): DiscoveredSpec[] {
 }
 
 /**
+ * Is this path a change-side delta file at all?
+ *
+ * Both openspec's change-side delta parser and cospec's own living-side
+ * `discoverSpecFiles` above only ever read files literally named `spec.md`. Any
+ * other markdown an author keeps beside a delta (a `README.md`, `notes.md`, a
+ * `spec-old.md` backup) is invisible to `openspec validate` and to
+ * `openspec archive`'s merge, so cospec must not parse it as delta content
+ * either: doing so fed phantom ops into both hard archive gates, which could
+ * refuse — or falsely report an invariant breach on — an archive openspec would
+ * have completed cleanly.
+ *
+ * `relPath` may be a full relative path or a bare file name; either separator
+ * is accepted, matching `capabilityForDeltaFile` below.
+ */
+export function isDeltaSpecFile(relPath: string): boolean {
+  const segments = relPath.split(/[\\/]/).filter((s) => s !== '' && s !== '.')
+  return segments.at(-1) === 'spec.md'
+}
+
+/**
  * Capability path a change-side delta file belongs to — the directory chain
  * between `specs/` and the file, joined with `/`.
  *

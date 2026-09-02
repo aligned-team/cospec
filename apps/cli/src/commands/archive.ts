@@ -34,7 +34,7 @@ import { spawnOpenspec } from '../core/openspec.ts'
 import { renderHuman, renderJson, type ItemReport } from '../core/report.ts'
 import { resolveRoot } from '../core/root.ts'
 import { enforcedApplyRequires, TYPE_ARTIFACTS, type CospecType } from '../core/rules/type-facts.ts'
-import { capabilityForDeltaFile } from '../core/spec-paths.ts'
+import { capabilityForDeltaFile, isDeltaSpecFile } from '../core/spec-paths.ts'
 import { parseTasks } from '../core/tasks.ts'
 import { computeVerificationVerdict, parseVerification } from '../core/verification.ts'
 import { archiveMap, atomicWrite, closest, computeGate } from './apply.ts'
@@ -110,7 +110,14 @@ interface CapabilityDeltas {
 }
 
 /**
- * All change-side delta ops grouped by capability path (`specs/<cap-path>/**.md`).
+ * All change-side delta ops grouped by capability path
+ * (`specs/<cap-path>/spec.md`).
+ *
+ * Only files literally named `spec.md` count, matching openspec's own change
+ * parser and `discoverSpecFiles` on the living side. Companion markdown an
+ * author keeps in a capability directory (`README.md`, `notes.md`, a
+ * `spec-old.md` backup) is content `openspec archive` never merges, so parsing
+ * it here would feed phantom ops to both hard gates below.
  *
  * The capability is the whole directory chain under `specs/`, so a nested
  * `specs/platform/session-layout/spec.md` groups under `platform/session-layout`
@@ -135,7 +142,7 @@ function changeDeltaOps(changeDir: string): CapabilityDeltas[] {
         if (!entry.name.startsWith('.')) walk(child)
         continue
       }
-      if (!entry.isFile() || !entry.name.endsWith('.md')) continue
+      if (!entry.isFile() || !isDeltaSpecFile(entry.name)) continue
       const capability = capabilityForDeltaFile(relative(changeDir, child))
       if (capability === undefined) continue
       const parsed = parseDeltaSpec(readFileSync(child, 'utf8'), child, capability)

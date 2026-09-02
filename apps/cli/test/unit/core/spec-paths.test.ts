@@ -3,7 +3,11 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync }
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { capabilityForDeltaFile, discoverSpecFiles } from '../../../src/core/spec-paths.ts'
+import {
+  capabilityForDeltaFile,
+  discoverSpecFiles,
+  isDeltaSpecFile,
+} from '../../../src/core/spec-paths.ts'
 
 const roots: string[] = []
 
@@ -170,7 +174,8 @@ describe('capabilityForDeltaFile', () => {
     expect(capabilityForDeltaFile('specs/web/spec.md')).toBe('web')
   })
 
-  test('handles a non-spec.md delta file under a capability', () => {
+  // Path shape only: whether the file is a delta at all is isDeltaSpecFile's job.
+  test('derives a capability from path shape regardless of file name', () => {
     expect(capabilityForDeltaFile('specs/web/extra-delta.md')).toBe('web')
   })
 
@@ -192,5 +197,31 @@ describe('capabilityForDeltaFile', () => {
 
   test('returns undefined for a traversal segment', () => {
     expect(capabilityForDeltaFile('specs/../elsewhere/spec.md')).toBeUndefined()
+  })
+})
+
+describe('isDeltaSpecFile', () => {
+  test('only a file literally named spec.md is a delta', () => {
+    expect(isDeltaSpecFile('specs/web/spec.md')).toBe(true)
+    expect(isDeltaSpecFile('specs/platform/session-layout/spec.md')).toBe(true)
+    expect(isDeltaSpecFile('spec.md')).toBe(true)
+  })
+
+  test('companion markdown beside a delta is not a delta', () => {
+    // openspec's change parser never reads these, so neither may cospec:
+    // parsing them fed phantom ops to both hard archive gates.
+    expect(isDeltaSpecFile('specs/web/notes.md')).toBe(false)
+    expect(isDeltaSpecFile('specs/web/README.md')).toBe(false)
+    expect(isDeltaSpecFile('specs/web/spec-old.md')).toBe(false)
+    expect(isDeltaSpecFile('specs/web/Spec.md')).toBe(false)
+  })
+
+  test('accepts windows separators', () => {
+    expect(isDeltaSpecFile('specs\\web\\spec.md')).toBe(true)
+    expect(isDeltaSpecFile('specs\\web\\notes.md')).toBe(false)
+  })
+
+  test('a directory named spec.md in the middle of a path is not the file', () => {
+    expect(isDeltaSpecFile('specs/spec.md/notes.md')).toBe(false)
   })
 })

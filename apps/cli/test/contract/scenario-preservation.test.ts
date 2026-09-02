@@ -202,3 +202,57 @@ describe('archive/scenario-preservation vs the pinned openspec binary (re-probed
     expect(existsSync(join(cRepo, 'openspec/changes/noted-thin'))).toBe(true)
   })
 })
+
+/** A companion doc an author keeps beside the real delta. It happens to quote a
+ * thinned MODIFIED block as an illustration — content `openspec archive` never
+ * reads, because only `spec.md` is a delta. */
+const COMPANION_NOTES = `# Notes
+
+Rationale for the delta. The block below is quoted for illustration only:
+
+${THINNED_DELTA}`
+
+/** The real delta: MODIFIED that preserves both living scenarios. */
+const FULL_DELTA = `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested, via the single rendering path.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered
+
+#### Scenario: Render an empty widget
+
+- **WHEN** a caller requests an empty widget
+- **THEN** a placeholder is rendered
+`
+
+describe('only spec.md is a delta', () => {
+  test('a companion .md beside the delta feeds neither gate, on either side', async () => {
+    const root = mkTempRepo({ git: true })
+    writeLivingSpec(root, 'widgets', LIVING)
+    mkdirSync(join(root, 'openspec/changes/archive'), { recursive: true })
+    writeFiles(root, {
+      'openspec/changes/with-notes/.openspec.yaml': 'schema: feat\ncreated: 2026-07-06\n',
+      'openspec/changes/with-notes/proposal.md': PROPOSAL,
+      'openspec/changes/with-notes/blocking-changes.md': BLOCKERS,
+      'openspec/changes/with-notes/specs/widgets/spec.md': FULL_DELTA,
+      // Invisible to openspec's change parser; must be invisible to cospec too.
+      'openspec/changes/with-notes/specs/widgets/notes.md': COMPANION_NOTES,
+      'openspec/changes/with-notes/tasks.md': TASKS_DONE,
+    })
+
+    const v = await cospec(['validate', 'with-notes', '--strict'], { cwd: root })
+    expect(v.exitCode).toBe(0)
+
+    const res = await cospec(['archive', 'with-notes'], { cwd: root })
+    expect(res.stderr).not.toContain('scenario-preservation gate refused')
+    expect(res.exitCode).toBe(0)
+    expect(existsSync(join(root, 'openspec/changes/with-notes'))).toBe(false)
+    const living = readFileSync(join(root, 'openspec/specs/widgets/spec.md'), 'utf8')
+    expect((living.match(/^####\s+Scenario:/gm) ?? []).length).toBe(2)
+  })
+})
