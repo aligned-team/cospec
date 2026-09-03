@@ -30,8 +30,8 @@ Each step leaves the repo green.
    a contract or integration test task". Commit.
 4. Land apply / archive / init / update / doctor and the harness generator; run
    `cospec init --harness claude,codex,opencode --no-gate` on this repo; commit
-   the generated `.claude/`, `.codex/`, `.opencode/` files. Wire
-   `generate:check` into pre-commit.
+   the generated `.claude/`, `.agents/skills/`, `.codex/`, `.opencode/` files.
+   Wire `generate:check` into pre-commit.
 5. From here, every substantive change is a cospec-typed change in
    `openspec/changes/`. The repo's own history becomes the fixture corpus.
 6. Harvest the gate templates into `canon/gate/` and retire the bootstrap

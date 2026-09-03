@@ -167,11 +167,18 @@ loop.
   `.claude/skills/cospec-*/SKILL.md`. init additively merges `Bash(cospec *)`
   into `.claude/settings.json`. Restart Claude Code to pick up the `/cospec:*`
   commands.
-- **Codex** — `.codex/skills/cospec-*/SKILL.md` plus
+- **Codex** — `.agents/skills/cospec-*/SKILL.md` (the shared root below) plus
   `.codex/rules/cospec.rules`, which pre-approves the read-only and gate calls
-  (`archive` is intentionally not pre-approved). Skills load per session.
+  (`archive` is intentionally not pre-approved). Skills load per session and are
+  invoked as `$cospec-<skill>`.
 - **OpenCode** — `.opencode/commands/cospec-*.md` (full bodies) and
   `.opencode/skills/cospec-*/SKILL.md`. Reload the project.
+- **agents** — `.agents/skills/cospec-*/SKILL.md`, the vendor-neutral root read
+  by Codex, Zed, Antigravity and other AGENTS.md-aware assistants.
+  Byte-identical to what `codex` writes there, minus the rules file; no slash
+  commands are generated. Earlier versions wrote Codex's skills to
+  `.codex/skills` — `cospec update` migrates them and leaves anything you
+  hand-edited alone.
 
 Details and a per-harness smoke checklist:
 [docs/harness-integration.md](docs/harness-integration.md).

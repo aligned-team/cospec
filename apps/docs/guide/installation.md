@@ -106,6 +106,11 @@ explicitly:
 cospec init --harness claude,codex
 ```
 
+Valid values are `claude`, `codex`, `opencode`, `agents`, `all` (every target)
+and `none`. `codex` and `agents` both write the shared `.agents/skills` root and
+render byte-identical files there; `codex` adds `.codex/rules/cospec.rules` on
+top.
+
 See [Harness setup](/guide/harness-setup) for what each harness option generates
 and how permissions are configured.
 

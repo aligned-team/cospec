@@ -183,9 +183,10 @@ fails, fix the root cause; never use `--no-verify`, `pre-commit`, or raw
 `.git/hooks/` scripts.
 
 **Managed files are generated** — `openspec/schemas/**` and the harness dirs
-(`.claude/`, `.codex/`, `.opencode/`) are composed from `apps/cli/src/canon/`.
-Edit the canon, run `mise run generate`; never hand-edit generated output. The
-`generate:check` drift gate blocks the commit otherwise.
+(`.claude/`, `.agents/skills/cospec-*/`, `.codex/`, `.opencode/`) are composed
+from `apps/cli/src/canon/`. Edit the canon, run `mise run generate`; never
+hand-edit generated output. The `generate:check` drift gate blocks the commit
+otherwise.
 
 **Error handling** — never silently swallow errors. Catch only specific expected
 cases; let unexpected exceptions propagate. Fixes must change observable
