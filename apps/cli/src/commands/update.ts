@@ -119,22 +119,39 @@ function hasSentinel(cwd: string, base: string): boolean {
   return isCospecManagedMarkdown(readFileSync(path, 'utf8'))
 }
 
+/** Sentinel/marker evidence that this harness was configured in `cwd`. */
+function hasHarnessEvidence(cwd: string, h: HarnessName): boolean {
+  // A pre-migration install is detected by its LEGACY base alone — without that,
+  // a `.codex/skills` tree would stop being regenerated and never be cleaned up.
+  if ((LEGACY_SKILL_BASE[h] ?? []).some((base) => hasSentinel(cwd, base))) return true
+  if (!hasSentinel(cwd, SKILL_BASE[h])) return false
+  // A migrated codex install has no legacy tree left, so it is detected by the
+  // shared sentinel plus the codex-only rules file; the marker is what keeps an
+  // `agents`-only repo from acquiring a `.codex/` dir.
+  const marker = HARNESS_MARKER[h]
+  return marker === undefined || existsSync(join(cwd, marker))
+}
+
 /**
  * Harnesses whose skill dir already holds a cospec-generated sentinel skill.
  *
- * `codex` needs two clauses. A pre-migration install is detected by its LEGACY
- * base alone — without that, a `.codex/skills` tree would stop being regenerated
- * and would never be cleaned up. A migrated install has no legacy tree left, so
- * it is detected by the shared sentinel plus the codex-only rules file; the
- * marker is what keeps an `agents`-only repo from acquiring a `.codex/` dir.
+ * `codex` and `agents` render the same `.agents/skills` tree, so that tree alone
+ * cannot say which one was selected — only codex leaves further evidence (its
+ * rules file). A marker-less harness is therefore reported only when no detected
+ * marker-bearing harness already accounts for the shared root: otherwise every
+ * codex-only repo would report `agents` too, and `detectHarnesses` — the only
+ * record of what the user opted into — would invent a target from zero evidence.
+ * Dropping `agents` from a repo that really did select both costs nothing today
+ * (codex writes a superset of what agents writes, byte for byte).
  */
 export function detectHarnesses(cwd: string): HarnessName[] {
-  return HARNESS_NAMES.filter((h) => {
-    if ((LEGACY_SKILL_BASE[h] ?? []).some((base) => hasSentinel(cwd, base))) return true
-    if (!hasSentinel(cwd, SKILL_BASE[h])) return false
-    const marker = HARNESS_MARKER[h]
-    return marker === undefined || existsSync(join(cwd, marker))
-  })
+  const detected = HARNESS_NAMES.filter((h) => hasHarnessEvidence(cwd, h))
+  const explainedBases = new Set(
+    detected.filter((h) => HARNESS_MARKER[h] !== undefined).map((h) => SKILL_BASE[h]),
+  )
+  return detected.filter(
+    (h) => HARNESS_MARKER[h] !== undefined || !explainedBases.has(SKILL_BASE[h]),
+  )
 }
 
 // --- atomic write ----------------------------------------------------------

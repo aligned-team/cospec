@@ -166,7 +166,11 @@ merged entry. If it does not parse, cospec prints the snippet and skips.
   needed; two harnesses mapping one path to different bytes is a hard render
   error. `codex` differs only by additionally emitting
   `.codex/rules/cospec.rules`. Auto-detection keys on `.agents/skills`, not a
-  bare `.agents/`, so a repo with only `AGENTS.md` there is not a harness.
+  bare `.agents/`, so a repo with only `AGENTS.md` there is not a harness — and
+  since the shared tree cannot say which target wrote it, the rules file is the
+  tie-breaker: present ⇒ `codex`, absent ⇒ `agents`, never both. Reporting both
+  would invent a target the user never selected; reporting only `codex` loses
+  nothing, because codex renders a strict superset of the agents file set.
 - **Legacy `.codex/skills` migration** — cospec previously wrote Codex skills
   under `.codex/skills`. `cospec update` removes a legacy file only once its
   replacement exists under `.agents/skills` AND its body still hashes to its own

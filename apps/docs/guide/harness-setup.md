@@ -76,7 +76,11 @@ alone when you want the skills without Codex's approval rules.
 
 Auto-detection keys on `.agents/skills`, not a bare `.agents/` directory, so a
 repo that only keeps an `AGENTS.md` or notes under `.agents/` is not treated as
-a harness.
+a harness. Because the two targets write the same tree, the skills alone cannot
+say which one you picked: a repo that also has `.codex/rules/cospec.rules` is
+detected as `codex`, and one without it as `agents`. A repo that selected both
+therefore re-generates as `codex` — which writes every file `agents` writes,
+byte for byte, so nothing is lost.
 
 ::: warning Moved from `.codex/skills/` Earlier versions of cospec wrote Codex's
 skills to `.codex/skills/`. `cospec update` migrates them: a legacy file whose
