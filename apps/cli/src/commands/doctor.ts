@@ -26,7 +26,12 @@ import {
   openspecDir,
   resolveSchema,
 } from '../core/change.ts'
-import { CURRENT_GENERATED_BY, readManifest, splitFrontmatter } from '../core/managed-files.ts'
+import {
+  CURRENT_GENERATED_BY,
+  readManifest,
+  splitFrontmatter,
+  type WriteResult,
+} from '../core/managed-files.ts'
 import {
   OPENSPEC_VERSION_RANGE,
   OpenspecCallError,
@@ -67,9 +72,15 @@ const WORKFLOW_SKILL: Record<string, string> = {
   onboard: 'cospec-onboard',
 }
 
+/** Skill dir name suffix -> workflow id (the reverse of WORKFLOW_SKILL). */
+const SKILL_SUFFIX_WORKFLOW: Record<string, string> = Object.fromEntries(
+  Object.entries(WORKFLOW_SKILL).map(([id, skill]) => [skill.replace(/^cospec-/, ''), id]),
+)
+
 const SKILL_BASE: Record<string, string> = {
   claude: '.claude/skills',
-  codex: '.codex/skills',
+  codex: '.agents/skills',
+  agents: '.agents/skills',
   opencode: '.opencode/skills',
 }
 
@@ -77,6 +88,7 @@ const COMMAND_LOC: Record<string, { dir: string; file: (id: string) => string } 
   claude: { dir: '.claude/commands/cospec', file: (id) => `${id}.md` },
   opencode: { dir: '.opencode/commands', file: (id) => `cospec-${id}.md` },
   codex: undefined,
+  agents: undefined,
 }
 
 // --- individual checks ------------------------------------------------------
@@ -115,7 +127,7 @@ export function checkOpenspecVersion(
   }
 }
 
-function checkDrift(cwd: string, findings: Finding[]): void {
+function checkDrift(cwd: string, findings: Finding[]): WriteResult[] {
   const manifest = readManifest(cwd)
   if (manifest === undefined) {
     findings.push({
@@ -127,7 +139,7 @@ function checkDrift(cwd: string, findings: Finding[]): void {
   }
 
   const harnesses = detectHarnesses(cwd)
-  const { results } = generate(cwd, { harnesses, dryRun: true })
+  const { results, migration } = generate(cwd, { harnesses, dryRun: true })
   for (const r of results) {
     if (r.outcome === 'unchanged') continue
     if (r.outcome === 'created') {
@@ -153,10 +165,31 @@ function checkDrift(cwd: string, findings: Finding[]): void {
       })
     }
   }
+  return migration
+}
+
+/**
+ * cospec's Codex skills moved from `.codex/skills` to the shared `.agents/skills`
+ * root. A file still sitting in the old place is a legacy LAYOUT problem, not
+ * canon drift — reporting it through `checkDrift`'s `drift`/hand-edited vocabulary
+ * would tell the user their file diverged from canon, which is not what happened.
+ */
+function checkLegacyLayout(migration: WriteResult[], findings: Finding[]): void {
+  for (const r of migration) {
+    findings.push({
+      level: 'WARNING',
+      check: 'legacy-layout',
+      message: `${r.path} is a legacy location; cospec's Codex skills now live in .agents/skills`,
+      remedy: 'run `cospec update` (`--force` to discard local edits to the legacy copy)',
+    })
+  }
 }
 
 function harnessMarkdownFiles(cwd: string): { relpath: string; text: string }[] {
-  const out: { relpath: string; text: string }[] = []
+  // Keyed by relpath: the `.agents` harness dir strictly contains the shared
+  // `.agents/skills` opsx root, so the two walk ranges overlap and an unguarded
+  // scan would report every finding in that tree twice.
+  const out = new Map<string, { relpath: string; text: string }>()
   const walk = (rel: string): void => {
     const abs = join(cwd, rel)
     if (!existsSync(abs)) return
@@ -164,17 +197,17 @@ function harnessMarkdownFiles(cwd: string): { relpath: string; text: string }[] 
       const childRel = `${rel}/${entry.name}`
       if (entry.isDirectory()) walk(childRel)
       else if (entry.isFile() && entry.name.endsWith('.md')) {
-        out.push({ relpath: childRel, text: readFileSync(join(cwd, childRel), 'utf8') })
+        if (out.has(childRel)) continue
+        out.set(childRel, { relpath: childRel, text: readFileSync(join(cwd, childRel), 'utf8') })
       }
     }
   }
   for (const h of HARNESS_NAMES) walk(`.${h}`)
-  // openspec ≥1.8.0 writes its Codex skills to the shared `.agents/skills/` root, so
-  // an opsx leftover can exist with nothing under the three `.<harness>` dirs. cospec
-  // never generates there; the files collected from it only feed the opsx check
-  // (staleness filters on `author: cospec`, dangling-refs on a `.<harness>/` prefix).
+  // openspec ≥1.8.0 writes its Codex skills to the shared `.agents/skills/` root.
+  // cospec now writes its own `cospec-*` skills there as well; both prefixes coexist,
+  // and the opsx check filters on provenance, never on the path.
   walk(OPSX_SHARED_SKILL_ROOT)
-  return out
+  return [...out.values()]
 }
 
 function checkStaleness(files: { relpath: string; text: string }[], findings: Finding[]): void {
@@ -217,13 +250,17 @@ function checkDanglingRefs(
     const { body } = splitFrontmatter(f.text)
     const refs = new Set<string>()
     for (const m of body.matchAll(/\/cospec[:-]([a-z][a-z-]*)/g)) refs.add(m[1]!)
-    for (const id of refs) {
-      const skill = WORKFLOW_SKILL[id]
-      if (skill === undefined) {
+    for (const ref of refs) {
+      // A reference is spelled either with the workflow id (`/cospec:apply`,
+      // `/cospec-apply`) or — in the shared `.agents` dialect, which emits no
+      // command files — with the skill dir name (`/cospec-apply-change`).
+      const id = WORKFLOW_SKILL[ref] !== undefined ? ref : SKILL_SUFFIX_WORKFLOW[ref]
+      const skill = id === undefined ? undefined : WORKFLOW_SKILL[id]
+      if (id === undefined || skill === undefined) {
         findings.push({
           level: 'ERROR',
           check: 'dangling-ref',
-          message: `${f.relpath} references /cospec:${id}, which is not a known cospec workflow`,
+          message: `${f.relpath} references /cospec:${ref}, which is not a known cospec workflow`,
           remedy: 'run `cospec update` to regenerate from canon',
         })
         continue
@@ -296,7 +333,7 @@ function checkOpsx(cwd: string, findings: Finding[]): void {
 }
 
 function checkStaleSidecars(cwd: string, findings: Finding[]): void {
-  const found: string[] = []
+  const found = new Set<string>()
   const walk = (rel: string): void => {
     const abs = join(cwd, rel)
     if (!existsSync(abs)) return
@@ -305,7 +342,7 @@ function checkStaleSidecars(cwd: string, findings: Finding[]): void {
       if (entry.isDirectory()) {
         if (entry.name === 'archive') continue
         walk(childRel)
-      } else if (entry.isFile() && entry.name.endsWith('.cospec-new')) found.push(childRel)
+      } else if (entry.isFile() && entry.name.endsWith('.cospec-new')) found.add(childRel)
     }
   }
   walk('openspec')
@@ -561,7 +598,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     })
   } else {
     checkOpenspecVersion(findings)
-    checkDrift(cwd, findings)
+    checkLegacyLayout(checkDrift(cwd, findings), findings)
     const mdFiles = harnessMarkdownFiles(cwd)
     checkStaleness(mdFiles, findings)
     checkDanglingRefs(cwd, mdFiles, findings)

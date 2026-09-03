@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.6.0
-  contentHash: sha256:a15d4d9d80a4a0983f100959746b5411c91ca0e3abf3cf102f11d7b7a869289a
+  contentHash: sha256:99d3eeeb89a0ed8fdca46c5a12470602de0b6e465570a116c57d04d01ecb35e3
 ---
 
 Investigate a question about the codebase, a spec, or a proposed change — in
@@ -54,7 +54,7 @@ and format exactly.
   `openspec/config.yaml` is a change, not thinking.
 - Do not run `cospec apply` or `cospec archive`.
 - Do not create a new change unless the user explicitly asks. If the exploration
-  concludes that work is warranted, recommend `/cospec:propose "<type>: <what>"`
+  concludes that work is warranted, recommend `$cospec-propose (Codex) or /cospec-propose (other agents) "<type>: <what>"`
   and stop.
 - Do not hand-create a change directory under `openspec/changes/`. `cospec new`
   writes the metadata that makes a change real — and only after the user has

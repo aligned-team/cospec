@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.6.0
-  contentHash: sha256:3b79b54dd7063074630d38b7d2e3a71240c31e1410fef4577acc1efa21d44599
+  contentHash: sha256:1c17ca4d8574ffceb1f13040aac47376825c4a6f86abd5d08cab55d194a948d4
 ---
 
 Archive a batch of completed changes, one at a time, in dependency order. Every
@@ -67,5 +67,5 @@ not understand:
 ## 5. Report and hand off
 
 Summarize the batch: which changes archived cleanly, which failed and why, and
-which changes are newly unblocked. Offer to `/cospec:apply` anything newly
+which changes are newly unblocked. Offer to `$cospec-apply-change (Codex) or /cospec-apply-change (other agents)` anything newly
 unblocked.

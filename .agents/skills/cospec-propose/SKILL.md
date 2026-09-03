@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.6.0
-  contentHash: sha256:8258d55dd43706a095878dde558f713495321bf622f829a1a0166e97860df721
+  contentHash: sha256:7f129532e13130df3856970006f1977bff8247f033e2e99c45d30d041d9a0e79
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -98,5 +98,5 @@ the formatter over it before re-validating. Re-run until it is clean.
 ## 5. Hand off
 
 Tell the user the change is apply-ready and that the next step is
-`/cospec:apply` when they want to implement it. Do not start implementation
+`$cospec-apply-change (Codex) or /cospec-apply-change (other agents)` when they want to implement it. Do not start implementation
 here.

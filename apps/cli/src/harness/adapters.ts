@@ -1,12 +1,29 @@
 import { stringify } from 'yaml'
 
-/** The three harness targets cospec generates project files for (DESIGN §6.1). */
-export type HarnessName = 'claude' | 'codex' | 'opencode'
+/**
+ * The harness targets cospec generates project files for (DESIGN §6.1). `agents` is the
+ * vendor-neutral `.agents/skills` root read by Codex, Zed, Antigravity and other
+ * AGENTS.md-aware assistants; `codex` writes the same files there plus its own rules file.
+ * Appended rather than sorted so receipts and detection output keep their existing order.
+ */
+export type HarnessName = 'claude' | 'codex' | 'opencode' | 'agents'
 
-export const HARNESS_NAMES: readonly HarnessName[] = ['claude', 'codex', 'opencode']
+export const HARNESS_NAMES: readonly HarnessName[] = ['claude', 'codex', 'opencode', 'agents']
 
 export function isHarnessName(value: string): value is HarnessName {
   return (HARNESS_NAMES as readonly string[]).includes(value)
+}
+
+/**
+ * How a harness surface respells in-body `/cospec:<id>` references. Keyed by dialect rather
+ * than by harness name so that `codex` and `agents` are provably byte-identical.
+ */
+export type BodyDialect = 'canonical' | 'shared' | 'opencode'
+
+export const BODY_DIALECTS: readonly BodyDialect[] = ['canonical', 'shared', 'opencode']
+
+export function isBodyDialect(value: string): value is BodyDialect {
+  return (BODY_DIALECTS as readonly string[]).includes(value)
 }
 
 /** A workflow's identity fields, as declared in canon/workflows/harness.yaml. */
@@ -25,14 +42,31 @@ export interface WorkflowDef {
   takesArguments?: boolean
 }
 
+const WORKFLOW_REF_RE = /\/cospec:([a-z][a-z0-9-]*)/g
+
 /**
- * Codex bodies keep the canonical `/cospec:x` colon spelling (informational — Codex has no
- * slash commands, only skills). OpenCode rewrites it to its `/cospec-x` hyphen spelling so the
- * in-body references match the slash commands OpenCode actually registers. Claude is canonical.
+ * Respell a body's `/cospec:<id>` references for the target dialect.
+ *
+ * - `canonical` — unchanged; Claude registers `/cospec:<id>` slash commands.
+ * - `opencode` — `/cospec-<id>`, matching the slash commands OpenCode registers.
+ * - `shared` — `$cospec-<skill> (Codex) or /cospec-<skill> (other agents)`. The shared
+ *   `.agents/skills` root emits NO command files, so `/cospec-<id>` would dangle there;
+ *   only the skill directory name resolves, and only 4 of the 12 workflows spell their id
+ *   the same as their skill suffix. An id absent from `skillById` is left verbatim so
+ *   doctor's dangling-ref check still fires on a genuinely bad reference.
  */
-export function transformBodyForHarness(body: string, harness: HarnessName): string {
-  if (harness === 'opencode') return body.replaceAll('/cospec:', '/cospec-')
-  return body
+export function transformBody(
+  body: string,
+  dialect: BodyDialect,
+  skillById: ReadonlyMap<string, string>,
+): string {
+  if (dialect === 'canonical') return body
+  if (dialect === 'opencode') return body.replaceAll('/cospec:', '/cospec-')
+  return body.replace(WORKFLOW_REF_RE, (whole, id: string) => {
+    const skill = skillById.get(id)
+    if (skill === undefined) return whole
+    return `$${skill} (Codex) or /${skill} (other agents)`
+  })
 }
 
 /**
@@ -59,7 +93,7 @@ export function injectOpenCodeArgs(body: string): string {
   return `${body.slice(0, match.index)}${line}${eol}${eol}${body.slice(match.index)}`
 }
 
-/** SKILL.md frontmatter — identical shape across all three harnesses (DESIGN §6.3). */
+/** SKILL.md frontmatter — identical shape across every harness (DESIGN §6.3). */
 export function buildSkillFrontmatter(
   w: WorkflowDef,
   version: string,

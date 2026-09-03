@@ -33,15 +33,35 @@ import {
   writeManifest,
 } from '../core/managed-files.ts'
 import { composeAllTypes, TYPE_TABLE } from '../core/schema-compose.ts'
+import { LEGACY_CODEX_SKILL_ROOT, migrateLegacySkills } from '../harness/legacy-skills.ts'
 import { type HarnessName, HARNESS_NAMES, renderHarnessFiles } from '../harness/render.ts'
 
 // --- harness detection -----------------------------------------------------
 
-/** Skill base dir per harness (mirrors canon/workflows/harness.yaml). */
+/**
+ * Skill base dir per harness (mirrors canon/workflows/harness.yaml). `codex` and
+ * `agents` share the vendor-neutral `.agents/skills` root and render byte-identical
+ * files there; codex adds `.codex/rules/cospec.rules` on top.
+ */
 const SKILL_BASE: Record<HarnessName, string> = {
   claude: '.claude/skills',
-  codex: '.codex/skills',
+  codex: '.agents/skills',
+  agents: '.agents/skills',
   opencode: '.opencode/skills',
+}
+
+/** Skill roots a harness used to write to, still scanned for detection + migration. */
+const LEGACY_SKILL_BASE: Partial<Record<HarnessName, readonly string[]>> = {
+  codex: [LEGACY_CODEX_SKILL_ROOT],
+}
+
+/**
+ * A non-skill file that proves a harness was configured here. Needed because
+ * `codex` and `agents` write the same skill tree: without the marker an
+ * `agents`-only user would start getting a spurious `.codex/rules/cospec.rules`.
+ */
+const HARNESS_MARKER: Partial<Record<HarnessName, string>> = {
+  codex: '.codex/rules/cospec.rules',
 }
 
 /** The sentinel skill every harness always emits — used for presence detection. */
@@ -56,9 +76,19 @@ const SENTINEL_SKILL = 'cospec-propose'
  * ignored rather than joined onto cwd and deleted.
  */
 const MANAGED_REMOVAL_ROOTS: readonly string[] = [
-  'openspec',
-  ...new Set(Object.values(SKILL_BASE).map((base) => base.split('/')[0]!)),
+  ...new Set([
+    'openspec',
+    ...Object.values(SKILL_BASE).map(topLevel),
+    // `.codex` no longer contributes a skill base, but the codex rules file still
+    // lives there and is manifest-tracked, so it must stay removable.
+    ...Object.values(HARNESS_MARKER).flatMap((p) => (p === undefined ? [] : [topLevel(p)])),
+    ...Object.values(LEGACY_SKILL_BASE).flatMap((bases) => (bases ?? []).map(topLevel)),
+  ]),
 ]
+
+function topLevel(path: string): string {
+  return path.split('/')[0]!
+}
 
 function isCospecManagedMarkdown(text: string): boolean {
   const meta = readManagedMeta(text)
@@ -83,12 +113,27 @@ function readManagedMeta(text: string): ManagedMeta | undefined {
   }
 }
 
-/** Harnesses whose skill dir already holds a cospec-generated sentinel skill. */
+function hasSentinel(cwd: string, base: string): boolean {
+  const path = join(cwd, base, SENTINEL_SKILL, 'SKILL.md')
+  if (!existsSync(path)) return false
+  return isCospecManagedMarkdown(readFileSync(path, 'utf8'))
+}
+
+/**
+ * Harnesses whose skill dir already holds a cospec-generated sentinel skill.
+ *
+ * `codex` needs two clauses. A pre-migration install is detected by its LEGACY
+ * base alone — without that, a `.codex/skills` tree would stop being regenerated
+ * and would never be cleaned up. A migrated install has no legacy tree left, so
+ * it is detected by the shared sentinel plus the codex-only rules file; the
+ * marker is what keeps an `agents`-only repo from acquiring a `.codex/` dir.
+ */
 export function detectHarnesses(cwd: string): HarnessName[] {
   return HARNESS_NAMES.filter((h) => {
-    const path = join(cwd, SKILL_BASE[h], SENTINEL_SKILL, 'SKILL.md')
-    if (!existsSync(path)) return false
-    return isCospecManagedMarkdown(readFileSync(path, 'utf8'))
+    if ((LEGACY_SKILL_BASE[h] ?? []).some((base) => hasSentinel(cwd, base))) return true
+    if (!hasSentinel(cwd, SKILL_BASE[h])) return false
+    const marker = HARNESS_MARKER[h]
+    return marker === undefined || existsSync(join(cwd, marker))
   })
 }
 
@@ -222,6 +267,8 @@ export interface GenerateOptions {
 
 export interface GenerateResult {
   results: WriteResult[]
+  /** Legacy-layout outcomes from the `.codex/skills` -> `.agents/skills` move. */
+  migration: WriteResult[]
   /** The manifest that was (or would be) written. */
   manifest: Manifest
 }
@@ -305,8 +352,12 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
     results.push(removed)
   }
 
+  // After generation, never before: the fresh copy under `.agents/skills` must
+  // already exist before a legacy duplicate is removed.
+  const migration = migrateLegacySkills(cwd, mdEmitted, writeOpts)
+
   if (!writeOpts.dryRun) writeManifest(cwd, newManifest)
-  return { results, manifest: newManifest }
+  return { results, migration, manifest: newManifest }
 }
 
 /** Scan the emitted harnesses' skill/command dirs for cospec markdown we no longer emit. */
@@ -371,8 +422,10 @@ export function run(ctx: CommandContext): number {
   }
 
   const harnesses = detectHarnesses(cwd)
-  const { results } = generate(cwd, { harnesses, force, dryRun: check })
-  const drifted = results.filter((r) => DRIFT_OUTCOMES.has(r.outcome))
+  const { results, migration } = generate(cwd, { harnesses, force, dryRun: check })
+  // A remaining legacy layout is drift: `cospec update --check` (and therefore
+  // `generate:check` in CI) must fail while `.codex/skills` still holds cospec files.
+  const drifted = [...results, ...migration].filter((r) => DRIFT_OUTCOMES.has(r.outcome))
 
   if (flags.json) {
     process.stdout.write(
@@ -382,6 +435,7 @@ export function run(ctx: CommandContext): number {
           mode: check ? 'check' : force ? 'force' : 'write',
           harnesses,
           files: results,
+          migration,
         },
         null,
         2,
@@ -391,7 +445,34 @@ export function run(ctx: CommandContext): number {
   }
 
   renderHuman(results, { check, harnesses, hadManifest: existsSync(manifestPath(cwd)) })
+  for (const line of migrationLines(migration, check)) process.stdout.write(`${line}\n`)
   return check && drifted.length > 0 ? 1 : 0
+}
+
+/**
+ * Human report for the `.codex/skills` -> `.agents/skills` move. Exported so
+ * `init`'s receipt prints exactly the same wording.
+ */
+export function migrationLines(migration: WriteResult[], check: boolean): string[] {
+  const removed = migration.filter((r) => r.outcome === 'removed')
+  const kept = migration.filter((r) => r.outcome === 'preserved-modified')
+  const lines: string[] = []
+  if (removed.length > 0) {
+    lines.push(
+      check
+        ? `Would migrate ${removed.length} skill file(s): ${LEGACY_CODEX_SKILL_ROOT} -> .agents/skills`
+        : `Migrated ${removed.length} skill file(s): ${LEGACY_CODEX_SKILL_ROOT} -> .agents/skills`,
+    )
+  }
+  if (kept.length > 0) {
+    lines.push(
+      `Left ${kept.length} file(s) in ${LEGACY_CODEX_SKILL_ROOT} that differ from the copy in ` +
+        '.agents/skills — nothing was overwritten. Compare them and delete the .codex/ copy ' +
+        'once you have kept anything you customised (or re-run with --force).',
+    )
+    for (const r of kept) lines.push(`  ${r.path}`)
+  }
+  return lines
 }
 
 function renderHuman(

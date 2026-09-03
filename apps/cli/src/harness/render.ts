@@ -7,6 +7,7 @@ import { parse } from 'yaml'
 import pkg from '../../package.json'
 import { canonFile } from '../canon/embedded.ts'
 import {
+  type BodyDialect,
   buildClaudeCommandFrontmatter,
   buildOpencodeCommandFrontmatter,
   buildSkillFrontmatter,
@@ -14,11 +15,11 @@ import {
   injectOpenCodeArgs,
   renderCodexRules,
   serializeFrontmatter,
-  transformBodyForHarness,
+  transformBody,
   type WorkflowDef,
 } from './adapters.ts'
 
-export { type HarnessName, HARNESS_NAMES, isHarnessName } from './adapters.ts'
+export { type BodyDialect, type HarnessName, HARNESS_NAMES, isHarnessName } from './adapters.ts'
 
 /** The provenance version stamped into generatedBy, single-sourced from package.json. */
 export const CANON_VERSION = `cospec@${pkg.version}`
@@ -64,7 +65,13 @@ interface HarnessSurface {
   commandDir?: string
   commandFile?: string
   skillDir: string
+  /**
+   * Skill directory templates this harness used in an earlier cospec version. Recorded in
+   * canon so the layout has one source of truth; the migration itself lives elsewhere.
+   */
+  legacySkillDirs?: string[]
   rulesPath?: string
+  bodyDialect: BodyDialect
 }
 
 interface HarnessManifest {
@@ -84,7 +91,26 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
     opts.canonDir === undefined ? canonFile(`workflows/${name}`) : join(opts.canonDir, name)
   const manifest = parse(readFileSync(workflowFile('harness.yaml'), 'utf8')) as HarnessManifest
 
-  const out: RenderedFile[] = []
+  const skillById = new Map(manifest.workflows.map((w) => [w.id, w.skill] as const))
+
+  // Keyed by output path: `codex` and `agents` share the `.agents/skills` root and render
+  // byte-identical files there, so selecting both must emit each file exactly once rather
+  // than twice (a duplicate row makes writeMarkdown run twice and doctor double-count).
+  const out = new Map<string, RenderedFile>()
+  const emit = (file: RenderedFile): void => {
+    const seen = out.get(file.path)
+    if (seen === undefined) {
+      out.set(file.path, file)
+      return
+    }
+    if (seen.content !== file.content) {
+      throw new Error(
+        `harness render conflict: ${seen.harness} and ${file.harness} both write ${file.path} ` +
+          'with different content. Harnesses sharing an output root must share a bodyDialect.',
+      )
+    }
+  }
+
   for (const harness of opts.harnesses) {
     const surface = manifest.harnesses[harness]
     for (const w of manifest.workflows) {
@@ -92,7 +118,7 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
       const injected = w.injectTypeTable
         ? rawBody.replace('{{TYPE_TABLE}}', renderTypeTable(opts.typeTable))
         : rawBody
-      const skillBody = transformBodyForHarness(injected, harness)
+      const skillBody = transformBody(injected, surface.bodyDialect, skillById)
       // OpenCode drops a slash command's arguments unless the body names them, so an
       // arg-taking workflow's COMMAND body carries `$ARGUMENTS` while its skill body
       // does not — which is why each surface hashes its own body.
@@ -103,7 +129,7 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
       const skillSection = `\n${skillBody}`
       const skillHash = hashBody(skillSection)
 
-      out.push(
+      emit(
         assemble({
           harness,
           kind: 'skill',
@@ -119,7 +145,7 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
       if (surface.commandDir && surface.commandFile) {
         const commandSection = `\n${commandBody}`
         const commandHash = hashBody(commandSection)
-        out.push(
+        emit(
           assemble({
             harness,
             kind: 'command',
@@ -139,7 +165,7 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
 
     if (surface.rulesPath) {
       const body = renderCodexRules(version)
-      out.push({
+      emit({
         harness,
         kind: 'rules',
         workflow: null,
@@ -151,7 +177,7 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
       })
     }
   }
-  return out
+  return [...out.values()]
 }
 
 /**

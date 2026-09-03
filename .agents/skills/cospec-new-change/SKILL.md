@@ -6,12 +6,12 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.6.0
-  contentHash: sha256:c08b7e155630b8c71cb05eb637a65d957a7a5506d8f687f5d7e685eaaf94b475
+  contentHash: sha256:4039323d6aff19fdf3f07ef9ceab694b7ae8081e302f9cf857462d969bd4d31b
 ---
 
 Scaffold a new openspec change and stop. This workflow creates the change and
 shows you its typed artifact plan — it does not author any artifact. Hand off to
-`/cospec:ff` or `/cospec:continue` to actually write them.
+`$cospec-ff-change (Codex) or /cospec-ff-change (other agents)` or `$cospec-continue-change (Codex) or /cospec-continue-change (other agents)` to actually write them.
 
 All work goes through `cospec`. Never call `openspec` directly, and never
 hand-edit the bookkeeping under `openspec/changes/`.
@@ -66,7 +66,7 @@ scaffolds and previews.
 
 Tell the user the change is scaffolded and offer two ways to continue:
 
-- `/cospec:ff` — author every remaining artifact in one pass.
-- `/cospec:continue` — author one artifact at a time, reviewing each.
+- `$cospec-ff-change (Codex) or /cospec-ff-change (other agents)` — author every remaining artifact in one pass.
+- `$cospec-continue-change (Codex) or /cospec-continue-change (other agents)` — author one artifact at a time, reviewing each.
 
 Do not create any artifact file yourself in this workflow.
