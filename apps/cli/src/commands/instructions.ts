@@ -6,8 +6,7 @@
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
-import { spawnOpenspec } from '../core/openspec.ts'
-import { resolveRoot } from '../core/root.ts'
+import { runPassthrough } from '../core/passthrough-command.ts'
 import { run as applyRun } from './apply.ts'
 
 function flagValue(args: string[], flag: string): string | undefined {
@@ -17,6 +16,10 @@ function flagValue(args: string[], flag: string): string | undefined {
   return eq?.slice(flag.length + 1)
 }
 
+// `archive` (OpenSpec 1.7 parity) is deliberately NOT aliased to `cospec
+// archive` the way `apply` is aliased to the apply gate: upstream's
+// `instructions archive` is read-only guidance, so it falls through to the
+// generic passthrough branch below like every other artifact id.
 const ARTIFACTS = [
   'proposal',
   'blocking-changes',
@@ -25,10 +28,10 @@ const ARTIFACTS = [
   'verification',
   'tasks',
   'apply',
+  'archive',
 ]
 
 export async function run(ctx: CommandContext): Promise<number> {
-  const { flags } = ctx
   const artifact = ctx.args.find((a) => !a.startsWith('-'))
   const changeId = flagValue(ctx.args, '--change')
 
@@ -51,11 +54,5 @@ export async function run(ctx: CommandContext): Promise<number> {
     return EXIT.failure
   }
 
-  const root = await resolveRoot(ctx)
-  const args = ['instructions', artifact, '--change', changeId]
-  if (flags.json) args.push('--json')
-  const res = await spawnOpenspec([...args, ...root.storeArgs], root.cwd)
-  process.stdout.write(res.stdout)
-  if (res.stderr.length > 0) process.stderr.write(res.stderr)
-  return res.exitCode === 0 ? EXIT.success : EXIT.failure
+  return runPassthrough(ctx, { args: ['instructions', artifact, '--change', changeId] })
 }

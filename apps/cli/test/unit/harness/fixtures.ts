@@ -66,12 +66,13 @@ export const TYPE_TABLE: TypeTableEntry[] = [
 /** A fixed generatedBy stamp so snapshots do not churn on version bumps. */
 export const TEST_VERSION = 'cospec@test'
 
-/** The eleven canonical workflow ids and their skill names (DESIGN §6.1). */
+/** The twelve canonical workflow ids and their skill names (DESIGN §6.1). */
 export const WORKFLOW_COMMANDS = [
   'propose',
   'new',
   'continue',
   'ff',
+  'update',
   'apply',
   'verify',
   'archive',
@@ -81,11 +82,30 @@ export const WORKFLOW_COMMANDS = [
   'onboard',
 ] as const
 
+/**
+ * The workflows whose bodies read a positional argument, mirroring
+ * `takesArguments` in canon/workflows/harness.yaml. Only these get OpenCode's
+ * `$ARGUMENTS` injection; `bulk-archive` and `onboard` take no argument.
+ */
+export const ARG_WORKFLOWS = [
+  'propose',
+  'new',
+  'continue',
+  'ff',
+  'update',
+  'apply',
+  'verify',
+  'archive',
+  'sync-specs',
+  'explore',
+] as const
+
 export const WORKFLOW_SKILLS = [
   'cospec-propose',
   'cospec-new-change',
   'cospec-continue-change',
   'cospec-ff-change',
+  'cospec-update-change',
   'cospec-apply-change',
   'cospec-verify-change',
   'cospec-archive-change',

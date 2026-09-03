@@ -4,6 +4,16 @@
 // never trusts the AUTHOR's prediction — it derives openspec's real outcome and
 // asserts cospec agrees. Policy: cospec may be strictly more conservative, but a
 // FALSE PASS (cospec valid while openspec aborts) is a release blocker (§4.3).
+//
+// Re-probed against the 1.11.0 pin (2026-09-01). Two things moved:
+//   - An aborted archive now exits 1 (it exited 0 through 1.6.x). This suite
+//     never read the exit code — it reads the directory move and the abort
+//     banner — so the outcomes are unchanged.
+//   - 1.7.0 made an ADDED block identical to the living requirement a no-op
+//     (the early-sync pattern) instead of an abort. `added-already-exists` now
+//     carries a DIFFERING body so it still pins the genuine collision, and the
+//     no-op case is its own fixture, marked `conservative` because cospec's
+//     name-based `archive/added-exists` deliberately still flags it.
 
 import { afterAll, describe, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
@@ -39,7 +49,7 @@ async function openspecArchives(root: string, name: string): Promise<boolean> {
   return moved && !aborted
 }
 
-describe('archive-precondition parity with openspec 1.3.1 (re-probed unchanged at 1.5.0)', () => {
+describe('archive-precondition parity with the pinned openspec binary (re-probed at 1.11.0)', () => {
   for (const fixture of PARITY_FIXTURES) {
     test(fixture.key, async () => {
       const readRepo = mkTempRepo({ git: true })
@@ -54,6 +64,11 @@ describe('archive-precondition parity with openspec 1.3.1 (re-probed unchanged a
       if (!archived) {
         expect(verdict.invalid).toBe(true)
         if (fixture.rule !== undefined) expect(verdict.rules).toContain(fixture.rule)
+      } else if (fixture.conservative !== undefined) {
+        // A recorded, deliberate over-strictness: cospec rejects what openspec
+        // accepts, and it must be THIS rule doing it, not incidental drift.
+        expect(verdict.invalid).toBe(true)
+        expect(verdict.rules).toContain(fixture.conservative)
       } else {
         // openspec accepted it → cospec must not spuriously reject a clean change.
         expect(verdict.invalid).toBe(false)

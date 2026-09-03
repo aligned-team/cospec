@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.5.4
-  contentHash: sha256:f9e56d23172fb59e3f07b79306124b499b5d1b155dc2a71f13ef98337eda5ed5
+  contentHash: sha256:3efd381c4cb324e31ad39b99ec2817025f0c4b4ad3855d0bf43aff24d97bda87
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -30,8 +30,7 @@ The argument after the command is either `<type>: <free text>` (for example
 `feat: add a greeting endpoint`) or a bare description.
 
 - If it begins with a known type followed by `:`, use that type.
-- Otherwise ask the user to choose a type with AskUserQuestion, offering this
-  table:
+- Otherwise ask the user to choose a type, offering this table:
 
 | Type | What it is for | Artifacts |
 | --- | --- | --- |
@@ -70,7 +69,9 @@ Loop until every artifact in the type's `apply.requires` is written:
    `cospec instructions <artifact> --change <slug> --json`. The JSON carries the
    template, the type-specific instruction, and any project `context` and
    `rules`. Treat `context` and `rules` as constraints on how you write — never
-   copy them into the artifact itself.
+   copy them into the artifact itself. Re-read every completed dependency
+   artifact from disk before writing against it, even if you wrote it earlier in
+   this session — the user may have edited it since.
 3. Write the artifact at the path the instructions name, following the format
    exactly. `blocking-changes.md`, the `specs/**/spec.md` deltas, and
    `verification.md` are machine-parsed — small deviations fail validation.

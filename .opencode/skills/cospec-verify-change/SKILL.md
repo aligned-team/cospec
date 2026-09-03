@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.5.4
-  contentHash: sha256:fa9c999614a012ae1f53397848ad434aa3dbac73f812702ddeb1b10f59fac069
+  contentHash: sha256:49d95e8ab9359318596fe9f22c83c17f8b7a12934127df8e746035c8a53d0d6a
 ---
 
 Dress-rehearse a change before archiving it. This workflow does not archive — it
@@ -18,8 +18,9 @@ hand-edit the bookkeeping under `openspec/changes/`.
 
 ## 1. Select the change
 
-If the user named one, use it. Otherwise run `cospec list --json` and pick, or
-ask.
+If the user named one, use it. Otherwise run `cospec list --json`: if exactly
+one active change exists, use it and announce `Using change: <slug>`; if more
+than one is plausible, ask.
 
 ## 2. Validate
 

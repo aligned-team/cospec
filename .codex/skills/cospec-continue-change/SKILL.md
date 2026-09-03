@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.5.4
-  contentHash: sha256:ee3707b99320986059fc3788acb757abb17cc698adc582cefbf5a29a4f87cfde
+  contentHash: sha256:2b7c61ad71a36a9dbe6e864a51a0c5e0ca2f115240ccb1abb1a38279e04869d4
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -23,9 +23,10 @@ other repo files to reverse-engineer an artifact's shape.
 cospec list --json
 ```
 
-If the user named a change, use it. Otherwise choose the in-progress one; if
-more than one is plausible, ask with AskUserQuestion, showing each change's type
-and gate state.
+If the user named a change, use it. If exactly one active change exists, use it
+and announce `Using change: <slug>`, naming `/cospec:continue <other-slug>` as
+the override. If more than one is plausible, ask the user which one, showing
+each change's type and gate state.
 
 ## 2. Find what is missing
 
@@ -41,9 +42,11 @@ write next.
 Run the same loop as `/cospec:propose` step 3: for each ready artifact, call
 `cospec instructions <artifact> --change <slug> --json`, write it to the named
 path, and repeat until every required artifact exists. Apply `context` and
-`rules` as constraints, never copy them into the output. Follow the
-machine-parsed formats for `blocking-changes.md`, the `specs/**/spec.md` deltas,
-and `verification.md` exactly.
+`rules` as constraints, never copy them into the output. Re-read every completed
+dependency artifact from disk before writing against it — this change was
+started in an earlier session, so nothing you remember about its artifacts is
+trustworthy. Follow the machine-parsed formats for `blocking-changes.md`, the
+`specs/**/spec.md` deltas, and `verification.md` exactly.
 
 ## 4. Format, validate, and hand off
 

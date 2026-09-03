@@ -3,7 +3,7 @@ description: Author every remaining artifact on an already-scaffolded change in 
 metadata:
   author: cospec
   generatedBy: cospec@0.5.4
-  contentHash: sha256:45fdafc162e7a4e5c780f12716917010320de78ecd125678116282df3fd73b9d
+  contentHash: sha256:fc1f20b8f00873c8f7ce455995b5ad71c76dea90b79cf80d5c37ab2e2296ffbe
 ---
 
 Fast-forward an already-scaffolded change: author every remaining artifact in
@@ -20,15 +20,17 @@ authoritative template, per-type format, and project rules for each artifact.
 Trust that output: do NOT read `openspec/schemas/`, `openspec/config.yaml`, or
 other repo files to reverse-engineer an artifact's shape.
 
+**Provided arguments**: $ARGUMENTS
+
 ## 1. Pick the change
 
 ```
 cospec list --json
 ```
 
-If the user named a change, use it. Otherwise choose the in-progress one; if
-more than one is plausible, ask with AskUserQuestion, showing each change's type
-and gate state.
+If the user named a change, use it. If exactly one active change exists, use it
+and announce `Using change: <slug>`. If more than one is plausible, ask the user
+which one, showing each change's type and gate state.
 
 ## 2. Read the plan
 
@@ -49,7 +51,9 @@ Loop until every artifact in `apply.requires` is written:
 2. For each ready artifact, run
    `cospec instructions <artifact> --change <slug> --json`. Treat `context` and
    `rules` as constraints on how you write — never copy them into the artifact
-   itself.
+   itself. Re-read every completed dependency artifact from disk before writing
+   against it, even if you wrote it earlier in this session — the user may have
+   edited it since.
 3. Write the artifact at the path the instructions name, following the format
    exactly. `blocking-changes.md`, the `specs/**/spec.md` deltas, and
    `verification.md` are machine-parsed — small deviations fail validation.

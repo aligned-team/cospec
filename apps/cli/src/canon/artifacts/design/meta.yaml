@@ -32,3 +32,15 @@ instruction: |
   ## Goals / Non-Goals, ## Decisions (each with the alternative rejected and
   why), ## Risks / Trade-offs ([Risk] → Mitigation). Decisions, not restated
   requirements.
+
+  Design covers HOW; the proposal already covers why and what, and the specs
+  cover the requirements. Reference them instead of restating them — Context
+  carries only the current state and constraints the approach needs, and
+  Goals / Non-Goals adds design-level boundaries rather than repeating the
+  proposal's scope. If a section would only restate another artifact, point at
+  it instead.
+
+  An ## Open Questions section (omit it if empty) is for unknowns that can
+  safely be answered later without changing the specs, the approach, or the
+  task breakdown. A question that would change any of those is not deferrable:
+  resolve it with the user now rather than guessing or listing it.

@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.5.4
-  contentHash: sha256:205ccbda4ae0048b99240a4bc674a2234fbec00222854df0e5b4b3f982f623d4
+  contentHash: sha256:819f5451b1d3e37e206ff5b11f52ab86885a2a558c3b20502d03068ca06ac97f
 ---
 
 Explain and preview spec synchronization. Spec sync is not a standalone step in
@@ -20,6 +20,10 @@ neither validates nor archives cleanly.
 
 ## Preview what would merge
 
+If the user did not name a change, run `cospec list --json`: if exactly one
+active change exists, use it and announce `Using change: <slug>`; if more than
+one is plausible, ask.
+
 ```
 cospec validate <slug>
 ```
@@ -29,6 +33,16 @@ ADDED collisions, scenarios are well-formed) and reports anything that would
 make the merge fail. Then read the delta files under
 `openspec/changes/<slug>/specs/**/spec.md` to see the exact ADDED / MODIFIED /
 REMOVED / RENAMED operations.
+
+## Retiring a capability
+
+If a delta's REMOVED operations take the last requirement out of a capability,
+the merge deletes that capability's `openspec/specs/<capability-path>/spec.md`
+rather than leaving an empty `## Requirements` section. That is only permitted
+when the change's `.openspec.yaml` declares `retire_capabilities: true`; without
+the marker the merge refuses and reports the missing marker as the blocking
+condition. Deleting the file also deletes its `## Purpose` — name both when you
+report a retirement, and give the user a way to recover the file.
 
 ## Actually sync
 

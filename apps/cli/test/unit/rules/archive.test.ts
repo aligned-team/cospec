@@ -135,12 +135,26 @@ describe('archiveRules: archive/scenario-preservation (advisory mirror)', () => 
     expect(issues.find((i) => i.rule === 'archive/scenario-preservation')?.level).toBe('ERROR')
   })
 
-  test('a `Scenario removed:` note suppresses the mirror rule', () => {
+  // openspec 1.8.0's own scenario-loss check refuses a MODIFIED block that omits
+  // a living scenario, and its archive aborts on one, with no notion of cospec's
+  // note — so the note is no longer an escape hatch. It only changes the hint.
+  test('a `Scenario removed:` note no longer suppresses the mirror rule', () => {
     const text =
       '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n- Scenario removed: s2 was redundant.\n\n#### Scenario: s1\n\n- **WHEN** a\n'
-    expect(rules(archiveRules(change(text, { living: TWO_SCENARIO_LIVING })))).not.toContain(
-      'archive/scenario-preservation',
+    const issues = archiveRules(change(text, { living: TWO_SCENARIO_LIVING }))
+    const issue = issues.find((i) => i.rule === 'archive/scenario-preservation')
+    expect(issue?.level).toBe('WARNING')
+    expect(issue?.hint).toContain('no longer excuses the drop')
+  })
+
+  test('without a note the hint names the remedies but not the retired note', () => {
+    const text =
+      '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n#### Scenario: s1\n\n- **WHEN** a\n'
+    const issue = archiveRules(change(text, { living: TWO_SCENARIO_LIVING })).find(
+      (i) => i.rule === 'archive/scenario-preservation',
     )
+    expect(issue?.hint).not.toContain('no longer excuses the drop')
+    expect(issue?.hint).toContain('copy the missing scenario back into the MODIFIED block')
   })
 
   test('an unchanged scenario count never fires', () => {

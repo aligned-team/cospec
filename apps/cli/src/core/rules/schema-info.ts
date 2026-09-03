@@ -65,6 +65,18 @@ export interface OpenspecYaml {
   schemaVersion?: number
   /** a `schemaVersion:` key present but not a positive integer (meta/openspec-yaml). */
   schemaVersionInvalid?: boolean
+  /**
+   * `skip_specs:` — a persisted declaration that this change carries no delta
+   * specs, the durable equivalent of `cospec archive --skip-specs`. Only a
+   * boolean lands here; a present-but-non-boolean value sets the flag below.
+   */
+  skipSpecs?: boolean
+  /** a `skip_specs:` key present but not a boolean (meta/skip-specs-type). */
+  skipSpecsInvalid?: boolean
+  /** `retire_capabilities:` — this change intentionally retires capabilities. */
+  retireCapabilities?: boolean
+  /** a `retire_capabilities:` key present but not a boolean (meta/retire-capabilities-type). */
+  retireCapabilitiesInvalid?: boolean
 }
 
 export interface DeltaFileInput {

@@ -7,8 +7,9 @@ hand-edit the bookkeeping under `openspec/changes/`.
 
 ## 1. Select the change
 
-If the user named one, use it. Otherwise run `cospec list --json` and pick, or
-ask.
+If the user named one, use it. Otherwise run `cospec list --json`: if exactly
+one active change exists, use it and announce `Using change: <slug>`; if more
+than one is plausible, ask.
 
 ## 2. Validate
 

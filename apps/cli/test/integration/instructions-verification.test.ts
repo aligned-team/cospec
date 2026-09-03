@@ -51,3 +51,41 @@ describe('cospec instructions verification', () => {
     })
   }
 })
+
+// `cospec instructions archive` (OpenSpec 1.7 parity, W9): a read-only artifact
+// like every other one here — never aliased to `cospec archive` — routed
+// through the same disciplined-passthrough plumbing (`passthroughOpenspec` /
+// `callPassthrough`) as `show`/`context`/`workset`, so it gets the one-JSON-
+// document invariant and exit-code normalization for free.
+describe('cospec instructions archive', () => {
+  test('relays the wrapped archive-inputs payload (--json)', async () => {
+    const root = await initRepo()
+    const created = await cospec(['new', 'feat', 'add-widget'], { cwd: root })
+    expect(created.exitCode).toBe(0)
+
+    const res = await cospec(['instructions', 'archive', '--change', 'add-widget', '--json'], {
+      cwd: root,
+    })
+    expect(res.exitCode).toBe(0)
+    const json = JSON.parse(res.stdout) as { changeName: string }
+    expect(json.changeName).toBe('add-widget')
+  })
+
+  test('relays the human-readable form too (no --json)', async () => {
+    const root = await initRepo()
+    const created = await cospec(['new', 'feat', 'add-widget'], { cwd: root })
+    expect(created.exitCode).toBe(0)
+
+    const res = await cospec(['instructions', 'archive', '--change', 'add-widget'], { cwd: root })
+    expect(res.exitCode).toBe(0)
+    expect(res.stdout).toContain('Archive Inputs: add-widget')
+  })
+
+  test('an unknown change relays the wrapped exit-1 failure rather than throwing', async () => {
+    const root = await initRepo()
+    const res = await cospec(['instructions', 'archive', '--change', 'does-not-exist', '--json'], {
+      cwd: root,
+    })
+    expect(res.exitCode).toBe(1)
+  })
+})

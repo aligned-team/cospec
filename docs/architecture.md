@@ -2,7 +2,7 @@
 
 cospec is a wrapper. It owns no spec-format logic of its own that OpenSpec
 already implements correctly — it constrains, validates, and verifies OpenSpec
-`1.5.0`, and closes the specific failure modes that make raw OpenSpec unsafe to
+`1.11.0`, and closes the specific failure modes that make raw OpenSpec unsafe to
 hand to an agent.
 
 ## The wrapping boundary
@@ -30,11 +30,21 @@ cospec spawns OpenSpec; it never imports it.
   caught by re-hashing rather than only re-measuring. OpenSpec's built-in
   `schemas/` are not embedded: a cospec-managed project always has project-local
   `openspec/schemas/`, which wins OpenSpec's own resolution order. Either way
-  cospec spawns `<execPath> <bin> <args>` with `--no-color`, `BUN_BE_BUN=1` (the
-  compiled binary is its own bun runtime), `OPENSPEC_TELEMETRY=0` (OpenSpec's
-  first-run telemetry notice prints to stdout and would corrupt `--json` reads),
-  and `cwd` set to the target repo — never whatever happens to be on the
-  developer's `$PATH`.
+  cospec spawns `<execPath> <bin> <args>` under the forced spawn environment,
+  `WRAPPED_ENV` (`core/openspec.ts`) — a named, exported contract of four keys,
+  which supersedes any config-file opt-out OpenSpec itself offers for the same
+  settings: `--no-color`; `BUN_BE_BUN=1` (the compiled binary is its own bun
+  runtime); `OPENSPEC_TELEMETRY=0`, which does double duty — it silences the
+  first-run telemetry notice that would otherwise print to stdout and corrupt
+  every `--json` read, **and** it disables OpenSpec's own per-command update
+  check (`isCheckEnabled()` is wired into every command, not just `init`/
+  `update`, and returns false when this is `'0'`), keeping every wrapped spawn
+  offline — removing this key does not just re-enable a notice, it re-enables an
+  outbound npm request on every single wrapped call;
+  `OPENSPEC_NO_COMPLETIONS=1`, which silences 1.10.0's stderr shell-completion
+  tip so a cospec user is never told to run a bare `openspec` command. `cwd` is
+  set to the target repo — never whatever happens to be on the developer's
+  `$PATH`.
 - **Never `import` the package.** Importing OpenSpec's root runs
   `program.parse()` as a side effect. Deep-importing its `dist/*` internals is
   also forbidden — those are not a stable interface.
@@ -44,11 +54,15 @@ cospec spawns OpenSpec; it never imports it.
   a refusal message naming the range and a `COSPEC_ALLOW_OPENSPEC_DRIFT=1`
   override for the brave (which makes cospec version-blind but does not make an
   out-of-range binary safe to wrap). Separately, the repo pins one exact build
-  for dev/CI — `PINNED_OPENSPEC_VERSION` (`1.5.0`), the version the contract
+  for dev/CI — `PINNED_OPENSPEC_VERSION` (`1.11.0`), the version the contract
   suite is probed against. The dep pin, the `mise.toml` pin, that constant, and
   the live binary are held coherent by the version tripwire contract test (the
   pin is exact and in range; the binary reports it and satisfies the range), so
-  a bump breaks the test suite first.
+  a bump breaks the test suite first. The floor of the accepted range
+  (`>=1.0.0`) is deliberately not raised alongside the pin — every per-surface
+  runtime minimum below (`instructions archive` needs `>=1.7.0`,
+  `validate --archived` needs `>=1.9.0`) is enforced as its own runtime check,
+  not by narrowing what version cospec will wrap at all.
 
 ## The wrapped-call discipline
 
@@ -63,6 +77,14 @@ Every call site into OpenSpec declares three things:
 The rule behind all three: **trust post-conditions, never exit codes alone.**
 OpenSpec can exit 0 and still have done nothing (see below). A wrapped call
 without a registered post-condition is a review-blocking omission.
+
+Upstream tightened this at 1.7.0: an aborted `openspec archive` now exits `1`
+instead of `0`. That's a real improvement, but it changes nothing about this
+discipline — cospec's accepted floor is still `1.0.0`, where exit-0-on-abort is
+real, so success is computed from filesystem post-conditions with the exit code
+ANDed in as one term among several, never trusted alone. Softening this back to
+exit-code trust because the pinned build happens to behave better would be a
+regression the moment someone runs cospec against an older in-range binary.
 
 ## The disciplined-passthrough runner
 
@@ -131,21 +153,35 @@ because a real breach there must not compute as a clean archive:
   any scenario-count drop that lacks a `Scenario removed: <reason>` note or a
   matching `REMOVED` operation. This is the gate that would have caught the
   archive-time thinning `openspec archive` itself waves through at exit 0. It
-  ships with a contract test against the real pinned openspec 1.5.0 binary
+  ships with a contract test against the real pinned openspec 1.11.0 binary
   proving cospec refuses even though openspec would happily merge the delta — a
   false PASS here is a release blocker, same discipline as the rest of the
-  archive-precondition family.
+  archive-precondition family. As of upstream 1.6.0, `openspec archive` also
+  runs its own overlapping scenario-loss check, so cospec's gate is
+  defence-in-depth on 1.6.0+ runtimes and is the **sole** defence only on
+  1.0.0–1.5.x, inside the accepted `>=1.0.0 <2.0.0` range.
 
 ### 3. OpenSpec's generated files reference skills it never generates
 
 OpenSpec's own scaffolding points at `openspec-sync-specs` /
 `openspec-continue-change` skills that its generator does not emit — dangling
-references that confuse agents. cospec ships all eleven workflows (`propose`,
+references that confuse agents. cospec ships all twelve workflows (`propose`,
 `new`, `continue`, `ff`, `apply`, `verify`, `archive`, `bulk-archive`,
-`sync-specs`, `explore`, `onboard`) from a single canon source, and every
-generated body references only skills the same generator run emits. A unit test
-greps the rendered output for dangling references, and `cospec doctor` enforces
-the same guard on an installed repo.
+`sync-specs`, `explore`, `onboard`, `update`) from a single canon source, and
+every generated body references only skills the same generator run emits. A unit
+test greps the rendered output for dangling references, and `cospec doctor`
+enforces the same guard on an installed repo.
+
+OpenCode's rendered **command** body differs from its **skill** body for a
+workflow that reads a positional argument: `harness/adapters.ts`'s
+`injectOpenCodeArgs` inserts a `$ARGUMENTS` placeholder paragraph into the
+command body (OpenCode only substitutes a slash command's typed arguments
+through an explicit placeholder — a body without one silently drops everything
+the user typed after the command name), immediately before the body's first
+`## ` section. The skill body never gets this — nothing substitutes the
+placeholder there, and the literal text would leak to the model — so the two
+rendered bodies for the same workflow have different `contentHash`es on OpenCode
+by design, not by drift.
 
 ## The static-matrix invariant
 

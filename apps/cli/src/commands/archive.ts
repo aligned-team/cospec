@@ -1,13 +1,14 @@
 // `cospec archive <change>` — validate → tasks gate → `openspec archive` →
 // filesystem verification → post-merge spot-check → blocker fan-out (DESIGN
-// §5.2). The numbered steps below are the core product promise: openspec
-// 1.3.1 can exit 0 while silently aborting an archive (probe §5.5), so cospec
-// never trusts the exit code — it verifies the move on disk (date-agnostically,
-// MF2), spot-checks the spec merge, then fans blocker check-offs out across
-// sibling changes and prints the flywheel summary.
+// §5.2). The numbered steps below are the core product promise: an openspec
+// below 1.7.0 can exit 0 while silently aborting an archive (probe §5.5) — and
+// cospec accepts >=1.0.0 <2.0.0 — so cospec never trusts the exit code. It
+// verifies the move on disk (date-agnostically, MF2), spot-checks the spec
+// merge, relays the wrapped binary's non-blocking warnings, then fans blocker
+// check-offs out across sibling changes and prints the flywheel summary.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
@@ -21,11 +22,19 @@ import {
   resolveSchema,
   type Change,
 } from '../core/change.ts'
-import { findScenarioDrops, parseDeltaSpec, parseLivingSpec, type DeltaOp } from '../core/deltas.ts'
+import {
+  findScenarioDrops,
+  parseDeltaSpec,
+  parseLivingSpec,
+  SCENARIO_DROP_HINT,
+  SCENARIO_DROP_NOTE_RETIRED,
+  type DeltaOp,
+} from '../core/deltas.ts'
 import { spawnOpenspec } from '../core/openspec.ts'
 import { renderHuman, renderJson, type ItemReport } from '../core/report.ts'
 import { resolveRoot } from '../core/root.ts'
 import { enforcedApplyRequires, TYPE_ARTIFACTS, type CospecType } from '../core/rules/type-facts.ts'
+import { capabilityForDeltaFile, isDeltaSpecFile } from '../core/spec-paths.ts'
 import { parseTasks } from '../core/tasks.ts'
 import { computeVerificationVerdict, parseVerification } from '../core/verification.ts'
 import { archiveMap, atomicWrite, closest, computeGate } from './apply.ts'
@@ -34,30 +43,151 @@ import { buildValidateContext, validateChange } from './validate.ts'
 const ABORTED_RE = /\bAborted\b/
 const CANCELLED_RE = /\bArchive cancelled\b/
 
+/** U+26A0 WARNING SIGN, optionally with the U+FE0F emoji variation selector. */
+const WARN_GLYPH = '[\\u26A0\\uFE0F]'
+/** `⚠️  Warning: <msg>` — spec-merge warnings (openspec `specs-apply.ts`). */
+const WARNING_LINE_RE = new RegExp(`^\\s*(?:${WARN_GLYPH}\\s*)*Warning:\\s*(\\S.*?)\\s*$`)
+/** `  ⚠ <msg>` — the bullets under "Proposal warnings in proposal.md". */
+const WARNING_BULLET_RE = new RegExp(`^\\s*${WARN_GLYPH}+\\s*(\\S.*?)\\s*$`)
+/** `Retiring openspec/specs/<cap>/spec.md: all requirements removed.` (1.8.0). */
+const RETIRING_LINE_RE = /^\s*(Retiring\s+\S.*?)\s*$/
+
+/**
+ * Non-blocking warnings the wrapped `openspec archive` printed on its way to a
+ * SUCCESSFUL archive.
+ *
+ * cospec only ever showed the wrapped output when the archive failed, so every
+ * warning on the success path was swallowed: a delta Purpose silently ignored,
+ * a REMOVED requirement that was already gone, authored prose that travelled
+ * with a requirement it sat inside — and, since 1.8.0, `Retiring
+ * openspec/specs/<cap>/spec.md`, i.e. cospec staying silent while a spec file
+ * was deleted.
+ *
+ * Parsed from stdout rather than re-running with `--json`: the human-mode
+ * `-y` invocation is the one the filesystem-verification design is built on,
+ * and adding `--json` would change what step 9 verifies.
+ */
+export function collectArchiveWarnings(stdout: string): string[] {
+  const warnings: string[] = []
+  const seen = new Set<string>()
+  let inProposalWarnings = false
+  let retiringIndex = -1
+  for (const raw of stdout.split('\n')) {
+    if (/^\s*Proposal warnings in .*\(non-blocking\):\s*$/.test(raw)) {
+      inProposalWarnings = true
+      retiringIndex = -1
+      continue
+    }
+    const direct = raw.match(WARNING_LINE_RE)
+    const bullet = inProposalWarnings ? raw.match(WARNING_BULLET_RE) : null
+    const retiring = raw.match(RETIRING_LINE_RE)
+    const message = direct?.[1] ?? bullet?.[1] ?? retiring?.[1]
+    if (message === undefined) {
+      // A retirement's recovery hint is indented under its own line; it names
+      // the git command that gets the deleted spec back, so it travels with it.
+      if (retiringIndex !== -1 && /^\s+\S/.test(raw)) {
+        warnings[retiringIndex] = `${warnings[retiringIndex]!} ${raw.trim()}`
+        continue
+      }
+      // The proposal-warning block ends at the first line that is not one of
+      // its bullets; a blank line inside it is just spacing.
+      if (raw.trim() !== '') inProposalWarnings = false
+      retiringIndex = -1
+      continue
+    }
+    retiringIndex = -1
+    if (seen.has(message)) continue
+    seen.add(message)
+    warnings.push(message)
+    if (retiring !== null && direct === null && bullet === null) retiringIndex = warnings.length - 1
+  }
+  return warnings
+}
+
 interface CapabilityDeltas {
   capability: string
   ops: DeltaOp[]
 }
 
-/** All change-side delta ops grouped by capability (`specs/<cap>/**.md`). */
+/**
+ * All change-side delta ops grouped by capability path
+ * (`specs/<cap-path>/spec.md`).
+ *
+ * Only files literally named `spec.md` count, matching openspec's own change
+ * parser and `discoverSpecFiles` on the living side. Companion markdown an
+ * author keeps in a capability directory (`README.md`, `notes.md`, a
+ * `spec-old.md` backup) is content `openspec archive` never merges, so parsing
+ * it here would feed phantom ops to both hard gates below.
+ *
+ * The capability is the whole directory chain under `specs/`, so a nested
+ * `specs/platform/session-layout/spec.md` groups under `platform/session-layout`
+ * — the path openspec merges it to (`findSpecUpdates`, 1.6.0 #1353) and the path
+ * every living-spec lookup below joins. Keying on the outermost directory
+ * instead, as this did, pointed both hard archive gates at
+ * `openspec/specs/platform/spec.md`, which does not exist, silently turning them
+ * into no-ops for every nested spec.
+ *
+ * A `.md` sitting directly in `specs/` has no capability at all; openspec 1.7.0
+ * blocks that layout outright, so it contributes no ops rather than inventing a
+ * capability named after the file.
+ */
 function changeDeltaOps(changeDir: string): CapabilityDeltas[] {
   const root = join(changeDir, 'specs')
   if (!existsSync(root)) return []
   const byCap = new Map<string, DeltaOp[]>()
-  const walk = (dir: string, capability: string): void => {
+  const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const child = join(dir, entry.name)
-      if (entry.isDirectory()) walk(child, capability || entry.name)
-      else if (entry.isFile() && entry.name.endsWith('.md')) {
-        const parsed = parseDeltaSpec(readFileSync(child, 'utf8'), child, capability || entry.name)
-        const list = byCap.get(parsed.capability) ?? []
-        list.push(...parsed.ops)
-        byCap.set(parsed.capability, list)
+      if (entry.isDirectory()) {
+        if (!entry.name.startsWith('.')) walk(child)
+        continue
       }
+      if (!entry.isFile() || !isDeltaSpecFile(entry.name)) continue
+      const capability = capabilityForDeltaFile(relative(changeDir, child))
+      if (capability === undefined) continue
+      const parsed = parseDeltaSpec(readFileSync(child, 'utf8'), child, capability)
+      const list = byCap.get(parsed.capability) ?? []
+      list.push(...parsed.ops)
+      byCap.set(parsed.capability, list)
     }
   }
-  walk(root, '')
+  walk(root)
   return [...byCap.entries()].map(([capability, ops]) => ({ capability, ops }))
+}
+
+/**
+ * Today's date in the process's local time zone, matching openspec's own
+ * `formatLocalDate` (`src/utils/date.ts`). `toISOString()` is UTC, so from any
+ * zone ahead of UTC the archive slot cospec computed and the one openspec
+ * actually created disagreed for part of every day — the collision pre-check
+ * looked at the wrong slot and step 9's verification failed a *successful*
+ * archive, reporting a HALF-STATE that never existed.
+ */
+export function formatLocalDate(date: Date = new Date()): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+/** A change id that already carries an archive date prefix. */
+const DATE_PREFIXED_RE = /^\d{4}-\d{2}-\d{2}-/
+
+/**
+ * Does `dirName` name the archive directory `openspec archive <changeId>` would
+ * create? Date-agnostic on purpose (MF2): the archive can cross midnight
+ * between the spawn and the check.
+ *
+ * Both accepted forms are real binary behaviour inside cospec's `>=1.0.0
+ * <2.0.0` range: from 1.7.0 a change whose id already carries a date prefix
+ * archives under that id verbatim (#1309), while older binaries re-prefix it.
+ * cospec's own `CHANGE_ID_RE`/`meta/name-kebab` reject a date-prefixed id, so
+ * the verbatim arm is defence for a change created outside cospec, not a path
+ * `cospec archive` can reach on its own.
+ */
+export function isArchiveTargetFor(changeId: string, dirName: string): boolean {
+  if (DATE_PREFIXED_RE.test(changeId) && dirName === changeId) return true
+  return new RegExp(`^\\d{4}-\\d{2}-\\d{2}-${escapeRegExp(changeId)}$`).test(dirName)
 }
 
 function basenames(dir: string): string[] {
@@ -227,11 +357,12 @@ export async function run(ctx: CommandContext): Promise<number> {
       )
   }
 
-  // Step 5: collision pre-check for today's slot (openspec archives as YYYY-MM-DD-<name>).
-  const today = new Date().toISOString().slice(0, 10)
-  if (existsSync(join(archiveDir(base), `${today}-${change.id}`))) {
+  // Step 5: collision pre-check for today's slot (openspec archives as
+  // YYYY-MM-DD-<name>, stamped in the LOCAL zone — see formatLocalDate).
+  const slot = DATE_PREFIXED_RE.test(change.id) ? change.id : `${formatLocalDate()}-${change.id}`
+  if (existsSync(join(archiveDir(base), slot))) {
     process.stderr.write(
-      `cospec archive: archive slot '${today}-${change.id}' already exists — rename or remove it first.\n`,
+      `cospec archive: archive slot '${slot}' already exists — rename or remove it first.\n`,
     )
     return EXIT.failure
   }
@@ -240,30 +371,37 @@ export async function run(ctx: CommandContext): Promise<number> {
   const preArchiveDirs = new Set(basenames(archiveDir(base)))
 
   // Step 7b: scenario-preservation gate (DESIGN §3.5 step 2) — before delegating
-  // to `openspec archive`, specs-bearing changes only. openspec 1.3.1 has no
-  // notion of scenario thinning and merges a MODIFIED delta that drops scenarios
-  // at exit 0 (the atlas regression); cospec refuses first.
+  // to `openspec archive`, specs-bearing changes only. Below openspec 1.8.0 the
+  // binary has no notion of scenario thinning and merges a MODIFIED delta that
+  // drops scenarios at exit 0 (the atlas regression); 1.8.0+ refuses the merge
+  // itself. cospec refuses first either way, with its own message.
+  //
+  // `livingCaps` doubles as step 10's record of which capabilities had a living
+  // spec BEFORE the merge, so a spec that disappears can be told apart from one
+  // that never existed.
+  const livingCaps = new Set<string>()
   if (!skipSpecs && preOps.length > 0) {
     const livingSpecs = new Map(
       [...new Set(preOps.map((c) => c.capability))]
         .map((cap): [string, ReturnType<typeof parseLivingSpec>] | undefined => {
           const p = join(openspecDir(base), 'specs', cap, 'spec.md')
-          return existsSync(p) ? [cap, parseLivingSpec(readFileSync(p, 'utf8'))] : undefined
+          if (!existsSync(p)) return undefined
+          livingCaps.add(cap)
+          return [cap, parseLivingSpec(readFileSync(p, 'utf8'))]
         })
         .filter((e): e is [string, ReturnType<typeof parseLivingSpec>] => e !== undefined),
     )
     const drops = findScenarioDrops(preOps, livingSpecs)
     if (drops.length > 0) {
       process.stderr.write(
-        'cospec archive: scenario-preservation gate refused — scenario count dropped without a matching removal note:\n',
+        'cospec archive: scenario-preservation gate refused — a MODIFIED requirement drops scenarios:\n',
       )
       for (const d of drops)
         process.stderr.write(
           `  ${d.capability}: "${d.name}" ${d.livingCount} -> ${d.deltaCount} scenario(s)\n`,
         )
-      process.stderr.write(
-        'add a `- Scenario removed: <reason>` line under the requirement, or restore the scenario.\n',
-      )
+      if (drops.some((d) => d.noted)) process.stderr.write(`${SCENARIO_DROP_NOTE_RETIRED}.\n`)
+      process.stderr.write(`${SCENARIO_DROP_HINT}.\n`)
       return EXIT.failure
     }
   }
@@ -275,8 +413,7 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   // Step 9: verify (date-agnostic — survives midnight rollover).
   const newDirs = basenames(archiveDir(base)).filter((d) => !preArchiveDirs.has(d))
-  const targetRe = new RegExp(`^\\d{4}-\\d{2}-\\d{2}-${escapeRegExp(change.id)}$`)
-  const targets = newDirs.filter((d) => targetRe.test(d))
+  const targets = newDirs.filter((d) => isArchiveTargetFor(change.id, d))
   const target = targets.length === 1 ? targets[0] : undefined
   const moved = !existsSync(change.dir)
   const targetHasYaml =
@@ -295,10 +432,27 @@ export async function run(ctx: CommandContext): Promise<number> {
   }
 
   // Step 10: post-merge spot-check (skipped when no specs merged).
+  //
+  // A capability whose living spec is GONE was retired by the merge: since
+  // 1.8.0 openspec deletes the file when a REMOVED takes the last requirement,
+  // but only when the change declares `retire_capabilities: true`. Undeclared,
+  // a spec that vanished is a real invariant breach, so the two cases are told
+  // apart rather than both reading as an empty requirement set.
+  const retired: string[] = []
   if (!skipSpecs && preOps.length > 0) {
     const misses: string[] = []
     for (const { capability, ops } of preOps) {
       const livingPath = join(openspecDir(base), 'specs', capability, 'spec.md')
+      if (!existsSync(livingPath) && livingCaps.has(capability)) {
+        if (change.retireCapabilities === true) {
+          retired.push(capability)
+          continue
+        }
+        misses.push(
+          `${capability}: living spec was deleted by the merge, but the change does not declare \`retire_capabilities: true\``,
+        )
+        continue
+      }
       const names = existsSync(livingPath)
         ? parseLivingSpec(readFileSync(livingPath, 'utf8')).requirementNames
         : new Set<string>()
@@ -340,6 +494,8 @@ export async function run(ctx: CommandContext): Promise<number> {
       ? 'none'
       : `+${counts.added} ~${counts.modified} -${counts.removed} →${counts.renamed} applied and verified`
 
+  const warnings = collectArchiveWarnings(res.stdout)
+
   if (flags.json) {
     process.stdout.write(
       `${JSON.stringify(
@@ -349,6 +505,8 @@ export async function run(ctx: CommandContext): Promise<number> {
           archived: true,
           target,
           specs: skipSpecs ? 'skipped' : counts,
+          retired,
+          warnings,
           blockers: { checkedOff, nowUnblocked },
         },
         null,
@@ -362,6 +520,8 @@ export async function run(ctx: CommandContext): Promise<number> {
     `Archived: ${change.id} (${change.schema}) → openspec/changes/archive/${target}/`,
     `Specs:    ${specsLine}`,
   ]
+  if (retired.length > 0) lines.push(`Retired:  ${retired.join(', ')} (spec files deleted)`)
+  for (const w of warnings) lines.push(`Warning:  ${w}`)
   if (checkedOff.length > 0)
     lines.push(
       `Blockers: checked off in ${checkedOff.length} change(s): ${checkedOff.map((s) => `\`${s}\``).join(', ')}`,

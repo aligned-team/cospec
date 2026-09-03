@@ -16,8 +16,10 @@ proposalInstruction: |
   Write the proposal for a NEW FEATURE (conventional-commit type: feat).
   Sections: ## Why (motivation, at least two sentences), ## What Changes,
   ## Capabilities (### New Capabilities / ### Modified Capabilities — each
-  kebab-case name maps to specs/<name>/spec.md), ## Impact (files, APIs,
-  migrations; mark breaking changes with BREAKING).
+  name is a capability path relative to specs/, kebab-case per segment, and
+  maps to specs/<capability-path>/spec.md; follow the project's existing
+  layout and reuse an existing capability's path verbatim), ## Impact (files,
+  APIs, migrations; mark breaking changes with BREAKING).
   If while writing this you realize the work is really a fix/refactor/etc.,
   stop and re-create the change: `cospec new <correct-type> <slug>`.
 verificationInstruction: |

@@ -140,7 +140,7 @@ never mentions a spec-driven workflow — see
   (`apps/cli/src/index.ts … init . --harness claude --yes`), so the generated
   `cospec-*` skills and typed schemas come from the current tree under test.
 - **openspec arm** — initialized by the repo's pinned `@fission-ai/openspec`
-  1.5.0 binary, resolved **by path** (never `$PATH`), running
+  1.11.0 binary, resolved **by path** (never `$PATH`), running
   `openspec init . --tools claude`, which ships OpenSpec's own `openspec-*`
   skills.
 

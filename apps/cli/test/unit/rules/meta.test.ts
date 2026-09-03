@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  metadataKeyIssues,
   metaRules,
   schemaOutdatedIssues,
   surfaceUnmetConsequences,
@@ -203,5 +204,34 @@ describe('meta/surface-unmet (validate-time issue)', () => {
     expect(rules(metaRules(change, cospecSchema('revert'), { strict: false }))).not.toContain(
       'meta/surface-unmet',
     )
+  })
+})
+
+describe('metadataKeyIssues (skip_specs / retire_capabilities type check)', () => {
+  test('no flags set → no issues', () => {
+    expect(metadataKeyIssues({})).toHaveLength(0)
+  })
+
+  test('flags false → no issues', () => {
+    expect(
+      metadataKeyIssues({ skipSpecsInvalid: false, retireCapabilitiesInvalid: false }),
+    ).toHaveLength(0)
+  })
+
+  test('meta/skip-specs-type fires when skip_specs is present but not boolean', () => {
+    const issues = metadataKeyIssues({ skipSpecsInvalid: true })
+    expect(rules(issues)).toEqual(['meta/skip-specs-type'])
+    expect(issues[0]!.level).toBe('ERROR')
+  })
+
+  test('meta/retire-capabilities-type fires when retire_capabilities is present but not boolean', () => {
+    const issues = metadataKeyIssues({ retireCapabilitiesInvalid: true })
+    expect(rules(issues)).toEqual(['meta/retire-capabilities-type'])
+    expect(issues[0]!.level).toBe('ERROR')
+  })
+
+  test('both flags fire together', () => {
+    const issues = metadataKeyIssues({ skipSpecsInvalid: true, retireCapabilitiesInvalid: true })
+    expect(rules(issues)).toEqual(['meta/skip-specs-type', 'meta/retire-capabilities-type'])
   })
 })

@@ -221,11 +221,21 @@ The system SHALL render.
       new Map([['widgets', LIVING]]),
     )
     expect(drops).toEqual([
-      { capability: 'widgets', name: 'Widget rendering', deltaCount: 1, livingCount: 2 },
+      {
+        capability: 'widgets',
+        name: 'Widget rendering',
+        deltaCount: 1,
+        livingCount: 2,
+        noted: false,
+      },
     ])
   })
 
-  test('a `Scenario removed:` note excuses the drop', () => {
+  // The escape hatch is retired: openspec 1.8.0 reports any MODIFIED block that
+  // omits a living scenario as an ERROR and its archive aborts on one, so a note
+  // could only delay the refusal — and below 1.8.0 honouring it silently drops
+  // the scenario, which is what this gate exists to stop.
+  test('a `Scenario removed:` note no longer excuses the drop, only flags it as noted', () => {
     const p = parseDeltaSpec(
       `## MODIFIED Requirements
 
@@ -247,7 +257,15 @@ The system SHALL render.
       [{ capability: 'widgets', ops: p.ops }],
       new Map([['widgets', LIVING]]),
     )
-    expect(drops).toEqual([])
+    expect(drops).toEqual([
+      {
+        capability: 'widgets',
+        name: 'Widget rendering',
+        deltaCount: 1,
+        livingCount: 2,
+        noted: true,
+      },
+    ])
   })
 
   test('no drop when the scenario count is unchanged or grows', () => {
@@ -293,5 +311,200 @@ The system SHALL do new.
       'fresh',
     )
     expect(findScenarioDrops([{ capability: 'fresh', ops: p.ops }], new Map())).toEqual([])
+  })
+})
+
+// W4 — parser tolerances ported from openspec (`buildCodeFenceMask`,
+// `maskHtmlComments`, BOM/CRLF normalisation). Both hard archive gates read
+// requirement and scenario counts out of these parsers, so a mis-read fence or
+// a commented-out header turns a gate into a no-op or invents a phantom drop.
+const BOM = '﻿'
+
+describe('parser tolerances: BOM, CRLF, HTML comments, fences', () => {
+  test('a UTF-8 BOM does not hide the first section header', () => {
+    const p = parseDeltaSpec(
+      `${BOM}## ADDED Requirements\n\n### Requirement: X\n\nThe system SHALL x.\n\n#### Scenario: s\n\n- **WHEN** a\n`,
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.headerPresent).toBe(true)
+    expect(p.ops).toHaveLength(1)
+    expect(p.ops[0]!.name).toBe('X')
+  })
+
+  test("a BOM does not hide a living spec's Purpose or Requirements", () => {
+    const living = parseLivingSpec(
+      `${BOM}# Spec\n\n## Purpose\n\nWhy this exists.\n\n## Requirements\n\n### Requirement: X\n\n#### Scenario: s\n`,
+    )
+    expect(living.hasPurpose).toBe(true)
+    expect(living.hasRequirements).toBe(true)
+    expect(living.requirementNames.has('X')).toBe(true)
+  })
+
+  test('CRLF line endings do not leak a carriage return into captured names', () => {
+    const p = parseDeltaSpec(
+      '## ADDED Requirements\r\n\r\n### Requirement: Widget display\r\n\r\nThe system SHALL x.\r\n\r\n#### Scenario: s\r\n',
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops[0]!.name).toBe('Widget display')
+    expect(p.ops[0]!.scenarioCount).toBe(1)
+  })
+
+  test('CRLF does not leak into a `Scenario removed:` reason', () => {
+    const p = parseDeltaSpec(
+      '## MODIFIED Requirements\r\n\r\n### Requirement: X\r\n\r\nThe system SHALL x.\r\n\r\n- Scenario removed: it merged into s1.\r\n\r\n#### Scenario: s1\r\n',
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops[0]!.scenarioRemovalReasons).toEqual(['it merged into s1.'])
+  })
+
+  test('a commented-out requirement is not counted, and line numbers do not shift', () => {
+    const p = parseDeltaSpec(
+      [
+        '## ADDED Requirements',
+        '',
+        '<!--',
+        '### Requirement: Draft idea',
+        '',
+        '#### Scenario: never',
+        '-->',
+        '',
+        '### Requirement: Real',
+        '',
+        'The system SHALL x.',
+        '',
+        '#### Scenario: s',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops).toHaveLength(1)
+    expect(p.ops[0]!.name).toBe('Real')
+    // 1-indexed line of `### Requirement: Real` in the ORIGINAL text.
+    expect(p.ops[0]!.line).toBe(9)
+    expect(p.ops[0]!.scenarioCount).toBe(1)
+  })
+
+  test('a commented-out scenario does not inflate the living scenario count', () => {
+    const living = parseLivingSpec(
+      [
+        '## Purpose',
+        '',
+        'Why.',
+        '',
+        '## Requirements',
+        '',
+        '### Requirement: X',
+        '',
+        '#### Scenario: real',
+        '',
+        '<!-- #### Scenario: dead -->',
+      ].join('\n'),
+    )
+    expect(living.requirementScenarioCounts.get('X')).toBe(1)
+  })
+
+  test('an unterminated HTML comment masks the rest of the file', () => {
+    const p = parseDeltaSpec(
+      '## ADDED Requirements\n\n### Requirement: Real\n\nThe system SHALL x.\n\n#### Scenario: s\n\n<!--\n\n### Requirement: Dead\n\n#### Scenario: dead\n',
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops.map((o) => o.name)).toEqual(['Real'])
+    expect(p.ops[0]!.scenarioCount).toBe(1)
+  })
+
+  test('a `--!>` terminator closes a comment', () => {
+    const p = parseDeltaSpec(
+      '## ADDED Requirements\n\n<!-- ### Requirement: Dead --!>\n\n### Requirement: Real\n\nThe system SHALL x.\n\n#### Scenario: s\n',
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops.map((o) => o.name)).toEqual(['Real'])
+  })
+
+  test('an inner ``` does not close a four-backtick fence', () => {
+    const p = parseDeltaSpec(
+      [
+        '## ADDED Requirements',
+        '',
+        '### Requirement: Real',
+        '',
+        'The system SHALL x.',
+        '',
+        '````markdown',
+        '```',
+        '### Requirement: Documented example',
+        '```',
+        '````',
+        '',
+        '#### Scenario: s',
+        '',
+        '- **WHEN** a',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    // The inner ``` must not close the ```` block, so the example requirement
+    // stays invisible and the real requirement keeps its scenario.
+    expect(p.ops.map((o) => o.name)).toEqual(['Real'])
+    expect(p.ops[0]!.scenarioCount).toBe(1)
+  })
+
+  test('a ~~~ fence hides markdown structure too', () => {
+    const p = parseDeltaSpec(
+      [
+        '## ADDED Requirements',
+        '',
+        '### Requirement: Real',
+        '',
+        'The system SHALL x.',
+        '',
+        '~~~',
+        '### Requirement: Example',
+        '#### Scenario: example',
+        '~~~',
+        '',
+        '#### Scenario: s',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops.map((o) => o.name)).toEqual(['Real'])
+    expect(p.ops[0]!.scenarioCount).toBe(1)
+  })
+
+  test('a ``` line does not close a ~~~ fence', () => {
+    const living = parseLivingSpec(
+      [
+        '## Purpose',
+        '',
+        'Why.',
+        '',
+        '## Requirements',
+        '',
+        '### Requirement: X',
+        '',
+        '#### Scenario: real',
+        '',
+        '~~~',
+        '```',
+        '#### Scenario: fenced',
+        '```',
+        '~~~',
+      ].join('\n'),
+    )
+    expect(living.requirementScenarioCounts.get('X')).toBe(1)
+  })
+
+  test("SHALL inside a requirement's example fence still counts (unchanged)", () => {
+    const p = parseDeltaSpec(
+      '## ADDED Requirements\n\n### Requirement: X\n\n```\nThe system SHALL x.\n```\n\n#### Scenario: s\n',
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops[0]!.hasShallMust).toBe(true)
   })
 })

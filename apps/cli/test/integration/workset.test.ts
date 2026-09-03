@@ -1,6 +1,6 @@
 // `cospec workset <sub>` — disciplined passthrough of `openspec workset
 // create|list|remove`, plus a terminal-handover smoke test for `workset open`
-// (WI-4). Worksets are a purely local/personal registry (openspec 1.5.0), keyed
+// (WI-4). Worksets are a purely local/personal registry (added in openspec 1.5.0), keyed
 // by a machine-global XDG_DATA_HOME location, never `openspec/`-tree-scoped —
 // each test sandboxes its own registry so runs never collide or leak.
 

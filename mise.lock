@@ -211,7 +211,7 @@ url_api = "https://api.github.com/repos/jdx/communique/releases/assets/457075119
 provenance = "github-attestations"
 
 [[tools."npm:@fission-ai/openspec"]]
-version = "1.5.0"
+version = "1.11.0"
 backend = "npm:@fission-ai/openspec"
 
 [[tools."npm:@typescript/native-preview"]]

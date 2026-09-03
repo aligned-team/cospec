@@ -16,10 +16,11 @@ const REMOVED_BULLET_RE = /^-\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
 const RENAMED_FROM_RE = /^-?\s*FROM:\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
 const RENAMED_TO_RE = /^-?\s*TO:\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
 /**
- * The archive/scenario-preservation escape hatch (DESIGN §3.5): a bullet inside
- * a MODIFIED requirement's body noting why its scenario count intentionally
- * shrank. Reads as both "a matching REMOVED [scenario]" and "an explicit
- * reason" from the binding design's wording — one convention satisfies both.
+ * A bullet inside a MODIFIED requirement's body noting why its scenario count
+ * intentionally shrank. This was `archive/scenario-preservation`'s escape hatch
+ * (DESIGN §3.5) until openspec 1.8.0 started refusing every scenario-dropping
+ * MODIFIED block outright — see `findScenarioDrops`. It is still parsed so the
+ * gate can tell an author who wrote the note that it no longer excuses the drop.
  */
 const SCENARIO_REMOVED_RE = /^\s*-?\s*Scenario removed:\s*(\S.*)$/i
 
@@ -40,8 +41,8 @@ export interface DeltaOp {
   hasShallMust: boolean
   scenarioCount: number
   /** `Scenario removed: <reason>` notes found in this requirement's body
-   * (MODIFIED only) — a non-empty list excuses a scenario-count drop from
-   * `archive/scenario-preservation` (DESIGN §3.5). */
+   * (MODIFIED only). Retired as an escape hatch — see `findScenarioDrops`;
+   * kept so the gate can address an author who wrote one. */
   scenarioRemovalReasons: string[]
 }
 
@@ -59,9 +60,94 @@ function normalize(name: string): string {
   return name.trim()
 }
 
+interface ActiveFence {
+  marker: '`' | '~'
+  length: number
+}
+
+const FENCE_OPEN_RE = /^\s*(`{3,}|~{3,})/
+const FENCE_CLOSE_RE = /^\s*(`{3,}|~{3,})\s*$/
+
+function fenceMarker(line: string): ActiveFence | undefined {
+  const m = line.match(FENCE_OPEN_RE)
+  if (m === null) return undefined
+  return { marker: m[1]![0] as '`' | '~', length: m[1]!.length }
+}
+
+/**
+ * Per-line mask marking every line inside a fenced code block, delimiters
+ * included. Ported from openspec's `buildCodeFenceMask` (`src/core/parsers/
+ * code-fence.ts`): a fence closes only on a line whose marker *matches* the
+ * opener's and is at least as long. cospec's previous naive ``` toggle inverted
+ * its in-fence state for the rest of the file the moment a spec documented
+ * markdown inside a longer (````) fence or used a ~~~ fence at all — and both
+ * hard archive gates read that state.
+ */
+export function buildCodeFenceMask(lines: readonly string[]): boolean[] {
+  const mask: boolean[] = Array.from({ length: lines.length }, () => false)
+  let active: ActiveFence | undefined
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!
+    if (active === undefined) {
+      const fence = fenceMarker(line)
+      if (fence !== undefined) {
+        active = fence
+        mask[i] = true
+      }
+      continue
+    }
+    mask[i] = true
+    const close = line.match(FENCE_CLOSE_RE)
+    if (close !== null && close[1]![0] === active.marker && close[1]!.length >= active.length)
+      active = undefined
+  }
+  return mask
+}
+
+/** Replace every non-newline character with a space, keeping the line count. */
+function blank(s: string): string {
+  return s.replace(/[^\n]/g, ' ')
+}
+
+/**
+ * Blank out `<!-- … -->` spans in place, preserving every newline so line
+ * numbers never shift. `--!>` terminates a comment too, and an unterminated
+ * `<!--` comments out the rest of the file (openspec #1413).
+ */
+export function maskHtmlComments(text: string): string {
+  const masked = text.replace(/<!--[\s\S]*?--!?>/g, blank)
+  const unterminated = masked.indexOf('<!--')
+  if (unterminated === -1) return masked
+  return masked.slice(0, unterminated) + blank(masked.slice(unterminated))
+}
+
+export interface ScannedMarkdown {
+  /** Structural view: BOM-stripped, LF-normalized, HTML comments blanked. */
+  lines: string[]
+  /** Verbatim view (same length/indices): BOM-stripped and LF-normalized only. */
+  source: string[]
+  /** `true` where `lines[i]` sits inside a fenced code block. */
+  fenced: boolean[]
+}
+
+/**
+ * Prepare a markdown document for structural scanning.
+ *
+ * A UTF-8 BOM is stripped (otherwise a BOM-prefixed `# Spec` never matches an
+ * anchored header regex) and CR/CRLF are folded to LF (a trailing `\r` leaks
+ * into every `(.+)$` capture). Both keep the line count intact, as does the
+ * comment mask, so a reported line number always addresses the author's file.
+ */
+export function scanMarkdown(text: string): ScannedMarkdown {
+  const normalized = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n')
+  const source = normalized.split('\n')
+  const lines = maskHtmlComments(normalized).split('\n')
+  return { lines, source, fenced: buildCodeFenceMask(lines) }
+}
+
 /** Parse a change-side delta spec. `capability` is the dir name (e.g. `widgets`). */
 export function parseDeltaSpec(text: string, path: string, capability: string): ParsedDelta {
-  const lines = text.split('\n')
+  const { lines, fenced } = scanMarkdown(text)
   const ops: DeltaOp[] = []
   const scenarioDepthIssues: { line: number }[] = []
   const sectionCounts = new Map<DeltaOperation, number>()
@@ -69,7 +155,6 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
   let headerPresent = false
 
   let currentOp: DeltaOperation | undefined
-  let inFence = false
   // Track the requirement currently being accumulated (ADDED/MODIFIED).
   let openReq: DeltaOp | undefined
 
@@ -85,11 +170,9 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
     const raw = lines[i]!
     const lineNo = i + 1
 
-    if (/^\s*```/.test(raw)) {
-      inFence = !inFence
-      continue
-    }
-    if (inFence) {
+    // Fenced lines carry no structure, but a SHALL/MUST inside a requirement's
+    // example block has always counted towards `hasShallMust` — keep that.
+    if (fenced[i] === true) {
       if (openReq !== undefined && SHALL_MUST_RE.test(raw)) openReq.hasShallMust = true
       continue
     }
@@ -199,23 +282,19 @@ export interface LivingSpec {
 
 /** Parse a living spec (openspec/specs/<cap>/spec.md) for archive precondition checks. */
 export function parseLivingSpec(text: string): LivingSpec {
-  const lines = text.split('\n')
+  const { lines, source, fenced } = scanMarkdown(text)
   const requirementNames = new Set<string>()
   const requirementScenarioCounts = new Map<string, number>()
   let hasPurpose = false
   let hasRequirements = false
   let hasDeltaHeaders = false
-  let inFence = false
   let inPurpose = false
   let currentReqName: string | undefined
   const purposeLines: string[] = []
 
-  for (const raw of lines) {
-    if (/^\s*```/.test(raw)) {
-      inFence = !inFence
-      continue
-    }
-    if (inFence) continue
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i]!
+    if (fenced[i] === true) continue
 
     const section = raw.match(SECTION_RE)
     if (section !== null) {
@@ -227,7 +306,10 @@ export function parseLivingSpec(text: string): LivingSpec {
       continue
     }
 
-    if (inPurpose) purposeLines.push(raw)
+    // Verbatim, not masked: an author's own HTML comment inside `## Purpose` is
+    // prose they wrote, and blanking it would silently shorten the Purpose the
+    // `specs/*` rules measure.
+    if (inPurpose) purposeLines.push(source[i] ?? '')
 
     const req = raw.match(REQUIREMENT_RE)
     if (req !== null) {
@@ -257,14 +339,30 @@ export interface ScenarioDrop {
   name: string
   deltaCount: number
   livingCount: number
+  /**
+   * The author wrote a `Scenario removed: <reason>` note. It no longer excuses
+   * the drop — it only changes the advice the gate gives, because an author who
+   * wrote the note followed documentation that is now wrong.
+   */
+  noted: boolean
 }
 
 /**
  * MODIFIED requirements whose delta scenario count is lower than the living
- * spec's, with no `Scenario removed: <reason>` note excusing the drop
- * (`archive/scenario-preservation`, DESIGN §3.5). ADDED/REMOVED/RENAMED ops and
- * capabilities with no living spec (new capability — nothing to shrink against)
- * are out of scope by construction.
+ * spec's (`archive/scenario-preservation`, DESIGN §3.5). ADDED/REMOVED/RENAMED
+ * ops and capabilities with no living spec (new capability — nothing to shrink
+ * against) are out of scope by construction.
+ *
+ * A `Scenario removed: <reason>` note used to excuse the drop. It no longer
+ * can: openspec 1.8.0's `validate-scenario-loss-check` reports any MODIFIED
+ * block that omits a living scenario as an ERROR, and 1.8.0's archive refuses
+ * the merge outright ("current spec contains scenario(s) not present in the
+ * modified block … Aborted. No files were changed.", exit 1) — neither has any
+ * notion of cospec's note. Excusing the drop here would only move the refusal
+ * later and hand the author openspec's message instead of cospec's; below the
+ * 1.8.0 line, where the note did work, honouring it silently drops scenarios,
+ * which is the regression this gate exists to stop. So the gate now refuses in
+ * both directions and names the two remedies that actually work.
  */
 export function findScenarioDrops(
   caps: readonly { capability: string; ops: readonly DeltaOp[] }[],
@@ -277,9 +375,23 @@ export function findScenarioDrops(
     for (const op of ops) {
       if (op.operation !== 'MODIFIED' || op.name === undefined) continue
       const livingCount = living.requirementScenarioCounts.get(op.name) ?? 0
-      if (op.scenarioCount < livingCount && op.scenarioRemovalReasons.length === 0)
-        drops.push({ capability, name: op.name, deltaCount: op.scenarioCount, livingCount })
+      if (op.scenarioCount < livingCount)
+        drops.push({
+          capability,
+          name: op.name,
+          deltaCount: op.scenarioCount,
+          livingCount,
+          noted: op.scenarioRemovalReasons.length > 0,
+        })
     }
   }
   return drops
 }
+
+/** Shared remedy text for a refused scenario drop (gate + validate rule). */
+export const SCENARIO_DROP_HINT =
+  'copy the missing scenario back into the MODIFIED block, or REMOVE the requirement and ADD it back in the same delta — openspec 1.8.0+ refuses any MODIFIED block that omits a living scenario'
+
+/** Extra line for an author who followed the retired `Scenario removed:` note. */
+export const SCENARIO_DROP_NOTE_RETIRED =
+  'a `Scenario removed: <reason>` note no longer excuses the drop'

@@ -39,6 +39,7 @@ import {
 } from '../core/openspec.ts'
 import { resolveRoot } from '../core/root.ts'
 import { HARNESS_NAMES } from '../harness/render.ts'
+import { OPSX_SHARED_SKILL_ROOT } from './init.ts'
 import { detectHarnesses, generate } from './update.ts'
 
 type Level = 'ERROR' | 'WARNING' | 'INFO'
@@ -56,6 +57,7 @@ const WORKFLOW_SKILL: Record<string, string> = {
   new: 'cospec-new-change',
   continue: 'cospec-continue-change',
   ff: 'cospec-ff-change',
+  update: 'cospec-update-change',
   apply: 'cospec-apply-change',
   verify: 'cospec-verify-change',
   archive: 'cospec-archive-change',
@@ -167,6 +169,11 @@ function harnessMarkdownFiles(cwd: string): { relpath: string; text: string }[] 
     }
   }
   for (const h of HARNESS_NAMES) walk(`.${h}`)
+  // openspec ≥1.8.0 writes its Codex skills to the shared `.agents/skills/` root, so
+  // an opsx leftover can exist with nothing under the three `.<harness>` dirs. cospec
+  // never generates there; the files collected from it only feed the opsx check
+  // (staleness filters on `author: cospec`, dangling-refs on a `.<harness>/` prefix).
+  walk(OPSX_SHARED_SKILL_ROOT)
   return out
 }
 

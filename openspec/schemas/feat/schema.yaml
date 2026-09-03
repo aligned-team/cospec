@@ -12,8 +12,10 @@ artifacts:
       Write the proposal for a NEW FEATURE (conventional-commit type: feat).
       Sections: ## Why (motivation, at least two sentences), ## What Changes,
       ## Capabilities (### New Capabilities / ### Modified Capabilities — each
-      kebab-case name maps to specs/<name>/spec.md), ## Impact (files, APIs,
-      migrations; mark breaking changes with BREAKING).
+      name is a capability path relative to specs/, kebab-case per segment, and
+      maps to specs/<capability-path>/spec.md; follow the project's existing
+      layout and reuse an existing capability's path verbatim), ## Impact (files,
+      APIs, migrations; mark breaking changes with BREAKING).
       If while writing this you realize the work is really a fix/refactor/etc.,
       stop and re-create the change: `cospec new <correct-type> <slug>`.
     requires: []
@@ -46,14 +48,28 @@ artifacts:
     template: spec.md
     instruction: |
       One delta file per capability named in the proposal, at
-      specs/<capability>/spec.md. Delta operations use
-      ## ADDED/MODIFIED/REMOVED/RENAMED Requirements headers. Each requirement:
-      `### Requirement: <name>` with SHALL/MUST normative text. Each scenario:
-      `#### Scenario: <name>` — EXACTLY four hashtags (`cospec validate` rejects
-      three) — with WHEN/THEN bullets. MODIFIED must carry the full updated
-      requirement content. MODIFIED/RENAMED/REMOVED may only target requirements
-      that exist in openspec/specs/<capability>/spec.md — `cospec validate`
-      checks this so archive cannot fail on it later.
+      specs/<capability-path>/spec.md. `<capability-path>` is the spec directory
+      relative to specs/ — one segment for a flat layout (`user-auth`), more when
+      the project nests (`identity/user-auth`). Preserve the whole path: a new
+      capability keeps the exact path the proposal gave it (every newly introduced
+      segment kebab-case, following the project's existing organisation — do not
+      add a domain level to a flat layout), and a modified capability reuses its
+      existing path verbatim rather than moving or renaming it.
+
+      Delta operations use ## ADDED/MODIFIED/REMOVED/RENAMED Requirements headers.
+      Each requirement: `### Requirement: <name>` with SHALL/MUST normative text.
+      Each scenario: `#### Scenario: <name>` — EXACTLY four hashtags (`cospec
+      validate` rejects three) — with WHEN/THEN bullets. MODIFIED must carry the
+      full updated requirement content.
+
+      MODIFIED/RENAMED/REMOVED may only target requirements that exist in the
+      living spec at <planningHome.root>/openspec/specs/<capability-path>/spec.md —
+      `cospec validate` checks this so archive cannot fail on it later.
+      `planningHome.root` comes from the `cospec instructions … --json` response;
+      always use it instead of a repo-relative path. It resolves to the store when
+      the change lives in one (from `--store`, a project `store:` pointer, or a
+      global default store) and to this repository otherwise — the field has
+      already worked out which.
     requires: [proposal]
   - id: design
     generates: design.md
@@ -66,6 +82,18 @@ artifacts:
       ## Goals / Non-Goals, ## Decisions (each with the alternative rejected and
       why), ## Risks / Trade-offs ([Risk] → Mitigation). Decisions, not restated
       requirements.
+
+      Design covers HOW; the proposal already covers why and what, and the specs
+      cover the requirements. Reference them instead of restating them — Context
+      carries only the current state and constraints the approach needs, and
+      Goals / Non-Goals adds design-level boundaries rather than repeating the
+      proposal's scope. If a section would only restate another artifact, point at
+      it instead.
+
+      An ## Open Questions section (omit it if empty) is for unknowns that can
+      safely be answered later without changing the specs, the approach, or the
+      task breakdown. A question that would change any of those is not deferrable:
+      resolve it with the user now rather than guessing or listing it.
     requires: [proposal]
   - id: verification
     generates: verification.md
@@ -89,8 +117,12 @@ artifacts:
     instruction: |
       Follow the template exactly: `## N. Group` headings, `- [ ] N.M task`
       checkboxes. The apply phase parses this checkbox format; non-conforming
-      lines are not tracked and fail `cospec validate`. Pair every code task
-      with a test/verification task. Order tasks by dependency.
+      lines are not tracked and fail `cospec validate`. Order tasks by dependency.
+      Every task states how its own completion is verified — a test, a command, an
+      observable behavior, or a delivered artifact — inside that task's checkbox
+      description. Reserve a separate verification task for integration or system
+      behavior that spans several implementation tasks, not for checking one task
+      you just wrote.
     requires: [proposal, specs]
 apply:
   requires: [proposal, blocking-changes, specs, verification, tasks]

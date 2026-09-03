@@ -119,6 +119,7 @@ describe('cospec init (DESIGN §2.1)', () => {
     const { out } = runInit(dir, ['--harness', 'claude'])
     expect(out).toContain('leftover openspec (opsx)')
     expect(existsSync(join(dir, '.claude/skills/openspec-apply-change/SKILL.md'))).toBe(true)
+    expect(existsSync(join(dir, '.agents/skills/openspec-propose/SKILL.md'))).toBe(true)
   })
 
   test('--remove-opsx deletes provably openspec-generated files and prunes empty dirs', () => {
@@ -129,6 +130,40 @@ describe('cospec init (DESIGN §2.1)', () => {
     expect(existsSync(join(dir, '.claude/skills/openspec-apply-change'))).toBe(false)
     // cospec's own files survive.
     expect(existsSync(join(dir, '.claude/skills/cospec-propose/SKILL.md'))).toBe(true)
+  })
+
+  test('a `.agents/skills/` leftover is found and removed (openspec ≥1.8 Codex root)', () => {
+    plantOpsx(dir)
+    const { out } = capture(
+      () => initRun(ctx(dir, ['--harness', 'claude', '--remove-opsx', '--yes'], true)) as number,
+    )
+    const json = JSON.parse(out) as { opsx: { found: string[]; removed: boolean } }
+    expect(json.opsx.found).toContain('.agents/skills/openspec-propose/SKILL.md')
+    expect(existsSync(join(dir, '.agents/skills/openspec-propose/SKILL.md'))).toBe(false)
+    expect(existsSync(join(dir, '.agents/skills/openspec-propose'))).toBe(false)
+  })
+
+  test('a `.agents/skills/` file cospec or a third party wrote is never removed', () => {
+    // `.agents/` is a shared root: other tools and the user live there too. Only
+    // openspec provenance may be deleted — cospec's own stamp and no stamp at all
+    // must both survive `--remove-opsx`.
+    const mine = join(dir, '.agents/skills/cospec-propose')
+    mkdirSync(mine, { recursive: true })
+    writeFileSync(
+      join(mine, 'SKILL.md'),
+      '---\nname: cospec-propose\nmetadata:\n  author: cospec\n  generatedBy: "cospec@0.5.3"\n---\nbody\n',
+    )
+    const theirs = join(dir, '.agents/skills/team-runbook')
+    mkdirSync(theirs, { recursive: true })
+    writeFileSync(join(theirs, 'SKILL.md'), '---\nname: team-runbook\n---\nhand-written\n')
+
+    const { out } = capture(
+      () => initRun(ctx(dir, ['--harness', 'claude', '--remove-opsx', '--yes'], true)) as number,
+    )
+    const json = JSON.parse(out) as { opsx: { found: string[] } }
+    expect(json.opsx.found).toEqual([])
+    expect(existsSync(join(mine, 'SKILL.md'))).toBe(true)
+    expect(existsSync(join(theirs, 'SKILL.md'))).toBe(true)
   })
 
   test('user-authored path-matching files are never removed (provenance-only)', () => {
@@ -270,11 +305,23 @@ describe('cospec init (DESIGN §2.1)', () => {
   })
 })
 
+// The `generatedBy` stamps below are deliberately two different openspec versions,
+// neither tied to cospec's pin: detection is by SHAPE (`author: openspec` + a bare
+// semver), so a leftover from any openspec release must be caught. Bumping the pin
+// must never require touching these literals.
 function plantOpsx(dir: string): void {
   const skill = join(dir, '.claude/skills/openspec-apply-change')
   mkdirSync(skill, { recursive: true })
   writeFileSync(
     join(skill, 'SKILL.md'),
     '---\nname: openspec-apply-change\nmetadata:\n  author: openspec\n  generatedBy: "1.5.0"\n---\nbody\n',
+  )
+  // openspec ≥1.8.0 writes its Codex skills to the shared `.agents/skills/` root
+  // instead of `.codex/`, so a modern install leaves nothing under `.codex`.
+  const shared = join(dir, '.agents/skills/openspec-propose')
+  mkdirSync(shared, { recursive: true })
+  writeFileSync(
+    join(shared, 'SKILL.md'),
+    '---\nname: openspec-propose\nmetadata:\n  author: openspec\n  generatedBy: "1.11.0"\n---\nbody\n',
   )
 }

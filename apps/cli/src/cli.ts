@@ -88,12 +88,14 @@ export const COMMANDS: CommandEntry[] = [
   --all              Validate every change and spec
   --changes          Validate changes only
   --specs            Validate specs only
+  --archived         Validate already-archived changes instead (delegated; openspec >=1.9.0)
   --no-interactive   Never prompt, even for an ambiguous change name`,
   },
   {
     name: 'status',
     summary: "Show a change's status and gate state",
-    options: `  --change <slug>   The change to report on (or pass it positionally)`,
+    options: `  --change <slug>   The change to report on (or pass it positionally)
+  --all             Report every active change instead of one (mutually exclusive with --change)`,
   },
   {
     name: 'list',
@@ -106,13 +108,16 @@ export const COMMANDS: CommandEntry[] = [
     summary: 'Print artifact-authoring instructions for a change',
     usage: '<artifact>',
     options: `  --change <slug>   The change the artifact belongs to (required)
-  --allow-soft      Proceed past a soft block`,
+  --allow-soft      Proceed past a soft block
+  artifacts: proposal, blocking-changes, specs, design, verification, tasks, apply, archive
+  ('archive' is read-only guidance — unlike 'apply', it is not an alias for 'cospec archive')`,
   },
   {
     name: 'apply',
     summary: 'Gate implementation on blockers and required artifacts',
     usage: '<change>',
-    options: `  --allow-soft   Proceed past a soft block`,
+    options: `  --allow-soft   Proceed past a soft block
+  --skip-specs   Satisfy the specs requirement for this run (persist with skip_specs: true instead)`,
   },
   {
     name: 'archive',

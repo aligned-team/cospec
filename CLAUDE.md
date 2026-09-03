@@ -8,16 +8,16 @@
 ## Project context
 
 cospec (conventional openspec) is a thin, opinionated wrapper around OpenSpec
-1.5.0 that sizes the spec-driven workflow to your conventional-commit type.
+1.11.0 that sizes the spec-driven workflow to your conventional-commit type.
 `feat` gets the full treatment — proposal, blocking-changes, specs,
 verification, tasks; `refactor` additionally requires design;
 `ci`/`chore`/`docs` and their siblings take two minutes with three short
 artifacts. It ships as `@aligned-team/cospec` with one bin, `cospec`.
 
 cospec never replaces OpenSpec — it wraps the real binary (resolved by path,
-never `$PATH`, accepting `>=1.0.0 <2.0.0`, pinned to 1.5.0 for dev/CI) and adds:
-11 typed schemas that map 1:1 to the conventional-commit types, real change
-validation with stable rule IDs, a deterministic `apply` gate, a
+never `$PATH`, accepting `>=1.0.0 <2.0.0`, pinned to 1.11.0 for dev/CI) and
+adds: 11 typed schemas that map 1:1 to the conventional-commit types, real
+change validation with stable rule IDs, a deterministic `apply` gate, a
 filesystem-verified `archive`, a machine-parsed `verification` evidence ledger
 with hard archive gates, `## Surfaces` flag triggers that soft-nudge
 verification and design sections, versioned schemas with `schemaVersion`
@@ -30,7 +30,7 @@ self-hosts: this repo's own `openspec/` tree is managed by cospec.
 | ------------- | ---------------------------------------------------------------- |
 | Runtime       | Bun 1.3                                                          |
 | Language      | TypeScript 7 via `@typescript/native-preview`; `tsgo --noEmit`   |
-| Wrapped tool  | `@fission-ai/openspec` 1.5.0 (pin; `>=1.0.0 <2.0.0` accepted)    |
+| Wrapped tool  | `@fission-ai/openspec` 1.11.0 (pin; `>=1.0.0 <2.0.0` accepted)   |
 | CLI           | `cospec` — Bun entry at `apps/cli/src/index.ts`                  |
 | Lint + format | oxlint + oxfmt (no ESLint, no Prettier)                          |
 | Git hooks     | hk (jdx/hk) via mise                                             |
@@ -161,7 +161,7 @@ to the current `schemaVersion`; `cospec doctor` lists changes still on v1.
 **Route through cospec** — all agent-facing OpenSpec access goes through the
 `cospec` CLI. Generated skills and this repo's docs never call bare `openspec`.
 The wrapped binary is spawned by resolved path and version-asserted to the
-accepted range `>=1.0.0 <2.0.0` (dev/CI pins 1.5.0). Every everyday OpenSpec
+accepted range `>=1.0.0 <2.0.0` (dev/CI pins 1.11.0). Every everyday OpenSpec
 surface has a cospec command — the change lifecycle, plus `store`
 (`setup`/`register` auto-run `cospec init`), `context`, `workset`, `show`,
 `view`, `schemas`/`schema`, and `templates` — so there is never a reason to call

@@ -3,7 +3,7 @@ description: Scaffold a new change and show its typed artifact plan, then stop b
 metadata:
   author: cospec
   generatedBy: cospec@0.5.4
-  contentHash: sha256:e00db7d75bcb487ceca2dac4fc753606eda21a745cec72ebde29a88de2409e45
+  contentHash: sha256:196bf020fa5536a599cd15443df25707eee081ed1899df195a6b42329391bd6b
 ---
 
 Scaffold a new openspec change and stop. This workflow creates the change and
@@ -13,14 +13,15 @@ shows you its typed artifact plan — it does not author any artifact. Hand off 
 All work goes through `cospec`. Never call `openspec` directly, and never
 hand-edit the bookkeeping under `openspec/changes/`.
 
+**Provided arguments**: $ARGUMENTS
+
 ## 1. Pick the type and slug
 
 The argument after the command is either `<type>: <free text>` (for example
 `feat: add a greeting endpoint`) or a bare description.
 
 - If it begins with a known type followed by `:`, use that type.
-- Otherwise ask the user to choose a type with AskUserQuestion, offering this
-  table:
+- Otherwise ask the user to choose a type, offering this table:
 
 | Type | What it is for | Artifacts |
 | --- | --- | --- |

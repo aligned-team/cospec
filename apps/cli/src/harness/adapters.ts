@@ -17,6 +17,12 @@ export interface WorkflowDef {
   title: string
   description: string
   injectTypeTable?: boolean
+  /**
+   * Whether the workflow reads a positional argument (a type + description, or a
+   * change slug). Audited per workflow in canon/workflows/harness.yaml; drives the
+   * OpenCode `$ARGUMENTS` injection below.
+   */
+  takesArguments?: boolean
 }
 
 /**
@@ -27,6 +33,30 @@ export interface WorkflowDef {
 export function transformBodyForHarness(body: string, harness: HarnessName): string {
   if (harness === 'opencode') return body.replaceAll('/cospec:', '/cospec-')
   return body
+}
+
+/**
+ * OpenCode passes a slash command's arguments ONLY through an explicit placeholder:
+ * a body with no `$ARGUMENTS` silently drops everything the user typed after
+ * `/cospec-new`. Claude and Codex bind the argument implicitly, so this is an
+ * OpenCode-command-only transform — a skill body never gets the placeholder, since
+ * nothing substitutes it there and the literal text would leak to the model.
+ *
+ * The placeholder is inserted as its own paragraph immediately before the body's
+ * first `## ` section — the point where cospec bodies stop describing the workflow
+ * and start reading input. Idempotent: a body that already carries `$ARGUMENTS` or
+ * `$1`… is returned unchanged. CRLF bodies keep CRLF.
+ */
+const ARGUMENT_PLACEHOLDER_RE = /\$(?:ARGUMENTS\b|[1-9]\d*\b)/
+const FIRST_SECTION_RE = /^## /m
+
+export function injectOpenCodeArgs(body: string): string {
+  if (ARGUMENT_PLACEHOLDER_RE.test(body)) return body
+  const eol = body.includes('\r\n') ? '\r\n' : '\n'
+  const line = `**Provided arguments**: $ARGUMENTS`
+  const match = FIRST_SECTION_RE.exec(body)
+  if (match === null) return `${body.replace(/\s+$/, '')}${eol}${eol}${line}${eol}`
+  return `${body.slice(0, match.index)}${line}${eol}${eol}${body.slice(match.index)}`
 }
 
 /** SKILL.md frontmatter — identical shape across all three harnesses (DESIGN §6.3). */

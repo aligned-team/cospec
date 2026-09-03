@@ -89,6 +89,33 @@ describe('artifact presence', () => {
       'blocking-changes',
     ])
   })
+
+  describe('missingArtifacts skipSpecs precedence (DESIGN §5, OpenSpec 1.7 parity)', () => {
+    test('specs missing and skipSpecs false (structural default): specs is missing', () => {
+      const cwd = repo()
+      const dir = writeChange(cwd, 'c', 'feat', { 'proposal.md': 'x' })
+      expect(missingArtifacts(dir, ['proposal', 'specs'], false)).toEqual(['specs'])
+    })
+
+    test('specs missing and skipSpecs true: specs is satisfied regardless of file presence', () => {
+      const cwd = repo()
+      const dir = writeChange(cwd, 'c', 'feat', { 'proposal.md': 'x' })
+      expect(missingArtifacts(dir, ['proposal', 'specs'], true)).toEqual([])
+    })
+
+    test('skipSpecs never affects any other artifact id', () => {
+      const cwd = repo()
+      const dir = writeChange(cwd, 'c', 'feat', { 'specs/widgets/spec.md': 'y' })
+      expect(missingArtifacts(dir, ['proposal', 'specs'], true)).toEqual(['proposal'])
+    })
+
+    test('specs already present: skipSpecs is a no-op (specs is done either way)', () => {
+      const cwd = repo()
+      const dir = writeChange(cwd, 'c', 'feat', { 'specs/widgets/spec.md': 'y' })
+      expect(missingArtifacts(dir, ['specs'], true)).toEqual([])
+      expect(missingArtifacts(dir, ['specs'], false)).toEqual([])
+    })
+  })
 })
 
 describe('archiveMap', () => {

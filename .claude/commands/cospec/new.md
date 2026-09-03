@@ -8,7 +8,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@0.5.4
-  contentHash: sha256:7bbadeca3aa7ffe0d025f924968d012941b374ad6137838a04f25163a732dd0f
+  contentHash: sha256:c08b7e155630b8c71cb05eb637a65d957a7a5506d8f687f5d7e685eaaf94b475
 ---
 
 Scaffold a new openspec change and stop. This workflow creates the change and
@@ -24,8 +24,7 @@ The argument after the command is either `<type>: <free text>` (for example
 `feat: add a greeting endpoint`) or a bare description.
 
 - If it begins with a known type followed by `:`, use that type.
-- Otherwise ask the user to choose a type with AskUserQuestion, offering this
-  table:
+- Otherwise ask the user to choose a type, offering this table:
 
 | Type | What it is for | Artifacts |
 | --- | --- | --- |

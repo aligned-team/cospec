@@ -35,7 +35,9 @@ interface OpenspecListSpecsJson {
 /**
  * Delegate spec listing to `openspec list --specs --json` (openspec's `list
  * --specs`/`--json` shape is `{ specs: [{id, requirementCount}], root, status?
- * }`, probed against the pinned 1.5.0). Renders cospec's own spec table so
+ * }`, re-probed against the pinned 1.11.0 — `specs[]` unchanged, `root` is now
+ * an object `{path, source}` which cospec does not read). Renders cospec's own
+ * spec table so
  * `--specs` output style matches the change table above it. Never touches
  * cospec's own rule families — spec *validation* stays `cospec validate
  * --specs`; this is read-only listing.

@@ -8,14 +8,14 @@ changing this contract.
 
 ## What gets written
 
-Eleven workflows — `propose`, `new`, `continue`, `ff`, `apply`, `verify`,
-`archive`, `bulk-archive`, `sync-specs`, `explore`, `onboard` — single-sourced
-in `canon/workflows/*.md` and rendered per harness. This is cospec's full opsx
-1.5.0 parity set: every live opsx workflow (`propose`, `new`, `explore`,
-`continue`, `apply`, `ff`, `sync`, `archive`, `bulk-archive`, `verify`,
-`onboard`) has a cospec-adapted counterpart — `sync` maps to `sync-specs` (see
-below). cospec has no core/custom profile split: it always emits the full eleven
-to every configured harness.
+Twelve workflows — `propose`, `new`, `continue`, `ff`, `apply`, `verify`,
+`archive`, `bulk-archive`, `sync-specs`, `explore`, `onboard`, `update` —
+single-sourced in `canon/workflows/*.md` and rendered per harness. This is
+cospec's full opsx 1.11.0 parity set: every live opsx workflow (`propose`,
+`new`, `explore`, `continue`, `apply`, `ff`, `sync`, `archive`, `bulk-archive`,
+`verify`, `onboard`, `update`) has a cospec-adapted counterpart — `sync` maps to
+`sync-specs` (see below). cospec has no core/custom profile split: it always
+emits the full twelve to every configured harness.
 
 The exact per-harness file tree each `cospec init` writes, the slash-syntax
 substitution, the restart/reload notes, and the smoke-test checklist are owned
@@ -69,20 +69,26 @@ internals behind it — content the site intentionally keeps at a higher level.
   light type (`chore`/`docs`) on a small task, then walks `new` → author →
   `apply` → implement → `cospec archive` — the real CLI archive path, never a
   divergent manual move. Exits gracefully if the user stops.
+- **update** — revise an already-scaffolded change's **existing** artifacts and
+  keep them coherent with one another; never creates an artifact that doesn't
+  exist yet (hands off to `continue` for that) and never edits code (hands off
+  to `apply` for that). Built entirely from `cospec status`,
+  `cospec instructions`, and `cospec validate` — there is no
+  `cospec update <slug>` CLI command backing it (the unrelated `cospec update`
+  subcommand regenerates this repo's own managed harness/schema files and has
+  nothing to do with a change's artifacts).
 
-### Name mapping and out-of-scope items
+### Name mapping
 
 - `/opsx:sync` maps to `/cospec:sync-specs` — same job (preview/explain spec
   merge, which only really happens inside `archive`), kept under its existing
   cospec name rather than renamed to avoid churning tests, docs, and muscle
   memory for zero gain.
-- `/opsx:update` is **out of scope**: it is documented on OpenSpec's `main`
-  branch but is not part of the pinned 1.5.0 distribution (no template, not in
-  `ALL_WORKFLOWS`). Per cospec's pin discipline, it is deferred until OpenSpec
-  ships it in a tagged release and the cospec pin advances (contract re-run +
-  re-probe first).
-- opsx's `feedback` workflow is dead code in 1.5.0 (not wired into template
-  generation) and has no cospec counterpart; not part of parity.
+- `/opsx:update` maps to `/cospec:update` — see **update** above.
+- opsx's `feedback` workflow has no cospec workflow counterpart; not part of
+  parity. (Wrapping `openspec feedback` itself as a disciplined passthrough CLI
+  surface, alongside `config` and `completion`, is a follow-up — see
+  `proposal.md`'s non-goals.)
 
 ## Provenance & the managed-file protocol
 
@@ -144,7 +150,14 @@ merged entry. If it does not parse, cospec prints the snippet and skips.
   required. Pre-existing ones are listed with a warning at init and removed with
   `--remove-opsx` (or interactive confirm; `--yes` = yes). User-authored files
   (no `generatedBy`) are never touched. `doctor` warns while both command sets
-  coexist, because two propose commands confuse agents.
+  coexist, because two propose commands confuse agents. The leftover scan also
+  walks `.agents/skills/` (`OPSX_SHARED_SKILL_ROOT`): openspec 1.8.0+ writes its
+  Codex (and 1.7.0's `agents`, 1.10's `zed`, 1.11's `antigravity`) skills to
+  that shared root instead of under a per-harness `.<tool>/` dir, so an install
+  done with any of those targets leaves no trace under the three `.<harness>`
+  dirs cospec otherwise scans. cospec's own Codex output stays at
+  `.codex/skills` — `.agents/` is a foreign root cospec only ever cleans up in,
+  never writes to.
 - **Restart lines** — init ends with a per-harness note: restart Claude Code /
   reload the OpenCode project / Codex picks up skills per session. cospec ships
   no hooks, so no `[features] hooks` config is needed.

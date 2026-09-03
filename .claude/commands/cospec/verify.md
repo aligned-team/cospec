@@ -8,7 +8,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@0.5.4
-  contentHash: sha256:51f08c47b884a9466591d5b559af25a5d9b80545431b1eb06d7af18ae414eb8c
+  contentHash: sha256:d77817df123483dd7f40b93919041d8e5b09c2b55bc9681e503ffd5b63b9076a
 ---
 
 Dress-rehearse a change before archiving it. This workflow does not archive — it
@@ -20,8 +20,9 @@ hand-edit the bookkeeping under `openspec/changes/`.
 
 ## 1. Select the change
 
-If the user named one, use it. Otherwise run `cospec list --json` and pick, or
-ask.
+If the user named one, use it. Otherwise run `cospec list --json`: if exactly
+one active change exists, use it and announce `Using change: <slug>`; if more
+than one is plausible, ask.
 
 ## 2. Validate
 

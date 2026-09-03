@@ -145,9 +145,24 @@ export function artifactDone(changeDir: string, id: string): boolean {
   return file !== undefined && existsSync(join(changeDir, file))
 }
 
-/** apply.requires ids whose artifact file(s) do not yet exist. */
-export function missingArtifacts(changeDir: string, applyRequires: readonly string[]): string[] {
-  return applyRequires.filter((id) => !artifactDone(changeDir, id))
+/**
+ * apply.requires ids whose artifact file(s) do not yet exist.
+ *
+ * `skipSpecs`, when true, satisfies the `specs` requirement regardless of
+ * `hasSpecFiles` — the durable (`skip_specs:` in `.openspec.yaml`) or one-shot
+ * (`--skip-specs`) escape hatch for a spec-bearing type that legitimately has
+ * no deltas (DESIGN §5, OpenSpec 1.7 parity). It never affects any other
+ * artifact id.
+ */
+export function missingArtifacts(
+  changeDir: string,
+  applyRequires: readonly string[],
+  skipSpecs = false,
+): string[] {
+  return applyRequires.filter((id) => {
+    if (id === 'specs' && skipSpecs) return false
+    return !artifactDone(changeDir, id)
+  })
 }
 
 // --- command ----------------------------------------------------------------
@@ -204,6 +219,14 @@ export async function run(ctx: CommandContext): Promise<number> {
   const root = await resolveRoot(ctx)
   const base = root.base
   const allowSoft = ctx.args.includes('--allow-soft')
+  // `skip_specs` precedence (DESIGN §5, OpenSpec 1.7 parity): the one-shot CLI
+  // flag overrides a persisted `.openspec.yaml` marker, which overrides the
+  // structural default (spec-bearing types must show deltas). The conflict
+  // case — a marker declared alongside actual files under `specs/` — is a
+  // validate-time ERROR owned by the validate rule family; Step 2 below runs
+  // fast validation first, so that ERROR blocks the gate before this flag
+  // ever gets a chance to paper over it.
+  const cliSkipSpecs = ctx.args.includes('--skip-specs')
   const name = ctx.args.find((a) => !a.startsWith('-'))
 
   if (name === undefined) {
@@ -247,7 +270,8 @@ export async function run(ctx: CommandContext): Promise<number> {
     change.schema as CospecType,
     change.schemaVersion ?? 1,
   )
-  const missing = missingArtifacts(change.dir, applyRequires)
+  const skipSpecs = cliSkipSpecs || change.skipSpecs === true
+  const missing = missingArtifacts(change.dir, applyRequires, skipSpecs)
   if (missing.length > 0) {
     if (flags.json) {
       process.stdout.write(

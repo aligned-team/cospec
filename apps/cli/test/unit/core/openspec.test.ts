@@ -17,6 +17,7 @@ import {
   PINNED_OPENSPEC_VERSION,
   runOpenspec,
   satisfiesOpenspecRange,
+  WRAPPED_ENV,
 } from '../../../src/core/openspec.ts'
 
 function result(partial: Partial<OpenspecResult>): OpenspecResult {
@@ -27,7 +28,7 @@ describe('satisfiesOpenspecRange', () => {
   test('accepts the floor, the pin, and everything up to the ceiling', () => {
     expect(satisfiesOpenspecRange('1.0.0')).toBe(true) // inclusive floor
     expect(satisfiesOpenspecRange('1.4.0')).toBe(true)
-    expect(satisfiesOpenspecRange(PINNED_OPENSPEC_VERSION)).toBe(true) // 1.5.0
+    expect(satisfiesOpenspecRange(PINNED_OPENSPEC_VERSION)).toBe(true) // the exact pin
     expect(satisfiesOpenspecRange('1.99.99')).toBe(true)
   })
 
@@ -64,6 +65,20 @@ describe('checkVersion', () => {
 
   test('drift override skips the check even for an out-of-range version', () => {
     expect(() => checkVersion('9.9.9', true)).not.toThrow()
+  })
+})
+
+describe('WRAPPED_ENV — the env every wrapped spawn forces', () => {
+  test('silences openspec first-run stdout/stderr notices and its update check', () => {
+    // Deterministic, parseable output.
+    expect(WRAPPED_ENV.NO_COLOR).toBe('1')
+    expect(WRAPPED_ENV.BUN_BE_BUN).toBe('1')
+    // The telemetry notice goes to STDOUT and would corrupt every --json read;
+    // the same key is what openspec's own update check reads to stay offline.
+    expect(WRAPPED_ENV.OPENSPEC_TELEMETRY).toBe('0')
+    // 1.10.0's completion tip goes to STDERR, which runPassthrough relays
+    // verbatim — cospec must never tell a user to run bare `openspec`.
+    expect(WRAPPED_ENV.OPENSPEC_NO_COMPLETIONS).toBe('1')
   })
 })
 

@@ -34,8 +34,12 @@ artifacts:
     instruction: |
       Follow the template exactly: `## N. Group` headings, `- [ ] N.M task`
       checkboxes. The apply phase parses this checkbox format; non-conforming
-      lines are not tracked and fail `cospec validate`. Pair every code task
-      with a test/verification task. Order tasks by dependency.
+      lines are not tracked and fail `cospec validate`. Order tasks by dependency.
+      Every task states how its own completion is verified — a test, a command, an
+      observable behavior, or a delivered artifact — inside that task's checkbox
+      description. Reserve a separate verification task for integration or system
+      behavior that spans several implementation tasks, not for checking one task
+      you just wrote.
     requires: [proposal]
 apply:
   requires: [proposal, blocking-changes, tasks]

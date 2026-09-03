@@ -5,8 +5,9 @@
 // `--no-scenarios`, `-r`/`--requirement`) verbatim, threads the three global
 // flags (`--json`/`--no-color`/`--store`) via `passthrough-command.ts`, and
 // relays stdout/stderr as-is. The pinned binary already exits 1 for an
-// unknown or ambiguous item (verified against 1.5.0) — no extra deny-list is
-// needed for that case.
+// unknown or ambiguous item (re-probed against the 1.11.0 pin: exit 1, empty
+// stdout, `Unknown item '<name>'. Did you mean: …` on stderr) — no extra
+// deny-list is needed for that case.
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'

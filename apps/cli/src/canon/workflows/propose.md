@@ -19,8 +19,7 @@ The argument after the command is either `<type>: <free text>` (for example
 `feat: add a greeting endpoint`) or a bare description.
 
 - If it begins with a known type followed by `:`, use that type.
-- Otherwise ask the user to choose a type with AskUserQuestion, offering this
-  table:
+- Otherwise ask the user to choose a type, offering this table:
 
 {{TYPE_TABLE}}
 
@@ -47,7 +46,9 @@ Loop until every artifact in the type's `apply.requires` is written:
    `cospec instructions <artifact> --change <slug> --json`. The JSON carries the
    template, the type-specific instruction, and any project `context` and
    `rules`. Treat `context` and `rules` as constraints on how you write — never
-   copy them into the artifact itself.
+   copy them into the artifact itself. Re-read every completed dependency
+   artifact from disk before writing against it, even if you wrote it earlier in
+   this session — the user may have edited it since.
 3. Write the artifact at the path the instructions name, following the format
    exactly. `blocking-changes.md`, the `specs/**/spec.md` deltas, and
    `verification.md` are machine-parsed — small deviations fail validation.

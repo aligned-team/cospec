@@ -40,6 +40,19 @@ describe('cospec init — repo-state matrix', () => {
     // Schemas are materialized alongside it.
     expect(existsSync(join(root, 'openspec/schemas/feat/schema.yaml'))).toBe(true)
   })
+
+  test('state C: --remove-opsx clears the `.agents/skills/` openspec leftover too', async () => {
+    const root = mkTempRepo({ fixture: 'vanilla-openspec', git: true })
+    const leftover = join(root, '.agents/skills/openspec-propose/SKILL.md')
+    expect(existsSync(leftover)).toBe(true)
+    const res = await cospec(
+      ['init', '--harness', 'claude', '--remove-opsx', '--no-gate', '--yes'],
+      { cwd: root },
+    )
+    expect(res.exitCode).toBe(0)
+    expect(existsSync(leftover)).toBe(false)
+    expect(existsSync(join(root, '.agents/skills/openspec-propose'))).toBe(false)
+  })
 })
 
 describe('cospec init — idempotence (DESIGN §6.5)', () => {

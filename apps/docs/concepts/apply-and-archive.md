@@ -78,6 +78,13 @@ requires — so you don't have to guess what's relevant.
 ::: tip `--allow-soft` only waives **soft** blockers. Hard blockers have no
 override — the change they name has to actually land first. :::
 
+::: tip `--skip-specs` on `apply` A spec-bearing type can legitimately have no
+deltas on a given run — pass `--skip-specs` on `cospec apply` as a one-shot
+equivalent of persisting `skip_specs: true` in `.openspec.yaml` (see
+[Configuration](/reference/configuration)). Precedence is the CLI flag first,
+then the persisted marker, then the structural default that a spec-bearing type
+must show deltas. :::
+
 ## `cospec archive <change> [--skip-specs] [--force-incomplete] [--json]`
 
 Archive is the step that moves a change out of `openspec/changes/` and merges
@@ -111,8 +118,21 @@ override:
   [Verification](/concepts/verification) for the row grammar.
 - **`archive/scenario-preservation`** — fires only for specs-bearing changes,
   right before delegating. It re-parses each `## MODIFIED Requirements` delta
-  against the current living spec and refuses if a scenario count drops without
-  either a `Scenario removed: <reason>` note or a matching `REMOVED` operation.
+  against the current living spec and refuses if a scenario count drops.
+
+  ::: warning The `Scenario removed: <reason>` escape hatch is retired As of
+  openspec 1.8.0, any `MODIFIED` block that omits a living scenario is a
+  validate ERROR and its archive aborts on one —
+  `current spec contains scenario(s) not present in the modified block … Aborted. No files were changed.`,
+  exit `1` — with no special handling for cospec's note, so the note can no
+  longer excuse a scenario drop; it only used to delay the refusal, and below
+  1.8.0 honoring it silently dropped scenarios, the exact regression this gate
+  exists to prevent. Two remedies actually work: copy the missing scenario back
+  into the `MODIFIED` block, or remove the requirement (`REMOVED`) and add it
+  back (`ADDED`) in the same delta. cospec's own gate still fires first, under
+  its own rule id, and stays the sole defence on openspec 1.0.0–1.7.x inside the
+  accepted `>=1.0.0 <2.0.0` range — 1.8.0+ runs its own overlapping check,
+  making cospec's gate defence-in-depth from there on. :::
 
 **Execute and verify**
 
@@ -138,9 +158,30 @@ override:
 ```
 Archived: add-widget (feat) → openspec/changes/archive/2026-07-03-add-widget/
 Specs:    +2 ~1 -0 →0 applied and verified
+Warning:  Retiring openspec/specs/widgets/spec.md: all requirements removed.
+Retired:  widgets (spec files deleted)
 Blockers: checked off in 1 change(s): add-dashboard
 Now unblocked: add-dashboard → next: cospec apply add-dashboard
 ```
+
+On the success path, `cospec archive` no longer swallows the wrapped binary's
+own non-blocking warnings — a `Warning:` line per relayed warning, and a
+`Retired:` line naming any capability whose living spec the merge deleted. Both
+also appear in `--json`, as `warnings: string[]` and `retired: string[]` —
+always present, `[]` when nothing to report; the rest of the single-change JSON
+shape is unchanged.
+
+### Capability retirement
+
+A `REMOVED` operation that takes a capability's last requirement can delete its
+living `spec.md` outright, rather than leaving an empty `## Requirements`
+section behind — but only when the change's `.openspec.yaml` declares
+`retire_capabilities: true` (see [Configuration](/reference/configuration)).
+Without the marker, openspec refuses the merge and cospec relays the refusal
+untouched — change and spec both left exactly as they were. With it, expect the
+`Retired:` line above; if a spec disappears with **no** marker present, that's
+an invariant breach, not a legitimate retirement, and cospec reports it as such
+rather than accepting it quietly.
 
 ::: warning Why filesystem checks, not exit codes The wrapped `openspec` binary
 is trusted for its output, never for its exit code alone — it can abort or

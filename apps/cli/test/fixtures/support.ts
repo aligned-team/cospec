@@ -81,9 +81,21 @@ export function cospecBin(
   return spawn([binPath, ...args], opts.cwd, opts.env)
 }
 
-/** Run the real bundled openspec binary in `cwd`. */
-export function openspec(args: string[], cwd: string): Promise<SpawnResult> {
-  return spawn(['bun', openspecBinPath(), '--no-color', ...args], cwd)
+/**
+ * Run the real bundled openspec binary in `cwd`.
+ *
+ * `env` exists for the same reason `cospec`'s does, and is load-bearing for
+ * `TZ`: assigning `process.env.TZ` in Bun changes the SUITE's zone but the key
+ * does not survive `{ ...process.env }`, so a child never inherits it. A test
+ * comparing a date computed in-process against one a child stamped must pass
+ * the zone explicitly here.
+ */
+export function openspec(
+  args: string[],
+  cwd: string,
+  env?: Record<string, string>,
+): Promise<SpawnResult> {
+  return spawn(['bun', openspecBinPath(), '--no-color', ...args], cwd, env)
 }
 
 const activeDirs = new Set<string>()
