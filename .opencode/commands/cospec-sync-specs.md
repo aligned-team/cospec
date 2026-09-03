@@ -2,7 +2,7 @@
 description: Explain how spec sync works (it runs inside archive) and preview what would merge.
 metadata:
   author: cospec
-  generatedBy: cospec@0.5.4
+  generatedBy: cospec@0.6.0
   contentHash: sha256:8b278ff959f29a554a995c6d9f2233dd6bd98363c94aaf2aef20f555aff58bd0
 ---
 
