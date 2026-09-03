@@ -9,7 +9,8 @@ commit type. `feat` gets the full treatment; `ci` takes two minutes.
 typed change schemas (one per conventional-commit type), real validation, a
 gated `apply`, a machine-parsed `verification` evidence ledger with hard archive
 gates, a verified `archive`, and blocker sync — plus generated skills/commands
-for Claude Code, Codex, and OpenCode.
+for Claude Code, Codex, and OpenCode, and skills for the shared `.agents/skills`
+root read by Codex, Zed, Antigravity, and other AGENTS.md-aware assistants.
 
 ## Install
 
