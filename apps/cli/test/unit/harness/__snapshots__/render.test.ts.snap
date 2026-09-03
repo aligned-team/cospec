@@ -1,7 +1,19 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
-exports[`renderHarnessFiles — file set emits the expected path set for all three harnesses 1`] = `
+exports[`renderHarnessFiles — file set emits the expected path set for all four harnesses 1`] = `
 [
+  ".agents/skills/cospec-apply-change/SKILL.md",
+  ".agents/skills/cospec-archive-change/SKILL.md",
+  ".agents/skills/cospec-bulk-archive-change/SKILL.md",
+  ".agents/skills/cospec-continue-change/SKILL.md",
+  ".agents/skills/cospec-explore/SKILL.md",
+  ".agents/skills/cospec-ff-change/SKILL.md",
+  ".agents/skills/cospec-new-change/SKILL.md",
+  ".agents/skills/cospec-onboard/SKILL.md",
+  ".agents/skills/cospec-propose/SKILL.md",
+  ".agents/skills/cospec-sync-specs/SKILL.md",
+  ".agents/skills/cospec-update-change/SKILL.md",
+  ".agents/skills/cospec-verify-change/SKILL.md",
   ".claude/commands/cospec/apply.md",
   ".claude/commands/cospec/archive.md",
   ".claude/commands/cospec/bulk-archive.md",
@@ -27,18 +39,6 @@ exports[`renderHarnessFiles — file set emits the expected path set for all thr
   ".claude/skills/cospec-update-change/SKILL.md",
   ".claude/skills/cospec-verify-change/SKILL.md",
   ".codex/rules/cospec.rules",
-  ".codex/skills/cospec-apply-change/SKILL.md",
-  ".codex/skills/cospec-archive-change/SKILL.md",
-  ".codex/skills/cospec-bulk-archive-change/SKILL.md",
-  ".codex/skills/cospec-continue-change/SKILL.md",
-  ".codex/skills/cospec-explore/SKILL.md",
-  ".codex/skills/cospec-ff-change/SKILL.md",
-  ".codex/skills/cospec-new-change/SKILL.md",
-  ".codex/skills/cospec-onboard/SKILL.md",
-  ".codex/skills/cospec-propose/SKILL.md",
-  ".codex/skills/cospec-sync-specs/SKILL.md",
-  ".codex/skills/cospec-update-change/SKILL.md",
-  ".codex/skills/cospec-verify-change/SKILL.md",
   ".opencode/commands/cospec-apply.md",
   ".opencode/commands/cospec-archive.md",
   ".opencode/commands/cospec-bulk-archive.md",
@@ -2059,7 +2059,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:840647d707f745f3df4c4a31863c13ca65896208adf35b2d52289a16bc4e6f2d
+  contentHash: sha256:cf34200327a7f0bc8b2b4a05c1cfcbbab16e1230ccc1693c04fa8578f7e516fe
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -2151,12 +2151,12 @@ the formatter over it before re-validating. Re-run until it is clean.
 ## 5. Hand off
 
 Tell the user the change is apply-ready and that the next step is
-\`/cospec:apply\` when they want to implement it. Do not start implementation
+\`$cospec-apply-change (Codex) or /cospec-apply-change (other agents)\` when they want to implement it. Do not start implementation
 here.
 "
 ,
     "kind": "skill",
-    "path": ".codex/skills/cospec-propose/SKILL.md",
+    "path": ".agents/skills/cospec-propose/SKILL.md",
   },
   {
     "content": 
@@ -2168,12 +2168,12 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:82c924ccd2ffdfe3a23631cab3fb22cdb27bf3610b8b8a17f55940a01c19c0de
+  contentHash: sha256:b2911d87515b0bc4bdc4f73e43ac9ed25f8f3b982da1d1500821d85cb5f595a5
 ---
 
 Scaffold a new openspec change and stop. This workflow creates the change and
 shows you its typed artifact plan — it does not author any artifact. Hand off to
-\`/cospec:ff\` or \`/cospec:continue\` to actually write them.
+\`$cospec-ff-change (Codex) or /cospec-ff-change (other agents)\` or \`$cospec-continue-change (Codex) or /cospec-continue-change (other agents)\` to actually write them.
 
 All work goes through \`cospec\`. Never call \`openspec\` directly, and never
 hand-edit the bookkeeping under \`openspec/changes/\`.
@@ -2228,14 +2228,14 @@ scaffolds and previews.
 
 Tell the user the change is scaffolded and offer two ways to continue:
 
-- \`/cospec:ff\` — author every remaining artifact in one pass.
-- \`/cospec:continue\` — author one artifact at a time, reviewing each.
+- \`$cospec-ff-change (Codex) or /cospec-ff-change (other agents)\` — author every remaining artifact in one pass.
+- \`$cospec-continue-change (Codex) or /cospec-continue-change (other agents)\` — author one artifact at a time, reviewing each.
 
 Do not create any artifact file yourself in this workflow.
 "
 ,
     "kind": "skill",
-    "path": ".codex/skills/cospec-new-change/SKILL.md",
+    "path": ".agents/skills/cospec-new-change/SKILL.md",
   },
   {
     "content": 
@@ -2247,7 +2247,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:2b7c61ad71a36a9dbe6e864a51a0c5e0ca2f115240ccb1abb1a38279e04869d4
+  contentHash: sha256:12b4eda75d7524c104123a844977bc1a00e409fc283e61724e9f162d50d0da1a
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -2265,7 +2265,7 @@ cospec list --json
 \`\`\`
 
 If the user named a change, use it. If exactly one active change exists, use it
-and announce \`Using change: <slug>\`, naming \`/cospec:continue <other-slug>\` as
+and announce \`Using change: <slug>\`, naming \`$cospec-continue-change (Codex) or /cospec-continue-change (other agents) <other-slug>\` as
 the override. If more than one is plausible, ask the user which one, showing
 each change's type and gate state.
 
@@ -2280,7 +2280,7 @@ write next.
 
 ## 3. Finish the artifacts
 
-Run the same loop as \`/cospec:propose\` step 3: for each ready artifact, call
+Run the same loop as \`$cospec-propose (Codex) or /cospec-propose (other agents)\` step 3: for each ready artifact, call
 \`cospec instructions <artifact> --change <slug> --json\`, write it to the named
 path, and repeat until every required artifact exists. Apply \`context\` and
 \`rules\` as constraints, never copy them into the output. Re-read every completed
@@ -2302,11 +2302,11 @@ cospec validate <slug> --strict
 \`\`\`
 
 Fix all issues (re-running the formatter over anything you edit), then tell the
-user the change is apply-ready — next step \`/cospec:apply\`.
+user the change is apply-ready — next step \`$cospec-apply-change (Codex) or /cospec-apply-change (other agents)\`.
 "
 ,
     "kind": "skill",
-    "path": ".codex/skills/cospec-continue-change/SKILL.md",
+    "path": ".agents/skills/cospec-continue-change/SKILL.md",
   },
   {
     "content": 
@@ -2318,13 +2318,13 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:297fcf956284a582d82fe043cbdc0091ade5810399cdc4f9b0417a9014a9938f
+  contentHash: sha256:53bbcba7d5205081d7bc074498b8fedceeb19f51ca6136bc399c9903ae3535b4
 ---
 
 Fast-forward an already-scaffolded change: author every remaining artifact in
-one pass, then validate. Use this after \`/cospec:new\` has already created the
+one pass, then validate. Use this after \`$cospec-new-change (Codex) or /cospec-new-change (other agents)\` has already created the
 change. Do NOT scaffold a new change here — if none exists yet, stop and point
-the user at \`/cospec:new\` instead.
+the user at \`$cospec-new-change (Codex) or /cospec-new-change (other agents)\` instead.
 
 All work goes through \`cospec\`. Never call \`openspec\` directly, and never
 hand-edit the bookkeeping under \`openspec/changes/\`.
@@ -2393,12 +2393,12 @@ the formatter over it before re-validating. Re-run until it is clean.
 ## 5. Hand off
 
 Tell the user the change is apply-ready and that the next step is
-\`/cospec:apply\` when they want to implement it. Do not start implementation
+\`$cospec-apply-change (Codex) or /cospec-apply-change (other agents)\` when they want to implement it. Do not start implementation
 here.
 "
 ,
     "kind": "skill",
-    "path": ".codex/skills/cospec-ff-change/SKILL.md",
+    "path": ".agents/skills/cospec-ff-change/SKILL.md",
   },
   {
     "content": 
@@ -2410,12 +2410,12 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:5a2963ee5dc6dbc552c3323f817c3afcdd0996c567fe238c52fa0dc4e8eea217
+  contentHash: sha256:6b933d6a43827dc08fcef35a0ae4aa5a715d0e7d7c5eb1efd50a54035aad717a
 ---
 
 Revise a change's **existing** artifacts and keep them coherent with one
 another. This workflow never creates an artifact that does not exist yet (that
-is \`/cospec:continue\`) and never edits code (that is \`/cospec:apply\`).
+is \`$cospec-continue-change (Codex) or /cospec-continue-change (other agents)\`) and never edits code (that is \`$cospec-apply-change (Codex) or /cospec-apply-change (other agents)\`).
 
 All work goes through \`cospec\`. Never call \`openspec\` directly, and never
 hand-edit the bookkeeping under \`openspec/changes/\`.
@@ -2429,7 +2429,7 @@ built from \`cospec status\`, \`cospec instructions\`, and \`cospec validate\`.
 
 If the user named one, use it. Otherwise run \`cospec list --json\`. If exactly
 one active change exists, use it and announce \`Using change: <slug>\`, naming
-\`/cospec:update <other-slug>\` as the override. If more than one is plausible,
+\`$cospec-update-change (Codex) or /cospec-update-change (other agents) <other-slug>\` as the override. If more than one is plausible,
 ask the user which one, showing each change's type and gate state.
 
 ## 2. Read what exists
@@ -2439,7 +2439,7 @@ cospec status --change <slug> --json
 \`\`\`
 
 Only artifacts reported \`done\` are in scope. Anything still missing is out of
-scope here — note it and point the user at \`/cospec:continue\`.
+scope here — note it and point the user at \`$cospec-continue-change (Codex) or /cospec-continue-change (other agents)\`.
 
 ## 3. Understand the request
 
@@ -2469,7 +2469,7 @@ Apply \`context\` and \`rules\` as constraints; never copy them into the artifac
 \`blocking-changes.md\`, the \`specs/**/spec.md\` deltas, and \`verification.md\` are
 machine-parsed — keep the exact format. For the specs artifact, revise only the
 delta files already under \`openspec/changes/<slug>/specs/\`; adding a new
-capability file is \`/cospec:continue\`'s job.
+capability file is \`$cospec-continue-change (Codex) or /cospec-continue-change (other agents)\`'s job.
 
 ## 5. Confirm each edit
 
@@ -2488,18 +2488,18 @@ cospec validate <slug> --strict
 Fix every ERROR and every WARNING, re-running the formatter over anything you
 edit. Then name the next step:
 
-- artifacts still missing → \`/cospec:continue\`
-- apply-ready and not yet implemented → \`/cospec:apply\`
+- artifacts still missing → \`$cospec-continue-change (Codex) or /cospec-continue-change (other agents)\`
+- apply-ready and not yet implemented → \`$cospec-apply-change (Codex) or /cospec-apply-change (other agents)\`
 - already implemented, and the revision changed what should be built →
-  \`/cospec:apply\` again to carry the delta into code
-- everything done → \`/cospec:verify\`, then \`/cospec:archive\`
+  \`$cospec-apply-change (Codex) or /cospec-apply-change (other agents)\` again to carry the delta into code
+- everything done → \`$cospec-verify-change (Codex) or /cospec-verify-change (other agents)\`, then \`$cospec-archive-change (Codex) or /cospec-archive-change (other agents)\`
 
 If the request changes the change's _intent_ rather than refining it, do not
-rewrite it in place — recommend \`/cospec:new <type> <new-slug>\` and stop.
+rewrite it in place — recommend \`$cospec-new-change (Codex) or /cospec-new-change (other agents) <type> <new-slug>\` and stop.
 "
 ,
     "kind": "skill",
-    "path": ".codex/skills/cospec-update-change/SKILL.md",
+    "path": ".agents/skills/cospec-update-change/SKILL.md",
   },
   {
     "content": 
@@ -2511,7 +2511,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:7a8e6f62141f0dd909b84b2accfd01d21f7151e7bf568a6946e9cd8fac34b98e
+  contentHash: sha256:3dda5abccff40fb67246705c28c9fc9ee45d01a0e62d0b489d91b95e3eebde64
 ---
 
 Run the deterministic apply gate for a change, then implement its tasks. The
@@ -2556,11 +2556,11 @@ Obey the exit code:
 ## 3. Finish
 
 When every task is checked, tell the user the change is ready to archive — next
-step \`/cospec:archive\`.
+step \`$cospec-archive-change (Codex) or /cospec-archive-change (other agents)\`.
 "
 ,
     "kind": "skill",
-    "path": ".codex/skills/cospec-apply-change/SKILL.md",
+    "path": ".agents/skills/cospec-apply-change/SKILL.md",
   },
   {
     "content": 
@@ -2572,12 +2572,12 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:d77817df123483dd7f40b93919041d8e5b09c2b55bc9681e503ffd5b63b9076a
+  contentHash: sha256:cdade0649f06209a03f7cb00c0e513f72a40638b5b5b14357a6a69585d93d54e
 ---
 
 Dress-rehearse a change before archiving it. This workflow does not archive — it
 runs \`cospec validate --strict\`, walks the verification ledger to observed
-evidence, and names the hard gates \`/cospec:archive\` will enforce.
+evidence, and names the hard gates \`$cospec-archive-change (Codex) or /cospec-archive-change (other agents)\` will enforce.
 
 All work goes through \`cospec\`. Never call \`openspec\` directly, and never
 hand-edit the bookkeeping under \`openspec/changes/\`.
@@ -2621,7 +2621,7 @@ moving on.
 
 ## 5. Name the gates archive will enforce
 
-Tell the user \`/cospec:archive\` runs two hard gates, neither of which accepts
+Tell the user \`$cospec-archive-change (Codex) or /cospec-archive-change (other agents)\` runs two hard gates, neither of which accepts
 \`--force\`:
 
 - \`archive/verification-incomplete\` — fails if any ledger row is still a bare
@@ -2634,11 +2634,11 @@ This workflow only checks these preconditions; it does not run the archive.
 ## 6. Hand off
 
 Tell the user the change is dress-rehearsed and the next step is
-\`/cospec:archive\`.
+\`$cospec-archive-change (Codex) or /cospec-archive-change (other agents)\`.
 "
 ,
     "kind": "skill",
-    "path": ".codex/skills/cospec-verify-change/SKILL.md",
+    "path": ".agents/skills/cospec-verify-change/SKILL.md",
   },
   {
     "content": 
@@ -2650,7 +2650,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:d3888b806ad2a458d51e502db3d4697e1a384fbbb0cca33a69317c5d42b16b46
+  contentHash: sha256:6f24fff779ee706334b23fdc7171e4e8587060b2ae16a34a1da07a12c57d96a3
 ---
 
 Archive a completed change. \`cospec archive\` validates it, merges its spec
@@ -2702,11 +2702,11 @@ quote its Purpose, and tell the user how to recover it (a \`git checkout\` of th
 path when the spec lived in this checkout).
 
 Never bypass validation. If a change is reported as now unblocked, offer to
-\`/cospec:apply\` it next.
+\`$cospec-apply-change (Codex) or /cospec-apply-change (other agents)\` it next.
 "
 ,
     "kind": "skill",
-    "path": ".codex/skills/cospec-archive-change/SKILL.md",
+    "path": ".agents/skills/cospec-archive-change/SKILL.md",
   },
   {
     "content": 
@@ -2718,7 +2718,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:3b79b54dd7063074630d38b7d2e3a71240c31e1410fef4577acc1efa21d44599
+  contentHash: sha256:1c17ca4d8574ffceb1f13040aac47376825c4a6f86abd5d08cab55d194a948d4
 ---
 
 Archive a batch of completed changes, one at a time, in dependency order. Every
@@ -2779,12 +2779,12 @@ not understand:
 ## 5. Report and hand off
 
 Summarize the batch: which changes archived cleanly, which failed and why, and
-which changes are newly unblocked. Offer to \`/cospec:apply\` anything newly
+which changes are newly unblocked. Offer to \`$cospec-apply-change (Codex) or /cospec-apply-change (other agents)\` anything newly
 unblocked.
 "
 ,
     "kind": "skill",
-    "path": ".codex/skills/cospec-bulk-archive-change/SKILL.md",
+    "path": ".agents/skills/cospec-bulk-archive-change/SKILL.md",
   },
   {
     "content": 
@@ -2796,7 +2796,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:93b508f463dcdaed56e37c87f47652cf04333f139926d67cf1d2f15b033bf711
+  contentHash: sha256:a7843116c61379181eea4cfe254d8efe5daadb124a0862a656241d4c5478fb08
 ---
 
 Explain and preview spec synchronization. Spec sync is not a standalone step in
@@ -2836,13 +2836,13 @@ report a retirement, and give the user a way to recover the file.
 
 ## Actually sync
 
-Run \`/cospec:archive\` when the change is complete. The merge happens there, is
+Run \`$cospec-archive-change (Codex) or /cospec-archive-change (other agents)\` when the change is complete. The merge happens there, is
 verified, and blocker check-offs fan out automatically. To sanity-check the
 living specs on their own, run \`cospec validate --specs\`.
 "
 ,
     "kind": "skill",
-    "path": ".codex/skills/cospec-sync-specs/SKILL.md",
+    "path": ".agents/skills/cospec-sync-specs/SKILL.md",
   },
   {
     "content": 
@@ -2854,7 +2854,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:a15d4d9d80a4a0983f100959746b5411c91ca0e3abf3cf102f11d7b7a869289a
+  contentHash: sha256:99d3eeeb89a0ed8fdca46c5a12470602de0b6e465570a116c57d04d01ecb35e3
 ---
 
 Investigate a question about the codebase, a spec, or a proposed change — in
@@ -2902,7 +2902,7 @@ and format exactly.
   \`openspec/config.yaml\` is a change, not thinking.
 - Do not run \`cospec apply\` or \`cospec archive\`.
 - Do not create a new change unless the user explicitly asks. If the exploration
-  concludes that work is warranted, recommend \`/cospec:propose "<type>: <what>"\`
+  concludes that work is warranted, recommend \`$cospec-propose (Codex) or /cospec-propose (other agents) "<type>: <what>"\`
   and stop.
 - Do not hand-create a change directory under \`openspec/changes/\`. \`cospec new\`
   writes the metadata that makes a change real — and only after the user has
@@ -2913,7 +2913,7 @@ recommended next step.
 "
 ,
     "kind": "skill",
-    "path": ".codex/skills/cospec-explore/SKILL.md",
+    "path": ".agents/skills/cospec-explore/SKILL.md",
   },
   {
     "content": 
@@ -2925,7 +2925,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:c0acf01721c99e0b50950041c4080c330b709e81b07ef095b69784b1bedc7960
+  contentHash: sha256:ab5659dd080b9a96ed4a205361f6b3b3ff871ac0757c498f74344db5955d835f
 ---
 
 Walk a first-time user through one real cospec change, end to end, narrating
@@ -3018,12 +3018,12 @@ to sibling changes.
 ## 10. Wrap up
 
 Tell the user they have now run the full cospec loop once end to end, and point
-at \`/cospec:propose\` (or \`/cospec:new\` plus \`/cospec:ff\` or \`/cospec:continue\`)
+at \`$cospec-propose (Codex) or /cospec-propose (other agents)\` (or \`$cospec-new-change (Codex) or /cospec-new-change (other agents)\` plus \`$cospec-ff-change (Codex) or /cospec-ff-change (other agents)\` or \`$cospec-continue-change (Codex) or /cospec-continue-change (other agents)\`)
 for their next real change.
 "
 ,
     "kind": "skill",
-    "path": ".codex/skills/cospec-onboard/SKILL.md",
+    "path": ".agents/skills/cospec-onboard/SKILL.md",
   },
   {
     "content": 

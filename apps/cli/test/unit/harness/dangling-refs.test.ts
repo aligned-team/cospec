@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import { type HarnessName, renderHarnessFiles } from '../../../src/harness/render.ts'
 import { TEST_VERSION, TYPE_TABLE, WORKFLOW_COMMANDS, WORKFLOW_SKILLS } from './fixtures.ts'
 
-const ALL: HarnessName[] = ['claude', 'codex', 'opencode']
+const ALL: HarnessName[] = ['claude', 'codex', 'opencode', 'agents']
 
 const files = renderHarnessFiles({ harnesses: ALL, typeTable: TYPE_TABLE, version: TEST_VERSION })
 
@@ -16,11 +16,26 @@ const KNOWN_SKILLS = new Set<string>(WORKFLOW_SKILLS)
  * generator never emitted. cospec's bodies may only reference the twelve workflows it always emits.
  */
 describe('no dangling workflow references', () => {
-  test('every /cospec:x or /cospec-x slash token names an emitted workflow', () => {
-    const slash = /\/cospec[:-]([a-z][a-z-]*)/g
+  test('every /cospec:x or /cospec-x slash token resolves to a workflow or a skill', () => {
+    // The shared `.agents` dialect respells references as SKILL names (`/cospec-apply-change`),
+    // so a slash token legitimately resolves either way. Doctor's checkDanglingRefs applies
+    // the same two-way resolution — this is the render-side half of that contract.
+    const slash = /\/cospec[:-]([a-z][a-z0-9-]*)/g
     for (const f of files) {
       for (const m of f.body.matchAll(slash)) {
-        expect(KNOWN_COMMANDS.has(m[1]!)).toBe(true)
+        const token = m[1]!
+        const resolved = KNOWN_COMMANDS.has(token) || KNOWN_SKILLS.has(`cospec-${token}`)
+        expect([f.path, token, resolved]).toEqual([f.path, token, true])
+      }
+    }
+  })
+
+  test('the shared dialect never emits a bare `/cospec-<id>` that has no command file', () => {
+    // `.agents/skills` emits no command files, so only the skill spelling may appear there.
+    for (const f of files) {
+      if (!f.path.startsWith('.agents/')) continue
+      for (const m of f.body.matchAll(/\/cospec[:-]([a-z][a-z0-9-]*)/g)) {
+        expect([f.path, m[1]!, KNOWN_SKILLS.has(`cospec-${m[1]!}`)]).toEqual([f.path, m[1]!, true])
       }
     }
   })

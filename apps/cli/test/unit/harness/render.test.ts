@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { createHash } from 'node:crypto'
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import {
   hashBody,
@@ -15,14 +18,14 @@ import {
   WORKFLOW_SKILLS,
 } from './fixtures.ts'
 
-const ALL: HarnessName[] = ['claude', 'codex', 'opencode']
+const ALL: HarnessName[] = ['claude', 'codex', 'opencode', 'agents']
 
 function render(harnesses: HarnessName[] = ALL) {
   return renderHarnessFiles({ harnesses, typeTable: TYPE_TABLE, version: TEST_VERSION })
 }
 
 describe('renderHarnessFiles — file set', () => {
-  test('emits the expected path set for all three harnesses', () => {
+  test('emits the expected path set for all four harnesses', () => {
     const paths = render()
       .map((f) => f.path)
       .toSorted()
@@ -41,6 +44,20 @@ describe('renderHarnessFiles — file set', () => {
     expect(files.filter((f) => f.kind === 'skill')).toHaveLength(12)
     expect(files.filter((f) => f.kind === 'rules')).toHaveLength(1)
     expect(files.filter((f) => f.kind === 'command')).toHaveLength(0)
+  })
+
+  test('agents emits 12 skills under the shared root, no commands and no rules', () => {
+    const files = render(['agents'])
+    expect(files.filter((f) => f.kind === 'skill')).toHaveLength(12)
+    expect(files.filter((f) => f.kind === 'command')).toHaveLength(0)
+    expect(files.filter((f) => f.kind === 'rules')).toHaveLength(0)
+    for (const f of files) expect(f.path.startsWith('.agents/skills/')).toBe(true)
+  })
+
+  test('claude and opencode write nothing under the shared root', () => {
+    for (const harness of ['claude', 'opencode'] as HarnessName[]) {
+      for (const f of render([harness])) expect(f.path.startsWith('.agents/')).toBe(false)
+    }
   })
 
   test('opencode emits 12 commands + 12 skills, no rules', () => {
@@ -63,8 +80,63 @@ describe('renderHarnessFiles — file set', () => {
   })
 })
 
+describe('renderHarnessFiles — shared .agents root', () => {
+  test('codex and agents render byte-identical skill files, contentHash included', () => {
+    const codexSkills = render(['codex']).filter((f) => f.kind === 'skill')
+    const agentsSkills = render(['agents'])
+    expect(agentsSkills).toHaveLength(codexSkills.length)
+    for (let i = 0; i < codexSkills.length; i++) {
+      const a = codexSkills[i]!
+      const b = agentsSkills[i]!
+      expect(b.path).toBe(a.path)
+      expect(b.content).toBe(a.content)
+      expect(b.contentHash).toBe(a.contentHash)
+    }
+  })
+
+  test('selecting codex and agents together emits each shared file exactly once', () => {
+    const both = render(['codex', 'agents'])
+    const paths = both.map((f) => f.path)
+    expect(new Set(paths).size).toBe(paths.length)
+    // 12 shared skills + codex's rules file, and nothing more.
+    expect(both).toHaveLength(13)
+    expect(both.filter((f) => f.kind === 'rules')).toHaveLength(1)
+  })
+
+  test('a shared file is attributed to the harness that rendered it first', () => {
+    const skill = render(['codex', 'agents']).find((f) => f.kind === 'skill')!
+    expect(skill.harness).toBe('codex')
+    const reversed = render(['agents', 'codex']).find((f) => f.kind === 'skill')!
+    expect(reversed.harness).toBe('agents')
+  })
+
+  test('two harnesses writing one path with different bodies is a hard error', () => {
+    const canonDir = mkdtempSync(join(tmpdir(), 'cospec-render-conflict-'))
+    cpSync(join(import.meta.dir, '../../../src/canon/workflows'), canonDir, { recursive: true })
+    const manifestPath = join(canonDir, 'harness.yaml')
+    // Give the shared root two dialects — the one thing the dedupe guard must refuse.
+    const manifest = readFileSync(manifestPath, 'utf8').replace(
+      /(agents:\n(?:.*\n)*?\s+bodyDialect: )shared/,
+      '$1canonical',
+    )
+    writeFileSync(manifestPath, manifest)
+    expect(manifest).toContain('bodyDialect: canonical')
+    expect(() =>
+      renderHarnessFiles({
+        harnesses: ['codex', 'agents'],
+        typeTable: TYPE_TABLE,
+        version: TEST_VERSION,
+        canonDir,
+      }),
+    ).toThrow(/harness render conflict: codex and agents both write \.agents\/skills\//)
+    rmSync(canonDir, { recursive: true, force: true })
+  })
+})
+
 describe('renderHarnessFiles — content snapshots', () => {
-  for (const harness of ALL) {
+  // `agents` is omitted deliberately: it renders the same paths and bytes as `codex`
+  // (asserted above), so a second snapshot of the same 12 files would only add churn.
+  for (const harness of ['claude', 'codex', 'opencode'] as HarnessName[]) {
     test(`${harness} full render is stable`, () => {
       const files = render([harness]).map((f) => ({
         path: f.path,
@@ -137,18 +209,28 @@ describe('type table injection', () => {
 })
 
 describe('slash-syntax substitution', () => {
-  test('opencode bodies use hyphen slashes; claude/codex keep colon slashes', () => {
+  test('opencode bodies use hyphen slashes', () => {
     const opencode = render(['opencode']).find(
       (f) => f.workflow === 'apply' && f.kind === 'command',
     )!
     expect(opencode.body).toContain('/cospec-archive')
     expect(opencode.body).not.toContain('/cospec:archive')
+  })
 
+  test('claude keeps the colon slashes it registers as commands', () => {
     const claude = render(['claude']).find((f) => f.workflow === 'apply' && f.kind === 'command')!
     expect(claude.body).toContain('/cospec:archive')
+  })
 
-    const codex = render(['codex']).find((f) => f.workflow === 'apply')!
-    expect(codex.body).toContain('/cospec:archive')
+  test('codex and agents respell references as skill names — the shared root has no commands', () => {
+    for (const harness of ['codex', 'agents'] as HarnessName[]) {
+      const skill = render([harness]).find((f) => f.workflow === 'apply' && f.kind === 'skill')!
+      expect(skill.body).toContain('$cospec-archive-change (Codex)')
+      expect(skill.body).toContain('/cospec-archive-change (other agents)')
+      expect(skill.body).not.toContain('/cospec:archive')
+      // `/cospec-archive` would dangle: no command file is emitted under `.agents/`.
+      expect(skill.body).not.toMatch(/\/cospec-archive(?![a-z-])/)
+    }
   })
 })
 
