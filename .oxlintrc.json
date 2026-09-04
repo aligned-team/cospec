@@ -26,6 +26,7 @@
     "node_modules",
     "dist",
     "build",
+    "!packages/bench/scenarios/hidden/build",
     "**/*.d.ts",
     "e2e/eval/reports",
     "packages/bench/reports",
