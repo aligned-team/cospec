@@ -193,7 +193,10 @@ out-of-scope issues as a proposed follow-up, not a silent fix.
 **Dependencies** — pin exact versions in `package.json`; regenerate the lockfile
 after editing the manifest. The OpenSpec pin is load-bearing: bumping it means
 running the contract suite and re-probing before updating
-`EXPECTED_OPENSPEC_VERSION`.
+`EXPECTED_OPENSPEC_VERSION`. Tool pins in `mise.toml` are lockfile-backed — bump
+a version and regenerate `mise.lock` in the same commit; CI's "mise lockfile
+drift gate" step (`mise install` then `git diff --exit-code mise.lock`) fails
+the PR otherwise.
 
 **Tests** — every command change lands with a contract or integration test.
 Contract tests run the real pinned binary; a false archive PASS is a release
