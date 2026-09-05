@@ -174,6 +174,32 @@ export const COMMANDS: CommandEntry[] = [
     options: `  --schema <name>   Schema whose templates to list (default: spec-driven)`,
   },
   {
+    name: 'config',
+    summary: 'View and modify machine-global OpenSpec configuration',
+    usage: '<path|list|get|set|unset|reset|edit|profile> [args]',
+    options: `  --scope <scope>   Config scope (only "global" is implemented upstream)
+  (config is machine-global: --store never applies; edit/profile/reset without -y
+   hand the terminal over and cannot emit JSON)`,
+  },
+  {
+    name: 'completion',
+    summary: 'Print the shell completion script for cospec',
+    usage: '[bash|zsh|fish]',
+    options: `  (shell omitted: detected from $SHELL; the script is printed, never installed)`,
+  },
+  {
+    name: 'feedback',
+    summary: "File feedback about cospec (--upstream files OpenSpec's)",
+    usage: '<message>',
+    options: `  --body <text>   Detailed description for the report
+  --upstream      File at Fission-AI/OpenSpec instead of aligned-team/cospec`,
+  },
+  {
+    name: '__complete',
+    summary: 'Dynamic completion source (changes|specs|types)',
+    hidden: true,
+  },
+  {
     name: 'check-commit',
     summary: 'Warn on commit-type/schema mismatch (hook entrypoint)',
     hidden: true,
@@ -211,10 +237,19 @@ const COMMAND_MODULES: Record<string, () => Promise<Partial<CommandModule>>> = {
   schemas: () => import('./commands/schemas.ts'),
   schema: () => import('./commands/schema.ts'),
   templates: () => import('./commands/templates.ts'),
+  config: () => import('./commands/config.ts'),
+  completion: () => import('./commands/completion.ts'),
+  feedback: () => import('./commands/feedback.ts'),
+  __complete: () => import('./commands/complete.ts'),
   'check-commit': () => import('./commands/check-commit.ts'),
 }
 
-const GLOBAL_OPTIONS = `Global options:
+/**
+ * The global-flag help block. Exported because `core/completions/spec.ts`
+ * derives the completion model from this table plus these flags — completion
+ * must never drift from `--help`.
+ */
+export const GLOBAL_OPTIONS = `Global options:
   --json         Machine-readable output
   --no-color     Disable ANSI color
   --cwd <path>   Run as if invoked from <path>

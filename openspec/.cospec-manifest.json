@@ -61,6 +61,6 @@
     "openspec/schemas/test/templates/proposal.md": "sha256:933eba24f543ffa5ecfc2761c78859933b9b05ca5500333f75c006ef2c3edc53",
     "openspec/schemas/test/templates/blocking-changes.md": "sha256:1ca785485ecf0b2e8373fda2d0afbdba927442a72077d8442fb867c20507bf31",
     "openspec/schemas/test/templates/tasks.md": "sha256:c29089bd768eb42e61245fee351226085b99f55b20182b797f2c8d4489cc71f0",
-    ".codex/rules/cospec.rules": "sha256:acc873115f2f64f6ea3cab144e97f61486066978e2ade266833ebeb8f7fa12d6"
+    ".codex/rules/cospec.rules": "sha256:6d95335af27f9fbc54c426445179af6a91eae0a724e314f68f3afb8b432af689"
   }
 }

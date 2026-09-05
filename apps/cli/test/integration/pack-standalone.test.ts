@@ -175,6 +175,23 @@ describe('standalone pack smoke (bun-less)', () => {
     const created = run([bin, 'new', 'chore', 'smoke-change'], target, path)
     expect(created.code, created.stderr).toBe(0)
     expect(existsSync(join(target, 'openspec/changes/smoke-change/.openspec.yaml'))).toBe(true)
+
+    // `config`, `completion`, and `feedback` must dispatch from the compiled
+    // binary too (not just from `bun run src/index.ts`) — literal `import()`
+    // bundling is the trap that silently drops a command module (module
+    // header of `COMMAND_MODULES`), so each of these proves its module made it
+    // into the compiled artifact.
+    const configPath = run([bin, 'config', 'path'], target, path)
+    expect(configPath.code, configPath.stderr).toBe(0)
+    expect(configPath.stdout.trim().length).toBeGreaterThan(0)
+
+    const completionZsh = run([bin, 'completion', 'zsh'], target, path)
+    expect(completionZsh.code, completionZsh.stderr).toBe(0)
+    expect(completionZsh.stdout).toContain('#compdef cospec')
+
+    const feedbackHelp = run([bin, 'feedback', '--help'], target, path)
+    expect(feedbackHelp.code, feedbackHelp.stderr).toBe(0)
+    expect(feedbackHelp.stdout).toContain('feedback')
   }, 180_000)
 
   // The "fully self-contained" gate. NO npm install, NO node_modules anywhere,

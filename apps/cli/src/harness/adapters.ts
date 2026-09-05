@@ -124,6 +124,15 @@ export function renderCodexRules(version: string): string {
     ['cospec', 'sync-blockers', '--check'],
     ['cospec', 'new'],
     ['cospec', 'doctor'],
+    // Read-only config reads and the completion sources. `config set|unset|
+    // reset|edit|profile` mutate machine-global state and `feedback` files a
+    // public issue over the network, so neither is pre-approved — the same
+    // reasoning that keeps `archive` off this list.
+    ['cospec', 'config', 'get'],
+    ['cospec', 'config', 'list'],
+    ['cospec', 'config', 'path'],
+    ['cospec', 'completion'],
+    ['cospec', '__complete'],
   ]
   const lines = allow.map(
     (pattern) =>
