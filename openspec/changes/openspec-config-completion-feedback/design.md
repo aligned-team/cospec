@@ -105,9 +105,12 @@ turns red in CI instead of quietly vanishing from completion.
 diagnostic. This is upstream's design and it is right — a Tab press that prints
 an error into the middle of a command line is worse than a Tab press that
 completes nothing. `types` is served from `COSPEC_TYPES` with no spawn;
-`schemas` is deliberately not a completion source unless the wrapped `schemas`
-command is confirmed to emit `--json`, because parsing a text table for
-completion candidates is not worth the fragility.
+`schemas` is deliberately not a completion source at all. The pinned binary was
+probed and `openspec schemas --json` does exist, so fragility is not the reason
+— the reason is that no cospec command has a schema-name slot to fill.
+`cospec schema`'s first positional is a verb (`which|validate|fork|init`), and
+`cospec new`'s type positional is already served by the spawn-free `types`
+source. A source with no consumer is not worth generating.
 
 **`feedback` is native, with `--upstream` as the explicit escape.** Rejected:
 defaulting to upstream's tracker, and rejected: excluding the command. A cospec
