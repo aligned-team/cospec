@@ -191,11 +191,13 @@ describe('cospec feedback --upstream (relay to Fission-AI/OpenSpec)', () => {
       env: { PATH: path },
     })
     expect(res.stderr).toContain('Fission-AI/OpenSpec')
-    // The exact child exit code is whatever upstream's own feedback command
-    // propagates from gh — cospec never re-maps it to its own EXIT contract
+    // The child's exit code reaches the caller unchanged: upstream's own
+    // feedback command does `process.exit(error.status ?? 1)` on a failed
+    // `gh issue create`, and cospec never re-maps it to its own EXIT contract
     // (see runUpstream: "no exitCodes allow-list can honestly enumerate this").
-    expect(res.exitCode).not.toBe(0)
-    expect(res.exitCode).not.toBe(1)
+    // Asserting the exact value is the point — `not.toBe(0)` would also pass
+    // for a wrapper that collapsed every odd code onto a constant.
+    expect(res.exitCode).toBe(42)
   }, 30_000)
 
   test('--upstream --json is refused (upstream emits text, not JSON), exit 1', async () => {

@@ -58,6 +58,14 @@ function bunlessPath(): string {
   return [nodeEntry, ...kept, '/usr/bin', '/bin'].join(delimiter)
 }
 
+/** `path` with every directory that resolves a real `gh` removed. */
+function ghlessPath(path: string): string {
+  return path
+    .split(delimiter)
+    .filter((p) => p.length > 0 && Bun.which('gh', { PATH: p }) === null)
+    .join(delimiter)
+}
+
 function run(
   cmd: string[],
   cwd: string,
@@ -189,9 +197,26 @@ describe('standalone pack smoke (bun-less)', () => {
     expect(completionZsh.code, completionZsh.stderr).toBe(0)
     expect(completionZsh.stdout).toContain('#compdef cospec')
 
-    const feedbackHelp = run([bin, 'feedback', '--help'], target, path)
-    expect(feedbackHelp.code, feedbackHelp.stderr).toBe(0)
-    expect(feedbackHelp.stdout).toContain('feedback')
+    // `feedback --help` is deliberately NOT the bundling probe: `cli.ts`
+    // answers `--help` from the static COMMANDS table and returns before it
+    // ever looks up COMMAND_MODULES, so it passes even when the module was
+    // dropped. Running the command itself is what loads `commands/feedback.ts`
+    // — a dropped module reports "is not yet implemented" and exits 1. `gh` is
+    // stripped from PATH so this can never file a real issue: the documented
+    // manual-submission fallback exits 0 with a `submitted: false` envelope.
+    const ghless = ghlessPath(path)
+    expect(Bun.which('gh', { PATH: ghless })).toBeNull()
+    const feedback = run([bin, 'feedback', '--json', 'pack smoke probe'], target, ghless)
+    expect(feedback.code, feedback.stderr).toBe(0)
+    expect(feedback.stderr).not.toContain('not yet implemented')
+    const envelope = JSON.parse(feedback.stdout.trim()) as {
+      command: string
+      submitted: boolean
+      repo: string
+    }
+    expect(envelope.command).toBe('feedback')
+    expect(envelope.submitted).toBe(false)
+    expect(envelope.repo).toBe('aligned-team/cospec')
   }, 180_000)
 
   // The "fully self-contained" gate. NO npm install, NO node_modules anywhere,

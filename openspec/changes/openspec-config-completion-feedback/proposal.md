@@ -33,10 +33,11 @@ are not part of this change.
 - `cospec config` deliberately does **not** route through
   `core/passthrough-command.ts`. That helper appends `root.storeArgs`, a
   trailing `--no-color`, and `--json` unconditionally; upstream's `config` has
-  no `--store` (it has a parent-level `--scope`), declares `--no-color` on the
-  program rather than the leaf and rejects a trailing copy, and supports
-  `--json` on `list` only. `commands/config.ts` gets a local argv builder
-  instead, the way `commands/workset.ts` already does, and never calls
+  no `--store` (it has a parent-level `--scope`) and supports `--json` on `list`
+  only. (A trailing `--no-color` is accepted — commander resolves the
+  program-level flag from a leaf — but cospec's spawn already prefixes one, so
+  appending a second is redundant.) `commands/config.ts` gets a local argv
+  builder instead, the way `commands/workset.ts` already does, and never calls
   `resolveRoot` at all — OpenSpec's config is machine-global, not root-scoped.
 - Give `cospec config` a one-JSON-document contract on every subcommand, not
   just the one upstream supports: `list --json` relays upstream's document
@@ -96,23 +97,22 @@ are not part of this change.
   stay forced; `config set telemetry.enabled` is documented as affecting bare
   `openspec` runs rather than honoured by making cospec's wrapped calls
   configurable.
-- Fixing the pre-existing trailing-`--no-color` hazard on the _other_
-  passthroughs. `core/passthrough-command.ts` appends `--no-color` after the
-  subcommand on every wrapped call, and only upstream's `show` tolerates unknown
-  options — so `cospec schemas --no-color`, `cospec templates --no-color` and
-  friends are very likely broken today. This change proves the hazard is real
-  with a contract row and leaves the fix to a follow-up `fix` change.
+- Changing `core/passthrough-command.ts`'s trailing `--no-color` append. The
+  suspected hazard here (that upstream rejects a trailing copy on every leaf but
+  `show`) was probed against the pinned binary and does not exist: `config`'s
+  subcommands, `schemas`, and `templates` all accept it. Contract rows record
+  that, and nothing is changed on the shared helper.
 
 ## Capabilities
 
 ### New Capabilities
 
 - `openspec-config-passthrough`: `cospec config`'s two call classes, its argv
-  shaping rules (no `storeArgs`, no trailing `--no-color`, `--scope` hoisted
-  ahead of the subcommand, `--json` only on `list`), its `--json` envelope
-  shapes, the `--store` refusal, and the precedence notes cospec prints where
-  its own forced environment or canon-managed harness overrides the key just
-  written.
+  shaping rules (no `storeArgs`, no redundant trailing `--no-color`, `--scope`
+  hoisted ahead of the subcommand, `--json` only on `list`), its `--json`
+  envelope shapes, the `--store` refusal, and the precedence notes cospec prints
+  where its own forced environment or canon-managed harness overrides the key
+  just written.
 - `cospec-shell-completion`: `cospec completion`'s generated bash/zsh/fish
   scripts derived from cospec's own command table, shell detection and its
   failure modes, and the hidden `cospec __complete` dynamic source with its
@@ -173,9 +173,9 @@ are not part of this change.
 - [ ] deploy — deploy/runtime/CI-execution topology (infra, Dockerfile, workflow
       runtime, secrets, bind address)
 - [x] integration — the config surface is a contract against the real pinned
-      OpenSpec binary (parent-level `--scope`, trailing-`--no-color` rejection,
-      `--json` on `list` only), and `cospec feedback` shells out to an external
-      `gh` binary and GitHub's issue API.
+      OpenSpec binary (parent-level `--scope`, `--store` rejection, `--json` on
+      `list` only), and `cospec feedback` shells out to an external `gh` binary
+      and GitHub's issue API.
 - [x] agent-behavior — the Codex prefix-rule allow-list grows five read-only
       entries, and `cospec __complete` becomes a new machine-readable surface
       agents and shells consume.

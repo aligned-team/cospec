@@ -12,8 +12,9 @@ every other wrapped read surface uses — appends `root.storeArgs`, a trailing
 cospec's piped spawn uses `stdin: 'ignore'` and forces `OPENSPEC_TELEMETRY=0`
 and `OPENSPEC_NO_COMPLETIONS=1` in `WRAPPED_ENV`. Both are correct for the
 surfaces they were built for and both are actively wrong for `openspec config`,
-whose options live on the parent command, whose `--json` exists on one
-subcommand only, and three of whose subcommands are interactive.
+which has no `--store` at all (its scoping option lives on the parent command),
+whose `--json` exists on one subcommand only, and three of whose subcommands are
+interactive.
 
 ## Goals / Non-Goals
 
@@ -43,14 +44,17 @@ justify an abstraction whose third member does not exist.
 Rejected: reaching `config` through `callPassthrough` with per-subcommand
 opt-out flags. Every one of the helper's three unconditional appends is fatal
 here — `--store` is not a `config` option at all (upstream declares a
-parent-level `--scope` instead, and rejects `--store` as unknown), a trailing
-`--no-color` is rejected because upstream declares it on the program and only
-`show` sets `allowUnknownOption`, and `--json` exists on `list` alone. Adding
-three opt-outs to a shared helper to serve one caller makes the helper harder to
-reason about for the eight callers that are fine today. `commands/workset.ts`
-already establishes the local-runner precedent. `resolveRoot` is not called at
-all: config is machine-global, so there is no root to resolve and no store to
-thread, and `--store` is refused explicitly rather than absorbed and ignored.
+parent-level `--scope` instead, and rejects `--store` as unknown), and `--json`
+exists on `list` alone. (A trailing `--no-color` is the one append that is
+merely redundant rather than fatal: it is declared on the program, and commander
+resolves it from a leaf, so the contract suite observes it accepted on every
+`config` subcommand. cospec still omits it, so the built argv carries nothing
+the wrapped call did not need.) Adding three opt-outs to a shared helper to
+serve one caller makes the helper harder to reason about for the eight callers
+that are fine today. `commands/workset.ts` already establishes the local-runner
+precedent. `resolveRoot` is not called at all: config is machine-global, so
+there is no root to resolve and no store to thread, and `--store` is refused
+explicitly rather than absorbed and ignored.
 
 **Two call classes rather than one.** Rejected: piping everything and letting
 the interactive subcommands fail. Upstream's `edit` spawns `$EDITOR` with
@@ -169,12 +173,13 @@ to an exit code.
 
 - **Wrapped `openspec config` CLI shape.** `--scope` is a parent-command option
   and must be emitted between `config` and the subcommand; `--store` does not
-  exist on this command; `--no-color` is a program-level option that only `show`
-  tolerates in trailing position; `--json` exists on `list` alone. Class A
-  declares `expect.exitCodes = [0, 1]` because upstream uses exit 1 for ordinary
-  negative results. A contract test against the real pinned binary pins each of
-  these, including the trailing-`--no-color` rejection, so an upstream change
-  breaks a test rather than a user's command.
+  exist on this command; `--no-color` is a program-level option that commander
+  resolves from any leaf, so a trailing copy is accepted and merely redundant;
+  `--json` exists on `list` alone. Class A declares `expect.exitCodes = [0, 1]`
+  because upstream uses exit 1 for ordinary negative results. A contract test
+  against the real pinned binary pins each of these, including the
+  trailing-`--no-color` acceptance, so an upstream change breaks a test rather
+  than a user's command.
 - **`gh` CLI.** cospec depends on
   `gh issue create --repo <slug> --title <t> --body <b>` accepting array argv
   and printing the created issue URL on stdout, and on `gh auth status`
@@ -215,7 +220,9 @@ canon-derived, and the stderr note is what keeps the two from being confused.
   either way because `readDefaultStore` already tolerates exit 1.
 - [`gh` in tests reaching the network] → every automated row stubs `gh` on
   `PATH` in a temp dir; the single real submission is a `@manual` row.
-- [The trailing-`--no-color` hazard exists on other passthroughs today] → out of
-  scope, but not left as folklore: a contract row proves the wrapped binary
-  rejects a trailing `--no-color` on `config get`, which is the evidence the
-  follow-up `fix` change starts from.
+- [A trailing `--no-color` hazard was assumed to exist on the other
+  passthroughs] → settled by evidence, not left as folklore: contract rows probe
+  a trailing `--no-color` (with no leading copy in the argv) against `config`'s
+  subcommands and against `schemas`/`templates`, and every one is accepted. The
+  hazard does not exist, so no follow-up `fix` change is proposed for it, and
+  the rows stand as the regression guard should upstream ever change.

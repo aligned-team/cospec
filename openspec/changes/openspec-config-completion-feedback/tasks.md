@@ -100,7 +100,7 @@
       `mise run test:integration` are green with no pre-existing test weakened
 - [ ] 6.2 Land `apps/cli/test/contract/config-surface.test.ts` against the real
       pinned binary with `XDG_CONFIG_HOME` and `HOME` sandboxed into a temp dir,
-      including the trailing-`--no-color` rejection row, and verify
+      including the trailing-`--no-color` acceptance rows, and verify
       `mise run test:contract` is green and the developer's real global config
       is untouched (ledger 1.5)
 - [ ] 6.3 Extend `apps/cli/test/integration/pack-standalone.test.ts` to run
@@ -133,7 +133,8 @@
 - [ ] 7.5 Update `.agents/shared.md` so the every-everyday-surface paragraph
       names `config`, `completion`, and `feedback`, run `mise run agents:sync`,
       and verify `mise run agents:check` is clean (ledger 8.2)
-- [ ] 7.6 Record the trailing-`--no-color` hazard on the other passthroughs as a
-      proposed follow-up `fix` change, citing the contract row as its evidence,
-      and verify the follow-up is written down rather than silently fixed in
-      this change
+- [ ] 7.6 Settle the suspected trailing-`--no-color` hazard on the other
+      passthroughs with the contract rows rather than a follow-up change, and
+      verify no artefact in this change still claims upstream rejects a trailing
+      `--no-color` (the probe shows it is accepted, so there is no hazard to
+      hand on)

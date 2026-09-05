@@ -7,12 +7,12 @@ than routing through `core/passthrough-command.ts`, and SHALL NOT call
 `resolveRoot`, because OpenSpec's config is machine-global rather than
 root-scoped. The built argv SHALL never contain `--store` or any store argument,
 SHALL never append a trailing `--no-color` (cospec's spawn already prefixes
-`--no-color` ahead of the subcommand, and upstream declares the flag on the
-program rather than the leaf), SHALL append `--json` only for the `list`
-subcommand, and SHALL emit an extracted `--scope <value>` between `config` and
-the subcommand rather than after it. A `--scope` value other than `global` SHALL
-be relayed to the wrapped binary unmodified so upstream's own refusal is what
-the user sees.
+`--no-color` ahead of the subcommand, so a second copy is redundant — upstream
+declares the flag on the program and accepts it in trailing position), SHALL
+append `--json` only for the `list` subcommand, and SHALL emit an extracted
+`--scope <value>` between `config` and the subcommand rather than after it. A
+`--scope` value other than `global` SHALL be relayed to the wrapped binary
+unmodified so upstream's own refusal is what the user sees.
 
 #### Scenario: Built argv carries no store and no trailing no-color
 

@@ -98,6 +98,22 @@ export function openspec(
   return spawn(['bun', openspecBinPath(), '--no-color', ...args], cwd, env)
 }
 
+/**
+ * Run the real bundled openspec binary with NO leading `--no-color`.
+ *
+ * `openspec()` mirrors cospec's own spawn, which always prefixes `--no-color`
+ * before the subcommand. A probe of how upstream treats a *trailing*
+ * `--no-color` must not have a leading copy already in the argv, or the result
+ * says nothing about the trailing one.
+ */
+export function openspecRaw(
+  args: string[],
+  cwd: string,
+  env?: Record<string, string>,
+): Promise<SpawnResult> {
+  return spawn(['bun', openspecBinPath(), ...args], cwd, env)
+}
+
 const activeDirs = new Set<string>()
 
 /**
