@@ -89,12 +89,25 @@ regression the moment someone runs cospec against an older in-range binary.
 ## The disciplined-passthrough runner
 
 Not every wrapped command adds a cospec gate. Read-only reads (`show`, `view`,
-`context`, `schemas`, `schema which`/`validate`, `templates`), personal working
-views (`workset`), and spec/bulk delegation (`list --specs`,
-`validate --all`/`--specs`) are **passthroughs**: cospec forwards the call,
-relays stdout/stderr verbatim, and maps the wrapped exit code onto its own
-`EXIT` contract — but still under the full wrapped-call discipline, never a bare
-`spawn`.
+`context`, `schemas`, `schema which`/`validate`, `templates`, `config path`/
+`list`/`get`), personal working views (`workset`), and spec/bulk delegation
+(`list --specs`, `validate --all`/`--specs`) are **passthroughs**: cospec
+forwards the call, relays stdout/stderr verbatim, and maps the wrapped exit code
+onto its own `EXIT` contract — but still under the full wrapped-call discipline,
+never a bare `spawn`.
+
+`commands/config.ts` is the one passthrough command that deliberately does
+**not** route through `core/passthrough-command.ts` (the `workset.ts`
+precedent): `openspec config` has no `--store` — it has a parent-level
+`--scope`, and OpenSpec config is machine-global, so `resolveRoot` and
+`root.storeArgs` never apply — and `--json` is upstream's on `config list` only,
+so the other five subcommands get a cospec-owned `version: 1` envelope built
+from the text run rather than upstream's own document. A trailing `--no-color`
+is in fact accepted on every `config` leaf (commander resolves the program-level
+flag from a child), same as on `schemas` and `templates` — the suspected hazard
+that a trailing copy is rejected everywhere but `show` does not hold, and
+`commands/config.ts` simply never appends a redundant second copy, since
+`core/openspec.ts` already prefixes one ahead of the subcommand.
 
 `passthroughOpenspec(args, { cwd, storeArgs, expect })` in `core/openspec.ts` is
 the shared runner. It reuses the version-asserted spawn, enforces a
@@ -117,6 +130,20 @@ first. Commands that add their own post-condition (e.g. `context` asserting a
 `--code-workspace` file exists on disk, or `store` asserting the registry
 mutated) pass it through `expect.postCondition` — the same mechanism the gated
 commands use.
+
+### The terminal-handover class
+
+A third shape exists alongside the gated commands and `passthroughOpenspec`:
+**terminal handover**, for a wrapped subcommand that itself needs the terminal —
+`$EDITOR`, an `@inquirer` menu — which cannot survive cospec's piped
+`stdin: 'ignore'` spawn. `cospec workset open` was the first member;
+`cospec config edit`, `config profile` with no preset, and `config reset --all`
+without `-y` join it. Every member of this class shares one contract: array argv
+(no shell), `shell: false`, inherited stdio, the child's exit code propagated
+verbatim (including `130` on prompt cancellation), no `--json` (a `--json`
+caller gets a cospec-owned failure envelope instead of a faked result), and no
+`RunExpectation` — there is no exit-code allow-list to enforce against an
+interactive session a human is steering.
 
 ## The failure modes cospec defends against
 

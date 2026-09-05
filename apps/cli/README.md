@@ -64,6 +64,8 @@ cospec store setup platform --path ./platform-store  # create + auto-init a stor
 ```
 
 Store management (`store setup|register|unregister|remove|ls|doctor`),
-cross-repo context (`context`), and personal worksets (`workset`) are all
+cross-repo context (`context`), personal worksets (`workset`), machine-global
+config (`config path|list|get|set|unset|reset|edit|profile`), native shell
+completion (`completion [bash|zsh|fish]`), and bug filing (`feedback`) are all
 first-class cospec commands — you never drop out to bare `openspec`. See the
 repository root for full docs.

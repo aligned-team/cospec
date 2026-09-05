@@ -168,10 +168,14 @@ The wrapped binary is spawned by resolved path and version-asserted to the
 accepted range `>=1.0.0 <2.0.0` (dev/CI pins 1.11.0). Every everyday OpenSpec
 surface has a cospec command — the change lifecycle, plus `store`
 (`setup`/`register` auto-run `cospec init`), `context`, `workset`, `show`,
-`view`, `schemas`/`schema`, and `templates` — so there is never a reason to call
-bare `openspec`. Read-only and personal surfaces are disciplined passthroughs
-(no gate, full wrapped-call discipline); see docs/architecture.md and
-docs/stores.md.
+`view`, `schemas`/`schema`, `templates`, `config` (machine-global,
+`path`/`list`/`get`/`set`/`unset`/`reset`/`edit`/`profile`), native
+`completion`, and `feedback` — so there is never a reason to call bare
+`openspec`. `init`/`update` stay cospec-native by design. Read-only and personal
+surfaces are disciplined passthroughs (no gate, full wrapped-call discipline);
+`config edit`/`profile`/`reset --all` (no `-y`) join `workset open` in the
+terminal-handover class instead (inherited stdio, verbatim child exit code, no
+`--json`); see docs/architecture.md and docs/stores.md.
 
 **Wrapped-call discipline** — every call into the wrapped binary declares its
 expected exit codes, a stdout deny-list, and an observable post-condition. Trust

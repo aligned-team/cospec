@@ -113,24 +113,24 @@
 
 ## 7. WI-6 Docs and agent guidance
 
-- [ ] 7.1 Update `apps/docs/reference/commands.md` with rows for the three
+- [x] 7.1 Update `apps/docs/reference/commands.md` with rows for the three
       commands and the read-only prose list marking the mutating config
       subcommands as exceptions, and verify `mise run docs:build` is green with
       each fact stated on exactly one page (ledger 8.1)
-- [ ] 7.2 Add the machine-global OpenSpec config section to
+- [x] 7.2 Add the machine-global OpenSpec config section to
       `apps/docs/reference/configuration.md` — precedence table, the two stderr
       notes, the `defaultStore` resolution order cross-linked to Stores, the
       `--json` envelope shapes — and verify no other page restates those facts
       (ledger 8.1)
-- [ ] 7.3 Add the per-shell completion install snippets to
+- [x] 7.3 Add the per-shell completion install snippets to
       `apps/docs/guide/installation.md`, and verify each snippet is
       copy-pasteable and matches the shell names the command actually accepts
       (ledger 8.1, 4.3)
-- [ ] 7.4 Extend `docs/architecture.md` with the two config passthrough
+- [x] 7.4 Extend `docs/architecture.md` with the two config passthrough
       exceptions and the terminal-handover class shared by `workset open` and
       `config edit|profile|reset`, and verify by reading the section against the
       shipped code (ledger 8.3)
-- [ ] 7.5 Update `.agents/shared.md` so the every-everyday-surface paragraph
+- [x] 7.5 Update `.agents/shared.md` so the every-everyday-surface paragraph
       names `config`, `completion`, and `feedback`, run `mise run agents:sync`,
       and verify `mise run agents:check` is clean (ledger 8.2)
 - [ ] 7.6 Settle the suspected trailing-`--no-color` hazard on the other
