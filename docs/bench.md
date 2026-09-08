@@ -243,6 +243,15 @@ against whatever tree the agent actually produced, then parses bun's own
 fabricated `{total: 0, failed: 0}`) when the scenario has no suite yet or the
 summary couldn't be parsed.
 
+> Suite directories are keyed by scenario **id**, not by `fixtureDir`, so an id
+> that collides with an ignore rule gets silently dropped. `build` is the live
+> case: both the root `.gitignore` and `.oxlintrc.json`'s `ignorePatterns` carry
+> an unanchored `build` entry for build-output directories, which swallowed
+> `scenarios/hidden/build/` until explicit negations
+> (`!packages/bench/scenarios/hidden/build/` and
+> `!packages/bench/scenarios/hidden/build`) were added to each. Any future
+> scenario id that shadows an ignore rule needs the same pair of negations.
+
 This is the benchmark's **primary defect metric**, distinct from schema
 conformance: a hidden-test failure means the code the arm produced does not do
 what the prompt asked, checked mechanically and identically for both arms —

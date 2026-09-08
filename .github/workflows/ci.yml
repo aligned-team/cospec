@@ -71,6 +71,10 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-mise
+      - name: mise lockfile drift gate
+        run: |
+          mise install
+          git diff --exit-code mise.lock
       - run: bun install --frozen-lockfile
       - run: mise run lint
       - run: mise run format:check

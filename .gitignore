@@ -19,6 +19,11 @@ out/
 # not a build-output directory — keep it tracked despite the build/ rule above.
 !openspec/schemas/build/
 
+# packages/bench/scenarios/hidden/build/ is the held-out hidden test suite for
+# the `build` scenario (keyed by scenario id, not a build-output directory) —
+# keep it tracked despite the build/ rule above.
+!packages/bench/scenarios/hidden/build/
+
 # Compiled standalone binaries dropped into the per-platform npm package
 # templates by CI (and the local bun-less pack smoke). Never committed — the
 # templates ship only their package.json in git; binaries are built per release.
