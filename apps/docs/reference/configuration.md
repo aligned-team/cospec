@@ -157,6 +157,65 @@ file as a hand-edit the next time either runs — the same as any other file
 modified outside the managed-file protocol — but that's a reactive backstop, not
 a substitute for going through `cospec schema`. :::
 
+## Machine-global: `openspec config`
+
+The three tiers above are all repo-local. OpenSpec also keeps one machine-global
+config file, `~/.config/openspec/config.json`, and `cospec config <sub>` wraps
+it — cospec never reads or writes that file itself, adds no validation of its
+own, and relays upstream's key validation, value coercion, and
+prototype-pollution guard verbatim.
+
+`cospec config` splits into two call classes:
+
+- **Piped** (`path`, `list`, `get <key>`, `set <key> <value>`, `unset <key>`,
+  `reset --all -y`, `profile <preset>`) — a disciplined passthrough. Exit `1` is
+  an ordinary negative result here (unset key, invalid key), not a wrapped-call
+  violation.
+- **Terminal handover** (`edit`, `profile` with no preset, `reset --all` without
+  `-y`) — upstream spawns `$EDITOR` or runs an `@inquirer` menu, which cannot
+  survive cospec's piped `stdin: 'ignore'` spawn. cospec hands the terminal over
+  instead: inherited stdio, the child's verbatim exit code (including `130` on
+  prompt cancellation), and no `--json` — the same terminal-handover contract
+  [`cospec workset open`](/concepts/stores) uses.
+
+`--scope` is a parent-level option (not `--store` — OpenSpec config is
+machine-global, so `cospec config` never resolves a root or threads
+`root.storeArgs`). `--json` exists on `list` only, matching upstream; the other
+subcommands still owe a `--json` caller exactly one JSON document, so cospec
+wraps their text output in its own `version: 1` envelope:
+
+| subcommand            | `--json` shape                                                                                                        |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `list`                | upstream's own document, relayed verbatim                                                                             |
+| `path`                | `{ version: 1, command: 'config path', path }`                                                                        |
+| `get`                 | `{ version: 1, command: 'config get', key, value, found }` (`value`/`found` are `null`/`false` when the key is unset) |
+| `set`/`unset`/`reset` | `{ version: 1, command: 'config <sub>', ok, message }`                                                                |
+| a Class B subcommand  | `{ version: 1, command: 'config <sub>', ok: false, message: '… is interactive and cannot emit JSON' }`, exit `1`      |
+
+`cospec config --store <id>` is refused outright (exit `1`, before spawning the
+wrapped binary) rather than silently ignored — OpenSpec config has no store
+dimension, so a `--store` a user typed out of habit needs a named answer, not a
+no-op.
+
+### Precedence notes
+
+After a successful mutation, cospec prints a stderr note (stderr, so a `--json`
+stdout stays exactly one document) wherever cospec's own behavior overrides or
+bypasses the key just written:
+
+- **`set telemetry.enabled`** — cospec forces `OPENSPEC_TELEMETRY=0` on every
+  wrapped call regardless of this key, so the setting affects bare `openspec`
+  runs only.
+- **`profile <preset>` / `set profile|workflows|delivery`** — cospec's harness
+  files (`.claude/`, `.codex/`, `.opencode/`) are generated from cospec canon,
+  not from these OpenSpec keys; run `cospec update`, not `openspec update`, to
+  regenerate them.
+
+`defaultStore` is the one global key cospec itself reads (as a fallback root
+during store resolution) but, until this command, had no way to set from cospec
+— see [Stores](/concepts/stores#cross-repo-context-and-worksets) for the full
+resolution order.
+
 ## The managed-file protocol
 
 Every `cospec update` recomposes each managed file and decides its fate by

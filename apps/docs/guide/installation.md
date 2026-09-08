@@ -108,3 +108,32 @@ cospec init --harness claude,codex
 
 See [Harness setup](/guide/harness-setup) for what each harness option generates
 and how permissions are configured.
+
+## Shell completion
+
+`cospec completion [bash|zsh|fish]` prints a completion script to stdout,
+generated natively from cospec's own command table — never a passthrough to
+OpenSpec's own completion installer, which writes a function that shells out to
+bare `openspec`. There's no `install`/`uninstall` subcommand; wire the output
+into your shell yourself:
+
+::: code-group
+
+```sh [bash]
+echo 'eval "$(cospec completion bash)"' >> ~/.bashrc
+```
+
+```sh [zsh]
+echo 'eval "$(cospec completion zsh)"' >> ~/.zshrc
+```
+
+```sh [fish]
+cospec completion fish > ~/.config/fish/completions/cospec.fish
+```
+
+:::
+
+Omit the shell argument and cospec detects it from `$SHELL`. Completion covers
+every command and flag cospec declares, plus dynamic suggestions for change
+slugs, spec ids, and the eleven conventional-commit types, sourced from a hidden
+`cospec __complete` call at Tab time.

@@ -58,6 +58,14 @@ function bunlessPath(): string {
   return [nodeEntry, ...kept, '/usr/bin', '/bin'].join(delimiter)
 }
 
+/** `path` with every directory that resolves a real `gh` removed. */
+function ghlessPath(path: string): string {
+  return path
+    .split(delimiter)
+    .filter((p) => p.length > 0 && Bun.which('gh', { PATH: p }) === null)
+    .join(delimiter)
+}
+
 function run(
   cmd: string[],
   cwd: string,
@@ -175,6 +183,40 @@ describe('standalone pack smoke (bun-less)', () => {
     const created = run([bin, 'new', 'chore', 'smoke-change'], target, path)
     expect(created.code, created.stderr).toBe(0)
     expect(existsSync(join(target, 'openspec/changes/smoke-change/.openspec.yaml'))).toBe(true)
+
+    // `config`, `completion`, and `feedback` must dispatch from the compiled
+    // binary too (not just from `bun run src/index.ts`) — literal `import()`
+    // bundling is the trap that silently drops a command module (module
+    // header of `COMMAND_MODULES`), so each of these proves its module made it
+    // into the compiled artifact.
+    const configPath = run([bin, 'config', 'path'], target, path)
+    expect(configPath.code, configPath.stderr).toBe(0)
+    expect(configPath.stdout.trim().length).toBeGreaterThan(0)
+
+    const completionZsh = run([bin, 'completion', 'zsh'], target, path)
+    expect(completionZsh.code, completionZsh.stderr).toBe(0)
+    expect(completionZsh.stdout).toContain('#compdef cospec')
+
+    // `feedback --help` is deliberately NOT the bundling probe: `cli.ts`
+    // answers `--help` from the static COMMANDS table and returns before it
+    // ever looks up COMMAND_MODULES, so it passes even when the module was
+    // dropped. Running the command itself is what loads `commands/feedback.ts`
+    // — a dropped module reports "is not yet implemented" and exits 1. `gh` is
+    // stripped from PATH so this can never file a real issue: the documented
+    // manual-submission fallback exits 0 with a `submitted: false` envelope.
+    const ghless = ghlessPath(path)
+    expect(Bun.which('gh', { PATH: ghless })).toBeNull()
+    const feedback = run([bin, 'feedback', '--json', 'pack smoke probe'], target, ghless)
+    expect(feedback.code, feedback.stderr).toBe(0)
+    expect(feedback.stderr).not.toContain('not yet implemented')
+    const envelope = JSON.parse(feedback.stdout.trim()) as {
+      command: string
+      submitted: boolean
+      repo: string
+    }
+    expect(envelope.command).toBe('feedback')
+    expect(envelope.submitted).toBe(false)
+    expect(envelope.repo).toBe('aligned-team/cospec')
   }, 180_000)
 
   // The "fully self-contained" gate. NO npm install, NO node_modules anywhere,
