@@ -40,6 +40,19 @@ export interface DeltaOp {
   line: number
   hasShallMust: boolean
   scenarioCount: number
+  /**
+   * Ordered scenario names in this requirement's block (ADDED/MODIFIED), one
+   * per non-fenced `#### ` header, extracted with `scenarioNameFromHeader`.
+   */
+  scenarioNames: string[]
+  /**
+   * Verbatim source text of the requirement block — header line through the
+   * last line before the next `### Requirement:` header, the next `## `
+   * section header, or end of input, `trimEnd`ed. Empty for REMOVED/RENAMED
+   * ops, which name a requirement rather than carrying a block. Compare two
+   * blocks with `normalizeBlockRaw`, never with `===`.
+   */
+  raw: string
   /** `Scenario removed: <reason>` notes found in this requirement's body
    * (MODIFIED only). Retired as an escape hatch — see `findScenarioDrops`;
    * kept so the gate can address an author who wrote one. */
@@ -58,6 +71,36 @@ export interface ParsedDelta {
 
 function normalize(name: string): string {
   return name.trim()
+}
+
+/**
+ * openspec's own requirement-block comparison (`normalizeBlockRaw`,
+ * `src/core/specs-apply.ts`): fold CR/CRLF to LF, then one outer trim.
+ * Nothing else. Folding interior whitespace, scenario order or heading case
+ * here would make cospec *looser* than the binary — it would call a real
+ * collision "identical" and manufacture a false archive PASS.
+ */
+export function normalizeBlockRaw(raw: string): string {
+  return raw.replace(/\r\n?/g, '\n').trim()
+}
+
+/**
+ * The scenario name a `#### ` header renders to, ported from openspec's
+ * `scenarioNameAt` (`src/core/parsers/requirement-blocks.ts`): strip the
+ * leading `####`, an optional CommonMark closing `#` run, and an optional
+ * `Scenario:` prefix, then trim. Case is preserved — upstream compares
+ * scenario names case-sensitively, so `Foo` and `foo` are two names.
+ *
+ * The ATX close uses `[ \t]`, not `\s`: CommonMark only closes on a `#` run
+ * preceded by a space or tab, so a looser class could fold two distinct names
+ * into one after an exotic space and mask a real loss.
+ */
+export function scenarioNameFromHeader(line: string): string {
+  return line
+    .replace(SCENARIO_RE, '')
+    .replace(/[ \t]+#+[ \t]*$/, '')
+    .replace(/^Scenario:\s*/i, '')
+    .trim()
 }
 
 interface ActiveFence {
@@ -147,7 +190,7 @@ export function scanMarkdown(text: string): ScannedMarkdown {
 
 /** Parse a change-side delta spec. `capability` is the dir name (e.g. `widgets`). */
 export function parseDeltaSpec(text: string, path: string, capability: string): ParsedDelta {
-  const { lines, fenced } = scanMarkdown(text)
+  const { lines, source, fenced } = scanMarkdown(text)
   const ops: DeltaOp[] = []
   const scenarioDepthIssues: { line: number }[] = []
   const sectionCounts = new Map<DeltaOperation, number>()
@@ -157,13 +200,17 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
   let currentOp: DeltaOperation | undefined
   // Track the requirement currently being accumulated (ADDED/MODIFIED).
   let openReq: DeltaOp | undefined
+  /** Verbatim (unmasked) block lines for `openReq`; undefined for RENAMED. */
+  let openRaw: string[] | undefined
 
   const closeReq = () => {
     if (openReq !== undefined) {
+      if (openRaw !== undefined) openReq.raw = openRaw.join('\n').trimEnd()
       ops.push(openReq)
       sectionCounts.set(openReq.operation, (sectionCounts.get(openReq.operation) ?? 0) + 1)
       openReq = undefined
     }
+    openRaw = undefined
   }
 
   for (let i = 0; i < lines.length; i++) {
@@ -173,6 +220,9 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
     // Fenced lines carry no structure, but a SHALL/MUST inside a requirement's
     // example block has always counted towards `hasShallMust` — keep that.
     if (fenced[i] === true) {
+      // Fenced content is part of the block verbatim, but never structure: a
+      // `#### ` line inside a fence is retained in `raw` and is not a scenario.
+      openRaw?.push(source[i] ?? '')
       if (openReq !== undefined && SHALL_MUST_RE.test(raw)) openReq.hasShallMust = true
       continue
     }
@@ -207,13 +257,19 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
           line: lineNo,
           hasShallMust: false,
           scenarioCount: 0,
+          scenarioNames: [],
+          raw: '',
           scenarioRemovalReasons: [],
         }
+        openRaw = [source[i] ?? '']
         continue
       }
       if (openReq !== undefined) {
-        if (SCENARIO_RE.test(raw)) openReq.scenarioCount++
-        else if (SHALL_MUST_RE.test(raw)) openReq.hasShallMust = true
+        openRaw?.push(source[i] ?? '')
+        if (SCENARIO_RE.test(raw)) {
+          openReq.scenarioCount++
+          openReq.scenarioNames.push(scenarioNameFromHeader(source[i] ?? ''))
+        } else if (SHALL_MUST_RE.test(raw)) openReq.hasShallMust = true
         const removedNote = raw.match(SCENARIO_REMOVED_RE)
         if (removedNote !== null) openReq.scenarioRemovalReasons.push(removedNote[1]!.trim())
       }
@@ -231,6 +287,8 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
           line: lineNo,
           hasShallMust: false,
           scenarioCount: 0,
+          scenarioNames: [],
+          raw: '',
           scenarioRemovalReasons: [],
         })
         sectionCounts.set('REMOVED', (sectionCounts.get('REMOVED') ?? 0) + 1)
@@ -247,6 +305,8 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
           line: lineNo,
           hasShallMust: false,
           scenarioCount: 0,
+          scenarioNames: [],
+          raw: '',
           scenarioRemovalReasons: [],
         }
         continue
@@ -273,6 +333,10 @@ export interface LivingSpec {
   requirementNames: Set<string>
   /** requirement name → its current `#### Scenario:` count (archive/scenario-preservation). */
   requirementScenarioCounts: Map<string, number>
+  /** requirement name → its ordered scenario names (`scenarioNameFromHeader`). */
+  requirementScenarioNames: Map<string, string[]>
+  /** requirement name → the verbatim source of its block, `trimEnd`ed. */
+  requirementBlocks: Map<string, string>
   hasPurpose: boolean
   hasRequirements: boolean
   /** a delta header (## ADDED/… Requirements) appearing in a living spec — invalid. */
@@ -285,19 +349,37 @@ export function parseLivingSpec(text: string): LivingSpec {
   const { lines, source, fenced } = scanMarkdown(text)
   const requirementNames = new Set<string>()
   const requirementScenarioCounts = new Map<string, number>()
+  const requirementScenarioNames = new Map<string, string[]>()
+  const requirementBlocks = new Map<string, string>()
   let hasPurpose = false
   let hasRequirements = false
   let hasDeltaHeaders = false
   let inPurpose = false
   let currentReqName: string | undefined
+  let currentBlock: string[] | undefined
   const purposeLines: string[] = []
+
+  const closeReq = () => {
+    if (currentReqName !== undefined && currentBlock !== undefined)
+      requirementBlocks.set(currentReqName, currentBlock.join('\n').trimEnd())
+    currentReqName = undefined
+    currentBlock = undefined
+  }
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i]!
-    if (fenced[i] === true) continue
+    if (fenced[i] === true) {
+      currentBlock?.push(source[i] ?? '')
+      continue
+    }
 
     const section = raw.match(SECTION_RE)
     if (section !== null) {
+      // A requirement's scope ends at the next level-2 section, matching
+      // openspec's requirement-block window. Without this, a `#### Scenario:`
+      // under a trailing `## Notes` was credited to the last requirement and
+      // inflated its living count into a phantom scenario drop.
+      closeReq()
       const title = section[1]!.toLowerCase()
       if (SECTION_TITLES[title] !== undefined) hasDeltaHeaders = true
       inPurpose = title === 'purpose'
@@ -313,20 +395,30 @@ export function parseLivingSpec(text: string): LivingSpec {
 
     const req = raw.match(REQUIREMENT_RE)
     if (req !== null) {
+      closeReq()
       currentReqName = normalize(req[1]!)
+      currentBlock = [source[i] ?? '']
       requirementNames.add(currentReqName)
       requirementScenarioCounts.set(currentReqName, 0)
-    } else if (currentReqName !== undefined && SCENARIO_RE.test(raw)) {
-      requirementScenarioCounts.set(
-        currentReqName,
-        (requirementScenarioCounts.get(currentReqName) ?? 0) + 1,
-      )
+      requirementScenarioNames.set(currentReqName, [])
+    } else if (currentReqName !== undefined) {
+      currentBlock?.push(source[i] ?? '')
+      if (SCENARIO_RE.test(raw)) {
+        requirementScenarioCounts.set(
+          currentReqName,
+          (requirementScenarioCounts.get(currentReqName) ?? 0) + 1,
+        )
+        requirementScenarioNames.get(currentReqName)?.push(scenarioNameFromHeader(source[i] ?? ''))
+      }
     }
   }
+  closeReq()
 
   return {
     requirementNames,
     requirementScenarioCounts,
+    requirementScenarioNames,
+    requirementBlocks,
     hasPurpose,
     hasRequirements,
     hasDeltaHeaders,
