@@ -2,7 +2,7 @@
 description: Revise an existing change's already-written artifacts and keep them coherent, without creating new artifacts or editing code.
 metadata:
   author: cospec
-  generatedBy: cospec@0.6.0
+  generatedBy: cospec@0.7.0
   contentHash: sha256:94e8990888fe3e513fe60ae26b09e4feff467bf5563957f8aa075fc0f1ee5e1d
 ---
 

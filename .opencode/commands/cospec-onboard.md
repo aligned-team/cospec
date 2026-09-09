@@ -2,7 +2,7 @@
 description: Walk a first-time user through one real cospec change end to end, narrating each step.
 metadata:
   author: cospec
-  generatedBy: cospec@0.6.0
+  generatedBy: cospec@0.7.0
   contentHash: sha256:1c6874a1abb688f0e7dc04816ab881a811f3097d1ec25af822c8d322e0d42c76
 ---
 

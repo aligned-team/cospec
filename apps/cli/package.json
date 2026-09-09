@@ -1,6 +1,6 @@
 {
   "name": "@aligned-team/cospec",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "OpenSpec change management, sized to your commit type. feat gets the full treatment; ci takes two minutes.",
   "keywords": [
     "ai-agents",
@@ -46,13 +46,13 @@
     "yaml": "2.9.0"
   },
   "optionalDependencies": {
-    "@aligned-team/cospec-darwin-arm64": "0.6.0",
-    "@aligned-team/cospec-darwin-x64": "0.6.0",
-    "@aligned-team/cospec-linux-arm64-gnu": "0.6.0",
-    "@aligned-team/cospec-linux-arm64-musl": "0.6.0",
-    "@aligned-team/cospec-linux-x64-gnu": "0.6.0",
-    "@aligned-team/cospec-linux-x64-musl": "0.6.0",
-    "@aligned-team/cospec-win32-x64": "0.6.0"
+    "@aligned-team/cospec-darwin-arm64": "0.7.0",
+    "@aligned-team/cospec-darwin-x64": "0.7.0",
+    "@aligned-team/cospec-linux-arm64-gnu": "0.7.0",
+    "@aligned-team/cospec-linux-arm64-musl": "0.7.0",
+    "@aligned-team/cospec-linux-x64-gnu": "0.7.0",
+    "@aligned-team/cospec-linux-x64-musl": "0.7.0",
+    "@aligned-team/cospec-win32-x64": "0.7.0"
   },
   "engines": {
     "node": ">=18"
