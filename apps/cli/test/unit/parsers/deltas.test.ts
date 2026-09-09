@@ -2,9 +2,11 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   findScenarioDrops,
+  type LivingSpec,
   normalizeBlockRaw,
   parseDeltaSpec,
   parseLivingSpec,
+  scenarioDropMessage,
   scenarioNameFromHeader,
 } from '../../../src/core/deltas.ts'
 
@@ -232,6 +234,7 @@ The system SHALL render.
         name: 'Widget rendering',
         deltaCount: 1,
         livingCount: 2,
+        missingNames: ['b'],
         noted: false,
       },
     ])
@@ -269,6 +272,7 @@ The system SHALL render.
         name: 'Widget rendering',
         deltaCount: 1,
         livingCount: 2,
+        missingNames: ['b'],
         noted: true,
       },
     ])
@@ -317,6 +321,312 @@ The system SHALL do new.
       'fresh',
     )
     expect(findScenarioDrops([{ capability: 'fresh', ops: p.ops }], new Map())).toEqual([])
+  })
+
+  test('a MODIFIED requirement absent from the living spec is not a drop', () => {
+    // Nothing to shrink against — the missing target is `archive/target-missing`'s
+    // finding, not this gate's.
+    const p = parseDeltaSpec(
+      `## MODIFIED Requirements
+
+### Requirement: Never existed
+
+The system SHALL do something.
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y
+`,
+      'specs/widgets/spec.md',
+      'widgets',
+    )
+    expect(
+      findScenarioDrops([{ capability: 'widgets', ops: p.ops }], new Map([['widgets', LIVING]])),
+    ).toEqual([])
+  })
+
+  // The gap this arm closes: on the count arm alone a same-count name swap is a
+  // silent scenario deletion, and openspec 1.0.0–1.7.x merges it at exit 0.
+  test('a same-count scenario NAME swap is a drop, naming the lost scenario', () => {
+    const p = parseDeltaSpec(
+      `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render.
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y
+
+#### Scenario: c
+
+- **WHEN** x
+- **THEN** y
+`,
+      'specs/widgets/spec.md',
+      'widgets',
+    )
+    expect(
+      findScenarioDrops([{ capability: 'widgets', ops: p.ops }], new Map([['widgets', LIVING]])),
+    ).toEqual([
+      {
+        capability: 'widgets',
+        name: 'Widget rendering',
+        deltaCount: 2,
+        livingCount: 2,
+        missingNames: ['b'],
+        noted: false,
+      },
+    ])
+  })
+
+  test('a GROWING block that still drops one living name is a drop', () => {
+    const p = parseDeltaSpec(
+      `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render.
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y
+
+#### Scenario: c
+
+- **WHEN** x
+- **THEN** y
+
+#### Scenario: d
+
+- **WHEN** x
+- **THEN** y
+`,
+      'specs/widgets/spec.md',
+      'widgets',
+    )
+    expect(
+      findScenarioDrops([{ capability: 'widgets', ops: p.ops }], new Map([['widgets', LIVING]])),
+    ).toEqual([
+      {
+        capability: 'widgets',
+        name: 'Widget rendering',
+        deltaCount: 3,
+        livingCount: 2,
+        missingNames: ['b'],
+        noted: false,
+      },
+    ])
+  })
+
+  test('a case-only scenario rename is a drop — names compare case-sensitively', () => {
+    const p = parseDeltaSpec(
+      `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render.
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y
+
+#### Scenario: B
+
+- **WHEN** x
+- **THEN** y
+`,
+      'specs/widgets/spec.md',
+      'widgets',
+    )
+    expect(
+      findScenarioDrops([{ capability: 'widgets', ops: p.ops }], new Map([['widgets', LIVING]])),
+    ).toEqual([
+      {
+        capability: 'widgets',
+        name: 'Widget rendering',
+        deltaCount: 2,
+        livingCount: 2,
+        missingNames: ['b'],
+        noted: false,
+      },
+    ])
+  })
+
+  test('duplicate scenario names are counted with multiplicity, not deduped', () => {
+    const living = parseLivingSpec(`## Purpose
+
+x
+
+## Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render.
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** z
+
+#### Scenario: b
+
+- **WHEN** x
+- **THEN** y
+`)
+    // Same count (3), and every delta name appears in the living spec — but the
+    // living spec carries `a` twice and the delta only once, so one is lost.
+    const p = parseDeltaSpec(
+      `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render.
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y
+
+#### Scenario: b
+
+- **WHEN** x
+- **THEN** y
+
+#### Scenario: c
+
+- **WHEN** x
+- **THEN** y
+`,
+      'specs/widgets/spec.md',
+      'widgets',
+    )
+    expect(
+      findScenarioDrops([{ capability: 'widgets', ops: p.ops }], new Map([['widgets', living]])),
+    ).toEqual([
+      {
+        capability: 'widgets',
+        name: 'Widget rendering',
+        deltaCount: 3,
+        livingCount: 3,
+        missingNames: ['a'],
+        noted: false,
+      },
+    ])
+  })
+
+  test('reordering the living scenarios and editing their bodies is not a drop', () => {
+    const p = parseDeltaSpec(
+      `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render, quickly.
+
+#### Scenario: b
+
+- **WHEN** x
+- **THEN** y promptly
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y promptly
+`,
+      'specs/widgets/spec.md',
+      'widgets',
+    )
+    expect(
+      findScenarioDrops([{ capability: 'widgets', ops: p.ops }], new Map([['widgets', LIVING]])),
+    ).toEqual([])
+  })
+
+  // Belt and braces: the count arm is the contract this gate shipped with, and
+  // it must still fire if the two parsers ever disagree about scenario names.
+  // Hand-built because a real parse can never produce counts and names that
+  // disagree.
+  test('the count arm still fires when name extraction sees fewer living scenarios', () => {
+    const skewed: LivingSpec = {
+      requirementNames: new Set(['Widget rendering']),
+      requirementScenarioCounts: new Map([['Widget rendering', 2]]),
+      requirementScenarioNames: new Map([['Widget rendering', ['a']]]),
+      requirementBlocks: new Map(),
+      hasPurpose: true,
+      hasRequirements: true,
+      hasDeltaHeaders: false,
+      purposeText: 'x',
+    }
+    const p = parseDeltaSpec(
+      `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render.
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y
+`,
+      'specs/widgets/spec.md',
+      'widgets',
+    )
+    const drops = findScenarioDrops(
+      [{ capability: 'widgets', ops: p.ops }],
+      new Map([['widgets', skewed]]),
+    )
+    expect(drops).toEqual([
+      {
+        capability: 'widgets',
+        name: 'Widget rendering',
+        deltaCount: 1,
+        livingCount: 2,
+        missingNames: [],
+        noted: false,
+      },
+    ])
+    // With no names to print, the message keeps its original count wording.
+    expect(scenarioDropMessage(drops[0]!)).toBe(
+      'MODIFIED "Widget rendering" drops scenario count from 2 to 1',
+    )
+  })
+})
+
+describe('scenarioDropMessage', () => {
+  const base = { capability: 'widgets', name: 'Widget rendering', noted: false }
+
+  test('names every dropped scenario and keeps the living/delta counts', () => {
+    expect(
+      scenarioDropMessage({ ...base, deltaCount: 2, livingCount: 3, missingNames: ['a', 'b'] }),
+    ).toBe('MODIFIED "Widget rendering" drops scenario(s) "a", "b" (living 3 -> delta 2)')
+  })
+
+  // The prefix `validate.ts` keys its delegated-duplicate suppressor on.
+  test('both shapes start with the prefix the delegated-duplicate suppressor keys on', () => {
+    const withNames = scenarioDropMessage({
+      ...base,
+      deltaCount: 2,
+      livingCount: 2,
+      missingNames: ['b'],
+    })
+    const countOnly = scenarioDropMessage({
+      ...base,
+      deltaCount: 1,
+      livingCount: 2,
+      missingNames: [],
+    })
+    for (const m of [withNames, countOnly])
+      expect(/^MODIFIED "(.*)" drops scenario/.exec(m)?.[1]).toBe('Widget rendering')
   })
 })
 

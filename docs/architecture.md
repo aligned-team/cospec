@@ -176,17 +176,20 @@ because a real breach there must not compute as a clean archive:
   history) is already the escape hatch.
 - **`archive/scenario-preservation`** runs only for specs-bearing changes, right
   before the `openspec archive` call. It re-parses each
-  `## MODIFIED Requirements` delta and the current living spec, and refuses on
-  any scenario-count drop that lacks a `Scenario removed: <reason>` note or a
-  matching `REMOVED` operation. This is the gate that would have caught the
-  archive-time thinning `openspec archive` itself waves through at exit 0. It
-  ships with a contract test against the real pinned openspec 1.11.0 binary
-  proving cospec refuses even though openspec would happily merge the delta — a
-  false PASS here is a release blocker, same discipline as the rest of the
-  archive-precondition family. As of upstream 1.6.0, `openspec archive` also
-  runs its own overlapping scenario-loss check, so cospec's gate is
-  defence-in-depth on 1.6.0+ runtimes and is the **sole** defence only on
-  1.0.0–1.5.x, inside the accepted `>=1.0.0 <2.0.0` range.
+  `## MODIFIED Requirements` delta and the current living spec, and refuses when
+  the delta no longer covers a living scenario — by name (openspec's own
+  identity check, ported: case-sensitive, counted with multiplicity, so a
+  same-count rename is a drop) or by a plain count shrink. A
+  `Scenario removed: <reason>` note does not excuse it; a requirement retired
+  through `REMOVED` carries no MODIFIED op, so the gate never sees it. This is
+  the gate that would have caught the archive-time thinning `openspec archive`
+  itself waves through at exit 0. It ships with a contract test against the real
+  pinned openspec 1.11.0 binary proving cospec refuses even though openspec
+  would happily merge the delta — a false PASS here is a release blocker, same
+  discipline as the rest of the archive-precondition family. As of upstream
+  1.6.0, `openspec archive` also runs its own overlapping scenario-loss check,
+  so cospec's gate is defence-in-depth on 1.6.0+ runtimes and is the **sole**
+  defence only on 1.0.0–1.5.x, inside the accepted `>=1.0.0 <2.0.0` range.
 
 ### 3. OpenSpec's generated files reference skills it never generates
 

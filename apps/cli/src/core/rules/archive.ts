@@ -11,6 +11,7 @@ import {
   parseDeltaSpec,
   SCENARIO_DROP_HINT,
   SCENARIO_DROP_NOTE_RETIRED,
+  scenarioDropMessage,
   type DeltaOp,
 } from '../deltas.ts'
 import type { Issue } from './issue.ts'
@@ -166,7 +167,7 @@ export function archiveRules(
       level: opts.strict ? 'ERROR' : 'WARNING',
       rule: 'archive/scenario-preservation',
       path: `specs/${drop.capability}/spec.md`,
-      message: `MODIFIED "${drop.name}" drops scenario count from ${drop.livingCount} to ${drop.deltaCount}`,
+      message: scenarioDropMessage(drop),
       hint: drop.noted
         ? `${SCENARIO_DROP_NOTE_RETIRED} — ${SCENARIO_DROP_HINT}`
         : SCENARIO_DROP_HINT,

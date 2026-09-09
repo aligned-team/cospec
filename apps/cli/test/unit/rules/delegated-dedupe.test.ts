@@ -62,9 +62,10 @@ describe('mergeDelegated', () => {
   })
 
   describe('scenario loss', () => {
+    // The name-identity shape cospec prints today.
     const nativeDrop = native(
       'archive/scenario-preservation',
-      'MODIFIED "Widget rendering" drops scenario count from 2 to 1 with no note',
+      'MODIFIED "Widget rendering" drops scenario(s) "Empty widget" (living 2 -> delta 1)',
     )
     const delegatedDrop = delegated(
       'MODIFIED "Widget rendering" omits scenario(s) the current spec still has: "Empty widget".',
@@ -76,9 +77,21 @@ describe('mergeDelegated', () => {
       ])
     })
 
+    // The count arm's wording is the other shape the suppressor must still key
+    // on — it fires whenever the two parsers disagree about scenario names.
+    test('drops the delegated twin of a count-arm drop too', () => {
+      const countArm = native(
+        'archive/scenario-preservation',
+        'MODIFIED "Widget rendering" drops scenario count from 2 to 1',
+      )
+      expect(mergeDelegated([countArm], [delegatedDrop]).map((i) => i.rule)).toEqual([
+        'archive/scenario-preservation',
+      ])
+    })
+
     test('keeps a delegated loss for a DIFFERENT requirement', () => {
-      // cospec's gate is count-based, openspec's is name-identity based: a
-      // second requirement losing a scenario is a second real finding.
+      // Both sides key on the requirement name, so a second requirement losing
+      // a scenario is a second real finding, not a duplicate.
       const other = delegated(
         'MODIFIED "Widget sizing" omits scenario(s) the current spec still has: "Wide".',
       )

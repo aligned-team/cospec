@@ -118,7 +118,13 @@ override:
   [Verification](/concepts/verification) for the row grammar.
 - **`archive/scenario-preservation`** — fires only for specs-bearing changes,
   right before delegating. It re-parses each `## MODIFIED Requirements` delta
-  against the current living spec and refuses if a scenario count drops.
+  against the current living spec and refuses when the delta no longer covers a
+  living scenario — either because a scenario **name** is gone (names are
+  compared case-sensitively and counted with multiplicity, so renaming a
+  scenario is a drop plus an add even at an unchanged count) or because the
+  count shrank. The refusal names every dropped scenario. A requirement retired
+  through `## REMOVED Requirements` carries no `MODIFIED` op at all, so this
+  gate never applies to it.
 
   ::: warning The `Scenario removed: <reason>` escape hatch is retired As of
   openspec 1.8.0, any `MODIFIED` block that omits a living scenario is a

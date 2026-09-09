@@ -248,9 +248,9 @@ interface DuplicateClass {
   delegated: RegExp
   /**
    * When set, the two findings must also name the same requirement and sit on
-   * the same file. cospec's scenario gate is count-based and openspec's is
-   * name-identity based, so a *different* requirement's loss is a second real
-   * finding rather than a duplicate.
+   * the same file: a *different* requirement's loss is a second real finding
+   * rather than a duplicate. The capture group is the requirement name on both
+   * sides, so the two are compared on the requirement, never on the wording.
    */
   nativeKey?: RegExp
 }
@@ -266,10 +266,13 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
     delegated: /^skip_specs is set in \.openspec\.yaml but spec files exist/,
   },
   // 1.8.0/1.9.0 validate-scenario-loss-check vs archive/scenario-preservation.
+  // The native key stops at `drops scenario` so it matches both shapes cospec
+  // prints: the name-identity one (`drops scenario(s) "X" (living 2 -> delta
+  // 2)`) and the count-arm fallback (`drops scenario count from 2 to 1`).
   {
     rule: 'archive/scenario-preservation',
     delegated: /^MODIFIED "(.*)" omits scenario\(s\)/,
-    nativeKey: /^MODIFIED "(.*)" drops scenario count/,
+    nativeKey: /^MODIFIED "(.*)" drops scenario/,
   },
 ]
 

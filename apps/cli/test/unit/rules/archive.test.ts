@@ -222,4 +222,32 @@ describe('archiveRules: archive/scenario-preservation (advisory mirror)', () => 
       'archive/scenario-preservation',
     )
   })
+
+  test('the message names the dropped scenario and both counts', () => {
+    const text =
+      '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n#### Scenario: s1\n\n- **WHEN** a\n'
+    const issue = archiveRules(change(text, { living: TWO_SCENARIO_LIVING })).find(
+      (i) => i.rule === 'archive/scenario-preservation',
+    )
+    expect(issue?.message).toBe('MODIFIED "Existing" drops scenario(s) "s2" (living 2 -> delta 1)')
+  })
+
+  // The shape the count-only gate waved through entirely.
+  test('a same-count scenario NAME swap fires, naming the lost scenario', () => {
+    const text =
+      '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n#### Scenario: s1\n\n- **WHEN** a\n\n#### Scenario: s3\n\n- **WHEN** c\n'
+    const issue = archiveRules(change(text, { living: TWO_SCENARIO_LIVING }), {
+      strict: true,
+    }).find((i) => i.rule === 'archive/scenario-preservation')
+    expect(issue?.level).toBe('ERROR')
+    expect(issue?.message).toBe('MODIFIED "Existing" drops scenario(s) "s2" (living 2 -> delta 2)')
+  })
+
+  test('reordering the living scenarios never fires', () => {
+    const text =
+      '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n#### Scenario: s2\n\n- **WHEN** c\n\n#### Scenario: s1\n\n- **WHEN** a\n'
+    expect(
+      rules(archiveRules(change(text, { living: TWO_SCENARIO_LIVING }), { strict: true })),
+    ).not.toContain('archive/scenario-preservation')
+  })
 })

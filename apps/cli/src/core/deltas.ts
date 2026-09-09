@@ -432,6 +432,13 @@ export interface ScenarioDrop {
   deltaCount: number
   livingCount: number
   /**
+   * The living scenario names the MODIFIED block no longer covers, in living
+   * order, counted with multiplicity — the same list openspec names in its own
+   * refusal. Empty only when the count arm fired alone (see
+   * `findScenarioDrops`).
+   */
+  missingNames: string[]
+  /**
    * The author wrote a `Scenario removed: <reason>` note. It no longer excuses
    * the drop — it only changes the advice the gate gives, because an author who
    * wrote the note followed documentation that is now wrong.
@@ -440,10 +447,46 @@ export interface ScenarioDrop {
 }
 
 /**
- * MODIFIED requirements whose delta scenario count is lower than the living
- * spec's (`archive/scenario-preservation`, DESIGN §3.5). ADDED/REMOVED/RENAMED
- * ops and capabilities with no living spec (new capability — nothing to shrink
- * against) are out of scope by construction.
+ * The current scenario names an incoming block fails to cover, ported from
+ * openspec's `findMissingCurrentScenarios`
+ * (`src/core/parsers/requirement-blocks.ts`): count the incoming names, then
+ * walk the current names in order and spend one unit of the matching name per
+ * hit. Multiplicity matters — a requirement carrying the same scenario name
+ * twice that keeps it once has lost one scenario, not zero. Names compare
+ * case-sensitively, matching `scenarioNameFromHeader`, so a case-only rename
+ * reads as a drop plus an add.
+ */
+function missingCurrentScenarios(
+  current: readonly string[],
+  incoming: readonly string[],
+): string[] {
+  const remaining = new Map<string, number>()
+  for (const name of incoming) remaining.set(name, (remaining.get(name) ?? 0) + 1)
+  const missing: string[] = []
+  for (const name of current) {
+    const left = remaining.get(name) ?? 0
+    if (left > 0) remaining.set(name, left - 1)
+    else missing.push(name)
+  }
+  return missing
+}
+
+/**
+ * MODIFIED requirements that drop a living scenario
+ * (`archive/scenario-preservation`, DESIGN §3.5). ADDED/REMOVED/RENAMED ops and
+ * capabilities with no living spec (new capability — nothing to shrink against)
+ * are out of scope by construction: a requirement retired through
+ * `## REMOVED Requirements` carries no MODIFIED op, so this gate never sees it.
+ *
+ * A drop is either living scenario NAMES the MODIFIED block no longer covers
+ * (openspec's own identity check, ported in `missingCurrentScenarios`) or a
+ * plain count shrink. The two arms agree whenever both parsers see the same
+ * headers, so the count arm is belt and braces: it is the frozen contract this
+ * gate shipped with, it still fires if name extraction ever diverges between
+ * the two parsers, and keeping it can only ever make cospec stricter.
+ * A same-count name swap — the shape the count arm alone waved through, and
+ * which openspec 1.0.0–1.7.x merges at exit 0 — is now refused with the dropped
+ * name.
  *
  * A `Scenario removed: <reason>` note used to excuse the drop. It no longer
  * can: openspec 1.8.0's `validate-scenario-loss-check` reports any MODIFIED
@@ -467,12 +510,17 @@ export function findScenarioDrops(
     for (const op of ops) {
       if (op.operation !== 'MODIFIED' || op.name === undefined) continue
       const livingCount = living.requirementScenarioCounts.get(op.name) ?? 0
-      if (op.scenarioCount < livingCount)
+      const missingNames = missingCurrentScenarios(
+        living.requirementScenarioNames.get(op.name) ?? [],
+        op.scenarioNames,
+      )
+      if (missingNames.length > 0 || op.scenarioCount < livingCount)
         drops.push({
           capability,
           name: op.name,
           deltaCount: op.scenarioCount,
           livingCount,
+          missingNames,
           noted: op.scenarioRemovalReasons.length > 0,
         })
     }
@@ -487,3 +535,21 @@ export const SCENARIO_DROP_HINT =
 /** Extra line for an author who followed the retired `Scenario removed:` note. */
 export const SCENARIO_DROP_NOTE_RETIRED =
   'a `Scenario removed: <reason>` note no longer excuses the drop'
+
+/** `"a", "b"` — the dropped scenario names as the gate and the rule print them. */
+export function quoteScenarioNames(names: readonly string[]): string {
+  return names.map((n) => `"${n}"`).join(', ')
+}
+
+/**
+ * The `archive/scenario-preservation` rule message. Names the dropped scenarios
+ * when the identity arm found them; falls back to the original count-only
+ * wording for a count-arm-only drop, which is the one shape with no names to
+ * print. Both shapes start `MODIFIED "<name>" drops scenario`, which is the
+ * prefix `validate.ts` keys the delegated-duplicate suppressor on.
+ */
+export function scenarioDropMessage(drop: ScenarioDrop): string {
+  return drop.missingNames.length > 0
+    ? `MODIFIED "${drop.name}" drops scenario(s) ${quoteScenarioNames(drop.missingNames)} (living ${drop.livingCount} -> delta ${drop.deltaCount})`
+    : `MODIFIED "${drop.name}" drops scenario count from ${drop.livingCount} to ${drop.deltaCount}`
+}
