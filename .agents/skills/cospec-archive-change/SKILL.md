@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.6.0
-  contentHash: sha256:d3888b806ad2a458d51e502db3d4697e1a384fbbb0cca33a69317c5d42b16b46
+  contentHash: sha256:6f24fff779ee706334b23fdc7171e4e8587060b2ae16a34a1da07a12c57d96a3
 ---
 
 Archive a completed change. `cospec archive` validates it, merges its spec
@@ -58,4 +58,4 @@ quote its Purpose, and tell the user how to recover it (a `git checkout` of that
 path when the spec lived in this checkout).
 
 Never bypass validation. If a change is reported as now unblocked, offer to
-`/cospec:apply` it next.
+`$cospec-apply-change (Codex) or /cospec-apply-change (other agents)` it next.

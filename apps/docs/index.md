@@ -51,8 +51,8 @@ features:
   - title: Agent-native harness setup
     details:
       cospec init --harness generates ready-to-run skills and commands for
-      Claude Code, Codex, and OpenCode, with the permissions each harness needs
-      pre-wired.
+      Claude Code, Codex, OpenCode, and the shared .agents/skills root, with the
+      permissions each harness needs pre-wired.
 ---
 
 ## Quickstart

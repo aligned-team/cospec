@@ -6,6 +6,17 @@
 # opencode only; codex gets skills plus a prefix-rule allowlist (rulesPath) and no slash
 # commands. Path templates use {command} and {skill} placeholders.
 #
+# `codex` and `agents` both render into the vendor-neutral `.agents/skills` root that
+# Codex, Zed, Antigravity and other AGENTS.md-aware assistants read. They share one
+# bodyDialect, so selecting both emits one byte-identical set of files plus codex's
+# rules file. `legacySkillDirs` records the pre-1.11 location cospec migrates away from.
+#
+# `bodyDialect` picks how in-body `/cospec:<id>` references are respelled:
+#   canonical - left as `/cospec:<id>` (Claude registers those slash commands)
+#   opencode  - `/cospec-<id>`, matching the slash commands OpenCode registers
+#   shared    - `$cospec-<skill> (Codex) or /cospec-<skill> (other agents)`, because the
+#               shared root emits no command files and only skill names resolve there
+#
 # `takesArguments` is audited per workflow: true when the body reads a positional
 # argument (a `<type>: <text>` or a change slug). It drives the OpenCode $ARGUMENTS
 # injection in src/harness/adapters.ts — OpenCode drops whatever the user typed after
@@ -103,10 +114,17 @@ harnesses:
     commandDir: .claude/commands/cospec
     commandFile: '{command}.md'
     skillDir: .claude/skills/{skill}
+    bodyDialect: canonical
   codex:
-    skillDir: .codex/skills/{skill}
+    skillDir: .agents/skills/{skill}
+    legacySkillDirs: ['.codex/skills/{skill}']
     rulesPath: .codex/rules/cospec.rules
+    bodyDialect: shared
+  agents:
+    skillDir: .agents/skills/{skill}
+    bodyDialect: shared
   opencode:
     commandDir: .opencode/commands
     commandFile: 'cospec-{command}.md'
     skillDir: .opencode/skills/{skill}
+    bodyDialect: opencode

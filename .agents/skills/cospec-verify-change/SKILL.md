@@ -6,12 +6,12 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.6.0
-  contentHash: sha256:d77817df123483dd7f40b93919041d8e5b09c2b55bc9681e503ffd5b63b9076a
+  contentHash: sha256:cdade0649f06209a03f7cb00c0e513f72a40638b5b5b14357a6a69585d93d54e
 ---
 
 Dress-rehearse a change before archiving it. This workflow does not archive — it
 runs `cospec validate --strict`, walks the verification ledger to observed
-evidence, and names the hard gates `/cospec:archive` will enforce.
+evidence, and names the hard gates `$cospec-archive-change (Codex) or /cospec-archive-change (other agents)` will enforce.
 
 All work goes through `cospec`. Never call `openspec` directly, and never
 hand-edit the bookkeeping under `openspec/changes/`.
@@ -55,7 +55,7 @@ moving on.
 
 ## 5. Name the gates archive will enforce
 
-Tell the user `/cospec:archive` runs two hard gates, neither of which accepts
+Tell the user `$cospec-archive-change (Codex) or /cospec-archive-change (other agents)` runs two hard gates, neither of which accepts
 `--force`:
 
 - `archive/verification-incomplete` — fails if any ledger row is still a bare
@@ -68,4 +68,4 @@ This workflow only checks these preconditions; it does not run the archive.
 ## 6. Hand off
 
 Tell the user the change is dress-rehearsed and the next step is
-`/cospec:archive`.
+`$cospec-archive-change (Codex) or /cospec-archive-change (other agents)`.

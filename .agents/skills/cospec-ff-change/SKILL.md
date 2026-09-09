@@ -6,13 +6,13 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.6.0
-  contentHash: sha256:297fcf956284a582d82fe043cbdc0091ade5810399cdc4f9b0417a9014a9938f
+  contentHash: sha256:53bbcba7d5205081d7bc074498b8fedceeb19f51ca6136bc399c9903ae3535b4
 ---
 
 Fast-forward an already-scaffolded change: author every remaining artifact in
-one pass, then validate. Use this after `/cospec:new` has already created the
+one pass, then validate. Use this after `$cospec-new-change (Codex) or /cospec-new-change (other agents)` has already created the
 change. Do NOT scaffold a new change here — if none exists yet, stop and point
-the user at `/cospec:new` instead.
+the user at `$cospec-new-change (Codex) or /cospec-new-change (other agents)` instead.
 
 All work goes through `cospec`. Never call `openspec` directly, and never
 hand-edit the bookkeeping under `openspec/changes/`.
@@ -81,5 +81,5 @@ the formatter over it before re-validating. Re-run until it is clean.
 ## 5. Hand off
 
 Tell the user the change is apply-ready and that the next step is
-`/cospec:apply` when they want to implement it. Do not start implementation
+`$cospec-apply-change (Codex) or /cospec-apply-change (other agents)` when they want to implement it. Do not start implementation
 here.

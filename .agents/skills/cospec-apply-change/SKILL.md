@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.6.0
-  contentHash: sha256:7a8e6f62141f0dd909b84b2accfd01d21f7151e7bf568a6946e9cd8fac34b98e
+  contentHash: sha256:3dda5abccff40fb67246705c28c9fc9ee45d01a0e62d0b489d91b95e3eebde64
 ---
 
 Run the deterministic apply gate for a change, then implement its tasks. The
@@ -51,4 +51,4 @@ Obey the exit code:
 ## 3. Finish
 
 When every task is checked, tell the user the change is ready to archive — next
-step `/cospec:archive`.
+step `$cospec-archive-change (Codex) or /cospec-archive-change (other agents)`.

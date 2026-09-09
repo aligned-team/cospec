@@ -21,7 +21,7 @@ import {
   mergeClaudeSettings,
   type SettingsMergeResult,
 } from '../harness/settings-merge.ts'
-import { generate } from './update.ts'
+import { generate, migrationLines } from './update.ts'
 
 // --- repo state -------------------------------------------------------------
 
@@ -79,7 +79,20 @@ function parseHarnessArg(value: string): HarnessName[] | undefined {
 }
 
 const VALID_HARNESS_MSG =
-  'valid values: claude, codex, opencode, all, none (comma-separate for multiple, e.g. --harness claude,codex)'
+  'valid values: claude, codex, opencode, agents, all, none (comma-separate for multiple, e.g. --harness claude,codex)'
+
+/**
+ * What proves a harness is in use here. `.<harness>` is the right signal for the
+ * three vendor dirs, but a bare `.agents/` proves nothing — it commonly holds
+ * only an `AGENTS.md` source or shared notes — so the `agents` target is detected
+ * by its skills dir, which is the thing cospec would write into.
+ */
+const DETECT_PATHS: Record<HarnessName, string> = {
+  claude: '.claude',
+  codex: '.codex',
+  opencode: '.opencode',
+  agents: '.agents/skills',
+}
 
 function selectHarnesses(cwd: string, state: RepoState, arg: string | undefined): HarnessSelection {
   if (arg !== undefined) {
@@ -88,7 +101,7 @@ function selectHarnesses(cwd: string, state: RepoState, arg: string | undefined)
       return { harnesses: [], error: `invalid --harness '${arg}'; ${VALID_HARNESS_MSG}` }
     return { harnesses: parsed }
   }
-  const detected = HARNESS_NAMES.filter((h) => existsSync(join(cwd, `.${h}`)))
+  const detected = HARNESS_NAMES.filter((h) => existsSync(join(cwd, DETECT_PATHS[h])))
   if (detected.length > 0) return { harnesses: detected }
   if (state === 'A') {
     return { harnesses: ['claude'], note: 'No harness detected; defaulting to claude.' }
@@ -215,7 +228,10 @@ function isOpsxMarkdown(text: string): boolean {
 }
 
 function findOpsxFiles(cwd: string): OpsxFile[] {
-  const out: OpsxFile[] = []
+  // Keyed by relpath: `.agents` (a harness dir) strictly contains
+  // `.agents/skills` (the shared opsx root), so the two walk ranges overlap and
+  // an unguarded scan would list — and count — every leftover there twice.
+  const found = new Set<string>()
   const walk = (rel: string): void => {
     const abs = join(cwd, rel)
     if (!existsSync(abs)) return
@@ -223,20 +239,19 @@ function findOpsxFiles(cwd: string): OpsxFile[] {
       const childRel = `${rel}/${entry.name}`
       if (entry.isDirectory()) walk(childRel)
       else if (entry.isFile() && entry.name.endsWith('.md')) {
-        if (isOpsxMarkdown(readFileSync(join(cwd, childRel), 'utf8'))) {
-          out.push({ relpath: childRel })
-        }
+        if (isOpsxMarkdown(readFileSync(join(cwd, childRel), 'utf8'))) found.add(childRel)
       }
     }
   }
   for (const h of HARNESS_NAMES) walk(`.${h}`)
-  // Scanned but never generated into: from openspec 1.8.0 its Codex skills land in
-  // `.agents/skills/openspec-*/SKILL.md` (1.7.0's `agents` target, 1.10's `zed` and
-  // 1.11's `antigravity` share the same root), so an install done with any of those
-  // leaves no trace under the three `.<harness>` dirs. cospec's own Codex output
-  // stays at `.codex/skills` — `.agents/` is a foreign root we only clean up in.
+  // openspec ≥1.8.0 writes its Codex skills to `.agents/skills/openspec-*/SKILL.md`
+  // (1.7.0's `agents` target and 1.10/1.11's `zed`/`antigravity` share that root).
+  // cospec now writes its own `cospec-*` skills there too; the two prefixes cannot
+  // collide, and `isOpsxMarkdown` excludes anything cospec authored.
   walk(OPSX_SHARED_SKILL_ROOT)
-  return out.toSorted((a, b) => a.relpath.localeCompare(b.relpath))
+  return [...found]
+    .map((relpath) => ({ relpath }))
+    .toSorted((a, b) => a.relpath.localeCompare(b.relpath))
 }
 
 function removeOpsxFiles(cwd: string, files: OpsxFile[]): void {
@@ -258,7 +273,9 @@ const RESTART_LINES: Record<HarnessName, string> = {
   claude: 'Restart Claude Code to pick up /cospec commands.',
   opencode: 'OpenCode: reload the project to pick up /cospec- commands.',
   codex:
-    'Codex: skills load per-session; .codex/rules/cospec.rules pre-approves read-only cospec calls. No [features] hooks needed — cospec ships no hooks.',
+    'Codex: skills now live in .agents/skills and are invoked as $cospec-<skill>; they load per-session, so start a new one. .codex/rules/cospec.rules still pre-approves the read-only and gate cospec calls.',
+  agents:
+    'Shared .agents/skills — read by Codex ($cospec-*), Zed, Antigravity and other AGENTS.md-aware assistants; start a new session to load the skills. No slash commands are generated for this target.',
 }
 
 // --- command entrypoint -----------------------------------------------------
@@ -303,7 +320,7 @@ export function run(ctx: CommandContext): number {
   mkdirSync(join(target, 'openspec', 'changes', 'archive'), { recursive: true })
 
   // Schemas + harness files + manifest.
-  const { results } = generate(target, { harnesses, force })
+  const { results, migration } = generate(target, { harnesses, force })
 
   // config.yaml — only if absent (never modified once present).
   const configPath = join(target, 'openspec', 'config.yaml')
@@ -360,6 +377,7 @@ export function run(ctx: CommandContext): number {
           opsx: { found: opsx.map((o) => o.relpath), removed: opsxRemoved },
           notGitTree,
           files: results,
+          migration,
         },
         null,
         2,
@@ -372,6 +390,7 @@ export function run(ctx: CommandContext): number {
     state,
     harnesses,
     results,
+    migration,
     configWritten,
     gate,
     settings,
@@ -428,6 +447,7 @@ interface ReceiptData {
   state: RepoState
   harnesses: HarnessName[]
   results: WriteResult[]
+  migration: WriteResult[]
   configWritten: boolean
   gate?: GateResult
   settings?: SettingsMergeResult
@@ -458,6 +478,9 @@ function printReceipt(target: string, d: ReceiptData): void {
 
   if (d.harnesses.length > 0) {
     lines.push(`Harness: ${d.harnesses.join(', ')}`)
+    if (d.harnesses.includes('agents') || d.harnesses.includes('codex')) {
+      lines.push('         skills for codex/agents share the .agents/skills root (identical files)')
+    }
   } else {
     lines.push('Harness: none (schemas only)')
   }
@@ -510,6 +533,12 @@ function printReceipt(target: string, d: ReceiptData): void {
     lines.push(
       "Gate: no commit gate configured. Run 'cospec init --gate' to add it (merges into your mise.toml).",
     )
+  }
+
+  const migrationReport = migrationLines(d.migration, false)
+  if (migrationReport.length > 0) {
+    lines.push('')
+    lines.push(...migrationReport)
   }
 
   if (d.opsx.length > 0) {

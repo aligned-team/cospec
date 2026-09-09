@@ -166,4 +166,64 @@ describe('detectHarnesses', () => {
     )
     expect(detectHarnesses(dir)).toEqual([])
   })
+
+  // `codex` and `agents` both render `.agents/skills/cospec-*`, byte-identically;
+  // only `codex` leaves further evidence (`.codex/rules/cospec.rules`). These
+  // cases pin how that ambiguity is resolved.
+
+  test('a codex install stays codex-only across repeated detect/generate cycles', () => {
+    generate(dir, { harnesses: ['codex'] })
+    expect(existsSync(join(dir, '.agents/skills/cospec-propose/SKILL.md'))).toBe(true)
+    expect(detectHarnesses(dir)).toEqual(['codex'])
+    // What `cospec update` / `cospec doctor` actually do: re-generate from the
+    // detected set. Detection must not acquire `agents` from its own output.
+    generate(dir, { harnesses: detectHarnesses(dir) })
+    expect(detectHarnesses(dir)).toEqual(['codex'])
+  })
+
+  test('detects agents alone from the shared root when no codex rules file exists', () => {
+    generate(dir, { harnesses: ['agents'] })
+    expect(existsSync(join(dir, '.agents/skills/cospec-propose/SKILL.md'))).toBe(true)
+    expect(existsSync(join(dir, '.codex/rules/cospec.rules'))).toBe(false)
+    expect(detectHarnesses(dir)).toEqual(['agents'])
+    generate(dir, { harnesses: detectHarnesses(dir) })
+    expect(detectHarnesses(dir)).toEqual(['agents'])
+  })
+
+  test('a repo that selected both reports codex, whose output is the superset', () => {
+    generate(dir, { harnesses: ['codex', 'agents'] })
+    // `agents` is dropped rather than invented: re-generating from the detected
+    // set is a byte no-op, so nothing the user selected is lost.
+    expect(detectHarnesses(dir)).toEqual(['codex'])
+    const { results } = generate(dir, { harnesses: detectHarnesses(dir) })
+    expect(results.every((r) => r.outcome === 'unchanged')).toBe(true)
+  })
+
+  test('detects a pre-migration .codex/skills install as codex, not agents', () => {
+    mkdirSync(join(dir, '.codex/skills/cospec-propose'), { recursive: true })
+    writeFileSync(
+      join(dir, '.codex/skills/cospec-propose/SKILL.md'),
+      managedMarkdown('cospec-propose', 'legacy body'),
+    )
+    // No `.agents/skills` and no rules file yet — the legacy tree is the only evidence.
+    expect(detectHarnesses(dir)).toEqual(['codex'])
+
+    // After the migrating run the legacy tree is gone and the rules-file marker
+    // is what keeps the install detectable.
+    generate(dir, { harnesses: detectHarnesses(dir) })
+    expect(existsSync(join(dir, '.codex/skills/cospec-propose/SKILL.md'))).toBe(false)
+    expect(existsSync(join(dir, '.codex/rules/cospec.rules'))).toBe(true)
+    expect(detectHarnesses(dir)).toEqual(['codex'])
+  })
+
+  test('a bare .agents/ dir without a skills tree is not a harness', () => {
+    mkdirSync(join(dir, '.agents'), { recursive: true })
+    writeFileSync(join(dir, '.agents/shared.md'), '# notes\n')
+    expect(detectHarnesses(dir)).toEqual([])
+  })
+
+  test('detects every harness of a four-target install (agents folded into codex)', () => {
+    generate(dir, { harnesses: ['claude', 'codex', 'opencode', 'agents'] })
+    expect(detectHarnesses(dir)).toEqual(['claude', 'codex', 'opencode'])
+  })
 })

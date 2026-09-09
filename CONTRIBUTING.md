@@ -155,10 +155,10 @@ through `cospec`.
    PR must never merge leaving its change unarchived in `openspec/changes/` on
    `main`.
 
-`openspec/schemas/**` and the harness directories (`.claude/`, `.codex/`,
-`.opencode/`) are **generated** from `apps/cli/src/canon/`. Edit the canon and
-run `mise run generate`; never hand-edit generated output. `generate:check`
-blocks the commit otherwise.
+`openspec/schemas/**` and the harness directories (`.claude/`,
+`.agents/skills/cospec-*/`, `.codex/`, `.opencode/`) are **generated** from
+`apps/cli/src/canon/`. Edit the canon and run `mise run generate`; never
+hand-edit generated output. `generate:check` blocks the commit otherwise.
 
 ## Code style
 

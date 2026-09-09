@@ -18,7 +18,9 @@ apps/cli/THIRD-PARTY-LICENSES.md
 openspec/schemas/
 .claude/commands/cospec/
 .claude/skills/cospec-*/
-.codex/skills/cospec-*/
+# The shared vendor-neutral skills root, written by the `codex` and `agents`
+# targets (it replaced `.codex/skills/`).
+.agents/skills/cospec-*/
 .codex/rules/cospec.rules
 .opencode/commands/cospec-*.md
 .opencode/skills/cospec-*/

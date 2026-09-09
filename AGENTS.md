@@ -187,9 +187,10 @@ fails, fix the root cause; never use `--no-verify`, `pre-commit`, or raw
 `.git/hooks/` scripts.
 
 **Managed files are generated** — `openspec/schemas/**` and the harness dirs
-(`.claude/`, `.codex/`, `.opencode/`) are composed from `apps/cli/src/canon/`.
-Edit the canon, run `mise run generate`; never hand-edit generated output. The
-`generate:check` drift gate blocks the commit otherwise.
+(`.claude/`, `.agents/skills/cospec-*/`, `.codex/`, `.opencode/`) are composed
+from `apps/cli/src/canon/`. Edit the canon, run `mise run generate`; never
+hand-edit generated output. The `generate:check` drift gate blocks the commit
+otherwise.
 
 **Error handling** — never silently swallow errors. Catch only specific expected
 cases; let unexpected exceptions propagate. Fixes must change observable
@@ -235,8 +236,9 @@ DESIGN, find it. Lead with a recommendation when presenting options.
 
 ## Codex / OpenCode notes
 
-Generated cospec skills live under `.codex/skills/cospec-*/` and
-`.opencode/skills/cospec-*/`; OpenCode also gets full command bodies under
+Generated cospec skills live under `.agents/skills/cospec-*/` (the shared root
+Codex and other AGENTS.md-aware assistants read; invoked as `$cospec-<skill>`)
+and `.opencode/skills/cospec-*/`; OpenCode also gets full command bodies under
 `.opencode/commands/`. `.codex/rules/cospec.rules` pre-approves the read-only
 and gate cospec calls (`archive` is intentionally not pre-approved). These are
 managed files — regenerate with `mise run generate`, never hand-edit. Reload the

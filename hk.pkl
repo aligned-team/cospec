@@ -27,6 +27,10 @@ local canonGlobs = List("apps/cli/src/canon/**")
 local generatedOutputGlobs = List(
   "openspec/schemas/**",
   ".claude/**",
+  // Only .agents/skills/** is cospec-generated — .agents/shared.md is the
+  // hand-authored source for the shared CLAUDE.md/AGENTS.md block (see
+  // agentGlobs below) and must stay in oxfmt's check.
+  ".agents/skills/**",
   ".codex/**",
   ".opencode/**"
 )

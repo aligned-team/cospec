@@ -60,7 +60,7 @@ export const COMMANDS: CommandEntry[] = [
     usage: '[path]',
     options: `  --yes              Skip prompts; auto-remove detected opsx leftovers
   --force            Overwrite conflicting managed files
-  --harness <list>   claude,codex,opencode,all,none (comma-separate for multiple)
+  --harness <list>   claude,codex,opencode,agents,all,none (comma-separate for multiple)
   --gate             Force-enable the commit gate (mise + hk + commitlint)
   --no-gate          Force-disable the commit gate
   --remove-opsx      Delete provably openspec-generated leftover files`,

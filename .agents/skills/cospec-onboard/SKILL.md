@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.6.0
-  contentHash: sha256:c0acf01721c99e0b50950041c4080c330b709e81b07ef095b69784b1bedc7960
+  contentHash: sha256:ab5659dd080b9a96ed4a205361f6b3b3ff871ac0757c498f74344db5955d835f
 ---
 
 Walk a first-time user through one real cospec change, end to end, narrating
@@ -99,5 +99,5 @@ to sibling changes.
 ## 10. Wrap up
 
 Tell the user they have now run the full cospec loop once end to end, and point
-at `/cospec:propose` (or `/cospec:new` plus `/cospec:ff` or `/cospec:continue`)
+at `$cospec-propose (Codex) or /cospec-propose (other agents)` (or `$cospec-new-change (Codex) or /cospec-new-change (other agents)` plus `$cospec-ff-change (Codex) or /cospec-ff-change (other agents)` or `$cospec-continue-change (Codex) or /cospec-continue-change (other agents)`)
 for their next real change.

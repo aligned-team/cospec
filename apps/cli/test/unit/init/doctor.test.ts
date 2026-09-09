@@ -4,17 +4,26 @@ import { join } from 'node:path'
 
 import { run as doctorRun } from '../../../src/commands/doctor.ts'
 import { run as initRun } from '../../../src/commands/init.ts'
-import { capture, captureAsync, cleanup, ctx, makeRepo } from './helpers.ts'
+import { capture, captureAsync, cleanup, ctx, makeRepo, managedMarkdown } from './helpers.ts'
 
 function seed(dir: string): void {
   capture(() => initRun(ctx(dir, ['--harness', 'claude', '--yes'])) as number)
 }
 
-async function doctorJson(
-  dir: string,
-): Promise<{ code: number; findings: { level: string; check: string }[] }> {
+/** Init a repo on a harness that renders into the shared `.agents/skills` root. */
+function seedShared(dir: string, harness: 'codex' | 'agents'): void {
+  capture(() => initRun(ctx(dir, ['--harness', harness, '--yes'])) as number)
+}
+
+interface JsonFinding {
+  level: string
+  check: string
+  message: string
+}
+
+async function doctorJson(dir: string): Promise<{ code: number; findings: JsonFinding[] }> {
   const { code, out } = await captureAsync(() => doctorRun(ctx(dir, [], true)))
-  const parsed = JSON.parse(out) as { findings: { level: string; check: string }[] }
+  const parsed = JSON.parse(out) as { findings: JsonFinding[] }
   return { code, findings: parsed.findings }
 }
 
@@ -135,5 +144,78 @@ describe('cospec doctor (DESIGN §2.3)', () => {
     expect(changeSchema).toHaveLength(1)
     expect(changeSchema[0]?.level).toBe('INFO')
     expect(changeSchema[0]?.message).toMatch(/legacy schema 'my-fork'/)
+  })
+})
+
+describe('cospec doctor — the shared .agents/skills root', () => {
+  let dir: string
+  beforeEach(() => {
+    dir = makeRepo()
+  })
+  afterEach(() => {
+    cleanup(dir)
+  })
+
+  // The shared dialect emits no command files, so its bodies reference skills by
+  // DIR NAME (`/cospec-apply-change`), not by workflow id (`/cospec:apply`).
+  // Doctor resolves both spellings; if it did not, every generated body here
+  // would be flagged.
+  test('generated shared-root bodies raise no dangling-ref findings', async () => {
+    seedShared(dir, 'agents')
+    const { code, findings } = await doctorJson(dir)
+    expect(findings.filter((f) => f.check === 'dangling-ref')).toEqual([])
+    expect(code).toBe(0)
+  })
+
+  test('an unknown skill-name reference under .agents/ is a single ERROR', async () => {
+    seedShared(dir, 'agents')
+    mkdirSync(join(dir, '.agents/skills/cospec-rogue'), { recursive: true })
+    writeFileSync(
+      join(dir, '.agents/skills/cospec-rogue/SKILL.md'),
+      '---\nname: rogue\n---\nRun /cospec-teleport-change to win.\n',
+    )
+    const { code, findings } = await doctorJson(dir)
+    expect(code).toBe(1)
+    const dangling = findings.filter((f) => f.check === 'dangling-ref')
+    // Exactly one: `.agents` (a harness dir) and `.agents/skills` (the shared
+    // opsx root) are both walked, and the overlap is deduped by relpath.
+    expect(dangling).toHaveLength(1)
+    expect(dangling[0]?.level).toBe('ERROR')
+    expect(dangling[0]?.message).toContain('.agents/skills/cospec-rogue/SKILL.md')
+  })
+
+  test('a real workflow whose skill file is missing is still a dangling ERROR', async () => {
+    seedShared(dir, 'agents')
+    rmSync(join(dir, '.agents/skills/cospec-apply-change'), { recursive: true })
+    const { code, findings } = await doctorJson(dir)
+    expect(code).toBe(1)
+    expect(findings.some((f) => f.check === 'dangling-ref' && f.message.includes('apply'))).toBe(
+      true,
+    )
+  })
+
+  test('a leftover .codex/skills file is a legacy-layout WARNING, not drift', async () => {
+    seedShared(dir, 'codex')
+    mkdirSync(join(dir, '.codex/skills/cospec-propose'), { recursive: true })
+    writeFileSync(
+      join(dir, '.codex/skills/cospec-propose/SKILL.md'),
+      managedMarkdown('cospec-propose', 'legacy body'),
+    )
+    const { code, findings } = await doctorJson(dir)
+    // WARNING only — doctor exits 1 on ERRORs.
+    expect(code).toBe(0)
+    const legacy = findings.filter((f) => f.check === 'legacy-layout')
+    expect(legacy).toHaveLength(1)
+    expect(legacy[0]?.level).toBe('WARNING')
+    expect(legacy[0]?.message).toContain('.codex/skills/cospec-propose/SKILL.md')
+    // The file is misplaced, not diverged from canon: the drift vocabulary must
+    // stay out of it.
+    expect(findings.some((f) => f.check === 'drift')).toBe(false)
+  })
+
+  test('no legacy-layout finding once the legacy tree is gone', async () => {
+    seedShared(dir, 'codex')
+    const { findings } = await doctorJson(dir)
+    expect(findings.some((f) => f.check === 'legacy-layout')).toBe(false)
   })
 })

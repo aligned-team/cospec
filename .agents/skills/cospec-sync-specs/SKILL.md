@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.6.0
-  contentHash: sha256:93b508f463dcdaed56e37c87f47652cf04333f139926d67cf1d2f15b033bf711
+  contentHash: sha256:a7843116c61379181eea4cfe254d8efe5daadb124a0862a656241d4c5478fb08
 ---
 
 Explain and preview spec synchronization. Spec sync is not a standalone step in
@@ -46,6 +46,6 @@ report a retirement, and give the user a way to recover the file.
 
 ## Actually sync
 
-Run `/cospec:archive` when the change is complete. The merge happens there, is
+Run `$cospec-archive-change (Codex) or /cospec-archive-change (other agents)` when the change is complete. The merge happens there, is
 verified, and blocker check-offs fan out automatically. To sanity-check the
 living specs on their own, run `cospec validate --specs`.

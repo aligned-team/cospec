@@ -1,33 +1,66 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  BODY_DIALECTS,
   injectOpenCodeArgs,
+  isBodyDialect,
   isHarnessName,
   renderCodexRules,
   serializeFrontmatter,
-  transformBodyForHarness,
+  transformBody,
 } from '../../../src/harness/adapters.ts'
 
 describe('isHarnessName', () => {
-  test('accepts the three known harnesses and rejects others', () => {
+  test('accepts the four known harnesses and rejects others', () => {
     expect(isHarnessName('claude')).toBe(true)
     expect(isHarnessName('codex')).toBe(true)
     expect(isHarnessName('opencode')).toBe(true)
+    expect(isHarnessName('agents')).toBe(true)
     expect(isHarnessName('cursor')).toBe(false)
     expect(isHarnessName('all')).toBe(false)
   })
 })
 
-describe('transformBodyForHarness', () => {
+describe('isBodyDialect', () => {
+  test('accepts exactly the declared dialects', () => {
+    for (const dialect of BODY_DIALECTS) expect(isBodyDialect(dialect)).toBe(true)
+    expect(BODY_DIALECTS).toEqual(['canonical', 'shared', 'opencode'])
+    expect(isBodyDialect('codex')).toBe(false)
+    expect(isBodyDialect('')).toBe(false)
+  })
+})
+
+describe('transformBody', () => {
   const body = 'Run /cospec:apply then /cospec:archive when done.'
+  const skillById = new Map([
+    ['apply', 'cospec-apply-change'],
+    ['archive', 'cospec-archive-change'],
+  ])
+
+  test('canonical leaves the body verbatim', () => {
+    expect(transformBody(body, 'canonical', skillById)).toBe(body)
+  })
+
   test('opencode rewrites colon slashes to hyphen slashes', () => {
-    expect(transformBodyForHarness(body, 'opencode')).toBe(
+    expect(transformBody(body, 'opencode', skillById)).toBe(
       'Run /cospec-apply then /cospec-archive when done.',
     )
   })
-  test('claude and codex are unchanged', () => {
-    expect(transformBodyForHarness(body, 'claude')).toBe(body)
-    expect(transformBodyForHarness(body, 'codex')).toBe(body)
+
+  test('shared respells each reference as its skill name in both invocation syntaxes', () => {
+    expect(transformBody(body, 'shared', skillById)).toBe(
+      'Run $cospec-apply-change (Codex) or /cospec-apply-change (other agents) then ' +
+        '$cospec-archive-change (Codex) or /cospec-archive-change (other agents) when done.',
+    )
+  })
+
+  test('shared leaves an unknown id verbatim so doctor still flags it as dangling', () => {
+    expect(transformBody('see /cospec:nope', 'shared', skillById)).toBe('see /cospec:nope')
+  })
+
+  test('shared uses the skill name, not the workflow id — they differ for most workflows', () => {
+    expect(transformBody('/cospec:apply', 'shared', skillById)).not.toContain('/cospec-apply ')
+    expect(transformBody('/cospec:apply', 'shared', skillById)).toContain('cospec-apply-change')
   })
 })
 

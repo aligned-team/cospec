@@ -1,34 +1,4 @@
-# opsx-migration-detection Specification
-
-## Purpose
-
-Covers cospec's detection and removal of leftover vanilla-OpenSpec artifacts
-from a repo that migrated to cospec, so `cospec doctor` and
-`cospec init --remove-opsx` find and clean up files openspec wrote — including
-under the shared `.agents/skills/` root it has used since 1.8.0 — while never
-touching a file that merely lives in a scanned directory without matching
-openspec's own authored shape.
-
-## Requirements
-
-### Requirement: Removal is shape-gated
-
-Leftover removal SHALL continue to be decided by the file's own shape — the
-openspec-authored frontmatter markers the detector already matches — and never
-by directory membership alone. A file under a scanned root that does not match
-those markers SHALL be left in place, whether it was authored by cospec, by
-another tool, or by hand.
-
-#### Scenario: A third-party skill under .agents survives
-
-- **WHEN** `.agents/skills/` contains a skill that is not openspec-authored and
-  `cospec init --remove-opsx` runs
-- **THEN** that file is untouched and is not reported as an `opsx-leftover`
-
-#### Scenario: A cospec-authored file is never removed
-
-- **WHEN** a scanned root contains a file cospec itself generated
-- **THEN** the leftover scan does not report it and removal does not delete it
+## ADDED Requirements
 
 ### Requirement: Leftover scan shares the agents skills root
 
@@ -76,3 +46,7 @@ Its two surviving scenarios are carried over verbatim below.
   one leftover under `.agents/skills/`
 - **THEN** each reports that file exactly once, despite `.agents` and
   `.agents/skills` both being walked
+
+## REMOVED Requirements
+
+- `### Requirement: Leftover scan covers the shared agents skills root`

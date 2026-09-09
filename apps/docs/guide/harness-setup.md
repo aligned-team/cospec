@@ -1,8 +1,9 @@
 ---
 title: Harness setup
 description:
-  What cospec init writes for Claude Code, Codex, and OpenCode — skills,
-  commands, the one permission entry, and how to confirm it loaded.
+  What cospec init writes for Claude Code, Codex, OpenCode, and the shared
+  .agents root — skills, commands, the one permission entry, and how to confirm
+  it loaded.
 ---
 
 # Harness setup
@@ -32,8 +33,12 @@ loop.
 ```
 
 ```txt [Codex]
-.codex/skills/cospec-{same twelve}/SKILL.md
+.agents/skills/cospec-{same twelve}/SKILL.md   # the shared root, below
 .codex/rules/cospec.rules   # pre-approves read-only + gate cospec calls
+```
+
+```txt [agents]
+.agents/skills/cospec-{same twelve}/SKILL.md
 ```
 
 ```txt [OpenCode]
@@ -44,8 +49,12 @@ loop.
 :::
 
 Slash command syntax is adapted per harness — `/cospec:propose` in Claude Code,
-`/cospec-propose` in OpenCode. Codex has no project-level slash commands, so its
-skills are invoked by description. OpenCode's command bodies are self-contained
+`/cospec-propose` in OpenCode. The shared `.agents/skills` root emits no command
+files at all, so bodies written there name the **skill** (`$cospec-propose` in
+Codex, `/cospec-propose` in other AGENTS.md-aware assistants) rather than a
+slash command that would not resolve. Skill names and workflow ids are not
+interchangeable — only four of the twelve spell the same (`/cospec:apply`
+becomes `$cospec-apply-change`). OpenCode's command bodies are self-contained
 (they work even when `.claude/` is absent), whereas Claude Code's commands point
 at the paired skill. For a workflow that reads a positional argument (a type +
 description, or a change slug), OpenCode's **command** body additionally gets a
@@ -55,14 +64,39 @@ unlike Claude Code and Codex, which bind the argument implicitly. The paired
 **skill** body never gets this placeholder, so the two rendered bodies
 legitimately differ for the same workflow on OpenCode.
 
-::: tip Migrating from an OpenSpec install that used `.agents/skills/` If a
-project was previously initialized with `openspec` **1.7.0+** (its
-vendor-neutral `agents` target, or 1.8.0's Codex output, 1.10's `zed`, or 1.11's
-`antigravity`), its skills may live under the shared `.agents/skills/` root
-instead of a per-harness `.<tool>/` dir. cospec's opsx-leftover scan checks that
-root too, so `cospec init --remove-opsx` finds and offers to clean those up the
-same as any other harness's leftovers — cospec's own generated output never
-writes to `.agents/skills/`. :::
+## The shared `.agents/skills` root
+
+`.agents/skills` is the vendor-neutral skills root read by Codex, Zed,
+Antigravity and other AGENTS.md-aware assistants. cospec writes its skills there
+for two targets — `codex` and `agents` — and they are **byte-identical**,
+contentHash included: selecting both writes each file exactly once, and there is
+no per-tool ownership marker to reconcile. The only difference between the two
+is that `codex` additionally emits `.codex/rules/cospec.rules`. Pick `agents`
+alone when you want the skills without Codex's approval rules.
+
+Auto-detection keys on `.agents/skills`, not a bare `.agents/` directory, so a
+repo that only keeps an `AGENTS.md` or notes under `.agents/` is not treated as
+a harness. Because the two targets write the same tree, the skills alone cannot
+say which one you picked: a repo that also has `.codex/rules/cospec.rules` is
+detected as `codex`, and one without it as `agents`. A repo that selected both
+therefore re-generates as `codex` — which writes every file `agents` writes,
+byte for byte, so nothing is lost.
+
+::: warning Moved from `.codex/skills/` Earlier versions of cospec wrote Codex's
+skills to `.codex/skills/`. `cospec update` migrates them: a legacy file whose
+body still hashes to its own stamped `contentHash` is removed once the
+replacement exists under `.agents/skills`, and a file you hand-edited is **left
+in place**, reported, and only discarded with `--force`. Until the legacy
+directory is clear, `cospec doctor` reports a `legacy-layout` warning and
+`cospec update --check` exits `1`, so CI drift gates catch it. `.codex/` itself
+is never removed — the rules file still lives there. :::
+
+::: tip Coexisting with OpenSpec's own `.agents/skills/` A project previously
+initialized with `openspec` **1.7.0+** (its vendor-neutral `agents` target, or
+1.8.0's Codex output, 1.10's `zed`, or 1.11's `antigravity`) may already have
+`openspec-*` skills in this root. The two coexist: cospec owns only its
+`cospec-*` directories, and `cospec init --remove-opsx` still removes only
+openspec-authored files (frontmatter `author: openspec`). :::
 
 For Claude Code specifically, init reads `.claude/settings.json` (creating `{}`
 if it doesn't exist yet) and additively merges `Bash(cospec *)` into
@@ -84,8 +118,11 @@ lifecycle, so pick up newly generated files with:
 
 - **Claude Code** — restart the session. `/cospec:*` commands are read at
   startup.
-- **Codex** — start a new session; skills are loaded per session.
+- **Codex** — start a new session; skills are loaded per session from
+  `.agents/skills`, invoked as `$cospec-<skill>`.
 - **OpenCode** — reload the project.
+- **agents** — however the assistant reading `.agents/skills` reloads; cospec
+  generates no slash commands for this target.
 
 cospec ships no hooks, so there's no `[features] hooks` configuration to add
 anywhere.
@@ -97,9 +134,10 @@ it:
 
 1. **Claude Code** — after restarting, `/cospec:propose` appears in the command
    list, and `Bash(cospec *)` is present in `.claude/settings.json`.
-2. **Codex** — start a session and confirm the `cospec-*` skills are listed; a
-   read-only call like `cospec status` should run without an approval prompt,
-   while `cospec archive` still prompts (that's intentional — see below).
+2. **Codex** — start a session and confirm the `cospec-*` skills from
+   `.agents/skills` are listed; a read-only call like `cospec status` should run
+   without an approval prompt, while `cospec archive` still prompts (that's
+   intentional — see below).
 3. **OpenCode** — after reloading, `/cospec-propose` runs and drives the
    proposal loop even with `.claude/` absent, since OpenCode's bodies are full
    rather than pointers to a skill file.

@@ -155,12 +155,35 @@ merged entry. If it does not parse, cospec prints the snippet and skips.
   Codex (and 1.7.0's `agents`, 1.10's `zed`, 1.11's `antigravity`) skills to
   that shared root instead of under a per-harness `.<tool>/` dir, so an install
   done with any of those targets leaves no trace under the three `.<harness>`
-  dirs cospec otherwise scans. cospec's own Codex output stays at
-  `.codex/skills` — `.agents/` is a foreign root cospec only ever cleans up in,
-  never writes to.
+  dirs cospec otherwise scans. cospec now writes its own skills to that same
+  root (targets `codex` and `agents`), so the two toolchains' output coexists
+  there: cospec owns only its `cospec-*` dirs, and `--remove-opsx` still removes
+  only openspec-authored files. The superset walk of `.agents/` and the subset
+  walk of `.agents/skills/` are deduped, so a leftover is reported once.
+- **Shared `.agents/skills` root** — `codex` and `agents` render byte-identical
+  skill files there (same paths, same bodies, same `contentHash`), which is why
+  selecting both emits each file once and no per-tool ownership marker is
+  needed; two harnesses mapping one path to different bytes is a hard render
+  error. `codex` differs only by additionally emitting
+  `.codex/rules/cospec.rules`. Auto-detection keys on `.agents/skills`, not a
+  bare `.agents/`, so a repo with only `AGENTS.md` there is not a harness — and
+  since the shared tree cannot say which target wrote it, the rules file is the
+  tie-breaker: present ⇒ `codex`, absent ⇒ `agents`, never both. Reporting both
+  would invent a target the user never selected; reporting only `codex` loses
+  nothing, because codex renders a strict superset of the agents file set.
+- **Legacy `.codex/skills` migration** — cospec previously wrote Codex skills
+  under `.codex/skills`. `cospec update` removes a legacy file only once its
+  replacement exists under `.agents/skills` AND its body still hashes to its own
+  stamped `contentHash`; a hand-edited copy is left in place and reported until
+  `--force`. Empty dirs are pruned with `rmdir`, never `rm -r`, and `.codex/`
+  itself is never removed (the rules file lives there). While any legacy file
+  remains, `doctor` emits a `legacy-layout` WARNING per file and
+  `update --check` exits `1`.
 - **Restart lines** — init ends with a per-harness note: restart Claude Code /
-  reload the OpenCode project / Codex picks up skills per session. cospec ships
-  no hooks, so no `[features] hooks` config is needed.
+  reload the OpenCode project / Codex picks up skills per session from
+  `.agents/skills` (`$cospec-<skill>`) / the `agents` target generates no slash
+  commands at all. cospec ships no hooks, so no `[features] hooks` config is
+  needed.
 
 ## Per-harness smoke checklist
 
