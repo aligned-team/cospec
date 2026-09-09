@@ -288,13 +288,13 @@ The system SHALL render a widget when requested, and cache it.
   },
   {
     // openspec 1.7.0 `archive-early-sync-existing-workflow-behavior`: an ADDED
-    // block byte-identical to the living requirement means the spec was already
-    // synced to the baseline, so re-applying it is a no-op and the archive
-    // succeeds. cospec's `archive/added-exists` is name-based and still flags
-    // it — a deliberate conservatism, recorded here rather than relaxed:
-    // relaxing it needs raw-block capture and openspec's own normalization.
+    // block whose normalized raw text matches the living requirement means the
+    // spec was already synced to the baseline, so re-applying it is a no-op and
+    // the archive succeeds. cospec now compares the block bodies with a
+    // verbatim port of openspec's `normalizeBlockRaw` and agrees: no rule
+    // fires, and BOTH sides archive. The differing-body collision stays an
+    // error — that is `added-already-exists`, directly above.
     key: 'added-identical-early-sync',
-    conservative: 'archive/added-exists',
     expectAbort: false,
     build(root) {
       writeLivingSpec(

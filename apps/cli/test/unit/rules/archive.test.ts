@@ -68,9 +68,69 @@ describe('archiveRules', () => {
     )
   })
 
-  test('archive/added-exists: ADDED a requirement that already lives', () => {
+  test('archive/added-exists: ADDED a requirement that already lives with a different body', () => {
+    // LIVING's block ends `- **WHEN** a` / `- **THEN** b`; this one omits the
+    // THEN, so the bodies genuinely differ — a real collision, not an early sync.
     const text =
       '## ADDED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n#### Scenario: s\n\n- **WHEN** a\n'
+    const issues = archiveRules(change(text, { living: LIVING }))
+    expect(rules(issues)).toContain('archive/added-exists')
+    expect(issues.find((i) => i.rule === 'archive/added-exists')?.message).toContain(
+      'already exists with different content',
+    )
+  })
+
+  // openspec's ADDED arm (`specs-apply.ts`) skips an ADDED block whose
+  // normalized raw text matches the living requirement: the spec was already
+  // synced to the baseline, so the archive is a clean no-op.
+  test('an ADDED block identical to the living requirement is an early-sync no-op', () => {
+    const text = `## ADDED Requirements
+
+### Requirement: Existing
+
+The system SHALL exist.
+
+#### Scenario: s
+
+- **WHEN** a
+- **THEN** b
+`
+    expect(archiveRules(change(text, { living: LIVING }), { strict: true })).toHaveLength(0)
+  })
+
+  test('the early-sync no-op survives CRLF and trailing-blank-line differences', () => {
+    const text =
+      '## ADDED Requirements\r\n\r\n### Requirement: Existing\r\n\r\nThe system SHALL exist.\r\n\r\n#### Scenario: s\r\n\r\n- **WHEN** a\r\n- **THEN** b\r\n\r\n\r\n'
+    expect(archiveRules(change(text, { living: LIVING }), { strict: true })).toHaveLength(0)
+  })
+
+  test('an ADDED block differing only in one scenario line is still a collision', () => {
+    const text = `## ADDED Requirements
+
+### Requirement: Existing
+
+The system SHALL exist.
+
+#### Scenario: s
+
+- **WHEN** a
+- **THEN** c
+`
+    expect(rules(archiveRules(change(text, { living: LIVING })))).toContain('archive/added-exists')
+  })
+
+  test('an ADDED block differing only in interior whitespace is still a collision', () => {
+    const text = `## ADDED Requirements
+
+### Requirement: Existing
+
+The system  SHALL exist.
+
+#### Scenario: s
+
+- **WHEN** a
+- **THEN** b
+`
     expect(rules(archiveRules(change(text, { living: LIVING })))).toContain('archive/added-exists')
   })
 

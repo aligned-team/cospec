@@ -7,6 +7,7 @@
 
 import {
   findScenarioDrops,
+  normalizeBlockRaw,
   parseDeltaSpec,
   SCENARIO_DROP_HINT,
   SCENARIO_DROP_NOTE_RETIRED,
@@ -119,13 +120,26 @@ export function archiveRules(
 
       // archive/added-exists — ADDED must not already exist; RENAMED-TO must not
       // collide with an existing requirement or another ADDED in this delta.
-      if (op.operation === 'ADDED' && op.name !== undefined && living.requirementNames.has(op.name))
+      //
+      // An ADDED block whose normalized raw text equals the living requirement's
+      // is openspec's early-sync no-op (`specs-apply.ts`, ADDED arm): the spec
+      // was already synced to the baseline, so re-applying it is not a
+      // collision and the archive proceeds. Only a DIFFERING body collides.
+      // Comparison is `normalizeBlockRaw` and nothing more — any looser folding
+      // would call a real collision identical and manufacture a false PASS.
+      if (
+        op.operation === 'ADDED' &&
+        op.name !== undefined &&
+        living.requirementNames.has(op.name) &&
+        normalizeBlockRaw(op.raw) !== normalizeBlockRaw(living.requirementBlocks.get(op.name) ?? '')
+      )
         issues.push({
           level: 'ERROR',
           rule: 'archive/added-exists',
           path,
           line: op.line,
-          message: `ADDED "${op.name}" already exists in living spec openspec/specs/${capability}/spec.md`,
+          message: `ADDED "${op.name}" already exists with different content in living spec openspec/specs/${capability}/spec.md`,
+          hint: 'openspec treats an ADDED block identical to the living requirement as an already-synced no-op; a differing body is a real collision — MODIFY the requirement instead',
         })
 
       if (op.operation === 'RENAMED' && op.toName !== undefined) {
