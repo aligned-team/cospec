@@ -41,8 +41,8 @@ and the current pin:
   `1.0.0`, where the old behavior is real, so success is still computed from
   what's actually on disk, with the exit code ANDed in as one term, never
   trusted alone.
-- **The scenario-preservation defense is cospec's sole guard only below 1.6.0.**
-  From 1.6.0 on, `openspec archive` ships its own overlapping scenario-loss
+- **The scenario-preservation defense is cospec's sole guard only below 1.8.0.**
+  From 1.8.0 on, `openspec archive` ships its own overlapping scenario-loss
   check, making cospec's gate defence-in-depth rather than the only thing
   standing between an author and a silently thinned spec.
 

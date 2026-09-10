@@ -1,6 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 
-import { findScenarioDrops, parseDeltaSpec, parseLivingSpec } from '../../../src/core/deltas.ts'
+import {
+  findScenarioDrops,
+  type LivingSpec,
+  normalizeBlockRaw,
+  parseDeltaSpec,
+  parseLivingSpec,
+  scenarioDropMessage,
+  scenarioNameFromHeader,
+} from '../../../src/core/deltas.ts'
 
 describe('parseDeltaSpec', () => {
   test('parses an ADDED requirement with SHALL and a scenario', () => {
@@ -226,6 +234,7 @@ The system SHALL render.
         name: 'Widget rendering',
         deltaCount: 1,
         livingCount: 2,
+        missingNames: ['b'],
         noted: false,
       },
     ])
@@ -263,6 +272,7 @@ The system SHALL render.
         name: 'Widget rendering',
         deltaCount: 1,
         livingCount: 2,
+        missingNames: ['b'],
         noted: true,
       },
     ])
@@ -311,6 +321,312 @@ The system SHALL do new.
       'fresh',
     )
     expect(findScenarioDrops([{ capability: 'fresh', ops: p.ops }], new Map())).toEqual([])
+  })
+
+  test('a MODIFIED requirement absent from the living spec is not a drop', () => {
+    // Nothing to shrink against — the missing target is `archive/target-missing`'s
+    // finding, not this gate's.
+    const p = parseDeltaSpec(
+      `## MODIFIED Requirements
+
+### Requirement: Never existed
+
+The system SHALL do something.
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y
+`,
+      'specs/widgets/spec.md',
+      'widgets',
+    )
+    expect(
+      findScenarioDrops([{ capability: 'widgets', ops: p.ops }], new Map([['widgets', LIVING]])),
+    ).toEqual([])
+  })
+
+  // The gap this arm closes: on the count arm alone a same-count name swap is a
+  // silent scenario deletion, and openspec 1.0.0–1.7.x merges it at exit 0.
+  test('a same-count scenario NAME swap is a drop, naming the lost scenario', () => {
+    const p = parseDeltaSpec(
+      `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render.
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y
+
+#### Scenario: c
+
+- **WHEN** x
+- **THEN** y
+`,
+      'specs/widgets/spec.md',
+      'widgets',
+    )
+    expect(
+      findScenarioDrops([{ capability: 'widgets', ops: p.ops }], new Map([['widgets', LIVING]])),
+    ).toEqual([
+      {
+        capability: 'widgets',
+        name: 'Widget rendering',
+        deltaCount: 2,
+        livingCount: 2,
+        missingNames: ['b'],
+        noted: false,
+      },
+    ])
+  })
+
+  test('a GROWING block that still drops one living name is a drop', () => {
+    const p = parseDeltaSpec(
+      `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render.
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y
+
+#### Scenario: c
+
+- **WHEN** x
+- **THEN** y
+
+#### Scenario: d
+
+- **WHEN** x
+- **THEN** y
+`,
+      'specs/widgets/spec.md',
+      'widgets',
+    )
+    expect(
+      findScenarioDrops([{ capability: 'widgets', ops: p.ops }], new Map([['widgets', LIVING]])),
+    ).toEqual([
+      {
+        capability: 'widgets',
+        name: 'Widget rendering',
+        deltaCount: 3,
+        livingCount: 2,
+        missingNames: ['b'],
+        noted: false,
+      },
+    ])
+  })
+
+  test('a case-only scenario rename is a drop — names compare case-sensitively', () => {
+    const p = parseDeltaSpec(
+      `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render.
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y
+
+#### Scenario: B
+
+- **WHEN** x
+- **THEN** y
+`,
+      'specs/widgets/spec.md',
+      'widgets',
+    )
+    expect(
+      findScenarioDrops([{ capability: 'widgets', ops: p.ops }], new Map([['widgets', LIVING]])),
+    ).toEqual([
+      {
+        capability: 'widgets',
+        name: 'Widget rendering',
+        deltaCount: 2,
+        livingCount: 2,
+        missingNames: ['b'],
+        noted: false,
+      },
+    ])
+  })
+
+  test('duplicate scenario names are counted with multiplicity, not deduped', () => {
+    const living = parseLivingSpec(`## Purpose
+
+x
+
+## Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render.
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** z
+
+#### Scenario: b
+
+- **WHEN** x
+- **THEN** y
+`)
+    // Same count (3), and every delta name appears in the living spec — but the
+    // living spec carries `a` twice and the delta only once, so one is lost.
+    const p = parseDeltaSpec(
+      `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render.
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y
+
+#### Scenario: b
+
+- **WHEN** x
+- **THEN** y
+
+#### Scenario: c
+
+- **WHEN** x
+- **THEN** y
+`,
+      'specs/widgets/spec.md',
+      'widgets',
+    )
+    expect(
+      findScenarioDrops([{ capability: 'widgets', ops: p.ops }], new Map([['widgets', living]])),
+    ).toEqual([
+      {
+        capability: 'widgets',
+        name: 'Widget rendering',
+        deltaCount: 3,
+        livingCount: 3,
+        missingNames: ['a'],
+        noted: false,
+      },
+    ])
+  })
+
+  test('reordering the living scenarios and editing their bodies is not a drop', () => {
+    const p = parseDeltaSpec(
+      `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render, quickly.
+
+#### Scenario: b
+
+- **WHEN** x
+- **THEN** y promptly
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y promptly
+`,
+      'specs/widgets/spec.md',
+      'widgets',
+    )
+    expect(
+      findScenarioDrops([{ capability: 'widgets', ops: p.ops }], new Map([['widgets', LIVING]])),
+    ).toEqual([])
+  })
+
+  // Belt and braces: the count arm is the contract this gate shipped with, and
+  // it must still fire if the two parsers ever disagree about scenario names.
+  // Hand-built because a real parse can never produce counts and names that
+  // disagree.
+  test('the count arm still fires when name extraction sees fewer living scenarios', () => {
+    const skewed: LivingSpec = {
+      requirementNames: new Set(['Widget rendering']),
+      requirementScenarioCounts: new Map([['Widget rendering', 2]]),
+      requirementScenarioNames: new Map([['Widget rendering', ['a']]]),
+      requirementBlocks: new Map(),
+      hasPurpose: true,
+      hasRequirements: true,
+      hasDeltaHeaders: false,
+      purposeText: 'x',
+    }
+    const p = parseDeltaSpec(
+      `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render.
+
+#### Scenario: a
+
+- **WHEN** x
+- **THEN** y
+`,
+      'specs/widgets/spec.md',
+      'widgets',
+    )
+    const drops = findScenarioDrops(
+      [{ capability: 'widgets', ops: p.ops }],
+      new Map([['widgets', skewed]]),
+    )
+    expect(drops).toEqual([
+      {
+        capability: 'widgets',
+        name: 'Widget rendering',
+        deltaCount: 1,
+        livingCount: 2,
+        missingNames: [],
+        noted: false,
+      },
+    ])
+    // With no names to print, the message keeps its original count wording.
+    expect(scenarioDropMessage(drops[0]!)).toBe(
+      'MODIFIED "Widget rendering" drops scenario count from 2 to 1',
+    )
+  })
+})
+
+describe('scenarioDropMessage', () => {
+  const base = { capability: 'widgets', name: 'Widget rendering', noted: false }
+
+  test('names every dropped scenario and keeps the living/delta counts', () => {
+    expect(
+      scenarioDropMessage({ ...base, deltaCount: 2, livingCount: 3, missingNames: ['a', 'b'] }),
+    ).toBe('MODIFIED "Widget rendering" drops scenario(s) "a", "b" (living 3 -> delta 2)')
+  })
+
+  // The prefix `validate.ts` keys its delegated-duplicate suppressor on.
+  test('both shapes start with the prefix the delegated-duplicate suppressor keys on', () => {
+    const withNames = scenarioDropMessage({
+      ...base,
+      deltaCount: 2,
+      livingCount: 2,
+      missingNames: ['b'],
+    })
+    const countOnly = scenarioDropMessage({
+      ...base,
+      deltaCount: 1,
+      livingCount: 2,
+      missingNames: [],
+    })
+    for (const m of [withNames, countOnly])
+      expect(/^MODIFIED "(.*)" drops scenario/.exec(m)?.[1]).toBe('Widget rendering')
   })
 })
 
@@ -506,5 +822,308 @@ describe('parser tolerances: BOM, CRLF, HTML comments, fences', () => {
       'x',
     )
     expect(p.ops[0]!.hasShallMust).toBe(true)
+  })
+})
+
+describe('requirement-block retention', () => {
+  const DELTA = [
+    '## ADDED Requirements',
+    '',
+    '### Requirement: Alpha',
+    '',
+    'The system SHALL alpha.',
+    '',
+    '#### Scenario: one',
+    '',
+    '- **WHEN** x',
+    '- **THEN** y',
+    '',
+    '### Requirement: Beta',
+    '',
+    'The system SHALL beta.',
+    '',
+    '## Notes',
+    '',
+    'Trailing prose that belongs to no requirement.',
+    '',
+  ].join('\n')
+
+  test('a delta block runs from its header to the line before the next requirement', () => {
+    const p = parseDeltaSpec(DELTA, 'specs/x/spec.md', 'x')
+    expect(p.ops[0]!.raw).toBe(
+      [
+        '### Requirement: Alpha',
+        '',
+        'The system SHALL alpha.',
+        '',
+        '#### Scenario: one',
+        '',
+        '- **WHEN** x',
+        '- **THEN** y',
+      ].join('\n'),
+    )
+  })
+
+  test('a delta block ends before the next level-2 section', () => {
+    const p = parseDeltaSpec(DELTA, 'specs/x/spec.md', 'x')
+    expect(p.ops[1]!.raw).toBe(['### Requirement: Beta', '', 'The system SHALL beta.'].join('\n'))
+    expect(p.ops[1]!.raw).not.toContain('Notes')
+  })
+
+  test('retaining raw does not shift reported line numbers', () => {
+    const p = parseDeltaSpec(DELTA, 'specs/x/spec.md', 'x')
+    expect(p.ops.map((o) => o.line)).toEqual([3, 12])
+  })
+
+  test('REMOVED and RENAMED ops carry no block', () => {
+    const p = parseDeltaSpec(
+      [
+        '## REMOVED Requirements',
+        '',
+        '- `### Requirement: Gone`',
+        '',
+        '## RENAMED Requirements',
+        '',
+        '- FROM: `### Requirement: A`',
+        '- TO: `### Requirement: B`',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops.map((o) => o.raw)).toEqual(['', ''])
+  })
+
+  test('a living requirement block is retained with the same window', () => {
+    const living = parseLivingSpec(
+      [
+        '## Purpose',
+        '',
+        'Why.',
+        '',
+        '## Requirements',
+        '',
+        '### Requirement: Alpha',
+        '',
+        'The system SHALL alpha.',
+        '',
+        '#### Scenario: one',
+        '',
+        '- **WHEN** x',
+        '- **THEN** y',
+        '',
+        '## Notes',
+        '',
+        'Not part of Alpha.',
+        '',
+      ].join('\n'),
+    )
+    expect(living.requirementBlocks.get('Alpha')).toBe(
+      [
+        '### Requirement: Alpha',
+        '',
+        'The system SHALL alpha.',
+        '',
+        '#### Scenario: one',
+        '',
+        '- **WHEN** x',
+        '- **THEN** y',
+      ].join('\n'),
+    )
+  })
+
+  test('a later section ends a requirement scope, so its scenarios count for nobody', () => {
+    const living = parseLivingSpec(
+      [
+        '## Purpose',
+        '',
+        'Why.',
+        '',
+        '## Requirements',
+        '',
+        '### Requirement: Alpha',
+        '',
+        '#### Scenario: one',
+        '',
+        '## Notes',
+        '',
+        '#### Scenario: stray',
+        '',
+      ].join('\n'),
+    )
+    expect(living.requirementScenarioCounts.get('Alpha')).toBe(1)
+    expect(living.requirementScenarioNames.get('Alpha')).toEqual(['one'])
+  })
+
+  test('fenced content is retained verbatim but yields no scenario', () => {
+    const p = parseDeltaSpec(
+      [
+        '## ADDED Requirements',
+        '',
+        '### Requirement: X',
+        '',
+        'The system SHALL x.',
+        '',
+        '```md',
+        '#### Scenario: fenced',
+        '```',
+        '',
+        '#### Scenario: real',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops[0]!.raw).toContain('#### Scenario: fenced')
+    expect(p.ops[0]!.scenarioNames).toEqual(['real'])
+    expect(p.ops[0]!.scenarioCount).toBe(1)
+  })
+
+  test('an HTML comment is retained verbatim in raw, not blanked', () => {
+    const p = parseDeltaSpec(
+      '## ADDED Requirements\n\n### Requirement: X\n\n<!-- an author note -->\n\nThe system SHALL x.\n',
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops[0]!.raw).toContain('<!-- an author note -->')
+  })
+})
+
+describe('normalizeBlockRaw', () => {
+  const BODY = [
+    '### Requirement: X',
+    '',
+    'The system SHALL x.',
+    '',
+    '#### Scenario: a',
+    '#### Scenario: b',
+  ]
+
+  test('folds CRLF and outer blank lines but nothing else', () => {
+    const lf = BODY.join('\n')
+    const crlf = BODY.join('\r\n') + '\r\n\r\n'
+    expect(normalizeBlockRaw(crlf)).toBe(normalizeBlockRaw(lf))
+  })
+
+  test('folds a lone CR to LF', () => {
+    expect(normalizeBlockRaw(BODY.join('\r'))).toBe(normalizeBlockRaw(BODY.join('\n')))
+  })
+
+  test('trailing whitespace on an interior line is not folded away', () => {
+    const padded = [
+      '### Requirement: X',
+      '',
+      'The system SHALL x.   ',
+      '',
+      '#### Scenario: a',
+      '#### Scenario: b',
+    ]
+    expect(normalizeBlockRaw(padded.join('\n'))).not.toBe(normalizeBlockRaw(BODY.join('\n')))
+  })
+
+  test('interior whitespace differences are not folded away', () => {
+    const spaced = [
+      '### Requirement: X',
+      '',
+      'The system  SHALL x.',
+      '',
+      '#### Scenario: a',
+      '#### Scenario: b',
+    ]
+    expect(normalizeBlockRaw(spaced.join('\n'))).not.toBe(normalizeBlockRaw(BODY.join('\n')))
+  })
+
+  test('scenario order is not folded away', () => {
+    const reordered = [
+      '### Requirement: X',
+      '',
+      'The system SHALL x.',
+      '',
+      '#### Scenario: b',
+      '#### Scenario: a',
+    ]
+    expect(normalizeBlockRaw(reordered.join('\n'))).not.toBe(normalizeBlockRaw(BODY.join('\n')))
+  })
+
+  test('a CRLF-only difference between two parsed blocks compares equal', () => {
+    const text = [
+      '## ADDED Requirements',
+      '',
+      '### Requirement: X',
+      '',
+      'The system SHALL x.',
+      '',
+    ].join('\n')
+    const lf = parseDeltaSpec(text, 'specs/x/spec.md', 'x').ops[0]!.raw
+    const crlf = parseDeltaSpec(text.replace(/\n/g, '\r\n'), 'specs/x/spec.md', 'x').ops[0]!.raw
+    expect(normalizeBlockRaw(crlf)).toBe(normalizeBlockRaw(lf))
+  })
+})
+
+describe('scenarioNameFromHeader', () => {
+  test('strips the marker, an ATX close, and a Scenario: prefix', () => {
+    expect(scenarioNameFromHeader('#### Scenario: Foo')).toBe('Foo')
+    expect(scenarioNameFromHeader('#### Foo')).toBe('Foo')
+    expect(scenarioNameFromHeader('#### Foo ####')).toBe('Foo')
+    expect(scenarioNameFromHeader('#### Scenario: Foo ###')).toBe('Foo')
+    expect(scenarioNameFromHeader('#### scenario:  Foo')).toBe('Foo')
+  })
+
+  test('names are case-sensitive', () => {
+    expect(scenarioNameFromHeader('#### Scenario: Foo')).not.toBe(
+      scenarioNameFromHeader('#### Scenario: foo'),
+    )
+  })
+
+  test('a `#` run not preceded by a space or tab is kept', () => {
+    expect(scenarioNameFromHeader('#### Foo#')).toBe('Foo#')
+  })
+
+  test('a `#` run after a non-breaking space is kept, as CommonMark renders it', () => {
+    expect(scenarioNameFromHeader('#### Foo\u00a0####')).toBe('Foo\u00a0####')
+  })
+
+  test('parsers extract the same names on both sides', () => {
+    const block = ['#### Scenario: Foo', '#### Bar ####', '#### baz']
+    const p = parseDeltaSpec(
+      ['## MODIFIED Requirements', '', '### Requirement: X', '', ...block, ''].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    const living = parseLivingSpec(
+      [
+        '## Purpose',
+        '',
+        'Why.',
+        '',
+        '## Requirements',
+        '',
+        '### Requirement: X',
+        '',
+        ...block,
+        '',
+      ].join('\n'),
+    )
+    expect(p.ops[0]!.scenarioNames).toEqual(['Foo', 'Bar', 'baz'])
+    expect(living.requirementScenarioNames.get('X')).toEqual(['Foo', 'Bar', 'baz'])
+  })
+
+  test('duplicate scenario names are retained, not deduped', () => {
+    const living = parseLivingSpec(
+      [
+        '## Purpose',
+        '',
+        'Why.',
+        '',
+        '## Requirements',
+        '',
+        '### Requirement: X',
+        '',
+        '#### Scenario: a',
+        '#### Scenario: a',
+        '',
+      ].join('\n'),
+    )
+    expect(living.requirementScenarioNames.get('X')).toEqual(['a', 'a'])
   })
 })

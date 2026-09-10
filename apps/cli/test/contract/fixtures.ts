@@ -85,6 +85,18 @@ Real purpose text for the ${cap} capability.
 ${requirements}`
 }
 
+/** The living requirement `ADDED_DELTA` re-states verbatim. */
+const LIVING_WIDGET_REQ = `
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered
+`
+
 const ADDED_DELTA = `## ADDED Requirements
 
 ### Requirement: Widget rendering
@@ -288,13 +300,13 @@ The system SHALL render a widget when requested, and cache it.
   },
   {
     // openspec 1.7.0 `archive-early-sync-existing-workflow-behavior`: an ADDED
-    // block byte-identical to the living requirement means the spec was already
-    // synced to the baseline, so re-applying it is a no-op and the archive
-    // succeeds. cospec's `archive/added-exists` is name-based and still flags
-    // it — a deliberate conservatism, recorded here rather than relaxed:
-    // relaxing it needs raw-block capture and openspec's own normalization.
+    // block whose normalized raw text matches the living requirement means the
+    // spec was already synced to the baseline, so re-applying it is a no-op and
+    // the archive succeeds. cospec now compares the block bodies with a
+    // verbatim port of openspec's `normalizeBlockRaw` and agrees: no rule
+    // fires, and BOTH sides archive. The differing-body collision stays an
+    // error — that is `added-already-exists`, directly above.
     key: 'added-identical-early-sync',
-    conservative: 'archive/added-exists',
     expectAbort: false,
     build(root) {
       writeLivingSpec(
@@ -316,6 +328,156 @@ The system SHALL render a widget when requested.
       )
       writeChangeShell(root, 'added-identical-early-sync', { 'widgets/spec.md': ADDED_DELTA })
       return { name: 'added-identical-early-sync' }
+    },
+  },
+  {
+    // The same early sync with CRLF line endings on the delta side. openspec's
+    // `normalizeBlockRaw` folds CR/CRLF before comparing, so the blocks are
+    // identical and BOTH sides archive. Pins the port at exactly upstream's
+    // tolerance: line endings, nothing more.
+    key: 'added-identical-crlf',
+    expectAbort: false,
+    build(root) {
+      writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_WIDGET_REQ))
+      writeChangeShell(root, 'added-identical-crlf', {
+        'widgets/spec.md': ADDED_DELTA.replace(/\n/g, '\r\n'),
+      })
+      return { name: 'added-identical-crlf' }
+    },
+  },
+  {
+    // openspec 1.7.0 `archive-early-sync-*`, REMOVED arm: a REMOVED target
+    // already gone from the living spec means the removal was applied ahead of
+    // the archive. Upstream warns and continues at exit 0; cospec agrees.
+    key: 'removed-already-missing',
+    expectAbort: false,
+    build(root) {
+      writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_WIDGET_REQ))
+      writeChangeShell(root, 'removed-already-missing', {
+        'widgets/spec.md': `## REMOVED Requirements
+
+- \`### Requirement: Widget caching\`
+`,
+      })
+      return { name: 'removed-already-missing' }
+    },
+  },
+  {
+    // The carve-out on the same arm: the target is absent, but a name that
+    // folds equal to it still lives there. That is a mistyped header, and
+    // upstream aborts rather than treating it as already removed.
+    key: 'removed-near-miss-typo',
+    rule: 'archive/target-missing',
+    expectAbort: true,
+    build(root) {
+      writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_WIDGET_REQ))
+      writeChangeShell(root, 'removed-near-miss-typo', {
+        'widgets/spec.md': `## REMOVED Requirements
+
+- \`### Requirement: widget  rendering\`
+`,
+      })
+      return { name: 'removed-near-miss-typo' }
+    },
+  },
+  {
+    // RENAMED arm: source gone, target present — the rename was already
+    // applied. Both the missing-source error and the TO-collision the same
+    // shape raises must stay silent, on both sides.
+    key: 'renamed-early-sync',
+    expectAbort: false,
+    build(root) {
+      writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_WIDGET_REQ))
+      writeChangeShell(root, 'renamed-early-sync', {
+        'widgets/spec.md': `## RENAMED Requirements
+
+- FROM: \`### Requirement: Widget drawing\`
+- TO: \`### Requirement: Widget rendering\`
+`,
+      })
+      return { name: 'renamed-early-sync' }
+    },
+  },
+  {
+    // The early-sync suppression is scoped to the LIVING collision only. The
+    // binary's pre-validation refuses a RENAMED TO that collides with an ADDED
+    // in the same delta unconditionally, before any early-sync classification,
+    // so cospec must keep flagging it even when the rename itself is a no-op.
+    // The ADDED body is identical to the living block, so cospec's ADDED arm
+    // is silent and only the RENAMED-TO arm can catch this.
+    key: 'renamed-early-sync-added-collision',
+    rule: 'archive/added-exists',
+    expectAbort: true,
+    build(root) {
+      writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_WIDGET_REQ))
+      writeChangeShell(root, 'renamed-early-sync-added-collision', {
+        'widgets/spec.md': `${ADDED_DELTA}
+## RENAMED Requirements
+
+- FROM: \`### Requirement: Widget drawing\`
+- TO: \`### Requirement: Widget rendering\`
+`,
+      })
+      return { name: 'renamed-early-sync-added-collision' }
+    },
+  },
+  {
+    // The carve-out on the RENAMED arm: the source is absent, but a fold-equal
+    // living name that is NOT the target survives — a typo'd FROM header.
+    key: 'renamed-from-near-miss',
+    rule: 'archive/target-missing',
+    expectAbort: true,
+    build(root) {
+      writeLivingSpec(
+        root,
+        'widgets',
+        livingSpec(
+          'widgets',
+          `${LIVING_WIDGET_REQ}
+### Requirement: Widget  drawing
+
+The system SHALL draw a widget.
+
+#### Scenario: Draw a widget
+
+- **WHEN** a caller requests a drawing
+- **THEN** a widget is drawn
+`,
+        ),
+      )
+      writeChangeShell(root, 'renamed-from-near-miss', {
+        'widgets/spec.md': `## RENAMED Requirements
+
+- FROM: \`### Requirement: Widget drawing\`
+- TO: \`### Requirement: Widget rendering\`
+`,
+      })
+      return { name: 'renamed-from-near-miss' }
+    },
+  },
+  {
+    // A MODIFIED block that swaps one scenario's NAME at the same count. The
+    // count arm alone sees `1 -> 1` and passes; the name arm refuses, and so
+    // does the real binary from 1.8.0 on.
+    key: 'scenario-name-swap',
+    rule: 'archive/scenario-preservation',
+    expectAbort: true,
+    build(root) {
+      writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_WIDGET_REQ))
+      writeChangeShell(root, 'scenario-name-swap', {
+        'widgets/spec.md': `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested.
+
+#### Scenario: Paint a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is painted
+`,
+      })
+      return { name: 'scenario-name-swap' }
     },
   },
   {

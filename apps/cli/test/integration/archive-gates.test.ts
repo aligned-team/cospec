@@ -179,8 +179,80 @@ The system SHALL render a widget when requested.
     const res = await cospec(['archive', 'thin-widget'], { cwd: root })
     expect(res.exitCode).toBe(1)
     expect(res.stderr).toContain('scenario-preservation')
+    expect(res.stderr).toContain(
+      'widgets: "Widget rendering" 2 -> 1 scenario(s); missing: "Render an empty widget"',
+    )
     // No delegation happened — the change must still be in place.
     expect(existsSync(join(root, 'openspec/changes/thin-widget'))).toBe(true)
+  })
+
+  // The count arm alone waved this through: two scenarios in, two scenarios out,
+  // but one of them is a different scenario. openspec 1.0.0-1.7.x merges it at
+  // exit 0 and the living scenario is gone for good.
+  test('a same-count scenario NAME swap refuses archive, naming the dropped scenario', async () => {
+    const root = await initRepo()
+    buildFeat(
+      root,
+      'swap-widget',
+      `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered
+
+#### Scenario: Render a placeholder widget
+
+- **WHEN** a caller requests an empty widget
+- **THEN** a placeholder is rendered
+`,
+    )
+    const res = await cospec(['archive', 'swap-widget'], { cwd: root })
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toContain('scenario-preservation gate refused')
+    expect(res.stderr).toContain(
+      'widgets: "Widget rendering" 2 -> 2 scenario(s); missing: "Render an empty widget"',
+    )
+    expect(existsSync(join(root, 'openspec/changes/swap-widget'))).toBe(true)
+    // Nothing merged: the living spec still carries the scenario the swap dropped.
+    const living = readFileSync(join(root, 'openspec/specs/widgets/spec.md'), 'utf8')
+    expect(living).toContain('#### Scenario: Render an empty widget')
+  })
+
+  // The negative that keeps the gate honest: renaming the REQUIREMENT (not a
+  // scenario) while keeping every scenario name is not a drop, and archives.
+  test('reordering and rewording the living scenarios still archives', async () => {
+    const root = await initRepo()
+    buildFeat(
+      root,
+      'reorder-widget',
+      `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested, via one rendering path.
+
+#### Scenario: Render an empty widget
+
+- **WHEN** a caller requests an empty widget
+- **THEN** a placeholder is rendered promptly
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered promptly
+`,
+    )
+    const res = await cospec(['archive', 'reorder-widget'], { cwd: root })
+    expect(res.exitCode).toBe(0)
+    expect(res.stderr).not.toContain('scenario-preservation')
+    expect(existsSync(join(root, 'openspec/changes/reorder-widget'))).toBe(false)
+    const living = readFileSync(join(root, 'openspec/specs/widgets/spec.md'), 'utf8')
+    expect((living.match(/^####\s+Scenario:/gm) ?? []).length).toBe(2)
   })
 
   // The `Scenario removed:` escape hatch is retired. openspec 1.8.0 reports any
@@ -250,7 +322,9 @@ ${masked.replace('$BODY', body)}
       const res = await cospec(['archive', name], { cwd: root })
       expect(res.exitCode).toBe(1)
       expect(res.stdout).toContain('archive/scenario-preservation')
-      expect(res.stdout).toContain('drops scenario count from 2 to 0')
+      expect(res.stdout).toContain(
+        'drops scenario(s) "Render a widget", "Render an empty widget" (living 2 -> delta 0)',
+      )
       expect(existsSync(join(root, `openspec/changes/${name}`))).toBe(true)
     })
   }

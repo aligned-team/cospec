@@ -7,9 +7,12 @@
 
 import {
   findScenarioDrops,
+  foldRequirementName,
+  normalizeBlockRaw,
   parseDeltaSpec,
   SCENARIO_DROP_HINT,
   SCENARIO_DROP_NOTE_RETIRED,
+  scenarioDropMessage,
   type DeltaOp,
 } from '../deltas.ts'
 import type { Issue } from './issue.ts'
@@ -95,6 +98,10 @@ export function archiveRules(
       })
     }
 
+    // Ops whose target was absent for an upstream early-sync reason; the
+    // RENAMED-TO collision arm must not fire on those.
+    const earlySynced = new Set<DeltaOp>()
+
     // ADDED names declared in this delta set — RENAMED-TO may not collide with them.
     const addedNames = new Set<string>()
     for (const op of group.ops)
@@ -104,32 +111,86 @@ export function archiveRules(
       const op = group.ops[i]!
       const path = pathFor(i)
 
-      // archive/target-missing — MODIFIED/REMOVED/RENAMED-FROM must already exist.
+      // archive/target-missing — MODIFIED/REMOVED/RENAMED-FROM must already
+      // exist, except for the two early-sync no-ops openspec performs at
+      // exit 0 (`specs-apply.ts`, RENAMED and REMOVED arms):
+      //
+      //   - a REMOVED target already absent — the removal was already synced;
+      //   - a RENAMED whose source is absent while its target is present —
+      //     the rename was already applied.
+      //
+      // Both exemptions are withheld when a fold-equal living name survives:
+      // that is a mistyped header, which the binary aborts on, so cospec keeps
+      // refusing it and names the exact living header the way upstream does.
+      // A MODIFIED target that is absent has no upstream early-sync path and
+      // stays an unconditional ERROR.
       if (op.operation === 'MODIFIED' || op.operation === 'REMOVED' || op.operation === 'RENAMED') {
         const target = opTargetName(op)
-        if (target !== undefined && !living.requirementNames.has(target))
-          issues.push({
-            level: 'ERROR',
-            rule: 'archive/target-missing',
-            path,
-            line: op.line,
-            message: `${op.operation} target "${target}" does not exist in living spec openspec/specs/${capability}/spec.md`,
-          })
+        if (target !== undefined && !living.requirementNames.has(target)) {
+          const renameAlreadyApplied =
+            op.operation === 'RENAMED' &&
+            op.toName !== undefined &&
+            living.requirementNames.has(op.toName)
+          const earlySync = op.operation === 'REMOVED' || renameAlreadyApplied
+          // A case-only rename lands its source on the target itself; upstream
+          // excludes the target from the RENAMED near-miss search for exactly
+          // that reason, so `Foo` -> `foo` stays a no-op rather than a typo.
+          const nearMiss = earlySync
+            ? [...living.requirementNames].find(
+                (n) =>
+                  !(renameAlreadyApplied && n === op.toName) &&
+                  foldRequirementName(n) === foldRequirementName(target),
+              )
+            : undefined
+          if (!earlySync || nearMiss !== undefined)
+            issues.push({
+              level: 'ERROR',
+              rule: 'archive/target-missing',
+              path,
+              line: op.line,
+              message: `${op.operation} target "${target}" does not exist in living spec openspec/specs/${capability}/spec.md`,
+              ...(nearMiss === undefined
+                ? {}
+                : {
+                    hint: `"### Requirement: ${nearMiss}" exists — fix the header to match it exactly`,
+                  }),
+            })
+          if (earlySync && nearMiss === undefined) earlySynced.add(op)
+        }
       }
 
       // archive/added-exists — ADDED must not already exist; RENAMED-TO must not
       // collide with an existing requirement or another ADDED in this delta.
-      if (op.operation === 'ADDED' && op.name !== undefined && living.requirementNames.has(op.name))
+      //
+      // An ADDED block whose normalized raw text equals the living requirement's
+      // is openspec's early-sync no-op (`specs-apply.ts`, ADDED arm): the spec
+      // was already synced to the baseline, so re-applying it is not a
+      // collision and the archive proceeds. Only a DIFFERING body collides.
+      // Comparison is `normalizeBlockRaw` and nothing more — any looser folding
+      // would call a real collision identical and manufacture a false PASS.
+      if (
+        op.operation === 'ADDED' &&
+        op.name !== undefined &&
+        living.requirementNames.has(op.name) &&
+        normalizeBlockRaw(op.raw) !== normalizeBlockRaw(living.requirementBlocks.get(op.name) ?? '')
+      )
         issues.push({
           level: 'ERROR',
           rule: 'archive/added-exists',
           path,
           line: op.line,
-          message: `ADDED "${op.name}" already exists in living spec openspec/specs/${capability}/spec.md`,
+          message: `ADDED "${op.name}" already exists with different content in living spec openspec/specs/${capability}/spec.md`,
+          hint: 'openspec treats an ADDED block identical to the living requirement as an already-synced no-op; a differing body is a real collision — MODIFY the requirement instead',
         })
 
+      // An already-applied rename's target is present by definition; that is
+      // the same no-op, not a collision, so the LIVING arm is skipped for it.
+      // The delta-internal ADDED collision is a separate upstream check
+      // (`specs-apply.ts` pre-validation, `addedNames.has(toNorm)`) that runs
+      // unconditionally, before any early-sync classification — so early-sync
+      // must not suppress it.
       if (op.operation === 'RENAMED' && op.toName !== undefined) {
-        const collidesLiving = living.requirementNames.has(op.toName)
+        const collidesLiving = !earlySynced.has(op) && living.requirementNames.has(op.toName)
         const collidesAdded = addedNames.has(op.toName)
         if (collidesLiving || collidesAdded)
           issues.push({
@@ -152,7 +213,7 @@ export function archiveRules(
       level: opts.strict ? 'ERROR' : 'WARNING',
       rule: 'archive/scenario-preservation',
       path: `specs/${drop.capability}/spec.md`,
-      message: `MODIFIED "${drop.name}" drops scenario count from ${drop.livingCount} to ${drop.deltaCount}`,
+      message: scenarioDropMessage(drop),
       hint: drop.noted
         ? `${SCENARIO_DROP_NOTE_RETIRED} — ${SCENARIO_DROP_HINT}`
         : SCENARIO_DROP_HINT,

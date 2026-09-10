@@ -40,6 +40,19 @@ export interface DeltaOp {
   line: number
   hasShallMust: boolean
   scenarioCount: number
+  /**
+   * Ordered scenario names in this requirement's block (ADDED/MODIFIED), one
+   * per non-fenced `#### ` header, extracted with `scenarioNameFromHeader`.
+   */
+  scenarioNames: string[]
+  /**
+   * Verbatim source text of the requirement block — header line through the
+   * last line before the next `### Requirement:` header, the next `## `
+   * section header, or end of input, `trimEnd`ed. Empty for REMOVED/RENAMED
+   * ops, which name a requirement rather than carrying a block. Compare two
+   * blocks with `normalizeBlockRaw`, never with `===`.
+   */
+  raw: string
   /** `Scenario removed: <reason>` notes found in this requirement's body
    * (MODIFIED only). Retired as an escape hatch — see `findScenarioDrops`;
    * kept so the gate can address an author who wrote one. */
@@ -58,6 +71,49 @@ export interface ParsedDelta {
 
 function normalize(name: string): string {
   return name.trim()
+}
+
+/**
+ * openspec's `foldRequirementName` (`src/core/parsers/requirement-blocks.ts`),
+ * ported verbatim: lowercase, then collapse every whitespace run to one space.
+ *
+ * Requirement *matching* stays case-sensitive — this fold exists only for
+ * typo detection, where two spellings differing in case or interior whitespace
+ * mean a mistake rather than two requirements. Using it to match would make
+ * cospec looser than the binary.
+ */
+export function foldRequirementName(name: string): string {
+  return normalize(name).toLowerCase().replace(/\s+/g, ' ')
+}
+
+/**
+ * openspec's own requirement-block comparison (`normalizeBlockRaw`,
+ * `src/core/specs-apply.ts`): fold CR/CRLF to LF, then one outer trim.
+ * Nothing else. Folding interior whitespace, scenario order or heading case
+ * here would make cospec *looser* than the binary — it would call a real
+ * collision "identical" and manufacture a false archive PASS.
+ */
+export function normalizeBlockRaw(raw: string): string {
+  return raw.replace(/\r\n?/g, '\n').trim()
+}
+
+/**
+ * The scenario name a `#### ` header renders to, ported from openspec's
+ * `scenarioNameAt` (`src/core/parsers/requirement-blocks.ts`): strip the
+ * leading `####`, an optional CommonMark closing `#` run, and an optional
+ * `Scenario:` prefix, then trim. Case is preserved — upstream compares
+ * scenario names case-sensitively, so `Foo` and `foo` are two names.
+ *
+ * The ATX close uses `[ \t]`, not `\s`: CommonMark only closes on a `#` run
+ * preceded by a space or tab, so a looser class could fold two distinct names
+ * into one after an exotic space and mask a real loss.
+ */
+export function scenarioNameFromHeader(line: string): string {
+  return line
+    .replace(SCENARIO_RE, '')
+    .replace(/[ \t]+#+[ \t]*$/, '')
+    .replace(/^Scenario:\s*/i, '')
+    .trim()
 }
 
 interface ActiveFence {
@@ -82,6 +138,14 @@ function fenceMarker(line: string): ActiveFence | undefined {
  * its in-fence state for the rest of the file the moment a spec documented
  * markdown inside a longer (````) fence or used a ~~~ fence at all — and both
  * hard archive gates read that state.
+ *
+ * Deliberate deviation: upstream re-masks each requirement block on its own
+ * when it extracts scenario names; cospec builds this mask once per file and
+ * both parsers and both hard gates read the one result. A block's retained
+ * raw therefore keeps its fenced lines verbatim while contributing no
+ * scenario name — the shape the `fenced content is retained verbatim but
+ * yields no scenario` unit case pins. One fence primitive across the whole
+ * module is worth more here than byte-identical masking.
  */
 export function buildCodeFenceMask(lines: readonly string[]): boolean[] {
   const mask: boolean[] = Array.from({ length: lines.length }, () => false)
@@ -147,7 +211,7 @@ export function scanMarkdown(text: string): ScannedMarkdown {
 
 /** Parse a change-side delta spec. `capability` is the dir name (e.g. `widgets`). */
 export function parseDeltaSpec(text: string, path: string, capability: string): ParsedDelta {
-  const { lines, fenced } = scanMarkdown(text)
+  const { lines, source, fenced } = scanMarkdown(text)
   const ops: DeltaOp[] = []
   const scenarioDepthIssues: { line: number }[] = []
   const sectionCounts = new Map<DeltaOperation, number>()
@@ -157,13 +221,17 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
   let currentOp: DeltaOperation | undefined
   // Track the requirement currently being accumulated (ADDED/MODIFIED).
   let openReq: DeltaOp | undefined
+  /** Verbatim (unmasked) block lines for `openReq`; undefined for RENAMED. */
+  let openRaw: string[] | undefined
 
   const closeReq = () => {
     if (openReq !== undefined) {
+      if (openRaw !== undefined) openReq.raw = openRaw.join('\n').trimEnd()
       ops.push(openReq)
       sectionCounts.set(openReq.operation, (sectionCounts.get(openReq.operation) ?? 0) + 1)
       openReq = undefined
     }
+    openRaw = undefined
   }
 
   for (let i = 0; i < lines.length; i++) {
@@ -173,6 +241,9 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
     // Fenced lines carry no structure, but a SHALL/MUST inside a requirement's
     // example block has always counted towards `hasShallMust` — keep that.
     if (fenced[i] === true) {
+      // Fenced content is part of the block verbatim, but never structure: a
+      // `#### ` line inside a fence is retained in `raw` and is not a scenario.
+      openRaw?.push(source[i] ?? '')
       if (openReq !== undefined && SHALL_MUST_RE.test(raw)) openReq.hasShallMust = true
       continue
     }
@@ -207,13 +278,19 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
           line: lineNo,
           hasShallMust: false,
           scenarioCount: 0,
+          scenarioNames: [],
+          raw: '',
           scenarioRemovalReasons: [],
         }
+        openRaw = [source[i] ?? '']
         continue
       }
       if (openReq !== undefined) {
-        if (SCENARIO_RE.test(raw)) openReq.scenarioCount++
-        else if (SHALL_MUST_RE.test(raw)) openReq.hasShallMust = true
+        openRaw?.push(source[i] ?? '')
+        if (SCENARIO_RE.test(raw)) {
+          openReq.scenarioCount++
+          openReq.scenarioNames.push(scenarioNameFromHeader(source[i] ?? ''))
+        } else if (SHALL_MUST_RE.test(raw)) openReq.hasShallMust = true
         const removedNote = raw.match(SCENARIO_REMOVED_RE)
         if (removedNote !== null) openReq.scenarioRemovalReasons.push(removedNote[1]!.trim())
       }
@@ -231,6 +308,8 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
           line: lineNo,
           hasShallMust: false,
           scenarioCount: 0,
+          scenarioNames: [],
+          raw: '',
           scenarioRemovalReasons: [],
         })
         sectionCounts.set('REMOVED', (sectionCounts.get('REMOVED') ?? 0) + 1)
@@ -247,6 +326,8 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
           line: lineNo,
           hasShallMust: false,
           scenarioCount: 0,
+          scenarioNames: [],
+          raw: '',
           scenarioRemovalReasons: [],
         }
         continue
@@ -273,6 +354,10 @@ export interface LivingSpec {
   requirementNames: Set<string>
   /** requirement name → its current `#### Scenario:` count (archive/scenario-preservation). */
   requirementScenarioCounts: Map<string, number>
+  /** requirement name → its ordered scenario names (`scenarioNameFromHeader`). */
+  requirementScenarioNames: Map<string, string[]>
+  /** requirement name → the verbatim source of its block, `trimEnd`ed. */
+  requirementBlocks: Map<string, string>
   hasPurpose: boolean
   hasRequirements: boolean
   /** a delta header (## ADDED/… Requirements) appearing in a living spec — invalid. */
@@ -285,19 +370,37 @@ export function parseLivingSpec(text: string): LivingSpec {
   const { lines, source, fenced } = scanMarkdown(text)
   const requirementNames = new Set<string>()
   const requirementScenarioCounts = new Map<string, number>()
+  const requirementScenarioNames = new Map<string, string[]>()
+  const requirementBlocks = new Map<string, string>()
   let hasPurpose = false
   let hasRequirements = false
   let hasDeltaHeaders = false
   let inPurpose = false
   let currentReqName: string | undefined
+  let currentBlock: string[] | undefined
   const purposeLines: string[] = []
+
+  const closeReq = () => {
+    if (currentReqName !== undefined && currentBlock !== undefined)
+      requirementBlocks.set(currentReqName, currentBlock.join('\n').trimEnd())
+    currentReqName = undefined
+    currentBlock = undefined
+  }
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i]!
-    if (fenced[i] === true) continue
+    if (fenced[i] === true) {
+      currentBlock?.push(source[i] ?? '')
+      continue
+    }
 
     const section = raw.match(SECTION_RE)
     if (section !== null) {
+      // A requirement's scope ends at the next level-2 section, matching
+      // openspec's requirement-block window. Without this, a `#### Scenario:`
+      // under a trailing `## Notes` was credited to the last requirement and
+      // inflated its living count into a phantom scenario drop.
+      closeReq()
       const title = section[1]!.toLowerCase()
       if (SECTION_TITLES[title] !== undefined) hasDeltaHeaders = true
       inPurpose = title === 'purpose'
@@ -313,20 +416,30 @@ export function parseLivingSpec(text: string): LivingSpec {
 
     const req = raw.match(REQUIREMENT_RE)
     if (req !== null) {
+      closeReq()
       currentReqName = normalize(req[1]!)
+      currentBlock = [source[i] ?? '']
       requirementNames.add(currentReqName)
       requirementScenarioCounts.set(currentReqName, 0)
-    } else if (currentReqName !== undefined && SCENARIO_RE.test(raw)) {
-      requirementScenarioCounts.set(
-        currentReqName,
-        (requirementScenarioCounts.get(currentReqName) ?? 0) + 1,
-      )
+      requirementScenarioNames.set(currentReqName, [])
+    } else if (currentReqName !== undefined) {
+      currentBlock?.push(source[i] ?? '')
+      if (SCENARIO_RE.test(raw)) {
+        requirementScenarioCounts.set(
+          currentReqName,
+          (requirementScenarioCounts.get(currentReqName) ?? 0) + 1,
+        )
+        requirementScenarioNames.get(currentReqName)?.push(scenarioNameFromHeader(source[i] ?? ''))
+      }
     }
   }
+  closeReq()
 
   return {
     requirementNames,
     requirementScenarioCounts,
+    requirementScenarioNames,
+    requirementBlocks,
     hasPurpose,
     hasRequirements,
     hasDeltaHeaders,
@@ -340,6 +453,13 @@ export interface ScenarioDrop {
   deltaCount: number
   livingCount: number
   /**
+   * The living scenario names the MODIFIED block no longer covers, in living
+   * order, counted with multiplicity — the same list openspec names in its own
+   * refusal. Empty only when the count arm fired alone (see
+   * `findScenarioDrops`).
+   */
+  missingNames: string[]
+  /**
    * The author wrote a `Scenario removed: <reason>` note. It no longer excuses
    * the drop — it only changes the advice the gate gives, because an author who
    * wrote the note followed documentation that is now wrong.
@@ -348,10 +468,46 @@ export interface ScenarioDrop {
 }
 
 /**
- * MODIFIED requirements whose delta scenario count is lower than the living
- * spec's (`archive/scenario-preservation`, DESIGN §3.5). ADDED/REMOVED/RENAMED
- * ops and capabilities with no living spec (new capability — nothing to shrink
- * against) are out of scope by construction.
+ * The current scenario names an incoming block fails to cover, ported from
+ * openspec's `findMissingCurrentScenarios`
+ * (`src/core/parsers/requirement-blocks.ts`): count the incoming names, then
+ * walk the current names in order and spend one unit of the matching name per
+ * hit. Multiplicity matters — a requirement carrying the same scenario name
+ * twice that keeps it once has lost one scenario, not zero. Names compare
+ * case-sensitively, matching `scenarioNameFromHeader`, so a case-only rename
+ * reads as a drop plus an add.
+ */
+function missingCurrentScenarios(
+  current: readonly string[],
+  incoming: readonly string[],
+): string[] {
+  const remaining = new Map<string, number>()
+  for (const name of incoming) remaining.set(name, (remaining.get(name) ?? 0) + 1)
+  const missing: string[] = []
+  for (const name of current) {
+    const left = remaining.get(name) ?? 0
+    if (left > 0) remaining.set(name, left - 1)
+    else missing.push(name)
+  }
+  return missing
+}
+
+/**
+ * MODIFIED requirements that drop a living scenario
+ * (`archive/scenario-preservation`, DESIGN §3.5). ADDED/REMOVED/RENAMED ops and
+ * capabilities with no living spec (new capability — nothing to shrink against)
+ * are out of scope by construction: a requirement retired through
+ * `## REMOVED Requirements` carries no MODIFIED op, so this gate never sees it.
+ *
+ * A drop is either living scenario NAMES the MODIFIED block no longer covers
+ * (openspec's own identity check, ported in `missingCurrentScenarios`) or a
+ * plain count shrink. The two arms agree whenever both parsers see the same
+ * headers, so the count arm is belt and braces: it is the frozen contract this
+ * gate shipped with, it still fires if name extraction ever diverges between
+ * the two parsers, and keeping it can only ever make cospec stricter.
+ * A same-count name swap — the shape the count arm alone waved through, and
+ * which openspec 1.0.0–1.7.x merges at exit 0 — is now refused with the dropped
+ * name.
  *
  * A `Scenario removed: <reason>` note used to excuse the drop. It no longer
  * can: openspec 1.8.0's `validate-scenario-loss-check` reports any MODIFIED
@@ -375,12 +531,17 @@ export function findScenarioDrops(
     for (const op of ops) {
       if (op.operation !== 'MODIFIED' || op.name === undefined) continue
       const livingCount = living.requirementScenarioCounts.get(op.name) ?? 0
-      if (op.scenarioCount < livingCount)
+      const missingNames = missingCurrentScenarios(
+        living.requirementScenarioNames.get(op.name) ?? [],
+        op.scenarioNames,
+      )
+      if (missingNames.length > 0 || op.scenarioCount < livingCount)
         drops.push({
           capability,
           name: op.name,
           deltaCount: op.scenarioCount,
           livingCount,
+          missingNames,
           noted: op.scenarioRemovalReasons.length > 0,
         })
     }
@@ -388,10 +549,35 @@ export function findScenarioDrops(
   return drops
 }
 
-/** Shared remedy text for a refused scenario drop (gate + validate rule). */
+/**
+ * Shared remedy text for a refused scenario drop (gate + validate rule).
+ *
+ * Only two remedies work. A same-delta REMOVE+ADD of one requirement name is
+ * NOT one of them: openspec 1.11.0 refuses it outright with `Requirement
+ * present in both ADDED and REMOVED`, so advising it sends the author into a
+ * wall. Retiring a requirement and re-adding it takes two changes.
+ */
 export const SCENARIO_DROP_HINT =
-  'copy the missing scenario back into the MODIFIED block, or REMOVE the requirement and ADD it back in the same delta — openspec 1.8.0+ refuses any MODIFIED block that omits a living scenario'
+  'copy the missing scenario back into the MODIFIED block, or — if the requirement really is being retired — REMOVE it in this change and ADD the replacement in a later one; openspec refuses a REMOVE and an ADD of one requirement name in the same delta'
 
 /** Extra line for an author who followed the retired `Scenario removed:` note. */
 export const SCENARIO_DROP_NOTE_RETIRED =
   'a `Scenario removed: <reason>` note no longer excuses the drop'
+
+/** `"a", "b"` — the dropped scenario names as the gate and the rule print them. */
+export function quoteScenarioNames(names: readonly string[]): string {
+  return names.map((n) => `"${n}"`).join(', ')
+}
+
+/**
+ * The `archive/scenario-preservation` rule message. Names the dropped scenarios
+ * when the identity arm found them; falls back to the original count-only
+ * wording for a count-arm-only drop, which is the one shape with no names to
+ * print. Both shapes start `MODIFIED "<name>" drops scenario`, which is the
+ * prefix `validate.ts` keys the delegated-duplicate suppressor on.
+ */
+export function scenarioDropMessage(drop: ScenarioDrop): string {
+  return drop.missingNames.length > 0
+    ? `MODIFIED "${drop.name}" drops scenario(s) ${quoteScenarioNames(drop.missingNames)} (living ${drop.livingCount} -> delta ${drop.deltaCount})`
+    : `MODIFIED "${drop.name}" drops scenario count from ${drop.livingCount} to ${drop.deltaCount}`
+}

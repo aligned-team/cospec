@@ -26,6 +26,7 @@ import {
   findScenarioDrops,
   parseDeltaSpec,
   parseLivingSpec,
+  quoteScenarioNames,
   SCENARIO_DROP_HINT,
   SCENARIO_DROP_NOTE_RETIRED,
   type DeltaOp,
@@ -396,9 +397,13 @@ export async function run(ctx: CommandContext): Promise<number> {
       process.stderr.write(
         'cospec archive: scenario-preservation gate refused — a MODIFIED requirement drops scenarios:\n',
       )
+      // The count clause keeps its shape even for a same-count name swap, where
+      // it reads `2 -> 2`: the missing-name clause carries the finding there.
       for (const d of drops)
         process.stderr.write(
-          `  ${d.capability}: "${d.name}" ${d.livingCount} -> ${d.deltaCount} scenario(s)\n`,
+          `  ${d.capability}: "${d.name}" ${d.livingCount} -> ${d.deltaCount} scenario(s)${
+            d.missingNames.length > 0 ? `; missing: ${quoteScenarioNames(d.missingNames)}` : ''
+          }\n`,
         )
       if (drops.some((d) => d.noted)) process.stderr.write(`${SCENARIO_DROP_NOTE_RETIRED}.\n`)
       process.stderr.write(`${SCENARIO_DROP_HINT}.\n`)

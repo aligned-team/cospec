@@ -83,7 +83,7 @@ blocks the archive outright.
 
 `archive/scenario-preservation` is a separate gate and does not read this
 ledger at all — it compares a specs-bearing change's delta scenarios against
-the living spec's scenario counts. See
+the living spec's scenario names and counts. See
 [/concepts/apply-and-archive](/concepts/apply-and-archive), the canonical
 owner of both gates' mechanics, for the full detail — including how
 `verification` fits into `apply.requires` and what each exit code means.

@@ -12,8 +12,9 @@
 //   - 1.7.0 made an ADDED block identical to the living requirement a no-op
 //     (the early-sync pattern) instead of an abort. `added-already-exists` now
 //     carries a DIFFERING body so it still pins the genuine collision, and the
-//     no-op case is its own fixture, marked `conservative` because cospec's
-//     name-based `archive/added-exists` deliberately still flags it.
+//     no-op case is its own fixture — `archive/added-exists` compares block
+//     bodies with openspec's own `normalizeBlockRaw`, so both sides now archive
+//     it and no conservatism is recorded there any more.
 
 import { afterAll, describe, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
