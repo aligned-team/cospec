@@ -5,11 +5,12 @@
 Defines the two hard archive gates that run as explicit `cospec archive` command
 steps before delegating to the wrapped openspec binary:
 `archive/verification-incomplete` (refuses any change with a bare `[ ]`
-verification row) and `archive/scenario-preservation` (refuses a delta that
-drops or thins a spec scenario without an explicit removal note). Each returns
-exit 1 and runs independently of the specs-conditional advisory rule family, so
-cospec refuses an unsound archive even when openspec would return exit 0 — a
-guarantee pinned by a real-binary contract test.
+verification row) and `archive/scenario-preservation` (refuses a MODIFIED delta
+that no longer covers a living spec scenario, by name or by count, with no
+escape hatch). Each returns exit 1 and runs independently of the
+specs-conditional advisory rule family, so cospec refuses an unsound archive
+even when openspec would return exit 0 — a guarantee pinned by a real-binary
+contract test.
 
 ## Requirements
 
@@ -50,32 +51,42 @@ before `openspec archive` executes, for specs-bearing changes only. For each
 `## MODIFIED Requirements` delta, it SHALL read the current living spec for the
 delta's capability — resolved through the shared recursive spec discovery, so a
 delta at `specs/<area>/<capability>/spec.md` is compared against the living
-`<capability>` and not against `<area>` — and compare `#### Scenario:` counts
-parsed with cospec's normalising parser (BOM, CRLF, HTML-comment, and
-fence-aware). If the delta drops scenarios without a matching `## REMOVED`
-operation or explicit reason, the step SHALL refuse with exit 1. This SHALL
-catch scenario thinning that `openspec archive` would otherwise wave through at
-exit 0. From OpenSpec 1.6.0 the wrapped binary carries its own overlapping
-check; cospec's gate SHALL still run first, with cospec's own message, because
-it remains the only defence across the lower half of the accepted
-`>=1.0.0 <2.0.0` range.
+`<capability>` and not against `<area>` — and compare the delta block's
+scenarios against the living requirement's, using cospec's normalising parser
+(BOM, CRLF, HTML-comment, and fence-aware). The comparison SHALL be by scenario
+**name**, counted with multiplicity: every living scenario name whose
+occurrences are not all matched by an occurrence of the same name in the delta
+block is a missing scenario. Names SHALL be compared case-sensitively, so a
+case-only rename is a drop. The existing count comparison SHALL be retained as a
+second arm, and the step SHALL refuse with exit 1 when either arm reports a
+loss. There SHALL be no escape hatch: neither a `Scenario removed:` note nor any
+other annotation excuses a name-identity or count drop, and a requirement
+dropped through `## REMOVED` carries no MODIFIED operation and so is never seen
+by this gate. This SHALL catch scenario thinning and same-count scenario
+renaming that `openspec archive` would otherwise wave through at exit 0 on the
+lower half of the accepted `>=1.0.0 <2.0.0` range. From OpenSpec 1.8.0 the
+wrapped binary carries its own overlapping check; cospec's gate SHALL still run
+first, with cospec's own message and rule id, because it remains the only
+defence on 1.0.0 through 1.7.x.
 
 #### Scenario: Dropped scenario refuses archive
 
 - **WHEN** a MODIFIED delta reduces a requirement's scenario count below the
-  living spec's without a matching REMOVED or explicit reason
+  living spec's
 - **THEN** `cospec archive` refuses with exit 1 before delegating
 
 #### Scenario: Matched removal is allowed
 
-- **WHEN** a delta drops a scenario and carries a corresponding `## REMOVED`
-  operation or explicit reason
-- **THEN** the `archive/scenario-preservation` step passes
+- **WHEN** a requirement's scenarios disappear because the whole requirement is
+  dropped through a `## REMOVED` operation, so no MODIFIED operation names it
+- **THEN** the `archive/scenario-preservation` step does not apply to that
+  requirement and passes, while a delta that both REMOVEs and ADDs the same
+  requirement name is refused by the wrapped binary itself
 
 #### Scenario: Refusal precedes a green openspec archive
 
-- **WHEN** the pinned openspec binary would return exit 0 for a
-  scenario-thinning delta — behavior cospec has relied on since 1.3.1
+- **WHEN** a scenario-thinning delta runs against a wrapped binary in the
+  1.0.0–1.7.x part of the accepted range, which returns exit 0 for it
 - **THEN** cospec refuses first, and a contract test against the pinned binary
   asserts this refusal
 
@@ -99,6 +110,23 @@ it remains the only defence across the lower half of the accepted
   file
 - **THEN** cospec's refusal is the one the user sees, and the delegated
   duplicate is suppressed in the merged report
+
+#### Scenario: Same-count name swap refuses archive
+
+- **WHEN** a MODIFIED delta replaces one scenario's name with a different name,
+  leaving the scenario count unchanged
+- **THEN** the gate refuses with exit 1 and names the dropped scenario
+
+#### Scenario: Duplicate scenario names are counted, not deduped
+
+- **WHEN** the living requirement carries one scenario name twice and the
+  MODIFIED delta carries it once
+- **THEN** the gate reports exactly one missing scenario and refuses
+
+#### Scenario: A case-only scenario rename is a drop
+
+- **WHEN** a MODIFIED delta renames a scenario only by letter case
+- **THEN** the gate treats the original name as missing and refuses
 
 ### Requirement: Hard gates are explicit command steps
 
@@ -201,3 +229,75 @@ update check, which SHALL be treated as load-bearing rather than incidental.
 
 - **WHEN** the wrapped-binary spawn environment is inspected
 - **THEN** it sets both `OPENSPEC_TELEMETRY=0` and `OPENSPEC_NO_COMPLETIONS=1`
+
+### Requirement: Early-synced delta operations are not archive blockers
+
+The archive-precondition rule family SHALL treat as no-ops the three delta
+shapes the wrapped binary treats as already synced to the baseline, so cospec
+never refuses an archive that `openspec archive` performs at exit 0: an
+`## ADDED` requirement whose retained block, normalised with OpenSpec's own
+CRLF-fold-and-trim rule, matches the living requirement of the same name; a
+`## REMOVED` target that is already absent from the living spec; and a
+`## RENAMED` whose source is absent while its target is present, which SHALL
+suppress both the missing-source error and the target-collision error the same
+shape raises today. Each exemption SHALL be withheld when the living spec still
+carries a name that folds equal to the named requirement — case-insensitively,
+with runs of whitespace collapsed — but is not it, because that is a mistyped
+header the wrapped binary aborts on; the resulting ERROR SHALL name the exact
+living header to match. The remaining shapes SHALL stay ERRORs: an ADDED
+collision whose normalised block differs, a RENAMED whose source and target are
+both absent, a RENAMED applied while both source and target are present, and a
+MODIFIED whose target is absent — the wrapped binary refuses each of these, and
+relaxing any of them would be a false archive PASS.
+
+#### Scenario: Identical ADDED block is a no-op
+
+- **WHEN** an `## ADDED` requirement's block is identical to the living
+  requirement of the same name, differing at most in line endings and outer
+  whitespace
+- **THEN** no `archive/added-exists` issue is raised and the archive proceeds
+
+#### Scenario: Differing ADDED body is still a collision
+
+- **WHEN** an `## ADDED` requirement's name collides with a living requirement
+  and their normalised blocks differ
+- **THEN** `archive/added-exists` is still an ERROR
+
+#### Scenario: Already-removed REMOVED target is a no-op
+
+- **WHEN** a `## REMOVED` operation names a requirement the living spec no
+  longer has, and no fold-equal name exists
+- **THEN** no `archive/target-missing` issue is raised and the archive proceeds
+
+#### Scenario: Mistyped REMOVED header is still an error
+
+- **WHEN** a `## REMOVED` operation names a requirement absent from the living
+  spec while a fold-equal living name exists
+- **THEN** `archive/target-missing` is still an ERROR and the hint names the
+  exact living header
+
+#### Scenario: Already-applied RENAME is a no-op
+
+- **WHEN** a `## RENAMED` operation's source is absent from the living spec and
+  its target is present, with no fold-equal near-miss of the source
+- **THEN** neither `archive/target-missing` nor `archive/added-exists` is raised
+  and the archive proceeds
+
+#### Scenario: Mistyped RENAME source is still an error
+
+- **WHEN** a `## RENAMED` operation's source is absent while a fold-equal living
+  name that is not the target exists
+- **THEN** `archive/target-missing` is still an ERROR
+
+#### Scenario: A live rename onto an existing target is still an error
+
+- **WHEN** a `## RENAMED` operation's source and target are both present in the
+  living spec
+- **THEN** `archive/added-exists` is still an ERROR, with no body comparison
+
+#### Scenario: A missing MODIFIED target is still an error
+
+- **WHEN** a `## MODIFIED` operation names a requirement absent from the living
+  spec
+- **THEN** `archive/target-missing` is still an ERROR, because the wrapped
+  binary has no early-sync path for it
