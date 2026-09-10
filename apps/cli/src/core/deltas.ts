@@ -74,6 +74,19 @@ function normalize(name: string): string {
 }
 
 /**
+ * openspec's `foldRequirementName` (`src/core/parsers/requirement-blocks.ts`),
+ * ported verbatim: lowercase, then collapse every whitespace run to one space.
+ *
+ * Requirement *matching* stays case-sensitive — this fold exists only for
+ * typo detection, where two spellings differing in case or interior whitespace
+ * mean a mistake rather than two requirements. Using it to match would make
+ * cospec looser than the binary.
+ */
+export function foldRequirementName(name: string): string {
+  return normalize(name).toLowerCase().replace(/\s+/g, ' ')
+}
+
+/**
  * openspec's own requirement-block comparison (`normalizeBlockRaw`,
  * `src/core/specs-apply.ts`): fold CR/CRLF to LF, then one outer trim.
  * Nothing else. Folding interior whitespace, scenario order or heading case

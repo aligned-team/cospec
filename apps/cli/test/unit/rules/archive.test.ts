@@ -149,6 +149,71 @@ The system  SHALL exist.
     )
   })
 
+  // openspec's REMOVED and RENAMED arms (`specs-apply.ts`) skip an operation
+  // whose target is already gone from the baseline: the delta was applied to
+  // the spec ahead of the archive, so re-applying it is a no-op at exit 0.
+  // Each skip is withheld for a fold-equal survivor, which is a mistyped
+  // header the binary aborts on.
+
+  test('a REMOVED target already absent from the living spec is an early-sync no-op', () => {
+    const text = '## REMOVED Requirements\n\n- `### Requirement: Long Gone`\n'
+    expect(archiveRules(change(text, { living: LIVING }))).toHaveLength(0)
+  })
+
+  test('a REMOVED target with a fold-equal living name is a mistyped header, not a no-op', () => {
+    const text = '## REMOVED Requirements\n\n- `### Requirement: existing`\n'
+    const issues = archiveRules(change(text, { living: LIVING }))
+    expect(rules(issues)).toContain('archive/target-missing')
+    expect(issues.find((i) => i.rule === 'archive/target-missing')?.hint).toContain(
+      '"### Requirement: Existing" exists',
+    )
+  })
+
+  test('a RENAMED whose source is gone and target present is an early-sync no-op', () => {
+    // Both arms must stay silent: `archive/target-missing` on the absent
+    // source, and the `archive/added-exists` TO-collision the same shape
+    // would otherwise raise on the present target.
+    const text =
+      '## RENAMED Requirements\n\n- FROM: `### Requirement: Old Name`\n- TO: `### Requirement: Existing`\n'
+    expect(archiveRules(change(text, { living: LIVING }))).toHaveLength(0)
+  })
+
+  test('a RENAMED source with a fold-equal near-miss that is not the target still errors', () => {
+    const living = `${LIVING}
+### Requirement: Old  Name
+
+The system SHALL be old.
+
+#### Scenario: s
+
+- **WHEN** a
+- **THEN** b
+`
+    const text =
+      '## RENAMED Requirements\n\n- FROM: `### Requirement: Old Name`\n- TO: `### Requirement: Existing`\n'
+    const issues = archiveRules(change(text, { living }))
+    expect(rules(issues)).toContain('archive/target-missing')
+    expect(issues.find((i) => i.rule === 'archive/target-missing')?.hint).toContain(
+      '"### Requirement: Old  Name" exists',
+    )
+  })
+
+  test('a case-only RENAMED lands its source on the target and stays a no-op', () => {
+    // The only fold-equal survivor IS the target, which upstream excludes from
+    // the near-miss search — otherwise `Foo` -> `foo` could never be synced.
+    const text =
+      '## RENAMED Requirements\n\n- FROM: `### Requirement: EXISTING`\n- TO: `### Requirement: Existing`\n'
+    expect(archiveRules(change(text, { living: LIVING }))).toHaveLength(0)
+  })
+
+  test('a RENAMED with source and target both absent is still an error', () => {
+    const text =
+      '## RENAMED Requirements\n\n- FROM: `### Requirement: Ghost A`\n- TO: `### Requirement: Ghost B`\n'
+    expect(rules(archiveRules(change(text, { living: LIVING })))).toContain(
+      'archive/target-missing',
+    )
+  })
+
   test('a valid MODIFIED against an existing requirement passes', () => {
     const text =
       '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist better.\n\n#### Scenario: s\n\n- **WHEN** a\n'
