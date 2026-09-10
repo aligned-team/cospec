@@ -2,7 +2,7 @@
 description: Dress-rehearse a change before archiving — validate strictly, walk the verification ledger, and name the hard archive gates.
 metadata:
   author: cospec
-  generatedBy: cospec@0.7.0
+  generatedBy: cospec@0.7.1
   contentHash: sha256:32d5a0e2fe186377fe124181f16c8396ed9c231ca6d6edb227e1e0bccf39ddac
 ---
 
