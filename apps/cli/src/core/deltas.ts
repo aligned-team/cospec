@@ -138,6 +138,14 @@ function fenceMarker(line: string): ActiveFence | undefined {
  * its in-fence state for the rest of the file the moment a spec documented
  * markdown inside a longer (````) fence or used a ~~~ fence at all — and both
  * hard archive gates read that state.
+ *
+ * Deliberate deviation: upstream re-masks each requirement block on its own
+ * when it extracts scenario names; cospec builds this mask once per file and
+ * both parsers and both hard gates read the one result. A block's retained
+ * raw therefore keeps its fenced lines verbatim while contributing no
+ * scenario name — the shape the `fenced content is retained verbatim but
+ * yields no scenario` unit case pins. One fence primitive across the whole
+ * module is worth more here than byte-identical masking.
  */
 export function buildCodeFenceMask(lines: readonly string[]): boolean[] {
   const mask: boolean[] = Array.from({ length: lines.length }, () => false)
