@@ -280,6 +280,10 @@ describe('archiveRules: archive/scenario-preservation (advisory mirror)', () => 
     )
     expect(issue?.hint).not.toContain('no longer excuses the drop')
     expect(issue?.hint).toContain('copy the missing scenario back into the MODIFIED block')
+    // openspec 1.11.0 refuses a REMOVE and an ADD of one requirement name in
+    // the same delta, so the retired remedy must never come back.
+    expect(issue?.hint).not.toContain('ADD it back in the same delta')
+    expect(issue?.hint).toContain('ADD the replacement in a later one')
   })
 
   test('an unchanged scenario count never fires', () => {

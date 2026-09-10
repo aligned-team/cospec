@@ -541,9 +541,16 @@ export function findScenarioDrops(
   return drops
 }
 
-/** Shared remedy text for a refused scenario drop (gate + validate rule). */
+/**
+ * Shared remedy text for a refused scenario drop (gate + validate rule).
+ *
+ * Only two remedies work. A same-delta REMOVE+ADD of one requirement name is
+ * NOT one of them: openspec 1.11.0 refuses it outright with `Requirement
+ * present in both ADDED and REMOVED`, so advising it sends the author into a
+ * wall. Retiring a requirement and re-adding it takes two changes.
+ */
 export const SCENARIO_DROP_HINT =
-  'copy the missing scenario back into the MODIFIED block, or REMOVE the requirement and ADD it back in the same delta — openspec 1.8.0+ refuses any MODIFIED block that omits a living scenario'
+  'copy the missing scenario back into the MODIFIED block, or — if the requirement really is being retired — REMOVE it in this change and ADD the replacement in a later one; openspec refuses a REMOVE and an ADD of one requirement name in the same delta'
 
 /** Extra line for an author who followed the retired `Scenario removed:` note. */
 export const SCENARIO_DROP_NOTE_RETIRED =

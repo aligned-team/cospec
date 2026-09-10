@@ -134,11 +134,36 @@ override:
   longer excuse a scenario drop; it only used to delay the refusal, and below
   1.8.0 honoring it silently dropped scenarios, the exact regression this gate
   exists to prevent. Two remedies actually work: copy the missing scenario back
-  into the `MODIFIED` block, or remove the requirement (`REMOVED`) and add it
-  back (`ADDED`) in the same delta. cospec's own gate still fires first, under
-  its own rule id, and stays the sole defence on openspec 1.0.0–1.7.x inside the
-  accepted `>=1.0.0 <2.0.0` range — 1.8.0+ runs its own overlapping check,
-  making cospec's gate defence-in-depth from there on. :::
+  into the `MODIFIED` block, or — if the requirement really is being retired —
+  `REMOVED` it in this change and `ADDED` its replacement in a **later** one. A
+  `REMOVED` and an `ADDED` of one requirement name in the _same_ delta is not a
+  remedy: openspec refuses it with
+  `Requirement present in both ADDED and REMOVED`. cospec's own gate still fires
+  first, under its own rule id, and stays the sole defence on openspec
+  1.0.0–1.7.x inside the accepted `>=1.0.0 <2.0.0` range — 1.8.0+ runs its own
+  overlapping check, making cospec's gate defence-in-depth from there on. :::
+
+**Early-synced operations are not blockers**
+
+A delta is sometimes written after its spec change already landed in the living
+baseline — the spec was synced early, and the archive is catching up. OpenSpec
+treats three such shapes as no-ops and archives them at exit `0`, so cospec's
+archive preconditions do too, rather than blocking an archive the wrapped binary
+performs cleanly:
+
+| Shape                                                                           | Rule that stays silent                              |
+| ------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `ADDED` whose block matches the living requirement (CRLF and outer trim folded) | `archive/added-exists`                              |
+| `REMOVED` naming a requirement the living spec no longer has                    | `archive/target-missing`                            |
+| `RENAMED` whose FROM is gone and whose TO is already present                    | `archive/target-missing` and `archive/added-exists` |
+
+Each exemption is withheld when the living spec still carries a name that folds
+equal to the named one — same letters, differing only in case or interior
+whitespace — but is not it. That is a mistyped header rather than an early sync,
+OpenSpec aborts on it, and cospec keeps refusing it with a hint naming the exact
+living header. Everything else stays an ERROR: an `ADDED` collision whose body
+differs, a `RENAMED` with FROM and TO both absent, a `RENAMED` applied while
+both are present, and a `MODIFIED` whose target is absent.
 
 **Execute and verify**
 

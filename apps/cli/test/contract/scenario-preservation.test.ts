@@ -401,3 +401,41 @@ describe('only spec.md is a delta', () => {
     expect((living.match(/^####\s+Scenario:/gm) ?? []).length).toBe(2)
   })
 })
+
+// The remedy `SCENARIO_DROP_HINT` used to advise — REMOVE the requirement and
+// ADD it back in the same delta — is one openspec refuses outright. This pins
+// that refusal against the real binary so the retired remedy can never drift
+// back into the hint: if someone restores it, this test is the thing that says
+// the advice does not work.
+describe('a same-delta REMOVE + ADD of one requirement is refused upstream', () => {
+  const REMOVE_AND_READD = `## REMOVED Requirements
+
+- \`### Requirement: Widget rendering\`
+
+## ADDED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered
+`
+
+  test('the real binary rejects it and changes nothing', async () => {
+    const root = mkTempRepo({ git: true })
+    buildWith(root, 'remove-and-readd', REMOVE_AND_READD)
+    const validated = await openspec(['validate', 'remove-and-readd', '--strict'], root)
+    expect(validated.stdout + validated.stderr).toContain(
+      'Requirement present in both ADDED and REMOVED',
+    )
+
+    const res = await openspec(['archive', 'remove-and-readd', '-y'], root)
+    expect(res.exitCode).not.toBe(0)
+    expect(existsSync(join(root, 'openspec/changes/remove-and-readd'))).toBe(true)
+    const living = readFileSync(join(root, 'openspec/specs/widgets/spec.md'), 'utf8')
+    expect((living.match(/^####\s+Scenario:/gm) ?? []).length).toBe(2)
+  })
+})
