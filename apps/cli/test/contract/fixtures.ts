@@ -399,6 +399,29 @@ The system SHALL render a widget when requested.
     },
   },
   {
+    // The early-sync suppression is scoped to the LIVING collision only. The
+    // binary's pre-validation refuses a RENAMED TO that collides with an ADDED
+    // in the same delta unconditionally, before any early-sync classification,
+    // so cospec must keep flagging it even when the rename itself is a no-op.
+    // The ADDED body is identical to the living block, so cospec's ADDED arm
+    // is silent and only the RENAMED-TO arm can catch this.
+    key: 'renamed-early-sync-added-collision',
+    rule: 'archive/added-exists',
+    expectAbort: true,
+    build(root) {
+      writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_WIDGET_REQ))
+      writeChangeShell(root, 'renamed-early-sync-added-collision', {
+        'widgets/spec.md': `${ADDED_DELTA}
+## RENAMED Requirements
+
+- FROM: \`### Requirement: Widget drawing\`
+- TO: \`### Requirement: Widget rendering\`
+`,
+      })
+      return { name: 'renamed-early-sync-added-collision' }
+    },
+  },
+  {
     // The carve-out on the RENAMED arm: the source is absent, but a fold-equal
     // living name that is NOT the target survives — a typo'd FROM header.
     key: 'renamed-from-near-miss',

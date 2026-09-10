@@ -178,6 +178,36 @@ The system  SHALL exist.
     expect(archiveRules(change(text, { living: LIVING }))).toHaveLength(0)
   })
 
+  test('an early-synced RENAMED-TO still collides with an ADDED in the same delta', () => {
+    // The living arm is suppressed (the rename was already applied), but the
+    // delta-internal ADDED collision is a separate upstream pre-validation
+    // that runs regardless of early-sync — the binary refuses this shape with
+    // `RENAMED TO collides with ADDED`, so cospec must too. The ADDED body is
+    // identical to the living block, so the ADDED arm itself stays silent and
+    // only the RENAMED-TO arm can catch it.
+    const text = `## ADDED Requirements
+
+### Requirement: Existing
+
+The system SHALL exist.
+
+#### Scenario: s
+
+- **WHEN** a
+- **THEN** b
+
+## RENAMED Requirements
+
+- FROM: \`### Requirement: Old Name\`
+- TO: \`### Requirement: Existing\`
+`
+    const issues = archiveRules(change(text, { living: LIVING }))
+    expect(rules(issues)).toContain('archive/added-exists')
+    expect(issues.find((i) => i.rule === 'archive/added-exists')?.message).toContain(
+      'ADDED requirement',
+    )
+  })
+
   test('a RENAMED source with a fold-equal near-miss that is not the target still errors', () => {
     const living = `${LIVING}
 ### Requirement: Old  Name

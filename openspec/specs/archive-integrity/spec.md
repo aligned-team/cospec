@@ -239,16 +239,19 @@ never refuses an archive that `openspec archive` performs at exit 0: an
 CRLF-fold-and-trim rule, matches the living requirement of the same name; a
 `## REMOVED` target that is already absent from the living spec; and a
 `## RENAMED` whose source is absent while its target is present, which SHALL
-suppress both the missing-source error and the target-collision error the same
-shape raises today. Each exemption SHALL be withheld when the living spec still
-carries a name that folds equal to the named requirement — case-insensitively,
-with runs of whitespace collapsed — but is not it, because that is a mistyped
-header the wrapped binary aborts on; the resulting ERROR SHALL name the exact
-living header to match. The remaining shapes SHALL stay ERRORs: an ADDED
-collision whose normalised block differs, a RENAMED whose source and target are
-both absent, a RENAMED applied while both source and target are present, and a
-MODIFIED whose target is absent — the wrapped binary refuses each of these, and
-relaxing any of them would be a false archive PASS.
+suppress both the missing-source error and the living-spec half of the
+target-collision error the same shape raises today. Each exemption SHALL be
+withheld when the living spec still carries a name that folds equal to the named
+requirement — case-insensitively, with runs of whitespace collapsed — but is not
+it, because that is a mistyped header the wrapped binary aborts on; the
+resulting ERROR SHALL name the exact living header to match. The remaining
+shapes SHALL stay ERRORs: an ADDED collision whose normalised block differs, a
+RENAMED whose source and target are both absent, a RENAMED applied while both
+source and target are present, a RENAMED whose target collides with an
+`## ADDED` requirement in the same delta — which the wrapped binary refuses
+before it classifies any early sync, so the early-sync exemption SHALL NOT reach
+it — and a MODIFIED whose target is absent — the wrapped binary refuses each of
+these, and relaxing any of them would be a false archive PASS.
 
 #### Scenario: Identical ADDED block is a no-op
 
@@ -294,6 +297,14 @@ relaxing any of them would be a false archive PASS.
 - **WHEN** a `## RENAMED` operation's source and target are both present in the
   living spec
 - **THEN** `archive/added-exists` is still an ERROR, with no body comparison
+
+#### Scenario: An early-synced RENAME onto an ADDED name is still an error
+
+- **WHEN** a `## RENAMED` operation's source is absent and its target is present
+  in the living spec, while an `## ADDED` requirement in the same delta carries
+  the target name
+- **THEN** `archive/added-exists` is still an ERROR, because the delta-internal
+  collision is checked regardless of the early sync
 
 #### Scenario: A missing MODIFIED target is still an error
 

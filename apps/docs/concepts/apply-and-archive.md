@@ -151,11 +151,11 @@ treats three such shapes as no-ops and archives them at exit `0`, so cospec's
 archive preconditions do too, rather than blocking an archive the wrapped binary
 performs cleanly:
 
-| Shape                                                                           | Rule that stays silent                              |
-| ------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `ADDED` whose block matches the living requirement (CRLF and outer trim folded) | `archive/added-exists`                              |
-| `REMOVED` naming a requirement the living spec no longer has                    | `archive/target-missing`                            |
-| `RENAMED` whose FROM is gone and whose TO is already present                    | `archive/target-missing` and `archive/added-exists` |
+| Shape                                                                           | Rule that stays silent                                                          |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `ADDED` whose block matches the living requirement (CRLF and outer trim folded) | `archive/added-exists`                                                          |
+| `REMOVED` naming a requirement the living spec no longer has                    | `archive/target-missing`                                                        |
+| `RENAMED` whose FROM is gone and whose TO is already present                    | `archive/target-missing` and the living-collision arm of `archive/added-exists` |
 
 Each exemption is withheld when the living spec still carries a name that folds
 equal to the named one — same letters, differing only in case or interior
@@ -163,7 +163,9 @@ whitespace — but is not it. That is a mistyped header rather than an early syn
 OpenSpec aborts on it, and cospec keeps refusing it with a hint naming the exact
 living header. Everything else stays an ERROR: an `ADDED` collision whose body
 differs, a `RENAMED` with FROM and TO both absent, a `RENAMED` applied while
-both are present, and a `MODIFIED` whose target is absent.
+both are present, a `RENAMED` whose TO collides with an `ADDED` in the same
+delta — a delta-internal conflict OpenSpec refuses whether or not the rename
+itself is an early sync — and a `MODIFIED` whose target is absent.
 
 **Execute and verify**
 

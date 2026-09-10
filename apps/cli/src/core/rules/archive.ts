@@ -184,9 +184,13 @@ export function archiveRules(
         })
 
       // An already-applied rename's target is present by definition; that is
-      // the same no-op, not a collision, so the TO arm is skipped for it.
-      if (op.operation === 'RENAMED' && op.toName !== undefined && !earlySynced.has(op)) {
-        const collidesLiving = living.requirementNames.has(op.toName)
+      // the same no-op, not a collision, so the LIVING arm is skipped for it.
+      // The delta-internal ADDED collision is a separate upstream check
+      // (`specs-apply.ts` pre-validation, `addedNames.has(toNorm)`) that runs
+      // unconditionally, before any early-sync classification — so early-sync
+      // must not suppress it.
+      if (op.operation === 'RENAMED' && op.toName !== undefined) {
+        const collidesLiving = !earlySynced.has(op) && living.requirementNames.has(op.toName)
         const collidesAdded = addedNames.has(op.toName)
         if (collidesLiving || collidesAdded)
           issues.push({
