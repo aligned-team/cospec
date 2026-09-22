@@ -3,7 +3,7 @@ description: Revise an existing change's already-written artifacts and keep them
 metadata:
   author: cospec
   generatedBy: cospec@0.7.1
-  contentHash: sha256:94e8990888fe3e513fe60ae26b09e4feff467bf5563957f8aa075fc0f1ee5e1d
+  contentHash: sha256:cda280b9cf1c87e7c7f87850cc13f09ed13cb47fc91b9793b9c91effe8630c7b
 ---
 
 Revise a change's **existing** artifacts and keep them coherent with one
@@ -46,12 +46,13 @@ scope here — note it and point the user at `/cospec-continue`.
 ## 4. Reconcile
 
 Re-read every artifact you touch from disk — never from what you remember of
-this conversation; the user may have edited it since. Apply the requested edit,
-then check every other existing artifact against it **in both directions**: an
-edit to `tasks.md` can require revising `proposal.md`, not only the reverse.
-Dependency order is a reading order, not a constraint on what may be revised.
+this conversation; the user may have edited it since. **Draft** the requested
+edit — in the conversation, not in files — then check every other existing
+artifact against the drafted edit **in both directions**: an edit to `tasks.md`
+can require revising `proposal.md`, not only the reverse. Dependency order is a
+reading order, not a constraint on what may be revised.
 
-If the change is already coherent, say so and edit nothing.
+If the change is already coherent, say so and **propose no revisions**.
 
 When a substantial rewrite is needed, get that artifact's authoritative rules,
 template, and output path first:
@@ -70,6 +71,8 @@ capability file is `/cospec-continue`'s job.
 
 Show each proposed revision and why, one artifact at a time, and write only
 after the user confirms it. A rejected revision leaves that artifact unchanged.
+This step performs every artifact write in this workflow; no earlier step edits
+an artifact.
 
 ## 6. Format, validate, and hand off
 

@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.7.1
-  contentHash: sha256:93b508f463dcdaed56e37c87f47652cf04333f139926d67cf1d2f15b033bf711
+  contentHash: sha256:8a7fceb611f7097e7ba242b56cc99aa60a68727d1afdc9e9137146742657d282
 ---
 
 Explain and preview spec synchronization. Spec sync is not a standalone step in
@@ -33,6 +33,11 @@ ADDED collisions, scenarios are well-formed) and reports anything that would
 make the merge fail. Then read the delta files under
 `openspec/changes/<slug>/specs/**/spec.md` to see the exact ADDED / MODIFIED /
 REMOVED / RENAMED operations.
+
+A delta that targets a capability with no living spec yet may only ADD
+requirements — any MODIFIED, REMOVED, or RENAMED op there is a validate-time
+ERROR (`archive/new-spec-non-added`), not something that surfaces later at merge
+time.
 
 ## Retiring a capability
 

@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.7.1
-  contentHash: sha256:3b79b54dd7063074630d38b7d2e3a71240c31e1410fef4577acc1efa21d44599
+  contentHash: sha256:eb06828bc1c92dc2b4785adc3c3823e8c06dd4ea2afa3d07818c498043bf3fa5
 ---
 
 Archive a batch of completed changes, one at a time, in dependency order. Every
@@ -47,6 +47,10 @@ applied (`+a ~m -r →n`) or skipped, which sibling changes had blocker boxes
 checked, and which changes are now unblocked. A non-zero exit is reported and
 the batch continues to the next change — one failure is not fatal to the rest of
 the batch.
+
+Each `cospec archive <slug>` call checks its own archive-slot collision before
+touching any spec deltas, so a same-day slot collision is always caught before
+that change's specs are written — never discovered mid-merge, after the fact.
 
 ## 4. On a per-change failure
 

@@ -840,7 +840,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:5a2963ee5dc6dbc552c3323f817c3afcdd0996c567fe238c52fa0dc4e8eea217
+  contentHash: sha256:071b20f1bf23bfa8cde1f211a9f3bb8dff8c6ffabd5f8e25be16304a15de7330
 ---
 
 Revise a change's **existing** artifacts and keep them coherent with one
@@ -881,12 +881,13 @@ scope here — note it and point the user at \`/cospec:continue\`.
 ## 4. Reconcile
 
 Re-read every artifact you touch from disk — never from what you remember of
-this conversation; the user may have edited it since. Apply the requested edit,
-then check every other existing artifact against it **in both directions**: an
-edit to \`tasks.md\` can require revising \`proposal.md\`, not only the reverse.
-Dependency order is a reading order, not a constraint on what may be revised.
+this conversation; the user may have edited it since. **Draft** the requested
+edit — in the conversation, not in files — then check every other existing
+artifact against the drafted edit **in both directions**: an edit to \`tasks.md\`
+can require revising \`proposal.md\`, not only the reverse. Dependency order is a
+reading order, not a constraint on what may be revised.
 
-If the change is already coherent, say so and edit nothing.
+If the change is already coherent, say so and **propose no revisions**.
 
 When a substantial rewrite is needed, get that artifact's authoritative rules,
 template, and output path first:
@@ -905,6 +906,8 @@ capability file is \`/cospec:continue\`'s job.
 
 Show each proposed revision and why, one artifact at a time, and write only
 after the user confirms it. A rejected revision leaves that artifact unchanged.
+This step performs every artifact write in this workflow; no earlier step edits
+an artifact.
 
 ## 6. Format, validate, and hand off
 
@@ -943,7 +946,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:5a2963ee5dc6dbc552c3323f817c3afcdd0996c567fe238c52fa0dc4e8eea217
+  contentHash: sha256:071b20f1bf23bfa8cde1f211a9f3bb8dff8c6ffabd5f8e25be16304a15de7330
 ---
 
 Revise a change's **existing** artifacts and keep them coherent with one
@@ -984,12 +987,13 @@ scope here — note it and point the user at \`/cospec:continue\`.
 ## 4. Reconcile
 
 Re-read every artifact you touch from disk — never from what you remember of
-this conversation; the user may have edited it since. Apply the requested edit,
-then check every other existing artifact against it **in both directions**: an
-edit to \`tasks.md\` can require revising \`proposal.md\`, not only the reverse.
-Dependency order is a reading order, not a constraint on what may be revised.
+this conversation; the user may have edited it since. **Draft** the requested
+edit — in the conversation, not in files — then check every other existing
+artifact against the drafted edit **in both directions**: an edit to \`tasks.md\`
+can require revising \`proposal.md\`, not only the reverse. Dependency order is a
+reading order, not a constraint on what may be revised.
 
-If the change is already coherent, say so and edit nothing.
+If the change is already coherent, say so and **propose no revisions**.
 
 When a substantial rewrite is needed, get that artifact's authoritative rules,
 template, and output path first:
@@ -1008,6 +1012,8 @@ capability file is \`/cospec:continue\`'s job.
 
 Show each proposed revision and why, one artifact at a time, and write only
 after the user confirms it. A rejected revision leaves that artifact unchanged.
+This step performs every artifact write in this workflow; no earlier step edits
+an artifact.
 
 ## 6. Format, validate, and hand off
 
@@ -1326,7 +1332,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:d3888b806ad2a458d51e502db3d4697e1a384fbbb0cca33a69317c5d42b16b46
+  contentHash: sha256:d31ab736702e834b863f53218615046ce0d07111014acda12131333653f2a56a
 ---
 
 Archive a completed change. \`cospec archive\` validates it, merges its spec
@@ -1348,6 +1354,10 @@ cospec archive <slug>
 Relay the summary it prints verbatim: what was archived, which spec deltas were
 applied (\`+a ~m -r →n\`) or skipped, which sibling changes had blocker boxes
 checked, and which changes are now unblocked.
+
+A change that introduces a brand-new capability (no living spec yet) may only
+ADD requirements there — \`cospec validate\` refuses a MODIFIED, REMOVED, or
+RENAMED op targeting it before archive ever runs the merge.
 
 ## 3. On failure
 
@@ -1396,7 +1406,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:d3888b806ad2a458d51e502db3d4697e1a384fbbb0cca33a69317c5d42b16b46
+  contentHash: sha256:d31ab736702e834b863f53218615046ce0d07111014acda12131333653f2a56a
 ---
 
 Archive a completed change. \`cospec archive\` validates it, merges its spec
@@ -1418,6 +1428,10 @@ cospec archive <slug>
 Relay the summary it prints verbatim: what was archived, which spec deltas were
 applied (\`+a ~m -r →n\`) or skipped, which sibling changes had blocker boxes
 checked, and which changes are now unblocked.
+
+A change that introduces a brand-new capability (no living spec yet) may only
+ADD requirements there — \`cospec validate\` refuses a MODIFIED, REMOVED, or
+RENAMED op targeting it before archive ever runs the merge.
 
 ## 3. On failure
 
@@ -1464,7 +1478,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:3b79b54dd7063074630d38b7d2e3a71240c31e1410fef4577acc1efa21d44599
+  contentHash: sha256:eb06828bc1c92dc2b4785adc3c3823e8c06dd4ea2afa3d07818c498043bf3fa5
 ---
 
 Archive a batch of completed changes, one at a time, in dependency order. Every
@@ -1505,6 +1519,10 @@ applied (\`+a ~m -r →n\`) or skipped, which sibling changes had blocker boxes
 checked, and which changes are now unblocked. A non-zero exit is reported and
 the batch continues to the next change — one failure is not fatal to the rest of
 the batch.
+
+Each \`cospec archive <slug>\` call checks its own archive-slot collision before
+touching any spec deltas, so a same-day slot collision is always caught before
+that change's specs are written — never discovered mid-merge, after the fact.
 
 ## 4. On a per-change failure
 
@@ -1544,7 +1562,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:3b79b54dd7063074630d38b7d2e3a71240c31e1410fef4577acc1efa21d44599
+  contentHash: sha256:eb06828bc1c92dc2b4785adc3c3823e8c06dd4ea2afa3d07818c498043bf3fa5
 ---
 
 Archive a batch of completed changes, one at a time, in dependency order. Every
@@ -1586,6 +1604,10 @@ checked, and which changes are now unblocked. A non-zero exit is reported and
 the batch continues to the next change — one failure is not fatal to the rest of
 the batch.
 
+Each \`cospec archive <slug>\` call checks its own archive-slot collision before
+touching any spec deltas, so a same-day slot collision is always caught before
+that change's specs are written — never discovered mid-merge, after the fact.
+
 ## 4. On a per-change failure
 
 Do NOT hand-\`mv\` the change directory, and do NOT force past a failure you do
@@ -1622,7 +1644,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:93b508f463dcdaed56e37c87f47652cf04333f139926d67cf1d2f15b033bf711
+  contentHash: sha256:8a7fceb611f7097e7ba242b56cc99aa60a68727d1afdc9e9137146742657d282
 ---
 
 Explain and preview spec synchronization. Spec sync is not a standalone step in
@@ -1649,6 +1671,11 @@ ADDED collisions, scenarios are well-formed) and reports anything that would
 make the merge fail. Then read the delta files under
 \`openspec/changes/<slug>/specs/**/spec.md\` to see the exact ADDED / MODIFIED /
 REMOVED / RENAMED operations.
+
+A delta that targets a capability with no living spec yet may only ADD
+requirements — any MODIFIED, REMOVED, or RENAMED op there is a validate-time
+ERROR (\`archive/new-spec-non-added\`), not something that surfaces later at merge
+time.
 
 ## Retiring a capability
 
@@ -1682,7 +1709,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:93b508f463dcdaed56e37c87f47652cf04333f139926d67cf1d2f15b033bf711
+  contentHash: sha256:8a7fceb611f7097e7ba242b56cc99aa60a68727d1afdc9e9137146742657d282
 ---
 
 Explain and preview spec synchronization. Spec sync is not a standalone step in
@@ -1709,6 +1736,11 @@ ADDED collisions, scenarios are well-formed) and reports anything that would
 make the merge fail. Then read the delta files under
 \`openspec/changes/<slug>/specs/**/spec.md\` to see the exact ADDED / MODIFIED /
 REMOVED / RENAMED operations.
+
+A delta that targets a capability with no living spec yet may only ADD
+requirements — any MODIFIED, REMOVED, or RENAMED op there is a validate-time
+ERROR (\`archive/new-spec-non-added\`), not something that surfaces later at merge
+time.
 
 ## Retiring a capability
 
@@ -2610,7 +2642,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:6b933d6a43827dc08fcef35a0ae4aa5a715d0e7d7c5eb1efd50a54035aad717a
+  contentHash: sha256:05f1abf503b2339c753e9606f6a2feb0f5469f331c8450855c0ab3fe2ea49235
 ---
 
 Revise a change's **existing** artifacts and keep them coherent with one
@@ -2651,12 +2683,13 @@ scope here — note it and point the user at \`$cospec-continue-change (Codex) o
 ## 4. Reconcile
 
 Re-read every artifact you touch from disk — never from what you remember of
-this conversation; the user may have edited it since. Apply the requested edit,
-then check every other existing artifact against it **in both directions**: an
-edit to \`tasks.md\` can require revising \`proposal.md\`, not only the reverse.
-Dependency order is a reading order, not a constraint on what may be revised.
+this conversation; the user may have edited it since. **Draft** the requested
+edit — in the conversation, not in files — then check every other existing
+artifact against the drafted edit **in both directions**: an edit to \`tasks.md\`
+can require revising \`proposal.md\`, not only the reverse. Dependency order is a
+reading order, not a constraint on what may be revised.
 
-If the change is already coherent, say so and edit nothing.
+If the change is already coherent, say so and **propose no revisions**.
 
 When a substantial rewrite is needed, get that artifact's authoritative rules,
 template, and output path first:
@@ -2675,6 +2708,8 @@ capability file is \`$cospec-continue-change (Codex) or /cospec-continue-change 
 
 Show each proposed revision and why, one artifact at a time, and write only
 after the user confirms it. A rejected revision leaves that artifact unchanged.
+This step performs every artifact write in this workflow; no earlier step edits
+an artifact.
 
 ## 6. Format, validate, and hand off
 
@@ -2850,7 +2885,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:6f24fff779ee706334b23fdc7171e4e8587060b2ae16a34a1da07a12c57d96a3
+  contentHash: sha256:5c738047656ddb62b491db73be4646970619cfe5f01aee6779924b5bd8ef3373
 ---
 
 Archive a completed change. \`cospec archive\` validates it, merges its spec
@@ -2872,6 +2907,10 @@ cospec archive <slug>
 Relay the summary it prints verbatim: what was archived, which spec deltas were
 applied (\`+a ~m -r →n\`) or skipped, which sibling changes had blocker boxes
 checked, and which changes are now unblocked.
+
+A change that introduces a brand-new capability (no living spec yet) may only
+ADD requirements there — \`cospec validate\` refuses a MODIFIED, REMOVED, or
+RENAMED op targeting it before archive ever runs the merge.
 
 ## 3. On failure
 
@@ -2918,7 +2957,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:1c17ca4d8574ffceb1f13040aac47376825c4a6f86abd5d08cab55d194a948d4
+  contentHash: sha256:df21c8b5c5427277a56030bd3dc4daed462545e28dfc2dad3ff3d1b07aa215bd
 ---
 
 Archive a batch of completed changes, one at a time, in dependency order. Every
@@ -2960,6 +2999,10 @@ checked, and which changes are now unblocked. A non-zero exit is reported and
 the batch continues to the next change — one failure is not fatal to the rest of
 the batch.
 
+Each \`cospec archive <slug>\` call checks its own archive-slot collision before
+touching any spec deltas, so a same-day slot collision is always caught before
+that change's specs are written — never discovered mid-merge, after the fact.
+
 ## 4. On a per-change failure
 
 Do NOT hand-\`mv\` the change directory, and do NOT force past a failure you do
@@ -2996,7 +3039,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:a7843116c61379181eea4cfe254d8efe5daadb124a0862a656241d4c5478fb08
+  contentHash: sha256:1bfa89a12c71041a0dfa9dc59c5007a6cae904ca8a880cb87dbaad91fa4b4814
 ---
 
 Explain and preview spec synchronization. Spec sync is not a standalone step in
@@ -3023,6 +3066,11 @@ ADDED collisions, scenarios are well-formed) and reports anything that would
 make the merge fail. Then read the delta files under
 \`openspec/changes/<slug>/specs/**/spec.md\` to see the exact ADDED / MODIFIED /
 REMOVED / RENAMED operations.
+
+A delta that targets a capability with no living spec yet may only ADD
+requirements — any MODIFIED, REMOVED, or RENAMED op there is a validate-time
+ERROR (\`archive/new-spec-non-added\`), not something that surfaces later at merge
+time.
 
 ## Retiring a capability
 
@@ -4074,7 +4122,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:61895acaa87ab50bac5e0c6ff5f5b697c72b76caebf4254dcb038268f88c340f
+  contentHash: sha256:e59d8659510a3a7eee0f3c631f7cc6fe5cba9b8e625dec84d2e853637d72780b
 ---
 
 Revise a change's **existing** artifacts and keep them coherent with one
@@ -4115,12 +4163,13 @@ scope here — note it and point the user at \`/cospec-continue\`.
 ## 4. Reconcile
 
 Re-read every artifact you touch from disk — never from what you remember of
-this conversation; the user may have edited it since. Apply the requested edit,
-then check every other existing artifact against it **in both directions**: an
-edit to \`tasks.md\` can require revising \`proposal.md\`, not only the reverse.
-Dependency order is a reading order, not a constraint on what may be revised.
+this conversation; the user may have edited it since. **Draft** the requested
+edit — in the conversation, not in files — then check every other existing
+artifact against the drafted edit **in both directions**: an edit to \`tasks.md\`
+can require revising \`proposal.md\`, not only the reverse. Dependency order is a
+reading order, not a constraint on what may be revised.
 
-If the change is already coherent, say so and edit nothing.
+If the change is already coherent, say so and **propose no revisions**.
 
 When a substantial rewrite is needed, get that artifact's authoritative rules,
 template, and output path first:
@@ -4139,6 +4188,8 @@ capability file is \`/cospec-continue\`'s job.
 
 Show each proposed revision and why, one artifact at a time, and write only
 after the user confirms it. A rejected revision leaves that artifact unchanged.
+This step performs every artifact write in this workflow; no earlier step edits
+an artifact.
 
 ## 6. Format, validate, and hand off
 
@@ -4172,7 +4223,7 @@ description: Revise an existing change's already-written artifacts and keep them
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:94e8990888fe3e513fe60ae26b09e4feff467bf5563957f8aa075fc0f1ee5e1d
+  contentHash: sha256:cda280b9cf1c87e7c7f87850cc13f09ed13cb47fc91b9793b9c91effe8630c7b
 ---
 
 Revise a change's **existing** artifacts and keep them coherent with one
@@ -4215,12 +4266,13 @@ scope here — note it and point the user at \`/cospec-continue\`.
 ## 4. Reconcile
 
 Re-read every artifact you touch from disk — never from what you remember of
-this conversation; the user may have edited it since. Apply the requested edit,
-then check every other existing artifact against it **in both directions**: an
-edit to \`tasks.md\` can require revising \`proposal.md\`, not only the reverse.
-Dependency order is a reading order, not a constraint on what may be revised.
+this conversation; the user may have edited it since. **Draft** the requested
+edit — in the conversation, not in files — then check every other existing
+artifact against the drafted edit **in both directions**: an edit to \`tasks.md\`
+can require revising \`proposal.md\`, not only the reverse. Dependency order is a
+reading order, not a constraint on what may be revised.
 
-If the change is already coherent, say so and edit nothing.
+If the change is already coherent, say so and **propose no revisions**.
 
 When a substantial rewrite is needed, get that artifact's authoritative rules,
 template, and output path first:
@@ -4239,6 +4291,8 @@ capability file is \`/cospec-continue\`'s job.
 
 Show each proposed revision and why, one artifact at a time, and write only
 after the user confirms it. A rejected revision leaves that artifact unchanged.
+This step performs every artifact write in this workflow; no earlier step edits
+an artifact.
 
 ## 6. Format, validate, and hand off
 
@@ -4551,7 +4605,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:3fa6863e9a9556a7bde60c360022b022749760670c8eec4f85a7f2d0da69e904
+  contentHash: sha256:4b9b6b08eb117becabf1d8f885fed7169b1712f092ea8d8653e2cb82220510e8
 ---
 
 Archive a completed change. \`cospec archive\` validates it, merges its spec
@@ -4573,6 +4627,10 @@ cospec archive <slug>
 Relay the summary it prints verbatim: what was archived, which spec deltas were
 applied (\`+a ~m -r →n\`) or skipped, which sibling changes had blocker boxes
 checked, and which changes are now unblocked.
+
+A change that introduces a brand-new capability (no living spec yet) may only
+ADD requirements there — \`cospec validate\` refuses a MODIFIED, REMOVED, or
+RENAMED op targeting it before archive ever runs the merge.
 
 ## 3. On failure
 
@@ -4616,7 +4674,7 @@ description: Archive a completed change — validate, merge specs, verify, and f
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:12e5ad1b7e0a2b8c42cd0baeec5fbe44c8cbc0bc51a0c3cad9c888758bba2455
+  contentHash: sha256:70ef3ee289bf010b42e94bca2c2274d276842d5018fc6c9a199547679a317da6
 ---
 
 Archive a completed change. \`cospec archive\` validates it, merges its spec
@@ -4640,6 +4698,10 @@ cospec archive <slug>
 Relay the summary it prints verbatim: what was archived, which spec deltas were
 applied (\`+a ~m -r →n\`) or skipped, which sibling changes had blocker boxes
 checked, and which changes are now unblocked.
+
+A change that introduces a brand-new capability (no living spec yet) may only
+ADD requirements there — \`cospec validate\` refuses a MODIFIED, REMOVED, or
+RENAMED op targeting it before archive ever runs the merge.
 
 ## 3. On failure
 
@@ -4686,7 +4748,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:aba1eebd8c034f8dce3f59c8fdb48518ab02c09c6424b4bad53b6b73986ced55
+  contentHash: sha256:a530a027e099f802ba55426c09dae1bd579881a9647cf133108b6f176fe206c3
 ---
 
 Archive a batch of completed changes, one at a time, in dependency order. Every
@@ -4727,6 +4789,10 @@ applied (\`+a ~m -r →n\`) or skipped, which sibling changes had blocker boxes
 checked, and which changes are now unblocked. A non-zero exit is reported and
 the batch continues to the next change — one failure is not fatal to the rest of
 the batch.
+
+Each \`cospec archive <slug>\` call checks its own archive-slot collision before
+touching any spec deltas, so a same-day slot collision is always caught before
+that change's specs are written — never discovered mid-merge, after the fact.
 
 ## 4. On a per-change failure
 
@@ -4761,7 +4827,7 @@ description: Archive a batch of completed changes in dependency order, one cospe
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:aba1eebd8c034f8dce3f59c8fdb48518ab02c09c6424b4bad53b6b73986ced55
+  contentHash: sha256:a530a027e099f802ba55426c09dae1bd579881a9647cf133108b6f176fe206c3
 ---
 
 Archive a batch of completed changes, one at a time, in dependency order. Every
@@ -4802,6 +4868,10 @@ applied (\`+a ~m -r →n\`) or skipped, which sibling changes had blocker boxes
 checked, and which changes are now unblocked. A non-zero exit is reported and
 the batch continues to the next change — one failure is not fatal to the rest of
 the batch.
+
+Each \`cospec archive <slug>\` call checks its own archive-slot collision before
+touching any spec deltas, so a same-day slot collision is always caught before
+that change's specs are written — never discovered mid-merge, after the fact.
 
 ## 4. On a per-change failure
 
@@ -4839,7 +4909,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:819f5451b1d3e37e206ff5b11f52ab86885a2a558c3b20502d03068ca06ac97f
+  contentHash: sha256:dc48d3f5037277912711548e57c0feab65c5a8c64c32bf6070334632a9dd60d0
 ---
 
 Explain and preview spec synchronization. Spec sync is not a standalone step in
@@ -4866,6 +4936,11 @@ ADDED collisions, scenarios are well-formed) and reports anything that would
 make the merge fail. Then read the delta files under
 \`openspec/changes/<slug>/specs/**/spec.md\` to see the exact ADDED / MODIFIED /
 REMOVED / RENAMED operations.
+
+A delta that targets a capability with no living spec yet may only ADD
+requirements — any MODIFIED, REMOVED, or RENAMED op there is a validate-time
+ERROR (\`archive/new-spec-non-added\`), not something that surfaces later at merge
+time.
 
 ## Retiring a capability
 
@@ -4894,7 +4969,7 @@ description: Explain how spec sync works (it runs inside archive) and preview wh
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:8b278ff959f29a554a995c6d9f2233dd6bd98363c94aaf2aef20f555aff58bd0
+  contentHash: sha256:78a4d09275959566ff92a490de91a93a695dd0acdbc259620b3c4156c61ba16c
 ---
 
 Explain and preview spec synchronization. Spec sync is not a standalone step in
@@ -4923,6 +4998,11 @@ ADDED collisions, scenarios are well-formed) and reports anything that would
 make the merge fail. Then read the delta files under
 \`openspec/changes/<slug>/specs/**/spec.md\` to see the exact ADDED / MODIFIED /
 REMOVED / RENAMED operations.
+
+A delta that targets a capability with no living spec yet may only ADD
+requirements — any MODIFIED, REMOVED, or RENAMED op there is a validate-time
+ERROR (\`archive/new-spec-non-added\`), not something that surfaces later at merge
+time.
 
 ## Retiring a capability
 
