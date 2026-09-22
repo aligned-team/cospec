@@ -22,12 +22,12 @@
 
 ## 4. Docs carry the widened detector set
 
-- [ ] 4.1 @manual (human) read `docs/validation.md` and `apps/docs/reference/validation-rules.md` after the edit -> both describe the widened marker set for `tasks/checkbox-grammar` and `verification/row-grammar`, and neither still implies only `-`/`*` are detected
-- [ ] 4.2 @integration (agent) `mise run docs:build` -> the docs site builds with the edited reference page
+- [x] 4.1 @manual (human) read `docs/validation.md` and `apps/docs/reference/validation-rules.md` after the edit -> both describe the widened marker set for `tasks/checkbox-grammar` and `verification/row-grammar` (`docs/validation.md` "Checkbox grammar" section; `validation-rules.md` `tasks/` and `verification/` tables), and neither still implies only `-`/`*` are detected
+- [x] 4.2 @integration (agent) `mise run docs:build` -> build complete in 1.15s, no errors, `llms.txt`/`llms-full.txt` regenerated
 
 ## 5. The same marker gap is closed in the two sibling detectors [critical]
 
 - [ ] 5.1 @regression (agent) `cospec apply` on a change whose `## Blocked by` holds an unchecked, unarchived `+ [ ] `dep``entry -> exits non-zero reporting`blockers/entry-grammar`; before the fix `computeGate`returned`{state: 'clear', hard: []}` and apply exited 0 over a real unshipped dependency
 - [ ] 5.2 @unit (agent) `parseBlockers` over `*`/`+`/`1.`/`1)`-bulleted gated-section entries and over the same markers on a backticked-slug bullet outside the sections -> each is a malformed entry carrying the canonical `corrected` line, or a linted loose slug bullet; the canonical `- [ ] ` entry still parses as an entry
 - [ ] 5.3 @unit (agent) `parseSurfaces` / `checkedSurfaces` over `+ [x] deploy`, `1. [x] interactive` and `+ [x] telepathy` -> each flag is read with its token and checked state and reaches `proposal/surfaces-vocab`; before the fix each line was skipped with no diagnostic, silently unsetting the flag
-- [ ] 5.4 @manual (human) read `docs/validation.md` and `apps/docs/reference/validation-rules.md` after the edit -> both state the shared marker set for `blockers/entry-grammar` and the `## Surfaces` reader, and name the gate consequence rather than describing it as lint
+- [x] 5.4 @manual (human) read `docs/validation.md` and `apps/docs/reference/validation-rules.md` after the edit -> both state the shared marker set for `blockers/entry-grammar` and the `## Surfaces` reader, and name the gate consequence rather than describing it as lint (`docs/validation.md` "Checkbox grammar" section covers both; `validation-rules.md` `blockers/entry-grammar` row + note)

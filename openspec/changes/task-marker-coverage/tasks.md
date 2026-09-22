@@ -34,10 +34,10 @@
 
 ## 4. Docs and project gate
 
-- [ ] 4.1 State the widened detector set in `docs/validation.md` and
+- [x] 4.1 State the widened detector set in `docs/validation.md` and
       `apps/docs/reference/validation-rules.md` for both rule ids, and verify by
       verification row 4.1
-- [ ] 4.2 Run `mise run docs:build` and `mise run check`, and verify by
+- [x] 4.2 Run `mise run docs:build` and `mise run check`, and verify by
       verification rows 4.2 and 3.4
 
 ## 5. Close the same class in the sibling detectors
@@ -52,6 +52,6 @@
 - [ ] 5.3 Add the apply-gate regression and the parser/rule cases for both
       files, each failing before the fix, and verify by verification rows 5.1,
       5.2 and 5.3
-- [ ] 5.4 State both facts on the pages that own them (`docs/validation.md`,
+- [x] 5.4 State both facts on the pages that own them (`docs/validation.md`,
       `apps/docs/reference/validation-rules.md`), and verify by verification row
       5.4
