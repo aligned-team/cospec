@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.7.1
-  contentHash: sha256:21ebba0264dd2ade34506491e7a0f39939cb5767692a3fdf707c63ae2b80546e
+  contentHash: sha256:1918d6dc9bf5fe10b6f691e7144868bf8f14d2e17802474845e2e828e3cac108
 ---
 
 Investigate a question about the codebase, a spec, or a proposed change — in
@@ -21,8 +21,10 @@ Three read-only commands, in this order:
   its own never shows these; add `--json` for ids and requirement counts. This
   is the inventory of what the project already claims to do, and it is the thing
   you check before concluding that something is missing.
-- `cospec context --json` — the resolved root and working set. Use `root.path`
-  from this output whenever you need a path; never guess at the root.
+- `cospec context --json` — the resolved root and the project's registered
+  stores. It never lists changes; that is what `cospec list` is for. Use
+  `root.path` from this output whenever you need a path; never guess at the
+  root.
 
 To look at one capability without pulling a whole spec file into context, run
 `cospec show "<spec-id>" --type spec --no-scenarios` — it returns that

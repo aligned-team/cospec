@@ -3,7 +3,7 @@ description: Investigate the codebase or a spec question without writing impleme
 metadata:
   author: cospec
   generatedBy: cospec@0.7.1
-  contentHash: sha256:372cb495cdfc8c1f6631f19e3bbbbf5083b37756c3aeb07597e003b2d14d3195
+  contentHash: sha256:b53cbb61a7964431d8e7d48d292d020276d05d8b2ac592e2b1ce6f2d4a303891
 ---
 
 Investigate a question about the codebase, a spec, or a proposed change — in
@@ -20,8 +20,10 @@ Three read-only commands, in this order:
   its own never shows these; add `--json` for ids and requirement counts. This
   is the inventory of what the project already claims to do, and it is the thing
   you check before concluding that something is missing.
-- `cospec context --json` — the resolved root and working set. Use `root.path`
-  from this output whenever you need a path; never guess at the root.
+- `cospec context --json` — the resolved root and the project's registered
+  stores. It never lists changes; that is what `cospec list` is for. Use
+  `root.path` from this output whenever you need a path; never guess at the
+  root.
 
 To look at one capability without pulling a whole spec file into context, run
 `cospec show "<spec-id>" --type spec --no-scenarios` — it returns that
