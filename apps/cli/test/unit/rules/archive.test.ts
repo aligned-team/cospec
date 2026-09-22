@@ -350,3 +350,33 @@ describe('archiveRules: archive/scenario-preservation (advisory mirror)', () => 
     ).not.toContain('archive/scenario-preservation')
   })
 })
+
+// Gate regression for the widened delta bullet markers. Before the widening,
+// a `*`/`+`/indented REMOVED entry never entered `ParsedDelta.ops`, so the
+// archive gate judged the section empty and never evaluated the target at all.
+describe('archive gates see non-`-` delta bullets', () => {
+  test('a `*`-bulleted REMOVED naming an absent requirement trips archive/target-missing', () => {
+    // `existing` folds onto the living `Existing`: a mistyped header, which is
+    // the one shape that survives the REMOVED early-sync exemption.
+    const text = '## REMOVED Requirements\n\n* `### Requirement: existing`\n'
+    const issues = archiveRules(change(text, { living: LIVING }))
+    expect(rules(issues)).toContain('archive/target-missing')
+    expect(issues.find((i) => i.rule === 'archive/target-missing')?.hint).toContain(
+      '### Requirement: Existing',
+    )
+    // The op is real, so the section is no longer judged empty.
+    expect(rules(issues)).not.toContain('archive/no-ops')
+  })
+
+  test('a `*`-bulleted REMOVED naming a present requirement is accepted', () => {
+    const text = '## REMOVED Requirements\n\n* `### Requirement: Existing`\n'
+    expect(archiveRules(change(text, { living: LIVING }))).toHaveLength(0)
+  })
+
+  test('an indented `+` REMOVED bullet is judged the same way', () => {
+    const text = '## REMOVED Requirements\n\n  + `### Requirement: existing`\n'
+    expect(rules(archiveRules(change(text, { living: LIVING })))).toContain(
+      'archive/target-missing',
+    )
+  })
+})

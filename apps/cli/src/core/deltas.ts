@@ -11,10 +11,21 @@ const SCENARIO_RE = /^####\s+/
 /** 3-hashtag scenario heading — the probe §5.4 mis-parse (DESIGN deltas/scenario-depth). */
 const SCENARIO_DEPTH_RE = /^###\s+Scenario:/
 const SHALL_MUST_RE = /\b(SHALL|MUST)\b/
-/** REMOVED bullet form: `- \`### Requirement: X\``. */
-const REMOVED_BULLET_RE = /^-\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
-const RENAMED_FROM_RE = /^-?\s*FROM:\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
-const RENAMED_TO_RE = /^-?\s*TO:\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
+/**
+ * REMOVED bullet form: `- \`### Requirement: X\``.
+ *
+ * The marker class is CommonMark's full bullet set (`-`, `*`, `+`) and leading
+ * whitespace is allowed, matching openspec's own delta reader
+ * (`src/core/parsers/requirement-blocks.ts`, 1.13.1). Anchoring on `-` at
+ * column 0 — as cospec did through 0.7.1 — dropped every `*`/`+`/indented
+ * REMOVED entry before it reached `ops`, so `archive/target-missing` and
+ * `archive/scenario-preservation` never saw it: a false archive PASS.
+ * Fenced lines are still excluded upstream of these regexes by the fence mask.
+ */
+const REMOVED_BULLET_RE = /^\s*[-*+]\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
+/** RENAMED pair lines; the bullet marker is optional, as upstream's is. */
+const RENAMED_FROM_RE = /^\s*[-*+]?\s*FROM:\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
+const RENAMED_TO_RE = /^\s*[-*+]?\s*TO:\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
 /**
  * A bullet inside a MODIFIED requirement's body noting why its scenario count
  * intentionally shrank. This was `archive/scenario-preservation`'s escape hatch

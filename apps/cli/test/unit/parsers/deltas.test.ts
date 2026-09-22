@@ -1127,3 +1127,165 @@ describe('scenarioNameFromHeader', () => {
     expect(living.requirementScenarioNames.get('X')).toEqual(['a', 'a'])
   })
 })
+
+// Bullet-marker fidelity. openspec 1.13.1's delta reader
+// (src/core/parsers/requirement-blocks.ts:452,498-499) accepts CommonMark's
+// full bullet set with leading whitespace; cospec was `-`-only and anchored at
+// column 0, which silently dropped the entry. Behaviour asserted here is the
+// same at the 1.11.0 pin — 1.11.0's own reader already accepted `[-*+]` with
+// leading whitespace in the REMOVED/RENAMED sections, so widening cospec moves
+// it towards the pinned binary, not away from it.
+describe('delta bullet markers', () => {
+  for (const marker of ['-', '*', '+'] as const) {
+    test(`REMOVED accepts a \`${marker}\` bullet`, () => {
+      const p = parseDeltaSpec(
+        `## REMOVED Requirements\n\n${marker} \`### Requirement: Old thing\`\n`,
+        'specs/x/spec.md',
+        'x',
+      )
+      expect(p.ops).toHaveLength(1)
+      expect(p.ops[0]!.operation).toBe('REMOVED')
+      expect(p.ops[0]!.name).toBe('Old thing')
+      expect(p.emptySections).not.toContain('REMOVED')
+    })
+
+    test(`RENAMED accepts \`${marker}\` bulleted FROM/TO`, () => {
+      const p = parseDeltaSpec(
+        [
+          '## RENAMED Requirements',
+          '',
+          `${marker} FROM: \`### Requirement: A\``,
+          `${marker} TO: \`### Requirement: B\``,
+          '',
+        ].join('\n'),
+        'specs/x/spec.md',
+        'x',
+      )
+      expect(p.ops).toHaveLength(1)
+      expect(p.ops[0]!.fromName).toBe('A')
+      expect(p.ops[0]!.toName).toBe('B')
+    })
+  }
+
+  test('an unbulleted FROM/TO pair still parses', () => {
+    const p = parseDeltaSpec(
+      [
+        '## RENAMED Requirements',
+        '',
+        'FROM: `### Requirement: A`',
+        'TO: `### Requirement: B`',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops[0]!.fromName).toBe('A')
+    expect(p.ops[0]!.toName).toBe('B')
+  })
+
+  test('indented bullets parse in both REMOVED and RENAMED', () => {
+    const p = parseDeltaSpec(
+      [
+        '## REMOVED Requirements',
+        '',
+        '  - `### Requirement: Old thing`',
+        '',
+        '## RENAMED Requirements',
+        '',
+        '\t* FROM: `### Requirement: A`',
+        '   + TO: `### Requirement: B`',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops.find((o) => o.operation === 'REMOVED')?.name).toBe('Old thing')
+    const renamed = p.ops.find((o) => o.operation === 'RENAMED')
+    expect(renamed?.fromName).toBe('A')
+    expect(renamed?.toName).toBe('B')
+    expect(p.emptySections).toEqual([])
+  })
+
+  test('bulleted delta lines inside a fence are still ignored', () => {
+    const p = parseDeltaSpec(
+      [
+        '## REMOVED Requirements',
+        '',
+        '```md',
+        '* `### Requirement: Fenced removal`',
+        '```',
+        '',
+        '## RENAMED Requirements',
+        '',
+        '~~~',
+        '+ FROM: `### Requirement: A`',
+        '+ TO: `### Requirement: B`',
+        '~~~',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops).toEqual([])
+    expect(p.emptySections).toEqual(['REMOVED', 'RENAMED'])
+  })
+})
+
+// Critique B8: cospec never keys a delta record by section title. `parseDeltaSpec`
+// is a single forward pass that closes the open requirement and re-sets
+// `currentOp` at every `## ` header, so a repeated header and a case variant of
+// one both apply in full — matching upstream's `getSectionsCaseInsensitive`,
+// which returns every matching body rather than the first.
+describe('every matching delta section applies', () => {
+  test('repeated and case-variant section headers both accumulate', () => {
+    const p = parseDeltaSpec(
+      [
+        '## ADDED Requirements',
+        '',
+        '### Requirement: First',
+        '',
+        'The system SHALL first.',
+        '',
+        '#### Scenario: a',
+        '',
+        '- **WHEN** x',
+        '- **THEN** y',
+        '',
+        '## Notes',
+        '',
+        'Prose.',
+        '',
+        '## Added Requirements',
+        '',
+        '### Requirement: Second',
+        '',
+        'The system SHALL second.',
+        '',
+        '#### Scenario: b',
+        '',
+        '- **WHEN** x',
+        '- **THEN** y',
+        '',
+        '## REMOVED Requirements',
+        '',
+        '- `### Requirement: Gone one`',
+        '',
+        '## removed requirements',
+        '',
+        '* `### Requirement: Gone two`',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops.filter((o) => o.operation === 'ADDED').map((o) => o.name)).toEqual([
+      'First',
+      'Second',
+    ])
+    expect(p.ops.filter((o) => o.operation === 'REMOVED').map((o) => o.name)).toEqual([
+      'Gone one',
+      'Gone two',
+    ])
+    expect(p.emptySections).toEqual([])
+  })
+})
