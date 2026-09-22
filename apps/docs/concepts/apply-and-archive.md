@@ -77,16 +77,23 @@ In order:
 load before implementing — proposal, design, specs deltas, whatever the type
 requires — so you don't have to guess what's relevant.
 
-`apply.warnings` and `apply.missingPrerequisites` are relayed verbatim from
-OpenSpec's own `instructions apply --json` (present since 1.13.0; a second
-`warnings` entry for an unread delta file joins them at 1.13.1). Both are
-**advisory** — neither ever moves `cospec apply`'s exit code, which is fully
-decided by steps 1–4 above. In practice a cospec-typed change rarely reaches a
-non-empty `apply.warnings`: every state OpenSpec warns about there (an unread
-delta file, a change with no delta specs, a tasks file with zero checkboxes) is
-already a `cospec validate` **ERROR** that stops the run before step 5. The
-relay is live mainly on the legacy/v1-schema and forked-schema lanes, where
-cospec's own gate is narrower than OpenSpec's.
+`apply.warnings` and `apply.missingPrerequisites` come from OpenSpec's own
+`instructions apply --json` (present since 1.13.0; a second `warnings` entry for
+an unread delta file joins them at 1.13.1). `missingPrerequisites` is relayed
+verbatim. `warnings` and `instruction` are not: OpenSpec writes its remedies as
+bare `openspec …` command strings, and cospec rewrites each backtick-delimited
+`openspec instructions`/`status`/`validate` span to the `cospec` equivalent
+before printing it — every agent-facing OpenSpec access routes through cospec,
+so a remedy you read is one you can run. The rewrite is a closed verb set, not a
+wildcard: a verb outside it is left alone rather than relayed as a `cospec`
+surface that may not exist. Both fields are **advisory** — neither ever moves
+`cospec apply`'s exit code, which is fully decided by steps 1–4 above. In
+practice a cospec-typed change rarely reaches a non-empty `apply.warnings`:
+every state OpenSpec warns about there (an unread delta file, a change with no
+delta specs, a tasks file with zero checkboxes) is already a `cospec validate`
+**ERROR** that stops the run before step 5. The relay is live mainly on the
+legacy/v1-schema and forked-schema lanes, where cospec's own gate is narrower
+than OpenSpec's.
 
 ::: tip `--allow-soft` only waives **soft** blockers. Hard blockers have no
 override — the change they name has to actually land first. :::

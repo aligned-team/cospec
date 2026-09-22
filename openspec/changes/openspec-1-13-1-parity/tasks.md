@@ -144,6 +144,12 @@
       `mise run agents:check` clean (verification 12.2)
 - [x] 5.7 Run `mise run generate:check` and `mise run docs:build`; verify both
       exit 0 (verification 12.1, 12.3)
+- [x] 5.8 Correct `apps/docs/concepts/apply-and-archive.md`'s claim that
+      `apply.warnings` is relayed verbatim — the relay guard added in this same
+      change rewrites it — naming which field is untouched, which are rewritten,
+      and that the rewrite is a closed verb set rather than a guarantee; verify
+      by a re-read of the page against `docs/architecture.md`'s relay section
+      (verification 12.4)
 
 ## 6. Close-out — whole-system proof
 
