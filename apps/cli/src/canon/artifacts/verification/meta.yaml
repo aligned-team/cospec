@@ -9,6 +9,8 @@ template: verification.md
 requires: [proposal]
 description: Acceptance-evidence ledger — each observable behavior, the layer it is exercised at, who runs the check, and the recorded evidence
 templateBody: |
+  # Verification
+
   ## 1. <primary observable behavior> [critical]
 
   - [ ] 1.1 @e2e (agent) drive the real flow end to end -> <what you must observe>

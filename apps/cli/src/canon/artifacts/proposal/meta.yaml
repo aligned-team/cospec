@@ -16,6 +16,8 @@ surfacesBlock: |
   - [ ] agent-behavior — prompts, tools, model routing, or agent output shape
 templates:
   full: |
+    # Proposal
+
     ## Why
 
     <!-- Motivation. What problem does this solve? Why now? At least two sentences. -->
@@ -37,6 +39,8 @@ templates:
 
     <!-- Affected files, APIs, dependencies, migrations. -->
   lite: |
+    # Proposal
+
     ## Why
 
     <!-- One or two sentences. -->

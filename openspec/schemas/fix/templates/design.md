@@ -1,3 +1,5 @@
+# Design
+
 ## Context
 
 <!-- Background, current state, constraints. -->

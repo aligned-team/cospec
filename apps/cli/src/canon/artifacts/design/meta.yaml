@@ -6,6 +6,8 @@ template: design.md
 requires: [proposal]
 description: Technical decisions (optional — create when architecture, data model, or migration is non-trivial)
 templateBody: |
+  # Design
+
   ## Context
 
   <!-- Background, current state, constraints. -->
