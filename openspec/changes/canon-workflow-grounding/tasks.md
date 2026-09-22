@@ -57,8 +57,8 @@
 
 ## 5. Track E5 — artifact template top-level headings
 
-- [x] 5.1 Prepend `# Proposal` to both `proposal` template variants, `# Specs`
-      to the specs template body, and `# Design`, `# Tasks`, and
+- [x] 5.1 Prepend `# Proposal` to both `proposal` template variants,
+      `# Spec Delta` to the specs template body, and `# Design`, `# Tasks`, and
       `# Verification` to theirs; `blocking-changes` already opens with
       `# Dependencies` and needs no edit — verified by the first-line check of
       verification row 5.1 and the variant check of row 5.4
