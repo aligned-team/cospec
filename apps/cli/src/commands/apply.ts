@@ -3,7 +3,8 @@
 // blocker checkboxes against the archive, then enforces the hard/soft blocker
 // gate with exit codes an agent cannot rationalize past (2 = blocked, 3 =
 // soft-blocked). On a clear gate it merges `openspec instructions apply --json`
-// into a single machine-readable payload.
+// into a single machine-readable payload — routing every remedy the wrapped
+// binary writes into that payload back through `cospec` first (relay guard).
 //
 // Also the home of the shared gate primitives (`computeGate`) and change-name
 // suggestion (`closest`) used by status/list/archive/new — those command tracks
@@ -185,6 +186,50 @@ const SURFACE_SOFT_RULES = new Set<string>([
   'verification/deploy-real-layer',
 ])
 
+// --- bare-`openspec` relay guard -------------------------------------------
+
+// Every agent-facing OpenSpec access routes through `cospec` (CLAUDE.md), but
+// the wrapped binary writes its own remedies into the `instruction` and
+// `warnings` strings cospec relays verbatim. At 1.13.1 exactly three verbs
+// appear in those strings — `describeArtifactRemedy` emits
+// `openspec instructions <artifact> --change <name>` and
+// `openspec status --change <name>`; `collectApplyWarnings` emits
+// `openspec validate <name>` and another `openspec instructions …` — and each
+// maps 1:1 onto a cospec command with the identical argument shape.
+//
+// The match is anchored to a backtick-delimited span, never a bare `openspec `
+// token: `collectApplyWarnings`'s no-delta-specs warning embeds an absolute
+// `…/.openspec.yaml` path in the same string, and that path must survive
+// untouched. A verb outside the set is left alone too — relaying an unknown
+// upstream command as `cospec` would invent a surface that may not exist.
+const RELAYED_COMMAND_SPAN = /`openspec ((?:instructions|status|validate)(?:[ \t][^`]*)?)`/g
+
+/** Rewrites backtick-delimited `openspec …` command spans to `cospec …`. */
+export function relayThroughCospec(text: string): string {
+  return text.replace(RELAYED_COMMAND_SPAN, '`cospec $1`')
+}
+
+/**
+ * The wrapped apply payload with every relayed remedy routed through cospec.
+ *
+ * Applied once, at the call site, so both the human transcript and the `--json`
+ * spread carry the same guarded strings — the JSON path is the one agents read.
+ * Absent `warnings` stays absent (a change cospec correctly skips must not gain
+ * an empty array that reads as "checked, none found").
+ */
+export function relayApplyInstructions(instr: ApplyInstructionsJson): ApplyInstructionsJson {
+  return {
+    ...instr,
+    instruction: relayThroughCospec(instr.instruction),
+    ...(instr.warnings !== undefined ? { warnings: instr.warnings.map(relayThroughCospec) } : {}),
+  }
+}
+
+/** One `Warning:` line per relayed upstream warning, for the human transcript. */
+function printWarnings(instr: ApplyInstructionsJson): void {
+  for (const w of instr.warnings ?? []) process.stdout.write(`Warning: ${w}\n`)
+}
+
 function printReport(report: ItemReport, ctx: CommandContext): void {
   const out = ctx.flags.json
     ? renderJson([report])
@@ -196,7 +241,7 @@ function printReport(report: ItemReport, ctx: CommandContext): void {
 async function applyLegacy(change: Change, ctx: CommandContext, root: Root): Promise<number> {
   let instr: ApplyInstructionsJson
   try {
-    instr = await openspecApplyInstructions(root, change.id)
+    instr = relayApplyInstructions(await openspecApplyInstructions(root, change.id))
   } catch (err) {
     process.stderr.write(`cospec apply: ${(err as Error).message}\n`)
     return EXIT.failure
@@ -209,6 +254,7 @@ async function applyLegacy(change: Change, ctx: CommandContext, root: Root): Pro
     process.stdout.write(
       `note: '${change.schema}' is a legacy schema — cospec's blocker gate is not enforced; delegating to openspec.\n`,
     )
+    printWarnings(instr)
     process.stdout.write(`${instr.instruction}\n`)
   }
   return instr.state === 'blocked' ? EXIT.blocked : EXIT.success
@@ -393,7 +439,7 @@ export async function run(ctx: CommandContext): Promise<number> {
   // Step 5: fetch the apply payload from openspec.
   let instr: ApplyInstructionsJson
   try {
-    instr = await openspecApplyInstructions(root, change.id)
+    instr = relayApplyInstructions(await openspecApplyInstructions(root, change.id))
   } catch (err) {
     const msg = err instanceof OpenspecCallError ? err.message : (err as Error).message
     process.stderr.write(`cospec apply: ${msg}\n`)
@@ -427,6 +473,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     process.stdout.write(
       `${instr.progress.remaining} of ${instr.progress.total} task(s) remaining.\n`,
     )
+    printWarnings(instr)
     process.stdout.write(`\n${instr.instruction}\n`)
   }
   return EXIT.success

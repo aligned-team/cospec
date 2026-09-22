@@ -40,7 +40,7 @@
       after Track A, which owns the same file); verify with `mise run typecheck`
       clean and a unit case parsing a payload that carries neither field
       (verification 3.4)
-- [ ] 2.2 Print relayed `warnings` in `cospec apply`'s human transcript
+- [x] 2.2 Print relayed `warnings` in `cospec apply`'s human transcript
       alongside the `--json` spread; verify with a contract run asserting the
       same warnings on both surfaces (verification 3.1, 3.3)
 - [ ] 2.3 Add contract coverage that `missingPrerequisites` is a superset of
@@ -50,20 +50,23 @@
 
 ## 3. Track C — the bare-openspec relay guard
 
-- [ ] 3.1 Confirm from the Track A re-probe that `instructions`, `status`,
+- [x] 3.1 Confirm from the Track A re-probe that `instructions`, `status`,
       `validate` is still the complete verb set the 1.13.1 strings emit, rather
       than carrying the 1.13.0 reading forward; verify by the recorded re-probe
       observation (verification 4.6)
-- [ ] 3.2 Implement the rewrite in `apps/cli/src/commands/apply.ts` (serialised
+- [x] 3.2 Implement the rewrite in `apps/cli/src/commands/apply.ts` (serialised
       after Track B, same file), anchored to backtick-delimited command spans
       over the closed verb set and applied on every relay path — main,
       `applyLegacy`, human and `--json`; verify with unit cases for the embedded
       `.openspec.yaml` path and for an unwrapped verb (verification 4.4, 4.5)
-- [ ] 3.3 Add contract coverage on the three reachable leaks — `applyLegacy`, a
-      v1-grandfathered change blocked upstream on `verification`, and an empty
-      `tasks.md` — asserting on `--json` that no relayed string carries a
-      bare-`openspec` command span; verify with `mise run test:contract`
-      (verification 4.1, 4.2, 4.3)
+- [x] 3.3 Add contract coverage on the reachable leaks — `applyLegacy`, a
+      v1-grandfathered change blocked upstream on `verification`, and the two
+      warning relays (clear-gate unread-delta, legacy no-delta-specs) that
+      replaced the empty-`tasks.md` case once the re-probe showed Step 2's
+      `tasks/has-tasks` ERROR makes it unreachable — asserting on `--json` and
+      on the transcript that no relayed string carries a bare-`openspec` command
+      span; verify with `mise run test:contract` (verification 4.1, 4.2, 4.3,
+      4.8)
 
 ## 4. Track D — validate dedupe, case-fold arms, and the new delta rule
 
