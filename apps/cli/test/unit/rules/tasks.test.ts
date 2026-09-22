@@ -28,4 +28,20 @@ describe('tasksRules', () => {
   test('no tasks.md → no issues', () => {
     expect(tasksRules(makeChange())).toHaveLength(0)
   })
+
+  // openspec 1.13.1 counts `*`, `+`, `1.` and `1)` list markers; cospec's
+  // detector now sees them too, but as grammar violations rather than tasks.
+  test('tasks/checkbox-grammar on every widened list marker', () => {
+    for (const marker of ['*', '+', '1.', '1)']) {
+      const change = makeChange({ tasksText: `## 1. Build\n\n${marker} [ ] 1.1 do it\n` })
+      const issue = tasksRules(change).find((i) => i.rule === 'tasks/checkbox-grammar')
+      expect(issue).toBeDefined()
+      expect(issue?.hint).toBe('expected: - [ ] 1.1 do it')
+    }
+  })
+
+  test('a tasks.md holding only widened markers also trips tasks/has-tasks', () => {
+    const change = makeChange({ tasksText: '## 1. Build\n\n+ [x] 1.1 done\n' })
+    expect(rules(tasksRules(change))).toEqual(['tasks/checkbox-grammar', 'tasks/has-tasks'])
+  })
 })

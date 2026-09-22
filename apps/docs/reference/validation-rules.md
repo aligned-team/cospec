@@ -106,11 +106,17 @@ Checks against `blocking-changes.md`'s two gated sections.
 
 Checks on `tasks.md`.
 
-| ID                       | Level | Check                                                                                                     |
-| ------------------------ | ----- | --------------------------------------------------------------------------------------------------------- |
-| `tasks/has-tasks`        | E     | at least one parseable `- [ ]` / `- [x]` item, when `tasks.md` exists                                     |
-| `tasks/checkbox-grammar` | E     | a checkbox-like line OpenSpec's tracker won't parse (`-[ ]`, `* [ ]`, `- [X ]`) — the fixed line is shown |
-| `tasks/group-numbering`  | W     | `## N.` groups are non-sequential, or `N.M` prefixes are inconsistent                                     |
+A line counts as checkbox-like under any CommonMark list marker OpenSpec's own
+task counter reads — `-`, `*`, `+`, `1.`, `1)` — with any box content, but not
+when the closing `]` starts a markdown link (`- [Some doc](./doc.md)`). Only
+`- [ ] ` / `- [x] ` is canonical; every other recognized form is a
+`tasks/checkbox-grammar` ERROR rather than a silently untracked line.
+
+| ID                       | Level | Check                                                                                                                                                    |
+| ------------------------ | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tasks/has-tasks`        | E     | at least one parseable `- [ ]` / `- [x]` item, when `tasks.md` exists                                                                                    |
+| `tasks/checkbox-grammar` | E     | a checkbox-like line that isn't the canonical `- [ ] ` / `- [x] ` form (`-[ ]`, `* [ ]`, `+ [ ]`, `1. [ ]`, `- [~]`, `- [X ]`) — the fixed line is shown |
+| `tasks/group-numbering`  | W     | `## N.` groups are non-sequential, or `N.M` prefixes are inconsistent                                                                                    |
 
 ## `verification/`
 
@@ -130,7 +136,7 @@ soft-promotes a requirement.
 | ----------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `verification/missing`              | I / E-strict | `verification.md` is required at apply time and absent                                                                                            |
 | `verification/structure`            | E            | at least one `## N. behavior` group exists; every group has at least one row                                                                      |
-| `verification/row-grammar`          | E            | a checkbox-like line doesn't parse as `- [<state>] N.M @<layer> [(<owner>)] <probe> -> <result>`                                                  |
+| `verification/row-grammar`          | E            | a checkbox-like line (same marker set as the `tasks/` family above) doesn't parse as `- [<state>] N.M @<layer> [(<owner>)] <probe> -> <result>`   |
 | `verification/layer-unknown`        | E            | `@<layer>` is outside the closed [layer vocabulary](/concepts/verification) and isn't extended via `openspec/config.yaml`'s `verification.layers` |
 | `verification/owner-unknown`        | E            | `(<owner>)` is present and is neither `(agent)` nor `(human)`                                                                                     |
 | `verification/evidence-required`    | E            | a `[x]` row's `-> <result>` is empty                                                                                                              |
