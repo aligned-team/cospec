@@ -1,6 +1,6 @@
 ---
 name: cospec-sync-specs
-description: Explain how spec sync works (it runs inside archive) and preview what would merge.
+description: Explain how spec sync works (it runs inside archive) and preview what would merge. Also use when the user says "cospec sync specs", "sync the specs", or "openspec sync".
 license: MIT
 compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:

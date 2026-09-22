@@ -1,6 +1,6 @@
 ---
 name: "COSPEC: Fast-forward"
-description: Author every remaining artifact on an already-scaffolded change in one pass, then validate.
+description: Author every remaining artifact on an already-scaffolded change in one pass, then validate. Also use when the user says "cospec ff", "cospec fast-forward", or "openspec ff".
 category: Workflow
 tags:
   - cospec

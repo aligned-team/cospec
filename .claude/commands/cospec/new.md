@@ -1,6 +1,6 @@
 ---
 name: "COSPEC: New"
-description: Scaffold a new change and show its typed artifact plan, then stop before authoring anything.
+description: Scaffold a new change and show its typed artifact plan, then stop before authoring anything. Also use when the user says "cospec new" or "openspec new".
 category: Workflow
 tags:
   - cospec

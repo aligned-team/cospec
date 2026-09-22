@@ -1,6 +1,6 @@
 ---
 name: "COSPEC: Bulk archive"
-description: Archive a batch of completed changes in dependency order, one cospec archive call at a time.
+description: Archive a batch of completed changes in dependency order, one cospec archive call at a time. Also use for a plural archive request — "cospec bulk-archive", "openspec bulk-archive", "archive all these changes", or "archive everything".
 category: Workflow
 tags:
   - cospec

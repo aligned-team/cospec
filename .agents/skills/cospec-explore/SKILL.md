@@ -1,6 +1,6 @@
 ---
 name: cospec-explore
-description: Investigate the codebase or a spec question without writing implementation code.
+description: Investigate the codebase or a spec question without writing implementation code. Also use when the user says "cospec explore" or "openspec explore".
 license: MIT
 compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:

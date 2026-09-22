@@ -1,5 +1,5 @@
 ---
-description: Investigate the codebase or a spec question without writing implementation code.
+description: Investigate the codebase or a spec question without writing implementation code. Also use when the user says "cospec explore" or "openspec explore".
 metadata:
   author: cospec
   generatedBy: cospec@0.7.1

@@ -1,6 +1,6 @@
 ---
 name: "COSPEC: Propose"
-description: Propose a new change and generate every artifact its type requires, in one guided pass.
+description: Propose a new change and generate every artifact its type requires, in one guided pass. Also use when the user says "cospec propose" or "openspec propose".
 category: Workflow
 tags:
   - cospec

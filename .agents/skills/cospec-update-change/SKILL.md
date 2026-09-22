@@ -1,6 +1,6 @@
 ---
 name: cospec-update-change
-description: Revise an existing change's already-written artifacts and keep them coherent, without creating new artifacts or editing code.
+description: Revise an existing change's already-written artifacts and keep them coherent, without creating new artifacts or editing code. Also use when the user says "cospec update change", "update the change", or "openspec update change" — never for the unrelated `cospec update` CLI command, which regenerates this repo's managed harness and schema files, not a change's artifacts.
 license: MIT
 compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
