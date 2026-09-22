@@ -4,6 +4,11 @@
 // parser serves validate / apply / archive / sync-blockers.
 
 import { splitLines } from './lines.ts'
+// The entry detector is the tasks detector: one house checkbox grammar, one
+// marker set across tasks.md, verification.md and blocking-changes.md. See
+// `CHECKBOX_LIKE` in ./tasks.ts for the openspec 1.13.1 `TASK_LINE_PATTERN`
+// parity note.
+import { CHECKBOX_LIKE } from './tasks.ts'
 
 /** Entry grammar (DESIGN §3.8) — separator tolerant of hyphen/en-dash/em-dash. */
 const ENTRY_RE =
@@ -16,10 +21,14 @@ const HEADING_SOFT = /^## Soft-blocked by\s*$/
 const H2 = /^## /
 /** A generic H2 heading, for near-miss detection. */
 const H2_TITLE = /^##\s+(.+?)\s*$/
-/** A bullet carrying a backticked slug but no checkbox (lint candidate). */
-const LOOSE_SLUG_BULLET = /^[-*]\s+`[a-z][a-z0-9-]*`/
-/** A checkbox-like bullet (candidate for a malformed entry). */
-const CHECKBOX_LIKE = /^\s*[-*]\s*\[[^\]]*\]/
+/**
+ * A bullet carrying a backticked slug but no checkbox (lint candidate).
+ *
+ * Shares `CHECKBOX_LIKE`'s CommonMark marker set deliberately: these two
+ * detectors are the only things standing between a `+`- or `1.`-bulleted
+ * dependency line and `computeGate` reading the section as empty.
+ */
+const LOOSE_SLUG_BULLET = /^(?:[-*+]|\d{1,9}[.)])\s+`[a-z][a-z0-9-]*`/
 
 export type SectionKey = 'blocked' | 'soft'
 
@@ -219,7 +228,12 @@ export function parseBlockers(text: string): ParsedBlockers {
     // Continuation line: indented, follows an entry — legal, ignored.
     if (/^\s{2,}\S/.test(raw) && current.entries.length > 0) continue
 
-    // A line that looks like an entry attempt but failed the grammar.
+    // A line that looks like an entry attempt but failed the grammar. Detection
+    // here is load-bearing for the hard gate, not just for lint: `computeGate`
+    // (§5.1 step 4d) reads `entries` only, so a dependency line this detector
+    // misses is a blocker that neither blocks nor reports. Reported instead as
+    // `blockers/entry-grammar`, which apply's fast validation (§5.1 step 2)
+    // fails on before the gate is ever computed.
     if (CHECKBOX_LIKE.test(raw) || LOOSE_SLUG_BULLET.test(trimmed)) {
       current.malformed.push({ raw, line: lineNo, corrected: correctEntry(raw) })
       continue

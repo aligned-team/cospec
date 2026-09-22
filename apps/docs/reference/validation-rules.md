@@ -84,7 +84,7 @@ Section and content checks on `proposal.md`.
 | `proposal/why-substantive` | W                                       | full-variant types only: `## Why` body must be at least 50 characters                                                                                                                                                                                                                                                           |
 | `proposal/benchmarks`      | E                                       | `perf` only: `## Benchmarks` present with at least one before/after row                                                                                                                                                                                                                                                         |
 | `proposal/revert-citation` | E                                       | `revert` only: `## Reverts` cites a backticked `archive/` slug and/or a 7–40-char hex sha                                                                                                                                                                                                                                       |
-| `proposal/surfaces-vocab`  | E                                       | every `## Surfaces` checkbox token is one of the closed set defined in [Types & artifacts](/concepts/types-and-artifacts) — anything else fails closed                                                                                                                                                                          |
+| `proposal/surfaces-vocab`  | E                                       | every `## Surfaces` checkbox item — under any CommonMark list marker — carries a token from the closed set defined in [Types & artifacts](/concepts/types-and-artifacts); anything else fails closed                                                                                                                            |
 
 See [Types & artifacts](/concepts/types-and-artifacts) for the full artifact
 matrix and the `## Surfaces` token vocabulary.
@@ -93,14 +93,20 @@ matrix and the `## Surfaces` token vocabulary.
 
 Checks against `blocking-changes.md`'s two gated sections.
 
-| ID                           | Level        | Check                                                                                     |
-| ---------------------------- | ------------ | ----------------------------------------------------------------------------------------- |
-| `blockers/sections`          | E            | both gated headings are present with exact text; a near-miss prints the corrected heading |
-| `blockers/entry-grammar`     | E            | every line in a gated section is legal grammar; the corrected line is printed             |
-| `blockers/dangling-ref`      | E            | an entry's slug is neither an active change nor an archived one                           |
-| `blockers/stale-unchecked`   | W (E-strict) | an unchecked entry whose target has been archived — auto-fixable by `sync-blockers`       |
-| `blockers/premature-checked` | W            | a checked entry whose target isn't archived yet (allowed, but surfaced)                   |
-| `blockers/none-conflict`     | E            | `None.` appears alongside actual entries in the same section                              |
+| ID                           | Level        | Check                                                                                                        |
+| ---------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------ |
+| `blockers/sections`          | E            | both gated headings are present with exact text; a near-miss prints the corrected heading                    |
+| `blockers/entry-grammar`     | E            | every checkbox-like or slug-carrying line in a gated section is legal grammar; the corrected line is printed |
+| `blockers/dangling-ref`      | E            | an entry's slug is neither an active change nor an archived one                                              |
+| `blockers/stale-unchecked`   | W (E-strict) | an unchecked entry whose target has been archived — auto-fixable by `sync-blockers`                          |
+| `blockers/premature-checked` | W            | a checked entry whose target isn't archived yet (allowed, but surfaced)                                      |
+| `blockers/none-conflict`     | E            | `None.` appears alongside actual entries in the same section                                                 |
+
+A gated-section line is checkbox-like under the same marker set as the `tasks/`
+family below, so a dependency written `+ [ ] \`dep\``or`1. [ ]
+\`dep\``is an`blockers/entry-grammar`ERROR rather than a line no parser sees. That is a gate fact, not a lint one:`cospec
+apply`'s hard-blocker gate reads parsed entries only, so an unrecognized
+dependency line would leave a genuinely blocked change reading as clear.
 
 ## `tasks/`
 

@@ -34,6 +34,23 @@ describe('blockersRules', () => {
     expect(rules(blockersRules(change, ctx()))).toContain('blockers/entry-grammar')
   })
 
+  test('blockers/entry-grammar on every widened list marker', () => {
+    // The hard-gate path: `computeGate` reads parsed entries only, so a `+`- or
+    // `1.`-bulleted dependency must surface here or `cospec apply` clears a
+    // genuinely blocked change. Apply's fast validation (§5.1 step 2) fails on
+    // this ERROR before the gate is computed.
+    for (const marker of ['*', '+', '1.', '1)']) {
+      const change = withBlockers(
+        `## Blocked by\n\n${marker} [ ] \`dep\` — x\n\n## Soft-blocked by\n\nNone.\n`,
+      )
+      const issues = blockersRules(change, ctx({ activeSlugs: new Set(['dep']) }))
+      expect(rules(issues)).toContain('blockers/entry-grammar')
+      expect(issues.find((i) => i.rule === 'blockers/entry-grammar')!.hint).toBe(
+        'expected: - [ ] `dep` — x',
+      )
+    }
+  })
+
   test('blockers/dangling-ref for an unknown slug', () => {
     const change = withBlockers(
       '## Blocked by\n\n- [ ] `ghost` — x\n\n## Soft-blocked by\n\nNone.\n',

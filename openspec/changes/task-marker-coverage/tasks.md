@@ -39,3 +39,19 @@
       verification row 4.1
 - [ ] 4.2 Run `mise run docs:build` and `mise run check`, and verify by
       verification rows 4.2 and 3.4
+
+## 5. Close the same class in the sibling detectors
+
+- [ ] 5.1 Route `blocking-changes.md`'s entry detection through the shared
+      `CHECKBOX_LIKE` and widen `LOOSE_SLUG_BULLET` to the same marker set in
+      `apps/cli/src/core/blockers.ts`, and verify by verification rows 5.1 and
+      5.2
+- [ ] 5.2 Widen `SURFACE_ITEM_RE` in `apps/cli/src/core/proposal.ts` to the same
+      marker set, leaving its skip-on-no-match reader shape untouched, and
+      verify by verification row 5.3
+- [ ] 5.3 Add the apply-gate regression and the parser/rule cases for both
+      files, each failing before the fix, and verify by verification rows 5.1,
+      5.2 and 5.3
+- [ ] 5.4 State both facts on the pages that own them (`docs/validation.md`,
+      `apps/docs/reference/validation-rules.md`), and verify by verification row
+      5.4

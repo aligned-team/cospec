@@ -103,7 +103,18 @@ export interface SurfaceItem {
   line: number
 }
 
-const SURFACE_ITEM_RE = /^\s*[-*]\s*\[([ xX])\]\s*(\S+)/
+/**
+ * A `## Surfaces` checkbox item.
+ *
+ * The list-marker set is the house set (see `CHECKBOX_LIKE` in ./tasks.ts):
+ * every CommonMark bullet plus the ordered markers. This reader has no
+ * malformed-line path — an unmatched line is simply skipped — so a narrower set
+ * would make a `+ [x] deploy` flag silently unread and its soft nudges
+ * (design/*, verification/*, meta/surface-unmet) silently unfired. Reading a
+ * flag can only add consequences, never suppress them, so widening the reader
+ * is the fail-closed direction here.
+ */
+const SURFACE_ITEM_RE = /^\s*(?:[-*+]|\d{1,9}[.)])\s*\[([ xX])\]\s*(\S+)/
 
 /**
  * Parse the `## Surfaces` checkbox block, returning every listed flag (checked or
