@@ -81,17 +81,24 @@ least as long as the one that opened it.
 
 `## REMOVED Requirements` and `## RENAMED Requirements` bullets accept
 CommonMark's full marker set (`-`, `*`, `+`) with any leading whitespace, and a
-`RENAMED` pair's `FROM:`/`TO:` marker is optional — matching OpenSpec's own
-delta reader. A `FROM:` or `TO:` line that forms no pair (a second `FROM:`
-displacing the first, a `TO:` with no pending `FROM:`, or a `FROM:` still open
-when its section ends) is `deltas/unpaired-rename` (E) rather than a silently
-dropped or cross-paired rename.
+`RENAMED` pair's `FROM:`/`TO:` marker is optional — matching OpenSpec 1.13.1's
+delta reader. Only the leading whitespace is portable at the pinned 1.11.0
+binary: its readers take a single `-`, so a `*`- or `+`-bulleted entry parses as
+nothing there and the delegated `openspec/validate` relay refuses the change
+(`… but no requirement entries parsed`) even though cospec's own parser read it.
+Write `-` until the pin moves. A `FROM:` or `TO:` line that forms no pair (a
+second `FROM:` displacing the first, a `TO:` with no pending `FROM:`, or a
+`FROM:` still open when its section ends) is `deltas/unpaired-rename` (E) rather
+than a silently dropped or cross-paired rename.
 
 A requirement name is normalized by stripping a trailing CommonMark closing ATX
 run (`### Requirement: Foo ###` reads as `Foo`) before trim, so
 `### Requirement: Foo ###` in a delta resolves against a living `Foo` header
 without a false `archive/target-missing`, and two headers differing only in that
-trailing run collide as one requirement, not two.
+trailing run collide as one requirement, not two. This too is OpenSpec 1.13.1
+behaviour: the pinned 1.11.0 binary captures the run as part of the name, so
+`cospec archive` clears its own precondition and then reports the delegated
+abort it verifies on disk. Drop the closing run until the pin moves.
 
 Both parsers count a `#### ` header as a scenario only when its body carries at
 least one non-blank line before the next level-1-to-4 header or end of input —
