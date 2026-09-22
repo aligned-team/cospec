@@ -11,7 +11,7 @@ changing this contract.
 Twelve workflows — `propose`, `new`, `continue`, `ff`, `apply`, `verify`,
 `archive`, `bulk-archive`, `sync-specs`, `explore`, `onboard`, `update` —
 single-sourced in `canon/workflows/*.md` and rendered per harness. This is
-cospec's full opsx 1.11.0 parity set: every live opsx workflow (`propose`,
+cospec's full opsx 1.13.1 parity set: every live opsx workflow (`propose`,
 `new`, `explore`, `continue`, `apply`, `ff`, `sync`, `archive`, `bulk-archive`,
 `verify`, `onboard`, `update`) has a cospec-adapted counterpart — `sync` maps to
 `sync-specs` (see below). cospec has no core/custom profile split: it always

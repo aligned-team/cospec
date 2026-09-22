@@ -25,7 +25,7 @@ cospec adds typed schemas, a real gate, and a verified archive on top.
 cospec accepts OpenSpec **`>=1.0.0 <2.0.0`** at runtime — that range is asserted
 the first time cospec calls out to it in a process, and an out-of-range binary
 is refused outright. cospec's own dev and CI pin one exact build inside that
-range, **`1.11.0`**, which is the version its contract test suite runs against.
+range, **`1.13.1`**, which is the version its contract test suite runs against.
 Those two numbers are meant to drift apart over time (the accepted range is
 wide; the pin is narrow and load-bearing, and the floor is deliberately not
 raised just because the pin moved) but never to fall out of sync with each other
@@ -45,6 +45,26 @@ and the current pin:
   From 1.8.0 on, `openspec archive` ships its own overlapping scenario-loss
   check, making cospec's gate defence-in-depth rather than the only thing
   standing between an author and a silently thinned spec.
+- **From 1.12.0, `openspec validate` dry-runs the archive merge and reports the
+  result as INFO-level issues.** cospec relays these (deduped against its own
+  `archive/*` findings so a single upstream precondition never doubles up as a
+  second, cospec-native finding); an INFO never moves `valid` or the exit code.
+- **From 1.13.0, `openspec archive` rewrites specs with a fence-aware blank-line
+  collapse and treats `+`-bulleted scenario steps as real content** rather than
+  refusing to merge them. cospec's post-merge filesystem verification and
+  scenario-preservation check are unchanged by this — they re-verify whatever
+  the merge actually produced, byte for byte.
+- **From 1.13.1, `openspec archive` refuses four cases it previously merged
+  silently or crashed on:** an unpaired `RENAMED` (a `FROM:` with no matching
+  `TO:`, or vice versa); a `RENAMED` target or `ADDED` name that collides with a
+  living requirement name in case or whitespace only; a delta file that carries
+  delta section headers but isn't named `spec.md`; and a namespace folder
+  mistaken for a change. cospec ports its own native ERROR for each of the first
+  three (`deltas/unpaired-rename`, the widened `archive/added-exists`,
+  `deltas/unread-file` — see [Validation rules](/reference/validation-rules)) so
+  `cospec validate --strict` catches them before `cospec archive` ever
+  delegates; the fourth (namespace folders) is a delegated refusal cospec relays
+  verbatim rather than re-implementing its own detection of.
 
 ## cospec never replaces OpenSpec
 

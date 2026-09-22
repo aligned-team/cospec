@@ -109,32 +109,32 @@
 
 ## 5. Track F — docs, shared.md, and zero drift
 
-- [ ] 5.1 Update `apps/docs/concepts/how-it-relates-to-openspec.md` — the single
+- [x] 5.1 Update `apps/docs/concepts/how-it-relates-to-openspec.md` — the single
       owner of the pin fact — to `1.13.1` and extend its behaviour-delta list
       with 1.12's archive-preflight INFO, 1.13's archive-fidelity fixes, and
       1.13.1's four new archive refusals; verify by a human read of the rendered
       page (verification 12.4)
-- [ ] 5.2 Update `apps/docs/concepts/apply-and-archive.md` and
+- [x] 5.2 Update `apps/docs/concepts/apply-and-archive.md` and
       `docs/apply-archive.md` with `warnings` and `missingPrerequisites` as
       advisory fields that never move an exit code; verify by a human read
       (verification 12.4)
-- [ ] 5.3 Update `apps/docs/reference/validation-rules.md` and
+- [x] 5.3 Update `apps/docs/reference/validation-rules.md` and
       `docs/validation.md` with `deltas/unread-file`, the `openspec/validate`
       INFO class, the new dedupe pairings, and the `tasks/has-tasks`
       supersession; verify by a human read (verification 12.4)
-- [ ] 5.4 Update `docs/architecture.md` with the pin refs, the relay-guard
+- [x] 5.4 Update `docs/architecture.md` with the pin refs, the relay-guard
       rationale, and the nested-change deferral rationale, and restate the opsx
       parity claim at 1.13.1 in `docs/harness-integration.md` and
       `apps/docs/guide/harness-setup.md`; verify by a human read (verification
       12.4)
-- [ ] 5.5 Move the incidental pin mentions in `docs/stores.md`,
+- [x] 5.5 Move the incidental pin mentions in `docs/stores.md`,
       `docs/self-hosting.md`, `docs/bench.md`, `README.md`, and
       `apps/cli/README.md`; verify with the repo-wide `1.11.0` grep from 1.6
       (verification 1.5)
-- [ ] 5.6 Edit `.agents/shared.md` and run `mise run agents:sync`, never
+- [x] 5.6 Edit `.agents/shared.md` and run `mise run agents:sync`, never
       touching `CLAUDE.md`/`AGENTS.md` by hand; verify with
       `mise run agents:check` clean (verification 12.2)
-- [ ] 5.7 Run `mise run generate:check` and `mise run docs:build`; verify both
+- [x] 5.7 Run `mise run generate:check` and `mise run docs:build`; verify both
       exit 0 (verification 12.1, 12.3)
 
 ## 6. Close-out — whole-system proof

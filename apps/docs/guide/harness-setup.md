@@ -12,7 +12,7 @@ description:
 `new`, `continue`, `ff`, `apply`, `verify`, `archive`, `bulk-archive`,
 `sync-specs`, `explore`, `onboard`, `update` — into your agent harness by
 writing project files directly. This is cospec's full parity set with opsx
-1.11.0: every live opsx workflow has a cospec-adapted counterpart (opsx `sync`
+1.13.1: every live opsx workflow has a cospec-adapted counterpart (opsx `sync`
 maps to cospec `sync-specs`, opsx `update` to cospec `update`), and cospec
 always emits the complete set to every configured harness — there's no
 core/custom profile split to opt into. There is no marketplace, no plugin

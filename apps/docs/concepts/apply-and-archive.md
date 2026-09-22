@@ -66,7 +66,9 @@ In order:
     "contextFiles": [],
     "progress": {},
     "tasks": [],
-    "instruction": "..."
+    "instruction": "...",
+    "warnings": [],
+    "missingPrerequisites": []
   }
 }
 ```
@@ -74,6 +76,17 @@ In order:
 `apply.contextFiles` in the `--json` output is the file list an agent should
 load before implementing — proposal, design, specs deltas, whatever the type
 requires — so you don't have to guess what's relevant.
+
+`apply.warnings` and `apply.missingPrerequisites` are relayed verbatim from
+OpenSpec's own `instructions apply --json` (present since 1.13.0; a second
+`warnings` entry for an unread delta file joins them at 1.13.1). Both are
+**advisory** — neither ever moves `cospec apply`'s exit code, which is fully
+decided by steps 1–4 above. In practice a cospec-typed change rarely reaches a
+non-empty `apply.warnings`: every state OpenSpec warns about there (an unread
+delta file, a change with no delta specs, a tasks file with zero checkboxes) is
+already a `cospec validate` **ERROR** that stops the run before step 5. The
+relay is live mainly on the legacy/v1-schema and forked-schema lanes, where
+cospec's own gate is narrower than OpenSpec's.
 
 ::: tip `--allow-soft` only waives **soft** blockers. Hard blockers have no
 override — the change they name has to actually land first. :::

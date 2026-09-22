@@ -2,7 +2,7 @@
 
 cospec is a wrapper. It owns no spec-format logic of its own that OpenSpec
 already implements correctly — it constrains, validates, and verifies OpenSpec
-`1.11.0`, and closes the specific failure modes that make raw OpenSpec unsafe to
+`1.13.1`, and closes the specific failure modes that make raw OpenSpec unsafe to
 hand to an agent.
 
 ## The wrapping boundary
@@ -54,7 +54,7 @@ cospec spawns OpenSpec; it never imports it.
   a refusal message naming the range and a `COSPEC_ALLOW_OPENSPEC_DRIFT=1`
   override for the brave (which makes cospec version-blind but does not make an
   out-of-range binary safe to wrap). Separately, the repo pins one exact build
-  for dev/CI — `PINNED_OPENSPEC_VERSION` (`1.11.0`), the version the contract
+  for dev/CI — `PINNED_OPENSPEC_VERSION` (`1.13.1`), the version the contract
   suite is probed against. The dep pin, the `mise.toml` pin, that constant, and
   the live binary are held coherent by the version tripwire contract test (the
   pin is exact and in range; the binary reports it and satisfies the range), so
@@ -85,6 +85,32 @@ real, so success is computed from filesystem post-conditions with the exit code
 ANDed in as one term among several, never trusted alone. Softening this back to
 exit-code trust because the pinned build happens to behave better would be a
 regression the moment someone runs cospec against an older in-range binary.
+
+### The output-side rule: relay every wrapped remedy through `cospec`
+
+The wrapped-call discipline above governs the _call_ — exit codes, a stdout
+deny-list, a post-condition. `cospec apply` needs the mirror rule on the
+_output_: `CLAUDE.md` requires every agent-facing OpenSpec access to route
+through `cospec`, but OpenSpec's own `instructions apply --json` writes its
+remedies as `openspec …` command strings, and cospec relays that payload's
+`instruction` and (from 1.13.0) `warnings` fields into both its own `--json`
+output and the human transcript. Left unrewritten, that is a routing- discipline
+leak: an agent obeying the printed remedy verbatim would call the bare binary.
+
+`relayThroughCospec` (`commands/apply.ts`) closes it as an output filter, not a
+fresh source of truth — it never invents a `cospec` surface upstream doesn't
+have. The match is anchored to a backtick-delimited command span, never a bare
+`openspec ` token, because `collectApplyWarnings`'s no-delta-specs warning
+embeds an absolute `…/.openspec.yaml` path in the same string that must not be
+touched. The verb set is closed and enumerated (`instructions`, `status`,
+`validate` — every verb the 1.13.1 remedy strings actually emit) rather than a
+wildcard match, so a verb outside it is deliberately left alone: relaying an
+unrecognized upstream command as `cospec` would fabricate a surface that may not
+exist. This is defence-in-depth, the same posture as the archive
+scenario-preservation gate below — cospec's own routing discipline is the
+primary guard (agents are told to call `cospec`, never `openspec`), and the
+relay guard is the belt-and-suspenders catch for the one path where upstream's
+own text is quoted back to the reader.
 
 ## The disciplined-passthrough runner
 
@@ -184,7 +210,7 @@ because a real breach there must not compute as a clean archive:
   through `REMOVED` carries no MODIFIED op, so the gate never sees it. This is
   the gate that would have caught the archive-time thinning `openspec archive`
   itself waves through at exit 0. It ships with a contract test against the real
-  pinned openspec 1.11.0 binary proving cospec refuses even though openspec
+  pinned openspec 1.13.1 binary proving cospec refuses even though openspec
   would happily merge the delta — a false PASS here is a release blocker, same
   discipline as the rest of the archive-precondition family. As of upstream
   1.8.0, `openspec archive` also runs its own overlapping scenario-loss check,
@@ -212,6 +238,25 @@ the user typed after the command name), immediately before the body's first
 placeholder there, and the literal text would leak to the model — so the two
 rendered bodies for the same workflow have different `contentHash`es on OpenCode
 by design, not by drift.
+
+### 4. Nested-change namespace folders (deferred, bounded by contract)
+
+Upstream refuses a `openspec/changes/` entry that is itself a namespace folder
+wrapping further changes, at both gates that matter: `openspec validate` reports
+`is not a change: it is a folder wrapping …`, and `openspec archive`
+hard-refuses with `archive_change_is_namespace_folder` before validation ever
+runs. `mergeDelegated` keeps a delegated finding with no cospec twin verbatim,
+so both refusals reach the user unchanged with no cospec-side work — cospec's
+`change.ts` has no shape check of its own, and deliberately doesn't grow one
+here. What is _not_ covered for free is reporting quality on cospec's own
+surfaces: `cospec status` and `cospec list` would still show a fabricated
+artifact plan against a phantom empty schema for such an entry. That is a UX
+defect, not a gate disagreement or a data-loss path — nothing merges
+incorrectly, nothing archives incorrectly — so it stays out of scope here and is
+bounded instead by two contract tests proving the delegated refusal actually
+reaches the user through `cospec validate` and `cospec archive`. A proper fix is
+its own `feat`: a namespace-folder detector wired into all four command
+surfaces.
 
 ## The static-matrix invariant
 
@@ -272,7 +317,13 @@ apps/cli/src/
 │   ├── report.ts           the Issue model + text/JSON renderers (frozen interface)
 │   ├── managed-files.ts    generatedBy/contentHash protocol + manifest
 │   ├── blockers.ts         blocking-changes.md parser, sync, lint
-│   ├── deltas.ts           delta parser + archive-precondition checks
+│   ├── deltas.ts           delta parser + archive-precondition checks (one
+│   │                       parser for every reader — `show`, `list --specs`,
+│   │                       `validate`, and `archive` all resolve a delta
+│   │                       through `parseDeltaSpec`, so cospec never developed
+│   │                       the divergent-readers class of bug OpenSpec's own
+│   │                       1.13.1 release fixed between its `show` path and
+│   │                       its archive path)
 │   ├── tasks.ts / proposal.ts
 │   ├── verification.ts     verification.md parser (groups, rows, layer/owner/state)
 │   ├── schema-compose.ts   canon → schema.yaml + templates per type

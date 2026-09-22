@@ -240,6 +240,12 @@ change is the thing that moves it:
   on an `apply.tracks` mismatch. That makes an upstream invariant binding on
   cospec's eleven composed schemas at _load_, on the common path of every
   command — so it is proved before anything else depends on it.
+- A store `openspec init`/`update` at 1.12+ now anchors empty directories
+  (`openspec/specs`, `openspec/changes`, `openspec/changes/archive`) with
+  `.gitkeep` files. cospec's own readers are directory-filtered (`change.ts`'s
+  `withFileTypes` + `isDirectory()` scan, `spec-paths.ts`'s equivalent), so a
+  `.gitkeep` entry is invisible to every cospec-native scan by construction — no
+  interop hazard, and nothing to port.
 - Behavioural deltas the re-probe is expected to surface, each rewritten
   honestly rather than asserted away: the archive-preflight dry run (1.12), the
   fence-aware blank-line collapse and looser `retire_capabilities` audit (1.13),

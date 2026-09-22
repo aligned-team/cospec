@@ -1,6 +1,6 @@
 # Stores (`--store`)
 
-An OpenSpec **store** (openspec 1.11.0) is a standalone, registered planning
+An OpenSpec **store** (openspec 1.13.1) is a standalone, registered planning
 repo: its own `openspec/` tree of specs and changes, versioned and shared over
 git like any repo. cospec is **store-aware** — every change-lifecycle command
 takes a `--store <id>` global flag and runs its full typed workflow against that
