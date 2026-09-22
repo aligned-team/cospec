@@ -106,6 +106,14 @@
       instead of over the regex alone — a contract case on
       `specs/platform/session-layout/spec.md` proves the pairing fires, which a
       regex unit case could not (verification 11.1)
+- [x] 4.7 Replay the delta in `apps/cli/src/core/rules/archive.ts` so every
+      collision arm reads the spec as the wrapped binary has it when that
+      operation runs, closing the sibling-op collisions the living-only search
+      never saw — and the false refusal and false post-merge invariant breach
+      (`commands/archive.ts`) on a delta that reuses a name an earlier operation
+      vacated; verify with contract cases for two fold-colliding ADDEDs, an
+      ADDED folding onto the delta's own RENAMED target, and a swap both sides
+      archive, plus unit cases over each shape (verification 6.9, 6.10)
 
 ## 5. Track F — docs, shared.md, and zero drift
 

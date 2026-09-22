@@ -517,3 +517,125 @@ describe('zero-checkbox tasks (openspec 1.13.1)', () => {
     expect(named).toEqual([])
   })
 })
+
+/** Two ADDED names in ONE delta that fold onto each other. */
+const ADDED_SIBLING_FOLD = `## ADDED Requirements
+
+### Requirement: Widget tracing
+
+The system SHALL trace a widget render.
+
+#### Scenario: Trace a render
+
+- **WHEN** a widget is rendered
+- **THEN** a trace is emitted
+
+### Requirement: WIDGET TRACING
+
+The system SHALL trace a widget render into the audit log.
+
+#### Scenario: Trace a render
+
+- **WHEN** a widget is rendered
+- **THEN** a trace reaches the audit log
+`
+
+/** An ADDED folding onto the target this same delta renames a requirement to. */
+const RENAMED_THEN_ADDED_FOLD = `## RENAMED Requirements
+
+- FROM: \`### Requirement: Widget caching\`
+- TO: \`### Requirement: Widget tracing\`
+
+## ADDED Requirements
+
+### Requirement: WIDGET TRACING
+
+The system SHALL trace a widget render into the audit log.
+
+#### Scenario: Trace a render
+
+- **WHEN** a widget is rendered
+- **THEN** a trace reaches the audit log
+`
+
+/** A swap: the second rename lands on the name the first one vacated. */
+const RENAMED_CHAIN = `## RENAMED Requirements
+
+- FROM: \`### Requirement: Widget rendering\`
+- TO: \`### Requirement: Widget streaming\`
+- FROM: \`### Requirement: Widget caching\`
+- TO: \`### Requirement: Widget rendering\`
+`
+
+// openspec folds an op's name against the spec as it stands when that op runs,
+// after the delta's earlier operations have been applied to it — so a delta
+// whose own two operations write one requirement under two spellings is
+// refused, and one that reuses a name an earlier operation vacated is not.
+// Folding against the living names alone got both of those wrong: the first
+// reported clean at `validate` and aborted inside the delegated merge, the
+// second was refused for a collision that is not there.
+describe('fold-equal collisions between two ops in one delta (openspec 1.13.1)', () => {
+  test('the binary refuses two ADDED names that fold onto each other', async () => {
+    const root = mkTempRepo({ git: true })
+    build(root, 'sibling-fold', { 'widgets/spec.md': ADDED_SIBLING_FOLD })
+    const res = await openspec(['archive', 'sibling-fold', '-y'], root)
+    expect(res.exitCode).toBe(1)
+    expect(res.stdout).toContain('already exists and differs only in case or spacing')
+    expect(res.stdout).toContain('Aborted. No files were changed.')
+    expect(existsSync(join(root, 'openspec/changes/sibling-fold'))).toBe(true)
+  })
+
+  test('cospec refuses it first, as archive/added-exists, reported once', async () => {
+    const root = mkTempRepo({ git: true })
+    build(root, 'sibling-fold', { 'widgets/spec.md': ADDED_SIBLING_FOLD })
+    const report = await validateJson(root, 'sibling-fold')
+    expect(report.summary.byRule['archive/added-exists']).toBe(1)
+    expect(preflightInfos(report)).toEqual([])
+    const found = issues(report).find((i) => i.rule === 'archive/added-exists')
+    expect(found?.message).toContain('differs only in case or spacing from "Widget tracing"')
+    // The twin is this delta's own earlier ADDED, not a living requirement.
+    expect(found?.message).toContain('written by an earlier operation in this delta')
+
+    const res = await cospec(['archive', 'sibling-fold'], { cwd: root })
+    expect(res.exitCode).not.toBe(0)
+    expect(res.stdout).toContain('archive/added-exists')
+    expect(`${res.stdout}${res.stderr}`).not.toContain('Aborted. No files were changed.')
+    expect(existsSync(join(root, 'openspec/changes/sibling-fold'))).toBe(true)
+  })
+
+  test('an ADDED folding onto this delta’s RENAMED target is refused by both', async () => {
+    const oRepo = mkTempRepo({ git: true })
+    build(oRepo, 'rename-then-add', { 'widgets/spec.md': RENAMED_THEN_ADDED_FOLD })
+    const o = await openspec(['archive', 'rename-then-add', '-y'], oRepo)
+    expect(o.exitCode).toBe(1)
+    expect(o.stdout).toContain('already exists and differs only in case or spacing')
+
+    const cRepo = mkTempRepo({ git: true })
+    build(cRepo, 'rename-then-add', { 'widgets/spec.md': RENAMED_THEN_ADDED_FOLD })
+    const report = await validateJson(cRepo, 'rename-then-add')
+    expect(report.summary.byRule['archive/added-exists']).toBe(1)
+    const c = await cospec(['archive', 'rename-then-add'], { cwd: cRepo })
+    expect(c.exitCode).not.toBe(0)
+    expect(`${c.stdout}${c.stderr}`).not.toContain('Aborted. No files were changed.')
+  })
+
+  test('a rename onto a name an earlier rename vacated is applied by both', async () => {
+    const oRepo = mkTempRepo({ git: true })
+    build(oRepo, 'swap-names', { 'widgets/spec.md': RENAMED_CHAIN })
+    const o = await openspec(['archive', 'swap-names', '-y'], oRepo)
+    expect(o.exitCode).toBe(0)
+    const oLiving = readFileSync(join(oRepo, 'openspec/specs/widgets/spec.md'), 'utf8')
+    expect(oLiving).toContain('### Requirement: Widget streaming')
+    expect(oLiving).toContain('### Requirement: Widget rendering')
+
+    const cRepo = mkTempRepo({ git: true })
+    build(cRepo, 'swap-names', { 'widgets/spec.md': RENAMED_CHAIN })
+    const report = await validateJson(cRepo, 'swap-names')
+    expect(problems(report)).toEqual([])
+    const c = await cospec(['archive', 'swap-names'], { cwd: cRepo })
+    expect(c.exitCode).toBe(0)
+    const cLiving = readFileSync(join(cRepo, 'openspec/specs/widgets/spec.md'), 'utf8')
+    expect(cLiving).toContain('### Requirement: Widget streaming')
+    expect(cLiving).toContain('### Requirement: Widget rendering')
+  })
+})

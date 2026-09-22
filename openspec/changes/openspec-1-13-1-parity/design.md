@@ -151,6 +151,35 @@ The early-sync exemptions must keep applying. A fold near-miss must not
 resurrect a collision on an `ADDED` requirement the baseline already carries
 identically, or cospec starts refusing archives the binary performs at exit 0.
 
+**Amended in review.** Both arms were first written to fold against
+`living.requirementNames`, the pristine living spec, with a hand-built `vacated`
+set standing in for the delta's own removals and renames. That is not what
+upstream compares against: `specs-apply.ts` loads the spec into one map and
+applies the delta in four ordered phases — `RENAMED`, `REMOVED`, `MODIFIED`,
+`ADDED` — with every collision and near-miss search reading that map as it
+stands when its operation runs. The difference is not cosmetic. It is the whole
+class of collisions a delta makes with **itself**, all of which the
+pristine-spec search reported clean while the binary aborted at archive: two
+`ADDED` names that fold onto each other (verified against the real 1.13.1
+binary), an `ADDED` folding onto the delta's own `RENAMED` target, a second
+`RENAMED` target folding onto the first. It also over-refused in the other
+direction, on a swap that renames `A` to `B` and then `C` to `A`.
+
+`replayDeltaNames` (`core/rules/archive.ts`) replays those four phases and hands
+each op the name set upstream would give it; only an operation the binary would
+actually apply moves a name, since one it refuses aborts the merge. The
+`vacated` set is gone — the replay subsumes it, and a capability with no living
+spec now starts from the empty skeleton openspec builds rather than skipping the
+collision arms entirely. The two exclusions above stay exactly as stated: they
+are properties of a single operation, not of the sequence.
+
+The same stale-view mistake lived in `cospec archive`'s post-merge spot-check,
+where each operation was judged alone against the end state — so the swap above
+archived correctly and was then reported as a
+`cospec/openspec invariant breach`. `spotCheckMiss` now takes the capability's
+net effect (which names the delta's other operations write, and which they take
+away) alongside the merged spec.
+
 ### ADR-5: `deltas/unread-file` is a new ERROR; the `spec.md`-only discovery filter stays
 
 cospec's change loader filters a change's delta files to `specs/**/spec.md`, and

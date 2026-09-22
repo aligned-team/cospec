@@ -178,11 +178,24 @@ Each exemption is withheld when the living spec still carries a name that folds
 equal to the named one — same letters, differing only in case or interior
 whitespace — but is not it. That is a mistyped header rather than an early sync,
 OpenSpec aborts on it, and cospec keeps refusing it with a hint naming the exact
-living header. Everything else stays an ERROR: an `ADDED` collision whose body
-differs, a `RENAMED` with FROM and TO both absent, a `RENAMED` applied while
-both are present, a `RENAMED` whose TO collides with an `ADDED` in the same
-delta — a delta-internal conflict OpenSpec refuses whether or not the rename
-itself is an early sync — and a `MODIFIED` whose target is absent.
+living header.
+
+Every one of these checks reads the spec **as the merge has it when that
+operation runs** — the living spec with the delta's earlier operations already
+applied, in OpenSpec's own order (`RENAMED`, `REMOVED`, `MODIFIED`, `ADDED`) —
+because that is what OpenSpec itself compares against. So a delta collides with
+itself: two `ADDED` names that fold onto each other, an `ADDED` folding onto the
+delta's own `RENAMED` target, a second `RENAMED` target folding onto the first
+are each an `archive/added-exists` ERROR on the later operation, for a brand-new
+capability as much as for a living one. And in the other direction, a name an
+earlier operation vacated is free — a swap that renames `A` to `B` and then `C`
+to `A` archives cleanly.
+
+Everything else stays an ERROR: an `ADDED` collision whose body differs, a
+`RENAMED` with FROM and TO both absent, a `RENAMED` applied while both are
+present, a `RENAMED` whose TO collides with an `ADDED` in the same delta — a
+delta-internal conflict OpenSpec refuses whether or not the rename itself is an
+early sync — and a `MODIFIED` whose target is absent.
 
 **Execute and verify**
 
@@ -196,7 +209,10 @@ itself is an early sync — and a `MODIFIED` whose target is absent.
    of a false success.
 9. For specs-bearing changes, a post-merge spot-check confirms each delta
    actually landed as expected in the living spec (ADDED present, REMOVED
-   absent, RENAMED correctly, MODIFIED applied). Any miss exits `1`.
+   absent, RENAMED correctly, MODIFIED applied). Each operation is judged
+   against what the capability's other operations do to that name, so a name
+   another operation legitimately puts back — the swap above — is not read as a
+   miss. Any real miss exits `1`.
 
 **Post**
 

@@ -14,6 +14,7 @@ import {
   SCENARIO_DROP_NOTE_RETIRED,
   scenarioDropMessage,
   type DeltaOp,
+  type LivingSpec,
 } from '../deltas.ts'
 import type { Issue } from './issue.ts'
 import type { LoadedChange } from './schema-info.ts'
@@ -23,22 +24,97 @@ function opTargetName(op: DeltaOp): string | undefined {
   return op.name
 }
 
+const NO_EXEMPTIONS: ReadonlySet<string | undefined> = new Set()
+
 /**
- * The living requirement `name` folds onto, if any — openspec's own near-miss
- * search (`specs-apply.ts`, RENAMED/REMOVED/ADDED arms): two spellings that
- * differ only in case or interior whitespace are one requirement written twice,
- * which the binary refuses rather than writing both copies into the spec.
+ * The requirement in `names` that `name` folds onto, if any — openspec's own
+ * near-miss search (`specs-apply.ts`, RENAMED/REMOVED/ADDED arms): two
+ * spellings that differ only in case or interior whitespace are one
+ * requirement written twice, which the binary refuses rather than writing both
+ * copies into the spec.
  *
- * `exempt` holds the names that are not collisions for this op — the rename's
- * own source, and the living names the delta vacates before the op applies.
+ * `names` is the spec as it stands when the op runs, never the pristine living
+ * spec — see `replayDeltaNames`. `exempt` holds the names that are not
+ * collisions for this op: a rename's own source.
  */
 function foldNearMiss(
-  livingNames: ReadonlySet<string>,
+  names: Iterable<string>,
   name: string,
-  exempt: ReadonlySet<string | undefined>,
+  exempt: ReadonlySet<string | undefined> = NO_EXEMPTIONS,
 ): string | undefined {
   const folded = foldRequirementName(name)
-  return [...livingNames].find((n) => !exempt.has(n) && foldRequirementName(n) === folded)
+  return [...names].find((n) => !exempt.has(n) && foldRequirementName(n) === folded)
+}
+
+/**
+ * The requirement names each op in a delta sees, keyed by op.
+ *
+ * openspec never checks an operation against the pristine living spec: it
+ * loads the spec into one map and applies the delta in four ordered phases —
+ * RENAMED, then REMOVED, then MODIFIED, then ADDED (`specs-apply.ts`) — with
+ * each op's collision and near-miss searches reading that map as it stands by
+ * then. So an op collides with what the ops before it left behind, and the
+ * binary refuses a delta whose own two operations write one requirement under
+ * two spellings: two ADDED names that fold onto each other, an ADDED landing
+ * on a RENAMED target, a second RENAMED taking a fold-variant of the first
+ * one's target. Folding against the living names alone saw none of those, and
+ * cospec reported clean on deltas the binary aborts.
+ *
+ * Only an operation the binary would apply moves a name. One it refuses aborts
+ * the whole merge upstream, so nothing after it runs at all; cospec keeps
+ * going to report the rest of the delta, but reports it against the spec the
+ * binary would have had.
+ *
+ * A capability with no living spec starts empty: openspec builds a skeleton
+ * spec for it and applies the delta's ADDED ops to that, so two ADDED names
+ * that fold onto each other are refused for a brand-new capability too.
+ */
+function replayDeltaNames(
+  living: LivingSpec | undefined,
+  ops: readonly DeltaOp[],
+): Map<DeltaOp, ReadonlySet<string>> {
+  const working = new Set(living?.requirementNames ?? [])
+  const seen = new Map<DeltaOp, ReadonlySet<string>>()
+  const visit = (op: DeltaOp, apply: () => void): void => {
+    seen.set(op, new Set(working))
+    apply()
+  }
+
+  for (const op of ops)
+    if (op.operation === 'RENAMED')
+      visit(op, () => {
+        const from = op.fromName
+        const to = op.toName
+        if (from === undefined || to === undefined) return
+        // Source gone, target taken, or a target that folds onto a surviving
+        // name: upstream either treats the rename as already applied or aborts.
+        // Neither one moves a name.
+        if (!working.has(from) || working.has(to)) return
+        if (foldNearMiss(working, to, new Set([from])) !== undefined) return
+        working.delete(from)
+        working.add(to)
+      })
+
+  for (const op of ops)
+    if (op.operation === 'REMOVED')
+      visit(op, () => {
+        if (op.name !== undefined) working.delete(op.name)
+      })
+
+  // MODIFIED replaces a block under its own header, so it moves no name — it
+  // still takes a snapshot, because the ops after it see the same spec.
+  for (const op of ops) if (op.operation === 'MODIFIED') visit(op, () => {})
+
+  for (const op of ops)
+    if (op.operation === 'ADDED')
+      visit(op, () => {
+        const name = op.name
+        if (name === undefined || working.has(name)) return
+        if (foldNearMiss(working, name) !== undefined) return
+        working.add(name)
+      })
+
+  return seen
 }
 
 export interface ArchiveRuleOptions {
@@ -100,11 +176,12 @@ export function archiveRules(
           message: `${op.operation} "${name}" targets capability '${capability}', which has no living spec — only ADDED is allowed for a new spec`,
         })
       }
-      continue
-    }
-
-    // archive/target-invalid — the living spec must be a well-formed main spec.
-    if (!living.hasPurpose || !living.hasRequirements || living.hasDeltaHeaders) {
+      // No `continue`: openspec still applies this delta's ADDED ops, to the
+      // skeleton spec it builds for the new capability, so two ADDED names
+      // that fold onto each other are refused here exactly as they are against
+      // a living spec. Every arm below that reads the living spec is guarded.
+    } else if (!living.hasPurpose || !living.hasRequirements || living.hasDeltaHeaders) {
+      // archive/target-invalid — the living spec must be a well-formed main spec.
       const reason = living.hasDeltaHeaders
         ? 'it contains delta headers (## ADDED/MODIFIED/… Requirements)'
         : `it is missing ${!living.hasPurpose ? '## Purpose' : '## Requirements'}`
@@ -125,23 +202,24 @@ export function archiveRules(
     for (const op of group.ops)
       if (op.operation === 'ADDED' && op.name !== undefined) addedNames.add(op.name)
 
-    // Living names this delta vacates. openspec applies RENAMED, then REMOVED,
-    // then MODIFIED, then ADDED (`specs-apply.ts`), so by the time its ADDED
-    // near-miss check runs, a requirement this delta renamed away or removed is
-    // already gone from the map it folds against. Folding against it here would
-    // refuse an archive the binary performs. The RENAMED-TO arm below does NOT
-    // get this exemption: renames run first, so a requirement removed later in
-    // the same delta is still present when the target is checked, and upstream
-    // refuses there too.
-    const vacated = new Set<string>()
-    for (const op of group.ops) {
-      if (op.operation === 'REMOVED' && op.name !== undefined) vacated.add(op.name)
-      if (op.operation === 'RENAMED' && op.fromName !== undefined) vacated.add(op.fromName)
-    }
+    // What each op's collision arms actually look at: the spec as openspec has
+    // it by the time that op runs, not the pristine living spec.
+    const spec = replayDeltaNames(living, group.ops)
+
+    /**
+     * Where a name an op collides with came from. A fold twin is normally a
+     * living requirement, but it can equally be one this delta's own earlier
+     * operation wrote — saying "living spec" for that one would be false.
+     */
+    const whereFor = (name: string): string =>
+      living?.requirementNames.has(name) === true
+        ? `living spec openspec/specs/${capability}/spec.md`
+        : `capability '${capability}', written by an earlier operation in this delta`
 
     for (let i = 0; i < group.ops.length; i++) {
       const op = group.ops[i]!
       const path = pathFor(i)
+      const visible = spec.get(op) ?? new Set<string>()
 
       // archive/target-missing — MODIFIED/REMOVED/RENAMED-FROM must already
       // exist, except for the two early-sync no-ops openspec performs at
@@ -156,7 +234,10 @@ export function archiveRules(
       // refusing it and names the exact living header the way upstream does.
       // A MODIFIED target that is absent has no upstream early-sync path and
       // stays an unconditional ERROR.
-      if (op.operation === 'MODIFIED' || op.operation === 'REMOVED' || op.operation === 'RENAMED') {
+      if (
+        living !== undefined &&
+        (op.operation === 'MODIFIED' || op.operation === 'REMOVED' || op.operation === 'RENAMED')
+      ) {
         const target = opTargetName(op)
         if (target !== undefined && !living.requirementNames.has(target)) {
           const renameAlreadyApplied =
@@ -203,7 +284,7 @@ export function archiveRules(
       if (
         op.operation === 'ADDED' &&
         op.name !== undefined &&
-        living.requirementNames.has(op.name) &&
+        living?.requirementNames.has(op.name) === true &&
         normalizeBlockRaw(op.raw) !== normalizeBlockRaw(living.requirementBlocks.get(op.name) ?? '')
       )
         issues.push({
@@ -223,17 +304,21 @@ export function archiveRules(
       if (
         op.operation === 'ADDED' &&
         op.name !== undefined &&
-        !living.requirementNames.has(op.name)
+        living?.requirementNames.has(op.name) !== true &&
+        !visible.has(op.name)
       ) {
-        const nearMiss = foldNearMiss(living.requirementNames, op.name, vacated)
+        const nearMiss = foldNearMiss(visible, op.name)
         if (nearMiss !== undefined)
           issues.push({
             level: 'ERROR',
             rule: 'archive/added-exists',
             path,
             line: op.line,
-            message: `ADDED "${op.name}" differs only in case or spacing from "${nearMiss}" in living spec openspec/specs/${capability}/spec.md`,
-            hint: `openspec refuses this as a second copy of one requirement — use MODIFIED with the exact header "### Requirement: ${nearMiss}", or choose a distinct name`,
+            message: `ADDED "${op.name}" differs only in case or spacing from "${nearMiss}" in ${whereFor(nearMiss)}`,
+            hint:
+              living?.requirementNames.has(nearMiss) === true
+                ? `openspec refuses this as a second copy of one requirement — use MODIFIED with the exact header "### Requirement: ${nearMiss}", or choose a distinct name`
+                : `openspec refuses this as a second copy of one requirement — this delta already writes "### Requirement: ${nearMiss}", so give this one a distinct name`,
           })
       }
 
@@ -243,9 +328,9 @@ export function archiveRules(
       // (`specs-apply.ts` pre-validation, `addedNames.has(toNorm)`) that runs
       // unconditionally, before any early-sync classification — so early-sync
       // must not suppress it.
-      if (op.operation === 'RENAMED' && op.toName !== undefined) {
+      if (living !== undefined && op.operation === 'RENAMED' && op.toName !== undefined) {
         const toName = op.toName
-        const collidesLiving = !earlySynced.has(op) && living.requirementNames.has(toName)
+        const collidesLiving = !earlySynced.has(op) && visible.has(toName)
         const collidesAdded = addedNames.has(toName)
         if (collidesLiving || collidesAdded)
           issues.push({
@@ -260,7 +345,7 @@ export function archiveRules(
         // being renamed, which is the rename, not a collision — and an
         // early-synced rename never reaches this check upstream at all.
         else if (!earlySynced.has(op)) {
-          const nearMiss = foldNearMiss(living.requirementNames, toName, new Set([op.fromName]))
+          const nearMiss = foldNearMiss(visible, toName, new Set([op.fromName]))
           if (nearMiss !== undefined)
             issues.push({
               level: 'ERROR',

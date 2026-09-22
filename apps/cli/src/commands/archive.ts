@@ -228,18 +228,55 @@ function printReport(report: ItemReport, ctx: CommandContext): void {
   process.stdout.write(out)
 }
 
+/**
+ * What the capability's other operations do to a name, which is what makes the
+ * spot-check below safe to run op by op. A delta applies as a sequence, so one
+ * op's effect is legitimately undone by another: a swap renames `A` to `B` and
+ * then `C` to `A`, and openspec applies it. Judging each op alone against the
+ * end state called that an invariant breach — the same stale-view mistake the
+ * pre-flight fold arms made (`core/rules/archive.ts`).
+ */
+interface CapNetEffect {
+  /** names some operation writes into the merged spec (ADDED, RENAMED target). */
+  restored: Set<string>
+  /** names some operation takes out of it (REMOVED, RENAMED source). */
+  vacated: Set<string>
+}
+
+function netEffect(ops: readonly DeltaOp[]): CapNetEffect {
+  const restored = new Set<string>()
+  const vacated = new Set<string>()
+  for (const op of ops) {
+    if (op.operation === 'ADDED' && op.name !== undefined) restored.add(op.name)
+    if (op.operation === 'REMOVED' && op.name !== undefined) vacated.add(op.name)
+    if (op.operation === 'RENAMED') {
+      if (op.toName !== undefined) restored.add(op.toName)
+      if (op.fromName !== undefined) vacated.add(op.fromName)
+    }
+  }
+  return { restored, vacated }
+}
+
 /** Verify a single delta op landed in the (post-merge) living spec. */
-function spotCheckMiss(op: DeltaOp, requirementNames: Set<string>): string | undefined {
-  if (op.operation === 'ADDED' && op.name !== undefined && !requirementNames.has(op.name))
+function spotCheckMiss(
+  op: DeltaOp,
+  requirementNames: Set<string>,
+  net: CapNetEffect,
+): string | undefined {
+  // A name another op in the same delta takes away is absent on purpose; one
+  // another op writes is present on purpose. Neither is a breach.
+  const missing = (name: string): boolean => !requirementNames.has(name) && !net.vacated.has(name)
+  const survives = (name: string): boolean => requirementNames.has(name) && !net.restored.has(name)
+  if (op.operation === 'ADDED' && op.name !== undefined && missing(op.name))
     return `ADDED '${op.name}' missing from living spec`
-  if (op.operation === 'MODIFIED' && op.name !== undefined && !requirementNames.has(op.name))
+  if (op.operation === 'MODIFIED' && op.name !== undefined && missing(op.name))
     return `MODIFIED '${op.name}' missing from living spec`
-  if (op.operation === 'REMOVED' && op.name !== undefined && requirementNames.has(op.name))
+  if (op.operation === 'REMOVED' && op.name !== undefined && survives(op.name))
     return `REMOVED '${op.name}' still present in living spec`
   if (op.operation === 'RENAMED') {
-    if (op.toName !== undefined && !requirementNames.has(op.toName))
+    if (op.toName !== undefined && missing(op.toName))
       return `RENAMED to '${op.toName}' missing from living spec`
-    if (op.fromName !== undefined && requirementNames.has(op.fromName))
+    if (op.fromName !== undefined && survives(op.fromName))
       return `RENAMED from '${op.fromName}' still present in living spec`
   }
   return undefined
@@ -461,8 +498,9 @@ export async function run(ctx: CommandContext): Promise<number> {
       const names = existsSync(livingPath)
         ? parseLivingSpec(readFileSync(livingPath, 'utf8')).requirementNames
         : new Set<string>()
+      const net = netEffect(ops)
       for (const op of ops) {
-        const miss = spotCheckMiss(op, names)
+        const miss = spotCheckMiss(op, names, net)
         if (miss !== undefined) misses.push(`${capability}: ${miss}`)
       }
     }

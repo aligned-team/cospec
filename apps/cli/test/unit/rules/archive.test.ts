@@ -314,6 +314,93 @@ The system SHALL other.
     })
   })
 
+  // openspec folds an op's name against the spec as it stands when that op
+  // runs — after the delta's earlier operations have been applied to it
+  // (`specs-apply.ts` applies RENAMED, then REMOVED, then MODIFIED, then
+  // ADDED, against one map). So a delta whose own two operations write one
+  // requirement under two spellings is refused, and folding against the living
+  // names alone reported it clean.
+  describe('fold-equal collisions between two ops in one delta', () => {
+    const body = (name: string, shall: string) =>
+      `### Requirement: ${name}\n\nThe system SHALL ${shall}.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n`
+
+    test('archive/added-exists: two ADDED names that fold onto each other', () => {
+      const text = `## ADDED Requirements\n\n${body('Widget Caching', 'cache')}\n${body('WIDGET CACHING', 'cache loudly')}`
+      const issues = archiveRules(change(text, { living: LIVING }))
+      // Reported once, on the second ADDED — the one openspec refuses.
+      expect(rules(issues)).toEqual(['archive/added-exists'])
+      expect(issues[0]?.message).toBe(
+        'ADDED "WIDGET CACHING" differs only in case or spacing from "Widget Caching" in ' +
+          "capability 'x', written by an earlier operation in this delta",
+      )
+      expect(issues[0]?.hint).toContain('this delta already writes')
+    })
+
+    // The shape the finding was reproduced on: a brand-new capability, where
+    // openspec builds a skeleton spec and applies the ADDED ops to that.
+    test('two ADDED names fold the same way for a capability with no living spec', () => {
+      const text = `## ADDED Requirements\n\n${body('Widget Caching', 'cache')}\n${body('Widget  caching', 'cache loudly')}`
+      const issues = archiveRules(change(text))
+      expect(rules(issues)).toEqual(['archive/added-exists'])
+      expect(issues[0]?.message).toContain('differs only in case or spacing from "Widget Caching"')
+    })
+
+    test("archive/added-exists: an ADDED folding onto this delta's RENAMED target", () => {
+      const text = `## RENAMED Requirements\n\n- FROM: \`### Requirement: Existing\`\n- TO: \`### Requirement: Widget Caching\`\n\n## ADDED Requirements\n\n${body('WIDGET CACHING', 'cache')}`
+      const issues = archiveRules(change(text, { living: LIVING }))
+      expect(rules(issues)).toEqual(['archive/added-exists'])
+      expect(issues[0]?.message).toContain('differs only in case or spacing from "Widget Caching"')
+    })
+
+    test('archive/added-exists: a second RENAMED target folding onto the first', () => {
+      const living = `${LIVING}
+### Requirement: Other
+
+The system SHALL other.
+
+#### Scenario: s
+
+- **WHEN** a
+- **THEN** b
+`
+      const text =
+        '## RENAMED Requirements\n\n' +
+        '- FROM: `### Requirement: Existing`\n- TO: `### Requirement: Widget Caching`\n' +
+        '- FROM: `### Requirement: Other`\n- TO: `### Requirement: WIDGET CACHING`\n'
+      const issues = archiveRules(change(text, { living }))
+      expect(rules(issues)).toEqual(['archive/added-exists'])
+      expect(issues[0]?.message).toContain(
+        'RENAMED target "WIDGET CACHING" differs only in case or spacing from "Widget Caching"',
+      )
+    })
+
+    // The other direction of the same replay: a living name an EARLIER rename
+    // took away is gone by the time the next rename's target is checked, so
+    // the second rename is the swap the author wrote, not a collision.
+    test('a rename onto a name an earlier rename vacated is not a collision', () => {
+      const living = `${LIVING}
+### Requirement: Other
+
+The system SHALL other.
+
+#### Scenario: s
+
+- **WHEN** a
+- **THEN** b
+`
+      const text =
+        '## RENAMED Requirements\n\n' +
+        '- FROM: `### Requirement: Existing`\n- TO: `### Requirement: Moved On`\n' +
+        '- FROM: `### Requirement: Other`\n- TO: `### Requirement: Existing`\n'
+      expect(archiveRules(change(text, { living }))).toHaveLength(0)
+    })
+
+    test('two ADDED names that do not fold onto each other stay clean', () => {
+      const text = `## ADDED Requirements\n\n${body('Widget Caching', 'cache')}\n${body('Widget Tracing', 'trace')}`
+      expect(archiveRules(change(text, { living: LIVING }))).toHaveLength(0)
+    })
+  })
+
   test('a RENAMED with source and target both absent is still an error', () => {
     const text =
       '## RENAMED Requirements\n\n- FROM: `### Requirement: Ghost A`\n- TO: `### Requirement: Ghost B`\n'
