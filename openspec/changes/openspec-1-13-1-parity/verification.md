@@ -12,7 +12,7 @@
 
 - [ ] 2.1 @integration (agent) `mise run test:contract` after the re-probe -> green, with every rewritten narrative naming the 1.13.1 behaviour it now records
 - [ ] 2.2 @manual (human) review the contract diff -> no assertion weakened and no test deleted; every changed expectation is traceable to an observed difference in the new binary
-- [ ] 2.3 @integration (agent) `test/contract/delta-bullet-markers.test.ts` -> its recorded 1.11.0 narrative flips to the 1.13.1 one, proving the `*`/`+` delta is now portable at the pin
+- [x] 2.3 @integration (agent) `test/contract/delta-bullet-markers.test.ts` -> its recorded 1.11.0 narrative flips to the 1.13.1 one, proving the `*`/`+` delta is now portable at the pin: all four `expectPinRefuses` cases now run `expectBothApply` — the binary validates the `*`/`+` delta at exit 0 and archives it, and cospec agrees on both. `archive-gotchas`'s trailing-`###` case flipped the same way (1.13.1's `normalizeRequirementName` strips the closing run, so the MODIFIED merges), with the merge writing the delta's own header verbatim — the living spec keeps `### Requirement: Widget rendering ###` on one requirement, not two
 
 ## 3. Apply relays the wrapped advisory fields without changing a verdict
 
