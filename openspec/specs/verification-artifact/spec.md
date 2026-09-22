@@ -22,6 +22,14 @@ and SHALL parse it with the existing checkbox lexer: groups written
 rows written `- [<state>] <N>.<M> @<layer> [(<owner>)] <probe> -> <result>`,
 where `<state>` is one of a space (planned), `x` (verified), or `~` (deferred).
 
+Detection of a checkbox-like row SHALL cover every CommonMark list marker — `-`,
+`*`, `+`, `<N>.` and `<N>)` — so a row written with a non-canonical marker is
+reported as `verification/row-grammar` rather than dropped from the parse. A
+line whose bracketed span is immediately followed by `(` or `[` is a markdown
+link, not a checkbox, and SHALL NOT be reported. The conforming row grammar
+itself is unchanged: `- [<state>] <N>.<M> ...` remains the single canonical
+form.
+
 #### Scenario: Well-formed verification file parses
 
 - **WHEN** `cospec validate` runs on a change whose `verification.md` has at
@@ -52,6 +60,18 @@ where `<state>` is one of a space (planned), `x` (verified), or `~` (deferred).
 - **THEN** the path resolves to the change root and no segment is literally
   `specs`, so the pinned openspec binary's hardcoded `CHANGE_NO_DELTAS` rule —
   behavior cospec has relied on since 1.3.1 — is never tripped
+
+#### Scenario: A non-canonical list marker is reported, not dropped
+
+- **WHEN** `verification.md` contains a row written
+  `+ [ ] 1.1 @unit probe -> result` or `1. [ ] 1.1 @unit probe -> result`
+- **THEN** cospec emits `verification/row-grammar` for that line, and the
+  archive verdict counts it as a blocker instead of reporting `0/0 verified`
+
+#### Scenario: A markdown link bullet is not a verification row
+
+- **WHEN** `verification.md` contains the line `- [Some doc](./doc.md)`
+- **THEN** no `verification/row-grammar` issue is emitted for that line
 
 ### Requirement: Closed layer vocabulary
 
