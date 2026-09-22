@@ -122,6 +122,27 @@ export function deltasRules(change: LoadedChange): Issue[] {
       })
     }
 
+    // deltas/orphaned-requirement — a `### Requirement:` block outside every
+    // delta section. WARNING, not ERROR, for openspec's own reason (1.13.1
+    // `validation/validator.ts`): a handful of pre-format archived changes
+    // carry this shape, and the fix is to move the block, not to reject the
+    // change. Reported after `header-present` so a file with no delta section
+    // at all reports the header error first and stops there.
+    for (const orphan of parsed.orphanedRequirements) {
+      const where =
+        orphan.section === undefined
+          ? 'above the first "## " section'
+          : `under "## ${orphan.section}"`
+      issues.push({
+        level: 'WARNING',
+        rule: 'deltas/orphaned-requirement',
+        path: file.path,
+        line: orphan.line,
+        message: `requirement "${orphan.name}" is ${where}, which is not a delta section, so it is ignored`,
+        hint: 'move it under "## ADDED Requirements", "## MODIFIED Requirements", "## REMOVED Requirements", or "## RENAMED Requirements"',
+      })
+    }
+
     // deltas/requirement-shape
     for (const op of parsed.ops) {
       if (op.operation !== 'ADDED' && op.operation !== 'MODIFIED') continue

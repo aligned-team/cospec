@@ -198,3 +198,31 @@ describe('skipSpecsConflictIssues', () => {
     expect(issues[0]!.level).toBe('ERROR')
   })
 })
+
+describe('deltasRules — orphaned requirements', () => {
+  // WARNING, not ERROR: pre-format archived changes carry this shape, and the
+  // fix is to move the block. Same level openspec 1.13.1 chose.
+  test('deltas/orphaned-requirement warns and names the section', () => {
+    const text = `${GOOD}\n## Notes\n\n### Requirement: Stray\n`
+    const issues = deltasRules(delta('specs/x/spec.md', 'x', text))
+    expect(issues).toHaveLength(1)
+    expect(issues[0]!.rule).toBe('deltas/orphaned-requirement')
+    expect(issues[0]!.level).toBe('WARNING')
+    expect(issues[0]!.message).toContain('under "## Notes"')
+    expect(issues[0]!.hint).toContain('## ADDED Requirements')
+  })
+
+  test('a requirement above every section reports the above-first-section wording', () => {
+    const text = `### Requirement: Stray\n\n${GOOD}`
+    const issues = deltasRules(delta('specs/x/spec.md', 'x', text))
+    expect(rules(issues)).toEqual(['deltas/orphaned-requirement'])
+    expect(issues[0]!.message).toContain('above the first "## " section')
+  })
+
+  // header-present already stops the file, so the orphan is not piled on top.
+  test('a file with no delta section at all reports only deltas/header-present', () => {
+    expect(
+      rules(deltasRules(delta('specs/x/spec.md', 'x', '## Notes\n\n### Requirement: A\n'))),
+    ).toEqual(['deltas/header-present'])
+  })
+})

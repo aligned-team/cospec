@@ -86,6 +86,13 @@ can report a requirement as having no scenario while a `#### Scenario:` line is
 plainly visible in it. Scenario _names_ are still read from every header,
 bodyless ones included, matching the reader OpenSpec's scenario-loss check uses.
 
+A `### Requirement:` block written outside all four delta sections — above the
+first `## ` header, or under a prose section such as `## Notes` — is ignored by
+the delta reader, so cospec reports it as `deltas/orphaned-requirement` (W)
+naming the section it sits under. It is a warning, not an error, because
+pre-format archived changes still carry the shape; the fix is to move the block
+under a delta section.
+
 ## Checkbox grammar
 
 `tasks.md`, `verification.md` and `blocking-changes.md` share one checkbox

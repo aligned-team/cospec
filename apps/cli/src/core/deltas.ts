@@ -101,6 +101,23 @@ export interface UnpairedRename {
   line: number
 }
 
+/**
+ * A canonical `### Requirement:` block written outside all four delta sections
+ * — the shape openspec's `findOrphanedRequirements`
+ * (`src/core/parsers/requirement-blocks.ts`, 1.13.1) reports. cospec's reader
+ * only acts inside a delta section, so such a block is silently discarded at
+ * the `currentOp === undefined` branch: it never reaches `ops`, never merges,
+ * and the change still archives clean.
+ */
+export interface OrphanedRequirement {
+  /** requirement name as written (normalized). */
+  name: string
+  /** the `## ` section it sits under, or `undefined` above the first one. */
+  section?: string
+  /** 1-based line of the `### Requirement:` header. */
+  line: number
+}
+
 export interface ParsedDelta {
   path: string
   capability: string
@@ -115,6 +132,11 @@ export interface ParsedDelta {
    * `parseDeltaSpec`.
    */
   unpairedRenames: UnpairedRename[]
+  /**
+   * `### Requirement:` blocks sitting outside every delta section, in document
+   * order — reported as the WARNING `deltas/orphaned-requirement`.
+   */
+  orphanedRequirements: OrphanedRequirement[]
 }
 
 /**
@@ -358,11 +380,14 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
   const ops: DeltaOp[] = []
   const scenarioDepthIssues: { line: number }[] = []
   const unpairedRenames: UnpairedRename[] = []
+  const orphanedRequirements: OrphanedRequirement[] = []
   const sectionCounts = new Map<DeltaOperation, number>()
   const sectionsSeen = new Set<DeltaOperation>()
   let headerPresent = false
 
   let currentOp: DeltaOperation | undefined
+  /** Title of the `## ` section being read, undefined above the first one. */
+  let currentSection: string | undefined
   // Track the requirement currently being accumulated (ADDED/MODIFIED).
   let openReq: DeltaOp | undefined
   /** Verbatim (unmasked) block lines for `openReq`. */
@@ -431,6 +456,7 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
       const op = SECTION_TITLES[title]
       closeReq()
       closePendingRename()
+      currentSection = section[1]!.trim()
       if (op !== undefined) {
         headerPresent = true
         currentOp = op
@@ -442,7 +468,19 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
       continue
     }
 
-    if (currentOp === undefined) continue
+    // Outside every delta section. A requirement header here is invisible to
+    // the reader below, so record it rather than dropping it in silence.
+    if (currentOp === undefined) {
+      const orphan = raw.match(REQUIREMENT_RE)
+      if (orphan !== null) {
+        orphanedRequirements.push({
+          name: normalize(orphan[1]!),
+          section: currentSection,
+          line: lineNo,
+        })
+      }
+      continue
+    }
 
     if (currentOp === 'ADDED' || currentOp === 'MODIFIED') {
       const req = raw.match(REQUIREMENT_RE)
@@ -558,6 +596,7 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
     emptySections,
     scenarioDepthIssues,
     unpairedRenames,
+    orphanedRequirements,
   }
 }
 

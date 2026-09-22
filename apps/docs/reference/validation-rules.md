@@ -175,15 +175,16 @@ so cospec's own diagnostics win the report. See OpenSpec's
 [writing-specs.md](https://github.com/Fission-AI/OpenSpec/blob/main/docs/writing-specs.md)
 for the delta format these rules enforce.
 
-| ID                           | Level | Check                                                                                                                                                |
-| ---------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `deltas/scenario-depth`      | E     | a `### Scenario:` heading uses three hashtags — it must be `#### Scenario:`                                                                          |
-| `deltas/header-present`      | E     | each `specs/*/spec.md` has at least one `## ADDED\|MODIFIED\|REMOVED\|RENAMED Requirements` header                                                   |
-| `deltas/requirement-shape`   | E     | ADDED/MODIFIED requirements have a SHALL/MUST statement plus at least one `#### Scenario:` that carries a body — a bare header counts as no scenario |
-| `deltas/unpaired-rename`     | E     | a `FROM:` or `TO:` line in `## RENAMED Requirements` that forms no pair — write each rename as a `FROM:` line followed immediately by its `TO:` line |
-| `deltas/capability-kebab`    | E     | every segment of a capability path is kebab-case — the delta lives at `specs/<cap>/spec.md` or, for a nested layout, `specs/<area>/<cap>/spec.md`    |
-| `deltas/spec-at-specs-root`  | E     | a delta at `specs/spec.md` (no capability directory) — ignored by apply/archive, matching OpenSpec 1.7.0's own block on this layout                  |
-| `deltas/skip-specs-conflict` | E     | `.openspec.yaml` declares `skip_specs: true` while files exist under `specs/`                                                                        |
+| ID                            | Level | Check                                                                                                                                                |
+| ----------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `deltas/scenario-depth`       | E     | a `### Scenario:` heading uses three hashtags — it must be `#### Scenario:`                                                                          |
+| `deltas/header-present`       | E     | each `specs/*/spec.md` has at least one `## ADDED\|MODIFIED\|REMOVED\|RENAMED Requirements` header                                                   |
+| `deltas/requirement-shape`    | E     | ADDED/MODIFIED requirements have a SHALL/MUST statement plus at least one `#### Scenario:` that carries a body — a bare header counts as no scenario |
+| `deltas/unpaired-rename`      | E     | a `FROM:` or `TO:` line in `## RENAMED Requirements` that forms no pair — write each rename as a `FROM:` line followed immediately by its `TO:` line |
+| `deltas/orphaned-requirement` | W     | a `### Requirement:` block outside all four delta sections — the reader ignores it, so move it under a delta section                                 |
+| `deltas/capability-kebab`     | E     | every segment of a capability path is kebab-case — the delta lives at `specs/<cap>/spec.md` or, for a nested layout, `specs/<area>/<cap>/spec.md`    |
+| `deltas/spec-at-specs-root`   | E     | a delta at `specs/spec.md` (no capability directory) — ignored by apply/archive, matching OpenSpec 1.7.0's own block on this layout                  |
+| `deltas/skip-specs-conflict`  | E     | `.openspec.yaml` declares `skip_specs: true` while files exist under `specs/`                                                                        |
 
 ## `archive/`
 

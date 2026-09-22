@@ -1795,3 +1795,57 @@ describe('bodyless scenario headers', () => {
     ).toEqual([])
   })
 })
+
+// Ported from openspec's `findOrphanedRequirements`
+// (src/core/parsers/requirement-blocks.ts, 1.13.1). Behaviour is the same at
+// the 1.11.0 pin — the reader there ignores these blocks too, it just says
+// nothing about them.
+describe('orphaned requirements', () => {
+  test('a requirement above the first section carries no section', () => {
+    const p = parseDeltaSpec(
+      ['### Requirement: Stray', '', 'The system SHALL x.', '', '## ADDED Requirements', ''].join(
+        '\n',
+      ),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.orphanedRequirements).toEqual([{ name: 'Stray', section: undefined, line: 1 }])
+  })
+
+  test('a requirement under a non-delta section names that section', () => {
+    const p = parseDeltaSpec(
+      ['## ADDED Requirements', '', '## Notes', '', '### Requirement: Stray ###', ''].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    // The name is normalized, so the closing ATX run is gone here too.
+    expect(p.orphanedRequirements).toEqual([{ name: 'Stray', section: 'Notes', line: 5 }])
+  })
+
+  test('requirements inside delta sections and inside fences are not orphans', () => {
+    const p = parseDeltaSpec(
+      [
+        '## Notes',
+        '',
+        '```md',
+        '### Requirement: Fenced',
+        '```',
+        '',
+        '## ADDED Requirements',
+        '',
+        '### Requirement: Real',
+        '',
+        'The system SHALL x.',
+        '',
+        '#### Scenario: s',
+        '',
+        '- **WHEN** a',
+        '- **THEN** b',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.orphanedRequirements).toEqual([])
+    expect(p.ops).toHaveLength(1)
+  })
+})
