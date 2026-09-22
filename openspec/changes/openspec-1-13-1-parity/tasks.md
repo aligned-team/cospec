@@ -21,7 +21,7 @@
 - [ ] 1.4 Regenerate the vendored bundle and third-party notices with
       `mise run vendor:openspec` **after** `bun install`; verify with
       `mise run vendor:openspec:check` exiting 0 (verification 1.4)
-- [ ] 1.5 Rewrite each falsified contract narrative from the 1.1 re-probe —
+- [x] 1.5 Rewrite each falsified contract narrative from the 1.1 re-probe —
       `archive-parity`, `archive-gotchas`, `hard-reality`, `config-surface`,
       `store`, `added-early-sync`, `legacy-schema-lifecycle`,
       `delta-bullet-markers` — to what the binary now does, weakening no
@@ -61,46 +61,51 @@
       `.openspec.yaml` path and for an unwrapped verb (verification 4.4, 4.5)
 - [x] 3.3 Add contract coverage on the reachable leaks — `applyLegacy`, a
       v1-grandfathered change blocked upstream on `verification`, and the two
-      warning relays (clear-gate unread-delta, legacy no-delta-specs) that
-      replaced the empty-`tasks.md` case once the re-probe showed Step 2's
-      `tasks/has-tasks` ERROR makes it unreachable — asserting on `--json` and
-      on the transcript that no relayed string carries a bare-`openspec` command
-      span; verify with `mise run test:contract` (verification 4.1, 4.2, 4.3,
-      4.8)
+      warning relays (both on `applyLegacy` since Track D's `deltas/unread-file`
+      took the clear-gate unread-delta case away) that replaced the
+      empty-`tasks.md` case once the re-probe showed Step 2's `tasks/has-tasks`
+      ERROR makes it unreachable — asserting on `--json` and on the transcript
+      that no relayed string carries a bare-`openspec` command span; verify with
+      `mise run test:contract` (verification 4.1, 4.2, 4.3, 4.8)
 
 ## 4. Track D — validate dedupe, case-fold arms, and the new delta rule
 
-- [ ] 4.1 Add one `DUPLICATE_CLASSES` entry per upstream archive-precondition
+- [x] 4.1 Add one `DUPLICATE_CLASSES` entry per upstream archive-precondition
       shape in `apps/cli/src/commands/validate.ts`, each `nativeKey` capture
       stopping before the conditional `, but "…" exists` and
       `and differs only in case or spacing` tails, with no scenario-preservation
       entry; verify with unit cases in
       `apps/cli/test/unit/rules/delegated-dedupe.test.ts` over each tail variant
       (verification 5.4)
-- [ ] 4.2 Add the `tasks/has-tasks` suppression row for upstream's zero-task
+- [x] 4.2 Add the `tasks/has-tasks` suppression row for upstream's zero-task
       WARNING and narrow the existing `deltas/spec-at-specs-root` regex through
       its own distinguishing clause; verify with unit cases asserting the
       narrowed regex does not match upstream's unread-file message for
       `specs/spec.md.md` (verification 5.5, 5.6)
-- [ ] 4.3 Extend the `RENAMED`-target and `ADDED` pre-flight arms in
+- [x] 4.3 Extend the `RENAMED`-target and `ADDED` pre-flight arms in
       `apps/cli/src/core/rules/archive.ts` with the fold near-miss check,
       excluding the operation's own source and preserving every early-sync
       exemption; verify with contract cases for a case-only collision, a
       case-only rename that is not a collision, and an early-synced ADDED
       (verification 6.1, 6.2, 6.3)
-- [ ] 4.4 Add the `deltas/unread-file` rule and register it, and extend
+- [x] 4.4 Add the `deltas/unread-file` rule and register it, and extend
       `cospec archive`'s zero-delta leniency so a change carrying only unread
-      delta-shaped files is not a clean no-op; verify with contract cases for
-      `specs/user-auth.md` and `specs/user-auth/delta.md`, and a unit case
-      proving a companion note stays silent (verification 7.1, 7.2, 7.3)
-- [ ] 4.5 Re-probe and rewrite
+      delta-shaped files is not a clean no-op — no archive edit was needed:
+      `cospec archive` step 2 always validates, so the new ERROR closes the
+      leniency path by construction (contract-pinned rather than coded); verify
+      with contract cases for `specs/user-auth.md` and
+      `specs/user-auth/delta.md`, and a unit case proving a companion note stays
+      silent (verification 7.1, 7.2, 7.3)
+- [x] 4.5 Re-probe and rewrite
       `apps/cli/test/contract/scenario-preservation.test.ts` for the new INFO
       stream, asserting exactly one finding per defect and at most one
       archive-preflight INFO per delta file; verify with
       `mise run test:contract` (verification 5.1, 5.2, 5.3)
-- [ ] 4.6 Confirm `DELEGATED_DELTA_PATH_RE` still maps `<specId>/spec.md` for a
-      nested capability so the new pairings fire there too; verify with a unit
-      case over a nested delta path (verification 11.1)
+- [x] 4.6 Confirm `DELEGATED_DELTA_PATH_RE` still maps `<specId>/spec.md` for a
+      nested capability so the new pairings fire there too; verified end to end
+      instead of over the regex alone — a contract case on
+      `specs/platform/session-layout/spec.md` proves the pairing fires, which a
+      regex unit case could not (verification 11.1)
 
 ## 5. Track F — docs, shared.md, and zero drift
 

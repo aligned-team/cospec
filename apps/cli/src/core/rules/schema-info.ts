@@ -86,6 +86,17 @@ export interface DeltaFileInput {
   text: string
 }
 
+export interface UnreadSpecFileInput {
+  /** change-relative path, e.g. `specs/widgets/notes.md` or `specs/widgets.md`. */
+  path: string
+  /**
+   * The `spec.md` the merge path reads instead, change-relative — openspec's
+   * `UnreadDeltaFile.expected`, prefixed the way cospec reports paths.
+   */
+  expected: string
+  text: string
+}
+
 export interface LoadedChange {
   id: string
   openspecYaml: OpenspecYaml
@@ -99,6 +110,13 @@ export interface LoadedChange {
   /** design.md content, when present — the design/* section rules parse this. */
   designText?: string
   deltaFiles: DeltaFileInput[]
+  /**
+   * Markdown under the change's `specs/` that is NOT a capability's `spec.md`,
+   * so neither openspec's change parser nor cospec's `deltaFiles` above ever
+   * reads it. Carried so `deltas/unread-file` can tell a companion note (fine)
+   * from a delta written at a path the merge drops (data loss).
+   */
+  unreadSpecFiles: UnreadSpecFileInput[]
   /** living specs by capability (openspec/specs/<cap>/spec.md), parsed. */
   livingSpecs: Map<string, LivingSpec>
 }

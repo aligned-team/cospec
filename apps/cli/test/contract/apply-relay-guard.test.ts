@@ -21,8 +21,11 @@
 //     exit 0. The one main-lane blocked-remedy leak.
 // (b) `applyLegacy` — a forked (legacy) schema bypasses the cospec gate
 //     entirely and echoes the binary's remedy with no rewriting at all.
-// (c) the main lane's clear gate with an unread delta file — the binary's
-//     1.13.1 `findUnreadDeltaFiles` warning, which names `openspec validate`.
+// (c) `applyLegacy` with an unread delta file — the binary's 1.13.1
+//     `findUnreadDeltaFiles` warning, which names `openspec validate`. It was
+//     reachable on the MAIN lane's clear gate until `deltas/unread-file`
+//     landed; the main lane now refuses the same change at Step 2, which this
+//     test pins alongside the relay.
 // (d) `applyLegacy` with a schema whose `apply.requires` omits `specs` — the
 //     no-delta-specs warning, the one relayed string that embeds an absolute
 //     `…/.openspec.yaml` path beside its command spans. That path must survive
@@ -185,23 +188,27 @@ describe('bare-`openspec` relay guard (OpenSpec 1.13.1)', () => {
     expectNoBareRelay(human.stdout)
   })
 
-  test('(c) the clear gate relays the unread-delta warning, in JSON and in the transcript', async () => {
+  test('(c) the legacy lane relays the unread-delta warning, in JSON and in the transcript', async () => {
     const root = await freshRepo()
+    // The fork is what makes this reachable: on cospec's own `feat` schema the
+    // change is refused by `deltas/unread-file` before any delegation (pinned
+    // at the end of this test).
+    const fork = await cospec(['schema', 'fork', 'feat', 'unreadrelay'], { cwd: root })
+    expect(fork.exitCode).toBe(0)
+
     const name = 'unread-delta'
+    const newRes = await cospec(['new', 'unreadrelay', name, '--json'], { cwd: root })
+    expect(newRes.exitCode).toBe(0)
     writeFiles(root, {
       [`openspec/changes/${name}/proposal.md`]: PROPOSAL,
       [`openspec/changes/${name}/blocking-changes.md`]: BLOCKERS_EMPTY,
       [`openspec/changes/${name}/verification.md`]: VERIFICATION,
       [`openspec/changes/${name}/tasks.md`]: '## 1. Implementation\n\n- [x] 1.1 Add the step\n',
-      // One level too shallow to be a capability's spec.md: cospec's own
-      // `hasSpecFiles` accepts any .md under specs/, so the gate clears and the
-      // binary's stricter `findUnreadDeltaFiles` is what objects.
+      // One level too shallow to be a capability's spec.md: the artifact
+      // graph's recursive glob accepts it, so the gate clears and the binary's
+      // stricter `findUnreadDeltaFiles` is what objects.
       [`openspec/changes/${name}/specs/widgets.md`]: DELTA,
     })
-    writeFileSync(
-      join(root, `openspec/changes/${name}/.openspec.yaml`),
-      'schema: feat\ncreated: 2026-09-22\nschemaVersion: 2\n',
-    )
 
     const json = await cospec(['apply', name, '--json'], { cwd: root })
     expect(json.exitCode).toBe(0)
@@ -218,6 +225,16 @@ describe('bare-`openspec` relay guard (OpenSpec 1.13.1)', () => {
     expect(human.stdout).toContain(`Warning: specs/widgets.md is not a capability's spec.md`)
     expect(human.stdout).toContain(`\`cospec validate ${name}\``)
     expectNoBareRelay(human.stdout)
+
+    // On a cospec type the same change never reaches the relay.
+    writeFileSync(
+      join(root, `openspec/changes/${name}/.openspec.yaml`),
+      'schema: feat\ncreated: 2026-09-22\nschemaVersion: 2\n',
+    )
+    const typed = await cospec(['apply', name], { cwd: root })
+    expect(typed.exitCode).toBe(1)
+    expect(typed.stdout).toContain('deltas/unread-file')
+    expectNoBareRelay(typed.stdout)
   })
 
   test('(d) the no-delta-specs warning is relayed with its .openspec.yaml path intact', async () => {

@@ -6,7 +6,7 @@
 
 import { archiveRules } from './archive.ts'
 import { blockersRules } from './blockers.ts'
-import { deltasRules, skipSpecsConflictIssues } from './deltas.ts'
+import { deltasRules, skipSpecsConflictIssues, unreadDeltaFileIssues } from './deltas.ts'
 import { designRules } from './design.ts'
 import type { Issue } from './issue.ts'
 import { metadataKeyIssues, metaRules } from './meta.ts'
@@ -65,6 +65,12 @@ export function runChangeRules(
 
   const declaresSpecs = schema.declared.has('specs')
   const hasDeltaFiles = change.deltaFiles.length > 0
+  // Runs on the delta files' absence as much as their presence: a change whose
+  // only delta-shaped content sits at a path the merge never reads has no
+  // `deltaFiles` at all, and that is precisely the state `deltas/unread-file`
+  // exists to refuse. Gated on the schema alone, and never by `fast` — `apply`
+  // and `archive` must see it too.
+  if (declaresSpecs) issues.push(...unreadDeltaFileIssues(change))
   if (declaresSpecs && hasDeltaFiles) {
     issues.push(...deltasRules(change))
     if (!opts.fast) issues.push(...archiveRules(change, { strict: opts.strict }))
@@ -82,6 +88,7 @@ export {
   proposalRules,
   skipSpecsConflictIssues,
   tasksRules,
+  unreadDeltaFileIssues,
   verificationRules,
 }
 export { specsRules } from './specs.ts'

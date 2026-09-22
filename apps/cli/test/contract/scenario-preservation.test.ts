@@ -348,14 +348,26 @@ describe('a requirement retired through REMOVED is not a scenario drop', () => {
   })
 })
 
-/** A companion doc an author keeps beside the real delta. It happens to quote a
- * thinned MODIFIED block as an illustration — content `openspec archive` never
- * reads, because only `spec.md` is a delta. */
+/** A companion doc an author keeps beside the real delta. It quotes a thinned
+ * requirement block as an illustration — content `openspec archive` never
+ * reads, because only `spec.md` is a delta. It carries NO `## MODIFIED
+ * Requirements` header, which is what keeps it a note: openspec 1.13.1's
+ * `findUnreadDeltaFiles` and cospec's `deltas/unread-file` both key on delta
+ * SECTION headers, and both report a file that has one (see
+ * `archive-preflight-dedupe.test.ts`). */
 const COMPANION_NOTES = `# Notes
 
 Rationale for the delta. The block below is quoted for illustration only:
 
-${THINNED_DELTA}`
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered
+`
 
 /** The real delta: MODIFIED that preserves both living scenarios. */
 const FULL_DELTA = `## MODIFIED Requirements
@@ -376,6 +388,10 @@ The system SHALL render a widget when requested, via the single rendering path.
 `
 
 describe('only spec.md is a delta', () => {
+  // Still true at 1.13.1 for a note that is a note. The neighbouring case — a
+  // companion that DOES carry delta sections — stopped being invisible at
+  // 1.13.1 and is refused by both sides; `archive-preflight-dedupe.test.ts`
+  // pins that half.
   test('a companion .md beside the delta feeds neither gate, on either side', async () => {
     const root = mkTempRepo({ git: true })
     writeLivingSpec(root, 'widgets', LIVING)

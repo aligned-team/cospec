@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 
-import { deltasRules, skipSpecsConflictIssues } from '../../../src/core/rules/deltas.ts'
+import {
+  deltasRules,
+  skipSpecsConflictIssues,
+  unreadDeltaFileIssues,
+} from '../../../src/core/rules/deltas.ts'
 import { makeChange, rules } from './helpers.ts'
 
 function delta(path: string, capability: string, text: string) {
@@ -224,5 +228,51 @@ describe('deltasRules — orphaned requirements', () => {
     expect(
       rules(deltasRules(delta('specs/x/spec.md', 'x', '## Notes\n\n### Requirement: A\n'))),
     ).toEqual(['deltas/header-present'])
+  })
+})
+
+// openspec 1.13.1's `findUnreadDeltaFiles`. Both readers open exactly
+// `spec.md`, so a delta written anywhere else under `specs/` is applied by
+// nobody while `status` and `apply` count the specs as written.
+function withUnread(path: string, expected: string, text: string) {
+  return makeChange({ unreadSpecFiles: [{ path, expected, text }] })
+}
+
+describe('unreadDeltaFileIssues', () => {
+  test('a delta-shaped file beside the real delta is an ERROR', () => {
+    const issues = unreadDeltaFileIssues(withUnread('specs/x/notes.md', 'specs/x/spec.md', GOOD))
+    expect(rules(issues)).toEqual(['deltas/unread-file'])
+    expect(issues[0]!.level).toBe('ERROR')
+    expect(issues[0]!.path).toBe('specs/x/notes.md')
+    expect(issues[0]!.message).toContain('delta spec found at specs/x/notes.md')
+    expect(issues[0]!.hint).toContain('specs/x/spec.md')
+  })
+
+  test('a delta-shaped file at the specs/ root names itself as the capability', () => {
+    const issues = unreadDeltaFileIssues(withUnread('specs/x.md', 'specs/x/spec.md', GOOD))
+    expect(rules(issues)).toEqual(['deltas/unread-file'])
+    expect(issues[0]!.hint).toContain('specs/x/spec.md')
+  })
+
+  // The shape the `spec.md`-only filter exists to protect: a companion note is
+  // not a delta, and openspec skips it on the same test.
+  test('a companion note with no delta section is not reported', () => {
+    const text = '# Notes\n\nWhy the delta looks the way it does.\n\n### Requirement: Quoted\n'
+    expect(unreadDeltaFileIssues(withUnread('specs/x/notes.md', 'specs/x/spec.md', text))).toEqual(
+      [],
+    )
+  })
+
+  test('each unread delta file is its own finding', () => {
+    const change = makeChange({
+      unreadSpecFiles: [
+        { path: 'specs/x/notes.md', expected: 'specs/x/spec.md', text: GOOD },
+        { path: 'specs/y.md', expected: 'specs/y/spec.md', text: GOOD },
+      ],
+    })
+    expect(unreadDeltaFileIssues(change).map((i) => i.path)).toEqual([
+      'specs/x/notes.md',
+      'specs/y.md',
+    ])
   })
 })

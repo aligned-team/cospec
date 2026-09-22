@@ -37,6 +37,7 @@ export function makeChange(overrides: Partial<LoadedChange> = {}): LoadedChange 
     files: [],
     designExists: false,
     deltaFiles: [],
+    unreadSpecFiles: [],
     livingSpecs: new Map(),
     ...overrides,
   }

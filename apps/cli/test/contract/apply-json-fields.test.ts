@@ -11,12 +11,12 @@
 // Three scenarios, each re-probed by hand against 1.13.1 before being pinned
 // here:
 //
-// (a) A spec-bearing change with a delta file that exists but is NOT at its
-//     capability's `spec.md` (cospec's own `hasSpecFiles` glob-checks any .md
-//     anywhere under specs/, so its Step 3 gate is satisfied and the run
-//     reaches openspec's `instructions apply`) → the real binary's
-//     `findUnreadDeltaFiles` reports the same file as an unread delta and
-//     `apply.warnings` carries that string, exit 0.
+// (a) A change on a FORKED schema (the legacy lane, where cospec runs no rule
+//     family of its own) carrying a delta file that is NOT at its capability's
+//     `spec.md` → the real binary's `findUnreadDeltaFiles` reports it and
+//     `apply.warnings` carries that string, exit 0. On a cospec-typed change
+//     the same file never gets that far any more: `deltas/unread-file` refuses
+//     it at Step 2, which the second half of (a) pins.
 // (b) A legacy (forked) schema whose `tasks` artifact requires `design` even
 //     though `design` is not itself in `apply.requires` — the real binary's
 //     `collectMissingPrerequisites` walks the artifact graph transitively,
@@ -62,12 +62,20 @@ None.
 `
 
 describe('apply.warnings / apply.missingPrerequisites (OpenSpec 1.13.1)', () => {
-  test('(a) an unread delta file at the wrong path surfaces apply.warnings, exit 0', async () => {
+  test('(a) an unread delta file surfaces apply.warnings on the legacy lane, exit 0', async () => {
     const root = mkTempRepo({ fixture: 'fresh', git: true })
     const init = await cospec(['init', '--harness', 'none', '--no-gate', '--yes'], { cwd: root })
     expect(init.exitCode).toBe(0)
+    // A fork of `feat`: same artifacts, but an id cospec does not classify as
+    // one of its 11 types, so `apply` takes the legacy lane and delegates
+    // without running `deltas/unread-file`. That is the only lane left where
+    // this warning reaches a user — see the second half of this test.
+    const fork = await cospec(['schema', 'fork', 'feat', 'unreadlane'], { cwd: root })
+    expect(fork.exitCode).toBe(0)
 
     const name = 'unread-delta-warning'
+    const newRes = await cospec(['new', 'unreadlane', name, '--json'], { cwd: root })
+    expect(newRes.exitCode).toBe(0)
     const proposal = `# change
 
 ## Why
@@ -95,10 +103,9 @@ ${surfacesSection()}`
 - [ ] 1.1 @integration (agent) call the widgets capability -> returns the expected result
 `
     // A real delta (ADDED Requirements section present) at specs/widgets.md —
-    // one level too shallow to be a capability's spec.md. cospec's own
-    // `hasSpecFiles` glob-check is satisfied by ANY .md under specs/, so Step 3
-    // never blocks; only the real binary's stricter `findUnreadDeltaFiles`
-    // catches the misplacement.
+    // one level too shallow to be a capability's spec.md. The artifact graph's
+    // recursive specs/**/*.md glob counts it as written on both sides, so the
+    // gate clears and only `findUnreadDeltaFiles` objects.
     const delta = `## ADDED Requirements
 
 ### Requirement: Widget rendering
@@ -117,12 +124,6 @@ The system SHALL render a widget when requested.
       [`openspec/changes/${name}/tasks.md`]: `## 1. Implementation\n\n- [x] 1.1 Add the step\n`,
       [`openspec/changes/${name}/specs/widgets.md`]: delta,
     })
-    // .openspec.yaml is written by `cospec new` normally; write it by hand here
-    // since this fixture composes files directly.
-    writeFileSync(
-      join(root, `openspec/changes/${name}/.openspec.yaml`),
-      'schema: feat\ncreated: 2026-09-22\nschemaVersion: 2\n',
-    )
 
     const res = await cospec(['apply', name, '--json'], { cwd: root })
     expect(res.exitCode).toBe(0)
@@ -131,6 +132,17 @@ The system SHALL render a widget when requested.
     expect(parsed.apply.warnings).toHaveLength(1)
     expect(parsed.apply.warnings?.[0]).toContain('specs/widgets.md')
     expect(parsed.apply.warnings?.[0]).toContain("is not a capability's spec.md")
+
+    // The same change on cospec's own `feat` schema: refused at Step 2, so the
+    // advisory warning is no longer the only thing standing between the author
+    // and an archive that merges nothing.
+    writeFileSync(
+      join(root, `openspec/changes/${name}/.openspec.yaml`),
+      'schema: feat\ncreated: 2026-09-22\nschemaVersion: 2\n',
+    )
+    const typed = await cospec(['apply', name, '--json'], { cwd: root })
+    expect(typed.exitCode).toBe(1)
+    expect(typed.stdout).toContain('deltas/unread-file')
   })
 
   test('(b) a legacy schema with a transitive-only artifact dependency: missingPrerequisites is a strict superset of missingArtifacts, exit 2', async () => {

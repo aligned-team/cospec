@@ -13,13 +13,20 @@ whitespace collapsed — and the resulting ERROR SHALL be `archive/added-exists`
 with a hint naming the exact living header the name folds onto so the author can
 either match it or choose a distinct name.
 
-Two exclusions SHALL hold, because either one gone wrong turns a false archive
-PASS into a false refusal. A `## RENAMED` operation's fold check SHALL exclude
-the living name its own source occupies, so a case-only rename is applied as a
-rename rather than reported as a collision against itself. And the existing
-early-sync exemptions SHALL keep applying, so a fold near-miss never resurrects
-a collision on an `## ADDED` requirement whose retained block already matches
-the living requirement of that name.
+Three exclusions SHALL hold, because any one of them gone wrong turns a false
+archive PASS into a false refusal. A `## RENAMED` operation's fold check SHALL
+exclude the living name its own source occupies, so a case-only rename is
+applied as a rename rather than reported as a collision against itself. The
+existing early-sync exemptions SHALL keep applying, so a fold near-miss never
+resurrects a collision on an `## ADDED` requirement whose retained block already
+matches the living requirement of that name. And an `## ADDED` name's fold check
+SHALL exclude every living name the same delta vacates — the targets of its
+`## REMOVED` entries and the sources of its `## RENAMED` entries — because the
+wrapped binary applies renames and removals before it checks an added name, so
+by then that living name is gone and the addition is not a second copy of
+anything. The `## RENAMED` target check SHALL NOT take that exclusion: renames
+run first, so a requirement removed later in the same delta is still present
+when the target is checked, and the binary refuses there too.
 
 Refusal SHALL happen at cospec's own pre-flight, before delegation, so the user
 sees cospec's rule id and message rather than a late abort from inside the
@@ -57,6 +64,14 @@ delegated merge.
   requirement of the same name under OpenSpec's normalisation, and a fold-equal
   living name exists only because it is that same requirement
 - **THEN** no `archive/added-exists` issue is raised and the archive proceeds
+
+#### Scenario: An ADDED folding onto a name the delta removes is applied
+
+- **WHEN** one delta both `## REMOVED`s `Widget caching` and `## ADDED`s
+  `WIDGET CACHING`
+- **THEN** no `archive/added-exists` issue is raised and the archive proceeds,
+  matching the binary, which has already applied the removal by the time it
+  checks the added name
 
 #### Scenario: cospec and the binary agree in both directions
 

@@ -23,6 +23,24 @@ function opTargetName(op: DeltaOp): string | undefined {
   return op.name
 }
 
+/**
+ * The living requirement `name` folds onto, if any — openspec's own near-miss
+ * search (`specs-apply.ts`, RENAMED/REMOVED/ADDED arms): two spellings that
+ * differ only in case or interior whitespace are one requirement written twice,
+ * which the binary refuses rather than writing both copies into the spec.
+ *
+ * `exempt` holds the names that are not collisions for this op — the rename's
+ * own source, and the living names the delta vacates before the op applies.
+ */
+function foldNearMiss(
+  livingNames: ReadonlySet<string>,
+  name: string,
+  exempt: ReadonlySet<string | undefined>,
+): string | undefined {
+  const folded = foldRequirementName(name)
+  return [...livingNames].find((n) => !exempt.has(n) && foldRequirementName(n) === folded)
+}
+
 export interface ArchiveRuleOptions {
   strict: boolean
 }
@@ -107,6 +125,20 @@ export function archiveRules(
     for (const op of group.ops)
       if (op.operation === 'ADDED' && op.name !== undefined) addedNames.add(op.name)
 
+    // Living names this delta vacates. openspec applies RENAMED, then REMOVED,
+    // then MODIFIED, then ADDED (`specs-apply.ts`), so by the time its ADDED
+    // near-miss check runs, a requirement this delta renamed away or removed is
+    // already gone from the map it folds against. Folding against it here would
+    // refuse an archive the binary performs. The RENAMED-TO arm below does NOT
+    // get this exemption: renames run first, so a requirement removed later in
+    // the same delta is still present when the target is checked, and upstream
+    // refuses there too.
+    const vacated = new Set<string>()
+    for (const op of group.ops) {
+      if (op.operation === 'REMOVED' && op.name !== undefined) vacated.add(op.name)
+      if (op.operation === 'RENAMED' && op.fromName !== undefined) vacated.add(op.fromName)
+    }
+
     for (let i = 0; i < group.ops.length; i++) {
       const op = group.ops[i]!
       const path = pathFor(i)
@@ -136,10 +168,10 @@ export function archiveRules(
           // excludes the target from the RENAMED near-miss search for exactly
           // that reason, so `Foo` -> `foo` stays a no-op rather than a typo.
           const nearMiss = earlySync
-            ? [...living.requirementNames].find(
-                (n) =>
-                  !(renameAlreadyApplied && n === op.toName) &&
-                  foldRequirementName(n) === foldRequirementName(target),
+            ? foldNearMiss(
+                living.requirementNames,
+                target,
+                new Set(renameAlreadyApplied ? [op.toName] : []),
               )
             : undefined
           if (!earlySync || nearMiss !== undefined)
@@ -183,6 +215,28 @@ export function archiveRules(
           hint: 'openspec treats an ADDED block identical to the living requirement as an already-synced no-op; a differing body is a real collision — MODIFY the requirement instead',
         })
 
+      // The same collision one keystroke away: openspec 1.13.1 refuses an ADDED
+      // whose name folds onto a living requirement's, because applying it would
+      // leave two contradicting copies of one requirement in the spec. Exact
+      // matching alone waved that through, so cospec reported clean on a delta
+      // the binary aborts.
+      if (
+        op.operation === 'ADDED' &&
+        op.name !== undefined &&
+        !living.requirementNames.has(op.name)
+      ) {
+        const nearMiss = foldNearMiss(living.requirementNames, op.name, vacated)
+        if (nearMiss !== undefined)
+          issues.push({
+            level: 'ERROR',
+            rule: 'archive/added-exists',
+            path,
+            line: op.line,
+            message: `ADDED "${op.name}" differs only in case or spacing from "${nearMiss}" in living spec openspec/specs/${capability}/spec.md`,
+            hint: `openspec refuses this as a second copy of one requirement — use MODIFIED with the exact header "### Requirement: ${nearMiss}", or choose a distinct name`,
+          })
+      }
+
       // An already-applied rename's target is present by definition; that is
       // the same no-op, not a collision, so the LIVING arm is skipped for it.
       // The delta-internal ADDED collision is a separate upstream check
@@ -190,16 +244,33 @@ export function archiveRules(
       // unconditionally, before any early-sync classification — so early-sync
       // must not suppress it.
       if (op.operation === 'RENAMED' && op.toName !== undefined) {
-        const collidesLiving = !earlySynced.has(op) && living.requirementNames.has(op.toName)
-        const collidesAdded = addedNames.has(op.toName)
+        const toName = op.toName
+        const collidesLiving = !earlySynced.has(op) && living.requirementNames.has(toName)
+        const collidesAdded = addedNames.has(toName)
         if (collidesLiving || collidesAdded)
           issues.push({
             level: 'ERROR',
             rule: 'archive/added-exists',
             path,
             line: op.line,
-            message: `RENAMED target "${op.toName}" collides with an ${collidesLiving ? 'existing requirement' : 'ADDED requirement'} in capability '${capability}'`,
+            message: `RENAMED target "${toName}" collides with an ${collidesLiving ? 'existing requirement' : 'ADDED requirement'} in capability '${capability}'`,
           })
+        // The fold arm of the same collision (openspec 1.13.1). The source is
+        // exempt — a case-only rename (`Foo` -> `foo`) lands on the requirement
+        // being renamed, which is the rename, not a collision — and an
+        // early-synced rename never reaches this check upstream at all.
+        else if (!earlySynced.has(op)) {
+          const nearMiss = foldNearMiss(living.requirementNames, toName, new Set([op.fromName]))
+          if (nearMiss !== undefined)
+            issues.push({
+              level: 'ERROR',
+              rule: 'archive/added-exists',
+              path,
+              line: op.line,
+              message: `RENAMED target "${toName}" differs only in case or spacing from "${nearMiss}" in capability '${capability}'`,
+              hint: `openspec refuses this as a second copy of one requirement — rename it to something distinct from "### Requirement: ${nearMiss}"`,
+            })
+        }
       }
     }
   }

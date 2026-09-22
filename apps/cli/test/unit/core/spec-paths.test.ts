@@ -7,6 +7,7 @@ import {
   capabilityForDeltaFile,
   discoverSpecFiles,
   isDeltaSpecFile,
+  unreadDeltaExpectation,
 } from '../../../src/core/spec-paths.ts'
 
 const roots: string[] = []
@@ -223,5 +224,29 @@ describe('isDeltaSpecFile', () => {
 
   test('a directory named spec.md in the middle of a path is not the file', () => {
     expect(isDeltaSpecFile('specs/spec.md/notes.md')).toBe(false)
+  })
+})
+
+// The `expected` half of openspec's `findUnreadDeltaFiles`: where the file's
+// requirements had to be written for anything to read them.
+describe('unreadDeltaExpectation', () => {
+  test('a file inside a capability folder points at that folder', () => {
+    expect(unreadDeltaExpectation('specs/user-auth/delta.md')).toBe('specs/user-auth/spec.md')
+  })
+
+  test('a nested capability keeps its whole path', () => {
+    expect(unreadDeltaExpectation('specs/platform/session-layout/notes.md')).toBe(
+      'specs/platform/session-layout/spec.md',
+    )
+  })
+
+  // With no folder to name it, the file names the capability after itself —
+  // which is what its author meant by writing `specs/<capability>.md`.
+  test('a file at the specs/ root names the capability after itself', () => {
+    expect(unreadDeltaExpectation('specs/user-auth.md')).toBe('specs/user-auth/spec.md')
+  })
+
+  test('the extension is stripped case-insensitively', () => {
+    expect(unreadDeltaExpectation('specs/user-auth.MD')).toBe('specs/user-auth/spec.md')
   })
 })
