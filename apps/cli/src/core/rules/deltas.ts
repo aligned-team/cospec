@@ -95,6 +95,24 @@ export function deltasRules(change: LoadedChange): Issue[] {
       continue
     }
 
+    // deltas/unpaired-rename — a FROM:/TO: line that formed no pair. openspec
+    // 1.13.1 reports the same shape as an ERROR (`validation/validator.ts`),
+    // and below that pin the line is silently dropped or, worse, cross-paired
+    // with a neighbouring rename. Either way the requested rename does not
+    // happen while archive still reports success, so cospec refuses it rather
+    // than guessing which FROM: belonged to which TO:.
+    for (const unpaired of parsed.unpairedRenames) {
+      const missing = unpaired.side === 'FROM' ? 'TO' : 'FROM'
+      issues.push({
+        level: 'ERROR',
+        rule: 'deltas/unpaired-rename',
+        path: file.path,
+        line: unpaired.line,
+        message: `RENAMED ${unpaired.side}: "${unpaired.name}" has no matching ${missing}: line`,
+        hint: 'write each rename as a FROM: line followed immediately by its TO: line',
+      })
+    }
+
     // deltas/requirement-shape
     for (const op of parsed.ops) {
       if (op.operation !== 'ADDED' && op.operation !== 'MODIFIED') continue

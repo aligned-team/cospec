@@ -70,6 +70,21 @@ export interface DeltaOp {
   scenarioRemovalReasons: string[]
 }
 
+/**
+ * A `FROM:` or `TO:` line that never formed a rename pair — the shapes
+ * openspec's `parseRenamedPairs` (`src/core/parsers/requirement-blocks.ts`,
+ * 1.13.1) refuses to guess at: a `FROM:` displaced by a second `FROM:`, a
+ * `TO:` with no pending `FROM:`, and a `FROM:` still pending when the section
+ * ends.
+ */
+export interface UnpairedRename {
+  side: 'FROM' | 'TO'
+  /** requirement name as written (normalized). */
+  name: string
+  /** 1-based line of the offending FROM:/TO: line. */
+  line: number
+}
+
 export interface ParsedDelta {
   path: string
   capability: string
@@ -78,6 +93,12 @@ export interface ParsedDelta {
   /** section headers present but yielding zero entries. */
   emptySections: DeltaOperation[]
   scenarioDepthIssues: { line: number }[]
+  /**
+   * FROM:/TO: lines that formed no pair, in line order. A half-built RENAMED
+   * op is never pushed to `ops` for these — see the RENAMED arm of
+   * `parseDeltaSpec`.
+   */
+  unpairedRenames: UnpairedRename[]
 }
 
 function normalize(name: string): string {
@@ -225,6 +246,7 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
   const { lines, source, fenced } = scanMarkdown(text)
   const ops: DeltaOp[] = []
   const scenarioDepthIssues: { line: number }[] = []
+  const unpairedRenames: UnpairedRename[] = []
   const sectionCounts = new Map<DeltaOperation, number>()
   const sectionsSeen = new Set<DeltaOperation>()
   let headerPresent = false
@@ -232,8 +254,25 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
   let currentOp: DeltaOperation | undefined
   // Track the requirement currently being accumulated (ADDED/MODIFIED).
   let openReq: DeltaOp | undefined
-  /** Verbatim (unmasked) block lines for `openReq`; undefined for RENAMED. */
+  /** Verbatim (unmasked) block lines for `openReq`. */
   let openRaw: string[] | undefined
+  /** The `FROM:` awaiting its `TO:` inside the current RENAMED section. */
+  let pendingRename: { name: string; line: number } | undefined
+
+  const dropRename = (side: 'FROM' | 'TO', name: string, line: number) => {
+    unpairedRenames.push({ side, name, line })
+  }
+
+  /**
+   * Pairs are read per section, exactly as openspec's `parseRenamedPairs` does:
+   * a `FROM:` left pending when a `## ` header arrives (or at EOF) is reported
+   * unpaired rather than carried into the next section, so a `FROM:` under one
+   * copy of `## RENAMED Requirements` can never pair with a `TO:` under another.
+   */
+  const closePendingRename = () => {
+    if (pendingRename !== undefined) dropRename('FROM', pendingRename.name, pendingRename.line)
+    pendingRename = undefined
+  }
 
   const closeReq = () => {
     if (openReq !== undefined) {
@@ -266,6 +305,7 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
       const title = section[1]!.toLowerCase()
       const op = SECTION_TITLES[title]
       closeReq()
+      closePendingRename()
       if (op !== undefined) {
         headerPresent = true
         currentOp = op
@@ -328,37 +368,66 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
       continue
     }
 
+    // Only a complete FROM:/TO: pair becomes an op, ported from openspec's
+    // `parseRenamedPairs`. cospec used to open a RENAMED op on the bare `FROM:`
+    // and let `closeReq()` push it with `toName` undefined: a phantom op that
+    // counted towards `sectionCounts` (suppressing `emptySections` and
+    // `archive/no-ops`) while the RENAMED-TO collision check skipped it for
+    // want of a `toName` — a false archive PASS over a rename that never
+    // happened. Interleaved lines were worse: a second `FROM:` overwrote the
+    // first in silence, so `FROM a / FROM b / TO x` renamed `b` to `x`, a
+    // requirement pairing the author never wrote. Every stray line is now
+    // reported through `unpairedRenames` (`deltas/unpaired-rename`).
     if (currentOp === 'RENAMED') {
       const from = raw.match(RENAMED_FROM_RE)
       if (from !== null) {
-        openReq = {
+        if (pendingRename !== undefined) dropRename('FROM', pendingRename.name, pendingRename.line)
+        pendingRename = { name: normalize(from[1]!), line: lineNo }
+        continue
+      }
+      const to = raw.match(RENAMED_TO_RE)
+      if (to !== null) {
+        const toName = normalize(to[1]!)
+        if (pendingRename === undefined) {
+          dropRename('TO', toName, lineNo)
+          continue
+        }
+        // The op is anchored on its FROM: line, which is where an author fixes
+        // a rename and where the archive gates have always pointed.
+        ops.push({
           operation: 'RENAMED',
-          fromName: normalize(from[1]!),
-          line: lineNo,
+          fromName: pendingRename.name,
+          toName,
+          line: pendingRename.line,
           hasShallMust: false,
           scenarioCount: 0,
           scenarioNames: [],
           raw: '',
           scenarioRemovalReasons: [],
-        }
-        continue
-      }
-      const to = raw.match(RENAMED_TO_RE)
-      if (to !== null && openReq !== undefined && openReq.operation === 'RENAMED') {
-        openReq.toName = normalize(to[1]!)
-        ops.push(openReq)
+        })
         sectionCounts.set('RENAMED', (sectionCounts.get('RENAMED') ?? 0) + 1)
-        openReq = undefined
+        pendingRename = undefined
       }
       continue
     }
   }
   closeReq()
+  closePendingRename()
 
   const emptySections: DeltaOperation[] = []
   for (const op of sectionsSeen) if ((sectionCounts.get(op) ?? 0) === 0) emptySections.push(op)
 
-  return { path, capability, headerPresent, ops, emptySections, scenarioDepthIssues }
+  // `unpairedRenames` is already in line order: a pending FROM: is only ever
+  // dropped by a later line, and every other drop reports the line it is on.
+  return {
+    path,
+    capability,
+    headerPresent,
+    ops,
+    emptySections,
+    scenarioDepthIssues,
+    unpairedRenames,
+  }
 }
 
 export interface LivingSpec {

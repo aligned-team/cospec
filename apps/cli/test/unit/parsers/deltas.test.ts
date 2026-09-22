@@ -1289,3 +1289,117 @@ describe('every matching delta section applies', () => {
     expect(p.emptySections).toEqual([])
   })
 })
+
+// Rename pairing. openspec 1.13.1's `parseRenamedPairs`
+// (src/core/parsers/requirement-blocks.ts) forms an op only from a complete
+// FROM:/TO: pair, reads pairs per section, and reports every other line as
+// unpaired. cospec opened an op on the bare FROM: instead, so a dangling line
+// became a RENAMED op with `toName` undefined — counted as an entry by the
+// section counter, skipped by the RENAMED-TO collision check. Both pins drop a
+// stray line silently — 1.11.0 (`change-parser.ts` `parseRenames`) keeps the
+// last FROM: it saw and reads only the FIRST `## RENAMED Requirements` section,
+// so the op set asserted here matches the pinned binary; reporting the stray is
+// cospec's own, stricter, pin-independent addition.
+describe('RENAMED pairs', () => {
+  test('a complete pair records the op and nothing unpaired', () => {
+    const p = parseDeltaSpec(
+      [
+        '## RENAMED Requirements',
+        '',
+        '- FROM: `### Requirement: A`',
+        '- TO: `### Requirement: B`',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops).toHaveLength(1)
+    expect(p.ops[0]!.line).toBe(3)
+    expect(p.unpairedRenames).toEqual([])
+  })
+
+  test('a FROM: with no TO: at EOF records no op and reports the stray', () => {
+    const p = parseDeltaSpec(
+      ['## RENAMED Requirements', '', '- FROM: `### Requirement: A`', ''].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops).toEqual([])
+    expect(p.unpairedRenames).toEqual([{ side: 'FROM', name: 'A', line: 3 }])
+    // The phantom op used to count as a RENAMED entry and hide this.
+    expect(p.emptySections).toEqual(['RENAMED'])
+  })
+
+  test('a FROM: is closed by the next `## ` header, not carried into it', () => {
+    const p = parseDeltaSpec(
+      [
+        '## RENAMED Requirements',
+        '',
+        '- FROM: `### Requirement: A`',
+        '',
+        '## REMOVED Requirements',
+        '',
+        '- `### Requirement: Old thing`',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops.map((o) => o.operation)).toEqual(['REMOVED'])
+    expect(p.unpairedRenames).toEqual([{ side: 'FROM', name: 'A', line: 3 }])
+    expect(p.emptySections).toEqual(['RENAMED'])
+  })
+
+  test('a TO: with no pending FROM: is reported, not paired backwards', () => {
+    const p = parseDeltaSpec(
+      ['## RENAMED Requirements', '', '- TO: `### Requirement: B`', ''].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops).toEqual([])
+    expect(p.unpairedRenames).toEqual([{ side: 'TO', name: 'B', line: 3 }])
+  })
+
+  test('two FROM: lines then one TO: pair only the second — the first is reported', () => {
+    const p = parseDeltaSpec(
+      [
+        '## RENAMED Requirements',
+        '',
+        '- FROM: `### Requirement: a`',
+        '- FROM: `### Requirement: b`',
+        '- TO: `### Requirement: x`',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops).toHaveLength(1)
+    expect(p.ops[0]!.fromName).toBe('b')
+    expect(p.ops[0]!.toName).toBe('x')
+    // `a` is not renamed to `x`, and it is not silently forgotten either.
+    expect(p.unpairedRenames).toEqual([{ side: 'FROM', name: 'a', line: 3 }])
+  })
+
+  test('a pair split across two copies of the RENAMED header does not pair', () => {
+    const p = parseDeltaSpec(
+      [
+        '## RENAMED Requirements',
+        '',
+        '- FROM: `### Requirement: A`',
+        '',
+        '## RENAMED Requirements',
+        '',
+        '- TO: `### Requirement: B`',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops).toEqual([])
+    expect(p.unpairedRenames).toEqual([
+      { side: 'FROM', name: 'A', line: 3 },
+      { side: 'TO', name: 'B', line: 7 },
+    ])
+    expect(p.emptySections).toEqual(['RENAMED'])
+  })
+})

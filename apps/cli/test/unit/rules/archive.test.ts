@@ -380,3 +380,59 @@ describe('archive gates see non-`-` delta bullets', () => {
     )
   })
 })
+
+// Gate regression for the phantom RENAMED op. A bare `FROM:` used to open a
+// RENAMED op that `closeReq()` pushed with `toName` undefined: it counted as
+// this section's one entry (so `archive/no-ops` stayed quiet), it was skipped
+// by the RENAMED-TO collision arm for want of a `toName`, and its `fromName`
+// still drew an `archive/target-missing` — a rename that never happened,
+// reported as a missing target rather than as the malformed pair it is.
+describe('archive gates no longer see a half-built RENAMED', () => {
+  test('a RENAMED section holding only a dangling FROM: trips archive/no-ops', () => {
+    const text = '## RENAMED Requirements\n\n- FROM: `### Requirement: Existing`\n'
+    const issues = archiveRules(change(text, { living: LIVING }))
+    expect(rules(issues)).toEqual(['archive/no-ops'])
+  })
+
+  test('a dangling FROM: naming an absent requirement no longer reports target-missing', () => {
+    const text = '## RENAMED Requirements\n\n- FROM: `### Requirement: Nowhere`\n'
+    expect(rules(archiveRules(change(text, { living: LIVING })))).not.toContain(
+      'archive/target-missing',
+    )
+  })
+
+  test('an interleaved run gates the pair the author actually wrote', () => {
+    // The op is `b` -> `Renamed thing`, so the missing target named is `b`.
+    // `a` is neither paired with the TO: nor gated as a rename source.
+    const text =
+      '## RENAMED Requirements\n\n- FROM: `### Requirement: a`\n- FROM: `### Requirement: b`\n- TO: `### Requirement: Renamed thing`\n'
+    const issues = archiveRules(change(text, { living: LIVING }))
+    expect(rules(issues)).toEqual(['archive/target-missing'])
+    expect(issues[0]!.message).toBe(
+      'RENAMED target "b" does not exist in living spec openspec/specs/x/spec.md',
+    )
+    expect(issues[0]!.line).toBe(4)
+  })
+
+  // The collision arm is gated on `op.toName !== undefined`, so the phantom
+  // slipped past it entirely; a real pair must still be judged by it.
+  test('the surviving pair still gates its TO: collision', () => {
+    const living = `${LIVING}
+### Requirement: Other
+
+The system SHALL other.
+
+#### Scenario: s
+
+- **WHEN** a
+- **THEN** b
+`
+    const text =
+      '## RENAMED Requirements\n\n- FROM: `### Requirement: a`\n- FROM: `### Requirement: Other`\n- TO: `### Requirement: Existing`\n'
+    const issues = archiveRules(change(text, { living }))
+    expect(rules(issues)).toEqual(['archive/added-exists'])
+    expect(issues[0]!.message).toBe(
+      `RENAMED target "Existing" collides with an existing requirement in capability 'x'`,
+    )
+  })
+})

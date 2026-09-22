@@ -100,6 +100,52 @@ describe('deltas/spec-at-specs-root', () => {
   })
 })
 
+// A rename cospec cannot pair is a rename that does not happen: openspec drops
+// the stray line, archive still reports success, and the requirement keeps its
+// old name. 1.13.1 reports the same shape as an ERROR; cospec reports it at
+// every pin.
+describe('deltas/unpaired-rename', () => {
+  const renamed = (...lines: string[]) =>
+    delta('specs/x/spec.md', 'x', ['## RENAMED Requirements', '', ...lines, ''].join('\n'))
+
+  test('a complete FROM:/TO: pair reports nothing', () => {
+    expect(
+      deltasRules(renamed('- FROM: `### Requirement: A`', '- TO: `### Requirement: B`')),
+    ).toHaveLength(0)
+  })
+
+  test('a dangling FROM: is an ERROR naming the missing TO:', () => {
+    const issues = deltasRules(renamed('- FROM: `### Requirement: A`'))
+    expect(issues).toHaveLength(1)
+    const issue = issues[0]!
+    expect(issue.rule).toBe('deltas/unpaired-rename')
+    expect(issue.level).toBe('ERROR')
+    expect(issue.line).toBe(3)
+    expect(issue.message).toBe('RENAMED FROM: "A" has no matching TO: line')
+    expect(issue.hint).toBe(
+      'write each rename as a FROM: line followed immediately by its TO: line',
+    )
+  })
+
+  test('a dangling TO: is an ERROR naming the missing FROM:', () => {
+    const issue = deltasRules(renamed('- TO: `### Requirement: B`'))[0]!
+    expect(issue.rule).toBe('deltas/unpaired-rename')
+    expect(issue.message).toBe('RENAMED TO: "B" has no matching FROM: line')
+  })
+
+  test('the displaced FROM: of an interleaved run is reported once', () => {
+    const issues = deltasRules(
+      renamed(
+        '- FROM: `### Requirement: a`',
+        '- FROM: `### Requirement: b`',
+        '- TO: `### Requirement: x`',
+      ),
+    )
+    expect(rules(issues)).toEqual(['deltas/unpaired-rename'])
+    expect(issues[0]!.message).toBe('RENAMED FROM: "a" has no matching TO: line')
+  })
+})
+
 describe('skipSpecsConflictIssues', () => {
   test('no marker, no issue — whatever is under specs/', () => {
     expect(skipSpecsConflictIssues(makeChange({ files: ['specs/x/spec.md'] }))).toHaveLength(0)
