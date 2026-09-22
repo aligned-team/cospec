@@ -53,21 +53,25 @@ delta's capability — resolved through the shared recursive spec discovery, so 
 delta at `specs/<area>/<capability>/spec.md` is compared against the living
 `<capability>` and not against `<area>` — and compare the delta block's
 scenarios against the living requirement's, using cospec's normalising parser
-(BOM, CRLF, HTML-comment, and fence-aware). The comparison SHALL be by scenario
-**name**, counted with multiplicity: every living scenario name whose
-occurrences are not all matched by an occurrence of the same name in the delta
-block is a missing scenario. Names SHALL be compared case-sensitively, so a
-case-only rename is a drop. The existing count comparison SHALL be retained as a
-second arm, and the step SHALL refuse with exit 1 when either arm reports a
-loss. There SHALL be no escape hatch: neither a `Scenario removed:` note nor any
-other annotation excuses a name-identity or count drop, and a requirement
-dropped through `## REMOVED` carries no MODIFIED operation and so is never seen
-by this gate. This SHALL catch scenario thinning and same-count scenario
-renaming that `openspec archive` would otherwise wave through at exit 0 on the
-lower half of the accepted `>=1.0.0 <2.0.0` range. From OpenSpec 1.8.0 the
-wrapped binary carries its own overlapping check; cospec's gate SHALL still run
-first, with cospec's own message and rule id, because it remains the only
-defence on 1.0.0 through 1.7.x.
+(BOM, CRLF, HTML-comment, and fence-aware). A `#### ` header with no body — no
+non-blank line before the next header or end of input — SHALL NOT be counted as
+a scenario, and this SHALL apply identically to the delta side and the living
+side, so the gate neither passes a delta that hollows a real scenario out to a
+bare header nor refuses a merge the wrapped binary accepts because the living
+spec carries one. The comparison SHALL be by scenario **name**, counted with
+multiplicity: every living scenario name whose occurrences are not all matched
+by an occurrence of the same name in the delta block is a missing scenario.
+Names SHALL be compared case-sensitively, so a case-only rename is a drop. The
+existing count comparison SHALL be retained as a second arm, and the step SHALL
+refuse with exit 1 when either arm reports a loss. There SHALL be no escape
+hatch: neither a `Scenario removed:` note nor any other annotation excuses a
+name-identity or count drop, and a requirement dropped through `## REMOVED`
+carries no MODIFIED operation and so is never seen by this gate. This SHALL
+catch scenario thinning and same-count scenario renaming that `openspec archive`
+would otherwise wave through at exit 0 on the lower half of the accepted
+`>=1.0.0 <2.0.0` range. From OpenSpec 1.8.0 the wrapped binary carries its own
+overlapping check; cospec's gate SHALL still run first, with cospec's own
+message and rule id, because it remains the only defence on 1.0.0 through 1.7.x.
 
 #### Scenario: Dropped scenario refuses archive
 
@@ -127,6 +131,20 @@ defence on 1.0.0 through 1.7.x.
 
 - **WHEN** a MODIFIED delta renames a scenario only by letter case
 - **THEN** the gate treats the original name as missing and refuses
+
+#### Scenario: A hollowed-out scenario is still a drop
+
+- **WHEN** a MODIFIED delta keeps a living scenario's header but removes its
+  body, leaving a bare `#### Scenario: Foo` line
+- **THEN** the gate counts `Foo` as missing and refuses with exit 1, rather than
+  crediting the empty header as preservation
+
+#### Scenario: A bodyless living scenario is not a phantom loss
+
+- **WHEN** the living spec carries a bodyless `#### Scenario: Foo` header that
+  the MODIFIED delta does not repeat
+- **THEN** the gate does not report a loss, matching the wrapped binary, rather
+  than refusing an archive the binary accepts
 
 ### Requirement: Hard gates are explicit command steps
 

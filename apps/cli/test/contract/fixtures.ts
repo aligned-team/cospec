@@ -508,3 +508,105 @@ The system SHALL no longer render a widget.
 export function buildValidFeat(root: string, name = 'add-widget'): void {
   writeChangeShell(root, name, { 'widgets/spec.md': ADDED_DELTA })
 }
+
+/**
+ * A `feat` change whose MODIFIED header closes with an ATX run
+ * (`### Requirement: Widget rendering ###`) against a living spec whose header
+ * does not. The two binaries read this differently:
+ *
+ * - **1.11.0 (the pin)** captures the name greedily
+ *   (`requirement-blocks.ts:33`), so the delta names `Widget rendering ###` and
+ *   the archive aborts `… failed for header "### Requirement: Widget rendering
+ *   ###" - not found`.
+ * - **1.13.1** added `normalizeRequirementName`, which strips the closing run,
+ *   so the same delta applies.
+ *
+ * cospec's parser now strips it too (openspec 1.13.1 parity), which is why this
+ * fixture is deliberately NOT in `PARITY_FIXTURES`: at the pin cospec's
+ * read-only gate is clean while the binary aborts. `archive-gotchas.test.ts`
+ * pins both halves — the binary's real 1.11.0 refusal, and the fact that
+ * `cospec archive` still reports failure because it verifies the move on disk
+ * rather than trusting its own precondition pass.
+ */
+export function buildTrailingHashesModified(root: string, name = 'trailing-hashes-modified'): void {
+  writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_WIDGET_REQ))
+  writeChangeShell(root, name, {
+    'widgets/spec.md': `## MODIFIED Requirements
+
+### Requirement: Widget rendering ###
+
+The system SHALL render a widget promptly when requested.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered promptly
+`,
+  })
+}
+
+/** A living spec with two requirements: one to keep, one to remove or rename. */
+const LIVING_TWO_REQS = `
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered
+
+### Requirement: Widget caching
+
+The system SHALL cache a rendered widget.
+
+#### Scenario: Cache a widget
+
+- **WHEN** a caller requests the same widget twice
+- **THEN** the second request is served from cache
+`
+
+/** The requirement `buildMarkerRemoved`/`buildMarkerRenamed` target. */
+export const MARKER_TARGET = 'Widget caching'
+
+/**
+ * A `feat` change whose `## REMOVED Requirements` entry is written with
+ * `marker` as its bullet, against a living spec that still carries the target.
+ *
+ * `marker` is passed verbatim, so it carries the indentation too
+ * (`'  -'` writes an indented hyphen). The two binaries disagree here:
+ *
+ * - **1.11.0 (the pin)** reads REMOVED bullets with
+ *   `/^\s*-\s*`?###\s*Requirement:\s*(.+?)`?\s*$/` — leading whitespace yes,
+ *   `*` and `+` no. A `*`/`+` entry parses as nothing, so the section is empty
+ *   and `validate`/`archive` refuse with `… but no requirement entries parsed`.
+ * - **1.13.1** widened the class to `[-*+]`, so the same delta applies.
+ */
+export function buildMarkerRemoved(root: string, marker: string, name: string): void {
+  writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_TWO_REQS))
+  writeChangeShell(root, name, {
+    'widgets/spec.md': `## REMOVED Requirements
+
+${marker} \`### Requirement: ${MARKER_TARGET}\`
+`,
+  })
+}
+
+/**
+ * The RENAMED twin of `buildMarkerRemoved`: `Widget caching` → `Widget
+ * memoization`, with both `FROM:` and `TO:` bulleted by `marker`.
+ *
+ * At the pin the bullet is `/^\s*-?\s*FROM:…/` — an optional SINGLE hyphen — so
+ * a `*`/`+` pair parses as nothing and the section reads as empty, exactly as
+ * the REMOVED arm does. 1.13.1 accepts `[-*+]?`.
+ */
+export function buildMarkerRenamed(root: string, marker: string, name: string): void {
+  writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_TWO_REQS))
+  writeChangeShell(root, name, {
+    'widgets/spec.md': `## RENAMED Requirements
+
+${marker} FROM: \`### Requirement: ${MARKER_TARGET}\`
+${marker} TO: \`### Requirement: Widget memoization\`
+`,
+  })
+}

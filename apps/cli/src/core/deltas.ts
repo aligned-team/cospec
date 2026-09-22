@@ -8,13 +8,44 @@ export type DeltaOperation = 'ADDED' | 'MODIFIED' | 'REMOVED' | 'RENAMED'
 const REQUIREMENT_RE = /^###\s*Requirement:\s*(.+?)\s*$/
 const SECTION_RE = /^##\s+(.+?)\s*$/
 const SCENARIO_RE = /^####\s+/
+/**
+ * A header at scenario level or above (`#` through `####`) — where a scenario's
+ * body ends. Ported from openspec's `SCENARIO_BODY_END`
+ * (`src/core/parsers/requirement-text.ts`, 1.13.1): a `#####` header is *inside*
+ * the body, not a boundary, so a scenario documenting sub-cases still has one.
+ */
+const SCENARIO_BODY_END_RE = /^#{1,4}\s/
 /** 3-hashtag scenario heading — the probe §5.4 mis-parse (DESIGN deltas/scenario-depth). */
 const SCENARIO_DEPTH_RE = /^###\s+Scenario:/
 const SHALL_MUST_RE = /\b(SHALL|MUST)\b/
-/** REMOVED bullet form: `- \`### Requirement: X\``. */
-const REMOVED_BULLET_RE = /^-\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
-const RENAMED_FROM_RE = /^-?\s*FROM:\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
-const RENAMED_TO_RE = /^-?\s*TO:\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
+/**
+ * REMOVED bullet form: `- \`### Requirement: X\``.
+ *
+ * The marker class is CommonMark's full bullet set (`-`, `*`, `+`) and leading
+ * whitespace is allowed, matching openspec's own delta reader
+ * (`src/core/parsers/requirement-blocks.ts`, 1.13.1). Anchoring on `-` at
+ * column 0 — as cospec did through 0.7.1 — dropped every `*`/`+`/indented
+ * REMOVED entry before it reached `ops`, so `archive/target-missing` and
+ * `archive/scenario-preservation` never saw it: a false archive PASS.
+ * Fenced lines are still excluded upstream of these regexes by the fence mask.
+ *
+ * Against the 1.11.0 pin the two halves differ, and the difference is load-
+ * bearing for anyone reasoning across the accepted `>=1.0.0 <2.0.0` range:
+ * leading whitespace was already accepted there, but `*` and `+` were not —
+ * 1.11.0 reads REMOVED as ``/^\s*-\s*`?###\s*Requirement:…/`` and FROM/TO with
+ * an optional single hyphen. So these regexes deliberately LEAD the pin, and a
+ * `*`/`+` delta stays non-portable below 1.13.1: the binary refuses it with
+ * `… but no requirement entries parsed`, which reaches the user through the
+ * delegated `openspec validate` relay. `test/contract/delta-bullet-markers.test.ts`
+ * pins both binaries' real behaviour and flips at the 1.13.1 bump.
+ */
+const REMOVED_BULLET_RE = /^\s*[-*+]\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
+/**
+ * RENAMED pair lines; the bullet marker is optional, as 1.13.1's is. 1.11.0
+ * allows only `-` there — see `REMOVED_BULLET_RE` above.
+ */
+const RENAMED_FROM_RE = /^\s*[-*+]?\s*FROM:\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
+const RENAMED_TO_RE = /^\s*[-*+]?\s*TO:\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
 /**
  * A bullet inside a MODIFIED requirement's body noting why its scenario count
  * intentionally shrank. This was `archive/scenario-preservation`'s escape hatch
@@ -43,8 +74,17 @@ export interface DeltaOp {
   /**
    * Ordered scenario names in this requirement's block (ADDED/MODIFIED), one
    * per non-fenced `#### ` header, extracted with `scenarioNameFromHeader`.
+   * Every header, bodyless ones included — see `scenarioReader` for why the
+   * name arm and the count arm deliberately disagree there.
    */
   scenarioNames: string[]
+  /**
+   * `#### ` headers in this block that carry no body, and so counted as no
+   * scenario. Mirrors openspec's `countEmptyScenarios` and exists for the same
+   * reason: it is the only way `deltas/requirement-shape` can tell an author
+   * staring at a visible scenario header *why* the requirement has none.
+   */
+  emptyScenarioCount: number
   /**
    * Verbatim source text of the requirement block — header line through the
    * last line before the next `### Requirement:` header, the next `## `
@@ -59,6 +99,38 @@ export interface DeltaOp {
   scenarioRemovalReasons: string[]
 }
 
+/**
+ * A `FROM:` or `TO:` line that never formed a rename pair — the shapes
+ * openspec's `parseRenamedPairs` (`src/core/parsers/requirement-blocks.ts`,
+ * 1.13.1) refuses to guess at: a `FROM:` displaced by a second `FROM:`, a
+ * `TO:` with no pending `FROM:`, and a `FROM:` still pending when the section
+ * ends.
+ */
+export interface UnpairedRename {
+  side: 'FROM' | 'TO'
+  /** requirement name as written (normalized). */
+  name: string
+  /** 1-based line of the offending FROM:/TO: line. */
+  line: number
+}
+
+/**
+ * A canonical `### Requirement:` block written outside all four delta sections
+ * — the shape openspec's `findOrphanedRequirements`
+ * (`src/core/parsers/requirement-blocks.ts`, 1.13.1) reports. cospec's reader
+ * only acts inside a delta section, so such a block is silently discarded at
+ * the `currentOp === undefined` branch: it never reaches `ops`, never merges,
+ * and the change still archives clean.
+ */
+export interface OrphanedRequirement {
+  /** requirement name as written (normalized). */
+  name: string
+  /** the `## ` section it sits under, or `undefined` above the first one. */
+  section?: string
+  /** 1-based line of the `### Requirement:` header. */
+  line: number
+}
+
 export interface ParsedDelta {
   path: string
   capability: string
@@ -67,10 +139,40 @@ export interface ParsedDelta {
   /** section headers present but yielding zero entries. */
   emptySections: DeltaOperation[]
   scenarioDepthIssues: { line: number }[]
+  /**
+   * FROM:/TO: lines that formed no pair, in line order. A half-built RENAMED
+   * op is never pushed to `ops` for these — see the RENAMED arm of
+   * `parseDeltaSpec`.
+   */
+  unpairedRenames: UnpairedRename[]
+  /**
+   * `### Requirement:` blocks sitting outside every delta section, in document
+   * order — reported as the WARNING `deltas/orphaned-requirement`.
+   */
+  orphanedRequirements: OrphanedRequirement[]
+}
+
+/**
+ * openspec's `normalizeRequirementName` (`src/core/parsers/requirement-blocks.ts`,
+ * 1.13.1), ported verbatim: strip a CommonMark closing ATX run, then trim.
+ *
+ * `### Requirement: Foo ###` renders as `Foo`, so the run is not part of the
+ * name — and the binary keys every delta lookup, collision check and spec merge
+ * on the stripped form. Leaving it in made cospec read `Foo ###` where the
+ * binary read `Foo`: `archive/target-missing` refused a delta the binary
+ * applies, and `Foo` vs `Foo ###` read as two requirements where the binary
+ * saw one collision.
+ *
+ * The class is `[ \t]`, not `\s`, for the same reason `scenarioNameFromHeader`
+ * uses it: CommonMark only closes a heading on a `#` run preceded by a space or
+ * tab, so `C#` keeps its `#` and an NBSP-separated run stays in the name.
+ */
+export function normalizeRequirementName(name: string): string {
+  return name.replace(/[ \t]+#+[ \t]*$/, '').trim()
 }
 
 function normalize(name: string): string {
-  return name.trim()
+  return normalizeRequirementName(name)
 }
 
 /**
@@ -114,6 +216,82 @@ export function scenarioNameFromHeader(line: string): string {
     .replace(/[ \t]+#+[ \t]*$/, '')
     .replace(/^Scenario:\s*/i, '')
     .trim()
+}
+
+/**
+ * openspec's `hasScenarioBody` (`src/core/parsers/requirement-text.ts`, 1.13.1),
+ * ported: a `#### ` header is a scenario only once its body holds at least one
+ * non-blank line.
+ *
+ * A bare header is not a scenario to the binary either — the spec reader drops
+ * it — so counting one broke `archive/scenario-preservation` in both
+ * directions. Probed at the 1.11.0 pin: a MODIFIED block that keeps a living
+ * scenario's header and deletes its `- **WHEN**`/`- **THEN**` steps validates
+ * clean and archives at exit 0, leaving the living spec holding a hollow
+ * header — real content silently lost, and cospec's gate the only thing that
+ * can refuse it. In the other direction, a living block carrying a bare header
+ * reported one more scenario than the delta faithfully reproducing it, so the
+ * count arm refused a merge the binary performs.
+ */
+export function hasScenarioBody(body: readonly string[]): boolean {
+  return body.some((line) => line.trim().length > 0)
+}
+
+/**
+ * Streaming `#### ` header reader, shared by the delta and living parsers so
+ * one definition of "a scenario" feeds every counter and both hard gates.
+ *
+ * A header is held open until its body ends — the next non-fenced level-1-to-4
+ * header, the end of the requirement block, or end of input — because whether
+ * it counts as a scenario is not knowable at the header line. `owner` is
+ * captured at `open`, so a scenario is always credited to the requirement whose
+ * block it sits in, never to the one the parser has moved on to.
+ *
+ * **The count is gated on the body; the NAME is not.** That asymmetry is
+ * openspec's own (`countScenarios` filters on `hasScenarioBody`,
+ * `parseScenarioBlocks` — which feeds `findMissingCurrentScenarios` — does not),
+ * and dropping a bodyless header from `scenarioNames` would make cospec quieter
+ * than the pinned binary, not closer to it: probed at 1.11.0, a MODIFIED block
+ * that omits a bodyless living header is refused by `openspec validate` and
+ * `openspec archive` alike (`omits scenario(s) the current spec still has`,
+ * exit 1). Withholding the name only trades cospec's own rule id and remedy for
+ * the delegated `openspec/validate` twin.
+ *
+ * Body lines come from the masked structural view, the view every other
+ * structural decision in this module reads: a body written entirely inside an
+ * HTML comment is invisible here exactly as it is everywhere else. Fenced lines
+ * *are* body content, matching openspec's `readScenarioBodies`, which slices
+ * masked lines into the body rather than skipping them.
+ */
+function scenarioReader<T>(on: {
+  /** Every `#### ` header, body or not — the name arm of the gate. */
+  header: (owner: T, name: string) => void
+  /** Headers whose body has content — the count arm. */
+  counted: (owner: T, name: string) => void
+  /** Headers with no body, for the `deltas/requirement-shape` hint. */
+  empty?: (owner: T, name: string) => void
+}) {
+  let pending: { owner: T; name: string; body: string[] } | undefined
+  const close = () => {
+    if (pending === undefined) return
+    if (hasScenarioBody(pending.body)) on.counted(pending.owner, pending.name)
+    else on.empty?.(pending.owner, pending.name)
+    pending = undefined
+  }
+  return {
+    /** A `#### ` header: ends the scenario before it, opens this one. */
+    open(owner: T, name: string) {
+      close()
+      on.header(owner, name)
+      pending = { owner, name, body: [] }
+    },
+    /** A body line of the open scenario (fenced lines included). */
+    body(line: string) {
+      if (pending !== undefined) pending.body.push(line)
+    },
+    /** A boundary: a level-1-to-4 header, the end of the block, or EOF. */
+    close,
+  }
 }
 
 interface ActiveFence {
@@ -214,17 +392,50 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
   const { lines, source, fenced } = scanMarkdown(text)
   const ops: DeltaOp[] = []
   const scenarioDepthIssues: { line: number }[] = []
+  const unpairedRenames: UnpairedRename[] = []
+  const orphanedRequirements: OrphanedRequirement[] = []
   const sectionCounts = new Map<DeltaOperation, number>()
   const sectionsSeen = new Set<DeltaOperation>()
   let headerPresent = false
 
   let currentOp: DeltaOperation | undefined
+  /** Title of the `## ` section being read, undefined above the first one. */
+  let currentSection: string | undefined
   // Track the requirement currently being accumulated (ADDED/MODIFIED).
   let openReq: DeltaOp | undefined
-  /** Verbatim (unmasked) block lines for `openReq`; undefined for RENAMED. */
+  /** Verbatim (unmasked) block lines for `openReq`. */
   let openRaw: string[] | undefined
+  /** The `FROM:` awaiting its `TO:` inside the current RENAMED section. */
+  let pendingRename: { name: string; line: number } | undefined
+  const scenarios = scenarioReader<DeltaOp>({
+    header: (op, name) => op.scenarioNames.push(name),
+    counted: (op) => {
+      op.scenarioCount++
+    },
+    empty: (op) => {
+      op.emptyScenarioCount++
+    },
+  })
+
+  const dropRename = (side: 'FROM' | 'TO', name: string, line: number) => {
+    unpairedRenames.push({ side, name, line })
+  }
+
+  /**
+   * Pairs are read per section, exactly as openspec's `parseRenamedPairs` does:
+   * a `FROM:` left pending when a `## ` header arrives (or at EOF) is reported
+   * unpaired rather than carried into the next section, so a `FROM:` under one
+   * copy of `## RENAMED Requirements` can never pair with a `TO:` under another.
+   */
+  const closePendingRename = () => {
+    if (pendingRename !== undefined) dropRename('FROM', pendingRename.name, pendingRename.line)
+    pendingRename = undefined
+  }
 
   const closeReq = () => {
+    // Before the op is pushed: the last scenario's body ends with its block, and
+    // `scenarios` still holds the op it belongs to.
+    scenarios.close()
     if (openReq !== undefined) {
       if (openRaw !== undefined) openReq.raw = openRaw.join('\n').trimEnd()
       ops.push(openReq)
@@ -243,7 +454,9 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
     if (fenced[i] === true) {
       // Fenced content is part of the block verbatim, but never structure: a
       // `#### ` line inside a fence is retained in `raw` and is not a scenario.
+      // It is still *body*: a scenario whose steps are a fenced example has one.
       openRaw?.push(source[i] ?? '')
+      scenarios.body(raw)
       if (openReq !== undefined && SHALL_MUST_RE.test(raw)) openReq.hasShallMust = true
       continue
     }
@@ -255,6 +468,8 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
       const title = section[1]!.toLowerCase()
       const op = SECTION_TITLES[title]
       closeReq()
+      closePendingRename()
+      currentSection = section[1]!.trim()
       if (op !== undefined) {
         headerPresent = true
         currentOp = op
@@ -266,7 +481,19 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
       continue
     }
 
-    if (currentOp === undefined) continue
+    // Outside every delta section. A requirement header here is invisible to
+    // the reader below, so record it rather than dropping it in silence.
+    if (currentOp === undefined) {
+      const orphan = raw.match(REQUIREMENT_RE)
+      if (orphan !== null) {
+        orphanedRequirements.push({
+          name: normalize(orphan[1]!),
+          section: currentSection,
+          line: lineNo,
+        })
+      }
+      continue
+    }
 
     if (currentOp === 'ADDED' || currentOp === 'MODIFIED') {
       const req = raw.match(REQUIREMENT_RE)
@@ -279,6 +506,7 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
           hasShallMust: false,
           scenarioCount: 0,
           scenarioNames: [],
+          emptyScenarioCount: 0,
           raw: '',
           scenarioRemovalReasons: [],
         }
@@ -288,9 +516,12 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
       if (openReq !== undefined) {
         openRaw?.push(source[i] ?? '')
         if (SCENARIO_RE.test(raw)) {
-          openReq.scenarioCount++
-          openReq.scenarioNames.push(scenarioNameFromHeader(source[i] ?? ''))
-        } else if (SHALL_MUST_RE.test(raw)) openReq.hasShallMust = true
+          scenarios.open(openReq, scenarioNameFromHeader(source[i] ?? ''))
+        } else {
+          if (SCENARIO_BODY_END_RE.test(raw)) scenarios.close()
+          else scenarios.body(raw)
+          if (SHALL_MUST_RE.test(raw)) openReq.hasShallMust = true
+        }
         const removedNote = raw.match(SCENARIO_REMOVED_RE)
         if (removedNote !== null) openReq.scenarioRemovalReasons.push(removedNote[1]!.trim())
       }
@@ -309,6 +540,7 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
           hasShallMust: false,
           scenarioCount: 0,
           scenarioNames: [],
+          emptyScenarioCount: 0,
           raw: '',
           scenarioRemovalReasons: [],
         })
@@ -317,44 +549,79 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
       continue
     }
 
+    // Only a complete FROM:/TO: pair becomes an op, ported from openspec's
+    // `parseRenamedPairs`. cospec used to open a RENAMED op on the bare `FROM:`
+    // and let `closeReq()` push it with `toName` undefined: a phantom op that
+    // counted towards `sectionCounts` (suppressing `emptySections` and
+    // `archive/no-ops`) while the RENAMED-TO collision check skipped it for
+    // want of a `toName` — a false archive PASS over a rename that never
+    // happened. Interleaved lines were worse: a second `FROM:` overwrote the
+    // first in silence, so `FROM a / FROM b / TO x` renamed `b` to `x`, a
+    // requirement pairing the author never wrote. Every stray line is now
+    // reported through `unpairedRenames` (`deltas/unpaired-rename`).
     if (currentOp === 'RENAMED') {
       const from = raw.match(RENAMED_FROM_RE)
       if (from !== null) {
-        openReq = {
-          operation: 'RENAMED',
-          fromName: normalize(from[1]!),
-          line: lineNo,
-          hasShallMust: false,
-          scenarioCount: 0,
-          scenarioNames: [],
-          raw: '',
-          scenarioRemovalReasons: [],
-        }
+        if (pendingRename !== undefined) dropRename('FROM', pendingRename.name, pendingRename.line)
+        pendingRename = { name: normalize(from[1]!), line: lineNo }
         continue
       }
       const to = raw.match(RENAMED_TO_RE)
-      if (to !== null && openReq !== undefined && openReq.operation === 'RENAMED') {
-        openReq.toName = normalize(to[1]!)
-        ops.push(openReq)
+      if (to !== null) {
+        const toName = normalize(to[1]!)
+        if (pendingRename === undefined) {
+          dropRename('TO', toName, lineNo)
+          continue
+        }
+        // The op is anchored on its FROM: line, which is where an author fixes
+        // a rename and where the archive gates have always pointed.
+        ops.push({
+          operation: 'RENAMED',
+          fromName: pendingRename.name,
+          toName,
+          line: pendingRename.line,
+          hasShallMust: false,
+          scenarioCount: 0,
+          scenarioNames: [],
+          emptyScenarioCount: 0,
+          raw: '',
+          scenarioRemovalReasons: [],
+        })
         sectionCounts.set('RENAMED', (sectionCounts.get('RENAMED') ?? 0) + 1)
-        openReq = undefined
+        pendingRename = undefined
       }
       continue
     }
   }
   closeReq()
+  closePendingRename()
 
   const emptySections: DeltaOperation[] = []
   for (const op of sectionsSeen) if ((sectionCounts.get(op) ?? 0) === 0) emptySections.push(op)
 
-  return { path, capability, headerPresent, ops, emptySections, scenarioDepthIssues }
+  // `unpairedRenames` is already in line order: a pending FROM: is only ever
+  // dropped by a later line, and every other drop reports the line it is on.
+  return {
+    path,
+    capability,
+    headerPresent,
+    ops,
+    emptySections,
+    scenarioDepthIssues,
+    unpairedRenames,
+    orphanedRequirements,
+  }
 }
 
 export interface LivingSpec {
   requirementNames: Set<string>
-  /** requirement name → its current `#### Scenario:` count (archive/scenario-preservation). */
+  /**
+   * requirement name → its current scenario count (archive/scenario-preservation):
+   * `#### ` headers that carry a body, gated exactly as the delta side is.
+   */
   requirementScenarioCounts: Map<string, number>
-  /** requirement name → its ordered scenario names (`scenarioNameFromHeader`). */
+  /** requirement name → its ordered scenario names, every `#### ` header
+   *  (`scenarioNameFromHeader`), bodyless ones included — see `scenarioReader`. */
   requirementScenarioNames: Map<string, string[]>
   /** requirement name → the verbatim source of its block, `trimEnd`ed. */
   requirementBlocks: Map<string, string>
@@ -379,8 +646,22 @@ export function parseLivingSpec(text: string): LivingSpec {
   let currentReqName: string | undefined
   let currentBlock: string[] | undefined
   const purposeLines: string[] = []
+  // Same reader, same definition of a scenario as the delta side. Gating one
+  // side's count and not the other is what manufactures a phantom loss: a
+  // MODIFIED block reproducing a living block that carries a bare header would
+  // count one scenario against the living spec's inflated two, and the count arm
+  // would refuse an archive the binary performs.
+  const scenarios = scenarioReader<string>({
+    header: (reqName, name) => {
+      requirementScenarioNames.get(reqName)?.push(name)
+    },
+    counted: (reqName) => {
+      requirementScenarioCounts.set(reqName, (requirementScenarioCounts.get(reqName) ?? 0) + 1)
+    },
+  })
 
   const closeReq = () => {
+    scenarios.close()
     if (currentReqName !== undefined && currentBlock !== undefined)
       requirementBlocks.set(currentReqName, currentBlock.join('\n').trimEnd())
     currentReqName = undefined
@@ -391,6 +672,7 @@ export function parseLivingSpec(text: string): LivingSpec {
     const raw = lines[i]!
     if (fenced[i] === true) {
       currentBlock?.push(source[i] ?? '')
+      scenarios.body(raw)
       continue
     }
 
@@ -424,13 +706,10 @@ export function parseLivingSpec(text: string): LivingSpec {
       requirementScenarioNames.set(currentReqName, [])
     } else if (currentReqName !== undefined) {
       currentBlock?.push(source[i] ?? '')
-      if (SCENARIO_RE.test(raw)) {
-        requirementScenarioCounts.set(
-          currentReqName,
-          (requirementScenarioCounts.get(currentReqName) ?? 0) + 1,
-        )
-        requirementScenarioNames.get(currentReqName)?.push(scenarioNameFromHeader(source[i] ?? ''))
-      }
+      if (SCENARIO_RE.test(raw))
+        scenarios.open(currentReqName, scenarioNameFromHeader(source[i] ?? ''))
+      else if (SCENARIO_BODY_END_RE.test(raw)) scenarios.close()
+      else scenarios.body(raw)
     }
   }
   closeReq()

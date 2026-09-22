@@ -21,7 +21,7 @@ import { join } from 'node:path'
 
 import { formatLocalDate } from '../../src/commands/archive.ts'
 import { cleanupAll, cospec, mkTempRepo, openspec, writeFiles } from '../fixtures/support.ts'
-import { PARITY_FIXTURES } from './fixtures.ts'
+import { buildTrailingHashesModified, PARITY_FIXTURES } from './fixtures.ts'
 
 afterAll(cleanupAll)
 
@@ -80,6 +80,42 @@ describe('archive gotcha regressions (re-probed at 1.11.0: aborts now exit 1)', 
 
     const cRepo = mkTempRepo({ git: true })
     fixture(name).build(cRepo)
+    markDone(cRepo, name)
+    const c = await cospec(['archive', name], { cwd: cRepo })
+    expect(c.exitCode).not.toBe(0)
+    expect(movedToArchive(cRepo, name)).toBe(false)
+  })
+
+  // A closing ATX run in a requirement header is the one shape where cospec's
+  // parser deliberately reads the name the way openspec 1.13.1 does, not the
+  // way the 1.11.0 pin does: 1.13.1's `normalizeRequirementName` strips a
+  // space-preceded `#` run, 1.11.0's greedy header capture keeps it. So at the
+  // pin cospec's read-only gate is clean on a delta the binary refuses. That is
+  // survivable only because `cospec archive` never trusts its own precondition
+  // pass — it delegates and then verifies the move on disk. This test pins both
+  // halves so the day the pin moves to 1.13.1 the change of behaviour is loud.
+  test('a trailing ### header: 1.11.0 aborts (1.13.1 applies); cospec still refuses to claim success', async () => {
+    const name = 'trailing-hashes-modified'
+    const oRepo = mkTempRepo({ git: true })
+    buildTrailingHashesModified(oRepo, name)
+    const o = await openspec(['archive', name, '-y'], oRepo)
+    // The pin keeps the closing run in the name, so the target is "not found".
+    expect(o.stdout).toContain('### Requirement: Widget rendering ###')
+    expect(o.stdout).toContain('Aborted. No files were changed.')
+    expect(movedToArchive(oRepo, name)).toBe(false)
+    expect(o.exitCode).toBe(1)
+
+    // cospec's own gate reads the 1.13.1 name (`Widget rendering`) and finds the
+    // living target, so `validate --strict` is clean here at the pin...
+    const vRepo = mkTempRepo({ git: true })
+    buildTrailingHashesModified(vRepo, name)
+    const v = await cospec(['validate', name, '--strict'], { cwd: vRepo })
+    expect(v.exitCode).toBe(0)
+
+    // ...and the archive still fails, because the delegated binary aborts and
+    // cospec verifies the move rather than the exit code.
+    const cRepo = mkTempRepo({ git: true })
+    buildTrailingHashesModified(cRepo, name)
     markDone(cRepo, name)
     const c = await cospec(['archive', name], { cwd: cRepo })
     expect(c.exitCode).not.toBe(0)

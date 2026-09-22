@@ -79,6 +79,41 @@ using the same rule OpenSpec's own shared fence-masking uses: `~~~` fences are
 recognized alongside ` ``` `, and a fence only closes on a matching marker at
 least as long as the one that opened it.
 
+`## REMOVED Requirements` and `## RENAMED Requirements` bullets accept
+CommonMark's full marker set (`-`, `*`, `+`) with any leading whitespace, and a
+`RENAMED` pair's `FROM:`/`TO:` marker is optional — matching OpenSpec 1.13.1's
+delta reader. Only the leading whitespace is portable at the pinned 1.11.0
+binary: its readers take a single `-`, so a `*`- or `+`-bulleted entry parses as
+nothing there and the delegated `openspec/validate` relay refuses the change
+(`… but no requirement entries parsed`) even though cospec's own parser read it.
+Write `-` until the pin moves. A `FROM:` or `TO:` line that forms no pair (a
+second `FROM:` displacing the first, a `TO:` with no pending `FROM:`, or a
+`FROM:` still open when its section ends) is `deltas/unpaired-rename` (E) rather
+than a silently dropped or cross-paired rename.
+
+A requirement name is normalized by stripping a trailing CommonMark closing ATX
+run (`### Requirement: Foo ###` reads as `Foo`) before trim, so
+`### Requirement: Foo ###` in a delta resolves against a living `Foo` header
+without a false `archive/target-missing`, and two headers differing only in that
+trailing run collide as one requirement, not two. This too is OpenSpec 1.13.1
+behaviour: the pinned 1.11.0 binary captures the run as part of the name, so
+`cospec archive` clears its own precondition and then reports the delegated
+abort it verifies on disk. Drop the closing run until the pin moves.
+
+Both parsers count a `#### ` header as a scenario only when its body carries at
+least one non-blank line before the next level-1-to-4 header or end of input —
+OpenSpec's own `hasScenarioBody` rule, and the reason `deltas/requirement-shape`
+can report a requirement as having no scenario while a `#### Scenario:` line is
+plainly visible in it. Scenario _names_ are still read from every header,
+bodyless ones included, matching the reader OpenSpec's scenario-loss check uses.
+
+A `### Requirement:` block written outside all four delta sections — above the
+first `## ` header, or under a prose section such as `## Notes` — is ignored by
+the delta reader, so cospec reports it as `deltas/orphaned-requirement` (W)
+naming the section it sits under. It is a warning, not an error, because
+pre-format archived changes still carry the shape; the fix is to move the block
+under a delta section.
+
 ## Checkbox grammar
 
 `tasks.md`, `verification.md` and `blocking-changes.md` share one checkbox

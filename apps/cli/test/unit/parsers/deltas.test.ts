@@ -2,8 +2,10 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   findScenarioDrops,
+  foldRequirementName,
   type LivingSpec,
   normalizeBlockRaw,
+  normalizeRequirementName,
   parseDeltaSpec,
   parseLivingSpec,
   scenarioDropMessage,
@@ -659,7 +661,7 @@ describe('parser tolerances: BOM, CRLF, HTML comments, fences', () => {
 
   test('CRLF line endings do not leak a carriage return into captured names', () => {
     const p = parseDeltaSpec(
-      '## ADDED Requirements\r\n\r\n### Requirement: Widget display\r\n\r\nThe system SHALL x.\r\n\r\n#### Scenario: s\r\n',
+      '## ADDED Requirements\r\n\r\n### Requirement: Widget display\r\n\r\nThe system SHALL x.\r\n\r\n#### Scenario: s\r\n\r\n- **WHEN** a\r\n',
       'specs/x/spec.md',
       'x',
     )
@@ -692,6 +694,8 @@ describe('parser tolerances: BOM, CRLF, HTML comments, fences', () => {
         'The system SHALL x.',
         '',
         '#### Scenario: s',
+        '',
+        '- **WHEN** a',
       ].join('\n'),
       'specs/x/spec.md',
       'x',
@@ -716,6 +720,8 @@ describe('parser tolerances: BOM, CRLF, HTML comments, fences', () => {
         '',
         '#### Scenario: real',
         '',
+        '- **WHEN** a',
+        '',
         '<!-- #### Scenario: dead -->',
       ].join('\n'),
     )
@@ -724,7 +730,7 @@ describe('parser tolerances: BOM, CRLF, HTML comments, fences', () => {
 
   test('an unterminated HTML comment masks the rest of the file', () => {
     const p = parseDeltaSpec(
-      '## ADDED Requirements\n\n### Requirement: Real\n\nThe system SHALL x.\n\n#### Scenario: s\n\n<!--\n\n### Requirement: Dead\n\n#### Scenario: dead\n',
+      '## ADDED Requirements\n\n### Requirement: Real\n\nThe system SHALL x.\n\n#### Scenario: s\n\n- **WHEN** a\n\n<!--\n\n### Requirement: Dead\n\n#### Scenario: dead\n',
       'specs/x/spec.md',
       'x',
     )
@@ -784,6 +790,8 @@ describe('parser tolerances: BOM, CRLF, HTML comments, fences', () => {
         '~~~',
         '',
         '#### Scenario: s',
+        '',
+        '- **WHEN** a',
       ].join('\n'),
       'specs/x/spec.md',
       'x',
@@ -945,9 +953,13 @@ describe('requirement-block retention', () => {
         '',
         '#### Scenario: one',
         '',
+        '- **WHEN** a',
+        '',
         '## Notes',
         '',
         '#### Scenario: stray',
+        '',
+        '- **WHEN** b',
         '',
       ].join('\n'),
     )
@@ -970,6 +982,7 @@ describe('requirement-block retention', () => {
         '',
         '#### Scenario: real',
         '',
+        '- **WHEN** a',
       ].join('\n'),
       'specs/x/spec.md',
       'x',
@@ -1084,7 +1097,14 @@ describe('scenarioNameFromHeader', () => {
   })
 
   test('parsers extract the same names on both sides', () => {
-    const block = ['#### Scenario: Foo', '#### Bar ####', '#### baz']
+    const block = [
+      '#### Scenario: Foo',
+      '- **WHEN** a',
+      '#### Bar ####',
+      '- **WHEN** b',
+      '#### baz',
+      '- **WHEN** c',
+    ]
     const p = parseDeltaSpec(
       ['## MODIFIED Requirements', '', '### Requirement: X', '', ...block, ''].join('\n'),
       'specs/x/spec.md',
@@ -1120,10 +1140,727 @@ describe('scenarioNameFromHeader', () => {
         '### Requirement: X',
         '',
         '#### Scenario: a',
+        '- **WHEN** x',
         '#### Scenario: a',
+        '- **WHEN** x',
         '',
       ].join('\n'),
     )
     expect(living.requirementScenarioNames.get('X')).toEqual(['a', 'a'])
+  })
+})
+
+// Bullet-marker fidelity. openspec 1.13.1's delta reader
+// (src/core/parsers/requirement-blocks.ts:452,498-499) accepts CommonMark's
+// full bullet set with leading whitespace; cospec was `-`-only and anchored at
+// column 0, which silently dropped the entry.
+//
+// The two halves of that widening sit differently against the 1.11.0 pin, and
+// an earlier version of this comment got it wrong by calling both of them
+// already-accepted there. Read from the tags, then confirmed by spawning the
+// pinned binary (`test/contract/delta-bullet-markers.test.ts`):
+//
+//   - leading whitespace WAS already accepted at 1.11.0 — every one of its
+//     delta regexes is `^\s*`-anchored — so that half is catch-up;
+//   - the `*` and `+` markers were NOT. 1.11.0's REMOVED reader is
+//     ``/^\s*-\s*`?###\s*Requirement:\s*(.+?)`?\s*$/`` and its `FROM:`/`TO:`
+//     readers take an optional SINGLE hyphen. 1.13.1 widened both to `[-*+]`.
+//
+// So the marker class is cospec LEADING the pin: at 1.11.0 a `*`/`+` delta is
+// refused by the binary (`… but no requirement entries parsed`) while the
+// parser asserted below reads it. That does not become a false archive PASS
+// because the delegated `openspec validate` relay carries the refusal into
+// cospec's report and `archive` verifies the move on disk — both pinned by the
+// contract test named above, which is where this claim is actually evidenced.
+describe('delta bullet markers', () => {
+  for (const marker of ['-', '*', '+'] as const) {
+    test(`REMOVED accepts a \`${marker}\` bullet`, () => {
+      const p = parseDeltaSpec(
+        `## REMOVED Requirements\n\n${marker} \`### Requirement: Old thing\`\n`,
+        'specs/x/spec.md',
+        'x',
+      )
+      expect(p.ops).toHaveLength(1)
+      expect(p.ops[0]!.operation).toBe('REMOVED')
+      expect(p.ops[0]!.name).toBe('Old thing')
+      expect(p.emptySections).not.toContain('REMOVED')
+    })
+
+    test(`RENAMED accepts \`${marker}\` bulleted FROM/TO`, () => {
+      const p = parseDeltaSpec(
+        [
+          '## RENAMED Requirements',
+          '',
+          `${marker} FROM: \`### Requirement: A\``,
+          `${marker} TO: \`### Requirement: B\``,
+          '',
+        ].join('\n'),
+        'specs/x/spec.md',
+        'x',
+      )
+      expect(p.ops).toHaveLength(1)
+      expect(p.ops[0]!.fromName).toBe('A')
+      expect(p.ops[0]!.toName).toBe('B')
+    })
+  }
+
+  test('an unbulleted FROM/TO pair still parses', () => {
+    const p = parseDeltaSpec(
+      [
+        '## RENAMED Requirements',
+        '',
+        'FROM: `### Requirement: A`',
+        'TO: `### Requirement: B`',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops[0]!.fromName).toBe('A')
+    expect(p.ops[0]!.toName).toBe('B')
+  })
+
+  test('indented bullets parse in both REMOVED and RENAMED', () => {
+    const p = parseDeltaSpec(
+      [
+        '## REMOVED Requirements',
+        '',
+        '  - `### Requirement: Old thing`',
+        '',
+        '## RENAMED Requirements',
+        '',
+        '\t* FROM: `### Requirement: A`',
+        '   + TO: `### Requirement: B`',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops.find((o) => o.operation === 'REMOVED')?.name).toBe('Old thing')
+    const renamed = p.ops.find((o) => o.operation === 'RENAMED')
+    expect(renamed?.fromName).toBe('A')
+    expect(renamed?.toName).toBe('B')
+    expect(p.emptySections).toEqual([])
+  })
+
+  test('bulleted delta lines inside a fence are still ignored', () => {
+    const p = parseDeltaSpec(
+      [
+        '## REMOVED Requirements',
+        '',
+        '```md',
+        '* `### Requirement: Fenced removal`',
+        '```',
+        '',
+        '## RENAMED Requirements',
+        '',
+        '~~~',
+        '+ FROM: `### Requirement: A`',
+        '+ TO: `### Requirement: B`',
+        '~~~',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops).toEqual([])
+    expect(p.emptySections).toEqual(['REMOVED', 'RENAMED'])
+  })
+})
+
+// Critique B8: cospec never keys a delta record by section title. `parseDeltaSpec`
+// is a single forward pass that closes the open requirement and re-sets
+// `currentOp` at every `## ` header, so a repeated header and a case variant of
+// one both apply in full — matching upstream's `getSectionsCaseInsensitive`,
+// which returns every matching body rather than the first.
+describe('every matching delta section applies', () => {
+  test('repeated and case-variant section headers both accumulate', () => {
+    const p = parseDeltaSpec(
+      [
+        '## ADDED Requirements',
+        '',
+        '### Requirement: First',
+        '',
+        'The system SHALL first.',
+        '',
+        '#### Scenario: a',
+        '',
+        '- **WHEN** x',
+        '- **THEN** y',
+        '',
+        '## Notes',
+        '',
+        'Prose.',
+        '',
+        '## Added Requirements',
+        '',
+        '### Requirement: Second',
+        '',
+        'The system SHALL second.',
+        '',
+        '#### Scenario: b',
+        '',
+        '- **WHEN** x',
+        '- **THEN** y',
+        '',
+        '## REMOVED Requirements',
+        '',
+        '- `### Requirement: Gone one`',
+        '',
+        '## removed requirements',
+        '',
+        '* `### Requirement: Gone two`',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops.filter((o) => o.operation === 'ADDED').map((o) => o.name)).toEqual([
+      'First',
+      'Second',
+    ])
+    expect(p.ops.filter((o) => o.operation === 'REMOVED').map((o) => o.name)).toEqual([
+      'Gone one',
+      'Gone two',
+    ])
+    expect(p.emptySections).toEqual([])
+  })
+})
+
+// Rename pairing. openspec 1.13.1's `parseRenamedPairs`
+// (src/core/parsers/requirement-blocks.ts) forms an op only from a complete
+// FROM:/TO: pair, reads pairs per section, and reports every other line as
+// unpaired. cospec opened an op on the bare FROM: instead, so a dangling line
+// became a RENAMED op with `toName` undefined — counted as an entry by the
+// section counter, skipped by the RENAMED-TO collision check. Both pins drop a
+// stray line silently — 1.11.0 (`change-parser.ts` `parseRenames`) keeps the
+// last FROM: it saw and reads only the FIRST `## RENAMED Requirements` section,
+// so the op set asserted here matches the pinned binary; reporting the stray is
+// cospec's own, stricter, pin-independent addition.
+describe('RENAMED pairs', () => {
+  test('a complete pair records the op and nothing unpaired', () => {
+    const p = parseDeltaSpec(
+      [
+        '## RENAMED Requirements',
+        '',
+        '- FROM: `### Requirement: A`',
+        '- TO: `### Requirement: B`',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops).toHaveLength(1)
+    expect(p.ops[0]!.line).toBe(3)
+    expect(p.unpairedRenames).toEqual([])
+  })
+
+  test('a FROM: with no TO: at EOF records no op and reports the stray', () => {
+    const p = parseDeltaSpec(
+      ['## RENAMED Requirements', '', '- FROM: `### Requirement: A`', ''].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops).toEqual([])
+    expect(p.unpairedRenames).toEqual([{ side: 'FROM', name: 'A', line: 3 }])
+    // The phantom op used to count as a RENAMED entry and hide this.
+    expect(p.emptySections).toEqual(['RENAMED'])
+  })
+
+  test('a FROM: is closed by the next `## ` header, not carried into it', () => {
+    const p = parseDeltaSpec(
+      [
+        '## RENAMED Requirements',
+        '',
+        '- FROM: `### Requirement: A`',
+        '',
+        '## REMOVED Requirements',
+        '',
+        '- `### Requirement: Old thing`',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops.map((o) => o.operation)).toEqual(['REMOVED'])
+    expect(p.unpairedRenames).toEqual([{ side: 'FROM', name: 'A', line: 3 }])
+    expect(p.emptySections).toEqual(['RENAMED'])
+  })
+
+  test('a TO: with no pending FROM: is reported, not paired backwards', () => {
+    const p = parseDeltaSpec(
+      ['## RENAMED Requirements', '', '- TO: `### Requirement: B`', ''].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops).toEqual([])
+    expect(p.unpairedRenames).toEqual([{ side: 'TO', name: 'B', line: 3 }])
+  })
+
+  test('two FROM: lines then one TO: pair only the second — the first is reported', () => {
+    const p = parseDeltaSpec(
+      [
+        '## RENAMED Requirements',
+        '',
+        '- FROM: `### Requirement: a`',
+        '- FROM: `### Requirement: b`',
+        '- TO: `### Requirement: x`',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops).toHaveLength(1)
+    expect(p.ops[0]!.fromName).toBe('b')
+    expect(p.ops[0]!.toName).toBe('x')
+    // `a` is not renamed to `x`, and it is not silently forgotten either.
+    expect(p.unpairedRenames).toEqual([{ side: 'FROM', name: 'a', line: 3 }])
+  })
+
+  test('a pair split across two copies of the RENAMED header does not pair', () => {
+    const p = parseDeltaSpec(
+      [
+        '## RENAMED Requirements',
+        '',
+        '- FROM: `### Requirement: A`',
+        '',
+        '## RENAMED Requirements',
+        '',
+        '- TO: `### Requirement: B`',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops).toEqual([])
+    expect(p.unpairedRenames).toEqual([
+      { side: 'FROM', name: 'A', line: 3 },
+      { side: 'TO', name: 'B', line: 7 },
+    ])
+    expect(p.emptySections).toEqual(['RENAMED'])
+  })
+})
+
+// openspec 1.13.1's `normalizeRequirementName` strips a CommonMark closing ATX
+// run from a requirement header, so `### Requirement: Foo ###` names `Foo` on
+// both sides of the comparison — the key `archive/target-missing` and the
+// ADDED/RENAMED-TO collision arms test against.
+describe('normalizeRequirementName', () => {
+  test('strips a closing ATX run', () => {
+    expect(normalizeRequirementName('Foo ###')).toBe('Foo')
+    expect(normalizeRequirementName('Foo #')).toBe('Foo')
+    expect(normalizeRequirementName('Foo\t####  ')).toBe('Foo')
+  })
+
+  test('keeps a `#` that is part of the name', () => {
+    // No space or tab before the run, so CommonMark does not close the heading.
+    expect(normalizeRequirementName('C#')).toBe('C#')
+    expect(normalizeRequirementName('Support C# builds')).toBe('Support C# builds')
+    expect(normalizeRequirementName('Grade A#')).toBe('Grade A#')
+  })
+
+  test('only a space- or tab-preceded run closes: an NBSP run stays in the name', () => {
+    expect(normalizeRequirementName('Foo\u00a0###')).toBe('Foo\u00a0###')
+  })
+
+  test('a name that is only hashes is left alone', () => {
+    expect(normalizeRequirementName('###')).toBe('###')
+  })
+
+  test('foldRequirementName inherits the strip', () => {
+    expect(foldRequirementName('Foo Bar ###')).toBe(foldRequirementName('foo  bar'))
+    expect(foldRequirementName('C#')).toBe('c#')
+  })
+})
+
+describe('closing ATX runs in requirement headers', () => {
+  test('a delta ADDED header resolves to the same name as the living header', () => {
+    const delta = parseDeltaSpec(
+      [
+        '## ADDED Requirements',
+        '',
+        '### Requirement: Widget display ###',
+        '',
+        'The system SHALL display widgets.',
+        '',
+        '#### Scenario: Shown',
+        '',
+        '- **WHEN** asked',
+        '- **THEN** shown',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(delta.ops.map((o) => o.name)).toEqual(['Widget display'])
+
+    const living = parseLivingSpec(
+      [
+        '# widgets Specification',
+        '',
+        '## Purpose',
+        '',
+        'Widgets.',
+        '',
+        '## Requirements',
+        '',
+        '### Requirement: Widget display ###',
+        '',
+        'The system SHALL display widgets.',
+        '',
+        '#### Scenario: Shown',
+        '',
+        '- **WHEN** asked',
+        '- **THEN** shown',
+      ].join('\n'),
+    )
+    expect([...living.requirementNames]).toEqual(['Widget display'])
+    expect(living.requirementScenarioCounts.get('Widget display')).toBe(1)
+  })
+
+  test('a REMOVED bullet and a RENAMED pair strip their closing runs too', () => {
+    const p = parseDeltaSpec(
+      [
+        '## REMOVED Requirements',
+        '',
+        '- `### Requirement: Old thing ###`',
+        '',
+        '## RENAMED Requirements',
+        '',
+        '- FROM: `### Requirement: Before ##`',
+        '- TO: `### Requirement: After ###`',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.unpairedRenames).toEqual([])
+    expect(p.ops.map((o) => [o.operation, o.name, o.fromName, o.toName])).toEqual([
+      ['REMOVED', 'Old thing', undefined, undefined],
+      ['RENAMED', undefined, 'Before', 'After'],
+    ])
+  })
+
+  test('a requirement legitimately ending in a single `#` keeps it on both sides', () => {
+    const delta = parseDeltaSpec(
+      [
+        '## MODIFIED Requirements',
+        '',
+        '### Requirement: Support C#',
+        '',
+        'The system MUST support C#.',
+        '',
+        '#### Scenario: Builds',
+        '',
+        '- **WHEN** built',
+        '- **THEN** ok',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(delta.ops.map((o) => o.name)).toEqual(['Support C#'])
+
+    const living = parseLivingSpec(
+      [
+        '## Requirements',
+        '',
+        '### Requirement: Support C#',
+        '',
+        'The system MUST support C#.',
+      ].join('\n'),
+    )
+    expect([...living.requirementNames]).toEqual(['Support C#'])
+  })
+
+  test('CRLF input strips the run without leaving a stray carriage return', () => {
+    const delta = parseDeltaSpec(
+      [
+        '## ADDED Requirements',
+        '',
+        '### Requirement: Widget display ###',
+        '',
+        'The system SHALL display widgets.',
+        '',
+        '#### Scenario: Shown',
+        '',
+        '- **WHEN** asked',
+        '- **THEN** shown',
+      ].join('\r\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(delta.ops.map((o) => o.name)).toEqual(['Widget display'])
+
+    const living = parseLivingSpec(
+      ['## Requirements', '', '### Requirement: Widget display ###', '', 'Body.'].join('\r\n'),
+    )
+    expect([...living.requirementNames]).toEqual(['Widget display'])
+  })
+})
+
+// Bodyless scenario headers. openspec 1.13.1's `hasScenarioBody`
+// (src/core/parsers/requirement-text.ts:43) counts a `#### ` header only when
+// its body holds a non-blank line, because the spec reader that validates the
+// rebuilt spec drops a bare header outright. Probed at the 1.11.0 pin: a
+// MODIFIED block that hollows a living scenario out to its header validates
+// clean and archives at exit 0, leaving the living spec holding the hollow
+// header — the steps are gone. Both counters are gated; scenario NAMES are not,
+// matching upstream's `parseScenarioBlocks`, which feeds the loss check.
+const deltaOf = (...body: string[]) =>
+  parseDeltaSpec(
+    ['## MODIFIED Requirements', '', '### Requirement: X', '', 'The system SHALL x.', ...body]
+      .join('\n')
+      .concat('\n'),
+    'specs/x/spec.md',
+    'x',
+  ).ops[0]!
+
+const livingOf = (...body: string[]) =>
+  parseLivingSpec(
+    ['## Purpose', '', 'Why.', '', '## Requirements', '', '### Requirement: X', ...body]
+      .join('\n')
+      .concat('\n'),
+  )
+
+describe('bodyless scenario headers', () => {
+  test('a header with no body counts as no scenario on the delta side', () => {
+    const op = deltaOf('', '#### Scenario: Hollow')
+    expect(op.scenarioCount).toBe(0)
+    expect(op.emptyScenarioCount).toBe(1)
+    // The NAME is still extracted: upstream's loss check compares names without
+    // the body filter, and withholding it would hand the refusal to the
+    // delegated binary instead of cospec's own rule.
+    expect(op.scenarioNames).toEqual(['Hollow'])
+  })
+
+  test('a header with no body counts as no scenario on the living side', () => {
+    const living = livingOf('', '#### Scenario: Hollow')
+    expect(living.requirementScenarioCounts.get('X')).toBe(0)
+    expect(living.requirementScenarioNames.get('X')).toEqual(['Hollow'])
+  })
+
+  test('a header followed immediately by the next header has no body', () => {
+    const op = deltaOf('', '#### Scenario: First', '#### Scenario: Second', '', '- **WHEN** a')
+    expect(op.scenarioCount).toBe(1)
+    expect(op.emptyScenarioCount).toBe(1)
+    expect(op.scenarioNames).toEqual(['First', 'Second'])
+  })
+
+  test('blank lines alone are not a body', () => {
+    const op = deltaOf('', '#### Scenario: Hollow', '', '   ', '\t', '')
+    expect(op.scenarioCount).toBe(0)
+    expect(op.emptyScenarioCount).toBe(1)
+  })
+
+  test('a fenced body is a body — upstream slices masked lines into it', () => {
+    const op = deltaOf('', '#### Scenario: Fenced steps', '', '```ts', 'render()', '```')
+    expect(op.scenarioCount).toBe(1)
+    expect(op.emptyScenarioCount).toBe(0)
+  })
+
+  test('a `#####` sub-header is inside the body, not a boundary', () => {
+    const op = deltaOf('', '#### Scenario: Deep', '', '##### Detail', '', '- **WHEN** a')
+    expect(op.scenarioCount).toBe(1)
+  })
+
+  test("a level-3 divider ends the body, so what follows is not the scenario's", () => {
+    const op = deltaOf('', '#### Scenario: Hollow', '', '### Notes', '', '- **WHEN** a')
+    expect(op.scenarioCount).toBe(0)
+    expect(op.emptyScenarioCount).toBe(1)
+  })
+
+  test('a body that is only an HTML comment is no body, as everywhere else here', () => {
+    const op = deltaOf('', '#### Scenario: Hollow', '', '<!-- steps to be written -->')
+    expect(op.scenarioCount).toBe(0)
+    expect(op.raw).toContain('<!-- steps to be written -->')
+  })
+
+  test('the last scenario in a block keeps its body at a requirement boundary', () => {
+    const p = parseDeltaSpec(
+      [
+        '## MODIFIED Requirements',
+        '',
+        '### Requirement: X',
+        '',
+        'The system SHALL x.',
+        '',
+        '#### Scenario: Has steps',
+        '',
+        '- **WHEN** a',
+        '',
+        '### Requirement: Y',
+        '',
+        'The system SHALL y.',
+        '',
+        '#### Scenario: Hollow',
+        '',
+        '## Notes',
+        '',
+        'Prose that belongs to no requirement.',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops.map((o) => [o.name, o.scenarioCount, o.emptyScenarioCount])).toEqual([
+      ['X', 1, 0],
+      ['Y', 0, 1],
+    ])
+  })
+
+  test('a bodyless header in a later section is credited to no requirement', () => {
+    const living = parseLivingSpec(
+      [
+        '## Purpose',
+        '',
+        'Why.',
+        '',
+        '## Requirements',
+        '',
+        '### Requirement: X',
+        '',
+        '#### Scenario: Real',
+        '',
+        '- **WHEN** a',
+        '',
+        '## Notes',
+        '',
+        '#### Scenario: Stray',
+      ].join('\n'),
+    )
+    expect(living.requirementScenarioCounts.get('X')).toBe(1)
+    expect(living.requirementScenarioNames.get('X')).toEqual(['Real'])
+  })
+
+  test('hollowing a living scenario out to its header is a drop the count arm catches', () => {
+    const living = parseLivingSpec(
+      [
+        '## Purpose',
+        '',
+        'Why.',
+        '',
+        '## Requirements',
+        '',
+        '### Requirement: X',
+        '',
+        '#### Scenario: Kept',
+        '',
+        '- **WHEN** a',
+        '',
+        '#### Scenario: Hollowed',
+        '',
+        '- **WHEN** b',
+      ].join('\n'),
+    )
+    const delta = parseDeltaSpec(
+      [
+        '## MODIFIED Requirements',
+        '',
+        '### Requirement: X',
+        '',
+        'The system SHALL x.',
+        '',
+        '#### Scenario: Kept',
+        '',
+        '- **WHEN** a',
+        '',
+        '#### Scenario: Hollowed',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    const drops = findScenarioDrops([{ capability: 'x', ops: delta.ops }], new Map([['x', living]]))
+    // The name arm sees both names on both sides; the count arm is what refuses.
+    expect(drops).toHaveLength(1)
+    expect(drops[0]!.missingNames).toEqual([])
+    expect(scenarioDropMessage(drops[0]!)).toBe('MODIFIED "X" drops scenario count from 2 to 1')
+  })
+
+  test('a delta reproducing a bodyless living header is not a phantom loss', () => {
+    const block = ['#### Scenario: Real', '', '- **WHEN** a', '', '#### Scenario: Hollow']
+    const living = parseLivingSpec(
+      [
+        '## Purpose',
+        '',
+        'Why.',
+        '',
+        '## Requirements',
+        '',
+        '### Requirement: X',
+        '',
+        ...block,
+      ].join('\n'),
+    )
+    const delta = parseDeltaSpec(
+      [
+        '## MODIFIED Requirements',
+        '',
+        '### Requirement: X',
+        '',
+        'The system SHALL x.',
+        '',
+        ...block,
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    // Both sides read one real scenario and two names — gating one counter and
+    // not the other is what used to manufacture a 2 -> 1 loss here.
+    expect(living.requirementScenarioCounts.get('X')).toBe(1)
+    expect(delta.ops[0]!.scenarioCount).toBe(1)
+    expect(
+      findScenarioDrops([{ capability: 'x', ops: delta.ops }], new Map([['x', living]])),
+    ).toEqual([])
+  })
+})
+
+// Ported from openspec's `findOrphanedRequirements`
+// (src/core/parsers/requirement-blocks.ts, 1.13.1). Behaviour is the same at
+// the 1.11.0 pin — the reader there ignores these blocks too, it just says
+// nothing about them.
+describe('orphaned requirements', () => {
+  test('a requirement above the first section carries no section', () => {
+    const p = parseDeltaSpec(
+      ['### Requirement: Stray', '', 'The system SHALL x.', '', '## ADDED Requirements', ''].join(
+        '\n',
+      ),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.orphanedRequirements).toEqual([{ name: 'Stray', section: undefined, line: 1 }])
+  })
+
+  test('a requirement under a non-delta section names that section', () => {
+    const p = parseDeltaSpec(
+      ['## ADDED Requirements', '', '## Notes', '', '### Requirement: Stray ###', ''].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    // The name is normalized, so the closing ATX run is gone here too.
+    expect(p.orphanedRequirements).toEqual([{ name: 'Stray', section: 'Notes', line: 5 }])
+  })
+
+  test('requirements inside delta sections and inside fences are not orphans', () => {
+    const p = parseDeltaSpec(
+      [
+        '## Notes',
+        '',
+        '```md',
+        '### Requirement: Fenced',
+        '```',
+        '',
+        '## ADDED Requirements',
+        '',
+        '### Requirement: Real',
+        '',
+        'The system SHALL x.',
+        '',
+        '#### Scenario: s',
+        '',
+        '- **WHEN** a',
+        '- **THEN** b',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.orphanedRequirements).toEqual([])
+    expect(p.ops).toHaveLength(1)
   })
 })

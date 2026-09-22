@@ -350,3 +350,155 @@ describe('archiveRules: archive/scenario-preservation (advisory mirror)', () => 
     ).not.toContain('archive/scenario-preservation')
   })
 })
+
+// Gate regression for bodyless scenario headers. Probed against the 1.11.0 pin:
+// a MODIFIED block that keeps a living scenario's header and deletes its steps
+// validates clean (`Change 'x' is valid`, exit 0) and archives at exit 0,
+// leaving the living spec holding the hollow header — the steps are gone and
+// nothing on either side said so. cospec's gate is the only defence, here and
+// on the whole 1.0.0-1.7.x lower half of the accepted range.
+describe('archive gates count only scenarios that have a body', () => {
+  test('hollowing a living scenario out to a bare header is a drop', () => {
+    const text =
+      '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n#### Scenario: s1\n\n- **WHEN** a\n\n#### Scenario: s2\n'
+    const issue = archiveRules(change(text, { living: TWO_SCENARIO_LIVING }), {
+      strict: true,
+    }).find((i) => i.rule === 'archive/scenario-preservation')
+    expect(issue?.level).toBe('ERROR')
+    // Both names are present on both sides, so the identity arm is satisfied and
+    // the count arm — the belt-and-braces one — is what refuses.
+    expect(issue?.message).toBe('MODIFIED "Existing" drops scenario count from 2 to 1')
+  })
+
+  // The other direction: gating the delta side alone would refuse a faithful
+  // reproduction of a living block that happens to carry a bare header.
+  test('a bodyless living header does not inflate the living count into a loss', () => {
+    const living = `${TWO_SCENARIO_LIVING}
+#### Scenario: s3
+`
+    const text =
+      '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n#### Scenario: s1\n\n- **WHEN** a\n\n#### Scenario: s2\n\n- **WHEN** c\n\n#### Scenario: s3\n'
+    expect(rules(archiveRules(change(text, { living }), { strict: true }))).not.toContain(
+      'archive/scenario-preservation',
+    )
+  })
+})
+
+// Gate regression for the widened delta bullet markers. Before the widening,
+// a `*`/`+`/indented REMOVED entry never entered `ParsedDelta.ops`, so the
+// archive gate judged the section empty and never evaluated the target at all.
+describe('archive gates see non-`-` delta bullets', () => {
+  test('a `*`-bulleted REMOVED naming an absent requirement trips archive/target-missing', () => {
+    // `existing` folds onto the living `Existing`: a mistyped header, which is
+    // the one shape that survives the REMOVED early-sync exemption.
+    const text = '## REMOVED Requirements\n\n* `### Requirement: existing`\n'
+    const issues = archiveRules(change(text, { living: LIVING }))
+    expect(rules(issues)).toContain('archive/target-missing')
+    expect(issues.find((i) => i.rule === 'archive/target-missing')?.hint).toContain(
+      '### Requirement: Existing',
+    )
+    // The op is real, so the section is no longer judged empty.
+    expect(rules(issues)).not.toContain('archive/no-ops')
+  })
+
+  test('a `*`-bulleted REMOVED naming a present requirement is accepted', () => {
+    const text = '## REMOVED Requirements\n\n* `### Requirement: Existing`\n'
+    expect(archiveRules(change(text, { living: LIVING }))).toHaveLength(0)
+  })
+
+  test('an indented `+` REMOVED bullet is judged the same way', () => {
+    const text = '## REMOVED Requirements\n\n  + `### Requirement: existing`\n'
+    expect(rules(archiveRules(change(text, { living: LIVING })))).toContain(
+      'archive/target-missing',
+    )
+  })
+})
+
+// Gate regression for the phantom RENAMED op. A bare `FROM:` used to open a
+// RENAMED op that `closeReq()` pushed with `toName` undefined: it counted as
+// this section's one entry (so `archive/no-ops` stayed quiet), it was skipped
+// by the RENAMED-TO collision arm for want of a `toName`, and its `fromName`
+// still drew an `archive/target-missing` — a rename that never happened,
+// reported as a missing target rather than as the malformed pair it is.
+describe('archive gates no longer see a half-built RENAMED', () => {
+  test('a RENAMED section holding only a dangling FROM: trips archive/no-ops', () => {
+    const text = '## RENAMED Requirements\n\n- FROM: `### Requirement: Existing`\n'
+    const issues = archiveRules(change(text, { living: LIVING }))
+    expect(rules(issues)).toEqual(['archive/no-ops'])
+  })
+
+  test('a dangling FROM: naming an absent requirement no longer reports target-missing', () => {
+    const text = '## RENAMED Requirements\n\n- FROM: `### Requirement: Nowhere`\n'
+    expect(rules(archiveRules(change(text, { living: LIVING })))).not.toContain(
+      'archive/target-missing',
+    )
+  })
+
+  test('an interleaved run gates the pair the author actually wrote', () => {
+    // The op is `b` -> `Renamed thing`, so the missing target named is `b`.
+    // `a` is neither paired with the TO: nor gated as a rename source.
+    const text =
+      '## RENAMED Requirements\n\n- FROM: `### Requirement: a`\n- FROM: `### Requirement: b`\n- TO: `### Requirement: Renamed thing`\n'
+    const issues = archiveRules(change(text, { living: LIVING }))
+    expect(rules(issues)).toEqual(['archive/target-missing'])
+    expect(issues[0]!.message).toBe(
+      'RENAMED target "b" does not exist in living spec openspec/specs/x/spec.md',
+    )
+    expect(issues[0]!.line).toBe(4)
+  })
+
+  // The collision arm is gated on `op.toName !== undefined`, so the phantom
+  // slipped past it entirely; a real pair must still be judged by it.
+  test('the surviving pair still gates its TO: collision', () => {
+    const living = `${LIVING}
+### Requirement: Other
+
+The system SHALL other.
+
+#### Scenario: s
+
+- **WHEN** a
+- **THEN** b
+`
+    const text =
+      '## RENAMED Requirements\n\n- FROM: `### Requirement: a`\n- FROM: `### Requirement: Other`\n- TO: `### Requirement: Existing`\n'
+    const issues = archiveRules(change(text, { living }))
+    expect(rules(issues)).toEqual(['archive/added-exists'])
+    expect(issues[0]!.message).toBe(
+      `RENAMED target "Existing" collides with an existing requirement in capability 'x'`,
+    )
+  })
+})
+
+// Gate regression for closing ATX runs. `### Requirement: Existing ###` renders
+// as `Existing`, and openspec 1.13.1 keys every lookup on the stripped name.
+// Before the strip, cospec read `Existing ###` here: it refused a delta the
+// binary applies, and it read `Existing` and `Existing ###` as two requirements
+// where the binary sees one collision.
+describe('archive gates strip a closing ATX run from requirement names', () => {
+  test('a MODIFIED header with a closing run resolves to the living requirement', () => {
+    const text =
+      '## MODIFIED Requirements\n\n### Requirement: Existing ###\n\nThe system SHALL exist.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n'
+    expect(archiveRules(change(text, { living: LIVING }))).toHaveLength(0)
+  })
+
+  test('a REMOVED bullet with a closing run resolves to the living requirement', () => {
+    const text = '## REMOVED Requirements\n\n- `### Requirement: Existing ###`\n'
+    expect(archiveRules(change(text, { living: LIVING }))).toHaveLength(0)
+  })
+
+  test('an ADDED header with a closing run still collides with the living requirement', () => {
+    const text =
+      '## ADDED Requirements\n\n### Requirement: Existing ###\n\nThe system SHALL exist.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n'
+    expect(rules(archiveRules(change(text, { living: LIVING })))).toContain('archive/added-exists')
+  })
+
+  test('a name whose final `#` is part of the name is not resolved to a stripped twin', () => {
+    // No space before the `#`, so CommonMark does not close the heading and
+    // `Existing#` stays whole — a different requirement from `Existing`.
+    const living = LIVING.replace('### Requirement: Existing', '### Requirement: Existing#')
+    const text =
+      '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n'
+    expect(rules(archiveRules(change(text, { living })))).toContain('archive/target-missing')
+  })
+})
