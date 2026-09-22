@@ -13,7 +13,7 @@
 // (mirrors test/integration/store-aware.test.ts) so this suite never touches
 // the real machine's registered stores.
 //
-// Re-probed against the 1.11.0 pin (2026-09-01): `payload.store.{id,root}` and
+// Re-probed against the 1.13.1 pin (2026-09-22): `payload.store.{id,root}` and
 // `payload.registry.{registered,already_registered}` are unchanged, so the
 // shape tripwire above still holds. The store DIAGNOSTIC vocabulary did move
 // across 1.6.0–1.11.0 (the `openspec_*_missing` codes went away;
@@ -96,6 +96,31 @@ describe('cospec store setup/remove (real openspec binary + auto cospec-init)', 
     const list = await cospec(['store', 'list', '--json'], { cwd: workspace, env })
     const listPayload = JSON.parse(list.stdout) as ListPayload
     expect(listPayload.stores.some((s) => s.id === 'gone-store')).toBe(false)
+  }, 30_000)
+
+  // 1.13.1 (#1867) stops `--no-init-git` from being refused when the store path
+  // lands inside an existing git worktree — the flag now means "do not init a
+  // repo here", not "there must be no repo anywhere above". cospec passes the
+  // flag straight through, so this row proves the refusal is gone at the pin.
+  test('setup --no-init-git succeeds when the store path is inside an existing git repo', async () => {
+    const { workspace, env } = sandbox()
+    Bun.spawnSync(['git', 'init', '-q'], { cwd: workspace })
+    const storeRoot = join(workspace, 'stores', 'in-repo-store')
+
+    const res = await cospec(
+      ['store', 'setup', 'in-repo-store', '--path', storeRoot, '--no-init-git', '--json'],
+      { cwd: workspace, env },
+    )
+    expect(res.exitCode).toBe(0)
+
+    const payload = JSON.parse(res.stdout) as {
+      store: { root: string }
+      git: { initialized: boolean }
+    }
+    expect(existsSync(join(payload.store.root, 'openspec'))).toBe(true)
+    // The flag was honoured: no nested repo was created for the store.
+    expect(payload.git.initialized).toBe(false)
+    expect(existsSync(join(storeRoot, '.git'))).toBe(false)
   }, 30_000)
 
   test('--no-cospec-init skips the auto-init step', async () => {
