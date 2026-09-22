@@ -79,6 +79,13 @@ using the same rule OpenSpec's own shared fence-masking uses: `~~~` fences are
 recognized alongside ` ``` `, and a fence only closes on a matching marker at
 least as long as the one that opened it.
 
+Both parsers count a `#### ` header as a scenario only when its body carries at
+least one non-blank line before the next level-1-to-4 header or end of input —
+OpenSpec's own `hasScenarioBody` rule, and the reason `deltas/requirement-shape`
+can report a requirement as having no scenario while a `#### Scenario:` line is
+plainly visible in it. Scenario _names_ are still read from every header,
+bodyless ones included, matching the reader OpenSpec's scenario-loss check uses.
+
 ## Checkbox grammar
 
 `tasks.md`, `verification.md` and `blocking-changes.md` share one checkbox

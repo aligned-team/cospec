@@ -439,3 +439,121 @@ The system SHALL render a widget when requested.
     expect((living.match(/^####\s+Scenario:/gm) ?? []).length).toBe(2)
   })
 })
+
+// Bodyless scenario headers, probed at the 1.11.0 pin (2026-09-22).
+//
+// A `#### ` header with no body is not a scenario to either tool's spec reader,
+// so a MODIFIED block can keep a living scenario's header, delete its
+// `- **WHEN**`/`- **THEN**` steps, and satisfy the binary's name-identity check
+// on a scenario that no longer exists. Probed: `openspec validate --strict`
+// reports `Change 'hollow-widget' is valid` at exit 0, and `openspec archive`
+// merges at exit 0 — the living spec is left holding the hollow header with its
+// steps gone, silently. cospec's gate is the only thing that refuses it.
+//
+// Reading upstream at 1.13.1 (`findMissingCurrentScenarios` compares names via
+// `parseScenarioBlocks`, which does NOT apply `hasScenarioBody`), the binary's
+// side of this is unchanged by the bump; re-probe it there.
+//
+// The mirror case is the one that keeps the fix honest: a living spec that
+// carries a bodyless header, reproduced faithfully by the delta, must stay
+// archivable. Gating the delta-side counter alone would read it as a 3 -> 2
+// loss and refuse a merge the binary performs.
+
+/** MODIFIED that keeps both living scenario NAMES but hollows the second one
+ * out to a bare header. */
+const HOLLOWED_DELTA = `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered
+
+#### Scenario: Render an empty widget
+`
+
+/** A living spec whose last scenario is a bare header (an unfinished spec). */
+const LIVING_WITH_BODYLESS = `${LIVING}
+#### Scenario: Render a hidden widget
+`
+
+/** The faithful MODIFIED reproduction of it — bare header included. */
+const FAITHFUL_DELTA = `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested, on one path.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered
+
+#### Scenario: Render an empty widget
+
+- **WHEN** a caller requests an empty widget
+- **THEN** a placeholder is rendered
+
+#### Scenario: Render a hidden widget
+`
+
+describe('a bodyless scenario header vs the pinned openspec binary', () => {
+  test('the real binary merges the hollowed delta at exit 0 and the steps are lost', async () => {
+    const root = mkTempRepo({ git: true })
+    buildWith(root, 'hollow-widget', HOLLOWED_DELTA)
+
+    const v = await openspec(['validate', 'hollow-widget', '--strict'], root)
+    expect(v.exitCode).toBe(0)
+    expect(v.stdout).toContain("Change 'hollow-widget' is valid")
+
+    const res = await openspec(['archive', 'hollow-widget', '-y'], root)
+    expect(res.exitCode).toBe(0)
+    expect(res.stdout).not.toContain('Aborted')
+    expect(existsSync(join(root, 'openspec/changes/hollow-widget'))).toBe(false)
+
+    const living = readFileSync(join(root, 'openspec/specs/widgets/spec.md'), 'utf8')
+    // The header survives; its steps do not. That is the silent loss.
+    expect(living).toContain('#### Scenario: Render an empty widget')
+    expect(living).not.toContain('**THEN** a placeholder is rendered')
+  })
+
+  test('cospec refuses the hollowed delta before ever delegating', async () => {
+    const root = mkTempRepo({ git: true })
+    buildWith(root, 'hollow-widget', HOLLOWED_DELTA)
+
+    const v = await cospec(['validate', 'hollow-widget', '--strict', '--json'], { cwd: root })
+    expect(v.exitCode).not.toBe(0)
+    const byRule = (JSON.parse(v.stdout) as { summary: { byRule: Record<string, number> } }).summary
+      .byRule
+    expect(byRule['archive/scenario-preservation']).toBe(1)
+
+    const res = await cospec(['archive', 'hollow-widget'], { cwd: root })
+    expect(res.exitCode).not.toBe(0)
+    expect(res.stderr).toContain('scenario-preservation gate refused')
+    // The name arm is satisfied — both names are present — so the count arm is
+    // what refuses, and the message says so.
+    expect(res.stderr).toContain('widgets: "Widget rendering" 2 -> 1 scenario(s)')
+    expect(existsSync(join(root, 'openspec/changes/hollow-widget'))).toBe(true)
+    const living = readFileSync(join(root, 'openspec/specs/widgets/spec.md'), 'utf8')
+    expect(living).toContain('**THEN** a placeholder is rendered')
+  })
+
+  test('a bodyless living header the delta reproduces blocks neither side', async () => {
+    const root = mkTempRepo({ git: true })
+    buildWith(root, 'faithful-widget', FAITHFUL_DELTA, LIVING_WITH_BODYLESS)
+
+    const v = await cospec(['validate', 'faithful-widget', '--strict'], { cwd: root })
+    expect(v.exitCode).toBe(0)
+
+    const res = await cospec(['archive', 'faithful-widget'], { cwd: root })
+    expect(res.stderr).not.toContain('scenario-preservation')
+    expect(res.exitCode).toBe(0)
+    expect(existsSync(join(root, 'openspec/changes/faithful-widget'))).toBe(false)
+    const living = readFileSync(join(root, 'openspec/specs/widgets/spec.md'), 'utf8')
+    expect(living).toContain('on one path')
+    expect(living).toContain('#### Scenario: Render a hidden widget')
+  })
+})

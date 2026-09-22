@@ -661,7 +661,7 @@ describe('parser tolerances: BOM, CRLF, HTML comments, fences', () => {
 
   test('CRLF line endings do not leak a carriage return into captured names', () => {
     const p = parseDeltaSpec(
-      '## ADDED Requirements\r\n\r\n### Requirement: Widget display\r\n\r\nThe system SHALL x.\r\n\r\n#### Scenario: s\r\n',
+      '## ADDED Requirements\r\n\r\n### Requirement: Widget display\r\n\r\nThe system SHALL x.\r\n\r\n#### Scenario: s\r\n\r\n- **WHEN** a\r\n',
       'specs/x/spec.md',
       'x',
     )
@@ -694,6 +694,8 @@ describe('parser tolerances: BOM, CRLF, HTML comments, fences', () => {
         'The system SHALL x.',
         '',
         '#### Scenario: s',
+        '',
+        '- **WHEN** a',
       ].join('\n'),
       'specs/x/spec.md',
       'x',
@@ -718,6 +720,8 @@ describe('parser tolerances: BOM, CRLF, HTML comments, fences', () => {
         '',
         '#### Scenario: real',
         '',
+        '- **WHEN** a',
+        '',
         '<!-- #### Scenario: dead -->',
       ].join('\n'),
     )
@@ -726,7 +730,7 @@ describe('parser tolerances: BOM, CRLF, HTML comments, fences', () => {
 
   test('an unterminated HTML comment masks the rest of the file', () => {
     const p = parseDeltaSpec(
-      '## ADDED Requirements\n\n### Requirement: Real\n\nThe system SHALL x.\n\n#### Scenario: s\n\n<!--\n\n### Requirement: Dead\n\n#### Scenario: dead\n',
+      '## ADDED Requirements\n\n### Requirement: Real\n\nThe system SHALL x.\n\n#### Scenario: s\n\n- **WHEN** a\n\n<!--\n\n### Requirement: Dead\n\n#### Scenario: dead\n',
       'specs/x/spec.md',
       'x',
     )
@@ -786,6 +790,8 @@ describe('parser tolerances: BOM, CRLF, HTML comments, fences', () => {
         '~~~',
         '',
         '#### Scenario: s',
+        '',
+        '- **WHEN** a',
       ].join('\n'),
       'specs/x/spec.md',
       'x',
@@ -947,9 +953,13 @@ describe('requirement-block retention', () => {
         '',
         '#### Scenario: one',
         '',
+        '- **WHEN** a',
+        '',
         '## Notes',
         '',
         '#### Scenario: stray',
+        '',
+        '- **WHEN** b',
         '',
       ].join('\n'),
     )
@@ -972,6 +982,7 @@ describe('requirement-block retention', () => {
         '',
         '#### Scenario: real',
         '',
+        '- **WHEN** a',
       ].join('\n'),
       'specs/x/spec.md',
       'x',
@@ -1086,7 +1097,14 @@ describe('scenarioNameFromHeader', () => {
   })
 
   test('parsers extract the same names on both sides', () => {
-    const block = ['#### Scenario: Foo', '#### Bar ####', '#### baz']
+    const block = [
+      '#### Scenario: Foo',
+      '- **WHEN** a',
+      '#### Bar ####',
+      '- **WHEN** b',
+      '#### baz',
+      '- **WHEN** c',
+    ]
     const p = parseDeltaSpec(
       ['## MODIFIED Requirements', '', '### Requirement: X', '', ...block, ''].join('\n'),
       'specs/x/spec.md',
@@ -1122,7 +1140,9 @@ describe('scenarioNameFromHeader', () => {
         '### Requirement: X',
         '',
         '#### Scenario: a',
+        '- **WHEN** x',
         '#### Scenario: a',
+        '- **WHEN** x',
         '',
       ].join('\n'),
     )
@@ -1558,5 +1578,220 @@ describe('closing ATX runs in requirement headers', () => {
       ['## Requirements', '', '### Requirement: Widget display ###', '', 'Body.'].join('\r\n'),
     )
     expect([...living.requirementNames]).toEqual(['Widget display'])
+  })
+})
+
+// Bodyless scenario headers. openspec 1.13.1's `hasScenarioBody`
+// (src/core/parsers/requirement-text.ts:43) counts a `#### ` header only when
+// its body holds a non-blank line, because the spec reader that validates the
+// rebuilt spec drops a bare header outright. Probed at the 1.11.0 pin: a
+// MODIFIED block that hollows a living scenario out to its header validates
+// clean and archives at exit 0, leaving the living spec holding the hollow
+// header — the steps are gone. Both counters are gated; scenario NAMES are not,
+// matching upstream's `parseScenarioBlocks`, which feeds the loss check.
+const deltaOf = (...body: string[]) =>
+  parseDeltaSpec(
+    ['## MODIFIED Requirements', '', '### Requirement: X', '', 'The system SHALL x.', ...body]
+      .join('\n')
+      .concat('\n'),
+    'specs/x/spec.md',
+    'x',
+  ).ops[0]!
+
+const livingOf = (...body: string[]) =>
+  parseLivingSpec(
+    ['## Purpose', '', 'Why.', '', '## Requirements', '', '### Requirement: X', ...body]
+      .join('\n')
+      .concat('\n'),
+  )
+
+describe('bodyless scenario headers', () => {
+  test('a header with no body counts as no scenario on the delta side', () => {
+    const op = deltaOf('', '#### Scenario: Hollow')
+    expect(op.scenarioCount).toBe(0)
+    expect(op.emptyScenarioCount).toBe(1)
+    // The NAME is still extracted: upstream's loss check compares names without
+    // the body filter, and withholding it would hand the refusal to the
+    // delegated binary instead of cospec's own rule.
+    expect(op.scenarioNames).toEqual(['Hollow'])
+  })
+
+  test('a header with no body counts as no scenario on the living side', () => {
+    const living = livingOf('', '#### Scenario: Hollow')
+    expect(living.requirementScenarioCounts.get('X')).toBe(0)
+    expect(living.requirementScenarioNames.get('X')).toEqual(['Hollow'])
+  })
+
+  test('a header followed immediately by the next header has no body', () => {
+    const op = deltaOf('', '#### Scenario: First', '#### Scenario: Second', '', '- **WHEN** a')
+    expect(op.scenarioCount).toBe(1)
+    expect(op.emptyScenarioCount).toBe(1)
+    expect(op.scenarioNames).toEqual(['First', 'Second'])
+  })
+
+  test('blank lines alone are not a body', () => {
+    const op = deltaOf('', '#### Scenario: Hollow', '', '   ', '\t', '')
+    expect(op.scenarioCount).toBe(0)
+    expect(op.emptyScenarioCount).toBe(1)
+  })
+
+  test('a fenced body is a body — upstream slices masked lines into it', () => {
+    const op = deltaOf('', '#### Scenario: Fenced steps', '', '```ts', 'render()', '```')
+    expect(op.scenarioCount).toBe(1)
+    expect(op.emptyScenarioCount).toBe(0)
+  })
+
+  test('a `#####` sub-header is inside the body, not a boundary', () => {
+    const op = deltaOf('', '#### Scenario: Deep', '', '##### Detail', '', '- **WHEN** a')
+    expect(op.scenarioCount).toBe(1)
+  })
+
+  test("a level-3 divider ends the body, so what follows is not the scenario's", () => {
+    const op = deltaOf('', '#### Scenario: Hollow', '', '### Notes', '', '- **WHEN** a')
+    expect(op.scenarioCount).toBe(0)
+    expect(op.emptyScenarioCount).toBe(1)
+  })
+
+  test('a body that is only an HTML comment is no body, as everywhere else here', () => {
+    const op = deltaOf('', '#### Scenario: Hollow', '', '<!-- steps to be written -->')
+    expect(op.scenarioCount).toBe(0)
+    expect(op.raw).toContain('<!-- steps to be written -->')
+  })
+
+  test('the last scenario in a block keeps its body at a requirement boundary', () => {
+    const p = parseDeltaSpec(
+      [
+        '## MODIFIED Requirements',
+        '',
+        '### Requirement: X',
+        '',
+        'The system SHALL x.',
+        '',
+        '#### Scenario: Has steps',
+        '',
+        '- **WHEN** a',
+        '',
+        '### Requirement: Y',
+        '',
+        'The system SHALL y.',
+        '',
+        '#### Scenario: Hollow',
+        '',
+        '## Notes',
+        '',
+        'Prose that belongs to no requirement.',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops.map((o) => [o.name, o.scenarioCount, o.emptyScenarioCount])).toEqual([
+      ['X', 1, 0],
+      ['Y', 0, 1],
+    ])
+  })
+
+  test('a bodyless header in a later section is credited to no requirement', () => {
+    const living = parseLivingSpec(
+      [
+        '## Purpose',
+        '',
+        'Why.',
+        '',
+        '## Requirements',
+        '',
+        '### Requirement: X',
+        '',
+        '#### Scenario: Real',
+        '',
+        '- **WHEN** a',
+        '',
+        '## Notes',
+        '',
+        '#### Scenario: Stray',
+      ].join('\n'),
+    )
+    expect(living.requirementScenarioCounts.get('X')).toBe(1)
+    expect(living.requirementScenarioNames.get('X')).toEqual(['Real'])
+  })
+
+  test('hollowing a living scenario out to its header is a drop the count arm catches', () => {
+    const living = parseLivingSpec(
+      [
+        '## Purpose',
+        '',
+        'Why.',
+        '',
+        '## Requirements',
+        '',
+        '### Requirement: X',
+        '',
+        '#### Scenario: Kept',
+        '',
+        '- **WHEN** a',
+        '',
+        '#### Scenario: Hollowed',
+        '',
+        '- **WHEN** b',
+      ].join('\n'),
+    )
+    const delta = parseDeltaSpec(
+      [
+        '## MODIFIED Requirements',
+        '',
+        '### Requirement: X',
+        '',
+        'The system SHALL x.',
+        '',
+        '#### Scenario: Kept',
+        '',
+        '- **WHEN** a',
+        '',
+        '#### Scenario: Hollowed',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    const drops = findScenarioDrops([{ capability: 'x', ops: delta.ops }], new Map([['x', living]]))
+    // The name arm sees both names on both sides; the count arm is what refuses.
+    expect(drops).toHaveLength(1)
+    expect(drops[0]!.missingNames).toEqual([])
+    expect(scenarioDropMessage(drops[0]!)).toBe('MODIFIED "X" drops scenario count from 2 to 1')
+  })
+
+  test('a delta reproducing a bodyless living header is not a phantom loss', () => {
+    const block = ['#### Scenario: Real', '', '- **WHEN** a', '', '#### Scenario: Hollow']
+    const living = parseLivingSpec(
+      [
+        '## Purpose',
+        '',
+        'Why.',
+        '',
+        '## Requirements',
+        '',
+        '### Requirement: X',
+        '',
+        ...block,
+      ].join('\n'),
+    )
+    const delta = parseDeltaSpec(
+      [
+        '## MODIFIED Requirements',
+        '',
+        '### Requirement: X',
+        '',
+        'The system SHALL x.',
+        '',
+        ...block,
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    // Both sides read one real scenario and two names — gating one counter and
+    // not the other is what used to manufacture a 2 -> 1 loss here.
+    expect(living.requirementScenarioCounts.get('X')).toBe(1)
+    expect(delta.ops[0]!.scenarioCount).toBe(1)
+    expect(
+      findScenarioDrops([{ capability: 'x', ops: delta.ops }], new Map([['x', living]])),
+    ).toEqual([])
   })
 })

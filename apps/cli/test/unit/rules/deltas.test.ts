@@ -50,6 +50,32 @@ describe('deltasRules', () => {
     )
   })
 
+  // A requirement whose only scenario is a bare header has no scenario at all,
+  // and the author is staring at a visible `#### Scenario:` line while cospec
+  // says there is none. Same condition and wording as openspec's
+  // `emptyScenarioHint` (src/core/validation/validator.ts, 1.13.1).
+  test('deltas/requirement-shape explains a scenario header that has no body', () => {
+    const hollow =
+      '## ADDED Requirements\n\n### Requirement: X\n\nThe system SHALL x.\n\n#### Scenario: s\n'
+    const issues = deltasRules(delta('specs/x/spec.md', 'x', hollow))
+    const shape = issues.filter((i) => i.rule === 'deltas/requirement-shape')
+    expect(shape.map((i) => i.message)).toEqual([
+      'ADDED "X" must include at least one #### Scenario:',
+    ])
+    expect(shape[0]!.hint).toBe(
+      'a scenario header with no body under it does not count; add its steps, e.g. "- **WHEN** ..." and "- **THEN** ..."',
+    )
+  })
+
+  test('the hint is withheld when the block carries no scenario header at all', () => {
+    const noScenario = '## ADDED Requirements\n\n### Requirement: X\n\nThe system SHALL x.\n'
+    const shape = deltasRules(delta('specs/x/spec.md', 'x', noScenario)).filter(
+      (i) => i.rule === 'deltas/requirement-shape',
+    )
+    expect(shape).toHaveLength(1)
+    expect(shape[0]!.hint).toBeUndefined()
+  })
+
   test('deltas/capability-kebab on a non-kebab capability', () => {
     expect(rules(deltasRules(delta('specs/BadCap/spec.md', 'BadCap', GOOD)))).toContain(
       'deltas/capability-kebab',

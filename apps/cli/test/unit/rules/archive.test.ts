@@ -351,6 +351,39 @@ describe('archiveRules: archive/scenario-preservation (advisory mirror)', () => 
   })
 })
 
+// Gate regression for bodyless scenario headers. Probed against the 1.11.0 pin:
+// a MODIFIED block that keeps a living scenario's header and deletes its steps
+// validates clean (`Change 'x' is valid`, exit 0) and archives at exit 0,
+// leaving the living spec holding the hollow header — the steps are gone and
+// nothing on either side said so. cospec's gate is the only defence, here and
+// on the whole 1.0.0-1.7.x lower half of the accepted range.
+describe('archive gates count only scenarios that have a body', () => {
+  test('hollowing a living scenario out to a bare header is a drop', () => {
+    const text =
+      '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n#### Scenario: s1\n\n- **WHEN** a\n\n#### Scenario: s2\n'
+    const issue = archiveRules(change(text, { living: TWO_SCENARIO_LIVING }), {
+      strict: true,
+    }).find((i) => i.rule === 'archive/scenario-preservation')
+    expect(issue?.level).toBe('ERROR')
+    // Both names are present on both sides, so the identity arm is satisfied and
+    // the count arm — the belt-and-braces one — is what refuses.
+    expect(issue?.message).toBe('MODIFIED "Existing" drops scenario count from 2 to 1')
+  })
+
+  // The other direction: gating the delta side alone would refuse a faithful
+  // reproduction of a living block that happens to carry a bare header.
+  test('a bodyless living header does not inflate the living count into a loss', () => {
+    const living = `${TWO_SCENARIO_LIVING}
+#### Scenario: s3
+`
+    const text =
+      '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n#### Scenario: s1\n\n- **WHEN** a\n\n#### Scenario: s2\n\n- **WHEN** c\n\n#### Scenario: s3\n'
+    expect(rules(archiveRules(change(text, { living }), { strict: true }))).not.toContain(
+      'archive/scenario-preservation',
+    )
+  })
+})
+
 // Gate regression for the widened delta bullet markers. Before the widening,
 // a `*`/`+`/indented REMOVED entry never entered `ParsedDelta.ops`, so the
 // archive gate judged the section empty and never evaluated the target at all.

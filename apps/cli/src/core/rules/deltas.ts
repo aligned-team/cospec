@@ -10,6 +10,15 @@ const KEBAB_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/
 const SPEC_PATH_RE = /^specs\/(.+)\/spec\.md$/
 /** The one delta path openspec 1.7.0 blocks outright: a spec at the specs/ root. */
 const ROOT_SPEC_PATH = 'specs/spec.md'
+/**
+ * Why a requirement with a visible `#### Scenario:` header still has none:
+ * the header carries no body, and neither cospec nor the spec reader openspec
+ * validates the rebuilt spec against counts it. Wording ported from openspec's
+ * `emptyScenarioHint` (`src/core/validation/validator.ts`, 1.13.1) so an author
+ * who hits it in both tools reads one instruction, not two.
+ */
+const EMPTY_SCENARIO_HINT =
+  'a scenario header with no body under it does not count; add its steps, e.g. "- **WHEN** ..." and "- **THEN** ..."'
 
 /**
  * `deltas/skip-specs-conflict` — a change declaring `skip_specs:` in
@@ -132,6 +141,11 @@ export function deltasRules(change: LoadedChange): Issue[] {
           path: file.path,
           line: op.line,
           message: `${op.operation} "${op.name}" must include at least one #### Scenario:`,
+          // Only when the block *has* a header that did not count — otherwise the
+          // hint answers a question the author never asked. Same condition and
+          // wording as openspec's `emptyScenarioHint`
+          // (`src/core/validation/validator.ts`, 1.13.1).
+          hint: op.emptyScenarioCount > 0 ? EMPTY_SCENARIO_HINT : undefined,
         })
       }
     }
