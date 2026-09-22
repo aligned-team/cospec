@@ -1,9 +1,9 @@
 ---
-description: Explain how spec sync works (it runs inside archive) and preview what would merge.
+description: Explain how spec sync works (it runs inside archive) and preview what would merge. Also use when the user says "cospec sync specs", "sync the specs", or "openspec sync".
 metadata:
   author: cospec
   generatedBy: cospec@0.7.1
-  contentHash: sha256:8b278ff959f29a554a995c6d9f2233dd6bd98363c94aaf2aef20f555aff58bd0
+  contentHash: sha256:78a4d09275959566ff92a490de91a93a695dd0acdbc259620b3c4156c61ba16c
 ---
 
 Explain and preview spec synchronization. Spec sync is not a standalone step in
@@ -32,6 +32,11 @@ ADDED collisions, scenarios are well-formed) and reports anything that would
 make the merge fail. Then read the delta files under
 `openspec/changes/<slug>/specs/**/spec.md` to see the exact ADDED / MODIFIED /
 REMOVED / RENAMED operations.
+
+A delta that targets a capability with no living spec yet may only ADD
+requirements — any MODIFIED, REMOVED, or RENAMED op there is a validate-time
+ERROR (`archive/new-spec-non-added`), not something that surfaces later at merge
+time.
 
 ## Retiring a capability
 

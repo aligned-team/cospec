@@ -35,6 +35,26 @@ The system SHALL display widgets.
     expect(op.scenarioCount).toBe(1)
   })
 
+  test('tolerates a leading top-level heading before the ADDED section', () => {
+    const text = `# Spec Delta
+
+## ADDED Requirements
+
+### Requirement: Widget display
+
+The system SHALL display widgets.
+
+#### Scenario: Show widget
+
+- **WHEN** open
+- **THEN** shown
+`
+    const p = parseDeltaSpec(text, 'specs/widgets/spec.md', 'widgets')
+    expect(p.headerPresent).toBe(true)
+    expect(p.ops).toHaveLength(1)
+    expect(p.ops[0]!.operation).toBe('ADDED')
+  })
+
   test('flags a 3-hashtag scenario heading as a depth issue', () => {
     const text = `## ADDED Requirements
 

@@ -1,6 +1,6 @@
 ---
 name: "COSPEC: Archive"
-description: Archive a completed change — validate, merge specs, verify, and fan blockers out.
+description: Archive a completed change — validate, merge specs, verify, and fan blockers out. Also use when the user says "cospec archive" or "openspec archive".
 category: Workflow
 tags:
   - cospec
@@ -8,7 +8,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@0.7.1
-  contentHash: sha256:d3888b806ad2a458d51e502db3d4697e1a384fbbb0cca33a69317c5d42b16b46
+  contentHash: sha256:d31ab736702e834b863f53218615046ce0d07111014acda12131333653f2a56a
 ---
 
 Archive a completed change. `cospec archive` validates it, merges its spec
@@ -30,6 +30,10 @@ cospec archive <slug>
 Relay the summary it prints verbatim: what was archived, which spec deltas were
 applied (`+a ~m -r →n`) or skipped, which sibling changes had blocker boxes
 checked, and which changes are now unblocked.
+
+A change that introduces a brand-new capability (no living spec yet) may only
+ADD requirements there — `cospec validate` refuses a MODIFIED, REMOVED, or
+RENAMED op targeting it before archive ever runs the merge.
 
 ## 3. On failure
 

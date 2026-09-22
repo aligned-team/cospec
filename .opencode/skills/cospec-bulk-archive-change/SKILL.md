@@ -1,12 +1,12 @@
 ---
 name: cospec-bulk-archive-change
-description: Archive a batch of completed changes in dependency order, one cospec archive call at a time.
+description: Archive a batch of completed changes in dependency order, one cospec archive call at a time. Also use for a plural archive request — "cospec bulk-archive", "openspec bulk-archive", "archive all these changes", or "archive everything".
 license: MIT
 compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.7.1
-  contentHash: sha256:aba1eebd8c034f8dce3f59c8fdb48518ab02c09c6424b4bad53b6b73986ced55
+  contentHash: sha256:a530a027e099f802ba55426c09dae1bd579881a9647cf133108b6f176fe206c3
 ---
 
 Archive a batch of completed changes, one at a time, in dependency order. Every
@@ -47,6 +47,10 @@ applied (`+a ~m -r →n`) or skipped, which sibling changes had blocker boxes
 checked, and which changes are now unblocked. A non-zero exit is reported and
 the batch continues to the next change — one failure is not fatal to the rest of
 the batch.
+
+Each `cospec archive <slug>` call checks its own archive-slot collision before
+touching any spec deltas, so a same-day slot collision is always caught before
+that change's specs are written — never discovered mid-merge, after the fact.
 
 ## 4. On a per-change failure
 

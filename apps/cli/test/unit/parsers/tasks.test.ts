@@ -25,6 +25,20 @@ describe('parseTasks', () => {
     }
   })
 
+  test('tolerates a leading top-level heading before the first group', () => {
+    const text = `# Tasks
+
+## 1. Build
+
+- [ ] 1.1 implement
+`
+    const p = parseTasks(text)
+    expect(p.groups).toHaveLength(1)
+    expect(p.groups[0]!.num).toBe(1)
+    expect(p.groups[0]!.title).toBe('Build')
+    expect(p.items).toHaveLength(1)
+  })
+
   test('ignores checkbox-like content inside fenced code', () => {
     const p = parseTasks('```\n- [ ] not a task\n```\n')
     expect(p.items).toHaveLength(0)

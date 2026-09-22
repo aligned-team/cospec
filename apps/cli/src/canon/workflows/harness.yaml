@@ -29,6 +29,7 @@ workflows:
     title: Propose
     description: >-
       Propose a new change and generate every artifact its type requires, in one guided pass.
+      Also use when the user says "cospec propose" or "openspec propose".
     injectTypeTable: true
     takesArguments: true
   - id: new
@@ -37,6 +38,7 @@ workflows:
     title: New
     description: >-
       Scaffold a new change and show its typed artifact plan, then stop before authoring anything.
+      Also use when the user says "cospec new" or "openspec new".
     injectTypeTable: true
     takesArguments: true
   - id: continue
@@ -45,6 +47,7 @@ workflows:
     title: Continue
     description: >-
       Resume a partially-built change and finish its remaining artifacts.
+      Also use when the user says "cospec continue" or "openspec continue".
     takesArguments: true
   - id: ff
     command: ff
@@ -52,6 +55,7 @@ workflows:
     title: Fast-forward
     description: >-
       Author every remaining artifact on an already-scaffolded change in one pass, then validate.
+      Also use when the user says "cospec ff", "cospec fast-forward", or "openspec ff".
     takesArguments: true
   - id: update
     command: update
@@ -59,7 +63,10 @@ workflows:
     title: Update
     description: >-
       Revise an existing change's already-written artifacts and keep them coherent, without
-      creating new artifacts or editing code.
+      creating new artifacts or editing code. Also use when the user says "cospec update
+      change", "update the change", or "openspec update change" — never for the unrelated
+      `cospec update` CLI command, which regenerates this repo's managed harness and schema
+      files, not a change's artifacts.
     takesArguments: true
   - id: apply
     command: apply
@@ -67,13 +74,16 @@ workflows:
     title: Apply
     description: >-
       Run the apply gate for a change and implement its tasks, obeying the gate's exit code.
+      Also use when the user says "cospec apply" or "openspec apply".
     takesArguments: true
   - id: verify
     command: verify
     skill: cospec-verify-change
     title: Verify
     description: >-
-      Dress-rehearse a change before archiving — validate strictly, walk the verification ledger, and name the hard archive gates.
+      Dress-rehearse a change before archiving — validate strictly, walk the verification ledger,
+      and name the hard archive gates. Also use when the user says "cospec verify" or
+      "openspec verify".
     takesArguments: true
   - id: archive
     command: archive
@@ -81,6 +91,7 @@ workflows:
     title: Archive
     description: >-
       Archive a completed change — validate, merge specs, verify, and fan blockers out.
+      Also use when the user says "cospec archive" or "openspec archive".
     takesArguments: true
   - id: bulk-archive
     command: bulk-archive
@@ -88,12 +99,15 @@ workflows:
     title: Bulk archive
     description: >-
       Archive a batch of completed changes in dependency order, one cospec archive call at a time.
+      Also use for a plural archive request — "cospec bulk-archive", "openspec bulk-archive",
+      "archive all these changes", or "archive everything".
   - id: sync-specs
     command: sync-specs
     skill: cospec-sync-specs
     title: Sync specs
     description: >-
       Explain how spec sync works (it runs inside archive) and preview what would merge.
+      Also use when the user says "cospec sync specs", "sync the specs", or "openspec sync".
     takesArguments: true
   - id: explore
     command: explore
@@ -101,6 +115,7 @@ workflows:
     title: Explore
     description: >-
       Investigate the codebase or a spec question without writing implementation code.
+      Also use when the user says "cospec explore" or "openspec explore".
     takesArguments: true
   - id: onboard
     command: onboard
@@ -108,6 +123,7 @@ workflows:
     title: Onboard
     description: >-
       Walk a first-time user through one real cospec change end to end, narrating each step.
+      Also use when the user says "cospec onboard" or "openspec onboard".
 
 harnesses:
   claude:

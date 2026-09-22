@@ -37,6 +37,10 @@ checked, and which changes are now unblocked. A non-zero exit is reported and
 the batch continues to the next change — one failure is not fatal to the rest of
 the batch.
 
+Each `cospec archive <slug>` call checks its own archive-slot collision before
+touching any spec deltas, so a same-day slot collision is always caught before
+that change's specs are written — never discovered mid-merge, after the fact.
+
 ## 4. On a per-change failure
 
 Do NOT hand-`mv` the change directory, and do NOT force past a failure you do

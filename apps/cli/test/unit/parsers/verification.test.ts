@@ -29,6 +29,21 @@ describe('parseVerification — groups', () => {
     expect(p.groups[0]!.title).toBe('Payment settles')
   })
 
+  test('tolerates a leading top-level heading before the first group', () => {
+    const p = parseVerification(
+      [
+        '# Verification',
+        '',
+        '## 1. Login works',
+        '- [ ] 1.1 @e2e (agent) drive the flow -> lands on /home',
+      ].join('\n'),
+    )
+    expect(p.groups).toHaveLength(1)
+    expect(p.groups[0]!.num).toBe(1)
+    expect(p.groups[0]!.title).toBe('Login works')
+    expect(p.rows).toHaveLength(1)
+  })
+
   test('ignores rows inside a fenced code block', () => {
     const p = parseVerification(
       ['## 1. G', '```', '- [ ] 1.1 @unit not a real row -> x', '```'].join('\n'),

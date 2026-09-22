@@ -1,3 +1,5 @@
+# Proposal
+
 ## Why
 
 <!-- Motivation. What problem does this solve? Why now? At least two sentences. -->

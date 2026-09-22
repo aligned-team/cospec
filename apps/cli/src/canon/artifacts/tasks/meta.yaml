@@ -7,6 +7,8 @@ template: tasks.md
 requires: [proposal]
 description: Implementation checklist tracked during apply
 templateBody: |
+  # Tasks
+
   ## 1. <group name>
 
   - [ ] 1.1 <task> and verify <how completion is observed>

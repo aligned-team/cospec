@@ -1,5 +1,5 @@
 ---
-description: Resume a partially-built change and finish its remaining artifacts.
+description: Resume a partially-built change and finish its remaining artifacts. Also use when the user says "cospec continue" or "openspec continue".
 metadata:
   author: cospec
   generatedBy: cospec@0.7.1

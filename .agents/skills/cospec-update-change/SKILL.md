@@ -1,12 +1,12 @@
 ---
 name: cospec-update-change
-description: Revise an existing change's already-written artifacts and keep them coherent, without creating new artifacts or editing code.
+description: Revise an existing change's already-written artifacts and keep them coherent, without creating new artifacts or editing code. Also use when the user says "cospec update change", "update the change", or "openspec update change" — never for the unrelated `cospec update` CLI command, which regenerates this repo's managed harness and schema files, not a change's artifacts.
 license: MIT
 compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.7.1
-  contentHash: sha256:6b933d6a43827dc08fcef35a0ae4aa5a715d0e7d7c5eb1efd50a54035aad717a
+  contentHash: sha256:05f1abf503b2339c753e9606f6a2feb0f5469f331c8450855c0ab3fe2ea49235
 ---
 
 Revise a change's **existing** artifacts and keep them coherent with one
@@ -47,12 +47,13 @@ scope here — note it and point the user at `$cospec-continue-change (Codex) or
 ## 4. Reconcile
 
 Re-read every artifact you touch from disk — never from what you remember of
-this conversation; the user may have edited it since. Apply the requested edit,
-then check every other existing artifact against it **in both directions**: an
-edit to `tasks.md` can require revising `proposal.md`, not only the reverse.
-Dependency order is a reading order, not a constraint on what may be revised.
+this conversation; the user may have edited it since. **Draft** the requested
+edit — in the conversation, not in files — then check every other existing
+artifact against the drafted edit **in both directions**: an edit to `tasks.md`
+can require revising `proposal.md`, not only the reverse. Dependency order is a
+reading order, not a constraint on what may be revised.
 
-If the change is already coherent, say so and edit nothing.
+If the change is already coherent, say so and **propose no revisions**.
 
 When a substantial rewrite is needed, get that artifact's authoritative rules,
 template, and output path first:
@@ -71,6 +72,8 @@ capability file is `$cospec-continue-change (Codex) or /cospec-continue-change (
 
 Show each proposed revision and why, one artifact at a time, and write only
 after the user confirms it. A rejected revision leaves that artifact unchanged.
+This step performs every artifact write in this workflow; no earlier step edits
+an artifact.
 
 ## 6. Format, validate, and hand off
 

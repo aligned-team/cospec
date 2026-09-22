@@ -36,12 +36,13 @@ scope here — note it and point the user at `/cospec:continue`.
 ## 4. Reconcile
 
 Re-read every artifact you touch from disk — never from what you remember of
-this conversation; the user may have edited it since. Apply the requested edit,
-then check every other existing artifact against it **in both directions**: an
-edit to `tasks.md` can require revising `proposal.md`, not only the reverse.
-Dependency order is a reading order, not a constraint on what may be revised.
+this conversation; the user may have edited it since. **Draft** the requested
+edit — in the conversation, not in files — then check every other existing
+artifact against the drafted edit **in both directions**: an edit to `tasks.md`
+can require revising `proposal.md`, not only the reverse. Dependency order is a
+reading order, not a constraint on what may be revised.
 
-If the change is already coherent, say so and edit nothing.
+If the change is already coherent, say so and **propose no revisions**.
 
 When a substantial rewrite is needed, get that artifact's authoritative rules,
 template, and output path first:
@@ -60,6 +61,8 @@ capability file is `/cospec:continue`'s job.
 
 Show each proposed revision and why, one artifact at a time, and write only
 after the user confirms it. A rejected revision leaves that artifact unchanged.
+This step performs every artifact write in this workflow; no earlier step edits
+an artifact.
 
 ## 6. Format, validate, and hand off
 

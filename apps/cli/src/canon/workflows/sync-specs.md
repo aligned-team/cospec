@@ -23,6 +23,11 @@ make the merge fail. Then read the delta files under
 `openspec/changes/<slug>/specs/**/spec.md` to see the exact ADDED / MODIFIED /
 REMOVED / RENAMED operations.
 
+A delta that targets a capability with no living spec yet may only ADD
+requirements — any MODIFIED, REMOVED, or RENAMED op there is a validate-time
+ERROR (`archive/new-spec-non-added`), not something that surfaces later at merge
+time.
+
 ## Retiring a capability
 
 If a delta's REMOVED operations take the last requirement out of a capability,

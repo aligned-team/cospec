@@ -1,6 +1,6 @@
 ---
 name: cospec-onboard
-description: Walk a first-time user through one real cospec change end to end, narrating each step.
+description: Walk a first-time user through one real cospec change end to end, narrating each step. Also use when the user says "cospec onboard" or "openspec onboard".
 license: MIT
 compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:

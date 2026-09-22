@@ -1,5 +1,5 @@
 ---
-description: Dress-rehearse a change before archiving — validate strictly, walk the verification ledger, and name the hard archive gates.
+description: Dress-rehearse a change before archiving — validate strictly, walk the verification ledger, and name the hard archive gates. Also use when the user says "cospec verify" or "openspec verify".
 metadata:
   author: cospec
   generatedBy: cospec@0.7.1
