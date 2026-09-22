@@ -162,10 +162,12 @@ twice inflates the issue count if left unsuppressed. This joined the
 duplicate-class list one entry per distinct precondition shape (`rule` pairs
 one-to-one, so a shared message prefix isn't enough — see
 [Validation rules](/reference/validation-rules) for the full pairing table),
-plus two more from OpenSpec 1.13.1: its case-only RENAMED-TO/ADDED collision
-refusal against the widened `archive/added-exists`, and its
+plus three more from OpenSpec 1.13.1: its case-only RENAMED-TO/ADDED collision
+refusal against the widened `archive/added-exists`, its
 `This change counts as 0 tasks` WARNING against cospec's own `tasks/has-tasks`
-ERROR for the same state.
+ERROR for the same state, and its new unpaired `FROM:`/`TO:` ERROR against
+cospec's `deltas/unpaired-rename` — the one pairing where the pin caught up to a
+rule cospec already had.
 
 ## `.openspec.yaml` metadata keys
 

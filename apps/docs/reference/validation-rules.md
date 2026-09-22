@@ -266,6 +266,14 @@ OpenSpec 1.13.1 warns `This change counts as 0 tasks: …` for the same state
 cospec already reports as an ERROR, so the delegated WARNING is suppressed as a
 pure duplicate — cospec is strictly ahead here, not merely parallel.
 
+`deltas/unpaired-rename` is the case where the pin caught _up_. cospec grew that
+rule while OpenSpec still dropped a stray `FROM:`/`TO:` line silently; 1.13.1
+added its own ERROR whose first sentence is byte-identical, plus a remedy
+sentence. It is deduped on the whole
+`<side>: "<name>" has no matching <side>: line` span, so the other side of the
+same pair, a different requirement name, or the same defect in a different delta
+file each stay a separate finding.
+
 ## `specs/`
 
 Runs when validating living specs directly (`cospec validate --specs`), which

@@ -312,6 +312,18 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
     delegated: DELEGATED_UNREAD_DELTA_RE,
     nativeKey: /^delta spec found at (specs\/.+?\.md) —/,
   },
+  // 1.13.1's unpaired FROM:/TO: ERROR vs deltas/unpaired-rename. cospec grew
+  // its own rule while the pin still dropped the stray line silently; 1.13.1
+  // caught up (`validation/validator.ts`) with a message whose first sentence
+  // is byte-identical to cospec's, plus a remedy sentence. Keyed on the whole
+  // `<side>: "<name>" has no matching <side>: line` span, so a second unpaired
+  // line — a different side, or a different requirement — is a second finding.
+  {
+    rule: 'deltas/unpaired-rename',
+    delegated:
+      /^RENAMED ((?:FROM|TO): ".*" has no matching (?:FROM|TO): line)\. Write each rename as a FROM: line followed immediately by its TO: line\.$/,
+    nativeKey: /^RENAMED ((?:FROM|TO): ".*" has no matching (?:FROM|TO): line)$/,
+  },
   // 1.13.1 task-checkbox-format lint vs tasks/has-tasks. Same state, and cospec
   // is strictly ahead of upstream on it: an ERROR where 1.13.1 warns.
   { rule: 'tasks/has-tasks', delegated: /^This change counts as 0 tasks/ },

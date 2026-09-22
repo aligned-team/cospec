@@ -43,6 +43,15 @@ function preflight(tail: string, path = 'specs/widgets/spec.md'): Issue {
   }
 }
 
+function unpairedNative(side: string, name: string): string {
+  const missing = side === 'FROM' ? 'TO' : 'FROM'
+  return `RENAMED ${side}: "${name}" has no matching ${missing}: line`
+}
+
+function unpairedDelegated(side: string, name: string): string {
+  return `${unpairedNative(side, name)}. Write each rename as a FROM: line followed immediately by its TO: line.`
+}
+
 describe('mergeDelegated', () => {
   test('keeps every delegated issue when no cospec rule covers it', () => {
     const d = [delegated('ADDED "X" must include at least one scenario')]
@@ -133,6 +142,51 @@ describe('mergeDelegated', () => {
         ROOT_NATIVE,
         unreadDelegated('spec.md.md', 'spec.md/spec.md'),
       ])
+    })
+  })
+
+  describe('unpaired RENAMED FROM:/TO: (1.13.1)', () => {
+    // cospec grew `deltas/unpaired-rename` while the pin still dropped the
+    // stray line silently; 1.13.1 caught up with a message whose first
+    // sentence is byte-identical, plus a remedy sentence.
+    test('drops the delegated twin once deltas/unpaired-rename fired', () => {
+      const merged = mergeDelegated(
+        [native('deltas/unpaired-rename', unpairedNative('FROM', 'Widget rendering'))],
+        [delegated(unpairedDelegated('FROM', 'Widget rendering'))],
+      )
+      expect(merged.map((i) => i.rule)).toEqual(['deltas/unpaired-rename'])
+    })
+
+    test('keeps the delegated twin for the OTHER side of the pair', () => {
+      const merged = mergeDelegated(
+        [native('deltas/unpaired-rename', unpairedNative('FROM', 'Widget rendering'))],
+        [delegated(unpairedDelegated('TO', 'Widget rendering'))],
+      )
+      expect(merged.map((i) => i.rule)).toEqual(['deltas/unpaired-rename', 'openspec/validate'])
+    })
+
+    test('keeps the delegated twin for a DIFFERENT requirement name', () => {
+      const merged = mergeDelegated(
+        [native('deltas/unpaired-rename', unpairedNative('FROM', 'Widget rendering'))],
+        [delegated(unpairedDelegated('FROM', 'Widget caching'))],
+      )
+      expect(merged.map((i) => i.rule)).toEqual(['deltas/unpaired-rename', 'openspec/validate'])
+    })
+
+    test('keeps the delegated twin when it names a different delta file', () => {
+      const merged = mergeDelegated(
+        [native('deltas/unpaired-rename', unpairedNative('FROM', 'Widget rendering'))],
+        [delegated(unpairedDelegated('FROM', 'Widget rendering'), 'specs/gadgets/spec.md')],
+      )
+      expect(merged.map((i) => i.rule)).toEqual(['deltas/unpaired-rename', 'openspec/validate'])
+    })
+
+    test('keeps a delegated rename message that is not the unpaired shape', () => {
+      const merged = mergeDelegated(
+        [native('deltas/unpaired-rename', unpairedNative('FROM', 'Widget rendering'))],
+        [delegated('RENAMED target "Widget rendering" already exists')],
+      )
+      expect(merged.map((i) => i.rule)).toEqual(['deltas/unpaired-rename', 'openspec/validate'])
     })
   })
 

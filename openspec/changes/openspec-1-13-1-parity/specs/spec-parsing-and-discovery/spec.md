@@ -9,10 +9,11 @@ suppress a delegated issue that duplicates a native cospec issue already
 reported for the same file and the same defect — the placeholder `Purpose`, a
 root-level `specs/spec.md`, scenario loss in a MODIFIED delta, an
 archive-precondition failure the wrapped binary dry-runs during validate, a
-delta-shaped file cospec's own discovery skips, and a change whose tracked task
-files carry no checkbox at all. Suppression SHALL apply only when the native
-rule actually fired; when cospec's own rule is silent, the delegated issue SHALL
-still be reported so nothing is lost.
+delta-shaped file cospec's own discovery skips, a change whose tracked task
+files carry no checkbox at all, and a `RENAMED` `FROM:`/`TO:` line that formed
+no pair. Suppression SHALL apply only when the native rule actually fired; when
+cospec's own rule is silent, the delegated issue SHALL still be reported so
+nothing is lost.
 
 The archive-precondition family SHALL be paired one entry per upstream
 precondition shape, because a duplicate class carries a single native rule id
@@ -71,6 +72,21 @@ dry-run issues arrive at INFO, which is counted and rendered but never scored.
   `tasks/has-tasks` ERROR and the wrapped binary's zero-task WARNING both
   describe it
 - **THEN** the merged report contains exactly one finding, cospec's ERROR
+
+#### Scenario: An unpaired rename line is not doubled
+
+- **WHEN** a change's delta carries a `RENAMED` `FROM:` line with no matching
+  `TO:` line, so cospec's `deltas/unpaired-rename` ERROR and the wrapped
+  binary's own unpaired-line ERROR both describe it
+- **THEN** the merged report contains exactly one finding, cospec's ERROR
+
+#### Scenario: A second unpaired rename line is a second finding
+
+- **WHEN** the wrapped binary reports an unpaired line for a different side of
+  the pair, a different requirement name, or a different delta file than the one
+  cospec's rule fired on
+- **THEN** the delegated issue is not suppressed and appears in the merged
+  report
 
 #### Scenario: A shared prefix does not suppress a different defect
 
