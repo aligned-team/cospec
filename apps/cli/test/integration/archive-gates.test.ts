@@ -614,6 +614,21 @@ describe('task markers openspec counts', () => {
     expect(existsSync(join(root, c))).toBe(true)
   })
 
+  test('`validate --strict` reports the same row before archive is ever reached', async () => {
+    const root = await initRepo()
+    const c = 'openspec/changes/ordered-marker-validate'
+    writeFiles(root, {
+      [`${c}/.openspec.yaml`]: openspecYamlV2('ci'),
+      [`${c}/proposal.md`]: FIX_PROPOSAL,
+      [`${c}/blocking-changes.md`]: BLOCKERS_EMPTY,
+      [`${c}/tasks.md`]: '## 1. Implementation\n\n- [x] 1.1 Land the change\n1. [ ] 1.2 Wire CI\n',
+    })
+    const res = await cospec(['validate', 'ordered-marker-validate', '--strict'], { cwd: root })
+    expect(res.exitCode).toBe(1)
+    expect(res.stdout).toContain('tasks/checkbox-grammar')
+    expect(res.stdout).toContain('- [ ] 1.2 Wire CI')
+  })
+
   test('the same change archives once the row uses the canonical marker', async () => {
     const root = await initRepo()
     const c = 'openspec/changes/ordered-marker-fixed'
