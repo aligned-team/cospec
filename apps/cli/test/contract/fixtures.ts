@@ -508,3 +508,39 @@ The system SHALL no longer render a widget.
 export function buildValidFeat(root: string, name = 'add-widget'): void {
   writeChangeShell(root, name, { 'widgets/spec.md': ADDED_DELTA })
 }
+
+/**
+ * A `feat` change whose MODIFIED header closes with an ATX run
+ * (`### Requirement: Widget rendering ###`) against a living spec whose header
+ * does not. The two binaries read this differently:
+ *
+ * - **1.11.0 (the pin)** captures the name greedily
+ *   (`requirement-blocks.ts:33`), so the delta names `Widget rendering ###` and
+ *   the archive aborts `… failed for header "### Requirement: Widget rendering
+ *   ###" - not found`.
+ * - **1.13.1** added `normalizeRequirementName`, which strips the closing run,
+ *   so the same delta applies.
+ *
+ * cospec's parser now strips it too (openspec 1.13.1 parity), which is why this
+ * fixture is deliberately NOT in `PARITY_FIXTURES`: at the pin cospec's
+ * read-only gate is clean while the binary aborts. `archive-gotchas.test.ts`
+ * pins both halves — the binary's real 1.11.0 refusal, and the fact that
+ * `cospec archive` still reports failure because it verifies the move on disk
+ * rather than trusting its own precondition pass.
+ */
+export function buildTrailingHashesModified(root: string, name = 'trailing-hashes-modified'): void {
+  writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_WIDGET_REQ))
+  writeChangeShell(root, name, {
+    'widgets/spec.md': `## MODIFIED Requirements
+
+### Requirement: Widget rendering ###
+
+The system SHALL render a widget promptly when requested.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered promptly
+`,
+  })
+}

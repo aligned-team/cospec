@@ -101,8 +101,27 @@ export interface ParsedDelta {
   unpairedRenames: UnpairedRename[]
 }
 
+/**
+ * openspec's `normalizeRequirementName` (`src/core/parsers/requirement-blocks.ts`,
+ * 1.13.1), ported verbatim: strip a CommonMark closing ATX run, then trim.
+ *
+ * `### Requirement: Foo ###` renders as `Foo`, so the run is not part of the
+ * name — and the binary keys every delta lookup, collision check and spec merge
+ * on the stripped form. Leaving it in made cospec read `Foo ###` where the
+ * binary read `Foo`: `archive/target-missing` refused a delta the binary
+ * applies, and `Foo` vs `Foo ###` read as two requirements where the binary
+ * saw one collision.
+ *
+ * The class is `[ \t]`, not `\s`, for the same reason `scenarioNameFromHeader`
+ * uses it: CommonMark only closes a heading on a `#` run preceded by a space or
+ * tab, so `C#` keeps its `#` and an NBSP-separated run stays in the name.
+ */
+export function normalizeRequirementName(name: string): string {
+  return name.replace(/[ \t]+#+[ \t]*$/, '').trim()
+}
+
 function normalize(name: string): string {
-  return name.trim()
+  return normalizeRequirementName(name)
 }
 
 /**

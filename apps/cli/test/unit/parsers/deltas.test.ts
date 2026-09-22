@@ -2,8 +2,10 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   findScenarioDrops,
+  foldRequirementName,
   type LivingSpec,
   normalizeBlockRaw,
+  normalizeRequirementName,
   parseDeltaSpec,
   parseLivingSpec,
   scenarioDropMessage,
@@ -1401,5 +1403,160 @@ describe('RENAMED pairs', () => {
       { side: 'TO', name: 'B', line: 7 },
     ])
     expect(p.emptySections).toEqual(['RENAMED'])
+  })
+})
+
+// openspec 1.13.1's `normalizeRequirementName` strips a CommonMark closing ATX
+// run from a requirement header, so `### Requirement: Foo ###` names `Foo` on
+// both sides of the comparison — the key `archive/target-missing` and the
+// ADDED/RENAMED-TO collision arms test against.
+describe('normalizeRequirementName', () => {
+  test('strips a closing ATX run', () => {
+    expect(normalizeRequirementName('Foo ###')).toBe('Foo')
+    expect(normalizeRequirementName('Foo #')).toBe('Foo')
+    expect(normalizeRequirementName('Foo\t####  ')).toBe('Foo')
+  })
+
+  test('keeps a `#` that is part of the name', () => {
+    // No space or tab before the run, so CommonMark does not close the heading.
+    expect(normalizeRequirementName('C#')).toBe('C#')
+    expect(normalizeRequirementName('Support C# builds')).toBe('Support C# builds')
+    expect(normalizeRequirementName('Grade A#')).toBe('Grade A#')
+  })
+
+  test('only a space- or tab-preceded run closes: an NBSP run stays in the name', () => {
+    expect(normalizeRequirementName('Foo\u00a0###')).toBe('Foo\u00a0###')
+  })
+
+  test('a name that is only hashes is left alone', () => {
+    expect(normalizeRequirementName('###')).toBe('###')
+  })
+
+  test('foldRequirementName inherits the strip', () => {
+    expect(foldRequirementName('Foo Bar ###')).toBe(foldRequirementName('foo  bar'))
+    expect(foldRequirementName('C#')).toBe('c#')
+  })
+})
+
+describe('closing ATX runs in requirement headers', () => {
+  test('a delta ADDED header resolves to the same name as the living header', () => {
+    const delta = parseDeltaSpec(
+      [
+        '## ADDED Requirements',
+        '',
+        '### Requirement: Widget display ###',
+        '',
+        'The system SHALL display widgets.',
+        '',
+        '#### Scenario: Shown',
+        '',
+        '- **WHEN** asked',
+        '- **THEN** shown',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(delta.ops.map((o) => o.name)).toEqual(['Widget display'])
+
+    const living = parseLivingSpec(
+      [
+        '# widgets Specification',
+        '',
+        '## Purpose',
+        '',
+        'Widgets.',
+        '',
+        '## Requirements',
+        '',
+        '### Requirement: Widget display ###',
+        '',
+        'The system SHALL display widgets.',
+        '',
+        '#### Scenario: Shown',
+        '',
+        '- **WHEN** asked',
+        '- **THEN** shown',
+      ].join('\n'),
+    )
+    expect([...living.requirementNames]).toEqual(['Widget display'])
+    expect(living.requirementScenarioCounts.get('Widget display')).toBe(1)
+  })
+
+  test('a REMOVED bullet and a RENAMED pair strip their closing runs too', () => {
+    const p = parseDeltaSpec(
+      [
+        '## REMOVED Requirements',
+        '',
+        '- `### Requirement: Old thing ###`',
+        '',
+        '## RENAMED Requirements',
+        '',
+        '- FROM: `### Requirement: Before ##`',
+        '- TO: `### Requirement: After ###`',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.unpairedRenames).toEqual([])
+    expect(p.ops.map((o) => [o.operation, o.name, o.fromName, o.toName])).toEqual([
+      ['REMOVED', 'Old thing', undefined, undefined],
+      ['RENAMED', undefined, 'Before', 'After'],
+    ])
+  })
+
+  test('a requirement legitimately ending in a single `#` keeps it on both sides', () => {
+    const delta = parseDeltaSpec(
+      [
+        '## MODIFIED Requirements',
+        '',
+        '### Requirement: Support C#',
+        '',
+        'The system MUST support C#.',
+        '',
+        '#### Scenario: Builds',
+        '',
+        '- **WHEN** built',
+        '- **THEN** ok',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(delta.ops.map((o) => o.name)).toEqual(['Support C#'])
+
+    const living = parseLivingSpec(
+      [
+        '## Requirements',
+        '',
+        '### Requirement: Support C#',
+        '',
+        'The system MUST support C#.',
+      ].join('\n'),
+    )
+    expect([...living.requirementNames]).toEqual(['Support C#'])
+  })
+
+  test('CRLF input strips the run without leaving a stray carriage return', () => {
+    const delta = parseDeltaSpec(
+      [
+        '## ADDED Requirements',
+        '',
+        '### Requirement: Widget display ###',
+        '',
+        'The system SHALL display widgets.',
+        '',
+        '#### Scenario: Shown',
+        '',
+        '- **WHEN** asked',
+        '- **THEN** shown',
+      ].join('\r\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(delta.ops.map((o) => o.name)).toEqual(['Widget display'])
+
+    const living = parseLivingSpec(
+      ['## Requirements', '', '### Requirement: Widget display ###', '', 'Body.'].join('\r\n'),
+    )
+    expect([...living.requirementNames]).toEqual(['Widget display'])
   })
 })

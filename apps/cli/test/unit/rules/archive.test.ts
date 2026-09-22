@@ -436,3 +436,36 @@ The system SHALL other.
     )
   })
 })
+
+// Gate regression for closing ATX runs. `### Requirement: Existing ###` renders
+// as `Existing`, and openspec 1.13.1 keys every lookup on the stripped name.
+// Before the strip, cospec read `Existing ###` here: it refused a delta the
+// binary applies, and it read `Existing` and `Existing ###` as two requirements
+// where the binary sees one collision.
+describe('archive gates strip a closing ATX run from requirement names', () => {
+  test('a MODIFIED header with a closing run resolves to the living requirement', () => {
+    const text =
+      '## MODIFIED Requirements\n\n### Requirement: Existing ###\n\nThe system SHALL exist.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n'
+    expect(archiveRules(change(text, { living: LIVING }))).toHaveLength(0)
+  })
+
+  test('a REMOVED bullet with a closing run resolves to the living requirement', () => {
+    const text = '## REMOVED Requirements\n\n- `### Requirement: Existing ###`\n'
+    expect(archiveRules(change(text, { living: LIVING }))).toHaveLength(0)
+  })
+
+  test('an ADDED header with a closing run still collides with the living requirement', () => {
+    const text =
+      '## ADDED Requirements\n\n### Requirement: Existing ###\n\nThe system SHALL exist.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n'
+    expect(rules(archiveRules(change(text, { living: LIVING })))).toContain('archive/added-exists')
+  })
+
+  test('a name whose final `#` is part of the name is not resolved to a stripped twin', () => {
+    // No space before the `#`, so CommonMark does not close the heading and
+    // `Existing#` stays whole — a different requirement from `Existing`.
+    const living = LIVING.replace('### Requirement: Existing', '### Requirement: Existing#')
+    const text =
+      '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n'
+    expect(rules(archiveRules(change(text, { living })))).toContain('archive/target-missing')
+  })
+})
