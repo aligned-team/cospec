@@ -591,3 +591,55 @@ more and keeping the spec alive misleads the next reader into building on it.
     expect(existsSync(join(root, 'openspec/changes/retire-widgets'))).toBe(true)
   })
 })
+
+// openspec 1.13.1 widened its task-line grammar to every CommonMark list
+// marker after a tasks.md whose remaining work used an unread marker reported
+// "✓ Complete" and archived. cospec carried the same class in its own house
+// grammar: an ordered-marker task matched neither `TASK_VALID` nor the
+// checkbox-like detector, so `cospec archive` saw no incomplete task at all.
+describe('task markers openspec counts', () => {
+  test('an unfinished `1. [ ]` task refuses archive, naming the row', async () => {
+    const root = await initRepo()
+    const c = 'openspec/changes/ordered-marker'
+    writeFiles(root, {
+      [`${c}/.openspec.yaml`]: openspecYamlV2('ci'),
+      [`${c}/proposal.md`]: FIX_PROPOSAL,
+      [`${c}/blocking-changes.md`]: BLOCKERS_EMPTY,
+      [`${c}/tasks.md`]: '## 1. Implementation\n\n- [x] 1.1 Land the change\n1. [ ] 1.2 Wire CI\n',
+    })
+    const res = await cospec(['archive', 'ordered-marker'], { cwd: root })
+    expect(res.exitCode).toBe(1)
+    expect(res.stdout).toContain('tasks/checkbox-grammar')
+    expect(res.stdout).toContain('- [ ] 1.2 Wire CI')
+    expect(existsSync(join(root, c))).toBe(true)
+  })
+
+  test('`validate --strict` reports the same row before archive is ever reached', async () => {
+    const root = await initRepo()
+    const c = 'openspec/changes/ordered-marker-validate'
+    writeFiles(root, {
+      [`${c}/.openspec.yaml`]: openspecYamlV2('ci'),
+      [`${c}/proposal.md`]: FIX_PROPOSAL,
+      [`${c}/blocking-changes.md`]: BLOCKERS_EMPTY,
+      [`${c}/tasks.md`]: '## 1. Implementation\n\n- [x] 1.1 Land the change\n1. [ ] 1.2 Wire CI\n',
+    })
+    const res = await cospec(['validate', 'ordered-marker-validate', '--strict'], { cwd: root })
+    expect(res.exitCode).toBe(1)
+    expect(res.stdout).toContain('tasks/checkbox-grammar')
+    expect(res.stdout).toContain('- [ ] 1.2 Wire CI')
+  })
+
+  test('the same change archives once the row uses the canonical marker', async () => {
+    const root = await initRepo()
+    const c = 'openspec/changes/ordered-marker-fixed'
+    writeFiles(root, {
+      [`${c}/.openspec.yaml`]: openspecYamlV2('ci'),
+      [`${c}/proposal.md`]: FIX_PROPOSAL,
+      [`${c}/blocking-changes.md`]: BLOCKERS_EMPTY,
+      [`${c}/tasks.md`]: '## 1. Implementation\n\n- [x] 1.1 Land the change\n- [x] 1.2 Wire CI\n',
+    })
+    const res = await cospec(['archive', 'ordered-marker-fixed'], { cwd: root })
+    expect(res.exitCode).toBe(0)
+    expect(existsSync(join(root, c))).toBe(false)
+  })
+})

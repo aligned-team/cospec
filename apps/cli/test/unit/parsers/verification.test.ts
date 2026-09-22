@@ -235,3 +235,59 @@ describe('computeVerificationVerdict (DESIGN §3.6 status --json block)', () => 
     expect(computeVerificationVerdict(true, text).blockedReasons).toEqual([])
   })
 })
+
+// The ledger shares `CHECKBOX_LIKE` with the tasks parser, so it inherits
+// openspec 1.13.1's list-marker set. Only the canonical `- ` row is a row;
+// every other marker is a `verification/row-grammar` violation, which
+// `computeVerificationVerdict` counts as a blocker.
+describe('parseVerification — CommonMark list markers (openspec 1.13.1 parity)', () => {
+  const ROW = '1.1 @e2e drive it -> observed'
+
+  test('only the canonical `- ` marker yields a parsed row', () => {
+    for (const marker of ['*', '+', '1.', '1)']) {
+      for (const box of [' ', 'x', '~']) {
+        const p = parseVerification(`## 1. G\n${marker} [${box}] ${ROW}`)
+        expect(p.rows).toHaveLength(0)
+        expect(p.malformed).toHaveLength(1)
+      }
+    }
+  })
+
+  test('the `[~] defer:` convention is untouched on the canonical marker', () => {
+    const p = parseVerification('## 1. G\n- [~] 1.1 @manual click it -> defer: no browser in CI')
+    expect(p.malformed).toHaveLength(0)
+    expect(p.rows).toHaveLength(1)
+    expect(p.rows[0]!.state).toBe('deferred')
+    expect(p.rows[0]!.deferReason).toBe('no browser in CI')
+  })
+
+  test('link bullets in a ledger are not rows and are not violations', () => {
+    const p = parseVerification('## 1. G\n- [Some doc](./doc.md)\n+ [1](./one)')
+    expect(p.rows).toHaveLength(0)
+    expect(p.malformed).toHaveLength(0)
+  })
+
+  test('a ledger written entirely with `+` bullets blocks instead of reporting 0/0', () => {
+    // Before the widening this produced total 0 with no blocked reasons — a
+    // false PASS on the `archive/verification-incomplete` hard gate.
+    const text = [
+      '## 1. G',
+      '+ [x] 1.1 @e2e drive it -> observed',
+      '+ [ ] 1.2 @unit run it -> expected',
+    ].join('\n')
+    const v = computeVerificationVerdict(true, text)
+    expect(v.total).toBe(0)
+    expect(v.blockedReasons).toEqual(['2 row(s) do not parse'])
+  })
+
+  test('one unfinished `+ [ ]` row among canonical rows still blocks', () => {
+    const text = [
+      '## 1. G',
+      '- [x] 1.1 @e2e drive it -> observed',
+      '+ [ ] 1.2 @unit run it -> expected',
+    ].join('\n')
+    const v = computeVerificationVerdict(true, text)
+    expect(v.unresolved).toBe(0)
+    expect(v.blockedReasons).toEqual(['1 row(s) do not parse'])
+  })
+})

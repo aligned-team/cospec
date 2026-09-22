@@ -156,3 +156,44 @@ describe('syncBlockers', () => {
     expect(r.findings.some((f) => f.class === 'STALE')).toBe(true)
   })
 })
+
+// The entry detector shares `CHECKBOX_LIKE` with tasks.md / verification.md, so
+// the openspec 1.13.1 marker set reaches blocking-changes.md too. This matters
+// more here than lint: `computeGate` reads `entries` only, so a dependency line
+// no detector sees is a blocker that neither blocks nor reports.
+describe('parseBlockers — CommonMark list markers', () => {
+  const WIDENED = ['*', '+', '1.', '1)', '9)', '999999999.']
+
+  test('a widened marker is a malformed entry, never a silent drop', () => {
+    for (const marker of WIDENED) {
+      const p = parseBlockers(`## Blocked by\n\n${marker} [ ] \`dep\` — needs it\n`)
+      expect(p.blocked.entries).toHaveLength(0)
+      expect(p.blocked.malformed).toHaveLength(1)
+      expect(p.blocked.malformed[0]!.corrected).toBe('- [ ] `dep` — needs it')
+    }
+  })
+
+  test('a widened checked entry is malformed too, and keeps its archive suffix', () => {
+    const p = parseBlockers('## Blocked by\n\n+ [x] `dep` — x *(archived 2026-05-01)*\n')
+    expect(p.blocked.entries).toHaveLength(0)
+    expect(p.blocked.malformed[0]!.corrected).toBe('- [x] `dep` — x *(archived 2026-05-01)*')
+  })
+
+  test('only the canonical `- ` marker yields a parsed entry', () => {
+    const p = parseBlockers('## Blocked by\n\n- [ ] `dep` — needs it\n')
+    expect(p.blocked.entries).toHaveLength(1)
+    expect(p.blocked.malformed).toHaveLength(0)
+  })
+
+  test('a widened loose slug bullet outside the gated sections is still linted', () => {
+    for (const marker of WIDENED) {
+      const p = parseBlockers(`## Notes\n\n${marker} \`some-change\` matters\n`)
+      expect(p.looseSlugBullets).toHaveLength(1)
+    }
+  })
+
+  test('a widened bullet with no checkbox and no slug stays free prose', () => {
+    const p = parseBlockers('## Blocked by\n\nNone.\n\n+ just a note\n')
+    expect(p.blocked.malformed).toHaveLength(0)
+  })
+})

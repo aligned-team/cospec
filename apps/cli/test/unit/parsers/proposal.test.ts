@@ -7,6 +7,7 @@ import {
   hasCommitSha,
   hasSection,
   parseProposal,
+  parseSurfaces,
   revertSlugs,
 } from '../../../src/core/proposal.ts'
 
@@ -55,6 +56,30 @@ describe('checkedSurfaces', () => {
     // The real items are all unchecked; the fenced line must not leak through.
     expect(checkedSurfaces(text).has('integration')).toBe(false)
     expect(checkedSurfaces(text).size).toBe(0)
+  })
+
+  // `parseSurfaces` has no malformed-line path — an unmatched line is skipped
+  // outright — so a narrow marker set made a `+ [x] deploy` flag silently
+  // unread, taking its soft nudges (design/*, verification/*,
+  // meta/surface-unmet) and its `proposal/surfaces-vocab` check with it.
+  test('reads every CommonMark list marker', () => {
+    for (const marker of ['-', '*', '+', '1.', '1)', '999999999.']) {
+      expect([...checkedSurfaces(`## Surfaces\n\n${marker} [x] deploy — runtime pin\n`)]).toEqual([
+        'deploy',
+      ])
+    }
+  })
+
+  test('an unchecked widened flag is read as declared-but-unchecked', () => {
+    const items = parseSurfaces('## Surfaces\n\n+ [ ] deploy\n1. [x] interactive\n')
+    expect(items.map((i) => [i.token, i.checked])).toEqual([
+      ['deploy', false],
+      ['interactive', true],
+    ])
+  })
+
+  test('a widened flag carrying an unknown token still reaches the vocab rule', () => {
+    expect(parseSurfaces('## Surfaces\n\n+ [x] telepathy\n')[0]!.token).toBe('telepathy')
   })
 })
 

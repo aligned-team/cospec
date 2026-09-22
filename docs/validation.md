@@ -79,6 +79,42 @@ using the same rule OpenSpec's own shared fence-masking uses: `~~~` fences are
 recognized alongside ` ``` `, and a fence only closes on a matching marker at
 least as long as the one that opened it.
 
+## Checkbox grammar
+
+`tasks.md`, `verification.md` and `blocking-changes.md` share one checkbox
+detector (`CHECKBOX_LIKE` in `core/tasks.ts`). It recognizes every CommonMark
+list marker OpenSpec's own task counter reads at 1.13.1 — `-`, `*`, `+`, and the
+ordered `1.` / `1)` up to nine digits — with leading whitespace allowed and the
+box holding any content. A closing `]` followed by `(` or `[` is not a checkbox
+(`- [Some doc](./doc.md)` and `- [1](./one)` are link bullets), except when the
+box is whitespace-only, which could still hide open work.
+
+Recognition is wider than acceptance, deliberately. The canonical cospec forms
+stay narrow — `- [ ] N.M …` for a task, `- [<state>] N.M @<layer> …` for a
+ledger row — so a recognized line that is not canonical is a loud
+`tasks/checkbox-grammar` / `verification/row-grammar` ERROR (the tasks rule
+prints the corrected line), never a second accepted grammar. That is strictly
+stricter than OpenSpec, which counts such a line as an ordinary not-done task.
+What both refuse to do is drop it: before the detector covered the full marker
+set, a `+ [ ]` or `1. [ ]` line counted toward neither the numerator nor the
+denominator, so `cospec archive`'s tasks gate and its
+`archive/verification-incomplete` gate both reported clean over unfinished work.
+
+`blocking-changes.md` reads its gated-section entries through the same detector
+(and lints slug-carrying bullets under the same marker set), for the same
+reason: `computeGate` reads parsed entries only, so a
+`+ [ ] \`dep\``line no detector saw made`cospec
+apply`'s hard-blocker gate report `clear`over an unshipped dependency. It now fails`blockers/entry-grammar`,
+which apply's fast validation (step 2) refuses before the gate is computed.
+
+The `## Surfaces` block in `proposal.md` reads the same marker set, but through
+its own reader and for the opposite reason: it has no malformed-line path, so an
+unrecognized item is skipped outright rather than reported. Reading a flag can
+only add consequences — the verification and design soft nudges, and
+`proposal/surfaces-vocab`'s closed-vocabulary check — so widening the reader is
+the fail-closed direction there. Only the marker set is shared; the canonical
+form stays `- [x] <token>`.
+
 ## Duplicate diagnostics
 
 Once cospec started delegating to openspec 1.6+'s own overlapping rules (purpose

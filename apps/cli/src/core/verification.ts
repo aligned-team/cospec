@@ -6,6 +6,10 @@
 // as `verification/row-grammar` (the rule layer emits; this module only parses).
 
 import { splitLines } from './lines.ts'
+// The ledger's row detector is the tasks detector: one house checkbox grammar,
+// one marker set. See `CHECKBOX_LIKE` in ./tasks.ts for the openspec 1.13.1
+// `TASK_LINE_PATTERN` parity note and where cospec deliberately differs.
+import { CHECKBOX_LIKE } from './tasks.ts'
 
 /** The closed core layer vocabulary (DESIGN §1.1). Projects extend via config. */
 export const CORE_LAYERS = [
@@ -29,8 +33,6 @@ export type Owner = (typeof OWNERS)[number]
 
 export type RowState = 'planned' | 'verified' | 'deferred'
 
-/** A checkbox-like line — candidate for a grammar violation. */
-const CHECKBOX_LIKE = /^\s*[-*]\s*\[[^\]]*\]/
 /** `## N. Title` group heading. */
 const GROUP_RE = /^##\s+(\d+)\.\s+(.+?)\s*$/
 /** Trailing `[critical]` marker on a group heading. */

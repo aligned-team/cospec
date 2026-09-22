@@ -79,6 +79,26 @@ describe('apply gate', () => {
     expect(parsed.gate.hardBlockers[0]!.slug).toBe('dep')
   })
 
+  // Regression: `computeGate` reads parsed entries only, so a hard blocker
+  // written with a marker the parser does not recognise used to yield
+  // `{state: 'clear', hard: []}` and an unblocked apply over a real, unshipped
+  // dependency. The detector now reports it, and step 2's fast validation fails
+  // before the gate is ever computed.
+  test('a widened-marker hard blocker fails validation instead of clearing the gate', async () => {
+    for (const marker of ['*', '+', '1.', '1)']) {
+      const cwd = repo()
+      writeChange(cwd, 'dep', 'ci')
+      writeChange(cwd, 'c', 'ci', {
+        'proposal.md': LITE_PROPOSAL,
+        'blocking-changes.md': blockers(`${marker} [ ] \`dep\` — provides x`),
+        'tasks.md': DONE_TASKS,
+      })
+      const r = await runCmd(applyRun, ctx(cwd, ['c']))
+      expect(r.code).toBe(1)
+      expect(r.out + r.err).toContain('blockers/entry-grammar')
+    }
+  })
+
   test('unconfirmed soft blocker exits 3; --allow-soft acknowledges it', async () => {
     const cwd = repo()
     writeChange(cwd, 'nice', 'ci')

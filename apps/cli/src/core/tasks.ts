@@ -6,8 +6,35 @@ import { splitLines } from './lines.ts'
 
 /** A conforming, trackable checkbox line. */
 const TASK_VALID = /^- \[( |x|X)\] (.+)$/
-/** A checkbox-like line (candidate for a grammar violation). */
-const CHECKBOX_LIKE = /^\s*[-*]\s*\[[^\]]*\]/
+/**
+ * A checkbox-like line (candidate for a grammar violation).
+ *
+ * The list-marker set mirrors openspec 1.13.1's `TASK_LINE_PATTERN`
+ * (`src/utils/task-progress.ts`): every CommonMark bullet (`-`, `*`, `+`) plus
+ * the ordered markers `1.` / `1)` of up to nine digits. Reading only `-` and
+ * `*` left a `+ [ ]` or `1. [ ]` line matching neither `TASK_VALID` nor this
+ * detector, so it counted toward neither the numerator nor the denominator of
+ * `cospec archive`'s tasks gate — the silent-drop class upstream closed.
+ *
+ * Where cospec deliberately differs from upstream: upstream widens its *only*
+ * pattern, so a widened line silently becomes an ordinary not-done task. cospec
+ * keeps `TASK_VALID` narrow — the canonical form stays `- [ ] N.M …` (DESIGN
+ * §3.1), whose `N.M` numbering the verification ledger addresses rows by — and
+ * widens only the detector, so such a line surfaces as a loud
+ * `tasks/checkbox-grammar` ERROR carrying a `corrected:` hint. Strictly
+ * stricter than upstream, and never a silent drop: an unrecognised marker
+ * inside the brackets (`[~]`, `[]`, `[ x]`) is checkbox-like here, so it is
+ * reported rather than ignored, and it can never read as done.
+ *
+ * The `(?![([])` guard is upstream's, for upstream's reason: `- [Some doc](./doc.md)`
+ * and `- [1](./one)` are link bullets, not checkboxes, and flagging every link
+ * list as malformed tasks would be noise. A whitespace-only box is upstream's
+ * exception to that guard — `- [ ](./x)` can still hide open work — so it stays
+ * checkbox-like.
+ */
+export const CHECKBOX_LIKE = /^\s*(?:[-*+]|\d{1,9}[.)])\s*\[(?:\s*\]|[^\]]*\](?![([]))/
+/** The detector's marker + box span, stripped when building a `corrected:` hint. */
+const CHECKBOX_PREFIX = /^\s*(?:[-*+]|\d{1,9}[.)])\s*\[[^\]]*\]\s*/
 /** A `## N. Title` group heading. */
 const GROUP_RE = /^##\s+(\d+)\.\s+(.+?)\s*$/
 /** Leading `N.M ` task numbering. */
@@ -39,7 +66,7 @@ export interface ParsedTasks {
 
 function correctTask(raw: string): string | undefined {
   const box = /\[\s*[xX]/.test(raw) ? 'x' : ' '
-  const afterBracket = raw.replace(/^\s*[-*]\s*\[[^\]]*\]\s*/, '')
+  const afterBracket = raw.replace(CHECKBOX_PREFIX, '')
   if (afterBracket.length === 0) return undefined
   return `- [${box}] ${afterBracket.trimEnd()}`
 }

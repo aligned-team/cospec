@@ -1,47 +1,4 @@
-# change-progress-reporting Specification
-
-## Purpose
-
-Governs how cospec reports progress across changes: `cospec status --all` sweeps
-every active change in one call without letting one bad change abort the rest,
-and cospec's own task accounting stays provably consistent with the task totals
-re-emitted from the wrapped `openspec instructions apply --json` payload.
-
-## Requirements
-
-### Requirement: Status sweeps every active change
-
-`cospec status` SHALL accept `--all`, mutually exclusive with `--change`, which
-computes the existing per-change status for every active change under the
-resolved root, ordered by change id. A failure computing one change's status
-SHALL NOT abort the sweep: that change SHALL appear as a failure entry carrying
-its id and the error, and the command SHALL exit 1 while still emitting the
-complete envelope. `--all --json` SHALL emit `{ changes: [...], root }`; text
-mode SHALL render one blank-line-separated block per change. The single-change
-output shape, both text and `--json`, SHALL be unchanged.
-
-#### Scenario: Sweep lists every active change in id order
-
-- **WHEN** `cospec status --all` runs in a repo with several active changes
-- **THEN** one status block per change is rendered, ordered by change id
-
-#### Scenario: One bad change does not abort the sweep
-
-- **WHEN** one active change cannot have its status computed
-- **THEN** the other changes are still reported, the bad change appears as a
-  failure entry naming it, and the command exits 1
-
-#### Scenario: Flags are mutually exclusive
-
-- **WHEN** `cospec status --all --change <slug>` runs
-- **THEN** the command reports the conflict and exits non-zero without computing
-  any status
-
-#### Scenario: Single-change output is unchanged
-
-- **WHEN** `cospec status --change <slug> --json` runs
-- **THEN** the emitted document is byte-identical to the shape emitted before
-  this change
+## MODIFIED Requirements
 
 ### Requirement: Task accounting agrees with the wrapped payload
 

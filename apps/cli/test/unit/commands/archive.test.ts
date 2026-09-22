@@ -67,6 +67,29 @@ describe('archive pre-flight', () => {
     expect(r.err).toContain('already exists')
   })
 
+  // An unfinished task written with a widened list marker was invisible to
+  // both the grammar rule and the tasks gate before openspec 1.13.1 parity:
+  // `parseTasks` recorded neither an item nor a malformed row, so archive saw
+  // an all-complete tasks.md and moved the change.
+  test('an unfinished `+ [ ]` task blocks archive with exit 1', async () => {
+    const cwd = repo()
+    writeChange(cwd, 'c', 'ci', {
+      'proposal.md': LITE_PROPOSAL,
+      'blocking-changes.md': EMPTY_BLOCKERS,
+      'tasks.md': '## 1. G\n\n- [x] 1.1 done\n+ [ ] 1.2 not done yet\n',
+    })
+    const r = await runCmd(archiveRun, ctx(cwd, ['c']))
+    expect(r.code).toBe(1)
+    // Refused by the grammar rule in step 2, ahead of the step 3 tasks gate —
+    // and, unlike that gate, `--force-incomplete` does not waive it.
+    expect(r.out).toContain('tasks/checkbox-grammar')
+    expect(r.out).toContain('- [ ] 1.2 not done yet')
+    expect(existsSync(join(cwd, 'openspec/changes/c'))).toBe(true)
+    const forced = await runCmd(archiveRun, ctx(cwd, ['c', '--force-incomplete']))
+    expect(forced.code).toBe(1)
+    expect(existsSync(join(cwd, 'openspec/changes/c'))).toBe(true)
+  })
+
   test('a validation error blocks archive with exit 1', async () => {
     const cwd = repo()
     writeChange(cwd, 'c', 'ci', {
@@ -112,6 +135,23 @@ describe('archive/verification-incomplete (DESIGN §3.5 step 1)', () => {
     expect(r.err).toContain('not fully resolved')
     expect(r.err).toContain('1.2 @unit')
     // No delegation happened — the change must still be in place.
+    expect(existsSync(join(cwd, 'openspec/changes/c'))).toBe(true)
+  })
+
+  test('a `+`-bulleted ledger refuses archive instead of reporting 0/0 verified', async () => {
+    const cwd = repo()
+    writeChange(cwd, 'c', 'fix', {
+      ...VALID_FIX,
+      'verification.md': [
+        '## 1. Bug is fixed',
+        '+ [x] 1.1 @regression reran the failing case -> now passes',
+        '+ [ ] 1.2 @unit smoke test -> expected to pass',
+      ].join('\n'),
+    })
+    stampV2(cwd, 'c', 'fix')
+    const r = await runCmd(archiveRun, ctx(cwd, ['c']))
+    expect(r.code).toBe(1)
+    expect(r.out).toContain('verification/row-grammar')
     expect(existsSync(join(cwd, 'openspec/changes/c'))).toBe(true)
   })
 
