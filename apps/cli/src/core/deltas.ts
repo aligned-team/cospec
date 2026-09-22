@@ -28,9 +28,22 @@ const SHALL_MUST_RE = /\b(SHALL|MUST)\b/
  * REMOVED entry before it reached `ops`, so `archive/target-missing` and
  * `archive/scenario-preservation` never saw it: a false archive PASS.
  * Fenced lines are still excluded upstream of these regexes by the fence mask.
+ *
+ * Against the 1.11.0 pin the two halves differ, and the difference is load-
+ * bearing for anyone reasoning across the accepted `>=1.0.0 <2.0.0` range:
+ * leading whitespace was already accepted there, but `*` and `+` were not —
+ * 1.11.0 reads REMOVED as ``/^\s*-\s*`?###\s*Requirement:…/`` and FROM/TO with
+ * an optional single hyphen. So these regexes deliberately LEAD the pin, and a
+ * `*`/`+` delta stays non-portable below 1.13.1: the binary refuses it with
+ * `… but no requirement entries parsed`, which reaches the user through the
+ * delegated `openspec validate` relay. `test/contract/delta-bullet-markers.test.ts`
+ * pins both binaries' real behaviour and flips at the 1.13.1 bump.
  */
 const REMOVED_BULLET_RE = /^\s*[-*+]\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
-/** RENAMED pair lines; the bullet marker is optional, as upstream's is. */
+/**
+ * RENAMED pair lines; the bullet marker is optional, as 1.13.1's is. 1.11.0
+ * allows only `-` there — see `REMOVED_BULLET_RE` above.
+ */
 const RENAMED_FROM_RE = /^\s*[-*+]?\s*FROM:\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
 const RENAMED_TO_RE = /^\s*[-*+]?\s*TO:\s*`?###\s*Requirement:\s*(.+?)`?\s*$/
 /**

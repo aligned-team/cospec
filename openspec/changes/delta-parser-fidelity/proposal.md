@@ -31,8 +31,14 @@ rather than inheriting a fix later.
 
 - **Delta bullet markers.** `REMOVED_BULLET_RE`, `RENAMED_FROM_RE` and
   `RENAMED_TO_RE` accept the full CommonMark bullet set (`-`, `*`, `+`) and
-  leading indentation, matching OpenSpec's `requirement-blocks.ts`. A bullet
-  inside a code fence still parses as nothing.
+  leading indentation, matching OpenSpec's `requirement-blocks.ts` at 1.13.1. A
+  bullet inside a code fence still parses as nothing. The two halves land
+  differently against the pin: leading indentation was already accepted at
+  1.11.0, while `*` and `+` are 1.13.1-only, so on the marker class cospec's
+  reader deliberately leads the binary. Below 1.13.1 such a delta stays
+  non-portable — the binary refuses it and the delegated `openspec validate`
+  relay carries that refusal into cospec's own report, which is what keeps the
+  lead from becoming a false archive PASS.
 - **Unpaired rename lines.** `RENAMED` ops are paired per section and pushed
   only when both `FROM:` and `TO:` are present. Every dangling line is retained
   and reported by a new ERROR rule `deltas/unpaired-rename`. `closeReq()` no
@@ -54,8 +60,13 @@ rather than inheriting a fix later.
   changes carry this shape.
 
 No flag, subcommand, exit code or JSON shape moves. This change is
-pin-independent — it is a defect at 1.11.0 and the fixes anticipate the
-semantics OpenSpec shipped in 1.13.1.
+pin-independent in the sense that matters for landing it — no fix here needs the
+1.13.1 bump, and the contract suite stays green against 1.11.0. It is not a
+claim that every fixed shape behaves identically on both binaries: the `*`/`+`
+bullet markers are refused by the pinned binary (pinned by
+`test/contract/delta-bullet-markers.test.ts`), and `deltas/scenario-depth`,
+requirement-name normalisation and bodyless-scenario counting anticipate 1.13.1
+semantics.
 
 ## Capabilities
 

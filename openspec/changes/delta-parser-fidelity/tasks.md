@@ -10,8 +10,13 @@
       1.1 that each case is asserted at the parser layer
 - [ ] 1.3 Add the gate regression to `apps/cli/test/unit/rules/archive.test.ts`
       and verify via verification 1.2 and 1.3 that a `*`-bulleted REMOVED naming
-      an absent requirement trips `archive/target-missing` and is refused before
-      delegation
+      a near-miss of a living requirement trips `archive/target-missing` and is
+      refused before delegation
+- [ ] 1.4 Add `apps/cli/test/contract/delta-bullet-markers.test.ts`, spawning
+      the real pinned binary on `*`/`+` and indented-`-` REMOVED and RENAMED
+      deltas, and verify via verification 1.4 that the pin's refusal of `*`/`+`
+      is pinned as fact rather than assumed, and that cospec relays it instead
+      of archiving
 
 ## 2. WU-2 — pair renames per section and report the strays
 

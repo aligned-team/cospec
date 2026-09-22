@@ -1153,10 +1153,25 @@ describe('scenarioNameFromHeader', () => {
 // Bullet-marker fidelity. openspec 1.13.1's delta reader
 // (src/core/parsers/requirement-blocks.ts:452,498-499) accepts CommonMark's
 // full bullet set with leading whitespace; cospec was `-`-only and anchored at
-// column 0, which silently dropped the entry. Behaviour asserted here is the
-// same at the 1.11.0 pin — 1.11.0's own reader already accepted `[-*+]` with
-// leading whitespace in the REMOVED/RENAMED sections, so widening cospec moves
-// it towards the pinned binary, not away from it.
+// column 0, which silently dropped the entry.
+//
+// The two halves of that widening sit differently against the 1.11.0 pin, and
+// an earlier version of this comment got it wrong by calling both of them
+// already-accepted there. Read from the tags, then confirmed by spawning the
+// pinned binary (`test/contract/delta-bullet-markers.test.ts`):
+//
+//   - leading whitespace WAS already accepted at 1.11.0 — every one of its
+//     delta regexes is `^\s*`-anchored — so that half is catch-up;
+//   - the `*` and `+` markers were NOT. 1.11.0's REMOVED reader is
+//     ``/^\s*-\s*`?###\s*Requirement:\s*(.+?)`?\s*$/`` and its `FROM:`/`TO:`
+//     readers take an optional SINGLE hyphen. 1.13.1 widened both to `[-*+]`.
+//
+// So the marker class is cospec LEADING the pin: at 1.11.0 a `*`/`+` delta is
+// refused by the binary (`… but no requirement entries parsed`) while the
+// parser asserted below reads it. That does not become a false archive PASS
+// because the delegated `openspec validate` relay carries the refusal into
+// cospec's report and `archive` verifies the move on disk — both pinned by the
+// contract test named above, which is where this claim is actually evidenced.
 describe('delta bullet markers', () => {
   for (const marker of ['-', '*', '+'] as const) {
     test(`REMOVED accepts a \`${marker}\` bullet`, () => {
