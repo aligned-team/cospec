@@ -388,8 +388,10 @@ describe('archiveRules: archive/scenario-preservation (advisory mirror)', () => 
     )
     expect(issue?.hint).not.toContain('no longer excuses the drop')
     expect(issue?.hint).toContain('copy the missing scenario back into the MODIFIED block')
-    // openspec 1.11.0 refuses a REMOVE and an ADD of one requirement name in
-    // the same delta, so the retired remedy must never come back.
+    // openspec 1.13.1 refuses a REMOVE and an ADD of one requirement name in
+    // the same delta (specs-apply.ts compares normalized, not case-folded,
+    // names), so the retired remedy must never come back. Only a fold-VARIANT
+    // of a removed name is applied at 1.13.1 — contract-pinned separately.
     expect(issue?.hint).not.toContain('ADD it back in the same delta')
     expect(issue?.hint).toContain('ADD the replacement in a later one')
   })

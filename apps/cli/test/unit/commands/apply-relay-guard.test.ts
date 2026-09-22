@@ -171,9 +171,14 @@ describe('relayApplyInstructions', () => {
     expect(out.warnings).toHaveLength(2)
   })
 
-  test('absent warnings stay absent — never an empty array', () => {
+  test('absent advisory fields stay absent — never empty arrays', () => {
     const out = relayApplyInstructions(baseInstructions())
+    // A payload from a wrapped binary that reported neither advisory field
+    // must round-trip as "not reported", never as "reported empty": a consumer
+    // reading `warnings: []` would conclude the binary checked and found
+    // nothing. Both fields are optional on `ApplyInstructionsJson`.
     expect('warnings' in out).toBe(false)
+    expect('missingPrerequisites' in out).toBe(false)
   })
 
   test('an empty warnings array stays an empty array', () => {

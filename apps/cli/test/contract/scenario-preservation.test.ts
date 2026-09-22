@@ -456,7 +456,7 @@ The system SHALL render a widget when requested.
   })
 })
 
-// Bodyless scenario headers, probed at the 1.11.0 pin (2026-09-22).
+// Bodyless scenario headers, re-probed against the 1.13.1 pin (2026-09-22).
 //
 // A `#### ` header with no body is not a scenario to either tool's spec reader,
 // so a MODIFIED block can keep a living scenario's header, delete its
@@ -468,7 +468,8 @@ The system SHALL render a widget when requested.
 //
 // Reading upstream at 1.13.1 (`findMissingCurrentScenarios` compares names via
 // `parseScenarioBlocks`, which does NOT apply `hasScenarioBody`), the binary's
-// side of this is unchanged by the bump; re-probe it there.
+// side of this is unchanged by the bump, and the re-probe at the 1.13.1 pin
+// confirms it: the assertions below are the ones written against 1.11.0.
 //
 // The mirror case is the one that keeps the fix honest: a living spec that
 // carries a bodyless header, reproduced faithfully by the delta, must stay

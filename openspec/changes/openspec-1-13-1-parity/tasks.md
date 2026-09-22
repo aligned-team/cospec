@@ -4,21 +4,21 @@
 
 ## 1. Track A — pin and vendor
 
-- [ ] 1.1 Re-probe the real 1.13.1 binary before touching any test file — run
+- [x] 1.1 Re-probe the real 1.13.1 binary before touching any test file — run
       each contract fixture against it and record what actually changed — and
       verify by a written re-probe note naming, per stamped contract file, the
       behaviour the new binary exhibits; no test edit may precede this task
-- [ ] 1.2 Edit `apps/cli/package.json` and `mise.toml` to `1.13.1`, run
+- [x] 1.2 Edit `apps/cli/package.json` and `mise.toml` to `1.13.1`, run
       `bun install` then `mise install`, and commit both manifests with both
       lockfiles in one commit; verify with
       `mise install && git diff --exit-code mise.lock` and
       `bun install --frozen-lockfile` both exiting 0 (verification 1.1, 1.2)
-- [ ] 1.3 Move `PINNED_OPENSPEC_VERSION` to `1.13.1` and restamp the
+- [x] 1.3 Move `PINNED_OPENSPEC_VERSION` to `1.13.1` and restamp the
       floor-through-pin span comment in `apps/cli/src/core/openspec.ts`, leaving
       `OPENSPEC_VERSION_FLOOR` and `OPENSPEC_VERSION_CEILING` untouched; verify
       with `mise run cospec -- doctor` reporting a resolved `1.13.1`
       (verification 1.3)
-- [ ] 1.4 Regenerate the vendored bundle and third-party notices with
+- [x] 1.4 Regenerate the vendored bundle and third-party notices with
       `mise run vendor:openspec` **after** `bun install`; verify with
       `mise run vendor:openspec:check` exiting 0 (verification 1.4)
 - [x] 1.5 Rewrite each falsified contract narrative from the 1.1 re-probe —
@@ -27,7 +27,7 @@
       `delta-bullet-markers` — to what the binary now does, weakening no
       assertion and deleting no test; verify with `mise run test:contract` green
       and a human review of the diff (verification 2.1, 2.2, 2.3)
-- [ ] 1.6 Confirm no version literal that is not a pin read was churned, and
+- [x] 1.6 Confirm no version literal that is not a pin read was churned, and
       that the `harness-workflows` parity requirement and the `rules/specs.ts`
       comment still hold at 1.13.1; verify by the repo-wide `1.11.0` grep
       leaving only dating or deliberately-arbitrary literals (verification 1.5,
@@ -35,7 +35,7 @@
 
 ## 2. Track B — declare the wrapped apply advisories
 
-- [ ] 2.1 Add `warnings?: string[]` and `missingPrerequisites?: string[]` to
+- [x] 2.1 Add `warnings?: string[]` and `missingPrerequisites?: string[]` to
       `ApplyInstructionsJson` in `apps/cli/src/core/openspec.ts` (serialised
       after Track A, which owns the same file); verify with `mise run typecheck`
       clean and a unit case parsing a payload that carries neither field
@@ -43,7 +43,7 @@
 - [x] 2.2 Print relayed `warnings` in `cospec apply`'s human transcript
       alongside the `--json` spread; verify with a contract run asserting the
       same warnings on both surfaces (verification 3.1, 3.3)
-- [ ] 2.3 Add contract coverage that `missingPrerequisites` is a superset of
+- [x] 2.3 Add contract coverage that `missingPrerequisites` is a superset of
       cospec's `missingArtifacts` and moves no exit code, and that cospec's
       `skip_specs` precedence still wins over a contradicting wrapped warning;
       verify with `mise run test:contract` (verification 3.1, 3.2)
@@ -139,25 +139,25 @@
 
 ## 6. Close-out — whole-system proof
 
-- [ ] 6.1 Prove the nested-change deferral bound: contract cases for a namespace
+- [x] 6.1 Prove the nested-change deferral bound: contract cases for a namespace
       folder at `cospec validate` and at `cospec archive`; verify the upstream
       messages reach the user verbatim (verification 8.1, 8.2)
-- [ ] 6.2 Prove the composed schemas survive load-time validation with
+- [x] 6.2 Prove the composed schemas survive load-time validation with
       `openspec schema validate` over all eleven and
       `mise run openspec:schema:validate`; verify both exit clean (verification
       9.1, 9.2)
-- [ ] 6.3 Prove the inherited store, config, and git-probe fixes reach cospec's
+- [x] 6.3 Prove the inherited store, config, and git-probe fixes reach cospec's
       surfaces; verify with the `store`, `config-surface`, and
       feedback-provenance re-probes (verification 10.1, 10.2, 10.3, 10.4, 11.2,
       11.3, 11.4)
-- [ ] 6.4 Prove the archive gates agree with the binary in both directions
+- [x] 6.4 Prove the archive gates agree with the binary in both directions
       across the whole gate family; verify with the contract cases for
       fence-aware collapse, retirement, unpaired `FROM:`, bare-header scenarios,
       and the re-probed gate suite (verification 6.4, 6.5, 6.6, 6.7, 6.8)
-- [ ] 6.5 Run `mise run cospec-validate-all` over this self-hosting repo and
+- [x] 6.5 Run `mise run cospec-validate-all` over this self-hosting repo and
       compare issue counts against the pre-bump run; verify no doubled count and
       no unexplained new issue (verification 5.7)
-- [ ] 6.6 Walk the parity plan's decision ledger and record any item whose
+- [x] 6.6 Walk the parity plan's decision ledger and record any item whose
       disposition changed once the code was written; verify by the recorded
       walk-through (verification 13.1)
-- [ ] 6.7 Run `mise run check`; verify it exits 0 end to end (verification 12.5)
+- [x] 6.7 Run `mise run check`; verify it exits 0 end to end (verification 12.5)

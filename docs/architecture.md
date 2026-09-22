@@ -245,18 +245,23 @@ Upstream refuses a `openspec/changes/` entry that is itself a namespace folder
 wrapping further changes, at both gates that matter: `openspec validate` reports
 `is not a change: it is a folder wrapping …`, and `openspec archive`
 hard-refuses with `archive_change_is_namespace_folder` before validation ever
-runs. `mergeDelegated` keeps a delegated finding with no cospec twin verbatim,
-so both refusals reach the user unchanged with no cospec-side work — cospec's
-`change.ts` has no shape check of its own, and deliberately doesn't grow one
-here. What is _not_ covered for free is reporting quality on cospec's own
-surfaces: `cospec status` and `cospec list` would still show a fabricated
-artifact plan against a phantom empty schema for such an entry. That is a UX
-defect, not a gate disagreement or a data-loss path — nothing merges
-incorrectly, nothing archives incorrectly — so it stays out of scope here and is
-bounded instead by two contract tests proving the delegated refusal actually
-reaches the user through `cospec validate` and `cospec archive`. A proper fix is
-its own `feat`: a namespace-folder detector wired into all four command
-surfaces.
+runs. cospec's `change.ts` has no shape check of its own and deliberately
+doesn't grow one here, so the safety property is inherited: `cospec validate`
+and `cospec archive` both refuse such an entry at exit 1, nothing merges and
+nothing moves.
+
+The refusal is cospec's own, though, not the relayed one. A namespace folder has
+no `.openspec.yaml`, so Step 2's fast validation raises `meta/openspec-yaml` and
+the run exits before it ever delegates — the reader is told the file is missing,
+with a hint (`cospec new <type> <slug>`) that points the wrong way, and never
+learns the folder is wrapping changes. Reporting quality is the whole of the
+gap: `cospec status` and `cospec list` would likewise show a fabricated artifact
+plan against a phantom empty schema. It is a UX defect, not a gate disagreement
+or a data-loss path, so it stays out of scope here, bounded instead by contract
+tests that pin both halves — the upstream text the binary really emits, and its
+documented absence from cospec's report, so the deferred work has a marker to
+flip. A proper fix is its own `feat`: a namespace-folder detector wired into all
+four command surfaces.
 
 ## The static-matrix invariant
 
