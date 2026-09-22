@@ -79,6 +79,20 @@ using the same rule OpenSpec's own shared fence-masking uses: `~~~` fences are
 recognized alongside ` ``` `, and a fence only closes on a matching marker at
 least as long as the one that opened it.
 
+`## REMOVED Requirements` and `## RENAMED Requirements` bullets accept
+CommonMark's full marker set (`-`, `*`, `+`) with any leading whitespace, and a
+`RENAMED` pair's `FROM:`/`TO:` marker is optional — matching OpenSpec's own
+delta reader. A `FROM:` or `TO:` line that forms no pair (a second `FROM:`
+displacing the first, a `TO:` with no pending `FROM:`, or a `FROM:` still open
+when its section ends) is `deltas/unpaired-rename` (E) rather than a silently
+dropped or cross-paired rename.
+
+A requirement name is normalized by stripping a trailing CommonMark closing ATX
+run (`### Requirement: Foo ###` reads as `Foo`) before trim, so
+`### Requirement: Foo ###` in a delta resolves against a living `Foo` header
+without a false `archive/target-missing`, and two headers differing only in that
+trailing run collide as one requirement, not two.
+
 Both parsers count a `#### ` header as a scenario only when its body carries at
 least one non-blank line before the next level-1-to-4 header or end of input —
 OpenSpec's own `hasScenarioBody` rule, and the reason `deltas/requirement-shape`
