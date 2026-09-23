@@ -76,6 +76,28 @@ jobs:
           mise install
           git diff --exit-code mise.lock
       - run: bun install --frozen-lockfile
+      # Neither fish nor zsh has a mise/aqua registry entry (checked:
+      # `mise registry | grep -iE 'fish|zsh'` — nothing), so both are
+      # installed via apt rather than mise-managed like every other tool
+      # here. zsh turned out to be absent from the ubuntu-latest image too
+      # (the "required completion shells present" step below caught it the
+      # first time this gate ran). ubuntu-latest's apt repos don't carry
+      # historical package versions, so `apt-get install -y` (unpinned) is
+      # the only reproducible option; the "required completion shells
+      # present" step right after this one is what actually keeps CI honest
+      # if either install ever silently stops providing its binary.
+      - name: Install fish and zsh (no mise/aqua registry entry)
+        run: sudo apt-get update && sudo apt-get install -y fish zsh
+      - name: Required completion shells present
+        run: |
+          missing=()
+          for shell in bash zsh fish; do
+            command -v "$shell" >/dev/null 2>&1 || missing+=("$shell")
+          done
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "missing required shell(s): ${missing[*]}" >&2
+            exit 1
+          fi
       - run: mise run lint
       - run: mise run format:check
       - run: mise run typecheck
