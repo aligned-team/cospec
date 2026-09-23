@@ -23,6 +23,15 @@ Masking SHALL blank content in place so every reported line number is unchanged.
 Requirement and scenario headers inside a masked span SHALL NOT be counted by
 any rule or by either hard archive gate.
 
+The canonical requirement header's `Requirement:` keyword SHALL be matched
+case-insensitively, mirroring OpenSpec 1.13.1's `REQUIREMENT_HEADER_REGEX`
+(`src/core/parsers/requirement-blocks.ts`) and `REQUIREMENT_HEADER`
+(`src/core/parsers/spec-structure.ts`). The keyword's case SHALL NOT affect the
+parsed requirement name, the operation the block records, or which block a
+following scenario belongs to. Case tolerance SHALL stop there: the bulleted
+REMOVED form and the `FROM:`/`TO:` rename lines — keywords and their embedded
+`Requirement:` alike — remain case-sensitive, because the wrapped binary's are.
+
 #### Scenario: BOM-prefixed spec is parsed
 
 - **WHEN** a delta or living `spec.md` begins with a UTF-8 BOM
@@ -61,6 +70,30 @@ any rule or by either hard archive gate.
   span
 - **THEN** the reported line number equals the line's position in the original
   file
+
+#### Scenario: A lower- or upper-case requirement keyword is a requirement
+
+- **WHEN** a delta section holds `### requirement: Alpha` or
+  `### REQUIREMENT: Alpha`
+- **THEN** the block enters the operation list under its section's operation
+  with the name `Alpha`, exactly as a canonical `### Requirement: Alpha` header
+  would — so `archive/target-missing` and `archive/scenario-preservation` see
+  the same operations the wrapped binary applies
+
+#### Scenario: A case-variant header is not absorbed by the block above it
+
+- **WHEN** one `## MODIFIED Requirements` section holds `### Requirement: Alpha`
+  followed by `### requirement: Beta`
+- **THEN** two MODIFIED operations are recorded, each carrying only its own
+  scenarios — Beta is neither invisible to the gates nor folded into Alpha's
+  scenario set
+
+#### Scenario: Bulleted and rename forms stay case-sensitive
+
+- **WHEN** a delta writes a REMOVED entry as ``- `### requirement: Alpha` `` or
+  a rename as `- from:`/`- to:` lines
+- **THEN** no operation is recorded, matching the wrapped binary, which parses
+  no delta from either form
 
 ### Requirement: Recursive capability discovery
 

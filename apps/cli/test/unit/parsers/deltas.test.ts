@@ -1884,3 +1884,169 @@ describe('orphaned requirements', () => {
     expect(p.ops).toHaveLength(1)
   })
 })
+
+describe('requirement header keyword case', () => {
+  const block = (header: string, name: string, scenario: string) =>
+    [
+      header,
+      '',
+      `The system SHALL ${name}.`,
+      '',
+      `#### Scenario: ${scenario}`,
+      '',
+      '- **WHEN** a',
+      '- **THEN** b',
+      '',
+    ].join('\n')
+
+  test('ADDED reads lower-, upper- and mixed-case keywords', () => {
+    const p = parseDeltaSpec(
+      [
+        '## ADDED Requirements',
+        '',
+        block('### requirement: Lower', 'lower', 's1'),
+        block('### REQUIREMENT: Upper', 'upper', 's2'),
+        block('### ReQuIrEmEnT: Mixed', 'mixed', 's3'),
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops.map((o) => [o.operation, o.name, o.scenarioCount])).toEqual([
+      ['ADDED', 'Lower', 1],
+      ['ADDED', 'Upper', 1],
+      ['ADDED', 'Mixed', 1],
+    ])
+    expect(p.emptySections).toEqual([])
+  })
+
+  test('MODIFIED reads a case-variant keyword and keeps its scenario names', () => {
+    const p = parseDeltaSpec(
+      ['## MODIFIED Requirements', '', block('### REQUIREMENT: Alpha', 'alpha', 's1')].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops).toHaveLength(1)
+    expect(p.ops[0]!.operation).toBe('MODIFIED')
+    expect(p.ops[0]!.name).toBe('Alpha')
+    expect(p.ops[0]!.scenarioNames).toEqual(['s1'])
+  })
+
+  test('REMOVED reads a case-variant plain header', () => {
+    const p = parseDeltaSpec(
+      ['## REMOVED Requirements', '', '### requirement: Alpha', ''].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops.map((o) => [o.operation, o.name])).toEqual([['REMOVED', 'Alpha']])
+    expect(p.emptySections).toEqual([])
+  })
+
+  test('a case-variant header closes the block above it instead of joining it', () => {
+    const p = parseDeltaSpec(
+      [
+        '## MODIFIED Requirements',
+        '',
+        block('### Requirement: Alpha', 'alpha', 's1'),
+        block('### requirement: Beta', 'beta', 's2'),
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops.map((o) => [o.name, o.scenarioNames])).toEqual([
+      ['Alpha', ['s1']],
+      ['Beta', ['s2']],
+    ])
+  })
+
+  test('the captured name keeps its own case', () => {
+    const p = parseDeltaSpec(
+      ['## ADDED Requirements', '', block('### requirement: LOUD Name', 'x', 's1')].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops[0]!.name).toBe('LOUD Name')
+  })
+
+  test('an orphaned case-variant header is still reported as orphaned', () => {
+    const p = parseDeltaSpec(
+      ['## Notes', '', '### REQUIREMENT: Stray', ''].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.orphanedRequirements).toEqual([{ name: 'Stray', section: 'Notes', line: 3 }])
+  })
+
+  test('the REMOVED bullet form stays case-sensitive, as the binary is', () => {
+    const p = parseDeltaSpec(
+      [
+        '## REMOVED Requirements',
+        '',
+        '- `### requirement: Alpha`',
+        '- `### REQUIREMENT: Beta`',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops).toEqual([])
+    expect(p.emptySections).toEqual(['REMOVED'])
+  })
+
+  test('FROM:/TO: rename keywords stay case-sensitive, as the binary is', () => {
+    const p = parseDeltaSpec(
+      [
+        '## RENAMED Requirements',
+        '',
+        '- from: `### Requirement: Alpha`',
+        '- to: `### Requirement: Beta`',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops).toEqual([])
+    expect(p.unpairedRenames).toEqual([])
+    expect(p.emptySections).toEqual(['RENAMED'])
+  })
+
+  test('a case-variant Requirement: inside a FROM:/TO: pair is still read', () => {
+    const p = parseDeltaSpec(
+      [
+        '## RENAMED Requirements',
+        '',
+        '- FROM: `### requirement: Alpha`',
+        '- TO: `### REQUIREMENT: Beta`',
+        '',
+      ].join('\n'),
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops).toEqual([])
+    expect(p.emptySections).toEqual(['RENAMED'])
+  })
+
+  test('a living spec reads case-variant requirement headers', () => {
+    const living = parseLivingSpec(
+      [
+        '## Purpose',
+        '',
+        'Why.',
+        '',
+        '## Requirements',
+        '',
+        '### requirement: Alpha',
+        '',
+        'The system SHALL a.',
+        '',
+        '#### Scenario: s1',
+        '',
+        '- **WHEN** a',
+        '- **THEN** b',
+        '',
+      ].join('\n'),
+    )
+    expect([...living.requirementNames]).toEqual(['Alpha'])
+    expect(living.requirementScenarioCounts.get('Alpha')).toBe(1)
+    expect(living.requirementScenarioNames.get('Alpha')).toEqual(['s1'])
+  })
+})

@@ -175,6 +175,16 @@ so cospec's own diagnostics win the report. See OpenSpec's
 [writing-specs.md](https://github.com/Fission-AI/OpenSpec/blob/main/docs/writing-specs.md)
 for the delta format these rules enforce.
 
+A requirement header's `Requirement:` keyword is matched case-insensitively, so
+`### requirement: Foo` and `### REQUIREMENT: Foo` are the same header as
+`### Requirement: Foo` — the name itself keeps its case, and every comparison
+against it (living-spec lookups, collisions, renames) stays case-sensitive. The
+tolerance stops at that header: the bulleted `## REMOVED Requirements` form and
+the `FROM:`/`TO:` rename keywords are case-sensitive, because OpenSpec's reader
+parses no delta from a lower-case one. Write the canonical `Requirement:`
+anyway; the tolerance exists so cospec's gates see exactly the operations
+OpenSpec applies.
+
 | ID                            | Level | Check                                                                                                                                                                                                                                                                                                                                |
 | ----------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `deltas/scenario-depth`       | E     | a `### Scenario:` heading uses three hashtags — it must be `#### Scenario:`                                                                                                                                                                                                                                                          |
