@@ -795,3 +795,52 @@ describe('archive gates strip a closing ATX run from requirement names', () => {
     expect(rules(archiveRules(change(text, { living })))).toContain('archive/target-missing')
   })
 })
+
+// A case-variant `Requirement:` keyword parses for the binary, so the hard
+// archive gates must see the op too. While cospec's header regex was
+// case-sensitive these blocks produced no op at all: the gates stayed silent and
+// the binary applied the delta — a false archive PASS.
+describe('archiveRules: case-variant requirement headers reach the gates', () => {
+  test('archive/target-missing sees a lowercase MODIFIED header', () => {
+    const text =
+      '## MODIFIED Requirements\n\n### requirement: Ghost\n\nThe system SHALL x.\n\n#### Scenario: s\n\n- **WHEN** a\n'
+    expect(rules(archiveRules(change(text, { living: LIVING })))).toContain(
+      'archive/target-missing',
+    )
+  })
+
+  test('archive/target-missing sees an uppercase MODIFIED header', () => {
+    const text =
+      '## MODIFIED Requirements\n\n### REQUIREMENT: Ghost\n\nThe system SHALL x.\n\n#### Scenario: s\n\n- **WHEN** a\n'
+    expect(rules(archiveRules(change(text, { living: LIVING })))).toContain(
+      'archive/target-missing',
+    )
+  })
+
+  test('archive/scenario-preservation refuses a drop under a lowercase header', () => {
+    const text =
+      '## MODIFIED Requirements\n\n### requirement: Existing\n\nThe system SHALL exist.\n\n#### Scenario: s1\n\n- **WHEN** a\n'
+    const issues = archiveRules(change(text, { living: TWO_SCENARIO_LIVING }), { strict: true })
+    const issue = issues.find((i) => i.rule === 'archive/scenario-preservation')
+    expect(issue?.level).toBe('ERROR')
+    expect(issue?.message).toContain('"s2"')
+  })
+
+  // A REMOVED target that is simply absent is an early-sync no-op upstream, so
+  // the op reaching the gate is proven by the near-miss arm instead: a mistyped
+  // header the binary aborts on.
+  test('a lowercase-header REMOVED reaches the near-miss arm', () => {
+    const text = '## REMOVED Requirements\n\n### requirement: EXISTING\n'
+    const issues = archiveRules(change(text, { living: LIVING }))
+    expect(rules(issues)).toContain('archive/target-missing')
+    expect(issues.find((i) => i.rule === 'archive/target-missing')?.hint).toContain(
+      '### Requirement: Existing',
+    )
+  })
+
+  test('a case-variant header no longer hides behind archive/no-ops', () => {
+    const text =
+      '## MODIFIED Requirements\n\n### REQUIREMENT: Existing\n\nThe system SHALL exist.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n'
+    expect(rules(archiveRules(change(text, { living: LIVING })))).not.toContain('archive/no-ops')
+  })
+})

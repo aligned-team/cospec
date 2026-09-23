@@ -5,7 +5,30 @@
 
 export type DeltaOperation = 'ADDED' | 'MODIFIED' | 'REMOVED' | 'RENAMED'
 
-const REQUIREMENT_RE = /^###\s*Requirement:\s*(.+?)\s*$/
+/**
+ * The canonical requirement header. The `Requirement:` keyword is matched
+ * case-insensitively because both of openspec's readers are: the delta reader's
+ * `REQUIREMENT_HEADER_REGEX` (`src/core/parsers/requirement-blocks.ts`,
+ * 1.13.1) and the spec reader's `REQUIREMENT_HEADER`
+ * (`src/core/parsers/spec-structure.ts`) both carry the `i` flag. Anchoring on
+ * the exact spelling — as cospec did through 0.8.0 — made `### requirement: X`
+ * and `### REQUIREMENT: X` invisible here while the binary parsed and applied
+ * them: the op never reached `ops`, so `archive/target-missing` and
+ * `archive/scenario-preservation` never saw it, and a scenario-dropping
+ * MODIFIED under a case-variant header archived at exit 0. Worse inside a
+ * section, a case-variant header did not close the block above it, so its
+ * scenarios were credited to the preceding requirement.
+ *
+ * Only the keyword folds. The captured name keeps its case, and every
+ * comparison against it (living names, collisions, rename chains) stays
+ * case-sensitive, matching openspec's `normalizeRequirementName` consumers.
+ * The tolerance also stops here: `REMOVED_BULLET_RE` and the `FROM:`/`TO:`
+ * pair regexes below have no `i` flag because upstream's have none either —
+ * probed against the 1.13.1 binary, a lowercase bullet or `from:`/`to:` line
+ * parses no delta at all. `test/contract/archive-parity.test.ts` pins both
+ * halves of that asymmetry.
+ */
+const REQUIREMENT_RE = /^###\s*Requirement:\s*(.+?)\s*$/i
 const SECTION_RE = /^##\s+(.+?)\s*$/
 const SCENARIO_RE = /^####\s+/
 /**

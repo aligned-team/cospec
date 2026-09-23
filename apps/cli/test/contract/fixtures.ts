@@ -652,6 +652,75 @@ The system SHALL no longer render a widget.
       return { name: 'new-spec-non-added' }
     },
   },
+  // The `Requirement:` keyword is case-insensitive to the binary
+  // (`REQUIREMENT_HEADER_REGEX`, 1.13.1), so cospec must read the same op the
+  // binary applies. While cospec's header regex was case-sensitive these two
+  // fixtures failed in the worst direction: no op parsed, so the read-only gate
+  // was clean on BOTH — including the scenario-dropping one the binary refuses.
+  {
+    key: 'lowercase-header-modified',
+    expectAbort: false,
+    build(root) {
+      writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_WIDGET_REQ))
+      writeChangeShell(root, 'lowercase-header-modified', {
+        'widgets/spec.md': `## MODIFIED Requirements
+
+### requirement: Widget rendering
+
+The system SHALL render a widget promptly when requested.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered promptly
+`,
+      })
+      return { name: 'lowercase-header-modified' }
+    },
+  },
+  {
+    key: 'lowercase-header-modified-drops-scenario',
+    rule: 'archive/scenario-preservation',
+    expectAbort: true,
+    build(root) {
+      writeLivingSpec(
+        root,
+        'widgets',
+        livingSpec(
+          'widgets',
+          `
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered
+
+#### Scenario: Render a cached widget
+
+- **WHEN** a caller requests the same widget twice
+- **THEN** the second render is served from cache
+`,
+        ),
+      )
+      writeChangeShell(root, 'lowercase-header-modified-drops-scenario', {
+        'widgets/spec.md': `## MODIFIED Requirements
+
+### requirement: Widget rendering
+
+The system SHALL render a widget when requested.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered
+`,
+      })
+      return { name: 'lowercase-header-modified-drops-scenario' }
+    },
+  },
 ]
 
 /** A minimal valid `feat` change with the given ADDED delta (for gotcha repos). */

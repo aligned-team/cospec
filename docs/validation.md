@@ -88,6 +88,15 @@ pending `FROM:`, or a `FROM:` still open when its section ends) is
 `deltas/unpaired-rename` (E) rather than a silently dropped or cross-paired
 rename.
 
+The canonical requirement header's keyword is folded before matching, mirroring
+OpenSpec 1.13.1's `REQUIREMENT_HEADER_REGEX` and `REQUIREMENT_HEADER`; the
+authoring-facing statement of that tolerance and its limits is owned by the site
+([`deltas/` rules](https://cospec.aligned.team/reference/validation-rules)).
+What it buys cospec is gate parity: a case-variant header used to parse to no
+operation at all, so `archive/target-missing` and
+`archive/scenario-preservation` stayed silent on a delta the binary parsed and
+applied — a false archive PASS.
+
 A requirement name is normalized by stripping a trailing CommonMark closing ATX
 run (`### Requirement: Foo ###` reads as `Foo`) before trim, so
 `### Requirement: Foo ###` in a delta resolves against a living `Foo` header
