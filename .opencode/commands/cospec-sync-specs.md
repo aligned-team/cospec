@@ -2,7 +2,7 @@
 description: Explain how spec sync works (it runs inside archive) and preview what would merge. Also use when the user says "cospec sync specs", "sync the specs", or "openspec sync".
 metadata:
   author: cospec
-  generatedBy: cospec@0.8.1
+  generatedBy: cospec@0.8.2
   contentHash: sha256:78a4d09275959566ff92a490de91a93a695dd0acdbc259620b3c4156c61ba16c
 ---
 
