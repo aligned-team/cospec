@@ -11,7 +11,7 @@ never edit it by hand.
 pinned openspec; a superset of what the minified bundle retains).
 
 
-## @fission-ai/openspec@1.11.0 — MIT
+## @fission-ai/openspec@1.13.1 — MIT
 
 ```
 MIT License

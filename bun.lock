@@ -17,7 +17,7 @@
         "cospec": "./bin/cospec.js",
       },
       "dependencies": {
-        "@fission-ai/openspec": "1.11.0",
+        "@fission-ai/openspec": "1.13.1",
       },
       "devDependencies": {
         "bun-types": "1.3.14",
@@ -57,21 +57,21 @@
 
     "@aligned-team/cospec-bench": ["@aligned-team/cospec-bench@workspace:packages/bench"],
 
-    "@aligned-team/cospec-darwin-arm64": ["@aligned-team/cospec-darwin-arm64@0.5.4", "", { "os": "darwin", "cpu": "arm64" }, "sha512-4CR2Pr44kxh7sabCjYfiv8We/EXY2YSBsQNrFG2yII3VSpic6TOKDJHPNHJxVODGsfOB5zLZYbcOeKFLPBPn9A=="],
+    "@aligned-team/cospec-darwin-arm64": ["@aligned-team/cospec-darwin-arm64@0.7.1", "", { "os": "darwin", "cpu": "arm64" }, "sha512-htsbRNUehgApZWYuQH4PkcJvhcofAiH/3ajAqLWBLO/b6Ru6Hb4xStR2w6Ip/NTunnmNJzFPcvZr4l1V3E+fsQ=="],
 
-    "@aligned-team/cospec-darwin-x64": ["@aligned-team/cospec-darwin-x64@0.5.4", "", { "os": "darwin", "cpu": "x64" }, "sha512-644rQWbs0OCSzu9y0fffZxkjy9puHr+uA/vBexw0pgFkM34HMs41KgQjKkn+xTfiRghj2V6c+f7SVdNRc1r9DQ=="],
+    "@aligned-team/cospec-darwin-x64": ["@aligned-team/cospec-darwin-x64@0.7.1", "", { "os": "darwin", "cpu": "x64" }, "sha512-v9A6OlnOge29/LERgo3ENp2DcgT5I2qnYfNeAzEwpjw/nHzPrJhLd+1Y7tNQvYAR/umu9MqwLAWPyDZg7DQ+Ug=="],
 
     "@aligned-team/cospec-docs": ["@aligned-team/cospec-docs@workspace:apps/docs"],
 
-    "@aligned-team/cospec-linux-arm64-gnu": ["@aligned-team/cospec-linux-arm64-gnu@0.5.4", "", { "os": "linux", "cpu": "arm64" }, "sha512-IIvCibYu70HwWm1QLrt7ZWm7s5ZPVLRX3PqcektWT8gGDFZqM0PybP2f9X51ACfnvv0S+rEHwco4l89kXDVN4Q=="],
+    "@aligned-team/cospec-linux-arm64-gnu": ["@aligned-team/cospec-linux-arm64-gnu@0.7.1", "", { "os": "linux", "cpu": "arm64" }, "sha512-wKXf442hSuoHqQh/Mf+PjBBndbCGZH0EE1fb7x8XM85qJDZwuFfOFzVH9lguM/lTvO8gz3HZ7JTYpF4JtIo6Ag=="],
 
-    "@aligned-team/cospec-linux-arm64-musl": ["@aligned-team/cospec-linux-arm64-musl@0.5.4", "", { "os": "linux", "cpu": "arm64" }, "sha512-pZ4qykhqMzjoG9RsCvwAWw9MUujNT6kYfTN3PoCDfWmnLXhZVvhcCdYNMB3/wkEsF2dIGy7HQn9mouXA8EkoWA=="],
+    "@aligned-team/cospec-linux-arm64-musl": ["@aligned-team/cospec-linux-arm64-musl@0.7.1", "", { "os": "linux", "cpu": "arm64" }, "sha512-jINap7Br37AvMV6ENgmj2mhZgxOKKvwwUVBpxigX1vl9GPu2t/ZOKTqXCoevSOB4QAnmCta+acQ4c9D2eZHdfw=="],
 
-    "@aligned-team/cospec-linux-x64-gnu": ["@aligned-team/cospec-linux-x64-gnu@0.5.4", "", { "os": "linux", "cpu": "x64" }, "sha512-9PFwPofDxB48irEyD9Rackw0wlivFm5+6CUapIEfFx1htAldMmHHjJaG0V46ub9zW1+Eyc9I9pVNSRyp+O5Rvg=="],
+    "@aligned-team/cospec-linux-x64-gnu": ["@aligned-team/cospec-linux-x64-gnu@0.7.1", "", { "os": "linux", "cpu": "x64" }, "sha512-6trirwfM36DkE5dMKUQMxrw9G1rMCO2FwbHrThZ3NkUnh5eTPlY161aP16BxQp93LXMu+RLpRdN9tCqF4qb1GA=="],
 
-    "@aligned-team/cospec-linux-x64-musl": ["@aligned-team/cospec-linux-x64-musl@0.5.4", "", { "os": "linux", "cpu": "x64" }, "sha512-+cYA9wcdin9eBLLRib6rd/9WQa+O+x+Rz9XXzA92/aWzvc0T/p5DAS5DjtHUYu7IHaFIGd+Za7z0lRV6h0EJug=="],
+    "@aligned-team/cospec-linux-x64-musl": ["@aligned-team/cospec-linux-x64-musl@0.7.1", "", { "os": "linux", "cpu": "x64" }, "sha512-yYK0pN54n3nkgGdgEJmvCJPkgtwmOFgLeHRgokfBqpcc6DcAycxJgW1MrjYdpCteIm4+AQzoknsyBZRd05H7zw=="],
 
-    "@aligned-team/cospec-win32-x64": ["@aligned-team/cospec-win32-x64@0.5.4", "", { "os": "win32", "cpu": "x64" }, "sha512-Z2Rur2THJJySPCNWnPHQHuL/vDnpQ1Q9n58EtYB4r78G8SCOZi0lrFs9Eu8wzpAYEuHUTUELKEe65yNikscKig=="],
+    "@aligned-team/cospec-win32-x64": ["@aligned-team/cospec-win32-x64@0.7.1", "", { "os": "win32", "cpu": "x64" }, "sha512-c2kFvXOvcbBXyUBciUivXrWp9nmG4CzovKFztZdTyGexdKlExGzocAxBFwE0oqzRmBMhFLFM0f/8GZU+cUCsPA=="],
 
     "@anthropic-ai/claude-agent-sdk": ["@anthropic-ai/claude-agent-sdk@0.3.211", "", { "optionalDependencies": { "@anthropic-ai/claude-agent-sdk-darwin-arm64": "0.3.211", "@anthropic-ai/claude-agent-sdk-darwin-x64": "0.3.211", "@anthropic-ai/claude-agent-sdk-linux-arm64": "0.3.211", "@anthropic-ai/claude-agent-sdk-linux-arm64-musl": "0.3.211", "@anthropic-ai/claude-agent-sdk-linux-x64": "0.3.211", "@anthropic-ai/claude-agent-sdk-linux-x64-musl": "0.3.211", "@anthropic-ai/claude-agent-sdk-win32-arm64": "0.3.211", "@anthropic-ai/claude-agent-sdk-win32-x64": "0.3.211" }, "peerDependencies": { "@anthropic-ai/sdk": ">=0.93.0", "@modelcontextprotocol/sdk": "^1.29.0", "zod": "^4.0.0" } }, "sha512-JhbLu6o1v2g9fjqkO+LDNPWrE0bgd9UeRQQ41JBGouAgows3KyPPYgU2WU0q7M2onuwQxR5plGDpas01F+oaUA=="],
 
@@ -155,7 +155,7 @@
 
     "@emnapi/wasi-threads": ["@emnapi/wasi-threads@1.2.2", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-c95qOXkHdydNKhscBTebqEC1CVAZpyqOfVfBzQ1qgzyl3gfeldUjIggDbIZgDKsHLgnsM+igH7TJ/eAasaVuMA=="],
 
-    "@fission-ai/openspec": ["@fission-ai/openspec@1.11.0", "", { "dependencies": { "@inquirer/core": "^11.2.1", "@inquirer/prompts": "^8.5.2", "chalk": "^5.6.2", "commander": "^14.0.0", "cross-spawn": "7.0.6", "diff": "^9.0.0", "fast-glob": "^3.3.3", "ora": "^9.4.1", "yaml": "^2.8.3", "zod": "^4.4.3" }, "bin": { "openspec": "bin/openspec.js" } }, "sha512-P9h8H4Snit8I7tHmCopjg3QDwBllIlObxb+/DebvBwhWTj6YEPPYRYkC4n5GqG4PdQnKMA6E1AlEOI9FT4G7FA=="],
+    "@fission-ai/openspec": ["@fission-ai/openspec@1.13.1", "", { "dependencies": { "@inquirer/core": "^11.2.1", "@inquirer/prompts": "^8.5.2", "chalk": "^5.6.2", "commander": "^14.0.0", "cross-spawn": "7.0.6", "diff": "^9.0.0", "fast-glob": "^3.3.3", "ora": "^9.4.1", "yaml": "^2.8.3", "zod": "^4.4.3" }, "bin": { "openspec": "bin/openspec.js" } }, "sha512-UHJSV2n6ohjfRaJLvi526avOohFS/orCjM+7JPgvDzuEJbCCkykKfP2fp3gcsvthDLeWolMRT5JAE08MSPnr8Q=="],
 
     "@hono/node-server": ["@hono/node-server@1.19.14", "", { "peerDependencies": { "hono": "^4" } }, "sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw=="],
 

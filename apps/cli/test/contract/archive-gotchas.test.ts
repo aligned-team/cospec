@@ -3,10 +3,12 @@
 // change. Each test first pins that real behavior, then asserts cospec never
 // reports success when openspec no-ops.
 //
-// Re-probed against the 1.11.0 pin (2026-09-01). The exit code moved: an
-// aborted archive now exits 1, where it exited 0 through 1.6.x. Everything the
-// design leans on is unchanged — the change directory is not moved and stdout
-// still ends `Aborted. No files were changed.`, which ABORTED_RE matches.
+// Re-probed against the 1.13.1 pin (2026-09-22), previously 1.11.0. The exit
+// code moved at 1.7.0: an aborted archive exits 1, where it exited 0 through
+// 1.6.x. Everything the design leans on is unchanged — the change directory is
+// not moved and stdout still ends `Aborted. No files were changed.`, which
+// ABORTED_RE matches. One case in this file stopped aborting at 1.13.1 (the
+// trailing-`###` header below); the other two abort exactly as before.
 //
 // The exit-code-is-not-enough discipline STAYS. cospec accepts openspec
 // `>=1.0.0 <2.0.0`, and on 1.0.0–1.6.x an aborted archive really does exit 0,
@@ -16,7 +18,7 @@
 // one term among several, exactly as `cospec archive` step 9 does.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { formatLocalDate } from '../../src/commands/archive.ts'
@@ -45,7 +47,7 @@ function movedToArchive(root: string, name: string): boolean {
   return !existsSync(join(root, 'openspec/changes', name))
 }
 
-describe('archive gotcha regressions (re-probed at 1.11.0: aborts now exit 1)', () => {
+describe('archive gotcha regressions (re-probed at 1.13.1: aborts exit 1)', () => {
   test('no-op delta: openspec aborts without moving the change; cospec refuses to claim success', async () => {
     const name = 'zero-op-delta'
     // Pin the real openspec behaviour.
@@ -86,40 +88,54 @@ describe('archive gotcha regressions (re-probed at 1.11.0: aborts now exit 1)', 
     expect(movedToArchive(cRepo, name)).toBe(false)
   })
 
-  // A closing ATX run in a requirement header is the one shape where cospec's
-  // parser deliberately reads the name the way openspec 1.13.1 does, not the
-  // way the 1.11.0 pin does: 1.13.1's `normalizeRequirementName` strips a
-  // space-preceded `#` run, 1.11.0's greedy header capture keeps it. So at the
-  // pin cospec's read-only gate is clean on a delta the binary refuses. That is
-  // survivable only because `cospec archive` never trusts its own precondition
-  // pass — it delegates and then verifies the move on disk. This test pins both
-  // halves so the day the pin moves to 1.13.1 the change of behaviour is loud.
-  test('a trailing ### header: 1.11.0 aborts (1.13.1 applies); cospec still refuses to claim success', async () => {
+  // A closing ATX run in a requirement header — the one disagreement the pin
+  // bump RESOLVED rather than created. Through 1.11.0 the binary's greedy
+  // header capture kept the run in the name, so `### Requirement: Widget
+  // rendering ###` did not match the living `Widget rendering` and archive
+  // aborted, while cospec's parser (which has always stripped the run, the way
+  // CommonMark renders it) read the delta as clean. 1.13.1's
+  // `normalizeRequirementName` strips it too, so the two now read one name and
+  // the merge goes through.
+  //
+  // This is not a gotcha any more, and it is kept as one anyway: it is the only
+  // place in the suite where the binary's requirement-name grammar is pinned
+  // directly, and a regression in either direction is a silent
+  // wrong-requirement merge. It stays in this file because the abort it used to
+  // produce is what the rest of the file is about.
+  test('a trailing ### header: 1.13.1 strips the run, so both sides apply the delta', async () => {
     const name = 'trailing-hashes-modified'
     const oRepo = mkTempRepo({ git: true })
     buildTrailingHashesModified(oRepo, name)
     const o = await openspec(['archive', name, '-y'], oRepo)
-    // The pin keeps the closing run in the name, so the target is "not found".
-    expect(o.stdout).toContain('### Requirement: Widget rendering ###')
-    expect(o.stdout).toContain('Aborted. No files were changed.')
-    expect(movedToArchive(oRepo, name)).toBe(false)
-    expect(o.exitCode).toBe(1)
+    expect(o.exitCode).toBe(0)
+    expect(o.stdout).not.toContain('Aborted.')
+    expect(movedToArchive(oRepo, name)).toBe(true)
+    // Merged onto the existing requirement, not written beside it as a second
+    // one called `Widget rendering ###`. Note what the merge writes: matching
+    // is on the stripped name, but MODIFIED replaces the whole block with the
+    // delta's raw text, so the closing run survives into the living spec.
+    const oLiving = readFileSync(join(oRepo, 'openspec/specs/widgets/spec.md'), 'utf8')
+    expect((oLiving.match(/^###\s+Requirement:/gm) ?? []).length).toBe(1)
+    expect(oLiving).toContain('### Requirement: Widget rendering ###')
+    expect(oLiving).toContain('render a widget promptly')
 
-    // cospec's own gate reads the 1.13.1 name (`Widget rendering`) and finds the
-    // living target, so `validate --strict` is clean here at the pin...
+    // cospec's gate reads the same name, so `validate --strict` is clean...
     const vRepo = mkTempRepo({ git: true })
     buildTrailingHashesModified(vRepo, name)
     const v = await cospec(['validate', name, '--strict'], { cwd: vRepo })
     expect(v.exitCode).toBe(0)
 
-    // ...and the archive still fails, because the delegated binary aborts and
-    // cospec verifies the move rather than the exit code.
+    // ...and the archive now completes, with the same merged result.
     const cRepo = mkTempRepo({ git: true })
     buildTrailingHashesModified(cRepo, name)
     markDone(cRepo, name)
     const c = await cospec(['archive', name], { cwd: cRepo })
-    expect(c.exitCode).not.toBe(0)
-    expect(movedToArchive(cRepo, name)).toBe(false)
+    expect(c.exitCode).toBe(0)
+    expect(movedToArchive(cRepo, name)).toBe(true)
+    const cLiving = readFileSync(join(cRepo, 'openspec/specs/widgets/spec.md'), 'utf8')
+    expect((cLiving.match(/^###\s+Requirement:/gm) ?? []).length).toBe(1)
+    expect(cLiving).toContain('### Requirement: Widget rendering ###')
+    expect(cLiving).toContain('render a widget promptly')
   })
 
   test('--skip-specs genuinely moves a change openspec would otherwise abort on', async () => {

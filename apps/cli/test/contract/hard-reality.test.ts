@@ -3,7 +3,7 @@
 // it only where satisfying it is definitionally wrong, and forbids specs/ on
 // no-specs types instead. README.md must never trip meta/unexpected-file.
 //
-// Re-probed against the 1.11.0 pin (2026-09-01): the landmine is unchanged.
+// Re-probed against the 1.13.1 pin (2026-09-22): the landmine is unchanged.
 // Raw `openspec validate --strict` on a delta-less change still exits 1 with
 // the literal "Change must have at least one delta" (CHANGE_NO_DELTAS) and
 // still hardcodes the "specs/ directory" wording. 1.10.0 APPENDS one more

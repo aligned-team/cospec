@@ -168,6 +168,26 @@ export function isDeltaSpecFile(relPath: string): boolean {
 }
 
 /**
+ * The `spec.md` the merge path reads instead of `relPath` — openspec's
+ * `findUnreadDeltaFiles` `expected` field (`src/utils/spec-discovery.ts`,
+ * 1.13.1), prefixed with `specs/` the way cospec reports change-relative paths.
+ *
+ * A file inside a capability folder points at that folder's `spec.md`
+ * (`specs/widgets/notes.md` → `specs/widgets/spec.md`); a file directly under
+ * `specs/` names the capability after itself (`specs/user-auth.md` →
+ * `specs/user-auth/spec.md`), because that is the capability its author meant.
+ *
+ * `relPath` is relative to the change directory (either separator accepted).
+ */
+export function unreadDeltaExpectation(relPath: string): string {
+  const segments = relPath.split(/[\\/]/).filter((s) => s !== '' && s !== '.')
+  const dirs = segments.slice(1, -1)
+  if (dirs.length > 0) return `specs/${dirs.join('/')}/spec.md`
+  const file = segments.at(-1) ?? ''
+  return `specs/${file.replace(/\.md$/i, '')}/spec.md`
+}
+
+/**
  * Capability path a change-side delta file belongs to — the directory chain
  * between `specs/` and the file, joined with `/`.
  *

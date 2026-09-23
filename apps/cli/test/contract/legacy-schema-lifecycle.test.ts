@@ -8,7 +8,7 @@
 // and openspec's OWN `apply.requires` (copied verbatim into the fork) governs
 // what "ready" means, unfiltered by cospec's schemaVersion grandfathering.
 //
-// Re-probed against the 1.11.0 pin (2026-09-01): the legacy lane is unchanged
+// Re-probed against the 1.13.1 pin (2026-09-22): the legacy lane is unchanged
 // end to end. `cospec schema fork` is a disciplined wrapper around `openspec
 // schema fork`, and 1.9.0 made that fork transactional (no half-written schema
 // dir left behind when it fails) — a strictly better failure path that leaves

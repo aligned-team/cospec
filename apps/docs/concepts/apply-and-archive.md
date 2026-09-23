@@ -66,7 +66,9 @@ In order:
     "contextFiles": [],
     "progress": {},
     "tasks": [],
-    "instruction": "..."
+    "instruction": "...",
+    "warnings": [],
+    "missingPrerequisites": []
   }
 }
 ```
@@ -74,6 +76,24 @@ In order:
 `apply.contextFiles` in the `--json` output is the file list an agent should
 load before implementing — proposal, design, specs deltas, whatever the type
 requires — so you don't have to guess what's relevant.
+
+`apply.warnings` and `apply.missingPrerequisites` come from OpenSpec's own
+`instructions apply --json` (present since 1.13.0; a second `warnings` entry for
+an unread delta file joins them at 1.13.1). `missingPrerequisites` is relayed
+verbatim. `warnings` and `instruction` are not: OpenSpec writes its remedies as
+bare `openspec …` command strings, and cospec rewrites each backtick-delimited
+`openspec instructions`/`status`/`validate` span to the `cospec` equivalent
+before printing it — every agent-facing OpenSpec access routes through cospec,
+so a remedy you read is one you can run. The rewrite is a closed verb set, not a
+wildcard: a verb outside it is left alone rather than relayed as a `cospec`
+surface that may not exist. Both fields are **advisory** — neither ever moves
+`cospec apply`'s exit code, which is fully decided by steps 1–4 above. In
+practice a cospec-typed change rarely reaches a non-empty `apply.warnings`:
+every state OpenSpec warns about there (an unread delta file, a change with no
+delta specs, a tasks file with zero checkboxes) is already a `cospec validate`
+**ERROR** that stops the run before step 5. The relay is live mainly on the
+legacy/v1-schema and forked-schema lanes, where cospec's own gate is narrower
+than OpenSpec's.
 
 ::: tip `--allow-soft` only waives **soft** blockers. Hard blockers have no
 override — the change they name has to actually land first. :::
@@ -161,15 +181,39 @@ performs cleanly:
 | `REMOVED` naming a requirement the living spec no longer has                    | `archive/target-missing`                                                        |
 | `RENAMED` whose FROM is gone and whose TO is already present                    | `archive/target-missing` and the living-collision arm of `archive/added-exists` |
 
-Each exemption is withheld when the living spec still carries a name that folds
-equal to the named one — same letters, differing only in case or interior
-whitespace — but is not it. That is a mistyped header rather than an early sync,
+Each exemption is withheld when a name that folds equal to the named one — same
+letters, differing only in case or interior whitespace — but is not it still
+survives to that operation. That is a mistyped header rather than an early sync,
 OpenSpec aborts on it, and cospec keeps refusing it with a hint naming the exact
-living header. Everything else stays an ERROR: an `ADDED` collision whose body
-differs, a `RENAMED` with FROM and TO both absent, a `RENAMED` applied while
-both are present, a `RENAMED` whose TO collides with an `ADDED` in the same
-delta — a delta-internal conflict OpenSpec refuses whether or not the rename
-itself is an early sync — and a `MODIFIED` whose target is absent.
+header.
+
+Every one of these checks reads the spec **as the merge has it when that
+operation runs** — the living spec with the delta's earlier operations already
+applied, in OpenSpec's own order (`RENAMED`, `REMOVED`, `MODIFIED`, `ADDED`) —
+because that is what OpenSpec itself compares against. So a delta collides with
+itself: two `ADDED` names that fold onto each other, an `ADDED` folding onto the
+delta's own `RENAMED` target, a second `RENAMED` target folding onto the first
+are each an `archive/added-exists` ERROR on the later operation, for a brand-new
+capability as much as for a living one. And in the other direction, a name an
+earlier operation vacated is free — a swap that renames `A` to `B` and then `C`
+to `A` archives cleanly.
+
+The exact-name checks read that same spec, not only the fold ones. A `MODIFIED`,
+a `REMOVED` or a `RENAMED` source naming a header this delta's own `RENAMED`
+just created resolves; chained renames (`A` → `B`, then `B` → `C`) apply; and an
+`ADDED` may re-use the exact header a `REMOVED` or a `RENAMED` vacated, for a
+genuinely new requirement. Each is a delta OpenSpec archives at exit `0`. The
+matching refusals stay: a target an earlier operation carried away is an
+`archive/target-missing` ERROR that says so, and `archive/scenario-preservation`
+follows the rename — a `MODIFIED` block on a renamed header is measured against
+the scenarios of the rename's source, which is the block OpenSpec compares it
+to.
+
+Everything else stays an ERROR: an `ADDED` collision whose body differs, a
+`RENAMED` with FROM and TO both absent, a `RENAMED` applied while both are
+present, a `RENAMED` whose TO collides with an `ADDED` in the same delta — a
+delta-internal conflict OpenSpec refuses whether or not the rename itself is an
+early sync — and a `MODIFIED` whose target is absent.
 
 **Execute and verify**
 
@@ -183,7 +227,10 @@ itself is an early sync — and a `MODIFIED` whose target is absent.
    of a false success.
 9. For specs-bearing changes, a post-merge spot-check confirms each delta
    actually landed as expected in the living spec (ADDED present, REMOVED
-   absent, RENAMED correctly, MODIFIED applied). Any miss exits `1`.
+   absent, RENAMED correctly, MODIFIED applied). Each operation is judged
+   against what the capability's other operations do to that name, so a name
+   another operation legitimately puts back — the swap above — is not read as a
+   miss. Any real miss exits `1`.
 
 **Post**
 

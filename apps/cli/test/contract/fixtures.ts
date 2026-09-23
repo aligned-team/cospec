@@ -481,6 +481,156 @@ The system SHALL render a widget when requested.
     },
   },
   {
+    // openspec applies RENAMED before MODIFIED against ONE map, so a MODIFIED
+    // naming the header this same delta renamed into existence resolves. cospec
+    // read the pristine living spec here and refused a change the binary
+    // archives at exit 0 — a false refusal with no workaround short of
+    // splitting the rename and the edit into two changes.
+    key: 'rename-then-modify',
+    expectAbort: false,
+    build(root) {
+      writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_WIDGET_REQ))
+      writeChangeShell(root, 'rename-then-modify', {
+        'widgets/spec.md': `## RENAMED Requirements
+
+- FROM: \`### Requirement: Widget rendering\`
+- TO: \`### Requirement: Widget drawing\`
+
+## MODIFIED Requirements
+
+### Requirement: Widget drawing
+
+The system SHALL draw a widget promptly when requested.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is drawn promptly
+`,
+      })
+      return { name: 'rename-then-modify' }
+    },
+  },
+  {
+    // The gate that has to follow the rename with it. Upstream's MODIFIED arm
+    // compares against the block the RENAMED phase re-keyed, so the scenarios
+    // the MODIFIED block must preserve are the SOURCE's — and dropping one
+    // aborts the merge. Resolving only the target name found no living
+    // requirement, zero scenarios, and no drop: a false archive PASS.
+    key: 'rename-then-modify-dropping-scenario',
+    rule: 'archive/scenario-preservation',
+    expectAbort: true,
+    build(root) {
+      writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_WIDGET_REQ))
+      writeChangeShell(root, 'rename-then-modify-dropping-scenario', {
+        'widgets/spec.md': `## RENAMED Requirements
+
+- FROM: \`### Requirement: Widget rendering\`
+- TO: \`### Requirement: Widget drawing\`
+
+## MODIFIED Requirements
+
+### Requirement: Widget drawing
+
+The system SHALL draw a widget promptly when requested.
+
+#### Scenario: Draw a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is drawn promptly
+`,
+      })
+      return { name: 'rename-then-modify-dropping-scenario' }
+    },
+  },
+  {
+    // Chained renames in one delta: the second one's source exists only because
+    // the first one created it. Upstream re-keys `nameToBlock` as it goes.
+    key: 'chained-renames',
+    expectAbort: false,
+    build(root) {
+      writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_WIDGET_REQ))
+      writeChangeShell(root, 'chained-renames', {
+        'widgets/spec.md': `## RENAMED Requirements
+
+- FROM: \`### Requirement: Widget rendering\`
+- TO: \`### Requirement: Widget drawing\`
+- FROM: \`### Requirement: Widget drawing\`
+- TO: \`### Requirement: Widget painting\`
+`,
+      })
+      return { name: 'chained-renames' }
+    },
+  },
+  {
+    // The ADDED phase runs last, so a header this delta renamed away is free by
+    // the time the addition lands. Re-using the vacated name for a genuinely
+    // new requirement archives at exit 0; cospec called it a collision and
+    // hinted at MODIFIED, which would have silently discarded the rename.
+    key: 'rename-then-add-source',
+    expectAbort: false,
+    build(root) {
+      writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_WIDGET_REQ))
+      writeChangeShell(root, 'rename-then-add-source', {
+        'widgets/spec.md': `## RENAMED Requirements
+
+- FROM: \`### Requirement: Widget rendering\`
+- TO: \`### Requirement: Widget drawing\`
+
+## ADDED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render a widget through the new pipeline.
+
+#### Scenario: Render through the pipeline
+
+- **WHEN** a caller requests a widget
+- **THEN** the new pipeline renders it
+`,
+      })
+      return { name: 'rename-then-add-source' }
+    },
+  },
+  {
+    // The near-miss twin that withholds the RENAMED early-sync exemption has to
+    // be one that SURVIVES to this operation. Here an earlier rename carried it
+    // away, so upstream finds none and treats the second rename as already
+    // applied. Searching the pristine living spec found the twin anyway and
+    // produced TWO invented ERRORs under two different rule ids.
+    key: 'renamed-near-miss-vacated-by-earlier-rename',
+    expectAbort: false,
+    build(root) {
+      writeLivingSpec(
+        root,
+        'widgets',
+        livingSpec(
+          'widgets',
+          `${LIVING_WIDGET_REQ}
+### Requirement: Widget caching
+
+The system SHALL cache a rendered widget.
+
+#### Scenario: Cache a widget
+
+- **WHEN** a caller requests the same widget twice
+- **THEN** the second request is served from cache
+`,
+        ),
+      )
+      writeChangeShell(root, 'renamed-near-miss-vacated-by-earlier-rename', {
+        'widgets/spec.md': `## RENAMED Requirements
+
+- FROM: \`### Requirement: Widget rendering\`
+- TO: \`### Requirement: Widget drawing\`
+- FROM: \`### Requirement: widget  rendering\`
+- TO: \`### Requirement: Widget caching\`
+`,
+      })
+      return { name: 'renamed-near-miss-vacated-by-earlier-rename' }
+    },
+  },
+  {
     key: 'new-spec-non-added',
     rule: 'archive/new-spec-non-added',
     expectAbort: true,

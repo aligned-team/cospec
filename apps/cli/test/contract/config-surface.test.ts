@@ -3,7 +3,7 @@
 // dir per test so this suite never reads or writes the developer's real
 // machine-global OpenSpec config.
 //
-// Trailing `--no-color` finding (probed directly against the pinned 1.11.0
+// Trailing `--no-color` finding (re-probed directly against the pinned 1.13.1
 // binary via `openspecRaw()` below — bypassing cospec entirely, and with no
 // leading `--no-color` in the argv, so the probe is about the trailing copy
 // alone): a trailing `--no-color` is ACCEPTED on every `config` subcommand —
@@ -21,7 +21,7 @@
 // asserted a rejection; they were corrected to match what this suite observes.
 
 import { afterAll, describe, expect, test } from 'bun:test'
-import { mkdirSync } from 'node:fs'
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { cleanupAll, mkTempRepo, openspec, openspecRaw } from '../fixtures/support.ts'
@@ -163,6 +163,26 @@ describe('real pinned binary: config surface shape cospec depends on', () => {
     const { cwd, env } = sandbox()
     const res = await openspec(['config', 'edit'], cwd, { ...env, EDITOR: 'true' })
     expect(res.exitCode).toBe(0)
+  }, 15_000)
+
+  // 1.13.1 (#1858) splits EDITOR on whitespace instead of exec'ing the whole
+  // string as one program name, so the common `code --wait` / `subl -w` shapes
+  // finally reach the editor. cospec never reimplements the spawn — `config
+  // edit` is a handover exec with inherited stdio — so this row exists to prove
+  // the fix arrives through the pin, and to fail loudly if it is ever reverted.
+  test('edit splits a multi-word EDITOR into argv and appends the config path', async () => {
+    const { cwd, env } = sandbox()
+    const log = join(cwd, 'editor.log')
+    const editor = join(cwd, 'fake-editor')
+    writeFileSync(editor, `#!/bin/sh\nprintf '%s\\n' "$*" >> ${log}\n`)
+    chmodSync(editor, 0o755)
+
+    const res = await openspec(['config', 'edit'], cwd, { ...env, EDITOR: `${editor} --wait` })
+    expect(res.exitCode).toBe(0)
+
+    const invocation = readFileSync(log, 'utf8').trim()
+    expect(invocation.startsWith('--wait ')).toBe(true)
+    expect(invocation.endsWith('config.json')).toBe(true)
   }, 15_000)
 
   test('profile with no preset and no TTY relays the interactive-mode-required error', async () => {

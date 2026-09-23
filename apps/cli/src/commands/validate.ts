@@ -49,7 +49,12 @@ import {
   type ArtifactId,
   type CospecType,
 } from '../core/rules/type-facts.ts'
-import { capabilityForDeltaFile, discoverSpecFiles, isDeltaSpecFile } from '../core/spec-paths.ts'
+import {
+  capabilityForDeltaFile,
+  discoverSpecFiles,
+  isDeltaSpecFile,
+  unreadDeltaExpectation,
+} from '../core/spec-paths.ts'
 
 // --- Change loading (filesystem → LoadedChange) ---------------------------
 
@@ -131,6 +136,24 @@ function loadChange(base: string, id: string, dir: string): LoadedChange {
       text: readFileSync(join(dir, f), 'utf8'),
     }))
 
+  // Everything else under `specs/` that a merge would never read. Only
+  // markdown, and never a dot-entry: the walk mirrors openspec's
+  // `findUnreadDeltaFiles` so the two agree about which files are candidates,
+  // and `deltas/unread-file` then decides which of them carry delta sections.
+  const unreadSpecFiles = files
+    .filter(
+      (f) =>
+        f.startsWith('specs/') &&
+        !isDeltaSpecFile(f) &&
+        f.toLowerCase().endsWith('.md') &&
+        !f.split('/').some((seg) => seg.startsWith('.')),
+    )
+    .map((f) => ({
+      path: f,
+      expected: unreadDeltaExpectation(f),
+      text: readFileSync(join(dir, f), 'utf8'),
+    }))
+
   const livingSpecs: LoadedChange['livingSpecs'] = new Map()
   for (const cap of new Set(deltaFiles.map((d) => d.capability))) {
     if (cap === '') continue
@@ -150,6 +173,7 @@ function loadChange(base: string, id: string, dir: string): LoadedChange {
     designExists: designText !== undefined,
     designText,
     deltaFiles,
+    unreadSpecFiles,
     livingSpecs,
   }
 }
@@ -208,6 +232,16 @@ function normalizeLevel(level: string): IssueLevel {
 const DELEGATED_DELTA_PATH_RE = /^(?:[^/]+\/)*spec\.md$/
 
 /**
+ * openspec 1.13.1's unread-delta ERROR reports a path relative to the change's
+ * `specs/` dir whose shape says nothing about where it lives — `user-auth.md`
+ * is indistinguishable from the change-root `tasks.md` — so the `specs/` prefix
+ * is taken from the message, which spells the same path out, and only when the
+ * two agree.
+ */
+const DELEGATED_UNREAD_DELTA_RE =
+  /^Delta spec found at (specs\/.+?\.md)\. Delta specs must be a spec\.md inside a capability folder/
+
+/**
  * Map an openspec issue into cospec's frozen shape, tagged `openspec/validate`.
  *
  * `deltaPaths` says the issue came from validating a CHANGE, where openspec
@@ -219,7 +253,11 @@ const DELEGATED_DELTA_PATH_RE = /^(?:[^/]+\/)*spec\.md$/
  */
 function mapDelegated(issue: OpenspecIssue, deltaPaths = false): Issue {
   let path = issue.path ?? '.'
-  if (deltaPaths && DELEGATED_DELTA_PATH_RE.test(path)) path = `specs/${path}`
+  if (deltaPaths) {
+    const unread = DELEGATED_UNREAD_DELTA_RE.exec(issue.message)?.[1]
+    if (unread === `specs/${path}`) path = unread
+    else if (DELEGATED_DELTA_PATH_RE.test(path)) path = `specs/${path}`
+  }
   return {
     level: normalizeLevel(issue.level),
     rule: 'openspec/validate',
@@ -258,8 +296,37 @@ interface DuplicateClass {
 const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
   // 1.11.0 purpose-placeholder vs specs/purpose-tbd.
   { rule: 'specs/purpose-tbd', delegated: /^Purpose section is still a placeholder/ },
-  // 1.7.0 root-level delta block vs deltas/spec-at-specs-root.
-  { rule: 'deltas/spec-at-specs-root', delegated: /^Delta spec found at specs\/spec\.md/ },
+  // 1.7.0 root-level delta block vs deltas/spec-at-specs-root. Anchored through
+  // its own second sentence, and keyed on the path: 1.13.1's unread-delta ERROR
+  // opens with the same six words for any file whose name starts `spec.md`
+  // (`specs/spec.md.md`), and a bare prefix match would suppress it.
+  {
+    rule: 'deltas/spec-at-specs-root',
+    delegated: /^Delta spec found at (specs\/spec\.md)\. Delta specs must live under a capability/,
+    nativeKey: /^delta spec found at (specs\/spec\.md) —/,
+  },
+  // 1.13.1 unread delta file vs deltas/unread-file. Keyed on the path both
+  // messages name, so a second unread file is a second finding.
+  {
+    rule: 'deltas/unread-file',
+    delegated: DELEGATED_UNREAD_DELTA_RE,
+    nativeKey: /^delta spec found at (specs\/.+?\.md) —/,
+  },
+  // 1.13.1's unpaired FROM:/TO: ERROR vs deltas/unpaired-rename. cospec grew
+  // its own rule while the pin still dropped the stray line silently; 1.13.1
+  // caught up (`validation/validator.ts`) with a message whose first sentence
+  // is byte-identical to cospec's, plus a remedy sentence. Keyed on the whole
+  // `<side>: "<name>" has no matching <side>: line` span, so a second unpaired
+  // line — a different side, or a different requirement — is a second finding.
+  {
+    rule: 'deltas/unpaired-rename',
+    delegated:
+      /^RENAMED ((?:FROM|TO): ".*" has no matching (?:FROM|TO): line)\. Write each rename as a FROM: line followed immediately by its TO: line\.$/,
+    nativeKey: /^RENAMED ((?:FROM|TO): ".*" has no matching (?:FROM|TO): line)$/,
+  },
+  // 1.13.1 task-checkbox-format lint vs tasks/has-tasks. Same state, and cospec
+  // is strictly ahead of upstream on it: an ERROR where 1.13.1 warns.
+  { rule: 'tasks/has-tasks', delegated: /^This change counts as 0 tasks/ },
   // 1.7.0 CHANGE_SKIP_SPECS_CONFLICT vs deltas/skip-specs-conflict.
   {
     rule: 'deltas/skip-specs-conflict',
@@ -273,6 +340,70 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
     rule: 'archive/scenario-preservation',
     delegated: /^MODIFIED "(.*)" omits scenario\(s\)/,
     nativeKey: /^MODIFIED "(.*)" drops scenario/,
+  },
+
+  // --- 1.12.0 archive-preflight INFO (`Validator.findArchiveBlockers`) ------
+  //
+  // 1.12 dry-runs archive's merge builder during `validate` and relays each
+  // thrown precondition as an INFO. cospec's archive/* family has already
+  // reported the same preconditions as ERRORs with its own wording, so the INFO
+  // is the same defect said twice — one entry per precondition shape openspec
+  // throws, because `rule` pairs one-to-one.
+  //
+  // Every capture stops inside the closing quote of the offending header, so a
+  // near-miss tail (`, but "### Requirement: X" exists; fix the header …`,
+  // `and differs only in case or spacing; …`) is outside the key rather than
+  // inside it. `- header mismatch in content` has NO cospec twin and is
+  // deliberately absent: it must keep reaching the reader.
+  //
+  // The scenario-preservation blocker (`- current spec contains scenario(s) not
+  // present …`) has no entry either, and cannot: `findArchiveBlockers` skips a
+  // spec whose path already carries an ERROR, and upstream's own scenario-loss
+  // check has emitted one on that path first. The same path-keying bounds the
+  // whole family at one preflight INFO per delta file per run.
+  {
+    rule: 'archive/target-missing',
+    delegated:
+      /^Archive would refuse this delta: .*MODIFIED failed for header "### Requirement: (.+?)" - not found/,
+    nativeKey: /^MODIFIED target "(.+)" does not exist in living spec/,
+  },
+  {
+    rule: 'archive/target-missing',
+    delegated:
+      /^Archive would refuse this delta: .*REMOVED failed for header "### Requirement: (.+?)" - not found/,
+    nativeKey: /^REMOVED target "(.+)" does not exist in living spec/,
+  },
+  {
+    rule: 'archive/target-missing',
+    delegated:
+      /^Archive would refuse this delta: .*RENAMED failed for header "### Requirement: (.+?)" - source not found/,
+    nativeKey: /^RENAMED target "(.+)" does not exist in living spec/,
+  },
+  {
+    rule: 'archive/added-exists',
+    delegated:
+      /^Archive would refuse this delta: .*RENAMED failed for header "### Requirement: (.+?)" - target already exists/,
+    nativeKey: /^RENAMED target "(.+)" collides with an /,
+  },
+  {
+    rule: 'archive/added-exists',
+    delegated:
+      /^Archive would refuse this delta: .*ADDED failed for header "### Requirement: (.+?)" - already exists/,
+    nativeKey: /^ADDED "(.+)" already exists with different content/,
+  },
+  // 1.13.1's two case-collision refusals, paired with the fold arms
+  // `rules/archive.ts` grew for them.
+  {
+    rule: 'archive/added-exists',
+    delegated:
+      /^Archive would refuse this delta: .*RENAMED failed for header "### Requirement: (.+?)" - "### Requirement: .*" already exists and differs only in case or spacing/,
+    nativeKey: /^RENAMED target "(.+)" differs only in case or spacing/,
+  },
+  {
+    rule: 'archive/added-exists',
+    delegated:
+      /^Archive would refuse this delta: .*ADDED failed for header "### Requirement: (.+?)" - "### Requirement: .*" already exists and differs only in case or spacing/,
+    nativeKey: /^ADDED "(.+)" differs only in case or spacing/,
   },
 ]
 

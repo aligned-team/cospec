@@ -7,7 +7,7 @@ import { extractEmbeddedOpenspec } from './openspec-embedded.ts'
  * `package.json` dependency and the `mise.toml` tool). The contract suite runs
  * against exactly this build; the version tripwire holds it equal to the pin.
  */
-export const PINNED_OPENSPEC_VERSION = '1.11.0'
+export const PINNED_OPENSPEC_VERSION = '1.13.1'
 
 /** Inclusive floor of the accepted runtime range. */
 export const OPENSPEC_VERSION_FLOOR = '1.0.0'
@@ -364,7 +364,7 @@ export async function openspecStoreList(cwd: string): Promise<StoreListJson> {
 }
 
 // --- Typed JSON shapes for the wrapped commands (probed across the accepted
-// floor-through-pin span 1.0.0–1.11.0). Each declares only the fields cospec
+// floor-through-pin span 1.0.0–1.13.1). Each declares only the fields cospec
 // reads; upstream emits more, and every release in the span has only added
 // fields to these payloads. ---
 
@@ -437,6 +437,19 @@ export interface ApplyInstructionsJson {
   tasks: ApplyTask[]
   state: ApplyState
   missingArtifacts?: string[]
+  /**
+   * The transitive closure of the schema's `apply.requires` still to build, in
+   * build order (1.13.0). Can be longer than `missingArtifacts`, which stops at
+   * the first hop apply blocks on.
+   */
+  missingPrerequisites?: string[]
+  /**
+   * Non-blocking problems reported alongside the instruction (1.13.0). Upstream
+   * `collectApplyWarnings` is async as of 1.13.1 and emits a second string
+   * there — one per delta file under `specs/` that is not a capability's
+   * `spec.md`, on top of the no-delta-specs/`skip_specs` warning.
+   */
+  warnings?: string[]
   instruction: string
 }
 

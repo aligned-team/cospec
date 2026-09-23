@@ -807,11 +807,35 @@ export function findScenarioDrops(
   for (const { capability, ops } of caps) {
     const living = livingSpecs.get(capability)
     if (living === undefined) continue
+    // openspec applies RENAMED before MODIFIED, so a MODIFIED naming a header
+    // this same delta renamed into existence is compared upstream against the
+    // rename source's living block (`specs-apply.ts` reads `nameToBlock`,
+    // which the RENAMED phase already re-keyed). Walking the chain back to the
+    // living name is what keeps this gate from waving through a rename-then-
+    // modify that drops a scenario — a false archive PASS, because the binary
+    // aborts on it.
+    const renamedFrom = new Map<string, string>()
+    for (const op of ops)
+      if (op.operation === 'RENAMED' && op.fromName !== undefined && op.toName !== undefined)
+        renamedFrom.set(op.toName, op.fromName)
+    const livingNameOf = (name: string): string => {
+      const seen = new Set([name])
+      let current = name
+      while (!living.requirementNames.has(current)) {
+        const from = renamedFrom.get(current)
+        if (from === undefined || seen.has(from)) return name
+        seen.add(from)
+        current = from
+      }
+      return current
+    }
+
     for (const op of ops) {
       if (op.operation !== 'MODIFIED' || op.name === undefined) continue
-      const livingCount = living.requirementScenarioCounts.get(op.name) ?? 0
+      const baseline = livingNameOf(op.name)
+      const livingCount = living.requirementScenarioCounts.get(baseline) ?? 0
       const missingNames = missingCurrentScenarios(
-        living.requirementScenarioNames.get(op.name) ?? [],
+        living.requirementScenarioNames.get(baseline) ?? [],
         op.scenarioNames,
       )
       if (missingNames.length > 0 || op.scenarioCount < livingCount)

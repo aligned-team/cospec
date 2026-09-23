@@ -43,6 +43,37 @@ export function skipSpecsConflictIssues(change: LoadedChange): Issue[] {
   ]
 }
 
+/**
+ * `deltas/unread-file` — a markdown file under the change's `specs/` that
+ * carries delta sections but is not a capability's `spec.md`
+ * (`specs/user-auth.md`, `specs/user-auth/delta.md`). Mirrors openspec's
+ * `findUnreadDeltaFiles` (`src/utils/spec-discovery.ts`, 1.13.1).
+ *
+ * Not folded into `deltasRules`: that family runs only when the change carries
+ * real delta files, and the dangerous case is a change whose *only* delta-shaped
+ * content sits at one of these paths. Nothing reads it — cospec's `deltaFiles`
+ * filter and openspec's own change parser both take `spec.md` alone — so before
+ * this rule the change validated clean and archived with nothing merged, while
+ * `status`/`apply` counted the specs as written.
+ *
+ * A companion note with no delta section is NOT reported: that is the shape the
+ * `spec.md`-only filter exists to protect, and openspec skips it identically.
+ */
+export function unreadDeltaFileIssues(change: LoadedChange): Issue[] {
+  const issues: Issue[] = []
+  for (const file of change.unreadSpecFiles) {
+    if (!parseDeltaSpec(file.text, file.path, '').headerPresent) continue
+    issues.push({
+      level: 'ERROR',
+      rule: 'deltas/unread-file',
+      path: file.path,
+      message: `delta spec found at ${file.path} — delta specs must be a capability's spec.md; this file is ignored when the change is applied or archived`,
+      hint: `move its requirements into ${file.expected}`,
+    })
+  }
+  return issues
+}
+
 export function deltasRules(change: LoadedChange): Issue[] {
   const issues: Issue[] = []
 

@@ -82,23 +82,19 @@ least as long as the one that opened it.
 `## REMOVED Requirements` and `## RENAMED Requirements` bullets accept
 CommonMark's full marker set (`-`, `*`, `+`) with any leading whitespace, and a
 `RENAMED` pair's `FROM:`/`TO:` marker is optional — matching OpenSpec 1.13.1's
-delta reader. Only the leading whitespace is portable at the pinned 1.11.0
-binary: its readers take a single `-`, so a `*`- or `+`-bulleted entry parses as
-nothing there and the delegated `openspec/validate` relay refuses the change
-(`… but no requirement entries parsed`) even though cospec's own parser read it.
-Write `-` until the pin moves. A `FROM:` or `TO:` line that forms no pair (a
-second `FROM:` displacing the first, a `TO:` with no pending `FROM:`, or a
-`FROM:` still open when its section ends) is `deltas/unpaired-rename` (E) rather
-than a silently dropped or cross-paired rename.
+delta reader, the pin cospec's own dev and CI run against. A `FROM:` or `TO:`
+line that forms no pair (a second `FROM:` displacing the first, a `TO:` with no
+pending `FROM:`, or a `FROM:` still open when its section ends) is
+`deltas/unpaired-rename` (E) rather than a silently dropped or cross-paired
+rename.
 
 A requirement name is normalized by stripping a trailing CommonMark closing ATX
 run (`### Requirement: Foo ###` reads as `Foo`) before trim, so
 `### Requirement: Foo ###` in a delta resolves against a living `Foo` header
 without a false `archive/target-missing`, and two headers differing only in that
-trailing run collide as one requirement, not two. This too is OpenSpec 1.13.1
-behaviour: the pinned 1.11.0 binary captures the run as part of the name, so
-`cospec archive` clears its own precondition and then reports the delegated
-abort it verifies on disk. Drop the closing run until the pin moves.
+trailing run collide as one requirement, not two — matching OpenSpec 1.13.1's
+own requirement-name normalizer, so cospec's precondition and the delegated
+merge agree on both cases.
 
 Both parsers count a `#### ` header as a scenario only when its body carries at
 least one non-blank line before the next level-1-to-4 header or end of input —
@@ -158,6 +154,20 @@ loss on the same requirement in the same file), the merged report de-duplicates:
 where cospec's own rule and a delegated rule report the same defect on the same
 file, the delegated twin is suppressed and cospec's rule id wins the report. A
 delegated issue with no cospec twin is always kept.
+
+From OpenSpec 1.12.0, `openspec validate` also dry-runs the archive merge and
+relays each precondition it would refuse on as an **INFO**-level
+`openspec/validate` issue — never blocking on its own, but the same defect said
+twice inflates the issue count if left unsuppressed. This joined the
+duplicate-class list one entry per distinct precondition shape (`rule` pairs
+one-to-one, so a shared message prefix isn't enough — see
+[Validation rules](/reference/validation-rules) for the full pairing table),
+plus three more from OpenSpec 1.13.1: its case-only RENAMED-TO/ADDED collision
+refusal against the widened `archive/added-exists`, its
+`This change counts as 0 tasks` WARNING against cospec's own `tasks/has-tasks`
+ERROR for the same state, and its new unpaired `FROM:`/`TO:` ERROR against
+cospec's `deltas/unpaired-rename` — the one pairing where the pin caught up to a
+rule cospec already had.
 
 ## `.openspec.yaml` metadata keys
 
