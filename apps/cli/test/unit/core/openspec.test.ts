@@ -4,7 +4,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
+  buildWrappedSpawnEnv,
   checkVersion,
+  COLOR_FORCING_ENV_KEYS,
   enforceExpectation,
   localRoot,
   openspecApplyInstructions,
@@ -79,6 +81,36 @@ describe('WRAPPED_ENV — the env every wrapped spawn forces', () => {
     // 1.10.0's completion tip goes to STDERR, which runPassthrough relays
     // verbatim — cospec must never tell a user to run bare `openspec`.
     expect(WRAPPED_ENV.OPENSPEC_NO_COMPLETIONS).toBe('1')
+  })
+})
+
+describe('buildWrappedSpawnEnv — strips color-forcing env before applying WRAPPED_ENV', () => {
+  test('deletes every COLOR_FORCING_ENV_KEYS entry even when the parent sets them', () => {
+    const parentEnv: Record<string, string | undefined> = {
+      HOME: '/home/x',
+      FORCE_COLOR: '3',
+      COLORTERM: 'truecolor',
+      CLICOLOR: '1',
+      CLICOLOR_FORCE: '1',
+    }
+    const built = buildWrappedSpawnEnv(parentEnv)
+    for (const key of COLOR_FORCING_ENV_KEYS) expect(built).not.toHaveProperty(key)
+    expect(built.HOME).toBe('/home/x')
+  })
+
+  test('still forces WRAPPED_ENV and leaves unrelated keys untouched', () => {
+    const built = buildWrappedSpawnEnv({ FORCE_COLOR: '1', SOME_OTHER_VAR: 'kept' })
+    expect(built.NO_COLOR).toBe('1')
+    expect(built.BUN_BE_BUN).toBe('1')
+    expect(built.OPENSPEC_TELEMETRY).toBe('0')
+    expect(built.OPENSPEC_NO_COMPLETIONS).toBe('1')
+    expect(built.SOME_OTHER_VAR).toBe('kept')
+  })
+
+  test('is a no-op on color keys when the parent sets none of them', () => {
+    const built = buildWrappedSpawnEnv({ HOME: '/home/x' })
+    expect(built.HOME).toBe('/home/x')
+    for (const key of COLOR_FORCING_ENV_KEYS) expect(built).not.toHaveProperty(key)
   })
 })
 

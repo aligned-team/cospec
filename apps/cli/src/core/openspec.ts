@@ -172,6 +172,15 @@ function openspecBin(): string {
  * Environment overrides forced onto EVERY wrapped openspec spawn. Exported so
  * the discipline is testable rather than buried in the spawn call.
  *
+ * - `NO_COLOR` alone is not enough: if the invoking shell also exports
+ *   `FORCE_COLOR` (or `COLORTERM`/`CLICOLOR`/`CLICOLOR_FORCE`), the wrapped
+ *   binary's Node/Bun runtime prints "The 'NO_COLOR' env is ignored due to
+ *   the 'FORCE_COLOR' env being set" (`internal:tty` `warnOnDeactivatedColors`)
+ *   on stderr — which `runPassthrough` relays verbatim to a real user running
+ *   e.g. `cospec config get` from a shell with `FORCE_COLOR` exported, and
+ *   which also corrupts every parsed-stderr expectation in the test suites.
+ *   `spawnRaw` strips these keys from the inherited env before applying
+ *   `WRAPPED_ENV` so the child never sees a conflicting color signal.
  * - `NO_COLOR` / `BUN_BE_BUN`: deterministic, parseable output, and the child
  *   behaves as the bun runtime even under a compiled standalone binary.
  * - `OPENSPEC_TELEMETRY=0`: openspec prints a first-run "collects anonymous
@@ -200,6 +209,32 @@ export const WRAPPED_ENV: Readonly<Record<string, string>> = {
 }
 
 /**
+ * Color-forcing env vars the wrapped runtime's tty color-depth detection
+ * reads. Deleted from the child's inherited env (see `WRAPPED_ENV` above)
+ * so a parent shell that exports one alongside `NO_COLOR` can never trigger
+ * the deactivated-colors warning on the wrapped binary's stderr.
+ */
+export const COLOR_FORCING_ENV_KEYS: readonly string[] = [
+  'FORCE_COLOR',
+  'COLORTERM',
+  'CLICOLOR',
+  'CLICOLOR_FORCE',
+]
+
+/**
+ * `process.env` merged with `WRAPPED_ENV`, minus every `COLOR_FORCING_ENV_KEYS`
+ * entry the parent shell may have exported. Extracted so the env-building
+ * discipline is unit-testable independent of a real spawn.
+ */
+export function buildWrappedSpawnEnv(
+  parentEnv: Readonly<Record<string, string | undefined>> = process.env,
+): Record<string, string | undefined> {
+  const out: Record<string, string | undefined> = { ...parentEnv }
+  for (const key of COLOR_FORCING_ENV_KEYS) delete out[key]
+  return { ...out, ...WRAPPED_ENV }
+}
+
+/**
  * Raw spawn — no version assertion, no expectation enforcement.
  *
  * The interpreter is the CURRENT executable, not a `bun` looked up on $PATH:
@@ -214,7 +249,7 @@ async function spawnRaw(args: string[], cwd: string): Promise<OpenspecResult> {
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
-    env: { ...process.env, ...WRAPPED_ENV },
+    env: buildWrappedSpawnEnv(),
   })
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
