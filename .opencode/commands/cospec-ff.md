@@ -2,7 +2,7 @@
 description: Author every remaining artifact on an already-scaffolded change in one pass, then validate. Also use when the user says "cospec ff", "cospec fast-forward", or "openspec ff".
 metadata:
   author: cospec
-  generatedBy: cospec@0.8.0
+  generatedBy: cospec@0.8.1
   contentHash: sha256:fc1f20b8f00873c8f7ce455995b5ad71c76dea90b79cf80d5c37ab2e2296ffbe
 ---
 
