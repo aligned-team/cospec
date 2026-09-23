@@ -2,7 +2,7 @@
 description: Investigate the codebase or a spec question without writing implementation code. Also use when the user says "cospec explore" or "openspec explore".
 metadata:
   author: cospec
-  generatedBy: cospec@0.7.1
+  generatedBy: cospec@0.8.0
   contentHash: sha256:b53cbb61a7964431d8e7d48d292d020276d05d8b2ac592e2b1ce6f2d4a303891
 ---
 
