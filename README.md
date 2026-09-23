@@ -59,7 +59,7 @@ clean tree stays clean.
 
 ## What is this
 
-cospec is a thin wrapper around
+cospec is an opinionated superset of, and drop-in replacement for,
 [OpenSpec](https://github.com/Fission-AI/OpenSpec) `1.13.1` that maps the
 spec-driven workflow onto your conventional-commit type. One schema per type;
 the heavier the type, the more the workflow asks of you.

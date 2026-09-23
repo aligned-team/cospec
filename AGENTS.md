@@ -166,13 +166,13 @@ to the current `schemaVersion`; `cospec doctor` lists changes still on v1.
 **Route through cospec** — all agent-facing OpenSpec access goes through the
 `cospec` CLI. Generated skills and this repo's docs never call bare `openspec`.
 The wrapped binary is spawned by resolved path and version-asserted to the
-accepted range `>=1.0.0 <2.0.0` (dev/CI pins 1.13.1). Every OpenSpec CLI
-capability has a cospec counterpart — a passthrough, a mirror, or an improved
-version — so any OpenSpec user can switch with zero regressions: the change
-lifecycle, plus `store` (`setup`/`register` auto-run `cospec init`), `context`,
-`workset`, `show`, `view`, `schemas`/`schema`, `templates`, `config`
-(machine-global, `path`/`list`/`get`/`set`/`unset`/`reset`/`edit`/`profile`),
-native `completion`, and `feedback` — so there is never a reason to call bare
+accepted range `>=1.0.0 <2.0.0` (dev/CI pins 1.13.1). Every OpenSpec capability
+has a cospec counterpart — a passthrough, a mirror, or an improved version — so
+any OpenSpec user can switch with zero regressions: the change lifecycle, plus
+`store` (`setup`/`register` auto-run `cospec init`), `context`, `workset`,
+`show`, `view`, `schemas`/`schema`, `templates`, `config` (machine-global,
+`path`/`list`/`get`/`set`/`unset`/`reset`/`edit`/`profile`), native
+`completion`, and `feedback` — so there is never a reason to call bare
 `openspec`. `init`/`update` stay cospec-native by design. Read-only and personal
 surfaces are disciplined passthroughs (no gate, full wrapped-call discipline);
 `config edit`/`profile`/`reset --all` (no `-y`) join `workset open` in the
