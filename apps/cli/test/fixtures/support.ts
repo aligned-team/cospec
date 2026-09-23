@@ -20,6 +20,25 @@ import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
+/**
+ * Color-forcing env vars that Node/Bun's tty color-depth detection reads.
+ * When any of these leak into a child alongside `NO_COLOR`, Node prints a
+ * "The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set"
+ * warning on stderr (`internal:tty` `warnOnDeactivatedColors`) — which
+ * corrupts every stderr-empty assertion in a shell that happens to export
+ * one of these. Strip them before forcing `NO_COLOR=1` so a child always
+ * observes a clean, deterministic color-disabled env regardless of the
+ * parent shell.
+ */
+export const COLOR_ENV_KEYS = ['FORCE_COLOR', 'COLORTERM', 'CLICOLOR', 'CLICOLOR_FORCE'] as const
+
+/** `process.env` with every color-forcing key (`COLOR_ENV_KEYS`) removed. */
+export function envWithoutColorForcing(): Record<string, string> {
+  const out: Record<string, string> = { ...process.env } as Record<string, string>
+  for (const key of COLOR_ENV_KEYS) delete out[key]
+  return out
+}
+
 /** apps/cli/src/index.ts — the cospec entrypoint spawned as a subprocess. */
 export const CLI_ENTRY = resolve(here, '../../src/index.ts')
 
@@ -54,7 +73,7 @@ async function spawn(
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
-    env: { ...process.env, NO_COLOR: '1', ...env },
+    env: { ...envWithoutColorForcing(), NO_COLOR: '1', ...env },
   })
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
