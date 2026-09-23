@@ -66,9 +66,10 @@ and the current pin:
   delegates; the fourth (namespace folders) is a delegated refusal cospec relays
   verbatim rather than re-implementing its own detection of.
 
-## cospec never replaces OpenSpec
+## cospec is an opinionated implementation of OpenSpec
 
-cospec spawns OpenSpec; it never imports it. Two rules keep the boundary solid:
+cospec spawns OpenSpec; it never imports it — functionally a drop-in
+replacement, with compatibility upheld. Two rules keep the boundary solid:
 
 - **Resolved by path, never `$PATH`.** cospec looks for a project-local install
   first, falls back to an embedded copy bundled into the compiled binary, and
@@ -110,13 +111,13 @@ flag. Store lifecycle itself is now a first-class cospec command too —
 rather than a bare `openspec` call. See [Stores](/concepts/stores) for the
 mechanics and the full split of what each CLI owns.
 
-Every everyday OpenSpec surface now has a cospec command: the change lifecycle,
-`store`/`context`/`workset`, `show`/`view`/`schemas`/`schema`/ `templates` —
-and, as of this release, the machine-global `config` (`cospec config <sub>`),
-native shell `completion`, and `feedback`. `init` and `update` stay
-cospec-native by design — passing them through would write the opsx files
-cospec's own leftover scan flags — so there is never a reason to call bare
-`openspec`. See
+Every OpenSpec capability has a cospec counterpart — a passthrough, a mirror, or
+an improved version — so any OpenSpec user can switch with zero regressions: the
+change lifecycle, `store`/`context`/`workset`, `show`/`view`/`schemas`/`schema`/
+`templates`, the machine-global `config` (`cospec config <sub>`), native shell
+`completion`, and `feedback`. `init` and `update` stay cospec-native by design —
+passing them through would write the opsx files cospec's own leftover scan flags
+— so there is never a reason to call bare `openspec`. See
 [Configuration](/reference/configuration#machine-global-openspec-config) for
 `config`, and [Installation](/guide/installation#shell-completion) for
 `completion`.

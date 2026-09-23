@@ -59,7 +59,7 @@ clean tree stays clean.
 
 ## What is this
 
-cospec is a thin wrapper around
+cospec is an opinionated superset of, and drop-in replacement for,
 [OpenSpec](https://github.com/Fission-AI/OpenSpec) `1.13.1` that maps the
 spec-driven workflow onto your conventional-commit type. One schema per type;
 the heavier the type, the more the workflow asks of you.
@@ -83,7 +83,8 @@ For `verification`, opt means trigger-promoted: absent by default, but checking
 a `## Surfaces` flag in the proposal soft-nudges it into the `apply` gate. Full
 matrix and per-type rationale: [docs/schemas.md](docs/schemas.md).
 
-cospec never replaces OpenSpec — it wraps the real, version-pinned binary
+cospec is an opinionated implementation of OpenSpec, functionally a drop-in
+replacement with compatibility upheld: it wraps the real, version-pinned binary
 (resolved by path, spawned, never `$PATH`) and adds typed schemas, real change
 validation with stable rule IDs, a deterministic `apply` gate, a
 filesystem-verified `archive`, a machine-parsed `verification` evidence ledger

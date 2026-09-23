@@ -7,16 +7,17 @@
 
 ## Project context
 
-cospec (conventional openspec) is a thin, opinionated wrapper around OpenSpec
-1.13.1 that sizes the spec-driven workflow to your conventional-commit type.
-`feat` gets the full treatment — proposal, blocking-changes, specs,
-verification, tasks; `refactor` additionally requires design;
-`ci`/`chore`/`docs` and their siblings take two minutes with three short
+cospec (conventional openspec) is an opinionated superset of, and drop-in
+replacement for, OpenSpec 1.13.1 that sizes the spec-driven workflow to your
+conventional-commit type. `feat` gets the full treatment — proposal,
+blocking-changes, specs, verification, tasks; `refactor` additionally requires
+design; `ci`/`chore`/`docs` and their siblings take two minutes with three short
 artifacts. It ships as `@aligned-team/cospec` with one bin, `cospec`.
 
-cospec never replaces OpenSpec — it wraps the real binary (resolved by path,
-never `$PATH`, accepting `>=1.0.0 <2.0.0`, pinned to 1.13.1 for dev/CI) and
-adds: 11 typed schemas that map 1:1 to the conventional-commit types, real
+cospec is an opinionated implementation of OpenSpec, functionally a drop-in
+replacement with compatibility upheld: it wraps the real binary (resolved by
+path, never `$PATH`, accepting `>=1.0.0 <2.0.0`, pinned to 1.13.1 for dev/CI)
+and adds: 11 typed schemas that map 1:1 to the conventional-commit types, real
 change validation with stable rule IDs, a deterministic `apply` gate, a
 filesystem-verified `archive`, a machine-parsed `verification` evidence ledger
 with hard archive gates, `## Surfaces` flag triggers that soft-nudge
@@ -161,10 +162,11 @@ to the current `schemaVersion`; `cospec doctor` lists changes still on v1.
 **Route through cospec** — all agent-facing OpenSpec access goes through the
 `cospec` CLI. Generated skills and this repo's docs never call bare `openspec`.
 The wrapped binary is spawned by resolved path and version-asserted to the
-accepted range `>=1.0.0 <2.0.0` (dev/CI pins 1.13.1). Every everyday OpenSpec
-surface has a cospec command — the change lifecycle, plus `store`
-(`setup`/`register` auto-run `cospec init`), `context`, `workset`, `show`,
-`view`, `schemas`/`schema`, `templates`, `config` (machine-global,
+accepted range `>=1.0.0 <2.0.0` (dev/CI pins 1.13.1). Every OpenSpec capability
+has a cospec counterpart — a passthrough, a mirror, or an improved version — so
+any OpenSpec user can switch with zero regressions: the change lifecycle, plus
+`store` (`setup`/`register` auto-run `cospec init`), `context`, `workset`,
+`show`, `view`, `schemas`/`schema`, `templates`, `config` (machine-global,
 `path`/`list`/`get`/`set`/`unset`/`reset`/`edit`/`profile`), native
 `completion`, and `feedback` — so there is never a reason to call bare
 `openspec`. `init`/`update` stay cospec-native by design. Read-only and personal

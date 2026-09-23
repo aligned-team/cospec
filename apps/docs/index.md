@@ -43,11 +43,11 @@ features:
       A machine-parsed acceptance-evidence artifact that archive hard-gates on —
       every critical behavior needs recorded evidence, and unfinished rows block
       the move.
-  - title: Wraps real OpenSpec, never replaces it
+  - title: An opinionated superset of OpenSpec
     details:
       cospec spawns the actual pinned OpenSpec binary by resolved path and adds
-      validation, gating, and verification on top — it never forks or
-      reimplements OpenSpec's core.
+      validation, gating, and verification on top — functionally a drop-in
+      replacement that never forks or reimplements OpenSpec's core.
   - title: Agent-native harness setup
     details:
       cospec init --harness generates ready-to-run skills and commands for
