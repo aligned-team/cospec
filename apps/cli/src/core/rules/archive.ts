@@ -202,6 +202,14 @@ export function archiveRules(
     for (const op of group.ops)
       if (op.operation === 'ADDED' && op.name !== undefined) addedNames.add(op.name)
 
+    // RENAMED targets in this delta set. An ADDED landing on one of these is
+    // upstream's `RENAMED TO header collides with ADDED` pre-validation, which
+    // the RENAMED-TO arm below already reports — so the ADDED arms leave it
+    // alone rather than naming one refusal twice.
+    const renamedTargets = new Set<string>()
+    for (const op of group.ops)
+      if (op.operation === 'RENAMED' && op.toName !== undefined) renamedTargets.add(op.toName)
+
     // What each op's collision arms actually look at: the spec as openspec has
     // it by the time that op runs, not the pristine living spec.
     const spec = replayDeltaNames(living, group.ops)
@@ -229,31 +237,32 @@ export function archiveRules(
       //   - a RENAMED whose source is absent while its target is present —
       //     the rename was already applied.
       //
-      // Both exemptions are withheld when a fold-equal living name survives:
-      // that is a mistyped header, which the binary aborts on, so cospec keeps
-      // refusing it and names the exact living header the way upstream does.
-      // A MODIFIED target that is absent has no upstream early-sync path and
-      // stays an unconditional ERROR.
+      // "Already exists" means the spec as the merge has it when this op runs,
+      // never the pristine living spec: upstream resolves every lookup against
+      // `nameToBlock`, which the RENAMED phase has already re-keyed. So a
+      // MODIFIED or REMOVED naming a header an earlier RENAMED in this delta
+      // created resolves, and a target an earlier operation carried away does
+      // not — both the way the binary sees it.
+      //
+      // Both exemptions are withheld when a fold-equal name survives into that
+      // same replayed set: that is a mistyped header, which the binary aborts
+      // on, so cospec keeps refusing it and names the exact header the way
+      // upstream does. A MODIFIED target that is absent has no upstream
+      // early-sync path and stays an unconditional ERROR.
       if (
         living !== undefined &&
         (op.operation === 'MODIFIED' || op.operation === 'REMOVED' || op.operation === 'RENAMED')
       ) {
         const target = opTargetName(op)
-        if (target !== undefined && !living.requirementNames.has(target)) {
+        if (target !== undefined && !visible.has(target)) {
           const renameAlreadyApplied =
-            op.operation === 'RENAMED' &&
-            op.toName !== undefined &&
-            living.requirementNames.has(op.toName)
+            op.operation === 'RENAMED' && op.toName !== undefined && visible.has(op.toName)
           const earlySync = op.operation === 'REMOVED' || renameAlreadyApplied
           // A case-only rename lands its source on the target itself; upstream
           // excludes the target from the RENAMED near-miss search for exactly
           // that reason, so `Foo` -> `foo` stays a no-op rather than a typo.
           const nearMiss = earlySync
-            ? foldNearMiss(
-                living.requirementNames,
-                target,
-                new Set(renameAlreadyApplied ? [op.toName] : []),
-              )
+            ? foldNearMiss(visible, target, new Set(renameAlreadyApplied ? [op.toName] : []))
             : undefined
           if (!earlySync || nearMiss !== undefined)
             issues.push({
@@ -261,7 +270,9 @@ export function archiveRules(
               rule: 'archive/target-missing',
               path,
               line: op.line,
-              message: `${op.operation} target "${target}" does not exist in living spec openspec/specs/${capability}/spec.md`,
+              message: living.requirementNames.has(target)
+                ? `${op.operation} target "${target}" no longer exists in capability '${capability}' — an earlier operation in this delta renamed or removed it`
+                : `${op.operation} target "${target}" does not exist in living spec openspec/specs/${capability}/spec.md`,
               ...(nearMiss === undefined
                 ? {}
                 : {
@@ -275,38 +286,47 @@ export function archiveRules(
       // archive/added-exists — ADDED must not already exist; RENAMED-TO must not
       // collide with an existing requirement or another ADDED in this delta.
       //
+      // "Already exists" is the replayed set, not the pristine living spec:
+      // upstream's ADDED phase runs last, so a name this delta's own RENAMED or
+      // REMOVED already carried away is free by then and re-using the vacated
+      // header is not a collision at all.
+      //
       // An ADDED block whose normalized raw text equals the living requirement's
       // is openspec's early-sync no-op (`specs-apply.ts`, ADDED arm): the spec
       // was already synced to the baseline, so re-applying it is not a
       // collision and the archive proceeds. Only a DIFFERING body collides.
       // Comparison is `normalizeBlockRaw` and nothing more — any looser folding
-      // would call a real collision identical and manufacture a false PASS.
+      // would call a real collision identical and manufacture a false PASS. A
+      // name an earlier operation in this delta wrote has no such baseline —
+      // the block sitting under it is that operation's, not this one's — so it
+      // is always a collision.
       if (
         op.operation === 'ADDED' &&
         op.name !== undefined &&
-        living?.requirementNames.has(op.name) === true &&
-        normalizeBlockRaw(op.raw) !== normalizeBlockRaw(living.requirementBlocks.get(op.name) ?? '')
-      )
-        issues.push({
-          level: 'ERROR',
-          rule: 'archive/added-exists',
-          path,
-          line: op.line,
-          message: `ADDED "${op.name}" already exists with different content in living spec openspec/specs/${capability}/spec.md`,
-          hint: 'openspec treats an ADDED block identical to the living requirement as an already-synced no-op; a differing body is a real collision — MODIFY the requirement instead',
-        })
+        !renamedTargets.has(op.name) &&
+        visible.has(op.name)
+      ) {
+        const livingBlock =
+          living?.requirementNames.has(op.name) === true
+            ? normalizeBlockRaw(living.requirementBlocks.get(op.name) ?? '')
+            : undefined
+        if (livingBlock === undefined || normalizeBlockRaw(op.raw) !== livingBlock)
+          issues.push({
+            level: 'ERROR',
+            rule: 'archive/added-exists',
+            path,
+            line: op.line,
+            message: `ADDED "${op.name}" already exists with different content in ${whereFor(op.name)}`,
+            hint: 'openspec treats an ADDED block identical to the living requirement as an already-synced no-op; a differing body is a real collision — MODIFY the requirement instead',
+          })
+      }
 
       // The same collision one keystroke away: openspec 1.13.1 refuses an ADDED
       // whose name folds onto a living requirement's, because applying it would
       // leave two contradicting copies of one requirement in the spec. Exact
       // matching alone waved that through, so cospec reported clean on a delta
       // the binary aborts.
-      if (
-        op.operation === 'ADDED' &&
-        op.name !== undefined &&
-        living?.requirementNames.has(op.name) !== true &&
-        !visible.has(op.name)
-      ) {
+      if (op.operation === 'ADDED' && op.name !== undefined && !visible.has(op.name)) {
         const nearMiss = foldNearMiss(visible, op.name)
         if (nearMiss !== undefined)
           issues.push({

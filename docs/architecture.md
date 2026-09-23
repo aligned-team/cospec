@@ -205,7 +205,10 @@ because a real breach there must not compute as a clean archive:
   `## MODIFIED Requirements` delta and the current living spec, and refuses when
   the delta no longer covers a living scenario — by name (openspec's own
   identity check, ported: case-sensitive, counted with multiplicity, so a
-  same-count rename is a drop) or by a plain count shrink. A
+  same-count rename is a drop) or by a plain count shrink. A MODIFIED naming a
+  header the same delta renamed into existence is measured against the
+  `## RENAMED` source's living block, because openspec applies RENAMED first and
+  compares against the block that rename re-keyed. A
   `Scenario removed: <reason>` note does not excuse it; a requirement retired
   through `REMOVED` carries no MODIFIED op, so the gate never sees it. This is
   the gate that would have caught the archive-time thinning `openspec archive`

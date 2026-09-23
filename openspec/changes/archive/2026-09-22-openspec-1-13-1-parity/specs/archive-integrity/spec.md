@@ -41,6 +41,25 @@ removed later in the same delta is still present when a `## RENAMED` target is
 checked, because renames run first, and the binary refuses there too; and a name
 an earlier `## RENAMED` vacated SHALL be free for a later one to take.
 
+The replayed set SHALL govern the exact-name arms too, not only the fold ones. A
+`## MODIFIED`, a `## REMOVED` or a `## RENAMED` source naming a header an
+earlier `## RENAMED` in the same delta created SHALL resolve; a `## RENAMED`
+early sync's near-miss search SHALL see only the names that survive to that
+operation; and an `## ADDED` SHALL be free to re-use the exact header an earlier
+`## REMOVED` or `## RENAMED` vacated. Each of those is a delta the wrapped
+binary archives at exit 0, and judging them against the untouched living spec
+refused every one. The matching refusals SHALL stay: a target an earlier
+operation carried away is an `archive/target-missing` ERROR whose message says
+so, and an `## ADDED` landing on this delta's own `## RENAMED` target stays the
+`archive/added-exists` ERROR the binary's pre-validation raises, reported once.
+
+`archive/scenario-preservation` SHALL follow a rename with the requirement: a
+`## MODIFIED` block naming a header this delta renamed into existence SHALL be
+measured against the scenarios of the `## RENAMED` source's living block,
+because that is the block the wrapped binary compares it to. Measuring against
+the absent target name instead found no living scenarios and waved through a
+drop the binary aborts on — a false archive PASS.
+
 Refusal SHALL happen at cospec's own pre-flight, before delegation, so the user
 sees cospec's rule id and message rather than a late abort from inside the
 delegated merge.
@@ -125,6 +144,42 @@ delegated merge.
 - **THEN** cospec refuses exactly the delta the binary refuses and accepts
   exactly the delta the binary accepts, so neither a false archive PASS nor a
   false refusal survives the suite
+
+#### Scenario: A MODIFIED naming a header this delta renamed into existence is applied
+
+- **WHEN** one delta renames `Widget rendering` to `Widget drawing` and then
+  `## MODIFIED`s `Widget drawing`
+- **THEN** no `archive/target-missing` issue is raised and both cospec and the
+  wrapped binary archive the change
+
+#### Scenario: A MODIFIED whose target an earlier operation carried away is refused
+
+- **WHEN** one delta renames `Widget rendering` to `Widget drawing` and then
+  `## MODIFIED`s `Widget rendering`
+- **THEN** `archive/target-missing` is an ERROR whose message says an earlier
+  operation in this delta renamed or removed the target
+
+#### Scenario: An ADDED re-using a header an earlier RENAMED vacated is applied
+
+- **WHEN** one delta renames `Widget rendering` to `Widget drawing` and
+  `## ADDED`s a new `Widget rendering` with a different body
+- **THEN** no `archive/added-exists` issue is raised and both cospec and the
+  wrapped binary archive the change
+
+#### Scenario: An early-synced RENAME whose fold twin an earlier rename took away is a no-op
+
+- **WHEN** one delta renames `Widget rendering` to `Widget drawing` and then
+  renames `widget  rendering` to the already-present `Widget caching`
+- **THEN** neither `archive/target-missing` nor `archive/added-exists` is
+  raised, matching the binary, which finds no surviving fold twin of the source
+
+#### Scenario: A rename-then-modify that drops a scenario is still refused
+
+- **WHEN** one delta renames `Widget rendering` to `Widget drawing` and the
+  `## MODIFIED` block for `Widget drawing` omits a scenario the living
+  `Widget rendering` carries
+- **THEN** `archive/scenario-preservation` fires against the rename source's
+  scenarios, matching the binary, which aborts the merge
 
 ### Requirement: The post-merge spot-check judges an operation against the delta's net effect
 

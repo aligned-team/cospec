@@ -401,6 +401,132 @@ The system SHALL other.
     })
   })
 
+  // Same replay, the arms the fold work left behind. openspec resolves every
+  // MODIFIED/REMOVED/RENAMED-FROM lookup and the exact ADDED collision against
+  // `nameToBlock` as the earlier phases left it, so a header this delta's own
+  // RENAMED created is there for them and a header it vacated is not. Reading
+  // the pristine living spec instead refused three deltas the binary archives
+  // at exit 0.
+  describe('exact-name arms read the replayed spec, not the pristine one', () => {
+    const body = (name: string, shall: string) =>
+      `### Requirement: ${name}\n\nThe system SHALL ${shall}.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n`
+
+    test('a MODIFIED naming a header an earlier RENAMED created is applied', () => {
+      const text =
+        '## RENAMED Requirements\n\n' +
+        '- FROM: `### Requirement: Existing`\n- TO: `### Requirement: Renamed`\n\n' +
+        `## MODIFIED Requirements\n\n${body('Renamed', 'exist better')}`
+      expect(archiveRules(change(text, { living: LIVING }), { strict: true })).toHaveLength(0)
+    })
+
+    test('a REMOVED naming a header an earlier RENAMED created is applied', () => {
+      const text =
+        '## RENAMED Requirements\n\n' +
+        '- FROM: `### Requirement: Existing`\n- TO: `### Requirement: Renamed`\n\n' +
+        '## REMOVED Requirements\n\n- `### Requirement: Renamed`\n'
+      expect(archiveRules(change(text, { living: LIVING }), { strict: true })).toHaveLength(0)
+    })
+
+    test("a chained RENAMED taking the previous rename's target is applied", () => {
+      const text =
+        '## RENAMED Requirements\n\n' +
+        '- FROM: `### Requirement: Existing`\n- TO: `### Requirement: Renamed`\n' +
+        '- FROM: `### Requirement: Renamed`\n- TO: `### Requirement: Renamed Again`\n'
+      expect(archiveRules(change(text, { living: LIVING }))).toHaveLength(0)
+    })
+
+    test('an ADDED re-using the exact header an earlier RENAMED vacated is applied', () => {
+      const text =
+        '## RENAMED Requirements\n\n' +
+        '- FROM: `### Requirement: Existing`\n- TO: `### Requirement: Renamed`\n\n' +
+        `## ADDED Requirements\n\n${body('Existing', 'exist for a new reason')}`
+      expect(archiveRules(change(text, { living: LIVING }), { strict: true })).toHaveLength(0)
+    })
+
+    test('an ADDED re-using the exact header an earlier REMOVED vacated is applied', () => {
+      const text =
+        '## REMOVED Requirements\n\n- `### Requirement: Existing`\n\n' +
+        `## ADDED Requirements\n\n${body('Existing', 'exist for a new reason')}`
+      expect(archiveRules(change(text, { living: LIVING }), { strict: true })).toHaveLength(0)
+    })
+
+    // The near-miss twin the early-sync exemption is withheld for has to be one
+    // that SURVIVES to this operation. Searching the pristine living spec found
+    // a twin an earlier rename had already carried away, so cospec reported
+    // `archive/target-missing` and — because the near miss also skipped the
+    // `earlySynced` bookkeeping — a second, entirely invented
+    // `archive/added-exists` on the RENAMED target.
+    test('an early-synced RENAMED whose fold twin an earlier rename took away is a no-op', () => {
+      const living = `${LIVING}
+### Requirement: Other
+
+The system SHALL other.
+
+#### Scenario: s
+
+- **WHEN** a
+- **THEN** b
+`
+      const text =
+        '## RENAMED Requirements\n\n' +
+        '- FROM: `### Requirement: Existing`\n- TO: `### Requirement: Renamed`\n' +
+        '- FROM: `### Requirement: existing`\n- TO: `### Requirement: Other`\n'
+      expect(archiveRules(change(text, { living }))).toHaveLength(0)
+    })
+
+    // The other direction: nothing above may relax a refusal the binary makes.
+    test('a MODIFIED naming a header an earlier RENAMED took away is still an error', () => {
+      const text =
+        '## RENAMED Requirements\n\n' +
+        '- FROM: `### Requirement: Existing`\n- TO: `### Requirement: Renamed`\n\n' +
+        `## MODIFIED Requirements\n\n${body('Existing', 'exist better')}`
+      const issues = archiveRules(change(text, { living: LIVING }))
+      expect(rules(issues)).toEqual(['archive/target-missing'])
+      expect(issues[0]?.message).toBe(
+        'MODIFIED target "Existing" no longer exists in capability \'x\' — an earlier ' +
+          'operation in this delta renamed or removed it',
+      )
+    })
+
+    // Reported once, by the arm that mirrors the upstream pre-validation the
+    // binary actually aborts in — not a second time from the ADDED side.
+    test('an ADDED taking a header an earlier RENAMED created is still a collision', () => {
+      const text =
+        '## RENAMED Requirements\n\n' +
+        '- FROM: `### Requirement: Existing`\n- TO: `### Requirement: Renamed`\n\n' +
+        `## ADDED Requirements\n\n${body('Renamed', 'exist twice')}`
+      const issues = archiveRules(change(text, { living: LIVING }))
+      expect(rules(issues)).toEqual(['archive/added-exists'])
+      expect(issues[0]?.message).toBe(
+        'RENAMED target "Renamed" collides with an ADDED requirement in capability \'x\'',
+      )
+    })
+
+    test('an ADDED that re-adds an untouched living requirement is still a collision', () => {
+      const text = `## ADDED Requirements\n\n${body('Existing', 'exist twice')}`
+      const issues = archiveRules(change(text, { living: LIVING }))
+      expect(rules(issues)).toEqual(['archive/added-exists'])
+      expect(issues[0]?.message).toBe(
+        'ADDED "Existing" already exists with different content in living spec ' +
+          'openspec/specs/x/spec.md',
+      )
+    })
+
+    // The gate that has to follow the rename with it: upstream compares the
+    // MODIFIED block against the block the rename re-keyed, so the scenarios it
+    // must preserve are the SOURCE's. Reading the (absent) target name in the
+    // living spec found zero scenarios and waved the drop through.
+    test('archive/scenario-preservation follows a rename to the source block', () => {
+      const text =
+        '## RENAMED Requirements\n\n' +
+        '- FROM: `### Requirement: Existing`\n- TO: `### Requirement: Renamed`\n\n' +
+        '## MODIFIED Requirements\n\n### Requirement: Renamed\n\nThe system SHALL exist better.\n\n#### Scenario: other\n\n- **WHEN** a\n- **THEN** b\n'
+      const issues = archiveRules(change(text, { living: LIVING }), { strict: true })
+      expect(rules(issues)).toEqual(['archive/scenario-preservation'])
+      expect(issues[0]?.message).toContain('MODIFIED "Renamed" drops scenario(s) "s"')
+    })
+  })
+
   test('a RENAMED with source and target both absent is still an error', () => {
     const text =
       '## RENAMED Requirements\n\n- FROM: `### Requirement: Ghost A`\n- TO: `### Requirement: Ghost B`\n'

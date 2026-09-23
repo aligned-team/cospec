@@ -181,11 +181,11 @@ performs cleanly:
 | `REMOVED` naming a requirement the living spec no longer has                    | `archive/target-missing`                                                        |
 | `RENAMED` whose FROM is gone and whose TO is already present                    | `archive/target-missing` and the living-collision arm of `archive/added-exists` |
 
-Each exemption is withheld when the living spec still carries a name that folds
-equal to the named one — same letters, differing only in case or interior
-whitespace — but is not it. That is a mistyped header rather than an early sync,
+Each exemption is withheld when a name that folds equal to the named one — same
+letters, differing only in case or interior whitespace — but is not it still
+survives to that operation. That is a mistyped header rather than an early sync,
 OpenSpec aborts on it, and cospec keeps refusing it with a hint naming the exact
-living header.
+header.
 
 Every one of these checks reads the spec **as the merge has it when that
 operation runs** — the living spec with the delta's earlier operations already
@@ -197,6 +197,17 @@ are each an `archive/added-exists` ERROR on the later operation, for a brand-new
 capability as much as for a living one. And in the other direction, a name an
 earlier operation vacated is free — a swap that renames `A` to `B` and then `C`
 to `A` archives cleanly.
+
+The exact-name checks read that same spec, not only the fold ones. A `MODIFIED`,
+a `REMOVED` or a `RENAMED` source naming a header this delta's own `RENAMED`
+just created resolves; chained renames (`A` → `B`, then `B` → `C`) apply; and an
+`ADDED` may re-use the exact header a `REMOVED` or a `RENAMED` vacated, for a
+genuinely new requirement. Each is a delta OpenSpec archives at exit `0`. The
+matching refusals stay: a target an earlier operation carried away is an
+`archive/target-missing` ERROR that says so, and `archive/scenario-preservation`
+follows the rename — a `MODIFIED` block on a renamed header is measured against
+the scenarios of the rename's source, which is the block OpenSpec compares it
+to.
 
 Everything else stays an ERROR: an `ADDED` collision whose body differs, a
 `RENAMED` with FROM and TO both absent, a `RENAMED` applied while both are

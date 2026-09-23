@@ -96,18 +96,22 @@ CRLF-fold-and-trim rule, matches the living requirement of the same name; a
 `## REMOVED` target that is already absent from the living spec; and a
 `## RENAMED` whose source is absent while its target is present, which SHALL
 suppress both the missing-source error and the living-spec half of the
-target-collision error the same shape raises today. Each exemption SHALL be
-withheld when the living spec still carries a name that folds equal to the named
-requirement — case-insensitively, with runs of whitespace collapsed — but is not
-it, because that is a mistyped header the wrapped binary aborts on; the
-resulting ERROR SHALL name the exact living header to match. The remaining
-shapes SHALL stay ERRORs: an ADDED collision whose normalised block differs, a
-RENAMED whose source and target are both absent, a RENAMED applied while both
-source and target are present, a RENAMED whose target collides with an
-`## ADDED` requirement in the same delta — which the wrapped binary refuses
-before it classifies any early sync, so the early-sync exemption SHALL NOT reach
-it — and a MODIFIED whose target is absent — the wrapped binary refuses each of
-these, and relaxing any of them would be a false archive PASS.
+target-collision error the same shape raises today. Every one of these
+judgements — the target's presence and each exemption — SHALL be made against
+the spec as the wrapped binary has it when that operation runs, never the
+untouched living spec; see "Case-only requirement-name collisions are refused at
+pre-flight" for the replay. Each exemption SHALL be withheld when that spec
+still carries a name that folds equal to the named requirement —
+case-insensitively, with runs of whitespace collapsed — but is not it, because
+that is a mistyped header the wrapped binary aborts on; the resulting ERROR
+SHALL name the exact header to match. The remaining shapes SHALL stay ERRORs: an
+ADDED collision whose normalised block differs, a RENAMED whose source and
+target are both absent, a RENAMED applied while both source and target are
+present, a RENAMED whose target collides with an `## ADDED` requirement in the
+same delta — which the wrapped binary refuses before it classifies any early
+sync, so the early-sync exemption SHALL NOT reach it — and a MODIFIED whose
+target is absent — the wrapped binary refuses each of these, and relaxing any of
+them would be a false archive PASS.
 
 #### Scenario: Identical ADDED block is a no-op
 
@@ -130,8 +134,8 @@ these, and relaxing any of them would be a false archive PASS.
 
 #### Scenario: Mistyped REMOVED header is still an error
 
-- **WHEN** a `## REMOVED` operation names a requirement absent from the living
-  spec while a fold-equal living name exists
+- **WHEN** a `## REMOVED` operation names a requirement absent from the spec the
+  binary has by then, while a fold-equal name survives in it
 - **THEN** `archive/target-missing` is still an ERROR and the hint names the
   exact living header
 
@@ -144,8 +148,8 @@ these, and relaxing any of them would be a false archive PASS.
 
 #### Scenario: Mistyped RENAME source is still an error
 
-- **WHEN** a `## RENAMED` operation's source is absent while a fold-equal living
-  name that is not the target exists
+- **WHEN** a `## RENAMED` operation's source is absent while a fold-equal name
+  that is not the target survives to that operation
 - **THEN** `archive/target-missing` is still an ERROR
 
 #### Scenario: A live rename onto an existing target is still an error
@@ -164,7 +168,7 @@ these, and relaxing any of them would be a false archive PASS.
 
 #### Scenario: A missing MODIFIED target is still an error
 
-- **WHEN** a `## MODIFIED` operation names a requirement absent from the living
-  spec
+- **WHEN** a `## MODIFIED` operation names a requirement absent from the spec
+  the binary has by the time its MODIFIED phase runs
 - **THEN** `archive/target-missing` is still an ERROR, because the wrapped
   binary has no early-sync path for it
