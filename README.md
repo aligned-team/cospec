@@ -83,7 +83,8 @@ For `verification`, opt means trigger-promoted: absent by default, but checking
 a `## Surfaces` flag in the proposal soft-nudges it into the `apply` gate. Full
 matrix and per-type rationale: [docs/schemas.md](docs/schemas.md).
 
-cospec never replaces OpenSpec — it wraps the real, version-pinned binary
+cospec is an opinionated implementation of OpenSpec, functionally a drop-in
+replacement with compatibility upheld: it wraps the real, version-pinned binary
 (resolved by path, spawned, never `$PATH`) and adds typed schemas, real change
 validation with stable rule IDs, a deterministic `apply` gate, a
 filesystem-verified `archive`, a machine-parsed `verification` evidence ledger
