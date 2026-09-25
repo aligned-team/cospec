@@ -1,9 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { createHash } from 'node:crypto'
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 
+import { adapterFor, type HarnessAdapter } from '../../../src/harness/adapters.ts'
 import {
   hashBody,
   type HarnessName,
@@ -111,25 +109,19 @@ describe('renderHarnessFiles — shared .agents root', () => {
   })
 
   test('two harnesses writing one path with different bodies is a hard error', () => {
-    const canonDir = mkdtempSync(join(tmpdir(), 'cospec-render-conflict-'))
-    cpSync(join(import.meta.dir, '../../../src/canon/workflows'), canonDir, { recursive: true })
-    const manifestPath = join(canonDir, 'harness.yaml')
     // Give the shared root two dialects — the one thing the dedupe guard must refuse.
-    const manifest = readFileSync(manifestPath, 'utf8').replace(
-      /(agents:\n(?:.*\n)*?\s+bodyDialect: )shared/,
-      '$1canonical',
-    )
-    writeFileSync(manifestPath, manifest)
-    expect(manifest).toContain('bodyDialect: canonical')
+    const agents: HarnessAdapter = { ...adapterFor('agents'), bodyDialect: 'canonical' }
+    const adapters = [adapterFor('codex'), agents]
+    expect(adapterFor('codex', adapters).bodyDialect).toBe('shared')
+    expect(adapterFor('agents', adapters).bodyDialect).toBe('canonical')
     expect(() =>
       renderHarnessFiles({
         harnesses: ['codex', 'agents'],
         typeTable: TYPE_TABLE,
         version: TEST_VERSION,
-        canonDir,
+        adapters,
       }),
     ).toThrow(/harness render conflict: codex and agents both write \.agents\/skills\//)
-    rmSync(canonDir, { recursive: true, force: true })
   })
 })
 

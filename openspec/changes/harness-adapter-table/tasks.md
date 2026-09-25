@@ -90,14 +90,28 @@ Exclusive files: `apps/cli/src/harness/render.ts`,
 `apps/cli/src/canon/workflows/harness.yaml` (the `harnesses:` block only),
 `apps/cli/test/unit/harness/render.test.ts`.
 
-- [ ] 3.1 Switch `renderHarnessFiles` to the rows: skills and command paths, the
+- [x] 3.1 Switch `renderHarnessFiles` to the rows: skills and command paths, the
       frontmatter builder and `injectArguments` from the row, the rules file
       from `rulesPath`, `scope` on `RenderedFile`, and a
       `RenderOptions.adapters` override. Delete `HarnessSurface`, the
       `harnesses:` block of `harness.yaml`, the `harness === …` branches, and
       the `opencode` dialect name (opencode's row uses `flat`, and the 2.2
       comparison retires with the block). Rebuild the render-conflict case on
-      the override. Commit; verify verification 1.1, 1.4 and 2.8 pass
+      the override. Commit; verify verification 1.1, 1.4 and 2.8 pass ->
+      render.ts reads rows via `adapterFor` over
+      `opts.adapters ?? HARNESS_TABLE` (skill path from `skillsRoot`, command
+      path from `commandPath`, frontmatter builder and `injectArguments` from
+      `row.commands`, rules from `rulesPath`, `scope` on every `RenderedFile`);
+      a non-`markdown` serializer or a markdown surface with no builder throws
+      an internal error until 3.2. `HarnessSurface`, the `harnesses:` block and
+      the `opencode` dialect are gone; the 2.2 yaml-parity tests retired with
+      the block. Conflict case now injects an `agents` row with
+      `bodyDialect: 'canonical'` and throws the same message (2.8).
+      harness-render goldens pass and
+      `git diff --exit-code a2fdaef -- apps/cli/test/unit/__golden__/ apps/cli/test/integration/__golden__/`
+      exit 0 (1.1); `__snapshots__/` no diff from main; generate:check no drift
+      (1.4); `mise run test` 1021 pass, test:integration 180 pass, test:contract
+      120 pass
 - [ ] 3.2 Add the pluggable serializer (`markdown` as today, `toml` with
       upstream's two escaping functions ported) and the per-row extension, with
       fixture-row tests for TOML, `.prompt`, `.prompt.md`, a split commands

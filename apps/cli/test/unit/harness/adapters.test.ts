@@ -1,8 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-
-import { parse } from 'yaml'
 
 import {
   adapterFor,
@@ -25,7 +22,6 @@ import {
   skillPath,
   skillsRoot,
   transformBody,
-  type WorkflowDef,
 } from '../../../src/harness/adapters.ts'
 import { LEGACY_CODEX_SKILL_ROOT } from '../../../src/harness/legacy-skills.ts'
 
@@ -43,7 +39,7 @@ describe('isHarnessName', () => {
 describe('isBodyDialect', () => {
   test('accepts exactly the declared dialects', () => {
     for (const dialect of BODY_DIALECTS) expect(isBodyDialect(dialect)).toBe(true)
-    expect(BODY_DIALECTS).toEqual(['canonical', 'shared', 'opencode', 'flat'])
+    expect(BODY_DIALECTS).toEqual(['canonical', 'shared', 'flat'])
     expect(isBodyDialect('codex')).toBe(false)
     expect(isBodyDialect('')).toBe(false)
   })
@@ -60,14 +56,13 @@ describe('transformBody', () => {
     expect(transformBody(body, 'canonical', skillById)).toBe(body)
   })
 
-  test('opencode rewrites colon slashes to hyphen slashes', () => {
-    expect(transformBody(body, 'opencode', skillById)).toBe(
+  test('flat rewrites colon slashes to hyphen slashes', () => {
+    expect(transformBody(body, 'flat', skillById)).toBe(
       'Run /cospec-apply then /cospec-archive when done.',
     )
   })
 
-  test('flat with / respells exactly as opencode does today', () => {
-    expect(transformBody(body, 'flat', skillById)).toBe(transformBody(body, 'opencode', skillById))
+  test('flat with an explicit / respells to the / invocation', () => {
     expect(transformBody(body, 'flat', skillById, '/')).toBe(
       'Run /cospec-apply then /cospec-archive when done.',
     )
@@ -240,45 +235,6 @@ describe('HARNESS_TABLE derived roots', () => {
   test("the codex row's legacy skills root is the one legacy-skills.ts migrates from", () => {
     expect(legacySkillsRoots(adapterFor('codex'))).toEqual([LEGACY_CODEX_SKILL_ROOT])
   })
-})
-
-interface YamlSurface {
-  commandDir?: string
-  commandFile?: string
-  skillDir: string
-  legacySkillDirs?: string[]
-  rulesPath?: string
-}
-
-function fill(template: string, vars: Record<string, string>): string {
-  return template.replace(/\{(\w+)\}/g, (_, key: string) => vars[key] ?? `{${key}}`)
-}
-
-describe('HARNESS_TABLE against the harness.yaml harnesses block', () => {
-  const manifest = parse(
-    readFileSync(join(import.meta.dir, '../../../src/canon/workflows/harness.yaml'), 'utf8'),
-  ) as { workflows: WorkflowDef[]; harnesses: Record<HarnessName, YamlSurface> }
-
-  for (const id of HARNESS_NAMES) {
-    test(`${id}: skill, command, rules and legacy paths are identical for every workflow`, () => {
-      const surface = manifest.harnesses[id]
-      const row = adapterFor(id)
-      expect(row.rulesPath).toBe(surface.rulesPath)
-      for (const w of manifest.workflows) {
-        expect(skillPath(row, w.skill)).toBe(
-          `${fill(surface.skillDir, { skill: w.skill })}/SKILL.md`,
-        )
-        const yamlCommand =
-          surface.commandDir && surface.commandFile
-            ? `${surface.commandDir}/${fill(surface.commandFile, { command: w.command })}`
-            : undefined
-        expect(commandPath(row, w.command)).toBe(yamlCommand)
-        expect(legacySkillsRoots(row).map((root) => `${root}/${w.skill}`)).toEqual(
-          (surface.legacySkillDirs ?? []).map((t) => fill(t, { skill: w.skill })),
-        )
-      }
-    })
-  }
 })
 
 interface UpstreamTool {
