@@ -110,15 +110,15 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
     const row = adapterFor(harness, table)
     const skills = skillsRoot(row)
     const commands = row.commands
-    if (commands !== undefined && commands.serializer !== 'markdown') {
-      throw new Error(
-        `internal: harness '${harness}' uses the ${commands.serializer} command serializer, ` +
-          'which render does not implement yet',
-      )
-    }
-    if (commands !== undefined && commands.frontmatter === undefined) {
+    if (commands?.serializer === 'markdown' && commands.frontmatter === undefined) {
       throw new Error(
         `internal: harness '${harness}' has markdown commands but no frontmatter builder`,
+      )
+    }
+    if (commands?.serializer === 'toml' && commands.frontmatter !== undefined) {
+      throw new Error(
+        `internal: harness '${harness}' has toml commands, which carry no frontmatter, ` +
+          'but declares a frontmatter builder',
       )
     }
     for (const w of manifest.workflows) {
@@ -152,7 +152,23 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
       )
 
       const path = commandPath(row, w.command)
-      if (commands?.frontmatter !== undefined && path !== undefined) {
+      if (commands?.serializer === 'toml' && path !== undefined) {
+        // Provenance for a TOML command lives in the manifest, like the rules file, so it
+        // has no frontmatter and no body hash. normalizeBody leaves exactly one trailing
+        // newline, which upstream's template supplies itself.
+        const content = serializeTomlCommand(w.description, commandBody.replace(/\n$/, ''))
+        emit({
+          harness,
+          kind: 'command',
+          workflow: w.id,
+          path,
+          scope: 'project',
+          frontmatter: null,
+          body: commandBody,
+          contentHash: null,
+          content,
+        })
+      } else if (commands?.frontmatter !== undefined && path !== undefined) {
         const commandSection = `\n${commandBody}`
         const commandHash = hashBody(commandSection)
         emit(
@@ -203,6 +219,61 @@ export function renderTypeTable(entries: TypeTableEntry[]): string {
   const header = '| Type | What it is for | Artifacts |\n| --- | --- | --- |'
   const rows = entries.map((e) => `| ${e.type} | ${e.description} | ${e.summary} |`)
   return [header, ...rows].join('\n')
+}
+
+// Ported from the pinned OpenSpec Gemini adapter (dist/core/command-generation/adapters/
+// gemini.js); a unit test compares against its formatFile, so keep the replace order.
+// C0 except tab/LF/CR, plus DEL, are invalid raw inside any TOML string. A per-character scan
+// rather than upstream's regex class, which oxlint's no-control-regex rejects; same set.
+function escapeTomlControlChars(value: string): string {
+  let out = ''
+  for (const c of value) {
+    const code = c.charCodeAt(0)
+    const invalid =
+      code <= 0x08 ||
+      code === 0x0b ||
+      code === 0x0c ||
+      (code >= 0x0e && code <= 0x1f) ||
+      code === 0x7f
+    out += invalid ? `\\u${code.toString(16).padStart(4, '0')}` : c
+  }
+  return out
+}
+
+/** Escape a value for a single-line TOML basic string (`"…"`). */
+export function escapeTomlBasicString(value: string): string {
+  return escapeTomlControlChars(
+    value
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/\n/g, '\\n')
+      .replace(/\r/g, '\\r')
+      .replace(/\t/g, '\\t'),
+  )
+}
+
+/**
+ * Escape a value for a TOML multiline basic string (`"""…"""`). CRLF is normalized to LF
+ * before backslashes are doubled, and `"""` is broken after, so no escape is re-doubled.
+ */
+export function escapeTomlMultilineBasicString(value: string): string {
+  return escapeTomlControlChars(
+    value
+      .replace(/\r\n/g, '\n')
+      .replace(/\\/g, '\\\\')
+      .replace(/"""/g, '""\\"')
+      .replace(/\r/g, '\\r'),
+  )
+}
+
+/** A TOML command file: upstream Gemini's `description` + multiline `prompt` layout. */
+export function serializeTomlCommand(description: string, body: string): string {
+  return `description = "${escapeTomlBasicString(description)}"
+
+prompt = """
+${escapeTomlMultilineBasicString(body)}
+"""
+`
 }
 
 interface AssembleArgs {
