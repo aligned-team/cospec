@@ -112,11 +112,30 @@ Exclusive files: `apps/cli/src/harness/render.ts`,
       exit 0 (1.1); `__snapshots__/` no diff from main; generate:check no drift
       (1.4); `mise run test` 1021 pass, test:integration 180 pass, test:contract
       120 pass
-- [ ] 3.2 Add the pluggable serializer (`markdown` as today, `toml` with
+- [x] 3.2 Add the pluggable serializer (`markdown` as today, `toml` with
       upstream's two escaping functions ported) and the per-row extension, with
       fixture-row tests for TOML, `.prompt`, `.prompt.md`, a split commands
       root, namespaced and flat filenames, the `@` prefix and home scope.
-      Commit; verify verification 1.1, 2.4, 2.5, 2.6 and 2.7 pass
+      Commit; verify verification 1.1, 2.4, 2.5, 2.6 and 2.7 pass -> render.ts
+      dispatches on `commands.serializer`: `toml` emits
+      `serializeTomlCommand(description, body)` (upstream Gemini layout, both
+      escapers ported in upstream's replace order; the control-char class is a
+      per-character scan because oxlint's no-control-regex rejects the regex)
+      with `frontmatter: null` and `contentHash: null`; the body's one trailing
+      newline is dropped since upstream's template supplies it. The no-builder
+      check is scoped to `markdown`, and a `toml` row declaring a builder is
+      refused. render.test.ts: formatFile parity against the pinned `gemini.js`
+      on backslash, `"""`, tab, C0, lone CR, CRLF, all 128 ASCII code units and
+      a description with `"`/newline (2.4; a replace-order mutation fails 3 of
+      these); split `.cline`/`.clinerules/workflows` root,
+      `.prompt`/`.prompt.md`/`.toml` filenames, namespaced vs flat (2.5); `@`
+      respelling and `/` byte-identical to the real OpenCode render (2.6);
+      `globalSkillsDir` row home-scoped, the four real rows all project-scoped
+      (2.7). The `generate()` home-scope refusal is 5.4's (T3), not done here.
+      Goldens: `git diff --exit-code a2fdaef` over both `__golden__/` dirs exit
+      0 (1.1); `__snapshots__/` no diff from main; generate:check no drift;
+      `mise run test` 1043 pass, test:integration 180, test:contract 120,
+      test:pack 2; typecheck, lint, format:check green
 
 ## 4. Track T4 (after): render equivalence checkpoint
 
