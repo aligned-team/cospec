@@ -68,9 +68,19 @@ describe('cospec completion', () => {
 
   test('an unsupported explicit shell exits 1 without touching $SHELL detection', async () => {
     const cwd = mkTempRepo()
+    const res = await cospec(['completion', 'tcsh'], { cwd })
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toContain("unsupported shell 'tcsh'")
+  })
+
+  // `powershell` is an upstream shell value owed to `completion-install`: the
+  // command table refuses it as pending before completion.ts runs.
+  test('powershell is refused as not supported yet, exit 1', async () => {
+    const cwd = mkTempRepo()
     const res = await cospec(['completion', 'powershell'], { cwd })
     expect(res.exitCode).toBe(1)
-    expect(res.stderr).toContain("unsupported shell 'powershell'")
+    expect(res.stderr).toBe("cospec completion: 'powershell' is not supported yet\n")
+    expect(res.stdout).toBe('')
   })
 
   test('--json is refused with exactly one JSON document on stdout, exit 1', async () => {

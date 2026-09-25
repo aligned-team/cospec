@@ -1,6 +1,25 @@
 import { resolve } from 'node:path'
 
 import pkg from '../package.json'
+import {
+  closest,
+  COMMAND_TABLE,
+  commandRow,
+  type CommandRow,
+  type FlagSpec,
+  flagLabel,
+  GLOBAL_FLAGS,
+  isPending,
+  isStorePathToken,
+  offeredFlags,
+  parseCommandArgs,
+  type ParsedArgs,
+  type PositionalSpec,
+  positionalLabel,
+  storePathRefusal,
+  type SubcommandSpec,
+  jsonRefusal,
+} from './core/command-table.ts'
 
 /** Global flags accepted before or after the subcommand on every command. */
 export interface GlobalFlags {
@@ -19,6 +38,13 @@ export interface CommandContext {
   flags: GlobalFlags
   /** Absolute working directory (resolved from --cwd, defaulting to process.cwd()). */
   cwd: string
+  /**
+   * `args` parsed against the command's table row. Set for every `parse:
+   * 'table'` row (which has already refused anything undeclared, pending or
+   * missing its value); absent for `forward` rows, which hand `args` to the
+   * wrapped binary.
+   */
+  parsed?: ParsedArgs
 }
 
 /**
@@ -49,9 +75,10 @@ interface CommandEntry {
 }
 
 /**
- * Static command table — the single source for `--help` and for validating an
- * incoming command name. Command tracks add the matching `commands/<name>.ts`
- * file without touching this dispatcher.
+ * @deprecated Legacy pre-formatted help strings, read only by
+ * `core/completions/spec.ts` until the completion spec is built from
+ * `COMMAND_TABLE`. Dispatch and `--help` read `COMMAND_TABLE`; nothing new
+ * may read this.
  */
 export const COMMANDS: CommandEntry[] = [
   {
@@ -244,22 +271,43 @@ const COMMAND_MODULES: Record<string, () => Promise<Partial<CommandModule>>> = {
   'check-commit': () => import('./commands/check-commit.ts'),
 }
 
+const VERSION_LABEL = '-V, --version'
+
+interface HelpLine {
+  readonly label: string
+  readonly description: string
+}
+
+/** Two-column rows, labels padded to the widest label (or `minWidth`) plus two spaces. */
+function renderLines(lines: readonly HelpLine[], minWidth = 0): string {
+  const width = Math.max(minWidth, ...lines.map((line) => line.label.length))
+  return lines
+    .map((line) => `  ${line.label.padEnd(width)}  ${line.description}`.trimEnd())
+    .join('\n')
+}
+
+function flagLines(flags: readonly FlagSpec[]): HelpLine[] {
+  return offeredFlags({ flags }).map((flag) => ({
+    label: flagLabel(flag),
+    description: flag.description,
+  }))
+}
+
+const GLOBAL_LABEL_WIDTH = Math.max(
+  VERSION_LABEL.length,
+  ...GLOBAL_FLAGS.map((flag) => flagLabel(flag).length),
+)
+
 /**
- * The global-flag help block. Exported because `core/completions/spec.ts`
- * derives the completion model from this table plus these flags — completion
- * must never drift from `--help`.
+ * The global-flag help block, rendered from `GLOBAL_FLAGS`. Still exported
+ * because `core/completions/spec.ts` extracts the global completion flags
+ * from it until the completion spec reads the table directly.
  */
-export const GLOBAL_OPTIONS = `Global options:
-  --json         Machine-readable output
-  --no-color     Disable ANSI color
-  --cwd <path>   Run as if invoked from <path>
-  --store <id>   Operate against a registered OpenSpec store instead of the local repo
-  -h, --help     Show this help`
+export const GLOBAL_OPTIONS = `Global options:\n${renderLines(flagLines(GLOBAL_FLAGS), GLOBAL_LABEL_WIDTH)}`
 
 function helpText(): string {
-  const visible = COMMANDS.filter((c) => !c.hidden)
-  const width = Math.max(...visible.map((c) => c.name.length))
-  const rows = visible.map((c) => `  ${c.name.padEnd(width)}  ${c.summary}`).join('\n')
+  const visible = COMMAND_TABLE.filter((row) => !row.hidden)
+  const rows = renderLines(visible.map((row) => ({ label: row.name, description: row.summary })))
   return `cospec — OpenSpec change management, sized to your commit type.
 
 Usage: cospec <command> [options]
@@ -268,66 +316,128 @@ Commands:
 ${rows}
 
 ${GLOBAL_OPTIONS}
-  -V, --version  Show version
+${renderLines([{ label: VERSION_LABEL, description: 'Show version' }], GLOBAL_LABEL_WIDTH)}
 
 Run 'cospec <command> --help' for command-specific help.
 `
 }
 
+function offeredSubcommands(row: CommandRow): SubcommandSpec[] {
+  return (row.subcommands ?? []).filter((subcommand) => !isPending(subcommand.status))
+}
+
+function offeredPositionals(surface: {
+  readonly positionals: readonly PositionalSpec[]
+}): PositionalSpec[] {
+  return surface.positionals.filter((positional) => !isPending(positional.status))
+}
+
+/** `[name]`, or the closed value set (`[bash|zsh|fish]`) when the slot declares one. */
+function usagePositional(positional: PositionalSpec): string {
+  if (positional.values === undefined) return positionalLabel(positional)
+  const values = positional.values.join('|')
+  return positional.required ? `<${values}>` : `[${values}]`
+}
+
+/** The Usage line's signature after the command path. */
+function usageSignature(surface: {
+  readonly positionals: readonly PositionalSpec[]
+  readonly subcommands?: readonly SubcommandSpec[]
+}): string {
+  const subcommands = (surface.subcommands ?? []).filter((s) => !isPending(s.status))
+  const parts =
+    subcommands.length > 0
+      ? [`<${subcommands.map((s) => s.name).join('|')}>`, '[args]']
+      : offeredPositionals(surface).map(usagePositional)
+  return parts.map((part) => ` ${part}`).join('')
+}
+
+function argumentLines(positionals: readonly PositionalSpec[]): HelpLine[] {
+  return offeredPositionals({ positionals })
+    .filter((positional) => positional.description !== undefined)
+    .map((positional) => ({
+      label: positionalLabel(positional),
+      description: positional.description!,
+    }))
+}
+
 /**
  * Per-command help, reachable via `cospec <command> --help` (or `cospec
- * <command> help`, see the dispatcher below). Renders the command's own
- * positionals and flags — not just the shared global options — when the
- * command table declares them.
+ * <command> help`, see the dispatcher below), rendered from the command's
+ * table row: its positionals, its subcommands with each one's flags, and every
+ * handled or accepted no-op flag — never a pending one.
  */
-function commandHelpText(entry: CommandEntry): string {
-  const usage = entry.usage !== undefined ? ` ${entry.usage}` : ''
-  const options = entry.options !== undefined ? `Command options:\n${entry.options}\n\n` : ''
-  return `cospec ${entry.name} — ${entry.summary}
+function commandHelpText(row: CommandRow): string {
+  const sections: string[] = []
+  const args = argumentLines(row.positionals)
+  if (args.length > 0) sections.push(`Arguments:\n${renderLines(args)}`)
+  const subcommands = offeredSubcommands(row)
+  if (subcommands.length > 0) {
+    const width = Math.max(...subcommands.map((s) => s.name.length))
+    const flagWidth = Math.max(
+      0,
+      ...subcommands.flatMap((s) => flagLines(s.flags).map((line) => line.label.length)),
+    )
+    const blocks = subcommands.map((subcommand) => {
+      const head = renderLines([{ label: subcommand.name, description: subcommand.summary }], width)
+      const flags = flagLines(subcommand.flags)
+      return flags.length > 0 ? `${head}\n${indent(renderLines(flags, flagWidth))}` : head
+    })
+    sections.push(`Subcommands:\n${blocks.join('\n')}`)
+  }
+  const flags = flagLines(row.flags)
+  const notes = (row.notes ?? []).map((note) => `  ${note}`)
+  if (flags.length > 0 || notes.length > 0) {
+    const body = [...(flags.length > 0 ? [renderLines(flags)] : []), ...notes].join('\n')
+    sections.push(`Command options:\n${body}`)
+  }
+  return renderCommandHelp(row.name, row.summary, usageSignature(row), sections)
+}
 
-Usage: cospec ${entry.name}${usage} [options]
+/** `cospec <command> <subcommand> --help`: the subcommand's own positionals and flags. */
+function subcommandHelpText(row: CommandRow, subcommand: SubcommandSpec): string {
+  const sections: string[] = []
+  const args = argumentLines(subcommand.positionals)
+  if (args.length > 0) sections.push(`Arguments:\n${renderLines(args)}`)
+  const flags = flagLines(subcommand.flags)
+  if (flags.length > 0) sections.push(`Command options:\n${renderLines(flags)}`)
+  return renderCommandHelp(
+    `${row.name} ${subcommand.name}`,
+    subcommand.summary,
+    usageSignature(subcommand),
+    sections,
+  )
+}
 
-${options}${GLOBAL_OPTIONS}
+function indent(text: string): string {
+  return text
+    .split('\n')
+    .map((line) => `  ${line}`)
+    .join('\n')
+}
+
+function renderCommandHelp(
+  path: string,
+  summary: string,
+  signature: string,
+  sections: readonly string[],
+): string {
+  const body = sections.map((section) => `${section}\n\n`).join('')
+  return `cospec ${path} — ${summary}
+
+Usage: cospec ${path}${signature} [options]
+
+${body}${GLOBAL_OPTIONS}
 `
-}
-
-function levenshtein(a: string, b: string): number {
-  const rows = a.length + 1
-  const cols = b.length + 1
-  const dist: number[] = Array.from({ length: rows * cols }, () => 0)
-  for (let i = 0; i < rows; i++) dist[i * cols] = i
-  for (let j = 0; j < cols; j++) dist[j] = j
-  for (let i = 1; i < rows; i++) {
-    for (let j = 1; j < cols; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1
-      dist[i * cols + j] = Math.min(
-        dist[(i - 1) * cols + j]! + 1,
-        dist[i * cols + (j - 1)]! + 1,
-        dist[(i - 1) * cols + (j - 1)]! + cost,
-      )
-    }
-  }
-  return dist[rows * cols - 1]!
-}
-
-function closest(input: string, candidates: string[]): string | undefined {
-  let best: string | undefined
-  let bestDist = Infinity
-  for (const c of candidates) {
-    const d = levenshtein(input, c)
-    if (d < bestDist) {
-      bestDist = d
-      best = c
-    }
-  }
-  return best !== undefined && bestDist <= 3 ? best : undefined
 }
 
 /**
  * Parse argv, apply global flags, and dispatch to the matching command module.
- * Returns the process exit code. Stub-tolerant: a valid command name whose
- * module file does not yet exist reports "not yet implemented" and exits 1, so
- * the repo stays runnable while command tracks land independently.
+ * Returns the process exit code. A `table` row's argv is parsed against its
+ * row before the module loads, so an undeclared, pending or value-less option
+ * is refused (exit 1) before any work; a `forward` row's argv reaches its
+ * wrapper unchanged. `--store-path` is refused on every command, in either
+ * position, with upstream's redirect respelled to cospec.
  */
 export async function run(argv: string[]): Promise<number> {
   const flags: GlobalFlags = { json: false, noColor: false, cwd: process.cwd() }
@@ -338,6 +448,7 @@ export async function run(argv: string[]): Promise<number> {
   let wantVersion = false
   let wantHelp = false
   let badOption: string | undefined
+  let storePath = false
   // Set true for exactly one iteration: the token immediately following the
   // command name. A bare `help` there means `cospec <command> help` ==
   // `cospec <command> --help` — a common typo/muscle-memory (other CLIs
@@ -357,7 +468,13 @@ export async function run(argv: string[]): Promise<number> {
       else if (tok.startsWith('--cwd=')) cwdRaw = tok.slice('--cwd='.length)
       else if (tok === '--store') storeRaw = argv[++i]
       else if (tok.startsWith('--store=')) storeRaw = tok.slice('--store='.length)
-      else if (tok.startsWith('-')) badOption ??= tok
+      else if (isStorePathToken(tok)) {
+        // Consume its value so `/x` in `--store-path /x list` is never taken
+        // for the command name; the refusal is printed after the loop, once
+        // a later `--json` is known.
+        storePath = true
+        if (tok === '--store-path') i++
+      } else if (tok.startsWith('-')) badOption ??= tok
       else {
         command = tok
         expectHelpToken = true
@@ -381,13 +498,24 @@ export async function run(argv: string[]): Promise<number> {
     else if (tok.startsWith('--cwd=')) cwdRaw = tok.slice('--cwd='.length)
     else if (tok === '--store') storeRaw = argv[++i]
     else if (tok.startsWith('--store=')) storeRaw = tok.slice('--store='.length)
-    else rest.push(tok)
+    else {
+      // Forward rows get no parser, so the post-command `--store-path` is
+      // caught here for every row alike (up to a `--` terminator).
+      if (isStorePathToken(tok) && !rest.includes('--')) storePath = true
+      rest.push(tok)
+    }
   }
 
   const cwd = cwdRaw !== undefined ? resolve(process.cwd(), cwdRaw) : process.cwd()
   flags.cwd = cwd
   if (storeRaw !== undefined && storeRaw.length > 0) flags.store = storeRaw
   if (flags.noColor) process.env.NO_COLOR = '1'
+
+  if (storePath && !wantHelp && !wantVersion) {
+    const refusal = storePathRefusal(flags.json)
+    process[refusal.stream].write(refusal.text)
+    return EXIT.failure
+  }
 
   if (command === undefined) {
     if (wantVersion) {
@@ -404,12 +532,12 @@ export async function run(argv: string[]): Promise<number> {
     return EXIT.success
   }
 
-  const entry = COMMANDS.find((c) => c.name === command)
-  if (entry === undefined) {
+  const row = commandRow(command)
+  if (row === undefined) {
     process.stderr.write(`cospec: unknown command '${command}'\n`)
     const suggestion = closest(
       command,
-      COMMANDS.filter((c) => !c.hidden).map((c) => c.name),
+      COMMAND_TABLE.filter((r) => !r.hidden).map((r) => r.name),
     )
     if (suggestion !== undefined) process.stderr.write(`Did you mean '${suggestion}'?\n`)
     process.stderr.write("Run 'cospec --help' for a list of commands.\n")
@@ -419,23 +547,52 @@ export async function run(argv: string[]): Promise<number> {
   // `cospec <command> --help` prints per-command help instead of running the
   // command — critical for state-mutating commands like archive.
   if (wantHelp) {
-    process.stdout.write(commandHelpText(entry))
+    const first = rest[0]
+    const subcommand =
+      first !== undefined ? offeredSubcommands(row).find((s) => s.name === first) : undefined
+    process.stdout.write(
+      subcommand !== undefined ? subcommandHelpText(row, subcommand) : commandHelpText(row),
+    )
     return EXIT.success
   }
 
-  const loadModule = COMMAND_MODULES[entry.name]
+  let parsed: ParsedArgs | undefined
+  if (row.parse === 'table') {
+    // A `--json` caller is owed one parseable document even on refusal, so
+    // this answers before the parser can print a stderr-only refusal.
+    if (row.json === 'refused' && flags.json) {
+      process.stdout.write(jsonRefusal(row.name, row.jsonRefusalMessage))
+      return EXIT.failure
+    }
+    const result = parseCommandArgs(row, rest)
+    if (!result.ok) {
+      if (result.refusal.kind === 'store-path') {
+        const refusal = storePathRefusal(flags.json)
+        process[refusal.stream].write(refusal.text)
+      } else process.stderr.write(result.refusal.message)
+      return EXIT.failure
+    }
+    parsed = result.parsed
+  }
+
+  const loadModule = COMMAND_MODULES[row.name]
   if (loadModule === undefined) {
-    process.stderr.write(`cospec: '${entry.name}' is not yet implemented\n`)
+    process.stderr.write(`cospec: '${row.name}' is not yet implemented\n`)
     return EXIT.failure
   }
 
   const mod = await loadModule()
   if (typeof mod.run !== 'function') {
-    process.stderr.write(`cospec: '${entry.name}' is not yet implemented\n`)
+    process.stderr.write(`cospec: '${row.name}' is not yet implemented\n`)
     return EXIT.failure
   }
 
-  const ctx: CommandContext = { args: rest, flags, cwd }
+  const ctx: CommandContext = {
+    args: rest,
+    flags,
+    cwd,
+    ...(parsed !== undefined ? { parsed } : {}),
+  }
   const code = await mod.run(ctx)
   return typeof code === 'number' ? code : EXIT.success
 }

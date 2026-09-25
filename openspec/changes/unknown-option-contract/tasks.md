@@ -69,20 +69,20 @@ red; 4–7 turn it green; 8 documents it.
 
 ## 4. T2 — dispatch and help through the table (`apps/cli/src/cli.ts`)
 
-- [ ] 4.1 Replace `COMMANDS[].usage/options` with a render from the table rows;
+- [x] 4.1 Replace `COMMANDS[].usage/options` with a render from the table rows;
       `commandHelpText` prints positionals, handled and no-op flags with
       placeholders and descriptions; `helpText` unchanged in shape;
       `cospec     show --help` now lists `--diff` and `--requirements` (ledger
       3.1)
-- [ ] 4.2 Reject `--store-path` and `--store-path=<v>` in the pre-command loop
+- [x] 4.2 Reject `--store-path` and `--store-path=<v>` in the pre-command loop
       with the guard from 1.3 (text, or the envelope under `--json`), exit 1,
       and treat no later token as the command name (ledger 2.2)
-- [ ] 4.3 Dispatch: for `table` rows call the parser before loading the command
+- [x] 4.3 Dispatch: for `table` rows call the parser before loading the command
       module and print the refusal on failure; for `forward` rows pass argv
       through unchanged except for the `--store-path` guard; the
       `CommandContext` gains `parsed?` so a `table` command receives positionals
       and flag values instead of re-reading `ctx.args`
-- [ ] 4.4 Unit-test `cli.test.ts` for the new help output and the `--store-path`
+- [x] 4.4 Unit-test `cli.test.ts` for the new help output and the `--store-path`
       positions; un-skip the `--store-path` differential rows; commit
       `fix(cli): dispatch and render help through the command table`
 

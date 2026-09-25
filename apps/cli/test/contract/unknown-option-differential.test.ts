@@ -27,7 +27,6 @@
 // the `todo` field when its command lands. Close-out (tasks 9.2) requires no
 // `todo` row to remain, and then collapses `register` to a plain `test(...)`
 // so the literal `test.todo` leaves this file too (the 9.2 grep looks for it).
-// The `--store-path` rows below carry their own `test.todo`, removed by T2.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { cpSync } from 'node:fs'
@@ -126,9 +125,6 @@ interface Row {
   todo?: string
 }
 
-const T4 = 'T4 (tasks 5): lifecycle commands onto the table parser'
-const T5 = 'T5 (tasks 6): setup and passthrough commands onto the table parser'
-
 const unknown = (command: string, option: string): string =>
   `cospec ${command}: unknown option '${option}'`
 const missing = (command: string, flag: string, placeholder: string): string =>
@@ -143,7 +139,6 @@ const TABLE_ROWS: readonly Row[] = [
     command: 'init',
     expect: 'same',
     cospecStderr: unknown('init', '--bogus'),
-    todo: T5,
   },
   { argv: ['init', '--no-animation', '.'], command: 'init', expect: 'same' },
   {
@@ -151,7 +146,6 @@ const TABLE_ROWS: readonly Row[] = [
     command: 'init',
     expect: 'same',
     cospecStderr: missing('init', '--harness', '<list>'),
-    todo: T5,
   },
   { argv: ['init', '--harness', 'none', '.'], command: 'init', expect: 'cospec-only' },
   // update
@@ -160,7 +154,6 @@ const TABLE_ROWS: readonly Row[] = [
     command: 'update',
     expect: 'same',
     cospecStderr: unknown('update', '--bogus'),
-    todo: T5,
   },
   { argv: ['update', '--check'], command: 'update', expect: 'cospec-only' },
   // doctor
@@ -169,7 +162,6 @@ const TABLE_ROWS: readonly Row[] = [
     command: 'doctor',
     expect: 'same',
     cospecStderr: unknown('doctor', '--bogus'),
-    todo: T5,
   },
   // new
   {
@@ -177,7 +169,6 @@ const TABLE_ROWS: readonly Row[] = [
     command: 'new',
     expect: 'same',
     cospecStderr: unknown('new', '--bogus'),
-    todo: T5,
   },
   // Upstream has no `new <type>`: it answers `error: unknown command 'feat'`.
   {
@@ -185,7 +176,6 @@ const TABLE_ROWS: readonly Row[] = [
     command: 'new',
     expect: 'same',
     cospecStderr: missing('new', '--description', '<text>'),
-    todo: T5,
   },
   // validate
   {
@@ -193,14 +183,12 @@ const TABLE_ROWS: readonly Row[] = [
     command: 'validate',
     expect: 'same',
     cospecStderr: suggest('--type'),
-    todo: T4,
   },
   {
     argv: ['validate', '--bogus'],
     command: 'validate',
     expect: 'same',
     cospecStderr: unknown('validate', '--bogus'),
-    todo: T4,
   },
   { argv: ['validate', '--fast'], command: 'validate', expect: 'cospec-only' },
   // status
@@ -209,21 +197,18 @@ const TABLE_ROWS: readonly Row[] = [
     command: 'status',
     expect: 'same',
     cospecStderr: suggest('--schema'),
-    todo: T4,
   },
   {
     argv: ['status', '--bogus'],
     command: 'status',
     expect: 'same',
     cospecStderr: unknown('status', '--bogus'),
-    todo: T4,
   },
   {
     argv: ['status', '--change'],
     command: 'status',
     expect: 'same',
     cospecStderr: missing('status', '--change', '<slug>'),
-    todo: T4,
   },
   // list
   {
@@ -231,14 +216,12 @@ const TABLE_ROWS: readonly Row[] = [
     command: 'list',
     expect: 'same',
     cospecStderr: unknown('list', '--bogus'),
-    todo: T4,
   },
   {
     argv: ['list', '--sortt'],
     command: 'list',
     expect: 'same',
     cospecStderr: suggest('--sort'),
-    todo: T4,
   },
   { argv: ['list', '--changes'], command: 'list', expect: 'same' },
   { argv: ['list', '--blocked'], command: 'list', expect: 'cospec-only' },
@@ -248,14 +231,12 @@ const TABLE_ROWS: readonly Row[] = [
     command: 'instructions',
     expect: 'same',
     cospecStderr: unknown('instructions', '--bogus'),
-    todo: T5,
   },
   {
     argv: ['instructions', 'proposal', '--change'],
     command: 'instructions',
     expect: 'same',
     cospecStderr: missing('instructions', '--change', '<slug>'),
-    todo: T5,
   },
   {
     argv: ['instructions', 'apply', '--change', 'x', '--allow-soft'],
@@ -270,7 +251,6 @@ const TABLE_ROWS: readonly Row[] = [
     command: 'archive',
     expect: 'same',
     cospecStderr: unknown('archive', '--bogus'),
-    todo: T4,
   },
   { argv: ['archive', '--force-incomplete', 'x'], command: 'archive', expect: 'cospec-only' },
   // context
@@ -279,14 +259,12 @@ const TABLE_ROWS: readonly Row[] = [
     command: 'context',
     expect: 'same',
     cospecStderr: unknown('context', '--bogus'),
-    todo: T5,
   },
   {
     argv: ['context', '--code-workspace'],
     command: 'context',
     expect: 'same',
     cospecStderr: missing('context', '--code-workspace', '<path>'),
-    todo: T5,
   },
   // view
   {
@@ -294,16 +272,14 @@ const TABLE_ROWS: readonly Row[] = [
     command: 'view',
     expect: 'same',
     cospecStderr: unknown('view', '--bogus'),
-    todo: T5,
   },
-  { argv: ['view', '--json'], command: 'view', expect: 'same', todo: T5 },
+  { argv: ['view', '--json'], command: 'view', expect: 'same' },
   // completion
   {
     argv: ['completion', '--bogus'],
     command: 'completion',
     expect: 'same',
     cospecStderr: unknown('completion', '--bogus'),
-    todo: T5,
   },
   { argv: ['completion', '--json'], command: 'completion', expect: 'same' },
   // feedback: `--upstream --json` refuses before any relay, so no run reaches gh.
@@ -318,7 +294,6 @@ const TABLE_ROWS: readonly Row[] = [
     command: 'feedback',
     expect: 'same',
     cospecStderr: missing('feedback', '--body', '<text>'),
-    todo: T5,
   },
   { argv: ['feedback', 'm', '--upstream', '--json'], command: 'feedback', expect: 'cospec-only' },
 ]
@@ -334,7 +309,6 @@ const NATIVE_ROWS: readonly Row[] = [
     command: 'apply',
     expect: 'same',
     cospecStderr: unknown('apply', '--bogus'),
-    todo: T4,
   },
   { argv: ['apply', '--allow-soft', 'x'], command: 'apply', expect: 'cospec-only' },
   {
@@ -342,21 +316,18 @@ const NATIVE_ROWS: readonly Row[] = [
     command: 'migrate',
     expect: 'same',
     cospecStderr: unknown('migrate', '--bogus'),
-    todo: T4,
   },
   {
     argv: ['sync-blockers', '--bogus'],
     command: 'sync-blockers',
     expect: 'same',
     cospecStderr: unknown('sync-blockers', '--bogus'),
-    todo: T4,
   },
   {
     argv: ['sync-blockers', '--change'],
     command: 'sync-blockers',
     expect: 'same',
     cospecStderr: missing('sync-blockers', '--change', '<slug>'),
-    todo: T4,
   },
   { argv: ['sync-blockers', '--check'], command: 'sync-blockers', expect: 'cospec-only' },
   {
@@ -364,14 +335,12 @@ const NATIVE_ROWS: readonly Row[] = [
     command: 'check-commit',
     expect: 'same',
     cospecStderr: unknown('check-commit', '--bogus'),
-    todo: T4,
   },
   {
     argv: ['__complete', '--bogus', 'changes'],
     command: '__complete',
     expect: 'same',
     cospecStderr: unknown('__complete', '--bogus'),
-    todo: T5,
   },
 ]
 
@@ -382,84 +351,72 @@ const PENDING_ROWS: readonly Row[] = [
     command: 'init',
     expect: 'pending',
     pendingFlag: '--tools',
-    todo: T5,
   },
   {
     argv: ['init', '--language', 'fr', '.'],
     command: 'init',
     expect: 'pending',
     pendingFlag: '--language',
-    todo: T5,
   },
   {
     argv: ['init', '--profile', 'core', '.'],
     command: 'init',
     expect: 'pending',
     pendingFlag: '--profile',
-    todo: T5,
   },
   {
     argv: ['init', '--copilot-cloud', '.'],
     command: 'init',
     expect: 'pending',
     pendingFlag: '--copilot-cloud',
-    todo: T5,
   },
   {
     argv: ['init', '--no-copilot-cloud', '.'],
     command: 'init',
     expect: 'pending',
     pendingFlag: '--no-copilot-cloud',
-    todo: T5,
   },
   {
     argv: ['validate', '--type', 'change', 'x'],
     command: 'validate',
     expect: 'pending',
     pendingFlag: '--type',
-    todo: T4,
   },
   {
     argv: ['validate', '--report', 'findings', '--all'],
     command: 'validate',
     expect: 'pending',
     pendingFlag: '--report',
-    todo: T4,
   },
   {
     argv: ['validate', '--concurrency', '4', '--all'],
     command: 'validate',
     expect: 'pending',
     pendingFlag: '--concurrency',
-    todo: T4,
   },
   {
     argv: ['status', '--schema', 'custom'],
     command: 'status',
     expect: 'pending',
     pendingFlag: '--schema',
-    todo: T4,
   },
   {
     argv: ['list', '--sort', 'name'],
     command: 'list',
     expect: 'pending',
     pendingFlag: '--sort',
-    todo: T4,
   },
   {
     argv: ['archive', '--no-validate', 'x'],
     command: 'archive',
     expect: 'pending',
     pendingFlag: '--no-validate',
-    todo: T4,
   },
   {
     argv: ['instructions', 'proposal', '--schema', 'spec-driven', '--change', 'x'],
     command: 'instructions',
     expect: 'pending',
     pendingFlag: '--schema',
-    todo: T5,
   },
 ]
 
@@ -578,8 +535,6 @@ describe('unknown-option differential: forward commands relay the binary', () =>
 
 // --- --store-path (ledger 2.2, 2.3) ------------------------------------------------
 
-const T2 = 'T2 (tasks 4): --store-path guard in cli.ts'
-
 /** Upstream's post-command redirect text, respelled `openspec` → `cospec` and nothing else. */
 async function expectedRedirect(): Promise<string> {
   const up = await oracle(['list', '--store-path', '/x'], freshRoot())
@@ -596,7 +551,7 @@ describe('unknown-option differential: --store-path is refused with the redirect
     ['validate', '--store-path', '/x'],
     ['show', 'foo', '--store-path', '/x'],
   ]) {
-    test.todo(`${argv.join(' ')} prints upstream's redirect respelled, exits 1 — ${T2}`, async () => {
+    test(`${argv.join(' ')} prints upstream's redirect respelled, exits 1`, async () => {
       const text = await expectedRedirect()
       const root = freshRoot()
       const before = treeHash(root)
@@ -615,7 +570,7 @@ describe('unknown-option differential: --store-path is refused with the redirect
     }, 30_000)
   }
 
-  test.todo(`list --json --store-path /x prints one envelope matching upstream's status[0] — ${T2}`, async () => {
+  test(`list --json --store-path /x prints one envelope matching upstream's status[0]`, async () => {
     const argv = ['list', '--json', '--store-path', '/x']
     const up = await oracle(argv, freshRoot())
     const co = await runCospec(argv, freshRoot())

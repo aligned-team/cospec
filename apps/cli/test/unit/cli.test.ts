@@ -119,3 +119,127 @@ describe('cli dispatcher: bare `help` token', () => {
     expect(r.out).not.toContain('cospec validate —')
   })
 })
+
+describe('cli dispatcher: help renders from the command table', () => {
+  test('show --help lists --diff and --requirements, and --requirements-only as the deprecated alias', async () => {
+    const r = await dispatch(['show', '--help'])
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('Usage: cospec show <item> [options]')
+    expect(r.out).toMatch(/^ {2}--diff {2,}\S/m)
+    expect(r.out).toMatch(/^ {2}--requirements {2,}\S/m)
+    expect(r.out).toMatch(/^ {2}--requirements-only +Deprecated alias of --deltas-only/m)
+  })
+
+  test('pending flags never appear in help', async () => {
+    const init = await dispatch(['init', '--help'])
+    for (const flag of ['--tools', '--language', '--profile', '--copilot-cloud'])
+      expect(init.out).not.toContain(flag)
+    expect(init.out).toContain('--no-animation')
+    const list = await dispatch(['list', '--help'])
+    expect(list.out).not.toContain('--sort')
+    expect(list.out).toContain('--changes')
+  })
+
+  test('a row with subcommands lists them with their flags; a subcommand has its own help', async () => {
+    const store = await dispatch(['store', '--help'])
+    expect(store.out).toContain('Subcommands:')
+    expect(store.out).toMatch(/^ {2}setup +Create or register a local store$/m)
+    expect(store.out).toMatch(/^ {4}--no-cospec-init +/m)
+    const setup = await dispatch(['store', 'setup', '--help'])
+    expect(setup.code).toBe(0)
+    expect(setup.out).toContain('cospec store setup — Create or register a local store')
+    expect(setup.out).toContain('Usage: cospec store setup [id] [options]')
+    expect(setup.out).toContain('--path <dir>')
+  })
+
+  test('pending subcommands and positionals stay out of help', async () => {
+    const completion = await dispatch(['completion', '--help'])
+    expect(completion.out).toContain('Usage: cospec completion [bash|zsh|fish] [options]')
+    expect(completion.out).not.toContain('Subcommands:')
+    const update = await dispatch(['update', '--help'])
+    expect(update.out).toContain('Usage: cospec update [options]')
+  })
+})
+
+describe('cli dispatcher: table rows parse before the module loads', () => {
+  test('an unknown option is refused with exit 1 and a suggestion', async () => {
+    const r = await dispatch(['status', '--schem', 'custom'])
+    expect(r.code).toBe(1)
+    expect(r.err).toBe("cospec status: unknown option '--schem'\nDid you mean '--schema'?\n")
+    expect(r.out).toBe('')
+  })
+
+  test('a pending flag is refused as not supported yet', async () => {
+    const r = await dispatch(['validate', '--type', 'change', 'x'])
+    expect(r.code).toBe(1)
+    expect(r.err).toBe("cospec validate: '--type' is not supported yet\n")
+  })
+
+  test('a value-taking flag with no value is refused', async () => {
+    const r = await dispatch(['sync-blockers', '--change'])
+    expect(r.code).toBe(1)
+    expect(r.err).toBe("cospec sync-blockers: option '--change <slug>' argument missing\n")
+  })
+
+  test('view --json is refused with exactly one JSON document on stdout', async () => {
+    const r = await dispatch(['view', '--json'])
+    expect(r.code).toBe(1)
+    expect(r.err).toBe('')
+    expect(JSON.parse(r.out)).toEqual({
+      version: 1,
+      command: 'view',
+      ok: false,
+      message: 'cospec view renders a text dashboard and cannot emit JSON',
+    })
+    expect(r.out.trimEnd().split('\n')).toHaveLength(1)
+  })
+
+  test('completion --json keeps its one-document refusal byte for byte', async () => {
+    const r = await dispatch(['completion', '--json'])
+    expect(r.code).toBe(1)
+    expect(r.out).toBe(
+      '{"version":1,"command":"completion","ok":false,"message":"cospec completion emits a shell script and cannot emit JSON"}\n',
+    )
+  })
+})
+
+describe('cli dispatcher: --store-path is refused in every position', () => {
+  const redirect =
+    '✖ Error: --store-path is not supported. Register the path with cospec store register <path>, then select it with --store <id>.\n' +
+    'Fix: cospec store register <path>, then rerun with --store <id>.\n'
+
+  for (const argv of [
+    ['--store-path', '/x', 'list'],
+    ['--store-path=/x', 'list'],
+    ['list', '--store-path', '/x'],
+    ['list', '--store-path=/x'],
+    ['show', 'foo', '--store-path', '/x'],
+  ]) {
+    test(argv.join(' '), async () => {
+      const r = await dispatch(argv)
+      expect(r.code).toBe(1)
+      expect(r.err).toBe(redirect)
+      expect(r.err).not.toContain('openspec')
+      expect(r.err).not.toContain('unknown command')
+      expect(r.out).toBe('')
+    })
+  }
+
+  test('under --json, one envelope on stdout (a later --json counts in the pre-command form)', async () => {
+    for (const argv of [
+      ['list', '--json', '--store-path', '/x'],
+      ['--store-path', '/x', 'list', '--json'],
+    ]) {
+      const r = await dispatch(argv)
+      expect(r.code).toBe(1)
+      expect(r.err).toBe('')
+      const doc = JSON.parse(r.out) as { status: Record<string, string>[] }
+      expect(doc.status[0]).toMatchObject({
+        severity: 'error',
+        code: 'store_path_not_supported',
+        target: 'store.id',
+      })
+      expect(r.out).not.toContain('openspec')
+    }
+  })
+})
