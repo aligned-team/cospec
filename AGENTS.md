@@ -179,6 +179,18 @@ surfaces are disciplined passthroughs (no gate, full wrapped-call discipline);
 terminal-handover class instead (inherited stdio, verbatim child exit code, no
 `--json`); see docs/architecture.md and docs/stores.md.
 
+**The reachability test is the parity gate** — every command, flag, tool id and
+workflow the pinned OpenSpec binary exposes must resolve to exactly one of: the
+command table (`apps/cli/src/core/command-table.ts`), an alias in
+`apps/cli/src/canon/parity/aliases.yaml`, or a pending entry in
+`apps/cli/test/contract/parity-pending.yaml` tagged with the change that owns
+it. `apps/cli/test/contract/reachability.test.ts` enforces this against the
+pinned dist and is the gate — never a hand-maintained checklist, and never a
+proposal's non-goals section standing in for an entry. A capability cospec
+deliberately never implements lives only in
+`apps/cli/src/canon/parity/exceptions.yaml`, verified the same way, not as a
+silent gap or a comment. See docs/architecture.md.
+
 **Wrapped-call discipline** — every call into the wrapped binary declares its
 expected exit codes, a stdout deny-list, and an observable post-condition. Trust
 filesystem/JSON post-conditions, never exit codes alone (OpenSpec aborts with

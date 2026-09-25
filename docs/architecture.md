@@ -64,6 +64,66 @@ cospec spawns OpenSpec; it never imports it.
   `validate --archived` needs `>=1.9.0`) is enforced as its own runtime check,
   not by narrowing what version cospec will wrap at all.
 
+## The command table and the reachability test
+
+`apps/cli/src/core/command-table.ts` is the single source `cli.ts` dispatch,
+per-command `--help` rendering, and the shell completion spec
+(`core/completions/spec.ts`) all read, so the three descriptions of a command's
+flags can never drift the way they did when `--help` text was hand-written and
+completion extracted flags from it by regex.
+
+Every row declares every positional and flag the pinned `COMMAND_REGISTRY` gives
+the same-named upstream command, plus cospec's own flags, and marks each one
+**handled**, **no-op** (exactly three: `init --no-animation`,
+`archive -y`/`--yes`, `list --changes` — cospec already behaves as they ask by
+construction), or **pending** (owned by a later change, refused with
+`'<flag>' is not supported yet`, its value still consumed so it can never leak
+into a positional). Each row also carries a parse policy:
+
+- **`table`** — cospec parses the argv itself and rejects anything the row
+  doesn't declare. Most commands are `table`: `init`, `update`, `doctor`, `new`,
+  `migrate`, `validate`, `status`, `list`, `instructions`, `apply`, `archive`,
+  `sync-blockers`, `context`, `view`, `completion`, `feedback`, and the hidden
+  `__complete`/`check-commit`.
+- **`forward`** — the row is declared for reachability, help and completion, but
+  every token cospec's own pre-spawn guards don't consume reaches the wrapped
+  binary unchanged, which stays the unknown-option authority for the surfaces it
+  owns. `show`, `templates`, `schemas`, `schema`, `store`, `workset` and
+  `config` are `forward`: `openspec show` itself sets
+  `allowUnknownOption(true)`, so a cospec-side rejection there would be the
+  regression, not the fix, and it lets a newer in-range binary's new flag keep
+  working immediately instead of failing until cospec's table catches up.
+
+`--store-path` is intercepted on every row regardless of policy, in both
+`--store-path <path>` and `--store-path=<path>` forms and in both the
+pre-command and post-command position, because a forwarded refusal would name
+bare `openspec` in its redirect text — the output-side rule below forbids that
+everywhere, this included.
+
+### The reachability test is the parity gate
+
+`apps/cli/test/contract/reachability.test.ts` is what keeps the table from
+silently falling behind the pinned binary. In tests only — never at runtime — it
+deep-imports four sources from the pinned OpenSpec dist:
+`dist/core/completions/command-registry.js`'s `COMMAND_REGISTRY` (every command
+path, positional, flag and flag value), `dist/core/config.js`'s `AI_TOOLS` and
+`TOOL_ID_ALIASES`, and `dist/core/profiles.js`'s `ALL_WORKFLOWS`. Every entry
+from those four sources must resolve to exactly one of five places: the command
+table, `apps/cli/src/canon/parity/aliases.yaml` (cospec spellings of upstream
+names that already work), `exceptions.yaml` (capabilities cospec deliberately
+never implements — today exactly one: the wrapped binary's self-upgrade offer,
+out of scope because cospec pins it), `deprecated.yaml` (upstream noun groups
+upstream itself has deprecated, each mark verified against the pinned binary's
+own registry description or runtime stderr rather than asserted), or
+`apps/cli/test/contract/parity-pending.yaml` (a pinned surface owed to a named
+later change). The test fails on an entry that resolves to none of the five, or
+to two of them, and the reverse direction is checked too — every table surface
+marked pending has exactly one `parity-pending.yaml` entry naming the same
+owner, so a change that implements a pending flag must delete that entry in the
+same commit, and a stale entry left behind fails the test by name. This is the
+parity gate every later OpenSpec-parity change reports its acceptance evidence
+against.
+
 ## The wrapped-call discipline
 
 Every call site into OpenSpec declares three things:

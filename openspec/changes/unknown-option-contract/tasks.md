@@ -139,25 +139,25 @@ red; 4–7 turn it green; 8 documents it.
 
 ## 8. T8 — docs, data loader, shared guidance (`apps/docs/concepts/how-it-relates-to-openspec.md`, `apps/docs/reference/commands.md`, `apps/docs/.vitepress/parity.data.ts`, `apps/docs/package.json`, `bun.lock`, `docs/architecture.md`, `.agents/shared.md`, `CLAUDE.md`, `AGENTS.md`)
 
-- [ ] 8.1 Add `yaml` `2.9.0` (exact) to `apps/docs/devDependencies`, run
+- [x] 8.1 Add `yaml` `2.9.0` (exact) to `apps/docs/devDependencies`, run
       `bun install`, and commit the regenerated `bun.lock` in the same commit
       (ledger 6.6)
-- [ ] 8.2 Write `apps/docs/.vitepress/parity.data.ts` (`defineLoader` with
+- [x] 8.2 Write `apps/docs/.vitepress/parity.data.ts` (`defineLoader` with
       `watch` on `exceptions.yaml`, `deprecated.yaml`, `parity-pending.yaml`)
       returning the three parsed lists
-- [ ] 8.3 `how-it-relates-to-openspec.md`: a named-exceptions section and the
+- [x] 8.3 `how-it-relates-to-openspec.md`: a named-exceptions section and the
       still-being-implemented list rendered from the loader next to the
       every-capability sentence; align the frontmatter description with the
       drop-in sentence (ledger 6.1, 6.2)
-- [ ] 8.4 `reference/commands.md`: the unknown-option contract, the
+- [x] 8.4 `reference/commands.md`: the unknown-option contract, the
       `--store-path` redirect, the three no-ops, the forwarded-command rule, and
       `show`'s corrected flag list (ledger 6.3)
-- [ ] 8.5 `docs/architecture.md`: the command table, the two parse policies, the
+- [x] 8.5 `docs/architecture.md`: the command table, the two parse policies, the
       reachability test and its four sources (ledger 6.4)
-- [ ] 8.6 `.agents/shared.md`: the reachability test is the parity gate;
+- [x] 8.6 `.agents/shared.md`: the reachability test is the parity gate;
       exceptions live only in `exceptions.yaml`; then `mise run agents:sync` and
       `mise run agents:check` (ledger 6.5)
-- [ ] 8.7 `mise run docs:build` and the entry-for-entry check against
+- [x] 8.7 `mise run docs:build` and the entry-for-entry check against
       `parity-pending.yaml` (ledger 6.1); commit
       `docs: document the command     table, the unknown-option contract and the parity gate`
 

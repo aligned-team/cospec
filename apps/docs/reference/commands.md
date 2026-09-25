@@ -104,6 +104,61 @@ For anything that's the wrapped binary's own job — the delta format, OpenSpec'
 glossary, or its own commands — see
 [OpenSpec's command reference](https://github.com/Fission-AI/OpenSpec/blob/main/docs/commands.md).
 
+## Unknown options
+
+Every command answers a flag or subcommand the pinned OpenSpec binary itself
+doesn't have the same way OpenSpec does — a refusal, exit `1` — instead of
+silently dropping it, which used to hand the flag's value to a positional
+(`cospec validate --type change x` validated an item literally named `change`).
+One command table (`core/command-table.ts`) drives argv parsing, per-command
+`--help`, and the shell completion spec together, so the three can't drift
+apart. Three refusal shapes, all exit `1`:
+
+- **Unknown flag:** `cospec <command>: unknown option '<flag>'`, followed by
+  `Did you mean '<closest-flag>'?` when one is close enough.
+- **Missing value:**
+  `cospec <command>: option '<flag> <placeholder>' argument missing`, for a
+  value-taking flag given with nothing after it.
+- **Not supported yet:** `cospec <command>: '<flag>' is not supported yet`, for
+  an upstream flag cospec hasn't implemented. Its value is still consumed first,
+  so a pending flag can never leak into a positional either.
+
+Three flags are accepted as no-ops, because cospec already behaves as they ask:
+`init --no-animation` (cospec has no animation), `archive -y`/`--yes` (cospec
+never prompts), and `list --changes` (the default).
+
+**`--store-path`** is refused on every command — in the `--store-path <path>`
+and `--store-path=<path>` forms, in both the pre-command and post-command
+position — with the same redirect OpenSpec prints, respelled to `cospec`:
+
+```
+✖ Error: --store-path is not supported. Register the path with cospec store
+register <path>, then select it with --store <id>.
+Fix: cospec store register <path>, then rerun with --store <id>.
+```
+
+Under `--json`, that's one document on stdout instead of stderr text:
+`{"status":[{"severity":"error","code":"store_path_not_supported","message":"…","target":"store.id","fix":"…"}]}`.
+Register the path with `cospec store register <path>` and select it with
+`--store <id>` — see [Stores](/concepts/stores).
+
+**Forwarded commands relay OpenSpec's own answer.** `show`, `templates`,
+`schemas`, `schema`, `store`, `workset` and `config` (the
+[read-only and personal commands](#read-only-and-personal-commands) above) don't
+reject an unknown option themselves — every token their own pre-spawn guards
+don't consume reaches the wrapped binary unchanged, and its answer is relayed
+verbatim. `openspec show` itself accepts an unrecognized flag by design
+(`allowUnknownOption(true)`), so a cospec-side rejection there would be the
+divergence from upstream, not a fix for one; the same forwarding lets a newer
+in-range OpenSpec's new flag keep working immediately instead of failing until
+cospec's table catches up.
+
+**`--json` on a command that can't emit it.** `cospec view` renders a text
+dashboard and `cospec completion` prints a shell script; both refuse `--json`
+with exactly one document on stdout —
+`{"version":1,"command":"<name>","ok":false,"message":"…"}` — and exit `1`,
+rather than the older behavior of accepting the flag and silently ignoring it.
+
 ## Per-surface runtime minimums
 
 Most of cospec runs against any accepted `>=1.0.0 <2.0.0` build, but a handful
