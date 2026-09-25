@@ -151,7 +151,11 @@ All four have `invocationPrefix: '/'` and `requiresIdeRestart: false`, and each
    through steps 2 and 3, so the wiring track can wait for the three changes
    that edit those files. Rejected: switching callers in the same commit as the
    table. That puts this change's diff in the files those three changes are
-   rewriting.
+   rewriting. Integration note: `HARNESS_NAMES` stays exported from
+   `adapters.ts` under that name, as a readonly array of harness ids with
+   today's values in today's order. Another change's reachability test imports
+   it, so its name and shape are frozen; this change derives it from the table
+   and never renames, reshapes or reorders it.
 
 4. **Fields that share an `AI_TOOLS` name keep upstream's meaning.** `skillsDir`
    is the tool root (`.claude`, not `.claude/skills/{skill}`), and
@@ -272,6 +276,11 @@ All four have `invocationPrefix: '/'` and `requiresIdeRestart: false`, and each
   commands are a Markdown header with no YAML frontmatter, so cospec's
   provenance frontmatter on those files is `tool-matrix`'s call, made by its
   per-tool contract test.
+- [Later rows need `render.ts` work this change does not do] → `tool-matrix`
+  gets its own `render.ts` track for Cline's commands and for skill dialects
+  whose root is not `.agents`. Aligning codex `detectionPaths` with upstream's
+  (decision 5) happens in that change too. Its `setupNote` assertion is
+  "includes upstream's note", per decision 13's superset rule, not equality.
 - [The compiled binary embeds canon, and the `harnesses:` block leaves an
   embedded file] → The table is ordinary bundled TypeScript.
   `mise run test:pack` and a built-binary `init --harness all` run cover the

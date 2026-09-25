@@ -87,6 +87,11 @@ Exclusive files: `apps/cli/src/commands/init.ts`,
 Starts only after `unknown-option-contract`, `upstream-spellings` and
 `passthrough-json-and-doctor` have merged to `main`.
 
+Order is fixed: rebase onto `main` (5.1), then re-take the wiring
+characterization baseline on the rebased, unmodified tree (5.2), then implement
+T3 (5.3 to 5.5), then compare against that baseline (5.6). The baseline is never
+re-taken after any T3 edit.
+
 - [ ] 5.1 Rebase the branch onto `main` (`--force-with-lease`). Record the three
       changes under `## Blocked by` in `blocking-changes.md` as checked,
       archived entries, and run `mise run cospec -- sync-blockers`. Commit;
