@@ -1,9 +1,12 @@
 # Tasks
 
-Each group ends in one commit with `mise run check` green. Groups 1 and 2 are
-one track in sequence (both own `apps/cli/src/core/root.ts`); group 3 owns
-disjoint files and may run alongside them. No task touches `cli.ts`, a command
-parser, the command table or the completion spec.
+Each group ends in one commit with `mise run check` green. Groups run in order:
+1 → 2 → 3 → 4 → 5 → 6, then group 7 after `unknown-option-contract` merges.
+Groups 1, 2, 3 (task 3.4) and 5 all edit `apps/cli/src/core/root.ts`, so none of
+them runs in parallel with another. Group 5 is gated on group 4's matrix. Before
+the rebase, no task touches `cli.ts`, `index.ts`, a command parser, the command
+table or the completion spec; the one post-rebase exception is task 7.2, marked
+POST-REBASE.
 
 ## 1. Qualifying ancestor walk (track T1: `apps/cli/src/core/root.ts`, `apps/cli/test/unit/core/root.test.ts`)
 
@@ -48,10 +51,31 @@ parser, the command table or the completion spec.
       prefix pointer and `defaultStore` store failures with
       `Declared in <cfg>: ` and `Global defaultStore '<id>': `; verify every 2.1
       test passes and each `fix` names `cospec`, never bare `openspec`
-- [ ] 2.4 Verify `resolveRoot` still spawns nothing on a local root (a stubbed
+- [ ] 2.4 Add regression tests for store health, each selecting a sandboxed
+      store by `--store`: metadata `.openspec-store/store.yaml` missing, its
+      `id` changed, its YAML unparseable, `openspec/config.yaml` removed, and
+      `openspec/specs` replaced by a file; plus the missing-metadata case
+      reached through a config-only pointer and through `defaultStore`; verify
+      each fails against the resolver so far (it returns the broken store)
+- [ ] 2.5 Port `inspectRegisteredStore` inline into `resolveStore` (design D9):
+      read the metadata with the `yaml` parser, then stat the root as
+      `inspectOpenSpecRoot` does; fail with `store_identity_mismatch`,
+      `invalid_store_metadata` or `unhealthy_store_root` using the design's
+      verbatim messages and problem strings, with `openspec store doctor`
+      respelled `cospec store doctor` in message and fix, and the
+      `Declared in <cfg>: ` / `Global defaultStore '<id>': ` prefixes for
+      pointer and default selections; verify every 2.4 test passes
+- [ ] 2.6 Add a failing test, then print the banner (design D10): widen
+      `resolveRoot`'s flags to `{ store?: string; json?: boolean }` with no
+      caller change, and write `Using OpenSpec root: <id> (<base>)` verbatim to
+      stderr once when the resolved root has a `store` and `json` is not set;
+      verify it prints for `--store`, pointer and `defaultStore` roots, never
+      for a local or implicit root, and never under `json: true`
+- [ ] 2.7 Verify `resolveRoot` still spawns nothing on a local root (a stubbed
       spawn records zero calls for a planning root, a config-only root and a
-      planning root with a pointer)
-- [ ] 2.5 Run `mise run check` and commit the track
+      planning root with a pointer), and that the store-health check adds no
+      spawn to a store selection
+- [ ] 2.8 Run `mise run check` and commit the track
 
 ## 3. `templates` and `schema` spawn in the root (track T3: `apps/cli/src/core/passthrough-command.ts`, `apps/cli/src/core/openspec.ts`, `apps/cli/src/commands/templates.ts`, `apps/cli/src/commands/schema.ts`, `apps/cli/test/unit/core/passthrough.test.ts`)
 
@@ -67,11 +91,14 @@ parser, the command table or the completion spec.
       spawn; verify `cospec templates --json --store <id>` and
       `cospec schema which feat --json --store <id>` exit 0 against a sandboxed
       store
-- [ ] 3.4 Add `suppressRelayedStderrLine` to `apps/cli/src/core/openspec.ts`,
-      call it from `resolveRoot` with the exact ignored-pointer warning line it
-      printed, and have `passthroughOpenspec` drop that line from the stderr it
-      returns; verify `cospec schemas --json` and `cospec view` on a planning
-      root with a pointer show the warning once
+- [ ] 3.4 Add `suppressRelayedStderrLine` to `apps/cli/src/core/openspec.ts` (it
+      adds to a set of registered lines), call it from `resolveRoot` with the
+      exact ignored-pointer warning line and the exact banner line it printed,
+      and have `passthroughOpenspec` drop every registered line from the stderr
+      it returns; verify `cospec schemas --json` and `cospec view` on a planning
+      root with a pointer show the warning once, and
+      `cospec schemas --store <id>` and `cospec show <item> --store <id>` in
+      human mode show the banner once
 - [ ] 3.5 Run `mise run check` and commit the track
 
 ## 4. Differential matrix against the pinned binary (track T4: `apps/cli/test/contract/root-resolution.test.ts`)
@@ -84,7 +111,7 @@ parser, the command table or the completion spec.
       `apps/cli/test/contract/support/upstream-oracle.ts` if it is on `main`,
       otherwise the existing `openspec()` helper in
       `apps/cli/test/fixtures/support.ts`
-- [ ] 4.2 Add fixtures M1–M21 exactly as the verification ledger's group 1
+- [ ] 4.2 Add fixtures M1–M27 exactly as the verification ledger's group 1
       defines them, each asserting that in-process `resolveRoot` and the oracle
       agree on `{path, source, store_id}` or on the diagnostic code, and verify
       the matrix passes
@@ -94,40 +121,70 @@ parser, the command table or the completion spec.
       stores set up by `cospec store setup` where typed schemas are needed;
       verify every row passes
 - [ ] 4.4 Confirm the regression rows (ledger 1.1, 1.3, 1.6, 1.7, 1.11,
-      1.15–1.18, 2.1, 3.1, 3.3) fail with this change's code reverted and pass
-      with it applied, and record the observed before/after in the ledger
+      1.15–1.18, 1.23–1.26, 2.1, 2.7, 3.1, 3.3) fail with this change's code
+      reverted and pass with it applied, and record the observed before/after in
+      the ledger
 - [ ] 4.5 Run `mise run check` and commit the track
 
-## 5. Docs
+## 5. Stop threading `--store` for declared and default roots (track T3 follow-on: `apps/cli/src/core/root.ts`, `apps/cli/test/contract/root-resolution.test.ts`, `apps/cli/test/unit/core/root.test.ts`; after group 4)
 
-- [ ] 5.1 Rewrite "Root resolution order" in `docs/stores.md` to the ported
+- [ ] 5.1 Add the `show --json` differential rows (ledger 2.8): the same change
+      in stores `alpha` and `beta`, `cospec show <change> --json` and
+      `openspec show <change> --json` from M4's pointer directory, from M13's
+      `defaultStore` directory, and with an explicit `--store alpha`, comparing
+      `.root`; verify the pointer and default rows fail (cospec relays
+      `source: store`) while the explicit row passes
+- [ ] 5.2 Only with group 4's matrix green on M4, M5, M11 and M13, set
+      `storeArgs` to `['--store', id]` in `root.ts` for `source: store` alone
+      and to `[]` for `declared` and `global_default` (design D11), updating the
+      unit tests that asserted `storeArgs` for pointer and default roots; verify
+      5.1 passes, the whole matrix still passes, and `view`, `templates` and
+      `schema` are unaffected
+- [ ] 5.3 Run `mise run check` and commit the track
+
+## 6. Docs
+
+- [ ] 6.1 Rewrite "Root resolution order" in `docs/stores.md` to the ported
       selection and link to the site page for the user-facing account
-- [ ] 5.2 Rewrite "Resolution order" in `apps/docs/concepts/stores.md` (the page
+- [ ] 6.2 Rewrite "Resolution order" in `apps/docs/concepts/stores.md` (the page
       that owns the fact): the walk, the classification, the `$HOME` layout, the
-      pointer fallback and its warning, and the `invalid_store_pointer` and
-      `no_root_with_registered_stores` errors verbatim
-- [ ] 5.3 Update `apps/docs/reference/commands.md`: the `--store` global-flag
+      pointer fallback and its warning, the store-health check, the
+      `Using OpenSpec root:` banner, and the `invalid_store_pointer`,
+      `no_root_with_registered_stores`, `store_identity_mismatch` and
+      `unhealthy_store_root` errors verbatim
+- [ ] 6.3 Update `apps/docs/reference/commands.md`: the `--store` global-flag
       row and the read-only-commands section say `templates` and `schema` reach
-      a store-backed root by working directory, and every command resolves the
-      enclosing root from a subdirectory
-- [ ] 5.4 Update the `store:` paragraph in
+      every root (store-backed or walked) by working directory, stated as a
+      deliberate superset of `openspec`, which reads its own working directory
+      there; that every command resolves the enclosing root from a subdirectory;
+      and that wrapped calls receive `--store` only for an explicit `--store`
+- [ ] 6.4 Update the `store:` paragraph in
       `apps/docs/reference/configuration.md` to say the key redirects only from
       an `openspec/` with no `specs/` or `changes/`, linking to the Stores page
-- [ ] 5.5 Run `mise run docs:build` and `mise run check`, record the docs rows
+- [ ] 6.5 Run `mise run docs:build` and `mise run check`, record the docs rows
       in the ledger, and commit
 
-## 6. Rebase and parity gates
+## 7. POST-REBASE: rebase, `--json` failure document and parity gates (after `unknown-option-contract` merges)
 
-- [ ] 6.1 Once `unknown-option-contract` has merged, rebase onto `main` with
-      `--force-with-lease`, resolving any `apps/docs/reference/commands.md`
-      overlap by keeping both changes' facts
-- [ ] 6.2 Switch the oracle helper in `root-resolution.test.ts` to
+- [ ] 7.1 POST-REBASE: once `unknown-option-contract` has merged, rebase onto
+      `main` with `--force-with-lease`, resolving any
+      `apps/docs/reference/commands.md` overlap by keeping both changes' facts
+- [ ] 7.2 POST-REBASE (design D12): add failing `--json` rows (ledger 5.4), then
+      add one `RootSelectionError` branch to the top-level error rendering where
+      `unknown-option-contract` emits its own `--json` envelope, so a resolver
+      hard-error under `--json` prints exactly one JSON document
+      `{"status": [diagnostic]}` on stdout, no `cospec:` prose on stderr, and
+      exits 1 (the generic envelope; `cli-surface-parity` later adds each
+      command's `changes: []`/`root: null`); verify the rows pass and human mode
+      is unchanged
+- [ ] 7.3 POST-REBASE: switch the oracle helper in `root-resolution.test.ts` to
       `upstream-oracle.ts` if 4.1 used the fallback, and verify the matrix still
       passes
-- [ ] 6.3 Run `reachability.test.ts` and verify `parity-pending.yaml` carries no
-      entry tagged for this change
-- [ ] 6.4 Verify `git diff --name-only main...HEAD` touches none of
-      `unknown-option-contract`'s files, and that reverting this change's
-      commits on a scratch branch leaves `mise run test` green
-- [ ] 6.5 Run `mise run check`, mark every verification row with its observed
-      result, and commit
+- [ ] 7.4 POST-REBASE: run `reachability.test.ts` and verify
+      `parity-pending.yaml` carries no entry tagged for this change
+- [ ] 7.5 POST-REBASE: verify `git diff --name-only main...HEAD` touches none of
+      `unknown-option-contract`'s files except the one handler file 7.2 edits,
+      and that reverting this change's commits on a scratch branch leaves
+      `mise run test` green
+- [ ] 7.6 POST-REBASE: run `mise run check`, mark every verification row with
+      its observed result, and commit

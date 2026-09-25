@@ -45,6 +45,19 @@ never bare `openspec`. The resolved root SHALL record its provenance as one of
 `store`, `declared`, `nearest`, `global_default` or `implicit`, matching the
 wrapped binary's `root.source` for the same invocation.
 
+Whichever way a store is selected, the system SHALL verify the registered store
+on disk before using it: missing or mismatched identity metadata SHALL fail with
+`store_identity_mismatch`, unreadable identity metadata with
+`invalid_store_metadata`, and a store root without a usable `openspec/`
+directory and config file with `unhealthy_store_root`, each with a fix naming
+`cospec store doctor <id>`. In human mode, a store-selected root SHALL print
+`Using OpenSpec root: <id> (<path>)` on stderr exactly once per command, and a
+`--json` run SHALL print no such line. Wrapped calls SHALL receive `--store`
+only when the user passed `--store`, so that relayed JSON reports the wrapped
+binary's own provenance for a pointer or `defaultStore` root. In a `--json` run,
+a resolver failure SHALL print exactly one JSON document carrying a `status`
+array with the diagnostic on stdout and exit 1.
+
 #### Scenario: Unknown store id is rejected
 
 - **WHEN** a command is given `--store` naming a store not in the machine
@@ -139,6 +152,37 @@ wrapped binary's `root.source` for the same invocation.
   root
 - **THEN** the walk skips the bare directory and the repository is the root
 
+#### Scenario: A broken store fails the command
+
+- **WHEN** a registered store has lost its `.openspec-store/store.yaml`, carries
+  a different id there, or has no `openspec/config.yaml` or
+  `openspec/config.yml`, and a command selects it
+- **THEN** the command exits non-zero with `store_identity_mismatch` or
+  `unhealthy_store_root` and a fix naming `cospec store doctor <id>`, and does
+  not operate on that store
+
+#### Scenario: A store-selected root is announced once
+
+- **WHEN** a command runs in human mode against a root selected by `--store`, a
+  `store:` pointer or `defaultStore`, including a command that relays the
+  wrapped binary's stderr
+- **THEN** stderr carries `Using OpenSpec root: <id> (<path>)` exactly once, and
+  the same command with `--json` carries no such line
+
+#### Scenario: Relayed JSON reports the binary's own provenance
+
+- **WHEN** `cospec show <item> --json` runs from a config-only directory whose
+  pointer names a registered store
+- **THEN** the relayed document's `root.source` is `declared`, as bare
+  `openspec show <item> --json` reports, and with an explicit `--store` it is
+  `store`
+
+#### Scenario: A resolver failure under --json is one JSON document
+
+- **WHEN** a command runs with `--json` and root resolution fails
+- **THEN** stdout is exactly one JSON document whose `status` array holds the
+  diagnostic with its code and fix, and the command exits 1
+
 ## ADDED Requirements
 
 ### Requirement: Template and schema inspection reach store roots by working directory
@@ -147,8 +191,10 @@ wrapped binary's `root.source` for the same invocation.
 `--store` to the wrapped binary, which rejects it on those commands. The system
 SHALL instead spawn the wrapped call with the resolved root's directory as the
 working directory, for a root reached through `--store`, a `store:` pointer or
-`defaultStore` alike, and for a local root found by the ancestor walk. The
-relayed output and the mapped exit code SHALL otherwise be unchanged.
+`defaultStore` alike, and for a local root found by the ancestor walk. Spawning
+in the resolved root for every root is a deliberate superset of the wrapped
+binary, which reads its own working directory for these commands. The relayed
+output and the mapped exit code SHALL otherwise be unchanged.
 
 #### Scenario: Templates succeed for a store selected by flag
 

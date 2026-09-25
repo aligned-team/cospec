@@ -3,7 +3,9 @@
 Fixture environment for every matrix row: a fresh temp tree with its own
 `XDG_DATA_HOME`, `XDG_CONFIG_HOME` and `HOME`, two stores `alpha` and `beta`
 registered with the pinned binary's `store setup <id> --path <p> --no-init-git`
-(except where a row says no stores are registered), and `OPENSPEC_TELEMETRY=0`.
+(except where a row says no stores are registered), a third store `gamma` set
+up the same way and broken as the row says (a fresh `gamma` per row, so no other
+row sees a broken store), and `OPENSPEC_TELEMETRY=0`.
 "Oracle" is the pinned binary's `openspec list --json` run in the row's cwd
 with the same environment: its `.root` (`path`, `source`, `store_id`) or, on
 failure, its `.status[0].code`. "cospec" is `resolveRoot({cwd, flags})` called
@@ -34,7 +36,13 @@ Every matrix row lives in `apps/cli/test/contract/root-resolution.test.ts`.
 - [ ] 1.19 @equivalence (agent) M19 implicit root: no stores registered, no `defaultStore`, cwd a bare directory -> cospec `{path: <cwd>, source: implicit}` matches the oracle `openspec status --json` `.root` (the binary's `list` refuses implicit roots here with `no_openspec_root`, which the row also records)
 - [ ] 1.20 @equivalence (agent) M20 pre-config project: no stores registered, `openspec/project.md` only, cwd that directory -> oracle `list --json` `.root` and cospec both `{path: <cwd>, source: implicit}`
 - [ ] 1.21 @equivalence (agent) M21 `references:` without `store:`: config-only `config.yaml` declaring `references: [alpha]` -> both `{path: <repo>, source: nearest}`
-- [ ] 1.22 @equivalence (agent) the whole matrix M1 through M21 in one run of the named differential test -> `bun test apps/cli/test/contract/root-resolution.test.ts` (through `mise run test:contract`) reports every fixture passing against the pinned binary
+- [ ] 1.22 @equivalence (agent) the whole matrix M1 through M27 (rows 1.1–1.21 and 1.23–1.28) in one run of the named differential test -> `bun test apps/cli/test/contract/root-resolution.test.ts` (through `mise run test:contract`) reports every fixture passing against the pinned binary
+- [ ] 1.23 @regression (agent) M22 missing store metadata: `<gamma root>/.openspec-store/store.yaml` removed, `--store gamma` from a bare directory -> both fail with `store_identity_mismatch`; cospec's message is `Store 'gamma' is missing identity metadata at <gamma root>/.openspec-store/store.yaml. Run cospec store doctor gamma to inspect it.` and its fix `Run cospec store doctor gamma to inspect it.`; before the fix cospec returns `<gamma root>`
+- [ ] 1.24 @regression (agent) M23 mismatched store id: `gamma`'s metadata `id: zeta` -> both fail with `store_identity_mismatch`; message `Store 'gamma' metadata id 'zeta' does not match its registered id. Run cospec store doctor gamma to inspect it.`; before the fix cospec returns `<gamma root>`
+- [ ] 1.25 @regression (agent) M24 store without a config file: `<gamma root>/openspec/config.yaml` removed -> both fail with `unhealthy_store_root`; message `Store 'gamma' does not have a healthy OpenSpec root at <gamma root>: Missing openspec/config.yaml or openspec/config.yml. Run cospec store doctor gamma to inspect it.`; and M24b, `<gamma root>/openspec/` removed -> both `unhealthy_store_root` with `Missing openspec/ directory.`; before the fix cospec returns `<gamma root>`
+- [ ] 1.26 @regression (agent) M25 `specs` not a directory: `<gamma root>/openspec/specs` replaced by a file -> both fail with `unhealthy_store_root` and a message containing `openspec/specs/ exists but is not a directory.`; and M25b, `gamma` with `openspec/specs/` and `openspec/changes/` both removed -> both `{path: <gamma root>, source: store, store_id: gamma}` (still healthy); before the fix cospec returns `<gamma root>` for M25
+- [ ] 1.27 @equivalence (agent) M26 unparseable store metadata: `gamma`'s `store.yaml` body `version: [` -> both fail with `invalid_store_metadata`; cospec's message starts `Invalid store metadata state: ` and its fix is `Repair .openspec-store/store.yaml.`
+- [ ] 1.28 @equivalence (agent) M27 broken store through a pointer and a default: M22's `gamma`, selected by a config-only `store: gamma` and, separately, by `defaultStore: gamma` from a bare directory -> both fail with `store_identity_mismatch`; cospec's messages start `Declared in <cfg>: Store 'gamma' is missing identity metadata` and `Global defaultStore 'gamma': Store 'gamma' is missing identity metadata` respectively
 
 ## 2. Commands operate on the resolved root [critical]
 
@@ -44,6 +52,9 @@ Every matrix row lives in `apps/cli/test/contract/root-resolution.test.ts`.
 - [ ] 2.4 @e2e (agent) M6, `cospec status` in human mode -> exit 1 with the `invalid_store_pointer` message and `Fix:` line naming the config file
 - [ ] 2.5 @e2e (agent) M3, `cospec schemas --json` and `cospec view` (relaying passthroughs whose wrapped call prints the same warning) -> each exits 0, `schemas` emits one JSON document on stdout, and the ignored-pointer warning appears on stderr exactly once per command
 - [ ] 2.6 @integration (agent) the existing store integration suite (`apps/cli/test/integration/store-aware.test.ts`, `store.test.ts`) and the existing root unit tests after their rewrite -> `mise run test:integration` and `mise run test` pass
+- [ ] 2.7 @regression (agent) the store banner on a native command: `cospec list --store alpha` in human mode from a bare directory -> stderr carries `Using OpenSpec root: alpha (<alpha root>)` exactly once, the same line the oracle `openspec list --store alpha` prints; M4 (`declared`) and M13 (`global_default`) print the line with their store; M1 prints none; `cospec list --json --store alpha` prints none; before the fix cospec prints no banner
+- [ ] 2.8 @regression (agent) relayed provenance: a change `demo-change` in both `alpha` and `beta`, `cospec show demo-change --json` from M4 and from M13, and with `--store alpha` from a bare directory -> `.root` equals the oracle `openspec show demo-change --json` `.root` in each: `{source: declared, store_id: alpha}`, `{source: global_default, store_id: beta}` (M13's store) and `{source: store, store_id: alpha}`; before group 5, cospec relays `source: store` for the first two
+- [ ] 2.9 @e2e (agent) relayed banner once: `cospec schemas --store alpha` and `cospec show demo-change --store alpha` in human mode, and `cospec list --specs` from M4 -> each exits 0 and stderr carries `Using OpenSpec root: alpha (<alpha root>)` exactly once
 
 ## 3. `templates` and `schema` work for store-backed roots [critical]
 
@@ -60,19 +71,21 @@ Every matrix row lives in `apps/cli/test/contract/root-resolution.test.ts`.
 - [ ] 4.1 @unit (agent) `configStorePointer` on: no config; `config.yaml` with `store: alpha`; with no `store:`; empty, comment-only and list-shaped documents; `store: [` ; `store: 3`; `store: ""`; only `config.yml` -> `{filePath: null}`, `{filePath, value: 'alpha'}`, `{filePath}` for the three no-pointer documents, `{filePath, malformed: 'unparseable'}`, `{filePath, malformed: 'non_string'}`, `{filePath, value: ''}`, and the `.yml` path respectively
 - [ ] 4.2 @unit (agent) classification: `openspec/specs/` that contains `.openspec-store/store.yaml` -> not a planning shape; `openspec/changes/` as a regular file -> not a planning shape; `openspec/` with only `project.md` -> does not qualify
 - [ ] 4.3 @unit (agent) every `RootSelectionError` thrown in the matrix -> `diagnostic.severity` is `error`, `code`, `target` and `fix` are set, `message` ends with a `Fix:` line, and no `fix` names a bare `openspec` command
-- [ ] 4.4 @unit (agent) `resolveRoot` on a local root spawns nothing -> a stubbed spawn records zero calls for M1, M2 and M3
+- [ ] 4.4 @unit (agent) `resolveRoot` on a local root spawns nothing -> a stubbed spawn records zero calls for M1, M2 and M3, and a store selection records only the registry listing (the health check reads files)
+- [ ] 4.5 @unit (agent) `storeArgs` by source -> `--store alpha` gives `['--store', 'alpha']`; M4 (`declared`) and M13 (`global_default`) give `[]`
 
 ## 5. Parity gates
 
 - [ ] 5.1 @equivalence (agent) after rebasing onto `unknown-option-contract`, run its reachability test -> `apps/cli/test/contract/reachability.test.ts` passes and `apps/cli/test/contract/parity-pending.yaml` carries no entry tagged for this change (it owns no registry surface, so there is none to remove)
-- [ ] 5.2 @manual (agent) `git diff --name-only main...HEAD` on the PR branch -> lists none of `apps/cli/src/cli.ts`, `apps/cli/src/core/command-table.ts`, `apps/cli/src/core/completions/`, or the command modules `unknown-option-contract` rewrites
+- [ ] 5.2 @manual (agent) `git diff --name-only main...HEAD` on the PR branch -> lists none of `apps/cli/src/cli.ts`, `apps/cli/src/core/command-table.ts`, `apps/cli/src/core/completions/`, or the command modules `unknown-option-contract` rewrites, except the one top-level error-rendering file the post-rebase `--json` branch (row 5.4) edits
 - [ ] 5.3 @manual (agent) rollback check: on a scratch branch, revert this change's commits -> `mise run test` passes and `resolveRoot` is back to the cwd-only lookup, so rollback is a plain revert with no migration
+- [ ] 5.4 @e2e (agent) POST-REBASE `--json` failure document: M15 `cospec list --json`, M6 `cospec status --json` and M22 `cospec list --json --store gamma` -> each exits 1, stdout parses as exactly one JSON document whose `status[0]` has `severity: error` and the oracle's `code` and `target` (`no_root_with_registered_stores`, `invalid_store_pointer`, `store_identity_mismatch`) with `fix` equal to the oracle's after `openspec` -> `cospec`, and stderr carries no `cospec:` line
 
 ## 6. Docs and the full gate
 
 - [ ] 6.1 @manual (agent) `docs/stores.md` "Root resolution order" -> states the qualifying ancestor walk, the planning / config-only / bare classification, the pointer as a config-only fallback with the ignore warning, the malformed-pointer and registered-stores errors, and `defaultStore` as the last fallback, linking to the site page for the user-facing account
-- [ ] 6.2 @manual (agent) `apps/docs/concepts/stores.md` "Resolution order" -> the same order in user terms, with the `invalid_store_pointer` and `no_root_with_registered_stores` errors shown verbatim and the `$HOME` store layout explained; this page owns the fact and the others link to it
-- [ ] 6.3 @manual (agent) `apps/docs/reference/commands.md` -> the `--store` global-flag row and the read-only-commands section state that `templates` and `schema` reach a store-backed root by working directory, and that every command resolves the enclosing root from a subdirectory
+- [ ] 6.2 @manual (agent) `apps/docs/concepts/stores.md` "Resolution order" -> the same order in user terms, with the `invalid_store_pointer`, `no_root_with_registered_stores`, `store_identity_mismatch` and `unhealthy_store_root` errors shown verbatim, the `Using OpenSpec root: <id> (<path>)` banner described, and the `$HOME` store layout explained; this page owns the fact and the others link to it
+- [ ] 6.3 @manual (agent) `apps/docs/reference/commands.md` -> the `--store` global-flag row and the read-only-commands section state that `templates` and `schema` reach every root by working directory as a deliberate superset of `openspec` (which reads its own working directory there), that every command resolves the enclosing root from a subdirectory, and that wrapped calls receive `--store` only for an explicit `--store`
 - [ ] 6.4 @manual (agent) `apps/docs/reference/configuration.md` `store:` paragraph -> says the key redirects commands only from an `openspec/` that holds no `specs/` or `changes/`, and links to the Stores page for the rest
 - [ ] 6.5 @integration (agent) `mise run docs:build` -> exits 0
 - [ ] 6.6 @integration (agent) `mise run check` -> green end to end

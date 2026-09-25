@@ -73,18 +73,50 @@ checkout gets different roots than before.
   `global_default`, `implicit`. Every resolver failure carries upstream's
   diagnostic code and fix text, with `cospec` in place of `openspec` in any
   command it tells the user to run.
+- **Store health is verified, not trusted.** Whichever way a store is selected
+  (`--store`, a pointer, `defaultStore`), `resolveRoot` checks the registered
+  root on disk the way upstream's `inspectRegisteredStore` does: missing or
+  mismatched `.openspec-store/store.yaml` metadata fails with
+  `store_identity_mismatch`, unreadable metadata with `invalid_store_metadata`,
+  and a root without a directory `openspec/` and a config file (or with a
+  `specs/`, `changes/` or `archive/` that is not a directory) with
+  `unhealthy_store_root`, each with upstream's message and a fix naming
+  `cospec store doctor <id>`. Today cospec trusts `store ls --json`, which lists
+  a broken store with no status, and carries on against it.
+- **The store banner.** In human mode, a store-selected root prints upstream's
+  stderr line `Using OpenSpec root: <id> (<path>)` from `resolveRoot`, verbatim:
+  it names the product noun, not a command to run. A relayed passthrough whose
+  wrapped call prints the same line shows it once, through the same suppression
+  hook as the ignored-pointer warning. `--json` runs print no banner.
+- **`--store` is threaded only for an explicit `--store`.** For a root reached
+  through a pointer (`declared`) or `defaultStore` (`global_default`), wrapped
+  calls no longer receive `--store <id>`; spawned in the invocation directory,
+  the binary re-derives the same root, which the differential matrix proves
+  before this lands. Relayed JSON then reports upstream's `root.source`
+  (`declared`/`global_default`) instead of `store`, so `cospec show --json`
+  matches `openspec show --json` over a pointer.
 - **`templates` and `schema` never receive `--store`.** Both spawn the wrapped
   binary with the resolved root's `base` as the working directory and no
-  `--store`, following `commands/view.ts`. Every other passthrough keeps its
-  current `--store` threading.
+  `--store`, following `commands/view.ts`. This applies to every root, not only
+  store-backed ones, and is a deliberate superset of upstream, which reads
+  `process.cwd()` for these two commands: from a subdirectory, cospec finds the
+  enclosing root's typed schemas and `schema fork`/`init` write into that root
+  instead of creating a stray `openspec/` in the subdirectory. Every other
+  passthrough keeps its `--store` threading for an explicit `--store`.
+- **One JSON document for resolver failures under `--json` (after the rebase
+  onto `unknown-option-contract`).** A resolver hard-error in a `--json` run
+  prints exactly one JSON document, `{"status": [diagnostic]}`, on stdout and
+  exits 1, instead of `cospec: <message>` prose on stderr. This is the generic
+  top-level envelope; `cli-surface-parity` later adds each command's own keys
+  (`changes: []`, `root: null`) to match upstream's per-command payloads.
 - **BREAKING:** a `store:` pointer inside a directory that is itself a planning
   root no longer redirects writes. cospec warns and uses the local root, as
   `openspec` does.
 - **BREAKING:** a command run from a subdirectory now resolves the enclosing
   root instead of treating the subdirectory as the root.
-- A malformed `store:` pointer, and a rootless directory on a machine with
-  registered stores, now fail with exit 1 where cospec used to carry on against
-  the wrong directory.
+- A malformed `store:` pointer, a rootless directory on a machine with
+  registered stores, and a registered store whose metadata or tree is broken now
+  fail with exit 1 where cospec used to carry on against the wrong directory.
 
 ## Capabilities
 
@@ -97,34 +129,42 @@ checkout gets different roots than before.
 - `store-awareness`: the "Deterministic root resolution" requirement states the
   wrong precedence (pointer before the local repository, local repository only
   at the cwd). It is corrected to upstream's qualifying walk, pointer fallback,
-  malformed-pointer and registered-stores errors, and root provenance. A new
-  requirement states that `templates` and `schema` reach a store-backed root by
-  working directory, never by `--store`.
+  malformed-pointer, registered-stores and store-health errors, root provenance,
+  the store banner and the `--json` failure document. A new requirement states
+  that `templates` and `schema` reach every root by working directory, never by
+  `--store`.
 
 ## Impact
 
 - `apps/cli/src/core/root.ts`: the walk, the classification, the pointer read,
-  the resolver errors and the `source` field. `resolveRoot` returns the existing
-  `Root` shape plus `source`, so every current caller keeps compiling unchanged.
+  the resolver errors, the store-health check, the banner, `storeArgs` only for
+  an explicit `--store`, and the `source` field. `resolveRoot` returns the
+  existing `Root` shape plus `source`, and reads `json` from the global flags
+  its callers already pass, so every current caller keeps compiling unchanged.
 - `apps/cli/src/core/passthrough-command.ts`,
   `apps/cli/src/commands/templates.ts`, `apps/cli/src/commands/schema.ts`: a
   spawn-in-root mode with no `--store`.
 - `apps/cli/src/core/openspec.ts`: `passthroughOpenspec` drops, from the stderr
-  it relays, the one ignored-pointer warning line `resolveRoot` already printed,
-  so the warning appears once. The `Root` interface is unchanged.
+  it relays, the exact lines `resolveRoot` already printed (the ignored-pointer
+  warning and the store banner), so each appears once. The `Root` interface is
+  unchanged.
 - `apps/cli/test/unit/core/root.test.ts`: tests that asserted the old behaviour
   (a non-string pointer is ignored, a rootless cwd falls through with stores
   registered) are rewritten to the corrected behaviour.
 - `apps/cli/test/contract/root-resolution.test.ts` (new): the differential
   matrix against the pinned binary's `openspec list --json` `.root`.
 - Docs: `docs/stores.md`, `apps/docs/concepts/stores.md`,
-  `apps/docs/reference/commands.md`, and the `store:` paragraph in
+  `apps/docs/reference/commands.md` (including the `templates`/`schema`
+  superset), and the `store:` paragraph in
   `apps/docs/reference/configuration.md`.
 - No new flags, commands, exit codes or dependencies. The new failures exit `1`,
   like the existing unknown-store failure.
-- No file owned by `unknown-option-contract` is touched: no command parser,
-  `cli.ts`, the command table or the completion spec. The resolver change
-  reaches every command through `resolveRoot`, which they already call.
+- Before the rebase, no file owned by `unknown-option-contract` is touched: no
+  command parser, `cli.ts`, the command table or the completion spec. The
+  resolver change reaches every command through `resolveRoot`, which they
+  already call. After that change merges and this branch rebases onto it, the
+  top-level `--json` error rendering it lands gains one `RootSelectionError`
+  branch for the failure document; nothing else of its is edited.
 - Rollback is reverting this change.
 
 ## Surfaces
