@@ -1,0 +1,6 @@
+{
+  "harnesses": [
+    "codex",
+    "agents"
+  ]
+}

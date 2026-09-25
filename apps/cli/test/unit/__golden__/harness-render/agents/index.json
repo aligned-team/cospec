@@ -1,0 +1,86 @@
+[
+  {
+    "path": ".agents/skills/cospec-apply-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "apply",
+    "harness": "agents",
+    "contentHash": "sha256:3dda5abccff40fb67246705c28c9fc9ee45d01a0e62d0b489d91b95e3eebde64"
+  },
+  {
+    "path": ".agents/skills/cospec-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "archive",
+    "harness": "agents",
+    "contentHash": "sha256:5c738047656ddb62b491db73be4646970619cfe5f01aee6779924b5bd8ef3373"
+  },
+  {
+    "path": ".agents/skills/cospec-bulk-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "bulk-archive",
+    "harness": "agents",
+    "contentHash": "sha256:df21c8b5c5427277a56030bd3dc4daed462545e28dfc2dad3ff3d1b07aa215bd"
+  },
+  {
+    "path": ".agents/skills/cospec-continue-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "continue",
+    "harness": "agents",
+    "contentHash": "sha256:12b4eda75d7524c104123a844977bc1a00e409fc283e61724e9f162d50d0da1a"
+  },
+  {
+    "path": ".agents/skills/cospec-explore/SKILL.md",
+    "kind": "skill",
+    "workflow": "explore",
+    "harness": "agents",
+    "contentHash": "sha256:3fc614e9c82486ff08c1ef686cf9154f5b4016b507edc3160f0c1659081ce99d"
+  },
+  {
+    "path": ".agents/skills/cospec-ff-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "ff",
+    "harness": "agents",
+    "contentHash": "sha256:53bbcba7d5205081d7bc074498b8fedceeb19f51ca6136bc399c9903ae3535b4"
+  },
+  {
+    "path": ".agents/skills/cospec-new-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "new",
+    "harness": "agents",
+    "contentHash": "sha256:b2911d87515b0bc4bdc4f73e43ac9ed25f8f3b982da1d1500821d85cb5f595a5"
+  },
+  {
+    "path": ".agents/skills/cospec-onboard/SKILL.md",
+    "kind": "skill",
+    "workflow": "onboard",
+    "harness": "agents",
+    "contentHash": "sha256:ab5659dd080b9a96ed4a205361f6b3b3ff871ac0757c498f74344db5955d835f"
+  },
+  {
+    "path": ".agents/skills/cospec-propose/SKILL.md",
+    "kind": "skill",
+    "workflow": "propose",
+    "harness": "agents",
+    "contentHash": "sha256:35a20f653dd553f344767a8f9dd34889b64d22cb298ff758314c6f175e948a55"
+  },
+  {
+    "path": ".agents/skills/cospec-sync-specs/SKILL.md",
+    "kind": "skill",
+    "workflow": "sync-specs",
+    "harness": "agents",
+    "contentHash": "sha256:1bfa89a12c71041a0dfa9dc59c5007a6cae904ca8a880cb87dbaad91fa4b4814"
+  },
+  {
+    "path": ".agents/skills/cospec-update-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "update",
+    "harness": "agents",
+    "contentHash": "sha256:05f1abf503b2339c753e9606f6a2feb0f5469f331c8450855c0ab3fe2ea49235"
+  },
+  {
+    "path": ".agents/skills/cospec-verify-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "verify",
+    "harness": "agents",
+    "contentHash": "sha256:cdade0649f06209a03f7cb00c0e513f72a40638b5b5b14357a6a69585d93d54e"
+  }
+]
