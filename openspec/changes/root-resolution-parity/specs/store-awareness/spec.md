@@ -1,0 +1,172 @@
+# Spec Delta
+
+## MODIFIED Requirements
+
+### Requirement: Deterministic root resolution
+
+The system SHALL resolve exactly one operating root per command, using the same
+selection the wrapped binary uses, so that cospec and bare `openspec` agree on
+which root a command targets from any directory.
+
+An explicit `--store <id>` flag SHALL win outright. Without it, the system SHALL
+walk from the canonical invocation directory towards the filesystem root and
+stop at the nearest `openspec/` directory that qualifies. An `openspec/`
+directory SHALL qualify when it has a planning shape (a `specs/` or `changes/`
+directory that does not carry store identity metadata) or a project config file
+(`openspec/config.yaml`, else `openspec/config.yml`). An `openspec/` directory
+with neither SHALL NOT qualify and the walk SHALL continue past it, so that a
+home directory holding registered stores at `~/openspec/<id>` is never mistaken
+for a root. The resolved local root's path SHALL be canonical.
+
+A `store:` pointer in the qualifying directory's config SHALL be followed only
+when that directory has no planning shape. When a planning root carries a
+pointer, the system SHALL use the local root and SHALL print one warning on
+stderr naming the config file and the ignored store id. A pointer that cannot be
+parsed as YAML, or whose `store` value is not a string, SHALL fail the command
+with the `invalid_store_pointer` code, and an empty-string pointer SHALL fail
+with the `invalid_store_id` code, whenever that pointer would be followed.
+
+When no qualifying root exists, the system SHALL consult the machine's global
+`defaultStore` setting and target that store. `defaultStore` SHALL change only
+the failure path and SHALL NEVER outrank a qualifying local root. It SHALL be
+read through the wrapped binary rather than by reimplementing global-config path
+discovery, and it SHALL only be probed after the earlier tiers miss, so the
+common local path costs no extra work. When no qualifying root and no
+`defaultStore` exist but at least one store is registered, the system SHALL fail
+with the `no_root_with_registered_stores` code and name every registered store
+id. Only when no store is registered SHALL the invocation directory be used as
+an implicit root.
+
+The system SHALL fail loudly on an unregistered store id, whether it comes from
+`--store`, a `store:` pointer or `defaultStore`, rather than falling back to the
+local repository. Every resolver failure SHALL exit non-zero and SHALL carry the
+wrapped binary's diagnostic code and a fix line that names `cospec` commands,
+never bare `openspec`. The resolved root SHALL record its provenance as one of
+`store`, `declared`, `nearest`, `global_default` or `implicit`, matching the
+wrapped binary's `root.source` for the same invocation.
+
+#### Scenario: Unknown store id is rejected
+
+- **WHEN** a command is given `--store` naming a store not in the machine
+  registry
+- **THEN** the command exits non-zero and names the registered stores
+
+#### Scenario: A references list is not a root override
+
+- **WHEN** the local config declares `references:` but no `store:` pointer
+- **THEN** the command operates on the local repository
+
+#### Scenario: defaultStore is used when no local root resolves
+
+- **WHEN** a command runs from a directory with no qualifying `openspec/` root
+  at or above it and the machine's global config declares a registered
+  `defaultStore`
+- **THEN** the command targets that store's tree with provenance
+  `global_default`, the same root bare `openspec` would target
+
+#### Scenario: A local root outranks defaultStore
+
+- **WHEN** the same command runs inside a repository that has its own
+  `openspec/` root while a `defaultStore` is configured
+- **THEN** the command operates on the local repository and the global config is
+  not consulted
+
+#### Scenario: An explicit selection outranks defaultStore
+
+- **WHEN** `--store <id>`, or a `store:` pointer in a config-only `openspec/`,
+  selects a store while a different `defaultStore` is configured
+- **THEN** the explicitly selected store wins
+
+#### Scenario: A stale defaultStore fails loudly
+
+- **WHEN** no local root resolves and the configured `defaultStore` names a
+  store that is no longer registered
+- **THEN** the command exits non-zero with the actionable unknown-store error
+  rather than silently falling back
+
+#### Scenario: A subdirectory resolves the enclosing root
+
+- **WHEN** a command runs from `<repo>/src/deep` and `<repo>/openspec/` has a
+  `changes/` directory
+- **THEN** the command operates on `<repo>` with provenance `nearest`, and the
+  subdirectory is never treated as a root
+
+#### Scenario: A config-only openspec directory is a root
+
+- **WHEN** a command runs inside, or below, a directory whose `openspec/` holds
+  only a `config.yaml` with no `store:` key
+- **THEN** that directory is the root with provenance `nearest`
+
+#### Scenario: A planning root ignores its store pointer and warns
+
+- **WHEN** a command runs in a repository whose `openspec/` has a `changes/`
+  directory and whose `config.yaml` declares `store: platform`
+- **THEN** the command operates on the local repository, not on `platform`, and
+  stderr carries exactly one warning naming the config file and `platform`
+
+#### Scenario: A config-only pointer is followed
+
+- **WHEN** a command runs in a directory whose `openspec/` holds only a
+  `config.yaml` declaring a registered `store: platform`
+- **THEN** the command operates on `platform` with provenance `declared`
+
+#### Scenario: A malformed store pointer fails the command
+
+- **WHEN** a config-only `openspec/config.yaml` cannot be parsed as YAML, or
+  declares `store:` as a list or mapping
+- **THEN** the command exits non-zero with `invalid_store_pointer` and a fix
+  line naming the config file, and no root is used
+
+#### Scenario: Registered stores without a local root fail the command
+
+- **WHEN** a command runs from a directory with no qualifying `openspec/` root
+  at or above it, no `defaultStore` is set, and stores `alpha` and `beta` are
+  registered
+- **THEN** the command exits non-zero with `no_root_with_registered_stores`, and
+  the message names `alpha` and `beta`
+
+#### Scenario: The home store layout is not a phantom root
+
+- **WHEN** stores are registered at `$HOME/openspec/<id>` and a command runs
+  from `$HOME` or from a directory under it with no project root of its own
+- **THEN** `$HOME` is not selected as a root, and the command fails with
+  `no_root_with_registered_stores`
+
+#### Scenario: A bare openspec directory is skipped by the walk
+
+- **WHEN** a command runs below a directory whose `openspec/` holds neither
+  `specs/`, `changes/` nor a config file, inside a repository that is a planning
+  root
+- **THEN** the walk skips the bare directory and the repository is the root
+
+## ADDED Requirements
+
+### Requirement: Template and schema inspection reach store roots by working directory
+
+`cospec templates` and every `cospec schema` subcommand SHALL never pass
+`--store` to the wrapped binary, which rejects it on those commands. The system
+SHALL instead spawn the wrapped call with the resolved root's directory as the
+working directory, for a root reached through `--store`, a `store:` pointer or
+`defaultStore` alike, and for a local root found by the ancestor walk. The
+relayed output and the mapped exit code SHALL otherwise be unchanged.
+
+#### Scenario: Templates succeed for a store selected by flag
+
+- **WHEN** `cospec templates --json --store platform` runs from an unrelated
+  directory
+- **THEN** the command exits 0 with one parseable JSON document resolved against
+  `platform`'s tree, and the wrapped call carried no `--store`
+
+#### Scenario: Schema which succeeds for a store selected by pointer or default
+
+- **WHEN** `cospec schema which feat --json` runs from a config-only directory
+  whose pointer names `platform`, and again from a rootless directory whose
+  global `defaultStore` is `platform`
+- **THEN** both runs exit 0 and report the schema as `platform`'s tree resolves
+  it
+
+#### Scenario: Templates from a subdirectory use the enclosing root
+
+- **WHEN** `cospec templates --json --schema feat` runs from a subdirectory of a
+  repository whose `openspec/schemas/feat/` exists
+- **THEN** the template paths resolve to that repository's project schema
