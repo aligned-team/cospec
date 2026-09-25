@@ -103,18 +103,24 @@ POST-REBASE.
 
 ## 4. Differential matrix against the pinned binary (track T4: `apps/cli/test/contract/root-resolution.test.ts`)
 
-- [ ] 4.1 Create `apps/cli/test/contract/root-resolution.test.ts` with the
+- [x] 4.1 Create `apps/cli/test/contract/root-resolution.test.ts` with the
       sandboxed fixture builder (own `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `HOME`,
       stores registered through the pinned binary's
       `store setup --path     --no-init-git`) and an oracle helper returning the
       pinned binary's `list --json` `.root` or `.status[0].code`; use
       `apps/cli/test/contract/support/upstream-oracle.ts` if it is on `main`,
-      otherwise the existing `openspec()` helper in
-      `apps/cli/test/fixtures/support.ts`
+      otherwise a local helper,
+      `apps/cli/test/contract/support/root-sandbox.ts`, built on the existing
+      `openspec()` helper in `apps/cli/test/fixtures/support.ts`
+      (`upstream-oracle.ts` was not on `main`, so the local helper is in use
+      until task 7.3)
 - [ ] 4.2 Add fixtures M1–M27 exactly as the verification ledger's group 1
       defines them, each asserting that in-process `resolveRoot` and the oracle
       agree on `{path, source, store_id}` or on the diagnostic code, and verify
-      the matrix passes
+      the matrix passes (the fixtures are in; each `cospec:` row the current
+      resolver fails is a `test.todo` tagged `[until T1]` or `[until T2]`, and
+      the track that makes a row pass under `bun test --todo` turns it into a
+      plain `test`; tick this once no todo row remains)
 - [ ] 4.3 Add the command-level rows (ledger groups 2 and 3): `cospec list`,
       `cospec new`, `cospec status`, `cospec schemas`, `cospec templates` and
       `cospec schema which|validate|fork|init` driven from the fixtures, with
@@ -128,7 +134,7 @@ POST-REBASE.
 
 ## 5. Stop threading `--store` for declared and default roots (track T3 follow-on: `apps/cli/src/core/root.ts`, `apps/cli/test/contract/root-resolution.test.ts`, `apps/cli/test/unit/core/root.test.ts`; after group 4)
 
-- [ ] 5.1 Add the `show --json` differential rows (ledger 2.8): the same change
+- [x] 5.1 Add the `show --json` differential rows (ledger 2.8): the same change
       in stores `alpha` and `beta`, `cospec show <change> --json` and
       `openspec show <change> --json` from M4's pointer directory, from M13's
       `defaultStore` directory, and with an explicit `--store alpha`, comparing
@@ -177,8 +183,10 @@ POST-REBASE.
       exits 1 (the generic envelope; `cli-surface-parity` later adds each
       command's `changes: []`/`root: null`); verify the rows pass and human mode
       is unchanged
-- [ ] 7.3 POST-REBASE: switch the oracle helper in `root-resolution.test.ts` to
-      `upstream-oracle.ts` if 4.1 used the fallback, and verify the matrix still
+- [ ] 7.3 POST-REBASE: switch the oracle calls in `root-resolution.test.ts` from
+      the interim `apps/cli/test/contract/support/root-sandbox.ts` helper to
+      `upstream-oracle.ts` (keeping the sandbox builder only where
+      `upstream-oracle.ts` has no equivalent), and verify the matrix still
       passes
 - [ ] 7.4 POST-REBASE: run `reachability.test.ts` and verify
       `parity-pending.yaml` carries no entry tagged for this change
