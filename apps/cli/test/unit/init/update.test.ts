@@ -21,14 +21,14 @@ describe('cospec update (DESIGN §2.2)', () => {
   })
 
   test('errors when there is no openspec/ directory', () => {
-    const { code, err } = capture(() => updateRun(ctx(dir, [])) as number)
+    const { code, err } = capture(() => updateRun(ctx(dir, [], false, 'update')) as number)
     expect(code).toBe(1)
     expect(err).toContain('no openspec/ directory')
   })
 
   test('--check exits 0 with no drift on a freshly initialized repo', () => {
     seed(dir)
-    const { code, out } = capture(() => updateRun(ctx(dir, ['--check'])) as number)
+    const { code, out } = capture(() => updateRun(ctx(dir, ['--check'], false, 'update')) as number)
     expect(code).toBe(0)
     expect(out).toContain('no drift')
   })
@@ -38,7 +38,7 @@ describe('cospec update (DESIGN §2.2)', () => {
     const schema = join(dir, 'openspec/schemas/ci/schema.yaml')
     // Diverge the tracked file from canon → dry run reports drift.
     writeFileSync(schema, 'name: ci\n')
-    const { code } = capture(() => updateRun(ctx(dir, ['--check'])) as number)
+    const { code } = capture(() => updateRun(ctx(dir, ['--check'], false, 'update')) as number)
     expect(code).toBe(1)
   })
 
@@ -46,7 +46,7 @@ describe('cospec update (DESIGN §2.2)', () => {
     seed(dir)
     const schema = join(dir, 'openspec/schemas/feat/schema.yaml')
     writeFileSync(schema, `${readFileSync(schema, 'utf8')}\n# edit\n`)
-    const { code, out } = capture(() => updateRun(ctx(dir, [])) as number)
+    const { code, out } = capture(() => updateRun(ctx(dir, [], false, 'update')) as number)
     expect(code).toBe(0)
     expect(out).toContain('preserved')
     expect(existsSync(`${schema}.cospec-new`)).toBe(true)
@@ -54,7 +54,7 @@ describe('cospec update (DESIGN §2.2)', () => {
 
   test('update only regenerates detected harnesses', () => {
     seed(dir) // claude only
-    const { out } = capture(() => updateRun(ctx(dir, ['--check'], true)) as number)
+    const { out } = capture(() => updateRun(ctx(dir, ['--check'], true, 'update')) as number)
     const json = JSON.parse(out) as { harnesses: string[] }
     expect(json.harnesses).toEqual(['claude'])
   })
@@ -82,7 +82,7 @@ describe('cospec update (DESIGN §2.2)', () => {
     writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`)
 
     try {
-      const { out } = capture(() => updateRun(ctx(dir, ['--force'], true)) as number)
+      const { out } = capture(() => updateRun(ctx(dir, ['--force'], true, 'update')) as number)
       const json = JSON.parse(out) as { files: { path: string; outcome: string }[] }
       const removedPaths = json.files.filter((f) => f.outcome === 'removed').map((f) => f.path)
       expect(removedPaths).not.toContain('../cospec-escape-victim.txt')

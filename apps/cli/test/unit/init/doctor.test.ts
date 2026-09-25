@@ -22,7 +22,7 @@ interface JsonFinding {
 }
 
 async function doctorJson(dir: string): Promise<{ code: number; findings: JsonFinding[] }> {
-  const { code, out } = await captureAsync(() => doctorRun(ctx(dir, [], true)))
+  const { code, out } = await captureAsync(() => doctorRun(ctx(dir, [], true, 'doctor')))
   const parsed = JSON.parse(out) as { findings: JsonFinding[] }
   return { code, findings: parsed.findings }
 }

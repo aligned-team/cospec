@@ -13,6 +13,7 @@ import { join, resolve } from 'node:path'
 import { canonFile } from '../canon/embedded.ts'
 import type { CommandContext } from '../cli.ts'
 import { openspecDir } from '../core/change.ts'
+import { flagValue, hasFlag, type ParsedArgs } from '../core/command-table.ts'
 import { splitFrontmatter, type WriteResult } from '../core/managed-files.ts'
 import { mergeMiseToml, type MiseMergeResult } from '../harness/mise-merge.ts'
 import { type HarnessName, HARNESS_NAMES, isHarnessName } from '../harness/render.ts'
@@ -281,26 +282,26 @@ const RESTART_LINES: Record<HarnessName, string> = {
 // --- command entrypoint -----------------------------------------------------
 
 export function run(ctx: CommandContext): number {
-  const resolved = resolveTarget(ctx)
+  const parsed = ctx.parsed!
+  const resolved = resolveTarget(ctx.cwd, parsed)
   if (!resolved.ok) {
     process.stderr.write(`${resolved.error}\n`)
     return 1
   }
   const target = resolved.target
-  const args = ctx.args
   const flags = ctx.flags
-  const yes = args.includes('--yes')
-  const force = args.includes('--force')
-  const removeOpsx = args.includes('--remove-opsx')
-  const harnessArg = argValue(args, '--harness')
+  const yes = hasFlag(parsed, '--yes')
+  const force = hasFlag(parsed, '--force')
+  const removeOpsx = hasFlag(parsed, '--remove-opsx')
+  const harnessArg = flagValue(parsed, '--harness')
 
   const state = detectState(target)
   // A state-A (fresh) repo defaults the gate on; otherwise re-init resyncs an
   // already-adopted gate by default and stays opt-in when none was adopted —
   // see gateAlreadyPresent().
-  const gateEnabled = args.includes('--gate')
+  const gateEnabled = hasFlag(parsed, '--gate')
     ? true
-    : args.includes('--no-gate')
+    : hasFlag(parsed, '--no-gate')
       ? false
       : state === 'A'
         ? true
@@ -405,42 +406,23 @@ export function run(ctx: CommandContext): number {
 type TargetResolution = { ok: true; target: string } | { ok: false; error: string }
 
 /**
- * The positional [path], skipping value-bearing flags (`--harness <v>`). A
- * bare `help` positional is rejected outright — `cospec init help` is almost
- * always a typo for `cospec init --help`, and silently scaffolding a
+ * The positional [path], already isolated from every flag by the shared
+ * parser. A bare `help` positional is rejected outright — `cospec init help`
+ * is almost always a typo for `cospec init --help`, and silently scaffolding a
  * directory literally named `help` would be a surprising, hard-to-notice
  * mutation. Anyone who really wants that directory can pass `./help`.
  */
-function resolveTarget(ctx: CommandContext): TargetResolution {
-  const args = ctx.args
-  for (let i = 0; i < args.length; i++) {
-    const tok = args[i]!
-    if (tok === '--harness') {
-      i++ // consume its value
-      continue
+function resolveTarget(cwd: string, parsed: ParsedArgs): TargetResolution {
+  const pathArg = parsed.positionals[0]
+  if (pathArg === 'help') {
+    return {
+      ok: false,
+      error:
+        "cospec: 'help' is not a path — did you mean 'cospec init --help'? " +
+        "To scaffold into a directory literally named 'help', pass './help'.",
     }
-    if (tok.startsWith('-')) continue
-    if (tok === 'help') {
-      return {
-        ok: false,
-        error:
-          "cospec: 'help' is not a path — did you mean 'cospec init --help'? " +
-          "To scaffold into a directory literally named 'help', pass './help'.",
-      }
-    }
-    return { ok: true, target: resolve(ctx.cwd, tok) }
   }
-  return { ok: true, target: ctx.cwd }
-}
-
-function argValue(args: string[], flag: string): string | undefined {
-  const idx = args.indexOf(flag)
-  if (idx >= 0 && idx + 1 < args.length) {
-    const next = args[idx + 1]!
-    if (!next.startsWith('-')) return next
-  }
-  const eq = args.find((a) => a.startsWith(`${flag}=`))
-  return eq?.slice(flag.length + 1)
+  return { ok: true, target: pathArg !== undefined ? resolve(cwd, pathArg) : cwd }
 }
 
 interface ReceiptData {

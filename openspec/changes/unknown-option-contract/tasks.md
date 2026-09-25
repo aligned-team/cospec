@@ -105,7 +105,7 @@ red; 4–7 turn it green; 8 documents it.
 
 ## 6. T5 — setup and passthrough commands onto the parser (`apps/cli/src/commands/{init,update,new,doctor,instructions,show,context,view,complete,completion,feedback}.ts`)
 
-- [ ] 6.1 `init.ts`: `resolveTarget` and `argValue` replaced by `ctx.parsed`;
+- [x] 6.1 `init.ts`: `resolveTarget` and `argValue` replaced by `ctx.parsed`;
       `--no-animation` no-op; `--tools`, `--language`, `--profile`,
       `--copilot-cloud`, `--no-copilot-cloud` pending (regression: ledger 1.3)
 - [ ] 6.2 `update.ts`, `doctor.ts`, `new.ts`, `context.ts`, `complete.ts`,

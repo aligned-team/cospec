@@ -23,6 +23,7 @@ import {
   resolveChange,
   resolveSchema,
 } from '../core/change.ts'
+import { flagValue } from '../core/command-table.ts'
 import { OpenspecCallError, runOpenspec } from '../core/openspec.ts'
 import { resolveRoot } from '../core/root.ts'
 import { COSPEC_TYPES, getTypeInfo } from '../core/schema-compose.ts'
@@ -42,30 +43,6 @@ function stampSchemaVersion(changeDir: string): void {
 
 // A change slug is exactly a change id — one canonical kebab grammar (change.ts).
 const SLUG_RE = CHANGE_ID_RE
-
-interface ParsedArgs {
-  positionals: string[]
-  description?: string
-}
-
-function parseArgs(args: string[]): ParsedArgs {
-  const positionals: string[] = []
-  let description: string | undefined
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i]!
-    if (a === '--description') {
-      description = args[++i]
-      continue
-    }
-    if (a.startsWith('--description=')) {
-      description = a.slice('--description='.length)
-      continue
-    }
-    if (a.startsWith('-')) continue
-    positionals.push(a)
-  }
-  return { positionals, description }
-}
 
 /** Derive a kebab-case slug from free text; undefined when nothing usable remains. */
 export function slugify(text: string): string | undefined {
@@ -111,7 +88,9 @@ export async function run(ctx: CommandContext): Promise<number> {
     return EXIT.failure
   }
 
-  const { positionals, description } = parseArgs(ctx.args)
+  const parsed = ctx.parsed!
+  const positionals = parsed.positionals
+  const description = flagValue(parsed, '--description')
 
   let type: string
   let slug: string | undefined

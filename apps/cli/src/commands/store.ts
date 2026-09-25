@@ -17,6 +17,7 @@ import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
+import { commandRow, parseCommandArgs } from '../core/command-table.ts'
 import {
   openspecStoreList,
   passthroughOpenspec,
@@ -139,10 +140,18 @@ function captureStdout(fn: () => number): { output: string; code: number } {
  * receipt, folding a summary into this command's own output instead.
  */
 function autoCospecInit(root: string): CospecInitSummary {
+  // `init` reads `ctx.parsed`, which `cli.ts` only builds for the dispatched
+  // command, so parse this in-process call against init's own row.
+  const args = [root, '--harness', 'none']
+  const row = commandRow('init')
+  if (row?.parse !== 'table') throw new Error("cospec store: 'init' has no table row")
+  const result = parseCommandArgs(row, args)
+  if (!result.ok) throw new Error(`cospec store: auto cospec-init argv refused: ${args.join(' ')}`)
   const initCtx: CommandContext = {
-    args: [root, '--harness', 'none'],
+    args,
     flags: { json: true, noColor: false, cwd: process.cwd() },
     cwd: process.cwd(),
+    parsed: result.parsed,
   }
   const { output } = captureStdout(() => runInit(initCtx))
   let harnesses: string[] = []

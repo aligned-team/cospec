@@ -20,6 +20,7 @@ import { dirname, join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { openspecDir } from '../core/change.ts'
+import { hasFlag } from '../core/command-table.ts'
 import {
   computeContentHash,
   CURRENT_GENERATED_BY,
@@ -429,9 +430,9 @@ const DRIFT_OUTCOMES = new Set<WriteResult['outcome']>([
 ])
 
 export function run(ctx: CommandContext): number {
-  const { cwd, flags } = ctx
-  const check = ctx.args.includes('--check')
-  const force = ctx.args.includes('--force')
+  const { cwd, flags, parsed } = ctx
+  const check = hasFlag(parsed!, '--check')
+  const force = hasFlag(parsed!, '--force')
 
   if (!existsSync(openspecDir(cwd))) {
     process.stderr.write(`cospec: no openspec/ directory at ${cwd} — run 'cospec init' first\n`)
