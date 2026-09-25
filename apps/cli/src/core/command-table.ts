@@ -1,0 +1,1159 @@
+// The command table — one row per cospec command, the single source that argv
+// parsing, per-command `--help` and the completion spec all read, so the three
+// can never drift apart (change `unknown-option-contract`).
+//
+// Every row declares its positionals and every flag, including every flag the
+// pinned OpenSpec `COMMAND_REGISTRY` gives the same-named upstream command.
+// Each flag is exactly one of `handled`, `no-op` (cospec already behaves as the
+// flag asks) or `{pending: <slug>}` (owned by a later change, refused with
+// "not supported yet" until then). The per-command `--json` and `--store` the
+// registry lists are cospec globals (`GLOBAL_FLAGS`), stripped by `cli.ts`
+// before a row's parser runs, so rows never repeat them.
+//
+// Parse policy: a `table` row is parsed here and rejects anything undeclared.
+// A `forward` row is declared only for reachability, help and completion — its
+// wrapper hands the remaining argv to the wrapped binary, which stays the
+// unknown-option authority for the surfaces it owns (`openspec show` sets
+// `allowUnknownOption(true)`, so a local rejection there would be a
+// regression, and a newer in-range binary's new flag must keep working).
+//
+// This module imports nothing: `cli.ts` imports it, so any import back into the
+// dispatcher would be a cycle.
+
+// --- shape -------------------------------------------------------------------
+
+/** Every change slug that owns a pending surface. */
+export type PendingOwner =
+  | 'upstream-spellings'
+  | 'passthrough-json-and-doctor'
+  | 'validation-parity'
+  | 'cli-surface-parity'
+  | 'archive-and-sync-parity'
+  | 'tool-matrix'
+  | 'github-copilot'
+  | 'completion-install'
+  | 'workflow-profiles'
+
+export type SurfaceStatus = 'handled' | 'no-op' | { readonly pending: PendingOwner }
+
+/** `upstream`: the same-named upstream command has it. `cospec`: cospec-only. */
+export type SurfaceOrigin = 'upstream' | 'cospec'
+
+export interface FlagSpec {
+  /** Long form, dashes included (`--change`). The key a parsed value is stored under. */
+  readonly name: `--${string}`
+  readonly short?: `-${string}`
+  readonly takesValue?: true
+  /** Help/refusal placeholder, angle brackets included (`<slug>`). Set iff `takesValue`. */
+  readonly placeholder?: string
+  /** The value set, when closed. Documentation and completion only — never enforced here. */
+  readonly values?: readonly string[]
+  readonly description: string
+  readonly status: SurfaceStatus
+  readonly origin: SurfaceOrigin
+}
+
+export interface PositionalSpec {
+  readonly name: string
+  /**
+   * Display only (`<name>` vs `[name]`). The parser never enforces presence:
+   * each command reports its own missing-argument error.
+   */
+  readonly required: boolean
+  readonly description?: string
+  readonly values?: readonly string[]
+  /** Values a user may type that are owed by a later change (refused as pending). */
+  readonly pendingValues?: Readonly<Record<string, PendingOwner>>
+  readonly status: SurfaceStatus
+  readonly origin: SurfaceOrigin
+}
+
+interface SurfaceSpec {
+  readonly positionals: readonly PositionalSpec[]
+  readonly flags: readonly FlagSpec[]
+}
+
+/**
+ * A subcommand. A pending one declares no positionals or flags: its whole
+ * subtree is owed by the owning change.
+ */
+export interface SubcommandSpec extends SurfaceSpec {
+  readonly name: string
+  readonly summary: string
+  readonly status: SurfaceStatus
+  readonly origin: SurfaceOrigin
+}
+
+interface RowBase extends SurfaceSpec {
+  readonly name: string
+  readonly summary: string
+  readonly hidden: boolean
+  readonly subcommands?: readonly SubcommandSpec[]
+  /** Extra help lines printed after the flag list. */
+  readonly notes?: readonly string[]
+}
+
+export type TableCommandRow = RowBase & { readonly parse: 'table' } & (
+    | { readonly json: 'accepted' }
+    /** The row refuses the global `--json` with `jsonRefusal(name, jsonRefusalMessage)`. */
+    | { readonly json: 'refused'; readonly jsonRefusalMessage: string }
+  )
+
+export interface ForwardCommandRow extends RowBase {
+  readonly parse: 'forward'
+}
+
+export type CommandRow = TableCommandRow | ForwardCommandRow
+
+export function isPending(status: SurfaceStatus): status is { readonly pending: PendingOwner } {
+  return typeof status === 'object'
+}
+
+// --- builders ------------------------------------------------------------------
+
+const HANDLED = 'handled' as const
+const NO_OP = 'no-op' as const
+function pending(owner: PendingOwner): { readonly pending: PendingOwner } {
+  return { pending: owner }
+}
+
+type FlagInput = Omit<FlagSpec, 'origin' | 'status'> & { status?: SurfaceStatus }
+type PositionalInput = Omit<PositionalSpec, 'origin' | 'status'> & { status?: SurfaceStatus }
+
+function upstream(spec: FlagInput): FlagSpec {
+  return { ...spec, status: spec.status ?? HANDLED, origin: 'upstream' }
+}
+function cospec(spec: FlagInput): FlagSpec {
+  return { ...spec, status: spec.status ?? HANDLED, origin: 'cospec' }
+}
+function upstreamArg(spec: PositionalInput): PositionalSpec {
+  return { ...spec, status: spec.status ?? HANDLED, origin: 'upstream' }
+}
+function cospecArg(spec: PositionalInput): PositionalSpec {
+  return { ...spec, status: spec.status ?? HANDLED, origin: 'cospec' }
+}
+function sub(name: string, summary: string, surface: Partial<SurfaceSpec> = {}): SubcommandSpec {
+  return {
+    name,
+    summary,
+    status: HANDLED,
+    origin: 'upstream',
+    positionals: surface.positionals ?? [],
+    flags: surface.flags ?? [],
+  }
+}
+function pendingSub(name: string, summary: string, owner: PendingOwner): SubcommandSpec {
+  return { name, summary, status: pending(owner), origin: 'upstream', positionals: [], flags: [] }
+}
+
+// --- global flags ----------------------------------------------------------------
+
+/**
+ * Flags accepted before or after the command name on every command, stripped
+ * by `cli.ts` before a row's parser runs. `-V, --version` is pre-command only
+ * and not listed here.
+ */
+export const GLOBAL_FLAGS: readonly FlagSpec[] = [
+  upstream({ name: '--json', description: 'Machine-readable output' }),
+  upstream({ name: '--no-color', description: 'Disable ANSI color' }),
+  cospec({
+    name: '--cwd',
+    takesValue: true,
+    placeholder: '<path>',
+    description: 'Run as if invoked from <path>',
+  }),
+  upstream({
+    name: '--store',
+    takesValue: true,
+    placeholder: '<id>',
+    description: 'Operate against a registered OpenSpec store instead of the local repo',
+  }),
+  upstream({ name: '--help', short: '-h', description: 'Show this help' }),
+]
+
+// --- the table -------------------------------------------------------------------
+
+/** Row order is `--help`'s command order. */
+export const COMMAND_TABLE: readonly CommandRow[] = [
+  {
+    name: 'init',
+    summary: 'Scaffold cospec into a repo (schemas + harness files)',
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    positionals: [upstreamArg({ name: 'path', required: false })],
+    flags: [
+      cospec({ name: '--yes', description: 'Skip prompts; auto-remove detected opsx leftovers' }),
+      upstream({ name: '--force', description: 'Overwrite conflicting managed files' }),
+      cospec({
+        name: '--harness',
+        takesValue: true,
+        placeholder: '<list>',
+        description: 'claude,codex,opencode,agents,all,none (comma-separate for multiple)',
+      }),
+      cospec({
+        name: '--gate',
+        description: 'Force-enable the commit gate (mise + hk + commitlint)',
+      }),
+      cospec({ name: '--no-gate', description: 'Force-disable the commit gate' }),
+      cospec({
+        name: '--remove-opsx',
+        description: 'Delete provably openspec-generated leftover files',
+      }),
+      upstream({
+        name: '--no-animation',
+        description: 'Accepted for OpenSpec compatibility (cospec has no animation)',
+        status: NO_OP,
+      }),
+      upstream({
+        name: '--tools',
+        takesValue: true,
+        placeholder: '<tools>',
+        description: 'Configure AI tools non-interactively (upstream spelling of --harness)',
+        status: pending('upstream-spellings'),
+      }),
+      upstream({
+        name: '--language',
+        takesValue: true,
+        placeholder: '<lang>',
+        description: 'Write new artifacts in this language',
+        status: pending('workflow-profiles'),
+      }),
+      upstream({
+        name: '--profile',
+        takesValue: true,
+        placeholder: '<profile>',
+        values: ['core', 'custom'],
+        description: 'Override the global config profile (core or custom)',
+        status: pending('workflow-profiles'),
+      }),
+      upstream({
+        name: '--copilot-cloud',
+        description: 'Generate GitHub Copilot cloud coding-agent files',
+        status: pending('github-copilot'),
+      }),
+      upstream({
+        name: '--no-copilot-cloud',
+        description: 'Skip generating GitHub Copilot cloud coding-agent files',
+        status: pending('github-copilot'),
+      }),
+    ],
+  },
+  {
+    name: 'update',
+    summary: 'Regenerate managed files from canon',
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    positionals: [
+      upstreamArg({ name: 'path', required: false, status: pending('upstream-spellings') }),
+    ],
+    flags: [
+      cospec({ name: '--check', description: 'Drift gate: exit nonzero on drift, write nothing' }),
+      upstream({ name: '--force', description: 'Overwrite conflicting managed files' }),
+    ],
+  },
+  {
+    name: 'doctor',
+    summary: 'Diagnose a cospec setup and report remedies',
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    positionals: [],
+    flags: [],
+  },
+  {
+    name: 'new',
+    summary: 'Create a new typed change (cospec new <type> <slug>)',
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    positionals: [
+      cospecArg({ name: 'type', required: true, description: 'Conventional-commit type' }),
+      cospecArg({ name: 'slug', required: true, description: 'Kebab-case change id' }),
+    ],
+    flags: [
+      cospec({
+        name: '--description',
+        takesValue: true,
+        placeholder: '<text>',
+        description: 'Seed the proposal with a one-line description',
+      }),
+    ],
+    subcommands: [pendingSub('change', 'Create a new change directory', 'upstream-spellings')],
+  },
+  {
+    name: 'migrate',
+    summary: 'Migrate a v1 change to schemaVersion 2 (opt-in)',
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    positionals: [cospecArg({ name: 'slug', required: true })],
+    flags: [],
+  },
+  {
+    name: 'validate',
+    summary: 'Validate changes and specs',
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    positionals: [upstreamArg({ name: 'name', required: false })],
+    flags: [
+      upstream({ name: '--strict', description: 'Promote warnings to errors' }),
+      cospec({ name: '--fast', description: 'Skip slower cross-checks' }),
+      upstream({ name: '--all', description: 'Validate every change and spec' }),
+      upstream({ name: '--changes', description: 'Validate changes only' }),
+      upstream({ name: '--specs', description: 'Validate specs only' }),
+      upstream({
+        name: '--archived',
+        description: 'Validate already-archived changes instead (delegated; openspec >=1.9.0)',
+      }),
+      upstream({
+        name: '--no-interactive',
+        description: 'Never prompt, even for an ambiguous change name',
+      }),
+      upstream({
+        name: '--type',
+        takesValue: true,
+        placeholder: '<type>',
+        values: ['change', 'spec'],
+        description: 'Specify item type when ambiguous',
+        status: pending('cli-surface-parity'),
+      }),
+      upstream({
+        name: '--report',
+        takesValue: true,
+        placeholder: '<report>',
+        values: ['full', 'findings'],
+        description: 'Select bulk report content',
+        status: pending('cli-surface-parity'),
+      }),
+      upstream({
+        name: '--concurrency',
+        takesValue: true,
+        placeholder: '<n>',
+        description: 'Max concurrent validations',
+        status: pending('cli-surface-parity'),
+      }),
+    ],
+  },
+  {
+    name: 'status',
+    summary: "Show a change's status and gate state",
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    positionals: [cospecArg({ name: 'change', required: false })],
+    flags: [
+      upstream({
+        name: '--change',
+        takesValue: true,
+        placeholder: '<slug>',
+        description: 'The change to report on (or pass it positionally)',
+      }),
+      upstream({
+        name: '--all',
+        description: 'Report every active change instead of one (mutually exclusive with --change)',
+      }),
+      upstream({
+        name: '--schema',
+        takesValue: true,
+        placeholder: '<name>',
+        description: 'Schema override',
+        status: pending('cli-surface-parity'),
+      }),
+    ],
+  },
+  {
+    name: 'list',
+    summary: 'List active changes',
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    positionals: [],
+    flags: [
+      upstream({ name: '--specs', description: 'List living specs by requirement count instead' }),
+      cospec({ name: '--blocked', description: 'Only changes with a non-clear gate state' }),
+      upstream({
+        name: '--changes',
+        description: 'List changes explicitly (the default)',
+        status: NO_OP,
+      }),
+      upstream({
+        name: '--sort',
+        takesValue: true,
+        placeholder: '<order>',
+        values: ['recent', 'name'],
+        description: 'Sort order: "recent" (default) or "name"',
+        status: pending('cli-surface-parity'),
+      }),
+    ],
+  },
+  {
+    name: 'instructions',
+    summary: 'Print artifact-authoring instructions for a change',
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    positionals: [upstreamArg({ name: 'artifact', required: true })],
+    flags: [
+      upstream({
+        name: '--change',
+        takesValue: true,
+        placeholder: '<slug>',
+        description: 'The change the artifact belongs to (required)',
+      }),
+      cospec({ name: '--allow-soft', description: 'Proceed past a soft block' }),
+      upstream({
+        name: '--schema',
+        takesValue: true,
+        placeholder: '<name>',
+        description: 'Schema override',
+        status: pending('upstream-spellings'),
+      }),
+    ],
+    notes: [
+      'artifacts: proposal, blocking-changes, specs, design, verification, tasks, apply, archive',
+      "('archive' is read-only guidance — unlike 'apply', it is not an alias for 'cospec archive')",
+    ],
+  },
+  {
+    name: 'apply',
+    summary: 'Gate implementation on blockers and required artifacts',
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    positionals: [cospecArg({ name: 'change', required: true })],
+    flags: [
+      cospec({ name: '--allow-soft', description: 'Proceed past a soft block' }),
+      cospec({
+        name: '--skip-specs',
+        description:
+          'Satisfy the specs requirement for this run (persist with skip_specs: true instead)',
+      }),
+    ],
+  },
+  {
+    name: 'archive',
+    summary: 'Validate, archive, and fan out blocker updates',
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    positionals: [upstreamArg({ name: 'change', required: true })],
+    flags: [
+      upstream({
+        name: '--skip-specs',
+        description: 'Skip spec-sync even when the schema has a specs artifact',
+      }),
+      cospec({
+        name: '--force-incomplete',
+        description: 'Override the tasks-incomplete gate (verification gates never lift)',
+      }),
+      upstream({
+        name: '--yes',
+        short: '-y',
+        description: 'Accepted for OpenSpec compatibility (cospec archive never prompts)',
+        status: NO_OP,
+      }),
+      upstream({
+        name: '--no-validate',
+        description: 'Skip validation (not recommended)',
+        status: pending('archive-and-sync-parity'),
+      }),
+    ],
+  },
+  {
+    name: 'sync-blockers',
+    summary: 'Reconcile blocking-changes.md checkboxes',
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    positionals: [],
+    flags: [
+      cospec({ name: '--check', description: 'Report only; write nothing' }),
+      cospec({
+        name: '--change',
+        takesValue: true,
+        placeholder: '<slug>',
+        description: "Limit to one change's blocking-changes.md",
+      }),
+    ],
+  },
+  {
+    name: 'store',
+    summary: 'Manage registered OpenSpec stores',
+    hidden: false,
+    parse: 'forward',
+    positionals: [],
+    flags: [],
+    subcommands: [
+      sub('setup', 'Create or register a local store', {
+        positionals: [upstreamArg({ name: 'id', required: false })],
+        flags: [
+          upstream({
+            name: '--path',
+            takesValue: true,
+            placeholder: '<dir>',
+            description: 'Directory to use for the store',
+          }),
+          upstream({ name: '--init-git', description: 'Initialize a Git repository in the store' }),
+          upstream({ name: '--no-init-git', description: 'Skip Git repository initialization' }),
+          upstream({
+            name: '--remote',
+            takesValue: true,
+            placeholder: '<url>',
+            description: 'Canonical clone source recorded in store.yaml',
+          }),
+          cospec({
+            name: '--no-cospec-init',
+            description: "Skip the auto 'cospec init --harness none'",
+          }),
+        ],
+      }),
+      sub('register', 'Register an existing store directory', {
+        positionals: [upstreamArg({ name: 'path', required: false })],
+        flags: [
+          upstream({
+            name: '--id',
+            takesValue: true,
+            placeholder: '<id>',
+            description: 'Store id',
+          }),
+          upstream({ name: '--yes', description: 'Confirm creating store identity metadata' }),
+          cospec({
+            name: '--no-cospec-init',
+            description: "Skip the auto 'cospec init --harness none'",
+          }),
+        ],
+      }),
+      sub('unregister', 'Forget a local store registration without deleting files', {
+        positionals: [upstreamArg({ name: 'id', required: true })],
+      }),
+      sub('remove', 'Forget a local store registration and delete its local folder', {
+        positionals: [upstreamArg({ name: 'id', required: true })],
+        flags: [upstream({ name: '--yes', description: 'Confirm local store folder deletion' })],
+      }),
+      sub('list', 'List registered stores'),
+      sub('ls', 'List registered stores'),
+      sub('doctor', 'Check local store registration and metadata', {
+        positionals: [upstreamArg({ name: 'id', required: false })],
+      }),
+    ],
+  },
+  {
+    name: 'context',
+    summary: "Show a store's cross-repo working-set context",
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    positionals: [],
+    flags: [
+      upstream({
+        name: '--code-workspace',
+        takesValue: true,
+        placeholder: '<path>',
+        description: 'Also write/update a VS Code multi-root workspace file',
+      }),
+      upstream({
+        name: '--force',
+        description: 'Overwrite a code-workspace file cospec did not author',
+      }),
+    ],
+  },
+  {
+    name: 'workset',
+    summary: 'Manage personal cross-repo worksets',
+    hidden: false,
+    parse: 'forward',
+    positionals: [],
+    flags: [],
+    subcommands: [
+      sub('create', 'Compose and save a named working view of folders you choose', {
+        positionals: [upstreamArg({ name: 'name', required: false })],
+        flags: [
+          upstream({
+            name: '--member',
+            takesValue: true,
+            placeholder: '<path>',
+            description:
+              'Member folder as <path> or <name>=<path>; repeatable, first is the primary',
+          }),
+          upstream({
+            name: '--tool',
+            takesValue: true,
+            placeholder: '<tool>',
+            description: 'Preferred tool to open this workset with',
+          }),
+        ],
+      }),
+      sub('list', 'Show saved worksets with their members'),
+      sub('ls', 'Show saved worksets with their members'),
+      sub('open', 'Open a saved workset in your tool (editor window or agent session)', {
+        positionals: [upstreamArg({ name: 'name', required: true })],
+        flags: [
+          upstream({
+            name: '--tool',
+            takesValue: true,
+            placeholder: '<tool>',
+            description: 'Open with this tool just this once',
+          }),
+        ],
+      }),
+      sub('remove', 'Delete a saved workset (member folders are never touched)', {
+        positionals: [upstreamArg({ name: 'name', required: true })],
+        flags: [upstream({ name: '--yes', description: 'Confirm removal non-interactively' })],
+      }),
+    ],
+  },
+  {
+    name: 'show',
+    summary: 'Show a change or spec (text or JSON)',
+    hidden: false,
+    parse: 'forward',
+    positionals: [upstreamArg({ name: 'item', required: true })],
+    flags: [
+      upstream({
+        name: '--type',
+        takesValue: true,
+        placeholder: '<change|spec>',
+        values: ['change', 'spec'],
+        description: 'Disambiguate an id that matches both',
+      }),
+      upstream({ name: '--no-interactive', description: 'Disable interactive prompts' }),
+      upstream({
+        name: '--deltas-only',
+        description: 'Changes only: show only deltas (JSON only)',
+      }),
+      upstream({
+        name: '--requirements-only',
+        description: 'Deprecated alias of --deltas-only (changes only)',
+      }),
+      upstream({
+        name: '--diff',
+        description: 'Changes only: show per-requirement diffs for delta specs',
+      }),
+      upstream({
+        name: '--requirements',
+        description: 'Specs only: show only requirements, exclude scenarios (JSON only)',
+      }),
+      upstream({
+        name: '--no-scenarios',
+        description: 'Specs only: exclude scenario content (JSON only)',
+      }),
+      upstream({
+        name: '--requirement',
+        short: '-r',
+        takesValue: true,
+        placeholder: '<id>',
+        description: 'Specs only: show a single requirement by id (JSON only)',
+      }),
+    ],
+  },
+  {
+    name: 'view',
+    summary: 'Show the OpenSpec dashboard',
+    hidden: false,
+    parse: 'table',
+    json: 'refused',
+    jsonRefusalMessage: 'cospec view renders a text dashboard and cannot emit JSON',
+    positionals: [],
+    flags: [],
+  },
+  {
+    name: 'schemas',
+    summary: 'List resolvable schemas',
+    hidden: false,
+    parse: 'forward',
+    positionals: [],
+    flags: [],
+  },
+  {
+    name: 'schema',
+    summary: 'Inspect a schema (which/validate)',
+    hidden: false,
+    parse: 'forward',
+    positionals: [],
+    flags: [],
+    subcommands: [
+      sub('which', 'Show where a schema resolves from', {
+        positionals: [upstreamArg({ name: 'name', required: false })],
+        flags: [
+          upstream({
+            name: '--all',
+            description: 'List all schemas with their resolution sources',
+          }),
+        ],
+      }),
+      sub('validate', 'Validate a schema structure and templates', {
+        positionals: [upstreamArg({ name: 'name', required: false })],
+        flags: [upstream({ name: '--verbose', description: 'Show detailed validation steps' })],
+      }),
+      sub('fork', 'Copy an existing schema to the project for customization', {
+        positionals: [
+          upstreamArg({ name: 'source', required: true }),
+          upstreamArg({ name: 'name', required: false }),
+        ],
+        flags: [upstream({ name: '--force', description: 'Overwrite existing destination' })],
+      }),
+      sub('init', 'Create a new project-local schema', {
+        positionals: [upstreamArg({ name: 'name', required: true })],
+        flags: [
+          upstream({
+            name: '--description',
+            takesValue: true,
+            placeholder: '<text>',
+            description: "Seed the new schema's description",
+          }),
+          upstream({
+            name: '--artifacts',
+            takesValue: true,
+            placeholder: '<list>',
+            description: 'Comma-separated artifact ids to include',
+          }),
+          upstream({ name: '--default', description: 'Set as the project default schema' }),
+          upstream({ name: '--no-default', description: 'Do not prompt to set as default' }),
+          upstream({ name: '--force', description: 'Overwrite an existing schema' }),
+        ],
+      }),
+    ],
+  },
+  {
+    name: 'templates',
+    summary: 'List per-artifact template paths',
+    hidden: false,
+    parse: 'forward',
+    positionals: [],
+    flags: [
+      upstream({
+        name: '--schema',
+        takesValue: true,
+        placeholder: '<name>',
+        description: 'Schema whose templates to list (default: spec-driven)',
+      }),
+    ],
+  },
+  {
+    name: 'config',
+    summary: 'View and modify machine-global OpenSpec configuration',
+    hidden: false,
+    parse: 'forward',
+    positionals: [],
+    flags: [
+      upstream({
+        name: '--scope',
+        takesValue: true,
+        placeholder: '<scope>',
+        values: ['global'],
+        description: 'Config scope (only "global" is implemented upstream)',
+      }),
+    ],
+    subcommands: [
+      sub('path', 'Show config file location'),
+      sub('list', 'Show all current settings'),
+      sub('get', 'Get a specific value (raw, scriptable)', {
+        positionals: [upstreamArg({ name: 'key', required: true })],
+      }),
+      sub('set', 'Set a value (auto-coerce types)', {
+        positionals: [
+          upstreamArg({ name: 'key', required: true }),
+          upstreamArg({ name: 'value', required: true }),
+        ],
+        flags: [
+          upstream({ name: '--string', description: 'Force value to be stored as string' }),
+          upstream({ name: '--allow-unknown', description: 'Allow setting unknown keys' }),
+        ],
+      }),
+      sub('unset', 'Remove a key (revert to default)', {
+        positionals: [upstreamArg({ name: 'key', required: true })],
+      }),
+      sub('reset', 'Reset configuration to defaults', {
+        flags: [
+          upstream({ name: '--all', description: 'Reset all configuration (required)' }),
+          upstream({ name: '--yes', short: '-y', description: 'Skip confirmation prompts' }),
+        ],
+      }),
+      sub('edit', 'Open config in $EDITOR'),
+      sub('profile', 'Configure workflow profile (interactive picker or preset shortcut)', {
+        positionals: [upstreamArg({ name: 'preset', required: false })],
+      }),
+    ],
+    notes: [
+      '(config is machine-global: --store never applies; edit/profile/reset without -y',
+      ' hand the terminal over and cannot emit JSON)',
+    ],
+  },
+  {
+    name: 'completion',
+    summary: 'Print the shell completion script for cospec',
+    hidden: false,
+    parse: 'table',
+    json: 'refused',
+    jsonRefusalMessage: 'cospec completion emits a shell script and cannot emit JSON',
+    positionals: [
+      cospecArg({
+        name: 'shell',
+        required: false,
+        values: ['bash', 'zsh', 'fish'],
+        pendingValues: { powershell: 'completion-install' },
+      }),
+    ],
+    flags: [],
+    subcommands: [
+      pendingSub(
+        'generate',
+        'Generate completion script for a shell (outputs to stdout)',
+        'upstream-spellings',
+      ),
+      pendingSub('install', 'Install completion script for a shell', 'completion-install'),
+      pendingSub('uninstall', 'Uninstall completion script for a shell', 'completion-install'),
+    ],
+    notes: ['(shell omitted: detected from $SHELL; the script is printed, never installed)'],
+  },
+  {
+    name: 'feedback',
+    summary: "File feedback about cospec (--upstream files OpenSpec's)",
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    positionals: [upstreamArg({ name: 'message', required: true })],
+    flags: [
+      upstream({
+        name: '--body',
+        takesValue: true,
+        placeholder: '<text>',
+        description: 'Detailed description for the report',
+      }),
+      cospec({
+        name: '--upstream',
+        description: 'File at Fission-AI/OpenSpec instead of aligned-team/cospec',
+      }),
+    ],
+  },
+  {
+    name: '__complete',
+    summary: 'Dynamic completion source (changes|specs|types)',
+    hidden: true,
+    parse: 'table',
+    json: 'accepted',
+    positionals: [
+      cospecArg({ name: 'source', required: true, values: ['changes', 'specs', 'types'] }),
+    ],
+    flags: [],
+  },
+  {
+    name: 'check-commit',
+    summary: 'Warn on commit-type/schema mismatch (hook entrypoint)',
+    hidden: true,
+    parse: 'table',
+    json: 'accepted',
+    positionals: [cospecArg({ name: 'msg-file', required: true })],
+    flags: [],
+  },
+]
+
+export function commandRow(name: string): CommandRow | undefined {
+  return COMMAND_TABLE.find((row) => row.name === name)
+}
+
+// --- help labels -----------------------------------------------------------------
+
+/** `-r, --requirement <id>` / `--sort <order>` / `--strict`. */
+export function flagLabel(flag: FlagSpec): string {
+  const long = flag.placeholder !== undefined ? `${flag.name} ${flag.placeholder}` : flag.name
+  return flag.short !== undefined ? `${flag.short}, ${long}` : long
+}
+
+/** `<change>` when required, `[path]` when not. */
+export function positionalLabel(positional: PositionalSpec): string {
+  return positional.required ? `<${positional.name}>` : `[${positional.name}]`
+}
+
+/** The flags `--help` and completion list: handled and accepted no-ops, never pending. */
+export function offeredFlags(surface: { readonly flags: readonly FlagSpec[] }): FlagSpec[] {
+  return surface.flags.filter((flag) => !isPending(flag.status))
+}
+
+// --- suggestion ------------------------------------------------------------------
+
+function levenshtein(a: string, b: string): number {
+  const cols = b.length + 1
+  const prev = Array.from({ length: cols }, (_, j) => j)
+  for (let i = 1; i <= a.length; i++) {
+    let diag = prev[0]!
+    prev[0] = i
+    for (let j = 1; j < cols; j++) {
+      const tmp = prev[j]!
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      prev[j] = Math.min(prev[j]! + 1, prev[j - 1]! + 1, diag + cost)
+      diag = tmp
+    }
+  }
+  return prev[cols - 1]!
+}
+
+/** The nearest candidate within an edit distance of 3, or undefined. */
+export function closest(input: string, candidates: readonly string[]): string | undefined {
+  let best: string | undefined
+  let bestDist = Infinity
+  for (const c of candidates) {
+    const d = levenshtein(input, c)
+    if (d < bestDist) {
+      bestDist = d
+      best = c
+    }
+  }
+  return best !== undefined && bestDist <= 3 ? best : undefined
+}
+
+// --- refusals --------------------------------------------------------------------
+
+export type ParseRefusal =
+  | {
+      readonly kind: 'unknown-option'
+      readonly command: string
+      readonly option: string
+      readonly suggestion?: string
+      readonly message: string
+    }
+  | {
+      readonly kind: 'missing-value'
+      readonly command: string
+      readonly flag: string
+      readonly message: string
+    }
+  | {
+      readonly kind: 'pending'
+      readonly command: string
+      /** The flag, subcommand, positional label or positional value refused. */
+      readonly surface: string
+      readonly owner: PendingOwner
+      readonly message: string
+    }
+  | {
+      readonly kind: 'too-many-arguments'
+      readonly command: string
+      readonly expected: number
+      readonly received: number
+      readonly message: string
+    }
+  /**
+   * `message` is the stderr text form. Under `--json`, write
+   * `storePathRefusal(true).text` to stdout instead of printing `message`.
+   */
+  | { readonly kind: 'store-path'; readonly command: string; readonly message: string }
+
+export interface ParsedArgs {
+  readonly subcommand?: string
+  readonly positionals: readonly string[]
+  /** Keyed by long flag name (`-y` lands under `--yes`); a boolean flag's value is `true`. */
+  readonly flags: Readonly<Record<string, string | true>>
+}
+
+export type ParseResult =
+  | { readonly ok: true; readonly parsed: ParsedArgs }
+  | { readonly ok: false; readonly refusal: ParseRefusal }
+
+export function hasFlag(parsed: ParsedArgs, name: `--${string}`): boolean {
+  return parsed.flags[name] !== undefined
+}
+
+/** A value-taking flag's value; undefined when absent. */
+export function flagValue(parsed: ParsedArgs, name: `--${string}`): string | undefined {
+  const value = parsed.flags[name]
+  return typeof value === 'string' ? value : undefined
+}
+
+function unknownOption(command: string, option: string, candidates: string[]): ParseRefusal {
+  const eq = option.startsWith('--') ? option.indexOf('=') : -1
+  const suggestion = closest(eq > 0 ? option.slice(0, eq) : option, candidates)
+  const hint = suggestion !== undefined ? `Did you mean '${suggestion}'?\n` : ''
+  return {
+    kind: 'unknown-option',
+    command,
+    option,
+    ...(suggestion !== undefined ? { suggestion } : {}),
+    message: `cospec ${command}: unknown option '${option}'\n${hint}`,
+  }
+}
+
+function pendingRefusal(command: string, surface: string, owner: PendingOwner): ParseRefusal {
+  return {
+    kind: 'pending',
+    command,
+    surface,
+    owner,
+    message: `cospec ${command}: '${surface}' is not supported yet\n`,
+  }
+}
+
+function plural(n: number): string {
+  return n === 1 ? '1 argument' : `${n} arguments`
+}
+
+// Upstream's redirect (probed at the 1.13.1 pin, `dist/cli/index.js`), with
+// `openspec` respelled to `cospec` and nothing else changed — bare `openspec`
+// never reaches shipped output.
+export const STORE_PATH_MESSAGE =
+  '--store-path is not supported. Register the path with cospec store register <path>, then select it with --store <id>.'
+export const STORE_PATH_FIX = 'cospec store register <path>, then rerun with --store <id>.'
+const STORE_PATH_TEXT = `✖ Error: ${STORE_PATH_MESSAGE}\nFix: ${STORE_PATH_FIX}\n`
+
+// --- the parser ------------------------------------------------------------------
+
+/** A token commander would treat as an option: dash-led and more than a bare `-`. */
+function isOptionToken(tok: string): boolean {
+  return tok.length > 1 && tok.startsWith('-')
+}
+
+/** `--store-path` or `--store-path=<v>` — intercepted on every command, both positions. */
+export function isStorePathToken(tok: string): boolean {
+  return tok === '--store-path' || tok.startsWith('--store-path=')
+}
+
+function suggestionCandidates(surface: SurfaceSpec, dashes: 'long' | 'short'): string[] {
+  const flags = [...surface.flags, ...GLOBAL_FLAGS]
+  return dashes === 'long'
+    ? flags.map((flag) => flag.name)
+    : flags.flatMap((flag) => (flag.short !== undefined ? [flag.short] : []))
+}
+
+function parseSurface(command: string, surface: SurfaceSpec, args: readonly string[]): ParseResult {
+  const positionals: string[] = []
+  const flags: Record<string, string | true> = {}
+
+  for (let i = 0; i < args.length; i++) {
+    const tok = args[i]!
+    if (tok === '--') {
+      positionals.push(...args.slice(i + 1))
+      break
+    }
+    if (!isOptionToken(tok)) {
+      positionals.push(tok)
+      continue
+    }
+    if (isStorePathToken(tok)) {
+      return { ok: false, refusal: { kind: 'store-path', command, message: STORE_PATH_TEXT } }
+    }
+
+    const eq = tok.startsWith('--') ? tok.indexOf('=') : -1
+    const name = eq > 0 ? tok.slice(0, eq) : tok
+    const inline = eq > 0 ? tok.slice(eq + 1) : undefined
+    const flag = surface.flags.find((f) => f.name === name || f.short === name)
+    // `--bool=x` is unknown as a whole token, as commander reports it.
+    if (flag === undefined || (inline !== undefined && flag.takesValue !== true)) {
+      const dashes = tok.startsWith('--') ? 'long' : 'short'
+      return {
+        ok: false,
+        refusal: unknownOption(command, tok, suggestionCandidates(surface, dashes)),
+      }
+    }
+
+    let value: string | true = true
+    if (flag.takesValue === true) {
+      // Like commander, a required value is the next token whatever it looks like.
+      if (inline !== undefined) value = inline
+      else if (i + 1 < args.length) value = args[++i]!
+      else if (!isPending(flag.status)) {
+        return {
+          ok: false,
+          refusal: {
+            kind: 'missing-value',
+            command,
+            flag: flag.name,
+            message: `cospec ${command}: option '${flag.name} ${flag.placeholder}' argument missing\n`,
+          },
+        }
+      }
+    }
+    if (isPending(flag.status)) {
+      return { ok: false, refusal: pendingRefusal(command, flag.name, flag.status.pending) }
+    }
+    flags[flag.name] = value
+  }
+
+  for (const [index, value] of positionals.entries()) {
+    const slot = surface.positionals[index]
+    if (slot === undefined) {
+      const expected = surface.positionals.filter((p) => !isPending(p.status)).length
+      return {
+        ok: false,
+        refusal: {
+          kind: 'too-many-arguments',
+          command,
+          expected,
+          received: positionals.length,
+          message: `cospec ${command}: too many arguments. Expected ${plural(expected)} but got ${positionals.length}.\n`,
+        },
+      }
+    }
+    if (isPending(slot.status)) {
+      return {
+        ok: false,
+        refusal: pendingRefusal(command, positionalLabel(slot), slot.status.pending),
+      }
+    }
+    const owner = slot.pendingValues?.[value]
+    if (owner !== undefined) return { ok: false, refusal: pendingRefusal(command, value, owner) }
+  }
+
+  return { ok: true, parsed: { positionals, flags } }
+}
+
+/**
+ * Parse a `table` row's argv (global flags already stripped by `cli.ts`).
+ * Returns the positionals and flag values, or the first refusal in argv order:
+ * an undeclared option, a value-taking flag with no value, a pending surface
+ * (its value consumed first, so it can never leak into a positional), too many
+ * positionals, or `--store-path`. Every refusal exits 1.
+ */
+export function parseCommandArgs(row: TableCommandRow, args: readonly string[]): ParseResult {
+  const first = args[0]
+  const subcommand =
+    first !== undefined ? row.subcommands?.find((s) => s.name === first) : undefined
+  if (subcommand === undefined) return parseSurface(row.name, row, args)
+  if (isPending(subcommand.status)) {
+    return {
+      ok: false,
+      refusal: pendingRefusal(row.name, subcommand.name, subcommand.status.pending),
+    }
+  }
+  const result = parseSurface(`${row.name} ${subcommand.name}`, subcommand, args.slice(1))
+  return result.ok
+    ? { ok: true, parsed: { ...result.parsed, subcommand: subcommand.name } }
+    : result
+}
+
+// --- --store-path and --json refusals ----------------------------------------------
+
+/**
+ * The `--store-path` refusal: upstream's two-line redirect on stderr, or under
+ * `--json` one document on stdout carrying upstream's `status[0]` shape.
+ * Upstream also prefixes each command's null payload (`changes: [], root: null`
+ * on `list`); cospec emits only the status array, so compare `status[0]`.
+ */
+export function storePathRefusal(json: boolean): {
+  readonly stream: 'stdout' | 'stderr'
+  readonly text: string
+} {
+  if (!json) return { stream: 'stderr', text: STORE_PATH_TEXT }
+  const envelope = {
+    status: [
+      {
+        severity: 'error',
+        code: 'store_path_not_supported',
+        message: STORE_PATH_MESSAGE,
+        target: 'store.id',
+        fix: STORE_PATH_FIX,
+      },
+    ],
+  }
+  return { stream: 'stdout', text: `${JSON.stringify(envelope, null, 2)}\n` }
+}
+
+/**
+ * The one-document `--json` refusal for a row marked `json: 'refused'`: a
+ * `--json` caller is owed exactly one parseable document even on refusal.
+ */
+export function jsonRefusal(command: string, message: string): string {
+  return `${JSON.stringify({ version: 1, command, ok: false, message })}\n`
+}

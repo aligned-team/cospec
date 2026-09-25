@@ -6,7 +6,7 @@ red; 4–7 turn it green; 8 documents it.
 
 ## 1. T1 — the command table and parser (`apps/cli/src/core/command-table.ts`, `apps/cli/test/unit/core/command-table.test.ts`)
 
-- [ ] 1.1 Create `command-table.ts`: per-command rows with `name`, `summary`,
+- [x] 1.1 Create `command-table.ts`: per-command rows with `name`, `summary`,
       `hidden`, `parse: 'table' | 'forward'`, `json: 'accepted' | 'refused'` on
       `table` rows (`view` and `completion` refused), `positionals[]`, and
       `flags[]` of
@@ -15,15 +15,15 @@ red; 4–7 turn it green; 8 documents it.
       command, then cospec's own flags; mark `init --no-animation`,
       `archive -y/--yes`, `list --changes` as no-ops and every entry in the
       design's pending table as pending with its owner slug
-- [ ] 1.2 Write `parseCommandArgs(row, args)` returning
+- [x] 1.2 Write `parseCommandArgs(row, args)` returning
       `{positionals,     flags}` or a typed refusal; implement the three refusal
       messages, the `--flag=value` form, and the closest-match line using
       `closest()` moved out of `cli.ts` into the table module
-- [ ] 1.3 Write the `--store-path` guard (`storePathRefusal(json)`) returning
+- [x] 1.3 Write the `--store-path` guard (`storePathRefusal(json)`) returning
       the respelled redirect text and the `--json` envelope, and the
       `jsonRefusal(command, message)` helper returning the one-document
       `{version: 1, command, ok: false, message}` envelope (design decision 10)
-- [ ] 1.4 Unit-test the parser (verification 1.5): the six parse cases, and one
+- [x] 1.4 Unit-test the parser (verification 1.5): the six parse cases, and one
       assertion per no-op and per pending flag; commit
       `feat(cli): add the     command table and parser` (ledger 1.5)
 
