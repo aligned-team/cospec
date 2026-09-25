@@ -48,11 +48,14 @@ Exclusive files: `apps/cli/test/unit/harness-render.test.ts`,
       under `bun test test/integration/harness-wiring.test.ts` with and without
       `COSPEC_GOLDEN_WRITE=1`, repeated twice for stability;
       `git diff main -- apps/cli/src` empty at this commit
-- [ ] 1.3 Run `mise run build`, then `cospec init --harness all` with the built
+- [x] 1.3 Run `mise run build`, then `cospec init --harness all` with the built
       binary in a fresh temporary git repo, and record the sorted `sha256` list
       of the written files in verification 3.8. Commit the ledger note; verify
       the list has one entry per rendered file plus the schemas, config and
-      settings the receipt names
+      settings the receipt names -> 127 files, `sha256:c9ff1f08…6ff305` over the
+      sorted `sha256sum` output, stdout `sha256:87775b30…b3d750`; recorded in
+      verification 3.8 (row stays unticked there — it compares against the task
+      5.2 re-take, not this baseline alone)
 
 ## 2. Track T1: the per-tool table
 
