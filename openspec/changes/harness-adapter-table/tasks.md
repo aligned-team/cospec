@@ -59,7 +59,7 @@ Exclusive files: `apps/cli/test/unit/harness-render.test.ts`,
 Exclusive files: `apps/cli/src/harness/adapters.ts`,
 `apps/cli/test/unit/harness/adapters.test.ts`.
 
-- [ ] 2.1 Add `HarnessAdapter` and `HARNESS_TABLE` with the four rows in today's
+- [x] 2.1 Add `HarnessAdapter` and `HARNESS_TABLE` with the four rows in today's
       order, exactly as design.md tabulates them (upstream-meaning
       `skillsDir`/`legacySkillsDirs`, today's `detectionPaths`, `RESTART_LINES`
       text as `setupNote`, the claude and minimal frontmatter builders, the
@@ -69,7 +69,20 @@ Exclusive files: `apps/cli/src/harness/adapters.ts`,
       dialect beside `opencode`, which stays until 3.1 removes it. The change is
       additive: `render.ts` still reads `harness.yaml`. Commit; verify
       verification 2.1, 2.2, 2.3 and 2.9 pass, `mise run test` is green and both
-      golden tests from group 1 pass unchanged
+      golden tests from group 1 pass unchanged -> `HARNESS_TABLE` (4 rows,
+      `as const satisfies readonly HarnessAdapter[]`, so `HarnessName` stays the
+      literal union, pinned by a `@ts-expect-error` case) plus `adapterFor`,
+      `skillsRoot`/`skillPath`/`legacySkillsRoots`/`commandPath`, `scanRoots`
+      and `removalRoots`; `HARNESS_NAMES` derived, same name/values/order.
+      adapters.test.ts: invariants (2.1), per-workflow path equality against the
+      `harnesses:` block for all four ids (2.2), `displayName`/`skillsDir`/
+      `globalSkillsDir`/`legacySkillsDirs`/`requiresIdeRestart` and agents
+      `searchAliases`/`detectionPaths` equal to the pinned `AI_TOOLS` with the
+      codex `detectionPaths` divergence named (2.3), scan roots
+      `.claude,.codex,.opencode,.agents`, removal-root set and
+      `LEGACY_CODEX_SKILL_ROOT` tie (2.9) — 37 pass; `mise run test` 1025 pass;
+      harness-wiring 17 pass; typecheck, lint, format:check, generate:check
+      green
 
 ## 3. Track T2: render reads the table
 
