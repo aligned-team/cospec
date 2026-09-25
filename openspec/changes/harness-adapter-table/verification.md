@@ -1,0 +1,45 @@
+# Verification
+
+## 1. Every rendered file is byte-identical [critical]
+
+- [ ] 1.1 @equivalence (agent) `apps/cli/test/unit/harness-render.test.ts` against the task 1.1 golden files, run after task 3.2 -> claude, codex, opencode and agents, each rendered alone and all four together, match byte for byte: the same exact path set, the same file bytes, and the same `index.json` record (`path`, `kind`, `workflow`, `harness`, `contentHash`) per file, so a shared `.agents/skills` file is still attributed to the harness that rendered it first
+- [ ] 1.2 @equivalence (agent) `git diff --exit-code <task 1.1 commit> HEAD -- apps/cli/test/unit/__golden__/harness-render/` at the end of the branch -> exit 0, no diff: no golden file was regenerated after the baseline
+- [ ] 1.3 @equivalence (agent) `git diff --exit-code main -- apps/cli/test/unit/harness/__snapshots__/` -> exit 0: the pre-existing content and path snapshots are untouched
+- [ ] 1.4 @integration (agent) `mise run generate:check` after task 3.2 and again after task 5.5 -> zero diff on this repository's managed tree (`.claude/`, `.agents/skills/cospec-*/`, `.codex/`, `.opencode/`, `openspec/schemas/`)
+- [ ] 1.5 @equivalence (agent) `mise run test:pack` after task 5.5 -> green: the compiled binary renders from the bundled table with the `harnesses:` block gone from the embedded `harness.yaml`
+
+## 2. The table expresses every shape the pinned adapters use [critical]
+
+- [ ] 2.1 @unit (agent) table invariants in `apps/cli/test/unit/harness/adapters.test.ts` -> ids are unique; `HARNESS_NAMES` is exactly `claude, codex, opencode, agents` in that order; every row with commands declares `namespaced` iff its filename template is `cospec/{command}` and `flat` iff it is `cospec-{command}`; rows whose rendered paths overlap declare the same `bodyDialect`
+- [ ] 2.2 @unit (agent) the table-derived skill, command, rules and legacy paths for the four rows, compared with the `harnesses:` block of `harness.yaml` while both exist (task 2.1) -> identical for every workflow
+- [ ] 2.3 @unit (agent) fields named after `AI_TOOLS`, compared with the pinned dist's `dist/core/config.js` imported in the test only -> for the four ids, `displayName`, `skillsDir`, `legacySkillsDirs`, `globalSkillsDir`, `requiresIdeRestart` and the `agents` row's `searchAliases` equal upstream's values; `detectionPaths` equals upstream's for `agents` and differs for `codex` (`['.codex']` against upstream's `['.agents/skills', '.codex/skills']`), and the test names that one divergence explicitly as `tool-matrix`'s to align
+- [ ] 2.4 @unit (agent) the `toml` serializer, compared with the pinned dist's `geminiAdapter.formatFile` imported in the test only, on bodies carrying a backslash, `"""`, a tab, a C0 control character, a lone `\r` and CRLF line endings, and a description carrying `"` and a newline -> the serialized bytes are identical, and the rendered file has `frontmatter: null` and `contentHash: null`
+- [ ] 2.5 @unit (agent) fixture rows through `RenderOptions.adapters` -> a commands root independent of the skills root (the `.clinerules/workflows` and `.cline` shape) writes each surface under its own root; `.prompt`, `.prompt.md` and `.toml` extensions produce those filenames; a `namespaced` row writes `<dir>/cospec/<command><ext>` and a `flat` row `<dir>/cospec-<command><ext>`
+- [ ] 2.6 @unit (agent) a `flat` fixture row with `invocationPrefix: '@'` -> in-body `/cospec:<id>` references become `@cospec-<id>`, and with `/` they become `/cospec-<id>`, byte-identical to today's OpenCode bodies
+- [ ] 2.7 @unit (agent) a fixture row with `globalSkillsDir` -> its skills render with `scope: 'home'` at `<globalSkillsDir>/skills/<skill>/SKILL.md`, and every file the four real rows render has `scope: 'project'`
+- [ ] 2.8 @unit (agent) the render-conflict case, rebuilt on `RenderOptions.adapters` with two rows sharing `.agents/skills` under different dialects -> throws the same `harness render conflict: codex and agents both write .agents/skills/…` message as today
+- [ ] 2.9 @unit (agent) the derived scan roots for the four rows -> exactly `['.claude', '.codex', '.opencode', '.agents']`, today's walk order; the derived removal roots -> the set `openspec`, `.claude`, `.agents`, `.opencode`, `.codex`; the codex row's derived legacy skills root equals `LEGACY_CODEX_SKILL_ROOT` in `harness/legacy-skills.ts`
+
+## 3. init, update and doctor behave exactly as before [critical]
+
+- [ ] 3.1 @equivalence (agent) `apps/cli/test/integration/harness-wiring.test.ts` against the task 5.2 golden files, run after task 5.5 -> byte-identical init receipts for `--harness claude`, `codex`, `opencode`, `agents`, `all` and `none` and for the auto-detected default on a fresh repo, including each harness's closing line (today's `RESTART_LINES`, now the row's `setupNote`); the invalid `--harness bogus` message and exit code are identical
+- [ ] 3.2 @equivalence (agent) the same test's detection fixtures (claude only; codex migrated; codex still under `.codex/skills`; agents only; codex plus agents; all four) -> init's auto-detection and `detectHarnesses` return the same harnesses in the same order, and an agents-only repo still never acquires `.codex/rules/cospec.rules`
+- [ ] 3.3 @equivalence (agent) the same test's removal-containment fixture: a prior manifest listing unmodified files under `openspec/`, `.claude/`, `.agents/`, `.opencode/` and `.codex/`, plus the keys `.foo/x` and `../victim.txt` -> the same files are removed and the two foreign keys are still ignored, with identical `update --json` output
+- [ ] 3.4 @equivalence (agent) the same test's doctor fixture, with opsx leftovers under `.claude/` and `.agents/skills/`, a dangling `/cospec:` reference, a stale `.cospec-new` sidecar and a legacy `.codex/skills` copy -> the same findings in the same order, in both the human output and `doctor --json`
+- [ ] 3.5 @unit (agent) a fixture row with `requiresIdeRestart: true`, selected together with one of the four -> the init receipt prints that row's `setupNote` and then exactly one `Restart your IDE to refresh commands.` line (`skills.` when the flagged row has no commands); selecting only the four real rows prints no restart line
+- [ ] 3.6 @unit (agent) `generate()` handed a rendered file with `scope: 'home'` -> throws an internal error naming the path, and writes nothing
+- [ ] 3.7 @equivalence (agent) `git diff --exit-code <task 5.2 commit> HEAD -- apps/cli/test/integration/__golden__/harness-wiring/` at the end of the branch -> exit 0; and at the task 5.2 commit, `git diff --exit-code main -- apps/cli/src/commands/` -> exit 0, so the re-baseline was taken on unmodified command code
+- [ ] 3.8 @e2e (agent) the built binary (`mise run build`), in a fresh temporary git repo, `cospec init --harness all` -> the sorted `sha256` list of every file it writes equals the list recorded in task 1.3, and its stdout, with the temporary path normalized, equals the stdout recorded in task 5.2
+
+## 4. The existing suites pass unchanged [critical]
+
+- [ ] 4.1 @equivalence (agent) `mise run test` -> green; the only existing test files edited are `apps/cli/test/unit/harness/adapters.test.ts` and `apps/cli/test/unit/harness/render.test.ts`, and their diff against `main` removes no `test(` block and weakens no assertion (the dialect-name rename and the conflict case's injection are the only changes)
+- [ ] 4.2 @equivalence (agent) `mise run test:integration` -> green, and `git diff main --stat -- apps/cli/test/integration/` lists only the new `harness-wiring.test.ts` and its golden files
+- [ ] 4.3 @equivalence (agent) `mise run test:contract` -> green, and `git diff --exit-code main -- apps/cli/test/contract/` -> exit 0
+- [ ] 4.4 @integration (agent) after the task 5.1 rebase, the reachability test from `unknown-option-contract` -> passes, and `git diff --exit-code main -- apps/cli/test/contract/parity-pending.yaml` -> exit 0: this change owns no pending entry, and every `AI_TOOLS` entry beyond the four stays tagged with the later change that adds it
+
+## 5. Gate, docs and close-out
+
+- [ ] 5.1 @integration (agent) after task 5.1, `mise run cospec -- validate harness-adapter-table --strict` -> passes with `unknown-option-contract`, `upstream-spellings` and `passthrough-json-and-doctor` recorded under `## Blocked by` as checked, archived entries
+- [ ] 5.2 @manual (agent) review of `docs/harness-integration.md` -> it names `HARNESS_TABLE` in `harness/adapters.ts` as the one place a tool's layout is declared, describes `setupNote` and the `requiresIdeRestart` line in place of the fixed restart lines, and no longer implies the layout lives in canon; `git diff --exit-code main -- apps/docs/` -> exit 0, because no user-facing behavior changed
+- [ ] 5.3 @integration (agent) `mise run check` on the final tree -> green (lint, format, typecheck, unit, contract, integration, bench, release tests, `generate:check`, `vendor:openspec:check`, `agents:check`, `cospec-validate-all`, `openspec:schema:validate`)
