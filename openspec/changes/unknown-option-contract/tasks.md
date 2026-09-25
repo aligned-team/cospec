@@ -130,10 +130,10 @@ red; 4–7 turn it green; 8 documents it.
 
 ## 7. T3 — completion from the table (`apps/cli/src/core/completions/spec.ts`, `apps/cli/test/unit/core/completions.test.ts`)
 
-- [ ] 7.1 `buildCompletionSpec()` reads table rows: flags = handled + no-op,
+- [x] 7.1 `buildCompletionSpec()` reads table rows: flags = handled + no-op,
       positional sources and dynamic flag values kept; delete `extractFlags` and
       its snapshot
-- [ ] 7.2 Add the three-way help/completion/parser parity test (ledger 3.2,
+- [x] 7.2 Add the three-way help/completion/parser parity test (ledger 3.2,
       3.3); `apps/cli/test/integration/completion.test.ts` green; commit
       `fix(cli): build the completion spec from the command table`
 
