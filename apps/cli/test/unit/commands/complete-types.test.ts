@@ -11,9 +11,18 @@ import { describe, expect, spyOn, test } from 'bun:test'
 import type { CommandContext } from '../../../src/cli.ts'
 import { run } from '../../../src/commands/complete.ts'
 import { COSPEC_TYPES } from '../../../src/core/change.ts'
+import { commandRow, parseCommandArgs } from '../../../src/core/command-table.ts'
 
 function ctx(args: string[]): CommandContext {
-  return { args, flags: { json: false, noColor: false, cwd: '/tmp' }, cwd: '/tmp' }
+  const base: CommandContext = {
+    args,
+    flags: { json: false, noColor: false, cwd: '/tmp' },
+    cwd: '/tmp',
+  }
+  const row = commandRow('__complete')
+  if (row === undefined || row.parse !== 'table') return base
+  const result = parseCommandArgs(row, args)
+  return result.ok ? { ...base, parsed: result.parsed } : base
 }
 
 describe('cospec __complete types — no wrapped spawn', () => {

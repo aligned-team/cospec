@@ -11,21 +11,15 @@ import { isAbsolute, join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
+import { flagValue, hasFlag } from '../core/command-table.ts'
 import { passthroughOpenspec } from '../core/openspec.ts'
 import { resolveRoot } from '../core/root.ts'
 
-/** `--flag value` or `--flag=value`, whichever form the caller used. */
-function flagValue(args: string[], flag: string): string | undefined {
-  const idx = args.indexOf(flag)
-  if (idx >= 0 && idx + 1 < args.length) return args[idx + 1]
-  const eq = args.find((a) => a.startsWith(`${flag}=`))
-  return eq?.slice(flag.length + 1)
-}
-
 export async function run(ctx: CommandContext): Promise<number> {
   const root = await resolveRoot(ctx)
-  const codeWorkspace = flagValue(ctx.args, '--code-workspace')
-  const force = ctx.args.includes('--force')
+  const parsed = ctx.parsed!
+  const codeWorkspace = flagValue(parsed, '--code-workspace')
+  const force = hasFlag(parsed, '--force')
 
   const args = ['context']
   if (codeWorkspace !== undefined) args.push('--code-workspace', codeWorkspace)

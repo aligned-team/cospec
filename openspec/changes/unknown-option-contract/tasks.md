@@ -108,22 +108,22 @@ red; 4–7 turn it green; 8 documents it.
 - [x] 6.1 `init.ts`: `resolveTarget` and `argValue` replaced by `ctx.parsed`;
       `--no-animation` no-op; `--tools`, `--language`, `--profile`,
       `--copilot-cloud`, `--no-copilot-cloud` pending (regression: ledger 1.3)
-- [ ] 6.2 `update.ts`, `doctor.ts`, `new.ts`, `context.ts`, `complete.ts`,
+- [x] 6.2 `update.ts`, `doctor.ts`, `new.ts`, `context.ts`, `complete.ts`,
       `completion.ts`: each onto `ctx.parsed`, so an unknown option is refused
       before any work (ledger 1.4); `completion.ts` swaps its inline `--json`
       refusal for `jsonRefusal()` with byte-identical output
-- [ ] 6.3 `instructions.ts`: onto `ctx.parsed` with `--change`, `--allow-soft`
+- [x] 6.3 `instructions.ts`: onto `ctx.parsed` with `--change`, `--allow-soft`
       handled and `--schema` pending
-- [ ] 6.4 `view.ts`: onto `ctx.parsed` (`table` row, `json: 'refused'`);
+- [x] 6.4 `view.ts`: onto `ctx.parsed` (`table` row, `json: 'refused'`);
       `--json` is refused with `jsonRefusal('view', …)` — one JSON document on
       stdout, exit 1, no `openspec view` spawned — instead of being silently
       ignored; its differential row (`view --json`) un-skipped (ledger 1.7)
-- [ ] 6.5 `show.ts`: `forward` row — keep forwarding verbatim; its table row
+- [x] 6.5 `show.ts`: `forward` row — keep forwarding verbatim; its table row
       declares every upstream flag so help and completion list them.
       `feedback.ts`: `table` row — `parseFeedbackArgs` replaced by `ctx.parsed`
       (`<message>`, `--body <text>`, `--upstream`); the `--upstream` relay
       rebuilds its argv from the parsed values
-- [ ] 6.6 Un-skip the remaining differential rows; the whole differential and
+- [x] 6.6 Un-skip the remaining differential rows; the whole differential and
       the 1.6 no-legacy-parser test (scoped to `table` modules) are live;
       `mise run test:contract` green; commit
       `fix(cli): parse setup and passthrough commands through the command table`

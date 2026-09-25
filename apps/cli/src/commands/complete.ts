@@ -70,7 +70,7 @@ async function specItems(ctx: CommandContext): Promise<{ id: string; description
 }
 
 export async function run(ctx: CommandContext): Promise<number> {
-  const source = ctx.args[0]
+  const source = ctx.parsed!.positionals[0]
   if (source === undefined || !isCompleteSource(source)) return EXIT.failure
   try {
     const items =

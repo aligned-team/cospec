@@ -26,6 +26,7 @@ import { join } from 'node:path'
 import pkg from '../../package.json'
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
+import { flagValue, hasFlag, type ParsedArgs } from '../core/command-table.ts'
 import { resolveOpenspec, spawnOpenspec } from '../core/openspec.ts'
 
 /** cospec's own tracker (`apps/cli/package.json` `bugs`). */
@@ -115,25 +116,15 @@ export interface ParsedFeedbackArgs {
   error?: string
 }
 
-/** Parse `cospec feedback` argv (pure). */
-export function parseFeedbackArgs(args: string[]): ParsedFeedbackArgs {
-  let message: string | undefined
-  let body: string | undefined
-  let upstream = false
-  for (let i = 0; i < args.length; i++) {
-    const tok = args[i]!
-    if (tok === '--upstream') upstream = true
-    else if (tok === '--body') {
-      const value = args[++i]
-      if (value === undefined)
-        return { upstream, error: 'cospec feedback: --body requires a value' }
-      body = value
-    } else if (tok.startsWith('--body=')) body = tok.slice('--body='.length)
-    else if (tok.startsWith('-'))
-      return { upstream, error: `cospec feedback: unknown option '${tok}'` }
-    else if (message === undefined) message = tok
-    else return { upstream, error: 'cospec feedback: only one message argument is accepted' }
-  }
+/**
+ * Read `cospec feedback`'s table-parsed argv (pure). Unknown options, a second
+ * message and a valueless `--body` are already refused by the command table;
+ * what is left is feedback's own rule that the message is non-blank.
+ */
+export function feedbackArgs(parsed: ParsedArgs): ParsedFeedbackArgs {
+  const upstream = hasFlag(parsed, '--upstream')
+  const message = parsed.positionals[0]
+  const body = flagValue(parsed, '--body')
   if (message === undefined || message.trim().length === 0)
     return {
       upstream,
@@ -185,7 +176,7 @@ async function runUpstream(ctx: CommandContext, parsed: ParsedFeedbackArgs): Pro
 }
 
 export async function run(ctx: CommandContext): Promise<number> {
-  const parsed = parseFeedbackArgs(ctx.args)
+  const parsed = feedbackArgs(ctx.parsed!)
   if (parsed.error !== undefined) {
     if (ctx.flags.json)
       process.stdout.write(

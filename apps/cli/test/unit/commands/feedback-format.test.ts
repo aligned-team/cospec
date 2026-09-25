@@ -11,10 +11,15 @@ import {
   formatTitle,
   issueArgv,
   manualUrl,
-  parseFeedbackArgs,
+  feedbackArgs,
   provenanceFooter,
   UPSTREAM_REPO,
 } from '../../../src/commands/feedback.ts'
+import {
+  commandRow,
+  parseCommandArgs,
+  type TableCommandRow,
+} from '../../../src/core/command-table.ts'
 
 describe('formatTitle', () => {
   test('short message: prefixed, whitespace collapsed, no truncation', () => {
@@ -120,9 +125,28 @@ describe('issueArgv', () => {
   })
 })
 
-describe('parseFeedbackArgs', () => {
+function feedbackRow(): TableCommandRow {
+  const row = commandRow('feedback')
+  if (row?.parse !== 'table') throw new Error("'feedback' has no table row")
+  return row
+}
+
+/** What `cli.ts` hands `feedback`'s run: the table parse, then feedback's own reading. */
+function parseFeedbackArgv(args: string[]): ReturnType<typeof feedbackArgs> {
+  const result = parseCommandArgs(feedbackRow(), args)
+  if (!result.ok) throw new Error(`fixture argv refused: ${result.refusal.message}`)
+  return feedbackArgs(result.parsed)
+}
+
+function refusal(args: string[]): string {
+  const result = parseCommandArgs(feedbackRow(), args)
+  if (result.ok) throw new Error(`expected a refusal for ${args.join(' ')}`)
+  return result.refusal.message
+}
+
+describe('feedbackArgs', () => {
   test('a single positional message parses cleanly', () => {
-    const parsed = parseFeedbackArgs(['something broke'])
+    const parsed = parseFeedbackArgv(['something broke'])
     expect(parsed.error).toBeUndefined()
     expect(parsed.message).toBe('something broke')
     expect(parsed.body).toBeUndefined()
@@ -130,34 +154,34 @@ describe('parseFeedbackArgs', () => {
   })
 
   test('--body <value> and --body=value both work', () => {
-    expect(parseFeedbackArgs(['msg', '--body', 'more']).body).toBe('more')
-    expect(parseFeedbackArgs(['msg', '--body=more']).body).toBe('more')
+    expect(parseFeedbackArgv(['msg', '--body', 'more']).body).toBe('more')
+    expect(parseFeedbackArgv(['msg', '--body=more']).body).toBe('more')
   })
 
   test('--upstream sets the flag regardless of position', () => {
-    expect(parseFeedbackArgs(['--upstream', 'msg']).upstream).toBe(true)
-    expect(parseFeedbackArgs(['msg', '--upstream']).upstream).toBe(true)
+    expect(parseFeedbackArgv(['--upstream', 'msg']).upstream).toBe(true)
+    expect(parseFeedbackArgv(['msg', '--upstream']).upstream).toBe(true)
   })
 
   test('no message at all is an error naming the usage', () => {
-    const parsed = parseFeedbackArgs([])
+    const parsed = parseFeedbackArgv([])
     expect(parsed.error).toContain('a message is required')
   })
 
   test('a whitespace-only message is treated as missing', () => {
-    expect(parseFeedbackArgs(['   ']).error).toContain('a message is required')
+    expect(parseFeedbackArgv(['   ']).error).toContain('a message is required')
   })
 
-  test('a second positional is an error (only one message argument)', () => {
-    expect(parseFeedbackArgs(['first', 'second']).error).toContain('only one message argument')
+  test('a second positional is refused by the table (only one message argument)', () => {
+    expect(refusal(['first', 'second'])).toContain('too many arguments. Expected 1')
   })
 
-  test('an unknown flag is an error', () => {
-    expect(parseFeedbackArgs(['msg', '--bogus']).error).toContain("unknown option '--bogus'")
+  test('an unknown flag is refused by the table', () => {
+    expect(refusal(['msg', '--bogus'])).toContain("unknown option '--bogus'")
   })
 
-  test('--body with no value is an error', () => {
-    expect(parseFeedbackArgs(['msg', '--body']).error).toContain('--body requires a value')
+  test('--body with no value is refused by the table', () => {
+    expect(refusal(['msg', '--body'])).toContain("option '--body <text>' argument missing")
   })
 })
 
