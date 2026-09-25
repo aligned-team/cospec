@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import type { CommandContext } from '../../../src/cli.ts'
+import { commandRow, parseCommandArgs } from '../../../src/core/command-table.ts'
 import { composeType, COSPEC_TYPES } from '../../../src/core/schema-compose.ts'
 
 /** A temp repo with `openspec/{config.yaml,schemas/**,changes/archive}`. */
@@ -51,13 +52,30 @@ export function writeArchived(cwd: string, dirName: string, schema = 'feat'): vo
   writeFileSync(join(dir, '.openspec.yaml'), `schema: ${schema}\n`)
 }
 
+/**
+ * `opts.command` mirrors what `cli.ts`'s dispatcher does for a `table` row:
+ * parse `args` against the row and attach the result as `ctx.parsed`, so a
+ * unit test can call a migrated command's `run` directly (bypassing the real
+ * dispatcher) and still exercise its `ctx.parsed`-only reads. Omit it for a
+ * command not yet migrated onto the table parser.
+ */
 export function ctx(
   cwd: string,
   args: string[],
-  opts: { json?: boolean; noColor?: boolean } = {},
+  opts: { json?: boolean; noColor?: boolean; command?: string } = {},
 ): CommandContext {
   const noColor = opts.noColor ?? true
-  return { args, cwd, flags: { json: opts.json ?? false, noColor, cwd } }
+  const base: CommandContext = { args, cwd, flags: { json: opts.json ?? false, noColor, cwd } }
+  if (opts.command === undefined) return base
+  const row = commandRow(opts.command)
+  if (row === undefined || row.parse !== 'table') return base
+  const result = parseCommandArgs(row, args)
+  if (!result.ok) {
+    throw new Error(
+      `test helper ctx(): '${opts.command}' refused ${JSON.stringify(args)} — ${result.refusal.message}`,
+    )
+  }
+  return { ...base, parsed: result.parsed }
 }
 
 export interface CaptureResult {

@@ -11,6 +11,7 @@ import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
 import { isCospecType, listChanges, resolveChange, type Change } from '../core/change.ts'
+import { flagValue, hasFlag } from '../core/command-table.ts'
 import { resolveRoot } from '../core/root.ts'
 import {
   artifactRequires,
@@ -21,13 +22,6 @@ import {
 import { parseTasks } from '../core/tasks.ts'
 import { computeVerificationVerdict, type VerificationVerdict } from '../core/verification.ts'
 import { archiveMap, artifactDone, closest, computeGate, hasSpecFiles, type Gate } from './apply.ts'
-
-function flagValue(args: string[], flag: string): string | undefined {
-  const idx = args.indexOf(flag)
-  if (idx >= 0 && idx + 1 < args.length) return args[idx + 1]
-  const eq = args.find((a) => a.startsWith(`${flag}=`))
-  return eq?.slice(flag.length + 1)
-}
 
 /** The `clear | soft-blocked (n) | blocked (n hard)` gate column (DESIGN §2.6). */
 export function gateLabel(gate: Gate): string {
@@ -247,9 +241,10 @@ const MUTEX_MESSAGE = 'The --all and --change options are mutually exclusive.'
 
 export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
+  const parsed = ctx.parsed!
 
-  if (ctx.args.includes('--all')) {
-    if (flagValue(ctx.args, '--change') !== undefined || ctx.args.some((a) => !a.startsWith('-'))) {
+  if (hasFlag(parsed, '--all')) {
+    if (flagValue(parsed, '--change') !== undefined || parsed.positionals.length > 0) {
       // Under --json the failure is a JSON envelope on stdout, never a bare
       // stderr line: a caller that asked for JSON must always get something
       // parseable, and openspec's own `--all`/`--change` mutex check is caught
@@ -268,7 +263,7 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   const root = await resolveRoot(ctx)
   const base = root.base
-  let id = flagValue(ctx.args, '--change') ?? ctx.args.find((a) => !a.startsWith('-'))
+  let id = flagValue(parsed, '--change') ?? parsed.positionals[0]
 
   const active = listChanges(base)
   if (id === undefined) {

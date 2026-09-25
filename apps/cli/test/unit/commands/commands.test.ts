@@ -52,7 +52,7 @@ describe('new: validation before delegation', () => {
   test('no openspec/ directory exits 1 with an actionable init hint', async () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cospec-noinit-'))
     roots.push(cwd)
-    const r = await runCmd(newRun, ctx(cwd, ['feat', 'foo']))
+    const r = await runCmd(newRun, ctx(cwd, ['feat', 'foo'], { command: 'new' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('no openspec/ directory')
     expect(r.err).toContain("run 'cospec init' first")
@@ -63,7 +63,7 @@ describe('new: validation before delegation', () => {
 
   test('unknown type exits 1 with a suggestion and the table', async () => {
     const cwd = repo()
-    const r = await runCmd(newRun, ctx(cwd, ['feaf', 'x']))
+    const r = await runCmd(newRun, ctx(cwd, ['feaf', 'x'], { command: 'new' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain("unknown type 'feaf'")
     expect(r.err).toContain("Did you mean 'feat'")
@@ -72,7 +72,7 @@ describe('new: validation before delegation', () => {
 
   test('invalid slug exits 1', async () => {
     const cwd = repo()
-    const r = await runCmd(newRun, ctx(cwd, ['ci', 'Bad_Slug']))
+    const r = await runCmd(newRun, ctx(cwd, ['ci', 'Bad_Slug'], { command: 'new' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('invalid slug')
   })
@@ -80,7 +80,7 @@ describe('new: validation before delegation', () => {
   test('collision with an active change exits 1', async () => {
     const cwd = repo()
     writeChange(cwd, 'dup', 'ci')
-    const r = await runCmd(newRun, ctx(cwd, ['ci', 'dup']))
+    const r = await runCmd(newRun, ctx(cwd, ['ci', 'dup'], { command: 'new' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('already exists')
   })
@@ -88,7 +88,7 @@ describe('new: validation before delegation', () => {
   test('collision with an archive-entry suffix exits 1', async () => {
     const cwd = repo()
     writeArchived(cwd, '2026-06-01-shipped', 'ci')
-    const r = await runCmd(newRun, ctx(cwd, ['ci', 'shipped']))
+    const r = await runCmd(newRun, ctx(cwd, ['ci', 'shipped'], { command: 'new' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('collides with an archived change')
   })
@@ -98,7 +98,7 @@ describe('status', () => {
   test('empty change renders "in progress", never Unknown item', async () => {
     const cwd = repo()
     writeChange(cwd, 'bare', 'feat')
-    const r = await runCmd(statusRun, ctx(cwd, ['--change', 'bare']))
+    const r = await runCmd(statusRun, ctx(cwd, ['--change', 'bare'], { command: 'status' }))
     expect(r.code).toBe(0)
     expect(r.out).toContain('in progress — no artifacts yet')
     expect(r.out).toContain('cospec instructions proposal --change bare')
@@ -107,7 +107,7 @@ describe('status', () => {
   test('unknown change exits 1 with a suggestion', async () => {
     const cwd = repo()
     writeChange(cwd, 'add-widget', 'feat')
-    const r = await runCmd(statusRun, ctx(cwd, ['--change', 'add-widgets']))
+    const r = await runCmd(statusRun, ctx(cwd, ['--change', 'add-widgets'], { command: 'status' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain("Did you mean 'add-widget'")
   })
@@ -163,7 +163,7 @@ describe('status', () => {
   test('human output marks each unwritten artifact ready or waiting', async () => {
     const cwd = repo()
     writeChange(cwd, 'partial', 'ci', { 'blocking-changes.md': EMPTY_BLOCKERS })
-    const r = await runCmd(statusRun, ctx(cwd, ['--change', 'partial']))
+    const r = await runCmd(statusRun, ctx(cwd, ['--change', 'partial'], { command: 'status' }))
     expect(r.code).toBe(0)
     expect(r.out).toMatch(/proposal.*ready/)
     expect(r.out).toMatch(/tasks.*waiting/)
@@ -204,7 +204,10 @@ describe('status', () => {
 describe('status --all (OpenSpec 1.11 parity)', () => {
   test('--all and --change are mutually exclusive', async () => {
     const cwd = repo()
-    const r = await runCmd(statusRun, ctx(cwd, ['--all', '--change', 'bare']))
+    const r = await runCmd(
+      statusRun,
+      ctx(cwd, ['--all', '--change', 'bare'], { command: 'status' }),
+    )
     expect(r.code).toBe(1)
     expect(r.err).toContain('--all and --change options are mutually exclusive')
   })
@@ -213,7 +216,10 @@ describe('status --all (OpenSpec 1.11 parity)', () => {
     // A caller that asked for JSON must always get something parseable — a
     // bare stderr line leaves it with nothing to parse.
     const cwd = repo()
-    const r = await runCmd(statusRun, ctx(cwd, ['--all', '--change', 'bare'], { json: true }))
+    const r = await runCmd(
+      statusRun,
+      ctx(cwd, ['--all', '--change', 'bare'], { json: true, command: 'status' }),
+    )
     expect(r.code).toBe(1)
     expect(r.err).toBe('')
     expect(JSON.parse(r.out)).toEqual({
@@ -225,14 +231,14 @@ describe('status --all (OpenSpec 1.11 parity)', () => {
 
   test('--all and a positional change name are mutually exclusive', async () => {
     const cwd = repo()
-    const r = await runCmd(statusRun, ctx(cwd, ['--all', 'bare']))
+    const r = await runCmd(statusRun, ctx(cwd, ['--all', 'bare'], { command: 'status' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('mutually exclusive')
   })
 
   test('no active changes: reports the empty case and exits 0', async () => {
     const cwd = repo()
-    const r = await runCmd(statusRun, ctx(cwd, ['--all']))
+    const r = await runCmd(statusRun, ctx(cwd, ['--all'], { command: 'status' }))
     expect(r.code).toBe(0)
     expect(r.out).toContain('no active changes')
   })
@@ -245,7 +251,7 @@ describe('status --all (OpenSpec 1.11 parity)', () => {
       'blocking-changes.md': EMPTY_BLOCKERS,
       'tasks.md': DONE_TASKS,
     })
-    const r = await runCmd(statusRun, ctx(cwd, ['--all'], { json: true }))
+    const r = await runCmd(statusRun, ctx(cwd, ['--all'], { json: true, command: 'status' }))
     expect(r.code).toBe(0)
     const parsed = JSON.parse(r.out) as { changes: { change: string }[]; root: string }
     expect(parsed.changes.map((c) => c.change)).toEqual(['alpha', 'zeta'])
@@ -259,8 +265,11 @@ describe('status --all (OpenSpec 1.11 parity)', () => {
       'blocking-changes.md': EMPTY_BLOCKERS,
       'tasks.md': DONE_TASKS,
     })
-    const single = await runCmd(statusRun, ctx(cwd, ['--change', 'c'], { json: true }))
-    const swept = await runCmd(statusRun, ctx(cwd, ['--all'], { json: true }))
+    const single = await runCmd(
+      statusRun,
+      ctx(cwd, ['--change', 'c'], { json: true, command: 'status' }),
+    )
+    const swept = await runCmd(statusRun, ctx(cwd, ['--all'], { json: true, command: 'status' }))
     const sweptParsed = JSON.parse(swept.out) as { changes: unknown[] }
     expect(sweptParsed.changes).toEqual([JSON.parse(single.out)])
     expect(computeStatus(cwd, { id: 'c', dir, schema: 'ci' }).change).toBe('c')
@@ -281,7 +290,7 @@ describe('status --all (OpenSpec 1.11 parity)', () => {
     const badDir = writeChange(cwd, 'bad', 'ci', { 'proposal.md': LITE_PROPOSAL })
     mkdirSync(join(badDir, 'blocking-changes.md'))
 
-    const r = await runCmd(statusRun, ctx(cwd, ['--all'], { json: true }))
+    const r = await runCmd(statusRun, ctx(cwd, ['--all'], { json: true, command: 'status' }))
     expect(r.code).toBe(1)
     const parsed = JSON.parse(r.out) as {
       changes: ({ change: string; error: string } | { change: string })[]
@@ -302,7 +311,7 @@ describe('list', () => {
       'blocking-changes.md': EMPTY_BLOCKERS,
       'tasks.md': DONE_TASKS,
     })
-    const r = await runCmd(listRun, ctx(cwd, []))
+    const r = await runCmd(listRun, ctx(cwd, [], { command: 'list' }))
     expect(r.code).toBe(0)
     expect(r.out).toContain('bare')
     expect(r.out).toContain('no artifacts yet')
@@ -322,7 +331,7 @@ describe('list', () => {
       'blocking-changes.md': `## Blocked by\n\n- [ ] \`dep\` — needed\n\n## Soft-blocked by\n\nNone.\n`,
       'tasks.md': DONE_TASKS,
     })
-    const r = await runCmd(listRun, ctx(cwd, ['--blocked'], { json: true }))
+    const r = await runCmd(listRun, ctx(cwd, ['--blocked'], { json: true, command: 'list' }))
     const parsed = JSON.parse(r.out) as { changes: { change: string }[] }
     expect(parsed.changes.map((c) => c.change)).toEqual(['blocked-one'])
   })
@@ -353,14 +362,14 @@ describe('list', () => {
       ].join('\n'),
     )
 
-    const jsonResult = await runCmd(listRun, ctx(cwd, ['--specs'], { json: true }))
+    const jsonResult = await runCmd(listRun, ctx(cwd, ['--specs'], { json: true, command: 'list' }))
     expect(jsonResult.code).toBe(0)
     const parsed = JSON.parse(jsonResult.out) as {
       specs: { id: string; requirementCount: number }[]
     }
     expect(parsed.specs).toEqual([{ id: 'widget', requirementCount: 1 }])
 
-    const humanResult = await runCmd(listRun, ctx(cwd, ['--specs']))
+    const humanResult = await runCmd(listRun, ctx(cwd, ['--specs'], { command: 'list' }))
     expect(humanResult.code).toBe(0)
     expect(humanResult.out).toContain('widget')
     expect(humanResult.out).toContain('1 requirement')
@@ -370,14 +379,14 @@ describe('list', () => {
 describe('instructions: argument handling', () => {
   test('missing artifact exits 1', async () => {
     const cwd = repo()
-    const r = await runCmd(instructionsRun, ctx(cwd, []))
+    const r = await runCmd(instructionsRun, ctx(cwd, [], { command: 'instructions' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('an artifact is required')
   })
 
   test('non-apply artifact without --change exits 1', async () => {
     const cwd = repo()
-    const r = await runCmd(instructionsRun, ctx(cwd, ['proposal']))
+    const r = await runCmd(instructionsRun, ctx(cwd, ['proposal'], { command: 'instructions' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('--change <id> is required')
   })
@@ -387,7 +396,7 @@ describe('validate: validation before delegation', () => {
   test('no openspec/ directory exits 1 with an actionable init hint', async () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cospec-noinit-'))
     roots.push(cwd)
-    const r = await runCmd(validateRun, ctx(cwd, []))
+    const r = await runCmd(validateRun, ctx(cwd, [], { command: 'validate' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('no openspec/ directory')
     expect(r.err).toContain("run 'cospec init' first")

@@ -19,6 +19,7 @@ import {
   resolveChange,
   resolveSchema,
 } from '../core/change.ts'
+import { hasFlag } from '../core/command-table.ts'
 import { parseLivingSpec } from '../core/deltas.ts'
 import { spawnOpenspec, type Root } from '../core/openspec.ts'
 import {
@@ -616,14 +617,14 @@ async function validateArchived(root: Root): Promise<ItemReport[] | undefined> {
 
 export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
-  const args = ctx.args
-  const strict = args.includes('--strict')
-  const fast = args.includes('--fast')
-  const wantAll = args.includes('--all')
-  const wantChanges = args.includes('--changes')
-  const wantSpecs = args.includes('--specs')
-  const wantArchived = args.includes('--archived')
-  const name = args.find((a) => !a.startsWith('-'))
+  const parsed = ctx.parsed!
+  const strict = hasFlag(parsed, '--strict')
+  const fast = hasFlag(parsed, '--fast')
+  const wantAll = hasFlag(parsed, '--all')
+  const wantChanges = hasFlag(parsed, '--changes')
+  const wantSpecs = hasFlag(parsed, '--specs')
+  const wantArchived = hasFlag(parsed, '--archived')
+  const name = parsed.positionals[0]
 
   const root = await resolveRoot(ctx)
   const base = root.base

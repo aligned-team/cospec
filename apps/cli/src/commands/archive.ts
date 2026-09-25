@@ -22,6 +22,7 @@ import {
   resolveSchema,
   type Change,
 } from '../core/change.ts'
+import { hasFlag } from '../core/command-table.ts'
 import {
   findScenarioDrops,
   parseDeltaSpec,
@@ -286,10 +287,10 @@ export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
   const root = await resolveRoot(ctx)
   const base = root.base
-  const args = ctx.args
-  const userSkipSpecs = args.includes('--skip-specs')
-  const forceIncomplete = args.includes('--force-incomplete')
-  const name = args.find((a) => !a.startsWith('-'))
+  const parsed = ctx.parsed!
+  const userSkipSpecs = hasFlag(parsed, '--skip-specs')
+  const forceIncomplete = hasFlag(parsed, '--force-incomplete')
+  const name = parsed.positionals[0]
 
   if (name === undefined) {
     process.stderr.write('cospec archive: a change name is required (cospec archive <change>)\n')

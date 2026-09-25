@@ -88,15 +88,15 @@ red; 4–7 turn it green; 8 documents it.
 
 ## 5. T4 — lifecycle commands onto the parser (`apps/cli/src/commands/{validate,status,archive,list,apply,migrate,sync-blockers,check-commit}.ts`)
 
-- [ ] 5.1 `validate.ts`: read
+- [x] 5.1 `validate.ts`: read
       `--strict --fast --all --changes --specs     --archived --no-interactive`
       and the positional from `ctx.parsed`; delete the `includes`/`find` reads
       (regression: ledger 1.1)
-- [ ] 5.2 `status.ts`: `--change`, `--all`, positional from `ctx.parsed` (ledger
+- [x] 5.2 `status.ts`: `--change`, `--all`, positional from `ctx.parsed` (ledger
       1.2)
-- [ ] 5.3 `archive.ts`: `--skip-specs`, `--force-incomplete`, the positional;
+- [x] 5.3 `archive.ts`: `--skip-specs`, `--force-incomplete`, the positional;
       `-y/--yes` accepted as no-ops (ledger 2.1)
-- [ ] 5.4 `list.ts`: `--specs`, `--blocked`; `--changes` no-op (ledger 1.4, 2.1)
+- [x] 5.4 `list.ts`: `--specs`, `--blocked`; `--changes` no-op (ledger 1.4, 2.1)
 - [ ] 5.5 `apply.ts`, `migrate.ts`, `sync-blockers.ts`, `check-commit.ts`: each
       onto `ctx.parsed`
 - [ ] 5.6 Un-skip these commands' differential rows; `mise run test` and
