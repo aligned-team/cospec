@@ -1,0 +1,17 @@
+# Upstream OpenSpec noun groups it has itself deprecated. cospec never had
+# partial coverage of either, so these resolve to this file instead of the
+# command table. An entry only counts when
+# apps/cli/test/contract/reachability.test.ts finds the mark: `change` in
+# the pinned binary's own COMMAND_REGISTRY description, `spec` by running
+# `openspec spec list` against the oracle fixture and matching `warning`
+# verbatim against its stderr. Probed against the pinned binary
+# (apps/cli/node_modules/.bin/openspec, 1.13.1) in a throwaway root.
+- upstream: { kind: command, path: [change] }
+  mark: registry-description
+  subcommands: [show, list, validate]
+- upstream: { kind: command, path: [spec] }
+  mark: runtime-stderr
+  warning: >-
+    Warning: The "openspec spec ..." commands are deprecated. Prefer verb-first
+    commands (e.g., "openspec show", "openspec validate --specs").
+  subcommands: [show, list, validate]

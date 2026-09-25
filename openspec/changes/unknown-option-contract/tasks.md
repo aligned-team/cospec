@@ -29,7 +29,7 @@ red; 4–7 turn it green; 8 documents it.
 
 ## 2. T6 — parity data files (`apps/cli/src/canon/parity/{aliases,exceptions,deprecated}.yaml`)
 
-- [ ] 2.1 Write `aliases.yaml` with the `sync` → `sync-specs` workflow alias,
+- [x] 2.1 Write `aliases.yaml` with the `sync` → `sync-specs` workflow alias,
       `exceptions.yaml` with the single self-upgrade entry, and
       `deprecated.yaml` with the `change` (registry-description) and `spec`
       (runtime-stderr, warning text verbatim) noun groups, in the shapes the

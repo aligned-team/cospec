@@ -1,0 +1,8 @@
+# cospec spellings of upstream OpenSpec names that already work today.
+# Read by apps/cli/test/contract/reachability.test.ts and the docs data
+# loader (apps/docs/.vitepress/parity.data.ts). Each later PR in the
+# unknown-option-contract roadmap (see .claude/handoff/roadmap.md R3, R9)
+# adds the aliases it implements — never hand-edit the reachability test to
+# special-case an alias instead of listing it here.
+- upstream: { kind: workflow, id: sync }
+  cospec: sync-specs
