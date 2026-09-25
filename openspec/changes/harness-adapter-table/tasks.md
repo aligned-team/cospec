@@ -208,12 +208,22 @@ re-taken after any T3 edit.
 
 Exclusive files: `docs/harness-integration.md`.
 
-- [ ] 6.1 Update `docs/harness-integration.md`: name `HARNESS_TABLE` in
+- [x] 6.1 Update `docs/harness-integration.md`: name `HARNESS_TABLE` in
       `harness/adapters.ts` as the one declaration of a tool's layout (what each
       field means, and that `harness.yaml` now carries workflow identity only),
       rewrite the "Restart lines" bullet as the per-row `setupNote` plus the
       `requiresIdeRestart` line, and keep the shared-root and legacy-migration
-      bullets accurate to the derived fields. Commit; verify verification 5.2
+      bullets accurate to the derived fields. Commit; verify verification 5.2 ->
+      added a paragraph naming `HARNESS_TABLE` in
+      `apps/cli/src/harness/adapters.ts` as the one declaration of tool layout
+      and `harness.yaml` as workflow identity only; reworded the shared-root and
+      legacy bullets to cite
+      `skillsDir`/`bodyDialect`/`legacySkillsDirs`/`rulesPath`; renamed "Restart
+      lines" to "Setup notes" describing `setupNote` + `requiresIdeRestart`.
+      `git diff --exit-code main -- apps/docs/` exits 0 (this change alters no
+      user-facing behavior); `format:check` and `cospec validate --strict`
+      green. The receipt wiring this page describes is T3's (held); the doc
+      leads the code within this PR by design
 
 ## 7. Close-out
 
