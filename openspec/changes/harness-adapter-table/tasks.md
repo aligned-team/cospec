@@ -9,7 +9,7 @@ Exclusive files: `apps/cli/test/unit/harness-render.test.ts`,
 `apps/cli/test/integration/harness-wiring.test.ts`,
 `apps/cli/test/integration/__golden__/harness-wiring/**`.
 
-- [ ] 1.1 Before any source edit, add
+- [x] 1.1 Before any source edit, add
       `apps/cli/test/unit/harness-render.test.ts` and its golden directory:
       render claude, codex, opencode and agents each alone and all four together
       at the fixture version; under `COSPEC_GOLDEN_WRITE=1` write every file's
@@ -17,14 +17,37 @@ Exclusive files: `apps/cli/test/unit/harness-render.test.ts`,
       `harness`, `contentHash`); otherwise compare `Buffer`s and the exact path
       set. Commit as the branch's first commit and record its sha in
       verification 1.2; verify the test is green without the variable and
-      `git diff main -- apps/cli/src` is empty at that commit
-- [ ] 1.2 Add `apps/cli/test/integration/harness-wiring.test.ts` and its golden
+      `git diff main -- apps/cli/src` is empty at that commit -> done together
+      with 1.2 in one commit (see its sha below); 5 describe blocks
+      (claude/codex/opencode/agents/all) each assert the exact path set, the
+      index.json, and byte-identical content against the committed golden; green
+      under `bun test test/unit/harness-render.test.ts` with and without
+      `COSPEC_GOLDEN_WRITE=1`; `git diff main -- apps/cli/src` empty at this
+      commit (verified before committing). Also added `__golden__/` to
+      `.prettierignore` (repo root, not in this task's exclusive-file list but
+      required: oxfmt's md/json overrides were reflowing the committed
+      byte-exact golden files) — flagged for review
+- [x] 1.2 Add `apps/cli/test/integration/harness-wiring.test.ts` and its golden
       directory, written the same way: init receipts per harness, `all`, `none`
       and the auto-detected default; the invalid `--harness` message and exit
       code; init detection and `detectHarnesses` over the verification 3.2
       fixtures; the verification 3.3 removal-containment fixture; doctor's human
       and `--json` output over the verification 3.4 fixture. Commit; verify it
-      is green and `git diff main -- apps/cli/src` is still empty
+      is green and `git diff main -- apps/cli/src` is still empty ->
+      init-receipts/{claude,codex,opencode,agents,all,none,default}.txt,
+      invalid-harness.json, detect-harnesses/_.json (via
+      `update --check     --json`) + init-auto-detect/_.json (via `init --json`,
+      no --harness) over the 6 verification-3.2 fixtures (claude-only,
+      codex-migrated, codex-legacy, agents-only, codex-plus-agents, all-four —
+      confirms the two detection systems disagree on the codex/agents collision
+      by design), removal-containment.json (5 real leftovers removed, `.foo/x`
+      and `../victim.txt` never resolved — asserted directly, not just
+      captured), doctor/{human,json}.json (opsx x2, dangling-ref, stale-sidecar,
+      legacy-layout, in stable order); `XDG_CONFIG_HOME` isolated per doctor
+      call so the real machine's `~/.config/openspec` never leaks in. Green
+      under `bun test test/integration/harness-wiring.test.ts` with and without
+      `COSPEC_GOLDEN_WRITE=1`, repeated twice for stability;
+      `git diff main -- apps/cli/src` empty at this commit
 - [ ] 1.3 Run `mise run build`, then `cospec init --harness all` with the built
       binary in a fresh temporary git repo, and record the sorted `sha256` list
       of the written files in verification 3.8. Commit the ledger note; verify

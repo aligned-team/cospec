@@ -1,0 +1,12 @@
+cospec initialized in <TMP>  (state A)
+
+Schemas: 11 types in openspec/schemas/
+Config:  openspec/config.yaml (schema: feat)
+Files:   72 created
+Harness: agents
+         skills for codex/agents share the .agents/skills root (identical files)
+
+Shared .agents/skills — read by Codex ($cospec-*), Zed, Antigravity and other AGENTS.md-aware assistants; start a new session to load the skills. No slash commands are generated for this target.
+
+Try: /cospec:propose "feat: <what you want to build>"
+Lightweight change? /cospec:propose "ci: fix release workflow" — 3 short artifacts.

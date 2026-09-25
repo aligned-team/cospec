@@ -1,0 +1,13 @@
+cospec initialized in <TMP>  (state A)
+  No harness detected; defaulting to claude.
+
+Schemas: 11 types in openspec/schemas/
+Config:  openspec/config.yaml (schema: feat)
+Files:   84 created
+Harness: claude
+Permissions: merged Bash(cospec *) into .claude/settings.json
+
+Restart Claude Code to pick up /cospec commands.
+
+Try: /cospec:propose "feat: <what you want to build>"
+Lightweight change? /cospec:propose "ci: fix release workflow" — 3 short artifacts.
