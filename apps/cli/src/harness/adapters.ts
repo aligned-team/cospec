@@ -4,9 +4,9 @@ import { stringify } from 'yaml'
  * How a harness surface respells in-body `/cospec:<id>` references. Keyed by dialect rather
  * than by harness name so that `codex` and `agents` are provably byte-identical.
  */
-export type BodyDialect = 'canonical' | 'shared' | 'opencode' | 'flat'
+export type BodyDialect = 'canonical' | 'shared' | 'flat'
 
-export const BODY_DIALECTS: readonly BodyDialect[] = ['canonical', 'shared', 'opencode', 'flat']
+export const BODY_DIALECTS: readonly BodyDialect[] = ['canonical', 'shared', 'flat']
 
 export function isBodyDialect(value: string): value is BodyDialect {
   return (BODY_DIALECTS as readonly string[]).includes(value)
@@ -236,7 +236,10 @@ export function removalRoots(table: readonly HarnessAdapter[] = HARNESS_TABLE): 
   return [...new Set(['openspec', ...scanRoots(table)])]
 }
 
-/** A workflow's identity fields, as declared in canon/workflows/harness.yaml. */
+/**
+ * A workflow's identity fields, as declared in canon/workflows/harness.yaml — which holds
+ * workflow identity only; tool layout lives in HARNESS_TABLE above.
+ */
 export interface WorkflowDef {
   id: string
   command: string
@@ -258,9 +261,8 @@ const WORKFLOW_REF_RE = /\/cospec:([a-z][a-z0-9-]*)/g
  * Respell a body's `/cospec:<id>` references for the target dialect.
  *
  * - `canonical` — unchanged; Claude registers `/cospec:<id>` slash commands.
- * - `opencode` — `/cospec-<id>`, matching the slash commands OpenCode registers.
- * - `flat` — `<invocationPrefix>cospec-<id>`, for every tool that registers flat
- *   `cospec-<id>` commands (`/` for OpenCode, `@` for Amazon Q).
+ * - `flat` — `<invocationPrefix>cospec-<id>`, matching the flat `cospec-<id>` commands a
+ *   tool registers (`/cospec-<id>` for OpenCode, `@cospec-<id>` for Amazon Q).
  * - `shared` — `$cospec-<skill> (Codex) or /cospec-<skill> (other agents)`. The shared
  *   `.agents/skills` root emits NO command files, so `/cospec-<id>` would dangle there;
  *   only the skill directory name resolves, and only 4 of the 12 workflows spell their id
@@ -274,7 +276,6 @@ export function transformBody(
   invocationPrefix: InvocationPrefix = '/',
 ): string {
   if (dialect === 'canonical') return body
-  if (dialect === 'opencode') return body.replaceAll('/cospec:', '/cospec-')
   if (dialect === 'flat') return body.replaceAll('/cospec:', `${invocationPrefix}cospec-`)
   return body.replace(WORKFLOW_REF_RE, (whole, id: string) => {
     const skill = skillById.get(id)

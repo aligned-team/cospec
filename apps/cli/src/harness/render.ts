@@ -7,14 +7,16 @@ import { parse } from 'yaml'
 import pkg from '../../package.json'
 import { canonFile } from '../canon/embedded.ts'
 import {
-  type BodyDialect,
-  buildClaudeCommandFrontmatter,
-  buildOpencodeCommandFrontmatter,
+  adapterFor,
   buildSkillFrontmatter,
+  commandPath,
+  HARNESS_TABLE,
+  type HarnessAdapter,
   type HarnessName,
   injectOpenCodeArgs,
   renderCodexRules,
   serializeFrontmatter,
+  skillsRoot,
   transformBody,
   type WorkflowDef,
 } from './adapters.ts'
@@ -43,6 +45,11 @@ export interface RenderOptions {
   version?: string
   /** Override the canon workflows directory (defaults to ../canon/workflows). */
   canonDir?: string
+  /**
+   * Override the tool rows (defaults to HARNESS_TABLE). A test seam: fixture rows exercise
+   * shapes no shipped row uses, and never enter HARNESS_TABLE.
+   */
+  adapters?: readonly HarnessAdapter[]
 }
 
 export interface RenderedFile {
@@ -50,8 +57,9 @@ export interface RenderedFile {
   kind: 'command' | 'skill' | 'rules'
   /** The workflow id, or null for non-workflow files (codex rules). */
   workflow: string | null
-  /** Repo-relative output path. */
+  /** Output path: repo-relative, or home-relative when `scope` is `home`. */
   path: string
+  scope: 'project' | 'home'
   frontmatter: Record<string, unknown> | null
   /** The markdown body (after slash-substitution and type-table injection). */
   body: string
@@ -61,22 +69,8 @@ export interface RenderedFile {
   content: string
 }
 
-interface HarnessSurface {
-  commandDir?: string
-  commandFile?: string
-  skillDir: string
-  /**
-   * Skill directory templates this harness used in an earlier cospec version. Recorded in
-   * canon so the layout has one source of truth; the migration itself lives elsewhere.
-   */
-  legacySkillDirs?: string[]
-  rulesPath?: string
-  bodyDialect: BodyDialect
-}
-
-interface HarnessManifest {
+interface WorkflowManifest {
   workflows: WorkflowDef[]
-  harnesses: Record<HarnessName, HarnessSurface>
 }
 
 /**
@@ -89,7 +83,8 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
   // standalone compiled binary works (no canon dir exists on disk there).
   const workflowFile = (name: string): string =>
     opts.canonDir === undefined ? canonFile(`workflows/${name}`) : join(opts.canonDir, name)
-  const manifest = parse(readFileSync(workflowFile('harness.yaml'), 'utf8')) as HarnessManifest
+  const manifest = parse(readFileSync(workflowFile('harness.yaml'), 'utf8')) as WorkflowManifest
+  const table = opts.adapters ?? HARNESS_TABLE
 
   const skillById = new Map(manifest.workflows.map((w) => [w.id, w.skill] as const))
 
@@ -112,18 +107,31 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
   }
 
   for (const harness of opts.harnesses) {
-    const surface = manifest.harnesses[harness]
+    const row = adapterFor(harness, table)
+    const skills = skillsRoot(row)
+    const commands = row.commands
+    if (commands !== undefined && commands.serializer !== 'markdown') {
+      throw new Error(
+        `internal: harness '${harness}' uses the ${commands.serializer} command serializer, ` +
+          'which render does not implement yet',
+      )
+    }
+    if (commands !== undefined && commands.frontmatter === undefined) {
+      throw new Error(
+        `internal: harness '${harness}' has markdown commands but no frontmatter builder`,
+      )
+    }
     for (const w of manifest.workflows) {
       const rawBody = normalizeBody(readFileSync(workflowFile(`${w.id}.md`), 'utf8'))
       const injected = w.injectTypeTable
         ? rawBody.replace('{{TYPE_TABLE}}', renderTypeTable(opts.typeTable))
         : rawBody
-      const skillBody = transformBody(injected, surface.bodyDialect, skillById)
+      const skillBody = transformBody(injected, row.bodyDialect, skillById, row.invocationPrefix)
       // OpenCode drops a slash command's arguments unless the body names them, so an
       // arg-taking workflow's COMMAND body carries `$ARGUMENTS` while its skill body
       // does not — which is why each surface hashes its own body.
       const commandBody =
-        harness === 'opencode' && w.takesArguments === true
+        commands?.injectArguments === true && w.takesArguments === true
           ? injectOpenCodeArgs(skillBody)
           : skillBody
       const skillSection = `\n${skillBody}`
@@ -134,7 +142,8 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
           harness,
           kind: 'skill',
           workflow: w.id,
-          path: `${fill(surface.skillDir, { skill: w.skill })}/SKILL.md`,
+          path: `${skills.root}/${w.skill}/SKILL.md`,
+          scope: skills.scope,
           frontmatter: buildSkillFrontmatter(w, version, skillHash),
           body: skillBody,
           bodySection: skillSection,
@@ -142,7 +151,8 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
         }),
       )
 
-      if (surface.commandDir && surface.commandFile) {
+      const path = commandPath(row, w.command)
+      if (commands?.frontmatter !== undefined && path !== undefined) {
         const commandSection = `\n${commandBody}`
         const commandHash = hashBody(commandSection)
         emit(
@@ -150,11 +160,9 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
             harness,
             kind: 'command',
             workflow: w.id,
-            path: `${surface.commandDir}/${fill(surface.commandFile, { command: w.command })}`,
-            frontmatter:
-              harness === 'claude'
-                ? buildClaudeCommandFrontmatter(w, version, commandHash)
-                : buildOpencodeCommandFrontmatter(w, version, commandHash),
+            path,
+            scope: 'project',
+            frontmatter: commands.frontmatter(w, version, commandHash),
             body: commandBody,
             bodySection: commandSection,
             contentHash: commandHash,
@@ -163,13 +171,14 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
       }
     }
 
-    if (surface.rulesPath) {
+    if (row.rulesPath !== undefined) {
       const body = renderCodexRules(version)
       emit({
         harness,
         kind: 'rules',
         workflow: null,
-        path: surface.rulesPath,
+        path: row.rulesPath,
+        scope: 'project',
         frontmatter: null,
         body,
         contentHash: null,
@@ -201,6 +210,7 @@ interface AssembleArgs {
   kind: 'command' | 'skill'
   workflow: string
   path: string
+  scope: 'project' | 'home'
   frontmatter: Record<string, unknown>
   body: string
   bodySection: string
@@ -214,6 +224,7 @@ function assemble(args: AssembleArgs): RenderedFile {
     kind: args.kind,
     workflow: args.workflow,
     path: args.path,
+    scope: args.scope,
     frontmatter: args.frontmatter,
     body: args.body,
     contentHash: args.contentHash,
@@ -223,8 +234,4 @@ function assemble(args: AssembleArgs): RenderedFile {
 
 function normalizeBody(raw: string): string {
   return `${raw.replace(/^\n+/, '').replace(/\s+$/, '')}\n`
-}
-
-function fill(template: string, vars: Record<string, string>): string {
-  return template.replace(/\{(\w+)\}/g, (_, key: string) => vars[key] ?? `{${key}}`)
 }
