@@ -1,0 +1,688 @@
+// The unknown-option differential (change `unknown-option-contract`, ledger
+// 1.7, 2.2, 2.3, 5.1–5.3): the same argv runs through `cospec` and the pinned
+// binary, each in its own copy of one oracle fixture root, and both must give
+// the same accept-or-reject answer.
+//
+// Each run is classed (design decision 7):
+//   parse-rejected  stderr carries an unknown-option, argument-missing,
+//                   too-many-arguments or `--store-path` refusal (either
+//                   dialect: commander's `error: …` or cospec's
+//                   `cospec <command>: …`); upstream's `error: unknown command`
+//                   for a cospec-native command; a `--store-path` JSON
+//                   envelope; or, for a cospec row marked `json: 'refused'`,
+//                   its one-document `{ok: false}` `--json` refusal
+//   parsed          anything else, whatever the exit code
+// Exit codes are compared only when both runs are parse-rejected:
+// `validate --type change x` exits 1 in both tools today for different reasons,
+// and the class split is what keeps the comparison honest.
+//
+// Rows carry `expect`:
+//   same         both tools land in the same class
+//   cospec-only  cospec parses a flag of its own; the binary parse-rejects it
+//   pending      cospec refuses with `'<flag>' is not supported yet` and exit 1
+//                (the binary is not consulted: the flag is owed to a later change)
+//
+// A row whose command is not on the table parser yet is registered with
+// `test.todo` and a `todo` naming the track that moves it; that track deletes
+// the `todo` field when its command lands. Close-out (tasks 9.2) requires no
+// `todo` row to remain, and then collapses `register` to a plain `test(...)`
+// so the literal `test.todo` leaves this file too (the 9.2 grep looks for it).
+// The `--store-path` rows below carry their own `test.todo`, removed by T2.
+
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { cpSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { COMMAND_TABLE } from '../../src/core/command-table.ts'
+import { cleanupAll, cospec, hashTree, mkTempRepo, type SpawnResult } from '../fixtures/support.ts'
+import { oracle, oracleEnv, oracleJson, scaffoldOracleRoot } from './support/upstream-oracle.ts'
+
+afterAll(cleanupAll)
+
+let template: string
+
+beforeAll(async () => {
+  template = await scaffoldOracleRoot()
+}, 60_000)
+
+/** A fresh copy of the scaffolded fixture's `openspec/` tree. */
+function freshRoot(): string {
+  const dir = mkTempRepo()
+  cpSync(join(template, 'openspec'), join(dir, 'openspec'), { recursive: true })
+  return dir
+}
+
+/** The fixture's files, minus the sandboxed HOME the oracle env creates. */
+function treeHash(root: string): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(hashTree(root)).filter(([rel]) => !rel.startsWith('.oracle-home/')),
+  )
+}
+
+function runCospec(argv: string[], root: string): Promise<SpawnResult> {
+  return cospec(argv, { cwd: root, env: oracleEnv(root) })
+}
+
+// --- classification ---------------------------------------------------------------
+
+type ParseClass = 'parse-rejected' | 'parsed'
+
+/** Design decision 10: the `table` rows that refuse the global `--json`, read from the table. */
+const JSON_REFUSED: ReadonlySet<string> = new Set(
+  COMMAND_TABLE.filter((row) => row.parse === 'table' && row.json === 'refused').map(
+    (row) => row.name,
+  ),
+)
+
+const REFUSAL_SHAPES: readonly RegExp[] = [
+  /^error: unknown option '/m,
+  /^error: option '.+' argument missing$/m,
+  /^error: too many arguments/m,
+  /^error: unknown command '/m,
+  /^cospec [\w-]+(?: [\w-]+)?: unknown option '/m,
+  /^cospec [\w-]+(?: [\w-]+)?: option '.+' argument missing$/m,
+  /^cospec [\w-]+(?: [\w-]+)?: too many arguments\./m,
+  /--store-path is not supported\./,
+]
+
+function parseOneDocument(stdout: string): Record<string, unknown> | undefined {
+  try {
+    const doc = JSON.parse(stdout) as unknown
+    return typeof doc === 'object' && doc !== null ? (doc as Record<string, unknown>) : undefined
+  } catch (err) {
+    if (err instanceof SyntaxError) return undefined
+    throw err
+  }
+}
+
+function classify(run: SpawnResult, command: string, argv: readonly string[]): ParseClass {
+  if (REFUSAL_SHAPES.some((shape) => shape.test(run.stderr))) return 'parse-rejected'
+  if (argv.includes('--json')) {
+    const doc = parseOneDocument(run.stdout)
+    const status = doc?.['status']
+    if (
+      Array.isArray(status) &&
+      (status[0] as { code?: unknown })?.code === 'store_path_not_supported'
+    )
+      return 'parse-rejected'
+    if (JSON_REFUSED.has(command) && doc?.['ok'] === false && doc['command'] === command)
+      return 'parse-rejected'
+  }
+  return 'parsed'
+}
+
+// --- rows ---------------------------------------------------------------------------
+
+interface Row {
+  argv: string[]
+  /** The command whose row the argv exercises (for refusal text and `--json` refusal). */
+  command: string
+  expect: 'same' | 'cospec-only' | 'pending'
+  /** Text cospec's stderr must contain, beyond the class check. */
+  cospecStderr?: string
+  /** For a `pending` row, the flag named in the refusal. */
+  pendingFlag?: string
+  /** Set while the command is not on the table parser: the track that moves it. */
+  todo?: string
+}
+
+const T4 = 'T4 (tasks 5): lifecycle commands onto the table parser'
+const T5 = 'T5 (tasks 6): setup and passthrough commands onto the table parser'
+
+const unknown = (command: string, option: string): string =>
+  `cospec ${command}: unknown option '${option}'`
+const missing = (command: string, flag: string, placeholder: string): string =>
+  `cospec ${command}: option '${flag} ${placeholder}' argument missing`
+const suggest = (flag: string): string => `Did you mean '${flag}'?`
+
+/** Rows on `table` commands the pinned binary also has (ledger 5.1). */
+const TABLE_ROWS: readonly Row[] = [
+  // init
+  {
+    argv: ['init', '--bogus', '.'],
+    command: 'init',
+    expect: 'same',
+    cospecStderr: unknown('init', '--bogus'),
+    todo: T5,
+  },
+  { argv: ['init', '--no-animation', '.'], command: 'init', expect: 'same' },
+  {
+    argv: ['init', '--harness'],
+    command: 'init',
+    expect: 'same',
+    cospecStderr: missing('init', '--harness', '<list>'),
+    todo: T5,
+  },
+  { argv: ['init', '--harness', 'none', '.'], command: 'init', expect: 'cospec-only' },
+  // update
+  {
+    argv: ['update', '--bogus'],
+    command: 'update',
+    expect: 'same',
+    cospecStderr: unknown('update', '--bogus'),
+    todo: T5,
+  },
+  { argv: ['update', '--check'], command: 'update', expect: 'cospec-only' },
+  // doctor
+  {
+    argv: ['doctor', '--bogus'],
+    command: 'doctor',
+    expect: 'same',
+    cospecStderr: unknown('doctor', '--bogus'),
+    todo: T5,
+  },
+  // new
+  {
+    argv: ['new', '--bogus'],
+    command: 'new',
+    expect: 'same',
+    cospecStderr: unknown('new', '--bogus'),
+    todo: T5,
+  },
+  // Upstream has no `new <type>`: it answers `error: unknown command 'feat'`.
+  {
+    argv: ['new', 'feat', 'x', '--description'],
+    command: 'new',
+    expect: 'same',
+    cospecStderr: missing('new', '--description', '<text>'),
+    todo: T5,
+  },
+  // validate
+  {
+    argv: ['validate', '--typo', 'x'],
+    command: 'validate',
+    expect: 'same',
+    cospecStderr: suggest('--type'),
+    todo: T4,
+  },
+  {
+    argv: ['validate', '--bogus'],
+    command: 'validate',
+    expect: 'same',
+    cospecStderr: unknown('validate', '--bogus'),
+    todo: T4,
+  },
+  { argv: ['validate', '--fast'], command: 'validate', expect: 'cospec-only' },
+  // status
+  {
+    argv: ['status', '--schem', 'custom'],
+    command: 'status',
+    expect: 'same',
+    cospecStderr: suggest('--schema'),
+    todo: T4,
+  },
+  {
+    argv: ['status', '--bogus'],
+    command: 'status',
+    expect: 'same',
+    cospecStderr: unknown('status', '--bogus'),
+    todo: T4,
+  },
+  {
+    argv: ['status', '--change'],
+    command: 'status',
+    expect: 'same',
+    cospecStderr: missing('status', '--change', '<slug>'),
+    todo: T4,
+  },
+  // list
+  {
+    argv: ['list', '--bogus'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: unknown('list', '--bogus'),
+    todo: T4,
+  },
+  {
+    argv: ['list', '--sortt'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: suggest('--sort'),
+    todo: T4,
+  },
+  { argv: ['list', '--changes'], command: 'list', expect: 'same' },
+  { argv: ['list', '--blocked'], command: 'list', expect: 'cospec-only' },
+  // instructions
+  {
+    argv: ['instructions', 'proposal', '--bogus'],
+    command: 'instructions',
+    expect: 'same',
+    cospecStderr: unknown('instructions', '--bogus'),
+    todo: T5,
+  },
+  {
+    argv: ['instructions', 'proposal', '--change'],
+    command: 'instructions',
+    expect: 'same',
+    cospecStderr: missing('instructions', '--change', '<slug>'),
+    todo: T5,
+  },
+  {
+    argv: ['instructions', 'apply', '--change', 'x', '--allow-soft'],
+    command: 'instructions',
+    expect: 'cospec-only',
+  },
+  // archive
+  { argv: ['archive', 'c', '-y'], command: 'archive', expect: 'same' },
+  { argv: ['archive', 'c', '--yes'], command: 'archive', expect: 'same' },
+  {
+    argv: ['archive', '--bogus', 'c'],
+    command: 'archive',
+    expect: 'same',
+    cospecStderr: unknown('archive', '--bogus'),
+    todo: T4,
+  },
+  { argv: ['archive', '--force-incomplete', 'x'], command: 'archive', expect: 'cospec-only' },
+  // context
+  {
+    argv: ['context', '--bogus'],
+    command: 'context',
+    expect: 'same',
+    cospecStderr: unknown('context', '--bogus'),
+    todo: T5,
+  },
+  {
+    argv: ['context', '--code-workspace'],
+    command: 'context',
+    expect: 'same',
+    cospecStderr: missing('context', '--code-workspace', '<path>'),
+    todo: T5,
+  },
+  // view
+  {
+    argv: ['view', '--bogus'],
+    command: 'view',
+    expect: 'same',
+    cospecStderr: unknown('view', '--bogus'),
+    todo: T5,
+  },
+  { argv: ['view', '--json'], command: 'view', expect: 'same', todo: T5 },
+  // completion
+  {
+    argv: ['completion', '--bogus'],
+    command: 'completion',
+    expect: 'same',
+    cospecStderr: unknown('completion', '--bogus'),
+    todo: T5,
+  },
+  { argv: ['completion', '--json'], command: 'completion', expect: 'same' },
+  // feedback: `--upstream --json` refuses before any relay, so no run reaches gh.
+  {
+    argv: ['feedback', '--bogus', 'm'],
+    command: 'feedback',
+    expect: 'same',
+    cospecStderr: unknown('feedback', '--bogus'),
+  },
+  {
+    argv: ['feedback', 'm', '--body'],
+    command: 'feedback',
+    expect: 'same',
+    cospecStderr: missing('feedback', '--body', '<text>'),
+    todo: T5,
+  },
+  { argv: ['feedback', 'm', '--upstream', '--json'], command: 'feedback', expect: 'cospec-only' },
+]
+
+/**
+ * Rows on `table` commands the pinned binary does not have. The binary answers
+ * `error: unknown command`, so a `same` row asserts both refuse at parse time
+ * and `cospecStderr` pins cospec's own refusal.
+ */
+const NATIVE_ROWS: readonly Row[] = [
+  {
+    argv: ['apply', '--bogus', 'x'],
+    command: 'apply',
+    expect: 'same',
+    cospecStderr: unknown('apply', '--bogus'),
+    todo: T4,
+  },
+  { argv: ['apply', '--allow-soft', 'x'], command: 'apply', expect: 'cospec-only' },
+  {
+    argv: ['migrate', '--bogus', 'x'],
+    command: 'migrate',
+    expect: 'same',
+    cospecStderr: unknown('migrate', '--bogus'),
+    todo: T4,
+  },
+  {
+    argv: ['sync-blockers', '--bogus'],
+    command: 'sync-blockers',
+    expect: 'same',
+    cospecStderr: unknown('sync-blockers', '--bogus'),
+    todo: T4,
+  },
+  {
+    argv: ['sync-blockers', '--change'],
+    command: 'sync-blockers',
+    expect: 'same',
+    cospecStderr: missing('sync-blockers', '--change', '<slug>'),
+    todo: T4,
+  },
+  { argv: ['sync-blockers', '--check'], command: 'sync-blockers', expect: 'cospec-only' },
+  {
+    argv: ['check-commit', '--bogus'],
+    command: 'check-commit',
+    expect: 'same',
+    cospecStderr: unknown('check-commit', '--bogus'),
+    todo: T4,
+  },
+  {
+    argv: ['__complete', '--bogus', 'changes'],
+    command: '__complete',
+    expect: 'same',
+    cospecStderr: unknown('__complete', '--bogus'),
+    todo: T5,
+  },
+]
+
+/** Every flag the table marks pending on a `table` command (ledger 5.2). */
+const PENDING_ROWS: readonly Row[] = [
+  {
+    argv: ['init', '--tools', 'claude', '.'],
+    command: 'init',
+    expect: 'pending',
+    pendingFlag: '--tools',
+    todo: T5,
+  },
+  {
+    argv: ['init', '--language', 'fr', '.'],
+    command: 'init',
+    expect: 'pending',
+    pendingFlag: '--language',
+    todo: T5,
+  },
+  {
+    argv: ['init', '--profile', 'core', '.'],
+    command: 'init',
+    expect: 'pending',
+    pendingFlag: '--profile',
+    todo: T5,
+  },
+  {
+    argv: ['init', '--copilot-cloud', '.'],
+    command: 'init',
+    expect: 'pending',
+    pendingFlag: '--copilot-cloud',
+    todo: T5,
+  },
+  {
+    argv: ['init', '--no-copilot-cloud', '.'],
+    command: 'init',
+    expect: 'pending',
+    pendingFlag: '--no-copilot-cloud',
+    todo: T5,
+  },
+  {
+    argv: ['validate', '--type', 'change', 'x'],
+    command: 'validate',
+    expect: 'pending',
+    pendingFlag: '--type',
+    todo: T4,
+  },
+  {
+    argv: ['validate', '--report', 'findings', '--all'],
+    command: 'validate',
+    expect: 'pending',
+    pendingFlag: '--report',
+    todo: T4,
+  },
+  {
+    argv: ['validate', '--concurrency', '4', '--all'],
+    command: 'validate',
+    expect: 'pending',
+    pendingFlag: '--concurrency',
+    todo: T4,
+  },
+  {
+    argv: ['status', '--schema', 'custom'],
+    command: 'status',
+    expect: 'pending',
+    pendingFlag: '--schema',
+    todo: T4,
+  },
+  {
+    argv: ['list', '--sort', 'name'],
+    command: 'list',
+    expect: 'pending',
+    pendingFlag: '--sort',
+    todo: T4,
+  },
+  {
+    argv: ['archive', '--no-validate', 'x'],
+    command: 'archive',
+    expect: 'pending',
+    pendingFlag: '--no-validate',
+    todo: T4,
+  },
+  {
+    argv: ['instructions', 'proposal', '--schema', 'spec-driven', '--change', 'x'],
+    command: 'instructions',
+    expect: 'pending',
+    pendingFlag: '--schema',
+    todo: T5,
+  },
+]
+
+/**
+ * One unknown-option row per `forward` command (ledger 5.3): cospec adds no
+ * refusal of its own, so the binary's answer must come back relayed.
+ */
+const FORWARD_ROWS: readonly Row[] = [
+  {
+    argv: ['show', 'foo', '--bogus'],
+    command: 'show',
+    expect: 'same',
+    cospecStderr: "error: too many arguments for 'show'",
+  },
+  { argv: ['show', '--bogus'], command: 'show', expect: 'same' },
+  {
+    argv: ['templates', '--bogus'],
+    command: 'templates',
+    expect: 'same',
+    cospecStderr: "error: unknown option '--bogus'",
+  },
+  {
+    argv: ['schemas', '--bogus'],
+    command: 'schemas',
+    expect: 'same',
+    cospecStderr: "error: unknown option '--bogus'",
+  },
+  {
+    argv: ['schema', 'which', '--bogus'],
+    command: 'schema',
+    expect: 'same',
+    cospecStderr: "error: unknown option '--bogus'",
+  },
+  {
+    argv: ['store', 'list', '--bogus'],
+    command: 'store',
+    expect: 'same',
+    cospecStderr: "error: unknown option '--bogus'",
+    // store.ts appends `--json` and reports the binary's empty stdout as a
+    // wrapped-call failure instead of relaying its refusal. commands/store.ts
+    // is in no track of this change; reported as an open follow-up.
+    todo: 'unowned: commands/store.ts relays no unknown-option refusal (follow-up)',
+  },
+  {
+    argv: ['workset', 'list', '--bogus'],
+    command: 'workset',
+    expect: 'same',
+    cospecStderr: "error: unknown option '--bogus'",
+  },
+  {
+    argv: ['config', 'path', '--bogus'],
+    command: 'config',
+    expect: 'same',
+    cospecStderr: "error: unknown option '--bogus'",
+  },
+]
+
+async function checkRow(row: Row): Promise<void> {
+  const coRoot = freshRoot()
+  const before = treeHash(coRoot)
+  const co = await runCospec(row.argv, coRoot)
+  const coClass = classify(co, row.command, row.argv)
+  const detail = `cospec exit ${co.exitCode}, stderr: ${co.stderr.slice(0, 300)}`
+
+  if (row.expect === 'pending') {
+    expect(co.exitCode, detail).toBe(1)
+    expect(co.stderr).toContain(`cospec ${row.command}: '${row.pendingFlag}' is not supported yet`)
+    expect(treeHash(coRoot), 'a pending flag must be refused before any work').toEqual(before)
+    return
+  }
+
+  const up = await oracle(row.argv, freshRoot())
+  const upClass = classify(up, row.command, row.argv)
+  const upDetail = `openspec exit ${up.exitCode}, stderr: ${up.stderr.slice(0, 300)}`
+
+  if (row.expect === 'cospec-only') {
+    expect(coClass, detail).toBe('parsed')
+    expect(upClass, upDetail).toBe('parse-rejected')
+    return
+  }
+
+  expect({ cospec: coClass, openspec: upClass }, `${detail}\n${upDetail}`).toEqual({
+    cospec: upClass,
+    openspec: upClass,
+  })
+  if (upClass === 'parse-rejected') {
+    expect(co.exitCode, detail).toBe(up.exitCode)
+    expect(treeHash(coRoot), 'a parse refusal must happen before any work').toEqual(before)
+  }
+  if (row.cospecStderr !== undefined) expect(co.stderr).toContain(row.cospecStderr)
+}
+
+function register(rows: readonly Row[]): void {
+  for (const row of rows) {
+    const name = `${row.expect}: ${row.argv.join(' ')}`
+    if (row.todo === undefined) test(name, () => checkRow(row), 30_000)
+    else test.todo(`${name} — ${row.todo}`, () => checkRow(row), 30_000)
+  }
+}
+
+describe('unknown-option differential: table commands the binary also has', () => {
+  register(TABLE_ROWS)
+})
+
+describe('unknown-option differential: cospec-native table commands', () => {
+  register(NATIVE_ROWS)
+})
+
+describe('unknown-option differential: pending flags', () => {
+  register(PENDING_ROWS)
+})
+
+describe('unknown-option differential: forward commands relay the binary', () => {
+  register(FORWARD_ROWS)
+})
+
+// --- --store-path (ledger 2.2, 2.3) ------------------------------------------------
+
+const T2 = 'T2 (tasks 4): --store-path guard in cli.ts'
+
+/** Upstream's post-command redirect text, respelled `openspec` → `cospec` and nothing else. */
+async function expectedRedirect(): Promise<string> {
+  const up = await oracle(['list', '--store-path', '/x'], freshRoot())
+  expect(up.exitCode).toBe(1)
+  expect(up.stderr).toContain('--store-path is not supported')
+  return up.stderr.replaceAll('openspec', 'cospec')
+}
+
+describe('unknown-option differential: --store-path is refused with the redirect', () => {
+  for (const argv of [
+    ['list', '--store-path', '/x'],
+    ['list', '--store-path=/x'],
+    ['--store-path', '/x', 'list'],
+    ['validate', '--store-path', '/x'],
+    ['show', 'foo', '--store-path', '/x'],
+  ]) {
+    test.todo(`${argv.join(' ')} prints upstream's redirect respelled, exits 1 — ${T2}`, async () => {
+      const text = await expectedRedirect()
+      const root = freshRoot()
+      const before = treeHash(root)
+      const co = await runCospec(argv, root)
+      expect(co.exitCode).toBe(1)
+      expect(co.stderr).toBe(text)
+      expect(co.stderr).not.toContain('openspec')
+      expect(co.stdout).toBe('')
+      expect(treeHash(root)).toEqual(before)
+      // Upstream refuses in every position too (the pre-command form as a
+      // plain unknown option), so the differential classes agree.
+      const up = await oracle(argv, freshRoot())
+      expect(classify(up, 'list', argv)).toBe('parse-rejected')
+      expect(classify(co, 'list', argv)).toBe('parse-rejected')
+      expect(co.exitCode).toBe(up.exitCode)
+    }, 30_000)
+  }
+
+  test.todo(`list --json --store-path /x prints one envelope matching upstream's status[0] — ${T2}`, async () => {
+    const argv = ['list', '--json', '--store-path', '/x']
+    const up = await oracle(argv, freshRoot())
+    const co = await runCospec(argv, freshRoot())
+    expect(up.exitCode).toBe(1)
+    expect(co.exitCode).toBe(1)
+    const upDoc = JSON.parse(up.stdout) as { status: Record<string, string>[] }
+    const coDoc = JSON.parse(co.stdout) as { status: Record<string, string>[] }
+    const respelled = Object.fromEntries(
+      Object.entries(upDoc.status[0]!).map(([k, v]) => [k, v.replaceAll('openspec', 'cospec')]),
+    )
+    expect(coDoc.status[0]).toEqual(respelled)
+    expect(coDoc.status[0]!['code']).toBe('store_path_not_supported')
+    expect(coDoc.status[0]!['target']).toBe('store.id')
+    expect(co.stdout).not.toContain('openspec')
+  }, 30_000)
+})
+
+// --- classifier sanity -------------------------------------------------------------
+
+function refusedRun(stderr: string, stdout = ''): SpawnResult {
+  return { stdout, stderr, exitCode: 1 }
+}
+
+describe('unknown-option differential: the classifier', () => {
+  test('recognises both dialects of each refusal shape', () => {
+    for (const stderr of [
+      "error: unknown option '--bogus'\n",
+      "error: option '--sort <order>' argument missing\n",
+      "error: too many arguments for 'show'. Expected 1 argument but got 2.\n",
+      "error: unknown command 'apply'\n",
+      "cospec list: unknown option '--bogus'\nDid you mean '--specs'?\n",
+      "cospec status: option '--change <slug>' argument missing\n",
+      'cospec show: too many arguments. Expected 1 argument but got 2.\n',
+      '✖ Error: --store-path is not supported. Register the path …\n',
+    ])
+      expect(classify(refusedRun(stderr), 'list', [])).toBe('parse-rejected')
+  })
+
+  test('classes ordinary failures and pending refusals as parsed', () => {
+    for (const stderr of [
+      "cospec archive: unknown change 'c'\n",
+      "cospec: unknown command '/x'\n",
+      "cospec validate: '--type' is not supported yet\n",
+      "✖ Error: Change 'c' not found.\n",
+    ])
+      expect(classify(refusedRun(stderr), 'archive', [])).toBe('parsed')
+  })
+
+  test('a --json refusal envelope counts only on a json-refused row', () => {
+    const envelope = JSON.stringify({ version: 1, command: 'view', ok: false, message: 'x' })
+    expect(classify(refusedRun('', envelope), 'view', ['view', '--json'])).toBe('parse-rejected')
+    expect(classify(refusedRun('', envelope), 'view', ['view'])).toBe('parsed')
+    const other = JSON.stringify({ version: 1, command: 'list', ok: false, message: 'x' })
+    expect(classify(refusedRun('', other), 'list', ['list', '--json'])).toBe('parsed')
+  })
+})
+
+// --- the oracle itself (ledger 5.4) ------------------------------------------------
+
+describe('upstream oracle', () => {
+  test('oracleJson returns the exit code and the one parsed document', async () => {
+    const run = await oracleJson(['list', '--json'], template)
+    expect(run.exitCode).toBe(0)
+    expect(run.json).toMatchObject({ changes: [], root: { source: 'nearest' } })
+  })
+
+  test('oracleJson throws on a stdout that is not one JSON document', async () => {
+    await expect(oracleJson(['list'], template)).rejects.toThrow('did not print one JSON document')
+  })
+})

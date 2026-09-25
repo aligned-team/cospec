@@ -37,12 +37,12 @@ red; 4–7 turn it green; 8 documents it.
 
 ## 3. T7 — reachability test, pending list, oracle (`apps/cli/test/contract/reachability.test.ts`, `apps/cli/test/contract/parity-pending.yaml`, `apps/cli/test/contract/support/upstream-oracle.ts`, `apps/cli/test/contract/unknown-option-differential.test.ts`)
 
-- [ ] 3.1 Write `support/upstream-oracle.ts`: scaffold a temp root with the
+- [x] 3.1 Write `support/upstream-oracle.ts`: scaffold a temp root with the
       pinned binary, `oracleJson(argv, root)` with the color-stripped env and
       `OPENSPEC_TELEMETRY=0`, throwing on non-JSON stdout (ledger 5.4)
-- [ ] 3.2 Write `parity-pending.yaml` exactly as the design's pending table,
+- [x] 3.2 Write `parity-pending.yaml` exactly as the design's pending table,
       each entry `{kind, path/id, flag?, value?, source?, owner}`
-- [ ] 3.3 Write `reachability.test.ts`: import the four dist sources, flatten
+- [x] 3.3 Write `reachability.test.ts`: import the four dist sources, flatten
       every command path, positional slot, flag, flag value, tool id, alias and
       workflow id, resolve each against the table and the four YAML files, fail
       on zero or two resolutions, resolve `AI_TOOLS` ids against cospec's
@@ -54,13 +54,13 @@ red; 4–7 turn it green; 8 documents it.
       fails; design decision 11), verify each `deprecated.yaml` mark against the
       registry description or the oracle's stderr, assert `exceptions.yaml` has
       one entry and every pending entry has an owner (ledger 4.1–4.5)
-- [ ] 3.4 Write `unknown-option-differential.test.ts`: the classifier
+- [x] 3.4 Write `unknown-option-differential.test.ts`: the classifier
       (parse-rejected vs parsed), the per-command row list from verification
       5.1–5.3 with `expect: same | cospec-only | pending`, running each row
       through `cospec` (via `test/fixtures/support.ts`) and the oracle; the
       `--store-path` rows compare cospec's text to the oracle's with only the
       `openspec` → `cospec` respelling (ledger 2.3, 5.1–5.3)
-- [ ] 3.5 Run `mise run test:contract` and record the red rows (the differential
+- [x] 3.5 Run `mise run test:contract` and record the red rows (the differential
       and 1.6-style assertions fail on today's parsers); commit
       `test(cli): add the reachability contract and unknown-option     differential`
       with the tests present and the fixture rows that fail today marked `todo`
