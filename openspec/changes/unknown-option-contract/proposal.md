@@ -69,6 +69,11 @@ change measures against, so it lands here, first.
   `openspec` in shipped output), exit 1; under `--json` the refusal is
   upstream's JSON envelope (`code: store_path_not_supported`,
   `target: store.id`, `fix`), respelled the same way.
+- Each `table` row declares whether it accepts the global `--json`.
+  `cospec view --json` today exits 0 and silently ignores the flag, while the
+  pinned binary rejects `view --json` as an unknown option. `view` (and
+  `completion`, which already does this) refuses `--json` with exactly one JSON
+  document on stdout and exit 1, the `completion.ts` precedent.
 - Three upstream flags cospec already satisfies by construction are accepted as
   no-ops: `init --no-animation` (cospec has no animation), `archive -y` /
   `--yes` (cospec never prompts), `list --changes` (the default).
@@ -109,7 +114,8 @@ exit 1. Named upstream flags this affects: `init --tools`, `--language`,
 that implements it and fails with `is not supported yet` until then. Any other
 unrecognised option on a table-parsed command (today exit 0 on `list`,
 `context`, `view`, `doctor`, `sync-blockers`, `update`, `init`) now fails with
-`unknown option`.
+`unknown option`. `cospec view --json`, today exit 0 with the dashboard, now
+exits 1 with a one-document JSON refusal, as upstream also rejects it.
 
 ## Capabilities
 
@@ -131,14 +137,14 @@ unrecognised option on a table-parsed command (today exit 0 on `list`,
 ## Impact
 
 - `apps/cli/src/core/command-table.ts` (new): the table, the parser, the refusal
-  messages, the `--store-path` guard.
+  messages, the `--store-path` guard, the `--json` refusal envelope.
 - `apps/cli/src/cli.ts`: dispatch, `--help` rendering, `--store-path` in the
   pre-command position.
 - `apps/cli/src/core/completions/spec.ts`: `buildCompletionSpec()` reads the
   table; `extractFlags` goes.
 - `apps/cli/src/commands/{validate,status,archive,list,apply,migrate,sync-blockers,check-commit}.ts`
   and
-  `apps/cli/src/commands/{init,update,new,doctor,instructions,show,context,complete,completion,feedback}.ts`:
+  `apps/cli/src/commands/{init,update,new,doctor,instructions,show,context,view,complete,completion,feedback}.ts`:
   each moves onto the parser (or, for `forward` rows, onto the table's
   declaration only).
 - `apps/cli/src/canon/parity/{aliases,exceptions,deprecated}.yaml` (new).
@@ -152,7 +158,7 @@ unrecognised option on a table-parsed command (today exit 0 on `list`,
   `bun.lock`; `docs/architecture.md`; `.agents/shared.md` then `CLAUDE.md` /
   `AGENTS.md` via `mise run agents:sync`.
 - Exit codes: no new codes. Exit 1 now covers unknown options, not-supported-yet
-  flags and `--store-path` on every command.
+  flags, `--store-path` on every command, and `--json` on `view`.
 - No schema, artifact, gate or archive-behaviour change. The wrapped binary is
   spawned exactly as before; the tests deep-import its dist, the runtime never
   does.

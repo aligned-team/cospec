@@ -38,7 +38,12 @@ command does any work. A declared value-taking flag with no value SHALL fail
 with `cospec <command>: option '<flag> <placeholder>' argument missing` and
 exit 1. A flag marked pending SHALL consume its value if it takes one and SHALL
 fail with `cospec <command>: '<flag>' is not supported yet` and exit 1. No flag
-or flag value SHALL ever be read as a positional.
+or flag value SHALL ever be read as a positional. Each `table` row SHALL declare
+whether it accepts the global `--json`; on a row that does not, `--json` SHALL
+be refused with exactly one JSON document on stdout
+(`{version: 1, command, ok: false, message}`, the `cospec completion` precedent)
+and exit 1, before the command does any work, and SHALL never be silently
+ignored.
 
 #### Scenario: Unknown option is refused before any work
 
@@ -57,6 +62,13 @@ or flag value SHALL ever be read as a positional.
 - **WHEN** `cospec init --language fr .` runs and `--language` is pending
 - **THEN** cospec exits 1 with the not-supported-yet message and no `fr`
   directory is created
+
+#### Scenario: A command that takes no --json refuses it with one JSON document
+
+- **WHEN** `cospec view --json` runs in a repo with an `openspec/` directory
+- **THEN** stdout is exactly one JSON document with `command` `view` and `ok`
+  `false`, no dashboard is printed, the wrapped `openspec view` is not spawned,
+  and the exit code is 1
 
 #### Scenario: Missing value is refused
 
@@ -159,8 +171,14 @@ two places, SHALL fail the test. A `deprecated.yaml` entry SHALL count only when
 the pinned binary marks the surface deprecated, either in its registry
 description or by printing its deprecation warning on stderr when the surface
 runs. Every `parity-pending.yaml` entry SHALL carry the slug of the change that
-removes it. `exceptions.yaml` SHALL hold exactly one entry: upstream `update`'s
-offer to self-upgrade the wrapped binary.
+removes it. The resolution SHALL be two-way: every table flag or flag value
+marked pending SHALL have exactly one `parity-pending.yaml` entry with the same
+owner slug, and every `parity-pending.yaml` entry SHALL name a surface the walk
+produces (or a declared hidden fixture) that the table marks pending for that
+owner; a stale entry SHALL fail the test. The test SHALL read cospec's harness
+ids only through the `HARNESS_NAMES` export of
+`apps/cli/src/harness/adapters.ts`. `exceptions.yaml` SHALL hold exactly one
+entry: upstream `update`'s offer to self-upgrade the wrapped binary.
 
 #### Scenario: A registry entry that resolves nowhere fails the test
 
@@ -173,6 +191,13 @@ offer to self-upgrade the wrapped binary.
 - **WHEN** `parity-pending.yaml` is read
 - **THEN** every entry carries a change slug, and the test fails on an untagged
   entry
+
+#### Scenario: A stale pending entry fails the test
+
+- **WHEN** `parity-pending.yaml` lists a surface the table marks handled, or a
+  surface the pinned registry no longer has, or the table marks a flag pending
+  that no `parity-pending.yaml` entry names
+- **THEN** the reachability test fails naming that entry
 
 #### Scenario: Deprecation is verified against the binary
 

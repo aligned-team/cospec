@@ -35,6 +35,7 @@ The pinned binary's own behaviour, probed at
 | `list --json --store-path /x`                                                                                                                                                                                                           | 1    | stdout: `{"changes":[],"root":null,"status":[{"severity":"error","code":"store_path_not_supported","message":…,"target":"store.id","fix":…}]}`                                                                                    |
 | `show foo --bogus`                                                                                                                                                                                                                      | 1    | `error: too many arguments for 'show'. Expected 1 argument but got 2.` (`allowUnknownOption(true)` turns the flag into a positional)                                                                                              |
 | `show --bogus`                                                                                                                                                                                                                          | —    | runs; the flag is absorbed                                                                                                                                                                                                        |
+| `view --json`                                                                                                                                                                                                                           | 1    | `error: unknown option '--json'`                                                                                                                                                                                                  |
 | `templates --bogus`, `schemas --bogus`, `store list --bogus`, `config path --bogus`, `workset list --bogus`, `schema which --bogus`, `context --bogus`, `doctor --bogus`, `instructions proposal --bogus`, `completion install --bogus` | 1    | `error: unknown option '--bogus'`                                                                                                                                                                                                 |
 | `list --changes`                                                                                                                                                                                                                        | 0    | lists                                                                                                                                                                                                                             |
 | `archive c -y`                                                                                                                                                                                                                          | 1    | `✖ Error: Change 'c' not found…` (the flag parsed)                                                                                                                                                                                |
@@ -88,7 +89,9 @@ runtime by `dist/commands/spec.js:127`.
    values as it does today. Everything else is `table`. Upstream's per-command
    `--json` and `--store` are cospec globals (`GLOBAL_OPTIONS`, stripped in
    `cli.ts`); the reachability test resolves them for every row through the
-   global list rather than per-row duplicates.
+   global list rather than per-row duplicates. Each `table` row also declares
+   `json: 'accepted' | 'refused'`: whether the command honours the global
+   `--json` (decision 10).
    - Why not table-parse everything: `openspec show` sets
      `allowUnknownOption(true)`, so upstream _accepts_ `show --bogus`. A
      cospec-side rejection there would be a regression against the binary, not
@@ -149,11 +152,14 @@ runtime by `dist/commands/spec.js:127`.
 7. **Differential classification, not exit-code equality.** Each run is classed
    `parse-rejected` when stderr matches one of the four refusal shapes (unknown
    option, argument missing, too many arguments, `--store-path`) or `parsed`
-   otherwise. Both tools must land in the same class, and exit codes must be
-   equal only when both are parse-rejected. `validate --type change x` exits 1
-   in both tools today for different reasons (pending versus unknown item); the
-   class split is what keeps that assertion honest. Fixture rows carry
-   `expect: same | cospec-only | pending`.
+   otherwise. A cospec run on a `json: 'refused'` row counts as `parse-rejected`
+   when stdout is its one-document `--json` refusal envelope (decision 10), so
+   `view --json` lands in the same class as upstream's
+   `error: unknown option '--json'`. Both tools must land in the same class, and
+   exit codes must be equal only when both are parse-rejected.
+   `validate --type change x` exits 1 in both tools today for different reasons
+   (pending versus unknown item); the class split is what keeps that assertion
+   honest. Fixture rows carry `expect: same | cospec-only | pending`.
 8. **Data files are YAML under canon and read by tests and docs.**
    `aliases.yaml`, `exceptions.yaml`, `deprecated.yaml` live in
    `apps/cli/src/canon/parity/`; `parity-pending.yaml` lives beside the test
@@ -170,6 +176,30 @@ runtime by `dist/commands/spec.js:127`.
    `spec` by running `openspec spec list` in the oracle fixture and matching the
    full warning line in `deprecated.yaml` against its stderr verbatim. A pin
    bump that un-deprecates either turns the entry into a hard failure.
+10. **A `table` row declares whether it accepts `--json`.** `--json` is a cospec
+    global stripped in `cli.ts`, so a command that never reads `ctx.flags.json`
+    silently accepts and ignores it. `cospec view --json` does exactly that
+    today, while the pinned binary rejects `view --json` with
+    `error: unknown option '--json'` and exit 1. A row marked `json: 'refused'`
+    refuses `--json` with exactly one JSON document on stdout and exit 1,
+    following the `completion.ts` precedent
+    (`{version: 1, command, ok: false, message}`): a `--json` caller is entitled
+    to one parseable document even on refusal, and a stderr-only refusal would
+    leave it nothing to parse. `view` and `completion` are the `json: 'refused'`
+    rows; every other `table` row is `json: 'accepted'`. The envelope is built
+    by one shared `jsonRefusal(command, message)` helper in `command-table.ts`,
+    which `completion.ts` adopts in place of its inline copy with no change to
+    its output. `forward` rows carry no marking: the binary answers `--json` for
+    the surfaces it owns.
+11. **Reachability is two-way.** The walk proves every pinned entry resolves to
+    exactly one place, and the reverse is asserted too: every table flag or
+    value marked `pending` has exactly one `parity-pending.yaml` entry with the
+    same owner slug, and every `parity-pending.yaml` entry names a surface that
+    the walk produced (or a `source: cli` fixture from decision 6) and that the
+    table marks `pending` for that owner. A stale YAML entry — its surface now
+    handled, gone from the pin, or pending under a different owner — fails the
+    test, so a later change that implements a flag must delete its entry in the
+    same commit.
 
 ### Initial data-file contents
 
@@ -243,11 +273,12 @@ every `show` flag; `archive [change] --skip-specs --json --store`;
 `schemas --json --store`; every `store`, `workset`, `config` and `schema`
 subcommand, positional and flag (all forwarded verbatim by their wrappers);
 `context --json --store --code-workspace --force`; `doctor --json --store`;
-`feedback <message> --body`; `AI_TOOLS` `claude`, `codex`, `opencode`, `agents`;
-all twelve `ALL_WORKFLOWS` ids (eleven by name, `sync` through the alias).
-`change` and `spec` resolve to `deprecated.yaml`. No entry in the four sources
-is owned by no change. `archive -y/--yes`, `init --no-animation` and
-`list --changes` resolve to the table as accepted no-ops from this change on.
+`feedback <message> --body`; `AI_TOOLS` `claude`, `codex`, `opencode`, `agents`
+(through `HARNESS_NAMES`); all twelve `ALL_WORKFLOWS` ids (eleven by name,
+`sync` through the alias). `change` and `spec` resolve to `deprecated.yaml`. No
+entry in the four sources is owned by no change. `archive -y/--yes`,
+`init --no-animation` and `list --changes` resolve to the table as accepted
+no-ops from this change on.
 
 ## Risks / Trade-offs
 
@@ -302,6 +333,16 @@ is owned by no change. `archive -y/--yes`, `init --no-animation` and
   `name`, `positionals[]`, `flags[]` of `{name, short?, takesValue?, values?}`,
   `subcommands[]`); `dist/core/config.js` `AI_TOOLS` (`value` is the id) and
   `TOOL_ID_ALIASES`; `dist/core/profiles.js` `ALL_WORKFLOWS`.
+- **cospec harness ids**: the reachability test resolves `AI_TOOLS` ids against
+  cospec's harnesses by importing only the existing `HARNESS_NAMES` export of
+  `apps/cli/src/harness/adapters.ts` (a `readonly` array of harness-id strings).
+  It reads no other symbol of that module and no harness data file.
+  `harness-adapter-table` refactors that file alongside this change and keeps
+  `HARNESS_NAMES`'s name and shape frozen, so the two changes do not conflict.
+- **`view --json`** — probed `openspec view --json` at the pin: exit 1,
+  `error: unknown option '--json'`. cospec's refusal is the one-document
+  envelope instead (decision 10); the differential classes both as
+  parse-rejected.
 - **Upstream strings cospec reproduces**, and where each was captured:
   - `--store-path` redirect, both lines, and the `--json` envelope — probed
     `openspec list --store-path /x` and `openspec list --json --store-path /x`

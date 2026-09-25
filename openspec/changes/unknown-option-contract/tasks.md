@@ -7,7 +7,9 @@ red; 4–7 turn it green; 8 documents it.
 ## 1. T1 — the command table and parser (`apps/cli/src/core/command-table.ts`, `apps/cli/test/unit/core/command-table.test.ts`)
 
 - [ ] 1.1 Create `command-table.ts`: per-command rows with `name`, `summary`,
-      `hidden`, `parse: 'table' | 'forward'`, `positionals[]`, and `flags[]` of
+      `hidden`, `parse: 'table' | 'forward'`, `json: 'accepted' | 'refused'` on
+      `table` rows (`view` and `completion` refused), `positionals[]`, and
+      `flags[]` of
       `{name, short?, takesValue?, placeholder?, values?, description,     status: 'handled' | 'no-op' | {pending: '<slug>'}}`;
       seed every flag the pinned `COMMAND_REGISTRY` gives the same-named
       command, then cospec's own flags; mark `init --no-animation`,
@@ -18,7 +20,9 @@ red; 4–7 turn it green; 8 documents it.
       messages, the `--flag=value` form, and the closest-match line using
       `closest()` moved out of `cli.ts` into the table module
 - [ ] 1.3 Write the `--store-path` guard (`storePathRefusal(json)`) returning
-      the respelled redirect text and the `--json` envelope
+      the respelled redirect text and the `--json` envelope, and the
+      `jsonRefusal(command, message)` helper returning the one-document
+      `{version: 1, command, ok: false, message}` envelope (design decision 10)
 - [ ] 1.4 Unit-test the parser (verification 1.5): the six parse cases, and one
       assertion per no-op and per pending flag; commit
       `feat(cli): add the     command table and parser` (ledger 1.5)
@@ -41,9 +45,15 @@ red; 4–7 turn it green; 8 documents it.
 - [ ] 3.3 Write `reachability.test.ts`: import the four dist sources, flatten
       every command path, positional slot, flag, flag value, tool id, alias and
       workflow id, resolve each against the table and the four YAML files, fail
-      on zero or two resolutions, verify each `deprecated.yaml` mark against the
+      on zero or two resolutions, resolve `AI_TOOLS` ids against cospec's
+      harnesses by importing ONLY the `HARNESS_NAMES` export of
+      `apps/cli/src/harness/adapters.ts` (no other symbol of that module; its
+      name and shape are frozen by `harness-adapter-table`), assert the reverse
+      direction (every table entry marked pending ⇔ exactly one
+      `parity-pending.yaml` entry with the same owner, and a stale YAML entry
+      fails; design decision 11), verify each `deprecated.yaml` mark against the
       registry description or the oracle's stderr, assert `exceptions.yaml` has
-      one entry and every pending entry has an owner (ledger 4.1–4.4)
+      one entry and every pending entry has an owner (ledger 4.1–4.5)
 - [ ] 3.4 Write `unknown-option-differential.test.ts`: the classifier
       (parse-rejected vs parsed), the per-command row list from verification
       5.1–5.3 with `expect: same | cospec-only | pending`, running each row
@@ -93,22 +103,27 @@ red; 4–7 turn it green; 8 documents it.
       `mise run test:contract` green; commit
       `fix(cli): parse lifecycle     commands through the command table`
 
-## 6. T5 — setup and passthrough commands onto the parser (`apps/cli/src/commands/{init,update,new,doctor,instructions,show,context,complete,completion,feedback}.ts`)
+## 6. T5 — setup and passthrough commands onto the parser (`apps/cli/src/commands/{init,update,new,doctor,instructions,show,context,view,complete,completion,feedback}.ts`)
 
 - [ ] 6.1 `init.ts`: `resolveTarget` and `argValue` replaced by `ctx.parsed`;
       `--no-animation` no-op; `--tools`, `--language`, `--profile`,
       `--copilot-cloud`, `--no-copilot-cloud` pending (regression: ledger 1.3)
 - [ ] 6.2 `update.ts`, `doctor.ts`, `new.ts`, `context.ts`, `complete.ts`,
       `completion.ts`: each onto `ctx.parsed`, so an unknown option is refused
-      before any work (ledger 1.4)
+      before any work (ledger 1.4); `completion.ts` swaps its inline `--json`
+      refusal for `jsonRefusal()` with byte-identical output
 - [ ] 6.3 `instructions.ts`: onto `ctx.parsed` with `--change`, `--allow-soft`
       handled and `--schema` pending
-- [ ] 6.4 `show.ts`: `forward` row — keep forwarding verbatim; its table row
+- [ ] 6.4 `view.ts`: onto `ctx.parsed` (`table` row, `json: 'refused'`);
+      `--json` is refused with `jsonRefusal('view', …)` — one JSON document on
+      stdout, exit 1, no `openspec view` spawned — instead of being silently
+      ignored; its differential row (`view --json`) un-skipped (ledger 1.7)
+- [ ] 6.5 `show.ts`: `forward` row — keep forwarding verbatim; its table row
       declares every upstream flag so help and completion list them.
       `feedback.ts`: `table` row — `parseFeedbackArgs` replaced by `ctx.parsed`
       (`<message>`, `--body <text>`, `--upstream`); the `--upstream` relay
       rebuilds its argv from the parsed values
-- [ ] 6.5 Un-skip the remaining differential rows; the whole differential and
+- [ ] 6.6 Un-skip the remaining differential rows; the whole differential and
       the 1.6 no-legacy-parser test (scoped to `table` modules) are live;
       `mise run test:contract` green; commit
       `fix(cli): parse setup and passthrough commands through the command table`
@@ -150,5 +165,9 @@ red; 4–7 turn it green; 8 documents it.
 
 - [ ] 9.1 `mise run check` green (ledger 7.1–7.5); every ledger row marked with
       observed evidence
-- [ ] 9.2 `mise run cospec -- archive unknown-option-contract` as the last
+- [ ] 9.2 Grep the new test files (`command-table.test.ts`,
+      `reachability.test.ts`, `unknown-option-differential.test.ts`, and any
+      `cli.test.ts`/`completions.test.ts` additions) for `test.todo`/`it.todo`
+      and confirm zero remain (ledger 7.6)
+- [ ] 9.3 `mise run cospec -- archive unknown-option-contract` as the last
       commit on the branch
