@@ -6,6 +6,7 @@
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
+import { commandRow, parseCommandArgs } from '../core/command-table.ts'
 import { runPassthrough } from '../core/passthrough-command.ts'
 import { run as applyRun } from './apply.ts'
 
@@ -43,10 +44,20 @@ export async function run(ctx: CommandContext): Promise<number> {
   }
 
   // `instructions apply` is the apply gate under a different spelling.
+  // apply.ts reads `ctx.parsed`, so re-parse against apply's own row rather
+  // than spreading this command's `parsed` (its positional is `'apply'`, not
+  // the change id, which apply.ts would otherwise resolve as the change name).
   if (artifact === 'apply') {
     const args = changeId !== undefined ? [changeId] : []
     if (ctx.args.includes('--allow-soft')) args.push('--allow-soft')
-    return applyRun({ ...ctx, args })
+    const row = commandRow('apply')
+    if (row?.parse !== 'table') throw new Error("cospec instructions: 'apply' has no table row")
+    const result = parseCommandArgs(row, args)
+    if (!result.ok) {
+      process.stderr.write(result.refusal.message)
+      return EXIT.failure
+    }
+    return applyRun({ ...ctx, args, parsed: result.parsed })
   }
 
   if (changeId === undefined) {

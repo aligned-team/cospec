@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import type { CommandContext } from '../cli.ts'
 import { syncBlockers, type SyncFinding } from '../core/blockers.ts'
 import { listChanges, readArchiveIndex, resolveChange } from '../core/change.ts'
+import { flagValue, hasFlag } from '../core/command-table.ts'
 import { resolveRoot } from '../core/root.ts'
 
 const BLOCKERS_FILE = 'blocking-changes.md'
@@ -38,8 +39,9 @@ export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
   const root = await resolveRoot(ctx)
   const base = root.base
-  const check = ctx.args.includes('--check')
-  const changeArg = argValue(ctx.args, '--change')
+  const parsed = ctx.parsed!
+  const check = hasFlag(parsed, '--check')
+  const changeArg = flagValue(parsed, '--change')
 
   const archive = readArchiveIndex(base)
   const archiveMap = new Map<string, string>()
@@ -94,13 +96,6 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   renderHuman(results, check)
   return failed ? 1 : 0
-}
-
-function argValue(args: string[], flag: string): string | undefined {
-  const idx = args.indexOf(flag)
-  if (idx >= 0 && idx + 1 < args.length) return args[idx + 1]
-  const eq = args.find((a) => a.startsWith(`${flag}=`))
-  return eq?.slice(flag.length + 1)
 }
 
 function renderHuman(results: ChangeResult[], check: boolean): void {

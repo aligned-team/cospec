@@ -39,7 +39,7 @@ export function scaffoldDeferredVerification(templateBody: string): string {
 export async function run(ctx: CommandContext): Promise<number> {
   const root = await resolveRoot(ctx)
   const base = root.base
-  const slug = ctx.args.find((a) => !a.startsWith('-'))
+  const slug = ctx.parsed!.positionals[0]
 
   if (slug === undefined) {
     process.stderr.write('cospec migrate: a change name is required (cospec migrate <slug>)\n')

@@ -97,9 +97,9 @@ red; 4–7 turn it green; 8 documents it.
 - [x] 5.3 `archive.ts`: `--skip-specs`, `--force-incomplete`, the positional;
       `-y/--yes` accepted as no-ops (ledger 2.1)
 - [x] 5.4 `list.ts`: `--specs`, `--blocked`; `--changes` no-op (ledger 1.4, 2.1)
-- [ ] 5.5 `apply.ts`, `migrate.ts`, `sync-blockers.ts`, `check-commit.ts`: each
+- [x] 5.5 `apply.ts`, `migrate.ts`, `sync-blockers.ts`, `check-commit.ts`: each
       onto `ctx.parsed`
-- [ ] 5.6 Un-skip these commands' differential rows; `mise run test` and
+- [x] 5.6 Un-skip these commands' differential rows; `mise run test` and
       `mise run test:contract` green; commit
       `fix(cli): parse lifecycle     commands through the command table`
 

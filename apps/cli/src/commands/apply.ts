@@ -24,6 +24,7 @@ import {
   resolveSchema,
   type Change,
 } from '../core/change.ts'
+import { hasFlag } from '../core/command-table.ts'
 import {
   openspecApplyInstructions,
   OpenspecCallError,
@@ -262,9 +263,10 @@ async function applyLegacy(change: Change, ctx: CommandContext, root: Root): Pro
 
 export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
+  const parsedArgs = ctx.parsed!
   const root = await resolveRoot(ctx)
   const base = root.base
-  const allowSoft = ctx.args.includes('--allow-soft')
+  const allowSoft = hasFlag(parsedArgs, '--allow-soft')
   // `skip_specs` precedence (DESIGN §5, OpenSpec 1.7 parity): the one-shot CLI
   // flag overrides a persisted `.openspec.yaml` marker, which overrides the
   // structural default (spec-bearing types must show deltas). The conflict
@@ -272,8 +274,8 @@ export async function run(ctx: CommandContext): Promise<number> {
   // validate-time ERROR owned by the validate rule family; Step 2 below runs
   // fast validation first, so that ERROR blocks the gate before this flag
   // ever gets a chance to paper over it.
-  const cliSkipSpecs = ctx.args.includes('--skip-specs')
-  const name = ctx.args.find((a) => !a.startsWith('-'))
+  const cliSkipSpecs = hasFlag(parsedArgs, '--skip-specs')
+  const name = parsedArgs.positionals[0]
 
   if (name === undefined) {
     process.stderr.write('cospec apply: a change name is required (cospec apply <change>)\n')
