@@ -144,12 +144,20 @@ Exclusive files: `apps/cli/src/harness/render.ts`,
 
 Exclusive files: `openspec/changes/harness-adapter-table/verification.md`.
 
-- [ ] 4.1 No-behavior-change check for groups 2 and 3: run `mise run test`,
+- [x] 4.1 No-behavior-change check for groups 2 and 3: run `mise run test`,
       `mise run test:integration`, `mise run test:contract` and
       `mise run generate:check`, and the golden diffs of verification 1.2 and
       1.3. Record the observed results for verification 1.1 to 1.4, 2.1 to 2.9
       and 4.1 to 4.3 as they stand. Commit the ledger; verify every existing
-      suite is green with no existing integration or contract test edited
+      suite is green with no existing integration or contract test edited ->
+      `mise run test` 1043 pass, `test:integration` 180 pass, `test:contract`
+      120 pass, `generate:check` no drift; golden diffs 1.2
+      (`git diff --exit-code a2fdaef HEAD -- .../harness-render/`) and 1.3
+      (`git diff --exit-code main -- .../__snapshots__/`) both exit 0; 4.1's
+      `test(` diff shows only the design-decision-8 dialect rename (`opencode`
+      -> `flat`) and the 2.8 conflict-case rebuild, no removed assertion;
+      recorded verification 1.1-1.3 [x], 1.4 [~] defer (after-5.5 half awaits
+      T3), 2.1-2.9 [x], 4.1-4.3 [x]; `cospec validate --strict` passes
 
 ## 5. Track T3: init, update and doctor read the table (gated)
 
