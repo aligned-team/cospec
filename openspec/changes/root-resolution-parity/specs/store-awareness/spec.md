@@ -129,6 +129,13 @@ and never by resolving an ancestor of the missing path.
   `config.yaml` declaring a registered `store: platform`
 - **THEN** the command operates on `platform` with provenance `declared`
 
+#### Scenario: A config.yml pointer is followed
+
+- **WHEN** a command runs in a directory whose `openspec/` holds only a
+  `config.yml`, with no `config.yaml`, declaring a registered `store: platform`
+- **THEN** the command operates on `platform` with provenance `declared`, as it
+  would for the same pointer in `config.yaml`
+
 #### Scenario: A malformed store pointer fails the command
 
 - **WHEN** a config-only `openspec/config.yaml` cannot be parsed as YAML, or
