@@ -294,6 +294,19 @@ const TABLE_ROWS: readonly Row[] = [
     cospecStderr: missing('feedback', '--body', '<text>'),
   },
   { argv: ['feedback', 'm', '--upstream', '--json'], command: 'feedback', expect: 'cospec-only' },
+  // too many arguments (the BREAKING note names these)
+  {
+    argv: ['list', 'a'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: 'cospec list: too many arguments. Expected 0 arguments but got 1.',
+  },
+  {
+    argv: ['validate', 'a', 'b'],
+    command: 'validate',
+    expect: 'same',
+    cospecStderr: 'cospec validate: too many arguments. Expected 1 argument but got 2.',
+  },
 ]
 
 /**
@@ -334,6 +347,19 @@ const NATIVE_ROWS: readonly Row[] = [
     expect: 'same',
     cospecStderr: unknown('check-commit', '--bogus'),
   },
+  // Excess positionals main silently ignored (the BREAKING note names these).
+  {
+    argv: ['sync-blockers', 'demo'],
+    command: 'sync-blockers',
+    expect: 'same',
+    cospecStderr: 'cospec sync-blockers: too many arguments. Expected 0 arguments but got 1.',
+  },
+  {
+    argv: ['check-commit', 'a', 'b'],
+    command: 'check-commit',
+    expect: 'same',
+    cospecStderr: 'cospec check-commit: too many arguments. Expected 1 argument but got 2.',
+  },
   {
     argv: ['__complete', '--bogus', 'changes'],
     command: '__complete',
@@ -342,7 +368,10 @@ const NATIVE_ROWS: readonly Row[] = [
   },
 ]
 
-/** Every flag the table marks pending on a `table` command (ledger 5.2). */
+/**
+ * Every flag, positional and subcommand the table marks pending on a `table`
+ * command (ledger 5.2); `pendingFlag` is the token the refusal names.
+ */
 const PENDING_ROWS: readonly Row[] = [
   {
     argv: ['init', '--tools', 'claude', '.'],
@@ -415,6 +444,35 @@ const PENDING_ROWS: readonly Row[] = [
     command: 'instructions',
     expect: 'pending',
     pendingFlag: '--schema',
+  },
+  // Pending positionals and subcommands (the BREAKING note names these):
+  // `update .` ran against the cwd on main and upstream, but `[path]` is owed
+  // to `upstream-spellings`.
+  { argv: ['update', '.'], command: 'update', expect: 'pending', pendingFlag: '[path]' },
+  {
+    argv: ['update', '--force', '.'],
+    command: 'update',
+    expect: 'pending',
+    pendingFlag: '[path]',
+  },
+  { argv: ['new', 'change', 'x'], command: 'new', expect: 'pending', pendingFlag: 'change' },
+  {
+    argv: ['completion', 'generate', 'bash'],
+    command: 'completion',
+    expect: 'pending',
+    pendingFlag: 'generate',
+  },
+  {
+    argv: ['completion', 'install'],
+    command: 'completion',
+    expect: 'pending',
+    pendingFlag: 'install',
+  },
+  {
+    argv: ['completion', 'uninstall'],
+    command: 'completion',
+    expect: 'pending',
+    pendingFlag: 'uninstall',
   },
 ]
 

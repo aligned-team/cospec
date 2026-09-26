@@ -117,6 +117,19 @@ unrecognised option on a table-parsed command (today exit 0 on `list`,
 `unknown option`. `cospec view --json`, today exit 0 with the dashboard, now
 exits 1 with a one-document JSON refusal, as upstream also rejects it.
 
+Positionals and subcommands break the same way. `cospec update [path]` —
+including `cospec update .` and `cospec update --force .`, which today run
+against the cwd and exit 0, as upstream's `openspec update .` does — now fails
+with `cospec update: '[path]' is not supported yet` until `upstream-spellings`
+honours the path. The upstream subcommands `new change`, `completion generate`,
+`completion install` and `completion uninstall` fail with
+`cospec <command>: '<subcommand>' is not supported yet` until their owning
+changes land. An excess positional on a table-parsed command now fails with
+`cospec <command>: too many arguments. Expected N argument(s) but got M.`
+instead of being ignored: on `sync-blockers <slug>` and `check-commit a b`
+(cospec-only, today exit 0), and on `list`, `view`, `doctor`, `context`,
+`validate` and `archive`, where upstream refuses the same argv.
+
 ## Capabilities
 
 ### New Capabilities

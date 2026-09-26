@@ -112,16 +112,24 @@ silently dropping it, which used to hand the flag's value to a positional
 (`cospec validate --type change x` validated an item literally named `change`).
 One command table (`core/command-table.ts`) drives argv parsing, per-command
 `--help`, and the shell completion spec together, so the three can't drift
-apart. Three refusal shapes, all exit `1`:
+apart. Four refusal shapes, all exit `1`:
 
 - **Unknown flag:** `cospec <command>: unknown option '<flag>'`, followed by
   `Did you mean '<closest-flag>'?` when one is close enough.
 - **Missing value:**
   `cospec <command>: option '<flag> <placeholder>' argument missing`, for a
   value-taking flag given with nothing after it.
+- **Too many arguments:**
+  `cospec <command>: too many arguments. Expected N argument(s) but got M.`, for
+  a positional the command doesn't take.
 - **Not supported yet:** `cospec <command>: '<flag>' is not supported yet`, for
   an upstream flag cospec hasn't implemented. Its value is still consumed first,
-  so a pending flag can never leak into a positional either.
+  so a pending flag can never leak into a positional either. An upstream
+  positional or subcommand cospec hasn't implemented is refused the same way,
+  naming the slot or subcommand: `cospec update .` answers
+  `cospec update: '[path]' is not supported yet`, and `new change`,
+  `completion generate`, `completion install` and `completion uninstall` answer
+  `'<subcommand>' is not supported yet`.
 
 Three flags are accepted as no-ops, because cospec already behaves as they ask:
 `init --no-animation` (cospec has no animation), `archive -y`/`--yes` (cospec

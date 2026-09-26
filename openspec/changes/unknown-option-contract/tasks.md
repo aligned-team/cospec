@@ -178,3 +178,7 @@ red; 4–7 turn it green; 8 documents it.
       unknown options, `--store-path` and dispatch, as upstream's program-level
       option is; differential rows for the post-command forms; global-flags row
       in `reference/commands.md` (ledger 1.8)
+- [x] 10.2 Name the positional and subcommand refusals (`update [path]`,
+      `new change`, `completion generate/install/uninstall`, too many arguments)
+      in the BREAKING paragraph and `reference/commands.md`; pin each in the
+      differential (ledger 1.9)
