@@ -49,6 +49,42 @@ function parseOneDocument(stdout: string): Record<string, unknown> | undefined {
   }
 }
 
+/**
+ * How many JSON documents `stdout` carries: 0 for empty or non-JSON output (a
+ * help screen, a listing, a refusal on stderr), else the count of
+ * whitespace-separated top-level JSON values when that is all it holds.
+ */
+export function documentCount(stdout: string): number {
+  const text = stdout.trim()
+  if (text.length === 0) return 0
+  if (parseOneDocument(text) !== undefined) return 1
+  // A top-level value per `{…}`/`[…]` span, tracked by depth outside strings.
+  let count = 0
+  let depth = 0
+  let start = -1
+  let inString = false
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!
+    if (inString) {
+      if (ch === '\\') i++
+      else if (ch === '"') inString = false
+      continue
+    }
+    if (ch === '{' || ch === '[') {
+      if (depth++ === 0) start = i
+    } else if (depth === 0) {
+      if (!/\s/.test(ch)) return 0
+    } else if (ch === '"') inString = true
+    else if (ch === '}' || ch === ']') {
+      if (--depth === 0) {
+        if (parseOneDocument(text.slice(start, i + 1)) === undefined) return 0
+        count++
+      }
+    }
+  }
+  return depth === 0 ? count : 0
+}
+
 export function classify(run: SpawnResult, command: string, argv: readonly string[]): ParseClass {
   if (REFUSAL_SHAPES.some((shape) => shape.test(run.stderr))) return 'parse-rejected'
   if (argv.includes('--json')) {

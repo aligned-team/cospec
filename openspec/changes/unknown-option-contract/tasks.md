@@ -307,3 +307,25 @@ red; 4–7 turn it green; 8 documents it.
       12, the spec requirement and `reference/commands.md` (ledger 1.23)
 - [x] 10.23 Extend the close-out grep (ledger 7.6, task 9.2) to `test.failing`
       and a non-empty `KNOWN_FAILING`; the set ends empty
+- [x] 10.24 Precedence-matrix rows for a dangling pending flag and for
+      `--store-path`'s space-form value: `list --help --sort`,
+      `list --bogus --sort`, `list -x --sort`, `validate --help --type`,
+      `init --help --language`, `status --change c1 --help --schema`,
+      `status --change c1 --bogus --schema`, `show c1 --store-path --help`,
+      `schemas --store-path -h`, `--store-path --help list`,
+      `list --store-path --store`, `list --store-path --cwd`,
+      `show c1 --store-path --store`, `show c1 --store-path --store foo`,
+      `show c1 --store-path --json`, `list --store-path --json`,
+      `list --store-path=/x --json`; `same` rows also compare the number of JSON
+      documents on stdout (`documentCount()` in `support/parse-class.ts`); rows
+      failing at HEAD run as `test.failing` (ledger 1.24)
+- [ ] 10.25 A pending value-taking flag with no value is refused as argument
+      missing (`parseSurface`), from its placeholder like a handled flag, so it
+      outranks help and an earlier unknown option or pending flag;
+      `init     --language`'s placeholder is the binary's `<language>`; unit
+      rows (ledger 1.25)
+- [ ] 10.26 Phase B keeps a space-form `--store-path` and its next token
+      together, verbatim, so neither global absorption nor help interception
+      takes the value; phase A needs no change (the program level does not
+      declare `--store-path`, so help outranks it there); unit rows, the
+      `runCommand` docstring (ledger 1.26)

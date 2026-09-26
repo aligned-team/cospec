@@ -13,9 +13,12 @@
 // the pinned binary and compares the outcome (`support/parse-class.ts`
 // `outcome()`: version, help and whose, the refusal's kind — store-path,
 // unknown command or subcommand, unknown option, missing value, too many
-// arguments — or parsed) and the exit code. Comparing the kind, not just
-// "refused", is what catches an ordering bug: a `--store-path` redirect where
-// the binary refuses `--bogus` first is two different answers. The expected
+// arguments — or parsed), the exit code, and how many JSON documents stdout
+// carries (`documentCount()`). Comparing the kind, not just "refused", is what
+// catches an ordering bug: a `--store-path` redirect where the binary refuses
+// `--bogus` first is two different answers. Counting documents catches a
+// value-position bug the kind cannot: `list --store-path --json` is the text
+// redirect upstream (`--json` is the value), never a `--json` envelope. The expected
 // answer is the binary's, read at test time, never a typed copy.
 //
 // Both tools receive argv verbatim, a leading `--` included: the binary runs
@@ -40,7 +43,7 @@ import { join } from 'node:path'
 import { parse } from 'yaml'
 
 import { cleanupAll, cospec, mkTempRepo, type SpawnResult } from '../fixtures/support.ts'
-import { type Outcome, outcome } from './support/parse-class.ts'
+import { documentCount, type Outcome, outcome } from './support/parse-class.ts'
 import { oracle, oracleEnv, scaffoldOracleRoot } from './support/upstream-oracle.ts'
 
 afterAll(cleanupAll)
@@ -104,6 +107,8 @@ function storePathDocument(tool: string, _root: string, run: SpawnResult): void 
   expect(doc.status[0]?.code, tool).toBe('store_path_not_supported')
 }
 const unknownOption = (option: string): string => `cospec: unknown option '${option}'\n`
+const missingValue = (command: string, option: string): string =>
+  `cospec ${command}: option '${option}' argument missing\n`
 
 // Targets: `list` is a table row, `show` a forward row, `config`/`schema`/
 // `store`/`workset` forward rows with subcommands, `new`/`completion` table
@@ -151,6 +156,35 @@ const HELP_ROWS: readonly Row[] = [
   { argv: ['status', '--help', '--change'], command: 'status' },
   // An unknown option earlier in the argv is only reported after the scan.
   { argv: ['status', '--help', '--bogus', '--change'], command: 'status' },
+  // A pending flag is no different: its missing value outranks help and any
+  // unknown option or pending flag before it.
+  {
+    argv: ['list', '--help', '--sort'],
+    command: 'list',
+    cospecStderr: missingValue('list', '--sort <order>'),
+  },
+  {
+    argv: ['validate', '--help', '--type'],
+    command: 'validate',
+    cospecStderr: missingValue('validate', '--type <type>'),
+  },
+  {
+    argv: ['init', '--help', '--language'],
+    command: 'init',
+    cospecStderr: missingValue('init', '--language <language>'),
+  },
+  {
+    argv: ['status', '--change', 'c1', '--help', '--schema'],
+    command: 'status',
+    cospecStderr: missingValue('status', '--schema <name>'),
+  },
+  // In a value position a help flag is `--store-path`'s value: the command's
+  // own refusal answers, not help.
+  { argv: ['show', 'c1', '--store-path', '--help'], command: 'show', cospecStderr: REDIRECT },
+  { argv: ['schemas', '--store-path', '-h'], command: 'schemas', cospecStderr: REDIRECT },
+  // The program level does not declare `--store-path`, so `--help` is no value
+  // there: help outranks the unknown option.
+  { argv: ['--store-path', '--help', 'list'], command: 'list' },
   // Help outranks the command's unknown option and excess operand.
   { argv: ['list', '--bogus', '--help'], command: 'list' },
   { argv: ['list', 'a', '--help'], command: 'list' },
@@ -172,6 +206,22 @@ const UNKNOWN_OPTION_ROWS: readonly Row[] = [
   { argv: ['list', '--bogus'], command: 'list' },
   { argv: ['show', 'foo', '--bogus'], command: 'show' },
   { argv: ['config', 'path', '--bogus'], command: 'config' },
+  // A trailing pending flag's missing value outranks an earlier unknown option.
+  {
+    argv: ['list', '--bogus', '--sort'],
+    command: 'list',
+    cospecStderr: missingValue('list', '--sort <order>'),
+  },
+  {
+    argv: ['list', '-x', '--sort'],
+    command: 'list',
+    cospecStderr: missingValue('list', '--sort <order>'),
+  },
+  {
+    argv: ['status', '--change', 'c1', '--bogus', '--schema'],
+    command: 'status',
+    cospecStderr: missingValue('status', '--schema <name>'),
+  },
   // The first program-level unknown option wins; `--store-path` answers with its redirect.
   { argv: ['--store-path', '/x', '--bogus', 'list'], command: 'list', cospecStderr: REDIRECT },
   {
@@ -249,6 +299,20 @@ const STORE_PATH_ROWS: readonly Row[] = [
   { argv: ['list', '--bogus', '--store-path'], command: 'list', cospecStderr: REDIRECT },
   { argv: ['list', '--help', '--bogus', '--store-path'], command: 'list', cospecStderr: REDIRECT },
   { argv: ['list', '--sort', 'x', '--store-path'], command: 'list', cospecStderr: REDIRECT },
+  // A global after a space-form `--store-path` is its value, never absorbed:
+  // the redirect answers (text, no document), or the binary's excess operand.
+  { argv: ['list', '--store-path', '--store'], command: 'list', cospecStderr: REDIRECT },
+  { argv: ['list', '--store-path', '--cwd'], command: 'list', cospecStderr: REDIRECT },
+  { argv: ['show', 'c1', '--store-path', '--store'], command: 'show', cospecStderr: REDIRECT },
+  { argv: ['show', 'c1', '--store-path', '--store', 'foo'], command: 'show' },
+  { argv: ['show', 'c1', '--store-path', '--json'], command: 'show', cospecStderr: REDIRECT },
+  { argv: ['list', '--store-path', '--json'], command: 'list', cospecStderr: REDIRECT },
+  // The inline form carries its own value, so `--json` still asks for a document.
+  {
+    argv: ['list', '--store-path=/x', '--json'],
+    command: 'list',
+    check: storePathDocument,
+  },
 ]
 
 const TERMINATOR_ROWS: readonly Row[] = [
@@ -423,9 +487,30 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * B's routing of `help` after a global and of a `--` after the command name);
  * the value-position and scan-order rows exposed 5 more (a forward row's
  * pre-decided `--store-path`, and the table parser stopping at the first
- * unknown option or pending flag). The fixes empty this set.
+ * unknown option or pending flag); the dangling-pending-flag and
+ * `--store-path`-value rows, with the document count, exposed 15 more (a
+ * pending flag with no value refused as pending, not argument missing; phase
+ * B absorbing or intercepting `--store-path`'s value). The fixes empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
+  // A pending flag with no value.
+  'list --help --sort',
+  'validate --help --type',
+  'init --help --language',
+  'status --change c1 --help --schema',
+  'list --bogus --sort',
+  'list -x --sort',
+  'status --change c1 --bogus --schema',
+  // `--store-path`'s space-form value, absorbed or intercepted by phase B.
+  'show c1 --store-path --help',
+  'schemas --store-path -h',
+  'list --store-path --store',
+  'list --store-path --cwd',
+  'show c1 --store-path --store',
+  'show c1 --store-path --store foo',
+  'show c1 --store-path --json',
+  'list --store-path --json',
+])
 
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot()
@@ -444,9 +529,13 @@ async function checkRow(row: Row): Promise<void> {
     const upRoot = freshRoot()
     const up = await runUpstream(row.argv, upRoot)
     const upDetail = `openspec exit ${up.exitCode}\nstdout: ${up.stdout.slice(0, 200)}\nstderr: ${up.stderr.slice(0, 300)}`
-    expect({ outcome: coOutcome, exit: co.exitCode }, `${detail}\n${upDetail}`).toEqual({
+    expect(
+      { outcome: coOutcome, exit: co.exitCode, documents: documentCount(co.stdout) },
+      `${detail}\n${upDetail}`,
+    ).toEqual({
       outcome: outcome(up, row.command, row.argv),
       exit: up.exitCode,
+      documents: documentCount(up.stdout),
     })
     row.check?.('openspec', upRoot, up)
   }
