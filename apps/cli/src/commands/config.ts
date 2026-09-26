@@ -41,6 +41,7 @@ import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
 import {
+  beforeTerminator,
   passthroughOpenspec,
   resolveOpenspec,
   type RunExpectation,
@@ -127,8 +128,8 @@ export function planConfigCall(args: string[], opts: { json: boolean }): ConfigP
 
   const subArgs = rest.slice(1)
   const scopeArgs = scope === undefined ? [] : ['--scope', scope]
-  const argv = ['config', ...scopeArgs, sub, ...subArgs]
-  if (opts.json && sub === 'list') argv.push('--json')
+  const base = ['config', ...scopeArgs, sub, ...subArgs]
+  const argv = opts.json && sub === 'list' ? beforeTerminator(base, ['--json']) : base
 
   return { kind: isHandoverCall(sub, subArgs) ? 'handover' : 'pass', sub, argv, subArgs }
 }

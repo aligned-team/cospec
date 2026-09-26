@@ -644,13 +644,30 @@ export interface PassthroughOptions {
  * `OpenspecCallError` on a deny-list hit, a disallowed exit code, or (in
  * `--json` mode) unparseable stdout.
  */
+/**
+ * `args` with `extra` inserted before the first `--` terminator (appended when
+ * there is none). A flag cospec threads onto a wrapped call must land where
+ * the binary reads it as an option: after a user's `--`, commander takes every
+ * token as an operand.
+ */
+export function beforeTerminator(args: readonly string[], extra: readonly string[]): string[] {
+  const at = args.indexOf('--')
+  return at === -1 ? [...args, ...extra] : [...args.slice(0, at), ...extra, ...args.slice(at)]
+}
+
+/** True when `args` asks the binary for `--json` as an option — never an operand after `--`. */
+export function requestsJson(args: readonly string[]): boolean {
+  const at = args.indexOf('--')
+  return (at === -1 ? args : args.slice(0, at)).includes('--json')
+}
+
 export async function passthroughOpenspec(
   args: string[],
   opts: PassthroughOptions,
 ): Promise<OpenspecResult> {
-  const fullArgs = [...args, ...(opts.storeArgs ?? [])]
+  const fullArgs = beforeTerminator(args, opts.storeArgs ?? [])
   const expect: RunExpectation = { exitCodes: [0, 1], ...opts.expect }
   const result = await runOpenspec(fullArgs, { cwd: opts.cwd, expect })
-  if (!fullArgs.includes('--json')) return result
+  if (!requestsJson(fullArgs)) return result
   return enforcePassthroughJson(`openspec ${fullArgs.join(' ')}`, result)
 }

@@ -12,7 +12,12 @@ import { join } from 'node:path'
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
-import { passthroughOpenspec, resolveOpenspec, spawnOpenspec } from '../core/openspec.ts'
+import {
+  beforeTerminator,
+  passthroughOpenspec,
+  resolveOpenspec,
+  spawnOpenspec,
+} from '../core/openspec.ts'
 
 const SUBCOMMANDS = ['create', 'list', 'ls', 'remove'] as const
 type PassthroughSub = (typeof SUBCOMMANDS)[number]
@@ -33,9 +38,10 @@ async function runWorksetPassthrough(
   sub: PassthroughSub,
   rest: string[],
 ): Promise<number> {
-  const args = ['workset', sub, ...rest]
-  if (ctx.flags.json) args.push('--json')
-  if (ctx.flags.noColor) args.push('--no-color')
+  const args = beforeTerminator(
+    ['workset', sub, ...rest],
+    [...(ctx.flags.json ? ['--json'] : []), ...(ctx.flags.noColor ? ['--no-color'] : [])],
+  )
   const result = await passthroughOpenspec(args, { cwd: ctx.cwd })
   if (result.stdout.length > 0) process.stdout.write(result.stdout)
   if (result.stderr.length > 0) process.stderr.write(result.stderr)

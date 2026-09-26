@@ -283,6 +283,9 @@ export async function run(argv: string[]): Promise<number> {
   // argv (e.g. `cospec archive help` must not try to archive a change called
   // "help").
   let expectHelpToken = false
+  // Set once a post-command `--` is seen: like upstream's commander, every
+  // later token is an operand, so no global flag is absorbed after it.
+  let terminated = false
 
   for (let i = 0; i < argv.length; i++) {
     const tok = argv[i]!
@@ -315,23 +318,31 @@ export async function run(argv: string[]): Promise<number> {
         continue
       }
     }
-    // After the command name, absorb global flags anywhere; everything else is
-    // the command's own argv. --help/-h is intercepted here too so it can never
-    // silently fall through into a state-mutating command's argv.
+    if (terminated || tok === '--') {
+      // `--` itself stays in the command's argv: the table parser and the
+      // wrapped binary both read it as the operand terminator.
+      terminated = true
+      rest.push(tok)
+      continue
+    }
+    // After the command name and before any `--`, absorb global flags anywhere;
+    // everything else is the command's own argv. --help/-h is intercepted here
+    // too so it can never silently fall through into a state-mutating command's
+    // argv.
     if (tok === '--json') flags.json = true
     else if (tok === '--no-color') flags.noColor = true
     else if (tok === '--help' || tok === '-h') wantHelp = true
     // Upstream's commander honours the program-level `-V, --version` after any
-    // subcommand (up to a `--` terminator), so cospec does too.
-    else if ((tok === '--version' || tok === '-V') && !rest.includes('--')) wantVersion = true
+    // subcommand, so cospec does too.
+    else if (tok === '--version' || tok === '-V') wantVersion = true
     else if (tok === '--cwd') cwdRaw = argv[++i]
     else if (tok.startsWith('--cwd=')) cwdRaw = tok.slice('--cwd='.length)
     else if (tok === '--store') storeRaw = argv[++i]
     else if (tok.startsWith('--store=')) storeRaw = tok.slice('--store='.length)
     else {
       // Forward rows get no parser, so the post-command `--store-path` is
-      // caught here for every row alike (up to a `--` terminator).
-      if (isStorePathToken(tok) && !rest.includes('--')) storePath = true
+      // caught here for every row alike.
+      if (isStorePathToken(tok)) storePath = true
       rest.push(tok)
     }
   }

@@ -19,6 +19,7 @@ import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { commandRow, parseCommandArgs } from '../core/command-table.ts'
 import {
+  beforeTerminator,
   OpenspecCallError,
   openspecStoreList,
   passthroughOpenspec,
@@ -107,7 +108,7 @@ function stripFlag(args: string[], flag: string): { rest: string[]; present: boo
 
 /** Append a canonical trailing `--json` — every wrapped store call parses JSON internally. */
 function withJson(args: string[]): string[] {
-  return [...args, '--json']
+  return beforeTerminator(args, ['--json'])
 }
 
 // --- stdout capture for the auto cospec-init sub-step -------------------

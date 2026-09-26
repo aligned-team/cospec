@@ -9,7 +9,12 @@
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
-import { passthroughOpenspec, type OpenspecResult, type RunExpectation } from './openspec.ts'
+import {
+  beforeTerminator,
+  passthroughOpenspec,
+  type OpenspecResult,
+  type RunExpectation,
+} from './openspec.ts'
 import { resolveRoot } from './root.ts'
 
 export interface PassthroughCommandOptions {
@@ -39,9 +44,10 @@ export async function callPassthrough(
   opts: PassthroughCommandOptions,
 ): Promise<PassthroughCommandResult> {
   const root = await resolveRoot(ctx)
-  const args = [...opts.args]
-  if (ctx.flags.json) args.push('--json')
-  if (ctx.flags.noColor) args.push('--no-color')
+  const args = beforeTerminator(opts.args, [
+    ...(ctx.flags.json ? ['--json'] : []),
+    ...(ctx.flags.noColor ? ['--no-color'] : []),
+  ])
   const result = await passthroughOpenspec(args, {
     cwd: root.cwd,
     storeArgs: root.storeArgs,

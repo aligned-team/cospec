@@ -559,6 +559,64 @@ const FORWARD_ROWS: readonly Row[] = [
   },
 ]
 
+/**
+ * After a `--` terminator every token is an operand, as upstream's commander
+ * treats it: cospec's global flags (`--json`, `--no-color`, `-h/--help`,
+ * `--cwd`, `--store`) must not be absorbed there, so each excess operand is
+ * refused as too many arguments in both tools.
+ */
+const TERMINATOR_ROWS: readonly Row[] = [
+  {
+    argv: ['list', '--', '--json'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: 'cospec list: too many arguments. Expected 0 arguments but got 1.',
+  },
+  {
+    argv: ['list', '--', '--help'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: 'cospec list: too many arguments. Expected 0 arguments but got 1.',
+  },
+  {
+    argv: ['list', '--', '-h'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: 'cospec list: too many arguments. Expected 0 arguments but got 1.',
+  },
+  {
+    argv: ['list', '--', '--no-color'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: 'cospec list: too many arguments. Expected 0 arguments but got 1.',
+  },
+  {
+    argv: ['list', '--', '--store', 's'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: 'cospec list: too many arguments. Expected 0 arguments but got 2.',
+  },
+  {
+    argv: ['status', '--', '--cwd', '/x'],
+    command: 'status',
+    expect: 'same',
+    cospecStderr: 'cospec status: too many arguments. Expected 1 argument but got 2.',
+  },
+  // Forward rows hand the binary the `--` and its operands verbatim.
+  {
+    argv: ['templates', '--', '--json'],
+    command: 'templates',
+    expect: 'same',
+    cospecStderr: "error: too many arguments for 'templates'",
+  },
+  {
+    argv: ['show', 'foo', '--', '--json'],
+    command: 'show',
+    expect: 'same',
+    cospecStderr: "error: too many arguments for 'show'",
+  },
+]
+
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot()
   row.setup?.(coRoot)
@@ -619,6 +677,10 @@ describe('unknown-option differential: pending flags', () => {
 
 describe('unknown-option differential: forward commands relay the binary', () => {
   register(FORWARD_ROWS)
+})
+
+describe('unknown-option differential: no global flag is absorbed after --', () => {
+  register(TERMINATOR_ROWS)
 })
 
 // --- --store-path (ledger 2.2, 2.3) ------------------------------------------------

@@ -100,6 +100,29 @@ version on stdout and exit 0, ahead of `--help`, an unknown option, a
 - **WHEN** `cospec list --bogus --version` runs
 - **THEN** stdout is cospec's version and the exit code is 0
 
+### Requirement: Global flags stop at a -- terminator
+
+cospec SHALL recognise its global flags (`--json`, `--no-color`, `-h`/`--help`,
+`-V`/`--version`, `--cwd`, `--store`) before the command name and anywhere after
+it up to a `--` terminator, and SHALL treat every token after a post-command
+`--` as an operand of the command, as the pinned binary's commander does. The
+`--` and its operands SHALL reach the table parser, or the wrapped binary on a
+`forward` row, unchanged, and a global flag cospec threads onto a wrapped call
+SHALL be inserted before that `--`.
+
+#### Scenario: A global flag after -- is an operand
+
+- **WHEN** `cospec list -- --json` runs
+- **THEN** stderr is
+  `cospec list: too many arguments. Expected 0 arguments but got 1.`, nothing is
+  listed, and the exit code is 1, as `openspec list -- --json` refuses
+
+#### Scenario: A forwarded command receives the operand verbatim
+
+- **WHEN** `cospec templates -- --json` runs
+- **THEN** the wrapped binary's `error: too many arguments for 'templates'` is
+  relayed on stderr and the exit code is 1
+
 ### Requirement: Forwarded commands are declared, not re-parsed
 
 On a command whose parse policy is `forward`, cospec SHALL declare the command's

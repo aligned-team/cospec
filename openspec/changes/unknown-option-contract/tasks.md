@@ -194,3 +194,9 @@ red; 4–7 turn it green; 8 documents it.
       comments in `cli.ts` that still named it or claimed `GLOBAL_OPTIONS` fed
       the completion spec; rewrite `command-table.test.ts`'s parity test against
       `COMMAND_TABLE` and the now-exported `COMMAND_MODULES` (ledger 3.4)
+- [x] 10.6 Stop absorbing global flags after a post-command `--`: every later
+      token reaches the command's argv as an operand, and the passthrough
+      plumbing threads `--json`/`--no-color`/`--store` before the user's `--`
+      and reads `--json` only before it; differential rows for `list`, `status`,
+      `templates` and `show`; spec requirement and the global-flags note in
+      `reference/commands.md` (ledger 1.10)

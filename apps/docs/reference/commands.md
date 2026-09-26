@@ -21,6 +21,11 @@ the table.
 | `-h`, `--help`    | show help for the command                                                                              |
 | `-V`, `--version` | print the installed cospec version and exit — in any position before `--`, ahead of everything else    |
 
+Global flags are recognised before the command name and anywhere after it, up to
+a `--` terminator. After `--` every token is an operand of the command, as in
+OpenSpec: `cospec list -- --json` is refused as too many arguments, not run as
+`list --json`.
+
 `cospec <command> help` — a bare `help` token immediately after the command name
 — is equivalent to `cospec <command> --help`; it never runs the command.
 

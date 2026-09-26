@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
+  beforeTerminator,
   buildWrappedSpawnEnv,
   checkVersion,
   COLOR_FORCING_ENV_KEYS,
@@ -17,6 +18,7 @@ import {
   OpenspecCallError,
   type OpenspecResult,
   PINNED_OPENSPEC_VERSION,
+  requestsJson,
   runOpenspec,
   satisfiesOpenspecRange,
   WRAPPED_ENV,
@@ -207,4 +209,32 @@ describe('wrapped calls against the real binary', () => {
       OpenspecCallError,
     )
   }, 30_000)
+})
+
+describe('threading flags around a -- terminator', () => {
+  test('beforeTerminator appends when there is no --', () => {
+    expect(beforeTerminator(['templates'], ['--json', '--no-color'])).toEqual([
+      'templates',
+      '--json',
+      '--no-color',
+    ])
+  })
+
+  test('beforeTerminator inserts before the first --, never among the operands', () => {
+    expect(beforeTerminator(['show', 'foo', '--', '--json', '--'], ['--store', 's'])).toEqual([
+      'show',
+      'foo',
+      '--store',
+      's',
+      '--',
+      '--json',
+      '--',
+    ])
+  })
+
+  test('requestsJson reads only the tokens before --', () => {
+    expect(requestsJson(['list', '--json'])).toBe(true)
+    expect(requestsJson(['list', '--json', '--', 'x'])).toBe(true)
+    expect(requestsJson(['templates', '--', '--json'])).toBe(false)
+  })
 })
