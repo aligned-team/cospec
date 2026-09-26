@@ -507,11 +507,10 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
         break
       }
       // Like commander, a space-form value-taking flag the row or its named
-      // subcommand declares (`--store-path` where upstream declares it, and on
-      // every table row) takes the next token as
-      // its value whatever it looks like — a help flag, a global, `--` — so it
-      // is never intercepted or absorbed: the table parser or the binary gets
-      // both, and parsing goes on after them.
+      // subcommand declares (`--store-path` only where upstream declares it)
+      // takes the next token as its value whatever it looks like — a help
+      // flag, a global, `--` — so it is never intercepted or absorbed: the
+      // table parser or the binary gets both, and parsing goes on after them.
       if (i + 1 < tokens.length && takesNextToken(surfaceOf(row, subcommand), tok, storePath)) {
         rest.push(tok, tokens[++i]!)
         continue

@@ -99,6 +99,18 @@ interface RowBase extends SurfaceSpec {
   readonly helpSubcommand?: false
   /** Extra help lines printed after the flag list. */
   readonly notes?: readonly string[]
+  /**
+   * The same-named upstream command declares the hidden `--store-path <path>`
+   * (upstream's `list`, `view`, `archive`, `validate`, `show`, `status`,
+   * `instructions`, `schemas`, `new change`, `context`, `doctor`), so the
+   * token after it is its value and the command refuses it in its action,
+   * after the whole parse. Elsewhere — upstream's `init`, `update`,
+   * `completion`, `feedback`, `config`, `schema`, `workset`, `store`,
+   * `templates`, and every cospec-only command — it is an unknown option that
+   * takes nothing: refused in scan order, outranked by help, and never a
+   * document under `--json`.
+   */
+  readonly declaresStorePath?: true
 }
 
 export type TableCommandRow = RowBase & {
@@ -118,14 +130,6 @@ export type TableCommandRow = RowBase & {
 
 export interface ForwardCommandRow extends RowBase {
   readonly parse: 'forward'
-  /**
-   * The same-named upstream command declares the hidden `--store-path <path>`
-   * (upstream's `list`, `view`, `archive`, `validate`, `show`, `status`,
-   * `instructions`, `schemas`, `new change`, `context`, `doctor`), so the
-   * token after it is its value. Elsewhere upstream refuses it as an unknown
-   * option that takes nothing, and a help flag after it is help.
-   */
-  readonly declaresStorePath?: true
 }
 
 export type CommandRow = TableCommandRow | ForwardCommandRow
@@ -298,6 +302,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     parse: 'table',
     json: 'accepted',
     store: 'accepted',
+    declaresStorePath: true,
     positionals: [],
     flags: [],
   },
@@ -308,6 +313,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     parse: 'table',
     json: 'accepted',
     store: 'accepted',
+    declaresStorePath: true,
     positionals: [
       cospecArg({ name: 'type', required: true, description: 'Conventional-commit type' }),
       cospecArg({ name: 'slug', required: true, description: 'Kebab-case change id' }),
@@ -339,6 +345,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     parse: 'table',
     json: 'accepted',
     store: 'accepted',
+    declaresStorePath: true,
     positionals: [upstreamArg({ name: 'name', required: false })],
     flags: [
       upstream({ name: '--strict', description: 'Promote warnings to errors' }),
@@ -386,6 +393,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     parse: 'table',
     json: 'accepted',
     store: 'accepted',
+    declaresStorePath: true,
     positionals: [cospecArg({ name: 'change', required: false })],
     flags: [
       upstream({
@@ -414,6 +422,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     parse: 'table',
     json: 'accepted',
     store: 'accepted',
+    declaresStorePath: true,
     positionals: [],
     flags: [
       upstream({ name: '--specs', description: 'List living specs by requirement count instead' }),
@@ -440,6 +449,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     parse: 'table',
     json: 'accepted',
     store: 'accepted',
+    declaresStorePath: true,
     positionals: [upstreamArg({ name: 'artifact', required: true })],
     flags: [
       upstream({
@@ -486,6 +496,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     parse: 'table',
     json: 'accepted',
     store: 'accepted',
+    declaresStorePath: true,
     positionals: [upstreamArg({ name: 'change', required: true })],
     flags: [
       upstream({
@@ -596,6 +607,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     parse: 'table',
     json: 'accepted',
     store: 'accepted',
+    declaresStorePath: true,
     positionals: [],
     flags: [
       upstream({
@@ -708,6 +720,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     parse: 'table',
     json: 'refused',
     store: 'accepted',
+    declaresStorePath: true,
     jsonRefusalMessage: 'cospec view renders a text dashboard and cannot emit JSON',
     positionals: [],
     flags: [],
@@ -1117,15 +1130,16 @@ function parseSurface(
   surface: SurfaceSpec,
   globals: readonly FlagSpec[],
   args: readonly string[],
+  declaresStorePath: boolean,
 ): ParseResult {
   const positionals: string[] = []
   const flags: Record<string, string | true> = {}
   const storePath: ParseRefusal = { kind: 'store-path', command, message: STORE_PATH_TEXT }
   // Commander's order: a missing value is raised the moment the scan meets it,
   // while an unknown option is collected and reported only after the scan,
-  // and upstream declares `--store-path <path>` but refuses it in the action.
-  // So the scan records the first unknown option or pending flag and keeps
-  // going; only a missing value returns early.
+  // and where upstream declares `--store-path <path>` it refuses it in the
+  // action. So the scan records the first unknown option or pending flag and
+  // keeps going; only a missing value returns early.
   let recorded: ParseRefusal | undefined
   let sawStorePath = false
 
@@ -1137,6 +1151,12 @@ function parseSurface(
     }
     if (!isOptionToken(tok)) {
       positionals.push(tok)
+      continue
+    }
+    if (isStorePathToken(tok) && !declaresStorePath) {
+      // Undeclared upstream, so an unknown option that takes nothing: the
+      // redirect, on stderr only, in the unknown option's place in the order.
+      recorded ??= { kind: 'unknown-option', command, option: tok, message: STORE_PATH_TEXT }
       continue
     }
     if (isStorePathToken(tok)) {
@@ -1226,25 +1246,34 @@ function parseSurface(
  * Returns the positionals and flag values, or the refusal commander would
  * reach first: a value-taking flag with no value, anywhere in the argv (a
  * pending flag's included, from its placeholder like a handled one, and
- * `--store-path`'s, as a `missing-value` whose message is the redirect); then the first undeclared option or pending flag in argv order
- * (a pending flag's value consumed first, so it can never leak into a
- * positional); then too many positionals or a pending positional; and only
- * then `--store-path`, whose value is consumed like any other. Every refusal
- * exits 1.
+ * `--store-path`'s on a row that declares it, as a `missing-value` whose
+ * message is the redirect); then the first undeclared option or pending flag
+ * in argv order (a pending flag's value consumed first, so it can never leak
+ * into a positional; `--store-path` on a row that does not declare it, as an
+ * `unknown-option` whose message is the redirect); then too many positionals
+ * or a pending positional; and only then a declared `--store-path`, whose
+ * value is consumed like any other. Every refusal exits 1.
  */
 export function parseCommandArgs(row: TableCommandRow, args: readonly string[]): ParseResult {
   const first = args[0]
   const subcommand =
     first !== undefined ? row.subcommands?.find((s) => s.name === first) : undefined
   const globals = rowGlobalFlags(row)
-  if (subcommand === undefined) return parseSurface(row.name, row, globals, args)
+  const storePath = storePathTakesValue(row)
+  if (subcommand === undefined) return parseSurface(row.name, row, globals, args, storePath)
   if (isPending(subcommand.status)) {
     return {
       ok: false,
       refusal: pendingRefusal(row.name, subcommand.name, subcommand.status.pending),
     }
   }
-  const result = parseSurface(`${row.name} ${subcommand.name}`, subcommand, globals, args.slice(1))
+  const result = parseSurface(
+    `${row.name} ${subcommand.name}`,
+    subcommand,
+    globals,
+    args.slice(1),
+    storePath,
+  )
   return result.ok
     ? { ok: true, parsed: { ...result.parsed, subcommand: subcommand.name } }
     : result
@@ -1278,12 +1307,12 @@ export function storePathRefusal(json: boolean): {
 }
 
 /**
- * Whether `--store-path` takes the next token as its value on `row`: on every
- * `table` row, whose parser answers it with the redirect (design decision 2),
- * and on a `forward` row only where upstream declares it.
+ * Whether `--store-path` takes the next token as its value on `row`: only
+ * where the upstream command declares it (`declaresStorePath`, design
+ * decision 2). Elsewhere it is an unknown option that takes nothing.
  */
 export function storePathTakesValue(row: CommandRow): boolean {
-  return row.parse === 'table' || row.declaresStorePath === true
+  return row.declaresStorePath === true
 }
 
 /**

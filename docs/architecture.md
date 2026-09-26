@@ -118,16 +118,18 @@ row the binary is the authority — the argv reaches it unchanged, it refuses a
 the token is another flag's value), and the wrapper only answers the binary's
 own `--store-path` refusal with cospec's redirect (`core/forward-relay.ts`).
 After the command name the space form's next token is its value whatever it
-looks like — on a `table` row, and on a `forward` row whose upstream command
-declares `--store-path` (`show`, `schemas`) — so `cli.ts` phase B passes the
-pair through without absorbing a global flag or reading a help flag there — as
-it does for every value-taking flag the row or its named subcommand declares
-(`takesNextToken`), after first taking out a program-level `--no-color`, which
-upstream never treats as a value. The terminal-handover leaves
-(`config edit`/`profile`/`reset --all` without `-y`, `workset open`) are the one
-exception: with inherited stdio there is nothing to respell, so they check the
-option position statically from the row's declared flags and print the redirect
-without spawning.
+looks like — only on a row marked `declaresStorePath`, whose upstream command
+declares the hidden option (`list`, `view`, `archive`, `validate`, `status`,
+`instructions`, `new`, `context`, `doctor`, `show`, `schemas`); elsewhere it is
+an unknown option that takes nothing, refused in scan order and outranked by
+help — so `cli.ts` phase B passes the pair through without absorbing a global
+flag or reading a help flag there — as it does for every value-taking flag the
+row or its named subcommand declares (`takesNextToken`), after first taking out
+a program-level `--no-color`, which upstream never treats as a value. The
+terminal-handover leaves (`config edit`/`profile`/`reset --all` without `-y`,
+`workset open`) are the one exception: with inherited stdio there is nothing to
+respell, so they check the option position statically from the row's declared
+flags and print the redirect without spawning.
 
 ### The reachability test is the parity gate
 

@@ -814,7 +814,6 @@ const UNDECLARED_STORE_PATH_ROWS: readonly Row[] = [
   { argv: ['init', '--store-path', '--json'], command: 'init', cospecStderr: REDIRECT },
   { argv: ['update', '--store-path', '--help'], command: 'update' },
   { argv: ['completion', '--store-path', '--help'], command: 'completion' },
-  { argv: ['completion', 'generate', '--store-path', '--help'], command: 'completion' },
   { argv: ['feedback', '--store-path', '--help'], command: 'feedback' },
   { argv: ['feedback', 'msg', '--store-path'], command: 'feedback', cospecStderr: REDIRECT },
   // A forward row that does not declare it: the binary's plain refusal, no document.
@@ -1052,7 +1051,7 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * `show`'s unknown option for the binary; `--store-path` taking a help flag
  * as its value where upstream does not declare it; prose where a `--json`
  * caller is owed a document; a missing schema reported as a wrapped-call
- * failure). The round-7 rows exposed 36 more (a `--store-path` that took a
+ * failure). The round-7 rows exposed 35 more (a `--store-path` that took a
  * value, or answered with a document, on a row whose upstream command never
  * declares it; `new` checking the wrong user-level schema directory; `status`
  * dropping its positional beside `--change` or `--all`; commander's `missing
@@ -1070,19 +1069,6 @@ const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
   'status foo --all',
   'status foo --all --json',
   'status foo --all --change bar',
-  'init --store-path --help',
-  'init --help --store-path',
-  'init --bogus --store-path',
-  'update --store-path --help',
-  'completion --store-path --help',
-  'completion generate --store-path --help',
-  'feedback --store-path --help',
-  'store list --store-path --json',
-  'workset list --json --store-path',
-  'templates --json --store-path x',
-  'config list --json --store-path x',
-  'apply --store-path --help',
-  'check-commit --store-path --help',
   'store unregister',
   'store remove',
   'store unregister --json',

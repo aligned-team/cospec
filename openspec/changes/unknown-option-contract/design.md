@@ -133,21 +133,28 @@ runtime by `dist/commands/spec.js:127`.
    prints the redirect there too, because the redirect is the more useful answer
    and the differential still agrees (both reject, exit 1). Where the refusal
    lands follows the binary, which refuses a declared `--store-path` in its
-   action, after the whole parse: on a `table` row the parser records the first
-   `--store-path` (consuming its value; with none, it is refused while parsing
-   like any missing value) and answers the redirect only after the row's
-   unknown-option, pending and too-many-arguments checks pass. On a `forward`
-   row the binary is the `--store-path` authority; cospec respells the relay.
-   `cli.ts` neither scans for the token nor pre-decides anything: the row's argv
-   reaches its wrapper unchanged, and the binary refuses a post-command
-   `--store-path` itself, in its own order, never running the command when the
-   token is in option position — and running it when the token is another flag's
-   value (`schema init s1 --description --store-path` creates `s1`, exit 0, in
-   both tools; `show --type --store-path c1` looks up `c1`). The wrapper's only
-   job is output-side (`core/forward-relay.ts`): when a failed call's answer is
-   the binary's own `--store-path` refusal — the redirect, its `--json`
-   envelope, or commander's `unknown option '--store-path'` / `argument missing`
-   — it prints cospec's redirect, a document under `--json`, in its place; a
+   action, after the whole parse: on a `table` row marked `declaresStorePath`
+   the parser records the first `--store-path` (consuming its value; with none,
+   it is refused while parsing like any missing value) and answers the redirect
+   only after the row's unknown-option, pending and too-many-arguments checks
+   pass. On a `table` row without the marker it is an unknown option that takes
+   nothing, recorded in scan order like any other: an earlier unknown option
+   answers first, help outranks it (`cospec init --store-path --help` prints
+   `init`'s help, exit 0, as the binary does), and the redirect goes to stderr
+   even under `--json`, as commander's refusal precedes any output. On a
+   `forward` row the binary is the `--store-path` authority; cospec respells the
+   relay. `cli.ts` neither scans for the token nor pre-decides anything: the
+   row's argv reaches its wrapper unchanged, and the binary refuses a
+   post-command `--store-path` itself, in its own order, never running the
+   command when the token is in option position — and running it when the token
+   is another flag's value (`schema init s1 --description --store-path` creates
+   `s1`, exit 0, in both tools; `show --type --store-path c1` looks up `c1`).
+   The wrapper's only job is output-side (`core/forward-relay.ts`): when a
+   failed call's answer is the binary's own `--store-path` refusal — the
+   redirect, its `--json` envelope, or commander's
+   `unknown option '--store-path'` / `argument missing` — it prints cospec's
+   redirect in its place, a document only where the binary emitted its envelope
+   for a `--json` caller (commander's plain refusal is text, `--json` or not); a
    call that exited 0 ran its command and is never reclassified. Each forward
    wrapper's parse-rejection relay (`isParseRejection`) recognises the redirect
    shape as well as commander's, so a stderr-only refusal under `--json` is
@@ -171,18 +178,23 @@ runtime by `dist/commands/spec.js:127`.
    neither absorbs a global flag there nor reads a help flag:
    `cospec list --store-path --json` is the text redirect with no document, and
    `cospec show c1 --store-path --store foo` the binary's too many arguments.
-   That holds where the command declares `--store-path`: on every `table` row
-   (its parser answers the redirect) and on the forward rows whose upstream
-   command declares it (`show`, `schemas`; the row's `declaresStorePath`).
-   Upstream `config`, `schema`, `workset`, `store` and `templates` refuse it as
-   an unknown option that takes nothing, so a help flag after it is help there
-   (`cospec workset list --store-path -h` prints cospec's `workset list` help,
-   where pairing them had relayed the binary's own help screen, bare `openspec`
-   included). An option where a forward row's subcommand belongs
-   (`cospec config --store-path /x`, `cospec schema --bogus`) is the binary's to
-   refuse at the command's level, so the wrapper relays it (`relayCommandLevel`)
-   instead of refusing an unknown subcommand; an operand that looks like an
-   option after a leading `--` keeps that `--`, so
+   That holds only where the upstream command declares `--store-path` — the
+   per-row `declaresStorePath` marker, set on `list`, `view`, `archive`,
+   `validate`, `status`, `instructions`, `new`, `context` and `doctor` (table)
+   and `show` and `schemas` (forward), read from the pin's
+   `hiddenStorePathOption()` calls in `dist/cli/index.js` and the options
+   `commands/context.js` and `commands/doctor.js` add. Upstream `init`,
+   `update`, `completion`, `feedback`, `config`, `schema`, `workset`, `store`
+   and `templates` refuse it as an unknown option that takes nothing, and a
+   cospec-only command (`apply`, `migrate`, `sync-blockers`, `check-commit`,
+   `__complete`) has no upstream declaration either, so a help flag after it is
+   help there (`cospec workset list --store-path -h` prints cospec's
+   `workset list` help, where pairing them had relayed the binary's own help
+   screen, bare `openspec` included). An option where a forward row's subcommand
+   belongs (`cospec config --store-path /x`, `cospec schema --bogus`) is the
+   binary's to refuse at the command's level, so the wrapper relays it
+   (`relayCommandLevel`) instead of refusing an unknown subcommand; an operand
+   that looks like an option after a leading `--` keeps that `--`, so
    `cospec -- config --store-path /x` stays `config`'s unknown subcommand.
    Before the command name the program level declares no `--store-path`, so it
    takes no value and help outranks it (`--store-path --help list` is the

@@ -74,16 +74,21 @@ describe('relayStorePathRefusal', () => {
       root: null,
       status: [{ severity: 'error', code: 'store_path_not_supported', message: 'openspec' }],
     })
-    for (const [run, json] of [
-      [result({ stderr: UPSTREAM_REDIRECT }), false],
-      [result({ stderr: "error: unknown option '--store-path'\n" }), false],
-      [result({ stderr: "error: option '--store-path <path>' argument missing\n" }), false],
-      [result({ stdout: envelope }), true],
-      [result({ stderr: "error: unknown option '--store-path'\n" }), true],
+    // A document only where the binary emitted its envelope for a `--json`
+    // caller; commander's refusal (the option undeclared, or declared with no
+    // value) comes before any output, so it stays text even under `--json`.
+    for (const [run, json, document] of [
+      [result({ stderr: UPSTREAM_REDIRECT }), false, false],
+      [result({ stderr: "error: unknown option '--store-path'\n" }), false, false],
+      [result({ stderr: "error: option '--store-path <path>' argument missing\n" }), false, false],
+      [result({ stdout: envelope }), true, true],
+      [result({ stderr: "error: unknown option '--store-path'\n" }), true, false],
+      [result({ stderr: "error: option '--store-path <path>' argument missing\n" }), true, false],
+      [result({ stderr: UPSTREAM_REDIRECT }), true, false],
     ] as const) {
       written = []
       expect(relayStorePathRefusal(run, json)).toBe(1)
-      const refusal = storePathRefusal(json)
+      const refusal = storePathRefusal(document)
       expect(written).toEqual([{ stream: refusal.stream, text: refusal.text }])
     }
   })

@@ -71,9 +71,9 @@ cospec answers in two phases:
 3. Only then does the command read its own argv, in OpenSpec's per-command
    order: a missing value anywhere in it (`cospec status --help --change` and
    `cospec status --bogus --change` both refuse the missing `--change`, and a
-   trailing `--store-path` answers its redirect), then `--help`, then the
-   command's other refusals (the first unknown or not-yet-supported option, then
-   too many arguments, then `--store-path`:
+   trailing `--store-path` answers its redirect where OpenSpec declares it),
+   then `--help`, then the command's other refusals (the first unknown or
+   not-yet-supported option, then too many arguments, then `--store-path`:
    `cospec list --store-path /x --bogus` refuses `--bogus`), then an empty
    `--cwd`/`--store` (`cospec list --store= --help` prints help), then the
    command runs.
@@ -228,16 +228,21 @@ register <path>, then select it with --store <id>.
 Fix: cospec store register <path>, then rerun with --store <id>.
 ```
 
-Under `--json`, that's one document on stdout instead of stderr text:
+Where OpenSpec declares the option — `list`, `view`, `archive`, `validate`,
+`status`, `instructions`, `new`, `context`, `doctor`, `show` and `schemas` — the
+space form takes the next token as its value whatever it looks like, and the
+command refuses it after its other parse refusals. Under `--json` there that's
+one document on stdout instead of stderr text:
 `{"status":[{"severity":"error","code":"store_path_not_supported","message":"…","target":"store.id","fix":"…"}]}`.
-After the command name, the space form takes the next token as its value
-whatever it looks like, as OpenSpec does — on every table-parsed command, and on
-`show` and `schemas`, the forwarded commands OpenSpec declares it on:
 `cospec list --store-path --json` prints the text redirect (`--json` is the
 path, so no document), and `cospec show c1 --store-path --help` the redirect,
-not help. On `config`, `schema`, `workset`, `store` and `templates` OpenSpec
-does not declare it, so it takes no value there and a help flag after it prints
-the help (`cospec workset list --store-path -h`). Before the command name it
+not help. Everywhere else — `init`, `update`, `completion`, `feedback`,
+`config`, `schema`, `workset`, `store`, `templates` and cospec's own commands
+(`apply`, `migrate`, `sync-blockers`, `check-commit`) — OpenSpec (or cospec)
+doesn't declare it, so it's an unknown option that takes no value: an earlier
+unknown option is refused first, a help flag after it prints the help
+(`cospec init --store-path --help`, `cospec workset list --store-path -h`), and
+the redirect stays stderr text even under `--json`. Before the command name it
 takes no value either, so `cospec --store-path --help list` prints the help.
 Register the path with `cospec store register <path>` and select it with
 `--store <id>` — see [Stores](/concepts/stores).

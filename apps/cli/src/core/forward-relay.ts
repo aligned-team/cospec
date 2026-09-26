@@ -47,14 +47,18 @@ export async function forwardCall(call: () => Promise<OpenspecResult>): Promise<
  * When a failed call is the binary's own `--store-path` refusal — its
  * redirect, its `--json` envelope, or commander's plain refusal where the
  * command does not declare the option — prints cospec's redirect in its place
- * (a document on stdout under `json`) and returns exit 1. Returns undefined
- * for any other result, which the caller relays as usual. A call that exited
- * 0 ran its command (`--store-path` was another flag's value) and is never a
- * refusal.
+ * and returns exit 1: a document on stdout only where the binary emitted its
+ * envelope for a `json` caller (a command that declares the option, refusing
+ * it in its action), else the text on stderr, as commander's refusal comes
+ * before any output. Returns undefined for any other result, which the caller
+ * relays as usual. A call that exited 0 ran its command (`--store-path` was
+ * another flag's value) and is never a refusal.
  */
 export function relayStorePathRefusal(result: OpenspecResult, json: boolean): number | undefined {
   if (result.exitCode === 0 || !isUpstreamStorePathRefusal(result)) return undefined
-  const refusal = storePathRefusal(json)
+  const refusal = storePathRefusal(
+    json && /"code":\s*"store_path_not_supported"/.test(result.stdout),
+  )
   process[refusal.stream].write(refusal.text)
   return EXIT.failure
 }

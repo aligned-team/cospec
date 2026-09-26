@@ -543,16 +543,27 @@ describe('takesNextToken (phase B pairs a value-taking flag with its value)', ()
     expect(takesNextToken([], '--store-path', false)).toBe(false)
   })
 
-  test('--store-path takes a value on every table row, and forward rows only where upstream declares it', () => {
-    const forward = COMMAND_TABLE.filter((row) => row.parse === 'forward')
+  test('--store-path takes a value exactly on the rows whose upstream command declares it', () => {
+    // dist/cli/index.js hiddenStorePathOption() on list, view, archive, validate,
+    // show, status, instructions, schemas and new change; commands/context.js
+    // and commands/doctor.js add their own.
     expect(
-      forward
-        .filter(storePathTakesValue)
+      COMMAND_TABLE.filter(storePathTakesValue)
         .map((row) => row.name)
         .toSorted(),
-    ).toEqual(['schemas', 'show'])
-    for (const row of COMMAND_TABLE)
-      if (row.parse === 'table') expect(storePathTakesValue(row), row.name).toBe(true)
+    ).toEqual([
+      'archive',
+      'context',
+      'doctor',
+      'instructions',
+      'list',
+      'new',
+      'schemas',
+      'show',
+      'status',
+      'validate',
+      'view',
+    ])
   })
 })
 
