@@ -319,7 +319,7 @@ red; 4–7 turn it green; 8 documents it.
       `list --store-path=/x --json`; `same` rows also compare the number of JSON
       documents on stdout (`documentCount()` in `support/parse-class.ts`); rows
       failing at HEAD run as `test.failing` (ledger 1.24)
-- [ ] 10.25 A pending value-taking flag with no value is refused as argument
+- [x] 10.25 A pending value-taking flag with no value is refused as argument
       missing (`parseSurface`), from its placeholder like a handled flag, so it
       outranks help and an earlier unknown option or pending flag;
       `init     --language`'s placeholder is the binary's `<language>`; unit

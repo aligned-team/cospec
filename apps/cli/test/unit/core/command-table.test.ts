@@ -79,8 +79,27 @@ describe('parseCommandArgs — the six ledger 1.5 cases', () => {
       surface: '--language',
     })
     expect(refused('init', ['--language=fr'])).toMatchObject({ kind: 'pending' })
-    // With no value to consume it is still pending, not argument missing.
-    expect(refused('status', ['--schema'])).toMatchObject({ kind: 'pending', surface: '--schema' })
+    expect(refused('status', ['--schema', 'custom'])).toMatchObject({
+      kind: 'pending',
+      surface: '--schema',
+    })
+  })
+
+  test('a pending flag with no value is argument missing, as a handled flag is', () => {
+    const r = refused('status', ['--schema'])
+    expect(r).toMatchObject({ kind: 'missing-value', flag: '--schema' })
+    expect(r.message).toBe("cospec status: option '--schema <name>' argument missing\n")
+    // It outranks an unknown option or a pending flag earlier in the argv.
+    expect(refused('list', ['--bogus', '--sort'])).toMatchObject({
+      kind: 'missing-value',
+      flag: '--sort',
+    })
+    expect(refused('status', ['--schema', 'x', '--schema'])).toMatchObject({
+      kind: 'missing-value',
+    })
+    expect(refused('init', ['--language']).message).toBe(
+      "cospec init: option '--language <language>' argument missing\n",
+    )
   })
 
   test('--schem suggests --schema', () => {

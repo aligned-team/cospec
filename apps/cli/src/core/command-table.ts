@@ -222,7 +222,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
       upstream({
         name: '--language',
         takesValue: true,
-        placeholder: '<lang>',
+        placeholder: '<language>',
         description: 'Write new artifacts in this language',
         status: pending('workflow-profiles'),
       }),
@@ -1113,7 +1113,7 @@ function parseSurface(command: string, surface: SurfaceSpec, args: readonly stri
       // Like commander, a required value is the next token whatever it looks like.
       if (inline !== undefined) value = inline
       else if (i + 1 < args.length) value = args[++i]!
-      else if (!isPending(flag.status)) {
+      else {
         return {
           ok: false,
           refusal: {
@@ -1165,9 +1165,9 @@ function parseSurface(command: string, surface: SurfaceSpec, args: readonly stri
 /**
  * Parse a `table` row's argv (global flags already stripped by `cli.ts`).
  * Returns the positionals and flag values, or the refusal commander would
- * reach first: a value-taking flag with no value, anywhere in the argv
- * (`--store-path`'s included, as a `missing-value` whose message is the
- * redirect); then the first undeclared option or pending flag in argv order
+ * reach first: a value-taking flag with no value, anywhere in the argv (a
+ * pending flag's included, from its placeholder like a handled one, and
+ * `--store-path`'s, as a `missing-value` whose message is the redirect); then the first undeclared option or pending flag in argv order
  * (a pending flag's value consumed first, so it can never leak into a
  * positional); then too many positionals or a pending positional; and only
  * then `--store-path`, whose value is consumed like any other. Every refusal

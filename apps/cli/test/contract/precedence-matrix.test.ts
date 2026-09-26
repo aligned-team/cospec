@@ -493,14 +493,6 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * B absorbing or intercepting `--store-path`'s value). The fixes empty this set.
  */
 const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  // A pending flag with no value.
-  'list --help --sort',
-  'validate --help --type',
-  'init --help --language',
-  'status --change c1 --help --schema',
-  'list --bogus --sort',
-  'list -x --sort',
-  'status --change c1 --bogus --schema',
   // `--store-path`'s space-form value, absorbed or intercepted by phase B.
   'show c1 --store-path --help',
   'schemas --store-path -h',
