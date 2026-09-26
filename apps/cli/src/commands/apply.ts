@@ -210,18 +210,30 @@ export function relayThroughCospec(text: string): string {
   return text.replace(RELAYED_COMMAND_SPAN, '`cospec $1`')
 }
 
+// The canon gate prose (`canon/apply-instruction.yaml`) is schema text, served
+// before any change exists, so it names the change as a placeholder (#48).
+const APPLY_PLACEHOLDER = 'cospec apply "<change>"'
+
 /**
- * The wrapped apply payload with every relayed remedy routed through cospec.
+ * The wrapped apply payload with every relayed remedy routed through cospec,
+ * and the canon gate prose's `cospec apply "<change>"` naming `changeId`, the
+ * change this run already resolved — never a placeholder for a named change.
  *
  * Applied once, at the call site, so both the human transcript and the `--json`
  * spread carry the same guarded strings — the JSON path is the one agents read.
  * Absent `warnings` stays absent (a change cospec correctly skips must not gain
  * an empty array that reads as "checked, none found").
  */
-export function relayApplyInstructions(instr: ApplyInstructionsJson): ApplyInstructionsJson {
+export function relayApplyInstructions(
+  instr: ApplyInstructionsJson,
+  changeId: string,
+): ApplyInstructionsJson {
   return {
     ...instr,
-    instruction: relayThroughCospec(instr.instruction),
+    instruction: relayThroughCospec(instr.instruction).replaceAll(
+      APPLY_PLACEHOLDER,
+      `cospec apply "${changeId}"`,
+    ),
     ...(instr.warnings !== undefined ? { warnings: instr.warnings.map(relayThroughCospec) } : {}),
   }
 }
@@ -242,7 +254,7 @@ function printReport(report: ItemReport, ctx: CommandContext): void {
 async function applyLegacy(change: Change, ctx: CommandContext, root: Root): Promise<number> {
   let instr: ApplyInstructionsJson
   try {
-    instr = relayApplyInstructions(await openspecApplyInstructions(root, change.id))
+    instr = relayApplyInstructions(await openspecApplyInstructions(root, change.id), change.id)
   } catch (err) {
     process.stderr.write(`cospec apply: ${(err as Error).message}\n`)
     return EXIT.failure
@@ -441,7 +453,7 @@ export async function run(ctx: CommandContext): Promise<number> {
   // Step 5: fetch the apply payload from openspec.
   let instr: ApplyInstructionsJson
   try {
-    instr = relayApplyInstructions(await openspecApplyInstructions(root, change.id))
+    instr = relayApplyInstructions(await openspecApplyInstructions(root, change.id), change.id)
   } catch (err) {
     const msg = err instanceof OpenspecCallError ? err.message : (err as Error).message
     process.stderr.write(`cospec apply: ${msg}\n`)
