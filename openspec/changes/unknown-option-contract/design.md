@@ -141,14 +141,21 @@ runtime by `dist/commands/spec.js:127`.
    slots by index on the same command path. Optionality is not a reachability
    entry: `openspec archive` with no name opens an interactive picker, which no
    script can drive, and non-interactively it errors as cospec does.
-6. **The four registry sources are the walk; three hidden surfaces get explicit
+6. **The four registry sources are the walk; the hidden surfaces get explicit
    fixtures.** `experimental` (hidden alias), `--store-path` (hidden per-command
-   option) and `powershell` (`positionalType: 'shell'` with no `values`) are not
-   in `COMMAND_REGISTRY`, `AI_TOOLS`, `TOOL_ID_ALIASES` or `ALL_WORKFLOWS`. The
-   differential fixture covers `--store-path` directly; `experimental` and
-   `powershell` are owed by `upstream-spellings` and `completion-install` and
-   are listed in `parity-pending.yaml` under a `source: cli` marker so the
-   pending list is complete even though the walk cannot produce them.
+   option), `powershell` (`positionalType: 'shell'` with no `values`), the
+   hidden `__complete <type>` command's `schemas` and `archived-changes` types,
+   and `new change --initiative` / `--areas` (hidden-help options that print a
+   removed-option error) are not in `COMMAND_REGISTRY`, `AI_TOOLS`,
+   `TOOL_ID_ALIASES` or `ALL_WORKFLOWS`. The differential fixture covers
+   `--store-path` directly. The rest are reachability fixtures, each added to
+   the walk only after a probe of the pinned binary confirms it: `experimental`
+   and `powershell` are owed by `upstream-spellings` and `completion-install`,
+   `__complete schemas` / `archived-changes` by `cli-surface-parity` (cospec's
+   `__complete` marks both values pending), each listed in `parity-pending.yaml`
+   under a `source: cli` marker; `--initiative` and `--areas` resolve to the
+   pending `new change` subtree. So the pending list is complete even though the
+   walk cannot produce these surfaces.
 7. **Differential classification, not exit-code equality.** Each run is classed
    `parse-rejected` when stderr matches one of the four refusal shapes (unknown
    option, argument missing, too many arguments, `--store-path`) or `parsed`
@@ -241,7 +248,7 @@ owner:
 | entry                                                                                                                                                                                                                                                                                                                                                                                                | owner                     |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
 | `init --tools <list>` (alias of `--harness`)                                                                                                                                                                                                                                                                                                                                                         | `upstream-spellings`      |
-| `new change <name>` (the whole subtree: `--description`, `--goal`, `--schema`, `--json`, `--store`)                                                                                                                                                                                                                                                                                                  | `upstream-spellings`      |
+| `new change <name>` (the whole subtree: `--description`, `--goal`, `--schema`, `--json`, `--store`, hidden `--initiative`/`--areas`)                                                                                                                                                                                                                                                                 | `upstream-spellings`      |
 | `update [path]` positional                                                                                                                                                                                                                                                                                                                                                                           | `upstream-spellings`      |
 | `completion generate [shell]`                                                                                                                                                                                                                                                                                                                                                                        | `upstream-spellings`      |
 | `instructions --schema <name>`                                                                                                                                                                                                                                                                                                                                                                       | `upstream-spellings`      |
@@ -251,6 +258,7 @@ owner:
 | `validate --type <change\|spec>` and its values                                                                                                                                                                                                                                                                                                                                                      | `cli-surface-parity`      |
 | `validate --report <full\|findings>` and its values                                                                                                                                                                                                                                                                                                                                                  | `cli-surface-parity`      |
 | `validate --concurrency <n>`                                                                                                                                                                                                                                                                                                                                                                         | `cli-surface-parity`      |
+| `__complete` types `schemas`, `archived-changes` (source: cli, hidden)                                                                                                                                                                                                                                                                                                                               | `cli-surface-parity`      |
 | `archive --no-validate`                                                                                                                                                                                                                                                                                                                                                                              | `archive-and-sync-parity` |
 | `AI_TOOLS`: `amazon-q`, `antigravity`, `auggie`, `bob`, `cline`, `command-code`, `codeartsagent`, `devin`, `forgecode`, `codebuddy`, `continue`, `costrict`, `crush`, `cursor`, `factory`, `gemini`, `hermes`, `iflow`, `junie`, `kilocode`, `kimi`, `kiro`, `lingma`, `minimax-code`, `vibe`, `oh-my-pi`, `pi`, `codeassistant`, `qoder`, `qwen`, `rovodev`, `roocode`, `trae`, `zed`, `zcode` (35) | `tool-matrix`             |
 | `TOOL_ID_ALIASES`: `windsurf` → `devin`                                                                                                                                                                                                                                                                                                                                                              | `tool-matrix`             |

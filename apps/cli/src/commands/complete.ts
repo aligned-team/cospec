@@ -7,7 +7,10 @@
 // the user's command line — so an unknown source, a missing openspec root, an
 // unregistered store, or an unparseable wrapped payload all look the same:
 // no suggestions. The whole payload is built before anything is written, so a
-// late failure can never leave half a list on stdout.
+// late failure can never leave half a list on stdout. (Parse-time refusals from
+// the command table — an unknown option, or upstream's `schemas` /
+// `archived-changes` sources, still pending — do reach stderr; the generated
+// scripts call this with `2>/dev/null`, and never with those tokens.)
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'

@@ -182,3 +182,8 @@ red; 4–7 turn it green; 8 documents it.
       `new change`, `completion generate/install/uninstall`, too many arguments)
       in the BREAKING paragraph and `reference/commands.md`; pin each in the
       differential (ledger 1.9)
+- [x] 10.3 Declare the remaining hidden upstream surfaces as reachability
+      fixtures (`__complete schemas` / `archived-changes`,
+      `new change     --initiative` / `--areas`) with binary probes, mark the
+      `__complete` values pending on `cli-surface-parity`, add the `source: cli`
+      entries, and correct design decision 6 (ledger 4.6)

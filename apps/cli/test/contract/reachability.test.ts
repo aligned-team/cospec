@@ -9,9 +9,10 @@
 // runtime — the same deep-import pattern version-tripwire.test.ts uses):
 // `core/completions/command-registry.js` COMMAND_REGISTRY,
 // `core/config.js` AI_TOOLS and TOOL_ID_ALIASES, `core/profiles.js`
-// ALL_WORKFLOWS. Two hidden surfaces those sources cannot produce
-// (`experimental`, the `powershell` completion shell) are added as declared
-// fixtures after the binary is probed for them.
+// ALL_WORKFLOWS. The hidden surfaces those sources cannot produce
+// (`experimental`, the `powershell` completion shell, `__complete`'s `schemas`
+// and `archived-changes` types, and `new change --initiative` / `--areas`) are
+// added as declared fixtures after the binary is probed for them.
 //
 // The five places an entry can resolve to:
 //   cospec               the command table (a handled or no-op flag, a global
@@ -52,8 +53,8 @@ import {
 } from '../../src/core/command-table.ts'
 import { openspecPackageDir } from '../../src/core/openspec.ts'
 import { HARNESS_NAMES } from '../../src/harness/adapters.ts'
-import { cleanupAll } from '../fixtures/support.ts'
-import { oracle, scaffoldOracleRoot } from './support/upstream-oracle.ts'
+import { cleanupAll, hashTree } from '../fixtures/support.ts'
+import { oracle, type OracleRun, scaffoldOracleRoot } from './support/upstream-oracle.ts'
 
 afterAll(cleanupAll)
 
@@ -208,18 +209,49 @@ function walkRegistry(registry: readonly RegistryCommand[]): Entry[] {
 
 /**
  * Hidden surfaces outside the four sources (design decision 6). Each is added
- * to the walk only after `probe` confirms the pinned binary still has it.
+ * to the walk only after `present` confirms the pinned binary still has it.
+ * `new change --initiative` / `--areas` are hidden-help options that print a
+ * removed-option error; they resolve to the pending `new change` subtree in
+ * `parity-pending.yaml`, so they need no entries of their own.
  */
-const HIDDEN_FIXTURES: readonly { entry: Entry; probe: string[]; expectStdout: string }[] = [
+const HIDDEN_FIXTURES: readonly {
+  entry: Entry
+  probe: string[]
+  present: (run: OracleRun) => boolean
+}[] = [
   {
     entry: { kind: 'command', path: ['experimental'] },
     probe: ['experimental', '--help'],
-    expectStdout: 'Usage: openspec experimental',
+    present: (run) => run.exitCode === 0 && run.stdout.includes('Usage: openspec experimental'),
   },
   {
     entry: { kind: 'positional-value', path: ['completion'], index: 0, value: 'powershell' },
     probe: ['completion', 'generate', 'powershell'],
-    expectStdout: 'PowerShell completion script for OpenSpec',
+    present: (run) =>
+      run.exitCode === 0 && run.stdout.includes('PowerShell completion script for OpenSpec'),
+  },
+  // `__complete` answers an unknown type with a silent exit 1 (asserted below),
+  // so exit 0 is what tells a served type apart.
+  {
+    entry: { kind: 'positional-value', path: ['__complete'], index: 0, value: 'schemas' },
+    probe: ['__complete', 'schemas'],
+    present: (run) => run.exitCode === 0 && run.stdout.includes('spec-driven'),
+  },
+  {
+    entry: { kind: 'positional-value', path: ['__complete'], index: 0, value: 'archived-changes' },
+    probe: ['__complete', 'archived-changes'],
+    present: (run) => run.exitCode === 0,
+  },
+  {
+    entry: { kind: 'flag', path: ['new', 'change'], flag: '--initiative', takesValue: true },
+    probe: ['new', 'change', 'hidden-probe', '--initiative', 'x'],
+    present: (run) =>
+      run.exitCode === 1 && run.stderr.includes('--initiative is no longer supported'),
+  },
+  {
+    entry: { kind: 'flag', path: ['new', 'change'], flag: '--areas', takesValue: true },
+    probe: ['new', 'change', 'hidden-probe', '--areas', 'x'],
+    present: (run) => run.exitCode === 1 && run.stderr.includes('--areas is no longer supported'),
   },
 ]
 
@@ -675,6 +707,8 @@ function deprecationMarked(
 
 const listStderr = new Map<string, string>()
 const hiddenFound: Entry[] = []
+let probesChangedRoot = false
+let unknownCompleteType: OracleRun
 let model: Model
 
 beforeAll(async () => {
@@ -685,12 +719,12 @@ beforeAll(async () => {
   )
   for (const [i, dep] of runtime.entries())
     listStderr.set(dep.upstream.path.join(' '), listRuns[i]!.stderr)
+  const beforeProbes = hashTree(root)
   const probes = await Promise.all(HIDDEN_FIXTURES.map((f) => oracle(f.probe, root)))
-  for (const [i, fixture] of HIDDEN_FIXTURES.entries()) {
-    const run = probes[i]!
-    if (run.exitCode === 0 && run.stdout.includes(fixture.expectStdout))
-      hiddenFound.push(fixture.entry)
-  }
+  probesChangedRoot = JSON.stringify(hashTree(root)) !== JSON.stringify(beforeProbes)
+  unknownCompleteType = await oracle(['__complete', 'no-such-type'], root)
+  for (const [i, fixture] of HIDDEN_FIXTURES.entries())
+    if (fixture.present(probes[i]!)) hiddenFound.push(fixture.entry)
   model = {
     registry: COMMAND_REGISTRY,
     aiTools: AI_TOOLS.map((t) => t.value),
@@ -720,8 +754,12 @@ describe('reachability: every pinned OpenSpec surface resolves exactly once', ()
     expect(ALL_WORKFLOWS.length).toBeGreaterThan(0)
   })
 
-  test('both hidden fixtures are still present in the pinned binary', () => {
+  test('every hidden fixture is still present in the pinned binary', () => {
     expect(hiddenFound).toEqual(HIDDEN_FIXTURES.map((f) => f.entry))
+    expect(probesChangedRoot, 'a hidden-surface probe must not write to the fixture').toBe(false)
+    // The exit-0 probes for `__complete` types mean something only because an
+    // unknown type exits nonzero.
+    expect(unknownCompleteType.exitCode).not.toBe(0)
     // Hidden means the four sources cannot produce it; otherwise it belongs to the walk.
     const walked = walkRegistry(COMMAND_REGISTRY).map((e) => JSON.stringify(e))
     for (const f of HIDDEN_FIXTURES) expect(walked).not.toContain(JSON.stringify(f.entry))

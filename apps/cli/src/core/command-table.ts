@@ -837,7 +837,13 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     parse: 'table',
     json: 'accepted',
     positionals: [
-      cospecArg({ name: 'source', required: true, values: ['changes', 'specs', 'types'] }),
+      cospecArg({
+        name: 'source',
+        required: true,
+        values: ['changes', 'specs', 'types'],
+        // Upstream's hidden `__complete <type>` also serves these two.
+        pendingValues: { schemas: 'cli-surface-parity', 'archived-changes': 'cli-surface-parity' },
+      }),
     ],
     flags: [],
   },

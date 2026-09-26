@@ -474,6 +474,19 @@ const PENDING_ROWS: readonly Row[] = [
     expect: 'pending',
     pendingFlag: 'uninstall',
   },
+  // Upstream's hidden `__complete` also serves these two types.
+  {
+    argv: ['__complete', 'schemas'],
+    command: '__complete',
+    expect: 'pending',
+    pendingFlag: 'schemas',
+  },
+  {
+    argv: ['__complete', 'archived-changes'],
+    command: '__complete',
+    expect: 'pending',
+    pendingFlag: 'archived-changes',
+  },
 ]
 
 /**
