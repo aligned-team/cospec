@@ -198,7 +198,7 @@ describe('standalone pack smoke (bun-less)', () => {
     expect(completionZsh.stdout).toContain('#compdef cospec')
 
     // `feedback --help` is deliberately NOT the bundling probe: `cli.ts`
-    // answers `--help` from the static COMMANDS table and returns before it
+    // answers `--help` from the static COMMAND_TABLE and returns before it
     // ever looks up COMMAND_MODULES, so it passes even when the module was
     // dropped. Running the command itself is what loads `commands/feedback.ts`
     // — a dropped module reports "is not yet implemented" and exits 1. `gh` is

@@ -64,175 +64,6 @@ export const EXIT = {
   softBlocked: 3,
 } as const
 
-interface CommandEntry {
-  name: string
-  summary: string
-  hidden?: boolean
-  /** Positional signature shown right after the command name in the Usage line. */
-  usage?: string
-  /** Pre-formatted `--flag  description` lines shown under "Command options:". */
-  options?: string
-}
-
-/**
- * @deprecated Legacy pre-formatted help strings, read only by
- * `core/completions/spec.ts` until the completion spec is built from
- * `COMMAND_TABLE`. Dispatch and `--help` read `COMMAND_TABLE`; nothing new
- * may read this.
- */
-export const COMMANDS: CommandEntry[] = [
-  {
-    name: 'init',
-    summary: 'Scaffold cospec into a repo (schemas + harness files)',
-    usage: '[path]',
-    options: `  --yes              Skip prompts; auto-remove detected opsx leftovers
-  --force            Overwrite conflicting managed files
-  --harness <list>   claude,codex,opencode,agents,all,none (comma-separate for multiple)
-  --gate             Force-enable the commit gate (mise + hk + commitlint)
-  --no-gate          Force-disable the commit gate
-  --remove-opsx      Delete provably openspec-generated leftover files`,
-  },
-  {
-    name: 'update',
-    summary: 'Regenerate managed files from canon',
-    options: `  --check   Drift gate: exit nonzero on drift, write nothing
-  --force   Overwrite conflicting managed files`,
-  },
-  { name: 'doctor', summary: 'Diagnose a cospec setup and report remedies' },
-  {
-    name: 'new',
-    summary: 'Create a new typed change (cospec new <type> <slug>)',
-    usage: '<type> <slug>',
-    options: `  --description <text>   Seed the proposal with a one-line description`,
-  },
-  { name: 'migrate', summary: 'Migrate a v1 change to schemaVersion 2 (opt-in)', usage: '<slug>' },
-  {
-    name: 'validate',
-    summary: 'Validate changes and specs',
-    usage: '[name]',
-    options: `  --strict          Promote warnings to errors
-  --fast             Skip slower cross-checks
-  --all              Validate every change and spec
-  --changes          Validate changes only
-  --specs            Validate specs only
-  --archived         Validate already-archived changes instead (delegated; openspec >=1.9.0)
-  --no-interactive   Never prompt, even for an ambiguous change name`,
-  },
-  {
-    name: 'status',
-    summary: "Show a change's status and gate state",
-    options: `  --change <slug>   The change to report on (or pass it positionally)
-  --all             Report every active change instead of one (mutually exclusive with --change)`,
-  },
-  {
-    name: 'list',
-    summary: 'List active changes',
-    options: `  --specs     List living specs by requirement count instead
-  --blocked   Only changes with a non-clear gate state`,
-  },
-  {
-    name: 'instructions',
-    summary: 'Print artifact-authoring instructions for a change',
-    usage: '<artifact>',
-    options: `  --change <slug>   The change the artifact belongs to (required)
-  --allow-soft      Proceed past a soft block
-  artifacts: proposal, blocking-changes, specs, design, verification, tasks, apply, archive
-  ('archive' is read-only guidance — unlike 'apply', it is not an alias for 'cospec archive')`,
-  },
-  {
-    name: 'apply',
-    summary: 'Gate implementation on blockers and required artifacts',
-    usage: '<change>',
-    options: `  --allow-soft   Proceed past a soft block
-  --skip-specs   Satisfy the specs requirement for this run (persist with skip_specs: true instead)`,
-  },
-  {
-    name: 'archive',
-    summary: 'Validate, archive, and fan out blocker updates',
-    usage: '<change>',
-    options: `  --skip-specs         Skip spec-sync even when the schema has a specs artifact
-  --force-incomplete   Override the tasks-incomplete gate (verification gates never lift)`,
-  },
-  {
-    name: 'sync-blockers',
-    summary: 'Reconcile blocking-changes.md checkboxes',
-    options: `  --check            Report only; write nothing
-  --change <slug>    Limit to one change's blocking-changes.md`,
-  },
-  {
-    name: 'store',
-    summary: 'Manage registered OpenSpec stores',
-    usage: '<setup|register|unregister|remove|list|doctor> [args]',
-    options: `  --no-cospec-init   Skip the auto 'cospec init --harness none' (setup/register only)`,
-  },
-  {
-    name: 'context',
-    summary: "Show a store's cross-repo working-set context",
-    options: `  --code-workspace <path>   Also write/update a VS Code multi-root workspace file
-  --force                   Overwrite a code-workspace file cospec did not author`,
-  },
-  {
-    name: 'workset',
-    summary: 'Manage personal cross-repo worksets',
-    usage: '<create|list|remove|open> [args]',
-  },
-  {
-    name: 'show',
-    summary: 'Show a change or spec (text or JSON)',
-    usage: '<item>',
-    options: `  --type <change|spec>     Disambiguate an id that matches both
-  --deltas-only            Changes only: print deltas, skip the proposal body
-  --requirements-only       Specs only: print requirements, skip prose
-  -r, --requirement <id>   Show a single requirement
-  --no-scenarios           Omit scenario blocks`,
-  },
-  { name: 'view', summary: 'Show the OpenSpec dashboard' },
-  { name: 'schemas', summary: 'List resolvable schemas' },
-  {
-    name: 'schema',
-    summary: 'Inspect a schema (which/validate)',
-    usage: '<which|validate|fork|init> [args]',
-    options: `  --description <text>   init only: seed the new schema's description
-  --artifacts <list>      init only: comma-separated artifact ids to include`,
-  },
-  {
-    name: 'templates',
-    summary: 'List per-artifact template paths',
-    options: `  --schema <name>   Schema whose templates to list (default: spec-driven)`,
-  },
-  {
-    name: 'config',
-    summary: 'View and modify machine-global OpenSpec configuration',
-    usage: '<path|list|get|set|unset|reset|edit|profile> [args]',
-    options: `  --scope <scope>   Config scope (only "global" is implemented upstream)
-  (config is machine-global: --store never applies; edit/profile/reset without -y
-   hand the terminal over and cannot emit JSON)`,
-  },
-  {
-    name: 'completion',
-    summary: 'Print the shell completion script for cospec',
-    usage: '[bash|zsh|fish]',
-    options: `  (shell omitted: detected from $SHELL; the script is printed, never installed)`,
-  },
-  {
-    name: 'feedback',
-    summary: "File feedback about cospec (--upstream files OpenSpec's)",
-    usage: '<message>',
-    options: `  --body <text>   Detailed description for the report
-  --upstream      File at Fission-AI/OpenSpec instead of aligned-team/cospec`,
-  },
-  {
-    name: '__complete',
-    summary: 'Dynamic completion source (changes|specs|types)',
-    hidden: true,
-  },
-  {
-    name: 'check-commit',
-    summary: 'Warn on commit-type/schema mismatch (hook entrypoint)',
-    hidden: true,
-  },
-]
-
 /**
  * Static command-module registry. Each value is a literal `import()` so
  * `bun build --compile` can statically bundle every command module into the
@@ -240,10 +71,10 @@ export const COMMANDS: CommandEntry[] = [
  * `new URL('./commands/' + name)`) is invisible to the bundler, which silently
  * drops the modules — the compiled binary then reports every subcommand as "not
  * yet implemented" and only `--version`/`--help` (which short-circuit before
- * dispatch) work. A name present in COMMANDS but absent here is treated as
+ * dispatch) work. A `COMMAND_TABLE` row absent here is treated as
  * unimplemented.
  */
-const COMMAND_MODULES: Record<string, () => Promise<Partial<CommandModule>>> = {
+export const COMMAND_MODULES: Record<string, () => Promise<Partial<CommandModule>>> = {
   init: () => import('./commands/init.ts'),
   update: () => import('./commands/update.ts'),
   doctor: () => import('./commands/doctor.ts'),
@@ -298,11 +129,7 @@ const GLOBAL_LABEL_WIDTH = Math.max(
   ...GLOBAL_FLAGS.map((flag) => flagLabel(flag).length),
 )
 
-/**
- * The global-flag help block, rendered from `GLOBAL_FLAGS`. Still exported
- * because `core/completions/spec.ts` extracts the global completion flags
- * from it until the completion spec reads the table directly.
- */
+/** The global-flag help block every help screen ends with, rendered from `GLOBAL_FLAGS`. */
 export const GLOBAL_OPTIONS = `Global options:\n${renderLines(flagLines(GLOBAL_FLAGS), GLOBAL_LABEL_WIDTH)}`
 
 function helpText(): string {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { COMMANDS, GLOBAL_OPTIONS } from '../../../src/cli.ts'
+import { COMMAND_MODULES, GLOBAL_OPTIONS } from '../../../src/cli.ts'
 import {
   closest,
   COMMAND_TABLE,
@@ -285,10 +285,47 @@ describe('pending surfaces', () => {
 })
 
 describe('table shape', () => {
-  test('every COMMANDS entry has a row, and every row a COMMANDS entry, in the same order', () => {
-    expect(COMMAND_TABLE.map((row) => row.name)).toEqual(COMMANDS.map((c) => c.name))
-    for (const entry of COMMANDS)
-      expect(commandRow(entry.name)?.hidden ?? false).toBe(entry.hidden ?? false)
+  test('the rows, in help order, with exactly __complete and check-commit hidden', () => {
+    expect(COMMAND_TABLE.map((row) => row.name)).toEqual([
+      'init',
+      'update',
+      'doctor',
+      'new',
+      'migrate',
+      'validate',
+      'status',
+      'list',
+      'instructions',
+      'apply',
+      'archive',
+      'sync-blockers',
+      'store',
+      'context',
+      'workset',
+      'show',
+      'view',
+      'schemas',
+      'schema',
+      'templates',
+      'config',
+      'completion',
+      'feedback',
+      '__complete',
+      'check-commit',
+    ])
+    expect(COMMAND_TABLE.filter((row) => row.hidden).map((row) => row.name)).toEqual([
+      '__complete',
+      'check-commit',
+    ])
+  })
+
+  test('every row dispatches to a command module, and every module has a row, in the same order', async () => {
+    expect(Object.keys(COMMAND_MODULES)).toEqual(COMMAND_TABLE.map((row) => row.name))
+    const modules = await Promise.all(
+      COMMAND_TABLE.map(async (row) => [row.name, await COMMAND_MODULES[row.name]!()] as const),
+    )
+    for (const [name, mod] of modules)
+      expect(typeof mod.run, `commands module for '${name}' exports run`).toBe('function')
   })
 
   test('forward rows are exactly the design list', () => {

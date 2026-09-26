@@ -190,3 +190,7 @@ red; 4–7 turn it green; 8 documents it.
 - [x] 10.4 Run the `validate --type change x` pending row in a fixture holding a
       change named `change`, and assert empty stdout and the exact stderr on
       every pending row (ledger 1.1)
+- [x] 10.5 Delete the dead `COMMANDS` export (and `CommandEntry`) and the stale
+      comments in `cli.ts` that still named it or claimed `GLOBAL_OPTIONS` fed
+      the completion spec; rewrite `command-table.test.ts`'s parity test against
+      `COMMAND_TABLE` and the now-exported `COMMAND_MODULES` (ledger 3.4)
