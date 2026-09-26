@@ -90,7 +90,9 @@ async function runWorksetOpen(ctx: CommandContext, rest: string[]): Promise<numb
   const open = row?.subcommands?.find((s) => s.name === 'open')
   if (row === undefined || open === undefined) throw new Error("cospec workset: no 'open' row")
   if (storePathInOptionPosition([row, open], rest)) {
-    const refusal = storePathRefusal(ctx.flags.json)
+    // Upstream declares no `--store-path` here: commander's refusal precedes
+    // any output, so it is text even under `--json`.
+    const refusal = storePathRefusal(false)
     process[refusal.stream].write(refusal.text)
     return EXIT.failure
   }

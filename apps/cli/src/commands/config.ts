@@ -312,7 +312,9 @@ async function runHandover(ctx: CommandContext, call: ConfigCall): Promise<numbe
   const sub = row?.subcommands?.find((s) => s.name === call.sub)
   if (row === undefined || sub === undefined) throw new Error(`cospec config: no '${call.sub}' row`)
   if (storePathInOptionPosition([row, sub], call.subArgs)) {
-    const refusal = storePathRefusal(ctx.flags.json)
+    // Upstream declares no `--store-path` here: commander's refusal precedes
+    // any output, so it is text even under `--json`.
+    const refusal = storePathRefusal(false)
     process[refusal.stream].write(refusal.text)
     return EXIT.failure
   }
