@@ -12,6 +12,7 @@ import {
   globalUnknownOptionRefusal,
   isPending,
   isStorePathToken,
+  isUpstreamStorePathRefusal,
   offeredFlags,
   parseCommandArgs,
   type ParsedArgs,
@@ -312,6 +313,43 @@ function storePathAnswer(json: boolean): number {
   return EXIT.failure
 }
 
+/**
+ * A `forward` row's `--store-path`: the binary is the ordering authority
+ * (design decision 1), so cospec hands it the row's argv and lets it answer.
+ * It refuses such an argv on every forward surface of the pin — an unknown
+ * option where the command does not declare `--store-path`, the redirect from
+ * the action where it does — so the call never runs a command. When its answer
+ * is its own `--store-path` refusal, cospec prints its redirect instead (the
+ * output-side rule: upstream's names bare `openspec`); any refusal the binary
+ * reaches first (an unknown option, too many arguments) is relayed verbatim,
+ * unless it too names bare `openspec` (`store`'s unknown-subcommand remedy):
+ * then this returns undefined and the row's own wrapper answers, as its
+ * pre-spawn guards already do for that argv without `--store-path`.
+ */
+async function relayForwardStorePath(
+  row: CommandRow,
+  rest: readonly string[],
+  state: GlobalState,
+): Promise<number | undefined> {
+  const { beforeTerminator, runOpenspec } = await import('./core/openspec.ts')
+  const cwd = state.cwdRaw !== undefined ? resolve(process.cwd(), state.cwdRaw) : process.cwd()
+  const result = await runOpenspec(
+    beforeTerminator([row.name, ...rest], state.json ? ['--json'] : []),
+    {
+      cwd,
+      expect: {
+        exitCodes: [1],
+        postCondition: (r) => r.stdout.length > 0 || r.stderr.length > 0 || 'printed no refusal',
+      },
+    },
+  )
+  if (isUpstreamStorePathRefusal(result)) return storePathAnswer(state.json)
+  if (/\bopenspec\b/.test(result.stdout + result.stderr)) return undefined
+  process.stdout.write(result.stdout)
+  process.stderr.write(result.stderr)
+  return EXIT.failure
+}
+
 function rootHelp(): number {
   process.stdout.write(helpText())
   return EXIT.success
@@ -399,8 +437,9 @@ function resolveProgram(argv: readonly string[], state: GlobalState): number | C
  * wrapper. Outcomes follow commander's per-level order: a missing value (the
  * global's or the row's own) is raised while the argv parses, then help, then
  * the row's other parse refusals (`view --json`'s refusal document, an
- * unknown option, a pending surface, too many arguments, `--store-path`),
- * then an empty `--cwd`/`--store` value, then the command runs.
+ * unknown option, a pending surface, too many arguments, `--store-path`; on a
+ * `forward` row the binary ranks its `--store-path` against the rest), then
+ * an empty `--cwd`/`--store` value, then the command runs.
  */
 async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState): Promise<number> {
   const rest: string[] = []
@@ -477,10 +516,13 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
       process.stderr.write(result.refusal.message)
       return EXIT.failure
     }
-  } else {
-    // Forward rows get no parser, so their `--store-path` is caught here.
+  } else if (!call.terminated) {
+    // After a leading `--` a `--store-path` is an operand, never this check's.
     const beforeTerminator = rest.includes('--') ? rest.slice(0, rest.indexOf('--')) : rest
-    if (beforeTerminator.some(isStorePathToken)) return storePathAnswer(state.json)
+    if (beforeTerminator.some(isStorePathToken)) {
+      const code = await relayForwardStorePath(row, rest, state)
+      if (code !== undefined) return code
+    }
   }
 
   if (state.empty !== undefined) return valueRefusal(row.name, state.empty, true)
@@ -524,7 +566,9 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
  * any answer of its own; only a known command reaches phase B. A `table`
  * row's argv is parsed against its row before the module loads; a `forward`
  * row's argv reaches its wrapper unchanged. `--store-path` is refused on every
- * command, in either position, with upstream's redirect respelled to cospec.
+ * command, in either position, with upstream's redirect respelled to cospec —
+ * on a `table` row after the row's other parse refusals, on a `forward` row
+ * wherever the binary itself refuses it.
  */
 export async function run(argv: string[]): Promise<number> {
   const beforeTerminator = argv.includes('--') ? argv.slice(0, argv.indexOf('--')) : argv

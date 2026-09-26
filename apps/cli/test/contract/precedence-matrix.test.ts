@@ -318,16 +318,6 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * global and a `--` right after the command name. Each fix empties its share.
  */
 const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  // --store-path answered before the binary's parse finished
-  'list a --store-path /x',
-  'list --store-path /x --bogus',
-  'list --store-path /x extra',
-  'validate --store-path /x --bogus',
-  'validate --store-path /x a b',
-  'show foo --store-path /x --bogus',
-  'show --store-path /x a b',
-  'config path --bogus --store-path /x',
-  '-- config --store-path /x',
   // phase B routing
   'config -- path',
   'store -- list',

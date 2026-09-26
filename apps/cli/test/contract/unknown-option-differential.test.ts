@@ -883,6 +883,12 @@ describe('unknown-option differential: --store-path is refused with the redirect
     ['--store-path', '/x', 'list'],
     ['validate', '--store-path', '/x'],
     ['show', 'foo', '--store-path', '/x'],
+    // Forward rows whose upstream refuses `--store-path` as an unknown option,
+    // including the terminal-handover leaves: no editor or prompt ever opens.
+    ['config', 'path', '--store-path', '/x'],
+    ['config', 'edit', '--store-path', '/x'],
+    ['workset', 'open', 'foo', '--store-path', '/x'],
+    ['schemas', '--store-path=/x'],
   ]) {
     test(`${argv.join(' ')} prints upstream's redirect respelled, exits 1`, async () => {
       const text = await expectedRedirect()
@@ -902,6 +908,33 @@ describe('unknown-option differential: --store-path is refused with the redirect
       expect(co.exitCode).toBe(up.exitCode)
     }, 30_000)
   }
+
+  // A forward row relays whatever the binary refuses before `--store-path`.
+  for (const argv of [
+    ['show', 'foo', '--store-path', '/x', '--bogus'],
+    ['show', '--store-path', '/x', 'a', 'b'],
+    ['config', 'path', '--bogus', '--store-path', '/x'],
+    ['schemas', '--store-path', '/x', '--bogus'],
+  ]) {
+    test(`${argv.join(' ')} relays the binary's earlier refusal`, async () => {
+      const up = await oracle(argv, freshRoot())
+      const co = await runCospec(argv, freshRoot())
+      expect(up.exitCode).toBe(1)
+      expect(up.stderr).not.toContain('--store-path')
+      expect(co.exitCode).toBe(1)
+      expect(co.stderr).toBe(up.stderr)
+      expect(co.stdout).toBe(up.stdout)
+    }, 30_000)
+  }
+
+  test('show foo --store-path /x --json relays the envelope respelled', async () => {
+    const argv = ['show', 'foo', '--store-path', '/x', '--json']
+    const co = await runCospec(argv, freshRoot())
+    expect(co.exitCode).toBe(1)
+    const doc = JSON.parse(co.stdout) as { status: Record<string, string>[] }
+    expect(doc.status[0]!['code']).toBe('store_path_not_supported')
+    expect(co.stdout).not.toContain('openspec')
+  }, 30_000)
 
   test(`list --json --store-path /x prints one envelope matching upstream's status[0]`, async () => {
     const argv = ['list', '--json', '--store-path', '/x']

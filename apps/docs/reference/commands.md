@@ -54,8 +54,10 @@ cospec answers in two phases:
 3. Only then does the command read its own argv, in OpenSpec's per-command
    order: a missing value (`cospec status --help --change` refuses the missing
    `--change`), then `--help`, then the command's other refusals (unknown
-   option, too many arguments, `--store-path`), then an empty `--cwd`/`--store`
-   (`cospec list --store= --help` prints help), then the command runs.
+   option, too many arguments, then `--store-path`:
+   `cospec list --store-path /x --bogus` refuses `--bogus`), then an empty
+   `--cwd`/`--store` (`cospec list --store= --help` prints help), then the
+   command runs.
 
 `cospec <command> help` — a bare `help` token immediately after the command name
 — is equivalent to `cospec <command> --help` on every table-parsed command; it
@@ -183,7 +185,12 @@ never prompts), and `list --changes` (the default).
 
 **`--store-path`** is refused on every command — in the `--store-path <path>`
 and `--store-path=<path>` forms, in both the pre-command and post-command
-position — with the same redirect OpenSpec prints, respelled to `cospec`:
+position — with the same redirect OpenSpec prints, respelled to `cospec`, at the
+point OpenSpec refuses it: on a forwarded command whatever the binary refuses
+first (`cospec config path --bogus --store-path /x` relays
+`unknown option '--bogus'`), and never after a leading `--`, where it is an
+operand (`cospec -- config --store-path /x` refuses `--store-path` as an unknown
+`config` subcommand):
 
 ```
 ✖ Error: --store-path is not supported. Register the path with cospec store

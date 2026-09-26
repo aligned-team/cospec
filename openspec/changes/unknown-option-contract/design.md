@@ -79,19 +79,18 @@ runtime by `dist/commands/spec.js:127`.
    reachability, `--help`, completion); its wrapper may consume its own
    cospec-only flags (`store --no-cospec-init`, `config --scope` lifted into
    canonical position) and apply its own pre-spawn guards (`schema`'s canon-type
-   destination refusal, `config`/`store`/`workset` subcommand checks, the
-   `--store-path` interception), but every remaining token reaches the binary
-   unchanged after global-flag threading and cospec adds no unknown-option
-   rejection of its own. `forward` rows: `show`, `templates`, `schemas`,
-   `schema`, `store`, `workset`, `config`. `feedback` is a `table` row:
-   `parseFeedbackArgs` already rejects unknown options, so the shared parser
-   replaces it and the `--upstream` relay rebuilds its argv from the parsed
-   values as it does today. Everything else is `table`. Upstream's per-command
-   `--json` and `--store` are cospec globals (`GLOBAL_OPTIONS`, stripped in
-   `cli.ts`); the reachability test resolves them for every row through the
-   global list rather than per-row duplicates. Each `table` row also declares
-   `json: 'accepted' | 'refused'`: whether the command honours the global
-   `--json` (decision 10).
+   destination refusal, `config`/`store`/`workset` subcommand checks), but every
+   remaining token reaches the binary unchanged after global-flag threading and
+   cospec adds no unknown-option rejection of its own. `forward` rows: `show`,
+   `templates`, `schemas`, `schema`, `store`, `workset`, `config`. `feedback` is
+   a `table` row: `parseFeedbackArgs` already rejects unknown options, so the
+   shared parser replaces it and the `--upstream` relay rebuilds its argv from
+   the parsed values as it does today. Everything else is `table`. Upstream's
+   per-command `--json` and `--store` are cospec globals (`GLOBAL_OPTIONS`,
+   stripped in `cli.ts`); the reachability test resolves them for every row
+   through the global list rather than per-row duplicates. Each `table` row also
+   declares `json: 'accepted' | 'refused'`: whether the command honours the
+   global `--json` (decision 10).
    - Why not table-parse everything: `openspec show` sets
      `allowUnknownOption(true)`, so upstream _accepts_ `show --bogus`. A
      cospec-side rejection there would be a regression against the binary, not
@@ -118,7 +117,29 @@ runtime by `dist/commands/spec.js:127`.
    `message`, `fix`) respelled the same way. Upstream prints a plain
    `error: unknown option '--store-path'` in the pre-command position; cospec
    prints the redirect there too, because the redirect is the more useful answer
-   and the differential still agrees (both reject, exit 1).
+   and the differential still agrees (both reject, exit 1). Where the refusal
+   lands follows the binary, which refuses a declared `--store-path` in its
+   action, after the whole parse: on a `table` row the parser records the first
+   `--store-path` (consuming its value; with none, it is refused while parsing
+   like any missing value) and answers the redirect only after the row's
+   unknown-option, pending and too-many-arguments checks pass. On a `forward`
+   row the binary is the ordering authority (decision 1), and cospec cannot know
+   its parse without asking it, so `cli.ts` hands it the row's argv and answers
+   the redirect only when the binary's answer is its own `--store-path` refusal
+   — the redirect, its `--json` envelope, or commander's
+   `unknown option '--store-path'` where the command does not declare it. Any
+   refusal the binary reaches first is relayed verbatim, unless it names bare
+   `openspec` (`store`'s unknown-subcommand remedy), in which case the row's own
+   wrapper answers. The pinned binary refuses every forward argv carrying
+   `--store-path` (probed on each forward subcommand), so this call never runs a
+   command and a terminal-handover leaf (`config edit`, `workset open`) never
+   takes the terminal; it is declared to exit 1 only. After a leading `--`,
+   `--store-path` is an operand and nothing intercepts it:
+   `cospec -- config --store-path /x` is `config`'s unknown subcommand, as
+   `openspec -- config --store-path /x` is. The precedence matrix compares the
+   refusal's kind, counting any refusal whose subject is `--store-path` as the
+   same kind in either dialect, so it measures where the refusal lands, not its
+   wording.
 3. **Refusal formats.** Unknown option: `cospec <command>: unknown option '<x>'`
    (the `parseFeedbackArgs` precedent), followed on the next line by
    `Did you mean '<flag>'?` when `closest()` (the Levenshtein helper `cli.ts`

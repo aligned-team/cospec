@@ -94,11 +94,15 @@ into a positional). Each row also carries a parse policy:
   regression, not the fix, and it lets a newer in-range binary's new flag keep
   working immediately instead of failing until cospec's table catches up.
 
-`--store-path` is intercepted on every row regardless of policy, in both
+`--store-path` is refused on every row regardless of policy, in both
 `--store-path <path>` and `--store-path=<path>` forms and in both the
-pre-command and post-command position, because a forwarded refusal would name
-bare `openspec` in its redirect text — the output-side rule below forbids that
-everywhere, this included.
+pre-command and post-command position, with cospec's own redirect, because
+upstream's redirect text names bare `openspec` — the output-side rule below
+forbids that everywhere, this included. Where it lands follows the binary: a
+`table` row refuses it after the row's other parse refusals, and on a `forward`
+row `cli.ts` asks the binary (which refuses any argv carrying `--store-path`)
+and prints the redirect only when the binary's answer is its own `--store-path`
+refusal, relaying whatever it refuses first.
 
 ### The reachability test is the parity gate
 

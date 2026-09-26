@@ -1057,6 +1057,11 @@ function suggestionCandidates(surface: SurfaceSpec, dashes: 'long' | 'short'): s
 function parseSurface(command: string, surface: SurfaceSpec, args: readonly string[]): ParseResult {
   const positionals: string[] = []
   const flags: Record<string, string | true> = {}
+  const storePath: ParseRefusal = { kind: 'store-path', command, message: STORE_PATH_TEXT }
+  // Upstream declares `--store-path <path>` and refuses it in the action, so
+  // every parse refusal after it answers first; only a missing value is raised
+  // while parsing.
+  let sawStorePath = false
 
   for (let i = 0; i < args.length; i++) {
     const tok = args[i]!
@@ -1069,7 +1074,9 @@ function parseSurface(command: string, surface: SurfaceSpec, args: readonly stri
       continue
     }
     if (isStorePathToken(tok)) {
-      return { ok: false, refusal: { kind: 'store-path', command, message: STORE_PATH_TEXT } }
+      if (tok === '--store-path' && ++i >= args.length) return { ok: false, refusal: storePath }
+      sawStorePath = true
+      continue
     }
 
     const eq = tok.startsWith('--') ? tok.indexOf('=') : -1
@@ -1133,15 +1140,17 @@ function parseSurface(command: string, surface: SurfaceSpec, args: readonly stri
     if (owner !== undefined) return { ok: false, refusal: pendingRefusal(command, value, owner) }
   }
 
+  if (sawStorePath) return { ok: false, refusal: storePath }
   return { ok: true, parsed: { positionals, flags } }
 }
 
 /**
  * Parse a `table` row's argv (global flags already stripped by `cli.ts`).
  * Returns the positionals and flag values, or the first refusal in argv order:
- * an undeclared option, a value-taking flag with no value, a pending surface
- * (its value consumed first, so it can never leak into a positional), too many
- * positionals, or `--store-path`. Every refusal exits 1.
+ * an undeclared option, a value-taking flag with no value (`--store-path`'s
+ * included), a pending surface (its value consumed first, so it can never leak
+ * into a positional); then too many positionals; and only then `--store-path`,
+ * whose value is consumed like any other. Every refusal exits 1.
  */
 export function parseCommandArgs(row: TableCommandRow, args: readonly string[]): ParseResult {
   const first = args[0]
@@ -1185,6 +1194,22 @@ export function storePathRefusal(json: boolean): {
     ],
   }
   return { stream: 'stdout', text: `${JSON.stringify(envelope, null, 2)}\n` }
+}
+
+/**
+ * Whether a wrapped run's answer is the binary's own refusal of `--store-path`:
+ * its redirect (text, or the `--json` envelope), or commander's plain
+ * `unknown option '--store-path'` / `argument missing` on a command that does
+ * not declare it, or declares it and was given no value.
+ */
+export function isUpstreamStorePathRefusal(run: {
+  readonly stdout: string
+  readonly stderr: string
+}): boolean {
+  if (/--store-path is not supported\./.test(run.stderr)) return true
+  if (/^error: unknown option '--store-path(?:=[^']*)?'$/m.test(run.stderr)) return true
+  if (/^error: option '--store-path .+' argument missing$/m.test(run.stderr)) return true
+  return /"code":\s*"store_path_not_supported"/.test(run.stdout)
 }
 
 /**

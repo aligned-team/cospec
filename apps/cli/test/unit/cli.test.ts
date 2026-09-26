@@ -223,7 +223,7 @@ describe('cli dispatcher: --store-path is refused in every position', () => {
     ['--store-path=/x', 'list'],
     ['list', '--store-path', '/x'],
     ['list', '--store-path=/x'],
-    ['show', 'foo', '--store-path', '/x'],
+    // A forward row asks the binary (contract-tested in the differential).
   ]) {
     test(argv.join(' '), async () => {
       const r = await dispatch(argv)
@@ -252,6 +252,27 @@ describe('cli dispatcher: --store-path is refused in every position', () => {
       expect(r.out).not.toContain('openspec')
     }
   })
+})
+
+describe('cli dispatcher: a table row refuses --store-path after its other parse refusals', () => {
+  for (const [argv, err] of [
+    [['list', '--store-path', '/x', '--bogus'], "cospec list: unknown option '--bogus'\n"],
+    [
+      ['list', 'a', '--store-path', '/x'],
+      'cospec list: too many arguments. Expected 0 arguments but got 1.\n',
+    ],
+    [
+      ['validate', '--store-path', '/x', 'a', 'b'],
+      'cospec validate: too many arguments. Expected 1 argument but got 2.\n',
+    ],
+  ] as const) {
+    test(argv.join(' '), async () => {
+      const r = await dispatch([...argv])
+      expect(r.code).toBe(1)
+      expect(r.err).toBe(err)
+      expect(r.out).toBe('')
+    })
+  }
 })
 
 describe('cli dispatcher: an undeclared option before the command is refused', () => {

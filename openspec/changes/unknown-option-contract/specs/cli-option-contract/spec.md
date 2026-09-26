@@ -298,11 +298,11 @@ against the local repo instead.
 On a command whose parse policy is `forward`, cospec SHALL declare the command's
 positionals and flags in the table for reachability, `--help` and completion.
 The wrapper MAY consume its own declared cospec-only flags and MAY apply its own
-pre-spawn guards (a subcommand check, a canon-type destination refusal, the
-`--store-path` interception), but SHALL pass every remaining token to the
-wrapped binary unchanged after threading the global flags, and SHALL add no
-rejection of its own for a token the table does not declare — the wrapped binary
-remains the authority on unknown options for the surfaces it owns.
+pre-spawn guards (a subcommand check, a canon-type destination refusal), but
+SHALL pass every remaining token to the wrapped binary unchanged after threading
+the global flags, and SHALL add no rejection of its own for a token the table
+does not declare — the wrapped binary remains the authority on unknown options
+for the surfaces it owns.
 
 #### Scenario: Upstream's unknown-option answer is relayed on a forwarded command
 
@@ -335,7 +335,13 @@ after the command name and on every command, with exit 1 and upstream's redirect
 text respelled to name `cospec store register <path>` and `--store <id>`. Under
 `--json` the refusal SHALL be exactly one JSON document on stdout carrying
 `status[0].code` `store_path_not_supported`, `target` `store.id`, and `message`
-and `fix` respelled the same way. The text SHALL never name bare `openspec`.
+and `fix` respelled the same way. The text SHALL never name bare `openspec`. The
+refusal SHALL land where the pinned binary refuses `--store-path`: on a `table`
+row after the row's unknown-option, pending and too-many-arguments refusals (a
+`--store-path` with no value is refused while parsing); on a `forward` row
+cospec SHALL hand the argv to the binary and answer the redirect only when the
+binary's own answer is its `--store-path` refusal, relaying any refusal it
+reaches first; and after a leading `--` a `--store-path` SHALL be an operand.
 
 #### Scenario: --store-path after the command name
 
@@ -348,6 +354,14 @@ and `fix` respelled the same way. The text SHALL never name bare `openspec`.
 - **WHEN** `cospec --store-path /x list` runs
 - **THEN** cospec prints the same redirect text, treats no part of the
   invocation as a command name, and exits 1
+
+#### Scenario: An earlier refusal answers before --store-path
+
+- **WHEN** `cospec list --store-path /x --bogus`,
+  `cospec list a --store-path /x` or
+  `cospec config path --bogus --store-path /x` runs
+- **THEN** the answer is the unknown option `--bogus` or too many arguments, as
+  the pinned binary answers, and the exit code is 1
 
 #### Scenario: --store-path under --json
 

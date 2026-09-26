@@ -168,6 +168,24 @@ describe('parseCommandArgs — refusals', () => {
       expect(r.message).toBe(storePathRefusal(false).text)
     }
   })
+
+  test('--store-path yields to every other parse refusal, as upstream refuses it in the action', () => {
+    expect(refused('list', ['--store-path', '/x', '--bogus'])).toMatchObject({
+      kind: 'unknown-option',
+      option: '--bogus',
+    })
+    expect(refused('list', ['--store-path', '/x', 'extra']).kind).toBe('too-many-arguments')
+    expect(refused('list', ['--store-path=/x', 'extra']).kind).toBe('too-many-arguments')
+    expect(refused('validate', ['--store-path', '/x', 'a', 'b']).kind).toBe('too-many-arguments')
+    expect(refused('list', ['--store-path', '/x', '--sort', 'name']).kind).toBe('pending')
+    // Its value is consumed, so it never counts as a positional.
+    expect(refused('validate', ['--store-path', '/x', 'a']).kind).toBe('store-path')
+  })
+
+  test('--store-path with no value is refused while parsing, ahead of later refusals', () => {
+    expect(refused('list', ['--store-path']).kind).toBe('store-path')
+    expect(refused('list', ['extra', '--store-path']).kind).toBe('store-path')
+  })
 })
 
 describe('accepted no-ops', () => {
