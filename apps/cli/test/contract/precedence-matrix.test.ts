@@ -37,7 +37,7 @@
 // consulting the binary.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { cpSync, existsSync, readFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { parse } from 'yaml'
@@ -54,9 +54,54 @@ beforeAll(async () => {
   template = await scaffoldOracleRoot()
 }, 60_000)
 
-function freshRoot(): string {
+/** Each fresh root's tree at creation, for `nothingWritten`. */
+const snapshots = new Map<string, string>()
+
+/**
+ * Every path under `root` (and the registry's content), skipping the runtime
+ * caches and state dirs a run may touch without acting on the argv.
+ */
+function snapshot(root: string): string {
+  const skip = new Set(['.oracle-home/.cache', '.oracle-home/.local/state'])
+  const paths: string[] = []
+  const walk = (rel: string): void => {
+    for (const entry of readdirSync(join(root, rel), { withFileTypes: true })) {
+      const path = rel === '' ? entry.name : `${rel}/${entry.name}`
+      if (skip.has(path)) continue
+      paths.push(path)
+      if (entry.isDirectory()) walk(path)
+    }
+  }
+  walk('')
+  const registry = join(root, REGISTRY)
+  const content = existsSync(registry) ? readFileSync(registry, 'utf8') : '<none>'
+  return `${paths.sort().join('\n')}\n--- registry\n${content}`
+}
+
+const REGISTRY = '.oracle-home/.local/share/openspec/stores/registry.yaml'
+
+/**
+ * A root holding the scaffolded `openspec/` tree; with `store`, also a store
+ * `st` at `<root>/store`, registered in the root's sandboxed registry (built
+ * directly, as `integration/store-aware.test.ts` does, so no git identity is
+ * involved).
+ */
+function freshRoot(store = false): string {
   const dir = mkTempRepo()
   cpSync(join(template, 'openspec'), join(dir, 'openspec'), { recursive: true })
+  if (store) {
+    const storeDir = join(dir, 'store')
+    mkdirSync(join(storeDir, '.openspec-store'), { recursive: true })
+    writeFileSync(join(storeDir, '.openspec-store', 'store.yaml'), 'version: 1\nid: st\n')
+    cpSync(join(template, 'openspec'), join(storeDir, 'openspec'), { recursive: true })
+    mkdirSync(join(dir, REGISTRY, '..'), { recursive: true })
+    writeFileSync(
+      join(dir, REGISTRY),
+      `version: 1\nstores:\n  st:\n    backend:\n      type: git\n      local_path: ${storeDir}\n`,
+    )
+  }
+  oracleEnv(dir)
+  snapshots.set(dir, snapshot(dir))
   return dir
 }
 
@@ -85,6 +130,8 @@ interface Row {
   }
   /** Asserts what a run left behind (or printed), for each tool that ran the row. */
   check?: (tool: 'cospec' | 'openspec', root: string, run: SpawnResult) => void
+  /** Each tool's root also registers a store `st` (see `freshRoot`). */
+  store?: true
 }
 
 const REDIRECT = '--store-path is not supported. Register the path with cospec store register'
@@ -93,6 +140,22 @@ const UPSTREAM_REDIRECT = 'openspec store register'
 /** The schema `schema init s1` writes: it ran, in both tools. */
 function schemaCreated(tool: string, root: string): void {
   expect(existsSync(join(root, 'openspec', 'schemas', 's1', 'schema.yaml')), tool).toBe(true)
+}
+
+/** The run changed nothing on disk: no store, schema, workset or dash-named file. */
+function nothingWritten(tool: string, root: string): void {
+  expect(snapshot(root), `${tool} wrote under ${root}`).toBe(snapshots.get(root)!)
+}
+
+/** `context --code-workspace --help` wrote its workspace file at `./--help`: it ran. */
+function workspaceWritten(tool: string, root: string): void {
+  expect(existsSync(join(root, '--help')), tool).toBe(true)
+}
+
+/** `store setup s1 --path --help` set the store up at `./--help`: it ran. */
+function storeSetUp(tool: string, root: string): void {
+  expect(existsSync(join(root, '--help', 'openspec')), tool).toBe(true)
+  expect(readFileSync(join(root, REGISTRY), 'utf8'), tool).toContain('s1:')
 }
 
 /** `config edit` with `EDITOR=true` writes the config file; a refusal leaves none. */
@@ -315,6 +378,113 @@ const STORE_PATH_ROWS: readonly Row[] = [
   },
 ]
 
+/**
+ * The flags a wrapper threads onto a forward row's wrapped call (`--json`,
+ * `--no-color`, `--store <id>`) land right after the command path, ahead of
+ * the user's argv: appended after it, a dangling value-taking flag took them
+ * as its value and the binary ran — `store setup s1 --path` set up a store at
+ * `./--json`. Each row asserts the refusal and that nothing was written.
+ */
+const THREADING_ROWS: readonly Row[] = [
+  { argv: ['store', 'setup', 's1', '--path'], command: 'store', check: nothingWritten },
+  { argv: ['store', 'setup', 's1', '--json', '--path'], command: 'store', check: nothingWritten },
+  { argv: ['store', 'register', '.', '--id'], command: 'store', check: nothingWritten },
+  {
+    argv: ['schema', 'init', 's1', '--json', '--description'],
+    command: 'schema',
+    check: nothingWritten,
+  },
+  {
+    argv: ['schema', 'init', 's1', '--no-color', '--description'],
+    command: 'schema',
+    check: nothingWritten,
+  },
+  { argv: ['templates', '--json', '--schema'], command: 'templates', check: nothingWritten },
+  { argv: ['show', 'c1', '--json', '--type'], command: 'show', check: nothingWritten },
+  { argv: ['show', 'c1', '--no-color', '--type'], command: 'show', check: nothingWritten },
+  {
+    argv: ['workset', 'create', 'w1', '--json', '--tool'],
+    command: 'workset',
+    check: nothingWritten,
+  },
+  // A store-selected root threads `--store <id>` the same way.
+  {
+    argv: ['show', 'c1', '--store', 'st', '--type'],
+    command: 'show',
+    store: true,
+    check: nothingWritten,
+  },
+  {
+    argv: ['templates', '--store', 'st', '--schema'],
+    command: 'templates',
+    store: true,
+    check: nothingWritten,
+  },
+  {
+    argv: ['schema', 'init', 's1', '--store', 'st', '--description'],
+    command: 'schema',
+    store: true,
+    check: nothingWritten,
+  },
+  {
+    argv: ['schema', 'init', 's1', '--store', 'st', '--json', '--artifacts'],
+    command: 'schema',
+    store: true,
+    check: nothingWritten,
+  },
+]
+
+/**
+ * A token right after one of the row's own value-taking flags (space form) is
+ * that flag's value whatever it looks like, as commander takes it: a help
+ * flag or a global there is never intercepted or absorbed. A table row parses
+ * the value; a forward row hands both tokens to the binary, which runs — and,
+ * where the value is a path, writes there, in both tools.
+ */
+const VALUE_POSITION_ROWS: readonly Row[] = [
+  { argv: ['status', '--change', '--help'], command: 'status' },
+  { argv: ['status', '--change', '--json'], command: 'status' },
+  { argv: ['status', '--change', '--store'], command: 'status' },
+  { argv: ['status', '--change', '--cwd'], command: 'status' },
+  { argv: ['instructions', 'proposal', '--change', '--help'], command: 'instructions' },
+  { argv: ['init', '--tools', '--help'], command: 'init', check: nothingWritten },
+  { argv: ['init', '--profile', '--help'], command: 'init', check: nothingWritten },
+  { argv: ['init', '--language', '--help'], command: 'init', check: nothingWritten },
+  { argv: ['validate', '--concurrency', '--help'], command: 'validate' },
+  { argv: ['validate', '--type', '--json'], command: 'validate' },
+  { argv: ['templates', '--schema', '--help'], command: 'templates' },
+  { argv: ['templates', '--schema', '--json'], command: 'templates' },
+  { argv: ['show', 'c1', '--type', '--help'], command: 'show' },
+  { argv: ['show', 'c1', '--type', '--json'], command: 'show' },
+  { argv: ['show', 'c1', '--type', '--store', 'st'], command: 'show', store: true },
+  {
+    argv: ['schema', 'init', '--description', '--help', 's1'],
+    command: 'schema',
+    check: schemaCreated,
+  },
+  {
+    argv: ['context', '--code-workspace', '--help'],
+    command: 'context',
+    check: workspaceWritten,
+  },
+  { argv: ['store', 'setup', 's1', '--path', '--help'], command: 'store', check: storeSetUp },
+  { argv: ['workset', 'create', 'w1', '--tool', '--help'], command: 'workset' },
+  // cospec refuses a pending flag as not supported yet once it has its value,
+  // where the binary runs with `--help` as the value (owned by later changes).
+  {
+    argv: ['list', '--sort', '--help'],
+    command: 'list',
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    cospecStderr: "cospec list: '--sort' is not supported yet\n",
+  },
+  {
+    argv: ['status', '--schema', '--json'],
+    command: 'status',
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    cospecStderr: "cospec status: '--schema' is not supported yet\n",
+  },
+]
+
 const TERMINATOR_ROWS: readonly Row[] = [
   { argv: ['--', 'list'], command: 'list' },
   { argv: ['--', 'list', 'extra'], command: 'list' },
@@ -490,25 +660,59 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * unknown option or pending flag); the dangling-pending-flag and
  * `--store-path`-value rows, with the document count, exposed 15 more (a
  * pending flag with no value refused as pending, not argument missing; phase
- * B absorbing or intercepting `--store-path`'s value). The fixes empty this set.
+ * B absorbing or intercepting `--store-path`'s value); the threaded-flag and
+ * value-position rows exposed 28 more (a wrapper appending `--json`,
+ * `--no-color` or `--store <id>` after the user's argv, where a dangling
+ * value-taking flag took it and the binary ran; phase B absorbing or
+ * intercepting a token that is one of the row's own flags' value). The fixes
+ * empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
+  'store setup s1 --path',
+  'store setup s1 --json --path',
+  'store register . --id',
+  'schema init s1 --json --description',
+  'templates --json --schema',
+  'show c1 --json --type',
+  'show c1 --store st --type',
+  'templates --store st --schema',
+  'schema init s1 --store st --description',
+  'schema init s1 --store st --json --artifacts',
+  'status --change --help',
+  'status --change --json',
+  'status --change --store',
+  'status --change --cwd',
+  'instructions proposal --change --help',
+  'init --tools --help',
+  'init --profile --help',
+  'init --language --help',
+  'validate --concurrency --help',
+  'validate --type --json',
+  'templates --schema --help',
+  'show c1 --type --help',
+  'schema init --description --help s1',
+  'context --code-workspace --help',
+  'store setup s1 --path --help',
+  'workset create w1 --tool --help',
+  'list --sort --help',
+  'status --schema --json',
+])
 
 async function checkRow(row: Row): Promise<void> {
-  const coRoot = freshRoot()
+  const coRoot = freshRoot(row.store)
   const co = await runCospec(row.argv, coRoot)
   const coOutcome = outcome(co, row.command, row.argv)
   const detail = `cospec exit ${co.exitCode}\nstdout: ${co.stdout.slice(0, 200)}\nstderr: ${co.stderr.slice(0, 300)}`
   if (row.cospecOnly !== undefined) {
     expect({ outcome: coOutcome, exit: co.exitCode }, detail).toEqual(row.cospecOnly)
   } else if (row.pending !== undefined) {
-    const up = await runUpstream(row.argv, freshRoot())
+    const up = await runUpstream(row.argv, freshRoot(row.store))
     expect({ outcome: outcome(up, row.command, row.argv), exit: up.exitCode }).toEqual(
       row.pending.upstream,
     )
     expect({ outcome: coOutcome, exit: co.exitCode }, detail).toEqual(row.pending.cospec)
   } else {
-    const upRoot = freshRoot()
+    const upRoot = freshRoot(row.store)
     const up = await runUpstream(row.argv, upRoot)
     const upDetail = `openspec exit ${up.exitCode}\nstdout: ${up.stdout.slice(0, 200)}\nstderr: ${up.stderr.slice(0, 300)}`
     expect(
@@ -547,6 +751,8 @@ describe('precedence matrix: -h/--help', () => register(HELP_ROWS))
 describe('precedence matrix: unknown options and commands', () => register(UNKNOWN_OPTION_ROWS))
 describe('precedence matrix: --store values', () => register(VALUE_ROWS))
 describe('precedence matrix: --store-path', () => register(STORE_PATH_ROWS))
+describe('precedence matrix: threaded flags', () => register(THREADING_ROWS))
+describe('precedence matrix: value positions', () => register(VALUE_POSITION_ROWS))
 describe('precedence matrix: -- terminators', () => register(TERMINATOR_ROWS))
 describe('precedence matrix: a bare help token', () => register(HELP_TOKEN_ROWS))
 describe('precedence matrix: cospec-only rows', () => register(COSPEC_ONLY_ROWS))
@@ -567,6 +773,8 @@ describe('precedence matrix: harness', () => {
       ...UNKNOWN_OPTION_ROWS,
       ...VALUE_ROWS,
       ...STORE_PATH_ROWS,
+      ...THREADING_ROWS,
+      ...VALUE_POSITION_ROWS,
       ...TERMINATOR_ROWS,
       ...HELP_TOKEN_ROWS,
       ...COSPEC_ONLY_ROWS,
