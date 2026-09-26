@@ -152,11 +152,16 @@ function workspaceWritten(tool: string, root: string): void {
   expect(existsSync(join(root, '--help')), tool).toBe(true)
 }
 
-/** `store setup s1 --path --help` set the store up at `./--help`: it ran. */
-function storeSetUp(tool: string, root: string): void {
-  expect(existsSync(join(root, '--help', 'openspec')), tool).toBe(true)
-  expect(readFileSync(join(root, REGISTRY), 'utf8'), tool).toContain('s1:')
+/** `store setup s1 --path <dir>` set the store up at `./<dir>`: it ran. */
+function storeSetUpAt(dir: string): (tool: string, root: string) => void {
+  return (tool, root) => {
+    expect(existsSync(join(root, dir, 'openspec')), tool).toBe(true)
+    expect(readFileSync(join(root, REGISTRY), 'utf8'), tool).toContain('s1:')
+  }
 }
+
+/** `store setup s1 --path --help` set the store up at `./--help`: it ran. */
+const storeSetUp = storeSetUpAt('--help')
 
 /** `config edit` with `EDITOR=true` writes the config file; a refusal leaves none. */
 function nothingEdited(tool: string, root: string): void {
@@ -483,6 +488,101 @@ const VALUE_POSITION_ROWS: readonly Row[] = [
     cospecOnly: { outcome: 'parsed', exit: 1 },
     cospecStderr: "cospec status: '--schema' is not supported yet\n",
   },
+  // Every other declared value-taking flag, table and forward rows alike.
+  { argv: ['feedback', '--body', '--help'], command: 'feedback' },
+  { argv: ['templates', '--schema', '-h'], command: 'templates' },
+  { argv: ['show', 'c1', '--requirement', '--help'], command: 'show' },
+  {
+    argv: ['schema', 'init', 's1', '--artifacts', '--help'],
+    command: 'schema',
+    check: nothingWritten,
+  },
+  {
+    argv: ['store', 'setup', 's1', '--remote', '--help'],
+    command: 'store',
+    check: nothingWritten,
+  },
+  {
+    argv: ['store', 'setup', 's1', '--path', '--json'],
+    command: 'store',
+    check: storeSetUpAt('--json'),
+  },
+  {
+    argv: ['workset', 'create', 'w1', '--member', '--help'],
+    command: 'workset',
+    check: nothingWritten,
+  },
+  { argv: ['workset', 'open', 'w1', '--tool', '--help'], command: 'workset' },
+  { argv: ['config', '--scope', '--help', 'list'], command: 'config' },
+  {
+    argv: ['validate', '--report', '--help'],
+    command: 'validate',
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    cospecStderr: "cospec validate: '--report' is not supported yet\n",
+  },
+  {
+    argv: ['instructions', 'proposal', '--schema', '--help'],
+    command: 'instructions',
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    cospecStderr: "cospec instructions: '--schema' is not supported yet\n",
+  },
+  // cospec-only flags take their value the same way.
+  {
+    argv: ['new', 'feat', 'x', '--description', '--help'],
+    command: 'new',
+    cospecOnly: { outcome: 'parsed', exit: 0 },
+  },
+  {
+    argv: ['init', '--harness', '--help'],
+    command: 'init',
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    cospecStderr: "cospec: invalid --harness '--help'",
+  },
+  {
+    argv: ['sync-blockers', '--change', '--help'],
+    command: 'sync-blockers',
+    cospecOnly: { outcome: 'parsed', exit: 0 },
+  },
+  // A wrapper's own cospec-only flag is a value there too, and an operand after `--`.
+  {
+    argv: ['store', 'setup', 's1', '--path', '--no-cospec-init'],
+    command: 'store',
+    check: storeSetUpAt('--no-cospec-init'),
+  },
+  {
+    argv: ['store', 'setup', 's1', '--', '--no-cospec-init'],
+    command: 'store',
+    check: nothingWritten,
+  },
+]
+
+/**
+ * Upstream's program level takes `--no-color` out of the argv before the
+ * command parses, wherever it sits before the first `--`: it is never a
+ * value, so the flag before it takes the next token or is left without one.
+ * Past a `--` that a value-taking flag took as its value, the program level
+ * has stopped: `--no-color` and `--version` there are the command's unknown
+ * options, while the command's own flags (`--json`, `--help`) still apply.
+ */
+const PROGRAM_LEVEL_ROWS: readonly Row[] = [
+  { argv: ['status', '--change', '--no-color'], command: 'status' },
+  { argv: ['status', '--change', '--no-color', 'c1'], command: 'status' },
+  { argv: ['templates', '--schema', '--no-color'], command: 'templates' },
+  { argv: ['show', 'c1', '--type', '--no-color'], command: 'show' },
+  { argv: ['init', '--tools', '--no-color'], command: 'init', check: nothingWritten },
+  {
+    argv: ['store', 'setup', 's1', '--path', '--no-color'],
+    command: 'store',
+    check: nothingWritten,
+  },
+  { argv: ['list', '--store', '--no-color'], command: 'list' },
+  { argv: ['show', 'c1', '--store', '--no-color'], command: 'show' },
+  { argv: ['list', '--store-path', '--no-color'], command: 'list' },
+  { argv: ['status', '--change', '--', '--help'], command: 'status' },
+  { argv: ['status', '--change', '--', '--json'], command: 'status' },
+  { argv: ['status', '--change', '--', '--version'], command: 'status' },
+  { argv: ['status', '--change', '--', '--no-color'], command: 'status' },
+  { argv: ['show', 'c1', '--type', '--', '--json'], command: 'show' },
 ]
 
 const TERMINATOR_ROWS: readonly Row[] = [
@@ -664,8 +764,13 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * value-position rows exposed 28 more (a wrapper appending `--json`,
  * `--no-color` or `--store <id>` after the user's argv, where a dangling
  * value-taking flag took it and the binary ran; phase B absorbing or
- * intercepting a token that is one of the row's own flags' value). The fixes
- * empty this set.
+ * intercepting a token that is one of the row's own flags' value); the
+ * remaining value-taking flags, the program-level `--no-color` and the `--`
+ * taken as a value exposed 20 more (phase B intercepting or absorbing the
+ * value of every other declared value-taking flag, `--store` taking a
+ * program-level `--no-color` as its value, `store` stripping its
+ * `--no-cospec-init` where it is `--path`'s value or an operand after `--`).
+ * The fixes empty this set.
  */
 const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
   'status --change --help',
@@ -691,6 +796,26 @@ const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
   'templates --schema --json',
   'show c1 --type --json',
   'show c1 --type --store st',
+  'feedback --body --help',
+  'templates --schema -h',
+  'show c1 --requirement --help',
+  'schema init s1 --artifacts --help',
+  'store setup s1 --remote --help',
+  'store setup s1 --path --json',
+  'workset create w1 --member --help',
+  'workset open w1 --tool --help',
+  'config --scope --help list',
+  'validate --report --help',
+  'instructions proposal --schema --help',
+  'new feat x --description --help',
+  'init --harness --help',
+  'sync-blockers --change --help',
+  'store setup s1 --path --no-cospec-init',
+  'store setup s1 -- --no-cospec-init',
+  'list --store --no-color',
+  'show c1 --store --no-color',
+  'status --change -- --help',
+  'status --change -- --json',
 ])
 
 async function checkRow(row: Row): Promise<void> {
@@ -748,6 +873,7 @@ describe('precedence matrix: --store values', () => register(VALUE_ROWS))
 describe('precedence matrix: --store-path', () => register(STORE_PATH_ROWS))
 describe('precedence matrix: threaded flags', () => register(THREADING_ROWS))
 describe('precedence matrix: value positions', () => register(VALUE_POSITION_ROWS))
+describe('precedence matrix: program-level tokens', () => register(PROGRAM_LEVEL_ROWS))
 describe('precedence matrix: -- terminators', () => register(TERMINATOR_ROWS))
 describe('precedence matrix: a bare help token', () => register(HELP_TOKEN_ROWS))
 describe('precedence matrix: cospec-only rows', () => register(COSPEC_ONLY_ROWS))
@@ -770,6 +896,7 @@ describe('precedence matrix: harness', () => {
       ...STORE_PATH_ROWS,
       ...THREADING_ROWS,
       ...VALUE_POSITION_ROWS,
+      ...PROGRAM_LEVEL_ROWS,
       ...TERMINATOR_ROWS,
       ...HELP_TOKEN_ROWS,
       ...COSPEC_ONLY_ROWS,
