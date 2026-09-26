@@ -123,6 +123,32 @@ SHALL be inserted before that `--`.
 - **THEN** the wrapped binary's `error: too many arguments for 'templates'` is
   relayed on stderr and the exit code is 1
 
+### Requirement: Global --cwd and --store refuse a missing or empty value
+
+cospec SHALL refuse a global `--cwd` or `--store` given with no value, in any
+position before a `--` terminator, with
+`cospec <command>: option '<flag> <placeholder>' argument missing` on stderr
+(`cospec: …` when no command was given) and exit 1, and one given an empty value
+(`--store=`, `--cwd ''`) with
+`cospec <command>: option '<flag> <placeholder>' argument must not be empty` and
+exit 1. The refusal SHALL come after a version request and ahead of `--help`, an
+unknown option, a `--store-path` refusal and the command itself, as the pinned
+binary raises its own `option '--store <id>' argument missing` while it parses;
+the command SHALL never run against the local repo instead.
+
+#### Scenario: A trailing --store is refused, not dropped
+
+- **WHEN** `cospec list --store` runs in a repo with active changes
+- **THEN** stderr is `cospec list: option '--store <id>' argument missing`,
+  nothing is listed, and the exit code is 1
+
+#### Scenario: An empty --cwd is refused
+
+- **WHEN** `cospec list --cwd=` runs
+- **THEN** stderr is
+  `cospec list: option '--cwd <path>' argument must not be empty` and the exit
+  code is 1
+
 ### Requirement: Forwarded commands are declared, not re-parsed
 
 On a command whose parse policy is `forward`, cospec SHALL declare the command's

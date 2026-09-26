@@ -243,3 +243,43 @@ describe('cli dispatcher: --store-path is refused in every position', () => {
     }
   })
 })
+
+describe('cli dispatcher: --cwd and --store refuse a missing or empty value', () => {
+  // Each argv would otherwise run `list` against the local repo; the refusal
+  // must come first, before any command module loads.
+  for (const [argv, err] of [
+    [['list', '--store'], "cospec list: option '--store <id>' argument missing\n"],
+    [['list', '--cwd'], "cospec list: option '--cwd <path>' argument missing\n"],
+    [['--store'], "cospec: option '--store <id>' argument missing\n"],
+    [['--cwd'], "cospec: option '--cwd <path>' argument missing\n"],
+    [['list', '--store='], "cospec list: option '--store <id>' argument must not be empty\n"],
+    [['list', '--store', ''], "cospec list: option '--store <id>' argument must not be empty\n"],
+    [['list', '--cwd='], "cospec list: option '--cwd <path>' argument must not be empty\n"],
+    [['--cwd', '', 'list'], "cospec list: option '--cwd <path>' argument must not be empty\n"],
+    [['list', '--help', '--store'], "cospec list: option '--store <id>' argument missing\n"],
+    [['list', '--bogus', '--store'], "cospec list: option '--store <id>' argument missing\n"],
+    [
+      ['list', '--store-path', '/x', '--store'],
+      "cospec list: option '--store <id>' argument missing\n",
+    ],
+  ] as const) {
+    test(`${argv.map((a) => (a === '' ? "''" : a)).join(' ')} exits 1 with the refusal`, async () => {
+      const r = await dispatch([...argv])
+      expect(r.code).toBe(1)
+      expect(r.err).toBe(err)
+      expect(r.out).toBe('')
+    })
+  }
+
+  test('a version request still wins over a missing value', async () => {
+    const r = await dispatch(['list', '--version', '--store'])
+    expect(r.code).toBe(0)
+    expect(r.err).toBe('')
+  })
+
+  test('an unknown command still answers as one', async () => {
+    const r = await dispatch(['bogus', '--store'])
+    expect(r.code).toBe(1)
+    expect(r.err).toContain("cospec: unknown command 'bogus'")
+  })
+})

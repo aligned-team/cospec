@@ -200,3 +200,9 @@ red; 4–7 turn it green; 8 documents it.
       and reads `--json` only before it; differential rows for `list`, `status`,
       `templates` and `show`; spec requirement and the global-flags note in
       `reference/commands.md` (ledger 1.10)
+- [x] 10.7 Refuse a global `--store`/`--cwd` with a missing value
+      (`argument missing`) or an empty one (`argument must not be empty`), exit
+      1, after a version request and ahead of help, unknown options and
+      `--store-path`, instead of dropping it and running on the local repo; unit
+      and differential rows; spec requirement and the global-flags note (ledger
+      1.11)

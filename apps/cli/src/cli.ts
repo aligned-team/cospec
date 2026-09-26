@@ -104,6 +104,11 @@ export const COMMAND_MODULES: Record<string, () => Promise<Partial<CommandModule
 
 const VERSION_LABEL = '-V, --version'
 
+/** `--cwd`/`--store` in the `--flag value` or `--flag=value` form (never `--store-path`). */
+function isGlobalValueToken(tok: string): boolean {
+  return ['--cwd', '--store'].some((flag) => tok === flag || tok.startsWith(`${flag}=`))
+}
+
 interface HelpLine {
   readonly label: string
   readonly description: string
@@ -286,6 +291,23 @@ export async function run(argv: string[]): Promise<number> {
   // Set once a post-command `--` is seen: like upstream's commander, every
   // later token is an operand, so no global flag is absorbed after it.
   let terminated = false
+  // The first `--cwd`/`--store` given no value (last in argv) or an empty one
+  // (`--store=`, `--cwd ''`): refused after the loop instead of silently
+  // running against the local repo.
+  let badValue: { readonly flag: '--cwd' | '--store'; readonly empty: boolean } | undefined
+
+  /** Reads `--cwd`/`--store` at `argv[i]`, in either form; returns the last index consumed. */
+  const takeGlobalValue = (i: number): number => {
+    const tok = argv[i]!
+    const flag = tok.startsWith('--cwd') ? '--cwd' : '--store'
+    const eq = tok.indexOf('=')
+    const last = eq === -1 ? i + 1 : i
+    const value = eq === -1 ? argv[last] : tok.slice(eq + 1)
+    if (value === undefined || value.length === 0) badValue ??= { flag, empty: value !== undefined }
+    else if (flag === '--cwd') cwdRaw = value
+    else storeRaw = value
+    return last
+  }
 
   for (let i = 0; i < argv.length; i++) {
     const tok = argv[i]!
@@ -294,10 +316,7 @@ export async function run(argv: string[]): Promise<number> {
       else if (tok === '--no-color') flags.noColor = true
       else if (tok === '--version' || tok === '-V') wantVersion = true
       else if (tok === '--help' || tok === '-h') wantHelp = true
-      else if (tok === '--cwd') cwdRaw = argv[++i]
-      else if (tok.startsWith('--cwd=')) cwdRaw = tok.slice('--cwd='.length)
-      else if (tok === '--store') storeRaw = argv[++i]
-      else if (tok.startsWith('--store=')) storeRaw = tok.slice('--store='.length)
+      else if (isGlobalValueToken(tok)) i = takeGlobalValue(i)
       else if (isStorePathToken(tok)) {
         // Consume its value so `/x` in `--store-path /x list` is never taken
         // for the command name; the refusal is printed after the loop, once
@@ -335,10 +354,7 @@ export async function run(argv: string[]): Promise<number> {
     // Upstream's commander honours the program-level `-V, --version` after any
     // subcommand, so cospec does too.
     else if (tok === '--version' || tok === '-V') wantVersion = true
-    else if (tok === '--cwd') cwdRaw = argv[++i]
-    else if (tok.startsWith('--cwd=')) cwdRaw = tok.slice('--cwd='.length)
-    else if (tok === '--store') storeRaw = argv[++i]
-    else if (tok.startsWith('--store=')) storeRaw = tok.slice('--store='.length)
+    else if (isGlobalValueToken(tok)) i = takeGlobalValue(i)
     else {
       // Forward rows get no parser, so the post-command `--store-path` is
       // caught here for every row alike.
@@ -349,7 +365,7 @@ export async function run(argv: string[]): Promise<number> {
 
   const cwd = cwdRaw !== undefined ? resolve(process.cwd(), cwdRaw) : process.cwd()
   flags.cwd = cwd
-  if (storeRaw !== undefined && storeRaw.length > 0) flags.store = storeRaw
+  if (storeRaw !== undefined) flags.store = storeRaw
   if (flags.noColor) process.env.NO_COLOR = '1'
 
   // Upstream answers a version request before anything else in the argv —
@@ -357,6 +373,19 @@ export async function run(argv: string[]): Promise<number> {
   if (wantVersion) {
     process.stdout.write(`${pkg.version}\n`)
     return EXIT.success
+  }
+
+  // Upstream's commander raises a missing option value while it parses, so
+  // the refusal wins over help, `--store-path` and an unknown option; an
+  // unknown command still answers as one.
+  if (badValue !== undefined && (command === undefined || commandRow(command) !== undefined)) {
+    const spec = GLOBAL_FLAGS.find((flag) => flag.name === badValue!.flag)!
+    const prefix = command === undefined ? 'cospec' : `cospec ${command}`
+    const problem = badValue.empty ? 'must not be empty' : 'missing'
+    process.stderr.write(
+      `${prefix}: option '${spec.name} ${spec.placeholder}' argument ${problem}\n`,
+    )
+    return EXIT.failure
   }
 
   if (storePath && !wantHelp) {

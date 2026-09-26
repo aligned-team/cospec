@@ -617,6 +617,44 @@ const TERMINATOR_ROWS: readonly Row[] = [
   },
 ]
 
+/**
+ * A global `--store`/`--cwd` given no value is refused as argument missing, as
+ * upstream's per-command `--store <id>` is (and upstream refuses `--cwd`, which
+ * it does not have, as an unknown option) — never run against the local repo.
+ */
+const GLOBAL_VALUE_ROWS: readonly Row[] = [
+  {
+    argv: ['list', '--store'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: missing('list', '--store', '<id>'),
+  },
+  {
+    argv: ['list', '--help', '--store'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: missing('list', '--store', '<id>'),
+  },
+  {
+    argv: ['list', '--bogus', '--store'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: missing('list', '--store', '<id>'),
+  },
+  {
+    argv: ['validate', 'x', '--store'],
+    command: 'validate',
+    expect: 'same',
+    cospecStderr: missing('validate', '--store', '<id>'),
+  },
+  {
+    argv: ['list', '--cwd'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: missing('list', '--cwd', '<path>'),
+  },
+]
+
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot()
   row.setup?.(coRoot)
@@ -681,6 +719,30 @@ describe('unknown-option differential: forward commands relay the binary', () =>
 
 describe('unknown-option differential: no global flag is absorbed after --', () => {
   register(TERMINATOR_ROWS)
+})
+
+describe('unknown-option differential: --store/--cwd refuse a missing or empty value', () => {
+  register(GLOBAL_VALUE_ROWS)
+
+  // Upstream answers an empty store id after parsing (`Store id must not be
+  // empty`), so neither run is parse-rejected; both still exit 1 before any work.
+  for (const argv of [
+    ['list', '--store='],
+    ['list', '--store', ''],
+  ]) {
+    test(`${argv.map((a) => (a === '' ? "''" : a)).join(' ')} exits 1 in both tools`, async () => {
+      const root = freshRoot()
+      const before = treeHash(root)
+      const co = await runCospec(argv, root)
+      const up = await oracle(argv, freshRoot())
+      expect(up.exitCode, up.stderr).toBe(1)
+      expect(up.stderr).toContain('Store id must not be empty')
+      expect(co.exitCode, co.stderr).toBe(1)
+      expect(co.stderr).toBe("cospec list: option '--store <id>' argument must not be empty\n")
+      expect(co.stdout).toBe('')
+      expect(treeHash(root)).toEqual(before)
+    }, 30_000)
+  }
 })
 
 // --- --store-path (ledger 2.2, 2.3) ------------------------------------------------

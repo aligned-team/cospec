@@ -21,6 +21,12 @@ the table.
 | `-h`, `--help`    | show help for the command                                                                              |
 | `-V`, `--version` | print the installed cospec version and exit — in any position before `--`, ahead of everything else    |
 
+`--cwd` and `--store` need a value: given none, they're refused with
+`cospec <command>: option '--store <id>' argument missing` (or
+`'--cwd <path>'`), and given an empty one (`--store=`) with
+`… argument must not be empty`, exit `1` — the command never falls back to the
+local repo.
+
 Global flags are recognised before the command name and anywhere after it, up to
 a `--` terminator. After `--` every token is an operand of the command, as in
 OpenSpec: `cospec list -- --json` is refused as too many arguments, not run as
