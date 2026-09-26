@@ -166,17 +166,26 @@ runtime by `dist/commands/spec.js:127`.
    fixtures.** `experimental` (hidden alias), `--store-path` (hidden per-command
    option), `powershell` (`positionalType: 'shell'` with no `values`), the
    hidden `__complete <type>` command's `schemas` and `archived-changes` types,
-   and `new change --initiative` / `--areas` (hidden-help options that print a
-   removed-option error) are not in `COMMAND_REGISTRY`, `AI_TOOLS`,
-   `TOOL_ID_ALIASES` or `ALL_WORKFLOWS`. The differential fixture covers
-   `--store-path` directly. The rest are reachability fixtures, each added to
-   the walk only after a probe of the pinned binary confirms it: `experimental`
-   and `powershell` are owed by `upstream-spellings` and `completion-install`,
-   `__complete schemas` / `archived-changes` by `cli-surface-parity` (cospec's
-   `__complete` marks both values pending), each listed in `parity-pending.yaml`
-   under a `source: cli` marker; `--initiative` and `--areas` resolve to the
-   pending `new change` subtree. So the pending list is complete even though the
-   walk cannot produce these surfaces.
+   `new change --initiative` / `--areas` (hidden-help options that print a
+   removed-option error), and commander's implicit program-level
+   `help [command]` (`openspec help`, `openspec help list`) are not in
+   `COMMAND_REGISTRY`, `AI_TOOLS`, `TOOL_ID_ALIASES` or `ALL_WORKFLOWS`. The
+   differential fixture covers `--store-path` directly. The rest are
+   reachability fixtures, each added to the walk only after a probe of the
+   pinned binary confirms it: `experimental` and `powershell` are owed by
+   `upstream-spellings` and `completion-install`, `__complete schemas` /
+   `archived-changes` by `cli-surface-parity` (cospec's `__complete` marks both
+   values pending), each listed in `parity-pending.yaml` under a `source: cli`
+   marker; `--initiative` and `--areas` resolve to the pending `new change`
+   subtree. `help` is owed by `upstream-spellings`, which owns upstream
+   spellings and `cli.ts`'s command list: one `source: cli` command entry whose
+   subtree covers the `[command]` positional (a hidden fixture too, probed with
+   `openspec help list`). Until then cospec answers `cospec help` as an unknown
+   command, exit 1 — there is no `help` row to refuse it with
+   `not supported yet`, and the reachability gate requires that nothing on the
+   cospec side resolves a pending top-level command, as with `experimental` —
+   and the precedence matrix pins both answers in `pending` rows. So the pending
+   list is complete even though the walk cannot produce these surfaces.
 7. **Differential classification, not exit-code equality.** Each run is classed
    `parse-rejected` when stderr matches one of the four refusal shapes (unknown
    option, argument missing, too many arguments, `--store-path`) or `parsed`

@@ -10,8 +10,9 @@
 // `core/completions/command-registry.js` COMMAND_REGISTRY,
 // `core/config.js` AI_TOOLS and TOOL_ID_ALIASES, `core/profiles.js`
 // ALL_WORKFLOWS. The hidden surfaces those sources cannot produce
-// (`experimental`, the `powershell` completion shell, `__complete`'s `schemas`
-// and `archived-changes` types, and `new change --initiative` / `--areas`) are
+// (`experimental`, commander's implicit program-level `help [command]`, the
+// `powershell` completion shell, `__complete`'s `schemas` and
+// `archived-changes` types, and `new change --initiative` / `--areas`) are
 // added as declared fixtures after the binary is probed for them.
 //
 // The five places an entry can resolve to:
@@ -212,7 +213,8 @@ function walkRegistry(registry: readonly RegistryCommand[]): Entry[] {
  * to the walk only after `present` confirms the pinned binary still has it.
  * `new change --initiative` / `--areas` are hidden-help options that print a
  * removed-option error; they resolve to the pending `new change` subtree in
- * `parity-pending.yaml`, so they need no entries of their own.
+ * `parity-pending.yaml`, so they need no entries of their own. `help`'s
+ * `[command]` positional resolves to the pending `help` subtree the same way.
  */
 const HIDDEN_FIXTURES: readonly {
   entry: Entry
@@ -223,6 +225,17 @@ const HIDDEN_FIXTURES: readonly {
     entry: { kind: 'command', path: ['experimental'] },
     probe: ['experimental', '--help'],
     present: (run) => run.exitCode === 0 && run.stdout.includes('Usage: openspec experimental'),
+  },
+  // Commander's implicit `help [command]` on the program, and its positional.
+  {
+    entry: { kind: 'command', path: ['help'] },
+    probe: ['help'],
+    present: (run) => run.exitCode === 0 && run.stdout.includes('Usage: openspec [options]'),
+  },
+  {
+    entry: { kind: 'positional', path: ['help'], index: 0 },
+    probe: ['help', 'list'],
+    present: (run) => run.exitCode === 0 && run.stdout.includes('Usage: openspec list [options]'),
   },
   {
     entry: { kind: 'positional-value', path: ['completion'], index: 0, value: 'powershell' },

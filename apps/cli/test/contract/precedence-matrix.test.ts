@@ -22,6 +22,11 @@
 // under Node (`oracle(…, { runtime: 'node' })`), and cospec runs as
 // `bun <entry> -- …argv`, whose first `--` Bun consumes (asserted below).
 //
+// A `pending` row is a spelling the binary answers and cospec does not yet,
+// owned by a later change in `parity-pending.yaml`: it asserts both the
+// binary's answer and cospec's current one, so the row fails the moment either
+// moves and the owner converts it to a `same` row.
+//
 // A `cospec-only` row exercises a cospec global upstream does not have at that
 // level (`--cwd` anywhere, `--store`/`--json` before the command, cospec's
 // `help` alias on a table row) or a deliberate cospec divergence (no command
@@ -29,8 +34,10 @@
 // consulting the binary.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { cpSync } from 'node:fs'
+import { cpSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+
+import { parse } from 'yaml'
 
 import { cleanupAll, cospec, mkTempRepo, type SpawnResult } from '../fixtures/support.ts'
 import { type Outcome, outcome } from './support/parse-class.ts'
@@ -67,6 +74,12 @@ interface Row {
   cospecStderr?: string
   /** A cospec-only row's intended answer; `same` rows compare against the binary. */
   cospecOnly?: { outcome: Outcome; exit: number }
+  /** A pending row: the owner slug, the binary's answer and cospec's current one. */
+  pending?: {
+    owner: string
+    upstream: { outcome: Outcome; exit: number }
+    cospec: { outcome: Outcome; exit: number }
+  }
 }
 
 const REDIRECT = '--store-path is not supported. Register the path with cospec store register'
@@ -238,6 +251,44 @@ const HELP_TOKEN_ROWS: readonly Row[] = [
   { argv: ['schemas', 'help'], command: 'schemas' },
 ]
 
+/**
+ * Commander's implicit program-level `help [command]` (`parity-pending.yaml`,
+ * owner `upstream-spellings`). There is no `help` row to refuse it with
+ * `not supported yet` — adding one is the owner's work, and the reachability
+ * gate requires that nothing on the cospec side resolves a pending top-level
+ * command — so cospec answers it as an unknown command, as `experimental` is.
+ */
+const unknownCommand = { outcome: 'unknown-command', exit: 1 } as const
+const PENDING_ROWS: readonly Row[] = [
+  {
+    argv: ['help'],
+    command: 'help',
+    pending: {
+      owner: 'upstream-spellings',
+      upstream: { outcome: 'help:root', exit: 0 },
+      cospec: unknownCommand,
+    },
+  },
+  {
+    argv: ['help', 'list'],
+    command: 'help',
+    pending: {
+      owner: 'upstream-spellings',
+      upstream: { outcome: 'help:list', exit: 0 },
+      cospec: unknownCommand,
+    },
+  },
+  {
+    argv: ['help', 'config', 'path'],
+    command: 'help',
+    pending: {
+      owner: 'upstream-spellings',
+      upstream: { outcome: 'help:config', exit: 0 },
+      cospec: unknownCommand,
+    },
+  },
+]
+
 /** cospec globals and divergences upstream has no counterpart for at that level. */
 const COSPEC_ONLY_ROWS: readonly Row[] = [
   {
@@ -325,6 +376,12 @@ async function checkRow(row: Row): Promise<void> {
   const detail = `cospec exit ${co.exitCode}\nstdout: ${co.stdout.slice(0, 200)}\nstderr: ${co.stderr.slice(0, 300)}`
   if (row.cospecOnly !== undefined) {
     expect({ outcome: coOutcome, exit: co.exitCode }, detail).toEqual(row.cospecOnly)
+  } else if (row.pending !== undefined) {
+    const up = await runUpstream(row.argv, freshRoot())
+    expect({ outcome: outcome(up, row.command, row.argv), exit: up.exitCode }).toEqual(
+      row.pending.upstream,
+    )
+    expect({ outcome: coOutcome, exit: co.exitCode }, detail).toEqual(row.pending.cospec)
   } else {
     const up = await runUpstream(row.argv, freshRoot())
     const upDetail = `openspec exit ${up.exitCode}\nstdout: ${up.stdout.slice(0, 200)}\nstderr: ${up.stderr.slice(0, 300)}`
@@ -339,7 +396,13 @@ async function checkRow(row: Row): Promise<void> {
 function register(rows: readonly Row[]): void {
   for (const row of rows) {
     const key = row.argv.join(' ')
-    const name = `${row.cospecOnly !== undefined ? 'cospec-only' : 'same'}: ${key || '(no argv)'}`
+    const expectation =
+      row.cospecOnly !== undefined
+        ? 'cospec-only'
+        : row.pending !== undefined
+          ? `pending (${row.pending.owner})`
+          : 'same'
+    const name = `${expectation}: ${key || '(no argv)'}`
     if (KNOWN_FAILING.has(key)) test.failing(name, () => checkRow(row), 30_000)
     else test(name, () => checkRow(row), 30_000)
   }
@@ -353,6 +416,7 @@ describe('precedence matrix: --store-path', () => register(STORE_PATH_ROWS))
 describe('precedence matrix: -- terminators', () => register(TERMINATOR_ROWS))
 describe('precedence matrix: a bare help token', () => register(HELP_TOKEN_ROWS))
 describe('precedence matrix: cospec-only rows', () => register(COSPEC_ONLY_ROWS))
+describe('precedence matrix: pending spellings', () => register(PENDING_ROWS))
 
 describe('precedence matrix: harness', () => {
   test('both tools receive a leading -- verbatim', async () => {
@@ -372,8 +436,22 @@ describe('precedence matrix: harness', () => {
       ...TERMINATOR_ROWS,
       ...HELP_TOKEN_ROWS,
       ...COSPEC_ONLY_ROWS,
+      ...PENDING_ROWS,
     ].map((row) => row.argv.join(' '))
     expect(new Set(all).size).toBe(all.length)
+    // Each pending row's surface is owned in parity-pending.yaml by the same slug.
+    const owned = (
+      parse(readFileSync(join(import.meta.dir, 'parity-pending.yaml'), 'utf8')) as {
+        kind: string
+        path?: string[]
+        owner: string
+      }[]
+    ).filter((pe) => pe.kind === 'command')
+    for (const row of PENDING_ROWS)
+      expect(
+        owned.some((pe) => pe.path?.join(' ') === row.argv[0] && pe.owner === row.pending!.owner),
+        row.argv.join(' '),
+      ).toBe(true)
     expect(all.length).toBeGreaterThanOrEqual(30)
     for (const key of KNOWN_FAILING) expect(all).toContain(key)
   })
