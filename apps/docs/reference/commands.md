@@ -134,7 +134,13 @@ line, exit `1`, without `--json`; as
 `{ changes: ChangeEntry[], root: string }`, where each entry is the same shape a
 single `cospec status --change <id> --json` emits (or `{ change, error }` if
 that one change's status computation threw); exit is `1` if any entry failed,
-`0` otherwise. The single-change shape itself is unchanged. :::
+`0` otherwise. The single-change shape itself is unchanged. Under `--json` a
+lookup that fails — an unknown change, or no `--change` with several active
+changes — is one document on stdout in OpenSpec's shape,
+`{ "status": [{ "severity": "error", "code": "change_error", "message": "..." }] }`,
+exit `1`, and no active changes is
+`{ "changes": [], "root": "...", "message": "No active changes." }`, exit `0`.
+:::
 
 ## Read-only and personal commands
 

@@ -239,6 +239,17 @@ async function runAll(ctx: CommandContext): Promise<number> {
 
 const MUTEX_MESSAGE = 'The --all and --change options are mutually exclusive.'
 
+/**
+ * A lookup refusal under `--json`: one document on stdout in upstream's
+ * `failWithError` shape (`{status: [{severity, code, message}]}`, code
+ * `change_error`), exit 1, so a `--json` caller always gets something to parse.
+ */
+function changeErrorDocument(message: string): number {
+  const status = [{ severity: 'error', code: 'change_error', message }]
+  process.stdout.write(`${JSON.stringify({ status }, null, 2)}\n`)
+  return EXIT.failure
+}
+
 export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
   const parsed = ctx.parsed!
@@ -270,9 +281,17 @@ export async function run(ctx: CommandContext): Promise<number> {
     if (active.length === 1) {
       id = active[0]!.id
     } else if (active.length === 0) {
-      process.stdout.write('cospec status: no active changes\n')
+      process.stdout.write(
+        flags.json
+          ? `${JSON.stringify({ changes: [], root: base, message: 'No active changes.' }, null, 2)}\n`
+          : 'cospec status: no active changes\n',
+      )
       return EXIT.success
     } else {
+      if (flags.json)
+        return changeErrorDocument(
+          `--change <id> is required. Active changes: ${active.map((c) => c.id).join(', ')}`,
+        )
       process.stderr.write('cospec status: --change <id> is required\n')
       process.stderr.write(`active changes: ${active.map((c) => c.id).join(', ')}\n`)
       return EXIT.failure
@@ -281,11 +300,15 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   const change = resolveChange(base, id)
   if (change === undefined) {
-    process.stderr.write(`cospec status: unknown change '${id}'\n`)
     const suggestion = closest(
       id,
       active.map((c) => c.id),
     )
+    if (flags.json)
+      return changeErrorDocument(
+        `unknown change '${id}'${suggestion !== undefined ? `. Did you mean '${suggestion}'?` : ''}`,
+      )
+    process.stderr.write(`cospec status: unknown change '${id}'\n`)
     if (suggestion !== undefined) process.stderr.write(`Did you mean '${suggestion}'?\n`)
     return EXIT.failure
   }

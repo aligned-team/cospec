@@ -656,7 +656,13 @@ const FORWARD_GUARD_ROWS: readonly Row[] = [
 const STATUS_JSON_ROWS: readonly Row[] = [
   { argv: ['status', '--change', '--', '--json'], command: 'status' },
   { argv: ['status', '--change', 'nope', '--json'], command: 'status' },
-  { argv: ['status', 'nope', '--json'], command: 'status' },
+  // cospec's own positional change (upstream `status` takes none).
+  {
+    argv: ['status', 'nope', '--json'],
+    command: 'status',
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    check: (tool, _root, run) => expect(documentCount(run.stdout), tool).toBe(1),
+  },
   { argv: ['status', '--json'], command: 'status' },
 ]
 
@@ -898,13 +904,7 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * caller is owed a document; a missing schema reported as a wrapped-call
  * failure). The fixes empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  'status --change -- --json',
-  'status --change nope --json',
-  'status nope --json',
-  'status --json',
-  'new feat x',
-])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>(['new feat x'])
 
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot(row.store)

@@ -112,6 +112,44 @@ describe('status', () => {
     expect(r.err).toContain("Did you mean 'add-widget'")
   })
 
+  test('under --json every refusal and the no-changes answer is one document', async () => {
+    const cwd = repo()
+    const none = await runCmd(statusRun, ctx(cwd, [], { json: true, command: 'status' }))
+    expect(none.code).toBe(0)
+    expect(JSON.parse(none.out)).toMatchObject({ changes: [], message: 'No active changes.' })
+
+    writeChange(cwd, 'add-widget', 'feat')
+    const unknown = await runCmd(
+      statusRun,
+      ctx(cwd, ['--change', 'add-widgets'], { json: true, command: 'status' }),
+    )
+    expect(unknown.code).toBe(1)
+    expect(unknown.err).toBe('')
+    expect(JSON.parse(unknown.out)).toEqual({
+      status: [
+        {
+          severity: 'error',
+          code: 'change_error',
+          message: "unknown change 'add-widgets'. Did you mean 'add-widget'?",
+        },
+      ],
+    })
+
+    writeChange(cwd, 'second', 'ci')
+    const required = await runCmd(statusRun, ctx(cwd, [], { json: true, command: 'status' }))
+    expect(required.code).toBe(1)
+    expect(required.err).toBe('')
+    expect(JSON.parse(required.out)).toEqual({
+      status: [
+        {
+          severity: 'error',
+          code: 'change_error',
+          message: '--change <id> is required. Active changes: add-widget, second',
+        },
+      ],
+    })
+  })
+
   test('computeStatus reports artifacts, gate, and archive-readiness', () => {
     const cwd = repo()
     const dir = writeChange(cwd, 'c', 'ci', {
