@@ -43,11 +43,12 @@ import { commandRow, storePathInOptionPosition, storePathRefusal } from '../core
 import { forwardCall, relayStorePathRefusal } from '../core/forward-relay.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
 import {
-  beforeTerminator,
   passthroughOpenspec,
   resolveOpenspec,
   type RunExpectation,
   spawnOpenspec,
+  threadedArgv,
+  type WrappedCall,
 } from '../core/openspec.ts'
 
 /** The eight subcommands upstream's `config` command defines. */
@@ -72,7 +73,9 @@ function isConfigSub(name: string): name is ConfigSub {
 export interface ConfigCall {
   kind: 'pass' | 'handover'
   sub: ConfigSub
-  /** Full argv for the wrapped binary, `config` first. */
+  /** The wrapped call: `config [--scope <s>] <sub>`, threaded `--json`, `subArgs`. */
+  wrapped: WrappedCall
+  /** Full argv for the wrapped binary, `config` first (`threadedArgv` of `wrapped`). */
   argv: string[]
   /** The subcommand's own args, with `--scope` already removed. */
   subArgs: string[]
@@ -100,8 +103,9 @@ function firstPositional(args: string[]): string | undefined {
  * between `config` and the subcommand. (Commander resolves it from the leaf
  * too on 1.11.0, so this is normalization, not a workaround — it keeps one
  * argv shape for every input.) Any value but `global` is upstream's error to
- * print, not cospec's to second-guess. `--json` is appended only for `list`.
- * `--no-color` and `root.storeArgs` are never appended (module header).
+ * print, not cospec's to second-guess. `--json` is threaded only for `list`,
+ * right after the subcommand and ahead of the user's argv. `--no-color` and
+ * `root.storeArgs` are never threaded (module header).
  */
 export function planConfigCall(args: string[], opts: { json: boolean }): ConfigPlan {
   let scope: string | undefined
@@ -130,10 +134,10 @@ export function planConfigCall(args: string[], opts: { json: boolean }): ConfigP
 
   const subArgs = rest.slice(1)
   const scopeArgs = scope === undefined ? [] : ['--scope', scope]
-  const base = ['config', ...scopeArgs, sub, ...subArgs]
-  const argv = opts.json && sub === 'list' ? beforeTerminator(base, ['--json']) : base
-
-  return { kind: isHandoverCall(sub, subArgs) ? 'handover' : 'pass', sub, argv, subArgs }
+  const threaded = opts.json && sub === 'list' ? ['--json'] : []
+  const wrapped: WrappedCall = { command: ['config', ...scopeArgs, sub], threaded, args: subArgs }
+  const argv = threadedArgv(wrapped.command, threaded, subArgs)
+  return { kind: isHandoverCall(sub, subArgs) ? 'handover' : 'pass', sub, wrapped, argv, subArgs }
 }
 
 /**
@@ -203,7 +207,7 @@ const CONFIG_EXPECT: RunExpectation = {
  */
 async function runPiped(ctx: CommandContext, call: ConfigCall): Promise<number> {
   const result = await forwardCall(() =>
-    passthroughOpenspec(call.argv, { cwd: ctx.cwd, expect: CONFIG_EXPECT }),
+    passthroughOpenspec(call.wrapped, { cwd: ctx.cwd, expect: CONFIG_EXPECT }),
   )
   // Ahead of the cospec-owned envelopes: the binary's `--store-path` refusal
   // is answered with cospec's redirect, never rendered as a `path` or `value`.

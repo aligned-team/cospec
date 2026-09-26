@@ -221,11 +221,15 @@ Register the path with `cospec store register <path>` and select it with
 [read-only and personal commands](#read-only-and-personal-commands) above) don't
 reject an unknown option themselves — every token their own pre-spawn guards
 don't consume reaches the wrapped binary unchanged, and its answer is relayed
-verbatim. `openspec show` itself accepts an unrecognized flag by design
-(`allowUnknownOption(true)`), so a cospec-side rejection there would be the
-divergence from upstream, not a fix for one; the same forwarding lets a newer
-in-range OpenSpec's new flag keep working immediately instead of failing until
-cospec's table catches up.
+verbatim. The flags cospec adds to the call (`--json`, `--no-color`,
+`--store <id>`) go right after the command, ahead of your own tokens, so they
+never become the value of an option you left without one:
+`cospec store setup s1 --path` is refused with OpenSpec's
+`option '--path <path>' argument missing` and writes nothing. `openspec show`
+itself accepts an unrecognized flag by design (`allowUnknownOption(true)`), so a
+cospec-side rejection there would be the divergence from upstream, not a fix for
+one; the same forwarding lets a newer in-range OpenSpec's new flag keep working
+immediately instead of failing until cospec's table catches up.
 
 **`--json` on a command that can't emit it.** `cospec view` renders a text
 dashboard and `cospec completion` prints a shell script; both refuse `--json`

@@ -32,7 +32,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     return EXIT.failure
   }
 
-  const result = await passthroughOpenspec(['view'], { cwd: root.base })
+  const result = await passthroughOpenspec({ command: ['view'] }, { cwd: root.base })
   if (result.stdout.length > 0) process.stdout.write(result.stdout)
   if (result.stderr.length > 0) process.stderr.write(result.stderr)
   return result.exitCode === 0 ? EXIT.success : EXIT.failure

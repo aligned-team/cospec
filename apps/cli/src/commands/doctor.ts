@@ -482,10 +482,13 @@ async function checkOpenspecRelationship(
   if (!storeBacked && !hasReferencesConfig(cwd)) return
 
   try {
-    const result = await passthroughOpenspec(['doctor', '--json', ...root.storeArgs], {
-      cwd: root.cwd,
-      expect: { exitCodes: [0, 1] },
-    })
+    const result = await passthroughOpenspec(
+      { command: ['doctor'], threaded: ['--json', ...root.storeArgs] },
+      {
+        cwd: root.cwd,
+        expect: { exitCodes: [0, 1] },
+      },
+    )
     const parsed = JSON.parse(result.stdout) as OpenspecDoctorJson
     foldStatus('root', parsed.root?.status, findings)
     foldStatus('store', parsed.store?.status, findings)
@@ -513,10 +516,10 @@ async function checkOpenspecRelationship(
 
   if (!storeBacked) return
   try {
-    const result = await passthroughOpenspec(['store', 'doctor', root.store!, '--json'], {
-      cwd: root.cwd,
-      expect: { exitCodes: [0, 1] },
-    })
+    const result = await passthroughOpenspec(
+      { command: ['store', 'doctor'], threaded: ['--json'], args: [root.store!] },
+      { cwd: root.cwd, expect: { exitCodes: [0, 1] } },
+    )
     const parsed = JSON.parse(result.stdout) as { stores?: OpenspecStoreDoctorEntry[] }
     const entry = parsed.stores?.find((s) => s.id === root.store)
     if (entry !== undefined) {

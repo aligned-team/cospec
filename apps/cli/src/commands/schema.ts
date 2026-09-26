@@ -80,5 +80,5 @@ export function run(ctx: CommandContext): Promise<number> {
     }
   }
 
-  return runPassthrough(ctx, { args: ['schema', sub, ...rest] })
+  return runPassthrough(ctx, { command: ['schema', sub], args: rest })
 }

@@ -24,7 +24,7 @@ import {
   resolveSchema,
 } from '../core/change.ts'
 import { flagValue } from '../core/command-table.ts'
-import { OpenspecCallError, runOpenspec } from '../core/openspec.ts'
+import { OpenspecCallError, runOpenspec, threadedArgv } from '../core/openspec.ts'
 import { resolveRoot } from '../core/root.ts'
 import { COSPEC_TYPES, getTypeInfo } from '../core/schema-compose.ts'
 import { closest } from './apply.ts'
@@ -149,17 +149,17 @@ export async function run(ctx: CommandContext): Promise<number> {
   }
 
   // Delegate + verify the written schema pointer (never trust the exit code).
-  const args = ['new', 'change', slug, '--schema', type]
+  const args = [slug, '--schema', type]
   if (derivedDescription !== undefined) args.push('--description', derivedDescription)
   try {
-    await runOpenspec([...args, ...root.storeArgs], {
+    await runOpenspec(threadedArgv(['new', 'change'], root.storeArgs, args), {
       cwd: root.cwd,
       expect: {
         exitCodes: [0],
         postCondition: () => {
           const yaml = readOpenspecYaml(`${changesDir(base)}/${slug}`)
           if (yaml === undefined)
-            return `openspec new did not create a valid .openspec.yaml for '${slug}'`
+            return `the wrapped OpenSpec \`new change\` did not create a valid .openspec.yaml for '${slug}'`
           if (yaml.schema !== type)
             return `created change has schema '${yaml.schema}', expected '${type}'`
         },

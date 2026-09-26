@@ -21,7 +21,7 @@ import {
 } from '../core/change.ts'
 import { hasFlag } from '../core/command-table.ts'
 import { parseLivingSpec } from '../core/deltas.ts'
-import { spawnOpenspec, type Root } from '../core/openspec.ts'
+import { spawnOpenspec, type Root, threadedArgv } from '../core/openspec.ts'
 import {
   exitCode as reportExitCode,
   renderHuman,
@@ -437,7 +437,7 @@ export function mergeDelegated(native: Issue[], delegated: Issue[]): Issue[] {
  */
 async function delegate(root: Root, args: string[]): Promise<OpenspecItem[]> {
   const res = await spawnOpenspec(
-    ['validate', ...args, '--strict', '--json', '--no-interactive', ...root.storeArgs],
+    threadedArgv(['validate'], ['--strict', '--json', '--no-interactive', ...root.storeArgs], args),
     root.cwd,
   )
   try {
@@ -594,7 +594,7 @@ async function validateSpecs(root: Root, only: string | undefined): Promise<Item
  */
 async function validateArchived(root: Root): Promise<ItemReport[] | undefined> {
   const res = await spawnOpenspec(
-    ['validate', '--archived', '--json', '--no-interactive', ...root.storeArgs],
+    threadedArgv(['validate'], ['--json', '--no-interactive', ...root.storeArgs], ['--archived']),
     root.cwd,
   )
   let parsed: OpenspecValidateJson
@@ -641,7 +641,8 @@ export async function run(ctx: CommandContext): Promise<number> {
     const archived = await validateArchived(root)
     if (archived === undefined) {
       process.stderr.write(
-        "cospec: 'openspec validate --archived' produced no report — it needs openspec >=1.9.0\n",
+        'cospec: the wrapped OpenSpec `validate --archived` call produced no report — it needs ' +
+          'OpenSpec >=1.9.0\n',
       )
       return 1
     }

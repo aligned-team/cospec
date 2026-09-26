@@ -59,5 +59,5 @@ export async function run(ctx: CommandContext): Promise<number> {
     return EXIT.failure
   }
 
-  return runPassthrough(ctx, { args: ['instructions', artifact, '--change', changeId] })
+  return runPassthrough(ctx, { command: ['instructions', artifact], args: ['--change', changeId] })
 }

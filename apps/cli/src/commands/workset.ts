@@ -14,12 +14,7 @@ import { EXIT } from '../cli.ts'
 import { commandRow, storePathInOptionPosition, storePathRefusal } from '../core/command-table.ts'
 import { forwardCall, relayStorePathRefusal } from '../core/forward-relay.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
-import {
-  beforeTerminator,
-  passthroughOpenspec,
-  resolveOpenspec,
-  spawnOpenspec,
-} from '../core/openspec.ts'
+import { passthroughOpenspec, resolveOpenspec, spawnOpenspec } from '../core/openspec.ts'
 
 const SUBCOMMANDS = ['create', 'list', 'ls', 'remove'] as const
 type PassthroughSub = (typeof SUBCOMMANDS)[number]
@@ -40,11 +35,13 @@ async function runWorksetPassthrough(
   sub: PassthroughSub,
   rest: string[],
 ): Promise<number> {
-  const args = beforeTerminator(
-    ['workset', sub, ...rest],
-    [...(ctx.flags.json ? ['--json'] : []), ...(ctx.flags.noColor ? ['--no-color'] : [])],
+  const threaded = [
+    ...(ctx.flags.json ? ['--json'] : []),
+    ...(ctx.flags.noColor ? ['--no-color'] : []),
+  ]
+  const result = await forwardCall(() =>
+    passthroughOpenspec({ command: ['workset', sub], threaded, args: rest }, { cwd: ctx.cwd }),
   )
-  const result = await forwardCall(() => passthroughOpenspec(args, { cwd: ctx.cwd }))
   const refused = relayStorePathRefusal(result, ctx.flags.json)
   if (refused !== undefined) return refused
   if (result.stdout.length > 0) process.stdout.write(result.stdout)

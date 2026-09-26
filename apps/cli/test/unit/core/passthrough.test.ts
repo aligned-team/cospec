@@ -122,36 +122,66 @@ function withStubbedSpawn<T>(
 }
 
 describe('passthroughOpenspec (stubbed spawn)', () => {
-  test('threads args and storeArgs onto the spawned command', async () => {
+  test('threads the flags between the command path and the user args', async () => {
     await withStubbedSpawn({ stdout: JSON.stringify({ ok: true }), exitCode: 0 }, async (args) => {
-      const res = await passthroughOpenspec(['show', 'foo', '--json'], {
-        cwd: '/repo',
-        storeArgs: ['--store', 'platform'],
-      })
-      expect(args()).toEqual(['show', 'foo', '--json', '--store', 'platform'])
+      const res = await passthroughOpenspec(
+        { command: ['show'], threaded: ['--json', '--store', 'platform'], args: ['foo', '--type'] },
+        { cwd: '/repo' },
+      )
+      expect(args()).toEqual(['show', '--json', '--store', 'platform', 'foo', '--type'])
       expect(res.exitCode).toBe(0)
+    })
+  })
+
+  test('a --json among the user args holds the call to no JSON invariant', async () => {
+    // `show c1 --type --json`: the user's `--json` is `--type`'s value.
+    await withStubbedSpawn(
+      { stdout: '', stderr: "Unknown item 'c1'.\n", exitCode: 1 },
+      async () => {
+        const res = await passthroughOpenspec(
+          { command: ['show'], args: ['c1', '--type', '--json'] },
+          { cwd: '/repo' },
+        )
+        expect(res.exitCode).toBe(1)
+        expect(res.stderr).toBe("Unknown item 'c1'.\n")
+      },
+    )
+  })
+
+  test('a violation names the call without a bare openspec command', async () => {
+    await withStubbedSpawn({ stdout: 'not json', exitCode: 0 }, async () => {
+      const err = await passthroughOpenspec(
+        { command: ['show'], threaded: ['--json'], args: ['x'] },
+        { cwd: '/repo' },
+      ).catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(OpenspecCallError)
+      expect((err as Error).message).toContain('`show --json x`')
+      expect((err as Error).message).not.toMatch(/\bopenspec\b/)
     })
   })
 
   test('accepts the passthrough default exit-code allow-list [0, 1]', async () => {
     await withStubbedSpawn({ stdout: 'not found\n', exitCode: 1 }, async () => {
-      const res = await passthroughOpenspec(['show', 'nope'], { cwd: '/repo' })
+      const res = await passthroughOpenspec({ command: ['show'], args: ['nope'] }, { cwd: '/repo' })
       expect(res.exitCode).toBe(1) // relayed, not thrown — 1 is allowed by default
     })
   })
 
   test('rejects an exit code outside the allow-list with OpenspecCallError', async () => {
     await withStubbedSpawn({ stdout: '', exitCode: 2 }, async () => {
-      await expect(passthroughOpenspec(['show', 'nope'], { cwd: '/repo' })).rejects.toBeInstanceOf(
-        OpenspecCallError,
-      )
+      await expect(
+        passthroughOpenspec({ command: ['show'], args: ['nope'] }, { cwd: '/repo' }),
+      ).rejects.toBeInstanceOf(OpenspecCallError)
     })
   })
 
   test('a caller-declared exitCodes override replaces the passthrough default', async () => {
     await withStubbedSpawn({ stdout: '', exitCode: 1 }, async () => {
       await expect(
-        passthroughOpenspec(['show', 'nope'], { cwd: '/repo', expect: { exitCodes: [0] } }),
+        passthroughOpenspec(
+          { command: ['show'], args: ['nope'] },
+          { cwd: '/repo', expect: { exitCodes: [0] } },
+        ),
       ).rejects.toBeInstanceOf(OpenspecCallError)
     })
   })
@@ -161,10 +191,13 @@ describe('passthroughOpenspec (stubbed spawn)', () => {
       { stdout: 'Aborted. No files were changed.\n', exitCode: 0 },
       async () => {
         await expect(
-          passthroughOpenspec(['show', 'x'], {
-            cwd: '/repo',
-            expect: { denyStdout: [/\bAborted\b/] },
-          }),
+          passthroughOpenspec(
+            { command: ['show'], args: ['x'] },
+            {
+              cwd: '/repo',
+              expect: { denyStdout: [/\bAborted\b/] },
+            },
+          ),
         ).rejects.toThrow(/forbidden pattern/)
       },
     )
@@ -175,7 +208,10 @@ describe('passthroughOpenspec (stubbed spawn)', () => {
       status: [{ severity: 'error', code: 'show_error', message: 'Change not found' }],
     })
     await withStubbedSpawn({ stdout, exitCode: 0 }, async () => {
-      const res = await passthroughOpenspec(['show', 'nope', '--json'], { cwd: '/repo' })
+      const res = await passthroughOpenspec(
+        { command: ['show'], threaded: ['--json'], args: ['nope'] },
+        { cwd: '/repo' },
+      )
       expect(res.exitCode).toBe(1)
       expect(res.stdout).toBe(stdout)
     })
@@ -184,14 +220,17 @@ describe('passthroughOpenspec (stubbed spawn)', () => {
   test('a --json call with unparseable stdout throws, even on exit 0', async () => {
     await withStubbedSpawn({ stdout: 'not json at all', exitCode: 0 }, async () => {
       await expect(
-        passthroughOpenspec(['show', 'x', '--json'], { cwd: '/repo' }),
+        passthroughOpenspec(
+          { command: ['show'], threaded: ['--json'], args: ['x'] },
+          { cwd: '/repo' },
+        ),
       ).rejects.toBeInstanceOf(OpenspecCallError)
     })
   })
 
   test('a non-JSON call is never held to the one-JSON-doc invariant', async () => {
     await withStubbedSpawn({ stdout: 'human-readable text, not JSON\n', exitCode: 0 }, async () => {
-      const res = await passthroughOpenspec(['show', 'x'], { cwd: '/repo' })
+      const res = await passthroughOpenspec({ command: ['show'], args: ['x'] }, { cwd: '/repo' })
       expect(res.exitCode).toBe(0)
       expect(res.stdout).toBe('human-readable text, not JSON\n')
     })

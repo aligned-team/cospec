@@ -248,14 +248,15 @@ it up to a `--` terminator, and SHALL treat every token after a post-command
 `--` as an operand of the command, as the pinned binary's commander does. The
 `--` and its operands SHALL reach the table parser, or the wrapped binary on a
 `forward` row, unchanged, and a global flag cospec threads onto a wrapped call
-SHALL be inserted before that `--`. A `--` before the command name SHALL NOT be
-refused as an unknown option: the token after it is the command name, the next
-one is still dispatched as the subcommand — whatever it looks like on a
-`forward` row with subcommands, and on a `table` row when it names one of the
-row's subcommands — and every later token is an operand of the command, as the
-pinned binary's program-level commander treats it. A `--` that is the first
-token to reach a row with subcommands SHALL route the same way: the next token
-is the subcommand, and a `--` stays in front of the remaining operands.
+SHALL be inserted before that `--` — right after the command path, ahead of
+every user token. A `--` before the command name SHALL NOT be refused as an
+unknown option: the token after it is the command name, the next one is still
+dispatched as the subcommand — whatever it looks like on a `forward` row with
+subcommands, and on a `table` row when it names one of the row's subcommands —
+and every later token is an operand of the command, as the pinned binary's
+program-level commander treats it. A `--` that is the first token to reach a row
+with subcommands SHALL route the same way: the next token is the subcommand, and
+a `--` stays in front of the remaining operands.
 
 #### Scenario: A -- right after a command with subcommands
 
@@ -333,7 +334,22 @@ pre-spawn guards (a subcommand check, a canon-type destination refusal), but
 SHALL pass every remaining token to the wrapped binary unchanged after threading
 the global flags, and SHALL add no rejection of its own for a token the table
 does not declare — the wrapped binary remains the authority on unknown options
-for the surfaces it owns.
+for the surfaces it owns. Every flag cospec threads onto a wrapped call
+(`--json`, `--no-color`, `--store <id>`) SHALL be placed right after the command
+path, ahead of the user's tokens, so it never becomes the value of a
+value-taking flag the user left without one; and cospec's runtime output SHALL
+name a wrapped call as the wrapped OpenSpec call, never as a bare `openspec`
+command.
+
+#### Scenario: A dangling value-taking flag is never given a threaded flag
+
+- **WHEN** `cospec store setup s1 --path`,
+  `cospec schema init s1 --json --description` or
+  `cospec show c1 --store st --type` runs
+- **THEN** the wrapped binary refuses the missing value
+  (`error: option '--path <path>' argument missing`), exit 1, exactly as
+  `openspec` does for the same argv, and nothing is written on disk — no store
+  at `./--json`, no schema whose description is `--json`
 
 #### Scenario: Upstream's unknown-option answer is relayed on a forwarded command
 

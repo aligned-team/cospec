@@ -32,7 +32,7 @@ import {
   SCENARIO_DROP_NOTE_RETIRED,
   type DeltaOp,
 } from '../core/deltas.ts'
-import { spawnOpenspec } from '../core/openspec.ts'
+import { spawnOpenspec, threadedArgv } from '../core/openspec.ts'
 import { renderHuman, renderJson, type ItemReport } from '../core/report.ts'
 import { resolveRoot } from '../core/root.ts'
 import { enforcedApplyRequires, TYPE_ARTIFACTS, type CospecType } from '../core/rules/type-facts.ts'
@@ -450,9 +450,9 @@ export async function run(ctx: CommandContext): Promise<number> {
   }
 
   // Step 8: execute.
-  const archiveArgs = ['archive', change.id, '-y']
+  const archiveArgs = [change.id, '-y']
   if (skipSpecs) archiveArgs.push('--skip-specs')
-  const res = await spawnOpenspec([...archiveArgs, ...root.storeArgs], root.cwd)
+  const res = await spawnOpenspec(threadedArgv(['archive'], root.storeArgs, archiveArgs), root.cwd)
 
   // Step 9: verify (date-agnostic — survives midnight rollover).
   const newDirs = basenames(archiveDir(base)).filter((d) => !preArchiveDirs.has(d))
@@ -596,7 +596,9 @@ function reportArchiveFailure(
     .join('\n')
 
   if (!state.moved && state.newDirs.length === 0) {
-    process.stderr.write('openspec archive did not archive the change (it exited 0 but aborted).\n')
+    process.stderr.write(
+      'The wrapped OpenSpec archive did not archive the change (it exited 0 but aborted).\n',
+    )
     process.stderr.write(`${captured}\n`)
     process.stderr.write(
       'Fix the errors above, or re-run with --skip-specs if this change should not touch specs.\n',

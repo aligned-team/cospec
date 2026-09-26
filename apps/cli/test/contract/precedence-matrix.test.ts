@@ -668,16 +668,6 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * empty this set.
  */
 const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  'store setup s1 --path',
-  'store setup s1 --json --path',
-  'store register . --id',
-  'schema init s1 --json --description',
-  'templates --json --schema',
-  'show c1 --json --type',
-  'show c1 --store st --type',
-  'templates --store st --schema',
-  'schema init s1 --store st --description',
-  'schema init s1 --store st --json --artifacts',
   'status --change --help',
   'status --change --json',
   'status --change --store',
@@ -696,6 +686,11 @@ const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
   'workset create w1 --tool --help',
   'list --sort --help',
   'status --schema --json',
+  // Passing at HEAD only because the old trailing `--json`/`--store` became
+  // the dangling flag's value, as the user's own token would upstream.
+  'templates --schema --json',
+  'show c1 --type --json',
+  'show c1 --type --store st',
 ])
 
 async function checkRow(row: Row): Promise<void> {

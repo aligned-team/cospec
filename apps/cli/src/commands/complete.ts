@@ -60,10 +60,10 @@ interface SpecsPayload {
 
 async function specItems(ctx: CommandContext): Promise<{ id: string; description: string }[]> {
   const root = await resolveRoot(ctx)
-  const result = await passthroughOpenspec(['list', '--specs', '--json'], {
-    cwd: root.cwd,
-    storeArgs: root.storeArgs,
-  })
+  const result = await passthroughOpenspec(
+    { command: ['list'], threaded: ['--json', ...root.storeArgs], args: ['--specs'] },
+    { cwd: root.cwd },
+  )
   if (result.exitCode !== 0) throw new Error('list --specs failed')
   const payload = JSON.parse(result.stdout) as SpecsPayload
   return (payload.specs ?? []).map((spec) => ({

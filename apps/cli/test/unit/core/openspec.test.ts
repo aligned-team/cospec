@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
-  beforeTerminator,
   buildWrappedSpawnEnv,
   checkVersion,
   COLOR_FORCING_ENV_KEYS,
@@ -18,10 +17,11 @@ import {
   OpenspecCallError,
   type OpenspecResult,
   PINNED_OPENSPEC_VERSION,
-  requestsJson,
   runOpenspec,
   satisfiesOpenspecRange,
+  threadedArgv,
   WRAPPED_ENV,
+  wrappedCallLabel,
 } from '../../../src/core/openspec.ts'
 
 function result(partial: Partial<OpenspecResult>): OpenspecResult {
@@ -211,30 +211,45 @@ describe('wrapped calls against the real binary', () => {
   }, 30_000)
 })
 
-describe('threading flags around a -- terminator', () => {
-  test('beforeTerminator appends when there is no --', () => {
-    expect(beforeTerminator(['templates'], ['--json', '--no-color'])).toEqual([
+describe('threading flags onto a wrapped call', () => {
+  test('threaded flags land right after the command path, ahead of every user token', () => {
+    expect(threadedArgv(['templates'], ['--json', '--no-color'])).toEqual([
       'templates',
       '--json',
       '--no-color',
     ])
-  })
-
-  test('beforeTerminator inserts before the first --, never among the operands', () => {
-    expect(beforeTerminator(['show', 'foo', '--', '--json', '--'], ['--store', 's'])).toEqual([
+    // A dangling value-taking flag stays dangling: the binary refuses it.
+    expect(threadedArgv(['store', 'setup'], ['--json'], ['s1', '--path'])).toEqual([
+      'store',
+      'setup',
+      '--json',
+      's1',
+      '--path',
+    ])
+    expect(threadedArgv(['show'], ['--store', 's'], ['c1', '--type'])).toEqual([
       'show',
-      'foo',
       '--store',
       's',
+      'c1',
+      '--type',
+    ])
+  })
+
+  test('threaded flags precede a user -- and never land among its operands', () => {
+    expect(threadedArgv(['show'], ['--store', 's'], ['foo', '--', '--json', '--'])).toEqual([
+      'show',
+      '--store',
+      's',
+      'foo',
       '--',
       '--json',
       '--',
     ])
   })
 
-  test('requestsJson reads only the tokens before --', () => {
-    expect(requestsJson(['list', '--json'])).toBe(true)
-    expect(requestsJson(['list', '--json', '--', 'x'])).toBe(true)
-    expect(requestsJson(['templates', '--', '--json'])).toBe(false)
+  test('a wrapped-call label never spells a bare openspec command', () => {
+    const label = wrappedCallLabel(['store', 'register', '--json', '.', '--id'])
+    expect(label).toContain('store register --json . --id')
+    expect(label).not.toMatch(/\bopenspec\b/)
   })
 })

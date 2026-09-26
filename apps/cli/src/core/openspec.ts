@@ -322,6 +322,15 @@ export function enforceExpectation(
 }
 
 /**
+ * How a wrapped-call violation names the call in cospec's output: the argv
+ * handed to the wrapped binary, never spelled as a bare `openspec` command a
+ * user could copy and run outside cospec.
+ */
+export function wrappedCallLabel(args: readonly string[]): string {
+  return `the wrapped OpenSpec call \`${args.join(' ')}\``
+}
+
+/**
  * The wrapped-call front door (DESIGN §1). Asserts the version, spawns the
  * bundled binary, and enforces the declared expectations. Throws
  * `OpenspecCallError` on any violation.
@@ -330,7 +339,7 @@ export async function runOpenspec(args: string[], opts: RunOptions): Promise<Ope
   const result = await spawnOpenspec(args, opts.cwd)
   const expect = opts.expect
   if (expect) {
-    const label = `openspec ${args.join(' ')}`
+    const label = wrappedCallLabel(args)
     enforceExpectation(label, result, expect)
     if (expect.postCondition) {
       const outcome = await expect.postCondition(result)
@@ -351,9 +360,10 @@ export async function runOpenspec(args: string[], opts: RunOptions): Promise<Ope
  * invocation cwd; for a registered store (openspec `store`, added in 1.5.0) it is the
  * store's on-disk root plus the `--store <id>` args every wrapped call must
  * carry. Filesystem readers (change.ts, blockers, archive verification) key on
- * `base`; wrapped openspec spawns run in `cwd` and append `storeArgs`. Because a
- * store's on-disk layout is identical to a repo's (`<base>/openspec/...`), the
- * filesystem helpers need no store-specific branch — they just take `base`.
+ * `base`; wrapped openspec spawns run in `cwd` and thread `storeArgs` right
+ * after the command path (`threadedArgv`). Because a store's on-disk layout is
+ * identical to a repo's (`<base>/openspec/...`), the filesystem helpers need no
+ * store-specific branch — they just take `base`.
  */
 export interface Root {
   /** Filesystem base whose `openspec/` subdir holds specs + changes. */
@@ -394,7 +404,10 @@ export async function openspecStoreList(cwd: string): Promise<StoreListJson> {
     const parsed = JSON.parse(res.stdout) as Partial<StoreListJson>
     return { stores: Array.isArray(parsed.stores) ? parsed.stores : [] }
   } catch {
-    throw new OpenspecCallError('could not parse JSON from: openspec store ls --json', res)
+    throw new OpenspecCallError(
+      `could not parse JSON from ${wrappedCallLabel(['store', 'ls', '--json'])}`,
+      res,
+    )
   }
 }
 
@@ -509,26 +522,24 @@ export interface ArtifactInstructionsJson {
   skipped?: boolean
 }
 
-async function runJson<T>(root: Root, args: string[]): Promise<T> {
-  const res = await runOpenspec([...args, ...root.storeArgs], {
-    cwd: root.cwd,
-    expect: { exitCodes: [0] },
-  })
+async function runJson<T>(root: Root, command: string[], args: string[]): Promise<T> {
+  const argv = threadedArgv(command, ['--json', ...root.storeArgs], args)
+  const res = await runOpenspec(argv, { cwd: root.cwd, expect: { exitCodes: [0] } })
   try {
     return JSON.parse(res.stdout) as T
   } catch {
-    throw new OpenspecCallError(`could not parse JSON from: openspec ${args.join(' ')}`, res)
+    throw new OpenspecCallError(`could not parse JSON from ${wrappedCallLabel(argv)}`, res)
   }
 }
 
 /** Typed `openspec status --change <id> --json`. Throws on unknown change. */
 export function openspecStatus(root: Root, changeId: string): Promise<StatusJson> {
-  return runJson<StatusJson>(root, ['status', '--change', changeId, '--json'])
+  return runJson<StatusJson>(root, ['status'], ['--change', changeId])
 }
 
 /** Typed `openspec list --json`. Throws when no openspec dir exists. */
 export function openspecList(root: Root): Promise<ListJson> {
-  return runJson<ListJson>(root, ['list', '--json'])
+  return runJson<ListJson>(root, ['list'], [])
 }
 
 /** Typed `openspec instructions apply --change <id> --json`. */
@@ -536,13 +547,7 @@ export function openspecApplyInstructions(
   root: Root,
   changeId: string,
 ): Promise<ApplyInstructionsJson> {
-  return runJson<ApplyInstructionsJson>(root, [
-    'instructions',
-    'apply',
-    '--change',
-    changeId,
-    '--json',
-  ])
+  return runJson<ApplyInstructionsJson>(root, ['instructions', 'apply'], ['--change', changeId])
 }
 
 /** Typed `openspec instructions <artifact> --change <id> --json`. */
@@ -551,13 +556,7 @@ export function openspecArtifactInstructions(
   artifact: string,
   changeId: string,
 ): Promise<ArtifactInstructionsJson> {
-  return runJson<ArtifactInstructionsJson>(root, [
-    'instructions',
-    artifact,
-    '--change',
-    changeId,
-    '--json',
-  ])
+  return runJson<ArtifactInstructionsJson>(root, ['instructions', artifact], ['--change', changeId])
 }
 
 // --- Disciplined passthrough plumbing ---------------------------------------
@@ -623,8 +622,6 @@ export function enforcePassthroughJson(label: string, result: OpenspecResult): O
 export interface PassthroughOptions {
   /** Absolute path the wrapped binary runs in (the target repo root). */
   cwd: string
-  /** `--store <id>` args to append, from `root.storeArgs` — `[]` for local. */
-  storeArgs?: readonly string[]
   /**
    * Declared expectations. `exitCodes` defaults to `[0, 1]` — unlike
    * `runOpenspec`'s gate-call default of `[0]`, a read-only passthrough
@@ -636,38 +633,52 @@ export interface PassthroughOptions {
 }
 
 /**
- * The disciplined passthrough front door (DESIGN §1, WI-1). Version-asserted
- * spawn via `runOpenspec` (which itself spawns through `spawnOpenspec`),
- * enforcing the declared `RunExpectation` — and, when `args` requests
- * `--json`, the one-JSON-doc-on-failure invariant via `enforcePassthroughJson`.
- * Returns the (possibly exit-code-normalized) `OpenspecResult`; throws
- * `OpenspecCallError` on a deny-list hit, a disallowed exit code, or (in
- * `--json` mode) unparseable stdout.
+ * A wrapped call's argv: the command path (`['store', 'setup']`, `['show']`),
+ * then the flags cospec threads onto it (`--json`, `--no-color`, `--store
+ * <id>`), then the user's own argv (`args`). Threaded flags must precede every
+ * user token: commander gives a required-value option the next token whatever
+ * it looks like, so a flag appended after a user's dangling `--path` would
+ * become its value and the binary would run (`store setup s1 --path --json`
+ * sets a store up at `./--json`), and after a user's `--` it would be an
+ * operand. Right after the full command path — never between a command and
+ * its subcommand, where the leaf's own option would be unknown to the parent.
  */
+export function threadedArgv(
+  command: readonly string[],
+  threaded: readonly string[],
+  args: readonly string[] = [],
+): string[] {
+  return [...command, ...threaded, ...args]
+}
+
+/** One passthrough call, in the three parts `threadedArgv` joins. */
+export interface WrappedCall {
+  /** The command path: `['show']`, `['store', 'setup']`. */
+  readonly command: readonly string[]
+  /** Flags cospec threads onto the call (`--json`, `--no-color`, `--store <id>`). */
+  readonly threaded?: readonly string[]
+  /** The user's own argv (or cospec's operands), after the threaded flags. */
+  readonly args?: readonly string[]
+}
+
 /**
- * `args` with `extra` inserted before the first `--` terminator (appended when
- * there is none). A flag cospec threads onto a wrapped call must land where
- * the binary reads it as an option: after a user's `--`, commander takes every
- * token as an operand.
+ * The disciplined passthrough front door (DESIGN §1, WI-1). Version-asserted
+ * spawn via `runOpenspec` (which itself spawns through `spawnOpenspec`) of
+ * `threadedArgv(call…)`, enforcing the declared `RunExpectation` — and, when
+ * cospec threaded `--json`, the one-JSON-doc-on-failure invariant via
+ * `enforcePassthroughJson`. A `--json` among the user's own `args` is theirs
+ * (possibly another flag's value) and holds the call to nothing. Returns the
+ * (possibly exit-code-normalized) `OpenspecResult`; throws `OpenspecCallError`
+ * on a deny-list hit, a disallowed exit code, or (in `--json` mode)
+ * unparseable stdout.
  */
-export function beforeTerminator(args: readonly string[], extra: readonly string[]): string[] {
-  const at = args.indexOf('--')
-  return at === -1 ? [...args, ...extra] : [...args.slice(0, at), ...extra, ...args.slice(at)]
-}
-
-/** True when `args` asks the binary for `--json` as an option — never an operand after `--`. */
-export function requestsJson(args: readonly string[]): boolean {
-  const at = args.indexOf('--')
-  return (at === -1 ? args : args.slice(0, at)).includes('--json')
-}
-
 export async function passthroughOpenspec(
-  args: string[],
+  call: WrappedCall,
   opts: PassthroughOptions,
 ): Promise<OpenspecResult> {
-  const fullArgs = beforeTerminator(args, opts.storeArgs ?? [])
+  const argv = threadedArgv(call.command, call.threaded ?? [], call.args)
   const expect: RunExpectation = { exitCodes: [0, 1], ...opts.expect }
-  const result = await runOpenspec(fullArgs, { cwd: opts.cwd, expect })
-  if (!requestsJson(fullArgs)) return result
-  return enforcePassthroughJson(`openspec ${fullArgs.join(' ')}`, result)
+  const result = await runOpenspec(argv, { cwd: opts.cwd, expect })
+  if (call.threaded?.includes('--json') !== true) return result
+  return enforcePassthroughJson(wrappedCallLabel(argv), result)
 }

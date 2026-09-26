@@ -200,9 +200,11 @@ red; 4–7 turn it green; 8 documents it.
 - [x] 10.6 Stop absorbing global flags after a post-command `--`: every later
       token reaches the command's argv as an operand, and the passthrough
       plumbing threads `--json`/`--no-color`/`--store` before the user's `--`
-      and reads `--json` only before it; differential rows for `list`, `status`,
-      `templates` and `show`; spec requirement and the global-flags note in
-      `reference/commands.md` (ledger 1.10)
+      (since 10.27, right after the command path, ahead of every user token) and
+      reads `--json` only before it (since 10.27, only cospec's own threaded
+      `--json`); differential rows for `list`, `status`, `templates` and `show`;
+      spec requirement and the global-flags note in `reference/commands.md`
+      (ledger 1.10)
 - [x] 10.7 Refuse a global `--store`/`--cwd` with a missing value
       (`argument missing`) or an empty one (`argument must not be empty`), exit
       1, after a version request and ahead of help, unknown options and
@@ -331,3 +333,18 @@ red; 4–7 turn it green; 8 documents it.
       priority flag; unit rows, the `runCommand` docstring, a spec scenario,
       design decision 2, `docs/architecture.md` and `reference/commands.md`
       (ledger 1.26)
+- [x] 10.27 Thread cospec's own flags (`--json`, `--no-color`, `--store <id>`)
+      onto every wrapped call right after its command path, ahead of the user's
+      argv (`threadedArgv` in `core/openspec.ts`; `passthroughOpenspec` takes
+      the call as `{command, threaded, args}`), in every wrapper and spawn
+      helper (`passthrough-command.ts`, `store`, `workset`, `config`, `context`,
+      `doctor`, `complete`, `list --specs`, `new`, `validate`, `archive`, the
+      typed `status`/`list`/`instructions` JSON calls), so a user's dangling
+      value-taking flag stays dangling and the binary refuses it without
+      writing; the one-JSON-document invariant keys on cospec's threaded
+      `--json`, never a user token; wrapped-call labels and the remaining
+      runtime messages in R1-owned files (`new`, `archive`, `validate`) name
+      "the wrapped OpenSpec call" instead of a bare `openspec` command;
+      precedence-matrix threading rows (each asserting nothing was written),
+      unit rows, design decision 1, the forwarded-command spec requirement and
+      `reference/commands.md` (ledger 1.27)

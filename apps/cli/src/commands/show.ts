@@ -19,5 +19,5 @@ export async function run(ctx: CommandContext): Promise<number> {
     process.stderr.write('cospec show: an item name is required (cospec show <change-or-spec>)\n')
     return EXIT.failure
   }
-  return runPassthrough(ctx, { args: ['show', ...ctx.args] })
+  return runPassthrough(ctx, { command: ['show'], args: ctx.args })
 }

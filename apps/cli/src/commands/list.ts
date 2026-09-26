@@ -50,7 +50,10 @@ async function runSpecs(
 ): Promise<number> {
   let result: Awaited<ReturnType<typeof passthroughOpenspec>>
   try {
-    result = await passthroughOpenspec(['list', '--specs', '--json'], { cwd, storeArgs })
+    result = await passthroughOpenspec(
+      { command: ['list'], threaded: ['--json', ...storeArgs], args: ['--specs'] },
+      { cwd },
+    )
   } catch (err) {
     if (err instanceof OpenspecCallError) {
       process.stderr.write(`${err.message}\n`)

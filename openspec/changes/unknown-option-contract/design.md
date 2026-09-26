@@ -81,16 +81,21 @@ runtime by `dist/commands/spec.js:127`.
    canonical position) and apply its own pre-spawn guards (`schema`'s canon-type
    destination refusal, `config`/`store`/`workset` subcommand checks), but every
    remaining token reaches the binary unchanged after global-flag threading and
-   cospec adds no unknown-option rejection of its own. `forward` rows: `show`,
-   `templates`, `schemas`, `schema`, `store`, `workset`, `config`. `feedback` is
-   a `table` row: `parseFeedbackArgs` already rejects unknown options, so the
-   shared parser replaces it and the `--upstream` relay rebuilds its argv from
-   the parsed values as it does today. Everything else is `table`. Upstream's
-   per-command `--json` and `--store` are cospec globals (`GLOBAL_OPTIONS`,
-   stripped in `cli.ts`); the reachability test resolves them for every row
-   through the global list rather than per-row duplicates. Each `table` row also
-   declares `json: 'accepted' | 'refused'`: whether the command honours the
-   global `--json` (decision 10).
+   cospec adds no unknown-option rejection of its own. The threaded flags
+   (`--json`, `--no-color`, `--store <id>`) go right after the command path,
+   ahead of the user's argv (`threadedArgv`): commander gives a required-value
+   option the next token whatever it looks like, so a flag appended after the
+   user's argv became the value of a dangling `--path` and the binary ran
+   (`store setup s1 --path` set a store up at `./--json`). `forward` rows:
+   `show`, `templates`, `schemas`, `schema`, `store`, `workset`, `config`.
+   `feedback` is a `table` row: `parseFeedbackArgs` already rejects unknown
+   options, so the shared parser replaces it and the `--upstream` relay rebuilds
+   its argv from the parsed values as it does today. Everything else is `table`.
+   Upstream's per-command `--json` and `--store` are cospec globals
+   (`GLOBAL_OPTIONS`, stripped in `cli.ts`); the reachability test resolves them
+   for every row through the global list rather than per-row duplicates. Each
+   `table` row also declares `json: 'accepted' | 'refused'`: whether the command
+   honours the global `--json` (decision 10).
    - Why not table-parse everything: `openspec show` sets
      `allowUnknownOption(true)`, so upstream _accepts_ `show --bogus`. A
      cospec-side rejection there would be a regression against the binary, not
