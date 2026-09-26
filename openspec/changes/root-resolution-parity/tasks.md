@@ -126,16 +126,16 @@ POST-REBASE.
       turned those into plain tests too, so zero `test.todo` remain, confirmed
       by `grep -c test.todo apps/cli/test/contract/root-resolution.test.ts` = 0
       and 89 pass / 0 fail on the file)
-- [ ] 4.3 Add the command-level rows (ledger groups 2 and 3): `cospec list`,
+- [x] 4.3 Add the command-level rows (ledger groups 2 and 3): `cospec list`,
       `cospec new`, `cospec status`, `cospec schemas`, `cospec templates` and
       `cospec schema which|validate|fork|init` driven from the fixtures, with
       stores set up by `cospec store setup` where typed schemas are needed;
       verify every row passes
-- [ ] 4.4 Confirm the regression rows (ledger 1.1, 1.3, 1.6, 1.7, 1.11,
+- [x] 4.4 Confirm the regression rows (ledger 1.1, 1.3, 1.6, 1.7, 1.11,
       1.15–1.18, 1.23–1.26, 2.1, 2.7, 3.1, 3.3) fail with this change's code
       reverted and pass with it applied, and record the observed before/after in
       the ledger
-- [ ] 4.5 Run `mise run check` and commit the track
+- [x] 4.5 Run `mise run check` and commit the track
 
 ## 5. Stop threading `--store` for declared and default roots (track T3 follow-on: `apps/cli/src/core/root.ts`, `apps/cli/test/contract/root-resolution.test.ts`, `apps/cli/test/unit/core/root.test.ts`; after group 4)
 

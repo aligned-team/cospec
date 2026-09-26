@@ -19,6 +19,7 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import {
+  appendFileSync,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -903,5 +904,125 @@ describe('resolver lines appear once on relaying commands (ledger 2.5, 2.9)', ()
       expect(res.exitCode).toBe(0)
       expect(lineCount(res.stderr, banner())).toBe(1)
     }
+  })
+})
+
+// --- Ledger 2.1-2.4, 2.7: native commands operate on the resolved root ---
+
+const BANNER_PREFIX = 'Using OpenSpec root: '
+
+describe('native commands operate on the resolved root (ledger 2.1-2.4, 2.7)', () => {
+  test('cospec list --json from a subdirectory lists the enclosing root (M1, ledger 2.1)', async () => {
+    const sb = await makeSandbox()
+    const dir = planningRoot(sb)
+    writeFiles(dir, { 'openspec/changes/demo-change/proposal.md': DEMO_PROPOSAL })
+    const res = await cospec(['list', '--json'], { cwd: join(dir, 'src/deep'), env: sb.env })
+    expect(res.exitCode).toBe(0)
+    const body = JSON.parse(res.stdout) as { changes: { change: string }[] }
+    expect(body.changes.map((c) => c.change)).toEqual(['demo-change'])
+  })
+
+  test('cospec new on a planning root with a store pointer writes locally (M3, ledger 2.2)', async () => {
+    const sb = await makeSandbox()
+    // M3's shape on a cospec-initialized root, so the typed `ci` schema resolves locally.
+    const dir = repo(sb, 'm3', { dirs: ['openspec/changes'] })
+    const init = await cospec(['init', '--harness', 'none', '--no-gate', '--yes'], {
+      cwd: dir,
+      env: sb.env,
+    })
+    expect(init.exitCode).toBe(0)
+    appendFileSync(join(dir, 'openspec', 'config.yaml'), 'store: alpha\n')
+    const alphaChanges = join(storePath(sb, 'alpha'), 'openspec', 'changes')
+    const alphaBefore = hashTree(alphaChanges)
+    const res = await cospec(['new', 'ci', 'local-change'], { cwd: dir, env: sb.env })
+    expect(res.exitCode).toBe(0)
+    expect(existsSync(join(dir, 'openspec', 'changes', 'local-change'))).toBe(true)
+    expect(existsSync(join(alphaChanges, 'local-change'))).toBe(false)
+    expect(hashTree(alphaChanges)).toEqual(alphaBefore)
+    const warning =
+      `Warning: ${join(canonical(dir), 'openspec', 'config.yaml')} declares store 'alpha', but ` +
+      'this directory is a real OpenSpec root; the declaration is ignored.'
+    expect(lineCount(res.stderr, warning)).toBe(1)
+  })
+
+  test('no_root_with_registered_stores in human mode (M15, ledger 2.3)', async () => {
+    const sb = await makeSandbox()
+    const res = await cospec(['list'], { cwd: bare(sb), env: sb.env })
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toBe(
+      'cospec: No OpenSpec root found in the current directory or its ancestors. Registered ' +
+        'stores: alpha, beta. Pass --store <id> to use one, or run cospec init to create a ' +
+        'local root.\n' +
+        'Fix: Rerun with --store <id> (registered: alpha, beta) or run cospec init.\n',
+    )
+    expect(res.stderr).not.toContain('openspec init')
+    expect(res.stdout).toBe('')
+  })
+
+  test('invalid_store_pointer in cospec status, human mode (M6, ledger 2.4)', async () => {
+    const sb = await makeSandbox()
+    const dir = repo(sb, 'm6', configOnly('store: [unclosed\n'))
+    const cfg = join(canonical(dir), 'openspec', 'config.yaml')
+    const res = await cospec(['status'], { cwd: dir, env: sb.env })
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toBe(
+      `cospec: Invalid store declaration in ${cfg}: the config file could not be read as YAML.\n` +
+        `Fix: Fix the YAML syntax in ${cfg}.\n`,
+    )
+    expect(res.stdout).toBe('')
+  })
+
+  describe('the store banner on a native command (ledger 2.7)', () => {
+    let sb!: Sandbox
+    let cwd!: string
+    const banner = (id: string): string => `${BANNER_PREFIX}${id} (${canonical(storePath(sb, id))})`
+    const bannerLines = (stderr: string): string[] =>
+      stderr.split('\n').filter((l) => l.startsWith(BANNER_PREFIX))
+
+    beforeAll(async () => {
+      sb = await makeSandbox()
+      cwd = bare(sb)
+    })
+
+    test('cospec list --store alpha prints the oracle banner exactly once', async () => {
+      const o = await openspec(['list', '--store', 'alpha'], cwd, sb.env)
+      expect(o.exitCode).toBe(0)
+      expect(bannerLines(o.stderr)).toEqual([banner('alpha')])
+      const res = await cospec(['list', '--store', 'alpha'], { cwd, env: sb.env })
+      expect(res.exitCode).toBe(0)
+      expect(bannerLines(res.stderr)).toEqual([banner('alpha')])
+      expect(bannerLines(res.stderr)).toEqual(bannerLines(o.stderr))
+    })
+
+    test('a declared pointer (M4) prints the banner with its store', async () => {
+      const m4 = repo(sb, 'm4', configOnly('store: alpha\n'))
+      const res = await cospec(['list'], { cwd: m4, env: sb.env })
+      expect(res.exitCode).toBe(0)
+      expect(bannerLines(res.stderr)).toEqual([banner('alpha')])
+    })
+
+    test('a planning root (M1) prints no banner', async () => {
+      const dir = planningRoot(sb)
+      const res = await cospec(['list'], { cwd: join(dir, 'src/deep'), env: sb.env })
+      expect(res.exitCode).toBe(0)
+      expect(bannerLines(res.stderr)).toEqual([])
+    })
+
+    test('cospec list --json --store alpha prints no banner', async () => {
+      const res = await cospec(['list', '--json', '--store', 'alpha'], { cwd, env: sb.env })
+      expect(res.exitCode).toBe(0)
+      expect(() => JSON.parse(res.stdout) as unknown).not.toThrow()
+      expect(bannerLines(res.stderr)).toEqual([])
+    })
+
+    test('defaultStore (M13) prints the banner with its store', async () => {
+      const m13 = await makeSandbox()
+      await setDefaultStore(m13, 'beta')
+      const res = await cospec(['list'], { cwd: bare(m13), env: m13.env })
+      expect(res.exitCode).toBe(0)
+      expect(bannerLines(res.stderr)).toEqual([
+        `${BANNER_PREFIX}beta (${canonical(storePath(m13, 'beta'))})`,
+      ])
+    })
   })
 })
