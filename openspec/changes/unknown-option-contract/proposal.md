@@ -160,6 +160,26 @@ bare `help` after a forwarded command answers as upstream does:
 instead of printing help; `cospec config help` and `cospec schema help` still
 print help, as `cospec <command> help` does on every table-parsed command.
 
+A token right after an option that takes a value is that option's value whatever
+it looks like, as upstream's commander reads it: `cospec status --change --help`
+now looks up a change named `--help` (exit 1) instead of printing help,
+`cospec templates --schema --json` asks OpenSpec for a schema named `--json`
+instead of switching to JSON output, and `cospec show c1 --type --store st` no
+longer selects the store `st` — likewise for every value-taking option
+(`init --tools`, `feedback --body`, `schema init --description`,
+`store setup --path`, `show -r`, …). `--no-color` is never such a value, because
+upstream takes it out before the command reads its options:
+`cospec list --store --no-color` fails with
+`option '--store <id>' argument missing`. A value-taking option left without a
+value on a forwarded command is now refused by OpenSpec
+(`cospec store setup s1 --path` fails with
+`option '--path <path>' argument missing`, exit 1, and writes nothing) instead
+of taking the `--json` cospec adds as its value and setting a store up at
+`./--json`. `cospec store setup s1 --path --no-cospec-init` now sets the store
+up at `./--no-cospec-init`, as `openspec store setup` does, instead of opting
+out of cospec init, and `cospec feedback --upstream -- --x` files `--x` as the
+message instead of failing with `unknown option '--x'`.
+
 ## Capabilities
 
 ### New Capabilities

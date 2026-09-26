@@ -361,4 +361,7 @@ red; 4–7 turn it green; 8 documents it.
       priority flag; precedence-matrix rows for every declared value-taking flag
       and the program-level tokens, unit rows, the `runCommand` docstring, a
       spec requirement with scenarios, design decision 12,
-      `docs/architecture.md` and `reference/commands.md` (ledger 1.28)
+      `docs/architecture.md`, `reference/commands.md` and the BREAKING paragraph
+      (proposal and the PR-body copy in
+      `.claude/handoff/reports/unknown-option-contract-breaking.md`) (ledger
+      1.28)
