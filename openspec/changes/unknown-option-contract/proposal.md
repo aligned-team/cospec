@@ -194,6 +194,26 @@ Today `--store` is silently dropped there: `cospec init --store nosuch`
 scaffolds the current directory and `cospec update --store foo` regenerates it.
 To scaffold a store's root, run `cospec init <store-path>`.
 
+Forwarded commands leave more of the answer to OpenSpec. An option where a
+subcommand belongs (`cospec config --bogus path`, `cospec schema --bogus`,
+`cospec workset --bogus`) now fails with OpenSpec's `unknown option`, or the
+`--store-path` redirect, instead of `unknown subcommand`, exit 1 either way. A
+help flag after `--store-path` on a command OpenSpec does not declare it on
+(`config`, `schema`, `workset`, `store`, `templates`) now prints cospec's help
+instead of being taken as its value. `cospec show --bogus` now answers
+OpenSpec's `Unknown item '--bogus'.` and `cospec show --type` its
+`option '--type <type>' argument missing` instead of cospec's item-name error,
+and `cospec config --scope` refuses with
+`option '--scope <scope>' argument missing` instead of
+`--scope requires a value`. `cospec status --json` now answers an unknown change
+or a missing `--change` with one JSON document on stdout
+(`{"status": [{"severity": "error", "code": "change_error", …}]}`, exit 1)
+instead of prose on stderr, and no active changes with a `{"changes": [], …}`
+document instead of text. `cospec new <type>` in a repo without cospec's schemas
+now fails with `schema '<type>' is not installed in this repo`, and
+`cospec apply <slug>` prints `cospec apply "<slug>" --json` in its gate prose
+instead of `"<change>"`.
+
 ## Capabilities
 
 ### New Capabilities

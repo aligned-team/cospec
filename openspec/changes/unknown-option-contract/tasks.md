@@ -366,3 +366,55 @@ red; 4–7 turn it green; 8 documents it.
       (proposal and the PR-body copy in
       `.claude/handoff/reports/unknown-option-contract-breaking.md`) (ledger
       1.28)
+- [x] 10.29 Each `table` row declares `store: 'accepted' | 'refused'`; the rows
+      whose module never resolves a root (`init`, `update`, `completion`,
+      `feedback`, `check-commit`) keep a post-command `--store` in the argv for
+      the table parser to refuse as an unknown option (never suggesting
+      `--store` itself), refuse a program-level `--store` with the row's other
+      parse refusals, and omit `--store` from their `--help` (`rowGlobalFlags`);
+      a unit test derives the marking from each module's source; `new`'s store
+      hint names `cospec init <store-path>`; matrix rows, design decision 10, a
+      spec scenario, `reference/commands.md` and the BREAKING paragraph (ledger
+      1.29)
+- [x] 10.30 `parse: 'forward'` is the marker the reachability test reads: a
+      forward row's flags and positionals resolve by delegation to the binary, a
+      separate check keeps their declarations complete at the pin and bars a
+      pending surface on a forward row, and a negative case covers an undeclared
+      forward flag; the differential asserts `show --bogus` and
+      `show foo --bogus` relay the binary's streams exactly and that every
+      forward row has a row; T1 wording (proposal, design decision 1, task 1.2)
+      reads "anything not in the table fails, except on forward commands, where
+      the binary decides"; `docs/architecture.md` (ledger 1.30)
+- [x] 10.31 A forward wrapper's pre-spawn guard answers only what the binary
+      would not: `config`'s lifted `--scope` with no value refuses in the
+      decision-3 missing-value form; `show`'s item guard steps aside for an
+      undeclared option (the binary's item), a dangling declared value flag or
+      `--store-path` (`binaryAnswers`); matrix rows, a unit test, a spec
+      scenario (ledger 1.31)
+- [x] 10.32 An option where a forward row's subcommand belongs is relayed to the
+      binary at the command's level (`relayCommandLevel` in
+      `core/forward-relay.ts`, used by `config`, `schema` and `workset`), never
+      refused as an unknown subcommand; `--store-path` takes the next token only
+      on `table` rows and on forward rows whose upstream command declares it
+      (`declaresStorePath`: `show`, `schemas`), so a help flag after it is
+      cospec's help elsewhere; an option-like operand after a leading `--` keeps
+      its `--` (`subcommandOf`), and `config` stops lifting `--scope` past a
+      `--`; the matrix fails any relayed `Usage: openspec` help screen; matrix
+      rows, unit rows, design decision 2, a spec scenario,
+      `docs/architecture.md` (ledger 1.32)
+- [x] 10.33 Issue #48: `cospec apply <slug>` names the slug in the canon gate
+      prose (`relayApplyInstructions` fills `cospec apply "<change>"` with the
+      resolved change id, in the JSON and the human transcript); the canon text
+      keeps its placeholder; `mise run generate` no drift; unit and integration
+      tests; own `fix(canon)` commit (ledger 1.33)
+- [x] 10.34 `status --json` answers every path with one document: an unknown
+      change and a missing `--change` with several active changes emit
+      upstream's `{status: [{severity, code: 'change_error', message}]}`, exit
+      1; no active changes emits `{changes: [], root, message}`, exit 0; matrix
+      rows (the `status --change -- --json` row restored), a unit test,
+      `reference/commands.md` (ledger 1.34)
+- [x] 10.35 `new <type>` refuses a cospec type the repo has no schema for
+      (`cospec new: schema '<type>' is not installed in this repo — run     'cospec init' first`),
+      before the wrapped `new change` would fail on `Schema '<type>' not found`
+      and cospec reported a wrapped-call failure; a matrix row, a unit test
+      (ledger 1.35)
