@@ -930,6 +930,11 @@ export type ParseRefusal =
       readonly suggestion?: string
       readonly message: string
     }
+  /**
+   * With `flag` `--store-path`, `message` is the redirect's text form: answer
+   * it as a `store-path` refusal (a document under `--json`), ranked as a
+   * missing value.
+   */
   | {
       readonly kind: 'missing-value'
       readonly command: string
@@ -1058,9 +1063,12 @@ function parseSurface(command: string, surface: SurfaceSpec, args: readonly stri
   const positionals: string[] = []
   const flags: Record<string, string | true> = {}
   const storePath: ParseRefusal = { kind: 'store-path', command, message: STORE_PATH_TEXT }
-  // Upstream declares `--store-path <path>` and refuses it in the action, so
-  // every parse refusal after it answers first; only a missing value is raised
-  // while parsing.
+  // Commander's order: a missing value is raised the moment the scan meets it,
+  // while an unknown option is collected and reported only after the scan,
+  // and upstream declares `--store-path <path>` but refuses it in the action.
+  // So the scan records the first unknown option or pending flag and keeps
+  // going; only a missing value returns early.
+  let recorded: ParseRefusal | undefined
   let sawStorePath = false
 
   for (let i = 0; i < args.length; i++) {
@@ -1074,7 +1082,17 @@ function parseSurface(command: string, surface: SurfaceSpec, args: readonly stri
       continue
     }
     if (isStorePathToken(tok)) {
-      if (tok === '--store-path' && ++i >= args.length) return { ok: false, refusal: storePath }
+      if (tok === '--store-path' && ++i >= args.length) {
+        return {
+          ok: false,
+          refusal: {
+            kind: 'missing-value',
+            command,
+            flag: '--store-path',
+            message: STORE_PATH_TEXT,
+          },
+        }
+      }
       sawStorePath = true
       continue
     }
@@ -1086,10 +1104,8 @@ function parseSurface(command: string, surface: SurfaceSpec, args: readonly stri
     // `--bool=x` is unknown as a whole token, as commander reports it.
     if (flag === undefined || (inline !== undefined && flag.takesValue !== true)) {
       const dashes = tok.startsWith('--') ? 'long' : 'short'
-      return {
-        ok: false,
-        refusal: unknownOption(command, tok, suggestionCandidates(surface, dashes)),
-      }
+      recorded ??= unknownOption(command, tok, suggestionCandidates(surface, dashes))
+      continue
     }
 
     let value: string | true = true
@@ -1110,11 +1126,13 @@ function parseSurface(command: string, surface: SurfaceSpec, args: readonly stri
       }
     }
     if (isPending(flag.status)) {
-      return { ok: false, refusal: pendingRefusal(command, flag.name, flag.status.pending) }
+      recorded ??= pendingRefusal(command, flag.name, flag.status.pending)
+      continue
     }
     flags[flag.name] = value
   }
 
+  if (recorded !== undefined) return { ok: false, refusal: recorded }
   for (const [index, value] of positionals.entries()) {
     const slot = surface.positionals[index]
     if (slot === undefined) {
@@ -1146,11 +1164,14 @@ function parseSurface(command: string, surface: SurfaceSpec, args: readonly stri
 
 /**
  * Parse a `table` row's argv (global flags already stripped by `cli.ts`).
- * Returns the positionals and flag values, or the first refusal in argv order:
- * an undeclared option, a value-taking flag with no value (`--store-path`'s
- * included), a pending surface (its value consumed first, so it can never leak
- * into a positional); then too many positionals; and only then `--store-path`,
- * whose value is consumed like any other. Every refusal exits 1.
+ * Returns the positionals and flag values, or the refusal commander would
+ * reach first: a value-taking flag with no value, anywhere in the argv
+ * (`--store-path`'s included, as a `missing-value` whose message is the
+ * redirect); then the first undeclared option or pending flag in argv order
+ * (a pending flag's value consumed first, so it can never leak into a
+ * positional); then too many positionals or a pending positional; and only
+ * then `--store-path`, whose value is consumed like any other. Every refusal
+ * exits 1.
  */
 export function parseCommandArgs(row: TableCommandRow, args: readonly string[]): ParseResult {
   const first = args[0]

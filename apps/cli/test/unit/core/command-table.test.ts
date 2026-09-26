@@ -183,9 +183,39 @@ describe('parseCommandArgs — refusals', () => {
     expect(refused('validate', ['--store-path', '/x', 'a']).kind).toBe('store-path')
   })
 
-  test('--store-path with no value is refused while parsing, ahead of later refusals', () => {
-    expect(refused('list', ['--store-path']).kind).toBe('store-path')
-    expect(refused('list', ['extra', '--store-path']).kind).toBe('store-path')
+  test('--store-path with no value is a missing value, raised ahead of every other refusal', () => {
+    for (const args of [
+      ['--store-path'],
+      ['extra', '--store-path'],
+      ['--bogus', '--store-path'],
+      ['--sort', 'x', '--store-path'],
+    ]) {
+      expect(refused('list', args), args.join(' ')).toMatchObject({
+        kind: 'missing-value',
+        flag: '--store-path',
+        message: storePathRefusal(false).text,
+      })
+    }
+  })
+
+  test('a later missing value outranks an earlier unknown option or pending flag', () => {
+    expect(refused('status', ['--bogus', '--change'])).toMatchObject({
+      kind: 'missing-value',
+      flag: '--change',
+    })
+    expect(refused('list', ['--sort', 'x', '--bogus'])).toMatchObject({
+      kind: 'pending',
+      surface: '--sort',
+    })
+    expect(refused('list', ['--bogus', '--sort', 'x'])).toMatchObject({
+      kind: 'unknown-option',
+      option: '--bogus',
+    })
+  })
+
+  test('the recorded refusal outranks too many arguments', () => {
+    expect(refused('list', ['a', '--bogus']).kind).toBe('unknown-option')
+    expect(refused('list', ['a', '--sort', 'x']).kind).toBe('pending')
   })
 })
 

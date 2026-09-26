@@ -421,11 +421,13 @@ function resolveProgram(argv: readonly string[], state: GlobalState): number | C
  * to a `--`; a table row parses the rest, a forward row hands it to its
  * wrapper untouched, `--store-path` included (the binary is its authority
  * there; the wrapper only respells the binary's refusal). Outcomes follow
- * commander's per-level order: a missing value (the global's or the row's own)
- * is raised while the argv parses, then help, then the row's other parse
- * refusals (`view --json`'s refusal document, an unknown option, a pending
- * surface, too many arguments, `--store-path`), then an empty `--cwd`/`--store`
- * value, then the command runs.
+ * commander's per-level order: a missing value (the global's or the row's
+ * own, anywhere in the argv — a trailing `--store-path` answers its redirect
+ * here) is raised while the argv parses, then help, then the row's other
+ * parse refusals (`view --json`'s refusal document, then the first unknown
+ * option or pending flag in argv order, then too many arguments or a pending
+ * positional, then `--store-path`), then an empty `--cwd`/`--store` value,
+ * then the command runs.
  */
 async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState): Promise<number> {
   const rest: string[] = []
@@ -466,6 +468,7 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
 
   const result = row.parse === 'table' ? parseCommandArgs(row, rest) : undefined
   if (result?.ok === false && result.refusal.kind === 'missing-value') {
+    if (result.refusal.flag === '--store-path') return storePathAnswer(state.json)
     process.stderr.write(result.refusal.message)
     return EXIT.failure
   }

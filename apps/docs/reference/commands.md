@@ -54,9 +54,11 @@ cospec answers in two phases:
    unknown command answers as one, unless a help flag follows it
    (`cospec bogus --help` prints the command list).
 3. Only then does the command read its own argv, in OpenSpec's per-command
-   order: a missing value (`cospec status --help --change` refuses the missing
-   `--change`), then `--help`, then the command's other refusals (unknown
-   option, too many arguments, then `--store-path`:
+   order: a missing value anywhere in it (`cospec status --help --change` and
+   `cospec status --bogus --change` both refuse the missing `--change`, and a
+   trailing `--store-path` answers its redirect), then `--help`, then the
+   command's other refusals (the first unknown or not-yet-supported option, then
+   too many arguments, then `--store-path`:
    `cospec list --store-path /x --bogus` refuses `--bogus`), then an empty
    `--cwd`/`--store` (`cospec list --store= --help` prints help), then the
    command runs.

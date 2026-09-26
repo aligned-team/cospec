@@ -126,10 +126,14 @@ refusal (`--store-path`'s redirect); with no command name, an empty
 answer with the program's help when a help flag follows it before a `--`, and
 otherwise as an unknown command. Only a known command SHALL reach phase B, where
 the command's own argv SHALL resolve in commander's per-level order: a missing
-value (a global's or the row's own), then help, then the row's other parse
-refusals, then an empty `--cwd`/`--store` value, then the command runs. A
-`forward` row SHALL receive its argv unchanged apart from the threaded global
-flags.
+value (a global's or the row's own, anywhere in the argv — a trailing
+`--store-path` answers its redirect here), then help, then the row's other parse
+refusals — the first undeclared option or pending flag in argv order, then too
+many arguments, then `--store-path` — then an empty `--cwd`/`--store` value,
+then the command runs. A missing value SHALL outrank an undeclared option or
+pending flag earlier in the argv, because commander raises it during its scan
+and reports an unknown option only after it. A `forward` row SHALL receive its
+argv unchanged apart from the threaded global flags.
 
 #### Scenario: Help before the command name wins over the command's argv
 
@@ -148,6 +152,14 @@ flags.
 - **WHEN** `cospec status --help --change` runs
 - **THEN** stderr is `cospec status: option '--change <slug>' argument missing`
   and the exit code is 1, as `openspec status --help --change` refuses
+
+#### Scenario: A trailing missing value outranks an earlier unknown option
+
+- **WHEN** `cospec status --help --bogus --change`,
+  `cospec list --bogus --store-path` or `cospec list --sort x --store-path` runs
+- **THEN** the answer is the missing value (`--change`'s refusal, or the
+  `--store-path` redirect), not help, the unknown option or the pending flag,
+  and the exit code is 1, as the pinned binary refuses the missing value
 
 #### Scenario: A precedence matrix pins both phases against the binary
 

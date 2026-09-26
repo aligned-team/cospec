@@ -166,9 +166,12 @@ red; 4–7 turn it green; 8 documents it.
 - [x] 9.1 `mise run check` green (ledger 7.1–7.5); every ledger row marked with
       observed evidence
 - [x] 9.2 Grep the new test files (`command-table.test.ts`,
-      `reachability.test.ts`, `unknown-option-differential.test.ts`, and any
+      `reachability.test.ts`, `unknown-option-differential.test.ts`,
+      `precedence-matrix.test.ts`, `forward-relay.test.ts`, and any
       `cli.test.ts`/`completions.test.ts` additions) for `test.todo`/`it.todo`
-      and confirm zero remain (ledger 7.6)
+      and `test.failing`, confirm none remain but the dormant `KNOWN_FAILING`
+      branch, and confirm the precedence matrix's `KNOWN_FAILING` set is empty
+      (ledger 7.6)
 - [ ] 9.3 `mise run cospec -- archive unknown-option-contract` as the last
       commit on the branch
 
@@ -293,3 +296,14 @@ red; 4–7 turn it green; 8 documents it.
       position statically and never spawn; precedence-matrix rows, unit rows,
       design decision 2, the spec requirement, `docs/architecture.md` and
       `reference/commands.md` (ledger 1.22)
+- [x] 10.22 Rank the table parser's refusals as commander's scan does:
+      `parseSurface` records the first unknown option or pending flag and keeps
+      scanning, so a trailing value-taking flag (`--store-path` included,
+      answered with its redirect ahead of help) is refused first, then the
+      recorded refusal, then too many arguments, then `--store-path`; unit and
+      precedence-matrix rows (`status --help --bogus --change`,
+      `list --bogus --store-path`, `list --help --bogus --store-path`,
+      `list --sort x --store-path`); the `runCommand` docstring, design decision
+      12, the spec requirement and `reference/commands.md` (ledger 1.23)
+- [x] 10.23 Extend the close-out grep (ledger 7.6, task 9.2) to `test.failing`
+      and a non-empty `KNOWN_FAILING`; the set ends empty

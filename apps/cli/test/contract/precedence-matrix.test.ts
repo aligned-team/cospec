@@ -425,12 +425,7 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * pre-decided `--store-path`, and the table parser stopping at the first
  * unknown option or pending flag). The fixes empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  'list --bogus --store-path',
-  'list --help --bogus --store-path',
-  'list --sort x --store-path',
-  'status --help --bogus --change',
-])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
 
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot()

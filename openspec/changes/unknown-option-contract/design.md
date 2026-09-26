@@ -270,7 +270,14 @@ runtime by `dist/commands/spec.js:127`.
     after it prints the program's help. Phase B is the row's own parse in
     commander's per-level order — missing value, help, the row's other parse
     refusals, empty value, run — and a `forward` row's argv reaches the binary
-    unchanged but for the threaded globals. After a leading `--` the first
+    unchanged but for the threaded globals. Within a `table` row's parse the
+    order is commander's scan: it raises a missing value the moment it meets it
+    but collects an unknown option and reports it after the scan, so the parser
+    records the first unknown option or pending flag and keeps scanning; a
+    trailing value-taking flag (`--store-path` included, answered with its
+    redirect) returns first, then the recorded refusal, then too many arguments,
+    then `--store-path` (`cospec status --help --bogus --change` refuses the
+    missing `--change`, as upstream does). After a leading `--` the first
     operand is dispatched as the subcommand (commander's implicit `help`
     included, on rows that have it: the new `helpSubcommand: false` marks
     `store` and `workset`, whose upstream refuses `help`), replacing the old
@@ -279,8 +286,9 @@ runtime by `dist/commands/spec.js:127`.
     runs `config path`, `config --` is a bare `config`), and a bare `help` is
     the help token when it is the first token to reach the row's argv, after any
     absorbed global flag (`config --no-color help`), not only at the first argv
-    position. No cross-phase priority flag is added for either: both are phase
-    B's own reading of the row's argv. A precedence matrix
+    position. No cross-phase priority flag is added for any of these (the
+    routing, the help token, the scan order): each is phase B's own reading of
+    the row's argv. A precedence matrix
     (`apps/cli/test/contract/precedence-matrix.test.ts`) runs every row against
     the binary under Node, which keeps a leading `--` intact, and compares a
     finer outcome than decision 7's split (version, whose help, unknown command,

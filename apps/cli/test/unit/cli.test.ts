@@ -269,7 +269,13 @@ describe('cli dispatcher: --store-path is refused in every position', () => {
     ['--store-path=/x', 'list'],
     ['list', '--store-path', '/x'],
     ['list', '--store-path=/x'],
-    // A forward row asks the binary (contract-tested in the differential).
+    // A trailing one is a missing value: it answers ahead of an earlier
+    // unknown option, a pending flag and help.
+    ['list', '--store-path'],
+    ['list', '--bogus', '--store-path'],
+    ['list', '--help', '--bogus', '--store-path'],
+    ['list', '--sort', 'x', '--store-path'],
+    // A forward row's binary refuses it itself (contract-tested in the matrix).
   ]) {
     test(argv.join(' '), async () => {
       const r = await dispatch(argv)
@@ -285,6 +291,7 @@ describe('cli dispatcher: --store-path is refused in every position', () => {
     for (const argv of [
       ['list', '--json', '--store-path', '/x'],
       ['--store-path', '/x', 'list', '--json'],
+      ['list', '--json', '--bogus', '--store-path'],
     ]) {
       const r = await dispatch(argv)
       expect(r.code).toBe(1)
