@@ -821,6 +821,18 @@ const UNDECLARED_STORE_PATH_ROWS: readonly Row[] = [
   { argv: ['workset', 'list', '--json', '--store-path'], command: 'workset' },
   { argv: ['templates', '--json', '--store-path', 'x'], command: 'templates' },
   { argv: ['config', 'list', '--json', '--store-path', 'x'], command: 'config' },
+  // A terminal-handover leaf answers without spawning, the same way.
+  {
+    argv: ['config', 'edit', '--store-path', '/x', '--json'],
+    command: 'config',
+    cospecStderr: REDIRECT,
+    check: nothingEdited,
+  },
+  {
+    argv: ['workset', 'open', 'w1', '--store-path', '--json'],
+    command: 'workset',
+    cospecStderr: REDIRECT,
+  },
   // A cospec-only command has no upstream declaration either.
   {
     argv: ['apply', '--store-path', '--help'],
@@ -1051,15 +1063,17 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * `show`'s unknown option for the binary; `--store-path` taking a help flag
  * as its value where upstream does not declare it; prose where a `--json`
  * caller is owed a document; a missing schema reported as a wrapped-call
- * failure). The round-7 rows exposed 35 more (a `--store-path` that took a
- * value, or answered with a document, on a row whose upstream command never
- * declares it; `new` checking the wrong user-level schema directory; `status`
+ * failure). The round-7 rows exposed 37 more (a `--store-path` that took a
+ * value, or answered with a document, a terminal-handover leaf's included, on
+ * a row whose upstream command never declares it; `new` checking the wrong user-level schema directory; `status`
  * dropping its positional beside `--change` or `--all`; commander's `missing
  * required argument` unrecognised, so a forward call reported it as a
  * wrapped-call failure and `feedback` worded it its own way; short-option
  * clusters never split). The fixes empty this set.
  */
 const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
+  'config edit --store-path /x --json',
+  'workset open w1 --store-path --json',
   'feedback --body --help',
   'new feat u1',
   'new feat c1',
