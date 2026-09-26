@@ -11,11 +11,37 @@
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
+import { commandRow, isStorePathToken } from '../core/command-table.ts'
 import { runPassthrough } from '../core/passthrough-command.ts'
 
+/**
+ * Whether the binary has something to answer besides its "Nothing to show"
+ * screen (which names bare `openspec` commands): an item, which with
+ * `allowUnknownOption(true)` includes any option `show` does not declare
+ * (`show --bogus` looks up an item called `--bogus`); a declared value-taking
+ * flag left without its value, commander's missing value; or `--store-path`,
+ * whose refusal the relay answers with cospec's redirect.
+ */
+export function binaryAnswers(args: readonly string[]): boolean {
+  const flags = commandRow('show')?.flags ?? []
+  for (let i = 0; i < args.length; i++) {
+    const tok = args[i]!
+    if (tok === '--') return i + 1 < args.length
+    if (!tok.startsWith('-') || tok === '-' || isStorePathToken(tok)) return true
+    const flag = flags.find((f) => f.name === tok || f.short === tok)
+    if (flag === undefined) {
+      const eq = tok.indexOf('=')
+      const inline = eq > 0 ? flags.find((f) => f.name === tok.slice(0, eq)) : undefined
+      if (inline?.takesValue !== true) return true
+      continue
+    }
+    if (flag.takesValue === true && ++i >= args.length) return true
+  }
+  return false
+}
+
 export async function run(ctx: CommandContext): Promise<number> {
-  const name = ctx.args.find((a) => !a.startsWith('-'))
-  if (name === undefined) {
+  if (!binaryAnswers(ctx.args)) {
     process.stderr.write('cospec show: an item name is required (cospec show <change-or-spec>)\n')
     return EXIT.failure
   }

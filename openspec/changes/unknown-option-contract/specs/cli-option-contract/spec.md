@@ -388,7 +388,13 @@ for the surfaces it owns. Every flag cospec threads onto a wrapped call
 path, ahead of the user's tokens, so it never becomes the value of a
 value-taking flag the user left without one; and cospec's runtime output SHALL
 name a wrapped call as the wrapped OpenSpec call, never as a bare `openspec`
-command.
+command. A pre-spawn guard SHALL answer only an argv the binary would not answer
+itself: a declared value-taking flag left without its value SHALL reach the
+binary as commander's missing value (or, for a flag the wrapper lifts itself,
+`config --scope`, SHALL be refused in the same
+`cospec <command>: option '<flag> <placeholder>' argument missing` form), and
+`show`'s item check SHALL treat an option `show` does not declare as the item,
+as the binary does.
 
 #### Scenario: A dangling value-taking flag is never given a threaded flag
 
@@ -405,6 +411,16 @@ command.
 - **WHEN** `cospec templates --bogus` runs
 - **THEN** the wrapped binary's `error: unknown option '--bogus'` is relayed on
   stderr and the exit code is 1
+
+#### Scenario: A dangling value flag on a forwarded command is a missing value
+
+- **WHEN** `cospec show --type`, `cospec show -r` or `cospec config --scope`
+  runs
+- **THEN** stderr is the missing-value refusal
+  (`error: option '--type <type>' argument missing`, or
+  `cospec config: option '--scope <scope>' argument missing`) and the exit code
+  is 1, as `openspec` refuses the same argv — never cospec's item-name or
+  `requires a value` message
 
 #### Scenario: Upstream's tolerance is preserved on a forwarded command
 

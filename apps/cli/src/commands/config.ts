@@ -115,7 +115,10 @@ export function planConfigCall(args: string[], opts: { json: boolean }): ConfigP
     if (tok === '--scope') {
       const value = args[++i]
       if (value === undefined)
-        return { kind: 'error', message: 'cospec config: --scope requires a value' }
+        return {
+          kind: 'error',
+          message: "cospec config: option '--scope <scope>' argument missing",
+        }
       scope = value
       continue
     }

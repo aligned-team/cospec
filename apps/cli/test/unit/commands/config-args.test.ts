@@ -48,7 +48,8 @@ describe('planConfigCall — --scope hoisting', () => {
   test('--scope with no value is a cospec-side error, not a wrapped spawn', () => {
     const plan = planConfigCall(['list', '--scope'], { json: false })
     expect(plan.kind).toBe('error')
-    if (plan.kind === 'error') expect(plan.message).toContain('--scope requires a value')
+    if (plan.kind === 'error')
+      expect(plan.message).toBe("cospec config: option '--scope <scope>' argument missing")
   })
 
   test('no --scope at all: subcommand stays first after "config"', () => {
