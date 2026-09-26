@@ -61,6 +61,17 @@ describe('new: validation before delegation', () => {
     expect(r.err).not.toContain('exited')
   })
 
+  test('a cospec type with no installed schema exits 1 naming the setup, not the wrapped call', async () => {
+    const cwd = repo()
+    rmSync(join(cwd, 'openspec', 'schemas', 'feat'), { recursive: true })
+    const r = await runCmd(newRun, ctx(cwd, ['feat', 'foo'], { command: 'new' }))
+    expect(r.code).toBe(1)
+    expect(r.err).toBe(
+      "cospec new: schema 'feat' is not installed in this repo — run 'cospec init' first\n",
+    )
+    expect(r.err).not.toContain('wrapped')
+  })
+
   test('unknown type exits 1 with a suggestion and the table', async () => {
     const cwd = repo()
     const r = await runCmd(newRun, ctx(cwd, ['feaf', 'x'], { command: 'new' }))

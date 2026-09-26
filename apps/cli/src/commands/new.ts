@@ -7,6 +7,7 @@
 // (openspec marks artifacts done on file existence).
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
@@ -71,6 +72,17 @@ function reportUnknownType(type: string): number {
   return EXIT.failure
 }
 
+/**
+ * Whether the wrapped binary can resolve cospec type `type` from `base`: a
+ * project schema, or a user-level one where OpenSpec also looks.
+ */
+function cospecSchemaInstalled(base: string, type: string): boolean {
+  return [
+    join(openspecDir(base), 'schemas', type, 'schema.yaml'),
+    join(homedir(), '.config', 'openspec', 'schemas', type, 'schema.yaml'),
+  ].some((path) => existsSync(path))
+}
+
 export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
   const root = await resolveRoot(ctx)
@@ -130,6 +142,17 @@ export async function run(ctx: CommandContext): Promise<number> {
   // Only a name that resolves nowhere keeps today's unknown-type error.
   const legacy = !isCospecType(type) && resolveSchema(base, type).kind === 'legacy'
   if (!isCospecType(type) && !legacy) return reportUnknownType(type)
+  // A cospec type the repo has no schema for (an OpenSpec repo cospec has not
+  // adopted yet) is the user's setup to fix, not a wrapped-call failure: the
+  // wrapped `new change` would refuse it as `Schema '<type>' not found`.
+  if (isCospecType(type) && !cospecSchemaInstalled(base, type)) {
+    process.stderr.write(
+      root.store !== undefined
+        ? `cospec new: schema '${type}' is not installed in store '${root.store}' — run 'cospec init ${root.base}' first\n`
+        : `cospec new: schema '${type}' is not installed in this repo — run 'cospec init' first\n`,
+    )
+    return EXIT.failure
+  }
 
   if (!SLUG_RE.test(slug)) {
     process.stderr.write(`cospec new: invalid slug '${slug}' — must match ${SLUG_RE.source}\n`)

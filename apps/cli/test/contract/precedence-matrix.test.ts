@@ -528,13 +528,13 @@ const VALUE_POSITION_ROWS: readonly Row[] = [
     cospecStderr: "cospec instructions: '--schema' is not supported yet\n",
   },
   // cospec-only flags take their value the same way.
-  // The fixture holds no cospec schemas, so the wrapped `new change` refuses
-  // `--schema feat`; the row pins that `--help` reached it as the value.
+  // The fixture holds no cospec schemas, so `new` refuses the missing
+  // schema; the row pins that `--help` was the value, never help.
   {
     argv: ['new', 'feat', 'x', '--description', '--help'],
     command: 'new',
     cospecOnly: { outcome: 'parsed', exit: 1 },
-    cospecStderr: '--description --help`',
+    cospecStderr: "cospec new: schema 'feat' is not installed in this repo",
   },
   {
     argv: ['init', '--harness', '--help'],
@@ -904,7 +904,7 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * caller is owed a document; a missing schema reported as a wrapped-call
  * failure). The fixes empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>(['new feat x'])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
 
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot(row.store)
