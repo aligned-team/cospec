@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import {
@@ -471,9 +472,26 @@ describe('fixture rows — per-row command layout', () => {
 describe('fixture rows — invocation prefix', () => {
   const real = render(['opencode'])
 
-  test('a flat row with `/` is byte-identical to the real OpenCode render', () => {
-    const files = renderRow({ ...adapterFor('opencode'), invocationPrefix: '/' })
-    expect(files.map((f) => [f.path, f.content])).toEqual(real.map((f) => [f.path, f.content]))
+  // Relocated off `.opencode` so the fixture is a genuinely different row from the real one,
+  // and compared against the committed pre-change OpenCode golden rather than a live render —
+  // a regression in the flat `/` respelling would move both sides of a live-vs-live check.
+  test('a flat row with `/` is byte-identical to the committed OpenCode golden', () => {
+    const goldenRoot = join(import.meta.dir, '../__golden__/harness-render/opencode')
+    const row: HarnessAdapter = {
+      ...adapterFor('opencode'),
+      skillsDir: '.x',
+      commands: { ...adapterFor('opencode').commands!, dir: '.x/commands' },
+      invocationPrefix: '/',
+    }
+    const files = renderRow(row)
+    expect(files).toHaveLength(24)
+    for (const f of files) {
+      expect(f.path.startsWith('.x/')).toBe(true)
+      expect(f.body).not.toContain('/cospec:')
+      const golden = readFileSync(join(goldenRoot, `.opencode/${f.path.slice('.x/'.length)}`))
+      expect(Buffer.from(f.content, 'utf8').equals(golden)).toBe(true)
+    }
+    expect(files.some((f) => f.body.includes('/cospec-'))).toBe(true)
   })
 
   test('a flat row with `@` respells /cospec:<id> as @cospec-<id>', () => {

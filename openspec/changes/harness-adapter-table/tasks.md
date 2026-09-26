@@ -132,13 +132,13 @@ Exclusive files: `apps/cli/src/harness/render.ts`,
       a description with `"`/newline (2.4; a replace-order mutation fails 3 of
       these); split `.cline`/`.clinerules/workflows` root,
       `.prompt`/`.prompt.md`/`.toml` filenames, namespaced vs flat (2.5); `@`
-      respelling and `/` byte-identical to the real OpenCode render (2.6);
-      `globalSkillsDir` row home-scoped, the four real rows all project-scoped
-      (2.7). The `generate()` home-scope refusal is 5.4's (T3), not done here.
-      Goldens: `git diff --exit-code a2fdaef` over both `__golden__/` dirs exit
-      0 (1.1); `__snapshots__/` no diff from main; generate:check no drift;
-      `mise run test` 1043 pass, test:integration 180, test:contract 120,
-      test:pack 2; typecheck, lint, format:check green
+      respelling and a relocated `/` row byte-identical to the committed
+      OpenCode golden (2.6); `globalSkillsDir` row home-scoped, the four real
+      rows all project-scoped (2.7). The `generate()` home-scope refusal is
+      5.4's (T3), not done here. Goldens: `git diff --exit-code a2fdaef` over
+      both `__golden__/` dirs exit 0 (1.1); `__snapshots__/` no diff from main;
+      generate:check no drift; `mise run test` 1043 pass, test:integration 180,
+      test:contract 120, test:pack 2; typecheck, lint, format:check green
 
 ## 4. Track T4 (after): render equivalence checkpoint
 
