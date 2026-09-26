@@ -110,6 +110,31 @@ version on stdout and exit 0, ahead of `--help`, an unknown option, a
 - **WHEN** `cospec list --bogus --version` runs
 - **THEN** stdout is cospec's version and the exit code is 0
 
+### Requirement: An undeclared option before the command name is refused
+
+cospec SHALL refuse any option before the command name that is not one of its
+global flags (`--json`, `--no-color`, `-h`/`--help`, `-V`/`--version`, `--cwd`,
+`--store`) or `--store-path`, on every command (`table` and `forward` alike) and
+when the command is unknown or absent, with `cospec: unknown option '<x>'` on
+stderr, a closest-match suggestion among the global flags on the next line when
+one is within edit distance, and exit 1, before the command does any work, as
+the pinned binary's program-level commander refuses it. The refusal SHALL come
+after a version request, a missing or empty global value and `--help`, and ahead
+of a `--store-path` refusal and the command itself. `--store-path` before the
+command name with no undeclared option SHALL keep its redirect.
+
+#### Scenario: An unknown option before the command does not run it
+
+- **WHEN** `cospec --bogus list` runs in a repo with active changes
+- **THEN** stderr is `cospec: unknown option '--bogus'`, nothing is listed, and
+  the exit code is 1, as `openspec --bogus list` refuses
+
+#### Scenario: A near-miss global flag is suggested
+
+- **WHEN** `cospec --jsn list` runs
+- **THEN** stderr is `cospec: unknown option '--jsn'` followed by
+  `Did you mean '--json'?`, and the exit code is 1
+
 ### Requirement: Global flags stop at a -- terminator
 
 cospec SHALL recognise its global flags (`--json`, `--no-color`, `-h`/`--help`,

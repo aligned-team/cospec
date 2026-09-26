@@ -220,3 +220,10 @@ red; 4–7 turn it green; 8 documents it.
       `status` and `instructions` examples and the global-flag changes of
       10.6/10.7; differential rows for each; spec scenario; the PR-body copy in
       `.claude/handoff/reports/unknown-option-contract-breaking.md` (ledger 1.9)
+- [x] 10.11 Refuse an undeclared option before the command name
+      (`cospec --bogus list`, `--jsn list`, `-x list`) with
+      `cospec: unknown option '<x>'` and a closest-match suggestion among the
+      global flags, exit 1, on every row and ahead of `--store-path` and the
+      command, instead of running the command; unit and differential rows; spec
+      requirement, the BREAKING paragraph and the global-flags note in
+      `reference/commands.md` (ledger 1.13)

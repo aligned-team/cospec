@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
+import pkg from '../../package.json'
 import { run } from '../../src/cli.ts'
 
 /** Run the top-level dispatcher, capturing stdout/stderr and its exit code. */
@@ -241,6 +242,47 @@ describe('cli dispatcher: --store-path is refused in every position', () => {
       })
       expect(r.out).not.toContain('openspec')
     }
+  })
+})
+
+describe('cli dispatcher: an undeclared option before the command is refused', () => {
+  // Each argv would otherwise run `list` without the option; the refusal must
+  // come before any command module loads.
+  for (const [argv, err] of [
+    [['--bogus', 'list'], "cospec: unknown option '--bogus'\n"],
+    [['--jsn', 'list'], "cospec: unknown option '--jsn'\nDid you mean '--json'?\n"],
+    [['--jsn=1', 'list'], "cospec: unknown option '--jsn=1'\nDid you mean '--json'?\n"],
+    [['--verison', 'list'], "cospec: unknown option '--verison'\nDid you mean '--version'?\n"],
+    [['-x', 'list'], "cospec: unknown option '-x'\nDid you mean '-h'?\n"],
+    [['--bogus'], "cospec: unknown option '--bogus'\n"],
+    [['--bogus', 'nosuch'], "cospec: unknown option '--bogus'\n"],
+    [['--bogus', '--store-path', '/x', 'list'], "cospec: unknown option '--bogus'\n"],
+    [['--bogus', 'show', 'x'], "cospec: unknown option '--bogus'\n"],
+  ] as const) {
+    test(`${argv.join(' ')} exits 1 with the refusal`, async () => {
+      const r = await dispatch([...argv])
+      expect(r.code).toBe(1)
+      expect(r.err).toBe(err)
+      expect(r.out).toBe('')
+    })
+  }
+
+  test('a version request, a missing value and help each still win', async () => {
+    const version = await dispatch(['--bogus', '--version', 'list'])
+    expect(version.code).toBe(0)
+    expect(version.out).toBe(`${pkg.version}\n`)
+    const missing = await dispatch(['--bogus', 'list', '--store'])
+    expect(missing.err).toBe("cospec list: option '--store <id>' argument missing\n")
+    const help = await dispatch(['--bogus', '--help', 'list'])
+    expect(help.code).toBe(0)
+    expect(help.out).toContain('Usage: cospec list')
+  })
+
+  test('--store-path alone before the command keeps the redirect', async () => {
+    const r = await dispatch(['--store-path', '/x', 'list'])
+    expect(r.code).toBe(1)
+    expect(r.err).toContain('--store-path is not supported')
+    expect(r.err).not.toContain('unknown option')
   })
 })
 

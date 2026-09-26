@@ -114,8 +114,11 @@ exit 1. Named upstream flags this affects: `init --tools`, `--language`,
 that implements it and fails with `is not supported yet` until then. Any other
 unrecognised option on a table-parsed command (today exit 0 on `list`,
 `context`, `view`, `doctor`, `sync-blockers`, `update`, `init`) now fails with
-`unknown option`. `cospec view --json`, today exit 0 with the dashboard, now
-exits 1 with a one-document JSON refusal, as upstream also rejects it.
+`unknown option`. An unrecognised option before the command name
+(`cospec --bogus list`, today exit 0 listing changes) now fails on every command
+with `cospec: unknown option '--bogus'`, as `openspec --bogus list` does.
+`cospec view --json`, today exit 0 with the dashboard, now exits 1 with a
+one-document JSON refusal, as upstream also rejects it.
 
 Positionals break the same way, on every table-parsed command — every command
 except the forwarded `show`, `templates`, `schemas`, `schema`, `store`,

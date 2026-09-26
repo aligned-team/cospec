@@ -9,6 +9,7 @@ import {
   type FlagSpec,
   flagLabel,
   GLOBAL_FLAGS,
+  globalUnknownOptionRefusal,
   isPending,
   isStorePathToken,
   offeredFlags,
@@ -268,8 +269,9 @@ ${body}${GLOBAL_OPTIONS}
  * Returns the process exit code. A `table` row's argv is parsed against its
  * row before the module loads, so an undeclared, pending or value-less option
  * is refused (exit 1) before any work; a `forward` row's argv reaches its
- * wrapper unchanged. `--store-path` is refused on every command, in either
- * position, with upstream's redirect respelled to cospec.
+ * wrapper unchanged. An undeclared option before the command name is refused
+ * on every row, table and forward alike. `--store-path` is refused on every
+ * command, in either position, with upstream's redirect respelled to cospec.
  */
 export async function run(argv: string[]): Promise<number> {
   const flags: GlobalFlags = { json: false, noColor: false, cwd: process.cwd() }
@@ -388,6 +390,14 @@ export async function run(argv: string[]): Promise<number> {
     return EXIT.failure
   }
 
+  // Upstream's program-level commander refuses an undeclared option before the
+  // command name whatever follows — a command, an unknown command, or
+  // `--store-path` — so it never runs the command without it.
+  if (badOption !== undefined && !wantHelp) {
+    process.stderr.write(globalUnknownOptionRefusal(badOption))
+    return EXIT.failure
+  }
+
   if (storePath && !wantHelp) {
     const refusal = storePathRefusal(flags.json)
     process[refusal.stream].write(refusal.text)
@@ -395,11 +405,6 @@ export async function run(argv: string[]): Promise<number> {
   }
 
   if (command === undefined) {
-    if (badOption !== undefined) {
-      process.stderr.write(`cospec: unknown option '${badOption}'\n`)
-      process.stderr.write(helpText())
-      return EXIT.failure
-    }
     // No command and no version request → help (covers empty argv and --help).
     process.stdout.write(helpText())
     return EXIT.success

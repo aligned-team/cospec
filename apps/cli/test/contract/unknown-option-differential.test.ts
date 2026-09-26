@@ -78,7 +78,7 @@ const REFUSAL_SHAPES: readonly RegExp[] = [
   /^error: option '.+' argument missing$/m,
   /^error: too many arguments/m,
   /^error: unknown command '/m,
-  /^cospec [\w-]+(?: [\w-]+)?: unknown option '/m,
+  /^cospec(?: [\w-]+(?: [\w-]+)?)?: unknown option '/m,
   /^cospec [\w-]+(?: [\w-]+)?: option '.+' argument missing$/m,
   /^cospec [\w-]+(?: [\w-]+)?: too many arguments\./m,
   /--store-path is not supported\./,
@@ -693,6 +693,44 @@ const GLOBAL_VALUE_ROWS: readonly Row[] = [
   },
 ]
 
+/**
+ * An undeclared option before the command name, where only the global flags
+ * are declared: upstream's program-level commander refuses it whatever command
+ * follows, so cospec never runs the command without it (ledger 1.13).
+ */
+const PRE_COMMAND_ROWS: readonly Row[] = [
+  {
+    argv: ['--bogus', 'list'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: "cospec: unknown option '--bogus'\n",
+  },
+  {
+    argv: ['--jsn', 'list'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: `cospec: unknown option '--jsn'\n${suggest('--json')}`,
+  },
+  {
+    argv: ['-x', 'list'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: "cospec: unknown option '-x'\n",
+  },
+  {
+    argv: ['--bogus', '--store-path', '/x', 'list'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: "cospec: unknown option '--bogus'\n",
+  },
+  {
+    argv: ['--bogus', 'show', 'foo'],
+    command: 'show',
+    expect: 'same',
+    cospecStderr: "cospec: unknown option '--bogus'\n",
+  },
+]
+
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot()
   row.setup?.(coRoot)
@@ -757,6 +795,10 @@ describe('unknown-option differential: forward commands relay the binary', () =>
 
 describe('unknown-option differential: no global flag is absorbed after --', () => {
   register(TERMINATOR_ROWS)
+})
+
+describe('unknown-option differential: an undeclared option before the command', () => {
+  register(PRE_COMMAND_ROWS)
 })
 
 describe('unknown-option differential: --store/--cwd refuse a missing or empty value', () => {

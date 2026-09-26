@@ -970,10 +970,32 @@ export function flagValue(parsed: ParsedArgs, name: `--${string}`): string | und
   return typeof value === 'string' ? value : undefined
 }
 
-function unknownOption(command: string, option: string, candidates: string[]): ParseRefusal {
+/** The closest candidate to an unknown option, matched on its name before any `=`. */
+function optionSuggestion(option: string, candidates: readonly string[]): string | undefined {
   const eq = option.startsWith('--') ? option.indexOf('=') : -1
-  const suggestion = closest(eq > 0 ? option.slice(0, eq) : option, candidates)
-  const hint = suggestion !== undefined ? `Did you mean '${suggestion}'?\n` : ''
+  return closest(eq > 0 ? option.slice(0, eq) : option, candidates)
+}
+
+function suggestionHint(suggestion: string | undefined): string {
+  return suggestion !== undefined ? `Did you mean '${suggestion}'?\n` : ''
+}
+
+/**
+ * The refusal for an undeclared option before the command name, where only the
+ * global flags (and `-V, --version`) are declared: upstream's program-level
+ * commander refuses it there whatever command follows.
+ */
+export function globalUnknownOptionRefusal(option: string): string {
+  const candidates = option.startsWith('--')
+    ? [...GLOBAL_FLAGS.map((flag) => flag.name), '--version']
+    : [...GLOBAL_FLAGS.flatMap((flag) => (flag.short !== undefined ? [flag.short] : [])), '-V']
+  const hint = suggestionHint(optionSuggestion(option, candidates))
+  return `cospec: unknown option '${option}'\n${hint}`
+}
+
+function unknownOption(command: string, option: string, candidates: string[]): ParseRefusal {
+  const suggestion = optionSuggestion(option, candidates)
+  const hint = suggestionHint(suggestion)
   return {
     kind: 'unknown-option',
     command,

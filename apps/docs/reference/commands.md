@@ -32,6 +32,12 @@ a `--` terminator. After `--` every token is an operand of the command, as in
 OpenSpec: `cospec list -- --json` is refused as too many arguments, not run as
 `list --json`.
 
+Before the command name, only the global flags are accepted: any other option is
+refused with `cospec: unknown option '<flag>'` (plus
+`Did you mean '<closest-global-flag>'?` when one is close enough), exit `1`, and
+the command doesn't run — `cospec --bogus list` lists nothing, as
+`openspec --bogus list` refuses too.
+
 `cospec <command> help` — a bare `help` token immediately after the command name
 — is equivalent to `cospec <command> --help`; it never runs the command.
 
