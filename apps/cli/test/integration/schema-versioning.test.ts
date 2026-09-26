@@ -153,6 +153,29 @@ The system SHALL provide the widget behavior when requested.
     expect(res.exitCode).toBe(0)
     expect(res.stdout).toContain('already on schemaVersion')
   })
+
+  test('--json prints one document on both paths, migrated false on the no-op', async () => {
+    const root = await initRepo()
+    await cospec(['new', 'ci', 'already-v2'], { cwd: root })
+    const noop = await cospec(['migrate', 'already-v2', '--json'], { cwd: root })
+    expect(noop.exitCode).toBe(0)
+    expect(JSON.parse(noop.stdout)).toEqual({
+      change: 'already-v2',
+      schemaVersion: 2,
+      migrated: false,
+      verificationScaffolded: false,
+    })
+
+    authorV1Feat(root, 'json-widget')
+    const migrated = await cospec(['migrate', 'json-widget', '--json'], { cwd: root })
+    expect(migrated.exitCode).toBe(0)
+    expect(JSON.parse(migrated.stdout)).toEqual({
+      change: 'json-widget',
+      schemaVersion: 2,
+      migrated: true,
+      verificationScaffolded: true,
+    })
+  })
 })
 
 describe('cospec doctor: pre-v2 changes', () => {

@@ -36,6 +36,16 @@ export function scaffoldDeferredVerification(templateBody: string): string {
     .join('\n')
 }
 
+/** The one `--json` document both outcomes print; `migrated: false` is the already-current no-op. */
+function migrateJson(
+  change: string,
+  schemaVersion: number,
+  migrated: boolean,
+  verificationScaffolded: boolean,
+): string {
+  return `${JSON.stringify({ change, schemaVersion, migrated, verificationScaffolded }, null, 2)}\n`
+}
+
 export async function run(ctx: CommandContext): Promise<number> {
   const root = await resolveRoot(ctx)
   const base = root.base
@@ -64,9 +74,11 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   const currentVersion = change.schemaVersion ?? 1
   if (currentVersion >= 2) {
-    process.stdout.write(
-      `cospec migrate: '${change.id}' is already on schemaVersion ${currentVersion} — nothing to do\n`,
-    )
+    if (ctx.flags.json) process.stdout.write(migrateJson(change.id, currentVersion, false, false))
+    else
+      process.stdout.write(
+        `cospec migrate: '${change.id}' is already on schemaVersion ${currentVersion} — nothing to do\n`,
+      )
     return EXIT.success
   }
 
@@ -86,13 +98,7 @@ export async function run(ctx: CommandContext): Promise<number> {
   writeFileSync(yamlPath, stringifyYaml(doc, { lineWidth: 0 }))
 
   if (ctx.flags.json) {
-    process.stdout.write(
-      `${JSON.stringify(
-        { change: change.id, schemaVersion: 2, verificationScaffolded: scaffolded },
-        null,
-        2,
-      )}\n`,
-    )
+    process.stdout.write(migrateJson(change.id, 2, true, scaffolded))
   } else {
     process.stdout.write(`Migrated '${change.id}' to schemaVersion 2.\n`)
     if (scaffolded)

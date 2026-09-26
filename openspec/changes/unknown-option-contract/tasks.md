@@ -206,3 +206,7 @@ red; 4–7 turn it green; 8 documents it.
       `--store-path`, instead of dropping it and running on the local repo; unit
       and differential rows; spec requirement and the global-flags note (ledger
       1.11)
+- [x] 10.8 `migrate --json` on an already-current change prints the same
+      one-document shape as a migration, with `migrated: false`, instead of
+      prose; both paths carry `migrated`; the `migrate` row in
+      `reference/commands.md` states the shape (ledger 1.12)
