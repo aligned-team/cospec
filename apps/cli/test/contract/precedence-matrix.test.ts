@@ -11,9 +11,12 @@
 // while it parses, then help, then the first unknown option, then too many
 // arguments, then the action. Each row runs the same argv through cospec and
 // the pinned binary and compares the outcome (`support/parse-class.ts`
-// `outcome()`: version, help and whose, unknown command, parse-rejected,
-// parsed) and the exit code. The expected answer is the binary's, read at test
-// time, never a typed copy.
+// `outcome()`: version, help and whose, the refusal's kind — store-path,
+// unknown command or subcommand, unknown option, missing value, too many
+// arguments — or parsed) and the exit code. Comparing the kind, not just
+// "refused", is what catches an ordering bug: a `--store-path` redirect where
+// the binary refuses `--bogus` first is two different answers. The expected
+// answer is the binary's, read at test time, never a typed copy.
 //
 // Both tools receive argv verbatim, a leading `--` included: the binary runs
 // under Node (`oracle(…, { runtime: 'node' })`), and cospec runs as
@@ -149,7 +152,6 @@ const UNKNOWN_OPTION_ROWS: readonly Row[] = [
 const VALUE_ROWS: readonly Row[] = [
   { argv: ['list', '--store'], command: 'list' },
   { argv: ['show', 'foo', '--store'], command: 'show' },
-  { argv: ['config', '--store'], command: 'config' },
   // An empty store id is refused after parsing, in both tools.
   { argv: ['list', '--store='], command: 'list' },
   { argv: ['show', 'foo', '--store='], command: 'show' },
@@ -172,6 +174,20 @@ const STORE_PATH_ROWS: readonly Row[] = [
   { argv: ['config', 'path', '--store-path', '/x'], command: 'config', cospecStderr: REDIRECT },
   // The program level stops on the redirect; the subcommand's missing value never parses.
   { argv: ['--store-path', '/x', 'list', '--store'], command: 'list', cospecStderr: REDIRECT },
+  // A command that declares `--store-path` refuses it in its action, so an
+  // unknown option or an excess operand after it answers first.
+  { argv: ['list', '--store-path', '/x', '--bogus'], command: 'list' },
+  { argv: ['list', '--store-path', '/x', 'extra'], command: 'list' },
+  { argv: ['validate', '--store-path', '/x', '--bogus'], command: 'validate' },
+  { argv: ['validate', '--store-path', '/x', 'a', 'b'], command: 'validate' },
+  // On a forward row the binary is the ordering authority.
+  { argv: ['show', '--store-path', '/x', '--bogus'], command: 'show', cospecStderr: REDIRECT },
+  { argv: ['show', 'foo', '--store-path', '/x', '--bogus'], command: 'show' },
+  { argv: ['show', '--store-path', '/x', 'a', 'b'], command: 'show' },
+  // `config` declares no `--store-path`: the first unknown option wins.
+  { argv: ['config', 'path', '--bogus', '--store-path', '/x'], command: 'config' },
+  // After a leading `--` it is config's unknown subcommand, not an option.
+  { argv: ['--', 'config', '--store-path', '/x'], command: 'config' },
 ]
 
 const TERMINATOR_ROWS: readonly Row[] = [
@@ -194,6 +210,13 @@ const TERMINATOR_ROWS: readonly Row[] = [
   { argv: ['list', '--', '--json'], command: 'list' },
   { argv: ['show', 'foo', '--', '--json'], command: 'show' },
   { argv: ['config', 'path', '--', '--json'], command: 'config' },
+  // A `--` that is the first token reaching the row: the next token is still
+  // the subcommand, and a bare `config --` is config's usage.
+  { argv: ['config', '--', 'path'], command: 'config' },
+  { argv: ['store', '--', 'list'], command: 'store' },
+  { argv: ['workset', '--', 'list'], command: 'workset' },
+  { argv: ['config', '--', 'help'], command: 'config' },
+  { argv: ['config', '--'], command: 'config' },
 ]
 
 const HELP_TOKEN_ROWS: readonly Row[] = [
@@ -203,6 +226,10 @@ const HELP_TOKEN_ROWS: readonly Row[] = [
   { argv: ['schema', 'help'], command: 'schema' },
   { argv: ['new', 'help'], command: 'new' },
   { argv: ['completion', 'help'], command: 'completion' },
+  // Still the help token after an absorbed global flag.
+  { argv: ['config', '--no-color', 'help'], command: 'config' },
+  { argv: ['schema', '--no-color', 'help'], command: 'schema' },
+  { argv: ['completion', '--no-color', 'help'], command: 'completion' },
   // Upstream's store and workset refuse `help` as an unknown subcommand.
   { argv: ['store', 'help'], command: 'store' },
   { argv: ['workset', 'help'], command: 'workset' },
@@ -216,7 +243,7 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
   {
     argv: ['--store'],
     command: 'list',
-    cospecOnly: { outcome: 'parse-rejected', exit: 1 },
+    cospecOnly: { outcome: 'missing-value', exit: 1 },
     cospecStderr: "cospec: option '--store <id>' argument missing\n",
   },
   {
@@ -236,7 +263,7 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
   {
     argv: ['--cwd'],
     command: 'list',
-    cospecOnly: { outcome: 'parse-rejected', exit: 1 },
+    cospecOnly: { outcome: 'missing-value', exit: 1 },
     cospecStderr: "cospec: option '--cwd <path>' argument missing\n",
   },
   {
@@ -248,20 +275,27 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
   {
     argv: ['list', '--cwd'],
     command: 'list',
-    cospecOnly: { outcome: 'parse-rejected', exit: 1 },
+    cospecOnly: { outcome: 'missing-value', exit: 1 },
     cospecStderr: "cospec list: option '--cwd <path>' argument missing\n",
+  },
+  // Upstream `config` has no `--store`, so the binary calls it an unknown option.
+  {
+    argv: ['config', '--store'],
+    command: 'config',
+    cospecOnly: { outcome: 'missing-value', exit: 1 },
+    cospecStderr: "cospec config: option '--store <id>' argument missing\n",
   },
   {
     argv: ['show', 'foo', '--cwd'],
     command: 'show',
-    cospecOnly: { outcome: 'parse-rejected', exit: 1 },
+    cospecOnly: { outcome: 'missing-value', exit: 1 },
     cospecStderr: "cospec show: option '--cwd <path>' argument missing\n",
   },
   { argv: ['--json', 'list'], command: 'list', cospecOnly: { outcome: 'parsed', exit: 0 } },
   {
     argv: ['--store-path', '/x', 'list', '--json'],
     command: 'list',
-    cospecOnly: { outcome: 'parse-rejected', exit: 1 },
+    cospecOnly: { outcome: 'store-path', exit: 1 },
   },
   // No command: help on stdout, exit 0 (upstream prints it on stderr, exit 1).
   { argv: [], command: 'list', cospecOnly: { outcome: 'help:root', exit: 0 } },
@@ -277,11 +311,33 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
 ]
 
 /**
- * Rows the pre-split `cli.ts` (one pass ranking outcomes across both levels)
- * answered differently from the binary or from the intended cospec-only
- * outcome, keyed by argv. The two-phase split empties this set.
+ * Rows cospec answers differently from the binary or from the intended
+ * cospec-only outcome, keyed by argv: the refusal-kind comparison exposed a
+ * `--store-path` ordering bug (it answered before an unknown option or an
+ * excess operand), and phase B's routing missed a `help` after an absorbed
+ * global and a `--` right after the command name. Each fix empties its share.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
+  // --store-path answered before the binary's parse finished
+  'list a --store-path /x',
+  'list --store-path /x --bogus',
+  'list --store-path /x extra',
+  'validate --store-path /x --bogus',
+  'validate --store-path /x a b',
+  'show foo --store-path /x --bogus',
+  'show --store-path /x a b',
+  'config path --bogus --store-path /x',
+  '-- config --store-path /x',
+  // phase B routing
+  'config -- path',
+  'store -- list',
+  'workset -- list',
+  'config -- help',
+  'config --',
+  'config --no-color help',
+  'schema --no-color help',
+  'completion --no-color help',
+])
 
 async function checkRow(row: Row): Promise<void> {
   const co = await runCospec(row.argv, freshRoot())

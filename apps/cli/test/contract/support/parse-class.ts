@@ -11,8 +11,10 @@
 //   parsed          anything else, whatever the exit code
 //
 // `outcome()` refines that split for the precedence matrix, which must tell a
-// version request, a help screen (and whose) and an unknown command apart from
-// a command that ran.
+// version request, a help screen (and whose) and the KIND of a refusal apart
+// from a command that ran (`refusalKind()`): lumping every refusal together let
+// a `--store-path` ordering bug pass, because a redirect where the binary said
+// `unknown option '--bogus'` still read as "both rejected".
 
 import { COMMAND_TABLE } from '../../../src/core/command-table.ts'
 import type { SpawnResult } from '../../fixtures/support.ts'
@@ -64,18 +66,85 @@ export function classify(run: SpawnResult, command: string, argv: readonly strin
 }
 
 /**
- * `version`, `help:<command path>` (`help:root` for the program's own help),
- * `unknown-command`, or else the `classify()` split.
+ * What a refusal was about, in either dialect:
+ *
+ *   store-path          any refusal whose subject is `--store-path`: the redirect
+ *                       (text or `--json` envelope), or commander's
+ *                       `unknown option '--store-path'` / `argument missing` for
+ *                       it. Design decision 2 answers the redirect wherever the
+ *                       binary refuses `--store-path` at all, so the matrix
+ *                       compares where the refusal lands, not its dialect.
+ *   unknown-command     an unknown command name
+ *   unknown-subcommand  an unknown token where a known command wanted its
+ *                       subcommand (commander words both `unknown command`)
+ *   unknown-option      an undeclared option, or a `json: 'refused'` row's
+ *                       one-document `--json` refusal (design decision 10)
+ *   missing-value       a value-taking option given no value
+ *   too-many            an excess positional
  */
-export type Outcome = 'version' | `help:${string}` | 'unknown-command' | ParseClass
+export type RefusalKind =
+  | 'store-path'
+  | 'unknown-command'
+  | 'unknown-subcommand'
+  | 'unknown-option'
+  | 'missing-value'
+  | 'too-many'
+
+const STORE_PATH_SUBJECT: readonly RegExp[] = [
+  /--store-path is not supported\./,
+  /^(?:error|cospec(?: [\w-]+){0,2}): unknown option '--store-path(?:=[^']*)?'$/m,
+  /^(?:error|cospec(?: [\w-]+){0,2}): option '--store-path .+' argument missing$/m,
+]
 
 /**
  * Commander's `error: unknown command`, upstream store/workset's own
  * `Error: unknown command 'help' for …`, and cospec's dispatcher and module
- * refusals of an unknown command or subcommand.
+ * refusals of an unknown command or subcommand; group 1 or 2 is the token.
  */
 const UNKNOWN_COMMAND =
-  /^(?:error|cospec(?: [\w-]+)?): unknown (?:sub)?command '|^cospec: unknown '[\w-]+' subcommand '/im
+  /^(?:error|cospec(?: [\w-]+)?): unknown (?:sub)?command '([^']*)'|^cospec: unknown '[\w-]+' subcommand '([^']*)'/im
+
+/**
+ * The kind of refusal `run` printed, or undefined when it printed none.
+ * `command` is the row the argv lands on: an unknown token that follows it in
+ * `argv` is an unknown subcommand, anything else an unknown command.
+ */
+export function refusalKind(
+  run: SpawnResult,
+  command: string,
+  argv: readonly string[],
+): RefusalKind | undefined {
+  const doc = argv.includes('--json') ? parseOneDocument(run.stdout) : undefined
+  const status = doc?.['status']
+  if (
+    STORE_PATH_SUBJECT.some((shape) => shape.test(run.stderr)) ||
+    (Array.isArray(status) &&
+      (status[0] as { code?: unknown })?.code === 'store_path_not_supported')
+  )
+    return 'store-path'
+  const unknown = UNKNOWN_COMMAND.exec(run.stderr)
+  if (unknown !== null) {
+    const token = unknown[1] ?? unknown[2] ?? ''
+    const at = argv.indexOf(command)
+    return token !== command && at !== -1 && argv.indexOf(token, at + 1) !== -1
+      ? 'unknown-subcommand'
+      : 'unknown-command'
+  }
+  if (/^(?:error|cospec(?: [\w-]+){0,2}): unknown option '/m.test(run.stderr))
+    return 'unknown-option'
+  if (JSON_REFUSED.has(command) && doc?.['ok'] === false && doc['command'] === command)
+    return 'unknown-option'
+  if (/^(?:error|cospec(?: [\w-]+){0,2}): option '.+' argument missing$/m.test(run.stderr))
+    return 'missing-value'
+  if (/^(?:error|cospec(?: [\w-]+){0,2}): too many arguments/m.test(run.stderr)) return 'too-many'
+  return undefined
+}
+
+/**
+ * `version`, `help:<command path>` (`help:root` for the program's own help),
+ * a `RefusalKind`, or `parsed` for anything else, whatever the exit code.
+ */
+export type Outcome = 'version' | `help:${string}` | RefusalKind | 'parsed'
 
 export function outcome(run: SpawnResult, command: string, argv: readonly string[]): Outcome {
   if (run.exitCode === 0 && /^\d+\.\d+\.\d+\n$/.test(run.stdout)) return 'version'
@@ -83,6 +152,5 @@ export function outcome(run: SpawnResult, command: string, argv: readonly string
   // the words between the tool name and the first `[…]`/`<…>` are the help's path.
   const usage = /^Usage: (?:openspec|cospec)((?: [^\s<[]+)*)/m.exec(run.stdout)
   if (run.exitCode === 0 && usage !== null) return `help:${usage[1]!.trim() || 'root'}`
-  if (UNKNOWN_COMMAND.test(run.stderr)) return 'unknown-command'
-  return classify(run, command, argv)
+  return refusalKind(run, command, argv) ?? 'parsed'
 }
