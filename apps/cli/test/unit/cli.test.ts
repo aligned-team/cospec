@@ -316,6 +316,8 @@ describe('cli dispatcher: --cwd and --store refuse a missing or empty value', ()
     [['list', '--store', ''], "cospec list: option '--store <id>' argument must not be empty\n"],
     [['list', '--cwd='], "cospec list: option '--cwd <path>' argument must not be empty\n"],
     [['--cwd', '', 'list'], "cospec list: option '--cwd <path>' argument must not be empty\n"],
+    [['--store='], "cospec: option '--store <id>' argument must not be empty\n"],
+    [['--cwd', ''], "cospec: option '--cwd <path>' argument must not be empty\n"],
     [['list', '--help', '--store'], "cospec list: option '--store <id>' argument missing\n"],
     [['list', '--bogus', '--store'], "cospec list: option '--store <id>' argument missing\n"],
     [
@@ -333,6 +335,13 @@ describe('cli dispatcher: --cwd and --store refuse a missing or empty value', ()
 
   // Upstream accepts an empty value while it parses and refuses it only in
   // its action code, so every parse-time answer outranks it.
+  test('--help wins over an empty value with no command', async () => {
+    const r = await dispatch(['--store=', '--help'])
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('Usage: cospec')
+    expect(r.err).toBe('')
+  })
+
   test('--help wins over an empty value', async () => {
     const r = await dispatch(['list', '--store=', '--help'])
     expect(r.code).toBe(0)
@@ -409,6 +418,16 @@ describe('cli dispatcher: a -- before the command name', () => {
       expect(r.out).toBe('')
     })
   }
+
+  test('-- completion --json: a dashed token after the command is an operand', async () => {
+    const r = await dispatch(['--', 'completion', '--json'])
+    expect(r.code).toBe(1)
+    // `completion` reads it as its shell operand, never as the `--json` flag.
+    expect(r.err).toBe(
+      "cospec completion: unsupported shell '--json' (supported: bash, zsh, fish)\n",
+    )
+    expect(r.out).toBe('')
+  })
 
   for (const [argv, err] of [
     [['--', 'bogus'], "cospec: unknown command 'bogus'\n"],

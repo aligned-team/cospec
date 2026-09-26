@@ -344,7 +344,12 @@ export async function run(argv: string[]): Promise<number> {
         if (next !== undefined) {
           command = next
           i++
-          if (commandRow(next)?.subcommands !== undefined && i + 1 < argv.length) {
+          const sub = argv[i + 1]
+          if (
+            commandRow(next)?.subcommands !== undefined &&
+            sub !== undefined &&
+            !sub.startsWith('-')
+          ) {
             rest.push(argv[i + 1]!)
             i++
           }
@@ -441,6 +446,8 @@ export async function run(argv: string[]): Promise<number> {
   }
 
   if (command === undefined) {
+    // An empty value with no command has no action to wait for.
+    if (badValue !== undefined && !wantHelp) return valueRefusal()
     // No command and no version request → help (covers empty argv and --help).
     process.stdout.write(helpText())
     return EXIT.success

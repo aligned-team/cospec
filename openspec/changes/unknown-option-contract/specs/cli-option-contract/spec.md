@@ -154,9 +154,9 @@ it up to a `--` terminator, and SHALL treat every token after a post-command
 `forward` row, unchanged, and a global flag cospec threads onto a wrapped call
 SHALL be inserted before that `--`. A `--` before the command name SHALL NOT be
 refused as an unknown option: the token after it is the command name, the next
-one is still read as the subcommand on a command that has subcommands, and every
-later token is an operand of the command, as the pinned binary's program-level
-commander treats it.
+one, unless it starts with `-`, is still read as the subcommand on a command
+that has subcommands, and every later token is an operand of the command, as the
+pinned binary's program-level commander treats it.
 
 #### Scenario: A global flag after -- is an operand
 
@@ -196,7 +196,8 @@ refused only after every parse-time answer — a version request, `--help`, an
 unknown option, a `--store-path` refusal, an unknown command and the command's
 own parse refusals — and before the command does any work, as the pinned binary
 accepts an empty value while it parses and refuses an empty store id in its
-action code. The command SHALL never run against the local repo instead.
+action code; with no command name, an empty value SHALL be refused unless
+`--help` is given. The command SHALL never run against the local repo instead.
 
 #### Scenario: A trailing --store is refused, not dropped
 

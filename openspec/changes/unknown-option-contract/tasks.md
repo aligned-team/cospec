@@ -231,10 +231,10 @@ red; 4–7 turn it green; 8 documents it.
       missing value after the command name yields to an undeclared option before
       it, and an empty value is refused only just before dispatch, after help,
       unknown options, `--store-path`, an unknown command and the command's own
-      parse refusals; unit and differential rows; spec requirements and the
-      global-flags note (ledger 1.14)
+      parse refusals (with no command, unless `--help`); unit and differential
+      rows; spec requirements and the global-flags note (ledger 1.14)
 - [x] 10.13 Treat a `--` before the command name as upstream's terminator, not
-      an unknown option: the next token is the command, a subcommand name still
-      dispatches, every later token is an operand; unit and differential rows
-      (Bun-safe spellings); the terminator requirement and the global-flags note
-      (ledger 1.15)
+      an unknown option: the next token is the command, a non-dashed token after
+      it is still read as the subcommand, every later token is an operand; unit
+      and differential rows (Bun-safe spellings); the terminator requirement and
+      the global-flags note (ledger 1.15)
