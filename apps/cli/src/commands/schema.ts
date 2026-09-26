@@ -19,7 +19,10 @@ import { isCospecType } from '../core/change.ts'
 import { isOptionToken, relayCommandLevel, subcommandOf } from '../core/forward-relay.ts'
 import { runPassthrough } from '../core/passthrough-command.ts'
 
+/** Upstream `openspec schema`'s subcommands, in its `--help` order. */
 const WRAPPED_SUBCOMMANDS = new Set(['which', 'validate', 'fork', 'init'])
+
+const EXPECTED_SUBCOMMANDS = `expected one of ${[...WRAPPED_SUBCOMMANDS].map((s) => `'${s}'`).join(', ')}`
 
 /** `init`'s value-taking flags (`fork` has none — `--json`/`--force` are boolean). */
 const INIT_VALUE_FLAGS = new Set(['--description', '--artifacts'])
@@ -61,14 +64,14 @@ export function run(ctx: CommandContext): Promise<number> {
   const { sub, rest, operand } = subcommandOf(ctx.args)
 
   if (sub === undefined) {
-    process.stderr.write("cospec schema: missing subcommand — expected 'which' or 'validate'\n")
+    process.stderr.write(`cospec schema: missing subcommand — ${EXPECTED_SUBCOMMANDS}\n`)
     return Promise.resolve(EXIT.failure)
   }
 
   if (!operand && isOptionToken(sub)) return relayCommandLevel(ctx, ['schema'], ctx.args)
 
   if (!WRAPPED_SUBCOMMANDS.has(sub)) {
-    process.stderr.write(`cospec: unknown 'schema' subcommand '${sub}'\n`)
+    process.stderr.write(`cospec: unknown 'schema' subcommand '${sub}' — ${EXPECTED_SUBCOMMANDS}\n`)
     return Promise.resolve(EXIT.failure)
   }
 

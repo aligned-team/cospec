@@ -103,6 +103,9 @@ checkout gets different roots than before.
   enclosing root's typed schemas and `schema fork`/`init` write into that root
   instead of creating a stray `openspec/` in the subdirectory. Every other
   passthrough keeps its `--store` threading for an explicit `--store`.
+  `cospec schema`'s missing- and unknown-subcommand errors name all four
+  upstream subcommands (`which`, `validate`, `fork`, `init`), not just the first
+  two.
 - **One JSON document for resolver failures under `--json` (after the rebase
   onto `unknown-option-contract`).** A resolver hard-error in a `--json` run
   prints exactly one JSON document, `{"status": [diagnostic]}`, on stdout and

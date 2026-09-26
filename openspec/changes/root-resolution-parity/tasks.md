@@ -100,6 +100,11 @@ POST-REBASE.
       `cospec schemas --store <id>` and `cospec show <item> --store <id>` in
       human mode show the banner once
 - [x] 3.5 Run `mise run check` and commit the track
+- [x] 3.6 Make `commands/schema.ts`'s missing- and unknown-subcommand errors
+      list `which`, `validate`, `fork` and `init` (upstream
+      `openspec schema --help` on the pinned binary), built from the wrapped
+      subcommand set, and pin both messages in
+      `apps/cli/test/integration/schema-inspect.test.ts`; verify the tests pass
 
 ## 4. Differential matrix against the pinned binary (track T4: `apps/cli/test/contract/root-resolution.test.ts`)
 
