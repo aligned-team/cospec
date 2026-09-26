@@ -383,6 +383,29 @@ function hasHelpSubcommand(row: CommandRow): boolean {
   return (row.subcommands?.length ?? 0) > 0 && row.helpSubcommand !== false
 }
 
+/**
+ * Routes the operands after a `--` that is the first token to reach `row`:
+ * commander still dispatches the first operand as the subcommand (its implicit
+ * `help` included) and keeps every later token an operand. Pushes the routed
+ * argv onto `rest`; returns whether the subcommand was commander's `help`.
+ */
+function routeOperands(row: CommandRow, operands: readonly string[], rest: string[]): boolean {
+  const [first, ...tail] = operands
+  if (first === 'help' && hasHelpSubcommand(row)) {
+    rest.push(...tail)
+    return true
+  }
+  if (first === undefined) return false
+  const routed =
+    row.parse === 'forward'
+      ? row.subcommands !== undefined
+      : row.subcommands?.some((s) => s.name === first) === true
+  const kept = routed ? tail : operands
+  if (routed) rest.push(first)
+  if (kept.length > 0) rest.push('--', ...kept)
+  return false
+}
+
 /** What phase A hands phase B: the command name and every token after it. */
 interface CommandCall {
   readonly command: string
@@ -444,36 +467,30 @@ function resolveProgram(argv: readonly string[], state: GlobalState): number | C
 async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState): Promise<number> {
   const rest: string[] = []
   let wantHelp = false
-  if (call.terminated) {
-    // Commander still dispatches the first operand as the subcommand (its
-    // implicit `help` included); every later token stays an operand.
-    const [first, ...operands] = call.tokens
-    if (first === 'help' && hasHelpSubcommand(row)) {
-      wantHelp = true
-      rest.push(...operands)
-    } else if (first !== undefined) {
-      const routed =
-        row.parse === 'forward'
-          ? row.subcommands !== undefined
-          : row.subcommands?.some((s) => s.name === first) === true
-      const tail = routed ? operands : call.tokens
-      if (routed) rest.push(first)
-      if (tail.length > 0) rest.push('--', ...tail)
-    }
-  } else {
+  // Every token is an operand: after a leading `--`, or after a `--` that was
+  // the first token to reach a row with subcommands.
+  let operandsOnly = call.terminated
+  if (call.terminated) wantHelp = routeOperands(row, call.tokens, rest)
+  else {
     for (let i = 0; i < call.tokens.length; i++) {
       const tok = call.tokens[i]!
       if (tok === '--') {
-        // `--` stays in the command's argv: the table parser and the wrapped
-        // binary both read it as the operand terminator.
-        rest.push(...call.tokens.slice(i))
+        if (rest.length === 0 && (row.subcommands?.length ?? 0) > 0) {
+          wantHelp ||= routeOperands(row, call.tokens.slice(i + 1), rest)
+          operandsOnly = true
+        } else {
+          // `--` stays in the command's argv: the table parser and the wrapped
+          // binary both read it as the operand terminator.
+          rest.push(...call.tokens.slice(i))
+        }
         break
       }
-      // `cospec <command> help` is `cospec <command> --help` on every table row
-      // (it must never reach a state-mutating command's argv: `archive help`
-      // must not archive a change called "help"), and commander's implicit help
-      // subcommand on a forward row that has one.
-      if (i === 0 && tok === 'help' && (row.parse === 'table' || hasHelpSubcommand(row)))
+      // `cospec <command> help` — `help` as the first token to reach the row,
+      // after any absorbed global — is `cospec <command> --help` on every table
+      // row (it must never reach a state-mutating command's argv: `archive
+      // help` must not archive a change called "help"), and commander's
+      // implicit help subcommand on a forward row that has one.
+      if (rest.length === 0 && tok === 'help' && (row.parse === 'table' || hasHelpSubcommand(row)))
         wantHelp = true
       else if (tok === '--json') state.json = true
       else if (tok === '--no-color') state.noColor = true
@@ -516,8 +533,8 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
       process.stderr.write(result.refusal.message)
       return EXIT.failure
     }
-  } else if (!call.terminated) {
-    // After a leading `--` a `--store-path` is an operand, never this check's.
+  } else if (!operandsOnly) {
+    // After a routing `--` a `--store-path` is an operand, never this check's.
     const beforeTerminator = rest.includes('--') ? rest.slice(0, rest.indexOf('--')) : rest
     if (beforeTerminator.some(isStorePathToken)) {
       const code = await relayForwardStorePath(row, rest, state)

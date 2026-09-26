@@ -33,7 +33,9 @@ OpenSpec: `cospec list -- --json` is refused as too many arguments, not run as
 `list --json`. A `--` before the command name works the same way:
 `cospec -- list` runs `list`, `cospec -- list --help` is refused as too many
 arguments, and the token after the command is still its subcommand
-(`cospec -- config help path` prints the `config path` help).
+(`cospec -- config help path` prints the `config path` help). So is the token
+after a `--` that directly follows a command with subcommands:
+`cospec config -- path` runs `config path`.
 
 As in OpenSpec, the program level and the command never rank against each other;
 cospec answers in two phases:
@@ -59,9 +61,10 @@ cospec answers in two phases:
    `--cwd`/`--store` (`cospec list --store= --help` prints help), then the
    command runs.
 
-`cospec <command> help` — a bare `help` token immediately after the command name
-— is equivalent to `cospec <command> --help` on every table-parsed command; it
-never runs the command. On a forwarded command it answers as OpenSpec does:
+`cospec <command> help` — a bare `help` token as the first thing after the
+command name, global flags aside (`cospec archive --no-color help`) — is
+equivalent to `cospec <command> --help` on every table-parsed command; it never
+runs the command. On a forwarded command it answers as OpenSpec does:
 `cospec config help` and `cospec schema help` print help, `cospec store help`
 and `cospec workset help` refuse `help` as an unknown subcommand, and
 `cospec show help` passes `help` to the binary as the item name.

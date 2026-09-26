@@ -250,7 +250,13 @@ runtime by `dist/commands/spec.js:127`.
     operand is dispatched as the subcommand (commander's implicit `help`
     included, on rows that have it: the new `helpSubcommand: false` marks
     `store` and `workset`, whose upstream refuses `help`), replacing the old
-    "unless it starts with `-`" heuristic. A precedence matrix
+    "unless it starts with `-`" heuristic. The same routing applies to a `--`
+    that is the first token to reach a row with subcommands (`config -- path`
+    runs `config path`, `config --` is a bare `config`), and a bare `help` is
+    the help token when it is the first token to reach the row's argv, after any
+    absorbed global flag (`config --no-color help`), not only at the first argv
+    position. No cross-phase priority flag is added for either: both are phase
+    B's own reading of the row's argv. A precedence matrix
     (`apps/cli/test/contract/precedence-matrix.test.ts`) runs every row against
     the binary under Node, which keeps a leading `--` intact, and compares a
     finer outcome than decision 7's split (version, whose help, unknown command,

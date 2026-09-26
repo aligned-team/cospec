@@ -160,16 +160,26 @@ flags.
 
 ### Requirement: A bare help token follows the command's upstream counterpart
 
-A bare `help` as the first token after the command name SHALL print the
-command's help and SHALL never run the command on every `table` row. On a
-`forward` row it SHALL print help only where the upstream command offers
-commander's implicit `help [subcommand]` (a command with subcommands whose
-upstream counterpart does not refuse `help`: `config` and `schema`); `store` and
-`workset` SHALL hand it to their wrapper, which refuses it as an unknown
-subcommand as upstream does, and a `forward` row without subcommands SHALL pass
-it to the binary as an operand. After a leading `--`, `help` as the first
-operand SHALL print help on any row that offers the implicit help subcommand
-(`config`, `schema`, `new`, `completion`) and SHALL otherwise stay an operand.
+A bare `help` as the first token after the command name that reaches the
+command's own argv — after any global flag cospec absorbs (`--no-color`,
+`--json`, `--cwd <path>`, `--store <id>`) — SHALL print the command's help and
+SHALL never run the command on every `table` row. On a `forward` row it SHALL
+print help only where the upstream command offers commander's implicit
+`help [subcommand]` (a command with subcommands whose upstream counterpart does
+not refuse `help`: `config` and `schema`); `store` and `workset` SHALL hand it
+to their wrapper, which refuses it as an unknown subcommand as upstream does,
+and a `forward` row without subcommands SHALL pass it to the binary as an
+operand. After a leading `--`, or a `--` that is the first token to reach a row
+with subcommands, `help` as the first operand SHALL print help on any row that
+offers the implicit help subcommand (`config`, `schema`, `new`, `completion`)
+and SHALL otherwise stay an operand.
+
+#### Scenario: help after an absorbed global flag
+
+- **WHEN** `cospec config --no-color help` or
+  `cospec completion --no-color help` runs
+- **THEN** stdout is that command's help and the exit code is 0, as
+  `openspec config --no-color help` prints it
 
 #### Scenario: The implicit help subcommand after a leading --
 
@@ -231,7 +241,16 @@ refused as an unknown option: the token after it is the command name, the next
 one is still dispatched as the subcommand — whatever it looks like on a
 `forward` row with subcommands, and on a `table` row when it names one of the
 row's subcommands — and every later token is an operand of the command, as the
-pinned binary's program-level commander treats it.
+pinned binary's program-level commander treats it. A `--` that is the first
+token to reach a row with subcommands SHALL route the same way: the next token
+is the subcommand, and a `--` stays in front of the remaining operands.
+
+#### Scenario: A -- right after a command with subcommands
+
+- **WHEN** `cospec config -- path` or `cospec store -- list` runs
+- **THEN** it answers as `cospec config path` or `cospec store list` does, as
+  the pinned binary does, and `cospec config --` answers as a bare
+  `cospec config`, exit 1
 
 #### Scenario: A global flag after -- is an operand
 

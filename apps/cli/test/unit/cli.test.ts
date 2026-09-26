@@ -128,6 +128,52 @@ describe('cli dispatcher: bare `help` token', () => {
     const r = await dispatch(['validate', '--strict', 'help'])
     expect(r.out).not.toContain('cospec validate —')
   })
+
+  test('`help` after an absorbed global flag is still the help token', async () => {
+    for (const [argv, usage] of [
+      [['config', '--no-color', 'help'], 'Usage: cospec config <'],
+      [['schema', '--no-color', 'help'], 'Usage: cospec schema <'],
+      [['completion', '--no-color', 'help'], 'Usage: cospec completion '],
+      [['archive', '--json', 'help'], 'Usage: cospec archive '],
+      [['list', '--cwd', '.', 'help'], 'Usage: cospec list '],
+    ] as const) {
+      const r = await dispatch([...argv])
+      expect(r.code, argv.join(' ')).toBe(0)
+      expect(r.out, argv.join(' ')).toContain(usage)
+    }
+    const store = await dispatch(['store', '--no-color', 'help'])
+    expect(store.code).toBe(1)
+    expect(store.err).toContain("cospec store: unknown subcommand 'help'")
+  })
+})
+
+describe('cli dispatcher: a -- right after the command name', () => {
+  test('routes the next token as the subcommand, commander help included', async () => {
+    const help = await dispatch(['config', '--', 'help'])
+    expect(help.code).toBe(0)
+    expect(help.out).toContain('Usage: cospec config <')
+    const sub = await dispatch(['config', '--', 'help', 'path'])
+    expect(sub.code).toBe(0)
+    expect(sub.out).toContain('Usage: cospec config path [options]')
+  })
+
+  test('a bare `config --` is config with no subcommand', async () => {
+    const r = await dispatch(['config', '--'])
+    expect(r.code).toBe(1)
+    expect(r.err).toContain('cospec config: a subcommand is required')
+  })
+
+  test('a routed --store-path is an unknown subcommand, not the redirect', async () => {
+    const r = await dispatch(['config', '--', '--store-path', '/x'])
+    expect(r.code).toBe(1)
+    expect(r.err).toContain("cospec config: unknown subcommand '--store-path'")
+  })
+
+  test('a row without subcommands keeps -- as its operand terminator', async () => {
+    const r = await dispatch(['list', '--', 'extra'])
+    expect(r.code).toBe(1)
+    expect(r.err).toBe('cospec list: too many arguments. Expected 0 arguments but got 1.\n')
+  })
 })
 
 describe('cli dispatcher: help renders from the command table', () => {

@@ -312,22 +312,12 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
 
 /**
  * Rows cospec answers differently from the binary or from the intended
- * cospec-only outcome, keyed by argv: the refusal-kind comparison exposed a
- * `--store-path` ordering bug (it answered before an unknown option or an
- * excess operand), and phase B's routing missed a `help` after an absorbed
- * global and a `--` right after the command name. Each fix empties its share.
+ * cospec-only outcome, keyed by argv, run as `test.failing` until fixed. The
+ * refusal-kind comparison exposed 17 (the `--store-path` ordering and phase
+ * B's routing of `help` after a global and of a `--` after the command name);
+ * the fixes empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  // phase B routing
-  'config -- path',
-  'store -- list',
-  'workset -- list',
-  'config -- help',
-  'config --',
-  'config --no-color help',
-  'schema --no-color help',
-  'completion --no-color help',
-])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
 
 async function checkRow(row: Row): Promise<void> {
   const co = await runCospec(row.argv, freshRoot())
