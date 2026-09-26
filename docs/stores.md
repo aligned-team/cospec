@@ -36,7 +36,9 @@ which root a command targets from any directory:
 
 Every store selection (steps 1, 3's pointer branch, and 4) is verified on disk —
 identity metadata, then root health — before it is used, and announced once on
-stderr in human mode: `Using OpenSpec root: <id> (<path>)`.
+stderr in human mode by the store banner, whose user-visible contract the site
+owns:
+[Store verification](https://cospec.aligned.team/concepts/stores#store-verification).
 
 Every command resolves the enclosing root from a subdirectory this way, not only
 the exact cwd. `cospec templates` and `cospec schema which|validate|fork|init`

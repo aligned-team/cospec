@@ -138,9 +138,22 @@ confirms it exists, parses, and names the same id the registry has
 store's root is a healthy OpenSpec tree — `openspec/` exists, a config file
 exists, and none of `specs/`, `changes/`, `changes/archive/` exists as something
 other than a directory (`unhealthy_store_root` otherwise, naming each problem it
-found). A store selected this way is announced once on stderr in human mode,
-before the command's own output — `Using OpenSpec root: <id> (<path>)` — and
-never printed under `--json`.
+found).
+
+A store selected this way is announced on stderr, before the command's own
+output, on **every** human-mode invocation that resolves to a store — by
+`--store`, a `store:` pointer, or `defaultStore`:
+
+```
+Using OpenSpec root: <id> (<path>)
+```
+
+It is the same line bare `openspec` prints, and it prints exactly once per
+command even when a relayed wrapped call prints it too. It is printed as soon as
+the store is selected, so it still appears when the command then fails. It is
+never printed under `--json`, and never for a local or implicit root. Scripts
+that read cospec's stderr for a store-backed root should expect this line, or
+pass `--json`.
 
 ### Errors
 

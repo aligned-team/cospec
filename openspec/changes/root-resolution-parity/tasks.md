@@ -179,6 +179,14 @@ POST-REBASE.
       an `openspec/` with no `specs/` or `changes/`, linking to the Stores page
 - [x] 6.5 Run `mise run docs:build` and `mise run check`, record the docs rows
       in the ledger, and commit
+- [x] 6.6 State the store banner as user-visible output: give it its own
+      paragraph under "Store verification" in `apps/docs/concepts/stores.md`
+      (the page that owns root-resolution output: printed on every
+      store-resolved human-mode invocation, once, before the command's output,
+      even when the command then fails, never under `--json`), point
+      `docs/stores.md` at that anchor instead of restating it, and add the
+      banner to the proposal's BREAKING callouts; verify `mise run docs:build`
+      passes
 
 ## 7. POST-REBASE: rebase, `--json` failure document and parity gates (after `unknown-option-contract` merges)
 

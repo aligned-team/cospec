@@ -117,6 +117,12 @@ checkout gets different roots than before.
   `openspec` does.
 - **BREAKING:** a command run from a subdirectory now resolves the enclosing
   root instead of treating the subdirectory as the root.
+- **BREAKING:** stderr changes on every store-resolved invocation. Every
+  human-mode command whose root is selected by `--store`, a `store:` pointer or
+  `defaultStore` now prints `Using OpenSpec root: <id> (<path>)` on stderr once,
+  before its own output (the same line bare `openspec` prints). Scripts that
+  compare or parse cospec's stderr for those roots see one new line; `--json`
+  runs are unchanged.
 - A malformed `store:` pointer, a rootless directory on a machine with
   registered stores, and a registered store whose metadata or tree is broken now
   fail with exit 1 where cospec used to carry on against the wrong directory.
