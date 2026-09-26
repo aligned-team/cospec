@@ -640,6 +640,29 @@ const TERMINATOR_ROWS: readonly Row[] = [
     expect: 'same',
     cospecStderr: 'cospec status: too many arguments. Expected 1 argument but got 2.',
   },
+  // A `--` before the command name: the next token is the command and every
+  // later one its operand (`--no-color` first, because Bun drops a `--` that
+  // directly follows the script path — see LEADING_TERMINATOR_ROWS).
+  { argv: ['--no-color', '--', 'list'], command: 'list', expect: 'same' },
+  {
+    argv: ['--no-color', '--', 'list', '--help'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: 'cospec list: too many arguments. Expected 0 arguments but got 1.',
+  },
+  {
+    argv: ['--no-color', '--', 'schemas', '--json'],
+    command: 'schemas',
+    expect: 'same',
+    cospecStderr: "error: too many arguments for 'schemas'",
+  },
+  { argv: ['--no-color', '--', 'store', 'list'], command: 'store', expect: 'same' },
+  {
+    argv: ['--bogus', '--', 'list'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: "cospec: unknown option '--bogus'\n",
+  },
   // Forward rows hand the binary the `--` and its operands verbatim.
   {
     argv: ['templates', '--', '--json'],
@@ -652,6 +675,22 @@ const TERMINATOR_ROWS: readonly Row[] = [
     command: 'show',
     expect: 'same',
     cospecStderr: "error: too many arguments for 'show'",
+  },
+]
+
+/**
+ * A bare leading `--`. Both tools run as `bun <script> …argv`, and Bun drops
+ * one `--` that directly follows the script path, so each argv here carries a
+ * doubled `--`: both processes receive `-- <command> …`, as `cospec -- list`
+ * from a shell (or a runner that passes `--` through) delivers it.
+ */
+const LEADING_TERMINATOR_ROWS: readonly Row[] = [
+  { argv: ['--', '--', 'list'], command: 'list', expect: 'same' },
+  {
+    argv: ['--', '--', 'schemas', '--json'],
+    command: 'schemas',
+    expect: 'same',
+    cospecStderr: "error: too many arguments for 'schemas'",
   },
 ]
 
@@ -690,6 +729,40 @@ const GLOBAL_VALUE_ROWS: readonly Row[] = [
     command: 'list',
     expect: 'same',
     cospecStderr: missing('list', '--cwd', '<path>'),
+  },
+  // A pre-command unknown option stops upstream at the program level, before
+  // the subcommand's own missing or empty value is parsed.
+  {
+    argv: ['--bogus', 'list', '--store'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: "cospec: unknown option '--bogus'\n",
+  },
+  {
+    argv: ['--bogus', 'list', '--store='],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: "cospec: unknown option '--bogus'\n",
+  },
+  {
+    argv: ['--bogus', 'show', '--store'],
+    command: 'show',
+    expect: 'same',
+    cospecStderr: "cospec: unknown option '--bogus'\n",
+  },
+  // Upstream refuses an empty value only in its action code, so every
+  // parse-time answer outranks it.
+  {
+    argv: ['list', '--bogus', '--store='],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: unknown('list', '--bogus'),
+  },
+  {
+    argv: ['list', '--store=', '--store-path', '/x'],
+    command: 'list',
+    expect: 'same',
+    cospecStderr: '--store-path is not supported',
   },
 ]
 
@@ -797,12 +870,35 @@ describe('unknown-option differential: no global flag is absorbed after --', () 
   register(TERMINATOR_ROWS)
 })
 
+describe('unknown-option differential: a bare leading -- before the command', () => {
+  register(LEADING_TERMINATOR_ROWS)
+
+  test('the doubled -- reaches both processes as one leading --', async () => {
+    const root = freshRoot()
+    const co = await runCospec(['--', '--', 'list'], root)
+    expect(co.stderr).not.toContain('unknown option')
+    const up = await oracle(['--', '--', 'list', 'extra'], freshRoot())
+    // Had Bun kept both, upstream would answer `unknown command '--'`.
+    expect(up.stderr).toContain("too many arguments for 'list'")
+  }, 30_000)
+})
+
 describe('unknown-option differential: an undeclared option before the command', () => {
   register(PRE_COMMAND_ROWS)
 })
 
 describe('unknown-option differential: --store/--cwd refuse a missing or empty value', () => {
   register(GLOBAL_VALUE_ROWS)
+
+  test('list --store= --help prints help and exits 0 in both tools', async () => {
+    const argv = ['list', '--store=', '--help']
+    const co = await runCospec(argv, freshRoot())
+    const up = await oracle(argv, freshRoot())
+    expect(up.exitCode, up.stderr).toBe(0)
+    expect(up.stdout).toContain('Usage: openspec list')
+    expect(co.exitCode, co.stderr).toBe(0)
+    expect(co.stdout).toContain('Usage: cospec list')
+  }, 30_000)
 
   // Upstream answers an empty store id after parsing (`Store id must not be
   // empty`), so neither run is parse-rejected; both still exit 1 before any work.

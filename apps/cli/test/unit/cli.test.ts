@@ -1,4 +1,7 @@
 import { describe, expect, test } from 'bun:test'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import pkg from '../../package.json'
 import { run } from '../../src/cli.ts'
@@ -267,16 +270,31 @@ describe('cli dispatcher: an undeclared option before the command is refused', (
     })
   }
 
-  test('a version request, a missing value and help each still win', async () => {
+  test('a version request and help each still win', async () => {
     const version = await dispatch(['--bogus', '--version', 'list'])
     expect(version.code).toBe(0)
     expect(version.out).toBe(`${pkg.version}\n`)
-    const missing = await dispatch(['--bogus', 'list', '--store'])
-    expect(missing.err).toBe("cospec list: option '--store <id>' argument missing\n")
     const help = await dispatch(['--bogus', '--help', 'list'])
     expect(help.code).toBe(0)
     expect(help.out).toContain('Usage: cospec list')
   })
+
+  // Upstream's program-level commander refuses the option before it ever
+  // parses the subcommand, so the subcommand's missing or empty value never
+  // outranks it.
+  for (const argv of [
+    ['--bogus', 'list', '--store'],
+    ['--bogus', 'list', '--store='],
+    ['--bogus', 'show', '--store'],
+    ['--bogus', 'list', '--cwd'],
+  ]) {
+    test(`${argv.join(' ')} refuses the unknown option, not the value`, async () => {
+      const r = await dispatch(argv)
+      expect(r.code).toBe(1)
+      expect(r.err).toBe("cospec: unknown option '--bogus'\n")
+      expect(r.out).toBe('')
+    })
+  }
 
   test('--store-path alone before the command keeps the redirect', async () => {
     const r = await dispatch(['--store-path', '/x', 'list'])
@@ -313,6 +331,36 @@ describe('cli dispatcher: --cwd and --store refuse a missing or empty value', ()
     })
   }
 
+  // Upstream accepts an empty value while it parses and refuses it only in
+  // its action code, so every parse-time answer outranks it.
+  test('--help wins over an empty value', async () => {
+    const r = await dispatch(['list', '--store=', '--help'])
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('Usage: cospec list')
+    expect(r.err).toBe('')
+  })
+
+  for (const [argv, err] of [
+    [['list', '--bogus', '--store='], "cospec list: unknown option '--bogus'\n"],
+    [['list', '--store=', '--bogus'], "cospec list: unknown option '--bogus'\n"],
+    [['list', '--store=', 'a'], 'cospec list: too many arguments'],
+    [['--store=', '--bogus', 'list'], "cospec: unknown option '--bogus'\n"],
+  ] as const) {
+    test(`${argv.join(' ')} gives the parse refusal, not the empty value`, async () => {
+      const r = await dispatch([...argv])
+      expect(r.code).toBe(1)
+      expect(r.err.startsWith(err)).toBe(true)
+      expect(r.err).not.toContain('must not be empty')
+    })
+  }
+
+  test('--store-path wins over an empty value', async () => {
+    const r = await dispatch(['list', '--store=', '--store-path', '/x'])
+    expect(r.code).toBe(1)
+    expect(r.err).toContain('--store-path is not supported')
+    expect(r.err).not.toContain('must not be empty')
+  })
+
   test('a version request still wins over a missing value', async () => {
     const r = await dispatch(['list', '--version', '--store'])
     expect(r.code).toBe(0)
@@ -324,4 +372,55 @@ describe('cli dispatcher: --cwd and --store refuse a missing or empty value', ()
     expect(r.code).toBe(1)
     expect(r.err).toContain("cospec: unknown command 'bogus'")
   })
+})
+
+describe('cli dispatcher: a -- before the command name', () => {
+  // Upstream's program-level commander takes the token after `--` as the
+  // command and every later token as its operand; `--` is never an unknown option.
+  test('the command after -- runs, not refused as an unknown option', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cospec-cli-terminator-'))
+    try {
+      const r = await dispatch(['--cwd', dir, '--', 'list'])
+      expect(r.err).not.toContain('unknown option')
+      // `list` ran: with no openspec/ tree under `dir` it reports no changes or no root.
+      expect(r.out + r.err).not.toBe('')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('the empty value is refused only once the command after -- is reached', async () => {
+    const r = await dispatch(['--store=', '--', 'list'])
+    expect(r.code).toBe(1)
+    expect(r.err).toBe("cospec list: option '--store <id>' argument must not be empty\n")
+  })
+
+  for (const argv of [
+    ['--', 'list', '--help'],
+    ['--', 'list', 'help'],
+    ['--', 'list', '--json'],
+    ['--', 'list', '--store', 's'],
+    ['--no-color', '--', 'list', '--version'],
+  ]) {
+    test(`${argv.join(' ')}: every token after the command is an operand`, async () => {
+      const r = await dispatch(argv)
+      expect(r.code).toBe(1)
+      expect(r.err).toStartWith('cospec list: too many arguments.')
+      expect(r.out).toBe('')
+    })
+  }
+
+  for (const [argv, err] of [
+    [['--', 'bogus'], "cospec: unknown command 'bogus'\n"],
+    [['--', '--version'], "cospec: unknown command '--version'\n"],
+    [['--', '--'], "cospec: unknown command '--'\n"],
+    [['--bogus', '--', 'list'], "cospec: unknown option '--bogus'\n"],
+  ] as const) {
+    test(`${argv.join(' ')} exits 1 as upstream does`, async () => {
+      const r = await dispatch([...argv])
+      expect(r.code).toBe(1)
+      expect(r.err).toStartWith(err)
+      expect(r.out).toBe('')
+    })
+  }
 })

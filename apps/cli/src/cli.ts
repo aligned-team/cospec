@@ -295,8 +295,15 @@ export async function run(argv: string[]): Promise<number> {
   let terminated = false
   // The first `--cwd`/`--store` given no value (last in argv) or an empty one
   // (`--store=`, `--cwd ''`): refused after the loop instead of silently
-  // running against the local repo.
-  let badValue: { readonly flag: '--cwd' | '--store'; readonly empty: boolean } | undefined
+  // running against the local repo. `preCommand` records which commander
+  // level upstream would meet it at.
+  let badValue:
+    | {
+        readonly flag: '--cwd' | '--store'
+        readonly empty: boolean
+        readonly preCommand: boolean
+      }
+    | undefined
 
   /** Reads `--cwd`/`--store` at `argv[i]`, in either form; returns the last index consumed. */
   const takeGlobalValue = (i: number): number => {
@@ -305,7 +312,8 @@ export async function run(argv: string[]): Promise<number> {
     const eq = tok.indexOf('=')
     const last = eq === -1 ? i + 1 : i
     const value = eq === -1 ? argv[last] : tok.slice(eq + 1)
-    if (value === undefined || value.length === 0) badValue ??= { flag, empty: value !== undefined }
+    if (value === undefined || value.length === 0)
+      badValue ??= { flag, empty: value !== undefined, preCommand: command === undefined }
     else if (flag === '--cwd') cwdRaw = value
     else storeRaw = value
     return last
@@ -325,6 +333,23 @@ export async function run(argv: string[]): Promise<number> {
         // a later `--json` is known.
         storePath = true
         if (tok === '--store-path') i++
+      } else if (tok === '--') {
+        // Upstream's program-level commander makes every later token an
+        // operand: the next one is the command name (whatever it looks like),
+        // on a command with subcommands the one after is still read as the
+        // subcommand, and the rest stay operands — so no global flag or `help`
+        // token is absorbed.
+        terminated = true
+        const next = argv[i + 1]
+        if (next !== undefined) {
+          command = next
+          i++
+          if (commandRow(next)?.subcommands !== undefined && i + 1 < argv.length) {
+            rest.push(argv[i + 1]!)
+            i++
+          }
+          if (i + 1 < argv.length) rest.push('--')
+        }
       } else if (tok.startsWith('-')) badOption ??= tok
       else {
         command = tok
@@ -377,18 +402,29 @@ export async function run(argv: string[]): Promise<number> {
     return EXIT.success
   }
 
-  // Upstream's commander raises a missing option value while it parses, so
-  // the refusal wins over help, `--store-path` and an unknown option; an
-  // unknown command still answers as one.
-  if (badValue !== undefined && (command === undefined || commandRow(command) !== undefined)) {
+  // Upstream's commander raises a missing option value while it parses one
+  // level, so the refusal wins over help, `--store-path` and an unknown option
+  // at that level; an unknown command still answers as one. A pre-command
+  // unknown option stops upstream at the program level, before the
+  // subcommand's own missing value is ever parsed. An empty value is not a
+  // parse error upstream at all (its action code refuses it), so it waits
+  // until just before dispatch.
+  const valueRefusal = (): number => {
     const spec = GLOBAL_FLAGS.find((flag) => flag.name === badValue!.flag)!
     const prefix = command === undefined ? 'cospec' : `cospec ${command}`
-    const problem = badValue.empty ? 'must not be empty' : 'missing'
+    const problem = badValue!.empty ? 'must not be empty' : 'missing'
     process.stderr.write(
       `${prefix}: option '${spec.name} ${spec.placeholder}' argument ${problem}\n`,
     )
     return EXIT.failure
   }
+  if (
+    badValue !== undefined &&
+    !badValue.empty &&
+    (badValue.preCommand || badOption === undefined) &&
+    (command === undefined || commandRow(command) !== undefined)
+  )
+    return valueRefusal()
 
   // Upstream's program-level commander refuses an undeclared option before the
   // command name whatever follows — a command, an unknown command, or
@@ -452,6 +488,8 @@ export async function run(argv: string[]): Promise<number> {
     }
     parsed = result.parsed
   }
+
+  if (badValue !== undefined) return valueRefusal()
 
   const loadModule = COMMAND_MODULES[row.name]
   if (loadModule === undefined) {

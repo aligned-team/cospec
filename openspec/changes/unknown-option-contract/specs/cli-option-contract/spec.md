@@ -119,15 +119,24 @@ when the command is unknown or absent, with `cospec: unknown option '<x>'` on
 stderr, a closest-match suggestion among the global flags on the next line when
 one is within edit distance, and exit 1, before the command does any work, as
 the pinned binary's program-level commander refuses it. The refusal SHALL come
-after a version request, a missing or empty global value and `--help`, and ahead
-of a `--store-path` refusal and the command itself. `--store-path` before the
-command name with no undeclared option SHALL keep its redirect.
+after a version request, a missing global value given before the command name
+and `--help`, and ahead of a missing or empty global value given after the
+command name, a `--store-path` refusal and the command itself, since the pinned
+binary refuses it before it parses the subcommand at all. `--store-path` before
+the command name with no undeclared option SHALL keep its redirect. A `--`
+before the command name is a terminator, not an undeclared option.
 
 #### Scenario: An unknown option before the command does not run it
 
 - **WHEN** `cospec --bogus list` runs in a repo with active changes
 - **THEN** stderr is `cospec: unknown option '--bogus'`, nothing is listed, and
   the exit code is 1, as `openspec --bogus list` refuses
+
+#### Scenario: A post-command missing value does not outrank it
+
+- **WHEN** `cospec --bogus list --store` runs
+- **THEN** stderr is `cospec: unknown option '--bogus'` and the exit code is 1,
+  as `openspec --bogus list --store` refuses
 
 #### Scenario: A near-miss global flag is suggested
 
@@ -143,7 +152,11 @@ it up to a `--` terminator, and SHALL treat every token after a post-command
 `--` as an operand of the command, as the pinned binary's commander does. The
 `--` and its operands SHALL reach the table parser, or the wrapped binary on a
 `forward` row, unchanged, and a global flag cospec threads onto a wrapped call
-SHALL be inserted before that `--`.
+SHALL be inserted before that `--`. A `--` before the command name SHALL NOT be
+refused as an unknown option: the token after it is the command name, the next
+one is still read as the subcommand on a command that has subcommands, and every
+later token is an operand of the command, as the pinned binary's program-level
+commander treats it.
 
 #### Scenario: A global flag after -- is an operand
 
@@ -151,6 +164,13 @@ SHALL be inserted before that `--`.
 - **THEN** stderr is
   `cospec list: too many arguments. Expected 0 arguments but got 1.`, nothing is
   listed, and the exit code is 1, as `openspec list -- --json` refuses
+
+#### Scenario: A -- before the command runs the command
+
+- **WHEN** `cospec -- list` runs
+- **THEN** `list` runs as `cospec list` does, as `openspec -- list` does, and
+  `cospec -- list --help` is refused as too many arguments with exit 1, as
+  `openspec -- list --help` is
 
 #### Scenario: A forwarded command receives the operand verbatim
 
@@ -166,10 +186,17 @@ position before a `--` terminator, with
 (`cospec: …` when no command was given) and exit 1, and one given an empty value
 (`--store=`, `--cwd ''`) with
 `cospec <command>: option '<flag> <placeholder>' argument must not be empty` and
-exit 1. The refusal SHALL come after a version request and ahead of `--help`, an
-unknown option, a `--store-path` refusal and the command itself, as the pinned
-binary raises its own `option '--store <id>' argument missing` while it parses;
-the command SHALL never run against the local repo instead.
+exit 1. A missing value SHALL be refused after a version request and ahead of
+`--help`, an unknown option, a `--store-path` refusal and the command itself, as
+the pinned binary raises its own `option '--store <id>' argument missing` while
+it parses a command level — except that a missing value after the command name
+SHALL yield to an undeclared option before it, which the pinned binary refuses
+at the program level before it parses the subcommand. An empty value SHALL be
+refused only after every parse-time answer — a version request, `--help`, an
+unknown option, a `--store-path` refusal, an unknown command and the command's
+own parse refusals — and before the command does any work, as the pinned binary
+accepts an empty value while it parses and refuses an empty store id in its
+action code. The command SHALL never run against the local repo instead.
 
 #### Scenario: A trailing --store is refused, not dropped
 
@@ -183,6 +210,12 @@ the command SHALL never run against the local repo instead.
 - **THEN** stderr is
   `cospec list: option '--cwd <path>' argument must not be empty` and the exit
   code is 1
+
+#### Scenario: Help wins over an empty value
+
+- **WHEN** `cospec list --store= --help` runs
+- **THEN** stdout is the `list` help and the exit code is 0, as
+  `openspec list --store= --help` prints its help
 
 ### Requirement: Forwarded commands are declared, not re-parsed
 

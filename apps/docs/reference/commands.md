@@ -25,18 +25,25 @@ the table.
 `cospec <command>: option '--store <id>' argument missing` (or
 `'--cwd <path>'`), and given an empty one (`--store=`) with
 `… argument must not be empty`, exit `1` — the command never falls back to the
-local repo.
+local repo. As in OpenSpec, a missing value is a parse error and wins over
+`--help`, while an empty value is refused only once parsing is done: help, an
+unknown option, `--store-path` and the command's own argument refusals all
+answer first (`cospec list --store= --help` prints help).
 
 Global flags are recognised before the command name and anywhere after it, up to
 a `--` terminator. After `--` every token is an operand of the command, as in
 OpenSpec: `cospec list -- --json` is refused as too many arguments, not run as
-`list --json`.
+`list --json`. A `--` before the command name works the same way:
+`cospec -- list` runs `list`, and `cospec -- list --help` is refused as too many
+arguments.
 
-Before the command name, only the global flags are accepted: any other option is
-refused with `cospec: unknown option '<flag>'` (plus
-`Did you mean '<closest-global-flag>'?` when one is close enough), exit `1`, and
-the command doesn't run — `cospec --bogus list` lists nothing, as
-`openspec --bogus list` refuses too.
+Before the command name, only the global flags (and a `--` terminator) are
+accepted: any other option is refused with `cospec: unknown option '<flag>'`
+(plus `Did you mean '<closest-global-flag>'?` when one is close enough), exit
+`1`, and the command doesn't run — `cospec --bogus list` lists nothing, as
+`openspec --bogus list` refuses too. That refusal comes before anything after
+the command name is looked at, so `cospec --bogus list --store` refuses
+`--bogus`, not the missing value.
 
 `cospec <command> help` — a bare `help` token immediately after the command name
 — is equivalent to `cospec <command> --help`; it never runs the command.
