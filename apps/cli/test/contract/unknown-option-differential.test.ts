@@ -22,11 +22,10 @@
 //   pending      cospec refuses with `'<flag>' is not supported yet` and exit 1
 //                (the binary is not consulted: the flag is owed to a later change)
 //
-// A row whose command is not on the table parser yet is registered with
-// `test.todo` and a `todo` naming the track that moves it; that track deletes
-// the `todo` field when its command lands. Close-out (tasks 9.2) requires no
-// `todo` row to remain, and then collapses `register` to a plain `test(...)`
-// so the literal `test.todo` leaves this file too (the 9.2 grep looks for it).
+// Every row above ran through `test.todo` while its command was still off the
+// table parser (groups 4-6 un-skipped them one command at a time); by
+// close-out every row is a plain `test(...)` and no `test.todo` remains in
+// this file (ledger 7.6, tasks 9.2).
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { cpSync } from 'node:fs'
@@ -121,8 +120,6 @@ interface Row {
   cospecStderr?: string
   /** For a `pending` row, the flag named in the refusal. */
   pendingFlag?: string
-  /** Set while the command is not on the table parser: the track that moves it. */
-  todo?: string
 }
 
 const unknown = (command: string, option: string): string =>
@@ -455,10 +452,6 @@ const FORWARD_ROWS: readonly Row[] = [
     command: 'store',
     expect: 'same',
     cospecStderr: "error: unknown option '--bogus'",
-    // store.ts appends `--json` and reports the binary's empty stdout as a
-    // wrapped-call failure instead of relaying its refusal. commands/store.ts
-    // is in no track of this change; reported as an open follow-up.
-    todo: 'unowned: commands/store.ts relays no unknown-option refusal (follow-up)',
   },
   {
     argv: ['workset', 'list', '--bogus'],
@@ -512,8 +505,7 @@ async function checkRow(row: Row): Promise<void> {
 function register(rows: readonly Row[]): void {
   for (const row of rows) {
     const name = `${row.expect}: ${row.argv.join(' ')}`
-    if (row.todo === undefined) test(name, () => checkRow(row), 30_000)
-    else test.todo(`${name} — ${row.todo}`, () => checkRow(row), 30_000)
+    test(name, () => checkRow(row), 30_000)
   }
 }
 

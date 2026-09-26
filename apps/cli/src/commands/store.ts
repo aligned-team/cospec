@@ -19,6 +19,7 @@ import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { commandRow, parseCommandArgs } from '../core/command-table.ts'
 import {
+  OpenspecCallError,
   openspecStoreList,
   passthroughOpenspec,
   type OpenspecResult,
@@ -298,6 +299,32 @@ function printFailure(ctx: CommandContext, payload: { status: OpenspecStatusEntr
   return EXIT.failure
 }
 
+/**
+ * True when a wrapped-call failure is the binary's own commander-level parse
+ * rejection (unknown option, missing value, too many arguments) rather than a
+ * cospec-side wrapped-call violation. Every subcommand here appends `--json`
+ * unconditionally (module header), so a parse rejection — which the binary
+ * answers on stderr in plain text, before it ever reaches its JSON renderer,
+ * even with `--json` present — surfaces to `enforcePassthroughJson` as
+ * unparseable stdout. `store` is a `forward` row (design decision 1): the
+ * binary is still the unknown-option authority here, so its stderr must be
+ * relayed verbatim, never reported as a cospec bug.
+ */
+function isParseRejection(result: OpenspecResult): boolean {
+  return (
+    result.stdout.trim().length === 0 &&
+    /^error: (unknown option|option .* argument missing|too many arguments)/.test(
+      result.stderr.trim(),
+    )
+  )
+}
+
+/** Relay the binary's own parse-rejection verbatim (the `forward`-row contract). */
+function relayParseRejection(result: OpenspecResult): number {
+  if (result.stderr.length > 0) process.stderr.write(result.stderr)
+  return EXIT.failure
+}
+
 /** A wrapped-call violation (deny-list, disallowed exit code, bad post-condition) — a cospec bug, not a user error. */
 function printCallError(ctx: CommandContext, err: unknown): number {
   const message = err instanceof Error ? err.message : String(err)
@@ -326,6 +353,8 @@ async function runSetupOrRegister(
       expect: { postCondition: mutationPostCondition() },
     })
   } catch (err) {
+    if (err instanceof OpenspecCallError && isParseRejection(err.result))
+      return relayParseRejection(err.result)
     return printCallError(ctx, err)
   }
   const payload = JSON.parse(result.stdout) as MutationPayload
@@ -348,6 +377,8 @@ async function runCleanup(
       expect: { postCondition: cleanupPostCondition(ctx.cwd, sub === 'remove') },
     })
   } catch (err) {
+    if (err instanceof OpenspecCallError && isParseRejection(err.result))
+      return relayParseRejection(err.result)
     return printCallError(ctx, err)
   }
   const payload = JSON.parse(result.stdout) as CleanupPayload
@@ -364,6 +395,8 @@ async function runList(ctx: CommandContext, rawArgs: string[]): Promise<number> 
       expect: { postCondition: listPostCondition },
     })
   } catch (err) {
+    if (err instanceof OpenspecCallError && isParseRejection(err.result))
+      return relayParseRejection(err.result)
     return printCallError(ctx, err)
   }
   const payload = JSON.parse(result.stdout) as ListPayload
@@ -391,6 +424,8 @@ async function runDoctor(ctx: CommandContext, rawArgs: string[]): Promise<number
       expect: { postCondition: doctorPostCondition },
     })
   } catch (err) {
+    if (err instanceof OpenspecCallError && isParseRejection(err.result))
+      return relayParseRejection(err.result)
     return printCallError(ctx, err)
   }
   const payload = JSON.parse(result.stdout) as DoctorPayload

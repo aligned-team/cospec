@@ -163,9 +163,9 @@ red; 4–7 turn it green; 8 documents it.
 
 ## 9. Close-out
 
-- [ ] 9.1 `mise run check` green (ledger 7.1–7.5); every ledger row marked with
+- [x] 9.1 `mise run check` green (ledger 7.1–7.5); every ledger row marked with
       observed evidence
-- [ ] 9.2 Grep the new test files (`command-table.test.ts`,
+- [x] 9.2 Grep the new test files (`command-table.test.ts`,
       `reachability.test.ts`, `unknown-option-differential.test.ts`, and any
       `cli.test.ts`/`completions.test.ts` additions) for `test.todo`/`it.todo`
       and confirm zero remain (ledger 7.6)
