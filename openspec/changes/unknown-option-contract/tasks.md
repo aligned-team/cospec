@@ -282,3 +282,14 @@ red; 4–7 turn it green; 8 documents it.
       reachability fixtures, `pending` precedence-matrix rows pinning cospec's
       current `unknown command` answer, design decisions 6 and the pending
       table; the docs pending list shows it (ledger 1.21)
+- [x] 10.21 Make the binary the `--store-path` authority on every forward row:
+      delete `cli.ts`'s `relayForwardStorePath` and every forward-row
+      `--store-path` token scan, so a token that is another flag's value runs
+      the command (`schema init s1 --description --store-path`, exit 0); the
+      wrappers (`passthrough-command.ts`, `store`, `workset`, `config`) answer
+      the binary's own `--store-path` refusal with cospec's redirect
+      (`core/forward-relay.ts`), and their parse-rejection relay recognises the
+      redirect shape; the terminal-handover leaves alone check the option
+      position statically and never spawn; precedence-matrix rows, unit rows,
+      design decision 2, the spec requirement, `docs/architecture.md` and
+      `reference/commands.md` (ledger 1.22)

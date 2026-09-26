@@ -357,10 +357,16 @@ text respelled to name `cospec store register <path>` and `--store <id>`. Under
 and `fix` respelled the same way. The text SHALL never name bare `openspec`. The
 refusal SHALL land where the pinned binary refuses `--store-path`: on a `table`
 row after the row's unknown-option, pending and too-many-arguments refusals (a
-`--store-path` with no value is refused while parsing); on a `forward` row
-cospec SHALL hand the argv to the binary and answer the redirect only when the
-binary's own answer is its `--store-path` refusal, relaying any refusal it
-reaches first; and after a leading `--` a `--store-path` SHALL be an operand.
+`--store-path` with no value is refused while parsing); on a `forward` row the
+binary SHALL be the authority — cospec SHALL NOT pre-decide from a raw
+`--store-path` token, SHALL hand the row's argv to its wrapper unchanged, SHALL
+relay any refusal the binary reaches first and SHALL answer the redirect in
+place of the binary's own `--store-path` refusal only, never for a call that
+exited 0 — except on a terminal-handover leaf (`config edit`, `config profile`
+with no preset, `config reset --all` without `-y`, `workset open`), where cospec
+SHALL answer the redirect without spawning when `--store-path` stands in option
+position by the row's declared flags; and after a leading `--` a `--store-path`
+SHALL be an operand.
 
 #### Scenario: --store-path after the command name
 
@@ -381,6 +387,18 @@ reaches first; and after a leading `--` a `--store-path` SHALL be an operand.
   `cospec config path --bogus --store-path /x` runs
 - **THEN** the answer is the unknown option `--bogus` or too many arguments, as
   the pinned binary answers, and the exit code is 1
+
+#### Scenario: A --store-path that is another flag's value on a forward row
+
+- **WHEN** `cospec schema init s1 --description --store-path` runs in a project
+- **THEN** the schema `s1` is created and the exit code is 0, as the pinned
+  binary answers
+
+#### Scenario: --store-path on a terminal-handover leaf
+
+- **WHEN** `cospec config edit --store-path /x` runs
+- **THEN** stderr carries the redirect, the exit code is 1, and no editor runs
+  and no config file is written
 
 #### Scenario: --store-path under --json
 

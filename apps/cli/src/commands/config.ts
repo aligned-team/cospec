@@ -39,6 +39,8 @@ import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
+import { commandRow, storePathInOptionPosition, storePathRefusal } from '../core/command-table.ts'
+import { forwardCall, relayStorePathRefusal } from '../core/forward-relay.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
 import {
   beforeTerminator,
@@ -200,7 +202,13 @@ const CONFIG_EXPECT: RunExpectation = {
  * logic — read `config list --json` for typed values).
  */
 async function runPiped(ctx: CommandContext, call: ConfigCall): Promise<number> {
-  const result = await passthroughOpenspec(call.argv, { cwd: ctx.cwd, expect: CONFIG_EXPECT })
+  const result = await forwardCall(() =>
+    passthroughOpenspec(call.argv, { cwd: ctx.cwd, expect: CONFIG_EXPECT }),
+  )
+  // Ahead of the cospec-owned envelopes: the binary's `--store-path` refusal
+  // is answered with cospec's redirect, never rendered as a `path` or `value`.
+  const refused = relayStorePathRefusal(result, ctx.flags.json)
+  if (refused !== undefined) return refused
   const ok = result.exitCode === 0
   const out = result.stdout.trim()
 
@@ -263,8 +271,21 @@ async function resolveHandoverBin(cwd: string): Promise<string> {
  * `--no-color` still reaches the child through the inherited `NO_COLOR=1` the
  * dispatcher sets). `OPENSPEC_NO_COMPLETIONS=1` is added over that precedent so
  * upstream's first-run completions tip can never surface from a cospec run.
+ *
+ * The handover class's one pre-spawn `--store-path` check (design decision
+ * 2): with inherited stdio the binary's refusal would reach the terminal
+ * unrespelled, so a `--store-path` in option position is answered with
+ * cospec's redirect without spawning — and never after the editor has run.
  */
 async function runHandover(ctx: CommandContext, call: ConfigCall): Promise<number> {
+  const row = commandRow('config')
+  const sub = row?.subcommands?.find((s) => s.name === call.sub)
+  if (row === undefined || sub === undefined) throw new Error(`cospec config: no '${call.sub}' row`)
+  if (storePathInOptionPosition([row, sub], call.subArgs)) {
+    const refusal = storePathRefusal(ctx.flags.json)
+    process[refusal.stream].write(refusal.text)
+    return EXIT.failure
+  }
   if (ctx.flags.json) {
     process.stdout.write(
       jsonEnvelope({

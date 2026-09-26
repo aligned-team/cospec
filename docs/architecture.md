@@ -100,9 +100,14 @@ pre-command and post-command position, with cospec's own redirect, because
 upstream's redirect text names bare `openspec` — the output-side rule below
 forbids that everywhere, this included. Where it lands follows the binary: a
 `table` row refuses it after the row's other parse refusals, and on a `forward`
-row `cli.ts` asks the binary (which refuses any argv carrying `--store-path`)
-and prints the redirect only when the binary's answer is its own `--store-path`
-refusal, relaying whatever it refuses first.
+row the binary is the authority — the argv reaches it unchanged, it refuses a
+`--store-path` in option position in its own order (and runs the command when
+the token is another flag's value), and the wrapper only answers the binary's
+own `--store-path` refusal with cospec's redirect (`core/forward-relay.ts`). The
+terminal-handover leaves (`config edit`/`profile`/`reset --all` without `-y`,
+`workset open`) are the one exception: with inherited stdio there is nothing to
+respell, so they check the option position statically from the row's declared
+flags and print the redirect without spawning.
 
 ### The reachability test is the parity gate
 

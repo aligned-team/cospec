@@ -18,6 +18,7 @@ import { join } from 'node:path'
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { commandRow, parseCommandArgs } from '../core/command-table.ts'
+import { isParseRejection, relayStorePathRefusal } from '../core/forward-relay.ts'
 import {
   beforeTerminator,
   OpenspecCallError,
@@ -301,27 +302,16 @@ function printFailure(ctx: CommandContext, payload: { status: OpenspecStatusEntr
 }
 
 /**
- * True when a wrapped-call failure is the binary's own commander-level parse
- * rejection (unknown option, missing value, too many arguments) rather than a
- * cospec-side wrapped-call violation. Every subcommand here appends `--json`
- * unconditionally (module header), so a parse rejection — which the binary
- * answers on stderr in plain text, before it ever reaches its JSON renderer,
- * even with `--json` present — surfaces to `enforcePassthroughJson` as
- * unparseable stdout. `store` is a `forward` row (design decision 1): the
- * binary is still the unknown-option authority here, so its stderr must be
- * relayed verbatim, never reported as a cospec bug.
+ * Relay the binary's own parse rejection (the `forward`-row contract, design
+ * decision 1). Every subcommand here appends `--json` unconditionally (module
+ * header), so a rejection — which the binary answers on stderr in plain text,
+ * before it reaches its JSON renderer — surfaces as unparseable stdout; it is
+ * the user's answer, never a cospec bug. A rejection of `--store-path` is
+ * answered with cospec's redirect.
  */
-function isParseRejection(result: OpenspecResult): boolean {
-  return (
-    result.stdout.trim().length === 0 &&
-    /^error: (unknown option|option .* argument missing|too many arguments)/.test(
-      result.stderr.trim(),
-    )
-  )
-}
-
-/** Relay the binary's own parse-rejection verbatim (the `forward`-row contract). */
-function relayParseRejection(result: OpenspecResult): number {
+function relayParseRejection(ctx: CommandContext, result: OpenspecResult): number {
+  const refused = relayStorePathRefusal(result, ctx.flags.json)
+  if (refused !== undefined) return refused
   if (result.stderr.length > 0) process.stderr.write(result.stderr)
   return EXIT.failure
 }
@@ -355,9 +345,11 @@ async function runSetupOrRegister(
     })
   } catch (err) {
     if (err instanceof OpenspecCallError && isParseRejection(err.result))
-      return relayParseRejection(err.result)
+      return relayParseRejection(ctx, err.result)
     return printCallError(ctx, err)
   }
+  const refused = relayStorePathRefusal(result, ctx.flags.json)
+  if (refused !== undefined) return refused
   const payload = JSON.parse(result.stdout) as MutationPayload
   if (result.exitCode !== 0) return printFailure(ctx, payload)
 
@@ -379,9 +371,11 @@ async function runCleanup(
     })
   } catch (err) {
     if (err instanceof OpenspecCallError && isParseRejection(err.result))
-      return relayParseRejection(err.result)
+      return relayParseRejection(ctx, err.result)
     return printCallError(ctx, err)
   }
+  const refused = relayStorePathRefusal(result, ctx.flags.json)
+  if (refused !== undefined) return refused
   const payload = JSON.parse(result.stdout) as CleanupPayload
   if (result.exitCode !== 0) return printFailure(ctx, payload)
   printCleanup(ctx, sub === 'remove' ? 'Removed store' : 'Unregistered store', payload)
@@ -397,9 +391,11 @@ async function runList(ctx: CommandContext, rawArgs: string[]): Promise<number> 
     })
   } catch (err) {
     if (err instanceof OpenspecCallError && isParseRejection(err.result))
-      return relayParseRejection(err.result)
+      return relayParseRejection(ctx, err.result)
     return printCallError(ctx, err)
   }
+  const refused = relayStorePathRefusal(result, ctx.flags.json)
+  if (refused !== undefined) return refused
   const payload = JSON.parse(result.stdout) as ListPayload
   if (ctx.flags.json) {
     process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`)
@@ -426,9 +422,11 @@ async function runDoctor(ctx: CommandContext, rawArgs: string[]): Promise<number
     })
   } catch (err) {
     if (err instanceof OpenspecCallError && isParseRejection(err.result))
-      return relayParseRejection(err.result)
+      return relayParseRejection(ctx, err.result)
     return printCallError(ctx, err)
   }
+  const refused = relayStorePathRefusal(result, ctx.flags.json)
+  if (refused !== undefined) return refused
   const payload = JSON.parse(result.stdout) as DoctorPayload
   if (ctx.flags.json) {
     process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`)

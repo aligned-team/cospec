@@ -9,6 +9,7 @@
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
+import { forwardCall, relayStorePathRefusal } from './forward-relay.ts'
 import {
   beforeTerminator,
   passthroughOpenspec,
@@ -35,9 +36,10 @@ export interface PassthroughCommandResult {
  * Resolve the operating root, thread `--json`/`--no-color`/`--store` onto
  * `opts.args`, and run it through `passthroughOpenspec`. Returns both the raw
  * `OpenspecResult` (for a caller that wants to inspect/reshape stdout before
- * printing) and the mapped exit code. Never prints anything itself — callers
- * that just want the default "relay verbatim" behavior should call
- * `runPassthrough` instead.
+ * printing) and the mapped exit code; the binary's own parse rejection comes
+ * back as a result, not a thrown wrapped-call error. Never prints anything
+ * itself — callers that just want the default "relay verbatim" behavior should
+ * call `runPassthrough` instead.
  */
 export async function callPassthrough(
   ctx: CommandContext,
@@ -48,25 +50,30 @@ export async function callPassthrough(
     ...(ctx.flags.json ? ['--json'] : []),
     ...(ctx.flags.noColor ? ['--no-color'] : []),
   ])
-  const result = await passthroughOpenspec(args, {
-    cwd: root.cwd,
-    storeArgs: root.storeArgs,
-    expect: opts.expect,
-  })
+  const result = await forwardCall(() =>
+    passthroughOpenspec(args, {
+      cwd: root.cwd,
+      storeArgs: root.storeArgs,
+      expect: opts.expect,
+    }),
+  )
   return { result, code: result.exitCode === 0 ? EXIT.success : EXIT.failure }
 }
 
 /**
  * The common case: run the passthrough call and relay its stdout/stderr
- * verbatim, returning the mapped exit code. A passthrough command has no
- * blocked/soft-blocked state of its own — every non-zero wrapped exit maps to
- * `EXIT.failure`.
+ * verbatim, returning the mapped exit code — except the binary's own
+ * `--store-path` refusal, answered with cospec's respelled redirect. A
+ * passthrough command has no blocked/soft-blocked state of its own — every
+ * non-zero wrapped exit maps to `EXIT.failure`.
  */
 export async function runPassthrough(
   ctx: CommandContext,
   opts: PassthroughCommandOptions,
 ): Promise<number> {
   const { result, code } = await callPassthrough(ctx, opts)
+  const refused = relayStorePathRefusal(result, ctx.flags.json)
+  if (refused !== undefined) return refused
   if (result.stdout.length > 0) process.stdout.write(result.stdout)
   if (result.stderr.length > 0) process.stderr.write(result.stderr)
   return code

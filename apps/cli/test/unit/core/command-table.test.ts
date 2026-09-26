@@ -13,6 +13,7 @@ import {
   jsonRefusal,
   offeredFlags,
   parseCommandArgs,
+  storePathInOptionPosition,
   storePathRefusal,
   type CommandRow,
   type ParseRefusal,
@@ -440,6 +441,33 @@ describe('--store-path guard', () => {
       target: 'store.id',
       fix: 'cospec store register <path>, then rerun with --store <id>.',
     })
+  })
+})
+
+describe('storePathInOptionPosition (the terminal-handover pre-spawn check)', () => {
+  const config = commandRow('config')!
+  const sub = (row: CommandRow, name: string) => row.subcommands!.find((s) => s.name === name)!
+  const edit = [config, sub(config, 'edit')]
+  const workset = commandRow('workset')!
+  const open = [workset, sub(workset, 'open')]
+
+  test('finds --store-path in option position, in both forms', () => {
+    expect(storePathInOptionPosition(edit, ['--store-path', '/x'])).toBe(true)
+    expect(storePathInOptionPosition(edit, ['--store-path'])).toBe(true)
+    expect(storePathInOptionPosition(open, ['w1', '--store-path=/x'])).toBe(true)
+  })
+
+  test('a declared value-taking flag consumes it as its value', () => {
+    expect(storePathInOptionPosition(open, ['--tool', '--store-path', 'w1'])).toBe(false)
+    expect(storePathInOptionPosition(open, ['--tool=code', '--store-path', '/x'])).toBe(true)
+  })
+
+  test("an earlier undeclared option is the binary's to refuse first", () => {
+    expect(storePathInOptionPosition(edit, ['--bogus', '--store-path', '/x'])).toBe(false)
+  })
+
+  test('after -- it is an operand', () => {
+    expect(storePathInOptionPosition(open, ['--', '--store-path', '/x'])).toBe(false)
   })
 })
 

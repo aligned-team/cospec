@@ -189,11 +189,14 @@ never prompts), and `list --changes` (the default).
 **`--store-path`** is refused on every command — in the `--store-path <path>`
 and `--store-path=<path>` forms, in both the pre-command and post-command
 position — with the same redirect OpenSpec prints, respelled to `cospec`, at the
-point OpenSpec refuses it: on a forwarded command whatever the binary refuses
-first (`cospec config path --bogus --store-path /x` relays
-`unknown option '--bogus'`), and never after a leading `--`, where it is an
-operand (`cospec -- config --store-path /x` refuses `--store-path` as an unknown
-`config` subcommand):
+point OpenSpec refuses it. On a forwarded command OpenSpec itself decides:
+whatever it refuses first is relayed
+(`cospec config path --bogus --store-path /x` relays
+`unknown option '--bogus'`), and a `--store-path` that is another option's value
+is just that value (`cospec schema init s1 --description --store-path` creates
+the schema, as OpenSpec does). It is never refused after a leading `--`, where
+it is an operand (`cospec -- config --store-path /x` refuses `--store-path` as
+an unknown `config` subcommand):
 
 ```
 ✖ Error: --store-path is not supported. Register the path with cospec store

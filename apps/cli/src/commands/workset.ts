@@ -11,6 +11,8 @@ import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
+import { commandRow, storePathInOptionPosition, storePathRefusal } from '../core/command-table.ts'
+import { forwardCall, relayStorePathRefusal } from '../core/forward-relay.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
 import {
   beforeTerminator,
@@ -42,7 +44,9 @@ async function runWorksetPassthrough(
     ['workset', sub, ...rest],
     [...(ctx.flags.json ? ['--json'] : []), ...(ctx.flags.noColor ? ['--no-color'] : [])],
   )
-  const result = await passthroughOpenspec(args, { cwd: ctx.cwd })
+  const result = await forwardCall(() => passthroughOpenspec(args, { cwd: ctx.cwd }))
+  const refused = relayStorePathRefusal(result, ctx.flags.json)
+  if (refused !== undefined) return refused
   if (result.stdout.length > 0) process.stdout.write(result.stdout)
   if (result.stderr.length > 0) process.stderr.write(result.stderr)
   return result.exitCode === 0 ? EXIT.success : EXIT.failure
@@ -72,8 +76,21 @@ async function resolveWorksetOpenBin(cwd: string): Promise<string> {
  * child's exact exit code. Never threads `--json`/`--no-color` — openspec's own
  * `workset open` rejects `--json` (`workset_open_json_unsupported`), and this
  * module deliberately never adds it either.
+ *
+ * The handover class's one pre-spawn `--store-path` check (design decision
+ * 2): with inherited stdio the binary's redirect would reach the terminal
+ * naming bare `openspec`, with nothing to respell, so a `--store-path` in
+ * option position is answered with cospec's redirect without spawning.
  */
 async function runWorksetOpen(ctx: CommandContext, rest: string[]): Promise<number> {
+  const row = commandRow('workset')
+  const open = row?.subcommands?.find((s) => s.name === 'open')
+  if (row === undefined || open === undefined) throw new Error("cospec workset: no 'open' row")
+  if (storePathInOptionPosition([row, open], rest)) {
+    const refusal = storePathRefusal(ctx.flags.json)
+    process[refusal.stream].write(refusal.text)
+    return EXIT.failure
+  }
   const bin = await resolveWorksetOpenBin(ctx.cwd)
   const proc = Bun.spawn([process.execPath, bin, 'workset', 'open', ...rest], {
     cwd: ctx.cwd,

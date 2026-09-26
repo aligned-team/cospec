@@ -426,7 +426,6 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * unknown option or pending flag). The fixes empty this set.
  */
 const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  'schema init s1 --description --store-path',
   'list --bogus --store-path',
   'list --help --bogus --store-path',
   'list --sort x --store-path',

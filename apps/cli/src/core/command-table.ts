@@ -1197,6 +1197,34 @@ export function storePathRefusal(json: boolean): {
 }
 
 /**
+ * Whether `args` (a terminal-handover leaf's own argv, global flags already
+ * stripped) carries `--store-path` in option position before any other
+ * undeclared option — where the binary refuses it without running the
+ * command. `surfaces` are the command and subcommand whose declared flags the
+ * scan knows: a value-taking flag consumes the next token (so a
+ * `--store-path` there is its value), and the scan stops at `--`. An earlier
+ * undeclared option is the binary's to refuse first, so the answer is false.
+ */
+export function storePathInOptionPosition(
+  surfaces: readonly SurfaceSpec[],
+  args: readonly string[],
+): boolean {
+  const flags = surfaces.flatMap((surface) => surface.flags)
+  for (let i = 0; i < args.length; i++) {
+    const tok = args[i]!
+    if (tok === '--') return false
+    if (!isOptionToken(tok)) continue
+    if (isStorePathToken(tok)) return true
+    const eq = tok.startsWith('--') ? tok.indexOf('=') : -1
+    const name = eq > 0 ? tok.slice(0, eq) : tok
+    const flag = flags.find((f) => f.name === name || f.short === name)
+    if (flag === undefined) return false
+    if (flag.takesValue === true && eq <= 0) i++
+  }
+  return false
+}
+
+/**
  * Whether a wrapped run's answer is the binary's own refusal of `--store-path`:
  * its redirect (text, or the `--json` envelope), or commander's plain
  * `unknown option '--store-path'` / `argument missing` on a command that does

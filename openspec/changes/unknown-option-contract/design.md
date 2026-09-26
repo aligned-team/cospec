@@ -108,10 +108,10 @@ runtime by `dist/commands/spec.js:127`.
    - Rejected alternative: a third policy "table-then-forward" that rejects
      unknowns locally and forwards the rest. It would re-create the `show`
      regression and add nothing the binary does not already do.
-2. **`--store-path` is intercepted on every command, before spawn, in both
-   positions.** A forwarded `--store-path` would produce upstream's text, which
-   names `openspec store register` — bare `openspec` in shipped output, which
-   the output-side rule forbids. cospec prints upstream's text with `openspec`
+2. **`--store-path` is refused on every command, in both positions.** A
+   forwarded `--store-path` would produce upstream's text, which names
+   `openspec store register` — bare `openspec` in shipped output, which the
+   output-side rule forbids. cospec prints upstream's text with `openspec`
    respelled to `cospec`, and under `--json` the same envelope shape upstream
    emits (`status[0].code` `store_path_not_supported`, `target` `store.id`,
    `message`, `fix`) respelled the same way. Upstream prints a plain
@@ -123,23 +123,38 @@ runtime by `dist/commands/spec.js:127`.
    `--store-path` (consuming its value; with none, it is refused while parsing
    like any missing value) and answers the redirect only after the row's
    unknown-option, pending and too-many-arguments checks pass. On a `forward`
-   row the binary is the ordering authority (decision 1), and cospec cannot know
-   its parse without asking it, so `cli.ts` hands it the row's argv and answers
-   the redirect only when the binary's answer is its own `--store-path` refusal
-   — the redirect, its `--json` envelope, or commander's
-   `unknown option '--store-path'` where the command does not declare it. Any
-   refusal the binary reaches first is relayed verbatim, unless it names bare
-   `openspec` (`store`'s unknown-subcommand remedy), in which case the row's own
-   wrapper answers. The pinned binary refuses every forward argv carrying
-   `--store-path` (probed on each forward subcommand), so this call never runs a
-   command and a terminal-handover leaf (`config edit`, `workset open`) never
-   takes the terminal; it is declared to exit 1 only. After a leading `--`,
-   `--store-path` is an operand and nothing intercepts it:
-   `cospec -- config --store-path /x` is `config`'s unknown subcommand, as
-   `openspec -- config --store-path /x` is. The precedence matrix compares the
-   refusal's kind, counting any refusal whose subject is `--store-path` as the
-   same kind in either dialect, so it measures where the refusal lands, not its
-   wording.
+   row the binary is the `--store-path` authority; cospec respells the relay.
+   `cli.ts` neither scans for the token nor pre-decides anything: the row's argv
+   reaches its wrapper unchanged, and the binary refuses a post-command
+   `--store-path` itself, in its own order, never running the command when the
+   token is in option position — and running it when the token is another flag's
+   value (`schema init s1 --description --store-path` creates `s1`, exit 0, in
+   both tools; `show --type --store-path c1` looks up `c1`). The wrapper's only
+   job is output-side (`core/forward-relay.ts`): when a failed call's answer is
+   the binary's own `--store-path` refusal — the redirect, its `--json`
+   envelope, or commander's `unknown option '--store-path'` / `argument missing`
+   — it prints cospec's redirect, a document under `--json`, in its place; a
+   call that exited 0 ran its command and is never reclassified. Each forward
+   wrapper's parse-rejection relay (`isParseRejection`) recognises the redirect
+   shape as well as commander's, so a stderr-only refusal under `--json` is
+   relayed, never reported as a wrapped-call violation. The one exception is the
+   terminal-handover class (`config edit`, `config profile` with no preset,
+   `config reset --all` without `-y`, `workset open`): its inherited stdio
+   leaves nothing to respell, so for that closed set only the wrapper checks
+   statically, from the row's declared flags, whether `--store-path` is in
+   option position — a value-taking flag's next token is its value, an earlier
+   undeclared option is the binary's to refuse first, `--` ends the scan — and
+   prints the redirect without spawning, so the terminal is never taken.
+   Rejected: asking the binary first on any argv carrying a raw `--store-path`
+   token (this decision's previous form). It assumed the binary refuses every
+   such argv; when the token is another flag's value the binary runs the
+   command, mutates and exits 0, and cospec reported a false failure naming bare
+   `openspec`. After a leading `--`, `--store-path` is an operand and nothing
+   intercepts it: `cospec -- config --store-path /x` is `config`'s unknown
+   subcommand, as `openspec -- config --store-path /x` is. The precedence matrix
+   compares the refusal's kind, counting any refusal whose subject is
+   `--store-path` as the same kind in either dialect, so it measures where the
+   refusal lands, not its wording.
 3. **Refusal formats.** Unknown option: `cospec <command>: unknown option '<x>'`
    (the `parseFeedbackArgs` precedent), followed on the next line by
    `Did you mean '<flag>'?` when `closest()` (the Levenshtein helper `cli.ts`
