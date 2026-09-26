@@ -326,6 +326,32 @@ const TABLE_ROWS: readonly Row[] = [
     expect: 'same',
     cospecStderr: 'cospec validate: too many arguments. Expected 1 argument but got 2.',
   },
+  // On main these ran: `new feat add login` created a change named `add`
+  // (upstream: `unknown command 'feat'`), and `init a b` scaffolded `./a`.
+  {
+    argv: ['new', 'feat', 'add', 'login'],
+    command: 'new',
+    expect: 'same',
+    cospecStderr: 'cospec new: too many arguments. Expected 2 arguments but got 3.',
+  },
+  {
+    argv: ['init', 'a', 'b'],
+    command: 'init',
+    expect: 'same',
+    cospecStderr: 'cospec init: too many arguments. Expected 1 argument but got 2.',
+  },
+  {
+    argv: ['status', 'a', 'b'],
+    command: 'status',
+    expect: 'same',
+    cospecStderr: 'cospec status: too many arguments. Expected 1 argument but got 2.',
+  },
+  {
+    argv: ['instructions', 'proposal', 'extra', '--change', 'x'],
+    command: 'instructions',
+    expect: 'same',
+    cospecStderr: 'cospec instructions: too many arguments. Expected 1 argument but got 2.',
+  },
 ]
 
 /**
@@ -378,6 +404,18 @@ const NATIVE_ROWS: readonly Row[] = [
     command: 'check-commit',
     expect: 'same',
     cospecStderr: 'cospec check-commit: too many arguments. Expected 1 argument but got 2.',
+  },
+  {
+    argv: ['apply', 'x', 'extra'],
+    command: 'apply',
+    expect: 'same',
+    cospecStderr: 'cospec apply: too many arguments. Expected 1 argument but got 2.',
+  },
+  {
+    argv: ['migrate', 'x', 'extra'],
+    command: 'migrate',
+    expect: 'same',
+    cospecStderr: 'cospec migrate: too many arguments. Expected 1 argument but got 2.',
   },
   {
     argv: ['__complete', '--bogus', 'changes'],

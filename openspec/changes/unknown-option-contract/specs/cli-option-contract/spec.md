@@ -37,19 +37,29 @@ on the next line when one is within edit distance, and exit 1, before the
 command does any work. A declared value-taking flag with no value SHALL fail
 with `cospec <command>: option '<flag> <placeholder>' argument missing` and
 exit 1. A flag marked pending SHALL consume its value if it takes one and SHALL
-fail with `cospec <command>: '<flag>' is not supported yet` and exit 1. No flag
-or flag value SHALL ever be read as a positional. Each `table` row SHALL declare
-whether it accepts the global `--json`; on a row that does not, `--json` SHALL
-be refused with exactly one JSON document on stdout
-(`{version: 1, command, ok: false, message}`, the `cospec completion` precedent)
-and exit 1, before the command does any work, and SHALL never be silently
-ignored.
+fail with `cospec <command>: '<flag>' is not supported yet` and exit 1. A
+positional beyond the row's declared slots SHALL fail with
+`cospec <command>: too many arguments. Expected N argument(s) but got M.` and
+exit 1, before any work, on every `table` row; it SHALL never be dropped while
+the command runs on the rest. No flag or flag value SHALL ever be read as a
+positional. Each `table` row SHALL declare whether it accepts the global
+`--json`; on a row that does not, `--json` SHALL be refused with exactly one
+JSON document on stdout (`{version: 1, command, ok: false, message}`, the
+`cospec completion` precedent) and exit 1, before the command does any work, and
+SHALL never be silently ignored.
 
 #### Scenario: Unknown option is refused before any work
 
 - **WHEN** `cospec list --bogus` runs in a repo with active changes
 - **THEN** stderr is `cospec list: unknown option '--bogus'`, nothing is listed,
   and the exit code is 1
+
+#### Scenario: An excess positional is refused, not dropped
+
+- **WHEN** `cospec new feat add login` runs
+- **THEN** stderr is
+  `cospec new: too many arguments. Expected 2 arguments but got 3.`, no change
+  named `add` is created, and the exit code is 1
 
 #### Scenario: A pending flag never leaks its value into a positional
 

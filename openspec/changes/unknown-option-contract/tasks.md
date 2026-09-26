@@ -214,3 +214,9 @@ red; 4–7 turn it green; 8 documents it.
       `parity-pending.yaml`, `exceptions.yaml` or `deprecated.yaml` as `[]`, and
       confirm the page renders with no empty heading or orphan sentence when the
       pending list is empty (ledger 6.7)
+- [x] 10.10 State in the BREAKING paragraph and `reference/commands.md` that
+      every table-parsed command refuses an excess positional, with
+      `new feat add login`, `init a b`, `apply <slug> extra`, `migrate`,
+      `status` and `instructions` examples and the global-flag changes of
+      10.6/10.7; differential rows for each; spec scenario; the PR-body copy in
+      `.claude/handoff/reports/unknown-option-contract-breaking.md` (ledger 1.9)

@@ -117,18 +117,35 @@ unrecognised option on a table-parsed command (today exit 0 on `list`,
 `unknown option`. `cospec view --json`, today exit 0 with the dashboard, now
 exits 1 with a one-document JSON refusal, as upstream also rejects it.
 
-Positionals and subcommands break the same way. `cospec update [path]` —
+Positionals break the same way, on every table-parsed command — every command
+except the forwarded `show`, `templates`, `schemas`, `schema`, `store`,
+`workset` and `config`, which relay the binary's own answer. An excess
+positional now fails with
+`cospec <command>: too many arguments. Expected N argument(s) but got M.` and
+exit 1, before any work, where it used to be dropped and the command run on the
+rest. For example, `cospec new feat add login` — a multi-word slug, which today
+creates a change named `add` and discards `login` — now refuses; spell the slug
+`add-login`, or pass the one-argument `cospec new "feat: add login"`. Likewise
+`cospec init a b` (today scaffolds `./a`), `cospec apply <slug> extra`,
+`cospec migrate <slug> extra`, `cospec status a b`,
+`cospec instructions <artifact> extra`, `cospec archive a b`,
+`cospec validate a b`, `cospec sync-blockers <slug>`, `cospec check-commit a b`
+and `cospec list a`. Upstream refuses the same argv on the commands it shares
+(`openspec new feat …` as an unknown command). `cospec update [path]` —
 including `cospec update .` and `cospec update --force .`, which today run
 against the cwd and exit 0, as upstream's `openspec update .` does — now fails
 with `cospec update: '[path]' is not supported yet` until `upstream-spellings`
-honours the path. The upstream subcommands `new change`, `completion generate`,
-`completion install` and `completion uninstall` fail with
+honours the path, and the upstream subcommands `new change`,
+`completion generate`, `completion install` and `completion uninstall` fail with
 `cospec <command>: '<subcommand>' is not supported yet` until their owning
-changes land. An excess positional on a table-parsed command now fails with
-`cospec <command>: too many arguments. Expected N argument(s) but got M.`
-instead of being ignored: on `sync-blockers <slug>` and `check-commit a b`
-(cospec-only, today exit 0), and on `list`, `view`, `doctor`, `context`,
-`validate` and `archive`, where upstream refuses the same argv.
+changes land.
+
+Two global-flag spellings change too. After a post-command `--`, every token is
+an operand, as in upstream: `cospec list -- --json` now fails with too many
+arguments instead of running `list --json`. And a `--store` or `--cwd` with no
+value (or an empty one) now fails with `option '--store <id>' argument missing`
+(or `argument must not be empty`), exit 1, instead of being dropped so the
+command ran against the local repo.
 
 ## Capabilities
 

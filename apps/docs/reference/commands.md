@@ -132,7 +132,13 @@ apart. Four refusal shapes, all exit `1`:
   value-taking flag given with nothing after it.
 - **Too many arguments:**
   `cospec <command>: too many arguments. Expected N argument(s) but got M.`, for
-  a positional the command doesn't take.
+  a positional the command doesn't take — on every table-parsed command, which
+  is every command except the forwarded ones below. Nothing is dropped and run
+  on the rest: `cospec new feat add login` is refused rather than creating a
+  change named `add` (spell the slug `add-login`, or pass
+  `cospec new "feat: add login"` as one argument), and so are `cospec init a b`,
+  `cospec apply <slug> extra`, `cospec migrate <slug> extra`,
+  `cospec status a b` and `cospec instructions <artifact> extra`.
 - **Not supported yet:** `cospec <command>: '<flag>' is not supported yet`, for
   an upstream flag cospec hasn't implemented. Its value is still consumed first,
   so a pending flag can never leak into a positional either. An upstream
