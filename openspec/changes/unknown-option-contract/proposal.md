@@ -40,12 +40,13 @@ change measures against, so it lands here, first.
   command, every positional and flag the pinned `COMMAND_REGISTRY` gives it,
   each marked **handled**, **accepted no-op**, or **pending** (with the change
   slug that implements it), with cospec's own flags alongside. One parser reads
-  the table and returns positionals and flag values. On a table-parsed command,
-  a token not in the table fails with `cospec <command>: unknown option '<x>'`,
-  a closest-match suggestion where one exists, and exit 1 — the
-  `commands/feedback.ts` `parseFeedbackArgs` precedent. A pending flag consumes
-  its value and fails with `cospec <command>: '<flag>' is not supported yet` and
-  exit 1. Neither ever leaks into a positional.
+  the table and returns positionals and flag values. Anything not in the table
+  fails with `cospec <command>: unknown option '<x>'`, a closest-match
+  suggestion where one exists, and exit 1 — the `commands/feedback.ts`
+  `parseFeedbackArgs` precedent — except on forward commands, where the binary
+  decides. A pending flag consumes its value and fails with
+  `cospec <command>: '<flag>' is not supported yet` and exit 1. Neither ever
+  leaks into a positional.
 - Each command row carries a parse policy. `table` rows (init, update, doctor,
   new, migrate, validate, status, list, instructions, apply, archive,
   sync-blockers, context, view, completion, feedback, and the hidden
@@ -55,10 +56,13 @@ change measures against, so it lands here, first.
   cospec-only flags and apply its own pre-spawn guards, but every remaining
   token reaches the wrapped binary unchanged after global-flag threading and
   cospec adds no rejection of its own, so the binary stays the unknown-option
-  authority on the surfaces it owns. Upstream's per-command `--json` and
-  `--store` resolve through cospec's global flags on every row. `openspec show`
-  accepts unknown options by design (`allowUnknownOption(true)`), so a
-  cospec-side rejection there would be the divergence, not the fix.
+  authority on the surfaces it owns. `parse: 'forward'` is the marker the
+  reachability test reads: a forward row's surfaces count as reached by
+  delegation, and the differential shows `cospec show --bogus` answering exactly
+  as the binary does. Upstream's per-command `--json` and `--store` resolve
+  through cospec's global flags on every row. `openspec show` accepts unknown
+  options by design (`allowUnknownOption(true)`), so a cospec-side rejection
+  there would be the divergence, not the fix.
 - `cli.ts` dispatches through the table and renders per-command `--help` from
   it; `cospec show --help` lists `--diff` and `--requirements`.
   `buildCompletionSpec()` is built from the table rather than by regex over

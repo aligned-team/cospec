@@ -92,7 +92,20 @@ into a positional). Each row also carries a parse policy:
   `config` are `forward`: `openspec show` itself sets
   `allowUnknownOption(true)`, so a cospec-side rejection there would be the
   regression, not the fix, and it lets a newer in-range binary's new flag keep
-  working immediately instead of failing until cospec's table catches up.
+  working immediately instead of failing until cospec's table catches up. The
+  reachability test reads `parse: 'forward'` as that delegation: a forward row's
+  flags and positionals count as reached through the binary, and a separate
+  check keeps the row's declarations complete at the pin for help and
+  completion. A pre-spawn guard answers only what the binary would not: an
+  option where the subcommand belongs (`cospec config --bogus`) is relayed to
+  the binary at the command's level, and `show` treats an option it does not
+  declare as the item, as the binary does.
+
+A `table` row also declares whether its command honours the global `--json` and
+`--store`: a row that refuses `--json` answers it with one JSON refusal
+document, and a row whose module never resolves a root (`init`, `update`,
+`completion`, `feedback`, `check-commit`) refuses `--store` as an unknown option
+instead of absorbing and ignoring it.
 
 `--store-path` is refused on every row regardless of policy, in both
 `--store-path <path>` and `--store-path=<path>` forms and in both the
@@ -105,14 +118,16 @@ row the binary is the authority — the argv reaches it unchanged, it refuses a
 the token is another flag's value), and the wrapper only answers the binary's
 own `--store-path` refusal with cospec's redirect (`core/forward-relay.ts`).
 After the command name the space form's next token is its value whatever it
-looks like, so `cli.ts` phase B passes the pair through without absorbing a
-global flag or reading a help flag there — as it does for every value-taking
-flag the row or its named subcommand declares (`takesNextToken`), after first
-taking out a program-level `--no-color`, which upstream never treats as a value.
-The terminal-handover leaves (`config edit`/`profile`/`reset --all` without
-`-y`, `workset open`) are the one exception: with inherited stdio there is
-nothing to respell, so they check the option position statically from the row's
-declared flags and print the redirect without spawning.
+looks like — on a `table` row, and on a `forward` row whose upstream command
+declares `--store-path` (`show`, `schemas`) — so `cli.ts` phase B passes the
+pair through without absorbing a global flag or reading a help flag there — as
+it does for every value-taking flag the row or its named subcommand declares
+(`takesNextToken`), after first taking out a program-level `--no-color`, which
+upstream never treats as a value. The terminal-handover leaves
+(`config edit`/`profile`/`reset --all` without `-y`, `workset open`) are the one
+exception: with inherited stdio there is nothing to respell, so they check the
+option position statically from the row's declared flags and print the redirect
+without spawning.
 
 ### The reachability test is the parity gate
 

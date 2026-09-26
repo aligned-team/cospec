@@ -75,27 +75,36 @@ runtime by `dist/commands/spec.js:127`.
 ## Decisions
 
 1. **Parse policy per row: `table` or `forward`.** A `table` row is parsed by
-   cospec and rejects anything undeclared. A `forward` row is declared (for
-   reachability, `--help`, completion); its wrapper may consume its own
-   cospec-only flags (`store --no-cospec-init`, `config --scope` lifted into
-   canonical position) and apply its own pre-spawn guards (`schema`'s canon-type
-   destination refusal, `config`/`store`/`workset` subcommand checks), but every
-   remaining token reaches the binary unchanged after global-flag threading and
-   cospec adds no unknown-option rejection of its own. The threaded flags
-   (`--json`, `--no-color`, `--store <id>`) go right after the command path,
-   ahead of the user's argv (`threadedArgv`): commander gives a required-value
-   option the next token whatever it looks like, so a flag appended after the
-   user's argv became the value of a dangling `--path` and the binary ran
-   (`store setup s1 --path` set a store up at `./--json`). `forward` rows:
-   `show`, `templates`, `schemas`, `schema`, `store`, `workset`, `config`.
-   `feedback` is a `table` row: `parseFeedbackArgs` already rejects unknown
-   options, so the shared parser replaces it and the `--upstream` relay rebuilds
-   its argv from the parsed values as it does today. Everything else is `table`.
-   Upstream's per-command `--json` and `--store` are cospec globals
+   cospec and rejects anything undeclared: anything not in the table fails,
+   except on forward commands, where the binary decides. A `forward` row is
+   declared (for reachability, `--help`, completion); its wrapper may consume
+   its own cospec-only flags (`store --no-cospec-init`, `config --scope` lifted
+   into canonical position) and apply its own pre-spawn guards (`schema`'s
+   canon-type destination refusal, `config`/`store`/`workset` subcommand
+   checks), but every remaining token reaches the binary unchanged after
+   global-flag threading and cospec adds no unknown-option rejection of its own.
+   The threaded flags (`--json`, `--no-color`, `--store <id>`) go right after
+   the command path, ahead of the user's argv (`threadedArgv`): commander gives
+   a required-value option the next token whatever it looks like, so a flag
+   appended after the user's argv became the value of a dangling `--path` and
+   the binary ran (`store setup s1 --path` set a store up at `./--json`).
+   `forward` rows: `show`, `templates`, `schemas`, `schema`, `store`, `workset`,
+   `config`. `feedback` is a `table` row: `parseFeedbackArgs` already rejects
+   unknown options, so the shared parser replaces it and the `--upstream` relay
+   rebuilds its argv from the parsed values as it does today. Everything else is
+   `table`. Upstream's per-command `--json` and `--store` are cospec globals
    (`GLOBAL_OPTIONS`, stripped in `cli.ts`); the reachability test resolves them
    for every row through the global list rather than per-row duplicates. Each
    `table` row also declares `json: 'accepted' | 'refused'`: whether the command
    honours the global `--json` (decision 10).
+   - `parse: 'forward'` is the per-command marker the reachability test reads
+     (the roadmap owner's ruling): a forward row's flags and positionals count
+     as reached by delegation to the binary, whether declared or not, and a
+     separate check keeps its declarations complete at the pin for `--help` and
+     completion. A forward row carries no pending surface — the binary answers
+     every one. The acceptance evidence is the differential's `show --bogus` and
+     `show foo --bogus` rows, which assert cospec's stdout, stderr and exit code
+     equal the binary's; every forward row has a differential row.
    - Why not table-parse everything: `openspec show` sets
      `allowUnknownOption(true)`, so upstream _accepts_ `show --bogus`. A
      cospec-side rejection there would be a regression against the binary, not

@@ -25,6 +25,7 @@ import { cpSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import pkg from '../../package.json'
+import { COMMAND_TABLE } from '../../src/core/command-table.ts'
 import { cleanupAll, cospec, hashTree, mkTempRepo, type SpawnResult } from '../fixtures/support.ts'
 import { classify } from './support/parse-class.ts'
 import { oracle, oracleEnv, oracleJson, scaffoldOracleRoot } from './support/upstream-oracle.ts'
@@ -68,6 +69,8 @@ interface Row {
   pendingFlag?: string
   /** Shapes the fixture before the run (and before the tree is hashed). */
   setup?: (root: string) => void
+  /** cospec's stdout, stderr and exit code equal the binary's exactly: it relays. */
+  sameStreams?: true
 }
 
 /**
@@ -494,7 +497,10 @@ const PENDING_ROWS: readonly Row[] = [
 
 /**
  * One unknown-option row per `forward` command (ledger 5.3): cospec adds no
- * refusal of its own, so the binary's answer must come back relayed.
+ * refusal of its own, so the binary's answer must come back relayed. The
+ * `show` rows are the forward-row delegation evidence (ledger 1.30): the
+ * binary's `allowUnknownOption(true)` makes `--bogus` the item it looks up,
+ * and cospec relays that answer byte for byte.
  */
 const FORWARD_ROWS: readonly Row[] = [
   {
@@ -502,8 +508,15 @@ const FORWARD_ROWS: readonly Row[] = [
     command: 'show',
     expect: 'same',
     cospecStderr: "error: too many arguments for 'show'",
+    sameStreams: true,
   },
-  { argv: ['show', '--bogus'], command: 'show', expect: 'same' },
+  {
+    argv: ['show', '--bogus'],
+    command: 'show',
+    expect: 'same',
+    cospecStderr: "Unknown item '--bogus'.",
+    sameStreams: true,
+  },
   {
     argv: ['templates', '--bogus'],
     command: 'templates',
@@ -786,6 +799,12 @@ async function checkRow(row: Row): Promise<void> {
     expect(treeHash(coRoot), 'a parse refusal must happen before any work').toEqual(before)
   }
   if (row.cospecStderr !== undefined) expect(co.stderr).toContain(row.cospecStderr)
+  if (row.sameStreams === true)
+    expect({ exit: co.exitCode, stdout: co.stdout, stderr: co.stderr }).toEqual({
+      exit: up.exitCode,
+      stdout: up.stdout,
+      stderr: up.stderr,
+    })
 }
 
 function register(rows: readonly Row[]): void {
@@ -809,6 +828,13 @@ describe('unknown-option differential: pending flags', () => {
 
 describe('unknown-option differential: forward commands relay the binary', () => {
   register(FORWARD_ROWS)
+
+  test("every parse: 'forward' row has a row here", () => {
+    const forward = COMMAND_TABLE.filter((row) => row.parse === 'forward').map((row) => row.name)
+    expect([...new Set(FORWARD_ROWS.map((row) => row.command))].toSorted()).toEqual(
+      forward.toSorted(),
+    )
+  })
 })
 
 describe('unknown-option differential: no global flag is absorbed after --', () => {

@@ -16,6 +16,8 @@
 // unknown-option authority for the surfaces it owns (`openspec show` sets
 // `allowUnknownOption(true)`, so a local rejection there would be a
 // regression, and a newer in-range binary's new flag must keep working).
+// `parse: 'forward'` is the marker the reachability test reads: a forward
+// row's surfaces count as reached by delegation to the binary.
 //
 // This module imports nothing: `cli.ts` imports it, so any import back into the
 // dispatcher would be a cycle.

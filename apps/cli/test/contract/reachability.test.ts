@@ -32,6 +32,17 @@
 // have no table marking to compare against, so for those the reverse check is
 // that the walk produces the surface and nothing on the cospec side resolves it.
 //
+// A `parse: 'forward'` row (`show`, `templates`, `schemas`, `schema`, `store`,
+// `workset`, `config`) delegates its argv to the wrapped binary, which stays
+// the unknown-option authority there (design decision 1): its flags and
+// positionals are reached by delegation whether the table declares them or
+// not, so the resolver counts them for the cospec side on that basis. The
+// forward row's declarations serve `--help` and completion, which the
+// separate "forward rows declare" test keeps complete at the pin. The
+// differential evidence that the binary decides is `unknown-option-
+// differential.test.ts`'s forward rows (`show --bogus`, relayed verbatim),
+// one per forward row.
+//
 // The resolver is a pure function over the loaded inputs, so the negative
 // cases the ledger names (an entry removed everywhere, listed twice, a stale
 // pending entry, a pending marking with no entry) are asserted against mutated
@@ -329,7 +340,34 @@ function tableFlag(model: Model, path: readonly string[], flag: string): FlagSpe
   return tableSurface(model.table, path)?.surface.flags.find((f) => f.name === flag)
 }
 
-/** Whether the cospec side reaches `entry` (handled, no-op, global, harness, workflow). */
+/** Whether `path` lands on a `parse: 'forward'` row, whose argv the binary decides. */
+function delegated(model: Model, path: readonly string[]): boolean {
+  return model.table.find((row) => row.name === path[0])?.parse === 'forward'
+}
+
+/**
+ * The flags and positionals a forward row's `--help` and completion miss: every
+ * walked flag or positional on a forward row that its table surface does not
+ * declare (a global flag counts as declared).
+ */
+function undeclaredOnForwardRows(model: Model): string[] {
+  const missing: string[] = []
+  for (const entry of walk(model)) {
+    if (!('path' in entry) || !delegated(model, entry.path)) continue
+    const surface = tableSurface(model.table, entry.path)?.surface
+    if (surface === undefined) continue
+    if (entry.kind === 'flag' && !model.globalFlags.includes(entry.flag))
+      if (!surface.flags.some((f) => f.name === entry.flag)) missing.push(label(entry))
+    if (entry.kind === 'positional' && surface.positionals[entry.index] === undefined)
+      missing.push(label(entry))
+  }
+  return missing
+}
+
+/**
+ * Whether the cospec side reaches `entry` (handled, no-op, global, harness,
+ * workflow, or delegated to the binary on a forward row).
+ */
 function cospecReaches(model: Model, entry: Entry): boolean {
   switch (entry.kind) {
     case 'tool':
@@ -340,6 +378,7 @@ function cospecReaches(model: Model, entry: Entry): boolean {
     default: {
       const found = tableSurface(model.table, entry.path)
       if (found === undefined || found.pendingOwner !== undefined) return false
+      if (delegated(model, entry.path)) return true
       const { surface } = found
       switch (entry.kind) {
         case 'command':
@@ -781,6 +820,22 @@ describe('reachability: every pinned OpenSpec surface resolves exactly once', ()
   test('every walked entry resolves to exactly one place, and the reverse holds', () => {
     expect(checkReachability(model)).toEqual([])
   })
+
+  test('forward rows declare every pinned flag and positional, for --help and completion', () => {
+    expect(undeclaredOnForwardRows(model)).toEqual([])
+    // Delegation is the binary's: a forward row owes nothing to a later change.
+    for (const row of COMMAND_TABLE.filter((r) => r.parse === 'forward')) {
+      const surfaces = [row, ...(row.subcommands ?? [])]
+      expect(
+        surfaces.flatMap((sf) => sf.flags).some((f) => isPending(f.status)),
+        row.name,
+      ).toBe(false)
+      expect(
+        (row.subcommands ?? []).some((sub) => isPending(sub.status)),
+        row.name,
+      ).toBe(false)
+    }
+  })
 })
 
 describe('parity data files', () => {
@@ -829,6 +884,14 @@ function withFlagStatus(path: string[], flag: string, status: SurfaceStatus): Co
 }
 
 describe('reachability: negative cases (ledger 4.1, 4.3, 4.5)', () => {
+  test('a flag a forward row stops declaring is still reached, but its help misses it', () => {
+    const table = structuredClone(COMMAND_TABLE) as CommandRow[]
+    const show = table.find((row) => row.name === 'show')!
+    ;(show as { flags: FlagSpec[] }).flags = show.flags.filter((f) => f.name !== '--diff')
+    expect(checkReachability({ ...model, table })).toEqual([])
+    expect(undeclaredOnForwardRows({ ...model, table })).toEqual(['flag `show --diff`'])
+  })
+
   test('an entry removed from every place resolves nowhere and fails', () => {
     const pending = PENDING.filter((pe) => !(pe.kind === 'tool' && pe.id === 'cursor'))
     const failures = checkReachability({ ...model, pending })

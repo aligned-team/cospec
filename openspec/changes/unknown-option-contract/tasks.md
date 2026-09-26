@@ -18,7 +18,8 @@ red; 4–7 turn it green; 8 documents it.
 - [x] 1.2 Write `parseCommandArgs(row, args)` returning
       `{positionals,     flags}` or a typed refusal; implement the three refusal
       messages, the `--flag=value` form, and the closest-match line using
-      `closest()` moved out of `cli.ts` into the table module
+      `closest()` moved out of `cli.ts` into the table module; anything not in
+      the table fails, except on forward commands, where the binary decides
 - [x] 1.3 Write the `--store-path` guard (`storePathRefusal(json)`) returning
       the respelled redirect text and the `--json` envelope, and the
       `jsonRefusal(command, message)` helper returning the one-document
