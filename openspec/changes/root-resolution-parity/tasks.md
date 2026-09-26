@@ -77,7 +77,7 @@ POST-REBASE.
       spawn to a store selection
 - [x] 2.8 Run `mise run check` and commit the track
 
-## 3. `templates` and `schema` spawn in the root (track T3: `apps/cli/src/core/passthrough-command.ts`, `apps/cli/src/core/openspec.ts`, `apps/cli/src/commands/templates.ts`, `apps/cli/src/commands/schema.ts`, `apps/cli/test/unit/core/passthrough.test.ts`)
+## 3. `templates` and `schema` spawn in every resolved root (track T3: `apps/cli/src/core/passthrough-command.ts`, `apps/cli/src/core/openspec.ts`, `apps/cli/src/commands/templates.ts`, `apps/cli/src/commands/schema.ts`, `apps/cli/test/unit/core/passthrough.test.ts`)
 
 - [x] 3.1 Add a stubbed-spawn unit test to
       `apps/cli/test/unit/core/passthrough.test.ts` asserting that

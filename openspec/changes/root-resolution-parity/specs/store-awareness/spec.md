@@ -185,16 +185,18 @@ array with the diagnostic on stdout and exit 1.
 
 ## ADDED Requirements
 
-### Requirement: Template and schema inspection reach store roots by working directory
+### Requirement: Template and schema inspection spawn in every resolved root
 
 `cospec templates` and every `cospec schema` subcommand SHALL never pass
 `--store` to the wrapped binary, which rejects it on those commands. The system
-SHALL instead spawn the wrapped call with the resolved root's directory as the
-working directory, for a root reached through `--store`, a `store:` pointer or
-`defaultStore` alike, and for a local root found by the ancestor walk. Spawning
-in the resolved root for every root is a deliberate superset of the wrapped
-binary, which reads its own working directory for these commands. The relayed
-output and the mapped exit code SHALL otherwise be unchanged.
+SHALL instead spawn the wrapped call in every resolved root, with that root's
+directory as the working directory: a root reached through `--store`, a `store:`
+pointer or `defaultStore`, a local root found by the ancestor walk, and an
+implicit root alike. Spawning in the resolved root for every root is a
+deliberate superset of the wrapped binary, which reads its own working directory
+for these commands; the store-backed roots were the broken case, not the limit
+of the requirement. The relayed output and the mapped exit code SHALL otherwise
+be unchanged.
 
 #### Scenario: Templates succeed for a store selected by flag
 

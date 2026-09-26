@@ -95,17 +95,17 @@ checkout gets different roots than before.
   before this lands. Relayed JSON then reports upstream's `root.source`
   (`declared`/`global_default`) instead of `store`, so `cospec show --json`
   matches `openspec show --json` over a pointer.
-- **`templates` and `schema` never receive `--store`.** Both spawn the wrapped
-  binary with the resolved root's `base` as the working directory and no
-  `--store`, following `commands/view.ts`. This applies to every root, not only
-  store-backed ones, and is a deliberate superset of upstream, which reads
-  `process.cwd()` for these two commands: from a subdirectory, cospec finds the
-  enclosing root's typed schemas and `schema fork`/`init` write into that root
-  instead of creating a stray `openspec/` in the subdirectory. Every other
-  passthrough keeps its `--store` threading for an explicit `--store`.
-  `cospec schema`'s missing- and unknown-subcommand errors name all four
-  upstream subcommands (`which`, `validate`, `fork`, `init`), not just the first
-  two.
+- **`templates` and `schema` spawn in every resolved root.** Both spawn the
+  wrapped binary with the resolved root's `base` as the working directory and no
+  `--store`, following `commands/view.ts`. This applies to every resolved root
+  (the store-backed case was the broken one, not a limit), and is a deliberate
+  superset of upstream, which reads `process.cwd()` for these two commands: from
+  a subdirectory, cospec finds the enclosing root's typed schemas and
+  `schema fork`/`init` write into that root instead of creating a stray
+  `openspec/` in the subdirectory. Every other passthrough keeps its `--store`
+  threading for an explicit `--store`. `cospec schema`'s missing- and
+  unknown-subcommand errors name all four upstream subcommands (`which`,
+  `validate`, `fork`, `init`), not just the first two.
 - **One JSON document for resolver failures under `--json` (after the rebase
   onto `unknown-option-contract`).** A resolver hard-error in a `--json` run
   prints exactly one JSON document, `{"status": [diagnostic]}`, on stdout and
@@ -134,7 +134,7 @@ checkout gets different roots than before.
   at the cwd). It is corrected to upstream's qualifying walk, pointer fallback,
   malformed-pointer, registered-stores and store-health errors, root provenance,
   the store banner and the `--json` failure document. A new requirement states
-  that `templates` and `schema` reach every root by working directory, never by
+  that `templates` and `schema` spawn in every resolved root, never by
   `--store`.
 
 ## Impact

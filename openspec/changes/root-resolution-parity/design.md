@@ -94,7 +94,9 @@ Human mode renders a resolver failure as the message followed by a `Fix:` line.
 - `resolveRoot` returns the same `{path, source}` the pinned binary's
   `openspec list --json` reports for every fixture in the verification matrix,
   and fails with the same diagnostic code where the binary fails.
-- `cospec templates` and `cospec schema <sub>` work for every store-backed root.
+- `cospec templates` and `cospec schema <sub>` spawn in every resolved root
+  (store-backed, walked or implicit); the store-backed case is the one that was
+  broken, not the limit of the goal.
 - No command module, `cli.ts`, command table or completion file changes before
   the rebase onto `unknown-option-contract`; the fix reaches every command
   through `resolveRoot`. After the rebase, the top-level `--json` error
