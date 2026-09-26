@@ -55,10 +55,16 @@ describe('cli dispatcher: per-command --help', () => {
     expect(r.out).not.toContain('archived')
   })
 
-  test('--help on an unknown command still errors (does not print help)', async () => {
+  // Upstream's program level never dispatches an unknown command, so the help
+  // flag it left unconsumed prints the program's help (`openspec bogus --help`).
+  test('--help after an unknown command prints the program help, runs nothing', async () => {
     const r = await dispatch(['bogus', '--help'])
-    expect(r.code).toBe(1)
-    expect(r.err).toContain("unknown command 'bogus'")
+    expect(r.code).toBe(0)
+    expect(r.out).toContain('Usage: cospec <command> [options]')
+    expect(r.err).toBe('')
+    const bare = await dispatch(['bogus'])
+    expect(bare.code).toBe(1)
+    expect(bare.err).toContain("unknown command 'bogus'")
   })
 
   test('bare --help prints the global command table and advertises per-command help', async () => {
@@ -274,9 +280,11 @@ describe('cli dispatcher: an undeclared option before the command is refused', (
     const version = await dispatch(['--bogus', '--version', 'list'])
     expect(version.code).toBe(0)
     expect(version.out).toBe(`${pkg.version}\n`)
+    // Help before the command name is the program's, as `openspec --bogus
+    // --help list` prints it.
     const help = await dispatch(['--bogus', '--help', 'list'])
     expect(help.code).toBe(0)
-    expect(help.out).toContain('Usage: cospec list')
+    expect(help.out).toContain('Usage: cospec <command> [options]')
   })
 
   // Upstream's program-level commander refuses the option before it ever
@@ -442,4 +450,62 @@ describe('cli dispatcher: a -- before the command name', () => {
       expect(r.out).toBe('')
     })
   }
+})
+
+describe('cli dispatcher: the program level resolves before the command sees its argv', () => {
+  test('help before the command name prints the program help, whatever follows', async () => {
+    for (const argv of [
+      ['--help', 'list'],
+      ['--help', 'list', '--store'],
+      ['-h', 'show', 'foo'],
+      ['--bogus', 'list', '--help'],
+      ['--store-path', '/x', 'list', '--help'],
+      ['--bogus', '--', '--help'],
+    ]) {
+      const r = await dispatch(argv)
+      expect(r.code, argv.join(' ')).toBe(0)
+      expect(r.out, argv.join(' ')).toContain('Usage: cospec <command> [options]')
+    }
+  })
+
+  test('a pre-command --store-path stops the program level with its redirect', async () => {
+    for (const argv of [
+      ['--store-path', '/x', 'list', '--store'],
+      ['--store-path', '/x', '--bogus', 'list'],
+    ]) {
+      const r = await dispatch(argv)
+      expect(r.code, argv.join(' ')).toBe(1)
+      expect(r.err, argv.join(' ')).toContain('--store-path is not supported')
+    }
+  })
+
+  test('a version flag after the command is not taken as a --store value', async () => {
+    const r = await dispatch(['list', '--store', '--version'])
+    expect(r.code).toBe(0)
+    expect(r.out).toBe(`${pkg.version}\n`)
+  })
+
+  test("a command's missing value is raised before its help", async () => {
+    const r = await dispatch(['status', '--help', '--change'])
+    expect(r.code).toBe(1)
+    expect(r.err).toBe("cospec status: option '--change <slug>' argument missing\n")
+  })
+
+  test('a help subcommand after a leading -- prints that help', async () => {
+    const config = await dispatch(['--', 'config', 'help', 'path'])
+    expect(config.code).toBe(0)
+    expect(config.out).toContain('Usage: cospec config path [options]')
+    const completion = await dispatch(['--', 'completion', 'help'])
+    expect(completion.code).toBe(0)
+    expect(completion.out).toContain('Usage: cospec completion')
+  })
+
+  test('store and workset refuse a help subcommand as upstream does', async () => {
+    const store = await dispatch(['store', 'help'])
+    expect(store.code).toBe(1)
+    expect(store.err).toContain("cospec store: unknown subcommand 'help'")
+    const workset = await dispatch(['--', 'workset', 'help'])
+    expect(workset.code).toBe(1)
+    expect(workset.err).toContain("cospec workset: unknown subcommand 'help'")
+  })
 })

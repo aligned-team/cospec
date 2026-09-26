@@ -281,33 +281,7 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * answered differently from the binary or from the intended cospec-only
  * outcome, keyed by argv. The two-phase split empties this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  'list --store --version',
-  '--help list',
-  '-h show foo',
-  '--help config',
-  '--help list --store',
-  '--help --store',
-  '-h -- list',
-  '--bogus --help list',
-  '--bogus list --help',
-  '--bogus -- --help',
-  '--store-path /x list --help',
-  'bogus --help',
-  'status --help --change',
-  '--bogus --store',
-  '--store-path /x --bogus list',
-  '--store-path /x list --store',
-  '-- config help',
-  '-- config help path',
-  '-- schema help',
-  '-- new help',
-  '-- completion help',
-  'store help',
-  'workset help',
-  'show help',
-  'schemas help',
-])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
 
 async function checkRow(row: Row): Promise<void> {
   const co = await runCospec(row.argv, freshRoot())

@@ -89,6 +89,12 @@ interface RowBase extends SurfaceSpec {
   readonly summary: string
   readonly hidden: boolean
   readonly subcommands?: readonly SubcommandSpec[]
+  /**
+   * `false` when the same-named upstream command refuses a bare `help`
+   * subcommand as unknown instead of offering commander's implicit one. A
+   * row with subcommands otherwise answers `<command> help [sub]` with help.
+   */
+  readonly helpSubcommand?: false
   /** Extra help lines printed after the flag list. */
   readonly notes?: readonly string[]
 }
@@ -487,6 +493,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     parse: 'forward',
     positionals: [],
     flags: [],
+    helpSubcommand: false,
     subcommands: [
       sub('setup', 'Create or register a local store', {
         positionals: [upstreamArg({ name: 'id', required: false })],
@@ -568,6 +575,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     parse: 'forward',
     positionals: [],
     flags: [],
+    helpSubcommand: false,
     subcommands: [
       sub('create', 'Compose and save a named working view of folders you choose', {
         positionals: [upstreamArg({ name: 'name', required: false })],

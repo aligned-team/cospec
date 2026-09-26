@@ -264,204 +264,192 @@ ${body}${GLOBAL_OPTIONS}
 `
 }
 
+/** Global flag values, read before the command name (phase A) and after it (phase B). */
+interface GlobalState {
+  json: boolean
+  noColor: boolean
+  cwdRaw?: string
+  storeRaw?: string
+  /** A `--cwd`/`--store` that was the last token, so it has no value. */
+  missing?: GlobalValueFlag
+  /** The first `--cwd`/`--store` given an empty value (`--store=`, `--cwd ''`). */
+  empty?: GlobalValueFlag
+}
+
+type GlobalValueFlag = '--cwd' | '--store'
+
+const isVersionToken = (tok: string): boolean => tok === '--version' || tok === '-V'
+const isHelpToken = (tok: string): boolean => tok === '--help' || tok === '-h'
+/** Commander's test for a token that is an option rather than an operand. */
+const isOptionLike = (tok: string): boolean => tok.length > 1 && tok.startsWith('-')
+
+/** Reads `--cwd`/`--store` at `tokens[i]`, in either form; returns the last index consumed. */
+function takeGlobalValue(tokens: readonly string[], i: number, state: GlobalState): number {
+  const tok = tokens[i]!
+  const flag: GlobalValueFlag = tok.startsWith('--cwd') ? '--cwd' : '--store'
+  const eq = tok.indexOf('=')
+  // Like commander, a required value is the next token whatever it looks like.
+  const last = eq === -1 ? i + 1 : i
+  const value = eq === -1 ? tokens[last] : tok.slice(eq + 1)
+  if (value === undefined) state.missing ??= flag
+  else if (value.length === 0) state.empty ??= flag
+  else if (flag === '--cwd') state.cwdRaw = value
+  else state.storeRaw = value
+  return last
+}
+
+function valueRefusal(command: string | undefined, flag: GlobalValueFlag, empty: boolean): number {
+  const spec = GLOBAL_FLAGS.find((f) => f.name === flag)!
+  const prefix = command === undefined ? 'cospec' : `cospec ${command}`
+  const problem = empty ? 'must not be empty' : 'missing'
+  process.stderr.write(`${prefix}: option '${spec.name} ${spec.placeholder}' argument ${problem}\n`)
+  return EXIT.failure
+}
+
+function storePathAnswer(json: boolean): number {
+  const refusal = storePathRefusal(json)
+  process[refusal.stream].write(refusal.text)
+  return EXIT.failure
+}
+
+function rootHelp(): number {
+  process.stdout.write(helpText())
+  return EXIT.success
+}
+
 /**
- * Parse argv, apply global flags, and dispatch to the matching command module.
- * Returns the process exit code. A `table` row's argv is parsed against its
- * row before the module loads, so an undeclared, pending or value-less option
- * is refused (exit 1) before any work; a `forward` row's argv reaches its
- * wrapper unchanged. An undeclared option before the command name is refused
- * on every row, table and forward alike. `--store-path` is refused on every
- * command, in either position, with upstream's redirect respelled to cospec.
+ * Whether upstream's program-level commander finds a help flag among `tokens`,
+ * the argv it left unconsumed. It files every token after the first
+ * option-like one as unknown, a later `--` and its operands included, and
+ * answers help when a help flag is among them; before that point, a `--` ends
+ * the scan. `unknown` says the program level is already past such a token.
  */
-export async function run(argv: string[]): Promise<number> {
-  const flags: GlobalFlags = { json: false, noColor: false, cwd: process.cwd() }
-  let command: string | undefined
-  const rest: string[] = []
-  let cwdRaw: string | undefined
-  let storeRaw: string | undefined
-  let wantVersion = false
-  let wantHelp = false
-  let badOption: string | undefined
-  let storePath = false
-  // Set true for exactly one iteration: the token immediately following the
-  // command name. A bare `help` there means `cospec <command> help` ==
-  // `cospec <command> --help` — a common typo/muscle-memory (other CLIs
-  // accept it) that must never fall through into a state-mutating command's
-  // argv (e.g. `cospec archive help` must not try to archive a change called
-  // "help").
-  let expectHelpToken = false
-  // Set once a post-command `--` is seen: like upstream's commander, every
-  // later token is an operand, so no global flag is absorbed after it.
-  let terminated = false
-  // The first `--cwd`/`--store` given no value (last in argv) or an empty one
-  // (`--store=`, `--cwd ''`): refused after the loop instead of silently
-  // running against the local repo. `preCommand` records which commander
-  // level upstream would meet it at.
-  let badValue:
-    | {
-        readonly flag: '--cwd' | '--store'
-        readonly empty: boolean
-        readonly preCommand: boolean
-      }
-    | undefined
-
-  /** Reads `--cwd`/`--store` at `argv[i]`, in either form; returns the last index consumed. */
-  const takeGlobalValue = (i: number): number => {
-    const tok = argv[i]!
-    const flag = tok.startsWith('--cwd') ? '--cwd' : '--store'
-    const eq = tok.indexOf('=')
-    const last = eq === -1 ? i + 1 : i
-    const value = eq === -1 ? argv[last] : tok.slice(eq + 1)
-    if (value === undefined || value.length === 0)
-      badValue ??= { flag, empty: value !== undefined, preCommand: command === undefined }
-    else if (flag === '--cwd') cwdRaw = value
-    else storeRaw = value
-    return last
+function programHelpRequested(tokens: readonly string[], unknown: boolean): boolean {
+  let pastOption = unknown
+  for (const tok of tokens) {
+    if (tok === '--') {
+      if (!pastOption) return false
+      continue
+    }
+    if (isHelpToken(tok)) return true
+    if (isOptionLike(tok)) pastOption = true
   }
+  return false
+}
 
+/**
+ * Commander's implicit `help [subcommand]` on a command with subcommands,
+ * unless the upstream command refuses `help` as an unknown subcommand.
+ */
+function hasHelpSubcommand(row: CommandRow): boolean {
+  return (row.subcommands?.length ?? 0) > 0 && row.helpSubcommand !== false
+}
+
+/** What phase A hands phase B: the command name and every token after it. */
+interface CommandCall {
+  readonly command: string
+  readonly tokens: readonly string[]
+  /** The command name followed a leading `--`, so every token is an operand. */
+  readonly terminated: boolean
+}
+
+/**
+ * Phase A, the program level: reads the tokens before the command name (or a
+ * leading `--`) and either stops with its own answer — an exit code — or hands
+ * the command name and the rest to phase B. It stops, in the order upstream's
+ * program-level commander does, on a `--cwd`/`--store` left without a value,
+ * then on the first help flag or undeclared option: help anywhere in the argv
+ * it never dispatched prints the program's help; otherwise the undeclared
+ * option is refused (`--store-path` with its redirect). With no command name
+ * it refuses an empty `--cwd`/`--store` value, then prints the program's help.
+ */
+function resolveProgram(argv: readonly string[], state: GlobalState): number | CommandCall {
   for (let i = 0; i < argv.length; i++) {
     const tok = argv[i]!
-    if (command === undefined) {
-      if (tok === '--json') flags.json = true
-      else if (tok === '--no-color') flags.noColor = true
-      else if (tok === '--version' || tok === '-V') wantVersion = true
-      else if (tok === '--help' || tok === '-h') wantHelp = true
-      else if (isGlobalValueToken(tok)) i = takeGlobalValue(i)
-      else if (isStorePathToken(tok)) {
-        // Consume its value so `/x` in `--store-path /x list` is never taken
-        // for the command name; the refusal is printed after the loop, once
-        // a later `--json` is known.
-        storePath = true
-        if (tok === '--store-path') i++
-      } else if (tok === '--') {
-        // Upstream's program-level commander makes every later token an
-        // operand: the next one is the command name (whatever it looks like),
-        // on a command with subcommands the one after is still read as the
-        // subcommand, and the rest stay operands — so no global flag or `help`
-        // token is absorbed.
-        terminated = true
-        const next = argv[i + 1]
-        if (next !== undefined) {
-          command = next
-          i++
-          const sub = argv[i + 1]
-          if (
-            commandRow(next)?.subcommands !== undefined &&
-            sub !== undefined &&
-            !sub.startsWith('-')
-          ) {
-            rest.push(argv[i + 1]!)
-            i++
-          }
-          if (i + 1 < argv.length) rest.push('--')
-        }
-      } else if (tok.startsWith('-')) badOption ??= tok
-      else {
-        command = tok
-        expectHelpToken = true
-      }
-      continue
+    if (tok === '--') {
+      const command = argv[i + 1]
+      if (command === undefined) break
+      return { command, tokens: argv.slice(i + 2), terminated: true }
     }
-    if (expectHelpToken) {
-      expectHelpToken = false
-      if (tok === 'help') {
+    if (tok === '--json') state.json = true
+    else if (tok === '--no-color') state.noColor = true
+    else if (isVersionToken(tok)) continue
+    else if (isGlobalValueToken(tok)) {
+      i = takeGlobalValue(argv, i, state)
+      if (state.missing !== undefined) return valueRefusal(undefined, state.missing, false)
+    } else if (isOptionLike(tok)) {
+      const rest = argv.slice(i + 1)
+      if (isHelpToken(tok) || programHelpRequested(rest, true)) return rootHelp()
+      if (!isStorePathToken(tok)) {
+        process.stderr.write(globalUnknownOptionRefusal(tok))
+        return EXIT.failure
+      }
+      // A `--json` anywhere before a `--` asks for the redirect as a document.
+      const beforeTerminator = rest.includes('--') ? rest.slice(0, rest.indexOf('--')) : rest
+      return storePathAnswer(state.json || beforeTerminator.includes('--json'))
+    } else return { command: tok, tokens: argv.slice(i + 1), terminated: false }
+  }
+  if (state.empty !== undefined) return valueRefusal(undefined, state.empty, true)
+  return rootHelp()
+}
+
+/**
+ * Phase B, the command level: `row`'s own argv. Global flags are absorbed up
+ * to a `--`; a table row parses the rest, a forward row hands it to its
+ * wrapper. Outcomes follow commander's per-level order: a missing value (the
+ * global's or the row's own) is raised while the argv parses, then help, then
+ * the row's other parse refusals (`view --json`'s refusal document, an
+ * unknown option, a pending surface, too many arguments, `--store-path`),
+ * then an empty `--cwd`/`--store` value, then the command runs.
+ */
+async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState): Promise<number> {
+  const rest: string[] = []
+  let wantHelp = false
+  if (call.terminated) {
+    // Commander still dispatches the first operand as the subcommand (its
+    // implicit `help` included); every later token stays an operand.
+    const [first, ...operands] = call.tokens
+    if (first === 'help' && hasHelpSubcommand(row)) {
+      wantHelp = true
+      rest.push(...operands)
+    } else if (first !== undefined) {
+      const routed =
+        row.parse === 'forward'
+          ? row.subcommands !== undefined
+          : row.subcommands?.some((s) => s.name === first) === true
+      const tail = routed ? operands : call.tokens
+      if (routed) rest.push(first)
+      if (tail.length > 0) rest.push('--', ...tail)
+    }
+  } else {
+    for (let i = 0; i < call.tokens.length; i++) {
+      const tok = call.tokens[i]!
+      if (tok === '--') {
+        // `--` stays in the command's argv: the table parser and the wrapped
+        // binary both read it as the operand terminator.
+        rest.push(...call.tokens.slice(i))
+        break
+      }
+      // `cospec <command> help` is `cospec <command> --help` on every table row
+      // (it must never reach a state-mutating command's argv: `archive help`
+      // must not archive a change called "help"), and commander's implicit help
+      // subcommand on a forward row that has one.
+      if (i === 0 && tok === 'help' && (row.parse === 'table' || hasHelpSubcommand(row)))
         wantHelp = true
-        continue
-      }
-    }
-    if (terminated || tok === '--') {
-      // `--` itself stays in the command's argv: the table parser and the
-      // wrapped binary both read it as the operand terminator.
-      terminated = true
-      rest.push(tok)
-      continue
-    }
-    // After the command name and before any `--`, absorb global flags anywhere;
-    // everything else is the command's own argv. --help/-h is intercepted here
-    // too so it can never silently fall through into a state-mutating command's
-    // argv.
-    if (tok === '--json') flags.json = true
-    else if (tok === '--no-color') flags.noColor = true
-    else if (tok === '--help' || tok === '-h') wantHelp = true
-    // Upstream's commander honours the program-level `-V, --version` after any
-    // subcommand, so cospec does too.
-    else if (tok === '--version' || tok === '-V') wantVersion = true
-    else if (isGlobalValueToken(tok)) i = takeGlobalValue(i)
-    else {
-      // Forward rows get no parser, so the post-command `--store-path` is
-      // caught here for every row alike.
-      if (isStorePathToken(tok)) storePath = true
-      rest.push(tok)
+      else if (tok === '--json') state.json = true
+      else if (tok === '--no-color') state.noColor = true
+      else if (isHelpToken(tok)) wantHelp = true
+      else if (isVersionToken(tok)) continue
+      else if (isGlobalValueToken(tok)) i = takeGlobalValue(call.tokens, i, state)
+      else rest.push(tok)
     }
   }
 
-  const cwd = cwdRaw !== undefined ? resolve(process.cwd(), cwdRaw) : process.cwd()
-  flags.cwd = cwd
-  if (storeRaw !== undefined) flags.store = storeRaw
-  if (flags.noColor) process.env.NO_COLOR = '1'
+  if (state.missing !== undefined) return valueRefusal(row.name, state.missing, false)
 
-  // Upstream answers a version request before anything else in the argv —
-  // help, an unknown option, `--store-path`, or the command itself.
-  if (wantVersion) {
-    process.stdout.write(`${pkg.version}\n`)
-    return EXIT.success
-  }
-
-  // Upstream's commander raises a missing option value while it parses one
-  // level, so the refusal wins over help, `--store-path` and an unknown option
-  // at that level; an unknown command still answers as one. A pre-command
-  // unknown option stops upstream at the program level, before the
-  // subcommand's own missing value is ever parsed. An empty value is not a
-  // parse error upstream at all (its action code refuses it), so it waits
-  // until just before dispatch.
-  const valueRefusal = (): number => {
-    const spec = GLOBAL_FLAGS.find((flag) => flag.name === badValue!.flag)!
-    const prefix = command === undefined ? 'cospec' : `cospec ${command}`
-    const problem = badValue!.empty ? 'must not be empty' : 'missing'
-    process.stderr.write(
-      `${prefix}: option '${spec.name} ${spec.placeholder}' argument ${problem}\n`,
-    )
-    return EXIT.failure
-  }
-  if (
-    badValue !== undefined &&
-    !badValue.empty &&
-    (badValue.preCommand || badOption === undefined) &&
-    (command === undefined || commandRow(command) !== undefined)
-  )
-    return valueRefusal()
-
-  // Upstream's program-level commander refuses an undeclared option before the
-  // command name whatever follows — a command, an unknown command, or
-  // `--store-path` — so it never runs the command without it.
-  if (badOption !== undefined && !wantHelp) {
-    process.stderr.write(globalUnknownOptionRefusal(badOption))
-    return EXIT.failure
-  }
-
-  if (storePath && !wantHelp) {
-    const refusal = storePathRefusal(flags.json)
-    process[refusal.stream].write(refusal.text)
-    return EXIT.failure
-  }
-
-  if (command === undefined) {
-    // An empty value with no command has no action to wait for.
-    if (badValue !== undefined && !wantHelp) return valueRefusal()
-    // No command and no version request → help (covers empty argv and --help).
-    process.stdout.write(helpText())
-    return EXIT.success
-  }
-
-  const row = commandRow(command)
-  if (row === undefined) {
-    process.stderr.write(`cospec: unknown command '${command}'\n`)
-    const suggestion = closest(
-      command,
-      COMMAND_TABLE.filter((r) => !r.hidden).map((r) => r.name),
-    )
-    if (suggestion !== undefined) process.stderr.write(`Did you mean '${suggestion}'?\n`)
-    process.stderr.write("Run 'cospec --help' for a list of commands.\n")
+  const result = row.parse === 'table' ? parseCommandArgs(row, rest) : undefined
+  if (result?.ok === false && result.refusal.kind === 'missing-value') {
+    process.stderr.write(result.refusal.message)
     return EXIT.failure
   }
 
@@ -477,26 +465,25 @@ export async function run(argv: string[]): Promise<number> {
     return EXIT.success
   }
 
-  let parsed: ParsedArgs | undefined
   if (row.parse === 'table') {
     // A `--json` caller is owed one parseable document even on refusal, so
-    // this answers before the parser can print a stderr-only refusal.
-    if (row.json === 'refused' && flags.json) {
+    // this answers before the parser's stderr-only refusals.
+    if (row.json === 'refused' && state.json) {
       process.stdout.write(jsonRefusal(row.name, row.jsonRefusalMessage))
       return EXIT.failure
     }
-    const result = parseCommandArgs(row, rest)
-    if (!result.ok) {
-      if (result.refusal.kind === 'store-path') {
-        const refusal = storePathRefusal(flags.json)
-        process[refusal.stream].write(refusal.text)
-      } else process.stderr.write(result.refusal.message)
+    if (result?.ok === false) {
+      if (result.refusal.kind === 'store-path') return storePathAnswer(state.json)
+      process.stderr.write(result.refusal.message)
       return EXIT.failure
     }
-    parsed = result.parsed
+  } else {
+    // Forward rows get no parser, so their `--store-path` is caught here.
+    const beforeTerminator = rest.includes('--') ? rest.slice(0, rest.indexOf('--')) : rest
+    if (beforeTerminator.some(isStorePathToken)) return storePathAnswer(state.json)
   }
 
-  if (badValue !== undefined) return valueRefusal()
+  if (state.empty !== undefined) return valueRefusal(row.name, state.empty, true)
 
   const loadModule = COMMAND_MODULES[row.name]
   if (loadModule === undefined) {
@@ -510,12 +497,60 @@ export async function run(argv: string[]): Promise<number> {
     return EXIT.failure
   }
 
+  const cwd = state.cwdRaw !== undefined ? resolve(process.cwd(), state.cwdRaw) : process.cwd()
+  const flags: GlobalFlags = {
+    json: state.json,
+    noColor: state.noColor,
+    cwd,
+    ...(state.storeRaw !== undefined ? { store: state.storeRaw } : {}),
+  }
+  if (flags.noColor) process.env.NO_COLOR = '1'
   const ctx: CommandContext = {
     args: rest,
     flags,
     cwd,
-    ...(parsed !== undefined ? { parsed } : {}),
+    ...(result?.ok === true ? { parsed: result.parsed } : {}),
   }
   const code = await mod.run(ctx)
   return typeof code === 'number' ? code : EXIT.success
+}
+
+/**
+ * Parse argv, apply global flags, and dispatch to the matching command module.
+ * Returns the process exit code. Like upstream's commander, the two levels
+ * never rank against each other: a `-V`/`--version` anywhere before a `--`
+ * answers first (it is a program-level option commander honours wherever it
+ * appears); then phase A resolves the program level completely and stops on
+ * any answer of its own; only a known command reaches phase B. A `table`
+ * row's argv is parsed against its row before the module loads; a `forward`
+ * row's argv reaches its wrapper unchanged. `--store-path` is refused on every
+ * command, in either position, with upstream's redirect respelled to cospec.
+ */
+export async function run(argv: string[]): Promise<number> {
+  const beforeTerminator = argv.includes('--') ? argv.slice(0, argv.indexOf('--')) : argv
+  if (beforeTerminator.some(isVersionToken)) {
+    process.stdout.write(`${pkg.version}\n`)
+    return EXIT.success
+  }
+
+  const state: GlobalState = { json: false, noColor: false }
+  const call = resolveProgram(argv, state)
+  if (typeof call === 'number') return call
+
+  const row = commandRow(call.command)
+  if (row === undefined) {
+    // Upstream's program level never dispatches an unknown command, so a help
+    // flag in the argv it left unconsumed still prints the program's help.
+    if (!call.terminated && programHelpRequested(call.tokens, false)) return rootHelp()
+    process.stderr.write(`cospec: unknown command '${call.command}'\n`)
+    const suggestion = closest(
+      call.command,
+      COMMAND_TABLE.filter((r) => !r.hidden).map((r) => r.name),
+    )
+    if (suggestion !== undefined) process.stderr.write(`Did you mean '${suggestion}'?\n`)
+    process.stderr.write("Run 'cospec --help' for a list of commands.\n")
+    return EXIT.failure
+  }
+
+  return runCommand(row, call, state)
 }
