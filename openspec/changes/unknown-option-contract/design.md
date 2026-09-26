@@ -207,6 +207,38 @@ runtime by `dist/commands/spec.js:127`.
     handled, gone from the pin, or pending under a different owner — fails the
     test, so a later change that implements a flag must delete its entry in the
     same commit.
+12. **Global flags resolve in two phases, never ranked across them.** Three
+    review rounds each found a new precedence bug in a one-pass loop that ranked
+    program-level and command-level answers against each other with a growing
+    set of priority flags (`cospec --help list --store` refused the missing
+    value instead of printing help; `cospec --store-path /x list --store` gave
+    the missing-value error instead of the redirect; `cospec -- config help`
+    exited 1). Upstream's commander does not rank across levels: its program
+    level parses the whole argv for its own options, stops on its own answer,
+    and only a dispatched subcommand parses its argv. `cli.ts` mirrors that. A
+    `-V`/`--version` anywhere before `--` answers first (a program-level option
+    commander honours wherever it appears). Phase A reads the tokens before the
+    command name or a leading `--`: a missing global value, then the first help
+    flag or undeclared option (help anywhere in the undispatched argv prints the
+    program's help; otherwise the option is refused, `--store-path` with its
+    redirect); an unknown command is never dispatched either, so a help flag
+    after it prints the program's help. Phase B is the row's own parse in
+    commander's per-level order — missing value, help, the row's other parse
+    refusals, empty value, run — and a `forward` row's argv reaches the binary
+    unchanged but for the threaded globals. After a leading `--` the first
+    operand is dispatched as the subcommand (commander's implicit `help`
+    included, on rows that have it: the new `helpSubcommand: false` marks
+    `store` and `workset`, whose upstream refuses `help`), replacing the old
+    "unless it starts with `-`" heuristic. A precedence matrix
+    (`apps/cli/test/contract/precedence-matrix.test.ts`) runs every row against
+    the binary under Node, which keeps a leading `--` intact, and compares a
+    finer outcome than decision 7's split (version, whose help, unknown command,
+    parse-rejected, parsed) plus the exit code; cospec-only rows state their
+    intended outcome. Kept on purpose: the `--store-path` redirect in both
+    positions (and its `--json` document), `view --json`'s refusal document, no
+    unknown-option refusal of cospec's own on `forward` rows,
+    `cospec <command> help` as help on every `table` row, and a bare `cospec`
+    (or `cospec --`) printing help with exit 0 where upstream exits 1.
 
 ### Initial data-file contents
 

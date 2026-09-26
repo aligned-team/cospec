@@ -143,12 +143,22 @@ honours the path, and the upstream subcommands `new change`,
 `cospec <command>: '<subcommand>' is not supported yet` until their owning
 changes land.
 
-Two global-flag spellings change too. After a post-command `--`, every token is
-an operand, as in upstream: `cospec list -- --json` now fails with too many
-arguments instead of running `list --json`. And a `--store` or `--cwd` with no
-value (or an empty one) now fails with `option '--store <id>' argument missing`
-(or `argument must not be empty`), exit 1, instead of being dropped so the
-command ran against the local repo.
+Global flags and help follow upstream's two-level parse too. After a
+post-command `--`, every token is an operand, as in upstream:
+`cospec list -- --json` now fails with too many arguments instead of running
+`list --json`. A `--store` or `--cwd` with no value (or an empty one) now fails
+with `option '--store <id>' argument missing` (or `argument must not be empty`),
+exit 1, instead of being dropped so the command ran against the local repo. Help
+before the command name is the program's help, whatever follows:
+`cospec --help list` and `cospec -h show foo` now print cospec's command list
+instead of that command's help, and `cospec bogus --help` prints it too (exit 0)
+instead of refusing the unknown command; `cospec list --help` is unchanged. A
+bare `help` after a forwarded command answers as upstream does:
+`cospec store help` and `cospec workset help` now fail with
+`unknown subcommand 'help'`, exit 1, and `cospec show help`,
+`cospec schemas help` and `cospec templates help` reach the binary (exit 1)
+instead of printing help; `cospec config help` and `cospec schema help` still
+print help, as `cospec <command> help` does on every table-parsed command.
 
 ## Capabilities
 

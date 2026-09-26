@@ -94,10 +94,12 @@ SHALL never be silently ignored.
 ### Requirement: The global version flag is honoured in any position
 
 cospec SHALL treat `-V` / `--version` as a global flag in any position before a
-`--` terminator, on every command (`table` and `forward` alike), as the pinned
-binary's program-level option is. A version request SHALL print cospec's own
-version on stdout and exit 0, ahead of `--help`, an unknown option, a
-`--store-path` refusal and the command itself, and SHALL do no work.
+`--` terminator, on every command (`table` and `forward` alike) and after an
+unknown command, as the pinned binary's program-level option is: the program
+level finds it wherever it appears, even where a command-level flag would take
+it as its value (`cospec list --store --version`). A version request SHALL print
+cospec's own version on stdout and exit 0, ahead of every other answer, and
+SHALL do no work.
 
 #### Scenario: A post-command version flag prints the version
 
@@ -110,6 +112,77 @@ version on stdout and exit 0, ahead of `--help`, an unknown option, a
 - **WHEN** `cospec list --bogus --version` runs
 - **THEN** stdout is cospec's version and the exit code is 0
 
+### Requirement: The program level resolves before the command sees its argv
+
+cospec SHALL resolve its global flags in two phases, as the pinned binary's
+commander does, and SHALL never rank an answer of one phase against an answer of
+the other. Phase A, the program level, SHALL read the tokens before the command
+name (or before a leading `--`) and SHALL stop with its own answer, in this
+order: a `--cwd`/`--store` left without a value; then, at the first help flag or
+undeclared option (`--store-path` included), the program's help when a help flag
+appears anywhere in the argv phase A never dispatched, otherwise that option's
+refusal (`--store-path`'s redirect); with no command name, an empty
+`--cwd`/`--store` value, then the program's help. An unknown command SHALL
+answer with the program's help when a help flag follows it before a `--`, and
+otherwise as an unknown command. Only a known command SHALL reach phase B, where
+the command's own argv SHALL resolve in commander's per-level order: a missing
+value (a global's or the row's own), then help, then the row's other parse
+refusals, then an empty `--cwd`/`--store` value, then the command runs. A
+`forward` row SHALL receive its argv unchanged apart from the threaded global
+flags.
+
+#### Scenario: Help before the command name wins over the command's argv
+
+- **WHEN** `cospec --help list --store` runs
+- **THEN** stdout is cospec's program help and the exit code is 0, as
+  `openspec --help list --store` prints its program help
+
+#### Scenario: A pre-command --store-path stops the program level
+
+- **WHEN** `cospec --store-path /x list --store` runs
+- **THEN** stderr is the `--store-path` redirect and the exit code is 1; the
+  missing `--store` value is never reached
+
+#### Scenario: A command's missing value is raised before its help
+
+- **WHEN** `cospec status --help --change` runs
+- **THEN** stderr is `cospec status: option '--change <slug>' argument missing`
+  and the exit code is 1, as `openspec status --help --change` refuses
+
+#### Scenario: A precedence matrix pins both phases against the binary
+
+- **WHEN** the precedence-matrix contract test runs each of its argv rows
+  through cospec and the pinned binary (under Node, so a leading `--` arrives
+  intact)
+- **THEN** each row's outcome (version, whose help, unknown command,
+  parse-rejected, parsed) and exit code match the binary's, and each row
+  declared cospec-only matches its stated outcome
+
+### Requirement: A bare help token follows the command's upstream counterpart
+
+A bare `help` as the first token after the command name SHALL print the
+command's help and SHALL never run the command on every `table` row. On a
+`forward` row it SHALL print help only where the upstream command offers
+commander's implicit `help [subcommand]` (a command with subcommands whose
+upstream counterpart does not refuse `help`: `config` and `schema`); `store` and
+`workset` SHALL hand it to their wrapper, which refuses it as an unknown
+subcommand as upstream does, and a `forward` row without subcommands SHALL pass
+it to the binary as an operand. After a leading `--`, `help` as the first
+operand SHALL print help on any row that offers the implicit help subcommand
+(`config`, `schema`, `new`, `completion`) and SHALL otherwise stay an operand.
+
+#### Scenario: The implicit help subcommand after a leading --
+
+- **WHEN** `cospec -- config help path` runs
+- **THEN** stdout is the `config path` help and the exit code is 0, as
+  `openspec -- config help path` prints it
+
+#### Scenario: store refuses a help subcommand
+
+- **WHEN** `cospec store help` runs
+- **THEN** stderr names `help` as an unknown subcommand and the exit code is 1,
+  as `openspec store help` refuses it
+
 ### Requirement: An undeclared option before the command name is refused
 
 cospec SHALL refuse any option before the command name that is not one of its
@@ -118,13 +191,14 @@ global flags (`--json`, `--no-color`, `-h`/`--help`, `-V`/`--version`, `--cwd`,
 when the command is unknown or absent, with `cospec: unknown option '<x>'` on
 stderr, a closest-match suggestion among the global flags on the next line when
 one is within edit distance, and exit 1, before the command does any work, as
-the pinned binary's program-level commander refuses it. The refusal SHALL come
-after a version request, a missing global value given before the command name
-and `--help`, and ahead of a missing or empty global value given after the
-command name, a `--store-path` refusal and the command itself, since the pinned
-binary refuses it before it parses the subcommand at all. `--store-path` before
-the command name with no undeclared option SHALL keep its redirect. A `--`
-before the command name is a terminator, not an undeclared option.
+the pinned binary's program-level commander refuses it. The refusal is a phase A
+answer: it SHALL yield only to a version request, a missing global value before
+it and a help flag anywhere in the argv, and SHALL come before anything after
+the command name is parsed, since the pinned binary refuses it before it parses
+the subcommand at all. Of an undeclared option and `--store-path` before the
+command name, the first in argv SHALL answer, and `--store-path` SHALL answer
+with its redirect. A `--` before the command name is a terminator, not an
+undeclared option.
 
 #### Scenario: An unknown option before the command does not run it
 
@@ -154,8 +228,9 @@ it up to a `--` terminator, and SHALL treat every token after a post-command
 `forward` row, unchanged, and a global flag cospec threads onto a wrapped call
 SHALL be inserted before that `--`. A `--` before the command name SHALL NOT be
 refused as an unknown option: the token after it is the command name, the next
-one, unless it starts with `-`, is still read as the subcommand on a command
-that has subcommands, and every later token is an operand of the command, as the
+one is still dispatched as the subcommand — whatever it looks like on a
+`forward` row with subcommands, and on a `table` row when it names one of the
+row's subcommands — and every later token is an operand of the command, as the
 pinned binary's program-level commander treats it.
 
 #### Scenario: A global flag after -- is an operand
@@ -186,18 +261,18 @@ position before a `--` terminator, with
 (`cospec: …` when no command was given) and exit 1, and one given an empty value
 (`--store=`, `--cwd ''`) with
 `cospec <command>: option '<flag> <placeholder>' argument must not be empty` and
-exit 1. A missing value SHALL be refused after a version request and ahead of
-`--help`, an unknown option, a `--store-path` refusal and the command itself, as
-the pinned binary raises its own `option '--store <id>' argument missing` while
-it parses a command level — except that a missing value after the command name
-SHALL yield to an undeclared option before it, which the pinned binary refuses
-at the program level before it parses the subcommand. An empty value SHALL be
-refused only after every parse-time answer — a version request, `--help`, an
-unknown option, a `--store-path` refusal, an unknown command and the command's
-own parse refusals — and before the command does any work, as the pinned binary
-accepts an empty value while it parses and refuses an empty store id in its
-action code; with no command name, an empty value SHALL be refused unless
-`--help` is given. The command SHALL never run against the local repo instead.
+exit 1. A missing value SHALL be refused while its phase parses — before that
+phase's help and parse refusals, as the pinned binary raises its own
+`option '--store <id>' argument missing` while it parses a command level — and a
+missing value after the command name SHALL never be reached when phase A has
+already answered (an undeclared option, `--store-path` or a help flag before the
+command name). An empty value SHALL be refused only after every parse-time
+answer — a version request, help, an unknown option, a `--store-path` refusal,
+an unknown command and the command's own parse refusals — and before the command
+does any work, as the pinned binary accepts an empty value while it parses and
+refuses an empty store id in its action code; with no command name, an empty
+value SHALL be refused unless a help flag is given. The command SHALL never run
+against the local repo instead.
 
 #### Scenario: A trailing --store is refused, not dropped
 

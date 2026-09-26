@@ -25,28 +25,44 @@ the table.
 `cospec <command>: option '--store <id>' argument missing` (or
 `'--cwd <path>'`), and given an empty one (`--store=`) with
 `… argument must not be empty`, exit `1` — the command never falls back to the
-local repo. As in OpenSpec, a missing value is a parse error and wins over
-`--help`, while an empty value is refused only once parsing is done: help, an
-unknown option, `--store-path` and the command's own argument refusals all
-answer first (`cospec list --store= --help` prints help).
+local repo.
 
 Global flags are recognised before the command name and anywhere after it, up to
 a `--` terminator. After `--` every token is an operand of the command, as in
 OpenSpec: `cospec list -- --json` is refused as too many arguments, not run as
 `list --json`. A `--` before the command name works the same way:
-`cospec -- list` runs `list`, and `cospec -- list --help` is refused as too many
-arguments.
+`cospec -- list` runs `list`, `cospec -- list --help` is refused as too many
+arguments, and the token after the command is still its subcommand
+(`cospec -- config help path` prints the `config path` help).
 
-Before the command name, only the global flags (and a `--` terminator) are
-accepted: any other option is refused with `cospec: unknown option '<flag>'`
-(plus `Did you mean '<closest-global-flag>'?` when one is close enough), exit
-`1`, and the command doesn't run — `cospec --bogus list` lists nothing, as
-`openspec --bogus list` refuses too. That refusal comes before anything after
-the command name is looked at, so `cospec --bogus list --store` refuses
-`--bogus`, not the missing value.
+As in OpenSpec, the program level and the command never rank against each other;
+cospec answers in two phases:
+
+1. `-V`/`--version` anywhere before `--` prints the version, ahead of everything
+   else.
+2. The tokens before the command name are read first. A `--cwd`/`--store` with
+   no value is refused; then, at the first `-h`/`--help` or unknown option, a
+   help flag anywhere in the argv prints cospec's command list, and otherwise
+   the option is refused with `cospec: unknown option '<flag>'` (plus
+   `Did you mean '<closest-global-flag>'?` when one is close enough), exit `1` —
+   or, for `--store-path`, its redirect. Nothing after the command name is
+   looked at: `cospec --bogus list` lists nothing and
+   `cospec --bogus list --store` refuses `--bogus`, as `openspec --bogus list`
+   refuses too, and `cospec --help list --store` prints the command list. An
+   unknown command answers as one, unless a help flag follows it
+   (`cospec bogus --help` prints the command list).
+3. Only then does the command read its own argv, in OpenSpec's per-command
+   order: a missing value (`cospec status --help --change` refuses the missing
+   `--change`), then `--help`, then the command's other refusals (unknown
+   option, too many arguments, `--store-path`), then an empty `--cwd`/`--store`
+   (`cospec list --store= --help` prints help), then the command runs.
 
 `cospec <command> help` — a bare `help` token immediately after the command name
-— is equivalent to `cospec <command> --help`; it never runs the command.
+— is equivalent to `cospec <command> --help` on every table-parsed command; it
+never runs the command. On a forwarded command it answers as OpenSpec does:
+`cospec config help` and `cospec schema help` print help, `cospec store help`
+and `cospec workset help` refuse `help` as an unknown subcommand, and
+`cospec show help` passes `help` to the binary as the item name.
 
 ## Commands
 

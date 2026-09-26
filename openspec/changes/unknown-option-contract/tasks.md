@@ -238,3 +238,19 @@ red; 4–7 turn it green; 8 documents it.
       it is still read as the subcommand, every later token is an operand; unit
       and differential rows (Bun-safe spellings); the terminator requirement and
       the global-flags note (ledger 1.15)
+- [x] 10.14 Add the precedence matrix contract test: 107 argv rows (version,
+      help, unknown option, `--store`/`--cwd` values, `--store-path` in every
+      form and position, leading and post-command `--`, bare `help` tokens)
+      against `list`, `show`, `config`/`schema`/`store`/`workset` and no
+      command, each compared with the binary run under Node (outcome + exit
+      code) or declared cospec-only with its intended outcome; rows failing on
+      the one-pass `cli.ts` run as `test.failing` (ledger 1.16)
+- [x] 10.15 Split `cli.ts`'s global-flag handling into phase A (the program
+      level, stopping on its own answer) and phase B (the row's own argv in
+      commander's per-level order); delete the cross-level priority flags and
+      the dash heuristic after a leading `--`; `helpSubcommand: false` on
+      `store`/`workset`; spec requirements, design decision 12, the global-flags
+      note in `reference/commands.md` and the BREAKING paragraph (ledger 1.16)
+- [x] 10.16 Check whether a user's raw `cospec -- list` loses its `--` before
+      cospec sees it: run the built executable directly and inspect the
+      published Node launcher (ledger 1.17)
