@@ -406,6 +406,16 @@ SHALL be an operand.
 - **THEN** the schema `s1` is created and the exit code is 0, as the pinned
   binary answers
 
+#### Scenario: A token after --store-path is its value
+
+- **WHEN** `cospec list --store-path --json`, `cospec list --store-path --store`
+  or `cospec show c1 --store-path --help` runs
+- **THEN** that token is `--store-path`'s value, neither absorbed as a global
+  flag nor read as help: stderr carries the redirect text, stdout is empty, and
+  the exit code is 1, as the pinned binary answers; before the command name
+  `--store-path` takes no value, so `cospec --store-path --help list` prints the
+  program's help and exits 0
+
 #### Scenario: --store-path on a terminal-handover leaf
 
 - **WHEN** `cospec config edit --store-path /x` runs

@@ -324,8 +324,10 @@ red; 4–7 turn it green; 8 documents it.
       outranks help and an earlier unknown option or pending flag;
       `init     --language`'s placeholder is the binary's `<language>`; unit
       rows (ledger 1.25)
-- [ ] 10.26 Phase B keeps a space-form `--store-path` and its next token
+- [x] 10.26 Phase B keeps a space-form `--store-path` and its next token
       together, verbatim, so neither global absorption nor help interception
       takes the value; phase A needs no change (the program level does not
-      declare `--store-path`, so help outranks it there); unit rows, the
-      `runCommand` docstring (ledger 1.26)
+      declare `--store-path`, so help outranks it there); no cross-phase
+      priority flag; unit rows, the `runCommand` docstring, a spec scenario,
+      design decision 2, `docs/architecture.md` and `reference/commands.md`
+      (ledger 1.26)

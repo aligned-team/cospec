@@ -275,6 +275,13 @@ describe('cli dispatcher: --store-path is refused in every position', () => {
     ['list', '--bogus', '--store-path'],
     ['list', '--help', '--bogus', '--store-path'],
     ['list', '--sort', 'x', '--store-path'],
+    // A space-form value is taken whatever it looks like: a global or a help
+    // flag there is the value, never absorbed, so even `--json` gets the text.
+    ['list', '--store-path', '--store'],
+    ['list', '--store-path', '--cwd'],
+    ['list', '--store-path', '--json'],
+    ['list', '--store-path', '--help'],
+    ['list', '--store-path', 'help'],
     // A forward row's binary refuses it itself (contract-tested in the matrix).
   ]) {
     test(argv.join(' '), async () => {
@@ -307,9 +314,25 @@ describe('cli dispatcher: --store-path is refused in every position', () => {
   })
 })
 
+describe('cli dispatcher: --store-path before the command takes no value', () => {
+  // The program level does not declare it, so help outranks it as an unknown
+  // option: `--help` is never its value there.
+  test('--store-path --help list prints the program help', async () => {
+    const r = await dispatch(['--store-path', '--help', 'list'])
+    expect(r.code).toBe(0)
+    expect(r.out).toMatch(/^Usage: cospec /m)
+    expect(r.err).toBe('')
+  })
+})
+
 describe('cli dispatcher: a table row refuses --store-path after its other parse refusals', () => {
   for (const [argv, err] of [
     [['list', '--store-path', '/x', '--bogus'], "cospec list: unknown option '--bogus'\n"],
+    // `--store` is --store-path's value, so `a` is list's excess operand.
+    [
+      ['list', '--store-path', '--store', 'a'],
+      'cospec list: too many arguments. Expected 0 arguments but got 1.\n',
+    ],
     [
       ['list', 'a', '--store-path', '/x'],
       'cospec list: too many arguments. Expected 0 arguments but got 1.\n',

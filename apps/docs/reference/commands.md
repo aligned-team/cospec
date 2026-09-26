@@ -208,6 +208,11 @@ Fix: cospec store register <path>, then rerun with --store <id>.
 
 Under `--json`, that's one document on stdout instead of stderr text:
 `{"status":[{"severity":"error","code":"store_path_not_supported","message":"…","target":"store.id","fix":"…"}]}`.
+After the command name, the space form takes the next token as its value
+whatever it looks like, as OpenSpec does: `cospec list --store-path --json`
+prints the text redirect (`--json` is the path, so no document), and
+`cospec show c1 --store-path --help` the redirect, not help. Before the command
+name it takes no value, so `cospec --store-path --help list` prints the help.
 Register the path with `cospec store register <path>` and select it with
 `--store <id>` — see [Stores](/concepts/stores).
 

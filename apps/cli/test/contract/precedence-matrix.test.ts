@@ -492,17 +492,7 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * pending flag with no value refused as pending, not argument missing; phase
  * B absorbing or intercepting `--store-path`'s value). The fixes empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  // `--store-path`'s space-form value, absorbed or intercepted by phase B.
-  'show c1 --store-path --help',
-  'schemas --store-path -h',
-  'list --store-path --store',
-  'list --store-path --cwd',
-  'show c1 --store-path --store',
-  'show c1 --store-path --store foo',
-  'show c1 --store-path --json',
-  'list --store-path --json',
-])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
 
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot()

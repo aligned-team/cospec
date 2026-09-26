@@ -103,11 +103,14 @@ forbids that everywhere, this included. Where it lands follows the binary: a
 row the binary is the authority — the argv reaches it unchanged, it refuses a
 `--store-path` in option position in its own order (and runs the command when
 the token is another flag's value), and the wrapper only answers the binary's
-own `--store-path` refusal with cospec's redirect (`core/forward-relay.ts`). The
-terminal-handover leaves (`config edit`/`profile`/`reset --all` without `-y`,
-`workset open`) are the one exception: with inherited stdio there is nothing to
-respell, so they check the option position statically from the row's declared
-flags and print the redirect without spawning.
+own `--store-path` refusal with cospec's redirect (`core/forward-relay.ts`).
+After the command name the space form's next token is its value whatever it
+looks like, so `cli.ts` phase B passes the pair through without absorbing a
+global flag or reading a help flag there. The terminal-handover leaves
+(`config edit`/`profile`/`reset --all` without `-y`, `workset open`) are the one
+exception: with inherited stdio there is nothing to respell, so they check the
+option position statically from the row's declared flags and print the redirect
+without spawning.
 
 ### The reachability test is the parity gate
 

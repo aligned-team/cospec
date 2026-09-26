@@ -418,9 +418,10 @@ function resolveProgram(argv: readonly string[], state: GlobalState): number | C
 
 /**
  * Phase B, the command level: `row`'s own argv. Global flags are absorbed up
- * to a `--`; a table row parses the rest, a forward row hands it to its
- * wrapper untouched, `--store-path` included (the binary is its authority
- * there; the wrapper only respells the binary's refusal). Outcomes follow
+ * to a `--`, except a token that is a space-form `--store-path`'s value (kept
+ * with it, whatever it looks like); a table row parses the rest, a forward row
+ * hands it to its wrapper untouched, `--store-path` included (the binary is
+ * its authority there; the wrapper only respells the binary's refusal). Outcomes follow
  * commander's per-level order: a missing value (the global's or the row's
  * own, anywhere in the argv — a trailing `--store-path` answers its redirect
  * here) is raised while the argv parses, then help, then the row's other
@@ -447,6 +448,13 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
           rest.push(...call.tokens.slice(i))
         }
         break
+      }
+      // Like commander, a space-form `--store-path` takes the next token as its
+      // value whatever it looks like, so a global or help flag there is never
+      // absorbed or intercepted: the table parser or the binary gets both.
+      if (tok === '--store-path' && i + 1 < call.tokens.length) {
+        rest.push(tok, call.tokens[++i]!)
+        continue
       }
       // `cospec <command> help` — `help` as the first token to reach the row,
       // after any absorbed global — is `cospec <command> --help` on every table

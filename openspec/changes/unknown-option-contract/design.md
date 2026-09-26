@@ -151,10 +151,19 @@ runtime by `dist/commands/spec.js:127`.
    command, mutates and exits 0, and cospec reported a false failure naming bare
    `openspec`. After a leading `--`, `--store-path` is an operand and nothing
    intercepts it: `cospec -- config --store-path /x` is `config`'s unknown
-   subcommand, as `openspec -- config --store-path /x` is. The precedence matrix
-   compares the refusal's kind, counting any refusal whose subject is
-   `--store-path` as the same kind in either dialect, so it measures where the
-   refusal lands, not its wording.
+   subcommand, as `openspec -- config --store-path /x` is. After the command
+   name a space-form `--store-path` takes the next token as its value whatever
+   it looks like, as commander does, so phase B keeps the pair together and
+   neither absorbs a global flag there nor reads a help flag:
+   `cospec list --store-path --json` is the text redirect with no document, and
+   `cospec show c1 --store-path --store foo` the binary's too many arguments.
+   Before the command name the program level declares no `--store-path`, so it
+   takes no value and help outranks it (`--store-path --help list` is the
+   program's help). This is per-level parsing, not a cross-phase priority flag:
+   neither phase reads the other's tokens. The precedence matrix compares the
+   refusal's kind, counting any refusal whose subject is `--store-path` as the
+   same kind in either dialect, so it measures where the refusal lands, not its
+   wording.
 3. **Refusal formats.** Unknown option: `cospec <command>: unknown option '<x>'`
    (the `parseFeedbackArgs` precedent), followed on the next line by
    `Did you mean '<flag>'?` when `closest()` (the Levenshtein helper `cli.ts`
