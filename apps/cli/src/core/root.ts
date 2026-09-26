@@ -1,12 +1,12 @@
 // Operating-root resolution (store-awareness). Every command resolves exactly
 // one root up front — a local OpenSpec root, or a registered OpenSpec store —
 // and then threads it: `root.base` to the filesystem readers, `root` to the
-// wrapped openspec calls (which thread `root.storeArgs` right after the command
-// path). The selection is a port of upstream's `resolveOpenSpecRoot`
-// (`dist/core/root-selection.js`, pinned 1.13.1), so cospec and bare openspec
-// agree on which root a command targets from any directory;
-// `test/contract/root-resolution.test.ts` pins the port to the binary fixture
-// by fixture:
+// wrapped openspec calls (which thread `root.storeArgs`, set only for an
+// explicit `--store`, right after the command path). The selection is a port of
+// upstream's `resolveOpenSpecRoot` (`dist/core/root-selection.js`, pinned
+// 1.13.1), so cospec and bare openspec agree on which root a command targets
+// from any directory; `test/contract/root-resolution.test.ts` pins the port to
+// the binary fixture by fixture:
 //
 //   1. an explicit `--store <id>` selects that store (`store`), else
 //   2. the qualifying ancestor walk: from the canonical cwd upward, the nearest
@@ -370,7 +370,10 @@ export async function resolveStore(
   return {
     base: canonicalize(found.root),
     cwd,
-    storeArgs: ['--store', id],
+    // Only an explicit `--store` is threaded: a wrapped call spawned in `cwd`
+    // re-derives a pointer or `defaultStore` root itself, so its relayed
+    // `root.source` reads `declared`/`global_default` as upstream's does.
+    storeArgs: source === 'store' ? ['--store', id] : [],
     store: id,
     source,
   }

@@ -114,7 +114,7 @@ POST-REBASE.
       `openspec()` helper in `apps/cli/test/fixtures/support.ts`
       (`upstream-oracle.ts` was not on `main`, so the local helper is in use
       until task 7.3)
-- [ ] 4.2 Add fixtures M1–M27 exactly as the verification ledger's group 1
+- [x] 4.2 Add fixtures M1–M27 exactly as the verification ledger's group 1
       defines them, each asserting that in-process `resolveRoot` and the oracle
       agree on `{path, source, store_id}` or on the diagnostic code, and verify
       the matrix passes (the fixtures are in; each `cospec:` row the current
@@ -142,13 +142,13 @@ POST-REBASE.
       `defaultStore` directory, and with an explicit `--store alpha`, comparing
       `.root`; verify the pointer and default rows fail (cospec relays
       `source: store`) while the explicit row passes
-- [ ] 5.2 Only with group 4's matrix green on M4, M5, M11 and M13, set
+- [x] 5.2 Only with group 4's matrix green on M4, M5, M11 and M13, set
       `storeArgs` to `['--store', id]` in `root.ts` for `source: store` alone
       and to `[]` for `declared` and `global_default` (design D11), updating the
       unit tests that asserted `storeArgs` for pointer and default roots; verify
       5.1 passes, the whole matrix still passes, and `view`, `templates` and
       `schema` are unaffected
-- [ ] 5.3 Run `mise run check` and commit the track
+- [x] 5.3 Run `mise run check` and commit the track
 
 ## 6. Docs
 

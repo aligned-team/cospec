@@ -9,11 +9,7 @@
 // Each row is two tests over one fixture:
 //   - `oracle:` (active) pins the binary to the ledger's outcome, so a broken
 //     fixture fails loudly instead of hiding behind a red cospec row;
-//   - `cospec:` compares `resolveRoot` against that oracle run. Rows the current
-//     code fails are `test.todo`, tagged with the task group that makes them
-//     pass (`[until group 5]`: `--store` threading for relayed provenance).
-//     `bun test --todo <this file>` runs them; a todo row that passes there is
-//     ready to become a plain `test`.
+//   - `cospec:` compares `resolveRoot` against that oracle run.
 //
 // Expected cospec messages and fixes are the oracle's own text with every
 // `openspec <command>` respelled `cospec <command>` (shipped output never names
@@ -55,8 +51,6 @@ import {
 } from './support/root-sandbox.ts'
 
 afterAll(cleanupAll)
-
-type Track = 'group 5'
 
 interface CospecRoot {
   path: string
@@ -108,7 +102,6 @@ async function runResolver(sb: Sandbox, fx: Fixture): Promise<ResolverRun> {
 interface RowSpec {
   id: string
   title: string
-  until: Track | null
   /** Stores registered in the sandbox (default `alpha`, `beta`). */
   stores?: readonly string[]
   setup: (sb: Sandbox) => Promise<Fixture> | Fixture
@@ -173,8 +166,7 @@ function row(spec: RowSpec): void {
       else spec.fix(d.fix, o.diagnostic)
     }
     const label = 'cospec: resolveRoot matches the oracle'
-    if (spec.until === null) test(label, cospecTest)
-    else test.todo(`${label} [until ${spec.until}]`, cospecTest)
+    test(label, cospecTest)
   })
 }
 
@@ -250,7 +242,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M1',
     title: 'subdirectory of a planning root',
-    until: null,
     setup: (sb) => {
       const dir = planningRoot(sb)
       return at(dir, join(dir, 'src/deep'))
@@ -261,7 +252,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M2',
     title: 'config-only openspec/ from the root',
-    until: null,
     setup: (sb) => at(repo(sb, 'm2', configOnly('schema: spec-driven\n'))),
     expected: (_sb, fx) => nearest(repoOf(fx)),
   })
@@ -269,7 +259,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M2 (sub)',
     title: 'config-only openspec/ from a subdirectory',
-    until: null,
     setup: (sb) => {
       const dir = repo(sb, 'm2', { ...configOnly('schema: spec-driven\n'), dirs: ['sub'] })
       return at(dir, join(dir, 'sub'))
@@ -280,7 +269,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M3',
     title: 'planning root with a store pointer warns and stays local',
-    until: null,
     setup: (sb) =>
       at(repo(sb, 'm3', { dirs: ['openspec/changes'], ...configOnly('store: alpha\n') })),
     expected: (_sb, fx) => nearest(repoOf(fx)),
@@ -296,7 +284,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M4',
     title: 'config-only pointer',
-    until: null,
     setup: (sb) => at(repo(sb, 'm4', configOnly('store: alpha\n'))),
     expected: (sb) => storeRoot(sb, 'alpha', 'declared'),
   })
@@ -304,7 +291,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M5',
     title: 'config-only pointer found from a subdirectory',
-    until: null,
     setup: (sb) => {
       const dir = repo(sb, 'm4', { ...configOnly('store: alpha\n'), dirs: ['deeper'] })
       return at(dir, join(dir, 'deeper'))
@@ -315,7 +301,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M6',
     title: 'unparseable pointer',
-    until: null,
     setup: (sb) => at(repo(sb, 'm6', configOnly('store: [unclosed\n'))),
     expected: () => code('invalid_store_pointer'),
   })
@@ -323,7 +308,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M7',
     title: 'non-string pointer',
-    until: null,
     setup: (sb) => at(repo(sb, 'm7', configOnly('store:\n  - alpha\n  - beta\n'))),
     expected: () => code('invalid_store_pointer'),
   })
@@ -331,7 +315,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M8',
     title: 'empty-string pointer on a config-only root',
-    until: null,
     setup: (sb) => at(repo(sb, 'm8', configOnly('store: ""\n'))),
     expected: () => code('invalid_store_id'),
   })
@@ -339,7 +322,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M8b',
     title: 'empty-string pointer on a planning root warns naming an empty id',
-    until: null,
     setup: (sb) =>
       at(repo(sb, 'm8b', { dirs: ['openspec/changes'], ...configOnly('store: ""\n') })),
     expected: (_sb, fx) => nearest(repoOf(fx)),
@@ -351,7 +333,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M9',
     title: 'unknown pointer id',
-    until: null,
     setup: (sb) => at(repo(sb, 'm9', configOnly('store: nope\n'))),
     expected: () => code('unknown_store'),
     // Design D4 keeps cospec's own unknown-store wording behind upstream's prefix.
@@ -368,7 +349,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M10',
     title: 'malformed pointer on a planning root is ignored without a warning',
-    until: null,
     setup: (sb) =>
       at(repo(sb, 'm10', { dirs: ['openspec/specs'], ...configOnly('store: [unclosed\n') })),
     expected: (_sb, fx) => nearest(repoOf(fx)),
@@ -380,7 +360,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M11',
     title: 'config.yml pointer',
-    until: null,
     setup: (sb) => at(repo(sb, 'm11', configOnly('store: alpha\n', 'config.yml'))),
     expected: (sb) => storeRoot(sb, 'alpha', 'declared'),
   })
@@ -388,7 +367,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M12',
     title: 'explicit --store from a bare directory',
-    until: null,
     setup: (sb) => at(bare(sb), undefined, 'alpha'),
     expected: (sb) => storeRoot(sb, 'alpha', 'store'),
   })
@@ -396,7 +374,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M12b',
     title: 'explicit --store from inside a planning root',
-    until: null,
     setup: (sb) => {
       const dir = planningRoot(sb)
       return at(dir, join(dir, 'src/deep'), 'alpha')
@@ -407,7 +384,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M13',
     title: 'defaultStore from a bare directory',
-    until: null,
     setup: async (sb) => {
       await setDefaultStore(sb, 'beta')
       return at(bare(sb))
@@ -418,7 +394,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M13b',
     title: 'defaultStore never outranks an enclosing planning root',
-    until: null,
     setup: async (sb) => {
       await setDefaultStore(sb, 'beta')
       const dir = planningRoot(sb)
@@ -430,7 +405,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M14',
     title: 'stale defaultStore',
-    until: null,
     setup: async (sb) => {
       await setDefaultStore(sb, 'gone')
       return at(bare(sb))
@@ -446,7 +420,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M15',
     title: 'registered stores and no root',
-    until: null,
     setup: (sb) => at(bare(sb)),
     expected: () => code('no_root_with_registered_stores'),
   })
@@ -454,7 +427,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M16',
     title: '$HOME/openspec/<id> store layout, cwd $HOME',
-    until: null,
     setup: async (sb) => {
       await homeStores(sb)
       return at(sb.home)
@@ -465,7 +437,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M16 (proj)',
     title: '$HOME/openspec/<id> store layout, cwd $HOME/work/proj',
-    until: null,
     setup: async (sb) => {
       await homeStores(sb)
       const cwd = join(sb.home, 'work', 'proj')
@@ -478,7 +449,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M16b',
     title: 'real project under a $HOME store layout',
-    until: null,
     setup: async (sb) => {
       await homeStores(sb)
       const real = join(sb.home, 'work', 'real')
@@ -492,7 +462,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M17',
     title: 'bare openspec/ skipped mid-walk',
-    until: null,
     setup: (sb) => {
       const dir = repo(sb, 'm17', { dirs: ['openspec/changes', 'inner/openspec', 'inner/x'] })
       return at(dir, join(dir, 'inner/x'))
@@ -503,7 +472,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M18',
     title: 'symlinked cwd',
-    until: null,
     setup: (sb) => {
       const dir = planningRoot(sb)
       const link = join(sb.dir, 'link')
@@ -516,7 +484,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M19',
     title: 'implicit root with no stores registered',
-    until: null,
     stores: [],
     setup: (sb) => at(bare(sb)),
     oracleCommand: 'status',
@@ -531,7 +498,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M20',
     title: 'pre-config project (openspec/project.md only)',
-    until: null,
     stores: [],
     setup: (sb) => at(repo(sb, 'm20', { files: { 'openspec/project.md': '# Project\n' } })),
     expected: (_sb, fx) => ({ root: { path: canonical(repoOf(fx)), source: 'implicit' } }),
@@ -540,7 +506,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M21',
     title: 'references: without store:',
-    until: null,
     setup: (sb) => at(repo(sb, 'm21', configOnly('schema: spec-driven\nreferences:\n  - alpha\n'))),
     expected: (_sb, fx) => nearest(repoOf(fx)),
   })
@@ -550,7 +515,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M22',
     title: 'store metadata missing',
-    until: null,
     stores: WITH_GAMMA,
     setup: (sb) => {
       removeGammaMetadata(sb)
@@ -562,7 +526,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M23',
     title: 'store metadata id differs from the registered id',
-    until: null,
     stores: WITH_GAMMA,
     setup: (sb) => {
       writeFileSync(join(gammaRoot(sb), '.openspec-store', 'store.yaml'), 'version: 1\nid: zeta\n')
@@ -574,7 +537,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M24',
     title: 'store without openspec/config.yaml',
-    until: null,
     stores: WITH_GAMMA,
     setup: (sb) => {
       rmSync(join(gammaRoot(sb), 'openspec', 'config.yaml'))
@@ -586,7 +548,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M24b',
     title: 'store without openspec/',
-    until: null,
     stores: WITH_GAMMA,
     setup: (sb) => {
       rmSync(join(gammaRoot(sb), 'openspec'), { recursive: true })
@@ -598,7 +559,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M25',
     title: 'store openspec/specs is a file',
-    until: null,
     stores: WITH_GAMMA,
     setup: (sb) => {
       const specs = join(gammaRoot(sb), 'openspec', 'specs')
@@ -615,7 +575,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M25b',
     title: 'store with no specs/ or changes/ is still healthy',
-    until: null,
     stores: WITH_GAMMA,
     setup: (sb) => {
       rmSync(join(gammaRoot(sb), 'openspec', 'specs'), { recursive: true })
@@ -628,7 +587,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M26',
     title: 'store metadata unparseable',
-    until: null,
     stores: WITH_GAMMA,
     setup: (sb) => {
       writeFileSync(join(gammaRoot(sb), '.openspec-store', 'store.yaml'), 'version: [\n')
@@ -644,7 +602,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M27',
     title: 'broken store selected through a config-only pointer',
-    until: null,
     stores: WITH_GAMMA,
     setup: (sb) => {
       removeGammaMetadata(sb)
@@ -662,7 +619,6 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
   row({
     id: 'M27 (default)',
     title: 'broken store selected through defaultStore',
-    until: null,
     stores: WITH_GAMMA,
     setup: async (sb) => {
       removeGammaMetadata(sb)
@@ -699,7 +655,6 @@ async function showSandbox(): Promise<Sandbox> {
 
 interface ShowRowSpec {
   title: string
-  until: Track | null
   setup: (sb: Sandbox) => Promise<Fixture> | Fixture
   expected: (sb: Sandbox) => OracleRoot
 }
@@ -734,15 +689,13 @@ function showRow(spec: ShowRowSpec): void {
       expect(body.root).toEqual(o.root)
     }
     const label = 'cospec: relayed .root equals the oracle'
-    if (spec.until === null) test(label, cospecTest)
-    else test.todo(`${label} [until ${spec.until}]`, cospecTest)
+    test(label, cospecTest)
   })
 }
 
 describe('relayed root provenance (ledger 2.8)', () => {
   showRow({
     title: 'over a config-only pointer (M4)',
-    until: 'group 5',
     setup: (sb) => at(repo(sb, 'm4', configOnly('store: alpha\n'))),
     expected: (sb) => ({
       path: canonical(storePath(sb, 'alpha')),
@@ -753,7 +706,6 @@ describe('relayed root provenance (ledger 2.8)', () => {
 
   showRow({
     title: 'under defaultStore (M13)',
-    until: 'group 5',
     setup: async (sb) => {
       await setDefaultStore(sb, 'beta')
       return at(bare(sb))
@@ -767,7 +719,6 @@ describe('relayed root provenance (ledger 2.8)', () => {
 
   showRow({
     title: 'with an explicit --store',
-    until: null,
     setup: (sb) => at(bare(sb), undefined, 'alpha'),
     expected: (sb) => ({
       path: canonical(storePath(sb, 'alpha')),

@@ -8,6 +8,7 @@ import {
   localRoot,
   readDefaultStore,
   resolveRoot,
+  type RootSource,
 } from '../../../src/core/root.ts'
 
 // Fixtures live under `tmpdir()` as spelled, which is a symlink on macOS
@@ -429,7 +430,7 @@ describe('resolveRoot — store pointer', () => {
         expect(root).toEqual({
           base: canonical(alpha),
           cwd,
-          storeArgs: ['--store', 'alpha'],
+          storeArgs: [],
           store: 'alpha',
           source: 'declared',
         })
@@ -684,6 +685,25 @@ describe('resolveRoot — store health (design D9)', () => {
   }, 15_000)
 })
 
+describe('resolveRoot — storeArgs by source (design D11)', () => {
+  test('only an explicit --store is threaded; pointer and defaultStore roots thread nothing', async () => {
+    await withGlobalConfig('beta', async (env) => {
+      env.store('alpha')
+      env.store('beta')
+      const cases: [string, { store?: string; json: true }, RootSource, readonly string[]][] = [
+        [bareDir(), { store: 'alpha', json: true }, 'store', ['--store', 'alpha']],
+        [repoWithConfig('store: alpha\n'), { json: true }, 'declared', []],
+        [bareDir(), { json: true }, 'global_default', []],
+      ]
+      for (const [cwd, flags, source, storeArgs] of cases) {
+        const root = await resolveRoot({ cwd, flags })
+        expect(root.source).toBe(source)
+        expect(root.storeArgs).toEqual(storeArgs)
+      }
+    })
+  }, 15_000)
+})
+
 describe('resolveRoot — store banner (design D10)', () => {
   const banner = (id: string, root: string): string =>
     `Using OpenSpec root: ${id} (${canonical(root)})\n`
@@ -810,7 +830,7 @@ describe('resolveRoot — defaultStore fallback (W8)', () => {
       expect(root).toEqual({
         base: canonical(storeRoot),
         cwd: dir,
-        storeArgs: ['--store', 'team-plans'],
+        storeArgs: [],
         store: 'team-plans',
         source: 'global_default',
       })
