@@ -121,8 +121,11 @@ POST-REBASE.
       resolver fails is a `test.todo` tagged `[until T1]` or `[until T2]`, and
       the track that makes a row pass under `bun test --todo` turns it into a
       plain `test`; tick this once no todo row remains) (groups 1 and 2 turned
-      every `[until T1]`/`[until T2]` row into a plain `test`; only the two
-      `[until group 5]` `show --json` rows remain todo)
+      every `[until T1]`/`[until T2]` row into a plain `test`; the two
+      `[until group 5]` `show --json` rows were the last todo rows — group 5
+      turned those into plain tests too, so zero `test.todo` remain, confirmed
+      by `grep -c test.todo apps/cli/test/contract/root-resolution.test.ts` = 0
+      and 89 pass / 0 fail on the file)
 - [ ] 4.3 Add the command-level rows (ledger groups 2 and 3): `cospec list`,
       `cospec new`, `cospec status`, `cospec schemas`, `cospec templates` and
       `cospec schema which|validate|fork|init` driven from the fixtures, with
