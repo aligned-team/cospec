@@ -561,6 +561,116 @@ const VALUE_POSITION_ROWS: readonly Row[] = [
 ]
 
 /**
+ * A `table` row whose module never reads `--store` (`store: 'refused'`)
+ * refuses it as an unknown option, as the binary does for `init`, `update`
+ * and `completion`: absorbed as a global, it was silently ignored — `init
+ * --store nosuch` scaffolded the cwd. Before the command name it is a cospec
+ * global, refused the same way once the row is known.
+ */
+const STORE_GLOBAL_ROWS: readonly Row[] = [
+  { argv: ['init', '--store', 'x'], command: 'init', check: nothingWritten },
+  { argv: ['init', '--store=x'], command: 'init', check: nothingWritten },
+  { argv: ['init', '--store'], command: 'init', check: nothingWritten },
+  { argv: ['init', '--store', 'x', '--help'], command: 'init' },
+  { argv: ['init', '--harness', 'none', '--store', 'x'], command: 'init', check: nothingWritten },
+  { argv: ['update', '--store', 'foo'], command: 'update', check: nothingWritten },
+  { argv: ['update', '--store=foo'], command: 'update', check: nothingWritten },
+  { argv: ['completion', '--store', 'x'], command: 'completion' },
+  {
+    argv: ['check-commit', 'msg', '--store', 'x'],
+    command: 'check-commit',
+    cospecOnly: { outcome: 'unknown-option', exit: 1 },
+    cospecStderr: "cospec check-commit: unknown option '--store'\n",
+  },
+  {
+    argv: ['--store', 'x', 'init'],
+    command: 'init',
+    cospecOnly: { outcome: 'unknown-option', exit: 1 },
+    cospecStderr: "cospec init: unknown option '--store'\n",
+    check: nothingWritten,
+  },
+  {
+    argv: ['--store', 'x', 'update', '--help'],
+    command: 'update',
+    cospecOnly: { outcome: 'help:update', exit: 0 },
+  },
+]
+
+/**
+ * A forward wrapper's own pre-spawn guards (`config`, `schema` and `workset`
+ * subcommand checks, `config`'s `--scope` lift, `show`'s item-name check)
+ * never answer for the binary. A dangling declared value flag is commander's
+ * missing value; an option before the subcommand is the binary's unknown
+ * option, `--store-path` its redirect; `show`'s unknown option is its item
+ * name. None of `config`, `schema`, `workset`, `store` or `templates`
+ * declares `--store-path` upstream, so a help flag after it is help there —
+ * never its value, and never the binary's own help relayed.
+ */
+const FORWARD_GUARD_ROWS: readonly Row[] = [
+  {
+    argv: ['config', '--scope'],
+    command: 'config',
+    cospecStderr: missingValue('config', '--scope <scope>'),
+  },
+  {
+    argv: ['config', 'list', '--scope'],
+    command: 'config',
+    cospecStderr: missingValue('config', '--scope <scope>'),
+  },
+  { argv: ['show', '--type'], command: 'show' },
+  { argv: ['show', '-r'], command: 'show' },
+  { argv: ['show', '--deltas-only', '--requirement'], command: 'show' },
+  { argv: ['show', '--bogus'], command: 'show', cospecStderr: "Unknown item '--bogus'." },
+  { argv: ['show', '--bogus=1'], command: 'show', cospecStderr: "Unknown item '--bogus=1'." },
+  { argv: ['show', '--store-path'], command: 'show', cospecStderr: REDIRECT },
+  { argv: ['show', '--store-path', '/x'], command: 'show', cospecStderr: REDIRECT },
+  { argv: ['config', '--bogus'], command: 'config', cospecStderr: "unknown option '--bogus'" },
+  { argv: ['config', '--bogus', 'path'], command: 'config' },
+  { argv: ['config', '--scope', 'global', '--bogus', 'list'], command: 'config' },
+  { argv: ['schema', '--bogus'], command: 'schema', cospecStderr: "unknown option '--bogus'" },
+  { argv: ['workset', '--bogus'], command: 'workset', cospecStderr: "unknown option '--bogus'" },
+  { argv: ['config', '--store-path', '/x'], command: 'config', cospecStderr: REDIRECT },
+  { argv: ['config', '--store-path', '/x', 'path'], command: 'config', cospecStderr: REDIRECT },
+  { argv: ['schema', '--store-path'], command: 'schema', cospecStderr: REDIRECT },
+  { argv: ['workset', '--store-path', '/x'], command: 'workset', cospecStderr: REDIRECT },
+  { argv: ['store', '--store-path', '/x'], command: 'store' },
+  { argv: ['workset', '--store-path', '-h'], command: 'workset' },
+  { argv: ['config', '--store-path', '-h'], command: 'config' },
+  { argv: ['config', 'path', '--store-path', '-h'], command: 'config' },
+  { argv: ['schema', 'which', '--store-path', '-h'], command: 'schema' },
+  { argv: ['workset', 'list', '--store-path', '-h'], command: 'workset' },
+  { argv: ['store', 'list', '--store-path', '-h'], command: 'store' },
+  { argv: ['templates', '--store-path', '-h'], command: 'templates' },
+]
+
+/**
+ * A `--json` caller gets exactly one document on every `status` path, its
+ * refusals included — upstream's `{status: [{severity, code, message}]}` for
+ * an unknown change, exit 1 — and `status` with no active changes.
+ */
+const STATUS_JSON_ROWS: readonly Row[] = [
+  { argv: ['status', '--change', '--', '--json'], command: 'status' },
+  { argv: ['status', '--change', 'nope', '--json'], command: 'status' },
+  { argv: ['status', 'nope', '--json'], command: 'status' },
+  { argv: ['status', '--json'], command: 'status' },
+]
+
+/**
+ * `new <type>` in a repo whose `openspec/schemas/` lacks the cospec type is
+ * the user's setup to fix, answered before the wrapped `new change` runs —
+ * never a wrapped-call failure.
+ */
+const NEW_SCHEMA_ROWS: readonly Row[] = [
+  {
+    argv: ['new', 'feat', 'x'],
+    command: 'new',
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    cospecStderr: "cospec new: schema 'feat' is not installed in this repo",
+    check: nothingWritten,
+  },
+]
+
+/**
  * Upstream's program level takes `--no-color` out of the argv before the
  * command parses, wherever it sits before the first `--`: it is never a
  * value, so the flag before it takes the next token or is left without one.
@@ -773,10 +883,56 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * taken as a value exposed 20 more (phase B intercepting or absorbing the
  * value of every other declared value-taking flag, `--store` taking a
  * program-level `--no-color` as its value, `store` stripping its
- * `--no-cospec-init` where it is `--path`'s value or an operand after `--`).
- * The fixes empty this set.
+ * `--no-cospec-init` where it is `--path`'s value or an operand after `--`);
+ * the `--store` rows on commands that never read it, the forward wrapper
+ * guards, the `status --json` refusals and `new` without its schema exposed
+ * 38 more (a refused `--store` absorbed and ignored; a wrapper guard
+ * answering a dangling value flag, an option before the subcommand or
+ * `show`'s unknown option for the binary; `--store-path` taking a help flag
+ * as its value where upstream does not declare it; prose where a `--json`
+ * caller is owed a document; a missing schema reported as a wrapped-call
+ * failure). The fixes empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
+  'init --store x',
+  'init --store=x',
+  'init --store',
+  'init --harness none --store x',
+  'update --store foo',
+  'update --store=foo',
+  'completion --store x',
+  'check-commit msg --store x',
+  '--store x init',
+  'config --scope',
+  'config list --scope',
+  'show --type',
+  'show -r',
+  'show --deltas-only --requirement',
+  'show --bogus',
+  'show --bogus=1',
+  'show --store-path',
+  'config --bogus',
+  'config --bogus path',
+  'config --scope global --bogus list',
+  'schema --bogus',
+  'workset --bogus',
+  'config --store-path /x',
+  'config --store-path /x path',
+  'schema --store-path',
+  'workset --store-path /x',
+  'workset --store-path -h',
+  'config --store-path -h',
+  'config path --store-path -h',
+  'schema which --store-path -h',
+  'workset list --store-path -h',
+  'store list --store-path -h',
+  'templates --store-path -h',
+  'status --change -- --json',
+  'status --change nope --json',
+  'status nope --json',
+  'status --json',
+  'new feat x',
+])
 
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot(row.store)
@@ -809,6 +965,8 @@ async function checkRow(row: Row): Promise<void> {
   if (row.cospecStderr !== undefined) expect(co.stderr, detail).toContain(row.cospecStderr)
   // A relayed upstream answer never ships its bare `openspec` remedy.
   expect(co.stdout + co.stderr, detail).not.toContain(UPSTREAM_REDIRECT)
+  // Nor the binary's own help screen: cospec prints its own.
+  expect(co.stdout, detail).not.toMatch(/^Usage: openspec/m)
 }
 
 function register(rows: readonly Row[]): void {
@@ -834,6 +992,11 @@ describe('precedence matrix: --store-path', () => register(STORE_PATH_ROWS))
 describe('precedence matrix: threaded flags', () => register(THREADING_ROWS))
 describe('precedence matrix: value positions', () => register(VALUE_POSITION_ROWS))
 describe('precedence matrix: program-level tokens', () => register(PROGRAM_LEVEL_ROWS))
+describe('precedence matrix: --store on a row that never reads it', () =>
+  register(STORE_GLOBAL_ROWS))
+describe('precedence matrix: forward wrapper guards', () => register(FORWARD_GUARD_ROWS))
+describe('precedence matrix: status --json documents', () => register(STATUS_JSON_ROWS))
+describe('precedence matrix: new without its schema', () => register(NEW_SCHEMA_ROWS))
 describe('precedence matrix: -- terminators', () => register(TERMINATOR_ROWS))
 describe('precedence matrix: a bare help token', () => register(HELP_TOKEN_ROWS))
 describe('precedence matrix: cospec-only rows', () => register(COSPEC_ONLY_ROWS))
@@ -857,6 +1020,10 @@ describe('precedence matrix: harness', () => {
       ...THREADING_ROWS,
       ...VALUE_POSITION_ROWS,
       ...PROGRAM_LEVEL_ROWS,
+      ...STORE_GLOBAL_ROWS,
+      ...FORWARD_GUARD_ROWS,
+      ...STATUS_JSON_ROWS,
+      ...NEW_SCHEMA_ROWS,
       ...TERMINATOR_ROWS,
       ...HELP_TOKEN_ROWS,
       ...COSPEC_ONLY_ROWS,
