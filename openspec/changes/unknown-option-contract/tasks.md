@@ -254,3 +254,31 @@ red; 4–7 turn it green; 8 documents it.
 - [x] 10.16 Check whether a user's raw `cospec -- list` loses its `--` before
       cospec sees it: run the built executable directly and inspect the
       published Node launcher (ledger 1.17)
+- [x] 10.17 Sharpen the precedence matrix: `outcome()` compares the refusal's
+      kind (`refusalKind()` in `support/parse-class.ts`: store-path, unknown
+      command or subcommand, unknown option, missing value, too many), a refusal
+      whose subject is `--store-path` counting as store-path in either dialect;
+      add `--store-path`-before-refusal rows on `list`, `validate`, `show`,
+      `config` and after a leading `--`, `<cmd> --no-color help` on
+      `config`/`schema`/`completion`, and `--` right after
+      `config`/`store`/`workset`; rows failing at HEAD run as `test.failing`
+      (ledger 1.18)
+- [x] 10.18 Refuse `--store-path` where the binary does: a table row after its
+      unknown-option, pending and too-many-arguments refusals (value consumed; a
+      missing value refused while parsing); a forward row by asking the binary
+      and answering the redirect only for its own `--store-path` refusal,
+      relaying anything it refuses first; never after a routing `--`; unit and
+      differential rows; spec requirement, design decision 2,
+      `docs/architecture.md` and `reference/commands.md` (ledger 1.19)
+- [x] 10.19 Phase B routing: a bare `help` is the help token when it is the
+      first token to reach the row's argv (after absorbed globals), and a `--`
+      that is the first token to reach a row with subcommands routes the next
+      token as the subcommand, keeping `--` before the remaining operands; unit
+      rows; spec requirements, design decision 12, `reference/commands.md`
+      (ledger 1.20)
+- [x] 10.20 Track commander's program-level `help [command]` as pending on
+      `upstream-spellings` (not implemented): a `source: cli` `help` entry in
+      `parity-pending.yaml` covering its `[command]` positional, both hidden
+      reachability fixtures, `pending` precedence-matrix rows pinning cospec's
+      current `unknown command` answer, design decisions 6 and the pending
+      table; the docs pending list shows it (ledger 1.21)
