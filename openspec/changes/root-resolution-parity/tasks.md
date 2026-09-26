@@ -227,7 +227,21 @@ files, task 7.7, both marked POST-REBASE.
       `upstream-oracle.ts` has no equivalent), and verify the matrix still
       passes
 - [ ] 7.4 POST-REBASE: run `reachability.test.ts` and verify
-      `parity-pending.yaml` carries no entry tagged for this change
+      `parity-pending.yaml` carries no entry tagged for this change.
+      `parity-pending.yaml` is not in this worktree before the rebase (it
+      arrives with `unknown-option-contract`); every post-rebase item above that
+      the reachability test needed would get an entry with
+      `owner: root-resolution-parity`, but none does. Its entry kinds are
+      registry surfaces only (`command`, `flag`, `positional`,
+      `positional-value`, `tool`, `tool-alias`), and the test fails on an entry
+      the command table does not mark pending, while these are behaviours on
+      surfaces cospec already reaches: the empty `--store=` (7.6) is a value of
+      the reached `--store` flag, which a `flag` entry would already cover;
+      `templates --json -- x` (7.7) is a positional the binary itself does not
+      have (it refuses it); the `--json` failure document (7.2) is an output
+      shape; and `directory_not_found` (2.9) is a cospec-only `--cwd` behaviour
+      with no upstream surface. So no entry is added, and none tagged for this
+      change may appear
 - [ ] 7.5 POST-REBASE: verify `git diff --name-only main...HEAD` touches none of
       `unknown-option-contract`'s files except the one handler file 7.2 edits,
       and that reverting this change's commits on a scratch branch leaves
