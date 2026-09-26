@@ -6,9 +6,9 @@
 // rather than trusting the exit code. Never pre-scaffolds artifact files
 // (openspec marks artifacts done on file existence).
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { isAbsolute, join, relative } from 'node:path'
 
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
@@ -73,14 +73,42 @@ function reportUnknownType(type: string): number {
 }
 
 /**
- * Whether the wrapped binary can resolve cospec type `type` from `base`: a
- * project schema, or a user-level one where OpenSpec also looks.
+ * The user-level schema directory the wrapped binary reads (its
+ * `getUserSchemasDir()`, `<global data dir>/schemas`): `$XDG_DATA_HOME/openspec`
+ * when that is set, else `%LOCALAPPDATA%\openspec` on Windows, else
+ * `~/.local/share/openspec` — never `~/.config`, which holds only its config.
  */
-function cospecSchemaInstalled(base: string, type: string): boolean {
-  return [
-    join(openspecDir(base), 'schemas', type, 'schema.yaml'),
-    join(homedir(), '.config', 'openspec', 'schemas', type, 'schema.yaml'),
-  ].some((path) => existsSync(path))
+export function userSchemasDir(
+  env: NodeJS.ProcessEnv = process.env,
+  home: string = homedir(),
+  platform: NodeJS.Platform = process.platform,
+): string {
+  const xdg = env.XDG_DATA_HOME
+  if (xdg !== undefined && xdg.length > 0) return join(xdg, 'openspec', 'schemas')
+  if (platform === 'win32') {
+    const local = env.LOCALAPPDATA
+    return local !== undefined && local.length > 0
+      ? join(local, 'openspec', 'schemas')
+      : join(home, 'AppData', 'Local', 'openspec', 'schemas')
+  }
+  return join(home, '.local', 'share', 'openspec', 'schemas')
+}
+
+/**
+ * Whether the wrapped binary can resolve cospec type `type` from `base`, where
+ * it looks before its package built-ins (OpenSpec's own schemas, never a
+ * cospec type): the project's `openspec/schemas`, then the user-level
+ * directory (`userSchemasDir`). Like the binary, a candidate counts only when
+ * its `schema.yaml` resolves inside its directory.
+ */
+export function cospecSchemaInstalled(base: string, type: string): boolean {
+  return [join(openspecDir(base), 'schemas'), userSchemasDir()].some((schemas) => {
+    const dir = join(schemas, type)
+    const file = join(dir, 'schema.yaml')
+    if (!existsSync(file)) return false
+    const rel = relative(realpathSync(dir), realpathSync(file))
+    return rel.length > 0 && !rel.startsWith('..') && !isAbsolute(rel)
+  })
 }
 
 export async function run(ctx: CommandContext): Promise<number> {

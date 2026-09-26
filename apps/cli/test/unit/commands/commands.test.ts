@@ -1,11 +1,16 @@
 import { afterAll, describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { run as instructionsRun } from '../../../src/commands/instructions.ts'
 import { run as listRun } from '../../../src/commands/list.ts'
-import { run as newRun, slugify } from '../../../src/commands/new.ts'
+import {
+  cospecSchemaInstalled,
+  run as newRun,
+  slugify,
+  userSchemasDir,
+} from '../../../src/commands/new.ts'
 import {
   computeStatus,
   gateLabel,
@@ -45,6 +50,54 @@ describe('new: slugify', () => {
   test('undefined when nothing usable remains', () => {
     expect(slugify('12345')).toBeUndefined()
     expect(slugify('   ')).toBeUndefined()
+  })
+})
+
+describe('new: where the wrapped binary resolves a user-level schema', () => {
+  test('userSchemasDir follows its global data dir, never ~/.config', () => {
+    expect(userSchemasDir({ XDG_DATA_HOME: '/x' }, '/h', 'darwin')).toBe('/x/openspec/schemas')
+    expect(userSchemasDir({ XDG_DATA_HOME: '' }, '/h', 'linux')).toBe(
+      '/h/.local/share/openspec/schemas',
+    )
+    expect(userSchemasDir({}, '/h', 'darwin')).toBe('/h/.local/share/openspec/schemas')
+    expect(userSchemasDir({ LOCALAPPDATA: '/l' }, '/h', 'win32')).toBe(
+      join('/l', 'openspec', 'schemas'),
+    )
+    expect(userSchemasDir({}, '/h', 'win32')).toBe(
+      join('/h', 'AppData', 'Local', 'openspec', 'schemas'),
+    )
+  })
+
+  function withDataHome(dataHome: string, body: () => void): void {
+    const saved = process.env.XDG_DATA_HOME
+    process.env.XDG_DATA_HOME = dataHome
+    try {
+      body()
+    } finally {
+      if (saved === undefined) delete process.env.XDG_DATA_HOME
+      else process.env.XDG_DATA_HOME = saved
+    }
+  }
+
+  test('a project schema or a user-level one counts; a schema.yaml linked outside does not', () => {
+    const cwd = repo()
+    const data = mkdtempSync(join(tmpdir(), 'cospec-data-'))
+    roots.push(data)
+    const user = join(data, 'openspec', 'schemas')
+    withDataHome(data, () => {
+      expect(cospecSchemaInstalled(cwd, 'feat')).toBe(true)
+      cpSync(join(cwd, 'openspec', 'schemas', 'feat'), join(user, 'feat'), { recursive: true })
+      rmSync(join(cwd, 'openspec', 'schemas', 'feat'), { recursive: true })
+      expect(cospecSchemaInstalled(cwd, 'feat')).toBe(true)
+      rmSync(join(user, 'feat', 'schema.yaml'))
+      symlinkSync(
+        join(cwd, 'openspec', 'schemas', 'fix', 'schema.yaml'),
+        join(user, 'feat', 'schema.yaml'),
+      )
+      expect(cospecSchemaInstalled(cwd, 'feat')).toBe(false)
+      rmSync(join(user, 'feat'), { recursive: true })
+      expect(cospecSchemaInstalled(cwd, 'feat')).toBe(false)
+    })
   })
 })
 

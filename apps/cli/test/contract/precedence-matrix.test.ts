@@ -1074,8 +1074,6 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  */
 const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
   'feedback --body --help',
-  'new feat u1',
-  'new feat c1',
   'status foo --change bar',
   'status --change bar foo',
   'status foo --change bar --json',
@@ -1171,6 +1169,19 @@ describe('precedence matrix: -- terminators', () => register(TERMINATOR_ROWS))
 describe('precedence matrix: a bare help token', () => register(HELP_TOKEN_ROWS))
 describe('precedence matrix: cospec-only rows', () => register(COSPEC_ONLY_ROWS))
 describe('precedence matrix: pending spellings', () => register(PENDING_ROWS))
+
+describe('precedence matrix: new with a user-level schema and no $XDG_DATA_HOME', () => {
+  test('the binary falls back to ~/.local/share/openspec/schemas, and so does cospec', async () => {
+    const root = freshRoot(false, 'data')
+    const env: Record<string, string> = { ...oracleEnv(root) }
+    delete env.XDG_DATA_HOME
+    const co = await cospec(['new', 'feat', 'h1'], { cwd: root, env })
+    expect(co.exitCode, co.stderr).toBe(0)
+    expect(readFileSync(join(root, 'openspec/changes/h1/.openspec.yaml'), 'utf8')).toMatch(
+      /^schema: feat$/m,
+    )
+  }, 30_000)
+})
 
 describe('precedence matrix: harness', () => {
   test('both tools receive a leading -- verbatim', async () => {
