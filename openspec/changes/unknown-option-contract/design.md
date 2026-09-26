@@ -256,7 +256,18 @@ runtime by `dist/commands/spec.js:127`.
     by one shared `jsonRefusal(command, message)` helper in `command-table.ts`,
     which `completion.ts` adopts in place of its inline copy with no change to
     its output. `forward` rows carry no marking: the binary answers `--json` for
-    the surfaces it owns.
+    the surfaces it owns. Each `table` row declares
+    `store: 'accepted' | 'refused'` the same way. `--store` is a cospec global
+    too, so `init --store nosuch` absorbed it and scaffolded the cwd, where the
+    binary refuses `init --store` as an unknown option. A `refused` row —
+    `init`, `update`, `completion`, `feedback`, `check-commit`, the rows whose
+    module never resolves a root — keeps a post-command `--store` in the argv,
+    so the table parser refuses it as an unknown option in commander's order (a
+    missing value first, help wins), never suggesting `--store` itself; a
+    program-level `--store` is refused with the row's other parse refusals once
+    the row is known. Its `--help` omits `--store`. A unit test derives the
+    marking from each module's source (`resolveRoot`, the passthrough helpers or
+    `flags.store`), so a module that starts reading a root cannot stay refused.
 11. **Reachability is two-way.** The walk proves every pinned entry resolves to
     exactly one place, and the reverse is asserted too: every table flag or
     value marked `pending` has exactly one `parity-pending.yaml` entry with the

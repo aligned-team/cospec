@@ -180,6 +180,16 @@ up at `./--no-cospec-init`, as `openspec store setup` does, instead of opting
 out of cospec init, and `cospec feedback --upstream -- --x` files `--x` as the
 message instead of failing with `unknown option '--x'`.
 
+`--store <id>` is refused on the commands that never honour it, as upstream
+refuses it on the ones it shares: `cospec init --store <id>`,
+`cospec update --store <id>`, `cospec completion --store <id>`,
+`cospec feedback … --store <id>` and `cospec check-commit … --store <id>` — in
+either form, and before the command name too (`cospec --store <id> init`) — now
+fail with `cospec <command>: unknown option '--store'`, exit 1, before any work.
+Today `--store` is silently dropped there: `cospec init --store nosuch`
+scaffolds the current directory and `cospec update --store foo` regenerates it.
+To scaffold a store's root, run `cospec init <store-path>`.
+
 ## Capabilities
 
 ### New Capabilities

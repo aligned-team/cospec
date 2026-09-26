@@ -46,7 +46,11 @@ positional. Each `table` row SHALL declare whether it accepts the global
 `--json`; on a row that does not, `--json` SHALL be refused with exactly one
 JSON document on stdout (`{version: 1, command, ok: false, message}`, the
 `cospec completion` precedent) and exit 1, before the command does any work, and
-SHALL never be silently ignored.
+SHALL never be silently ignored. Each `table` row SHALL likewise declare whether
+its command honours the global `--store <id>`; on a row that does not, `--store`
+SHALL be refused as an unknown option in either form, after the command name or
+before it, before the command does any work, and SHALL never be silently
+ignored.
 
 #### Scenario: Unknown option is refused before any work
 
@@ -79,6 +83,14 @@ SHALL never be silently ignored.
 - **THEN** stdout is exactly one JSON document with `command` `view` and `ok`
   `false`, no dashboard is printed, the wrapped `openspec view` is not spawned,
   and the exit code is 1
+
+#### Scenario: A command that never reads --store refuses it
+
+- **WHEN** `cospec init --store nosuch --harness claude` or
+  `cospec update --store foo` runs
+- **THEN** stderr starts with `cospec init: unknown option '--store'` (or
+  `cospec update: …`), nothing is scaffolded or regenerated, and the exit code
+  is 1, as `openspec init --store nosuch` refuses it
 
 #### Scenario: Missing value is refused
 

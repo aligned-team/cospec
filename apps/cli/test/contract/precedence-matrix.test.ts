@@ -894,15 +894,6 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * failure). The fixes empty this set.
  */
 const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  'init --store x',
-  'init --store=x',
-  'init --store',
-  'init --harness none --store x',
-  'update --store foo',
-  'update --store=foo',
-  'completion --store x',
-  'check-commit msg --store x',
-  '--store x init',
   'config --scope',
   'config list --scope',
   'show --type',

@@ -9,6 +9,7 @@ import {
   type FlagSpec,
   flagLabel,
   GLOBAL_FLAGS,
+  rowGlobalFlags,
   globalUnknownOptionRefusal,
   isPending,
   isStorePathToken,
@@ -111,6 +112,8 @@ function isGlobalValueToken(tok: string): boolean {
   return ['--cwd', '--store'].some((flag) => tok === flag || tok.startsWith(`${flag}=`))
 }
 
+const isStoreToken = (tok: string): boolean => tok === '--store' || tok.startsWith('--store=')
+
 interface HelpLine {
   readonly label: string
   readonly description: string
@@ -136,8 +139,12 @@ const GLOBAL_LABEL_WIDTH = Math.max(
   ...GLOBAL_FLAGS.map((flag) => flagLabel(flag).length),
 )
 
+function globalOptions(flags: readonly FlagSpec[]): string {
+  return `Global options:\n${renderLines(flagLines(flags), GLOBAL_LABEL_WIDTH)}`
+}
+
 /** The global-flag help block every help screen ends with, rendered from `GLOBAL_FLAGS`. */
-export const GLOBAL_OPTIONS = `Global options:\n${renderLines(flagLines(GLOBAL_FLAGS), GLOBAL_LABEL_WIDTH)}`
+export const GLOBAL_OPTIONS = globalOptions(GLOBAL_FLAGS)
 
 function helpText(): string {
   const visible = COMMAND_TABLE.filter((row) => !row.hidden)
@@ -225,7 +232,7 @@ function commandHelpText(row: CommandRow): string {
     const body = [...(flags.length > 0 ? [renderLines(flags)] : []), ...notes].join('\n')
     sections.push(`Command options:\n${body}`)
   }
-  return renderCommandHelp(row.name, row.summary, usageSignature(row), sections)
+  return renderCommandHelp(row, row.name, row.summary, usageSignature(row), sections)
 }
 
 /** `cospec <command> <subcommand> --help`: the subcommand's own positionals and flags. */
@@ -236,6 +243,7 @@ function subcommandHelpText(row: CommandRow, subcommand: SubcommandSpec): string
   const flags = flagLines(subcommand.flags)
   if (flags.length > 0) sections.push(`Command options:\n${renderLines(flags)}`)
   return renderCommandHelp(
+    row,
     `${row.name} ${subcommand.name}`,
     subcommand.summary,
     usageSignature(subcommand),
@@ -250,7 +258,9 @@ function indent(text: string): string {
     .join('\n')
 }
 
+/** A command's help screen, ending with the global flags its row accepts. */
 function renderCommandHelp(
+  row: CommandRow,
   path: string,
   summary: string,
   signature: string,
@@ -261,7 +271,7 @@ function renderCommandHelp(
 
 Usage: cospec ${path}${signature} [options]
 
-${body}${GLOBAL_OPTIONS}
+${body}${globalOptions(rowGlobalFlags(row))}
 `
 }
 
@@ -446,7 +456,9 @@ function resolveProgram(argv: readonly string[], state: GlobalState): number | C
 /**
  * Phase B, the command level: `row`'s own argv. A `--no-color` before the
  * first `--` is taken out first, as upstream's program level does, so it is
- * never a value. Global flags are absorbed up to a `--`, except a token that
+ * never a value. Global flags are absorbed up to a `--` (`--store` only on a
+ * row that reads it: a `store: 'refused'` row's parser refuses it), except a
+ * token that
  * is the value of a space-form value-taking flag the row or its named
  * subcommand declares, `--store-path` included (kept with it, whatever it
  * looks like — a help flag, a global, `--`); a table row parses the rest, a
@@ -464,6 +476,11 @@ function resolveProgram(argv: readonly string[], state: GlobalState): number | C
 async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState): Promise<number> {
   const rest: string[] = []
   let wantHelp = false
+  // A row that never reads `--store` refuses it: after the command name the
+  // token stays in the argv for the table parser to refuse as unknown, and a
+  // program-level one is refused below with the row's other parse refusals.
+  const storeRefused = row.parse === 'table' && row.store === 'refused'
+  const programStore = state.storeRaw !== undefined || state.empty === '--store'
   // After a leading `--`, or a `--` that is the first token to reach a row
   // with subcommands, every token is an operand.
   if (call.terminated) wantHelp = routeOperands(row, call.tokens, rest)
@@ -502,7 +519,8 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
         wantHelp = true
       else if (tok === '--json') state.json = true
       else if (isHelpToken(tok)) wantHelp = true
-      else if (isGlobalValueToken(tok)) i = takeGlobalValue(tokens, i, state)
+      else if (isGlobalValueToken(tok) && !(storeRefused && isStoreToken(tok)))
+        i = takeGlobalValue(tokens, i, state)
       else {
         if (!isOptionLike(tok) && positionals++ === 0)
           subcommand = row.subcommands?.find((s) => s.name === tok)
@@ -537,6 +555,10 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
     // this answers before the parser's stderr-only refusals.
     if (row.json === 'refused' && state.json) {
       process.stdout.write(jsonRefusal(row.name, row.jsonRefusalMessage))
+      return EXIT.failure
+    }
+    if (storeRefused && programStore) {
+      process.stderr.write(`cospec ${row.name}: unknown option '--store'\n`)
       return EXIT.failure
     }
     if (result?.ok === false) {

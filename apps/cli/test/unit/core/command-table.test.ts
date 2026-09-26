@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { COMMAND_MODULES, GLOBAL_OPTIONS } from '../../../src/cli.ts'
 import {
@@ -13,6 +15,7 @@ import {
   jsonRefusal,
   offeredFlags,
   parseCommandArgs,
+  rowGlobalFlags,
   storePathInOptionPosition,
   storePathRefusal,
   takesNextToken,
@@ -408,6 +411,37 @@ describe('table shape', () => {
     const refusing = COMMAND_TABLE.filter((row) => row.parse === 'table' && row.json === 'refused')
     expect(refusing.map((row) => row.name).toSorted()).toEqual(['completion', 'view'])
     for (const row of COMMAND_TABLE) if (row.parse === 'forward') expect('json' in row).toBe(false)
+  })
+
+  test('a table row refuses --store exactly when its module never reads it', () => {
+    const readsStore = /\bresolveRoot\(|\brunPassthrough\(|\bcallPassthrough\(|flags\.store\b/
+    for (const row of COMMAND_TABLE) {
+      if (row.parse !== 'table') continue
+      const file = row.name === '__complete' ? 'complete' : row.name
+      const source = readFileSync(
+        join(import.meta.dir, '..', '..', '..', 'src', 'commands', `${file}.ts`),
+        'utf8',
+      )
+      expect(row.store, row.name).toBe(readsStore.test(source) ? 'accepted' : 'refused')
+    }
+    const refused = COMMAND_TABLE.filter((row) => row.parse === 'table' && row.store === 'refused')
+    expect(refused.map((row) => row.name).toSorted()).toEqual(
+      ['check-commit', 'completion', 'feedback', 'init', 'update'].toSorted(),
+    )
+  })
+
+  test('a store-refused row refuses --store as unknown, never suggesting it', () => {
+    const init = tableRow('init')
+    for (const argv of [['--store', 'x'], ['--store=x'], ['--store']]) {
+      const r = parseCommandArgs(init, argv)
+      if (r.ok) throw new Error(`init accepted ${argv.join(' ')}`)
+      expect(r.refusal.kind).toBe('unknown-option')
+      expect(r.refusal.message).toStartWith(`cospec init: unknown option '${argv[0]}'\n`)
+      expect(r.refusal.message).not.toContain("'--store'?")
+    }
+    expect(rowGlobalFlags(init).map((f) => f.name)).not.toContain('--store')
+    expect(rowGlobalFlags(tableRow('list'))).toBe(GLOBAL_FLAGS)
+    expect(rowGlobalFlags(commandRow('config')!)).toBe(GLOBAL_FLAGS)
   })
 
   test('every value-taking flag has a placeholder and no boolean flag does', () => {

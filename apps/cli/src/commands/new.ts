@@ -82,7 +82,7 @@ export async function run(ctx: CommandContext): Promise<number> {
   if (!existsSync(openspecDir(base))) {
     process.stderr.write(
       root.store !== undefined
-        ? `cospec new: store '${root.store}' has no openspec/ directory — run 'cospec init --store ${root.store}' first\n`
+        ? `cospec new: store '${root.store}' has no openspec/ directory — run 'cospec init ${root.base}' first\n`
         : `cospec new: no openspec/ directory — run 'cospec init' first\n`,
     )
     return EXIT.failure

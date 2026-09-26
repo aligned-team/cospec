@@ -31,6 +31,29 @@ async function dispatch(argv: string[]): Promise<{ code: number; out: string; er
   }
 }
 
+describe('cli dispatcher: --store on a row that never reads it', () => {
+  test('feedback refuses --store before filing anything', async () => {
+    const r = await dispatch(['feedback', 'msg', '--store', 'x'])
+    expect(r.code).toBe(1)
+    expect(r.out).toBe('')
+    expect(r.err).toBe("cospec feedback: unknown option '--store'\n")
+  })
+
+  test('a program-level --store is refused once the row is known', async () => {
+    const r = await dispatch(['--store=', 'feedback', 'msg'])
+    expect(r.code).toBe(1)
+    expect(r.err).toBe("cospec feedback: unknown option '--store'\n")
+  })
+
+  test("the row's help lists no --store; a store-reading row's does", async () => {
+    const init = await dispatch(['init', '--help'])
+    expect(init.out).toContain('Global options:')
+    expect(init.out).not.toContain('--store <id>')
+    const list = await dispatch(['list', '--help'])
+    expect(list.out).toContain('--store <id>')
+  })
+})
+
 describe('cli dispatcher: per-command --help', () => {
   test('--help after a command prints per-command help, not the command output', async () => {
     const r = await dispatch(['validate', '--help'])

@@ -27,6 +27,15 @@ the table.
 `… argument must not be empty`, exit `1` — the command never falls back to the
 local repo.
 
+`--store` applies only where a command reads its root through it. `init`,
+`update`, `completion` and `feedback` never do — upstream refuses `--store` on
+the ones it shares too — so they refuse it with
+`cospec <command>: unknown option '--store'`, exit `1`, before any work, in
+either form and before the command name alike (`cospec --store <id> init`); to
+scaffold a store's root, run `cospec init <store-path>`. Their `--help` lists no
+`--store`. `config` refuses it as machine-global; on the forwarded `store` and
+`workset` commands, which take no root, it has no effect.
+
 Global flags are recognised before the command name and anywhere after it, up to
 a `--` terminator — except right after an option that takes a value, where the
 next token is that option's value whatever it looks like, as in OpenSpec:

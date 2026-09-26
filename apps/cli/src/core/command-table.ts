@@ -99,7 +99,16 @@ interface RowBase extends SurfaceSpec {
   readonly notes?: readonly string[]
 }
 
-export type TableCommandRow = RowBase & { readonly parse: 'table' } & (
+export type TableCommandRow = RowBase & {
+  readonly parse: 'table'
+  /**
+   * Whether the command honours the global `--store <id>`. A `refused` row's
+   * module never reads it, so the parser refuses it as an unknown option in
+   * either form, as the binary does on `init`, `update` and `completion`,
+   * instead of absorbing and ignoring it.
+   */
+  readonly store: 'accepted' | 'refused'
+} & (
     | { readonly json: 'accepted' }
     /** The row refuses the global `--json` with `jsonRefusal(name, jsonRefusalMessage)`. */
     | { readonly json: 'refused'; readonly jsonRefusalMessage: string }
@@ -178,6 +187,16 @@ export const GLOBAL_FLAGS: readonly FlagSpec[] = [
   upstream({ name: '--help', short: '-h', description: 'Show this help' }),
 ]
 
+/**
+ * The global flags `row` accepts after its name: every one, except `--store`
+ * on a `table` row marked `store: 'refused'`.
+ */
+export function rowGlobalFlags(row: CommandRow): readonly FlagSpec[] {
+  return row.parse === 'table' && row.store === 'refused'
+    ? GLOBAL_FLAGS.filter((flag) => flag.name !== '--store')
+    : GLOBAL_FLAGS
+}
+
 // --- the table -------------------------------------------------------------------
 
 /** Row order is `--help`'s command order. */
@@ -188,6 +207,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     hidden: false,
     parse: 'table',
     json: 'accepted',
+    store: 'refused',
     positionals: [upstreamArg({ name: 'path', required: false })],
     flags: [
       cospec({ name: '--yes', description: 'Skip prompts; auto-remove detected opsx leftovers' }),
@@ -252,6 +272,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     hidden: false,
     parse: 'table',
     json: 'accepted',
+    store: 'refused',
     positionals: [
       upstreamArg({ name: 'path', required: false, status: pending('upstream-spellings') }),
     ],
@@ -266,6 +287,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     hidden: false,
     parse: 'table',
     json: 'accepted',
+    store: 'accepted',
     positionals: [],
     flags: [],
   },
@@ -275,6 +297,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     hidden: false,
     parse: 'table',
     json: 'accepted',
+    store: 'accepted',
     positionals: [
       cospecArg({ name: 'type', required: true, description: 'Conventional-commit type' }),
       cospecArg({ name: 'slug', required: true, description: 'Kebab-case change id' }),
@@ -295,6 +318,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     hidden: false,
     parse: 'table',
     json: 'accepted',
+    store: 'accepted',
     positionals: [cospecArg({ name: 'slug', required: true })],
     flags: [],
   },
@@ -304,6 +328,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     hidden: false,
     parse: 'table',
     json: 'accepted',
+    store: 'accepted',
     positionals: [upstreamArg({ name: 'name', required: false })],
     flags: [
       upstream({ name: '--strict', description: 'Promote warnings to errors' }),
@@ -350,6 +375,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     hidden: false,
     parse: 'table',
     json: 'accepted',
+    store: 'accepted',
     positionals: [cospecArg({ name: 'change', required: false })],
     flags: [
       upstream({
@@ -377,6 +403,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     hidden: false,
     parse: 'table',
     json: 'accepted',
+    store: 'accepted',
     positionals: [],
     flags: [
       upstream({ name: '--specs', description: 'List living specs by requirement count instead' }),
@@ -402,6 +429,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     hidden: false,
     parse: 'table',
     json: 'accepted',
+    store: 'accepted',
     positionals: [upstreamArg({ name: 'artifact', required: true })],
     flags: [
       upstream({
@@ -430,6 +458,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     hidden: false,
     parse: 'table',
     json: 'accepted',
+    store: 'accepted',
     positionals: [cospecArg({ name: 'change', required: true })],
     flags: [
       cospec({ name: '--allow-soft', description: 'Proceed past a soft block' }),
@@ -446,6 +475,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     hidden: false,
     parse: 'table',
     json: 'accepted',
+    store: 'accepted',
     positionals: [upstreamArg({ name: 'change', required: true })],
     flags: [
       upstream({
@@ -475,6 +505,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     hidden: false,
     parse: 'table',
     json: 'accepted',
+    store: 'accepted',
     positionals: [],
     flags: [
       cospec({ name: '--check', description: 'Report only; write nothing' }),
@@ -554,6 +585,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     hidden: false,
     parse: 'table',
     json: 'accepted',
+    store: 'accepted',
     positionals: [],
     flags: [
       upstream({
@@ -664,6 +696,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     hidden: false,
     parse: 'table',
     json: 'refused',
+    store: 'accepted',
     jsonRefusalMessage: 'cospec view renders a text dashboard and cannot emit JSON',
     positionals: [],
     flags: [],
@@ -797,6 +830,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     hidden: false,
     parse: 'table',
     json: 'refused',
+    store: 'refused',
     jsonRefusalMessage: 'cospec completion emits a shell script and cannot emit JSON',
     positionals: [
       cospecArg({
@@ -824,6 +858,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     hidden: false,
     parse: 'table',
     json: 'accepted',
+    store: 'refused',
     positionals: [upstreamArg({ name: 'message', required: true })],
     flags: [
       upstream({
@@ -844,6 +879,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     hidden: true,
     parse: 'table',
     json: 'accepted',
+    store: 'accepted',
     positionals: [
       cospecArg({
         name: 'source',
@@ -861,6 +897,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     hidden: true,
     parse: 'table',
     json: 'accepted',
+    store: 'refused',
     positionals: [cospecArg({ name: 'msg-file', required: true })],
     flags: [],
   },
@@ -1052,14 +1089,23 @@ export function isStorePathToken(tok: string): boolean {
   return tok === '--store-path' || tok.startsWith('--store-path=')
 }
 
-function suggestionCandidates(surface: SurfaceSpec, dashes: 'long' | 'short'): string[] {
-  const flags = [...surface.flags, ...GLOBAL_FLAGS]
+function suggestionCandidates(
+  surface: SurfaceSpec,
+  globals: readonly FlagSpec[],
+  dashes: 'long' | 'short',
+): string[] {
+  const flags = [...surface.flags, ...globals]
   return dashes === 'long'
     ? flags.map((flag) => flag.name)
     : flags.flatMap((flag) => (flag.short !== undefined ? [flag.short] : []))
 }
 
-function parseSurface(command: string, surface: SurfaceSpec, args: readonly string[]): ParseResult {
+function parseSurface(
+  command: string,
+  surface: SurfaceSpec,
+  globals: readonly FlagSpec[],
+  args: readonly string[],
+): ParseResult {
   const positionals: string[] = []
   const flags: Record<string, string | true> = {}
   const storePath: ParseRefusal = { kind: 'store-path', command, message: STORE_PATH_TEXT }
@@ -1104,7 +1150,7 @@ function parseSurface(command: string, surface: SurfaceSpec, args: readonly stri
     // `--bool=x` is unknown as a whole token, as commander reports it.
     if (flag === undefined || (inline !== undefined && flag.takesValue !== true)) {
       const dashes = tok.startsWith('--') ? 'long' : 'short'
-      recorded ??= unknownOption(command, tok, suggestionCandidates(surface, dashes))
+      recorded ??= unknownOption(command, tok, suggestionCandidates(surface, globals, dashes))
       continue
     }
 
@@ -1163,7 +1209,8 @@ function parseSurface(command: string, surface: SurfaceSpec, args: readonly stri
 }
 
 /**
- * Parse a `table` row's argv (global flags already stripped by `cli.ts`).
+ * Parse a `table` row's argv (global flags already stripped by `cli.ts`,
+ * except a `store: 'refused'` row's `--store`, refused here as unknown).
  * Returns the positionals and flag values, or the refusal commander would
  * reach first: a value-taking flag with no value, anywhere in the argv (a
  * pending flag's included, from its placeholder like a handled one, and
@@ -1177,14 +1224,15 @@ export function parseCommandArgs(row: TableCommandRow, args: readonly string[]):
   const first = args[0]
   const subcommand =
     first !== undefined ? row.subcommands?.find((s) => s.name === first) : undefined
-  if (subcommand === undefined) return parseSurface(row.name, row, args)
+  const globals = rowGlobalFlags(row)
+  if (subcommand === undefined) return parseSurface(row.name, row, globals, args)
   if (isPending(subcommand.status)) {
     return {
       ok: false,
       refusal: pendingRefusal(row.name, subcommand.name, subcommand.status.pending),
     }
   }
-  const result = parseSurface(`${row.name} ${subcommand.name}`, subcommand, args.slice(1))
+  const result = parseSurface(`${row.name} ${subcommand.name}`, subcommand, globals, args.slice(1))
   return result.ok
     ? { ok: true, parsed: { ...result.parsed, subcommand: subcommand.name } }
     : result
