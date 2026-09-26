@@ -75,11 +75,15 @@ two boolean keys:
 A key present but set to a non-boolean value is a validate-time ERROR
 (`meta/skip-specs-type`, `meta/retire-capabilities-type`).
 
-A `store:` key points cospec (and OpenSpec) at a registered OpenSpec store by
-default, so you don't have to pass `--store <id>` on every command. It's a
-root-resolution input rather than a cospec-managed or validated field like
-`context` and `rules` above — see [Stores](/concepts/stores) for the full
-resolution order and what it changes.
+A `store:` key redirects cospec (and OpenSpec) to a registered OpenSpec store by
+default, so you don't have to pass `--store <id>` on every command — but only
+from an `openspec/` that has no planning shape of its own (no `specs/` or
+`changes/` existing as a directory). Inside a real planning root the key is
+ignored instead, with a one-time warning naming it, since a real root is never
+redirected out from under itself. It's a root-resolution input rather than a
+cospec-managed or validated field like `context` and `rules` above — see
+[Stores](/concepts/stores#resolution-order) for the full resolution order and
+what it changes.
 
 ::: warning Documented limitation `rules` are keyed by artifact id **repo-wide**
 — they cannot vary per conventional-commit type. A `proposal` rule applies to

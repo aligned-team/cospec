@@ -12,14 +12,14 @@ the table.
 
 ## Global flags
 
-| flag              | effect                                                                                                 |
-| ----------------- | ------------------------------------------------------------------------------------------------------ |
-| `--json`          | machine-readable output                                                                                |
-| `--no-color`      | disable ANSI color                                                                                     |
-| `--cwd <path>`    | run as if invoked from `<path>`                                                                        |
-| `--store <id>`    | operate against a registered OpenSpec store instead of the local repo — see [Stores](/concepts/stores) |
-| `-h`, `--help`    | show help for the command                                                                              |
-| `-V`, `--version` | print the installed cospec version and exit — in any position before `--`, ahead of everything else    |
+| flag              | effect                                                                                                                                                                                                                                                                             |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--json`          | machine-readable output                                                                                                                                                                                                                                                            |
+| `--no-color`      | disable ANSI color                                                                                                                                                                                                                                                                 |
+| `--cwd <path>`    | run as if invoked from `<path>`                                                                                                                                                                                                                                                    |
+| `--store <id>`    | operate against a registered OpenSpec store instead of the local repo; every command also resolves the enclosing root from a subdirectory, a `store:` config pointer, or the global `defaultStore` even with no `--store` at all — see [Stores](/concepts/stores#resolution-order) |
+| `-h`, `--help`    | show help for the command                                                                                                                                                                                                                                                          |
+| `-V`, `--version` | print the installed cospec version and exit — in any position before `--`, ahead of everything else                                                                                                                                                                                |
 
 `--cwd` and `--store` need a value: given none, they're refused with
 `cospec <command>: option '--store <id>' argument missing` (or
@@ -176,6 +176,15 @@ exceptions: they mutate the machine-global config file (or, for `edit` and a
 preset-less `profile`, hand the terminal over) — see
 [Configuration](/reference/configuration#machine-global-openspec-config) for the
 full call-class split and the precedence notes cospec prints alongside them.
+
+`templates` and `schema which`/`validate`/`fork`/`init` are a deliberate
+**superset** here: both reject `--store` on the wrapped binary, so cospec spawns
+them inside the resolved root's own directory instead of the invocation working
+directory — reaching a store-backed or ancestor-walked root, and (run from a
+subdirectory) the project's own schemas, where bare `openspec` reads only its
+own working directory and so can't see either. See
+[Stores](/concepts/stores#templates-and-schema-reach-every-root-by-working-directory)
+for the full account.
 
 For anything that's the wrapped binary's own job — the delta format, OpenSpec's
 glossary, or its own commands — see

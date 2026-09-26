@@ -152,24 +152,24 @@ POST-REBASE.
 
 ## 6. Docs
 
-- [ ] 6.1 Rewrite "Root resolution order" in `docs/stores.md` to the ported
+- [x] 6.1 Rewrite "Root resolution order" in `docs/stores.md` to the ported
       selection and link to the site page for the user-facing account
-- [ ] 6.2 Rewrite "Resolution order" in `apps/docs/concepts/stores.md` (the page
+- [x] 6.2 Rewrite "Resolution order" in `apps/docs/concepts/stores.md` (the page
       that owns the fact): the walk, the classification, the `$HOME` layout, the
       pointer fallback and its warning, the store-health check, the
       `Using OpenSpec root:` banner, and the `invalid_store_pointer`,
       `no_root_with_registered_stores`, `store_identity_mismatch` and
       `unhealthy_store_root` errors verbatim
-- [ ] 6.3 Update `apps/docs/reference/commands.md`: the `--store` global-flag
+- [x] 6.3 Update `apps/docs/reference/commands.md`: the `--store` global-flag
       row and the read-only-commands section say `templates` and `schema` reach
       every root (store-backed or walked) by working directory, stated as a
       deliberate superset of `openspec`, which reads its own working directory
       there; that every command resolves the enclosing root from a subdirectory;
       and that wrapped calls receive `--store` only for an explicit `--store`
-- [ ] 6.4 Update the `store:` paragraph in
+- [x] 6.4 Update the `store:` paragraph in
       `apps/docs/reference/configuration.md` to say the key redirects only from
       an `openspec/` with no `specs/` or `changes/`, linking to the Stores page
-- [ ] 6.5 Run `mise run docs:build` and `mise run check`, record the docs rows
+- [x] 6.5 Run `mise run docs:build` and `mise run check`, record the docs rows
       in the ledger, and commit
 
 ## 7. POST-REBASE: rebase, `--json` failure document and parity gates (after `unknown-option-contract` merges)
