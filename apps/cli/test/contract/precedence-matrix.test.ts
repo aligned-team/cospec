@@ -80,15 +80,25 @@ function snapshot(root: string): string {
 
 const REGISTRY = '.oracle-home/.local/share/openspec/stores/registry.yaml'
 
+/** This repo's own cospec schemas, the source a `userSchema` row installs from. */
+const REPO_SCHEMAS = join(import.meta.dir, '..', '..', '..', '..', 'openspec', 'schemas')
+
 /**
  * A root holding the scaffolded `openspec/` tree; with `store`, also a store
  * `st` at `<root>/store`, registered in the root's sandboxed registry (built
  * directly, as `integration/store-aware.test.ts` does, so no git identity is
  * involved).
  */
-function freshRoot(store = false): string {
+function freshRoot(store = false, userSchema?: Row['userSchema']): string {
   const dir = mkTempRepo()
   cpSync(join(template, 'openspec'), join(dir, 'openspec'), { recursive: true })
+  if (userSchema !== undefined) {
+    const schemas =
+      userSchema === 'data'
+        ? join(dir, '.oracle-home', '.local', 'share', 'openspec', 'schemas')
+        : join(dir, '.oracle-home', '.config', 'openspec', 'schemas')
+    cpSync(join(REPO_SCHEMAS, 'feat'), join(schemas, 'feat'), { recursive: true })
+  }
   if (store) {
     const storeDir = join(dir, 'store')
     mkdirSync(join(storeDir, '.openspec-store'), { recursive: true })
@@ -132,6 +142,12 @@ interface Row {
   check?: (tool: 'cospec' | 'openspec', root: string, run: SpawnResult) => void
   /** Each tool's root also registers a store `st` (see `freshRoot`). */
   store?: true
+  /**
+   * Each tool's root has no project `feat` schema but a user-level one: in
+   * the sandbox's `$XDG_DATA_HOME/openspec/schemas` (`data`, where the binary
+   * resolves it) or in `~/.config/openspec/schemas` (`config`, where it does not).
+   */
+  userSchema?: 'data' | 'config'
 }
 
 const REDIRECT = '--store-path is not supported. Register the path with cospec store register'
@@ -667,6 +683,24 @@ const STATUS_JSON_ROWS: readonly Row[] = [
 ]
 
 /**
+ * cospec's positional change is its own spelling of `--change`; upstream
+ * `status` takes no positional, so given alongside `--change` or `--all` it is
+ * the excess argument commander refuses before the action runs — on stderr,
+ * no document, even under `--json`.
+ */
+const STATUS_POSITIONAL_ROWS: readonly Row[] = [
+  { argv: ['status', 'foo', '--change', 'bar'], command: 'status' },
+  { argv: ['status', '--change', 'bar', 'foo'], command: 'status' },
+  { argv: ['status', 'foo', '--change', 'bar', '--json'], command: 'status' },
+  { argv: ['status', 'foo', '--all'], command: 'status' },
+  { argv: ['status', 'foo', '--all', '--json'], command: 'status' },
+  { argv: ['status', 'foo', '--all', '--change', 'bar'], command: 'status' },
+  // Help still outranks it; an unknown option still comes first.
+  { argv: ['status', 'foo', '--change', 'bar', '--help'], command: 'status' },
+  { argv: ['status', 'foo', '--change', 'bar', '--bogus'], command: 'status' },
+]
+
+/**
  * `new <type>` in a repo whose `openspec/schemas/` lacks the cospec type is
  * the user's setup to fix, answered before the wrapped `new change` runs —
  * never a wrapped-call failure.
@@ -675,6 +709,27 @@ const NEW_SCHEMA_ROWS: readonly Row[] = [
   {
     argv: ['new', 'feat', 'x'],
     command: 'new',
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    cospecStderr: "cospec new: schema 'feat' is not installed in this repo",
+    check: nothingWritten,
+  },
+  // A user-level schema counts where the binary resolves one
+  // (`$XDG_DATA_HOME/openspec/schemas`, else `~/.local/share/openspec/schemas`)
+  // and nowhere else: `~/.config/openspec/schemas` is not on its path.
+  {
+    argv: ['new', 'feat', 'u1'],
+    command: 'new',
+    userSchema: 'data',
+    cospecOnly: { outcome: 'parsed', exit: 0 },
+    check: (tool, root) =>
+      expect(readFileSync(join(root, 'openspec/changes/u1/.openspec.yaml'), 'utf8'), tool).toMatch(
+        /^schema: feat$/m,
+      ),
+  },
+  {
+    argv: ['new', 'feat', 'c1'],
+    command: 'new',
+    userSchema: 'config',
     cospecOnly: { outcome: 'parsed', exit: 1 },
     cospecStderr: "cospec new: schema 'feat' is not installed in this repo",
     check: nothingWritten,
@@ -737,6 +792,101 @@ const TERMINATOR_ROWS: readonly Row[] = [
   { argv: ['workset', '--', 'list'], command: 'workset' },
   { argv: ['config', '--', 'help'], command: 'config' },
   { argv: ['config', '--'], command: 'config' },
+]
+
+/**
+ * `--store-path` takes a value only where the upstream command declares its
+ * hidden `--store-path <path>` (the rows marked `declaresStorePath`).
+ * Elsewhere — `init`, `update`, `completion`, `feedback` upstream, and every
+ * cospec-only command — it is an unknown option that takes nothing: refused in
+ * scan order like any other (an earlier unknown option first), outranked by
+ * help, and never a document under `--json`, because commander's refusal
+ * comes before any output.
+ */
+const UNDECLARED_STORE_PATH_ROWS: readonly Row[] = [
+  { argv: ['init', '--store-path', '--help'], command: 'init' },
+  { argv: ['init', '--store-path=x', '--help'], command: 'init' },
+  { argv: ['init', '--help', '--store-path'], command: 'init' },
+  { argv: ['init', '--store-path', 'x'], command: 'init', cospecStderr: REDIRECT },
+  { argv: ['init', '--store-path'], command: 'init', cospecStderr: REDIRECT },
+  { argv: ['init', '--store-path', '--bogus'], command: 'init', cospecStderr: REDIRECT },
+  { argv: ['init', '--bogus', '--store-path'], command: 'init' },
+  { argv: ['init', '--store-path', '--json'], command: 'init', cospecStderr: REDIRECT },
+  { argv: ['update', '--store-path', '--help'], command: 'update' },
+  { argv: ['completion', '--store-path', '--help'], command: 'completion' },
+  { argv: ['completion', 'generate', '--store-path', '--help'], command: 'completion' },
+  { argv: ['feedback', '--store-path', '--help'], command: 'feedback' },
+  { argv: ['feedback', 'msg', '--store-path'], command: 'feedback', cospecStderr: REDIRECT },
+  // A forward row that does not declare it: the binary's plain refusal, no document.
+  { argv: ['store', 'list', '--store-path', '--json'], command: 'store', cospecStderr: REDIRECT },
+  { argv: ['workset', 'list', '--json', '--store-path'], command: 'workset' },
+  { argv: ['templates', '--json', '--store-path', 'x'], command: 'templates' },
+  { argv: ['config', 'list', '--json', '--store-path', 'x'], command: 'config' },
+  // A cospec-only command has no upstream declaration either.
+  {
+    argv: ['apply', '--store-path', '--help'],
+    command: 'apply',
+    cospecOnly: { outcome: 'help:apply', exit: 0 },
+  },
+  {
+    argv: ['check-commit', '--store-path', '--help'],
+    command: 'check-commit',
+    cospecOnly: { outcome: 'help:check-commit', exit: 0 },
+  },
+  {
+    argv: ['apply', 'c1', '--store-path', 'x'],
+    command: 'apply',
+    cospecOnly: { outcome: 'store-path', exit: 1 },
+    cospecStderr: REDIRECT,
+  },
+]
+
+/**
+ * A forward command's ordinary commander refusal — `missing required
+ * argument` included — is the binary's answer, relayed as is, never reported
+ * as a wrapped-call failure (and never a document under `--json`).
+ */
+const FORWARD_REFUSAL_ROWS: readonly Row[] = [
+  {
+    argv: ['store', 'unregister'],
+    command: 'store',
+    cospecStderr: "error: missing required argument 'id'",
+  },
+  {
+    argv: ['store', 'remove'],
+    command: 'store',
+    cospecStderr: "error: missing required argument 'id'",
+  },
+  { argv: ['store', 'unregister', '--json'], command: 'store' },
+  { argv: ['store', 'remove', '--json'], command: 'store' },
+]
+
+/**
+ * Commander splits a short-option cluster (`-yh`) only when its first letter
+ * is an option the parsing command declares: a boolean takes the rest as the
+ * next token, a value-taking one as its value. `-h` never starts a split (help
+ * is not among commander's options), and `-V` is the program's own, which the
+ * program level finds in any `-V…` cluster before a `--`.
+ */
+const SHORT_CLUSTER_ROWS: readonly Row[] = [
+  { argv: ['archive', 'c', '-yh'], command: 'archive' },
+  { argv: ['archive', '-yh'], command: 'archive' },
+  { argv: ['archive', 'c', '-yy'], command: 'archive' },
+  { argv: ['archive', 'c', '-yV'], command: 'archive', cospecStderr: "unknown option '-V'\n" },
+  { argv: ['archive', 'c', '-yx'], command: 'archive', cospecStderr: "unknown option '-x'\n" },
+  { argv: ['archive', 'c', '-hy'], command: 'archive' },
+  { argv: ['archive', 'c', '-xy'], command: 'archive' },
+  { argv: ['archive', 'c', '-Vh'], command: 'archive' },
+  { argv: ['list', '-yh'], command: 'list' },
+  { argv: ['list', '-Vh'], command: 'list' },
+  { argv: ['list', '-hV'], command: 'list' },
+  { argv: ['list', '--', '-Vh'], command: 'list' },
+  { argv: ['store', 'list', '-Vh'], command: 'store' },
+  // A forward row's declared boolean short splits too: `-h` is cospec's help,
+  // never the binary's own help screen relayed.
+  { argv: ['config', 'reset', '-yh'], command: 'config' },
+  { argv: ['config', 'reset', '--all', '-yh'], command: 'config' },
+  { argv: ['show', 'c1', '-rh'], command: 'show' },
 ]
 
 const HELP_TOKEN_ROWS: readonly Row[] = [
@@ -902,25 +1052,68 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * `show`'s unknown option for the binary; `--store-path` taking a help flag
  * as its value where upstream does not declare it; prose where a `--json`
  * caller is owed a document; a missing schema reported as a wrapped-call
- * failure). The fixes empty this set.
+ * failure). The round-7 rows exposed 36 more (a `--store-path` that took a
+ * value, or answered with a document, on a row whose upstream command never
+ * declares it; `new` checking the wrong user-level schema directory; `status`
+ * dropping its positional beside `--change` or `--all`; commander's `missing
+ * required argument` unrecognised, so a forward call reported it as a
+ * wrapped-call failure and `feedback` worded it its own way; short-option
+ * clusters never split). The fixes empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
+  'feedback --body --help',
+  'new feat u1',
+  'new feat c1',
+  'status foo --change bar',
+  'status --change bar foo',
+  'status foo --change bar --json',
+  'status foo --all',
+  'status foo --all --json',
+  'status foo --all --change bar',
+  'init --store-path --help',
+  'init --help --store-path',
+  'init --bogus --store-path',
+  'update --store-path --help',
+  'completion --store-path --help',
+  'completion generate --store-path --help',
+  'feedback --store-path --help',
+  'store list --store-path --json',
+  'workset list --json --store-path',
+  'templates --json --store-path x',
+  'config list --json --store-path x',
+  'apply --store-path --help',
+  'check-commit --store-path --help',
+  'store unregister',
+  'store remove',
+  'store unregister --json',
+  'store remove --json',
+  'archive c -yh',
+  'archive -yh',
+  'archive c -yy',
+  'archive c -yV',
+  'archive c -yx',
+  'archive c -Vh',
+  'list -Vh',
+  'store list -Vh',
+  'config reset -yh',
+  'config reset --all -yh',
+])
 
 async function checkRow(row: Row): Promise<void> {
-  const coRoot = freshRoot(row.store)
+  const coRoot = freshRoot(row.store, row.userSchema)
   const co = await runCospec(row.argv, coRoot)
   const coOutcome = outcome(co, row.command, row.argv)
   const detail = `cospec exit ${co.exitCode}\nstdout: ${co.stdout.slice(0, 200)}\nstderr: ${co.stderr.slice(0, 300)}`
   if (row.cospecOnly !== undefined) {
     expect({ outcome: coOutcome, exit: co.exitCode }, detail).toEqual(row.cospecOnly)
   } else if (row.pending !== undefined) {
-    const up = await runUpstream(row.argv, freshRoot(row.store))
+    const up = await runUpstream(row.argv, freshRoot(row.store, row.userSchema))
     expect({ outcome: outcome(up, row.command, row.argv), exit: up.exitCode }).toEqual(
       row.pending.upstream,
     )
     expect({ outcome: coOutcome, exit: co.exitCode }, detail).toEqual(row.pending.cospec)
   } else {
-    const upRoot = freshRoot(row.store)
+    const upRoot = freshRoot(row.store, row.userSchema)
     const up = await runUpstream(row.argv, upRoot)
     const upDetail = `openspec exit ${up.exitCode}\nstdout: ${up.stdout.slice(0, 200)}\nstderr: ${up.stderr.slice(0, 300)}`
     expect(
@@ -969,6 +1162,12 @@ describe('precedence matrix: --store on a row that never reads it', () =>
 describe('precedence matrix: forward wrapper guards', () => register(FORWARD_GUARD_ROWS))
 describe('precedence matrix: status --json documents', () => register(STATUS_JSON_ROWS))
 describe('precedence matrix: new without its schema', () => register(NEW_SCHEMA_ROWS))
+describe('precedence matrix: status positional with --change or --all', () =>
+  register(STATUS_POSITIONAL_ROWS))
+describe('precedence matrix: --store-path where upstream never declares it', () =>
+  register(UNDECLARED_STORE_PATH_ROWS))
+describe('precedence matrix: forward commander refusals', () => register(FORWARD_REFUSAL_ROWS))
+describe('precedence matrix: short-option clusters', () => register(SHORT_CLUSTER_ROWS))
 describe('precedence matrix: -- terminators', () => register(TERMINATOR_ROWS))
 describe('precedence matrix: a bare help token', () => register(HELP_TOKEN_ROWS))
 describe('precedence matrix: cospec-only rows', () => register(COSPEC_ONLY_ROWS))
@@ -996,6 +1195,10 @@ describe('precedence matrix: harness', () => {
       ...FORWARD_GUARD_ROWS,
       ...STATUS_JSON_ROWS,
       ...NEW_SCHEMA_ROWS,
+      ...STATUS_POSITIONAL_ROWS,
+      ...UNDECLARED_STORE_PATH_ROWS,
+      ...FORWARD_REFUSAL_ROWS,
+      ...SHORT_CLUSTER_ROWS,
       ...TERMINATOR_ROWS,
       ...HELP_TOKEN_ROWS,
       ...COSPEC_ONLY_ROWS,

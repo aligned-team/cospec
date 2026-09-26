@@ -2,7 +2,8 @@
 // precedence matrix (change `unknown-option-contract`, design decision 7).
 //
 //   parse-rejected  stderr carries an unknown-option, argument-missing,
-//                   too-many-arguments or `--store-path` refusal (either
+//                   missing-required-argument, too-many-arguments or
+//                   `--store-path` refusal (either
 //                   dialect: commander's `error: …` or cospec's
 //                   `cospec <command>: …`); upstream's `error: unknown command`
 //                   for a cospec-native command; a `--store-path` JSON
@@ -32,6 +33,7 @@ export const REFUSAL_SHAPES: readonly RegExp[] = [
   /^error: unknown option '/m,
   /^error: option '.+' argument missing$/m,
   /^error: too many arguments/m,
+  /^error: missing required argument '/m,
   /^error: unknown command '/m,
   /^cospec(?: [\w-]+(?: [\w-]+)?)?: unknown option '/m,
   /^cospec(?: [\w-]+(?: [\w-]+)?)?: option '.+' argument missing$/m,
@@ -116,6 +118,8 @@ export function classify(run: SpawnResult, command: string, argv: readonly strin
  *   unknown-option      an undeclared option, or a `json: 'refused'` row's
  *                       one-document `--json` refusal (design decision 10)
  *   missing-value       a value-taking option given no value
+ *   missing-argument    a required positional given nothing (commander's
+ *                       `missing required argument`)
  *   too-many            an excess positional
  */
 export type RefusalKind =
@@ -124,6 +128,7 @@ export type RefusalKind =
   | 'unknown-subcommand'
   | 'unknown-option'
   | 'missing-value'
+  | 'missing-argument'
   | 'too-many'
 
 const STORE_PATH_SUBJECT: readonly RegExp[] = [
@@ -172,6 +177,8 @@ export function refusalKind(
     return 'unknown-option'
   if (/^(?:error|cospec(?: [\w-]+){0,2}): option '.+' argument missing$/m.test(run.stderr))
     return 'missing-value'
+  if (/^(?:error|cospec(?: [\w-]+){0,2}): missing required argument '/m.test(run.stderr))
+    return 'missing-argument'
   if (/^(?:error|cospec(?: [\w-]+){0,2}): too many arguments/m.test(run.stderr)) return 'too-many'
   return undefined
 }
