@@ -22,6 +22,10 @@
 // argv reaches the binary untouched. Unlike `openspec()` in support.ts, no
 // leading `--no-color` is prepended, because a pre-command token such as
 // `--store-path /x list` is only meaningful when nothing else precedes it.
+//
+// By default the binary runs under Bun, which drops one `--` that directly
+// follows the script path. `{ runtime: 'node' }` runs it under Node instead,
+// which delivers a leading `--` intact, as a user's `openspec -- list` does.
 
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -65,12 +69,25 @@ export function oracleEnv(root: string): Record<string, string> {
   }
 }
 
+/** Which runtime executes the pinned binary's `bin/openspec.js`. */
+export interface OracleOptions {
+  runtime?: 'bun' | 'node'
+}
+
 /**
  * Run the pinned binary (resolved by package path, never `$PATH`) with `argv`
- * verbatim in `root`, under `oracleEnv(root)`.
+ * in `root`, under `oracleEnv(root)`. Under Node every token arrives verbatim;
+ * under Bun (the default) a leading `--` is dropped.
  */
-export async function oracle(argv: string[], root: string): Promise<OracleRun> {
-  const proc = Bun.spawn(['bun', openspecBinPath(), ...argv], {
+export async function oracle(
+  argv: string[],
+  root: string,
+  opts: OracleOptions = {},
+): Promise<OracleRun> {
+  const runtime = opts.runtime ?? 'bun'
+  if (runtime === 'node' && Bun.which('node') === null)
+    throw new Error('oracle: `node` is not on PATH, so the binary cannot run under Node')
+  const proc = Bun.spawn([runtime, openspecBinPath(), ...argv], {
     cwd: root,
     stdin: 'ignore',
     stdout: 'pipe',
