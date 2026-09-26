@@ -792,6 +792,70 @@ describe('resolveRoot — wrapped spawns', () => {
   }, 15_000)
 })
 
+describe('resolveRoot — missing invocation directory (ledger 1.29)', () => {
+  /** The thrown error for `cwd`, asserting it spawned nothing and has no `Fix:` line. */
+  async function missing(
+    cwd: string,
+    flags: { store?: string } = {},
+  ): Promise<{ error: Error; diagnostic: Diagnostic }> {
+    let caught: unknown
+    const args = await spawnedArgs(async () => {
+      try {
+        await resolveRoot({ cwd, flags })
+      } catch (error) {
+        caught = error
+      }
+    })
+    expect(args).toEqual([])
+    if (!(caught instanceof Error)) throw new Error('expected the resolver to throw an Error')
+    const diagnostic = (caught as { diagnostic?: Diagnostic }).diagnostic
+    if (diagnostic === undefined) throw new Error(`expected a diagnostic on: ${caught.message}`)
+    expect(diagnostic).toEqual({
+      severity: 'error',
+      code: 'directory_not_found',
+      message: `directory not found: ${cwd}`,
+      target: 'cwd',
+    })
+    expect(caught.message).toBe(`directory not found: ${cwd}`)
+    return { error: caught, diagnostic }
+  }
+
+  test('a nonexistent cwd fails with directory_not_found before any spawn', async () => {
+    try {
+      await missing(join(bareDir(), 'nope'))
+    } finally {
+      cleanup()
+    }
+  })
+
+  test('a nonexistent cwd under a planning root does not walk up to it', async () => {
+    const planning = layout(tempDir('cospec-root-'), { dirs: ['openspec/changes'] })
+    try {
+      await missing(join(planning, 'gone', 'deeper'))
+    } finally {
+      cleanup()
+    }
+  })
+
+  test('an explicit --store does not bypass the check', async () => {
+    try {
+      await missing(join(bareDir(), 'nope'), { store: 'alpha' })
+    } finally {
+      cleanup()
+    }
+  })
+
+  test('a regular file, or a path through one, is not a directory', async () => {
+    const dir = layout(bareDir(), { files: { 'file.txt': 'x' } })
+    try {
+      await missing(join(dir, 'file.txt'))
+      await missing(join(dir, 'file.txt', 'below'))
+    } finally {
+      cleanup()
+    }
+  })
+})
+
 describe('readDefaultStore', () => {
   test('undefined when the global config has no defaultStore set', async () => {
     await withGlobalConfig(undefined, async () => {

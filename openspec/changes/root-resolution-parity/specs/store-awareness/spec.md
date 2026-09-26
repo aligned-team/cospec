@@ -58,6 +58,12 @@ binary's own provenance for a pointer or `defaultStore` root. In a `--json` run,
 a resolver failure SHALL print exactly one JSON document carrying a `status`
 array with the diagnostic on stdout and exit 1.
 
+Before any walk or spawn, the system SHALL verify that the invocation directory
+(`--cwd <path>`, or the process working directory) is an existing directory, and
+otherwise SHALL fail with `directory not found: <path>`, the
+`directory_not_found` code and exit 1, never with the runtime's own spawn error
+and never by resolving an ancestor of the missing path.
+
 #### Scenario: Unknown store id is rejected
 
 - **WHEN** a command is given `--store` naming a store not in the machine
@@ -176,6 +182,13 @@ array with the diagnostic on stdout and exit 1.
 - **THEN** the relayed document's `root.source` is `declared`, as bare
   `openspec show <item> --json` reports, and with an explicit `--store` it is
   `store`
+
+#### Scenario: A missing invocation directory fails cleanly
+
+- **WHEN** a command runs with `--cwd <path>` and `<path>` does not exist, even
+  below a planning root or with an explicit `--store`
+- **THEN** the command exits 1 with `cospec: directory not found: <path>` on
+  stderr, nothing on stdout, and no mention of the runtime or its spawn path
 
 #### Scenario: A resolver failure under --json is one JSON document
 

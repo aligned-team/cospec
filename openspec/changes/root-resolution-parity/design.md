@@ -146,13 +146,17 @@ symlinked checkouts (and on macOS temp directories, where `/var` is a symlink to
 `diagnostic: {severity: 'error', code, message, target, fix}` with upstream's
 codes (`invalid_store_pointer`, `invalid_store_id`,
 `no_root_with_registered_stores`, `unknown_store`, `no_registered_stores`,
-`store_identity_mismatch`, `invalid_store_metadata`, `unhealthy_store_root`).
-`Error.message` is the diagnostic message plus a `\nFix: <fix>` line, so the
-existing top-level handler in `index.ts` prints `cospec: <message>` and
-`Fix: <fix>` with no change to `index.ts` or `cli.ts` before the rebase (the
-post-rebase `--json` branch is D12). Both the message and the fix replace
-`openspec` with `cospec` in every command they name (`cospec init`,
-`cospec store register`, `cospec config unset defaultStore`,
+`store_identity_mismatch`, `invalid_store_metadata`, `unhealthy_store_root`),
+plus one code of cospec's own, `directory_not_found` (target `cwd`), for a
+`--cwd` that is not an existing directory: upstream has no `--cwd`, so it has no
+code to mirror. `fix` is optional, as upstream's is; `directory_not_found`
+carries none, since the message already names the only thing to change.
+`Error.message` is the diagnostic message plus a `\nFix: <fix>` line when there
+is a fix, so the existing top-level handler in `index.ts` prints
+`cospec: <message>` and `Fix: <fix>` with no change to `index.ts` or `cli.ts`
+before the rebase (the post-rebase `--json` branch is D12). Both the message and
+the fix replace `openspec` with `cospec` in every command they name
+(`cospec init`, `cospec store register`, `cospec config unset defaultStore`,
 `cospec store doctor <id>`), because shipped output never tells the user to run
 bare `openspec`. The existing unknown-store message for `--store` keeps its
 current wording (the Stores page quotes it) and gains the `unknown_store` /

@@ -1026,3 +1026,46 @@ describe('native commands operate on the resolved root (ledger 2.1-2.4, 2.7)', (
     })
   })
 })
+
+// --- Ledger 1.29: a missing --cwd is cospec's own clean error ---
+
+describe('a nonexistent --cwd fails cleanly (ledger 1.29)', () => {
+  let sb!: Sandbox
+  let parent!: string
+
+  beforeAll(async () => {
+    sb = await makeSandbox()
+    parent = bare(sb)
+  })
+
+  // A native command, a relayed passthrough, a spawn-in-root passthrough, and
+  // an explicit --store, each of which used to reach a spawn in the bad cwd.
+  const argvs: string[][] = [
+    ['list'],
+    ['status', '--json'],
+    ['show', 'x'],
+    ['templates', '--json'],
+    ['list', '--store', 'alpha'],
+  ]
+
+  for (const argv of argvs) {
+    test(`cospec ${argv.join(' ')} --cwd <missing>`, async () => {
+      const missing = join(parent, 'nope')
+      const res = await cospec([...argv, '--cwd', missing], { cwd: parent, env: sb.env })
+      expect(res.exitCode).toBe(1)
+      expect(res.stdout).toBe('')
+      expect(res.stderr).toBe(`cospec: directory not found: ${missing}\n`)
+      const rest = res.stderr.replace(missing, '<missing>')
+      expect(rest).not.toMatch(/bun|posix_spawn|ENOENT/i)
+    })
+  }
+
+  test('a relative --cwd is reported resolved against the invocation directory', async () => {
+    const res = await cospec(['--cwd', 'gone/deeper', 'list'], { cwd: parent, env: sb.env })
+    expect(res.exitCode).toBe(1)
+    // The child's own cwd is canonical (a spawn realpaths it), so the report is too.
+    expect(res.stderr).toBe(
+      `cospec: directory not found: ${join(canonical(parent), 'gone', 'deeper')}\n`,
+    )
+  })
+})

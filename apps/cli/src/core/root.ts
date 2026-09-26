@@ -50,18 +50,24 @@ export interface RootDiagnostic {
   code: string
   message: string
   target: string
-  fix: string
+  /** Optional, as upstream's is: a failure with nothing to suggest omits it. */
+  fix?: string
 }
 
 /**
  * A root-selection failure carrying upstream's diagnostic (code, target, fix).
- * `message` ends in a `Fix:` line so the top-level handler prints both.
+ * `message` ends in a `Fix:` line, when there is a fix, so the top-level
+ * handler prints both.
  */
 export class RootSelectionError extends Error {
   readonly diagnostic: RootDiagnostic
 
   constructor(diagnostic: Omit<RootDiagnostic, 'severity'>) {
-    super(`${diagnostic.message}\nFix: ${diagnostic.fix}`)
+    super(
+      diagnostic.fix === undefined
+        ? diagnostic.message
+        : `${diagnostic.message}\nFix: ${diagnostic.fix}`,
+    )
     this.name = 'RootSelectionError'
     this.diagnostic = { severity: 'error', ...diagnostic }
   }
@@ -131,14 +137,30 @@ function pathKind(path: string): PathKind {
   }
 }
 
-/** The canonical directory a walk starts from (a file cwd starts at its parent). */
+/** The canonical directory a walk starts from; `resolveRoot` has asserted it exists. */
 function canonicalStart(cwd: string): string {
-  const resolved = resolve(cwd)
+  return canonicalize(resolve(cwd))
+}
+
+/**
+ * `--cwd` is cospec's own flag, so nothing upstream guards it: an invocation
+ * directory that is not an existing directory would otherwise surface as the
+ * runtime's spawn ENOENT, naming the interpreter's path instead of the user's.
+ */
+function assertInvocationDirectory(cwd: string): void {
+  let kind: PathKind
   try {
-    return canonicalize(statSync(resolved).isDirectory() ? resolved : dirname(resolved))
-  } catch {
-    return resolved
+    kind = pathKind(cwd)
+  } catch (error) {
+    if (!isErrnoCode(error, 'ENOTDIR')) throw error
+    kind = 'missing'
   }
+  if (kind !== 'directory')
+    throw new RootSelectionError({
+      code: 'directory_not_found',
+      message: `directory not found: ${cwd}`,
+      target: 'cwd',
+    })
 }
 
 // --- Store pointer and classification ---------------------------------------
@@ -502,12 +524,14 @@ async function selectRoot(cwd: string, store: string | undefined): Promise<Resol
  *
  * In human mode a store-selected root is announced on stderr at resolution
  * time, verbatim from upstream, so the line survives a command that fails
- * after selecting it.
+ * after selecting it. An invocation directory that does not exist fails first
+ * (`directory_not_found`, cospec's own code: upstream has no `--cwd`).
  */
 export async function resolveRoot(ctx: {
   cwd: string
   flags: { store?: string; json?: boolean }
 }): Promise<ResolvedRoot> {
+  assertInvocationDirectory(ctx.cwd)
   const root = await selectRoot(ctx.cwd, ctx.flags.store)
   if (root.store !== undefined && ctx.flags.json !== true)
     printOwnLine(`Using OpenSpec root: ${root.store} (${root.base})`)

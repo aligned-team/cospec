@@ -83,6 +83,15 @@ checkout gets different roots than before.
   `unhealthy_store_root`, each with upstream's message and a fix naming
   `cospec store doctor <id>`. Today cospec trusts `store ls --json`, which lists
   a broken store with no status, and carries on against it.
+- **A missing `--cwd` is a clean cospec error.** `--cwd` is cospec's own global
+  flag (upstream has none), and `cospec --cwd <path>` with a `<path>` that is
+  not an existing directory used to fail with the runtime's spawn error,
+  `cospec: ENOENT: no such file or directory, posix_spawn '<path to bun>'`,
+  which names the interpreter instead of the user's path, or, below a planning
+  root, silently resolved that root before failing. `resolveRoot` now checks the
+  invocation directory first and fails with
+  `cospec: directory not found: <path>` and exit 1 (code `directory_not_found`,
+  no fix line), before any walk or spawn.
 - **The store banner.** In human mode, a store-selected root prints upstream's
   stderr line `Using OpenSpec root: <id> (<path>)` from `resolveRoot`, verbatim:
   it names the product noun, not a command to run. A relayed passthrough whose
@@ -125,7 +134,9 @@ checkout gets different roots than before.
   runs are unchanged.
 - A malformed `store:` pointer, a rootless directory on a machine with
   registered stores, and a registered store whose metadata or tree is broken now
-  fail with exit 1 where cospec used to carry on against the wrong directory.
+  fail with exit 1 where cospec used to carry on against the wrong directory. A
+  `--cwd` naming a missing directory still exits 1, now with
+  `directory not found: <path>` instead of a spawn error.
 
 ## Capabilities
 

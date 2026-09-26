@@ -76,6 +76,21 @@ POST-REBASE.
       planning root with a pointer), and that the store-health check adds no
       spawn to a store selection
 - [x] 2.8 Run `mise run check` and commit the track
+- [x] 2.9 Add failing tests (unit: `root.test.ts`
+      `'resolveRoot — missing invocation directory (ledger 1.29)'`; contract:
+      `root-resolution.test.ts`
+      `'a nonexistent --cwd fails cleanly (ledger 1.29)'`), then fail a `--cwd`
+      that is not an existing directory in `resolveRoot`, before the walk and
+      before any spawn, with `RootSelectionError` `directory_not_found` (message
+      `directory not found: <path>`, target `cwd`, no fix, so stderr is exactly
+      `cospec: directory not found: <path>` and exit 1); make
+      `RootDiagnostic.fix` optional as upstream's is; update the `--cwd` row in
+      `apps/docs/reference/commands.md` and the Errors table in
+      `apps/docs/concepts/stores.md`; verify the tests fail on the previous
+      `root.ts` (the spawn ENOENT naming bun's path) and pass after. Under
+      `--json` this still prints the prose line until task 7.2 turns it into the
+      resolver diagnostic document (the `status --json` contract case is updated
+      there)
 
 ## 3. `templates` and `schema` spawn in every resolved root (track T3: `apps/cli/src/core/passthrough-command.ts`, `apps/cli/src/core/openspec.ts`, `apps/cli/src/commands/templates.ts`, `apps/cli/src/commands/schema.ts`, `apps/cli/test/unit/core/passthrough.test.ts`)
 

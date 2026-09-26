@@ -157,9 +157,10 @@ pass `--json`.
 
 ### Errors
 
-A resolution failure exits `1` with a message and a `Fix:` line (both name
-`cospec`, never `openspec`) — the same as any other unhandled failure; see the
-tip below for how this differs from a gate result.
+A resolution failure exits `1` with a message and, where there is something to
+suggest, a `Fix:` line (both name `cospec`, never `openspec`) — the same as any
+other unhandled failure; see the tip below for how this differs from a gate
+result.
 
 | code                             | when                                                                    |
 | -------------------------------- | ----------------------------------------------------------------------- |
@@ -170,6 +171,11 @@ tip below for how this differs from a gate result.
 | `store_identity_mismatch`        | a selected store's metadata is missing, or names a different id         |
 | `invalid_store_metadata`         | a selected store's `.openspec-store/store.yaml` doesn't parse           |
 | `unhealthy_store_root`           | a selected store's OpenSpec tree is incomplete or damaged               |
+| `directory_not_found`            | `--cwd` names a path that is not an existing directory                  |
+
+`directory_not_found` is cospec's own (OpenSpec has no `--cwd`): it is checked
+before anything else, prints `cospec: directory not found: <path>` with no
+`Fix:` line, and never resolves an ancestor of the missing path.
 
 A pointer or `defaultStore` failure is prefixed with its origin —
 `Declared in <config path>: ` or `Global defaultStore '<id>': ` — so the message
