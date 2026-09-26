@@ -19,6 +19,7 @@ import {
   type PositionalSpec,
   positionalLabel,
   storePathRefusal,
+  storePathTakesValue,
   type SubcommandSpec,
   jsonRefusal,
   takesNextToken,
@@ -369,9 +370,12 @@ function routeOperands(row: CommandRow, operands: readonly string[], rest: strin
     return true
   }
   if (first === undefined) return false
+  // A forward row's wrapper reads an option-like first token as an option at
+  // the command's level, so an operand that looks like one keeps its `--`
+  // (`subcommandOf` reads the token after it as the subcommand name).
   const routed =
     row.parse === 'forward'
-      ? row.subcommands !== undefined
+      ? row.subcommands !== undefined && !isOptionLike(first)
       : row.subcommands?.some((s) => s.name === first) === true
   const kept = routed ? tail : operands
   if (routed) rest.push(first)
@@ -460,7 +464,7 @@ function resolveProgram(argv: readonly string[], state: GlobalState): number | C
  * row that reads it: a `store: 'refused'` row's parser refuses it), except a
  * token that
  * is the value of a space-form value-taking flag the row or its named
- * subcommand declares, `--store-path` included (kept with it, whatever it
+ * subcommand declares, `--store-path` where it takes a value (kept with it, whatever it
  * looks like — a help flag, a global, `--`); a table row parses the rest, a
  * forward row hands it to its wrapper untouched, `--store-path` included (the
  * binary is its authority there; the wrapper only respells the binary's
@@ -486,6 +490,7 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
   if (call.terminated) wantHelp = routeOperands(row, call.tokens, rest)
   else {
     const tokens = withoutProgramLevel(call.tokens, state)
+    const storePath = storePathTakesValue(row)
     // The row's surface, plus its subcommand's once the first positional names one.
     let subcommand: SubcommandSpec | undefined
     let positionals = 0
@@ -502,11 +507,12 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
         break
       }
       // Like commander, a space-form value-taking flag the row or its named
-      // subcommand declares (`--store-path` included) takes the next token as
+      // subcommand declares (`--store-path` where upstream declares it, and on
+      // every table row) takes the next token as
       // its value whatever it looks like — a help flag, a global, `--` — so it
       // is never intercepted or absorbed: the table parser or the binary gets
       // both, and parsing goes on after them.
-      if (i + 1 < tokens.length && takesNextToken(surfaceOf(row, subcommand), tok)) {
+      if (i + 1 < tokens.length && takesNextToken(surfaceOf(row, subcommand), tok, storePath)) {
         rest.push(tok, tokens[++i]!)
         continue
       }

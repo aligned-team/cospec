@@ -59,11 +59,26 @@ describe('planConfigCall — --scope hoisting', () => {
   })
 })
 
+describe('planConfigCall — an option where the subcommand belongs', () => {
+  test('is relayed at the config level with the lifted --scope, never an unknown subcommand', () => {
+    expect(planConfigCall(['--bogus', 'path'], { json: true })).toEqual({
+      kind: 'command-level',
+      command: ['config'],
+      args: ['--bogus', 'path'],
+    })
+    expect(planConfigCall(['--scope', 'global', '--store-path', '/x'], { json: false })).toEqual({
+      kind: 'command-level',
+      command: ['config', '--scope', 'global'],
+      args: ['--store-path', '/x'],
+    })
+  })
+})
+
 describe('planConfigCall — --no-color and storeArgs are never threaded', () => {
   test('no built argv ever contains --no-color, across every subcommand', () => {
     for (const sub of CONFIG_SUBCOMMANDS) {
       const plan = planConfigCall([sub], { json: false })
-      if (plan.kind === 'error') continue
+      if (plan.kind === 'error' || plan.kind === 'command-level') continue
       expect(plan.argv).not.toContain('--no-color')
     }
   })
@@ -87,7 +102,7 @@ describe('planConfigCall — --json is appended only for list', () => {
     test(`${sub} --json does NOT append --json to the wrapped argv`, () => {
       const args = sub === 'get' || sub === 'set' || sub === 'unset' ? [sub, 'someKey'] : [sub]
       const plan = planConfigCall(args, { json: true })
-      if (plan.kind === 'error') return
+      if (plan.kind === 'error' || plan.kind === 'command-level') return
       expect(plan.argv).not.toContain('--json')
     })
   }

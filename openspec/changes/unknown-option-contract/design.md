@@ -162,6 +162,19 @@ runtime by `dist/commands/spec.js:127`.
    neither absorbs a global flag there nor reads a help flag:
    `cospec list --store-path --json` is the text redirect with no document, and
    `cospec show c1 --store-path --store foo` the binary's too many arguments.
+   That holds where the command declares `--store-path`: on every `table` row
+   (its parser answers the redirect) and on the forward rows whose upstream
+   command declares it (`show`, `schemas`; the row's `declaresStorePath`).
+   Upstream `config`, `schema`, `workset`, `store` and `templates` refuse it as
+   an unknown option that takes nothing, so a help flag after it is help there
+   (`cospec workset list --store-path -h` prints cospec's `workset list` help,
+   where pairing them had relayed the binary's own help screen, bare `openspec`
+   included). An option where a forward row's subcommand belongs
+   (`cospec config --store-path /x`, `cospec schema --bogus`) is the binary's to
+   refuse at the command's level, so the wrapper relays it (`relayCommandLevel`)
+   instead of refusing an unknown subcommand; an operand that looks like an
+   option after a leading `--` keeps that `--`, so
+   `cospec -- config --store-path /x` stays `config`'s unknown subcommand.
    Before the command name the program level declares no `--store-path`, so it
    takes no value and help outranks it (`--store-path --help list` is the
    program's help). This is per-level parsing, not a cross-phase priority flag:

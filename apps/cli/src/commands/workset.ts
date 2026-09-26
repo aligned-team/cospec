@@ -12,7 +12,13 @@ import { join } from 'node:path'
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { commandRow, storePathInOptionPosition, storePathRefusal } from '../core/command-table.ts'
-import { forwardCall, relayStorePathRefusal } from '../core/forward-relay.ts'
+import {
+  forwardCall,
+  isOptionToken,
+  relayCommandLevel,
+  relayStorePathRefusal,
+  subcommandOf,
+} from '../core/forward-relay.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
 import { passthroughOpenspec, resolveOpenspec, spawnOpenspec } from '../core/openspec.ts'
 
@@ -100,11 +106,12 @@ async function runWorksetOpen(ctx: CommandContext, rest: string[]): Promise<numb
 }
 
 export async function run(ctx: CommandContext): Promise<number> {
-  const [sub, ...rest] = ctx.args
+  const { sub, rest, operand } = subcommandOf(ctx.args)
   if (sub === undefined) {
     process.stderr.write('cospec workset: a subcommand is required (create|list|remove|open)\n')
     return EXIT.failure
   }
+  if (!operand && isOptionToken(sub)) return relayCommandLevel(ctx, ['workset'], ctx.args)
   if (sub === 'open') return runWorksetOpen(ctx, rest)
   if (isPassthroughSub(sub)) return runWorksetPassthrough(ctx, sub, rest)
   process.stderr.write(`cospec workset: unknown subcommand '${sub}'\n`)

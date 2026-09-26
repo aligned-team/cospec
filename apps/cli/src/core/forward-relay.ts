@@ -6,9 +6,10 @@
 // whose remedy names bare `openspec` and so is answered with cospec's
 // respelled redirect instead.
 
+import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { isUpstreamStorePathRefusal, storePathRefusal } from './command-table.ts'
-import { OpenspecCallError, type OpenspecResult } from './openspec.ts'
+import { OpenspecCallError, type OpenspecResult, passthroughOpenspec } from './openspec.ts'
 
 /**
  * True when a failed wrapped call is the binary's own answer to the argv
@@ -56,4 +57,48 @@ export function relayStorePathRefusal(result: OpenspecResult, json: boolean): nu
   const refusal = storePathRefusal(json)
   process[refusal.stream].write(refusal.text)
   return EXIT.failure
+}
+
+/**
+ * A forward row's subcommand and its argv. The dispatcher keeps a `--` ahead
+ * of an operand in subcommand position that looks like an option
+ * (`cospec -- config --x`), so the token after that `--` is the subcommand
+ * name, never an option at the command's level.
+ */
+export function subcommandOf(args: readonly string[]): {
+  readonly sub: string | undefined
+  readonly rest: string[]
+  /** The name came after a `--`: it is never an option. */
+  readonly operand: boolean
+} {
+  if (args[0] === '--') return { sub: args[1], rest: args.slice(2), operand: true }
+  return { sub: args[0], rest: args.slice(1), operand: false }
+}
+
+/** Commander's test for a token that is an option rather than an operand. */
+export function isOptionToken(tok: string): boolean {
+  return tok.length > 1 && tok.startsWith('-')
+}
+
+/**
+ * A forward row with subcommands whose first remaining token is an option,
+ * not a subcommand name: the binary parses it at the command's own level and
+ * refuses it there (`config --bogus` as an unknown option), so it is relayed
+ * rather than refused as an unknown subcommand. `command` is the command path
+ * with any option the wrapper lifted itself (`config --scope <s>`). Nothing
+ * is threaded: the command level takes no `--json`, and the binary's refusal
+ * comes before any output a flag could shape. `--store-path` there is the
+ * binary's unknown option, answered with cospec's redirect.
+ */
+export async function relayCommandLevel(
+  ctx: CommandContext,
+  command: readonly string[],
+  args: readonly string[],
+): Promise<number> {
+  const result = await forwardCall(() => passthroughOpenspec({ command, args }, { cwd: ctx.cwd }))
+  const refused = relayStorePathRefusal(result, ctx.flags.json)
+  if (refused !== undefined) return refused
+  if (result.stdout.length > 0) process.stdout.write(result.stdout)
+  if (result.stderr.length > 0) process.stderr.write(result.stderr)
+  return result.exitCode === 0 ? EXIT.success : EXIT.failure
 }

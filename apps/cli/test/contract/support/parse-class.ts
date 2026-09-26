@@ -187,6 +187,8 @@ export function outcome(run: SpawnResult, command: string, argv: readonly string
   // `Usage: openspec config path [options]` / `Usage: cospec config path [options]`:
   // the words between the tool name and the first `[…]`/`<…>` are the help's path.
   const usage = /^Usage: (?:openspec|cospec)((?: [^\s<[]+)*)/m.exec(run.stdout)
-  if (run.exitCode === 0 && usage !== null) return `help:${usage[1]!.trim() || 'root'}`
+  // Commander shows a subcommand's aliases in its path (`workset list|ls`).
+  const path = usage?.[1]!.replace(/\|\S+/g, '').trim()
+  if (run.exitCode === 0 && usage !== null) return `help:${path || 'root'}`
   return refusalKind(run, command, argv) ?? 'parsed'
 }

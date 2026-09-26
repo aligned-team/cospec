@@ -18,6 +18,7 @@ import {
   rowGlobalFlags,
   storePathInOptionPosition,
   storePathRefusal,
+  storePathTakesValue,
   takesNextToken,
   type CommandRow,
   type ParseRefusal,
@@ -532,13 +533,26 @@ describe('takesNextToken (phase B pairs a value-taking flag with its value)', ()
   test("a row's and its named subcommand's space-form value flags, and --store-path", () => {
     const store = commandRow('store')!
     const setup = store.subcommands!.find((s) => s.name === 'setup')!
-    expect(takesNextToken([commandRow('status')!], '--change')).toBe(true)
-    expect(takesNextToken([store], '--path')).toBe(false)
-    expect(takesNextToken([store, setup], '--path')).toBe(true)
-    expect(takesNextToken([store, setup], '--init-git')).toBe(false)
-    expect(takesNextToken([commandRow('list')!], '--sort')).toBe(true)
-    expect(takesNextToken([commandRow('list')!], '--sort=x')).toBe(false)
-    expect(takesNextToken([], '--store-path')).toBe(true)
+    expect(takesNextToken([commandRow('status')!], '--change', true)).toBe(true)
+    expect(takesNextToken([store], '--path', false)).toBe(false)
+    expect(takesNextToken([store, setup], '--path', false)).toBe(true)
+    expect(takesNextToken([store, setup], '--init-git', false)).toBe(false)
+    expect(takesNextToken([commandRow('list')!], '--sort', true)).toBe(true)
+    expect(takesNextToken([commandRow('list')!], '--sort=x', true)).toBe(false)
+    expect(takesNextToken([], '--store-path', true)).toBe(true)
+    expect(takesNextToken([], '--store-path', false)).toBe(false)
+  })
+
+  test('--store-path takes a value on every table row, and forward rows only where upstream declares it', () => {
+    const forward = COMMAND_TABLE.filter((row) => row.parse === 'forward')
+    expect(
+      forward
+        .filter(storePathTakesValue)
+        .map((row) => row.name)
+        .toSorted(),
+    ).toEqual(['schemas', 'show'])
+    for (const row of COMMAND_TABLE)
+      if (row.parse === 'table') expect(storePathTakesValue(row), row.name).toBe(true)
   })
 })
 

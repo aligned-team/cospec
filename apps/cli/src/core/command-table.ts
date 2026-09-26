@@ -116,6 +116,14 @@ export type TableCommandRow = RowBase & {
 
 export interface ForwardCommandRow extends RowBase {
   readonly parse: 'forward'
+  /**
+   * The same-named upstream command declares the hidden `--store-path <path>`
+   * (upstream's `list`, `view`, `archive`, `validate`, `show`, `status`,
+   * `instructions`, `schemas`, `new change`, `context`, `doctor`), so the
+   * token after it is its value. Elsewhere upstream refuses it as an unknown
+   * option that takes nothing, and a help flag after it is help.
+   */
+  readonly declaresStorePath?: true
 }
 
 export type CommandRow = TableCommandRow | ForwardCommandRow
@@ -651,6 +659,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     summary: 'Show a change or spec (text or JSON)',
     hidden: false,
     parse: 'forward',
+    declaresStorePath: true,
     positionals: [upstreamArg({ name: 'item', required: true })],
     flags: [
       upstream({
@@ -706,6 +715,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     summary: 'List resolvable schemas',
     hidden: false,
     parse: 'forward',
+    declaresStorePath: true,
     positionals: [],
     flags: [],
   },
@@ -1266,16 +1276,26 @@ export function storePathRefusal(json: boolean): {
 }
 
 /**
+ * Whether `--store-path` takes the next token as its value on `row`: on every
+ * `table` row, whose parser answers it with the redirect (design decision 2),
+ * and on a `forward` row only where upstream declares it.
+ */
+export function storePathTakesValue(row: CommandRow): boolean {
+  return row.parse === 'table' || row.declaresStorePath === true
+}
+
+/**
  * Whether `tok` is the space form of a value-taking flag declared on one of
- * `surfaces` (a row and, once named, its subcommand), or `--store-path`, which
- * upstream declares on every command: commander takes the next token as its
+ * `surfaces` (a row and, once named, its subcommand), or `--store-path` where
+ * `storePath` says it takes a value: commander takes the next token as its
  * value whatever it looks like — a help flag, a global, `--`.
  */
 export function takesNextToken(
   surfaces: readonly { readonly flags: readonly FlagSpec[] }[],
   tok: string,
+  storePath: boolean,
 ): boolean {
-  if (tok === '--store-path') return true
+  if (tok === '--store-path') return storePath
   return surfaces.some((surface) =>
     surface.flags.some((f) => f.takesValue === true && (f.name === tok || f.short === tok)),
   )

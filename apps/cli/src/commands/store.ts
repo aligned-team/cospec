@@ -19,7 +19,7 @@ import { join } from 'node:path'
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { commandRow, parseCommandArgs, takesNextToken } from '../core/command-table.ts'
-import { isParseRejection, relayStorePathRefusal } from '../core/forward-relay.ts'
+import { isParseRejection, relayStorePathRefusal, subcommandOf } from '../core/forward-relay.ts'
 import {
   OpenspecCallError,
   openspecStoreList,
@@ -120,7 +120,8 @@ function stripFlag(
       continue
     }
     rest.push(tok)
-    if (i + 1 < args.length && takesNextToken(surface === undefined ? [] : [surface], tok))
+    // Upstream `store` declares no `--store-path`, so it never takes a value here.
+    if (i + 1 < args.length && takesNextToken(surface === undefined ? [] : [surface], tok, false))
       rest.push(args[++i]!)
   }
   return { rest, present }
@@ -483,7 +484,7 @@ async function runDoctor(ctx: CommandContext, rawArgs: string[]): Promise<number
 // --- entrypoint --------------------------------------------------------
 
 export async function run(ctx: CommandContext): Promise<number> {
-  const [sub, ...rest] = ctx.args
+  const { sub, rest } = subcommandOf(ctx.args)
   if (!isSubcommand(sub)) {
     process.stderr.write(
       `cospec store: unknown subcommand '${sub ?? ''}'. Subcommands: ${SUBCOMMANDS.join(', ')}\n`,

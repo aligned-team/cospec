@@ -40,7 +40,13 @@ import { join } from 'node:path'
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { commandRow, storePathInOptionPosition, storePathRefusal } from '../core/command-table.ts'
-import { forwardCall, relayStorePathRefusal } from '../core/forward-relay.ts'
+import {
+  forwardCall,
+  isOptionToken,
+  relayCommandLevel,
+  relayStorePathRefusal,
+  subcommandOf,
+} from '../core/forward-relay.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
 import {
   passthroughOpenspec,
@@ -86,7 +92,18 @@ export interface ConfigPlanError {
   message: string
 }
 
-export type ConfigPlan = ConfigCall | ConfigPlanError
+/**
+ * An option where the subcommand belongs (`config --bogus path`): the binary
+ * refuses it at the `config` level, so the call is relayed as-is.
+ */
+export interface ConfigCommandLevel {
+  kind: 'command-level'
+  /** `config` plus the lifted `--scope <s>`. */
+  command: string[]
+  args: string[]
+}
+
+export type ConfigPlan = ConfigCall | ConfigCommandLevel | ConfigPlanError
 
 const SUBS = CONFIG_SUBCOMMANDS.join('|')
 
@@ -99,7 +116,7 @@ function firstPositional(args: string[]): string | undefined {
  * Plan the wrapped call for `cospec config …` (pure, unit-testable).
  *
  * Rules: `--scope <v>` is a parent-command option, so it is lifted out of
- * wherever the caller typed it and re-emitted in its canonical position,
+ * wherever the caller typed it before any `--` and re-emitted in its canonical position,
  * between `config` and the subcommand. (Commander resolves it from the leaf
  * too on 1.11.0, so this is normalization, not a workaround — it keeps one
  * argv shape for every input.) Any value but `global` is upstream's error to
@@ -112,6 +129,11 @@ export function planConfigCall(args: string[], opts: { json: boolean }): ConfigP
   const rest: string[] = []
   for (let i = 0; i < args.length; i++) {
     const tok = args[i]!
+    // Past a `--` every token is an operand, `--scope` included.
+    if (tok === '--') {
+      rest.push(...args.slice(i))
+      break
+    }
     if (tok === '--scope') {
       const value = args[++i]
       if (value === undefined)
@@ -129,14 +151,15 @@ export function planConfigCall(args: string[], opts: { json: boolean }): ConfigP
     rest.push(tok)
   }
 
-  const sub = rest[0]
+  const { sub, rest: subArgs, operand } = subcommandOf(rest)
   if (sub === undefined)
     return { kind: 'error', message: `cospec config: a subcommand is required (${SUBS})` }
+  const scopeArgs = scope === undefined ? [] : ['--scope', scope]
+  if (!operand && isOptionToken(sub))
+    return { kind: 'command-level', command: ['config', ...scopeArgs], args: rest }
   if (!isConfigSub(sub))
     return { kind: 'error', message: `cospec config: unknown subcommand '${sub}' (${SUBS})` }
 
-  const subArgs = rest.slice(1)
-  const scopeArgs = scope === undefined ? [] : ['--scope', scope]
   const threaded = opts.json && sub === 'list' ? ['--json'] : []
   const wrapped: WrappedCall = { command: ['config', ...scopeArgs, sub], threaded, args: subArgs }
   const argv = threadedArgv(wrapped.command, threaded, subArgs)
@@ -339,5 +362,6 @@ export async function run(ctx: CommandContext): Promise<number> {
     process.stderr.write(`${plan.message}\n`)
     return EXIT.failure
   }
+  if (plan.kind === 'command-level') return relayCommandLevel(ctx, plan.command, plan.args)
   return plan.kind === 'handover' ? runHandover(ctx, plan) : runPiped(ctx, plan)
 }

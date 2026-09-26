@@ -14,6 +14,7 @@
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { isCospecType } from '../core/change.ts'
+import { isOptionToken, relayCommandLevel, subcommandOf } from '../core/forward-relay.ts'
 import { runPassthrough } from '../core/passthrough-command.ts'
 
 const WRAPPED_SUBCOMMANDS = new Set(['which', 'validate', 'fork', 'init'])
@@ -55,12 +56,14 @@ function destinationName(sub: string, rest: string[]): string | undefined {
 }
 
 export function run(ctx: CommandContext): Promise<number> {
-  const [sub, ...rest] = ctx.args
+  const { sub, rest, operand } = subcommandOf(ctx.args)
 
   if (sub === undefined) {
     process.stderr.write("cospec schema: missing subcommand — expected 'which' or 'validate'\n")
     return Promise.resolve(EXIT.failure)
   }
+
+  if (!operand && isOptionToken(sub)) return relayCommandLevel(ctx, ['schema'], ctx.args)
 
   if (!WRAPPED_SUBCOMMANDS.has(sub)) {
     process.stderr.write(`cospec: unknown 'schema' subcommand '${sub}'\n`)

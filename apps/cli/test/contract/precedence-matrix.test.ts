@@ -641,6 +641,11 @@ const FORWARD_GUARD_ROWS: readonly Row[] = [
   { argv: ['workset', 'list', '--store-path', '-h'], command: 'workset' },
   { argv: ['store', 'list', '--store-path', '-h'], command: 'store' },
   { argv: ['templates', '--store-path', '-h'], command: 'templates' },
+  // Past a `--` every token is an operand: `--scope` is not lifted, and an
+  // option-like operand in subcommand position is an unknown subcommand.
+  { argv: ['--', 'config', '--scope', 'global'], command: 'config' },
+  { argv: ['config', 'path', '--', '--scope', 'global'], command: 'config' },
+  { argv: ['--', 'schema', '--bogus'], command: 'schema' },
 ]
 
 /**
@@ -894,22 +899,6 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * failure). The fixes empty this set.
  */
 const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  'config --bogus',
-  'config --bogus path',
-  'config --scope global --bogus list',
-  'schema --bogus',
-  'workset --bogus',
-  'config --store-path /x',
-  'config --store-path /x path',
-  'schema --store-path',
-  'workset --store-path /x',
-  'workset --store-path -h',
-  'config --store-path -h',
-  'config path --store-path -h',
-  'schema which --store-path -h',
-  'workset list --store-path -h',
-  'store list --store-path -h',
-  'templates --store-path -h',
   'status --change -- --json',
   'status --change nope --json',
   'status nope --json',

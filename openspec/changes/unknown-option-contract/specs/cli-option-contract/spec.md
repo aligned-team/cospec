@@ -394,7 +394,10 @@ binary as commander's missing value (or, for a flag the wrapper lifts itself,
 `config --scope`, SHALL be refused in the same
 `cospec <command>: option '<flag> <placeholder>' argument missing` form), and
 `show`'s item check SHALL treat an option `show` does not declare as the item,
-as the binary does.
+as the binary does. An option where a forwarded command's subcommand belongs
+SHALL reach the binary at the command's level, never be refused as an unknown
+subcommand, and a help flag after a `--store-path` the upstream command does not
+declare SHALL print cospec's help, never be taken as its value.
 
 #### Scenario: A dangling value-taking flag is never given a threaded flag
 
@@ -421,6 +424,15 @@ as the binary does.
   `cospec config: option '--scope <scope>' argument missing`) and the exit code
   is 1, as `openspec` refuses the same argv — never cospec's item-name or
   `requires a value` message
+
+#### Scenario: An option before a forwarded subcommand is the binary's to refuse
+
+- **WHEN** `cospec config --bogus path` or `cospec config --store-path /x` runs
+- **THEN** the refusal is the binary's unknown option (`--bogus`), or cospec's
+  `--store-path` redirect, exit 1 — never `unknown subcommand`
+- **AND WHEN** `cospec workset --store-path -h` runs
+- **THEN** stdout is cospec's `workset` help and the exit code is 0, as
+  `openspec workset --store-path -h` prints its help
 
 #### Scenario: Upstream's tolerance is preserved on a forwarded command
 
