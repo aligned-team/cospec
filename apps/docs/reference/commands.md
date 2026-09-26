@@ -179,8 +179,9 @@ doesn't have the same way OpenSpec does — a refusal, exit `1` — instead of
 silently dropping it, which used to hand the flag's value to a positional
 (`cospec validate --type change x` validated an item literally named `change`).
 One command table (`core/command-table.ts`) drives argv parsing, per-command
-`--help`, and the shell completion spec together, so the three can't drift
-apart. Four refusal shapes, all exit `1`:
+`--help`, and the shell completion spec together, so the three can't drift apart
+— a command that refuses `--store` neither lists it in its `--help` nor
+completes it after its name. Four refusal shapes, all exit `1`:
 
 - **Unknown flag:** `cospec <command>: unknown option '<flag>'`, followed by
   `Did you mean '<closest-flag>'?` when one is close enough.
@@ -230,10 +231,14 @@ Fix: cospec store register <path>, then rerun with --store <id>.
 Under `--json`, that's one document on stdout instead of stderr text:
 `{"status":[{"severity":"error","code":"store_path_not_supported","message":"…","target":"store.id","fix":"…"}]}`.
 After the command name, the space form takes the next token as its value
-whatever it looks like, as OpenSpec does: `cospec list --store-path --json`
-prints the text redirect (`--json` is the path, so no document), and
-`cospec show c1 --store-path --help` the redirect, not help. Before the command
-name it takes no value, so `cospec --store-path --help list` prints the help.
+whatever it looks like, as OpenSpec does — on every table-parsed command, and on
+`show` and `schemas`, the forwarded commands OpenSpec declares it on:
+`cospec list --store-path --json` prints the text redirect (`--json` is the
+path, so no document), and `cospec show c1 --store-path --help` the redirect,
+not help. On `config`, `schema`, `workset`, `store` and `templates` OpenSpec
+does not declare it, so it takes no value there and a help flag after it prints
+the help (`cospec workset list --store-path -h`). Before the command name it
+takes no value either, so `cospec --store-path --help list` prints the help.
 Register the path with `cospec store register <path>` and select it with
 `--store <id>` — see [Stores](/concepts/stores).
 
@@ -246,8 +251,14 @@ verbatim. The flags cospec adds to the call (`--json`, `--no-color`,
 `--store <id>`) go right after the command, ahead of your own tokens, so they
 never become the value of an option you left without one:
 `cospec store setup s1 --path` is refused with OpenSpec's
-`option '--path <path>' argument missing` and writes nothing. `openspec show`
-itself accepts an unrecognized flag by design (`allowUnknownOption(true)`), so a
+`option '--path <path>' argument missing` and writes nothing. The pre-spawn
+guards answer only what OpenSpec would not: an option where a subcommand belongs
+(`cospec config --bogus path`, `cospec schema --bogus`) reaches OpenSpec, which
+refuses it as an unknown option, not an unknown subcommand, and
+`cospec show --bogus` or `cospec show --type` gets OpenSpec's own answer
+(`Unknown item '--bogus'.`, `option '--type <type>' argument missing`); only a
+`show` with no item at all gets cospec's item-name error. `openspec show` itself
+accepts an unrecognized flag by design (`allowUnknownOption(true)`), so a
 cospec-side rejection there would be the divergence from upstream, not a fix for
 one; the same forwarding lets a newer in-range OpenSpec's new flag keep working
 immediately instead of failing until cospec's table catches up.
