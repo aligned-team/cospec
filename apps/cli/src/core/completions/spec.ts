@@ -12,7 +12,13 @@
 // drift apart (change `unknown-option-contract`; see the three-way parity
 // test in `completions.test.ts`).
 
-import { COMMAND_TABLE, type FlagSpec, GLOBAL_FLAGS, offeredFlags } from '../command-table.ts'
+import {
+  COMMAND_TABLE,
+  type FlagSpec,
+  GLOBAL_FLAGS,
+  offeredFlags,
+  rowGlobalFlags,
+} from '../command-table.ts'
 
 /** A completion source resolved at Tab time by the hidden `cospec __complete`. */
 export type DynamicSource = 'changes' | 'specs' | 'types'
@@ -26,10 +32,17 @@ export interface CompletionCommand {
   positional: DynamicSource[]
   /** Flags whose VALUE is dynamically completed (e.g. `--change <slug>`). */
   flagValues: Record<string, DynamicSource>
+  /**
+   * The global flags offered after the command's name: its row's accepted
+   * globals (`rowGlobalFlags`, so no `--store` on a `store: 'refused'` row)
+   * plus `-V`/`--version`.
+   */
+  globalFlags: string[]
 }
 
 export interface CompletionSpec {
   commands: CompletionCommand[]
+  /** Every global flag, offered before the command name. */
   globalFlags: string[]
 }
 
@@ -82,6 +95,12 @@ export function buildCompletionSpec(): CompletionSpec {
     flags: offeredFlagTokens(row.flags),
     positional: POSITIONAL[row.name] ?? [],
     flagValues: FLAG_VALUES[row.name] ?? {},
+    globalFlags: [...offeredFlagTokens(rowGlobalFlags(row)), '-V', '--version'],
   }))
   return { commands, globalFlags }
+}
+
+/** The commands whose post-name global flags differ from the program's. */
+export function narrowedGlobals(spec: CompletionSpec): CompletionCommand[] {
+  return spec.commands.filter((c) => c.globalFlags.join(' ') !== spec.globalFlags.join(' '))
 }

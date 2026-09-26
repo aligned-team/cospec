@@ -13,9 +13,13 @@ import {
   isPending,
   offeredFlags,
   parseCommandArgs,
+  rowGlobalFlags,
   type TableCommandRow,
 } from '../../../src/core/command-table.ts'
+import { renderBashCompletion } from '../../../src/core/completions/bash.ts'
+import { renderFishCompletion } from '../../../src/core/completions/fish.ts'
 import { buildCompletionSpec, offeredFlagTokens } from '../../../src/core/completions/spec.ts'
+import { renderZshCompletion } from '../../../src/core/completions/zsh.ts'
 
 /** Capture `run()`'s stdout for a `--help` invocation. */
 async function helpOutput(command: string): Promise<string> {
@@ -142,6 +146,17 @@ describe('three-way parity: --help flags == completion flags == parser-accepted 
       expect(completionLong).toEqual(expectedLong)
     })
 
+    test(`${row.name}: completion and --help offer exactly the globals the row accepts`, async () => {
+      const accepted = rowGlobalFlags(row).map((flag) => flag.name)
+      const completionCmd = spec.commands.find((c) => c.name === row.name)!
+      expect(completionCmd.globalFlags.filter((t) => t.startsWith('--'))).toEqual([
+        ...accepted,
+        '--version',
+      ])
+      const help = await helpOutput(row.name)
+      expect(help.includes('--store <id>')).toBe(accepted.includes('--store'))
+    })
+
     test(`${row.name}: --help lists every offered flag and no pending one`, async () => {
       const help = await helpOutput(row.name)
       for (const flag of offeredFlags(row)) expect(help).toContain(flag.name)
@@ -149,6 +164,17 @@ describe('three-way parity: --help flags == completion flags == parser-accepted 
       for (const flag of pendingFlags) expect(help).not.toContain(flag.name)
     })
   }
+
+  test('a row that refuses --store is offered none after its name, in every shell', () => {
+    expect(spec.commands.find((c) => c.name === 'init')!.globalFlags).not.toContain('--store')
+    expect(spec.commands.find((c) => c.name === 'list')!.globalFlags).toContain('--store')
+    expect(spec.globalFlags).toContain('--store')
+    expect(renderBashCompletion(spec)).toMatch(/ {4}init\)\n {6}globals='[^']*'/)
+    expect(renderZshCompletion(spec)).toMatch(/ {4}init\)\n {6}global_flags=\(/)
+    expect(renderFishCompletion(spec)).toContain(
+      "complete -c cospec -n 'not __fish_seen_subcommand_from init update completion feedback' -l store",
+    )
+  })
 
   // The parser only exists on `table` rows — a `forward` row hands its argv to
   // the wrapped binary untouched, so cospec never accepts or rejects it there.

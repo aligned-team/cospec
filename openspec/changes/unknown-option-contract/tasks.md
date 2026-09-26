@@ -371,11 +371,12 @@ red; 4–7 turn it green; 8 documents it.
       `feedback`, `check-commit`) keep a post-command `--store` in the argv for
       the table parser to refuse as an unknown option (never suggesting
       `--store` itself), refuse a program-level `--store` with the row's other
-      parse refusals, and omit `--store` from their `--help` (`rowGlobalFlags`);
-      a unit test derives the marking from each module's source; `new`'s store
-      hint names `cospec init <store-path>`; matrix rows, design decision 10, a
-      spec scenario, `reference/commands.md` and the BREAKING paragraph (ledger
-      1.29)
+      parse refusals, and omit `--store` from their `--help` and from the
+      globals bash, zsh and fish complete after the command name
+      (`rowGlobalFlags`); a unit test derives the marking from each module's
+      source; `new`'s store hint names `cospec init <store-path>`; matrix rows,
+      design decision 10, a spec scenario, `reference/commands.md` and the
+      BREAKING paragraph (ledger 1.29)
 - [x] 10.30 `parse: 'forward'` is the marker the reachability test reads: a
       forward row's flags and positionals resolve by delegation to the binary, a
       separate check keeps their declarations complete at the pin and bars a

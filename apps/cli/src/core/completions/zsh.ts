@@ -4,7 +4,7 @@
 // function is far easier to keep parseable under `zsh -n`.
 
 import { escapeSingleQuoted } from './bash.ts'
-import type { CompletionSpec } from './spec.ts'
+import { type CompletionSpec, narrowedGlobals } from './spec.ts'
 
 /** `_describe` entries are `name:description`, so a literal colon must escape. */
 function describeEntry(name: string, summary: string): string {
@@ -23,6 +23,14 @@ export function renderZshCompletion(spec: CompletionSpec): string {
     .filter((c) => c.flags.length > 0)
     .map((c) =>
       caseArm(c.name, [`flags=(${c.flags.map((f) => `'${escapeSingleQuoted(f)}'`).join(' ')})`]),
+    )
+    .join('\n')
+
+  const globalArms = narrowedGlobals(spec)
+    .map((c) =>
+      caseArm(c.name, [
+        `global_flags=(${c.globalFlags.map((f) => `'${escapeSingleQuoted(f)}'`).join(' ')})`,
+      ]),
     )
     .join('\n')
 
@@ -89,6 +97,9 @@ ${flagValueArms}
     flags=()
     case $cmd in
 ${flagArms}
+    esac
+    case $cmd in
+${globalArms}
     esac
     compadd -a flags
     compadd -a global_flags
