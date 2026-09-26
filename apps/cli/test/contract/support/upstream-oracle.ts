@@ -49,7 +49,8 @@ export interface OracleJsonRun {
 /**
  * The environment every oracle run (and a cospec run that must match it) uses
  * for `root`: color forcing stripped, `NO_COLOR=1`, `OPENSPEC_TELEMETRY=0`, and
- * HOME plus the XDG config/data/cache dirs redirected under `root/.oracle-home`.
+ * HOME, the XDG config/data/state/cache dirs, CODEX_HOME and ZDOTDIR redirected
+ * under `root/.oracle-home`, and `EDITOR`/`VISUAL` set to `true`.
  * Exported so a differential test can hand cospec the identical environment.
  */
 export function oracleEnv(root: string): Record<string, string> {
@@ -58,13 +59,20 @@ export function oracleEnv(root: string): Record<string, string> {
     HOME: home,
     XDG_CONFIG_HOME: join(home, '.config'),
     XDG_DATA_HOME: join(home, '.local', 'share'),
+    XDG_STATE_HOME: join(home, '.local', 'state'),
     XDG_CACHE_HOME: join(home, '.cache'),
+    CODEX_HOME: join(home, '.codex'),
+    ZDOTDIR: home,
   }
   for (const dir of Object.values(dirs)) mkdirSync(dir, { recursive: true })
   return {
     ...envWithoutColorForcing(),
     NO_COLOR: '1',
     OPENSPEC_TELEMETRY: '0',
+    // A terminal-handover leaf (`config edit`) that does run must return at
+    // once and edit nothing, never open a real editor on the test machine.
+    EDITOR: 'true',
+    VISUAL: 'true',
     ...dirs,
   }
 }

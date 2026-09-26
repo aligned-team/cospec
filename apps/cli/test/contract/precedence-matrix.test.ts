@@ -34,7 +34,7 @@
 // consulting the binary.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { cpSync, readFileSync } from 'node:fs'
+import { cpSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { parse } from 'yaml'
@@ -80,9 +80,29 @@ interface Row {
     upstream: { outcome: Outcome; exit: number }
     cospec: { outcome: Outcome; exit: number }
   }
+  /** Asserts what a run left behind (or printed), for each tool that ran the row. */
+  check?: (tool: 'cospec' | 'openspec', root: string, run: SpawnResult) => void
 }
 
 const REDIRECT = '--store-path is not supported. Register the path with cospec store register'
+const UPSTREAM_REDIRECT = 'openspec store register'
+
+/** The schema `schema init s1` writes: it ran, in both tools. */
+function schemaCreated(tool: string, root: string): void {
+  expect(existsSync(join(root, 'openspec', 'schemas', 's1', 'schema.yaml')), tool).toBe(true)
+}
+
+/** `config edit` with `EDITOR=true` writes the config file; a refusal leaves none. */
+function nothingEdited(tool: string, root: string): void {
+  const config = join(root, '.oracle-home', '.config', 'openspec', 'config.json')
+  expect(existsSync(config), `${tool} edited ${config}`).toBe(false)
+}
+
+/** Exactly one JSON document whose `status[0]` is the store-path redirect. */
+function storePathDocument(tool: string, _root: string, run: SpawnResult): void {
+  const doc = JSON.parse(run.stdout) as { status: { code: string }[] }
+  expect(doc.status[0]?.code, tool).toBe('store_path_not_supported')
+}
 const unknownOption = (option: string): string => `cospec: unknown option '${option}'\n`
 
 // Targets: `list` is a table row, `show` a forward row, `config`/`schema`/
@@ -129,6 +149,8 @@ const HELP_ROWS: readonly Row[] = [
   // A missing value is raised while the command parses, before help.
   { argv: ['list', '--help', '--store'], command: 'list' },
   { argv: ['status', '--help', '--change'], command: 'status' },
+  // An unknown option earlier in the argv is only reported after the scan.
+  { argv: ['status', '--help', '--bogus', '--change'], command: 'status' },
   // Help outranks the command's unknown option and excess operand.
   { argv: ['list', '--bogus', '--help'], command: 'list' },
   { argv: ['list', 'a', '--help'], command: 'list' },
@@ -201,6 +223,32 @@ const STORE_PATH_ROWS: readonly Row[] = [
   { argv: ['config', 'path', '--bogus', '--store-path', '/x'], command: 'config' },
   // After a leading `--` it is config's unknown subcommand, not an option.
   { argv: ['--', 'config', '--store-path', '/x'], command: 'config' },
+  // In a value position `--store-path` is that flag's value: the command runs.
+  {
+    argv: ['schema', 'init', 's1', '--description', '--store-path'],
+    command: 'schema',
+    check: schemaCreated,
+  },
+  { argv: ['show', '--type', '--store-path', 'c1'], command: 'show' },
+  // `show` allows unknown options, so the binary's own redirect answers.
+  { argv: ['show', '--bogus', '--store-path', '/x'], command: 'show', cospecStderr: REDIRECT },
+  {
+    argv: ['show', 'c1', '--store-path', '/x', '--json'],
+    command: 'show',
+    check: storePathDocument,
+  },
+  // A terminal-handover leaf: the redirect, and the editor never runs.
+  {
+    argv: ['config', 'edit', '--store-path', '/x'],
+    command: 'config',
+    cospecStderr: REDIRECT,
+    check: nothingEdited,
+  },
+  // Commander raises a trailing missing value during the scan, ahead of an
+  // unknown option or a pending flag it collected earlier, and ahead of help.
+  { argv: ['list', '--bogus', '--store-path'], command: 'list', cospecStderr: REDIRECT },
+  { argv: ['list', '--help', '--bogus', '--store-path'], command: 'list', cospecStderr: REDIRECT },
+  { argv: ['list', '--sort', 'x', '--store-path'], command: 'list', cospecStderr: REDIRECT },
 ]
 
 const TERMINATOR_ROWS: readonly Row[] = [
@@ -343,6 +391,13 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
     cospecStderr: "cospec show: option '--cwd <path>' argument missing\n",
   },
   { argv: ['--json', 'list'], command: 'list', cospecOnly: { outcome: 'parsed', exit: 0 } },
+  // `--cwd` takes the next token whatever it is: `--store-path` is its value
+  // (a directory that does not exist), so `list` runs there and fails.
+  {
+    argv: ['--cwd', '--store-path', 'list'],
+    command: 'list',
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+  },
   {
     argv: ['--store-path', '/x', 'list', '--json'],
     command: 'list',
@@ -366,12 +421,21 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * cospec-only outcome, keyed by argv, run as `test.failing` until fixed. The
  * refusal-kind comparison exposed 17 (the `--store-path` ordering and phase
  * B's routing of `help` after a global and of a `--` after the command name);
- * the fixes empty this set.
+ * the value-position and scan-order rows exposed 5 more (a forward row's
+ * pre-decided `--store-path`, and the table parser stopping at the first
+ * unknown option or pending flag). The fixes empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
+  'schema init s1 --description --store-path',
+  'list --bogus --store-path',
+  'list --help --bogus --store-path',
+  'list --sort x --store-path',
+  'status --help --bogus --change',
+])
 
 async function checkRow(row: Row): Promise<void> {
-  const co = await runCospec(row.argv, freshRoot())
+  const coRoot = freshRoot()
+  const co = await runCospec(row.argv, coRoot)
   const coOutcome = outcome(co, row.command, row.argv)
   const detail = `cospec exit ${co.exitCode}\nstdout: ${co.stdout.slice(0, 200)}\nstderr: ${co.stderr.slice(0, 300)}`
   if (row.cospecOnly !== undefined) {
@@ -383,14 +447,19 @@ async function checkRow(row: Row): Promise<void> {
     )
     expect({ outcome: coOutcome, exit: co.exitCode }, detail).toEqual(row.pending.cospec)
   } else {
-    const up = await runUpstream(row.argv, freshRoot())
+    const upRoot = freshRoot()
+    const up = await runUpstream(row.argv, upRoot)
     const upDetail = `openspec exit ${up.exitCode}\nstdout: ${up.stdout.slice(0, 200)}\nstderr: ${up.stderr.slice(0, 300)}`
     expect({ outcome: coOutcome, exit: co.exitCode }, `${detail}\n${upDetail}`).toEqual({
       outcome: outcome(up, row.command, row.argv),
       exit: up.exitCode,
     })
+    row.check?.('openspec', upRoot, up)
   }
+  row.check?.('cospec', coRoot, co)
   if (row.cospecStderr !== undefined) expect(co.stderr, detail).toContain(row.cospecStderr)
+  // A relayed upstream answer never ships its bare `openspec` remedy.
+  expect(co.stdout + co.stderr, detail).not.toContain(UPSTREAM_REDIRECT)
 }
 
 function register(rows: readonly Row[]): void {
