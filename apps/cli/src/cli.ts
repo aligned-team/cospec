@@ -494,6 +494,9 @@ export async function run(argv: string[]): Promise<number> {
     if (tok === '--json') flags.json = true
     else if (tok === '--no-color') flags.noColor = true
     else if (tok === '--help' || tok === '-h') wantHelp = true
+    // Upstream's commander honours the program-level `-V, --version` after any
+    // subcommand (up to a `--` terminator), so cospec does too.
+    else if ((tok === '--version' || tok === '-V') && !rest.includes('--')) wantVersion = true
     else if (tok === '--cwd') cwdRaw = argv[++i]
     else if (tok.startsWith('--cwd=')) cwdRaw = tok.slice('--cwd='.length)
     else if (tok === '--store') storeRaw = argv[++i]
@@ -511,17 +514,20 @@ export async function run(argv: string[]): Promise<number> {
   if (storeRaw !== undefined && storeRaw.length > 0) flags.store = storeRaw
   if (flags.noColor) process.env.NO_COLOR = '1'
 
-  if (storePath && !wantHelp && !wantVersion) {
+  // Upstream answers a version request before anything else in the argv —
+  // help, an unknown option, `--store-path`, or the command itself.
+  if (wantVersion) {
+    process.stdout.write(`${pkg.version}\n`)
+    return EXIT.success
+  }
+
+  if (storePath && !wantHelp) {
     const refusal = storePathRefusal(flags.json)
     process[refusal.stream].write(refusal.text)
     return EXIT.failure
   }
 
   if (command === undefined) {
-    if (wantVersion) {
-      process.stdout.write(`${pkg.version}\n`)
-      return EXIT.success
-    }
     if (badOption !== undefined) {
       process.stderr.write(`cospec: unknown option '${badOption}'\n`)
       process.stderr.write(helpText())

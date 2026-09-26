@@ -31,6 +31,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { cpSync } from 'node:fs'
 import { join } from 'node:path'
 
+import pkg from '../../package.json'
 import { COMMAND_TABLE } from '../../src/core/command-table.ts'
 import { cleanupAll, cospec, hashTree, mkTempRepo, type SpawnResult } from '../fixtures/support.ts'
 import { oracle, oracleEnv, oracleJson, scaffoldOracleRoot } from './support/upstream-oracle.ts'
@@ -577,6 +578,51 @@ describe('unknown-option differential: --store-path is refused with the redirect
     expect(coDoc.status[0]!['code']).toBe('store_path_not_supported')
     expect(coDoc.status[0]!['target']).toBe('store.id')
     expect(co.stdout).not.toContain('openspec')
+  }, 30_000)
+})
+
+// --- -V/--version in any position ---------------------------------------------------
+
+describe('unknown-option differential: -V/--version is honoured in any position', () => {
+  // Upstream's program-level `-V, --version` wins after any subcommand, over
+  // help, an unknown option and `--store-path`; each tool prints its own
+  // version, exits 0, and does no work.
+  for (const argv of [
+    ['list', '--version'],
+    ['list', '-V'],
+    ['validate', 'x', '--version'],
+    ['status', '-V'],
+    ['view', '--version'],
+    ['archive', 'x', '-V'],
+    ['show', 'x', '--version'],
+    ['--version', 'list'],
+    ['list', '--bogus', '--version'],
+    ['list', '--help', '-V'],
+    ['list', '--json', '--version'],
+    ['list', '--store-path', '/x', '--version'],
+  ]) {
+    test(`${argv.join(' ')} prints the version and exits 0 in both tools`, async () => {
+      const root = freshRoot()
+      const before = treeHash(root)
+      const co = await runCospec(argv, root)
+      const up = await oracle(argv, freshRoot())
+      expect(up.exitCode, up.stderr).toBe(0)
+      expect(up.stdout).toMatch(/^\d+\.\d+\.\d+\n$/)
+      expect(co.exitCode, co.stderr).toBe(0)
+      expect(co.stdout).toBe(`${pkg.version}\n`)
+      expect(co.stderr).toBe('')
+      expect(treeHash(root)).toEqual(before)
+    }, 30_000)
+  }
+
+  test('a --version after a -- terminator is an operand, not a version request', async () => {
+    const argv = ['list', '--', '--version']
+    const co = await runCospec(argv, freshRoot())
+    const up = await oracle(argv, freshRoot())
+    expect(up.exitCode).toBe(1)
+    expect(co.exitCode).toBe(1)
+    expect(co.stdout).not.toBe(`${pkg.version}\n`)
+    expect(classify(co, 'list', argv)).toBe(classify(up, 'list', argv))
   }, 30_000)
 })
 

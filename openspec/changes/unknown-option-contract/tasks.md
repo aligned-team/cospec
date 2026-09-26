@@ -171,3 +171,10 @@ red; 4–7 turn it green; 8 documents it.
       and confirm zero remain (ledger 7.6)
 - [ ] 9.3 `mise run cospec -- archive unknown-option-contract` as the last
       commit on the branch
+
+## 10. Review fixes (land before 9.3)
+
+- [x] 10.1 Honour `-V`/`--version` in any position before `--`, ahead of help,
+      unknown options, `--store-path` and dispatch, as upstream's program-level
+      option is; differential rows for the post-command forms; global-flags row
+      in `reference/commands.md` (ledger 1.8)

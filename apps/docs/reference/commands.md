@@ -12,14 +12,14 @@ the table.
 
 ## Global flags
 
-| flag                               | effect                                                                                                 |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `--json`                           | machine-readable output                                                                                |
-| `--no-color`                       | disable ANSI color                                                                                     |
-| `--cwd <path>`                     | run as if invoked from `<path>`                                                                        |
-| `--store <id>`                     | operate against a registered OpenSpec store instead of the local repo — see [Stores](/concepts/stores) |
-| `-h`, `--help`                     | show help for the command                                                                              |
-| `-V`, `--version` (top-level only) | print the installed cospec version                                                                     |
+| flag              | effect                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------ |
+| `--json`          | machine-readable output                                                                                |
+| `--no-color`      | disable ANSI color                                                                                     |
+| `--cwd <path>`    | run as if invoked from `<path>`                                                                        |
+| `--store <id>`    | operate against a registered OpenSpec store instead of the local repo — see [Stores](/concepts/stores) |
+| `-h`, `--help`    | show help for the command                                                                              |
+| `-V`, `--version` | print the installed cospec version and exit — in any position before `--`, ahead of everything else    |
 
 `cospec <command> help` — a bare `help` token immediately after the command name
 — is equivalent to `cospec <command> --help`; it never runs the command.

@@ -81,6 +81,25 @@ ignored.
 - **WHEN** `cospec status --schem custom` runs
 - **THEN** the refusal names `--schema` as the suggestion and exits 1
 
+### Requirement: The global version flag is honoured in any position
+
+cospec SHALL treat `-V` / `--version` as a global flag in any position before a
+`--` terminator, on every command (`table` and `forward` alike), as the pinned
+binary's program-level option is. A version request SHALL print cospec's own
+version on stdout and exit 0, ahead of `--help`, an unknown option, a
+`--store-path` refusal and the command itself, and SHALL do no work.
+
+#### Scenario: A post-command version flag prints the version
+
+- **WHEN** `cospec list --version` or `cospec validate x -V` runs
+- **THEN** stdout is cospec's version, nothing is listed or validated, and the
+  exit code is 0
+
+#### Scenario: A version flag wins over an unknown option
+
+- **WHEN** `cospec list --bogus --version` runs
+- **THEN** stdout is cospec's version and the exit code is 0
+
 ### Requirement: Forwarded commands are declared, not re-parsed
 
 On a command whose parse policy is `forward`, cospec SHALL declare the command's

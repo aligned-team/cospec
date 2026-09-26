@@ -150,8 +150,9 @@ function pendingSub(name: string, summary: string, owner: PendingOwner): Subcomm
 
 /**
  * Flags accepted before or after the command name on every command, stripped
- * by `cli.ts` before a row's parser runs. `-V, --version` is pre-command only
- * and not listed here.
+ * by `cli.ts` before a row's parser runs. `-V, --version` is absorbed in any
+ * position too (it wins over everything else, as upstream's does) but is not
+ * listed here: it is program-level, not a per-command help line.
  */
 export const GLOBAL_FLAGS: readonly FlagSpec[] = [
   upstream({ name: '--json', description: 'Machine-readable output' }),
