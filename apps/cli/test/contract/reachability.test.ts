@@ -885,9 +885,9 @@ function withFlagStatus(path: string[], flag: string, status: SurfaceStatus): Co
 
 describe('reachability: negative cases (ledger 4.1, 4.3, 4.5)', () => {
   test('a flag a forward row stops declaring is still reached, but its help misses it', () => {
-    const table = structuredClone(COMMAND_TABLE) as CommandRow[]
-    const show = table.find((row) => row.name === 'show')!
-    ;(show as { flags: FlagSpec[] }).flags = show.flags.filter((f) => f.name !== '--diff')
+    const table = (structuredClone(COMMAND_TABLE) as CommandRow[]).map((row) =>
+      row.name === 'show' ? { ...row, flags: row.flags.filter((f) => f.name !== '--diff') } : row,
+    )
     expect(checkReachability({ ...model, table })).toEqual([])
     expect(undeclaredOnForwardRows({ ...model, table })).toEqual(['flag `show --diff`'])
   })
