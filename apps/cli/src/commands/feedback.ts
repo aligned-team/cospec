@@ -27,7 +27,7 @@ import pkg from '../../package.json'
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { flagValue, hasFlag, type ParsedArgs } from '../core/command-table.ts'
-import { resolveOpenspec, spawnOpenspec } from '../core/openspec.ts'
+import { resolveOpenspec, spawnOpenspec, threadedArgv } from '../core/openspec.ts'
 
 /** cospec's own tracker (`apps/cli/package.json` `bugs`). */
 export const COSPEC_REPO = 'aligned-team/cospec'
@@ -144,6 +144,20 @@ function jsonEnvelope(body: Record<string, unknown>): string {
   return `${JSON.stringify(body)}\n`
 }
 
+/**
+ * The wrapped `feedback` argv for `--upstream`: `--body <text>` first, then
+ * the message behind a `--`, so a message that looks like an option (from
+ * `cospec feedback --upstream -- --x`) stays the message, as upstream reads
+ * `openspec feedback -- --x`.
+ */
+export function upstreamFeedbackArgv(message: string, body: string | undefined): string[] {
+  return threadedArgv(
+    ['feedback'],
+    [],
+    [...(body !== undefined ? ['--body', body] : []), '--', message],
+  )
+}
+
 /** `--upstream`: version-asserted verbatim relay, exit code included. */
 async function runUpstream(ctx: CommandContext, parsed: ParsedFeedbackArgs): Promise<number> {
   if (ctx.flags.json) {
@@ -163,8 +177,7 @@ async function runUpstream(ctx: CommandContext, parsed: ParsedFeedbackArgs): Pro
   process.stderr.write(
     `note: filing at ${UPSTREAM_REPO} (OpenSpec's tracker), not ${COSPEC_REPO}.\n`,
   )
-  const args = ['feedback', parsed.message!]
-  if (parsed.body !== undefined) args.push('--body', parsed.body)
+  const args = upstreamFeedbackArgv(parsed.message!, parsed.body)
   // Not `passthroughOpenspec`: upstream's feedback command exits with gh's own
   // arbitrary status, which no `exitCodes` allow-list can honestly enumerate.
   // So this is a version-asserted verbatim relay (the `workset open` rule),

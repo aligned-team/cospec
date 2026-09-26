@@ -28,7 +28,13 @@ the table.
 local repo.
 
 Global flags are recognised before the command name and anywhere after it, up to
-a `--` terminator. After `--` every token is an operand of the command, as in
+a `--` terminator — except right after an option that takes a value, where the
+next token is that option's value whatever it looks like, as in OpenSpec:
+`cospec status --change --help` looks up a change named `--help`, and
+`cospec templates --schema --json` asks OpenSpec for a schema named `--json`.
+`--no-color` is the exception, because OpenSpec takes it out before the command
+reads its options: `cospec status --change --no-color` refuses the missing
+`--change` value. After `--` every token is an operand of the command, as in
 OpenSpec: `cospec list -- --json` is refused as too many arguments, not run as
 `list --json`. A `--` before the command name works the same way:
 `cospec -- list` runs `list`, `cospec -- list --help` is refused as too many

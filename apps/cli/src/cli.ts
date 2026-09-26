@@ -20,6 +20,7 @@ import {
   storePathRefusal,
   type SubcommandSpec,
   jsonRefusal,
+  takesNextToken,
 } from './core/command-table.ts'
 
 /** Global flags accepted before or after the subcommand on every command. */
@@ -368,6 +369,32 @@ function routeOperands(row: CommandRow, operands: readonly string[], rest: strin
   return false
 }
 
+/**
+ * `tokens` (the argv after the command name) without the tokens upstream's
+ * program level takes out before the command parses: every `--no-color`
+ * before the first `--` (recorded in `state`), wherever it sits, so it is
+ * never a value-taking flag's value. `-V`/`--version` there never reaches
+ * phase B (`run` answers it first). Past that `--` — which phase B reaches
+ * only as a flag's value — the program level has stopped, so either token is
+ * the command's own, refused as an unknown option like any other.
+ */
+function withoutProgramLevel(tokens: readonly string[], state: GlobalState): string[] {
+  const end = tokens.indexOf('--')
+  return tokens.filter((tok, i) => {
+    if (tok !== '--no-color' || (end !== -1 && i > end)) return true
+    state.noColor = true
+    return false
+  })
+}
+
+/** The surfaces whose value-taking flags phase B pairs with their value. */
+function surfaceOf(
+  row: CommandRow,
+  subcommand: SubcommandSpec | undefined,
+): readonly { readonly flags: readonly FlagSpec[] }[] {
+  return subcommand === undefined ? [row] : [row, subcommand]
+}
+
 /** What phase A hands phase B: the command name and every token after it. */
 interface CommandCall {
   readonly command: string
@@ -417,11 +444,15 @@ function resolveProgram(argv: readonly string[], state: GlobalState): number | C
 }
 
 /**
- * Phase B, the command level: `row`'s own argv. Global flags are absorbed up
- * to a `--`, except a token that is a space-form `--store-path`'s value (kept
- * with it, whatever it looks like); a table row parses the rest, a forward row
- * hands it to its wrapper untouched, `--store-path` included (the binary is
- * its authority there; the wrapper only respells the binary's refusal). Outcomes follow
+ * Phase B, the command level: `row`'s own argv. A `--no-color` before the
+ * first `--` is taken out first, as upstream's program level does, so it is
+ * never a value. Global flags are absorbed up to a `--`, except a token that
+ * is the value of a space-form value-taking flag the row or its named
+ * subcommand declares, `--store-path` included (kept with it, whatever it
+ * looks like — a help flag, a global, `--`); a table row parses the rest, a
+ * forward row hands it to its wrapper untouched, `--store-path` included (the
+ * binary is its authority there; the wrapper only respells the binary's
+ * refusal). Outcomes follow
  * commander's per-level order: a missing value (the global's or the row's
  * own, anywhere in the argv — a trailing `--store-path` answers its redirect
  * here) is raised while the argv parses, then help, then the row's other
@@ -437,23 +468,29 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
   // with subcommands, every token is an operand.
   if (call.terminated) wantHelp = routeOperands(row, call.tokens, rest)
   else {
-    for (let i = 0; i < call.tokens.length; i++) {
-      const tok = call.tokens[i]!
+    const tokens = withoutProgramLevel(call.tokens, state)
+    // The row's surface, plus its subcommand's once the first positional names one.
+    let subcommand: SubcommandSpec | undefined
+    let positionals = 0
+    for (let i = 0; i < tokens.length; i++) {
+      const tok = tokens[i]!
       if (tok === '--') {
         if (rest.length === 0 && (row.subcommands?.length ?? 0) > 0) {
-          wantHelp ||= routeOperands(row, call.tokens.slice(i + 1), rest)
+          wantHelp ||= routeOperands(row, tokens.slice(i + 1), rest)
         } else {
           // `--` stays in the command's argv: the table parser and the wrapped
           // binary both read it as the operand terminator.
-          rest.push(...call.tokens.slice(i))
+          rest.push(...tokens.slice(i))
         }
         break
       }
-      // Like commander, a space-form `--store-path` takes the next token as its
-      // value whatever it looks like, so a global or help flag there is never
-      // absorbed or intercepted: the table parser or the binary gets both.
-      if (tok === '--store-path' && i + 1 < call.tokens.length) {
-        rest.push(tok, call.tokens[++i]!)
+      // Like commander, a space-form value-taking flag the row or its named
+      // subcommand declares (`--store-path` included) takes the next token as
+      // its value whatever it looks like — a help flag, a global, `--` — so it
+      // is never intercepted or absorbed: the table parser or the binary gets
+      // both, and parsing goes on after them.
+      if (i + 1 < tokens.length && takesNextToken(surfaceOf(row, subcommand), tok)) {
+        rest.push(tok, tokens[++i]!)
         continue
       }
       // `cospec <command> help` — `help` as the first token to reach the row,
@@ -464,11 +501,13 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
       if (rest.length === 0 && tok === 'help' && (row.parse === 'table' || hasHelpSubcommand(row)))
         wantHelp = true
       else if (tok === '--json') state.json = true
-      else if (tok === '--no-color') state.noColor = true
       else if (isHelpToken(tok)) wantHelp = true
-      else if (isVersionToken(tok)) continue
-      else if (isGlobalValueToken(tok)) i = takeGlobalValue(call.tokens, i, state)
-      else rest.push(tok)
+      else if (isGlobalValueToken(tok)) i = takeGlobalValue(tokens, i, state)
+      else {
+        if (!isOptionLike(tok) && positionals++ === 0)
+          subcommand = row.subcommands?.find((s) => s.name === tok)
+        rest.push(tok)
+      }
     }
   }
 

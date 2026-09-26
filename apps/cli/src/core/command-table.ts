@@ -1218,6 +1218,22 @@ export function storePathRefusal(json: boolean): {
 }
 
 /**
+ * Whether `tok` is the space form of a value-taking flag declared on one of
+ * `surfaces` (a row and, once named, its subcommand), or `--store-path`, which
+ * upstream declares on every command: commander takes the next token as its
+ * value whatever it looks like — a help flag, a global, `--`.
+ */
+export function takesNextToken(
+  surfaces: readonly { readonly flags: readonly FlagSpec[] }[],
+  tok: string,
+): boolean {
+  if (tok === '--store-path') return true
+  return surfaces.some((surface) =>
+    surface.flags.some((f) => f.takesValue === true && (f.name === tok || f.short === tok)),
+  )
+}
+
+/**
  * Whether `args` (a terminal-handover leaf's own argv, global flags already
  * stripped) carries `--store-path` in option position before any other
  * undeclared option — where the binary refuses it without running the

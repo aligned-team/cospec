@@ -15,6 +15,7 @@ import {
   parseCommandArgs,
   storePathInOptionPosition,
   storePathRefusal,
+  takesNextToken,
   type CommandRow,
   type ParseRefusal,
   type ParseResult,
@@ -490,6 +491,20 @@ describe('--store-path guard', () => {
       target: 'store.id',
       fix: 'cospec store register <path>, then rerun with --store <id>.',
     })
+  })
+})
+
+describe('takesNextToken (phase B pairs a value-taking flag with its value)', () => {
+  test("a row's and its named subcommand's space-form value flags, and --store-path", () => {
+    const store = commandRow('store')!
+    const setup = store.subcommands!.find((s) => s.name === 'setup')!
+    expect(takesNextToken([commandRow('status')!], '--change')).toBe(true)
+    expect(takesNextToken([store], '--path')).toBe(false)
+    expect(takesNextToken([store, setup], '--path')).toBe(true)
+    expect(takesNextToken([store, setup], '--init-git')).toBe(false)
+    expect(takesNextToken([commandRow('list')!], '--sort')).toBe(true)
+    expect(takesNextToken([commandRow('list')!], '--sort=x')).toBe(false)
+    expect(takesNextToken([], '--store-path')).toBe(true)
   })
 })
 

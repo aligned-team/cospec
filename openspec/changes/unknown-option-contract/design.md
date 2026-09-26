@@ -300,9 +300,22 @@ runtime by `dist/commands/spec.js:127`.
     runs `config path`, `config --` is a bare `config`), and a bare `help` is
     the help token when it is the first token to reach the row's argv, after any
     absorbed global flag (`config --no-color help`), not only at the first argv
-    position. No cross-phase priority flag is added for any of these (the
-    routing, the help token, the scan order): each is phase B's own reading of
-    the row's argv. A precedence matrix
+    position. Phase B also keeps a space-form value-taking flag the row declares
+    (or its subcommand declares, once the first positional names one) together
+    with its next token, whatever that token looks like, as commander does:
+    `cospec status --change --help` looks up a change named `--help` and
+    `cospec templates --schema --json` hands both tokens to the binary. Before
+    reading the row's argv it takes out every `--no-color` before the first
+    `--`, because upstream's program level extracts that option wherever it sits
+    before commander dispatches (`openspec status --change --no-color` refuses
+    the missing value); past a `--` a flag took as its value the program level
+    has stopped, so `--no-color` and `--version` there are the command's unknown
+    options. Rejected: a fixed list of global tokens that may never be a value —
+    the binary proves only `--no-color` and the version flags are program-level;
+    `--json`, `--store` and `-h`/`--help` are each command's own and are values
+    there. No cross-phase priority flag is added for any of these (the routing,
+    the help token, the scan order, the value pairs): each is phase B's own
+    reading of the row's argv. A precedence matrix
     (`apps/cli/test/contract/precedence-matrix.test.ts`) runs every row against
     the binary under Node, which keeps a leading `--` intact, and compares a
     finer outcome than decision 7's split (version, whose help, unknown command,

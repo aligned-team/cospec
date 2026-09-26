@@ -18,7 +18,7 @@ import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
-import { commandRow, parseCommandArgs } from '../core/command-table.ts'
+import { commandRow, parseCommandArgs, takesNextToken } from '../core/command-table.ts'
 import { isParseRejection, relayStorePathRefusal } from '../core/forward-relay.ts'
 import {
   OpenspecCallError,
@@ -94,16 +94,34 @@ interface CospecInitSummary {
 
 // --- arg plumbing ------------------------------------------------------
 
-/** Remove every occurrence of `flag` (a bare boolean flag), reporting whether it was present. */
-function stripFlag(args: string[], flag: string): { rest: string[]; present: boolean } {
+/**
+ * Remove every occurrence of `flag` (a bare boolean flag) in option position,
+ * reporting whether it was present. As commander reads the argv, a token that
+ * is the value of one of `sub`'s value-taking flags (`--path --no-cospec-init`
+ * sets the store up at `./--no-cospec-init`) and every token after `--` is
+ * not an option, so it stays for the binary.
+ */
+function stripFlag(
+  sub: Subcommand,
+  args: string[],
+  flag: string,
+): { rest: string[]; present: boolean } {
+  const surface = commandRow('store')?.subcommands?.find((s) => s.name === sub)
   let present = false
   const rest: string[] = []
-  for (const tok of args) {
+  for (let i = 0; i < args.length; i++) {
+    const tok = args[i]!
+    if (tok === '--') {
+      rest.push(...args.slice(i))
+      break
+    }
     if (tok === flag) {
       present = true
       continue
     }
     rest.push(tok)
+    if (i + 1 < args.length && takesNextToken(surface === undefined ? [] : [surface], tok))
+      rest.push(args[++i]!)
   }
   return { rest, present }
 }
@@ -340,7 +358,7 @@ async function runSetupOrRegister(
   sub: 'setup' | 'register',
   rawArgs: string[],
 ): Promise<number> {
-  const { rest, present: noCospecInit } = stripFlag(rawArgs, '--no-cospec-init')
+  const { rest, present: noCospecInit } = stripFlag(sub, rawArgs, '--no-cospec-init')
   let result: OpenspecResult
   try {
     result = await passthroughOpenspec(storeCall(sub, rest), {

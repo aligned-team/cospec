@@ -348,3 +348,17 @@ red; 4–7 turn it green; 8 documents it.
       precedence-matrix threading rows (each asserting nothing was written),
       unit rows, design decision 1, the forwarded-command spec requirement and
       `reference/commands.md` (ledger 1.27)
+- [x] 10.28 Phase B keeps every space-form value-taking flag the row declares
+      (or its subcommand declares, once the first positional names one) together
+      with its next token, whatever it looks like (`takesNextToken` in
+      `core/command-table.ts`, generalising 10.26's `--store-path` pair), so a
+      help flag, a global or `--` there is the flag's value; it first takes out
+      every `--no-color` before the first `--`, as upstream's program level
+      does, and past a `--` taken as a value treats `--no-color` and `--version`
+      as the command's own tokens; `store` strips its `--no-cospec-init` only in
+      option position (not as `--path`'s value, not after `--`);
+      `feedback --upstream` puts the message behind `--`; no cross-phase
+      priority flag; precedence-matrix rows for every declared value-taking flag
+      and the program-level tokens, unit rows, the `runCommand` docstring, a
+      spec requirement with scenarios, design decision 12,
+      `docs/architecture.md` and `reference/commands.md` (ledger 1.28)

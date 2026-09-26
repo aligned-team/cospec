@@ -527,10 +527,13 @@ const VALUE_POSITION_ROWS: readonly Row[] = [
     cospecStderr: "cospec instructions: '--schema' is not supported yet\n",
   },
   // cospec-only flags take their value the same way.
+  // The fixture holds no cospec schemas, so the wrapped `new change` refuses
+  // `--schema feat`; the row pins that `--help` reached it as the value.
   {
     argv: ['new', 'feat', 'x', '--description', '--help'],
     command: 'new',
-    cospecOnly: { outcome: 'parsed', exit: 0 },
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    cospecStderr: '--description --help`',
   },
   {
     argv: ['init', '--harness', '--help'],
@@ -579,7 +582,7 @@ const PROGRAM_LEVEL_ROWS: readonly Row[] = [
   { argv: ['show', 'c1', '--store', '--no-color'], command: 'show' },
   { argv: ['list', '--store-path', '--no-color'], command: 'list' },
   { argv: ['status', '--change', '--', '--help'], command: 'status' },
-  { argv: ['status', '--change', '--', '--json'], command: 'status' },
+  { argv: ['instructions', 'proposal', '--change', '--', '--json'], command: 'instructions' },
   { argv: ['status', '--change', '--', '--version'], command: 'status' },
   { argv: ['status', '--change', '--', '--no-color'], command: 'status' },
   { argv: ['show', 'c1', '--type', '--', '--json'], command: 'show' },
@@ -772,51 +775,7 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * `--no-cospec-init` where it is `--path`'s value or an operand after `--`).
  * The fixes empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  'status --change --help',
-  'status --change --json',
-  'status --change --store',
-  'status --change --cwd',
-  'instructions proposal --change --help',
-  'init --tools --help',
-  'init --profile --help',
-  'init --language --help',
-  'validate --concurrency --help',
-  'validate --type --json',
-  'templates --schema --help',
-  'show c1 --type --help',
-  'schema init --description --help s1',
-  'context --code-workspace --help',
-  'store setup s1 --path --help',
-  'workset create w1 --tool --help',
-  'list --sort --help',
-  'status --schema --json',
-  // Passing at HEAD only because the old trailing `--json`/`--store` became
-  // the dangling flag's value, as the user's own token would upstream.
-  'templates --schema --json',
-  'show c1 --type --json',
-  'show c1 --type --store st',
-  'feedback --body --help',
-  'templates --schema -h',
-  'show c1 --requirement --help',
-  'schema init s1 --artifacts --help',
-  'store setup s1 --remote --help',
-  'store setup s1 --path --json',
-  'workset create w1 --member --help',
-  'workset open w1 --tool --help',
-  'config --scope --help list',
-  'validate --report --help',
-  'instructions proposal --schema --help',
-  'new feat x --description --help',
-  'init --harness --help',
-  'sync-blockers --change --help',
-  'store setup s1 --path --no-cospec-init',
-  'store setup s1 -- --no-cospec-init',
-  'list --store --no-color',
-  'show c1 --store --no-color',
-  'status --change -- --help',
-  'status --change -- --json',
-])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
 
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot(row.store)

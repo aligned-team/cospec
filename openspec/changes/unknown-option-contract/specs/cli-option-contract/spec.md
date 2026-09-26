@@ -133,7 +133,44 @@ many arguments, then `--store-path` — then an empty `--cwd`/`--store` value,
 then the command runs. A missing value SHALL outrank an undeclared option or
 pending flag earlier in the argv, because commander raises it during its scan
 and reports an unknown option only after it. A `forward` row SHALL receive its
-argv unchanged apart from the threaded global flags.
+argv unchanged apart from the threaded global flags. In phase B, a token right
+after the space form of a value-taking flag the row declares — or its subcommand
+declares, once the first positional names one — SHALL be that flag's value
+whatever it looks like (a help flag, a global flag, `--`), as commander takes
+it: it is never read as help and never absorbed as a global. The one exception
+is upstream's program-level `--no-color`: every `--no-color` before the first
+`--` SHALL be taken out before the command's argv is read, so it is never a
+value and the flag before it takes the next token or has none; past a `--` that
+a flag took as its value, `--no-color` and `-V`/`--version` SHALL be the
+command's own tokens, refused as unknown options like any other.
+
+#### Scenario: A value-taking flag's value is never help or a global
+
+- **WHEN** `cospec status --change --help`, `cospec init --tools --help`,
+  `cospec templates --schema --json` or `cospec show c1 --type --store st` runs
+- **THEN** the token after the flag is its value, as the pinned binary reads it
+  (`Change '--help' not found`, `Invalid tool(s): --help`): `status` looks up a
+  change named `--help` (`cospec status: unknown change '--help'`), `init`
+  refuses its pending `--tools` with the value consumed, and the forwarded rows
+  hand both tokens to the binary, which answers — never cospec's help, and never
+  a global `--json` or `--store`; each exits 1 in both tools
+
+#### Scenario: A program-level --no-color is never a value
+
+- **WHEN** `cospec status --change --no-color`, `cospec list --store --no-color`
+  or `cospec store setup s1 --path --no-color` runs
+- **THEN** the flag is left without a value and refused as argument missing,
+  exit 1, as the pinned binary refuses it, and nothing is written;
+  `cospec status --change --no-color c1` looks up `c1`
+
+#### Scenario: Past a -- taken as a value the program level has stopped
+
+- **WHEN** `cospec status --change -- --version` or
+  `cospec status --change -- --no-color` runs
+- **THEN** stderr refuses `--version` (or `--no-color`) as an unknown option of
+  `status` and the exit code is 1, as the pinned binary does; after
+  `cospec instructions proposal --change -- --json` the `--json` still applies
+  and stdout is one JSON document
 
 #### Scenario: Help before the command name wins over the command's argv
 

@@ -314,6 +314,32 @@ describe('cli dispatcher: --store-path is refused in every position', () => {
   })
 })
 
+describe("cli dispatcher: a value-taking flag's space-form value is never intercepted", () => {
+  for (const [argv, err] of [
+    // A help flag or a global there is the value: the pending flag is refused
+    // with its value consumed, never help, never absorbed.
+    [['list', '--sort', '--help'], "cospec list: '--sort' is not supported yet\n"],
+    [['list', '--sort', '--json'], "cospec list: '--sort' is not supported yet\n"],
+    [['validate', '--type', '--store'], "cospec validate: '--type' is not supported yet\n"],
+    // Upstream's program level takes `--no-color` out first, wherever it sits
+    // before the first `--`: the flag takes the next token or has none.
+    [['list', '--sort', '--no-color'], "cospec list: option '--sort <order>' argument missing\n"],
+    [['list', '--sort', '--no-color', 'x'], "cospec list: '--sort' is not supported yet\n"],
+    [['list', '--store', '--no-color'], "cospec list: option '--store <id>' argument missing\n"],
+    // Past a `--` taken as a value the program level has stopped: both tokens
+    // are the command's unknown options.
+    [['status', '--change', '--', '--no-color'], "cospec status: unknown option '--no-color'\n"],
+    [['status', '--change', '--', '--version'], "cospec status: unknown option '--version'\n"],
+  ] as const) {
+    test(argv.join(' '), async () => {
+      const r = await dispatch([...argv])
+      expect(r.code).toBe(1)
+      expect(r.err.startsWith(err)).toBe(true)
+      expect(r.out).toBe('')
+    })
+  }
+})
+
 describe('cli dispatcher: --store-path before the command takes no value', () => {
   // The program level does not declare it, so help outranks it as an unknown
   // option: `--help` is never its value there.

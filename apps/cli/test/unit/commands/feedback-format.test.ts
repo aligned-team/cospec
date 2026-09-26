@@ -14,6 +14,7 @@ import {
   feedbackArgs,
   provenanceFooter,
   UPSTREAM_REPO,
+  upstreamFeedbackArgv,
 } from '../../../src/commands/feedback.ts'
 import {
   commandRow,
@@ -188,4 +189,24 @@ describe('feedbackArgs', () => {
 test('UPSTREAM_REPO and COSPEC_REPO are the two distinct, hardcoded destinations', () => {
   expect(COSPEC_REPO).toBe('aligned-team/cospec')
   expect(UPSTREAM_REPO).toBe('Fission-AI/OpenSpec')
+})
+
+describe('upstreamFeedbackArgv (the --upstream relay)', () => {
+  test('the message sits behind --, so one that looks like an option stays the message', () => {
+    expect(upstreamFeedbackArgv('--x', undefined)).toEqual(['feedback', '--', '--x'])
+    expect(upstreamFeedbackArgv('msg', '--json')).toEqual([
+      'feedback',
+      '--body',
+      '--json',
+      '--',
+      'msg',
+    ])
+  })
+
+  test('cospec feedback --upstream -- --x parses --x as the message', () => {
+    const row = commandRow('feedback') as TableCommandRow
+    const parsed = parseCommandArgs(row, ['--upstream', '--', '--x'])
+    expect(parsed.ok).toBe(true)
+    if (parsed.ok) expect(parsed.parsed.positionals).toEqual(['--x'])
+  })
 })
