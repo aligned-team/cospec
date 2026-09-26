@@ -10,54 +10,54 @@ POST-REBASE.
 
 ## 1. Qualifying ancestor walk (track T1: `apps/cli/src/core/root.ts`, `apps/cli/test/unit/core/root.test.ts`)
 
-- [ ] 1.1 Add regression tests to `apps/cli/test/unit/core/root.test.ts` for a
+- [x] 1.1 Add regression tests to `apps/cli/test/unit/core/root.test.ts` for a
       subdirectory of a planning root, a bare `openspec/` skipped mid-walk, the
       `$HOME/openspec/<id>` store layout, a symlinked cwd, and registered stores
       with no root, and verify each fails against the current `resolveRoot`
-- [ ] 1.2 Port the walk and classification into `root.ts`: canonical start,
+- [x] 1.2 Port the walk and classification into `root.ts`: canonical start,
       planning shape (`specs/` or `changes/` directory without
       `.openspec-store/store.yaml`), config file (`config.yaml`, else
       `config.yml`), bare directories skipped; verify the walk tests from 1.1
       pass
-- [ ] 1.3 Add `RootSource`, `ResolvedRoot` and `RootSelectionError` (diagnostic
+- [x] 1.3 Add `RootSource`, `ResolvedRoot` and `RootSelectionError` (diagnostic
       `{severity, code, message, target, fix}`, `Error.message` ending in a
       `Fix:` line) to `root.ts`, set `source` on every return path, and verify
       `mise run typecheck` passes with no change outside `root.ts`
-- [ ] 1.4 Raise `no_root_with_registered_stores` (registry read only when no
+- [x] 1.4 Raise `no_root_with_registered_stores` (registry read only when no
       qualifying root and no `defaultStore` exist) with upstream's message and
       fix text naming `cospec init`, keep the implicit cwd root when no store is
       registered, and give the existing unknown-store failures the
       `unknown_store` / `no_registered_stores` codes; verify the 1.1 registered-
       stores and `$HOME` tests pass
-- [ ] 1.5 Rewrite the `root.ts` header comment to describe the ported selection,
+- [x] 1.5 Rewrite the `root.ts` header comment to describe the ported selection,
       and update the existing `root.test.ts` cases that assumed an
       uncanonicalized temp path or the cwd-only lookup; verify `mise run test`
       passes
-- [ ] 1.6 Run `mise run check` and commit the track
+- [x] 1.6 Run `mise run check` and commit the track
 
 ## 2. Store pointer shape and errors (track T2: `apps/cli/src/core/root.ts`, `apps/cli/test/unit/core/root.test.ts`, after group 1)
 
-- [ ] 2.1 Add regression tests for an unparseable pointer, a non-string pointer,
+- [x] 2.1 Add regression tests for an unparseable pointer, a non-string pointer,
       an empty-string pointer, a `config.yml`-only pointer, and a pointer on a
       planning root, and verify each fails against group 1's resolver
-- [ ] 2.2 Change `configStorePointer` to return `{filePath, value}`,
+- [x] 2.2 Change `configStorePointer` to return `{filePath, value}`,
       `{filePath}`, `{filePath: null}`, `{filePath, malformed: 'unparseable'}`
       or `{filePath, malformed: 'non_string'}` (empty, comment-only and
       non-mapping documents are `{filePath}`), replacing the unit test that
       asserted a non-string value is ignored; verify the shape tests pass
-- [ ] 2.3 In `resolveRoot`, follow a pointer only on a config-only root, warn
+- [x] 2.3 In `resolveRoot`, follow a pointer only on a config-only root, warn
       once on stderr when a planning root carries one, fail malformed pointers
       with `invalid_store_pointer` and an empty id with `invalid_store_id`, and
       prefix pointer and `defaultStore` store failures with
       `Declared in <cfg>: ` and `Global defaultStore '<id>': `; verify every 2.1
       test passes and each `fix` names `cospec`, never bare `openspec`
-- [ ] 2.4 Add regression tests for store health, each selecting a sandboxed
+- [x] 2.4 Add regression tests for store health, each selecting a sandboxed
       store by `--store`: metadata `.openspec-store/store.yaml` missing, its
       `id` changed, its YAML unparseable, `openspec/config.yaml` removed, and
       `openspec/specs` replaced by a file; plus the missing-metadata case
       reached through a config-only pointer and through `defaultStore`; verify
       each fails against the resolver so far (it returns the broken store)
-- [ ] 2.5 Port `inspectRegisteredStore` inline into `resolveStore` (design D9):
+- [x] 2.5 Port `inspectRegisteredStore` inline into `resolveStore` (design D9):
       read the metadata with the `yaml` parser, then stat the root as
       `inspectOpenSpecRoot` does; fail with `store_identity_mismatch`,
       `invalid_store_metadata` or `unhealthy_store_root` using the design's
@@ -65,17 +65,17 @@ POST-REBASE.
       respelled `cospec store doctor` in message and fix, and the
       `Declared in <cfg>: ` / `Global defaultStore '<id>': ` prefixes for
       pointer and default selections; verify every 2.4 test passes
-- [ ] 2.6 Add a failing test, then print the banner (design D10): widen
+- [x] 2.6 Add a failing test, then print the banner (design D10): widen
       `resolveRoot`'s flags to `{ store?: string; json?: boolean }` with no
       caller change, and write `Using OpenSpec root: <id> (<base>)` verbatim to
       stderr once when the resolved root has a `store` and `json` is not set;
       verify it prints for `--store`, pointer and `defaultStore` roots, never
       for a local or implicit root, and never under `json: true`
-- [ ] 2.7 Verify `resolveRoot` still spawns nothing on a local root (a stubbed
+- [x] 2.7 Verify `resolveRoot` still spawns nothing on a local root (a stubbed
       spawn records zero calls for a planning root, a config-only root and a
       planning root with a pointer), and that the store-health check adds no
       spawn to a store selection
-- [ ] 2.8 Run `mise run check` and commit the track
+- [x] 2.8 Run `mise run check` and commit the track
 
 ## 3. `templates` and `schema` spawn in the root (track T3: `apps/cli/src/core/passthrough-command.ts`, `apps/cli/src/core/openspec.ts`, `apps/cli/src/commands/templates.ts`, `apps/cli/src/commands/schema.ts`, `apps/cli/test/unit/core/passthrough.test.ts`)
 
@@ -120,7 +120,9 @@ POST-REBASE.
       the matrix passes (the fixtures are in; each `cospec:` row the current
       resolver fails is a `test.todo` tagged `[until T1]` or `[until T2]`, and
       the track that makes a row pass under `bun test --todo` turns it into a
-      plain `test`; tick this once no todo row remains)
+      plain `test`; tick this once no todo row remains) (groups 1 and 2 turned
+      every `[until T1]`/`[until T2]` row into a plain `test`; only the two
+      `[until group 5]` `show --json` rows remain todo)
 - [ ] 4.3 Add the command-level rows (ledger groups 2 and 3): `cospec list`,
       `cospec new`, `cospec status`, `cospec schemas`, `cospec templates` and
       `cospec schema which|validate|fork|init` driven from the fixtures, with

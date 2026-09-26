@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { run as applyRun } from '../../../src/commands/apply.ts'
+import { withEmptyMachineState } from '../../fixtures/support.ts'
 import {
   ctx,
   DONE_TASKS,
@@ -45,7 +46,9 @@ describe('apply gate', () => {
   test('uninitialized repo reports the missing openspec/ dir, not "unknown change"', async () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cospec-uninit-'))
     roots.push(cwd)
-    const r = await runCmd(applyRun, ctx(cwd, ['foo'], { command: 'apply' }))
+    const r = await withEmptyMachineState(() =>
+      runCmd(applyRun, ctx(cwd, ['foo'], { command: 'apply' })),
+    )
     expect(r.code).toBe(1)
     expect(r.err).toContain('no openspec/ directory')
     expect(r.err).toContain("run 'cospec init' first")

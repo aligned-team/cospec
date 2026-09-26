@@ -4,6 +4,7 @@ import { join } from 'node:path'
 
 import { run as doctorRun } from '../../../src/commands/doctor.ts'
 import { run as initRun } from '../../../src/commands/init.ts'
+import { withEmptyMachineState } from '../../fixtures/support.ts'
 import { capture, captureAsync, cleanup, ctx, makeRepo, managedMarkdown } from './helpers.ts'
 
 function seed(dir: string): void {
@@ -44,7 +45,7 @@ describe('cospec doctor (DESIGN §2.3)', () => {
   })
 
   test('uninitialized repo reports an ERROR and exits 1', async () => {
-    const { code, findings } = await doctorJson(dir)
+    const { code, findings } = await withEmptyMachineState(() => doctorJson(dir))
     expect(code).toBe(1)
     expect(findings.some((f) => f.check === 'initialized')).toBe(true)
   })
