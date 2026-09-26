@@ -5,8 +5,9 @@ Each group ends in one commit with `mise run check` green. Groups run in order:
 Groups 1, 2, 3 (task 3.4) and 5 all edit `apps/cli/src/core/root.ts`, so none of
 them runs in parallel with another. Group 5 is gated on group 4's matrix. Before
 the rebase, no task touches `cli.ts`, `index.ts`, a command parser, the command
-table or the completion spec; the one post-rebase exception is task 7.2, marked
-POST-REBASE.
+table or the completion spec; the post-rebase exceptions are task 7.2 and, only
+if the `--json` parse check it changes has moved into one of that change's
+files, task 7.7, both marked POST-REBASE.
 
 ## 1. Qualifying ancestor walk (track T1: `apps/cli/src/core/root.ts`, `apps/cli/test/unit/core/root.test.ts`)
 
@@ -214,8 +215,12 @@ POST-REBASE.
       hard-error under `--json` prints exactly one JSON document
       `{"status": [diagnostic]}` on stdout, no `cospec:` prose on stderr, and
       exits 1 (the generic envelope; `cli-surface-parity` later adds each
-      command's `changes: []`/`root: null`); verify the rows pass and human mode
-      is unchanged
+      command's `changes: []`/`root: null`); the branch matches
+      `RootSelectionError` as a class, so it covers every resolver hard-error,
+      including task 2.9's `directory_not_found` (no `fix` key) and task 7.6's
+      `invalid_store_id`; update the `status --json --cwd <missing>` case in
+      `'a nonexistent --cwd fails cleanly (ledger 1.29)'` from the prose line to
+      the document; verify the rows pass and human mode is unchanged
 - [ ] 7.3 POST-REBASE: switch the oracle calls in `root-resolution.test.ts` from
       the interim `apps/cli/test/contract/support/root-sandbox.ts` helper to
       `upstream-oracle.ts` (keeping the sandbox builder only where
@@ -227,5 +232,18 @@ POST-REBASE.
       `unknown-option-contract`'s files except the one handler file 7.2 edits,
       and that reverting this change's commits on a scratch branch leaves
       `mise run test` green
-- [ ] 7.6 POST-REBASE: run `mise run check`, mark every verification row with
+- [ ] 7.6 POST-REBASE (ledger 5.5): add the empty-`--store=` rows (oracle
+      `openspec list --json --store=` `.status[0]`, cospec in `--json` and human
+      mode), confirm that after the rebase `cli.ts` hands `''` to `resolveRoot`
+      so `validateStoreId` raises `invalid_store_id`, and that task 7.2's branch
+      prints it as one JSON document; verify the rows pass
+- [ ] 7.7 POST-REBASE (ledger 5.6): add a failing row for
+      `cospec templates --json -- x` against the oracle's
+      `error: too many arguments for 'templates'. Expected 0 arguments but got 1.`,
+      then make the `--json` passthrough relay a wrapped refusal (non-zero exit,
+      empty stdout) verbatim instead of raising its own
+      `did not emit a single parseable JSON document` error, in whichever file
+      owns that check after the rebase; verify the row passes and no relayed
+      message names a bare `openspec` command
+- [ ] 7.8 POST-REBASE: run `mise run check`, mark every verification row with
       its observed result, and commit

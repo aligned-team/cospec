@@ -120,7 +120,14 @@ checkout gets different roots than before.
   prints exactly one JSON document, `{"status": [diagnostic]}`, on stdout and
   exits 1, instead of `cospec: <message>` prose on stderr. This is the generic
   top-level envelope; `cli-surface-parity` later adds each command's own keys
-  (`changes: []`, `root: null`) to match upstream's per-command payloads.
+  (`changes: []`, `root: null`) to match upstream's per-command payloads. It
+  covers every resolver hard-error, `directory_not_found` included.
+- **Two more parity fixes after the rebase.** An empty `--store=` fails with
+  upstream's `invalid_store_id` (one JSON document under `--json`) instead of
+  being dropped and listing the implicit root, and
+  `cospec templates --json -- x` relays upstream's
+  `error: too many arguments for 'templates'. …` refusal instead of cospec's own
+  "did not emit a single parseable JSON document" error.
 - **BREAKING:** a `store:` pointer inside a directory that is itself a planning
   root no longer redirects writes. cospec warns and uses the local root, as
   `openspec` does.
