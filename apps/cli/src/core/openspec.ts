@@ -662,6 +662,28 @@ export interface WrappedCall {
 }
 
 /**
+ * Exact stderr lines cospec already printed itself (the ignored-pointer warning
+ * and the store banner `resolveRoot` writes). A wrapped call spawned in the
+ * same directory re-derives the same root and prints the same line again, so
+ * `passthroughOpenspec` drops each registered line from the stderr it returns.
+ */
+const suppressedStderrLines = new Set<string>()
+
+/** Register a line (without its newline) to drop from relayed wrapped stderr. */
+export function suppressRelayedStderrLine(line: string): void {
+  suppressedStderrLines.add(line)
+}
+
+/** Drop every whole line registered with `suppressRelayedStderrLine` (pure on the set). */
+export function stripSuppressedStderr(stderr: string): string {
+  if (suppressedStderrLines.size === 0 || stderr.length === 0) return stderr
+  return stderr
+    .split(/(?<=\n)/u)
+    .filter((line) => !suppressedStderrLines.has(line.replace(/\r?\n$/u, '')))
+    .join('')
+}
+
+/**
  * The disciplined passthrough front door (DESIGN §1, WI-1). Version-asserted
  * spawn via `runOpenspec` (which itself spawns through `spawnOpenspec`) of
  * `threadedArgv(call…)`, enforcing the declared `RunExpectation` — and, when
@@ -670,7 +692,8 @@ export interface WrappedCall {
  * (possibly another flag's value) and holds the call to nothing. Returns the
  * (possibly exit-code-normalized) `OpenspecResult`; throws `OpenspecCallError`
  * on a deny-list hit, a disallowed exit code, or (in `--json` mode)
- * unparseable stdout.
+ * unparseable stdout. Lines `resolveRoot` already printed are dropped from
+ * the returned stderr.
  */
 export async function passthroughOpenspec(
   call: WrappedCall,
@@ -678,7 +701,8 @@ export async function passthroughOpenspec(
 ): Promise<OpenspecResult> {
   const argv = threadedArgv(call.command, call.threaded ?? [], call.args)
   const expect: RunExpectation = { exitCodes: [0, 1], ...opts.expect }
-  const result = await runOpenspec(argv, { cwd: opts.cwd, expect })
+  const raw = await runOpenspec(argv, { cwd: opts.cwd, expect })
+  const result = { ...raw, stderr: stripSuppressedStderr(raw.stderr) }
   if (call.threaded?.includes('--json') !== true) return result
   return enforcePassthroughJson(wrappedCallLabel(argv), result)
 }

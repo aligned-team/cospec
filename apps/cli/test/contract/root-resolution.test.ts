@@ -22,7 +22,15 @@
 // expected side is `realpathSync`ed, so every row also pins design D3.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 
 import {
@@ -31,7 +39,7 @@ import {
   RootSelectionError,
   type RootDiagnostic,
 } from '../../src/core/root.ts'
-import { cleanupAll, cospec, openspec, writeFiles } from '../fixtures/support.ts'
+import { cleanupAll, cospec, hashTree, openspec, writeFiles } from '../fixtures/support.ts'
 import {
   captureStderr,
   makeSandbox,
@@ -766,5 +774,183 @@ describe('relayed root provenance (ledger 2.8)', () => {
       source: 'store',
       store_id: 'alpha',
     }),
+  })
+})
+
+// --- Ledger group 3: `templates` and `schema` reach every store-backed root ---
+
+/** How many times `line` appears as a whole line of `text`. */
+function lineCount(text: string, line: string): number {
+  return text.split('\n').filter((l) => l === line).length
+}
+
+/** A sandbox whose `alpha` and `beta` were set up by `cospec store setup` (typed schemas). */
+async function typedStoreSandbox(): Promise<Sandbox> {
+  const sb = await makeSandbox([])
+  for (const id of ['alpha', 'beta']) {
+    const res = await cospec(['store', 'setup', id, '--path', storePath(sb, id), '--no-init-git'], {
+      cwd: sb.dir,
+      env: sb.env,
+    })
+    if (res.exitCode !== 0)
+      throw new Error(`cospec store setup ${id} exited ${res.exitCode}: ${res.stderr}`)
+  }
+  return sb
+}
+
+describe('templates and schema reach store-backed roots (ledger 3.1-3.3)', () => {
+  interface Via {
+    name: string
+    store: 'alpha' | 'beta'
+    fixture: (sb: Sandbox) => Promise<Fixture> | Fixture
+  }
+  const vias: Via[] = [
+    {
+      name: 'an explicit --store',
+      store: 'alpha',
+      fixture: (sb) => at(bare(sb), undefined, 'alpha'),
+    },
+    {
+      name: 'a store: pointer (M4)',
+      store: 'alpha',
+      fixture: (sb) => at(repo(sb, 'm4', configOnly('store: alpha\n'))),
+    },
+    {
+      name: 'defaultStore (M13)',
+      store: 'beta',
+      fixture: async (sb) => {
+        await setDefaultStore(sb, 'beta')
+        return at(bare(sb))
+      },
+    },
+  ]
+
+  for (const via of vias) {
+    describe(`via ${via.name}`, () => {
+      let sb!: Sandbox
+      let fx!: Fixture
+      const storeFlag = (): string[] => (fx.store === undefined ? [] : ['--store', fx.store])
+
+      beforeAll(async () => {
+        sb = await typedStoreSandbox()
+        fx = await via.fixture(sb)
+      })
+
+      test('cospec templates --json --schema feat resolves the store templates', async () => {
+        const res = await cospec(['templates', '--json', '--schema', 'feat', ...storeFlag()], {
+          cwd: fx.cwd,
+          env: sb.env,
+        })
+        expect(res.exitCode).toBe(0)
+        const body = JSON.parse(res.stdout) as Record<string, { path: string }>
+        const schemaDir = join(canonical(storePath(sb, via.store)), 'openspec', 'schemas', 'feat')
+        expect(Object.keys(body).length).toBeGreaterThan(0)
+        for (const entry of Object.values(body))
+          expect(entry.path.startsWith(`${schemaDir}/templates/`)).toBe(true)
+      })
+
+      test('cospec schema which feat --json reports the store schema', async () => {
+        const res = await cospec(['schema', 'which', 'feat', '--json', ...storeFlag()], {
+          cwd: fx.cwd,
+          env: sb.env,
+        })
+        expect(res.exitCode).toBe(0)
+        const body = JSON.parse(res.stdout) as { name: string; path: string }
+        expect(body.name).toBe('feat')
+        expect(body.path).toBe(
+          join(canonical(storePath(sb, via.store)), 'openspec', 'schemas', 'feat'),
+        )
+      })
+    })
+  }
+})
+
+describe('schema writes and guards follow the resolved root (ledger 3.4-3.6)', () => {
+  let sb!: Sandbox
+  let cwd!: string
+
+  beforeAll(async () => {
+    sb = await typedStoreSandbox()
+    cwd = bare(sb)
+  })
+
+  test('schema validate and fork with --store alpha write into the store only', async () => {
+    const validate = await cospec(['schema', 'validate', 'feat', '--store', 'alpha'], {
+      cwd,
+      env: sb.env,
+    })
+    expect(validate.exitCode).toBe(0)
+    const fork = await cospec(['schema', 'fork', 'feat', 'alpha-feat', '--store', 'alpha'], {
+      cwd,
+      env: sb.env,
+    })
+    expect(fork.exitCode).toBe(0)
+    expect(
+      existsSync(join(storePath(sb, 'alpha'), 'openspec', 'schemas', 'alpha-feat', 'schema.yaml')),
+    ).toBe(true)
+    expect(readdirSync(cwd)).toEqual([])
+  })
+
+  test('schema init of a reserved canon name is refused before any spawn', async () => {
+    const before = hashTree(storePath(sb, 'alpha'))
+    const res = await cospec(['schema', 'init', 'feat', '--store', 'alpha'], { cwd, env: sb.env })
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toContain("refusing to init schema 'feat'")
+    expect(hashTree(storePath(sb, 'alpha'))).toEqual(before)
+  })
+
+  test('templates from a subdirectory resolve the enclosing root', async () => {
+    const root = storePath(sb, 'beta')
+    const sub = join(root, 'src')
+    mkdirSync(sub, { recursive: true })
+    const res = await cospec(['templates', '--json', '--schema', 'feat'], { cwd: sub, env: sb.env })
+    expect(res.exitCode).toBe(0)
+    const body = JSON.parse(res.stdout) as Record<string, { path: string }>
+    const schemaDir = join(canonical(root), 'openspec', 'schemas', 'feat')
+    for (const entry of Object.values(body))
+      expect(entry.path.startsWith(`${schemaDir}/templates/`)).toBe(true)
+  })
+})
+
+// --- Ledger 2.5 / 2.9: lines resolveRoot prints appear once on relayed commands ---
+
+describe('resolver lines appear once on relaying commands (ledger 2.5, 2.9)', () => {
+  let sb!: Sandbox
+  let m3!: string
+  let m4!: string
+  let cwd!: string
+
+  beforeAll(async () => {
+    sb = await showSandbox()
+    m3 = repo(sb, 'm3', { dirs: ['openspec/changes'], ...configOnly('store: alpha\n') })
+    m4 = repo(sb, 'm4', configOnly('store: alpha\n'))
+    cwd = bare(sb)
+  })
+
+  const warning = (): string =>
+    `Warning: ${join(canonical(m3), 'openspec', 'config.yaml')} declares store 'alpha', but ` +
+    'this directory is a real OpenSpec root; the declaration is ignored.'
+  const banner = (): string => `Using OpenSpec root: alpha (${canonical(storePath(sb, 'alpha'))})`
+
+  test('the ignored-pointer warning prints once for schemas --json and view (M3)', async () => {
+    const schemas = await cospec(['schemas', '--json'], { cwd: m3, env: sb.env })
+    expect(schemas.exitCode).toBe(0)
+    expect(() => JSON.parse(schemas.stdout) as unknown).not.toThrow()
+    expect(lineCount(schemas.stderr, warning())).toBe(1)
+    const view = await cospec(['view'], { cwd: m3, env: sb.env })
+    expect(view.exitCode).toBe(0)
+    expect(lineCount(view.stderr, warning())).toBe(1)
+  })
+
+  test('the store banner prints once for relayed human-mode commands', async () => {
+    const runs = [
+      await cospec(['schemas', '--store', 'alpha'], { cwd, env: sb.env }),
+      await cospec(['show', 'demo-change', '--store', 'alpha'], { cwd, env: sb.env }),
+      await cospec(['list', '--specs'], { cwd: m4, env: sb.env }),
+    ]
+    for (const res of runs) {
+      expect(res.exitCode).toBe(0)
+      expect(lineCount(res.stderr, banner())).toBe(1)
+    }
   })
 })

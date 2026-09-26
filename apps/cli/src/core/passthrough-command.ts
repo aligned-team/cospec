@@ -2,7 +2,8 @@
 // `workset`, `schemas`, `schema`, `templates`, …). Every such command resolves
 // the operating root, threads the same three global flags onto the wrapped
 // call (`--store` via `root.storeArgs`, `--json`, `--no-color`) right after
-// its command path, ahead of the user's argv (`threadedArgv`), relays
+// its command path, ahead of the user's argv (`threadedArgv`) — or, for a
+// subcommand that rejects `--store`, spawns in the root itself — relays
 // stdout/stderr verbatim, and maps the wrapped exit code onto cospec's own
 // `EXIT` contract. Centralized here so no passthrough command re-derives this
 // wiring (WI-1); command-specific argv (item names, `--type`, …) is the
@@ -23,6 +24,14 @@ export interface PassthroughCommandOptions {
   args?: string[]
   /** Declared expectations for the wrapped call; see `PassthroughOptions`. */
   expect?: RunExpectation
+  /**
+   * Spawn with `root.base` as the working directory and never thread
+   * `--store`, for wrapped subcommands that reject `--store` (`templates`,
+   * every `schema` subcommand). The binary then sees the root as its own
+   * nearest root, which also reaches an enclosing root from a subdirectory —
+   * a deliberate superset of the binary, which reads its own cwd there.
+   */
+  spawnInRoot?: boolean
 }
 
 export interface PassthroughCommandResult {
@@ -32,28 +41,29 @@ export interface PassthroughCommandResult {
 
 /**
  * Resolve the operating root, thread `--json`/`--no-color`/`--store` between
- * `opts.command` and `opts.args`, and run it through `passthroughOpenspec`.
- * Returns both the raw `OpenspecResult` (for a caller that wants to
- * inspect/reshape stdout before printing) and the mapped exit code; the
- * binary's own parse rejection comes
- * back as a result, not a thrown wrapped-call error. Never prints anything
- * itself — callers that just want the default "relay verbatim" behavior should
- * call `runPassthrough` instead.
+ * `opts.command` and `opts.args` (no `--store` under `spawnInRoot`), and run it
+ * through `passthroughOpenspec`. Returns both the raw `OpenspecResult` (for a
+ * caller that wants to inspect/reshape stdout before printing) and the mapped
+ * exit code; the binary's own parse rejection comes back as a result, not a
+ * thrown wrapped-call error. Never prints anything itself — callers that just
+ * want the default "relay verbatim" behavior should call `runPassthrough`
+ * instead.
  */
 export async function callPassthrough(
   ctx: CommandContext,
   opts: PassthroughCommandOptions,
 ): Promise<PassthroughCommandResult> {
   const root = await resolveRoot(ctx)
+  const inRoot = opts.spawnInRoot === true
   const threaded = [
     ...(ctx.flags.json ? ['--json'] : []),
     ...(ctx.flags.noColor ? ['--no-color'] : []),
-    ...root.storeArgs,
+    ...(inRoot ? [] : root.storeArgs),
   ]
   const result = await forwardCall(() =>
     passthroughOpenspec(
       { command: opts.command, threaded, args: opts.args },
-      { cwd: root.cwd, expect: opts.expect },
+      { cwd: inRoot ? root.base : root.cwd, expect: opts.expect },
     ),
   )
   return { result, code: result.exitCode === 0 ? EXIT.success : EXIT.failure }

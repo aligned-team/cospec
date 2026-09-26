@@ -79,19 +79,19 @@ POST-REBASE.
 
 ## 3. `templates` and `schema` spawn in the root (track T3: `apps/cli/src/core/passthrough-command.ts`, `apps/cli/src/core/openspec.ts`, `apps/cli/src/commands/templates.ts`, `apps/cli/src/commands/schema.ts`, `apps/cli/test/unit/core/passthrough.test.ts`)
 
-- [ ] 3.1 Add a stubbed-spawn unit test to
+- [x] 3.1 Add a stubbed-spawn unit test to
       `apps/cli/test/unit/core/passthrough.test.ts` asserting that
       `spawnInRoot: true` spawns in `root.base` with no `--store`, and verify it
       fails before the option exists
-- [ ] 3.2 Add `spawnInRoot` to `PassthroughCommandOptions` and honour it in
+- [x] 3.2 Add `spawnInRoot` to `PassthroughCommandOptions` and honour it in
       `callPassthrough`; verify 3.1 passes and the existing passthrough tests
       are unchanged
-- [ ] 3.3 Set `spawnInRoot: true` in `commands/templates.ts` and
+- [x] 3.3 Set `spawnInRoot: true` in `commands/templates.ts` and
       `commands/schema.ts`, leaving the reserved-canon-name guard ahead of the
       spawn; verify `cospec templates --json --store <id>` and
       `cospec schema which feat --json --store <id>` exit 0 against a sandboxed
       store
-- [ ] 3.4 Add `suppressRelayedStderrLine` to `apps/cli/src/core/openspec.ts` (it
+- [x] 3.4 Add `suppressRelayedStderrLine` to `apps/cli/src/core/openspec.ts` (it
       adds to a set of registered lines), call it from `resolveRoot` with the
       exact ignored-pointer warning line and the exact banner line it printed,
       and have `passthroughOpenspec` drop every registered line from the stderr
@@ -99,7 +99,7 @@ POST-REBASE.
       root with a pointer show the warning once, and
       `cospec schemas --store <id>` and `cospec show <item> --store <id>` in
       human mode show the banner once
-- [ ] 3.5 Run `mise run check` and commit the track
+- [x] 3.5 Run `mise run check` and commit the track
 
 ## 4. Differential matrix against the pinned binary (track T4: `apps/cli/test/contract/root-resolution.test.ts`)
 

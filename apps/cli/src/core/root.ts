@@ -35,7 +35,7 @@ import { dirname, join, resolve } from 'node:path'
 
 import { parse as parseYaml } from 'yaml'
 
-import { openspecStoreList, runOpenspec, type Root } from './openspec.ts'
+import { openspecStoreList, runOpenspec, suppressRelayedStderrLine, type Root } from './openspec.ts'
 
 export type { Root } from './openspec.ts'
 export { localRoot } from './openspec.ts'
@@ -72,6 +72,15 @@ const KEBAB_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u
 const KEBAB_ID_FIX = 'Use kebab-case with lowercase letters, numbers, and single hyphen separators.'
 
 const doctorFix = (id: string): string => `Run cospec store doctor ${id} to inspect it.`
+
+/**
+ * Print a line `resolveRoot` owns and register it, so a relayed wrapped call
+ * that re-derives the same root does not print it a second time (design D7).
+ */
+function printOwnLine(line: string): void {
+  suppressRelayedStderrLine(line)
+  process.stderr.write(`${line}\n`)
+}
 
 // --- Filesystem probes -------------------------------------------------------
 
@@ -414,9 +423,9 @@ async function resolveQualifyingRoot(cwd: string, base: string): Promise<Resolve
   const pointer = configStorePointer(base)
   if (hasPlanningShape(base)) {
     if (pointer.filePath !== null && pointer.value !== undefined)
-      process.stderr.write(
+      printOwnLine(
         `Warning: ${pointer.filePath} declares store '${pointer.value}', but this directory is ` +
-          'a real OpenSpec root; the declaration is ignored.\n',
+          'a real OpenSpec root; the declaration is ignored.',
       )
     return { base, cwd, storeArgs: [], store: undefined, source: 'nearest' }
   }
@@ -498,6 +507,6 @@ export async function resolveRoot(ctx: {
 }): Promise<ResolvedRoot> {
   const root = await selectRoot(ctx.cwd, ctx.flags.store)
   if (root.store !== undefined && ctx.flags.json !== true)
-    process.stderr.write(`Using OpenSpec root: ${root.store} (${root.base})\n`)
+    printOwnLine(`Using OpenSpec root: ${root.store} (${root.base})`)
   return root
 }

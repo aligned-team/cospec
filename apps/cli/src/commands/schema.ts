@@ -9,7 +9,9 @@
 // must still protect is its own canon: a fork/init that names one of the 11
 // `COSPEC_TYPES` as its destination would overwrite a canon-managed
 // `schema.yaml` that every other command reads, so that destination name is
-// refused with exit 1 before the wrapped binary is ever spawned.
+// refused with exit 1 before the wrapped binary is ever spawned. Every
+// `schema` subcommand rejects `--store`, so the call spawns in the resolved
+// root instead (`spawnInRoot`), and `fork`/`init` write into that root.
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
@@ -83,5 +85,5 @@ export function run(ctx: CommandContext): Promise<number> {
     }
   }
 
-  return runPassthrough(ctx, { command: ['schema', sub], args: rest })
+  return runPassthrough(ctx, { command: ['schema', sub], args: rest, spawnInRoot: true })
 }
