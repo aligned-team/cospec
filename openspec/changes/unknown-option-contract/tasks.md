@@ -210,3 +210,7 @@ red; 4–7 turn it green; 8 documents it.
       one-document shape as a migration, with `migrated: false`, instead of
       prose; both paths carry `migrated`; the `migrate` row in
       `reference/commands.md` states the shape (ledger 1.12)
+- [x] 10.9 `parity.data.ts`: read an emptied (null-parsing)
+      `parity-pending.yaml`, `exceptions.yaml` or `deprecated.yaml` as `[]`, and
+      confirm the page renders with no empty heading or orphan sentence when the
+      pending list is empty (ledger 6.7)

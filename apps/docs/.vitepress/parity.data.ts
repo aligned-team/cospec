@@ -57,8 +57,11 @@ export interface ParityData {
   readonly pending: readonly ParityPendingItem[]
 }
 
-function readYaml<T>(path: string): T {
-  return parse(readFileSync(path, 'utf-8')) as T
+// An emptied file (or one holding only comments) parses to null: that is an
+// empty list, so the page renders without the section rather than failing
+// the build.
+function readList<T>(path: string): T[] {
+  return (parse(readFileSync(path, 'utf-8')) ?? []) as T[]
 }
 
 function commandSurface(path: readonly string[]): string {
@@ -88,9 +91,9 @@ function pendingSurface(entry: RawPending): string {
 export default defineLoader({
   watch: [EXCEPTIONS_PATH, DEPRECATED_PATH, PENDING_PATH],
   load(): ParityData {
-    const exceptions = readYaml<RawException[]>(EXCEPTIONS_PATH)
-    const deprecated = readYaml<RawDeprecated[]>(DEPRECATED_PATH)
-    const pending = readYaml<RawPending[]>(PENDING_PATH)
+    const exceptions = readList<RawException>(EXCEPTIONS_PATH)
+    const deprecated = readList<RawDeprecated>(DEPRECATED_PATH)
+    const pending = readList<RawPending>(PENDING_PATH)
 
     return {
       exceptions: exceptions.map((entry) => ({
