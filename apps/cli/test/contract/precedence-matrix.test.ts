@@ -492,6 +492,7 @@ const VALUE_POSITION_ROWS: readonly Row[] = [
   { argv: ['feedback', '--body', '--help'], command: 'feedback' },
   { argv: ['templates', '--schema', '-h'], command: 'templates' },
   { argv: ['show', 'c1', '--requirement', '--help'], command: 'show' },
+  { argv: ['show', 'c1', '-r', '--help'], command: 'show' },
   {
     argv: ['schema', 'init', 's1', '--artifacts', '--help'],
     command: 'schema',
