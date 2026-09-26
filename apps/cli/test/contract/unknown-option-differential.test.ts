@@ -28,7 +28,7 @@
 // this file (ledger 7.6, tasks 9.2).
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { cpSync } from 'node:fs'
+import { cpSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import pkg from '../../package.json'
@@ -121,6 +121,25 @@ interface Row {
   cospecStderr?: string
   /** For a `pending` row, the flag named in the refusal. */
   pendingFlag?: string
+  /** Shapes the fixture before the run (and before the tree is hashed). */
+  setup?: (root: string) => void
+}
+
+/**
+ * A change literally named `change`, so `validate --type change x` would find
+ * an item to validate if `--type` ever leaked its value into the positional.
+ */
+function addChangeNamedChange(root: string): void {
+  const dir = join(root, 'openspec', 'changes', 'change')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(
+    join(dir, '.openspec.yaml'),
+    'schema: chore\ncreated: 2026-09-25\nschemaVersion: 2\n',
+  )
+  writeFileSync(
+    join(dir, 'proposal.md'),
+    '# Proposal\n\n## Why\n\nA fixture change named change.\n\n## What Changes\n\n- Nothing.\n',
+  )
 }
 
 const unknown = (command: string, option: string): string =>
@@ -408,6 +427,7 @@ const PENDING_ROWS: readonly Row[] = [
     command: 'validate',
     expect: 'pending',
     pendingFlag: '--type',
+    setup: addChangeNamedChange,
   },
   {
     argv: ['validate', '--report', 'findings', '--all'],
@@ -541,6 +561,7 @@ const FORWARD_ROWS: readonly Row[] = [
 
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot()
+  row.setup?.(coRoot)
   const before = treeHash(coRoot)
   const co = await runCospec(row.argv, coRoot)
   const coClass = classify(co, row.command, row.argv)
@@ -548,7 +569,10 @@ async function checkRow(row: Row): Promise<void> {
 
   if (row.expect === 'pending') {
     expect(co.exitCode, detail).toBe(1)
-    expect(co.stderr).toContain(`cospec ${row.command}: '${row.pendingFlag}' is not supported yet`)
+    // Exact streams: a leaked value that reaches a lookup or a report shows up
+    // here, not only as different message text.
+    expect(co.stdout, 'a pending flag must print nothing on stdout').toBe('')
+    expect(co.stderr).toBe(`cospec ${row.command}: '${row.pendingFlag}' is not supported yet\n`)
     expect(treeHash(coRoot), 'a pending flag must be refused before any work').toEqual(before)
     return
   }

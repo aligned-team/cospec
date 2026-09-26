@@ -187,3 +187,6 @@ red; 4–7 turn it green; 8 documents it.
       `new change     --initiative` / `--areas`) with binary probes, mark the
       `__complete` values pending on `cli-surface-parity`, add the `source: cli`
       entries, and correct design decision 6 (ledger 4.6)
+- [x] 10.4 Run the `validate --type change x` pending row in a fixture holding a
+      change named `change`, and assert empty stdout and the exact stderr on
+      every pending row (ledger 1.1)
