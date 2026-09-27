@@ -240,16 +240,17 @@ the command name to OpenSpec where it stands, since OpenSpec declares no
 `--store` there: `cospec templates --store <id> --bogus` now refuses `--store`
 instead of `--bogus`, `cospec schema init s1 --store <id> --description` refuses
 the missing `--description` value instead of too many arguments, and a `--store`
-with no value or an unregistered id there is OpenSpec's
-`unknown option '--store'` instead of cospec's missing-value or unknown-store
-error — exit 1 every time. Relayed answers name cospec where OpenSpec names
-itself: `cospec show` for a change with no proposal.md says
-`Run "cospec status --change <id>"` (text and the `--json` message), for an id
-that is both a change and a spec says only `Pass --type change|spec.`,
-`cospec view`'s footer names `cospec list --changes`/`--specs`, and the no-root
-answer from `cospec show`, `cospec context` and `cospec instructions` says
-`cospec init`. `cospec status --change <id>` on a change whose schema is not a
-cospec type now prints OpenSpec's own status for it (its `Next:` line naming
+there with no value or an unregistered id is OpenSpec's
+`unknown option '--store'` — not the missing-value refusal other commands now
+give, nor cospec's unknown-store error — exit 1 every time. Relayed answers name
+cospec where OpenSpec names itself: `cospec show` for a change with no
+proposal.md says `Run "cospec status --change <id>"` (text and the `--json`
+message), for an id that is both a change and a spec says only
+`Pass --type change|spec.`, `cospec view`'s footer names
+`cospec list --changes`/`--specs`, and the no-root answer from `cospec show`,
+`cospec context` and `cospec instructions` says `cospec init`.
+`cospec status --change <id>` on a change whose schema is not a cospec type now
+prints OpenSpec's own status for it (its `Next:` line naming
 `cospec instructions`) instead of one line pointing at `openspec status`, and
 `cospec status --all` points such a change at `cospec status --change <id>`.
 
