@@ -12,6 +12,8 @@ import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
 import { isCospecType, listChanges, resolveChange, type Change } from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
+import { respellRemedies } from '../core/forward-relay.ts'
+import { passthroughOpenspec } from '../core/openspec.ts'
 import { resolveRoot } from '../core/root.ts'
 import {
   artifactRequires,
@@ -198,7 +200,7 @@ function isFailure(entry: ChangeEntry | ChangeEntryFailure): entry is ChangeEntr
 function renderEntryHuman(entry: ChangeEntry | ChangeEntryFailure): string {
   if (isFailure(entry)) return `${entry.change}: ERROR — ${entry.error}\n`
   if ('legacy' in entry) {
-    return `${entry.change} (${entry.type}): legacy schema — use \`openspec status --change ${entry.change}\` for details\n`
+    return `${entry.change} (${entry.type}): legacy schema — use \`cospec status --change ${entry.change}\` for details\n`
   }
   if ('next' in entry) {
     return `${entry.change} (${entry.type}): in progress — no artifacts yet; next: ${entry.next}\n`
@@ -341,18 +343,27 @@ export async function run(ctx: CommandContext): Promise<number> {
     return EXIT.success
   }
 
-  // Legacy / unknown schema: no cospec artifact matrix — report minimally.
+  // Legacy / unknown schema: no cospec artifact matrix. `--json` reports it
+  // minimally; text relays the binary's own status for the change, its
+  // `Next:` remedy spelled through cospec.
   if (!isCospecType(change.schema)) {
     if (flags.json) {
       process.stdout.write(
         `${JSON.stringify({ change: change.id, type: change.schema, legacy: true }, null, 2)}\n`,
       )
-    } else {
-      process.stdout.write(
-        `${change.id} (${change.schema}): legacy schema — use \`openspec status --change ${change.id}\` for details\n`,
-      )
+      return EXIT.success
     }
-    return EXIT.success
+    const result = await passthroughOpenspec(
+      {
+        command: ['status'],
+        threaded: [...(flags.noColor ? ['--no-color'] : []), ...root.storeArgs],
+        args: ['--change', change.id],
+      },
+      { cwd: root.cwd },
+    )
+    if (result.stdout.length > 0) process.stdout.write(respellRemedies(result.stdout))
+    if (result.stderr.length > 0) process.stderr.write(respellRemedies(result.stderr))
+    return result.exitCode === 0 ? EXIT.success : EXIT.failure
   }
 
   const status = computeStatus(base, change)

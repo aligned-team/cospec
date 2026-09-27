@@ -85,10 +85,10 @@ export function relayStorePathRefusal(result: OpenspecResult, json: boolean): nu
 }
 
 /**
- * The pinned binary's own remedies in the answers `show` and `view` relay
- * (probed at 1.13.1, `dist/commands/change.js`, `show.js`, `core/view.js`),
- * each rewritten to the cospec command of the same shape — or dropped where
- * cospec has none:
+ * The pinned binary's own remedies in the answers cospec relays (probed at
+ * 1.13.1: `dist/commands/change.js`, `show.js`, `core/view.js`,
+ * `commands/workflow/status.js`), each rewritten to the cospec command of the
+ * same shape — or dropped where cospec has none:
  *
  * - `show` for a change with no proposal.md: `Run "openspec status --change
  *   <id>"`, on stderr, or with escaped quotes in its `--json` message.
@@ -98,6 +98,8 @@ export function relayStorePathRefusal(result: OpenspecResult, json: boolean): nu
  *   upstream itself prints for a store root.
  * - `view`'s footer: `openspec list --changes` and `openspec list --specs`,
  *   each wrapped whole in color codes when color is on.
+ * - `status --change <id>`'s text for a change on a schema cospec does not
+ *   type: `Next: openspec instructions <artifact> --change "<id>" --json`.
  */
 const RELAYED_REMEDIES: readonly (readonly [RegExp, string])[] = [
   [
@@ -108,6 +110,7 @@ const RELAYED_REMEDIES: readonly (readonly [RegExp, string])[] = [
   // A color code (`ESC[37m`) ends in a word character, so it counts as a left
   // boundary too.
   [/(?:(?<![\w./-])|(?<=\[\d+m))openspec (list --(?:changes|specs))\b/g, 'cospec $1'],
+  [/^Next: openspec (instructions )/gm, 'Next: cospec $1'],
 ]
 
 /** `text` with each of the binary's `RELAYED_REMEDIES` spelled through cospec. */

@@ -183,29 +183,25 @@ describe('status of a legacy-schema change relays the binary status through cosp
     return text.replaceAll(realpathSync(root), '<root>').replaceAll(root, '<root>')
   }
 
-  test.failing(
-    'text: the binary status, its Next remedy naming cospec instructions',
-    async () => {
-      const coRoot = fixtureRoot()
-      const upRoot = fixtureRoot()
-      const co = await cospec(['status', '--change', 'sd1'], {
-        cwd: coRoot,
-        env: oracleEnv(coRoot),
-      })
-      const up = await oracle(['status', '--change', 'sd1'], upRoot, { runtime: 'node' })
-      expect(up.stdout).toContain('Next: openspec instructions specs --change "sd1" --json')
-      expect(co.exitCode, detail(co)).toBe(up.exitCode)
-      expect(rootless_(co.stdout, coRoot), detail(co)).toBe(
-        rootless_(up.stdout, upRoot).replace(
-          'Next: openspec instructions specs',
-          'Next: cospec instructions specs',
-        ),
-      )
-      expect(co.stderr).toBe(up.stderr)
-      expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
-    },
-    30_000,
-  )
+  test('text: the binary status, its Next remedy naming cospec instructions', async () => {
+    const coRoot = fixtureRoot()
+    const upRoot = fixtureRoot()
+    const co = await cospec(['status', '--change', 'sd1'], {
+      cwd: coRoot,
+      env: oracleEnv(coRoot),
+    })
+    const up = await oracle(['status', '--change', 'sd1'], upRoot, { runtime: 'node' })
+    expect(up.stdout).toContain('Next: openspec instructions specs --change "sd1" --json')
+    expect(co.exitCode, detail(co)).toBe(up.exitCode)
+    expect(rootless_(co.stdout, coRoot), detail(co)).toBe(
+      rootless_(up.stdout, upRoot).replace(
+        'Next: openspec instructions specs',
+        'Next: cospec instructions specs',
+      ),
+    )
+    expect(co.stderr).toBe(up.stderr)
+    expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
+  }, 30_000)
 
   test('--json keeps its legacy document', async () => {
     const root = fixtureRoot()
@@ -217,18 +213,14 @@ describe('status of a legacy-schema change relays the binary status through cosp
     expect(JSON.parse(co.stdout)).toEqual({ change: 'sd1', type: 'spec-driven', legacy: true })
   }, 30_000)
 
-  test.failing(
-    '--all points a legacy change at cospec status',
-    async () => {
-      const root = fixtureRoot()
-      const co = await cospec(['status', '--all'], { cwd: root, env: oracleEnv(root) })
-      expect(co.stdout, detail(co)).toContain(
-        'sd1 (spec-driven): legacy schema — use `cospec status --change sd1` for details',
-      )
-      expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
-    },
-    30_000,
-  )
+  test('--all points a legacy change at cospec status', async () => {
+    const root = fixtureRoot()
+    const co = await cospec(['status', '--all'], { cwd: root, env: oracleEnv(root) })
+    expect(co.stdout, detail(co)).toContain(
+      'sd1 (spec-driven): legacy schema — use `cospec status --change sd1` for details',
+    )
+    expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
+  }, 30_000)
 })
 
 describe("the binary's no-root answer names cospec init", () => {
