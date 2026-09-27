@@ -428,7 +428,9 @@ const THREADING_ROWS: readonly Row[] = [
     command: 'workset',
     check: nothingWritten,
   },
-  // A store-selected root threads `--store <id>` the same way.
+  // A store-selected root threads `--store <id>` the same way on `show`; on
+  // `templates` and `schema` the `--store` stays where it was typed
+  // (`FORWARD_STORE_ROWS`), and the missing value still wins.
   {
     argv: ['show', 'c1', '--store', 'st', '--type'],
     command: 'show',

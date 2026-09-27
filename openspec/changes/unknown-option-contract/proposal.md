@@ -251,8 +251,10 @@ message), for an id that is both a change and a spec says only
 `cospec context` and `cospec instructions` says `cospec init`.
 `cospec status --change <id>` on a change whose schema is not a cospec type now
 prints OpenSpec's own status for it (its `Next:` line naming
-`cospec instructions`) instead of one line pointing at `openspec status`, and
-`cospec status --all` points such a change at `cospec status --change <id>`.
+`cospec instructions`) instead of one line pointing at `openspec status` — and,
+where OpenSpec cannot resolve that schema, its refusal with exit 1 instead of
+exit 0 — and `cospec status --all` points such a change at
+`cospec status --change <id>`.
 
 ## Capabilities
 

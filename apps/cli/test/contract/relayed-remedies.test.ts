@@ -1,5 +1,5 @@
 // Relayed remedies never name bare `openspec` (change `unknown-option-contract`,
-// ledger 1.41): `show` and `view` relay the pinned binary's own text, and the
+// ledger 1.42, 1.43): `show` and `view` relay the pinned binary's own text, and the
 // binary writes its remedies as `openspec <command>` — `show` for a change
 // with no proposal.md (text and `--json`) and for an id that is both a change
 // and a spec, `view` in its dashboard footer. cospec relays the binary's
