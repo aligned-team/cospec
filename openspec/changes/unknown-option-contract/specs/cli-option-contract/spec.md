@@ -46,16 +46,22 @@ positional. Each `table` row SHALL declare whether it accepts the global
 `--json`; on a row that does not, `--json` SHALL be refused with exactly one
 JSON document on stdout (`{version: 1, command, ok: false, message}`, the
 `cospec completion` precedent) and exit 1, before the command does any work, and
-SHALL never be silently ignored. `new`'s refusal of a cospec type the repo has
-no schema for SHALL, under `--json`, be one JSON document on stdout in the shape
-the wrapped `new change --json` gives its own failures
+SHALL never be silently ignored. Every refusal of `new`'s own (no `openspec/`
+tree, an unknown type, a cospec type the repo has no schema for, a slug it
+cannot derive, an invalid slug, an existing or archived change, a failed wrapped
+call) SHALL, under `--json`, be one JSON document on stdout in the shape the
+wrapped `new change --json` gives its own failures
 (`{change: null, status: [{severity: 'error', code: 'change_error', message}]}`),
-exit 1, with nothing on stderr. Each `table` row SHALL likewise declare whether
-its command honours the global `--store <id>`; on a row that does not, `--store`
-SHALL be refused as an unknown option in either form, after the command name or
-before it, before the command does any work, and SHALL never be silently
-ignored. A cospec-only positional that spells what an upstream flag selects
-(`status`'s change, for `--change` and `--all`) SHALL count as an excess
+exit 1, with nothing on stderr; a missing slug and an unknown option SHALL stay
+text parse refusals, as the binary's commander refusals are. `show` with no item
+(an empty token is none) SHALL, under `--json`, be one
+`{status: [{severity: 'error', code: 'missing_item', message}]}` document on
+stdout, exit 1, with nothing on stderr. Each `table` row SHALL likewise declare
+whether its command honours the global `--store <id>`; on a row that does not,
+`--store` SHALL be refused as an unknown option in either form, after the
+command name or before it, before the command does any work, and SHALL never be
+silently ignored. A cospec-only positional that spells what an upstream flag
+selects (`status`'s change, for `--change` and `--all`) SHALL count as an excess
 argument when given together with that flag, as upstream, which has no such
 positional, refuses it. A short-option cluster (`-yh`) SHALL split as commander
 splits it: only when its first letter is a short flag the command declares — a
@@ -121,6 +127,28 @@ help.
 - **THEN** stdout is one JSON document whose `change` is `null` and whose
   `status[0].code` is `change_error`, stderr is empty, nothing is written, and
   the exit code is 1
+
+#### Scenario: Every other new refusal answers a --json caller with one document
+
+- **WHEN** `cospec new bogus x --json`, `cospec new feat Bad_Name --json`,
+  `cospec new feat ex --json` (`ex` an active change) or
+  `cospec new "feat: !!!" --json` runs
+- **THEN** stdout is one JSON document whose `change` is `null` and whose
+  `status[0].code` is `change_error`, stderr is empty, nothing is written, and
+  the exit code is 1
+- **AND WHEN** `cospec new feat --json` runs
+- **THEN** stderr carries the usage refusal, stdout is empty, and the exit code
+  is 1
+
+#### Scenario: show with an empty item name gives cospec's item-name error
+
+- **WHEN** `cospec show ""` or `cospec show -- ""` runs
+- **THEN** stderr is
+  `cospec show: an item name is required (cospec show <change-or-spec>)`, the
+  binary's "Nothing to show" screen is not relayed, and the exit code is 1
+- **AND WHEN** `cospec show "" --json` runs
+- **THEN** stdout is one JSON document whose `status[0].code` is `missing_item`,
+  stderr is empty, and the exit code is 1
 
 #### Scenario: A command that never reads --store refuses it
 

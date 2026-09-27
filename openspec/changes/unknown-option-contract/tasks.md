@@ -468,3 +468,22 @@ red; 4–7 turn it green; 8 documents it.
       a fixture (success and each reachable error, with and without a registered
       store): every hit in an R1 file is fixed (10.43–10.45); hits in other
       changes' files are listed with their owner in ledger 1.45
+- [x] 10.47 Round-9 rows first (c751a61): 7 precedence-matrix `new … --json`
+      rows in `KNOWN_FAILING` and 5 `relayed-remedies.test.ts` show tests as
+      `test.failing`, each failing for its intended reason (0 documents / the
+      relayed "Nothing to show" screen); the fixes flip them and `KNOWN_FAILING`
+      is empty at 4e4f55d
+- [x] 10.48 `show`'s `binaryAnswers` skips an empty token (after `--` too) and
+      the item-name refusal answers `--json` with one `{status: [missing_item]}`
+      document; `reference/commands.md` (ledger 1.46)
+- [x] 10.49 A pre-command `--store` on `templates`/`schema` is stated as
+      threaded and refused by the binary (`unknown option '--store'`), never as
+      selecting the root: `reference/commands.md`, the `storeInArgv` comment,
+      design decision 1, `docs/architecture.md`; two matrix rows (ledger 1.47)
+- [x] 10.50 The shared `cospec()` spawn helper takes `unset`, deleting keys
+      after the environment merge; the no-`$XDG_DATA_HOME` row runs without the
+      ambient value (ledger 1.48)
+- [x] 10.51 Every own refusal of `new` answers `--json` with one
+      `{change: null, status: [change_error]}` document; a missing slug and an
+      unknown option stay text parse refusals; `reference/commands.md`, the
+      spec, the proposal's BREAKING (ledger 1.49)

@@ -210,9 +210,16 @@ or a missing `--change` with one JSON document on stdout
 (`{"status": [{"severity": "error", "code": "change_error", …}]}`, exit 1)
 instead of prose on stderr, and no active changes with a `{"changes": [], …}`
 document instead of text. `cospec new <type>` in a repo without cospec's schemas
-now fails with `schema '<type>' is not installed in this repo` (under `--json`,
-one `{"change": null, "status": [{… "code": "change_error" …}]}` document on
-stdout), and `cospec apply <slug>` prints `cospec apply "<slug>" --json` in its
+now fails with `schema '<type>' is not installed in this repo`, and under
+`--json` that and every other refusal of `new`'s own (no `openspec/` tree,
+unknown type, an underivable or invalid slug, an existing or archived change, a
+failed OpenSpec call) is one
+`{"change": null, "status": [{… "code": "change_error" …}]}` document on stdout
+instead of prose on stderr (a missing slug stays text). `cospec show ""` (and
+`show -- ""`) now answers cospec's item-name error instead of relaying
+OpenSpec's "Nothing to show" screen, and `cospec show --json` with no item one
+`{"status": [{… "code": "missing_item" …}]}` document on stdout instead of
+prose. And `cospec apply <slug>` prints `cospec apply "<slug>" --json` in its
 gate prose instead of `"<change>"`.
 
 `--store-path` on a command OpenSpec never declares it on (`init`, `update`,
