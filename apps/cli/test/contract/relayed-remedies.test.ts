@@ -10,7 +10,7 @@
 // binary's, read at test time.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { cpSync, mkdirSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { cleanupAll, cospec, mkTempRepo, type SpawnResult } from '../fixtures/support.ts'
@@ -35,8 +35,9 @@ const SPEC =
 
 /**
  * A copy of the scaffolded root holding `bare` (a change with no proposal.md),
- * `dup` (a change and a spec of the same name) and `done` (a change with a
- * proposal), each tool running in its own copy.
+ * `dup` (a change and a spec of the same name), `done` (a change with a
+ * proposal) and `sd1` (a change on OpenSpec's own `spec-driven` schema, which
+ * cospec treats as legacy), each tool running in its own copy.
  */
 function fixtureRoot(): string {
   const dir = mkTempRepo()
@@ -50,7 +51,39 @@ function fixtureRoot(): string {
   }
   mkdirSync(join(dir, 'openspec', 'specs', 'dup'), { recursive: true })
   writeFileSync(join(dir, 'openspec', 'specs', 'dup', 'spec.md'), SPEC)
+  mkdirSync(join(changes, 'sd1'), { recursive: true })
+  writeFileSync(join(changes, 'sd1', '.openspec.yaml'), 'schema: spec-driven\n')
+  writeFileSync(join(changes, 'sd1', 'proposal.md'), PROPOSAL)
   return dir
+}
+
+/**
+ * A directory with no `openspec/` tree; with `store`, its sandboxed registry
+ * lists a store `st1`, which turns the binary's no-root answer into the one
+ * naming the registered stores.
+ */
+function rootless(store: boolean): string {
+  const dir = mkTempRepo()
+  if (store) {
+    const storeDir = join(dir, 'store')
+    mkdirSync(join(storeDir, '.openspec-store'), { recursive: true })
+    writeFileSync(join(storeDir, '.openspec-store', 'store.yaml'), 'version: 1\nid: st1\n')
+    cpSync(join(template, 'openspec'), join(storeDir, 'openspec'), { recursive: true })
+    const registry = join(dir, '.oracle-home', '.local', 'share', 'openspec', 'stores')
+    mkdirSync(registry, { recursive: true })
+    writeFileSync(
+      join(registry, 'registry.yaml'),
+      `version: 1\nstores:\n  st1:\n    backend:\n      type: git\n      local_path: ${storeDir}\n`,
+    )
+  }
+  return dir
+}
+
+/** The binary's `run openspec init` remedy, as cospec relays it. */
+function viaCospecInit(text: string): string {
+  return text
+    .replaceAll('run openspec init', 'run cospec init')
+    .replaceAll('Run openspec init', 'Run cospec init')
 }
 
 async function both(argv: string[]): Promise<{ co: SpawnResult; up: SpawnResult }> {
@@ -142,4 +175,90 @@ describe('view relays its footer through cospec', () => {
     )
     expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
   }, 30_000)
+})
+
+describe('status of a legacy-schema change relays the binary status through cospec', () => {
+  /** The absolute change root each tool prints, which differs between the two copies. */
+  function rootless_(text: string, root: string): string {
+    return text.replaceAll(realpathSync(root), '<root>').replaceAll(root, '<root>')
+  }
+
+  test.failing(
+    'text: the binary status, its Next remedy naming cospec instructions',
+    async () => {
+      const coRoot = fixtureRoot()
+      const upRoot = fixtureRoot()
+      const co = await cospec(['status', '--change', 'sd1'], {
+        cwd: coRoot,
+        env: oracleEnv(coRoot),
+      })
+      const up = await oracle(['status', '--change', 'sd1'], upRoot, { runtime: 'node' })
+      expect(up.stdout).toContain('Next: openspec instructions specs --change "sd1" --json')
+      expect(co.exitCode, detail(co)).toBe(up.exitCode)
+      expect(rootless_(co.stdout, coRoot), detail(co)).toBe(
+        rootless_(up.stdout, upRoot).replace(
+          'Next: openspec instructions specs',
+          'Next: cospec instructions specs',
+        ),
+      )
+      expect(co.stderr).toBe(up.stderr)
+      expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
+    },
+    30_000,
+  )
+
+  test('--json keeps its legacy document', async () => {
+    const root = fixtureRoot()
+    const co = await cospec(['status', '--change', 'sd1', '--json'], {
+      cwd: root,
+      env: oracleEnv(root),
+    })
+    expect(co.exitCode, detail(co)).toBe(0)
+    expect(JSON.parse(co.stdout)).toEqual({ change: 'sd1', type: 'spec-driven', legacy: true })
+  }, 30_000)
+
+  test.failing(
+    '--all points a legacy change at cospec status',
+    async () => {
+      const root = fixtureRoot()
+      const co = await cospec(['status', '--all'], { cwd: root, env: oracleEnv(root) })
+      expect(co.stdout, detail(co)).toContain(
+        'sd1 (spec-driven): legacy schema — use `cospec status --change sd1` for details',
+      )
+      expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
+    },
+    30_000,
+  )
+})
+
+describe("the binary's no-root answer names cospec init", () => {
+  const cases: { argv: string[]; store: boolean }[] = [
+    { argv: ['context'], store: false },
+    { argv: ['context', '--json'], store: false },
+    { argv: ['context'], store: true },
+    { argv: ['context', '--json'], store: true },
+    { argv: ['show', 'x'], store: true },
+    { argv: ['show', 'x', '--json'], store: true },
+    { argv: ['instructions', 'proposal', '--change', 'x'], store: true },
+    { argv: ['instructions', 'proposal', '--change', 'x', '--json'], store: true },
+  ]
+  for (const { argv, store } of cases) {
+    test.failing(
+      `${argv.join(' ')}${store ? ' (a store registered)' : ''}`,
+      async () => {
+        const coRoot = rootless(store)
+        const upRoot = rootless(store)
+        const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+        const up = await oracle(argv, upRoot, { runtime: 'node' })
+        expect(up.stdout + up.stderr).toMatch(/[Rr]un openspec init/)
+        expect(co.exitCode, detail(co)).toBe(up.exitCode)
+        expect(documentCount(co.stdout)).toBe(documentCount(up.stdout))
+        const paths = (text: string, root: string): string => text.replaceAll(root, '<root>')
+        expect(paths(co.stdout, coRoot), detail(co)).toBe(viaCospecInit(paths(up.stdout, upRoot)))
+        expect(paths(co.stderr, coRoot), detail(co)).toBe(viaCospecInit(paths(up.stderr, upRoot)))
+        expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
+      },
+      30_000,
+    )
+  }
 })
