@@ -481,8 +481,9 @@ function resolveProgram(argv: readonly string[], state: GlobalState): number | C
  * Phase B, the command level: `row`'s own argv. A `--no-color` before the
  * first `--` is taken out first, as upstream's program level does, so it is
  * never a value. Global flags are absorbed up to a `--` (`--store` only on a
- * row that reads it: a `store: 'refused'` row's parser refuses it), except a
- * token that
+ * row that reads it: a `store: 'refused'` row's parser refuses it, and a
+ * forward row marked `storeInArgv` hands it to the binary where it stands),
+ * except a token that
  * is the value of a space-form value-taking flag the row or its named
  * subcommand declares, `--store-path` where it takes a value (kept with it, whatever it
  * looks like — a help flag, a global, `--`); a table row parses the rest, a
@@ -504,6 +505,9 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
   // token stays in the argv for the table parser to refuse as unknown, and a
   // program-level one is refused below with the row's other parse refusals.
   const storeRefused = row.parse === 'table' && row.store === 'refused'
+  // A forward row whose upstream command declares no `--store` hands it to
+  // the binary where the user typed it.
+  const storeKept = storeRefused || (row.parse === 'forward' && row.storeInArgv === true)
   const programStore = state.storeRaw !== undefined || state.empty === '--store'
   // After a leading `--`, or a `--` that is the first token to reach a row
   // with subcommands, every token is an operand.
@@ -561,7 +565,7 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
         wantHelp = true
       else if (tok === '--json') state.json = true
       else if (isHelpToken(tok)) wantHelp = true
-      else if (isGlobalValueToken(tok) && !(storeRefused && isStoreToken(tok)))
+      else if (isGlobalValueToken(tok) && !(storeKept && isStoreToken(tok)))
         i = takeGlobalValue(tokens, i, state)
       else {
         if (!isOptionLike(tok) && positionals++ === 0)

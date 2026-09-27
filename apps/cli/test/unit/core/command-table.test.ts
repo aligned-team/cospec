@@ -566,6 +566,16 @@ describe('takesNextToken (phase B pairs a value-taking flag with its value)', ()
       'view',
     ])
   })
+
+  test('a post-command --store stays in the argv on the passthrough rows upstream gives none', () => {
+    // dist/cli/index.js `templates` and commands/schema.js `which`/`validate`/
+    // `fork`/`init` declare no `--store <id>`; `show` and `schemas` do.
+    expect(
+      COMMAND_TABLE.filter((row) => row.parse === 'forward' && row.storeInArgv === true)
+        .map((row) => row.name)
+        .toSorted(),
+    ).toEqual(['schema', 'templates'])
+  })
 })
 
 describe('splitShortCluster (one step of commander splitting -ab…)', () => {

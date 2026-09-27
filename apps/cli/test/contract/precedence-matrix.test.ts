@@ -1162,12 +1162,7 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * `--store-path`; `new` without its schema answering a `--json` caller in
  * prose). The fixes empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  'templates --bogus --store st',
-  'templates --store-path /x --store st',
-  'schema which s1 --bogus --store st',
-  'new feat x --json',
-])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>(['new feat x --json'])
 
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot(row.store, row.userSchema)
