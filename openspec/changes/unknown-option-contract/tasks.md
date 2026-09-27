@@ -419,3 +419,29 @@ red; 4–7 turn it green; 8 documents it.
       before the wrapped `new change` would fail on `Schema '<type>' not found`
       and cospec reported a wrapped-call failure; a matrix row, a unit test
       (ledger 1.35)
+- [x] 10.36 Round-7 rows first: 37 precedence-matrix rows (35 at a517506, 2 at
+      9e3ee95) ran as `test.failing` against the pre-fix source; the classifier
+      gains commander's `missing required argument` kind; each fix commit
+      removes its own keys and `KNOWN_FAILING` is empty at e09cc95
+- [x] 10.37 `--store-path` takes a value only on a row marked
+      `declaresStorePath` (upstream's `list`, `view`, `archive`, `validate`,
+      `status`, `instructions`, `new`, `context`, `doctor`, `show`, `schemas`);
+      elsewhere the table parser records it as a valueless unknown option in
+      scan order, the forward relay and the handover check answer it as text
+      under `--json`; design decision 2's "every table row" sentence rewritten;
+      `reference/commands.md`, `docs/architecture.md` (ledger 1.36)
+- [x] 10.38 `new`'s installed-schema check reads the user-level directory the
+      binary reads (`$XDG_DATA_HOME/openspec/schemas`, else
+      `~/.local/share/openspec/schemas`, `%LOCALAPPDATA%` on Windows), with its
+      symlink guard, instead of `~/.config/openspec/schemas` (ledger 1.37)
+- [x] 10.39 `isParseRejection` recognises every commander 14 parse-time refusal
+      shape, `missing required argument` included; `feedback` with no message
+      words it as commander does (ledger 1.38)
+- [x] 10.40 `status`'s positional is `displacedBy` `--change` and `--all`:
+      beside either it is too many arguments, as upstream; the dead
+      positional-under-`--all` branch goes; `reference/commands.md` (ledger
+      1.39)
+- [x] 10.41 Short-option clusters split as commander splits them on table rows;
+      a forward row keeps the cluster and answers only a split-out `-h` with
+      cospec's help; any `-V…` cluster before `--` is the version;
+      `reference/commands.md` (ledger 1.40)

@@ -50,7 +50,34 @@ SHALL never be silently ignored. Each `table` row SHALL likewise declare whether
 its command honours the global `--store <id>`; on a row that does not, `--store`
 SHALL be refused as an unknown option in either form, after the command name or
 before it, before the command does any work, and SHALL never be silently
-ignored.
+ignored. A cospec-only positional that spells what an upstream flag selects
+(`status`'s change, for `--change` and `--all`) SHALL count as an excess
+argument when given together with that flag, as upstream, which has no such
+positional, refuses it. A short-option cluster (`-yh`) SHALL split as commander
+splits it: only when its first letter is a short flag the command declares — a
+boolean leaving the rest as the next token, a value-taking flag taking the rest
+as its value — and otherwise it SHALL be refused whole as one unknown option;
+`-h` SHALL never start a split. On a `forward` row the cluster SHALL reach the
+binary as typed, except that a `-h` the split would reach SHALL print cospec's
+help.
+
+#### Scenario: A status positional beside --change or --all is an excess argument
+
+- **WHEN** `cospec status foo --change bar` or `cospec status foo --all` runs
+- **THEN** stderr is
+  `cospec status: too many arguments. Expected 0 arguments but got 1.`, nothing
+  is reported, no JSON document is printed even under `--json`, and the exit
+  code is 1, as the pinned binary refuses the same argv
+
+#### Scenario: A short-option cluster splits as commander splits it
+
+- **WHEN** `cospec archive c -yh` or `cospec config reset -yh` runs
+- **THEN** stdout is cospec's help for that command and the exit code is 0,
+  nothing is archived or reset, and no `Usage: openspec` screen is relayed
+- **AND WHEN** `cospec archive c -yx`, `cospec archive c -hy` or
+  `cospec list -yh` runs
+- **THEN** the refusal names `-x`, `-hy` or `-yh` as the unknown option, exit 1,
+  as the pinned binary answers
 
 #### Scenario: Unknown option is refused before any work
 
@@ -109,9 +136,10 @@ cospec SHALL treat `-V` / `--version` as a global flag in any position before a
 `--` terminator, on every command (`table` and `forward` alike) and after an
 unknown command, as the pinned binary's program-level option is: the program
 level finds it wherever it appears, even where a command-level flag would take
-it as its value (`cospec list --store --version`). A version request SHALL print
-cospec's own version on stdout and exit 0, ahead of every other answer, and
-SHALL do no work.
+it as its value (`cospec list --store --version`). A short cluster that starts
+with `-V` (`-Vh`) SHALL be a version request too, as commander splits it at the
+program level. A version request SHALL print cospec's own version on stdout and
+exit 0, ahead of every other answer, and SHALL do no work.
 
 #### Scenario: A post-command version flag prints the version
 
@@ -397,7 +425,18 @@ binary as commander's missing value (or, for a flag the wrapper lifts itself,
 as the binary does. An option where a forwarded command's subcommand belongs
 SHALL reach the binary at the command's level, never be refused as an unknown
 subcommand, and a help flag after a `--store-path` the upstream command does not
-declare SHALL print cospec's help, never be taken as its value.
+declare SHALL print cospec's help, never be taken as its value. Every refusal
+the binary's commander raises while it parses — unknown option or command,
+missing value, missing required argument, too many arguments, and the rest of
+commander's parse-time shapes — SHALL be relayed as the binary's answer, never
+reported as a wrapped-call failure.
+
+#### Scenario: A forwarded command's missing required argument is relayed
+
+- **WHEN** `cospec store unregister` or `cospec store remove --json` runs
+- **THEN** stderr is the binary's `error: missing required argument 'id'`,
+  stdout carries no document, and the exit code is 1, as `openspec` answers —
+  never a report that the wrapped OpenSpec call emitted no JSON
 
 #### Scenario: A dangling value-taking flag is never given a threaded flag
 
@@ -456,22 +495,29 @@ already behaves as each flag requests.
 
 cospec SHALL refuse `--store-path`, in the space and `=` forms, both before and
 after the command name and on every command, with exit 1 and upstream's redirect
-text respelled to name `cospec store register <path>` and `--store <id>`. Under
-`--json` the refusal SHALL be exactly one JSON document on stdout carrying
-`status[0].code` `store_path_not_supported`, `target` `store.id`, and `message`
-and `fix` respelled the same way. The text SHALL never name bare `openspec`. The
-refusal SHALL land where the pinned binary refuses `--store-path`: on a `table`
-row after the row's unknown-option, pending and too-many-arguments refusals (a
-`--store-path` with no value is refused while parsing); on a `forward` row the
-binary SHALL be the authority — cospec SHALL NOT pre-decide from a raw
-`--store-path` token, SHALL hand the row's argv to its wrapper unchanged, SHALL
-relay any refusal the binary reaches first and SHALL answer the redirect in
-place of the binary's own `--store-path` refusal only, never for a call that
-exited 0 — except on a terminal-handover leaf (`config edit`, `config profile`
-with no preset, `config reset --all` without `-y`, `workset open`), where cospec
-SHALL answer the redirect without spawning when `--store-path` stands in option
-position by the row's declared flags; and after a leading `--` a `--store-path`
-SHALL be an operand.
+text respelled to name `cospec store register <path>` and `--store <id>`. On a
+command whose upstream counterpart declares the hidden `--store-path <path>`
+(the row's `declaresStorePath`: `list`, `view`, `archive`, `validate`, `status`,
+`instructions`, `new`, `context`, `doctor`, `show`, `schemas`), the space form
+SHALL take the next token as its value, and under `--json` the refusal SHALL be
+exactly one JSON document on stdout carrying `status[0].code`
+`store_path_not_supported`, `target` `store.id`, and `message` and `fix`
+respelled the same way. On every other command it SHALL be an unknown option
+that takes no value: refused in scan order after any earlier unknown option,
+outranked by help, and answered as stderr text even under `--json`. The text
+SHALL never name bare `openspec`. The refusal SHALL land where the pinned binary
+refuses `--store-path`: on a declaring `table` row after the row's
+unknown-option, pending and too-many-arguments refusals (a `--store-path` with
+no value is refused while parsing); on a `forward` row the binary SHALL be the
+authority — cospec SHALL NOT pre-decide from a raw `--store-path` token, SHALL
+hand the row's argv to its wrapper unchanged, SHALL relay any refusal the binary
+reaches first and SHALL answer the redirect in place of the binary's own
+`--store-path` refusal only, never for a call that exited 0 — except on a
+terminal-handover leaf (`config edit`, `config profile` with no preset,
+`config reset --all` without `-y`, `workset open`), where cospec SHALL answer
+the redirect without spawning when `--store-path` stands in option position by
+the row's declared flags; and after a leading `--` a `--store-path` SHALL be an
+operand.
 
 #### Scenario: --store-path after the command name
 
@@ -520,6 +566,14 @@ SHALL be an operand.
 - **WHEN** `cospec list --json --store-path /x` runs
 - **THEN** stdout is one JSON document whose `status[0].code` is
   `store_path_not_supported` and whose `fix` names `cospec store register`
+
+#### Scenario: --store-path where upstream never declares it
+
+- **WHEN** `cospec init --store-path --help`, `cospec init --bogus --store-path`
+  or `cospec init --store-path --json` runs
+- **THEN** it takes no value, as the pinned binary answers: the first prints
+  `init`'s help and exits 0, the second refuses `--bogus`, and the third prints
+  the redirect on stderr with nothing on stdout, exit 1
 
 ### Requirement: Per-command help is rendered from the table
 

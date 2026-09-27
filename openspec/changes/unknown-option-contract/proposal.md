@@ -214,6 +214,26 @@ now fails with `schema '<type>' is not installed in this repo`, and
 `cospec apply <slug>` prints `cospec apply "<slug>" --json` in its gate prose
 instead of `"<change>"`.
 
+`--store-path` on a command OpenSpec never declares it on (`init`, `update`,
+`completion`, `feedback`, `config`, `schema`, `workset`, `store`, `templates`,
+and cospec's own `apply`, `migrate`, `sync-blockers`, `check-commit`) now takes
+no value and, under `--json`, is refused as stderr text with no JSON document,
+as OpenSpec refuses it: `cospec store list --store-path --json` used to print a
+`store_path_not_supported` document, and
+`cospec config edit --store-path /x --json` its interactive-refusal document.
+`cospec status <name> --change <other>` and `cospec status <name> --all` now
+fail with `too many arguments. Expected 0 arguments but got 1.`, exit 1, as
+`openspec status` (which takes no positional) refuses them, instead of reporting
+on `<other>` or answering the `--all`/`--change` conflict. Short options now
+combine as OpenSpec's do: `cospec archive <slug> -yh` prints the help instead of
+archiving, `cospec archive <slug> -yx` refuses `-x`, and a cluster starting with
+`-V` anywhere before `--` (`cospec list -Vh`) prints the version instead of
+running the command. `cospec feedback` with no message now says
+`missing required argument 'message'`, and a forwarded command's missing
+argument (`cospec store unregister`) relays OpenSpec's
+`error: missing required argument 'id'` instead of a wrapped-call error — exit 1
+either way.
+
 ## Capabilities
 
 ### New Capabilities

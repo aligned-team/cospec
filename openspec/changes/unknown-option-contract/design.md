@@ -157,25 +157,35 @@ runtime by `dist/commands/spec.js:127`.
    for a `--json` caller (commander's plain refusal is text, `--json` or not); a
    call that exited 0 ran its command and is never reclassified. Each forward
    wrapper's parse-rejection relay (`isParseRejection`) recognises the redirect
-   shape as well as commander's, so a stderr-only refusal under `--json` is
-   relayed, never reported as a wrapped-call violation. The one exception is the
-   terminal-handover class (`config edit`, `config profile` with no preset,
-   `config reset --all` without `-y`, `workset open`): its inherited stdio
-   leaves nothing to respell, so for that closed set only the wrapper checks
-   statically, from the row's declared flags, whether `--store-path` is in
-   option position — a value-taking flag's next token is its value, an earlier
-   undeclared option is the binary's to refuse first, `--` ends the scan — and
-   prints the redirect without spawning, so the terminal is never taken.
-   Rejected: asking the binary first on any argv carrying a raw `--store-path`
-   token (this decision's previous form). It assumed the binary refuses every
-   such argv; when the token is another flag's value the binary runs the
-   command, mutates and exits 0, and cospec reported a false failure naming bare
-   `openspec`. After a leading `--`, `--store-path` is an operand and nothing
-   intercepts it: `cospec -- config --store-path /x` is `config`'s unknown
-   subcommand, as `openspec -- config --store-path /x` is. After the command
-   name a space-form `--store-path` takes the next token as its value whatever
-   it looks like, as commander does, so phase B keeps the pair together and
-   neither absorbs a global flag there nor reads a help flag:
+   shape as well as every refusal commander 14 raises while it parses —
+   enumerated from the pin's `lib/command.js`: unknown option, unknown command,
+   `option … argument missing`, `missing required argument`, too many arguments
+   (the five the pin reaches: it declares no `.choices()`, `.conflicts()`,
+   required option, argument parser or env-backed option), and the
+   invalid-argument, invalid-env-value, invalid-command-argument,
+   required-option and conflicting-option shapes a newer in-range binary could
+   raise — so a stderr-only refusal under `--json` (`cospec store unregister`
+   with no id) is relayed, never reported as a wrapped-call violation. The
+   terminal-handover pre-spawn check prints the redirect as text even under
+   `--json`: neither `config` nor `workset` declares `--store-path` upstream, so
+   the binary's refusal there is commander's, before any output. The one
+   exception is the terminal-handover class (`config edit`, `config profile`
+   with no preset, `config reset --all` without `-y`, `workset open`): its
+   inherited stdio leaves nothing to respell, so for that closed set only the
+   wrapper checks statically, from the row's declared flags, whether
+   `--store-path` is in option position — a value-taking flag's next token is
+   its value, an earlier undeclared option is the binary's to refuse first, `--`
+   ends the scan — and prints the redirect without spawning, so the terminal is
+   never taken. Rejected: asking the binary first on any argv carrying a raw
+   `--store-path` token (this decision's previous form). It assumed the binary
+   refuses every such argv; when the token is another flag's value the binary
+   runs the command, mutates and exits 0, and cospec reported a false failure
+   naming bare `openspec`. After a leading `--`, `--store-path` is an operand
+   and nothing intercepts it: `cospec -- config --store-path /x` is `config`'s
+   unknown subcommand, as `openspec -- config --store-path /x` is. After the
+   command name a space-form `--store-path` takes the next token as its value
+   whatever it looks like, as commander does, so phase B keeps the pair together
+   and neither absorbs a global flag there nor reads a help flag:
    `cospec list --store-path --json` is the text redirect with no document, and
    `cospec show c1 --store-path --store foo` the binary's too many arguments.
    That holds only where the upstream command declares `--store-path` — the
@@ -211,7 +221,27 @@ runtime by `dist/commands/spec.js:127`.
    flag suggestions read the same. Missing value:
    `cospec <command>: option '<flag> <placeholder>' argument missing`, the shape
    upstream uses, prefixed the cospec way. Pending:
-   `cospec <command>: '<flag>' is not supported yet`. All three exit 1.
+   `cospec <command>: '<flag>' is not supported yet`. All three exit 1. A
+   required positional with nothing given is worded as commander words it,
+   prefixed the same way
+   (`cospec feedback: missing required argument 'message'`). A short-option
+   cluster splits as commander's `parseOptions` splits it, one step at a time:
+   only when its first letter is a short flag the parsing surface declares (a
+   boolean leaves `-<rest>` as the next token, a value-taking flag takes
+   `<rest>` as its value); an undeclared first letter leaves the whole token one
+   unknown option, and `-h` never starts a split because commander keeps help
+   out of its option list (`-hy` is unknown). Phase B splits on a `table` row
+   and rescans the pieces, so a split-out `-h` is help and a split-out value
+   stays paired; on a `forward` row the binary gets the cluster as typed and
+   phase B answers only a `-h` the split would reach, with cospec's help
+   (`cospec config reset -yh` had relayed `Usage: openspec config reset`). `-V`
+   is the program's option and the program level parses the whole argv, so any
+   `-V…` cluster before a `--` is the version (`cospec list -Vh`), while `-yV`
+   on `archive` splits to the command's unknown `-V`. A cospec-only positional
+   that spells an upstream flag declares `displacedBy`: `status`'s change is
+   displaced by `--change` and `--all`, so beside either it is the excess
+   argument upstream's commander refuses (`Expected 0 arguments but got 1.`)
+   instead of being dropped.
 4. **Three accepted no-ops, no more.** `init --no-animation` (cospec has no
    animation), `archive -y`/`--yes` (cospec never prompts) and `list --changes`
    (the default). `validate --no-interactive` and `show --no-interactive` were
