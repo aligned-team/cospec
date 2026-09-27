@@ -487,3 +487,19 @@ red; 4–7 turn it green; 8 documents it.
       `{change: null, status: [change_error]}` document; a missing slug and an
       unknown option stay text parse refusals; `reference/commands.md`, the
       spec, the proposal's BREAKING (ledger 1.49)
+- [x] 10.51 Round-10 rows first (d76609a): 6 precedence-matrix `new` rows in
+      `KNOWN_FAILING` (`new broken x` in both modes; `new`, `new --json`,
+      `new feat`, `new feat --json` with no `openspec/`, keyed `[no root]` by
+      the new `Row.variant`), each failing for its intended reason (the wrapped
+      call's exit code / the root refusal); the fixes flip them and
+      `KNOWN_FAILING` is empty at 5e477bb
+- [x] 10.52 `new` runs the wrapped `new change` with `--json` and relays its
+      reason (`wrappedNewReason`: `status[0].message`, else ANSI-stripped stderr
+      minus `✖ Error:`, respelled through cospec) in both modes;
+      `reference/commands.md` (ledger 1.50)
+- [x] 10.53 `new`'s positional-count usage refusal runs before the root is
+      resolved and before the `openspec/` check; `reference/commands.md` (ledger
+      1.51)
+- [x] 10.54 `cospecSchemaInstalled` takes `env`/`home` like `userSchemasDir`,
+      and `new`'s `run` takes them as its second argument; the unit tests pass a
+      sandboxed empty home instead of mutating `process.env` (ledger 1.52)

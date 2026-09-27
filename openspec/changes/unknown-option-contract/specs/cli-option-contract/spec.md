@@ -52,15 +52,19 @@ cannot derive, an invalid slug, an existing or archived change, a failed wrapped
 call) SHALL, under `--json`, be one JSON document on stdout in the shape the
 wrapped `new change --json` gives its own failures
 (`{change: null, status: [{severity: 'error', code: 'change_error', message}]}`),
-exit 1, with nothing on stderr; a missing slug and an unknown option SHALL stay
-text parse refusals, as the binary's commander refusals are. `show` with no item
-(an empty token is none) SHALL, under `--json`, be one
-`{status: [{severity: 'error', code: 'missing_item', message}]}` document on
-stdout, exit 1, with nothing on stderr. Each `table` row SHALL likewise declare
-whether its command honours the global `--store <id>`; on a row that does not,
-`--store` SHALL be refused as an unknown option in either form, after the
-command name or before it, before the command does any work, and SHALL never be
-silently ignored. A cospec-only positional that spells what an upstream flag
+exit 1, with nothing on stderr; a failed wrapped call SHALL be answered with the
+binary's own reason (its `new change --json` document's message), as
+`cospec new: <reason>` in text and as the document's message under `--json`,
+with any `openspec …` command it names spelled through cospec; a missing slug
+and an unknown option SHALL stay text parse refusals, as the binary's commander
+refusals are, answered before any other refusal (a missing `openspec/` tree
+included). `show` with no item (an empty token is none) SHALL, under `--json`,
+be one `{status: [{severity: 'error', code: 'missing_item', message}]}` document
+on stdout, exit 1, with nothing on stderr. Each `table` row SHALL likewise
+declare whether its command honours the global `--store <id>`; on a row that
+does not, `--store` SHALL be refused as an unknown option in either form, after
+the command name or before it, before the command does any work, and SHALL never
+be silently ignored. A cospec-only positional that spells what an upstream flag
 selects (`status`'s change, for `--change` and `--all`) SHALL count as an excess
 argument when given together with that flag, as upstream, which has no such
 positional, refuses it. A short-option cluster (`-yh`) SHALL split as commander
@@ -139,6 +143,21 @@ help.
 - **AND WHEN** `cospec new feat --json` runs
 - **THEN** stderr carries the usage refusal, stdout is empty, and the exit code
   is 1
+- **AND WHEN** `cospec new feat` or `cospec new feat --json` runs where there is
+  no `openspec/` tree
+- **THEN** stderr carries the usage refusal, not the root refusal, stdout is
+  empty, and the exit code is 1
+
+#### Scenario: A failed wrapped new change answers with the binary's reason
+
+- **WHEN** `cospec new broken x` runs and the project schema `broken` has a
+  `schema.yaml` the binary cannot parse
+- **THEN** stderr is `cospec new: Failed to parse schema at '<path>': …`, the
+  binary's parse reason, not the wrapped call's exit code, and the exit code is
+  1
+- **AND WHEN** `cospec new broken x --json` runs
+- **THEN** stdout is one JSON document whose `status[0].message` is that parse
+  reason, stderr is empty, and the exit code is 1
 
 #### Scenario: show with an empty item name gives cospec's item-name error
 
