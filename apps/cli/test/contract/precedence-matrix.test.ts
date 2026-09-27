@@ -159,6 +159,14 @@ interface Row {
   userSchema?: 'data' | 'config'
   /** Shapes each tool's root before its snapshot is taken (a change, a schema, no tree). */
   setup?: (root: string) => void
+  /** Tells apart two rows sharing an argv (a different `setup`), in its key and name. */
+  variant?: string
+}
+
+/** A row's key: its argv, plus its variant where one shares that argv. */
+function rowKey(row: Row): string {
+  const argv = row.argv.join(' ')
+  return row.variant === undefined ? argv : `${argv} [${row.variant}]`
 }
 
 const REDIRECT = '--store-path is not supported. Register the path with cospec store register'
@@ -897,6 +905,11 @@ const withBrokenSchema = (root: string): void => {
   writeFileSync(join(root, 'openspec', 'schemas', 'broken', 'schema.yaml'), 'not: [valid\n')
 }
 
+/** The binary's parse failure for `withBrokenSchema`'s schema.yaml, as its `--json` message. */
+const BROKEN_REASON =
+  /^Failed to parse schema at '[^']*\/openspec\/schemas\/broken\/schema\.yaml': Flow sequence in block collection/
+const BROKEN_REASON_TEXT = new RegExp(`^cospec new: ${BROKEN_REASON.source.slice(1)}`)
+
 const VALID_TYPES = 'build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test'
 
 const NEW_REFUSAL_ROWS: readonly Row[] = [
@@ -1006,25 +1019,58 @@ const NEW_REFUSAL_ROWS: readonly Row[] = [
     cospecOnly: { outcome: 'parsed', exit: 1 },
     check: newRefusal("no openspec/ directory — run 'cospec init' first"),
   },
-  // A schema the wrapped `new change` cannot parse: its refusal is cospec's
-  // wrapped-call failure.
+  // Without an openspec/ tree a missing slug is still the parse refusal
+  // (commander parses before its action runs), in both modes — never the
+  // root refusal, text or document.
+  ...[['new'], ['new', '--json'], ['new', 'feat'], ['new', 'feat', '--json']].map(
+    (argv): Row => ({
+      argv,
+      variant: 'no root',
+      command: 'new',
+      setup: withoutTree,
+      cospecOnly: { outcome: 'parsed', exit: 1 },
+      cospecStderr: 'cospec new: usage — cospec new <type> <slug>',
+      check: (tool, root, run) => {
+        textRefusal(tool, root, run)
+        expect(run.stderr, tool).not.toContain('no openspec/ directory')
+      },
+    }),
+  ),
+  // A schema the wrapped `new change` cannot parse: the binary's own reason
+  // (its `--json` document's message) is cospec's, in both modes — never a
+  // bare wrapped-call exit code.
   {
     argv: ['new', 'broken', 'x'],
     command: 'new',
     setup: withBrokenSchema,
     cospecOnly: { outcome: 'parsed', exit: 1 },
-    cospecStderr:
-      'cospec new: the wrapped OpenSpec call `new change x --schema broken` exited 1 (expected 0)',
-    check: textRefusal,
+    check: (tool, root, run) => {
+      textRefusal(tool, root, run)
+      expect(run.stderr, tool).toMatch(BROKEN_REASON_TEXT)
+      expect(run.stderr, tool).not.toContain('wrapped OpenSpec call')
+      expect(run.stderr, tool).not.toContain('✖')
+    },
   },
   {
     argv: ['new', 'broken', 'x', '--json'],
     command: 'new',
     setup: withBrokenSchema,
     cospecOnly: { outcome: 'parsed', exit: 1 },
-    check: newRefusal(
-      'the wrapped OpenSpec call `new change x --schema broken` exited 1 (expected 0)',
-    ),
+    check: (tool, root, run) => {
+      nothingWritten(tool, root)
+      expect(documentCount(run.stdout), run.stdout).toBe(1)
+      const doc = JSON.parse(run.stdout) as {
+        change: null
+        status: { severity: string; code: string; message: string }[]
+      }
+      expect(doc.change).toBeNull()
+      expect(doc.status).toHaveLength(1)
+      expect(doc.status[0]!.severity).toBe('error')
+      expect(doc.status[0]!.code).toBe('change_error')
+      expect(doc.status[0]!.message).toMatch(BROKEN_REASON)
+      expect(doc.status[0]!.message).not.toContain('wrapped OpenSpec call')
+      expect(run.stderr).toBe('')
+    },
   },
   {
     argv: ['new', 'feat', 'x', '--initiative', 'i'],
@@ -1383,9 +1429,19 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * argv, so the binary named it before the user's own unknown option or
  * `--store-path`; `new` without its schema answering a `--json` caller in
  * prose). The round-9 rows exposed 7 more (every other `new` refusal answering
- * a `--json` caller in prose). The fixes empty this set.
+ * a `--json` caller in prose). The round-10 rows exposed 6 more (a failed
+ * wrapped `new change` answering with its exit code, not the binary's reason,
+ * in both modes; a missing slug outside an openspec/ tree answered with the
+ * root refusal, not the parse refusal). The fixes empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
+  'new broken x',
+  'new broken x --json',
+  'new --json [no root]',
+  'new feat --json [no root]',
+  'new [no root]',
+  'new feat [no root]',
+])
 
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot(row.store, row.userSchema, row.setup)
@@ -1424,7 +1480,7 @@ async function checkRow(row: Row): Promise<void> {
 
 function register(rows: readonly Row[]): void {
   for (const row of rows) {
-    const key = row.argv.join(' ')
+    const key = rowKey(row)
     const expectation =
       row.cospecOnly !== undefined
         ? 'cospec-only'
@@ -1513,7 +1569,7 @@ describe('precedence matrix: harness', () => {
       ...HELP_TOKEN_ROWS,
       ...COSPEC_ONLY_ROWS,
       ...PENDING_ROWS,
-    ].map((row) => row.argv.join(' '))
+    ].map(rowKey)
     expect(new Set(all).size).toBe(all.length)
     // Each pending row's surface is owned in parity-pending.yaml by the same slug.
     const owned = (
