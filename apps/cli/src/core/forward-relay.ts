@@ -12,19 +12,40 @@ import { isUpstreamStorePathRefusal, storePathRefusal } from './command-table.ts
 import { OpenspecCallError, type OpenspecResult, passthroughOpenspec } from './openspec.ts'
 
 /**
+ * Every refusal the pinned binary's commander (14.x, `lib/command.js`) raises
+ * while it parses, before any action runs. The pin itself reaches the first
+ * five (it declares no `.choices()`, `.conflicts()`, required option, custom
+ * argument parser or env-backed option); the rest keep a newer in-range
+ * binary's refusals relayed too.
+ */
+const COMMANDER_REFUSAL = new RegExp(
+  `^error: (?:${[
+    "unknown option '",
+    "unknown command '",
+    "option '.+' argument missing",
+    "missing required argument '",
+    'too many arguments',
+    "option '.+' argument '.*' is invalid\\.",
+    "option '.+' value '.*' from env '.+' is invalid\\.",
+    "command-argument value '.*' is invalid for argument '",
+    "required option '.+' not specified",
+    "(?:option|environment variable) '.+' cannot be used with ",
+  ].join('|')})`,
+)
+
+/**
  * True when a failed wrapped call is the binary's own answer to the argv
- * rather than a cospec-side violation: commander's parse rejection (unknown
- * option, missing value, too many arguments) or the `--store-path` redirect,
- * printed on stderr with nothing on stdout. Both come before the binary's JSON
- * renderer, even with `--json` present, so a `--json` call sees them as
- * unparseable stdout.
+ * rather than a cospec-side violation: commander's parse rejection (any
+ * `COMMANDER_REFUSAL` shape — unknown option, missing value, missing required
+ * argument, too many arguments, …) or the `--store-path` redirect, printed on
+ * stderr with nothing on stdout. Both come before the binary's JSON renderer,
+ * even with `--json` present, so a `--json` call sees them as unparseable
+ * stdout.
  */
 export function isParseRejection(result: OpenspecResult): boolean {
   return (
     result.stdout.trim().length === 0 &&
-    (/^error: (unknown option|option .* argument missing|too many arguments)/.test(
-      result.stderr.trim(),
-    ) ||
+    (COMMANDER_REFUSAL.test(result.stderr.trim()) ||
       /--store-path is not supported\./.test(result.stderr))
   )
 }

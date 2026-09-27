@@ -164,9 +164,9 @@ describe('feedbackArgs', () => {
     expect(parseFeedbackArgv(['msg', '--upstream']).upstream).toBe(true)
   })
 
-  test('no message at all is an error naming the usage', () => {
+  test("no message at all is commander's missing required argument", () => {
     const parsed = parseFeedbackArgv([])
-    expect(parsed.error).toContain('a message is required')
+    expect(parsed.error).toBe("cospec feedback: missing required argument 'message'")
   })
 
   test('a whitespace-only message is treated as missing', () => {

@@ -30,6 +30,20 @@ describe('isParseRejection', () => {
     expect(isParseRejection(result({ stderr: UPSTREAM_REDIRECT }))).toBe(true)
   })
 
+  test('every refusal shape commander 14 raises while it parses', () => {
+    for (const stderr of [
+      "error: missing required argument 'id'\n",
+      "error: unknown command 'bogus'\n",
+      "error: option '--mode <m>' argument 'x' is invalid. Allowed choices are a, b.\n",
+      "error: option '--mode <m>' value 'x' from env 'MODE' is invalid. Allowed choices are a.\n",
+      "error: command-argument value 'x' is invalid for argument 'shell'. Allowed choices are bash.\n",
+      "error: required option '--name <n>' not specified\n",
+      "error: option '--a' cannot be used with option '--b'\n",
+      "error: environment variable 'A' cannot be used with option '--b'\n",
+    ])
+      expect(isParseRejection(result({ stderr })), stderr).toBe(true)
+  })
+
   test('anything the command itself printed is not one', () => {
     expect(isParseRejection(result({ stderr: "Unknown item 'c1'.\n" }))).toBe(false)
     expect(isParseRejection(result({ stdout: '{}', stderr: "error: unknown option '--x'" }))).toBe(
