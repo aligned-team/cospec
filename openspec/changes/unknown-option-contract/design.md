@@ -96,7 +96,10 @@ runtime by `dist/commands/spec.js:127`.
    does) or keeping an earlier `--store-path`'s redirect, raising a later flag's
    missing value, writing nothing. Threaded ahead of the argv it would be the
    first unknown option in every such run. A `--store` before the command name
-   still selects the root and is threaded ahead, where a dangling flag cannot
+   selects no root for these two: it is threaded right after the command path,
+   where the binary refuses it as `unknown option '--store'` (an earlier missing
+   value still first, as commander orders it), as
+   `openspec --store <id> templates` does — and where a dangling flag cannot
    take it (appended after, `--store st schema init --description` created a
    schema named `st`). `root-resolution-parity` stops threading `--store` onto
    these two commands altogether, which retires the marker.

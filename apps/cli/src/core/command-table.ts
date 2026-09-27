@@ -142,8 +142,10 @@ export interface ForwardCommandRow extends RowBase {
    * command name is left in the argv where it stands, never absorbed: the
    * binary parses it in the user's order, naming an earlier unknown option or
    * `--store-path` first and raising a later flag's missing value, as it does
-   * for bare `openspec`. A `--store` before the command name still selects
-   * the root, threaded right after the command path.
+   * for bare `openspec`. A `--store` before the command name selects no
+   * root: it is threaded right after the command path, where the binary
+   * refuses it as an unknown option (an earlier missing value still first),
+   * as `openspec --store <id> templates` does.
    */
   readonly storeInArgv?: true
 }

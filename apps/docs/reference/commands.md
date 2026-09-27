@@ -272,8 +272,11 @@ you type after `templates` or `schema` reaches OpenSpec where you typed it and
 is its unknown option there: `cospec templates --bogus --store <id>` names
 `--bogus`, as `openspec` does, and
 `cospec schema init s1 --store <id> --description` refuses the missing
-`--description` value. A `--store` before the command name still selects the
-root and goes ahead of your tokens. Where OpenSpec's answer names a bare
+`--description` value. A `--store` before the command name selects no root for
+these two: cospec threads it right after the command path, ahead of your tokens,
+and OpenSpec refuses it there — `cospec --store <id> templates` answers
+`error: unknown option '--store'`, exit `1`, as
+`openspec --store <id> templates` does. Where OpenSpec's answer names a bare
 `openspec` command as the remedy, cospec relays it naming the cospec command of
 the same shape — `show`'s `Run "cospec status --change <id>"` for a change with
 no proposal.md (text and `--json`), `view`'s `cospec list --changes`/`--specs`,

@@ -253,7 +253,8 @@ Two rules keep a forward row's relay faithful to the binary. On `templates` and
 marker keeps a post-command `--store <id>` in the argv where the user typed it
 (phase B never absorbs it), so the binary parses it in the user's order instead
 of meeting a threaded `--store` first; a pre-command `--store` is still threaded
-ahead. And `relayRespelled` (`core/forward-relay.ts`) answers the binary's
+ahead, where the binary refuses it as an unknown option — it selects no root for
+these two. And `relayRespelled` (`core/forward-relay.ts`) answers the binary's
 `--store-path` refusal with cospec's redirect and, on a failed call only, spells
 each bare-`openspec` remedy the binary writes (`RELAYED_REMEDIES`) as the cospec
 command of the same shape — or drops it where cospec has none — so the remedy a
