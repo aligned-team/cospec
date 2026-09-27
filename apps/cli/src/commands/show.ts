@@ -22,13 +22,17 @@ import { callPassthrough } from '../core/passthrough-command.ts'
  * `allowUnknownOption(true)` includes any option `show` does not declare
  * (`show --bogus` looks up an item called `--bogus`); a declared value-taking
  * flag left without its value, commander's missing value; or `--store-path`,
- * whose refusal the relay answers with cospec's redirect.
+ * whose refusal the relay answers with cospec's redirect. An empty token
+ * (`show ""`, after `--` too) is no item: the binary answers it with that
+ * screen, so it is skipped, while a later item still reaches the binary
+ * (`show "" c1` is its too many arguments).
  */
 export function binaryAnswers(args: readonly string[]): boolean {
   const flags = commandRow('show')?.flags ?? []
   for (let i = 0; i < args.length; i++) {
     const tok = args[i]!
-    if (tok === '--') return i + 1 < args.length
+    if (tok === '') continue
+    if (tok === '--') return args.slice(i + 1).some((rest) => rest !== '')
     if (!tok.startsWith('-') || tok === '-' || isStorePathToken(tok)) return true
     const flag = flags.find((f) => f.name === tok || f.short === tok)
     if (flag === undefined) {
@@ -44,7 +48,12 @@ export function binaryAnswers(args: readonly string[]): boolean {
 
 export async function run(ctx: CommandContext): Promise<number> {
   if (!binaryAnswers(ctx.args)) {
-    process.stderr.write('cospec show: an item name is required (cospec show <change-or-spec>)\n')
+    const message = 'an item name is required (cospec show <change-or-spec>)'
+    // A `--json` caller gets one document in show's own failure shape.
+    if (ctx.flags.json) {
+      const status = [{ severity: 'error', code: 'missing_item', message }]
+      process.stdout.write(`${JSON.stringify({ status }, null, 2)}\n`)
+    } else process.stderr.write(`cospec show: ${message}\n`)
     return EXIT.failure
   }
   const { result } = await callPassthrough(ctx, { command: ['show'], args: ctx.args })

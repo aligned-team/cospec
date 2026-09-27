@@ -286,11 +286,15 @@ guards answer only what OpenSpec would not: an option where a subcommand belongs
 refuses it as an unknown option, not an unknown subcommand, and
 `cospec show --bogus` or `cospec show --type` gets OpenSpec's own answer
 (`Unknown item '--bogus'.`, `option '--type <type>' argument missing`); only a
-`show` with no item at all gets cospec's item-name error. `openspec show` itself
-accepts an unrecognized flag by design (`allowUnknownOption(true)`), so a
-cospec-side rejection there would be the divergence from upstream, not a fix for
-one; the same forwarding lets a newer in-range OpenSpec's new flag keep working
-immediately instead of failing until cospec's table catches up.
+`show` with no item at all — an empty `""` is none, after `--` too — gets
+cospec's item-name error (`cospec show: an item name is required`, exit `1`;
+under `--json` one `{"status":[{"severity":"error","code":"missing_item",…}]}`
+document on stdout) instead of OpenSpec's "Nothing to show" screen, which names
+bare `openspec` commands. `openspec show` itself accepts an unrecognized flag by
+design (`allowUnknownOption(true)`), so a cospec-side rejection there would be
+the divergence from upstream, not a fix for one; the same forwarding lets a
+newer in-range OpenSpec's new flag keep working immediately instead of failing
+until cospec's table catches up.
 
 **`--json` on a command that can't emit it.** `cospec view` renders a text
 dashboard and `cospec completion` prints a shell script; both refuse `--json`

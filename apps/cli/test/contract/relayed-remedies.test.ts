@@ -174,7 +174,7 @@ describe('show with an empty item name answers itself, never the binary screen',
     { argv: ['show', '--store', 'st1', ''], store: true },
   ]
   for (const { argv, store } of cases) {
-    test.failing(
+    test(
       argv.map((a) => (a === '' ? '""' : a)).join(' '),
       async () => {
         const coRoot = store ? rootless(true) : fixtureRoot()
@@ -196,26 +196,22 @@ describe('show with an empty item name answers itself, never the binary screen',
     ['show', '', '--json'],
     ['show', '--json'],
   ]) {
-    test.failing(
-      `${argv.map((a) => (a === '' ? '""' : a)).join(' ')}: one document`,
-      async () => {
-        const root = fixtureRoot()
-        const co = await cospec(argv, { cwd: root, env: oracleEnv(root) })
-        expect(co.exitCode, detail(co)).toBe(1)
-        expect(documentCount(co.stdout), detail(co)).toBe(1)
-        expect(JSON.parse(co.stdout)).toEqual({
-          status: [
-            {
-              severity: 'error',
-              code: 'missing_item',
-              message: 'an item name is required (cospec show <change-or-spec>)',
-            },
-          ],
-        })
-        expect(co.stderr, detail(co)).toBe('')
-      },
-      30_000,
-    )
+    test(`${argv.map((a) => (a === '' ? '""' : a)).join(' ')}: one document`, async () => {
+      const root = fixtureRoot()
+      const co = await cospec(argv, { cwd: root, env: oracleEnv(root) })
+      expect(co.exitCode, detail(co)).toBe(1)
+      expect(documentCount(co.stdout), detail(co)).toBe(1)
+      expect(JSON.parse(co.stdout)).toEqual({
+        status: [
+          {
+            severity: 'error',
+            code: 'missing_item',
+            message: 'an item name is required (cospec show <change-or-spec>)',
+          },
+        ],
+      })
+      expect(co.stderr, detail(co)).toBe('')
+    }, 30_000)
   }
 
   test('an empty token before an item still reaches the binary', async () => {

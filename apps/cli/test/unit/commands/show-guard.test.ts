@@ -32,4 +32,12 @@ describe('show: binaryAnswers', () => {
     expect(binaryAnswers(['--type=change', '--deltas-only'])).toBe(false)
     expect(binaryAnswers(['--no-interactive', '--'])).toBe(false)
   })
+
+  test('an empty token is no item, before or after --', () => {
+    expect(binaryAnswers([''])).toBe(false)
+    expect(binaryAnswers(['--', ''])).toBe(false)
+    expect(binaryAnswers(['', '--type', 'change'])).toBe(false)
+    expect(binaryAnswers(['', 'c1'])).toBe(true)
+    expect(binaryAnswers(['--', '', 'c1'])).toBe(true)
+  })
 })
