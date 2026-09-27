@@ -2,12 +2,14 @@
 // passthrough to `openspec instructions` so the whole artifact-authoring loop is
 // reachable under the cospec brand (MF1). `instructions apply` is an alias for
 // `cospec apply <id>` so the gate cannot be bypassed by choosing the other
-// spelling.
+// spelling. A refusal relayed from the binary has its `openspec` remedies
+// spelled through cospec (`relayRespelled`).
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { commandRow, flagValue, hasFlag, parseCommandArgs } from '../core/command-table.ts'
-import { runPassthrough } from '../core/passthrough-command.ts'
+import { relayRespelled } from '../core/forward-relay.ts'
+import { callPassthrough } from '../core/passthrough-command.ts'
 import { run as applyRun } from './apply.ts'
 
 // `archive` (OpenSpec 1.7 parity) is deliberately NOT aliased to `cospec
@@ -59,5 +61,9 @@ export async function run(ctx: CommandContext): Promise<number> {
     return EXIT.failure
   }
 
-  return runPassthrough(ctx, { command: ['instructions', artifact], args: ['--change', changeId] })
+  const { result } = await callPassthrough(ctx, {
+    command: ['instructions', artifact],
+    args: ['--change', changeId],
+  })
+  return relayRespelled(result, ctx.flags.json)
 }

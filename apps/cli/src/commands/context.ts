@@ -4,14 +4,15 @@
 // invariant on `--json`) and one observable post-condition of its own — when
 // `--code-workspace <path>` is requested and the wrapped call exits 0, the
 // file must actually exist on disk afterward (never trust the exit code
-// alone, per DESIGN §1).
+// alone, per DESIGN §1). A refusal's `openspec` remedies are spelled through
+// cospec (`relayRespelled`).
 
 import { existsSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
+import { relayRespelled } from '../core/forward-relay.ts'
 import { passthroughOpenspec, threadedArgv, wrappedCallLabel } from '../core/openspec.ts'
 import { resolveRoot } from '../core/root.ts'
 
@@ -57,7 +58,5 @@ export async function run(ctx: CommandContext): Promise<number> {
     },
   )
 
-  if (result.stdout.length > 0) process.stdout.write(result.stdout)
-  if (result.stderr.length > 0) process.stderr.write(result.stderr)
-  return result.exitCode === 0 ? EXIT.success : EXIT.failure
+  return relayRespelled(result, ctx.flags.json)
 }

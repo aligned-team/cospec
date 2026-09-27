@@ -100,6 +100,10 @@ export function relayStorePathRefusal(result: OpenspecResult, json: boolean): nu
  *   each wrapped whole in color codes when color is on.
  * - `status --change <id>`'s text for a change on a schema cospec does not
  *   type: `Next: openspec instructions <artifact> --change "<id>" --json`.
+ * - The no-root answer (`dist/core/root-selection.js`) that `show`, `context`
+ *   and `instructions` relay: `Run openspec init to create a root here.`, or
+ *   `run openspec init` twice where stores are registered — text, and the
+ *   `--json` message and fix.
  */
 const RELAYED_REMEDIES: readonly (readonly [RegExp, string])[] = [
   [
@@ -111,11 +115,28 @@ const RELAYED_REMEDIES: readonly (readonly [RegExp, string])[] = [
   // boundary too.
   [/(?:(?<![\w./-])|(?<=\[\d+m))openspec (list --(?:changes|specs))\b/g, 'cospec $1'],
   [/^Next: openspec (instructions )/gm, 'Next: cospec $1'],
+  [/(?<=\b[Rr]un )openspec init\b/g, 'cospec init'],
 ]
 
 /** `text` with each of the binary's `RELAYED_REMEDIES` spelled through cospec. */
 export function respellRemedies(text: string): string {
   return RELAYED_REMEDIES.reduce((out, [span, cospec]) => out.replace(span, cospec), text)
+}
+
+/**
+ * Relays a passthrough call's answer, returning cospec's exit code: the
+ * binary's `--store-path` refusal answered with cospec's redirect, a failed
+ * call's `RELAYED_REMEDIES` spelled through cospec, and a call that succeeded
+ * verbatim — what it prints (a change, a spec, instructions) is the user's own
+ * content.
+ */
+export function relayRespelled(result: OpenspecResult, json: boolean): number {
+  const refused = relayStorePathRefusal(result, json)
+  if (refused !== undefined) return refused
+  const relay = result.exitCode === 0 ? (text: string) => text : respellRemedies
+  if (result.stdout.length > 0) process.stdout.write(relay(result.stdout))
+  if (result.stderr.length > 0) process.stderr.write(relay(result.stderr))
+  return result.exitCode === 0 ? EXIT.success : EXIT.failure
 }
 
 /**

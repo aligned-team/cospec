@@ -152,6 +152,21 @@ describe('respellRemedies', () => {
     )
   })
 
+  test("status's Next: remedy for a legacy-schema change", () => {
+    expect(respellRemedies('\nNext: openspec instructions specs --change "sd1" --json\n')).toBe(
+      '\nNext: cospec instructions specs --change "sd1" --json\n',
+    )
+  })
+
+  test("the no-root answer's init remedy, capitalised or not", () => {
+    expect(respellRemedies('Fix: Run openspec init to create a root here.\n')).toBe(
+      'Fix: Run cospec init to create a root here.\n',
+    )
+    expect(
+      respellRemedies('Pass --store <id> to use one, or run openspec init to create a local root.'),
+    ).toBe('Pass --store <id> to use one, or run cospec init to create a local root.')
+  })
+
   test('paths and prose that are not a relayed remedy stay as they are', () => {
     const text = 'openspec/changes/c1/ is nested. See .openspec.yaml; run openspec status by hand.'
     expect(respellRemedies(text)).toBe(text)

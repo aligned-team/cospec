@@ -5,7 +5,7 @@
 // `--no-scenarios`, `-r`/`--requirement`) verbatim, threads the three global
 // flags (`--json`/`--no-color`/`--store`) via `passthrough-command.ts`, and
 // relays stdout/stderr as-is, except that a refusal's remedies naming bare
-// `openspec` are spelled through cospec (`respellRemedies`). The pinned binary
+// `openspec` are spelled through cospec (`relayRespelled`). The pinned binary
 // already exits 1 for an unknown or ambiguous item (re-probed against the
 // 1.11.0 pin: exit 1, empty stdout, `Unknown item '<name>'. Did you mean: …`
 // on stderr) — no extra deny-list is needed for that case.
@@ -13,7 +13,7 @@
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { commandRow, isStorePathToken } from '../core/command-table.ts'
-import { relayStorePathRefusal, respellRemedies } from '../core/forward-relay.ts'
+import { relayRespelled } from '../core/forward-relay.ts'
 import { callPassthrough } from '../core/passthrough-command.ts'
 
 /**
@@ -47,13 +47,6 @@ export async function run(ctx: CommandContext): Promise<number> {
     process.stderr.write('cospec show: an item name is required (cospec show <change-or-spec>)\n')
     return EXIT.failure
   }
-  const { result, code } = await callPassthrough(ctx, { command: ['show'], args: ctx.args })
-  const refused = relayStorePathRefusal(result, ctx.flags.json)
-  if (refused !== undefined) return refused
-  // Only a refusal carries the binary's remedies; a change or spec it shows is
-  // the user's own text, relayed untouched.
-  const relay = code === EXIT.success ? (text: string) => text : respellRemedies
-  if (result.stdout.length > 0) process.stdout.write(relay(result.stdout))
-  if (result.stderr.length > 0) process.stderr.write(relay(result.stderr))
-  return code
+  const { result } = await callPassthrough(ctx, { command: ['show'], args: ctx.args })
+  return relayRespelled(result, ctx.flags.json)
 }

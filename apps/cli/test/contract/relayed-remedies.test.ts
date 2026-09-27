@@ -235,22 +235,18 @@ describe("the binary's no-root answer names cospec init", () => {
     { argv: ['instructions', 'proposal', '--change', 'x', '--json'], store: true },
   ]
   for (const { argv, store } of cases) {
-    test.failing(
-      `${argv.join(' ')}${store ? ' (a store registered)' : ''}`,
-      async () => {
-        const coRoot = rootless(store)
-        const upRoot = rootless(store)
-        const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-        const up = await oracle(argv, upRoot, { runtime: 'node' })
-        expect(up.stdout + up.stderr).toMatch(/[Rr]un openspec init/)
-        expect(co.exitCode, detail(co)).toBe(up.exitCode)
-        expect(documentCount(co.stdout)).toBe(documentCount(up.stdout))
-        const paths = (text: string, root: string): string => text.replaceAll(root, '<root>')
-        expect(paths(co.stdout, coRoot), detail(co)).toBe(viaCospecInit(paths(up.stdout, upRoot)))
-        expect(paths(co.stderr, coRoot), detail(co)).toBe(viaCospecInit(paths(up.stderr, upRoot)))
-        expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
-      },
-      30_000,
-    )
+    test(`${argv.join(' ')}${store ? ' (a store registered)' : ''}`, async () => {
+      const coRoot = rootless(store)
+      const upRoot = rootless(store)
+      const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+      const up = await oracle(argv, upRoot, { runtime: 'node' })
+      expect(up.stdout + up.stderr).toMatch(/[Rr]un openspec init/)
+      expect(co.exitCode, detail(co)).toBe(up.exitCode)
+      expect(documentCount(co.stdout)).toBe(documentCount(up.stdout))
+      const paths = (text: string, root: string): string => text.replaceAll(root, '<root>')
+      expect(paths(co.stdout, coRoot), detail(co)).toBe(viaCospecInit(paths(up.stdout, upRoot)))
+      expect(paths(co.stderr, coRoot), detail(co)).toBe(viaCospecInit(paths(up.stderr, upRoot)))
+      expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
+    }, 30_000)
   }
 })
