@@ -37,7 +37,15 @@
 // consulting the binary.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 
 import { parse } from 'yaml'
@@ -89,7 +97,7 @@ const REPO_SCHEMAS = join(import.meta.dir, '..', '..', '..', '..', 'openspec', '
  * directly, as `integration/store-aware.test.ts` does, so no git identity is
  * involved).
  */
-function freshRoot(store = false, userSchema?: Row['userSchema']): string {
+function freshRoot(store = false, userSchema?: Row['userSchema'], setup?: Row['setup']): string {
   const dir = mkTempRepo()
   cpSync(join(template, 'openspec'), join(dir, 'openspec'), { recursive: true })
   if (userSchema !== undefined) {
@@ -110,6 +118,7 @@ function freshRoot(store = false, userSchema?: Row['userSchema']): string {
       `version: 1\nstores:\n  st:\n    backend:\n      type: git\n      local_path: ${storeDir}\n`,
     )
   }
+  setup?.(dir)
   oracleEnv(dir)
   snapshots.set(dir, snapshot(dir))
   return dir
@@ -148,6 +157,8 @@ interface Row {
    * resolves it) or in `~/.config/openspec/schemas` (`config`, where it does not).
    */
   userSchema?: 'data' | 'config'
+  /** Shapes each tool's root before its snapshot is taken (a change, a schema, no tree). */
+  setup?: (root: string) => void
 }
 
 const REDIRECT = '--store-path is not supported. Register the path with cospec store register'
@@ -518,6 +529,22 @@ const FORWARD_STORE_ROWS: readonly Row[] = [
     cospecOnly: { outcome: 'missing-value', exit: 1 },
     check: nothingWritten,
   },
+  // A pre-command `--store` selects no root for these two: it is threaded
+  // right after the command path, where the binary refuses it, as
+  // `openspec --store <id> templates` does.
+  {
+    argv: ['--store', 'st', 'templates'],
+    command: 'templates',
+    store: true,
+    cospecStderr: "error: unknown option '--store'",
+  },
+  {
+    argv: ['--store', 'st', 'schema', 'which', 'feat'],
+    command: 'schema',
+    store: true,
+    cospecStderr: "error: unknown option '--store'",
+    check: nothingWritten,
+  },
 ]
 
 /**
@@ -821,6 +848,199 @@ const NEW_SCHEMA_ROWS: readonly Row[] = [
     cospecOnly: { outcome: 'parsed', exit: 1 },
     cospecStderr: "cospec new: schema 'feat' is not installed in this repo",
     check: nothingWritten,
+  },
+]
+
+/**
+ * `new`'s every own refusal, in both modes: text on stderr, or under `--json`
+ * exactly one `{ change: null, status: [<change_error>] }` document on stdout
+ * — the shape the wrapped `new change --json` gives each of its failures
+ * (probed: unknown schema, existing change, invalid name, schema parse
+ * failure) — with nothing on stderr, exit 1 and nothing written. A missing
+ * slug is a parse-class refusal, as the binary's commander
+ * `missing required argument 'name'` is: text in both modes, no document.
+ * `--initiative`/`--areas` (which the binary refuses with its own
+ * `*_option_removed` document) never reach `new` here: the table parser
+ * refuses them as unknown options, text in both modes, as it does every
+ * option `new` does not declare.
+ */
+function newRefusal(message: string): Row['check'] {
+  return (tool, root, run) => {
+    nothingWritten(tool, root)
+    expect(documentCount(run.stdout), run.stdout).toBe(1)
+    expect(JSON.parse(run.stdout)).toEqual({
+      change: null,
+      status: [{ severity: 'error', code: 'change_error', message }],
+    })
+    expect(run.stdout).toStartWith('{\n  "change": null,\n')
+    expect(run.stderr).toBe('')
+  }
+}
+
+/** A text refusal: nothing on stdout, nothing written. */
+function textRefusal(tool: string, root: string, run: SpawnResult): void {
+  nothingWritten(tool, root)
+  expect(run.stdout, tool).toBe('')
+}
+
+const withChange = (root: string): void => {
+  mkdirSync(join(root, 'openspec', 'changes', 'ex'), { recursive: true })
+  writeFileSync(join(root, 'openspec', 'changes', 'ex', '.openspec.yaml'), 'schema: feat\n')
+}
+const withArchived = (root: string): void => {
+  mkdirSync(join(root, 'openspec', 'changes', 'archive', '2026-01-01-old'), { recursive: true })
+}
+const withoutTree = (root: string): void =>
+  rmSync(join(root, 'openspec'), { recursive: true, force: true })
+const withBrokenSchema = (root: string): void => {
+  mkdirSync(join(root, 'openspec', 'schemas', 'broken'), { recursive: true })
+  writeFileSync(join(root, 'openspec', 'schemas', 'broken', 'schema.yaml'), 'not: [valid\n')
+}
+
+const VALID_TYPES = 'build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test'
+
+const NEW_REFUSAL_ROWS: readonly Row[] = [
+  {
+    argv: ['new', 'bogus', 'x'],
+    command: 'new',
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    cospecStderr: "cospec new: unknown type 'bogus'\nDid you mean 'docs'?\nValid types:\n",
+    check: textRefusal,
+  },
+  {
+    argv: ['new', 'bogus', 'x', '--json'],
+    command: 'new',
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    check: newRefusal(`unknown type 'bogus' — did you mean 'docs'? Valid types: ${VALID_TYPES}`),
+  },
+  {
+    argv: ['new', 'feat'],
+    command: 'new',
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    cospecStderr: 'cospec new: usage — cospec new <type> <slug>',
+    check: textRefusal,
+  },
+  {
+    argv: ['new', 'feat', '--json'],
+    command: 'new',
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    cospecStderr: 'cospec new: usage — cospec new <type> <slug>',
+    check: textRefusal,
+  },
+  {
+    argv: ['new', 'feat: !!!'],
+    command: 'new',
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    cospecStderr: "cospec new: could not derive a slug from '!!!'",
+    check: textRefusal,
+  },
+  {
+    argv: ['new', 'feat: !!!', '--json'],
+    command: 'new',
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    check: newRefusal(
+      "could not derive a slug from '!!!' — pass an explicit slug: cospec new feat <slug>",
+    ),
+  },
+  {
+    argv: ['new', 'feat', 'Bad_Name'],
+    command: 'new',
+    userSchema: 'data',
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    cospecStderr: "cospec new: invalid slug 'Bad_Name'",
+    check: textRefusal,
+  },
+  {
+    argv: ['new', 'feat', 'Bad_Name', '--json'],
+    command: 'new',
+    userSchema: 'data',
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    check: newRefusal("invalid slug 'Bad_Name' — must match ^[a-z][a-z0-9]*(-[a-z0-9]+)*$"),
+  },
+  {
+    argv: ['new', 'feat', 'ex'],
+    command: 'new',
+    userSchema: 'data',
+    setup: withChange,
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    cospecStderr: "cospec new: change 'ex' already exists in openspec/changes/",
+    check: textRefusal,
+  },
+  {
+    argv: ['new', 'feat', 'ex', '--json'],
+    command: 'new',
+    userSchema: 'data',
+    setup: withChange,
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    check: newRefusal("change 'ex' already exists in openspec/changes/"),
+  },
+  {
+    argv: ['new', 'feat', 'old'],
+    command: 'new',
+    userSchema: 'data',
+    setup: withArchived,
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    cospecStderr: "cospec new: 'old' collides with an archived change suffix",
+    check: textRefusal,
+  },
+  {
+    argv: ['new', 'feat', 'old', '--json'],
+    command: 'new',
+    userSchema: 'data',
+    setup: withArchived,
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    check: newRefusal("'old' collides with an archived change suffix — choose a different slug"),
+  },
+  {
+    argv: ['new', 'feat', 'nr'],
+    command: 'new',
+    setup: withoutTree,
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    cospecStderr: "cospec new: no openspec/ directory — run 'cospec init' first",
+    check: textRefusal,
+  },
+  {
+    argv: ['new', 'feat', 'nr', '--json'],
+    command: 'new',
+    setup: withoutTree,
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    check: newRefusal("no openspec/ directory — run 'cospec init' first"),
+  },
+  // A schema the wrapped `new change` cannot parse: its refusal is cospec's
+  // wrapped-call failure.
+  {
+    argv: ['new', 'broken', 'x'],
+    command: 'new',
+    setup: withBrokenSchema,
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    cospecStderr:
+      'cospec new: the wrapped OpenSpec call `new change x --schema broken` exited 1 (expected 0)',
+    check: textRefusal,
+  },
+  {
+    argv: ['new', 'broken', 'x', '--json'],
+    command: 'new',
+    setup: withBrokenSchema,
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    check: newRefusal(
+      'the wrapped OpenSpec call `new change x --schema broken` exited 1 (expected 0)',
+    ),
+  },
+  {
+    argv: ['new', 'feat', 'x', '--initiative', 'i'],
+    command: 'new',
+    userSchema: 'data',
+    cospecOnly: { outcome: 'unknown-option', exit: 1 },
+    cospecStderr: "cospec new: unknown option '--initiative'",
+    check: textRefusal,
+  },
+  {
+    argv: ['new', 'feat', 'x', '--areas', 'a', '--json'],
+    command: 'new',
+    userSchema: 'data',
+    cospecOnly: { outcome: 'unknown-option', exit: 1 },
+    cospecStderr: "cospec new: unknown option '--areas'",
+    check: textRefusal,
   },
 ]
 
@@ -1162,25 +1382,34 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * after `templates` or a `schema` subcommand threaded ahead of the user's
  * argv, so the binary named it before the user's own unknown option or
  * `--store-path`; `new` without its schema answering a `--json` caller in
- * prose). The fixes empty this set.
+ * prose). The round-9 rows exposed 7 more (every other `new` refusal answering
+ * a `--json` caller in prose). The fixes empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
+  'new bogus x --json',
+  'new feat: !!! --json',
+  'new feat Bad_Name --json',
+  'new feat ex --json',
+  'new feat old --json',
+  'new feat nr --json',
+  'new broken x --json',
+])
 
 async function checkRow(row: Row): Promise<void> {
-  const coRoot = freshRoot(row.store, row.userSchema)
+  const coRoot = freshRoot(row.store, row.userSchema, row.setup)
   const co = await runCospec(row.argv, coRoot)
   const coOutcome = outcome(co, row.command, row.argv)
   const detail = `cospec exit ${co.exitCode}\nstdout: ${co.stdout.slice(0, 200)}\nstderr: ${co.stderr.slice(0, 300)}`
   if (row.cospecOnly !== undefined) {
     expect({ outcome: coOutcome, exit: co.exitCode }, detail).toEqual(row.cospecOnly)
   } else if (row.pending !== undefined) {
-    const up = await runUpstream(row.argv, freshRoot(row.store, row.userSchema))
+    const up = await runUpstream(row.argv, freshRoot(row.store, row.userSchema, row.setup))
     expect({ outcome: outcome(up, row.command, row.argv), exit: up.exitCode }).toEqual(
       row.pending.upstream,
     )
     expect({ outcome: coOutcome, exit: co.exitCode }, detail).toEqual(row.pending.cospec)
   } else {
-    const upRoot = freshRoot(row.store, row.userSchema)
+    const upRoot = freshRoot(row.store, row.userSchema, row.setup)
     const up = await runUpstream(row.argv, upRoot)
     const upDetail = `openspec exit ${up.exitCode}\nstdout: ${up.stdout.slice(0, 200)}\nstderr: ${up.stderr.slice(0, 300)}`
     expect(
@@ -1231,6 +1460,7 @@ describe('precedence matrix: --store on a row that never reads it', () =>
 describe('precedence matrix: forward wrapper guards', () => register(FORWARD_GUARD_ROWS))
 describe('precedence matrix: status --json documents', () => register(STATUS_JSON_ROWS))
 describe('precedence matrix: new without its schema', () => register(NEW_SCHEMA_ROWS))
+describe('precedence matrix: new refusals in both modes', () => register(NEW_REFUSAL_ROWS))
 describe('precedence matrix: status positional with --change or --all', () =>
   register(STATUS_POSITIONAL_ROWS))
 describe('precedence matrix: --store-path where upstream never declares it', () =>
@@ -1278,6 +1508,7 @@ describe('precedence matrix: harness', () => {
       ...FORWARD_GUARD_ROWS,
       ...STATUS_JSON_ROWS,
       ...NEW_SCHEMA_ROWS,
+      ...NEW_REFUSAL_ROWS,
       ...STATUS_POSITIONAL_ROWS,
       ...UNDECLARED_STORE_PATH_ROWS,
       ...FORWARD_REFUSAL_ROWS,

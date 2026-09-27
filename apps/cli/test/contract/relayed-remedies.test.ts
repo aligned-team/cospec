@@ -162,6 +162,70 @@ describe('show relays its remedies through cospec', () => {
   }, 30_000)
 })
 
+describe('show with an empty item name answers itself, never the binary screen', () => {
+  // An empty token (`""`, after `--` too) is no item: the binary answers it
+  // with its "Nothing to show" screen, whose remedies are bare `openspec`
+  // commands, so cospec gives its own item-name error instead — text on
+  // stderr, or under `--json` one document on stdout — exit 1 either way.
+  const REQUIRED = 'cospec show: an item name is required (cospec show <change-or-spec>)\n'
+  const cases: { argv: string[]; store: boolean }[] = [
+    { argv: ['show', ''], store: false },
+    { argv: ['show', '--', ''], store: false },
+    { argv: ['show', '--store', 'st1', ''], store: true },
+  ]
+  for (const { argv, store } of cases) {
+    test.failing(
+      argv.map((a) => (a === '' ? '""' : a)).join(' '),
+      async () => {
+        const coRoot = store ? rootless(true) : fixtureRoot()
+        const upRoot = store ? rootless(true) : fixtureRoot()
+        const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+        const up = await oracle(argv, upRoot, { runtime: 'node' })
+        expect(up.exitCode).toBe(1)
+        expect(up.stderr).toContain('Nothing to show. Try one of:')
+        expect(up.stderr).toMatch(BARE_OPENSPEC)
+        expect(co.exitCode, detail(co)).toBe(1)
+        expect(co.stdout, detail(co)).toBe('')
+        expect(co.stderr, detail(co)).toBe(REQUIRED)
+      },
+      30_000,
+    )
+  }
+
+  for (const argv of [
+    ['show', '', '--json'],
+    ['show', '--json'],
+  ]) {
+    test.failing(
+      `${argv.map((a) => (a === '' ? '""' : a)).join(' ')}: one document`,
+      async () => {
+        const root = fixtureRoot()
+        const co = await cospec(argv, { cwd: root, env: oracleEnv(root) })
+        expect(co.exitCode, detail(co)).toBe(1)
+        expect(documentCount(co.stdout), detail(co)).toBe(1)
+        expect(JSON.parse(co.stdout)).toEqual({
+          status: [
+            {
+              severity: 'error',
+              code: 'missing_item',
+              message: 'an item name is required (cospec show <change-or-spec>)',
+            },
+          ],
+        })
+        expect(co.stderr, detail(co)).toBe('')
+      },
+      30_000,
+    )
+  }
+
+  test('an empty token before an item still reaches the binary', async () => {
+    const { co, up } = await both(['show', '', 'done'])
+    expect(up.stderr).toContain('too many arguments')
+    expect(co.exitCode, detail(co)).toBe(up.exitCode)
+    expect(co.stderr, detail(co)).toContain('too many arguments')
+  }, 30_000)
+})
+
 describe('view relays its footer through cospec', () => {
   test('the dashboard names cospec list for the detailed views', async () => {
     const { co, up } = await both(['view'])
