@@ -174,11 +174,16 @@ export async function run(ctx: CommandContext): Promise<number> {
   // adopted yet) is the user's setup to fix, not a wrapped-call failure: the
   // wrapped `new change` would refuse it as `Schema '<type>' not found`.
   if (isCospecType(type) && !cospecSchemaInstalled(base, type)) {
-    process.stderr.write(
+    const message =
       root.store !== undefined
-        ? `cospec new: schema '${type}' is not installed in store '${root.store}' — run 'cospec init ${root.base}' first\n`
-        : `cospec new: schema '${type}' is not installed in this repo — run 'cospec init' first\n`,
-    )
+        ? `schema '${type}' is not installed in store '${root.store}' — run 'cospec init ${root.base}' first`
+        : `schema '${type}' is not installed in this repo — run 'cospec init' first`
+    // A `--json` caller gets one document, in the shape the wrapped `new
+    // change --json` gives its own failures.
+    if (flags.json) {
+      const status = [{ severity: 'error', code: 'change_error', message }]
+      process.stdout.write(`${JSON.stringify({ change: null, status }, null, 2)}\n`)
+    } else process.stderr.write(`cospec new: ${message}\n`)
     return EXIT.failure
   }
 
