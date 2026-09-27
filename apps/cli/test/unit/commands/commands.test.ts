@@ -10,6 +10,7 @@ import {
   run as newRun,
   slugify,
   userSchemasDir,
+  wrappedNewReason,
 } from '../../../src/commands/new.ts'
 import {
   computeStatus,
@@ -51,6 +52,35 @@ describe('new: slugify', () => {
   test('undefined when nothing usable remains', () => {
     expect(slugify('12345')).toBeUndefined()
     expect(slugify('   ')).toBeUndefined()
+  })
+})
+
+describe("new: a failed wrapped new change's reason", () => {
+  const result = (stdout: string, stderr = '') => ({ stdout, stderr, exitCode: 1 })
+  test("takes its --json document's first status message", () => {
+    const doc = JSON.stringify({
+      change: null,
+      status: [
+        { severity: 'error', code: 'change_error', message: "Failed to parse schema at 'x'\n" },
+      ],
+    })
+    expect(wrappedNewReason(result(doc))).toBe("Failed to parse schema at 'x'")
+  })
+  test('falls back to stderr without color codes or its error prefix', () => {
+    expect(wrappedNewReason(result('', "\x1b[31m✖ Error: Schema 'nope' not found\x1b[39m\n"))).toBe(
+      "Schema 'nope' not found",
+    )
+    expect(wrappedNewReason(result('', 'boom\n'))).toBe('boom')
+    expect(wrappedNewReason(result('', ''))).toBeUndefined()
+  })
+  test('spells any openspec command it names through cospec', () => {
+    const doc = JSON.stringify({
+      change: null,
+      status: [{ message: "No OpenSpec root. Run 'openspec init' or openspec store setup <id>" }],
+    })
+    expect(wrappedNewReason(result(doc))).toBe(
+      "No OpenSpec root. Run 'cospec init' or cospec store setup <id>",
+    )
   })
 })
 

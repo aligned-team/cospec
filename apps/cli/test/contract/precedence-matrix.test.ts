@@ -1435,8 +1435,6 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * root refusal, not the parse refusal). The fixes empty this set.
  */
 const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  'new broken x',
-  'new broken x --json',
   'new --json [no root]',
   'new feat --json [no root]',
   'new [no root]',

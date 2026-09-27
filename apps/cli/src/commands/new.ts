@@ -25,6 +25,8 @@ import {
   resolveSchema,
 } from '../core/change.ts'
 import { flagValue } from '../core/command-table.ts'
+import { respellRemedies } from '../core/forward-relay.ts'
+import type { OpenspecResult } from '../core/openspec.ts'
 import { OpenspecCallError, runOpenspec, threadedArgv } from '../core/openspec.ts'
 import { resolveRoot } from '../core/root.ts'
 import { COSPEC_TYPES, getTypeInfo } from '../core/schema-compose.ts'
@@ -131,6 +133,36 @@ export function cospecSchemaInstalled(base: string, type: string): boolean {
   })
 }
 
+// oxlint-disable-next-line no-control-regex -- matching the ESC that opens an SGR sequence
+const ANSI_SGR = /\x1b\[[0-9;]*m/g
+
+/**
+ * Why a failed wrapped `new change --json` refused: the message of its
+ * document's first status entry (every failure of its own — an unparseable or
+ * unknown schema, an existing change, an invalid name — answers with one),
+ * else its stderr without color codes or its `✖ Error:` prefix. Any
+ * `openspec …` command it names is spelled through cospec. Undefined when the
+ * binary said nothing.
+ */
+export function wrappedNewReason(result: OpenspecResult): string | undefined {
+  let reason: string | undefined
+  try {
+    const doc = JSON.parse(result.stdout) as { status?: { message?: unknown }[] } | null
+    const message = doc?.status?.[0]?.message
+    if (typeof message === 'string') reason = message
+  } catch (err) {
+    if (!(err instanceof SyntaxError)) throw err
+  }
+  if (reason === undefined || reason.trim().length === 0) {
+    const stderr = result.stderr.replace(ANSI_SGR, '')
+    const marker = stderr.indexOf('✖ Error:')
+    reason = marker === -1 ? stderr : stderr.slice(marker + '✖ Error:'.length)
+  }
+  reason = reason.trim()
+  if (reason.length === 0) return undefined
+  return respellRemedies(reason).replace(/(?<![\w./-])openspec (?=[a-z])/g, 'cospec ')
+}
+
 export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
   const root = await resolveRoot(ctx)
@@ -216,7 +248,8 @@ export async function run(ctx: CommandContext): Promise<number> {
   }
 
   // Delegate + verify the written schema pointer (never trust the exit code).
-  const args = [slug, '--schema', type]
+  // `--json` so a refusal carries the binary's reason as a document message.
+  const args = [slug, '--schema', type, '--json']
   if (derivedDescription !== undefined) args.push('--description', derivedDescription)
   try {
     await runOpenspec(threadedArgv(['new', 'change'], root.storeArgs, args), {
@@ -233,10 +266,10 @@ export async function run(ctx: CommandContext): Promise<number> {
       },
     })
   } catch (err) {
-    return refuse(
-      err instanceof OpenspecCallError ? err.message : (err as Error).message,
-      flags.json,
-    )
+    if (!(err instanceof OpenspecCallError)) return refuse((err as Error).message, flags.json)
+    // A post-condition failure (exit 0) keeps cospec's own account of it.
+    const reason = err.result.exitCode === 0 ? undefined : wrappedNewReason(err.result)
+    return refuse(reason ?? err.message, flags.json)
   }
 
   if (legacy) {
