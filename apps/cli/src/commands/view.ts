@@ -8,7 +8,9 @@
 // where `view --store` is an unknown option, so for a store-backed root this
 // command spawns `openspec view` with the store's own root as the working
 // directory (`root.base`) instead. That shows the same dashboard on every
-// binary in the range.
+// binary in the range. The dashboard is relayed as the binary prints it,
+// except its footer's `openspec list` remedies, spelled through cospec
+// (`respellRemedies`).
 //
 // cospec adds one observable pre-condition of its own rather than trusting
 // the wrapped exit code alone (DESIGN §1): it checks for `openspec/` under
@@ -21,6 +23,7 @@ import { existsSync } from 'node:fs'
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { openspecDir } from '../core/change.ts'
+import { respellRemedies } from '../core/forward-relay.ts'
 import { passthroughOpenspec } from '../core/openspec.ts'
 import { resolveRoot } from '../core/root.ts'
 
@@ -33,7 +36,7 @@ export async function run(ctx: CommandContext): Promise<number> {
   }
 
   const result = await passthroughOpenspec({ command: ['view'] }, { cwd: root.base })
-  if (result.stdout.length > 0) process.stdout.write(result.stdout)
+  if (result.stdout.length > 0) process.stdout.write(respellRemedies(result.stdout))
   if (result.stderr.length > 0) process.stderr.write(result.stderr)
   return result.exitCode === 0 ? EXIT.success : EXIT.failure
 }

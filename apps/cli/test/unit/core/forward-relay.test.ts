@@ -141,6 +141,17 @@ describe('respellRemedies', () => {
     ).toBe("Ambiguous item 'dup' matches both a change and a spec.\nPass --type change|spec.\n")
   })
 
+  test("view's footer, plain and wrapped in color codes", () => {
+    expect(
+      respellRemedies(
+        '\nUse openspec list --changes or openspec list --specs for detailed views\n',
+      ),
+    ).toBe('\nUse cospec list --changes or cospec list --specs for detailed views\n')
+    expect(respellRemedies('Use \u001b[37mopenspec list --changes\u001b[39m')).toBe(
+      'Use \u001b[37mcospec list --changes\u001b[39m',
+    )
+  })
+
   test('paths and prose that are not a relayed remedy stay as they are', () => {
     const text = 'openspec/changes/c1/ is nested. See .openspec.yaml; run openspec status by hand.'
     expect(respellRemedies(text)).toBe(text)

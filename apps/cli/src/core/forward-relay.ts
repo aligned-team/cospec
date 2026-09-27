@@ -85,8 +85,8 @@ export function relayStorePathRefusal(result: OpenspecResult, json: boolean): nu
 }
 
 /**
- * The pinned binary's own remedies in the answers `show` relays (probed at
- * 1.13.1, `dist/commands/change.js`, `show.js`),
+ * The pinned binary's own remedies in the answers `show` and `view` relay
+ * (probed at 1.13.1, `dist/commands/change.js`, `show.js`, `core/view.js`),
  * each rewritten to the cospec command of the same shape — or dropped where
  * cospec has none:
  *
@@ -96,6 +96,8 @@ export function relayStorePathRefusal(result: OpenspecResult, json: boolean): nu
  *   change|spec, or use: openspec change show / openspec spec show`. cospec
  *   has no noun-form commands, so the clause goes, leaving the wording
  *   upstream itself prints for a store root.
+ * - `view`'s footer: `openspec list --changes` and `openspec list --specs`,
+ *   each wrapped whole in color codes when color is on.
  */
 const RELAYED_REMEDIES: readonly (readonly [RegExp, string])[] = [
   [
@@ -103,6 +105,9 @@ const RELAYED_REMEDIES: readonly (readonly [RegExp, string])[] = [
     'Pass --type change|spec.',
   ],
   [/(\\?")openspec (status --change )/g, '$1cospec $2'],
+  // A color code (`ESC[37m`) ends in a word character, so it counts as a left
+  // boundary too.
+  [/(?:(?<![\w./-])|(?<=\[\d+m))openspec (list --(?:changes|specs))\b/g, 'cospec $1'],
 ]
 
 /** `text` with each of the binary's `RELAYED_REMEDIES` spelled through cospec. */
