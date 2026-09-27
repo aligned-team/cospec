@@ -165,6 +165,9 @@ export function wrappedNewReason(result: OpenspecResult): string | undefined {
   }
   reason = reason.trim()
   if (reason.length === 0) return undefined
+  // Every command this reason can name has a cospec spelling, so the generic
+  // rule is safe here; it stays out of `RELAYED_REMEDIES`, which rewrites only
+  // named remedies because it runs over whole relayed screens.
   return respellRemedies(reason).replace(/(?<![\w./-])openspec (?=[a-z])/g, 'cospec ')
 }
 
