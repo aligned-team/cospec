@@ -1434,12 +1434,7 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * in both modes; a missing slug outside an openspec/ tree answered with the
  * root refusal, not the parse refusal). The fixes empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  'new --json [no root]',
-  'new feat --json [no root]',
-  'new [no root]',
-  'new feat [no root]',
-])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
 
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot(row.store, row.userSchema, row.setup)

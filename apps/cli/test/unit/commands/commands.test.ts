@@ -258,6 +258,21 @@ describe('new: validation before delegation', () => {
     }
   })
 
+  test('a missing slug outside an openspec/ tree is the usage refusal, not the root one', async () => {
+    const bare = mkdtempSync(join(tmpdir(), 'cospec-noinit-'))
+    roots.push(bare)
+    for (const json of [false, true]) {
+      for (const args of [[], ['feat']]) {
+        // oxlint-disable-next-line no-await-in-loop -- each run writes the shared process streams
+        const r = await runCmd(newRun, ctx(bare, args, { command: 'new', json }))
+        expect(r.code).toBe(1)
+        expect(r.out).toBe('')
+        expect(r.err).toStartWith('cospec new: usage — cospec new <type> <slug>')
+        expect(r.err).not.toContain('no openspec/ directory')
+      }
+    }
+  })
+
   test('a missing slug stays a text usage refusal under --json', async () => {
     const r = await runCmd(newRun, ctx(repo(), ['feat'], { command: 'new', json: true }))
     expect(r.code).toBe(1)

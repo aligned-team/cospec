@@ -165,6 +165,21 @@ export function wrappedNewReason(result: OpenspecResult): string | undefined {
 
 export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
+  const parsed = ctx.parsed!
+  const positionals = parsed.positionals
+  const freeForm = positionals.length === 1 && positionals[0]!.includes(':')
+
+  // A missing slug is the binary's commander `missing required argument`,
+  // which it reports while parsing, before its action resolves a root: text in
+  // both modes, ahead of every other refusal.
+  if (!freeForm && positionals.length < 2) {
+    process.stderr.write(
+      'cospec new: usage — cospec new <type> <slug> | cospec new "<type>: <description>"\n',
+    )
+    process.stderr.write(typeTableText())
+    return EXIT.failure
+  }
+
   const root = await resolveRoot(ctx)
   const base = root.base
 
@@ -180,15 +195,13 @@ export async function run(ctx: CommandContext): Promise<number> {
     )
   }
 
-  const parsed = ctx.parsed!
-  const positionals = parsed.positionals
   const description = flagValue(parsed, '--description')
 
   let type: string
   let slug: string | undefined
   let derivedDescription = description
 
-  if (positionals.length === 1 && positionals[0]!.includes(':')) {
+  if (freeForm) {
     // Form 2: "<type>: <free text>".
     const raw = positionals[0]!
     const idx = raw.indexOf(':')
@@ -204,13 +217,6 @@ export async function run(ctx: CommandContext): Promise<number> {
     }
   } else {
     // Form 1: <type> <slug>.
-    if (positionals.length < 2) {
-      process.stderr.write(
-        'cospec new: usage — cospec new <type> <slug> | cospec new "<type>: <description>"\n',
-      )
-      process.stderr.write(typeTableText())
-      return EXIT.failure
-    }
     type = positionals[0]!
     slug = positionals[1]!
   }
