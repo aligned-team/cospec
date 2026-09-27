@@ -18,6 +18,7 @@ import {
   run as statusRun,
 } from '../../../src/commands/status.ts'
 import { run as validateRun } from '../../../src/commands/validate.ts'
+import { commandRow, parseCommandArgs } from '../../../src/core/command-table.ts'
 import {
   ctx,
   DONE_TASKS,
@@ -331,11 +332,22 @@ describe('status --all (OpenSpec 1.11 parity)', () => {
     })
   })
 
-  test('--all and a positional change name are mutually exclusive', async () => {
-    const cwd = repo()
-    const r = await runCmd(statusRun, ctx(cwd, ['--all', 'bare'], { command: 'status' }))
-    expect(r.code).toBe(1)
-    expect(r.err).toContain('mutually exclusive')
+  test('a positional change name beside --all or --change is an excess argument, as upstream', () => {
+    const status = commandRow('status')
+    if (status?.parse !== 'table') throw new Error('status is a table row')
+    for (const args of [
+      ['--all', 'bare'],
+      ['bare', '--change', 'other'],
+      ['--change', 'other', 'bare'],
+    ]) {
+      const result = parseCommandArgs(status, args)
+      expect(result.ok, args.join(' ')).toBe(false)
+      if (!result.ok)
+        expect(result.refusal.message).toBe(
+          'cospec status: too many arguments. Expected 0 arguments but got 1.\n',
+        )
+    }
+    expect(parseCommandArgs(status, ['bare']).ok).toBe(true)
   })
 
   test('no active changes: reports the empty case and exits 0', async () => {

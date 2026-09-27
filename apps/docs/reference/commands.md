@@ -196,7 +196,11 @@ completes it after its name. Four refusal shapes, all exit `1`:
   change named `add` (spell the slug `add-login`, or pass
   `cospec new "feat: add login"` as one argument), and so are `cospec init a b`,
   `cospec apply <slug> extra`, `cospec migrate <slug> extra`,
-  `cospec status a b` and `cospec instructions <artifact> extra`.
+  `cospec status a b` and `cospec instructions <artifact> extra`. `status`'s
+  positional change is cospec's own spelling of `--change` (OpenSpec's `status`
+  takes none), so beside `--change` or `--all` it's the excess argument OpenSpec
+  refuses: `cospec status foo --change bar` answers
+  `Expected 0 arguments but got 1.` instead of dropping `foo`.
 - **Not supported yet:** `cospec <command>: '<flag>' is not supported yet`, for
   an upstream flag cospec hasn't implemented. Its value is still consumed first,
   so a pending flag can never leak into a positional either. An upstream

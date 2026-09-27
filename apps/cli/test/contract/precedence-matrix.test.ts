@@ -1073,12 +1073,6 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * clusters never split). The fixes empty this set.
  */
 const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  'status foo --change bar',
-  'status --change bar foo',
-  'status foo --change bar --json',
-  'status foo --all',
-  'status foo --all --json',
-  'status foo --all --change bar',
   'archive c -yh',
   'archive -yh',
   'archive c -yy',

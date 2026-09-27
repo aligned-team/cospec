@@ -66,6 +66,12 @@ export interface PositionalSpec {
   readonly values?: readonly string[]
   /** Values a user may type that are owed by a later change (refused as pending). */
   readonly pendingValues?: Readonly<Record<string, PendingOwner>>
+  /**
+   * A cospec-only positional that spells what these flags select. Upstream
+   * has no such positional, so given together with any of them it is the
+   * excess argument commander refuses (`status foo --change bar`).
+   */
+  readonly displacedBy?: readonly `--${string}`[]
   readonly status: SurfaceStatus
   readonly origin: SurfaceOrigin
 }
@@ -394,7 +400,9 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     json: 'accepted',
     store: 'accepted',
     declaresStorePath: true,
-    positionals: [cospecArg({ name: 'change', required: false })],
+    positionals: [
+      cospecArg({ name: 'change', required: false, displacedBy: ['--change', '--all'] }),
+    ],
     flags: [
       upstream({
         name: '--change',
@@ -1211,10 +1219,13 @@ function parseSurface(
   }
 
   if (recorded !== undefined) return { ok: false, refusal: recorded }
+  const slots = surface.positionals.filter(
+    (p) => p.displacedBy?.some((name) => flags[name] !== undefined) !== true,
+  )
   for (const [index, value] of positionals.entries()) {
-    const slot = surface.positionals[index]
+    const slot = slots[index]
     if (slot === undefined) {
-      const expected = surface.positionals.filter((p) => !isPending(p.status)).length
+      const expected = slots.filter((p) => !isPending(p.status)).length
       return {
         ok: false,
         refusal: {

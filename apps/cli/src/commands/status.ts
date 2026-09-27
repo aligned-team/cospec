@@ -254,8 +254,10 @@ export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
   const parsed = ctx.parsed!
 
+  // A positional beside `--change` or `--all` never gets here: the table
+  // refuses it as an excess argument, as upstream (which has none) does.
   if (hasFlag(parsed, '--all')) {
-    if (flagValue(parsed, '--change') !== undefined || parsed.positionals.length > 0) {
+    if (flagValue(parsed, '--change') !== undefined) {
       // Under --json the failure is a JSON envelope on stdout, never a bare
       // stderr line: a caller that asked for JSON must always get something
       // parseable, and openspec's own `--all`/`--change` mutex check is caught
