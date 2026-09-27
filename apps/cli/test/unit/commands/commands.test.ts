@@ -3,6 +3,7 @@ import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } fr
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import type { CommandContext } from '../../../src/cli.ts'
 import { run as instructionsRun } from '../../../src/commands/instructions.ts'
 import { run as listRun } from '../../../src/commands/list.ts'
 import {
@@ -32,6 +33,13 @@ import {
 } from './helpers.ts'
 
 const roots: string[] = []
+// An empty home for every user-level schema lookup here, so a schema the
+// suite's own user has installed (`~/.local/share/openspec/schemas`,
+// `$XDG_DATA_HOME/openspec/schemas`) never answers for the repo.
+const SANDBOX_HOME = mkdtempSync(join(tmpdir(), 'cospec-home-'))
+roots.push(SANDBOX_HOME)
+const newIn = (context: CommandContext): Promise<number> =>
+  newRun(context, { env: {}, home: SANDBOX_HOME })
 function repo(schema?: string): string {
   const dir = makeRepo(schema)
   roots.push(dir)
@@ -99,36 +107,37 @@ describe('new: where the wrapped binary resolves a user-level schema', () => {
     )
   })
 
-  function withDataHome(dataHome: string, body: () => void): void {
-    const saved = process.env.XDG_DATA_HOME
-    process.env.XDG_DATA_HOME = dataHome
-    try {
-      body()
-    } finally {
-      if (saved === undefined) delete process.env.XDG_DATA_HOME
-      else process.env.XDG_DATA_HOME = saved
-    }
-  }
-
   test('a project schema or a user-level one counts; a schema.yaml linked outside does not', () => {
     const cwd = repo()
     const data = mkdtempSync(join(tmpdir(), 'cospec-data-'))
     roots.push(data)
     const user = join(data, 'openspec', 'schemas')
-    withDataHome(data, () => {
-      expect(cospecSchemaInstalled(cwd, 'feat')).toBe(true)
-      cpSync(join(cwd, 'openspec', 'schemas', 'feat'), join(user, 'feat'), { recursive: true })
-      rmSync(join(cwd, 'openspec', 'schemas', 'feat'), { recursive: true })
-      expect(cospecSchemaInstalled(cwd, 'feat')).toBe(true)
-      rmSync(join(user, 'feat', 'schema.yaml'))
-      symlinkSync(
-        join(cwd, 'openspec', 'schemas', 'fix', 'schema.yaml'),
-        join(user, 'feat', 'schema.yaml'),
-      )
-      expect(cospecSchemaInstalled(cwd, 'feat')).toBe(false)
-      rmSync(join(user, 'feat'), { recursive: true })
-      expect(cospecSchemaInstalled(cwd, 'feat')).toBe(false)
-    })
+    // The data dir alone decides, whatever the suite's own home holds.
+    const installed = (): boolean =>
+      cospecSchemaInstalled(cwd, 'feat', { XDG_DATA_HOME: data }, SANDBOX_HOME)
+    expect(installed()).toBe(true)
+    cpSync(join(cwd, 'openspec', 'schemas', 'feat'), join(user, 'feat'), { recursive: true })
+    rmSync(join(cwd, 'openspec', 'schemas', 'feat'), { recursive: true })
+    expect(installed()).toBe(true)
+    rmSync(join(user, 'feat', 'schema.yaml'))
+    symlinkSync(
+      join(cwd, 'openspec', 'schemas', 'fix', 'schema.yaml'),
+      join(user, 'feat', 'schema.yaml'),
+    )
+    expect(installed()).toBe(false)
+    rmSync(join(user, 'feat'), { recursive: true })
+    expect(installed()).toBe(false)
+  })
+
+  test('with no $XDG_DATA_HOME the home directory decides', () => {
+    const cwd = repo()
+    const home = mkdtempSync(join(tmpdir(), 'cospec-home-'))
+    roots.push(home)
+    const user = join(home, '.local', 'share', 'openspec', 'schemas')
+    cpSync(join(cwd, 'openspec', 'schemas', 'feat'), join(user, 'feat'), { recursive: true })
+    rmSync(join(cwd, 'openspec', 'schemas', 'feat'), { recursive: true })
+    expect(cospecSchemaInstalled(cwd, 'feat', {}, home)).toBe(true)
+    expect(cospecSchemaInstalled(cwd, 'feat', {}, SANDBOX_HOME)).toBe(false)
   })
 })
 
@@ -136,7 +145,7 @@ describe('new: validation before delegation', () => {
   test('no openspec/ directory exits 1 with an actionable init hint', async () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cospec-noinit-'))
     roots.push(cwd)
-    const r = await runCmd(newRun, ctx(cwd, ['feat', 'foo'], { command: 'new' }))
+    const r = await runCmd(newIn, ctx(cwd, ['feat', 'foo'], { command: 'new' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('no openspec/ directory')
     expect(r.err).toContain("run 'cospec init' first")
@@ -148,7 +157,7 @@ describe('new: validation before delegation', () => {
   test('a cospec type with no installed schema exits 1 naming the setup, not the wrapped call', async () => {
     const cwd = repo()
     rmSync(join(cwd, 'openspec', 'schemas', 'feat'), { recursive: true })
-    const r = await runCmd(newRun, ctx(cwd, ['feat', 'foo'], { command: 'new' }))
+    const r = await runCmd(newIn, ctx(cwd, ['feat', 'foo'], { command: 'new' }))
     expect(r.code).toBe(1)
     expect(r.err).toBe(
       "cospec new: schema 'feat' is not installed in this repo — run 'cospec init' first\n",
@@ -159,7 +168,7 @@ describe('new: validation before delegation', () => {
   test("the missing-schema refusal under --json is one document in new change's shape", async () => {
     const cwd = repo()
     rmSync(join(cwd, 'openspec', 'schemas', 'feat'), { recursive: true })
-    const r = await runCmd(newRun, ctx(cwd, ['feat', 'foo'], { command: 'new', json: true }))
+    const r = await runCmd(newIn, ctx(cwd, ['feat', 'foo'], { command: 'new', json: true }))
     expect(r.code).toBe(1)
     expect(r.err).toBe('')
     expect(r.out).toBe(
@@ -182,7 +191,7 @@ describe('new: validation before delegation', () => {
 
   test('unknown type exits 1 with a suggestion and the table', async () => {
     const cwd = repo()
-    const r = await runCmd(newRun, ctx(cwd, ['feaf', 'x'], { command: 'new' }))
+    const r = await runCmd(newIn, ctx(cwd, ['feaf', 'x'], { command: 'new' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain("unknown type 'feaf'")
     expect(r.err).toContain("Did you mean 'feat'")
@@ -191,7 +200,7 @@ describe('new: validation before delegation', () => {
 
   test('invalid slug exits 1', async () => {
     const cwd = repo()
-    const r = await runCmd(newRun, ctx(cwd, ['ci', 'Bad_Slug'], { command: 'new' }))
+    const r = await runCmd(newIn, ctx(cwd, ['ci', 'Bad_Slug'], { command: 'new' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('invalid slug')
   })
@@ -199,7 +208,7 @@ describe('new: validation before delegation', () => {
   test('collision with an active change exits 1', async () => {
     const cwd = repo()
     writeChange(cwd, 'dup', 'ci')
-    const r = await runCmd(newRun, ctx(cwd, ['ci', 'dup'], { command: 'new' }))
+    const r = await runCmd(newIn, ctx(cwd, ['ci', 'dup'], { command: 'new' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('already exists')
   })
@@ -207,7 +216,7 @@ describe('new: validation before delegation', () => {
   test('collision with an archive-entry suffix exits 1', async () => {
     const cwd = repo()
     writeArchived(cwd, '2026-06-01-shipped', 'ci')
-    const r = await runCmd(newRun, ctx(cwd, ['ci', 'shipped'], { command: 'new' }))
+    const r = await runCmd(newIn, ctx(cwd, ['ci', 'shipped'], { command: 'new' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('collides with an archived change')
   })
@@ -251,7 +260,7 @@ describe('new: validation before delegation', () => {
     ]
     for (const [dir, args, message] of cases) {
       // oxlint-disable-next-line no-await-in-loop -- each run writes the shared process streams
-      const r = await runCmd(newRun, ctx(dir, args, { command: 'new', json: true }))
+      const r = await runCmd(newIn, ctx(dir, args, { command: 'new', json: true }))
       expect(r.code, args.join(' ')).toBe(1)
       expect(r.err, args.join(' ')).toBe('')
       expect(r.out, args.join(' ')).toBe(doc(message))
@@ -264,7 +273,7 @@ describe('new: validation before delegation', () => {
     for (const json of [false, true]) {
       for (const args of [[], ['feat']]) {
         // oxlint-disable-next-line no-await-in-loop -- each run writes the shared process streams
-        const r = await runCmd(newRun, ctx(bare, args, { command: 'new', json }))
+        const r = await runCmd(newIn, ctx(bare, args, { command: 'new', json }))
         expect(r.code).toBe(1)
         expect(r.out).toBe('')
         expect(r.err).toStartWith('cospec new: usage — cospec new <type> <slug>')
@@ -274,7 +283,7 @@ describe('new: validation before delegation', () => {
   })
 
   test('a missing slug stays a text usage refusal under --json', async () => {
-    const r = await runCmd(newRun, ctx(repo(), ['feat'], { command: 'new', json: true }))
+    const r = await runCmd(newIn, ctx(repo(), ['feat'], { command: 'new', json: true }))
     expect(r.code).toBe(1)
     expect(r.out).toBe('')
     expect(r.err).toContain('cospec new: usage — cospec new <type> <slug>')

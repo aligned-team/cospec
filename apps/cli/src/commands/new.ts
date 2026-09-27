@@ -123,8 +123,13 @@ export function userSchemasDir(
  * directory (`userSchemasDir`). Like the binary, a candidate counts only when
  * its `schema.yaml` resolves inside its directory.
  */
-export function cospecSchemaInstalled(base: string, type: string): boolean {
-  return [join(openspecDir(base), 'schemas'), userSchemasDir()].some((schemas) => {
+export function cospecSchemaInstalled(
+  base: string,
+  type: string,
+  env: NodeJS.ProcessEnv = process.env,
+  home: string = homedir(),
+): boolean {
+  return [join(openspecDir(base), 'schemas'), userSchemasDir(env, home)].some((schemas) => {
     const dir = join(schemas, type)
     const file = join(dir, 'schema.yaml')
     if (!existsSync(file)) return false
@@ -163,7 +168,13 @@ export function wrappedNewReason(result: OpenspecResult): string | undefined {
   return respellRemedies(reason).replace(/(?<![\w./-])openspec (?=[a-z])/g, 'cospec ')
 }
 
-export async function run(ctx: CommandContext): Promise<number> {
+/** The environment and home directory `run` finds the user-level schema directory from. */
+export interface UserSchemaHome {
+  env?: NodeJS.ProcessEnv
+  home?: string
+}
+
+export async function run(ctx: CommandContext, user: UserSchemaHome = {}): Promise<number> {
   const { flags } = ctx
   const parsed = ctx.parsed!
   const positionals = parsed.positionals
@@ -231,7 +242,7 @@ export async function run(ctx: CommandContext): Promise<number> {
   // A cospec type the repo has no schema for (an OpenSpec repo cospec has not
   // adopted yet) is the user's setup to fix, not a wrapped-call failure: the
   // wrapped `new change` would refuse it as `Schema '<type>' not found`.
-  if (isCospecType(type) && !cospecSchemaInstalled(base, type)) {
+  if (isCospecType(type) && !cospecSchemaInstalled(base, type, user.env, user.home)) {
     return refuse(
       root.store !== undefined
         ? `schema '${type}' is not installed in store '${root.store}' — run 'cospec init ${root.base}' first`
