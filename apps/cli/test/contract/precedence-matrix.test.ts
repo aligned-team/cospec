@@ -1475,9 +1475,13 @@ describe('precedence matrix: pending spellings', () => register(PENDING_ROWS))
 describe('precedence matrix: new with a user-level schema and no $XDG_DATA_HOME', () => {
   test('the binary falls back to ~/.local/share/openspec/schemas, and so does cospec', async () => {
     const root = freshRoot(false, 'data')
-    const env: Record<string, string> = { ...oracleEnv(root) }
-    delete env.XDG_DATA_HOME
-    const co = await cospec(['new', 'feat', 'h1'], { cwd: root, env })
+    // Unset in the child whatever the suite's own environment holds: the
+    // sandbox's value and an ambient one alike.
+    const co = await cospec(['new', 'feat', 'h1'], {
+      cwd: root,
+      env: oracleEnv(root),
+      unset: ['XDG_DATA_HOME'],
+    })
     expect(co.exitCode, co.stderr).toBe(0)
     expect(readFileSync(join(root, 'openspec/changes/h1/.openspec.yaml'), 'utf8')).toMatch(
       /^schema: feat$/m,
