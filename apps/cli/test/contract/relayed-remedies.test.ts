@@ -68,60 +68,45 @@ function detail(co: SpawnResult): string {
 }
 
 describe('show relays its remedies through cospec', () => {
-  test.failing(
-    'a change with no proposal.md, text',
-    async () => {
-      const { co, up } = await both(['show', 'bare'])
-      expect(up.stderr).toContain('Run "openspec status --change bare"')
-      expect(co.exitCode, detail(co)).toBe(up.exitCode)
-      expect(co.stdout).toBe(up.stdout)
-      expect(co.stderr, detail(co)).toBe(
-        up.stderr.replace(
-          'Run "openspec status --change bare"',
-          'Run "cospec status --change bare"',
-        ),
-      )
-      expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
-    },
-    30_000,
-  )
+  test('a change with no proposal.md, text', async () => {
+    const { co, up } = await both(['show', 'bare'])
+    expect(up.stderr).toContain('Run "openspec status --change bare"')
+    expect(co.exitCode, detail(co)).toBe(up.exitCode)
+    expect(co.stdout).toBe(up.stdout)
+    expect(co.stderr, detail(co)).toBe(
+      up.stderr.replace('Run "openspec status --change bare"', 'Run "cospec status --change bare"'),
+    )
+    expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
+  }, 30_000)
 
-  test.failing(
-    'a change with no proposal.md, --json: one document, the message respelled',
-    async () => {
-      const { co, up } = await both(['show', 'bare', '--json'])
-      const upDoc = JSON.parse(up.stdout) as { status: { message: string }[] }
-      expect(upDoc.status[0]!.message).toContain('Run "openspec status --change bare"')
-      expect(co.exitCode, detail(co)).toBe(up.exitCode)
-      expect(documentCount(co.stdout), detail(co)).toBe(1)
-      upDoc.status[0]!.message = upDoc.status[0]!.message.replace(
-        'Run "openspec status',
-        'Run "cospec status',
-      )
-      expect(JSON.parse(co.stdout)).toEqual(upDoc)
-      expect(co.stderr).toBe(up.stderr)
-      expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
-    },
-    30_000,
-  )
+  test('a change with no proposal.md, --json: one document, the message respelled', async () => {
+    const { co, up } = await both(['show', 'bare', '--json'])
+    const upDoc = JSON.parse(up.stdout) as { status: { message: string }[] }
+    expect(upDoc.status[0]!.message).toContain('Run "openspec status --change bare"')
+    expect(co.exitCode, detail(co)).toBe(up.exitCode)
+    expect(documentCount(co.stdout), detail(co)).toBe(1)
+    upDoc.status[0]!.message = upDoc.status[0]!.message.replace(
+      'Run "openspec status',
+      'Run "cospec status',
+    )
+    expect(JSON.parse(co.stdout)).toEqual(upDoc)
+    expect(co.stderr).toBe(up.stderr)
+    expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
+  }, 30_000)
 
-  test.failing(
-    'an id that is both a change and a spec, text: no noun-form remedy',
-    async () => {
-      const { co, up } = await both(['show', 'dup'])
-      expect(up.stderr).toContain('or use: openspec change show / openspec spec show')
-      expect(co.exitCode, detail(co)).toBe(up.exitCode)
-      expect(co.stdout).toBe(up.stdout)
-      expect(co.stderr, detail(co)).toBe(
-        up.stderr.replace(
-          'Pass --type change|spec, or use: openspec change show / openspec spec show',
-          'Pass --type change|spec.',
-        ),
-      )
-      expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
-    },
-    30_000,
-  )
+  test('an id that is both a change and a spec, text: no noun-form remedy', async () => {
+    const { co, up } = await both(['show', 'dup'])
+    expect(up.stderr).toContain('or use: openspec change show / openspec spec show')
+    expect(co.exitCode, detail(co)).toBe(up.exitCode)
+    expect(co.stdout).toBe(up.stdout)
+    expect(co.stderr, detail(co)).toBe(
+      up.stderr.replace(
+        'Pass --type change|spec, or use: openspec change show / openspec spec show',
+        'Pass --type change|spec.',
+      ),
+    )
+    expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
+  }, 30_000)
 
   test('an id that is both a change and a spec, --json: the binary document as is', async () => {
     const { co, up } = await both(['show', 'dup', '--json'])

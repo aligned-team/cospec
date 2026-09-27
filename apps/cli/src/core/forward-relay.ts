@@ -85,6 +85,32 @@ export function relayStorePathRefusal(result: OpenspecResult, json: boolean): nu
 }
 
 /**
+ * The pinned binary's own remedies in the answers `show` relays (probed at
+ * 1.13.1, `dist/commands/change.js`, `show.js`),
+ * each rewritten to the cospec command of the same shape — or dropped where
+ * cospec has none:
+ *
+ * - `show` for a change with no proposal.md: `Run "openspec status --change
+ *   <id>"`, on stderr, or with escaped quotes in its `--json` message.
+ * - `show` for an id that is both a change and a spec: `Pass --type
+ *   change|spec, or use: openspec change show / openspec spec show`. cospec
+ *   has no noun-form commands, so the clause goes, leaving the wording
+ *   upstream itself prints for a store root.
+ */
+const RELAYED_REMEDIES: readonly (readonly [RegExp, string])[] = [
+  [
+    /Pass --type change\|spec, or use: openspec change show \/ openspec spec show/g,
+    'Pass --type change|spec.',
+  ],
+  [/(\\?")openspec (status --change )/g, '$1cospec $2'],
+]
+
+/** `text` with each of the binary's `RELAYED_REMEDIES` spelled through cospec. */
+export function respellRemedies(text: string): string {
+  return RELAYED_REMEDIES.reduce((out, [span, cospec]) => out.replace(span, cospec), text)
+}
+
+/**
  * A forward row's subcommand and its argv. The dispatcher keeps a `--` ahead
  * of an operand in subcommand position that looks like an option
  * (`cospec -- config --x`), so the token after that `--` is the subcommand

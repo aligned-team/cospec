@@ -5,6 +5,7 @@ import {
   forwardCall,
   isParseRejection,
   relayStorePathRefusal,
+  respellRemedies,
 } from '../../../src/core/forward-relay.ts'
 import { OpenspecCallError, type OpenspecResult } from '../../../src/core/openspec.ts'
 
@@ -113,5 +114,35 @@ describe('relayStorePathRefusal', () => {
     )
     expect(relayStorePathRefusal(result({ stderr: "Unknown item 'c1'.\n" }), false)).toBe(undefined)
     expect(written).toEqual([])
+  })
+})
+
+describe('respellRemedies', () => {
+  test("show's no-proposal remedy, as text and inside a JSON string", () => {
+    expect(
+      respellRemedies(
+        '✖ Error: Change "c1" has no proposal.md yet. Run "openspec status --change c1" to see which artifact comes next.\n',
+      ),
+    ).toBe(
+      '✖ Error: Change "c1" has no proposal.md yet. Run "cospec status --change c1" to see which artifact comes next.\n',
+    )
+    const json = JSON.stringify({ message: 'Run "openspec status --change c1" to see' }, null, 2)
+    expect(JSON.parse(respellRemedies(json))).toEqual({
+      message: 'Run "cospec status --change c1" to see',
+    })
+  })
+
+  test("show's noun-form remedy is dropped, leaving upstream's store-root wording", () => {
+    expect(
+      respellRemedies(
+        "Ambiguous item 'dup' matches both a change and a spec.\n" +
+          'Pass --type change|spec, or use: openspec change show / openspec spec show\n',
+      ),
+    ).toBe("Ambiguous item 'dup' matches both a change and a spec.\nPass --type change|spec.\n")
+  })
+
+  test('paths and prose that are not a relayed remedy stay as they are', () => {
+    const text = 'openspec/changes/c1/ is nested. See .openspec.yaml; run openspec status by hand.'
+    expect(respellRemedies(text)).toBe(text)
   })
 })
