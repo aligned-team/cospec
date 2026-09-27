@@ -46,7 +46,11 @@ positional. Each `table` row SHALL declare whether it accepts the global
 `--json`; on a row that does not, `--json` SHALL be refused with exactly one
 JSON document on stdout (`{version: 1, command, ok: false, message}`, the
 `cospec completion` precedent) and exit 1, before the command does any work, and
-SHALL never be silently ignored. Each `table` row SHALL likewise declare whether
+SHALL never be silently ignored. `new`'s refusal of a cospec type the repo has
+no schema for SHALL, under `--json`, be one JSON document on stdout in the shape
+the wrapped `new change --json` gives its own failures
+(`{change: null, status: [{severity: 'error', code: 'change_error', message}]}`),
+exit 1, with nothing on stderr. Each `table` row SHALL likewise declare whether
 its command honours the global `--store <id>`; on a row that does not, `--store`
 SHALL be refused as an unknown option in either form, after the command name or
 before it, before the command does any work, and SHALL never be silently
@@ -110,6 +114,13 @@ help.
 - **THEN** stdout is exactly one JSON document with `command` `view` and `ok`
   `false`, no dashboard is printed, the wrapped `openspec view` is not spawned,
   and the exit code is 1
+
+#### Scenario: new without its schema answers a --json caller with one document
+
+- **WHEN** `cospec new feat x --json` runs in a repo with no `feat` schema
+- **THEN** stdout is one JSON document whose `change` is `null` and whose
+  `status[0].code` is `change_error`, stderr is empty, nothing is written, and
+  the exit code is 1
 
 #### Scenario: A command that never reads --store refuses it
 
@@ -414,12 +425,19 @@ does not declare — the wrapped binary remains the authority on unknown options
 for the surfaces it owns. Every flag cospec threads onto a wrapped call
 (`--json`, `--no-color`, `--store <id>`) SHALL be placed right after the command
 path, ahead of the user's tokens, so it never becomes the value of a
-value-taking flag the user left without one; and cospec's runtime output SHALL
-name a wrapped call as the wrapped OpenSpec call, never as a bare `openspec`
-command. A pre-spawn guard SHALL answer only an argv the binary would not answer
-itself: a declared value-taking flag left without its value SHALL reach the
-binary as commander's missing value (or, for a flag the wrapper lifts itself,
-`config --scope`, SHALL be refused in the same
+value-taking flag the user left without one — except that on a forwarded command
+whose upstream counterpart declares no `--store` (`templates`, every `schema`
+subcommand), a `--store <id>` typed after the command name SHALL reach the
+binary where the user typed it, never absorbed as cospec's global; and cospec's
+runtime output SHALL name a wrapped call as the wrapped OpenSpec call, never as
+a bare `openspec` command. A remedy the binary writes as a bare
+`openspec <command>` in an answer cospec relays SHALL be spelled as the cospec
+command of the same shape, or dropped where cospec has no such command, while
+the content of a successful answer (a change, a spec, instructions) SHALL be
+relayed untouched. A pre-spawn guard SHALL answer only an argv the binary would
+not answer itself: a declared value-taking flag left without its value SHALL
+reach the binary as commander's missing value (or, for a flag the wrapper lifts
+itself, `config --scope`, SHALL be refused in the same
 `cospec <command>: option '<flag> <placeholder>' argument missing` form), and
 `show`'s item check SHALL treat an option `show` does not declare as the item,
 as the binary does. An option where a forwarded command's subcommand belongs
@@ -447,6 +465,38 @@ reported as a wrapped-call failure.
   (`error: option '--path <path>' argument missing`), exit 1, exactly as
   `openspec` does for the same argv, and nothing is written on disk — no store
   at `./--json`, no schema whose description is `--json`
+
+#### Scenario: A --store upstream never declares is parsed where it was typed
+
+- **WHEN** `cospec templates --bogus --store st`,
+  `cospec schema which s1 --bogus --store st` or
+  `cospec templates --store-path /x --store st` runs, `st` a registered store
+- **THEN** the refusal names `--bogus`, or is cospec's `--store-path` redirect,
+  exit 1, as `openspec` answers the same argv — never `unknown option '--store'`
+- **AND WHEN** `cospec schema init s1 --store st --description` runs
+- **THEN** the binary refuses the missing value, exit 1, and nothing is written
+
+#### Scenario: A relayed remedy names cospec
+
+- **WHEN** `cospec show <change>` runs, with or without `--json`, on a change
+  that has no proposal.md
+- **THEN** the relayed refusal says `Run "cospec status --change <change>"`
+  where the binary says `openspec status`, and is otherwise the binary's
+- **AND WHEN** `cospec show <id>` names both a change and a spec
+- **THEN** stderr says `Pass --type change|spec.` with no noun-form
+  `openspec change show / openspec spec show` clause
+- **AND WHEN** `cospec view` runs
+- **THEN** its footer names `cospec list --changes` and `cospec list --specs`
+- **AND WHEN** `cospec context`, `cospec show <item>` or
+  `cospec instructions <artifact> --change <id>` runs where there is no OpenSpec
+  root
+- **THEN** the binary's no-root answer, text or `--json` message and fix, says
+  `cospec init` where the binary says `openspec init`
+- **AND WHEN** `cospec status --change <id>` runs on a change whose schema is
+  not a cospec type
+- **THEN** stdout is the binary's own status for the change with its
+  `Next: cospec instructions …` line, and `cospec status --all` points that
+  change at `cospec status --change <id>`
 
 #### Scenario: Upstream's unknown-option answer is relayed on a forwarded command
 

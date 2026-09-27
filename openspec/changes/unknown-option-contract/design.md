@@ -88,15 +88,40 @@ runtime by `dist/commands/spec.js:127`.
    a required-value option the next token whatever it looks like, so a flag
    appended after the user's argv became the value of a dangling `--path` and
    the binary ran (`store setup s1 --path` set a store up at `./--json`).
-   `forward` rows: `show`, `templates`, `schemas`, `schema`, `store`, `workset`,
-   `config`. `feedback` is a `table` row: `parseFeedbackArgs` already rejects
-   unknown options, so the shared parser replaces it and the `--upstream` relay
-   rebuilds its argv from the parsed values as it does today. Everything else is
-   `table`. Upstream's per-command `--json` and `--store` are cospec globals
-   (`GLOBAL_OPTIONS`, stripped in `cli.ts`); the reachability test resolves them
-   for every row through the global list rather than per-row duplicates. Each
-   `table` row also declares `json: 'accepted' | 'refused'`: whether the command
-   honours the global `--json` (decision 10).
+   Upstream's `templates` and `schema` subcommands declare no `--store`, so
+   their rows carry `storeInArgv`: a `--store <id>` typed after the command name
+   is never absorbed as cospec's global but reaches the binary where the user
+   typed it, and the binary parses it in the user's order — naming an earlier
+   unknown option (`templates --bogus --store st` says `--bogus`, as `openspec`
+   does) or keeping an earlier `--store-path`'s redirect, raising a later flag's
+   missing value, writing nothing. Threaded ahead of the argv it would be the
+   first unknown option in every such run. A `--store` before the command name
+   still selects the root and is threaded ahead, where a dangling flag cannot
+   take it (appended after, `--store st schema init --description` created a
+   schema named `st`). `root-resolution-parity` stops threading `--store` onto
+   these two commands altogether, which retires the marker.
+   - A forward wrapper relays the binary's answer, and the binary writes its
+     remedies as bare `openspec <command>`. `relayRespelled`
+     (`core/forward-relay.ts`) spells each remedy it knows at the pin
+     (`RELAYED_REMEDIES`: `show`'s `Run "openspec status --change <id>"` and its
+     noun-form `openspec change show / openspec spec show`, `view`'s
+     `openspec list --changes`/`--specs`, the no-root `run openspec init`,
+     legacy `status`'s `Next: openspec instructions …`) as the cospec command of
+     the same shape, or drops the clause where cospec has none (the noun-form
+     commands), and only on a failed call — a change, spec or instructions the
+     binary shows is the user's own text, relayed untouched. `view` respells its
+     footer, and `status --change <id>` on a schema cospec does not type relays
+     the binary's own status for it in text mode instead of pointing at bare
+     `openspec status`. `forward` rows: `show`, `templates`, `schemas`,
+     `schema`, `store`, `workset`, `config`. `feedback` is a `table` row:
+     `parseFeedbackArgs` already rejects unknown options, so the shared parser
+     replaces it and the `--upstream` relay rebuilds its argv from the parsed
+     values as it does today. Everything else is `table`. Upstream's per-command
+     `--json` and `--store` are cospec globals (`GLOBAL_OPTIONS`, stripped in
+     `cli.ts`); the reachability test resolves them for every row through the
+     global list rather than per-row duplicates. Each `table` row also declares
+     `json: 'accepted' | 'refused'`: whether the command honours the global
+     `--json` (decision 10).
    - `parse: 'forward'` is the per-command marker the reachability test reads
      (the roadmap owner's ruling): a forward row's flags and positionals count
      as reached by delegation to the binary, whether declared or not, and a

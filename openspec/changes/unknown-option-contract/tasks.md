@@ -445,3 +445,26 @@ red; 4–7 turn it green; 8 documents it.
       a forward row keeps the cluster and answers only a split-out `-h` with
       cospec's help; any `-V…` cluster before `--` is the version;
       `reference/commands.md` (ledger 1.40)
+- [x] 10.42 Round-8 rows first: 4 precedence-matrix rows (at 816a69b) and 14
+      relayed-remedies contract tests (4 at 816a69b, 10 at b71c932) ran as
+      `test.failing` against the pre-fix source; each fix commit flips its own
+      and `KNOWN_FAILING` is empty at 22adc3e
+- [x] 10.43 `templates` and `schema` carry `storeInArgv`: phase B leaves a
+      post-command `--store <id>` in the argv where the user typed it, so the
+      binary names an earlier unknown option or `--store-path` first (the
+      377d09a regression) and a later flag's missing value still wins; a
+      pre-command `--store` stays threaded ahead; design decision 1,
+      `reference/commands.md`, `docs/architecture.md` (ledger 1.41)
+- [x] 10.44 `relayRespelled`/`respellRemedies` in `core/forward-relay.ts` spell
+      the binary's remedies through cospec on a failed relay: `show`'s
+      `status --change` remedy and noun-form clause, the no-root
+      `run openspec init` (`show`, `context`, `instructions`); `view`'s footer;
+      `status --change` on a legacy schema relays the binary's status with its
+      `Next:` line respelled, and `status --all` points at `cospec status`
+      (ledger 1.42, 1.43)
+- [x] 10.45 `new`'s missing-schema refusal answers `--json` with one
+      `{change: null, status: [change_error]}` document (ledger 1.44)
+- [x] 10.46 Bare-openspec sweep over every command's text and `--json` output on
+      a fixture (success and each reachable error, with and without a registered
+      store): every hit in an R1 file is fixed (10.43–10.45); hits in other
+      changes' files are listed with their owner in ledger 1.45

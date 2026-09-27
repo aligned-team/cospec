@@ -239,14 +239,26 @@ raises `OpenspecCallError` (a cospec bug, not a user error).
 
 `core/passthrough-command.ts` layers the command-level wiring on top: it
 resolves the operating `Root`, threads the three global flags every wrapped call
-owes (`--store` via `root.storeArgs`, `--json`, `--no-color`), and returns both
-the raw `OpenspecResult` (for a command that reshapes stdout, like `store`'s
-ID/Location table) and the mapped exit code. `runPassthrough` is the common case
-— relay verbatim; `callPassthrough` is for commands that inspect the result
-first. Commands that add their own post-condition (e.g. `context` asserting a
-`--code-workspace` file exists on disk, or `store` asserting the registry
-mutated) pass it through `expect.postCondition` — the same mechanism the gated
-commands use.
+owes (`--store` via `root.storeArgs`, `--json`, `--no-color`) right after the
+command path, and returns both the raw `OpenspecResult` (for a command that
+reshapes stdout, like `store`'s ID/Location table) and the mapped exit code.
+`runPassthrough` is the common case — relay verbatim; `callPassthrough` is for
+commands that inspect the result first. Commands that add their own
+post-condition (e.g. `context` asserting a `--code-workspace` file exists on
+disk, or `store` asserting the registry mutated) pass it through
+`expect.postCondition` — the same mechanism the gated commands use.
+
+Two rules keep a forward row's relay faithful to the binary. On `templates` and
+`schema`, whose upstream commands declare no `--store`, the row's `storeInArgv`
+marker keeps a post-command `--store <id>` in the argv where the user typed it
+(phase B never absorbs it), so the binary parses it in the user's order instead
+of meeting a threaded `--store` first; a pre-command `--store` is still threaded
+ahead. And `relayRespelled` (`core/forward-relay.ts`) answers the binary's
+`--store-path` refusal with cospec's redirect and, on a failed call only, spells
+each bare-`openspec` remedy the binary writes (`RELAYED_REMEDIES`) as the cospec
+command of the same shape — or drops it where cospec has none — so the remedy a
+user reads names cospec; a successful call's output is the user's content and is
+relayed untouched.
 
 ### The terminal-handover class
 
