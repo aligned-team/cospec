@@ -1385,15 +1385,7 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * prose). The round-9 rows exposed 7 more (every other `new` refusal answering
  * a `--json` caller in prose). The fixes empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  'new bogus x --json',
-  'new feat: !!! --json',
-  'new feat Bad_Name --json',
-  'new feat ex --json',
-  'new feat old --json',
-  'new feat nr --json',
-  'new broken x --json',
-])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
 
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot(row.store, row.userSchema, row.setup)

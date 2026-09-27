@@ -64,9 +64,29 @@ function typeTableText(): string {
   return `Valid types:\n${rows.join('\n')}\n`
 }
 
-function reportUnknownType(type: string): number {
-  process.stderr.write(`cospec new: unknown type '${type}'\n`)
+/**
+ * One of `new`'s own refusals: `cospec new: <message>` on stderr, or for a
+ * `--json` caller one document on stdout in the shape the wrapped
+ * `new change --json` gives every failure of its own (unknown schema, existing
+ * change, invalid name, unparseable schema), nothing on stderr. A missing slug
+ * is not one: like the binary's commander `missing required argument`, it is
+ * a parse-class refusal, text in both modes.
+ */
+function refuse(message: string, json: boolean): number {
+  if (json) {
+    const status = [{ severity: 'error', code: 'change_error', message }]
+    process.stdout.write(`${JSON.stringify({ change: null, status }, null, 2)}\n`)
+  } else process.stderr.write(`cospec new: ${message}\n`)
+  return EXIT.failure
+}
+
+function reportUnknownType(type: string, json: boolean): number {
   const suggestion = closest(type, [...COSPEC_TYPES])
+  if (json) {
+    const hint = suggestion !== undefined ? ` — did you mean '${suggestion}'?` : ''
+    return refuse(`unknown type '${type}'${hint} Valid types: ${COSPEC_TYPES.join(', ')}`, true)
+  }
+  process.stderr.write(`cospec new: unknown type '${type}'\n`)
   if (suggestion !== undefined) process.stderr.write(`Did you mean '${suggestion}'?\n`)
   process.stderr.write(typeTableText())
   return EXIT.failure
@@ -120,12 +140,12 @@ export async function run(ctx: CommandContext): Promise<number> {
   // common first-run mistake gets an actionable remedy rather than leaking the raw
   // wrapped-openspec spawn command + exit code from the delegation below.
   if (!existsSync(openspecDir(base))) {
-    process.stderr.write(
+    return refuse(
       root.store !== undefined
-        ? `cospec new: store '${root.store}' has no openspec/ directory — run 'cospec init ${root.base}' first\n`
-        : `cospec new: no openspec/ directory — run 'cospec init' first\n`,
+        ? `store '${root.store}' has no openspec/ directory — run 'cospec init ${root.base}' first`
+        : `no openspec/ directory — run 'cospec init' first`,
+      flags.json,
     )
-    return EXIT.failure
   }
 
   const parsed = ctx.parsed!
@@ -145,10 +165,10 @@ export async function run(ctx: CommandContext): Promise<number> {
     slug = slugify(free)
     derivedDescription ??= free.length > 0 ? free : undefined
     if (slug === undefined) {
-      process.stderr.write(
-        `cospec new: could not derive a slug from '${free}' — pass an explicit slug: cospec new ${type || '<type>'} <slug>\n`,
+      return refuse(
+        `could not derive a slug from '${free}' — pass an explicit slug: cospec new ${type || '<type>'} <slug>`,
+        flags.json,
       )
-      return EXIT.failure
     }
   } else {
     // Form 1: <type> <slug>.
@@ -169,39 +189,30 @@ export async function run(ctx: CommandContext): Promise<number> {
   // archive, so `new` delegates to it too rather than rejecting it outright.
   // Only a name that resolves nowhere keeps today's unknown-type error.
   const legacy = !isCospecType(type) && resolveSchema(base, type).kind === 'legacy'
-  if (!isCospecType(type) && !legacy) return reportUnknownType(type)
+  if (!isCospecType(type) && !legacy) return reportUnknownType(type, flags.json)
   // A cospec type the repo has no schema for (an OpenSpec repo cospec has not
   // adopted yet) is the user's setup to fix, not a wrapped-call failure: the
   // wrapped `new change` would refuse it as `Schema '<type>' not found`.
   if (isCospecType(type) && !cospecSchemaInstalled(base, type)) {
-    const message =
+    return refuse(
       root.store !== undefined
         ? `schema '${type}' is not installed in store '${root.store}' — run 'cospec init ${root.base}' first`
-        : `schema '${type}' is not installed in this repo — run 'cospec init' first`
-    // A `--json` caller gets one document, in the shape the wrapped `new
-    // change --json` gives its own failures.
-    if (flags.json) {
-      const status = [{ severity: 'error', code: 'change_error', message }]
-      process.stdout.write(`${JSON.stringify({ change: null, status }, null, 2)}\n`)
-    } else process.stderr.write(`cospec new: ${message}\n`)
-    return EXIT.failure
+        : `schema '${type}' is not installed in this repo — run 'cospec init' first`,
+      flags.json,
+    )
   }
 
-  if (!SLUG_RE.test(slug)) {
-    process.stderr.write(`cospec new: invalid slug '${slug}' — must match ${SLUG_RE.source}\n`)
-    return EXIT.failure
-  }
+  if (!SLUG_RE.test(slug))
+    return refuse(`invalid slug '${slug}' — must match ${SLUG_RE.source}`, flags.json)
 
   // Collision: active change or archive-entry suffix (openspec only checks active).
-  if (resolveChange(base, slug) !== undefined) {
-    process.stderr.write(`cospec new: change '${slug}' already exists in openspec/changes/\n`)
-    return EXIT.failure
-  }
+  if (resolveChange(base, slug) !== undefined)
+    return refuse(`change '${slug}' already exists in openspec/changes/`, flags.json)
   if (readArchiveIndex(base).bySlug.has(slug)) {
-    process.stderr.write(
-      `cospec new: '${slug}' collides with an archived change suffix — choose a different slug\n`,
+    return refuse(
+      `'${slug}' collides with an archived change suffix — choose a different slug`,
+      flags.json,
     )
-    return EXIT.failure
   }
 
   // Delegate + verify the written schema pointer (never trust the exit code).
@@ -222,9 +233,10 @@ export async function run(ctx: CommandContext): Promise<number> {
       },
     })
   } catch (err) {
-    const msg = err instanceof OpenspecCallError ? err.message : (err as Error).message
-    process.stderr.write(`cospec new: ${msg}\n`)
-    return EXIT.failure
+    return refuse(
+      err instanceof OpenspecCallError ? err.message : (err as Error).message,
+      flags.json,
+    )
   }
 
   if (legacy) {

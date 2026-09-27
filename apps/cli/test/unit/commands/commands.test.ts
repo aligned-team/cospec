@@ -181,6 +181,59 @@ describe('new: validation before delegation', () => {
     expect(r.code).toBe(1)
     expect(r.err).toContain('collides with an archived change')
   })
+
+  test("under --json every own refusal is one document in new change's shape", async () => {
+    const doc = (message: string): string =>
+      `${JSON.stringify(
+        { change: null, status: [{ severity: 'error', code: 'change_error', message }] },
+        null,
+        2,
+      )}\n`
+    const bare = mkdtempSync(join(tmpdir(), 'cospec-noinit-'))
+    roots.push(bare)
+    const cwd = repo()
+    writeChange(cwd, 'dup', 'ci')
+    writeArchived(cwd, '2026-06-01-shipped', 'ci')
+    const cases: [string, string[], string][] = [
+      [bare, ['feat', 'foo'], "no openspec/ directory — run 'cospec init' first"],
+      [
+        cwd,
+        ['feaf', 'x'],
+        "unknown type 'feaf' — did you mean 'feat'? Valid types: " +
+          'build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test',
+      ],
+      [
+        cwd,
+        ['ci: !!!'],
+        "could not derive a slug from '!!!' — pass an explicit slug: cospec new ci <slug>",
+      ],
+      [
+        cwd,
+        ['ci', 'Bad_Slug'],
+        "invalid slug 'Bad_Slug' — must match ^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      ],
+      [cwd, ['ci', 'dup'], "change 'dup' already exists in openspec/changes/"],
+      [
+        cwd,
+        ['ci', 'shipped'],
+        "'shipped' collides with an archived change suffix — choose a different slug",
+      ],
+    ]
+    for (const [dir, args, message] of cases) {
+      // oxlint-disable-next-line no-await-in-loop -- each run writes the shared process streams
+      const r = await runCmd(newRun, ctx(dir, args, { command: 'new', json: true }))
+      expect(r.code, args.join(' ')).toBe(1)
+      expect(r.err, args.join(' ')).toBe('')
+      expect(r.out, args.join(' ')).toBe(doc(message))
+    }
+  })
+
+  test('a missing slug stays a text usage refusal under --json', async () => {
+    const r = await runCmd(newRun, ctx(repo(), ['feat'], { command: 'new', json: true }))
+    expect(r.code).toBe(1)
+    expect(r.out).toBe('')
+    expect(r.err).toContain('cospec new: usage — cospec new <type> <slug>')
+  })
 })
 
 describe('status', () => {
