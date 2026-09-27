@@ -456,6 +456,69 @@ const THREADING_ROWS: readonly Row[] = [
 ]
 
 /**
+ * Upstream's `templates` and every `schema` subcommand declare no `--store`,
+ * so a `--store <id>` typed after the command name is the binary's to parse
+ * where it stands: the first unknown option in argv order is the one it
+ * names (`templates --bogus --store st` says `--bogus`, and a `--store-path`
+ * ahead of it keeps its redirect), a flag after it still raises its missing
+ * value, and nothing is written. A `--store` before the command name has no
+ * upstream counterpart; the wrapper threads it right after the command path,
+ * so a dangling value-taking flag can never take it and run.
+ */
+const FORWARD_STORE_ROWS: readonly Row[] = [
+  {
+    argv: ['templates', '--bogus', '--store', 'st'],
+    command: 'templates',
+    store: true,
+    cospecStderr: "error: unknown option '--bogus'",
+  },
+  {
+    argv: ['templates', '--store-path', '/x', '--store', 'st'],
+    command: 'templates',
+    store: true,
+    cospecStderr: REDIRECT,
+  },
+  {
+    argv: ['schema', 'which', 's1', '--bogus', '--store', 'st'],
+    command: 'schema',
+    store: true,
+    cospecStderr: "error: unknown option '--bogus'",
+  },
+  {
+    argv: ['templates', '--store', 'st', '--bogus'],
+    command: 'templates',
+    store: true,
+    cospecStderr: "error: unknown option '--store'",
+  },
+  {
+    argv: ['schema', 'init', 's1', '--description', '--store', 'st'],
+    command: 'schema',
+    store: true,
+    check: nothingWritten,
+  },
+  {
+    argv: ['schema', 'init', 's1', '--bogus', '--store', 'st', '--description'],
+    command: 'schema',
+    store: true,
+    check: nothingWritten,
+  },
+  {
+    argv: ['--store', 'st', 'templates', '--bogus'],
+    command: 'templates',
+    store: true,
+    cospecOnly: { outcome: 'unknown-option', exit: 1 },
+    cospecStderr: "error: unknown option '--store'",
+  },
+  {
+    argv: ['--store', 'st', 'schema', 'init', '--description'],
+    command: 'schema',
+    store: true,
+    cospecOnly: { outcome: 'missing-value', exit: 1 },
+    check: nothingWritten,
+  },
+]
+
+/**
  * A token right after one of the row's own value-taking flags (space form) is
  * that flag's value whatever it looks like, as commander takes it: a help
  * flag or a global there is never intercepted or absorbed. A table row parses
@@ -712,6 +775,29 @@ const NEW_SCHEMA_ROWS: readonly Row[] = [
     cospecOnly: { outcome: 'parsed', exit: 1 },
     cospecStderr: "cospec new: schema 'feat' is not installed in this repo",
     check: nothingWritten,
+  },
+  // A `--json` caller gets one document in upstream's `new change` failure
+  // shape (`{ change: null, status: [<error>] }`), and nothing on stderr.
+  {
+    argv: ['new', 'feat', 'x', '--json'],
+    command: 'new',
+    cospecOnly: { outcome: 'parsed', exit: 1 },
+    check: (tool, root, run) => {
+      nothingWritten(tool, root)
+      expect(documentCount(run.stdout), run.stdout).toBe(1)
+      expect(JSON.parse(run.stdout)).toEqual({
+        change: null,
+        status: [
+          {
+            severity: 'error',
+            code: 'change_error',
+            message: "schema 'feat' is not installed in this repo — run 'cospec init' first",
+          },
+        ],
+      })
+      expect(run.stdout).toStartWith('{\n  "change": null,\n')
+      expect(run.stderr).toBe('')
+    },
   },
   // A user-level schema counts where the binary resolves one
   // (`$XDG_DATA_HOME/openspec/schemas`, else `~/.local/share/openspec/schemas`)
@@ -1070,9 +1156,18 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * `--change` or `--all`; commander's `missing
  * required argument` unrecognised, so a forward call reported it as a
  * wrapped-call failure and `feedback` worded it its own way; short-option
- * clusters never split). The fixes empty this set.
+ * clusters never split). The round-8 rows exposed 4 more (a `--store` typed
+ * after `templates` or a `schema` subcommand threaded ahead of the user's
+ * argv, so the binary named it before the user's own unknown option or
+ * `--store-path`; `new` without its schema answering a `--json` caller in
+ * prose). The fixes empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
+  'templates --bogus --store st',
+  'templates --store-path /x --store st',
+  'schema which s1 --bogus --store st',
+  'new feat x --json',
+])
 
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot(row.store, row.userSchema)
@@ -1130,6 +1225,8 @@ describe('precedence matrix: unknown options and commands', () => register(UNKNO
 describe('precedence matrix: --store values', () => register(VALUE_ROWS))
 describe('precedence matrix: --store-path', () => register(STORE_PATH_ROWS))
 describe('precedence matrix: threaded flags', () => register(THREADING_ROWS))
+describe('precedence matrix: --store where upstream never declares it', () =>
+  register(FORWARD_STORE_ROWS))
 describe('precedence matrix: value positions', () => register(VALUE_POSITION_ROWS))
 describe('precedence matrix: program-level tokens', () => register(PROGRAM_LEVEL_ROWS))
 describe('precedence matrix: --store on a row that never reads it', () =>
@@ -1177,6 +1274,7 @@ describe('precedence matrix: harness', () => {
       ...VALUE_ROWS,
       ...STORE_PATH_ROWS,
       ...THREADING_ROWS,
+      ...FORWARD_STORE_ROWS,
       ...VALUE_POSITION_ROWS,
       ...PROGRAM_LEVEL_ROWS,
       ...STORE_GLOBAL_ROWS,
