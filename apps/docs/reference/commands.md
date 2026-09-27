@@ -56,7 +56,7 @@ As in OpenSpec, the program level and the command never rank against each other;
 cospec answers in two phases:
 
 1. `-V`/`--version` anywhere before `--` prints the version, ahead of everything
-   else.
+   else — a short cluster that starts with `-V` (`cospec list -Vh`) included.
 2. The tokens before the command name are read first. A `--cwd`/`--store` with
    no value is refused; then, at the first `-h`/`--help` or unknown option, a
    help flag anywhere in the argv prints cospec's command list, and otherwise
@@ -77,6 +77,12 @@ cospec answers in two phases:
    `cospec list --store-path /x --bogus` refuses `--bogus`), then an empty
    `--cwd`/`--store` (`cospec list --store= --help` prints help), then the
    command runs.
+
+Short options combine as in OpenSpec: a cluster such as `-yh` splits only when
+its first letter is a short option the command declares, so
+`cospec archive <slug> -yh` is `-y -h` and prints the help, while
+`cospec list -yh` (no `-y` there) and `cospec archive <slug> -hy` (`-h` never
+starts a split) are refused as one unknown option.
 
 `cospec <command> help` — a bare `help` token as the first thing after the
 command name, global flags aside (`cospec archive --no-color help`) — is

@@ -1072,18 +1072,7 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * wrapped-call failure and `feedback` worded it its own way; short-option
  * clusters never split). The fixes empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  'archive c -yh',
-  'archive -yh',
-  'archive c -yy',
-  'archive c -yV',
-  'archive c -yx',
-  'archive c -Vh',
-  'list -Vh',
-  'store list -Vh',
-  'config reset -yh',
-  'config reset --all -yh',
-])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
 
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot(row.store, row.userSchema)

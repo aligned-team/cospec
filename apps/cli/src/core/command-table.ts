@@ -1344,6 +1344,29 @@ export function takesNextToken(
 }
 
 /**
+ * One step of commander's short-option cluster split: a token `-ab…` (a single
+ * dash, two or more letters) whose first letter is a short flag one of
+ * `surfaces` declares. A boolean flag leaves the rest as the next token
+ * (`-b…`); a value-taking one takes the rest as its value. Undefined when the
+ * token is no cluster or its first letter is undeclared — then commander
+ * treats the whole token as one unknown option. `-h` never starts a split:
+ * commander keeps help out of its option list, so `-hy` stays whole.
+ */
+export function splitShortCluster(
+  surfaces: readonly { readonly flags: readonly FlagSpec[] }[],
+  tok: string,
+):
+  | { readonly head: `-${string}`; readonly tail: string; readonly takesValue: boolean }
+  | undefined {
+  if (tok.length <= 2 || tok[0] !== '-' || tok[1] === '-') return undefined
+  const head = `-${tok[1]}` as const
+  const flag = surfaces.flatMap((surface) => surface.flags).find((f) => f.short === head)
+  if (flag === undefined) return undefined
+  const takesValue = flag.takesValue === true
+  return { head, tail: takesValue ? tok.slice(2) : `-${tok.slice(2)}`, takesValue }
+}
+
+/**
  * Whether `args` (a terminal-handover leaf's own argv, global flags already
  * stripped) carries `--store-path` in option position before any other
  * undeclared option — where the binary refuses it without running the

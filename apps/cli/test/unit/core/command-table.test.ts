@@ -16,6 +16,7 @@ import {
   offeredFlags,
   parseCommandArgs,
   rowGlobalFlags,
+  splitShortCluster,
   storePathInOptionPosition,
   storePathRefusal,
   storePathTakesValue,
@@ -564,6 +565,29 @@ describe('takesNextToken (phase B pairs a value-taking flag with its value)', ()
       'validate',
       'view',
     ])
+  })
+})
+
+describe('splitShortCluster (one step of commander splitting -ab…)', () => {
+  const archive = [commandRow('archive')!]
+  const show = [commandRow('show')!]
+  test('a declared boolean first letter leaves the rest as the next token', () => {
+    expect(splitShortCluster(archive, '-yh')).toEqual({ head: '-y', tail: '-h', takesValue: false })
+    expect(splitShortCluster(archive, '-yyx')).toEqual({
+      head: '-y',
+      tail: '-yx',
+      takesValue: false,
+    })
+  })
+  test('a declared value-taking first letter takes the rest as its value', () => {
+    expect(splitShortCluster(show, '-rh')).toEqual({ head: '-r', tail: 'h', takesValue: true })
+  })
+  test('no split: an undeclared first letter, -h first, a long flag, a lone short', () => {
+    expect(splitShortCluster(archive, '-xy')).toBeUndefined()
+    expect(splitShortCluster(archive, '-hy')).toBeUndefined()
+    expect(splitShortCluster([commandRow('list')!], '-yh')).toBeUndefined()
+    expect(splitShortCluster(archive, '--yes')).toBeUndefined()
+    expect(splitShortCluster(archive, '-y')).toBeUndefined()
   })
 })
 

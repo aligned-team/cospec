@@ -18,6 +18,7 @@ import {
   type ParsedArgs,
   type PositionalSpec,
   positionalLabel,
+  splitShortCluster,
   storePathRefusal,
   storePathTakesValue,
   type SubcommandSpec,
@@ -290,7 +291,12 @@ interface GlobalState {
 
 type GlobalValueFlag = '--cwd' | '--store'
 
-const isVersionToken = (tok: string): boolean => tok === '--version' || tok === '-V'
+/**
+ * `--version`, or `-V` alone or starting a short cluster: `-V` is the
+ * program's own option, and commander splits a cluster whose first letter it
+ * declares, so `-Vh` is the version too.
+ */
+const isVersionToken = (tok: string): boolean => tok === '--version' || tok.startsWith('-V')
 const isHelpToken = (tok: string): boolean => tok === '--help' || tok === '-h'
 /** Commander's test for a token that is an option rather than an operand. */
 const isOptionLike = (tok: string): boolean => tok.length > 1 && tok.startsWith('-')
@@ -399,6 +405,20 @@ function withoutProgramLevel(tokens: readonly string[], state: GlobalState): str
     state.noColor = true
     return false
   })
+}
+
+/** Whether commander, splitting cluster `tok` step by step, reaches a bare `-h`. */
+function clusterRequestsHelp(
+  surfaces: readonly { readonly flags: readonly FlagSpec[] }[],
+  tok: string,
+): boolean {
+  let rest = tok
+  for (;;) {
+    const split = splitShortCluster(surfaces, rest)
+    if (split === undefined) return isHelpToken(rest)
+    if (split.takesValue) return false
+    rest = split.tail
+  }
 }
 
 /** The surfaces whose value-taking flags phase B pairs with their value. */
@@ -513,6 +533,23 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
       // table parser or the binary gets both, and parsing goes on after them.
       if (i + 1 < tokens.length && takesNextToken(surfaceOf(row, subcommand), tok, storePath)) {
         rest.push(tok, tokens[++i]!)
+        continue
+      }
+      // A short cluster whose first letter the row declares splits as
+      // commander splits it (`archive -yh` is `-y -h`). A table row's parser
+      // gets the pieces, rescanned here so a split-out `-h` is help and a
+      // split-out value stays with its flag; a forward row's binary gets the
+      // cluster as typed, and only the help it would split out is answered
+      // here, with cospec's help, never the binary's own screen.
+      const split = splitShortCluster(surfaceOf(row, subcommand), tok)
+      if (split !== undefined) {
+        if (row.parse === 'table') {
+          tokens.splice(i, 1, split.head, split.tail)
+          i--
+          continue
+        }
+        wantHelp ||= clusterRequestsHelp(surfaceOf(row, subcommand), tok)
+        rest.push(tok)
         continue
       }
       // `cospec <command> help` — `help` as the first token to reach the row,
