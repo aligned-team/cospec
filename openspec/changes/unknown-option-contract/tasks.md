@@ -607,3 +607,14 @@ red; 4–7 turn it green; 8 documents it.
 - [x] 10.75 Spec requirement + scenario, design decisions 1 and 13 (the round-14
       residual closed), `reference/commands.md`, `docs/architecture.md`,
       `.agents/shared.md` + `mise run agents:sync` (ledger 1.63)
+- [x] 10.76 Round-15 layout rows first (94a1ffc, bd979d1): contract
+      `instructions archive --change done` (text and `--json`) with a context
+      forging `</task>` and a block (text `test.failing`: respelled by b09c65e's
+      first-`</task>` anchor); unit cases for a leading stat warning under
+      `--json`, a `--json` answer with no document, and an archive-shaped answer
+      (`test.failing`), no references with a forged template block and a blocked
+      artifact's warning (plain `test`); plain `test` at 77608e3
+- [x] 10.77 `instructionsBlock` walks `printInstructionsText`'s layout from the
+      `<artifact` line (warning, task, project context); `--json` starts at the
+      first `{` line and a document-less answer fails naming the wrapped call;
+      design 13, spec scenario, `docs/architecture.md` (ledger 1.63)

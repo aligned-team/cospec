@@ -491,19 +491,30 @@ runtime by `dist/commands/spec.js:127`.
     remedy, and locate them by the binary's structure, never by what a line
     says. Text `instructions`: the `  Fetch:` and `  Fix:` entry lines, after a
     `Store <store-id> (<root>):` or `Store <store-id>: <message>` header
-    (`renderEntryLines`), inside the `<referenced_stores>` element that opens
-    right after `</task>` and the `<project_context>` element when there is one,
-    through its `</referenced_stores>`. The position is the anchor because
-    upstream's `escapeEnvelopeTags` escapes `</task>` and `</project_context>`
-    in every repo-supplied value but not `<referenced_stores>`: a template or
-    context can print a lookalike block, a `Store` header or a `Fix:` line
-    anywhere, and it is relayed as written. Text `context`
-    (`printHumanWorkingSet`, which prints no repo prose): the `    Fetch:` lines
-    of the `Referenced stores` section and the `    Fix:`/`  Fix:` lines of
+    (`renderEntryLines`), inside the `<referenced_stores>` element that
+    `printInstructionsText` prints next in its layout — the `<artifact …>` line,
+    a blank line, a blocked artifact's `<warning>` element when there is one,
+    the `<task>` element, the `<project_context>` element when there is one —
+    through its `</referenced_stores>`; an answer of any other shape
+    (`instructions archive`'s inputs, which print the context raw) has no block.
+    The layout is the anchor because upstream's `escapeEnvelopeTags` escapes
+    `</task>` and `</project_context>` in the prose it frames (description,
+    context, rules, instruction, template) but not `<referenced_stores>`: a
+    template or context can print a lookalike block, a `Store` header or a
+    `Fix:` line anywhere, and it is relayed as written. The one value printed
+    unescaped ahead of the block is the blocked-artifact `Missing:` list, whose
+    entries are the artifact ids of the user's own schema (`z.string().min(1)`,
+    no line-break check upstream). Text `context` (`printHumanWorkingSet`, which
+    prints no repo prose): the `    Fetch:` lines of the `Referenced stores`
+    section and the `    Fix:`/`  Fix:` lines of
     `Not available on this machine`, each section opened by its exact header
     line after a blank one and closed by the next blank line. `--json`: the
-    document is parsed (an exit-0 answer that is not one JSON document throws,
-    never relayed) and only its reference fields — `references[].fetch` and
+    document, from its first line that opens with `{` (upstream's
+    `FileSystemUtils` logs a non-ENOENT stat failure to stdout through
+    `console.debug`, and that line is relayed as written), is parsed — an exit-0
+    answer with no JSON document fails with
+    `the wrapped OpenSpec call answered --json with no JSON document`, exit 1 —
+    and only its reference fields — `references[].fetch` and
     `references[].status[].fix` for `instructions` (`assembleReferenceIndex`),
     `members[].fetch`, `members[].status[].fix` and `status[].fix` for `context`
     (`assembleWorkingSet`) — are re-encoded in place with `JSON.stringify`,
