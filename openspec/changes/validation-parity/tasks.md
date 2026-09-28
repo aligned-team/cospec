@@ -176,3 +176,34 @@ trailer, never `--no-verify`).
       25.1). Commit `docs(validate): document the rebuilt spec and op conflicts`
 - [x] 10.6 Record the round-4 evidence and run `mise run check` (verification
       25.3). Commit `docs(validate): record round-4 rebuilt-spec evidence`
+
+## 11. Round 5 — the archive's own decisions (review findings on round 4)
+
+- [x] 11.1 Pin the round-5 rows in `validation-parity.test.ts` (verification
+      26–30), each running the pinned binary's validate and archive on its
+      fixture; mark the rows that fail on the tree `test.failing` and re-point
+      the entry-7 buffing row at the pairing it now makes. Commit
+      `test(validate): pin round-5 retirement and split parity rows as failing`
+- [x] 11.2 Port the archive's retirement decision: `rebuildSpec` returns the
+      applied removal count, whether any block survives and the lines a
+      retirement cannot name, and `archive/rebuilt-spec-invalid` skips the
+      no-requirements ERROR only on the archive's own decision, quoting the
+      blocking lines otherwise (design D13). Commit
+      `fix(validate): decide retirement as the archive decides it`
+- [x] 11.3 Refuse an empty statement whose only SHALL/MUST sits in a scenario
+      step (`deltas/requirement-shape`), and let entry 7's key take that wording
+      (design D5). Commit
+      `fix(validate): refuse an empty statement whose SHALL is in a scenario`
+- [x] 11.4 Drop a rebuilt-spec finding on a delta line only where
+      `deltas/requirement-shape` or `archive/split-requirement` reported that
+      line, and add entries 26–28 for a requirement written inside a comment
+      (design D5, D13). Commit
+      `fix(validate): leave a delta line only to the rule that reported it`
+- [x] 11.5 Decide `archive/split-requirement` — and the INFO `deltasRules` drops
+      for it — from the rebuilt spec's own parse (design D11). Commit
+      `fix(validate): decide splits from the rebuilt spec's own parse`
+- [x] 11.6 Update the docs pages, design, proposal and specs (verification
+      30.2), note that `cospec apply` runs fast validation by design (design
+      D13). Commit `docs(validate): document the round-5 archive decisions`
+- [x] 11.7 Record the round-5 evidence and run `mise run check` (verification
+      30.4). Commit `docs(validate): record round-5 archive-decision evidence`
