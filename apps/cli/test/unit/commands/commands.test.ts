@@ -74,6 +74,19 @@ describe("new: a failed wrapped new change's reason", () => {
     })
     expect(wrappedNewReason(result(doc))).toBe("Failed to parse schema at 'x'")
   })
+  // On EACCES/ENOTDIR the binary logs a stat warning to stdout ahead of its
+  // --json document (`change-utils.js` directoryExists), so stdout is not one
+  // document: its reason is still that document's message.
+  test.failing('takes the document that follows a warning line on stdout', () => {
+    const message = "EACCES: permission denied, mkdir '/w/my openspec list dir/openspec/changes/y'"
+    const doc = JSON.stringify(
+      { change: null, status: [{ severity: 'error', code: 'change_error', message }] },
+      null,
+      2,
+    )
+    const stdout = `Unable to check if directory exists at /w/my openspec list dir/openspec/changes/y: EACCES: permission denied, stat '/w/my openspec list dir/openspec/changes/y'\n${doc}\n`
+    expect(wrappedNewReason(result(stdout))).toBe(message)
+  })
   test('falls back to stderr without color codes or its error prefix', () => {
     expect(wrappedNewReason(result('', "\x1b[31m✖ Error: Schema 'nope' not found\x1b[39m\n"))).toBe(
       "Schema 'nope' not found",
