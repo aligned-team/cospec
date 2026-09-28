@@ -287,15 +287,52 @@ The system SHALL render a widget when requested.
     expect(existsSync(join(root, 'openspec/changes/thin-widget-ok'))).toBe(true)
   })
 
-  // W4's masking is load-bearing on this gate: a scenario heading that only
-  // survives inside an HTML comment or a code fence is documentation, not a
-  // preserved scenario. Both cases must read as a drop to zero, not as two
-  // scenarios kept. Here the shape ERROR and the gate WARNING are reported
-  // together by the pre-delegation validation pass, so they land on stdout.
-  for (const [name, masked] of [
-    ['masked-comment', '<!--\n$BODY\n-->'],
-    ['masked-fence', '````\n$BODY\n````'],
-  ] as const) {
+  // A scenario heading that only survives inside a code fence is
+  // documentation, not a preserved scenario, to every reader: it must read as
+  // a drop to zero, not as two scenarios kept. Here the shape ERROR and the
+  // gate WARNING are reported together by the pre-delegation validation pass,
+  // so they land on stdout.
+  //
+  // Inside an HTML comment it is different. OpenSpec's archive reads comments
+  // as written, so it keeps both scenarios and archives the change (probed at
+  // 1.13.1), and `archive/scenario-preservation` reads the same verbatim view:
+  // no drop. The change is still refused before delegation, by cospec's own
+  // advisory `deltas/requirement-shape`, whose comment-masked view sees a
+  // MODIFIED requirement with no scenario at all.
+  test('scenarios that survive only inside comment markup are not a drop, but the requirement has none', async () => {
+    const root = await initRepo()
+    buildFeat(
+      root,
+      'masked-comment',
+      `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested.
+
+<!--
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered
+
+#### Scenario: Render an empty widget
+
+- **WHEN** a caller requests an empty widget
+- **THEN** a placeholder is rendered
+-->
+`,
+    )
+    const res = await cospec(['archive', 'masked-comment'], { cwd: root })
+    expect(res.exitCode).toBe(1)
+    expect(res.stdout).not.toContain('archive/scenario-preservation')
+    expect(res.stdout).toContain(
+      'deltas/requirement-shape  MODIFIED "Widget rendering" must include at least one #### Scenario:',
+    )
+    expect(existsSync(join(root, 'openspec/changes/masked-comment'))).toBe(true)
+  })
+
+  for (const [name, masked] of [['masked-fence', '````\n$BODY\n````']] as const) {
     test(`scenarios that survive only inside ${name.slice(7)} markup are not preserved`, async () => {
       const root = await initRepo()
       const body = `#### Scenario: Render a widget
