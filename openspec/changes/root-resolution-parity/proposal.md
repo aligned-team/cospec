@@ -157,11 +157,13 @@ checkout gets different roots than before.
   before its own output (the same line bare `openspec` prints). Scripts that
   compare or parse cospec's stderr for those roots see one new line; `--json`
   runs are unchanged.
-- A malformed `store:` pointer, a rootless directory on a machine with
-  registered stores, and a registered store whose metadata or tree is broken now
-  fail with exit 1 where cospec used to carry on against the wrong directory. A
-  `--cwd` naming a missing directory still exits 1, now with
-  `directory not found: <path>` instead of a spawn error.
+- **BREAKING:** a malformed `store:` pointer, a rootless directory on a machine
+  with registered stores, a registered store whose metadata or tree is broken,
+  and an empty `--store=` now fail with exit 1 where cospec used to carry on
+  against the wrong directory (`cospec list --json` in a rootless directory with
+  stores registered used to exit 0 with `changes: []`). A `--cwd` naming a
+  missing directory still exits 1, now with `directory not found: <path>`
+  instead of a spawn error.
 
 ## Capabilities
 
