@@ -251,7 +251,9 @@ otherwise be unchanged, except that a remedy the wrapped binary names as a bare
 `openspec` command SHALL name the cospec command of the same shape: `schema`'s
 `"openspec schema fork"` on a failed call, in text and `--json`, and the last
 next step of a successful `schema init`, spelled only where the binary alone
-writes it.
+writes it. A failed `templates` call under `--json` that the wrapped binary
+answers in text, with nothing on stdout, SHALL be relayed as that answer, with
+exit 1 and no document of cospec's.
 
 #### Scenario: Templates succeed for a store selected by flag
 
@@ -273,6 +275,14 @@ writes it.
 - **WHEN** `cospec templates --json --schema feat` runs from a subdirectory of a
   repository whose `openspec/schemas/feat/` exists
 - **THEN** the template paths resolve to that repository's project schema
+
+#### Scenario: A templates failure under --json is the binary's text answer
+
+- **WHEN** `cospec templates --schema nope --json` runs in a root that has no
+  `nope` schema
+- **THEN** the command exits 1 with nothing on stdout and the wrapped binary's
+  `✖ Error: Schema 'nope' not found. …` on stderr, exactly as bare `openspec`
+  prints it, and no wrapped-call violation
 
 #### Scenario: A store before the command name selects the root
 

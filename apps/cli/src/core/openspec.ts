@@ -603,9 +603,18 @@ export function isOpenspecErrorStatus(body: unknown): boolean {
  * failure envelope while the raw exit code was 0, the returned result's
  * `exitCode` is normalized to 1 so cospec's own exit-code contract holds;
  * this never throws past a well-formed openspec-reported failure — the
- * failure body IS the one JSON document, which is the point.
+ * failure body IS the one JSON document, which is the point. With
+ * `textFailure`, a failed call (non-zero exit) that printed nothing on stdout
+ * is relayed as it is: that is the binary's own answer, not a violation.
  */
-export function enforcePassthroughJson(label: string, result: OpenspecResult): OpenspecResult {
+export function enforcePassthroughJson(
+  label: string,
+  result: OpenspecResult,
+  textFailure = false,
+): OpenspecResult {
+  // A command whose upstream action renders every failure as text (see
+  // `PassthroughOptions.textFailure`) answers a failure with stderr only.
+  if (textFailure && result.exitCode !== 0 && result.stdout === '') return result
   let body: unknown
   try {
     body = JSON.parse(result.stdout)
@@ -630,6 +639,14 @@ export interface PassthroughOptions {
    * to relay verbatim. `denyStdout`/`postCondition` still apply.
    */
   expect?: RunExpectation
+  /**
+   * The wrapped command's upstream action renders its failures as text even
+   * under `--json` (`templates`: `failWithError(error)` with no JSON option),
+   * so a failed call with nothing on stdout is its answer, relayed as it is.
+   * A success still owes one JSON document, and a failure that printed
+   * anything on stdout must still parse as one.
+   */
+  textFailure?: boolean
 }
 
 /**
@@ -704,5 +721,5 @@ export async function passthroughOpenspec(
   const raw = await runOpenspec(argv, { cwd: opts.cwd, expect })
   const result = { ...raw, stderr: stripSuppressedStderr(raw.stderr) }
   if (call.threaded?.includes('--json') !== true) return result
-  return enforcePassthroughJson(wrappedCallLabel(argv), result)
+  return enforcePassthroughJson(wrappedCallLabel(argv), result, opts.textFailure === true)
 }

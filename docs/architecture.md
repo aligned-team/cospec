@@ -245,7 +245,12 @@ document on stdout**, mirroring OpenSpec's own
 `status:[{severity,code,message,fix?}]` failure shape. It never throws past a
 `--json` boundary; a violation becomes exit 1 with that envelope, not a stack
 trace that corrupts a machine reader. A deny-list trip or a disallowed exit code
-raises `OpenspecCallError` (a cospec bug, not a user error).
+raises `OpenspecCallError` (a cospec bug, not a user error). One declared
+exception: a call marked `textFailure` (`templates`, whose upstream action
+renders every failure with `failWithError(error)` and no JSON option) that fails
+with nothing on stdout is the binary's own answer, relayed as it is — stderr
+text, exit 1, no document; its success still owes one document, and a failure
+that printed anything on stdout must still parse as one.
 
 `core/passthrough-command.ts` layers the command-level wiring on top: it
 resolves the operating `Root`, threads the three global flags every wrapped call

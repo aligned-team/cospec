@@ -221,6 +221,18 @@ selecting the root the call spawns in, so `cospec --store <id> templates` and
 `cospec templates --store <id> --bogus` read the store (the latter naming
 `--bogus`) where `openspec` names `--store` — part of the same superset.
 
+_Amended before review:_ `templates` also relays the binary's text failure under
+`--json`. Upstream's `templates` action calls `failWithError(error)` with no
+JSON option, so an unknown `--schema` (or any failure after the parse) is
+`✖ Error: …` on stderr, nothing on stdout, exit 1, even with `--json`. cospec
+reported that as `did not emit a single parseable JSON document`, a cospec
+violation. `PassthroughOptions` gains `textFailure`, which `templates.ts` sets:
+`enforcePassthroughJson` then returns a non-zero call with empty stdout as it
+is, while a success, or a failure that printed anything on stdout, is still held
+to one document. `templates.ts` relays through `relayRespelled`, so a failed
+answer's remedies go through the allowlist (the probed refusals name no command)
+and a success is verbatim.
+
 **D9. Store health is checked from the filesystem in `resolveStore`.**
 `store ls --json` lists a broken store with an empty `status` (probed), so
 cospec cannot learn health from the registry spawn. After finding the registry

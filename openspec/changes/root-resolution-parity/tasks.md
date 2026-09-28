@@ -325,3 +325,8 @@ files, task 7.7, both marked POST-REBASE.
       command module export `jsonFailurePayload` that the dispatcher prints
       ahead of `status` in a `--json` root-selection failure; `context` and
       `schemas` export the binary's empty payloads; update the Stores page
+- [x] 8.2 PRE-REVIEW (ledger 5.12, design D8): add failing rows, then mark the
+      `templates` call `textFailure` so a failed `--json` call with empty stdout
+      relays the binary's text refusal (exit 1, no document), relay through
+      `relayRespelled`, and state the exception on the commands page and in
+      `docs/architecture.md`

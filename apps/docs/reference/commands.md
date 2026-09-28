@@ -169,10 +169,14 @@ binary under the same rigor as every gated command — a version-asserted spawn,
 declared set of acceptable exit codes, a stdout deny-list, and stdout/stderr
 relayed verbatim — and, when you pass `--json`, guarantees exactly one JSON
 document on stdout (never a stack trace, even on failure) so a script or agent
-reading the output can always parse it. None of this changes what the commands
-_do_ — `show`, `view`, `schemas`, `schema`, `templates`, and `config`'s own key
-semantics in particular are genuinely OpenSpec's own job, and their full
-semantics live on
+reading the output can always parse it. The exceptions are where OpenSpec itself
+answers in text: a failed `cospec templates --json` (an unknown `--schema`, say)
+relays OpenSpec's `✖ Error: …` line on stderr and exits `1` with nothing on
+stdout, exactly as `openspec templates --json` does, and so does a forwarded
+command's refused argument (`--bogus`), which is OpenSpec's own parse refusal.
+None of this changes what the commands _do_ — `show`, `view`, `schemas`,
+`schema`, `templates`, and `config`'s own key semantics in particular are
+genuinely OpenSpec's own job, and their full semantics live on
 [OpenSpec's command reference](https://github.com/Fission-AI/OpenSpec/blob/main/docs/commands.md)
 — it only guarantees they fail predictably instead of silently.
 

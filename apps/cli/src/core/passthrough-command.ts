@@ -43,6 +43,8 @@ export interface PassthroughCommandOptions {
    * a deliberate superset of the binary, which reads its own cwd there.
    */
   spawnInRoot?: boolean
+  /** Upstream renders this command's failures as text under `--json`; see `PassthroughOptions.textFailure`. */
+  textFailure?: boolean
 }
 
 export interface PassthroughCommandResult {
@@ -85,7 +87,11 @@ export async function callPassthrough(
   const result = await forwardCall(() =>
     passthroughOpenspec(
       { command: opts.command, threaded, args: opts.args },
-      { cwd: inRoot ? root.base : root.cwd, expect: opts.expect },
+      {
+        cwd: inRoot ? root.base : root.cwd,
+        expect: opts.expect,
+        textFailure: opts.textFailure === true,
+      },
     ),
   )
   return { result, code: result.exitCode === 0 ? EXIT.success : EXIT.failure }

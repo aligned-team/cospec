@@ -91,6 +91,37 @@ describe('enforcePassthroughJson', () => {
     expect(out.stdout).toBe(stdout)
   })
 
+  test('textFailure relays a failed call with empty stdout as it is', () => {
+    const failed = result({
+      stdout: '',
+      stderr: "✖ Error: Schema 'nope' not found.\n",
+      exitCode: 1,
+    })
+    expect(enforcePassthroughJson('openspec templates --json', failed, true)).toEqual(failed)
+    expect(() => enforcePassthroughJson('openspec templates --json', failed)).toThrow(
+      OpenspecCallError,
+    )
+  })
+
+  test('textFailure still holds a success, and a failure that printed stdout, to one document', () => {
+    for (const exitCode of [0, 1]) {
+      expect(() =>
+        enforcePassthroughJson(
+          'openspec templates --json',
+          result({ stdout: 'x', exitCode }),
+          true,
+        ),
+      ).toThrow(/did not emit a single parseable JSON document/)
+    }
+    expect(() =>
+      enforcePassthroughJson(
+        'openspec templates --json',
+        result({ stdout: '', exitCode: 0 }),
+        true,
+      ),
+    ).toThrow(/did not emit a single parseable JSON document/)
+  })
+
   test('does not re-normalize an already-nonzero exit code carrying the envelope', () => {
     const stdout = JSON.stringify({ status: [{ severity: 'error', code: 'e', message: 'm' }] })
     const out = enforcePassthroughJson('openspec status --json', result({ stdout, exitCode: 1 }))

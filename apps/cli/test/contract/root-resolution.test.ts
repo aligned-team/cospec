@@ -1290,3 +1290,41 @@ describe("templates --json -- x relays the binary's refusal (ledger 5.6)", () =>
     expect(res.stderr).not.toMatch(BARE_OPENSPEC_COMMAND)
   })
 })
+
+// --- Ledger 5.12: templates --json relays the binary's text failure ---
+
+describe("templates --json relays the binary's text failure (ledger 5.12)", () => {
+  // Upstream's `templates` action calls `failWithError(error)` with no JSON
+  // option, so a failure after the parse is `✖ Error: …` on stderr and nothing
+  // on stdout even under `--json`. cospec relays that answer; it is not a
+  // wrapped-call violation.
+  for (const argv of [
+    ['templates', '--schema', 'nope', '--json'],
+    ['templates', '--json', '--schema', 'nope'],
+  ]) {
+    test(argv.join(' '), async () => {
+      const sb = await makeSandbox([])
+      const cwd = planningRoot(sb)
+      const up = await oracle(argv, sb.dir, { cwd })
+      expect(up.exitCode).toBe(1)
+      expect(up.stdout).toBe('')
+      expect(up.stderr).toBe(
+        "✖ Error: Schema 'nope' not found. Available schemas:\n  spec-driven\n",
+      )
+      const res = await cospec(argv, { cwd, env: sb.env })
+      expect(res.exitCode).toBe(1)
+      expect(res.stdout).toBe('')
+      expect(res.stderr).toBe(up.stderr)
+      expect(res.stderr).not.toContain('did not emit a single parseable JSON document')
+      expect(res.stderr).not.toMatch(BARE_OPENSPEC_COMMAND)
+    })
+  }
+
+  test('a successful templates --json is still one JSON document', async () => {
+    const sb = await makeSandbox([])
+    const cwd = planningRoot(sb)
+    const res = await cospec(['templates', '--json'], { cwd, env: sb.env })
+    expect(res.exitCode).toBe(0)
+    expect(Object.keys(JSON.parse(res.stdout) as object)).toContain('proposal')
+  })
+})
