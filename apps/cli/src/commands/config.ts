@@ -56,6 +56,7 @@ import {
 import { handoverPreload, preloadedArgv } from '../core/handover-preload.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
 import {
+  OpenspecCallError,
   type OpenspecResult,
   passthroughOpenspec,
   resolveOpenspec,
@@ -102,8 +103,9 @@ export interface ConfigPlanError {
 }
 
 /**
- * An option where the subcommand belongs (`config --bogus path`): the binary
- * refuses it at the `config` level, so the call is relayed as-is.
+ * An option where the subcommand belongs (`config --bogus path`), or a
+ * subcommand the binary does not define (`config bogus`, `config -- --json`):
+ * the binary refuses it at the `config` level, so the call is relayed as-is.
  */
 export interface ConfigCommandLevel {
   kind: 'command-level'
@@ -122,8 +124,6 @@ export interface ConfigHelp {
 }
 
 export type ConfigPlan = ConfigCall | ConfigCommandLevel | ConfigHelp | ConfigPlanError
-
-const SUBS = CONFIG_SUBCOMMANDS.join('|')
 
 /** First non-flag token, i.e. the subcommand's first positional. */
 function firstPositional(args: string[]): string | undefined {
@@ -177,10 +177,10 @@ export function planConfigCall(args: string[], opts: { json: boolean }): ConfigP
     return opts.json
       ? { kind: 'command-level', command: ['config', ...scopeArgs], args: ['--json'] }
       : { kind: 'help' }
-  if (!operand && isOptionToken(sub))
+  // An option where the subcommand belongs, or a name the binary does not
+  // define (after a `--` too): commander refuses it at the `config` level.
+  if ((!operand && isOptionToken(sub)) || !isConfigSub(sub))
     return { kind: 'command-level', command: ['config', ...scopeArgs], args: rest }
-  if (!isConfigSub(sub))
-    return { kind: 'error', message: `cospec config: unknown subcommand '${sub}' (${SUBS})` }
 
   const threaded = opts.json && sub === 'list' ? ['--json'] : []
   const wrapped: WrappedCall = { command: ['config', ...scopeArgs, sub], threaded, args: subArgs }
@@ -258,7 +258,9 @@ const PROFILE_NEXT_STEP = ['config/profile-applied'] as const
  */
 async function runPiped(ctx: CommandContext, call: ConfigCall): Promise<number> {
   const result = await forwardCall(() =>
-    passthroughOpenspec(call.wrapped, { cwd: ctx.cwd, expect: CONFIG_EXPECT }),
+    refusedOnStderr(() =>
+      passthroughOpenspec(call.wrapped, { cwd: ctx.cwd, expect: CONFIG_EXPECT }),
+    ),
   )
   // Ahead of the cospec-owned envelopes: the binary's `--store-path` refusal
   // is answered with cospec's redirect, and commander's parse rejection
@@ -289,17 +291,25 @@ async function runPiped(ctx: CommandContext, call: ConfigCall): Promise<number> 
     process.stdout.write(stdout)
     if (stderr.length > 0) process.stderr.write(stderr)
   } else if (call.sub === 'path') {
-    process.stdout.write(jsonEnvelope({ version: 1, command: 'config path', path: out }))
-  } else if (call.sub === 'get') {
     process.stdout.write(
-      jsonEnvelope({
-        version: 1,
-        command: 'config get',
-        key: firstPositional(call.subArgs) ?? null,
-        value: ok ? out : null,
-        found: ok,
-      }),
+      jsonEnvelope(
+        ok
+          ? { version: 1, command: 'config path', path: out }
+          : { version: 1, command: 'config path', ok: false, message: stderr.trim() },
+      ),
     )
+    if (ok && stderr.length > 0) process.stderr.write(stderr)
+  } else if (call.sub === 'get') {
+    const key = firstPositional(call.subArgs) ?? null
+    const refused = !ok && isRefusal(stderr)
+    process.stdout.write(
+      jsonEnvelope(
+        refused
+          ? { version: 1, command: 'config get', key, ok: false, message: stderr.trim() }
+          : { version: 1, command: 'config get', key, value: ok ? out : null, found: ok },
+      ),
+    )
+    if (!refused && stderr.length > 0) process.stderr.write(stderr)
   } else {
     const message = out.length > 0 ? out : stderr.trim()
     process.stdout.write(
@@ -315,6 +325,33 @@ async function runPiped(ctx: CommandContext, call: ConfigCall): Promise<number> 
   if (ok)
     for (const note of precedenceNotes(call.sub, call.subArgs)) process.stderr.write(`${note}\n`)
   return ok ? EXIT.success : EXIT.failure
+}
+
+/**
+ * A `config list --json` the binary refuses before its action runs
+ * (`--scope project`): exit 1, nothing on stdout and its reason on stderr.
+ * That is its answer to relay, not the unparseable document the `--json`
+ * enforcement reads it as; every other violation still throws.
+ */
+async function refusedOnStderr(call: () => Promise<OpenspecResult>): Promise<OpenspecResult> {
+  try {
+    return await call()
+  } catch (err) {
+    if (!(err instanceof OpenspecCallError)) throw err
+    const { exitCode, stdout, stderr } = err.result
+    if (exitCode === 1 && stdout.trim().length === 0 && stderr.length > 0) return err.result
+    throw err
+  }
+}
+
+/**
+ * Whether a failed `config get` was refused rather than finding no value: the
+ * binary refuses with an `Error:` line (its `--scope` check, before the
+ * action), and answers an unset key with exit 1 and at most the warnings its
+ * config read prints (`Warning: Invalid JSON in …, using defaults`).
+ */
+function isRefusal(stderr: string): boolean {
+  return stderr.split('\n').some((line) => line.startsWith('Error: '))
 }
 
 /**

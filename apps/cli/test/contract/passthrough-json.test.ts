@@ -587,32 +587,24 @@ describe('config relays the binary’s own answer and reason (review round 2)', 
     ['config', '--', 'bogus', '--json'],
     ['config', '--', '--bogus', '--json'],
   ]) {
-    test.failing(
-      `${argv.join(' ')}: the binary’s refusal, respelled`,
-      async () => {
-        const root = plainRoot()
-        const up = await oracle(argv, root, { runtime: 'node' })
-        const co = await runCospec(argv, root)
-        expect(up.exitCode, detail(up)).toBe(1)
-        expectRespelledRelay(co, up)
-      },
-      30_000,
-    )
-  }
-
-  test.failing(
-    'config --scope project list --json: the binary’s stderr answer, exit 1',
-    async () => {
+    test(`${argv.join(' ')}: the binary’s refusal, respelled`, async () => {
       const root = plainRoot()
-      const argv = ['config', '--scope', 'project', 'list', '--json']
       const up = await oracle(argv, root, { runtime: 'node' })
       const co = await runCospec(argv, root)
       expect(up.exitCode, detail(up)).toBe(1)
-      expect(up.stdout).toBe('')
       expectRespelledRelay(co, up)
-    },
-    30_000,
-  )
+    }, 30_000)
+  }
+
+  test('config --scope project list --json: the binary’s stderr answer, exit 1', async () => {
+    const root = plainRoot()
+    const argv = ['config', '--scope', 'project', 'list', '--json']
+    const up = await oracle(argv, root, { runtime: 'node' })
+    const co = await runCospec(argv, root)
+    expect(up.exitCode, detail(up)).toBe(1)
+    expect(up.stdout).toBe('')
+    expectRespelledRelay(co, up)
+  }, 30_000)
 
   // The binary declares no `--json` on `path`/`get`: the envelope carries the
   // reason its text run gives for the same argv.
@@ -620,71 +612,59 @@ describe('config relays the binary’s own answer and reason (review round 2)', 
     [['config', '--scope', 'project', 'path'], {}],
     [['config', '--scope', 'project', 'get', 'profile'], { key: 'profile' }],
   ] as const) {
-    test.failing(
-      `${argv.join(' ')} --json: ok false and the binary’s reason`,
-      async () => {
-        const root = plainRoot()
-        const up = await oracle([...argv], root, { runtime: 'node' })
-        const co = await runCospec([...argv, '--json'], root)
-        expect(up.exitCode, detail(up)).toBe(1)
-        expect(co.exitCode, detail(co)).toBe(1)
-        expect(documentCount(co.stdout), detail(co)).toBe(1)
-        expect(JSON.parse(co.stdout)).toEqual({
-          version: 1,
-          command: `config ${argv.at(-1) === 'path' ? 'path' : 'get'}`,
-          ...extra,
-          ok: false,
-          message: respellRemedies(up.stderr).trim(),
-        })
-        expect(co.stderr, detail(co)).toBe('')
-      },
-      30_000,
-    )
+    test(`${argv.join(' ')} --json: ok false and the binary’s reason`, async () => {
+      const root = plainRoot()
+      const up = await oracle([...argv], root, { runtime: 'node' })
+      const co = await runCospec([...argv, '--json'], root)
+      expect(up.exitCode, detail(up)).toBe(1)
+      expect(co.exitCode, detail(co)).toBe(1)
+      expect(documentCount(co.stdout), detail(co)).toBe(1)
+      expect(JSON.parse(co.stdout)).toEqual({
+        version: 1,
+        command: `config ${argv.at(-1) === 'path' ? 'path' : 'get'}`,
+        ...extra,
+        ok: false,
+        message: respellRemedies(up.stderr).trim(),
+      })
+      expect(co.stderr, detail(co)).toBe('')
+    }, 30_000)
   }
 
-  test.failing(
-    'config get profile --json on an unreadable config: the value, and the binary’s warning',
-    async () => {
-      const root = plainRoot()
-      corruptConfig(root)
-      const up = await oracle(['config', 'get', 'profile'], root, { runtime: 'node' })
-      const co = await runCospec(['config', 'get', 'profile', '--json'], root)
-      expect(up.exitCode, detail(up)).toBe(0)
-      expect(up.stderr).not.toBe('')
-      expect(co.exitCode, detail(co)).toBe(0)
-      expect(JSON.parse(co.stdout)).toEqual({
-        version: 1,
-        command: 'config get',
-        key: 'profile',
-        value: up.stdout.trim(),
-        found: true,
-      })
-      expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
-    },
-    30_000,
-  )
+  test('config get profile --json on an unreadable config: the value, and the binary’s warning', async () => {
+    const root = plainRoot()
+    corruptConfig(root)
+    const up = await oracle(['config', 'get', 'profile'], root, { runtime: 'node' })
+    const co = await runCospec(['config', 'get', 'profile', '--json'], root)
+    expect(up.exitCode, detail(up)).toBe(0)
+    expect(up.stderr).not.toBe('')
+    expect(co.exitCode, detail(co)).toBe(0)
+    expect(JSON.parse(co.stdout)).toEqual({
+      version: 1,
+      command: 'config get',
+      key: 'profile',
+      value: up.stdout.trim(),
+      found: true,
+    })
+    expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
+  }, 30_000)
 
-  test.failing(
-    'config get <unset> --json on an unreadable config: found false, and the binary’s warning',
-    async () => {
-      const root = plainRoot()
-      corruptConfig(root)
-      const up = await oracle(['config', 'get', 'nope.key'], root, { runtime: 'node' })
-      const co = await runCospec(['config', 'get', 'nope.key', '--json'], root)
-      expect(up.exitCode, detail(up)).toBe(1)
-      expect(up.stderr).not.toBe('')
-      expect(co.exitCode, detail(co)).toBe(1)
-      expect(JSON.parse(co.stdout)).toEqual({
-        version: 1,
-        command: 'config get',
-        key: 'nope.key',
-        value: null,
-        found: false,
-      })
-      expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
-    },
-    30_000,
-  )
+  test('config get <unset> --json on an unreadable config: found false, and the binary’s warning', async () => {
+    const root = plainRoot()
+    corruptConfig(root)
+    const up = await oracle(['config', 'get', 'nope.key'], root, { runtime: 'node' })
+    const co = await runCospec(['config', 'get', 'nope.key', '--json'], root)
+    expect(up.exitCode, detail(up)).toBe(1)
+    expect(up.stderr).not.toBe('')
+    expect(co.exitCode, detail(co)).toBe(1)
+    expect(JSON.parse(co.stdout)).toEqual({
+      version: 1,
+      command: 'config get',
+      key: 'nope.key',
+      value: null,
+      found: false,
+    })
+    expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
+  }, 30_000)
 
   test('config get <unset> --json: found false, nothing on stderr', async () => {
     const root = plainRoot()

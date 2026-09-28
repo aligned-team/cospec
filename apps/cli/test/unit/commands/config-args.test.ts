@@ -132,10 +132,22 @@ describe('planConfigCall — subcommand validation', () => {
     })
   })
 
-  test('unknown subcommand is a usage error, not a wrapped spawn', () => {
-    const plan = planConfigCall(['frobnicate'], { json: false })
-    expect(plan.kind).toBe('error')
-    if (plan.kind === 'error') expect(plan.message).toContain("unknown subcommand 'frobnicate'")
+  test('an unknown subcommand is relayed at the config level, before or after `--`', () => {
+    expect(planConfigCall(['frobnicate'], { json: false })).toEqual({
+      kind: 'command-level',
+      command: ['config'],
+      args: ['frobnicate'],
+    })
+    expect(planConfigCall(['--scope', 'project', 'frobnicate', 'x'], { json: true })).toEqual({
+      kind: 'command-level',
+      command: ['config', '--scope', 'project'],
+      args: ['frobnicate', 'x'],
+    })
+    expect(planConfigCall(['--', '--json'], { json: false })).toEqual({
+      kind: 'command-level',
+      command: ['config'],
+      args: ['--', '--json'],
+    })
   })
 
   test('every declared subcommand plans successfully with no extra args', () => {
