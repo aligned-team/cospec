@@ -137,31 +137,6 @@ a time. Group 12 waits for the rebase in group 11.
       pass
 - [x] 10.2 Commit `fix(cli): forward every instructions flag to the binary`
 
-## 10a. Round-2 review fixes (the rows first, then one fix per commit)
-
-- [x] 10a.1 Pin the rows of ledger 1.12–1.14, 3.5, 3.6 and 7.4 against the
-      binary (failing ones as `test.failing`), rewrite the 3.2
-      `apply --change nope` row to `cospec apply nope`'s answer, and restore
-      main's byte-for-byte relay rows live beside the held targets (ledger 4.7);
-      commit `test(cli): pin round-2 upstream-spellings rows against the binary`
-- [x] 10a.2 `instructions apply --change <id>` always runs the gate (ledger 3.2,
-      3.5); commit
-      `fix(cli): run the gate for every instructions apply --change`
-- [x] 10a.3 `--schema` there refused before the gate, one document under
-      `--json` (ledger 3.6); commit
-      `fix(cli): refuse instructions apply --schema as one document`
-- [x] 10a.4 No closest-match hint for an unknown short option (ledger 7.4);
-      commit `fix(cli): offer no closest match for an unknown short option`
-- [x] 10a.5 Empty and cased tool lists read as upstream (ledger 1.12); commit
-      `fix(cli): read an empty or cased tool list as upstream does`
-- [x] 10a.6 `new change` empty `--schema` and unusable `config.yaml` (ledger
-      1.13); commit
-      `fix(cli): read new change's empty --schema and bad config as upstream`
-- [x] 10a.7 Case-insensitive completion shell (ledger 1.14); commit
-      `fix(cli): read the completion shell name case-insensitively`
-- [x] 10a.8 Docs corrections (ledger 8.6); commit
-      `docs(cli): correct the alias kinds and new change --json shape`
-
 ## 11. Rebase onto `root-resolution-parity`
 
 - [ ] 11.1 Once `root-resolution-parity` has merged, rebase this branch onto
@@ -222,3 +197,28 @@ a time. Group 12 waits for the rebase in group 11.
 - [ ] 14.3 Commit `chore(cli): close out upstream-spellings`
 - [ ] 14.4 `mise run cospec -- archive upstream-spellings` as the last commit on
       the PR branch, before merge
+
+## 15. Round-2 review fixes (the rows first, then one fix per commit)
+
+- [x] 15.1 Pin the rows of ledger 1.12–1.14, 3.5, 3.6 and 7.4 against the binary
+      (failing ones as `test.failing`), rewrite the 3.2 `apply --change nope`
+      row to `cospec apply nope`'s answer, and restore main's byte-for-byte
+      relay rows live beside the held targets (ledger 4.7); commit
+      `test(cli): pin round-2 upstream-spellings rows against the binary`
+- [x] 15.2 `instructions apply --change <id>` always runs the gate (ledger 3.2,
+      3.5); commit
+      `fix(cli): run the gate for every instructions apply --change`
+- [x] 15.3 `--schema` there refused before the gate, one document under `--json`
+      (ledger 3.6); commit
+      `fix(cli): refuse instructions apply --schema as one document`
+- [x] 15.4 No closest-match hint for an unknown short option (ledger 7.4);
+      commit `fix(cli): offer no closest match for an unknown short option`
+- [x] 15.5 Empty and cased tool lists read as upstream (ledger 1.12); commit
+      `fix(cli): read an empty or cased tool list as upstream does`
+- [x] 15.6 `new change` empty `--schema` and unusable `config.yaml` (ledger
+      1.13); commit
+      `fix(cli): read new change's empty --schema and bad config as upstream`
+- [x] 15.7 Case-insensitive completion shell (ledger 1.14); commit
+      `fix(cli): read the completion shell name case-insensitively`
+- [x] 15.8 Docs corrections (ledger 8.6); commit
+      `docs(cli): correct the alias kinds and new change --json shape`
