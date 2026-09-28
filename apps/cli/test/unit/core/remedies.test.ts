@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   REMEDIES,
   type Remedy,
+  respellLines,
   respellRemedies,
   respellSchemaLines,
   respellWholeRemedy,
@@ -155,5 +156,35 @@ describe('respellSchemaLines: the built-in schema lines, whole, after indentatio
     expect(respellSchemaLines(text)).toBe(
       `x ${entry}\n${entry} y\n\t${SCHEMA_LINES[0]!.cospec}\nopenspec list`,
     )
+  })
+})
+
+describe('respellLines: whole lines only', () => {
+  const IDS = ['workset/open-any-time', 'workset/none-saved', 'config/profile-applied']
+
+  for (const id of IDS) {
+    const remedy = REMEDIES.find((r) => r.id === id)!
+    const upstream = fill(remedy.upstream, SAMPLE)
+    const cospec = fill(cospecOf(remedy), SAMPLE_SPELLED)
+    test(`${id}: the whole line, indented or not`, () => {
+      expect(respellLines(`${upstream}\n`, IDS)).toBe(`${cospec}\n`)
+      expect(respellLines(`  ${upstream}\r\n`, IDS)).toBe(`  ${cospec}\r\n`)
+    })
+
+    test(`${id}: never inside a longer line`, () => {
+      for (const line of [`x ${upstream}`, `${upstream} x`, `/w/${upstream}`])
+        expect(respellLines(`${line}\n`, IDS)).toBe(`${line}\n`)
+    })
+  }
+
+  test('a sentence split across lines, or one not named, stays as it is', () => {
+    const split = 'Open it any time with: openspec\nworkset open w1\n'
+    expect(respellLines(split, IDS)).toBe(split)
+    const unnamed = 'Use "openspec config list" to see available keys.\n'
+    expect(respellLines(unnamed, IDS)).toBe(unnamed)
+  })
+
+  test('an id the allowlist does not hold is a programming error', () => {
+    expect(() => respellLines('x\n', ['no/such-id'])).toThrow("no allowlist entry 'no/such-id'")
   })
 })

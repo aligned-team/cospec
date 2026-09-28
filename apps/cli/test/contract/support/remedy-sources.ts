@@ -482,7 +482,7 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
   [
     'commands/config.js',
     "console.error('Interactive mode required. Use `openspec config profile core` or set config via environment/flags.');",
-    notRelayed.PROFILE_HANDOVER,
+    'config/profile-interactive-required',
   ],
   [
     'commands/config.js',

@@ -203,7 +203,7 @@ describe('respellLines: a whole allowlisted line, nothing else', () => {
   const PROFILE = 'Config updated. Run `openspec update` in your projects to apply.'
   const IDS = ['workset/open-any-time', 'workset/none-saved', 'config/profile-applied']
 
-  test.failing('rewrites a line that is the sentence, holes filled, indentation kept', () => {
+  test('rewrites a line that is the sentence, holes filled, indentation kept', () => {
     const respell = exported<RespellLines>(remediesModule, 'respellLines')
     const text = `\nSaved workset 'w1' (1 member) to your machine.\n${OPEN}\n  ${NONE}\n${PROFILE}\n`
     expect(respell(text, IDS)).toBe(
@@ -214,7 +214,7 @@ describe('respellLines: a whole allowlisted line, nothing else', () => {
     )
   })
 
-  test.failing('leaves the sentence inside a member path, after a name, or split', () => {
+  test('leaves the sentence inside a member path, after a name, or split', () => {
     const respell = exported<RespellLines>(remediesModule, 'respellLines')
     const text = [
       `  root  /tmp/${OPEN}`,
@@ -227,7 +227,7 @@ describe('respellLines: a whole allowlisted line, nothing else', () => {
     expect(respell(text, IDS)).toBe(text)
   })
 
-  test.failing('rewrites only the sentences it is given', () => {
+  test('rewrites only the sentences it is given', () => {
     const respell = exported<RespellLines>(remediesModule, 'respellLines')
     expect(respell(`${OPEN}\n${PROFILE}\n`, ['config/profile-applied'])).toBe(
       `${OPEN}\nConfig updated. Run \`cospec update\` in your projects to apply.\n`,
