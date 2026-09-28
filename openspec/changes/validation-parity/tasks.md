@@ -123,3 +123,33 @@ trailer, never `--no-verify`).
 - [x] 8.7 Update the docs pages, design, specs and ledger for round 2
       (verification 14.1), and run `mise run check`. Commit
       `docs(validate): document the archive view and split-requirement`
+
+## 9. Round 3 — one view model (review findings on round 2)
+
+- [x] 9.1 Pin the round-3 rows in `validation-parity.test.ts` (verification
+      15–20), each running the pinned binary's validate and archive on its
+      fixture, plus the double-report sweep; mark the rows that fail on the tree
+      `test.failing` and re-point row 11.6 to the `--fast` rule. Commit
+      `test(validate): pin round-3 view-model parity rows as failing`
+- [x] 9.2 Build one fence-aware scan (`scanDocument`, a line-walking
+      `maskHtmlComments`) that both views read (design D10). Commit
+      `fix(validate): find code fences before HTML comments in one scan`
+- [x] 9.3 Read every `archive/*` rule, scenario-preservation included, from the
+      verbatim view through one living reader; port all three structure kinds
+      with the BOM kept (design D10, D12). Commit
+      `fix(validate): read every archive rule from the verbatim view`
+- [x] 9.4 Refuse a split inside a surviving living requirement (design D11).
+      Commit
+      `fix(validate): refuse a split inside a surviving living requirement`
+- [x] 9.5 Pass `--fast` to `deltasRules` and keep the skipped-header INFO where
+      the split is not checked (design D11). Commit
+      `fix(validate): keep the skipped-header INFO when --fast skips the split`
+- [x] 9.6 Add DUPLICATE_CLASSES entries 13–18 and widen entry 12 (design D5).
+      Commit `fix(validate): dedupe the remaining typed-lane double reports`
+- [x] 9.7 Update the docs pages, design, proposal and specs (verification 20.1).
+      Commit `docs(validate): document the one view model and round-3 dedupe`
+- [x] 9.8 Re-point the integration row that expected a drop for scenarios kept
+      inside a comment (verification 15.4). Commit
+      `test(validate): re-point the commented-scenario row at the verbatim view`
+- [x] 9.9 Record the round-3 evidence and run `mise run check` (verification
+      20.3). Commit `docs(validate): record round-3 view-model evidence`
