@@ -70,10 +70,18 @@ then runs `cospec init` on the current directory, reading `--tool <id>` as
 `cospec new change <name> [--schema <s>] [--description <text>] [--goal <text>]`
 SHALL create a change named `<name>`. `--schema` SHALL name a cospec type or a
 legacy schema, with the same checks and lanes as `cospec new <type> <name>`;
-without it the root's `config.yaml` `schema:` default SHALL apply, else
-`spec-driven`, as upstream resolves it. `--goal <text>` SHALL be stored as
-`goal:` in the change's `.openspec.yaml`, on this spelling and on
-`cospec new <type> <slug>`. `--initiative <x>` and `--areas <x>` SHALL be
+without it (or given as `--schema ''`, which upstream reads as absent) the
+root's `config.yaml` `schema:` default SHALL apply, else `spec-driven`, as
+upstream resolves it. A config upstream cannot use SHALL fall back to
+`spec-driven` with upstream's own warning on stderr, in text and under `--json`
+alike (stdout staying one document): one it cannot read or parse
+(`Warning: could not parse <path> (<reason>); ignoring it.`), one that is not a
+YAML object (`openspec/config.yaml is not a valid YAML object`), or one whose
+`schema:` is not a non-empty string
+(`Invalid 'schema' field in config (must be non-empty string)`). A `--schema`
+the binary cannot resolve SHALL be refused with nothing written. `--goal <text>`
+SHALL be stored as `goal:` in the change's `.openspec.yaml`, on this spelling
+and on `cospec new <type> <slug>`. `--initiative <x>` and `--areas <x>` SHALL be
 refused, before any other action-level check, with upstream's removed-option
 message on stderr (text) or its `{change: null, status: [...]}` document
 carrying code `initiative_option_removed` or `areas_option_removed` (`--json`),
@@ -99,6 +107,26 @@ call's own document, with cospec's `type`, `dir` and `artifacts` beside them;
   `schema: feat`
 - **THEN** `openspec/changes/foo/.openspec.yaml` says `schema: feat` and carries
   `schemaVersion: 2`
+
+#### Scenario: An empty --schema is no --schema
+
+- **WHEN** `cospec new change foo --schema ''` runs in a cospec root and in an
+  upstream-initialised root
+- **THEN** each creates `foo` with the schema the binary creates there (`feat`,
+  `spec-driven`), exit 0
+
+#### Scenario: A config upstream cannot use falls back with its warning
+
+- **WHEN** `cospec new change foo` (or with `--json`) runs where `config.yaml`
+  is unparseable, not a YAML object, empty, or says `schema: 42` / `schema: ""`
+- **THEN** stderr carries the binary's warning line for that config, `foo` is
+  created on `spec-driven`, exit 0, and under `--json` stdout is one document
+  whose `change` equals the binary's
+
+#### Scenario: An unknown --schema leaves nothing behind
+
+- **WHEN** `cospec new change foo --schema nope` runs, with or without `--json`
+- **THEN** it exits 1 and the tree is unchanged
 
 #### Scenario: The goal is stored
 

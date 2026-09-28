@@ -10,7 +10,7 @@ import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join, relative } from 'node:path'
 
-import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
+import { parse as parseYaml, stringify as stringifyYaml, YAMLError } from 'yaml'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
@@ -238,15 +238,35 @@ function refuseRemovedOption(parsed: ParsedArgs, json: boolean): number | undefi
 
 /**
  * The root's default schema, as upstream's `new change` resolves it with no
- * `--schema`: `openspec/config.yaml`'s `schema:` (else `config.yml`'s), else
- * `spec-driven`.
+ * `--schema` (`readProjectConfig` in `core/project-config.js`):
+ * `openspec/config.yaml`'s `schema:` (else `config.yml`'s), else
+ * `spec-driven`. A config it cannot use falls back to `spec-driven` with the
+ * binary's own warning on stderr: one it cannot read or parse, one that is not
+ * a YAML object, or one whose `schema:` is not a non-empty string.
  */
 export function defaultSchema(base: string): string {
   for (const name of ['config.yaml', 'config.yml']) {
     const path = join(openspecDir(base), name)
     if (!existsSync(path)) continue
-    const doc = parseYaml(readFileSync(path, 'utf8')) as { schema?: unknown } | null
-    return typeof doc?.schema === 'string' && doc.schema.length > 0 ? doc.schema : 'spec-driven'
+    let doc: unknown
+    try {
+      doc = parseYaml(readFileSync(path, 'utf8'))
+    } catch (err) {
+      const unreadable = err instanceof Error && 'code' in err
+      if (!(err instanceof YAMLError) && !unreadable) throw err
+      const reason = (err as Error).message.split('\n')[0]
+      process.stderr.write(`Warning: could not parse ${path} (${reason}); ignoring it.\n`)
+      return 'spec-driven'
+    }
+    if (typeof doc !== 'object' || doc === null) {
+      process.stderr.write('openspec/config.yaml is not a valid YAML object\n')
+      return 'spec-driven'
+    }
+    const schema = (doc as { schema?: unknown }).schema
+    if (typeof schema === 'string' && schema.length > 0) return schema
+    if (schema !== undefined)
+      process.stderr.write("Invalid 'schema' field in config (must be non-empty string)\n")
+    return 'spec-driven'
   }
   return 'spec-driven'
 }
@@ -342,7 +362,9 @@ export async function run(ctx: CommandContext, user: UserSchemaHome = {}): Promi
   let derivedDescription = description
 
   if (upstreamSpelling) {
-    type = flagValue(parsed, '--schema') ?? defaultSchema(base)
+    // An empty `--schema` is no schema, as the binary's `if (options.schema)` reads it.
+    const schema = flagValue(parsed, '--schema')
+    type = schema !== undefined && schema.length > 0 ? schema : defaultSchema(base)
     slug = positionals[0]!
   } else if (freeForm) {
     // Form 2: "<type>: <free text>".

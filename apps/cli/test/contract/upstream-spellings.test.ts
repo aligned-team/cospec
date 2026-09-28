@@ -467,21 +467,17 @@ function configWarning(run: SpawnResult): string {
 
 describe('1.13 new change reads an empty --schema and a broken config.yaml as the binary does', () => {
   for (const template of ['cospec', 'upstream'] as const) {
-    test.failing(
-      `new change foo --schema '' takes the ${template} root's default schema`,
-      async () => {
-        const argv = ['new', 'change', 'foo', '--schema', '']
-        const from = template === 'cospec' ? cospecTemplate : upstreamTemplate
-        const coRoot = copyOf(from)
-        const upRoot = copyOf(from)
-        const u = await runUpstream(argv, upRoot)
-        expect(u.exitCode, detail('openspec', u)).toBe(0)
-        const c = await runCospec(argv, coRoot)
-        expect(c.exitCode, detail('cospec', c)).toBe(0)
-        expect(metadata(coRoot, 'foo')['schema']).toBe(metadata(upRoot, 'foo')['schema'])
-      },
-      30_000,
-    )
+    test(`new change foo --schema '' takes the ${template} root's default schema`, async () => {
+      const argv = ['new', 'change', 'foo', '--schema', '']
+      const from = template === 'cospec' ? cospecTemplate : upstreamTemplate
+      const coRoot = copyOf(from)
+      const upRoot = copyOf(from)
+      const u = await runUpstream(argv, upRoot)
+      expect(u.exitCode, detail('openspec', u)).toBe(0)
+      const c = await runCospec(argv, coRoot)
+      expect(c.exitCode, detail('cospec', c)).toBe(0)
+      expect(metadata(coRoot, 'foo')['schema']).toBe(metadata(upRoot, 'foo')['schema'])
+    }, 30_000)
   }
 
   for (const [name, config] of [
@@ -493,25 +489,30 @@ describe('1.13 new change reads an empty --schema and a broken config.yaml as th
   ] as const) {
     for (const asJson of [false, true]) {
       const argv = ['new', 'change', 'foo', ...(asJson ? ['--json'] : [])]
-      test.failing(
-        `${argv.join(' ')} on ${name} config.yaml: the binary's warning, then spec-driven`,
-        async () => {
-          const coRoot = copyOf(upstreamTemplate)
-          const upRoot = copyOf(upstreamTemplate)
-          for (const root of [coRoot, upRoot])
-            writeFileSync(join(root, 'openspec', 'config.yaml'), config)
-          const u = await runUpstream(argv, upRoot)
-          expect(u.exitCode, detail('openspec', u)).toBe(0)
-          const warning = neutral(configWarning(u), upRoot)
-          const c = await runCospec(argv, coRoot)
-          expect(c.exitCode, detail('cospec', c)).toBe(0)
-          expect(neutral(c.stderr, coRoot).split('\n')).toContain(warning)
-          expect(metadata(coRoot, 'foo')['schema']).toBe(metadata(upRoot, 'foo')['schema'])
-          expect(metadata(coRoot, 'foo')['schema']).toBe('spec-driven')
-          if (asJson) expect(json(c)['change']).toMatchObject(json(u)['change'] as object)
-        },
-        30_000,
-      )
+      test(`${argv.join(' ')} on ${name} config.yaml: the binary's warning, then spec-driven`, async () => {
+        const coRoot = copyOf(upstreamTemplate)
+        const upRoot = copyOf(upstreamTemplate)
+        for (const root of [coRoot, upRoot])
+          writeFileSync(join(root, 'openspec', 'config.yaml'), config)
+        const u = await runUpstream(argv, upRoot)
+        expect(u.exitCode, detail('openspec', u)).toBe(0)
+        const warning = neutral(configWarning(u), upRoot)
+        const c = await runCospec(argv, coRoot)
+        expect(c.exitCode, detail('cospec', c)).toBe(0)
+        expect(neutral(c.stderr, coRoot).split('\n')).toContain(warning)
+        expect(metadata(coRoot, 'foo')['schema']).toBe(metadata(upRoot, 'foo')['schema'])
+        expect(metadata(coRoot, 'foo')['schema']).toBe('spec-driven')
+        if (asJson) {
+          expect(documentCount(c.stdout), c.stdout).toBe(1)
+          const coChange = (JSON.parse(neutral(c.stdout, coRoot)) as Record<string, unknown>)[
+            'change'
+          ]
+          const upChange = (JSON.parse(neutral(u.stdout, upRoot)) as Record<string, unknown>)[
+            'change'
+          ]
+          expect(coChange).toEqual(upChange)
+        }
+      }, 30_000)
     }
   }
 
