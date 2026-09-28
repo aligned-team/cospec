@@ -273,8 +273,9 @@ shape is unchanged.
 A `REMOVED` operation that takes a capability's last requirement can delete its
 living `spec.md` outright, rather than leaving an empty `## Requirements`
 section behind — but only when the change's `.openspec.yaml` declares
-`retire_capabilities: true` (see [Configuration](/reference/configuration)).
-Without the marker, openspec refuses the merge — on a cospec-typed change cospec
+`retire_capabilities: true` and openspec can honour it (see
+[Configuration](/reference/configuration) for when it can't). Without an
+honoured marker, openspec refuses the merge — on a cospec-typed change cospec
 says so first, at validate time, as `archive/rebuilt-spec-invalid`; on a legacy
 change it relays openspec's refusal untouched — change and spec both left
 exactly as they were. With it, openspec still refuses a spec holding content the
