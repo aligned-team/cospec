@@ -1,5 +1,5 @@
 // The doctor key oracle (change `passthrough-json-and-doctor`, ledger 2.1–2.3,
-// 2.5, 2.7): `cospec doctor --json` carries `openspec doctor --json`'s `root`,
+// 2.5, 2.7, 2.8): `cospec doctor --json` carries `openspec doctor --json`'s `root`,
 // `store`, `references` and `status` keys on every root, beside its own
 // `version`/`findings`/`summary`. Each expected value is the pinned binary's
 // for the same argv on the same fixture (`oracleJson`), with only design D4's

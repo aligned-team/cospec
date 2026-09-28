@@ -10,20 +10,24 @@ cause a refusal rather than a silent overwrite.
 
 The wrapped call SHALL always run with `--json`, and cospec SHALL spell the
 binary's reference block through cospec structurally: in the parsed document,
-only `members[].fetch` (a whole command, its leading `openspec` token replaced)
-and `members[].status[].fix` and `status[].fix` (each an allowlisted sentence of
-the pinned binary) are rewritten, through the shared field-map helper; every
-other byte — a path, an id, a message, a root label — is the binary's. A
-`--json` caller SHALL receive that rewritten document, serialized as the binary
-serializes it. A text caller SHALL receive cospec's rendering of the rewritten
-document, laid out as the binary's human listing (`Working context for …`,
-`OpenSpec root`, `Referenced stores` with `Fetch:` lines, the empty-set line,
-`Not available on this machine` with `Fix:` and `Note:` lines); the listing
-SHALL never be produced by rewriting the binary's text. With `--code-workspace`
-in text mode the listing SHALL come from a read-only call made before the write,
-so it prints ahead of the write's summary or refusal as the binary orders them.
-A failed call SHALL be relayed through the allowlist, a text caller getting the
-binary's `Error:`/`Fix:` lines on stderr.
+only `members[].fetch`, `members[].status[].fix` and `status[].fix` are
+rewritten, through the shared field-map helper, and each only where its whole
+value is one of the pinned binary's own reference remedies (the fetch recipe,
+the store-doctor, register, clone and list-the-rest fixes), the remedy's ids,
+paths and remote re-emitted unread; every other byte — a path, an id, a message,
+a root label — is the binary's. A `--json` caller SHALL receive that rewritten
+document, serialized as the binary serializes it. A text caller SHALL receive
+cospec's rendering of the rewritten document, laid out as the binary's human
+listing (`Working context for …`, `OpenSpec root`, `Referenced stores` with
+`Fetch:` lines, the empty-set line, `Not available on this machine` with `Fix:`
+and `Note:` lines); the listing SHALL never be produced by rewriting the
+binary's text. With `--code-workspace` in text mode the listing SHALL be
+rendered from the writing call's document on stdout and its `Wrote …` summary
+relayed on stderr, as the binary prints them; when the binary refuses the write,
+the listing SHALL come from a call that writes nothing, followed by the refusal
+as the binary's `Error:`/`Fix:` lines on stderr. Any other failed call SHALL be
+relayed through the allowlist, a text caller getting the binary's own text
+answer.
 
 #### Scenario: JSON brief lists working-set members
 
@@ -58,6 +62,15 @@ binary's `Error:`/`Fix:` lines on stderr.
   like `openspec show …` or `Run: openspec store doctor`
 - **THEN** that id or path is printed as the binary printed it, text and
   `--json`
+
+#### Scenario: Store ids and a clone remote naming openspec are the binary's
+
+- **WHEN** `cospec context` runs, text and `--json`, on a root referencing
+  stores whose ids hold `openspec` (`openspec-team`, `openspec-broken`) and an
+  unregistered `openspec-gone` declared with a clone remote that names
+  `openspec`
+- **THEN** each fetch and fix names `cospec` in command position only, and every
+  id and the remote are printed as the binary printed them
 
 ### Requirement: Workset group passthrough with a terminal-handover exec
 

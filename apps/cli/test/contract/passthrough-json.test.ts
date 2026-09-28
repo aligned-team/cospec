@@ -3,9 +3,8 @@
 // 7.1–7.2). Every expected answer is the pinned binary's for the same argv on
 // the same fixture, read at test time through the upstream oracle, with only
 // the allowlisted respelling (`respellRemedies`) applied — never a hand-typed
-// copy of upstream's text. The 3.x and 7.x rows need `root-resolution-parity`
-// (its structural respell helper and its `--cwd` check) and stay failing until
-// this change rebases onto it (tasks group 9).
+// copy of upstream's text. The 3.x and 7.x rows build on `root-resolution-parity`
+// (its structural respell helper and its `--cwd` check, tasks group 9).
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -266,7 +265,7 @@ describe('workset group refusals are the binary’s, spelled through cospec (led
   }, 30_000)
 })
 
-// --- 3. context and schemas (post-rebase) ------------------------------------
+// --- 3. context and schemas ---------------------------------------------------
 
 interface Diagnostic {
   fix?: string

@@ -146,27 +146,39 @@ unless the binary reports something. When `initialized` fails, the binary's
 name the file they read. The WARNING remedy becomes "rerun
 `cospec doctor --json` to see OpenSpec's root, store and reference report".
 After the rebase onto `root-resolution-parity`, doctor's own checks run against
-`root.base` when the resolved root is local (the walk's result), and against the
-cwd for a store root (today's `--store` from a bare workspace).
+`root.base` wherever the resolver selected the root for the directory — the
+walk's local root (`nearest`), and the store a declared `store:` pointer
+(`declared`) or the global `defaultStore` (`global_default`) selects
+(obligations R4: the operating root the binary reports, never the cwd) — and
+against the cwd for an explicit `--store` (today's `--store` from a bare
+workspace) and an implicit root. A selection the resolver refuses (other than
+the missing `--cwd`, which stands) is folded, not thrown: with no root selected
+cospec's own checks do not run — the directory may not be readable at all (the
+resolver sweep's mode-000 `openspec/`) — a no-root refusal gets the one
+`initialized` ERROR, and any other refusal is reported by the binary's folded
+diagnostic alone.
 
 **D4 — The structural respell rule.** A successful answer is respelled only in
 its parsed `--json` document, through the shared field-map helper
-`root-resolution-parity` adds to `core/passthrough-command.ts`, with two field
-kinds: `command` — the whole value is a command, only a leading `openspec `
-token is replaced (`members[].fetch`); `sentence` — the value is one of the
-binary's diagnostic strings and is passed alone to `respellRemedies`, so only an
-allowlisted sentence inside it changes (`…status[].fix`). A failed answer
+`root-resolution-parity` adds to `core/passthrough-command.ts`
+(`respellCommandFields`). Its merged rule is a field path and a fixed lead,
+replacing only a leading `openspec ` token; this change adds the stricter
+whole-value rule the orchestrator decided on: a `CommandField` may name the
+allowlist entries (`remedies`) its whole value can be, and is then spelled only
+when its whole value is one of them, holes filled and re-emitted unread
+(`respellWhole` in `core/remedies.ts`), so a value that merely contains a remedy
+or reads like one it does not name is relayed byte for byte. A failed answer
 (exit 1) is respelled as every relay already is: the allowlist over the answer
-(`message` and `fix` included). Field maps: context
-`{members[].fetch: command, members[].status[].fix: sentence, status[].fix: sentence}`;
+(`message` and `fix` included). Field maps: context (whole-value)
+`{members[].fetch: references/fetch, members[].status[].fix: references/clone | get-checkout | store-doctor-id | store-doctor | list-rest, status[].fix: references/store-doctor}`;
 doctor
 `{root.status[].fix, store.status[].fix, references[].status[].fix, status[].fix: sentence}`;
 store
 `{status[].fix, stores[].status[].fix, stores[].openspec_root.status[].fix: sentence}`.
 cospec's text is rendered from the rewritten document (context: a port of the
 binary's `printHumanWorkingSet`; store and doctor: the renderers they already
-have). If the helper lands without a `sentence` kind, this change adds it in
-`core/passthrough-command.ts` after that change has merged (group 9). Rejected:
+have). The helper landed without it, so this change adds the whole-value rule in
+`core/passthrough-command.ts` after that change merged (group 9). Rejected:
 regex or line anchors over the binary's text — a store id, a path or a template
 can forge any line shape (the ruling that built the allowlist).
 
@@ -184,12 +196,19 @@ empty-set line depends on `declaredReferenceCount`, which its document omits.
 cospec reads it from `root.path`'s `openspec/config.yaml` else `config.yml`,
 counting unique ids of string entries and `{id: string}` maps, as the binary's
 declaration parser does; an unreadable config counts zero, as the binary's
-reader returns none. With `--code-workspace` in text mode, a read-only
-`context --json` call renders the listing and a second
-`context --json --code-workspace <p> [--force]` call writes, its summary
-(`Wrote …`) relayed from stderr or its refusal rendered as the binary's
-`Error:`/`Fix:` lines — the binary's own order. In `--json` mode one call does
-both, as the binary does (write first).
+reader returns none. Every call is `context --json`, one call per answer in both
+modes: the binary's `--json` mode writes the `--code-workspace` file first and
+then prints the document, so in text mode the writing call's document renders
+the listing (stdout) and its stderr — the config warnings once and the `Wrote …`
+summary — is relayed as the binary prints it. (Refined at implementation from a
+listing call ahead of the write: two calls would print the config warnings
+twice.) When the binary refuses the write (an existing file without `--force`, a
+missing directory), a second, read-only `context --json` call supplies the
+listing and the refusal is rendered from the failed document's last `status`
+entry as the binary's `Error:`/`Fix:` lines, respelled. Any other failure in
+text mode reruns the user's text argv and relays the binary's own text answer,
+respelled (the listing never rendered). In `--json` mode one call does both, as
+the binary does (write first).
 
 **D7 — Config.** No subcommand without `--json`: cospec's `config` help
 (`commandHelpText` of the `config` row) on stderr, exit 1. With `--json`: the
@@ -260,8 +279,11 @@ every spawn, both handovers included, sets `OPENSPEC_NO_COMPLETIONS=1`.
 before anything else and answer with the resolver's own refusal from
 `core/root.ts` (text `cospec: directory not found: <path>`; under `--json` the
 resolver's `{status:[diagnostic]}` document), exported there if the resolver
-keeps it private. Rows for `context`, `doctor` and `schemas`, which inherit the
-resolver's check, assert all six commands agree (group 9).
+keeps it private (it did: `assertInvocationDirectory` is now exported). Rows for
+`context`, `doctor` and `schemas`, which inherit the resolver's check, assert
+all six commands agree (group 9); under `--json` the resolver prints `context`'s
+and `schemas`' own empty payload ahead of `status`, as it does for every
+root-selection failure of theirs, so those two rows expect it.
 
 **D11 — The residual.** After D8, the binary can still print a bare `openspec`
 command only inside a live interactive session, on the terminal it was handed:

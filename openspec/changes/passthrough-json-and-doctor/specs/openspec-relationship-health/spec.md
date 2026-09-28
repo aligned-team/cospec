@@ -18,10 +18,15 @@ carried in `status` and SHALL NOT be folded a second time into `findings`.
 
 `cospec doctor` SHALL read the project config the way the binary does —
 `openspec/config.yaml`, else `openspec/config.yml` — for its own `config` check.
-Run from a subdirectory of a project, its own checks SHALL target the enclosing
-root the resolver walks to, as `openspec doctor` does. When the delegated call
-cannot be read, the WARNING finding's remedy SHALL name `cospec doctor`, never a
-bare `openspec` command.
+Its own checks SHALL target the operating root the resolver selects for the
+directory: run from a subdirectory of a project, the enclosing root the resolver
+walks to, as `openspec doctor` does, and for a declared `store:` pointer or the
+global `defaultStore`, the store that selection resolves to. With no root
+selected its own checks SHALL NOT run: a directory with no root gets the one
+`initialized` ERROR, and a selection that fails for any other reason is reported
+by the binary's folded diagnostic alone. When the delegated call cannot be read,
+the WARNING finding's remedy SHALL name `cospec doctor`, never a bare `openspec`
+command.
 
 This requirement replaces "Doctor surfaces openspec root-relationship and store
 health", whose rule that a plain local root omits the delegated section was the
@@ -83,6 +88,16 @@ defect. Its three surviving scenarios are carried over verbatim below.
 - **WHEN** `cospec doctor` runs from a subdirectory of an initialized project
 - **THEN** it reports on the enclosing project, with no `initialized` ERROR, as
   `openspec doctor` reports the same root
+
+#### Scenario: Doctor on a pointer or defaultStore root diagnoses the store
+
+- **WHEN** `cospec doctor --json` runs in a project whose `openspec/config.yaml`
+  declares `store: <id>` (or one of its subdirectories), or in a rootless
+  directory whose global config sets `defaultStore: <id>`, for an initialized
+  store
+- **THEN** `root.source` is the binary's (`declared`, `global_default`), the
+  four keys equal the binary's, cospec's own checks report no ERROR on the
+  store, and the exit code is the binary's
 
 ## REMOVED Requirements
 
