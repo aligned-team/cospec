@@ -23,26 +23,27 @@ which root a command targets from any directory:
    skipped — this is what stops a `~/openspec/<id>` store layout from making
    `$HOME` a phantom root;
 3. at that ancestor, a planning root always wins (a `store:` pointer inside one
-   is ignored, with a one-time stderr warning); only a config-only `openspec/`
-   follows its pointer — and a malformed one there (unparseable YAML, or a
-   non-string `store:` value) hard-errors with `invalid_store_pointer` rather
-   than falling through;
+   is ignored, with a one-time stderr warning except on `templates` and
+   `schema`); only a config-only `openspec/` follows its pointer — and a
+   malformed one there (unparseable YAML, or a non-string `store:` value)
+   hard-errors with `invalid_store_pointer` rather than falling through;
 4. else, once the walk finds nothing, the machine-global `defaultStore` as the
    last **fallback**, read raw from the global config file at the path
    `openspec config path` prints and parsed as JSON, as upstream's
    `getGlobalConfig()` reads it (no trimming or stringifying; falsy is unset; a
    file that can't be read or parsed — missing, a directory, unreadable, not
    JSON — or a non-object root is unset, and a file that isn't JSON prints
-   upstream's `Warning: Invalid JSON in <path>, using defaults` once, except for
-   `templates` and `schema`, which upstream runs without reading the file);
+   upstream's `Warning: Invalid JSON in <path>, using defaults` once, except on
+   `templates` and `schema`);
 5. else, with any stores registered, a hard error naming them
    (`no_root_with_registered_stores`); with none, the cwd is an **implicit**
    root, and each command's own missing-`openspec/` check reports it from there.
 
 Every store selection (steps 1, 3's pointer branch, and 4) is verified on disk —
 identity metadata, then root health — before it is used, and announced once on
-stderr in human mode by the store banner, whose user-visible contract the site
-owns:
+stderr in human mode by the store banner (never on `templates` or `schema`:
+upstream never selects a root for them, so `resolveRoot({ quiet: true })` prints
+none of the resolver's lines there), whose user-visible contract the site owns:
 [Store verification](https://cospec.aligned.team/concepts/stores#store-verification).
 
 Every command resolves the enclosing root from a subdirectory this way, not only

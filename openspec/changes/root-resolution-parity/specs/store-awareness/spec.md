@@ -21,10 +21,12 @@ for a root. The resolved local root's path SHALL be canonical.
 A `store:` pointer in the qualifying directory's config SHALL be followed only
 when that directory has no planning shape. When a planning root carries a
 pointer, the system SHALL use the local root and SHALL print one warning on
-stderr naming the config file and the ignored store id. A pointer that cannot be
-parsed as YAML, or whose `store` value is not a string, SHALL fail the command
-with the `invalid_store_pointer` code, and an empty-string pointer SHALL fail
-with the `invalid_store_id` code, whenever that pointer would be followed.
+stderr naming the config file and the ignored store id (never for `templates` or
+`schema`, which print no resolver line; see the template-and-schema
+requirement). A pointer that cannot be parsed as YAML, or whose `store` value is
+not a string, SHALL fail the command with the `invalid_store_pointer` code, and
+an empty-string pointer SHALL fail with the `invalid_store_id` code, whenever
+that pointer would be followed.
 
 When no qualifying root exists, the system SHALL consult the machine's global
 `defaultStore` setting and target that store. `defaultStore` SHALL change only
@@ -38,13 +40,13 @@ directory, no read permission, not JSON) SHALL count as having no
 `defaultStore`, as the wrapped binary's defaults do, and a file that is not JSON
 SHALL print the wrapped binary's
 `Warning: Invalid JSON in <path>, using defaults` line on stderr once per
-invocation, except for `templates` and `schema`, which SHALL print no such line
-because the wrapped binary never reads the global config for them. It SHALL only
-be probed after the earlier tiers miss, so the common local path costs no extra
-work. When no qualifying root and no `defaultStore` exist but at least one store
-is registered, the system SHALL fail with the `no_root_with_registered_stores`
-code and name every registered store id. Only when no store is registered SHALL
-the invocation directory be used as an implicit root.
+invocation, except for `templates` and `schema`, which print no resolver line.
+It SHALL only be probed after the earlier tiers miss, so the common local path
+costs no extra work. When no qualifying root and no `defaultStore` exist but at
+least one store is registered, the system SHALL fail with the
+`no_root_with_registered_stores` code and name every registered store id. Only
+when no store is registered SHALL the invocation directory be used as an
+implicit root.
 
 The system SHALL fail loudly on an unregistered store id, whether it comes from
 `--store`, a `store:` pointer or `defaultStore`, rather than falling back to the
@@ -62,18 +64,18 @@ on disk before using it: missing or mismatched identity metadata SHALL fail with
 `invalid_store_metadata`, and a store root without a usable `openspec/`
 directory and config file with `unhealthy_store_root`, each with a fix naming
 `cospec store doctor <id>`. In human mode, a store-selected root SHALL print
-`Using OpenSpec root: <id> (<path>)` on stderr exactly once per command, and a
-`--json` run SHALL print no such line. Wrapped calls SHALL receive `--store`
-only when the user passed `--store`, so that relayed JSON reports the wrapped
-binary's own provenance for a pointer or `defaultStore` root. In a `--json` run,
-a resolver failure SHALL print exactly one JSON document carrying a `status`
-array with the diagnostic on stdout and exit 1. An empty `--store` value SHALL
-reach the resolver on every command that selects its root through `--store`, and
-SHALL fail there with the `invalid_store_id` code, as the wrapped binary does.
-On a command whose arguments the wrapped binary parses itself, the binary's own
-parse refusal SHALL outrank a root-selection failure, as it does for bare
-`openspec`, and asking the binary for it SHALL NOT run anything in the
-invocation directory.
+`Using OpenSpec root: <id> (<path>)` on stderr exactly once per command other
+than `templates` and `schema`, which print no resolver line, and a `--json` run
+SHALL print no such line. Wrapped calls SHALL receive `--store` only when the
+user passed `--store`, so that relayed JSON reports the wrapped binary's own
+provenance for a pointer or `defaultStore` root. In a `--json` run, a resolver
+failure SHALL print exactly one JSON document carrying a `status` array with the
+diagnostic on stdout and exit 1. An empty `--store` value SHALL reach the
+resolver on every command that selects its root through `--store`, and SHALL
+fail there with the `invalid_store_id` code, as the wrapped binary does. On a
+command whose arguments the wrapped binary parses itself, the binary's own parse
+refusal SHALL outrank a root-selection failure, as it does for bare `openspec`,
+and asking the binary for it SHALL NOT run anything in the invocation directory.
 
 Before any walk or spawn, the system SHALL verify that the invocation directory
 (`--cwd <path>`, or the process working directory) is an existing directory, and
@@ -183,7 +185,8 @@ and never by resolving an ancestor of the missing path.
 - **WHEN** a command runs in a repository whose `openspec/` has a `changes/`
   directory and whose `config.yaml` declares `store: platform`
 - **THEN** the command operates on the local repository, not on `platform`, and
-  stderr carries exactly one warning naming the config file and `platform`
+  stderr carries exactly one warning naming the config file and `platform`,
+  unless the command is `templates` or `schema`, whose stderr carries none
 
 #### Scenario: A config-only pointer is followed
 
@@ -238,9 +241,9 @@ and never by resolving an ancestor of the missing path.
 
 #### Scenario: A store-selected root is announced once
 
-- **WHEN** a command runs in human mode against a root selected by `--store`, a
-  `store:` pointer or `defaultStore`, including a command that relays the
-  wrapped binary's stderr
+- **WHEN** a command other than `templates` and `schema` runs in human mode
+  against a root selected by `--store`, a `store:` pointer or `defaultStore`,
+  including a command that relays the wrapped binary's stderr
 - **THEN** stderr carries `Using OpenSpec root: <id> (<path>)` exactly once, and
   the same command with `--json` carries no such line
 
@@ -314,7 +317,11 @@ passed no `--store`, these commands SHALL NOT fail on the selection: the system
 SHALL spawn the wrapped call in the invocation directory, as the wrapped binary
 always runs them, so its output, exit code and files written are the binary's
 there. A selection failure under an explicit `--store`, and a missing invocation
-directory, SHALL still fail the command.
+directory, SHALL still fail the command. Because the wrapped binary never runs
+root selection for these commands, their root selection SHALL print none of the
+resolver's own lines (the ignored-pointer warning, the store banner, the
+invalid-global-config warning): their stderr SHALL be the wrapped binary's
+alone, on every route.
 
 #### Scenario: Templates succeed for a store selected by flag
 
@@ -353,6 +360,17 @@ directory, SHALL still fail the command.
   broken store
 - **THEN** the command exits as bare `openspec` does in that directory, with the
   same stdout, stderr and files written, and no root-selection error
+
+#### Scenario: Templates and schema print no resolver line
+
+- **WHEN** `cospec templates --json`, `cospec schema which spec-driven` or
+  `cospec schema validate spec-driven` runs in a planning root whose config
+  declares `store: platform` (from the root or a subdirectory), from a
+  config-only `store: platform` directory, under `defaultStore` `platform`, or
+  with `--store platform`
+- **THEN** stderr carries neither the ignored-pointer warning nor the store
+  banner, only the wrapped binary's own lines, byte for byte as bare `openspec`
+  prints them for the same command
 
 #### Scenario: A failed explicit --store still fails templates and schema
 

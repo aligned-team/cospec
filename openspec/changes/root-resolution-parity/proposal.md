@@ -96,7 +96,10 @@ checkout gets different roots than before.
   stderr line `Using OpenSpec root: <id> (<path>)` from `resolveRoot`, verbatim:
   it names the product noun, not a command to run. A relayed passthrough whose
   wrapped call prints the same line shows it once, through the same suppression
-  hook as the ignored-pointer warning. `--json` runs print no banner.
+  hook as the ignored-pointer warning. `--json` runs print no banner, and
+  `templates` and `schema` print no resolver line at all (no banner, no
+  ignored-pointer or invalid-global-config warning), as the binary never selects
+  a root for them.
 - **`--store` is threaded only for an explicit `--store`.** For a root reached
   through a pointer (`declared`) or `defaultStore` (`global_default`), wrapped
   calls no longer receive `--store <id>`; spawned in the invocation directory,
@@ -154,11 +157,11 @@ checkout gets different roots than before.
 - **BREAKING:** a command run from a subdirectory now resolves the enclosing
   root instead of treating the subdirectory as the root.
 - **BREAKING:** stderr changes on every store-resolved invocation. Every
-  human-mode command whose root is selected by `--store`, a `store:` pointer or
-  `defaultStore` now prints `Using OpenSpec root: <id> (<path>)` on stderr once,
-  before its own output (the same line bare `openspec` prints). Scripts that
-  compare or parse cospec's stderr for those roots see one new line; `--json`
-  runs are unchanged.
+  human-mode command but `templates` and `schema` whose root is selected by
+  `--store`, a `store:` pointer or `defaultStore` now prints
+  `Using OpenSpec root: <id> (<path>)` on stderr once, before its own output
+  (the same line bare `openspec` prints). Scripts that compare or parse cospec's
+  stderr for those roots see one new line; `--json` runs are unchanged.
 - **BREAKING:** a malformed `store:` pointer, a rootless directory on a machine
   with registered stores, a registered store whose metadata or tree is broken,
   and an empty `--store=` now fail with exit 1 where cospec used to carry on

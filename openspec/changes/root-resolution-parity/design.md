@@ -220,6 +220,10 @@ which `resolveRoot`'s `globalConfigWarning: false` passes and `callPassthrough`
 sets for a `spawnInRoot` call; the file is still read and still reads as unset.
 Every other root-selecting command prints the line once, as the binary does.
 
+_Amended in review round 5:_ `globalConfigWarning` is now the general `quiet`
+option (D7, D8). A quiet read does not record the path as warned, so a later
+non-quiet read in the same process still prints the line once.
+
 **D6. The implicit root stays shared.** Upstream lets each command decide
 whether a rootless cwd is an implicit root (`list` and `validate` refuse with
 `no_openspec_root` unless `openspec/project.md` exists at the cwd; `status`
@@ -246,6 +250,18 @@ stderr it returns. Commands that capture wrapped stderr without relaying it
 sees a `nearest` root and prints no banner at all, so there is nothing to strip.
 Nothing else in the relayed stream is touched. _Rejected:_ stripping only in
 `callPassthrough`, which leaves the duplicate in `view` and `context`.
+
+_Amended in review round 5:_ `templates` and `schema` print none of these lines
+at all. The binary never runs root selection for them, so on a planning root
+with a `store:` pointer it prints no ignored-pointer warning, and on a
+store-selected root no banner; cospec printed both from its own `resolveRoot`,
+which the "nothing to strip" reasoning above did not cover. `resolveRoot` takes
+one `quiet` option that suppresses every line it would print (the
+ignored-pointer warning, the banner, and the invalid-global-config warning of
+D5), without registering any of them for relay suppression. `callPassthrough`
+sets it for a `spawnInRoot` call only (`templates`, `schema`). `view` also
+spawns in `root.base`, but it calls `resolveRoot` without `quiet`, so it keeps
+printing these lines once, unchanged, as does every other command.
 
 **D8. `templates` and `schema` spawn in the root.** `PassthroughCommandOptions`
 gains `spawnInRoot: true`, under which `callPassthrough` spawns with
@@ -315,6 +331,16 @@ config for `templates` or `schema`, so it never warns there, and the warning was
 the only difference left. `callPassthrough` resolves a `spawnInRoot` call with
 `globalConfigWarning: false` (D5); a broken config still reads as no
 `defaultStore`, silently, as the binary's own unread config would.
+
+_Amended in review round 5:_ the same holds for every line root selection
+prints, not only the global-config warning. `templates` and `schema` print no
+resolver line on any route: not the ignored-pointer warning on a planning root
+with a `store:` pointer (from the root or a subdirectory), and not the store
+banner on a root selected by a pointer, `defaultStore` or `--store`. Their
+stderr is the binary's alone (its own `Note:` and spinner lines).
+`callPassthrough` resolves a `spawnInRoot` call with `quiet: true` (D7), which
+replaces round 4's `globalConfigWarning: false`. The root selected, and so the
+directory the call spawns in, is unchanged.
 
 **D9. Store health is checked from the filesystem in `resolveStore`.**
 `store ls --json` lists a broken store with an empty `status` (probed), so

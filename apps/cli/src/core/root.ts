@@ -582,7 +582,9 @@ const warnedInvalidJsonPaths = new Set<string>()
  * read permission, not JSON) and a JSON root that is not an object carry no
  * default, and only a file that is not JSON warns, once per path, with
  * upstream's own line — unless `warn: false`, for a command whose upstream
- * counterpart never reads the file (design D8). Catching the raw read failure below is that contract,
+ * counterpart never runs root selection (design D8). A silent read leaves the
+ * path unwarned, so a later warning read still prints the line once. Catching
+ * the raw read failure below is that contract,
  * not a swallowed error: the binary answers the same command with its
  * defaults.
  */
@@ -624,10 +626,14 @@ export async function readDefaultStore(
 
 // --- Selection ---------------------------------------------------------------
 
-async function resolveQualifyingRoot(cwd: string, base: string): Promise<ResolvedRoot> {
+async function resolveQualifyingRoot(
+  cwd: string,
+  base: string,
+  quiet: boolean,
+): Promise<ResolvedRoot> {
   const pointer = configStorePointer(base)
   if (hasPlanningShape(base)) {
-    if (pointer.filePath !== null && pointer.value !== undefined)
+    if (!quiet && pointer.filePath !== null && pointer.value !== undefined)
       printOwnLine(
         `Warning: ${pointer.filePath} declares store '${pointer.value}', but this directory is ` +
           'a real OpenSpec root; the declaration is ignored.',
@@ -668,13 +674,13 @@ async function resolveQualifyingRoot(cwd: string, base: string): Promise<Resolve
 async function selectRoot(
   cwd: string,
   store: string | undefined,
-  warnGlobalConfig: boolean,
+  quiet: boolean,
 ): Promise<ResolvedRoot> {
   if (store !== undefined) return resolveStore(cwd, store)
   const nearest = findQualifyingRoot(cwd)
-  if (nearest !== null) return resolveQualifyingRoot(cwd, nearest)
+  if (nearest !== null) return resolveQualifyingRoot(cwd, nearest, quiet)
   // Upstream tests the raw value for truthiness: `""`, `false` and `0` are unset.
-  const defaultId = await readDefaultStore(cwd, { warn: warnGlobalConfig })
+  const defaultId = await readDefaultStore(cwd, { warn: !quiet })
   if (defaultId)
     return withOrigin(
       () => resolveStore(cwd, defaultId, 'global_default'),
@@ -712,21 +718,23 @@ async function selectRoot(
  * after selecting it. An invocation directory that does not exist fails first
  * (`directory_not_found`, cospec's own code: upstream has no `--cwd`).
  *
- * `opts.globalConfigWarning: false` is for `templates` and `schema`, whose
- * upstream actions never read the global config: cospec still reads it to
- * select their root, but prints no `Warning: Invalid JSON …` line the binary
- * would not (design D8).
+ * `opts.quiet` is for `templates` and `schema`, whose upstream actions never
+ * run root selection: the same root is selected, but none of the lines above
+ * (the ignored-pointer warning, the store banner, the invalid-global-config
+ * warning) is printed or registered for relay suppression, since the binary
+ * prints none of them for these commands (design D7, D8).
  */
 export async function resolveRoot(
   ctx: {
     cwd: string
     flags: { store?: string; json?: boolean }
   },
-  opts: { globalConfigWarning?: boolean } = {},
+  opts: { quiet?: boolean } = {},
 ): Promise<ResolvedRoot> {
   assertInvocationDirectory(ctx.cwd)
-  const root = await selectRoot(ctx.cwd, ctx.flags.store, opts.globalConfigWarning !== false)
-  if (root.store !== undefined && ctx.flags.json !== true)
+  const quiet = opts.quiet === true
+  const root = await selectRoot(ctx.cwd, ctx.flags.store, quiet)
+  if (!quiet && root.store !== undefined && ctx.flags.json !== true)
     printOwnLine(`Using OpenSpec root: ${root.store} (${root.base})`)
   return root
 }

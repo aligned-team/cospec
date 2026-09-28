@@ -112,10 +112,10 @@ which root a command targets from any directory:
    root;
 3. at the qualifying ancestor, a **planning root always wins**. A `store:`
    pointer sitting inside a real planning root is ignored — with a one-time
-   stderr warning naming the config file and the ignored id — because a real
-   root is never redirected out from under itself. Only a **config-only**
-   `openspec/` (a config file with no planning shape) follows its `store:`
-   pointer;
+   stderr warning naming the config file and the ignored id (except on
+   `templates` and `schema`, below) — because a real root is never redirected
+   out from under itself. Only a **config-only** `openspec/` (a config file with
+   no planning shape) follows its `store:` pointer;
 4. else, once the walk finds no qualifying ancestor at all, the machine-global
    `defaultStore` is consulted as the last fallback. cospec reads it as
    `openspec` does, from the global config file `cospec config path` names: the
@@ -124,8 +124,8 @@ which root a command targets from any directory:
    object, and a config file that can't be read or parsed at all (a directory,
    no read permission, not JSON) count as unset, as they do for `openspec`; a
    file that isn't JSON also prints `openspec`'s own
-   `Warning: Invalid JSON in <path>, using defaults` on stderr, once (never for
-   `templates` or `schema`, which `openspec` runs without reading it);
+   `Warning: Invalid JSON in <path>, using defaults` on stderr, once (except on
+   `templates` and `schema`, below);
 5. else, with any stores registered, cospec hard-errors naming them
    (`no_root_with_registered_stores`) rather than silently falling back to an
    empty cwd; with none registered, the cwd is an **implicit** root and each
@@ -148,8 +148,9 @@ other than a directory (`unhealthy_store_root` otherwise, naming each problem it
 found).
 
 A store selected this way is announced on stderr, before the command's own
-output, on **every** human-mode invocation that resolves to a store — by
-`--store`, a `store:` pointer, or `defaultStore`:
+output, on every human-mode invocation that resolves to a store — by `--store`,
+a `store:` pointer, or `defaultStore` — except `templates` and `schema`
+([below](#templates-and-schema-reach-every-root-by-working-directory)):
 
 ```
 Using OpenSpec root: <id> (<path>)
@@ -256,12 +257,17 @@ selects a root for them. When selection fails and you passed no `--store` — no
 qualifying root with stores registered, a malformed or unregistered `store:`
 pointer, a stale or broken `defaultStore`, or a store registry or selected store
 that can't be read — cospec runs them in your working directory, with the same
-output, exit code and files written as `openspec` there. cospec reads the global
-config to select their root, which `openspec` never does for these two commands,
-so neither prints the `Warning: Invalid JSON …` line for them; every other
-command that selects a root prints it once, as `openspec` does. With an explicit
-`--store` the selection error stands (the Errors table above), since `openspec`
-has no `--store` on these commands to fall back to.
+output, exit code and files written as `openspec` there.
+
+`openspec` never selects a root for these two commands, so it prints none of the
+lines root selection prints elsewhere, and neither does cospec: no
+ignored-pointer warning on a planning root with a `store:` pointer, no
+`Using OpenSpec root: …` banner on a store-selected root (even with `--store`),
+and no `Warning: Invalid JSON …` line for a global config that isn't JSON. Their
+stderr is `openspec`'s alone. Every other command that selects a root prints
+each of those lines once, as `openspec` does. With an explicit `--store` the
+selection error stands (the Errors table above), since `openspec` has no
+`--store` on these commands to fall back to.
 
 ### `--store` on the wrapped call
 
