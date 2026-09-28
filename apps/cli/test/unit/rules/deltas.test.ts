@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
+import { parseDeltaSpec } from '../../../src/core/deltas.ts'
 import {
   deltasRules,
   skipSpecsConflictIssues,
@@ -273,6 +274,135 @@ describe('unreadDeltaFileIssues', () => {
     expect(unreadDeltaFileIssues(change).map((i) => i.path)).toEqual([
       'specs/x/notes.md',
       'specs/y.md',
+    ])
+  })
+})
+
+/**
+ * Every skipped-header shape at once: between blocks, inside a block, nameless
+ * (`### Requirement:` and `### requirement`), fenced, in a REMOVED section, a
+ * `### Scenario:` one level too shallow, and one inside a MODIFIED block.
+ */
+const SKIPPED = `## ADDED Requirements
+
+### Documentation Requirements
+
+### Requirement: Widget thing
+
+The system SHALL do a widget thing.
+
+### Notes inside
+
+The notes stay inside the block.
+
+#### Scenario: Works
+
+- **WHEN** a caller asks
+- **THEN** the thing is done
+
+### Requirement:
+
+### requirement
+
+\`\`\`md
+### Fenced header
+\`\`\`
+
+### Scenario: Shallow
+
+- **WHEN** a caller asks
+
+## REMOVED Requirements
+
+### Removed notes
+
+- \`### Requirement: Old thing\`
+
+## MODIFIED Requirements
+
+### Requirement: Other thing
+
+### Between notes
+
+The system MUST do the other thing.
+
+#### Scenario: Other
+
+- **WHEN** a
+- **THEN** b
+`
+
+describe('parseDeltaSpec skippedHeaders', () => {
+  test('records the lines the binary skips, and only those', () => {
+    const p = parseDeltaSpec(SKIPPED, 'specs/x/spec.md', 'x')
+    expect(p.skippedHeaders).toEqual([
+      { header: 'Documentation Requirements', section: 'ADDED Requirements', line: 3 },
+      { header: 'Notes inside', section: 'ADDED Requirements', line: 9 },
+      { header: 'Requirement:', section: 'ADDED Requirements', line: 18 },
+      { header: 'requirement', section: 'ADDED Requirements', line: 20 },
+      { header: 'Scenario: Shallow', section: 'ADDED Requirements', line: 26 },
+      { header: 'Between notes', section: 'MODIFIED Requirements', line: 40 },
+    ])
+  })
+
+  // Captured from the parser before `skippedHeaders` existed: recording the
+  // headers must not move a single op, count, line or block byte.
+  test('recording them leaves ops, SHALL/MUST, scenario counts and lines unchanged', () => {
+    const p = parseDeltaSpec(SKIPPED, 'specs/x/spec.md', 'x')
+    expect(p.ops.map(({ raw: _raw, ...op }) => op)).toEqual([
+      {
+        operation: 'ADDED',
+        name: 'Widget thing',
+        line: 5,
+        hasShallMust: true,
+        scenarioCount: 1,
+        scenarioNames: ['Works'],
+        emptyScenarioCount: 0,
+        scenarioRemovalReasons: [],
+      },
+      {
+        operation: 'REMOVED',
+        name: 'Old thing',
+        line: 34,
+        hasShallMust: false,
+        scenarioCount: 0,
+        scenarioNames: [],
+        emptyScenarioCount: 0,
+        scenarioRemovalReasons: [],
+      },
+      {
+        operation: 'MODIFIED',
+        name: 'Other thing',
+        line: 38,
+        hasShallMust: true,
+        scenarioCount: 1,
+        scenarioNames: ['Other'],
+        emptyScenarioCount: 0,
+        scenarioRemovalReasons: [],
+      },
+    ])
+    // A skipped header stays part of the block it sits in, as upstream's does.
+    expect(p.ops[0]?.raw).toContain('### Notes inside')
+    expect(p.ops[0]?.raw.endsWith('- **WHEN** a caller asks')).toBe(true)
+    expect(p.ops[2]?.raw).toContain('### Between notes')
+    expect(p.emptySections).toEqual([])
+    expect(p.scenarioDepthIssues).toEqual([{ line: 26 }])
+    expect(p.orphanedRequirements).toEqual([])
+    expect(p.unpairedRenames).toEqual([])
+  })
+
+  test('a clean delta skips nothing', () => {
+    expect(parseDeltaSpec(GOOD, 'specs/x/spec.md', 'x').skippedHeaders).toEqual([])
+  })
+
+  test('a repeated section copy quotes the first spelling, as the binary does', () => {
+    const text = `## ADDED Requirements\n\n${GOOD.split('\n').slice(2).join('\n')}\n## Added Requirements\n\n### Stray\n`
+    expect(parseDeltaSpec(text, 'specs/x/spec.md', 'x').skippedHeaders).toEqual([
+      {
+        header: 'Stray',
+        section: 'ADDED Requirements',
+        line: text.split('\n').indexOf('### Stray') + 1,
+      },
     ])
   })
 })

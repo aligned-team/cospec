@@ -25,7 +25,7 @@ trailer, never `--no-verify`).
 
 ## 2. T1 — skipped headers and the header-only hint (`apps/cli/src/core/deltas.ts`, `apps/cli/src/core/rules/deltas.ts`, `apps/cli/test/unit/rules/deltas.test.ts`)
 
-- [ ] 2.1 Add `skippedHeaders` to `ParsedDelta`, filled as design D2 describes,
+- [x] 2.1 Add `skippedHeaders` to `ParsedDelta`, filled as design D2 describes,
       and unit-test that `ops`, `hasShallMust`, scenario counts and line numbers
       are unchanged on the existing parser fixtures. Commit
       `fix(validate): record skipped delta headers in the parser`

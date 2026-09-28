@@ -42,6 +42,13 @@ const SCENARIO_BODY_END_RE = /^#{1,4}\s/
 const SCENARIO_DEPTH_RE = /^###\s+Scenario:/
 const SHALL_MUST_RE = /\b(SHALL|MUST)\b/
 /**
+ * Any level-3 header. Inside an ADDED/MODIFIED section, one that is not a
+ * requirement header is skipped by both readers — the binary's
+ * `parseRequirementBlocksFromSection` (`src/core/parsers/requirement-blocks.ts`,
+ * 1.13.1) records it with this exact pattern, so cospec records the same lines.
+ */
+const LEVEL3_HEADER_RE = /^###\s+(.+?)\s*$/
+/**
  * REMOVED bullet form: `- \`### Requirement: X\``.
  *
  * The marker class is CommonMark's full bullet set (`-`, `*`, `+`) and leading
@@ -154,6 +161,21 @@ export interface OrphanedRequirement {
   line: number
 }
 
+/**
+ * A `###` header inside an ADDED/MODIFIED section that is not a named
+ * `### Requirement:` header (a divider, a nameless `### Requirement:`, a
+ * `### Scenario:` one level too shallow). Neither reader validates what sits
+ * under it as a requirement of its own; it stays part of the block it is in.
+ */
+export interface SkippedHeader {
+  /** header text after `### `, trimmed. */
+  header: string
+  /** the section's `## ` title, first spelling as written (`ADDED Requirements`). */
+  section: string
+  /** 1-based line of the header. */
+  line: number
+}
+
 export interface ParsedDelta {
   path: string
   capability: string
@@ -173,6 +195,12 @@ export interface ParsedDelta {
    * order — reported as the WARNING `deltas/orphaned-requirement`.
    */
   orphanedRequirements: OrphanedRequirement[]
+  /**
+   * Skipped `###` headers in ADDED/MODIFIED sections, in line order — the
+   * binary's `skippedHeaders`. Fenced lines are never recorded. Recording them
+   * changes nothing else this parser reports.
+   */
+  skippedHeaders: SkippedHeader[]
 }
 
 /**
@@ -417,6 +445,13 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
   const scenarioDepthIssues: { line: number }[] = []
   const unpairedRenames: UnpairedRename[] = []
   const orphanedRequirements: OrphanedRequirement[] = []
+  const skippedHeaders: SkippedHeader[] = []
+  /**
+   * Each operation's first `## ` spelling. The binary folds every copy of a
+   * section into one and quotes the first title it met, so a header under a
+   * second `## Added Requirements` copy still reads `ADDED Requirements`.
+   */
+  const sectionTitles = new Map<DeltaOperation, string>()
   const sectionCounts = new Map<DeltaOperation, number>()
   const sectionsSeen = new Set<DeltaOperation>()
   let headerPresent = false
@@ -496,6 +531,7 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
       if (op !== undefined) {
         headerPresent = true
         currentOp = op
+        if (!sectionTitles.has(op)) sectionTitles.set(op, currentSection)
         sectionsSeen.add(op)
         if (!sectionCounts.has(op)) sectionCounts.set(op, 0)
       } else {
@@ -535,6 +571,17 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
         }
         openRaw = [source[i] ?? '']
         continue
+      }
+      // Detected on the masked line, quoted from the source one: the binary's
+      // reader quotes the header as written.
+      const skipped = raw.match(LEVEL3_HEADER_RE)
+      if (skipped !== null) {
+        const quoted = (source[i] ?? '').match(LEVEL3_HEADER_RE)?.[1] ?? skipped[1]!
+        skippedHeaders.push({
+          header: quoted.trim(),
+          section: sectionTitles.get(currentOp) ?? '',
+          line: lineNo,
+        })
       }
       if (openReq !== undefined) {
         openRaw?.push(source[i] ?? '')
@@ -633,6 +680,7 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
     scenarioDepthIssues,
     unpairedRenames,
     orphanedRequirements,
+    skippedHeaders,
   }
 }
 
