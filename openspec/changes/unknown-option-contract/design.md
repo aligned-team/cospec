@@ -485,14 +485,20 @@ runtime by `dist/commands/spec.js:127`.
     reproduces a whole upstream remedy sentence verbatim outside that payload is
     respelled. Enforced by `test/contract/remedy-enumeration.test.ts`, which
     reads the pinned dist and fails on any line naming `openspec <command>` that
-    is neither an allowlist entry nor listed
+    is neither an allowlist entry, nor listed
     (`test/contract/support/remedy-sources.ts`) with the reason no cospec relay
     prints it (only `init`/`update` run it, a terminal handover prints it,
-    cospec answers first, a noun-form command cospec lacks, …), keyed by module
-    and trimmed line, never line number. Rejected, after rounds 10–12:
-    respelling `openspec <table command>` after a remedy lead-in (`Run`, `with`,
-    `:`, `(`, a backtick), masking single-quoted spans, and cutting the reason
-    at `already exists at` — each left a free-text case (an apostrophe ends a
+    cospec answers first, a noun-form command cospec lacks, …), nor listed in
+    `REACHABLE_OWNED` as reachable through a successful answer R1 relays
+    untouched, with the cospec command that relays it and the roadmap PR that
+    owns its spelling (`references.js`' reference block: upstream-spellings via
+    `instructions`, passthrough-json-and-doctor via `context`, as cospec-roadmap
+    confirmed; `workset`/`config` next steps: passthrough-json-and-doctor;
+    `schema init`'s: root-resolution-parity), keyed by module and trimmed line,
+    never line number. Rejected, after rounds 10–12: respelling
+    `openspec <table command>` after a remedy lead-in (`Run`, `with`, `:`, `(`,
+    a backtick), masking single-quoted spans, and cutting the reason at
+    `already exists at` — each left a free-text case (an apostrophe ends a
     quoted span early; an unquoted path in
     `Invalid store declaration in <path>: …`; `(openspec list)` in a directory
     name). Entries for sentences only `store`/`workset`/`config`/`schema`/

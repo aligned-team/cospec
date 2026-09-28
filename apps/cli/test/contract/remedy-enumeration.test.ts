@@ -1,9 +1,11 @@
 // Every sentence the pinned binary can print that names a bare `openspec
-// <command>` is either in cospec's remedy allowlist (`core/remedies.ts`), which
-// relays respell verbatim, or listed with the reason no cospec relay ever
-// prints it (`support/remedy-sources.ts`). Reads the pinned dist itself: a
-// future pin that adds or rewords such a sentence fails here until it is
-// classified, so no new remedy reaches a cospec user unspelled.
+// <command>` is in at least one of three categories (`support/remedy-sources.ts`):
+// cospec's remedy allowlist (`core/remedies.ts`), which failure relays respell
+// verbatim; never printed by a cospec relay, with the reason; or reachable
+// unspelled through a successful answer cospec relays untouched, owned by the
+// roadmap PR named beside it (`REACHABLE_OWNED`). Reads the pinned dist itself:
+// a future pin that adds or rewords such a sentence fails here until it is
+// classified, so no new remedy reaches a cospec user unaccounted for.
 
 import { describe, expect, test } from 'bun:test'
 import { readdirSync, readFileSync } from 'node:fs'
@@ -11,7 +13,14 @@ import { join, relative } from 'node:path'
 
 import { openspecPackageDir } from '../../src/core/openspec.ts'
 import { REMEDIES } from '../../src/core/remedies.ts'
-import { NOT_RELAYED_TREES, notRelayed, REMEDY_SOURCES } from './support/remedy-sources.ts'
+import {
+  NOT_RELAYED_TREES,
+  notRelayed,
+  OWNERS,
+  REACHABLE_OWNED,
+  REMEDY_SOURCES,
+  SUCCESS_RELAYS,
+} from './support/remedy-sources.ts'
 
 const DIST = join(openspecPackageDir(), 'dist')
 
@@ -46,19 +55,21 @@ for (const [file, line, where] of REMEDY_SOURCES) {
 }
 const REMEDY_IDS = new Set(REMEDIES.map((remedy) => remedy.id))
 const REASONS = new Set<string>(Object.values(notRelayed))
+const REACHABLE = new Set(REACHABLE_OWNED.map(([file, line]) => key(file, line)))
 
 describe('every dist sentence naming a bare openspec command is classified', () => {
   test('the dist has lines to classify', () => {
     expect(SOURCE.size).toBeGreaterThan(100)
   })
 
-  test('each such line is an allowlisted remedy or listed as never relayed', () => {
+  test('each such line is allowlisted, never relayed, or reachable and owned', () => {
     const unclassified: string[] = []
     for (const [file, lines] of SOURCE) {
       if (NOT_RELAYED_TREES.some(([prefix]) => file.startsWith(prefix))) continue
       for (const line of lines) {
         if (COMMENT.test(line) || !NAMES_A_COMMAND.test(line)) continue
-        if (!CLASSIFIED.has(key(file, line))) unclassified.push(`${file}: ${line}`)
+        const k = key(file, line)
+        if (!CLASSIFIED.has(k) && !REACHABLE.has(k)) unclassified.push(`${file}: ${line}`)
       }
     }
     expect(unclassified).toEqual([])
@@ -76,6 +87,24 @@ describe('every dist sentence naming a bare openspec command is classified', () 
       ([, , where]) => !REMEDY_IDS.has(where) && !REASONS.has(where),
     )
     expect(unknown).toEqual([])
+  })
+
+  test('each reachable line is still in the pinned dist', () => {
+    const stale = REACHABLE_OWNED.filter(
+      ([file, line]) => !(SOURCE.get(file) ?? []).includes(line),
+    ).map(([file, line]) => `${file}: ${line}`)
+    expect(stale).toEqual([])
+  })
+
+  test('each reachable line names a success relay and its owning roadmap PR', () => {
+    const owners = new Set<string>(OWNERS)
+    const relays = new Set<string>(SUCCESS_RELAYS)
+    const unknown = REACHABLE_OWNED.filter(
+      ([, , relay, owner]) => !relays.has(relay) || !owners.has(owner),
+    )
+    expect(unknown).toEqual([])
+    const seen = REACHABLE_OWNED.map(([file, line, relay]) => `${key(file, line)}\n${relay}`)
+    expect(seen.length).toBe(new Set(seen).size)
   })
 
   test('each never-relayed tree exists in the dist', () => {

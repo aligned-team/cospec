@@ -4,7 +4,9 @@
 // rewords a remedy fails), with where its text goes: the id of the
 // `core/remedies.ts` entry that respells it, or why no cospec relay ever
 // prints it. Read by `remedy-enumeration.test.ts`; also lists the lines of the
-// sentences a `{cmd}` hole ends, which name no command themselves.
+// sentences a `{cmd}` hole ends, which name no command themselves. A third
+// list, `REACHABLE_OWNED`, names the lines a cospec relay prints unspelled on a
+// successful answer, each with the roadmap PR that owns its spelling.
 
 /** Why a line's text never reaches a cospec relay. */
 export const notRelayed = {
@@ -796,5 +798,90 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
     'telemetry/index.js',
     "console.error('Note: OpenSpec collects anonymous usage stats. Opt out: OPENSPEC_TELEMETRY=0 or openspec config set telemetry.enabled false');",
     notRelayed.TELEMETRY,
+  ],
+]
+
+/**
+ * The roadmap PRs that own the spelling of a line R1 relays untouched on a
+ * successful answer. The instructions and context owners are
+ * cospec-roadmap's confirmed rulings (round 16: instructions' reference block
+ * is upstream-spellings', context's is passthrough-json-and-doctor's); the
+ * workset/config owner follows its ruling that R4 wires the allowlist into
+ * those relays, and the schema owner its ruling that R2 wires it into
+ * `schema.ts`.
+ */
+export const OWNERS = [
+  'upstream-spellings',
+  'passthrough-json-and-doctor',
+  'root-resolution-parity',
+] as const
+
+/** The cospec commands that relay a successful answer as the binary wrote it. */
+export const SUCCESS_RELAYS = ['instructions', 'context', 'workset', 'config', 'schema'] as const
+
+/**
+ * [module under dist/, trimmed source line, the cospec command whose successful
+ * answer relays it unspelled, the roadmap PR that owns its spelling]. Each line
+ * is reachable: the binary prints it at exit 0 and the relay writes that
+ * answer byte-for-byte (`relayRespelled` respells a failed answer only;
+ * `workset.ts`, `config.ts` and `runPassthrough` relay stdout as written). A
+ * line here may also be an allowlist entry that failure relays respell.
+ */
+export const REACHABLE_OWNED: readonly (readonly [
+  file: string,
+  line: string,
+  relay: (typeof SUCCESS_RELAYS)[number],
+  owner: (typeof OWNERS)[number],
+])[] = [
+  // `assembleReferenceIndex`'s entries: instructions' `<referenced_stores>`
+  // block and `references[]`, and context's `Referenced stores` / `Not
+  // available on this machine` sections and `members[]` (via
+  // `gatherRelationshipData` and `fetchRecipe`).
+  ...(
+    [
+      'return `git clone -- ${remote} ${quoted} && openspec store register ${quoted} --id ${id}`;',
+      'return `Get a checkout from a teammate and run: openspec store register <path> --id ${id}`;',
+      'return `openspec show <spec-id> --type spec --store ${storeId}`;',
+      "warning('reference_registry_unreadable', `Referenced store '${id}' cannot be checked: the store registry is unreadable.`, 'Run: openspec store doctor'),",
+      "warning('reference_root_unhealthy', `Referenced store '${id}' is registered but not usable (${inspection.kind.replace(/_/g, ' ')}).`, `Run: openspec store doctor ${id}`),",
+      "entry.status.push(warning('reference_index_truncated', `Referenced store '${id}' index truncated at the 50KB budget (${low} of ${specs.length} specs listed).`, `List the rest directly: openspec list --specs --store ${id}`));",
+    ] as const
+  ).flatMap((line) => [
+    ['core/references.js', line, 'instructions', 'upstream-spellings'] as const,
+    ['core/references.js', line, 'context', 'passthrough-json-and-doctor'] as const,
+  ]),
+  // `inspectRelationships`' top-level status, context's `status[]`.
+  [
+    'core/relationship-health.js',
+    "status.push(warning('relationship_registry_unreadable', 'The store registry is unreadable; reference health cannot be checked.', 'Run: openspec store doctor'));",
+    'context',
+    'passthrough-json-and-doctor',
+  ],
+  // `workset create` and an empty `workset list`, exit 0.
+  [
+    'commands/workset.js',
+    'console.log(`Open it any time with: openspec workset open ${workset.name}`);',
+    'workset',
+    'passthrough-json-and-doctor',
+  ],
+  [
+    'commands/workset.js',
+    "console.log('No worksets saved. Create one with: openspec workset create');",
+    'workset',
+    'passthrough-json-and-doctor',
+  ],
+  // `config profile <preset>`, exit 0.
+  [
+    'commands/config.js',
+    "console.log('Config updated. Run `openspec update` in your projects to apply.');",
+    'config',
+    'passthrough-json-and-doctor',
+  ],
+  // `schema init`'s next steps, exit 0.
+  [
+    'commands/schema.js',
+    'console.log(`  3. Use with: openspec new --schema ${name}`);',
+    'schema',
+    'root-resolution-parity',
   ],
 ]

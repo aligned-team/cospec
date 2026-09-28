@@ -539,12 +539,13 @@ binary's exact sentences, each rewritten only where an answer holds it verbatim,
 with the path, name or list each sentence names re-emitted as the binary wrote
 it; no pattern over free text (a lead-in word, a quote, a paren) SHALL decide
 what is a remedy. Every sentence in the pinned binary that names a bare
-`openspec <command>` SHALL be in that allowlist or listed, with its reason, as
-never printed by a cospec relay, checked against the pinned dist. A pre-spawn
-guard SHALL answer only an argv the binary would not answer itself: a declared
-value-taking flag left without its value SHALL reach the binary as commander's
-missing value (or, for a flag the wrapper lifts itself, `config --scope`, SHALL
-be refused in the same
+`openspec <command>` SHALL be in that allowlist, listed with its reason as never
+printed by a cospec relay, or listed as reachable through a successful answer
+cospec relays untouched with the roadmap PR that owns its spelling, checked
+against the pinned dist. A pre-spawn guard SHALL answer only an argv the binary
+would not answer itself: a declared value-taking flag left without its value
+SHALL reach the binary as commander's missing value (or, for a flag the wrapper
+lifts itself, `config --scope`, SHALL be refused in the same
 `cospec <command>: option '<flag> <placeholder>' argument missing` form), and
 `show`'s item check SHALL treat an option `show` does not declare as the item,
 as the binary does, and split a short option as commander does (a value-taking
@@ -636,7 +637,8 @@ answer, never reported as a wrapped-call failure.
 - **THEN** every path in the document is the binary's, the directory name
   unchanged
 - **AND WHEN** a line of the pinned dist names a bare `openspec <command>` that
-  is neither in the allowlist nor listed as never relayed
+  is neither in the allowlist, nor listed as never relayed, nor listed as
+  reachable with its owning roadmap PR
 - **THEN** the remedy enumeration contract test fails
 
 #### Scenario: Upstream's unknown-option answer is relayed on a forwarded command

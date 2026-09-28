@@ -199,9 +199,12 @@ through untouched. No pattern over free text (a lead-in word, a quote, a
 backtick) decides what is a remedy — three rounds of such patterns each left a
 path or excerpt they rewrote. `test/contract/remedy-enumeration.test.ts` reads
 the pinned dist and fails on any line naming `openspec <command>` that is
-neither an allowlist entry nor listed
+neither an allowlist entry, nor listed
 (`test/contract/support/remedy-sources.ts`) with the reason no cospec relay
-prints it. This is defence-in-depth, the same posture as the archive
+prints it, nor listed (`REACHABLE_OWNED`) as reachable through a successful
+answer cospec relays untouched — a `context`/`instructions` reference block, a
+`workset`, `config` or `schema` next step — with the roadmap PR that owns its
+spelling. This is defence-in-depth, the same posture as the archive
 scenario-preservation gate below — cospec's own routing discipline is the
 primary guard (agents are told to call `cospec`, never `openspec`), and the
 relay guard is the belt-and-suspenders catch for the one path where upstream's
