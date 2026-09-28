@@ -4,6 +4,7 @@ import { storePathRefusal } from '../../../src/core/command-table.ts'
 import {
   forwardCall,
   isParseRejection,
+  relayRespelled,
   relayStorePathRefusal,
 } from '../../../src/core/forward-relay.ts'
 import { OpenspecCallError, type OpenspecResult } from '../../../src/core/openspec.ts'
@@ -189,5 +190,44 @@ describe('respellRemedies', () => {
   test('paths and prose that are not a relayed remedy stay as they are', () => {
     const text = 'openspec/changes/c1/ is nested. See .openspec.yaml; run openspec status by hand.'
     expect(respellRemedies(text)).toBe(text)
+  })
+})
+
+describe('relayRespelled', () => {
+  let written: { stream: string; text: string }[] = []
+  let restore: (() => void)[] = []
+  beforeEach(() => {
+    written = []
+    restore = (['stdout', 'stderr'] as const).map((stream) => {
+      const spy = spyOn(process[stream], 'write').mockImplementation((chunk) => {
+        written.push({ stream, text: String(chunk) })
+        return true
+      })
+      return () => spy.mockRestore()
+    })
+  })
+  afterEach(() => {
+    for (const undo of restore) undo()
+  })
+
+  const FIX = '    Fix: Run: openspec store doctor st2\n'
+  const SPELLED = '    Fix: Run: cospec store doctor st2\n'
+
+  test("a successful answer is verbatim by default — show's own content", () => {
+    expect(relayRespelled(result({ exitCode: 0, stdout: FIX }), false)).toBe(0)
+    expect(written).toEqual([{ stream: 'stdout', text: FIX }])
+  })
+
+  test("'respell' spells upstream's sentences in a successful answer too", () => {
+    expect(relayRespelled(result({ exitCode: 0, stdout: FIX }), false, 'respell')).toBe(0)
+    expect(written).toEqual([{ stream: 'stdout', text: SPELLED }])
+  })
+
+  test('a failed answer is respelled either way', () => {
+    for (const mode of ['verbatim', 'respell'] as const) {
+      written = []
+      expect(relayRespelled(result({ exitCode: 1, stderr: FIX }), false, mode)).toBe(1)
+      expect(written).toEqual([{ stream: 'stderr', text: SPELLED }])
+    }
   })
 })

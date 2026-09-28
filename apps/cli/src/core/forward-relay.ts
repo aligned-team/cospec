@@ -87,15 +87,24 @@ export function relayStorePathRefusal(result: OpenspecResult, json: boolean): nu
 
 /**
  * Relays a passthrough call's answer, returning cospec's exit code: the
- * binary's `--store-path` refusal answered with cospec's redirect, a failed
- * call's upstream remedies spelled through cospec (`respellRemedies`), and a call that succeeded
- * verbatim — what it prints (a change, a spec, instructions) is the user's own
- * content.
+ * binary's `--store-path` refusal answered with cospec's redirect, and
+ * upstream's own remedy sentences spelled through cospec (`respellRemedies`)
+ * in a failed call's answer — and in a successful one when `success` is
+ * `'respell'`, for a command whose answer the binary renders itself
+ * (`context`'s working set, `instructions`' reference block, each with its
+ * `Fetch:`/`Fix:` lines). `show` keeps `'verbatim'`: what a successful `show`
+ * prints is the user's own change or spec, which may quote upstream's
+ * sentences word for word.
  */
-export function relayRespelled(result: OpenspecResult, json: boolean): number {
+export function relayRespelled(
+  result: OpenspecResult,
+  json: boolean,
+  success: 'verbatim' | 'respell' = 'verbatim',
+): number {
   const refused = relayStorePathRefusal(result, json)
   if (refused !== undefined) return refused
-  const relay = result.exitCode === 0 ? (text: string) => text : respellRemedies
+  const relay =
+    result.exitCode === 0 && success === 'verbatim' ? (text: string) => text : respellRemedies
   if (result.stdout.length > 0) process.stdout.write(relay(result.stdout))
   if (result.stderr.length > 0) process.stderr.write(relay(result.stderr))
   return result.exitCode === 0 ? EXIT.success : EXIT.failure

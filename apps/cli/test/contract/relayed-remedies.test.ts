@@ -361,7 +361,7 @@ describe("a successful context or instructions names cospec in upstream's remedi
     ['instructions', 'proposal', '--change', 'done'],
     ['instructions', 'proposal', '--change', 'done', '--json'],
   ]) {
-    test.failing(
+    test(
       argv.join(' '),
       async () => {
         const coRoot = referencingRoot()
