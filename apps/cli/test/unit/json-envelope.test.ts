@@ -8,8 +8,8 @@
 // The exports these rows exercise are looked up by name, so a missing one
 // fails the row rather than the file.
 
-import { describe, expect, test } from 'bun:test'
-import { mkdtempSync } from 'node:fs'
+import { afterAll, describe, expect, test } from 'bun:test'
+import { chmodSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -46,10 +46,23 @@ interface Answer {
 interface Spawned {
   /** The wrapped argv of each piped call, after the forced leading `--no-color`. */
   piped: string[][]
-  /** Each handover: its argv after the bin path, and its environment. */
-  handovers: { argv: string[]; env: Record<string, string | undefined> }[]
+  /** The piped calls that ran with a `--preload` ahead of the bin path, as `piped` records them. */
+  pipedPreloaded: string[][]
+  /** Each handover: its argv after the bin path, its environment, and its `--preload` file. */
+  handovers: {
+    argv: string[]
+    env: Record<string, string | undefined>
+    preload: string | undefined
+  }[]
   stdout: string
   stderr: string
+}
+
+/** A spawn's `--preload <file>` ahead of the bin path, and the argv from the bin path on. */
+function splitPreload(cmd: string[]): { preload: string | undefined; fromBin: string[] } {
+  return cmd[1] === '--preload'
+    ? { preload: cmd[2], fromBin: cmd.slice(3) }
+    : { preload: undefined, fromBin: cmd.slice(1) }
 }
 
 /**
@@ -60,17 +73,19 @@ async function stubbed<T>(
   answer: (argv: string[]) => Answer | Error,
   fn: () => Promise<T>,
 ): Promise<{ value: T | undefined; error: unknown; spawned: Spawned }> {
-  const spawned: Spawned = { piped: [], handovers: [], stdout: '', stderr: '' }
+  const spawned: Spawned = { piped: [], pipedPreloaded: [], handovers: [], stdout: '', stderr: '' }
   const originalSpawn = Bun.spawn
   const originalOut = process.stdout.write
   const originalErr = process.stderr.write
   // @ts-expect-error — test-only override of Bun.spawn's overloaded signature.
   Bun.spawn = (cmd: string[], opts: { stdin?: unknown; env?: Record<string, string> }) => {
+    const { preload, fromBin } = splitPreload(cmd)
     if (opts?.stdin === 'inherit') {
-      spawned.handovers.push({ argv: cmd.slice(2), env: opts.env ?? {} })
+      spawned.handovers.push({ argv: fromBin.slice(1), env: opts.env ?? {}, preload })
       return { exited: Promise.resolve(0) }
     }
-    const argv = cmd.slice(3)
+    const argv = fromBin.slice(2)
+    if (preload !== undefined) spawned.pipedPreloaded.push(argv)
     const reply: Answer | Error =
       argv.length === 1 && argv[0] === '--version'
         ? { stdout: `${PINNED_OPENSPEC_VERSION}\n` }
@@ -240,6 +255,27 @@ type RunWorksetOpen = (
   terminal: { interactive: boolean },
 ) => Promise<number>
 
+/** Member paths the binary's `pathIsDirectory` reads as no folder: every stat failure. */
+function unusableMembers(): [code: string, path: string][] {
+  const dir = mkdtempSync(join(tmpdir(), 'cospec-member-'))
+  writeFileSync(join(dir, 'file'), '')
+  symlinkSync(join(dir, 'loop-b'), join(dir, 'loop-a'))
+  symlinkSync(join(dir, 'loop-a'), join(dir, 'loop-b'))
+  mkdirSync(join(dir, 'locked'))
+  mkdirSync(join(dir, 'locked', 'inner'))
+  chmodSync(join(dir, 'locked'), 0o000)
+  // Readable again afterwards, so the temp tree can be removed.
+  afterAll(() => chmodSync(join(dir, 'locked'), 0o755))
+  return [
+    ['ENOENT', join(dir, 'missing')],
+    ['ENOTDIR', join(dir, 'file', 'x')],
+    ['ELOOP', join(dir, 'loop-a')],
+    ['EACCES', join(dir, 'locked', 'inner')],
+    ['ENAMETOOLONG', join(dir, 'n'.repeat(1100))],
+    ['ERR_INVALID_ARG_VALUE', `${dir}/nul\0byte`],
+  ]
+}
+
 describe('workset open: the read-only pre-flight on a terminal', () => {
   test("the binary's own interactivity test, ported", () => {
     const interactive = exported<(env: Record<string, string>, tty: boolean) => boolean>(
@@ -306,12 +342,60 @@ describe('workset open: the read-only pre-flight on a terminal', () => {
     expect(error).toBeInstanceOf(OpenspecCallError)
     expect(spawned.handovers).toEqual([])
   })
+
+  // Review round 2: a pre-flight answer that refuses is the binary's refusal
+  // to relay, never a wrapped-call violation.
+  const invalid = { severity: 'error', code: 'invalid_workset_file', message: 'm', fix: 'f' }
+  const unreadable = { worksets: [], status: [invalid] }
+  // A saved workset with a surviving member: only the status[] error refuses it.
+  const flagged = {
+    worksets: [
+      { name: 'w1', members: [{ name: 'm', path: mkdtempSync(join(tmpdir(), 'cospec-member-')) }] },
+    ],
+    status: [invalid],
+  }
+  for (const [label, reply] of [
+    ['exit 1 (an unreadable worksets file)', { stdout: JSON.stringify(unreadable), exitCode: 1 }],
+    ['exit 0 with an error in status[]', { stdout: JSON.stringify(flagged), exitCode: 0 }],
+  ] as const) {
+    test.failing(`a refusing pre-flight answer, ${label}, is answered piped`, async () => {
+      const open = exported<RunWorksetOpen>(worksetModule, 'runWorksetOpen')
+      const { value, error, spawned } = await stubbed(
+        (argv) => (argv[1] === 'list' ? reply : refusal),
+        () => open(ctxFor('/repo'), ['w1'], { interactive: true }),
+      )
+      expect(error).toBeUndefined()
+      expect(spawned.handovers).toEqual([])
+      expect(spawned.piped).toEqual([
+        ['workset', 'list', '--json'],
+        ['workset', 'open', 'w1'],
+      ])
+      expect(value).toBe(1)
+      expect(spawned.stderr).toBe(refusal.stderr)
+    })
+  }
+
+  for (const [code, path] of unusableMembers()) {
+    const run = code === 'ENOENT' || code === 'ENOTDIR' ? test : test.failing
+    run(`a member whose stat fails with ${code} is no folder, never a crash`, async () => {
+      const open = exported<RunWorksetOpen>(worksetModule, 'runWorksetOpen')
+      const list = { worksets: [{ name: 'w1', members: [{ name: 'm', path }] }], status: [] }
+      const { value, error, spawned } = await stubbed(
+        (argv) => (argv[1] === 'list' ? { stdout: JSON.stringify(list) } : refusal),
+        () => open(ctxFor('/repo'), ['w1'], { interactive: true }),
+      )
+      expect(error).toBeUndefined()
+      expect(spawned.handovers).toEqual([])
+      expect(spawned.piped.at(-1)).toEqual(['workset', 'open', 'w1'])
+      expect(value).toBe(1)
+    })
+  }
 })
 
 type RunHandover = (
   ctx: CommandContext,
   call: configModule.ConfigCall,
-  terminal: { stdoutIsTTY: boolean },
+  terminal: { stdoutIsTTY: boolean; stdinIsTTY?: boolean },
 ) => Promise<number>
 
 describe('config profile: the piped pre-flight on a terminal', () => {
@@ -358,6 +442,180 @@ describe('config profile: the piped pre-flight on a terminal', () => {
     expect(error).toBeInstanceOf(OpenspecCallError)
     expect(spawned.handovers).toEqual([])
   })
+})
+
+function handoverPlan(args: string[]): configModule.ConfigCall {
+  const planned = configModule.planConfigCall(args, { json: false })
+  if (planned.kind !== 'handover') throw new Error(`${args.join(' ')} did not plan as a handover`)
+  return planned
+}
+
+describe('config handover pre-flights: only the binary’s own interactive answer hands over', () => {
+  const tty = { stdoutIsTTY: true, stdinIsTTY: true }
+
+  test.failing(
+    'config profile: any other refusal is relayed respelled, never handed over',
+    async () => {
+      const handover = exported<RunHandover>(configModule, 'runHandover')
+      const stderr = `Error: a refusal of its own.\n${upstream('config/list-keys')}\n`
+      const { value, error, spawned } = await stubbed(
+        () => ({ stderr, exitCode: 1 }),
+        () => handover(ctxFor('/repo'), handoverPlan(['--scope', 'project', 'profile']), tty),
+      )
+      expect(error).toBeUndefined()
+      expect(spawned.piped).toEqual([['config', '--scope', 'project', 'profile']])
+      expect(spawned.handovers).toEqual([])
+      expect(value).toBe(1)
+      expect(spawned.stderr).toBe(remediesModule.respellRemedies(stderr))
+      expect(BARE_OPENSPEC.test(spawned.stderr)).toBe(false)
+    },
+  )
+
+  test.failing(
+    'config reset --all with no TTY on stdin runs piped and exits as the binary exits',
+    async () => {
+      const handover = exported<RunHandover>(configModule, 'runHandover')
+      const stdout = 'the binary’s prompt and its cancellation line\n'
+      const { value, error, spawned } = await stubbed(
+        () => ({ stdout, exitCode: 130 }),
+        () =>
+          handover(ctxFor('/repo'), handoverPlan(['reset', '--all']), {
+            stdoutIsTTY: true,
+            stdinIsTTY: false,
+          }),
+      )
+      expect(error).toBeUndefined()
+      expect(spawned.handovers).toEqual([])
+      expect(spawned.piped).toEqual([['config', 'reset', '--all']])
+      // The prompt ends at its given-no-input answer as it does under Node.
+      expect(spawned.pipedPreloaded).toEqual([['config', 'reset', '--all']])
+      expect(value).toBe(130)
+      expect(spawned.stdout).toBe(stdout)
+    },
+  )
+
+  test.failing(
+    'config reset --all with no TTY on stdin: any other answer is a wrapped-call violation',
+    async () => {
+      const handover = exported<RunHandover>(configModule, 'runHandover')
+      const { error, spawned } = await stubbed(
+        () => ({ stdout: '', exitCode: 0 }),
+        () =>
+          handover(ctxFor('/repo'), handoverPlan(['reset', '--all']), {
+            stdoutIsTTY: true,
+            stdinIsTTY: false,
+          }),
+      )
+      expect(error).toBeInstanceOf(OpenspecCallError)
+      expect(spawned.handovers).toEqual([])
+    },
+  )
+
+  test('config reset --all on a terminal hands the terminal over', async () => {
+    const handover = exported<RunHandover>(configModule, 'runHandover')
+    const { value, spawned } = await stubbed(
+      () => new Error('no piped call expected'),
+      () => handover(ctxFor('/repo'), handoverPlan(['reset', '--all']), tty),
+    )
+    expect(spawned.piped).toEqual([])
+    expect(spawned.handovers.map((h) => h.argv)).toEqual([['config', 'reset', '--all']])
+    expect(value).toBe(0)
+  })
+})
+
+// --- the handover runtime: a prompt given no input (review round 2) ------------------
+
+/**
+ * Runs a stand-in for the binary under `preload`: a prompt left pending when
+ * its input ends, rejected by signal-exit's shared emitter (as inquirer's is)
+ * and answered by a catch that prints its cancellation line and sets exit 130.
+ */
+async function pendingPromptUnder(preload: string | undefined): Promise<SpawnedChild> {
+  const dir = mkdtempSync(join(tmpdir(), 'cospec-preload-'))
+  const script = join(dir, 'prompt.mjs')
+  writeFileSync(
+    script,
+    [
+      "const key = Symbol.for('signal-exit emitter')",
+      'const listeners = []',
+      'globalThis[key] = {',
+      '  emitted: false,',
+      '  emit(ev, code) {',
+      "    if (ev !== 'exit' || this.emitted) return false",
+      '    this.emitted = true',
+      '    for (const fn of listeners) fn(code)',
+      '    return false',
+      '  },',
+      '}',
+      'const pending = new Promise((_resolve, reject) => {',
+      "  listeners.push(() => reject(new Error('force closed')))",
+      '})',
+      'async function main() {',
+      '  try {',
+      '    await pending',
+      '  } catch {',
+      "    console.log('Prompt cancelled.')",
+      '    process.exitCode = 130',
+      '  }',
+      '}',
+      'main()',
+      '',
+    ].join('\n'),
+  )
+  const cmd =
+    preload === undefined
+      ? [process.execPath, script]
+      : [process.execPath, '--preload', preload, script]
+  const proc = Bun.spawn(cmd, { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' })
+  const [stdout, exitCode] = await Promise.all([new Response(proc.stdout).text(), proc.exited])
+  return { stdout, exitCode }
+}
+
+interface SpawnedChild {
+  stdout: string
+  exitCode: number
+}
+
+describe('the handover runtime answers a prompt given no input as the binary does under Node', () => {
+  test('without the preload, Bun exits 0 and the prompt’s cancel path never runs', async () => {
+    // The mechanism the preload exists for: Bun never routes its natural exit
+    // through signal-exit's emitter, and drains no microtask an exit listener queues.
+    expect(await pendingPromptUnder(undefined)).toEqual({ stdout: '', exitCode: 0 })
+  })
+
+  test.failing(
+    'every handover spawn carries the preload, and under it the cancel path runs: 130',
+    async () => {
+      const open = exported<RunWorksetOpen>(worksetModule, 'runWorksetOpen')
+      const handover = exported<RunHandover>(configModule, 'runHandover')
+      const member = mkdtempSync(join(tmpdir(), 'cospec-member-'))
+      const list = {
+        worksets: [{ name: 'w1', members: [{ name: 'm', path: member }] }],
+        status: [],
+      }
+      const workset = await stubbed(
+        () => ({ stdout: JSON.stringify(list) }),
+        () => open(ctxFor('/repo'), ['w1'], { interactive: true }),
+      )
+      const edit = configModule.planConfigCall(['edit'], { json: false })
+      if (edit.kind !== 'handover') throw new Error('config edit did not plan as a handover')
+      const config = await stubbed(
+        () => new Error('no piped call expected'),
+        () => handover(ctxFor('/repo'), edit, { stdoutIsTTY: true, stdinIsTTY: true }),
+      )
+      const preloads = [...workset.spawned.handovers, ...config.spawned.handovers].map(
+        (h) => h.preload,
+      )
+      expect(preloads).toHaveLength(2)
+      for (const preload of preloads) {
+        expect(preload).toBeString()
+        expect(await pendingPromptUnder(preload)).toEqual({
+          stdout: 'Prompt cancelled.\n',
+          exitCode: 130,
+        })
+      }
+    },
+  )
 })
 
 // --- the workset open handover environment (ledger 6.6) --------------------------------

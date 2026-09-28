@@ -543,6 +543,172 @@ describe('config relays the binary’s parse refusal and help (ledger 5.1–5.3)
   }
 })
 
+// --- review round 2: the binary decides a group refusal's mode ---------------------
+
+describe('a group refusal is the binary’s in the mode the binary chose (review round 2)', () => {
+  // After `--` a `--json` is an operand to cospec, but the store group reads
+  // its operands for `--json` and answers one document; the workset group
+  // answers text. Either way the answer is the binary's, relayed.
+  for (const argv of [
+    ['store', '--', '--json'],
+    ['store', '--', 'bogus', '--json'],
+    ['store', '--', '--bogus', '--json'],
+    ['workset', '--', '--json'],
+    ['workset', '--', 'bogus', '--json'],
+    ['workset', '--', '--bogus', '--json'],
+  ]) {
+    // The workset rows already relayed the binary's text: regression guards.
+    const run = argv[0] === 'workset' ? test : test.failing
+    run(
+      `${argv.join(' ')}: the binary’s answer, respelled`,
+      async () => {
+        const root = plainRoot()
+        const up = await oracle(argv, root, { runtime: 'node' })
+        const co = await runCospec(argv, root)
+        expect(up.exitCode, detail(up)).toBe(1)
+        expectRespelledRelay(co, up)
+        expect(documentCount(co.stdout), detail(co)).toBe(documentCount(up.stdout))
+      },
+      30_000,
+    )
+  }
+})
+
+// --- review round 2: config answers carry the binary's reason ------------------------
+
+/** The sandbox's global config file, written unparseable. */
+function corruptConfig(root: string): void {
+  const dir = join(root, '.oracle-home', '.config', 'openspec')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, 'config.json'), '{bad')
+}
+
+describe('config relays the binary’s own answer and reason (review round 2)', () => {
+  // An unknown subcommand, before or after `--`, is commander's refusal.
+  for (const argv of [
+    ['config', 'bogus'],
+    ['config', 'bogus', '--json'],
+    ['config', '--scope', 'project', 'bogus'],
+    ['config', '--', '--json'],
+    ['config', '--', 'bogus', '--json'],
+    ['config', '--', '--bogus', '--json'],
+  ]) {
+    test.failing(
+      `${argv.join(' ')}: the binary’s refusal, respelled`,
+      async () => {
+        const root = plainRoot()
+        const up = await oracle(argv, root, { runtime: 'node' })
+        const co = await runCospec(argv, root)
+        expect(up.exitCode, detail(up)).toBe(1)
+        expectRespelledRelay(co, up)
+      },
+      30_000,
+    )
+  }
+
+  test.failing(
+    'config --scope project list --json: the binary’s stderr answer, exit 1',
+    async () => {
+      const root = plainRoot()
+      const argv = ['config', '--scope', 'project', 'list', '--json']
+      const up = await oracle(argv, root, { runtime: 'node' })
+      const co = await runCospec(argv, root)
+      expect(up.exitCode, detail(up)).toBe(1)
+      expect(up.stdout).toBe('')
+      expectRespelledRelay(co, up)
+    },
+    30_000,
+  )
+
+  // The binary declares no `--json` on `path`/`get`: the envelope carries the
+  // reason its text run gives for the same argv.
+  for (const [argv, extra] of [
+    [['config', '--scope', 'project', 'path'], {}],
+    [['config', '--scope', 'project', 'get', 'profile'], { key: 'profile' }],
+  ] as const) {
+    test.failing(
+      `${argv.join(' ')} --json: ok false and the binary’s reason`,
+      async () => {
+        const root = plainRoot()
+        const up = await oracle([...argv], root, { runtime: 'node' })
+        const co = await runCospec([...argv, '--json'], root)
+        expect(up.exitCode, detail(up)).toBe(1)
+        expect(co.exitCode, detail(co)).toBe(1)
+        expect(documentCount(co.stdout), detail(co)).toBe(1)
+        expect(JSON.parse(co.stdout)).toEqual({
+          version: 1,
+          command: `config ${argv.at(-1) === 'path' ? 'path' : 'get'}`,
+          ...extra,
+          ok: false,
+          message: respellRemedies(up.stderr).trim(),
+        })
+        expect(co.stderr, detail(co)).toBe('')
+      },
+      30_000,
+    )
+  }
+
+  test.failing(
+    'config get profile --json on an unreadable config: the value, and the binary’s warning',
+    async () => {
+      const root = plainRoot()
+      corruptConfig(root)
+      const up = await oracle(['config', 'get', 'profile'], root, { runtime: 'node' })
+      const co = await runCospec(['config', 'get', 'profile', '--json'], root)
+      expect(up.exitCode, detail(up)).toBe(0)
+      expect(up.stderr).not.toBe('')
+      expect(co.exitCode, detail(co)).toBe(0)
+      expect(JSON.parse(co.stdout)).toEqual({
+        version: 1,
+        command: 'config get',
+        key: 'profile',
+        value: up.stdout.trim(),
+        found: true,
+      })
+      expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
+    },
+    30_000,
+  )
+
+  test.failing(
+    'config get <unset> --json on an unreadable config: found false, and the binary’s warning',
+    async () => {
+      const root = plainRoot()
+      corruptConfig(root)
+      const up = await oracle(['config', 'get', 'nope.key'], root, { runtime: 'node' })
+      const co = await runCospec(['config', 'get', 'nope.key', '--json'], root)
+      expect(up.exitCode, detail(up)).toBe(1)
+      expect(up.stderr).not.toBe('')
+      expect(co.exitCode, detail(co)).toBe(1)
+      expect(JSON.parse(co.stdout)).toEqual({
+        version: 1,
+        command: 'config get',
+        key: 'nope.key',
+        value: null,
+        found: false,
+      })
+      expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
+    },
+    30_000,
+  )
+
+  test('config get <unset> --json: found false, nothing on stderr', async () => {
+    const root = plainRoot()
+    const up = await oracle(['config', 'get', 'nope.key'], root, { runtime: 'node' })
+    const co = await runCospec(['config', 'get', 'nope.key', '--json'], root)
+    expect(up).toEqual({ exitCode: 1, stdout: '', stderr: '' })
+    expect(co.exitCode, detail(co)).toBe(1)
+    expect(JSON.parse(co.stdout)).toEqual({
+      version: 1,
+      command: 'config get',
+      key: 'nope.key',
+      value: null,
+      found: false,
+    })
+    expect(co.stderr, detail(co)).toBe('')
+  }, 30_000)
+})
+
 // --- 7. a missing working directory (post-rebase) --------------------------------
 
 describe('a --cwd that does not exist is refused before any spawn (ledger 7.1, 7.2, post-rebase)', () => {

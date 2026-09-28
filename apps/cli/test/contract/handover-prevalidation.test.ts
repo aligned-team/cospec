@@ -14,13 +14,22 @@
 // the exit code and an empty stdout.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { cpSync, mkdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { cpSync, mkdirSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
 import { run } from '../../src/cli.ts'
 import { respellRemedies } from '../../src/core/remedies.ts'
-import { cleanupAll, cospec, hashTree, mkTempRepo, type SpawnResult } from '../fixtures/support.ts'
+import {
+  CLI_ENTRY,
+  cleanupAll,
+  cospec,
+  hashTree,
+  mkTempRepo,
+  openspecBinPath,
+  type SpawnResult,
+} from '../fixtures/support.ts'
 import { documentCount, refusalKind } from './support/parse-class.ts'
+import { type PtyRun, ptyRun, terminalText } from './support/pty.ts'
 import { oracle, oracleEnv, scaffoldOracleRoot } from './support/upstream-oracle.ts'
 
 afterAll(cleanupAll)
@@ -240,4 +249,170 @@ describe('with no terminal the leaf runs piped and its answer is respelled', () 
     expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
     expect(co.stderr).toContain('`cospec config profile core`')
   }, 30_000)
+})
+
+// --- review round 2: on a terminal, rows against the binary under Node -----------------
+
+/** The binary under Node on a pseudo-terminal; its first-run completions tip off, as cospec's spawns have it. */
+function ptyUpstream(argv: string[], root: string): Promise<PtyRun> {
+  return ptyRun(['node', openspecBinPath(), ...argv], {
+    cwd: root,
+    env: { ...oracleEnv(root), OPENSPEC_NO_COMPLETIONS: '1' },
+  })
+}
+
+function ptyCospec(argv: string[], root: string): Promise<PtyRun> {
+  return ptyRun([process.execPath, CLI_ENTRY, ...argv], { cwd: root, env: oracleEnv(root) })
+}
+
+function ptyDetail(pty: PtyRun): string {
+  return `exit ${pty.exitCode}\noutput: ${JSON.stringify(pty.output)}`
+}
+
+/** The sandbox's saved-worksets file, as `workset list` reads it. */
+function worksetsFile(root: string): string {
+  return join(root, '.oracle-home', '.local', 'share', 'openspec', 'worksets', 'worksets.yaml')
+}
+
+function writeWorksets(root: string, body: string): void {
+  mkdirSync(dirname(worksetsFile(root)), { recursive: true })
+  writeFileSync(worksetsFile(root), body)
+}
+
+describe('on a terminal, a workset the binary refuses is answered as it refuses it', () => {
+  const cases: [label: string, body: string][] = [
+    ['an unreadable worksets file', 'version: 2\nworksets: {}\n'],
+    [
+      'a member path no stat can read',
+      'version: 1\nworksets:\n  w1:\n    members:\n      - name: m\n        path: "/a\\0b"\n',
+    ],
+  ]
+  for (const [label, body] of cases) {
+    test.failing(
+      `workset open w1 with ${label}`,
+      async () => {
+        const root = plainRoot()
+        writeWorksets(root, body)
+        const up = await ptyUpstream(['workset', 'open', 'w1'], root)
+        const co = await ptyCospec(['workset', 'open', 'w1'], root)
+        expect(up.exitCode, ptyDetail(up)).toBe(1)
+        expect(co.exitCode, ptyDetail(co)).toBe(1)
+        expect(terminalText(co.output), ptyDetail(co)).toBe(
+          respellRemedies(terminalText(up.output)),
+        )
+        expect(BARE_OPENSPEC.test(co.output), ptyDetail(co)).toBe(false)
+      },
+      30_000,
+    )
+  }
+})
+
+describe('on a terminal, config profile hands over only when the binary would prompt', () => {
+  test.failing(
+    'config --scope project profile: the binary’s refusal, respelled',
+    async () => {
+      const root = plainRoot()
+      const argv = ['config', '--scope', 'project', 'profile']
+      const up = await ptyUpstream(argv, root)
+      const co = await ptyCospec(argv, root)
+      expect(up.exitCode, ptyDetail(up)).toBe(1)
+      expect(co.exitCode, ptyDetail(co)).toBe(1)
+      expect(terminalText(co.output), ptyDetail(co)).toBe(respellRemedies(terminalText(up.output)))
+    },
+    30_000,
+  )
+})
+
+describe('a prompt whose terminal input ends (Ctrl-D) is cancelled as the binary cancels it', () => {
+  for (const argv of [
+    ['config', 'reset', '--all'],
+    ['config', 'profile'],
+  ]) {
+    test.failing(
+      `${argv.join(' ')}: the binary’s cancellation line and its exit code`,
+      async () => {
+        const root = plainRoot()
+        const before = treeHash(root)
+        const up = await ptyUpstream(argv, root)
+        expect(treeHash(root)).toEqual(before)
+        const co = await ptyCospec(argv, root)
+        expect(treeHash(root)).toEqual(before)
+        expect(up.exitCode, ptyDetail(up)).toBe(130)
+        expect(co.exitCode, ptyDetail(co)).toBe(up.exitCode)
+        expect(terminalText(co.output), ptyDetail(co)).toBe(
+          respellRemedies(terminalText(up.output)),
+        )
+      },
+      30_000,
+    )
+  }
+})
+
+/** `argv` with `input` on a piped stdin (or none), outside any terminal. */
+async function piped(cmd: string[], root: string, input: string | undefined): Promise<SpawnResult> {
+  const proc = Bun.spawn(cmd, {
+    cwd: root,
+    stdin: input === undefined ? 'ignore' : new Blob([input]),
+    stdout: 'pipe',
+    stderr: 'pipe',
+    env: { ...oracleEnv(root), OPENSPEC_NO_COMPLETIONS: '1' },
+  })
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ])
+  return { stdout, stderr, exitCode }
+}
+
+describe('config reset --all with no terminal on stdin exits as the binary exits', () => {
+  for (const input of [undefined, 'y\n']) {
+    test.failing(
+      `stdin ${input === undefined ? 'empty' : 'piped “y”'}: cancelled, nothing reset`,
+      async () => {
+        const root = plainRoot()
+        const argv = ['config', 'reset', '--all']
+        const before = treeHash(root)
+        const up = await piped(['node', openspecBinPath(), ...argv], root, input)
+        expect(treeHash(root)).toEqual(before)
+        const co = await piped([process.execPath, CLI_ENTRY, ...argv], root, input)
+        expect(treeHash(root)).toEqual(before)
+        expect(up.exitCode, detail(up)).toBe(130)
+        expect(co.exitCode, detail(co)).toBe(up.exitCode)
+        expect(terminalText(co.stdout), detail(co)).toBe(terminalText(respellRemedies(up.stdout)))
+        expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
+      },
+      30_000,
+    )
+  }
+})
+
+// --- review round 2: `config <leaf> <extra-arg> --json` (design D13) --------------------
+
+describe('config <leaf> <extra> --json: cospec’s --json is its own global flag (design D13)', () => {
+  // The binary's config leaves declare no `--json`, so it names `--json` as
+  // the unknown option; cospec reads it as its global flag and refuses the
+  // excess argument. Both refuse before anything runs, exit 1.
+  for (const argv of [
+    ['config', 'edit', 'extra', '--json'],
+    ['config', 'profile', 'a', 'b', '--json'],
+    ['config', 'reset', '--all', 'extra', '--json'],
+  ]) {
+    test(
+      argv.join(' '),
+      async () => {
+        const root = plainRoot()
+        const up = await oracle(argv, root, { runtime: 'node' })
+        const co = await dispatch(argv, root)
+        expect(up.exitCode, detail(up)).toBe(1)
+        expect(refusalKind(up, 'config', argv), detail(up)).toBe('unknown-option')
+        expect(subject(up.stderr)).toBe('--json')
+        expect(co.handovers, detail(co)).toEqual([])
+        expect(co.exitCode, detail(co)).toBe(1)
+        expect(co.stdout, detail(co)).toBe('')
+        expect(refusalKind(co, 'config', argv), detail(co)).toBe('too-many')
+      },
+      30_000,
+    )
+  }
 })
