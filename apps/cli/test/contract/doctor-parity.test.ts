@@ -152,6 +152,12 @@ async function oracleJsonIn(
   cwd: string,
 ): Promise<{ exitCode: number; json: unknown; stderr: string }> {
   if (cwd === root) return oracleJson(argv, root)
+  const { exitCode, stdout, stderr } = await oracleIn(argv, root, cwd)
+  return { exitCode, json: JSON.parse(stdout), stderr }
+}
+
+/** The pinned binary's raw answer to `argv` from `cwd`, in `root`'s sandbox. */
+async function oracleIn(argv: string[], root: string, cwd: string): Promise<SpawnResult> {
   const proc = Bun.spawn(['bun', openspecBinPath(), ...argv], {
     cwd,
     stdin: 'ignore',
@@ -164,7 +170,7 @@ async function oracleJsonIn(
     new Response(proc.stderr).text(),
     proc.exited,
   ])
-  return { exitCode, json: JSON.parse(stdout), stderr }
+  return { exitCode, stdout, stderr }
 }
 
 describe('cospec doctor --json carries openspec doctor --json on every root', () => {
@@ -324,6 +330,68 @@ describe('cospec doctor --json carries openspec doctor --json on every root', ()
     }, 60_000)
   }
 
+  /**
+   * A cospec-initialized store `st1` beside a bare workspace (and its
+   * subdirectory) and a second project whose `openspec/` cospec never
+   * initialized — its missing manifest and schemas are ERROR findings if
+   * cospec's own checks ever read it.
+   */
+  async function explicitStoreRoot(): Promise<string> {
+    const root = mkTempRepo()
+    await initializedStore(root)
+    mkdirSync(join(root, 'bare', 'sub'), { recursive: true })
+    cpSync(join(template, 'openspec'), join(root, 'project', 'openspec'), { recursive: true })
+    return root
+  }
+
+  // An explicit `--store <id>` selects the store as the operating root from
+  // anywhere: doctor's own checks read that store, as for a pointer or a
+  // defaultStore root, never the directory it runs in.
+  for (const [name, where] of [
+    ['a bare workspace', 'bare'],
+    ['a subdirectory of a bare workspace', join('bare', 'sub')],
+    ['another project', 'project'],
+  ] as const) {
+    test.failing(
+      `--store st1 from ${name}: checks the selected store (--json)`,
+      async () => {
+        const root = await explicitStoreRoot()
+        const cwd = join(root, where)
+        const { co, doc, up } = await doctorBoth(['doctor', '--store', 'st1', '--json'], root, cwd)
+        const upRoot = (up.json as { root: { source: string; path: string } | null }).root
+        expect(upRoot?.source).toBe('store')
+        const coRoot = (doc as unknown as { root: { source: string; path: string } | null }).root
+        expect(coRoot?.source, detail(co)).toBe('store')
+        expect(relationshipKeys(doc)).toEqual(expectedKeys(up))
+        expect(
+          doc.findings.filter((f) => f.level === 'ERROR'),
+          detail(co),
+        ).toEqual([])
+        expect(up.exitCode).toBe(0)
+        expect(co.exitCode, detail(co)).toBe(up.exitCode)
+      },
+      60_000,
+    )
+
+    test.failing(
+      `--store st1 from ${name}: checks the selected store (text)`,
+      async () => {
+        const root = await explicitStoreRoot()
+        const cwd = join(root, where)
+        const up = await oracleIn(['doctor', '--store', 'st1'], root, cwd)
+        const co = await cospec(['doctor', '--store', 'st1'], { cwd, env: oracleEnv(root) })
+        expect(
+          co.stdout.split('\n').filter((l) => /^ {2}ERROR {2}/u.test(l)),
+          detail(co),
+        ).toEqual([])
+        expect(co.stdout, detail(co)).not.toMatch(/\b[1-9]\d* error\(s\)/u)
+        expect(up.exitCode, detail(up)).toBe(0)
+        expect(co.exitCode, detail(co)).toBe(up.exitCode)
+      },
+      60_000,
+    )
+  }
+
   // The wrapped `openspec doctor --json` writes its config warnings to stderr
   // (`Invalid 'context' field in config (must be string)`, …). cospec folds
   // each line it did not already print itself into its document as a WARNING
@@ -385,44 +453,48 @@ describe('cospec doctor --json carries openspec doctor --json on every root', ()
     ['a --store root from its pointer root', invalidPointerRoot, '.', ['--store', 'st1'], 1],
     ['a --store root from a bare workspace', invalidStoreRoot, 'bare', ['--store', 'st1'], 1],
   ] as const) {
-    test(`${name}: the binary's config warnings are WARNING findings (--json)`, async () => {
-      const root = await make()
-      const cwd = join(root, where)
-      const up = await oracleJsonIn(['doctor', ...argv, '--json'], root, cwd)
-      const expected = expectedStderrFindings(up.stderr)
-      expect(expected.length, up.stderr).toBe(lines)
-      const co = await cospec(['doctor', ...argv, '--json'], { cwd, env: oracleEnv(root) })
-      expect(documentCount(co.stdout), detail(co)).toBe(1)
-      const doc = JSON.parse(co.stdout) as DoctorDoc
-      expect(
-        doc.findings.filter((f) => f.check === STDERR_CHECK),
-        detail(co),
-      ).toEqual(expected)
-      expect(doc.summary.warnings, detail(co)).toBeGreaterThanOrEqual(expected.length)
-      for (const f of expected) expect(co.stderr, detail(co)).not.toContain(f.message)
-      // An explicit --store keeps cospec's own checks on the invocation
-      // directory (design D3), so only the selected-root rows compare exits.
-      if (argv.length === 0) expect(co.exitCode, detail(co)).toBe(up.exitCode)
-    }, 60_000)
+    ;(argv.length > 0 ? test.failing : test)(
+      `${name}: the binary's config warnings are WARNING findings (--json)`,
+      async () => {
+        const root = await make()
+        const cwd = join(root, where)
+        const up = await oracleJsonIn(['doctor', ...argv, '--json'], root, cwd)
+        const expected = expectedStderrFindings(up.stderr)
+        expect(expected.length, up.stderr).toBe(lines)
+        const co = await cospec(['doctor', ...argv, '--json'], { cwd, env: oracleEnv(root) })
+        expect(documentCount(co.stdout), detail(co)).toBe(1)
+        const doc = JSON.parse(co.stdout) as DoctorDoc
+        expect(
+          doc.findings.filter((f) => f.check === STDERR_CHECK),
+          detail(co),
+        ).toEqual(expected)
+        expect(doc.summary.warnings, detail(co)).toBeGreaterThanOrEqual(expected.length)
+        for (const f of expected) expect(co.stderr, detail(co)).not.toContain(f.message)
+        expect(co.exitCode, detail(co)).toBe(up.exitCode)
+      },
+      60_000,
+    )
 
-    test(`${name}: the binary's config warnings are printed as findings (text)`, async () => {
-      const root = await make()
-      const cwd = join(root, where)
-      const up = await oracleJsonIn(['doctor', ...argv, '--json'], root, cwd)
-      const expected = expectedStderrFindings(up.stderr)
-      expect(expected.length, up.stderr).toBe(lines)
-      const co = await cospec(['doctor', ...argv], { cwd, env: oracleEnv(root) })
-      const printed = co.stdout.split('\n').filter((l) => l.includes(`${STDERR_CHECK}: `))
-      expect(printed, detail(co)).toEqual(expected.map(textFinding))
-      for (const f of expected) expect(co.stderr, detail(co)).not.toContain(f.message)
-      if (argv.length > 0) {
-        const banner = co.stderr.split('\n').filter((l) => l.startsWith('Using OpenSpec root: '))
-        expect(banner.length, detail(co)).toBe(1)
-      }
-      // An explicit --store keeps cospec's own checks on the invocation
-      // directory (design D3), so only the selected-root rows compare exits.
-      if (argv.length === 0) expect(co.exitCode, detail(co)).toBe(up.exitCode)
-    }, 60_000)
+    ;(argv.length > 0 ? test.failing : test)(
+      `${name}: the binary's config warnings are printed as findings (text)`,
+      async () => {
+        const root = await make()
+        const cwd = join(root, where)
+        const up = await oracleJsonIn(['doctor', ...argv, '--json'], root, cwd)
+        const expected = expectedStderrFindings(up.stderr)
+        expect(expected.length, up.stderr).toBe(lines)
+        const co = await cospec(['doctor', ...argv], { cwd, env: oracleEnv(root) })
+        const printed = co.stdout.split('\n').filter((l) => l.includes(`${STDERR_CHECK}: `))
+        expect(printed, detail(co)).toEqual(expected.map(textFinding))
+        for (const f of expected) expect(co.stderr, detail(co)).not.toContain(f.message)
+        if (argv.length > 0) {
+          const banner = co.stderr.split('\n').filter((l) => l.startsWith('Using OpenSpec root: '))
+          expect(banner.length, detail(co)).toBe(1)
+        }
+        expect(co.exitCode, detail(co)).toBe(up.exitCode)
+      },
+      60_000,
+    )
   }
 
   // A line cospec's own root selection already printed — the ignored-pointer
