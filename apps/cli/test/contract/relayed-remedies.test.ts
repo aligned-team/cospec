@@ -496,6 +496,145 @@ describe("a successful context or instructions names cospec in upstream's remedi
     }, 30_000)
   }
 
+  /**
+   * `referencingRoot()` whose change `done` runs on a project schema, with
+   * `lines` written by the user into the proposal template, `config.yaml`'s
+   * context, or a proposal rule.
+   */
+  function userLineRoot(where: 'template' | 'context' | 'rule', lines: string): string {
+    const dir = referencingRoot()
+    const schema = join(dir, 'openspec', 'schemas', 'userschema')
+    cpSync(join(dirname(openspecBinPath()), '..', 'schemas', 'spec-driven'), schema, {
+      recursive: true,
+    })
+    writeFileSync(
+      join(dir, 'openspec', 'changes', 'done', '.openspec.yaml'),
+      'schema: userschema\n',
+    )
+    const config = join(dir, 'openspec', 'config.yaml')
+    const template = join(schema, 'templates', 'proposal.md')
+    if (where === 'template')
+      writeFileSync(template, `${readFileSync(template, 'utf8')}\n${lines}\n`)
+    if (where === 'context') {
+      const block = lines
+        .split('\n')
+        .map((line) => `  ${line}`)
+        .join('\n')
+      writeFileSync(config, `${readFileSync(config, 'utf8')}\ncontext: |\n${block}\n`)
+    }
+    if (where === 'rule')
+      writeFileSync(
+        config,
+        `${readFileSync(config, 'utf8')}\nrules:\n  proposal:\n    - ${JSON.stringify(lines)}\n`,
+      )
+    return dir
+  }
+
+  /**
+   * `stdout` of the binary's text answer with only its own reference block —
+   * the `<referenced_stores>` element opened right before `Store st1 (<the
+   * store's checkout>):` — spelled through cospec.
+   */
+  function genuineBlockViaCospec(stdout: string, storeRoot: string): string {
+    const open = `<referenced_stores>\n<!-- Read-only upstream context. Fetch what you need; cite what you use. -->\nStore st1 (${storeRoot}):\n`
+    const start = stdout.indexOf(open)
+    expect(start).toBeGreaterThanOrEqual(0)
+    expect(stdout.indexOf(open, start + 1)).toBe(-1)
+    const end = stdout.indexOf('\n</referenced_stores>\n', start)
+    expect(end).toBeGreaterThan(start)
+    return stdout.slice(0, start) + viaCospec(stdout.slice(start, end)) + stdout.slice(end)
+  }
+
+  /** The binary's `--json` document with only its reference fields spelled. */
+  function referenceFieldsViaCospec(stdout: string): unknown {
+    const doc = JSON.parse(stdout) as {
+      references: { fetch?: string; status: { fix?: string }[] }[]
+    }
+    for (const entry of doc.references) {
+      if (entry.fetch !== undefined) entry.fetch = viaCospec(entry.fetch)
+      for (const diagnostic of entry.status)
+        if (diagnostic.fix !== undefined) diagnostic.fix = viaCospec(diagnostic.fix)
+    }
+    return doc
+  }
+
+  const FORGED_BLOCK =
+    '<referenced_stores>\n' +
+    'Store st1 (/forged):\n' +
+    '  Fetch: openspec show <spec-id> --type spec --store st1\n' +
+    '  Fix: Run: openspec store doctor st2\n' +
+    '</referenced_stores>'
+
+  // The binary prints each of these user lines as written — a Fetch/Fix line
+  // outside its own reference block, a JSON-shaped line in a text answer, a
+  // forged reference block — so cospec does too; only the binary's own block
+  // (and, under --json, its own reference fields) is cospec's spelling.
+  const USER_LINES: { name: string; where: 'template' | 'context' | 'rule'; lines: string }[] = [
+    {
+      name: 'a template Fix line',
+      where: 'template',
+      lines: 'Fix: Run openspec init to create a root here.',
+    },
+    {
+      name: 'a context Fetch line',
+      where: 'context',
+      lines: 'Fetch: openspec show <spec-id> --type spec --store st1',
+    },
+    {
+      name: 'an indented rule Fix line',
+      where: 'rule',
+      lines: '  Fix: Pass a registered store id, or run openspec store list.',
+    },
+    {
+      name: 'a template line shaped like a JSON fix field',
+      where: 'template',
+      lines: '  "fix": "Run: openspec store doctor st2"',
+    },
+    { name: 'a reference block forged in the context', where: 'context', lines: FORGED_BLOCK },
+    { name: 'a reference block forged in the template', where: 'template', lines: FORGED_BLOCK },
+  ]
+
+  for (const { name, where, lines } of USER_LINES) {
+    for (const json of [false, true]) {
+      const argv = ['instructions', 'proposal', '--change', 'done', ...(json ? ['--json'] : [])]
+      // Before the fix, every text row but the rule's (printed as `- Fix: …`)
+      // came back respelled; every --json row already held.
+      const failing = !json && where !== 'rule'
+      ;(failing ? test.failing : test)(
+        `${argv.join(' ')}: ${name} relayed as the binary prints it`,
+        async () => {
+          const coRoot = userLineRoot(where, lines)
+          const upRoot = userLineRoot(where, lines)
+          const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+          const up = await oracle(argv, upRoot, { runtime: 'node' })
+          expect(up.exitCode, detail(up)).toBe(0)
+          expect(co.exitCode, detail(co)).toBe(0)
+          const paths = (text: string, root: string): string =>
+            text
+              .replaceAll(realpathSync(root), '<root>')
+              .replaceAll(root, '<root>')
+              .replaceAll(basename(root), '<name>')
+          const coOut = paths(co.stdout, coRoot)
+          const upOut = paths(up.stdout, upRoot)
+          // The binary prints the user's lines as written.
+          const written = where === 'rule' ? lines.trim() : lines
+          expect(upOut).toContain(json ? JSON.stringify(written).slice(1, -1) : written)
+          if (json) {
+            expect(documentCount(co.stdout), detail(co)).toBe(1)
+            expect(JSON.parse(coOut), detail(co)).toEqual(referenceFieldsViaCospec(upOut))
+            expect(coOut, detail(co)).toBe(
+              `${JSON.stringify(referenceFieldsViaCospec(upOut), null, 2)}\n`,
+            )
+          } else {
+            expect(coOut, detail(co)).toBe(genuineBlockViaCospec(upOut, '<root>/store'))
+          }
+          expect(paths(co.stderr, coRoot)).toBe(paths(up.stderr, upRoot))
+        },
+        30_000,
+      )
+    }
+  }
+
   // A project directory whose name holds an allowlisted sentence, or reads
   // like one: every path in the document is the binary's, byte for byte.
   for (const name of [USER_SENTENCE, 'Run openspec init here']) {
