@@ -330,51 +330,39 @@ async function expectContextRespelled(root: string, json: boolean): Promise<Spaw
   return co
 }
 
-describe('context spells its reference block through cospec (ledger 3.1–3.4, post-rebase)', () => {
+describe('context spells its reference block through cospec (ledger 3.1–3.4)', () => {
   for (const json of [false, true]) {
     const mode = json ? '--json' : 'text'
-    test.failing(
-      `context ${mode}: st1, st2 and gone spelled cospec, ids unchanged`,
-      async () => {
-        const root = referencingRoot()
-        const co = await expectContextRespelled(root, json)
-        expect(BARE_OPENSPEC.test(co.stdout + co.stderr), detail(co)).toBe(false)
-        for (const id of ['st1', 'st2', 'gone']) expect(co.stdout).toContain(id)
-      },
-      30_000,
-    )
+    test(`context ${mode}: st1, st2 and gone spelled cospec, ids unchanged`, async () => {
+      const root = referencingRoot()
+      const co = await expectContextRespelled(root, json)
+      expect(BARE_OPENSPEC.test(co.stdout + co.stderr), detail(co)).toBe(false)
+      for (const id of ['st1', 'st2', 'gone']) expect(co.stdout).toContain(id)
+    }, 30_000)
 
-    test.failing(
-      `context ${mode}: an unreadable registry's note spelled cospec`,
-      async () => {
-        const co = await expectContextRespelled(unreadableRegistryRoot(), json)
-        expect(BARE_OPENSPEC.test(co.stdout + co.stderr), detail(co)).toBe(false)
-      },
-      30_000,
-    )
+    test(`context ${mode}: an unreadable registry's note spelled cospec`, async () => {
+      const co = await expectContextRespelled(unreadableRegistryRoot(), json)
+      expect(BARE_OPENSPEC.test(co.stdout + co.stderr), detail(co)).toBe(false)
+    }, 30_000)
 
     // Store ids and a declared remote that name `openspec`: only the command
     // token of each fetch and fix is spelled, every id and the remote as the
     // binary printed them.
-    test.failing(
-      `context ${mode}: store ids and a remote naming openspec stay as they are`,
-      async () => {
-        const root = openspecIdsRoot()
-        const upDoc = await oracleJson(['context', '--json'], root)
-        const co = await expectContextRespelled(root, json)
-        expect(BARE_OPENSPEC.test(co.stdout.replaceAll(root, '<root>')), detail(co)).toBe(false)
-        expect(co.stdout).toContain('cospec show <spec-id> --type spec --store openspec-team')
-        expect(co.stdout).toContain('Run: cospec store doctor openspec-broken')
-        expect(co.stdout).toContain(`git clone -- ${REMOTE} `)
-        expect(co.stdout).toContain('&& cospec store register ')
-        const ids = (text: string) => text.match(/openspec-(?:team|broken|gone)/g)?.length
-        const up = JSON.stringify(upDoc.json)
-        expect(ids(json ? JSON.stringify(JSON.parse(co.stdout)) : co.stdout)).toBe(
-          json ? ids(up) : ids((await oracle(['context'], root)).stdout),
-        )
-      },
-      30_000,
-    )
+    test(`context ${mode}: store ids and a remote naming openspec stay as they are`, async () => {
+      const root = openspecIdsRoot()
+      const upDoc = await oracleJson(['context', '--json'], root)
+      const co = await expectContextRespelled(root, json)
+      expect(BARE_OPENSPEC.test(co.stdout.replaceAll(root, '<root>')), detail(co)).toBe(false)
+      expect(co.stdout).toContain('cospec show <spec-id> --type spec --store openspec-team')
+      expect(co.stdout).toContain('Run: cospec store doctor openspec-broken')
+      expect(co.stdout).toContain(`git clone -- ${REMOTE} `)
+      expect(co.stdout).toContain('&& cospec store register ')
+      const ids = (text: string) => text.match(/openspec-(?:team|broken|gone)/g)?.length
+      const up = JSON.stringify(upDoc.json)
+      expect(ids(json ? JSON.stringify(JSON.parse(co.stdout)) : co.stdout)).toBe(
+        json ? ids(up) : ids((await oracle(['context'], root)).stdout),
+      )
+    }, 30_000)
 
     // No reference field to respell: the binary's answer, byte for byte.
     test(`context ${mode}: self-references only, relayed as the binary wrote it`, async () => {
@@ -387,47 +375,38 @@ describe('context spells its reference block through cospec (ledger 3.1–3.4, p
 
     // A root directory and a store checkout whose names read like the
     // binary's remedies: printed as the binary printed them.
-    test.failing(
-      `context ${mode}: names shaped like remedies stay as they are`,
-      async () => {
-        const root = referencingRoot({
-          name: 'Run: openspec store doctor',
-          storeDirName: 'openspec show x --type spec',
-        })
-        const co = await expectContextRespelled(root, json)
-        const out = json ? JSON.parse(co.stdout) : co.stdout
-        const text = typeof out === 'string' ? out : JSON.stringify(out)
-        expect(text).toContain('Run: openspec store doctor')
-        expect(text).toContain('openspec show x --type spec')
-      },
-      30_000,
-    )
+    test(`context ${mode}: names shaped like remedies stay as they are`, async () => {
+      const root = referencingRoot({
+        name: 'Run: openspec store doctor',
+        storeDirName: 'openspec show x --type spec',
+      })
+      const co = await expectContextRespelled(root, json)
+      const out = json ? JSON.parse(co.stdout) : co.stdout
+      const text = typeof out === 'string' ? out : JSON.stringify(out)
+      expect(text).toContain('Run: openspec store doctor')
+      expect(text).toContain('openspec show x --type spec')
+    }, 30_000)
   }
 
   // Onto an existing file the binary refuses (exit 1), and a failed answer is
   // already respelled whole, so that row guards the order and the refusal.
   for (const existing of [false, true]) {
-    const row = existing ? test : test.failing
-    row(
-      `context --code-workspace ${existing ? 'onto an existing file' : 'fresh'}: listing first`,
-      async () => {
-        const root = referencingRoot()
-        const target = join(root, 'ws.code-workspace')
-        const argv = ['context', '--code-workspace', 'ws.code-workspace']
-        const upDoc = await oracleJson(['context', '--json'], root)
-        if (existing) writeFileSync(target, '{}\n')
-        const up = await oracle(argv, root)
-        rmSync(target, { force: true })
-        if (existing) writeFileSync(target, '{}\n')
-        const co = await runCospec(argv, root)
-        const fields = contextFields(upDoc.json as ContextDoc)
-        expect(co.exitCode, detail(co)).toBe(up.exitCode)
-        expect(co.stdout, detail(co)).toBe(respellFieldsInText(up.stdout, fields))
-        expect(co.stderr, detail(co)).toBe(respellRemedies(respellFieldsInText(up.stderr, fields)))
-        expect(existsSync(target)).toBe(true)
-      },
-      30_000,
-    )
+    test(`context --code-workspace ${existing ? 'onto an existing file' : 'fresh'}: listing first`, async () => {
+      const root = referencingRoot()
+      const target = join(root, 'ws.code-workspace')
+      const argv = ['context', '--code-workspace', 'ws.code-workspace']
+      const upDoc = await oracleJson(['context', '--json'], root)
+      if (existing) writeFileSync(target, '{}\n')
+      const up = await oracle(argv, root)
+      rmSync(target, { force: true })
+      if (existing) writeFileSync(target, '{}\n')
+      const co = await runCospec(argv, root)
+      const fields = contextFields(upDoc.json as ContextDoc)
+      expect(co.exitCode, detail(co)).toBe(up.exitCode)
+      expect(co.stdout, detail(co)).toBe(respellFieldsInText(up.stdout, fields))
+      expect(co.stderr, detail(co)).toBe(respellRemedies(respellFieldsInText(up.stderr, fields)))
+      expect(existsSync(target)).toBe(true)
+    }, 30_000)
   }
 })
 

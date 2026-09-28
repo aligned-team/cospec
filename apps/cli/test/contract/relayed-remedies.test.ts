@@ -784,27 +784,23 @@ describe("a successful context or instructions relays the user's content byte-fo
       text.replaceAll(realpathSync(dirname(root)), '<tmp>').replaceAll(dirname(root), '<tmp>')
 
     // context spells its reference block's command fields through cospec;
-    // nothing else changes. Failing until context.ts wires the respell.
-    test.failing(
-      `context --json in a project dir named "${name}": its path untouched`,
-      async () => {
-        const argv = ['context', '--json']
-        const coRoot = referencingRoot(name)
-        const upRoot = referencingRoot(name)
-        const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-        const up = await oracle(argv, upRoot, { runtime: 'node' })
-        expect(up.exitCode, detail(up)).toBe(0)
-        expect(co.exitCode, detail(co)).toBe(0)
-        expect(documentCount(co.stdout), detail(co)).toBe(1)
-        const doc = JSON.parse(co.stdout) as { root: { path: string } }
-        expect(doc.root.path).toBe(realpathSync(coRoot))
-        expect(parents(co.stdout, coRoot), detail(co)).toBe(
-          parents(contextRespelled(up.stdout), upRoot),
-        )
-        expect(co.stdout).toContain(name)
-      },
-      30_000,
-    )
+    // nothing else changes.
+    test(`context --json in a project dir named "${name}": its path untouched`, async () => {
+      const argv = ['context', '--json']
+      const coRoot = referencingRoot(name)
+      const upRoot = referencingRoot(name)
+      const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+      const up = await oracle(argv, upRoot, { runtime: 'node' })
+      expect(up.exitCode, detail(up)).toBe(0)
+      expect(co.exitCode, detail(co)).toBe(0)
+      expect(documentCount(co.stdout), detail(co)).toBe(1)
+      const doc = JSON.parse(co.stdout) as { root: { path: string } }
+      expect(doc.root.path).toBe(realpathSync(coRoot))
+      expect(parents(co.stdout, coRoot), detail(co)).toBe(
+        parents(contextRespelled(up.stdout), upRoot),
+      )
+      expect(co.stdout).toContain(name)
+    }, 30_000)
 
     const argv = ['instructions', 'proposal', '--change', 'done', '--json']
     test(`${argv.join(' ')} in a project dir named "${name}": its path untouched, reference fields respelled`, async () => {
