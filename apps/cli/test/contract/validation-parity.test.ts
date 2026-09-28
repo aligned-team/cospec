@@ -14,7 +14,7 @@
 // the rule and the track that adds the dedupe each flip their own half.
 
 import { afterAll, describe, expect, test } from 'bun:test'
-import { cpSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { parseDeltaSpec } from '../../src/core/deltas.ts'
@@ -31,6 +31,51 @@ import {
 import { writeLivingSpec } from './fixtures.ts'
 
 afterAll(cleanupAll)
+
+/**
+ * Round-6 rows that fail on the tree they were pinned on — each fix commit
+ * takes its own ids out, and the last one removes the set.
+ */
+const ROUND6_FAILING = new Set<string>([
+  '5.1.6b',
+  '27.1-cmt-no-text',
+  '27.2-cmt-no-text',
+  '27.1-cmt-modified-no-text',
+  '27.2-cmt-modified-no-text',
+  '27.1-cmt-header-shall',
+  '27.2-cmt-header-shall',
+  '27.1-cmt-no-scenario',
+  '27.2-cmt-no-scenario',
+  '27.3',
+  '32.1',
+  '32.1n',
+  '32.2',
+  '32.2n',
+  '32.3',
+  '32.3n',
+  '32.4',
+  '32.4n',
+  '33.1',
+  '33.1n',
+  '33.2',
+  '33.2n',
+  '33.3',
+  '33.3n',
+  '33.4',
+  '33.4n',
+  '33.5',
+  '34.1',
+  '34.1n',
+  '34.4',
+  '34.4n',
+  '34.5',
+  '34.5n',
+  '34.9',
+  '34.12n',
+  '34.13n',
+  '19.1',
+])
+const round6 = (id: string): typeof test => (ROUND6_FAILING.has(id) ? test.failing : test)
 
 // --- fixture builders --------------------------------------------------------
 
@@ -262,6 +307,14 @@ function messages(report: JsonReport): string[] {
   return issues(report).map((i) => i.message)
 }
 
+/**
+ * The delegated findings cospec relayed. A twin's absence is asserted here
+ * where cospec's own finding is worded exactly as the binary's.
+ */
+function relayedMessages(report: JsonReport): string[] {
+  return byRule(report, 'openspec/validate').map((i) => i.message)
+}
+
 /** The defined line numbers of `found`, ascending. */
 function linesOf(found: { line?: number }[]): number[] {
   return found.flatMap((i) => (i.line === undefined ? [] : [i.line])).toSorted((a, b) => a - b)
@@ -342,7 +395,7 @@ The system does a plain thing.
 - **THEN** nothing is found
 `
 
-/** cospec counts a scenario step's SHALL; the binary's requirement-text reader does not. */
+/** A SHALL only in a scenario step: neither the binary's requirement-text reader nor cospec's counts it. */
 const SHALL_IN_SCENARIO_ONLY = `## ADDED Requirements
 
 ### Requirement: Widget polishing
@@ -1047,6 +1100,26 @@ describe('5.1 one pinned-message test per DUPLICATE_CLASSES entry', () => {
       ).toHaveLength(1)
     })
 
+  // Round 6: SHALL/MUST counts only in the body the binary reads, so a SHALL
+  // in a scenario step is none — cospec's ERROR pairs with the binary WARNING.
+  round6('5.1.6b')(
+    'entry 6: a SHALL only in a scenario step pairs with deltas/requirement-shape',
+    async () => {
+      const root = mkTempRepo({ git: true })
+      buildFeat(root, 'shall-in-scenario', { 'widgets/spec.md': SHALL_IN_SCENARIO_ONLY })
+      const delegated = binaryOne(
+        await binaryIssues(root, 'shall-in-scenario'),
+        'should contain SHALL or MUST (RFC 2119',
+      )
+      expect(delegated.level).toBe('WARNING')
+      const { report } = await cospecValidate(root, 'shall-in-scenario')
+      expect(byRule(report, 'deltas/requirement-shape').map((i) => i.message)).toEqual([
+        'ADDED "Widget polishing" must use SHALL/MUST normative language',
+      ])
+      expect(messages(report)).not.toContain(delegated.message)
+    },
+  )
+
   test('entry 7: missing requirement text pairs with deltas/requirement-shape', async () => {
     const root = mkTempRepo({ git: true })
     buildFeat(root, 'shall-shapes', { 'widgets/spec.md': SHALL_SHAPES })
@@ -1057,7 +1130,7 @@ describe('5.1 one pinned-message test per DUPLICATE_CLASSES entry', () => {
     expect(delegated.level).toBe('ERROR')
     expect(delegated.message).toContain('"Nothing here"')
     const { report } = await cospecValidate(root, 'shall-shapes')
-    expect(messages(report)).not.toContain(delegated.message)
+    expect(relayedMessages(report)).not.toContain(delegated.message)
     expect(
       byRule(report, 'deltas/requirement-shape').filter((n) =>
         n.message.includes('"Nothing here"'),
@@ -1112,19 +1185,6 @@ describe('5.1 one pinned-message test per DUPLICATE_CLASSES entry', () => {
 })
 
 describe('5.2 a delegated finding survives where its cospec twin is silent', () => {
-  test('entry 6: a SHALL only in a scenario step keeps the binary WARNING', async () => {
-    const root = mkTempRepo({ git: true })
-    buildFeat(root, 'shall-in-scenario', { 'widgets/spec.md': SHALL_IN_SCENARIO_ONLY })
-    const delegated = binaryOne(
-      await binaryIssues(root, 'shall-in-scenario'),
-      'should contain SHALL or MUST (RFC 2119',
-    )
-    expect(delegated.level).toBe('WARNING')
-    const { report } = await cospecValidate(root, 'shall-in-scenario')
-    expect(byRule(report, 'deltas/requirement-shape')).toEqual([])
-    expect(messages(report)).toContain(delegated.message)
-  })
-
   test('entries 1 and 2: under --fast the empty-section and no-deltas ERRORs are kept', async () => {
     const root = mkTempRepo({ git: true })
     buildEmptySection(root)
@@ -3390,10 +3450,11 @@ describe('26. retire_capabilities retires only what the archive retires', () => 
 
 // --- 27. a requirement a delta writes inside an HTML comment ------------------------------
 //
-// The archive merges comments verbatim, so a `### Requirement:` inside one is a
-// requirement of the rebuilt spec — one the advisory (masked) reader behind
-// `deltas/requirement-shape` never sees. The rebuilt-spec rule leaves a delta
-// line to that rule only where it actually reported the line.
+// The binary's validator and its archive read comments verbatim, so a
+// `### Requirement:` inside one is a requirement of the delta and of the
+// rebuilt spec. Since round 6 `deltas/requirement-shape` reads the delta the
+// same way, so the commented block is its finding, and the rebuilt-spec rule
+// leaves the line to it.
 
 const commentedDraft = (block: string): string =>
   `${addedPolishing(POLISH_SCENARIO)}\n<!--\n${block}-->\n`
@@ -3419,7 +3480,7 @@ const ROUND5_ENTRIES = [
     COMMENTED_NO_TEXT,
     'is missing requirement text',
     '### Requirement: Draft idea',
-    'requirement "Draft idea"',
+    'ADDED "Draft idea"',
   ],
   [
     '26',
@@ -3427,7 +3488,7 @@ const ROUND5_ENTRIES = [
     COMMENTED_MODIFIED_NO_TEXT,
     'is missing requirement text',
     '### Requirement: Widget caching',
-    'requirement "Widget caching"',
+    'MODIFIED "Widget caching"',
   ],
   [
     '27',
@@ -3435,7 +3496,7 @@ const ROUND5_ENTRIES = [
     COMMENTED_HEADER_SHALL,
     'not only in the header',
     '### Requirement: The system SHALL draft',
-    'requirement "The system SHALL draft"',
+    'ADDED "The system SHALL draft"',
   ],
   [
     '28',
@@ -3443,11 +3504,11 @@ const ROUND5_ENTRIES = [
     COMMENTED_NO_SCENARIO,
     'must include at least one scenario',
     '### Requirement: Draft idea',
-    'requirement "Draft idea"',
+    'ADDED "Draft idea"',
   ],
 ] as const
 
-describe("27. a commented requirement in a delta is the rebuilt spec rule's own", () => {
+describe('27. a commented requirement in a delta is checked as a visible one is', () => {
   for (const [entry, name, delta, fragment, header, nativeFragment] of ROUND5_ENTRIES) {
     const build = (root: string, proposal: boolean): void =>
       buildFeat(
@@ -3457,43 +3518,60 @@ describe("27. a commented requirement in a delta is the rebuilt spec rule's own"
         { proposal },
       )
 
-    test(`27.1 ${name} (never delegated): the binary refuses it, and cospec reports it natively on the commented header`, async () => {
-      const root = mkTempRepo({ git: true })
-      build(root, false)
-      const bin = binaryOne(await binaryIssues(root, `${name}-bare`), fragment)
-      expect(bin.level).toBe('ERROR')
-      const archived = await binaryArchive((r) => build(r, false), `${name}-bare`)
-      expect(archived.exitCode).not.toBe(0)
-      expect(archived.moved).toBe(false)
-      const { report } = await cospecValidate(root, `${name}-bare`)
-      const found = byRule(report, REBUILT)
-      expect(found.map((i) => [i.level, i.line])).toEqual([['ERROR', lineOf(delta, header)]])
-      expect(found[0]?.message).toContain(nativeFragment)
-    })
+    // Round 6: `deltas/requirement-shape` reads the delta as the binary's
+    // validator does, comments kept, so the commented block is its finding —
+    // on the commented header's line — and the rebuilt spec leaves it alone.
+    round6(`27.1-${name}`)(
+      `27.1 ${name} (never delegated): the binary refuses it, and deltas/requirement-shape reports it on the commented header`,
+      async () => {
+        const root = mkTempRepo({ git: true })
+        build(root, false)
+        const bin = binaryOne(await binaryIssues(root, `${name}-bare`), fragment)
+        expect(bin.level).toBe('ERROR')
+        const archived = await binaryArchive((r) => build(r, false), `${name}-bare`)
+        expect(archived.exitCode).not.toBe(0)
+        expect(archived.moved).toBe(false)
+        const { report } = await cospecValidate(root, `${name}-bare`)
+        const found = byRule(report, 'deltas/requirement-shape')
+        expect(found.map((i) => [i.level, i.line])).toEqual([['ERROR', lineOf(delta, header)]])
+        expect(found[0]?.message).toContain(nativeFragment)
+        expect(byRule(report, REBUILT)).toEqual([])
+      },
+    )
 
-    test(`27.2 entry ${entry} (${name}): "${fragment}" pairs with ${REBUILT}`, async () => {
-      const root = mkTempRepo({ git: true })
-      build(root, true)
-      const delegated = binaryOne(await binaryIssues(root, name), fragment)
-      expect(delegated.level).toBe('ERROR')
-      const { report } = await cospecValidate(root, name)
-      expect(messages(report)).not.toContain(delegated.message)
-      expect(
-        byRule(report, REBUILT).filter((i) => i.message.includes(nativeFragment)),
-      ).toHaveLength(1)
-    })
+    round6(`27.2-${name}`)(
+      `27.2 entry ${entry} (${name}): "${fragment}" pairs with deltas/requirement-shape`,
+      async () => {
+        const root = mkTempRepo({ git: true })
+        build(root, true)
+        const delegated = binaryOne(await binaryIssues(root, name), fragment)
+        expect(delegated.level).toBe('ERROR')
+        const { report } = await cospecValidate(root, name)
+        expect(relayedMessages(report)).not.toContain(delegated.message)
+        expect(
+          byRule(report, 'deltas/requirement-shape').filter((i) =>
+            i.message.includes(nativeFragment),
+          ),
+        ).toHaveLength(1)
+        expect(byRule(report, REBUILT)).toEqual([])
+      },
+    )
   }
 
-  test('27.3 entries 26-28 under --fast: the rebuilt spec is unchecked and the binary finding is kept', async () => {
-    for (const [, name, delta, fragment] of ROUND5_ENTRIES) {
-      const root = mkTempRepo({ git: true })
-      buildFeat(root, `${name}-fast`, { 'widgets/spec.md': delta })
-      const delegated = binaryOne(await binaryIssues(root, `${name}-fast`), fragment)
-      const { report } = await cospecValidate(root, `${name}-fast`, ['--fast'])
-      expect(byRule(report, REBUILT)).toEqual([])
-      expect(messages(report)).toContain(delegated.message)
-    }
-  })
+  round6('27.3')(
+    "27.3 under --fast the commented block is still deltas/requirement-shape's, and the binary twin is dropped",
+    async () => {
+      for (const [, name, delta, fragment] of ROUND5_ENTRIES) {
+        const root = mkTempRepo({ git: true })
+        buildFeat(root, `${name}-fast`, { 'widgets/spec.md': delta })
+        const delegated = binaryOne(await binaryIssues(root, `${name}-fast`), fragment)
+        const { report } = await cospecValidate(root, `${name}-fast`, ['--fast'])
+        expect(byRule(report, REBUILT)).toEqual([])
+        expect(byRule(report, 'deltas/requirement-shape')).toHaveLength(1)
+        expect(relayedMessages(report)).not.toContain(delegated.message)
+      }
+    },
+  )
 
   test("27.4 a visible block with no scenario is still deltas/requirement-shape's alone", async () => {
     const root = mkTempRepo({ git: true })
@@ -3669,6 +3747,382 @@ describe('30. the legacy lane relays each round-5 shape at the binary level', ()
     })
 })
 
+// --- 32. a requirement's statement is read as the binary reads it ----------------------------
+//
+// openspec reads a delta requirement's statement off its body lines
+// (`extractRequirementBody`, `parsers/requirement-text.ts`, 1.13.1): the lines
+// under the header up to its first header, fenced and blank lines skipped, an
+// HTML comment kept as text. SHALL/MUST counts only there — never in a fenced
+// example, never in a scenario step. The gate reads the same body.
+
+const exportingBlock = (body: string, scenario: string): string => `## ADDED Requirements
+
+### Requirement: Widget exporting
+
+${body}
+
+${scenario}`
+const EXPORT_SHALL_SCENARIO = `#### Scenario: Export a widget
+
+- **WHEN** a caller exports a widget
+- **THEN** the system SHALL return an exported widget
+`
+const EXPORT_PLAIN_SCENARIO = `#### Scenario: Export a widget
+
+- **WHEN** a caller exports a widget
+- **THEN** an exported widget is returned
+`
+const CMT_STATEMENT_SHALL_SCENARIO = exportingBlock(
+  '<!-- The system SHALL export widgets. -->',
+  EXPORT_SHALL_SCENARIO,
+)
+const CMT_ONLY_BODY_SHALL_SCENARIO = exportingBlock('<!-- draft note -->', EXPORT_SHALL_SCENARIO)
+const CMT_SHALL_PLAIN_SCENARIO = exportingBlock(
+  '<!-- The system SHALL export widgets. -->',
+  EXPORT_PLAIN_SCENARIO,
+)
+const FENCED_SHALL_ONLY = exportingBlock(
+  'The system exports widgets.\n\n```text\nThe system SHALL export widgets.\n```',
+  EXPORT_PLAIN_SCENARIO,
+)
+
+/** Shapes the binary validates clean and archives: cospec is clean too. */
+const STATEMENT_CLEAN: [string, string, string][] = [
+  ['32.1', 'cmt-statement-shall-scenario', CMT_STATEMENT_SHALL_SCENARIO],
+  ['32.3', 'cmt-shall-plain-scenario', CMT_SHALL_PLAIN_SCENARIO],
+]
+
+/**
+ * Shapes whose body the binary reads without SHALL/MUST: a WARNING, and the
+ * archive goes ahead. The typed lane keeps cospec's ERROR, and the pair is one
+ * finding.
+ */
+const STATEMENT_NO_SHALL: [string, string, string][] = [
+  ['32.2', 'cmt-only-body-shall-scenario', CMT_ONLY_BODY_SHALL_SCENARIO],
+  ['32.4', 'fenced-shall-only', FENCED_SHALL_ONLY],
+]
+
+describe('32. a requirement statement is read off the body the binary reads', () => {
+  for (const [id, name, delta] of STATEMENT_CLEAN)
+    for (const lane of lanes) {
+      const change = `${name}${lane.proposal ? '' : '-bare'}`
+      const build = (root: string): void =>
+        buildFeat(root, change, { 'widgets/spec.md': delta }, { proposal: lane.proposal })
+      round6(`${id}${lane.suffix}`)(
+        `${id} ${name}${lane.label}: the binary validates and archives it, and cospec is clean`,
+        async () => {
+          const root = mkTempRepo({ git: true })
+          build(root)
+          expect((await binaryIssues(root, change)).filter((i) => i.level !== 'INFO')).toEqual([])
+          const archived = await binaryArchive(build, change)
+          expect(archived.exitCode).toBe(0)
+          expect(archived.moved).toBe(true)
+          const { report, exitCode } = await cospecValidate(root, change)
+          expect(byRule(report, 'deltas/requirement-shape')).toEqual([])
+          if (lane.proposal) {
+            expect(problems(report)).toEqual([])
+            expect(exitCode).toBe(0)
+          } else
+            expect(problems(report).filter((i) => /^(?:deltas|archive)\//.test(i.rule))).toEqual([])
+        },
+      )
+    }
+
+  for (const [id, name, delta] of STATEMENT_NO_SHALL)
+    for (const lane of lanes) {
+      const change = `${name}${lane.proposal ? '' : '-bare'}`
+      const build = (root: string): void =>
+        buildFeat(root, change, { 'widgets/spec.md': delta }, { proposal: lane.proposal })
+      round6(`${id}${lane.suffix}`)(
+        `${id} ${name}${lane.label}: the binary warns that the body has no SHALL/MUST, and cospec says so`,
+        async () => {
+          const root = mkTempRepo({ git: true })
+          build(root)
+          const delegated = binaryOne(
+            await binaryIssues(root, change),
+            'should contain SHALL or MUST (RFC 2119',
+          )
+          expect(delegated.level).toBe('WARNING')
+          const archived = await binaryArchive(build, change)
+          expect(archived.exitCode).toBe(0)
+          expect(archived.moved).toBe(true)
+          const { report, exitCode } = await cospecValidate(root, change)
+          const found = byRule(report, 'deltas/requirement-shape')
+          expect(found.map((i) => [i.level, i.line, i.message])).toEqual([
+            [
+              'ERROR',
+              lineOf(delta, '### Requirement: Widget exporting'),
+              'ADDED "Widget exporting" must use SHALL/MUST normative language',
+            ],
+          ])
+          expect(messages(report)).not.toContain(delegated.message)
+          expect(exitCode).toBe(1)
+        },
+      )
+    }
+})
+
+// --- 33. retire_capabilities is honoured only where the binary honours it --------------------
+//
+// openspec reads the marker through `readBooleanMarker`
+// (`utils/change-metadata.ts`, 1.13.1): the whole `.openspec.yaml` must pass
+// `ChangeMetadataSchema`, and its schema must be listed and load. Otherwise the
+// marker "cannot be honored", the change counts as unmarked, and a delta that
+// empties the spec is refused — the archive's `fix` quotes the reason.
+
+const RETIRE_METADATA: [string, string, string, ((root: string) => void)?][] = [
+  [
+    '33.1',
+    'goal-empty',
+    'schema: feat\ncreated: 2026-07-06\ngoal: ""\nretire_capabilities: true\n',
+  ],
+  [
+    '33.2',
+    'areas-string',
+    'schema: feat\ncreated: 2026-07-06\naffected_areas: widgets\nretire_capabilities: true\n',
+  ],
+  ['33.3', 'created-bad', 'schema: feat\ncreated: 2026-7-6\nretire_capabilities: true\n'],
+  [
+    '33.4',
+    'schema-not-installed',
+    RETIRE_YAML,
+    (root) => rmSync(join(root, 'openspec/schemas/feat'), { recursive: true, force: true }),
+  ],
+]
+
+/** `… The marker present now cannot be honored (<reason>).` — the reason the archive quotes. */
+const UNHONORED_RE = /The marker present now cannot be honored \((.*)\)\.$/
+
+describe('33. retire_capabilities counts only when the binary would honour it', () => {
+  for (const [id, shape, yaml, after] of RETIRE_METADATA)
+    for (const lane of lanes) {
+      const name = `rtm-${shape}${lane.proposal ? '' : '-bare'}`
+      const build = (root: string): void => {
+        buildFeat(root, name, { 'widgets/spec.md': REMOVED_BOTH }, { proposal: lane.proposal })
+        writeFiles(root, { [`openspec/changes/${name}/.openspec.yaml`]: yaml })
+        after?.(root)
+      }
+      round6(`${id}${lane.suffix}`)(
+        `${id} ${shape}${lane.label}: the archive cannot honour the marker and refuses, and so does cospec, quoting its reason`,
+        async () => {
+          const root = mkTempRepo({ git: true })
+          build(root)
+          const archived = await binaryArchiveJson(build, name)
+          expect(archived.exitCode).not.toBe(0)
+          expect(archived.moved).toBe(false)
+          expect(archived.specGone).toBe(false)
+          expect(archived.code).toBe('archive_spec_validation_failed')
+          const reason = UNHONORED_RE.exec(archived.fix)?.[1]
+          expect(reason).toBeDefined()
+          const { report, exitCode } = await cospecValidate(root, name)
+          const found = byRule(report, REBUILT)
+          expect(found).toHaveLength(1)
+          expect(found[0]?.level).toBe('ERROR')
+          expect(found[0]?.message).toContain('retire_capabilities')
+          expect(found[0]?.message).toContain(`(${reason!})`)
+          expect(exitCode).toBe(1)
+        },
+      )
+    }
+
+  round6('33.5')(
+    '33.5 cospec archive refuses the unhonourable marker before delegating',
+    async () => {
+      const root = mkTempRepo({ git: true })
+      buildFeat(root, 'rtm-cospec', { 'widgets/spec.md': REMOVED_BOTH })
+      writeFiles(root, { 'openspec/changes/rtm-cospec/.openspec.yaml': RETIRE_METADATA[0]![2] })
+      const res = await cospec(['archive', 'rtm-cospec'], { cwd: root })
+      expect(res.exitCode).not.toBe(0)
+      expect(`${res.stdout}${res.stderr}`).toContain(REBUILT)
+      expect(existsSync(join(root, 'openspec/changes/rtm-cospec'))).toBe(true)
+      expect(existsSync(join(root, 'openspec/specs/widgets/spec.md'))).toBe(true)
+    },
+  )
+
+  for (const lane of lanes) {
+    const name = `rtm-valid${lane.proposal ? '' : '-bare'}`
+    const build = (root: string): void =>
+      buildRetire(root, name, LIVING, REMOVED_BOTH, lane.proposal)
+    test(`33.6${lane.suffix} valid metadata${lane.label}: the archive retires the capability, and cospec is clean`, async () => {
+      const root = mkTempRepo({ git: true })
+      build(root)
+      const archived = await binaryArchiveJson(build, name)
+      expect(archived.exitCode).toBe(0)
+      expect(archived.moved).toBe(true)
+      expect(archived.specGone).toBe(true)
+      const { report } = await cospecValidate(root, name)
+      expect(byRule(report, REBUILT)).toEqual([])
+      expect(problems(report).filter((i) => i.rule.startsWith('archive/'))).toEqual([])
+    })
+  }
+})
+
+// --- 34. differential table: comments never make cospec and the binary disagree --------------
+//
+// One fixture per way an HTML comment has made the two read a change
+// differently. Each runs through `cospec validate --strict`, `cospec archive`,
+// and the pinned binary's `validate --strict` and `archive -y`: `cospec
+// archive` accepts exactly what the binary's archive accepts, and `cospec
+// validate --strict` exactly what both of the binary's commands accept — it
+// reports at validate time what the archive would refuse. The fixtures avoid
+// every typed-lane opinion (a statement without SHALL, a bodyless scenario).
+
+const COMMENTED_SCENARIO_ONLY = addedPolishing(
+  '<!--\n#### Scenario: Polish\n\n- **WHEN** a caller polishes\n- **THEN** it shines\n-->\n',
+)
+const COMMENTED_REQUIREMENT = commentedDraft(
+  `### Requirement: Draft idea\n\nThe system SHALL maybe draft.\n\n${DRAFT_SCENARIO}`,
+)
+const COMMENTED_SECTION_HEADER = `<!-- generated
+## ADDED Requirements
+-->
+
+### Requirement: Widget polishing
+
+The system SHALL polish widgets.
+
+${POLISH_SCENARIO}`
+const COMMENT_ACROSS_SECTIONS = `${addedPolishing(POLISH_SCENARIO)}
+<!-- restated below
+## MODIFIED Requirements
+-->
+
+${MODIFIED_CACHING.replace('## MODIFIED Requirements\n\n', '')}`
+const COMMENTED_MODIFIED_SECTION = `${addedPolishing(POLISH_SCENARIO)}
+<!--
+${MODIFIED_RENDERING}-->
+`
+const UNTERMINATED_BEFORE_REQUIREMENT = `${addedPolishing(POLISH_SCENARIO)}
+<!-- todo
+
+### Requirement: Widget sanding
+
+#### Scenario: Sand
+
+- **WHEN** a caller sands
+- **THEN** it is smooth
+`
+
+const COMMENTED_ORPHAN = `<!--
+### Requirement: Old draft
+
+The system SHALL draft.
+-->
+
+${addedPolishing(POLISH_SCENARIO)}`
+const COMMENTED_NOTES_DELTA = `<!--
+${addedPolishing(POLISH_SCENARIO)}-->
+`
+
+const DIFFERENTIAL: [string, string, string, string, Record<string, string>?][] = [
+  ['34.1', 'dt-statement-in-comment', CMT_SHALL_PLAIN_SCENARIO, LIVING],
+  ['34.2', 'dt-commented-requirement', COMMENTED_REQUIREMENT, LIVING],
+  ['34.3', 'dt-commented-requirement-no-scenario', COMMENTED_NO_SCENARIO, LIVING],
+  ['34.4', 'dt-commented-scenario-header', COMMENTED_SCENARIO_ONLY, LIVING],
+  ['34.5', 'dt-commented-section-header', COMMENTED_SECTION_HEADER, LIVING],
+  ['34.6', 'dt-comment-across-sections', COMMENT_ACROSS_SECTIONS, LIVING],
+  ['34.7', 'dt-commented-modified-section', COMMENTED_MODIFIED_SECTION, LIVING],
+  ['34.8', 'dt-living-commented-delta-header', MODIFIED_CACHING, LIVING_COMMENTED_DELTA_HEADER],
+  ['34.9', 'dt-kept-scenario-in-comment', MODIFIED_KEEPS_IN_COMMENT, LIVING_TWO_SCENARIOS],
+  ['34.10', 'dt-unterminated-comment', UNTERMINATED_BEFORE_REQUIREMENT, LIVING],
+  ['34.11', 'dt-commented-shallow-headers', COMMENTED_HEADERS, LIVING],
+  ['34.12', 'dt-commented-orphan', COMMENTED_ORPHAN, LIVING],
+  [
+    '34.13',
+    'dt-commented-unread-file',
+    addedPolishing(POLISH_SCENARIO),
+    LIVING,
+    { 'widgets/notes.md': COMMENTED_NOTES_DELTA },
+  ],
+]
+
+describe('34. differential table: cospec accepts exactly what the binary accepts', () => {
+  for (const [id, name, delta, living, extra] of DIFFERENTIAL) {
+    const build = (root: string): void =>
+      buildFeat(root, name, { 'widgets/spec.md': delta, ...extra }, { living })
+    round6(id)(`${id} ${name}: validate --strict and archive agree with the binary's`, async () => {
+      const root = mkTempRepo({ git: true })
+      build(root)
+      const binValidate = (await binaryIssues(root, name)).every((i) => i.level === 'INFO')
+      const binArchive = await binaryArchive(build, name)
+      const binArchived = binArchive.exitCode === 0 && binArchive.moved
+      const { exitCode } = await cospecValidate(root, name)
+      const archiveRoot = mkTempRepo({ git: true })
+      build(archiveRoot)
+      const archived = await cospec(['archive', name], { cwd: archiveRoot })
+      const cospecArchived =
+        archived.exitCode === 0 && !existsSync(join(archiveRoot, 'openspec/changes', name))
+      // cospec's validate reports at validate time what the archive would
+      // refuse, so it accepts what both the binary's validate and its archive
+      // accept.
+      expect({ validate: exitCode === 0, archive: cospecArchived }).toEqual({
+        validate: binValidate && binArchived,
+        archive: binArchived,
+      })
+    })
+
+    // Never delegated, no binary finding is relayed to cover for cospec's own
+    // reading: its spec rules alone must refuse exactly what the binary does.
+    const bare = `${name}-bare`
+    const buildBare = (root: string): void =>
+      buildFeat(root, bare, { 'widgets/spec.md': delta, ...extra }, { living, proposal: false })
+    round6(`${id}n`)(
+      `${id}n ${name} (never delegated): cospec's spec rules refuse exactly what the binary refuses`,
+      async () => {
+        const root = mkTempRepo({ git: true })
+        buildBare(root)
+        // Read without recording it for the sweep (section 19): nothing is
+        // relayed on this lane, so no binary finding here is a suppressed twin.
+        const res = await openspec(['validate', bare, '--strict', '--json'], root)
+        const binValidate = (
+          JSON.parse(res.stdout) as { items: { issues: BinaryIssue[] }[] }
+        ).items.every((item) => item.issues.every((i) => i.level === 'INFO'))
+        const binArchive = await binaryArchive(buildBare, bare)
+        const binArchived = binArchive.exitCode === 0 && binArchive.moved
+        const { report } = await cospecValidate(root, bare)
+        const own = problems(report).filter((i) => /^(?:deltas|archive)\//.test(i.rule))
+        expect(own.length === 0).toBe(binValidate && binArchived)
+      },
+    )
+  }
+})
+
+// --- 35. the legacy lane relays each round-6 shape at the binary level -----------------------
+
+describe('35. the legacy lane relays each round-6 shape at the binary level', () => {
+  const legacyRows: [string, string, string?][] = [
+    ...[...STATEMENT_CLEAN, ...STATEMENT_NO_SHALL].map(([, name, delta]): [string, string] => [
+      `legacy-${name}`,
+      delta,
+    ]),
+    ...RETIRE_METADATA.slice(0, 2).map(([, shape, yaml]): [string, string, string] => [
+      `legacy-rtm-${shape}`,
+      REMOVED_BOTH,
+      yaml.replace('schema: feat', 'schema: spec-driven'),
+    ]),
+    ...DIFFERENTIAL.filter(([, , , living, extra]) => living === LIVING && extra === undefined).map(
+      ([, name, delta]): [string, string] => [`legacy-${name}`, delta],
+    ),
+  ]
+  for (const [name, delta, yaml] of legacyRows)
+    test(`35.1 ${name}: every binary finding is relayed at its level, and no cospec rule runs`, async () => {
+      const root = mkTempRepo({ git: true })
+      buildSpecDriven(root, name, { 'widgets/spec.md': delta })
+      if (yaml !== undefined)
+        writeFiles(root, { [`openspec/changes/${name}/.openspec.yaml`]: yaml })
+      const bin = await binaryIssues(root, name)
+      const { report } = await cospecValidate(root, name)
+      const all = issues(report)
+      const relayed = all
+        .filter((i) => i.rule === 'openspec/validate')
+        .map((i) => `${i.level} ${i.message}`)
+      expect(relayed.toSorted()).toEqual(bin.map((i) => `${i.level} ${i.message}`).toSorted())
+      expect(all.filter((i) => i.rule !== 'openspec/validate').map((i) => i.rule)).toEqual([
+        'meta/legacy-schema',
+      ])
+    })
+})
+
 // --- 19. sweep: no fixture in this file reports a defect twice -----------------------------
 //
 // Every cospec report above is swept. A defect is reported twice when a
@@ -3702,7 +4156,7 @@ function doubleReports(all: readonly ReportIssue[]): string[] {
 }
 
 describe('19. sweep', () => {
-  test('19.1 no report in this file carries one defect twice', () => {
+  round6('19.1')('19.1 no report in this file carries one defect twice', () => {
     expect(REPORTS.length).toBeGreaterThan(100)
     const doubles = REPORTS.flatMap(({ label, report }) =>
       doubleReports(issues(report)).map((d) => `${label}: ${d}`),
@@ -3722,31 +4176,35 @@ describe('19. sweep', () => {
     'target spec does not exist; only ADDED requirements are allowed',
   ]
 
-  test('19.2 every suppressed twin that names its requirement would be caught if relayed', () => {
-    const suppressed: string[] = []
-    const caught: string[] = []
-    for (const { key, report } of REPORTS) {
-      const all = issues(report)
-      const relayed = new Set(
-        all.filter((i) => i.rule === 'openspec/validate').map((i) => i.message),
-      )
-      for (const bin of BINARY.get(key) ?? []) {
-        if (relayed.has(bin.message)) continue
-        if (NAMES_NO_REQUIREMENT.some((fragment) => bin.message.includes(fragment))) continue
-        if (all.every((i) => i.rule === 'openspec/validate' || i.rule.startsWith('meta/'))) continue
-        suppressed.push(bin.message)
-        // The path as cospec relays it: the binary's is relative to `specs/`.
-        const path = bin.path === undefined ? '' : `specs/${bin.path}`
-        const injected = {
-          level: bin.level,
-          rule: 'openspec/validate',
-          path,
-          message: bin.message,
+  round6('19.2')(
+    '19.2 every suppressed twin that names its requirement would be caught if relayed',
+    () => {
+      const suppressed: string[] = []
+      const caught: string[] = []
+      for (const { key, report } of REPORTS) {
+        const all = issues(report)
+        const relayed = new Set(
+          all.filter((i) => i.rule === 'openspec/validate').map((i) => i.message),
+        )
+        for (const bin of BINARY.get(key) ?? []) {
+          if (relayed.has(bin.message)) continue
+          if (NAMES_NO_REQUIREMENT.some((fragment) => bin.message.includes(fragment))) continue
+          if (all.every((i) => i.rule === 'openspec/validate' || i.rule.startsWith('meta/')))
+            continue
+          suppressed.push(bin.message)
+          // The path as cospec relays it: the binary's is relative to `specs/`.
+          const path = bin.path === undefined ? '' : `specs/${bin.path}`
+          const injected = {
+            level: bin.level,
+            rule: 'openspec/validate',
+            path,
+            message: bin.message,
+          }
+          if (doubleReports([...all, injected]).length > 0) caught.push(bin.message)
         }
-        if (doubleReports([...all, injected]).length > 0) caught.push(bin.message)
       }
-    }
-    expect(suppressed.length).toBeGreaterThan(30)
-    expect(suppressed.filter((m) => !caught.includes(m))).toEqual([])
-  })
+      expect(suppressed.length).toBeGreaterThan(30)
+      expect(suppressed.filter((m) => !caught.includes(m))).toEqual([])
+    },
+  )
 })

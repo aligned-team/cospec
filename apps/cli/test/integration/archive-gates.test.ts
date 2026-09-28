@@ -295,16 +295,19 @@ The system SHALL render a widget when requested.
   //
   // Inside an HTML comment it is different. OpenSpec's archive reads comments
   // as written, so it keeps both scenarios and archives the change (probed at
-  // 1.13.1), and `archive/scenario-preservation` reads the same verbatim view:
-  // no drop. The change is still refused before delegation, by cospec's own
-  // advisory `deltas/requirement-shape`, whose comment-masked view sees a
-  // MODIFIED requirement with no scenario at all.
-  test('scenarios that survive only inside comment markup are not a drop, but the requirement has none', async () => {
-    const root = await initRepo()
-    buildFeat(
-      root,
-      'masked-comment',
-      `## MODIFIED Requirements
+  // 1.13.1), and cospec reads the same verbatim view everywhere a gate reads:
+  // `archive/scenario-preservation` sees no drop, `deltas/requirement-shape`
+  // sees both scenarios, and the hard gate keeps them. Until round 6 the
+  // advisory view behind `deltas/requirement-shape` saw no scenario at all and
+  // refused what the binary archives.
+  test.failing(
+    'scenarios that survive only inside comment markup are kept, as the archive keeps them',
+    async () => {
+      const root = await initRepo()
+      buildFeat(
+        root,
+        'masked-comment',
+        `## MODIFIED Requirements
 
 ### Requirement: Widget rendering
 
@@ -322,15 +325,14 @@ The system SHALL render a widget when requested.
 - **THEN** a placeholder is rendered
 -->
 `,
-    )
-    const res = await cospec(['archive', 'masked-comment'], { cwd: root })
-    expect(res.exitCode).toBe(1)
-    expect(res.stdout).not.toContain('archive/scenario-preservation')
-    expect(res.stdout).toContain(
-      'deltas/requirement-shape  MODIFIED "Widget rendering" must include at least one #### Scenario:',
-    )
-    expect(existsSync(join(root, 'openspec/changes/masked-comment'))).toBe(true)
-  })
+      )
+      const res = await cospec(['archive', 'masked-comment'], { cwd: root })
+      expect(res.stdout).not.toContain('archive/scenario-preservation')
+      expect(res.stdout).not.toContain('deltas/requirement-shape')
+      expect(res.exitCode).toBe(0)
+      expect(existsSync(join(root, 'openspec/changes/masked-comment'))).toBe(false)
+    },
+  )
 
   for (const [name, masked] of [['masked-fence', '````\n$BODY\n````']] as const) {
     test(`scenarios that survive only inside ${name.slice(7)} markup are not preserved`, async () => {
