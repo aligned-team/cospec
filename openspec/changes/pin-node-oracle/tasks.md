@@ -2,12 +2,18 @@
 
 ## 1. Pin node
 
-- [ ] 1.1 Pin `node = "22.23.2"` in `mise.toml` (the Node `ci-bun` runs: the
+- [x] 1.1 Pin `node = "22.23.2"` in `mise.toml` (the Node `ci-bun` runs: the
       ubuntu-24.04 20260920.314 image default, since `ci-bun` has no
       `setup-node` step) and lock it with `mise lock node`, and verify
       `git diff mise.lock` adds only `[[tools.node]]` rows, a following
       `mise install` leaves `mise.lock` byte-identical, and
-      `mise exec -- node --version` prints `v22.23.2`
+      `mise exec -- node --version` prints `v22.23.2` -> `mise install` alone
+      wrote only the `[[tools.node]]` version/backend stanza (no platform rows,
+      which CI's linux-x64 drift gate would then add); `mise lock node` added
+      the 11 platform rows every other tool carries (+48 lines, nothing else
+      touched); the next `mise install` left `mise.lock` byte-identical (`cmp`);
+      `mise exec -- node --version` printed `v22.23.2`; the linux-x64 and
+      darwin-arm64 checksums match nodejs.org's `SHASUMS256.txt`
 
 ## 2. Run the oracle under Bun
 
