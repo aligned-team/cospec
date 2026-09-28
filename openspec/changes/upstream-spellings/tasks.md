@@ -249,5 +249,5 @@ a time. Group 12 waits for the rebase in group 11.
       commit `fix(cli): answer every instructions failure from its document`
 - [x] 17.3 Docs state the failure path as it now holds (ledger 8.7); commit
       `docs(cli): document instructions failures built from the document`
-- [ ] 17.4 Record the round-4 evidence (ledger 3.7, 3.8, 4.8, 8.7); commit
+- [x] 17.4 Record the round-4 evidence (ledger 3.7, 3.8, 4.8, 8.7); commit
       `chore(cli): record upstream-spellings round-4 evidence`
