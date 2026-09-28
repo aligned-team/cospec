@@ -173,7 +173,7 @@ red; 4–7 turn it green; 8 documents it.
       and `test.failing`, confirm none remain but the dormant `KNOWN_FAILING`
       branch, and confirm the precedence matrix's `KNOWN_FAILING` set is empty
       (ledger 7.6)
-- [ ] 9.3 `mise run cospec -- archive unknown-option-contract` as the last
+- [x] 9.3 `mise run cospec -- archive unknown-option-contract` as the last
       commit on the branch
 
 ## 10. Review fixes (land before 9.3)
