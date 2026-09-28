@@ -891,9 +891,9 @@ describe('archive/added-exists: cross-section conflicts in one delta', () => {
 })
 
 // openspec's archive reads HTML comments as written (its readers mask fenced
-// code only), so every rule but the scenario-preservation mirror reads the
-// verbatim view: an op inside `<!-- … -->` is merged, and a header's trailing
-// comment is part of its name.
+// code only), so every archive rule reads the verbatim view: an op inside
+// `<!-- … -->` is merged, a header's trailing comment is part of its name, and
+// a scenario inside a comment is one the archive's scenario-loss check counts.
 describe('archiveRules read the verbatim view the archive merges', () => {
   const block = (name: string, shall: string) =>
     `### Requirement: ${name}\n\nThe system SHALL ${shall}.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n`
@@ -926,9 +926,9 @@ describe('archiveRules read the verbatim view the archive merges', () => {
     expect(rules(archiveRules(change(text, { living })))).not.toContain('archive/target-missing')
   })
 
-  test('scenario-preservation keeps the masked view the hard archive gate reads', () => {
-    // The delta's second scenario sits in a comment: the masked view drops it,
-    // so the MODIFIED block no longer covers the living `t`.
+  test('scenario-preservation reads the verbatim view: a scenario kept inside a comment is kept', () => {
+    // The delta's second scenario sits in a comment. The archive reads it, so
+    // the MODIFIED block still covers the living `t` and nothing is dropped.
     const living = LIVING.replace(
       '- **THEN** b\n',
       '- **THEN** b\n\n#### Scenario: t\n\n- **WHEN** c\n- **THEN** d\n',
@@ -936,8 +936,40 @@ describe('archiveRules read the verbatim view the archive merges', () => {
     const text =
       '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n' +
       '#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n\n<!--\n#### Scenario: t\n\n- **WHEN** c\n-->\n'
+    expect(archiveRules(change(text, { living }), { strict: true })).toEqual([])
+  })
+
+  test('scenario-preservation reads the verbatim view: a living scenario inside a comment can be dropped', () => {
+    const living = LIVING.replace(
+      '- **THEN** b\n',
+      '- **THEN** b\n\n<!--\n#### Scenario: hidden\n\n- **WHEN** c\n-->\n',
+    )
+    const text =
+      '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n' +
+      '#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n'
     const found = archiveRules(change(text, { living }), { strict: true })
-    expect(rules(found)).toEqual(['archive/scenario-preservation'])
+    expect(found.map((i) => [i.rule, i.message])).toEqual([
+      [
+        'archive/scenario-preservation',
+        'MODIFIED "Existing" drops scenario(s) "hidden" (living 2 -> delta 1)',
+      ],
+    ])
+  })
+
+  test('scenario-preservation names a comment-bearing requirement as its header is written', () => {
+    const named = (s: string) =>
+      s.replace('### Requirement: Existing', '### Requirement: Existing <!-- c -->')
+    const living = named(
+      LIVING.replace('- **THEN** b\n', '- **THEN** b\n\n#### Scenario: t\n\n- **WHEN** c\n'),
+    )
+    const text = named(
+      '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n' +
+        '#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n',
+    )
+    const found = archiveRules(change(text, { living }), { strict: true })
+    expect(found.map((i) => i.message)).toEqual([
+      'MODIFIED "Existing <!-- c -->" drops scenario(s) "t" (living 2 -> delta 1)',
+    ])
   })
 })
 
@@ -1054,6 +1086,35 @@ describe('archive/target-invalid: living-spec structure', () => {
         LIVING.replace('## Purpose\n\n', '## Purpose\n\n```\n### Requirement: Stray\n```\n\n'),
       ),
     ).toEqual([])
+  })
+
+  test('a delta header is refused on its line, visible or inside a comment', () => {
+    for (const header of ['## ADDED Requirements\n\nStray.', '<!--\n## ADDED Requirements\n-->']) {
+      const living = `${LIVING}\n${header}\n`
+      const found = invalid(living)
+      const line = living.split('\n').indexOf('## ADDED Requirements') + 1
+      expect(found.map((i) => i.message)).toEqual([
+        `living spec openspec/specs/x/spec.md is structurally invalid — line ${line}: delta header "## ADDED Requirements" belongs only in a change's delta spec`,
+      ])
+      expect(found[0]?.hint).toContain('delta header')
+    }
+  })
+
+  test('the delta-header check reads the words as upstream does, any case and spacing', () => {
+    expect(invalid(`${LIVING}\n## added   requirements\n`)).toHaveLength(1)
+  })
+
+  test('a BOM before a first-line ## Requirements hides it, as upstream reads it', () => {
+    const living = `\uFEFF${LIVING.slice(LIVING.indexOf('## Requirements'))}\n## Purpose\n\nReal purpose.\n`
+    const found = invalid(living)
+    expect(found).toHaveLength(1)
+    expect(found[0]?.message).toContain(
+      'requirement "Existing" is outside the ## Requirements section',
+    )
+  })
+
+  test('a BOM before an ordinary title changes nothing', () => {
+    expect(invalid(`\uFEFF${LIVING}`)).toEqual([])
   })
 
   test('a missing ## Requirements keeps its reason, and the stray requirement is named too', () => {

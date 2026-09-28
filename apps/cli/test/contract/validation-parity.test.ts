@@ -1798,24 +1798,21 @@ describe('14. one view model: the scan is fence-aware and the archive family rea
       { living: LIVING_COMMENTED_SCENARIO },
     )
 
-  test.failing(
-    '14.3 native: a living scenario inside a comment that the MODIFIED omits is archive/scenario-preservation',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      buildHiddenLiving(root)
-      const archived = await binaryArchive(buildHiddenLiving, 'hidden-living')
-      expect(archived.exitCode).not.toBe(0)
-      expect(archived.moved).toBe(false)
-      const { report, exitCode } = await cospecValidate(root, 'hidden-living')
-      const drops = byRule(report, 'archive/scenario-preservation')
-      expect(drops).toHaveLength(1)
-      expect(drops[0]?.level).toBe('ERROR')
-      expect(drops[0]?.message).toContain('"Hidden cache rule"')
-      expect(exitCode).toBe(1)
-    },
-  )
+  test('14.3 native: a living scenario inside a comment that the MODIFIED omits is archive/scenario-preservation', async () => {
+    const root = mkTempRepo({ git: true })
+    buildHiddenLiving(root)
+    const archived = await binaryArchive(buildHiddenLiving, 'hidden-living')
+    expect(archived.exitCode).not.toBe(0)
+    expect(archived.moved).toBe(false)
+    const { report, exitCode } = await cospecValidate(root, 'hidden-living')
+    const drops = byRule(report, 'archive/scenario-preservation')
+    expect(drops).toHaveLength(1)
+    expect(drops[0]?.level).toBe('ERROR')
+    expect(drops[0]?.message).toContain('"Hidden cache rule"')
+    expect(exitCode).toBe(1)
+  })
 
-  test.failing('14.3 twin: the delegated omits-scenario ERROR is not relayed', async () => {
+  test('14.3 twin: the delegated omits-scenario ERROR is not relayed', async () => {
     const root = mkTempRepo({ git: true })
     buildHiddenLiving(root)
     const delegated = binaryOne(await binaryIssues(root, 'hidden-living'), 'omits scenario(s)')
@@ -1824,60 +1821,51 @@ describe('14. one view model: the scan is fence-aware and the archive family rea
     expect(messages(report)).not.toContain(delegated.message)
   })
 
-  test.failing(
-    '14.4 a comment-bearing MODIFIED header dropping a scenario is one finding, by its binary name',
-    async () => {
-      const build = (root: string): void =>
-        buildFeat(
-          root,
-          'comment-named-drop',
-          { 'widgets/spec.md': MODIFIED_COMMENT_NAMED },
-          { living: LIVING_COMMENT_NAMED },
-        )
-      const root = mkTempRepo({ git: true })
-      build(root)
-      const archived = await binaryArchive(build, 'comment-named-drop')
-      expect(archived.exitCode).not.toBe(0)
-      expect(archived.moved).toBe(false)
-      const delegated = binaryOne(
-        await binaryIssues(root, 'comment-named-drop'),
-        'omits scenario(s)',
+  test('14.4 a comment-bearing MODIFIED header dropping a scenario is one finding, by its binary name', async () => {
+    const build = (root: string): void =>
+      buildFeat(
+        root,
+        'comment-named-drop',
+        { 'widgets/spec.md': MODIFIED_COMMENT_NAMED },
+        { living: LIVING_COMMENT_NAMED },
       )
-      expect(delegated.message).toContain('"Widget caching <!-- c -->"')
-      const { report } = await cospecValidate(root, 'comment-named-drop')
-      const drops = byRule(report, 'archive/scenario-preservation')
-      expect(drops).toHaveLength(1)
-      expect(drops[0]?.message).toContain('MODIFIED "Widget caching <!-- c -->" drops scenario')
-      expect(messages(report)).not.toContain(delegated.message)
-    },
-  )
+    const root = mkTempRepo({ git: true })
+    build(root)
+    const archived = await binaryArchive(build, 'comment-named-drop')
+    expect(archived.exitCode).not.toBe(0)
+    expect(archived.moved).toBe(false)
+    const delegated = binaryOne(await binaryIssues(root, 'comment-named-drop'), 'omits scenario(s)')
+    expect(delegated.message).toContain('"Widget caching <!-- c -->"')
+    const { report } = await cospecValidate(root, 'comment-named-drop')
+    const drops = byRule(report, 'archive/scenario-preservation')
+    expect(drops).toHaveLength(1)
+    expect(drops[0]?.message).toContain('MODIFIED "Widget caching <!-- c -->" drops scenario')
+    expect(messages(report)).not.toContain(delegated.message)
+  })
 
-  test.failing(
-    '14.5 a MODIFIED keeping a living scenario only inside a comment is clean, as the binary archives it',
-    async () => {
-      const build = (root: string): void =>
-        buildFeat(
-          root,
-          'keeps-in-comment',
-          { 'widgets/spec.md': MODIFIED_KEEPS_IN_COMMENT },
-          { living: LIVING_TWO_SCENARIOS },
-        )
-      const root = mkTempRepo({ git: true })
-      build(root)
-      expect(binaryFind(await binaryIssues(root, 'keeps-in-comment'), 'omits scenario')).toEqual([])
-      const archived = await binaryArchive(build, 'keeps-in-comment')
-      expect(archived.exitCode).toBe(0)
-      expect(archived.moved).toBe(true)
-      const { report, exitCode } = await cospecValidate(root, 'keeps-in-comment')
-      expect(byRule(report, 'archive/scenario-preservation')).toEqual([])
-      expect(problems(report)).toEqual([])
-      expect(exitCode).toBe(0)
-    },
-  )
+  test('14.5 a MODIFIED keeping a living scenario only inside a comment is clean, as the binary archives it', async () => {
+    const build = (root: string): void =>
+      buildFeat(
+        root,
+        'keeps-in-comment',
+        { 'widgets/spec.md': MODIFIED_KEEPS_IN_COMMENT },
+        { living: LIVING_TWO_SCENARIOS },
+      )
+    const root = mkTempRepo({ git: true })
+    build(root)
+    expect(binaryFind(await binaryIssues(root, 'keeps-in-comment'), 'omits scenario')).toEqual([])
+    const archived = await binaryArchive(build, 'keeps-in-comment')
+    expect(archived.exitCode).toBe(0)
+    expect(archived.moved).toBe(true)
+    const { report, exitCode } = await cospecValidate(root, 'keeps-in-comment')
+    expect(byRule(report, 'archive/scenario-preservation')).toEqual([])
+    expect(problems(report)).toEqual([])
+    expect(exitCode).toBe(0)
+  })
 
-  for (const [row, name, living, fragment, now] of [
-    ['14.6', 'living-bom', LIVING_BOM_REQUIREMENTS, 'outside', 'failing'],
-    ['14.7', 'living-delta-header', LIVING_DELTA_HEADER, 'delta header', 'passing'],
+  for (const [row, name, living, fragment, twinNow] of [
+    ['14.6', 'living-bom', LIVING_BOM_REQUIREMENTS, 'outside', 'passing'],
+    ['14.7', 'living-delta-header', LIVING_DELTA_HEADER, 'delta header', 'failing'],
     [
       '14.8',
       'living-commented-delta-header',
@@ -1888,26 +1876,23 @@ describe('14. one view model: the scan is fence-aware and the archive family rea
   ] as const) {
     const build = (root: string): void =>
       buildFeat(root, name, { 'widgets/spec.md': MODIFIED_CACHING }, { living })
-    const nativeTest = now === 'failing' ? test.failing : test
+    const twinTest = twinNow === 'failing' ? test.failing : test
 
-    nativeTest(
-      `${row} native: the living spec's ${fragment} is an archive/target-invalid ERROR, as the binary archive refuses`,
-      async () => {
-        const root = mkTempRepo({ git: true })
-        build(root)
-        const archived = await binaryArchive(build, name)
-        expect(archived.exitCode).not.toBe(0)
-        expect(archived.moved).toBe(false)
-        const { report, exitCode } = await cospecValidate(root, name)
-        const found = byRule(report, 'archive/target-invalid')
-        expect(found).toHaveLength(1)
-        expect(found[0]?.level).toBe('ERROR')
-        expect(found[0]?.message).toContain(fragment)
-        expect(exitCode).toBe(1)
-      },
-    )
+    test(`${row} native: the living spec's ${fragment} is an archive/target-invalid ERROR, as the binary archive refuses`, async () => {
+      const root = mkTempRepo({ git: true })
+      build(root)
+      const archived = await binaryArchive(build, name)
+      expect(archived.exitCode).not.toBe(0)
+      expect(archived.moved).toBe(false)
+      const { report, exitCode } = await cospecValidate(root, name)
+      const found = byRule(report, 'archive/target-invalid')
+      expect(found).toHaveLength(1)
+      expect(found[0]?.level).toBe('ERROR')
+      expect(found[0]?.message).toContain(fragment)
+      expect(exitCode).toBe(1)
+    })
 
-    test.failing(
+    twinTest(
       `${row} twin: the delegated structurally-invalid dry-run INFO is not relayed`,
       async () => {
         const root = mkTempRepo({ git: true })

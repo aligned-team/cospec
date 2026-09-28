@@ -580,7 +580,7 @@ The system SHALL render, quickly.
   // Hand-built because a real parse can never produce counts and names that
   // disagree.
   test('the count arm still fires when name extraction sees fewer living scenarios', () => {
-    const skewed: LivingSpec = {
+    const view = {
       requirementNames: new Set(['Widget rendering']),
       requirementScenarioCounts: new Map([['Widget rendering', 2]]),
       requirementScenarioNames: new Map([['Widget rendering', ['a']]]),
@@ -589,9 +589,8 @@ The system SHALL render, quickly.
       hasRequirements: true,
       hasDeltaHeaders: false,
       purposeText: 'x',
-      archive: { requirementNames: new Set(['Widget rendering']), requirementBlocks: new Map() },
-      structureIssues: [],
     }
+    const skewed: LivingSpec = { ...view, archive: { ...view, structureIssues: [], splits: [] } }
     const p = parseDeltaSpec(
       `## MODIFIED Requirements
 
@@ -2107,5 +2106,46 @@ describe('scanDocument: fences first, then comments', () => {
     const text = '\uFEFF## Requirements\r\n\r\nx'
     expect(scanDocument(text).source).toEqual(['## Requirements', '', 'x'])
     expect(scanDocument(text, { keepBom: true }).source).toEqual(['\uFEFF## Requirements', '', 'x'])
+  })
+})
+
+describe('parseLivingSpec: two views of one scan', () => {
+  const living = [
+    '# X',
+    '',
+    '## Purpose',
+    '',
+    'Why.',
+    '',
+    '## Requirements',
+    '',
+    '### Requirement: X',
+    '',
+    'The system SHALL x.',
+    '',
+    '#### Scenario: real',
+    '',
+    '- **WHEN** a',
+    '',
+    '<!--',
+    '#### Scenario: commented',
+    '',
+    '- **WHEN** b',
+    '-->',
+  ].join('\n')
+
+  test('the masked view drops a commented scenario; the archive view reads it', () => {
+    const spec = parseLivingSpec(living)
+    expect(spec.requirementScenarioNames.get('X')).toEqual(['real'])
+    expect(spec.archive.requirementScenarioNames.get('X')).toEqual(['real', 'commented'])
+    expect(spec.archive.requirementScenarioCounts.get('X')).toBe(2)
+  })
+
+  test('the archive view carries every structure kind, a commented delta header included', () => {
+    const spec = parseLivingSpec(`${living}\n\n<!--\n## REMOVED Requirements\n-->\n`)
+    expect(spec.hasDeltaHeaders).toBe(false)
+    expect(spec.archive.structureIssues).toEqual([
+      { kind: 'delta-header', line: 24, name: '## REMOVED Requirements' },
+    ])
   })
 })

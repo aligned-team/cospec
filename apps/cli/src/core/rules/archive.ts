@@ -15,7 +15,7 @@ import {
   SCENARIO_DROP_NOTE_RETIRED,
   scenarioDropMessage,
   type DeltaOp,
-  type LivingRequirements,
+  type LivingView,
 } from '../deltas.ts'
 import type { Issue } from './issue.ts'
 import type { LoadedChange } from './schema-info.ts'
@@ -91,7 +91,7 @@ interface ReplayedNames {
 }
 
 function replayDeltaNames(
-  living: LivingRequirements | undefined,
+  living: LivingView | undefined,
   ops: readonly DeltaOp[],
   paths: readonly string[],
 ): ReplayedNames {
@@ -167,21 +167,13 @@ export function archiveRules(
     paths: string[]
   }
   const byCap = new Map<string, CapGroup>()
-  /**
-   * The same ops under the `masked` view, for `archive/scenario-preservation`
-   * alone: it is the advisory mirror of the hard archive gate, which reads that
-   * view, and the two must never disagree on one change.
-   */
-  const maskedByCap = new Map<string, DeltaOp[]>()
 
   for (const file of change.deltaFiles) {
-    // Every other rule here reads the view openspec's archive merges — HTML
-    // comments included (see `ReadView`).
+    // Every rule here reads the view openspec's archive merges — fences
+    // masked, HTML comments kept (see `ReadView`). The masked parse only
+    // tells which `### Scenario:` lines `deltas/scenario-depth` already owns.
     const parsed = parseDeltaSpec(file.text, file.path, file.capability, 'verbatim')
     const maskedParse = parseDeltaSpec(file.text, file.path, file.capability)
-    const masked = maskedByCap.get(file.capability) ?? []
-    masked.push(...maskedParse.ops)
-    maskedByCap.set(file.capability, masked)
 
     // archive/split-requirement — a skipped `###` header inside an ADDED or
     // MODIFIED block cuts it in two in the spec the archive rebuilds and
@@ -226,9 +218,8 @@ export function archiveRules(
   }
 
   for (const [capability, group] of byCap) {
-    const livingSpec = change.livingSpecs.get(capability)
     // What the archive merges against: the living spec under the verbatim view.
-    const living = livingSpec?.archive
+    const living = change.livingSpecs.get(capability)?.archive
     const pathFor = (i: number): string => group.paths[i] ?? `specs/${capability}/spec.md`
 
     if (living === undefined) {
@@ -249,20 +240,22 @@ export function archiveRules(
       // skeleton spec it builds for the new capability, so two ADDED names
       // that fold onto each other are refused here exactly as they are against
       // a living spec. Every arm below that reads the living spec is guarded.
-    } else if (livingSpec !== undefined) {
+    } else {
       // archive/target-invalid — the living spec must be a well-formed main spec.
-      // A misplaced or duplicate requirement is one openspec's archive refuses
-      // to update past, before merging anything (`findLivingStructureIssues`).
+      // Every kind `findMainSpecStructureIssues` reports — a delta header, a
+      // misplaced or a duplicate requirement — is one openspec's archive
+      // refuses to update past, before merging anything.
       const reasons: string[] = []
-      if (livingSpec.hasDeltaHeaders)
-        reasons.push('it contains delta headers (## ADDED/MODIFIED/… Requirements)')
-      else if (!livingSpec.hasPurpose || !livingSpec.hasRequirements)
-        reasons.push(`it is missing ${!livingSpec.hasPurpose ? '## Purpose' : '## Requirements'}`)
-      for (const defect of livingSpec.structureIssues)
+      const deltaHeaders = living.structureIssues.some((d) => d.kind === 'delta-header')
+      if (!deltaHeaders && (!living.hasPurpose || !living.hasRequirements))
+        reasons.push(`it is missing ${!living.hasPurpose ? '## Purpose' : '## Requirements'}`)
+      for (const defect of living.structureIssues)
         reasons.push(
-          defect.kind === 'duplicate-requirement'
-            ? `line ${defect.line}: requirement "${defect.name}" duplicates the one declared on line ${defect.firstLine}`
-            : `line ${defect.line}: requirement "${defect.name}" is outside the ## Requirements section, so openspec never reads it`,
+          defect.kind === 'delta-header'
+            ? `line ${defect.line}: delta header "${defect.name}" belongs only in a change's delta spec`
+            : defect.kind === 'duplicate-requirement'
+              ? `line ${defect.line}: requirement "${defect.name}" duplicates the one declared on line ${defect.firstLine}`
+              : `line ${defect.line}: requirement "${defect.name}" is outside the ## Requirements section, so openspec never reads it`,
         )
       if (reasons.length > 0)
         issues.push({
@@ -270,10 +263,12 @@ export function archiveRules(
           rule: 'archive/target-invalid',
           path: `specs/${capability}/spec.md`,
           message: `living spec openspec/specs/${capability}/spec.md is structurally invalid — ${reasons.join('; ')}`,
-          ...(livingSpec.structureIssues.length === 0
+          ...(living.structureIssues.length === 0
             ? {}
             : {
-                hint: 'openspec archive will not update a spec until every "### Requirement:" sits under "## Requirements" with a name no other requirement there uses — fix the living spec first',
+                hint: deltaHeaders
+                  ? 'openspec archive will not update a spec holding a delta header ("## ADDED Requirements" and its siblings), which cuts its ## Requirements section short — fix the living spec first'
+                  : 'openspec archive will not update a spec until every "### Requirement:" sits under "## Requirements" with a name no other requirement there uses — fix the living spec first',
               }),
         })
     }
@@ -493,8 +488,17 @@ export function archiveRules(
   // archive/scenario-preservation — the advisory mirror of the hard archive-command
   // step (DESIGN §3.5). WARNING by default, ERROR under --strict; the real block
   // is the explicit `cospec archive` step, never this validate-time rule.
-  const caps = [...maskedByCap.entries()].map(([capability, ops]) => ({ capability, ops }))
-  for (const drop of findScenarioDrops(caps, change.livingSpecs)) {
+  //
+  // Verbatim on both sides, as openspec's own scenario-loss check reads them:
+  // a scenario written inside an HTML comment is one the archive keeps, so a
+  // MODIFIED keeping a living scenario only there drops nothing, and one
+  // omitting a commented living scenario drops it. The hard gate in
+  // `commands/archive.ts` reads the masked view.
+  const caps = [...byCap.entries()].map(([capability, g]) => ({ capability, ops: g.ops }))
+  const baselines = new Map(
+    [...change.livingSpecs.entries()].map(([capability, spec]) => [capability, spec.archive]),
+  )
+  for (const drop of findScenarioDrops(caps, baselines)) {
     issues.push({
       level: opts.strict ? 'ERROR' : 'WARNING',
       rule: 'archive/scenario-preservation',

@@ -833,16 +833,16 @@ export function parseDeltaSpec(
 
 /**
  * A structural defect in a living spec that openspec's archive refuses to
- * update past — two of the kinds its `findMainSpecStructureIssues`
+ * update past — the three kinds its `findMainSpecStructureIssues`
  * (`src/core/parsers/spec-structure.ts`, 1.13.1) reports. The archive throws
  * `target spec is structurally invalid and cannot be updated until fixed`
  * before merging anything.
  */
 export interface LivingStructureIssue {
-  kind: 'requirement-outside-requirements' | 'duplicate-requirement'
-  /** 1-based line of the offending `### Requirement:` header. */
+  kind: 'delta-header' | 'requirement-outside-requirements' | 'duplicate-requirement'
+  /** 1-based line of the offending header. */
   line: number
-  /** the requirement's normalized name. */
+  /** delta-header: the header as written, trimmed; otherwise the requirement's normalized name. */
   name: string
   /** duplicate only: the line that first declared the name. */
   firstLine?: number
@@ -850,19 +850,21 @@ export interface LivingStructureIssue {
 
 const MAIN_REQUIREMENTS_HEADER_RE = /^##\s+Requirements\s*$/i
 const MAIN_SECTION_RE = /^##\s+/
+/** upstream's `DELTA_HEADER`: `\s+` between the words, case-insensitive. */
+const MAIN_DELTA_HEADER_RE = /^##\s+(ADDED|MODIFIED|REMOVED|RENAMED)\s+Requirements\s*$/i
 /** The spec-structure reader's header: `\s+` after `###`, unlike the delta reader's `\s*`. */
 const MAIN_REQUIREMENT_RE = /^###\s+Requirement:\s*(.+)\s*$/i
 
 /**
- * openspec's `findMainSpecStructureIssues`, ported for the two kinds cospec's
- * `archive/target-invalid` did not already refuse: a `### Requirement:` outside
- * the first `## Requirements` section, and a second requirement under a
- * normalized name already declared there. Read as upstream reads it: fenced
- * lines blanked, HTML comments NOT masked — a commented-out requirement under
- * `## Purpose` is refused by the archive all the same.
+ * openspec's `findMainSpecStructureIssues`, ported whole. Read exactly as
+ * upstream reads it: line endings folded, the BOM KEPT (that reader alone does
+ * not strip it — see `scanDocument`), fenced lines blanked, HTML comments NOT
+ * masked — a commented-out requirement under `## Purpose`, or a `## ADDED
+ * Requirements` on its own line inside a comment, is refused by the archive
+ * all the same.
  */
 export function findLivingStructureIssues(text: string): LivingStructureIssue[] {
-  const { source, fenced } = scanMarkdown(text, 'verbatim')
+  const { source, fenced } = scanDocument(text, { keepBom: true })
   const lines = source.map((line, i) => (fenced[i] === true ? '' : line))
   const issues: LivingStructureIssue[] = []
   const firstLines = new Map<string, number>()
@@ -875,7 +877,13 @@ export function findLivingStructureIssues(text: string): LivingStructureIssue[] 
         break
       }
   for (let i = 0; i < lines.length; i++) {
-    const header = lines[i]!.match(MAIN_REQUIREMENT_RE)
+    const line = lines[i]!
+    if (line.trim().length === 0) continue
+    if (MAIN_DELTA_HEADER_RE.test(line)) {
+      issues.push({ kind: 'delta-header', line: i + 1, name: line.trim() })
+      continue
+    }
+    const header = line.match(MAIN_REQUIREMENT_RE)
     if (header === null) continue
     const name = normalize(header[1]!)
     if (start === -1 || i <= start || i >= end) {
@@ -890,7 +898,9 @@ export function findLivingStructureIssues(text: string): LivingStructureIssue[] 
   return issues
 }
 
-/** A living spec's requirement names and blocks, as one `ReadView` sees them. */
+/** Which piece of a split requirement is left with no scenario. */
+export type SplitEmpty = 'head' | 'own'
+
 /** A skipped header that splits its requirement into a piece with no scenario. */
 export interface RequirementSplit {
   op: DeltaOp
@@ -900,7 +910,25 @@ export interface RequirementSplit {
    * Which piece is left with no scenario: `head` — the requirement's own,
    * above this (its first) skipped header — or `own`, the header's part.
    */
-  empty: 'head' | 'own'
+  empty: SplitEmpty
+}
+
+/**
+ * The skipped headers in one requirement's `parts` that leave a piece with no
+ * scenario: the first header when the head above it has none, and any header
+ * whose own part has none. Shared by the delta and living readers — the
+ * archive re-validates both kinds of block in the one rebuilt spec.
+ */
+function splitsOf(
+  parts: readonly RequirementPart[],
+): { part: RequirementPart; empty: SplitEmpty }[] {
+  const splits: { part: RequirementPart; empty: SplitEmpty }[] = []
+  for (let j = 1; j < parts.length; j++) {
+    const part = parts[j]!
+    if (j === 1 && parts[0]!.scenarioCount === 0) splits.push({ part, empty: 'head' })
+    else if (part.scenarioCount === 0) splits.push({ part, empty: 'own' })
+  }
+  return splits
 }
 
 /**
@@ -920,25 +948,29 @@ export interface RequirementSplit {
  * scenario, archives. Read the `verbatim` parse — that is what is appended.
  */
 export function findRequirementSplits(parsed: ParsedDelta): RequirementSplit[] {
-  const splits: RequirementSplit[] = []
-  for (const op of parsed.ops) {
-    const parts = op.parts ?? []
-    for (let j = 1; j < parts.length; j++) {
-      const part = parts[j]!
-      if (j === 1 && parts[0]!.scenarioCount === 0) splits.push({ op, part, empty: 'head' })
-      else if (part.scenarioCount === 0) splits.push({ op, part, empty: 'own' })
-    }
-  }
-  return splits
+  return parsed.ops.flatMap((op) => splitsOf(op.parts ?? []).map((s) => ({ op, ...s })))
 }
 
-export interface LivingRequirements {
-  requirementNames: Set<string>
-  /** requirement name → the verbatim source of its block, `trimEnd`ed. */
-  requirementBlocks: Map<string, string>
+/**
+ * A skipped `###` header inside a living requirement, splitting it into a
+ * piece with no scenario (`splitsOf`). Only requirements in the first
+ * `## Requirements` section count: that is the section the archive rebuilds
+ * and re-validates.
+ */
+export interface LivingSplit {
+  /** the living requirement's normalized name. */
+  requirement: string
+  part: RequirementPart
+  empty: SplitEmpty
 }
 
-export interface LivingSpec {
+/**
+ * A living spec as one `ReadView` of its scan sees it. Both views are read by
+ * the one reader, `readLivingView`, with the same block boundaries: a block
+ * runs from its header to the next requirement header or `## ` section, fenced
+ * lines included verbatim.
+ */
+export interface LivingView {
   requirementNames: Set<string>
   /**
    * requirement name → its current scenario count (archive/scenario-preservation):
@@ -955,65 +987,51 @@ export interface LivingSpec {
   /** a delta header (## ADDED/… Requirements) appearing in a living spec — invalid. */
   hasDeltaHeaders: boolean
   purposeText: string
-  /**
-   * The requirement names and blocks under the `verbatim` view — what
-   * openspec's archive merges against (`extractRequirementsSection`,
-   * `specs-apply.ts`, 1.13.1, masks fenced code only). The `archive/*` rules
-   * read these; the top-level fields above stay on the `masked` view for the
-   * advisory `specs/*` rules and the scenario-preservation gate.
-   */
-  archive: LivingRequirements
-  /** Defects the archive refuses to update past (`findLivingStructureIssues`). */
-  structureIssues: LivingStructureIssue[]
 }
 
 /**
- * Requirement names and blocks under the given scan, with the same block
- * boundaries `parseLivingSpec` uses: a block runs from its header to the next
- * requirement header or `## ` section, fenced lines included verbatim.
+ * The living spec as openspec's archive reads it: the `verbatim` view, plus
+ * the two things only that view can say — what `findMainSpecStructureIssues`
+ * refuses, and which surviving requirements the rebuilt spec would split.
+ * Every `archive/*` rule reads this and nothing else.
  */
-function livingRequirements({ lines, source, fenced }: ScannedMarkdown): LivingRequirements {
-  const requirementNames = new Set<string>()
-  const requirementBlocks = new Map<string, string>()
-  let name: string | undefined
-  let block: string[] | undefined
-  const close = () => {
-    if (name !== undefined && block !== undefined)
-      requirementBlocks.set(name, block.join('\n').trimEnd())
-    name = undefined
-    block = undefined
-  }
-  for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i]!
-    if (fenced[i] !== true && SECTION_RE.test(raw)) {
-      close()
-      continue
-    }
-    const req = fenced[i] === true ? null : raw.match(REQUIREMENT_RE)
-    if (req !== null) {
-      close()
-      name = normalize(req[1]!)
-      block = [source[i] ?? '']
-      requirementNames.add(name)
-    } else block?.push(source[i] ?? '')
-  }
-  close()
-  return { requirementNames, requirementBlocks }
+export interface LivingArchiveView extends LivingView {
+  /** Defects the archive refuses to update past (`findLivingStructureIssues`). */
+  structureIssues: LivingStructureIssue[]
+  /** Skipped headers splitting a requirement the archive would re-validate. */
+  splits: LivingSplit[]
 }
 
-/** Parse a living spec (openspec/specs/<cap>/spec.md) for archive precondition checks. */
-export function parseLivingSpec(text: string): LivingSpec {
-  const { lines, source, fenced } = scanMarkdown(text)
+/**
+ * The living spec under both views. The top-level fields are the `masked`
+ * view, read by the advisory `specs/*` rules and the hard archive gate in
+ * `commands/archive.ts`; `archive` is the `verbatim` one.
+ */
+export interface LivingSpec extends LivingView {
+  archive: LivingArchiveView
+}
+
+/** One reader for both views of a living spec's scan. */
+function readLivingView(
+  scan: DocumentScan,
+  view: ReadView,
+): { living: LivingView; splits: LivingSplit[] } {
+  const { source, fenced } = scan
+  const lines = view === 'verbatim' ? source : scan.masked
   const requirementNames = new Set<string>()
   const requirementScenarioCounts = new Map<string, number>()
   const requirementScenarioNames = new Map<string, string[]>()
   const requirementBlocks = new Map<string, string>()
+  const splits: LivingSplit[] = []
   let hasPurpose = false
   let hasRequirements = false
   let hasDeltaHeaders = false
   let inPurpose = false
+  /** 0 before the first `## Requirements`, 1 inside it, 2 after it. */
+  let requirementsSection = 0
   let currentReqName: string | undefined
   let currentBlock: string[] | undefined
+  let currentParts: RequirementPart[] | undefined
   const purposeLines: string[] = []
   // Same reader, same definition of a scenario as the delta side. Gating one
   // side's count and not the other is what manufactures a phantom loss: a
@@ -1028,13 +1046,24 @@ export function parseLivingSpec(text: string): LivingSpec {
       requirementScenarioCounts.set(reqName, (requirementScenarioCounts.get(reqName) ?? 0) + 1)
     },
   })
+  const partScenarios = scenarioReader<RequirementPart>({
+    header: () => {},
+    counted: (part) => {
+      part.scenarioCount++
+    },
+  })
 
   const closeReq = () => {
     scenarios.close()
-    if (currentReqName !== undefined && currentBlock !== undefined)
+    partScenarios.close()
+    if (currentReqName !== undefined && currentBlock !== undefined) {
       requirementBlocks.set(currentReqName, currentBlock.join('\n').trimEnd())
+      if (currentParts !== undefined)
+        for (const s of splitsOf(currentParts)) splits.push({ requirement: currentReqName, ...s })
+    }
     currentReqName = undefined
     currentBlock = undefined
+    currentParts = undefined
   }
 
   for (let i = 0; i < lines.length; i++) {
@@ -1042,6 +1071,7 @@ export function parseLivingSpec(text: string): LivingSpec {
     if (fenced[i] === true) {
       currentBlock?.push(source[i] ?? '')
       scenarios.body(raw)
+      partScenarios.body(raw)
       continue
     }
 
@@ -1057,6 +1087,9 @@ export function parseLivingSpec(text: string): LivingSpec {
       inPurpose = title === 'purpose'
       if (title === 'purpose') hasPurpose = true
       if (title === 'requirements') hasRequirements = true
+      if (requirementsSection === 1) requirementsSection = 2
+      else if (requirementsSection === 0 && MAIN_REQUIREMENTS_HEADER_RE.test(raw))
+        requirementsSection = 1
       continue
     }
 
@@ -1070,32 +1103,73 @@ export function parseLivingSpec(text: string): LivingSpec {
       closeReq()
       currentReqName = normalize(req[1]!)
       currentBlock = [source[i] ?? '']
+      currentParts = requirementsSection === 1 ? [{ line: i + 1, scenarioCount: 0 }] : undefined
       requirementNames.add(currentReqName)
       requirementScenarioCounts.set(currentReqName, 0)
       requirementScenarioNames.set(currentReqName, [])
     } else if (currentReqName !== undefined) {
       currentBlock?.push(source[i] ?? '')
-      if (SCENARIO_RE.test(raw))
+      const skipped = raw.match(LEVEL3_HEADER_RE)
+      if (SCENARIO_RE.test(raw)) {
         scenarios.open(currentReqName, scenarioNameFromHeader(source[i] ?? ''))
-      else if (SCENARIO_BODY_END_RE.test(raw)) scenarios.close()
-      else scenarios.body(raw)
+        const part = currentParts?.at(-1)
+        if (part !== undefined) partScenarios.open(part, '')
+      } else if (SCENARIO_BODY_END_RE.test(raw)) {
+        scenarios.close()
+        partScenarios.close()
+      } else {
+        scenarios.body(raw)
+        partScenarios.body(raw)
+      }
+      if (skipped !== null)
+        currentParts?.push({
+          header: ((source[i] ?? '').match(LEVEL3_HEADER_RE)?.[1] ?? skipped[1]!).trim(),
+          line: i + 1,
+          scenarioCount: 0,
+        })
     }
   }
   closeReq()
 
   return {
-    requirementNames,
-    requirementScenarioCounts,
-    requirementScenarioNames,
-    requirementBlocks,
-    hasPurpose,
-    hasRequirements,
-    hasDeltaHeaders,
-    purposeText: purposeLines.join('\n').trim(),
-    archive: livingRequirements(scanMarkdown(text, 'verbatim')),
-    structureIssues: findLivingStructureIssues(text),
+    living: {
+      requirementNames,
+      requirementScenarioCounts,
+      requirementScenarioNames,
+      requirementBlocks,
+      hasPurpose,
+      hasRequirements,
+      hasDeltaHeaders,
+      purposeText: purposeLines.join('\n').trim(),
+    },
+    splits,
   }
 }
+
+/** Parse a living spec (openspec/specs/<cap>/spec.md) under both views of one scan. */
+export function parseLivingSpec(text: string): LivingSpec {
+  const scan = scanDocument(text)
+  const verbatim = readLivingView(scan, 'verbatim')
+  return {
+    ...readLivingView(scan, 'masked').living,
+    archive: {
+      ...verbatim.living,
+      structureIssues: findLivingStructureIssues(text),
+      splits: verbatim.splits,
+    },
+  }
+}
+
+/**
+ * What `findScenarioDrops` reads of a living spec. Either view carries it: the
+ * `archive/scenario-preservation` rule passes `LivingSpec.archive` (verbatim,
+ * what the archive's own scenario-loss check reads), and the hard gate in
+ * `commands/archive.ts` passes the `LivingSpec` itself.
+ */
+export type ScenarioBaseline = Pick<
+  LivingView,
+  'requirementNames' | 'requirementScenarioCounts' | 'requirementScenarioNames'
+>
 
 export interface ScenarioDrop {
   capability: string
@@ -1172,7 +1246,7 @@ function missingCurrentScenarios(
  */
 export function findScenarioDrops(
   caps: readonly { capability: string; ops: readonly DeltaOp[] }[],
-  livingSpecs: ReadonlyMap<string, LivingSpec>,
+  livingSpecs: ReadonlyMap<string, ScenarioBaseline>,
 ): ScenarioDrop[] {
   const drops: ScenarioDrop[] = []
   for (const { capability, ops } of caps) {
