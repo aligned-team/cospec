@@ -916,8 +916,9 @@ describe('resolver lines appear once on relaying commands (ledger 2.5, 2.9)', ()
       ['list', '--specs', '--store', 'alpha'],
       ['show', 'demo-change', '--store', 'alpha'],
     ]
-    for (const argv of ok) {
-      const res = await cospec(argv, { cwd, env: sb.env })
+    const results = await Promise.all(ok.map((argv) => cospec(argv, { cwd, env: sb.env })))
+    for (const [n, res] of results.entries()) {
+      const argv = ok[n]!
       expect(res.exitCode, argv.join(' ')).toBe(0)
       expect(lineCount(res.stderr, banner()), argv.join(' ')).toBe(1)
     }
