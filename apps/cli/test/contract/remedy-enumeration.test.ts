@@ -3,9 +3,13 @@
 // cospec's remedy allowlist (`core/remedies.ts`), which failure relays respell
 // verbatim; never printed by a cospec relay, with the reason; or reachable
 // unspelled through a successful answer cospec relays untouched, owned by the
-// roadmap PR named beside it (`REACHABLE_OWNED`). Reads the pinned dist itself:
-// a future pin that adds or rewords such a sentence fails here until it is
-// classified, so no new remedy reaches a cospec user unaccounted for.
+// roadmap PR named beside it (`REACHABLE_OWNED`). Reads the pinned package
+// itself — both the compiled `dist/**/*.js` (what runs) and the spec-driven
+// schema's `schemas/**/*.{yaml,md}` (the built-in schema's own instruction
+// text and templates, which `cospec instructions` relays untouched for a
+// change on that schema) — so a future pin that adds or rewords such a
+// sentence in either tree fails here until it is classified, and no new
+// remedy reaches a cospec user unaccounted for.
 
 import { describe, expect, test } from 'bun:test'
 import { readdirSync, readFileSync } from 'node:fs'
@@ -23,30 +27,59 @@ import {
 } from './support/remedy-sources.ts'
 
 const DIST = join(openspecPackageDir(), 'dist')
+const SCHEMAS = join(openspecPackageDir(), 'schemas')
 
 /** A bare `openspec` naming a command, spelled out or built from a hole. */
 const NAMES_A_COMMAND = /\bopenspec (?:[a-z]|\$\{)/
 
-/** A compiled line that is a comment, which the binary never prints. */
-const COMMENT = /^(?:\/\/|\/\*|\*)/
+/** A compiled JS line that is a comment, which the binary never prints. */
+const JS_COMMENT = /^(?:\/\/|\/\*|\*)/
 
-function modules(dir: string): string[] {
+/** A YAML line that is a whole-line comment (never part of a rendered value). */
+const YAML_COMMENT = /^#/
+
+/**
+ * A line the source never renders to a user, by the syntax of its file. A
+ * `.md` template has no such construct here: an HTML comment in
+ * `schemas/**\/*.md` is guidance text the schema's own template preserves
+ * byte-for-byte into the artifact file `cospec instructions` writes, so it
+ * reaches the user same as any other line and is never treated as a comment.
+ */
+function isComment(file: string, line: string): boolean {
+  if (file.endsWith('.yaml')) return YAML_COMMENT.test(line)
+  if (file.endsWith('.md')) return false
+  return JS_COMMENT.test(line)
+}
+
+function modules(dir: string, extensions: readonly string[]): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const path = join(dir, entry.name)
-    if (entry.isDirectory()) return modules(path)
-    return entry.name.endsWith('.js') ? [path] : []
+    if (entry.isDirectory()) return modules(path, extensions)
+    return extensions.some((ext) => entry.name.endsWith(ext)) ? [path] : []
   })
 }
 
-/** Each dist module (relative to dist/) with its trimmed source lines. */
-const SOURCE = new Map(
-  modules(DIST).map((path) => [
-    relative(DIST, path).split('\\').join('/'),
+function sourceEntries(dir: string, extensions: readonly string[], keyPrefix: string) {
+  return modules(dir, extensions).map((path): [string, string[]] => [
+    keyPrefix + relative(dir, path).split('\\').join('/'),
     readFileSync(path, 'utf8')
       .split('\n')
       .map((line) => line.trim()),
-  ]),
-)
+  ])
+}
+
+/**
+ * Each source file the pinned package ships that can print a bare `openspec
+ * <command>` to a user, keyed by its trimmed source lines: the compiled
+ * `dist/**\/*.js` (relative to `dist/`, no prefix — the existing key shape
+ * every `REMEDY_SOURCES`/`REACHABLE_OWNED` entry already uses) and the
+ * built-in spec-driven schema's `schemas/**\/*.{yaml,md}` (relative to
+ * `schemas/`, `schemas/`-prefixed so the two trees never collide).
+ */
+const SOURCE = new Map([
+  ...sourceEntries(DIST, ['.js'], ''),
+  ...sourceEntries(SCHEMAS, ['.yaml', '.md'], 'schemas/'),
+])
 
 const key = (file: string, line: string) => `${file}\n${line}`
 const CLASSIFIED = new Map<string, string[]>()
@@ -58,8 +91,12 @@ const REASONS = new Set<string>(Object.values(notRelayed))
 const REACHABLE = new Set(REACHABLE_OWNED.map(([file, line]) => key(file, line)))
 
 describe('every dist sentence naming a bare openspec command is classified', () => {
-  test('the dist has lines to classify', () => {
+  test('the source tree has lines to classify', () => {
     expect(SOURCE.size).toBeGreaterThan(100)
+  })
+
+  test('the schema tree is walked too', () => {
+    expect([...SOURCE.keys()].some((file) => file.startsWith('schemas/'))).toBe(true)
   })
 
   test('each such line is allowlisted, never relayed, or reachable and owned', () => {
@@ -67,7 +104,7 @@ describe('every dist sentence naming a bare openspec command is classified', () 
     for (const [file, lines] of SOURCE) {
       if (NOT_RELAYED_TREES.some(([prefix]) => file.startsWith(prefix))) continue
       for (const line of lines) {
-        if (COMMENT.test(line) || !NAMES_A_COMMAND.test(line)) continue
+        if (isComment(file, line) || !NAMES_A_COMMAND.test(line)) continue
         const k = key(file, line)
         if (!CLASSIFIED.has(k) && !REACHABLE.has(k)) unclassified.push(`${file}: ${line}`)
       }

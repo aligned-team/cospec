@@ -884,4 +884,70 @@ export const REACHABLE_OWNED: readonly (readonly [
     'schema',
     'root-resolution-parity',
   ],
+  // The built-in `spec-driven` schema's own instruction text and proposal
+  // template (`schemas/spec-driven/schema.yaml`, `templates/proposal.md`):
+  // for a change on that schema (never on one of cospec's 11 typed schemas),
+  // `cospec instructions <artifact> --change <id>` is a thin passthrough
+  // (`commands/instructions.ts`) that relays the binary's successful answer
+  // untouched, so this text reaches the user unspelled.
+  [
+    'schemas/spec-driven/schema.yaml',
+    "run `openspec list --specs` for the project's capability inventory, then",
+    'instructions',
+    'upstream-spellings',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    '`openspec show "<spec-id>" --type spec --json --no-scenarios` for any that',
+    'instructions',
+    'upstream-spellings',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'error. `openspec list` without `--specs` lists in-flight changes, not',
+    'instructions',
+    'upstream-spellings',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'scenarios, with `openspec show "<spec-id>" --type spec` (same `--store` rule).',
+    'instructions',
+    'upstream-spellings',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'modified) or explicitly opt out of specs: `openspec validate` rejects a',
+    'instructions',
+    'upstream-spellings',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    '- Modified capabilities: use the exact existing path from `openspec/specs/<capability-path>/` when creating the delta at `specs/<capability-path>/spec.md`. Run `openspec list --specs` to confirm that path before writing the delta, appending `--store "<id>"` only for a registered standalone store - a mistyped or invented path targets a capability that does not exist rather than the one you meant. Do not move or rename the capability.',
+    'instructions',
+    'upstream-spellings',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'sets `skip_specs: true` (no spec-level behavior change) - `openspec validate`',
+    'instructions',
+    'upstream-spellings',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'one or two sentences (50+ characters, or `openspec validate --strict`',
+    'instructions',
+    'upstream-spellings',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'directly. `planningHome.root` comes from the `openspec instructions ...',
+    'instructions',
+    'upstream-spellings',
+  ],
+  [
+    'schemas/spec-driven/templates/proposal.md',
+    'must set `skip_specs: true` in its .openspec.yaml - openspec validate rejects',
+    'instructions',
+    'upstream-spellings',
+  ],
 ]
