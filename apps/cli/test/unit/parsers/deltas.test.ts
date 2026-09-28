@@ -9,6 +9,7 @@ import {
   normalizeRequirementName,
   parseDeltaSpec,
   parseLivingSpec,
+  extractRequirementBody,
   scanDocument,
   scenarioDropMessage,
   scenarioNameFromHeader,
@@ -846,13 +847,33 @@ describe('parser tolerances: BOM, CRLF, HTML comments, fences', () => {
     expect(living.requirementScenarioCounts.get('X')).toBe(1)
   })
 
-  test("SHALL inside a requirement's example fence still counts (unchanged)", () => {
+  // openspec's `extractRequirementBody` skips fenced lines, so an example
+  // block's SHALL is not the statement's (round 6; it used to count here).
+  test("SHALL inside a requirement's example fence is not its statement's, as openspec reads it", () => {
     const p = parseDeltaSpec(
       '## ADDED Requirements\n\n### Requirement: X\n\n```\nThe system SHALL x.\n```\n\n#### Scenario: s\n',
       'specs/x/spec.md',
       'x',
     )
-    expect(p.ops[0]!.hasShallMust).toBe(true)
+    expect(p.ops[0]!.hasShallMust).toBe(false)
+    expect(p.ops[0]!.parts?.[0]?.hasText).toBe(false)
+  })
+
+  test('extractRequirementBody reads the statement as openspec does', () => {
+    expect(
+      extractRequirementBody(['', 'The system SHALL x.', 'and wraps.', '#### Scenario: s']),
+    ).toBe('The system SHALL x.\nand wraps.')
+    expect(extractRequirementBody(['<!-- The system SHALL x. -->'])).toBe(
+      '<!-- The system SHALL x. -->',
+    )
+    expect(extractRequirementBody(['```', 'The system SHALL x.', '```', 'Plain.'])).toBe('Plain.')
+    expect(extractRequirementBody(['**ID**: R1', 'The system SHALL x.'])).toBe(
+      'The system SHALL x.',
+    )
+    expect(extractRequirementBody(['**Constraint**: The system MUST x.'])).toBe(
+      '**Constraint**: The system MUST x.',
+    )
+    expect(extractRequirementBody(['### Notes', 'The system SHALL x.'])).toBe('')
   })
 })
 

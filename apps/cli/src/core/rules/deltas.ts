@@ -27,9 +27,14 @@ const ROOT_SPEC_PATH = 'specs/spec.md'
 const HEADER_ONLY_SHALL_HINT =
   'move the SHALL/MUST statement to the line immediately after the "### Requirement: ..." header'
 
-/** Why a requirement whose scenario says SHALL still has no statement. */
+/** Why a requirement has no statement — and, when its block says SHALL elsewhere, why that is none. */
 const MISSING_TEXT_HINT =
-  'write the requirement statement on the line under its "### Requirement: ..." header; a SHALL/MUST in a scenario step is not one'
+  'write the requirement statement on the line under its "### Requirement: ..." header'
+const NOT_A_STATEMENT = 'a SHALL/MUST in a scenario step or a fenced example is not one'
+
+/** Why a statement is not normative although its block says SHALL/MUST somewhere below it. */
+const BODY_ONLY_SHALL_HINT =
+  'SHALL/MUST counts only in the statement under the "### Requirement: ..." header, not in a scenario step or a fenced example'
 
 const EMPTY_SCENARIO_HINT =
   'a scenario header with no body under it does not count; add its steps, e.g. "- **WHEN** ..." and "- **THEN** ..."'
@@ -277,20 +282,14 @@ export function requirementShapeIssues(parsed: ParsedDelta, path: string): Issue
     if (op.operation !== 'ADDED' && op.operation !== 'MODIFIED') continue
     const name = op.verbatimName ?? op.name
     const headerShall = op.name !== undefined && SHALL_MUST_RE.test(op.name)
-    if (!op.hasShallMust) {
-      issues.push({
-        level: 'ERROR',
-        rule: 'deltas/requirement-shape',
-        path,
-        line: op.line,
-        message: `${op.operation} "${name}" must use SHALL/MUST normative language`,
-        hint: headerShall ? HEADER_ONLY_SHALL_HINT : undefined,
-      })
-    } else if (op.parts?.[0]?.hasText === false) {
-      // openspec reads the statement off the lines between the header and the
-      // first header under it (`extractRequirementText`, 1.13.1), so a SHALL
-      // that sits only in a scenario step leaves the statement empty — an
-      // ERROR in its validate and its archive alike.
+    // A keyword somewhere under the header that is not in the statement — a
+    // scenario step, a fenced example — which the author may think counts.
+    const shallBelow = SHALL_MUST_RE.test(op.raw.split('\n').slice(1).join('\n'))
+    // Graded in openspec's order (`validateChangeDeltaSpecs`, 1.13.1): an empty
+    // statement first, then one with no SHALL/MUST — both read off the body
+    // `extractRequirementBody` returns, where a comment is text and a scenario
+    // step or a fenced example is not.
+    if (op.parts?.[0]?.hasText === false) {
       issues.push({
         level: 'ERROR',
         rule: 'deltas/requirement-shape',
@@ -299,7 +298,20 @@ export function requirementShapeIssues(parsed: ParsedDelta, path: string): Issue
         message: headerShall
           ? `${op.operation} "${name}" must use SHALL/MUST normative language`
           : `${op.operation} "${name}" is missing requirement text`,
-        hint: headerShall ? HEADER_ONLY_SHALL_HINT : MISSING_TEXT_HINT,
+        hint: headerShall
+          ? HEADER_ONLY_SHALL_HINT
+          : shallBelow
+            ? `${MISSING_TEXT_HINT}; ${NOT_A_STATEMENT}`
+            : MISSING_TEXT_HINT,
+      })
+    } else if (!op.hasShallMust) {
+      issues.push({
+        level: 'ERROR',
+        rule: 'deltas/requirement-shape',
+        path,
+        line: op.line,
+        message: `${op.operation} "${name}" must use SHALL/MUST normative language`,
+        hint: headerShall ? HEADER_ONLY_SHALL_HINT : shallBelow ? BODY_ONLY_SHALL_HINT : undefined,
       })
     }
     if (op.scenarioCount < 1) {

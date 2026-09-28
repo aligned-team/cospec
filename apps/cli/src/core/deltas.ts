@@ -110,6 +110,11 @@ export interface DeltaOp {
   fromName?: string
   toName?: string
   line: number
+  /**
+   * ADDED/MODIFIED: the requirement's statement — its body as openspec's
+   * `extractRequirementBody` reads it — contains SHALL or MUST. A keyword in
+   * the header, a scenario step or a fenced example is not in the statement.
+   */
   hasShallMust: boolean
   scenarioCount: number
   /**
@@ -157,11 +162,46 @@ export interface RequirementPart {
   scenarioCount: number
   /**
    * The part has a statement of its own: a non-blank, non-fenced line before
-   * its first header. The archive reads a skipped header whose text is blank
-   * (`###   `) as a requirement named by that statement, so without one it is a
-   * requirement with no text.
+   * its first header — for the first part, exactly a non-empty
+   * `extractRequirementBody`. The archive reads a skipped header whose text is
+   * blank (`###   `) as a requirement named by that statement, so without one
+   * it is a requirement with no text.
    */
   hasText: boolean
+}
+
+/** openspec's `METADATA_LINE` (`parsers/requirement-text.ts`): `**ID**: …` / `**Priority**: …`. */
+const METADATA_LINE_RE = /^\*\*[^*]+\*\*:/
+
+/**
+ * openspec's `extractRequirementBody` (`src/core/parsers/requirement-text.ts`,
+ * 1.13.1), ported line for line: the requirement's statement, read off the
+ * lines under its header. Every line up to the first header on a non-fenced
+ * line, skipping blank lines and every line inside a fenced block (masked on
+ * these lines alone, as upstream masks them); `**metadata**:` lines are the
+ * statement only when nothing else is. An HTML comment is text here, as it is
+ * to the binary — so a statement written inside one is a statement, and one
+ * that is only a comment has no SHALL/MUST.
+ *
+ * This is what the binary's validate grades (empty: `is missing requirement
+ * text`; no SHALL/MUST: `should contain SHALL or MUST`) and what its archive
+ * reads, so every gate that asks whether a requirement has a statement, or a
+ * normative one, asks it of this text.
+ */
+export function extractRequirementBody(bodyLines: readonly string[]): string {
+  const mask = buildCodeFenceMask(bodyLines)
+  const captured: string[] = []
+  const metadata: string[] = []
+  for (let i = 0; i < bodyLines.length; i++) {
+    if (mask[i] === true) continue
+    const line = bodyLines[i]!
+    if (ANY_HEADER_RE.test(line)) break
+    const trimmed = line.trim()
+    if (trimmed.length === 0) continue
+    if (METADATA_LINE_RE.test(trimmed)) metadata.push(trimmed)
+    else captured.push(trimmed)
+  }
+  return captured.length > 0 ? captured.join('\n') : metadata.join('\n')
 }
 
 /**
@@ -589,6 +629,8 @@ export function parseDeltaSpec(
   let openReq: DeltaOp | undefined
   /** Verbatim (unmasked) block lines for `openReq`. */
   let openRaw: string[] | undefined
+  /** `openReq`'s lines under its header, on this parse's view — its statement's source. */
+  let openBody: string[] | undefined
   /** The `FROM:` awaiting its `TO:` inside the current RENAMED section. */
   let pendingRename: { name: string; line: number } | undefined
   const scenarios = scenarioReader<DeltaOp>({
@@ -634,27 +676,34 @@ export function parseDeltaSpec(
     partScenarios.close()
     if (openReq !== undefined) {
       if (openRaw !== undefined) openReq.raw = openRaw.join('\n').trimEnd()
+      if (openBody !== undefined) {
+        const statement = extractRequirementBody(openBody)
+        openReq.hasShallMust = SHALL_MUST_RE.test(statement)
+        const head = openReq.parts?.[0]
+        if (head !== undefined) head.hasText = statement.length > 0
+      }
       ops.push(openReq)
       sectionCounts.set(openReq.operation, (sectionCounts.get(openReq.operation) ?? 0) + 1)
       openReq = undefined
     }
     openRaw = undefined
+    openBody = undefined
   }
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i]!
     const lineNo = i + 1
 
-    // Fenced lines carry no structure, but a SHALL/MUST inside a requirement's
-    // example block has always counted towards `hasShallMust` — keep that.
+    // Fenced lines carry no structure, and no statement: a SHALL/MUST in an
+    // example block is not one (`extractRequirementBody` skips them).
     if (fenced[i] === true) {
       // Fenced content is part of the block verbatim, but never structure: a
       // `#### ` line inside a fence is retained in `raw` and is not a scenario.
       // It is still *body*: a scenario whose steps are a fenced example has one.
       openRaw?.push(source[i] ?? '')
+      openBody?.push(raw)
       scenarios.body(raw)
       partScenarios.body(raw)
-      if (openReq !== undefined && SHALL_MUST_RE.test(raw)) openReq.hasShallMust = true
       continue
     }
 
@@ -716,6 +765,7 @@ export function parseDeltaSpec(
           parts: [{ line: lineNo, scenarioCount: 0, hasText: false }],
         }
         openRaw = [source[i] ?? '']
+        openBody = []
         continue
       }
       // Detected on the masked line, quoted from the source one: the binary's
@@ -731,6 +781,7 @@ export function parseDeltaSpec(
       }
       if (openReq !== undefined) {
         openRaw?.push(source[i] ?? '')
+        openBody?.push(raw)
         const part = currentPart()
         if (part !== undefined && !statementClosed.has(part)) {
           if (ANY_HEADER_RE.test(raw)) statementClosed.add(part)
@@ -748,7 +799,6 @@ export function parseDeltaSpec(
             scenarios.body(raw)
             partScenarios.body(raw)
           }
-          if (SHALL_MUST_RE.test(raw)) openReq.hasShallMust = true
         }
         if (skipped !== null)
           openReq.parts?.push({

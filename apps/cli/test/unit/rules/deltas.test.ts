@@ -68,7 +68,11 @@ describe('deltasRules', () => {
     expect(shape(headerShall)).toEqual([
       ['ERROR', 3, 'MODIFIED "The system MUST x" must use SHALL/MUST normative language'],
     ])
-    expect(shape(withText)).toEqual([])
+    // A metadata-only statement is text, as openspec reads it — with no
+    // SHALL/MUST in it, whatever the scenario says.
+    expect(shape(withText)).toEqual([
+      ['ERROR', 3, 'ADDED "X" must use SHALL/MUST normative language'],
+    ])
   })
 
   // A requirement whose only scenario is a bare header has no scenario at all,
@@ -401,7 +405,9 @@ describe('parseDeltaSpec skippedHeaders', () => {
         name: 'Other thing',
         verbatimName: 'Other thing',
         line: 38,
-        hasShallMust: true,
+        // The statement ends at `### Between notes` before it says anything,
+        // so it holds no SHALL/MUST (round 6: read as `extractRequirementBody`).
+        hasShallMust: false,
         scenarioCount: 1,
         scenarioNames: ['Other'],
         emptyScenarioCount: 0,

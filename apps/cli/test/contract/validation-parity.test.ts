@@ -37,7 +37,6 @@ afterAll(cleanupAll)
  * takes its own ids out, and the last one removes the set.
  */
 const ROUND6_FAILING = new Set<string>([
-  '5.1.6b',
   '27.1-cmt-no-text',
   '27.2-cmt-no-text',
   '27.1-cmt-modified-no-text',
@@ -53,8 +52,6 @@ const ROUND6_FAILING = new Set<string>([
   '32.2n',
   '32.3',
   '32.3n',
-  '32.4',
-  '32.4n',
   '33.1',
   '33.1n',
   '33.2',
