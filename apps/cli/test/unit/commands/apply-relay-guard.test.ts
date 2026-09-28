@@ -134,10 +134,10 @@ describe('relayThroughCospec — the exact 1.13.1 remedy strings', () => {
 })
 
 describe('relayThroughCospec — the rewrite boundary', () => {
-  test('leaves a verb outside the 1.13.1 set alone rather than inventing a surface', () => {
+  test('leaves a command span outside any upstream sentence alone', () => {
     // `openspec new change <name>` is upstream's `newChangeHint`, which reaches
-    // users through a thrown error, never through `instruction`/`warnings`.
-    // Relaying it would claim a `cospec new change` surface that does not exist.
+    // users through a thrown error, never through `instruction`/`warnings`; as
+    // a backticked span in free text it is no upstream sentence.
     const s = 'Run `openspec new change <name>` first, or `openspec archive foo`.'
     expect(relayThroughCospec(s)).toBe(s)
   })
@@ -152,13 +152,23 @@ describe('relayThroughCospec — the rewrite boundary', () => {
     expect(relayThroughCospec(s)).toBe(s)
   })
 
-  test('rewrites a bare-argument span', () => {
-    expect(relayThroughCospec('run `openspec status` now')).toBe('run `cospec status` now')
+  // Only upstream's own sentences are respelled (`core/remedies.ts`): a span
+  // in text upstream did not write — a schema's own instruction, say — is the
+  // user's, however much it reads like a remedy.
+  test("leaves a command span that is not one of upstream's sentences alone", () => {
+    for (const s of [
+      'run `openspec status` now',
+      '`openspec validate a` then `openspec status --change a`',
+    ])
+      expect(relayThroughCospec(s)).toBe(s)
   })
 
-  test('rewrites every span in a multi-span string', () => {
-    const out = relayThroughCospec('`openspec validate a` then `openspec status --change a`')
-    expect(out).toBe('`cospec validate a` then `cospec status --change a`')
+  test('rewrites every upstream sentence in a multi-sentence string', () => {
+    const out = relayThroughCospec(`${WARN_UNREAD_DELTA}\n${REMEDY_ONE}`)
+    expect(out).toContain('`cospec validate unread-delta`')
+    expect(out).toContain('`cospec instructions verification --change v1-grandfathered`')
+    expect(out).toContain('`cospec status --change v1-grandfathered`')
+    expect(out).not.toMatch(/`openspec /)
   })
 })
 

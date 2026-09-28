@@ -31,6 +31,7 @@ import {
   type ApplyInstructionsJson,
   type Root,
 } from '../core/openspec.ts'
+import { respellRemedies } from '../core/remedies.ts'
 import { renderHuman, renderJson, type ItemReport } from '../core/report.ts'
 import { resolveRoot } from '../core/root.ts'
 import { surfaceUnmetConsequences } from '../core/rules/meta.ts'
@@ -191,23 +192,18 @@ const SURFACE_SOFT_RULES = new Set<string>([
 
 // Every agent-facing OpenSpec access routes through `cospec` (CLAUDE.md), but
 // the wrapped binary writes its own remedies into the `instruction` and
-// `warnings` strings cospec relays verbatim. At 1.13.1 exactly three verbs
-// appear in those strings — `describeArtifactRemedy` emits
-// `openspec instructions <artifact> --change <name>` and
-// `openspec status --change <name>`; `collectApplyWarnings` emits
-// `openspec validate <name>` and another `openspec instructions …` — and each
-// maps 1:1 onto a cospec command with the identical argument shape.
-//
-// The match is anchored to a backtick-delimited span, never a bare `openspec `
-// token: `collectApplyWarnings`'s no-delta-specs warning embeds an absolute
-// `…/.openspec.yaml` path in the same string, and that path must survive
-// untouched. A verb outside the set is left alone too — relaying an unknown
-// upstream command as `cospec` would invent a surface that may not exist.
-const RELAYED_COMMAND_SPAN = /`openspec ((?:instructions|status|validate)(?:[ \t][^`]*)?)`/g
+// `warnings` strings cospec relays: `describeArtifactRemedy`'s
+// `Create it with \`openspec instructions …\` (\`openspec status …\` shows what
+// is left).` and `collectApplyWarnings`' `openspec validate`/`instructions`
+// sentences. Each is one of upstream's exact sentences in the remedy allowlist
+// (`core/remedies.ts`), respelled only where it stands verbatim, so the
+// change's own names and paths (the no-delta-specs warning's absolute
+// `…/.openspec.yaml`) and a schema's own instruction text pass through as
+// written.
 
-/** Rewrites backtick-delimited `openspec …` command spans to `cospec …`. */
+/** `text` with each of upstream's own remedy sentences spelled through cospec. */
 export function relayThroughCospec(text: string): string {
-  return text.replace(RELAYED_COMMAND_SPAN, '`cospec $1`')
+  return respellRemedies(text)
 }
 
 // The canon gate prose (`canon/apply-instruction.yaml`) is schema text, served
