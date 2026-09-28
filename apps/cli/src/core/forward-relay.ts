@@ -9,7 +9,12 @@
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { isUpstreamStorePathRefusal, storePathRefusal } from './command-table.ts'
-import { OpenspecCallError, type OpenspecResult, passthroughOpenspec } from './openspec.ts'
+import {
+  OpenspecCallError,
+  type OpenspecResult,
+  passthroughOpenspec,
+  type PostCondition,
+} from './openspec.ts'
 import { respellRemedies } from './remedies.ts'
 
 /**
@@ -143,4 +148,71 @@ export async function relayCommandLevel(
   if (result.stdout.length > 0) process.stdout.write(result.stdout)
   if (result.stderr.length > 0) process.stderr.write(result.stderr)
   return result.exitCode === 0 ? EXIT.success : EXIT.failure
+}
+
+/** The code of the binary's one refusal document for a group given no subcommand it runs. */
+const GROUP_REFUSAL_CODE = {
+  store: 'unknown_store_subcommand',
+  workset: 'unknown_workset_subcommand',
+} as const
+
+export type RefusingGroup = keyof typeof GROUP_REFUSAL_CODE
+
+/**
+ * What the binary answers a group whose first token is not a subcommand it
+ * runs: commander's parse rejection; under `--json`, one document whose
+ * `status[0].code` is the group's refusal code; otherwise its text refusal,
+ * on stderr alone.
+ */
+function groupRefusalPostCondition(group: RefusingGroup, json: boolean): PostCondition {
+  return (result) => {
+    if (isParseRejection(result)) return true
+    if (!json)
+      return result.stdout.length === 0 && result.stderr.length > 0
+        ? true
+        : `did not refuse the ${group} argv on stderr alone`
+    let doc: unknown
+    try {
+      doc = JSON.parse(result.stdout)
+    } catch (err) {
+      if (err instanceof SyntaxError) return `did not answer the ${group} argv with one document`
+      throw err
+    }
+    const status = (doc as { status?: unknown } | null)?.status
+    const code = Array.isArray(status)
+      ? (status[0] as { code?: unknown } | undefined)?.code
+      : undefined
+    return code === GROUP_REFUSAL_CODE[group]
+      ? true
+      : `answered the ${group} argv with a document whose status[0].code is not ${GROUP_REFUSAL_CODE[group]}`
+  }
+}
+
+/**
+ * Relays the binary's own refusal of a `store`/`workset` argv whose first
+ * token is not a subcommand the wrapper dispatches — none, an unknown name,
+ * an option, or anything after a `--`, which the argv keeps — instead of
+ * cospec synthesizing one (design D1): `<group> [--json] <argv>` spawned
+ * piped, exit 1 declared, and its answer relayed with its sentences spelled
+ * through cospec (`respellRemedies`). Returns cospec's exit code.
+ */
+export async function relayGroupRefusal(
+  ctx: CommandContext,
+  group: RefusingGroup,
+  args: readonly string[],
+): Promise<number> {
+  const threaded = ctx.flags.json ? ['--json'] : []
+  const result = await forwardCall(() =>
+    passthroughOpenspec(
+      { command: [group], threaded, args },
+      {
+        cwd: ctx.cwd,
+        expect: {
+          exitCodes: [1],
+          postCondition: groupRefusalPostCondition(group, ctx.flags.json),
+        },
+      },
+    ),
+  )
+  return relayRespelled(result, ctx.flags.json)
 }

@@ -1,13 +1,19 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test'
 
+import type { CommandContext } from '../../../src/cli.ts'
 import { storePathRefusal } from '../../../src/core/command-table.ts'
 import {
   forwardCall,
   isParseRejection,
+  relayGroupRefusal,
   relayRespelled,
   relayStorePathRefusal,
 } from '../../../src/core/forward-relay.ts'
-import { OpenspecCallError, type OpenspecResult } from '../../../src/core/openspec.ts'
+import {
+  OpenspecCallError,
+  type OpenspecResult,
+  PINNED_OPENSPEC_VERSION,
+} from '../../../src/core/openspec.ts'
 import { respellRemedies } from '../../../src/core/remedies.ts'
 
 const UPSTREAM_REDIRECT =
@@ -230,5 +236,112 @@ describe('relayRespelled', () => {
   test("a failed answer's upstream remedies are respelled", () => {
     expect(relayRespelled(result({ exitCode: 1, stderr: FIX }), false)).toBe(1)
     expect(written).toEqual([{ stream: 'stderr', text: SPELLED }])
+  })
+})
+
+/**
+ * Runs `fn` with every wrapped call answered by `canned` (the version probe
+ * with the pin) and process output captured; returns the wrapped argv.
+ */
+async function withCannedAnswer<T>(
+  canned: Partial<OpenspecResult>,
+  fn: () => Promise<T>,
+): Promise<{ value?: T; error?: unknown; argv: string[][]; out: string; err: string }> {
+  const argv: string[][] = []
+  let out = ''
+  let err = ''
+  const originalSpawn = Bun.spawn
+  const outSpy = spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+    out += String(chunk)
+    return true
+  })
+  const errSpy = spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+    err += String(chunk)
+    return true
+  })
+  // @ts-expect-error — test-only override of Bun.spawn's overloaded signature.
+  Bun.spawn = (cmd: string[]) => {
+    const args = cmd.slice(3)
+    const version = args.length === 1 && args[0] === '--version'
+    if (!version) argv.push(args)
+    const answer = version ? { stdout: `${PINNED_OPENSPEC_VERSION}\n` } : canned
+    return {
+      stdout: new Response(answer.stdout ?? '').body,
+      stderr: new Response(answer.stderr ?? '').body,
+      exited: Promise.resolve(answer.exitCode ?? 0),
+    }
+  }
+  try {
+    return { value: await fn(), argv, out, err }
+  } catch (error) {
+    return { error, argv, out, err }
+  } finally {
+    Bun.spawn = originalSpawn
+    outSpy.mockRestore()
+    errSpy.mockRestore()
+  }
+}
+
+function groupCtx(json: boolean): CommandContext {
+  return { args: [], flags: { json, noColor: false, cwd: '/repo' }, cwd: '/repo' }
+}
+
+describe('relayGroupRefusal', () => {
+  const doc = (code: string) =>
+    `${JSON.stringify({
+      status: [
+        {
+          severity: 'error',
+          code,
+          message: "Unknown command 'x' for 'openspec store'. Store subcommands: setup.",
+          fix: 'Run a store subcommand, or use the lifecycle command with --store <id>.',
+        },
+      ],
+    })}\n`
+
+  test('threads --json right after the group, ahead of the argv, its -- kept', async () => {
+    const run = await withCannedAnswer(
+      { stdout: doc('unknown_store_subcommand'), exitCode: 1 },
+      () => relayGroupRefusal(groupCtx(true), 'store', ['--', '--bogus']),
+    )
+    expect(run.argv).toEqual([['store', '--json', '--', '--bogus']])
+    expect(run.value).toBe(1)
+    expect(run.out).toBe(respellRemedies(doc('unknown_store_subcommand')))
+    expect(run.out).toContain("'cospec store'")
+  })
+
+  test("relays the binary's text refusal respelled, and commander's rejection", async () => {
+    const text =
+      "Error: unknown command 'x' for 'openspec store'.\n  openspec new change <change-id> --store <id>\n"
+    const refused = await withCannedAnswer({ stderr: text, exitCode: 1 }, () =>
+      relayGroupRefusal(groupCtx(false), 'store', ['x']),
+    )
+    expect(refused.argv).toEqual([['store', 'x']])
+    expect(refused.value).toBe(1)
+    expect(refused.err).toBe(respellRemedies(text))
+    const commander = "error: unknown option '--bogus'\n"
+    const rejected = await withCannedAnswer({ stderr: commander, exitCode: 1 }, () =>
+      relayGroupRefusal(groupCtx(true), 'workset', ['--bogus']),
+    )
+    expect(rejected.value).toBe(1)
+    expect(rejected.err).toBe(commander)
+  })
+
+  test('any other answer is a wrapped-call violation', async () => {
+    for (const canned of [
+      { stdout: doc('store_not_found'), exitCode: 1 },
+      { stdout: doc('unknown_store_subcommand'), exitCode: 0 },
+      { stdout: 'not a document', exitCode: 1 },
+    ]) {
+      const run = await withCannedAnswer(canned, () =>
+        relayGroupRefusal(groupCtx(true), 'store', ['x']),
+      )
+      expect(run.error).toBeInstanceOf(OpenspecCallError)
+      expect(run.out + run.err).toBe('')
+    }
+    const text = await withCannedAnswer({ stdout: 'x\n', exitCode: 1 }, () =>
+      relayGroupRefusal(groupCtx(false), 'workset', ['x']),
+    )
+    expect(text.error).toBeInstanceOf(OpenspecCallError)
   })
 })
