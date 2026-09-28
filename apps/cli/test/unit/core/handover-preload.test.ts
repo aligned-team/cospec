@@ -40,7 +40,7 @@ describe('handoverPreload', () => {
   // A cache directory cospec cannot write (`chmod 555`) must not stop a
   // handover: the preload lands in a directory of this process's own under the
   // temp dir instead. (Root ignores the mode, so the row cannot run as root.)
-  test.failing(
+  test.skipIf(process.getuid?.() === 0)(
     'an unwritable cache falls back to a per-process directory under the temp dir',
     () => {
       const cache = mkdtempSync(join(tmpdir(), 'cospec-cache-'))

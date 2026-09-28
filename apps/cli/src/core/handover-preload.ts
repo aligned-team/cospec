@@ -20,7 +20,16 @@
 // and the process exits as the binary then leaves it.
 
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { cacheRoot } from './openspec-embedded.ts'
@@ -55,9 +64,34 @@ export function writeHandoverPreloadInto(root: string): string {
   return path
 }
 
-/** The preload's path in cospec's cache (`${XDG_CACHE_HOME:-~/.cache}/cospec`). */
+/** The `errno` codes that mean a directory cannot take the preload's file. */
+const UNWRITABLE = new Set(['EACCES', 'EPERM', 'EROFS', 'ENOTDIR', 'EEXIST'])
+
+function isUnwritable(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code
+  return code !== undefined && UNWRITABLE.has(code)
+}
+
+let fallback: string | undefined
+
+/**
+ * The preload's path: in cospec's cache (`${XDG_CACHE_HOME:-~/.cache}/cospec`),
+ * or — when that directory cannot be written — in a directory of this
+ * process's own under the temp dir, removed when the process exits, so a
+ * read-only cache never stops a handover the binary would run.
+ */
 export function handoverPreload(): string {
-  return writeHandoverPreloadInto(cacheRoot())
+  try {
+    return writeHandoverPreloadInto(cacheRoot())
+  } catch (error) {
+    if (!isUnwritable(error)) throw error
+  }
+  if (fallback === undefined) {
+    const dir = mkdtempSync(join(tmpdir(), 'cospec-preload-'))
+    process.once('exit', () => rmSync(dir, { recursive: true, force: true }))
+    fallback = writeHandoverPreloadInto(dir)
+  }
+  return fallback
 }
 
 /** The argv that runs `bin` with `argv` under the current executable's Bun, the preload first. */

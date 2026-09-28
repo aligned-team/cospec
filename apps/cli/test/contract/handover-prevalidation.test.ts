@@ -334,6 +334,12 @@ describe('a prompt whose terminal input ends (Ctrl-D) is cancelled as the binary
 
 // --- review round 3: a cache directory cospec cannot write ----------------------------
 
+/** The paths whose content differs between two tree hashes, sorted. */
+function changedPaths(before: Record<string, string>, after: Record<string, string>): string[] {
+  const paths = new Set([...Object.keys(before), ...Object.keys(after)])
+  return [...paths].filter((path) => before[path] !== after[path]).sort()
+}
+
 /**
  * Runs `fn` with `root`'s sandboxed cache directory read-only (`chmod 555`),
  * so the handover preload cannot land in cospec's cache.
@@ -349,40 +355,42 @@ async function withReadOnlyCache<T>(root: string, fn: () => Promise<T>): Promise
   }
 }
 
-describe('with the cache directory read-only, every handover runs as the binary runs', () => {
-  const cases: [argv: string[], saved: boolean][] = [
-    [['config', 'reset', '--all'], false],
-    [['config', 'profile'], false],
-    [['config', 'edit'], false],
-    [['workset', 'open', 'w1'], true],
-  ]
-  for (const [argv, saved] of cases) {
-    test.failing(
-      `${argv.join(' ')} on a terminal`,
-      async () => {
-        const root = plainRoot()
-        if (saved) {
-          const member = join(root, 'member')
-          mkdirSync(member)
-          const created = await oracle(['workset', 'create', 'w1', '--member', member], root)
-          expect(created.exitCode, detail(created)).toBe(0)
-        }
-        const before = treeHash(root)
-        const up = await withReadOnlyCache(root, () => ptyUpstream(argv, root))
-        const co = await withReadOnlyCache(root, () => ptyCospec(argv, root))
-        expect(treeHash(root)).toEqual(before)
+describe.skipIf(process.getuid?.() === 0)(
+  'with the cache directory read-only, every handover runs as the binary runs',
+  () => {
+    const cases: [argv: string[], saved: boolean][] = [
+      [['config', 'reset', '--all'], false],
+      [['config', 'profile'], false],
+      [['config', 'edit'], false],
+      [['workset', 'open', 'w1'], true],
+    ]
+    for (const [argv, saved] of cases) {
+      test(`${argv.join(' ')} on a terminal`, async () => {
+        const [upRoot, coRoot] = [plainRoot(), plainRoot()]
+        if (saved)
+          for (const root of [upRoot, coRoot]) {
+            const member = join(root, 'member')
+            mkdirSync(member)
+            const created = await oracle(['workset', 'create', 'w1', '--member', member], root)
+            expect(created.exitCode, detail(created)).toBe(0)
+          }
+        const upBefore = treeHash(upRoot)
+        const coBefore = treeHash(coRoot)
+        const up = await withReadOnlyCache(upRoot, () => ptyUpstream(argv, upRoot))
+        const co = await withReadOnlyCache(coRoot, () => ptyCospec(argv, coRoot))
         expect(co.exitCode, ptyDetail(co)).toBe(up.exitCode)
         expect(terminalText(co.output), ptyDetail(co)).toBe(
           respellRemedies(terminalText(up.output)),
         )
-      },
-      30_000,
-    )
-  }
+        // The files the binary writes (`config edit` its config, `workset
+        // open` its `.code-workspace`), and no others.
+        expect(changedPaths(coBefore, treeHash(coRoot))).toEqual(
+          changedPaths(upBefore, treeHash(upRoot)),
+        )
+      }, 30_000)
+    }
 
-  test.failing(
-    'config reset --all with stdin empty, not a terminal',
-    async () => {
+    test('config reset --all with stdin empty, not a terminal', async () => {
       const root = plainRoot()
       const argv = ['config', 'reset', '--all']
       const before = treeHash(root)
@@ -397,10 +405,9 @@ describe('with the cache directory read-only, every handover runs as the binary 
       expect(co.exitCode, detail(co)).toBe(up.exitCode)
       expect(terminalText(co.stdout), detail(co)).toBe(terminalText(respellRemedies(up.stdout)))
       expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
-    },
-    30_000,
-  )
-})
+    }, 30_000)
+  },
+)
 
 /** `argv` with `input` on a piped stdin (or none), outside any terminal. */
 async function piped(cmd: string[], root: string, input: string | undefined): Promise<SpawnResult> {
