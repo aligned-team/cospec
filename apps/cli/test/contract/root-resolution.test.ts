@@ -2011,9 +2011,11 @@ describe('a global config that cannot be read or parsed reads as defaults (ledge
             const up = await binary(state, argv, cwd())
             const res = await ours(state, argv, cwd())
             expect(up.exitCode).toBe(0)
-            // cospec reads the config to select a root for these (design D8);
-            // the binary never does, so the warning is cospec's one extra line.
-            expect(res).toEqual({ ...up, stderr: (warns ? warning() : '') + up.stderr })
+            // The binary never reads the global config for these, so it never
+            // warns; nor does cospec, though it reads the file to select a
+            // root (design D8).
+            expect(up.stderr).not.toContain('Warning: Invalid JSON')
+            expect(res).toEqual(up)
           })
         }
 
@@ -2126,6 +2128,18 @@ describe('a global config that cannot be read or parsed reads as defaults (ledge
         expect(res.exitCode).toBe(absent.exitCode)
         expect(res.stderr).toBe(line + absent.stderr)
         if (argv[0] !== 'list') expect(res.exitCode).toBe(up.exitCode)
+      })
+
+    // Neither the binary nor cospec warns for these (design D8).
+    for (const argv of [['templates'], ['schema', 'which', 'spec-driven']])
+      test(`cospec ${argv.join(' ')} from a rootless directory prints no warning`, async () => {
+        const cwd = bare(bareSb)
+        placeGlobalConfig(bareConfig, 'invalid JSON')
+        const up = await oracle([...argv], bareSb.dir, { cwd })
+        const res = await cospec([...argv], { cwd, env: bareSb.env })
+        expect(up.exitCode).toBe(0)
+        expect(up.stderr).not.toContain('Warning: Invalid JSON')
+        expect(res).toEqual({ exitCode: up.exitCode, stdout: up.stdout, stderr: up.stderr })
       })
   })
 })
