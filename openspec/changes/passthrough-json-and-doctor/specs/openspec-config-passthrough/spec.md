@@ -109,7 +109,12 @@ answered on cospec's own streams exactly as the binary answers it, ahead of the
 a TTY (the binary's own test for that subcommand), runs as a piped call whose
 answer is relayed through the allowlist; and `config profile` reads the global
 config with a read-only `config list --json` first, relaying the binary's
-unreadable-config refusal, respelled, without handing over.
+unreadable-config refusal, respelled, without handing over. `config reset --all`
+without `-y`, when cospec's stdin is not a TTY (the binary's own test, its
+confirm reading stdin), SHALL run as a piped call that forwards cospec's stdin
+to the confirm as the binary under Node reads it: input already waiting when the
+prompt is drawn is discarded, input that arrives after is taken, and a closed
+input cancels the prompt with exit `130`.
 
 #### Scenario: Editing hands the terminal to the editor
 
@@ -122,6 +127,13 @@ unreadable-config refusal, respelled, without handing over.
 - **WHEN** `cospec config profile` is cancelled at its interactive menu and the
   wrapped process exits 130
 - **THEN** `cospec config profile` exits 130 rather than normalising the code
+
+#### Scenario: A piped answer reaches the reset confirm as it reaches the binary's
+
+- **WHEN** `cospec config reset --all` runs with stdin a pipe
+- **THEN** `echo y |` and `</dev/null` cancel it with `Reset cancelled.` and
+  exit `130`, resetting nothing, and `(sleep 1; echo y) |` resets the global
+  config with exit `0`, as the binary answers each under Node
 
 #### Scenario: A non-TTY caller gets upstream's own refusal
 

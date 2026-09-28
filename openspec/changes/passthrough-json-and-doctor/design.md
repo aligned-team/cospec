@@ -304,18 +304,27 @@ too many. Both refuse before anything runs, exit `1`, nothing on stdout; the
 precedence matrix declares these rows cospec-only and the handover
 pre-validation suite pins the binary's half of each.
 
-**D14 — `config reset --all` piped gives the confirm no stdin.** With no TTY on
-stdin the piped call runs with `stdin: 'ignore'`, as every piped call does, so
-the confirm reads a closed input and cancels (130, `Reset cancelled.`, nothing
-reset). That is the binary's answer under Node for an empty stdin and for an
-answer already waiting on the pipe (`echo y | …`), which Node discards as input
-typed ahead of the prompt (inquirer defers its first render past the buffered
-data). Forwarding cospec's stdin was rejected: under Bun that waiting answer
-reaches the confirm and resets the global config where the binary cancels. The
-cost is one declared divergence — an answer that arrives on the pipe after the
-prompt is drawn (`(sleep 1; echo y) | …`), which the binary takes and resets
-(exit 0), cospec cancels (exit 130, nothing reset); the contract suite pins both
-halves as a cospec-only row.
+**D14 — `config reset --all` piped forwards cospec's stdin to the confirm.**
+With no TTY on stdin the piped call runs with the child's stdin a pipe cospec
+feeds from its own (`SpawnShape.input`), so `echo y | cospec config reset --all`
+answers the confirm as it answers the binary's. Under Node the confirm discards
+an answer already waiting on the pipe when it is drawn (inquirer attaches its
+keypress listener after the buffered data is read) and takes one that arrives
+after; under Bun it takes both. cospec therefore drops every chunk it reads
+before the child prints its first stdout chunk — the prompt — and forwards every
+chunk after, ending the child's stdin when its own ends and stopping the pump
+once the child exits (a write the exited child can no longer take ends it; only
+`EPIPE` is caught). Probed against the binary under Node, each case matches:
+`echo y |`, `echo n |` and `</dev/null` cancel (130, `Reset cancelled.`, nothing
+reset); `(sleep 1; echo y) |` and `yes |` reset (exit 0); `(sleep 1; echo n) |`
+answers no (exit 0, nothing reset). The contract suite pins every case against
+the binary — stdout byte for byte, but for `yes |`, whose count of prompt
+redraws before the input closes no run fixes, under Node as under cospec, where
+its answer line is compared. No Bun-only residual remains. The prompt's SGR
+escapes are stripped from the relay: the binary's prompts style through
+`node:util` `styleText`, which under Node emits none on a pipe and under Bun
+emits them regardless of `NO_COLOR`/`--no-color`; its cursor controls, which
+Node prints too, are kept.
 
 **D15 — The handover preload.** Every terminal handover (`workset open`,
 `config edit`/`profile`/`reset --all`) and the piped `config reset --all` run
@@ -331,12 +340,15 @@ readline closes the same way (a `close`, no error), but Bun dispatches
 drains no microtask an `exit` or `beforeExit` listener queues: the prompt is
 never rejected and the child exits 0 having printed only the prompt. The preload
 (`core/handover-preload.ts`, written content-addressed to cospec's cache beside
-the extracted bundle) emits signal-exit's `exit` once on its process-wide
-emitter (`Symbol.for('signal-exit emitter')`) from `beforeExit` and schedules
-one empty immediate so the rejection's handlers run; the child then prints the
-binary's own cancellation line and exits 130, the binary's answer, which the
-handover propagates verbatim. The compiled binary's runtime honours `--preload`
-under `BUN_BE_BUN=1`; the standalone smoke asserts it on the embedded bundle.
+the extracted bundle, or — when the cache cannot be written, `EACCES`, `EPERM`,
+`EROFS`, `ENOTDIR`, `EEXIST` — to a per-process `mkdtemp` directory under
+`os.tmpdir()`, removed at exit; any other write error propagates) emits
+signal-exit's `exit` once on its process-wide emitter
+(`Symbol.for('signal-exit emitter')`) from `beforeExit` and schedules one empty
+immediate so the rejection's handlers run; the child then prints the binary's
+own cancellation line and exits 130, the binary's answer, which the handover
+propagates verbatim. The compiled binary's runtime honours `--preload` under
+`BUN_BE_BUN=1`; the standalone smoke asserts it on the embedded bundle.
 
 ## Risks / Trade-offs
 
@@ -360,11 +372,10 @@ under `BUN_BE_BUN=1`; the standalone smoke asserts it on the embedded bundle.
 - [The field-map helper's shape is not on this branch] → group 9 runs after the
   rebase; D4 names the one extension this change would add.
 - [Every handover now writes a file] → the preload lands in cospec's cache
-  (`${XDG_CACHE_HOME:-~/.cache}/cospec`), so a cache directory cospec cannot
-  write makes each handover and the piped `config reset --all` fail with
-  cospec's write error, where a handover from a project install wrote nothing
-  before; a standalone install already extracts its bundle there for every
-  wrapped call.
+  (`${XDG_CACHE_HOME:-~/.cache}/cospec`), or, when that directory cannot be
+  written, in a per-process directory under the temp dir, so a read-only cache
+  never stops a handover or the piped `config reset --all`; a standalone install
+  already extracts its bundle to the cache for every wrapped call.
 - [The preload reaches into signal-exit's process-wide emitter] → the key
   (`Symbol.for('signal-exit emitter')`) is signal-exit v4's published global and
   the pinned bundle's; with no emitter the preload does nothing, so an in-range

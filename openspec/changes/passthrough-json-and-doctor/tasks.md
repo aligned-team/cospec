@@ -308,3 +308,27 @@ Files: `openspec/changes/passthrough-json-and-doctor/verification.md`,
       `docs(cli): record passthrough-json-and-doctor verification evidence`; the
       archive (`mise run cospec -- archive passthrough-json-and-doctor`) follows
       as the PR's last commit
+
+## 12. Review round 3
+
+Files: `apps/cli/src/core/handover-preload.ts`, `apps/cli/src/core/openspec.ts`,
+`apps/cli/src/commands/config.ts`, their tests, design D14/D15, the
+`openspec-config-passthrough` spec, `apps/docs/reference/configuration.md`,
+`docs/architecture.md`. Each row lands first as `test.failing` against the
+binary under Node, and the fix flips it.
+
+- [x] 12.1 Write the handover preload under a per-process directory in the temp
+      dir when the cache cannot be written, so every handover and the piped
+      `config reset --all` still run as the binary runs (design D15); commits
+      `test(cli): pin every handover with the cache directory read-only`,
+      `fix(cli): write the handover preload under tmpdir when the cache is read-only`
+- [x] 12.2 Strip the prompt's SGR escapes from the piped `config reset --all`
+      relay and compare its stdout with the binary's byte for byte (design D14);
+      commits `test(cli): compare the piped reset --all stdout byte for byte`,
+      `fix(cli): relay the piped reset --all without Bun's prompt colour`
+- [x] 12.3 Forward cospec's stdin to the piped `config reset --all` from its
+      prompt on, matching the binary on every probed feed (design D14); commits
+      `test(cli): pin the piped reset --all against the binary per stdin feed`,
+      `fix(cli): forward stdin to the piped reset --all once it prompts`
+- [x] 12.4 State the round-3 behaviour in design, spec and docs; commit
+      `docs(cli): record the round-3 preload fallback and stdin forwarding`

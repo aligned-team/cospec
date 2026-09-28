@@ -378,27 +378,32 @@ binary's own interactivity test — `workset open` ports `isInteractive`
 (`OPEN_SPEC_INTERACTIVE=0`, `CI`, no TTY on stdin), `config profile` tests
 stdout and `config reset --all` tests stdin, which its confirm reads — and where
 it fails the call runs piped, declared exit codes and a post-condition, its
-answer relayed respelled and its exit code returned (`reset --all` given no
-stdin, so a closed input cancels it: `130`, nothing reset); then a read-only
-pre-flight — `workset list --json` (a list that itself refuses, exit 1 or an
-error in its `status[]` such as an unreadable worksets file, an unsaved name, or
-a workset with no member folder — every `stat` failure that means the path is
-not a usable folder counted as none, as the binary counts it — is answered
-through the piped call) and a piped `config profile` (any refusal but the
-interactive-mode one is relayed; only that one clears the handover).
-`config edit` has no non-interactive branch and always hands over. Every
-handover env sets `OPENSPEC_TELEMETRY=0` and `OPENSPEC_NO_COMPLETIONS=1`.
+answer relayed respelled and its exit code returned (`reset --all` forwards
+cospec's stdin to its confirm from the prompt on: what was already waiting on
+the pipe is dropped, as the binary's confirm under Node never sees it, and a
+closed input cancels it — `130`, nothing reset; the prompt's SGR colour, which
+Bun's `styleText` emits on a pipe where Node's emits none, is stripped from the
+relay); then a read-only pre-flight — `workset list --json` (a list that itself
+refuses, exit 1 or an error in its `status[]` such as an unreadable worksets
+file, an unsaved name, or a workset with no member folder — every `stat` failure
+that means the path is not a usable folder counted as none, as the binary counts
+it — is answered through the piped call) and a piped `config profile` (any
+refusal but the interactive-mode one is relayed; only that one clears the
+handover). `config edit` has no non-interactive branch and always hands over.
+Every handover env sets `OPENSPEC_TELEMETRY=0` and `OPENSPEC_NO_COMPLETIONS=1`.
 
 Every handover, and the piped `config reset --all`, runs the binary behind a
 preload (`core/handover-preload.ts`, `--preload <file>` ahead of the bin path,
-the file written content-addressed to cospec's cache). The wrapped binary runs
-under cospec's own Bun, never node, and its inquirer prompts answer a closed
-input (Ctrl-D, an ended pipe) through signal-exit, which hooks Node's
-`process.emit('exit')`: Bun dispatches `exit` natively and drains no microtask
-an exit listener queues, so without the preload the prompt is never rejected and
-the child exits 0. The preload emits signal-exit's `exit` once from `beforeExit`
-and turns the loop once more, so the binary's own catch prints its cancellation
-line and exits `130`, as it does under Node.
+the file written content-addressed to cospec's cache, or — when that directory
+cannot be written — to a per-process directory under the temp dir, removed at
+exit). The wrapped binary runs under cospec's own Bun, never node, and its
+inquirer prompts answer a closed input (Ctrl-D, an ended pipe) through
+signal-exit, which hooks Node's `process.emit('exit')`: Bun dispatches `exit`
+natively and drains no microtask an exit listener queues, so without the preload
+the prompt is never rejected and the child exits 0. The preload emits
+signal-exit's `exit` once from `beforeExit` and turns the loop once more, so the
+binary's own catch prints its cancellation line and exits `130`, as it does
+under Node.
 
 What the binary can still print naming a bare `openspec` command after all that
 is the residual of a live interactive session, on the terminal it was handed:

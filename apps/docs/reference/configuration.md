@@ -215,19 +215,23 @@ prototype-pollution guard as OpenSpec answers, its remedies spelled `cospec`
   `cospec config reset --all`), `--scope project`
   (`Error: Project-local config is not yet implemented`) — gets OpenSpec's
   refusal instead of the menu. `reset --all` tests for a TTY on stdin, which its
-  confirm reads: with none it runs piped and its confirm gets no input, so it is
-  cancelled — `Reset cancelled.`, exit `130`, nothing reset — as OpenSpec
-  answers an empty stdin or an answer already waiting on the pipe
-  (`echo y | …`). An answer piped in after the prompt is drawn is the one
-  difference: OpenSpec takes it, cospec cancels; pass `-y` to reset from a
-  script. `edit` has no non-interactive branch and always hands over.
+  confirm reads: with none it runs piped and cospec's stdin reaches the confirm
+  as it reaches OpenSpec's. An answer already waiting on the pipe when the
+  prompt is drawn (`echo y | …`, `echo n | …`) is discarded, so it and an empty
+  stdin (`</dev/null`) are cancelled — `Reset cancelled.`, exit `130`, nothing
+  reset; an answer that arrives after the prompt (`(sleep 1; echo y) | …`,
+  `yes | …`) is taken — `y` resets, `n` prints `Reset cancelled.`, exit `0`.
+  Pass `-y` to reset from a script. `edit` has no non-interactive branch and
+  always hands over.
 
 A prompt given no input — Ctrl-D at a handed-over prompt, or an ended pipe — is
 cancelled as OpenSpec cancels it under Node: its cancellation line
 (`Reset cancelled.`, `Config profile cancelled.`) and exit `130`. OpenSpec runs
 under cospec's own runtime, so cospec runs it behind a small preload that
 delivers the exit notice OpenSpec's prompts listen for; cospec writes that file
-to its cache (`${XDG_CACHE_HOME:-~/.cache}/cospec`).
+to its cache (`${XDG_CACHE_HOME:-~/.cache}/cospec`), or — when it cannot write
+there — to a directory of its own under the system temp directory, removed when
+cospec exits, so a read-only cache never stops a prompt.
 
 `--scope` is a parent-level option (not `--store` — OpenSpec config is
 machine-global, so `cospec config` never resolves a root or threads
