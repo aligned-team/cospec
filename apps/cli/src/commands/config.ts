@@ -43,6 +43,7 @@ import { commandRow, storePathInOptionPosition, storePathRefusal } from '../core
 import {
   forwardCall,
   isOptionToken,
+  isParseRejection,
   relayCommandLevel,
   relayStorePathRefusal,
   subcommandOf,
@@ -236,9 +237,15 @@ async function runPiped(ctx: CommandContext, call: ConfigCall): Promise<number> 
     passthroughOpenspec(call.wrapped, { cwd: ctx.cwd, expect: CONFIG_EXPECT }),
   )
   // Ahead of the cospec-owned envelopes: the binary's `--store-path` refusal
-  // is answered with cospec's redirect, never rendered as a `path` or `value`.
+  // is answered with cospec's redirect, and commander's parse rejection
+  // relayed as the binary printed it (text, before any output, as commander
+  // refuses), never rendered as a `path`, `value` or `message`.
   const refused = relayStorePathRefusal(result, ctx.flags.json)
   if (refused !== undefined) return refused
+  if (isParseRejection(result)) {
+    process.stderr.write(result.stderr)
+    return EXIT.failure
+  }
   const ok = result.exitCode === 0
   const out = result.stdout.trim()
 

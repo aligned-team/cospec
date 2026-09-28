@@ -504,19 +504,15 @@ describe('config relays the binary’s parse refusal and help (ledger 5.1–5.3)
     ['config', 'path', '--bogus', '--json'],
     ['config', 'set', 'a', 'b', '--bogus', '--json'],
   ]) {
-    test.failing(
-      `${argv.join(' ')}: the binary’s refusal, no envelope`,
-      async () => {
-        const root = plainRoot()
-        const up = await oracle(argv, root)
-        const co = await runCospec(argv, root)
-        expect(up.exitCode).toBe(1)
-        expect(co.exitCode, detail(co)).toBe(1)
-        expect(co.stdout, detail(co)).toBe('')
-        expect(co.stderr, detail(co)).toBe(up.stderr)
-      },
-      30_000,
-    )
+    test(`${argv.join(' ')}: the binary’s refusal, no envelope`, async () => {
+      const root = plainRoot()
+      const up = await oracle(argv, root)
+      const co = await runCospec(argv, root)
+      expect(up.exitCode).toBe(1)
+      expect(co.exitCode, detail(co)).toBe(1)
+      expect(co.stdout, detail(co)).toBe('')
+      expect(co.stderr, detail(co)).toBe(up.stderr)
+    }, 30_000)
   }
 
   for (const argv of [['config'], ['config', '--scope', 'global']]) {
