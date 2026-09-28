@@ -368,3 +368,20 @@ flips them.
       own checks read the invocation directory; a bare workspace gets the
       `initialized` ERROR where OpenSpec exits 0) in design, spec and docs;
       commit `docs(cli): state doctor's stderr fold and --store carve-out`
+
+## 15. Review round 6
+
+Files: `apps/cli/src/commands/doctor.ts`, `doctor-parity.test.ts`,
+`test/integration/doctor-relationship.test.ts`, design D3, the
+`openspec-relationship-health` spec, `apps/docs/reference/commands.md`,
+`apps/docs/concepts/stores.md`. Rows land first as `test.failing`, and the fix
+flips them.
+
+- [x] 15.1 Run cospec's own checks (manifest, schema, config, `initialized`)
+      against the store an explicit `--store <id>` selects, as for a pointer or
+      `defaultStore` root (design D3); commits
+      `test(cli): pin doctor --store checks on the selected store`,
+      `fix(cli): run doctor's own checks on an explicit --store root`
+- [x] 15.2 State what now holds in design, spec and docs, the `--store`
+      carve-out wording removed; commit
+      `docs(cli): state doctor's --store checks on the selected store`

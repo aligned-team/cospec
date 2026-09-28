@@ -20,21 +20,21 @@ carried in `status` and SHALL NOT be folded a second time into `findings`.
 `openspec/config.yaml`, else `openspec/config.yml` — for its own `config` check.
 Its own checks SHALL target the operating root the resolver selects for the
 directory: run from a subdirectory of a project, the enclosing root the resolver
-walks to, as `openspec doctor` does, and for a declared `store:` pointer or the
-global `defaultStore`, the store that selection resolves to. With no root
-selected its own checks SHALL NOT run: a directory with no root gets the one
-`initialized` ERROR, and a selection that fails for any other reason is reported
-by the binary's folded diagnostic alone. For an explicit `--store <id>` its own
-checks SHALL read the invocation directory, not the store: run from a bare
-workspace with no `openspec/`, `cospec doctor --store <id>` reports the
-`initialized` ERROR and exits 1 where `openspec doctor --store <id>` exits 0.
-Each line the delegated `openspec doctor --json` writes to stderr (its config
-warnings, such as `Invalid 'context' field in config (must be string)`) that
-cospec did not already print itself SHALL be one `openspec-stderr` WARNING
-finding, its text spelled through the allowlist, so the text report prints it
-and the `--json` document carries it; cospec's stderr SHALL NOT repeat it. When
-the delegated call cannot be read, the WARNING finding's remedy SHALL name
-`cospec doctor`, never a bare `openspec` command.
+walks to, as `openspec doctor` does, and for an explicit `--store <id>`, a
+declared `store:` pointer or the global `defaultStore`, the store that selection
+resolves to — never the invocation directory, so `cospec doctor --store <id>`
+from a bare workspace with no `openspec/`, from its subdirectory or from inside
+another project checks the store and exits as `openspec doctor --store <id>`
+does. With no root selected its own checks SHALL NOT run: a directory with no
+root gets the one `initialized` ERROR, and a selection that fails for any other
+reason is reported by the binary's folded diagnostic alone. Each line the
+delegated `openspec doctor --json` writes to stderr (its config warnings, such
+as `Invalid 'context' field in config (must be string)`) that cospec did not
+already print itself SHALL be one `openspec-stderr` WARNING finding, its text
+spelled through the allowlist, so the text report prints it and the `--json`
+document carries it; cospec's stderr SHALL NOT repeat it. When the delegated
+call cannot be read, the WARNING finding's remedy SHALL name `cospec doctor`,
+never a bare `openspec` command.
 
 This requirement replaces "Doctor surfaces openspec root-relationship and store
 health", whose rule that a plain local root omits the delegated section was the
@@ -106,6 +106,16 @@ defect. Its three surviving scenarios are carried over verbatim below.
 - **THEN** `root.source` is the binary's (`declared`, `global_default`), the
   four keys equal the binary's, cospec's own checks report no ERROR on the
   store, and the exit code is the binary's
+
+#### Scenario: Doctor with an explicit --store diagnoses the store
+
+- **WHEN** `cospec doctor --store <id>` or `cospec doctor --store <id> --json`
+  runs, for an initialized store, from a bare workspace with no `openspec/`,
+  from a subdirectory of one, or from inside another project
+- **THEN** `root.source` is the binary's (`store`), the four keys equal the
+  binary's, cospec's own checks read the store and report no ERROR (no
+  `initialized` ERROR, nothing about the other project), and the exit code is
+  the binary's, 0
 
 #### Scenario: Doctor folds OpenSpec's stderr config warnings
 
