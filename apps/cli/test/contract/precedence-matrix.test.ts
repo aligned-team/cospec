@@ -912,6 +912,11 @@ const BROKEN_REASON_TEXT = new RegExp(`^cospec new: ${BROKEN_REASON.source.slice
 
 const VALID_TYPES = 'build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test'
 
+/** `new`'s usage, the line after each of its missing-argument refusals. */
+const NEW_USAGE =
+  'cospec new: usage — cospec new <type> <slug> | cospec new "<type>: <description>"\n'
+const MISSING_SLUG = `cospec new: missing required argument 'slug'\n${NEW_USAGE}`
+
 const NEW_REFUSAL_ROWS: readonly Row[] = [
   {
     argv: ['new', 'bogus', 'x'],
@@ -929,15 +934,15 @@ const NEW_REFUSAL_ROWS: readonly Row[] = [
   {
     argv: ['new', 'feat'],
     command: 'new',
-    cospecOnly: { outcome: 'parsed', exit: 1 },
-    cospecStderr: 'cospec new: usage — cospec new <type> <slug>',
+    cospecOnly: { outcome: 'missing-argument', exit: 1 },
+    cospecStderr: MISSING_SLUG,
     check: textRefusal,
   },
   {
     argv: ['new', 'feat', '--json'],
     command: 'new',
-    cospecOnly: { outcome: 'parsed', exit: 1 },
-    cospecStderr: 'cospec new: usage — cospec new <type> <slug>',
+    cospecOnly: { outcome: 'missing-argument', exit: 1 },
+    cospecStderr: MISSING_SLUG,
     check: textRefusal,
   },
   {
@@ -1028,8 +1033,8 @@ const NEW_REFUSAL_ROWS: readonly Row[] = [
       variant: 'no root',
       command: 'new',
       setup: withoutTree,
-      cospecOnly: { outcome: 'parsed', exit: 1 },
-      cospecStderr: 'cospec new: usage — cospec new <type> <slug>',
+      cospecOnly: { outcome: 'missing-argument', exit: 1 },
+      cospecStderr: `cospec new: missing required argument '${argv[1] === 'feat' ? 'slug' : 'type'}'\n${NEW_USAGE}`,
       check: (tool, root, run) => {
         textRefusal(tool, root, run)
         expect(run.stderr, tool).not.toContain('no openspec/ directory')
@@ -1088,6 +1093,128 @@ const NEW_REFUSAL_ROWS: readonly Row[] = [
     cospecStderr: "cospec new: unknown option '--areas'",
     check: textRefusal,
   },
+]
+
+/**
+ * A required positional given nothing is commander's `missing required
+ * argument '<name>'`, raised after the scan's unknown options and before too
+ * many arguments or the action, so before an action-level `--store-path`
+ * refusal and a root check: text in both modes, never a document, exit 1.
+ * cospec answers it in its own format, the usage on the next line. Where the
+ * upstream command declares the same required positional (`feedback
+ * <message>`, `__complete <type>`) the row is the binary's; `new`, `apply`
+ * and `migrate` are cospec's own, and upstream's `archive [change-name]` and
+ * `instructions [artifact]` are optional where cospec requires them, so
+ * those rows state cospec's answer. `check-commit`'s message file stays
+ * optional: an advisory hook never refuses.
+ */
+function missingArgument(command: string, name: string, usage: string): string {
+  return `cospec ${command}: missing required argument '${name}'\ncospec ${command}: usage — ${usage}\n`
+}
+
+const MISSING_ARGUMENT_ROWS: readonly Row[] = [
+  // `new change <name> --store-path /x` (probed) is `missing required argument 'name'`.
+  ...[
+    ['new', '--store-path', '/x'],
+    ['new', 'feat', '--store-path', '/x'],
+    ['new', 'feat', '--store-path', '/x', '--json'],
+    ['new', '--json', '--store-path', '/x'],
+  ].map(
+    (argv): Row => ({
+      argv,
+      command: 'new',
+      cospecOnly: { outcome: 'missing-argument', exit: 1 },
+      cospecStderr: `cospec new: missing required argument '${argv[1] === 'feat' ? 'slug' : 'type'}'\n${NEW_USAGE}`,
+      check: textRefusal,
+    }),
+  ),
+  // The compound `"<type>: <description>"` fills the slug, so the redirect answers.
+  {
+    argv: ['new', 'feat: add a thing', '--store-path', '/x'],
+    command: 'new',
+    cospecOnly: { outcome: 'store-path', exit: 1 },
+    check: textRefusal,
+  },
+  // A missing value still outranks it, help too, and an unknown option.
+  {
+    argv: ['new', 'feat', '--store-path'],
+    command: 'new',
+    cospecOnly: { outcome: 'store-path', exit: 1 },
+  },
+  { argv: ['new', 'feat', '--help'], command: 'new', cospecOnly: { outcome: 'help:new', exit: 0 } },
+  {
+    argv: ['new', 'feat', '--bogus', '--store-path', '/x'],
+    command: 'new',
+    cospecOnly: { outcome: 'unknown-option', exit: 1 },
+  },
+  ...[['apply', '--json'], ['apply'], ['apply', '--allow-soft']].map(
+    (argv): Row => ({
+      argv,
+      command: 'apply',
+      cospecOnly: { outcome: 'missing-argument', exit: 1 },
+      cospecStderr: missingArgument('apply', 'change', 'cospec apply <change>'),
+      check: textRefusal,
+    }),
+  ),
+  // `apply` never declares `--store-path`: an unknown option, reported first.
+  {
+    argv: ['apply', '--store-path', '/x'],
+    command: 'apply',
+    cospecOnly: { outcome: 'store-path', exit: 1 },
+  },
+  ...[['migrate'], ['migrate', '--json']].map(
+    (argv): Row => ({
+      argv,
+      command: 'migrate',
+      cospecOnly: { outcome: 'missing-argument', exit: 1 },
+      cospecStderr: missingArgument('migrate', 'slug', 'cospec migrate <slug>'),
+      check: textRefusal,
+    }),
+  ),
+  ...[
+    ['archive', '--store-path', '/x'],
+    ['archive', '--store-path', '/x', '--json'],
+    ['archive', '--json'],
+    ['archive', '-y'],
+  ].map(
+    (argv): Row => ({
+      argv,
+      command: 'archive',
+      cospecOnly: { outcome: 'missing-argument', exit: 1 },
+      cospecStderr: missingArgument('archive', 'change', 'cospec archive <change>'),
+      check: textRefusal,
+    }),
+  ),
+  ...[
+    ['instructions', '--change', 'x'],
+    ['instructions', '--change', 'x', '--json'],
+    ['instructions', '--store-path', '/x'],
+    ['instructions', '--json'],
+  ].map(
+    (argv): Row => ({
+      argv,
+      command: 'instructions',
+      cospecOnly: { outcome: 'missing-argument', exit: 1 },
+      cospecStderr: missingArgument('instructions', 'artifact', 'cospec instructions <artifact>'),
+      check: textRefusal,
+    }),
+  ),
+  {
+    argv: ['feedback'],
+    command: 'feedback',
+    cospecStderr: missingArgument('feedback', 'message', 'cospec feedback <message>'),
+    check: textRefusal,
+  },
+  { argv: ['feedback', '--body', 'b'], command: 'feedback', check: textRefusal },
+  { argv: ['feedback', '--store-path', '/x'], command: 'feedback', check: textRefusal },
+  {
+    argv: ['__complete'],
+    command: '__complete',
+    cospecStderr: missingArgument('__complete', 'source', 'cospec __complete <source>'),
+    check: textRefusal,
+  },
+  { argv: ['__complete', '--store-path', '/x'], command: '__complete', check: textRefusal },
+  { argv: ['check-commit'], command: 'check-commit', cospecOnly: { outcome: 'parsed', exit: 0 } },
 ]
 
 /**
@@ -1432,9 +1559,39 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * a `--json` caller in prose). The round-10 rows exposed 6 more (a failed
  * wrapped `new change` answering with its exit code, not the binary's reason,
  * in both modes; a missing slug outside an openspec/ tree answered with the
- * root refusal, not the parse refusal). The fixes empty this set.
+ * root refusal, not the parse refusal). The round-11 rows exposed 25 more (a
+ * required positional given nothing never refused by the table parser, so a
+ * trailing `--store-path` redirect, a root check or a module's own wording
+ * answered instead of commander's `missing required argument`). The fixes
+ * empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
+  'new feat',
+  'new feat --json',
+  'new [no root]',
+  'new --json [no root]',
+  'new feat [no root]',
+  'new feat --json [no root]',
+  'new --store-path /x',
+  'new feat --store-path /x',
+  'new feat --store-path /x --json',
+  'new --json --store-path /x',
+  'apply --json',
+  'apply',
+  'apply --allow-soft',
+  'migrate',
+  'migrate --json',
+  'archive --store-path /x',
+  'archive --store-path /x --json',
+  'archive --json',
+  'archive -y',
+  'instructions --change x',
+  'instructions --change x --json',
+  'instructions --store-path /x',
+  'instructions --json',
+  'feedback',
+  '__complete',
+])
 
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot(row.store, row.userSchema, row.setup)
@@ -1502,6 +1659,7 @@ describe('precedence matrix: forward wrapper guards', () => register(FORWARD_GUA
 describe('precedence matrix: status --json documents', () => register(STATUS_JSON_ROWS))
 describe('precedence matrix: new without its schema', () => register(NEW_SCHEMA_ROWS))
 describe('precedence matrix: new refusals in both modes', () => register(NEW_REFUSAL_ROWS))
+describe('precedence matrix: missing required arguments', () => register(MISSING_ARGUMENT_ROWS))
 describe('precedence matrix: status positional with --change or --all', () =>
   register(STATUS_POSITIONAL_ROWS))
 describe('precedence matrix: --store-path where upstream never declares it', () =>
@@ -1554,6 +1712,7 @@ describe('precedence matrix: harness', () => {
       ...STATUS_JSON_ROWS,
       ...NEW_SCHEMA_ROWS,
       ...NEW_REFUSAL_ROWS,
+      ...MISSING_ARGUMENT_ROWS,
       ...STATUS_POSITIONAL_ROWS,
       ...UNDECLARED_STORE_PATH_ROWS,
       ...FORWARD_REFUSAL_ROWS,
