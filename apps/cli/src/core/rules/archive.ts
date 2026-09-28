@@ -337,7 +337,12 @@ function rebuiltSpecIssues(
           `${base}, and retire_capabilities cannot retire it: ${blockedBy}`,
           REBUILT_HINT.unaccounted,
         )
-      else if (retireDeclared && living !== undefined && rebuilt.removed === 0)
+      else if (
+        retireDeclared &&
+        living !== undefined &&
+        rebuilt.noRequirementBlocks &&
+        rebuilt.removed === 0
+      )
         report(
           origin,
           `${base}, and retire_capabilities cannot retire it: this change removes none of its requirements`,

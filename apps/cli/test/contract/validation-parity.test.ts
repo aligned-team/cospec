@@ -3322,6 +3322,21 @@ describe('26. retire_capabilities retires only what the archive retires', () => 
         ([shape, living]) => [shape, living, REMOVED_BOTH] as [string, string, string],
       ),
       ['plain-remove-one', LIVING, REMOVED_RENDERING],
+      ['plus-bullets', LIVING.replaceAll('- **', '+ **'), REMOVED_BOTH],
+      [
+        'setext-sibling',
+        LIVING.replace(PURPOSE_LINE, `${PURPOSE_LINE}\nScope\n-----\n`),
+        REMOVED_BOTH,
+      ],
+      [
+        'table-in-bullet',
+        LIVING.replace(
+          '- **THEN** a widget is rendered\n',
+          '- **THEN** a widget is rendered\n  | a | b |\n',
+        ),
+        REMOVED_BOTH,
+      ],
+      ['html-heading-above', inPreamble('<h3>Notes</h3>\n\n'), REMOVED_BOTH],
       ['plain-modified', inPreamble('Intro prose.\n\n'), MODIFIED_RENDERING],
     ]
     for (const [shape, living, delta] of shapes) {

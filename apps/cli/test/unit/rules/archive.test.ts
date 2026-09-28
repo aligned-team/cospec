@@ -1315,6 +1315,10 @@ describe('archive/rebuilt-spec-invalid', () => {
   test('a declared retirement is decided on the ERRORs, not the level of the Requirements header', () => {
     const living = LIVING.replace('Real purpose.\n', 'Real purpose.\n\n### Requirements\n')
     expect(rebuilt(REMOVE_EXISTING, living, { retireCapabilities: true })).toEqual([])
+    // Blocks survive under `## Requirements`: the misread is the blocker, not the removal count.
+    expect(rebuilt(MOD, living, { retireCapabilities: true }).map((i) => i.message)).toEqual([
+      `the rebuilt spec for 'x' has no requirement: "### Requirements" (line 7 of openspec/specs/x/spec.md) is read as its Requirements section, and nothing sits under it`,
+    ])
     expect(rebuilt(REMOVE_EXISTING, living).map((i) => i.message)).toEqual([
       `the rebuilt spec for 'x' has no requirement: "### Requirements" (line 7 of openspec/specs/x/spec.md) is read as its Requirements section, and nothing sits under it`,
     ])
