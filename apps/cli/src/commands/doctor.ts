@@ -44,7 +44,7 @@ import {
   type Root,
 } from '../core/openspec.ts'
 import { respellRemedies } from '../core/remedies.ts'
-import { resolveRoot } from '../core/root.ts'
+import { type ResolvedRoot, resolveRoot, RootSelectionError } from '../core/root.ts'
 import { HARNESS_NAMES } from '../harness/render.ts'
 import { OPSX_SHARED_SKILL_ROOT } from './init.ts'
 import { detectHarnesses, generate } from './update.ts'
@@ -693,21 +693,32 @@ export async function run(ctx: CommandContext): Promise<number> {
   // for an explicit `--store` invocation is deliberately allowed to be a plain
   // workspace with no `openspec/` of its own — that split is the point of
   // `cospec doctor --store <id>` run from a bare checkout.
-  const root = await resolveRoot(ctx)
+  const selection = await selectRoot(ctx)
+  const selected = selection instanceof RootSelectionError ? undefined : selection
+  const root: Root = selected ?? {
+    base: cwd,
+    cwd,
+    storeArgs: flags.store === undefined ? [] : ['--store', flags.store],
+  }
   // From a subdirectory the local checks read the enclosing root the walk
   // found; the invocation cwd stays the base only where no local root was
-  // walked to (a store-selected or implicit root).
-  const base = root.source === 'nearest' ? root.base : cwd
+  // walked to (a store-selected or implicit root, or none selected).
+  const base = selected?.source === 'nearest' ? selected.base : cwd
 
-  const initialized = existsSync(openspecDir(base))
-  if (!initialized) {
+  // With no root selected there is nothing for cospec's own checks to read
+  // (the directory may not even be readable); a selection that failed for any
+  // reason but "no root here" is reported by the binary's folded diagnostic.
+  const initialized = selected !== undefined && existsSync(openspecDir(base))
+  const failedOtherwise =
+    selection instanceof RootSelectionError && !NO_ROOT_CODES.has(selection.diagnostic.code)
+  if (!initialized && !failedOtherwise) {
     findings.push({
       level: 'ERROR',
       check: 'initialized',
       message: `no openspec/ directory at ${cwd}`,
       remedy: 'run `cospec init` to scaffold cospec',
     })
-  } else {
+  } else if (initialized) {
     checkOpenspecVersion(findings)
     checkLegacyLayout(checkDrift(base, findings), findings)
     const mdFiles = harnessMarkdownFiles(base)
@@ -725,6 +736,23 @@ export async function run(ctx: CommandContext): Promise<number> {
   const relationship = await checkOpenspecRelationship(root, base, findings, initialized)
 
   return report(findings, flags.json, relationship)
+}
+
+/**
+ * The operating root, or the selection's failure: doctor reports on every
+ * root, and the binary's own `doctor --json` answers a failed selection in its
+ * report (`root: null` and the selection's diagnostic in `status`), which
+ * doctor folds beside its own `initialized` check (design D3). A `--cwd` that
+ * does not exist is cospec's own refusal and stands.
+ */
+async function selectRoot(ctx: CommandContext): Promise<ResolvedRoot | RootSelectionError> {
+  try {
+    return await resolveRoot(ctx)
+  } catch (error) {
+    if (!(error instanceof RootSelectionError) || error.diagnostic.code === 'directory_not_found')
+      throw error
+    return error
+  }
 }
 
 function report(findings: Finding[], json: boolean, relationship: RelationshipReport): number {

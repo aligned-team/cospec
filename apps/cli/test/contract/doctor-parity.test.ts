@@ -244,22 +244,18 @@ describe('cospec doctor --json carries openspec doctor --json on every root', ()
     }, 60_000)
   }
 
-  // Post-rebase: the resolver's ancestor walk (`root-resolution-parity`)
-  // finds the enclosing root; doctor's own checks must diagnose it too.
-  test.failing(
-    'from a subdirectory of an initialized project (ledger 2.7, post-rebase)',
-    async () => {
-      const root = await initializedRoot()
-      const sub = join(root, 'openspec', 'changes')
-      const { co, doc, up } = await doctorBoth(['doctor', '--json'], root, sub)
-      expect(
-        doc.findings.some((f) => f.check === 'initialized'),
-        detail(co),
-      ).toBe(false)
-      const upRoot = (up.json as { root: { path: string } | null }).root
-      expect(upRoot).not.toBeNull()
-      expect((doc as unknown as { root: { path: string } | null }).root?.path).toBe(upRoot!.path)
-    },
-    60_000,
-  )
+  // The resolver's ancestor walk (`root-resolution-parity`) finds the
+  // enclosing root; doctor's own checks diagnose it too.
+  test('from a subdirectory of an initialized project (ledger 2.7)', async () => {
+    const root = await initializedRoot()
+    const sub = join(root, 'openspec', 'changes')
+    const { co, doc, up } = await doctorBoth(['doctor', '--json'], root, sub)
+    expect(
+      doc.findings.some((f) => f.check === 'initialized'),
+      detail(co),
+    ).toBe(false)
+    const upRoot = (up.json as { root: { path: string } | null }).root
+    expect(upRoot).not.toBeNull()
+    expect((doc as unknown as { root: { path: string } | null }).root?.path).toBe(upRoot!.path)
+  }, 60_000)
 })

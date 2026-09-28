@@ -348,9 +348,9 @@ cospec's text rendered from the rewritten document), and in a text answer with
 no document only a whole line that is an allowlisted sentence, its holes filled
 (`respellLines`: `workset create`'s and an empty `workset list`'s next step,
 `config profile <preset>`'s). A `store`/`workset` argv whose first token is no
-subcommand the wrapper dispatches is the binary's to refuse:
-`relayGroupRefusal` spawns `<group> [--json] <argv>`, declares exit `1` and a
-post-condition (commander's rejection, or one document carrying the group's
+subcommand the wrapper dispatches is the binary's to refuse: `relayGroupRefusal`
+spawns `<group> [--json] <argv>`, declares exit `1` and a post-condition
+(commander's rejection, or one document carrying the group's
 `unknown_*_subcommand` code), and relays the answer respelled.
 
 ### The terminal-handover class

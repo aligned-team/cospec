@@ -1908,7 +1908,7 @@ describe('cospec doctor from a subdirectory checks the enclosing root (ledger 5.
     expect(fromSub).toEqual(findings(atRoot.stdout))
     expect(atSub.exitCode).toBe(atRoot.exitCode)
     expect(fromSub.find((f) => f.check === 'openspec-root')?.message).toBe(
-      `operating root is nearest-sourced at ${o.path} (healthy per openspec doctor)`,
+      `operating root is nearest-sourced at ${o.path} (healthy per OpenSpec's doctor)`,
     )
     expect(fromSub.some((f) => f.check.startsWith('openspec-reference-nonexistent-store'))).toBe(
       true,
@@ -2093,7 +2093,7 @@ describe('a global config that cannot be read or parsed reads as defaults (ledge
       const res = await ours('valid', ['doctor', '--json'], cwd)
       const findings = (JSON.parse(res.stdout) as { findings: DoctorFinding[] }).findings
       expect(findings.find((f) => f.check === 'openspec-root')?.message).toBe(
-        `operating root is ${up.root.source}-sourced at ${up.root.path} (healthy per openspec doctor)`,
+        `operating root is ${up.root.source}-sourced at ${up.root.path} (healthy per OpenSpec's doctor)`,
       )
     })
 

@@ -388,7 +388,9 @@ describe('context spells its reference block through cospec (ledger 3.1–3.4, p
 
 describe('schemas spells its relayed no-root answer through cospec (ledger 3.5, post-rebase)', () => {
   for (const argv of [['schemas'], ['schemas', '--json']]) {
-    test.failing(
+    // `--json` already answers through the resolver's own document.
+    const row = argv.includes('--json') ? test : test.failing
+    row(
       `${argv.join(' ')} with no root and a registered store`,
       async () => {
         const root = rootlessWithStore()
@@ -711,7 +713,9 @@ describe('a --cwd that does not exist is refused before any spawn (ledger 7.1, 7
       30_000,
     )
 
-    test.failing(
+    // doctor already refuses through the resolver it calls first.
+    const jsonRow = command[0] === 'doctor' ? test : test.failing
+    jsonRow(
       `${command.join(' ')} --cwd <missing> --json: the resolver's document`,
       async () => {
         const root = plainRoot()
