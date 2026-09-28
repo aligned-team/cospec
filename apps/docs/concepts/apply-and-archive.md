@@ -274,11 +274,13 @@ A `REMOVED` operation that takes a capability's last requirement can delete its
 living `spec.md` outright, rather than leaving an empty `## Requirements`
 section behind — but only when the change's `.openspec.yaml` declares
 `retire_capabilities: true` (see [Configuration](/reference/configuration)).
-Without the marker, openspec refuses the merge and cospec relays the refusal
-untouched — change and spec both left exactly as they were. With it, expect the
-`Retired:` line above; if a spec disappears with **no** marker present, that's
-an invariant breach, not a legitimate retirement, and cospec reports it as such
-rather than accepting it quietly.
+Without the marker, openspec refuses the merge — on a cospec-typed change cospec
+says so first, at validate time, as `archive/rebuilt-spec-invalid`; on a legacy
+change it relays openspec's refusal untouched — change and spec both left
+exactly as they were. With it, expect the `Retired:` line above; if a spec
+disappears with **no** marker present, that's an invariant breach, not a
+legitimate retirement, and cospec reports it as such rather than accepting it
+quietly.
 
 ::: warning Why filesystem checks, not exit codes The wrapped `openspec` binary
 is trusted for its output, never for its exit code alone — it can abort or

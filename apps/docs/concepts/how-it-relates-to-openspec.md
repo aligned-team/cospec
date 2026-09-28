@@ -69,15 +69,25 @@ and the current pin:
   catch:** empty delta sections and a change with no parsed delta, skipped `###`
   headers, header-only and missing SHALL/MUST, a requirement with no scenario, a
   requirement one delta file both adds and removes, adds and modifies, or
-  modifies and removes, duplicate ADDED names, and RENAMED pairs sharing a
-  source or a target or landing on an ADDED name. On a cospec-typed change each
+  modifies and removes, duplicate ADDED, MODIFIED and REMOVED names, RENAMED
+  pairs sharing a source or a target or landing on an ADDED name, a REMOVED of a
+  RENAMED source, a MODIFIED of one, a requirement outside every delta section,
+  and a delta with no delta section at all. On a cospec-typed change each
   delegated finding is deduped against its cospec twin (`archive/no-ops`,
   `deltas/skipped-header`, `archive/split-requirement`, `deltas/scenario-depth`,
-  `deltas/requirement-shape`, `archive/added-exists`, `archive/target-missing`,
-  `archive/target-invalid`) on the same file and the same name or header, and
-  cospec keeps its own severity; a finding with no cospec twin is still relayed,
-  and a legacy change relays all of them at OpenSpec's level. The pairing table
-  is on [Validation rules](/reference/validation-rules).
+  `deltas/requirement-shape`, `deltas/orphaned-requirement`,
+  `deltas/header-present`, `archive/added-exists`, `archive/target-missing`,
+  `archive/op-conflict`, `archive/new-spec-non-added`, `archive/target-invalid`)
+  on the same file and the same name or header, and cospec keeps its own
+  severity; a finding with no cospec twin is still relayed, and a legacy change
+  relays all of them at OpenSpec's level. The pairing table is on
+  [Validation rules](/reference/validation-rules).
+- **OpenSpec's archive re-validates the spec it rebuilt, which its `validate`
+  never does:** living content a delta never touches — a `### Notes` above the
+  first requirement, a surviving requirement with no scenario, no `## Purpose`
+  text — passes `openspec validate` and aborts `openspec archive`. cospec
+  rebuilds the spec the same way and runs the same validation, so
+  `archive/rebuilt-spec-invalid` refuses those changes at validate time instead.
 
 ## cospec is an opinionated implementation of OpenSpec
 

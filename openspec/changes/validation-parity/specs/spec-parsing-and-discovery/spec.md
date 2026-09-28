@@ -14,10 +14,14 @@ header the delta reader skips, a requirement missing SHALL/MUST, its requirement
 text or a scenario, an `## ADDED` name the same delta file also removes or
 modifies, a `## MODIFIED` name it also removes, a duplicate `## ADDED` name, two
 `RENAMED` pairs sharing a source or a target, a `RENAMED` target the same delta
-ADDs, a skipped header that splits a requirement the archive refuses, and a
-living spec the archive refuses as structurally invalid. Suppression SHALL apply
-only when the native rule actually fired; when cospec's own rule is silent, the
-delegated issue SHALL still be reported so nothing is lost.
+ADDs, a skipped header that splits a requirement the archive refuses, a living
+spec the archive refuses as structurally invalid, a `## MODIFIED` of a `RENAMED`
+source, a `## MODIFIED` or `## RENAMED` on a capability with no living spec, a
+requirement outside every delta section, a delta with no delta section, a
+duplicate `## MODIFIED` or `## REMOVED` name, and a `## REMOVED` of a `RENAMED`
+source. Suppression SHALL apply only when the native rule actually fired; when
+cospec's own rule is silent, the delegated issue SHALL still be reported so
+nothing is lost.
 
 Each of those later pairings SHALL be keyed so that a second real finding
 survives. The empty-sections message SHALL pair with `archive/no-ops` on the
@@ -45,11 +49,23 @@ duplicate-RENAMED-source messages SHALL pair with `archive/target-missing`'s "no
 longer exists" finding on the same file and requirement name. The dry-run's
 structurally-invalid-target message SHALL pair with `archive/target-invalid` on
 the same file and capability, and only when every defect it lists is a delta
-header, a requirement outside `## Requirements` or a duplicate requirement. Each
-pairing SHALL be covered by a contract test whose delegated message is read from
-the pinned binary, never typed by hand, and a sweep over every report the parity
-suite produces SHALL find no relayed finding naming the same requirement or
-header as a cospec finding on the same file.
+header, a requirement outside `## Requirements` or a duplicate requirement. The
+MODIFIED-references-old-name message SHALL pair with `archive/target-missing` on
+the same file and the rename's TO name, which cospec's message names. The
+dry-run's target-spec-does-not-exist message SHALL pair with
+`archive/new-spec-non-added` on the same file and capability. The
+orphaned-requirement message SHALL pair with `deltas/orphaned-requirement` on
+the same file and requirement name, never the section text. The
+no-delta-sections message SHALL pair with `deltas/header-present` on the same
+file, and the change-level no-deltas message with it fired anywhere on the item.
+The duplicate-MODIFIED, duplicate-REMOVED and RENAMED-and-REMOVED messages SHALL
+pair with `archive/op-conflict` on the same file and requirement name, the
+RENAMED FROM for the last. A header key SHALL match an empty header text, so a
+blank-titled `###` header pairs too. Each pairing SHALL be covered by a contract
+test whose delegated message is read from the pinned binary, never typed by
+hand, and a sweep over every report the parity suite produces SHALL find no
+relayed finding naming the same requirement or header as a cospec finding on the
+same file.
 
 The archive-precondition family SHALL be paired one entry per upstream
 precondition shape, because a duplicate class carries a single native rule id
@@ -191,6 +207,15 @@ dry-run issues arrive at INFO, which is counted and rendered but never scored.
   `Widget rendering`, and the wrapped binary reports the pair
 - **THEN** the merged report contains exactly one `archive/added-exists` ERROR
   naming `Widget rendering` and no delegated cross-section message
+
+#### Scenario: Conflict, orphan and headerless doubles are reported once
+
+- **WHEN** a cospec-typed change's delta MODIFIES a requirement's RENAMED
+  source, MODIFIES on a capability with no living spec, carries a requirement
+  under `## Notes`, has no delta section, MODIFIES one requirement twice, or
+  carries a blank-titled `###` header that splits a block
+- **THEN** the merged report carries cospec's finding for it and not the wrapped
+  binary's twin, and the sweep over the parity suite finds no double report
 
 #### Scenario: A different header or requirement is a second finding
 

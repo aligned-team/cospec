@@ -61,11 +61,12 @@ two boolean keys:
   the marker makes `specs` optional, not forbidden.
 - **`retire_capabilities: true`** — authorizes openspec 1.8.0+ to delete a
   capability's living `spec.md` when a change's `REMOVED` operation takes its
-  last requirement. Without the marker, the merge refuses outright and cospec
-  relays the refusal with the change and spec untouched. Two footguns worth
-  knowing: the marker is only honored when the whole `.openspec.yaml` is valid
-  to openspec — in a repo whose `schema:` isn't registered with openspec, the
-  binary reports
+  last requirement. Without the marker, the merge refuses outright, with the
+  change and spec untouched — cospec reports it at validate time on a
+  cospec-typed change (`archive/rebuilt-spec-invalid`) and relays openspec's
+  refusal on a legacy one. Two footguns worth knowing: the marker is only
+  honored when the whole `.openspec.yaml` is valid to openspec — in a repo whose
+  `schema:` isn't registered with openspec, the binary reports
   `The marker present now cannot be honored (schema: unknown schema '<type>')`
   and refuses regardless of the marker; and a retirement that _does_ go through
   is reported by `cospec archive` as a `Retired:` line (and a `retired[]` array

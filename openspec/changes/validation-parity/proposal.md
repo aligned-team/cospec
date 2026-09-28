@@ -59,8 +59,24 @@ ERROR for cospec-typed changes and only the binary's hint text is ported.
   that leaves a piece of it with no scenario is refused by the binary's archive,
   which re-validates the rebuilt spec with every `###` header read as a
   requirement of its own. The rule reports it instead of the INFO — except under
-  `--fast`, where the rule doesn't run and the INFO stays. It also reports such
-  a header inside a living requirement the delta keeps.
+  `--fast`, where the rule doesn't run and the INFO stays. A blank-titled header
+  with a scenario but no text before it is refused too: the rebuilt spec reads
+  it as a requirement with no text.
+- New rule `archive/rebuilt-spec-invalid` (ERROR). The binary's archive
+  re-validates the whole spec it rebuilds from the living spec and the delta,
+  and its validate never does, so living content the delta never touches can
+  abort the archive after validate passed: a `### Notes` above the first
+  requirement, a surviving requirement with no scenario, a commented-out draft
+  requirement, a split surviving requirement, no Purpose text, a delta removing
+  the last requirement. The rule rebuilds the spec as the archive does and runs
+  a port of the archive's validation over it, naming each defect's living or
+  delta line. It replaces the living-side split check, and
+  `archive/target-invalid` stops refusing a living spec with no
+  `## Requirements`, which the binary archives.
+- New rule `archive/op-conflict` (ERROR): a MODIFIED or REMOVED written twice in
+  one delta file, and a REMOVED of a RENAMED source. The binary's validate
+  refuses all three and no other cospec rule did, so a change cospec never
+  delegates (no `proposal.md`) passed them.
 - One view model. Each delta and living spec is scanned once, code fences first,
   and an HTML comment can't open or close on a fenced line, so a `<!--` inside a
   fenced example no longer hides the scenarios after it. Every `archive/*` rule,
@@ -96,10 +112,16 @@ ERROR for cospec-typed changes and only the binary's hint text is ported.
   duplicate RENAMED TO and RENAMED-TO-collides-with-ADDED against
   `archive/added-exists`, MODIFIED+REMOVED and duplicate RENAMED FROM against
   `archive/target-missing`, the two skipped-header shapes against
-  `archive/split-requirement`, and the dry-run's structurally-invalid-target
-  INFO against `archive/target-invalid`. Each pairing gets a contract test that
-  reads the message from the pinned binary, and a sweep over every report in the
-  parity suite checks that no defect is reported twice.
+  `archive/split-requirement`, the dry-run's structurally-invalid-target INFO
+  against `archive/target-invalid`, MODIFIED-references-old-name against
+  `archive/target-missing` (whose message now names the rename's TO), the
+  dry-run's target-spec-does-not-exist INFO against
+  `archive/new-spec-non-added`, the orphaned-requirement WARNING against
+  `deltas/orphaned-requirement`, no-delta-sections and no-deltas against
+  `deltas/header-present`, and the three in-file conflicts against
+  `archive/op-conflict`. Header keys take a blank header text. Each pairing gets
+  a contract test that reads the message from the pinned binary, and a sweep
+  over every report in the parity suite checks that no defect is reported twice.
 - `apps/cli/test/contract/validation-parity.test.ts` (new) is a severity oracle
   on the legacy lane. For each finding the pinned binary gives a `spec-driven`
   fixture, cospec reports the same message at the same level.
@@ -109,8 +131,10 @@ ERROR for cospec-typed changes and only the binary's hint text is ported.
   validate time instead of a refusal inside the delegated archive, as are a
   splitting skipped header (in the delta or in a living requirement the delta
   keeps), a commented op the archive refuses, a living scenario inside a comment
-  that a MODIFIED drops, and a misplaced or duplicate living requirement or a
-  living delta header, visible or commented.
+  that a MODIFIED drops, a misplaced or duplicate living requirement or a living
+  delta header, visible or commented, every rebuilt-spec defect the archive
+  refuses, and a duplicated MODIFIED or REMOVED or a REMOVED of a RENAMED
+  source. A living spec with no `## Requirements` is no longer refused.
 
 ## Capabilities
 
@@ -121,8 +145,9 @@ ERROR for cospec-typed changes and only the binary's hint text is ported.
 - `archive-integrity`: an ADDED can no longer re-use the exact header a REMOVED
   in the same delta vacated, and a same-name ADDED plus MODIFIED is refused on
   every capability, as the pinned binary refuses both. The preconditions read
-  what the archive merges, a splitting skipped header is refused, and so is a
-  structurally invalid living spec.
+  what the archive merges, a splitting skipped header is refused, and so are a
+  structurally invalid living spec, a rebuilt spec the archive's validation
+  refuses, and an in-file operation conflict.
 - `spec-parsing-and-discovery`: skipped delta headers get a rule, a header-only
   SHALL/MUST gets the binary's hint, and the delegated-duplicate pairings cover
   the new native findings.
@@ -137,19 +162,26 @@ ERROR for cospec-typed changes and only the binary's hint text is ported.
   `apps/cli/src/core/rules/deltas.ts`, `apps/cli/src/core/rules/index.ts` (the
   `deltasRules` call passes `--fast`), `apps/cli/src/core/tasks.ts`,
   `apps/cli/src/core/rules/tasks.ts`, `apps/cli/src/core/rules/archive.ts`,
-  `apps/cli/src/commands/validate.ts` (`DUPLICATE_CLASSES` only).
+  `apps/cli/src/core/rebuilt-spec.ts` (new: the archive's rebuild and its
+  validation, ported), `apps/cli/src/commands/validate.ts` (`DUPLICATE_CLASSES`
+  only).
 - Tests: `apps/cli/test/unit/rules/{deltas,tasks,archive}.test.ts`,
   `apps/cli/test/unit/parsers/deltas.test.ts`,
-  `apps/cli/test/contract/validation-parity.test.ts` (new), and one row of
-  `apps/cli/test/integration/archive-gates.test.ts` re-pointed at the verbatim
-  view (scenarios kept only inside a comment are no drop).
+  `apps/cli/test/unit/parsers/rebuilt-spec.test.ts` (new),
+  `apps/cli/test/contract/validation-parity.test.ts` (new), and two rows of
+  `apps/cli/test/integration/archive-gates.test.ts` re-pointed: at the verbatim
+  view (scenarios kept only inside a comment are no drop), and at the rebuilt
+  spec (an unmarked retirement is refused before delegating).
 - Docs: `apps/docs/reference/validation-rules.md` (owns the rule table and the
   dedupe section), `apps/docs/concepts/apply-and-archive.md` (owns the
-  archive-shape prose), `apps/docs/concepts/how-it-relates-to-openspec.md` (its
-  dedupe summary), `docs/validation.md`.
-- No command, flag, exit code or JSON key changes. The rule-id set gains four
-  ids (`deltas/skipped-header`, `archive/split-requirement`,
-  `tasks/id-mismatch`, `tasks/id-duplicate`).
+  archive-shape prose and retirement), `apps/docs/reference/configuration.md`
+  (the `retire_capabilities` key),
+  `apps/docs/concepts/how-it-relates-to-openspec.md` (its dedupe summary),
+  `docs/validation.md`.
+- No command, flag, exit code or JSON key changes. The rule-id set gains six ids
+  (`deltas/skipped-header`, `archive/split-requirement`,
+  `archive/rebuilt-spec-invalid`, `archive/op-conflict`, `tasks/id-mismatch`,
+  `tasks/id-duplicate`).
 - `apps/cli/test/contract/parity-pending.yaml` has no `validation-parity` entry
   before or after this change. Validation findings aren't registry surfaces.
 

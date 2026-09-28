@@ -53,12 +53,57 @@ names gets one ERROR, and the replay-based arms stay quiet for that op.
 check runs for a living capability too, where an ADDED identical to the living
 block would otherwise read as an early-sync no-op beside the MODIFIED.
 
-`archive/target-invalid` also refuses the two living-spec defects OpenSpec's
-archive will not update past (`target spec is structurally invalid`): a
-`### Requirement:` outside the first `## Requirements` section, and a second
-requirement under a normalised name already declared there.
-`LivingSpec.structureIssues` holds them, from `findLivingStructureIssues`, and
-the rule's message names each one's line.
+`archive/target-invalid` refuses exactly the living-spec defects OpenSpec's
+archive will not update past, before merging anything
+(`target spec is structurally invalid`): a delta header, a `### Requirement:`
+outside the first `## Requirements` section, and a second requirement under a
+normalised name already declared there. `LivingSpec.structureIssues` holds them,
+from `findLivingStructureIssues`, and the rule's message names each one's line.
+A missing `## Purpose` or `## Requirements` is not one of them — probed, the
+archive appends an empty `## Requirements` and merges an ADDED into it — so the
+rule reports neither; what the archive does refuse there (no Purpose text) is
+the rebuilt spec's.
+
+`archive/op-conflict` reports the three in-file conflicts OpenSpec's validator
+refuses that no other `archive/*` arm sees: a MODIFIED and a REMOVED each
+written twice (exact names), and a REMOVED folding onto a RENAMED FROM. Every
+other conflict shape its validator reports already has a native finding
+(`archive/added-exists`, `archive/target-missing`, `deltas/unpaired-rename`,
+`deltas/header-present`, `archive/no-ops`), so a change cospec never delegates —
+one with no `proposal.md` — is refused natively on every one of them.
+
+## The rebuilt spec
+
+OpenSpec's archive does not stop at the merge preconditions: it rebuilds the
+main spec (`buildUpdatedSpec`, `specs-apply.ts`) and re-validates the whole
+result (`Validator.validateSpecContent`) before writing anything, and its
+`validate` dry run stops before that step. `core/rebuilt-spec.ts` ports both.
+`rebuildSpec` applies the delta's verbatim ops to the living spec — or to the
+skeleton the archive writes for a new capability, carrying the delta's own
+`## Purpose` when it is readable — exactly as the archive merges: its
+`extractRequirementsSection` slices, RENAMED → REMOVED → MODIFIED → ADDED, the
+living order kept and new blocks appended, the preamble and every other section
+as written, blank runs collapsed outside fences. It answers `undefined` wherever
+the merge throws instead, because each of those refusals is a precondition
+another rule reports. Every line it returns carries its origin — a living-spec
+line, a delta line, or the skeleton — and a contract row checks the port against
+the binary's own writes byte for byte.
+
+`validateRebuiltSpec` ports the ERRORs of that validation (the archive's
+validator is not strict, so a WARNING never stops it): `MarkdownParser`'s
+section tree, where every header under the first section titled `Requirements` —
+at any level — is a requirement needing text and a scenario with a body; the
+Purpose check; the structure check; and a canonical requirement with no
+statement. `archive/rebuilt-spec-invalid` runs it once no precondition refused
+the capability, names each finding by its origin line, and leaves a block the
+delta writes to the delta rules: a finding on a delta line is kept only when
+neither `deltas/requirement-shape` (a block with no scenario or statement) nor
+`archive/split-requirement` (a header that cuts it) fires there. A removed last
+requirement is not reported under `retire_capabilities: true`, where the archive
+retires the capability instead of writing it. This replaced the piecemeal living
+checks — the living split arm of `archive/split-requirement` and the
+missing-section arm of `archive/target-invalid` — with the archive's own
+validation.
 
 ## Capability identity and discovery
 
@@ -112,18 +157,18 @@ The two `ReadView`s of that scan:
 - **`verbatim`** — fences masked, comments kept. It is exactly what OpenSpec
   1.13.1's `MarkdownParser`, `findMainSpecStructureIssues`, delta reader and
   archive read, so it feeds **every** `archive/*` rule: `archive/target-invalid`
-  (Purpose/Requirements presence and all three structure kinds),
-  `archive/added-exists`, `archive/target-missing`,
-  `archive/new-spec-non-added`, `archive/no-ops`, `archive/split-requirement` on
-  both the delta and the living spec, `archive/scenario-preservation` (its ops
-  and its living baseline), and the ops `replayDeltaNames` replays. An operation
-  written inside `<!-- … -->` is applied upstream, so a commented ADDED that
-  collides or a commented MODIFIED whose target is missing is refused; a
-  header's trailing comment is part of its name upstream, so `REMOVED Foo`
-  beside `ADDED Foo <!-- note -->` is two names and is accepted; a scenario
-  inside a comment counts on both sides of the scenario-loss check.
-  `parseLivingSpec` carries this view in `archive` (`LivingArchiveView`, which
-  adds `structureIssues` and `splits`).
+  (all three structure kinds), `archive/added-exists`, `archive/target-missing`,
+  `archive/new-spec-non-added`, `archive/no-ops`, `archive/op-conflict`,
+  `archive/split-requirement`, `archive/rebuilt-spec-invalid` (the living text
+  and the delta ops it merges), `archive/scenario-preservation` (its ops and its
+  living baseline), and the ops `replayDeltaNames` replays. An operation written
+  inside `<!-- … -->` is applied upstream, so a commented ADDED that collides or
+  a commented MODIFIED whose target is missing is refused; a header's trailing
+  comment is part of its name upstream, so `REMOVED Foo` beside
+  `ADDED Foo <!-- note -->` is two names and is accepted; a scenario inside a
+  comment counts on both sides of the scenario-loss check. `parseLivingSpec`
+  carries this view in `archive` (`LivingArchiveView`, which adds
+  `structureIssues` and the living `text` the rebuild reads).
 - **`masked`** — comments blanked too. Only the advisory `deltas/*` and
   `specs/*` rules read it, so a commented-out draft draws no authoring finding
   (an author's own comment inside `## Purpose` still counts as Purpose prose).
@@ -190,24 +235,20 @@ re-validates the rebuilt spec, whose reader takes every `###` header as a
 requirement of its own, so a piece left with no scenario aborts the archive
 (`Requirement must have at least one scenario`). `findRequirementSplits` names
 those headers — the first one inside a block whose own text has no scenario
-above it, and any whose part has none — on the verbatim view, and
-`archive/split-requirement` (E) reports each. `deltas/skipped-header` (I)
-reports every other one — above the first requirement, or followed by a scenario
-of its own — except a `### Scenario:` line, which is `deltas/scenario-depth`'s
-(its message quotes the header). The INFO yields to the ERROR only when the
-archive family runs: under `--fast` (`deltasRules(change, { fast })`) a
-splitting header keeps its INFO, so a change cospec never delegates still
-reports it.
+above it, any whose part has none, and a blank-titled one (`###   `) whose part
+has no line of text before its first scenario, which the rebuilt spec reads as a
+requirement with no text — on the verbatim view, and `archive/split-requirement`
+(E) reports each. `deltas/skipped-header` (I) reports every other one — above
+the first requirement, or followed by a scenario of its own — except a
+`### Scenario:` line, which is `deltas/scenario-depth`'s (its message quotes the
+header). The INFO yields to the ERROR only when the archive family runs: under
+`--fast` (`deltasRules(change, { fast })`) a splitting header keeps its INFO, so
+a change cospec never delegates still reports it.
 
-The living reader records the same `parts` for every requirement in the first
-`## Requirements` section, on the verbatim view, and `LivingArchiveView.splits`
-names each header that leaves a piece with no scenario. The rebuilt spec keeps
-every living requirement the delta does not MODIFY, REMOVE or ADD (read through
-the delta's RENAMEs, as the merge applies them), as written, so
-`archive/split-requirement` also reports a split in a surviving living
-requirement, naming the living line. OpenSpec's `validate` dry run stops before
-the rebuilt spec is re-validated, so it has no twin. A SHALL/MUST counts in the
-body only; when it appears only in the requirement header,
+The same split inside a living requirement the delta keeps is one shape of
+`archive/rebuilt-spec-invalid` (see "The rebuilt spec"), which names the
+requirement left with no scenario and the header that took them. A SHALL/MUST
+counts in the body only; when it appears only in the requirement header,
 `deltas/requirement-shape` (E) carries a hint saying to move it to the line
 after the header.
 
@@ -319,10 +360,25 @@ name); and `Requirement present in both MODIFIED and REMOVED` and
 `Duplicate FROM in RENAMED` against `archive/target-missing`'s "no longer
 exists" wording (keyed on the name, so a MODIFIED whose target was never there
 stays its own finding). Under `--fast` the `archive/*` twins do not run and the
-delegated ERRORs are kept. Section 19 of `validation-parity.test.ts` sweeps
-every report the suite produces: a relayed finding that quotes the same
-requirement or header as a cospec finding on the same file fails it, and a
-second test re-injects every suppressed twin to show the sweep would catch it.
+delegated ERRORs are kept.
+
+Eight more close the double reports the sweep found next.
+`MODIFIED references old name from RENAMED` against `archive/target-missing`,
+whose message now names the header an earlier RENAMED took the target to — the
+TO the binary quotes — so the two pair on it. The dry-run's
+`target spec does not exist; only ADDED requirements are allowed` INFO against
+`archive/new-spec-non-added` (keyed on the capability). The orphaned-requirement
+WARNING against `deltas/orphaned-requirement` (keyed on the requirement name,
+never the section text, which the advisory reader quotes with a trailing comment
+masked). `No delta sections found` (path-keyed) and CHANGE_NO_DELTAS (unkeyed)
+against `deltas/header-present`. The three in-file conflicts against
+`archive/op-conflict` (keyed on the name; for RENAMED+REMOVED, the RENAMED FROM
+the binary quotes). And the skipped-header, scenario-depth and split captures
+take an empty header text, since both tools quote a blank-titled `###   ` header
+as `"### "`. Section 19 of `validation-parity.test.ts` sweeps every report the
+suite produces: a relayed finding that quotes the same requirement or header as
+a cospec finding on the same file fails it, and a second test re-injects every
+suppressed twin to show the sweep would catch it.
 
 ## `.openspec.yaml` metadata keys
 
@@ -338,8 +394,9 @@ Two boolean keys, recognized on `LoadedChange.openspecYaml`:
   only optional.
 - **`retire_capabilities`** — authorizes openspec 1.8.0+ to delete a
   capability's living `spec.md` when a `REMOVED` operation takes its last
-  requirement. Without it, a retiring merge is refused and cospec relays the
-  refusal untouched. See [Apply and archive](/reference/commands) and
+  requirement. Without it, a retiring merge is refused — cospec reports it
+  first, as `archive/rebuilt-spec-invalid` (`has no requirement left`). See
+  [Apply and archive](/reference/commands) and
   [Configuration](https://cospec.aligned.team/reference/configuration) for the
   archive-time behavior this key unlocks.
 

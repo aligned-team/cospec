@@ -173,26 +173,33 @@ change to `mergeDelegated`. A key on path alone is written as an empty capture
 group, `()`, on both regexes, so `match[1] === ''` on each side and the existing
 path comparison does the rest.
 
-| #   | native rule                 | delegated message (probed)                                                                                                                                  | key                                                               |
-| --- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| 1   | `archive/no-ops`            | `Delta sections <list> were found, but no requirement entries parsed.`                                                                                      | path (empty capture)                                              |
-| 2   | `archive/no-ops`            | `Change must have at least one delta. No deltas found.`                                                                                                     | none (item-level: raised only when no delta file parsed an entry) |
-| 3   | `deltas/skipped-header`     | `Header "### <text>" in <section> is not a "### Requirement:" header and is ignored by validation.`                                                         | path + `<text>`                                                   |
-| 4   | `deltas/skipped-header`     | `Header "### Requirement:" in <section> is missing a requirement name and is ignored by validation.`                                                        | path + `<text>`                                                   |
-| 5   | `deltas/scenario-depth`     | entry 3's message where `<text>` starts `Scenario:`                                                                                                         | path + `<text>` (the native message quotes the header)            |
-| 6   | `deltas/requirement-shape`  | `<OP> "<name>" should contain SHALL or MUST …` / `<OP> "<name>" must contain SHALL or MUST …`                                                               | path + `<OP> "<name>"`                                            |
-| 7   | `deltas/requirement-shape`  | `<OP> "<name>" is missing requirement text`                                                                                                                 | path + `<OP> "<name>"`                                            |
-| 8   | `archive/added-exists`      | `Requirement present in both ADDED and REMOVED: "<name>"`                                                                                                   | path + `<name>`                                                   |
-| 9   | `archive/added-exists`      | `Requirement present in both MODIFIED and ADDED: "<name>"`                                                                                                  | path + `<name>`                                                   |
-| 10  | `archive/split-requirement` | entry 3's message, `Scenario:` headers included                                                                                                             | path + `<text>`                                                   |
-| 11  | `archive/split-requirement` | entry 4's message                                                                                                                                           | path + `<text>`                                                   |
-| 12  | `archive/target-invalid`    | `Archive would refuse this delta: <cap>: target spec is structurally invalid …`, every listed defect a delta header, a misplaced or a duplicate requirement | path + `<cap>`                                                    |
-| 13  | `deltas/requirement-shape`  | `<OP> "<name>" must include at least one scenario` (the binary's empty-scenario hint may follow)                                                            | path + `<OP> "<name>"`                                            |
-| 14  | `archive/added-exists`      | `Duplicate TO in RENAMED: "<name>"`                                                                                                                         | path + `<name>` (native: `collides with an existing requirement`) |
-| 15  | `archive/added-exists`      | `RENAMED TO collides with ADDED for "<name>"`                                                                                                               | path + `<name>` (native: `collides with an ADDED requirement`)    |
-| 16  | `archive/target-missing`    | `Requirement present in both MODIFIED and REMOVED: "<name>"`                                                                                                | path + `<name>` (native: `no longer exists`)                      |
-| 17  | `archive/added-exists`      | `Duplicate requirement in ADDED: "<name>"`                                                                                                                  | path + `<name>` (native: `already exists with different content`) |
-| 18  | `archive/target-missing`    | `Duplicate FROM in RENAMED: "<name>"`                                                                                                                       | path + `<name>` (native: `no longer exists`)                      |
+| #   | native rule                   | delegated message (probed)                                                                                                                                  | key                                                               |
+| --- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| 1   | `archive/no-ops`              | `Delta sections <list> were found, but no requirement entries parsed.`                                                                                      | path (empty capture)                                              |
+| 2   | `archive/no-ops`              | `Change must have at least one delta. No deltas found.`                                                                                                     | none (item-level: raised only when no delta file parsed an entry) |
+| 3   | `deltas/skipped-header`       | `Header "### <text>" in <section> is not a "### Requirement:" header and is ignored by validation.`                                                         | path + `<text>`                                                   |
+| 4   | `deltas/skipped-header`       | `Header "### Requirement:" in <section> is missing a requirement name and is ignored by validation.`                                                        | path + `<text>`                                                   |
+| 5   | `deltas/scenario-depth`       | entry 3's message where `<text>` starts `Scenario:`                                                                                                         | path + `<text>` (the native message quotes the header)            |
+| 6   | `deltas/requirement-shape`    | `<OP> "<name>" should contain SHALL or MUST …` / `<OP> "<name>" must contain SHALL or MUST …`                                                               | path + `<OP> "<name>"`                                            |
+| 7   | `deltas/requirement-shape`    | `<OP> "<name>" is missing requirement text`                                                                                                                 | path + `<OP> "<name>"`                                            |
+| 8   | `archive/added-exists`        | `Requirement present in both ADDED and REMOVED: "<name>"`                                                                                                   | path + `<name>`                                                   |
+| 9   | `archive/added-exists`        | `Requirement present in both MODIFIED and ADDED: "<name>"`                                                                                                  | path + `<name>`                                                   |
+| 10  | `archive/split-requirement`   | entry 3's message, `Scenario:` headers included                                                                                                             | path + `<text>`                                                   |
+| 11  | `archive/split-requirement`   | entry 4's message                                                                                                                                           | path + `<text>`                                                   |
+| 12  | `archive/target-invalid`      | `Archive would refuse this delta: <cap>: target spec is structurally invalid …`, every listed defect a delta header, a misplaced or a duplicate requirement | path + `<cap>`                                                    |
+| 13  | `deltas/requirement-shape`    | `<OP> "<name>" must include at least one scenario` (the binary's empty-scenario hint may follow)                                                            | path + `<OP> "<name>"`                                            |
+| 14  | `archive/added-exists`        | `Duplicate TO in RENAMED: "<name>"`                                                                                                                         | path + `<name>` (native: `collides with an existing requirement`) |
+| 15  | `archive/added-exists`        | `RENAMED TO collides with ADDED for "<name>"`                                                                                                               | path + `<name>` (native: `collides with an ADDED requirement`)    |
+| 16  | `archive/target-missing`      | `Requirement present in both MODIFIED and REMOVED: "<name>"`                                                                                                | path + `<name>` (native: `no longer exists`)                      |
+| 17  | `archive/added-exists`        | `Duplicate requirement in ADDED: "<name>"`                                                                                                                  | path + `<name>` (native: `already exists with different content`) |
+| 18  | `archive/target-missing`      | `Duplicate FROM in RENAMED: "<name>"`                                                                                                                       | path + `<name>` (native: `no longer exists`)                      |
+| 19  | `archive/target-missing`      | `MODIFIED references old name from RENAMED. Use new header for "<to>"`                                                                                      | path + `<to>` (native: `renamed it to "<to>"`)                    |
+| 20  | `archive/new-spec-non-added`  | `Archive would refuse this delta: <cap>: target spec does not exist; only ADDED requirements are allowed for new specs. …`                                  | path + `<cap>`                                                    |
+| 21  | `deltas/orphaned-requirement` | `Requirement "<name>" is under "## <section>" …` / `… is above the first "## " section …`                                                                   | path + `<name>`                                                   |
+| 22  | `deltas/header-present`       | `No delta sections found. …`                                                                                                                                | path (empty capture)                                              |
+| 23  | `deltas/header-present`       | `Change must have at least one delta. No deltas found.`                                                                                                     | none (item-level)                                                 |
+| 24  | `archive/op-conflict`         | `Duplicate requirement in MODIFIED: "<name>"` / `… in REMOVED: "<name>"`                                                                                    | path + `<name>`                                                   |
+| 25  | `archive/op-conflict`         | `Requirement present in both RENAMED and REMOVED: "<from>"` (the binary may append `(REMOVED spells it "…")`)                                               | path + `<from>`                                                   |
 
 Each regex is anchored through a clause that tells it apart from its siblings
 (entry 3 through `is not a "### Requirement:" header`, entry 4 through
@@ -218,6 +225,16 @@ MODIFIED+REMOVED sees the REMOVED phase's, and a RENAMED-TO landing on an ADDED
 name is the RENAMED-TO arm's. A sweep (verification 19) then checks every report
 the parity suite produces: a relayed finding that quotes the same requirement or
 header as a cospec finding on the same file fails it.
+
+Entries 19–25 close the doubles the round-3 review found next. Entry 19's two
+messages name different headers — the binary the rename's TO, cospec the FROM —
+so `archive/target-missing` now says where the rename took its target
+(`renamed it to "<to>"`, or `removed it`) and the pair keys on the TO. Entry 21
+keys on the requirement name, never the section, which cospec's advisory reader
+quotes with a trailing comment masked and the binary quotes whole. Entries 24–25
+pair with the new `archive/op-conflict` (D14). The header captures of entries 3,
+4, 10 and 11 are `(.*)`, not `(.+)`: both tools quote a blank-titled `###   `
+header as `"### "`, which the old captures could not key.
 
 Entries 10–12 and entry 5's key came from the round-2 review. Entry 5 keyed on
 the path alone, so a real `### Scenario:` suppressed the binary's INFO for a
@@ -382,19 +399,15 @@ reads it on the `verbatim` parse and reports an ERROR on the header's line. A
 `### Scenario:` line the advisory reader sees stays `deltas/scenario-depth`'s:
 its `#### Scenario:` fix mends both.
 
-**The living side.** The rebuilt spec keeps every living requirement the delta
-neither replaces nor removes, as written, so a skipped header already inside one
-splits it there too (probed: refused beside an unrelated MODIFIED, and after a
-RENAMED carries the block to a new name; archived when a MODIFIED replaces the
-block; a one-line `<!-- ### Notes -->` is no header). `readLivingView` records
-the same `parts` for each requirement in the first `## Requirements` section —
-the one the archive rebuilds — and `LivingArchiveView.splits` lists the splits.
-`archiveRules` reports each in a requirement the delta keeps: REMOVED, MODIFIED
-and ADDED names are read through the delta's RENAMEs, as the merge applies them,
-and a same-named ADDED is left to the delta block, which is the one the archive
-keeps. The finding sits on the living spec's path and names the living line. The
-binary's `validate` dry run stops before the rebuilt spec is re-validated, so it
-has no delegated twin.
+**A blank title.** A skipped header whose title is blank (`###   `) takes its
+text from the lines before its first scenario, so one with a scenario but no
+such line is a requirement with no text in the rebuilt spec
+(`Requirement text cannot be empty`). Each part records whether it has a
+statement (`RequirementPart.hasText`), and `splitsOf` reports that shape as a
+`text` split.
+
+**The living side** was an arm of this rule until round 4; the same cut inside a
+living requirement is now one shape of `archive/rebuilt-spec-invalid` (D13).
 
 **`--fast`.** `deltasRules(change, { fast })` suppresses `deltas/skipped-header`
 on a splitting header only when the archive family runs. Under `--fast` nothing
@@ -412,24 +425,95 @@ requirement under a normalised name already declared there.
 `findLivingStructureIssues` ports all three as upstream reads them: fenced lines
 blanked, HTML comments not masked, the BOM kept, and the spec reader's
 `^###\s+Requirement:` header. `archive/target-invalid` reads them from
-`LivingSpec.archive.structureIssues` and names each one's line after the
-Purpose/Requirements reason it already gave (read on the verbatim view). The
-round-2 rule kept the delta-header check on its own masked flag, so a delta
-header on its own line inside a comment passed validate while the archive
-refused it, and entry 12 did not recognise the delta-header defect, so a visible
-one was reported twice.
+`LivingSpec.archive.structureIssues` and names each one's line. It no longer
+reports a missing `## Purpose` or `## Requirements`: probed, the archive appends
+an empty `## Requirements` and merges an ADDED into it (a false refusal until
+round 4), and a missing Purpose fails only the rebuilt spec (D13). The round-2
+rule kept the delta-header check on its own masked flag, so a delta header on
+its own line inside a comment passed validate while the archive refused it, and
+entry 12 did not recognise the delta-header defect, so a visible one was
+reported twice.
+
+### D13. `archive/rebuilt-spec-invalid`
+
+The binary's archive does not stop at the merge preconditions: after
+`buildUpdatedSpec` it runs `Validator.validateSpecContent` on the rebuilt spec
+and writes nothing on an ERROR. Its validate dry run (`findArchiveBlockers`)
+stops before that step, so any living content the delta never touches can pass
+validate and abort the archive — a `### Notes` or loose `#### Scenario:` above
+the first requirement, the same inside a comment, a surviving requirement with
+no scenario (none, bare, fenced-only), a commented-out draft, a split surviving
+requirement, a `#` heading taking a requirement's scenarios, a requirement with
+no statement, no Purpose text, a `### Requirements` heading the reader takes for
+the section, and a delta removing the last requirement. Round 3 chased these one
+living check at a time; round 4 ports the step itself.
+
+`core/rebuilt-spec.ts` has two halves. `rebuildSpec` is `buildUpdatedSpec` on
+the success path, reading the living text and the delta's verbatim parse (the
+ops `replayDeltaNames` replays): the living spec — or, for a new capability, the
+skeleton with the delta's readable Purpose — sliced by a port of
+`extractRequirementsSection`, the delta applied RENAMED → REMOVED → MODIFIED →
+ADDED, recomposed with the living order kept and new blocks appended, blank runs
+collapsed outside fences. Wherever the binary throws it returns `undefined`:
+each throw is a precondition another rule or the relayed validate reports. Every
+line carries its origin (living line, delta line, skeleton), which is what lets
+a finding name the line to edit. A contract row (verification 21.5) checks the
+port against thirteen specs the pinned binary writes, byte for byte.
+
+`validateRebuiltSpec` ports the ERRORs of `validateSpecContent`: the throws of
+`MarkdownParser.parseSpec` (no Purpose content; no section titled
+`Requirements`, at any level, found depth-first), the `SpecSchema` minimums (a
+requirement's text — body, else its header title — and a scenario with a body,
+per child of that section; at least one child), `findMainSpecStructureIssues`,
+and a canonical requirement with no statement. WARNINGs are dropped: the
+archive's validator is not strict.
+
+`archiveRules` runs it per delta file once no precondition rule refused the
+capability (`MERGE_PRECONDITIONS`), because the archive stops there first. A
+finding on a line a delta block wrote is the delta rules' — a block with no
+scenario is `deltas/requirement-shape`'s (and the binary validate's), a skipped
+header's cut is `archive/split-requirement`'s, a block with no statement is both
+of theirs — so it is kept only where none of those fires (a `#` heading between
+a block's text and its scenario). A removed last requirement is left alone under
+`retire_capabilities: true`, where the archive retires the capability. The rule
+runs on the typed lane only; the legacy lane relays the binary, whose validate
+is silent here.
+
+Retired in favour of it: the living split arm of `archive/split-requirement`
+(`LivingArchiveView.splits` and the living `parts`) and the missing-section arm
+of `archive/target-invalid`. `archive/target-invalid` keeps the three structure
+defects, because the binary refuses those before merging.
+
+### D14. `archive/op-conflict`
+
+A change cospec never delegates — no `proposal.md` — gets no relayed finding, so
+each conflict the binary's validate reports needs a native one. Enumerated
+against `validateChangeDeltaSpecs` (1.13.1) and probed without a proposal: a
+duplicate ADDED, duplicate RENAMED FROM or TO, MODIFIED+REMOVED, MODIFIED+ADDED,
+ADDED+REMOVED, a MODIFIED of a RENAMED FROM and a RENAMED TO the delta ADDs
+already had one (`archive/added-exists`, `archive/target-missing`), as did the
+unpaired-rename, orphan, empty-section and headerless shapes. Three did not: a
+MODIFIED written twice (the merge would apply the second over the first), a
+REMOVED written twice (the second reads as already synced) and a REMOVED folding
+onto a RENAMED FROM (the REMOVED reads as already synced after the rename).
+`archive/op-conflict` reports those per delta file, as the binary compares them
+— exact names for the duplicates, folded for the RENAMED pair — on the later
+entry or the REMOVED. Like the rest of the family it is skipped under `--fast`,
+where a delegated change keeps the relayed ERROR.
 
 ## Operational surface
 
-The interactive surface is `cospec validate`'s report: four new rule ids appear
-in human and `--json` output, one hint gains text, `deltas/scenario-depth`
+The interactive surface is `cospec validate`'s report: six new rule ids appear
+in human and `--json` output (`archive/rebuilt-spec-invalid` and
+`archive/op-conflict` among them), one hint gains text, `deltas/scenario-depth`
 quotes its header, `deltas/requirement-shape` names a requirement as its header
 is written, `archive/target-invalid` names three more defects (a delta header
-now by its line), `archive/split-requirement` also reports on the living spec,
-`archive/scenario-preservation` reads HTML comments as the archive does, and
-delegated duplicates disappear. No command, flag, exit-code meaning, JSON key or
-process topology changes. There's no bind address, container, secret or
-connection limit. The wrapped binary is still resolved by path at the pinned
+now by its line) and no longer refuses a missing `## Purpose` or
+`## Requirements`, `archive/target-missing` names the header a rename took its
+target to, `archive/scenario-preservation` reads HTML comments as the archive
+does, and delegated duplicates disappear. No command, flag, exit-code meaning,
+JSON key or process topology changes. There's no bind address, container, secret
+or connection limit. The wrapped binary is still resolved by path at the pinned
 version, and its accepted range doesn't change. Every contract test spawns it
 the way the suite already does, with `NO_COLOR` set.
 

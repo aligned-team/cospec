@@ -153,3 +153,26 @@ trailer, never `--no-verify`).
       `test(validate): re-point the commented-scenario row at the verbatim view`
 - [x] 9.9 Record the round-3 evidence and run `mise run check` (verification
       20.3). Commit `docs(validate): record round-3 view-model evidence`
+
+## 10. Round 4 — the rebuilt spec (review findings on round 3)
+
+- [x] 10.1 Pin the round-4 rows in `validation-parity.test.ts` (verification
+      21–24), each running the pinned binary's validate and archive on its
+      fixture; mark the rows that fail on the tree `test.failing` and re-point
+      rows 15.1–15.3 at the new rule. Commit
+      `test(validate): pin round-4 rebuilt-spec parity rows as failing`
+- [x] 10.2 Port the archive's rebuild and its validation of the result
+      (`core/rebuilt-spec.ts`), add `archive/rebuilt-spec-invalid`, retire the
+      living split arm and `archive/target-invalid`'s missing-section arm, and
+      refuse a blank-titled split with no text (design D11–D13). Commit
+      `fix(validate): refuse a rebuilt spec the archive would reject`
+- [x] 10.3 Add DUPLICATE_CLASSES entries 19–23, name the rename's TO in
+      `archive/target-missing`, and let header keys take a blank header (design
+      D5). Commit `fix(validate): dedupe the round-4 typed-lane double reports`
+- [x] 10.4 Add `archive/op-conflict` and entries 24–25, so a change cospec never
+      delegates is refused on every conflict shape (design D14). Commit
+      `fix(validate): refuse in-file op conflicts on never-delegated changes`
+- [x] 10.5 Update the docs pages, design, proposal and specs (verification
+      25.1). Commit `docs(validate): document the rebuilt spec and op conflicts`
+- [ ] 10.6 Record the round-4 evidence and run `mise run check` (verification
+      25.3). Commit `docs(validate): record round-4 rebuilt-spec evidence`
