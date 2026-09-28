@@ -1,10 +1,18 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import {
   HANDOVER_PRELOAD_SOURCE,
+  handoverPreload,
   writeHandoverPreloadInto,
 } from '../../../src/core/handover-preload.ts'
 
@@ -26,4 +34,31 @@ describe('writeHandoverPreloadInto', () => {
     expect(writeHandoverPreloadInto(root)).toBe(path)
     expect(readFileSync(path, 'utf8')).toBe(HANDOVER_PRELOAD_SOURCE)
   })
+})
+
+describe('handoverPreload', () => {
+  // A cache directory cospec cannot write (`chmod 555`) must not stop a
+  // handover: the preload lands in a directory of this process's own under the
+  // temp dir instead. (Root ignores the mode, so the row cannot run as root.)
+  test.failing(
+    'an unwritable cache falls back to a per-process directory under the temp dir',
+    () => {
+      const cache = mkdtempSync(join(tmpdir(), 'cospec-cache-'))
+      const previous = process.env.XDG_CACHE_HOME
+      chmodSync(cache, 0o555)
+      process.env.XDG_CACHE_HOME = cache
+      try {
+        expect(() => mkdirSync(join(cache, 'probe'))).toThrow()
+        const path = handoverPreload()
+        expect(path.startsWith(cache)).toBe(false)
+        expect(dirname(dirname(path))).toBe(tmpdir())
+        expect(readFileSync(path, 'utf8')).toBe(HANDOVER_PRELOAD_SOURCE)
+        expect(handoverPreload()).toBe(path)
+      } finally {
+        if (previous === undefined) delete process.env.XDG_CACHE_HOME
+        else process.env.XDG_CACHE_HOME = previous
+        chmodSync(cache, 0o755)
+      }
+    },
+  )
 })

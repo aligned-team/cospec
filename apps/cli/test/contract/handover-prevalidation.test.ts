@@ -14,7 +14,7 @@
 // the exit code and an empty stdout.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { cpSync, mkdirSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { run } from '../../src/cli.ts'
@@ -330,6 +330,76 @@ describe('a prompt whose terminal input ends (Ctrl-D) is cancelled as the binary
       expect(terminalText(co.output), ptyDetail(co)).toBe(respellRemedies(terminalText(up.output)))
     }, 30_000)
   }
+})
+
+// --- review round 3: a cache directory cospec cannot write ----------------------------
+
+/**
+ * Runs `fn` with `root`'s sandboxed cache directory read-only (`chmod 555`),
+ * so the handover preload cannot land in cospec's cache.
+ */
+async function withReadOnlyCache<T>(root: string, fn: () => Promise<T>): Promise<T> {
+  const cache = oracleEnv(root).XDG_CACHE_HOME!
+  chmodSync(cache, 0o555)
+  try {
+    expect(() => mkdirSync(join(cache, 'probe'))).toThrow()
+    return await fn()
+  } finally {
+    chmodSync(cache, 0o755)
+  }
+}
+
+describe('with the cache directory read-only, every handover runs as the binary runs', () => {
+  const cases: [argv: string[], saved: boolean][] = [
+    [['config', 'reset', '--all'], false],
+    [['config', 'profile'], false],
+    [['config', 'edit'], false],
+    [['workset', 'open', 'w1'], true],
+  ]
+  for (const [argv, saved] of cases) {
+    test.failing(
+      `${argv.join(' ')} on a terminal`,
+      async () => {
+        const root = plainRoot()
+        if (saved) {
+          const member = join(root, 'member')
+          mkdirSync(member)
+          const created = await oracle(['workset', 'create', 'w1', '--member', member], root)
+          expect(created.exitCode, detail(created)).toBe(0)
+        }
+        const before = treeHash(root)
+        const up = await withReadOnlyCache(root, () => ptyUpstream(argv, root))
+        const co = await withReadOnlyCache(root, () => ptyCospec(argv, root))
+        expect(treeHash(root)).toEqual(before)
+        expect(co.exitCode, ptyDetail(co)).toBe(up.exitCode)
+        expect(terminalText(co.output), ptyDetail(co)).toBe(
+          respellRemedies(terminalText(up.output)),
+        )
+      },
+      30_000,
+    )
+  }
+
+  test.failing(
+    'config reset --all with stdin empty, not a terminal',
+    async () => {
+      const root = plainRoot()
+      const argv = ['config', 'reset', '--all']
+      const before = treeHash(root)
+      const up = await withReadOnlyCache(root, () =>
+        piped(['node', openspecBinPath(), ...argv], root, undefined),
+      )
+      const co = await withReadOnlyCache(root, () =>
+        piped([process.execPath, CLI_ENTRY, ...argv], root, undefined),
+      )
+      expect(treeHash(root)).toEqual(before)
+      expect(up.exitCode, detail(up)).toBe(130)
+      expect(co.exitCode, detail(co)).toBe(up.exitCode)
+      expect(terminalText(co.stdout), detail(co)).toBe(terminalText(respellRemedies(up.stdout)))
+      expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
+    },
+    30_000,
+  )
 })
 
 /** `argv` with `input` on a piped stdin (or none), outside any terminal. */
