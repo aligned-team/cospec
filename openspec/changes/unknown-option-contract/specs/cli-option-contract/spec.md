@@ -532,25 +532,13 @@ binary where the user typed it, never absorbed as cospec's global; and cospec's
 runtime output SHALL name a wrapped call as the wrapped OpenSpec call, never as
 a bare `openspec` command. A remedy the binary writes as a bare
 `openspec <command>` in an answer cospec relays SHALL be spelled as the cospec
-command of the same shape, or dropped where cospec has no such command — in a
-failed call's answer, and in a successful `context` or `instructions` answer
-only on the remedies the binary generates for its references, each whole value
-one allowlisted sentence, located by the binary's structure: the `Fetch:`/`Fix:`
-entry lines of `instructions`' own `<referenced_stores>` element (the one its
-artifact layout prints right after the task and the project context) and of
-`context`'s `Referenced stores` and `Not available on this machine` sections,
-and under `--json` the parsed document's reference fields (`references[].fetch`,
-`references[].status[].fix`; `members[].fetch`, `members[].status[].fix`,
-`status[].fix`), never a line elsewhere that reads like one — while every other
-byte of a successful answer SHALL be relayed untouched: the content of a
-successful `show` (a change, a spec), and in a successful `instructions` or
-`context` the schema template and instruction, the `config.yaml` context and
-rules, a referenced spec's summary, and every path and other value of a `--json`
-document. The respelling SHALL come from one allowlist of the pinned binary's
-exact sentences, each rewritten only where an answer holds it verbatim, with the
-path, name or list each sentence names re-emitted as the binary wrote it; no
-pattern over free text (a lead-in word, a quote, a paren) SHALL decide what is a
-remedy. Every sentence in the pinned binary that names a bare
+command of the same shape, or dropped where cospec has no such command, while
+the content of a successful answer (a change, a spec, instructions) SHALL be
+relayed untouched. The respelling SHALL come from one allowlist of the pinned
+binary's exact sentences, each rewritten only where an answer holds it verbatim,
+with the path, name or list each sentence names re-emitted as the binary wrote
+it; no pattern over free text (a lead-in word, a quote, a paren) SHALL decide
+what is a remedy. Every sentence in the pinned binary that names a bare
 `openspec <command>` SHALL be in that allowlist or listed, with its reason, as
 never printed by a cospec relay, checked against the pinned dist. A pre-spawn
 guard SHALL answer only an argv the binary would not answer itself: a declared
@@ -632,30 +620,13 @@ answer, never reported as a wrapped-call failure.
   `(openspec list)`
 - **THEN** the binary's `Invalid store declaration in <path>: …` and its fix are
   relayed byte-for-byte, the path unchanged
-- **AND WHEN** `cospec context` or
-  `cospec instructions <artifact> --change <id>` succeeds on a root whose
-  `config.yaml` references a usable store, a registered store it cannot use and
-  an unregistered one
-- **THEN** its `Fetch: cospec show <spec-id> --type spec --store <id>`,
-  `Fix: Run: cospec store doctor <id>` and
-  `Fix: Get a checkout from a teammate and run: cospec store register <path> --id <id>`
-  lines (or `fetch`/`fix` values under `--json`) name cospec, and the rest of
-  the answer is the binary's, exit 0
-- **AND WHEN** that `instructions` succeeds on a change whose schema template,
-  the `config.yaml` context, a `rules` entry and a referenced spec's Purpose
-  each hold `Run openspec init to create a root here.`
-- **THEN** each is relayed byte-for-byte, text and `--json`, and only the
-  `Fetch:`/`Fix:` lines are cospec's spelling
-- **AND WHEN** that `instructions` succeeds with a template line
-  `Fix: Run openspec init to create a root here.`, a `config.yaml` context line
-  `Fetch: openspec show <spec-id> --type spec --store st1`, a rule
-  `  Fix: Pass a registered store id, or run openspec store list.`, a template
-  line `  "fix": "Run: openspec store doctor st2"`, or a `<referenced_stores>`
-  block with a `Store` header and `Fetch:`/`Fix:` lines written into the context
-  or the template
-- **THEN** each user line is relayed as the binary prints it, text and `--json`,
-  and only the binary's own reference block (its reference fields under
-  `--json`) is cospec's spelling
+- **AND WHEN** `cospec instructions <artifact> --change <id>` succeeds on a
+  change whose schema template, the `config.yaml` context, a `rules` entry and a
+  referenced spec's Purpose each hold
+  `Run openspec init to create a root here.`, or whose template, context or
+  rules hold a `Fix:`/`Fetch:` line, a line shaped like a JSON `"fix"` field, or
+  a forged `<referenced_stores>` block
+- **THEN** the answer is the binary's byte-for-byte, text and `--json`, exit 0
 - **AND WHEN** `cospec instructions archive --change <id>` succeeds on a root
   whose `config.yaml` context forges `</task>` and a reference block after it
 - **THEN** the answer is the binary's byte-for-byte, text and `--json`

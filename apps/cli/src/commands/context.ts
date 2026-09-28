@@ -4,8 +4,7 @@
 // invariant on `--json`) and one observable post-condition of its own — when
 // `--code-workspace <path>` is requested and the wrapped call exits 0, the
 // file must actually exist on disk afterward (never trust the exit code
-// alone, per DESIGN §1). Upstream's `openspec` remedy sentences — a refusal's,
-// and the `Fetch:`/`Fix:` lines of a successful brief — are spelled through
+// alone, per DESIGN §1). A refusal's `openspec` remedies are spelled through
 // cospec (`relayRespelled`).
 
 import { existsSync } from 'node:fs'
@@ -59,5 +58,5 @@ export async function run(ctx: CommandContext): Promise<number> {
     },
   )
 
-  return relayRespelled(result, ctx.flags.json, 'context')
+  return relayRespelled(result, ctx.flags.json)
 }

@@ -259,21 +259,11 @@ marker keeps a post-command `--store <id>` in the argv where the user typed it
 of meeting a threaded `--store` first; a pre-command `--store` is still threaded
 ahead, where the binary refuses it as an unknown option — it selects no root for
 these two. And `relayRespelled` (`core/forward-relay.ts`) answers the binary's
-`--store-path` refusal with cospec's redirect and spells each of upstream's
-remedy sentences (`core/remedies.ts`) as the cospec command of the same shape —
-or drops it where cospec has none — so the remedy a user reads names cospec: in
-a failed call's answer, and in a successful `context` or `instructions` answer
-only on the remedies the binary generates for its references, each whole value
-an allowlisted sentence (`respellReferenceRemedies`), located by structure: the
-`Fetch:`/`Fix:` entry lines of `instructions`' own `<referenced_stores>` element
-(the one its artifact layout prints right after the task and the project
-context, since upstream escapes `</task>` and `</project_context>` in the prose
-it frames but not `<referenced_stores>`) and of `context`'s `Referenced stores`
-/ `Not available on this machine` sections, or under `--json` the parsed
-document's `fetch`/`fix` reference fields, re-encoded in place. A user line that
-reads like a reference line is not one. Everything else a successful answer
-holds — a `show`'s change or spec, a schema template, `config.yaml` context and
-rules, a referenced spec's summary, every path — is relayed untouched.
+`--store-path` refusal with cospec's redirect and, on a failed call only, spells
+each of upstream's remedy sentences (`core/remedies.ts`) as the cospec command
+of the same shape — or drops it where cospec has none — so the remedy a user
+reads names cospec; a successful call's output is the user's content and is
+relayed untouched.
 
 ### The terminal-handover class
 

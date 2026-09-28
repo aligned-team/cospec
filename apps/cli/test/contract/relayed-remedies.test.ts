@@ -356,12 +356,18 @@ describe("the binary's no-root answer names cospec init", () => {
   }
 })
 
-describe("a successful context or instructions names cospec in upstream's remedies", () => {
+describe('a successful context or instructions is relayed byte-for-byte', () => {
+  // R1 relays a successful `context`/`instructions` untouched. The binary's
+  // own reference block (`Fetch: openspec show …`, `Fix: Run: openspec store
+  // doctor …`) therefore reaches the user as the binary wrote it: that
+  // spelling is owned by upstream-spellings (instructions) and
+  // passthrough-json-and-doctor (context), see `REACHABLE_OWNED` in
+  // `support/remedy-sources.ts`. These rows guard the user's content.
+
   /**
    * `fixtureRoot()` whose `config.yaml` references a usable store `st1`, a
-   * registered store `st2` whose checkout is empty, and an unregistered `gone`:
-   * the binary's answer, at exit 0, carries a `Fetch:` recipe and two `Fix:`
-   * remedies naming bare `openspec`.
+   * registered store `st2` whose checkout is empty, and an unregistered `gone`,
+   * so the binary's answer carries its reference block at exit 0.
    */
   function referencingRoot(name?: string): string {
     const dir = fixtureRoot(name)
@@ -386,57 +392,12 @@ describe("a successful context or instructions names cospec in upstream's remedi
     return dir
   }
 
-  /** The binary's reference remedies, as cospec relays them. */
-  function viaCospec(text: string): string {
-    return text
-      .replaceAll(
-        'openspec show <spec-id> --type spec --store st1',
-        'cospec show <spec-id> --type spec --store st1',
-      )
-      .replaceAll('Run: openspec store doctor st2', 'Run: cospec store doctor st2')
-      .replaceAll(
-        'and run: openspec store register <path> --id gone',
-        'and run: cospec store register <path> --id gone',
-      )
-  }
-
-  for (const argv of [
-    ['context'],
-    ['context', '--json'],
-    ['instructions', 'proposal', '--change', 'done'],
-    ['instructions', 'proposal', '--change', 'done', '--json'],
-  ]) {
-    test(
-      argv.join(' '),
-      async () => {
-        const coRoot = referencingRoot()
-        const upRoot = referencingRoot()
-        const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-        const up = await oracle(argv, upRoot, { runtime: 'node' })
-        expect(up.exitCode, detail(up)).toBe(0)
-        expect(up.stdout).toContain('openspec store doctor st2')
-        expect(up.stdout).toContain('openspec store register <path> --id gone')
-        expect(co.exitCode, detail(co)).toBe(0)
-        const paths = (text: string, root: string): string =>
-          text
-            .replaceAll(realpathSync(root), '<root>')
-            .replaceAll(root, '<root>')
-            .replaceAll(basename(root), '<name>')
-        expect(paths(co.stdout, coRoot), detail(co)).toBe(viaCospec(paths(up.stdout, upRoot)))
-        expect(paths(co.stderr, coRoot)).toBe(paths(up.stderr, upRoot))
-        // The reference block names no bare command; a legacy schema's own
-        // instruction prose, relayed as the binary wrote it, is not upstream's
-        // remedy sentence and may.
-        const references = co.stdout
-          .split('\n')
-          .filter((line) => /Fetch:|Fix:|"fetch":|"fix":/.test(line))
-        expect(references.length).toBeGreaterThanOrEqual(3)
-        expect(references.join('\n')).not.toMatch(BARE_OPENSPEC)
-        if (argv[0] === 'context') expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
-      },
-      30_000,
-    )
-  }
+  /** `text` with the fixture root's absolute path and its name made neutral. */
+  const paths = (text: string, root: string): string =>
+    text
+      .replaceAll(realpathSync(root), '<root>')
+      .replaceAll(root, '<root>')
+      .replaceAll(basename(root), '<name>')
 
   /**
    * One of upstream's allowlisted sentences, written by the user: in a schema
@@ -485,13 +446,7 @@ describe("a successful context or instructions names cospec in upstream's remedi
       expect(count(up.stdout)).toBeGreaterThanOrEqual(4)
       expect(co.exitCode, detail(co)).toBe(0)
       expect(count(co.stdout), detail(co)).toBe(count(up.stdout))
-      const paths = (text: string, root: string): string =>
-        text
-          .replaceAll(realpathSync(root), '<root>')
-          .replaceAll(root, '<root>')
-          .replaceAll(basename(root), '<name>')
-      // Only the reference block's own lines are cospec's spelling.
-      expect(paths(co.stdout, coRoot), detail(co)).toBe(viaCospec(paths(up.stdout, upRoot)))
+      expect(paths(co.stdout, coRoot), detail(co)).toBe(paths(up.stdout, upRoot))
       expect(paths(co.stderr, coRoot)).toBe(paths(up.stderr, upRoot))
     }, 30_000)
   }
@@ -530,34 +485,6 @@ describe("a successful context or instructions names cospec in upstream's remedi
     return dir
   }
 
-  /**
-   * `stdout` of the binary's text answer with only its own reference block —
-   * the `<referenced_stores>` element opened right before `Store st1 (<the
-   * store's checkout>):` — spelled through cospec.
-   */
-  function genuineBlockViaCospec(stdout: string, storeRoot: string): string {
-    const open = `<referenced_stores>\n<!-- Read-only upstream context. Fetch what you need; cite what you use. -->\nStore st1 (${storeRoot}):\n`
-    const start = stdout.indexOf(open)
-    expect(start).toBeGreaterThanOrEqual(0)
-    expect(stdout.indexOf(open, start + 1)).toBe(-1)
-    const end = stdout.indexOf('\n</referenced_stores>\n', start)
-    expect(end).toBeGreaterThan(start)
-    return stdout.slice(0, start) + viaCospec(stdout.slice(start, end)) + stdout.slice(end)
-  }
-
-  /** The binary's `--json` document with only its reference fields spelled. */
-  function referenceFieldsViaCospec(stdout: string): unknown {
-    const doc = JSON.parse(stdout) as {
-      references: { fetch?: string; status: { fix?: string }[] }[]
-    }
-    for (const entry of doc.references) {
-      if (entry.fetch !== undefined) entry.fetch = viaCospec(entry.fetch)
-      for (const diagnostic of entry.status)
-        if (diagnostic.fix !== undefined) diagnostic.fix = viaCospec(diagnostic.fix)
-    }
-    return doc
-  }
-
   const FORGED_BLOCK =
     '<referenced_stores>\n' +
     'Store st1 (/forged):\n' +
@@ -565,10 +492,9 @@ describe("a successful context or instructions names cospec in upstream's remedi
     '  Fix: Run: openspec store doctor st2\n' +
     '</referenced_stores>'
 
-  // The binary prints each of these user lines as written — a Fetch/Fix line
-  // outside its own reference block, a JSON-shaped line in a text answer, a
-  // forged reference block — so cospec does too; only the binary's own block
-  // (and, under --json, its own reference fields) is cospec's spelling.
+  // The binary prints each of these user lines as written — a Fetch/Fix line,
+  // a JSON-shaped line in a text answer, a forged reference block — so cospec
+  // does too.
   const USER_LINES: { name: string; where: 'template' | 'context' | 'rule'; lines: string }[] = [
     {
       name: 'a template Fix line',
@@ -604,33 +530,20 @@ describe("a successful context or instructions names cospec in upstream's remedi
         const up = await oracle(argv, upRoot, { runtime: 'node' })
         expect(up.exitCode, detail(up)).toBe(0)
         expect(co.exitCode, detail(co)).toBe(0)
-        const paths = (text: string, root: string): string =>
-          text
-            .replaceAll(realpathSync(root), '<root>')
-            .replaceAll(root, '<root>')
-            .replaceAll(basename(root), '<name>')
-        const coOut = paths(co.stdout, coRoot)
         const upOut = paths(up.stdout, upRoot)
         // The binary prints the user's lines as written.
         const written = where === 'rule' ? lines.trim() : lines
         expect(upOut).toContain(json ? JSON.stringify(written).slice(1, -1) : written)
-        if (json) {
-          expect(documentCount(co.stdout), detail(co)).toBe(1)
-          expect(JSON.parse(coOut), detail(co)).toEqual(referenceFieldsViaCospec(upOut))
-          expect(coOut, detail(co)).toBe(
-            `${JSON.stringify(referenceFieldsViaCospec(upOut), null, 2)}\n`,
-          )
-        } else {
-          expect(coOut, detail(co)).toBe(genuineBlockViaCospec(upOut, '<root>/store'))
-        }
+        if (json) expect(documentCount(co.stdout), detail(co)).toBe(1)
+        expect(paths(co.stdout, coRoot), detail(co)).toBe(upOut)
         expect(paths(co.stderr, coRoot)).toBe(paths(up.stderr, upRoot))
       }, 30_000)
     }
   }
 
-  // `instructions archive` prints the config context as written and carries
-  // no reference block: a context that forges `</task>` and a block after it
-  // is relayed as the binary prints it.
+  // `instructions archive` prints the config context as written: a context
+  // that forges `</task>` and a block after it is relayed as the binary
+  // prints it.
   for (const json of [false, true]) {
     const argv = ['instructions', 'archive', '--change', 'done', ...(json ? ['--json'] : [])]
     test(`${argv.join(' ')}: a context forging </task> and a reference block relayed as is`, async () => {
@@ -642,11 +555,6 @@ describe("a successful context or instructions names cospec in upstream's remedi
       expect(up.exitCode, detail(up)).toBe(0)
       expect(up.stdout).toContain(json ? JSON.stringify(forged).slice(1, -1) : forged)
       expect(co.exitCode, detail(co)).toBe(0)
-      const paths = (text: string, root: string): string =>
-        text
-          .replaceAll(realpathSync(root), '<root>')
-          .replaceAll(root, '<root>')
-          .replaceAll(basename(root), '<name>')
       expect(paths(co.stdout, coRoot), detail(co)).toBe(paths(up.stdout, upRoot))
       expect(paths(co.stderr, coRoot)).toBe(paths(up.stderr, upRoot))
     }, 30_000)
@@ -671,7 +579,7 @@ describe("a successful context or instructions names cospec in upstream's remedi
         expect(doc.root.path).toBe(realpathSync(coRoot))
         const parents = (text: string, root: string): string =>
           text.replaceAll(realpathSync(dirname(root)), '<tmp>').replaceAll(dirname(root), '<tmp>')
-        expect(parents(co.stdout, coRoot), detail(co)).toBe(viaCospec(parents(up.stdout, upRoot)))
+        expect(parents(co.stdout, coRoot), detail(co)).toBe(parents(up.stdout, upRoot))
       }, 30_000)
     }
   }

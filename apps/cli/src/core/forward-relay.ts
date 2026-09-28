@@ -10,7 +10,7 @@ import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { isUpstreamStorePathRefusal, storePathRefusal } from './command-table.ts'
 import { OpenspecCallError, type OpenspecResult, passthroughOpenspec } from './openspec.ts'
-import { respellReferenceRemedies, respellRemedies } from './remedies.ts'
+import { respellRemedies } from './remedies.ts'
 
 /**
  * Every refusal the pinned binary's commander (14.x, `lib/command.js`) raises
@@ -87,39 +87,19 @@ export function relayStorePathRefusal(result: OpenspecResult, json: boolean): nu
 
 /**
  * Relays a passthrough call's answer, returning cospec's exit code: the
- * binary's `--store-path` refusal answered with cospec's redirect, and
- * upstream's own remedy sentences spelled through cospec (`respellRemedies`)
- * in a failed call's answer. A successful answer is relayed untouched, except
- * that with `success: 'context'` or `'instructions'` the remedies the binary
- * generates for its references — the `Fetch:`/`Fix:` lines of its own
- * reference block or sections, located by structure, or under `--json` the
- * parsed document's `fetch`/`fix` reference fields — are spelled through
- * cospec (`respellReferenceRemedies`); the schema text, config context and
- * rules, spec summaries and paths around them stay byte-for-byte the
- * binary's, even a user line that reads like a reference line.
- * `show` keeps `'verbatim'`: a successful `show` prints the user's own change
- * or spec.
+ * binary's `--store-path` refusal answered with cospec's redirect, a failed
+ * call's upstream remedies spelled through cospec (`respellRemedies`), and a call that succeeded
+ * verbatim — what it prints (a change, a spec, instructions) is the user's own
+ * content.
  */
-export function relayRespelled(
-  result: OpenspecResult,
-  json: boolean,
-  success: 'verbatim' | 'context' | 'instructions' = 'verbatim',
-): number {
+export function relayRespelled(result: OpenspecResult, json: boolean): number {
   const refused = relayStorePathRefusal(result, json)
   if (refused !== undefined) return refused
-  const ok = result.exitCode === 0
-  const out = !ok
-    ? respellRemedies
-    : success === 'verbatim'
-      ? same
-      : (text: string) => respellReferenceRemedies(text, success, json)
-  const err = ok ? same : respellRemedies
-  if (result.stdout.length > 0) process.stdout.write(out(result.stdout))
-  if (result.stderr.length > 0) process.stderr.write(err(result.stderr))
-  return ok ? EXIT.success : EXIT.failure
+  const relay = result.exitCode === 0 ? (text: string) => text : respellRemedies
+  if (result.stdout.length > 0) process.stdout.write(relay(result.stdout))
+  if (result.stderr.length > 0) process.stderr.write(relay(result.stderr))
+  return result.exitCode === 0 ? EXIT.success : EXIT.failure
 }
-
-const same = (text: string): string => text
 
 /**
  * A forward row's subcommand and its argv. The dispatcher keeps a `--` ahead

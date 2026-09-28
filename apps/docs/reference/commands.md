@@ -299,14 +299,9 @@ and `cospec init` in the no-root answer from `show`, `context` and
 suggestion, which cospec has no command for. Only OpenSpec's own remedy
 sentences are respelled, each where it appears verbatim: the path, name or list
 a sentence carries, and any other text — a directory named `run openspec init`,
-say — is relayed exactly as OpenSpec printed it. A successful `context` or
-`instructions` names cospec in OpenSpec's own referenced-store lines too
-(`Fetch:`, `Fix:`, or `fetch`/`fix` under `--json`), and only there; what a
-successful `show` prints, and in `instructions` the schema template, your
-`config.yaml` context and rules, a referenced spec's summary and every path, is
-your own content, relayed untouched — even a line of yours that reads `Fix: …`,
-`Fetch: …` or a whole `<referenced_stores>` block. The pre-spawn guards answer
-only what OpenSpec would not: an option where a subcommand belongs
+say — is relayed exactly as OpenSpec printed it. What a successful `show` or
+`instructions` prints is your own content, relayed untouched. The pre-spawn
+guards answer only what OpenSpec would not: an option where a subcommand belongs
 (`cospec config --bogus path`, `cospec schema --bogus`) reaches OpenSpec, which
 refuses it as an unknown option, not an unknown subcommand, and
 `cospec show --bogus` or `cospec show --type` gets OpenSpec's own answer

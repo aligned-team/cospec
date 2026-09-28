@@ -2,11 +2,8 @@
 // passthrough to `openspec instructions` so the whole artifact-authoring loop is
 // reachable under the cospec brand (MF1). `instructions apply` is an alias for
 // `cospec apply <id>` so the gate cannot be bypassed by choosing the other
-// spelling. Upstream's `openspec` remedy sentences in a refusal, and the
-// `Fetch:`/`Fix:` lines of a successful answer's reference block, are spelled
-// through cospec (`relayRespelled`); everything else a successful answer holds
-// — schema text, config context and rules, spec summaries, paths — is relayed
-// as the binary wrote it.
+// spelling. A refusal relayed from the binary has its `openspec` remedies
+// spelled through cospec (`relayRespelled`).
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
@@ -51,5 +48,5 @@ export async function run(ctx: CommandContext): Promise<number> {
     command: ['instructions', artifact],
     args: ['--change', changeId],
   })
-  return relayRespelled(result, ctx.flags.json, 'instructions')
+  return relayRespelled(result, ctx.flags.json)
 }

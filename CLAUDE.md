@@ -190,9 +190,7 @@ silent gap or a comment. See docs/architecture.md.
 **Relayed remedies come from one allowlist** — every sentence of the pinned dist
 that names a bare `openspec <command>` is either an entry in
 `apps/cli/src/core/remedies.ts` (upstream's exact text and its cospec spelling;
-relays call `respellRemedies`; a successful `context`/`instructions` calls
-`respellReferenceRemedies`, which touches only the binary's own reference block
-and fields, located by structure) or listed in
+relays call `respellRemedies`) or listed in
 `apps/cli/test/contract/support/remedy-sources.ts` with the reason no cospec
 relay prints it. `remedy-enumeration.test.ts` enforces this against the pinned
 dist, so a pin bump fails until each new line is classified. Never respell with

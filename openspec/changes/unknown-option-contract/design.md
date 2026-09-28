@@ -112,25 +112,21 @@ runtime by `dist/commands/spec.js:127`.
      `openspec list --changes`/`--specs`, the no-root `run openspec init`,
      legacy `status`'s `Next: openspec instructions …`, and every other sentence
      of the pin that names a command) as the cospec command of the same shape,
-     or drops the clause where cospec has none (the noun-form commands), on a
-     failed call, and on a successful `context` or `instructions` only on the
-     remedies the binary generates for its references (the `Fetch:`/`Fix:` lines
-     of its own reference block, located by structure; the parsed document's
-     `fetch`/`fix` reference fields under `--json`) — a change or spec a
-     successful `show` prints, and the schema text, config context and rules,
-     spec summaries and paths around a reference block, are the user's own,
-     relayed untouched. `view` respells its footer, and `status --change <id>`
-     on a schema cospec does not type relays the binary's own status for it in
-     text mode instead of pointing at bare `openspec status`. `forward` rows:
-     `show`, `templates`, `schemas`, `schema`, `store`, `workset`, `config`.
-     `feedback` is a `table` row: `parseFeedbackArgs` already rejects unknown
-     options, so the shared parser replaces it and the `--upstream` relay
-     rebuilds its argv from the parsed values as it does today. Everything else
-     is `table`. Upstream's per-command `--json` and `--store` are cospec
-     globals (`GLOBAL_OPTIONS`, stripped in `cli.ts`); the reachability test
-     resolves them for every row through the global list rather than per-row
-     duplicates. Each `table` row also declares `json: 'accepted' | 'refused'`:
-     whether the command honours the global `--json` (decision 10).
+     or drops the clause where cospec has none (the noun-form commands), and
+     only on a failed call — a change, spec or instructions the binary shows is
+     the user's own text, relayed untouched. `view` respells its footer, and
+     `status --change <id>` on a schema cospec does not type relays the binary's
+     own status for it in text mode instead of pointing at bare
+     `openspec status`. `forward` rows: `show`, `templates`, `schemas`,
+     `schema`, `store`, `workset`, `config`. `feedback` is a `table` row:
+     `parseFeedbackArgs` already rejects unknown options, so the shared parser
+     replaces it and the `--upstream` relay rebuilds its argv from the parsed
+     values as it does today. Everything else is `table`. Upstream's per-command
+     `--json` and `--store` are cospec globals (`GLOBAL_OPTIONS`, stripped in
+     `cli.ts`); the reachability test resolves them for every row through the
+     global list rather than per-row duplicates. Each `table` row also declares
+     `json: 'accepted' | 'refused'`: whether the command honours the global
+     `--json` (decision 10).
    - `parse: 'forward'` is the per-command marker the reachability test reads
      (the roadmap owner's ruling): a forward row's flags and positionals count
      as reached by delegation to the binary, whether declared or not, and a
@@ -485,61 +481,15 @@ runtime by `dist/commands/spec.js:127`.
     inside a sentence's `{cmd}` hole (`Create one with: <hint>`). Each sentence
     also matches its JSON-escaped form, for `--json` messages. `new` keeps one
     cut: a schema load error's payload is the user's schema, relayed as is even
-    where it copies an upstream sentence. On success, `context` and
-    `instructions` respell only the remedies the binary generates for its
-    references (`respellReferenceRemedies`), each whole value one allowlisted
-    remedy, and locate them by the binary's structure, never by what a line
-    says. Text `instructions`: the `  Fetch:` and `  Fix:` entry lines, after a
-    `Store <store-id> (<root>):` or `Store <store-id>: <message>` header
-    (`renderEntryLines`), inside the `<referenced_stores>` element that
-    `printInstructionsText` prints next in its layout — the `<artifact …>` line,
-    a blank line, a blocked artifact's `<warning>` element when there is one,
-    the `<task>` element, the `<project_context>` element when there is one —
-    through its `</referenced_stores>`; an answer of any other shape
-    (`instructions archive`'s inputs, which print the context raw) has no block.
-    The layout is the anchor because upstream's `escapeEnvelopeTags` escapes
-    `</task>` and `</project_context>` in the prose it frames (description,
-    context, rules, instruction, template) but not `<referenced_stores>`: a
-    template or context can print a lookalike block, a `Store` header or a
-    `Fix:` line anywhere, and it is relayed as written. The one value printed
-    unescaped ahead of the block is the blocked-artifact `Missing:` list, whose
-    entries are the artifact ids of the user's own schema (`z.string().min(1)`,
-    no line-break check upstream). Text `context` (`printHumanWorkingSet`, which
-    prints no repo prose): the `    Fetch:` lines of the `Referenced stores`
-    section and the `    Fix:`/`  Fix:` lines of
-    `Not available on this machine`, each section opened by its exact header
-    line after a blank one and closed by the next blank line. `--json`: the
-    document, from its first line that opens with `{` (upstream's
-    `FileSystemUtils` logs a non-ENOENT stat failure to stdout through
-    `console.debug`, and that line is relayed as written), is parsed — an exit-0
-    answer with no JSON document fails with
-    `the wrapped OpenSpec call answered --json with no JSON document`, exit 1 —
-    and only its reference fields — `references[].fetch` and
-    `references[].status[].fix` for `instructions` (`assembleReferenceIndex`),
-    `members[].fetch`, `members[].status[].fix` and `status[].fix` for `context`
-    (`assembleWorkingSet`) — are re-encoded in place with `JSON.stringify`,
-    every other byte of the document the binary's; no pattern runs over a text
-    answer's lines as JSON. `relayRespelled` takes the answering command
-    (`'context'`/`'instructions'`) in place of round 14's `'references'`.
-    Everything else on success (the schema template and instruction,
-    `config.yaml` context and rules, a referenced spec's Purpose summary, the
-    `Write to:` path, every other `--json` value such as `root.path` and
-    `changeDir`, and stderr) is relayed byte-for-byte; round 13's whole-stdout
-    respell rewrote each of those wherever it held an allowlisted sentence, and
-    round 14's line patterns (`Fetch:`/`Fix:` at any indent, a `"fetch"`/`"fix"`
-    line in any answer) still rewrote a user line that read like one. `show`
-    stays verbatim: a successful `show` prints the user's change or spec, which
-    may quote upstream's sentences word for word (this repo's own specs do). A
-    legacy schema's instruction text (the package's `schemas/spec-driven`,
-    outside `dist/`) is schema content and is relayed as the binary prints it.
-    In a relayed failure, user text that reproduces a whole upstream remedy
-    sentence verbatim outside the payload cut is respelled. Enforced by
-    `test/contract/remedy-enumeration.test.ts`, which reads the pinned dist and
-    fails on any line naming `openspec <command>` that is neither an allowlist
-    entry nor listed (`test/contract/support/remedy-sources.ts`) with the reason
-    no cospec relay prints it (only `init`/`update` run it, a terminal handover
-    prints it, cospec answers first, a noun-form command cospec lacks, …), keyed
-    by module and trimmed line, never line number. Rejected, after rounds 10–12:
+    where it copies an upstream sentence. The residual is exact: user text that
+    reproduces a whole upstream remedy sentence verbatim outside that payload is
+    respelled. Enforced by `test/contract/remedy-enumeration.test.ts`, which
+    reads the pinned dist and fails on any line naming `openspec <command>` that
+    is neither an allowlist entry nor listed
+    (`test/contract/support/remedy-sources.ts`) with the reason no cospec relay
+    prints it (only `init`/`update` run it, a terminal handover prints it,
+    cospec answers first, a noun-form command cospec lacks, …), keyed by module
+    and trimmed line, never line number. Rejected, after rounds 10–12:
     respelling `openspec <table command>` after a remedy lead-in (`Run`, `with`,
     `:`, `(`, a backtick), masking single-quoted spans, and cutting the reason
     at `already exists at` — each left a free-text case (an apostrophe ends a

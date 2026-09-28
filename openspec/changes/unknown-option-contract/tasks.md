@@ -548,15 +548,6 @@ red; 4–7 turn it green; 8 documents it.
       `Only upstream's own sentences are     respelled`, design decision 13,
       `reference/commands.md` (`new` row, the relayed-remedy paragraph),
       `concepts/apply-and-archive.md` (ledger 1.57, 1.58)
-- [x] 10.65 Success-path rows first (9149694): 4 `relayed-remedies.test.ts` rows
-      (`context`, `instructions proposal --change done`, each with and without
-      `--json`, over a root referencing a usable, an unusable and an
-      unregistered store) as `test.failing`, each failing on the bare
-      `Fetch:`/`Fix:` lines; plain `test` at e9ef302
-- [x] 10.66 `relayRespelled` takes `success: 'verbatim' | 'respell'`; `context`
-      and `instructions` pass `'respell'`, `show` keeps the verbatim default;
-      unit `relayRespelled` cases; spec requirement + scenario, design decisions
-      1 and 13, `reference/commands.md`, `docs/architecture.md` (ledger 1.59)
 - [x] 10.67 `.agents/shared.md` gains the "Relayed remedies come from one
       allowlist" discipline; `mise run agents:sync` (ledger 1.60)
 - [x] 10.68 Round-14 `show` rows first (9ba58b1): unit `binaryAnswers` case and
@@ -568,53 +559,3 @@ red; 4–7 turn it green; 8 documents it.
       (value-taking short takes the rest of its token; boolean short leaves
       `-<rest>` next; `-X=<v>` matches the short); `SHOW_EMPTY`'s never-relayed
       reason names the case (ledger 1.61)
-- [x] 10.70 Round-14 success-path rows first (9da374f):
-      `instructions proposal     --change done` (text and `--json`) with the
-      sentence in a project schema template, `config.yaml` context and rules and
-      a referenced spec's Purpose, and `context --json`/`instructions … --json`
-      in a project dir named with the sentence, as `test.failing` (each failing
-      on the rewritten user content or path); the `Run openspec init here` dir
-      rows as plain `test`; plain `test` at c0c8cb8
-- [x] 10.71 `respellReferenceRemedies` (core/remedies.ts): a successful
-      `context`/`instructions` respells only a `Fetch:`/`Fix:` line or a
-      `fetch`/`fix` JSON property whose whole value is one allowlisted remedy;
-      `relayRespelled` takes `success: 'verbatim' | 'references'`, stderr on
-      success verbatim; unit cases; spec requirement + scenarios, design
-      decisions 1 and 13, `reference/commands.md`, `docs/architecture.md`
-      (ledger 1.62)
-- [x] 10.72 `.agents/shared.md`'s allowlist discipline names
-      `respellReferenceRemedies` for a successful `context`/`instructions`;
-      `mise run agents:sync` (ledger 1.62)
-- [x] 10.73 Round-15 user-line rows first (cd0698c):
-      `instructions proposal     --change done`, text and `--json`, with a
-      template line `Fix: Run openspec init to create a root here.`, a context
-      line `Fetch: openspec show <spec-id> --type spec --store st1`, a rule
-      `  Fix: Pass a registered store id, or run openspec store list.`, a
-      template line `  "fix": "Run: openspec store doctor st2"`, and a forged
-      `<referenced_stores>` block in the context and in the template; the five
-      text rows other than the rule's as `test.failing` (each came back
-      respelled), the rule row and every `--json` row as plain `test`; plain
-      `test` at b09c65e (ledger 1.63)
-- [x] 10.74 `respellReferenceRemedies(text, answer, json)` locates the binary's
-      own remedies by structure: `instructions`' `<referenced_stores>` element
-      right after `</task>` and the project context, its entry lines after a
-      `Store <store-id>` header; `context`'s `Referenced stores` and
-      `Not available on this machine` sections; under `--json` the parsed
-      document's `references[]`/`members[]`/`status[]` `fetch`/`fix` fields,
-      re-encoded in place; round 14's `REFERENCE_LINE`/`REFERENCE_FIELD`
-      removed; `relayRespelled` takes `'context' | 'instructions'`; unit cases
-      (ledger 1.63)
-- [x] 10.75 Spec requirement + scenario, design decisions 1 and 13 (the round-14
-      residual closed), `reference/commands.md`, `docs/architecture.md`,
-      `.agents/shared.md` + `mise run agents:sync` (ledger 1.63)
-- [x] 10.76 Round-15 layout rows first (94a1ffc, bd979d1): contract
-      `instructions archive --change done` (text and `--json`) with a context
-      forging `</task>` and a block (text `test.failing`: respelled by b09c65e's
-      first-`</task>` anchor); unit cases for a leading stat warning under
-      `--json`, a `--json` answer with no document, and an archive-shaped answer
-      (`test.failing`), no references with a forged template block and a blocked
-      artifact's warning (plain `test`); plain `test` at 77608e3
-- [x] 10.77 `instructionsBlock` walks `printInstructionsText`'s layout from the
-      `<artifact` line (warning, task, project context); `--json` starts at the
-      first `{` line and a document-less answer fails naming the wrapped call;
-      design 13, spec scenario, `docs/architecture.md` (ledger 1.63)
