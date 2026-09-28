@@ -349,3 +349,22 @@ D14, the `openspec-config-passthrough` spec,
       `fix(cli): forward stdin to the piped reset --all unmodified`
 - [x] 13.2 State the round-4 behaviour in design, spec and docs; commit
       `docs(cli): record the piped reset --all typed-ahead answer`
+
+## 14. Review round 5
+
+Files: `apps/cli/src/commands/doctor.ts`, `doctor-parity.test.ts`,
+`test/unit/commands/doctor-stderr.test.ts`, design D3, the
+`openspec-relationship-health` spec, `apps/docs/reference/commands.md`,
+`apps/docs/concepts/stores.md`, `docs/stores.md`. Rows land first as
+`test.failing`, and the fix flips them.
+
+- [ ] 14.1 Fold each line of the wrapped `openspec doctor --json` call's stderr
+      (its config warnings) that cospec did not already print into cospec's
+      document as an `openspec-stderr` WARNING finding, spelled through the
+      remedies allowlist, so `--json` carries it and text prints it (design D3);
+      commits `test(cli): pin doctor's folded OpenSpec stderr warnings`,
+      `fix(cli): fold OpenSpec doctor's stderr warnings into findings`
+- [ ] 14.2 State the stderr fold and the explicit `--store` carve-out (cospec's
+      own checks read the invocation directory; a bare workspace gets the
+      `initialized` ERROR where OpenSpec exits 0) in design, spec and docs;
+      commit `docs(cli): state doctor's stderr fold and --store carve-out`
