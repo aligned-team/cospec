@@ -1599,38 +1599,32 @@ describe('12. a structurally invalid living spec is refused at pre-flight', () =
     const build = (root: string): void =>
       buildFeat(root, name, { 'widgets/spec.md': MODIFIED_CACHING }, { living })
 
-    test.failing(
-      `${row} native: a living spec whose requirement ${fragment} is an archive/target-invalid ERROR`,
-      async () => {
-        const root = mkTempRepo({ git: true })
-        build(root)
-        const archived = await binaryArchive(build, name)
-        expect(archived.exitCode).not.toBe(0)
-        expect(archived.moved).toBe(false)
-        const { report, exitCode } = await cospecValidate(root, name)
-        const found = byRule(report, 'archive/target-invalid')
-        expect(found).toHaveLength(1)
-        expect(found[0]?.level).toBe('ERROR')
-        expect(found[0]?.message).toContain(fragment)
-        expect(exitCode).toBe(1)
-      },
-    )
+    test(`${row} native: a living spec whose requirement ${fragment} is an archive/target-invalid ERROR`, async () => {
+      const root = mkTempRepo({ git: true })
+      build(root)
+      const archived = await binaryArchive(build, name)
+      expect(archived.exitCode).not.toBe(0)
+      expect(archived.moved).toBe(false)
+      const { report, exitCode } = await cospecValidate(root, name)
+      const found = byRule(report, 'archive/target-invalid')
+      expect(found).toHaveLength(1)
+      expect(found[0]?.level).toBe('ERROR')
+      expect(found[0]?.message).toContain(fragment)
+      expect(exitCode).toBe(1)
+    })
 
-    test.failing(
-      `${row} twin: the delegated structurally-invalid dry-run INFO is not relayed`,
-      async () => {
-        const root = mkTempRepo({ git: true })
-        build(root)
-        const delegated = binaryOne(
-          await binaryIssues(root, name),
-          'target spec is structurally invalid',
-        )
-        expect(delegated.level).toBe('INFO')
-        expect(delegated.message).toContain(fragment)
-        const { report } = await cospecValidate(root, name)
-        expect(messages(report)).not.toContain(delegated.message)
-      },
-    )
+    test(`${row} twin: the delegated structurally-invalid dry-run INFO is not relayed`, async () => {
+      const root = mkTempRepo({ git: true })
+      build(root)
+      const delegated = binaryOne(
+        await binaryIssues(root, name),
+        'target spec is structurally invalid',
+      )
+      expect(delegated.level).toBe('INFO')
+      expect(delegated.message).toContain(fragment)
+      const { report } = await cospecValidate(root, name)
+      expect(messages(report)).not.toContain(delegated.message)
+    })
   }
 
   test('12.4 a fenced requirement header outside ## Requirements is not a defect', async () => {

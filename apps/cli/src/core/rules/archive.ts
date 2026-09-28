@@ -249,20 +249,33 @@ export function archiveRules(
       // skeleton spec it builds for the new capability, so two ADDED names
       // that fold onto each other are refused here exactly as they are against
       // a living spec. Every arm below that reads the living spec is guarded.
-    } else if (
-      livingSpec !== undefined &&
-      (!livingSpec.hasPurpose || !livingSpec.hasRequirements || livingSpec.hasDeltaHeaders)
-    ) {
+    } else if (livingSpec !== undefined) {
       // archive/target-invalid — the living spec must be a well-formed main spec.
-      const reason = livingSpec.hasDeltaHeaders
-        ? 'it contains delta headers (## ADDED/MODIFIED/… Requirements)'
-        : `it is missing ${!livingSpec.hasPurpose ? '## Purpose' : '## Requirements'}`
-      issues.push({
-        level: 'ERROR',
-        rule: 'archive/target-invalid',
-        path: `specs/${capability}/spec.md`,
-        message: `living spec openspec/specs/${capability}/spec.md is structurally invalid — ${reason}`,
-      })
+      // A misplaced or duplicate requirement is one openspec's archive refuses
+      // to update past, before merging anything (`findLivingStructureIssues`).
+      const reasons: string[] = []
+      if (livingSpec.hasDeltaHeaders)
+        reasons.push('it contains delta headers (## ADDED/MODIFIED/… Requirements)')
+      else if (!livingSpec.hasPurpose || !livingSpec.hasRequirements)
+        reasons.push(`it is missing ${!livingSpec.hasPurpose ? '## Purpose' : '## Requirements'}`)
+      for (const defect of livingSpec.structureIssues)
+        reasons.push(
+          defect.kind === 'duplicate-requirement'
+            ? `line ${defect.line}: requirement "${defect.name}" duplicates the one declared on line ${defect.firstLine}`
+            : `line ${defect.line}: requirement "${defect.name}" is outside the ## Requirements section, so openspec never reads it`,
+        )
+      if (reasons.length > 0)
+        issues.push({
+          level: 'ERROR',
+          rule: 'archive/target-invalid',
+          path: `specs/${capability}/spec.md`,
+          message: `living spec openspec/specs/${capability}/spec.md is structurally invalid — ${reasons.join('; ')}`,
+          ...(livingSpec.structureIssues.length === 0
+            ? {}
+            : {
+                hint: 'openspec archive will not update a spec until every "### Requirement:" sits under "## Requirements" with a name no other requirement there uses — fix the living spec first',
+              }),
+        })
     }
 
     // Ops whose target was absent for an upstream early-sync reason; the

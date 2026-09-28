@@ -487,6 +487,17 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
       /^Archive would refuse this delta: .*ADDED failed for header "### Requirement: (.+?)" - already exists/,
     nativeKey: /^ADDED "(.+)" already exists with different content/,
   },
+  // 1.13.1's structurally-invalid living spec vs archive/target-invalid,
+  // keyed on the capability both messages name. Only when every defect the
+  // binary lists is one cospec's rule reads (a misplaced or duplicate
+  // requirement), so a listed defect cospec does not check still reaches the
+  // reader.
+  {
+    rule: 'archive/target-invalid',
+    delegated:
+      /^Archive would refuse this delta: (.+?): target spec is structurally invalid and cannot be updated until fixed:(?:\nline \d+: Requirement header "[^\n]*" (?:duplicates the requirement declared on line \d+\.|appears outside the main ## Requirements section\.)[^\n]*)+\n?$/,
+    nativeKey: /^living spec openspec\/specs\/(.+?)\/spec\.md is structurally invalid — /,
+  },
   // 1.13.1's two case-collision refusals, paired with the fold arms
   // `rules/archive.ts` grew for them.
   {

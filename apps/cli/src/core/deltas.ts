@@ -774,6 +774,65 @@ export function parseDeltaSpec(
   }
 }
 
+/**
+ * A structural defect in a living spec that openspec's archive refuses to
+ * update past — two of the kinds its `findMainSpecStructureIssues`
+ * (`src/core/parsers/spec-structure.ts`, 1.13.1) reports. The archive throws
+ * `target spec is structurally invalid and cannot be updated until fixed`
+ * before merging anything.
+ */
+export interface LivingStructureIssue {
+  kind: 'requirement-outside-requirements' | 'duplicate-requirement'
+  /** 1-based line of the offending `### Requirement:` header. */
+  line: number
+  /** the requirement's normalized name. */
+  name: string
+  /** duplicate only: the line that first declared the name. */
+  firstLine?: number
+}
+
+const MAIN_REQUIREMENTS_HEADER_RE = /^##\s+Requirements\s*$/i
+const MAIN_SECTION_RE = /^##\s+/
+/** The spec-structure reader's header: `\s+` after `###`, unlike the delta reader's `\s*`. */
+const MAIN_REQUIREMENT_RE = /^###\s+Requirement:\s*(.+)\s*$/i
+
+/**
+ * openspec's `findMainSpecStructureIssues`, ported for the two kinds cospec's
+ * `archive/target-invalid` did not already refuse: a `### Requirement:` outside
+ * the first `## Requirements` section, and a second requirement under a
+ * normalized name already declared there. Read as upstream reads it: fenced
+ * lines blanked, HTML comments NOT masked — a commented-out requirement under
+ * `## Purpose` is refused by the archive all the same.
+ */
+export function findLivingStructureIssues(text: string): LivingStructureIssue[] {
+  const { source, fenced } = scanMarkdown(text, 'verbatim')
+  const lines = source.map((line, i) => (fenced[i] === true ? '' : line))
+  const issues: LivingStructureIssue[] = []
+  const firstLines = new Map<string, number>()
+  const start = lines.findIndex((line) => MAIN_REQUIREMENTS_HEADER_RE.test(line))
+  let end = lines.length
+  if (start !== -1)
+    for (let i = start + 1; i < lines.length; i++)
+      if (MAIN_SECTION_RE.test(lines[i]!)) {
+        end = i
+        break
+      }
+  for (let i = 0; i < lines.length; i++) {
+    const header = lines[i]!.match(MAIN_REQUIREMENT_RE)
+    if (header === null) continue
+    const name = normalize(header[1]!)
+    if (start === -1 || i <= start || i >= end) {
+      issues.push({ kind: 'requirement-outside-requirements', line: i + 1, name })
+      continue
+    }
+    const firstLine = firstLines.get(name)
+    if (firstLine !== undefined)
+      issues.push({ kind: 'duplicate-requirement', line: i + 1, name, firstLine })
+    else firstLines.set(name, i + 1)
+  }
+  return issues
+}
+
 /** A living spec's requirement names and blocks, as one `ReadView` sees them. */
 /** A skipped header that splits its requirement into a piece with no scenario. */
 export interface RequirementSplit {
@@ -847,6 +906,8 @@ export interface LivingSpec {
    * advisory `specs/*` rules and the scenario-preservation gate.
    */
   archive: LivingRequirements
+  /** Defects the archive refuses to update past (`findLivingStructureIssues`). */
+  structureIssues: LivingStructureIssue[]
 }
 
 /**
@@ -975,6 +1036,7 @@ export function parseLivingSpec(text: string): LivingSpec {
     hasDeltaHeaders,
     purposeText: purposeLines.join('\n').trim(),
     archive: livingRequirements(scanMarkdown(text, 'verbatim')),
+    structureIssues: findLivingStructureIssues(text),
   }
 }
 

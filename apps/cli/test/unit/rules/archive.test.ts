@@ -1005,3 +1005,63 @@ describe('archive/split-requirement', () => {
     expect(splits(commented).map((i) => i.line)).toEqual([13])
   })
 })
+
+// openspec's archive refuses to update a living spec that `findMainSpecStructureIssues`
+// flags, before merging anything: a requirement outside `## Requirements`, or
+// a second one under a name already declared there. Fenced lines are excluded;
+// HTML comments are not.
+describe('archive/target-invalid: living-spec structure', () => {
+  const MOD =
+    '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n'
+  const invalid = (living: string) =>
+    archiveRules(change(MOD, { living })).filter((i) => i.rule === 'archive/target-invalid')
+  const EXTRA =
+    '### Requirement: Other\n\nThe system SHALL other.\n\n#### Scenario: o\n\n- **WHEN** c\n- **THEN** d\n'
+
+  test('a duplicate requirement name is refused, naming both lines', () => {
+    const found = invalid(`${LIVING}\n${EXTRA.replace('Other', 'Existing')}`)
+    expect(found.map((i) => [i.level, i.message])).toEqual([
+      [
+        'ERROR',
+        'living spec openspec/specs/x/spec.md is structurally invalid — line 18: requirement "Existing" duplicates the one declared on line 9',
+      ],
+    ])
+    expect(found[0]?.hint).toContain('under "## Requirements"')
+  })
+
+  test('a closing ATX run does not make a second name', () => {
+    expect(invalid(`${LIVING}\n${EXTRA.replace('Other', 'Existing ###')}`)).toHaveLength(1)
+  })
+
+  test('a requirement outside ## Requirements is refused, commented or not', () => {
+    for (const stray of ['### Requirement: Stray', '<!--\n### Requirement: Stray\n-->']) {
+      const found = invalid(LIVING.replace('## Purpose\n\n', `## Purpose\n\n${stray}\n\n`))
+      expect(found).toHaveLength(1)
+      expect(found[0]?.message).toContain(
+        'requirement "Stray" is outside the ## Requirements section',
+      )
+    }
+  })
+
+  test('a requirement under a later ## section is outside too', () => {
+    const found = invalid(`${LIVING}\n## Notes\n\n${EXTRA}`)
+    expect(found[0]?.message).toContain('requirement "Other" is outside')
+  })
+
+  test('a fenced requirement header is content, not a defect', () => {
+    expect(
+      invalid(
+        LIVING.replace('## Purpose\n\n', '## Purpose\n\n```\n### Requirement: Stray\n```\n\n'),
+      ),
+    ).toEqual([])
+  })
+
+  test('a missing ## Requirements keeps its reason, and the stray requirement is named too', () => {
+    const found = invalid(
+      '# X\n\n## Purpose\n\nReal purpose.\n\n### Requirement: Existing\n\nThe system SHALL exist.\n',
+    )
+    expect(found.map((i) => i.message)).toEqual([
+      'living spec openspec/specs/x/spec.md is structurally invalid — it is missing ## Requirements; line 7: requirement "Existing" is outside the ## Requirements section, so openspec never reads it',
+    ])
+  })
+})
