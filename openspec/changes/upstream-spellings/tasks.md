@@ -161,11 +161,11 @@ a time. Group 12 waits for the rebase in group 11.
       for `core/references.js`; flip the `instructions` rows of
       `relayed-remedies.test.ts` (task 1.5) to `test`; verify ledger 4.2 and 4.3
 - [x] 12.4 Commit `fix(cli): spell instructions reference fields through cospec`
-- [ ] 12.5 Add `SCHEMA_LINES` (the ten pinned `schemas/spec-driven/**` lines
+- [x] 12.5 Add `SCHEMA_LINES` (the ten pinned `schemas/spec-driven/**` lines
       with their cospec spellings), the `schema which <name> --json`
       `source: package` gate, and move those ten rows from `REACHABLE_OWNED` to
       `REMEDY_SOURCES`; verify ledger 4.4, 4.5 and 4.6
-- [ ] 12.6 Commit
+- [x] 12.6 Commit
       `fix(cli): spell the built-in schema's reference lines through cospec`
 - [ ] 12.7 Route the `instructions` failure path's `Create one with: …` hint
       through the shared helper; verify ledger 3.3

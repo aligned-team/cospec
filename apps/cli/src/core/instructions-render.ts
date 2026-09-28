@@ -12,6 +12,7 @@
 import { join } from 'node:path'
 
 import { type CommandField, respellCommandFields } from './passthrough-command.ts'
+import { respellSchemaLines } from './remedies.ts'
 
 /** The fields of the binary's document the printer reads. */
 export interface InstructionsDocument {
@@ -59,6 +60,18 @@ export const INSTRUCTIONS_COMMAND_FIELDS: readonly CommandField[] = [
 /** `doc` with only its command-bearing reference fields spelled through cospec. */
 export function respellInstructionsDocument<T>(doc: T): T {
   return respellCommandFields(doc, INSTRUCTIONS_COMMAND_FIELDS)
+}
+
+/**
+ * `doc` with the pinned built-in schema's own lines in its `instruction` and
+ * `template` spelled through cospec (`SCHEMA_LINES`). Only for a document
+ * whose schema resolves from the package; every other line is unchanged.
+ */
+export function respellBuiltInSchemaLines<T extends object>(doc: T): T {
+  const out = structuredClone(doc) as Record<string, unknown>
+  for (const key of ['instruction', 'template'])
+    if (typeof out[key] === 'string') out[key] = respellSchemaLines(out[key])
+  return out as T
 }
 
 /** The binary's text answer for `doc`, as `printInstructionsText` prints it. */

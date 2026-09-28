@@ -4,7 +4,9 @@ import {
   REMEDIES,
   type Remedy,
   respellRemedies,
+  respellSchemaLines,
   respellWholeRemedy,
+  SCHEMA_LINES,
 } from '../../../src/core/remedies.ts'
 
 /** A bare `openspec` command a user could copy and run outside cospec. */
@@ -135,5 +137,23 @@ describe('respellWholeRemedy: a value that is one remedy, whole', () => {
       '',
     ])
       expect(respellWholeRemedy(value)).toBe(value)
+  })
+})
+
+describe('respellSchemaLines: the built-in schema lines, whole, after indentation', () => {
+  test('each entry is spelled with its indentation kept', () => {
+    for (const line of SCHEMA_LINES) {
+      expect(respellSchemaLines(line.upstream)).toBe(line.cospec)
+      expect(respellSchemaLines(`     ${line.upstream}`)).toBe(`     ${line.cospec}`)
+      expect(line.cospec).not.toMatch(/\bopenspec [a-z]/)
+    }
+  })
+
+  test('a line with anything more than an entry is left as written', () => {
+    const entry = SCHEMA_LINES[0]!.upstream
+    const text = `x ${entry}\n${entry} y\n\t${entry}\nopenspec list`
+    expect(respellSchemaLines(text)).toBe(
+      `x ${entry}\n${entry} y\n\t${SCHEMA_LINES[0]!.cospec}\nopenspec list`,
+    )
   })
 })

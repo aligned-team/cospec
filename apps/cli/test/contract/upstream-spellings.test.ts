@@ -1205,7 +1205,7 @@ function builtInSchemaRoot(projectCopy: boolean): string {
 describe('4.4 the built-in spec-driven schema lines name cospec', () => {
   for (const asJson of [false, true]) {
     const argv = ['instructions', 'proposal', '--change', 'done', ...(asJson ? ['--json'] : [])]
-    test.failing(
+    test(
       argv.join(' '),
       async () => {
         const coRoot = builtInSchemaRoot(false)

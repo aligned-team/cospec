@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 
-import { respellRemedies } from '../../src/core/remedies.ts'
+import { respellRemedies, respellSchemaLines } from '../../src/core/remedies.ts'
 import {
   cleanupAll,
   cospec,
@@ -473,9 +473,10 @@ describe('with a store registered, the resolver gives the no-root answer', () =>
 describe('a successful context or instructions is relayed byte-for-byte', () => {
   // A successful `instructions` answer is the binary's with only its
   // reference fields (`references[].fetch`, `references[].status[].fix`, and
-  // their `Fetch:`/`Fix:` lines in the text) spelled through cospec
-  // (change `upstream-spellings`); every byte the user owns — a template,
-  // the context, a rule, a spec Purpose, a path — is the binary's. A
+  // their `Fetch:`/`Fix:` lines in the text) spelled through cospec — plus,
+  // for a change on the package's own built-in schema, that schema's command
+  // lines (change `upstream-spellings`); every byte the user owns — a
+  // template, the context, a rule, a spec Purpose, a path — is the binary's. A
   // successful `context` is still relayed untouched: its reference block's
   // spelling is owned by passthrough-json-and-doctor (`REACHABLE_OWNED` in
   // `support/remedy-sources.ts`). `instructions archive` holds only the
@@ -777,7 +778,13 @@ describe('a successful context or instructions is relayed byte-for-byte', () => 
       expect(doc.root.path).toBe(realpathSync(coRoot))
       const upDoc = JSON.parse(parents(up.stdout, upRoot)) as Record<string, unknown>
       const coDoc = JSON.parse(parents(co.stdout, coRoot)) as Record<string, unknown>
-      expect(coDoc, detail(co)).toEqual(withReferenceFieldsRespelled(upDoc))
+      // `done` is on the package's own spec-driven schema, so its built-in
+      // lines are cospec's to spell too (upstream-spellings ledger 4.4 pins
+      // those lines against the binary on their own).
+      const expected = withReferenceFieldsRespelled(upDoc)
+      for (const key of ['instruction', 'template'])
+        expected[key] = respellSchemaLines(expected[key] as string)
+      expect(coDoc, detail(co)).toEqual(expected)
     }, 30_000)
   }
 })

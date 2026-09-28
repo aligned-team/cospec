@@ -802,6 +802,61 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
     "console.error('Note: OpenSpec collects anonymous usage stats. Opt out: OPENSPEC_TELEMETRY=0 or openspec config set telemetry.enabled false');",
     notRelayed.TELEMETRY,
   ],
+  // The built-in `spec-driven` schema's own instruction text and proposal
+  // template (`schemas/spec-driven/schema.yaml`, `templates/proposal.md`),
+  // printed only by `instructions` for a change on that schema: spelled
+  // through `SCHEMA_LINES` (`core/remedies.ts`) when the schema resolves from
+  // the package, never on a project or user copy (the user's own text).
+  [
+    'schemas/spec-driven/schema.yaml',
+    "run `openspec list --specs` for the project's capability inventory, then",
+    'spec-driven/proposal-list-specs',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    '`openspec show "<spec-id>" --type spec --json --no-scenarios` for any that',
+    'spec-driven/proposal-show-json',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'error. `openspec list` without `--specs` lists in-flight changes, not',
+    'spec-driven/proposal-list-changes',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'scenarios, with `openspec show "<spec-id>" --type spec` (same `--store` rule).',
+    'spec-driven/proposal-show',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'modified) or explicitly opt out of specs: `openspec validate` rejects a',
+    'spec-driven/proposal-validate',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    '- Modified capabilities: use the exact existing path from `openspec/specs/<capability-path>/` when creating the delta at `specs/<capability-path>/spec.md`. Run `openspec list --specs` to confirm that path before writing the delta, appending `--store "<id>"` only for a registered standalone store - a mistyped or invented path targets a capability that does not exist rather than the one you meant. Do not move or rename the capability.',
+    'spec-driven/specs-modified-path',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'sets `skip_specs: true` (no spec-level behavior change) - `openspec validate`',
+    'spec-driven/specs-skip-validate',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'one or two sentences (50+ characters, or `openspec validate --strict`',
+    'spec-driven/specs-validate-strict',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'directly. `planningHome.root` comes from the `openspec instructions ...',
+    'spec-driven/specs-planning-home',
+  ],
+  [
+    'schemas/spec-driven/templates/proposal.md',
+    'must set `skip_specs: true` in its .openspec.yaml - openspec validate rejects',
+    'spec-driven/template-proposal-validate',
+  ],
 ]
 
 /**
@@ -875,71 +930,5 @@ export const REACHABLE_OWNED: readonly (readonly [
     "console.log('Config updated. Run `openspec update` in your projects to apply.');",
     'config',
     'passthrough-json-and-doctor',
-  ],
-  // The built-in `spec-driven` schema's own instruction text and proposal
-  // template (`schemas/spec-driven/schema.yaml`, `templates/proposal.md`):
-  // for a change on that schema (never on one of cospec's 11 typed schemas),
-  // `cospec instructions <artifact> --change <id>` is a thin passthrough
-  // (`commands/instructions.ts`) that relays the binary's successful answer
-  // untouched, so this text reaches the user unspelled.
-  [
-    'schemas/spec-driven/schema.yaml',
-    "run `openspec list --specs` for the project's capability inventory, then",
-    'instructions',
-    'upstream-spellings',
-  ],
-  [
-    'schemas/spec-driven/schema.yaml',
-    '`openspec show "<spec-id>" --type spec --json --no-scenarios` for any that',
-    'instructions',
-    'upstream-spellings',
-  ],
-  [
-    'schemas/spec-driven/schema.yaml',
-    'error. `openspec list` without `--specs` lists in-flight changes, not',
-    'instructions',
-    'upstream-spellings',
-  ],
-  [
-    'schemas/spec-driven/schema.yaml',
-    'scenarios, with `openspec show "<spec-id>" --type spec` (same `--store` rule).',
-    'instructions',
-    'upstream-spellings',
-  ],
-  [
-    'schemas/spec-driven/schema.yaml',
-    'modified) or explicitly opt out of specs: `openspec validate` rejects a',
-    'instructions',
-    'upstream-spellings',
-  ],
-  [
-    'schemas/spec-driven/schema.yaml',
-    '- Modified capabilities: use the exact existing path from `openspec/specs/<capability-path>/` when creating the delta at `specs/<capability-path>/spec.md`. Run `openspec list --specs` to confirm that path before writing the delta, appending `--store "<id>"` only for a registered standalone store - a mistyped or invented path targets a capability that does not exist rather than the one you meant. Do not move or rename the capability.',
-    'instructions',
-    'upstream-spellings',
-  ],
-  [
-    'schemas/spec-driven/schema.yaml',
-    'sets `skip_specs: true` (no spec-level behavior change) - `openspec validate`',
-    'instructions',
-    'upstream-spellings',
-  ],
-  [
-    'schemas/spec-driven/schema.yaml',
-    'one or two sentences (50+ characters, or `openspec validate --strict`',
-    'instructions',
-    'upstream-spellings',
-  ],
-  [
-    'schemas/spec-driven/schema.yaml',
-    'directly. `planningHome.root` comes from the `openspec instructions ...',
-    'instructions',
-    'upstream-spellings',
-  ],
-  [
-    'schemas/spec-driven/templates/proposal.md',
-    'must set `skip_specs: true` in its .openspec.yaml - openspec validate rejects',
-    'instructions',
-    'upstream-spellings',
   ],
 ]

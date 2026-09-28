@@ -6,10 +6,10 @@
 // roadmap PR named beside it (`REACHABLE_OWNED`). Reads the pinned package
 // itself — both the compiled `dist/**/*.js` (what runs) and the spec-driven
 // schema's `schemas/**/*.{yaml,md}` (the built-in schema's own instruction
-// text and templates, which `cospec instructions` relays untouched for a
-// change on that schema) — so a future pin that adds or rewords such a
-// sentence in either tree fails here until it is classified, and no new
-// remedy reaches a cospec user unaccounted for.
+// text and templates, which `cospec instructions` prints for a change on that
+// schema, its command lines spelled through `SCHEMA_LINES`) — so a future pin
+// that adds or rewords such a sentence in either tree fails here until it is
+// classified, and no new remedy reaches a cospec user unaccounted for.
 
 import { describe, expect, test } from 'bun:test'
 import { readdirSync, readFileSync } from 'node:fs'
@@ -19,7 +19,7 @@ import { parse as parseYaml } from 'yaml'
 
 import { commandRow } from '../../src/core/command-table.ts'
 import { openspecPackageDir } from '../../src/core/openspec.ts'
-import { REMEDIES } from '../../src/core/remedies.ts'
+import { REMEDIES, SCHEMA_LINES } from '../../src/core/remedies.ts'
 import {
   NOT_RELAYED_TREES,
   notRelayed,
@@ -108,7 +108,7 @@ const CLASSIFIED = new Map<string, string[]>()
 for (const [file, line, where] of REMEDY_SOURCES) {
   CLASSIFIED.set(key(file, line), [...(CLASSIFIED.get(key(file, line)) ?? []), where])
 }
-const REMEDY_IDS = new Set(REMEDIES.map((remedy) => remedy.id))
+const REMEDY_IDS = new Set([...REMEDIES, ...SCHEMA_LINES].map((remedy) => remedy.id))
 const REASONS = new Set<string>(Object.values(notRelayed))
 const REACHABLE = new Set(REACHABLE_OWNED.map(([file, line]) => key(file, line)))
 
@@ -210,6 +210,18 @@ describe('every dist sentence naming a bare openspec command is classified', () 
         prefix,
       ).toBe(true)
   })
+})
+
+describe('every built-in schema line entry is one of the pinned schema lines', () => {
+  for (const line of SCHEMA_LINES) {
+    test(line.id, () => {
+      const sources = REMEDY_SOURCES.filter(([, , where]) => where === line.id)
+      expect(sources.map(([, source]) => source)).toEqual([line.upstream])
+      const [file] = sources[0]!
+      expect(file.startsWith('schemas/spec-driven/'), file).toBe(true)
+      expect(SOURCE.get(file) ?? []).toContain(line.upstream)
+    })
+  }
 })
 
 /** A source line with its JS string escapes undone. */
