@@ -174,14 +174,14 @@ a time. Group 12 waits for the rebase in group 11.
 
 ## 13. Docs (`apps/docs/reference/commands.md`, `apps/docs/guide/installation.md`, `apps/docs/.vitepress/parity.data.ts`, `apps/docs/concepts/how-it-relates-to-openspec.md`, `docs/architecture.md`, `.agents/shared.md`)
 
-- [ ] 13.1 Update `reference/commands.md` and `guide/installation.md` per ledger
+- [x] 13.1 Update `reference/commands.md` and `guide/installation.md` per ledger
       8.1 and 8.2
-- [ ] 13.2 Teach `parity.data.ts` to read `aliases.yaml` and render the
+- [x] 13.2 Teach `parity.data.ts` to read `aliases.yaml` and render the
       upstream-spelling list on `how-it-relates-to-openspec.md`; run
       `mise run docs:build`; verify ledger 8.3
-- [ ] 13.3 Update `docs/architecture.md` (ledger 8.4) and `.agents/shared.md`,
+- [x] 13.3 Update `docs/architecture.md` (ledger 8.4) and `.agents/shared.md`,
       then `mise run agents:sync` and `mise run agents:check`; verify ledger 8.5
-- [ ] 13.4 Commit
+- [x] 13.4 Commit
       `docs(cli): document upstream spellings and document-built instructions`
 
 ## 14. Close-out

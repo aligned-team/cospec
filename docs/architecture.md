@@ -229,13 +229,40 @@ the pinned dist and fails on any line naming `openspec <command>` that is
 neither an allowlist entry, nor listed
 (`test/contract/support/remedy-sources.ts`) with the reason no cospec relay
 prints it, nor listed (`REACHABLE_OWNED`) as reachable through a successful
-answer cospec relays untouched — a `context`/`instructions` reference block, a
-`workset`, `config` or `schema` next step — with the roadmap PR that owns its
-spelling. This is defence-in-depth, the same posture as the archive
-scenario-preservation gate below — cospec's own routing discipline is the
-primary guard (agents are told to call `cospec`, never `openspec`), and the
-relay guard is the belt-and-suspenders catch for the one path where upstream's
-own text is quoted back to the reader.
+answer cospec relays untouched — a `context` reference block, a `workset` or
+`config` next step — with the roadmap PR that owns its spelling. This is
+defence-in-depth, the same posture as the archive scenario-preservation gate
+below — cospec's own routing discipline is the primary guard (agents are told to
+call `cospec`, never `openspec`), and the relay guard is the belt-and-suspenders
+catch for the one path where upstream's own text is quoted back to the reader.
+
+### `instructions`: the answer is built from the binary's document
+
+A successful `instructions <artifact>` answer carries both the user's own text
+(the schema's instruction and template, `config.yaml`'s context and rules, a
+referenced spec's Purpose line, store ids and paths — none escaped for line
+breaks) and commands the binary wrote itself, so no text-layout anchor can tell
+them apart. `commands/instructions.ts` therefore spawns
+`instructions <artifact> --json` in every mode (`callPassthrough`'s
+`wrappedJson`), parses the document, and rewrites it by structure:
+`respellCommandFields` (`core/passthrough-command.ts`) with the field map
+`INSTRUCTIONS_COMMAND_FIELDS` (`core/instructions-render.ts`) —
+`references[].fetch` and `references[].status[].fix` — under the `remedy` rule,
+which rewrites a field only when its whole value is one allowlist entry
+(`respellWholeRemedy`), each hole re-emitted as captured. When
+`schema which <name> --json` reports `source: package` (the pinned built-in
+`spec-driven`, never a project or user copy and never one of cospec's types),
+each line of `instruction` and `template` that equals a `SCHEMA_LINES` entry
+(`core/remedies.ts`) after its indentation is spelled too. `--json` re-prints
+the document as the binary formats it; text mode renders it with a port of the
+binary's `printInstructionsText` and reference-block renderer (escape helpers
+included), plus the wrapped text call's non-TTY spinner line on stderr, so every
+byte the user owns is the binary's. A failure keeps the binary's answer: under
+`--json` its `status[].message`/`fix` pass the same `remedy` rule; in text mode
+the same argv is re-run without `--json` (the helper's `rerun`, which never
+selects the root twice) and relayed with its remedies spelled. `apply --change`
+stays the gate; `archive` (the user's context and operation guidance only) and
+the no-artifact / no-change answers are relayed as the binary prints them.
 
 ## The disciplined-passthrough runner
 
