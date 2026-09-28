@@ -434,15 +434,26 @@ function globalConfig(root: string): string {
 /** A global config `config reset --all` changes when it resets. */
 const CUSTOM_CONFIG = '{\n  "profile": "custom",\n  "featureFlags": {}\n}\n'
 
-/** `cmd` in `root`, its stdin fed by the shell `feeder` (`echo y |`, `</dev/null`). */
-async function fed(feeder: string, cmd: string[], root: string): Promise<SpawnResult> {
+/**
+ * `cmd` in `root`, its stdin fed by the shell `feeder` (`echo y |`, `</dev/null`),
+ * telemetry off unless `telemetry` is `'default'` (the key unset, as a user's
+ * shell leaves it).
+ */
+async function fed(
+  feeder: string,
+  cmd: string[],
+  root: string,
+  telemetry: 'off' | 'default' = 'off',
+): Promise<SpawnResult> {
   const script = feeder.startsWith('<') ? `exec "$@" ${feeder}` : `${feeder} exec "$@"`
+  const env: Record<string, string> = { ...oracleEnv(root), OPENSPEC_NO_COMPLETIONS: '1' }
+  if (telemetry === 'default') delete env.OPENSPEC_TELEMETRY
   const proc = Bun.spawn(['sh', '-c', script, 'sh', ...cmd], {
     cwd: root,
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
-    env: { ...oracleEnv(root), OPENSPEC_NO_COMPLETIONS: '1' },
+    env,
   })
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
@@ -457,16 +468,27 @@ function lastLine(text: string): string | undefined {
   return text.trimEnd().split('\n').at(-1)
 }
 
+/** A sandbox root whose global config `config reset --all` changes when it resets. */
+function seededRoot(): string {
+  const root = plainRoot()
+  mkdirSync(dirname(globalConfig(root)), { recursive: true })
+  writeFileSync(globalConfig(root), CUSTOM_CONFIG)
+  return root
+}
+
+/** Whether `config reset --all` in `root` reset its seeded global config. */
+function wasReset(root: string): boolean {
+  return readFileSync(globalConfig(root), 'utf8') !== CUSTOM_CONFIG
+}
+
 describe('config reset --all with stdin piped, not a terminal: cospec forwards it (design D14)', () => {
-  // Under Node the confirm discards an answer already waiting on the pipe when
-  // it is drawn and takes one that arrives after; a stream that never stops
-  // (`yes`) answers it after its first chunk is discarded.
-  // A late answer waits 3s, not the 1s of a hand probe: cospec must have its
-  // prompt drawn first (a cold transpile, the version check, the child's own
-  // start), which a slow CI runner can take longer than a second to do.
+  // Parity rows: the binary with telemetry off, as cospec runs it. A closed
+  // input cancels; an answer that arrives after the prompt is taken; a stream
+  // that never stops (`yes`) answers it. A late answer waits 3s, not the 1s of
+  // a hand probe: cospec must have its prompt drawn first (a cold transpile,
+  // the version check, the child's own start), which a slow CI runner can take
+  // longer than a second to do.
   const cases: [feeder: string, exitCode: number, reset: boolean][] = [
-    ['echo y |', 130, false],
-    ['echo n |', 130, false],
     ['</dev/null', 130, false],
     ['(sleep 3; echo y) |', 0, true],
     ['(sleep 3; echo n) |', 0, false],
@@ -475,15 +497,11 @@ describe('config reset --all with stdin piped, not a terminal: cospec forwards i
   for (const [feeder, exitCode, reset] of cases) {
     test(`${feeder} cospec config reset --all: as the binary answers`, async () => {
       const argv = ['config', 'reset', '--all']
-      const [upRoot, coRoot] = [plainRoot(), plainRoot()]
-      for (const root of [upRoot, coRoot]) {
-        mkdirSync(dirname(globalConfig(root)), { recursive: true })
-        writeFileSync(globalConfig(root), CUSTOM_CONFIG)
-      }
+      const [upRoot, coRoot] = [seededRoot(), seededRoot()]
       const up = await fed(feeder, ['node', openspecBinPath(), ...argv], upRoot)
       const co = await fed(feeder, [process.execPath, CLI_ENTRY, ...argv], coRoot)
       expect(up.exitCode, detail(up)).toBe(exitCode)
-      expect(readFileSync(globalConfig(upRoot), 'utf8') !== CUSTOM_CONFIG).toBe(reset)
+      expect(wasReset(upRoot)).toBe(reset)
       expect(co.exitCode, detail(co)).toBe(up.exitCode)
       expect(readFileSync(globalConfig(coRoot), 'utf8')).toBe(
         readFileSync(globalConfig(upRoot), 'utf8'),
@@ -495,6 +513,48 @@ describe('config reset --all with stdin piped, not a terminal: cospec forwards i
       else expect(co.stdout, detail(co)).toBe(respellRemedies(up.stdout))
     }, 30_000)
   }
+
+  // Declared rows: an answer already waiting on the pipe when the prompt is
+  // drawn. The binary's answer to it depends on timing (below); cospec forwards
+  // it unmodified to the binary running under Bun, whose confirm takes it.
+  const typedAhead: [feeder: string, reset: boolean, answer: string][] = [
+    ['echo y |', true, 'Configuration reset to defaults'],
+    ['echo n |', false, 'Reset cancelled.'],
+  ]
+  for (const [feeder, reset, answer] of typedAhead) {
+    test.failing(
+      `${feeder} cospec config reset --all: cospec's declared answer, exit 0`,
+      async () => {
+        const root = seededRoot()
+        const co = await fed(
+          feeder,
+          [process.execPath, CLI_ENTRY, 'config', 'reset', '--all'],
+          root,
+        )
+        expect(co.exitCode, detail(co)).toBe(0)
+        expect(wasReset(root)).toBe(reset)
+        expect(lastLine(co.stdout) ?? '', detail(co)).toEndWith(answer)
+        expect(co.stderr, detail(co)).toBe('')
+      },
+      30_000,
+    )
+  }
+
+  // The race is upstream's: under Node the binary's first-run telemetry work
+  // (the default) delays its prompt past the waiting answer, which it then
+  // takes; with telemetry off the prompt is drawn first and the answer is
+  // discarded. Only the difference is asserted — each side's outcome is
+  // timing, recorded in ledger 13.3.
+  test("echo y | openspec config reset --all: the binary's answer depends on its telemetry", async () => {
+    const argv = ['node', openspecBinPath(), 'config', 'reset', '--all']
+    const [offRoot, onRoot] = [seededRoot(), seededRoot()]
+    const off = await fed('echo y |', argv, offRoot, 'off')
+    const on = await fed('echo y |', argv, onRoot, 'default')
+    const outcome = (run: SpawnResult, root: string) =>
+      `exit ${run.exitCode}, ${wasReset(root) ? 'reset' : 'not reset'}`
+    console.info(`telemetry off: ${outcome(off, offRoot)}; default: ${outcome(on, onRoot)}`)
+    expect(outcome(on, onRoot)).not.toBe(outcome(off, offRoot))
+  }, 30_000)
 })
 
 // --- review round 2: `config <leaf> <extra-arg> --json` (design D13) --------------------
