@@ -461,12 +461,15 @@ describe('config reset --all with stdin piped, not a terminal: cospec forwards i
   // Under Node the confirm discards an answer already waiting on the pipe when
   // it is drawn and takes one that arrives after; a stream that never stops
   // (`yes`) answers it after its first chunk is discarded.
+  // A late answer waits 3s, not the 1s of a hand probe: cospec must have its
+  // prompt drawn first (a cold transpile, the version check, the child's own
+  // start), which a slow CI runner can take longer than a second to do.
   const cases: [feeder: string, exitCode: number, reset: boolean][] = [
     ['echo y |', 130, false],
     ['echo n |', 130, false],
     ['</dev/null', 130, false],
-    ['(sleep 1; echo y) |', 0, true],
-    ['(sleep 1; echo n) |', 0, false],
+    ['(sleep 3; echo y) |', 0, true],
+    ['(sleep 3; echo n) |', 0, false],
     ['yes |', 0, true],
   ]
   for (const [feeder, exitCode, reset] of cases) {

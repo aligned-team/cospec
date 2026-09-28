@@ -308,22 +308,26 @@ pre-validation suite pins the binary's half of each.
 With no TTY on stdin the piped call runs with the child's stdin a pipe cospec
 feeds from its own (`SpawnShape.input`), so `echo y | cospec config reset --all`
 answers the confirm as it answers the binary's. Under Node the confirm discards
-an answer already waiting on the pipe when it is drawn (inquirer attaches its
-keypress listener after the buffered data is read) and takes one that arrives
-after; under Bun it takes both. cospec therefore drops every chunk it reads
-before the child prints its first stdout chunk — the prompt — and forwards every
-chunk after, ending the child's stdin when its own ends and stopping the pump
-once the child exits (a write the exited child can no longer take ends it; only
-`EPIPE` is caught). Probed against the binary under Node, each case matches:
-`echo y |`, `echo n |` and `</dev/null` cancel (130, `Reset cancelled.`, nothing
-reset); `(sleep 1; echo y) |` and `yes |` reset (exit 0); `(sleep 1; echo n) |`
-answers no (exit 0, nothing reset). The contract suite pins every case against
-the binary — stdout byte for byte, but for `yes |`, whose count of prompt
-redraws before the input closes no run fixes, under Node as under cospec, where
-its answer line is compared. No Bun-only residual remains. The prompt's SGR
-escapes are stripped from the relay: the binary's prompts style through
-`node:util` `styleText`, which under Node emits none on a pipe and under Bun
-emits them regardless of `NO_COLOR`/`--no-color`; its cursor controls, which
+an answer already waiting on the pipe when it is drawn and takes one that
+arrives after: the pinned `@inquirer/core` (`create-prompt.js`) defers its first
+render, and so its keypress handlers, by one `setImmediate` on a readable input,
+so data readline reads as it resumes the stream flows through with no handler
+(Inquirer.js#1303). Under Bun that data reaches the handlers, so it takes both.
+cospec therefore drops every chunk it reads before the child prints its first
+stdout chunk — the prompt — and forwards every chunk after, ending the child's
+stdin when its own ends and stopping the pump once the child exits (a write the
+exited child can no longer take ends it; only `EPIPE` is caught). Probed against
+the binary under Node, each case matches: `echo y |`, `echo n |` and
+`</dev/null` cancel (130, `Reset cancelled.`, nothing reset);
+`(sleep 1; echo y) |` and `yes |` reset (exit 0); `(sleep 1; echo n) |` answers
+no (exit 0, nothing reset). The contract suite pins every case against the
+binary — stdout byte for byte, but for `yes |`, whose count of prompt redraws
+before the input closes no run fixes, under Node as under cospec, where its
+answer line is compared; its late answers wait 3s rather than 1s, so a slow
+runner has drawn cospec's prompt first. No Bun-only residual remains. The
+prompt's SGR escapes are stripped from the relay: the binary's prompts style
+through `node:util` `styleText`, which under Node emits none on a pipe and under
+Bun emits them regardless of `NO_COLOR`/`--no-color`; its cursor controls, which
 Node prints too, are kept.
 
 **D15 — The handover preload.** Every terminal handover (`workset open`,
