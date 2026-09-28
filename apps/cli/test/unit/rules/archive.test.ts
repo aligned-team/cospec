@@ -1042,6 +1042,76 @@ describe('archive/split-requirement', () => {
 // flags, before merging anything: a requirement outside `## Requirements`, or
 // a second one under a name already declared there. Fenced lines are excluded;
 // HTML comments are not.
+// The rebuilt spec keeps every living requirement the delta does not replace
+// or remove, as written, so a skipped `###` header already inside one splits
+// it exactly as one inside an ADDED block does.
+describe('archive/split-requirement: a surviving living requirement', () => {
+  const SCEN = '#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n'
+  const livingWith = (inside: string) =>
+    LIVING.replace('The system SHALL exist.\n\n', `The system SHALL exist.\n\n${inside}\n\n`)
+  const splits = (text: string, living: string) =>
+    archiveRules(change(text, { living })).filter((i) => i.rule === 'archive/split-requirement')
+  const modify = (name: string) =>
+    `## MODIFIED Requirements\n\n### Requirement: ${name}\n\nThe system SHALL ${name.toLowerCase()} anew.\n\n${SCEN}`
+
+  test('a header above the living scenario, beside an unrelated MODIFIED, is refused on its living line', () => {
+    const living = `${livingWith('### Notes')}\n### Requirement: Other\n\nThe system SHALL other.\n\n${SCEN}`
+    const found = splits(modify('Other'), living)
+    expect(found.map((i) => [i.level, i.path, i.line, i.message])).toEqual([
+      [
+        'ERROR',
+        'specs/x/spec.md',
+        undefined,
+        `header "### Notes" on line ${living.split('\n').indexOf('### Notes') + 1} of living requirement "Existing" in openspec/specs/x/spec.md splits it when archived, leaving "Existing" with no scenario above the header`,
+      ],
+    ])
+  })
+
+  test('a header with no scenario of its own is the own-empty shape', () => {
+    const living = LIVING.replace('- **THEN** b\n', '- **THEN** b\n\n### Requirement:\n')
+    const found = splits(ADD, living)
+    expect(living.split('\n').indexOf('### Requirement:') + 1).toBe(18)
+    expect(found.map((i) => i.message)).toEqual([
+      'header "### Requirement:" on line 18 of living requirement "Existing" in openspec/specs/x/spec.md splits it when archived, leaving the header a requirement with no scenario',
+    ])
+  })
+
+  test('a header written inside a multi-line comment splits it too', () => {
+    expect(splits(ADD, livingWith('<!--\n### Hidden\n-->'))).toHaveLength(1)
+  })
+
+  test('a RENAMED carries the block, and its split, to the new name', () => {
+    const text =
+      '## RENAMED Requirements\n\n- FROM: `### Requirement: Existing`\n- TO: `### Requirement: Renamed`\n'
+    expect(splits(text, livingWith('### Notes'))).toHaveLength(1)
+  })
+
+  test('a MODIFIED or REMOVED of the requirement replaces the block, so nothing splits', () => {
+    expect(splits(modify('Existing'), livingWith('### Notes'))).toEqual([])
+    const removed = '## REMOVED Requirements\n\n- `### Requirement: Existing`\n'
+    expect(splits(removed, livingWith('### Notes'))).toEqual([])
+  })
+
+  test('a REMOVED after a RENAMED reads the new name, as the merge applies it', () => {
+    const text =
+      '## RENAMED Requirements\n\n- FROM: `### Requirement: Existing`\n- TO: `### Requirement: Renamed`\n\n' +
+      '## REMOVED Requirements\n\n- `### Requirement: Renamed`\n'
+    expect(splits(text, livingWith('### Notes'))).toEqual([])
+  })
+
+  test('a one-line comment, a fenced header, and a header with its own scenario are no split', () => {
+    expect(splits(ADD, livingWith('<!-- ### Notes -->'))).toEqual([])
+    expect(splits(ADD, livingWith('```md\n### Fenced\n```'))).toEqual([])
+    const own = LIVING.replace('- **THEN** b\n', `- **THEN** b\n\n### Notes\n\n${SCEN}`)
+    expect(splits(ADD, own)).toEqual([])
+  })
+
+  test('a requirement outside the first ## Requirements is not re-validated there', () => {
+    const living = `${LIVING}\n## Notes\n\n### Requirement: Stray\n\nThe system SHALL stray.\n\n### Notes\n`
+    expect(splits(ADD, living)).toEqual([])
+  })
+})
+
 describe('archive/target-invalid: living-spec structure', () => {
   const MOD =
     '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n'

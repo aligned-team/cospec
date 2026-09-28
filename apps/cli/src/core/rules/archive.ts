@@ -271,6 +271,39 @@ export function archiveRules(
                   : 'openspec archive will not update a spec until every "### Requirement:" sits under "## Requirements" with a name no other requirement there uses — fix the living spec first',
               }),
         })
+
+      // archive/split-requirement, living side — the rebuilt spec the archive
+      // re-validates keeps every living requirement this delta neither
+      // replaces nor removes, as written, so a skipped `###` header already
+      // inside one splits it there exactly as one inside an ADDED block does
+      // (probed: refused beside an unrelated MODIFIED, and after a RENAMED
+      // carries the block to a new name; a MODIFIED replacing the block
+      // archives). REMOVED, MODIFIED and ADDED read the post-RENAMED names,
+      // as the merge applies them; an ADDED of the same name is the delta
+      // block's to report, which is the one the archive keeps.
+      const renamedTo = new Map<string, string>()
+      const replaced = new Set<string>()
+      for (const op of group.ops) {
+        if (op.operation === 'RENAMED') {
+          if (op.fromName !== undefined && op.toName !== undefined)
+            renamedTo.set(op.fromName, op.toName)
+        } else if (op.name !== undefined) replaced.add(op.name)
+      }
+      for (const split of living.splits) {
+        if (replaced.has(renamedTo.get(split.requirement) ?? split.requirement)) continue
+        const header = `### ${split.part.header ?? ''}`
+        const where = `on line ${split.part.line} of living requirement "${split.requirement}" in openspec/specs/${capability}/spec.md`
+        issues.push({
+          level: 'ERROR',
+          rule: 'archive/split-requirement',
+          path: `specs/${capability}/spec.md`,
+          message:
+            split.empty === 'head'
+              ? `header "${header}" ${where} splits it when archived, leaving "${split.requirement}" with no scenario above the header`
+              : `header "${header}" ${where} splits it when archived, leaving the header a requirement with no scenario`,
+          hint: 'openspec archive re-validates the whole rebuilt spec, and this requirement survives the merge as written — make the header plain or bold text in the living spec, or MODIFY the requirement in this delta without it',
+        })
+      }
     }
 
     // Ops whose target was absent for an upstream early-sync reason; the

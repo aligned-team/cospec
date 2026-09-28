@@ -1961,28 +1961,25 @@ describe('15. a skipped header inside a surviving living requirement is refused 
     const build = (root: string): void =>
       buildFeat(root, name, { 'widgets/spec.md': delta }, { living })
 
-    test.failing(
-      `${row} ${what} splitting a living requirement the delta keeps is archive/split-requirement`,
-      async () => {
-        const root = mkTempRepo({ git: true })
-        build(root)
-        // The binary's validate never sees it: its dry run stops before the
-        // rebuilt spec is re-validated.
-        expect((await binaryIssues(root, name)).filter((i) => i.level !== 'INFO')).toEqual([])
-        expect(binaryFind(await binaryIssues(root, name), 'Notes on rendering')).toEqual([])
-        const archived = await binaryArchive(build, name)
-        expect(archived.exitCode).not.toBe(0)
-        expect(archived.moved).toBe(false)
-        const { report, exitCode } = await cospecValidate(root, name)
-        const split = byRule(report, 'archive/split-requirement')
-        expect(split).toHaveLength(1)
-        expect(split[0]?.level).toBe('ERROR')
-        expect(split[0]?.message).toContain('"### Notes on rendering"')
-        expect(split[0]?.message).toContain('openspec/specs/widgets/spec.md')
-        expect(split[0]?.message).toContain(`line ${lineOf(living, '### Notes on rendering')}`)
-        expect(exitCode).toBe(1)
-      },
-    )
+    test(`${row} ${what} splitting a living requirement the delta keeps is archive/split-requirement`, async () => {
+      const root = mkTempRepo({ git: true })
+      build(root)
+      // The binary's validate never sees it: its dry run stops before the
+      // rebuilt spec is re-validated.
+      expect((await binaryIssues(root, name)).filter((i) => i.level !== 'INFO')).toEqual([])
+      expect(binaryFind(await binaryIssues(root, name), 'Notes on rendering')).toEqual([])
+      const archived = await binaryArchive(build, name)
+      expect(archived.exitCode).not.toBe(0)
+      expect(archived.moved).toBe(false)
+      const { report, exitCode } = await cospecValidate(root, name)
+      const split = byRule(report, 'archive/split-requirement')
+      expect(split).toHaveLength(1)
+      expect(split[0]?.level).toBe('ERROR')
+      expect(split[0]?.message).toContain('"### Notes on rendering"')
+      expect(split[0]?.message).toContain('openspec/specs/widgets/spec.md')
+      expect(split[0]?.message).toContain(`line ${lineOf(living, '### Notes on rendering')}`)
+      expect(exitCode).toBe(1)
+    })
   }
 
   for (const [row, name, delta, living, what] of [
