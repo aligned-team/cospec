@@ -97,3 +97,29 @@ trailer, never `--no-verify`).
 - [ ] 7.2 Run `mise run cospec -- validate validation-parity --strict` and
       `mise run cospec -- archive validation-parity` as the PR branch's final
       commit, after rebasing onto `main`
+
+## 8. Round 2 — the archive's view (review findings F1–F6)
+
+- [x] 8.1 Pin the round-2 rows in `validation-parity.test.ts` (verification
+      10–13), each running the pinned binary's validate and archive on its
+      fixture; mark the rows that fail on the tree `test.failing`. Commit
+      `test(validate): pin round-2 archive-view parity rows as failing`
+- [x] 8.2 Give `scanMarkdown`/`parseDeltaSpec` a `ReadView` and
+      `parseLivingSpec` an `archive` view; move every `archive/*` rule but
+      scenario-preservation onto it (design D10). Commit
+      `fix(validate): read archive rules from the view the archive merges`
+- [x] 8.3 Name `deltas/requirement-shape` findings by the verbatim header
+      (design D10). Commit
+      `fix(validate): name requirement-shape findings as the header is written`
+- [x] 8.4 Key `DUPLICATE_CLASSES` entry 5 on the header text its native message
+      now quotes (design D5). Commit
+      `fix(validate): key the scenario-depth twin on the header text`
+- [x] 8.5 Add `archive/split-requirement` and its two dedupe entries; leave
+      `deltas/skipped-header` to the headers the archive keeps (design D11).
+      Commit `fix(validate): refuse a skipped header that splits a requirement`
+- [x] 8.6 Refuse a misplaced or duplicate living requirement in
+      `archive/target-invalid`, with its dedupe entry (design D12). Commit
+      `fix(validate): refuse living specs the archive cannot update`
+- [x] 8.7 Update the docs pages, design, specs and ledger for round 2
+      (verification 14.1), and run `mise run check`. Commit
+      `docs(validate): document the archive view and split-requirement`

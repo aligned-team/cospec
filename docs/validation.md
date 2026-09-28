@@ -53,6 +53,13 @@ names gets one ERROR, and the replay-based arms stay quiet for that op.
 check runs for a living capability too, where an ADDED identical to the living
 block would otherwise read as an early-sync no-op beside the MODIFIED.
 
+`archive/target-invalid` also refuses the two living-spec defects OpenSpec's
+archive will not update past (`target spec is structurally invalid`): a
+`### Requirement:` outside the first `## Requirements` section, and a second
+requirement under a normalised name already declared there.
+`LivingSpec.structureIssues` holds them, from `findLivingStructureIssues`, and
+the rule's message names each one's line.
+
 ## Capability identity and discovery
 
 A capability is identified by its **full path** under `specs/`
@@ -86,6 +93,19 @@ comment inside `## Purpose` still counts as Purpose prose), and mask code fences
 using the same rule OpenSpec's own shared fence-masking uses: `~~~` fences are
 recognized alongside ` ``` `, and a fence only closes on a matching marker at
 least as long as the one that opened it.
+
+That comment mask is the advisory view (`ReadView` `masked`, the default). The
+`archive/*` family — every rule but `archive/scenario-preservation`, which
+mirrors the hard gate and reads what it reads — parses the delta and the living
+spec under the `verbatim` view instead: fenced code masked, HTML comments not,
+which is how OpenSpec 1.13.1's own delta and spec readers read them and so what
+its archive merges. An operation written inside `<!-- … -->` is still applied
+upstream, so a commented ADDED that collides or a commented MODIFIED whose
+target is missing is refused; a header's trailing comment is part of its name
+upstream, so `REMOVED Foo` beside `ADDED Foo <!-- note -->` is two names and is
+accepted. `parseLivingSpec` carries the verbatim requirement names and blocks in
+`archive`, and `deltas/requirement-shape` quotes a requirement by its verbatim
+header (`DeltaOp.verbatimName`) so its delegated twin keys on the same name.
 
 `## REMOVED Requirements` and `## RENAMED Requirements` bullets accept
 CommonMark's full marker set (`-`, `*`, `+`) with any leading whitespace, and a
@@ -131,11 +151,19 @@ Inside an ADDED/MODIFIED section, the delta parser records every non-fenced
 `###` header that is not a named `### Requirement:` header in `skippedHeaders` —
 the same lines, with the same `^###\s+(.+?)\s*$` pattern, OpenSpec 1.13.1's
 reader skips — and changes nothing else it reports: the header stays part of the
-block it sits in. `deltas/skipped-header` (I) reports each one, except a
-`### Scenario:` line, which is `deltas/scenario-depth`'s. A SHALL/MUST counts in
-the body only; when it appears only in the requirement header,
-`deltas/requirement-shape` (E) carries a hint saying to move it to the line
-after the header.
+block it sits in, and cuts that block into `parts`, each with its own count of
+bodied scenarios. OpenSpec's archive appends the block verbatim and then
+re-validates the rebuilt spec, whose reader takes every `###` header as a
+requirement of its own, so a piece left with no scenario aborts the archive
+(`Requirement must have at least one scenario`). `findRequirementSplits` names
+those headers — the first one inside a block whose own text has no scenario
+above it, and any whose part has none — on the verbatim view, and
+`archive/split-requirement` (E) reports each. `deltas/skipped-header` (I)
+reports every other one — above the first requirement, or followed by a scenario
+of its own — except a `### Scenario:` line, which is `deltas/scenario-depth`'s
+(its message quotes the header). A SHALL/MUST counts in the body only; when it
+appears only in the requirement header, `deltas/requirement-shape` (E) carries a
+hint saying to move it to the line after the header.
 
 ## Checkbox grammar
 
@@ -212,7 +240,9 @@ rule cospec already had.
 empty-section and no-deltas ERRORs against `archive/no-ops` (path-keyed, and
 unkeyed for the change-level one); its two skipped-header INFOs against
 `deltas/skipped-header` (keyed on the header text) and the `### Scenario:` one
-against `deltas/scenario-depth` (path-keyed); its three SHALL/MUST wordings and
+against `deltas/scenario-depth` (keyed on the header text, which its message
+quotes, so a commented `### Scenario:` the advisory reader masks keeps its INFO
+beside a real one); its three SHALL/MUST wordings and
 `is missing requirement text` against `deltas/requirement-shape` (keyed on
 `<OP> "<name>"`); and `Requirement present in both ADDED and REMOVED` /
 `… MODIFIED and ADDED` against the cross-section arm of `archive/added-exists`
@@ -221,6 +251,14 @@ written as an empty capture group, `()`, on both regexes. Each entry has a
 contract test in `validation-parity.test.ts` that takes the delegated message
 from the pinned binary's own output, plus a case where the delegated finding
 survives because cospec's rule is silent.
+
+Three more pair the checks that read the archive's view: both skipped-header
+INFOs, `### Scenario:` included, against `archive/split-requirement` (keyed on
+the header text), and the dry-run's `target spec is structurally invalid` INFO
+against `archive/target-invalid` (keyed on the capability) — only when every
+defect it lists is a misplaced or duplicate requirement, the two kinds
+`findLivingStructureIssues` ports from OpenSpec's `findMainSpecStructureIssues`
+(fenced lines excluded, comments not masked).
 
 ## `.openspec.yaml` metadata keys
 

@@ -51,9 +51,21 @@ ERROR for cospec-typed changes and only the binary's hint text is ported.
   immediately after the `### Requirement: …` header.
 - New rule `deltas/skipped-header` (INFO). It reports every non-fenced `### …`
   line inside an ADDED or MODIFIED section that isn't a named `### Requirement:`
-  header. It reads the same lines the binary reads, and has a separate message
-  for a nameless `### Requirement:`. A `### Scenario:` line that
-  `deltas/scenario-depth` already reports is left to that rule.
+  header and that the archive keeps. It reads the same lines the binary reads,
+  and has a separate message for a nameless `### Requirement:`. A
+  `### Scenario:` line that `deltas/scenario-depth` already reports is left to
+  that rule, whose message now quotes the header.
+- New rule `archive/split-requirement` (ERROR). A skipped header inside a block
+  that leaves a piece of it with no scenario is refused by the binary's archive,
+  which re-validates the rebuilt spec with every `###` header read as a
+  requirement of its own. The rule reports it instead of the INFO.
+- The `archive/*` family reads the delta and the living spec as the binary's
+  archive does, HTML comments included; the advisory rules keep masking them. A
+  commented op that collides or misses its target is refused, and `REMOVED X`
+  beside `ADDED "X <!-- note -->"` is no longer a conflict.
+- `archive/target-invalid` also refuses a living spec with a `### Requirement:`
+  outside `## Requirements`, or a duplicate requirement name, which the binary's
+  archive refuses to update.
 - New rules `tasks/id-mismatch` and `tasks/id-duplicate` (WARNING), ported from
   the binary's `findTaskNumberingIssues`. A task id whose leading group number
   disagrees with its enclosing `## N.` heading (with leading zeros normalised)
@@ -72,15 +84,19 @@ ERROR for cospec-typed changes and only the binary's hint text is ported.
   skipped-header INFO shapes against `deltas/skipped-header`, a skipped
   `### Scenario:` header against `deltas/scenario-depth`, the three SHALL/MUST
   and missing-text messages against `deltas/requirement-shape`, and the two
-  cross-section messages against `archive/added-exists`. Each pairing gets a
-  contract test that reads the message from the pinned binary.
+  cross-section messages against `archive/added-exists`, the two skipped-header
+  shapes against `archive/split-requirement`, and the dry-run's
+  structurally-invalid-target INFO against `archive/target-invalid`. Each
+  pairing gets a contract test that reads the message from the pinned binary.
 - `apps/cli/test/contract/validation-parity.test.ts` (new) is a severity oracle
   on the legacy lane. For each finding the pinned binary gives a `spec-driven`
   fixture, cospec reports the same message at the same level.
 - **BREAKING:** cospec's own workflow gets stricter. The new task-id WARNINGs
   fail `cospec validate --strict`, which the workflow requires, and a REMOVED
   plus ADDED (or ADDED plus MODIFIED) of one requirement name is now an ERROR at
-  validate time instead of a refusal inside the delegated archive.
+  validate time instead of a refusal inside the delegated archive, as are a
+  splitting skipped header, a commented op the archive refuses, and a misplaced
+  or duplicate living requirement.
 
 ## Capabilities
 
@@ -90,7 +106,9 @@ ERROR for cospec-typed changes and only the binary's hint text is ported.
 
 - `archive-integrity`: an ADDED can no longer re-use the exact header a REMOVED
   in the same delta vacated, and a same-name ADDED plus MODIFIED is refused on
-  every capability, as the pinned binary refuses both.
+  every capability, as the pinned binary refuses both. The preconditions read
+  what the archive merges, a splitting skipped header is refused, and so is a
+  structurally invalid living spec.
 - `spec-parsing-and-discovery`: skipped delta headers get a rule, a header-only
   SHALL/MUST gets the binary's hint, and the delegated-duplicate pairings cover
   the new native findings.
@@ -110,8 +128,9 @@ ERROR for cospec-typed changes and only the binary's hint text is ported.
   dedupe section), `apps/docs/concepts/apply-and-archive.md` (owns the
   archive-shape prose), `apps/docs/concepts/how-it-relates-to-openspec.md` (its
   dedupe summary), `docs/validation.md`.
-- No command, flag, exit code or JSON key changes. The rule-id set gains three
-  ids (`deltas/skipped-header`, `tasks/id-mismatch`, `tasks/id-duplicate`).
+- No command, flag, exit code or JSON key changes. The rule-id set gains four
+  ids (`deltas/skipped-header`, `archive/split-requirement`,
+  `tasks/id-mismatch`, `tasks/id-duplicate`).
 - `apps/cli/test/contract/parity-pending.yaml` has no `validation-parity` entry
   before or after this change. Validation findings aren't registry surfaces.
 
