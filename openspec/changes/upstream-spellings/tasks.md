@@ -72,7 +72,7 @@ a time. Group 12 waits for the rebase in group 11.
 
 ## 5. T1 — `experimental` (`apps/cli/src/commands/experimental.ts` new; `cli.ts` `COMMAND_MODULES` entry; the `experimental` row, its alias line and pending entry; `support/remedy-sources.ts` `EXPERIMENTAL` reason)
 
-- [ ] 5.1 Add the hidden `experimental` row (`aliasOf: 'init'`,
+- [x] 5.1 Add the hidden `experimental` row (`aliasOf: 'init'`,
       `store: 'refused'`, `json: 'accepted'`, `--tool <tool-id>`,
       `--no-interactive` no-op) and `experimental.ts` (respelled note unless
       `--json`, then `init` re-parsed with `--tool` as `--harness`); add the
@@ -81,7 +81,7 @@ a time. Group 12 waits for the rebase in group 11.
       (the `no-legacy-parser` unit test covers every `table` module); verify
       ledger 1.2, 7.2 and the `experimental --json` / `experimental --bogus`
       differential rows pass
-- [ ] 5.2 Commit `fix(cli): add the hidden experimental alias of init`
+- [x] 5.2 Commit `fix(cli): add the hidden experimental alias of init`
 
 ## 6. T2 — `new change` (`apps/cli/src/commands/new.ts`; the `new` row, its alias line and pending entry)
 

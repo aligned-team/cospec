@@ -490,7 +490,14 @@ const UPSTREAM_SPELLING_ROWS: readonly Row[] = [
     expect: 'same',
     relayed: true,
   },
-  { argv: ['experimental', '--json'], command: 'experimental', expect: 'cospec-only', exit: 0 },
+  // A `.claude/` dir lets `init` detect its harness, so the run succeeds.
+  {
+    argv: ['experimental', '--json'],
+    command: 'experimental',
+    expect: 'cospec-only',
+    exit: 0,
+    setup: (root) => mkdirSync(join(root, '.claude')),
+  },
   { argv: ['help', '--bogus'], command: 'help', expect: 'same', exit: 0 },
   {
     argv: ['experimental', '--bogus'],
@@ -510,9 +517,7 @@ const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
   'new change x',
   'completion generate bash',
   'instructions proposal --schema spec-driven --change x',
-  'experimental --json',
   'help --bogus',
-  'experimental --bogus',
 ])
 
 /**

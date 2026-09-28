@@ -996,6 +996,31 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     positionals: [cospecArg({ name: 'msg-file', required: false })],
     flags: [],
   },
+  {
+    // Upstream's hidden, deprecated alias of `init`. It declares no
+    // `--store` and no `--json`; cospec accepts `--json` as `init` does.
+    name: 'experimental',
+    summary: 'Alias for init (deprecated)',
+    hidden: true,
+    aliasOf: 'init',
+    parse: 'table',
+    json: 'accepted',
+    store: 'refused',
+    positionals: [],
+    flags: [
+      upstream({
+        name: '--tool',
+        takesValue: true,
+        placeholder: '<tool-id>',
+        description: 'Target AI tool (maps to --harness)',
+      }),
+      upstream({
+        name: '--no-interactive',
+        description: 'Accepted for OpenSpec compatibility (cospec init never prompts)',
+        status: NO_OP,
+      }),
+    ],
+  },
 ]
 
 export function commandRow(name: string): CommandRow | undefined {

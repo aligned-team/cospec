@@ -112,6 +112,7 @@ export const COMMAND_MODULES: Record<string, () => Promise<Partial<CommandModule
   feedback: () => import('./commands/feedback.ts'),
   __complete: () => import('./commands/complete.ts'),
   'check-commit': () => import('./commands/check-commit.ts'),
+  experimental: () => import('./commands/experimental.ts'),
 }
 
 const VERSION_LABEL = '-V, --version'

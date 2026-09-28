@@ -11,3 +11,5 @@
 # reachability test checks the pairing both ways.
 - upstream: { kind: flag, path: [init], flag: --tools }
   cospec: --harness
+- upstream: { kind: command, path: [experimental] }
+  cospec: init

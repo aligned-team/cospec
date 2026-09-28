@@ -17,6 +17,7 @@ import { join, relative } from 'node:path'
 
 import { parse as parseYaml } from 'yaml'
 
+import { commandRow } from '../../src/core/command-table.ts'
 import { openspecPackageDir } from '../../src/core/openspec.ts'
 import { REMEDIES } from '../../src/core/remedies.ts'
 import {
@@ -190,6 +191,16 @@ describe('every dist sentence naming a bare openspec command is classified', () 
     expect(unknown).toEqual([])
     const seen = REACHABLE_OWNED.map(([file, line, relay]) => `${key(file, line)}\n${relay}`)
     expect(seen.length).toBe(new Set(seen).size)
+  })
+
+  // Ledger 7.2: a reason that says cospec lacks a command must stay true.
+  test('no never-relayed reason names a command cospec has as absent', () => {
+    const stale = Object.entries(notRelayed).flatMap(([id, reason]) =>
+      [...reason.matchAll(/cospec has no `([\w-]+)` command/g)]
+        .filter((match) => commandRow(match[1]!) !== undefined)
+        .map((match) => `${id}: ${match[1]}`),
+    )
+    expect(stale).toEqual([])
   })
 
   test('each never-relayed tree exists in the dist', () => {

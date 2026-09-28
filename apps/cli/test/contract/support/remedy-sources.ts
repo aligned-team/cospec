@@ -28,7 +28,8 @@ export const notRelayed = {
     'names the `openspec/` directory, not a command, and `cospec view` refuses a root with no `openspec/` itself before spawning (`commands/view.ts`)',
   HIDDEN_OPTION:
     'the description of the hidden `--store-path` option (`.hideHelp()`), which no help screen prints; cospec prints its own help',
-  EXPERIMENTAL: 'only `openspec experimental` runs it; cospec has no `experimental` command',
+  EXPERIMENTAL:
+    "`cospec experimental` is native (`commands/experimental.ts`): it prints its own respelled note and runs `cospec init`, never the binary's `experimental`",
   NOUN_CHANGE:
     'only the noun-form `openspec change …` commands run it; cospec has no `change` command',
   NOUN_CHANGE_NO_NAME:

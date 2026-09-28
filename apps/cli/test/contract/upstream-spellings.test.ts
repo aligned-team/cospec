@@ -133,41 +133,33 @@ describe('1.1 init --tools is upstream spelling of --harness', () => {
 })
 
 describe('1.2 experimental is the hidden, deprecated alias of init', () => {
-  test.failing(
-    'experimental --tool claude scaffolds what init --harness claude does',
-    async () => {
-      const ex = mkTempRepo()
-      const init = mkTempRepo()
-      const up = mkTempRepo()
-      const e = await runCospec(['experimental', '--tool', 'claude'], ex)
-      const i = await runCospec(['init', '--harness', 'claude'], init)
-      const u = await runUpstream(['experimental', '--tool', 'claude'], up)
-      expect(u.exitCode, detail('openspec', u)).toBe(0)
-      const note = u.stdout.split('\n')[0]!
-      expect(note).toContain('"openspec experimental"')
-      expect(i.exitCode, detail('cospec init', i)).toBe(0)
-      expect(e.exitCode, detail('cospec', e)).toBe(0)
-      expect(e.stdout.startsWith(`${note.replaceAll('openspec', 'cospec')}\n`), e.stdout).toBe(true)
-      expect(treeHash(ex)).toEqual(treeHash(init))
-      const help = await runCospec(['--help'], mkTempRepo())
-      expect(help.stdout).not.toMatch(/^\s+experimental\b/m)
-    },
-    60_000,
-  )
+  test('experimental --tool claude scaffolds what init --harness claude does', async () => {
+    const ex = mkTempRepo()
+    const init = mkTempRepo()
+    const up = mkTempRepo()
+    const e = await runCospec(['experimental', '--tool', 'claude'], ex)
+    const i = await runCospec(['init', '--harness', 'claude'], init)
+    const u = await runUpstream(['experimental', '--tool', 'claude'], up)
+    expect(u.exitCode, detail('openspec', u)).toBe(0)
+    const note = u.stdout.split('\n')[0]!
+    expect(note).toContain('"openspec experimental"')
+    expect(i.exitCode, detail('cospec init', i)).toBe(0)
+    expect(e.exitCode, detail('cospec', e)).toBe(0)
+    expect(e.stdout.startsWith(`${note.replaceAll('openspec', 'cospec')}\n`), e.stdout).toBe(true)
+    expect(treeHash(ex)).toEqual(treeHash(init))
+    const help = await runCospec(['--help'], mkTempRepo())
+    expect(help.stdout).not.toMatch(/^\s+experimental\b/m)
+  }, 60_000)
 
-  test.failing(
-    'experimental --store x is refused as an unknown option, as the binary',
-    async () => {
-      const e = await runCospec(['experimental', '--store', 'x'], mkTempRepo())
-      const u = await runUpstream(['experimental', '--store', 'x'], mkTempRepo())
-      expect(u.exitCode).toBe(1)
-      expect(outcome(u, 'experimental', ['experimental', '--store', 'x'])).toBe('unknown-option')
-      expect(e.exitCode, detail('cospec', e)).toBe(1)
-      expect(outcome(e, 'experimental', ['experimental', '--store', 'x'])).toBe('unknown-option')
-      expect(e.stderr).toContain("cospec experimental: unknown option '--store'")
-    },
-    30_000,
-  )
+  test('experimental --store x is refused as an unknown option, as the binary', async () => {
+    const e = await runCospec(['experimental', '--store', 'x'], mkTempRepo())
+    const u = await runUpstream(['experimental', '--store', 'x'], mkTempRepo())
+    expect(u.exitCode).toBe(1)
+    expect(outcome(u, 'experimental', ['experimental', '--store', 'x'])).toBe('unknown-option')
+    expect(e.exitCode, detail('cospec', e)).toBe(1)
+    expect(outcome(e, 'experimental', ['experimental', '--store', 'x'])).toBe('unknown-option')
+    expect(e.stderr).toContain("cospec experimental: unknown option '--store'")
+  }, 30_000)
 })
 
 describe('1.3 new change --json carries upstream keys beside cospec keys', () => {

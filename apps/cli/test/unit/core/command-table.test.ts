@@ -301,11 +301,16 @@ describe('accepted no-ops', () => {
     expect(hasFlag(parsed(name, [...args]), flag)).toBe(true)
   })
 
-  test('exactly the three design no-ops are marked no-op', () => {
+  test('exactly the four design no-ops are marked no-op', () => {
     const noOps = COMMAND_TABLE.flatMap((row) =>
       row.flags.filter((f) => f.status === 'no-op').map((f) => `${row.name} ${f.name}`),
     )
-    expect(noOps.toSorted()).toEqual(['archive --yes', 'init --no-animation', 'list --changes'])
+    expect(noOps.toSorted()).toEqual([
+      'archive --yes',
+      'experimental --no-interactive',
+      'init --no-animation',
+      'list --changes',
+    ])
   })
 })
 
@@ -416,7 +421,7 @@ describe('pending surfaces', () => {
 })
 
 describe('table shape', () => {
-  test('the rows, in help order, with exactly __complete and check-commit hidden', () => {
+  test('the rows, in help order, with exactly __complete, check-commit and experimental hidden', () => {
     expect(COMMAND_TABLE.map((row) => row.name)).toEqual([
       'init',
       'update',
@@ -443,11 +448,17 @@ describe('table shape', () => {
       'feedback',
       '__complete',
       'check-commit',
+      'experimental',
     ])
     expect(COMMAND_TABLE.filter((row) => row.hidden).map((row) => row.name)).toEqual([
       '__complete',
       'check-commit',
+      'experimental',
     ])
+    // Design decision 5: `experimental` is a table row with a module of its
+    // own, never a command list in cli.ts.
+    expect(commandRow('experimental')).toMatchObject({ parse: 'table', aliasOf: 'init' })
+    expect(COMMAND_MODULES['experimental']).toBeDefined()
   })
 
   test('every row dispatches to a command module, and every module has a row, in the same order', async () => {
@@ -485,7 +496,7 @@ describe('table shape', () => {
     }
     const refused = COMMAND_TABLE.filter((row) => row.parse === 'table' && row.store === 'refused')
     expect(refused.map((row) => row.name).toSorted()).toEqual(
-      ['check-commit', 'completion', 'feedback', 'init', 'update'].toSorted(),
+      ['check-commit', 'completion', 'experimental', 'feedback', 'init', 'update'].toSorted(),
     )
   })
 
