@@ -344,8 +344,14 @@ untouched, except the binary's own guidance in it, respelled structurally, never
 by a pattern over its text: in a parsed `--json` document only the fields that
 carry it, each passed alone to the allowlist (`store`'s and `doctor`'s
 diagnostics: `fix` on a successful answer, `message` and `fix` on a failed one,
-cospec's text rendered from the rewritten document), and in a text answer with
-no document only a whole line that is an allowlisted sentence, its holes filled
+cospec's text rendered from the rewritten document) or, for `context`, through
+`respellCommandFields` with each field's `remedies` — `members[].fetch`,
+`members[].status[].fix` and `status[].fix` spelled only where the whole value
+is one of the binary's own reference remedies — with every call made `--json`
+and the human listing rendered from the rewritten working set as the binary
+renders its own (a refused `--code-workspace` write in text mode reads the
+listing with a call that writes nothing), and in a text answer with no document
+only a whole line that is an allowlisted sentence, its holes filled
 (`respellLines`: `workset create`'s and an empty `workset list`'s next step,
 `config profile <preset>`'s). A `store`/`workset` argv whose first token is no
 subcommand the wrapper dispatches is the binary's to refuse: `relayGroupRefusal`
