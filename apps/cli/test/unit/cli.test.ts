@@ -212,9 +212,11 @@ describe('cli dispatcher: help renders from the command table', () => {
 
   test('pending flags never appear in help', async () => {
     const init = await dispatch(['init', '--help'])
-    for (const flag of ['--tools', '--language', '--profile', '--copilot-cloud'])
+    for (const flag of ['--language', '--profile', '--copilot-cloud'])
       expect(init.out).not.toContain(flag)
     expect(init.out).toContain('--no-animation')
+    // An alias flag is an offered flag: upstream's `init --help` lists `--tools`.
+    expect(init.out).toMatch(/^ {2}--tools <tools> +OpenSpec's spelling of --harness/m)
     const list = await dispatch(['list', '--help'])
     expect(list.out).not.toContain('--sort')
     expect(list.out).toContain('--changes')

@@ -1136,6 +1136,11 @@ function withToolsAlias(base: Model): Model {
 const TOOLS_ENTRY: Entry = { kind: 'flag', path: ['init'], flag: '--tools', takesValue: true }
 
 describe('reachability: flag and command aliases resolve two ways', () => {
+  test('the pinned walk resolves init --tools to aliases.yaml alone', () => {
+    expect(walk(model).some((e) => JSON.stringify(e) === JSON.stringify(TOOLS_ENTRY))).toBe(true)
+    expect(placesOf(model, TOOLS_ENTRY)).toEqual(['aliases.yaml'])
+  })
+
   test('init --tools resolves to aliases.yaml alone through the flag kind', () => {
     const aliased = withToolsAlias(model)
     expect(checkReachability(aliased)).toEqual([])

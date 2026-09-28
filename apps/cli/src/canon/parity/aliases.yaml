@@ -6,3 +6,8 @@
 # special-case an alias instead of listing it here.
 - upstream: { kind: workflow, id: sync }
   cospec: sync-specs
+# A `flag` or `command` alias pairs with an `aliasOf` marking on the same
+# command-table surface (apps/cli/src/core/command-table.ts); the
+# reachability test checks the pairing both ways.
+- upstream: { kind: flag, path: [init], flag: --tools }
+  cospec: --harness

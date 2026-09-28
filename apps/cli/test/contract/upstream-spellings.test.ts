@@ -105,26 +105,22 @@ function keyPaths(value: unknown, prefix = ''): Map<string, string> {
 // --- 1. upstream spellings -----------------------------------------------------
 
 describe('1.1 init --tools is upstream spelling of --harness', () => {
-  test.failing(
-    'init --tools claude,codex scaffolds what init --harness does, as the binary',
-    async () => {
-      const co = mkTempRepo()
-      const ref = mkTempRepo()
-      const up = mkTempRepo()
-      const c = await runCospec(['init', '--tools', 'claude,codex'], co)
-      const r = await runCospec(['init', '--harness', 'claude,codex'], ref)
-      const u = await runUpstream(['init', '--tools', 'claude,codex'], up)
-      expect(u.exitCode, detail('openspec', u)).toBe(0)
-      expect(existsSync(join(up, '.claude'))).toBe(true)
-      expect(existsSync(join(up, 'claude,codex'))).toBe(false)
-      expect(r.exitCode, detail('cospec --harness', r)).toBe(0)
-      expect(c.exitCode, detail('cospec', c)).toBe(0)
-      expect(existsSync(join(co, '.claude'))).toBe(true)
-      expect(existsSync(join(co, 'claude,codex'))).toBe(false)
-      expect(treeHash(co)).toEqual(treeHash(ref))
-    },
-    60_000,
-  )
+  test('init --tools claude,codex scaffolds what init --harness does, as the binary', async () => {
+    const co = mkTempRepo()
+    const ref = mkTempRepo()
+    const up = mkTempRepo()
+    const c = await runCospec(['init', '--tools', 'claude,codex'], co)
+    const r = await runCospec(['init', '--harness', 'claude,codex'], ref)
+    const u = await runUpstream(['init', '--tools', 'claude,codex'], up)
+    expect(u.exitCode, detail('openspec', u)).toBe(0)
+    expect(existsSync(join(up, '.claude'))).toBe(true)
+    expect(existsSync(join(up, 'claude,codex'))).toBe(false)
+    expect(r.exitCode, detail('cospec --harness', r)).toBe(0)
+    expect(c.exitCode, detail('cospec', c)).toBe(0)
+    expect(existsSync(join(co, '.claude'))).toBe(true)
+    expect(existsSync(join(co, 'claude,codex'))).toBe(false)
+    expect(treeHash(co)).toEqual(treeHash(ref))
+  }, 60_000)
 
   test('init --tools with no value is refused as the binary refuses it', async () => {
     const c = await runCospec(['init', '--tools'], mkTempRepo())

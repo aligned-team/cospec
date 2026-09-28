@@ -505,7 +505,6 @@ const UPSTREAM_SPELLING_ROWS: readonly Row[] = [
  * `test.failing` until the commit implementing each surface removes its key.
  */
 const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  'init --tools claude .',
   'update .',
   'update --force .',
   'new change x',

@@ -63,12 +63,12 @@ a time. Group 12 waits for the rebase in group 11.
 
 ## 4. T1 — `init --tools` (`apps/cli/src/commands/init.ts`; the `init` row, its `aliases.yaml` line and pending entry)
 
-- [ ] 4.1 Mark the `init` row's `--tools <tools>` `aliasOf: '--harness'`, add
+- [x] 4.1 Mark the `init` row's `--tools <tools>` `aliasOf: '--harness'`, add
       the `aliases.yaml` flag entry, delete
       `{ kind: flag, path: [init], flag: --tools }` from `parity-pending.yaml`,
       and make `init.ts`'s harness refusal name the typed spelling; verify
       ledger 1.1 and 5.1 rows flip to `test` and pass
-- [ ] 4.2 Commit `fix(cli): read init --tools as upstream's --harness`
+- [x] 4.2 Commit `fix(cli): read init --tools as upstream's --harness`
 
 ## 5. T1 — `experimental` (`apps/cli/src/commands/experimental.ts` new; `cli.ts` `COMMAND_MODULES` entry; the `experimental` row, its alias line and pending entry; `support/remedy-sources.ts` `EXPERIMENTAL` reason)
 

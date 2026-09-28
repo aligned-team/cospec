@@ -638,7 +638,7 @@ describe('parseCommandArgs — aliases, hidden flags, lenient operands', () => {
 })
 
 describe('upstream spellings (aliases, hidden flags, lenient operands)', () => {
-  test.failing('init --tools stores its value under --harness and records the spelling', () => {
+  test('init --tools stores its value under --harness and records the spelling', () => {
     const p = parsed('init', ['--tools', 'claude,codex'])
     expect(flagValue(p, '--harness')).toBe('claude,codex')
     expect(hasFlag(p, '--tools')).toBe(false)
@@ -646,7 +646,7 @@ describe('upstream spellings (aliases, hidden flags, lenient operands)', () => {
     expect(flagSpelling(parsed('init', ['--harness', 'none']), '--harness')).toBe('--harness')
   })
 
-  test.failing('a repeat across the two spellings is last-wins, as commander resolves it', () => {
+  test('a repeat across the two spellings is last-wins, as commander resolves it', () => {
     const tools = parsed('init', ['--harness', 'claude', '--tools', 'codex'])
     expect(flagValue(tools, '--harness')).toBe('codex')
     expect(flagSpelling(tools, '--harness')).toBe('--tools')

@@ -104,17 +104,13 @@ describe('buildCompletionSpec — matches COMMAND_TABLE', () => {
     expect(archive.flags).toEqual(['--skip-specs', '--force-incomplete', '-y', '--yes'])
   })
 
-  test('init: pending flags (--tools, --language, --profile, --copilot-cloud, …) absent', () => {
+  test('init: pending flags (--language, --profile, --copilot-cloud, …) absent', () => {
     const init = spec.commands.find((c) => c.name === 'init')!
-    for (const flag of [
-      '--tools',
-      '--language',
-      '--profile',
-      '--copilot-cloud',
-      '--no-copilot-cloud',
-    ])
+    for (const flag of ['--language', '--profile', '--copilot-cloud', '--no-copilot-cloud'])
       expect(init.flags).not.toContain(flag)
     expect(init.flags).toContain('--no-animation')
+    // An alias flag completes like any offered flag.
+    expect(init.flags).toContain('--tools')
   })
 
   test('dynamic positionals: new→types, show→changes+specs, archive→changes', () => {

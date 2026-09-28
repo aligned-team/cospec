@@ -13,7 +13,7 @@ import { join, resolve } from 'node:path'
 import { canonFile } from '../canon/embedded.ts'
 import type { CommandContext } from '../cli.ts'
 import { openspecDir } from '../core/change.ts'
-import { flagValue, hasFlag, type ParsedArgs } from '../core/command-table.ts'
+import { flagSpelling, flagValue, hasFlag, type ParsedArgs } from '../core/command-table.ts'
 import { splitFrontmatter, type WriteResult } from '../core/managed-files.ts'
 import { mergeMiseToml, type MiseMergeResult } from '../harness/mise-merge.ts'
 import { type HarnessName, HARNESS_NAMES, isHarnessName } from '../harness/render.ts'
@@ -95,11 +95,20 @@ const DETECT_PATHS: Record<HarnessName, string> = {
   agents: '.agents/skills',
 }
 
-function selectHarnesses(cwd: string, state: RepoState, arg: string | undefined): HarnessSelection {
+/**
+ * `spelling` is the flag the user typed the list with (`--harness`, or
+ * upstream's `--tools`), so a refusal names what they wrote.
+ */
+function selectHarnesses(
+  cwd: string,
+  state: RepoState,
+  arg: string | undefined,
+  spelling: string,
+): HarnessSelection {
   if (arg !== undefined) {
     const parsed = parseHarnessArg(arg)
     if (parsed === undefined)
-      return { harnesses: [], error: `invalid --harness '${arg}'; ${VALID_HARNESS_MSG}` }
+      return { harnesses: [], error: `invalid ${spelling} '${arg}'; ${VALID_HARNESS_MSG}` }
     return { harnesses: parsed }
   }
   const detected = HARNESS_NAMES.filter((h) => existsSync(join(cwd, DETECT_PATHS[h])))
@@ -309,7 +318,7 @@ export function run(ctx: CommandContext): number {
 
   const notGitTree = !existsSync(join(target, '.git'))
 
-  const selection = selectHarnesses(target, state, harnessArg)
+  const selection = selectHarnesses(target, state, harnessArg, flagSpelling(parsed, '--harness'))
   if (selection.error !== undefined) {
     process.stderr.write(`cospec: ${selection.error}\n`)
     return 1

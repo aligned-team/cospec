@@ -302,8 +302,8 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         name: '--tools',
         takesValue: true,
         placeholder: '<tools>',
-        description: 'Configure AI tools non-interactively (upstream spelling of --harness)',
-        status: pending('upstream-spellings'),
+        description: "OpenSpec's spelling of --harness (same values)",
+        aliasOf: '--harness',
       }),
       upstream({
         name: '--language',

@@ -17,7 +17,6 @@
 # produce; the test verifies it against the pinned binary instead.
 
 # --- upstream-spellings ---------------------------------------------------------
-- { kind: flag, path: [init], flag: --tools, owner: upstream-spellings }
 - { kind: command, path: [new, change], owner: upstream-spellings }
 - { kind: positional, path: [update], index: 0, owner: upstream-spellings }
 - { kind: command, path: [completion, generate], owner: upstream-spellings }
