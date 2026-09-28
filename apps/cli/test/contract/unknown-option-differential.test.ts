@@ -932,6 +932,97 @@ describe('unknown-option differential: no closest-match hint for an unknown shor
   }, 30_000)
 })
 
+/**
+ * The binary's closest-match line in cospec's hint format: commander's
+ * `(Did you mean --x?)` / `(Did you mean one of --x, --y?)` as
+ * `Did you mean '--x'?` / `Did you mean one of '--x', '--y'?`; '' for none.
+ */
+function hintFrom(upstreamStderr: string): string {
+  const match = /^\(Did you mean (one of )?(.+)\?\)$/m.exec(upstreamStderr)
+  if (match === null) return ''
+  const names = match[2]!.split(', ').map((name) => `'${name}'`)
+  return `Did you mean ${match[1] ?? ''}${names.join(', ')}?\n`
+}
+
+// Commander's `suggestSimilar` for an unknown `--` option: the whole token
+// with `--` removed (no `=` split), no one-character candidates, similarity
+// above 0.4, and every candidate tied at the best distance.
+describe("unknown-option differential: a long option's hint is commander's suggestSimilar", () => {
+  const ROWS: readonly { argv: string[]; command: string; option: string; binary: string }[] = [
+    { argv: ['list', '--j'], command: 'list', option: '--j', binary: '' },
+    { argv: ['list', '--lng'], command: 'list', option: '--lng', binary: '' },
+    { argv: ['list', '--srt=name'], command: 'list', option: '--srt=name', binary: '' },
+    { argv: ['list', '--jsn=1'], command: 'list', option: '--jsn=1', binary: '' },
+    {
+      argv: ['list', '--sore'],
+      command: 'list',
+      option: '--sore',
+      binary: '(Did you mean one of --sort, --store?)',
+    },
+    {
+      argv: ['list', '--verson'],
+      command: 'list',
+      option: '--verson',
+      binary: '(Did you mean --version?)',
+    },
+    { argv: ['list', '--jsn'], command: 'list', option: '--jsn', binary: '(Did you mean --json?)' },
+    {
+      argv: ['list', '--sortt'],
+      command: 'list',
+      option: '--sortt',
+      binary: '(Did you mean --sort?)',
+    },
+    {
+      argv: ['validate', '--typo', 'x'],
+      command: 'validate',
+      option: '--typo',
+      binary: '(Did you mean --type?)',
+    },
+    {
+      argv: ['validate', '--strict=1'],
+      command: 'validate',
+      option: '--strict=1',
+      binary: '(Did you mean --strict?)',
+    },
+    {
+      argv: ['status', '--schem', 'custom'],
+      command: 'status',
+      option: '--schem',
+      binary: '(Did you mean --schema?)',
+    },
+  ]
+  // Rows cospec answers differently until command-table.ts ports suggestSimilar.
+  const FAILING: ReadonlySet<string> = new Set([
+    'list --j',
+    'list --lng',
+    'list --srt=name',
+    'list --jsn=1',
+    'list --sore',
+    'list --verson',
+  ])
+  for (const { argv, command, option, binary } of ROWS) {
+    const register = FAILING.has(argv.join(' ')) ? test.failing : test
+    register(
+      `${argv.join(' ')}: ${binary === '' ? 'no hint' : binary}, as the binary`,
+      async () => {
+        const up = await oracle(argv, freshRoot())
+        expect(up.exitCode).toBe(1)
+        expect(up.stderr).toBe(
+          `error: unknown option '${option}'\n${binary === '' ? '' : `${binary}\n`}`,
+        )
+        const root = freshRoot()
+        const before = treeHash(root)
+        const co = await runCospec(argv, root)
+        expect(co.exitCode).toBe(1)
+        expect(co.stdout).toBe('')
+        expect(co.stderr).toBe(`${unknown(command, option)}\n${hintFrom(up.stderr)}`)
+        expect(treeHash(root)).toEqual(before)
+      },
+      30_000,
+    )
+  }
+})
+
 describe('unknown-option differential: --store/--cwd refuse a missing or empty value', () => {
   register(GLOBAL_VALUE_ROWS)
 

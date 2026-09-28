@@ -516,6 +516,73 @@ describe('1.13 new change reads an empty --schema and a broken config.yaml as th
     }
   }
 
+  // The binary resolves config.yaml itself when no --schema is forwarded, so
+  // its warning for every field it drops reaches cospec's stderr as it wrote it.
+  const FIELD_CONFIGS: readonly (readonly [string, string])[] = [
+    ['an invalid context:', 'schema: spec-driven\ncontext: [1]\n'],
+    ['an invalid rules:', 'schema: spec-driven\nrules: [1]\n'],
+    ['empty and non-array rules', 'rules:\n  proposal: ["", "a"]\n  design: 3\n'],
+    ['an invalid operations:', 'operations: 3\n'],
+    ['unknown and invalid operations', 'operations:\n  bogus: {}\n  apply: 3\n'],
+    ['an invalid references:', 'references: 3\n'],
+    ['an invalid store:', 'store: [1]\n'],
+    ['an invalid githubCopilot:', 'githubCopilot: 3\n'],
+    ['an invalid githubCopilot.cloudAgent', 'githubCopilot:\n  cloudAgent: x\n'],
+  ]
+  for (const [name, config] of FIELD_CONFIGS) {
+    for (const asJson of [false, true]) {
+      const argv = ['new', 'change', 'foo', ...(asJson ? ['--json'] : [])]
+      test.failing(
+        `${argv.join(' ')} on ${name} config.yaml: the binary's own warnings`,
+        async () => {
+          const coRoot = copyOf(upstreamTemplate)
+          const upRoot = copyOf(upstreamTemplate)
+          for (const root of [coRoot, upRoot])
+            writeFileSync(join(root, 'openspec', 'config.yaml'), config)
+          const u = await runUpstream(['new', 'change', 'foo', '--json'], upRoot)
+          expect(u.exitCode, detail('openspec', u)).toBe(0)
+          expect(u.stderr.length, detail('openspec', u)).toBeGreaterThan(0)
+          const c = await runCospec(argv, coRoot)
+          expect(c.exitCode, detail('cospec', c)).toBe(0)
+          expect(neutral(c.stderr, coRoot)).toBe(neutral(u.stderr, upRoot))
+          expect(metadata(coRoot, 'foo')['schema']).toBe('spec-driven')
+          if (asJson) expect(documentCount(c.stdout), c.stdout).toBe(1)
+        },
+        30_000,
+      )
+    }
+  }
+
+  // Zod's `min(1)` keeps a whitespace-only schema, which the binary then fails to find.
+  for (const asJson of [false, true]) {
+    const argv = ['new', 'change', 'foo', ...(asJson ? ['--json'] : [])]
+    test.failing(
+      `${argv.join(' ')} on a whitespace schema: the binary's refusal`,
+      async () => {
+        const coRoot = copyOf(upstreamTemplate)
+        const upRoot = copyOf(upstreamTemplate)
+        for (const root of [coRoot, upRoot])
+          writeFileSync(join(root, 'openspec', 'config.yaml'), 'schema: "  "\n')
+        const u = await runUpstream(['new', 'change', 'foo', '--json'], upRoot)
+        expect(u.exitCode).toBe(1)
+        const upDoc = json(u)
+        expect(statusMessage(upDoc)).toBe("Unknown schema '  '. Available: spec-driven")
+        const before = treeHash(coRoot)
+        const c = await runCospec(argv, coRoot)
+        expect(c.exitCode, detail('cospec', c)).toBe(1)
+        if (asJson) {
+          expect(json(c)).toEqual(upDoc)
+          expect(c.stderr).toBe('')
+        } else {
+          expect(c.stdout).toBe('')
+          expect(c.stderr).toBe(`cospec new: ${statusMessage(upDoc)}\n`)
+        }
+        expect(treeHash(coRoot)).toEqual(before)
+      },
+      30_000,
+    )
+  }
+
   for (const asJson of [false, true]) {
     const argv = ['new', 'change', 'foo', '--schema', 'nope', ...(asJson ? ['--json'] : [])]
     test(`${argv.join(' ')} leaves no change on disk, as the binary`, async () => {

@@ -222,3 +222,18 @@ a time. Group 12 waits for the rebase in group 11.
       `fix(cli): read the completion shell name case-insensitively`
 - [x] 15.8 Docs corrections (ledger 8.6); commit
       `docs(cli): correct the alias kinds and new change --json shape`
+
+## 16. Round-3 review fixes (the rows first, then one fix per commit)
+
+- [x] 16.1 Pin the rows of ledger 7.5 (a long option's hint is commander's
+      `suggestSimilar`) and the extended 1.13 rows (every config field the
+      binary warns about, the whitespace `schema:`) against the binary, failing
+      ones as `test.failing`; commit
+      `test(cli): pin round-3 upstream-spellings rows against the binary`
+- [ ] 16.2 The long-option hint ports commander's `suggestSimilar` (ledger 7.5);
+      commit `fix(cli): hint an unknown long option as commander does`
+- [ ] 16.3 `new change` with no `--schema` lets the binary resolve `config.yaml`
+      (ledger 1.13); commit
+      `fix(cli): let the binary resolve new change's default schema`
+- [ ] 16.4 Record the round-3 evidence (ledger 1.13, 7.5); commit
+      `chore(cli): record upstream-spellings round-3 evidence`
