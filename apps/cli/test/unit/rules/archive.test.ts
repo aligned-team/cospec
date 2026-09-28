@@ -1273,6 +1273,39 @@ describe('archive/rebuilt-spec-invalid', () => {
     expect(rebuilt(REMOVE_EXISTING, LIVING_TWO)).toEqual([])
   })
 
+  test('a declared retirement is refused while the spec holds content the merge cannot name', () => {
+    const living = LIVING.replace('## Requirements\n\n', '## Requirements\n\nIntro prose.\n\n')
+    const found = rebuilt(REMOVE_EXISTING, living, { retireCapabilities: true })
+    expect(found.map((i) => i.message)).toEqual([
+      `the rebuilt spec for 'x' has no requirement left, and retire_capabilities cannot retire it: the spec holds content the merge cannot safely account for and deleting the file would take with it: "Intro prose."`,
+    ])
+    expect(found[0]?.hint).not.toContain('retire_capabilities: true')
+  })
+
+  test('undeclared, a retirement the content blocks names the content, not the marker', () => {
+    const living = `${LIVING}\nA note below the scenarios.\n`
+    const found = rebuilt(REMOVE_EXISTING, living)
+    expect(found[0]?.message).toContain('"A note below the scenarios."')
+    expect(found[0]?.hint).not.toContain('retire_capabilities: true')
+  })
+
+  test('a declared retirement of a spec this change did not empty is refused', () => {
+    const found = rebuilt(REMOVE_EXISTING, '# X\n\n## Purpose\n\nReal purpose.\n', {
+      retireCapabilities: true,
+    })
+    expect(found.map((i) => i.message)).toEqual([
+      "the rebuilt spec for 'x' has no requirement left, and retire_capabilities cannot retire it: this change removes none of its requirements",
+    ])
+  })
+
+  test('a declared retirement is decided on the ERRORs, not the level of the Requirements header', () => {
+    const living = LIVING.replace('Real purpose.\n', 'Real purpose.\n\n### Requirements\n')
+    expect(rebuilt(REMOVE_EXISTING, living, { retireCapabilities: true })).toEqual([])
+    expect(rebuilt(REMOVE_EXISTING, living).map((i) => i.message)).toEqual([
+      `the rebuilt spec for 'x' has no requirement: "### Requirements" (line 7 of openspec/specs/x/spec.md) is read as its Requirements section, and nothing sits under it`,
+    ])
+  })
+
   test('a living spec with no Purpose text is refused; one with no ## Requirements is not', () => {
     const noPurpose = LIVING.replace('Real purpose.\n\n', '')
     expect(rebuilt(MOD, noPurpose).map((i) => i.message)).toEqual([

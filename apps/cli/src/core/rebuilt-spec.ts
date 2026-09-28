@@ -280,13 +280,27 @@ export interface RebuildInput {
   delta: ParsedDelta
 }
 
+/** What `buildUpdatedSpec` returns besides the spec text, as the archive's retirement decision reads it. */
+export interface RebuiltSpec {
+  lines: RebuiltLine[]
+  /** REMOVED ops that deleted a block — an absent target is an early-sync no-op, not a removal. */
+  removed: number
+  /** no requirement block survives the merge (`keptOrder.length === 0`). */
+  noRequirementBlocks: boolean
+  /**
+   * The living spec's lines a retirement cannot name, trimmed and deduplicated
+   * (`contentTheMergeCannotName`), read off the spec as it was before the merge.
+   */
+  unaccountedContent: string[]
+}
+
 /**
  * The spec `buildUpdatedSpec` would write, or `undefined` wherever it throws
  * instead — every one of those refusals is a precondition another rule (or the
  * relayed binary validate) reports, and the archive never reaches the rebuilt
  * spec behind it.
  */
-export function rebuildSpec(input: RebuildInput): RebuiltLine[] | undefined {
+export function rebuildSpec(input: RebuildInput): RebuiltSpec | undefined {
   const { delta } = input
   const byOp = (operation: DeltaOp['operation']): DeltaOp[] =>
     delta.ops.filter((op) => op.operation === operation)
@@ -368,12 +382,14 @@ export function rebuildSpec(input: RebuildInput): RebuiltLine[] | undefined {
     if (index >= 0) orderedKeys[index] = to
   }
 
+  let removedApplied = 0
   for (const name of removed) {
     if (!nameToBlock.has(name)) {
       if (!isNew && keysNear(name) !== undefined) return undefined
       continue
     }
     nameToBlock.delete(name)
+    removedApplied++
   }
 
   for (const op of modified) {
@@ -428,7 +444,215 @@ export function rebuildSpec(input: RebuildInput): RebuiltLine[] | undefined {
   const hasPreamble = preamble.some((l) => !blankLine(l))
   const body = trimEnd(joinBlank([...(hasPreamble ? [preamble] : []), ...kept.map((b) => b.raw)]))
   const nonEmpty = [before, headerLine, body, after].filter((p) => textOf(p) !== '')
-  return trimEnd(collapseBlankRuns(joinBlank(nonEmpty)))
+  return {
+    lines: trimEnd(collapseBlankRuns(joinBlank(nonEmpty))),
+    removed: removedApplied,
+    noRequirementBlocks: kept.length === 0,
+    unaccountedContent: contentTheMergeCannotName(sliceParts(targetText, section)),
+  }
+}
+
+// --- what a retirement could not account for ---------------------------------------------------
+
+/** `extractRequirementsSection`'s slices, as strings, for the audit below. */
+interface SectionParts {
+  before: string
+  preamble: string
+  blocks: string[]
+  after: string
+}
+
+function sliceParts(text: string, section: RequirementsSection): SectionParts {
+  const { lines } = section
+  // No `## Requirements`: the whole spec is `before`, as the merge reads it.
+  if (section.header === -1) return { before: text.trimEnd(), preamble: '', blocks: [], after: '' }
+  return {
+    before: lines.slice(0, section.header).join('\n'),
+    preamble: lines
+      .slice(section.header + 1, section.preambleEnd)
+      .join('\n')
+      .trimEnd(),
+    blocks: section.blocks.map((b) => lines.slice(b.start, b.end).join('\n').trimEnd()),
+    after: lines.slice(section.end).join('\n'),
+  }
+}
+
+/** openspec's `firstForeignTail` heading: the first `#`–`###` line after a block's own header. */
+function firstForeignHeading(raw: string): string | undefined {
+  const lines = raw.replace(/\r\n?/g, '\n').split('\n')
+  const fenced = buildCodeFenceMask(lines)
+  for (let i = 1; i < lines.length; i++)
+    if (fenced[i] !== true && /^ {0,3}#{1,3}(?:[ \t]|$)/.test(lines[i]!)) return lines[i]!.trim()
+  return undefined
+}
+
+/** A line CommonMark lets interrupt a paragraph (openspec's `INTERRUPTS_PARAGRAPH`). */
+const INTERRUPTS_PARAGRAPH =
+  /^ {0,3}(?:>|(?:[-*_][ \t]*){3,}$|(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)|[<|])/
+/** A list item, its indent and marker captured (openspec's `LIST_ITEM`). */
+const LIST_ITEM = /^(\s*(?:[-*+]|\d{1,9}[.)])\s+)/
+
+/** The column a line's content starts at, tabs to a four-column stop. */
+function contentColumn(prefix: string): number {
+  let column = 0
+  for (const char of prefix) column += char === '\t' ? 4 - (column % 4) : 1
+  return column
+}
+
+/** Drop up to `columns` visual columns of leading whitespace. */
+function dropIndent(line: string, columns: number): string {
+  let column = 0
+  let index = 0
+  while (index < line.length && column < columns) {
+    const char = line[index]
+    if (char === ' ') column += 1
+    else if (char === '\t') column += 4 - (column % 4)
+    else break
+    index++
+  }
+  return line.slice(index)
+}
+
+const isHeadingLine = (line: string): boolean =>
+  /^ {0,3}#{1,6}(?:[ \t]|$)/.test(line) || /^\s*<h[1-6]\b/i.test(line)
+
+/**
+ * openspec's `contentTheMergeCannotName` (`specs-apply.ts`, 1.13.1), ported
+ * line for line: the non-blank lines of the spec that are not the title, the
+ * `## Purpose` section, or a requirement block's own header, statement and
+ * scenario bullets. A retirement deletes the file, so any of these vetoes it.
+ */
+function contentTheMergeCannotName(parts: SectionParts): string[] {
+  const leftovers: string[] = []
+  const beforeLines = parts.before
+    .replace(/^\uFEFF/, '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+  const beforeMask = buildCodeFenceMask(beforeLines)
+  let inPurpose = false
+  let titleSeen = false
+  let previousLine = ''
+  for (let index = 0; index < beforeLines.length; index++) {
+    const line = beforeLines[index]!
+    if (!line.trim()) {
+      previousLine = ''
+      continue
+    }
+    if (beforeMask[index] !== true) {
+      const section = line.match(/^ {0,3}##\s+(.+?)\s*$/)
+      if (section !== null) {
+        inPurpose = /^purpose$/i.test(section[1]!.trim())
+        if (!inPurpose) leftovers.push(line.trim())
+        previousLine = line
+        continue
+      }
+      const setext = inPurpose && previousLine.trim() !== '' && /^ {0,3}(=+|-+)\s*$/.test(line)
+      const htmlHeading = /^ {0,3}<h[1-6]\b/i.test(line)
+      if (setext || htmlHeading) {
+        leftovers.push((setext ? previousLine : line).trim())
+        inPurpose = false
+        previousLine = line
+        continue
+      }
+      if (/^ {0,3}#\s+.+$/.test(line)) {
+        if (!titleSeen && !inPurpose) titleSeen = true
+        else {
+          leftovers.push(line.trim())
+          inPurpose = false
+        }
+        previousLine = line
+        continue
+      }
+    }
+    previousLine = line
+    if (inPurpose) continue
+    leftovers.push(line.trim())
+  }
+  for (const slice of [parts.preamble, parts.after])
+    for (const line of slice.split('\n')) if (line.trim()) leftovers.push(line.trim())
+  for (const raw of parts.blocks) {
+    const foreign = firstForeignHeading(raw)
+    if (foreign !== undefined) leftovers.push(foreign)
+    const lines = raw.replace(/\r\n?/g, '\n').split('\n')
+    const mask = buildCodeFenceMask(lines)
+    let seenScenario = false
+    let inScenarioBullets = false
+    let bulletsSeen = false
+    let listContentIndent: number | null = null
+    let paragraphOpen = false
+    for (let index = 0; index < lines.length; index++) {
+      const line = lines[index]!
+      if (!line.trim()) {
+        if (bulletsSeen) inScenarioBullets = false
+        listContentIndent = null
+        paragraphOpen = false
+        continue
+      }
+      if (index === 0) continue
+      const indent = contentColumn(/^[ \t]*/.exec(line)![0])
+      const insideItem = listContentIndent !== null && indent >= listContentIndent
+      const withinItem = insideItem ? dropIndent(line, listContentIndent!) : line
+      const lazilyContinuesBullet =
+        paragraphOpen && inScenarioBullets && !INTERRUPTS_PARAGRAPH.test(withinItem)
+      const continuesListItem = (insideItem || lazilyContinuesBullet) && !isHeadingLine(withinItem)
+      if (mask[index] === true) {
+        if (!insideItem) listContentIndent = null
+        paragraphOpen = false
+        continue
+      }
+      if (index > 1 && /^ {0,3}(?:=+|-+)\s*$/.test(withinItem) && lines[index - 1]!.trim()) {
+        leftovers.push(lines[index - 1]!.trim())
+        listContentIndent = null
+        paragraphOpen = false
+        continue
+      }
+      if (continuesListItem) {
+        paragraphOpen = !INTERRUPTS_PARAGRAPH.test(withinItem)
+        continue
+      }
+      const bullet = line.match(LIST_ITEM)
+      listContentIndent = bullet === null ? null : contentColumn(bullet[1]!)
+      paragraphOpen = bullet !== null
+      if (/^ {0,3}####\s+Scenario:/i.test(line)) {
+        seenScenario = true
+        inScenarioBullets = true
+        bulletsSeen = false
+        continue
+      }
+      if (bullet !== null) {
+        if (inScenarioBullets) {
+          bulletsSeen = true
+          continue
+        }
+        if (!seenScenario) continue
+        leftovers.push(line.trim())
+        continue
+      }
+      if (!seenScenario && !/^\s*[|<]/.test(line)) continue
+      leftovers.push(line.trim())
+    }
+  }
+  return [...new Set(leftovers)]
+}
+
+/**
+ * openspec's `describeUnaccountedContent`: the first three lines quoted, control
+ * characters made safe and each cut at 200 code points, with a count for the rest.
+ */
+export function describeUnaccountedContent(lines: readonly string[]): string {
+  const shown = lines
+    .slice(0, 3)
+    .map((line) => {
+      const safe = [...line].map((char) => {
+        const code = char.codePointAt(0)!
+        return code < 0x20 || code === 0x7f ? '?' : char
+      })
+      const clipped = safe.slice(0, 200).join('')
+      return `"${safe.length > 200 ? `${clipped}\u2026` : clipped}"`
+    })
+    .join(', ')
+  const rest = lines.length > 3 ? `, and ${lines.length - 3} more line(s)` : ''
+  return `${shown}${rest}`
 }
 
 // --- the validation archive runs on it --------------------------------------------------------

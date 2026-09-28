@@ -15,7 +15,7 @@
 
 import { afterAll, describe, expect, test } from 'bun:test'
 import { cpSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import { parseDeltaSpec } from '../../src/core/deltas.ts'
 import { rebuildSpec } from '../../src/core/rebuilt-spec.ts'
@@ -24,6 +24,7 @@ import {
   cospec,
   mkTempRepo,
   openspec,
+  openspecBinPath,
   REPO_ROOT,
   writeFiles,
 } from '../fixtures/support.ts'
@@ -36,61 +37,6 @@ afterAll(cleanupAll)
  * takes its own ids out, and the last one removes the set.
  */
 const ROUND5_FAILING = new Set<string>([
-  '26.1',
-  '26.1n',
-  '26.2',
-  '26.2n',
-  '26.3',
-  '26.3n',
-  '26.4',
-  '26.4n',
-  '26.5',
-  '26.5n',
-  '26.6',
-  '26.6n',
-  '26.7',
-  '26.7n',
-  '26.8',
-  '26.8n',
-  '26.9',
-  '26.9n',
-  '26.10',
-  '26.10n',
-  '26.11',
-  '26.11n',
-  '26.12',
-  '26.12n',
-  '26.13',
-  '26.13n',
-  '26.14',
-  '26.14n',
-  '26.15',
-  '26.15n',
-  '26.16',
-  '26.16n',
-  '26.17',
-  '26.17n',
-  '26.18',
-  '26.18n',
-  '26.19',
-  '26.19n',
-  '26.21',
-  '26.21n',
-  '26.22',
-  '26.22n',
-  '26.23',
-  '26.23n',
-  '26.24',
-  '26.24n',
-  '26.31',
-  '26.31n',
-  '26.32',
-  '26.32n',
-  '26.33',
-  '26.33n',
-  '26.40',
-  '26.41',
-  '26.42',
   '27.cmt-no-textn',
   '27.cmt-no-text',
   '27.cmt-modified-no-textn',
@@ -2795,7 +2741,7 @@ describe('20.40 the rebuilt spec the port builds is the spec the binary archive 
       })
       const res = await openspec(['archive', `bb-${name}`, '-y'], root)
       expect(res.exitCode).toBe(0)
-      expect(rebuilt?.map((l) => l.text).join('\n')).toBe(
+      expect(rebuilt?.lines.map((l) => l.text).join('\n')).toBe(
         readFileSync(livingPath, 'utf8').replace(/\n$/, ''),
       )
     })
@@ -3391,6 +3337,64 @@ describe('26. retire_capabilities retires only what the archive retires', () => 
       expect(existsSync(join(root, 'openspec/specs/widgets/spec.md'))).toBe(false)
     },
   )
+
+  // The port's audit against the pinned binary's own merge builder, imported
+  // from its dist: the same slices, the same removal count, the same lines.
+  test('26.50 the retirement inputs rebuildSpec reports equal the binary buildUpdatedSpec', async () => {
+    const specsApply = (await import(
+      join(dirname(openspecBinPath()), '../dist/core/specs-apply.js')
+    )) as {
+      findSpecUpdates: (changeDir: string, mainSpecsDir: string) => Promise<unknown[]>
+      buildUpdatedSpec: (
+        update: unknown,
+        changeName: string,
+        options: { silent: boolean },
+      ) => Promise<{
+        rebuilt: string
+        counts: { removed: number }
+        noRequirementBlocks: boolean
+        unaccountedContent: string[]
+      }>
+    }
+    const shapes: [string, string, string][] = [
+      ...RETIRE_BLOCKED.map(
+        ([shape, living]) => [shape, living, REMOVED_BOTH] as [string, string, string],
+      ),
+      ...RETIRE_NOTHING_REMOVED,
+      ...RETIRE_ARCHIVED.map(
+        ([shape, living]) => [shape, living, REMOVED_BOTH] as [string, string, string],
+      ),
+      ['plain-remove-one', LIVING, REMOVED_RENDERING],
+      ['plain-modified', inPreamble('Intro prose.\n\n'), MODIFIED_RENDERING],
+    ]
+    for (const [shape, living, delta] of shapes) {
+      const root = mkTempRepo({ git: true })
+      const name = `oracle-${shape}`
+      buildFeat(root, name, { 'widgets/spec.md': delta }, { living })
+      const [update] = await specsApply.findSpecUpdates(
+        join(root, 'openspec/changes', name),
+        join(root, 'openspec/specs'),
+      )
+      const upstream = await specsApply.buildUpdatedSpec(update, name, { silent: true })
+      const port = rebuildSpec({
+        capability: 'widgets',
+        changeName: name,
+        living,
+        deltaText: delta,
+        delta: parseDeltaSpec(delta, 'specs/widgets/spec.md', 'widgets', 'verbatim'),
+      })
+      expect([shape, port?.lines.map((l) => l.text).join('\n')]).toEqual([
+        shape,
+        upstream.rebuilt.replace(/\n$/, ''),
+      ])
+      expect([shape, port?.removed, port?.noRequirementBlocks, port?.unaccountedContent]).toEqual([
+        shape,
+        upstream.counts.removed,
+        upstream.noRequirementBlocks,
+        upstream.unaccountedContent,
+      ])
+    }
+  })
 
   round5('26.42')(
     '26.42 without the marker the refusal names the content, not the marker it would not help',

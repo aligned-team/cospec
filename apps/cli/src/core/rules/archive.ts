@@ -21,10 +21,10 @@ import {
   type RequirementSplit,
 } from '../deltas.ts'
 import {
+  describeUnaccountedContent,
   rebuildSpec,
   validateRebuiltSpec,
   type LineOrigin,
-  type RebuiltLine,
   type RebuiltSpecIssue,
 } from '../rebuilt-spec.ts'
 import type { Issue } from './issue.ts'
@@ -224,6 +224,12 @@ const REBUILT_HINT = {
     'openspec archive re-validates the whole rebuilt spec, which needs text under "## Purpose" ("Spec must have a Purpose section") — write the capability\'s Purpose in the living spec',
   requirements:
     'openspec archive re-validates the whole rebuilt spec, which needs at least one requirement ("Spec must have at least one requirement") — keep one, or set `retire_capabilities: true` in the change\'s .openspec.yaml to retire the capability',
+  keepOne:
+    'openspec archive re-validates the whole rebuilt spec, which needs at least one requirement ("Spec must have at least one requirement") — add or keep one, or delete the spec by hand',
+  notEmptied:
+    'openspec archive retires only a spec this change empties, and a spec that had no requirement to remove is written, then refused ("Spec must have at least one requirement") — add a requirement, or delete the spec by hand',
+  unaccounted:
+    'openspec archive retires a capability only when deleting its spec loses nothing the merge cannot name — move that content into `## Purpose` or a canonical requirement, or delete the spec by hand',
   misread:
     'openspec reads the first header titled "Requirements", at any level, as the spec\'s Requirements section ("Spec must have at least one requirement") — rename that header or make it plain text',
   structure:
@@ -250,14 +256,15 @@ function rebuiltSpecIssues(
   file: { path: string; text: string; parsed: ParsedDelta; splits: RequirementSplit[] },
   living: string | undefined,
 ): Issue[] {
-  const lines: RebuiltLine[] | undefined = rebuildSpec({
+  const rebuilt = rebuildSpec({
     capability,
     changeName: change.id,
     living,
     deltaText: file.text,
     delta: file.parsed,
   })
-  if (lines === undefined) return []
+  if (rebuilt === undefined) return []
+  const { lines, unaccountedContent } = rebuilt
   const livingFile = `openspec/specs/${capability}/spec.md`
   const originOf = (index: number): LineOrigin | undefined => lines[index]?.origin
   const where = (origin: LineOrigin | undefined): string =>
@@ -286,6 +293,21 @@ function rebuiltSpecIssues(
   }
   const found: RebuiltSpecIssue[] = validateRebuiltSpec(lines.map((l) => l.text))
   const noBody = new Set(found.flatMap((i) => (i.kind === 'no-body' ? [i.line] : [])))
+
+  // The archive's retirement decision (1.13.1 `decideSpecOutcome`), never a
+  // header level: `isRetirableSpec` asks that "no requirements" be the only
+  // ERROR, wherever the header read as the Requirements section sits; no block
+  // may survive; nothing may sit outside what the merge can name; and only a
+  // spec this change emptied is deleted — one with nothing on disk is skipped.
+  // Anything else is written, and its validation refuses it.
+  const retireDeclared = change.openspecYaml.retireCapabilities === true
+  const onlyNoRequirements = found.length > 0 && found.every((i) => i.kind === 'no-requirements')
+  const retirable =
+    rebuilt.noRequirementBlocks && unaccountedContent.length === 0 && onlyNoRequirements
+  if (retireDeclared && retirable && (living === undefined || rebuilt.removed > 0)) return []
+  const emptiedByThisRun =
+    living !== undefined && rebuilt.removed > 0 && rebuilt.noRequirementBlocks && onlyNoRequirements
+  const blockedBy = `the spec holds content the merge cannot safely account for and deleting the file would take with it: ${describeUnaccountedContent(unaccountedContent)}`
   for (const issue of found) {
     if (issue.kind === 'no-purpose')
       report(
@@ -302,21 +324,36 @@ function rebuiltSpecIssues(
         REBUILT_HINT.requirements,
       )
     else if (issue.kind === 'no-requirements') {
-      // A capability this change retires is the archive's to delete, not a
-      // spec it writes — `retire_capabilities: true` takes it off this path.
-      if (issue.level === 2 && change.openspecYaml.retireCapabilities === true) continue
-      if (issue.level === 2)
+      const misread = issue.level !== 2
+      const base = misread
+        ? `the rebuilt spec for '${capability}' has no requirement: "${lines[issue.line]!.text.trim()}" (${where(originOf(issue.line))}) is read as its Requirements section, and nothing sits under it`
+        : `the rebuilt spec for '${capability}' has no requirement left`
+      const origin = misread ? originOf(issue.line) : undefined
+      const blocked = unaccountedContent.length > 0 && onlyNoRequirements
+      // What the archive says beside its abort: the lines a declared retirement
+      // could not take (`refusalReason`), the marker only when it alone is
+      // missing (`retirementHint`), and the lines again when the marker would
+      // not have helped (`blockedRetirementHint`).
+      if (retireDeclared && blocked)
         report(
-          undefined,
-          `the rebuilt spec for '${capability}' has no requirement left`,
-          REBUILT_HINT.requirements,
+          origin,
+          `${base}, and retire_capabilities cannot retire it: ${blockedBy}`,
+          REBUILT_HINT.unaccounted,
         )
-      else
+      else if (retireDeclared && living !== undefined && rebuilt.removed === 0)
         report(
-          originOf(issue.line),
-          `the rebuilt spec for '${capability}' has no requirement: "${lines[issue.line]!.text.trim()}" (${where(originOf(issue.line))}) is read as its Requirements section, and nothing sits under it`,
-          REBUILT_HINT.misread,
+          origin,
+          `${base}, and retire_capabilities cannot retire it: this change removes none of its requirements`,
+          REBUILT_HINT.notEmptied,
         )
+      else if (!retireDeclared && emptiedByThisRun && blocked)
+        report(
+          origin,
+          `${base} — this change removes its last requirement, and retiring the capability is refused while ${blockedBy}`,
+          REBUILT_HINT.unaccounted,
+        )
+      else if (!retireDeclared && emptiedByThisRun) report(origin, base, REBUILT_HINT.requirements)
+      else report(origin, base, misread ? REBUILT_HINT.misread : REBUILT_HINT.keepOne)
     } else if (issue.kind === 'structure') {
       const origin = originOf(issue.issue.line - 1)
       report(

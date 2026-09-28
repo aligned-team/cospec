@@ -1,7 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 
 import { parseDeltaSpec } from '../../../src/core/deltas.ts'
-import { rebuildSpec, validateRebuiltSpec } from '../../../src/core/rebuilt-spec.ts'
+import {
+  describeUnaccountedContent,
+  rebuildSpec,
+  validateRebuiltSpec,
+} from '../../../src/core/rebuilt-spec.ts'
 
 const LIVING = `# X Specification
 
@@ -21,7 +25,7 @@ The system SHALL exist.
 - **THEN** b
 `
 
-const rebuildAgainst = (delta: string, living: string | undefined) =>
+const rebuiltAgainst = (delta: string, living: string | undefined) =>
   rebuildSpec({
     capability: 'x',
     changeName: 'c',
@@ -29,6 +33,8 @@ const rebuildAgainst = (delta: string, living: string | undefined) =>
     deltaText: delta,
     delta: parseDeltaSpec(delta, 'specs/x/spec.md', 'x', 'verbatim'),
   })
+const rebuildAgainst = (delta: string, living: string | undefined) =>
+  rebuiltAgainst(delta, living)?.lines
 const rebuild = (delta: string) => rebuildAgainst(delta, LIVING)
 
 const ADD =
@@ -82,6 +88,74 @@ describe('rebuildSpec', () => {
     expect(placeholder[3]?.text).toBe(
       'TBD - created by archiving change c. Update Purpose after archive.',
     )
+  })
+})
+
+const REMOVE_EXISTING = '## REMOVED Requirements\n\n### Requirement: Existing\n'
+
+describe('rebuildSpec: what the retirement decision reads', () => {
+  test('counts only the REMOVED ops that deleted a block', () => {
+    const removed = rebuiltAgainst(REMOVE_EXISTING, LIVING)!
+    expect(removed.removed).toBe(1)
+    expect(removed.noRequirementBlocks).toBe(true)
+    expect(removed.unaccountedContent).toEqual([])
+    const absent = rebuiltAgainst(REMOVE_EXISTING.replace('Existing', 'Absent'), LIVING)!
+    expect(absent.removed).toBe(0)
+    expect(absent.noRequirementBlocks).toBe(false)
+  })
+
+  test("the audit names what sits outside the title, Purpose and each block's own parts", () => {
+    const living = LIVING.replace(
+      '## Requirements\n',
+      '## Glossary\n\nTerms.\n\n## Requirements\n\nIntro.\n',
+    ).concat('\nA note below the scenarios.\n\n<!-- aside -->\n\n## Notes\n\nTrailing.\n')
+    expect(rebuiltAgainst(REMOVE_EXISTING, living)!.unaccountedContent).toEqual([
+      '## Glossary',
+      'Terms.',
+      'Intro.',
+      '## Notes',
+      'Trailing.',
+      'A note below the scenarios.',
+      '<!-- aside -->',
+    ])
+  })
+
+  test("a wrapped scenario bullet, a + bullet and a fenced example are the block's own", () => {
+    const living = LIVING.replace(
+      '- **WHEN** a\n',
+      '+ **WHEN** a caller asks for something that\n  wraps\n',
+    ).replace(
+      'The system SHALL exist.\n',
+      'The system SHALL exist.\n\n```md\n### Requirement: Fenced\n```\n',
+    )
+    expect(rebuiltAgainst(REMOVE_EXISTING, living)!.unaccountedContent).toEqual([])
+  })
+
+  test('a heading inside a block, and a setext Purpose sibling, are named', () => {
+    const living = LIVING.replace('Real purpose.\n', 'Real purpose.\n\nScope\n-----\n').concat(
+      '\n###   \n\ntext\n',
+    )
+    expect(rebuiltAgainst(REMOVE_EXISTING, living)!.unaccountedContent).toEqual([
+      'Scope',
+      '###',
+      'text',
+    ])
+  })
+
+  test('with no ## Requirements the whole spec is read as the part above it', () => {
+    const living = '# X Specification\n\n## Purpose\n\nReal purpose.\n\n## Notes\n\nMore.\n'
+    const result = rebuiltAgainst(REMOVE_EXISTING, living)!
+    expect(result.removed).toBe(0)
+    expect(result.unaccountedContent).toEqual(['## Notes', 'More.'])
+  })
+})
+
+describe('describeUnaccountedContent', () => {
+  test('quotes three lines, counts the rest, and makes control characters safe', () => {
+    expect(describeUnaccountedContent(['a', 'b\u001b', 'c', 'd', 'e'])).toBe(
+      '"a", "b?", "c", and 2 more line(s)',
+    )
+    expect(describeUnaccountedContent(['x'.repeat(201)])).toBe(`"${'x'.repeat(200)}\u2026"`)
   })
 })
 
