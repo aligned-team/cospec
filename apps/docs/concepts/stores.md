@@ -314,8 +314,14 @@ from OpenSpec's doctor, and, for a store-backed root, the same git/metadata
 facts `cospec store doctor` reports, as `openspec-*` findings alongside cospec's
 own checks, with OpenSpec's report itself carried in `cospec doctor --json`.
 This is additive and read-only — it never repairs anything, only surfaces what's
-already there. See the `doctor` row on [Commands](/reference/commands) for the
-full finding set and the `--json` keys.
+already there. A `store:` pointer or the global `defaultStore` makes the store
+the operating root, and cospec's own checks run on it. An explicit
+`--store <id>` is different: OpenSpec's report describes the store, but cospec's
+own checks still read the directory you run it in, so
+`cospec doctor --store <id>` from a bare workspace with no `openspec/` reports
+the `initialized` ERROR and exits 1, where `openspec doctor --store <id>`
+exits 0. See the `doctor` row on [Commands](/reference/commands) for the full
+finding set and the `--json` keys.
 
 ## How it works
 

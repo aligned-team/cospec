@@ -24,9 +24,17 @@ walks to, as `openspec doctor` does, and for a declared `store:` pointer or the
 global `defaultStore`, the store that selection resolves to. With no root
 selected its own checks SHALL NOT run: a directory with no root gets the one
 `initialized` ERROR, and a selection that fails for any other reason is reported
-by the binary's folded diagnostic alone. When the delegated call cannot be read,
-the WARNING finding's remedy SHALL name `cospec doctor`, never a bare `openspec`
-command.
+by the binary's folded diagnostic alone. For an explicit `--store <id>` its own
+checks SHALL read the invocation directory, not the store: run from a bare
+workspace with no `openspec/`, `cospec doctor --store <id>` reports the
+`initialized` ERROR and exits 1 where `openspec doctor --store <id>` exits 0.
+Each line the delegated `openspec doctor --json` writes to stderr (its config
+warnings, such as `Invalid 'context' field in config (must be string)`) that
+cospec did not already print itself SHALL be one `openspec-stderr` WARNING
+finding, its text spelled through the allowlist, so the text report prints it
+and the `--json` document carries it; cospec's stderr SHALL NOT repeat it. When
+the delegated call cannot be read, the WARNING finding's remedy SHALL name
+`cospec doctor`, never a bare `openspec` command.
 
 This requirement replaces "Doctor surfaces openspec root-relationship and store
 health", whose rule that a plain local root omits the delegated section was the
@@ -98,6 +106,16 @@ defect. Its three surviving scenarios are carried over verbatim below.
 - **THEN** `root.source` is the binary's (`declared`, `global_default`), the
   four keys equal the binary's, cospec's own checks report no ERROR on the
   store, and the exit code is the binary's
+
+#### Scenario: Doctor folds OpenSpec's stderr config warnings
+
+- **WHEN** `cospec doctor` or `cospec doctor --json` runs on a plain, pointer or
+  `--store` root whose config has an invalid `context` or `references` field
+- **THEN** each line `openspec doctor --json` writes to stderr on the same
+  fixture is one `openspec-stderr` WARNING finding, in order, and none reaches
+  cospec's stderr
+- **AND** a line cospec's root selection already printed (an ignored `store:`
+  pointer, an unparseable global config) is printed once and never folded
 
 ## REMOVED Requirements
 

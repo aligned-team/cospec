@@ -355,8 +355,8 @@ D14, the `openspec-config-passthrough` spec,
 Files: `apps/cli/src/commands/doctor.ts`, `doctor-parity.test.ts`,
 `test/unit/commands/doctor-stderr.test.ts`, design D3, the
 `openspec-relationship-health` spec, `apps/docs/reference/commands.md`,
-`apps/docs/concepts/stores.md`, `docs/stores.md`. Rows land first as
-`test.failing`, and the fix flips them.
+`apps/docs/concepts/stores.md`. Rows land first as `test.failing`, and the fix
+flips them.
 
 - [ ] 14.1 Fold each line of the wrapped `openspec doctor --json` call's stderr
       (its config warnings) that cospec did not already print into cospec's

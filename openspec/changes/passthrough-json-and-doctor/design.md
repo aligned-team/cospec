@@ -156,7 +156,15 @@ the missing `--cwd`, which stands) is folded, not thrown: with no root selected
 cospec's own checks do not run — the directory may not be readable at all (the
 resolver sweep's mode-000 `openspec/`) — a no-root refusal gets the one
 `initialized` ERROR, and any other refusal is reported by the binary's folded
-diagnostic alone.
+diagnostic alone. The explicit-`--store` carve-out is a divergence the binary
+does not have: `openspec doctor --store <id>` from a bare workspace exits 0,
+where cospec's own checks read that workspace and report the `initialized`
+ERROR, exit 1 (probed in review round 5; documented as it holds, not changed
+here). The delegated call's stderr — the binary's config warnings, written while
+it loads each config it reads — is folded too (review round 5): each line
+`passthroughOpenspec` returns (the lines `resolveRoot` printed already dropped,
+D7) is one `openspec-stderr` WARNING finding, passed alone to the allowlist, so
+text prints it once and `--json` carries it.
 
 **D4 — The structural respell rule.** A successful answer is respelled only in
 its parsed `--json` document, through the shared field-map helper
