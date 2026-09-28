@@ -130,21 +130,21 @@ Files: `apps/cli/src/commands/workset.ts`,
 
 Files: `apps/cli/src/commands/doctor.ts`.
 
-- [ ] 5.1 Run the delegated `openspec doctor --json` on every root and carry its
+- [x] 5.1 Run the delegated `openspec doctor --json` on every root and carry its
       `root`, `store`, `references` and `status` keys in the `--json` document
       (design D3), keeping the `openspec-root` INFO condition, and verify ledger
       rows 2.1, 2.2 and 2.4 flip and pass; commit
       `fix(doctor): fold openspec doctor --json on every root`
-- [ ] 5.2 Spell folded remedies and the carried `fix`/`message` fields through
+- [x] 5.2 Spell folded remedies and the carried `fix`/`message` fields through
       cospec (design D4 rule, both delegated calls), and verify the
       `doctor-parity.test.ts` respelled fields match and no doctor fixture
       prints a bare command; commit
       `fix(doctor): spell folded OpenSpec remedies through cospec`
-- [ ] 5.3 Read `openspec/config.yaml` else `openspec/config.yml` in
+- [x] 5.3 Read `openspec/config.yaml` else `openspec/config.yml` in
       `checkConfig` and the references probe, naming the file read, and verify
       ledger row 2.3 flips and passes; commit
       `fix(doctor): read config.yml as OpenSpec does`
-- [ ] 5.4 Name `cospec doctor --json` in the delegated call's failure remedy and
+- [x] 5.4 Name `cospec doctor --json` in the delegated call's failure remedy and
       keep the binary's no-root diagnostic in `status` without folding it when
       `initialized` fails, and verify ledger rows 2.5 and 2.6 flip and pass;
       commit

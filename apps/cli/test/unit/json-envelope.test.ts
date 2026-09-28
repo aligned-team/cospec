@@ -127,7 +127,7 @@ type CheckRelationship = (
 ) => Promise<RelationshipKeys>
 
 describe('doctor: the delegated relationship report', () => {
-  test.failing('a call that could not run: a WARNING naming cospec doctor --json', async () => {
+  test('a call that could not run: a WARNING naming cospec doctor --json', async () => {
     const check = exported<CheckRelationship>(doctorModule, 'checkOpenspecRelationship')
     const findings: Finding[] = []
     const { value, error } = await stubbed(

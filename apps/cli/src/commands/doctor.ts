@@ -470,6 +470,12 @@ export interface RelationshipReport {
   status: OpenspecStatusEntry[]
 }
 
+/** The binary's codes for "no OpenSpec root here" (`core/root-selection.js`). */
+const NO_ROOT_CODES: ReadonlySet<string> = new Set([
+  'no_openspec_root',
+  'no_root_with_registered_stores',
+])
+
 /** The binary's own failure payload shape, carried when its report could not be read. */
 const NO_REPORT: RelationshipReport = { root: null, store: null, references: [], status: [] }
 
@@ -549,6 +555,7 @@ export async function checkOpenspecRelationship(
   root: Root,
   cwd: string,
   findings: Finding[],
+  initialized: boolean,
 ): Promise<RelationshipReport> {
   const storeBacked = root.store !== undefined
   let delegated = NO_REPORT
@@ -575,7 +582,13 @@ export async function checkOpenspecRelationship(
     foldStatus('store', delegated.store?.status, findings)
     for (const ref of delegated.references)
       foldStatus(`reference-${ref.store_id ?? 'unknown'}`, ref.status, findings)
-    foldStatus('relationship', delegated.status, findings)
+    // With no root, cospec's own `initialized` ERROR already reports it: the
+    // binary's no-root diagnostic stays in `status`, not a second finding.
+    foldStatus(
+      'relationship',
+      initialized ? delegated.status : delegated.status.filter((s) => !NO_ROOT_CODES.has(s.code)),
+      findings,
+    )
     // Only where the relationship is the point: a store root or one that
     // declares `references:`, so a healthy plain root's report is unchanged.
     if (delegated.root !== null && (storeBacked || hasReferencesConfig(cwd))) {
@@ -584,16 +597,18 @@ export async function checkOpenspecRelationship(
         check: 'openspec-root',
         message: `operating root is ${delegated.root.source ?? 'unknown'}-sourced at ${
           delegated.root.path ?? root.base
-        } (${delegated.root.healthy === true ? 'healthy' : 'unhealthy'} per openspec doctor)`,
+        } (${delegated.root.healthy === true ? 'healthy' : 'unhealthy'} per OpenSpec's doctor)`,
       })
     }
   } catch (err) {
     findings.push({
       level: 'WARNING',
       check: 'openspec-doctor',
-      message: `could not read openspec root-relationship health: ${errorMessage(err)}`,
+      message: `could not read OpenSpec's root-relationship health: ${errorMessage(err)}`,
       remedy:
-        err instanceof OpenspecCallError ? undefined : 'run `openspec doctor` directly to inspect',
+        err instanceof OpenspecCallError
+          ? undefined
+          : "rerun `cospec doctor --json` to see OpenSpec's root, store and reference report",
     })
   }
 
@@ -707,7 +722,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     checkGlobalProfile(findings)
   }
 
-  const relationship = await checkOpenspecRelationship(root, base, findings)
+  const relationship = await checkOpenspecRelationship(root, base, findings, initialized)
 
   return report(findings, flags.json, relationship)
 }

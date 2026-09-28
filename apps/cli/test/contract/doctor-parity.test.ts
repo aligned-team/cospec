@@ -221,31 +221,27 @@ describe('cospec doctor --json carries openspec doctor --json on every root', ()
   }, 60_000)
 
   for (const stores of [false, true]) {
-    test.failing(
-      `no OpenSpec root, ${stores ? 'a store registered' : 'no store'} (ledger 2.5)`,
-      async () => {
-        const root = mkTempRepo()
-        if (stores) {
-          storeCheckout(join(root, 'store'), 'st1')
-          writeRegistry(root, { st1: join(root, 'store') })
-        }
-        const { co, doc, up } = await doctorBoth(['doctor', '--json'], root)
-        expect(up.exitCode).toBe(1)
-        expect(co.exitCode, detail(co)).toBe(1)
-        const initialized = doc.findings.filter((f) => f.check === 'initialized')
-        expect(initialized.map((f) => f.level)).toEqual(['ERROR'])
-        // Reported once: the binary's no-root diagnostic is carried, not folded.
-        const code = (up.json as RelationshipKeys).status[0]!.code
-        expect(
-          doc.findings.some((f) => f.check.endsWith(code)),
-          detail(co),
-        ).toBe(false)
-        expect(relationshipKeys(doc)).toEqual(expectedKeys(up))
-        expect(doc.status[0]!.fix).toContain('cospec init')
-        expect(BARE_OPENSPEC.test(co.stdout), detail(co)).toBe(false)
-      },
-      60_000,
-    )
+    test(`no OpenSpec root, ${stores ? 'a store registered' : 'no store'} (ledger 2.5)`, async () => {
+      const root = mkTempRepo()
+      if (stores) {
+        storeCheckout(join(root, 'store'), 'st1')
+        writeRegistry(root, { st1: join(root, 'store') })
+      }
+      const { co, doc, up } = await doctorBoth(['doctor', '--json'], root)
+      expect(up.exitCode).toBe(1)
+      expect(co.exitCode, detail(co)).toBe(1)
+      const initialized = doc.findings.filter((f) => f.check === 'initialized')
+      expect(initialized.map((f) => f.level)).toEqual(['ERROR'])
+      // Reported once: the binary's no-root diagnostic is carried, not folded.
+      const code = (up.json as RelationshipKeys).status[0]!.code
+      expect(
+        doc.findings.some((f) => f.check.endsWith(code)),
+        detail(co),
+      ).toBe(false)
+      expect(relationshipKeys(doc)).toEqual(expectedKeys(up))
+      expect(doc.status[0]!.fix).toContain('cospec init')
+      expect(BARE_OPENSPEC.test(co.stdout), detail(co)).toBe(false)
+    }, 60_000)
   }
 
   // Post-rebase: the resolver's ancestor walk (`root-resolution-parity`)
