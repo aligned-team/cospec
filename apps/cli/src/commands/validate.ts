@@ -11,6 +11,7 @@ import { join, relative, sep } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 
 import type { CommandContext } from '../cli.ts'
+import { readRetireCapabilitiesMarker } from '../core/change-metadata.ts'
 import {
   archiveDir,
   isValidSchemaVersion,
@@ -176,6 +177,7 @@ function loadChange(base: string, id: string, dir: string): LoadedChange {
     deltaFiles,
     unreadSpecFiles,
     livingSpecs,
+    retireMarker: readRetireCapabilitiesMarker(dir),
   }
 }
 

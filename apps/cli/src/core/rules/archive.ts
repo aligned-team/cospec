@@ -232,6 +232,8 @@ const REBUILT_HINT = {
     'openspec archive retires only a spec this change empties, and a spec that had no requirement to remove is written, then refused ("Spec must have at least one requirement") — add a requirement, or delete the spec by hand',
   unaccounted:
     'openspec archive retires a capability only when deleting its spec loses nothing the merge cannot name — move that content into `## Purpose` or a canonical requirement, or delete the spec by hand',
+  unhonored:
+    'openspec archive honours `retire_capabilities: true` only when the whole .openspec.yaml is valid change metadata and its `schema:` loads — fix what the reason names, or keep a requirement',
   misread:
     'openspec reads the first header titled "Requirements", at any level, as the spec\'s Requirements section ("Spec must have at least one requirement") — rename that header or make it plain text',
   structure:
@@ -296,7 +298,17 @@ function rebuiltSpecIssues(
   // may survive; nothing may sit outside what the merge can name; and only a
   // spec this change emptied is deleted — one with nothing on disk is skipped.
   // Anything else is written, and its validation refuses it.
-  const retireDeclared = change.openspecYaml.retireCapabilities === true
+  // Declared means honoured, as the archive reads the marker
+  // (`readRetireCapabilitiesMarker`): a marker it cannot honour counts as
+  // none, and the refusal says why.
+  const marker = change.retireMarker ?? {
+    declared: change.openspecYaml.retireCapabilities === true,
+  }
+  const retireDeclared = marker.declared
+  const unhonored =
+    marker.invalidReason === undefined
+      ? ''
+      : `; retire_capabilities is set but cannot be honored (${marker.invalidReason})`
   const onlyNoRequirements = found.length > 0 && found.every((i) => i.kind === 'no-requirements')
   const retirable =
     rebuilt.noRequirementBlocks && unaccountedContent.length === 0 && onlyNoRequirements
@@ -350,10 +362,15 @@ function rebuiltSpecIssues(
       else if (!retireDeclared && emptiedByThisRun && blocked)
         report(
           origin,
-          `${base} — this change removes its last requirement, and retiring the capability is refused while ${blockedBy}`,
+          `${base} — this change removes its last requirement, and retiring the capability is refused while ${blockedBy}${unhonored}`,
           REBUILT_HINT.unaccounted,
         )
-      else if (!retireDeclared && emptiedByThisRun) report(origin, base, REBUILT_HINT.requirements)
+      else if (!retireDeclared && emptiedByThisRun)
+        report(
+          origin,
+          `${base}${unhonored}`,
+          unhonored === '' ? REBUILT_HINT.requirements : REBUILT_HINT.unhonored,
+        )
       else report(origin, base, misread ? REBUILT_HINT.misread : REBUILT_HINT.keepOne)
     } else if (issue.kind === 'structure') {
       const origin = originOf(issue.issue.line - 1)

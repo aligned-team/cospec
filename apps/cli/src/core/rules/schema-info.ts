@@ -3,6 +3,7 @@
 // validate command (glue) assembles a LoadedChange from the filesystem + Track B's
 // change discovery and hands it to runCospecRules.
 
+import type { MarkerRead } from '../change-metadata.ts'
 import type { LivingSpec } from '../deltas.ts'
 import { ARTIFACT_FILES, isCospecType, TYPE_FACTS, type TypeFacts } from './type-facts.ts'
 
@@ -119,6 +120,12 @@ export interface LoadedChange {
   unreadSpecFiles: UnreadSpecFileInput[]
   /** living specs by capability (openspec/specs/<cap>/spec.md), parsed. */
   livingSpecs: Map<string, LivingSpec>
+  /**
+   * `retire_capabilities:` as openspec's archive reads it (`readBooleanMarker`,
+   * `core/change-metadata.ts`): set AND honoured, or why not. Absent where the
+   * change was not read from disk; the `openspecYaml` key stands in then.
+   */
+  retireMarker?: MarkerRead
 }
 
 export interface ValidateContext {
