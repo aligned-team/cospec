@@ -559,3 +559,22 @@ red; 4–7 turn it green; 8 documents it.
       (value-taking short takes the rest of its token; boolean short leaves
       `-<rest>` next; `-X=<v>` matches the short); `SHOW_EMPTY`'s never-relayed
       reason names the case (ledger 1.61)
+- [x] 10.78 Round-16 revert (a19a6e1): the success-path reference respell of
+      e9ef302, c0c8cb8, b09c65e and 77608e3 leaves `instructions.ts`,
+      `context.ts`, `forward-relay.ts` and `core/remedies.ts` (each back to its
+      9149694 blob); the allowlist, the enumeration test and every failure-path
+      relay stay; the user-content contract rows compare byte for byte; spec,
+      design decisions 1 and 13, `reference/commands.md`,
+      `docs/architecture.md`, `.agents/shared.md` + `mise run agents:sync`
+      (ledger 1.64)
+- [x] 10.79 `REACHABLE_OWNED` in `support/remedy-sources.ts`: the dist lines a
+      successful relay prints unspelled, each with its relaying command and
+      owning roadmap PR; `remedy-enumeration.test.ts` accepts a line in any of
+      the three categories and fails on one in none (ledger 1.65)
+- [x] 10.80 Round 15's two `--json` success-relay behaviours (a stat warning
+      line ahead of the document relayed as written; an exit-0 answer with no
+      document failing `answered --json with no JSON document`, exit 1) are
+      reverted with 10.78, not kept: the contract's one-document guarantee for a
+      `--json` passthrough is `enforcePassthroughJson`'s, which rejects both
+      stdouts before any relay runs, so neither behaviour was reachable and the
+      spec and `reference/commands.md` state neither
