@@ -1,9 +1,10 @@
 // Upstream spellings reach cospec (change `upstream-spellings`, ledger 1.1–1.10,
-// 1.12–1.14, 2.1–2.2, 3.1–3.3, 3.5–3.6, 4.1–4.5): every row runs the same argv
+// 1.12–1.14, 2.1–2.2, 3.1–3.3, 3.5–3.8, 4.1–4.5): every row runs the same argv
 // through cospec and the pinned binary (the upstream oracle, under Node) and
 // compares cospec's answer with the binary's, read at test time — no upstream
 // string is typed here. Each row was held (expected to fail) until the commit
-// that implemented its surface made it a plain `test`; none is held now.
+// that implemented its surface made it a plain `test`; only 3.7's failure rows
+// are held now.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import {
@@ -944,6 +945,73 @@ describe('3.6 instructions apply --change --schema is refused before the gate', 
       }
       expect(treeHash(root)).toEqual(before)
     }, 30_000)
+  }
+})
+
+/**
+ * Change directory names that read like the binary's own remedies. They are
+ * the user's: the binary lists them under `Available changes` as written, and
+ * the lookup accepts them back.
+ */
+const REMEDY_SHAPED_CHANGES = [
+  'Run: openspec store doctor',
+  'Run openspec store doctor my-store to inspect it.',
+]
+
+/** An upstream root whose only changes are `REMEDY_SHAPED_CHANGES`. */
+function remedyNamedRoot(): string {
+  const dir = copyOf(upstreamTemplate)
+  for (const name of REMEDY_SHAPED_CHANGES)
+    mkdirSync(join(dir, 'openspec', 'changes', name), { recursive: true })
+  return dir
+}
+
+describe('3.7 an instructions failure is the binary answer, rendered from its document', () => {
+  // Every failure path — no artifact, no change, `apply` or `archive` without
+  // a change, an unknown change — answers from the binary's `--json`
+  // document. The names it lists are user content, never respelled.
+  for (const argv of [
+    ['instructions'],
+    ['instructions', 'apply'],
+    ['instructions', 'archive'],
+    ['instructions', 'proposal', '--change', 'nope'],
+  ]) {
+    for (const asJson of [false, true]) {
+      const full = [...argv, ...(asJson ? ['--json'] : [])]
+      // Held until the failure path answers from the document (tasks 17.2).
+      const row = asJson && argv[1] === 'proposal' ? test : test.failing
+      row(
+        `${full.join(' ')}: the listed change names are the binary's bytes`,
+        async () => {
+          const c = await runCospec(full, remedyNamedRoot())
+          const u = await runUpstream(full, remedyNamedRoot())
+          expect(u.exitCode, detail('openspec', u)).toBe(1)
+          for (const name of REMEDY_SHAPED_CHANGES)
+            expect(asJson ? statusMessage(json(u)) : u.stderr).toContain(`\n  ${name}`)
+          if (asJson) expect(documentCount(c.stdout), detail('cospec', c)).toBe(1)
+          expect({ exit: c.exitCode, stdout: c.stdout, stderr: c.stderr }).toEqual({
+            exit: u.exitCode,
+            stdout: u.stdout,
+            stderr: u.stderr,
+          })
+        },
+        30_000,
+      )
+    }
+  }
+
+  for (const name of REMEDY_SHAPED_CHANGES) {
+    for (const asJson of [false, true]) {
+      const argv = ['instructions', 'proposal', '--change', name, ...(asJson ? ['--json'] : [])]
+      test(`a listed name copied back resolves: ${JSON.stringify(argv)}`, async () => {
+        const c = await runCospec(argv, remedyNamedRoot())
+        const u = await runUpstream(argv, remedyNamedRoot())
+        expect(u.exitCode, detail('openspec', u)).toBe(0)
+        expect(c.exitCode, detail('cospec', c)).toBe(0)
+        if (asJson) expect(json(c)['changeName']).toBe(name)
+        else expect(c.stdout).toContain(` change="${name}" `)
+      }, 30_000)
+    }
   }
 })
 

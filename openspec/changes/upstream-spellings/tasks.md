@@ -237,3 +237,17 @@ a time. Group 12 waits for the rebase in group 11.
       `fix(cli): let the binary resolve new change's default schema`
 - [x] 16.4 Record the round-3 evidence (ledger 1.13, 7.5); commit
       `chore(cli): record upstream-spellings round-3 evidence`
+
+## 17. Round-4 review fixes (the rows first, then one fix per commit)
+
+- [x] 17.1 Pin the rows of ledger 3.7 and 3.8 against the binary (failing ones
+      as `test.failing`) and restore `expectReferencesRespelled`'s stderr and
+      `--json` byte assertions (ledger 4.8); commit
+      `test(cli): pin round-4 upstream-spellings rows against the binary`
+- [ ] 17.2 Every `instructions` failure answers from the binary's `--json`
+      document through the shared helper, text rendered from it (ledger 3.7);
+      commit `fix(cli): answer every instructions failure from its document`
+- [ ] 17.3 Docs state the failure path as it now holds (ledger 8.7); commit
+      `docs(cli): document instructions failures built from the document`
+- [ ] 17.4 Record the round-4 evidence (ledger 3.7, 3.8, 4.8, 8.7); commit
+      `chore(cli): record upstream-spellings round-4 evidence`

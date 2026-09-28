@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 
+import { renderJsonDocument } from '../../src/core/passthrough-command.ts'
 import { respellRemedies, respellSchemaLines } from '../../src/core/remedies.ts'
 import {
   cleanupAll,
@@ -510,8 +511,9 @@ describe('a successful context or instructions is relayed byte-for-byte', () => 
 
   /**
    * cospec's `instructions` answer is the binary's with only the reference
-   * fields respelled. `--json`: the documents are equal once the binary's has
-   * those fields respelled. Text: the answers differ in exactly one line per
+   * fields respelled, stderr byte for byte in both modes. `--json`: stdout is
+   * byte for byte the binary's document re-printed with those fields
+   * respelled. Text: the answers differ in exactly one line per
    * respelled field, each that field's `Fetch:`/`Fix:` line, so a user line
    * that copies a reference line byte for byte is never the one rewritten.
    */
@@ -523,10 +525,15 @@ describe('a successful context or instructions is relayed byte-for-byte', () => 
     upRoot: string,
   ): Promise<void> {
     const neutral = (text: string, root: string) => paths(text, root)
+    expect(neutral(co.stderr, coRoot), detail(co)).toBe(neutral(up.stderr, upRoot))
     if (argv.includes('--json')) {
       const upDoc = JSON.parse(neutral(up.stdout, upRoot)) as Record<string, unknown>
+      // The binary's document re-printed as it prints it is its own bytes.
+      expect(renderJsonDocument(upDoc)).toBe(neutral(up.stdout, upRoot))
       expect(documentCount(co.stdout), detail(co)).toBe(1)
-      expect(JSON.parse(neutral(co.stdout, coRoot))).toEqual(withReferenceFieldsRespelled(upDoc))
+      expect(neutral(co.stdout, coRoot), detail(co)).toBe(
+        renderJsonDocument(withReferenceFieldsRespelled(upDoc)),
+      )
       return
     }
     const docRun = await oracle([...argv, '--json'], upRoot, { runtime: 'node' })
