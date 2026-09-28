@@ -206,4 +206,6 @@ trailer, never `--no-verify`).
       30.2), note that `cospec apply` runs fast validation by design (design
       D13). Commit `docs(validate): document the round-5 archive decisions`
 - [x] 11.7 Record the round-5 evidence and run `mise run check` (verification
-      30.4). Commit `docs(validate): record round-5 archive-decision evidence`
+      30.4). Commits `docs(validate): record round-5 archive-decision evidence`
+      and `docs(validate): record the round-5 gate on the final tree`, after
+      `fix(validate): name the misread, not the count, when blocks survive`
