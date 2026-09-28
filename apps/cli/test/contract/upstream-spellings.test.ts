@@ -803,13 +803,23 @@ describe('3.3 the new-change hint names cospec', () => {
           ['instructions', 'proposal', '--change', 'nope', '--json'],
           copyOf(upstreamTemplate),
         )
-        const upMessage = statusMessage(json(u))
+        const upDoc = json(u)
+        const upMessage = statusMessage(upDoc)
         expect(upMessage).toContain('Create one with: openspec new change')
         const lead = upMessage.slice(0, upMessage.indexOf('Create one with:'))
         expect(c.exitCode, detail('cospec', c)).toBe(1)
         const text = asJson ? statusMessage(json(c)) : c.stderr
         expect(text).toContain(`${lead}Create one with: cospec new <type> <name>`)
         expect(c.stdout + c.stderr).not.toMatch(BARE_OPENSPEC)
+        // --json: the binary's document, byte for byte, but for that one message.
+        if (asJson) {
+          const status = upDoc['status'] as Record<string, unknown>[]
+          const expected = {
+            status: [{ ...status[0], message: `${lead}Create one with: cospec new <type> <name>` }],
+          }
+          expect(c.stdout).toBe(`${JSON.stringify(expected, null, 2)}\n`)
+          expect(u.stdout).toBe(`${JSON.stringify(upDoc, null, 2)}\n`)
+        }
       },
       30_000,
     )

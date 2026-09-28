@@ -167,9 +167,9 @@ a time. Group 12 waits for the rebase in group 11.
       `REMEDY_SOURCES`; verify ledger 4.4, 4.5 and 4.6
 - [x] 12.6 Commit
       `fix(cli): spell the built-in schema's reference lines through cospec`
-- [ ] 12.7 Route the `instructions` failure path's `Create one with: …` hint
+- [x] 12.7 Route the `instructions` failure path's `Create one with: …` hint
       through the shared helper; verify ledger 3.3
-- [ ] 12.8 Commit
+- [x] 12.8 Commit
       `fix(cli): respell the instructions new-change hint through the shared helper`
 
 ## 13. Docs (`apps/docs/reference/commands.md`, `apps/docs/guide/installation.md`, `apps/docs/.vitepress/parity.data.ts`, `apps/docs/concepts/how-it-relates-to-openspec.md`, `docs/architecture.md`, `.agents/shared.md`)

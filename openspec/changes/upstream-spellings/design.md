@@ -331,9 +331,14 @@ Applies to every artifact except `apply` (the gate) and `archive` (its document
 holds only the user's `context` / `operationGuidance`, relayed as today).
 
 1. Spawn `instructions <artifact> [--change] [--schema] --json` always.
-2. Failure: under `--json`, relay the document through `relayRespelled`
-   (remedies respelled, including `Create one with: …`); in text mode re-run the
-   same argv without `--json` and relay that through `relayRespelled`, so the
+2. Failure: under `--json`, parse the document and pass it through the shared
+   structural respell helper with the field map `status[].message`,
+   `status[].fix` and the whole-value allowlist rule of step 3 (so
+   `Change 'x' not found. No changes exist. Create one with: openspec new change <name>`,
+   one allowlisted sentence, names `cospec new <type> <name>`), then re-print
+   it; in text mode re-run the same argv without `--json` — in the same
+   directory with the same flags, without selecting the root again, so no
+   resolver line prints twice — and relay that through `relayRespelled`, so the
    failure text stays the binary's (`✖ Error: …`, its `Fix:` line) exactly as
    `unknown-option-contract` pinned it. The call is read-only, so the second run
    changes nothing.

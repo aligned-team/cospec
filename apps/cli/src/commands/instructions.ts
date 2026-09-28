@@ -15,7 +15,7 @@ import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { isCospecType } from '../core/change.ts'
 import { commandRow, flagValue, hasFlag, parseCommandArgs } from '../core/command-table.ts'
-import { relayRespelled } from '../core/forward-relay.ts'
+import { relayRespelled, relayStorePathRefusal } from '../core/forward-relay.ts'
 import {
   type InstructionsDocument,
   renderInstructionsText,
@@ -23,7 +23,13 @@ import {
   respellInstructionsDocument,
 } from '../core/instructions-render.ts'
 import { runOpenspec } from '../core/openspec.ts'
-import { callPassthrough, renderJsonDocument } from '../core/passthrough-command.ts'
+import {
+  callPassthrough,
+  type CommandField,
+  renderJsonDocument,
+  respellCommandFields,
+} from '../core/passthrough-command.ts'
+import { respellRemedies } from '../core/remedies.ts'
 import { run as applyRun } from './apply.ts'
 
 const APPLY_SCHEMA_REFUSAL =
@@ -86,13 +92,19 @@ export async function run(ctx: CommandContext): Promise<number> {
   return documentBuilt(ctx, command, args)
 }
 
+/** The command-bearing fields of the binary's failure document. */
+const FAILURE_FIELDS: readonly CommandField[] = [
+  { path: ['status', '[]', 'message'], rule: 'remedy' },
+  { path: ['status', '[]', 'fix'], rule: 'remedy' },
+]
+
 /**
  * An artifact's answer from one `--json` spawn: on success the document with
  * its command-bearing fields spelled through cospec, re-printed under
  * `--json` or rendered as the binary's text; on failure the binary's own
- * answer — its document, or, in text mode, the same argv again without
- * `--json` (read-only) — relayed with its remedies spelled, so the failure
- * text stays the binary's.
+ * answer — its document with the failure fields spelled through cospec, or,
+ * in text mode, the same argv again without `--json` (read-only) relayed with
+ * its remedies spelled, so the failure text stays the binary's.
  */
 async function documentBuilt(
   ctx: CommandContext,
@@ -100,8 +112,16 @@ async function documentBuilt(
   args: string[],
 ): Promise<number> {
   const { result, root, rerun } = await callPassthrough(ctx, { command, args, wrappedJson: true })
-  if (result.exitCode !== 0)
-    return relayRespelled(ctx.flags.json ? result : await rerun({ json: false }), ctx.flags.json)
+  if (result.exitCode !== 0) {
+    if (!ctx.flags.json) return relayRespelled(await rerun({ json: false }), false)
+    const refused = relayStorePathRefusal(result, true)
+    if (refused !== undefined) return refused
+    if (result.stdout.trim() === '') return relayRespelled(result, true)
+    const doc = JSON.parse(result.stdout) as unknown
+    process.stdout.write(renderJsonDocument(respellCommandFields(doc, FAILURE_FIELDS)))
+    if (result.stderr.length > 0) process.stderr.write(respellRemedies(result.stderr))
+    return EXIT.failure
+  }
   let doc = respellInstructionsDocument(JSON.parse(result.stdout) as InstructionsDocument)
   if (await resolvesFromPackage(doc.schemaName, root?.base ?? ctx.cwd))
     doc = respellBuiltInSchemaLines(doc)
