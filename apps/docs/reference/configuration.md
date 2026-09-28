@@ -215,14 +215,19 @@ prototype-pollution guard as OpenSpec answers, its remedies spelled `cospec`
   `cospec config reset --all`), `--scope project`
   (`Error: Project-local config is not yet implemented`) — gets OpenSpec's
   refusal instead of the menu. `reset --all` tests for a TTY on stdin, which its
-  confirm reads: with none it runs piped and cospec's stdin reaches the confirm
-  as it reaches OpenSpec's. An answer already waiting on the pipe when the
-  prompt is drawn (`echo y | …`, `echo n | …`) is discarded, so it and an empty
-  stdin (`</dev/null`) are cancelled — `Reset cancelled.`, exit `130`, nothing
-  reset; an answer that arrives after the prompt (`(sleep 1; echo y) | …`,
-  `yes | …`) is taken — `y` resets, `n` prints `Reset cancelled.`, exit `0`.
-  Pass `-y` to reset from a script. `edit` has no non-interactive branch and
-  always hands over.
+  confirm reads: with none it runs piped and cospec forwards its stdin to the
+  confirm unmodified. An empty stdin (`</dev/null`) is cancelled —
+  `Reset cancelled.`, exit `130`, nothing reset; an answer that arrives after
+  the prompt (`(sleep 3; echo y) | …`, `yes | …`) is taken — `y` resets, `n`
+  prints `Reset cancelled.`, exit `0` — as OpenSpec answers each. An answer
+  already waiting on the pipe when the prompt is drawn (`echo y | …`,
+  `echo n | …`) gets no single answer from OpenSpec: whether it takes one
+  depends on timing, as its first-run telemetry work can delay the prompt past
+  the answer (taken with telemetry at its default, cancelled with exit `130`
+  under `OPENSPEC_TELEMETRY=0`). cospec's answer is fixed: it takes the waiting
+  answer — `echo y |` resets, `echo n |` prints `Reset cancelled.`, exit `0`
+  either way. Pass `-y` to reset from a script. `edit` has no non-interactive
+  branch and always hands over.
 
 A prompt given no input — Ctrl-D at a handed-over prompt, or an ended pipe — is
 cancelled as OpenSpec cancels it under Node: its cancellation line

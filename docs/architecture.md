@@ -379,18 +379,19 @@ binary's own interactivity test — `workset open` ports `isInteractive`
 stdout and `config reset --all` tests stdin, which its confirm reads — and where
 it fails the call runs piped, declared exit codes and a post-condition, its
 answer relayed respelled and its exit code returned (`reset --all` forwards
-cospec's stdin to its confirm from the prompt on: what was already waiting on
-the pipe is dropped, as the binary's confirm under Node never sees it, and a
-closed input cancels it — `130`, nothing reset; the prompt's SGR colour, which
-Bun's `styleText` emits on a pipe where Node's emits none, is stripped from the
-relay); then a read-only pre-flight — `workset list --json` (a list that itself
-refuses, exit 1 or an error in its `status[]` such as an unreadable worksets
-file, an unsaved name, or a workset with no member folder — every `stat` failure
-that means the path is not a usable folder counted as none, as the binary counts
-it — is answered through the piped call) and a piped `config profile` (any
-refusal but the interactive-mode one is relayed; only that one clears the
-handover). `config edit` has no non-interactive branch and always hands over.
-Every handover env sets `OPENSPEC_TELEMETRY=0` and `OPENSPEC_NO_COMPLETIONS=1`.
+cospec's stdin to its confirm unmodified, the confirm deciding what it takes —
+an answer already waiting on the pipe is taken, where the binary's own answer to
+one depends on its telemetry timing — and a closed input cancels it — `130`,
+nothing reset; the prompt's SGR colour, which Bun's `styleText` emits on a pipe
+where Node's emits none, is stripped from the relay); then a read-only
+pre-flight — `workset list --json` (a list that itself refuses, exit 1 or an
+error in its `status[]` such as an unreadable worksets file, an unsaved name, or
+a workset with no member folder — every `stat` failure that means the path is
+not a usable folder counted as none, as the binary counts it — is answered
+through the piped call) and a piped `config profile` (any refusal but the
+interactive-mode one is relayed; only that one clears the handover).
+`config edit` has no non-interactive branch and always hands over. Every
+handover env sets `OPENSPEC_TELEMETRY=0` and `OPENSPEC_NO_COMPLETIONS=1`.
 
 Every handover, and the piped `config reset --all`, runs the binary behind a
 preload (`core/handover-preload.ts`, `--preload <file>` ahead of the bin path,

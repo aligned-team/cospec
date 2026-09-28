@@ -112,9 +112,10 @@ config with a read-only `config list --json` first, relaying the binary's
 unreadable-config refusal, respelled, without handing over. `config reset --all`
 without `-y`, when cospec's stdin is not a TTY (the binary's own test, its
 confirm reading stdin), SHALL run as a piped call that forwards cospec's stdin
-to the confirm as the binary under Node reads it: input already waiting when the
-prompt is drawn is discarded, input that arrives after is taken, and a closed
-input cancels the prompt with exit `130`.
+to the confirm unmodified: input that arrives after the prompt is drawn is taken
+and a closed input cancels the prompt with exit `130`, as the binary answers
+each under Node with telemetry off; input already waiting when the prompt is
+drawn, which the binary answers by timing, is taken.
 
 #### Scenario: Editing hands the terminal to the editor
 
@@ -131,9 +132,16 @@ input cancels the prompt with exit `130`.
 #### Scenario: A piped answer reaches the reset confirm as it reaches the binary's
 
 - **WHEN** `cospec config reset --all` runs with stdin a pipe
-- **THEN** `echo y |` and `</dev/null` cancel it with `Reset cancelled.` and
-  exit `130`, resetting nothing, and `(sleep 1; echo y) |` resets the global
-  config with exit `0`, as the binary answers each under Node
+- **THEN** `</dev/null` cancels it with `Reset cancelled.` and exit `130`,
+  resetting nothing, and `(sleep 3; echo y) |` resets the global config with
+  exit `0`, as the binary answers each under Node with telemetry off
+
+#### Scenario: An answer already waiting on the pipe is taken
+
+- **WHEN** `cospec config reset --all` runs with `y` or `n` already waiting on
+  its stdin pipe when the prompt is drawn
+- **THEN** `echo y |` resets the global config and `echo n |` prints
+  `Reset cancelled.`, resetting nothing, each with exit `0`
 
 #### Scenario: A non-TTY caller gets upstream's own refusal
 

@@ -306,29 +306,34 @@ pre-validation suite pins the binary's half of each.
 
 **D14 — `config reset --all` piped forwards cospec's stdin to the confirm.**
 With no TTY on stdin the piped call runs with the child's stdin a pipe cospec
-feeds from its own (`SpawnShape.input`), so `echo y | cospec config reset --all`
-answers the confirm as it answers the binary's. Under Node the confirm discards
-an answer already waiting on the pipe when it is drawn and takes one that
-arrives after: the pinned `@inquirer/core` (`create-prompt.js`) defers its first
-render, and so its keypress handlers, by one `setImmediate` on a readable input,
-so data readline reads as it resumes the stream flows through with no handler
-(Inquirer.js#1303). Under Bun that data reaches the handlers, so it takes both.
-cospec therefore drops every chunk it reads before the child prints its first
-stdout chunk — the prompt — and forwards every chunk after, ending the child's
-stdin when its own ends and stopping the pump once the child exits (a write the
-exited child can no longer take ends it; only `EPIPE` is caught). Probed against
-the binary under Node, each case matches: `echo y |`, `echo n |` and
-`</dev/null` cancel (130, `Reset cancelled.`, nothing reset);
-`(sleep 1; echo y) |` and `yes |` reset (exit 0); `(sleep 1; echo n) |` answers
-no (exit 0, nothing reset). The contract suite pins every case against the
-binary — stdout byte for byte, but for `yes |`, whose count of prompt redraws
-before the input closes no run fixes, under Node as under cospec, where its
-answer line is compared; its late answers wait 3s rather than 1s, so a slow
-runner has drawn cospec's prompt first. No Bun-only residual remains. The
-prompt's SGR escapes are stripped from the relay: the binary's prompts style
-through `node:util` `styleText`, which under Node emits none on a pipe and under
-Bun emits them regardless of `NO_COLOR`/`--no-color`; its cursor controls, which
-Node prints too, are kept.
+feeds from its own (`SpawnShape.input`), unmodified: every chunk is forwarded as
+it is read, whenever it arrives, and the child's own confirm decides what it
+takes. cospec ends the child's stdin when its own ends and stops the pump once
+the child exits (a write the exited child can no longer take ends it; only
+`EPIPE` is caught). Probed against the binary under Node with telemetry off, as
+cospec runs it, and pinned by the contract suite, each deterministic case
+matches: `</dev/null` cancels (130, `Reset cancelled.`, nothing reset);
+`(sleep 3; echo y) |` and `yes |` reset (exit 0); `(sleep 3; echo n) |` answers
+no (exit 0, nothing reset) — stdout byte for byte, but for `yes |`, whose count
+of prompt redraws before the input closes no run fixes, under Node as under
+cospec, where its answer line is compared; its late answers wait 3s, so a slow
+runner has drawn cospec's prompt first. An answer already waiting on the pipe
+when the prompt is drawn (`echo y |`, `echo n |`) has no single binary answer to
+match: under Node the binary's answer to it depends on timing. With telemetry at
+its default, the first-run telemetry work delays the prompt and the waiting
+answer is taken (`echo y |` resets, exit 0; `echo n |` exit 0, nothing reset);
+with `OPENSPEC_TELEMETRY=0` it is not (exit 130, `Reset cancelled.`, nothing
+reset). The contract suite runs the binary both ways and asserts only that the
+two answers differ — the race is upstream's. cospec forces telemetry off but
+runs the binary under Bun, whose confirm takes the waiting answer, so cospec's
+answer is fixed and declared: `echo y |` resets (exit 0,
+`Configuration reset to defaults`) and `echo n |` answers no (exit 0,
+`Reset cancelled.`, nothing reset) — the answer of the binary with its telemetry
+at the default, stdout byte for byte, 5 of 5 probe runs each. It is declared in
+the docs, not in `exceptions.yaml`. The prompt's SGR escapes are stripped from
+the relay: the binary's prompts style through `node:util` `styleText`, which
+under Node emits none on a pipe and under Bun emits them regardless of
+`NO_COLOR`/`--no-color`; its cursor controls, which Node prints too, are kept.
 
 **D15 — The handover preload.** Every terminal handover (`workset open`,
 `config edit`/`profile`/`reset --all`) and the piped `config reset --all` run

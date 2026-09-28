@@ -332,3 +332,20 @@ binary under Node, and the fix flips it.
       `fix(cli): forward stdin to the piped reset --all once it prompts`
 - [x] 12.4 State the round-3 behaviour in design, spec and docs; commit
       `docs(cli): record the round-3 preload fallback and stdin forwarding`
+
+## 13. Review round 4
+
+Files: `apps/cli/src/core/openspec.ts`, `handover-prevalidation.test.ts`, design
+D14, the `openspec-config-passthrough` spec,
+`apps/docs/reference/configuration.md`, `docs/architecture.md`. Rows land first
+(declared rows as `test.failing`), and the fix flips them.
+
+- [x] 13.1 Forward cospec's stdin to the piped `config reset --all` unmodified,
+      with no cospec-side dropping before the prompt; pin the deterministic
+      feeds as parity rows against the binary with telemetry off, the
+      typed-ahead feeds as cospec's declared answer, and the binary's
+      telemetry-dependent answer to typed-ahead input (design D14); commits
+      `test(cli): pin typed-ahead reset --all answers as cospec's own`,
+      `fix(cli): forward stdin to the piped reset --all unmodified`
+- [x] 13.2 State the round-4 behaviour in design, spec and docs; commit
+      `docs(cli): record the piped reset --all typed-ahead answer`
