@@ -25,6 +25,7 @@ import {
   jsonRefusal,
   takesNextToken,
 } from './core/command-table.ts'
+import { RootSelectionError, rootSelectionDocument } from './core/root.ts'
 
 /** Global flags accepted before or after the subcommand on every command. */
 export interface GlobalFlags {
@@ -638,7 +639,16 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
     cwd,
     ...(result?.ok === true ? { parsed: result.parsed } : {}),
   }
-  const code = await mod.run(ctx)
+  let code: number
+  try {
+    code = await mod.run(ctx)
+  } catch (error) {
+    // A `--json` caller is owed one document for a resolver hard-error too;
+    // every other failure keeps the top-level prose.
+    if (!(state.json && error instanceof RootSelectionError)) throw error
+    process.stdout.write(rootSelectionDocument(error))
+    return EXIT.failure
+  }
   return typeof code === 'number' ? code : EXIT.success
 }
 

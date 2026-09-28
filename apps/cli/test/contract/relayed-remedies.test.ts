@@ -329,31 +329,90 @@ describe('status of a legacy-schema change relays the binary status through cosp
 })
 
 describe("the binary's no-root answer names cospec init", () => {
-  const cases: { argv: string[]; store: boolean }[] = [
-    { argv: ['context'], store: false },
-    { argv: ['context', '--json'], store: false },
-    { argv: ['context'], store: true },
-    { argv: ['context', '--json'], store: true },
-    { argv: ['show', 'x'], store: true },
-    { argv: ['show', 'x', '--json'], store: true },
-    { argv: ['instructions', 'proposal', '--change', 'x'], store: true },
-    { argv: ['instructions', 'proposal', '--change', 'x', '--json'], store: true },
-  ]
-  for (const { argv, store } of cases) {
-    test(`${argv.join(' ')}${store ? ' (a store registered)' : ''}`, async () => {
-      const coRoot = rootless(store)
-      const upRoot = rootless(store)
+  // With no store registered, cospec's resolver hands the command an implicit
+  // root and the binary's own no-root answer is relayed, respelled.
+  for (const argv of [['context'], ['context', '--json']]) {
+    test(
+      argv.join(' '),
+      async () => {
+        const coRoot = rootless(false)
+        const upRoot = rootless(false)
+        const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+        const up = await oracle(argv, upRoot, { runtime: 'node' })
+        expect(up.stdout + up.stderr).toMatch(/[Rr]un openspec init/)
+        expect(co.exitCode, detail(co)).toBe(up.exitCode)
+        expect(documentCount(co.stdout)).toBe(documentCount(up.stdout))
+        const paths = (text: string, root: string): string => text.replaceAll(root, '<root>')
+        expect(paths(co.stdout, coRoot), detail(co)).toBe(viaCospecInit(paths(up.stdout, upRoot)))
+        expect(paths(co.stderr, coRoot), detail(co)).toBe(viaCospecInit(paths(up.stderr, upRoot)))
+        expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
+      },
+      30_000,
+    )
+  }
+})
+
+describe('with a store registered, the resolver gives the no-root answer', () => {
+  // root-resolution-parity ports upstream's `no_root_with_registered_stores`
+  // into cospec's resolver, so the command fails before any spawn: in human
+  // mode with the binary's message and Fix line after `cospec: ` (where the
+  // binary prints `Error: ` or `✖ Error: `), and under --json as the one
+  // `{"status": [diagnostic]}` document (design D12) — byte-for-byte the
+  // binary's own where its document is that envelope alone.
+  const human = [['context'], ['show', 'x'], ['instructions', 'proposal', '--change', 'x']]
+  for (const argv of human) {
+    test(`${argv.join(' ')} (a store registered)`, async () => {
+      const coRoot = rootless(true)
+      const upRoot = rootless(true)
       const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
       const up = await oracle(argv, upRoot, { runtime: 'node' })
       expect(up.stdout + up.stderr).toMatch(/[Rr]un openspec init/)
       expect(co.exitCode, detail(co)).toBe(up.exitCode)
-      expect(documentCount(co.stdout)).toBe(documentCount(up.stdout))
-      const paths = (text: string, root: string): string => text.replaceAll(root, '<root>')
-      expect(paths(co.stdout, coRoot), detail(co)).toBe(viaCospecInit(paths(up.stdout, upRoot)))
-      expect(paths(co.stderr, coRoot), detail(co)).toBe(viaCospecInit(paths(up.stderr, upRoot)))
+      expect(co.stdout, detail(co)).toBe(up.stdout)
+      expect(co.stderr, detail(co)).toBe(
+        viaCospecInit(up.stderr.replace(/^(?:✖ )?Error: /, 'cospec: ')),
+      )
       expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
     }, 30_000)
   }
+
+  const json = [
+    ['show', 'x', '--json'],
+    ['instructions', 'proposal', '--change', 'x', '--json'],
+  ]
+  for (const argv of json) {
+    test(`${argv.join(' ')} (a store registered)`, async () => {
+      const coRoot = rootless(true)
+      const upRoot = rootless(true)
+      const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+      const up = await oracle(argv, upRoot, { runtime: 'node' })
+      expect(up.stdout + up.stderr).toMatch(/[Rr]un openspec init/)
+      expect(co.exitCode, detail(co)).toBe(up.exitCode)
+      expect(Object.keys(JSON.parse(up.stdout) as object)).toEqual(['status'])
+      expect(co.stdout, detail(co)).toBe(viaCospecInit(up.stdout))
+      expect(co.stderr, detail(co)).toBe(up.stderr)
+      expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
+    }, 30_000)
+  }
+
+  test('context --json (a store registered)', async () => {
+    const coRoot = rootless(true)
+    const upRoot = rootless(true)
+    const co = await cospec(['context', '--json'], { cwd: coRoot, env: oracleEnv(coRoot) })
+    const up = await oracle(['context', '--json'], upRoot, { runtime: 'node' })
+    expect(co.exitCode, detail(co)).toBe(up.exitCode)
+    expect(co.stderr, detail(co)).toBe(up.stderr)
+    const upDoc = JSON.parse(up.stdout) as { status: unknown[] }
+    // The binary's document also carries context's own null payload; the
+    // per-command failure keys are cli-surface-parity's (design D12), so the
+    // difference is pinned exactly here and fails the moment either side moves.
+    expect(Object.keys(upDoc)).toEqual(['root', 'members', 'status'])
+    expect(upDoc).toMatchObject({ root: null, members: [] })
+    expect(co.stdout, detail(co)).toBe(
+      `${JSON.stringify({ status: JSON.parse(viaCospecInit(JSON.stringify(upDoc.status))) }, null, 2)}\n`,
+    )
+    expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
+  }, 30_000)
 })
 
 describe('a successful context or instructions is relayed byte-for-byte', () => {

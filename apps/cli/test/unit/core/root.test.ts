@@ -8,6 +8,8 @@ import {
   localRoot,
   readDefaultStore,
   resolveRoot,
+  RootSelectionError,
+  rootSelectionDocument,
   type RootSource,
 } from '../../../src/core/root.ts'
 
@@ -953,4 +955,40 @@ describe('resolveRoot — unknown --store', () => {
       expect(diagnostic.target).toBe('store.id')
     })
   }, 15_000)
+})
+
+describe('rootSelectionDocument (design D12)', () => {
+  test('prints the diagnostic as the one status document, keys in upstream order', () => {
+    const error = new RootSelectionError({
+      fix: 'Run cospec init.',
+      target: 'openspec.root',
+      message: 'No root.',
+      code: 'no_root_with_registered_stores',
+    })
+    expect(rootSelectionDocument(error)).toBe(
+      '{\n  "status": [\n    {\n      "severity": "error",\n' +
+        '      "code": "no_root_with_registered_stores",\n      "message": "No root.",\n' +
+        '      "target": "openspec.root",\n      "fix": "Run cospec init."\n    }\n  ]\n}\n',
+    )
+  })
+
+  test('a diagnostic with no fix has no fix key', () => {
+    const error = new RootSelectionError({
+      code: 'directory_not_found',
+      message: 'directory not found: /x',
+      target: 'cwd',
+    })
+    const doc = JSON.parse(rootSelectionDocument(error)) as { status: object[] }
+    expect(doc).toEqual({
+      status: [
+        {
+          severity: 'error',
+          code: 'directory_not_found',
+          message: 'directory not found: /x',
+          target: 'cwd',
+        },
+      ],
+    })
+    expect(Object.keys(doc.status[0]!)).not.toContain('fix')
+  })
 })

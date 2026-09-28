@@ -1053,6 +1053,27 @@ describe('a nonexistent --cwd fails cleanly (ledger 1.29)', () => {
       const missing = join(parent, 'nope')
       const res = await cospec([...argv, '--cwd', missing], { cwd: parent, env: sb.env })
       expect(res.exitCode).toBe(1)
+      if (argv.includes('--json')) {
+        // Under --json the same diagnostic is the one status document (ledger 5.4).
+        expect(res.stdout).toBe(
+          `${JSON.stringify(
+            {
+              status: [
+                {
+                  severity: 'error',
+                  code: 'directory_not_found',
+                  message: `directory not found: ${missing}`,
+                  target: 'cwd',
+                },
+              ],
+            },
+            null,
+            2,
+          )}\n`,
+        )
+        expect(res.stderr).toBe('')
+        return
+      }
       expect(res.stdout).toBe('')
       expect(res.stderr).toBe(`cospec: directory not found: ${missing}\n`)
       const rest = res.stderr.replace(missing, '<missing>')
@@ -1067,5 +1088,71 @@ describe('a nonexistent --cwd fails cleanly (ledger 1.29)', () => {
     expect(res.stderr).toBe(
       `cospec: directory not found: ${join(canonical(parent), 'gone', 'deeper')}\n`,
     )
+  })
+})
+
+// --- Ledger 5.4: a resolver hard-error under --json is one status document ---
+
+describe('a resolver hard-error under --json is one status document (ledger 5.4)', () => {
+  const cases: {
+    id: string
+    stores?: readonly string[]
+    argv: string[]
+    setup: (sb: Sandbox) => string
+    code: string
+  }[] = [
+    { id: 'M15', argv: ['list', '--json'], setup: bare, code: 'no_root_with_registered_stores' },
+    {
+      id: 'M6',
+      argv: ['status', '--json'],
+      setup: (sb) => repo(sb, 'm6', configOnly('store: [unclosed\n')),
+      code: 'invalid_store_pointer',
+    },
+    {
+      id: 'M22',
+      stores: WITH_GAMMA,
+      argv: ['list', '--json', '--store', 'gamma'],
+      setup: (sb) => {
+        removeGammaMetadata(sb)
+        return bare(sb)
+      },
+      code: 'store_identity_mismatch',
+    },
+  ]
+
+  for (const c of cases) {
+    test(`${c.id}: cospec ${c.argv.join(' ')} prints the oracle's diagnostic as one document`, async () => {
+      const sb = await makeSandbox(c.stores)
+      const cwd = c.setup(sb)
+      const o = await oracle(sb, cwd, c.argv)
+      expect(o.exitCode).toBe(1)
+      expect(o.diagnostic?.code).toBe(c.code)
+      const res = await cospec(c.argv, { cwd, env: sb.env })
+      expect(res.exitCode).toBe(1)
+      expect(res.stderr).not.toMatch(/^cospec:/m)
+      const doc = JSON.parse(res.stdout) as { status: RootDiagnostic[] }
+      expect(Object.keys(doc)).toEqual(['status'])
+      expect(doc.status).toHaveLength(1)
+      const d = doc.status[0]!
+      expect(Object.keys(d)).toEqual(['severity', 'code', 'message', 'target', 'fix'])
+      expect(d).toEqual({
+        severity: 'error',
+        code: o.diagnostic!.code,
+        message: respell(o.diagnostic!.message),
+        target: o.diagnostic!.target!,
+        fix: respell(o.diagnostic!.fix ?? ''),
+      })
+      expect(res.stdout).toBe(`${JSON.stringify(doc, null, 2)}\n`)
+      expect(res.stdout).not.toMatch(BARE_OPENSPEC_COMMAND)
+    })
+  }
+
+  test('human mode is unchanged: the same failure is prose on stderr', async () => {
+    const sb = await makeSandbox()
+    const res = await cospec(['list'], { cwd: bare(sb), env: sb.env })
+    expect(res.exitCode).toBe(1)
+    expect(res.stdout).toBe('')
+    expect(res.stderr).toMatch(/^cospec: No OpenSpec root found in the current directory/)
+    expect(res.stderr).toContain('\nFix: ')
   })
 })

@@ -73,6 +73,18 @@ export class RootSelectionError extends Error {
   }
 }
 
+/**
+ * The one `--json` document for a resolver hard-error (design D12): upstream's
+ * `status` envelope carrying the diagnostic, keys in upstream's order and
+ * pretty-printed as the binary prints its own. Only the generic envelope —
+ * each command's own failure keys (`changes: []`, `root: null`) are not here.
+ */
+export function rootSelectionDocument(error: RootSelectionError): string {
+  const { severity, code, message, target, fix } = error.diagnostic
+  const status = [{ severity, code, message, target, ...(fix === undefined ? {} : { fix }) }]
+  return `${JSON.stringify({ status }, null, 2)}\n`
+}
+
 const STORE_METADATA = join('.openspec-store', 'store.yaml')
 const KEBAB_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u
 const KEBAB_ID_FIX = 'Use kebab-case with lowercase letters, numbers, and single hyphen separators.'
