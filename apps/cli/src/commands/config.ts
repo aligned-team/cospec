@@ -66,6 +66,7 @@ import {
   type WrappedCall,
 } from '../core/openspec.ts'
 import { REMEDIES, respellLines, respellRemedies } from '../core/remedies.ts'
+import { assertInvocationDirectory } from '../core/root.ts'
 
 /** The eight subcommands upstream's `config` command defines. */
 export const CONFIG_SUBCOMMANDS = [
@@ -534,6 +535,8 @@ export async function runHandover(
 }
 
 export async function run(ctx: CommandContext): Promise<number> {
+  // No wrapped call may spawn in a directory that is not there (design D10).
+  assertInvocationDirectory(ctx.cwd)
   // `--store` is absorbed as a global flag anywhere after the command name, so
   // silently ignoring it here would be misleading: OpenSpec config is
   // machine-global and has no store dimension at all.

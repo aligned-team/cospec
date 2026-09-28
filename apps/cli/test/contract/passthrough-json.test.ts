@@ -687,6 +687,18 @@ describe('config relays the binary’s own answer and reason (review round 2)', 
 
 // --- 7. a missing working directory ------------------------------------------
 
+/**
+ * cospec run from source with Bun's transpiler cache off: the cache would
+ * otherwise land in the fixture's sandboxed home, and the rows assert the
+ * refusal writes nothing there.
+ */
+function runUncached(argv: string[], root: string): Promise<SpawnResult> {
+  return cospec(argv, {
+    cwd: root,
+    env: { ...oracleEnv(root), BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0' },
+  })
+}
+
 describe('a --cwd that does not exist is refused before any spawn (ledger 7.1, 7.2)', () => {
   const COMMANDS: readonly string[][] = [
     ['store', 'list'],
@@ -697,9 +709,6 @@ describe('a --cwd that does not exist is refused before any spawn (ledger 7.1, 7
     ['schemas'],
   ]
 
-  /** Where the resolver answers already (`root-resolution-parity`); the rest are this change's. */
-  const RESOLVED = new Set(['context', 'doctor', 'schemas'])
-
   /**
    * The command's own empty payload ahead of `status`, as the resolver prints
    * it on a `--json` root-selection failure (`jsonFailurePayload`).
@@ -709,59 +718,38 @@ describe('a --cwd that does not exist is refused before any spawn (ledger 7.1, 7
     schemas: { schemas: [], root: null },
   }
 
-  /**
-   * cospec run from source with Bun's transpiler cache off: the cache would
-   * otherwise land in the fixture's sandboxed home, and the rows assert the
-   * refusal writes nothing there.
-   */
-  function runUncached(argv: string[], root: string): Promise<SpawnResult> {
-    return cospec(argv, {
-      cwd: root,
-      env: { ...oracleEnv(root), BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0' },
-    })
-  }
-
   for (const command of COMMANDS) {
-    const row = RESOLVED.has(command[0]!) ? test : test.failing
-    row(
-      `${command.join(' ')} --cwd <missing>: the resolver's text refusal`,
-      async () => {
-        const root = plainRoot()
-        const missing = join(root, 'no-such-dir')
-        const tree = hashTree(root)
-        const co = await runUncached([...command, '--cwd', missing], root)
-        expect(co.exitCode, detail(co)).toBe(1)
-        expect(co.stdout, detail(co)).toBe('')
-        expect(co.stderr, detail(co)).toBe(`cospec: directory not found: ${missing}\n`)
-        expect(hashTree(root)).toEqual(tree)
-      },
-      30_000,
-    )
+    test(`${command.join(' ')} --cwd <missing>: the resolver's text refusal`, async () => {
+      const root = plainRoot()
+      const missing = join(root, 'no-such-dir')
+      const tree = hashTree(root)
+      const co = await runUncached([...command, '--cwd', missing], root)
+      expect(co.exitCode, detail(co)).toBe(1)
+      expect(co.stdout, detail(co)).toBe('')
+      expect(co.stderr, detail(co)).toBe(`cospec: directory not found: ${missing}\n`)
+      expect(hashTree(root)).toEqual(tree)
+    }, 30_000)
 
-    row(
-      `${command.join(' ')} --cwd <missing> --json: the resolver's document`,
-      async () => {
-        const root = plainRoot()
-        const missing = join(root, 'no-such-dir')
-        const tree = hashTree(root)
-        const co = await runUncached([...command, '--cwd', missing, '--json'], root)
-        expect(co.exitCode, detail(co)).toBe(1)
-        expect(documentCount(co.stdout), detail(co)).toBe(1)
-        expect(JSON.parse(co.stdout)).toEqual({
-          ...PAYLOAD[command[0]!],
-          status: [
-            {
-              severity: 'error',
-              code: 'directory_not_found',
-              message: `directory not found: ${missing}`,
-              target: 'cwd',
-            },
-          ],
-        })
-        expect(co.stderr, detail(co)).toBe('')
-        expect(hashTree(root)).toEqual(tree)
-      },
-      30_000,
-    )
+    test(`${command.join(' ')} --cwd <missing> --json: the resolver's document`, async () => {
+      const root = plainRoot()
+      const missing = join(root, 'no-such-dir')
+      const tree = hashTree(root)
+      const co = await runUncached([...command, '--cwd', missing, '--json'], root)
+      expect(co.exitCode, detail(co)).toBe(1)
+      expect(documentCount(co.stdout), detail(co)).toBe(1)
+      expect(JSON.parse(co.stdout)).toEqual({
+        ...PAYLOAD[command[0]!],
+        status: [
+          {
+            severity: 'error',
+            code: 'directory_not_found',
+            message: `directory not found: ${missing}`,
+            target: 'cwd',
+          },
+        ],
+      })
+      expect(co.stderr, detail(co)).toBe('')
+      expect(hashTree(root)).toEqual(tree)
+    }, 30_000)
   }
 })

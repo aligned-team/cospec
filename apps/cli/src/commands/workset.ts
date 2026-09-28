@@ -27,6 +27,7 @@ import { preloadedArgv } from '../core/handover-preload.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
 import { passthroughOpenspec, resolveOpenspec, spawnOpenspec } from '../core/openspec.ts'
 import { respellLines } from '../core/remedies.ts'
+import { assertInvocationDirectory } from '../core/root.ts'
 
 const SUBCOMMANDS = ['create', 'list', 'ls', 'remove'] as const
 type PassthroughSub = (typeof SUBCOMMANDS)[number]
@@ -283,6 +284,8 @@ async function refuseOpenJson(ctx: CommandContext, rest: string[]): Promise<numb
 }
 
 export async function run(ctx: CommandContext): Promise<number> {
+  // No wrapped call may spawn in a directory that is not there (design D10).
+  assertInvocationDirectory(ctx.cwd)
   const { sub, rest, operand } = subcommandOf(ctx.args)
   if (sub === 'open' && !operand) return runWorksetOpen(ctx, rest)
   if (sub !== undefined && !operand && isPassthroughSub(sub))

@@ -35,6 +35,7 @@ import {
   type WrappedCall,
 } from '../core/openspec.ts'
 import { respellRemedies } from '../core/remedies.ts'
+import { assertInvocationDirectory } from '../core/root.ts'
 import { run as runInit } from './init.ts'
 
 const SUBCOMMANDS = ['setup', 'register', 'unregister', 'remove', 'list', 'ls', 'doctor'] as const
@@ -535,6 +536,8 @@ async function runDoctor(ctx: CommandContext, rawArgs: string[]): Promise<number
 // --- entrypoint --------------------------------------------------------
 
 export async function run(ctx: CommandContext): Promise<number> {
+  // No wrapped call may spawn in a directory that is not there (design D10).
+  assertInvocationDirectory(ctx.cwd)
   const { sub, rest, operand } = subcommandOf(ctx.args)
   // No subcommand, an unknown one, an option, or a token after `--`: the
   // binary's own refusal (text, or its one document under `--json`).
