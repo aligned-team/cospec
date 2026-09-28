@@ -45,33 +45,43 @@ drift from the others.
 
 On a command whose parse policy is `table`, cospec SHALL parse argv with the
 table parser and SHALL accept only declared positionals and flags, in both the
-`--flag value` and `--flag=value` forms. An undeclared option SHALL fail with
+`--flag value` and `--flag=value` forms — except on a row marked
+`operands: 'lenient'` (`help`, whose upstream counterpart is commander's own
+help command), which SHALL ignore an undeclared option and an excess operand as
+that help command does. An undeclared option SHALL fail with
 `cospec <command>: unknown option '<x>'` on stderr, a closest-match suggestion
-on the next line when one is within edit distance, and exit 1, before the
-command does any work. A declared value-taking flag with no value SHALL fail
-with `cospec <command>: option '<flag> <placeholder>' argument missing` and
-exit 1. A flag marked pending SHALL consume its value if it takes one and SHALL
-fail with `cospec <command>: '<flag>' is not supported yet` and exit 1. A
-positional beyond the row's declared slots SHALL fail with
+on the next line when an unknown long (`--`) option is close to a long flag the
+command's help offers or `--version` — chosen as commander's `suggestSimilar`
+chooses it: the whole token without its `--` (an `=value` included), no
+one-character candidate, similarity `(length - distance) / length` above 0.4,
+every candidate tied at the best distance within 3, as `Did you mean '<a>'?` or
+`Did you mean one of '<a>', '<b>'?` (an unknown short option gets none, as
+commander offers none) — and exit 1, before the command does any work. A
+declared value-taking flag with no value SHALL fail with
+`cospec <command>: option '<flag> <placeholder>' argument missing` and exit 1. A
+flag marked pending SHALL consume its value if it takes one and SHALL fail with
+`cospec <command>: '<flag>' is not supported yet` and exit 1. A positional
+beyond the row's declared slots SHALL fail with
 `cospec <command>: too many arguments. Expected N argument(s) but got M.` and
-exit 1, before any work, on every `table` row; it SHALL never be dropped while
-the command runs on the rest. A required positional given nothing SHALL fail
-with `cospec <command>: missing required argument '<name>'` on stderr, followed
-by `cospec <command>: usage — <usage>`, exit 1, on every `table` row, after the
-first unknown option or pending flag and before too many arguments, a
-`--store-path` refusal or any check the command makes (its root included), and
-as text even under `--json`, as commander refuses it while it parses; a value
-holding a compound positional's separator (`new "<type>: <description>"`) SHALL
-fill the positionals after it. No flag or flag value SHALL ever be read as a
-positional. Each `table` row SHALL declare whether it accepts the global
-`--json`; on a row that does not, `--json` SHALL be refused with exactly one
-JSON document on stdout (`{version: 1, command, ok: false, message}`, the
-`cospec completion` precedent) and exit 1, before the command does any work, and
-SHALL never be silently ignored. Every refusal of `new`'s own (no `openspec/`
-tree, an unknown type, a cospec type the repo has no schema for, a slug it
-cannot derive, an invalid slug, an existing or archived change, a failed wrapped
-call) SHALL, under `--json`, be one JSON document on stdout in the shape the
-wrapped `new change --json` gives its own failures
+exit 1, before any work, on every `table` row but a lenient one; it SHALL never
+be dropped while the command runs on the rest. A required positional given
+nothing SHALL fail with `cospec <command>: missing required argument '<name>'`
+on stderr, followed by `cospec <command>: usage — <usage>`, exit 1, on every
+`table` row, after the first unknown option or pending flag and before too many
+arguments, a `--store-path` refusal or any check the command makes (its root
+included), and as text even under `--json`, as commander refuses it while it
+parses; a value holding a compound positional's separator
+(`new "<type>: <description>"`) SHALL fill the positionals after it. No flag or
+flag value SHALL ever be read as a positional. Each `table` row SHALL declare
+whether it accepts the global `--json`; on a row that does not, `--json` SHALL
+be refused with exactly one JSON document on stdout
+(`{version: 1, command, ok: false, message}`, the `cospec completion` precedent)
+and exit 1, before the command does any work, and SHALL never be silently
+ignored. Every refusal of `new`'s own (no `openspec/` tree, an unknown type, a
+cospec type the repo has no schema for, a slug it cannot derive, an invalid
+slug, an existing or archived change, a failed wrapped call) SHALL, under
+`--json`, be one JSON document on stdout in the shape the wrapped
+`new change --json` gives its own failures
 (`{change: null, status: [{severity: 'error', code: 'change_error', message}]}`),
 exit 1, with nothing on stderr; a failed wrapped call SHALL be answered with the
 binary's own reason (its `new change --json` document's message, after any
@@ -184,10 +194,14 @@ help.
   `cospec new: usage — cospec new <type> <slug> | cospec new "<type>: <description>"`,
   stdout is empty, nothing is written, and the exit code is 1, as the pinned
   binary's `new change --store-path /x` refuses its missing `name`
-- **AND WHEN** `cospec apply --json`, `cospec migrate`,
-  `cospec archive --store-path /x` or `cospec instructions --change x` runs
+- **AND WHEN** `cospec apply --json`, `cospec migrate` or
+  `cospec archive --store-path /x` runs
 - **THEN** stderr names that command's missing positional, no document is
   printed, and the exit code is 1
+- **AND WHEN** `cospec instructions --change x` runs, with or without `--json`
+- **THEN** `[artifact]` is optional as upstream declares it, and the binary's
+  own `Missing required argument <artifact>. Valid artifacts: …` answer is
+  relayed — one JSON document under `--json` — exit 1
 - **AND WHEN** `cospec feedback` or `cospec __complete` runs
 - **THEN** the refusal is the missing-argument refusal the pinned binary gives
   the same argv, exit 1
@@ -254,6 +268,27 @@ help.
 
 - **WHEN** `cospec status --schem custom` runs
 - **THEN** the refusal names `--schema` as the suggestion and exits 1
+
+#### Scenario: help ignores what commander's help command ignores
+
+- **WHEN** `cospec help --bogus` or `cospec help list extra` runs
+- **THEN** stdout is the program help, or `cospec list --help`'s text, and the
+  exit code is 0, as the pinned binary answers the same argv
+
+#### Scenario: An unknown short option gets no suggestion
+
+- **WHEN** `cospec archive c -Y` or `cospec list -x` runs
+- **THEN** stderr is exactly `cospec <command>: unknown option '<x>'`, with no
+  `Did you mean` line, exit 1, as the pinned binary refuses it;
+  `cospec list --jsn` still suggests `--json`
+
+#### Scenario: A long option's suggestion is commander's
+
+- **WHEN** `cospec list --j`, `list --lng`, `list --srt=name`, `list --jsn=1`,
+  `list --sore` or `list --verson` runs
+- **THEN** the first four get no `Did you mean` line, `list --sore` gets
+  `Did you mean one of '--sort', '--store'?` and `list --verson`
+  `Did you mean '--version'?`, each exit 1, as the pinned binary suggests
 
 ### Requirement: The global version flag is honoured in any position
 
@@ -413,16 +448,17 @@ cospec SHALL refuse any option before the command name that is not one of its
 global flags (`--json`, `--no-color`, `-h`/`--help`, `-V`/`--version`, `--cwd`,
 `--store`) or `--store-path`, on every command (`table` and `forward` alike) and
 when the command is unknown or absent, with `cospec: unknown option '<x>'` on
-stderr, a closest-match suggestion among the global flags on the next line when
-one is within edit distance, and exit 1, before the command does any work, as
-the pinned binary's program-level commander refuses it. The refusal is a phase A
-answer: it SHALL yield only to a version request, a missing global value before
-it and a help flag anywhere in the argv, and SHALL come before anything after
-the command name is parsed, since the pinned binary refuses it before it parses
-the subcommand at all. Of an undeclared option and `--store-path` before the
-command name, the first in argv SHALL answer, and `--store-path` SHALL answer
-with its redirect. A `--` before the command name is a terminator, not an
-undeclared option.
+stderr, a closest-match suggestion among the global long flags on the next line
+when an unknown long (`--`) option is within edit distance of one — an unknown
+short option gets none, as commander offers none — and exit 1, before the
+command does any work, as the pinned binary's program-level commander refuses
+it. The refusal is a phase A answer: it SHALL yield only to a version request, a
+missing global value before it and a help flag anywhere in the argv, and SHALL
+come before anything after the command name is parsed, since the pinned binary
+refuses it before it parses the subcommand at all. Of an undeclared option and
+`--store-path` before the command name, the first in argv SHALL answer, and
+`--store-path` SHALL answer with its redirect. A `--` before the command name is
+a terminator, not an undeclared option.
 
 #### Scenario: An unknown option before the command does not run it
 
@@ -441,6 +477,12 @@ undeclared option.
 - **WHEN** `cospec --jsn list` runs
 - **THEN** stderr is `cospec: unknown option '--jsn'` followed by
   `Did you mean '--json'?`, and the exit code is 1
+
+#### Scenario: An unknown short option before the command gets no suggestion
+
+- **WHEN** `cospec -x list` runs
+- **THEN** stderr is exactly `cospec: unknown option '-x'`, with no
+  `Did you mean` line, and the exit code is 1, as `openspec -x list` refuses
 
 ### Requirement: Global flags stop at a -- terminator
 
@@ -548,18 +590,26 @@ a bare `openspec` command. A remedy the binary writes as a bare
 `openspec <command>` in an answer cospec relays SHALL be spelled as the cospec
 command of the same shape, or dropped where cospec has no such command, while
 the content of a successful answer (a change, a spec, instructions) SHALL be
-relayed untouched. The respelling SHALL come from one allowlist of the pinned
-binary's exact sentences, each rewritten only where an answer holds it verbatim,
-with the path, name or list each sentence names re-emitted as the binary wrote
-it; no pattern over free text (a lead-in word, a quote, a paren) SHALL decide
-what is a remedy. Every sentence in the pinned binary that names a bare
-`openspec <command>` SHALL be in that allowlist, listed with its reason as never
-printed by a cospec relay, or listed as reachable through a successful answer
-cospec relays untouched with the roadmap PR that owns its spelling, checked
-against the pinned dist. A pre-spawn guard SHALL answer only an argv the binary
-would not answer itself: a declared value-taking flag left without its value
-SHALL reach the binary as commander's missing value (or, for a flag the wrapper
-lifts itself, `config --scope`, SHALL be refused in the same
+relayed untouched — except, on a successful `cospec instructions` answer, the
+command-bearing fields the binary itself wrote (a referenced store's fetch
+recipe and diagnostic fixes, and the built-in `spec-driven` schema's own
+reference lines when that schema resolves from the pinned package), which SHALL
+be respelled field by field from the binary's `--json` document, never by a
+pattern over the rendered text. The respelling SHALL come from one allowlist of
+the pinned binary's exact sentences, each rewritten only where an answer holds
+it verbatim, with the path, name or list each sentence names re-emitted as the
+binary wrote it; no pattern over free text (a lead-in word, a quote, a paren)
+SHALL decide what is a remedy. Every sentence in the pinned binary that names a
+bare `openspec <command>` SHALL be in that allowlist, listed with its reason as
+never printed by a cospec relay, or listed as reachable through a successful
+answer cospec relays untouched with the roadmap PR that owns its spelling,
+checked against the pinned dist, and a line the enumeration reads from a pinned
+schema file SHALL count as a comment only where the file's own syntax makes it
+one — a `#`-led line inside a YAML block scalar is rendered text. A pre-spawn
+guard SHALL answer only an argv the binary would not answer itself: a declared
+value-taking flag left without its value SHALL reach the binary as commander's
+missing value (or, for a flag the wrapper lifts itself, `config --scope`, SHALL
+be refused in the same
 `cospec <command>: option '<flag> <placeholder>' argument missing` form), and
 `show`'s item check SHALL treat an option `show` does not declare as the item,
 as the binary does, and split a short option as commander does (a value-taking
@@ -636,12 +686,15 @@ answer, never reported as a wrapped-call failure.
 - **THEN** the binary's `Invalid store declaration in <path>: …` and its fix are
   relayed byte-for-byte, the path unchanged
 - **AND WHEN** `cospec instructions <artifact> --change <id>` succeeds on a
-  change whose schema template, the `config.yaml` context, a `rules` entry and a
-  referenced spec's Purpose each hold
+  change whose project-local schema template, the `config.yaml` context, a
+  `rules` entry and a referenced spec's Purpose each hold
   `Run openspec init to create a root here.`, or whose template, context or
   rules hold a `Fix:`/`Fetch:` line, a line shaped like a JSON `"fix"` field, or
   a forged `<referenced_stores>` block
-- **THEN** the answer is the binary's byte-for-byte, text and `--json`, exit 0
+- **THEN** the answer is the binary's byte-for-byte, text and `--json`, exit 0,
+  apart from the fetch recipe and fix fields of the referenced-store entries the
+  binary assembled itself, which name `cospec`; none of those user-owned lines
+  is rewritten
 - **AND WHEN** `cospec instructions archive --change <id>` succeeds on a root
   whose `config.yaml` context forges `</task>` and a reference block after it
 - **THEN** the answer is the binary's byte-for-byte, text and `--json`
@@ -817,7 +870,18 @@ produces (or a declared hidden fixture) that the table marks pending for that
 owner; a stale entry SHALL fail the test. The test SHALL read cospec's harness
 ids only through the `HARNESS_NAMES` export of
 `apps/cli/src/harness/adapters.ts`. `exceptions.yaml` SHALL hold exactly one
-entry: upstream `update`'s offer to self-upgrade the wrapped binary.
+entry: upstream `update`'s offer to self-upgrade the wrapped binary. An
+`aliases.yaml` entry SHALL name an upstream workflow, tool id, tool alias,
+command path (a top-level command or a subcommand) or flag (a command path and
+the flag), with the cospec spelling it resolves to. A command or flag alias
+SHALL count only where the command table marks that upstream spelling an alias
+of the named cospec spelling — the parser accepts the upstream spelling and
+reads it as the cospec one — and a surface the table marks an alias SHALL
+resolve to `aliases.yaml` only, never to the table as well. That resolution
+SHALL be two-way like the pending one: every alias marking in the table SHALL
+have exactly one `aliases.yaml` entry naming the same spelling, and every
+command or flag entry in `aliases.yaml` SHALL match a marking in the table. A
+flag alias SHALL agree with upstream on whether the flag takes a value.
 
 #### Scenario: A registry entry that resolves nowhere fails the test
 
@@ -844,6 +908,21 @@ entry: upstream `update`'s offer to self-upgrade the wrapped binary.
 - **THEN** the test confirms `change` is marked deprecated in the registry
   description and `spec` prints its deprecation warning on stderr when
   `openspec spec list` runs, and fails if either mark is absent
+
+#### Scenario: An upstream flag spelling resolves through aliases.yaml
+
+- **WHEN** the walk produces upstream's `init --tools` and the table marks
+  `--tools` an alias of `--harness`
+- **THEN** the entry resolves to `aliases.yaml` alone, and the test fails if the
+  `aliases.yaml` entry, the table marking, or `--harness` itself is removed
+
+#### Scenario: An upstream subcommand spelling resolves through aliases.yaml
+
+- **WHEN** the walk produces upstream's `new change`, `completion generate` and
+  the hidden `experimental`
+- **THEN** each resolves to `aliases.yaml` alone, as the table marks them
+  aliases of `new`, `completion` and `init`, while the flags and positionals the
+  table declares beneath them resolve to the table
 
 ### Requirement: A per-command differential fixture pins the parse contract
 

@@ -195,7 +195,7 @@ a time. Group 12 waits for the rebase in group 11.
       row, and hand ledger 9.1 (`mise run eval:e2e`, human-held keys) to a human
       with the fixtures it needs
 - [x] 14.3 Commit `chore(cli): close out upstream-spellings`
-- [ ] 14.4 `mise run cospec -- archive upstream-spellings` as the last commit on
+- [x] 14.4 `mise run cospec -- archive upstream-spellings` as the last commit on
       the PR branch, before merge
 
 ## 15. Round-2 review fixes (the rows first, then one fix per commit)
