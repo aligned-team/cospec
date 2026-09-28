@@ -14,7 +14,7 @@ import {
   SCENARIO_DROP_NOTE_RETIRED,
   scenarioDropMessage,
   type DeltaOp,
-  type LivingSpec,
+  type LivingRequirements,
 } from '../deltas.ts'
 import type { Issue } from './issue.ts'
 import type { LoadedChange } from './schema-info.ts'
@@ -90,7 +90,7 @@ interface ReplayedNames {
 }
 
 function replayDeltaNames(
-  living: LivingSpec | undefined,
+  living: LivingRequirements | undefined,
   ops: readonly DeltaOp[],
   paths: readonly string[],
 ): ReplayedNames {
@@ -166,9 +166,20 @@ export function archiveRules(
     paths: string[]
   }
   const byCap = new Map<string, CapGroup>()
+  /**
+   * The same ops under the `masked` view, for `archive/scenario-preservation`
+   * alone: it is the advisory mirror of the hard archive gate, which reads that
+   * view, and the two must never disagree on one change.
+   */
+  const maskedByCap = new Map<string, DeltaOp[]>()
 
   for (const file of change.deltaFiles) {
-    const parsed = parseDeltaSpec(file.text, file.path, file.capability)
+    // Every other rule here reads the view openspec's archive merges — HTML
+    // comments included (see `ReadView`).
+    const parsed = parseDeltaSpec(file.text, file.path, file.capability, 'verbatim')
+    const masked = maskedByCap.get(file.capability) ?? []
+    masked.push(...parseDeltaSpec(file.text, file.path, file.capability).ops)
+    maskedByCap.set(file.capability, masked)
 
     // archive/no-ops — a delta file with a recognized header but zero parsed
     // operations aborts openspec's merge ("Delta parsing found no operations").
@@ -190,7 +201,9 @@ export function archiveRules(
   }
 
   for (const [capability, group] of byCap) {
-    const living = change.livingSpecs.get(capability)
+    const livingSpec = change.livingSpecs.get(capability)
+    // What the archive merges against: the living spec under the verbatim view.
+    const living = livingSpec?.archive
     const pathFor = (i: number): string => group.paths[i] ?? `specs/${capability}/spec.md`
 
     if (living === undefined) {
@@ -211,11 +224,14 @@ export function archiveRules(
       // skeleton spec it builds for the new capability, so two ADDED names
       // that fold onto each other are refused here exactly as they are against
       // a living spec. Every arm below that reads the living spec is guarded.
-    } else if (!living.hasPurpose || !living.hasRequirements || living.hasDeltaHeaders) {
+    } else if (
+      livingSpec !== undefined &&
+      (!livingSpec.hasPurpose || !livingSpec.hasRequirements || livingSpec.hasDeltaHeaders)
+    ) {
       // archive/target-invalid — the living spec must be a well-formed main spec.
-      const reason = living.hasDeltaHeaders
+      const reason = livingSpec.hasDeltaHeaders
         ? 'it contains delta headers (## ADDED/MODIFIED/… Requirements)'
-        : `it is missing ${!living.hasPurpose ? '## Purpose' : '## Requirements'}`
+        : `it is missing ${!livingSpec.hasPurpose ? '## Purpose' : '## Requirements'}`
       issues.push({
         level: 'ERROR',
         rule: 'archive/target-invalid',
@@ -439,7 +455,7 @@ export function archiveRules(
   // archive/scenario-preservation — the advisory mirror of the hard archive-command
   // step (DESIGN §3.5). WARNING by default, ERROR under --strict; the real block
   // is the explicit `cospec archive` step, never this validate-time rule.
-  const caps = [...byCap.entries()].map(([capability, group]) => ({ capability, ops: group.ops }))
+  const caps = [...maskedByCap.entries()].map(([capability, ops]) => ({ capability, ops }))
   for (const drop of findScenarioDrops(caps, change.livingSpecs)) {
     issues.push({
       level: opts.strict ? 'ERROR' : 'WARNING',

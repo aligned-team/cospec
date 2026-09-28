@@ -1287,26 +1287,23 @@ The system SHALL do a widget thing.
 `
 
 describe('10. the archive family reads what the binary archive reads', () => {
-  test.failing(
-    '10.1 REMOVED X plus ADDED "X <!-- note -->" is accepted, as the binary archives it',
-    async () => {
-      const build = (root: string): void =>
-        buildFeat(root, 'comment-name', { 'widgets/spec.md': REMOVED_AND_ADDED_COMMENT_NAME })
-      const root = mkTempRepo({ git: true })
-      build(root)
-      const archived = await binaryArchive(build, 'comment-name')
-      expect(archived.exitCode).toBe(0)
-      expect(archived.moved).toBe(true)
-      const bin = await binaryIssues(root, 'comment-name')
-      expect(binaryFind(bin, 'Requirement present in both')).toEqual([])
-      const { report, exitCode } = await cospecValidate(root, 'comment-name')
-      expect(byRule(report, 'archive/added-exists')).toEqual([])
-      expect(problems(report)).toEqual([])
-      expect(exitCode).toBe(0)
-    },
-  )
+  test('10.1 REMOVED X plus ADDED "X <!-- note -->" is accepted, as the binary archives it', async () => {
+    const build = (root: string): void =>
+      buildFeat(root, 'comment-name', { 'widgets/spec.md': REMOVED_AND_ADDED_COMMENT_NAME })
+    const root = mkTempRepo({ git: true })
+    build(root)
+    const archived = await binaryArchive(build, 'comment-name')
+    expect(archived.exitCode).toBe(0)
+    expect(archived.moved).toBe(true)
+    const bin = await binaryIssues(root, 'comment-name')
+    expect(binaryFind(bin, 'Requirement present in both')).toEqual([])
+    const { report, exitCode } = await cospecValidate(root, 'comment-name')
+    expect(byRule(report, 'archive/added-exists')).toEqual([])
+    expect(problems(report)).toEqual([])
+    expect(exitCode).toBe(0)
+  })
 
-  test.failing('10.2 native: an ADDED inside a comment that collides is refused', async () => {
+  test('10.2 native: an ADDED inside a comment that collides is refused', async () => {
     const build = (root: string): void =>
       buildFeat(root, 'commented-add', { 'widgets/spec.md': COMMENTED_ADDED_COLLISION })
     const root = mkTempRepo({ git: true })
@@ -1324,7 +1321,7 @@ describe('10. the archive family reads what the binary archive reads', () => {
     expect(exitCode).toBe(1)
   })
 
-  test.failing('10.2 twin: the delegated already-exists dry-run INFO is not relayed', async () => {
+  test('10.2 twin: the delegated already-exists dry-run INFO is not relayed', async () => {
     const root = mkTempRepo({ git: true })
     buildFeat(root, 'commented-add', { 'widgets/spec.md': COMMENTED_ADDED_COLLISION })
     const delegated = binaryOne(
@@ -1336,28 +1333,25 @@ describe('10. the archive family reads what the binary archive reads', () => {
     expect(messages(report)).not.toContain(delegated.message)
   })
 
-  test.failing(
-    '10.3 native: a MODIFIED inside a comment whose target is missing is refused',
-    async () => {
-      const build = (root: string): void =>
-        buildFeat(root, 'commented-mod', { 'widgets/spec.md': COMMENTED_MODIFIED_MISSING })
-      const root = mkTempRepo({ git: true })
-      build(root)
-      const archived = await binaryArchive(build, 'commented-mod')
-      expect(archived.exitCode).not.toBe(0)
-      expect(archived.moved).toBe(false)
-      const { report, exitCode } = await cospecValidate(root, 'commented-mod')
-      const found = byRule(report, 'archive/target-missing')
-      expect(found).toHaveLength(1)
-      expect(found[0]?.level).toBe('ERROR')
-      expect(found[0]?.line).toBe(
-        lineOf(COMMENTED_MODIFIED_MISSING, '### Requirement: Widget nonexistent'),
-      )
-      expect(exitCode).toBe(1)
-    },
-  )
+  test('10.3 native: a MODIFIED inside a comment whose target is missing is refused', async () => {
+    const build = (root: string): void =>
+      buildFeat(root, 'commented-mod', { 'widgets/spec.md': COMMENTED_MODIFIED_MISSING })
+    const root = mkTempRepo({ git: true })
+    build(root)
+    const archived = await binaryArchive(build, 'commented-mod')
+    expect(archived.exitCode).not.toBe(0)
+    expect(archived.moved).toBe(false)
+    const { report, exitCode } = await cospecValidate(root, 'commented-mod')
+    const found = byRule(report, 'archive/target-missing')
+    expect(found).toHaveLength(1)
+    expect(found[0]?.level).toBe('ERROR')
+    expect(found[0]?.line).toBe(
+      lineOf(COMMENTED_MODIFIED_MISSING, '### Requirement: Widget nonexistent'),
+    )
+    expect(exitCode).toBe(1)
+  })
 
-  test.failing('10.3 twin: the delegated not-found dry-run INFO is not relayed', async () => {
+  test('10.3 twin: the delegated not-found dry-run INFO is not relayed', async () => {
     const root = mkTempRepo({ git: true })
     buildFeat(root, 'commented-mod', { 'widgets/spec.md': COMMENTED_MODIFIED_MISSING })
     const delegated = binaryOne(

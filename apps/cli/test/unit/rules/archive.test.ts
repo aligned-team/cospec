@@ -889,3 +889,54 @@ describe('archive/added-exists: cross-section conflicts in one delta', () => {
     expect(found[0]?.message).toContain('differs only in case or spacing from "Existing"')
   })
 })
+
+// openspec's archive reads HTML comments as written (its readers mask fenced
+// code only), so every rule but the scenario-preservation mirror reads the
+// verbatim view: an op inside `<!-- … -->` is merged, and a header's trailing
+// comment is part of its name.
+describe('archiveRules read the verbatim view the archive merges', () => {
+  const block = (name: string, shall: string) =>
+    `### Requirement: ${name}\n\nThe system SHALL ${shall}.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n`
+
+  test('an ADDED inside a comment that collides with a living requirement is refused', () => {
+    const text = `## ADDED Requirements\n\n${block('Brand New', 'do new')}\n<!--\n${block('Existing', 'exist differently')}-->\n`
+    const found = archiveRules(change(text, { living: LIVING }))
+    expect(found.map((i) => [i.rule, i.line])).toEqual([['archive/added-exists', 13]])
+  })
+
+  test('a MODIFIED inside a comment whose target is missing is refused', () => {
+    const text = `## ADDED Requirements\n\n${block('Brand New', 'do new')}\n<!--\n## MODIFIED Requirements\n\n${block('Ghost', 'haunt')}-->\n`
+    const found = archiveRules(change(text, { living: LIVING }))
+    expect(found.map((i) => [i.rule, i.line])).toEqual([['archive/target-missing', 15]])
+  })
+
+  test('REMOVED X beside ADDED "X <!-- note -->" is two names, not a conflict', () => {
+    const text =
+      '## REMOVED Requirements\n\n- `### Requirement: Existing`\n\n' +
+      `## ADDED Requirements\n\n${block('Existing <!-- restated -->', 'exist anew')}`
+    expect(archiveRules(change(text, { living: LIVING }), { strict: true })).toEqual([])
+  })
+
+  test('a living requirement inside a comment is still a MODIFIED target', () => {
+    const living = LIVING.replace(
+      '### Requirement: Existing',
+      '<!--\n### Requirement: Hidden\n\nThe system SHALL hide.\n-->\n\n### Requirement: Existing',
+    )
+    const text = `## MODIFIED Requirements\n\n${block('Hidden', 'hide better')}`
+    expect(rules(archiveRules(change(text, { living })))).not.toContain('archive/target-missing')
+  })
+
+  test('scenario-preservation keeps the masked view the hard archive gate reads', () => {
+    // The delta's second scenario sits in a comment: the masked view drops it,
+    // so the MODIFIED block no longer covers the living `t`.
+    const living = LIVING.replace(
+      '- **THEN** b\n',
+      '- **THEN** b\n\n#### Scenario: t\n\n- **WHEN** c\n- **THEN** d\n',
+    )
+    const text =
+      '## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n' +
+      '#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n\n<!--\n#### Scenario: t\n\n- **WHEN** c\n-->\n'
+    const found = archiveRules(change(text, { living }), { strict: true })
+    expect(rules(found)).toEqual(['archive/scenario-preservation'])
+  })
+})

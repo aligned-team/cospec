@@ -424,23 +424,51 @@ export interface ScannedMarkdown {
 }
 
 /**
+ * Which view of a document a reader takes.
+ *
+ * - `masked` blanks HTML comments before reading structure — the view cospec's
+ *   advisory rules (`deltas/*`, `specs/*`) have always read, so a commented-out
+ *   header never draws an authoring finding.
+ * - `verbatim` blanks nothing but fenced code, which is the view openspec's own
+ *   delta and spec readers take (`requirement-blocks.ts`, `spec-structure.ts`,
+ *   1.13.1: both build a code-fence mask and nothing else). The archive merges
+ *   exactly what that view holds — an op written inside `<!-- … -->` is still
+ *   parsed and applied, and a header's trailing comment is part of its name —
+ *   so every `archive/*` rule reads it. Reading the masked view there let a
+ *   commented op that collides or misses its target pass while the archive
+ *   refused it, and refused a REMOVED `X` beside an ADDED `X <!-- note -->`
+ *   that the archive applies as two names.
+ */
+export type ReadView = 'masked' | 'verbatim'
+
+/**
  * Prepare a markdown document for structural scanning.
  *
  * A UTF-8 BOM is stripped (otherwise a BOM-prefixed `# Spec` never matches an
  * anchored header regex) and CR/CRLF are folded to LF (a trailing `\r` leaks
  * into every `(.+)$` capture). Both keep the line count intact, as does the
  * comment mask, so a reported line number always addresses the author's file.
+ * Under the `verbatim` view `lines` is `source` itself.
  */
-export function scanMarkdown(text: string): ScannedMarkdown {
+export function scanMarkdown(text: string, view: ReadView = 'masked'): ScannedMarkdown {
   const normalized = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n')
   const source = normalized.split('\n')
-  const lines = maskHtmlComments(normalized).split('\n')
+  const lines = view === 'verbatim' ? source : maskHtmlComments(normalized).split('\n')
   return { lines, source, fenced: buildCodeFenceMask(lines) }
 }
 
-/** Parse a change-side delta spec. `capability` is the dir name (e.g. `widgets`). */
-export function parseDeltaSpec(text: string, path: string, capability: string): ParsedDelta {
-  const { lines, source, fenced } = scanMarkdown(text)
+/**
+ * Parse a change-side delta spec. `capability` is the dir name (e.g. `widgets`).
+ * `view` picks the reader's view (see `ReadView`): advisory rules take the
+ * default `masked` one, the `archive/*` family the `verbatim` one.
+ */
+export function parseDeltaSpec(
+  text: string,
+  path: string,
+  capability: string,
+  view: ReadView = 'masked',
+): ParsedDelta {
+  const { lines, source, fenced } = scanMarkdown(text, view)
   const ops: DeltaOp[] = []
   const scenarioDepthIssues: { line: number }[] = []
   const unpairedRenames: UnpairedRename[] = []
@@ -684,6 +712,13 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
   }
 }
 
+/** A living spec's requirement names and blocks, as one `ReadView` sees them. */
+export interface LivingRequirements {
+  requirementNames: Set<string>
+  /** requirement name → the verbatim source of its block, `trimEnd`ed. */
+  requirementBlocks: Map<string, string>
+}
+
 export interface LivingSpec {
   requirementNames: Set<string>
   /**
@@ -701,6 +736,48 @@ export interface LivingSpec {
   /** a delta header (## ADDED/… Requirements) appearing in a living spec — invalid. */
   hasDeltaHeaders: boolean
   purposeText: string
+  /**
+   * The requirement names and blocks under the `verbatim` view — what
+   * openspec's archive merges against (`extractRequirementsSection`,
+   * `specs-apply.ts`, 1.13.1, masks fenced code only). The `archive/*` rules
+   * read these; the top-level fields above stay on the `masked` view for the
+   * advisory `specs/*` rules and the scenario-preservation gate.
+   */
+  archive: LivingRequirements
+}
+
+/**
+ * Requirement names and blocks under the given scan, with the same block
+ * boundaries `parseLivingSpec` uses: a block runs from its header to the next
+ * requirement header or `## ` section, fenced lines included verbatim.
+ */
+function livingRequirements({ lines, source, fenced }: ScannedMarkdown): LivingRequirements {
+  const requirementNames = new Set<string>()
+  const requirementBlocks = new Map<string, string>()
+  let name: string | undefined
+  let block: string[] | undefined
+  const close = () => {
+    if (name !== undefined && block !== undefined)
+      requirementBlocks.set(name, block.join('\n').trimEnd())
+    name = undefined
+    block = undefined
+  }
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i]!
+    if (fenced[i] !== true && SECTION_RE.test(raw)) {
+      close()
+      continue
+    }
+    const req = fenced[i] === true ? null : raw.match(REQUIREMENT_RE)
+    if (req !== null) {
+      close()
+      name = normalize(req[1]!)
+      block = [source[i] ?? '']
+      requirementNames.add(name)
+    } else block?.push(source[i] ?? '')
+  }
+  close()
+  return { requirementNames, requirementBlocks }
 }
 
 /** Parse a living spec (openspec/specs/<cap>/spec.md) for archive precondition checks. */
@@ -794,6 +871,7 @@ export function parseLivingSpec(text: string): LivingSpec {
     hasRequirements,
     hasDeltaHeaders,
     purposeText: purposeLines.join('\n').trim(),
+    archive: livingRequirements(scanMarkdown(text, 'verbatim')),
   }
 }
 

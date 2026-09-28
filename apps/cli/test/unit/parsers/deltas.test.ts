@@ -587,6 +587,7 @@ The system SHALL render, quickly.
       hasRequirements: true,
       hasDeltaHeaders: false,
       purposeText: 'x',
+      archive: { requirementNames: new Set(['Widget rendering']), requirementBlocks: new Map() },
     }
     const p = parseDeltaSpec(
       `## MODIFIED Requirements
