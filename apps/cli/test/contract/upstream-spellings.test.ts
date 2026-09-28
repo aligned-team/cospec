@@ -533,38 +533,30 @@ describe('1.13 new change reads an empty --schema and a broken config.yaml as th
 })
 
 describe('1.14 completion generate reads the shell name case-insensitively, as the binary', () => {
-  test.failing(
-    'completion generate BASH prints the bash script',
-    async () => {
-      const u = await runUpstream(['completion', 'generate', 'BASH'], mkTempRepo())
-      expect(u.exitCode, detail('openspec', u)).toBe(0)
-      const lower = await runUpstream(['completion', 'generate', 'bash'], mkTempRepo())
-      expect(u.stdout).toBe(lower.stdout)
-      const root = mkTempRepo()
-      const c = await runCospec(['completion', 'generate', 'BASH'], root)
-      const ref = await runCospec(['completion', 'generate', 'bash'], root)
-      expect(ref.exitCode).toBe(0)
-      expect(c.exitCode, detail('cospec', c)).toBe(0)
-      expect(c.stdout).toBe(ref.stdout)
-    },
-    30_000,
-  )
+  test('completion generate BASH prints the bash script', async () => {
+    const u = await runUpstream(['completion', 'generate', 'BASH'], mkTempRepo())
+    expect(u.exitCode, detail('openspec', u)).toBe(0)
+    const lower = await runUpstream(['completion', 'generate', 'bash'], mkTempRepo())
+    expect(u.stdout).toBe(lower.stdout)
+    const root = mkTempRepo()
+    const c = await runCospec(['completion', 'generate', 'BASH'], root)
+    const ref = await runCospec(['completion', 'generate', 'bash'], root)
+    expect(ref.exitCode).toBe(0)
+    expect(c.exitCode, detail('cospec', c)).toBe(0)
+    expect(c.stdout).toBe(ref.stdout)
+  }, 30_000)
 
-  test.failing(
-    'completion generate POWERSHELL answers as powershell does',
-    async () => {
-      const root = mkTempRepo()
-      const c = await runCospec(['completion', 'generate', 'POWERSHELL'], root)
-      const ref = await runCospec(['completion', 'generate', 'powershell'], root)
-      expect(ref.exitCode).toBe(1)
-      expect({ exit: c.exitCode, stdout: c.stdout, stderr: c.stderr }).toEqual({
-        exit: ref.exitCode,
-        stdout: ref.stdout,
-        stderr: ref.stderr,
-      })
-    },
-    30_000,
-  )
+  test('completion generate POWERSHELL answers as powershell does', async () => {
+    const root = mkTempRepo()
+    const c = await runCospec(['completion', 'generate', 'POWERSHELL'], root)
+    const ref = await runCospec(['completion', 'generate', 'powershell'], root)
+    expect(ref.exitCode).toBe(1)
+    expect({ exit: c.exitCode, stdout: c.stdout, stderr: c.stderr }).toEqual({
+      exit: ref.exitCode,
+      stdout: ref.stdout,
+      stderr: ref.stderr,
+    })
+  }, 30_000)
 })
 
 // --- 2. program-level help -----------------------------------------------------

@@ -85,6 +85,11 @@ export interface PositionalSpec {
   /** Values a user may type that are owed by a later change (refused as pending). */
   readonly pendingValues?: Readonly<Record<string, PendingOwner>>
   /**
+   * The command reads the value case-insensitively (upstream's `completion`
+   * lowercases its shell name), so a pending value is matched lowercased too.
+   */
+  readonly foldCase?: true
+  /**
    * A cospec-only positional that spells what these flags select. Upstream
    * has no such positional, so given together with any of them it is the
    * excess argument commander refuses (`status foo --change bar`).
@@ -987,6 +992,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         required: false,
         values: ['bash', 'zsh', 'fish'],
         pendingValues: { powershell: 'completion-install' },
+        foldCase: true,
       }),
     ],
     flags: [],
@@ -1000,6 +1006,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
             required: false,
             values: ['bash', 'zsh', 'fish'],
             pendingValues: { powershell: 'completion-install' },
+            foldCase: true,
           }),
         ],
       }),
@@ -1478,8 +1485,9 @@ function parseSurface(
         refusal: pendingRefusal(command, positionalLabel(slot), slot.status.pending),
       }
     }
-    const owner = slot.pendingValues?.[value]
-    if (owner !== undefined) return { ok: false, refusal: pendingRefusal(command, value, owner) }
+    const folded = slot.foldCase === true ? value.toLowerCase() : value
+    const owner = slot.pendingValues?.[folded]
+    if (owner !== undefined) return { ok: false, refusal: pendingRefusal(command, folded, owner) }
   }
 
   if (sawStorePath) return { ok: false, refusal: storePath }
