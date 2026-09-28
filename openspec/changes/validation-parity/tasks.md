@@ -174,5 +174,5 @@ trailer, never `--no-verify`).
       `fix(validate): refuse in-file op conflicts on never-delegated changes`
 - [x] 10.5 Update the docs pages, design, proposal and specs (verification
       25.1). Commit `docs(validate): document the rebuilt spec and op conflicts`
-- [ ] 10.6 Record the round-4 evidence and run `mise run check` (verification
+- [x] 10.6 Record the round-4 evidence and run `mise run check` (verification
       25.3). Commit `docs(validate): record round-4 rebuilt-spec evidence`
