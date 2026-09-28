@@ -49,11 +49,27 @@ export interface PassthroughCommandOptions {
   spawnInRoot?: boolean
   /** Upstream renders this command's failures as text under `--json`; see `PassthroughOptions.textFailure`. */
   textFailure?: boolean
+  /**
+   * Thread `--json` onto the wrapped call whatever the invocation's own mode,
+   * for a command that builds its human answer from the binary's document
+   * (`instructions`). Root selection still answers in the invocation's mode
+   * (its human-mode banner included), once.
+   */
+  wrappedJson?: boolean
 }
 
 export interface PassthroughCommandResult {
   result: OpenspecResult
   code: number
+  /** The selected root; undefined when the call ran in the invocation directory. */
+  root?: ResolvedRoot
+  /**
+   * The same wrapped call again, in the same directory with the same flags,
+   * `--json` threaded or not — without selecting the root again (so nothing
+   * root selection prints is printed twice). A binary parse refusal answered
+   * before any spawn is its own answer either way.
+   */
+  rerun: (opts: { json: boolean }) => Promise<OpenspecResult>
 }
 
 /**
@@ -70,10 +86,9 @@ export async function callPassthrough(
   ctx: CommandContext,
   opts: PassthroughCommandOptions,
 ): Promise<PassthroughCommandResult> {
-  const flags = [
-    ...(ctx.flags.json ? ['--json'] : []),
-    ...(ctx.flags.noColor ? ['--no-color'] : []),
-  ]
+  const json = ctx.flags.json || opts.wrappedJson === true
+  const color = ctx.flags.noColor ? ['--no-color'] : []
+  const flags = [...(json ? ['--json'] : []), ...color]
   const inRoot = opts.spawnInRoot === true
   let root: ResolvedRoot | undefined
   try {
@@ -87,21 +102,29 @@ export async function callPassthrough(
           ? await binaryParseRefusal(opts, flags)
           : undefined
       if (refusal === undefined) throw error
-      return { result: refusal, code: EXIT.failure }
+      return { result: refusal, code: EXIT.failure, rerun: async () => refusal }
     }
   }
-  const threaded = [...flags, ...(inRoot || root === undefined ? [] : root.storeArgs)]
-  const result = await forwardCall(() =>
-    passthroughOpenspec(
-      { command: opts.command, threaded, args: opts.args },
-      {
-        cwd: root === undefined ? ctx.cwd : inRoot ? root.base : root.cwd,
-        expect: opts.expect,
-        textFailure: opts.textFailure === true,
-      },
-    ),
-  )
-  return { result, code: result.exitCode === 0 ? EXIT.success : EXIT.failure }
+  const store = inRoot || root === undefined ? [] : root.storeArgs
+  const cwd = root === undefined ? ctx.cwd : inRoot ? root.base : root.cwd
+  const spawn = (withJson: boolean) =>
+    forwardCall(() =>
+      passthroughOpenspec(
+        {
+          command: opts.command,
+          threaded: [...(withJson ? ['--json'] : []), ...color, ...store],
+          args: opts.args,
+        },
+        { cwd, expect: opts.expect, textFailure: opts.textFailure === true },
+      ),
+    )
+  const result = await spawn(json)
+  return {
+    result,
+    code: result.exitCode === 0 ? EXIT.success : EXIT.failure,
+    ...(root === undefined ? {} : { root }),
+    rerun: ({ json: withJson }) => spawn(withJson),
+  }
 }
 
 /**

@@ -369,7 +369,9 @@ holds only the user's `context` / `operationGuidance`, relayed as today).
    `escapeEnvelopeAttribute` into a new
    `apps/cli/src/core/instructions-render.ts`. `isBlocked` is derived from
    `dependencies` as the binary derives it. The binary's `ora` spinner line on
-   stderr is not reproduced (cospec never spawns the text form on success).
+   stderr is reproduced in text mode: the wrapped text call's stderr is a pipe,
+   so ora always printed its non-TTY start line (`- Generating instructions...`)
+   there ahead of any warning, and the relay carried it.
 6. `REACHABLE_OWNED`'s `instructions` / `upstream-spellings` rows leave
    `support/remedy-sources.ts`: the six `core/references.js` lines are already
    allowlist entries (their `context` rows stay, owned by

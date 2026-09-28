@@ -1,18 +1,20 @@
 // `cospec instructions [artifact] --change <id> [--schema <name>]` (DESIGN
-// §2.7). A thin passthrough to `openspec instructions` so the whole
-// artifact-authoring loop is reachable under the cospec brand (MF1): every
+// §2.7). The whole artifact-authoring loop under the cospec brand (MF1): every
 // flag it handles is forwarded, and with no artifact or no `--change` the
 // binary answers itself (its `Missing required …` list of the valid ones, one
 // document under `--json`). `instructions apply --change <id>` is always
 // `cospec apply <id>`, so the gate cannot be bypassed by choosing the other
-// spelling. A refusal relayed from the binary has its
-// `openspec` remedies spelled through cospec (`relayRespelled`).
+// spelling. An artifact's answer is built from the binary's own `--json`
+// document (`core/instructions-render.ts`): re-printed under `--json`, or
+// rendered as the binary's text. A refusal relayed from the binary has its
+// `openspec` remedies spelled through cospec.
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { commandRow, flagValue, hasFlag, parseCommandArgs } from '../core/command-table.ts'
 import { relayRespelled } from '../core/forward-relay.ts'
-import { callPassthrough } from '../core/passthrough-command.ts'
+import { type InstructionsDocument, renderInstructionsText } from '../core/instructions-render.ts'
+import { callPassthrough, renderJsonDocument } from '../core/passthrough-command.ts'
 import { run as applyRun } from './apply.ts'
 
 const APPLY_SCHEMA_REFUSAL =
@@ -60,12 +62,45 @@ export async function run(ctx: CommandContext): Promise<number> {
     return applyRun({ ...ctx, args, parsed: result.parsed })
   }
 
-  const { result } = await callPassthrough(ctx, {
-    command: ['instructions', ...(artifact !== undefined ? [artifact] : [])],
-    args: [
-      ...(changeId !== undefined ? ['--change', changeId] : []),
-      ...(schema !== undefined ? ['--schema', schema] : []),
-    ],
-  })
-  return relayRespelled(result, ctx.flags.json)
+  const command = ['instructions', ...(artifact !== undefined ? [artifact] : [])]
+  const args = [
+    ...(changeId !== undefined ? ['--change', changeId] : []),
+    ...(schema !== undefined ? ['--schema', schema] : []),
+  ]
+  // `apply` with no change and `archive` answer from other documents (the
+  // binary's `Missing required option` list; archive's context and operation
+  // guidance, the user's own text): relayed as the binary prints them.
+  if (artifact === undefined || artifact === 'apply' || artifact === 'archive') {
+    const { result } = await callPassthrough(ctx, { command, args })
+    return relayRespelled(result, ctx.flags.json)
+  }
+  return documentBuilt(ctx, command, args)
 }
+
+/**
+ * An artifact's answer from one `--json` spawn: on success the document,
+ * re-printed under `--json` or rendered as the binary's text; on failure the
+ * binary's own answer — its document, or, in text mode, the same argv again
+ * without `--json` (read-only) — relayed with its remedies spelled, so the
+ * failure text stays the binary's.
+ */
+async function documentBuilt(
+  ctx: CommandContext,
+  command: string[],
+  args: string[],
+): Promise<number> {
+  const { result, rerun } = await callPassthrough(ctx, { command, args, wrappedJson: true })
+  if (result.exitCode !== 0)
+    return relayRespelled(ctx.flags.json ? result : await rerun({ json: false }), ctx.flags.json)
+  const doc = JSON.parse(result.stdout) as InstructionsDocument
+  // The binary's text answer opens with its spinner's start line, which ora
+  // prints on the wrapped call's stderr (a pipe, never a TTY) ahead of any
+  // warning the call prints.
+  const stderr = ctx.flags.json ? result.stderr : `${SPINNER_LINE}${result.stderr}`
+  if (stderr.length > 0) process.stderr.write(stderr)
+  process.stdout.write(ctx.flags.json ? renderJsonDocument(doc) : renderInstructionsText(doc))
+  return EXIT.success
+}
+
+/** `ora('Generating instructions...').start()` with its stream not a TTY. */
+const SPINNER_LINE = '- Generating instructions...\n'

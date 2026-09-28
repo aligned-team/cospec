@@ -148,12 +148,12 @@ a time. Group 12 waits for the rebase in group 11.
 
 ## 12. T5 — `instructions` success path from the document (`apps/cli/src/core/instructions-render.ts` new; `apps/cli/src/commands/instructions.ts`; `apps/cli/src/core/remedies.ts` `SCHEMA_LINES`; `support/remedy-sources.ts` rows)
 
-- [ ] 12.1 Port `printInstructionsText` and the reference-block renderer with
+- [x] 12.1 Port `printInstructionsText` and the reference-block renderer with
       its escape helpers into `instructions-render.ts`; switch the success path
       to one `--json` spawn rendered by cospec (text) or re-printed (`--json`),
       and the text-mode failure path to a re-run relayed through
       `relayRespelled`; verify ledger 4.1
-- [ ] 12.2 Commit `fix(cli): render instructions from the binary's document`
+- [x] 12.2 Commit `fix(cli): render instructions from the binary's document`
 - [ ] 12.3 Pass the document through the shared helper with the field map
       `references[].fetch`, `references[].status[].fix` and the whole-value
       allowlist rule (adding that rule to the helper if it lands with a
