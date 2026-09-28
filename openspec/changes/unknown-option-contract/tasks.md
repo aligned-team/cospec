@@ -582,3 +582,6 @@ red; 4–7 turn it green; 8 documents it.
       success verbatim; unit cases; spec requirement + scenarios, design
       decisions 1 and 13, `reference/commands.md`, `docs/architecture.md`
       (ledger 1.62)
+- [x] 10.72 `.agents/shared.md`'s allowlist discipline names
+      `respellReferenceRemedies` for a successful `context`/`instructions`;
+      `mise run agents:sync` (ledger 1.62)

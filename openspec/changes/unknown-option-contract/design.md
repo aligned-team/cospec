@@ -162,8 +162,10 @@ runtime by `dist/commands/spec.js:127`.
      flag consumes its value, and a short option is split with the table's
      `splitShortCluster` (a value-taking short takes the rest of its token, so
      `-r1`, `-r=1` and `-rr` are `-r` with a value and no item; a boolean short
-     leaves `-<rest>` as the next token). Round 14 added the split: before it,
-     those three reached the binary's screen.
+     leaves `-<rest>` as the next token — dormant at the pin, where `-r` is
+     `show`'s only short, and kept so a newer in-range binary's boolean short
+     reads right). Round 14 added the split: before it, those three reached the
+     binary's screen.
 2. **`--store-path` is refused on every command, in both positions.** A
    forwarded `--store-path` would produce upstream's text, which names
    `openspec store register` — bare `openspec` in shipped output, which the
