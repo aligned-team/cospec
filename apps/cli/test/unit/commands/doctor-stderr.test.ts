@@ -4,23 +4,14 @@
 
 import { describe, expect, test } from 'bun:test'
 
-import * as doctor from '../../../src/commands/doctor.ts'
+import { foldWrappedStderr as fold } from '../../../src/commands/doctor.ts'
 
-interface Finding {
-  level: string
-  check: string
-  message: string
-  remedy?: string
-}
-
-type Fold = (stderr: string, findings: Finding[]) => void
-
-const fold = (doctor as unknown as Record<string, unknown>).foldWrappedStderr as Fold | undefined
+type Finding = Parameters<typeof fold>[1][number]
 
 describe('doctor folds the wrapped call stderr', () => {
-  test.failing('each non-blank line is one WARNING finding, respelled', () => {
+  test('each non-blank line is one WARNING finding, respelled', () => {
     const findings: Finding[] = []
-    fold!(
+    fold(
       "Invalid 'context' field in config (must be string)\r\n\n" +
         'Pass --type change|spec, or use: openspec change show / openspec spec show\n' +
         "   \nSome 'references' entries are invalid, ignoring them\n",
@@ -41,10 +32,9 @@ describe('doctor folds the wrapped call stderr', () => {
     ])
   })
 
-  test.failing('an empty stderr adds nothing', () => {
+  test('an empty stderr adds nothing', () => {
     const findings: Finding[] = []
-    fold!('', findings)
+    fold('', findings)
     expect(findings).toEqual([])
-    expect(typeof fold).toBe('function')
   })
 })

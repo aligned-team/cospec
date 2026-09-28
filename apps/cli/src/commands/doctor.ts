@@ -10,7 +10,8 @@
 // `openspec doctor --json` (and, for a store root, `openspec store doctor
 // --json`) folds openspec's own root-relationship/reference/store-health
 // diagnostics in (read-only, never repair — WI-8), its `root`, `store`,
-// `references` and `status` keys carried in cospec's `--json` document.
+// `references` and `status` keys carried in cospec's `--json` document and
+// each line of its stderr (config warnings) a WARNING finding.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -551,6 +552,20 @@ const doctorReportPostCondition: PostCondition = (result) => {
 }
 
 /**
+ * The wrapped call's stderr as findings: each non-blank line — OpenSpec's
+ * config warnings (`Invalid 'context' field in config (must be string)`, …) —
+ * one WARNING, passed alone to the remedies allowlist, so `--json` carries it
+ * and the text report prints it. `passthroughOpenspec` has already dropped the
+ * lines cospec printed itself.
+ */
+export function foldWrappedStderr(stderr: string, findings: Finding[]): void {
+  for (const line of stderr.split(/\r?\n/u)) {
+    if (line.trim() === '') continue
+    findings.push({ level: 'WARNING', check: 'openspec-stderr', message: respellRemedies(line) })
+  }
+}
+
+/**
  * Delegate `openspec doctor --json` (root-relationship + reference health) on
  * every root and, for a store-backed root, `openspec store doctor --json`
  * (store metadata + git facts) — folding both into cospec's findings and
@@ -575,6 +590,7 @@ export async function checkOpenspecRelationship(
         expect: { exitCodes: [0, 1], postCondition: doctorReportPostCondition },
       },
     )
+    foldWrappedStderr(result.stderr, findings)
     const parsed = JSON.parse(result.stdout) as RelationshipReport
     delegated = spellReport(
       {
