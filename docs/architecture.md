@@ -382,12 +382,12 @@ answer relayed respelled and its exit code returned (`reset --all` given no
 stdin, so a closed input cancels it: `130`, nothing reset); then a read-only
 pre-flight — `workset list --json` (a list that itself refuses, exit 1 or an
 error in its `status[]` such as an unreadable worksets file, an unsaved name, or
-a workset with no member folder — every `stat` failure counted as none, as the
-binary counts it — is answered through the piped call) and a piped
-`config profile` (any refusal but the interactive-mode one is relayed; only that
-one clears the handover). `config edit` has no non-interactive branch and always
-hands over. Every handover env sets `OPENSPEC_TELEMETRY=0` and
-`OPENSPEC_NO_COMPLETIONS=1`.
+a workset with no member folder — every `stat` failure that means the path is
+not a usable folder counted as none, as the binary counts it — is answered
+through the piped call) and a piped `config profile` (any refusal but the
+interactive-mode one is relayed; only that one clears the handover).
+`config edit` has no non-interactive branch and always hands over. Every
+handover env sets `OPENSPEC_TELEMETRY=0` and `OPENSPEC_NO_COMPLETIONS=1`.
 
 Every handover, and the piped `config reset --all`, runs the binary behind a
 preload (`core/handover-preload.ts`, `--preload <file>` ahead of the bin path,

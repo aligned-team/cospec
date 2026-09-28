@@ -238,10 +238,12 @@ refused — exit 1, or an error in its `status[]` — or the name is not saved, 
 no member path is a directory; a member path is a directory only when `stat`
 reads it as one, and every `stat` failure that means "not usable as a member
 folder" (`ENOENT`, `ENOTDIR`, `ELOOP`, `EACCES`, `EPERM`, `ENAMETOOLONG`, a NUL
-byte) is no folder, as the binary's `pathIsDirectory` answers it, never a crash;
-`config profile` runs a piped `config profile` (stdout not a TTY), declaring
-exit code `1` and a refusal on stderr: its interactive-mode-required refusal
-clears the handover, and any other refusal (an unreadable config,
+byte) is no folder, as the binary's `pathIsDirectory` answers it, never a crash
+(any other `stat` error — an I/O error — propagates: the binary's bare `catch`
+would call it a missing folder, and cospec catches only the failures it can
+name); `config profile` runs a piped `config profile` (stdout not a TTY),
+declaring exit code `1` and a refusal on stderr: its interactive-mode-required
+refusal clears the handover, and any other refusal (an unreadable config,
 `--scope project`'s `Project-local config is not yet implemented`) is relayed,
 respelled, without handing over. A pre-flight that answers otherwise is a
 wrapped-call violation.
