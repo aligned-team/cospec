@@ -178,7 +178,7 @@ Files: `apps/cli/src/commands/config.ts`,
 Files: `apps/cli/test/contract/support/remedy-sources.ts`, and whichever record
 the orchestrator rules for (design D11).
 
-- [ ] 7.1 Give each dist line design D11 enumerates a
+- [x] 7.1 Give each dist line design D11 enumerates a
       `notRelayed.HANDOVER_SESSION` reason naming its leaf, rewrite
       `notRelayed.TIP` (every spawn sets `OPENSPEC_NO_COMPLETIONS=1`), and
       verify `remedy-enumeration.test.ts` passes and that each residual line is

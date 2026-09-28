@@ -381,7 +381,7 @@ describe('workset open: the handover environment', () => {
     expect(env.BUN_BE_BUN).toBe('1')
   })
 
-  test.failing('notRelayed.TIP states every spawn turns the completions tip off', () => {
+  test('notRelayed.TIP states every spawn turns the completions tip off', () => {
     expect(notRelayed.TIP).toContain('OPENSPEC_NO_COMPLETIONS=1')
     expect(notRelayed.TIP).toMatch(/every spawn/i)
     expect(notRelayed.TIP).not.toMatch(/does not/)

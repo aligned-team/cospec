@@ -13,13 +13,20 @@ export const notRelayed = {
   INIT: "only `openspec init` runs it; `cospec init` is native and never spawns the binary's `init`",
   UPDATE:
     "only `openspec update` runs it, or `config profile`'s apply step, which runs `update` inside the interactive `config profile` with no preset — a terminal handover (inherited stdio) no relay reads; cospec never spawns `update` (`cospec update` is native)",
-  PROFILE_HANDOVER:
-    '`config profile` with no preset is a terminal handover (inherited stdio, `commands/config.ts` isHandoverCall): cospec relays none of its output',
+  // The terminal-handover residual (design D11): what the binary can still
+  // print inside a live interactive session, on the terminal cospec handed
+  // it, where no relay reads. Recorded here, and on the terminal-handover
+  // passage of the docs, pending cospec-roadmap's ruling on the record
+  // design D11 names (task 7.2); `exceptions.yaml` is untouched.
+  HANDOVER_SESSION_PROFILE:
+    "`config profile` with no preset, on a TTY once its pre-flight has cleared the handover (`commands/config.ts` runHandover): the interactive menu's session output, on the inherited terminal no relay reads; with no TTY on stdout or an unreadable config cospec runs the call piped and relays it respelled",
+  HANDOVER_SESSION_WORKSET_OPEN:
+    '`workset open` on a TTY for a saved workset with a surviving member folder (`commands/workset.ts` runWorksetOpen), when the tool it resolves cannot be found or launched: printed on the inherited terminal no relay reads; with no TTY, `CI` or `OPEN_SPEC_INTERACTIVE=0` cospec runs the call piped and relays it respelled',
   VERSION:
     "upstream's update check is off under the wrapped env (`OPENSPEC_TELEMETRY=0`, `WRAPPED_ENV`), and cospec has no `upgrade` command",
   TELEMETRY:
     'every spawn sets `OPENSPEC_TELEMETRY=0` (`WRAPPED_ENV` and both handovers), which turns the first-run notice off',
-  TIP: 'piped spawns and the `config` handover set `OPENSPEC_NO_COMPLETIONS=1` (`WRAPPED_ENV`); the `workset open` handover does not, so the tip can print on its inherited stderr, which no relay reads',
+  TIP: 'every spawn sets `OPENSPEC_NO_COMPLETIONS=1` (`WRAPPED_ENV` and both handovers, `config` and `workset open`), which turns the first-run completions tip off',
   STORE_PATH:
     "raised only for `--store-path`: table rows refuse it in cospec's parser before any spawn, and forward rows answer the binary's refusal with cospec's own redirect (`relayStorePathRefusal`)",
   SHOW_EMPTY:
@@ -424,13 +431,28 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
   ],
   [
     'commands/workset-input.js',
+    "? `Install '${opener.command}' or run: openspec workset open ${worksetName} --tool ${alternative}`",
+    notRelayed.HANDOVER_SESSION_WORKSET_OPEN,
+  ],
+  [
+    'commands/workset-input.js',
     ": `Install '${opener.command}', then rerun: openspec workset open ${worksetName}`,",
     'workset/tool-rerun',
   ],
   [
     'commands/workset-input.js',
+    ": `Install '${opener.command}', then rerun: openspec workset open ${worksetName}`,",
+    notRelayed.HANDOVER_SESSION_WORKSET_OPEN,
+  ],
+  [
+    'commands/workset-input.js',
     'fix: `Install one of: ${commands}. Then rerun: openspec workset open ${worksetName}`,',
     'workset/no-tool',
+  ],
+  [
+    'commands/workset-input.js',
+    'fix: `Install one of: ${commands}. Then rerun: openspec workset open ${worksetName}`,',
+    notRelayed.HANDOVER_SESSION_WORKSET_OPEN,
   ],
   [
     'commands/show.js',
@@ -466,8 +488,18 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
   ],
   [
     'commands/config.js',
+    "console.log(colorize('Warning: Global config is not applied to this project. Run `openspec update` to sync.'));",
+    notRelayed.HANDOVER_SESSION_PROFILE,
+  ],
+  [
+    'commands/config.js',
     "console.log('Config updated. Run `openspec update` in your projects to apply.');",
     'config/profile-applied',
+  ],
+  [
+    'commands/config.js',
+    "console.log('Config updated. Run `openspec update` in your projects to apply.');",
+    notRelayed.HANDOVER_SESSION_PROFILE,
   ],
   [
     'commands/config.js',
@@ -487,12 +519,12 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
   [
     'commands/config.js',
     "console.log('Run `openspec update` in your other projects to apply.');",
-    notRelayed.PROFILE_HANDOVER,
+    notRelayed.HANDOVER_SESSION_PROFILE,
   ],
   [
     'commands/config.js',
     'console.error(`\\`openspec update\\` failed: ${asErrorMessage(error)}`);',
-    notRelayed.PROFILE_HANDOVER,
+    notRelayed.HANDOVER_SESSION_PROFILE,
   ],
   [
     'cli/index.js',
@@ -752,6 +784,11 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
   ],
   [
     'commands/workset.js',
+    'fix: `Open in VS Code or Cursor: openspec workset open ${name} --tool code`,',
+    notRelayed.HANDOVER_SESSION_WORKSET_OPEN,
+  ],
+  [
+    'commands/workset.js',
     'console.log(`Open it any time with: openspec workset open ${workset.name}`);',
     'workset/open-any-time',
   ],
@@ -785,6 +822,11 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
     'commands/workset.js',
     'fix: `Run: openspec workset open ${name} --tool ${alternative}`,',
     'workset/open-alternative',
+  ],
+  [
+    'commands/workset.js',
+    'fix: `Run: openspec workset open ${name} --tool ${alternative}`,',
+    notRelayed.HANDOVER_SESSION_WORKSET_OPEN,
   ],
   ['commands/workset.js', 'fix: `openspec workset remove ${name} --yes`,', 'workset/remove-yes'],
   [
