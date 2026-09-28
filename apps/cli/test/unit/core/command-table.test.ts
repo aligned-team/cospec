@@ -612,6 +612,24 @@ describe('takesNextToken (phase B pairs a value-taking flag with its value)', ()
       'view',
     ])
   })
+
+  test('the forward rows that select their root through --store are marked accepted', () => {
+    // show/schemas declare `--store` upstream; templates/schema spawn in the
+    // store's root (root-resolution-parity). store/workset/config take no root.
+    const forward = COMMAND_TABLE.filter((row) => row.parse === 'forward')
+    expect(
+      forward
+        .filter((row) => row.store === 'accepted')
+        .map((row) => row.name)
+        .toSorted(),
+    ).toEqual(['schema', 'schemas', 'show', 'templates'])
+    expect(
+      forward
+        .filter((row) => row.store === undefined)
+        .map((row) => row.name)
+        .toSorted(),
+    ).toEqual(['config', 'store', 'workset'])
+  })
 })
 
 describe('splitShortCluster (one step of commander splitting -ab…)', () => {
