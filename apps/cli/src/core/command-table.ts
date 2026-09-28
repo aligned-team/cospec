@@ -1238,9 +1238,14 @@ export function flagSpelling(parsed: ParsedArgs, name: `--${string}`): `--${stri
   return typed !== undefined ? (typed as `--${string}`) : name
 }
 
-/** The closest candidate to an unknown option, matched on its name before any `=`. */
+/**
+ * The closest long candidate to an unknown long option, matched on its name
+ * before any `=`. None for a short option: commander offers its closest match
+ * only after an unknown `--` option.
+ */
 function optionSuggestion(option: string, candidates: readonly string[]): string | undefined {
-  const eq = option.startsWith('--') ? option.indexOf('=') : -1
+  if (!option.startsWith('--')) return undefined
+  const eq = option.indexOf('=')
   return closest(eq > 0 ? option.slice(0, eq) : option, candidates)
 }
 
@@ -1254,9 +1259,7 @@ function suggestionHint(suggestion: string | undefined): string {
  * commander refuses it there whatever command follows.
  */
 export function globalUnknownOptionRefusal(option: string): string {
-  const candidates = option.startsWith('--')
-    ? [...GLOBAL_FLAGS.map((flag) => flag.name), '--version']
-    : [...GLOBAL_FLAGS.flatMap((flag) => (flag.short !== undefined ? [flag.short] : [])), '-V']
+  const candidates = [...GLOBAL_FLAGS.map((flag) => flag.name), '--version']
   const hint = suggestionHint(optionSuggestion(option, candidates))
   return `cospec: unknown option '${option}'\n${hint}`
 }
@@ -1350,15 +1353,8 @@ export function isStorePathToken(tok: string): boolean {
   return tok === '--store-path' || tok.startsWith('--store-path=')
 }
 
-function suggestionCandidates(
-  surface: SurfaceSpec,
-  globals: readonly FlagSpec[],
-  dashes: 'long' | 'short',
-): string[] {
-  const flags = [...surface.flags, ...globals]
-  return dashes === 'long'
-    ? flags.map((flag) => flag.name)
-    : flags.flatMap((flag) => (flag.short !== undefined ? [flag.short] : []))
+function suggestionCandidates(surface: SurfaceSpec, globals: readonly FlagSpec[]): string[] {
+  return [...surface.flags, ...globals].map((flag) => flag.name)
 }
 
 function parseSurface(
@@ -1422,8 +1418,7 @@ function parseSurface(
 
     // `--bool=x` is unknown as a whole token, as commander reports it.
     if (flag === undefined || (inline !== undefined && flag.takesValue !== true)) {
-      const dashes = tok.startsWith('--') ? 'long' : 'short'
-      recorded ??= unknownOption(command, tok, suggestionCandidates(surface, globals, dashes))
+      recorded ??= unknownOption(command, tok, suggestionCandidates(surface, globals))
       continue
     }
 

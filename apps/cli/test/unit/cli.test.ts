@@ -413,7 +413,7 @@ describe('cli dispatcher: an undeclared option before the command is refused', (
     [['--jsn', 'list'], "cospec: unknown option '--jsn'\nDid you mean '--json'?\n"],
     [['--jsn=1', 'list'], "cospec: unknown option '--jsn=1'\nDid you mean '--json'?\n"],
     [['--verison', 'list'], "cospec: unknown option '--verison'\nDid you mean '--version'?\n"],
-    [['-x', 'list'], "cospec: unknown option '-x'\nDid you mean '-h'?\n"],
+    [['-x', 'list'], "cospec: unknown option '-x'\n"],
     [['--bogus'], "cospec: unknown option '--bogus'\n"],
     [['--bogus', 'nosuch'], "cospec: unknown option '--bogus'\n"],
     [['--bogus', '--store-path', '/x', 'list'], "cospec: unknown option '--bogus'\n"],

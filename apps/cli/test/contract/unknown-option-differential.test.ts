@@ -908,24 +908,20 @@ describe('unknown-option differential: no closest-match hint for an unknown shor
     { argv: ['-W', 'list'], command: undefined, option: '-W' },
     { argv: ['-x', 'list'], command: undefined, option: '-x' },
   ]) {
-    test.failing(
-      `${argv.join(' ')}: refused with no hint, as the binary`,
-      async () => {
-        const up = await oracle(argv, freshRoot())
-        expect(up.exitCode).toBe(1)
-        expect(up.stderr).toBe(`error: unknown option '${option}'\n`)
-        const root = freshRoot()
-        const before = treeHash(root)
-        const co = await runCospec(argv, root)
-        expect(co.exitCode).toBe(1)
-        expect(co.stdout).toBe('')
-        expect(co.stderr).toBe(
-          `cospec${command !== undefined ? ` ${command}` : ''}: unknown option '${option}'\n`,
-        )
-        expect(treeHash(root)).toEqual(before)
-      },
-      30_000,
-    )
+    test(`${argv.join(' ')}: refused with no hint, as the binary`, async () => {
+      const up = await oracle(argv, freshRoot())
+      expect(up.exitCode).toBe(1)
+      expect(up.stderr).toBe(`error: unknown option '${option}'\n`)
+      const root = freshRoot()
+      const before = treeHash(root)
+      const co = await runCospec(argv, root)
+      expect(co.exitCode).toBe(1)
+      expect(co.stdout).toBe('')
+      expect(co.stderr).toBe(
+        `cospec${command !== undefined ? ` ${command}` : ''}: unknown option '${option}'\n`,
+      )
+      expect(treeHash(root)).toEqual(before)
+    }, 30_000)
   }
 
   test('an unknown long option still gets its closest match, as the binary', async () => {

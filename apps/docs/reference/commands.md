@@ -66,13 +66,14 @@ cospec answers in two phases:
    no value is refused; then, at the first `-h`/`--help` or unknown option, a
    help flag anywhere in the argv prints cospec's command list, and otherwise
    the option is refused with `cospec: unknown option '<flag>'` (plus
-   `Did you mean '<closest-global-flag>'?` when one is close enough), exit `1` —
-   or, for `--store-path`, its redirect. Nothing after the command name is
-   looked at: `cospec --bogus list` lists nothing and
-   `cospec --bogus list --store` refuses `--bogus`, as `openspec --bogus list`
-   refuses too, and `cospec --help list --store` prints the command list. An
-   unknown command answers as one, unless a help flag follows it
-   (`cospec bogus --help` prints the command list).
+   `Did you mean '<closest-global-flag>'?` when an unknown `--` option is close
+   to one — never for a short option, as OpenSpec offers none), exit `1` — or,
+   for `--store-path`, its redirect. Nothing after the command name is looked
+   at: `cospec --bogus list` lists nothing and `cospec --bogus list --store`
+   refuses `--bogus`, as `openspec --bogus list` refuses too, and
+   `cospec --help list --store` prints the command list. An unknown command
+   answers as one, unless a help flag follows it (`cospec bogus --help` prints
+   the command list).
 3. Only then does the command read its own argv, in OpenSpec's per-command
    order: a missing value anywhere in it (`cospec status --help --change` and
    `cospec status --bogus --change` both refuse the missing `--change`, and a
@@ -222,7 +223,8 @@ One command table (`core/command-table.ts`) drives argv parsing, per-command
 completes it after its name. Five refusal shapes, all exit `1`:
 
 - **Unknown flag:** `cospec <command>: unknown option '<flag>'`, followed by
-  `Did you mean '<closest-flag>'?` when one is close enough.
+  `Did you mean '<closest-flag>'?` when an unknown `--` option is close to one
+  (an unknown short option gets no suggestion, as OpenSpec gives none).
 - **Missing value:**
   `cospec <command>: option '<flag> <placeholder>' argument missing`, for a
   value-taking flag given with nothing after it.

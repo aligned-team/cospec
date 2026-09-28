@@ -147,9 +147,11 @@ describe('parseCommandArgs — refusals', () => {
     })
   })
 
-  test('an unknown short option suggests only short flags', () => {
-    expect(refused('archive', ['-x', 'c'])).toMatchObject({ kind: 'unknown-option', option: '-x' })
-    expect(refused('archive', ['-x', 'c'])).toMatchObject({ suggestion: '-y' })
+  test('an unknown short option gets no suggestion, as commander gives none', () => {
+    const refusal = refused('archive', ['-Y', 'c'])
+    expect(refusal).toMatchObject({ kind: 'unknown-option', option: '-Y' })
+    expect(refusal).not.toHaveProperty('suggestion')
+    expect(refusal?.message).toBe("cospec archive: unknown option '-Y'\n")
   })
 
   test('a typo of a global flag suggests the global', () => {

@@ -11,12 +11,14 @@ table parser and SHALL accept only declared positionals and flags, in both the
 help command), which SHALL ignore an undeclared option and an excess operand as
 that help command does. An undeclared option SHALL fail with
 `cospec <command>: unknown option '<x>'` on stderr, a closest-match suggestion
-on the next line when one is within edit distance, and exit 1, before the
-command does any work. A declared value-taking flag with no value SHALL fail
-with `cospec <command>: option '<flag> <placeholder>' argument missing` and
-exit 1. A flag marked pending SHALL consume its value if it takes one and SHALL
-fail with `cospec <command>: '<flag>' is not supported yet` and exit 1. A
-positional beyond the row's declared slots SHALL fail with
+on the next line when an unknown long (`--`) option is within edit distance of a
+declared long flag (an unknown short option gets none, as commander offers
+none), and exit 1, before the command does any work. A declared value-taking
+flag with no value SHALL fail with
+`cospec <command>: option '<flag> <placeholder>' argument missing` and exit 1. A
+flag marked pending SHALL consume its value if it takes one and SHALL fail with
+`cospec <command>: '<flag>' is not supported yet` and exit 1. A positional
+beyond the row's declared slots SHALL fail with
 `cospec <command>: too many arguments. Expected N argument(s) but got M.` and
 exit 1, before any work, on every `table` row but a lenient one; it SHALL never
 be dropped while the command runs on the rest. A required positional given
@@ -229,6 +231,13 @@ help.
 - **WHEN** `cospec help --bogus` or `cospec help list extra` runs
 - **THEN** stdout is the program help, or `cospec list --help`'s text, and the
   exit code is 0, as the pinned binary answers the same argv
+
+#### Scenario: An unknown short option gets no suggestion
+
+- **WHEN** `cospec archive c -Y` or `cospec list -x` runs
+- **THEN** stderr is exactly `cospec <command>: unknown option '<x>'`, with no
+  `Did you mean` line, exit 1, as the pinned binary refuses it;
+  `cospec list --jsn` still suggests `--json`
 
 ### Requirement: Forwarded commands are declared, not re-parsed
 
@@ -474,3 +483,45 @@ flag alias SHALL agree with upstream on whether the flag takes a value.
 - **THEN** each resolves to `aliases.yaml` alone, as the table marks them
   aliases of `new`, `completion` and `init`, while the flags and positionals the
   table declares beneath them resolve to the table
+
+### Requirement: An undeclared option before the command name is refused
+
+cospec SHALL refuse any option before the command name that is not one of its
+global flags (`--json`, `--no-color`, `-h`/`--help`, `-V`/`--version`, `--cwd`,
+`--store`) or `--store-path`, on every command (`table` and `forward` alike) and
+when the command is unknown or absent, with `cospec: unknown option '<x>'` on
+stderr, a closest-match suggestion among the global long flags on the next line
+when an unknown long (`--`) option is within edit distance of one — an unknown
+short option gets none, as commander offers none — and exit 1, before the
+command does any work, as the pinned binary's program-level commander refuses
+it. The refusal is a phase A answer: it SHALL yield only to a version request, a
+missing global value before it and a help flag anywhere in the argv, and SHALL
+come before anything after the command name is parsed, since the pinned binary
+refuses it before it parses the subcommand at all. Of an undeclared option and
+`--store-path` before the command name, the first in argv SHALL answer, and
+`--store-path` SHALL answer with its redirect. A `--` before the command name is
+a terminator, not an undeclared option.
+
+#### Scenario: An unknown option before the command does not run it
+
+- **WHEN** `cospec --bogus list` runs in a repo with active changes
+- **THEN** stderr is `cospec: unknown option '--bogus'`, nothing is listed, and
+  the exit code is 1, as `openspec --bogus list` refuses
+
+#### Scenario: A post-command missing value does not outrank it
+
+- **WHEN** `cospec --bogus list --store` runs
+- **THEN** stderr is `cospec: unknown option '--bogus'` and the exit code is 1,
+  as `openspec --bogus list --store` refuses
+
+#### Scenario: A near-miss global flag is suggested
+
+- **WHEN** `cospec --jsn list` runs
+- **THEN** stderr is `cospec: unknown option '--jsn'` followed by
+  `Did you mean '--json'?`, and the exit code is 1
+
+#### Scenario: An unknown short option before the command gets no suggestion
+
+- **WHEN** `cospec -x list` runs
+- **THEN** stderr is exactly `cospec: unknown option '-x'`, with no
+  `Did you mean` line, and the exit code is 1, as `openspec -x list` refuses
