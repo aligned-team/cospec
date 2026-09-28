@@ -358,13 +358,13 @@ Files: `apps/cli/src/commands/doctor.ts`, `doctor-parity.test.ts`,
 `apps/docs/concepts/stores.md`. Rows land first as `test.failing`, and the fix
 flips them.
 
-- [ ] 14.1 Fold each line of the wrapped `openspec doctor --json` call's stderr
+- [x] 14.1 Fold each line of the wrapped `openspec doctor --json` call's stderr
       (its config warnings) that cospec did not already print into cospec's
       document as an `openspec-stderr` WARNING finding, spelled through the
       remedies allowlist, so `--json` carries it and text prints it (design D3);
       commits `test(cli): pin doctor's folded OpenSpec stderr warnings`,
       `fix(cli): fold OpenSpec doctor's stderr warnings into findings`
-- [ ] 14.2 State the stderr fold and the explicit `--store` carve-out (cospec's
+- [x] 14.2 State the stderr fold and the explicit `--store` carve-out (cospec's
       own checks read the invocation directory; a bare workspace gets the
       `initialized` ERROR where OpenSpec exits 0) in design, spec and docs;
       commit `docs(cli): state doctor's stderr fold and --store carve-out`
