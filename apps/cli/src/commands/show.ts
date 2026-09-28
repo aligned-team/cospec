@@ -47,8 +47,9 @@ export function binaryAnswers(argv: readonly string[]): boolean {
     const flag = flags.find((f) => f.name === tok || f.short === tok)
     if (flag === undefined) {
       const eq = tok.indexOf('=')
+      if (eq <= 0) return true
       const head = tok.slice(0, eq)
-      const inline = eq > 0 ? flags.find((f) => f.name === head || f.short === head) : undefined
+      const inline = flags.find((f) => f.name === head || f.short === head)
       if (inline?.takesValue !== true) return true
       continue
     }
