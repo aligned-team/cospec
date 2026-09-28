@@ -10,8 +10,8 @@
 // binary's, read at test time.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { cpSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { basename, join } from 'node:path'
 
 import { cleanupAll, cospec, mkTempRepo, type SpawnResult } from '../fixtures/support.ts'
 import { documentCount } from './support/parse-class.ts'
@@ -308,5 +308,88 @@ describe("the binary's no-root answer names cospec init", () => {
       expect(paths(co.stderr, coRoot), detail(co)).toBe(viaCospecInit(paths(up.stderr, upRoot)))
       expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
     }, 30_000)
+  }
+})
+
+describe("a successful context or instructions names cospec in upstream's remedies", () => {
+  /**
+   * `fixtureRoot()` whose `config.yaml` references a usable store `st1`, a
+   * registered store `st2` whose checkout is empty, and an unregistered `gone`:
+   * the binary's answer, at exit 0, carries a `Fetch:` recipe and two `Fix:`
+   * remedies naming bare `openspec`.
+   */
+  function referencingRoot(): string {
+    const dir = fixtureRoot()
+    const storeDir = join(dir, 'store')
+    mkdirSync(join(storeDir, '.openspec-store'), { recursive: true })
+    writeFileSync(join(storeDir, '.openspec-store', 'store.yaml'), 'version: 1\nid: st1\n')
+    cpSync(join(template, 'openspec'), join(storeDir, 'openspec'), { recursive: true })
+    mkdirSync(join(storeDir, 'openspec', 'specs', 'ref-spec'), { recursive: true })
+    writeFileSync(join(storeDir, 'openspec', 'specs', 'ref-spec', 'spec.md'), SPEC)
+    mkdirSync(join(dir, 'broken'))
+    const registry = join(dir, '.oracle-home', '.local', 'share', 'openspec', 'stores')
+    mkdirSync(registry, { recursive: true })
+    writeFileSync(
+      join(registry, 'registry.yaml'),
+      'version: 1\nstores:\n' +
+        `  st1:\n    backend:\n      type: git\n      local_path: ${storeDir}\n` +
+        `  st2:\n    backend:\n      type: git\n      local_path: ${join(dir, 'broken')}\n`,
+    )
+    const config = join(dir, 'openspec', 'config.yaml')
+    const scaffolded = existsSync(config) ? readFileSync(config, 'utf8') : ''
+    writeFileSync(config, `${scaffolded}\nreferences:\n  - st1\n  - st2\n  - gone\n`)
+    return dir
+  }
+
+  /** The binary's reference remedies, as cospec relays them. */
+  function viaCospec(text: string): string {
+    return text
+      .replaceAll(
+        'openspec show <spec-id> --type spec --store st1',
+        'cospec show <spec-id> --type spec --store st1',
+      )
+      .replaceAll('Run: openspec store doctor st2', 'Run: cospec store doctor st2')
+      .replaceAll(
+        'and run: openspec store register <path> --id gone',
+        'and run: cospec store register <path> --id gone',
+      )
+  }
+
+  for (const argv of [
+    ['context'],
+    ['context', '--json'],
+    ['instructions', 'proposal', '--change', 'done'],
+    ['instructions', 'proposal', '--change', 'done', '--json'],
+  ]) {
+    test.failing(
+      argv.join(' '),
+      async () => {
+        const coRoot = referencingRoot()
+        const upRoot = referencingRoot()
+        const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+        const up = await oracle(argv, upRoot, { runtime: 'node' })
+        expect(up.exitCode, detail(up)).toBe(0)
+        expect(up.stdout).toContain('openspec store doctor st2')
+        expect(up.stdout).toContain('openspec store register <path> --id gone')
+        expect(co.exitCode, detail(co)).toBe(0)
+        const paths = (text: string, root: string): string =>
+          text
+            .replaceAll(realpathSync(root), '<root>')
+            .replaceAll(root, '<root>')
+            .replaceAll(basename(root), '<name>')
+        expect(paths(co.stdout, coRoot), detail(co)).toBe(viaCospec(paths(up.stdout, upRoot)))
+        expect(paths(co.stderr, coRoot)).toBe(paths(up.stderr, upRoot))
+        // The reference block names no bare command; a legacy schema's own
+        // instruction prose, relayed as the binary wrote it, is not upstream's
+        // remedy sentence and may.
+        const references = co.stdout
+          .split('\n')
+          .filter((line) => /Fetch:|Fix:|"fetch":|"fix":/.test(line))
+        expect(references.length).toBeGreaterThanOrEqual(3)
+        expect(references.join('\n')).not.toMatch(BARE_OPENSPEC)
+        if (argv[0] === 'context') expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
+      },
+      30_000,
+    )
   }
 })
