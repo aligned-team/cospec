@@ -401,7 +401,7 @@ describe('pending surfaces', () => {
     expectPendingRefusal,
   )
 
-  test.failing(`${GENERATE_POWERSHELL} is refused as not supported yet`, () => {
+  test(`${GENERATE_POWERSHELL} is refused as not supported yet`, () => {
     expectPendingRefusal('completion generate', 'powershell', 'completion-install')
   })
 

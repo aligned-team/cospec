@@ -989,11 +989,18 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     ],
     flags: [],
     subcommands: [
-      pendingSub(
-        'generate',
-        'Generate completion script for a shell (outputs to stdout)',
-        'upstream-spellings',
-      ),
+      // Upstream's spelling of `completion [shell]`.
+      sub('generate', 'Generate completion script for a shell (outputs to stdout)', {
+        aliasOf: 'completion',
+        positionals: [
+          upstreamArg({
+            name: 'shell',
+            required: false,
+            values: ['bash', 'zsh', 'fish'],
+            pendingValues: { powershell: 'completion-install' },
+          }),
+        ],
+      }),
       pendingSub('install', 'Install completion script for a shell', 'completion-install'),
       pendingSub('uninstall', 'Uninstall completion script for a shell', 'completion-install'),
     ],

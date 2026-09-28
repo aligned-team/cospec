@@ -263,32 +263,24 @@ describe('1.5 update [path] updates the project it names', () => {
 })
 
 describe('1.6 completion generate [shell] is upstream spelling of completion [shell]', () => {
-  test.failing(
-    'completion generate zsh prints the completion zsh script',
-    async () => {
-      const root = mkTempRepo()
-      const generated = await runCospec(['completion', 'generate', 'zsh'], root)
-      const plain = await runCospec(['completion', 'zsh'], root)
-      expect(plain.exitCode).toBe(0)
-      expect(generated.exitCode, detail('cospec', generated)).toBe(0)
-      expect(generated.stdout).toBe(plain.stdout)
-    },
-    30_000,
-  )
+  test('completion generate zsh prints the completion zsh script', async () => {
+    const root = mkTempRepo()
+    const generated = await runCospec(['completion', 'generate', 'zsh'], root)
+    const plain = await runCospec(['completion', 'zsh'], root)
+    expect(plain.exitCode).toBe(0)
+    expect(generated.exitCode, detail('cospec', generated)).toBe(0)
+    expect(generated.stdout).toBe(plain.stdout)
+  }, 30_000)
 
-  test.failing(
-    'completion generate zsh extra is too many arguments, as the binary',
-    async () => {
-      const argv = ['completion', 'generate', 'zsh', 'extra']
-      const c = await runCospec(argv, mkTempRepo())
-      const u = await runUpstream(argv, mkTempRepo())
-      expect(u.exitCode).toBe(1)
-      expect(outcome(u, 'completion', argv)).toBe('too-many')
-      expect(c.exitCode, detail('cospec', c)).toBe(1)
-      expect(outcome(c, 'completion', argv)).toBe('too-many')
-    },
-    30_000,
-  )
+  test('completion generate zsh extra is too many arguments, as the binary', async () => {
+    const argv = ['completion', 'generate', 'zsh', 'extra']
+    const c = await runCospec(argv, mkTempRepo())
+    const u = await runUpstream(argv, mkTempRepo())
+    expect(u.exitCode).toBe(1)
+    expect(outcome(u, 'completion', argv)).toBe('too-many')
+    expect(c.exitCode, detail('cospec', c)).toBe(1)
+    expect(outcome(c, 'completion', argv)).toBe('too-many')
+  }, 30_000)
 
   // The row's `json: 'refused'` document answers before any parse refusal, so
   // this held even while `generate` was pending.

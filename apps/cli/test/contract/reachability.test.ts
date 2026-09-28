@@ -271,6 +271,19 @@ const HIDDEN_FIXTURES: readonly {
     present: (run) =>
       run.exitCode === 0 && run.stdout.includes('PowerShell completion script for OpenSpec'),
   },
+  // The same shell on upstream's `completion generate` spelling, which the
+  // table declares with its own `[shell]`.
+  {
+    entry: {
+      kind: 'positional-value',
+      path: ['completion', 'generate'],
+      index: 0,
+      value: 'powershell',
+    },
+    probe: ['completion', 'generate', 'powershell'],
+    present: (run) =>
+      run.exitCode === 0 && run.stdout.includes('PowerShell completion script for OpenSpec'),
+  },
   // `__complete` answers an unknown type with a silent exit 1 (asserted below),
   // so exit 0 is what tells a served type apart.
   {

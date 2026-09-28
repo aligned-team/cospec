@@ -15,3 +15,5 @@
   cospec: init
 - upstream: { kind: command, path: [new, change] }
   cospec: new
+- upstream: { kind: command, path: [completion, generate] }
+  cospec: completion

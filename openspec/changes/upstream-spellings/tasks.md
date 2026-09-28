@@ -109,14 +109,14 @@ a time. Group 12 waits for the rebase in group 11.
 
 ## 8. T4 — `completion generate` (`apps/cli/src/commands/completion.ts`; the `completion` row, its alias line, pending entries and hidden fixture)
 
-- [ ] 8.1 Declare the `generate` subcommand (`aliasOf: 'completion'`, `[shell]`
+- [x] 8.1 Declare the `generate` subcommand (`aliasOf: 'completion'`, `[shell]`
       with `pendingValues: {powershell: completion-install}`), add the alias
       entry, delete the `completion generate` pending entry, add the
       `[completion, generate]` `powershell` pending entry and its hidden
       fixture, and feed the subcommand's `[shell]` to `completion.ts`'s `run`;
       verify ledger 1.6, 5.2 and the `completion generate bash` differential row
       pass
-- [ ] 8.2 Commit `fix(cli): accept upstream's completion generate spelling`
+- [x] 8.2 Commit `fix(cli): accept upstream's completion generate spelling`
 
 ## 9. Program-level `help` (`apps/cli/src/commands/help.ts` new; `cli.ts` `COMMAND_MODULES` entry; the `help` row and its pending entry)
 

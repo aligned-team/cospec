@@ -54,6 +54,8 @@ export function run(ctx: CommandContext): number {
     return EXIT.failure
   }
 
+  // `completion [shell]` and upstream's `completion generate [shell]` alike:
+  // the parser hands either spelling's `[shell]` over as the first positional.
   const requested = ctx.parsed!.positionals[0]
   if (requested !== undefined && !isSupportedShell(requested)) {
     process.stderr.write(
