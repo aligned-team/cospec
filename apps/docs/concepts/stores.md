@@ -200,7 +200,7 @@ OpenSpec prints such a payload for other commands too (`"changes": []`,
 | `store_identity_mismatch`        | a selected store's metadata is missing, or names a different id             |
 | `invalid_store_metadata`         | a selected store's `.openspec-store/store.yaml` doesn't parse               |
 | `unhealthy_store_root`           | a selected store's OpenSpec tree is incomplete or damaged                   |
-| `invalid_store_registry`         | the machine's store registry file can't be read as a registry               |
+| `invalid_store_registry`         | the machine's store registry file doesn't parse as a registry               |
 | `directory_not_found`            | `--cwd` names a path that is not an existing directory                      |
 
 `directory_not_found` is cospec's own (OpenSpec has no `--cwd`): it is checked
@@ -210,6 +210,12 @@ before anything else, prints `cospec: directory not found: <path>` with no
 A pointer or `defaultStore` failure is prefixed with its origin —
 `Declared in <config path>: ` or `Global defaultStore '<id>': ` — so the message
 names where the bad id came from, not just that it's bad.
+
+A registry file cospec can't open at all (for example, one you have no read
+permission for) isn't a selection error: the command fails with the operating
+system's message, as `openspec` prints it —
+`cospec: EACCES: permission denied, open '<registry path>'` — with no origin
+prefix and no `Fix:` line, exit 1.
 
 An unregistered `--store` id fails loudly rather than silently falling back to
 the local repo, so a typo can never write a change to the wrong place:

@@ -402,18 +402,65 @@ export interface StoreListJson {
 }
 
 /**
+ * Every code the pinned binary raises as a `StoreError` (`dist/core/store/*.js`,
+ * enumerated against the pinned dist by `root-resolution.test.ts`). Upstream's
+ * resolver turns only a `StoreError` into a `RootSelectionError`
+ * (`fromStoreError`); any other failure reading the registry — an errno such as
+ * `EACCES` — is rethrown raw, and `store ls` reports it under its fallback code
+ * `store_error`.
+ */
+export const STORE_ERROR_CODES: ReadonlySet<string> = new Set([
+  'invalid_store_id',
+  'invalid_store_metadata',
+  'invalid_store_pointer',
+  'invalid_store_registry',
+  'no_store_registry',
+  'store_git_commit_failed',
+  'store_git_identity_missing',
+  'store_git_init_failed',
+  'store_id_conflict',
+  'store_metadata_id_mismatch',
+  'store_metadata_missing',
+  'store_not_found',
+  'store_path_conflict',
+  'store_path_missing',
+  'store_path_not_directory',
+  'store_path_required',
+  'store_register_identity_confirmation_required',
+  'store_register_root_unhealthy',
+  'store_registry_busy',
+  'store_registry_changed',
+  'store_remote_empty',
+  'store_remote_requires_hand_edit',
+  'store_remove_contains_registered_store',
+  'store_remove_metadata_missing',
+  'store_remove_path_not_directory',
+  'store_root_pointer_declared',
+  'store_setup_inside_git_repo',
+  'store_setup_non_empty_directory',
+  'store_setup_path_changed',
+  'store_setup_path_not_directory',
+  'store_setup_path_required',
+])
+
+/**
  * `openspec store ls --json` could not read the registry and said why: exit 1
- * with an `error` entry in its `status` (`invalid_store_registry`, naming the
- * file to repair). Still a wrapped-call failure for a caller that only lists;
- * root selection reports `diagnostic` as upstream's resolver does.
+ * with an `error` entry in its `status`. Still a wrapped-call failure for a
+ * caller that only lists; root selection reports it as upstream's resolver
+ * does. `storeError` says whether upstream raised it as a `StoreError`
+ * (`invalid_store_registry`, naming the file to repair), which its resolver
+ * turns into a selection diagnostic, or as a raw error (an errno such as
+ * `EACCES`, under `store ls`'s fallback code), which it rethrows as is.
  */
 export class StoreRegistryError extends OpenspecCallError {
   readonly diagnostic: StoreListDiagnostic
+  readonly storeError: boolean
 
   constructor(message: string, result: OpenspecResult, diagnostic: StoreListDiagnostic) {
     super(message, result)
     this.name = 'StoreRegistryError'
     this.diagnostic = diagnostic
+    this.storeError = STORE_ERROR_CODES.has(diagnostic.code)
   }
 }
 

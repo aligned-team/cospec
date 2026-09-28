@@ -395,11 +395,21 @@ function assertHealthyStore(id: string, storeRoot: string): void {
 }
 
 /**
+ * A registry read that upstream's resolver rethrows raw rather than as a
+ * selection diagnostic (not a `StoreError`: an errno such as `EACCES`). It
+ * fails the command with the binary's message, verbatim and never behind a
+ * pointer's or `defaultStore`'s origin prefix, and exit 1. Its `code` is
+ * `store ls`'s fallback; the binary reports a per-command code for it.
+ */
+class RawRegistryError extends RootSelectionError {}
+
+/**
  * The registered stores, as `openspec store ls --json` lists them. A registry
- * the binary cannot read fails selection with the binary's own diagnostic
+ * the binary cannot parse fails selection with the binary's own diagnostic
  * (`invalid_store_registry`, naming the file to repair), as upstream's
- * resolver turns its registry read's error into a `RootSelectionError`; its
- * text is spelled through cospec's remedies like every relayed fix.
+ * resolver turns its registry read's `StoreError` into a `RootSelectionError`;
+ * its text is spelled through cospec's remedies like every relayed fix. Any
+ * other read failure is a `RawRegistryError`, as upstream rethrows it raw.
  */
 async function registeredStores(cwd: string): Promise<StoreListEntry[]> {
   try {
@@ -407,6 +417,7 @@ async function registeredStores(cwd: string): Promise<StoreListEntry[]> {
   } catch (error) {
     if (!(error instanceof StoreRegistryError)) throw error
     const { code, message, target, fix } = error.diagnostic
+    if (!error.storeError) throw new RawRegistryError({ code, message })
     throw new RootSelectionError({
       code,
       message: respellRemedies(message),
@@ -479,7 +490,7 @@ async function withOrigin(
   try {
     return await select()
   } catch (error) {
-    if (!(error instanceof RootSelectionError)) throw error
+    if (!(error instanceof RootSelectionError) || error instanceof RawRegistryError) throw error
     const { code, message, target, fix } = error.diagnostic
     throw new RootSelectionError({
       code,

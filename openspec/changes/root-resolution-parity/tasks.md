@@ -373,7 +373,7 @@ files, task 7.7, both marked POST-REBASE.
       upstream's `Warning: Invalid JSON in <path>, using defaults` once per path
       through `printOwnLine`; narrow the Stores page, the commands page,
       `docs/stores.md` and D5/D8 to what holds
-- [ ] 10.2 REVIEW (ledger 5.21, design D9): add failing rows, then turn only the
+- [x] 10.2 REVIEW (ledger 5.21, design D9): add failing rows, then turn only the
       codes upstream raises as `StoreError` (enumerated from the pinned
       `dist/core/store/*.js`) into a prefixed, respelled `RootSelectionError`;
       any other registry read failure (an errno such as `EACCES`) fails with the

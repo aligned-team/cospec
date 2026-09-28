@@ -338,6 +338,28 @@ which only lists, still sees an `OpenspecCallError`. `RootDiagnostic.target`
 becomes optional, as upstream's is, so a relayed diagnostic without one is never
 given an invented value.
 
+_Amended in review round 3:_ only a `StoreError` becomes a selection diagnostic.
+Upstream's `fromStoreError` converts a `StoreError` and rethrows anything else
+raw, so a registry file the user may not read (`EACCES`) fails `openspec list`
+with `✖ Error: EACCES: permission denied, open '<path>'`, no origin prefix and
+no fix, exit 1, and under `--json` a per-command code (`list_error`,
+`change_error`, `show_error`, `context_failed`); `store ls` reports the same
+errno under its fallback code `store_error`. Round 2 converted every `store ls`
+error, so a pointer or `defaultStore` selection printed the errno behind
+`Declared in <file>: ` or `Global defaultStore '<id>': `. `openspec.ts` now
+exports `STORE_ERROR_CODES`, the 31 codes the pinned `dist/core/store/*.js`
+raises as `StoreError` (a contract row re-enumerates them from the dist, so a
+pin bump that adds one fails until it is listed), and
+`StoreRegistryError.storeError` says whether the diagnostic's code is one.
+`registeredStores` converts a `StoreError` diagnostic as before and throws any
+other as a `RawRegistryError`, a `RootSelectionError` subclass carrying the
+binary's message verbatim with no target or fix, which `withOrigin` rethrows
+unprefixed; `templates` and `schema` still fall back to the cwd for it (D8), as
+the binary never reads the registry there. The raw case's `--json` `code` is
+`store ls`'s `store_error`, not the binary's per-command code: that code field
+is owned by `cli-surface-parity` (roadmap row 37); this change pins the message
+and the exit code.
+
 **D10. The banner is printed by `resolveRoot`.** `resolveRoot` widens its
 parameter to `flags: { store?: string; json?: boolean }`; every caller already
 passes the global flags, which carry `json`, so no caller changes. When the

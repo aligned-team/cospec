@@ -143,6 +143,15 @@ and never by resolving an ancestor of the missing path.
   `invalid_store_registry` diagnostic, behind the same origin prefix for a
   pointer or `defaultStore`, and never reports a wrapped-call violation
 
+#### Scenario: A store registry the user may not read fails as the binary does
+
+- **WHEN** the machine's store registry file cannot be opened (no read
+  permission) and a command selects its root with `--store`, a `store:` pointer,
+  `defaultStore`, or from a rootless directory
+- **THEN** the command exits 1 with the wrapped binary's message for that
+  failure, verbatim, with no origin prefix and no fix line, as the wrapped
+  binary rethrows a failure that is not one of its store errors
+
 #### Scenario: A subdirectory resolves the enclosing root
 
 - **WHEN** a command runs from `<repo>/src/deep` and `<repo>/openspec/` has a

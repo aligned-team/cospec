@@ -32,6 +32,7 @@ import {
 } from 'node:fs'
 import { dirname, join } from 'node:path'
 
+import { openspecPackageDir, STORE_ERROR_CODES } from '../../src/core/openspec.ts'
 import {
   type ResolvedRoot,
   resolveRoot,
@@ -1738,6 +1739,112 @@ describe('an unreadable store registry fails selection with its diagnostic (ledg
   }
 })
 
+// --- Ledger 5.21: only upstream's StoreError codes become resolver diagnostics ---
+
+/** Mode-000 rows cannot fail for root, which reads any file. */
+const RUNNING_AS_ROOT = process.getuid?.() === 0
+
+/** Every code the pinned binary raises as a `StoreError` from `dist/core/store/*.js`. */
+function pinnedStoreErrorCodes(): Set<string> {
+  const dir = join(openspecPackageDir(), 'dist', 'core', 'store')
+  const codes = new Set<string>()
+  for (const file of readdirSync(dir).filter((f) => f.endsWith('.js'))) {
+    const text = readFileSync(join(dir, file), 'utf8')
+    // `new StoreError(<message>, '<code>'` — the message is a template literal,
+    // a quoted string, or an expression with no top-level comma.
+    for (const m of text.matchAll(
+      /new StoreError\((?:`(?:[^`\\]|\\.|\$\{[^}]*\})*`|'(?:[^'\\]|\\.)*'|[^,`']*?),\s*('([a-z_]+)'|[\w.]+)/g,
+    ))
+      if (m[2] !== undefined) codes.add(m[2])
+    // Codes passed by variable (`diagnostic.code`, `data.code`) are declared as `code: '<code>'`.
+    for (const m of text.matchAll(/\bcode: '([a-z_]+)'/g)) codes.add(m[1]!)
+  }
+  return codes
+}
+
+function lockRegistry(sb: Sandbox): string {
+  const path = join(sb.env['XDG_DATA_HOME']!, 'openspec', 'stores', 'registry.yaml')
+  chmodSync(path, 0o000)
+  return path
+}
+
+describe("only upstream's StoreError codes become resolver diagnostics (ledger 5.21)", () => {
+  test("STORE_ERROR_CODES is exactly the pinned binary's StoreError codes", () => {
+    const pinned = pinnedStoreErrorCodes()
+    expect(pinned.has('invalid_store_registry')).toBe(true)
+    expect(pinned.has('store_error')).toBe(false)
+    expect([...STORE_ERROR_CODES].toSorted()).toEqual([...pinned].toSorted())
+  })
+
+  const maybe = RUNNING_AS_ROOT ? describe.skip : describe
+  for (const route of REGISTRY_ROUTES) {
+    maybe(`${route.id} registry mode 000, ${route.title}`, () => {
+      let sb!: Sandbox
+      let fx!: Fixture
+      let registry!: string
+      const storeFlag = (): string[] => (fx.store === undefined ? [] : ['--store', fx.store])
+
+      beforeAll(async () => {
+        sb = await makeSandbox()
+        fx = await route.setup(sb)
+        registry = lockRegistry(sb)
+      })
+      afterAll(() => chmodSync(registry, 0o644))
+
+      test("oracle: the binary fails with the errno's message, no origin prefix", async () => {
+        const up = await oracle(['list', '--json', ...storeFlag()], sb.dir, { cwd: fx.cwd })
+        expect(up.exitCode).toBe(1)
+        const status = firstStatus(up.stdout) as OracleDiagnostic
+        expect(status.message).toBe(`EACCES: permission denied, open '${registry}'`)
+        expect(status).not.toHaveProperty('fix')
+      })
+
+      // The JSON `code` is not pinned here: the binary reports a per-command
+      // code for a raw failure (`list_error`, `change_error`, …), which is
+      // cli-surface-parity's (roadmap row 37). This row pins message and exit.
+      test("cospec list --json carries the binary's message and exit code", async () => {
+        const argv = ['list', '--json', ...storeFlag()]
+        const up = await oracle(argv, sb.dir, { cwd: fx.cwd })
+        const res = await cospec(argv, { cwd: fx.cwd, env: sb.env })
+        expect(res.exitCode).toBe(up.exitCode)
+        expect(res.stderr).toBe(up.stderr)
+        const status = firstStatus(res.stdout) as OracleDiagnostic
+        expect(status.message).toBe((firstStatus(up.stdout) as OracleDiagnostic).message)
+        expect(status).not.toHaveProperty('fix')
+        expect(status).not.toHaveProperty('target')
+      })
+
+      test("cospec list prints the binary's failure after cospec:", async () => {
+        const up = await oracle(['list', ...storeFlag()], sb.dir, { cwd: fx.cwd })
+        expect(up.exitCode).toBe(1)
+        const res = await cospec(['list', ...storeFlag()], { cwd: fx.cwd, env: sb.env })
+        expect(res.exitCode).toBe(1)
+        expect(res.stdout).toBe('')
+        expect(res.stderr).toBe(up.stderr.replace(/^(?:✖ )?Error: /, 'cospec: '))
+      })
+
+      test('cospec templates --json answers as the binary does without --store', async () => {
+        const argv = ['templates', '--json']
+        const up = await oracle(argv, sb.dir, { cwd: fx.cwd })
+        const res = await cospec([...argv, ...storeFlag()], { cwd: fx.cwd, env: sb.env })
+        if (fx.store === undefined) {
+          expect(up.exitCode).toBe(0)
+          expect(res).toEqual({ exitCode: up.exitCode, stdout: up.stdout, stderr: up.stderr })
+        } else {
+          // An explicit --store keeps its selection failure (ledger 5.15).
+          expect(res.exitCode).toBe(1)
+          expect(firstStatus(res.stdout)).toMatchObject({
+            message: `EACCES: permission denied, open '${registry}'`,
+          })
+        }
+      })
+    })
+  }
+
+  // The StoreError half: a malformed registry keeps its converted, prefixed
+  // `invalid_store_registry` diagnostic (ledger 5.17's rows).
+})
+
 // --- Ledger 5.18: doctor from a subdirectory checks the enclosing root ---
 
 interface DoctorFinding {
@@ -1787,8 +1894,6 @@ async function oracleJsonRoot(sb: Sandbox, cwd: string): Promise<OracleRoot> {
 // --- Ledger 5.20: a global config that cannot be read or parsed reads as defaults ---
 
 type GlobalConfigState = 'absent' | 'valid' | 'directory' | 'mode 000' | 'invalid JSON'
-
-const RUNNING_AS_ROOT = process.getuid?.() === 0
 
 /** The sandbox's global config file path, as the binary reports it. */
 async function globalConfigPath(sb: Sandbox): Promise<string> {
