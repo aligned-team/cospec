@@ -213,7 +213,13 @@ deliberate superset of upstream, stated as such on the commands reference page
 and in the PR description; it never changes the result for a root at the cwd.
 The existing reserved-canon-name guard in `schema.ts` runs before the spawn,
 unchanged. _Rejected:_ spawning in `root.base` only for store-backed roots,
-which keeps the subdirectory failure for cospec's own typed schemas.
+which keeps the subdirectory failure for cospec's own typed schemas. After the
+rebase, `unknown-option-contract`'s `storeInArgv` marker on the `templates` and
+`schema` rows (which kept a post-command `--store` in the argv for the binary to
+refuse) is removed: `--store` is cospec's global there too, in either position,
+selecting the root the call spawns in, so `cospec --store <id> templates` and
+`cospec templates --store <id> --bogus` read the store (the latter naming
+`--bogus`) where `openspec` names `--store` — part of the same superset.
 
 **D9. Store health is checked from the filesystem in `resolveStore`.**
 `store ls --json` lists a broken store with an empty `status` (probed), so
@@ -268,7 +274,70 @@ envelope; `cli-surface-parity` later completes each command's own failure keys
 (`changes: []`, `root: null`) so the whole document matches upstream's
 per-command payload. It waits for the rebase because the handler it extends is
 that change's file. _Rejected:_ building per-command payloads here, which would
-edit the command modules that change rewrites.
+edit the command modules that change rewrites. `unknown-option-contract` landed
+no top-level `--json` renderer (`index.ts` still prints prose and never sees
+`--json`), so the branch sits in its `cli.ts` dispatcher, around the command
+module's `run`: a `RootSelectionError` in a `--json` run is written by
+`rootSelectionDocument` (keys `severity`, `code`, `message`, `target`, then
+`fix` when there is one) and returns exit 1; everything else is rethrown to
+`index.ts`. Where the binary's own failure document is that envelope alone
+(`show`, `instructions`, `status`, `validate`), cospec's is byte-for-byte the
+same; where the binary adds its command's empty payload (`context`'s
+`root`/`members`, `schemas`'s `schemas`/`root`, `list`'s `changes`/`root`,
+`list --specs`'s `specs`/`root`), those keys are `cli-surface-parity`'s.
+
+**D13. An empty `--store=` reaches the resolver (post-rebase).**
+`unknown-option-contract` refused an empty `--store` at parse time with
+`… argument must not be empty`. Upstream accepts it while it parses and fails in
+its action with `invalid_store_id`, so on every row that selects its root
+through `--store` (a table row marked `store: 'accepted'`, and the forward rows
+`show`, `schemas`, `templates` and `schema`, which now carry the same marker)
+`cli.ts` hands the empty value to `flags.store`, where `validateStoreId` raises
+it: `cospec: Store id must not be empty` and upstream's `Fix:` line, or the D12
+document. It keeps its place in the order (after help and every parse refusal).
+An empty `--cwd` (cospec's own flag) and an empty `--store` on `store`,
+`workset` and `config`, which take no root, keep the parse-time refusal. As in
+upstream, the last `--store` wins (`--store= --store alpha` selects `alpha`).
+
+**D14. On a forward row the binary's parse refusal comes first (post-rebase).**
+Upstream parses a command's argv before its action selects a root, so
+`openspec schemas --bogus --store nosuch` names `--bogus`. A forward row hands
+its argv to the binary unparsed, so when `resolveRoot` throws for one
+(`ctx.parsed` unset), `callPassthrough` asks the binary about the same argv with
+cospec's threaded flags and no `--store`, in a fresh `mkdtemp` directory that is
+removed afterwards — never the user's directory, since an argv that parses runs,
+and `schema init`/`fork` write. A commander refusal or the `--store-path`
+redirect is relayed as the answer; any other result is discarded and the
+selection failure stands. One extra spawn, on the failure path only. A table
+row's argv was already parsed by the table, so its refusal already comes first.
+_Rejected:_ spawning the probe in the invocation directory (a parsing
+`schema init` would write there), and re-deriving the binary's parse from the
+table's declared flags (the binary is the parse authority on forward rows).
+
+**D15. A structural respell helper for relayed JSON, and `schema`'s relays
+(post-rebase).** `passthrough-command.ts` exports
+`respellCommandFields(doc, fields)`: each `CommandField` names a path of keys
+into a parsed `--json` document (`'[]'` steps into every array element) and the
+fixed lead upstream prints before the command in that field (`Run: `); a value
+that starts with the lead and `openspec ` has that one token spelled `cospec `,
+and nothing else changes, so a store id such as `openspec-team` survives.
+`renderJsonDocument` renders the result as the binary renders its own.
+`upstream-spellings` (instructions' reference block) and
+`passthrough-json-and-doctor` (context's) render their text from the rewritten
+structure. The "Create one with: openspec new change <name>" sentence it was
+first asked for is not reachable through `templates`: the pinned
+`dist/commands/workflow/templates.js` calls only `validateSchemaExists`, and the
+sentence lives in `validateChangeExists`
+(`dist/commands/workflow/shared.js:129`, `:144`), which only `instructions` and
+`status` reach. `schema.ts` now relays through `relayRespelled`, so a failed
+call's `"openspec schema fork"` remedy is spelled through the allowlist in text
+and in the `--json` `suggestion`; `schema init`'s `--json` success document
+names no command. Its human success output ends with
+`  3. Use with: openspec new --schema <name>`, the last line the binary writes
+(the lines before it carry the schema's path, where a user's directory name
+could read like the sentence), so only that final line is spelled, and only when
+it is exactly that shape with the kebab-case name the binary validated; the
+`REACHABLE_OWNED` entry for it is removed.
 
 ## Risks / Trade-offs
 
@@ -305,9 +374,10 @@ edit the command modules that change rewrites.
   failures, each rendered as `cospec: <message>` plus a `Fix:` line and exit
   `1`. The failures replace a silent run against the wrong directory or a broken
   store. After the rebase, a `--json` run turns any of these failures into one
-  `{"status": [diagnostic]}` document on stdout (D12). Relayed JSON over a
-  pointer or `defaultStore` reports `declared` or `global_default` as its
-  `root.source` (D11).
+  `{"status": [diagnostic]}` document on stdout (D12), an empty `--store=` is
+  one of them (D13), and a forward row's parse refusal is relayed ahead of them
+  (D14). Relayed JSON over a pointer or `defaultStore` reports `declared` or
+  `global_default` as its `root.source` (D11).
 - **Filesystem reads.** The walk stats `openspec/`, `openspec/specs/`,
   `openspec/changes/`, their `.openspec-store/store.yaml`, and
   `openspec/config.yaml`/`config.yml` at each ancestor up to the first
@@ -318,7 +388,9 @@ edit the command modules that change rewrites.
   still spawns `openspec store ls --json`; `defaultStore` is still read with
   `openspec config get defaultStore`; the registry listing for the
   registered-stores error is the one added spawn, and only on a path that used
-  to succeed silently. The store-health check adds no spawn.
+  to succeed silently. The store-health check adds no spawn. A forward row whose
+  selection fails spawns the binary once more, in a scratch directory it removes
+  (D14).
 - **Binary versions.** The walk and its error codes are pinned to the pinned
   binary by the differential matrix. An older binary in the accepted range may
   select roots differently for its own wrapped calls; cospec's own reads and
@@ -346,5 +418,8 @@ edit the command modules that change rewrites.
   pointer and default fixtures.
 - **Flags the binary rejects.** `--store` is never sent to `templates` or any
   `schema` subcommand. `view` already follows the same rule.
+- **Parse refusals.** For a forward row whose selection fails, the binary's
+  answer to the same argv in a scratch directory; oracle: the same argv run
+  through the pinned binary in the invocation directory (D14).
 - **Failure document.** After the rebase, oracle `.status[0]` (`code`, `target`,
   `fix` with `cospec` for `openspec`) for the `--json` failure rows.

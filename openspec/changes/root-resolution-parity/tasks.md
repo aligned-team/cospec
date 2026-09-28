@@ -206,10 +206,16 @@ files, task 7.7, both marked POST-REBASE.
 
 ## 7. POST-REBASE: rebase, `--json` failure document and parity gates (after `unknown-option-contract` merges)
 
-- [ ] 7.1 POST-REBASE: once `unknown-option-contract` has merged, rebase onto
+- [x] 7.1 POST-REBASE: once `unknown-option-contract` has merged, rebase onto
       `main` with `--force-with-lease`, resolving any
       `apps/docs/reference/commands.md` overlap by keeping both changes' facts
-- [ ] 7.2 POST-REBASE (design D12): add failing `--json` rows (ledger 5.4), then
+      (rebased onto `251086c`; conflicts in `root.ts`'s header, `openspec.ts`,
+      `passthrough-command.ts`, `schema.ts`, `templates.ts`, three unit test
+      files and two `commands.md` global-flag tables, each resolved keeping both
+      changes; `unknown-option-contract`'s `threadedArgv`/`WrappedCall` call
+      shape carries this change's `spawnInRoot` and stderr strip; branch not yet
+      on the remote, so a plain push)
+- [x] 7.2 POST-REBASE (design D12): add failing `--json` rows (ledger 5.4), then
       add one `RootSelectionError` branch to the top-level error rendering where
       `unknown-option-contract` emits its own `--json` envelope, so a resolver
       hard-error under `--json` prints exactly one JSON document
@@ -220,13 +226,19 @@ files, task 7.7, both marked POST-REBASE.
       including task 2.9's `directory_not_found` (no `fix` key) and task 7.6's
       `invalid_store_id`; update the `status --json --cwd <missing>` case in
       `'a nonexistent --cwd fails cleanly (ledger 1.29)'` from the prose line to
-      the document; verify the rows pass and human mode is unchanged
-- [ ] 7.3 POST-REBASE: switch the oracle calls in `root-resolution.test.ts` from
+      the document; verify the rows pass and human mode is unchanged (the branch
+      wraps the command module's `run` in `cli.ts`'s dispatcher, since
+      `unknown-option-contract` landed no top-level `--json` renderer;
+      `rootSelectionDocument` in `root.ts` renders it; the no-root relay rows in
+      `relayed-remedies.test.ts` that pinned the binary's own answer with a
+      store registered are re-pinned to the resolver's)
+- [x] 7.3 POST-REBASE: switch the oracle calls in `root-resolution.test.ts` from
       the interim `apps/cli/test/contract/support/root-sandbox.ts` helper to
       `upstream-oracle.ts` (keeping the sandbox builder only where
       `upstream-oracle.ts` has no equivalent), and verify the matrix still
-      passes
-- [ ] 7.4 POST-REBASE: run `reachability.test.ts` and verify
+      passes (`upstream-oracle.ts` gains an optional `cwd`; every sandbox is an
+      `oracleEnv` root)
+- [x] 7.4 POST-REBASE: run `reachability.test.ts` and verify
       `parity-pending.yaml` carries no entry tagged for this change.
       `parity-pending.yaml` is not in this worktree before the rebase (it
       arrives with `unknown-option-contract`); every post-rebase item above that
@@ -241,23 +253,68 @@ files, task 7.7, both marked POST-REBASE.
       have (it refuses it); the `--json` failure document (7.2) is an output
       shape; and `directory_not_found` (2.9) is a cospec-only `--cwd` behaviour
       with no upstream surface. So no entry is added, and none tagged for this
-      change may appear
-- [ ] 7.5 POST-REBASE: verify `git diff --name-only main...HEAD` touches none of
-      `unknown-option-contract`'s files except the one handler file 7.2 edits,
+      change may appear. The same holds for 7.9–7.12: argument order, relayed
+      text and a helper are no registry surfaces
+- [x] 7.5 POST-REBASE: verify `git diff --name-only main...HEAD` touches
+      `unknown-option-contract`'s files only where a post-rebase task requires
+      it — `cli.ts` (7.2's branch, 7.6's empty `--store`, 7.9's marker),
+      `core/command-table.ts` (7.6's forward-row `store: 'accepted'`, 7.9's
+      marker), and its tests and docs that pinned the superseded behaviour (7.2,
+      7.6, 7.9, 7.12) — and no completion spec or other command module of its,
       and that reverting this change's commits on a scratch branch leaves
       `mise run test` green
-- [ ] 7.6 POST-REBASE (ledger 5.5): add the empty-`--store=` rows (oracle
-      `openspec list --json --store=` `.status[0]`, cospec in `--json` and human
-      mode), confirm that after the rebase `cli.ts` hands `''` to `resolveRoot`
-      so `validateStoreId` raises `invalid_store_id`, and that task 7.2's branch
-      prints it as one JSON document; verify the rows pass
-- [ ] 7.7 POST-REBASE (ledger 5.6): add a failing row for
+- [x] 7.6 POST-REBASE (ledger 5.5, design D13): add the empty-`--store=` rows
+      (oracle `openspec list --json --store=` `.status[0]`, cospec in `--json`
+      and human mode). After the rebase `cli.ts` refused the empty value itself
+      (`… argument must not be empty`), so hand `''` to `flags.store` on every
+      row that selects its root through `--store` (table rows
+      `store:     'accepted'`; the forward rows `show`, `schemas`, `templates`,
+      `schema` gain the same marker) for `validateStoreId` to raise
+      `invalid_store_id`, printed by task 7.2's branch as one JSON document;
+      keep the parse-time refusal for an empty `--cwd` and on `store`, `workset`
+      and `config`; re-pin `unknown-option-contract`'s tests and `commands.md`
+      paragraph for the empty `--store`; verify the rows pass
+- [x] 7.7 POST-REBASE (ledger 5.6): add a failing row for
       `cospec templates --json -- x` against the oracle's
       `error: too many arguments for 'templates'. Expected 0 arguments but got 1.`,
       then make the `--json` passthrough relay a wrapped refusal (non-zero exit,
       empty stdout) verbatim instead of raising its own
       `did not emit a single parseable JSON document` error, in whichever file
       owns that check after the rebase; verify the row passes and no relayed
-      message names a bare `openspec` command
-- [ ] 7.8 POST-REBASE: run `mise run check`, mark every verification row with
+      message names a bare `openspec` command (after the rebase the row passed
+      with no code of this change's: `unknown-option-contract`'s `threadedArgv`
+      puts the threaded `--json` ahead of the user's `--`, and its `forwardCall`
+      returns the binary's commander refusal as a result)
+- [x] 7.8 POST-REBASE: run `mise run check`, mark every verification row with
       its observed result, and commit
+- [x] 7.9 POST-REBASE (ledger 5.10): remove `unknown-option-contract`'s
+      `storeInArgv` marker (its row field, the `templates`/`schema` rows, the
+      dispatcher's `storeKept`, its unit test and the `docs/architecture.md`
+      paragraph), so `--store` in either position selects the root `templates`
+      and `schema` spawn in (task 3.3's rows failed after the rebase until it
+      went); convert the precedence-matrix rows that pinned upstream's refusal
+      of that `--store` to superset rows proving the store's `feat` schema is
+      read, and restate `commands.md`'s paragraph
+- [x] 7.10 POST-REBASE (ledger 5.7, design D14): add failing rows, then on a
+      forward row whose root selection fails ask the binary about the same argv
+      in a scratch directory with no `--store` and relay its parse refusal or
+      `--store-path` redirect; any other answer leaves the selection failure;
+      verify the rows pass and nothing is written under the invocation directory
+- [x] 7.11 POST-REBASE (ledger 5.9, design D15): add `respellCommandFields` and
+      `renderJsonDocument` to `core/passthrough-command.ts` (a parsed `--json`
+      document plus a field map; only a leading `openspec ` token in command
+      position per field), with unit rows and a contract row over the pinned
+      binary's `instructions --json` in which store ids containing `openspec`
+      survive; `upstream-spellings` (instructions) and
+      `passthrough-json-and-doctor` (context) consume it. Record that the
+      "Create one with: openspec new change <name>" text is unreachable through
+      `templates` on the pinned binary
+- [x] 7.12 POST-REBASE (ledger 5.8, design D15): relay `schema` through
+      `relayRespelled` so a failed call's `"openspec schema fork"` remedy is
+      spelled through the allowlist in text and `--json`, spell a successful
+      human-mode `schema init`'s final `3. Use with:` line only, remove its
+      `REACHABLE_OWNED` entry, and document it on the commands page; verify the
+      rows fail before and pass after
+- [x] 7.13 POST-REBASE: list `unknown-option-contract` under Blocked by in
+      `blocking-changes.md` and run `mise run cospec -- sync-blockers`, which
+      checks it off as archived

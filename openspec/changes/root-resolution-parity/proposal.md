@@ -128,6 +128,24 @@ checkout gets different roots than before.
   `cospec templates --json -- x` relays upstream's
   `error: too many arguments for 'templates'. …` refusal instead of cospec's own
   "did not emit a single parseable JSON document" error.
+- **The binary's parse refusal wins on forward commands (after the rebase).**
+  `show`, `schemas`, `templates` and `schema` hand their argv to the binary
+  unparsed, and upstream parses before it selects a root, so
+  `cospec schemas --bogus --store nosuch` now names `--bogus`, as `openspec`
+  does, instead of reporting the unknown store. cospec asks the binary in a
+  scratch directory, so nothing runs in the user's.
+- **`templates` and `schema` read `--store` in either position (after the
+  rebase).** `unknown-option-contract`'s `storeInArgv` marker, which left a
+  post-command `--store` for the binary to refuse, is removed: `--store` selects
+  the root those two spawn in, before or after the command name.
+- **`schema`'s relayed remedies name cospec, and a structural respell helper for
+  relayed JSON.** A failed `schema` call's `"openspec schema fork"` remedy reads
+  `"cospec schema fork"` (text and `--json`), and a successful `schema init`'s
+  last next step reads `3. Use with: cospec new <name> <slug>`.
+  `passthrough-command.ts` gains `respellCommandFields`, which spells only the
+  leading `openspec` token of named command-bearing fields in a parsed `--json`
+  document; `upstream-spellings` and `passthrough-json-and-doctor` wire it into
+  `instructions` and `context`.
 - **BREAKING:** a `store:` pointer inside a directory that is itself a planning
   root no longer redirects writes. cospec warns and uses the local root, as
   `openspec` does.
@@ -170,7 +188,9 @@ checkout gets different roots than before.
   its callers already pass, so every current caller keeps compiling unchanged.
 - `apps/cli/src/core/passthrough-command.ts`,
   `apps/cli/src/commands/templates.ts`, `apps/cli/src/commands/schema.ts`: a
-  spawn-in-root mode with no `--store`.
+  spawn-in-root mode with no `--store`; after the rebase, the forward rows'
+  parse-refusal probe, the `respellCommandFields` helper, and `schema`'s
+  respelled relays.
 - `apps/cli/src/core/openspec.ts`: `passthroughOpenspec` drops, from the stderr
   it relays, the exact lines `resolveRoot` already printed (the ignored-pointer
   warning and the store banner), so each appears once. The `Root` interface is
@@ -189,9 +209,15 @@ checkout gets different roots than before.
 - Before the rebase, no file owned by `unknown-option-contract` is touched: no
   command parser, `cli.ts`, the command table or the completion spec. The
   resolver change reaches every command through `resolveRoot`, which they
-  already call. After that change merges and this branch rebases onto it, the
-  top-level `--json` error rendering it lands gains one `RootSelectionError`
-  branch for the failure document; nothing else of its is edited.
+  already call. After that change merged and this branch rebased onto it, its
+  files are edited only as the post-rebase tasks require: `cli.ts` gains the
+  `RootSelectionError` branch for the `--json` failure document and hands an
+  empty `--store` to the resolver; `core/command-table.ts` loses the
+  `storeInArgv` marker and marks the forward rows that select a root
+  `store: 'accepted'`; its tests that pinned the superseded behaviour
+  (precedence matrix, dispatcher unit tests, the no-root relays, the
+  `remedy-sources.ts` entry for `schema init`) are re-pinned to this change's,
+  and `upstream-oracle.ts` gains an optional `cwd`.
 - Rollback is reverting this change.
 
 ## Surfaces

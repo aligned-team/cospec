@@ -56,7 +56,13 @@ directory and config file with `unhealthy_store_root`, each with a fix naming
 only when the user passed `--store`, so that relayed JSON reports the wrapped
 binary's own provenance for a pointer or `defaultStore` root. In a `--json` run,
 a resolver failure SHALL print exactly one JSON document carrying a `status`
-array with the diagnostic on stdout and exit 1.
+array with the diagnostic on stdout and exit 1. An empty `--store` value SHALL
+reach the resolver on every command that selects its root through `--store`, and
+SHALL fail there with the `invalid_store_id` code, as the wrapped binary does.
+On a command whose arguments the wrapped binary parses itself, the binary's own
+parse refusal SHALL outrank a root-selection failure, as it does for bare
+`openspec`, and asking the binary for it SHALL NOT run anything in the
+invocation directory.
 
 Before any walk or spawn, the system SHALL verify that the invocation directory
 (`--cwd <path>`, or the process working directory) is an existing directory, and
@@ -203,6 +209,21 @@ and never by resolving an ancestor of the missing path.
 - **THEN** stdout is exactly one JSON document whose `status` array holds the
   diagnostic with its code and fix, and the command exits 1
 
+#### Scenario: An empty store id fails selection
+
+- **WHEN** `cospec list --store=` runs, and again with `--json`
+- **THEN** the command exits 1 with `cospec: Store id must not be empty` and a
+  `Fix:` line, and under `--json` with one document whose `status[0]` equals the
+  wrapped binary's `invalid_store_id` diagnostic
+
+#### Scenario: The binary's parse refusal outranks a selection failure
+
+- **WHEN** `cospec schemas --bogus --store nosuch` runs and `nosuch` is not a
+  registered store
+- **THEN** the command exits 1 with the wrapped binary's
+  `error: unknown option '--bogus'`, exactly as `openspec` prints it, and
+  nothing is written under the invocation directory
+
 ## ADDED Requirements
 
 ### Requirement: Template and schema inspection spawn in every resolved root
@@ -215,8 +236,13 @@ pointer or `defaultStore`, a local root found by the ancestor walk, and an
 implicit root alike. Spawning in the resolved root for every root is a
 deliberate superset of the wrapped binary, which reads its own working directory
 for these commands; the store-backed roots were the broken case, not the limit
-of the requirement. The relayed output and the mapped exit code SHALL otherwise
-be unchanged.
+of the requirement. A `--store` before or after the command name SHALL select
+the root the call spawns in. The relayed output and the mapped exit code SHALL
+otherwise be unchanged, except that a remedy the wrapped binary names as a bare
+`openspec` command SHALL name the cospec command of the same shape: `schema`'s
+`"openspec schema fork"` on a failed call, in text and `--json`, and the last
+next step of a successful `schema init`, spelled only where the binary alone
+writes it.
 
 #### Scenario: Templates succeed for a store selected by flag
 
@@ -238,3 +264,16 @@ be unchanged.
 - **WHEN** `cospec templates --json --schema feat` runs from a subdirectory of a
   repository whose `openspec/schemas/feat/` exists
 - **THEN** the template paths resolve to that repository's project schema
+
+#### Scenario: A store before the command name selects the root
+
+- **WHEN** `cospec --store platform schema which feat` runs and only
+  `platform`'s tree holds `feat`
+- **THEN** the command exits 0 and reports `platform`'s `feat` schema
+
+#### Scenario: Schema init names cospec in its next step
+
+- **WHEN** `cospec schema init my-flow --description d` succeeds
+- **THEN** the output is the wrapped binary's, except that its last line reads
+  `3. Use with: cospec new my-flow <slug>`, and a directory in the schema's path
+  that reads like that line is printed unchanged
