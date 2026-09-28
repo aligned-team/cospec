@@ -559,3 +559,26 @@ red; 4–7 turn it green; 8 documents it.
       1 and 13, `reference/commands.md`, `docs/architecture.md` (ledger 1.59)
 - [x] 10.67 `.agents/shared.md` gains the "Relayed remedies come from one
       allowlist" discipline; `mise run agents:sync` (ledger 1.60)
+- [x] 10.68 Round-14 `show` rows first (9ba58b1): unit `binaryAnswers` case and
+      8 `relayed-remedies.test.ts` rows (`show -r1`, `-r=1`, `-rr`,
+      `--no-scenarios -r1`, text and `--json`) as `test.failing`, each failing
+      because cospec spawned the binary's "Nothing to show" screen; plain `test`
+      at 52d0e53
+- [x] 10.69 `binaryAnswers` splits short options with `splitShortCluster`
+      (value-taking short takes the rest of its token; boolean short leaves
+      `-<rest>` next; `-X=<v>` matches the short); `SHOW_EMPTY`'s never-relayed
+      reason names the case (ledger 1.61)
+- [x] 10.70 Round-14 success-path rows first (9da374f):
+      `instructions proposal     --change done` (text and `--json`) with the
+      sentence in a project schema template, `config.yaml` context and rules and
+      a referenced spec's Purpose, and `context --json`/`instructions … --json`
+      in a project dir named with the sentence, as `test.failing` (each failing
+      on the rewritten user content or path); the `Run openspec init here` dir
+      rows as plain `test`; plain `test` at c0c8cb8
+- [x] 10.71 `respellReferenceRemedies` (core/remedies.ts): a successful
+      `context`/`instructions` respells only a `Fetch:`/`Fix:` line or a
+      `fetch`/`fix` JSON property whose whole value is one allowlisted remedy;
+      `relayRespelled` takes `success: 'verbatim' | 'references'`, stderr on
+      success verbatim; unit cases; spec requirement + scenarios, design
+      decisions 1 and 13, `reference/commands.md`, `docs/architecture.md`
+      (ledger 1.62)

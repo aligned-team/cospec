@@ -72,7 +72,8 @@ schema's path and quoted excerpt, the user's content even where it copies an
 upstream sentence); a missing type or slug and an unknown option SHALL stay text
 parse refusals, as the binary's commander refusals are, answered before any
 other refusal (a missing `openspec/` tree included). `show` with no item (an
-empty token is none) SHALL, under `--json`, be one
+empty token is none, and a short option's attached value — `-r1`, `-r=1`, `-rr`
+— is that option's value, as commander splits it) SHALL, under `--json`, be one
 `{status: [{severity: 'error', code: 'missing_item', message}]}` document on
 stdout, exit 1, with nothing on stderr. Each `table` row SHALL likewise declare
 whether its command honours the global `--store <id>`; on a row that does not,
@@ -215,6 +216,11 @@ help.
 - **AND WHEN** `cospec show "" --json` runs
 - **THEN** stdout is one JSON document whose `status[0].code` is `missing_item`,
   stderr is empty, and the exit code is 1
+- **AND WHEN** `cospec show -r1`, `cospec show -r=1`, `cospec show -rr` or
+  `cospec show --no-scenarios -r1` runs, with or without `--json`
+- **THEN** it answers as for no item — the stderr error, or under `--json` the
+  one `missing_item` document — exit 1, because commander gives `-r` the rest of
+  its token as the value and the binary is left no item
 
 #### Scenario: A command that never reads --store refuses it
 
@@ -527,30 +533,36 @@ runtime output SHALL name a wrapped call as the wrapped OpenSpec call, never as
 a bare `openspec` command. A remedy the binary writes as a bare
 `openspec <command>` in an answer cospec relays SHALL be spelled as the cospec
 command of the same shape, or dropped where cospec has no such command — in a
-failed call's answer, and in a successful `context` or `instructions` answer,
-whose reference block (`Fetch:`/`Fix:` lines) the binary renders itself — while
-the content of a successful `show` (a change, a spec) and the schema text a
-successful `instructions` prints SHALL be relayed untouched. The respelling
-SHALL come from one allowlist of the pinned binary's exact sentences, each
-rewritten only where an answer holds it verbatim, with the path, name or list
-each sentence names re-emitted as the binary wrote it; no pattern over free text
-(a lead-in word, a quote, a paren) SHALL decide what is a remedy. Every sentence
-in the pinned binary that names a bare `openspec <command>` SHALL be in that
-allowlist or listed, with its reason, as never printed by a cospec relay,
-checked against the pinned dist. A pre-spawn guard SHALL answer only an argv the
-binary would not answer itself: a declared value-taking flag left without its
-value SHALL reach the binary as commander's missing value (or, for a flag the
-wrapper lifts itself, `config --scope`, SHALL be refused in the same
+failed call's answer, and in a successful `context` or `instructions` answer
+only on the reference block's own lines: a `Fetch:`/`Fix:` line, or a
+`fetch`/`fix` JSON property, whose whole value is one allowlisted sentence —
+while every other byte of a successful answer SHALL be relayed untouched: the
+content of a successful `show` (a change, a spec), and in a successful
+`instructions` or `context` the schema template and instruction, the
+`config.yaml` context and rules, a referenced spec's summary, and every path and
+other value of a `--json` document. The respelling SHALL come from one allowlist
+of the pinned binary's exact sentences, each rewritten only where an answer
+holds it verbatim, with the path, name or list each sentence names re-emitted as
+the binary wrote it; no pattern over free text (a lead-in word, a quote, a
+paren) SHALL decide what is a remedy. Every sentence in the pinned binary that
+names a bare `openspec <command>` SHALL be in that allowlist or listed, with its
+reason, as never printed by a cospec relay, checked against the pinned dist. A
+pre-spawn guard SHALL answer only an argv the binary would not answer itself: a
+declared value-taking flag left without its value SHALL reach the binary as
+commander's missing value (or, for a flag the wrapper lifts itself,
+`config --scope`, SHALL be refused in the same
 `cospec <command>: option '<flag> <placeholder>' argument missing` form), and
 `show`'s item check SHALL treat an option `show` does not declare as the item,
-as the binary does. An option where a forwarded command's subcommand belongs
-SHALL reach the binary at the command's level, never be refused as an unknown
-subcommand, and a help flag after a `--store-path` the upstream command does not
-declare SHALL print cospec's help, never be taken as its value. Every refusal
-the binary's commander raises while it parses — unknown option or command,
-missing value, missing required argument, too many arguments, and the rest of
-commander's parse-time shapes — SHALL be relayed as the binary's answer, never
-reported as a wrapped-call failure.
+as the binary does, and split a short option as commander does (a value-taking
+short takes the rest of its token as its value, `-r=1` included; a boolean short
+leaves `-<rest>` as the next token). An option where a forwarded command's
+subcommand belongs SHALL reach the binary at the command's level, never be
+refused as an unknown subcommand, and a help flag after a `--store-path` the
+upstream command does not declare SHALL print cospec's help, never be taken as
+its value. Every refusal the binary's commander raises while it parses — unknown
+option or command, missing value, missing required argument, too many arguments,
+and the rest of commander's parse-time shapes — SHALL be relayed as the binary's
+answer, never reported as a wrapped-call failure.
 
 #### Scenario: A forwarded command's missing required argument is relayed
 
@@ -623,6 +635,16 @@ reported as a wrapped-call failure.
   `Fix: Get a checkout from a teammate and run: cospec store register <path> --id <id>`
   lines (or `fetch`/`fix` values under `--json`) name cospec, and the rest of
   the answer is the binary's, exit 0
+- **AND WHEN** that `instructions` succeeds on a change whose schema template,
+  the `config.yaml` context, a `rules` entry and a referenced spec's Purpose
+  each hold `Run openspec init to create a root here.`
+- **THEN** each is relayed byte-for-byte, text and `--json`, and only the
+  `Fetch:`/`Fix:` lines are cospec's spelling
+- **AND WHEN** `cospec context --json` or `cospec instructions … --json` runs in
+  a project directory named `Run openspec init to create a root here.` or
+  `Run openspec init here`
+- **THEN** every path in the document is the binary's, the directory name
+  unchanged
 - **AND WHEN** a line of the pinned dist names a bare `openspec <command>` that
   is neither in the allowlist nor listed as never relayed
 - **THEN** the remedy enumeration contract test fails

@@ -262,9 +262,12 @@ these two. And `relayRespelled` (`core/forward-relay.ts`) answers the binary's
 `--store-path` refusal with cospec's redirect and spells each of upstream's
 remedy sentences (`core/remedies.ts`) as the cospec command of the same shape —
 or drops it where cospec has none — so the remedy a user reads names cospec: in
-a failed call's answer, and in a successful `context` or `instructions` answer,
-whose reference block (`Fetch:`/`Fix:`) the binary renders itself. A successful
-`show` prints the user's own change or spec and is relayed untouched.
+a failed call's answer, and in a successful `context` or `instructions` answer
+only on the reference block's own `Fetch:`/`Fix:` lines (`fetch`/`fix` under
+`--json`) whose whole value is an allowlisted sentence
+(`respellReferenceRemedies`). Everything else a successful answer holds — a
+`show`'s change or spec, a schema template, `config.yaml` context and rules, a
+referenced spec's summary, every path — is relayed untouched.
 
 ### The terminal-handover class
 
