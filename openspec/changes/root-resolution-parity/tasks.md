@@ -391,3 +391,12 @@ files, task 7.7, both marked POST-REBASE.
 - [x] 11.2 REVIEW (ledger 5.24, design D5, D8): add failing rows, then stop
       `templates` and `schema` printing the invalid-global-config warning, and
       update the Stores page, the commands page and `docs/stores.md`
+
+## 12. REVIEW ROUND 5: templates and schema print no resolver line
+
+- [ ] 12.1 REVIEW (ledger 5.25, design D5, D7, D8): add failing rows, then
+      generalise `globalConfigWarning` into one `quiet` resolution option that
+      suppresses every line `resolveRoot` prints (the ignored-pointer warning,
+      the store banner, the invalid-global-config warning), set by
+      `callPassthrough` for `spawnInRoot` calls only; update the spec, the
+      Stores page, the commands page and `docs/stores.md`

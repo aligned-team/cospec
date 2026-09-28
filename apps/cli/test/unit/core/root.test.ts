@@ -763,6 +763,53 @@ describe('resolveRoot — store banner (design D10)', () => {
   }, 15_000)
 })
 
+describe('resolveRoot — quiet (ledger 5.25, design D7, D8)', () => {
+  test('prints no ignored-pointer warning, banner or invalid-JSON warning, and selects the same root', async () => {
+    await withGlobalConfig(undefined, async (env) => {
+      const alpha = env.store('alpha')
+      const planning = layout(repoWithConfig('store: alpha\n'), { dirs: ['openspec/changes'] })
+      const cases: [string, { store?: string }, string][] = [
+        [planning, {}, canonical(planning)],
+        [repoWithConfig('store: alpha\n'), {}, canonical(alpha)],
+        [bareDir(), { store: 'alpha' }, canonical(alpha)],
+      ]
+      for (const [cwd, flags, base] of cases) {
+        const { value, stderr } = await captureStderr(() =>
+          resolveRoot({ cwd, flags }, { quiet: true }),
+        )
+        expect(value.base).toBe(base)
+        expect(stderr).toBe('')
+      }
+    })
+    await withGlobalConfig('alpha', async (env) => {
+      const alpha = env.store('alpha')
+      const { value, stderr } = await captureStderr(() =>
+        resolveRoot({ cwd: bareDir(), flags: {} }, { quiet: true }),
+      )
+      expect(value.base).toBe(canonical(alpha))
+      expect(value.source).toBe('global_default')
+      expect(stderr).toBe('')
+    })
+  }, 15_000)
+
+  test('a quiet read of a config that is not JSON leaves the one warning to the next loud one', async () => {
+    await withGlobalConfig(
+      undefined,
+      async () => {
+        const path = join(process.env.XDG_CONFIG_HOME!, 'openspec', 'config.json')
+        const quiet = await captureStderr(() =>
+          resolveRoot({ cwd: bareDir(), flags: {} }, { quiet: true }),
+        )
+        expect(quiet.value.source).toBe('implicit')
+        expect(quiet.stderr).toBe('')
+        const loud = await captureStderr(() => resolveRoot({ cwd: bareDir(), flags: {} }))
+        expect(loud.stderr).toBe(`Warning: Invalid JSON in ${path}, using defaults\n`)
+      },
+      '{"defaultStore": "beta"',
+    )
+  }, 15_000)
+})
+
 /**
  * The wrapped-binary argv (after `<bun> <openspec bin> --no-color`) of every
  * spawn `fn` makes, minus the memoized version assertion.

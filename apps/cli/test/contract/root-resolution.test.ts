@@ -2392,3 +2392,118 @@ describe('every file the resolver reads fails as the binary does (ledger 5.22)',
           },
         )
 })
+
+// --- Ledger 5.25: templates and schema print no resolver line ---
+
+/** The `templates`/`schema` argvs whose stderr must be the binary's alone. */
+const QUIET_ARGVS = [
+  ['templates', '--json'],
+  ['templates'],
+  ['schema', 'which', 'spec-driven'],
+  ['schema', 'validate', 'spec-driven'],
+] as const
+
+interface QuietRoute {
+  id: string
+  /** The resolver line a root-selecting command prints on this route. */
+  line: (sb: Sandbox, dir: string) => string
+  /** The repository (or bare directory) and the cwd both runs start in. */
+  setup: (sb: Sandbox) => Promise<{ dir: string; cwd: string }> | { dir: string; cwd: string }
+  /** cospec's `--store`, and where the binary (which takes none) runs instead. */
+  store?: { flag: string[]; binaryCwd: (sb: Sandbox) => string }
+}
+
+const ignoredPointer = (_sb: Sandbox, dir: string): string =>
+  `Warning: ${join(canonical(dir), 'openspec', 'config.yaml')} declares store 'alpha', but ` +
+  'this directory is a real OpenSpec root; the declaration is ignored.'
+const alphaBanner = (sb: Sandbox): string =>
+  `Using OpenSpec root: alpha (${canonical(storePath(sb, 'alpha'))})`
+
+const QUIET_ROUTES: readonly QuietRoute[] = [
+  {
+    id: 'a planning root with store: alpha, from the root (M3)',
+    line: ignoredPointer,
+    setup: (sb) => {
+      const dir = repo(sb, 'm3', {
+        dirs: ['openspec/changes', 'src/deep'],
+        ...configOnly('store: alpha\n'),
+      })
+      return { dir, cwd: dir }
+    },
+  },
+  {
+    id: 'a planning root with store: alpha, from src/deep (M3)',
+    line: ignoredPointer,
+    setup: (sb) => {
+      const dir = repo(sb, 'm3', {
+        dirs: ['openspec/changes', 'src/deep'],
+        ...configOnly('store: alpha\n'),
+      })
+      return { dir, cwd: join(dir, 'src', 'deep') }
+    },
+  },
+  {
+    id: 'a config-only store: alpha pointer (M4)',
+    line: alphaBanner,
+    setup: (sb) => {
+      const dir = repo(sb, 'm4', configOnly('store: alpha\n'))
+      return { dir, cwd: dir }
+    },
+  },
+  {
+    id: 'defaultStore alpha from a rootless directory (M13)',
+    line: alphaBanner,
+    setup: async (sb) => {
+      await setDefaultStore(sb, 'alpha')
+      const dir = bare(sb)
+      return { dir, cwd: dir }
+    },
+  },
+  {
+    id: 'an explicit --store alpha',
+    line: alphaBanner,
+    setup: (sb) => {
+      const dir = bare(sb)
+      return { dir, cwd: dir }
+    },
+    store: { flag: ['--store', 'alpha'], binaryCwd: (sb) => storePath(sb, 'alpha') },
+  },
+]
+
+describe('templates and schema print no resolver line (ledger 5.25)', () => {
+  // Upstream's `templates` and `schema` actions never run root selection, so
+  // the binary prints none of the lines `resolveRoot` prints (the ignored
+  // pointer warning, the store banner, the invalid-global-config warning):
+  // only its own `Note:` lines. The binary runs under Node, as users run it.
+  for (const route of QUIET_ROUTES)
+    describe(route.id, () => {
+      let sb!: Sandbox
+      let dir!: string
+      let cwd!: string
+      const flag = (): string[] => route.store?.flag ?? []
+      const binaryCwd = (): string => route.store?.binaryCwd(sb) ?? cwd
+
+      beforeAll(async () => {
+        sb = await makeSandbox(['alpha'])
+        ;({ dir, cwd } = await route.setup(sb))
+      })
+
+      test('oracle and cospec: list prints the resolver line once on this route', async () => {
+        const up = await oracle(['list', ...flag()], sb.dir, { cwd, runtime: 'node' })
+        const res = await cospec(['list', ...flag()], { cwd, env: sb.env })
+        expect(up.exitCode).toBe(0)
+        expect(lineCount(up.stderr, route.line(sb, dir))).toBe(1)
+        expect(res.exitCode).toBe(0)
+        expect(lineCount(res.stderr, route.line(sb, dir))).toBe(1)
+      })
+
+      for (const argv of QUIET_ARGVS)
+        test(`cospec ${argv.join(' ')} prints only the binary's stderr`, async () => {
+          const up = await oracle([...argv], sb.dir, { cwd: binaryCwd(), runtime: 'node' })
+          const res = await cospec([...argv, ...flag()], { cwd, env: sb.env })
+          expect(up.exitCode).toBe(0)
+          expect(lineCount(up.stderr, route.line(sb, dir))).toBe(0)
+          expect(res).toEqual({ exitCode: up.exitCode, stdout: up.stdout, stderr: up.stderr })
+        })
+    })
+})
