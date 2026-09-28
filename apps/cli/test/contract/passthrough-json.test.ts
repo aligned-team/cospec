@@ -92,6 +92,28 @@ function referencingRoot(opts: { name?: string; storeDirName?: string } = {}): s
   return dir
 }
 
+/**
+ * A root referencing stores whose ids hold `openspec` — a usable
+ * `openspec-team`, an empty-checkout `openspec-broken` and an unregistered
+ * `openspec-gone` declared with a clone remote that names `openspec` too.
+ */
+function openspecIdsRoot(): string {
+  const dir = plainRoot()
+  const storeDir = join(dir, 'openspec-team')
+  storeCheckout(storeDir, 'openspec-team')
+  mkdirSync(join(dir, 'openspec-broken'))
+  writeRegistry(dir, { 'openspec-team': storeDir, 'openspec-broken': join(dir, 'openspec-broken') })
+  appendConfig(
+    dir,
+    'references:\n  - openspec-team\n  - openspec-broken\n' +
+      `  - id: openspec-gone\n    remote: ${REMOTE}\n`,
+  )
+  return dir
+}
+
+/** `openspecIdsRoot`'s clone remote: shell-safe, so the binary writes it into its clone fix. */
+const REMOTE = 'git@example.com:openspec/openspec-gone.git'
+
 /** A root referencing `st1` whose store registry does not parse. */
 function unreadableRegistryRoot(): string {
   const dir = plainRoot()
@@ -327,6 +349,29 @@ describe('context spells its reference block through cospec (ledger 3.1–3.4, p
       async () => {
         const co = await expectContextRespelled(unreadableRegistryRoot(), json)
         expect(BARE_OPENSPEC.test(co.stdout + co.stderr), detail(co)).toBe(false)
+      },
+      30_000,
+    )
+
+    // Store ids and a declared remote that name `openspec`: only the command
+    // token of each fetch and fix is spelled, every id and the remote as the
+    // binary printed them.
+    test.failing(
+      `context ${mode}: store ids and a remote naming openspec stay as they are`,
+      async () => {
+        const root = openspecIdsRoot()
+        const upDoc = await oracleJson(['context', '--json'], root)
+        const co = await expectContextRespelled(root, json)
+        expect(BARE_OPENSPEC.test(co.stdout.replaceAll(root, '<root>')), detail(co)).toBe(false)
+        expect(co.stdout).toContain('cospec show <spec-id> --type spec --store openspec-team')
+        expect(co.stdout).toContain('Run: cospec store doctor openspec-broken')
+        expect(co.stdout).toContain(`git clone -- ${REMOTE} `)
+        expect(co.stdout).toContain('&& cospec store register ')
+        const ids = (text: string) => text.match(/openspec-(?:team|broken|gone)/g)?.length
+        const up = JSON.stringify(upDoc.json)
+        expect(ids(json ? JSON.stringify(JSON.parse(co.stdout)) : co.stdout)).toBe(
+          json ? ids(up) : ids((await oracle(['context'], root)).stdout),
+        )
       },
       30_000,
     )

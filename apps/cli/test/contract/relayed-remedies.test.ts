@@ -471,17 +471,17 @@ describe('with a store registered, the resolver gives the no-root answer', () =>
   }
 })
 
-describe('a successful context or instructions is relayed byte-for-byte', () => {
+describe("a successful context or instructions relays the user's content byte-for-byte", () => {
   // A successful `instructions` answer is the binary's with only its
   // reference fields (`references[].fetch`, `references[].status[].fix`, and
   // their `Fetch:`/`Fix:` lines in the text) spelled through cospec — plus,
   // for a change on the package's own built-in schema, that schema's command
   // lines (change `upstream-spellings`); every byte the user owns — a
-  // template, the context, a rule, a spec Purpose, a path — is the binary's. A
-  // successful `context` is still relayed untouched: its reference block's
-  // spelling is owned by passthrough-json-and-doctor (`REACHABLE_OWNED` in
-  // `support/remedy-sources.ts`). `instructions archive` holds only the
-  // user's context and stays byte-for-byte. These rows guard the user's content.
+  // template, the context, a rule, a spec Purpose, a path — is the binary's.
+  // `context` spells its reference block's command fields through cospec from
+  // the document's structure (passthrough-json-and-doctor). `instructions
+  // archive` holds only the user's context and stays byte-for-byte. These rows
+  // guard the user's content either way.
 
   interface Reference {
     fetch?: string
@@ -751,26 +751,60 @@ describe('a successful context or instructions is relayed byte-for-byte', () => 
     }, 30_000)
   }
 
+  /**
+   * The binary's `context --json` document with its command fields
+   * (`members[].fetch`, `members[].status[].fix`, `status[].fix`) each passed
+   * alone to the allowlist, rendered as the binary renders it.
+   */
+  function contextRespelled(stdout: string): string {
+    interface Diagnostic {
+      fix?: string
+    }
+    const doc = JSON.parse(stdout) as {
+      members: { fetch?: string; status: Diagnostic[] }[]
+      status: Diagnostic[]
+    }
+    const fix = (d: Diagnostic) => (d.fix === undefined ? d : { ...d, fix: respellRemedies(d.fix) })
+    const out = {
+      ...doc,
+      members: doc.members.map((m) => ({
+        ...m,
+        ...(m.fetch === undefined ? {} : { fetch: respellRemedies(m.fetch) }),
+        status: m.status.map(fix),
+      })),
+      status: doc.status.map(fix),
+    }
+    return `${JSON.stringify(out, null, 2)}\n`
+  }
+
   // A project directory whose name holds an allowlisted sentence, or reads
   // like one: every path in the document is the binary's, byte for byte.
   for (const name of [USER_SENTENCE, 'Run openspec init here']) {
     const parents = (text: string, root: string): string =>
       text.replaceAll(realpathSync(dirname(root)), '<tmp>').replaceAll(dirname(root), '<tmp>')
 
-    // Main's relay contract for `context`: byte for byte.
-    test(`context --json in a project dir named "${name}": its path untouched`, async () => {
-      const argv = ['context', '--json']
-      const coRoot = referencingRoot(name)
-      const upRoot = referencingRoot(name)
-      const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-      const up = await oracle(argv, upRoot, { runtime: 'node' })
-      expect(up.exitCode, detail(up)).toBe(0)
-      expect(co.exitCode, detail(co)).toBe(0)
-      expect(documentCount(co.stdout), detail(co)).toBe(1)
-      const doc = JSON.parse(co.stdout) as { root: { path: string } }
-      expect(doc.root.path).toBe(realpathSync(coRoot))
-      expect(parents(co.stdout, coRoot), detail(co)).toBe(parents(up.stdout, upRoot))
-    }, 30_000)
+    // context spells its reference block's command fields through cospec;
+    // nothing else changes. Failing until context.ts wires the respell.
+    test.failing(
+      `context --json in a project dir named "${name}": its path untouched`,
+      async () => {
+        const argv = ['context', '--json']
+        const coRoot = referencingRoot(name)
+        const upRoot = referencingRoot(name)
+        const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+        const up = await oracle(argv, upRoot, { runtime: 'node' })
+        expect(up.exitCode, detail(up)).toBe(0)
+        expect(co.exitCode, detail(co)).toBe(0)
+        expect(documentCount(co.stdout), detail(co)).toBe(1)
+        const doc = JSON.parse(co.stdout) as { root: { path: string } }
+        expect(doc.root.path).toBe(realpathSync(coRoot))
+        expect(parents(co.stdout, coRoot), detail(co)).toBe(
+          parents(contextRespelled(up.stdout), upRoot),
+        )
+        expect(co.stdout).toContain(name)
+      },
+      30_000,
+    )
 
     const argv = ['instructions', 'proposal', '--change', 'done', '--json']
     test(`${argv.join(' ')} in a project dir named "${name}": its path untouched, reference fields respelled`, async () => {
