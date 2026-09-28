@@ -25,6 +25,12 @@
 //                        when the binary itself marks the surface deprecated
 //   parity-pending.yaml  beside this test, each entry owned by a change slug
 //
+// An alias is two-way too (change `upstream-spellings`, design decision 1): a
+// table surface marked `aliasOf` (a flag, a subcommand, a row) resolves
+// through its `aliases.yaml` entry and never the table, every marking has
+// exactly one entry for the same spelling, and every command or flag entry
+// has its marking.
+//
 // Resolution is two-way (design decision 11): every table surface marked
 // pending has exactly one parity-pending.yaml entry with the same owner, and
 // every parity-pending.yaml entry names a walked surface that the table marks
@@ -61,6 +67,7 @@ import {
   GLOBAL_FLAGS,
   isPending,
   type PositionalSpec,
+  type SubcommandSpec,
   type SurfaceStatus,
 } from '../../src/core/command-table.ts'
 import { openspecPackageDir } from '../../src/core/openspec.ts'
@@ -135,8 +142,18 @@ interface PendingEntry {
   source?: 'cli'
   owner?: string
 }
+/**
+ * `command` names a command or subcommand path (`[new, change]`), `flag` a
+ * flag on one (`{path: [init], flag: --tools}`); both pair with an `aliasOf`
+ * marking on that table surface. Workflow and tool aliases have no marking.
+ */
 interface AliasEntry {
-  upstream: { kind: 'workflow' | 'tool' | 'tool-alias' | 'command'; id?: string; path?: string[] }
+  upstream: {
+    kind: 'workflow' | 'tool' | 'tool-alias' | 'command' | 'flag'
+    id?: string
+    path?: string[]
+    flag?: string
+  }
   cospec: string
 }
 interface ExceptionEntry {
@@ -286,20 +303,25 @@ interface Surface {
   readonly flags: readonly FlagSpec[]
 }
 
-/** The table surface at `path`, and the pending owner of it or its nearest ancestor. */
+/**
+ * The table surface at `path`, the pending owner of it or its nearest
+ * ancestor, and the cospec command it is an alias of when the row or
+ * subcommand is marked `aliasOf`.
+ */
 function tableSurface(
   table: readonly CommandRow[],
   path: readonly string[],
-): { surface: Surface; pendingOwner?: string } | undefined {
+): { surface: Surface; pendingOwner?: string; aliasOf?: string } | undefined {
   const row = table.find((r) => r.name === path[0])
   if (row === undefined) return undefined
-  if (path.length === 1) return { surface: row }
+  if (path.length === 1) return { surface: row, ...(row.aliasOf ? { aliasOf: row.aliasOf } : {}) }
   if (path.length > 2) return undefined
   const sub = row.subcommands?.find((s) => s.name === path[1])
   if (sub === undefined) return undefined
+  const alias = sub.aliasOf !== undefined ? { aliasOf: sub.aliasOf } : {}
   return isPending(sub.status)
-    ? { surface: sub, pendingOwner: sub.status.pending }
-    : { surface: sub }
+    ? { surface: sub, pendingOwner: sub.status.pending, ...alias }
+    : { surface: sub, ...alias }
 }
 
 function ownerOf(status: SurfaceStatus): string | undefined {
@@ -366,7 +388,10 @@ function undeclaredOnForwardRows(model: Model): string[] {
 
 /**
  * Whether the cospec side reaches `entry` (handled, no-op, global, harness,
- * workflow, or delegated to the binary on a forward row).
+ * workflow, or delegated to the binary on a forward row). A surface the table
+ * marks `aliasOf` — the row or subcommand itself, or the flag — is upstream's
+ * spelling of a cospec one and resolves through `aliases.yaml` instead; what
+ * is declared beneath an aliased row or subcommand is an ordinary surface.
  */
 function cospecReaches(model: Model, entry: Entry): boolean {
   switch (entry.kind) {
@@ -382,7 +407,7 @@ function cospecReaches(model: Model, entry: Entry): boolean {
       const { surface } = found
       switch (entry.kind) {
         case 'command':
-          return true
+          return found.aliasOf === undefined
         case 'positional': {
           const slot = surface.positionals[entry.index]
           return slot !== undefined && !isPending(slot.status)
@@ -399,7 +424,7 @@ function cospecReaches(model: Model, entry: Entry): boolean {
         case 'flag': {
           if (model.globalFlags.includes(entry.flag)) return true
           const spec = surface.flags.find((f) => f.name === entry.flag)
-          return spec !== undefined && !isPending(spec.status)
+          return spec !== undefined && !isPending(spec.status) && spec.aliasOf === undefined
         }
         case 'flag-value': {
           const spec = surface.flags.find((f) => f.name === entry.flag)
@@ -482,10 +507,15 @@ function pendingMatches(pe: PendingEntry, entry: Entry): boolean {
 function aliasMatches(alias: AliasEntry, entry: Entry): boolean {
   const up = alias.upstream
   if (up.kind === 'command') return entry.kind === 'command' && samePath(up.path, entry.path)
+  if (up.kind === 'flag')
+    return entry.kind === 'flag' && samePath(up.path, entry.path) && entry.flag === up.flag
   return entry.kind === up.kind && 'id' in entry && entry.id === up.id
 }
 
-/** An alias counts only when its cospec spelling exists. */
+/**
+ * An alias counts only when its cospec spelling exists, unmarked: the flag it
+ * names on the same surface, or the command row.
+ */
 function aliasTargetExists(model: Model, alias: AliasEntry): boolean {
   switch (alias.upstream.kind) {
     case 'workflow':
@@ -494,8 +524,71 @@ function aliasTargetExists(model: Model, alias: AliasEntry): boolean {
     case 'tool-alias':
       return model.harnessNames.includes(alias.cospec)
     case 'command':
-      return model.table.some((r) => r.name === alias.cospec)
+      return model.table.some((r) => r.name === alias.cospec && r.aliasOf === undefined)
+    case 'flag': {
+      const surface = tableSurface(model.table, alias.upstream.path ?? [])?.surface
+      const target = surface?.flags.find((f) => f.name === alias.cospec)
+      return target !== undefined && target.aliasOf === undefined && !isPending(target.status)
+    }
   }
+}
+
+/** A table `aliasOf` marking, as the `aliases.yaml` entry it needs. */
+interface AliasMarking {
+  kind: 'command' | 'flag'
+  path: string[]
+  flag?: string
+  cospec: string
+}
+
+/** Every `aliasOf` marking in the table: rows, subcommands, and flags on either. */
+function tableAliasMarkings(table: readonly CommandRow[]): AliasMarking[] {
+  const out: AliasMarking[] = []
+  const flags = (path: string[], s: Surface): void => {
+    for (const f of s.flags)
+      if (f.aliasOf !== undefined) out.push({ kind: 'flag', path, flag: f.name, cospec: f.aliasOf })
+  }
+  for (const row of table) {
+    if (row.aliasOf !== undefined)
+      out.push({ kind: 'command', path: [row.name], cospec: row.aliasOf })
+    flags([row.name], row)
+    for (const sub of row.subcommands ?? []) {
+      const path = [row.name, sub.name]
+      if (sub.aliasOf !== undefined) out.push({ kind: 'command', path, cospec: sub.aliasOf })
+      flags(path, sub)
+    }
+  }
+  return out
+}
+
+function markingMatches(marking: AliasMarking, alias: AliasEntry): boolean {
+  const up = alias.upstream
+  return (
+    up.kind === marking.kind &&
+    samePath(up.path, marking.path) &&
+    (marking.kind === 'command' || up.flag === marking.flag)
+  )
+}
+
+/** Every place `entry` resolves to (design decision 11): empty is nowhere. */
+function placesOf(model: Model, entry: Entry): string[] {
+  const places: string[] = []
+  if (cospecReaches(model, entry)) places.push('cospec')
+  for (const alias of model.aliases)
+    if (aliasMatches(alias, entry) && aliasTargetExists(model, alias)) places.push('aliases.yaml')
+  // An exception naming a `surface` (the self-upgrade offer) is not a walked
+  // entry; only a whole-command exception would resolve one.
+  for (const exc of model.exceptions)
+    if (
+      exc.upstream.surface === undefined &&
+      entry.kind === 'command' &&
+      samePath(exc.upstream.path, entry.path)
+    )
+      places.push('exceptions.yaml')
+  for (const dep of model.deprecated)
+    if ('path' in entry && isPrefix(dep.upstream.path, entry.path)) places.push('deprecated.yaml')
+  for (const pe of model.pending) if (pendingMatches(pe, entry)) places.push('parity-pending.yaml')
+  return places
 }
 
 function pendingKey(pe: PendingEntry): string {
@@ -577,23 +670,8 @@ function checkReachability(model: Model): string[] {
 
   // Forward: every pinned entry resolves to exactly one place.
   for (const entry of entries) {
-    const places: string[] = []
-    if (cospecReaches(model, entry)) places.push('cospec')
-    for (const alias of model.aliases)
-      if (aliasMatches(alias, entry) && aliasTargetExists(model, alias)) places.push('aliases.yaml')
-    // An exception naming a `surface` (the self-upgrade offer) is not a walked
-    // entry; only a whole-command exception would resolve one.
-    for (const exc of model.exceptions)
-      if (
-        exc.upstream.surface === undefined &&
-        entry.kind === 'command' &&
-        samePath(exc.upstream.path, entry.path)
-      )
-        places.push('exceptions.yaml')
-    for (const dep of model.deprecated)
-      if ('path' in entry && isPrefix(dep.upstream.path, entry.path)) places.push('deprecated.yaml')
-    const pendingHits = model.pending.filter((pe) => pendingMatches(pe, entry))
-    places.push(...pendingHits.map(() => 'parity-pending.yaml'))
+    const places = placesOf(model, entry)
+    const hit = model.pending.find((pe) => pendingMatches(pe, entry))
 
     if (places.length !== 1) {
       failures.push(
@@ -605,7 +683,6 @@ function checkReachability(model: Model): string[] {
     }
 
     const marked = tableMarking(model, entry)
-    const hit = pendingHits[0]
     if (hit !== undefined && marked !== undefined && hit.owner !== marked)
       failures.push(
         `${label(entry)} is pending on '${hit.owner}' in parity-pending.yaml but on '${marked}' in the command table`,
@@ -615,10 +692,11 @@ function checkReachability(model: Model): string[] {
         `${label(entry)} is marked pending on '${marked}' in the command table but resolves to ${places[0]}`,
       )
 
-    // A reached flag must match upstream's spelling of its short form and arity.
+    // A reached flag — or an aliased one, which the table declares too —
+    // must match upstream's spelling of its short form and arity.
     if (
       entry.kind === 'flag' &&
-      places[0] === 'cospec' &&
+      (places[0] === 'cospec' || places[0] === 'aliases.yaml') &&
       !model.globalFlags.includes(entry.flag)
     ) {
       const spec = tableFlag(model, entry.path, entry.flag)
@@ -692,12 +770,33 @@ function checkReachability(model: Model): string[] {
   }
 
   // aliases.yaml: every alias names a walked surface and an existing cospec spelling.
+  const markings = tableAliasMarkings(model.table)
   for (const alias of model.aliases) {
-    const name = `aliases.yaml: ${alias.upstream.kind} ${alias.upstream.id ?? alias.upstream.path?.join(' ')}`
+    const up = alias.upstream
+    const name = `aliases.yaml: ${up.kind} ${up.id ?? [...(up.path ?? []), ...(up.flag !== undefined ? [up.flag] : [])].join(' ')}`
     if (!entries.some((e) => aliasMatches(alias, e)))
       failures.push(`${name} names a surface the pinned binary does not have`)
     if (!aliasTargetExists(model, alias))
       failures.push(`${name} → '${alias.cospec}' does not exist in cospec`)
+    // Two ways: a command or flag alias pairs with its table marking.
+    if (up.kind === 'command' || up.kind === 'flag') {
+      const marking = markings.find((m) => markingMatches(m, alias))
+      if (marking === undefined)
+        failures.push(`${name} has no aliasOf marking in the command table`)
+      else if (marking.cospec !== alias.cospec)
+        failures.push(
+          `${name}: the command table marks it aliasOf '${marking.cospec}', aliases.yaml '${alias.cospec}'`,
+        )
+    }
+  }
+  for (const marking of markings) {
+    const hits = model.aliases.filter((alias) => markingMatches(marking, alias))
+    if (hits.length !== 1) {
+      const what = `${marking.kind} \`${[...marking.path, ...(marking.flag !== undefined ? [marking.flag] : [])].join(' ')}\``
+      failures.push(
+        `the command table marks ${what} aliasOf '${marking.cospec}' but aliases.yaml has ${hits.length} entries for it`,
+      )
+    }
   }
 
   // exceptions.yaml: exactly one, and it names a pinned command.
@@ -979,5 +1078,151 @@ describe('reachability: negative cases (ledger 4.1, 4.3, 4.5)', () => {
     const failures = checkReachability({ ...model, deprecated: [] })
     expect(failures).toContain('command `change` resolves nowhere')
     expect(failures).toContain('command `spec list` resolves nowhere')
+  })
+})
+
+// --- aliases (change `upstream-spellings`, ledger 5.1, 5.2) ----------------------------
+
+const TOOLS_ALIAS: AliasEntry = {
+  upstream: { kind: 'flag', path: ['init'], flag: '--tools' },
+  cospec: '--harness',
+}
+
+type MutableFlag = { -readonly [K in keyof FlagSpec]: FlagSpec[K] }
+
+/**
+ * A deep copy of `table` with `edit` applied, in place, to the flag `flag` at
+ * `path`; an edit returning `'remove'` drops the flag.
+ */
+function editFlag(
+  table: readonly CommandRow[],
+  path: readonly string[],
+  flag: string,
+  edit: (spec: MutableFlag) => void | 'remove',
+): CommandRow[] {
+  const copy = structuredClone(table) as CommandRow[]
+  const flags = tableSurface(copy, path)?.surface.flags as MutableFlag[] | undefined
+  const index = flags?.findIndex((f) => f.name === flag) ?? -1
+  if (flags === undefined || index === -1) throw new Error(`no ${path.join(' ')} ${flag}`)
+  if (edit(flags[index]!) === 'remove') flags.splice(index, 1)
+  return copy
+}
+
+/**
+ * `model` with `init --tools` as an alias of `--harness`: the table flag
+ * marked `aliasOf` and handled, its `aliases.yaml` entry present and its
+ * pending entry gone — whether or not the real inputs already say so.
+ */
+function withToolsAlias(base: Model): Model {
+  const table = editFlag(base.table, ['init'], '--tools', (spec) => {
+    spec.status = 'handled'
+    spec.aliasOf = '--harness'
+  })
+  const marking: AliasMarking = {
+    kind: 'flag',
+    path: ['init'],
+    flag: '--tools',
+    cospec: '--harness',
+  }
+  const aliases = base.aliases.some((a) => markingMatches(marking, a))
+    ? base.aliases
+    : [...base.aliases, TOOLS_ALIAS]
+  const pending = base.pending.filter(
+    (pe) => !(pe.kind === 'flag' && pe.flag === '--tools' && samePath(pe.path, ['init'])),
+  )
+  return { ...base, table, aliases, pending }
+}
+
+const TOOLS_ENTRY: Entry = { kind: 'flag', path: ['init'], flag: '--tools', takesValue: true }
+
+describe('reachability: flag and command aliases resolve two ways', () => {
+  test('init --tools resolves to aliases.yaml alone through the flag kind', () => {
+    const aliased = withToolsAlias(model)
+    expect(checkReachability(aliased)).toEqual([])
+    expect(placesOf(aliased, TOOLS_ENTRY)).toEqual(['aliases.yaml'])
+  })
+
+  test('the alias entry removed: init --tools resolves nowhere', () => {
+    const aliased = withToolsAlias(model)
+    const aliases = aliased.aliases.filter((a) => a.upstream.flag !== '--tools')
+    const failures = checkReachability({ ...aliased, aliases })
+    expect(failures).toContain('flag `init --tools` resolves nowhere')
+    expect(failures).toContain(
+      "the command table marks flag `init --tools` aliasOf '--harness' but aliases.yaml has 0 entries for it",
+    )
+  })
+
+  test('the table marking removed: init --tools resolves in two places', () => {
+    const aliased = withToolsAlias(model)
+    const table = editFlag(aliased.table, ['init'], '--tools', (spec) => {
+      delete spec.aliasOf
+    })
+    const failures = checkReachability({ ...aliased, table })
+    expect(failures).toContain('flag `init --tools` resolves in 2 places: cospec, aliases.yaml')
+    expect(failures).toContain(
+      'aliases.yaml: flag init --tools has no aliasOf marking in the command table',
+    )
+  })
+
+  test('an aliases.yaml entry with no table marking fails', () => {
+    const stray: AliasEntry = {
+      upstream: { kind: 'flag', path: ['update'], flag: '--force' },
+      cospec: '--check',
+    }
+    const failures = checkReachability({ ...model, aliases: [...model.aliases, stray] })
+    expect(failures).toContain(
+      'aliases.yaml: flag update --force has no aliasOf marking in the command table',
+    )
+    expect(failures).toContain('flag `update --force` resolves in 2 places: cospec, aliases.yaml')
+  })
+
+  test('--harness removed: the alias names a cospec flag that does not exist', () => {
+    const aliased = withToolsAlias(model)
+    const table = editFlag(aliased.table, ['init'], '--harness', () => 'remove')
+    const failures = checkReachability({ ...aliased, table })
+    expect(failures).toContain(
+      "aliases.yaml: flag init --tools → '--harness' does not exist in cospec",
+    )
+    expect(failures).toContain('flag `init --tools` resolves nowhere')
+  })
+
+  test('a flag alias must agree with upstream on takesValue', () => {
+    const aliased = withToolsAlias(model)
+    const table = editFlag(aliased.table, ['init'], '--tools', (spec) => {
+      delete spec.takesValue
+      delete spec.placeholder
+    })
+    expect(checkReachability({ ...aliased, table })).toContain(
+      'flag `init --tools`: takesValue disagrees with upstream (upstream: true)',
+    )
+  })
+
+  test('a subcommand alias whose marking names another command fails', () => {
+    const table = structuredClone(COMMAND_TABLE) as CommandRow[]
+    const generate = table
+      .find((row) => row.name === 'completion')
+      ?.subcommands?.find((sub) => sub.name === 'generate') as
+      | { -readonly [K in keyof SubcommandSpec]: SubcommandSpec[K] }
+      | undefined
+    if (generate === undefined) throw new Error('no completion generate')
+    generate.status = 'handled'
+    generate.aliasOf = 'init'
+    const alias: AliasEntry = {
+      upstream: { kind: 'command', path: ['completion', 'generate'] },
+      cospec: 'completion',
+    }
+    const pending = model.pending.filter(
+      (pe) => !(pe.kind === 'command' && samePath(pe.path, ['completion', 'generate'])),
+    )
+    const aliases = model.aliases.some((a) => samePath(a.upstream.path, ['completion', 'generate']))
+      ? model.aliases
+      : [...model.aliases, alias]
+    const mutated = { ...model, table, pending, aliases }
+    expect(checkReachability(mutated)).toContain(
+      "aliases.yaml: command completion generate: the command table marks it aliasOf 'init', aliases.yaml 'completion'",
+    )
+    expect(placesOf(mutated, { kind: 'command', path: ['completion', 'generate'] })).toEqual([
+      'aliases.yaml',
+    ])
   })
 })

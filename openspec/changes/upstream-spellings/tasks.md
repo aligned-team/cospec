@@ -38,20 +38,20 @@ a time. Group 12 waits for the rebase in group 11.
 
 ## 2. T6 — alias marking and the two-way reachability check (`apps/cli/src/core/command-table.ts` shape and parser only; `apps/cli/test/contract/reachability.test.ts`)
 
-- [ ] 2.1 Add `aliasOf` to `FlagSpec`, `SubcommandSpec` and row types,
+- [x] 2.1 Add `aliasOf` to `FlagSpec`, `SubcommandSpec` and row types,
       `FlagSpec.hidden` (omitted by `offeredFlags`), and the row attribute
       `operands: 'lenient'`; teach `parseCommandArgs` to accept an alias
       spelling with its own placeholder, store its value under the canonical
       name, record the typed spelling, resolve a repeat across spellings
       last-wins, and ignore undeclared options and excess operands on a lenient
       row; verify with the 1.4 unit rows flipped to `test`
-- [ ] 2.2 In `reachability.test.ts`: `AliasEntry` gains the `flag` kind and
+- [x] 2.2 In `reachability.test.ts`: `AliasEntry` gains the `flag` kind and
       subcommand `command` paths; `cospecReaches` excludes a surface marked
       `aliasOf`; `aliasTargetExists` requires the marking; add the two-way
       marking ↔ entry check, the `takesValue` agreement for flag aliases, and
       the mutated-input negative cases of design decision 1; verify the test is
       green with no surface changed yet
-- [ ] 2.3 Commit `test(cli): resolve command and flag aliases two ways`
+- [x] 2.3 Commit `test(cli): resolve command and flag aliases two ways`
 
 ## 3. Remedy enumeration reads YAML as YAML (`apps/cli/test/contract/remedy-enumeration.test.ts`)
 

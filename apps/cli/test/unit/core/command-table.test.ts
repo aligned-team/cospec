@@ -7,6 +7,7 @@ import {
   closest,
   COMMAND_TABLE,
   commandRow,
+  flagSpelling,
   flagValue,
   GLOBAL_FLAGS,
   hasFlag,
@@ -22,7 +23,6 @@ import {
   storePathTakesValue,
   takesNextToken,
   type CommandRow,
-  type ParsedArgs,
   type ParseRefusal,
   type ParseResult,
   type PendingOwner,
@@ -552,10 +552,90 @@ describe('table shape', () => {
   })
 })
 
-// Read loosely until the parser records the typed spelling of an alias flag.
-function flagSpelling(p: ParsedArgs, name: string): string {
-  return (p as unknown as { spellings?: Record<string, string> }).spellings?.[name] ?? name
+function ok(row: TableCommandRow, args: string[]) {
+  const result = parseCommandArgs(row, args)
+  if (!result.ok) throw new Error(result.refusal.message)
+  return result.parsed
 }
+
+/**
+ * The parser's alias, hidden-flag and lenient-operand handling on synthetic
+ * rows, independent of which table surfaces carry the markings.
+ */
+describe('parseCommandArgs — aliases, hidden flags, lenient operands', () => {
+  const init = tableRow('init')
+  const aliased: TableCommandRow = {
+    ...init,
+    flags: [
+      ...init.flags.filter((f) => f.name !== '--tools'),
+      {
+        name: '--tools',
+        takesValue: true,
+        placeholder: '<tools>',
+        description: 'upstream spelling of --harness',
+        status: 'handled',
+        origin: 'upstream',
+        aliasOf: '--harness',
+      },
+      {
+        name: '--secret',
+        takesValue: true,
+        placeholder: '<x>',
+        description: 'hidden',
+        status: 'handled',
+        origin: 'upstream',
+        hidden: true,
+      },
+    ],
+  }
+  const lenient: TableCommandRow = {
+    ...tableRow('list'),
+    flags: [],
+    positionals: [{ name: 'command', required: false, status: 'handled', origin: 'upstream' }],
+    operands: 'lenient',
+  }
+  test("an alias flag's value is stored under the flag it spells, with the typed spelling", () => {
+    const p = ok(aliased, ['--tools', 'claude'])
+    expect(p.flags).toEqual({ '--harness': 'claude' })
+    expect(flagSpelling(p, '--harness')).toBe('--tools')
+    expect(flagSpelling(ok(aliased, ['--harness', 'claude']), '--harness')).toBe('--harness')
+    expect(flagSpelling(ok(aliased, []), '--harness')).toBe('--harness')
+  })
+
+  test('a repeat across the two spellings is last-wins', () => {
+    const tools = ok(aliased, ['--harness', 'a', '--tools=b'])
+    expect(flagValue(tools, '--harness')).toBe('b')
+    expect(flagSpelling(tools, '--harness')).toBe('--tools')
+    const harness = ok(aliased, ['--tools', 'b', '--harness', 'a'])
+    expect(flagValue(harness, '--harness')).toBe('a')
+    expect(flagSpelling(harness, '--harness')).toBe('--harness')
+  })
+
+  test('an alias flag with no value is refused naming its own placeholder', () => {
+    const result = parseCommandArgs(aliased, ['--tools'])
+    expect(result.ok).toBe(false)
+    if (!result.ok)
+      expect(result.refusal.message).toBe(
+        "cospec init: option '--tools <tools>' argument missing\n",
+      )
+  })
+
+  test('a hidden flag is parsed but never offered', () => {
+    expect(ok(aliased, ['--secret', 's']).flags['--secret']).toBe('s')
+    const offered = offeredFlags(aliased).map((f) => f.name)
+    expect(offered).toContain('--tools')
+    expect(offered).not.toContain('--secret')
+  })
+
+  test('a lenient row ignores undeclared options and excess operands', () => {
+    expect(ok(lenient, ['--bogus', 'list', 'extra', '-x', '--store-path'])).toEqual({
+      positionals: ['list'],
+      flags: {},
+    })
+    expect(ok(lenient, ['--', 'list'])).toEqual({ positionals: ['list'], flags: {} })
+    expect(parseCommandArgs(tableRow('list'), ['--bogus']).ok).toBe(false)
+  })
+})
 
 describe('upstream spellings (aliases, hidden flags, lenient operands)', () => {
   test.failing('init --tools stores its value under --harness and records the spelling', () => {

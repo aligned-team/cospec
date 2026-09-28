@@ -53,6 +53,16 @@ export interface FlagSpec {
   readonly description: string
   readonly status: SurfaceStatus
   readonly origin: SurfaceOrigin
+  /**
+   * Upstream's spelling of the flag this names on the same surface
+   * (`--tools` for `--harness`): parsed with its own placeholder, its value
+   * stored under that flag's name, the typed spelling recorded
+   * (`flagSpelling`). The reachability test resolves an aliased flag through
+   * `aliases.yaml`, never the table.
+   */
+  readonly aliasOf?: `--${string}`
+  /** Parsed like any flag, never offered to `--help` or completion (upstream hides it too). */
+  readonly hidden?: true
 }
 
 export interface PositionalSpec {
@@ -98,6 +108,13 @@ export interface SubcommandSpec extends SurfaceSpec {
   readonly summary: string
   readonly status: SurfaceStatus
   readonly origin: SurfaceOrigin
+  /**
+   * The cospec command this subcommand is upstream's spelling of (`new change`
+   * of `new`): it dispatches to that command's module with its own declared
+   * surface parsed, and the reachability test resolves it through
+   * `aliases.yaml`.
+   */
+  readonly aliasOf?: string
 }
 
 interface RowBase extends SurfaceSpec {
@@ -125,6 +142,16 @@ interface RowBase extends SurfaceSpec {
    * document under `--json`.
    */
   readonly declaresStorePath?: true
+  /**
+   * The cospec command this row is upstream's spelling of (`experimental` of
+   * `init`), resolved through `aliases.yaml` by the reachability test.
+   */
+  readonly aliasOf?: string
+  /**
+   * `lenient`: undeclared options and excess operands are ignored instead of
+   * refused, as commander's implicit `help [command]` ignores them.
+   */
+  readonly operands?: 'lenient'
 }
 
 export type TableCommandRow = RowBase & {
@@ -181,7 +208,11 @@ function upstreamArg(spec: PositionalInput): PositionalSpec {
 function cospecArg(spec: PositionalInput): PositionalSpec {
   return { ...spec, status: spec.status ?? HANDLED, origin: 'cospec' }
 }
-function sub(name: string, summary: string, surface: Partial<SurfaceSpec> = {}): SubcommandSpec {
+function sub(
+  name: string,
+  summary: string,
+  surface: Partial<SurfaceSpec> & { aliasOf?: string } = {},
+): SubcommandSpec {
   return {
     name,
     summary,
@@ -189,6 +220,7 @@ function sub(name: string, summary: string, surface: Partial<SurfaceSpec> = {}):
     origin: 'upstream',
     positionals: surface.positionals ?? [],
     flags: surface.flags ?? [],
+    ...(surface.aliasOf !== undefined ? { aliasOf: surface.aliasOf } : {}),
   }
 }
 function pendingSub(name: string, summary: string, owner: PendingOwner): SubcommandSpec {
@@ -983,9 +1015,9 @@ export function positionalLabel(positional: PositionalSpec): string {
   return positional.required ? `<${positional.name}>` : `[${positional.name}]`
 }
 
-/** The flags `--help` and completion list: handled and accepted no-ops, never pending. */
+/** The flags `--help` and completion list: handled and accepted no-ops, never pending or hidden. */
 export function offeredFlags(surface: { readonly flags: readonly FlagSpec[] }): FlagSpec[] {
-  return surface.flags.filter((flag) => !isPending(flag.status))
+  return surface.flags.filter((flag) => !isPending(flag.status) && flag.hidden !== true)
 }
 
 // --- suggestion ------------------------------------------------------------------
@@ -1072,8 +1104,13 @@ export type ParseRefusal =
 export interface ParsedArgs {
   readonly subcommand?: string
   readonly positionals: readonly string[]
-  /** Keyed by long flag name (`-y` lands under `--yes`); a boolean flag's value is `true`. */
+  /**
+   * Keyed by long flag name (`-y` lands under `--yes`, an alias flag's value
+   * under the flag it is an alias of); a boolean flag's value is `true`.
+   */
   readonly flags: Readonly<Record<string, string | true>>
+  /** The alias spelling that supplied a flag's value, keyed by the flag's name. */
+  readonly spellings?: Readonly<Record<string, string>>
 }
 
 export type ParseResult =
@@ -1088,6 +1125,15 @@ export function hasFlag(parsed: ParsedArgs, name: `--${string}`): boolean {
 export function flagValue(parsed: ParsedArgs, name: `--${string}`): string | undefined {
   const value = parsed.flags[name]
   return typeof value === 'string' ? value : undefined
+}
+
+/**
+ * The spelling the user typed for flag `name`: an alias of it when that
+ * supplied the value (`--tools` for `--harness`), else `name`.
+ */
+export function flagSpelling(parsed: ParsedArgs, name: `--${string}`): `--${string}` {
+  const typed = parsed.spellings?.[name]
+  return typed !== undefined ? (typed as `--${string}`) : name
 }
 
 /** The closest candidate to an unknown option, matched on its name before any `=`. */
@@ -1219,9 +1265,11 @@ function parseSurface(
   globals: readonly FlagSpec[],
   args: readonly string[],
   declaresStorePath: boolean,
+  lenient = false,
 ): ParseResult {
   const positionals: string[] = []
   const flags: Record<string, string | true> = {}
+  const spellings: Record<string, string> = {}
   const storePath: ParseRefusal = { kind: 'store-path', command, message: STORE_PATH_TEXT }
   // Commander's order: a missing value is raised the moment the scan meets it,
   // while an unknown option is collected and reported only after the scan,
@@ -1241,6 +1289,13 @@ function parseSurface(
       positionals.push(tok)
       continue
     }
+    const eq = tok.startsWith('--') ? tok.indexOf('=') : -1
+    const name = eq > 0 ? tok.slice(0, eq) : tok
+    const inline = eq > 0 ? tok.slice(eq + 1) : undefined
+    const flag = surface.flags.find((f) => f.name === name || f.short === name)
+    // A lenient row ignores every option it does not declare, commander's
+    // help command's way; nothing it declares takes a value.
+    if (lenient && flag === undefined) continue
     if (isStorePathToken(tok) && !declaresStorePath) {
       // Undeclared upstream, so an unknown option that takes nothing: the
       // redirect, on stderr only, in the unknown option's place in the order.
@@ -1263,10 +1318,6 @@ function parseSurface(
       continue
     }
 
-    const eq = tok.startsWith('--') ? tok.indexOf('=') : -1
-    const name = eq > 0 ? tok.slice(0, eq) : tok
-    const inline = eq > 0 ? tok.slice(eq + 1) : undefined
-    const flag = surface.flags.find((f) => f.name === name || f.short === name)
     // `--bool=x` is unknown as a whole token, as commander reports it.
     if (flag === undefined || (inline !== undefined && flag.takesValue !== true)) {
       const dashes = tok.startsWith('--') ? 'long' : 'short'
@@ -1295,13 +1346,18 @@ function parseSurface(
       recorded ??= pendingRefusal(command, flag.name, flag.status.pending)
       continue
     }
-    flags[flag.name] = value
+    // An alias and the flag it spells are one option: the last one typed wins.
+    const key = flag.aliasOf ?? flag.name
+    flags[key] = value
+    if (flag.aliasOf !== undefined) spellings[key] = flag.name
+    else delete spellings[key]
   }
 
   if (recorded !== undefined) return { ok: false, refusal: recorded }
   const slots = surface.positionals.filter(
     (p) => p.displacedBy?.some((name) => flags[name] !== undefined) !== true,
   )
+  if (lenient) positionals.splice(slots.length)
   const missing = missingPositional(slots, positionals)
   if (missing !== undefined) return { ok: false, refusal: missingArgument(command, missing, slots) }
   for (const [index, value] of positionals.entries()) {
@@ -1330,7 +1386,9 @@ function parseSurface(
   }
 
   if (sawStorePath) return { ok: false, refusal: storePath }
-  return { ok: true, parsed: { positionals, flags } }
+  const parsed: ParsedArgs =
+    Object.keys(spellings).length > 0 ? { positionals, flags, spellings } : { positionals, flags }
+  return { ok: true, parsed }
 }
 
 /**
@@ -1355,7 +1413,9 @@ export function parseCommandArgs(row: TableCommandRow, args: readonly string[]):
     first !== undefined ? row.subcommands?.find((s) => s.name === first) : undefined
   const globals = rowGlobalFlags(row)
   const storePath = storePathTakesValue(row)
-  if (subcommand === undefined) return parseSurface(row.name, row, globals, args, storePath)
+  const lenient = row.operands === 'lenient'
+  if (subcommand === undefined)
+    return parseSurface(row.name, row, globals, args, storePath, lenient)
   if (isPending(subcommand.status)) {
     return {
       ok: false,
