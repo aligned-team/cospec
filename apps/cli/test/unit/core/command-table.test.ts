@@ -111,7 +111,11 @@ describe('parseCommandArgs — the six ledger 1.5 cases', () => {
 
   test('--schem suggests --schema', () => {
     const r = refused('status', ['--schem', 'custom'])
-    expect(r).toMatchObject({ kind: 'unknown-option', option: '--schem', suggestion: '--schema' })
+    expect(r).toMatchObject({
+      kind: 'unknown-option',
+      option: '--schem',
+      suggestions: ['--schema'],
+    })
     expect(r.message).toBe("cospec status: unknown option '--schem'\nDid you mean '--schema'?\n")
   })
 
@@ -135,7 +139,7 @@ describe('parseCommandArgs — refusals', () => {
     expect(refused('validate', ['my-change', '--typo', 'x'])).toMatchObject({
       kind: 'unknown-option',
       option: '--typo',
-      suggestion: '--type',
+      suggestions: ['--type'],
     })
   })
 
@@ -143,19 +147,19 @@ describe('parseCommandArgs — refusals', () => {
     expect(refused('validate', ['--strict=1'])).toMatchObject({
       kind: 'unknown-option',
       option: '--strict=1',
-      suggestion: '--strict',
+      suggestions: ['--strict'],
     })
   })
 
   test('an unknown short option gets no suggestion, as commander gives none', () => {
     const refusal = refused('archive', ['-Y', 'c'])
     expect(refusal).toMatchObject({ kind: 'unknown-option', option: '-Y' })
-    expect(refusal).not.toHaveProperty('suggestion')
+    expect(refusal).not.toHaveProperty('suggestions')
     expect(refusal?.message).toBe("cospec archive: unknown option '-Y'\n")
   })
 
   test('a typo of a global flag suggests the global', () => {
-    expect(refused('list', ['--jsn'])).toMatchObject({ suggestion: '--json' })
+    expect(refused('list', ['--jsn'])).toMatchObject({ suggestions: ['--json'] })
   })
 
   test('a value is the next token whatever it looks like (commander semantics)', () => {

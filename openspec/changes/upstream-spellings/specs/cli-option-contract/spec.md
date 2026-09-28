@@ -11,10 +11,14 @@ table parser and SHALL accept only declared positionals and flags, in both the
 help command), which SHALL ignore an undeclared option and an excess operand as
 that help command does. An undeclared option SHALL fail with
 `cospec <command>: unknown option '<x>'` on stderr, a closest-match suggestion
-on the next line when an unknown long (`--`) option is within edit distance of a
-declared long flag (an unknown short option gets none, as commander offers
-none), and exit 1, before the command does any work. A declared value-taking
-flag with no value SHALL fail with
+on the next line when an unknown long (`--`) option is close to a long flag the
+command's help offers or `--version` — chosen as commander's `suggestSimilar`
+chooses it: the whole token without its `--` (an `=value` included), no
+one-character candidate, similarity `(length - distance) / length` above 0.4,
+every candidate tied at the best distance within 3, as `Did you mean '<a>'?` or
+`Did you mean one of '<a>', '<b>'?` (an unknown short option gets none, as
+commander offers none) — and exit 1, before the command does any work. A
+declared value-taking flag with no value SHALL fail with
 `cospec <command>: option '<flag> <placeholder>' argument missing` and exit 1. A
 flag marked pending SHALL consume its value if it takes one and SHALL fail with
 `cospec <command>: '<flag>' is not supported yet` and exit 1. A positional
@@ -238,6 +242,14 @@ help.
 - **THEN** stderr is exactly `cospec <command>: unknown option '<x>'`, with no
   `Did you mean` line, exit 1, as the pinned binary refuses it;
   `cospec list --jsn` still suggests `--json`
+
+#### Scenario: A long option's suggestion is commander's
+
+- **WHEN** `cospec list --j`, `list --lng`, `list --srt=name`, `list --jsn=1`,
+  `list --sore` or `list --verson` runs
+- **THEN** the first four get no `Did you mean` line, `list --sore` gets
+  `Did you mean one of '--sort', '--store'?` and `list --verson`
+  `Did you mean '--version'?`, each exit 1, as the pinned binary suggests
 
 ### Requirement: Forwarded commands are declared, not re-parsed
 

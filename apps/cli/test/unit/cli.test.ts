@@ -411,7 +411,8 @@ describe('cli dispatcher: an undeclared option before the command is refused', (
   for (const [argv, err] of [
     [['--bogus', 'list'], "cospec: unknown option '--bogus'\n"],
     [['--jsn', 'list'], "cospec: unknown option '--jsn'\nDid you mean '--json'?\n"],
-    [['--jsn=1', 'list'], "cospec: unknown option '--jsn=1'\nDid you mean '--json'?\n"],
+    // The whole token is compared, as commander's suggestSimilar does: none is close.
+    [['--jsn=1', 'list'], "cospec: unknown option '--jsn=1'\n"],
     [['--verison', 'list'], "cospec: unknown option '--verison'\nDid you mean '--version'?\n"],
     [['-x', 'list'], "cospec: unknown option '-x'\n"],
     [['--bogus'], "cospec: unknown option '--bogus'\n"],

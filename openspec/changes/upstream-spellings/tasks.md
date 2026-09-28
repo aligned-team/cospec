@@ -230,7 +230,7 @@ a time. Group 12 waits for the rebase in group 11.
       binary warns about, the whitespace `schema:`) against the binary, failing
       ones as `test.failing`; commit
       `test(cli): pin round-3 upstream-spellings rows against the binary`
-- [ ] 16.2 The long-option hint ports commander's `suggestSimilar` (ledger 7.5);
+- [x] 16.2 The long-option hint ports commander's `suggestSimilar` (ledger 7.5);
       commit `fix(cli): hint an unknown long option as commander does`
 - [ ] 16.3 `new change` with no `--schema` lets the binary resolve `config.yaml`
       (ledger 1.13); commit

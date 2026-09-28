@@ -991,35 +991,21 @@ describe("unknown-option differential: a long option's hint is commander's sugge
       binary: '(Did you mean --schema?)',
     },
   ]
-  // Rows cospec answers differently until command-table.ts ports suggestSimilar.
-  const FAILING: ReadonlySet<string> = new Set([
-    'list --j',
-    'list --lng',
-    'list --srt=name',
-    'list --jsn=1',
-    'list --sore',
-    'list --verson',
-  ])
   for (const { argv, command, option, binary } of ROWS) {
-    const register = FAILING.has(argv.join(' ')) ? test.failing : test
-    register(
-      `${argv.join(' ')}: ${binary === '' ? 'no hint' : binary}, as the binary`,
-      async () => {
-        const up = await oracle(argv, freshRoot())
-        expect(up.exitCode).toBe(1)
-        expect(up.stderr).toBe(
-          `error: unknown option '${option}'\n${binary === '' ? '' : `${binary}\n`}`,
-        )
-        const root = freshRoot()
-        const before = treeHash(root)
-        const co = await runCospec(argv, root)
-        expect(co.exitCode).toBe(1)
-        expect(co.stdout).toBe('')
-        expect(co.stderr).toBe(`${unknown(command, option)}\n${hintFrom(up.stderr)}`)
-        expect(treeHash(root)).toEqual(before)
-      },
-      30_000,
-    )
+    test(`${argv.join(' ')}: ${binary === '' ? 'no hint' : binary}, as the binary`, async () => {
+      const up = await oracle(argv, freshRoot())
+      expect(up.exitCode).toBe(1)
+      expect(up.stderr).toBe(
+        `error: unknown option '${option}'\n${binary === '' ? '' : `${binary}\n`}`,
+      )
+      const root = freshRoot()
+      const before = treeHash(root)
+      const co = await runCospec(argv, root)
+      expect(co.exitCode).toBe(1)
+      expect(co.stdout).toBe('')
+      expect(co.stderr).toBe(`${unknown(command, option)}\n${hintFrom(up.stderr)}`)
+      expect(treeHash(root)).toEqual(before)
+    }, 30_000)
   }
 })
 

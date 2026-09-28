@@ -223,8 +223,11 @@ One command table (`core/command-table.ts`) drives argv parsing, per-command
 completes it after its name. Five refusal shapes, all exit `1`:
 
 - **Unknown flag:** `cospec <command>: unknown option '<flag>'`, followed by
-  `Did you mean '<closest-flag>'?` when an unknown `--` option is close to one
-  (an unknown short option gets no suggestion, as OpenSpec gives none).
+  `Did you mean '<closest-flag>'?` — or `Did you mean one of '<a>', '<b>'?` when
+  several tie — for an unknown `--` option close to a long flag the command
+  offers, matched the way OpenSpec matches it: the whole token (`--srt=name`
+  included) within three edits, over half of it unchanged, never a one-letter
+  name. An unknown short option gets no suggestion, as OpenSpec gives none.
 - **Missing value:**
   `cospec <command>: option '<flag> <placeholder>' argument missing`, for a
   value-taking flag given with nothing after it.

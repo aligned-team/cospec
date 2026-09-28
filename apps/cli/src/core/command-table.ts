@@ -1168,7 +1168,8 @@ export type ParseRefusal =
       readonly kind: 'unknown-option'
       readonly command: string
       readonly option: string
-      readonly suggestion?: string
+      /** Commander's closest long options, sorted; absent when none is close. */
+      readonly suggestions?: readonly string[]
       readonly message: string
     }
   /**
@@ -1245,19 +1246,55 @@ export function flagSpelling(parsed: ParsedArgs, name: `--${string}`): `--${stri
   return typed !== undefined ? (typed as `--${string}`) : name
 }
 
-/**
- * The closest long candidate to an unknown long option, matched on its name
- * before any `=`. None for a short option: commander offers its closest match
- * only after an unknown `--` option.
- */
-function optionSuggestion(option: string, candidates: readonly string[]): string | undefined {
-  if (!option.startsWith('--')) return undefined
-  const eq = option.indexOf('=')
-  return closest(eq > 0 ? option.slice(0, eq) : option, candidates)
+const MAX_SUGGEST_DISTANCE = 3
+
+/** Commander's optimal-string-alignment distance, capped as `suggestSimilar` caps it. */
+function editDistance(a: string, b: string): number {
+  if (Math.abs(a.length - b.length) > MAX_SUGGEST_DISTANCE) return Math.max(a.length, b.length)
+  const d: number[][] = []
+  for (let i = 0; i <= a.length; i++) d[i] = [i]
+  for (let j = 0; j <= b.length; j++) d[0]![j] = j
+  for (let j = 1; j <= b.length; j++) {
+    for (let i = 1; i <= a.length; i++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      const row = d[i]!
+      row[j] = Math.min(d[i - 1]![j]! + 1, row[j - 1]! + 1, d[i - 1]![j - 1]! + cost)
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1])
+        row[j] = Math.min(row[j]!, d[i - 2]![j - 2]! + 1)
+    }
+  }
+  return d[a.length]![b.length]!
 }
 
-function suggestionHint(suggestion: string | undefined): string {
-  return suggestion !== undefined ? `Did you mean '${suggestion}'?\n` : ''
+/**
+ * The long candidates commander's `suggestSimilar` offers for an unknown
+ * option, sorted: none for a short option; else, comparing the whole token
+ * and each candidate without their `--` (an `=value` stays part of the token),
+ * every candidate longer than one character whose similarity
+ * `(length - distance) / length` exceeds 0.4 at the best distance within 3.
+ */
+function optionSuggestions(option: string, candidates: readonly string[]): string[] {
+  if (!option.startsWith('--')) return []
+  const word = option.slice(2)
+  let similar: string[] = []
+  let bestDistance = MAX_SUGGEST_DISTANCE
+  for (const candidate of new Set(candidates.map((c) => c.slice(2)))) {
+    if (candidate.length <= 1) continue
+    const distance = editDistance(word, candidate)
+    const length = Math.max(word.length, candidate.length)
+    if ((length - distance) / length <= 0.4) continue
+    if (distance < bestDistance) {
+      bestDistance = distance
+      similar = [candidate]
+    } else if (distance === bestDistance) similar.push(candidate)
+  }
+  return similar.toSorted((a, b) => a.localeCompare(b)).map((candidate) => `--${candidate}`)
+}
+
+function suggestionHint(suggestions: readonly string[]): string {
+  const quoted = suggestions.map((name) => `'${name}'`)
+  if (quoted.length > 1) return `Did you mean one of ${quoted.join(', ')}?\n`
+  return quoted.length === 1 ? `Did you mean ${quoted[0]}?\n` : ''
 }
 
 /**
@@ -1267,19 +1304,18 @@ function suggestionHint(suggestion: string | undefined): string {
  */
 export function globalUnknownOptionRefusal(option: string): string {
   const candidates = [...GLOBAL_FLAGS.map((flag) => flag.name), '--version']
-  const hint = suggestionHint(optionSuggestion(option, candidates))
+  const hint = suggestionHint(optionSuggestions(option, candidates))
   return `cospec: unknown option '${option}'\n${hint}`
 }
 
 function unknownOption(command: string, option: string, candidates: string[]): ParseRefusal {
-  const suggestion = optionSuggestion(option, candidates)
-  const hint = suggestionHint(suggestion)
+  const suggestions = optionSuggestions(option, candidates)
   return {
     kind: 'unknown-option',
     command,
     option,
-    ...(suggestion !== undefined ? { suggestion } : {}),
-    message: `cospec ${command}: unknown option '${option}'\n${hint}`,
+    ...(suggestions.length > 0 ? { suggestions } : {}),
+    message: `cospec ${command}: unknown option '${option}'\n${suggestionHint(suggestions)}`,
   }
 }
 
@@ -1360,8 +1396,13 @@ export function isStorePathToken(tok: string): boolean {
   return tok === '--store-path' || tok.startsWith('--store-path=')
 }
 
+/**
+ * What commander searches for a hint: the long options the command's help
+ * shows, then its parent's (`-V, --version` among them).
+ */
 function suggestionCandidates(surface: SurfaceSpec, globals: readonly FlagSpec[]): string[] {
-  return [...surface.flags, ...globals].map((flag) => flag.name)
+  const visible = [...surface.flags, ...globals].filter((flag) => flag.hidden !== true)
+  return [...visible.map((flag) => flag.name), '--version']
 }
 
 function parseSurface(
