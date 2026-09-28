@@ -6,6 +6,7 @@
 // blocker (parity is contract-tested). Rule IDs are frozen public API.
 
 import {
+  findRequirementSplits,
   findScenarioDrops,
   foldRequirementName,
   normalizeBlockRaw,
@@ -177,9 +178,33 @@ export function archiveRules(
     // Every other rule here reads the view openspec's archive merges — HTML
     // comments included (see `ReadView`).
     const parsed = parseDeltaSpec(file.text, file.path, file.capability, 'verbatim')
+    const maskedParse = parseDeltaSpec(file.text, file.path, file.capability)
     const masked = maskedByCap.get(file.capability) ?? []
-    masked.push(...parseDeltaSpec(file.text, file.path, file.capability).ops)
+    masked.push(...maskedParse.ops)
     maskedByCap.set(file.capability, masked)
+
+    // archive/split-requirement — a skipped `###` header inside an ADDED or
+    // MODIFIED block cuts it in two in the spec the archive rebuilds and
+    // re-validates, and a piece left with no scenario aborts the archive (see
+    // `findRequirementSplits`). A `### Scenario:` line the advisory reader sees
+    // is `deltas/scenario-depth`'s alone: its `#### Scenario:` fix mends both.
+    const depthLines = new Set(maskedParse.scenarioDepthIssues.map((d) => d.line))
+    for (const split of findRequirementSplits(parsed)) {
+      if (depthLines.has(split.part.line)) continue
+      const { op, part } = split
+      const header = `### ${part.header ?? ''}`
+      issues.push({
+        level: 'ERROR',
+        rule: 'archive/split-requirement',
+        path: file.path,
+        line: part.line,
+        message:
+          split.empty === 'head'
+            ? `header "${header}" inside ${op.operation} "${op.name}" splits it when archived, leaving "${op.name}" with no scenario above the header`
+            : `header "${header}" inside ${op.operation} "${op.name}" splits it when archived, leaving the header a requirement with no scenario`,
+        hint: 'openspec archive re-validates the merged spec, where every "###" header starts a requirement that needs its own "#### Scenario:" — make the header plain or bold text, or move it above the first "### Requirement:"',
+      })
+    }
 
     // archive/no-ops — a delta file with a recognized header but zero parsed
     // operations aborts openspec's merge ("Delta parsing found no operations").

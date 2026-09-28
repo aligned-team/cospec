@@ -405,6 +405,25 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
     nativeKey: /^scenario heading "### (Scenario:.*)" uses 3 hashtags; must be `#### Scenario:`$/,
   },
 
+  // 1.13.1 skipped-header INFOs vs archive/split-requirement: a skipped header
+  // inside an ADDED/MODIFIED block that the archive's rebuilt spec refuses is
+  // cospec's ERROR, not its `deltas/skipped-header` INFO. Keyed on the header
+  // text both messages quote, `### Scenario:` included — that entry's native
+  // twin, `deltas/scenario-depth`, stays silent on a header the advisory
+  // reader masks.
+  {
+    rule: 'archive/split-requirement',
+    delegated:
+      /^Header "### (.+)" in .+ is not a "### Requirement:" header and is ignored by validation\./,
+    nativeKey: /^header "### (.+?)" inside (?:ADDED|MODIFIED) ".*" splits it when archived/,
+  },
+  {
+    rule: 'archive/split-requirement',
+    delegated:
+      /^Header "### (.+)" in .+ is missing a requirement name and is ignored by validation\./,
+    nativeKey: /^header "### (.+?)" inside (?:ADDED|MODIFIED) ".*" splits it when archived/,
+  },
+
   // 1.13.1 cross-section conflicts vs archive/added-exists. Each native key
   // names its own section, so a delta that ADDs, REMOVEs and MODIFIES one name
   // keeps the second delegated ERROR beside cospec's one finding.

@@ -347,7 +347,8 @@ describe('parseDeltaSpec skippedHeaders', () => {
 
   // Captured from the parser before `skippedHeaders` existed: recording the
   // headers must not move a single op, count, line or block byte. (Only
-  // `verbatimName` was added since, equal to `name` on a comment-free header.)
+  // `verbatimName` and `parts` were added since: the first equals `name` on a
+  // comment-free header, the second only cuts the block at those headers.)
   test('recording them leaves ops, SHALL/MUST, scenario counts and lines unchanged', () => {
     const p = parseDeltaSpec(SKIPPED, 'specs/x/spec.md', 'x')
     expect(p.ops.map(({ raw: _raw, ...op }) => op)).toEqual([
@@ -361,6 +362,13 @@ describe('parseDeltaSpec skippedHeaders', () => {
         scenarioNames: ['Works'],
         emptyScenarioCount: 0,
         scenarioRemovalReasons: [],
+        parts: [
+          { line: 5, scenarioCount: 0 },
+          { header: 'Notes inside', line: 9, scenarioCount: 1 },
+          { header: 'Requirement:', line: 18, scenarioCount: 0 },
+          { header: 'requirement', line: 20, scenarioCount: 0 },
+          { header: 'Scenario: Shallow', line: 26, scenarioCount: 0 },
+        ],
       },
       {
         operation: 'REMOVED',
@@ -382,6 +390,10 @@ describe('parseDeltaSpec skippedHeaders', () => {
         scenarioNames: ['Other'],
         emptyScenarioCount: 0,
         scenarioRemovalReasons: [],
+        parts: [
+          { line: 38, scenarioCount: 0 },
+          { header: 'Between notes', line: 40, scenarioCount: 1 },
+        ],
       },
     ])
     // A skipped header stays part of the block it sits in, as upstream's does.
@@ -416,7 +428,10 @@ describe('deltas/skipped-header', () => {
       (i) => i.rule === 'deltas/skipped-header',
     )
 
-  test('an INFO for a header between blocks, inside a block, and each nameless shape', () => {
+  test('an INFO only for a header the archive keeps; a splitting one is left to archive/*', () => {
+    // Every in-block header in SKIPPED leaves a piece of its block with no
+    // scenario, which the archive refuses — `archive/split-requirement`'s
+    // ERROR. Only the divider above the first requirement is this INFO.
     expect(
       skippedIssues(SKIPPED).map((i) => ({ level: i.level, line: i.line, message: i.message })),
     ).toEqual([
@@ -426,27 +441,73 @@ describe('deltas/skipped-header', () => {
         message:
           'header "### Documentation Requirements" in ADDED Requirements is not a "### Requirement:" header and is ignored by validation',
       },
+    ])
+  })
+
+  /** Both nameless shapes above the first requirement, and a harmless in-block divider. */
+  const KEPT = `## ADDED Requirements
+
+### Requirement:
+
+### requirement
+
+### Requirement: X
+
+The system SHALL x.
+
+#### Scenario: s
+
+- **WHEN** a
+- **THEN** b
+
+### Notes
+
+The system SHALL keep notes.
+
+#### Scenario: n
+
+- **WHEN** c
+- **THEN** d
+
+## MODIFIED Requirements
+
+### Between notes
+
+### Requirement: Other thing
+
+The system MUST do the other thing.
+
+#### Scenario: Other
+
+- **WHEN** a
+- **THEN** b
+`
+
+  test('an INFO for each nameless shape, a harmless in-block header, and a MODIFIED divider', () => {
+    expect(
+      skippedIssues(KEPT).map((i) => ({ level: i.level, line: i.line, message: i.message })),
+    ).toEqual([
       {
         level: 'INFO',
-        line: 9,
-        message:
-          'header "### Notes inside" in ADDED Requirements is not a "### Requirement:" header and is ignored by validation',
-      },
-      {
-        level: 'INFO',
-        line: 18,
+        line: 3,
         message:
           'header "### Requirement:" in ADDED Requirements is missing a requirement name and is ignored by validation',
       },
       {
         level: 'INFO',
-        line: 20,
+        line: 5,
         message:
           'header "### requirement" in ADDED Requirements is missing a requirement name and is ignored by validation',
       },
       {
         level: 'INFO',
-        line: 40,
+        line: 16,
+        message:
+          'header "### Notes" in ADDED Requirements is not a "### Requirement:" header and is ignored by validation',
+      },
+      {
+        level: 'INFO',
+        line: 27,
         message:
           'header "### Between notes" in MODIFIED Requirements is not a "### Requirement:" header and is ignored by validation',
       },
@@ -454,7 +515,8 @@ describe('deltas/skipped-header', () => {
   })
 
   test('each shape carries its own hint', () => {
-    const [divider, , nameless] = skippedIssues(SKIPPED)
+    const [nameless] = skippedIssues(KEPT)
+    const [divider] = skippedIssues(SKIPPED)
     expect(divider?.hint).toBe(
       'use "### Requirement: Documentation Requirements" if it should be validated as a requirement',
     )
@@ -474,7 +536,7 @@ describe('deltas/skipped-header', () => {
     ).toHaveLength(1)
   })
 
-  test('a scenario after a skipped header still counts, and INFO never moves the verdict', () => {
+  test("a scenario after a skipped header still counts; the header is archive/*'s", () => {
     const text = `## ADDED Requirements
 
 ### Requirement: X
@@ -488,8 +550,14 @@ The system SHALL x.
 - **WHEN** a
 - **THEN** b
 `
-    const found = deltasRules(delta('specs/x/spec.md', 'x', text))
-    expect(rules(found)).toEqual(['deltas/skipped-header'])
+    // No requirement-shape finding: the scenario is still X's. No INFO either:
+    // the header leaves X's own piece with no scenario, which the archive refuses.
+    expect(deltasRules(delta('specs/x/spec.md', 'x', text))).toEqual([])
+  })
+
+  test('INFO never moves the verdict', () => {
+    const found = deltasRules(delta('specs/x/spec.md', 'x', KEPT))
+    expect(rules(found).every((r) => r === 'deltas/skipped-header')).toBe(true)
     expect(found.filter((i) => i.level !== 'INFO')).toEqual([])
   })
 })

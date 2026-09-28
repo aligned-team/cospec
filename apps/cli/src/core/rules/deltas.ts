@@ -1,7 +1,7 @@
 // deltas/* rules (DESIGN §4.3) — run before openspec delegation so cospec's
 // sharper diagnostics win. Rule IDs are frozen public API.
 
-import { parseDeltaSpec, SHALL_MUST_RE } from '../deltas.ts'
+import { findRequirementSplits, parseDeltaSpec, SHALL_MUST_RE } from '../deltas.ts'
 import type { Issue } from './issue.ts'
 import type { LoadedChange } from './schema-info.ts'
 
@@ -196,9 +196,19 @@ export function deltasRules(change: LoadedChange): Issue[] {
     // `validation/validator.ts`), in upstream's words split into message and
     // hint. A `### Scenario:` line is `deltas/scenario-depth`'s alone: its
     // remedy is `#### Scenario:`, not the `### Requirement:` this one suggests.
+    //
+    // A header the archive refuses — one that splits its requirement into a
+    // piece with no scenario — is `archive/split-requirement`'s ERROR instead
+    // (see `findRequirementSplits`), so a line never carries both. Under
+    // `--fast` that family does not run and the binary's INFO is relayed.
     const depthLines = new Set(parsed.scenarioDepthIssues.map((d) => d.line))
+    const splitLines = new Set(
+      findRequirementSplits(parseDeltaSpec(file.text, file.path, file.capability, 'verbatim')).map(
+        (s) => s.part.line,
+      ),
+    )
     for (const skipped of parsed.skippedHeaders) {
-      if (depthLines.has(skipped.line)) continue
+      if (depthLines.has(skipped.line) || splitLines.has(skipped.line)) continue
       const nameless = NAMELESS_REQUIREMENT_RE.test(skipped.header)
       issues.push({
         level: 'INFO',

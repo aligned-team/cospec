@@ -940,3 +940,68 @@ describe('archiveRules read the verbatim view the archive merges', () => {
     expect(rules(found)).toEqual(['archive/scenario-preservation'])
   })
 })
+
+// The archive appends each ADDED/MODIFIED block verbatim and re-validates the
+// rebuilt spec, whose reader takes every `###` header as a requirement of its
+// own. A skipped header inside a block therefore cuts it, and a piece left
+// with no scenario is refused (`Requirement must have at least one scenario`).
+describe('archive/split-requirement', () => {
+  const splits = (text: string) =>
+    archiveRules(change(text, { living: LIVING })).filter(
+      (i) => i.rule === 'archive/split-requirement',
+    )
+  const SCEN = '#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n'
+
+  test('a header between the requirement text and its only scenario leaves the head empty', () => {
+    const text = `## ADDED Requirements\n\n### Requirement: Brand New\n\nThe system SHALL do new.\n\n### Notes\n\n${SCEN}`
+    expect(splits(text).map((i) => [i.level, i.line, i.message])).toEqual([
+      [
+        'ERROR',
+        7,
+        'header "### Notes" inside ADDED "Brand New" splits it when archived, leaving "Brand New" with no scenario above the header',
+      ],
+    ])
+  })
+
+  test('a header after the scenario with none of its own is a requirement with no scenario', () => {
+    const text = `## ADDED Requirements\n\n### Requirement: Brand New\n\nThe system SHALL do new.\n\n${SCEN}\n### Requirement:\n`
+    expect(splits(text).map((i) => [i.line, i.message])).toEqual([
+      [
+        12,
+        'header "### Requirement:" inside ADDED "Brand New" splits it when archived, leaving the header a requirement with no scenario',
+      ],
+    ])
+  })
+
+  test('a header carrying its own scenario after the block scenario is not refused', () => {
+    const text = `## ADDED Requirements\n\n### Requirement: Brand New\n\nThe system SHALL do new.\n\n${SCEN}\n### Notes\n\n${SCEN}`
+    expect(splits(text)).toEqual([])
+  })
+
+  test('a header above the first requirement belongs to no block', () => {
+    const text = `## ADDED Requirements\n\n### Notes\n\n### Requirement: Brand New\n\nThe system SHALL do new.\n\n${SCEN}`
+    expect(splits(text)).toEqual([])
+  })
+
+  test('a header inside an HTML comment splits the block all the same', () => {
+    const text = `## ADDED Requirements\n\n### Requirement: Brand New\n\nThe system SHALL do new.\n\n<!--\n### Hidden\n-->\n\n${SCEN}`
+    expect(splits(text).map((i) => i.line)).toEqual([8])
+  })
+
+  test('a MODIFIED block splits the same way', () => {
+    const text = `## MODIFIED Requirements\n\n### Requirement: Existing\n\nThe system SHALL exist.\n\n### Notes\n\n${SCEN}`
+    expect(splits(text).map((i) => i.line)).toEqual([7])
+  })
+
+  test('a fenced header is content, not a cut', () => {
+    const text = `## ADDED Requirements\n\n### Requirement: Brand New\n\nThe system SHALL do new.\n\n\`\`\`md\n### Fenced\n\`\`\`\n\n${SCEN}`
+    expect(splits(text)).toEqual([])
+  })
+
+  test("a visible ### Scenario: is scenario-depth's alone; a commented one is split's", () => {
+    const visible = `## ADDED Requirements\n\n### Requirement: Brand New\n\nThe system SHALL do new.\n\n${SCEN}\n### Scenario: Shallow\n\n- **WHEN** a\n`
+    expect(splits(visible)).toEqual([])
+    const commented = `## ADDED Requirements\n\n### Requirement: Brand New\n\nThe system SHALL do new.\n\n${SCEN}\n<!--\n### Scenario: Hidden\n-->\n`
+    expect(splits(commented).map((i) => i.line)).toEqual([13])
+  })
+})

@@ -136,6 +136,23 @@ export interface DeltaOp {
    * (MODIFIED only). Retired as an escape hatch — see `findScenarioDrops`;
    * kept so the gate can address an author who wrote one. */
   scenarioRemovalReasons: string[]
+  /**
+   * ADDED/MODIFIED only: the block cut at each skipped `###` header inside it
+   * (`SkippedHeader`), in order. The first part is the requirement's own, from
+   * its header; each later one opens at a skipped header. See
+   * `findRequirementSplits` for why the cut matters.
+   */
+  parts?: RequirementPart[]
+}
+
+/** One piece of a requirement block, as the archive's rebuilt spec reads it. */
+export interface RequirementPart {
+  /** The skipped header opening this part, after `### `; absent for the first. */
+  header?: string
+  /** 1-based line of the part's first line (the requirement header for the first). */
+  line: number
+  /** `#### ` headers in this part that carry a body. */
+  scenarioCount: number
 }
 
 /**
@@ -516,6 +533,15 @@ export function parseDeltaSpec(
       op.emptyScenarioCount++
     },
   })
+  // The same scenarios credited to the part of the block they sit in. Fed
+  // every call `scenarios` gets, so the two can never disagree on a boundary.
+  const partScenarios = scenarioReader<RequirementPart>({
+    header: () => {},
+    counted: (part) => {
+      part.scenarioCount++
+    },
+  })
+  const currentPart = (): RequirementPart | undefined => openReq?.parts?.at(-1)
 
   const dropRename = (side: 'FROM' | 'TO', name: string, line: number) => {
     unpairedRenames.push({ side, name, line })
@@ -536,6 +562,7 @@ export function parseDeltaSpec(
     // Before the op is pushed: the last scenario's body ends with its block, and
     // `scenarios` still holds the op it belongs to.
     scenarios.close()
+    partScenarios.close()
     if (openReq !== undefined) {
       if (openRaw !== undefined) openReq.raw = openRaw.join('\n').trimEnd()
       ops.push(openReq)
@@ -557,6 +584,7 @@ export function parseDeltaSpec(
       // It is still *body*: a scenario whose steps are a fenced example has one.
       openRaw?.push(source[i] ?? '')
       scenarios.body(raw)
+      partScenarios.body(raw)
       if (openReq !== undefined && SHALL_MUST_RE.test(raw)) openReq.hasShallMust = true
       continue
     }
@@ -616,6 +644,7 @@ export function parseDeltaSpec(
           emptyScenarioCount: 0,
           raw: '',
           scenarioRemovalReasons: [],
+          parts: [{ line: lineNo, scenarioCount: 0 }],
         }
         openRaw = [source[i] ?? '']
         continue
@@ -635,11 +664,24 @@ export function parseDeltaSpec(
         openRaw?.push(source[i] ?? '')
         if (SCENARIO_RE.test(raw)) {
           scenarios.open(openReq, scenarioNameFromHeader(source[i] ?? ''))
+          const part = currentPart()
+          if (part !== undefined) partScenarios.open(part, '')
         } else {
-          if (SCENARIO_BODY_END_RE.test(raw)) scenarios.close()
-          else scenarios.body(raw)
+          if (SCENARIO_BODY_END_RE.test(raw)) {
+            scenarios.close()
+            partScenarios.close()
+          } else {
+            scenarios.body(raw)
+            partScenarios.body(raw)
+          }
           if (SHALL_MUST_RE.test(raw)) openReq.hasShallMust = true
         }
+        if (skipped !== null)
+          openReq.parts?.push({
+            header: skippedHeaders.at(-1)!.header,
+            line: lineNo,
+            scenarioCount: 0,
+          })
         const removedNote = raw.match(SCENARIO_REMOVED_RE)
         if (removedNote !== null) openReq.scenarioRemovalReasons.push(removedNote[1]!.trim())
       }
@@ -733,6 +775,47 @@ export function parseDeltaSpec(
 }
 
 /** A living spec's requirement names and blocks, as one `ReadView` sees them. */
+/** A skipped header that splits its requirement into a piece with no scenario. */
+export interface RequirementSplit {
+  op: DeltaOp
+  /** The part the skipped header opens. */
+  part: RequirementPart
+  /**
+   * Which piece is left with no scenario: `head` — the requirement's own,
+   * above this (its first) skipped header — or `own`, the header's part.
+   */
+  empty: 'head' | 'own'
+}
+
+/**
+ * Skipped headers inside an ADDED/MODIFIED block that the archive refuses.
+ *
+ * openspec's delta reader keeps a skipped `###` header in the block it sits
+ * in, and the archive appends that block to the living spec verbatim — then
+ * re-validates the rebuilt spec (`archive.ts`, `validateSpecContent`, 1.13.1).
+ * That reader (`MarkdownParser`) takes every `###` header under
+ * `## Requirements` as a requirement of its own, so the header cuts the block
+ * in two, and a piece left with no scenario fails `Requirement must have at
+ * least one scenario`: the archive aborts. Probed: a header between the
+ * requirement text and its only scenario, a nameless `### Requirement:` after
+ * the scenario, one written inside an HTML comment, and the same in a MODIFIED
+ * block are all refused; a header above the first requirement belongs to no
+ * block, and one followed by a scenario of its own after the block's own
+ * scenario, archives. Read the `verbatim` parse — that is what is appended.
+ */
+export function findRequirementSplits(parsed: ParsedDelta): RequirementSplit[] {
+  const splits: RequirementSplit[] = []
+  for (const op of parsed.ops) {
+    const parts = op.parts ?? []
+    for (let j = 1; j < parts.length; j++) {
+      const part = parts[j]!
+      if (j === 1 && parts[0]!.scenarioCount === 0) splits.push({ op, part, empty: 'head' })
+      else if (part.scenarioCount === 0) splits.push({ op, part, empty: 'own' })
+    }
+  }
+  return splits
+}
+
 export interface LivingRequirements {
   requirementNames: Set<string>
   /** requirement name → the verbatim source of its block, `trimEnd`ed. */

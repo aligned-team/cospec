@@ -869,43 +869,40 @@ describe('3. cross-section conflicts appear in the validate preview', () => {
 // --- 4. skipped headers get a rule id ---------------------------------------------------
 
 describe('4. skipped headers', () => {
-  test.failing(
-    '4.1 native: a divider above the first requirement is an INFO; in-block headers are refused',
-    async () => {
-      const build = (root: string): void =>
-        buildFeat(root, 'skipped', { 'widgets/spec.md': SKIPPED_HEADERS })
-      const root = mkTempRepo({ git: true })
-      build(root)
-      const archived = await binaryArchive(build, 'skipped')
-      expect(archived.exitCode).not.toBe(0)
-      expect(archived.moved).toBe(false)
-      const bin = await binaryIssues(root, 'skipped')
-      const skippedLines = [
-        ...binaryFind(bin, SKIPPED_FRAGMENT),
-        ...binaryFind(bin, NAMELESS_FRAGMENT),
-      ].filter((i) => !i.message.includes('"### Scenario:'))
-      expect(skippedLines).toHaveLength(3)
+  test('4.1 native: a divider above the first requirement is an INFO; in-block headers are refused', async () => {
+    const build = (root: string): void =>
+      buildFeat(root, 'skipped', { 'widgets/spec.md': SKIPPED_HEADERS })
+    const root = mkTempRepo({ git: true })
+    build(root)
+    const archived = await binaryArchive(build, 'skipped')
+    expect(archived.exitCode).not.toBe(0)
+    expect(archived.moved).toBe(false)
+    const bin = await binaryIssues(root, 'skipped')
+    const skippedLines = [
+      ...binaryFind(bin, SKIPPED_FRAGMENT),
+      ...binaryFind(bin, NAMELESS_FRAGMENT),
+    ].filter((i) => !i.message.includes('"### Scenario:'))
+    expect(skippedLines).toHaveLength(3)
 
-      const { report } = await cospecValidate(root, 'skipped')
-      const native = byRule(report, 'deltas/skipped-header')
-      expect(native.every((i) => i.level === 'INFO')).toBe(true)
-      expect(linesOf(native)).toEqual([lineOf(SKIPPED_HEADERS, '### Documentation Requirements')])
-      // `### Notes inside` and the nameless header sit inside `Widget thing`'s
-      // block, so the archive's rebuilt spec reads each as a requirement of its
-      // own and refuses the one left with no scenario.
-      const split = byRule(report, 'archive/split-requirement')
-      expect(split.every((i) => i.level === 'ERROR')).toBe(true)
-      expect(linesOf(split)).toEqual([
-        lineOf(SKIPPED_HEADERS, '### Notes inside'),
-        lineOf(SKIPPED_HEADERS, '### Requirement:'),
-      ])
-      // Each line the binary skips gets exactly one of the two cospec findings.
-      expect(linesOf([...native, ...split])).toEqual(linesOf(skippedLines))
-      const depth = byRule(report, 'deltas/scenario-depth')
-      expect(depth).toHaveLength(1)
-      expect(depth[0]?.line).toBe(lineOf(SKIPPED_HEADERS, '### Scenario: Shallow'))
-    },
-  )
+    const { report } = await cospecValidate(root, 'skipped')
+    const native = byRule(report, 'deltas/skipped-header')
+    expect(native.every((i) => i.level === 'INFO')).toBe(true)
+    expect(linesOf(native)).toEqual([lineOf(SKIPPED_HEADERS, '### Documentation Requirements')])
+    // `### Notes inside` and the nameless header sit inside `Widget thing`'s
+    // block, so the archive's rebuilt spec reads each as a requirement of its
+    // own and refuses the one left with no scenario.
+    const split = byRule(report, 'archive/split-requirement')
+    expect(split.every((i) => i.level === 'ERROR')).toBe(true)
+    expect(linesOf(split)).toEqual([
+      lineOf(SKIPPED_HEADERS, '### Notes inside'),
+      lineOf(SKIPPED_HEADERS, '### Requirement:'),
+    ])
+    // Each line the binary skips gets exactly one of the two cospec findings.
+    expect(linesOf([...native, ...split])).toEqual(linesOf(skippedLines))
+    const depth = byRule(report, 'deltas/scenario-depth')
+    expect(depth).toHaveLength(1)
+    expect(depth[0]?.line).toBe(lineOf(SKIPPED_HEADERS, '### Scenario: Shallow'))
+  })
 
   test('4.1 twin: none of the delegated skipped-header INFOs is relayed', async () => {
     const root = mkTempRepo({ git: true })
@@ -917,7 +914,7 @@ describe('4. skipped headers', () => {
     for (const d of delegated) expect(messages(report)).not.toContain(d.message)
   })
 
-  test.failing('4.2 a never-delegated change still reports its skipped headers', async () => {
+  test('4.2 a never-delegated change still reports its skipped headers', async () => {
     const root = mkTempRepo({ git: true })
     buildFeat(root, 'skipped-local', { 'widgets/spec.md': SKIPPED_HEADERS }, { proposal: false })
     const { report } = await cospecValidate(root, 'skipped-local')
@@ -1501,41 +1498,33 @@ describe('11. a header that splits a requirement is refused at pre-flight', () =
   ] as const) {
     const build = (root: string): void => buildFeat(root, name, { 'widgets/spec.md': text })
 
-    test.failing(
-      `${row} native: "${header}" inside a block is an archive/split-requirement ERROR, as the binary archive refuses`,
-      async () => {
-        const root = mkTempRepo({ git: true })
-        build(root)
-        const archived = await binaryArchive(build, name)
-        expect(archived.exitCode).not.toBe(0)
-        expect(archived.moved).toBe(false)
-        const { report, exitCode } = await cospecValidate(root, name)
-        const split = byRule(report, 'archive/split-requirement')
-        expect(split).toHaveLength(1)
-        expect(split[0]?.level).toBe('ERROR')
-        expect(split[0]?.line).toBe(lineOf(text, header))
-        expect(split[0]?.message).toContain(`"${header}"`)
-        // One cospec finding per line: the INFO is left to headers the archive keeps.
-        expect(byRule(report, 'deltas/skipped-header')).toEqual([])
-        expect(exitCode).toBe(1)
-      },
-    )
+    test(`${row} native: "${header}" inside a block is an archive/split-requirement ERROR, as the binary archive refuses`, async () => {
+      const root = mkTempRepo({ git: true })
+      build(root)
+      const archived = await binaryArchive(build, name)
+      expect(archived.exitCode).not.toBe(0)
+      expect(archived.moved).toBe(false)
+      const { report, exitCode } = await cospecValidate(root, name)
+      const split = byRule(report, 'archive/split-requirement')
+      expect(split).toHaveLength(1)
+      expect(split[0]?.level).toBe('ERROR')
+      expect(split[0]?.line).toBe(lineOf(text, header))
+      expect(split[0]?.message).toContain(`"${header}"`)
+      // One cospec finding per line: the INFO is left to headers the archive keeps.
+      expect(byRule(report, 'deltas/skipped-header')).toEqual([])
+      expect(exitCode).toBe(1)
+    })
 
-    // Only 11.3's twin fails before the fix: cospec's masked reader never sees
-    // the commented header, so nothing suppresses its delegated INFO.
-    ;(row === '11.3' ? test.failing : test)(
-      `${row} twin: the delegated skipped-header INFO for "${header}" is not relayed`,
-      async () => {
-        const root = mkTempRepo({ git: true })
-        build(root)
-        const delegated = binaryFind(await binaryIssues(root, name), `Header "${header}"`)
-        expect(delegated).toHaveLength(1)
-        expect(delegated[0]?.level).toBe('INFO')
-        expect(delegated[0]?.line).toBe(lineOf(text, header))
-        const { report } = await cospecValidate(root, name)
-        expect(messages(report)).not.toContain(delegated[0]?.message)
-      },
-    )
+    test(`${row} twin: the delegated skipped-header INFO for "${header}" is not relayed`, async () => {
+      const root = mkTempRepo({ git: true })
+      build(root)
+      const delegated = binaryFind(await binaryIssues(root, name), `Header "${header}"`)
+      expect(delegated).toHaveLength(1)
+      expect(delegated[0]?.level).toBe('INFO')
+      expect(delegated[0]?.line).toBe(lineOf(text, header))
+      const { report } = await cospecValidate(root, name)
+      expect(messages(report)).not.toContain(delegated[0]?.message)
+    })
   }
 
   test('11.5 an in-block header carrying its own scenario stays an INFO, as the binary archives it', async () => {
@@ -1556,20 +1545,17 @@ describe('11. a header that splits a requirement is refused at pre-flight', () =
     expect(exitCode).toBe(0)
   })
 
-  test.failing(
-    '11.6 under --fast the split is not checked and the delegated INFO is kept',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      buildFeat(root, 'split-before', { 'widgets/spec.md': SPLIT_BEFORE_SCENARIO })
-      const delegated = binaryOne(
-        await binaryIssues(root, 'split-before'),
-        'Header "### Notes inside"',
-      )
-      const { report } = await cospecValidate(root, 'split-before', ['--fast'])
-      expect(byRule(report, 'archive/split-requirement')).toEqual([])
-      expect(messages(report)).toContain(delegated.message)
-    },
-  )
+  test('11.6 under --fast the split is not checked and the delegated INFO is kept', async () => {
+    const root = mkTempRepo({ git: true })
+    buildFeat(root, 'split-before', { 'widgets/spec.md': SPLIT_BEFORE_SCENARIO })
+    const delegated = binaryOne(
+      await binaryIssues(root, 'split-before'),
+      'Header "### Notes inside"',
+    )
+    const { report } = await cospecValidate(root, 'split-before', ['--fast'])
+    expect(byRule(report, 'archive/split-requirement')).toEqual([])
+    expect(messages(report)).toContain(delegated.message)
+  })
 })
 
 // --- 12. a structurally invalid living spec is refused at pre-flight ----------------------
