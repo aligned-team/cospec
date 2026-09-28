@@ -142,7 +142,7 @@ export interface DeltaOp {
    * ADDED/MODIFIED only: the block cut at each skipped `###` header inside it
    * (`SkippedHeader`), in order. The first part is the requirement's own, from
    * its header; each later one opens at a skipped header. See
-   * `findRequirementSplits` for why the cut matters.
+   * `findRequirementSplits` (`rebuilt-spec.ts`) for why the cut matters.
    */
   parts?: RequirementPart[]
 }
@@ -934,49 +934,6 @@ export interface RequirementSplit {
    * with no scenario, or `text`, the header's part with no statement.
    */
   empty: SplitEmpty
-}
-
-/**
- * The skipped headers in one requirement's `parts` that leave a piece the
- * rebuilt spec refuses: the first header when the head above it has no
- * scenario, any header whose own part has none, and a blank-titled header whose
- * part has no statement either (the archive's `Requirement text cannot be
- * empty`).
- */
-function splitsOf(
-  parts: readonly RequirementPart[],
-): { part: RequirementPart; empty: SplitEmpty }[] {
-  const splits: { part: RequirementPart; empty: SplitEmpty }[] = []
-  for (let j = 1; j < parts.length; j++) {
-    const part = parts[j]!
-    if (j === 1 && parts[0]!.scenarioCount === 0) splits.push({ part, empty: 'head' })
-    else if (part.scenarioCount === 0) splits.push({ part, empty: 'own' })
-    else if (part.header === '' && !part.hasText) splits.push({ part, empty: 'text' })
-  }
-  return splits
-}
-
-/**
- * Skipped headers inside an ADDED/MODIFIED block that the archive refuses.
- *
- * openspec's delta reader keeps a skipped `###` header in the block it sits
- * in, and the archive appends that block to the living spec verbatim — then
- * re-validates the rebuilt spec (`archive.ts`, `validateSpecContent`, 1.13.1).
- * That reader (`MarkdownParser`) takes every `###` header under
- * `## Requirements` as a requirement of its own, so the header cuts the block
- * in two, and a piece left with no scenario fails `Requirement must have at
- * least one scenario`: the archive aborts. Probed: a header between the
- * requirement text and its only scenario, a nameless `### Requirement:` after
- * the scenario, one written inside an HTML comment, and the same in a MODIFIED
- * block are all refused; a header above the first requirement belongs to no
- * block, and one followed by a scenario of its own after the block's own
- * scenario, archives — unless its title is blank and nothing precedes that
- * scenario, which leaves a requirement with no text (`Requirement text cannot
- * be empty`). Read the `verbatim` parse — that is what is appended. The same
- * cut in a living requirement is `rebuilt-spec.ts`'s to find.
- */
-export function findRequirementSplits(parsed: ParsedDelta): RequirementSplit[] {
-  return parsed.ops.flatMap((op) => splitsOf(op.parts ?? []).map((s) => ({ op, ...s })))
 }
 
 /**

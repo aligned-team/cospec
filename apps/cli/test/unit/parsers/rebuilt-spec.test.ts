@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import { parseDeltaSpec } from '../../../src/core/deltas.ts'
 import {
   describeUnaccountedContent,
+  findRequirementSplits,
   rebuildSpec,
   validateRebuiltSpec,
 } from '../../../src/core/rebuilt-spec.ts'
@@ -208,5 +209,32 @@ describe('validateRebuiltSpec', () => {
         `${LIVING}\n### Requirement: Existing\n\nThe system SHALL.\n\n#### Scenario: t\n\n- x\n`,
       ),
     ).toEqual(['structure'])
+  })
+})
+
+describe('findRequirementSplits', () => {
+  const SC = '#### Scenario: p\n\n- **WHEN** a\n- **THEN** b\n'
+  const added = (body: string) =>
+    `## ADDED Requirements\n\n### Requirement: New\n\nThe system SHALL be new.\n\n${body}`
+  const splits = (delta: string, living: string | undefined = LIVING) => {
+    const parsed = parseDeltaSpec(delta, 'specs/x/spec.md', 'x', 'verbatim')
+    const inSpec = findRequirementSplits(parsed, rebuiltAgainst(delta, living)?.lines)
+    const alone = findRequirementSplits(parsed, undefined)
+    // The block reads the same inside the rebuilt spec as inside one of its own.
+    expect(alone.map((x) => [x.part.line, x.empty])).toEqual(
+      inSpec.map((x) => [x.part.line, x.empty]),
+    )
+    return inSpec.map((x) => [x.part.line, x.empty])
+  }
+
+  test('a ##### child with a body is a scenario to the rebuilt spec’s parser', () => {
+    expect(splits(added(`${SC}\n### Notes\n\n##### Sub\n\n- **WHEN** c\n`))).toEqual([])
+    expect(splits(added(`##### Sub\n\n- **WHEN** c\n\n### Notes\n\n${SC}`))).toEqual([])
+  })
+
+  test('a piece with no child that has a body is split off', () => {
+    expect(splits(added(`${SC}\n### Notes\n\n##### Sub\n`))).toEqual([[12, 'own']])
+    expect(splits(added(`### Notes\n\n${SC}`))).toEqual([[7, 'head']])
+    expect(splits(added(`${SC}\n###   \n\n${SC}`))).toEqual([[12, 'text']])
   })
 })

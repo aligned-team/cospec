@@ -1,12 +1,8 @@
 // deltas/* rules (DESIGN §4.3) — run before openspec delegation so cospec's
 // sharper diagnostics win. Rule IDs are frozen public API.
 
-import {
-  findRequirementSplits,
-  parseDeltaSpec,
-  SHALL_MUST_RE,
-  type ParsedDelta,
-} from '../deltas.ts'
+import { parseDeltaSpec, SHALL_MUST_RE, type ParsedDelta } from '../deltas.ts'
+import { findRequirementSplits, rebuildSpec } from '../rebuilt-spec.ts'
 import type { Issue } from './issue.ts'
 import type { LoadedChange } from './schema-info.ts'
 
@@ -224,13 +220,7 @@ export function deltasRules(
     // keeps its INFO — and a change cospec never delegates would otherwise
     // lose the only report it had.
     const depthLines = new Set(parsed.scenarioDepthIssues.map((d) => d.line))
-    const splitLines = new Set(
-      opts.fast
-        ? []
-        : findRequirementSplits(
-            parseDeltaSpec(file.text, file.path, file.capability, 'verbatim'),
-          ).map((s) => s.part.line),
-    )
+    const splitLines = new Set(opts.fast ? [] : splitsOf(change, file).map((s) => s.part.line))
     for (const skipped of parsed.skippedHeaders) {
       if (depthLines.has(skipped.line) || splitLines.has(skipped.line)) continue
       const nameless = NAMELESS_REQUIREMENT_RE.test(skipped.header)
@@ -252,6 +242,26 @@ export function deltasRules(
   }
 
   return issues
+}
+
+/**
+ * The splits `archive/split-requirement` reports for one delta file — read off
+ * the same rebuilt spec it reads, so the INFO this family drops for a split is
+ * exactly the one that rule stands in for.
+ */
+function splitsOf(
+  change: LoadedChange,
+  file: { path: string; text: string; capability: string },
+): ReturnType<typeof findRequirementSplits> {
+  const verbatim = parseDeltaSpec(file.text, file.path, file.capability, 'verbatim')
+  const rebuilt = rebuildSpec({
+    capability: file.capability,
+    changeName: change.id,
+    living: change.livingSpecs.get(file.capability)?.archive.text,
+    deltaText: file.text,
+    delta: verbatim,
+  })
+  return findRequirementSplits(verbatim, rebuilt?.lines)
 }
 
 /**

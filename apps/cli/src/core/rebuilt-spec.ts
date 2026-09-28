@@ -20,6 +20,7 @@ import {
   type DeltaOp,
   type LivingStructureIssue,
   type ParsedDelta,
+  type RequirementSplit,
 } from './deltas.ts'
 
 /** Where a line of the rebuilt spec came from. */
@@ -817,4 +818,80 @@ export function validateRebuiltSpec(lines: readonly string[]): RebuiltSpecIssue[
       issues.push({ kind: 'no-body', line: block.start, name: block.name })
   }
   return issues
+}
+
+// --- the headers that split a delta requirement ------------------------------------------
+
+/**
+ * The spec the archive would build around one block alone: what the split
+ * verdict reads when the merge itself refuses before building one (a
+ * precondition another rule reports).
+ */
+function standaloneSpec(op: DeltaOp): RebuiltLine[] {
+  const tag = (text: string): RebuiltLine => ({ text })
+  return [
+    tag('# Specification'),
+    tag(''),
+    tag('## Purpose'),
+    tag(''),
+    tag('Purpose.'),
+    tag(''),
+    tag('## Requirements'),
+    tag(''),
+    ...linesOf(op.raw, 'delta', op.line),
+  ]
+}
+
+/**
+ * Skipped headers inside an ADDED/MODIFIED block that the archive refuses,
+ * decided by the rebuilt spec's own parse.
+ *
+ * openspec's delta reader keeps a skipped `###` header in the block it sits
+ * in, and the archive appends that block to the living spec verbatim — then
+ * re-validates the rebuilt spec (`archive.ts`, `validateSpecContent`, 1.13.1).
+ * That reader (`MarkdownParser`) takes every `###` header under
+ * `## Requirements` as a requirement of its own, so the header cuts the block
+ * in two, and a piece left with no scenario fails `Requirement must have at
+ * least one scenario`; a blank-titled one with no line before its first
+ * scenario fails `Requirement text cannot be empty`. What counts as a scenario
+ * is that parser's: any deeper header with a body — a `#####` under the piece
+ * included — so the verdict is read off `validateRebuiltSpec` on the rebuilt
+ * spec (`rebuilt`, the verbatim parse's merge), never off a count of
+ * `#### ` headers in the isolated block. Where the merge refuses before
+ * building one, the block is read inside a spec of its own.
+ *
+ * A piece is `head` — the requirement's own, above its first skipped header —
+ * when that one has no scenario; otherwise `own` when the header's piece has
+ * none, or `text` when a blank-titled header's piece has no statement.
+ */
+export function findRequirementSplits(
+  delta: ParsedDelta,
+  rebuilt: readonly RebuiltLine[] | undefined,
+): RequirementSplit[] {
+  const verdictsOf = (lines: readonly RebuiltLine[]) => {
+    const byLine = new Map<number, { noScenario: boolean; noText: boolean }>()
+    for (const issue of validateRebuiltSpec(lines.map((l) => l.text))) {
+      if (issue.kind !== 'requirement') continue
+      const origin = lines[issue.line]?.origin
+      if (origin?.source === 'delta')
+        byLine.set(origin.line, { noScenario: issue.noScenario, noText: issue.noText })
+    }
+    return byLine
+  }
+  const whole = rebuilt === undefined ? undefined : verdictsOf(rebuilt)
+  const splits: RequirementSplit[] = []
+  for (const op of delta.ops) {
+    const parts = op.parts ?? []
+    if (parts.length < 2) continue
+    const verdicts = whole ?? verdictsOf(standaloneSpec(op))
+    for (let j = 1; j < parts.length; j++) {
+      const part = parts[j]!
+      if (j === 1 && verdicts.get(op.line)?.noScenario === true)
+        splits.push({ op, part, empty: 'head' })
+      else if (verdicts.get(part.line)?.noScenario === true) splits.push({ op, part, empty: 'own' })
+      else if (part.header === '' && verdicts.get(part.line)?.noText === true)
+        splits.push({ op, part, empty: 'text' })
+    }
+  }
+  return splits
 }

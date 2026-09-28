@@ -6,7 +6,6 @@
 // blocker (parity is contract-tested). Rule IDs are frozen public API.
 
 import {
-  findRequirementSplits,
   findScenarioDrops,
   foldRequirementName,
   normalizeBlockRaw,
@@ -22,9 +21,11 @@ import {
 } from '../deltas.ts'
 import {
   describeUnaccountedContent,
+  findRequirementSplits,
   rebuildSpec,
   validateRebuiltSpec,
   type LineOrigin,
+  type RebuiltSpec,
   type RebuiltSpecIssue,
 } from '../rebuilt-spec.ts'
 import { requirementShapeIssues } from './deltas.ts'
@@ -260,13 +261,7 @@ function rebuiltSpecIssues(
   file: DeltaFileView,
   living: string | undefined,
 ): Issue[] {
-  const rebuilt = rebuildSpec({
-    capability,
-    changeName: change.id,
-    living,
-    deltaText: file.text,
-    delta: file.parsed,
-  })
+  const { rebuilt } = file
   if (rebuilt === undefined) return []
   const { lines, unaccountedContent } = rebuilt
   const livingFile = `openspec/specs/${capability}/spec.md`
@@ -419,6 +414,8 @@ interface DeltaFileView {
   /** the verbatim parse: what the archive merges. */
   parsed: ParsedDelta
   splits: RequirementSplit[]
+  /** the spec the archive would write, or undefined where its merge refuses first. */
+  rebuilt: RebuiltSpec | undefined
   /** the lines `deltas/requirement-shape` reported, by arm. */
   shape: { text: Set<number>; scenario: Set<number> }
 }
@@ -451,13 +448,23 @@ export function archiveRules(
     const parsed = parseDeltaSpec(file.text, file.path, file.capability, 'verbatim')
     const maskedParse = parseDeltaSpec(file.text, file.path, file.capability)
 
+    // The spec the archive would write from this delta, read once: the split
+    // verdict and `archive/rebuilt-spec-invalid` both come off it.
+    const rebuilt = rebuildSpec({
+      capability: file.capability,
+      changeName: change.id,
+      living: change.livingSpecs.get(file.capability)?.archive.text,
+      deltaText: file.text,
+      delta: parsed,
+    })
+
     // archive/split-requirement — a skipped `###` header inside an ADDED or
     // MODIFIED block cuts it in two in the spec the archive rebuilds and
     // re-validates, and a piece left with no scenario aborts the archive (see
     // `findRequirementSplits`). A `### Scenario:` line the advisory reader sees
     // is `deltas/scenario-depth`'s alone: its `#### Scenario:` fix mends both.
     const depthLines = new Set(maskedParse.scenarioDepthIssues.map((d) => d.line))
-    const splits = findRequirementSplits(parsed)
+    const splits = findRequirementSplits(parsed, rebuilt?.lines)
     for (const split of splits) {
       if (depthLines.has(split.part.line)) continue
       const { op, part } = split
@@ -501,7 +508,7 @@ export function archiveRules(
           ? shape.scenario
           : shape.text
         ).add(found.line)
-    group.files.push({ path: file.path, text: file.text, parsed, splits, shape })
+    group.files.push({ path: file.path, text: file.text, parsed, splits, shape, rebuilt })
     byCap.set(file.capability, group)
   }
 

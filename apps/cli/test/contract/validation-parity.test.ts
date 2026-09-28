@@ -32,13 +32,6 @@ import { writeLivingSpec } from './fixtures.ts'
 
 afterAll(cleanupAll)
 
-/**
- * Round-5 rows that fail on the tree they were pinned on — each fix commit
- * takes its own ids out, and the last one removes the set.
- */
-const ROUND5_FAILING = new Set<string>(['28.1', '28.1n', '28.2', '28.2n'])
-const round5 = (id: string): typeof test => (ROUND5_FAILING.has(id) ? test.failing : test)
-
 // --- fixture builders --------------------------------------------------------
 
 const FEAT_PROPOSAL = `# change
@@ -1074,28 +1067,22 @@ describe('5.1 one pinned-message test per DUPLICATE_CLASSES entry', () => {
 
   // Round 5: the binary refuses an empty statement however many scenario
   // steps say SHALL, so cospec does too, and the pair is one finding.
-  round5('5.1.7b')(
-    'entry 7: an empty body with a SHALL only in a scenario pairs with deltas/requirement-shape',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      buildFeat(root, 'buffing', { 'widgets/spec.md': EMPTY_BODY_SHALL_IN_SCENARIO })
-      const delegated = binaryOne(
-        await binaryIssues(root, 'buffing'),
-        'is missing requirement text',
-      )
-      expect(delegated.level).toBe('ERROR')
-      const { report } = await cospecValidate(root, 'buffing')
-      // cospec words this one as the binary does, so the relay is what must be gone.
-      expect(byRule(report, 'openspec/validate').map((i) => i.message)).not.toContain(
-        delegated.message,
-      )
-      const native = byRule(report, 'deltas/requirement-shape')
-      expect(native.map((i) => [i.level, i.line])).toEqual([
-        ['ERROR', lineOf(EMPTY_BODY_SHALL_IN_SCENARIO, '### Requirement: Widget buffing')],
-      ])
-      expect(native[0]?.message).toContain('"Widget buffing"')
-    },
-  )
+  test('entry 7: an empty body with a SHALL only in a scenario pairs with deltas/requirement-shape', async () => {
+    const root = mkTempRepo({ git: true })
+    buildFeat(root, 'buffing', { 'widgets/spec.md': EMPTY_BODY_SHALL_IN_SCENARIO })
+    const delegated = binaryOne(await binaryIssues(root, 'buffing'), 'is missing requirement text')
+    expect(delegated.level).toBe('ERROR')
+    const { report } = await cospecValidate(root, 'buffing')
+    // cospec words this one as the binary does, so the relay is what must be gone.
+    expect(byRule(report, 'openspec/validate').map((i) => i.message)).not.toContain(
+      delegated.message,
+    )
+    const native = byRule(report, 'deltas/requirement-shape')
+    expect(native.map((i) => [i.level, i.line])).toEqual([
+      ['ERROR', lineOf(EMPTY_BODY_SHALL_IN_SCENARIO, '### Requirement: Widget buffing')],
+    ])
+    expect(native[0]?.message).toContain('"Widget buffing"')
+  })
 
   test('entry 8: the ADDED/REMOVED conflict pairs with archive/added-exists', async () => {
     const root = mkTempRepo({ git: true })
@@ -3219,28 +3206,25 @@ describe('26. retire_capabilities retires only what the archive retires', () => 
       const name = `rt-${shape}${lane.proposal ? '' : '-bare'}`
       const build = (root: string): void =>
         buildRetire(root, name, living, REMOVED_BOTH, lane.proposal)
-      round5(id)(
-        `${id} ${shape}${lane.label}: the archive refuses the retirement, naming the content, and so does cospec`,
-        async () => {
-          const root = mkTempRepo({ git: true })
-          build(root)
-          expect((await binaryIssues(root, name)).filter((i) => i.level !== 'INFO')).toEqual([])
-          const archived = await binaryArchiveJson(build, name)
-          expect(archived.exitCode).not.toBe(0)
-          expect(archived.moved).toBe(false)
-          expect(archived.specGone).toBe(false)
-          expect(archived.code).toBe('archive_spec_validation_failed')
-          const quoted = QUOTED_CONTENT_RE.exec(archived.fix)?.[1]
-          expect(quoted).toBeDefined()
-          const { report, exitCode } = await cospecValidate(root, name)
-          const found = byRule(report, REBUILT)
-          expect(found).toHaveLength(1)
-          expect(found[0]?.level).toBe('ERROR')
-          expect(found[0]?.message).toContain('retire_capabilities')
-          expect(found[0]?.message).toContain(quoted!)
-          expect(exitCode).toBe(1)
-        },
-      )
+      test(`${id} ${shape}${lane.label}: the archive refuses the retirement, naming the content, and so does cospec`, async () => {
+        const root = mkTempRepo({ git: true })
+        build(root)
+        expect((await binaryIssues(root, name)).filter((i) => i.level !== 'INFO')).toEqual([])
+        const archived = await binaryArchiveJson(build, name)
+        expect(archived.exitCode).not.toBe(0)
+        expect(archived.moved).toBe(false)
+        expect(archived.specGone).toBe(false)
+        expect(archived.code).toBe('archive_spec_validation_failed')
+        const quoted = QUOTED_CONTENT_RE.exec(archived.fix)?.[1]
+        expect(quoted).toBeDefined()
+        const { report, exitCode } = await cospecValidate(root, name)
+        const found = byRule(report, REBUILT)
+        expect(found).toHaveLength(1)
+        expect(found[0]?.level).toBe('ERROR')
+        expect(found[0]?.message).toContain('retire_capabilities')
+        expect(found[0]?.message).toContain(quoted!)
+        expect(exitCode).toBe(1)
+      })
     }
   })
 
@@ -3249,25 +3233,22 @@ describe('26. retire_capabilities retires only what the archive retires', () => 
       const id = `26.${k + 21}${lane.suffix}`
       const name = `rt-${shape}${lane.proposal ? '' : '-bare'}`
       const build = (root: string): void => buildRetire(root, name, living, delta, lane.proposal)
-      round5(id)(
-        `${id} ${shape}${lane.label}: nothing is removed, so the archive writes the empty spec and refuses it, and so does cospec`,
-        async () => {
-          const root = mkTempRepo({ git: true })
-          build(root)
-          expect((await binaryIssues(root, name)).filter((i) => i.level !== 'INFO')).toEqual([])
-          const archived = await binaryArchiveJson(build, name)
-          expect(archived.exitCode).not.toBe(0)
-          expect(archived.moved).toBe(false)
-          expect(archived.code).toBe('archive_spec_validation_failed')
-          expect(QUOTED_CONTENT_RE.test(archived.fix)).toBe(false)
-          const { report, exitCode } = await cospecValidate(root, name)
-          const found = byRule(report, REBUILT)
-          expect(found).toHaveLength(1)
-          expect(found[0]?.message).toContain('no requirement')
-          expect(found[0]?.message).toContain('removes none')
-          expect(exitCode).toBe(1)
-        },
-      )
+      test(`${id} ${shape}${lane.label}: nothing is removed, so the archive writes the empty spec and refuses it, and so does cospec`, async () => {
+        const root = mkTempRepo({ git: true })
+        build(root)
+        expect((await binaryIssues(root, name)).filter((i) => i.level !== 'INFO')).toEqual([])
+        const archived = await binaryArchiveJson(build, name)
+        expect(archived.exitCode).not.toBe(0)
+        expect(archived.moved).toBe(false)
+        expect(archived.code).toBe('archive_spec_validation_failed')
+        expect(QUOTED_CONTENT_RE.test(archived.fix)).toBe(false)
+        const { report, exitCode } = await cospecValidate(root, name)
+        const found = byRule(report, REBUILT)
+        expect(found).toHaveLength(1)
+        expect(found[0]?.message).toContain('no requirement')
+        expect(found[0]?.message).toContain('removes none')
+        expect(exitCode).toBe(1)
+      })
     }
   })
 
@@ -3277,51 +3258,42 @@ describe('26. retire_capabilities retires only what the archive retires', () => 
       const name = `rt-${shape}${lane.proposal ? '' : '-bare'}`
       const build = (root: string): void =>
         buildRetire(root, name, living, REMOVED_BOTH, lane.proposal)
-      round5(id)(
-        `${id} ${shape}${lane.label}: the archive retires the capability, and cospec is clean`,
-        async () => {
-          const root = mkTempRepo({ git: true })
-          build(root)
-          expect((await binaryIssues(root, name)).filter((i) => i.level !== 'INFO')).toEqual([])
-          const archived = await binaryArchiveJson(build, name)
-          expect(archived.exitCode).toBe(0)
-          expect(archived.moved).toBe(true)
-          expect(archived.specGone).toBe(true)
-          const { report, exitCode } = await cospecValidate(root, name)
-          expect(byRule(report, REBUILT)).toEqual([])
-          if (lane.proposal) {
-            expect(problems(report)).toEqual([])
-            expect(exitCode).toBe(0)
-          } else expect(problems(report).filter((i) => i.rule.startsWith('archive/'))).toEqual([])
-        },
-      )
+      test(`${id} ${shape}${lane.label}: the archive retires the capability, and cospec is clean`, async () => {
+        const root = mkTempRepo({ git: true })
+        build(root)
+        expect((await binaryIssues(root, name)).filter((i) => i.level !== 'INFO')).toEqual([])
+        const archived = await binaryArchiveJson(build, name)
+        expect(archived.exitCode).toBe(0)
+        expect(archived.moved).toBe(true)
+        expect(archived.specGone).toBe(true)
+        const { report, exitCode } = await cospecValidate(root, name)
+        expect(byRule(report, REBUILT)).toEqual([])
+        if (lane.proposal) {
+          expect(problems(report)).toEqual([])
+          expect(exitCode).toBe(0)
+        } else expect(problems(report).filter((i) => i.rule.startsWith('archive/'))).toEqual([])
+      })
     }
   })
 
-  round5('26.40')(
-    '26.40 cospec archive refuses a blocked retirement before delegating',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      buildRetire(root, 'rt-cospec-blocked', inPreamble('Intro prose.\n\n'), REMOVED_BOTH, true)
-      const res = await cospec(['archive', 'rt-cospec-blocked'], { cwd: root })
-      expect(res.exitCode).not.toBe(0)
-      expect(`${res.stdout}${res.stderr}`).toContain(REBUILT)
-      expect(existsSync(join(root, 'openspec/changes/rt-cospec-blocked'))).toBe(true)
-      expect(existsSync(join(root, 'openspec/specs/widgets/spec.md'))).toBe(true)
-    },
-  )
+  test('26.40 cospec archive refuses a blocked retirement before delegating', async () => {
+    const root = mkTempRepo({ git: true })
+    buildRetire(root, 'rt-cospec-blocked', inPreamble('Intro prose.\n\n'), REMOVED_BOTH, true)
+    const res = await cospec(['archive', 'rt-cospec-blocked'], { cwd: root })
+    expect(res.exitCode).not.toBe(0)
+    expect(`${res.stdout}${res.stderr}`).toContain(REBUILT)
+    expect(existsSync(join(root, 'openspec/changes/rt-cospec-blocked'))).toBe(true)
+    expect(existsSync(join(root, 'openspec/specs/widgets/spec.md'))).toBe(true)
+  })
 
-  round5('26.41')(
-    '26.41 cospec archive retires a capability whose Purpose holds a ### Requirements heading',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      buildRetire(root, 'rt-cospec-h3', LIVING_REQUIREMENTS_IN_PURPOSE, REMOVED_BOTH, true)
-      const res = await cospec(['archive', 'rt-cospec-h3'], { cwd: root })
-      expect(res.exitCode).toBe(0)
-      expect(existsSync(join(root, 'openspec/changes/rt-cospec-h3'))).toBe(false)
-      expect(existsSync(join(root, 'openspec/specs/widgets/spec.md'))).toBe(false)
-    },
-  )
+  test('26.41 cospec archive retires a capability whose Purpose holds a ### Requirements heading', async () => {
+    const root = mkTempRepo({ git: true })
+    buildRetire(root, 'rt-cospec-h3', LIVING_REQUIREMENTS_IN_PURPOSE, REMOVED_BOTH, true)
+    const res = await cospec(['archive', 'rt-cospec-h3'], { cwd: root })
+    expect(res.exitCode).toBe(0)
+    expect(existsSync(join(root, 'openspec/changes/rt-cospec-h3'))).toBe(false)
+    expect(existsSync(join(root, 'openspec/specs/widgets/spec.md'))).toBe(false)
+  })
 
   // The port's audit against the pinned binary's own merge builder, imported
   // from its dist: the same slices, the same removal count, the same lines.
@@ -3381,27 +3353,24 @@ describe('26. retire_capabilities retires only what the archive retires', () => 
     }
   })
 
-  round5('26.42')(
-    '26.42 without the marker the refusal names the content, not the marker it would not help',
-    async () => {
-      const name = 'rt-unmarked-prose'
-      const living = inPreamble('Intro prose.\n\n')
-      const build = (root: string): void =>
-        buildFeat(root, name, { 'widgets/spec.md': REMOVED_BOTH }, { living })
-      const root = mkTempRepo({ git: true })
-      build(root)
-      const archived = await binaryArchiveJson(build, name)
-      expect(archived.exitCode).not.toBe(0)
-      const quoted = QUOTED_CONTENT_RE.exec(archived.fix)?.[1]
-      expect(quoted).toBeDefined()
-      expect(archived.fix).not.toContain('retire_capabilities: true')
-      const { report } = await cospecValidate(root, name)
-      const found = byRule(report, REBUILT)
-      expect(found).toHaveLength(1)
-      expect(`${found[0]?.message} ${found[0]?.hint}`).toContain(quoted!)
-      expect(found[0]?.hint).not.toContain('retire_capabilities: true')
-    },
-  )
+  test('26.42 without the marker the refusal names the content, not the marker it would not help', async () => {
+    const name = 'rt-unmarked-prose'
+    const living = inPreamble('Intro prose.\n\n')
+    const build = (root: string): void =>
+      buildFeat(root, name, { 'widgets/spec.md': REMOVED_BOTH }, { living })
+    const root = mkTempRepo({ git: true })
+    build(root)
+    const archived = await binaryArchiveJson(build, name)
+    expect(archived.exitCode).not.toBe(0)
+    const quoted = QUOTED_CONTENT_RE.exec(archived.fix)?.[1]
+    expect(quoted).toBeDefined()
+    expect(archived.fix).not.toContain('retire_capabilities: true')
+    const { report } = await cospecValidate(root, name)
+    const found = byRule(report, REBUILT)
+    expect(found).toHaveLength(1)
+    expect(`${found[0]?.message} ${found[0]?.hint}`).toContain(quoted!)
+    expect(found[0]?.hint).not.toContain('retire_capabilities: true')
+  })
 })
 
 // --- 27. a requirement a delta writes inside an HTML comment ------------------------------
@@ -3473,37 +3442,31 @@ describe("27. a commented requirement in a delta is the rebuilt spec rule's own"
         { proposal },
       )
 
-    round5(`27.${name}n`)(
-      `27.1 ${name} (never delegated): the binary refuses it, and cospec reports it natively on the commented header`,
-      async () => {
-        const root = mkTempRepo({ git: true })
-        build(root, false)
-        const bin = binaryOne(await binaryIssues(root, `${name}-bare`), fragment)
-        expect(bin.level).toBe('ERROR')
-        const archived = await binaryArchive((r) => build(r, false), `${name}-bare`)
-        expect(archived.exitCode).not.toBe(0)
-        expect(archived.moved).toBe(false)
-        const { report } = await cospecValidate(root, `${name}-bare`)
-        const found = byRule(report, REBUILT)
-        expect(found.map((i) => [i.level, i.line])).toEqual([['ERROR', lineOf(delta, header)]])
-        expect(found[0]?.message).toContain(nativeFragment)
-      },
-    )
+    test(`27.1 ${name} (never delegated): the binary refuses it, and cospec reports it natively on the commented header`, async () => {
+      const root = mkTempRepo({ git: true })
+      build(root, false)
+      const bin = binaryOne(await binaryIssues(root, `${name}-bare`), fragment)
+      expect(bin.level).toBe('ERROR')
+      const archived = await binaryArchive((r) => build(r, false), `${name}-bare`)
+      expect(archived.exitCode).not.toBe(0)
+      expect(archived.moved).toBe(false)
+      const { report } = await cospecValidate(root, `${name}-bare`)
+      const found = byRule(report, REBUILT)
+      expect(found.map((i) => [i.level, i.line])).toEqual([['ERROR', lineOf(delta, header)]])
+      expect(found[0]?.message).toContain(nativeFragment)
+    })
 
-    round5(`27.${name}`)(
-      `27.2 entry ${entry} (${name}): "${fragment}" pairs with ${REBUILT}`,
-      async () => {
-        const root = mkTempRepo({ git: true })
-        build(root, true)
-        const delegated = binaryOne(await binaryIssues(root, name), fragment)
-        expect(delegated.level).toBe('ERROR')
-        const { report } = await cospecValidate(root, name)
-        expect(messages(report)).not.toContain(delegated.message)
-        expect(
-          byRule(report, REBUILT).filter((i) => i.message.includes(nativeFragment)),
-        ).toHaveLength(1)
-      },
-    )
+    test(`27.2 entry ${entry} (${name}): "${fragment}" pairs with ${REBUILT}`, async () => {
+      const root = mkTempRepo({ git: true })
+      build(root, true)
+      const delegated = binaryOne(await binaryIssues(root, name), fragment)
+      expect(delegated.level).toBe('ERROR')
+      const { report } = await cospecValidate(root, name)
+      expect(messages(report)).not.toContain(delegated.message)
+      expect(
+        byRule(report, REBUILT).filter((i) => i.message.includes(nativeFragment)),
+      ).toHaveLength(1)
+    })
   }
 
   test('27.3 entries 26-28 under --fast: the rebuilt spec is unchecked and the binary finding is kept', async () => {
@@ -3555,26 +3518,23 @@ describe('28. a split piece counts every child the rebuilt spec counts', () => {
       const change = `${name}${lane.proposal ? '' : '-bare'}`
       const build = (root: string): void =>
         buildFeat(root, change, { 'widgets/spec.md': delta }, { proposal: lane.proposal })
-      round5(`${id}${lane.suffix}`)(
-        `${id}${lane.suffix} ${name}${lane.label}: the binary INFOs the header and archives, and cospec does not refuse it`,
-        async () => {
-          const root = mkTempRepo({ git: true })
-          build(root)
-          const delegated = binaryOne(await binaryIssues(root, change), 'Header "### Notes"')
-          expect(delegated.level).toBe('INFO')
-          const archived = await binaryArchive(build, change)
-          expect(archived.exitCode).toBe(0)
-          expect(archived.moved).toBe(true)
-          const { report } = await cospecValidate(root, change)
-          expect(byRule(report, 'archive/split-requirement')).toEqual([])
-          expect(byRule(report, REBUILT)).toEqual([])
-          expect(byRule(report, 'deltas/skipped-header').map((i) => i.line)).toEqual([
-            lineOf(delta, '### Notes'),
-          ])
-          expect(messages(report)).not.toContain(delegated.message)
-          if (lane.proposal) expect(problems(report)).toEqual([])
-        },
-      )
+      test(`${id}${lane.suffix} ${name}${lane.label}: the binary INFOs the header and archives, and cospec does not refuse it`, async () => {
+        const root = mkTempRepo({ git: true })
+        build(root)
+        const delegated = binaryOne(await binaryIssues(root, change), 'Header "### Notes"')
+        expect(delegated.level).toBe('INFO')
+        const archived = await binaryArchive(build, change)
+        expect(archived.exitCode).toBe(0)
+        expect(archived.moved).toBe(true)
+        const { report } = await cospecValidate(root, change)
+        expect(byRule(report, 'archive/split-requirement')).toEqual([])
+        expect(byRule(report, REBUILT)).toEqual([])
+        expect(byRule(report, 'deltas/skipped-header').map((i) => i.line)).toEqual([
+          lineOf(delta, '### Notes'),
+        ])
+        expect(messages(report)).not.toContain(delegated.message)
+        if (lane.proposal) expect(problems(report)).toEqual([])
+      })
     }
 
   test('28.3 a ##### with no body is no scenario: the split is still refused, as the binary refuses it', async () => {
@@ -3618,24 +3578,21 @@ describe('29. a requirement with no statement is refused natively', () => {
         { proposal },
       )
 
-    round5(`${id}n`)(
-      `${id} ${name} (never delegated): the binary validate and archive refuse it, and so does cospec`,
-      async () => {
-        const root = mkTempRepo({ git: true })
-        build(root, false)
-        const bin = await binaryIssues(root, `${name}-bare`)
-        expect(bin.filter((i) => i.level === 'ERROR')).toHaveLength(1)
-        const archived = await binaryArchive((r) => build(r, false), `${name}-bare`)
-        expect(archived.exitCode).not.toBe(0)
-        expect(archived.moved).toBe(false)
-        const { report } = await cospecValidate(root, `${name}-bare`)
-        const found = byRule(report, 'deltas/requirement-shape')
-        expect(found.map((i) => [i.level, i.line])).toEqual([['ERROR', lineOf(delta, header)]])
-        expect(byRule(report, REBUILT)).toEqual([])
-      },
-    )
+    test(`${id} ${name} (never delegated): the binary validate and archive refuse it, and so does cospec`, async () => {
+      const root = mkTempRepo({ git: true })
+      build(root, false)
+      const bin = await binaryIssues(root, `${name}-bare`)
+      expect(bin.filter((i) => i.level === 'ERROR')).toHaveLength(1)
+      const archived = await binaryArchive((r) => build(r, false), `${name}-bare`)
+      expect(archived.exitCode).not.toBe(0)
+      expect(archived.moved).toBe(false)
+      const { report } = await cospecValidate(root, `${name}-bare`)
+      const found = byRule(report, 'deltas/requirement-shape')
+      expect(found.map((i) => [i.level, i.line])).toEqual([['ERROR', lineOf(delta, header)]])
+      expect(byRule(report, REBUILT)).toEqual([])
+    })
 
-    round5(id)(`${id} ${name}: the delegated ERROR pairs with the native one`, async () => {
+    test(`${id} ${name}: the delegated ERROR pairs with the native one`, async () => {
       const root = mkTempRepo({ git: true })
       build(root, true)
       const delegated = (await binaryIssues(root, name)).filter((i) => i.level === 'ERROR')
