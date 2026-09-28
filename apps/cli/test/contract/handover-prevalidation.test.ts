@@ -302,19 +302,15 @@ describe('on a terminal, a workset the binary refuses is answered as it refuses 
 })
 
 describe('on a terminal, config profile hands over only when the binary would prompt', () => {
-  test.failing(
-    'config --scope project profile: the binary’s refusal, respelled',
-    async () => {
-      const root = plainRoot()
-      const argv = ['config', '--scope', 'project', 'profile']
-      const up = await ptyUpstream(argv, root)
-      const co = await ptyCospec(argv, root)
-      expect(up.exitCode, ptyDetail(up)).toBe(1)
-      expect(co.exitCode, ptyDetail(co)).toBe(1)
-      expect(terminalText(co.output), ptyDetail(co)).toBe(respellRemedies(terminalText(up.output)))
-    },
-    30_000,
-  )
+  test('config --scope project profile: the binary’s refusal, respelled', async () => {
+    const root = plainRoot()
+    const argv = ['config', '--scope', 'project', 'profile']
+    const up = await ptyUpstream(argv, root)
+    const co = await ptyCospec(argv, root)
+    expect(up.exitCode, ptyDetail(up)).toBe(1)
+    expect(co.exitCode, ptyDetail(co)).toBe(1)
+    expect(terminalText(co.output), ptyDetail(co)).toBe(respellRemedies(terminalText(up.output)))
+  }, 30_000)
 })
 
 describe('a prompt whose terminal input ends (Ctrl-D) is cancelled as the binary cancels it', () => {
@@ -355,27 +351,66 @@ async function piped(cmd: string[], root: string, input: string | undefined): Pr
 
 describe('config reset --all with no terminal on stdin exits as the binary exits', () => {
   for (const input of [undefined, 'y\n']) {
-    // Handed over under the preload, an empty stdin is cancelled already; an
-    // answer waiting on the pipe still reaches the confirm under Bun.
-    const row = input === undefined ? test : test.failing
-    row(
-      `stdin ${input === undefined ? 'empty' : 'piped “y”'}: cancelled, nothing reset`,
-      async () => {
-        const root = plainRoot()
-        const argv = ['config', 'reset', '--all']
-        const before = treeHash(root)
-        const up = await piped(['node', openspecBinPath(), ...argv], root, input)
-        expect(treeHash(root)).toEqual(before)
-        const co = await piped([process.execPath, CLI_ENTRY, ...argv], root, input)
-        expect(treeHash(root)).toEqual(before)
-        expect(up.exitCode, detail(up)).toBe(130)
-        expect(co.exitCode, detail(co)).toBe(up.exitCode)
-        expect(terminalText(co.stdout), detail(co)).toBe(terminalText(respellRemedies(up.stdout)))
-        expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
-      },
-      30_000,
-    )
+    test(`stdin ${input === undefined ? 'empty' : 'piped “y”'}: cancelled, nothing reset`, async () => {
+      const root = plainRoot()
+      const argv = ['config', 'reset', '--all']
+      const before = treeHash(root)
+      const up = await piped(['node', openspecBinPath(), ...argv], root, input)
+      expect(treeHash(root)).toEqual(before)
+      const co = await piped([process.execPath, CLI_ENTRY, ...argv], root, input)
+      expect(treeHash(root)).toEqual(before)
+      expect(up.exitCode, detail(up)).toBe(130)
+      expect(co.exitCode, detail(co)).toBe(up.exitCode)
+      expect(terminalText(co.stdout), detail(co)).toBe(terminalText(respellRemedies(up.stdout)))
+      expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
+    }, 30_000)
   }
+})
+
+/** `cmd` with `answer` written to its piped stdin only once `delayMs` has passed. */
+async function answeredLate(cmd: string[], root: string, answer: string): Promise<SpawnResult> {
+  const proc = Bun.spawn(cmd, {
+    cwd: root,
+    stdin: 'pipe',
+    stdout: 'pipe',
+    stderr: 'pipe',
+    env: { ...oracleEnv(root), OPENSPEC_NO_COMPLETIONS: '1' },
+  })
+  const delayMs = 1500
+  const answered = (async () => {
+    await Bun.sleep(delayMs)
+    proc.stdin.write(answer)
+    await proc.stdin.end()
+  })()
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+    answered,
+  ])
+  return { stdout, stderr, exitCode }
+}
+
+describe('config reset --all fed a later answer on a pipe: cospec-only (design D14)', () => {
+  // The binary's confirm reads an answer that arrives on its pipe after the
+  // prompt and resets; cospec gives the confirm no stdin, so it cancels and
+  // resets nothing, as for an answer already waiting on the pipe — which the
+  // binary discards under Node and Bun would take.
+  test('the binary resets, exit 0; cospec cancels, exit 130, nothing reset', async () => {
+    const argv = ['config', 'reset', '--all']
+    const upRoot = plainRoot()
+    const up = await answeredLate(['node', openspecBinPath(), ...argv], upRoot, 'y\n')
+    expect(up.exitCode, detail(up)).toBe(0)
+    const root = plainRoot()
+    const before = treeHash(root)
+    const co = await answeredLate([process.execPath, CLI_ENTRY, ...argv], root, 'y\n')
+    expect(co.exitCode, detail(co)).toBe(130)
+    expect(treeHash(root)).toEqual(before)
+    const cancelled = await piped(['node', openspecBinPath(), ...argv], plainRoot(), undefined)
+    expect(terminalText(co.stdout), detail(co)).toBe(
+      terminalText(respellRemedies(cancelled.stdout)),
+    )
+  }, 30_000)
 })
 
 // --- review round 2: `config <leaf> <extra-arg> --json` (design D13) --------------------

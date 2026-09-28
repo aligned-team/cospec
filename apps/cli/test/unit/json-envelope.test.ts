@@ -462,63 +462,54 @@ function handoverPlan(args: string[]): configModule.ConfigCall {
 describe('config handover pre-flights: only the binary’s own interactive answer hands over', () => {
   const tty = { stdoutIsTTY: true, stdinIsTTY: true }
 
-  test.failing(
-    'config profile: any other refusal is relayed respelled, never handed over',
-    async () => {
-      const handover = exported<RunHandover>(configModule, 'runHandover')
-      const stderr = `Error: a refusal of its own.\n${upstream('config/list-keys')}\n`
-      const { value, error, spawned } = await stubbed(
-        () => ({ stderr, exitCode: 1 }),
-        () => handover(ctxFor('/repo'), handoverPlan(['--scope', 'project', 'profile']), tty),
-      )
-      expect(error).toBeUndefined()
-      expect(spawned.piped).toEqual([['config', '--scope', 'project', 'profile']])
-      expect(spawned.handovers).toEqual([])
-      expect(value).toBe(1)
-      expect(spawned.stderr).toBe(remediesModule.respellRemedies(stderr))
-      expect(BARE_OPENSPEC.test(spawned.stderr)).toBe(false)
-    },
-  )
+  test('config profile: any other refusal is relayed respelled, never handed over', async () => {
+    const handover = exported<RunHandover>(configModule, 'runHandover')
+    const stderr = `Error: a refusal of its own.\n${upstream('config/list-keys')}\n`
+    const { value, error, spawned } = await stubbed(
+      () => ({ stderr, exitCode: 1 }),
+      () => handover(ctxFor('/repo'), handoverPlan(['--scope', 'project', 'profile']), tty),
+    )
+    expect(error).toBeUndefined()
+    expect(spawned.piped).toEqual([['config', '--scope', 'project', 'profile']])
+    expect(spawned.handovers).toEqual([])
+    expect(value).toBe(1)
+    expect(spawned.stderr).toBe(remediesModule.respellRemedies(stderr))
+    expect(BARE_OPENSPEC.test(spawned.stderr)).toBe(false)
+  })
 
-  test.failing(
-    'config reset --all with no TTY on stdin runs piped and exits as the binary exits',
-    async () => {
-      const handover = exported<RunHandover>(configModule, 'runHandover')
-      const stdout = 'the binary’s prompt and its cancellation line\n'
-      const { value, error, spawned } = await stubbed(
-        () => ({ stdout, exitCode: 130 }),
-        () =>
-          handover(ctxFor('/repo'), handoverPlan(['reset', '--all']), {
-            stdoutIsTTY: true,
-            stdinIsTTY: false,
-          }),
-      )
-      expect(error).toBeUndefined()
-      expect(spawned.handovers).toEqual([])
-      expect(spawned.piped).toEqual([['config', 'reset', '--all']])
-      // The prompt ends at its given-no-input answer as it does under Node.
-      expect(spawned.pipedPreloaded).toEqual([['config', 'reset', '--all']])
-      expect(value).toBe(130)
-      expect(spawned.stdout).toBe(stdout)
-    },
-  )
+  test('config reset --all with no TTY on stdin runs piped and exits as the binary exits', async () => {
+    const handover = exported<RunHandover>(configModule, 'runHandover')
+    const stdout = 'the binary’s prompt and its cancellation line\n'
+    const { value, error, spawned } = await stubbed(
+      () => ({ stdout, exitCode: 130 }),
+      () =>
+        handover(ctxFor('/repo'), handoverPlan(['reset', '--all']), {
+          stdoutIsTTY: true,
+          stdinIsTTY: false,
+        }),
+    )
+    expect(error).toBeUndefined()
+    expect(spawned.handovers).toEqual([])
+    expect(spawned.piped).toEqual([['config', 'reset', '--all']])
+    // The prompt ends at its given-no-input answer as it does under Node.
+    expect(spawned.pipedPreloaded).toEqual([['config', 'reset', '--all']])
+    expect(value).toBe(130)
+    expect(spawned.stdout).toBe(stdout)
+  })
 
-  test.failing(
-    'config reset --all with no TTY on stdin: any other answer is a wrapped-call violation',
-    async () => {
-      const handover = exported<RunHandover>(configModule, 'runHandover')
-      const { error, spawned } = await stubbed(
-        () => ({ stdout: '', exitCode: 0 }),
-        () =>
-          handover(ctxFor('/repo'), handoverPlan(['reset', '--all']), {
-            stdoutIsTTY: true,
-            stdinIsTTY: false,
-          }),
-      )
-      expect(error).toBeInstanceOf(OpenspecCallError)
-      expect(spawned.handovers).toEqual([])
-    },
-  )
+  test('config reset --all with no TTY on stdin: any other answer is a wrapped-call violation', async () => {
+    const handover = exported<RunHandover>(configModule, 'runHandover')
+    const { error, spawned } = await stubbed(
+      () => ({ stdout: '', exitCode: 0 }),
+      () =>
+        handover(ctxFor('/repo'), handoverPlan(['reset', '--all']), {
+          stdoutIsTTY: true,
+          stdinIsTTY: false,
+        }),
+    )
+    expect(error).toBeInstanceOf(OpenspecCallError)
+    expect(spawned.handovers).toEqual([])
+  })
 
   test('config reset --all on a terminal hands the terminal over', async () => {
     const handover = exported<RunHandover>(configModule, 'runHandover')

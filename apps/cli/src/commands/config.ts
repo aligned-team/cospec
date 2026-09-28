@@ -30,7 +30,8 @@
 //   B. terminal handover (inherited stdio, exit code propagated verbatim,
 //      version-asserted first — the `workset open` pattern): `edit` (spawns
 //      $EDITOR), `profile` with no preset (inquirer menus behind an isTTY
-//      check), and `reset --all` without `-y` (inquirer confirm). cospec's
+//      check), and `reset --all` without `-y` (inquirer confirm) with a
+//      terminal on stdin — with none, it runs piped. cospec's
 //      piped spawn uses `stdin: 'ignore'`, so all three would hang or
 //      mis-report. Class B propagates 130 (prompt cancellation) unchanged and
 //      enforces no `RunExpectation` — the documented handover exception —
@@ -52,7 +53,7 @@ import {
   relayStorePathRefusal,
   subcommandOf,
 } from '../core/forward-relay.ts'
-import { preloadedArgv } from '../core/handover-preload.ts'
+import { handoverPreload, preloadedArgv } from '../core/handover-preload.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
 import {
   type OpenspecResult,
@@ -335,6 +336,8 @@ async function resolveHandoverBin(cwd: string): Promise<string> {
 export interface ConfigTerminal {
   /** `config profile`'s own interactivity test: its stdout is a TTY. */
   readonly stdoutIsTTY: boolean
+  /** Whether `config reset --all`'s confirm reads a terminal (default: cospec's stdin is a TTY). */
+  readonly stdinIsTTY?: boolean
 }
 
 /** The binary's text for an allowlist entry, as it prints it (no holes). */
@@ -345,23 +348,23 @@ function upstreamSentence(id: string): string {
 }
 
 /**
- * What a piped `config profile` answered: the binary's refusal for an
- * unreadable global config (`config/invalid-file`), or, with a readable one,
- * its interactive-mode-required refusal (stdout is a pipe) — or neither,
- * which is not an answer that call gives.
+ * Whether a piped `config profile` answered with the binary's
+ * interactive-mode-required refusal (stdout is a pipe) — the one answer that
+ * means it would prompt on a terminal. Anything else it refuses first (an
+ * unreadable global config, `--scope project`) is its refusal to relay.
  */
-function profileAnswer(result: OpenspecResult): 'unreadable' | 'interactive' | undefined {
-  if (result.exitCode !== 1 || result.stdout.length > 0) return undefined
-  const lines = result.stderr.split('\n')
-  if (lines.includes(upstreamSentence('config/invalid-file'))) return 'unreadable'
-  if (lines.includes(upstreamSentence('config/profile-interactive-required'))) return 'interactive'
-  return undefined
+function wouldPrompt(result: OpenspecResult): boolean {
+  return (
+    result.stdout.length === 0 &&
+    result.stderr.split('\n').includes(upstreamSentence('config/profile-interactive-required'))
+  )
 }
 
 /**
  * `config profile` with no preset run piped, read-only: with no preset the
- * binary refuses an unreadable config first and, its stdout not a TTY, then
- * refuses to prompt — it writes nothing either way.
+ * binary refuses what it cannot configure (an unreadable config, a scope it
+ * has not implemented) and, its stdout not a TTY, then refuses to prompt — it
+ * writes nothing either way, and says why on stderr.
  */
 function profilePiped(ctx: CommandContext, call: ConfigCall): Promise<OpenspecResult> {
   return passthroughOpenspec(call.wrapped, {
@@ -369,11 +372,41 @@ function profilePiped(ctx: CommandContext, call: ConfigCall): Promise<OpenspecRe
     expect: {
       exitCodes: [1],
       denyStdout: CONFIG_EXPECT.denyStdout,
-      postCondition: (res) =>
-        profileAnswer(res) !== undefined ||
-        'answered neither an unreadable config nor the interactive-mode refusal',
+      postCondition: (res) => res.stderr.length > 0 || 'refused with nothing on stderr',
     },
   })
+}
+
+/**
+ * `config reset --all` with no terminal on stdin, run piped under the
+ * handover preload: the binary's confirm reads a closed input and cancels as
+ * it does under Node — 130, `Reset cancelled.`, nothing reset — and that
+ * answer is relayed with its exit code (0 or 1 are relayed as they come).
+ * cospec's own stdin is not forwarded: under Bun, an answer already waiting
+ * on the pipe (`echo y | …`) reaches the confirm, which Node discards as
+ * input typed ahead of the prompt, so forwarding it would reset where the
+ * binary cancels (design D14). The binary always prints an answer line after
+ * its prompt, or a failure on stderr.
+ */
+async function resetPiped(ctx: CommandContext, call: ConfigCall): Promise<number> {
+  const result = await passthroughOpenspec(call.wrapped, {
+    cwd: ctx.cwd,
+    preload: handoverPreload(),
+    expect: {
+      exitCodes: [0, 1, 130],
+      denyStdout: CONFIG_EXPECT.denyStdout,
+      postCondition: (res) =>
+        res.exitCode === 1
+          ? res.stderr.length > 0 || 'failed with nothing on stderr'
+          : res.stdout.endsWith('\n') || 'printed no answer line after its prompt',
+    },
+  })
+  const relay = result.exitCode === 0 ? (text: string) => text : respellRemedies
+  if (result.stdout.length > 0) process.stdout.write(relay(result.stdout))
+  if (result.stderr.length > 0) process.stderr.write(relay(result.stderr))
+  if (result.exitCode === 0)
+    for (const note of precedenceNotes(call.sub, call.subArgs)) process.stderr.write(`${note}\n`)
+  return result.exitCode
 }
 
 /**
@@ -392,10 +425,11 @@ function profilePiped(ctx: CommandContext, call: ConfigCall): Promise<OpenspecRe
  * of any `--json` envelope, `--store-path`'s redirect included); `--json`
  * (cospec's envelope — the leaf is interactive); and for `config profile`,
  * whose own test is a TTY on stdout, the piped call when there is none, or
- * else its read-only pre-flight, which relays an unreadable config's refusal
- * and hands over only once the binary would prompt. `config edit` and
- * `config reset --all` have no non-interactive branch and always hand over.
- * Every handover runs under the handover preload (`core/handover-preload.ts`).
+ * else its read-only pre-flight, which relays any refusal but the
+ * interactive-mode one and hands over only once the binary would prompt;
+ * `config reset --all` hands over only with a terminal on stdin, and runs
+ * piped otherwise (`resetPiped`). `config edit` always hands over. Every
+ * handover runs under the handover preload (`core/handover-preload.ts`).
  */
 export async function runHandover(
   ctx: CommandContext,
@@ -422,9 +456,10 @@ export async function runHandover(
   }
   if (call.sub === 'profile') {
     const result = await profilePiped(ctx, call)
-    if (!terminal.stdoutIsTTY || profileAnswer(result) === 'unreadable')
-      return relayRespelled(result, false)
+    if (!terminal.stdoutIsTTY || !wouldPrompt(result)) return relayRespelled(result, false)
   }
+  if (call.sub === 'reset' && !(terminal.stdinIsTTY ?? process.stdin.isTTY === true))
+    return resetPiped(ctx, call)
   const bin = await resolveHandoverBin(ctx.cwd)
   const proc = Bun.spawn(preloadedArgv(bin, call.argv), {
     cwd: ctx.cwd,
