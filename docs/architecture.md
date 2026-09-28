@@ -257,12 +257,25 @@ each line of `instruction` and `template` that equals a `SCHEMA_LINES` entry
 the document as the binary formats it; text mode renders it with a port of the
 binary's `printInstructionsText` and reference-block renderer (escape helpers
 included), plus the wrapped text call's non-TTY spinner line on stderr, so every
-byte the user owns is the binary's. A failure keeps the binary's answer: under
-`--json` its `status[].message`/`fix` pass the same `remedy` rule; in text mode
-the same argv is re-run without `--json` (the helper's `rerun`, which never
-selects the root twice) and relayed with its remedies spelled. `apply --change`
-stays the gate; `archive` (the user's context and operation guidance only) and
-the no-artifact / no-change answers are relayed as the binary prints them.
+byte the user owns is the binary's. Every failure — an artifact's, and the
+no-artifact, no-change, `apply`-without-a-change and `archive` answers, which
+spawn with `wrappedJson` too — is answered from the binary's own failure
+document: its `status[].message` and `status[].fix` pass the same `remedy` rule
+(`FAILURE_FIELDS`), so `Create one with: openspec new change <name>` is spelled
+while a message listing change names (`Available changes:` with a change named
+`Run: openspec store doctor`) is not one remedy and stays exactly as written.
+`--json` re-prints that document; text mode renders it as the binary's
+`failWithError` does — the branch's non-TTY spinner line
+(`Generating instructions...`, `Generating apply instructions...` or
+`Loading archive inputs...`), the call's own stderr, `✖ Error: <message>` and,
+when the status carries one, `Fix: <fix>`. cospec selects the root before the
+spawn with the same resolver and `--store`, so every failure document comes
+after the binary's spinner started. Only the two answers that come before any
+document — the `--store-path` refusal (cospec's redirect) and commander's parse
+refusal (relayed as printed) — are not rendered from one. `apply --change` stays
+the gate; a successful `archive` (the user's context and operation guidance
+only) is relayed as the binary prints it, its text form from the same argv again
+without `--json` (the helper's `rerun`, which never selects the root twice).
 
 ## The disciplined-passthrough runner
 
