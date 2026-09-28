@@ -167,13 +167,17 @@ cospec SHALL report, as the INFO `deltas/skipped-header`, every level-three
 header inside an `## ADDED Requirements` or `## MODIFIED Requirements` section
 that the delta reader ignores: a non-fenced `### <text>` line that is not a
 named `### Requirement:` header, whether it sits between requirement blocks or
-inside one. The lines reported SHALL be exactly the lines the wrapped binary's
-delta reader records as skipped, with the same line numbers. A header that is
-`### Requirement:` with no name SHALL get its own message, saying the name is
-missing and giving `### Requirement: <name>` as the fix. Any other header's hint
-SHALL name `### Requirement: <text>` as the spelling to use if the block is
-meant to be validated. A `### Scenario:` line that `deltas/scenario-depth`
-already reports SHALL NOT also be reported by this rule.
+inside one. The lines reported SHALL be the lines the wrapped binary's delta
+reader records as skipped, with the same line numbers, except a header written
+inside an HTML comment: cospec's reader masks comments (as every other cospec
+parser rule does) and SHALL NOT report it, while the wrapped binary's own reader
+doesn't mask comments and keeps reporting it — that delegated INFO SHALL still
+reach the report unsuppressed, because this rule has no twin to raise there. A
+header that is `### Requirement:` with no name SHALL get its own message, saying
+the name is missing and giving `### Requirement: <name>` as the fix. Any other
+header's hint SHALL name `### Requirement: <text>` as the spelling to use if the
+block is meant to be validated. A `### Scenario:` line that
+`deltas/scenario-depth` already reports SHALL NOT also be reported by this rule.
 
 The rule SHALL run on every cospec-typed change that carries delta files,
 whether or not cospec delegates the change to the wrapped binary. INFO SHALL
@@ -211,6 +215,13 @@ never move `valid` or the exit code, with or without `--strict`.
 - **WHEN** a `### Example` line sits inside a fenced code block in an ADDED
   requirement
 - **THEN** no `deltas/skipped-header` issue is raised for it
+
+#### Scenario: A header inside an HTML comment is not reported, and the delegated INFO survives
+
+- **WHEN** a `###` header sits inside an HTML comment in an ADDED section of a
+  change cospec delegates
+- **THEN** no `deltas/skipped-header` issue is raised for it, and the wrapped
+  binary's own INFO for that header reaches the merged report unsuppressed
 
 ### Requirement: A header-only SHALL/MUST carries the body hint
 

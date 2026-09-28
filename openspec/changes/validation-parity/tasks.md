@@ -43,7 +43,9 @@ trailer, never `--no-verify`).
       item's enclosing numbered group in `parseTasks` (design D4). Unit-test
       that `groups`, `items` and `malformed` are unchanged on the existing
       fixtures. Commit
-      `fix(tasks): read task ids and their groups the way the binary does`
+      `fix(validate): read task ids and their groups the way the binary does`
+      (scope `validate`, not `tasks` — commitlint's scope-enum has no `tasks`
+      entry)
 - [x] 3.2 Add `tasks/id-mismatch` and `tasks/id-duplicate` (WARNING) with the
       unit tests of verification 2.2, then flip row 2.1. Commit
       `fix(validate): warn on mismatched and duplicate task ids`

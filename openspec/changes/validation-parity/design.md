@@ -111,6 +111,13 @@ binary's `bodyStartLine + index` resolves to (probed: line 3 for a header on
 file line 3). Nothing else in the parser changes: `ops`, `hasShallMust`,
 scenario counting and every archive gate read the same data as before.
 
+This reads cospec's existing structural view, which already blanks HTML comments
+for every other parser rule (D7/deltas.ts). The binary's own reader doesn't mask
+comments, so a `###` header written inside one is invisible to this rule but
+still reported by the binary's delegated INFO — a real, by-design gap, not a
+bug: D5 leaves that delegated message with no native twin, so it survives
+unsuppressed (probed and pinned: verification 5.2, entries 3/5).
+
 The rule is an INFO on the header's line. For a nameless header
 (`/^requirement:?$/i`): message
 `header "### Requirement:" in <section> is missing a requirement name and is ignored by validation`,
