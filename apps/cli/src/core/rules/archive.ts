@@ -15,8 +15,8 @@ import {
   SCENARIO_DROP_NOTE_RETIRED,
   scenarioDropMessage,
   type DeltaOp,
+  type Delta,
   type LivingView,
-  type ParsedDelta,
   type RequirementSplit,
 } from '../deltas.ts'
 import {
@@ -28,7 +28,7 @@ import {
   type RebuiltSpec,
   type RebuiltSpecIssue,
 } from '../rebuilt-spec.ts'
-import { requirementShapeIssues } from './deltas.ts'
+import { requirementShapeIssues, scenarioDepthIssues } from './deltas.ts'
 import type { Issue } from './issue.ts'
 import type { LoadedChange } from './schema-info.ts'
 
@@ -251,9 +251,8 @@ const CANONICAL_HEADER_RE = /^###\s*Requirement:\s*(.+?)\s*$/i
  * `archive/split-requirement` for a header that cuts one — so a finding on a
  * delta line is dropped only where one of those reported that very line: the
  * rebuilt spec is the net under them, never a second report. Never on the
- * assumption that one did: a block written inside an HTML comment is merged by
- * the archive but invisible to the masked reader behind
- * `deltas/requirement-shape`, so only this rule sees it.
+ * assumption that one did: the two read different specs — the block alone and
+ * the spec it lands in — so only a line that rule reported is left to it.
  */
 function rebuiltSpecIssues(
   change: LoadedChange,
@@ -417,7 +416,7 @@ interface DeltaFileView {
   path: string
   text: string
   /** the verbatim parse: what the archive merges. */
-  parsed: ParsedDelta
+  parsed: Delta
   splits: RequirementSplit[]
   /** the spec the archive would write, or undefined where its merge refuses first. */
   rebuilt: RebuiltSpec | undefined
@@ -448,10 +447,8 @@ export function archiveRules(
 
   for (const file of change.deltaFiles) {
     // Every rule here reads the view openspec's archive merges — fences
-    // masked, HTML comments kept (see `ReadView`). The masked parse only
-    // tells which `### Scenario:` lines `deltas/scenario-depth` already owns.
-    const parsed = parseDeltaSpec(file.text, file.path, file.capability, 'verbatim')
-    const maskedParse = parseDeltaSpec(file.text, file.path, file.capability)
+    // masked, HTML comments kept (see `ReadView`).
+    const parsed = parseDeltaSpec(file.text, file.path, file.capability)
 
     // The spec the archive would write from this delta, read once: the split
     // verdict and `archive/rebuilt-spec-invalid` both come off it.
@@ -468,7 +465,7 @@ export function archiveRules(
     // re-validates, and a piece left with no scenario aborts the archive (see
     // `findRequirementSplits`). A `### Scenario:` line the advisory reader sees
     // is `deltas/scenario-depth`'s alone: its `#### Scenario:` fix mends both.
-    const depthLines = new Set(maskedParse.scenarioDepthIssues.map((d) => d.line))
+    const depthLines = new Set(scenarioDepthIssues(file).map((d) => d.line))
     const splits = findRequirementSplits(parsed, rebuilt?.lines)
     for (const split of splits) {
       if (depthLines.has(split.part.line)) continue
@@ -507,7 +504,7 @@ export function archiveRules(
       group.paths.push(file.path)
     }
     const shape = { text: new Set<number>(), scenario: new Set<number>() }
-    for (const found of requirementShapeIssues(maskedParse, file.path))
+    for (const found of requirementShapeIssues(parsed, file.path))
       if (found.line !== undefined)
         (found.message.endsWith('must include at least one #### Scenario:')
           ? shape.scenario
@@ -823,7 +820,8 @@ export function archiveRules(
   // a scenario written inside an HTML comment is one the archive keeps, so a
   // MODIFIED keeping a living scenario only there drops nothing, and one
   // omitting a commented living scenario drops it. The hard gate in
-  // `commands/archive.ts` reads the masked view.
+  // `commands/archive.ts` reads the same view: `parseDeltaSpec` and
+  // `parseLivingSpec` hand it nothing else.
   const caps = [...byCap.entries()].map(([capability, g]) => ({ capability, ops: g.ops }))
   const baselines = new Map(
     [...change.livingSpecs.entries()].map(([capability, spec]) => [capability, spec.archive]),

@@ -32,7 +32,7 @@ const rebuiltAgainst = (delta: string, living: string | undefined) =>
     changeName: 'c',
     living,
     deltaText: delta,
-    delta: parseDeltaSpec(delta, 'specs/x/spec.md', 'x', 'verbatim'),
+    delta: parseDeltaSpec(delta, 'specs/x/spec.md', 'x'),
   })
 const rebuildAgainst = (delta: string, living: string | undefined) =>
   rebuiltAgainst(delta, living)?.lines
@@ -217,7 +217,7 @@ describe('findRequirementSplits', () => {
   const added = (body: string) =>
     `## ADDED Requirements\n\n### Requirement: New\n\nThe system SHALL be new.\n\n${body}`
   const splits = (delta: string, living: string | undefined = LIVING) => {
-    const parsed = parseDeltaSpec(delta, 'specs/x/spec.md', 'x', 'verbatim')
+    const parsed = parseDeltaSpec(delta, 'specs/x/spec.md', 'x')
     const inSpec = findRequirementSplits(parsed, rebuiltAgainst(delta, living)?.lines)
     const alone = findRequirementSplits(parsed, undefined)
     // The block reads the same inside the rebuilt spec as inside one of its own.

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { parseLivingSpec } from '../../../src/core/deltas.ts'
 import { archiveRules } from '../../../src/core/rules/archive.ts'
+import { deltasRules } from '../../../src/core/rules/deltas.ts'
 import { makeChange, rules } from './helpers.ts'
 
 const LIVING = `# X Specification
@@ -1258,18 +1259,17 @@ describe('archive/rebuilt-spec-invalid', () => {
     expect(rebuilt(text, LIVING)).toEqual([])
   })
 
-  test('a delta block inside an HTML comment is this rule’s: the masked reader never reported it', () => {
+  test('a delta block inside an HTML comment is deltas/requirement-shape’s, as a visible one is', () => {
     const text = `${ADD}\n<!--\n### Requirement: Draft\n\nThe system SHALL draft.\n-->\n`
-    expect(rebuilt(text, LIVING).map((i) => [i.line, i.message])).toEqual([
-      [13, 'requirement "Draft" (line 13 of this delta) has no scenario in the rebuilt spec'],
-    ])
+    expect(rebuilt(text, LIVING)).toEqual([])
     const noText = `${ADD}\n<!--\n### Requirement: Draft\n\n#### Scenario: d\n\n- **WHEN** a\n-->\n`
-    expect(rebuilt(noText, LIVING).map((i) => [i.line, i.message])).toEqual([
-      [
-        13,
-        'requirement "Draft" (line 13 of this delta) has no text under its header in the rebuilt spec',
-      ],
-    ])
+    expect(rebuilt(noText, LIVING)).toEqual([])
+    const shape = (t: string) =>
+      deltasRules(change(t, { living: LIVING }))
+        .filter((i) => i.rule === 'deltas/requirement-shape')
+        .map((i) => [i.line, i.message])
+    expect(shape(text)).toEqual([[13, 'ADDED "Draft" must include at least one #### Scenario:']])
+    expect(shape(noText)).toEqual([[13, 'ADDED "Draft" is missing requirement text']])
   })
 
   test('a level-1 header in a delta block that takes its scenario is refused on the delta line', () => {

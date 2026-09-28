@@ -1,10 +1,11 @@
 // deltas/* rules (DESIGN §4.3) — run before openspec delegation so cospec's
 // sharper diagnostics win. Rule IDs are frozen public API.
 
-import { parseDeltaSpec, SHALL_MUST_RE, type ParsedDelta } from '../deltas.ts'
+import { parseAdvisoryDelta, parseDeltaSpec, SHALL_MUST_RE, type Delta } from '../deltas.ts'
 import { findRequirementSplits, rebuildSpec } from '../rebuilt-spec.ts'
 import type { Issue } from './issue.ts'
 import type { LoadedChange } from './schema-info.ts'
+import type { AdvisoryIssue } from './views.ts'
 
 const KEBAB_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/
 /** `specs/<capability-path>/spec.md` — the path may nest (`<area>/<capability>`). */
@@ -128,20 +129,14 @@ export function deltasRules(
       continue
     }
 
+    // What openspec reads (see `ReadView`): every finding below that can
+    // change an outcome reads this parse. The masked one feeds only the
+    // advisory findings `rules/views.ts` lists.
     const parsed = parseDeltaSpec(file.text, file.path, file.capability)
+    const advisory = parseAdvisoryDelta(file.text, file.path, file.capability)
 
-    // deltas/scenario-depth
-    for (const s of parsed.scenarioDepthIssues) {
-      issues.push({
-        level: 'ERROR',
-        rule: 'deltas/scenario-depth',
-        path: file.path,
-        line: s.line,
-        // Quotes the header so the binary's skipped-header INFO for the same
-        // line pairs with this finding by its text, not by the file alone.
-        message: `scenario heading "### ${s.header}" uses 3 hashtags; must be \`#### Scenario:\``,
-      })
-    }
+    const depth = scenarioDepthIssues(file)
+    issues.push(...depth)
 
     // deltas/capability-kebab — every segment of the capability path is
     // checked, so the nested `specs/<area>/<capability>/spec.md` layout
@@ -224,12 +219,12 @@ export function deltasRules(
     // that family runs: under `--fast` nothing else reports the header, so it
     // keeps its INFO — and a change cospec never delegates would otherwise
     // lose the only report it had.
-    const depthLines = new Set(parsed.scenarioDepthIssues.map((d) => d.line))
+    const depthLines = new Set(depth.map((d) => d.line))
     const splitLines = new Set(opts.fast ? [] : splitsOf(change, file).map((s) => s.part.line))
-    for (const skipped of parsed.skippedHeaders) {
+    for (const skipped of advisory.skippedHeaders) {
       if (depthLines.has(skipped.line) || splitLines.has(skipped.line)) continue
       const nameless = NAMELESS_REQUIREMENT_RE.test(skipped.header)
-      issues.push({
+      const info: AdvisoryIssue = {
         level: 'INFO',
         rule: 'deltas/skipped-header',
         path: file.path,
@@ -240,13 +235,37 @@ export function deltasRules(
         hint: nameless
           ? 'add a name, e.g. "### Requirement: <name>"'
           : `use "### Requirement: ${skipped.header}" if it should be validated as a requirement`,
-      })
+      }
+      issues.push(info)
     }
 
     issues.push(...requirementShapeIssues(parsed, file.path))
   }
 
   return issues
+}
+
+/**
+ * `deltas/scenario-depth` for one delta file: a `### Scenario:` heading one
+ * level too shallow. Read on the masked view — an advisory finding (see
+ * `rules/views.ts`): the binary only INFOs a commented one and archives it, so
+ * a commented line never refuses here, while a visible one does. Exported so
+ * the archive family leaves each of these lines to this rule.
+ */
+export function scenarioDepthIssues(file: {
+  path: string
+  text: string
+  capability: string
+}): AdvisoryIssue[] {
+  return parseAdvisoryDelta(file.text, file.path, file.capability).scenarioDepthIssues.map((s) => ({
+    level: 'ERROR',
+    rule: 'deltas/scenario-depth',
+    path: file.path,
+    line: s.line,
+    // Quotes the header so the binary's skipped-header INFO for the same
+    // line pairs with this finding by its text, not by the file alone.
+    message: `scenario heading "### ${s.header}" uses 3 hashtags; must be \`#### Scenario:\``,
+  }))
 }
 
 /**
@@ -258,7 +277,7 @@ function splitsOf(
   change: LoadedChange,
   file: { path: string; text: string; capability: string },
 ): ReturnType<typeof findRequirementSplits> {
-  const verbatim = parseDeltaSpec(file.text, file.path, file.capability, 'verbatim')
+  const verbatim = parseDeltaSpec(file.text, file.path, file.capability)
   const rebuilt = rebuildSpec({
     capability: file.capability,
     changeName: change.id,
@@ -270,13 +289,15 @@ function splitsOf(
 }
 
 /**
- * `deltas/requirement-shape` for one delta file, on its advisory (masked)
- * parse. Named as the header is written — see `DeltaOp.verbatimName` — so a
- * finding the binary shares names the same requirement, and its delegated twin
- * is recognised. Exported so `archive/rebuilt-spec-invalid` leaves a delta line
- * to this rule only where this rule reported it.
+ * `deltas/requirement-shape` for one delta file, on the parse openspec's own
+ * validator reads (`Delta`): a requirement written inside an HTML comment is
+ * one the binary validates and the archive merges, so it is checked here too,
+ * and a statement or scenario written inside one counts. Named as the header is
+ * written, so a finding the binary shares names the same requirement and its
+ * delegated twin is recognised. Exported so `archive/rebuilt-spec-invalid`
+ * leaves a delta line to this rule only where this rule reported it.
  */
-export function requirementShapeIssues(parsed: ParsedDelta, path: string): Issue[] {
+export function requirementShapeIssues(parsed: Delta, path: string): Issue[] {
   const issues: Issue[] = []
   for (const op of parsed.ops) {
     if (op.operation !== 'ADDED' && op.operation !== 'MODIFIED') continue

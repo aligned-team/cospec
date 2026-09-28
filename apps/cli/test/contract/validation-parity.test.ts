@@ -37,21 +37,6 @@ afterAll(cleanupAll)
  * takes its own ids out, and the last one removes the set.
  */
 const ROUND6_FAILING = new Set<string>([
-  '27.1-cmt-no-text',
-  '27.2-cmt-no-text',
-  '27.1-cmt-modified-no-text',
-  '27.2-cmt-modified-no-text',
-  '27.1-cmt-header-shall',
-  '27.2-cmt-header-shall',
-  '27.1-cmt-no-scenario',
-  '27.2-cmt-no-scenario',
-  '27.3',
-  '32.1',
-  '32.1n',
-  '32.2',
-  '32.2n',
-  '32.3',
-  '32.3n',
   '33.1',
   '33.1n',
   '33.2',
@@ -61,16 +46,6 @@ const ROUND6_FAILING = new Set<string>([
   '33.4',
   '33.4n',
   '33.5',
-  '34.1',
-  '34.1n',
-  '34.4',
-  '34.4n',
-  '34.5',
-  '34.5n',
-  '34.9',
-  '34.12n',
-  '34.13n',
-  '19.1',
 ])
 const round6 = (id: string): typeof test => (ROUND6_FAILING.has(id) ? test.failing : test)
 
@@ -2766,7 +2741,7 @@ describe('20.40 the rebuilt spec the port builds is the spec the binary archive 
         changeName: `bb-${name}`,
         living: before,
         deltaText,
-        delta: parseDeltaSpec(deltaText, `specs/${capability}/spec.md`, capability, 'verbatim'),
+        delta: parseDeltaSpec(deltaText, `specs/${capability}/spec.md`, capability),
       })
       const res = await openspec(['archive', `bb-${name}`, '-y'], root)
       expect(res.exitCode).toBe(0)
@@ -3410,7 +3385,7 @@ describe('26. retire_capabilities retires only what the archive retires', () => 
         changeName: name,
         living,
         deltaText: delta,
-        delta: parseDeltaSpec(delta, 'specs/widgets/spec.md', 'widgets', 'verbatim'),
+        delta: parseDeltaSpec(delta, 'specs/widgets/spec.md', 'widgets'),
       })
       expect([shape, port?.lines.map((l) => l.text).join('\n')]).toEqual([
         shape,
@@ -4165,12 +4140,14 @@ describe('19. sweep', () => {
   // suppressed on a typed-lane fixture, put back into cospec's report, is
   // caught — except entries 1, 2, 20, 22 and 23, whose messages name no
   // requirement (they quote only the sections' syntax, or name the capability)
-  // and pair on the file or capability alone.
+  // and pair on the file or capability alone, and the unread-file entry, which
+  // names only the file it pairs on (first reached by 34.13's commented delta).
   const NAMES_NO_REQUIREMENT = [
     'were found, but no requirement entries parsed',
     'Change must have at least one delta',
     'No delta sections found',
     'target spec does not exist; only ADDED requirements are allowed',
+    'Delta specs must be a spec.md inside a capability folder',
   ]
 
   round6('19.2')(

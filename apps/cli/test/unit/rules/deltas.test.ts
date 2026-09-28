@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { parseDeltaSpec } from '../../../src/core/deltas.ts'
+import { parseAdvisoryDelta, parseDeltaSpec } from '../../../src/core/deltas.ts'
 import {
   deltasRules,
   skipSpecsConflictIssues,
@@ -673,8 +673,8 @@ describe('deltas/requirement-shape names the header as written', () => {
     ])
   })
 
-  test('the masked name still drives every other reading of the op', () => {
-    const p = parseDeltaSpec(
+  test('the masked name still drives every other reading of an advisory op', () => {
+    const p = parseAdvisoryDelta(
       '## ADDED Requirements\n\n### Requirement: Foo <!-- note -->\n\nThe system SHALL foo.\n',
       'specs/x/spec.md',
       'x',

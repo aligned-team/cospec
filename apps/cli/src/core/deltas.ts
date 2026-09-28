@@ -6,6 +6,38 @@
 export type DeltaOperation = 'ADDED' | 'MODIFIED' | 'REMOVED' | 'RENAMED'
 
 /**
+ * Which view of one scan a reader takes. Fences are masked in both — they are
+ * found on the raw lines before anything else — and the two differ only in
+ * HTML comments.
+ *
+ * - `verbatim` keeps comments. It is exactly what openspec's own readers see
+ *   (`requirement-blocks.ts`, `requirement-text.ts`, `spec-structure.ts`,
+ *   `markdown-parser.ts`, 1.13.1: each builds a code-fence mask and nothing
+ *   else), and so what its validate checks and its archive merges and
+ *   re-validates: an op written inside `<!-- … -->` is parsed and applied, a
+ *   statement written inside one is the statement, and a header's trailing
+ *   comment is part of its name. Every check that can change a gate outcome
+ *   reads it — the `archive/*` family, every `deltas/*` finding at ERROR or
+ *   WARNING, and the hard archive gate.
+ * - `masked` also blanks comments. It survives only for the advisory findings
+ *   listed in `rules/views.ts` (`ADVISORY_RULES`), none of which a commented
+ *   line can trigger, so a commented-out draft never draws an authoring
+ *   finding.
+ *
+ * The two parses are distinct types (`Delta` and `AdvisoryDelta`, `LivingView`
+ * and `LivingView<'masked'>`), branded by `VIEW`, so no gate can be handed the
+ * masked one: every gate input is typed on the verbatim view.
+ */
+export type ReadView = 'masked' | 'verbatim'
+
+/**
+ * The type-only brand naming the view a parse was read under. It never exists
+ * at runtime; its one job is to make a masked parse unassignable to every
+ * parameter typed on the verbatim view.
+ */
+declare const VIEW: unique symbol
+
+/**
  * The canonical requirement header. The `Requirement:` keyword is matched
  * case-insensitively because both of openspec's readers are: the delta reader's
  * `REQUIREMENT_HEADER_REGEX` (`src/core/parsers/requirement-blocks.ts`,
@@ -94,17 +126,18 @@ const SECTION_TITLES: Record<string, DeltaOperation> = {
   'renamed requirements': 'RENAMED',
 }
 
-export interface DeltaOp {
+export interface DeltaOp<V extends ReadView = 'verbatim'> {
+  /** The view this op was read under — type-only (see `VIEW`). */
+  readonly [VIEW]?: V
   operation: DeltaOperation
   /** ADDED/MODIFIED/REMOVED requirement name (trimmed). */
   name?: string
   /**
    * ADDED/MODIFIED only: the name read off the header line as written,
    * normalized like `name` but never comment-masked — the name openspec's own
-   * validator quotes. Equal to `name` except under the `masked` view, where a
+   * validator quotes. Equal to `name` except on an `AdvisoryDelta`, where a
    * header's trailing `<!-- … -->` is blanked out of `name` (`Foo`) but is part
-   * of the binary's (`Foo <!-- note -->`). Findings the binary also reports
-   * quote this one, so the two agree on which requirement they mean.
+   * of the binary's (`Foo <!-- note -->`).
    */
   verbatimName?: string
   fromName?: string
@@ -251,11 +284,13 @@ export interface SkippedHeader {
   line: number
 }
 
-export interface ParsedDelta {
+export interface ParsedDelta<V extends ReadView = 'verbatim'> {
+  /** The view this delta was read under — type-only (see `VIEW`). */
+  readonly [VIEW]?: V
   path: string
   capability: string
   headerPresent: boolean
-  ops: DeltaOp[]
+  ops: DeltaOp<V>[]
   /** section headers present but yielding zero entries. */
   emptySections: DeltaOperation[]
   /**
@@ -282,6 +317,12 @@ export interface ParsedDelta {
    */
   skippedHeaders: SkippedHeader[]
 }
+
+/** A delta as openspec reads it — the only parse a gate accepts. */
+export type Delta = ParsedDelta<'verbatim'>
+/** A delta with its HTML comments masked, for the advisory findings alone. */
+export type AdvisoryDelta = ParsedDelta<'masked'>
+export type AdvisoryDeltaOp = DeltaOp<'masked'>
 
 /**
  * openspec's `normalizeRequirementName` (`src/core/parsers/requirement-blocks.ts`,
@@ -573,39 +614,33 @@ export interface ScannedMarkdown {
   fenced: boolean[]
 }
 
-/**
- * Which view of the one scan a reader takes. Fences are masked in both — they
- * are found on the raw lines before anything else — and the two differ only
- * in HTML comments.
- *
- * - `verbatim` keeps comments. It is exactly what openspec's own readers see
- *   (`requirement-blocks.ts`, `spec-structure.ts`, `markdown-parser.ts`,
- *   1.13.1: each builds a code-fence mask and nothing else), and so what its
- *   archive merges and re-validates: an op written inside `<!-- … -->` is
- *   parsed and applied, and a header's trailing comment is part of its name.
- *   Every `archive/*` rule reads it.
- * - `masked` also blanks comments. Only the advisory `deltas/*` and `specs/*`
- *   rules read it (and the hard archive gate, which is not a rule), so a
- *   commented-out draft never draws an authoring finding.
- */
-export type ReadView = 'masked' | 'verbatim'
-
 export function scanMarkdown(text: string, view: ReadView = 'masked'): ScannedMarkdown {
   const { source, fenced, masked } = scanDocument(text)
   return { lines: view === 'verbatim' ? source : masked, source, fenced }
 }
 
 /**
- * Parse a change-side delta spec. `capability` is the dir name (e.g. `widgets`).
- * `view` picks the reader's view (see `ReadView`): advisory rules take the
- * default `masked` one, the `archive/*` family the `verbatim` one.
+ * Parse a change-side delta spec as openspec reads it — HTML comments kept (see
+ * `ReadView`). `capability` is the dir name (e.g. `widgets`).
  */
-export function parseDeltaSpec(
+export function parseDeltaSpec(text: string, path: string, capability: string): Delta {
+  return readDelta(text, path, capability, 'verbatim')
+}
+
+/**
+ * The same delta with its HTML comments masked. Read only by the advisory
+ * findings `rules/views.ts` lists; no gate accepts its type.
+ */
+export function parseAdvisoryDelta(text: string, path: string, capability: string): AdvisoryDelta {
+  return readDelta(text, path, capability, 'masked')
+}
+
+function readDelta<V extends ReadView>(
   text: string,
   path: string,
   capability: string,
-  view: ReadView = 'masked',
-): ParsedDelta {
+  view: V,
+): ParsedDelta<V> {
   const { lines, source, fenced } = scanMarkdown(text, view)
   const ops: DeltaOp[] = []
   const scenarioDepthIssues: ParsedDelta['scenarioDepthIssues'] = []
@@ -886,11 +921,13 @@ export function parseDeltaSpec(
 
   // `unpairedRenames` is already in line order: a pending FROM: is only ever
   // dropped by a later line, and every other drop reports the line it is on.
+  // The brand is type-only, so the one parse is cast to the view it was read
+  // under.
   return {
     path,
     capability,
     headerPresent,
-    ops,
+    ops: ops as DeltaOp<V>[],
     emptySections,
     scenarioDepthIssues,
     unpairedRenames,
@@ -992,7 +1029,9 @@ export interface RequirementSplit {
  * runs from its header to the next requirement header or `## ` section, fenced
  * lines included verbatim.
  */
-export interface LivingView {
+export interface LivingView<V extends ReadView = 'verbatim'> {
+  /** The view this spec was read under — type-only (see `VIEW`). */
+  readonly [VIEW]?: V
   requirementNames: Set<string>
   /**
    * requirement name → its current scenario count (archive/scenario-preservation):
@@ -1017,7 +1056,7 @@ export interface LivingView {
  * rebuilds the spec from it (`rebuilt-spec.ts`). Every `archive/*` rule reads
  * this and nothing else.
  */
-export interface LivingArchiveView extends LivingView {
+export interface LivingArchiveView extends LivingView<'verbatim'> {
   /** Defects the archive refuses to update past (`findLivingStructureIssues`). */
   structureIssues: LivingStructureIssue[]
   /** The living spec as read, which the archive merges the delta into. */
@@ -1025,16 +1064,18 @@ export interface LivingArchiveView extends LivingView {
 }
 
 /**
- * The living spec under both views. The top-level fields are the `masked`
- * view, read by the advisory `specs/*` rules and the hard archive gate in
- * `commands/archive.ts`; `archive` is the `verbatim` one.
+ * The living spec under both views. The top-level fields are the `verbatim`
+ * view — what the `archive/*` family and the hard archive gate in
+ * `commands/archive.ts` read — and `archive` is that same view; `advisory` is
+ * the `masked` one, read by the advisory `specs/*` lint alone.
  */
-export interface LivingSpec extends LivingView {
+export interface LivingSpec extends LivingArchiveView {
   archive: LivingArchiveView
+  advisory: LivingView<'masked'>
 }
 
 /** One reader for both views of a living spec's scan. */
-function readLivingView(scan: DocumentScan, view: ReadView): LivingView {
+function readLivingView<V extends ReadView>(scan: DocumentScan, view: V): LivingView<V> {
   const { source, fenced } = scan
   const lines = view === 'verbatim' ? source : scan.masked
   const requirementNames = new Set<string>()
@@ -1131,25 +1172,24 @@ function readLivingView(scan: DocumentScan, view: ReadView): LivingView {
 /** Parse a living spec (openspec/specs/<cap>/spec.md) under both views of one scan. */
 export function parseLivingSpec(text: string): LivingSpec {
   const scan = scanDocument(text)
-  return {
-    ...readLivingView(scan, 'masked'),
-    archive: {
-      ...readLivingView(scan, 'verbatim'),
-      structureIssues: findLivingStructureIssues(text),
-      text,
-    },
+  const archive: LivingArchiveView = {
+    ...readLivingView(scan, 'verbatim'),
+    structureIssues: findLivingStructureIssues(text),
+    text,
   }
+  return { ...archive, archive, advisory: readLivingView(scan, 'masked') }
 }
 
 /**
- * What `findScenarioDrops` reads of a living spec. Either view carries it: the
- * `archive/scenario-preservation` rule passes `LivingSpec.archive` (verbatim,
- * what the archive's own scenario-loss check reads), and the hard gate in
- * `commands/archive.ts` passes the `LivingSpec` itself.
+ * What `findScenarioDrops` reads of a living spec: the verbatim view, which is
+ * what the archive's own scenario-loss check reads. The `archive/scenario-
+ * preservation` rule passes `LivingSpec.archive`, and the hard gate in
+ * `commands/archive.ts` passes the `LivingSpec` itself; the brand keeps the
+ * masked view out of both.
  */
 export type ScenarioBaseline = Pick<
   LivingView,
-  'requirementNames' | 'requirementScenarioCounts' | 'requirementScenarioNames'
+  typeof VIEW | 'requirementNames' | 'requirementScenarioCounts' | 'requirementScenarioNames'
 >
 
 export interface ScenarioDrop {
