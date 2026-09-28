@@ -4,7 +4,7 @@
 // schemas/harness files are not drifted (reuses the update engine's dry run);
 // harness files are not stale/mixed-version; slash/skill references in generated
 // bodies all resolve (the structural guard against openspec's dangling-ref
-// failure class); config.yaml parses with a known schema; no leftover opsx files
+// failure class); config.yaml (else config.yml) parses with a known schema; no leftover opsx files
 // or stale .cospec-new sidecars; changes sit on known schemas; the git hooks
 // are installed when the gate was scaffolded; and, on every root, a delegated
 // `openspec doctor --json` (and, for a store root, `openspec store doctor
@@ -282,17 +282,28 @@ function checkDanglingRefs(
   }
 }
 
+/**
+ * The project config the binary reads: `openspec/config.yaml`, else
+ * `openspec/config.yml` (upstream's `resolveConfigFilePath` order), relative
+ * to `cwd`; undefined when there is neither.
+ */
+function projectConfigFile(cwd: string): string | undefined {
+  return ['config.yaml', 'config.yml']
+    .map((name) => `openspec/${name}`)
+    .find((rel) => existsSync(join(cwd, rel)))
+}
+
 function checkConfig(cwd: string, findings: Finding[]): void {
-  const path = join(openspecDir(cwd), 'config.yaml')
-  if (!existsSync(path)) return
+  const rel = projectConfigFile(cwd)
+  if (rel === undefined) return
   let doc: unknown
   try {
-    doc = parseYaml(readFileSync(path, 'utf8'))
+    doc = parseYaml(readFileSync(join(cwd, rel), 'utf8'))
   } catch {
     findings.push({
       level: 'ERROR',
       check: 'config',
-      message: 'openspec/config.yaml does not parse as YAML',
+      message: `${rel} does not parse as YAML`,
       remedy: 'fix the YAML syntax',
     })
     return
@@ -303,7 +314,7 @@ function checkConfig(cwd: string, findings: Finding[]): void {
     findings.push({
       level: 'INFO',
       check: 'config',
-      message: `openspec/config.yaml default schema is '${schema}' (not one of the 11 cospec types)`,
+      message: `${rel} default schema is '${schema}' (not one of the 11 cospec types)`,
       remedy:
         'set `schema:` to a cospec type for the full guided workflow, or keep it if intentional',
     })
@@ -432,12 +443,12 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
-/** True when `openspec/config.yaml` declares a non-empty `references:` list. */
+/** True when the project config (`projectConfigFile`) declares a non-empty `references:` list. */
 function hasReferencesConfig(cwd: string): boolean {
-  const path = join(openspecDir(cwd), 'config.yaml')
-  if (!existsSync(path)) return false
+  const rel = projectConfigFile(cwd)
+  if (rel === undefined) return false
   try {
-    const doc = parseYaml(readFileSync(path, 'utf8'))
+    const doc = parseYaml(readFileSync(join(cwd, rel), 'utf8'))
     if (doc === null || typeof doc !== 'object') return false
     const refs = (doc as Record<string, unknown>).references
     return Array.isArray(refs) && refs.length > 0

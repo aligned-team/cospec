@@ -200,29 +200,25 @@ describe('cospec doctor --json carries openspec doctor --json on every root', ()
     expect(BARE_OPENSPEC.test(JSON.stringify(relationshipKeys(doc))), detail(co)).toBe(false)
   }, 60_000)
 
-  test.failing(
-    'a root whose only config is config.yml (ledger 2.3)',
-    async () => {
-      const root = mkTempRepo()
-      mkdirSync(join(root, 'openspec', 'specs'), { recursive: true })
-      mkdirSync(join(root, 'openspec', 'changes', 'archive'), { recursive: true })
-      writeFileSync(
-        join(root, 'openspec', 'config.yml'),
-        'schema: spec-driven\nreferences:\n  - gone\n',
-      )
-      expect(existsSync(join(root, 'openspec', 'config.yaml'))).toBe(false)
-      const { co, doc, up } = await doctorBoth(['doctor', '--json'], root)
-      expect(doc.references).toEqual(expectedKeys(up).references)
-      expect(
-        doc.findings.map((f) => f.check),
-        detail(co),
-      ).toContain('openspec-reference-gone-reference_unresolved')
-      const config = doc.findings.filter((f) => f.check === 'config')
-      expect(config.length, detail(co)).toBeGreaterThan(0)
-      for (const f of config) expect(f.message).toContain('openspec/config.yml')
-    },
-    60_000,
-  )
+  test('a root whose only config is config.yml (ledger 2.3)', async () => {
+    const root = mkTempRepo()
+    mkdirSync(join(root, 'openspec', 'specs'), { recursive: true })
+    mkdirSync(join(root, 'openspec', 'changes', 'archive'), { recursive: true })
+    writeFileSync(
+      join(root, 'openspec', 'config.yml'),
+      'schema: spec-driven\nreferences:\n  - gone\n',
+    )
+    expect(existsSync(join(root, 'openspec', 'config.yaml'))).toBe(false)
+    const { co, doc, up } = await doctorBoth(['doctor', '--json'], root)
+    expect(doc.references).toEqual(expectedKeys(up).references)
+    expect(
+      doc.findings.map((f) => f.check),
+      detail(co),
+    ).toContain('openspec-reference-gone-reference_unresolved')
+    const config = doc.findings.filter((f) => f.check === 'config')
+    expect(config.length, detail(co)).toBeGreaterThan(0)
+    for (const f of config) expect(f.message).toContain('openspec/config.yml')
+  }, 60_000)
 
   for (const stores of [false, true]) {
     test.failing(
