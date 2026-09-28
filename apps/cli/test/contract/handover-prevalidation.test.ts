@@ -423,6 +423,10 @@ describe('config <leaf> <extra> --json: cospec’s --json is its own global flag
     ['config', 'edit', 'extra', '--json'],
     ['config', 'profile', 'a', 'b', '--json'],
     ['config', 'reset', '--all', 'extra', '--json'],
+    ['config', 'path', 'extra', '--json'],
+    ['config', 'get', 'a', 'b', '--json'],
+    ['config', 'set', 'a', 'b', 'c', '--json'],
+    ['config', 'unset', 'a', 'b', '--json'],
   ]) {
     test(
       argv.join(' '),
