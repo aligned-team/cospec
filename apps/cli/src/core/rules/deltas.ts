@@ -86,7 +86,18 @@ export function unreadDeltaFileIssues(change: LoadedChange): Issue[] {
   return issues
 }
 
-export function deltasRules(change: LoadedChange): Issue[] {
+export interface DeltasRuleOptions {
+  /**
+   * The archive-precondition family is skipped (`--fast`), so no
+   * `archive/split-requirement` stands in for a splitting header's INFO.
+   */
+  fast: boolean
+}
+
+export function deltasRules(
+  change: LoadedChange,
+  opts: DeltasRuleOptions = { fast: false },
+): Issue[] {
   const issues: Issue[] = []
 
   for (const file of change.deltaFiles) {
@@ -199,13 +210,17 @@ export function deltasRules(change: LoadedChange): Issue[] {
     //
     // A header the archive refuses — one that splits its requirement into a
     // piece with no scenario — is `archive/split-requirement`'s ERROR instead
-    // (see `findRequirementSplits`), so a line never carries both. Under
-    // `--fast` that family does not run and the binary's INFO is relayed.
+    // (see `findRequirementSplits`), so a line never carries both. Only when
+    // that family runs: under `--fast` nothing else reports the header, so it
+    // keeps its INFO — and a change cospec never delegates would otherwise
+    // lose the only report it had.
     const depthLines = new Set(parsed.scenarioDepthIssues.map((d) => d.line))
     const splitLines = new Set(
-      findRequirementSplits(parseDeltaSpec(file.text, file.path, file.capability, 'verbatim')).map(
-        (s) => s.part.line,
-      ),
+      opts.fast
+        ? []
+        : findRequirementSplits(
+            parseDeltaSpec(file.text, file.path, file.capability, 'verbatim'),
+          ).map((s) => s.part.line),
     )
     for (const skipped of parsed.skippedHeaders) {
       if (depthLines.has(skipped.line) || splitLines.has(skipped.line)) continue

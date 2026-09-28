@@ -72,7 +72,7 @@ export function runChangeRules(
   // and `archive` must see it too.
   if (declaresSpecs) issues.push(...unreadDeltaFileIssues(change))
   if (declaresSpecs && hasDeltaFiles) {
-    issues.push(...deltasRules(change))
+    issues.push(...deltasRules(change, { fast: opts.fast }))
     if (!opts.fast) issues.push(...archiveRules(change, { strict: opts.strict }))
   }
 

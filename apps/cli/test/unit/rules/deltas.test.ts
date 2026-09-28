@@ -555,6 +555,25 @@ The system SHALL x.
     expect(deltasRules(delta('specs/x/spec.md', 'x', text))).toEqual([])
   })
 
+  test('under --fast a splitting header keeps its INFO: no archive/* rule reports it', () => {
+    const fast = deltasRules(delta('specs/x/spec.md', 'x', SKIPPED), { fast: true }).filter(
+      (i) => i.rule === 'deltas/skipped-header',
+    )
+    const lineOf = (header: string) => SKIPPED.split('\n').indexOf(header) + 1
+    // Every skipped header but the fenced one, the REMOVED one and the
+    // `### Scenario:` line scenario-depth owns — the in-block ones included.
+    expect(fast.map((i) => i.line)).toEqual(
+      [
+        '### Documentation Requirements',
+        '### Notes inside',
+        '### Requirement:',
+        '### requirement',
+        '### Between notes',
+      ].map(lineOf),
+    )
+    expect(fast.every((i) => i.level === 'INFO')).toBe(true)
+  })
+
   test('INFO never moves the verdict', () => {
     const found = deltasRules(delta('specs/x/spec.md', 'x', KEPT))
     expect(rules(found).every((r) => r === 'deltas/skipped-header')).toBe(true)

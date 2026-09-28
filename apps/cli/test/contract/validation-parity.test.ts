@@ -1552,23 +1552,20 @@ describe('11. a header that splits a requirement is refused at pre-flight', () =
 
   // Re-pointed in round 3 (verification 16.1): with the split unchecked, the
   // header is cospec's own INFO again, and the binary's INFO is its twin.
-  test.failing(
-    '11.6 under --fast the split is not checked: the header keeps its INFO, once',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      buildFeat(root, 'split-before', { 'widgets/spec.md': SPLIT_BEFORE_SCENARIO })
-      const delegated = binaryOne(
-        await binaryIssues(root, 'split-before'),
-        'Header "### Notes inside"',
-      )
-      const { report } = await cospecValidate(root, 'split-before', ['--fast'])
-      expect(byRule(report, 'archive/split-requirement')).toEqual([])
-      expect(linesOf(byRule(report, 'deltas/skipped-header'))).toEqual([
-        lineOf(SPLIT_BEFORE_SCENARIO, '### Notes inside'),
-      ])
-      expect(messages(report)).not.toContain(delegated.message)
-    },
-  )
+  test('11.6 under --fast the split is not checked: the header keeps its INFO, once', async () => {
+    const root = mkTempRepo({ git: true })
+    buildFeat(root, 'split-before', { 'widgets/spec.md': SPLIT_BEFORE_SCENARIO })
+    const delegated = binaryOne(
+      await binaryIssues(root, 'split-before'),
+      'Header "### Notes inside"',
+    )
+    const { report } = await cospecValidate(root, 'split-before', ['--fast'])
+    expect(byRule(report, 'archive/split-requirement')).toEqual([])
+    expect(linesOf(byRule(report, 'deltas/skipped-header'))).toEqual([
+      lineOf(SPLIT_BEFORE_SCENARIO, '### Notes inside'),
+    ])
+    expect(messages(report)).not.toContain(delegated.message)
+  })
 })
 
 // --- 12. a structurally invalid living spec is refused at pre-flight ----------------------
@@ -2018,7 +2015,7 @@ describe('15. a skipped header inside a surviving living requirement is refused 
 // --- 16. --fast keeps the skipped-header INFO wherever the split is not checked -----------
 
 describe('16. under --fast a splitting header keeps its deltas/skipped-header INFO', () => {
-  test.failing('16.2 a never-delegated change under --fast still reports the header', async () => {
+  test('16.2 a never-delegated change under --fast still reports the header', async () => {
     const build = (root: string): void =>
       buildFeat(
         root,
