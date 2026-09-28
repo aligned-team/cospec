@@ -1902,6 +1902,55 @@ describe('14. one view model: the scan is fence-aware and the archive family rea
   }
 })
 
+// --- round-4 rows pinned before their fixes -------------------------------------------------
+
+/** Rows that fail on the tree until their fix lands; each fix commit removes its own ids. */
+const ROUND4_FAILING = new Set<string>([
+  '15.1',
+  '15.2',
+  '15.3',
+  '20.1',
+  '20.2',
+  '20.3',
+  '20.4',
+  '20.5',
+  '20.6',
+  '20.7',
+  '20.8',
+  '20.9',
+  '20.10',
+  '20.11',
+  '20.12',
+  '20.13',
+  '20.14',
+  '20.15',
+  '20.16',
+  '20.24',
+  '20.30',
+  '20.31',
+  '20.32',
+  'entry 19 rn-then-mod-old',
+  'entry 20 newcap-modified',
+  'entry 20 newcap-renamed',
+  'entry 21 orphan-under-notes',
+  'entry 21 orphan-above-first',
+  'entry 22 headerless-sections',
+  'entry 23 headerless-change',
+  'entry 24 blank-header-split',
+  'entries 21-24 fast',
+  '22.1 dup-modified',
+  '22.1 dup-removed',
+  '22.1 renamed-and-removed',
+  '22.1 renamed-and-removed-fold',
+  '22.2 dup-modified',
+  '22.2 dup-removed',
+  '22.2 renamed-and-removed',
+  '22.2 renamed-and-removed-fold',
+  '19.1',
+  '19.2',
+])
+const round4 = (id: string): typeof test => (ROUND4_FAILING.has(id) ? test.failing : test)
+
 // --- 15. a skipped header inside a surviving living requirement ---------------------------
 //
 // The rebuilt spec the archive re-validates keeps every living requirement the
@@ -1953,25 +2002,31 @@ describe('15. a skipped header inside a surviving living requirement is refused 
     const build = (root: string): void =>
       buildFeat(root, name, { 'widgets/spec.md': delta }, { living })
 
-    test(`${row} ${what} splitting a living requirement the delta keeps is archive/split-requirement`, async () => {
-      const root = mkTempRepo({ git: true })
-      build(root)
-      // The binary's validate never sees it: its dry run stops before the
-      // rebuilt spec is re-validated.
-      expect((await binaryIssues(root, name)).filter((i) => i.level !== 'INFO')).toEqual([])
-      expect(binaryFind(await binaryIssues(root, name), 'Notes on rendering')).toEqual([])
-      const archived = await binaryArchive(build, name)
-      expect(archived.exitCode).not.toBe(0)
-      expect(archived.moved).toBe(false)
-      const { report, exitCode } = await cospecValidate(root, name)
-      const split = byRule(report, 'archive/split-requirement')
-      expect(split).toHaveLength(1)
-      expect(split[0]?.level).toBe('ERROR')
-      expect(split[0]?.message).toContain('"### Notes on rendering"')
-      expect(split[0]?.message).toContain('openspec/specs/widgets/spec.md')
-      expect(split[0]?.message).toContain(`line ${lineOf(living, '### Notes on rendering')}`)
-      expect(exitCode).toBe(1)
-    })
+    round4(row)(
+      `${row} ${what} splitting a living requirement the delta keeps is archive/rebuilt-spec-invalid`,
+      async () => {
+        const root = mkTempRepo({ git: true })
+        build(root)
+        // The binary's validate never sees it: its dry run stops before the
+        // rebuilt spec is re-validated.
+        expect((await binaryIssues(root, name)).filter((i) => i.level !== 'INFO')).toEqual([])
+        expect(binaryFind(await binaryIssues(root, name), 'Notes on rendering')).toEqual([])
+        const archived = await binaryArchive(build, name)
+        expect(archived.exitCode).not.toBe(0)
+        expect(archived.moved).toBe(false)
+        const { report, exitCode } = await cospecValidate(root, name)
+        // The living split is one shape of the rebuilt-spec check, which names
+        // the requirement left without a scenario and the header that took it.
+        expect(byRule(report, 'archive/split-requirement')).toEqual([])
+        const split = byRule(report, 'archive/rebuilt-spec-invalid')
+        expect(split).toHaveLength(1)
+        expect(split[0]?.level).toBe('ERROR')
+        expect(split[0]?.message).toContain('"### Notes on rendering"')
+        expect(split[0]?.message).toContain('openspec/specs/widgets/spec.md')
+        expect(split[0]?.message).toContain(`line ${lineOf(living, '### Notes on rendering')}`)
+        expect(exitCode).toBe(1)
+      },
+    )
   }
 
   for (const [row, name, delta, living, what] of [
@@ -2001,6 +2056,7 @@ describe('15. a skipped header inside a surviving living requirement is refused 
       expect(archived.moved).toBe(true)
       const { report, exitCode } = await cospecValidate(root, name)
       expect(byRule(report, 'archive/split-requirement')).toEqual([])
+      expect(byRule(report, 'archive/rebuilt-spec-invalid')).toEqual([])
       expect(problems(report)).toEqual([])
       expect(exitCode).toBe(0)
     })
@@ -2239,6 +2295,811 @@ describe('18. the legacy lane relays each round-3 shape at the binary level', ()
     })
 })
 
+// --- 20. the rebuilt spec the archive re-validates ------------------------------------------
+//
+// openspec's archive merges the delta into the living spec, then re-validates
+// the WHOLE rebuilt spec before writing anything — a step its validate dry run
+// never reaches. Its reader takes every header under `## Requirements` as a
+// requirement that needs a scenario, so living content the delta never touches
+// can abort the archive. `archive/rebuilt-spec-invalid` rebuilds the spec the
+// same way and runs the same validation.
+
+const REQUIREMENTS_HEADER = '## Requirements\n\n'
+const inPreamble = (text: string): string =>
+  LIVING.replace(REQUIREMENTS_HEADER, `${REQUIREMENTS_HEADER}${text}`)
+const CACHE_SCENARIO = `#### Scenario: Cache a widget
+
+- **WHEN** a caller requests the same widget twice
+- **THEN** the second request is served from cache
+`
+const cachingScenario = (text: string): string => LIVING.replace(CACHE_SCENARIO, text)
+const CACHE_TEXT = 'The system SHALL cache a rendered widget.\n\n'
+
+const LIVING_LOOSE_SCENARIO = inPreamble('#### Scenario: Loose\n\n- **WHEN** x\n- **THEN** y\n\n')
+const LIVING_PREAMBLE_NOTES = inPreamble('### Notes\n\nSome prose.\n\n')
+const LIVING_PREAMBLE_COMMENTED = inPreamble('<!--\n### Notes\n-->\n\n')
+const LIVING_NO_SCENARIO = cachingScenario('')
+const LIVING_BARE_SCENARIO = cachingScenario('#### Scenario: Cache a widget\n')
+const LIVING_FENCED_SCENARIO = cachingScenario(
+  '```\n#### Scenario: Cache a widget\n\n- **WHEN** x\n```\n',
+)
+const LIVING_COMMENTED_DRAFT = `${LIVING}\n<!--\n### Requirement: Draft\n\nThe system SHALL draft.\n-->\n`
+const LIVING_H1_INSIDE = LIVING.replace(CACHE_TEXT, `${CACHE_TEXT}# Aside\n\n`)
+const LIVING_EMPTY_BODY = LIVING.replace(CACHE_TEXT, '')
+const LIVING_EMPTY_PURPOSE = LIVING.replace('Real purpose text for the widgets capability.\n\n', '')
+const LIVING_NO_PURPOSE = LIVING.replace(
+  '## Purpose\n\nReal purpose text for the widgets capability.\n\n',
+  '',
+)
+const LIVING_REQUIREMENTS_IN_PURPOSE = LIVING.replace(
+  'Real purpose text for the widgets capability.\n',
+  'Real purpose text for the widgets capability.\n\n### Requirements\n\nnot really\n',
+)
+
+const REMOVED_BOTH = `## REMOVED Requirements
+
+### Requirement: Widget rendering
+
+### Requirement: Widget caching
+`
+
+const POLISH_SCENARIO = `#### Scenario: Polish
+
+- **WHEN** a caller polishes
+- **THEN** it shines
+`
+const addedPolishing = (body: string): string => `## ADDED Requirements
+
+### Requirement: Widget polishing
+
+The system SHALL polish widgets.
+
+${body}`
+
+/** A level-1 header between the text and the scenario re-parents the scenario. */
+const ADDED_H1_BEFORE_SCENARIO = addedPolishing(`# Aside\n\n${POLISH_SCENARIO}`)
+/** The same header after the scenario leaves the requirement whole. */
+const ADDED_H1_AFTER_SCENARIO = addedPolishing(`${POLISH_SCENARIO}\n# Aside\n\ntext\n`)
+/** A nameless `###` header between two scenarios: a requirement with no text. */
+const ADDED_BLANK_HEADER = addedPolishing(
+  `${POLISH_SCENARIO}\n###   \n\n${POLISH_SCENARIO.replace('Polish', 'Polish again')}`,
+)
+
+/** A new capability's delta Purpose holding a `### Requirements` heading. */
+const GADGETS_PURPOSE_HEADING = `## Purpose
+
+Gadgets purpose that is long enough to clear the fifty character bar.
+
+### Requirements
+
+${addedPolishing(POLISH_SCENARIO)}`
+
+const RETIRE_YAML = 'schema: feat\ncreated: 2026-07-06\nretire_capabilities: true\n'
+
+const REBUILT = 'archive/rebuilt-spec-invalid'
+
+/** `lineOf` for fixture tables built outside a test: 0 when absent, which no message says. */
+const lineNo = (text: string, line: string): number => text.split('\n').indexOf(line) + 1
+
+interface RebuiltRow {
+  row: string
+  name: string
+  living: string
+  specs: Record<string, string>
+  /** fragments the one finding's message must carry. */
+  says: string[]
+  yaml?: string
+}
+
+const REBUILT_REFUSED: RebuiltRow[] = [
+  {
+    row: '20.1',
+    name: 'rb-loose-scenario',
+    living: LIVING_LOOSE_SCENARIO,
+    specs: { 'widgets/spec.md': MODIFIED_RENDERING },
+    says: [
+      '"#### Scenario: Loose"',
+      `line ${lineNo(LIVING_LOOSE_SCENARIO, '#### Scenario: Loose')} of openspec/specs/widgets/spec.md`,
+      'no scenario',
+    ],
+  },
+  {
+    row: '20.2',
+    name: 'rb-preamble-notes',
+    living: LIVING_PREAMBLE_NOTES,
+    specs: { 'widgets/spec.md': MODIFIED_RENDERING },
+    says: [
+      '"### Notes"',
+      `line ${lineNo(LIVING_PREAMBLE_NOTES, '### Notes')} of openspec/specs/widgets/spec.md`,
+      'no scenario',
+    ],
+  },
+  {
+    row: '20.3',
+    name: 'rb-preamble-commented',
+    living: LIVING_PREAMBLE_COMMENTED,
+    specs: { 'widgets/spec.md': MODIFIED_RENDERING },
+    says: [
+      '"### Notes"',
+      `line ${lineNo(LIVING_PREAMBLE_COMMENTED, '### Notes')} of openspec/specs/widgets/spec.md`,
+    ],
+  },
+  {
+    row: '20.4',
+    name: 'rb-no-scenario',
+    living: LIVING_NO_SCENARIO,
+    specs: { 'widgets/spec.md': MODIFIED_RENDERING },
+    says: [
+      'requirement "Widget caching"',
+      `line ${lineNo(LIVING_NO_SCENARIO, '### Requirement: Widget caching')} of openspec/specs/widgets/spec.md`,
+      'no scenario',
+    ],
+  },
+  {
+    row: '20.5',
+    name: 'rb-bare-scenario',
+    living: LIVING_BARE_SCENARIO,
+    specs: { 'widgets/spec.md': MODIFIED_RENDERING },
+    says: ['requirement "Widget caching"', 'no scenario'],
+  },
+  {
+    row: '20.6',
+    name: 'rb-fenced-scenario',
+    living: LIVING_FENCED_SCENARIO,
+    specs: { 'widgets/spec.md': MODIFIED_RENDERING },
+    says: ['requirement "Widget caching"', 'no scenario'],
+  },
+  {
+    row: '20.7',
+    name: 'rb-commented-draft',
+    living: LIVING_COMMENTED_DRAFT,
+    specs: { 'widgets/spec.md': MODIFIED_RENDERING },
+    says: [
+      'requirement "Draft"',
+      `line ${lineNo(LIVING_COMMENTED_DRAFT, '### Requirement: Draft')} of openspec/specs/widgets/spec.md`,
+    ],
+  },
+  {
+    row: '20.8',
+    name: 'rb-living-h1',
+    living: LIVING_H1_INSIDE,
+    specs: { 'widgets/spec.md': MODIFIED_RENDERING },
+    says: ['requirement "Widget caching"', 'no scenario'],
+  },
+  {
+    row: '20.9',
+    name: 'rb-empty-body',
+    living: LIVING_EMPTY_BODY,
+    specs: { 'widgets/spec.md': MODIFIED_RENDERING },
+    says: ['requirement "Widget caching"', 'no text'],
+  },
+  {
+    row: '20.10',
+    name: 'rb-empty-purpose',
+    living: LIVING_EMPTY_PURPOSE,
+    specs: { 'widgets/spec.md': MODIFIED_RENDERING },
+    says: ['## Purpose'],
+  },
+  {
+    row: '20.11',
+    name: 'rb-no-purpose',
+    living: LIVING_NO_PURPOSE,
+    specs: { 'widgets/spec.md': MODIFIED_RENDERING },
+    says: ['## Purpose'],
+  },
+  {
+    row: '20.12',
+    name: 'rb-removes-all',
+    living: LIVING,
+    specs: { 'widgets/spec.md': REMOVED_BOTH },
+    says: ['no requirement left'],
+  },
+  {
+    row: '20.13',
+    name: 'rb-requirements-in-purpose',
+    living: LIVING_REQUIREMENTS_IN_PURPOSE,
+    specs: { 'widgets/spec.md': MODIFIED_RENDERING },
+    says: [
+      '"### Requirements"',
+      `line ${lineNo(LIVING_REQUIREMENTS_IN_PURPOSE, '### Requirements')} of openspec/specs/widgets/spec.md`,
+    ],
+  },
+  {
+    row: '20.14',
+    name: 'rb-new-purpose-heading',
+    living: LIVING,
+    specs: { 'gadgets/spec.md': GADGETS_PURPOSE_HEADING },
+    says: ['"### Requirements"'],
+  },
+]
+
+const REBUILT_ARCHIVED: RebuiltRow[] = [
+  {
+    row: '20.20',
+    name: 'rb-commented-scenario',
+    living: cachingScenario(`<!--\n${CACHE_SCENARIO}-->\n`),
+    specs: { 'widgets/spec.md': MODIFIED_RENDERING },
+    says: [],
+  },
+  {
+    row: '20.21',
+    name: 'rb-h5-scenario',
+    living: cachingScenario('##### Cache a widget\n\n- **WHEN** x\n'),
+    specs: { 'widgets/spec.md': MODIFIED_RENDERING },
+    says: [],
+  },
+  {
+    row: '20.22',
+    name: 'rb-preamble-one-line-comment',
+    living: inPreamble('<!-- ### Notes -->\n\n'),
+    specs: { 'widgets/spec.md': MODIFIED_RENDERING },
+    says: [],
+  },
+  {
+    row: '20.23',
+    name: 'rb-preamble-prose',
+    living: inPreamble('Some prose, and **Notes** in bold, before the first requirement.\n\n'),
+    specs: { 'widgets/spec.md': MODIFIED_RENDERING },
+    says: [],
+  },
+  {
+    row: '20.24',
+    name: 'rb-no-requirements-section',
+    living:
+      '# Widgets Specification\n\n## Purpose\n\nReal purpose text for the widgets capability.\n',
+    specs: { 'widgets/spec.md': addedPolishing(POLISH_SCENARIO) },
+    says: [],
+  },
+  {
+    row: '20.25',
+    name: 'rb-removes-all-retired',
+    living: LIVING,
+    specs: { 'widgets/spec.md': REMOVED_BOTH },
+    says: [],
+    yaml: RETIRE_YAML,
+  },
+  {
+    row: '20.26',
+    name: 'rb-h1-after-scenario',
+    living: LIVING,
+    specs: { 'widgets/spec.md': ADDED_H1_AFTER_SCENARIO },
+    says: [],
+  },
+  {
+    row: '20.27',
+    name: 'rb-second-requirements',
+    living: `${LIVING}\n## Requirements\n\n### Notes\n`,
+    specs: { 'widgets/spec.md': MODIFIED_RENDERING },
+    says: [],
+  },
+  {
+    row: '20.28',
+    name: 'rb-new-capability',
+    living: LIVING,
+    specs: { 'gadgets/spec.md': addedPolishing(POLISH_SCENARIO) },
+    says: [],
+  },
+]
+
+function buildRebuilt(root: string, r: RebuiltRow, proposal = true): void {
+  buildFeat(root, r.name, r.specs, { living: r.living, proposal })
+  if (r.yaml !== undefined)
+    writeFiles(root, { [`openspec/changes/${r.name}/.openspec.yaml`]: r.yaml })
+}
+
+describe('20. the rebuilt spec is validated as the archive validates it', () => {
+  for (const r of REBUILT_REFUSED) {
+    const build = (root: string): void => buildRebuilt(root, r)
+
+    round4(r.row)(
+      `${r.row} ${r.name}: the binary archive refuses the rebuilt spec, and so does cospec`,
+      async () => {
+        const root = mkTempRepo({ git: true })
+        build(root)
+        // The binary's validate never sees it: its dry run stops before the
+        // rebuilt spec is re-validated.
+        expect((await binaryIssues(root, r.name)).filter((i) => i.level !== 'INFO')).toEqual([])
+        const archived = await binaryArchive(build, r.name)
+        expect(archived.exitCode).not.toBe(0)
+        expect(archived.moved).toBe(false)
+        const { report, exitCode } = await cospecValidate(root, r.name)
+        const found = byRule(report, REBUILT)
+        expect(found).toHaveLength(1)
+        expect(found[0]?.level).toBe('ERROR')
+        for (const fragment of r.says) expect(found[0]?.message).toContain(fragment)
+        expect(byRule(report, 'archive/target-invalid')).toEqual([])
+        expect(byRule(report, 'archive/split-requirement')).toEqual([])
+        expect(exitCode).toBe(1)
+      },
+    )
+  }
+
+  for (const r of REBUILT_ARCHIVED) {
+    const build = (root: string): void => buildRebuilt(root, r)
+
+    round4(r.row)(`${r.row} ${r.name}: the binary archives it, and cospec is clean`, async () => {
+      const root = mkTempRepo({ git: true })
+      build(root)
+      await binaryIssues(root, r.name)
+      const archived = await binaryArchive(build, r.name)
+      expect(archived.exitCode).toBe(0)
+      expect(archived.moved).toBe(true)
+      const { report, exitCode } = await cospecValidate(root, r.name)
+      expect(byRule(report, REBUILT)).toEqual([])
+      expect(problems(report)).toEqual([])
+      expect(exitCode).toBe(0)
+    })
+  }
+
+  round4('20.15')(
+    '20.15 a level-1 header inside a delta block re-parents its scenario: refused on the delta line',
+    async () => {
+      const build = (root: string): void =>
+        buildFeat(root, 'rb-delta-h1', { 'widgets/spec.md': ADDED_H1_BEFORE_SCENARIO })
+      const root = mkTempRepo({ git: true })
+      build(root)
+      expect(await binaryIssues(root, 'rb-delta-h1')).toEqual([])
+      const archived = await binaryArchive(build, 'rb-delta-h1')
+      expect(archived.exitCode).not.toBe(0)
+      expect(archived.moved).toBe(false)
+      const { report, exitCode } = await cospecValidate(root, 'rb-delta-h1')
+      const found = byRule(report, REBUILT)
+      expect(found).toHaveLength(1)
+      expect(found[0]?.path).toBe('specs/widgets/spec.md')
+      expect(found[0]?.line).toBe(
+        lineOf(ADDED_H1_BEFORE_SCENARIO, '### Requirement: Widget polishing'),
+      )
+      expect(found[0]?.message).toContain('requirement "Widget polishing"')
+      expect(exitCode).toBe(1)
+    },
+  )
+
+  round4('20.16')(
+    '20.16 a nameless ### between two scenarios is a split leaving a requirement with no text',
+    async () => {
+      const build = (root: string): void =>
+        buildFeat(root, 'rb-blank-header', { 'widgets/spec.md': ADDED_BLANK_HEADER })
+      const root = mkTempRepo({ git: true })
+      build(root)
+      const delegated = binaryOne(await binaryIssues(root, 'rb-blank-header'), 'Header "### "')
+      expect(delegated.level).toBe('INFO')
+      const archived = await binaryArchive(build, 'rb-blank-header')
+      expect(archived.exitCode).not.toBe(0)
+      expect(archived.moved).toBe(false)
+      const { report, exitCode } = await cospecValidate(root, 'rb-blank-header')
+      const split = byRule(report, 'archive/split-requirement')
+      expect(split.map((i) => [i.level, i.line])).toEqual([
+        ['ERROR', lineOf(ADDED_BLANK_HEADER, '###   ')],
+      ])
+      expect(split[0]?.message).toContain('no text')
+      expect(byRule(report, 'deltas/skipped-header')).toEqual([])
+      expect(byRule(report, REBUILT)).toEqual([])
+      expect(messages(report)).not.toContain(delegated.message)
+      expect(exitCode).toBe(1)
+    },
+  )
+
+  round4('20.30')(
+    '20.30 cospec archive refuses a rebuilt-spec defect before delegating',
+    async () => {
+      const r = REBUILT_REFUSED.find((x) => x.name === 'rb-preamble-notes')!
+      const root = mkTempRepo({ git: true })
+      buildRebuilt(root, r)
+      const res = await cospec(['archive', r.name], { cwd: root })
+      expect(res.exitCode).not.toBe(0)
+      expect(`${res.stdout}${res.stderr}`).toContain(REBUILT)
+      expect(existsSync(join(root, `openspec/changes/${r.name}`))).toBe(true)
+    },
+  )
+
+  round4('20.31')(
+    '20.31 cospec archive archives a living spec with no ## Requirements, as the binary does',
+    async () => {
+      const r = REBUILT_ARCHIVED.find((x) => x.name === 'rb-no-requirements-section')!
+      const root = mkTempRepo({ git: true })
+      buildRebuilt(root, r)
+      const res = await cospec(['archive', r.name], { cwd: root })
+      expect(res.exitCode).toBe(0)
+      expect(existsSync(join(root, `openspec/changes/${r.name}`))).toBe(false)
+    },
+  )
+
+  round4('20.32')(
+    '20.32 a never-delegated change reports the same rebuilt-spec defect',
+    async () => {
+      const r = REBUILT_REFUSED.find((x) => x.name === 'rb-preamble-notes')!
+      const root = mkTempRepo({ git: true })
+      buildRebuilt(root, { ...r, name: 'rb-preamble-notes-bare' }, false)
+      const { report } = await cospecValidate(root, 'rb-preamble-notes-bare')
+      expect(byRule(report, 'openspec/validate')).toEqual([])
+      expect(byRule(report, REBUILT)).toHaveLength(1)
+    },
+  )
+})
+
+// --- 21. DUPLICATE_CLASSES entries 19-24 ----------------------------------------------------
+
+const RENAMED_THEN_MODIFIED_OLD = `${RENAMED_RENDERING}\n${MODIFIED_RENDERING}`
+
+const ORPHAN_UNDER_NOTES = `${MODIFIED_CACHING}
+## Notes
+
+### Requirement: Stray
+
+The system SHALL stray.
+
+#### Scenario: Stray
+
+- **WHEN** x
+- **THEN** y
+`
+
+const ORPHAN_ABOVE_FIRST = `### Requirement: Stray
+
+The system SHALL stray.
+
+#### Scenario: Stray
+
+- **WHEN** x
+- **THEN** y
+
+${MODIFIED_CACHING}`
+
+const HEADERLESS = `# Widgets
+
+### Requirement: Widget polishing
+
+The system SHALL polish widgets.
+
+${POLISH_SCENARIO}`
+
+const BLANK_SPLIT = MODIFIED_CACHING.replace(
+  'The system SHALL cache a rendered widget quickly.\n\n',
+  'The system SHALL cache a rendered widget quickly.\n\n###   \n\n',
+)
+
+const GADGETS_ADDED_AND_RENAMED = `${addedPolishing(POLISH_SCENARIO)}\n${RENAMED_RENDERING}`
+
+/** Two distinct names, so no ERROR on the file hides the binary's archive-preflight INFO. */
+const GADGETS_ADDED_AND_MODIFIED_OTHER = `${addedPolishing(POLISH_SCENARIO)}
+## MODIFIED Requirements
+
+### Requirement: Other
+
+The system SHALL do other things.
+
+#### Scenario: Other
+
+- **WHEN** x
+- **THEN** y
+`
+
+const ROUND4_ENTRIES = [
+  [
+    '19',
+    'rn-then-mod-old',
+    { 'widgets/spec.md': RENAMED_THEN_MODIFIED_OLD },
+    'MODIFIED references old name from RENAMED',
+    'ERROR',
+    'archive/target-missing',
+    'renamed it to "Widget drawing"',
+  ],
+  [
+    '20',
+    'newcap-modified',
+    { 'gadgets/spec.md': GADGETS_ADDED_AND_MODIFIED_OTHER },
+    'target spec does not exist; only ADDED requirements are allowed',
+    'INFO',
+    'archive/new-spec-non-added',
+    "targets capability 'gadgets'",
+  ],
+  [
+    '20',
+    'newcap-renamed',
+    { 'gadgets/spec.md': GADGETS_ADDED_AND_RENAMED },
+    'target spec does not exist; only ADDED requirements are allowed',
+    'INFO',
+    'archive/new-spec-non-added',
+    "targets capability 'gadgets'",
+  ],
+  [
+    '21',
+    'orphan-under-notes',
+    { 'widgets/spec.md': ORPHAN_UNDER_NOTES },
+    'is under "## Notes", which is not a delta section',
+    'WARNING',
+    'deltas/orphaned-requirement',
+    'requirement "Stray" is under',
+  ],
+  [
+    '21',
+    'orphan-above-first',
+    { 'widgets/spec.md': ORPHAN_ABOVE_FIRST },
+    'is above the first "## " section',
+    'WARNING',
+    'deltas/orphaned-requirement',
+    'requirement "Stray" is above',
+  ],
+  [
+    '22',
+    'headerless-sections',
+    { 'widgets/spec.md': HEADERLESS },
+    'No delta sections found',
+    'ERROR',
+    'deltas/header-present',
+    'no recognized delta header',
+  ],
+  [
+    '23',
+    'headerless-change',
+    { 'widgets/spec.md': HEADERLESS },
+    'Change must have at least one delta',
+    'ERROR',
+    'deltas/header-present',
+    'no recognized delta header',
+  ],
+  [
+    '24',
+    'blank-header-split',
+    { 'widgets/spec.md': BLANK_SPLIT },
+    'Header "### " in MODIFIED Requirements',
+    'INFO',
+    'archive/split-requirement',
+    'header "### " inside MODIFIED "Widget caching"',
+  ],
+] as const
+
+describe('21. one pinned-message test per round-4 DUPLICATE_CLASSES entry', () => {
+  for (const [entry, name, specs, fragment, level, rule, nativeFragment] of ROUND4_ENTRIES) {
+    const build = (root: string): void => buildFeat(root, name, { ...specs })
+
+    round4(`entry ${entry} ${name}`)(
+      `entry ${entry} (${name}): "${fragment}" pairs with ${rule}`,
+      async () => {
+        const root = mkTempRepo({ git: true })
+        build(root)
+        const delegated = binaryOne(await binaryIssues(root, name), fragment)
+        expect(delegated.level).toBe(level)
+        const { report } = await cospecValidate(root, name)
+        expect(messages(report)).not.toContain(delegated.message)
+        expect(byRule(report, rule).filter((i) => i.message.includes(nativeFragment))).toHaveLength(
+          1,
+        )
+      },
+    )
+  }
+
+  round4('entries 21-24 fast')(
+    'entries 21-24 under --fast: the deltas/* twins still fire, so the binary twin is dropped',
+    async () => {
+      for (const [, name, specs, fragment, , rule] of ROUND4_ENTRIES) {
+        if (rule.startsWith('archive/') && rule !== 'archive/split-requirement') continue
+        const root = mkTempRepo({ git: true })
+        buildFeat(root, `${name}-fast`, { ...specs })
+        const delegated = binaryOne(await binaryIssues(root, `${name}-fast`), fragment)
+        const { report } = await cospecValidate(root, `${name}-fast`, ['--fast'])
+        expect(messages(report)).not.toContain(delegated.message)
+      }
+    },
+  )
+
+  test('entries 19-20 under --fast: the archive/* twin is unchecked and the binary finding is kept', async () => {
+    for (const [, name, specs, fragment, , rule] of ROUND4_ENTRIES) {
+      if (!rule.startsWith('archive/') || rule === 'archive/split-requirement') continue
+      const root = mkTempRepo({ git: true })
+      buildFeat(root, `${name}-fast`, { ...specs })
+      const delegated = binaryOne(await binaryIssues(root, `${name}-fast`), fragment)
+      const { report } = await cospecValidate(root, `${name}-fast`, ['--fast'])
+      expect(byRule(report, rule)).toEqual([])
+      expect(messages(report)).toContain(delegated.message)
+    }
+  })
+})
+
+// --- 22. a change cospec never delegates is refused on every conflict shape -----------------
+//
+// With no proposal.md the binary is never asked, so a conflict cospec only
+// learned about from the relayed binary finding passed its own rules. Each
+// shape the binary's validate refuses now has a native finding.
+
+const DUPLICATE_MODIFIED = `${MODIFIED_CACHING}
+### Requirement: Widget caching
+
+The system SHALL cache a rendered widget again.
+
+${CACHE_SCENARIO}`
+
+const DUPLICATE_REMOVED = `## REMOVED Requirements
+
+### Requirement: Widget caching
+
+### Requirement: Widget caching
+`
+
+const RENAMED_AND_REMOVED = `${RENAMED_RENDERING}
+## REMOVED Requirements
+
+### Requirement: Widget rendering
+`
+
+const RENAMED_AND_REMOVED_FOLD = `${RENAMED_RENDERING}
+## REMOVED Requirements
+
+### Requirement: widget  rendering
+`
+
+const CONFLICT_SHAPES = [
+  [
+    'dup-added',
+    DUPLICATE_ADDED,
+    'Duplicate requirement in ADDED',
+    'archive/added-exists',
+    'Widget polishing',
+  ],
+  [
+    'dup-modified',
+    DUPLICATE_MODIFIED,
+    'Duplicate requirement in MODIFIED',
+    'archive/op-conflict',
+    'Widget caching',
+  ],
+  [
+    'dup-removed',
+    DUPLICATE_REMOVED,
+    'Duplicate requirement in REMOVED',
+    'archive/op-conflict',
+    'Widget caching',
+  ],
+  [
+    'dup-from',
+    RENAMED_DUPLICATE_FROM,
+    'Duplicate FROM in RENAMED',
+    'archive/target-missing',
+    'Widget rendering',
+  ],
+  [
+    'dup-to',
+    RENAMED_DUPLICATE_TO,
+    'Duplicate TO in RENAMED',
+    'archive/added-exists',
+    'Widget drawing',
+  ],
+  [
+    'mod-and-removed',
+    MODIFIED_AND_REMOVED,
+    'present in both MODIFIED and REMOVED',
+    'archive/target-missing',
+    'Widget caching',
+  ],
+  [
+    'mod-and-added',
+    LIVING_ADDED_IDENTICAL_AND_MODIFIED,
+    'present in both MODIFIED and ADDED',
+    'archive/added-exists',
+    'Widget rendering',
+  ],
+  [
+    'added-and-removed',
+    REMOVED_AND_ADDED,
+    'present in both ADDED and REMOVED',
+    'archive/added-exists',
+    'Widget rendering',
+  ],
+  [
+    'renamed-and-removed',
+    RENAMED_AND_REMOVED,
+    'present in both RENAMED and REMOVED',
+    'archive/op-conflict',
+    'Widget rendering',
+  ],
+  [
+    'renamed-and-removed-fold',
+    RENAMED_AND_REMOVED_FOLD,
+    'present in both RENAMED and REMOVED',
+    'archive/op-conflict',
+    'Widget rendering',
+  ],
+  [
+    'modified-old-name',
+    RENAMED_THEN_MODIFIED_OLD,
+    'MODIFIED references old name from RENAMED',
+    'archive/target-missing',
+    'Widget rendering',
+  ],
+  [
+    'renamed-to-added',
+    RENAMED_TO_ADDED,
+    'RENAMED TO collides with ADDED',
+    'archive/added-exists',
+    'Widget drawing',
+  ],
+] as const
+
+describe('22. a never-delegated change is refused natively on every conflict shape', () => {
+  for (const [name, delta, fragment, rule, requirement] of CONFLICT_SHAPES) {
+    const bare = `bare-${name}`
+
+    round4(`22.1 ${name}`)(
+      `22.1 ${name}: no relay, and ${rule} names "${requirement}"`,
+      async () => {
+        const root = mkTempRepo({ git: true })
+        buildFeat(root, bare, { 'widgets/spec.md': delta }, { proposal: false })
+        expect(binaryOne(await binaryIssues(root, bare), fragment).level).toBe('ERROR')
+        const archived = await binaryArchive(
+          (r) => buildFeat(r, bare, { 'widgets/spec.md': delta }, { proposal: false }),
+          bare,
+        )
+        expect(archived.exitCode).not.toBe(0)
+        expect(archived.moved).toBe(false)
+        const { report, exitCode } = await cospecValidate(root, bare)
+        expect(byRule(report, 'openspec/validate')).toEqual([])
+        const found = byRule(report, rule).filter(
+          (i) => i.level === 'ERROR' && i.message.includes(`"${requirement}"`),
+        )
+        expect(found.length).toBeGreaterThanOrEqual(1)
+        expect(found.every((i) => i.path === 'specs/widgets/spec.md')).toBe(true)
+        expect(exitCode).toBe(1)
+      },
+    )
+  }
+
+  for (const [name, delta, fragment] of CONFLICT_SHAPES.filter(
+    ([, , , rule]) => rule === 'archive/op-conflict',
+  )) {
+    round4(`22.2 ${name}`)(
+      `22.2 entry 25 (${name}): the delegated "${fragment}" pairs with archive/op-conflict`,
+      async () => {
+        const root = mkTempRepo({ git: true })
+        buildFeat(root, name, { 'widgets/spec.md': delta })
+        const delegated = binaryOne(await binaryIssues(root, name), fragment)
+        expect(delegated.level).toBe('ERROR')
+        const { report } = await cospecValidate(root, name)
+        expect(messages(report)).not.toContain(delegated.message)
+        expect(byRule(report, 'archive/op-conflict')).toHaveLength(1)
+      },
+    )
+  }
+})
+
+// --- 23. the legacy lane keeps upstream's severity for every round-4 shape -----------------
+
+describe('23. the legacy lane relays each round-4 shape at the binary level', () => {
+  const legacyRows: [string, Record<string, string>, string][] = [
+    ...[...REBUILT_REFUSED, ...REBUILT_ARCHIVED].map(
+      (r) => [`legacy-${r.name}`, r.specs, r.living] as [string, Record<string, string>, string],
+    ),
+    ['legacy-rb-delta-h1', { 'widgets/spec.md': ADDED_H1_BEFORE_SCENARIO }, LIVING],
+    ['legacy-rb-blank-header', { 'widgets/spec.md': ADDED_BLANK_HEADER }, LIVING],
+    ...ROUND4_ENTRIES.map(
+      ([, name, specs]) =>
+        [`legacy-${name}`, { ...specs }, LIVING] as [string, Record<string, string>, string],
+    ),
+    ...CONFLICT_SHAPES.map(
+      ([name, delta]) =>
+        [`legacy-conflict-${name}`, { 'widgets/spec.md': delta }, LIVING] as [
+          string,
+          Record<string, string>,
+          string,
+        ],
+    ),
+  ]
+  for (const [name, specs, living] of legacyRows)
+    test(`23.1 ${name}: every binary finding is relayed at its level, and no cospec rule runs`, async () => {
+      const root = mkTempRepo({ git: true })
+      buildSpecDriven(root, name, specs, TASKS_DONE, living)
+      const bin = await binaryIssues(root, name)
+      const { report } = await cospecValidate(root, name)
+      const all = issues(report)
+      const relayed = all
+        .filter((i) => i.rule === 'openspec/validate')
+        .map((i) => `${i.level} ${i.message}`)
+      expect(relayed.toSorted()).toEqual(bin.map((i) => `${i.level} ${i.message}`).toSorted())
+      expect(all.filter((i) => i.rule !== 'openspec/validate').map((i) => i.rule)).toEqual([
+        'meta/legacy-schema',
+      ])
+    })
+})
+
 // --- 19. sweep: no fixture in this file reports a defect twice -----------------------------
 //
 // Every cospec report above is swept. A defect is reported twice when a
@@ -2272,7 +3133,7 @@ function doubleReports(all: readonly ReportIssue[]): string[] {
 }
 
 describe('19. sweep', () => {
-  test('19.1 no report in this file carries one defect twice', () => {
+  round4('19.1')('19.1 no report in this file carries one defect twice', () => {
     expect(REPORTS.length).toBeGreaterThan(100)
     const doubles = REPORTS.flatMap(({ label, report }) =>
       doubleReports(issues(report)).map((d) => `${label}: ${d}`),
@@ -2282,33 +3143,45 @@ describe('19. sweep', () => {
 
   // The sweep has teeth: every binary finding a DUPLICATE_CLASSES entry
   // suppressed on a typed-lane fixture, put back into cospec's report, is
-  // caught — except entries 1 and 2, whose messages name no requirement (they
-  // quote only the sections' syntax) and pair on the file alone.
+  // caught — except entries 1, 2, 20, 22 and 23, whose messages name no
+  // requirement (they quote only the sections' syntax, or name the capability)
+  // and pair on the file or capability alone.
   const NAMES_NO_REQUIREMENT = [
     'were found, but no requirement entries parsed',
     'Change must have at least one delta',
+    'No delta sections found',
+    'target spec does not exist; only ADDED requirements are allowed',
   ]
 
-  test('19.2 every suppressed twin that names its requirement would be caught if relayed', () => {
-    const suppressed: string[] = []
-    const caught: string[] = []
-    for (const { key, report } of REPORTS) {
-      const all = issues(report)
-      const relayed = new Set(
-        all.filter((i) => i.rule === 'openspec/validate').map((i) => i.message),
-      )
-      for (const bin of BINARY.get(key) ?? []) {
-        if (relayed.has(bin.message)) continue
-        if (NAMES_NO_REQUIREMENT.some((fragment) => bin.message.includes(fragment))) continue
-        if (all.every((i) => i.rule === 'openspec/validate' || i.rule.startsWith('meta/'))) continue
-        suppressed.push(bin.message)
-        // The path as cospec relays it: the binary's is relative to `specs/`.
-        const path = bin.path === undefined ? '' : `specs/${bin.path}`
-        const injected = { level: bin.level, rule: 'openspec/validate', path, message: bin.message }
-        if (doubleReports([...all, injected]).length > 0) caught.push(bin.message)
+  round4('19.2')(
+    '19.2 every suppressed twin that names its requirement would be caught if relayed',
+    () => {
+      const suppressed: string[] = []
+      const caught: string[] = []
+      for (const { key, report } of REPORTS) {
+        const all = issues(report)
+        const relayed = new Set(
+          all.filter((i) => i.rule === 'openspec/validate').map((i) => i.message),
+        )
+        for (const bin of BINARY.get(key) ?? []) {
+          if (relayed.has(bin.message)) continue
+          if (NAMES_NO_REQUIREMENT.some((fragment) => bin.message.includes(fragment))) continue
+          if (all.every((i) => i.rule === 'openspec/validate' || i.rule.startsWith('meta/')))
+            continue
+          suppressed.push(bin.message)
+          // The path as cospec relays it: the binary's is relative to `specs/`.
+          const path = bin.path === undefined ? '' : `specs/${bin.path}`
+          const injected = {
+            level: bin.level,
+            rule: 'openspec/validate',
+            path,
+            message: bin.message,
+          }
+          if (doubleReports([...all, injected]).length > 0) caught.push(bin.message)
+        }
       }
-    }
-    expect(suppressed.length).toBeGreaterThan(30)
-    expect(suppressed.filter((m) => !caught.includes(m))).toEqual([])
-  })
+      expect(suppressed.length).toBeGreaterThan(30)
+      expect(suppressed.filter((m) => !caught.includes(m))).toEqual([])
+    },
+  )
 })
