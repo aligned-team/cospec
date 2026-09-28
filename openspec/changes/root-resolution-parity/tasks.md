@@ -361,3 +361,6 @@ files, task 7.7, both marked POST-REBASE.
       `doctor`'s local checks and `hasReferencesConfig` against `root.base` for
       a `nearest` root, keeping `ctx.cwd` for every other root (minimal hunk;
       `passthrough-json-and-doctor` owns `doctor.ts`)
+- [x] 9.5 REVIEW (ledger 5.19): list `no_registered_stores` in the Stores page's
+      error table and give its unknown-store example the `Fix:` line cospec
+      prints

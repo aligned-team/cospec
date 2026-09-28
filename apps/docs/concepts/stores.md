@@ -187,17 +187,18 @@ payload ahead of `status`, exactly as OpenSpec does (`"root": null`,
 OpenSpec prints such a payload for other commands too (`"changes": []`,
 `"root": null` for `list`); there cospec prints the envelope alone.
 
-| code                             | when                                                                    |
-| -------------------------------- | ----------------------------------------------------------------------- |
-| `invalid_store_pointer`          | a `store:` value that isn't parseable YAML, or isn't a single id string |
-| `invalid_store_id`               | a followed pointer or `--store` names an empty or malformed store id    |
-| `unknown_store`                  | a `--store`, pointer, or `defaultStore` id that isn't registered        |
-| `no_root_with_registered_stores` | no qualifying root, no `defaultStore`, but stores are registered        |
-| `store_identity_mismatch`        | a selected store's metadata is missing, or names a different id         |
-| `invalid_store_metadata`         | a selected store's `.openspec-store/store.yaml` doesn't parse           |
-| `unhealthy_store_root`           | a selected store's OpenSpec tree is incomplete or damaged               |
-| `invalid_store_registry`         | the machine's store registry file can't be read as a registry           |
-| `directory_not_found`            | `--cwd` names a path that is not an existing directory                  |
+| code                             | when                                                                        |
+| -------------------------------- | --------------------------------------------------------------------------- |
+| `invalid_store_pointer`          | a `store:` value that isn't parseable YAML, or isn't a single id string     |
+| `invalid_store_id`               | a followed pointer, `--store` or `defaultStore` is an empty or malformed id |
+| `unknown_store`                  | a `--store`, pointer, or `defaultStore` id that isn't registered            |
+| `no_registered_stores`           | the same, on a machine with no stores registered at all                     |
+| `no_root_with_registered_stores` | no qualifying root, no `defaultStore`, but stores are registered            |
+| `store_identity_mismatch`        | a selected store's metadata is missing, or names a different id             |
+| `invalid_store_metadata`         | a selected store's `.openspec-store/store.yaml` doesn't parse               |
+| `unhealthy_store_root`           | a selected store's OpenSpec tree is incomplete or damaged                   |
+| `invalid_store_registry`         | the machine's store registry file can't be read as a registry               |
+| `directory_not_found`            | `--cwd` names a path that is not an existing directory                      |
 
 `directory_not_found` is cospec's own (OpenSpec has no `--cwd`): it is checked
 before anything else, prints `cospec: directory not found: <path>` with no
@@ -212,6 +213,7 @@ the local repo, so a typo can never write a change to the wrong place:
 
 ```
 cospec: unknown store 'bogus-id' — register it with 'cospec store register <path>' or check 'cospec store ls'. Registered stores: platform
+Fix: Pass a registered store id, or run cospec store list.
 ```
 
 ::: tip Not a gate result This is a usage/resolution error, not a blocked gate —
