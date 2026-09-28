@@ -334,3 +334,8 @@ files, task 7.7, both marked POST-REBASE.
       `validateChangeExists`'s fallback new-change hint line in
       `support/remedy-sources.ts` as `notRelayed` with the probed reason,
       keeping the `instructions`/`status` hint lines on the allowlist entry
+- [x] 8.4 PRE-REVIEW (ledger 5.14, design D7): add a contract row in a
+      store-resolved root running relaying commands under an explicit `--store`,
+      success and failure, asserting the banner appears once on stderr; prove it
+      fails with the relay's suppression removed, then mark the ledger row
+      observed

@@ -906,6 +906,29 @@ describe('resolver lines appear once on relaying commands (ledger 2.5, 2.9)', ()
       expect(lineCount(res.stderr, banner())).toBe(1)
     }
   })
+
+  // Ledger 5.14: with an explicit `--store` the wrapped call gets `--store` too
+  // and prints the binary's own banner; the relay drops that copy (design D7),
+  // on success and on a failed call alike.
+  test('an explicit --store banner prints once on relayed calls, failing ones too', async () => {
+    const ok = [
+      ['context', '--store', 'alpha'],
+      ['list', '--specs', '--store', 'alpha'],
+      ['show', 'demo-change', '--store', 'alpha'],
+    ]
+    for (const argv of ok) {
+      const res = await cospec(argv, { cwd, env: sb.env })
+      expect(res.exitCode, argv.join(' ')).toBe(0)
+      expect(lineCount(res.stderr, banner()), argv.join(' ')).toBe(1)
+    }
+    const failed = await cospec(['show', 'nosuch', '--store', 'alpha'], { cwd, env: sb.env })
+    expect(failed.exitCode).toBe(1)
+    expect(lineCount(failed.stderr, banner())).toBe(1)
+    // The binary itself prints the banner on each of these calls, so the one
+    // line cospec shows is its own with the relayed copy removed.
+    const up = await oracle(['show', 'nosuch', '--store', 'alpha'], sb.dir, { cwd })
+    expect(lineCount(up.stderr, banner())).toBe(1)
+  })
 })
 
 // --- Ledger 2.1-2.4, 2.7: native commands operate on the resolved root ---
