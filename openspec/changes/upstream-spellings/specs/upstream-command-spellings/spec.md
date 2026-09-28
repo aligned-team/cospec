@@ -11,7 +11,13 @@ no value it SHALL be refused as
 `cospec init: option '--tools <tools>' argument missing`, exit 1. Given together
 with `--harness`, the later of the two SHALL win, as commander resolves a
 repeated option. A refusal of the list's content SHALL name the spelling the
-user typed.
+user typed. Either spelling's list (and `experimental --tool`'s) SHALL be read
+as the binary's `resolveToolsArg` reads `--tools`: trimmed, with `all`, `none`
+and each comma-separated name matched case-insensitively; a value that is empty
+once trimmed, or holds no name between its commas, SHALL be refused with the
+binary's own sentence (`The <flag> option requires a value. …` /
+`The <flag> option requires at least one tool ID …`) on stderr, exit 1, before
+anything is written.
 
 #### Scenario: Two harnesses through upstream's spelling
 
@@ -24,6 +30,22 @@ user typed.
 - **WHEN** `cospec init --tools` runs
 - **THEN** stderr names `--tools <tools>` as the option whose argument is
   missing, exit 1, and nothing is written
+
+#### Scenario: An empty list is refused and nothing is written
+
+- **WHEN** `cospec init --tools ''`, `--tools ' '`, `--tools ','`,
+  `cospec init --harness ''` or `cospec experimental --tool ''` runs in an empty
+  directory
+- **THEN** stderr carries the binary's refusal sentence naming the flag typed,
+  stdout is empty (bar `experimental`'s note), the exit code is 1, and the
+  directory is still empty
+
+#### Scenario: The list is read case-insensitively
+
+- **WHEN** `cospec init --tools ALL`, `--tools ' all '`, `--tools Claude` or
+  `--tools 'claude, CODEX'` runs
+- **THEN** it writes what `--harness all`, `all`, `claude` or `claude,codex`
+  writes, exit 0
 
 ### Requirement: experimental is a hidden alias of init
 

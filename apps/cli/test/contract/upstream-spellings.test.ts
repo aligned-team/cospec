@@ -392,45 +392,8 @@ function upstreamError(run: SpawnResult): string {
 
 describe('1.12 an empty or cased tool list is read as the binary reads it', () => {
   for (const value of ['', ' ', ',']) {
-    test.failing(
-      `init --tools '${value}' is refused as the binary refuses it, nothing written`,
-      async () => {
-        const argv = ['init', '--tools', value]
-        const upRoot = mkTempRepo()
-        const u = await runUpstream(argv, upRoot)
-        expect(u.exitCode, detail('openspec', u)).toBe(1)
-        const reason = upstreamError(u)
-        expect(entries(upRoot)).toEqual([])
-        const coRoot = mkTempRepo()
-        const c = await runCospec(argv, coRoot)
-        expect(c.exitCode, detail('cospec', c)).toBe(1)
-        expect(c.stdout).toBe('')
-        expect(c.stderr).toBe(`cospec: ${reason}\n`)
-        expect(entries(coRoot)).toEqual([])
-      },
-      30_000,
-    )
-  }
-
-  test.failing(
-    "init --harness '' is refused the same way, naming --harness",
-    async () => {
-      const u = await runUpstream(['init', '--tools', ''], mkTempRepo())
-      const reason = upstreamError(u)
-      const coRoot = mkTempRepo()
-      const c = await runCospec(['init', '--harness', ''], coRoot)
-      expect(c.exitCode, detail('cospec', c)).toBe(1)
-      expect(c.stdout).toBe('')
-      expect(c.stderr).toBe(`cospec: ${reason.replaceAll('--tools', '--harness')}\n`)
-      expect(entries(coRoot)).toEqual([])
-    },
-    30_000,
-  )
-
-  test.failing(
-    "experimental --tool '' prints the note, then the binary's refusal; nothing written",
-    async () => {
-      const argv = ['experimental', '--tool', '']
+    test(`init --tools '${value}' is refused as the binary refuses it, nothing written`, async () => {
+      const argv = ['init', '--tools', value]
       const upRoot = mkTempRepo()
       const u = await runUpstream(argv, upRoot)
       expect(u.exitCode, detail('openspec', u)).toBe(1)
@@ -439,12 +402,37 @@ describe('1.12 an empty or cased tool list is read as the binary reads it', () =
       const coRoot = mkTempRepo()
       const c = await runCospec(argv, coRoot)
       expect(c.exitCode, detail('cospec', c)).toBe(1)
-      expect(c.stdout).toBe(u.stdout.replaceAll('openspec', 'cospec'))
-      expect(c.stderr).toBe(`cospec: ${reason.replaceAll('--tools', '--tool')}\n`)
+      expect(c.stdout).toBe('')
+      expect(c.stderr).toBe(`cospec: ${reason}\n`)
       expect(entries(coRoot)).toEqual([])
-    },
-    30_000,
-  )
+    }, 30_000)
+  }
+
+  test("init --harness '' is refused the same way, naming --harness", async () => {
+    const u = await runUpstream(['init', '--tools', ''], mkTempRepo())
+    const reason = upstreamError(u)
+    const coRoot = mkTempRepo()
+    const c = await runCospec(['init', '--harness', ''], coRoot)
+    expect(c.exitCode, detail('cospec', c)).toBe(1)
+    expect(c.stdout).toBe('')
+    expect(c.stderr).toBe(`cospec: ${reason.replaceAll('--tools', '--harness')}\n`)
+    expect(entries(coRoot)).toEqual([])
+  }, 30_000)
+
+  test("experimental --tool '' prints the note, then the binary's refusal; nothing written", async () => {
+    const argv = ['experimental', '--tool', '']
+    const upRoot = mkTempRepo()
+    const u = await runUpstream(argv, upRoot)
+    expect(u.exitCode, detail('openspec', u)).toBe(1)
+    const reason = upstreamError(u)
+    expect(entries(upRoot)).toEqual([])
+    const coRoot = mkTempRepo()
+    const c = await runCospec(argv, coRoot)
+    expect(c.exitCode, detail('cospec', c)).toBe(1)
+    expect(c.stdout).toBe(u.stdout.replaceAll('openspec', 'cospec'))
+    expect(c.stderr).toBe(`cospec: ${reason.replaceAll('--tools', '--tool')}\n`)
+    expect(entries(coRoot)).toEqual([])
+  }, 30_000)
 
   for (const [value, canonical] of [
     ['ALL', 'all'],
@@ -452,21 +440,17 @@ describe('1.12 an empty or cased tool list is read as the binary reads it', () =
     ['Claude', 'claude'],
     ['claude, CODEX', 'claude,codex'],
   ] as const) {
-    test.failing(
-      `init --tools '${value}' selects what --harness ${canonical} selects`,
-      async () => {
-        const u = await runUpstream(['init', '--tools', value], mkTempRepo())
-        expect(u.exitCode, detail('openspec', u)).toBe(0)
-        const coRoot = mkTempRepo()
-        const refRoot = mkTempRepo()
-        const c = await runCospec(['init', '--tools', value], coRoot)
-        const r = await runCospec(['init', '--harness', canonical], refRoot)
-        expect(r.exitCode, detail('cospec --harness', r)).toBe(0)
-        expect(c.exitCode, detail('cospec', c)).toBe(0)
-        expect(treeHash(coRoot)).toEqual(treeHash(refRoot))
-      },
-      60_000,
-    )
+    test(`init --tools '${value}' selects what --harness ${canonical} selects`, async () => {
+      const u = await runUpstream(['init', '--tools', value], mkTempRepo())
+      expect(u.exitCode, detail('openspec', u)).toBe(0)
+      const coRoot = mkTempRepo()
+      const refRoot = mkTempRepo()
+      const c = await runCospec(['init', '--tools', value], coRoot)
+      const r = await runCospec(['init', '--harness', canonical], refRoot)
+      expect(r.exitCode, detail('cospec --harness', r)).toBe(0)
+      expect(c.exitCode, detail('cospec', c)).toBe(0)
+      expect(treeHash(coRoot)).toEqual(treeHash(refRoot))
+    }, 60_000)
   }
 })
 
