@@ -96,6 +96,15 @@ export interface DeltaOp {
   operation: DeltaOperation
   /** ADDED/MODIFIED/REMOVED requirement name (trimmed). */
   name?: string
+  /**
+   * ADDED/MODIFIED only: the name read off the header line as written,
+   * normalized like `name` but never comment-masked — the name openspec's own
+   * validator quotes. Equal to `name` except under the `masked` view, where a
+   * header's trailing `<!-- … -->` is blanked out of `name` (`Foo`) but is part
+   * of the binary's (`Foo <!-- note -->`). Findings the binary also reports
+   * quote this one, so the two agree on which requirement they mean.
+   */
+  verbatimName?: string
   fromName?: string
   toName?: string
   line: number
@@ -586,9 +595,11 @@ export function parseDeltaSpec(
       const req = raw.match(REQUIREMENT_RE)
       if (req !== null) {
         closeReq()
+        const name = normalize(req[1]!)
         openReq = {
           operation: currentOp,
-          name: normalize(req[1]!),
+          name,
+          verbatimName: normalize((source[i] ?? '').match(REQUIREMENT_RE)?.[1] ?? name),
           line: lineNo,
           hasShallMust: false,
           scenarioCount: 0,

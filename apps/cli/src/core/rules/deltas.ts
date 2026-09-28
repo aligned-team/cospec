@@ -212,16 +212,19 @@ export function deltasRules(change: LoadedChange): Issue[] {
       })
     }
 
-    // deltas/requirement-shape
+    // deltas/requirement-shape. Named as the header is written — see
+    // `DeltaOp.verbatimName` — so a finding the binary shares names the same
+    // requirement, and its delegated twin is recognised.
     for (const op of parsed.ops) {
       if (op.operation !== 'ADDED' && op.operation !== 'MODIFIED') continue
+      const name = op.verbatimName ?? op.name
       if (!op.hasShallMust) {
         issues.push({
           level: 'ERROR',
           rule: 'deltas/requirement-shape',
           path: file.path,
           line: op.line,
-          message: `${op.operation} "${op.name}" must use SHALL/MUST normative language`,
+          message: `${op.operation} "${name}" must use SHALL/MUST normative language`,
           hint:
             op.name !== undefined && SHALL_MUST_RE.test(op.name)
               ? HEADER_ONLY_SHALL_HINT
@@ -234,7 +237,7 @@ export function deltasRules(change: LoadedChange): Issue[] {
           rule: 'deltas/requirement-shape',
           path: file.path,
           line: op.line,
-          message: `${op.operation} "${op.name}" must include at least one #### Scenario:`,
+          message: `${op.operation} "${name}" must include at least one #### Scenario:`,
           // Only when the block *has* a header that did not count — otherwise the
           // hint answers a question the author never asked. Same condition and
           // wording as openspec's `emptyScenarioHint`

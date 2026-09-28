@@ -346,13 +346,15 @@ describe('parseDeltaSpec skippedHeaders', () => {
   })
 
   // Captured from the parser before `skippedHeaders` existed: recording the
-  // headers must not move a single op, count, line or block byte.
+  // headers must not move a single op, count, line or block byte. (Only
+  // `verbatimName` was added since, equal to `name` on a comment-free header.)
   test('recording them leaves ops, SHALL/MUST, scenario counts and lines unchanged', () => {
     const p = parseDeltaSpec(SKIPPED, 'specs/x/spec.md', 'x')
     expect(p.ops.map(({ raw: _raw, ...op }) => op)).toEqual([
       {
         operation: 'ADDED',
         name: 'Widget thing',
+        verbatimName: 'Widget thing',
         line: 5,
         hasShallMust: true,
         scenarioCount: 1,
@@ -373,6 +375,7 @@ describe('parseDeltaSpec skippedHeaders', () => {
       {
         operation: 'MODIFIED',
         name: 'Other thing',
+        verbatimName: 'Other thing',
         line: 38,
         hasShallMust: true,
         scenarioCount: 1,
@@ -541,5 +544,32 @@ describe('deltas/requirement-shape header-only SHALL/MUST hint', () => {
         hint: undefined,
       },
     ])
+  })
+})
+
+// openspec's validator quotes a requirement by the header as written, trailing
+// HTML comment included, so cospec's finding must too — or its delegated twin
+// names a different requirement and is relayed as a second finding.
+describe('deltas/requirement-shape names the header as written', () => {
+  test('a comment-bearing header is named with its comment', () => {
+    const text =
+      '## ADDED Requirements\n\n### Requirement: Widget polishing <!-- restated -->\n\n' +
+      'The system polishes widgets.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n'
+    const found = deltasRules(delta('specs/x/spec.md', 'x', text))
+    expect(found.map((i) => [i.rule, i.message])).toEqual([
+      [
+        'deltas/requirement-shape',
+        'ADDED "Widget polishing <!-- restated -->" must use SHALL/MUST normative language',
+      ],
+    ])
+  })
+
+  test('the masked name still drives every other reading of the op', () => {
+    const p = parseDeltaSpec(
+      '## ADDED Requirements\n\n### Requirement: Foo <!-- note -->\n\nThe system SHALL foo.\n',
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops.map((o) => [o.name, o.verbatimName])).toEqual([['Foo', 'Foo <!-- note -->']])
   })
 })

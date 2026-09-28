@@ -1363,32 +1363,29 @@ describe('10. the archive family reads what the binary archive reads', () => {
     expect(messages(report)).not.toContain(delegated.message)
   })
 
-  test.failing(
-    '10.4 a comment-bearing header missing SHALL/MUST is reported once, by its binary name',
-    async () => {
-      const build = (root: string): void =>
-        buildFeat(root, 'comment-shall', { 'widgets/spec.md': COMMENT_NAMED_NO_SHALL })
-      const root = mkTempRepo({ git: true })
-      build(root)
-      // A WARNING does not stop the binary's archive; cospec-typed changes keep
-      // cospec's ERROR.
-      const archived = await binaryArchive(build, 'comment-shall')
-      expect(archived.exitCode).toBe(0)
-      expect(archived.moved).toBe(true)
-      const delegated = binaryOne(
-        await binaryIssues(root, 'comment-shall'),
-        'should contain SHALL or MUST (RFC 2119',
-      )
-      expect(delegated.level).toBe('WARNING')
-      expect(delegated.message).toContain('"Widget polishing <!-- restated -->"')
-      const { report } = await cospecValidate(root, 'comment-shall')
-      expect(messages(report)).not.toContain(delegated.message)
-      const shape = byRule(report, 'deltas/requirement-shape')
-      expect(shape).toHaveLength(1)
-      expect(shape[0]?.level).toBe('ERROR')
-      expect(shape[0]?.message).toContain('"Widget polishing <!-- restated -->"')
-    },
-  )
+  test('10.4 a comment-bearing header missing SHALL/MUST is reported once, by its binary name', async () => {
+    const build = (root: string): void =>
+      buildFeat(root, 'comment-shall', { 'widgets/spec.md': COMMENT_NAMED_NO_SHALL })
+    const root = mkTempRepo({ git: true })
+    build(root)
+    // A WARNING does not stop the binary's archive; cospec-typed changes keep
+    // cospec's ERROR.
+    const archived = await binaryArchive(build, 'comment-shall')
+    expect(archived.exitCode).toBe(0)
+    expect(archived.moved).toBe(true)
+    const delegated = binaryOne(
+      await binaryIssues(root, 'comment-shall'),
+      'should contain SHALL or MUST (RFC 2119',
+    )
+    expect(delegated.level).toBe('WARNING')
+    expect(delegated.message).toContain('"Widget polishing <!-- restated -->"')
+    const { report } = await cospecValidate(root, 'comment-shall')
+    expect(messages(report)).not.toContain(delegated.message)
+    const shape = byRule(report, 'deltas/requirement-shape')
+    expect(shape).toHaveLength(1)
+    expect(shape[0]?.level).toBe('ERROR')
+    expect(shape[0]?.message).toContain('"Widget polishing <!-- restated -->"')
+  })
 
   test.failing(
     '10.5 a commented ### Scenario: keeps its delegated INFO beside a real one',
