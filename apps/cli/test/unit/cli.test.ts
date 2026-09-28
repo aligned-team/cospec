@@ -192,7 +192,7 @@ describe('cli dispatcher: bare `help` token', () => {
 
   // Upstream's store group has no help subcommand: `help` is the binary's
   // unknown-command refusal, relayed with its sentences spelled through cospec.
-  test.failing('`store --no-color help` is the binary’s refusal of help, respelled', async () => {
+  test('`store --no-color help` is the binary’s refusal of help, respelled', async () => {
     const store = await dispatch(['store', '--no-color', 'help'])
     expect(store.code).toBe(1)
     expect(store.err).toBe(await binaryRefusal(['store', 'help']))

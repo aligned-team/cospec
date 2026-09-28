@@ -128,18 +128,14 @@ describe('cospec store', () => {
     expect(listPayload.stores.some((s) => s.id === 'protected-store')).toBe(true)
   }, 30_000)
 
-  test.failing(
-    "an unknown store subcommand is the binary's refusal, spelled through cospec",
-    async () => {
-      const { workspace, env } = sandbox()
-      const upstream = await openspecRaw(['store', 'bogus'], workspace, env)
-      const res = await cospec(['store', 'bogus'], { cwd: workspace, env })
-      expect(upstream.exitCode).toBe(1)
-      expect(res.exitCode).toBe(1)
-      expect(res.stdout).toBe('')
-      expect(res.stderr).toBe(respellRemedies(upstream.stderr))
-      expect(res.stderr).toContain("'cospec store'")
-    },
-    30_000,
-  )
+  test("an unknown store subcommand is the binary's refusal, spelled through cospec", async () => {
+    const { workspace, env } = sandbox()
+    const upstream = await openspecRaw(['store', 'bogus'], workspace, env)
+    const res = await cospec(['store', 'bogus'], { cwd: workspace, env })
+    expect(upstream.exitCode).toBe(1)
+    expect(res.exitCode).toBe(1)
+    expect(res.stdout).toBe('')
+    expect(res.stderr).toBe(respellRemedies(upstream.stderr))
+    expect(res.stderr).toContain("'cospec store'")
+  }, 30_000)
 })

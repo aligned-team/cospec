@@ -149,25 +149,21 @@ describe('store group refusals are the binary’s, spelled through cospec (ledge
     ['store', '--bogus', '--json'],
     ['store', '--json', '--', '--bogus'],
   ]) {
-    test.failing(
-      `${argv.join(' ')}: one document with unknown_store_subcommand`,
-      async () => {
-        const root = plainRoot()
-        const up = await oracle(argv, root)
-        const co = await runCospec(argv, root)
-        expect(up.exitCode).toBe(1)
-        expect(co.exitCode, detail(co)).toBe(1)
-        expect(documentCount(co.stdout), detail(co)).toBe(1)
-        const doc = JSON.parse(co.stdout) as { status: { code: string; message: string }[] }
-        expect(doc).toEqual(respelledDoc(up.stdout) as typeof doc)
-        const upDoc = JSON.parse(up.stdout) as { status: { code: string; fix: string }[] }
-        expect(doc.status[0]!.code).toBe(upDoc.status[0]!.code)
-        expect(doc.status[0]!.message).toContain("'cospec store'")
-        expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
-        expect(BARE_OPENSPEC.test(co.stdout), detail(co)).toBe(false)
-      },
-      30_000,
-    )
+    test(`${argv.join(' ')}: one document with unknown_store_subcommand`, async () => {
+      const root = plainRoot()
+      const up = await oracle(argv, root)
+      const co = await runCospec(argv, root)
+      expect(up.exitCode).toBe(1)
+      expect(co.exitCode, detail(co)).toBe(1)
+      expect(documentCount(co.stdout), detail(co)).toBe(1)
+      const doc = JSON.parse(co.stdout) as { status: { code: string; message: string }[] }
+      expect(doc).toEqual(respelledDoc(up.stdout) as typeof doc)
+      const upDoc = JSON.parse(up.stdout) as { status: { code: string; fix: string }[] }
+      expect(doc.status[0]!.code).toBe(upDoc.status[0]!.code)
+      expect(doc.status[0]!.message).toContain("'cospec store'")
+      expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
+      expect(BARE_OPENSPEC.test(co.stdout), detail(co)).toBe(false)
+    }, 30_000)
   }
 
   for (const argv of [
@@ -178,21 +174,17 @@ describe('store group refusals are the binary’s, spelled through cospec (ledge
     ['store', 'new', 'change', 'x'],
     ['store', 'validate'],
   ]) {
-    test.failing(
-      `${argv.join(' ')}: the binary's text refusal`,
-      async () => {
-        const root = plainRoot()
-        const up = await oracle(argv, root)
-        const co = await runCospec(argv, root)
-        expect(up.exitCode).toBe(1)
-        expectRespelledRelay(co, up)
-        expect(co.stdout).toBe('')
-        expect(co.stderr).toContain("'cospec store'")
-        if (argv[1] === 'new') expect(co.stderr).toContain('cospec new <type> x --store <id>')
-        if (argv[1] === 'validate') expect(co.stderr).toContain('cospec validate --store <id>')
-      },
-      30_000,
-    )
+    test(`${argv.join(' ')}: the binary's text refusal`, async () => {
+      const root = plainRoot()
+      const up = await oracle(argv, root)
+      const co = await runCospec(argv, root)
+      expect(up.exitCode).toBe(1)
+      expectRespelledRelay(co, up)
+      expect(co.stdout).toBe('')
+      expect(co.stderr).toContain("'cospec store'")
+      if (argv[1] === 'new') expect(co.stderr).toContain('cospec new <type> x --store <id>')
+      if (argv[1] === 'validate') expect(co.stderr).toContain('cospec validate --store <id>')
+    }, 30_000)
   }
 })
 

@@ -19,7 +19,12 @@ import { join } from 'node:path'
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { commandRow, parseCommandArgs, takesNextToken } from '../core/command-table.ts'
-import { isParseRejection, relayStorePathRefusal, subcommandOf } from '../core/forward-relay.ts'
+import {
+  isParseRejection,
+  relayGroupRefusal,
+  relayStorePathRefusal,
+  subcommandOf,
+} from '../core/forward-relay.ts'
 import {
   OpenspecCallError,
   openspecStoreList,
@@ -484,13 +489,10 @@ async function runDoctor(ctx: CommandContext, rawArgs: string[]): Promise<number
 // --- entrypoint --------------------------------------------------------
 
 export async function run(ctx: CommandContext): Promise<number> {
-  const { sub, rest } = subcommandOf(ctx.args)
-  if (!isSubcommand(sub)) {
-    process.stderr.write(
-      `cospec store: unknown subcommand '${sub ?? ''}'. Subcommands: ${SUBCOMMANDS.join(', ')}\n`,
-    )
-    return EXIT.failure
-  }
+  const { sub, rest, operand } = subcommandOf(ctx.args)
+  // No subcommand, an unknown one, an option, or a token after `--`: the
+  // binary's own refusal (text, or its one document under `--json`).
+  if (!isSubcommand(sub) || operand) return relayGroupRefusal(ctx, 'store', ctx.args)
   switch (sub) {
     case 'setup':
       return runSetupOrRegister(ctx, 'setup', rest)
