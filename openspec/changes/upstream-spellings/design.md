@@ -336,12 +336,27 @@ holds only the user's `context` / `operationGuidance`, relayed as today).
    `status[].fix` and the whole-value allowlist rule of step 3 (so
    `Change 'x' not found. No changes exist. Create one with: openspec new change <name>`,
    one allowlisted sentence, names `cospec new <type> <name>`), then re-print
-   it; in text mode re-run the same argv without `--json` — in the same
-   directory with the same flags, without selecting the root again, so no
-   resolver line prints twice — and relay that through `relayRespelled`, so the
-   failure text stays the binary's (`✖ Error: …`, its `Fix:` line) exactly as
-   `unknown-option-contract` pinned it. The call is read-only, so the second run
-   changes nothing.
+   it; in text mode render that respelled document as the binary's
+   `failWithError` prints it — the branch's non-TTY spinner line, the call's
+   stderr, `✖ Error: <message>` and, when the status carries one, `Fix: <fix>` —
+   so the failure text stays the binary's exactly as `unknown-option-contract`
+   pinned it. (Round 4: the text re-run, relayed through the regex
+   `relayRespelled`, respelled change names the binary lists under
+   `Available changes`, such as a change named `Run: openspec store doctor`; the
+   whole-value rule leaves a multi-line message listing names untouched.) The
+   same failure handling covers the no-artifact, no-change,
+   `apply`-without-a-change and `archive` answers, which spawn with `--json`
+   too; a successful `archive` is relayed as the binary prints it, its text form
+   from the same argv again without `--json`, in the same directory with the
+   same flags and without selecting the root again, so no resolver line prints
+   twice. The call is read-only, so the second run changes nothing. Declared
+   consequence: on an in-range binary below 1.7.0, which has no `archive`
+   branch, `instructions archive` fails as an unknown artifact; cospec renders
+   that failure after the 1.7+ spinner line (`- Loading archive inputs...`),
+   where that binary prints `- Generating instructions...` (probed on 1.6.0:
+   message, exit code and `--json` document are the binary's). The failure
+   document does not say which branch ran, and a message is never read as text
+   to find out.
 3. Success: parse the document, then rewrite through the shared structural
    respell helper from `passthrough-command.ts` with this field map:
    - `references[].fetch`
@@ -468,9 +483,10 @@ entry in the same commit" holds.
 
 - **Wrapped-call discipline**: `instructions` declares exit codes `[0, 1]`, the
   deny-list and the one-document post-condition for every `--json` call it makes
-  (the success spawn, the failure re-run, `schema which --json`); `new` keeps
-  its `.openspec.yaml` post-condition and now also requires the wrapped document
-  to parse with a `change` object and a `root` object.
+  (the one `--json` spawn, a successful `archive`'s text re-run,
+  `schema which --json`); `new` keeps its `.openspec.yaml` post-condition and
+  now also requires the wrapped document to parse with a `change` object and a
+  `root` object.
 - **Fixture shape**: a cospec-initialised root (for the key oracle and the typed
   lanes), a plain upstream-initialised root with the `spec-driven` default (for
   `new change` defaults and the built-in schema lines), a root with a project

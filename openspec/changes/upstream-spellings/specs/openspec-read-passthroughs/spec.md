@@ -44,8 +44,20 @@ or the user's data directory SHALL stay verbatim. Every other field — `context
 the binary wrote it. A `--json` caller SHALL get the rewritten document; a human
 caller SHALL get text rendered from it by a port of the binary's instruction
 printer, byte-identical to the binary's stdout wherever no field was rewritten.
-A failed call SHALL be relayed with its remedies respelled from the allowlist,
-the binary's own text and exit code otherwise.
+A failed call SHALL be answered from the binary's own `--json` failure document,
+its `status[].message` and `status[].fix` each rewritten only where its whole
+value is one allowlisted remedy: re-printed for a `--json` caller, and rendered
+for a human caller as the binary renders it (`✖ Error:` and its `Fix:` line),
+with the binary's exit code; every change name the binary lists SHALL be relayed
+as written.
+
+#### Scenario: A failure lists change names as written
+
+- **WHEN** `cospec instructions` (text or `--json`) runs in a root holding a
+  change named `Run: openspec store doctor`
+- **THEN** its answer equals the binary's byte for byte, the name listed under
+  `Available changes` as written, and that name copied back into `--change`
+  resolves
 
 #### Scenario: Archive instructions are listed and relayed
 

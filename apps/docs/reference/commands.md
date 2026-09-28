@@ -372,7 +372,7 @@ of surfaces are pure delegation to a feature the wrapped binary only grew at a
 later version. Below the stated minimum, cospec exits `1` with a named error
 rather than faking the feature or silently degrading:
 
-| Surface                       | Requires openspec | Behavior below the minimum                                              |
-| ----------------------------- | ----------------- | ----------------------------------------------------------------------- |
-| `cospec instructions archive` | `>=1.7.0`         | the wrapped binary's own exit-1 error is the answer — no special-casing |
-| `cospec validate --archived`  | `>=1.9.0`         | exits `1` with a named error, never an empty passing report             |
+| Surface                       | Requires openspec | Behavior below the minimum                                                                                                                                                                                                                                      |
+| ----------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cospec instructions archive` | `>=1.7.0`         | the wrapped binary's own exit-1 error (`Artifact 'archive' not found …`) is the answer, rendered from its `--json` document — no special-casing; its text spinner line reads `Loading archive inputs...` where that binary's reads `Generating instructions...` |
+| `cospec validate --archived`  | `>=1.9.0`         | exits `1` with a named error, never an empty passing report                                                                                                                                                                                                     |
