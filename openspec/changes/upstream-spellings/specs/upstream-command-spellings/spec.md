@@ -1,0 +1,145 @@
+# Spec Delta
+
+## ADDED Requirements
+
+### Requirement: init reads upstream's --tools as --harness
+
+`cospec init` SHALL accept `--tools <list>` as the pinned binary's spelling of
+`--harness <list>`, with the same `all`, `none` and comma-separated forms and
+the same refusals, and SHALL never read the list as the target path. Given with
+no value it SHALL be refused as
+`cospec init: option '--tools <tools>' argument missing`, exit 1. Given together
+with `--harness`, the later of the two SHALL win, as commander resolves a
+repeated option. A refusal of the list's content SHALL name the spelling the
+user typed.
+
+#### Scenario: Two harnesses through upstream's spelling
+
+- **WHEN** `cospec init --tools claude,codex` runs in an empty directory
+- **THEN** the claude and codex harness files are written, no `./claude,codex`
+  directory exists, and the exit code is 0
+
+#### Scenario: A missing list is a missing value
+
+- **WHEN** `cospec init --tools` runs
+- **THEN** stderr names `--tools <tools>` as the option whose argument is
+  missing, exit 1, and nothing is written
+
+### Requirement: experimental is a hidden alias of init
+
+`cospec experimental [--tool <id>] [--no-interactive]` SHALL be a hidden
+command, absent from `cospec --help`, that prints upstream's deprecation note
+spelled through cospec
+(`Note: "cospec experimental" is deprecated. Use "cospec init" instead.`) and
+then runs `cospec init` on the current directory, reading `--tool <id>` as
+`--harness <id>`; `--no-interactive` SHALL be accepted as a no-op, because
+`cospec init` never prompts. It SHALL refuse `--store` as an unknown option, as
+`init` does.
+
+#### Scenario: experimental behaves as init
+
+- **WHEN** `cospec experimental --tool claude` and
+  `cospec init --harness claude` run in two empty directories
+- **THEN** both exit 0 and write the same tree, and `experimental`'s stdout
+  starts with the respelled deprecation note
+
+### Requirement: new change is upstream's create spelling
+
+`cospec new change <name> [--schema <s>] [--description <text>] [--goal <text>]`
+SHALL create a change named `<name>`. `--schema` SHALL name a cospec type or a
+legacy schema, with the same checks and lanes as `cospec new <type> <name>`;
+without it the root's `config.yaml` `schema:` default SHALL apply, else
+`spec-driven`, as upstream resolves it. `--goal <text>` SHALL be stored as
+`goal:` in the change's `.openspec.yaml`, on this spelling and on
+`cospec new <type> <slug>`. `--initiative <x>` and `--areas <x>` SHALL be
+refused, before any other action-level check, with upstream's removed-option
+message on stderr (text) or its `{change: null, status: [...]}` document
+carrying code `initiative_option_removed` or `areas_option_removed` (`--json`),
+exit 1, and SHALL be absent from `--help` and completion. Under `--json`,
+`new change <name>` SHALL emit upstream's
+`change {id, path, metadataPath, schema}` and `root`, taken from the wrapped
+call's own document, with cospec's `type`, `dir` and `artifacts` beside them;
+`new <type> <slug> --json` SHALL keep `change: <slug>` and SHALL gain the same
+`root`.
+
+#### Scenario: The key oracle agrees
+
+- **WHEN** `cospec new change foo --schema feat --json` and
+  `openspec new change foo --schema feat --json` run in two copies of the same
+  cospec-initialised root
+- **THEN** every key of the binary's document is present in cospec's with a
+  value of the same type, `change.id` is `foo`, `change.schema` is `feat`, and
+  `type`, `dir` and `artifacts` sit beside them
+
+#### Scenario: The config default schema applies
+
+- **WHEN** `cospec new change foo` runs in a root whose `config.yaml` says
+  `schema: feat`
+- **THEN** `openspec/changes/foo/.openspec.yaml` says `schema: feat` and carries
+  `schemaVersion: 2`
+
+#### Scenario: The goal is stored
+
+- **WHEN** `cospec new change foo --goal "ship it"` runs
+- **THEN** `.openspec.yaml` holds `goal: ship it`
+
+#### Scenario: A removed option gets upstream's explanation
+
+- **WHEN** `cospec new change foo --initiative x` runs
+- **THEN** stderr is upstream's `--initiative is no longer supported. …`
+  message, exit 1, and no change directory exists
+- **AND WHEN** `cospec new change foo --areas x --json` runs
+- **THEN** stdout is one document whose status code is `areas_option_removed`
+
+### Requirement: update honours its path
+
+`cospec update [path]` SHALL regenerate the managed files of the project at
+`path`, resolved against the working directory, instead of the working directory
+itself, and SHALL leave the working directory untouched. A path with no
+`openspec/` directory SHALL get the same refusal `cospec update` gives in such a
+directory.
+
+#### Scenario: Updating another project
+
+- **WHEN** `cospec update ./other` runs from a directory whose `./other` is a
+  cospec-initialised project with a drifted managed file
+- **THEN** the drifted file under `./other` is regenerated, nothing outside
+  `./other` changes, and the exit code is 0
+
+### Requirement: completion generate is upstream's spelling
+
+`cospec completion generate [shell]` SHALL behave exactly as
+`cospec completion [shell]`: the same script, the same `$SHELL` detection, the
+same refusals and the same `--json` refusal document.
+
+#### Scenario: The same script under both spellings
+
+- **WHEN** `cospec completion generate zsh` and `cospec completion zsh` run
+- **THEN** both print the same script and exit 0
+
+### Requirement: Program-level help follows commander's help command
+
+`cospec help` SHALL print the program help on stdout, exit 0.
+`cospec help <command>` SHALL print that command's help, exit 0, reading only
+the first operand as commander's implicit `help [command]` does, so
+`cospec help config path` prints the `config` help; a hidden command
+(`experimental`, `__complete`) SHALL get its help too. A name that is no
+command, `help` itself included, SHALL print the program help on stderr, exit 1.
+An option after `help` SHALL NOT be refused: `cospec help --json` and
+`cospec help list --bogus` print the help they would without it, and
+`-V`/`--version` prints the version, as upstream does.
+
+#### Scenario: help for a command
+
+- **WHEN** `cospec help list` runs
+- **THEN** stdout equals `cospec list --help`, exit 0
+
+#### Scenario: help reads only the first operand
+
+- **WHEN** `cospec help config path` runs
+- **THEN** stdout equals `cospec config --help`, exit 0
+
+#### Scenario: help for an unknown name
+
+- **WHEN** `cospec help bogus` runs
+- **THEN** stderr is the program help, stdout is empty, and the exit code is 1
