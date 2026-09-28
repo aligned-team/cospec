@@ -282,6 +282,28 @@ describe('standalone pack smoke (bun-less)', () => {
     // that only compute after the wrapped instructions call runs.
     expect([0, 2, 3]).toContain(applied.exitCode)
 
+    // A confirm given no input, under the compiled binary's own runtime: the
+    // handover preload, written into the per-run cache and run ahead of the
+    // embedded bundle, cancels it as the binary does under Node — exit 130,
+    // nothing reset — where Bun alone would exit 0 (design D14).
+    const config = join(home, '.config')
+    const reset = Bun.spawnSync([bin, 'config', 'reset', '--all'], {
+      cwd: target,
+      stdin: 'ignore',
+      env: {
+        ...process.env,
+        HOME: home,
+        PATH: path,
+        XDG_CACHE_HOME: cache,
+        XDG_CONFIG_HOME: config,
+      },
+    })
+    expect(reset.exitCode, new TextDecoder().decode(reset.stderr)).toBe(130)
+    expect(existsSync(join(config, 'openspec', 'config.json'))).toBe(false)
+    expect(readdirSync(join(cache, 'cospec')).some((f) => f.startsWith('handover-preload-'))).toBe(
+      true,
+    )
+
     // Post-condition: the embedded bundle was extracted into the per-version
     // cache — proof the calls above went through the embedded path, not a
     // stray node_modules copy.

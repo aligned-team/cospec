@@ -23,6 +23,7 @@ import {
   relayRespelled,
   subcommandOf,
 } from '../core/forward-relay.ts'
+import { preloadedArgv } from '../core/handover-preload.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
 import { passthroughOpenspec, resolveOpenspec, spawnOpenspec } from '../core/openspec.ts'
 import { respellLines } from '../core/remedies.ts'
@@ -241,7 +242,7 @@ export async function runWorksetOpen(
   if (name === undefined) throw new Error('cospec workset open: a parsed argv named no workset')
   if (await openIsRefused(ctx, name)) return openPiped(ctx, rest)
   const bin = await resolveWorksetOpenBin(ctx.cwd)
-  const proc = Bun.spawn([process.execPath, bin, 'workset', 'open', ...rest], {
+  const proc = Bun.spawn(preloadedArgv(bin, ['workset', 'open', ...rest]), {
     cwd: ctx.cwd,
     stdin: 'inherit',
     stdout: 'inherit',

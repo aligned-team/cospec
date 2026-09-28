@@ -79,11 +79,17 @@ export interface RunExpectation {
   postCondition?: PostCondition
 }
 
-export interface RunOptions {
+export interface RunOptions extends SpawnShape {
   /** Absolute path the wrapped binary runs in (the target repo root). */
   cwd: string
   /** Declared expectations; omit for fully manual inspection (e.g. archive). */
   expect?: RunExpectation
+}
+
+/** How a piped wrapped call's child starts beyond its argv: by default, no preload. */
+export interface SpawnShape {
+  /** A script the child's Bun runs ahead of the binary (`--preload <file>`). */
+  preload?: string
 }
 
 /** Thrown when a wrapped call violates its declared expectations. */
@@ -243,8 +249,13 @@ export function buildWrappedSpawnEnv(
  * (a compiled binary otherwise always runs its embedded entrypoint). This is
  * what keeps the wrapped openspec calls working on machines with no bun.
  */
-async function spawnRaw(args: string[], cwd: string): Promise<OpenspecResult> {
-  const proc = Bun.spawn([process.execPath, openspecBin(), '--no-color', ...args], {
+async function spawnRaw(
+  args: string[],
+  cwd: string,
+  shape: SpawnShape = {},
+): Promise<OpenspecResult> {
+  const preload = shape.preload === undefined ? [] : ['--preload', shape.preload]
+  const proc = Bun.spawn([process.execPath, ...preload, openspecBin(), '--no-color', ...args], {
     cwd,
     stdin: 'ignore',
     stdout: 'pipe',
@@ -291,9 +302,13 @@ function assertVersion(): Promise<void> {
  * Version-asserted spawn without expectation enforcement. Use for call sites
  * (e.g. `archive`) that must inspect the raw exit code and output themselves.
  */
-export async function spawnOpenspec(args: string[], cwd: string): Promise<OpenspecResult> {
+export async function spawnOpenspec(
+  args: string[],
+  cwd: string,
+  shape: SpawnShape = {},
+): Promise<OpenspecResult> {
   await assertVersion()
-  return spawnRaw(args, cwd)
+  return spawnRaw(args, cwd, shape)
 }
 
 /**
@@ -336,7 +351,7 @@ export function wrappedCallLabel(args: readonly string[]): string {
  * `OpenspecCallError` on any violation.
  */
 export async function runOpenspec(args: string[], opts: RunOptions): Promise<OpenspecResult> {
-  const result = await spawnOpenspec(args, opts.cwd)
+  const result = await spawnOpenspec(args, opts.cwd, { preload: opts.preload })
   const expect = opts.expect
   if (expect) {
     const label = wrappedCallLabel(args)
@@ -709,7 +724,7 @@ export function enforcePassthroughJson(
   return result
 }
 
-export interface PassthroughOptions {
+export interface PassthroughOptions extends SpawnShape {
   /** Absolute path the wrapped binary runs in (the target repo root). */
   cwd: string
   /**
@@ -799,7 +814,7 @@ export async function passthroughOpenspec(
 ): Promise<OpenspecResult> {
   const argv = threadedArgv(call.command, call.threaded ?? [], call.args)
   const expect: RunExpectation = { exitCodes: [0, 1], ...opts.expect }
-  const raw = await runOpenspec(argv, { cwd: opts.cwd, expect })
+  const raw = await runOpenspec(argv, { cwd: opts.cwd, expect, preload: opts.preload })
   const result = { ...raw, stderr: stripSuppressedStderr(raw.stderr) }
   if (call.threaded?.includes('--json') !== true) return result
   return enforcePassthroughJson(wrappedCallLabel(argv), result, opts.textFailure === true)

@@ -8,7 +8,7 @@
 // The exports these rows exercise are looked up by name, so a missing one
 // fails the row rather than the file.
 
-import { afterAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { chmodSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -24,6 +24,16 @@ import { notRelayed } from '../contract/support/remedy-sources.ts'
 
 /** A bare `openspec` command a user could copy and run outside cospec. */
 const BARE_OPENSPEC = /\bopenspec [a-z-]/
+
+// The handover preload is written to cospec's cache: a temp one here, never the user's.
+const originalXdgCacheHome = process.env.XDG_CACHE_HOME
+beforeAll(() => {
+  process.env.XDG_CACHE_HOME = mkdtempSync(join(tmpdir(), 'cospec-cache-'))
+})
+afterAll(() => {
+  if (originalXdgCacheHome === undefined) delete process.env.XDG_CACHE_HOME
+  else process.env.XDG_CACHE_HOME = originalXdgCacheHome
+})
 
 function exported<T>(module: object, name: string): T {
   const value = (module as Record<string, unknown>)[name]
@@ -582,39 +592,36 @@ describe('the handover runtime answers a prompt given no input as the binary doe
     expect(await pendingPromptUnder(undefined)).toEqual({ stdout: '', exitCode: 0 })
   })
 
-  test.failing(
-    'every handover spawn carries the preload, and under it the cancel path runs: 130',
-    async () => {
-      const open = exported<RunWorksetOpen>(worksetModule, 'runWorksetOpen')
-      const handover = exported<RunHandover>(configModule, 'runHandover')
-      const member = mkdtempSync(join(tmpdir(), 'cospec-member-'))
-      const list = {
-        worksets: [{ name: 'w1', members: [{ name: 'm', path: member }] }],
-        status: [],
-      }
-      const workset = await stubbed(
-        () => ({ stdout: JSON.stringify(list) }),
-        () => open(ctxFor('/repo'), ['w1'], { interactive: true }),
-      )
-      const edit = configModule.planConfigCall(['edit'], { json: false })
-      if (edit.kind !== 'handover') throw new Error('config edit did not plan as a handover')
-      const config = await stubbed(
-        () => new Error('no piped call expected'),
-        () => handover(ctxFor('/repo'), edit, { stdoutIsTTY: true, stdinIsTTY: true }),
-      )
-      const preloads = [...workset.spawned.handovers, ...config.spawned.handovers].map(
-        (h) => h.preload,
-      )
-      expect(preloads).toHaveLength(2)
-      for (const preload of preloads) {
-        expect(preload).toBeString()
-        expect(await pendingPromptUnder(preload)).toEqual({
-          stdout: 'Prompt cancelled.\n',
-          exitCode: 130,
-        })
-      }
-    },
-  )
+  test('every handover spawn carries the preload, and under it the cancel path runs: 130', async () => {
+    const open = exported<RunWorksetOpen>(worksetModule, 'runWorksetOpen')
+    const handover = exported<RunHandover>(configModule, 'runHandover')
+    const member = mkdtempSync(join(tmpdir(), 'cospec-member-'))
+    const list = {
+      worksets: [{ name: 'w1', members: [{ name: 'm', path: member }] }],
+      status: [],
+    }
+    const workset = await stubbed(
+      () => ({ stdout: JSON.stringify(list) }),
+      () => open(ctxFor('/repo'), ['w1'], { interactive: true }),
+    )
+    const edit = configModule.planConfigCall(['edit'], { json: false })
+    if (edit.kind !== 'handover') throw new Error('config edit did not plan as a handover')
+    const config = await stubbed(
+      () => new Error('no piped call expected'),
+      () => handover(ctxFor('/repo'), edit, { stdoutIsTTY: true, stdinIsTTY: true }),
+    )
+    const preloads = [...workset.spawned.handovers, ...config.spawned.handovers].map(
+      (h) => h.preload,
+    )
+    expect(preloads).toHaveLength(2)
+    for (const preload of preloads) {
+      expect(preload).toBeString()
+      expect(await pendingPromptUnder(preload)).toEqual({
+        stdout: 'Prompt cancelled.\n',
+        exitCode: 130,
+      })
+    }
+  })
 })
 
 // --- the workset open handover environment (ledger 6.6) --------------------------------

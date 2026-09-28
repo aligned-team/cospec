@@ -322,23 +322,17 @@ describe('a prompt whose terminal input ends (Ctrl-D) is cancelled as the binary
     ['config', 'reset', '--all'],
     ['config', 'profile'],
   ]) {
-    test.failing(
-      `${argv.join(' ')}: the binary’s cancellation line and its exit code`,
-      async () => {
-        const root = plainRoot()
-        const before = treeHash(root)
-        const up = await ptyUpstream(argv, root)
-        expect(treeHash(root)).toEqual(before)
-        const co = await ptyCospec(argv, root)
-        expect(treeHash(root)).toEqual(before)
-        expect(up.exitCode, ptyDetail(up)).toBe(130)
-        expect(co.exitCode, ptyDetail(co)).toBe(up.exitCode)
-        expect(terminalText(co.output), ptyDetail(co)).toBe(
-          respellRemedies(terminalText(up.output)),
-        )
-      },
-      30_000,
-    )
+    test(`${argv.join(' ')}: the binary’s cancellation line and its exit code`, async () => {
+      const root = plainRoot()
+      const before = treeHash(root)
+      const up = await ptyUpstream(argv, root)
+      expect(treeHash(root)).toEqual(before)
+      const co = await ptyCospec(argv, root)
+      expect(treeHash(root)).toEqual(before)
+      expect(up.exitCode, ptyDetail(up)).toBe(130)
+      expect(co.exitCode, ptyDetail(co)).toBe(up.exitCode)
+      expect(terminalText(co.output), ptyDetail(co)).toBe(respellRemedies(terminalText(up.output)))
+    }, 30_000)
   }
 })
 
@@ -361,7 +355,10 @@ async function piped(cmd: string[], root: string, input: string | undefined): Pr
 
 describe('config reset --all with no terminal on stdin exits as the binary exits', () => {
   for (const input of [undefined, 'y\n']) {
-    test.failing(
+    // Handed over under the preload, an empty stdin is cancelled already; an
+    // answer waiting on the pipe still reaches the confirm under Bun.
+    const row = input === undefined ? test : test.failing
+    row(
       `stdin ${input === undefined ? 'empty' : 'piped “y”'}: cancelled, nothing reset`,
       async () => {
         const root = plainRoot()

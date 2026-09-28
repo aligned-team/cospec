@@ -52,6 +52,7 @@ import {
   relayStorePathRefusal,
   subcommandOf,
 } from '../core/forward-relay.ts'
+import { preloadedArgv } from '../core/handover-preload.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
 import {
   type OpenspecResult,
@@ -394,6 +395,7 @@ function profilePiped(ctx: CommandContext, call: ConfigCall): Promise<OpenspecRe
  * else its read-only pre-flight, which relays an unreadable config's refusal
  * and hands over only once the binary would prompt. `config edit` and
  * `config reset --all` have no non-interactive branch and always hand over.
+ * Every handover runs under the handover preload (`core/handover-preload.ts`).
  */
 export async function runHandover(
   ctx: CommandContext,
@@ -424,7 +426,7 @@ export async function runHandover(
       return relayRespelled(result, false)
   }
   const bin = await resolveHandoverBin(ctx.cwd)
-  const proc = Bun.spawn([process.execPath, bin, ...call.argv], {
+  const proc = Bun.spawn(preloadedArgv(bin, call.argv), {
     cwd: ctx.cwd,
     stdin: 'inherit',
     stdout: 'inherit',
