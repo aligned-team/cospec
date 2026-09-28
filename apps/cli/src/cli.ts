@@ -190,16 +190,22 @@ function usagePositional(positional: PositionalSpec): string {
   return positional.required ? `<${values}>` : `[${values}]`
 }
 
-/** The Usage line's signature after the command path. */
+/**
+ * The Usage line's signature after the command path. A row that takes
+ * positionals of its own shows them, its subcommands (upstream spellings of
+ * it, `new change`) listed under Subcommands; one that only dispatches shows
+ * its subcommand choice.
+ */
 function usageSignature(surface: {
   readonly positionals: readonly PositionalSpec[]
   readonly subcommands?: readonly SubcommandSpec[]
 }): string {
   const subcommands = (surface.subcommands ?? []).filter((s) => !isPending(s.status))
+  const positionals = offeredPositionals(surface)
   const parts =
-    subcommands.length > 0
+    subcommands.length > 0 && positionals.length === 0
       ? [`<${subcommands.map((s) => s.name).join('|')}>`, '[args]']
-      : offeredPositionals(surface).map(usagePositional)
+      : positionals.map(usagePositional)
   return parts.map((part) => ` ${part}`).join('')
 }
 

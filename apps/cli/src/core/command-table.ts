@@ -382,8 +382,58 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         placeholder: '<text>',
         description: 'Seed the proposal with a one-line description',
       }),
+      cospec({
+        name: '--goal',
+        takesValue: true,
+        placeholder: '<text>',
+        description: "Store goal metadata in the change's .openspec.yaml",
+      }),
     ],
-    subcommands: [pendingSub('change', 'Create a new change directory', 'upstream-spellings')],
+    subcommands: [
+      // Upstream's spelling of `new`: the type is `--schema`, else the root's
+      // default schema (`config.yaml`'s `schema:`, else `spec-driven`).
+      sub('change', "OpenSpec's spelling: create a change of --schema's type", {
+        aliasOf: 'new',
+        positionals: [
+          upstreamArg({ name: 'name', required: true, description: 'Kebab-case change id' }),
+        ],
+        flags: [
+          upstream({
+            name: '--schema',
+            takesValue: true,
+            placeholder: '<name>',
+            description: "The change's type (default: the root's config.yaml schema)",
+          }),
+          upstream({
+            name: '--description',
+            takesValue: true,
+            placeholder: '<text>',
+            description: 'Seed the proposal with a one-line description',
+          }),
+          upstream({
+            name: '--goal',
+            takesValue: true,
+            placeholder: '<text>',
+            description: "Store goal metadata in the change's .openspec.yaml",
+          }),
+          // Removed upstream and hidden from its help; refused with its message.
+          upstream({
+            name: '--initiative',
+            takesValue: true,
+            placeholder: '<id>',
+            description: 'Removed upstream (refused)',
+            hidden: true,
+          }),
+          upstream({
+            name: '--areas',
+            takesValue: true,
+            placeholder: '<names>',
+            description: 'Removed upstream (refused)',
+            hidden: true,
+          }),
+        ],
+      }),
+    ],
   },
   {
     name: 'migrate',

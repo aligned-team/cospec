@@ -85,20 +85,20 @@ a time. Group 12 waits for the rebase in group 11.
 
 ## 6. T2 — `new change` (`apps/cli/src/commands/new.ts`; the `new` row, its alias line and pending entry)
 
-- [ ] 6.1 Declare the `new change` subcommand (`aliasOf: 'new'`, `<name>`,
+- [x] 6.1 Declare the `new change` subcommand (`aliasOf: 'new'`, `<name>`,
       `--schema`, `--description`, `--goal`, hidden `--initiative` / `--areas`),
       add the alias entry, delete the `new change` pending entry; route it in
       `new.ts` with the default schema from `config.yaml` / `config.yml`
       `schema:` else `spec-driven`, and delegate an unresolvable `--schema` so
       the binary's refusal is relayed; verify ledger 1.7, 1.10 and
       `new change x` differential pass
-- [ ] 6.2 Forward `--goal` on both spellings (`new` row gains a cospec-origin
+- [x] 6.2 Forward `--goal` on both spellings (`new` row gains a cospec-origin
       `--goal <text>`); verify ledger 1.8
-- [ ] 6.3 Refuse `--initiative` / `--areas` first with the probed message or
+- [x] 6.3 Refuse `--initiative` / `--areas` first with the probed message or
       document; verify ledger 1.4
-- [ ] 6.4 Lift `change` and `root` from the wrapped document into both JSON
+- [x] 6.4 Lift `change` and `root` from the wrapped document into both JSON
       shapes (typed and legacy lanes); verify ledger 1.3 and 1.9
-- [ ] 6.5 Commit `fix(cli): accept upstream's new change spelling`
+- [x] 6.5 Commit `fix(cli): accept upstream's new change spelling`
 
 ## 7. T3 — `update [path]` (`apps/cli/src/commands/update.ts`; the `update` row's positional and its pending entry)
 

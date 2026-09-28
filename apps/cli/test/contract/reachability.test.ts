@@ -240,9 +240,9 @@ function walkRegistry(registry: readonly RegistryCommand[]): Entry[] {
  * Hidden surfaces outside the four sources (design decision 6). Each is added
  * to the walk only after `present` confirms the pinned binary still has it.
  * `new change --initiative` / `--areas` are hidden-help options that print a
- * removed-option error; they resolve to the pending `new change` subtree in
- * `parity-pending.yaml`, so they need no entries of their own. `help`'s
- * `[command]` positional resolves to the pending `help` subtree the same way.
+ * removed-option error; the table declares them hidden on `new change`, which
+ * answers with the same error. `help`'s `[command]` positional resolves to
+ * the pending `help` subtree in `parity-pending.yaml`.
  */
 const HIDDEN_FIXTURES: readonly {
   entry: Entry

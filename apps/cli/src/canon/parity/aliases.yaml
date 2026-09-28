@@ -13,3 +13,5 @@
   cospec: --harness
 - upstream: { kind: command, path: [experimental] }
   cospec: init
+- upstream: { kind: command, path: [new, change] }
+  cospec: new

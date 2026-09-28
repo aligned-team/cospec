@@ -163,30 +163,26 @@ describe('1.2 experimental is the hidden, deprecated alias of init', () => {
 })
 
 describe('1.3 new change --json carries upstream keys beside cospec keys', () => {
-  test.failing(
-    'every key path of the binary document exists in cospec one, same type',
-    async () => {
-      const argv = ['new', 'change', 'foo', '--schema', 'feat', '--json']
-      const coRoot = copyOf(cospecTemplate)
-      const upRoot = copyOf(cospecTemplate)
-      const c = await runCospec(argv, coRoot)
-      const u = await runUpstream(argv, upRoot)
-      expect(u.exitCode, detail('openspec', u)).toBe(0)
-      expect(c.exitCode, detail('cospec', c)).toBe(0)
-      const upDoc = json(u)
-      const coDoc = json(c)
-      const coPaths = keyPaths(coDoc)
-      for (const [path, type] of keyPaths(upDoc)) expect(coPaths.get(path), path).toBe(type)
-      const change = coDoc['change'] as { id: string; schema: string; path: string }
-      expect(change.id).toBe('foo')
-      expect(change.schema).toBe('feat')
-      expect(change.path).toBe(join(realpathSync(coRoot), 'openspec', 'changes', 'foo'))
-      expect((coDoc['root'] as { path: string }).path).toBe(realpathSync(coRoot))
-      for (const key of ['type', 'dir', 'artifacts']) expect(coDoc, key).toHaveProperty(key)
-      expect(metadata(coRoot, 'foo')['schemaVersion']).toBe(2)
-    },
-    30_000,
-  )
+  test('every key path of the binary document exists in cospec one, same type', async () => {
+    const argv = ['new', 'change', 'foo', '--schema', 'feat', '--json']
+    const coRoot = copyOf(cospecTemplate)
+    const upRoot = copyOf(cospecTemplate)
+    const c = await runCospec(argv, coRoot)
+    const u = await runUpstream(argv, upRoot)
+    expect(u.exitCode, detail('openspec', u)).toBe(0)
+    expect(c.exitCode, detail('cospec', c)).toBe(0)
+    const upDoc = json(u)
+    const coDoc = json(c)
+    const coPaths = keyPaths(coDoc)
+    for (const [path, type] of keyPaths(upDoc)) expect(coPaths.get(path), path).toBe(type)
+    const change = coDoc['change'] as { id: string; schema: string; path: string }
+    expect(change.id).toBe('foo')
+    expect(change.schema).toBe('feat')
+    expect(change.path).toBe(join(realpathSync(coRoot), 'openspec', 'changes', 'foo'))
+    expect((coDoc['root'] as { path: string }).path).toBe(realpathSync(coRoot))
+    for (const key of ['type', 'dir', 'artifacts']) expect(coDoc, key).toHaveProperty(key)
+    expect(metadata(coRoot, 'foo')['schemaVersion']).toBe(2)
+  }, 30_000)
 })
 
 describe('1.4 new change --initiative / --areas answer the removed-option message', () => {
@@ -195,30 +191,26 @@ describe('1.4 new change --initiative / --areas answer the removed-option messag
       for (const asJson of [false, true]) {
         const argv = ['new', 'change', 'foo', flag, 'x', ...(asJson ? ['--json'] : [])]
         const where = inRoot ? 'in a root' : 'outside any root'
-        test.failing(
-          `${argv.join(' ')} ${where}`,
-          async () => {
-            const coRoot = inRoot ? copyOf(upstreamTemplate) : mkTempRepo()
-            const upRoot = inRoot ? copyOf(upstreamTemplate) : mkTempRepo()
-            const before = treeHash(coRoot)
-            const c = await runCospec(argv, coRoot)
-            const u = await runUpstream(argv, upRoot)
-            expect(u.exitCode, detail('openspec', u)).toBe(1)
-            expect(c.exitCode, detail('cospec', c)).toBe(1)
-            if (asJson) {
-              const upDoc = json(u)
-              expect(json(c)).toEqual(upDoc)
-              expect(upDoc['change']).toBeNull()
-              expect(c.stderr).toBe('')
-            } else {
-              expect(u.stderr).toContain(`${flag} is no longer supported`)
-              expect(c.stderr).toBe(u.stderr)
-              expect(c.stdout).toBe('')
-            }
-            expect(treeHash(coRoot)).toEqual(before)
-          },
-          30_000,
-        )
+        test(`${argv.join(' ')} ${where}`, async () => {
+          const coRoot = inRoot ? copyOf(upstreamTemplate) : mkTempRepo()
+          const upRoot = inRoot ? copyOf(upstreamTemplate) : mkTempRepo()
+          const before = treeHash(coRoot)
+          const c = await runCospec(argv, coRoot)
+          const u = await runUpstream(argv, upRoot)
+          expect(u.exitCode, detail('openspec', u)).toBe(1)
+          expect(c.exitCode, detail('cospec', c)).toBe(1)
+          if (asJson) {
+            const upDoc = json(u)
+            expect(json(c)).toEqual(upDoc)
+            expect(upDoc['change']).toBeNull()
+            expect(c.stderr).toBe('')
+          } else {
+            expect(u.stderr).toContain(`${flag} is no longer supported`)
+            expect(c.stderr).toBe(u.stderr)
+            expect(c.stdout).toBe('')
+          }
+          expect(treeHash(coRoot)).toEqual(before)
+        }, 30_000)
       }
 
   test('neither flag is offered by new --help or any completion script', async () => {
@@ -318,92 +310,72 @@ describe('1.6 completion generate [shell] is upstream spelling of completion [sh
 })
 
 describe('1.7 new change takes its default schema from config.yaml', () => {
-  test.failing(
-    'a cospec root (schema: feat) gets a typed feat change',
-    async () => {
-      const root = copyOf(cospecTemplate)
-      const c = await runCospec(['new', 'change', 'foo'], root)
-      expect(c.exitCode, detail('cospec', c)).toBe(0)
-      expect(metadata(root, 'foo')).toMatchObject({ schema: 'feat', schemaVersion: 2 })
-    },
-    30_000,
-  )
+  test('a cospec root (schema: feat) gets a typed feat change', async () => {
+    const root = copyOf(cospecTemplate)
+    const c = await runCospec(['new', 'change', 'foo'], root)
+    expect(c.exitCode, detail('cospec', c)).toBe(0)
+    expect(metadata(root, 'foo')).toMatchObject({ schema: 'feat', schemaVersion: 2 })
+  }, 30_000)
 
-  test.failing(
-    'an upstream root (schema: spec-driven) gets what the binary creates',
-    async () => {
-      const coRoot = copyOf(upstreamTemplate)
-      const upRoot = copyOf(upstreamTemplate)
-      const c = await runCospec(['new', 'change', 'foo'], coRoot)
-      const u = await runUpstream(['new', 'change', 'foo'], upRoot)
-      expect(u.exitCode, detail('openspec', u)).toBe(0)
-      expect(c.exitCode, detail('cospec', c)).toBe(0)
-      expect(metadata(coRoot, 'foo')['schema']).toBe(metadata(upRoot, 'foo')['schema'])
-      expect(metadata(coRoot, 'foo')).not.toHaveProperty('schemaVersion')
-    },
-    30_000,
-  )
+  test('an upstream root (schema: spec-driven) gets what the binary creates', async () => {
+    const coRoot = copyOf(upstreamTemplate)
+    const upRoot = copyOf(upstreamTemplate)
+    const c = await runCospec(['new', 'change', 'foo'], coRoot)
+    const u = await runUpstream(['new', 'change', 'foo'], upRoot)
+    expect(u.exitCode, detail('openspec', u)).toBe(0)
+    expect(c.exitCode, detail('cospec', c)).toBe(0)
+    expect(metadata(coRoot, 'foo')['schema']).toBe(metadata(upRoot, 'foo')['schema'])
+    expect(metadata(coRoot, 'foo')).not.toHaveProperty('schemaVersion')
+  }, 30_000)
 })
 
 describe('1.8 --goal is written on both spellings', () => {
-  test.failing(
-    'new change foo --goal and new feat bar --goal each write goal:',
-    async () => {
-      const coRoot = copyOf(cospecTemplate)
-      const upRoot = copyOf(cospecTemplate)
-      const u = await runUpstream(['new', 'change', 'foo', '--goal', 'ship it'], upRoot)
-      expect(u.exitCode, detail('openspec', u)).toBe(0)
-      const goal = metadata(upRoot, 'foo')['goal']
-      expect(goal).toBe('ship it')
-      const change = await runCospec(['new', 'change', 'foo', '--goal', 'ship it'], coRoot)
-      expect(change.exitCode, detail('cospec', change)).toBe(0)
-      expect(metadata(coRoot, 'foo')['goal']).toBe(goal)
-      const typed = await runCospec(['new', 'feat', 'bar', '--goal', 'ship it'], coRoot)
-      expect(typed.exitCode, detail('cospec', typed)).toBe(0)
-      expect(metadata(coRoot, 'bar')).toMatchObject({ schema: 'feat', goal, schemaVersion: 2 })
-    },
-    30_000,
-  )
+  test('new change foo --goal and new feat bar --goal each write goal:', async () => {
+    const coRoot = copyOf(cospecTemplate)
+    const upRoot = copyOf(cospecTemplate)
+    const u = await runUpstream(['new', 'change', 'foo', '--goal', 'ship it'], upRoot)
+    expect(u.exitCode, detail('openspec', u)).toBe(0)
+    const goal = metadata(upRoot, 'foo')['goal']
+    expect(goal).toBe('ship it')
+    const change = await runCospec(['new', 'change', 'foo', '--goal', 'ship it'], coRoot)
+    expect(change.exitCode, detail('cospec', change)).toBe(0)
+    expect(metadata(coRoot, 'foo')['goal']).toBe(goal)
+    const typed = await runCospec(['new', 'feat', 'bar', '--goal', 'ship it'], coRoot)
+    expect(typed.exitCode, detail('cospec', typed)).toBe(0)
+    expect(metadata(coRoot, 'bar')).toMatchObject({ schema: 'feat', goal, schemaVersion: 2 })
+  }, 30_000)
 })
 
 describe('1.9 new <type> <slug> --json gains the root', () => {
-  test.failing(
-    'new feat bar --json carries the wrapped document root',
-    async () => {
-      const coRoot = copyOf(cospecTemplate)
-      const upRoot = copyOf(cospecTemplate)
-      const c = await runCospec(['new', 'feat', 'bar', '--json'], coRoot)
-      const u = await runUpstream(['new', 'change', 'bar', '--schema', 'feat', '--json'], upRoot)
-      expect(u.exitCode, detail('openspec', u)).toBe(0)
-      expect(c.exitCode, detail('cospec', c)).toBe(0)
-      const coDoc = json(c)
-      const upRoot_ = json(u)['root'] as { path: string; source: string }
-      expect(Object.keys(coDoc).toSorted()).toEqual(
-        ['artifacts', 'change', 'dir', 'root', 'type'].toSorted(),
-      )
-      expect(coDoc['change']).toBe('bar')
-      expect(coDoc['root']).toEqual({ ...upRoot_, path: realpathSync(coRoot) })
-    },
-    30_000,
-  )
+  test('new feat bar --json carries the wrapped document root', async () => {
+    const coRoot = copyOf(cospecTemplate)
+    const upRoot = copyOf(cospecTemplate)
+    const c = await runCospec(['new', 'feat', 'bar', '--json'], coRoot)
+    const u = await runUpstream(['new', 'change', 'bar', '--schema', 'feat', '--json'], upRoot)
+    expect(u.exitCode, detail('openspec', u)).toBe(0)
+    expect(c.exitCode, detail('cospec', c)).toBe(0)
+    const coDoc = json(c)
+    const upRoot_ = json(u)['root'] as { path: string; source: string }
+    expect(Object.keys(coDoc).toSorted()).toEqual(
+      ['artifacts', 'change', 'dir', 'root', 'type'].toSorted(),
+    )
+    expect(coDoc['change']).toBe('bar')
+    expect(coDoc['root']).toEqual({ ...upRoot_, path: realpathSync(coRoot) })
+  }, 30_000)
 })
 
 describe('1.10 new change --schema <unknown> relays the binary answer', () => {
-  test.failing(
-    'new change foo --schema nope --json is the binary document',
-    async () => {
-      const argv = ['new', 'change', 'foo', '--schema', 'nope', '--json']
-      const coRoot = copyOf(upstreamTemplate)
-      const upRoot = copyOf(upstreamTemplate)
-      const c = await runCospec(argv, coRoot)
-      const u = await runUpstream(argv, upRoot)
-      expect(u.exitCode).toBe(1)
-      expect(statusMessage(json(u))).toContain("Schema 'nope' not found")
-      expect(c.exitCode, detail('cospec', c)).toBe(1)
-      expect(json(c)).toEqual(json(u))
-    },
-    30_000,
-  )
+  test('new change foo --schema nope --json is the binary document', async () => {
+    const argv = ['new', 'change', 'foo', '--schema', 'nope', '--json']
+    const coRoot = copyOf(upstreamTemplate)
+    const upRoot = copyOf(upstreamTemplate)
+    const c = await runCospec(argv, coRoot)
+    const u = await runUpstream(argv, upRoot)
+    expect(u.exitCode).toBe(1)
+    expect(statusMessage(json(u))).toContain("Schema 'nope' not found")
+    expect(c.exitCode, detail('cospec', c)).toBe(1)
+    expect(json(c)).toEqual(json(u))
+  }, 30_000)
 
   test("new nope foo keeps cospec's own unknown-type table", async () => {
     const c = await runCospec(['new', 'nope', 'foo'], copyOf(cospecTemplate))

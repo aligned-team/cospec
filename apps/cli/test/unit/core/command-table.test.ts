@@ -674,7 +674,7 @@ describe('upstream spellings (aliases, hidden flags, lenient operands)', () => {
     })
   })
 
-  test.failing('a hidden flag is parsed but never offered to help or completion', () => {
+  test('a hidden flag is parsed but never offered to help or completion', () => {
     const change = tableRow('new').subcommands?.find((sub) => sub.name === 'change')
     if (change === undefined) throw new Error('no new change subcommand')
     const offered = offeredFlags(change).map((flag) => flag.name)

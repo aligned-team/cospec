@@ -514,7 +514,6 @@ const UPSTREAM_SPELLING_ROWS: readonly Row[] = [
 const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
   'update .',
   'update --force .',
-  'new change x',
   'completion generate bash',
   'instructions proposal --schema spec-driven --change x',
   'help --bogus',
