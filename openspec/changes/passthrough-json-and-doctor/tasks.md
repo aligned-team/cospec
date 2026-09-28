@@ -255,17 +255,55 @@ directory check, design D10), `apps/cli/test/contract/relayed-remedies.test.ts`,
       still passes; commit
       `fix(doctor): diagnose the enclosing root from a subdirectory`
 
-## 10. Close-out
+## 10. Review round 2
+
+Files: `apps/cli/src/commands/workset.ts`, `apps/cli/src/commands/config.ts`,
+`apps/cli/src/core/forward-relay.ts`, `apps/cli/src/core/openspec.ts`,
+`apps/cli/src/core/openspec-embedded.ts`,
+`apps/cli/src/core/handover-preload.ts`, their tests, the docs of group 8. Each
+row lands first as `test.failing` against the binary under Node (pty rows
+through `script -q` with stdin ended), and the fix flips it.
+
+- [x] 10.1 `workset open`'s pre-flight accepts the list's exit-1 answer and an
+      error in its `status[]` as a refusal answered through the piped open, and
+      counts every `stat` failure that means no usable folder as none (design
+      D8); commit
+      `fix(cli): relay a refused workset pre-flight before any handover`
+- [x] 10.2 Run every handover and the piped `config reset --all` behind the
+      handover preload so a closed prompt input exits 130 with the binary's
+      cancellation line under Bun (design D15); commit
+      `fix(cli): cancel a prompt given no input as the binary does under Node`
+- [x] 10.3 `config profile`'s pre-flight relays every refusal but the
+      interactive-mode one without handing over; `config reset --all` with no
+      TTY on stdin runs piped and exits as the binary exits (design D8, D14);
+      commit `fix(cli): hand config over only when the binary would prompt`
+- [x] 10.4 The group refusal post-condition accepts a parse rejection, a
+      stderr-only refusal or the group's one document whatever `--json` cospec
+      parsed (design D1); commit
+      `fix(cli): accept the group refusal in the mode the binary chose`
+- [x] 10.5 `config`'s unknown subcommand, `list --json` refused on stderr, and
+      the `path`/`get` envelopes carry the binary's answer and reason (design
+      D7); commit
+      `fix(cli): carry the binary's config answer and reason through --json`
+- [x] 10.6 Declare `config <leaf> <extra-arg> --json` cospec-only in the
+      precedence matrix on every leaf (design D13); commit
+      `test(cli): declare config <leaf> <extra> --json cospec-only on every leaf`
+- [x] 10.7 State the round-2 behaviour in design (D1, D7, D8, D13–D15) and on
+      the configuration and commands pages, `docs/architecture.md` and
+      `docs/stores.md`; commit
+      `docs(cli): record the round-2 relays, preload and cospec-only rows`
+
+## 11. Close-out
 
 Files: `openspec/changes/passthrough-json-and-doctor/verification.md`,
 `openspec/changes/passthrough-json-and-doctor/tasks.md`.
 
-- [ ] 10.1 Verify `reachability.test.ts` is green with no `parity-pending.yaml`
+- [ ] 11.1 Verify `reachability.test.ts` is green with no `parity-pending.yaml`
       entry or pending surface owned by this change (ledger 8.1), no
       `test.failing`/`test.todo` remains in the four new test files (8.2), and
       the suites of ledger 8.3 pass; run the bare-`openspec` sweep of ledger
       4.6; commit `test(cli): close out passthrough-json-and-doctor gates`
-- [ ] 10.2 Run `mise run check` (ledger 9.9), mark every ledger row with its
+- [ ] 11.2 Run `mise run check` (ledger 9.9), mark every ledger row with its
       observed result, and commit
       `docs(cli): record passthrough-json-and-doctor verification evidence`; the
       archive (`mise run cospec -- archive passthrough-json-and-doctor`) follows
