@@ -218,9 +218,12 @@ describe('cli dispatcher: a -- right after the command name', () => {
   })
 
   test('a routed --store-path is an unknown subcommand, not the redirect', async () => {
+    // The binary's own refusal, relayed (the precedence matrix compares it).
     const r = await dispatch(['config', '--', '--store-path', '/x'])
     expect(r.code).toBe(1)
-    expect(r.err).toContain("cospec config: unknown subcommand '--store-path'")
+    expect(r.out).toBe('')
+    expect(r.err).toContain("unknown command '--store-path'")
+    expect(r.err).not.toContain('--store-path is not supported')
   })
 
   test('a row without subcommands keeps -- as its operand terminator', async () => {
