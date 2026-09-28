@@ -7,7 +7,7 @@ trailer, never `--no-verify`).
 
 ## 1. T5 — contract tests first (`apps/cli/test/contract/validation-parity.test.ts`)
 
-- [ ] 1.1 Write the fixture builders (a `feat` shell following
+- [x] 1.1 Write the fixture builders (a `feat` shell following
       `archive-preflight-dedupe.test.ts` with the composed `feat` schema copied
       in, a `spec-driven` shell, the living `widgets` spec) and the legacy
       severity oracle (verification 1.1, 2.3). It passes today, so it lands as a
