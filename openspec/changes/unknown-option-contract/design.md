@@ -252,24 +252,50 @@ runtime by `dist/commands/spec.js:127`.
    `cospec <command>: '<flag>' is not supported yet`. All three exit 1. A
    required positional with nothing given is worded as commander words it,
    prefixed the same way
-   (`cospec feedback: missing required argument 'message'`). A short-option
-   cluster splits as commander's `parseOptions` splits it, one step at a time:
-   only when its first letter is a short flag the parsing surface declares (a
-   boolean leaves `-<rest>` as the next token, a value-taking flag takes
-   `<rest>` as its value); an undeclared first letter leaves the whole token one
-   unknown option, and `-h` never starts a split because commander keeps help
-   out of its option list (`-hy` is unknown). Phase B splits on a `table` row
-   and rescans the pieces, so a split-out `-h` is help and a split-out value
-   stays paired; on a `forward` row the binary gets the cluster as typed and
-   phase B answers only a `-h` the split would reach, with cospec's help
-   (`cospec config reset -yh` had relayed `Usage: openspec config reset`). `-V`
-   is the program's option and the program level parses the whole argv, so any
-   `-V…` cluster before a `--` is the version (`cospec list -Vh`), while `-yV`
-   on `archive` splits to the command's unknown `-V`. A cospec-only positional
-   that spells an upstream flag declares `displacedBy`: `status`'s change is
-   displaced by `--change` and `--all`, so beside either it is the excess
-   argument upstream's commander refuses (`Expected 0 arguments but got 1.`)
-   instead of being dropped.
+   (`cospec feedback: missing required argument 'message'`), with the command's
+   usage on the next line
+   (`cospec feedback: usage — cospec feedback <message>`), and is the parser's,
+   on every `table` row: `PositionalSpec`'s `required` is enforced, not display
+   only, checked after the scan's unknown options and before too many arguments
+   and a declared `--store-path` — the order of commander's `_parseCommand`
+   (`unknownOption`, then `_checkNumberOfArguments`: missing before excess) and
+   before any action — so `new feat --store-path /x` refuses the slug, as the
+   pin's `new change --store-path /x` refuses `name` (probed). Text under
+   `--json`: commander emits no document there. A `compound` marker on `new`'s
+   `type` (separator `:`) lets `"<type>: <description>"` fill the slug. Arity
+   follows the pin where the positional is upstream's and required there
+   (`feedback <message>`, `__complete <type>`); upstream's
+   `archive [change-name]` and `instructions [artifact]` are optional (its
+   actions prompt or pick), but cospec's actions have always required them, so
+   their rows keep `required: true` and their matrix rows state cospec's answer
+   (`archive --store-path /x` refuses the change where the binary answers the
+   redirect). `check-commit`'s message file is declared optional, the truth
+   about an advisory hook that exits 0 without one. The modules' own
+   missing-argument branches (`new`'s usage refusal, the "is required" of
+   `apply`, `archive`, `migrate` and `instructions`, `feedback`'s and
+   `__complete`'s missing message or source) became unreachable and are removed.
+   `new` relays a failed wrapped call's reason with only its remedies respelled
+   — the `RELAYED_REMEDIES` spans and `openspec <command>` for a command in the
+   table — and nothing from a schema load error's
+   `Failed to parse schema at '…':` / `Invalid schema at '…':` payload on (the
+   binary's `resolver.js` shapes), which quotes the user's own schema. A
+   short-option cluster splits as commander's `parseOptions` splits it, one step
+   at a time: only when its first letter is a short flag the parsing surface
+   declares (a boolean leaves `-<rest>` as the next token, a value-taking flag
+   takes `<rest>` as its value); an undeclared first letter leaves the whole
+   token one unknown option, and `-h` never starts a split because commander
+   keeps help out of its option list (`-hy` is unknown). Phase B splits on a
+   `table` row and rescans the pieces, so a split-out `-h` is help and a
+   split-out value stays paired; on a `forward` row the binary gets the cluster
+   as typed and phase B answers only a `-h` the split would reach, with cospec's
+   help (`cospec config reset -yh` had relayed `Usage: openspec config reset`).
+   `-V` is the program's option and the program level parses the whole argv, so
+   any `-V…` cluster before a `--` is the version (`cospec list -Vh`), while
+   `-yV` on `archive` splits to the command's unknown `-V`. A cospec-only
+   positional that spells an upstream flag declares `displacedBy`: `status`'s
+   change is displaced by `--change` and `--all`, so beside either it is the
+   excess argument upstream's commander refuses
+   (`Expected 0 arguments but got 1.`) instead of being dropped.
 4. **Three accepted no-ops, no more.** `init --no-animation` (cospec has no
    animation), `archive -y`/`--yes` (cospec never prompts) and `list --changes`
    (the default). `validate --no-interactive` and `show --no-interactive` were

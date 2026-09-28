@@ -503,3 +503,20 @@ red; 4–7 turn it green; 8 documents it.
 - [x] 10.54 `cospecSchemaInstalled` takes `env`/`home` like `userSchemasDir`,
       and `new`'s `run` takes them as its second argument; the unit tests pass a
       sandboxed empty home instead of mutating `process.env` (ledger 1.52)
+- [x] 10.55 Round-11 rows first (a19e116): 25 precedence-matrix rows in
+      `KNOWN_FAILING` (the new `MISSING_ARGUMENT_ROWS` group plus the rewritten
+      `new feat`/`new feat --json`/`[no root]` rows), 2 `wrappedNewReason` unit
+      cases as `test.failing`; each fails for its intended reason; the set is
+      empty at cbed5e5 and the unit cases plain `test` at 7474479
+- [x] 10.56 The table parser refuses a required positional given nothing as
+      `cospec <command>: missing required argument '<name>'` plus the usage,
+      after unknown options and before too many arguments and `--store-path`, on
+      every `table` row; `compound` marker on `new`'s `type`; `check-commit`'s
+      file optional; archive/instructions divergence from upstream's optional
+      positional commented on the rows; `reference/commands.md` (ledger 1.53)
+- [x] 10.57 The modules' unreachable missing-argument branches removed (`new`'s
+      usage refusal, `apply`/`archive`/`migrate`/`instructions`, `feedback`,
+      `__complete`); their unit cases moved to the parser (ledger 1.53)
+- [x] 10.58 `wrappedNewReason` respells only `RELAYED_REMEDIES` spans and
+      `openspec <table command>`, leaving a schema load error's payload
+      untouched; `reference/commands.md` (ledger 1.54)

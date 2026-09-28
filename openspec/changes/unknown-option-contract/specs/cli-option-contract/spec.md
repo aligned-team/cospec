@@ -41,7 +41,14 @@ fail with `cospec <command>: '<flag>' is not supported yet` and exit 1. A
 positional beyond the row's declared slots SHALL fail with
 `cospec <command>: too many arguments. Expected N argument(s) but got M.` and
 exit 1, before any work, on every `table` row; it SHALL never be dropped while
-the command runs on the rest. No flag or flag value SHALL ever be read as a
+the command runs on the rest. A required positional given nothing SHALL fail
+with `cospec <command>: missing required argument '<name>'` on stderr, followed
+by `cospec <command>: usage — <usage>`, exit 1, on every `table` row, after the
+first unknown option or pending flag and before too many arguments, a
+`--store-path` refusal or any check the command makes (its root included), and
+as text even under `--json`, as commander refuses it while it parses; a value
+holding a compound positional's separator (`new "<type>: <description>"`) SHALL
+fill the positionals after it. No flag or flag value SHALL ever be read as a
 positional. Each `table` row SHALL declare whether it accepts the global
 `--json`; on a row that does not, `--json` SHALL be refused with exactly one
 JSON document on stdout (`{version: 1, command, ok: false, message}`, the
@@ -55,7 +62,10 @@ wrapped `new change --json` gives its own failures
 exit 1, with nothing on stderr; a failed wrapped call SHALL be answered with the
 binary's own reason (its `new change --json` document's message), as
 `cospec new: <reason>` in text and as the document's message under `--json`,
-with any `openspec …` command it names spelled through cospec; a missing slug
+with each remedy it names (a `RELAYED_REMEDIES` span, or `openspec <command>`
+for a command cospec has) spelled through cospec and everything from a schema
+load error's `Failed to parse schema at '…':` / `Invalid schema at '…':` payload
+on (the schema's path and quoted excerpt) left untouched; a missing type or slug
 and an unknown option SHALL stay text parse refusals, as the binary's commander
 refusals are, answered before any other refusal (a missing `openspec/` tree
 included). `show` with no item (an empty token is none) SHALL, under `--json`,
@@ -141,12 +151,30 @@ help.
   `status[0].code` is `change_error`, stderr is empty, nothing is written, and
   the exit code is 1
 - **AND WHEN** `cospec new feat --json` runs
-- **THEN** stderr carries the usage refusal, stdout is empty, and the exit code
-  is 1
+- **THEN** stderr is `cospec new: missing required argument 'slug'` and `new`'s
+  usage, stdout is empty, and the exit code is 1
 - **AND WHEN** `cospec new feat` or `cospec new feat --json` runs where there is
   no `openspec/` tree
-- **THEN** stderr carries the usage refusal, not the root refusal, stdout is
-  empty, and the exit code is 1
+- **THEN** stderr carries the missing-argument refusal, not the root refusal,
+  stdout is empty, and the exit code is 1
+
+#### Scenario: A missing required positional is refused before --store-path
+
+- **WHEN** `cospec new feat --store-path /x` runs, with or without `--json`
+- **THEN** stderr is `cospec new: missing required argument 'slug'` followed by
+  `cospec new: usage — cospec new <type> <slug> | cospec new "<type>: <description>"`,
+  stdout is empty, nothing is written, and the exit code is 1, as the pinned
+  binary's `new change --store-path /x` refuses its missing `name`
+- **AND WHEN** `cospec apply --json`, `cospec migrate`,
+  `cospec archive --store-path /x` or `cospec instructions --change x` runs
+- **THEN** stderr names that command's missing positional, no document is
+  printed, and the exit code is 1
+- **AND WHEN** `cospec feedback` or `cospec __complete` runs
+- **THEN** the refusal is the missing-argument refusal the pinned binary gives
+  the same argv, exit 1
+- **AND WHEN** `cospec new "feat: add a thing" --store-path /x` runs
+- **THEN** the compound value fills the slug and the `--store-path` redirect
+  answers
 
 #### Scenario: A failed wrapped new change answers with the binary's reason
 
@@ -158,6 +186,10 @@ help.
 - **AND WHEN** `cospec new broken x --json` runs
 - **THEN** stdout is one JSON document whose `status[0].message` is that parse
   reason, stderr is empty, and the exit code is 1
+- **AND WHEN** the parse reason's path or quoted schema excerpt contains
+  `openspec init`
+- **THEN** that text is relayed unchanged; only a remedy ahead of the payload is
+  respelled to `cospec`
 
 #### Scenario: show with an empty item name gives cospec's item-name error
 

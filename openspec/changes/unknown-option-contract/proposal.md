@@ -215,11 +215,20 @@ now fails with `schema '<type>' is not installed in this repo`, and under
 unknown type, an underivable or invalid slug, an existing or archived change, a
 failed OpenSpec call) is one
 `{"change": null, "status": [{… "code": "change_error" …}]}` document on stdout
-instead of prose on stderr (a missing slug stays text, and is answered before
-the missing-`openspec/` refusal); a failed OpenSpec call is answered with
-OpenSpec's own reason (a schema it cannot parse, say) instead of the wrapped
-call's exit code. `cospec show ""` (and `show -- ""`) now answers cospec's
-item-name error instead of relaying OpenSpec's "Nothing to show" screen, and
+instead of prose on stderr (a missing type or slug stays text, and is answered
+before the missing-`openspec/` refusal); a failed OpenSpec call is answered with
+OpenSpec's own reason (a schema it cannot parse, say, its quoted excerpt
+verbatim) instead of the wrapped call's exit code. A required positional given
+nothing is now refused while parsing, on every table-parsed command, as
+`cospec <command>: missing required argument '<name>'` plus the usage, ahead of
+`--store-path` and every other check: `cospec new feat --store-path /x`,
+`cospec archive --store-path /x` and `cospec instructions --store-path /x`
+refuse the missing positional instead of answering the redirect, the
+`apply`/`archive`/`migrate`/`instructions` "is required" wording and `new`'s
+usage line with its type table are replaced by that refusal, and
+`cospec __complete` with no source prints it on stderr instead of exiting
+silently. `cospec show ""` (and `show -- ""`) now answers cospec's item-name
+error instead of relaying OpenSpec's "Nothing to show" screen, and
 `cospec show --json` with no item one
 `{"status": [{… "code": "missing_item" …}]}` document on stdout instead of
 prose. And `cospec apply <slug>` prints `cospec apply "<slug>" --json` in its
