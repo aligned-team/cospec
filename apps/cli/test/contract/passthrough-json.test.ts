@@ -410,22 +410,28 @@ describe('context spells its reference block through cospec (ledger 3.1–3.4)',
   }
 })
 
-describe('schemas spells its relayed no-root answer through cospec (ledger 3.5, post-rebase)', () => {
+describe('schemas spells its no-root answer through cospec (ledger 3.5)', () => {
+  // With a store registered the resolver (root-resolution-parity, design D12)
+  // answers before any spawn: under --json its one document, in human mode
+  // the binary's message and Fix line after `cospec: `, where the binary
+  // prints `✖ Error: `. Either way its remedies name cospec.
   for (const argv of [['schemas'], ['schemas', '--json']]) {
-    // `--json` already answers through the resolver's own document.
-    const row = argv.includes('--json') ? test : test.failing
-    row(
-      `${argv.join(' ')} with no root and a registered store`,
-      async () => {
-        const root = rootlessWithStore()
-        const up = await oracle(argv, root)
-        const co = await runCospec(argv, root)
-        expect(up.exitCode).toBe(1)
-        expectRespelledRelay(co, up)
-        expect(co.stdout + co.stderr).toContain('cospec init')
-      },
-      30_000,
-    )
+    test(`${argv.join(' ')} with no root and a registered store`, async () => {
+      const root = rootlessWithStore()
+      const up = await oracle(argv, root)
+      const co = await runCospec(argv, root)
+      expect(up.exitCode).toBe(1)
+      if (argv.includes('--json')) expectRespelledRelay(co, up)
+      else {
+        expect(co.exitCode, detail(co)).toBe(1)
+        expect(co.stdout, detail(co)).toBe(up.stdout)
+        expect(co.stderr, detail(co)).toBe(
+          respellRemedies(up.stderr.replace(/^✖ Error: /, 'cospec: ')),
+        )
+        expect(BARE_OPENSPEC.test(co.stdout + co.stderr), detail(co)).toBe(false)
+      }
+      expect(co.stdout + co.stderr).toContain('cospec init')
+    }, 30_000)
   }
 })
 
