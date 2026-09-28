@@ -5,16 +5,19 @@
 // `--store` flag at all (verified against the pinned binary: `--store` is an
 // "unknown option" here), so this command never threads `root.storeArgs` the
 // way `passthrough-command.ts` does for root-scoped commands. `cospec` adds no
-// gate of its own — every non-zero wrapped exit relays verbatim.
+// gate of its own — every non-zero wrapped exit is relayed, its remedies
+// spelled through cospec.
 
+import { statSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
-import { commandRow, storePathInOptionPosition, storePathRefusal } from '../core/command-table.ts'
+import { commandRow, parseSubcommandArgs } from '../core/command-table.ts'
 import {
   forwardCall,
   isParseRejection,
+  prevalidateHandover,
   relayGroupRefusal,
   relayRespelled,
   subcommandOf,
@@ -83,37 +86,138 @@ async function resolveWorksetOpenBin(cwd: string): Promise<string> {
     : extractEmbeddedOpenspec(resolved.version)
 }
 
+/** What `workset open` reads from the terminal it may hand over. */
+export interface WorksetTerminal {
+  /** Whether the binary would prompt: its own `isInteractive()`, ported. */
+  readonly interactive: boolean
+}
+
+/**
+ * The binary's `isInteractive()` (`utils/interactive.js`), as the handed-over
+ * child would compute it: `OPEN_SPEC_INTERACTIVE=0` or a `CI` variable turns
+ * it off, and otherwise stdin must be a TTY.
+ */
+export function isWorksetOpenInteractive(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+  stdinIsTTY: boolean = process.stdin.isTTY === true,
+): boolean {
+  if (env.OPEN_SPEC_INTERACTIVE === '0') return false
+  if ('CI' in env) return false
+  return stdinIsTTY
+}
+
+interface WorksetList {
+  worksets: { name: string; members: { name: string; path: string }[] }[]
+}
+
+/**
+ * The read-only pre-flight (design D8): whether the binary would refuse to
+ * open `name` before launching anything — it is not saved, or none of its
+ * member folders exists on this machine — read from `workset list --json`.
+ */
+async function openIsRefused(ctx: CommandContext, name: string): Promise<boolean> {
+  const result = await passthroughOpenspec(
+    { command: ['workset', 'list'], threaded: ['--json'] },
+    {
+      cwd: ctx.cwd,
+      expect: {
+        exitCodes: [0],
+        postCondition: (res) => {
+          let doc: Partial<WorksetList> | null
+          try {
+            doc = JSON.parse(res.stdout) as Partial<WorksetList> | null
+          } catch (err) {
+            if (err instanceof SyntaxError) return 'did not emit parseable JSON'
+            throw err
+          }
+          return Array.isArray(doc?.worksets) || 'did not list a worksets[] array'
+        },
+      },
+    },
+  )
+  const workset = (JSON.parse(result.stdout) as WorksetList).worksets.find((w) => w.name === name)
+  if (workset === undefined) return true
+  return !workset.members.some((member) => isDirectory(member.path))
+}
+
+function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory()
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false
+    if ((err as NodeJS.ErrnoException).code === 'ENOTDIR') return false
+    throw err
+  }
+}
+
+/**
+ * `workset open` run piped: with no terminal to prompt on, or for a workset
+ * the binary refuses before launching anything. Its answer is relayed with
+ * its remedies spelled through cospec; with a saved or `--tool`
+ * workspace-file tool the binary opens it from the pipe and exits 0, the
+ * command doing its job.
+ */
+async function openPiped(ctx: CommandContext, rest: string[]): Promise<number> {
+  const result = await forwardCall(() =>
+    passthroughOpenspec(
+      { command: ['workset', 'open'], args: rest },
+      {
+        cwd: ctx.cwd,
+        expect: {
+          exitCodes: [0, 1],
+          postCondition: (res) =>
+            (res.exitCode === 0 ? res.stdout.length > 0 : res.stderr.length > 0) ||
+            `exited ${res.exitCode} without saying what it did`,
+        },
+      },
+    ),
+  )
+  return relayRespelled(result, false)
+}
+
 /**
  * `workset open` hands the terminal to the chosen tool (editor window / agent
- * session) — it is a handover exec, not a gated or JSON-checked call: inherit
+ * session) — a handover exec, not a gated or JSON-checked call: inherit
  * stdio, `shell: false` (array argv, no shell interpolation), and propagate the
- * child's exact exit code. Under `--json` it never hands over: the binary has
- * no JSON mode for `open` and refuses it (`refuseOpenJson`).
- *
- * The handover class's one pre-spawn `--store-path` check (design decision
- * 2): with inherited stdio the binary's redirect would reach the terminal
- * naming bare `openspec`, with nothing to respell, so a `--store-path` in
- * option position is answered with cospec's redirect without spawning.
+ * child's exact exit code. Nothing the child prints there can be relayed, so
+ * it is reached only once nothing the binary would refuse is left (design
+ * D8), in commander's order: the argv's parse refusal (the table parser's,
+ * text on stderr even under `--json`, `--store-path`'s redirect included);
+ * `--json`, which the binary refuses (`refuseOpenJson`); no terminal to
+ * prompt on, where the call runs piped; and the read-only pre-flight, where a
+ * workset the binary would refuse is answered piped too.
  */
-async function runWorksetOpen(ctx: CommandContext, rest: string[]): Promise<number> {
+export async function runWorksetOpen(
+  ctx: CommandContext,
+  rest: string[],
+  terminal: WorksetTerminal = { interactive: isWorksetOpenInteractive() },
+): Promise<number> {
   const row = commandRow('workset')
   const open = row?.subcommands?.find((s) => s.name === 'open')
   if (row === undefined || open === undefined) throw new Error("cospec workset: no 'open' row")
-  if (storePathInOptionPosition([row, open], rest)) {
-    // Upstream declares no `--store-path` here: commander's refusal precedes
-    // any output, so it is text even under `--json`.
-    const refusal = storePathRefusal(false)
-    process[refusal.stream].write(refusal.text)
+  const refusal = prevalidateHandover(row, 'open', rest)
+  if (refusal !== undefined) {
+    process.stderr.write(refusal.message)
     return EXIT.failure
   }
   if (ctx.flags.json) return refuseOpenJson(ctx, rest)
+  if (!terminal.interactive) return openPiped(ctx, rest)
+  const parsed = parseSubcommandArgs(row, open, rest)
+  const name = parsed.ok ? parsed.parsed.positionals[0] : undefined
+  if (name === undefined) throw new Error('cospec workset open: a parsed argv named no workset')
+  if (await openIsRefused(ctx, name)) return openPiped(ctx, rest)
   const bin = await resolveWorksetOpenBin(ctx.cwd)
   const proc = Bun.spawn([process.execPath, bin, 'workset', 'open', ...rest], {
     cwd: ctx.cwd,
     stdin: 'inherit',
     stdout: 'inherit',
     stderr: 'inherit',
-    env: { ...process.env, BUN_BE_BUN: '1', OPENSPEC_TELEMETRY: '0' },
+    env: {
+      ...process.env,
+      BUN_BE_BUN: '1',
+      OPENSPEC_TELEMETRY: '0',
+      OPENSPEC_NO_COMPLETIONS: '1',
+    },
   })
   return await proc.exited
 }

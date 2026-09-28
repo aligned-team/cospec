@@ -244,9 +244,21 @@ type RunWorksetOpen = (
 ) => Promise<number>
 
 describe('workset open: the read-only pre-flight on a terminal', () => {
+  test("the binary's own interactivity test, ported", () => {
+    const interactive = exported<(env: Record<string, string>, tty: boolean) => boolean>(
+      worksetModule,
+      'isWorksetOpenInteractive',
+    )
+    expect(interactive({}, true)).toBe(true)
+    expect(interactive({}, false)).toBe(false)
+    expect(interactive({ OPEN_SPEC_INTERACTIVE: '0' }, true)).toBe(false)
+    expect(interactive({ OPEN_SPEC_INTERACTIVE: '1' }, true)).toBe(true)
+    expect(interactive({ CI: '' }, true)).toBe(false)
+  })
+
   const refusal = { stderr: "Error: Workset 'nope' is not saved on this machine.\n", exitCode: 1 }
 
-  test.failing('an unsaved name is answered through the piped call', async () => {
+  test('an unsaved name is answered through the piped call', async () => {
     const open = exported<RunWorksetOpen>(worksetModule, 'runWorksetOpen')
     const { value, spawned } = await stubbed(
       (argv) => (argv[1] === 'list' ? { stdout: '{"worksets":[],"status":[]}' } : refusal),
@@ -261,7 +273,7 @@ describe('workset open: the read-only pre-flight on a terminal', () => {
     expect(spawned.stderr).toBe(refusal.stderr)
   })
 
-  test.failing('a workset with no member folder on this machine is answered piped', async () => {
+  test('a workset with no member folder on this machine is answered piped', async () => {
     const open = exported<RunWorksetOpen>(worksetModule, 'runWorksetOpen')
     const list = { worksets: [{ name: 'w1', members: [{ name: 'm', path: '/no/such/dir' }] }] }
     const { spawned } = await stubbed(
@@ -273,7 +285,7 @@ describe('workset open: the read-only pre-flight on a terminal', () => {
     expect(spawned.piped.at(-1)).toEqual(['workset', 'open', 'w1'])
   })
 
-  test.failing('a workset with a surviving member hands the terminal over', async () => {
+  test('a workset with a surviving member hands the terminal over', async () => {
     const open = exported<RunWorksetOpen>(worksetModule, 'runWorksetOpen')
     const member = mkdtempSync(join(tmpdir(), 'cospec-member-'))
     const list = { worksets: [{ name: 'w1', members: [{ name: 'm', path: member }] }], status: [] }
@@ -288,7 +300,7 @@ describe('workset open: the read-only pre-flight on a terminal', () => {
     expect(value).toBe(0)
   })
 
-  test.failing('any other pre-flight answer is a wrapped-call violation', async () => {
+  test('any other pre-flight answer is a wrapped-call violation', async () => {
     const open = exported<RunWorksetOpen>(worksetModule, 'runWorksetOpen')
     const { error, spawned } = await stubbed(
       () => ({ stdout: '{"unexpected":true}' }),
@@ -354,26 +366,23 @@ describe('config profile: the piped pre-flight on a terminal', () => {
 // --- the workset open handover environment (ledger 6.6) --------------------------------
 
 describe('workset open: the handover environment', () => {
-  test.failing(
-    'carries OPENSPEC_NO_COMPLETIONS=1 beside telemetry off and BUN_BE_BUN',
-    async () => {
-      const open = exported<RunWorksetOpen>(worksetModule, 'runWorksetOpen')
-      const member = mkdtempSync(join(tmpdir(), 'cospec-member-'))
-      const list = {
-        worksets: [{ name: 'w1', members: [{ name: 'm', path: member }] }],
-        status: [],
-      }
-      const { spawned } = await stubbed(
-        () => ({ stdout: JSON.stringify(list) }),
-        () => open(ctxFor('/repo'), ['w1'], { interactive: true }),
-      )
-      expect(spawned.handovers).toHaveLength(1)
-      const env = spawned.handovers[0]!.env
-      expect(env.OPENSPEC_NO_COMPLETIONS).toBe('1')
-      expect(env.OPENSPEC_TELEMETRY).toBe('0')
-      expect(env.BUN_BE_BUN).toBe('1')
-    },
-  )
+  test('carries OPENSPEC_NO_COMPLETIONS=1 beside telemetry off and BUN_BE_BUN', async () => {
+    const open = exported<RunWorksetOpen>(worksetModule, 'runWorksetOpen')
+    const member = mkdtempSync(join(tmpdir(), 'cospec-member-'))
+    const list = {
+      worksets: [{ name: 'w1', members: [{ name: 'm', path: member }] }],
+      status: [],
+    }
+    const { spawned } = await stubbed(
+      () => ({ stdout: JSON.stringify(list) }),
+      () => open(ctxFor('/repo'), ['w1'], { interactive: true }),
+    )
+    expect(spawned.handovers).toHaveLength(1)
+    const env = spawned.handovers[0]!.env
+    expect(env.OPENSPEC_NO_COMPLETIONS).toBe('1')
+    expect(env.OPENSPEC_TELEMETRY).toBe('0')
+    expect(env.BUN_BE_BUN).toBe('1')
+  })
 
   test.failing('notRelayed.TIP states every spawn turns the completions tip off', () => {
     expect(notRelayed.TIP).toContain('OPENSPEC_NO_COMPLETIONS=1')

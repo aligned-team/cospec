@@ -107,18 +107,18 @@ Files: `apps/cli/src/commands/store.ts`.
 Files: `apps/cli/src/commands/workset.ts`,
 `apps/cli/test/contract/support/remedy-sources.ts`.
 
-- [ ] 4.1 Route a missing, unknown, option-shaped or `--`-guarded first token
+- [x] 4.1 Route a missing, unknown, option-shaped or `--`-guarded first token
       through `relayGroupRefusal`, and run `workset open` under `--json` as the
       piped call of design D2, and verify ledger rows 1.3–1.6 flip and pass
       (including the inverted `workset.test.ts` rows); commit
       `fix(workset): relay the binary's group refusals and refuse open --json`
-- [ ] 4.2 Spell the `workset create` and empty `workset list` next-step lines
+- [x] 4.2 Spell the `workset create` and empty `workset list` next-step lines
       through `respellLines` (`workset/open-any-time`, `workset/none-saved`),
       remove `REACHABLE_OWNED` rows 8–9 (design, parity section), and verify
       ledger row 4.2 flips and passes and `remedy-enumeration.test.ts` stays
       green; commit
       `fix(workset): spell the binary's next-step lines through cospec`
-- [ ] 4.3 Pre-validate the `workset open` handover in design D8's order (parse
+- [x] 4.3 Pre-validate the `workset open` handover in design D8's order (parse
       refusal via `prevalidateHandover`, ported `isInteractive`, the read-only
       `workset list --json` pre-flight answering an unsaved or member-less
       workset through the piped call) and add `OPENSPEC_NO_COMPLETIONS=1` to its

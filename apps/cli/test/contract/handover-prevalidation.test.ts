@@ -158,8 +158,7 @@ describe('a terminal-handover leaf refuses its argv before the handover (ledger 
   for (const [argv, json, guard] of MATRIX) {
     for (const withJson of json ? [false, true] : [false]) {
       const full = withJson ? [...argv, '--json'] : argv
-      // `workset open --json` never hands over: it runs piped (design D2).
-      const row = guard === true || (argv[0] === 'workset' && withJson) ? test : test.failing
+      const row = guard === true || argv[0] === 'workset' ? test : test.failing
       row(
         full.join(' '),
         async () => {
@@ -222,28 +221,24 @@ describe('workset open --json is refused as the binary refuses it', () => {
 
 describe('with no terminal the leaf runs piped and its answer is respelled', () => {
   for (const saved of [false, true]) {
-    test.failing(
-      `workset open ${saved ? '<saved, no tool>' : '<unsaved>'} with stdin not a TTY`,
-      async () => {
-        const root = plainRoot()
-        const member = join(root, 'member')
-        mkdirSync(member)
-        if (saved) {
-          const created = await oracle(['workset', 'create', 'w1', '--member', member], root)
-          expect(created.exitCode, detail(created)).toBe(0)
-        }
-        const argv = ['workset', 'open', saved ? 'w1' : 'nope']
-        const up = await oracle(argv, root)
-        const co = await cospec(argv, { cwd: root, env: oracleEnv(root) })
-        expect(up.exitCode).toBe(1)
-        expect(co.exitCode, detail(co)).toBe(1)
-        expect(co.stdout, detail(co)).toBe(respellRemedies(up.stdout))
-        expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
-        expect(co.stderr).toContain('cospec workset')
-        expect(BARE_OPENSPEC.test(co.stdout + co.stderr), detail(co)).toBe(false)
-      },
-      30_000,
-    )
+    test(`workset open ${saved ? '<saved, no tool>' : '<unsaved>'} with stdin not a TTY`, async () => {
+      const root = plainRoot()
+      const member = join(root, 'member')
+      mkdirSync(member)
+      if (saved) {
+        const created = await oracle(['workset', 'create', 'w1', '--member', member], root)
+        expect(created.exitCode, detail(created)).toBe(0)
+      }
+      const argv = ['workset', 'open', saved ? 'w1' : 'nope']
+      const up = await oracle(argv, root)
+      const co = await cospec(argv, { cwd: root, env: oracleEnv(root) })
+      expect(up.exitCode).toBe(1)
+      expect(co.exitCode, detail(co)).toBe(1)
+      expect(co.stdout, detail(co)).toBe(respellRemedies(up.stdout))
+      expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
+      expect(co.stderr).toContain('cospec workset')
+      expect(BARE_OPENSPEC.test(co.stdout + co.stderr), detail(co)).toBe(false)
+    }, 30_000)
   }
 
   test.failing(
