@@ -339,3 +339,11 @@ files, task 7.7, both marked POST-REBASE.
       success and failure, asserting the banner appears once on stderr; prove it
       fails with the relay's suppression removed, then mark the ledger row
       observed
+
+## 9. REVIEW ROUND 2: parity regressions found in review
+
+- [x] 9.1 REVIEW (ledger 5.15, design D8): add failing rows, then on a
+      `spawnInRoot` call whose selection fails with no explicit `--store` spawn
+      in the invocation directory (`isCwdFallback`), keeping the diagnostic for
+      an explicit `--store` and for `directory_not_found`; state it on the
+      Stores and commands pages and in `docs/stores.md`

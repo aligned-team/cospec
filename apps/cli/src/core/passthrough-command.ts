@@ -40,7 +40,9 @@ export interface PassthroughCommandOptions {
    * `--store`, for wrapped subcommands that reject `--store` (`templates`,
    * every `schema` subcommand). The binary then sees the root as its own
    * nearest root, which also reaches an enclosing root from a subdirectory —
-   * a deliberate superset of the binary, which reads its own cwd there.
+   * a deliberate superset of the binary, which reads its own cwd there. A
+   * selection that fails with no explicit `--store` spawns in the invocation
+   * directory instead, as the binary always does (`isCwdFallback`).
    */
   spawnInRoot?: boolean
   /** Upstream renders this command's failures as text under `--json`; see `PassthroughOptions.textFailure`. */
@@ -70,31 +72,47 @@ export async function callPassthrough(
     ...(ctx.flags.json ? ['--json'] : []),
     ...(ctx.flags.noColor ? ['--no-color'] : []),
   ]
-  let root: ResolvedRoot
+  const inRoot = opts.spawnInRoot === true
+  let root: ResolvedRoot | undefined
   try {
     root = await resolveRoot(ctx)
   } catch (error) {
-    // A forward row's argv (no table parse) is the binary's to refuse first.
-    const refusal =
-      error instanceof RootSelectionError && ctx.parsed === undefined
-        ? await binaryParseRefusal(opts, flags)
-        : undefined
-    if (refusal === undefined) throw error
-    return { result: refusal, code: EXIT.failure }
+    if (!(inRoot && ctx.flags.store === undefined && isCwdFallback(error))) {
+      // A forward row's argv (no table parse) is the binary's to refuse first.
+      const refusal =
+        error instanceof RootSelectionError && ctx.parsed === undefined
+          ? await binaryParseRefusal(opts, flags)
+          : undefined
+      if (refusal === undefined) throw error
+      return { result: refusal, code: EXIT.failure }
+    }
   }
-  const inRoot = opts.spawnInRoot === true
-  const threaded = [...flags, ...(inRoot ? [] : root.storeArgs)]
+  const threaded = [...flags, ...(inRoot || root === undefined ? [] : root.storeArgs)]
   const result = await forwardCall(() =>
     passthroughOpenspec(
       { command: opts.command, threaded, args: opts.args },
       {
-        cwd: inRoot ? root.base : root.cwd,
+        cwd: root === undefined ? ctx.cwd : inRoot ? root.base : root.cwd,
         expect: opts.expect,
         textFailure: opts.textFailure === true,
       },
     ),
   )
   return { result, code: result.exitCode === 0 ? EXIT.success : EXIT.failure }
+}
+
+/**
+ * Whether a `spawnInRoot` call whose selection failed runs in the invocation
+ * directory instead. Upstream's `templates` and `schema` actions never select
+ * a root — they read the directory they run in — so with no explicit
+ * `--store` a failed selection (no root with stores registered, a malformed or
+ * dangling pointer, a stale or broken `defaultStore`, an unreadable registry)
+ * answers there, as the binary does. An explicit `--store`, which the binary
+ * never takes on these commands, keeps its failure, and so does a missing
+ * `--cwd` (cospec's own; there is no directory to run in).
+ */
+function isCwdFallback(error: unknown): boolean {
+  return error instanceof RootSelectionError && error.diagnostic.code !== 'directory_not_found'
 }
 
 /**

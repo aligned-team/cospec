@@ -233,6 +233,22 @@ to one document. `templates.ts` relays through `relayRespelled`, so a failed
 answer's remedies go through the allowlist (the probed refusals name no command)
 and a success is verbatim.
 
+_Amended in review:_ spawning in the root must not make a selection failure
+fatal where the binary never selects one. Upstream's `templates` and `schema`
+actions read their own working directory, so a rootless directory with stores
+registered, a malformed or dangling pointer, or a stale or broken `defaultStore`
+all succeed there, and `main` (which spawned them in the cwd) succeeded too for
+the first two; this change made every one of them exit 1. `callPassthrough` now
+catches a `RootSelectionError` on a `spawnInRoot` call with no explicit
+`--store` (`isCwdFallback`) and spawns in `ctx.cwd` with the threaded flags and
+no `--store`, so the answer, including a parse refusal and any file
+`schema fork`/`init` writes, is the binary's in that directory. The catch
+excludes `directory_not_found` (cospec's own; there is no directory to run in)
+and any explicit `--store`, empty or not, which keeps its diagnostic: the binary
+takes no `--store` on these commands, so there is no upstream answer to fall
+back to. _Rejected:_ falling back for a store-backed root that resolves, which
+would undo the superset for the working case.
+
 **D9. Store health is checked from the filesystem in `resolveStore`.**
 `store ls --json` lists a broken store with an empty `status` (probed), so
 cospec cannot learn health from the registry spawn. After finding the registry

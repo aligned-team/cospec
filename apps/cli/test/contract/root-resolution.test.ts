@@ -23,12 +23,13 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
+  readFileSync,
   realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import {
   type ResolvedRoot,
@@ -1351,4 +1352,203 @@ describe("templates --json relays the binary's text failure (ledger 5.12)", () =
     expect(res.exitCode).toBe(0)
     expect(Object.keys(JSON.parse(res.stdout) as object)).toContain('proposal')
   })
+})
+
+// --- Ledger 5.15: templates and schema run in the cwd when selection fails without --store ---
+
+/** The directory as it was before a run: every file's bytes, for `restoreTree`. */
+function snapshotTree(dir: string): Map<string, Buffer> {
+  const out = new Map<string, Buffer>()
+  for (const rel of Object.keys(hashTree(dir))) out.set(rel, readFileSync(join(dir, rel)))
+  return out
+}
+
+/** Put `dir` back to `snapshot`: remove everything, then rewrite each file. */
+function restoreTree(dir: string, snapshot: Map<string, Buffer>): void {
+  for (const entry of readdirSync(dir)) rmSync(join(dir, entry), { recursive: true, force: true })
+  for (const [rel, bytes] of snapshot) {
+    mkdirSync(dirname(join(dir, rel)), { recursive: true })
+    writeFileSync(join(dir, rel), bytes)
+  }
+}
+
+/** The `templates`/`schema` argvs a failed selection must not stop, `--json` and human. */
+const CWD_FALLBACK_ARGVS: readonly (readonly string[])[] = [
+  ['templates', '--json'],
+  ['templates'],
+  ['schema', 'which', 'spec-driven', '--json'],
+  ['schema', 'which', 'spec-driven'],
+  ['schema', 'validate', '--json'],
+  ['schema', 'fork', 'spec-driven', 'f1', '--json'],
+  ['schema', 'init', 's1', '--description', 'd', '--json'],
+]
+
+interface SelectionFailureCase {
+  id: string
+  /** The code `list --json` fails with in the same directory. */
+  code: string
+  stores?: readonly string[]
+  setup: (sb: Sandbox) => Promise<string> | string
+}
+
+/** Every resolver hard error a rootless or pointer/defaultStore directory can raise. */
+const NO_FLAG_FAILURES: readonly SelectionFailureCase[] = [
+  { id: 'M15', code: 'no_root_with_registered_stores', setup: bare },
+  {
+    id: 'M6',
+    code: 'invalid_store_pointer',
+    setup: (sb) => repo(sb, 'm6', configOnly('store: [unclosed\n')),
+  },
+  {
+    id: 'M9',
+    code: 'unknown_store',
+    setup: (sb) => repo(sb, 'm9', configOnly('store: nope\n')),
+  },
+  {
+    id: 'M27',
+    code: 'store_identity_mismatch',
+    stores: WITH_GAMMA,
+    setup: (sb) => {
+      removeGammaMetadata(sb)
+      return repo(sb, 'm27', configOnly('store: gamma\n'))
+    },
+  },
+  {
+    id: 'M14',
+    code: 'unknown_store',
+    setup: async (sb) => {
+      await setDefaultStore(sb, 'gone')
+      return bare(sb)
+    },
+  },
+  {
+    id: 'M27 (default)',
+    code: 'store_identity_mismatch',
+    stores: WITH_GAMMA,
+    setup: async (sb) => {
+      removeGammaMetadata(sb)
+      await setDefaultStore(sb, 'gamma')
+      return bare(sb)
+    },
+  },
+  {
+    id: 'defaultStore, no stores',
+    code: 'no_registered_stores',
+    stores: [],
+    setup: async (sb) => {
+      await setDefaultStore(sb, 'gone')
+      return bare(sb)
+    },
+  },
+]
+
+describe('templates and schema run in the cwd when selection fails without --store (ledger 5.15)', () => {
+  // Upstream's `templates` and `schema` actions never select a root: they read
+  // the directory they run in. So a selection that fails with no `--store`
+  // must not fail them — cospec spawns them where the user ran the command,
+  // and answers exactly as the binary does there.
+  for (const c of NO_FLAG_FAILURES) {
+    describe(`${c.id} (${c.code})`, () => {
+      let sb!: Sandbox
+      let cwd!: string
+      let pristine!: Map<string, Buffer>
+
+      beforeAll(async () => {
+        sb = await makeSandbox(c.stores)
+        cwd = await c.setup(sb)
+        pristine = snapshotTree(cwd)
+      })
+
+      test('oracle: list --json fails selection there', async () => {
+        const o = await rootOracle(sb, cwd, ['list', '--json'])
+        expect(o.exitCode).toBe(1)
+        expect(o.diagnostic?.code).toBe(c.code)
+      })
+
+      for (const argv of CWD_FALLBACK_ARGVS) {
+        test(`cospec ${argv.join(' ')} answers as the binary does in the cwd`, async () => {
+          restoreTree(cwd, pristine)
+          const up = await oracle([...argv], sb.dir, { cwd })
+          const upTree = hashTree(cwd)
+          restoreTree(cwd, pristine)
+          const res = await cospec([...argv], { cwd, env: sb.env })
+          const tree = hashTree(cwd)
+          restoreTree(cwd, pristine)
+          expect(up.exitCode).toBe(0)
+          expect(res.exitCode).toBe(up.exitCode)
+          expect(res.stdout).toBe(up.stdout)
+          expect(res.stderr).toBe(up.stderr)
+          expect(tree).toEqual(upTree)
+        })
+      }
+    })
+  }
+})
+
+/** Every resolver hard error an explicit `--store` can raise, with the flag's argv. */
+const FLAG_FAILURES: readonly (SelectionFailureCase & { store: string[] })[] = [
+  { id: '--store nope', code: 'unknown_store', store: ['--store', 'nope'], setup: bare },
+  {
+    id: '--store nope, no stores',
+    code: 'no_registered_stores',
+    stores: [],
+    store: ['--store', 'nope'],
+    setup: bare,
+  },
+  {
+    id: 'M22 --store gamma',
+    code: 'store_identity_mismatch',
+    stores: WITH_GAMMA,
+    store: ['--store', 'gamma'],
+    setup: (sb) => {
+      removeGammaMetadata(sb)
+      return bare(sb)
+    },
+  },
+  { id: '--store=', code: 'invalid_store_id', store: ['--store='], setup: bare },
+]
+
+describe('templates and schema keep the selection failure of an explicit --store (ledger 5.15)', () => {
+  for (const c of FLAG_FAILURES) {
+    describe(c.id, () => {
+      let sb!: Sandbox
+      let cwd!: string
+
+      beforeAll(async () => {
+        sb = await makeSandbox(c.stores)
+        cwd = await c.setup(sb)
+      })
+
+      test('oracle: list --json fails with the code; templates refuses --store itself', async () => {
+        const o = await rootOracle(sb, cwd, ['list', '--json', ...c.store])
+        expect(o.diagnostic?.code).toBe(c.code)
+        const up = await oracle(['templates', ...c.store], sb.dir, { cwd })
+        expect(up.exitCode).toBe(1)
+        expect(up.stderr).toStartWith("error: unknown option '--store")
+      })
+
+      for (const argv of [
+        ['templates', '--json'],
+        ['schema', 'which', 'spec-driven', '--json'],
+        ['schema', 'init', 's1', '--description', 'd', '--json'],
+      ]) {
+        test(`cospec ${argv.join(' ')} ${c.store.join(' ')} fails with ${c.code}, writing nothing`, async () => {
+          const before = hashTree(cwd)
+          const res = await cospec([...argv, ...c.store], { cwd, env: sb.env })
+          expect(res.exitCode).toBe(1)
+          const doc = JSON.parse(res.stdout) as { status: RootDiagnostic[] }
+          expect(doc.status[0]?.code).toBe(c.code)
+          expect(hashTree(cwd)).toEqual(before)
+        })
+      }
+
+      test(`cospec templates ${c.store.join(' ')} fails with the prose diagnostic`, async () => {
+        const res = await cospec(['templates', ...c.store], { cwd, env: sb.env })
+        expect(res.exitCode).toBe(1)
+        expect(res.stdout).toBe('')
+        expect(res.stderr).toStartWith('cospec: ')
+        expect(res.stderr).toContain('\nFix: ')
+      })
+    })
+  }
 })

@@ -253,7 +253,12 @@ otherwise be unchanged, except that a remedy the wrapped binary names as a bare
 next step of a successful `schema init`, spelled only where the binary alone
 writes it. A failed `templates` call under `--json` that the wrapped binary
 answers in text, with nothing on stdout, SHALL be relayed as that answer, with
-exit 1 and no document of cospec's.
+exit 1 and no document of cospec's. When root selection fails and the user
+passed no `--store`, these commands SHALL NOT fail on the selection: the system
+SHALL spawn the wrapped call in the invocation directory, as the wrapped binary
+always runs them, so its output, exit code and files written are the binary's
+there. A selection failure under an explicit `--store`, and a missing invocation
+directory, SHALL still fail the command.
 
 #### Scenario: Templates succeed for a store selected by flag
 
@@ -283,6 +288,22 @@ exit 1 and no document of cospec's.
 - **THEN** the command exits 1 with nothing on stdout and the wrapped binary's
   `✖ Error: Schema 'nope' not found. …` on stderr, exactly as bare `openspec`
   prints it, and no wrapped-call violation
+
+#### Scenario: A failed selection without --store runs templates and schema in the cwd
+
+- **WHEN** `cospec templates --json` or `cospec schema init s1 --description d`
+  runs from a rootless directory on a machine with registered stores, or from a
+  directory whose `store:` pointer or global `defaultStore` names a missing or
+  broken store
+- **THEN** the command exits as bare `openspec` does in that directory, with the
+  same stdout, stderr and files written, and no root-selection error
+
+#### Scenario: A failed explicit --store still fails templates and schema
+
+- **WHEN** `cospec templates --json --store nope` runs and `nope` is not
+  registered
+- **THEN** the command exits 1 with the `unknown_store` diagnostic and writes
+  nothing
 
 #### Scenario: A store before the command name selects the root
 

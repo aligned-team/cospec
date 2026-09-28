@@ -44,11 +44,13 @@ Every command resolves the enclosing root from a subdirectory this way, not only
 the exact cwd. `cospec templates` and `cospec schema which|validate|fork|init`
 go further and spawn the wrapped call inside the resolved root itself — a
 deliberate superset of `openspec`, which reads its own working directory there
-and so can't see a project's schemas from a subdirectory. Every other wrapped
-call threads `--store <id>` only for an explicit `--store`; a pointer- or
-`defaultStore`-selected root spawns in the invocation cwd instead and lets the
-binary re-derive the same root itself, so relayed JSON reports upstream's own
-`declared`/`global_default` `root.source`.
+and so can't see a project's schemas from a subdirectory. When selection fails
+with no explicit `--store`, those two spawn in the invocation cwd instead and
+answer as the binary does there (`isCwdFallback`, `passthrough-command.ts`).
+Every other wrapped call threads `--store <id>` only for an explicit `--store`;
+a pointer- or `defaultStore`-selected root spawns in the invocation cwd instead
+and lets the binary re-derive the same root itself, so relayed JSON reports
+upstream's own `declared`/`global_default` `root.source`.
 
 The full user-facing account — setup, the config.yaml `store:` pointer, the
 resolution order, `cospec context`/`workset`, and what cospec owns vs. what

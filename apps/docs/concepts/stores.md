@@ -229,6 +229,15 @@ subdirectory instead of writing into the project. `cospec` resolves the
 enclosing root first and spawns there, so the same commands work from anywhere
 under the project.
 
+These two commands never fail on root selection alone, since `openspec` never
+selects a root for them. When selection fails and you passed no `--store` — no
+qualifying root with stores registered, a malformed or unregistered `store:`
+pointer, a stale or broken `defaultStore`, or an unreadable store registry —
+cospec runs them in your working directory, with the same output, exit code and
+files written as `openspec` there. With an explicit `--store` the selection
+error stands (the Errors table above), since `openspec` has no `--store` on
+these commands to fall back to.
+
 ### `--store` on the wrapped call
 
 Every wrapped call other than `templates`/`schema` (which never take it)

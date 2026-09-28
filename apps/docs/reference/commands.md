@@ -191,7 +191,10 @@ full call-class split and the precedence notes cospec prints alongside them.
 them inside the resolved root's own directory instead of the invocation working
 directory — reaching a store-backed or ancestor-walked root, and (run from a
 subdirectory) the project's own schemas, where bare `openspec` reads only its
-own working directory and so can't see either. See
+own working directory and so can't see either. When the root can't be selected
+and you passed no `--store` (no root with stores registered, a broken `store:`
+pointer or `defaultStore`, an unreadable store registry), they run in the
+invocation working directory and answer exactly as `openspec` does there. See
 [Stores](/concepts/stores#templates-and-schema-reach-every-root-by-working-directory)
 for the full account.
 
