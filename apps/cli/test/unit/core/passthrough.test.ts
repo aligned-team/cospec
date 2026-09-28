@@ -353,3 +353,68 @@ describe('callPassthrough — spawnInRoot (ledger 3.7)', () => {
     }
   })
 })
+
+describe('callPassthrough — a failed selection on a forward row (ledger 5.7)', () => {
+  // An empty `--store` fails selection before any registry read, so the only
+  // non-version spawn is the parse probe.
+  const failing = (cwd: string, parsed?: true): CommandContext => ({
+    args: [],
+    cwd,
+    flags: { json: false, noColor: false, cwd, store: '' },
+    ...(parsed === true ? { parsed: { flags: {}, positionals: [] } as never } : {}),
+  })
+
+  test("returns the binary's refusal, asked in a scratch dir with no --store", async () => {
+    const { repo } = planningRepo()
+    try {
+      const refusal = "error: unknown option '--bogus'\n"
+      await withStubbedSpawn({ stderr: refusal, exitCode: 1 }, async (args, cwd) => {
+        const { result, code } = await callPassthrough(failing(repo), {
+          command: ['schemas'],
+          args: ['--bogus'],
+        })
+        expect(code).toBe(1)
+        expect(result.stderr).toBe(refusal)
+        expect(args()).toEqual(['schemas', '--bogus'])
+        expect(cwd()).not.toBe(repo)
+        expect(cwd()).toContain('cospec-parse-')
+      })
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
+  })
+
+  test('an argv the binary accepts rethrows the selection failure', async () => {
+    const { repo } = planningRepo()
+    try {
+      await withStubbedSpawn({ stdout: 'ran\n', exitCode: 0 }, async () => {
+        const err = await callPassthrough(failing(repo), { command: ['schemas'] }).catch(
+          (error: unknown) => error,
+        )
+        expect((err as { diagnostic?: { code: string } }).diagnostic?.code).toBe('invalid_store_id')
+      })
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
+  })
+
+  test('a table row (already parsed) never asks the binary', async () => {
+    const { repo } = planningRepo()
+    try {
+      await withStubbedSpawn(
+        { stderr: "error: unknown option '--x'\n", exitCode: 1 },
+        async (args) => {
+          const err = await callPassthrough(failing(repo, true), {
+            command: ['instructions', 'proposal'],
+          }).catch((error: unknown) => error)
+          expect((err as { diagnostic?: { code: string } }).diagnostic?.code).toBe(
+            'invalid_store_id',
+          )
+          expect(args()).toEqual([])
+        },
+      )
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
+  })
+})

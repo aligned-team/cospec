@@ -1195,3 +1195,76 @@ describe('an empty --store= fails with invalid_store_id (ledger 5.5)', () => {
     expect(res.stderr).toBe(up.stderr.replace(/^(?:✖ )?Error: /, 'cospec: '))
   })
 })
+
+// --- Ledger 5.7: on a forward row the binary's parse refusal comes first ---
+
+describe("a forward row's parse refusal outranks a root-selection failure (ledger 5.7)", () => {
+  // Upstream parses the argv before its action selects a root. cospec asks
+  // the binary about a forward row's argv in a scratch directory once its own
+  // selection has failed, and relays a refusal verbatim.
+  const refused: string[][] = [
+    ['schemas', '--bogus', '--store', 'nosuch'],
+    ['schemas', '--json', '--bogus', '--store', 'nosuch'],
+    ['show', 'x', '--type', '--store', 'nosuch'],
+    ['schema', 'which', 'feat', '--bogus', '--store', 'nosuch'],
+    ['schema', 'init', 's9', '--bogus', '--store', 'nosuch'],
+    ['templates', '--bogus', '--store', 'nosuch'],
+  ]
+  for (const argv of refused) {
+    test(`cospec ${argv.join(' ')} relays the binary's refusal`, async () => {
+      const sb = await makeSandbox()
+      const cwd = bare(sb)
+      const before = hashTree(cwd)
+      const up = await oracle(argv, sb.dir, { cwd })
+      expect(up.exitCode).toBe(1)
+      expect(up.stdout).toBe('')
+      expect(up.stderr).toMatch(/^error: (?:unknown option|too many arguments)/)
+      const res = await cospec(argv, { cwd, env: sb.env })
+      expect(res.exitCode).toBe(1)
+      expect(res.stdout).toBe('')
+      expect(res.stderr).toBe(up.stderr)
+      expect(hashTree(cwd)).toEqual(before)
+    })
+  }
+
+  test("the binary's --store-path redirect comes first too, spelled through cospec", async () => {
+    const sb = await makeSandbox()
+    const cwd = bare(sb)
+    const argv = ['show', 'x', '--store-path', '/y', '--store', 'nosuch']
+    const up = await oracle(argv, sb.dir, { cwd })
+    expect(up.stderr).toContain('--store-path is not supported')
+    const res = await cospec(argv, { cwd, env: sb.env })
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toBe(respell(up.stderr))
+    expect(res.stderr).not.toMatch(BARE_OPENSPEC_COMMAND)
+  })
+
+  test('an argv the binary accepts still gets the selection failure, and writes nothing', async () => {
+    const sb = await makeSandbox()
+    const cwd = bare(sb)
+    const before = hashTree(cwd)
+    for (const argv of [
+      ['schema', 'init', 's9', '--store', 'nosuch'],
+      ['show', '--store', 'nosuch', '--bogus'],
+      ['templates', '--json', '--store', 'nosuch'],
+    ]) {
+      const res = await cospec(argv, { cwd, env: sb.env })
+      expect(res.exitCode).toBe(1)
+      if (argv.includes('--json')) {
+        const doc = JSON.parse(res.stdout) as { status: RootDiagnostic[] }
+        expect(doc.status[0]?.code).toBe('unknown_store')
+      } else expect(res.stderr).toMatch(/^cospec: unknown store 'nosuch'/)
+    }
+    expect(hashTree(cwd)).toEqual(before)
+  })
+
+  test('a table row refuses the argv itself, ahead of the selection', async () => {
+    const sb = await makeSandbox()
+    const res = await cospec(['list', '--bogus', '--store', 'nosuch'], {
+      cwd: bare(sb),
+      env: sb.env,
+    })
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toBe("cospec list: unknown option '--bogus'\n")
+  })
+})

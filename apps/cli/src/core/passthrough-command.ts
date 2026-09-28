@@ -9,11 +9,22 @@
 // wiring (WI-1); command-specific argv (item names, `--type`, …) is the
 // caller's job — this helper only owns the global-flag threading + relay.
 
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
-import { forwardCall, relayStorePathRefusal } from './forward-relay.ts'
-import { passthroughOpenspec, type OpenspecResult, type RunExpectation } from './openspec.ts'
-import { resolveRoot } from './root.ts'
+import { isUpstreamStorePathRefusal } from './command-table.ts'
+import { forwardCall, isParseRejection, relayStorePathRefusal } from './forward-relay.ts'
+import {
+  passthroughOpenspec,
+  runOpenspec,
+  threadedArgv,
+  type OpenspecResult,
+  type RunExpectation,
+} from './openspec.ts'
+import { resolveRoot, RootSelectionError, type ResolvedRoot } from './root.ts'
 
 export interface PassthroughCommandOptions {
   /** The wrapped command path (`['show']`, `['schema', 'init']`). */
@@ -53,13 +64,24 @@ export async function callPassthrough(
   ctx: CommandContext,
   opts: PassthroughCommandOptions,
 ): Promise<PassthroughCommandResult> {
-  const root = await resolveRoot(ctx)
-  const inRoot = opts.spawnInRoot === true
-  const threaded = [
+  const flags = [
     ...(ctx.flags.json ? ['--json'] : []),
     ...(ctx.flags.noColor ? ['--no-color'] : []),
-    ...(inRoot ? [] : root.storeArgs),
   ]
+  let root: ResolvedRoot
+  try {
+    root = await resolveRoot(ctx)
+  } catch (error) {
+    // A forward row's argv (no table parse) is the binary's to refuse first.
+    const refusal =
+      error instanceof RootSelectionError && ctx.parsed === undefined
+        ? await binaryParseRefusal(opts, flags)
+        : undefined
+    if (refusal === undefined) throw error
+    return { result: refusal, code: EXIT.failure }
+  }
+  const inRoot = opts.spawnInRoot === true
+  const threaded = [...flags, ...(inRoot ? [] : root.storeArgs)]
   const result = await forwardCall(() =>
     passthroughOpenspec(
       { command: opts.command, threaded, args: opts.args },
@@ -67,6 +89,35 @@ export async function callPassthrough(
     ),
   )
   return { result, code: result.exitCode === 0 ? EXIT.success : EXIT.failure }
+}
+
+/**
+ * The binary's own refusal of a forward row's argv, or undefined when the argv
+ * parses. Upstream parses before its action selects a root, so its refusal (an
+ * unknown option, a missing value, too many arguments, the `--store-path`
+ * redirect) outranks any root-selection failure. It is asked in a fresh
+ * scratch directory, never the user's — an argv that parses runs there, and
+ * `schema init`/`fork` write — with cospec's threaded flags but no `--store`
+ * (the selection is what failed; `templates` and `schema` declare none).
+ * Whatever that run answers besides a refusal is discarded: the caller
+ * reports its own root-selection failure.
+ */
+async function binaryParseRefusal(
+  opts: PassthroughCommandOptions,
+  threaded: readonly string[],
+): Promise<OpenspecResult | undefined> {
+  const scratch = mkdtempSync(join(tmpdir(), 'cospec-parse-'))
+  try {
+    const result = await runOpenspec(threadedArgv(opts.command, threaded, opts.args), {
+      cwd: scratch,
+      expect: { exitCodes: [0, 1] },
+    })
+    const refused =
+      result.exitCode !== 0 && (isParseRejection(result) || isUpstreamStorePathRefusal(result))
+    return refused ? result : undefined
+  } finally {
+    rmSync(scratch, { recursive: true, force: true })
+  }
 }
 
 /**
