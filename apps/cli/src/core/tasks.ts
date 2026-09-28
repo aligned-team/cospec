@@ -37,13 +37,30 @@ export const CHECKBOX_LIKE = /^\s*(?:[-*+]|\d{1,9}[.)])\s*\[(?:\s*\]|[^\]]*\](?!
 const CHECKBOX_PREFIX = /^\s*(?:[-*+]|\d{1,9}[.)])\s*\[[^\]]*\]\s*/
 /** A `## N. Title` group heading. */
 const GROUP_RE = /^##\s+(\d+)\.\s+(.+?)\s*$/
-/** Leading `N.M ` task numbering. */
-const TASK_NUM_RE = /^(\d+)\.(\d+)\b/
+/**
+ * A task id at the start of a task's text: `1.2`, `1.2.3`, `1.3a`, `01.1`.
+ * openspec 1.13.1's `TASK_ID` (`src/core/validation/task-numbering.js`),
+ * ported verbatim. `1.2.3` and `1.2.4` are two ids, not two copies of `1.2`.
+ */
+const TASK_NUM_RE = /^(\d+(?:\.\d+)+(?:[A-Za-z]+)?)(?=\s|$)/
+/**
+ * Any level-two heading — where a task's enclosing group changes. Upstream's
+ * `LEVEL_TWO_HEADING`: an unnumbered `## Notes` ends group numbering too, so a
+ * task under it belongs to no group.
+ */
+const LEVEL_TWO_HEADING_RE = /^ {0,3}##(?!#)(?:[ \t]+|[ \t]*$)/
+/** Upstream's `NUMBERED_GROUP_HEADING`: the group number as written (`1`, `01`). */
+const NUMBERED_GROUP_HEADING_RE = /^ {0,3}##[ \t]+(\d+)\.(?:[ \t]|$)/
 
 export interface TaskItem {
   checked: boolean
   text: string
   line: number
+  /**
+   * The number of the `## N.` group the item sits under, as written (`'1'`,
+   * `'01'`), or `undefined` above the first group or under an unnumbered one.
+   */
+  group?: string
 }
 
 export interface MalformedTask {
@@ -77,6 +94,7 @@ export function parseTasks(text: string): ParsedTasks {
   const malformed: MalformedTask[] = []
   const groups: TaskGroup[] = []
   let inFence = false
+  let currentGroup: string | undefined
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i]!
@@ -88,6 +106,8 @@ export function parseTasks(text: string): ParsedTasks {
     }
     if (inFence) continue
 
+    if (LEVEL_TWO_HEADING_RE.test(raw)) currentGroup = raw.match(NUMBERED_GROUP_HEADING_RE)?.[1]
+
     const group = raw.match(GROUP_RE)
     if (group !== null) {
       groups.push({ num: Number(group[1]), title: group[2]!, line: lineNo })
@@ -96,7 +116,12 @@ export function parseTasks(text: string): ParsedTasks {
 
     const valid = raw.match(TASK_VALID)
     if (valid !== null) {
-      items.push({ checked: valid[1] === 'x' || valid[1] === 'X', text: valid[2]!, line: lineNo })
+      items.push({
+        checked: valid[1] === 'x' || valid[1] === 'X',
+        text: valid[2]!,
+        line: lineNo,
+        group: currentGroup,
+      })
       continue
     }
 

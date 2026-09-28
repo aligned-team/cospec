@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { tasksRules } from '../../../src/core/rules/tasks.ts'
+import { parseTasks, TASK_NUM_RE } from '../../../src/core/tasks.ts'
 import { makeChange, rules } from './helpers.ts'
 
 describe('tasksRules', () => {
@@ -43,5 +44,83 @@ describe('tasksRules', () => {
   test('a tasks.md holding only widened markers also trips tasks/has-tasks', () => {
     const change = makeChange({ tasksText: '## 1. Build\n\n+ [x] 1.1 done\n' })
     expect(rules(tasksRules(change))).toEqual(['tasks/checkbox-grammar', 'tasks/has-tasks'])
+  })
+})
+
+/**
+ * Items before any group, under a numbered group, under a fenced group, under
+ * an unnumbered `## Notes`, and under a zero-padded group — plus the malformed
+ * lines the grammar rule reads.
+ */
+const GROUPED = `# Tasks
+
+- [ ] 0.1 before any group
+
+## 1. Build
+
+- [ ] 1.1 do it
+- [x] 1.2.3 deep
+-[ ] 1.3 malformed
++ [ ] 1.4 widened
+
+\`\`\`md
+## 9. Fenced group
+- [ ] 9.1 fenced
+\`\`\`
+
+## Notes
+
+- [ ] 2.1 stray under notes
+
+## 02. Padded
+
+- [X] 02.1 padded
+`
+
+describe('parseTasks item groups', () => {
+  test('each item records its enclosing numbered group as written', () => {
+    expect(parseTasks(GROUPED).items.map((i) => [i.line, i.group])).toEqual([
+      [3, undefined],
+      [7, '1'],
+      [8, '1'],
+      [19, undefined],
+      [23, '02'],
+    ])
+  })
+
+  // Captured from the parser before item groups existed.
+  test('groups, items and malformed lines are otherwise unchanged', () => {
+    const parsed = parseTasks(GROUPED)
+    expect(parsed.items.map(({ group: _group, ...item }) => item)).toEqual([
+      { checked: false, text: '0.1 before any group', line: 3 },
+      { checked: false, text: '1.1 do it', line: 7 },
+      { checked: true, text: '1.2.3 deep', line: 8 },
+      { checked: false, text: '2.1 stray under notes', line: 19 },
+      { checked: true, text: '02.1 padded', line: 23 },
+    ])
+    expect(parsed.malformed).toEqual([
+      { raw: '-[ ] 1.3 malformed', line: 9, corrected: '- [ ] 1.3 malformed' },
+      { raw: '+ [ ] 1.4 widened', line: 10, corrected: '- [ ] 1.4 widened' },
+    ])
+    expect(parsed.groups).toEqual([
+      { num: 1, title: 'Build', line: 5 },
+      { num: 2, title: 'Padded', line: 21 },
+    ])
+  })
+
+  test('a bare `## 1.` heading opens a group', () => {
+    expect(parseTasks('## 1.\n\n- [ ] 1.1 x\n').items[0]?.group).toBe('1')
+  })
+
+  test('TASK_NUM_RE reads the binary task-id shape', () => {
+    const id = (text: string) => TASK_NUM_RE.exec(text)?.[1]
+    expect(id('1.2 x')).toBe('1.2')
+    expect(id('1.2.3 x')).toBe('1.2.3')
+    expect(id('1.3a x')).toBe('1.3a')
+    expect(id('01.1 x')).toBe('01.1')
+    expect(id('1.2')).toBe('1.2')
+    expect(id('1 x')).toBeUndefined()
+    expect(id('1.2: x')).toBeUndefined()
+    expect(id('v1.2 x')).toBeUndefined()
   })
 })

@@ -39,7 +39,7 @@ trailer, never `--no-verify`).
 
 ## 3. T2 — task-id rules (`apps/cli/src/core/tasks.ts`, `apps/cli/src/core/rules/tasks.ts`, `apps/cli/test/unit/rules/tasks.test.ts`)
 
-- [ ] 3.1 Widen `TASK_NUM_RE` to the binary's task-id shape and record each
+- [x] 3.1 Widen `TASK_NUM_RE` to the binary's task-id shape and record each
       item's enclosing numbered group in `parseTasks` (design D4). Unit-test
       that `groups`, `items` and `malformed` are unchanged on the existing
       fixtures. Commit
