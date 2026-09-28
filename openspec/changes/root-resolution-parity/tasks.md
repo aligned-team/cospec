@@ -394,7 +394,7 @@ files, task 7.7, both marked POST-REBASE.
 
 ## 12. REVIEW ROUND 5: templates and schema print no resolver line
 
-- [ ] 12.1 REVIEW (ledger 5.25, design D5, D7, D8): add failing rows, then
+- [x] 12.1 REVIEW (ledger 5.25, design D5, D7, D8): add failing rows, then
       generalise `globalConfigWarning` into one `quiet` resolution option that
       suppresses every line `resolveRoot` prints (the ignored-pointer warning,
       the store banner, the invalid-global-config warning), set by

@@ -764,22 +764,23 @@ describe('resolveRoot — store banner (design D10)', () => {
 })
 
 describe('resolveRoot — quiet (ledger 5.25, design D7, D8)', () => {
-  test('prints no ignored-pointer warning, banner or invalid-JSON warning, and selects the same root', async () => {
+  test('prints no ignored-pointer warning or banner, and selects the same root', async () => {
     await withGlobalConfig(undefined, async (env) => {
       const alpha = env.store('alpha')
       const planning = layout(repoWithConfig('store: alpha\n'), { dirs: ['openspec/changes'] })
-      const cases: [string, { store?: string }, string][] = [
-        [planning, {}, canonical(planning)],
-        [repoWithConfig('store: alpha\n'), {}, canonical(alpha)],
-        [bareDir(), { store: 'alpha' }, canonical(alpha)],
-      ]
-      for (const [cwd, flags, base] of cases) {
-        const { value, stderr } = await captureStderr(() =>
-          resolveRoot({ cwd, flags }, { quiet: true }),
-        )
-        expect(value.base).toBe(base)
-        expect(stderr).toBe('')
-      }
+      const pointer = repoWithConfig('store: alpha\n')
+      const { value, stderr } = await captureStderr(async () => [
+        await resolveRoot({ cwd: planning, flags: {} }, { quiet: true }),
+        await resolveRoot({ cwd: pointer, flags: {} }, { quiet: true }),
+        await resolveRoot({ cwd: bareDir(), flags: { store: 'alpha' } }, { quiet: true }),
+      ])
+      expect(value.map((root) => root.base)).toEqual([
+        canonical(planning),
+        canonical(alpha),
+        canonical(alpha),
+      ])
+      expect(value.map((root) => root.source)).toEqual(['nearest', 'declared', 'store'])
+      expect(stderr).toBe('')
     })
     await withGlobalConfig('alpha', async (env) => {
       const alpha = env.store('alpha')
