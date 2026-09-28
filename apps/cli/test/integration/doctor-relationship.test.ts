@@ -48,10 +48,11 @@ describe('cospec doctor — delegated openspec relationship health (WI-8)', () =
     const res = await cospec(['doctor', '--store', STORE_ID, '--json'], { cwd: workspace, env })
     const parsed = JSON.parse(res.stdout) as DoctorJson
 
-    // No local `openspec/` at the invocation cwd -> the local "initialized"
-    // ERROR still fires (it is about the invocation cwd, not the store), but
-    // the delegated section must still have run and surfaced store facts.
-    expect(parsed.findings.some((f) => f.check === 'initialized')).toBe(true)
+    // No local `openspec/` at the invocation cwd, but `--store` selects the
+    // store as the operating root: cospec's own checks read the store's
+    // `openspec/` (no "initialized" ERROR), and the delegated section still
+    // surfaces store facts.
+    expect(parsed.findings.some((f) => f.check === 'initialized')).toBe(false)
     expect(parsed.findings.some((f) => f.check === 'openspec-root')).toBe(true)
     expect(parsed.findings.some((f) => f.check === 'store-git')).toBe(true)
     const gitFinding = parsed.findings.find((f) => f.check === 'store-git')

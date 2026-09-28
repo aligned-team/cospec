@@ -480,6 +480,7 @@ const NO_ROOT_CODES: ReadonlySet<string> = new Set([
 /** Root sources whose resolved base, not the invocation directory, is what doctor checks. */
 const RESOLVED_BASE: ReadonlySet<ResolvedRoot['source']> = new Set([
   'nearest',
+  'store',
   'declared',
   'global_default',
 ])
@@ -711,11 +712,10 @@ function checkGlobalProfile(findings: Finding[]): void {
 export async function run(ctx: CommandContext): Promise<number> {
   const { cwd, flags } = ctx
   const findings: Finding[] = []
-  // Resolved up front (not gated on the local `initialized` check below): the
-  // cross-repo relationship section (WI-8) targets the OPERATING ROOT, which
-  // for an explicit `--store` invocation is deliberately allowed to be a plain
-  // workspace with no `openspec/` of its own — that split is the point of
-  // `cospec doctor --store <id>` run from a bare checkout.
+  // Resolved up front (not gated on the local `initialized` check below):
+  // both the relationship section (WI-8) and cospec's own checks target the
+  // OPERATING ROOT, so `cospec doctor --store <id>` checks the store even from
+  // a bare workspace with no `openspec/` of its own.
   const selection = await selectRoot(ctx)
   const selected = selection instanceof RootSelectionError ? undefined : selection
   const root: Root = selected ?? {
@@ -724,10 +724,9 @@ export async function run(ctx: CommandContext): Promise<number> {
     storeArgs: flags.store === undefined ? [] : ['--store', flags.store],
   }
   // The local checks read the resolved root: the enclosing root the walk
-  // found from a subdirectory, and the store a declared `store:` pointer or
-  // the global `defaultStore` selects. The invocation cwd stays the base only
-  // for an explicit `--store` (a bare workspace may run it), an implicit
-  // root, or none selected.
+  // found from a subdirectory, and the store an explicit `--store`, a declared
+  // `store:` pointer or the global `defaultStore` selects. The invocation cwd
+  // stays the base only for an implicit root, or none selected.
   const base = selected !== undefined && RESOLVED_BASE.has(selected.source) ? selected.base : cwd
 
   // With no root selected there is nothing for cospec's own checks to read
