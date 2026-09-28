@@ -47,14 +47,14 @@ trailer, never `--no-verify`).
 - [x] 3.2 Add `tasks/id-mismatch` and `tasks/id-duplicate` (WARNING) with the
       unit tests of verification 2.2, then flip row 2.1. Commit
       `fix(validate): warn on mismatched and duplicate task ids`
-- [ ] 3.3 Run `mise run cospec -- validate --all --strict` on this repo and
+- [x] 3.3 Run `mise run cospec -- validate --all --strict` on this repo and
       renumber this change's own `tasks.md` if a WARNING fires (verification
       6.1). Commit only if a file changed:
       `docs(validate): renumber tasks for the task-id rules`
 
 ## 4. T3 — cross-section conflicts (`apps/cli/src/core/rules/archive.ts`, `apps/cli/test/unit/rules/archive.test.ts`)
 
-- [ ] 4.1 Invert the unit test "an ADDED re-using the exact header an earlier
+- [x] 4.1 Invert the unit test "an ADDED re-using the exact header an earlier
       REMOVED vacated is applied" to expect `archive/added-exists`, and add the
       one-finding-per-op and fold-variant unit cases (verification 3.5). Mark
       the inverted and one-finding-per-op expectations `test.failing`; the

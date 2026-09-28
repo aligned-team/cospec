@@ -443,11 +443,22 @@ The system SHALL other.
       expect(archiveRules(change(text, { living: LIVING }), { strict: true })).toHaveLength(0)
     })
 
-    test('an ADDED re-using the exact header an earlier REMOVED vacated is applied', () => {
+    // Not the RENAMED case above: openspec's validator checks each delta file's
+    // own section names first, and `Requirement present in both ADDED and
+    // REMOVED` refuses the pair before any merge runs — `openspec archive`
+    // validates first, so it aborts too. The replay alone called this applied.
+    test.failing('an ADDED re-using the exact header an earlier REMOVED vacated is refused', () => {
       const text =
         '## REMOVED Requirements\n\n- `### Requirement: Existing`\n\n' +
         `## ADDED Requirements\n\n${body('Existing', 'exist for a new reason')}`
-      expect(archiveRules(change(text, { living: LIVING }), { strict: true })).toHaveLength(0)
+      const found = archiveRules(change(text, { living: LIVING }), { strict: true })
+      expect(found.map((i) => [i.rule, i.line, i.message])).toEqual([
+        [
+          'archive/added-exists',
+          text.split('\n').indexOf('### Requirement: Existing') + 1,
+          'ADDED "Existing" is also REMOVED in this delta',
+        ],
+      ])
     })
 
     // The near-miss twin the early-sync exemption is withheld for has to be one
@@ -842,5 +853,39 @@ describe('archiveRules: case-variant requirement headers reach the gates', () =>
     const text =
       '## MODIFIED Requirements\n\n### REQUIREMENT: Existing\n\nThe system SHALL exist.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n'
     expect(rules(archiveRules(change(text, { living: LIVING })))).not.toContain('archive/no-ops')
+  })
+})
+
+// openspec's validator refuses a requirement one delta file both ADDs and
+// REMOVEs or both ADDs and MODIFIES, comparing normalised names (not folded
+// ones), before any merge runs.
+describe('archive/added-exists: cross-section conflicts in one delta', () => {
+  const block = (name: string, shall: string) =>
+    `### Requirement: ${name}\n\nThe system SHALL ${shall}.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n`
+
+  test.failing('an ADDED with a differing body plus a MODIFIED of one name is one finding', () => {
+    const text =
+      `## ADDED Requirements\n\n${block('Existing', 'exist differently')}\n` +
+      `## MODIFIED Requirements\n\n${block('Existing', 'exist better')}`
+    const found = archiveRules(change(text, { living: LIVING }), { strict: true })
+    expect(found.map((i) => [i.rule, i.line, i.message])).toEqual([
+      ['archive/added-exists', 3, 'ADDED "Existing" is also MODIFIED in this delta'],
+    ])
+  })
+
+  test('a fold-variant REMOVED+ADDED is no cross-section conflict', () => {
+    const text =
+      '## REMOVED Requirements\n\n- `### Requirement: Existing`\n\n' +
+      `## ADDED Requirements\n\n${block('EXISTING', 'exist anew')}`
+    expect(archiveRules(change(text, { living: LIVING }), { strict: true })).toEqual([])
+  })
+
+  test('a fold-variant MODIFIED+ADDED is the fold collision, not a cross-section one', () => {
+    const text =
+      `## MODIFIED Requirements\n\n${block('Existing', 'exist better')}\n` +
+      `## ADDED Requirements\n\n${block('EXISTING', 'exist anew')}`
+    const found = archiveRules(change(text, { living: LIVING }), { strict: true })
+    expect(found.map((i) => i.rule)).toEqual(['archive/added-exists'])
+    expect(found[0]?.message).toContain('differs only in case or spacing from "Existing"')
   })
 })
