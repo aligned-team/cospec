@@ -378,3 +378,16 @@ files, task 7.7, both marked POST-REBASE.
       `dist/core/store/*.js`) into a prefixed, respelled `RootSelectionError`;
       any other registry read failure (an errno such as `EACCES`) fails with the
       binary's message, unprefixed, and exit 1
+
+## 11. REVIEW ROUND 4: one read helper for the resolver
+
+- [ ] 11.1 REVIEW (ledger 5.22, 5.23, design D9): add failing rows, then route
+      every filesystem read the resolver performs through one helper (ENOENT is
+      absent; any other errno is a raw `RootSelectionError` carrying Node's
+      message, no target, no fix, unprefixed by `withOrigin`), apply the
+      binary's per-file semantics on top (global config and pointer read as
+      upstream reads them), and replace `RawRegistryError` with the general
+      subclass
+- [ ] 11.2 REVIEW (ledger 5.24, design D5, D8): add failing rows, then stop
+      `templates` and `schema` printing the invalid-global-config warning, and
+      update the Stores page, the commands page and `docs/stores.md`

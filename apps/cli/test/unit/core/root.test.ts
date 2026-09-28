@@ -1093,3 +1093,157 @@ describe('rootSelectionDocument (design D12)', () => {
     expect(Object.keys(doc.status[0]!)).not.toContain('fix')
   })
 })
+
+/** Await a resolver call expected to fail raw (ledger 5.23), checking its diagnostic. */
+async function rawRejection(promise: Promise<unknown>, message: string): Promise<void> {
+  let caught: unknown
+  try {
+    await promise
+  } catch (error) {
+    caught = error
+  }
+  expect(caught).toBeInstanceOf(RootSelectionError)
+  const error = caught as RootSelectionError
+  expect(error.message).toBe(message)
+  expect(error.diagnostic).toEqual({ severity: 'error', code: 'store_error', message })
+}
+
+const storeMetadataFile = (root: string): string => join(root, '.openspec-store', 'store.yaml')
+
+describe('resolveRoot — raw read failures (ledger 5.23)', () => {
+  // Upstream rethrows every read failure but ENOENT raw from the selected
+  // store's reads (`readOptionalStoreMetadataState`, `inspectOpenSpecRoot`'s
+  // `pathKind`): no origin prefix, no target, no fix, and Node's message. The
+  // pointer read and the ancestor walk treat every failure as upstream does:
+  // an unreadable pointer is malformed, an unreadable directory not a root.
+  const RUNNING_AS_ROOT = process.getuid?.() === 0
+  const maybe = RUNNING_AS_ROOT ? test.skip : test
+
+  test('store.yaml as a directory fails with the errno message naming the path', async () => {
+    await withGlobalConfig(undefined, async (env) => {
+      const root = env.store('gamma')
+      rmSync(storeMetadataFile(root))
+      mkdirSync(storeMetadataFile(root))
+      await rawRejection(
+        resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }),
+        `EISDIR: illegal operation on a directory, read '${storeMetadataFile(root)}'`,
+      )
+    })
+  }, 15_000)
+
+  maybe(
+    'store.yaml at mode 000 fails with EACCES',
+    async () => {
+      await withGlobalConfig(undefined, async (env) => {
+        const root = env.store('gamma')
+        chmodSync(storeMetadataFile(root), 0o000)
+        try {
+          await rawRejection(
+            resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }),
+            `EACCES: permission denied, open '${storeMetadataFile(root)}'`,
+          )
+        } finally {
+          chmodSync(storeMetadataFile(root), 0o644)
+        }
+      })
+    },
+    15_000,
+  )
+
+  test('.openspec-store as a file fails with ENOTDIR', async () => {
+    await withGlobalConfig(undefined, async (env) => {
+      const root = env.store('gamma')
+      rmSync(join(root, '.openspec-store'), { recursive: true })
+      writeFileSync(join(root, '.openspec-store'), '')
+      await rawRejection(
+        resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }),
+        `ENOTDIR: not a directory, open '${storeMetadataFile(root)}'`,
+      )
+    })
+  }, 15_000)
+
+  test('store.yaml as a symlink loop fails with ELOOP', async () => {
+    await withGlobalConfig(undefined, async (env) => {
+      const root = env.store('gamma')
+      rmSync(storeMetadataFile(root))
+      symlinkSync('store.yaml', storeMetadataFile(root))
+      await rawRejection(
+        resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }),
+        `ELOOP: too many symbolic links encountered, open '${storeMetadataFile(root)}'`,
+      )
+    })
+  }, 15_000)
+
+  maybe(
+    "a store whose openspec/ is mode 000 fails with the stat's EACCES",
+    async () => {
+      await withGlobalConfig(undefined, async (env) => {
+        const root = env.store('gamma')
+        chmodSync(join(root, 'openspec'), 0o000)
+        try {
+          await rawRejection(
+            resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }),
+            `EACCES: permission denied, stat '${join(root, 'openspec', 'config.yaml')}'`,
+          )
+        } finally {
+          chmodSync(join(root, 'openspec'), 0o755)
+        }
+      })
+    },
+    15_000,
+  )
+
+  test('a raw failure through a pointer or defaultStore carries no origin prefix', async () => {
+    await withGlobalConfig('gamma', async (env) => {
+      const root = env.store('gamma')
+      rmSync(storeMetadataFile(root))
+      mkdirSync(storeMetadataFile(root))
+      const message = `EISDIR: illegal operation on a directory, read '${storeMetadataFile(root)}'`
+      await rawRejection(
+        resolveRoot({ cwd: repoWithConfig('store: gamma\n'), flags: JSON_FLAGS }),
+        message,
+      )
+      await rawRejection(resolveRoot({ cwd: bareDir(), flags: JSON_FLAGS }), message)
+    })
+  }, 15_000)
+
+  test('a pointer file that cannot be read is malformed, as upstream reads it', async () => {
+    await withGlobalConfig(undefined, async (env) => {
+      env.store('gamma')
+      const files = ['config.yaml', 'config.yml']
+      const dirs = files.map((file) => {
+        const dir = repoWithConfig(undefined)
+        mkdirSync(join(dir, 'openspec', file), { recursive: true })
+        return dir
+      })
+      const results = await Promise.all(
+        dirs.map((dir) => rejection(resolveRoot({ cwd: dir, flags: JSON_FLAGS }))),
+      )
+      for (const [i, { diagnostic }] of results.entries()) {
+        expect(diagnostic.code).toBe('invalid_store_pointer')
+        expect(diagnostic.message).toBe(
+          `Invalid store declaration in ${join(canonical(dirs[i]!), 'openspec', files[i]!)}: ` +
+            'the config file could not be read as YAML.',
+        )
+      }
+    })
+  }, 15_000)
+
+  maybe(
+    'an openspec/ the walk cannot read is not a root, as upstream walks',
+    async () => {
+      await withGlobalConfig(undefined, async () => {
+        const dir = layout(bareDir(), { dirs: ['openspec/changes'] })
+        chmodSync(join(dir, 'openspec'), 0o000)
+        try {
+          const root = await resolveRoot({ cwd: dir, flags: JSON_FLAGS })
+          expect(root.source).toBe('implicit')
+          expect(root.base).toBe(canonical(dir))
+        } finally {
+          chmodSync(join(dir, 'openspec'), 0o755)
+        }
+      })
+    },
+    15_000,
+  )
+})
