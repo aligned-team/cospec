@@ -245,8 +245,15 @@ marked with a new `FlagSpec.hidden` attribute that `offeredFlags` omits
 1. `new change` only: `--initiative` / `--areas` refused first with the probed
    message, text or the `{change: null, status}` document with the probed code —
    before name validation and root resolution, as upstream.
-2. The type is `--schema`, else the resolved root's `config.yaml` / `config.yml`
-   `schema:`, else `spec-driven` — upstream's `root.defaultSchema`.
+2. The type is `--schema`; without one, the wrapped `new change` runs with no
+   `--schema` so the binary resolves `config.yaml` / `config.yml` `schema:`,
+   else `spec-driven` (upstream's `root.defaultSchema`), and prints its own
+   warning for each config field it drops, relayed from its stderr; the type is
+   read back from the written `.openspec.yaml`. cospec keeps no copy of the
+   binary's config reader, so its warnings cannot drift. Consequence: a config
+   default naming a cospec type the repo has no schema for gets the binary's
+   `Unknown schema '<t>'. Available: …` instead of cospec's pre-delegation "not
+   installed" refusal (which `new <type>` and an explicit `--schema` keep).
 3. From there the existing lanes run unchanged (cospec type → installed check,
    slug grammar, active/archived collision, delegate, verify, stamp
    `schemaVersion: 2`; legacy schema → delegated legacy lane). A `--schema` that

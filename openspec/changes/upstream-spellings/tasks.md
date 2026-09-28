@@ -232,7 +232,7 @@ a time. Group 12 waits for the rebase in group 11.
       `test(cli): pin round-3 upstream-spellings rows against the binary`
 - [x] 16.2 The long-option hint ports commander's `suggestSimilar` (ledger 7.5);
       commit `fix(cli): hint an unknown long option as commander does`
-- [ ] 16.3 `new change` with no `--schema` lets the binary resolve `config.yaml`
+- [x] 16.3 `new change` with no `--schema` lets the binary resolve `config.yaml`
       (ledger 1.13); commit
       `fix(cli): let the binary resolve new change's default schema`
 - [ ] 16.4 Record the round-3 evidence (ledger 1.13, 7.5); commit

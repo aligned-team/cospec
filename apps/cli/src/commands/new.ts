@@ -10,7 +10,7 @@ import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join, relative } from 'node:path'
 
-import { parse as parseYaml, stringify as stringifyYaml, YAMLError } from 'yaml'
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
@@ -172,18 +172,7 @@ function respellReason(reason: string): string {
  * binary said nothing.
  */
 export function wrappedNewReason(result: OpenspecResult): string | undefined {
-  let reason: string | undefined
-  try {
-    // A stat warning line (EACCES, ENOTDIR) can precede the document on stdout.
-    const start = result.stdout.search(/^\{/m)
-    const doc = JSON.parse(result.stdout.slice(Math.max(start, 0))) as {
-      status?: { message?: unknown }[]
-    } | null
-    const message = doc?.status?.[0]?.message
-    if (typeof message === 'string') reason = message
-  } catch (err) {
-    if (!(err instanceof SyntaxError)) throw err
-  }
+  let reason = documentMessage(result.stdout)
   if (reason === undefined || reason.trim().length === 0) {
     const stderr = result.stderr.replace(ANSI_SGR, '')
     const marker = stderr.indexOf('✖ Error:')
@@ -191,6 +180,22 @@ export function wrappedNewReason(result: OpenspecResult): string | undefined {
   }
   reason = reason.trim()
   return reason.length === 0 ? undefined : respellReason(reason)
+}
+
+/** The first status entry's message of the wrapped `new change --json` document on `stdout`. */
+function documentMessage(stdout: string): string | undefined {
+  try {
+    // A stat warning line (EACCES, ENOTDIR) can precede the document on stdout.
+    const start = stdout.search(/^\{/m)
+    const doc = JSON.parse(stdout.slice(Math.max(start, 0))) as {
+      status?: { message?: unknown }[]
+    } | null
+    const message = doc?.status?.[0]?.message
+    return typeof message === 'string' ? message : undefined
+  } catch (err) {
+    if (!(err instanceof SyntaxError)) throw err
+    return undefined
+  }
 }
 
 /** The environment and home directory `run` finds the user-level schema directory from. */
@@ -234,41 +239,6 @@ function refuseRemovedOption(parsed: ParsedArgs, json: boolean): number | undefi
     process.stdout.write(`${JSON.stringify({ change: null, status }, null, 2)}\n`)
   } else process.stderr.write(`✖ Error: ${removed.message}\n`)
   return EXIT.failure
-}
-
-/**
- * The root's default schema, as upstream's `new change` resolves it with no
- * `--schema` (`readProjectConfig` in `core/project-config.js`):
- * `openspec/config.yaml`'s `schema:` (else `config.yml`'s), else
- * `spec-driven`. A config it cannot use falls back to `spec-driven` with the
- * binary's own warning on stderr: one it cannot read or parse, one that is not
- * a YAML object, or one whose `schema:` is not a non-empty string.
- */
-export function defaultSchema(base: string): string {
-  for (const name of ['config.yaml', 'config.yml']) {
-    const path = join(openspecDir(base), name)
-    if (!existsSync(path)) continue
-    let doc: unknown
-    try {
-      doc = parseYaml(readFileSync(path, 'utf8'))
-    } catch (err) {
-      const unreadable = err instanceof Error && 'code' in err
-      if (!(err instanceof YAMLError) && !unreadable) throw err
-      const reason = (err as Error).message.split('\n')[0]
-      process.stderr.write(`Warning: could not parse ${path} (${reason}); ignoring it.\n`)
-      return 'spec-driven'
-    }
-    if (typeof doc !== 'object' || doc === null) {
-      process.stderr.write('openspec/config.yaml is not a valid YAML object\n')
-      return 'spec-driven'
-    }
-    const schema = (doc as { schema?: unknown }).schema
-    if (typeof schema === 'string' && schema.length > 0) return schema
-    if (schema !== undefined)
-      process.stderr.write("Invalid 'schema' field in config (must be non-empty string)\n")
-    return 'spec-driven'
-  }
-  return 'spec-driven'
 }
 
 /** The wrapped `new change --json` document's two objects, lifted into cospec's own. */
@@ -357,14 +327,18 @@ export async function run(ctx: CommandContext, user: UserSchemaHome = {}): Promi
   const description = flagValue(parsed, '--description')
   const goal = flagValue(parsed, '--goal')
 
-  let type: string
+  // Undefined on upstream's spelling with no `--schema` (an empty one is none,
+  // as the binary's `if (options.schema)` reads it): the wrapped call then
+  // takes no `--schema`, so the binary resolves config.yaml's default itself
+  // and warns about each field it drops, and the type is read back from the
+  // change it writes.
+  let type: string | undefined
   let slug: string | undefined
   let derivedDescription = description
 
   if (upstreamSpelling) {
-    // An empty `--schema` is no schema, as the binary's `if (options.schema)` reads it.
     const schema = flagValue(parsed, '--schema')
-    type = schema !== undefined && schema.length > 0 ? schema : defaultSchema(base)
+    type = schema !== undefined && schema.length > 0 ? schema : undefined
     slug = positionals[0]!
   } else if (freeForm) {
     // Form 2: "<type>: <free text>".
@@ -393,13 +367,17 @@ export async function run(ctx: CommandContext, user: UserSchemaHome = {}): Promi
   // A name that resolves nowhere keeps cospec's unknown-type table on
   // `new <type>`; on upstream's `new change --schema` spelling it is
   // delegated, so the binary's own `Schema '<s>' not found` answer is relayed.
-  const legacy = !isCospecType(type)
-  if (legacy && !upstreamSpelling && resolveSchema(base, type).kind !== 'legacy')
-    return reportUnknownType(type, flags.json)
+  if (type !== undefined && !upstreamSpelling && !isCospecType(type)) {
+    if (resolveSchema(base, type).kind !== 'legacy') return reportUnknownType(type, flags.json)
+  }
   // A cospec type the repo has no schema for (an OpenSpec repo cospec has not
   // adopted yet) is the user's setup to fix, not a wrapped-call failure: the
   // wrapped `new change` would refuse it as `Schema '<type>' not found`.
-  if (isCospecType(type) && !cospecSchemaInstalled(base, type, user.env, user.home)) {
+  if (
+    type !== undefined &&
+    isCospecType(type) &&
+    !cospecSchemaInstalled(base, type, user.env, user.home)
+  ) {
     return refuse(
       root.store !== undefined
         ? `schema '${type}' is not installed in store '${root.store}' — run 'cospec init ${root.base}' first`
@@ -424,7 +402,7 @@ export async function run(ctx: CommandContext, user: UserSchemaHome = {}): Promi
   // Delegate + verify the written schema pointer (never trust the exit code).
   // `--json` so a refusal carries the binary's reason as a document message,
   // and a success its `change` and `root` objects.
-  const args = [slug, '--schema', type, '--json']
+  const args = [slug, ...(type !== undefined ? ['--schema', type] : []), '--json']
   if (derivedDescription !== undefined) args.push('--description', derivedDescription)
   if (goal !== undefined) args.push('--goal', goal)
   let wrapped: WrappedChange
@@ -437,17 +415,31 @@ export async function run(ctx: CommandContext, user: UserSchemaHome = {}): Promi
           const yaml = readOpenspecYaml(`${changesDir(base)}/${slug}`)
           if (yaml === undefined)
             return `the wrapped OpenSpec \`new change\` did not create a valid .openspec.yaml for '${slug}'`
-          if (yaml.schema !== type)
-            return `created change has schema '${yaml.schema}', expected '${type}'`
-          if (wrappedDocument(wrappedRun.stdout) === undefined)
+          const doc = wrappedDocument(wrappedRun.stdout)
+          if (doc === undefined)
             return 'the wrapped OpenSpec `new change --json` printed no {change, root} document'
+          const expected = type ?? doc.change['schema']
+          if (yaml.schema !== expected)
+            return `created change has schema '${yaml.schema}', expected '${String(expected)}'`
         },
       },
     })
+    if (type === undefined) process.stderr.write(result.stderr)
     wrapped = wrappedDocument(result.stdout)!
+    type = readOpenspecYaml(`${changesDir(base)}/${slug}`)!.schema
   } catch (err) {
     if (!(err instanceof OpenspecCallError)) return refuse((err as Error).message, flags.json)
     // A post-condition failure (exit 0) keeps cospec's own account of it.
+    // The binary's config warnings precede a refusal it answers with a
+    // document; without one, its stderr is the reason itself.
+    const documented = documentMessage(err.result.stdout)?.trim()
+    if (
+      type === undefined &&
+      err.result.exitCode !== 0 &&
+      documented !== undefined &&
+      documented !== ''
+    )
+      process.stderr.write(err.result.stderr)
     const reason = err.result.exitCode === 0 ? undefined : wrappedNewReason(err.result)
     return refuse(reason ?? err.message, flags.json)
   }
@@ -457,7 +449,7 @@ export async function run(ctx: CommandContext, user: UserSchemaHome = {}): Promi
   const change = upstreamSpelling ? wrapped.change : slug
   const dir = `openspec/changes/${slug}`
 
-  if (legacy) {
+  if (!isCospecType(type)) {
     // Legacy schemas never carry a cospec `schemaVersion` (that stamp is a
     // cospec-typed-change concept) and have no typed artifact plan to print.
     const note =

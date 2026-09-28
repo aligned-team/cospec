@@ -71,17 +71,21 @@ then runs `cospec init` on the current directory, reading `--tool <id>` as
 SHALL create a change named `<name>`. `--schema` SHALL name a cospec type or a
 legacy schema, with the same checks and lanes as `cospec new <type> <name>`;
 without it (or given as `--schema ''`, which upstream reads as absent) the
-root's `config.yaml` `schema:` default SHALL apply, else `spec-driven`, as
-upstream resolves it. A config upstream cannot use SHALL fall back to
-`spec-driven` with upstream's own warning on stderr, in text and under `--json`
-alike (stdout staying one document): one it cannot read or parse
-(`Warning: could not parse <path> (<reason>); ignoring it.`), one that is not a
-YAML object (`openspec/config.yaml is not a valid YAML object`), or one whose
-`schema:` is not a non-empty string
-(`Invalid 'schema' field in config (must be non-empty string)`). A `--schema`
-the binary cannot resolve SHALL be refused with nothing written. `--goal <text>`
-SHALL be stored as `goal:` in the change's `.openspec.yaml`, on this spelling
-and on `cospec new <type> <slug>`. `--initiative <x>` and `--areas <x>` SHALL be
+wrapped `new change` SHALL run with no `--schema`, so the binary resolves the
+root's `config.yaml` `schema:` default (else `spec-driven`) itself, and the
+change's type SHALL be the `schema:` read back from the `.openspec.yaml` it
+writes (which SHALL equal its document's `change.schema`). Every warning the
+binary prints on stderr for a config field it drops SHALL reach cospec's stderr
+as written, in text and under `--json` alike (stdout staying one document): a
+config it cannot read or parse, one that is not a YAML object, a `schema:` that
+is not a non-empty string (each falling back to `spec-driven`), and an invalid
+`context:`, `rules:` (or empty rule strings), `operations:`, `references:`,
+`store:` or `githubCopilot:`. A default the binary cannot find (a
+whitespace-only `schema:`, or a cospec type the repo has no schema for) SHALL be
+answered with the binary's own refusal, nothing written. A `--schema` the binary
+cannot resolve SHALL be refused with nothing written. `--goal <text>` SHALL be
+stored as `goal:` in the change's `.openspec.yaml`, on this spelling and on
+`cospec new <type> <slug>`. `--initiative <x>` and `--areas <x>` SHALL be
 refused, before any other action-level check, with upstream's removed-option
 message on stderr (text) or its `{change: null, status: [...]}` document
 carrying code `initiative_option_removed` or `areas_option_removed` (`--json`),
@@ -122,6 +126,22 @@ call's own document, with cospec's `type`, `dir` and `artifacts` beside them;
 - **THEN** stderr carries the binary's warning line for that config, `foo` is
   created on `spec-driven`, exit 0, and under `--json` stdout is one document
   whose `change` equals the binary's
+
+#### Scenario: The binary's field warnings reach stderr
+
+- **WHEN** `cospec new change foo` (or with `--json`) runs where `config.yaml`
+  has an invalid `context:`, `rules:`, `operations:`, `references:`, `store:` or
+  `githubCopilot:` field
+- **THEN** cospec's stderr is the binary's stderr for the same argv under
+  `--json`, `foo` is created on `spec-driven`, exit 0
+
+#### Scenario: A whitespace-only schema is the binary's refusal
+
+- **WHEN** `cospec new change foo` (or with `--json`) runs where `config.yaml`
+  says `schema: "  "`
+- **THEN** it exits 1 with `cospec new: Unknown schema '  '. Available: …` (or,
+  under `--json`, the binary's own `{change: null, status}` document), and the
+  tree is unchanged
 
 #### Scenario: An unknown --schema leaves nothing behind
 

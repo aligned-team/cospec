@@ -532,55 +532,58 @@ describe('1.13 new change reads an empty --schema and a broken config.yaml as th
   for (const [name, config] of FIELD_CONFIGS) {
     for (const asJson of [false, true]) {
       const argv = ['new', 'change', 'foo', ...(asJson ? ['--json'] : [])]
-      test.failing(
-        `${argv.join(' ')} on ${name} config.yaml: the binary's own warnings`,
-        async () => {
-          const coRoot = copyOf(upstreamTemplate)
-          const upRoot = copyOf(upstreamTemplate)
-          for (const root of [coRoot, upRoot])
-            writeFileSync(join(root, 'openspec', 'config.yaml'), config)
-          const u = await runUpstream(['new', 'change', 'foo', '--json'], upRoot)
-          expect(u.exitCode, detail('openspec', u)).toBe(0)
-          expect(u.stderr.length, detail('openspec', u)).toBeGreaterThan(0)
-          const c = await runCospec(argv, coRoot)
-          expect(c.exitCode, detail('cospec', c)).toBe(0)
-          expect(neutral(c.stderr, coRoot)).toBe(neutral(u.stderr, upRoot))
-          expect(metadata(coRoot, 'foo')['schema']).toBe('spec-driven')
-          if (asJson) expect(documentCount(c.stdout), c.stdout).toBe(1)
-        },
-        30_000,
-      )
-    }
-  }
-
-  // Zod's `min(1)` keeps a whitespace-only schema, which the binary then fails to find.
-  for (const asJson of [false, true]) {
-    const argv = ['new', 'change', 'foo', ...(asJson ? ['--json'] : [])]
-    test.failing(
-      `${argv.join(' ')} on a whitespace schema: the binary's refusal`,
-      async () => {
+      test(`${argv.join(' ')} on ${name} config.yaml: the binary's own warnings`, async () => {
         const coRoot = copyOf(upstreamTemplate)
         const upRoot = copyOf(upstreamTemplate)
         for (const root of [coRoot, upRoot])
-          writeFileSync(join(root, 'openspec', 'config.yaml'), 'schema: "  "\n')
+          writeFileSync(join(root, 'openspec', 'config.yaml'), config)
+        const u = await runUpstream(['new', 'change', 'foo', '--json'], upRoot)
+        expect(u.exitCode, detail('openspec', u)).toBe(0)
+        expect(u.stderr.length, detail('openspec', u)).toBeGreaterThan(0)
+        const c = await runCospec(argv, coRoot)
+        expect(c.exitCode, detail('cospec', c)).toBe(0)
+        expect(neutral(c.stderr, coRoot)).toBe(neutral(u.stderr, upRoot))
+        expect(metadata(coRoot, 'foo')['schema']).toBe('spec-driven')
+        if (asJson) expect(documentCount(c.stdout), c.stdout).toBe(1)
+      }, 30_000)
+    }
+  }
+
+  // A default the binary cannot find is its refusal, after any field warning:
+  // Zod's `min(1)` keeps a whitespace-only schema, and an upstream root has no
+  // cospec type installed.
+  for (const [name, config, message] of [
+    ['a whitespace schema:', 'schema: "  "\n', "Unknown schema '  '. Available: spec-driven"],
+    [
+      'an uninstalled cospec type and an invalid context:',
+      'schema: feat\ncontext: [1]\n',
+      "Unknown schema 'feat'. Available: spec-driven",
+    ],
+  ] as const) {
+    for (const asJson of [false, true]) {
+      const argv = ['new', 'change', 'foo', ...(asJson ? ['--json'] : [])]
+      test(`${argv.join(' ')} on ${name} config.yaml: the binary's refusal`, async () => {
+        const coRoot = copyOf(upstreamTemplate)
+        const upRoot = copyOf(upstreamTemplate)
+        for (const root of [coRoot, upRoot])
+          writeFileSync(join(root, 'openspec', 'config.yaml'), config)
         const u = await runUpstream(['new', 'change', 'foo', '--json'], upRoot)
         expect(u.exitCode).toBe(1)
         const upDoc = json(u)
-        expect(statusMessage(upDoc)).toBe("Unknown schema '  '. Available: spec-driven")
+        expect(statusMessage(upDoc)).toBe(message)
         const before = treeHash(coRoot)
         const c = await runCospec(argv, coRoot)
         expect(c.exitCode, detail('cospec', c)).toBe(1)
         if (asJson) {
           expect(json(c)).toEqual(upDoc)
-          expect(c.stderr).toBe('')
+          expect(c.stderr).toBe(u.stderr)
         } else {
           expect(c.stdout).toBe('')
-          expect(c.stderr).toBe(`cospec new: ${statusMessage(upDoc)}\n`)
+          expect(c.stderr).toBe(`${u.stderr}cospec new: ${message}\n`)
         }
         expect(treeHash(coRoot)).toEqual(before)
-      },
-      30_000,
-    )
+      }, 30_000)
+    }
   }
 
   for (const asJson of [false, true]) {
