@@ -321,7 +321,7 @@ describe('config profile: the piped pre-flight on a terminal', () => {
     return plan
   }
 
-  test.failing('an unreadable config is relayed respelled, never handed over', async () => {
+  test('an unreadable config is relayed respelled, never handed over', async () => {
     const handover = exported<RunHandover>(configModule, 'runHandover')
     const stderr =
       'Error: /home/u/.config/openspec/config.json could not be parsed, so it was left unchanged.\n' +
@@ -338,7 +338,7 @@ describe('config profile: the piped pre-flight on a terminal', () => {
     expect(BARE_OPENSPEC.test(spawned.stderr)).toBe(false)
   })
 
-  test.failing('the interactive-mode answer clears the handover', async () => {
+  test('the interactive-mode answer clears the handover', async () => {
     const handover = exported<RunHandover>(configModule, 'runHandover')
     const { value, spawned } = await stubbed(
       () => ({ stderr: `${upstream('config/profile-interactive-required')}\n`, exitCode: 1 }),
@@ -349,7 +349,7 @@ describe('config profile: the piped pre-flight on a terminal', () => {
     expect(value).toBe(0)
   })
 
-  test.failing('any other pre-flight answer is a wrapped-call violation', async () => {
+  test('any other pre-flight answer is a wrapped-call violation', async () => {
     const handover = exported<RunHandover>(configModule, 'runHandover')
     const { error, spawned } = await stubbed(
       () => ({ stdout: 'something else\n', exitCode: 0 }),

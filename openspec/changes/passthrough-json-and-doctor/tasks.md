@@ -155,18 +155,18 @@ Files: `apps/cli/src/commands/doctor.ts`.
 Files: `apps/cli/src/commands/config.ts`,
 `apps/cli/test/contract/support/remedy-sources.ts`.
 
-- [ ] 6.1 Return the relayed commander parse rejection before any cospec
+- [x] 6.1 Return the relayed commander parse rejection before any cospec
       envelope in `runPiped`, and verify ledger row 5.1 flips and passes; commit
       `fix(config): relay the binary's parse refusal ahead of the JSON envelope`
-- [ ] 6.2 Answer a missing subcommand with cospec's `config` help on stderr,
+- [x] 6.2 Answer a missing subcommand with cospec's `config` help on stderr,
       exit 1, and relay the binary's `--json` refusal under `--json` (design
       D7), and verify ledger rows 5.2 and 5.3 flip and pass; commit
       `fix(config): print cospec's config help when no subcommand is given`
-- [ ] 6.3 Spell `config profile <preset>`'s next-step line through
+- [x] 6.3 Spell `config profile <preset>`'s next-step line through
       `respellLines` (`config/profile-applied`), remove `REACHABLE_OWNED` row
       10, and verify ledger row 4.3 flips and passes; commit
       `fix(config): spell the profile preset's next step through cospec`
-- [ ] 6.4 Pre-validate the three config handover leaves in design D8's order
+- [x] 6.4 Pre-validate the three config handover leaves in design D8's order
       (parse refusal ahead of the `--json` envelope; `config profile` piped when
       stdout is not a TTY; the piped `config profile` pre-flight for an
       unreadable config), and verify ledger rows 6.1 (config leaves), 6.2, 6.4

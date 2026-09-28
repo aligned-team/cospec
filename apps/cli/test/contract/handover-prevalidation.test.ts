@@ -120,21 +120,15 @@ async function expectPrevalidated(argv: string[]): Promise<Recorded> {
 
 // --- the refusal matrix (ledger 6.1, 6.2) ----------------------------------------
 
-/**
- * [argv, whether a trailing `--json` keeps it a refusal of the same kind,
- * whether cospec already refused it before this change]. The `--store-path`
- * rows were answered before any handover already (unknown-option-contract
- * design decision 2), and `config profile a b` names a preset, so it was
- * never a handover.
- */
-const MATRIX: readonly (readonly [argv: string[], json: boolean, guard?: true])[] = [
+/** [argv, whether a trailing `--json` keeps it a refusal of the same kind]. */
+const MATRIX: readonly (readonly [argv: string[], json: boolean])[] = [
   [['workset', 'open', 'x', '--bogus'], true],
   // A trailing `--json` would be `--tool`'s value.
   [['workset', 'open', 'x', '--tool'], false],
   [['workset', 'open'], true],
   [['workset', 'open', 'x', 'y'], true],
   [['workset', 'open', 'x', '-zq'], true],
-  [['workset', 'open', 'x', '--store-path', '/p'], true, true],
+  [['workset', 'open', 'x', '--store-path', '/p'], true],
   [['config', 'edit', '--bogus'], true],
   // Upstream's config leaves declare no `--json`, so the binary names a
   // trailing `--json` as the unknown option ahead of an excess argument,
@@ -142,24 +136,23 @@ const MATRIX: readonly (readonly [argv: string[], json: boolean, guard?: true])[
   // without it.
   [['config', 'edit', 'extra'], false],
   [['config', 'edit', '-zq'], true],
-  [['config', 'edit', '--store-path', '/p'], true, true],
+  [['config', 'edit', '--store-path', '/p'], true],
   [['config', 'profile', '--bogus'], true],
-  [['config', 'profile', 'a', 'b'], false, true],
+  [['config', 'profile', 'a', 'b'], false],
   [['config', 'profile', '-zq'], true],
-  [['config', 'profile', '--store-path', '/p'], true, true],
+  [['config', 'profile', '--store-path', '/p'], true],
   [['config', 'reset', '--all', '--bogus'], true],
   [['config', 'reset', '--all', 'extra'], false],
   // Commander splits `-yz` into `-y` and an unknown `-z`.
   [['config', 'reset', '--all', '-yz'], true],
-  [['config', 'reset', '--all', '--store-path', '/p'], true, true],
+  [['config', 'reset', '--all', '--store-path', '/p'], true],
 ]
 
 describe('a terminal-handover leaf refuses its argv before the handover (ledger 6.1)', () => {
-  for (const [argv, json, guard] of MATRIX) {
+  for (const [argv, json] of MATRIX) {
     for (const withJson of json ? [false, true] : [false]) {
       const full = withJson ? [...argv, '--json'] : argv
-      const row = guard === true || argv[0] === 'workset' ? test : test.failing
-      row(
+      test(
         full.join(' '),
         async () => {
           await expectPrevalidated(full)
@@ -170,14 +163,10 @@ describe('a terminal-handover leaf refuses its argv before the handover (ledger 
   }
 })
 
-test.failing(
-  'config edit --bogus --json: the refusal, no envelope (ledger 6.2)',
-  async () => {
-    const co = await expectPrevalidated(['config', 'edit', '--bogus', '--json'])
-    expect(documentCount(co.stdout)).toBe(0)
-  },
-  30_000,
-)
+test('config edit --bogus --json: the refusal, no envelope (ledger 6.2)', async () => {
+  const co = await expectPrevalidated(['config', 'edit', '--bogus', '--json'])
+  expect(documentCount(co.stdout)).toBe(0)
+}, 30_000)
 
 // --- workset open --json (ledger 1.5, 1.6) ------------------------------------------
 
@@ -241,18 +230,14 @@ describe('with no terminal the leaf runs piped and its answer is respelled', () 
     }, 30_000)
   }
 
-  test.failing(
-    'config profile with stdout piped: the interactive-mode sentence respelled',
-    async () => {
-      const root = plainRoot()
-      const up = await oracle(['config', 'profile'], root)
-      const co = await cospec(['config', 'profile'], { cwd: root, env: oracleEnv(root) })
-      expect(up.exitCode).toBe(1)
-      expect(co.exitCode, detail(co)).toBe(1)
-      expect(co.stdout, detail(co)).toBe(respellRemedies(up.stdout))
-      expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
-      expect(co.stderr).toContain('`cospec config profile core`')
-    },
-    30_000,
-  )
+  test('config profile with stdout piped: the interactive-mode sentence respelled', async () => {
+    const root = plainRoot()
+    const up = await oracle(['config', 'profile'], root)
+    const co = await cospec(['config', 'profile'], { cwd: root, env: oracleEnv(root) })
+    expect(up.exitCode).toBe(1)
+    expect(co.exitCode, detail(co)).toBe(1)
+    expect(co.stdout, detail(co)).toBe(respellRemedies(up.stdout))
+    expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
+    expect(co.stderr).toContain('`cospec config profile core`')
+  }, 30_000)
 })

@@ -33,23 +33,28 @@
 //      check), and `reset --all` without `-y` (inquirer confirm). cospec's
 //      piped spawn uses `stdin: 'ignore'`, so all three would hang or
 //      mis-report. Class B propagates 130 (prompt cancellation) unchanged and
-//      enforces no `RunExpectation` — the documented handover exception.
+//      enforces no `RunExpectation` — the documented handover exception —
+//      but first refuses what the binary would refuse (`runHandover`).
+//      `profile` with no TTY on stdout runs piped instead.
 
 import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { commandHelpText, EXIT } from '../cli.ts'
-import { commandRow, storePathInOptionPosition, storePathRefusal } from '../core/command-table.ts'
+import { commandRow } from '../core/command-table.ts'
 import {
   forwardCall,
   isOptionToken,
   isParseRejection,
+  prevalidateHandover,
   relayCommandLevel,
+  relayRespelled,
   relayStorePathRefusal,
   subcommandOf,
 } from '../core/forward-relay.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
 import {
+  type OpenspecResult,
   passthroughOpenspec,
   resolveOpenspec,
   type RunExpectation,
@@ -57,7 +62,7 @@ import {
   threadedArgv,
   type WrappedCall,
 } from '../core/openspec.ts'
-import { respellLines, respellRemedies } from '../core/remedies.ts'
+import { REMEDIES, respellLines, respellRemedies } from '../core/remedies.ts'
 
 /** The eight subcommands upstream's `config` command defines. */
 export const CONFIG_SUBCOMMANDS = [
@@ -325,6 +330,51 @@ async function resolveHandoverBin(cwd: string): Promise<string> {
     : extractEmbeddedOpenspec(resolved.version)
 }
 
+/** What a `config` handover leaf reads from the terminal it may hand over. */
+export interface ConfigTerminal {
+  /** `config profile`'s own interactivity test: its stdout is a TTY. */
+  readonly stdoutIsTTY: boolean
+}
+
+/** The binary's text for an allowlist entry, as it prints it (no holes). */
+function upstreamSentence(id: string): string {
+  const remedy = REMEDIES.find((r) => r.id === id)
+  if (remedy === undefined) throw new Error(`cospec config: no allowlist entry '${id}'`)
+  return remedy.upstream
+}
+
+/**
+ * What a piped `config profile` answered: the binary's refusal for an
+ * unreadable global config (`config/invalid-file`), or, with a readable one,
+ * its interactive-mode-required refusal (stdout is a pipe) — or neither,
+ * which is not an answer that call gives.
+ */
+function profileAnswer(result: OpenspecResult): 'unreadable' | 'interactive' | undefined {
+  if (result.exitCode !== 1 || result.stdout.length > 0) return undefined
+  const lines = result.stderr.split('\n')
+  if (lines.includes(upstreamSentence('config/invalid-file'))) return 'unreadable'
+  if (lines.includes(upstreamSentence('config/profile-interactive-required'))) return 'interactive'
+  return undefined
+}
+
+/**
+ * `config profile` with no preset run piped, read-only: with no preset the
+ * binary refuses an unreadable config first and, its stdout not a TTY, then
+ * refuses to prompt — it writes nothing either way.
+ */
+function profilePiped(ctx: CommandContext, call: ConfigCall): Promise<OpenspecResult> {
+  return passthroughOpenspec(call.wrapped, {
+    cwd: ctx.cwd,
+    expect: {
+      exitCodes: [1],
+      denyStdout: CONFIG_EXPECT.denyStdout,
+      postCondition: (res) =>
+        profileAnswer(res) !== undefined ||
+        'answered neither an unreadable config nor the interactive-mode refusal',
+    },
+  })
+}
+
 /**
  * Class B: hand the terminal over (array argv, no shell, inherited stdio) and
  * propagate the child's exit code verbatim — including 130 on prompt
@@ -335,20 +385,26 @@ async function resolveHandoverBin(cwd: string): Promise<string> {
  * dispatcher sets). `OPENSPEC_NO_COMPLETIONS=1` is added over that precedent so
  * upstream's first-run completions tip can never surface from a cospec run.
  *
- * The handover class's one pre-spawn `--store-path` check (design decision
- * 2): with inherited stdio the binary's refusal would reach the terminal
- * unrespelled, so a `--store-path` in option position is answered with
- * cospec's redirect without spawning — and never after the editor has run.
+ * Nothing the child prints on the terminal can be relayed, so the leaf first
+ * answers everything the binary would refuse (design D8), in commander's
+ * order: the argv's parse refusal (the table parser's, text on stderr ahead
+ * of any `--json` envelope, `--store-path`'s redirect included); `--json`
+ * (cospec's envelope — the leaf is interactive); and for `config profile`,
+ * whose own test is a TTY on stdout, the piped call when there is none, or
+ * else its read-only pre-flight, which relays an unreadable config's refusal
+ * and hands over only once the binary would prompt. `config edit` and
+ * `config reset --all` have no non-interactive branch and always hand over.
  */
-async function runHandover(ctx: CommandContext, call: ConfigCall): Promise<number> {
+export async function runHandover(
+  ctx: CommandContext,
+  call: ConfigCall,
+  terminal: ConfigTerminal = { stdoutIsTTY: process.stdout.isTTY === true },
+): Promise<number> {
   const row = commandRow('config')
-  const sub = row?.subcommands?.find((s) => s.name === call.sub)
-  if (row === undefined || sub === undefined) throw new Error(`cospec config: no '${call.sub}' row`)
-  if (storePathInOptionPosition([row, sub], call.subArgs)) {
-    // Upstream declares no `--store-path` here: commander's refusal precedes
-    // any output, so it is text even under `--json`.
-    const refusal = storePathRefusal(false)
-    process[refusal.stream].write(refusal.text)
+  if (row === undefined) throw new Error("cospec config: no 'config' row")
+  const refusal = prevalidateHandover(row, call.sub, call.subArgs)
+  if (refusal !== undefined) {
+    process.stderr.write(refusal.message)
     return EXIT.failure
   }
   if (ctx.flags.json) {
@@ -361,6 +417,11 @@ async function runHandover(ctx: CommandContext, call: ConfigCall): Promise<numbe
       }),
     )
     return EXIT.failure
+  }
+  if (call.sub === 'profile') {
+    const result = await profilePiped(ctx, call)
+    if (!terminal.stdoutIsTTY || profileAnswer(result) === 'unreadable')
+      return relayRespelled(result, false)
   }
   const bin = await resolveHandoverBin(ctx.cwd)
   const proc = Bun.spawn([process.execPath, bin, ...call.argv], {
