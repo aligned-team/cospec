@@ -95,14 +95,19 @@ interface Env {
  * set directly on `process.env` for the duration of `fn`.
  */
 async function withGlobalConfig<T>(
-  defaultStore: string | undefined,
+  defaultStore: unknown,
   fn: (env: Env) => Promise<T>,
+  /** The config file's whole body, written as given instead of `{defaultStore}`. */
+  rawBody?: string,
 ): Promise<T> {
   const xdgConfig = tempDir('cospec-xdgcfg-')
   const xdgData = tempDir('cospec-xdgdata-')
-  if (defaultStore !== undefined) {
+  if (defaultStore !== undefined || rawBody !== undefined) {
     mkdirSync(join(xdgConfig, 'openspec'), { recursive: true })
-    writeFileSync(join(xdgConfig, 'openspec', 'config.json'), JSON.stringify({ defaultStore }))
+    writeFileSync(
+      join(xdgConfig, 'openspec', 'config.json'),
+      rawBody ?? JSON.stringify({ defaultStore }),
+    )
   }
   const registered: Record<string, string> = {}
   const env: Env = {
@@ -865,11 +870,35 @@ describe('readDefaultStore', () => {
     })
   }, 15_000)
 
-  test('reads the raw value `openspec config get defaultStore` prints', async () => {
+  test('reads the value from the global config file `openspec config path` names', async () => {
     await withGlobalConfig('team-plans', async () => {
       expect(await readDefaultStore(bareDir())).toBe('team-plans')
     })
   }, 15_000)
+
+  for (const raw of [' beta ', 'beta\n', ['beta'], 5, false, '', {}]) {
+    test(`returns ${JSON.stringify(raw)} raw, as upstream's getGlobalConfig does`, async () => {
+      await withGlobalConfig(raw, async () => {
+        expect(await readDefaultStore(bareDir())).toEqual(raw)
+      })
+    }, 15_000)
+  }
+
+  for (const [label, body] of [
+    ['a file that is not JSON', '{"defaultStore": "beta"'],
+    ['a JSON root that is not an object', '"beta"'],
+    ['a JSON array root', '[{"defaultStore": "beta"}]'],
+  ] as const) {
+    test(`undefined for ${label}, as upstream falls back to its defaults`, async () => {
+      await withGlobalConfig(
+        undefined,
+        async () => {
+          expect(await readDefaultStore(bareDir())).toBeUndefined()
+        },
+        body,
+      )
+    }, 15_000)
+  }
 })
 
 describe('resolveRoot — defaultStore fallback (W8)', () => {

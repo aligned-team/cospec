@@ -29,9 +29,12 @@ with the `invalid_store_id` code, whenever that pointer would be followed.
 When no qualifying root exists, the system SHALL consult the machine's global
 `defaultStore` setting and target that store. `defaultStore` SHALL change only
 the failure path and SHALL NEVER outrank a qualifying local root. It SHALL be
-read through the wrapped binary rather than by reimplementing global-config path
-discovery, and it SHALL only be probed after the earlier tiers miss, so the
-common local path costs no extra work. When no qualifying root and no
+read from the global config file at the path the wrapped binary reports, rather
+than by reimplementing global-config path discovery, as the raw JSON value the
+wrapped binary reads: a false-y value SHALL count as unset, and any other value
+SHALL reach store-id validation and the registry lookup unchanged, so it fails
+exactly as it fails there. It SHALL only be probed after the earlier tiers miss,
+so the common local path costs no extra work. When no qualifying root and no
 `defaultStore` exist but at least one store is registered, the system SHALL fail
 with the `no_root_with_registered_stores` code and name every registered store
 id. Only when no store is registered SHALL the invocation directory be used as
@@ -108,6 +111,13 @@ and never by resolving an ancestor of the missing path.
   store that is no longer registered
 - **THEN** the command exits non-zero with the actionable unknown-store error
   rather than silently falling back
+
+#### Scenario: A defaultStore is validated as written
+
+- **WHEN** the global config sets `defaultStore` to `" beta "` and `beta` is
+  registered, and a command runs from a rootless directory
+- **THEN** the command fails with `invalid_store_id`, as bare `openspec` does,
+  and does not select `beta`
 
 #### Scenario: A subdirectory resolves the enclosing root
 

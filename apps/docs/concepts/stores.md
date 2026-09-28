@@ -117,8 +117,11 @@ which root a command targets from any directory:
    `openspec/` (a config file with no planning shape) follows its `store:`
    pointer;
 4. else, once the walk finds no qualifying ancestor at all, the machine-global
-   `defaultStore` (`openspec config get defaultStore` — a raw value on stdout,
-   no `--json`, exit `1` when unset) is consulted as the last fallback;
+   `defaultStore` is consulted as the last fallback. cospec reads it as
+   `openspec` does, from the global config file `cospec config path` names: the
+   JSON value exactly as written, so `" beta "`, `"beta\n"` or `["beta"]` fail
+   the same way they fail there, and an empty string, `false`, a file that isn't
+   JSON or a root that isn't an object count as unset;
 5. else, with any stores registered, cospec hard-errors naming them
    (`no_root_with_registered_stores`) rather than silently falling back to an
    empty cwd; with none registered, the cwd is an **implicit** root and each

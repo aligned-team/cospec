@@ -1552,3 +1552,77 @@ describe('templates and schema keep the selection failure of an explicit --store
     })
   }
 })
+
+// --- Ledger 5.16: defaultStore is read as the raw JSON value upstream reads ---
+
+/** Write the sandbox's global config file, at the path the binary reports, byte-for-byte. */
+async function writeGlobalConfig(sb: Sandbox, body: string): Promise<void> {
+  const run = await oracle(['config', 'path'], sb.dir)
+  if (run.exitCode !== 0) throw new Error(`openspec config path exited ${run.exitCode}`)
+  const path = run.stdout.replace(/\n$/, '')
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, body)
+}
+
+// Design D4 keeps cospec's own unknown-store wording behind upstream's prefix.
+const unknownStore =
+  (shown: string): RowSpec['message'] =>
+  (actual) => {
+    expect(actual.startsWith(`Global defaultStore '${shown}': unknown store '${shown}'`)).toBe(true)
+    expect(actual).toContain('Registered stores: alpha, beta')
+  }
+
+describe('defaultStore reaches selection as the raw value upstream reads (ledger 5.16)', () => {
+  // Upstream reads `getGlobalConfig().defaultStore` as parsed JSON, tests it
+  // for truthiness, and hands it to `validateStoreId` and the registry lookup
+  // unchanged: no trimming, no stringifying. Each row writes one raw value.
+  const defaultRow = (
+    id: string,
+    raw: string,
+    expected: Expected,
+    message?: RowSpec['message'],
+  ): void =>
+    row({
+      id,
+      title: `defaultStore ${raw}`,
+      setup: async (sb) => {
+        await writeGlobalConfig(sb, `{"defaultStore": ${raw}}\n`)
+        return at(bare(sb))
+      },
+      expected: () => expected,
+      ...(message === undefined ? {} : { message }),
+    })
+
+  defaultRow('M28', '" beta "', code('invalid_store_id'))
+  defaultRow('M28b', '"beta\\n"', code('invalid_store_id'))
+  defaultRow('M28c', '["beta"]', code('unknown_store'), unknownStore('beta'))
+  defaultRow('M28d', '5', code('unknown_store'), unknownStore('5'))
+  defaultRow('M28e', '[]', code('invalid_store_id'))
+  defaultRow('M28f', '{}', code('invalid_store_id'))
+  defaultRow('M28g', 'false', code('no_root_with_registered_stores'))
+  defaultRow('M28h', '""', code('no_root_with_registered_stores'))
+
+  row({
+    id: 'M28i',
+    title: 'a global config whose root is not an object carries no defaultStore',
+    setup: async (sb) => {
+      await writeGlobalConfig(sb, '"beta"\n')
+      return at(bare(sb))
+    },
+    expected: () => code('no_root_with_registered_stores'),
+  })
+
+  test("cospec list --json and text print the binary's ' beta ' diagnostic", async () => {
+    const sb = await makeSandbox()
+    const cwd = bare(sb)
+    await writeGlobalConfig(sb, '{"defaultStore": " beta "}\n')
+    const o = await rootOracle(sb, cwd, ['list', '--json'])
+    const res = await cospec(['list', '--json'], { cwd, env: sb.env })
+    expect(res.exitCode).toBe(1)
+    expect(JSON.parse(res.stdout)).toEqual({ status: [o.diagnostic] })
+    const up = await oracle(['list'], sb.dir, { cwd })
+    const text = await cospec(['list'], { cwd, env: sb.env })
+    expect(text.exitCode).toBe(1)
+    expect(text.stderr).toBe(up.stderr.replace(/^(?:✖ )?Error: /, 'cospec: '))
+  })
+})

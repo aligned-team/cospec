@@ -171,6 +171,24 @@ document is `{filePath}` (a config file, no pointer), not malformed. An empty
 string is a `value` of `''`, which fails store-id validation when followed and
 still produces the ignored-pointer warning on a planning root, as upstream does.
 
+_Amended in review:_ `defaultStore` is read the same way, raw. Upstream's
+`resolveOpenSpecRoot` takes `getGlobalConfig().defaultStore` — parsed JSON —
+tests it for truthiness and hands it to `validateStoreId` and the registry
+lookup unchanged. cospec read it through `openspec config get defaultStore` and
+trimmed the text, so `" beta "` and `"beta\n"` selected `beta` where the binary
+fails with `invalid_store_id`, `["beta"]` (printed as JSON) failed as
+`invalid_store_id` where the binary reports `unknown_store 'beta'`, and `false`
+selected a store named `false` where the binary treats it as unset.
+`readDefaultStore` now asks `openspec config path` for the file (path discovery
+stays the binary's), parses it as JSON, and returns the raw value; a missing
+file, a `SyntaxError` and a non-object root read as unset, as upstream's
+defaults do, and any other read error propagates. `validateStoreId` and
+`resolveStore` take `unknown` and reproduce upstream's checks as written
+(`length === 0`, strict `===`, regex tests on the stringified value, strict
+lookup). Upstream also prints `Warning: Invalid JSON in <path>, using defaults`
+for a file that is not JSON; cospec's own read does not print it (neither did
+`config get`'s captured stderr), recorded in the review report.
+
 **D6. The implicit root stays shared.** Upstream lets each command decide
 whether a rootless cwd is an implicit root (`list` and `validate` refuse with
 `no_openspec_root` unless `openspec/project.md` exists at the cwd; `status`
@@ -427,12 +445,12 @@ the binary validated; the `REACHABLE_OWNED` entry for it is removed.
   `.openspec-store/store.yaml` and stats its root, `openspec/`, config file,
   `specs/`, `changes/` and `changes/archive/`. It writes nothing.
 - **Wrapped-binary spawns.** Unchanged on the local path (none). A store lookup
-  still spawns `openspec store ls --json`; `defaultStore` is still read with
-  `openspec config get defaultStore`; the registry listing for the
-  registered-stores error is the one added spawn, and only on a path that used
-  to succeed silently. The store-health check adds no spawn. A forward row whose
-  selection fails spawns the binary once more, in a scratch directory it removes
-  (D14).
+  still spawns `openspec store ls --json`; `defaultStore`'s file path comes from
+  `openspec config path` (it was `openspec config get defaultStore` until the
+  review, D5); the registry listing for the registered-stores error is the one
+  added spawn, and only on a path that used to succeed silently. The
+  store-health check adds no spawn. A forward row whose selection fails spawns
+  the binary once more, in a scratch directory it removes (D14).
 - **Binary versions.** The walk and its error codes are pinned to the pinned
   binary by the differential matrix. An older binary in the accepted range may
   select roots differently for its own wrapped calls; cospec's own reads and
@@ -449,11 +467,11 @@ the binary validated; the `REACHABLE_OWNED` entry for it is removed.
   only. Both run with the same isolated `XDG_DATA_HOME`, `XDG_CONFIG_HOME` and
   `HOME` as the in-process `resolveRoot` call.
 - **Store identity.** Store roots still come from `openspec store ls --json` and
-  `defaultStore` from `openspec config get defaultStore`; this change adds no
-  new wrapped call on the local path. The registry listing is spawned only when
-  no qualifying root and no `defaultStore` exist. A listed store's identity is
-  then verified against its own `.openspec-store/store.yaml` rather than trusted
-  from the listing (D9).
+  `defaultStore` from the global config file at the path `openspec config path`
+  prints; this change adds no new wrapped call on the local path. The registry
+  listing is spawned only when no qualifying root and no `defaultStore` exist. A
+  listed store's identity is then verified against its own
+  `.openspec-store/store.yaml` rather than trusted from the listing (D9).
 - **Root provenance in relayed JSON.** For `declared` and `global_default` roots
   the wrapped call re-derives the root itself (D11), so relayed `root.source` is
   the binary's own; oracle: `openspec show <item> --json` `.root` over the

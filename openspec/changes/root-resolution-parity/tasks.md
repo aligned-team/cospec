@@ -347,3 +347,8 @@ files, task 7.7, both marked POST-REBASE.
       in the invocation directory (`isCwdFallback`), keeping the diagnostic for
       an explicit `--store` and for `directory_not_found`; state it on the
       Stores and commands pages and in `docs/stores.md`
+- [x] 9.2 REVIEW (ledger 5.16, design D5): add failing rows, then read
+      `defaultStore` raw from the global config file at the path
+      `openspec config path` prints, test it for truthiness, and pass it
+      unchanged to `validateStoreId` and the registry lookup; update the Stores
+      page, `docs/stores.md` and the `readDefaultStore` unit rows

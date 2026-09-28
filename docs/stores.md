@@ -27,9 +27,10 @@ which root a command targets from any directory:
    follows its pointer — and a malformed one there (unparseable YAML, or a
    non-string `store:` value) hard-errors with `invalid_store_pointer` rather
    than falling through;
-4. else, once the walk finds nothing, the machine-global `defaultStore`
-   (`openspec config get defaultStore` — a raw value on stdout, no `--json`,
-   exit `1` when unset) as the last **fallback**;
+4. else, once the walk finds nothing, the machine-global `defaultStore` as the
+   last **fallback**, read raw from the global config file at the path
+   `openspec config path` prints and parsed as JSON, as upstream's
+   `getGlobalConfig()` reads it (no trimming or stringifying; falsy is unset);
 5. else, with any stores registered, a hard error naming them
    (`no_root_with_registered_stores`); with none, the cwd is an **implicit**
    root, and each command's own missing-`openspec/` check reports it from there.

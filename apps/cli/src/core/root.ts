@@ -249,12 +249,20 @@ function findQualifyingRoot(cwd: string): string | null {
 
 // --- Store selection ----------------------------------------------------------
 
-function validateStoreId(id: string): void {
+/**
+ * Upstream's `validateStoreId`, applied to whatever value arrives. A
+ * `defaultStore` is raw JSON, and upstream's checks — its `length`, strict
+ * `===`, and regex tests that stringify their argument — are reproduced as
+ * written, so a non-string passes or fails exactly as it does there (`[]` is
+ * empty, `['beta']` and `5` are kebab-case, `{}` is not).
+ */
+function validateStoreId(id: unknown): void {
+  const text = String(id)
   let problem: string | null = null
-  if (id.length === 0) problem = 'Store id must not be empty'
-  else if (id === '.' || id === '..') problem = `Store id must not be '${id}'`
-  else if (/[\\/]/u.test(id)) problem = 'Store id must not contain path separators'
-  else if (!KEBAB_ID.test(id))
+  if ((Object(id) as { length?: unknown }).length === 0) problem = 'Store id must not be empty'
+  else if (id === '.' || id === '..') problem = `Store id must not be '${text}'`
+  else if (/[\\/]/u.test(text)) problem = 'Store id must not contain path separators'
+  else if (!KEBAB_ID.test(text))
     problem =
       'Store id must be kebab-case with lowercase letters, numbers, and single hyphen separators'
   if (problem !== null)
@@ -374,10 +382,12 @@ function assertHealthyStore(id: string, storeRoot: string): void {
  * (`openspec store ls --json`), verifying the store on disk first. Throws a
  * `RootSelectionError` naming the known stores when the id is not registered
  * — a mistyped id fails loudly rather than silently falling back to local.
+ * `id` is `unknown` because a `defaultStore` is raw JSON: the lookup is by
+ * strict equality, as upstream's is, so a non-string id is never registered.
  */
 export async function resolveStore(
   cwd: string,
-  id: string,
+  id: unknown,
   source: 'store' | 'declared' | 'global_default' = 'store',
 ): Promise<ResolvedRoot> {
   validateStoreId(id)
@@ -386,7 +396,7 @@ export async function resolveStore(
   if (found === undefined) {
     const known = stores.map((s) => s.id).join(', ')
     const message =
-      `unknown store '${id}' — register it with 'cospec store register <path>' or check ` +
+      `unknown store '${String(id)}' — register it with 'cospec store register <path>' or check ` +
       `'cospec store ls'. Registered stores: ${known || '(none registered)'}`
     throw new RootSelectionError(
       known === ''
@@ -394,7 +404,7 @@ export async function resolveStore(
             code: 'no_registered_stores',
             message,
             target: 'store.id',
-            fix: `Run cospec store setup ${id} or cospec store register <path> first.`,
+            fix: `Run cospec store setup ${String(id)} or cospec store register <path> first.`,
           }
         : {
             code: 'unknown_store',
@@ -404,15 +414,15 @@ export async function resolveStore(
           },
     )
   }
-  assertHealthyStore(id, found.root)
+  assertHealthyStore(found.id, found.root)
   return {
     base: canonicalize(found.root),
     cwd,
     // Only an explicit `--store` is threaded: a wrapped call spawned in `cwd`
     // re-derives a pointer or `defaultStore` root itself, so its relayed
     // `root.source` reads `declared`/`global_default` as upstream's does.
-    storeArgs: source === 'store' ? ['--store', id] : [],
-    store: id,
+    storeArgs: source === 'store' ? ['--store', found.id] : [],
+    store: found.id,
     source,
   }
 }
@@ -442,20 +452,39 @@ async function withOrigin(
 }
 
 /**
- * Read the machine-global `defaultStore` via `openspec config get defaultStore`.
- * That subcommand takes no `--json` (upstream `src/commands/config.ts`): it
- * prints the raw value on stdout and exits 1 when the key is unset. Both are
- * ordinary outcomes here, not wrapped-call violations, so both exit codes are
- * accepted; only exit 0 with a non-empty stdout counts as "set".
+ * The machine-global `defaultStore`, read as upstream's `getGlobalConfig()`
+ * reads it: the global config file — at the path `openspec config path`
+ * prints, so path discovery stays the binary's — parsed as JSON, with its
+ * `defaultStore` value returned raw. A padded string, a trailing newline, a
+ * number or an array reaches selection unchanged and fails there as the
+ * binary's does; `config get` could not carry that, since it prints the value
+ * as text. A missing file, a file that is not JSON, and a JSON root that is not
+ * an object carry no default, as upstream falls back to its defaults for each.
  */
-export async function readDefaultStore(cwd: string): Promise<string | undefined> {
-  const result = await runOpenspec(['config', 'get', 'defaultStore'], {
+export async function readDefaultStore(cwd: string): Promise<unknown> {
+  const result = await runOpenspec(['config', 'path'], {
     cwd,
-    expect: { exitCodes: [0, 1] },
+    expect: {
+      exitCodes: [0],
+      postCondition: (r) => /^[^\n]+\n$/u.test(r.stdout) || 'did not print one path',
+    },
   })
-  if (result.exitCode !== 0) return undefined
-  const value = result.stdout.trim()
-  return value.length > 0 ? value : undefined
+  let body: string
+  try {
+    body = readFileSync(result.stdout.slice(0, -1), 'utf8')
+  } catch (error) {
+    if (isErrnoCode(error, 'ENOENT')) return undefined
+    throw error
+  }
+  let doc: unknown
+  try {
+    doc = JSON.parse(body)
+  } catch (error) {
+    if (error instanceof SyntaxError) return undefined
+    throw error
+  }
+  if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) return undefined
+  return (doc as Record<string, unknown>).defaultStore
 }
 
 // --- Selection ---------------------------------------------------------------
@@ -505,14 +534,15 @@ async function selectRoot(cwd: string, store: string | undefined): Promise<Resol
   if (store !== undefined) return resolveStore(cwd, store)
   const nearest = findQualifyingRoot(cwd)
   if (nearest !== null) return resolveQualifyingRoot(cwd, nearest)
+  // Upstream tests the raw value for truthiness: `""`, `false` and `0` are unset.
   const defaultId = await readDefaultStore(cwd)
-  if (defaultId !== undefined)
+  if (defaultId)
     return withOrigin(
       () => resolveStore(cwd, defaultId, 'global_default'),
-      `Global defaultStore '${defaultId}': `,
+      `Global defaultStore '${String(defaultId)}': `,
       (code) =>
         code === 'unknown_store' || code === 'no_registered_stores'
-          ? `Register the store (cospec store register <path> --id ${defaultId}) or clear the ` +
+          ? `Register the store (cospec store register <path> --id ${String(defaultId)}) or clear the ` +
             'stale global default (cospec config unset defaultStore).'
           : undefined,
     )
