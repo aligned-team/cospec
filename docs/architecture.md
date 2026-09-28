@@ -168,9 +168,18 @@ later change). The test fails on an entry that resolves to none of the five, or
 to two of them, and the reverse direction is checked too — every table surface
 marked pending has exactly one `parity-pending.yaml` entry naming the same
 owner, so a change that implements a pending flag must delete that entry in the
-same commit, and a stale entry left behind fails the test by name. This is the
-parity gate every later OpenSpec-parity change reports its acceptance evidence
-against.
+same commit, and a stale entry left behind fails the test by name.
+
+A row or flag that is one of `aliases.yaml`'s upstream spellings
+(`init --tools`, the hidden `experimental`/`new change`/`completion generate`
+rows) carries its own `aliasOf` marking to the canonical cospec name instead — a
+`flag` on `FlagSpec` or a `command`/`positional` marking on a row/subcommand.
+The test checks this pairing two ways: every `aliases.yaml` entry must have a
+matching marking somewhere in the table, and every marking must have a matching
+`aliases.yaml` entry, so an alias can never resolve silently through the table
+alone (leaving it uncounted by the registry) or drift out of sync with its own
+entry. This is the parity gate every later OpenSpec-parity change reports its
+acceptance evidence against.
 
 ## The wrapped-call discipline
 

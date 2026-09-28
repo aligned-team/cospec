@@ -119,8 +119,9 @@ and how permissions are configured.
 `cospec completion [bash|zsh|fish]` prints a completion script to stdout,
 generated natively from cospec's own command table — never a passthrough to
 OpenSpec's own completion installer, which writes a function that shells out to
-bare `openspec`. There's no `install`/`uninstall` subcommand; wire the output
-into your shell yourself:
+bare `openspec`. `cospec completion generate [shell]` is upstream's own spelling
+of the same command and works identically. There's no `install`/`uninstall`
+subcommand; wire the output into your shell yourself:
 
 ::: code-group
 

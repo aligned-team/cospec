@@ -12,11 +12,22 @@ import { parse } from 'yaml'
 const here = fileURLToPath(new URL('.', import.meta.url))
 const EXCEPTIONS_PATH = `${here}../../cli/src/canon/parity/exceptions.yaml`
 const DEPRECATED_PATH = `${here}../../cli/src/canon/parity/deprecated.yaml`
+const ALIASES_PATH = `${here}../../cli/src/canon/parity/aliases.yaml`
 const PENDING_PATH = `${here}../../cli/test/contract/parity-pending.yaml`
 
 interface RawException {
   readonly upstream: { readonly kind: string; readonly path: readonly string[] }
   readonly reason: string
+}
+
+interface RawAlias {
+  readonly upstream: {
+    readonly kind: 'workflow' | 'tool' | 'tool-alias' | 'command' | 'flag'
+    readonly path?: readonly string[]
+    readonly flag?: string
+    readonly id?: string
+  }
+  readonly cospec: string
 }
 
 interface RawDeprecated {
@@ -46,6 +57,11 @@ export interface ParityDeprecation {
   readonly note: string
 }
 
+export interface ParityAlias {
+  readonly surface: string
+  readonly cospec: string
+}
+
 export interface ParityPendingItem {
   readonly surface: string
   readonly owner: string
@@ -54,6 +70,7 @@ export interface ParityPendingItem {
 export interface ParityData {
   readonly exceptions: readonly ParityException[]
   readonly deprecated: readonly ParityDeprecation[]
+  readonly aliases: readonly ParityAlias[]
   readonly pending: readonly ParityPendingItem[]
 }
 
@@ -88,11 +105,40 @@ function pendingSurface(entry: RawPending): string {
   }
 }
 
+// One label per aliases.yaml `kind` — `path`/`flag` alone would render bare
+// for a `workflow` entry (no command path at all), so this mirrors
+// `pendingSurface`'s per-kind switch instead of assuming every entry has one.
+function aliasSurface(entry: RawAlias): string {
+  const path = entry.upstream.path ?? []
+  switch (entry.upstream.kind) {
+    case 'flag':
+      return `${commandSurface(path)} ${entry.upstream.flag}`
+    case 'workflow':
+      return `openspec's ${entry.upstream.id} workflow`
+    case 'command':
+    default:
+      return commandSurface(path)
+  }
+}
+
+function aliasCospecSurface(entry: RawAlias): string {
+  const path = entry.upstream.path ?? []
+  switch (entry.upstream.kind) {
+    case 'flag':
+      return `${commandSurface(path)} ${entry.cospec}`
+    case 'workflow':
+    case 'command':
+    default:
+      return `cospec ${entry.cospec}`
+  }
+}
+
 export default defineLoader({
-  watch: [EXCEPTIONS_PATH, DEPRECATED_PATH, PENDING_PATH],
+  watch: [EXCEPTIONS_PATH, DEPRECATED_PATH, ALIASES_PATH, PENDING_PATH],
   load(): ParityData {
     const exceptions = readList<RawException>(EXCEPTIONS_PATH)
     const deprecated = readList<RawDeprecated>(DEPRECATED_PATH)
+    const aliases = readList<RawAlias>(ALIASES_PATH)
     const pending = readList<RawPending>(PENDING_PATH)
 
     return {
@@ -106,6 +152,10 @@ export default defineLoader({
           entry.mark === 'registry-description'
             ? "flagged deprecated in OpenSpec's own command registry"
             : (entry.warning ?? '').trim(),
+      })),
+      aliases: aliases.map((entry) => ({
+        surface: aliasSurface(entry),
+        cospec: aliasCospecSurface(entry),
       })),
       pending: pending.map((entry) => ({
         surface: pendingSurface(entry),

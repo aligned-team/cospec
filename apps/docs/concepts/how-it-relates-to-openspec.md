@@ -126,6 +126,21 @@ passing them through would write the opsx files cospec's own leftover scan flags
 import { data as parity } from '../.vitepress/parity.data.ts'
 </script>
 
+## Upstream spellings cospec also accepts
+
+Some of OpenSpec's own spellings differ from cospec's canonical ones —
+`openspec init --tools`, the hidden `experimental` alias of `init`,
+`new change <name>`, `completion generate [shell]`. cospec accepts each verbatim
+(so an existing `openspec` invocation keeps working after you swap in `cospec`)
+beside its own canonical spelling, and marks the pairing in the command table so
+the reachability test can never let one drift out of sync with the other:
+
+<ul>
+  <li v-for="a in parity.aliases" :key="a.surface">
+    <code>{{ a.surface }}</code> — same as <code>{{ a.cospec }}</code>
+  </li>
+</ul>
+
 ## Named exceptions
 
 "Every capability has a counterpart" is a checked claim, not a promise: a

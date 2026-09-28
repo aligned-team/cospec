@@ -180,8 +180,14 @@ workflow the pinned OpenSpec binary exposes must resolve to exactly one of: the
 command table (`apps/cli/src/core/command-table.ts`), an alias in
 `apps/cli/src/canon/parity/aliases.yaml`, or a pending entry in
 `apps/cli/test/contract/parity-pending.yaml` tagged with the change that owns
-it. `apps/cli/test/contract/reachability.test.ts` enforces this against the
-pinned dist and is the gate — never a hand-maintained checklist, and never a
+it. A command-table row or flag that IS one of `aliases.yaml`'s upstream
+spellings (`init --tools`, the hidden `experimental`/`new change`/
+`completion generate` rows) carries an `aliasOf` marking to its canonical cospec
+name, and the test checks the pairing two ways — every `aliases.yaml` entry has
+a matching marking, and every marking has a matching entry — so an alias can
+never resolve silently through the table alone or drift out of sync with its
+registry. `apps/cli/test/contract/reachability.test.ts` enforces this against
+the pinned dist and is the gate — never a hand-maintained checklist, and never a
 proposal's non-goals section standing in for an entry. A capability cospec
 deliberately never implements lives only in
 `apps/cli/src/canon/parity/exceptions.yaml`, verified the same way, not as a
