@@ -456,36 +456,28 @@ describe('workset and config next-step lines are spelled through cospec (ledger 
   /** `text` with each whole line the allowlist holds spelled through cospec. */
   const byLine = (text: string): string => text.split('\n').map(respellRemedies).join('\n')
 
-  test.failing(
-    'workset create: its open-any-time line names cospec',
-    async () => {
-      const root = plainRoot()
-      const up = await oracle(['workset', 'create', 'w1', '--member', root], root)
-      await oracle(['workset', 'remove', 'w1', '--yes'], root)
-      const co = await runCospec(['workset', 'create', 'w1', '--member', root], root)
-      expect(up.exitCode, detail(up)).toBe(0)
-      expect(co.exitCode, detail(co)).toBe(0)
-      expect(co.stdout, detail(co)).toBe(byLine(up.stdout))
-      expect(co.stdout).not.toBe(up.stdout)
-      expect(co.stderr, detail(co)).toBe(up.stderr)
-      expect(BARE_OPENSPEC.test(co.stdout + co.stderr), detail(co)).toBe(false)
-    },
-    30_000,
-  )
+  test('workset create: its open-any-time line names cospec', async () => {
+    const root = plainRoot()
+    const up = await oracle(['workset', 'create', 'w1', '--member', root], root)
+    await oracle(['workset', 'remove', 'w1', '--yes'], root)
+    const co = await runCospec(['workset', 'create', 'w1', '--member', root], root)
+    expect(up.exitCode, detail(up)).toBe(0)
+    expect(co.exitCode, detail(co)).toBe(0)
+    expect(co.stdout, detail(co)).toBe(byLine(up.stdout))
+    expect(co.stdout).not.toBe(up.stdout)
+    expect(co.stderr, detail(co)).toBe(up.stderr)
+    expect(BARE_OPENSPEC.test(co.stdout + co.stderr), detail(co)).toBe(false)
+  }, 30_000)
 
-  test.failing(
-    'workset list with none saved: its create line names cospec',
-    async () => {
-      const root = plainRoot()
-      const up = await oracle(['workset', 'list'], root)
-      const co = await runCospec(['workset', 'list'], root)
-      expect(co.exitCode, detail(co)).toBe(0)
-      expect(co.stdout, detail(co)).toBe(byLine(up.stdout))
-      expect(co.stdout).not.toBe(up.stdout)
-      expect(BARE_OPENSPEC.test(co.stdout + co.stderr), detail(co)).toBe(false)
-    },
-    30_000,
-  )
+  test('workset list with none saved: its create line names cospec', async () => {
+    const root = plainRoot()
+    const up = await oracle(['workset', 'list'], root)
+    const co = await runCospec(['workset', 'list'], root)
+    expect(co.exitCode, detail(co)).toBe(0)
+    expect(co.stdout, detail(co)).toBe(byLine(up.stdout))
+    expect(co.stdout).not.toBe(up.stdout)
+    expect(BARE_OPENSPEC.test(co.stdout + co.stderr), detail(co)).toBe(false)
+  }, 30_000)
 
   test.failing(
     'config profile core: its next step names cospec update',

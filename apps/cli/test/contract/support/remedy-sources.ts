@@ -912,19 +912,6 @@ export const REACHABLE_OWNED: readonly (readonly [
     'context',
     'passthrough-json-and-doctor',
   ],
-  // `workset create` and an empty `workset list`, exit 0.
-  [
-    'commands/workset.js',
-    'console.log(`Open it any time with: openspec workset open ${workset.name}`);',
-    'workset',
-    'passthrough-json-and-doctor',
-  ],
-  [
-    'commands/workset.js',
-    "console.log('No worksets saved. Create one with: openspec workset create');",
-    'workset',
-    'passthrough-json-and-doctor',
-  ],
   // `config profile <preset>`, exit 0.
   [
     'commands/config.js',

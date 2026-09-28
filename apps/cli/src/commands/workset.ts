@@ -17,11 +17,11 @@ import {
   isParseRejection,
   relayGroupRefusal,
   relayRespelled,
-  relayStorePathRefusal,
   subcommandOf,
 } from '../core/forward-relay.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
 import { passthroughOpenspec, resolveOpenspec, spawnOpenspec } from '../core/openspec.ts'
+import { respellLines } from '../core/remedies.ts'
 
 const SUBCOMMANDS = ['create', 'list', 'ls', 'remove'] as const
 type PassthroughSub = (typeof SUBCOMMANDS)[number]
@@ -31,9 +31,17 @@ function isPassthroughSub(sub: string): sub is PassthroughSub {
 }
 
 /**
+ * The binary's next-step lines on a successful `workset create` and an empty
+ * `workset list`: its only guidance there, with no document to respell
+ * structurally, so each is spelled through cospec as a whole line (design D5).
+ */
+const NEXT_STEP_LINES = ['workset/open-any-time', 'workset/none-saved'] as const
+
+/**
  * Run `create`/`list`/`ls`/`remove` through `passthroughOpenspec`, threading
- * only `--json`/`--no-color` (never `--store` — see module header) and relaying
- * stdout/stderr verbatim. Mirrors `passthrough-command.ts`'s `runPassthrough`
+ * only `--json`/`--no-color` (never `--store` — see module header). A failed
+ * answer is relayed with its remedies spelled through cospec; a successful
+ * one as the binary wrote it, but for its whole next-step lines. Mirrors `passthrough-command.ts`'s `runPassthrough`
  * but is reimplemented locally because that helper always threads
  * `root.storeArgs`, which `openspec workset` rejects outright.
  */
@@ -49,11 +57,13 @@ async function runWorksetPassthrough(
   const result = await forwardCall(() =>
     passthroughOpenspec({ command: ['workset', sub], threaded, args: rest }, { cwd: ctx.cwd }),
   )
-  const refused = relayStorePathRefusal(result, ctx.flags.json)
-  if (refused !== undefined) return refused
-  if (result.stdout.length > 0) process.stdout.write(result.stdout)
+  if (result.exitCode !== 0) return relayRespelled(result, ctx.flags.json)
+  if (result.stdout.length > 0)
+    process.stdout.write(
+      ctx.flags.json ? result.stdout : respellLines(result.stdout, NEXT_STEP_LINES),
+    )
   if (result.stderr.length > 0) process.stderr.write(result.stderr)
-  return result.exitCode === 0 ? EXIT.success : EXIT.failure
+  return EXIT.success
 }
 
 /**
