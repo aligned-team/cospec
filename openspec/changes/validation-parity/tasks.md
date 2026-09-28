@@ -209,3 +209,30 @@ trailer, never `--no-verify`).
       30.4). Commits `docs(validate): record round-5 archive-decision evidence`
       and `docs(validate): record the round-5 gate on the final tree`, after
       `fix(validate): name the misread, not the count, when blocks survive`
+
+## 12. Round 6 — gates read what the archive reads (the masked-view ruling)
+
+- [x] 12.1 Pin the round-6 rows in `validation-parity.test.ts` (verification
+      31–35) — the statement shapes, the unhonourable markers, the differential
+      table on a delegated and a never-delegated change, the legacy lane — and
+      re-point entry 6, section 27, the sweep and the `archive-gates` comment
+      row at what they become; mark every row that fails on the tree
+      `test.failing`. Commit
+      `test(validate): pin round-6 comment and marker parity rows as failing`
+- [x] 12.2 Port the binary's `extractRequirementBody` and grade
+      `deltas/requirement-shape` from it, in the binary's order (design D15).
+      Commit
+      `fix(validate): read a requirement's statement as the binary reads it`
+- [x] 12.3 Split the masked parse into its own branded type, move every
+      gate-feeding check to the verbatim view, list the advisory findings in
+      `rules/views.ts`, and add `views.test.ts` (design D15). Commit
+      `fix(validate): let no gate read the comment-masked view`
+- [x] 12.4 Port the binary's `readBooleanMarker` (`core/change-metadata.ts`) and
+      let `archive/rebuilt-spec-invalid` count only an honoured
+      `retire_capabilities` (design D15). Commit
+      `fix(validate): honour retire_capabilities only as the archive does`
+- [x] 12.5 Update the docs pages, design, proposal, specs and
+      `.agents/shared.md` (verification 35.2). Commit
+      `docs(validate): document the verbatim gates and the advisory view`
+- [x] 12.6 Record the round-6 evidence and run `mise run check` (verification
+      35.4). Commit `docs(validate): record round-6 view and marker evidence`
