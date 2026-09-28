@@ -86,10 +86,16 @@ export interface RunOptions extends SpawnShape {
   expect?: RunExpectation
 }
 
-/** How a piped wrapped call's child starts beyond its argv: by default, no preload. */
+/** How a piped wrapped call's child starts beyond its argv: by default, no preload and no stdin. */
 export interface SpawnShape {
   /** A script the child's Bun runs ahead of the binary (`--preload <file>`). */
   preload?: string
+  /**
+   * Input forwarded to the child's stdin once it has printed its prompt (its
+   * first stdout chunk); what arrives before is dropped, and the child's stdin
+   * ends when this does. Omitted, the child's stdin is closed.
+   */
+  input?: ReadableStream<Uint8Array>
 }
 
 /** Thrown when a wrapped call violates its declared expectations. */
@@ -257,17 +263,70 @@ async function spawnRaw(
   const preload = shape.preload === undefined ? [] : ['--preload', shape.preload]
   const proc = Bun.spawn([process.execPath, ...preload, openspecBin(), '--no-color', ...args], {
     cwd,
-    stdin: 'ignore',
+    stdin: shape.input === undefined ? 'ignore' : 'pipe',
     stdout: 'pipe',
     stderr: 'pipe',
     env: buildWrappedSpawnEnv(),
   })
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
+  if (shape.input === undefined || proc.stdin === undefined) {
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ])
+    return { stdout, stderr, exitCode }
+  }
+  const gate = { prompted: false, exited: false }
+  const reader = shape.input.getReader()
+  const forwarding = forwardAfterPrompt(reader, proc.stdin, gate)
+  const chunks: Uint8Array[] = []
+  const stdout = (async () => {
+    for await (const chunk of proc.stdout) {
+      chunks.push(chunk)
+      gate.prompted = true
+    }
+    return Buffer.concat(chunks).toString('utf8')
+  })()
+  const [out, stderr, exitCode] = await Promise.all([
+    stdout,
     new Response(proc.stderr).text(),
     proc.exited,
   ])
-  return { stdout, stderr, exitCode }
+  gate.exited = true
+  // The input may never end (`yes |`): stop reading it once the child is gone.
+  await reader.cancel()
+  await forwarding
+  return { stdout: out, stderr, exitCode }
+}
+
+/** Whether `error` is the broken pipe of a write to a child that has exited. */
+function isBrokenPipe(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException | undefined)?.code === 'EPIPE'
+}
+
+/**
+ * Pumps `reader` into the child's stdin, dropping every chunk read before the
+ * child's prompt is drawn — as the binary's confirm, under Node, never sees an
+ * answer already waiting on its pipe — and ending the child's stdin when the
+ * input ends. A write the exited child can no longer take ends the pump.
+ */
+async function forwardAfterPrompt(
+  reader: { read(): Promise<{ done: boolean; value?: Uint8Array }> },
+  sink: Bun.FileSink,
+  gate: { readonly prompted: boolean; readonly exited: boolean },
+): Promise<void> {
+  try {
+    for (;;) {
+      const read = await reader.read()
+      if (read.done || gate.exited) break
+      if (!gate.prompted || read.value === undefined) continue
+      await sink.write(read.value)
+      await sink.flush()
+    }
+    if (!gate.exited) await sink.end()
+  } catch (error) {
+    if (!isBrokenPipe(error)) throw error
+  }
 }
 
 /**
@@ -351,7 +410,7 @@ export function wrappedCallLabel(args: readonly string[]): string {
  * `OpenspecCallError` on any violation.
  */
 export async function runOpenspec(args: string[], opts: RunOptions): Promise<OpenspecResult> {
-  const result = await spawnOpenspec(args, opts.cwd, { preload: opts.preload })
+  const result = await spawnOpenspec(args, opts.cwd, { preload: opts.preload, input: opts.input })
   const expect = opts.expect
   if (expect) {
     const label = wrappedCallLabel(args)
@@ -814,7 +873,12 @@ export async function passthroughOpenspec(
 ): Promise<OpenspecResult> {
   const argv = threadedArgv(call.command, call.threaded ?? [], call.args)
   const expect: RunExpectation = { exitCodes: [0, 1], ...opts.expect }
-  const raw = await runOpenspec(argv, { cwd: opts.cwd, expect, preload: opts.preload })
+  const raw = await runOpenspec(argv, {
+    cwd: opts.cwd,
+    expect,
+    preload: opts.preload,
+    input: opts.input,
+  })
   const result = { ...raw, stderr: stripSuppressedStderr(raw.stderr) }
   if (call.threaded?.includes('--json') !== true) return result
   return enforcePassthroughJson(wrappedCallLabel(argv), result, opts.textFailure === true)

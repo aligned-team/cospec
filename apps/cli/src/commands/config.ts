@@ -375,6 +375,8 @@ export interface ConfigTerminal {
   readonly stdoutIsTTY: boolean
   /** Whether `config reset --all`'s confirm reads a terminal (default: cospec's stdin is a TTY). */
   readonly stdinIsTTY?: boolean
+  /** The input a piped `config reset --all` forwards to its confirm (default: cospec's stdin). */
+  readonly input?: () => ReadableStream<Uint8Array>
 }
 
 /** The binary's text for an allowlist entry, as it prints it (no holes). */
@@ -425,19 +427,24 @@ const SGR = new RegExp(`${String.fromCharCode(0x1b)}\\[[0-9;]*m`, 'g')
 
 /**
  * `config reset --all` with no terminal on stdin, run piped under the
- * handover preload: the binary's confirm reads a closed input and cancels as
- * it does under Node — 130, `Reset cancelled.`, nothing reset — and that
- * answer is relayed with its exit code (0 or 1 are relayed as they come).
- * cospec's own stdin is not forwarded: under Bun, an answer already waiting
- * on the pipe (`echo y | …`) reaches the confirm, which Node discards as
- * input typed ahead of the prompt, so forwarding it would reset where the
- * binary cancels (design D14). The binary always prints an answer line after
- * its prompt, or a failure on stderr.
+ * handover preload with cospec's stdin forwarded to the binary's confirm
+ * (design D14). Under Node the confirm discards an answer already waiting on
+ * its pipe when it is drawn (`echo y | …` cancels) and takes one that arrives
+ * after (`(sleep 1; echo y) | …` resets); Bun hands the confirm everything, so
+ * the forwarding drops what arrives before the prompt is printed. A closed
+ * input cancels as it does under Node (the preload) — 130, `Reset cancelled.`,
+ * nothing reset — and every answer is relayed with its exit code. The binary
+ * always prints an answer line after its prompt, or a failure on stderr.
  */
-async function resetPiped(ctx: CommandContext, call: ConfigCall): Promise<number> {
+async function resetPiped(
+  ctx: CommandContext,
+  call: ConfigCall,
+  input: ReadableStream<Uint8Array>,
+): Promise<number> {
   const result = await passthroughOpenspec(call.wrapped, {
     cwd: ctx.cwd,
     preload: handoverPreload(),
+    input,
     expect: {
       exitCodes: [0, 1, 130],
       denyStdout: CONFIG_EXPECT.denyStdout,
@@ -506,7 +513,7 @@ export async function runHandover(
     if (!terminal.stdoutIsTTY || !wouldPrompt(result)) return relayRespelled(result, false)
   }
   if (call.sub === 'reset' && !(terminal.stdinIsTTY ?? process.stdin.isTTY === true))
-    return resetPiped(ctx, call)
+    return resetPiped(ctx, call, terminal.input?.() ?? Bun.stdin.stream())
   const bin = await resolveHandoverBin(ctx.cwd)
   const proc = Bun.spawn(preloadedArgv(bin, call.argv), {
     cwd: ctx.cwd,

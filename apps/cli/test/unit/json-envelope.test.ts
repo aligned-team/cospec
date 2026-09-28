@@ -58,6 +58,8 @@ interface Spawned {
   piped: string[][]
   /** The piped calls that ran with a `--preload` ahead of the bin path, as `piped` records them. */
   pipedPreloaded: string[][]
+  /** The piped calls whose stdin is a pipe cospec forwards input into, as `piped` records them. */
+  pipedWithInput: string[][]
   /** Each handover: its argv after the bin path, its environment, and its `--preload` file. */
   handovers: {
     argv: string[]
@@ -83,7 +85,14 @@ async function stubbed<T>(
   answer: (argv: string[]) => Answer | Error,
   fn: () => Promise<T>,
 ): Promise<{ value: T | undefined; error: unknown; spawned: Spawned }> {
-  const spawned: Spawned = { piped: [], pipedPreloaded: [], handovers: [], stdout: '', stderr: '' }
+  const spawned: Spawned = {
+    piped: [],
+    pipedPreloaded: [],
+    pipedWithInput: [],
+    handovers: [],
+    stdout: '',
+    stderr: '',
+  }
   const originalSpawn = Bun.spawn
   const originalOut = process.stdout.write
   const originalErr = process.stderr.write
@@ -96,6 +105,7 @@ async function stubbed<T>(
     }
     const argv = fromBin.slice(2)
     if (preload !== undefined) spawned.pipedPreloaded.push(argv)
+    if (opts?.stdin === 'pipe') spawned.pipedWithInput.push(argv)
     const reply: Answer | Error =
       argv.length === 1 && argv[0] === '--version'
         ? { stdout: `${PINNED_OPENSPEC_VERSION}\n` }
@@ -404,7 +414,7 @@ describe('workset open: the read-only pre-flight on a terminal', () => {
 type RunHandover = (
   ctx: CommandContext,
   call: configModule.ConfigCall,
-  terminal: { stdoutIsTTY: boolean; stdinIsTTY?: boolean },
+  terminal: configModule.ConfigTerminal,
 ) => Promise<number>
 
 describe('config profile: the piped pre-flight on a terminal', () => {
@@ -486,6 +496,7 @@ describe('config handover pre-flights: only the binary’s own interactive answe
         handover(ctxFor('/repo'), handoverPlan(['reset', '--all']), {
           stdoutIsTTY: true,
           stdinIsTTY: false,
+          input: () => new Response('').body!,
         }),
     )
     expect(error).toBeUndefined()
@@ -493,6 +504,8 @@ describe('config handover pre-flights: only the binary’s own interactive answe
     expect(spawned.piped).toEqual([['config', 'reset', '--all']])
     // The prompt ends at its given-no-input answer as it does under Node.
     expect(spawned.pipedPreloaded).toEqual([['config', 'reset', '--all']])
+    // Its stdin forwards cospec's own to the confirm (design D14).
+    expect(spawned.pipedWithInput).toEqual([['config', 'reset', '--all']])
     expect(value).toBe(130)
     expect(spawned.stdout).toBe(stdout)
   })
@@ -505,6 +518,7 @@ describe('config handover pre-flights: only the binary’s own interactive answe
         handover(ctxFor('/repo'), handoverPlan(['reset', '--all']), {
           stdoutIsTTY: true,
           stdinIsTTY: false,
+          input: () => new Response('').body!,
         }),
     )
     expect(error).toBeInstanceOf(OpenspecCallError)

@@ -470,33 +470,27 @@ describe('config reset --all with stdin piped, not a terminal: cospec forwards i
     ['yes |', 0, true],
   ]
   for (const [feeder, exitCode, reset] of cases) {
-    // Before forwarding, cospec gave the confirm no stdin, so it cancelled every case.
-    const row = exitCode === 130 ? test : test.failing
-    row(
-      `${feeder} cospec config reset --all: as the binary answers`,
-      async () => {
-        const argv = ['config', 'reset', '--all']
-        const [upRoot, coRoot] = [plainRoot(), plainRoot()]
-        for (const root of [upRoot, coRoot]) {
-          mkdirSync(dirname(globalConfig(root)), { recursive: true })
-          writeFileSync(globalConfig(root), CUSTOM_CONFIG)
-        }
-        const up = await fed(feeder, ['node', openspecBinPath(), ...argv], upRoot)
-        const co = await fed(feeder, [process.execPath, CLI_ENTRY, ...argv], coRoot)
-        expect(up.exitCode, detail(up)).toBe(exitCode)
-        expect(readFileSync(globalConfig(upRoot), 'utf8') !== CUSTOM_CONFIG).toBe(reset)
-        expect(co.exitCode, detail(co)).toBe(up.exitCode)
-        expect(readFileSync(globalConfig(coRoot), 'utf8')).toBe(
-          readFileSync(globalConfig(upRoot), 'utf8'),
-        )
-        expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
-        // `yes` answers every redraw the prompt makes before it closes, a count
-        // no run fixes, under Node as under cospec: its answer line is compared.
-        if (feeder === 'yes |') expect(lastLine(co.stdout), detail(co)).toBe(lastLine(up.stdout))
-        else expect(co.stdout, detail(co)).toBe(respellRemedies(up.stdout))
-      },
-      30_000,
-    )
+    test(`${feeder} cospec config reset --all: as the binary answers`, async () => {
+      const argv = ['config', 'reset', '--all']
+      const [upRoot, coRoot] = [plainRoot(), plainRoot()]
+      for (const root of [upRoot, coRoot]) {
+        mkdirSync(dirname(globalConfig(root)), { recursive: true })
+        writeFileSync(globalConfig(root), CUSTOM_CONFIG)
+      }
+      const up = await fed(feeder, ['node', openspecBinPath(), ...argv], upRoot)
+      const co = await fed(feeder, [process.execPath, CLI_ENTRY, ...argv], coRoot)
+      expect(up.exitCode, detail(up)).toBe(exitCode)
+      expect(readFileSync(globalConfig(upRoot), 'utf8') !== CUSTOM_CONFIG).toBe(reset)
+      expect(co.exitCode, detail(co)).toBe(up.exitCode)
+      expect(readFileSync(globalConfig(coRoot), 'utf8')).toBe(
+        readFileSync(globalConfig(upRoot), 'utf8'),
+      )
+      expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
+      // `yes` answers every redraw the prompt makes before it closes, a count
+      // no run fixes, under Node as under cospec: its answer line is compared.
+      if (feeder === 'yes |') expect(lastLine(co.stdout), detail(co)).toBe(lastLine(up.stdout))
+      else expect(co.stdout, detail(co)).toBe(respellRemedies(up.stdout))
+    }, 30_000)
   }
 })
 

@@ -285,7 +285,7 @@ describe('standalone pack smoke (bun-less)', () => {
     // A confirm given no input, under the compiled binary's own runtime: the
     // handover preload, written into the per-run cache and run ahead of the
     // embedded bundle, cancels it as the binary does under Node — exit 130,
-    // nothing reset — where Bun alone would exit 0 (design D14).
+    // nothing reset — where Bun alone would exit 0 (design D15).
     const config = join(home, '.config')
     const reset = Bun.spawnSync([bin, 'config', 'reset', '--all'], {
       cwd: target,
