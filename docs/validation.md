@@ -96,14 +96,22 @@ at any level — is a requirement needing text and a scenario with a body; the
 Purpose check; the structure check; and a canonical requirement with no
 statement. `archive/rebuilt-spec-invalid` runs it once no precondition refused
 the capability, names each finding by its origin line, and leaves a block the
-delta writes to the delta rules: a finding on a delta line is kept only when
-neither `deltas/requirement-shape` (a block with no scenario or statement) nor
-`archive/split-requirement` (a header that cuts it) fires there. A removed last
-requirement is not reported under `retire_capabilities: true`, where the archive
-retires the capability instead of writing it. This replaced the piecemeal living
-checks — the living split arm of `archive/split-requirement` and the
-missing-section arm of `archive/target-invalid` — with the archive's own
-validation.
+delta writes to the delta rules: a finding on a delta line is dropped only when
+`deltas/requirement-shape` (a block with no scenario or statement, on the masked
+parse — `requirementShapeIssues`, shared with that rule) or
+`archive/split-requirement` (a header that cuts it) reported that very line, so
+a block written inside an HTML comment is this rule's. Under
+`retire_capabilities: true` the no-requirements ERROR is skipped only on the
+archive's own decision (`decideSpecOutcome`): `rebuildSpec` also returns the
+count of REMOVED ops that deleted a block, whether any block survives, and the
+living lines a retirement cannot name (`contentTheMergeCannotName`, ported line
+for line and checked against the pinned dist's `buildUpdatedSpec`); the rebuilt
+spec's only ERRORs must be no-requirements ones, at any header level; and the
+change must have removed a requirement. A blocked retirement quotes the blocking
+lines as the archive's refusal does (`describeUnaccountedContent`). This
+replaced the piecemeal living checks — the living split arm of
+`archive/split-requirement` and the missing-section arm of
+`archive/target-invalid` — with the archive's own validation.
 
 ## Capability identity and discovery
 
@@ -229,28 +237,35 @@ Inside an ADDED/MODIFIED section, the delta parser records every non-fenced
 `###` header that is not a named `### Requirement:` header in `skippedHeaders` —
 the same lines, with the same `^###\s+(.+?)\s*$` pattern, OpenSpec 1.13.1's
 reader skips — and changes nothing else it reports: the header stays part of the
-block it sits in, and cuts that block into `parts`, each with its own count of
-bodied scenarios. OpenSpec's archive appends the block verbatim and then
-re-validates the rebuilt spec, whose reader takes every `###` header as a
-requirement of its own, so a piece left with no scenario aborts the archive
-(`Requirement must have at least one scenario`). `findRequirementSplits` names
-those headers — the first one inside a block whose own text has no scenario
+block it sits in, and cuts that block into `parts`. OpenSpec's archive appends
+the block verbatim and then re-validates the rebuilt spec, whose reader takes
+every `###` header as a requirement of its own, so a piece left with no scenario
+aborts the archive (`Requirement must have at least one scenario`).
+`findRequirementSplits` (`rebuilt-spec.ts`) names those headers, reading each
+piece's verdict off `validateRebuiltSpec` on the rebuilt spec — so a scenario is
+any deeper header with a body, a `#####` included, as `MarkdownParser` counts it
+— or, where the merge refuses before building one, on the block inside a spec of
+its own. They are the first one inside a block whose own text has no scenario
 above it, any whose part has none, and a blank-titled one (`###   `) whose part
 has no line of text before its first scenario, which the rebuilt spec reads as a
-requirement with no text — on the verbatim view, and `archive/split-requirement`
-(E) reports each. `deltas/skipped-header` (I) reports every other one — above
-the first requirement, or followed by a scenario of its own — except a
-`### Scenario:` line, which is `deltas/scenario-depth`'s (its message quotes the
-header). The INFO yields to the ERROR only when the archive family runs: under
-`--fast` (`deltasRules(change, { fast })`) a splitting header keeps its INFO, so
-a change cospec never delegates still reports it.
+requirement with no text. `archive/split-requirement` (E) reports each, and
+`deltasRules` reads the same verdict to drop the INFO. `deltas/skipped-header`
+(I) reports every other one — above the first requirement, or followed by a
+scenario of its own — except a `### Scenario:` line, which is
+`deltas/scenario-depth`'s (its message quotes the header). The INFO yields to
+the ERROR only when the archive family runs: under `--fast`
+(`deltasRules(change, { fast })`) a splitting header keeps its INFO, so a change
+cospec never delegates still reports it.
 
 The same split inside a living requirement the delta keeps is one shape of
 `archive/rebuilt-spec-invalid` (see "The rebuilt spec"), which names the
 requirement left with no scenario and the header that took them. A SHALL/MUST
 counts in the body only; when it appears only in the requirement header,
 `deltas/requirement-shape` (E) carries a hint saying to move it to the line
-after the header.
+after the header. A statement is the lines above the first header under the
+requirement (`RequirementPart.hasText` of its first part), so one whose only
+SHALL sits in a scenario step is `is missing requirement text` (E), as OpenSpec
+reports it.
 
 ## Checkbox grammar
 
@@ -375,9 +390,21 @@ against `deltas/header-present`. The three in-file conflicts against
 `archive/op-conflict` (keyed on the name; for RENAMED+REMOVED, the RENAMED FROM
 the binary quotes). And the skipped-header, scenario-depth and split captures
 take an empty header text, since both tools quote a blank-titled `###   ` header
-as `"### "`. Section 19 of `validation-parity.test.ts` sweeps every report the
-suite produces: a relayed finding that quotes the same requirement or header as
-a cospec finding on the same file fails it, and a second test re-injects every
+as `"### "`.
+
+Round 5 adds three, for a requirement a delta writes inside an HTML comment: the
+binary's `is missing requirement text`,
+`must contain SHALL or MUST in the requirement body, not only in the header` and
+`must include at least one scenario` against `archive/rebuilt-spec-invalid`'s
+"no text under its header" and "no scenario" findings on that delta line (keyed
+on the requirement name). The `is missing requirement text` entry against
+`deltas/requirement-shape` also takes that rule's own
+`is missing requirement text` wording. Under `--fast` the rebuilt spec is
+unchecked and the delegated ERRORs are kept.
+
+Section 19 of `validation-parity.test.ts` sweeps every report the suite
+produces: a relayed finding that quotes the same requirement or header as a
+cospec finding on the same file fails it, and a second test re-injects every
 suppressed twin to show the sweep would catch it.
 
 ## `.openspec.yaml` metadata keys
@@ -395,7 +422,9 @@ Two boolean keys, recognized on `LoadedChange.openspecYaml`:
 - **`retire_capabilities`** — authorizes openspec 1.8.0+ to delete a
   capability's living `spec.md` when a `REMOVED` operation takes its last
   requirement. Without it, a retiring merge is refused — cospec reports it
-  first, as `archive/rebuilt-spec-invalid` (`has no requirement left`). See
+  first, as `archive/rebuilt-spec-invalid` (`has no requirement left`). With it,
+  a retirement the archive refuses — content it cannot name, or a spec this
+  change did not empty — is reported the same way, with the blocking lines. See
   [Apply and archive](/reference/commands) and
   [Configuration](https://cospec.aligned.team/reference/configuration) for the
   archive-time behavior this key unlocks.

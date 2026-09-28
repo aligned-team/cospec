@@ -314,13 +314,17 @@ The archive-precondition rule family SHALL refuse, as the ERROR
 an `## ADDED` or `## MODIFIED` requirement block that leaves a piece of the
 block with no scenario: the wrapped binary's archive appends the block as
 written and re-validates the rebuilt spec, where every `###` header is a
-requirement of its own, and refuses a requirement with no scenario. The header
-SHALL be refused when it is the block's first skipped header and the
-requirement's own text has no scenario above it, or when no scenario with a body
-follows it before the next header or the block's end. A header above the first
-requirement block, or one followed by a scenario of its own, SHALL NOT be
-refused, because the archive keeps it. A header inside an HTML comment SHALL be
-read as the archive reads it; a fenced one SHALL NOT. A `### Scenario:` line
+requirement of its own, and refuses a requirement with no scenario. What counts
+as a scenario SHALL be read off the rebuilt spec's own parse, where any deeper
+header with a body under the piece — a `#####` included — is one, never off a
+count of `#### ` headers in the isolated block; where the merge refuses before
+building a spec, the block SHALL be read inside a spec of its own with the same
+parser. The header SHALL be refused when it is the block's first skipped header
+and the requirement's own text has no scenario above it, or when no scenario
+with a body follows it before the next header or the block's end. A header above
+the first requirement block, or one followed by a scenario of its own, SHALL NOT
+be refused, because the archive keeps it. A header inside an HTML comment SHALL
+be read as the archive reads it; a fenced one SHALL NOT. A `### Scenario:` line
 that `deltas/scenario-depth` already reports SHALL NOT also be reported by this
 rule. A header whose title is blank (`###` followed only by whitespace) SHALL
 also be refused when a scenario follows it but no line of text sits between the
@@ -357,6 +361,13 @@ instead.
 - **THEN** `archive/split-requirement` reports it as leaving a requirement with
   no text, no `deltas/skipped-header` INFO is raised for it, and the binary's
   archive refuses the change
+
+#### Scenario: A header whose only child is a bodied level-5 header is kept
+
+- **WHEN** a `### Notes` line whose only child is a `##### Sub-case` with steps
+  sits after a block's scenario, or above it under a `#####` of the block's own
+- **THEN** no `archive/split-requirement` is raised, `deltas/skipped-header`
+  reports the line at INFO, and the binary's archive applies the change
 
 #### Scenario: A header with its own scenario is kept
 
@@ -438,13 +449,26 @@ requirement needing text and a scenario with a body, needs `## Purpose` text and
 at least one requirement, refuses the three structure defects, and needs a
 statement under every `### Requirement:` header.
 
-A finding on a block the delta writes SHALL be reported only when neither
-`deltas/requirement-shape` nor `archive/split-requirement` reports that block's
-defect. The rule SHALL NOT run for a capability another archive-precondition
-rule already refused, because the archive stops there first, nor where the merge
-itself refuses. A delta that removes the last requirement SHALL NOT be reported
-when the change sets `retire_capabilities: true`. The legacy lane SHALL NOT run
-the rule. The rebuilt text SHALL equal, byte for byte, the spec the pinned
+A finding on a line a delta block writes SHALL be dropped only where
+`deltas/requirement-shape` or `archive/split-requirement` reported that very
+line, never on the assumption that one did; so a block written inside an HTML
+comment, which the archive merges and the masked reader behind
+`deltas/requirement-shape` never sees, SHALL be this rule's. The rule SHALL NOT
+run for a capability another archive-precondition rule already refused, because
+the archive stops there first, nor where the merge itself refuses.
+
+Under `retire_capabilities: true` the no-requirements ERROR SHALL be skipped
+only on the wrapped binary's own retirement decision: no requirement block
+survives the merge, every ERROR of the rebuilt spec is a no-requirements one at
+whatever level the header read as the Requirements section sits, nothing in the
+living spec sits outside what a retirement can name (the title, `## Purpose`,
+and each requirement block's own header, statement and scenario bullets), and
+this change removed a requirement block. A declared retirement the content
+blocks SHALL be reported with the blocking lines quoted as the binary's refusal
+quotes them; one the change did not empty SHALL be reported as such. Without the
+marker, the finding SHALL name the marker only when setting it alone would let
+the archive through, and the blocking lines otherwise. The legacy lane SHALL NOT
+run the rule. The rebuilt text SHALL equal, byte for byte, the spec the pinned
 binary writes for the same change.
 
 #### Scenario: A header above the first living requirement is refused
@@ -480,6 +504,32 @@ binary writes for the same change.
   requirement without `retire_capabilities: true`
 - **THEN** `archive/rebuilt-spec-invalid` reports it, and the binary's archive
   refuses the change
+
+#### Scenario: A declared retirement the archive refuses is refused
+
+- **WHEN** a change with `retire_capabilities: true` removes every requirement
+  of a living spec that also holds prose, a comment, a fence, a heading, a table
+  or a trailing section outside `## Purpose` and the blocks' own parts — above
+  the requirements, or inside or below a removed block — or removes none from a
+  spec with no `## Requirements`
+- **THEN** `cospec validate --strict` reports one `archive/rebuilt-spec-invalid`
+  quoting the blocking lines the binary's refusal quotes (or saying the change
+  removes none of its requirements), and the binary's archive refuses the change
+
+#### Scenario: A retirement the archive performs is clean
+
+- **WHEN** a change with `retire_capabilities: true` removes every requirement
+  of a living spec whose `## Purpose` holds a `### Requirements` or
+  `#### Requirements` heading, or whose scenario bullets wrap
+- **THEN** no `archive/rebuilt-spec-invalid` is raised, and the binary's archive
+  deletes the spec and archives the change
+
+#### Scenario: A block written inside an HTML comment is refused on its line
+
+- **WHEN** a delta carries a `### Requirement:` block inside an HTML comment
+  with no statement or no scenario, and the change is never delegated
+- **THEN** `archive/rebuilt-spec-invalid` reports it on the commented header's
+  delta line, and the binary's validate and archive refuse the change
 
 #### Scenario: Shapes the archive accepts are clean
 

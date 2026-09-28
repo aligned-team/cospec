@@ -38,13 +38,14 @@ which cospec's advisory reader masks, keeps its delegated INFO beside a real one
 with different text in the same file; a commented and a real `### Scenario:`
 with the same text SHALL both pair with the real one's finding. The keyword and
 missing-text messages SHALL pair with `deltas/requirement-shape` on the same
-file, operation and requirement name, the name read off the header as written —
-a trailing HTML comment included, as the wrapped binary reads it; so SHALL the
-missing-scenario message, with or without the binary's empty-scenario hint. The
-two cross-section messages (`ADDED and REMOVED`, `MODIFIED and ADDED`) SHALL
-pair with `archive/added-exists` on the same file and requirement name, and so
-SHALL the duplicate-ADDED, duplicate-RENAMED-target and
-RENAMED-target-collides-with-ADDED messages. The `MODIFIED and REMOVED` and
+file, operation and requirement name (the missing-text message with either of
+that rule's two wordings for an empty statement), the name read off the header
+as written — a trailing HTML comment included, as the wrapped binary reads it;
+so SHALL the missing-scenario message, with or without the binary's
+empty-scenario hint. The two cross-section messages (`ADDED and REMOVED`,
+`MODIFIED and ADDED`) SHALL pair with `archive/added-exists` on the same file
+and requirement name, and so SHALL the duplicate-ADDED, duplicate-RENAMED-target
+and RENAMED-target-collides-with-ADDED messages. The `MODIFIED and REMOVED` and
 duplicate-RENAMED-source messages SHALL pair with `archive/target-missing`'s "no
 longer exists" finding on the same file and requirement name. The dry-run's
 structurally-invalid-target message SHALL pair with `archive/target-invalid` on
@@ -60,12 +61,15 @@ no-delta-sections message SHALL pair with `deltas/header-present` on the same
 file, and the change-level no-deltas message with it fired anywhere on the item.
 The duplicate-MODIFIED, duplicate-REMOVED and RENAMED-and-REMOVED messages SHALL
 pair with `archive/op-conflict` on the same file and requirement name, the
-RENAMED FROM for the last. A header key SHALL match an empty header text, so a
-blank-titled `###` header pairs too. Each pairing SHALL be covered by a contract
-test whose delegated message is read from the pinned binary, never typed by
-hand, and a sweep over every report the parity suite produces SHALL find no
-relayed finding naming the same requirement or header as a cospec finding on the
-same file.
+RENAMED FROM for the last. For a requirement a delta writes inside an HTML
+comment, the missing-text, keyword-only-in-the-header and missing-scenario
+messages SHALL pair with `archive/rebuilt-spec-invalid`'s finding on that
+block's delta line, on the same file and requirement name. A header key SHALL
+match an empty header text, so a blank-titled `###` header pairs too. Each
+pairing SHALL be covered by a contract test whose delegated message is read from
+the pinned binary, never typed by hand, and a sweep over every report the parity
+suite produces SHALL find no relayed finding naming the same requirement or
+header as a cospec finding on the same file.
 
 The archive-precondition family SHALL be paired one entry per upstream
 precondition shape, because a duplicate class carries a single native rule id
@@ -338,3 +342,28 @@ included. A requirement whose header lacks SHALL/MUST too SHALL get no hint.
 - **WHEN** neither the header nor the body of an ADDED requirement holds SHALL
   or MUST
 - **THEN** `deltas/requirement-shape` is an ERROR with no hint
+
+### Requirement: An empty statement is refused however its scenarios read
+
+An `## ADDED` or `## MODIFIED` requirement whose statement — the lines between
+its `### Requirement:` header and the first header under it — is empty SHALL be
+the ERROR `deltas/requirement-shape` even when a scenario step holds SHALL or
+MUST, because the wrapped binary reads the statement off those lines only and
+refuses an empty one in its validate and its archive. The message SHALL be
+`<OP> "<name>" is missing requirement text`, or the header-only wording and hint
+when the header itself holds SHALL/MUST, so it pairs with the binary's finding
+and a change cospec never delegates is refused too.
+
+#### Scenario: A SHALL only in a scenario step, on a change never delegated
+
+- **WHEN** a change with no `proposal.md` ADDs `Widget buffing` with no
+  statement and a scenario step reading
+  `the system SHALL return a buffed widget`
+- **THEN** `cospec validate` reports `deltas/requirement-shape` at ERROR on the
+  header's line, and the binary's validate and archive refuse the change
+
+#### Scenario: The delegated twin is one finding
+
+- **WHEN** the same change carries a `proposal.md`
+- **THEN** the binary's `is missing requirement text` ERROR is not relayed
+  beside cospec's

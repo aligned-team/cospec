@@ -72,7 +72,16 @@ ERROR for cospec-typed changes and only the binary's hint text is ported.
   a port of the archive's validation over it, naming each defect's living or
   delta line. It replaces the living-side split check, and
   `archive/target-invalid` stops refusing a living spec with no
-  `## Requirements`, which the binary archives.
+  `## Requirements`, which the binary archives. Under
+  `retire_capabilities: true` it decides as the archive does whether the spec is
+  deleted or written — refusing a retirement that content outside what the merge
+  can name blocks, or that removes nothing, and quoting the blocking lines — and
+  it leaves a delta line to the delta rules only where they reported it, so a
+  requirement written inside an HTML comment is refused too.
+- `archive/split-requirement` counts a piece's scenarios as the rebuilt spec's
+  parser does (a bodied `#####` child counts), and `deltas/requirement-shape`
+  refuses an empty statement whose only SHALL/MUST sits in a scenario step,
+  which the binary's validate and archive refuse.
 - New rule `archive/op-conflict` (ERROR): a MODIFIED or REMOVED written twice in
   one delta file, and a REMOVED of a RENAMED source. The binary's validate
   refuses all three and no other cospec rule did, so a change cospec never

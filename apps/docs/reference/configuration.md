@@ -64,7 +64,13 @@ two boolean keys:
   last requirement. Without the marker, the merge refuses outright, with the
   change and spec untouched — cospec reports it at validate time on a
   cospec-typed change (`archive/rebuilt-spec-invalid`) and relays openspec's
-  refusal on a legacy one. Two footguns worth knowing: the marker is only
+  refusal on a legacy one. With it, the spec is deleted only when deleting it
+  loses nothing the merge cannot name: prose, a comment, a fence, a heading or a
+  table outside `## Purpose` and the requirement blocks' own parts — above the
+  requirements, inside or below a removed block, or in a trailing section —
+  keeps openspec writing the empty spec and refusing it, as does a spec the
+  change removed no requirement from; cospec reports both at validate time,
+  quoting the blocking lines. Two footguns worth knowing: the marker is only
   honored when the whole `.openspec.yaml` is valid to openspec — in a repo whose
   `schema:` isn't registered with openspec, the binary reports
   `The marker present now cannot be honored (schema: unknown schema '<type>')`
