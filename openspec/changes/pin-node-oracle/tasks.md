@@ -107,3 +107,18 @@
       outside the real HOME, gone after the run, with empty stderr; a caller's
       `XDG_CONFIG_HOME` wins. `docs/architecture.md` and `.agents/shared.md`
       name both helpers (`agents:sync` rewrote `CLAUDE.md` and `AGENTS.md`)
+- [x] 5.2 Add the missing platform checksums for `aqua:koalaman/shellcheck` and
+      `aqua:tamasfe/taplo` to `mise.lock`, and verify a fresh `mise install` of
+      both leaves `mise.lock` byte-identical on macos-arm64, linux-arm64 and
+      linux-x64 -> all 22 platform rows (11 per tool) had a URL and no checksum,
+      and `mise lock` for the two tools wrote nothing (neither release publishes
+      checksums, so there is nothing to fetch). Control: a fresh `mise install`
+      (mise 2026.9.13) at HEAD appended a host-only `blake3:` row (macos-arm64
+      here; linux-x64 in a `debian:bookworm-slim` container), so CI's drift gate
+      passed only on a warm tool cache. Added a `sha256:` row to each of the 22
+      entries, hashed from the asset each row's URL names (+22 lines, nothing
+      else). A fresh sandboxed install then left `mise.lock` byte-identical
+      (`cmp`) on macos-arm64 and in linux/arm64 and linux/amd64 containers, as
+      did `mise lock` for both tools. A zeroed macos-arm64 taplo checksum made
+      the install fail with `Checksum     mismatch`, so the rows are checked,
+      not just carried. No other platform row in `mise.lock` lacks a checksum
