@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   realpathSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs'
@@ -1227,11 +1228,27 @@ describe('resolveRoot — raw read failures (ledger 5.23)', () => {
     async () => {
       await withGlobalConfig(undefined, async (env) => {
         const root = env.store('gamma')
+        const configYaml = join(root, 'openspec', 'config.yaml')
         chmodSync(join(root, 'openspec'), 0o000)
         try {
+          // resolveRoot's raw passthrough must equal THIS runtime's own stat
+          // error for the same path, not a fixed string: libuv's stat call
+          // names the syscall `statx` on Linux and `stat` on macOS (Bun and
+          // Node can differ here too), so the expected message is captured
+          // from the runtime rather than hardcoded — a strict, not a loosened,
+          // assertion (see docs/architecture.md, "raw read failures").
+          let expected: string | undefined
+          try {
+            statSync(configYaml)
+          } catch (error) {
+            expected = (error as NodeJS.ErrnoException).message
+          }
+          if (expected === undefined) {
+            throw new Error('expected statSync to throw EACCES on a mode-000 parent')
+          }
           await rawRejection(
             resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }),
-            `EACCES: permission denied, stat '${join(root, 'openspec', 'config.yaml')}'`,
+            expected,
           )
         } finally {
           chmodSync(join(root, 'openspec'), 0o755)
