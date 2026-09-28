@@ -40,4 +40,20 @@ describe('show: binaryAnswers', () => {
     expect(binaryAnswers(['', 'c1'])).toBe(true)
     expect(binaryAnswers(['--', '', 'c1'])).toBe(true)
   })
+
+  // Commander's short-option split: `-X<rest>` gives a value-taking `-X` the
+  // rest as its value (`-r=1` too, value `=1`); a boolean `-X` leaves `-<rest>`
+  // as the next token.
+  test.failing('an attached short value is its value, not an item', () => {
+    expect(binaryAnswers(['-r1'])).toBe(false)
+    expect(binaryAnswers(['-r=1'])).toBe(false)
+    expect(binaryAnswers(['-rr'])).toBe(false)
+    expect(binaryAnswers(['--no-scenarios', '-r1'])).toBe(false)
+  })
+
+  test('a short cluster with an item, or an undeclared head, reaches the binary', () => {
+    expect(binaryAnswers(['-r1', 'c1'])).toBe(true)
+    expect(binaryAnswers(['-x1'])).toBe(true)
+    expect(binaryAnswers(['--no-scenarios=x'])).toBe(true)
+  })
 })
