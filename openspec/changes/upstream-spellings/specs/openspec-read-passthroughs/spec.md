@@ -20,9 +20,14 @@ the cospec-native `apply` gate, unchanged, whatever the id and the working
 directory: `apply`'s own refusals (no `openspec/` directory, an unknown change,
 an id outside cospec's change-id grammar) SHALL answer for it, and the wrapped
 binary's ungated `instructions apply` SHALL never be relayed in its place.
-`archive` SHALL be listed among the artifacts the command advertises and SHALL
-pass through read-only — it SHALL NOT be aliased to `cospec archive`, because
-the wrapped `instructions archive` neither gates nor moves anything.
+`--schema` given with `instructions apply --change <id>` SHALL be refused before
+the gate runs, exit 1 — on stderr, or as one
+`{status: [{severity, code: "schema_not_applicable", message}]}` document under
+`--json` — because the binary would answer from that schema's apply requirements
+while the gate enforces the change's own. `archive` SHALL be listed among the
+artifacts the command advertises and SHALL pass through read-only — it SHALL NOT
+be aliased to `cospec archive`, because the wrapped `instructions archive`
+neither gates nor moves anything.
 
 For any other artifact, cospec SHALL call the wrapped binary with `--json` and
 build its answer from that document. It SHALL respell, through the shared
@@ -93,6 +98,15 @@ the binary's own text and exit code otherwise.
 - **THEN** stdout, stderr and the exit code are those of `cospec apply <id>` run
   from the same directory (exit `2` on the blocked change from the root), and
   the binary's `## Apply:` answer is never printed
+
+#### Scenario: A schema override on instructions apply is refused
+
+- **WHEN** `cospec instructions apply --change <id> --schema <name>` runs, with
+  or without `--json`
+- **THEN** it exits 1 before the gate runs and writes nothing: stderr names
+  `'--schema' does not apply to 'apply'`, or under `--json` stdout is exactly
+  one `{status: [{severity: "error", code: "schema_not_applicable", message}]}`
+  document and stderr is empty
 
 #### Scenario: Referenced-store fields name cospec
 

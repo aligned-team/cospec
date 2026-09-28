@@ -15,6 +15,9 @@ import { relayRespelled } from '../core/forward-relay.ts'
 import { callPassthrough } from '../core/passthrough-command.ts'
 import { run as applyRun } from './apply.ts'
 
+const APPLY_SCHEMA_REFUSAL =
+  "'--schema' does not apply to 'apply' — the gate reads the change's own schema"
+
 export async function run(ctx: CommandContext): Promise<number> {
   const parsed = ctx.parsed!
   const artifact = parsed.positionals[0]
@@ -31,11 +34,15 @@ export async function run(ctx: CommandContext): Promise<number> {
   // `instructions archive` is read-only guidance, forwarded like every other
   // artifact id.
   if (artifact === 'apply' && changeId !== undefined) {
-    // The gate reads the change's own schema; an override would be dropped.
+    // Upstream's `--schema` answers from another schema's apply requirements,
+    // while the gate enforces the change's own: refused before the gate runs.
     if (schema !== undefined) {
-      process.stderr.write(
-        "cospec instructions: '--schema' does not apply to 'apply' — the gate reads the change's own schema\n",
-      )
+      if (ctx.flags.json) {
+        const status = [
+          { severity: 'error', code: 'schema_not_applicable', message: APPLY_SCHEMA_REFUSAL },
+        ]
+        process.stdout.write(`${JSON.stringify({ status }, null, 2)}\n`)
+      } else process.stderr.write(`cospec instructions: ${APPLY_SCHEMA_REFUSAL}\n`)
       return EXIT.failure
     }
     // apply.ts reads `ctx.parsed`, so re-parse against apply's own row rather

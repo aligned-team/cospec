@@ -141,6 +141,13 @@ the reachability test can never let one drift out of sync with the other:
   </li>
 </ul>
 
+One upstream flag the gate declines: `openspec instructions apply --change <id>`
+accepts `--schema <name>` and answers from that schema's apply requirements,
+while `cospec instructions apply --change <id>` is the gate, which enforces the
+change's own. cospec refuses `--schema` there before the gate runs rather than
+print a verdict and a payload that disagree — see
+[Commands](/reference/commands).
+
 ## Named exceptions
 
 "Every capability has a counterpart" is a checked claim, not a promise: a

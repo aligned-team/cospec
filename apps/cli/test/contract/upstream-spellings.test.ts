@@ -867,34 +867,29 @@ describe('3.6 instructions apply --change --schema is refused before the gate', 
   for (const asJson of [false, true]) {
     const flag = asJson ? ['--json'] : []
     const argv = ['instructions', 'apply', '--change', 'foo', '--schema', 'spec-driven', ...flag]
-    const register = asJson ? test.failing : test
-    register(
-      `${argv.join(' ')}: one refusal, nothing run or written`,
-      async () => {
-        // The binary would answer from spec-driven's apply requirements, which
-        // differ from the ones the gate enforces for this feat change.
-        const u = await runUpstream([...argv.slice(0, 6), '--json'], gatedRoot())
-        expect(u.exitCode, detail('openspec', u)).toBe(0)
-        expect(json(u)['schemaName']).toBe('spec-driven')
-        const root = gatedRoot()
-        const before = treeHash(root)
-        const c = await runCospec(argv, root)
-        expect(c.exitCode, detail('cospec', c)).toBe(1)
-        const message =
-          "'--schema' does not apply to 'apply' — the gate reads the change's own schema"
-        if (asJson) {
-          expect(c.stderr).toBe('')
-          expect(json(c)).toEqual({
-            status: [{ severity: 'error', code: 'schema_not_applicable', message }],
-          })
-        } else {
-          expect(c.stdout).toBe('')
-          expect(c.stderr).toBe(`cospec instructions: ${message}\n`)
-        }
-        expect(treeHash(root)).toEqual(before)
-      },
-      30_000,
-    )
+    test(`${argv.join(' ')}: one refusal, nothing run or written`, async () => {
+      // The binary would answer from spec-driven's apply requirements, which
+      // differ from the ones the gate enforces for this feat change.
+      const u = await runUpstream([...argv.slice(0, 6), '--json'], gatedRoot())
+      expect(u.exitCode, detail('openspec', u)).toBe(0)
+      expect(json(u)['schemaName']).toBe('spec-driven')
+      const root = gatedRoot()
+      const before = treeHash(root)
+      const c = await runCospec(argv, root)
+      expect(c.exitCode, detail('cospec', c)).toBe(1)
+      const message =
+        "'--schema' does not apply to 'apply' — the gate reads the change's own schema"
+      if (asJson) {
+        expect(c.stderr).toBe('')
+        expect(json(c)).toEqual({
+          status: [{ severity: 'error', code: 'schema_not_applicable', message }],
+        })
+      } else {
+        expect(c.stdout).toBe('')
+        expect(c.stderr).toBe(`cospec instructions: ${message}\n`)
+      }
+      expect(treeHash(root)).toEqual(before)
+    }, 30_000)
   }
 })
 

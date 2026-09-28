@@ -306,10 +306,17 @@ reaches the binary, whose `Missing required option --change` /
 `Missing required argument <artifact>` answer is relayed (one document under
 `--json`). `instructions apply` with no `--change` is forwarded the same way —
 there is no change to gate, and the binary's answer lists the available changes;
-with a change it re-parses against `apply`'s row as today. The precedence
-matrix's `instructions` missing-argument rows move from `cospecOnly` to
-agreement with the binary, and the row's help usage reads
-`cospec instructions [artifact]`.
+with a change it re-parses against `apply`'s row as today, whatever the id and
+the working directory, so `apply`'s own refusals answer and the binary's ungated
+apply instructions never do. `--schema` there is refused before the gate (one
+`{status}` document under `--json`): the binary would answer from that schema's
+`apply.requires` — probed: `feat` change `foo` reports `missingArtifacts`
+`[proposal, blocking-changes, specs, verification, tasks]`,
+`--schema spec-driven` reports `[tasks]` — while the gate enforces the change's
+own, so forwarding it would print a verdict and a payload that disagree, and on
+the legacy lane change the exit code. The precedence matrix's `instructions`
+missing-argument rows move from `cospecOnly` to agreement with the binary, and
+the row's help usage reads `cospec instructions [artifact]`.
 
 ### 11. `instructions` success path: build the answer from the document
 
