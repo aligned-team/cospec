@@ -2,34 +2,47 @@
 // contract test can ask "what does upstream answer for this argv?" at test
 // time instead of hand-typing a probed copy of the answer.
 //
-// The API is deliberately four functions and later changes' differential
+// The API is deliberately five functions and later changes' differential
 // tests reuse them, so keep it small:
 //
 // - `scaffoldOracleRoot()` makes a temp root that `openspec init` has scaffolded.
 // - `oracle(argv, root)` runs the binary and returns stdout/stderr/exit code.
 // - `oracleJson(argv, root)` does the same and requires stdout to be exactly one
 //   JSON document.
-// - `oracleEnv(root)` is the environment both of those use, for handing a
-//   cospec run the identical environment in a differential.
+// - `oracleEnv(root)` is the sandbox environment both of those run from, for
+//   handing a cospec run the identical environment in a differential.
+// - `oracleSpawn(argv, root)` is the command, cwd and env a run spawns, so the
+//   spawn discipline below is testable (`../upstream-oracle.test.ts`).
 //
-// Every run uses the same environment: color forcing stripped and `NO_COLOR=1`
-// (the `test/fixtures/support.ts` discipline), `OPENSPEC_TELEMETRY=0`, and a
-// private HOME/XDG sandbox per root. The sandbox matters because
-// `openspec init` reads machine-global state (it enumerates
-// `~/.codex/prompts`, for one), so a run against the real HOME can differ
-// between machines and could touch the developer's own files.
+// The binary runs the way cospec's own wrapped calls run it (`spawnRaw` in
+// `src/core/openspec.ts`), so the oracle and the product share a runtime: the
+// running executable (`process.execPath`, Bun under `bun test`) on the
+// package's `bin/openspec.js`, under `buildWrappedSpawnEnv` — the product's
+// `WRAPPED_ENV` (`NO_COLOR`, `BUN_BE_BUN`, `OPENSPEC_TELEMETRY=0`,
+// `OPENSPEC_NO_COMPLETIONS=1`) over the parent env minus every color-forcing
+// key. The parent env is `oracleEnv(root)`: a private HOME/XDG sandbox per
+// root, which matters because `openspec init` reads machine-global state (it
+// enumerates `~/.codex/prompts`, for one), so a run against the real HOME can
+// differ between machines and could touch the developer's own files. A cospec
+// run handed `oracleEnv(root)` spawns its binary under exactly the env the
+// oracle's child sees.
 //
-// argv reaches the binary untouched. Unlike `openspec()` in support.ts, no
-// leading `--no-color` is prepended, because a pre-command token such as
-// `--store-path /x list` is only meaningful when nothing else precedes it.
+// argv reaches the binary untouched — the one deliberate difference from
+// `spawnRaw`, which prepends `--no-color`: a pre-command token such as
+// `--store-path /x list` is only meaningful when nothing else precedes it
+// (`NO_COLOR=1` already turns color off).
 //
-// By default the binary runs under Bun, which drops one `--` that directly
-// follows the script path. `{ runtime: 'node' }` runs it under Node instead,
-// which delivers a leading `--` intact, as a user's `openspec -- list` does.
+// Bun drops one `--` that directly follows the script path, so an argv whose
+// first token is `--` never reaches the binary under Bun. `{ runtime: 'node' }`
+// runs it under Node instead (the `mise.toml` pin, tests and CI only — cospec
+// itself never runs Node), which delivers a leading `--` intact, as a user's
+// `openspec -- list` does. Use it for exactly those rows; every other row runs
+// under Bun, as cospec's wrapped calls do.
 
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { buildWrappedSpawnEnv } from '../../../src/core/openspec.ts'
 import { envWithoutColorForcing, mkTempRepo, openspecBinPath } from '../../fixtures/support.ts'
 
 /** What one oracle run observed. */
@@ -47,11 +60,14 @@ export interface OracleJsonRun {
 }
 
 /**
- * The environment every oracle run (and a cospec run that must match it) uses
- * for `root`: color forcing stripped, `NO_COLOR=1`, `OPENSPEC_TELEMETRY=0`, and
- * HOME, the XDG config/data/state/cache dirs, CODEX_HOME and ZDOTDIR redirected
- * under `root/.oracle-home`, and `EDITOR`/`VISUAL` set to `true`.
- * Exported so a differential test can hand cospec the identical environment.
+ * The sandbox environment for `root`, the parent env of every oracle run (and
+ * of a cospec run that must match it): color forcing stripped, `NO_COLOR=1`,
+ * `OPENSPEC_TELEMETRY=0`, and HOME, the XDG config/data/state/cache dirs,
+ * CODEX_HOME and ZDOTDIR redirected under `root/.oracle-home`, and
+ * `EDITOR`/`VISUAL` set to `true`. The binary itself runs under
+ * `buildWrappedSpawnEnv(oracleEnv(root))` (`oracleSpawn`), as cospec's child
+ * does when cospec is handed this env. Exported so a differential test can
+ * hand cospec the identical environment.
  */
 export function oracleEnv(root: string): Record<string, string> {
   const home = join(root, '.oracle-home')
@@ -101,26 +117,47 @@ export interface OracleOptions {
   cwd?: string
 }
 
+/** The command, cwd and env one oracle run spawns. */
+export interface OracleSpawn {
+  cmd: string[]
+  cwd: string
+  env: Record<string, string | undefined>
+}
+
 /**
- * Run the pinned binary (resolved by package path, never `$PATH`) with `argv`
- * in `root` (or `opts.cwd`), under `oracleEnv(root)`. Under Node every token
- * arrives verbatim; under Bun (the default) a leading `--` is dropped.
+ * What `oracle(argv, root, opts)` spawns: the pinned binary (resolved by
+ * package path, never `$PATH`) under the running executable — as `spawnRaw`
+ * does — or under `node` from PATH for `{ runtime: 'node' }`, with `argv`
+ * untouched, in `root` (or `opts.cwd`), under
+ * `buildWrappedSpawnEnv(oracleEnv(root))`.
+ */
+export function oracleSpawn(argv: string[], root: string, opts: OracleOptions = {}): OracleSpawn {
+  let interpreter = process.execPath
+  if (opts.runtime === 'node') {
+    const node = Bun.which('node')
+    if (node === null)
+      throw new Error('oracle: `node` is not on PATH, so the binary cannot run under Node')
+    interpreter = node
+  }
+  return {
+    cmd: [interpreter, openspecBinPath(), ...argv],
+    cwd: opts.cwd ?? root,
+    env: buildWrappedSpawnEnv(oracleEnv(root)),
+  }
+}
+
+/**
+ * Run the pinned binary with `argv` as `oracleSpawn` describes. Under Node
+ * every token arrives verbatim; under Bun (the default) a leading `--` is
+ * dropped.
  */
 export async function oracle(
   argv: string[],
   root: string,
   opts: OracleOptions = {},
 ): Promise<OracleRun> {
-  const runtime = opts.runtime ?? 'bun'
-  if (runtime === 'node' && Bun.which('node') === null)
-    throw new Error('oracle: `node` is not on PATH, so the binary cannot run under Node')
-  const proc = Bun.spawn([runtime, openspecBinPath(), ...argv], {
-    cwd: opts.cwd ?? root,
-    stdin: 'ignore',
-    stdout: 'pipe',
-    stderr: 'pipe',
-    env: oracleEnv(root),
-  })
+  const { cmd, cwd, env } = oracleSpawn(argv, root, opts)
+  const proc = Bun.spawn(cmd, { cwd, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', env })
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),

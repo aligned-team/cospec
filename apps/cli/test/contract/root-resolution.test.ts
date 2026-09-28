@@ -2310,7 +2310,7 @@ describe('every file the resolver reads fails as the binary does (ledger 5.22)',
               const runs: Promise<void>[] = []
               for (const argv of [...SWEEP_ROOT_ARGVS, ['list']]) {
                 runs.push(
-                  oracle([...argv, ...store], sb.dir, { cwd, runtime: 'node' }).then((r) => {
+                  oracle([...argv, ...store], sb.dir, { cwd }).then((r) => {
                     up.set(key(argv), r)
                   }),
                   cospec([...argv, ...store], { cwd, env: sb.env }).then((r) => {
@@ -2321,7 +2321,7 @@ describe('every file the resolver reads fails as the binary does (ledger 5.22)',
               // The binary takes no `--store` on these: its answer is the cwd's.
               for (const argv of SWEEP_CWD_ARGVS)
                 runs.push(
-                  oracle([...argv], sb.dir, { cwd, runtime: 'node' }).then((r) => {
+                  oracle([...argv], sb.dir, { cwd }).then((r) => {
                     up.set(key(argv), r)
                   }),
                   cospec([...argv, ...store], { cwd, env: sb.env }).then((r) => {
@@ -2482,7 +2482,7 @@ describe('templates and schema print no resolver line (ledger 5.25)', () => {
   // Upstream's `templates` and `schema` actions never run root selection, so
   // the binary prints none of the lines `resolveRoot` prints (the ignored
   // pointer warning, the store banner, the invalid-global-config warning):
-  // only its own `Note:` lines. The binary runs under Node, as users run it.
+  // only its own `Note:` lines.
   for (const route of QUIET_ROUTES)
     describe(route.id, () => {
       let sb!: Sandbox
@@ -2497,7 +2497,7 @@ describe('templates and schema print no resolver line (ledger 5.25)', () => {
       })
 
       test('oracle and cospec: list prints the resolver line once on this route', async () => {
-        const up = await oracle(['list', ...flag()], sb.dir, { cwd, runtime: 'node' })
+        const up = await oracle(['list', ...flag()], sb.dir, { cwd })
         const res = await cospec(['list', ...flag()], { cwd, env: sb.env })
         expect(up.exitCode).toBe(0)
         expect(lineCount(up.stderr, route.line(sb, dir))).toBe(1)
@@ -2507,7 +2507,7 @@ describe('templates and schema print no resolver line (ledger 5.25)', () => {
 
       for (const argv of QUIET_ARGVS)
         test(`cospec ${argv.join(' ')} prints only the binary's stderr`, async () => {
-          const up = await oracle([...argv], sb.dir, { cwd: binaryCwd(), runtime: 'node' })
+          const up = await oracle([...argv], sb.dir, { cwd: binaryCwd() })
           const res = await cospec([...argv, ...flag()], { cwd, env: sb.env })
           expect(up.exitCode).toBe(0)
           expect(lineCount(up.stderr, route.line(sb, dir))).toBe(0)

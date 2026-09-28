@@ -21,8 +21,10 @@
 // redirect upstream (`--json` is the value), never a `--json` envelope. The expected
 // answer is the binary's, read at test time, never a typed copy.
 //
-// Both tools receive argv verbatim, a leading `--` included: the binary runs
-// under Node (`oracle(…, { runtime: 'node' })`), and cospec runs as
+// Both tools receive argv verbatim, a leading `--` included. The binary runs
+// under Bun, as cospec's wrapped calls run it, except for an argv whose first
+// token is `--`: Bun would drop that token, so those rows alone run it under
+// Node (`oracle(…, { runtime: 'node' })`), which delivers it. cospec runs as
 // `bun <entry> -- …argv`, whose first `--` Bun consumes (asserted below).
 //
 // A `pending` row is a spelling the binary answers and cospec does not yet,
@@ -130,8 +132,9 @@ function runCospec(argv: readonly string[], root: string): Promise<SpawnResult> 
   return cospec(['--', ...argv], { cwd: root, env: oracleEnv(root) })
 }
 
+/** The binary with `argv` delivered verbatim: under Node only when Bun would drop a leading `--`. */
 function runUpstream(argv: readonly string[], root: string): Promise<SpawnResult> {
-  return oracle([...argv], root, { runtime: 'node' })
+  return oracle([...argv], root, argv[0] === '--' ? { runtime: 'node' } : {})
 }
 
 interface Row {
