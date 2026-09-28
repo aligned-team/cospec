@@ -874,23 +874,19 @@ describe('3.5 instructions apply --change is always the gate', () => {
     }
   }
 
-  // Blocked (exit 2) from below the root needs the resolver to walk up to it,
-  // which tasks group 11 brings in with the rebase onto root-resolution-parity.
+  // Blocked (exit 2) from below the root: the resolver walks up to it
+  // (root-resolution-parity), so the gate answers there as from the root.
   for (const cwd of ['sub/deep', 'openspec']) {
     for (const asJson of [false, true]) {
       const flag = asJson ? ['--json'] : []
-      test.failing(
-        `from ${cwd}: instructions apply --change foo${asJson ? ' --json' : ''} is blocked, exit 2`,
-        async () => {
-          const c = await runCospecFrom(
-            ['instructions', 'apply', '--change', 'foo', ...flag],
-            gatedRoot(),
-            cwd,
-          )
-          expect(c.exitCode, detail('cospec', c)).toBe(2)
-        },
-        30_000,
-      )
+      test(`from ${cwd}: instructions apply --change foo${asJson ? ' --json' : ''} is blocked, exit 2`, async () => {
+        const c = await runCospecFrom(
+          ['instructions', 'apply', '--change', 'foo', ...flag],
+          gatedRoot(),
+          cwd,
+        )
+        expect(c.exitCode, detail('cospec', c)).toBe(2)
+      }, 30_000)
     }
   }
 

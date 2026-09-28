@@ -248,33 +248,15 @@ interface WrappedChange {
 }
 
 /**
- * The first top-level JSON object on `stdout` (from the first line that opens
- * one), or undefined. Only the first: a warning line may precede it, and the
- * embedded single-file bundle a standalone cospec runs prints its `--json`
- * document twice.
+ * The wrapped `new change --json` document on `stdout`: everything from the
+ * first line that opens a JSON object (a stat warning line can precede it),
+ * which must parse as exactly one document, or undefined.
  */
-function firstJsonObject(stdout: string): string | undefined {
+function wrappedDocument(stdout: string): WrappedChange | undefined {
   const start = stdout.search(/^\{/m)
   if (start === -1) return undefined
-  let depth = 0
-  let inString = false
-  for (let i = start; i < stdout.length; i++) {
-    const ch = stdout[i]!
-    if (inString) {
-      if (ch === '\\') i++
-      else if (ch === '"') inString = false
-    } else if (ch === '"') inString = true
-    else if (ch === '{' || ch === '[') depth++
-    else if ((ch === '}' || ch === ']') && --depth === 0) return stdout.slice(start, i + 1)
-  }
-  return undefined
-}
-
-function wrappedDocument(stdout: string): WrappedChange | undefined {
-  const text = firstJsonObject(stdout)
-  if (text === undefined) return undefined
   try {
-    const doc = JSON.parse(text) as Record<string, unknown> | null
+    const doc = JSON.parse(stdout.slice(start)) as Record<string, unknown> | null
     const change = doc?.['change']
     const root = doc?.['root']
     if (typeof change !== 'object' || change === null) return undefined
