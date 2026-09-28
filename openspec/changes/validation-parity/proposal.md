@@ -131,6 +131,14 @@ ERROR for cospec-typed changes and only the binary's hint text is ported.
   `archive/op-conflict`. Header keys take a blank header text. Each pairing gets
   a contract test that reads the message from the pinned binary, and a sweep
   over every report in the parity suite checks that no defect is reported twice.
+- Round 6: every check that can change a gate outcome reads a spec document as
+  the binary's archive reads it — fences masked, HTML comments kept — and the
+  comment-masked view survives only for advisory findings no commented line can
+  trigger, as a distinct type no gate accepts. `deltas/requirement-shape` reads
+  the statement as the binary's `extractRequirementBody` does, and
+  `retire_capabilities` counts only where the binary's `readBooleanMarker`
+  honours it. A differential table checks every comment-divergence class against
+  the binary's validate and archive.
 - `apps/cli/test/contract/validation-parity.test.ts` (new) is a severity oracle
   on the legacy lane. For each finding the pinned binary gives a `spec-driven`
   fixture, cospec reports the same message at the same level.
@@ -143,7 +151,13 @@ ERROR for cospec-typed changes and only the binary's hint text is ported.
   that a MODIFIED drops, a misplaced or duplicate living requirement or a living
   delta header, visible or commented, every rebuilt-spec defect the archive
   refuses, and a duplicated MODIFIED or REMOVED or a REMOVED of a RENAMED
-  source. A living spec with no `## Requirements` is no longer refused.
+  source. A living spec with no `## Requirements` is no longer refused. Round 6
+  refuses a SHALL/MUST that sits only in a scenario step or a fenced example (a
+  binary WARNING, a typed-lane ERROR) and a retirement whose
+  `retire_capabilities: true` the binary cannot honour; and it stops refusing a
+  statement, scenario or section header written inside an HTML comment, and a
+  MODIFIED that keeps a living scenario only inside one, all of which the binary
+  archives.
 
 ## Capabilities
 
@@ -172,15 +186,19 @@ ERROR for cospec-typed changes and only the binary's hint text is ported.
   `deltasRules` call passes `--fast`), `apps/cli/src/core/tasks.ts`,
   `apps/cli/src/core/rules/tasks.ts`, `apps/cli/src/core/rules/archive.ts`,
   `apps/cli/src/core/rebuilt-spec.ts` (new: the archive's rebuild and its
-  validation, ported), `apps/cli/src/commands/validate.ts` (`DUPLICATE_CLASSES`
-  only).
-- Tests: `apps/cli/test/unit/rules/{deltas,tasks,archive}.test.ts`,
+  validation, ported), `apps/cli/src/core/change-metadata.ts` (new, round 6: the
+  binary's marker read, ported), `apps/cli/src/core/rules/views.ts` (new, round
+  6: the advisory rules), `apps/cli/src/core/rules/{specs,schema-info}.ts`,
+  `apps/cli/src/commands/validate.ts` (`DUPLICATE_CLASSES`, and in round 6 one
+  `loadChange` field carrying the marker read).
+- Tests: `apps/cli/test/unit/rules/{deltas,tasks,archive,views}.test.ts`,
   `apps/cli/test/unit/parsers/deltas.test.ts`,
   `apps/cli/test/unit/parsers/rebuilt-spec.test.ts` (new),
   `apps/cli/test/contract/validation-parity.test.ts` (new), and two rows of
   `apps/cli/test/integration/archive-gates.test.ts` re-pointed: at the verbatim
   view (scenarios kept only inside a comment are no drop), and at the rebuilt
-  spec (an unmarked retirement is refused before delegating).
+  spec (an unmarked retirement is refused before delegating); in round 6 the
+  first again, at the archive keeping those scenarios, as the binary does.
 - Docs: `apps/docs/reference/validation-rules.md` (owns the rule table and the
   dedupe section), `apps/docs/concepts/apply-and-archive.md` (owns the
   archive-shape prose and retirement), `apps/docs/reference/configuration.md`

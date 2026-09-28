@@ -260,9 +260,22 @@ included, SHALL read the verbatim view of both the delta files and the living
 spec: an operation written inside an HTML comment SHALL be checked as the
 operation the archive applies, a requirement header's trailing comment SHALL be
 part of its name, and a scenario inside a comment SHALL count on both sides of
-the scenario-loss check. Only the advisory `deltas/*` rules SHALL read the
-masked view. A UTF-8 BOM SHALL be stripped in both views, except in the
-living-spec structure check, which SHALL keep it as the wrapped binary's
+the scenario-loss check. Every other check that can change a gate outcome SHALL
+read the verbatim view too: every `deltas/*` finding at ERROR or WARNING that
+reads spec text — the statement, SHALL/MUST and scenario checks of
+`deltas/requirement-shape` among them — and the hard scenario-preservation gate
+of `cospec archive`. The masked view SHALL feed only advisory findings that no
+commented line can trigger (`deltas/skipped-header`, `deltas/scenario-depth`,
+`specs/purpose-tbd`), and the masked parse SHALL be a distinct type that no gate
+accepts, with a unit test enumerating every `archive/*` and `deltas/*` rule and
+proving each reads the view it is registered under. For every way an HTML
+comment has made the two readings differ — a statement, a requirement header or
+a scenario header inside a comment, a comment spanning a section boundary, a
+commented delta header in a living spec, a scenario kept only inside a comment,
+an unterminated comment, a commented orphan or unread file —
+`cospec validate --strict` and `cospec archive` SHALL accept exactly what the
+wrapped binary accepts. A UTF-8 BOM SHALL be stripped in both views, except in
+the living-spec structure check, which SHALL keep it as the wrapped binary's
 structure reader does. Each shape SHALL be covered by a contract test that runs
 the pinned binary's `validate` and `archive` on the fixture.
 
@@ -285,6 +298,24 @@ the pinned binary's `validate` and `archive` on the fixture.
 - **WHEN** a MODIFIED block keeps a living scenario only inside an HTML comment
 - **THEN** `cospec validate --strict` reports no
   `archive/scenario-preservation`, and the binary's archive applies the change
+
+#### Scenario: The hard gate keeps a scenario kept inside a comment
+
+- **WHEN** a MODIFIED block keeps a living scenario only inside an HTML comment
+- **THEN** `cospec archive` archives the change, as the binary's archive does
+
+#### Scenario: A comment spanning a section boundary is read as written
+
+- **WHEN** a delta's `## ADDED Requirements` header sits inside an HTML comment
+  above a complete requirement
+- **THEN** `cospec validate --strict` and `cospec archive` accept the change, as
+  the binary's validate and archive do
+
+#### Scenario: A gate cannot be handed the masked parse
+
+- **WHEN** a gate function is called with the comment-masked parse of a delta or
+  living spec
+- **THEN** the typecheck refuses the call
 
 #### Scenario: A commented ADDED that collides is refused
 
@@ -451,25 +482,30 @@ statement under every `### Requirement:` header.
 
 A finding on a line a delta block writes SHALL be dropped only where
 `deltas/requirement-shape` or `archive/split-requirement` reported that very
-line, never on the assumption that one did; so a block written inside an HTML
-comment, which the archive merges and the masked reader behind
-`deltas/requirement-shape` never sees, SHALL be this rule's. The rule SHALL NOT
+line, never on the assumption that one did; a block written inside an HTML
+comment, which `deltas/requirement-shape` reads as the wrapped binary's
+validator does, SHALL be that rule's, as a visible one is. The rule SHALL NOT
 run for a capability another archive-precondition rule already refused, because
 the archive stops there first, nor where the merge itself refuses.
 
-Under `retire_capabilities: true` the no-requirements ERROR SHALL be skipped
-only on the wrapped binary's own retirement decision: no requirement block
-survives the merge, every ERROR of the rebuilt spec is a no-requirements one at
-whatever level the header read as the Requirements section sits, nothing in the
-living spec sits outside what a retirement can name (the title, `## Purpose`,
-and each requirement block's own header, statement and scenario bullets), and
-this change removed a requirement block. A declared retirement the content
-blocks SHALL be reported with the blocking lines quoted as the binary's refusal
-quotes them; one the change did not empty SHALL be reported as such. Without the
-marker, the finding SHALL name the marker only when setting it alone would let
-the archive through, and the blocking lines otherwise. The legacy lane SHALL NOT
-run the rule. The rebuilt text SHALL equal, byte for byte, the spec the pinned
-binary writes for the same change.
+The marker SHALL count only where the wrapped binary's archive honours it
+(`readBooleanMarker`): the whole `.openspec.yaml` passes its change-metadata
+schema and its `schema:` is one the binary lists and loads. A marker it cannot
+honour SHALL count as none, and the finding for a spec the change empties SHALL
+name the binary's reason. Under an honoured `retire_capabilities: true` the
+no-requirements ERROR SHALL be skipped only on the wrapped binary's own
+retirement decision: no requirement block survives the merge, every ERROR of the
+rebuilt spec is a no-requirements one at whatever level the header read as the
+Requirements section sits, nothing in the living spec sits outside what a
+retirement can name (the title, `## Purpose`, and each requirement block's own
+header, statement and scenario bullets), and this change removed a requirement
+block. A declared retirement the content blocks SHALL be reported with the
+blocking lines quoted as the binary's refusal quotes them; one the change did
+not empty SHALL be reported as such. Without the marker, the finding SHALL name
+the marker only when setting it alone would let the archive through, and the
+blocking lines otherwise. The legacy lane SHALL NOT run the rule. The rebuilt
+text SHALL equal, byte for byte, the spec the pinned binary writes for the same
+change.
 
 #### Scenario: A header above the first living requirement is refused
 
@@ -552,6 +588,15 @@ binary writes for the same change.
   preamble `### Notes`
 - **THEN** it exits non-zero naming `archive/rebuilt-spec-invalid`, and the
   change stays in place
+
+#### Scenario: An unhonourable marker is refused with its reason
+
+- **WHEN** a change sets `retire_capabilities: true` with an empty `goal:`, an
+  `affected_areas:` that is not a list, a `created:` not in `YYYY-MM-DD` form,
+  or a `schema:` the binary cannot list, and REMOVEs every requirement
+- **THEN** `cospec validate` reports `archive/rebuilt-spec-invalid` naming the
+  reason the binary's archive quotes, and the binary's archive refuses the
+  change
 
 ### Requirement: In-file operation conflicts are refused natively
 

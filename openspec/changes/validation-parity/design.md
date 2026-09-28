@@ -370,7 +370,8 @@ alone scans with `keepBom` (probed: a BOM before a first-line `## Requirements`
 hides the header from the structure reader, every requirement reads as outside
 it, and the archive refuses).
 
-**The hard gate stays on the masked view.** `commands/archive.ts` is
+**The hard gate stays on the masked view** (superseded in round 6, D15: the gate
+now reads the verbatim view by construction). `commands/archive.ts` is
 `archive-and-sync-parity`'s file, and its scenario-preservation gate calls
 `parseDeltaSpec` and `parseLivingSpec` with their masked defaults. The shared
 scan fixes its fence bug here; its view is that change's to move. Until then the
@@ -560,6 +561,114 @@ onto a RENAMED FROM (the REMOVED reads as already synced after the rename).
 entry or the REMOVED. Like the rest of the family it is skipped under `--fast`,
 where a delegated change keeps the relayed ERROR.
 
+### D15. Gates read what the archive reads (round 6)
+
+The roadmap owner's ruling on the masked view: every rule that can change a gate
+outcome reads what the binary reads — fences masked, comments kept — and the
+comment-masked view survives only for advisory findings that never change an
+outcome. Advisory findings ignore commented content; gates read exactly what
+OpenSpec's archive reads.
+
+**Why the opinion was narrowed.** Rounds 1–5 read every `deltas/*` rule and the
+hard archive gate on the masked view, as a cospec opinion that a commented-out
+draft is not content. The binary reads comments as text everywhere, and the
+opinion produced both kinds of disagreement with it. False refusals: a statement
+written inside a comment (32.1, 32.3, 34.1), a scenario whose header sits inside
+one (34.4), a delta section header inside one (34.5), and a MODIFIED that keeps
+a living scenario only inside one at the hard gate (34.9) were all refused where
+the binary validates and archives. False clears: a requirement written inside a
+comment with no statement or no scenario drew no `deltas/*` finding at all
+(27.x) — round 5 had to route it to `archive/rebuilt-spec-invalid`, which
+`--fast` (and so `apply`) never runs — and a commented orphan requirement or a
+fully commented delta at an unread path drew no finding on a change cospec never
+delegates (34.12n, 34.13n).
+
+**A structural type split.** `ParsedDelta<V>`, `DeltaOp<V>` and `LivingView<V>`
+carry a type-only brand (`[VIEW]?: V`, a `declare const` unique symbol, absent
+at runtime). `Delta = ParsedDelta<'verbatim'>` is what `parseDeltaSpec` returns;
+`AdvisoryDelta = ParsedDelta<'masked'>` is what `parseAdvisoryDelta` returns.
+Every gate input is typed on the verbatim view — `requirementShapeIssues`,
+`findRequirementSplits`, `rebuildSpec`, `findScenarioDrops` and its
+`ScenarioBaseline` (which picks the brand) — so the typecheck refuses a masked
+parse there. `parseLivingSpec`'s top level is now the verbatim view (and
+`archive` the same object); the masked one moved to `advisory`. A consequence by
+construction: `commands/archive.ts`'s scenario-preservation gate calls
+`parseDeltaSpec` and `parseLivingSpec` and so reads the verbatim view with no
+edit to that file (`archive-and-sync-parity`'s) — 34.9 and the re-pointed
+`archive-gates` integration row are the evidence. `rules/views.ts` lists the
+advisory findings (`ADVISORY_RULES`, typed `AdvisoryIssue`), and
+`test/unit/rules/views.test.ts` enumerates every `archive/*`, `deltas/*` and
+`specs/*` rule id in `core/rules/`, runs each rule's fixture as written and
+wholly inside an HTML comment, requires a verbatim rule to decide both
+identically and an advisory one to stay silent on the commented copy, confines
+`parseAdvisoryDelta` and `.advisory` to the modules that compute advisory
+findings, and asserts with `@ts-expect-error` that no gate input accepts the
+masked types. A mutation run (requirement-shape handed the masked parse) fails
+it.
+
+Moved to the verbatim view: `deltas/requirement-shape` (all arms),
+`deltas/header-present`, `deltas/unpaired-rename`,
+`deltas/orphaned-requirement`, `deltas/unread-file` (the binary's
+`findOrphanedRequirements` and `findUnreadDeltaFiles` read fence-masked lines
+only), and the lines `archive/rebuilt-spec-invalid` leaves to
+`deltas/requirement-shape`. Left on the masked view: `deltas/skipped-header`
+(INFO), `specs/purpose-tbd` (a living-spec lint neither apply nor archive
+reads), and `deltas/scenario-depth`. The last is an ERROR, so it departs from
+the ruling's letter, on the binary's evidence: it only INFOs a `### Scenario:`
+written inside a comment and archives the change (entries 3 and 5, 34.11), so
+reading it verbatim would refuse what the binary archives, while a commented one
+that does split a requirement is `archive/split-requirement`'s, verbatim. On the
+masked view its findings are a subset of the verbatim ones — a commented line is
+blank there — so no comment can make it refuse.
+
+**The statement is the binary's** (`extractRequirementBody`, ported in
+`core/deltas.ts`). The lines under the header up to the first header on a
+non-fenced line, blank and fenced lines skipped (masked per block, as upstream
+masks them), `**Key**: value` metadata the statement only when nothing else is,
+an HTML comment kept as text. `hasShallMust` and the first part's `hasText` are
+computed from it, and `deltas/requirement-shape` grades in the binary's order:
+empty first (`is missing requirement text`, or the header-only wording when the
+header holds the keyword), then no keyword
+(`must use SHALL/MUST normative language`, cospec's ERROR where the binary
+WARNs). Typed-lane consequences, each pinned: a SHALL/MUST only in a scenario
+step (5.1 entry 6, re-pointed from 5.2) or only in a fenced example (32.4) is
+refused; a metadata-only statement with no keyword is refused (unit); a
+statement cut off by a skipped `###` before it says anything has no keyword (the
+SKIPPED unit fixture); a statement that is only a comment has no keyword (32.2);
+a scenario whose body is only a comment has one (unit); and an empty statement
+under a plain header now reads `is missing requirement text` where it read
+`must use SHALL/MUST`.
+
+**The marker is the binary's** (`readBooleanMarker`, ported in
+`core/change-metadata.ts`). `retire_capabilities: true` counts only when the
+whole `.openspec.yaml` passes `ChangeMetadataSchema` — zod 4's issue wording and
+order ported, the first issue the reason — and its `schema:` is one
+`listSchemas` lists (package, user and project schema dirs) and `resolveSchema`
+loads (`SchemaYamlSchema` and `parseSchema`'s graph checks ported). An
+unhonourable marker counts as none, as the archive counts it, so an emptied spec
+is refused and the finding appends
+`retire_capabilities is set but cannot be honored (<reason>)`, the reason the
+archive's `fix` quotes (33.1–33.5); a reason that names a remedy is spelled
+through `respellRemedies`. 33.50 compares the port with the pinned dist's own
+read over 125 metadata × schema shapes. The read needs the change directory,
+which only `loadChange` has, so `commands/validate.ts` gains one field there
+(`retireMarker`) beside its `DUPLICATE_CLASSES` — the one hunk outside that
+table; no entry changed. Entries 26–28 (round 5) are now reached only where
+`deltas/requirement-shape` did not report a commented block, and stay.
+
+**The differential table** (34) runs one fixture per comment-divergence class —
+a statement inside a comment, a commented `### Requirement:` header (with and
+without a scenario), a commented `#### Scenario:` header, a commented section
+header and a comment across a section boundary, a commented MODIFIED section, a
+commented delta header in a living spec, a scenario kept only inside a comment,
+an unterminated comment, commented `###` headers, a commented orphan and a fully
+commented unread file — through `cospec validate --strict`, `cospec archive` and
+the binary's `validate --strict` and `archive -y`, on a delegated change and on
+one never delegated (whose relayed findings cannot cover for cospec's own
+reading). `cospec archive` accepts exactly what the binary's archive accepts,
+and `cospec validate --strict` exactly what both of the binary's commands
+accept.
+
 ## Operational surface
 
 The interactive surface is `cospec validate`'s report: six new rule ids appear
@@ -570,11 +679,14 @@ is written, `archive/target-invalid` names three more defects (a delta header
 now by its line) and no longer refuses a missing `## Purpose` or
 `## Requirements`, `archive/target-missing` names the header a rename took its
 target to, `archive/scenario-preservation` reads HTML comments as the archive
-does, and delegated duplicates disappear. No command, flag, exit-code meaning,
-JSON key or process topology changes. There's no bind address, container, secret
-or connection limit. The wrapped binary is still resolved by path at the pinned
-version, and its accepted range doesn't change. Every contract test spawns it
-the way the suite already does, with `NO_COLOR` set.
+does, every gate-feeding `deltas/*` rule and the hard archive gate read them too
+(round 6), `deltas/requirement-shape` reads the statement as the binary does,
+`retire_capabilities` counts only where the binary honours it, and delegated
+duplicates disappear. No command, flag, exit-code meaning, JSON key or process
+topology changes. There's no bind address, container, secret or connection
+limit. The wrapped binary is still resolved by path at the pinned version, and
+its accepted range doesn't change. Every contract test spawns it the way the
+suite already does, with `NO_COLOR` set.
 
 ## Risks / Trade-offs
 

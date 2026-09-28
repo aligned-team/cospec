@@ -97,10 +97,11 @@ Purpose check; the structure check; and a canonical requirement with no
 statement. `archive/rebuilt-spec-invalid` runs it once no precondition refused
 the capability, names each finding by its origin line, and leaves a block the
 delta writes to the delta rules: a finding on a delta line is dropped only when
-`deltas/requirement-shape` (a block with no scenario or statement, on the masked
-parse — `requirementShapeIssues`, shared with that rule) or
-`archive/split-requirement` (a header that cuts it) reported that very line, so
-a block written inside an HTML comment is this rule's. Under
+`deltas/requirement-shape` (a block with no scenario or statement, on the
+verbatim parse — `requirementShapeIssues`, shared with that rule) or
+`archive/split-requirement` (a header that cuts it) reported that very line.
+Both read a block written inside an HTML comment as OpenSpec does, so such a
+block is `deltas/requirement-shape`'s, exactly as a visible one is. Under
 `retire_capabilities: true` the no-requirements ERROR is skipped only on the
 archive's own decision (`decideSpecOutcome`): `rebuildSpec` also returns the
 count of REMOVED ops that deleted a block, whether any block survives, and the
@@ -108,8 +109,17 @@ living lines a retirement cannot name (`contentTheMergeCannotName`, ported line
 for line and checked against the pinned dist's `buildUpdatedSpec`); the rebuilt
 spec's only ERRORs must be no-requirements ones, at any header level; and the
 change must have removed a requirement. A blocked retirement quotes the blocking
-lines as the archive's refusal does (`describeUnaccountedContent`). This
-replaced the piecemeal living checks — the living split arm of
+lines as the archive's refusal does (`describeUnaccountedContent`). The marker
+itself counts only where the archive honours it (`readBooleanMarker`, ported in
+`core/change-metadata.ts` and checked against the pinned dist's own read): the
+whole `.openspec.yaml` must pass OpenSpec's `ChangeMetadataSchema` — `created`
+as `YYYY-MM-DD`, a non-empty `goal`, `affected_areas` a list of non-empty
+strings, an `initiative` of exactly a kebab-case `store` and `id` — and its
+`schema:` must be one OpenSpec lists (project, user or package schemas) and
+loads. A marker it cannot honour counts as none, as upstream counts it, and the
+refusal of an emptied spec names the reason OpenSpec's archive quotes
+(`retire_capabilities is set but cannot be honored (<reason>)`). This replaced
+the piecemeal living checks — the living split arm of
 `archive/split-requirement` and the missing-section arm of
 `archive/target-invalid` — with the archive's own validation.
 
@@ -160,31 +170,61 @@ starts or which line is which:
    scenario-preservation gate refused a merge OpenSpec performs. A comment open
    when a fence starts stays open across it.
 
-The two `ReadView`s of that scan:
+Advisory findings ignore commented content; gates read exactly what OpenSpec's
+archive reads. The two `ReadView`s of that scan:
 
 - **`verbatim`** — fences masked, comments kept. It is exactly what OpenSpec
-  1.13.1's `MarkdownParser`, `findMainSpecStructureIssues`, delta reader and
-  archive read, so it feeds **every** `archive/*` rule: `archive/target-invalid`
-  (all three structure kinds), `archive/added-exists`, `archive/target-missing`,
+  1.13.1's `MarkdownParser`, `findMainSpecStructureIssues`, delta reader,
+  `extractRequirementBody` and archive read, so it feeds **every** check that
+  can change an outcome: every `archive/*` rule (`archive/target-invalid`'s
+  three structure kinds, `archive/added-exists`, `archive/target-missing`,
   `archive/new-spec-non-added`, `archive/no-ops`, `archive/op-conflict`,
-  `archive/split-requirement`, `archive/rebuilt-spec-invalid` (the living text
-  and the delta ops it merges), `archive/scenario-preservation` (its ops and its
-  living baseline), and the ops `replayDeltaNames` replays. An operation written
-  inside `<!-- … -->` is applied upstream, so a commented ADDED that collides or
-  a commented MODIFIED whose target is missing is refused; a header's trailing
-  comment is part of its name upstream, so `REMOVED Foo` beside
-  `ADDED Foo <!-- note -->` is two names and is accepted; a scenario inside a
-  comment counts on both sides of the scenario-loss check. `parseLivingSpec`
-  carries this view in `archive` (`LivingArchiveView`, which adds
-  `structureIssues` and the living `text` the rebuild reads).
-- **`masked`** — comments blanked too. Only the advisory `deltas/*` and
-  `specs/*` rules read it, so a commented-out draft draws no authoring finding
-  (an author's own comment inside `## Purpose` still counts as Purpose prose).
-  `deltas/requirement-shape` still quotes a requirement by its verbatim header
-  (`DeltaOp.verbatimName`) so its delegated twin keys on the same name. The hard
-  scenario-preservation gate in `commands/archive.ts` reads this view (it is not
-  a rule): it refuses a MODIFIED block that keeps a living scenario only inside
-  a comment, which the rule and OpenSpec's archive accept.
+  `archive/split-requirement`, `archive/rebuilt-spec-invalid`,
+  `archive/scenario-preservation` and the ops `replayDeltaNames` replays), every
+  `deltas/*` finding at ERROR or WARNING that reads spec text
+  (`deltas/requirement-shape`, `deltas/header-present`,
+  `deltas/unpaired-rename`, `deltas/orphaned-requirement`, `deltas/unread-file`)
+  and the hard scenario-preservation gate in `commands/archive.ts`. An operation
+  written inside `<!-- … -->` is parsed and applied upstream, so it is checked
+  here too; a statement written inside one is a statement, and a scenario inside
+  one counts, on both sides of the scenario-loss check; a header's trailing
+  comment is part of its name, so `REMOVED Foo` beside `ADDED Foo <!-- note -->`
+  is two names and is accepted. `parseDeltaSpec` returns this view (`Delta`),
+  and `parseLivingSpec`'s top level and its `archive` carry it
+  (`LivingArchiveView` adds `structureIssues` and the living `text` the rebuild
+  reads).
+- **`masked`** — comments blanked too. It survives only for the advisory
+  findings `rules/views.ts` lists (`ADVISORY_RULES`), none of which a commented
+  line can trigger: `deltas/skipped-header` (INFO), `specs/purpose-tbd` (a
+  living-spec lint neither apply nor archive reads) and `deltas/scenario-depth`.
+  The last is an ERROR, and stays on this view on the binary's evidence:
+  OpenSpec only INFOs a `### Scenario:` inside a comment and archives the
+  change, so reading it verbatim would refuse what the binary archives, while a
+  commented one that does split a requirement is `archive/split-requirement`'s,
+  on the verbatim view. `parseAdvisoryDelta` returns this view
+  (`AdvisoryDelta`), and `LivingSpec.advisory` carries it.
+
+The two parses are distinct types, branded by the view they were read under, so
+no gate can be handed the masked one: `Delta` and `AdvisoryDelta`, and
+`LivingView` against `LivingView<'masked'>`. `test/unit/rules/views.test.ts`
+enforces the split three ways: it enumerates every `archive/*`, `deltas/*` and
+`specs/*` rule id in `core/rules/`, so a new rule fails until it has a fixture;
+it runs each fixture as written and wholly inside an HTML comment — which
+OpenSpec reads the same — and requires a verbatim rule to decide both
+identically and an advisory one to stay silent on the commented copy; and it
+confines `parseAdvisoryDelta` and `.advisory` to the modules that compute the
+advisory findings, with `@ts-expect-error` checks that no gate input accepts the
+masked types.
+
+Until round 6 the masked view fed every `deltas/*` rule and the hard gate, as a
+cospec opinion that a commented-out draft is not content. It produced false
+refusals in both directions from the binary: a statement written inside a
+comment, a scenario whose header sits inside one, a delta section header inside
+one, and a MODIFIED keeping a living scenario only inside one were all refused
+where OpenSpec validates and archives; and a requirement written inside a
+comment, with no statement or no scenario, was reported by no `deltas/*` rule at
+all — only the rebuilt spec caught it, and not under `--fast`. The opinion was
+narrowed to the findings that can never refuse on a commented line.
 
 The BOM is stripped in both views, as OpenSpec's `MarkdownParser`, delta reader
 and `extractRequirementsSection` strip it. `findLivingStructureIssues` alone
@@ -263,9 +303,16 @@ requirement left with no scenario and the header that took them. A SHALL/MUST
 counts in the body only; when it appears only in the requirement header,
 `deltas/requirement-shape` (E) carries a hint saying to move it to the line
 after the header. A statement is the lines above the first header under the
-requirement (`RequirementPart.hasText` of its first part), so one whose only
-SHALL sits in a scenario step is `is missing requirement text` (E), as OpenSpec
-reports it.
+requirement, read as OpenSpec's `extractRequirementBody` reads it (ported in
+`core/deltas.ts`): blank lines and fenced lines skipped, an HTML comment kept as
+text, and `**Key**: value` metadata lines counted only when nothing else is
+there. SHALL/MUST counts in that statement alone — never in a scenario step, a
+fenced example or the header. The two are graded in OpenSpec's order: an empty
+statement is `is missing requirement text` (E; with a keyword header, the
+header-only SHALL/MUST wording), and a statement with no keyword is
+`must use SHALL/MUST normative language` (E, where OpenSpec warns). So a
+statement written inside a comment is a statement, and one that is only a
+comment has no keyword.
 
 ## Checkbox grammar
 
@@ -343,11 +390,12 @@ empty-section and no-deltas ERRORs against `archive/no-ops` (path-keyed, and
 unkeyed for the change-level one); its two skipped-header INFOs against
 `deltas/skipped-header` (keyed on the header text) and the `### Scenario:` one
 against `deltas/scenario-depth` (keyed on the header text, which its message
-quotes, so a commented `### Scenario:` the advisory reader masks keeps its INFO
-beside a real one with different text in the same file — when the two read the
-same, the real one's finding pairs with both INFOs and the commented one's is
-suppressed too); its three SHALL/MUST wordings and `is missing requirement text`
-against `deltas/requirement-shape` (keyed on `<OP> "<name>"`); and
+quotes, so a commented `### Scenario:`, which `deltas/scenario-depth` reads on
+the advisory view and so never reports, keeps its INFO beside a real one with
+different text in the same file — when the two read the same, the real one's
+finding pairs with both INFOs and the commented one's is suppressed too); its
+three SHALL/MUST wordings and `is missing requirement text` against
+`deltas/requirement-shape` (keyed on `<OP> "<name>"`); and
 `Requirement present in both ADDED and REMOVED` / `… MODIFIED and ADDED` against
 the cross-section arm of `archive/added-exists` (keyed on the name, each native
 key naming its own section). A path-only key is written as an empty capture
@@ -384,13 +432,12 @@ TO the binary quotes — so the two pair on it. The dry-run's
 `target spec does not exist; only ADDED requirements are allowed` INFO against
 `archive/new-spec-non-added` (keyed on the capability). The orphaned-requirement
 WARNING against `deltas/orphaned-requirement` (keyed on the requirement name,
-never the section text, which the advisory reader quotes with a trailing comment
-masked). `No delta sections found` (path-keyed) and CHANGE_NO_DELTAS (unkeyed)
-against `deltas/header-present`. The three in-file conflicts against
-`archive/op-conflict` (keyed on the name; for RENAMED+REMOVED, the RENAMED FROM
-the binary quotes). And the skipped-header, scenario-depth and split captures
-take an empty header text, since both tools quote a blank-titled `###   ` header
-as `"### "`.
+never the section text). `No delta sections found` (path-keyed) and
+CHANGE_NO_DELTAS (unkeyed) against `deltas/header-present`. The three in-file
+conflicts against `archive/op-conflict` (keyed on the name; for RENAMED+REMOVED,
+the RENAMED FROM the binary quotes). And the skipped-header, scenario-depth and
+split captures take an empty header text, since both tools quote a blank-titled
+`###   ` header as `"### "`.
 
 Round 5 adds three, for a requirement a delta writes inside an HTML comment: the
 binary's `is missing requirement text`,
@@ -399,8 +446,11 @@ binary's `is missing requirement text`,
 "no text under its header" and "no scenario" findings on that delta line (keyed
 on the requirement name). The `is missing requirement text` entry against
 `deltas/requirement-shape` also takes that rule's own
-`is missing requirement text` wording. Under `--fast` the rebuilt spec is
-unchecked and the delegated ERRORs are kept.
+`is missing requirement text` wording. Since round 6 `deltas/requirement-shape`
+reads the verbatim view and reports such a block itself — under `--fast` too —
+so its own entries pair those findings and the rebuilt spec leaves the line to
+it; the three round-5 entries stay, for a rebuilt-spec finding on a delta line
+that rule did not report.
 
 Section 19 of `validation-parity.test.ts` sweeps every report the suite
 produces: a relayed finding that quotes the same requirement or header as a

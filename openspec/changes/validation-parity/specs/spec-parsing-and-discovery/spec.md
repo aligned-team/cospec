@@ -345,14 +345,19 @@ included. A requirement whose header lacks SHALL/MUST too SHALL get no hint.
 
 ### Requirement: An empty statement is refused however its scenarios read
 
-An `## ADDED` or `## MODIFIED` requirement whose statement — the lines between
-its `### Requirement:` header and the first header under it — is empty SHALL be
-the ERROR `deltas/requirement-shape` even when a scenario step holds SHALL or
-MUST, because the wrapped binary reads the statement off those lines only and
-refuses an empty one in its validate and its archive. The message SHALL be
-`<OP> "<name>" is missing requirement text`, or the header-only wording and hint
-when the header itself holds SHALL/MUST, so it pairs with the binary's finding
-and a change cospec never delegates is refused too.
+An `## ADDED` or `## MODIFIED` requirement's statement SHALL be read as the
+wrapped binary's `extractRequirementBody` reads it: the lines between its
+`### Requirement:` header and the first header under it, blank and fenced lines
+skipped, an HTML comment kept as text, and `**Key**: value` metadata lines
+counted only when nothing else is there. An empty statement SHALL be the ERROR
+`deltas/requirement-shape` even when a scenario step holds SHALL or MUST,
+because the binary refuses an empty one in its validate and its archive; the
+message SHALL be `<OP> "<name>" is missing requirement text`, or the header-only
+wording and hint when the header itself holds SHALL/MUST, so it pairs with the
+binary's finding and a change cospec never delegates is refused too. SHALL/MUST
+SHALL count in the statement alone — never in a scenario step, a fenced example
+or the header — so a statement written inside an HTML comment is a statement,
+and one that is only a comment has no keyword.
 
 #### Scenario: A SHALL only in a scenario step, on a change never delegated
 
@@ -367,3 +372,25 @@ and a change cospec never delegates is refused too.
 - **WHEN** the same change carries a `proposal.md`
 - **THEN** the binary's `is missing requirement text` ERROR is not relayed
   beside cospec's
+
+#### Scenario: A statement written inside a comment is a statement
+
+- **WHEN** an ADDED requirement's statement is
+  `<!-- The system SHALL export widgets. -->` and its scenario has steps
+- **THEN** `cospec validate` reports no `deltas/requirement-shape`, as the
+  binary's validate and archive accept it
+
+#### Scenario: A comment-only statement has no keyword
+
+- **WHEN** an ADDED requirement's statement is `<!-- draft note -->` and its
+  only SHALL sits in a scenario step
+- **THEN** `cospec validate` reports `deltas/requirement-shape` at ERROR,
+  `must use SHALL/MUST normative language`, and the binary's WARNING for it is
+  not relayed beside it
+
+#### Scenario: A SHALL in a fenced example is not the statement's
+
+- **WHEN** an ADDED requirement's statement is `The system exports widgets.` and
+  its only SHALL sits in a fenced example
+- **THEN** `cospec validate` reports `deltas/requirement-shape` at ERROR, as the
+  binary warns

@@ -223,6 +223,17 @@ pinned built-in `spec-driven`) are that schema's own command lines spelled, each
 a whole-line `SCHEMA_LINES` entry in `core/remedies.ts` — a project or user copy
 stays verbatim.
 
+**Gates read what the archive reads** — every check that can change a validate,
+apply or archive outcome reads a spec document the way the pinned binary's
+archive reads it: fences masked, HTML comments kept (`parseDeltaSpec`'s `Delta`,
+`parseLivingSpec`'s top level). The comment-masked view (`parseAdvisoryDelta`,
+`LivingSpec.advisory`) is a distinct type no gate accepts, and feeds only the
+advisory findings listed in `apps/cli/src/core/rules/views.ts`
+(`ADVISORY_RULES`). `apps/cli/test/unit/rules/views.test.ts` enumerates every
+`archive/*`, `deltas/*` and `specs/*` rule and fails until a new one has a
+fixture proving it reads the view it is registered under. A new rule or gate
+takes the verbatim view unless no commented line can ever trigger it.
+
 **Wrapped-call discipline** — every call into the wrapped binary declares its
 expected exit codes, a stdout deny-list, and an observable post-condition. Trust
 filesystem/JSON post-conditions, never exit codes alone (OpenSpec aborts with
