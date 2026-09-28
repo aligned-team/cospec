@@ -522,22 +522,14 @@ describe('config reset --all with stdin piped, not a terminal: cospec forwards i
     ['echo n |', false, 'Reset cancelled.'],
   ]
   for (const [feeder, reset, answer] of typedAhead) {
-    test.failing(
-      `${feeder} cospec config reset --all: cospec's declared answer, exit 0`,
-      async () => {
-        const root = seededRoot()
-        const co = await fed(
-          feeder,
-          [process.execPath, CLI_ENTRY, 'config', 'reset', '--all'],
-          root,
-        )
-        expect(co.exitCode, detail(co)).toBe(0)
-        expect(wasReset(root)).toBe(reset)
-        expect(lastLine(co.stdout) ?? '', detail(co)).toEndWith(answer)
-        expect(co.stderr, detail(co)).toBe('')
-      },
-      30_000,
-    )
+    test(`${feeder} cospec config reset --all: cospec's declared answer, exit 0`, async () => {
+      const root = seededRoot()
+      const co = await fed(feeder, [process.execPath, CLI_ENTRY, 'config', 'reset', '--all'], root)
+      expect(co.exitCode, detail(co)).toBe(0)
+      expect(wasReset(root)).toBe(reset)
+      expect(lastLine(co.stdout) ?? '', detail(co)).toEndWith(answer)
+      expect(co.stderr, detail(co)).toBe('')
+    }, 30_000)
   }
 
   // The race is upstream's: under Node the binary's first-run telemetry work
@@ -550,8 +542,8 @@ describe('config reset --all with stdin piped, not a terminal: cospec forwards i
     const [offRoot, onRoot] = [seededRoot(), seededRoot()]
     const off = await fed('echo y |', argv, offRoot, 'off')
     const on = await fed('echo y |', argv, onRoot, 'default')
-    const outcome = (run: SpawnResult, root: string) =>
-      `exit ${run.exitCode}, ${wasReset(root) ? 'reset' : 'not reset'}`
+    const outcome = (answered: SpawnResult, root: string) =>
+      `exit ${answered.exitCode}, ${wasReset(root) ? 'reset' : 'not reset'}`
     console.info(`telemetry off: ${outcome(off, offRoot)}; default: ${outcome(on, onRoot)}`)
     expect(outcome(on, onRoot)).not.toBe(outcome(off, offRoot))
   }, 30_000)

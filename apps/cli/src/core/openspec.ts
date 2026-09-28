@@ -276,19 +276,11 @@ async function spawnRaw(
     ])
     return { stdout, stderr, exitCode }
   }
-  const gate = { prompted: false, exited: false }
+  const gate = { exited: false }
   const reader = shape.input.getReader()
-  const forwarding = forwardAfterPrompt(reader, proc.stdin, gate)
-  const chunks: Uint8Array[] = []
-  const stdout = (async () => {
-    for await (const chunk of proc.stdout) {
-      chunks.push(chunk)
-      gate.prompted = true
-    }
-    return Buffer.concat(chunks).toString('utf8')
-  })()
+  const forwarding = forwardInput(reader, proc.stdin, gate)
   const [out, stderr, exitCode] = await Promise.all([
-    stdout,
+    new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
     proc.exited,
   ])
@@ -305,21 +297,21 @@ function isBrokenPipe(error: unknown): boolean {
 }
 
 /**
- * Pumps `reader` into the child's stdin, dropping every chunk read before the
- * child's prompt is drawn — as the binary's confirm, under Node, never sees an
- * answer already waiting on its pipe — and ending the child's stdin when the
- * input ends. A write the exited child can no longer take ends the pump.
+ * Pumps `reader` into the child's stdin unmodified — every chunk, whenever it
+ * arrives, the child's own prompt deciding what it takes — and ends the child's
+ * stdin when the input ends. A write the exited child can no longer take ends
+ * the pump.
  */
-async function forwardAfterPrompt(
+async function forwardInput(
   reader: { read(): Promise<{ done: boolean; value?: Uint8Array }> },
   sink: Bun.FileSink,
-  gate: { readonly prompted: boolean; readonly exited: boolean },
+  gate: { readonly exited: boolean },
 ): Promise<void> {
   try {
     for (;;) {
       const read = await reader.read()
       if (read.done || gate.exited) break
-      if (!gate.prompted || read.value === undefined) continue
+      if (read.value === undefined) continue
       await sink.write(read.value)
       await sink.flush()
     }
