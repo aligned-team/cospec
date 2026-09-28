@@ -4,32 +4,34 @@
 // binary answers itself (its `Missing required …` list of the valid ones, one
 // document under `--json`). `instructions apply --change <id>` is always
 // `cospec apply <id>`, so the gate cannot be bypassed by choosing the other
-// spelling. An artifact's answer is built from the binary's own `--json`
-// document (`core/instructions-render.ts`): its command-bearing fields are
-// spelled through cospec structurally, the built-in schema's own lines only
-// when that schema resolves from the package, and the text rendered from the
-// result, so no byte the user owns is ever rewritten. A refusal relayed from
-// the binary has its `openspec` remedies spelled through cospec.
+// spelling. Every other answer comes from one spawn of the binary's own
+// `--json` document. An artifact's is built from it
+// (`core/instructions-render.ts`): its command-bearing fields are spelled
+// through cospec structurally, the built-in schema's own lines only when that
+// schema resolves from the package, and the text rendered from the result. A
+// failure's document has only its `status[].message`/`status[].fix` spelled,
+// each only when its whole value is one allowlisted remedy, and its text is
+// rendered from that document — so no byte the user owns (a change name it
+// lists, a path) is ever rewritten.
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { isCospecType } from '../core/change.ts'
 import { commandRow, flagValue, hasFlag, parseCommandArgs } from '../core/command-table.ts'
-import { relayRespelled, relayStorePathRefusal } from '../core/forward-relay.ts'
+import { isParseRejection, relayStorePathRefusal } from '../core/forward-relay.ts'
 import {
   type InstructionsDocument,
   renderInstructionsText,
   respellBuiltInSchemaLines,
   respellInstructionsDocument,
 } from '../core/instructions-render.ts'
-import { runOpenspec } from '../core/openspec.ts'
+import { type OpenspecResult, runOpenspec } from '../core/openspec.ts'
 import {
   callPassthrough,
   type CommandField,
   renderJsonDocument,
   respellCommandFields,
 } from '../core/passthrough-command.ts'
-import { respellRemedies } from '../core/remedies.ts'
 import { run as applyRun } from './apply.ts'
 
 const APPLY_SCHEMA_REFUSAL =
@@ -82,14 +84,28 @@ export async function run(ctx: CommandContext): Promise<number> {
     ...(changeId !== undefined ? ['--change', changeId] : []),
     ...(schema !== undefined ? ['--schema', schema] : []),
   ]
+  const { result, root, rerun } = await callPassthrough(ctx, { command, args, wrappedJson: true })
+  if (result.exitCode !== 0) return relayFailure(ctx, result, spinnerLine(artifact))
   // `apply` with no change and `archive` answer from other documents (the
   // binary's `Missing required option` list; archive's context and operation
-  // guidance, the user's own text): relayed as the binary prints them.
+  // guidance, the user's own text): a success is relayed as the binary prints
+  // it, the text form from the same argv again without `--json` (read-only).
   if (artifact === undefined || artifact === 'apply' || artifact === 'archive') {
-    const { result } = await callPassthrough(ctx, { command, args })
-    return relayRespelled(result, ctx.flags.json)
+    const answer = ctx.flags.json ? result : await rerun({ json: false })
+    if (answer.stdout.length > 0) process.stdout.write(answer.stdout)
+    if (answer.stderr.length > 0) process.stderr.write(answer.stderr)
+    return EXIT.success
   }
-  return documentBuilt(ctx, command, args)
+  let doc = respellInstructionsDocument(JSON.parse(result.stdout) as InstructionsDocument)
+  if (await resolvesFromPackage(doc.schemaName, root?.base ?? ctx.cwd))
+    doc = respellBuiltInSchemaLines(doc)
+  // The binary's text answer opens with its spinner's start line, which ora
+  // prints on the wrapped call's stderr (a pipe, never a TTY) ahead of any
+  // warning the call prints.
+  const stderr = ctx.flags.json ? result.stderr : `${spinnerLine(artifact)}${result.stderr}`
+  if (stderr.length > 0) process.stderr.write(stderr)
+  process.stdout.write(ctx.flags.json ? renderJsonDocument(doc) : renderInstructionsText(doc))
+  return EXIT.success
 }
 
 /** The command-bearing fields of the binary's failure document. */
@@ -99,43 +115,65 @@ const FAILURE_FIELDS: readonly CommandField[] = [
 ]
 
 /**
- * An artifact's answer from one `--json` spawn: on success the document with
- * its command-bearing fields spelled through cospec, re-printed under
- * `--json` or rendered as the binary's text; on failure the binary's own
- * answer — its document with the failure fields spelled through cospec, or,
- * in text mode, the same argv again without `--json` (read-only) relayed with
- * its remedies spelled, so the failure text stays the binary's.
+ * `ora(<text>).start()` with its stream not a TTY, as each branch of the
+ * binary's `instructions` action starts it once its root is selected.
  */
-async function documentBuilt(
-  ctx: CommandContext,
-  command: string[],
-  args: string[],
-): Promise<number> {
-  const { result, root, rerun } = await callPassthrough(ctx, { command, args, wrappedJson: true })
-  if (result.exitCode !== 0) {
-    if (!ctx.flags.json) return relayRespelled(await rerun({ json: false }), false)
-    const refused = relayStorePathRefusal(result, true)
-    if (refused !== undefined) return refused
-    if (result.stdout.trim() === '') return relayRespelled(result, true)
-    const doc = JSON.parse(result.stdout) as unknown
-    process.stdout.write(renderJsonDocument(respellCommandFields(doc, FAILURE_FIELDS)))
-    if (result.stderr.length > 0) process.stderr.write(respellRemedies(result.stderr))
-    return EXIT.failure
-  }
-  let doc = respellInstructionsDocument(JSON.parse(result.stdout) as InstructionsDocument)
-  if (await resolvesFromPackage(doc.schemaName, root?.base ?? ctx.cwd))
-    doc = respellBuiltInSchemaLines(doc)
-  // The binary's text answer opens with its spinner's start line, which ora
-  // prints on the wrapped call's stderr (a pipe, never a TTY) ahead of any
-  // warning the call prints.
-  const stderr = ctx.flags.json ? result.stderr : `${SPINNER_LINE}${result.stderr}`
-  if (stderr.length > 0) process.stderr.write(stderr)
-  process.stdout.write(ctx.flags.json ? renderJsonDocument(doc) : renderInstructionsText(doc))
-  return EXIT.success
+function spinnerLine(artifact: string | undefined): string {
+  if (artifact === 'apply') return '- Generating apply instructions...\n'
+  if (artifact === 'archive') return '- Loading archive inputs...\n'
+  return '- Generating instructions...\n'
 }
 
-/** `ora('Generating instructions...').start()` with its stream not a TTY. */
-const SPINNER_LINE = '- Generating instructions...\n'
+interface FailureStatus {
+  message: string
+  fix?: unknown
+}
+
+/**
+ * A failed call's answer, from the binary's own failure document: the
+ * `--store-path` refusal and commander's parse refusal (both before any
+ * document, the same in either mode) are relayed as cospec relays them;
+ * otherwise the document has `FAILURE_FIELDS` spelled through cospec and is
+ * re-printed under `--json`, or rendered as the binary's `failWithError`
+ * renders it in text — `✖ Error: <message>` and, when the status carries
+ * one, `Fix: <fix>`, after the spinner line and whatever the call printed on
+ * stderr. cospec selects the root before the spawn (the same resolver, with
+ * the same `--store`), so the binary's own selection never fails and every
+ * document failure comes after its spinner started.
+ */
+function relayFailure(ctx: CommandContext, result: OpenspecResult, spinner: string): number {
+  const refused = relayStorePathRefusal(result, ctx.flags.json)
+  if (refused !== undefined) return refused
+  if (isParseRejection(result)) {
+    process.stderr.write(result.stderr)
+    return EXIT.failure
+  }
+  const doc = respellCommandFields(JSON.parse(result.stdout) as unknown, FAILURE_FIELDS)
+  if (ctx.flags.json) {
+    process.stdout.write(renderJsonDocument(doc))
+    if (result.stderr.length > 0) process.stderr.write(result.stderr)
+    return EXIT.failure
+  }
+  const status = failureStatus(doc)
+  const fix = typeof status.fix === 'string' && status.fix.length > 0 ? `Fix: ${status.fix}\n` : ''
+  process.stderr.write(`${spinner}${result.stderr}✖ Error: ${status.message}\n${fix}`)
+  return EXIT.failure
+}
+
+/** The one status of the binary's failure document, which `failWithError` prints. */
+function failureStatus(doc: unknown): FailureStatus {
+  const status = (doc as { status?: unknown } | null)?.status
+  const first: unknown = Array.isArray(status) && status.length === 1 ? status[0] : undefined
+  if (
+    first === null ||
+    typeof first !== 'object' ||
+    typeof (first as { message?: unknown }).message !== 'string'
+  )
+    throw new Error(
+      'cospec instructions: the wrapped failure document carries no single status with a message',
+    )
+  return first as FailureStatus
+}
 
 /**
  * Whether `schemaName` resolves from the pinned package's own schemas — the

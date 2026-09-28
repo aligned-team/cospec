@@ -3,8 +3,7 @@
 // through cospec and the pinned binary (the upstream oracle, under Node) and
 // compares cospec's answer with the binary's, read at test time — no upstream
 // string is typed here. Each row was held (expected to fail) until the commit
-// that implemented its surface made it a plain `test`; only 3.7's failure rows
-// are held now.
+// that implemented its surface made it a plain `test`; none is held now.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import {
@@ -978,25 +977,19 @@ describe('3.7 an instructions failure is the binary answer, rendered from its do
   ]) {
     for (const asJson of [false, true]) {
       const full = [...argv, ...(asJson ? ['--json'] : [])]
-      // Held until the failure path answers from the document (tasks 17.2).
-      const row = asJson && argv[1] === 'proposal' ? test : test.failing
-      row(
-        `${full.join(' ')}: the listed change names are the binary's bytes`,
-        async () => {
-          const c = await runCospec(full, remedyNamedRoot())
-          const u = await runUpstream(full, remedyNamedRoot())
-          expect(u.exitCode, detail('openspec', u)).toBe(1)
-          for (const name of REMEDY_SHAPED_CHANGES)
-            expect(asJson ? statusMessage(json(u)) : u.stderr).toContain(`\n  ${name}`)
-          if (asJson) expect(documentCount(c.stdout), detail('cospec', c)).toBe(1)
-          expect({ exit: c.exitCode, stdout: c.stdout, stderr: c.stderr }).toEqual({
-            exit: u.exitCode,
-            stdout: u.stdout,
-            stderr: u.stderr,
-          })
-        },
-        30_000,
-      )
+      test(`${full.join(' ')}: the listed change names are the binary's bytes`, async () => {
+        const c = await runCospec(full, remedyNamedRoot())
+        const u = await runUpstream(full, remedyNamedRoot())
+        expect(u.exitCode, detail('openspec', u)).toBe(1)
+        for (const name of REMEDY_SHAPED_CHANGES)
+          expect(asJson ? statusMessage(json(u)) : u.stderr).toContain(`\n  ${name}`)
+        if (asJson) expect(documentCount(c.stdout), detail('cospec', c)).toBe(1)
+        expect({ exit: c.exitCode, stdout: c.stdout, stderr: c.stderr }).toEqual({
+          exit: u.exitCode,
+          stdout: u.stdout,
+          stderr: u.stderr,
+        })
+      }, 30_000)
     }
   }
 

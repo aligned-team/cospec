@@ -244,7 +244,7 @@ a time. Group 12 waits for the rebase in group 11.
       as `test.failing`) and restore `expectReferencesRespelled`'s stderr and
       `--json` byte assertions (ledger 4.8); commit
       `test(cli): pin round-4 upstream-spellings rows against the binary`
-- [ ] 17.2 Every `instructions` failure answers from the binary's `--json`
+- [x] 17.2 Every `instructions` failure answers from the binary's `--json`
       document through the shared helper, text rendered from it (ledger 3.7);
       commit `fix(cli): answer every instructions failure from its document`
 - [ ] 17.3 Docs state the failure path as it now holds (ledger 8.7); commit
