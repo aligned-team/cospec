@@ -2,7 +2,7 @@
 
 ## Blocked by
 
-None.
+- [x] `unknown-option-contract` — its dispatcher _(archived 2026-09-28)_
 
 ## Soft-blocked by
 
@@ -10,16 +10,10 @@ None.
 
 ## Notes
 
-`openspec/changes/` on this branch holds no other active change, and no archived
-change provides anything this one consumes: the resolver it corrects and the
-store plumbing it relies on are already on `main`.
-
-`unknown-option-contract` is developed in parallel on its own branch and is not
-visible here, so it cannot be listed above without tripping
-`blockers/dangling-ref`. The two changes touch disjoint files (that change owns
-`cli.ts`, the command parsers, the command table and the completion spec; this
-one owns `core/root.ts`, `core/passthrough-command.ts`, `core/openspec.ts`'s
-stderr relay, `commands/templates.ts`, `commands/schema.ts` and its own tests).
-`unknown-option-contract` merges first; this branch then rebases onto it and
-reuses its `upstream-oracle.ts` helper for the differential test (see tasks 4.1
-and 6.2).
+`unknown-option-contract` merged to `main` first and was archived there; this
+branch is rebased onto it. Group 7 builds on what it landed: the top-level
+`--json` branch for resolver failures sits in its `cli.ts` dispatcher, the
+differential matrix runs through its `upstream-oracle.ts`, and its `storeInArgv`
+marker on `templates`/`schema` is removed because this change spawns both in the
+resolved root and never passes them `--store` (task 7.9). No other active or
+archived change provides anything this one consumes.
