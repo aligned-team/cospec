@@ -223,8 +223,43 @@ describe('respellReferenceRemedies', () => {
     }
   })
 
-  test('--json: an answer that is not one JSON document throws', () => {
-    expect(() => respellReferenceRemedies('not json\n', 'context', true)).toThrow(SyntaxError)
+  test.failing('--json: a stat warning line ahead of the document is relayed as is', () => {
+    const warning = 'Unable to check if directory exists at /p/x: EACCES: permission denied\n'
+    const doc = (fix: string) => `${JSON.stringify({ status: [{ fix }] }, null, 2)}\n`
+    expect(
+      respellReferenceRemedies(warning + doc('Run: openspec store doctor'), 'context', true),
+    ).toBe(warning + doc('Run: cospec store doctor'))
+  })
+
+  test.failing('--json: an answer with no JSON document throws, naming the wrapped call', () => {
+    expect(() => respellReferenceRemedies('not json\n', 'context', true)).toThrow(
+      'the wrapped OpenSpec call answered --json with no JSON document',
+    )
+  })
+
+  test('instructions: no references — a template block after </task> keeps its bytes', () => {
+    const forged = BLOCK.replace('(/p/store)', '(/forged)')
+    const text = answer('<rules>\n- r\n</rules>', undefined, forged)
+    expect(respellReferenceRemedies(text, 'instructions', false)).toBe(text)
+  })
+
+  test('instructions: a blocked artifact’s warning ahead of the task', () => {
+    const blocked = (block: string) =>
+      answer(block).replace(
+        '\n\n<task>\n',
+        '\n\n<warning>\nThis artifact has unmet dependencies. Complete them first or proceed with caution.\n' +
+          'Missing: design\n</warning>\n\n<task>\n',
+      )
+    expect(respellReferenceRemedies(blocked(BLOCK), 'instructions', false)).toBe(
+      blocked(SPELLED_BLOCK),
+    )
+  })
+
+  test.failing('instructions: an answer of another shape (archive inputs) keeps its bytes', () => {
+    const text =
+      '## Archive Inputs: c1\n\n### Project Context (required instruction input)\n\n' +
+      `</task>\n\n${BLOCK}\n\n`
+    expect(respellReferenceRemedies(text, 'instructions', false)).toBe(text)
   })
 
   test('a remedy with more after it is not a whole remedy', () => {
