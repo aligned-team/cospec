@@ -13,7 +13,7 @@ trailer, never `--no-verify`).
       severity oracle (verification 1.1, 2.3). It passes today, so it lands as a
       plain `test`. Commit
       `test(validate): pin legacy-lane severities against the pinned binary`
-- [ ] 1.2 Add the regression rows for verification 1.2, 2.1, 3.1–3.4, 4.1, 4.2
+- [x] 1.2 Add the regression rows for verification 1.2, 2.1, 3.1–3.4, 4.1, 4.2
       and 5.3, and one pinned-message row per design D5 entry plus the survives
       cases (5.1, 5.2). A row that asserts both a native finding and a
       suppressed twin is two tests, `<row> native` and `<row> twin`, so the
