@@ -186,7 +186,8 @@ and never by resolving an ancestor of the missing path.
   directory and whose `config.yaml` declares `store: platform`
 - **THEN** the command operates on the local repository, not on `platform`, and
   stderr carries exactly one warning naming the config file and `platform`,
-  unless the command is `templates` or `schema`, whose stderr carries none
+  unless the command is `templates` or `schema`, whose stderr carries no such
+  warning
 
 #### Scenario: A config-only pointer is followed
 
