@@ -6,6 +6,9 @@
 // thing Bun cannot do: deliver a leading `--`.
 
 import { afterAll, afterEach, describe, expect, test } from 'bun:test'
+import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 
 import {
   buildWrappedSpawnEnv,
@@ -13,7 +16,13 @@ import {
   PINNED_OPENSPEC_VERSION,
   WRAPPED_ENV,
 } from '../../src/core/openspec.ts'
-import { cleanupAll, mkTempRepo, openspecBinPath } from '../fixtures/support.ts'
+import {
+  cleanupAll,
+  mkTempRepo,
+  openspec,
+  openspecBinPath,
+  openspecRaw,
+} from '../fixtures/support.ts'
 import { oracle, oracleEnv, oracleSpawn } from './support/upstream-oracle.ts'
 
 afterAll(cleanupAll)
@@ -78,5 +87,33 @@ describe('the oracle spawns the pinned binary as cospec does', () => {
     const underNode = await oracle(['--', '--version'], root, { runtime: 'node' })
     expect(underNode.exitCode).toBe(1)
     expect(underNode.stderr).toContain("error: unknown command '--version'")
+  }, 30_000)
+})
+
+describe('openspec() and openspecRaw() run the binary as the oracle does', () => {
+  // `config path` prints the global config file under XDG_CONFIG_HOME, so it
+  // shows which HOME/XDG tree the child actually read.
+  for (const [name, run] of [
+    ['openspec', openspec],
+    ['openspecRaw', openspecRaw],
+  ] as const)
+    test(`${name}() reads a private sandbox, never the real HOME, and removes it`, async () => {
+      forceColorInParent()
+      const res = await run(['config', 'path'], mkTempRepo())
+      expect(res.exitCode).toBe(0)
+      expect(res.stderr).toBe('')
+      const path = res.stdout.trim()
+      expect(path).toContain('cospec-binary-home-')
+      expect(path.startsWith(homedir())).toBe(false)
+      expect(path.startsWith(process.env['HOME'] ?? '/nonexistent-home')).toBe(false)
+      const sandbox = path.slice(0, path.indexOf('/.oracle-home/'))
+      expect(existsSync(sandbox)).toBe(false)
+    }, 30_000)
+
+  test("a caller's env wins over the sandbox", async () => {
+    const xdg = join(mkTempRepo(), 'xdg-config')
+    const res = await openspec(['config', 'path'], mkTempRepo(), { XDG_CONFIG_HOME: xdg })
+    expect(res.exitCode).toBe(0)
+    expect(res.stdout.trim().startsWith(`${xdg}/`)).toBe(true)
   }, 30_000)
 })

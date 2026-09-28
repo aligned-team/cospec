@@ -86,3 +86,24 @@
       `env -u FORCE_COLOR -u NO_COLOR -u COLORTERM -u CLICOLOR mise run     check`
       exit 0: unit 1553, contract 1639, integration 167, bench 339, release-test
       14, all 0 fail
+
+## 5. Round 2
+
+- [x] 5.1 Make `openspec()`/`openspecRaw()` in `test/fixtures/support.ts` spawn
+      `process.execPath` on the package bin under `buildWrappedSpawnEnv` over a
+      per-run `oracleEnv` sandbox with the caller's env applied on top
+      (`openspec()` keeping its leading `--no-color`), run every suite that uses
+      them, and widen `docs/architecture.md`'s oracle sentence to both helpers
+      -> `oracleEnv` moved into `support.ts` (re-exported by
+      `upstream-oracle.ts`; `import/no-cycle` forbids the reverse import);
+      `runBinary` makes the sandbox with `mkdtemp`, runs, and removes it. The 10
+      suites that call the helpers (version-tripwire, archive-parity,
+      parity-close-out, config-surface, added-early-sync, delta-bullet-markers,
+      hard-reality, archive-gotchas, archive-preflight-dedupe,
+      scenario-preservation): 105 pass, 0 fail before, and the same 105 pass, 0
+      fail after, so no row changed outcome. Three new rows in
+      `upstream-oracle.test.ts` (8 pass) pin it: under a color-forcing parent
+      each helper's `config path` lies in a `cospec-binary-home-` sandbox,
+      outside the real HOME, gone after the run, with empty stderr; a caller's
+      `XDG_CONFIG_HOME` wins. `docs/architecture.md` and `.agents/shared.md`
+      name both helpers (`agents:sync` rewrote `CLAUDE.md` and `AGENTS.md`)

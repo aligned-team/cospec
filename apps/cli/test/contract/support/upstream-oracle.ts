@@ -39,11 +39,13 @@
 // `openspec -- list` does. Use it for exactly those rows; every other row runs
 // under Bun, as cospec's wrapped calls do.
 
-import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { buildWrappedSpawnEnv } from '../../../src/core/openspec.ts'
-import { envWithoutColorForcing, mkTempRepo, openspecBinPath } from '../../fixtures/support.ts'
+import { mkTempRepo, openspecBinPath, oracleEnv } from '../../fixtures/support.ts'
+
+// Defined beside `openspec()`/`openspecRaw()`, which run under the same sandbox.
+export { oracleEnv }
 
 /** What one oracle run observed. */
 export interface OracleRun {
@@ -57,53 +59,6 @@ export interface OracleJsonRun {
   exitCode: number
   json: unknown
   stderr: string
-}
-
-/**
- * The sandbox environment for `root`, the parent env of every oracle run (and
- * of a cospec run that must match it): color forcing stripped, `NO_COLOR=1`,
- * `OPENSPEC_TELEMETRY=0`, and HOME, the XDG config/data/state/cache dirs,
- * CODEX_HOME and ZDOTDIR redirected under `root/.oracle-home`, and
- * `EDITOR`/`VISUAL` set to `true`. The binary itself runs under
- * `buildWrappedSpawnEnv(oracleEnv(root))` (`oracleSpawn`), as cospec's child
- * does when cospec is handed this env. Exported so a differential test can
- * hand cospec the identical environment.
- */
-export function oracleEnv(root: string): Record<string, string> {
-  const home = join(root, '.oracle-home')
-  const dirs = {
-    HOME: home,
-    XDG_CONFIG_HOME: join(home, '.config'),
-    XDG_DATA_HOME: join(home, '.local', 'share'),
-    XDG_STATE_HOME: join(home, '.local', 'state'),
-    XDG_CACHE_HOME: join(home, '.cache'),
-    CODEX_HOME: join(home, '.codex'),
-    ZDOTDIR: home,
-  }
-  for (const dir of Object.values(dirs)) mkdirSync(dir, { recursive: true })
-  return {
-    ...envWithoutColorForcing(),
-    NO_COLOR: '1',
-    OPENSPEC_TELEMETRY: '0',
-    // A terminal-handover leaf (`config edit`) that does run must return at
-    // once and edit nothing, never open a real editor on the test machine.
-    EDITOR: 'true',
-    VISUAL: 'true',
-    // `HOME` above hides any real `~/.gitconfig`, so `store setup`'s initial
-    // commit (`git.js` `assertGitCommitIdentity`) falls back to Git's own
-    // username+hostname auto-detection. That fallback is host-dependent: it
-    // reads the OS user's GECOS full name and needs a hostname Git accepts as
-    // a mail domain, both of which a plain Linux CI runner account typically
-    // lacks (empty GECOS, a bare container hostname), where a macOS account
-    // usually has both — so the same row passes on a dev machine and fails
-    // with `store_git_identity_missing` in CI. Setting the identity directly
-    // makes every sandboxed run deterministic across hosts.
-    GIT_AUTHOR_NAME: 'cospec test',
-    GIT_AUTHOR_EMAIL: 'cospec-test@example.invalid',
-    GIT_COMMITTER_NAME: 'cospec test',
-    GIT_COMMITTER_EMAIL: 'cospec-test@example.invalid',
-    ...dirs,
-  }
 }
 
 /** Which runtime executes the pinned binary's `bin/openspec.js`, and where. */
