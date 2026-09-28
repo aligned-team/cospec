@@ -159,6 +159,53 @@ function replayDeltaNames(
   return { visible: seen, crossSection }
 }
 
+/**
+ * Names one delta file's own sections repeat or contradict, as openspec's
+ * validate compares them: exact names within MODIFIED and within REMOVED, and a
+ * REMOVED folding onto a RENAMED FROM (case and interior whitespace ignored,
+ * as upstream folds that one).
+ */
+function opConflicts(path: string, ops: readonly DeltaOp[]): Issue[] {
+  const out: Issue[] = []
+  for (const operation of ['MODIFIED', 'REMOVED'] as const) {
+    const seen = new Set<string>()
+    for (const op of ops) {
+      if (op.operation !== operation || op.name === undefined) continue
+      if (!seen.has(op.name)) {
+        seen.add(op.name)
+        continue
+      }
+      out.push({
+        level: 'ERROR',
+        rule: 'archive/op-conflict',
+        path,
+        line: op.line,
+        message: `${operation} "${op.name}" appears twice in this delta`,
+        hint:
+          operation === 'MODIFIED'
+            ? 'openspec refuses a delta that MODIFIES one requirement twice — merge the two blocks into one'
+            : 'openspec refuses a delta that REMOVES one requirement twice — keep one entry',
+      })
+    }
+  }
+  const removed = ops.filter((op) => op.operation === 'REMOVED' && op.name !== undefined)
+  for (const rename of ops) {
+    if (rename.operation !== 'RENAMED' || rename.fromName === undefined) continue
+    const from = foldRequirementName(rename.fromName)
+    const match = removed.find((op) => foldRequirementName(op.name!) === from)
+    if (match === undefined) continue
+    out.push({
+      level: 'ERROR',
+      rule: 'archive/op-conflict',
+      path,
+      line: match.line,
+      message: `REMOVED "${match.name}" names the source of RENAMED "${rename.fromName}" -> "${rename.toName}" in this delta`,
+      hint: 'openspec refuses a requirement one delta both renames and removes — keep the RENAMED, or REMOVE the requirement without renaming it',
+    })
+  }
+  return out
+}
+
 /** The rules whose refusal stops the archive before it rebuilds the spec. */
 const MERGE_PRECONDITIONS: ReadonlySet<string> = new Set([
   'archive/new-spec-non-added',
@@ -680,6 +727,14 @@ export function archiveRules(
         }
       }
     }
+
+    // archive/op-conflict — the three conflicts inside one delta file that
+    // openspec's validate refuses (`validateChangeDeltaSpecs`, 1.13.1) and
+    // no other archive/* arm sees: the merge would apply a second MODIFIED over
+    // the first, drop a second REMOVED as already synced, and run a RENAMED
+    // before the REMOVED of its own source. A change cospec never delegates
+    // was only ever refused for these by the relayed binary finding.
+    for (const f of group.files) issues.push(...opConflicts(f.path, f.parsed.ops))
 
     // archive/rebuilt-spec-invalid — the archive merges the delta and then
     // re-validates the whole spec it rebuilt, refusing to write it on any

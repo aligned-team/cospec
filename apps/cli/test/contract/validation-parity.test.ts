@@ -1904,22 +1904,6 @@ describe('14. one view model: the scan is fence-aware and the archive family rea
   }
 })
 
-// --- round-4 rows pinned before their fixes -------------------------------------------------
-
-/** Rows that fail on the tree until their fix lands; each fix commit removes its own ids. */
-const ROUND4_FAILING = new Set<string>([
-  '22.1 dup-modified',
-  '22.1 dup-removed',
-  '22.1 renamed-and-removed',
-  '22.1 renamed-and-removed-fold',
-  '22.2 dup-modified',
-  '22.2 dup-removed',
-  '22.2 renamed-and-removed',
-  '22.2 renamed-and-removed-fold',
-  '19.2',
-])
-const round4 = (id: string): typeof test => (ROUND4_FAILING.has(id) ? test.failing : test)
-
 // --- 15. a skipped header inside a surviving living requirement ---------------------------
 //
 // The rebuilt spec the archive re-validates keeps every living requirement the
@@ -1971,31 +1955,28 @@ describe('15. a skipped header inside a surviving living requirement is refused 
     const build = (root: string): void =>
       buildFeat(root, name, { 'widgets/spec.md': delta }, { living })
 
-    round4(row)(
-      `${row} ${what} splitting a living requirement the delta keeps is archive/rebuilt-spec-invalid`,
-      async () => {
-        const root = mkTempRepo({ git: true })
-        build(root)
-        // The binary's validate never sees it: its dry run stops before the
-        // rebuilt spec is re-validated.
-        expect((await binaryIssues(root, name)).filter((i) => i.level !== 'INFO')).toEqual([])
-        expect(binaryFind(await binaryIssues(root, name), 'Notes on rendering')).toEqual([])
-        const archived = await binaryArchive(build, name)
-        expect(archived.exitCode).not.toBe(0)
-        expect(archived.moved).toBe(false)
-        const { report, exitCode } = await cospecValidate(root, name)
-        // The living split is one shape of the rebuilt-spec check, which names
-        // the requirement left without a scenario and the header that took it.
-        expect(byRule(report, 'archive/split-requirement')).toEqual([])
-        const split = byRule(report, 'archive/rebuilt-spec-invalid')
-        expect(split).toHaveLength(1)
-        expect(split[0]?.level).toBe('ERROR')
-        expect(split[0]?.message).toContain('"### Notes on rendering"')
-        expect(split[0]?.message).toContain('openspec/specs/widgets/spec.md')
-        expect(split[0]?.message).toContain(`line ${lineOf(living, '### Notes on rendering')}`)
-        expect(exitCode).toBe(1)
-      },
-    )
+    test(`${row} ${what} splitting a living requirement the delta keeps is archive/rebuilt-spec-invalid`, async () => {
+      const root = mkTempRepo({ git: true })
+      build(root)
+      // The binary's validate never sees it: its dry run stops before the
+      // rebuilt spec is re-validated.
+      expect((await binaryIssues(root, name)).filter((i) => i.level !== 'INFO')).toEqual([])
+      expect(binaryFind(await binaryIssues(root, name), 'Notes on rendering')).toEqual([])
+      const archived = await binaryArchive(build, name)
+      expect(archived.exitCode).not.toBe(0)
+      expect(archived.moved).toBe(false)
+      const { report, exitCode } = await cospecValidate(root, name)
+      // The living split is one shape of the rebuilt-spec check, which names
+      // the requirement left without a scenario and the header that took it.
+      expect(byRule(report, 'archive/split-requirement')).toEqual([])
+      const split = byRule(report, 'archive/rebuilt-spec-invalid')
+      expect(split).toHaveLength(1)
+      expect(split[0]?.level).toBe('ERROR')
+      expect(split[0]?.message).toContain('"### Notes on rendering"')
+      expect(split[0]?.message).toContain('openspec/specs/widgets/spec.md')
+      expect(split[0]?.message).toContain(`line ${lineOf(living, '### Notes on rendering')}`)
+      expect(exitCode).toBe(1)
+    })
   }
 
   for (const [row, name, delta, living, what] of [
@@ -2560,33 +2541,30 @@ describe('20. the rebuilt spec is validated as the archive validates it', () => 
   for (const r of REBUILT_REFUSED) {
     const build = (root: string): void => buildRebuilt(root, r)
 
-    round4(r.row)(
-      `${r.row} ${r.name}: the binary archive refuses the rebuilt spec, and so does cospec`,
-      async () => {
-        const root = mkTempRepo({ git: true })
-        build(root)
-        // The binary's validate never sees it: its dry run stops before the
-        // rebuilt spec is re-validated.
-        expect((await binaryIssues(root, r.name)).filter((i) => i.level !== 'INFO')).toEqual([])
-        const archived = await binaryArchive(build, r.name)
-        expect(archived.exitCode).not.toBe(0)
-        expect(archived.moved).toBe(false)
-        const { report, exitCode } = await cospecValidate(root, r.name)
-        const found = byRule(report, REBUILT)
-        expect(found).toHaveLength(1)
-        expect(found[0]?.level).toBe('ERROR')
-        for (const fragment of r.says) expect(found[0]?.message).toContain(fragment)
-        expect(byRule(report, 'archive/target-invalid')).toEqual([])
-        expect(byRule(report, 'archive/split-requirement')).toEqual([])
-        expect(exitCode).toBe(1)
-      },
-    )
+    test(`${r.row} ${r.name}: the binary archive refuses the rebuilt spec, and so does cospec`, async () => {
+      const root = mkTempRepo({ git: true })
+      build(root)
+      // The binary's validate never sees it: its dry run stops before the
+      // rebuilt spec is re-validated.
+      expect((await binaryIssues(root, r.name)).filter((i) => i.level !== 'INFO')).toEqual([])
+      const archived = await binaryArchive(build, r.name)
+      expect(archived.exitCode).not.toBe(0)
+      expect(archived.moved).toBe(false)
+      const { report, exitCode } = await cospecValidate(root, r.name)
+      const found = byRule(report, REBUILT)
+      expect(found).toHaveLength(1)
+      expect(found[0]?.level).toBe('ERROR')
+      for (const fragment of r.says) expect(found[0]?.message).toContain(fragment)
+      expect(byRule(report, 'archive/target-invalid')).toEqual([])
+      expect(byRule(report, 'archive/split-requirement')).toEqual([])
+      expect(exitCode).toBe(1)
+    })
   }
 
   for (const r of REBUILT_ARCHIVED) {
     const build = (root: string): void => buildRebuilt(root, r)
 
-    round4(r.row)(`${r.row} ${r.name}: the binary archives it, and cospec is clean`, async () => {
+    test(`${r.row} ${r.name}: the binary archives it, and cospec is clean`, async () => {
       const root = mkTempRepo({ git: true })
       build(root)
       await binaryIssues(root, r.name)
@@ -2600,90 +2578,75 @@ describe('20. the rebuilt spec is validated as the archive validates it', () => 
     })
   }
 
-  round4('20.15')(
-    '20.15 a level-1 header inside a delta block re-parents its scenario: refused on the delta line',
-    async () => {
-      const build = (root: string): void =>
-        buildFeat(root, 'rb-delta-h1', { 'widgets/spec.md': ADDED_H1_BEFORE_SCENARIO })
-      const root = mkTempRepo({ git: true })
-      build(root)
-      expect(await binaryIssues(root, 'rb-delta-h1')).toEqual([])
-      const archived = await binaryArchive(build, 'rb-delta-h1')
-      expect(archived.exitCode).not.toBe(0)
-      expect(archived.moved).toBe(false)
-      const { report, exitCode } = await cospecValidate(root, 'rb-delta-h1')
-      const found = byRule(report, REBUILT)
-      expect(found).toHaveLength(1)
-      expect(found[0]?.path).toBe('specs/widgets/spec.md')
-      expect(found[0]?.line).toBe(
-        lineOf(ADDED_H1_BEFORE_SCENARIO, '### Requirement: Widget polishing'),
-      )
-      expect(found[0]?.message).toContain('requirement "Widget polishing"')
-      expect(exitCode).toBe(1)
-    },
-  )
+  test('20.15 a level-1 header inside a delta block re-parents its scenario: refused on the delta line', async () => {
+    const build = (root: string): void =>
+      buildFeat(root, 'rb-delta-h1', { 'widgets/spec.md': ADDED_H1_BEFORE_SCENARIO })
+    const root = mkTempRepo({ git: true })
+    build(root)
+    expect(await binaryIssues(root, 'rb-delta-h1')).toEqual([])
+    const archived = await binaryArchive(build, 'rb-delta-h1')
+    expect(archived.exitCode).not.toBe(0)
+    expect(archived.moved).toBe(false)
+    const { report, exitCode } = await cospecValidate(root, 'rb-delta-h1')
+    const found = byRule(report, REBUILT)
+    expect(found).toHaveLength(1)
+    expect(found[0]?.path).toBe('specs/widgets/spec.md')
+    expect(found[0]?.line).toBe(
+      lineOf(ADDED_H1_BEFORE_SCENARIO, '### Requirement: Widget polishing'),
+    )
+    expect(found[0]?.message).toContain('requirement "Widget polishing"')
+    expect(exitCode).toBe(1)
+  })
 
-  round4('20.16')(
-    '20.16 a nameless ### between two scenarios is a split leaving a requirement with no text',
-    async () => {
-      const build = (root: string): void =>
-        buildFeat(root, 'rb-blank-header', { 'widgets/spec.md': ADDED_BLANK_HEADER })
-      const root = mkTempRepo({ git: true })
-      build(root)
-      const delegated = binaryOne(await binaryIssues(root, 'rb-blank-header'), 'Header "### "')
-      expect(delegated.level).toBe('INFO')
-      const archived = await binaryArchive(build, 'rb-blank-header')
-      expect(archived.exitCode).not.toBe(0)
-      expect(archived.moved).toBe(false)
-      const { report, exitCode } = await cospecValidate(root, 'rb-blank-header')
-      const split = byRule(report, 'archive/split-requirement')
-      expect(split.map((i) => [i.level, i.line])).toEqual([
-        ['ERROR', lineOf(ADDED_BLANK_HEADER, '###   ')],
-      ])
-      expect(split[0]?.message).toContain('no text')
-      expect(byRule(report, 'deltas/skipped-header')).toEqual([])
-      expect(byRule(report, REBUILT)).toEqual([])
-      expect(messages(report)).not.toContain(delegated.message)
-      expect(exitCode).toBe(1)
-    },
-  )
+  test('20.16 a nameless ### between two scenarios is a split leaving a requirement with no text', async () => {
+    const build = (root: string): void =>
+      buildFeat(root, 'rb-blank-header', { 'widgets/spec.md': ADDED_BLANK_HEADER })
+    const root = mkTempRepo({ git: true })
+    build(root)
+    const delegated = binaryOne(await binaryIssues(root, 'rb-blank-header'), 'Header "### "')
+    expect(delegated.level).toBe('INFO')
+    const archived = await binaryArchive(build, 'rb-blank-header')
+    expect(archived.exitCode).not.toBe(0)
+    expect(archived.moved).toBe(false)
+    const { report, exitCode } = await cospecValidate(root, 'rb-blank-header')
+    const split = byRule(report, 'archive/split-requirement')
+    expect(split.map((i) => [i.level, i.line])).toEqual([
+      ['ERROR', lineOf(ADDED_BLANK_HEADER, '###   ')],
+    ])
+    expect(split[0]?.message).toContain('no text')
+    expect(byRule(report, 'deltas/skipped-header')).toEqual([])
+    expect(byRule(report, REBUILT)).toEqual([])
+    expect(messages(report)).not.toContain(delegated.message)
+    expect(exitCode).toBe(1)
+  })
 
-  round4('20.30')(
-    '20.30 cospec archive refuses a rebuilt-spec defect before delegating',
-    async () => {
-      const r = REBUILT_REFUSED.find((x) => x.name === 'rb-preamble-notes')!
-      const root = mkTempRepo({ git: true })
-      buildRebuilt(root, r)
-      const res = await cospec(['archive', r.name], { cwd: root })
-      expect(res.exitCode).not.toBe(0)
-      expect(`${res.stdout}${res.stderr}`).toContain(REBUILT)
-      expect(existsSync(join(root, `openspec/changes/${r.name}`))).toBe(true)
-    },
-  )
+  test('20.30 cospec archive refuses a rebuilt-spec defect before delegating', async () => {
+    const r = REBUILT_REFUSED.find((x) => x.name === 'rb-preamble-notes')!
+    const root = mkTempRepo({ git: true })
+    buildRebuilt(root, r)
+    const res = await cospec(['archive', r.name], { cwd: root })
+    expect(res.exitCode).not.toBe(0)
+    expect(`${res.stdout}${res.stderr}`).toContain(REBUILT)
+    expect(existsSync(join(root, `openspec/changes/${r.name}`))).toBe(true)
+  })
 
-  round4('20.31')(
-    '20.31 cospec archive archives a living spec with no ## Requirements, as the binary does',
-    async () => {
-      const r = REBUILT_ARCHIVED.find((x) => x.name === 'rb-no-requirements-section')!
-      const root = mkTempRepo({ git: true })
-      buildRebuilt(root, r)
-      const res = await cospec(['archive', r.name], { cwd: root })
-      expect(res.exitCode).toBe(0)
-      expect(existsSync(join(root, `openspec/changes/${r.name}`))).toBe(false)
-    },
-  )
+  test('20.31 cospec archive archives a living spec with no ## Requirements, as the binary does', async () => {
+    const r = REBUILT_ARCHIVED.find((x) => x.name === 'rb-no-requirements-section')!
+    const root = mkTempRepo({ git: true })
+    buildRebuilt(root, r)
+    const res = await cospec(['archive', r.name], { cwd: root })
+    expect(res.exitCode).toBe(0)
+    expect(existsSync(join(root, `openspec/changes/${r.name}`))).toBe(false)
+  })
 
-  round4('20.32')(
-    '20.32 a never-delegated change reports the same rebuilt-spec defect',
-    async () => {
-      const r = REBUILT_REFUSED.find((x) => x.name === 'rb-preamble-notes')!
-      const root = mkTempRepo({ git: true })
-      buildRebuilt(root, { ...r, name: 'rb-preamble-notes-bare' }, false)
-      const { report } = await cospecValidate(root, 'rb-preamble-notes-bare')
-      expect(byRule(report, 'openspec/validate')).toEqual([])
-      expect(byRule(report, REBUILT)).toHaveLength(1)
-    },
-  )
+  test('20.32 a never-delegated change reports the same rebuilt-spec defect', async () => {
+    const r = REBUILT_REFUSED.find((x) => x.name === 'rb-preamble-notes')!
+    const root = mkTempRepo({ git: true })
+    buildRebuilt(root, { ...r, name: 'rb-preamble-notes-bare' }, false)
+    const { report } = await cospecValidate(root, 'rb-preamble-notes-bare')
+    expect(byRule(report, 'openspec/validate')).toEqual([])
+    expect(byRule(report, REBUILT)).toHaveLength(1)
+  })
 })
 
 // --- 20.40 the port rebuilds what the binary writes, byte for byte -------------------------
@@ -2882,35 +2845,27 @@ describe('21. one pinned-message test per round-4 DUPLICATE_CLASSES entry', () =
   for (const [entry, name, specs, fragment, level, rule, nativeFragment] of ROUND4_ENTRIES) {
     const build = (root: string): void => buildFeat(root, name, { ...specs })
 
-    round4(`entry ${entry} ${name}`)(
-      `entry ${entry} (${name}): "${fragment}" pairs with ${rule}`,
-      async () => {
-        const root = mkTempRepo({ git: true })
-        build(root)
-        const delegated = binaryOne(await binaryIssues(root, name), fragment)
-        expect(delegated.level).toBe(level)
-        const { report } = await cospecValidate(root, name)
-        expect(messages(report)).not.toContain(delegated.message)
-        expect(byRule(report, rule).filter((i) => i.message.includes(nativeFragment))).toHaveLength(
-          1,
-        )
-      },
-    )
+    test(`entry ${entry} (${name}): "${fragment}" pairs with ${rule}`, async () => {
+      const root = mkTempRepo({ git: true })
+      build(root)
+      const delegated = binaryOne(await binaryIssues(root, name), fragment)
+      expect(delegated.level).toBe(level)
+      const { report } = await cospecValidate(root, name)
+      expect(messages(report)).not.toContain(delegated.message)
+      expect(byRule(report, rule).filter((i) => i.message.includes(nativeFragment))).toHaveLength(1)
+    })
   }
 
-  round4('entries 21-24 fast')(
-    'entries 21-24 under --fast: the deltas/* twins still fire, so the binary twin is dropped',
-    async () => {
-      for (const [, name, specs, fragment, , rule] of ROUND4_ENTRIES) {
-        if (rule.startsWith('archive/') && rule !== 'archive/split-requirement') continue
-        const root = mkTempRepo({ git: true })
-        buildFeat(root, `${name}-fast`, { ...specs })
-        const delegated = binaryOne(await binaryIssues(root, `${name}-fast`), fragment)
-        const { report } = await cospecValidate(root, `${name}-fast`, ['--fast'])
-        expect(messages(report)).not.toContain(delegated.message)
-      }
-    },
-  )
+  test('entries 21-24 under --fast: the deltas/* twins still fire, so the binary twin is dropped', async () => {
+    for (const [, name, specs, fragment, , rule] of ROUND4_ENTRIES) {
+      if (rule.startsWith('archive/') && rule !== 'archive/split-requirement') continue
+      const root = mkTempRepo({ git: true })
+      buildFeat(root, `${name}-fast`, { ...specs })
+      const delegated = binaryOne(await binaryIssues(root, `${name}-fast`), fragment)
+      const { report } = await cospecValidate(root, `${name}-fast`, ['--fast'])
+      expect(messages(report)).not.toContain(delegated.message)
+    }
+  })
 
   test('entries 19-20 under --fast: the archive/* twin is unchecked and the binary finding is kept', async () => {
     for (const [, name, specs, fragment, , rule] of ROUND4_ENTRIES) {
@@ -3048,45 +3003,39 @@ describe('22. a never-delegated change is refused natively on every conflict sha
   for (const [name, delta, fragment, rule, requirement] of CONFLICT_SHAPES) {
     const bare = `bare-${name}`
 
-    round4(`22.1 ${name}`)(
-      `22.1 ${name}: no relay, and ${rule} names "${requirement}"`,
-      async () => {
-        const root = mkTempRepo({ git: true })
-        buildFeat(root, bare, { 'widgets/spec.md': delta }, { proposal: false })
-        expect(binaryOne(await binaryIssues(root, bare), fragment).level).toBe('ERROR')
-        const archived = await binaryArchive(
-          (r) => buildFeat(r, bare, { 'widgets/spec.md': delta }, { proposal: false }),
-          bare,
-        )
-        expect(archived.exitCode).not.toBe(0)
-        expect(archived.moved).toBe(false)
-        const { report, exitCode } = await cospecValidate(root, bare)
-        expect(byRule(report, 'openspec/validate')).toEqual([])
-        const found = byRule(report, rule).filter(
-          (i) => i.level === 'ERROR' && i.message.includes(`"${requirement}"`),
-        )
-        expect(found.length).toBeGreaterThanOrEqual(1)
-        expect(found.every((i) => i.path === 'specs/widgets/spec.md')).toBe(true)
-        expect(exitCode).toBe(1)
-      },
-    )
+    test(`22.1 ${name}: no relay, and ${rule} names "${requirement}"`, async () => {
+      const root = mkTempRepo({ git: true })
+      buildFeat(root, bare, { 'widgets/spec.md': delta }, { proposal: false })
+      expect(binaryOne(await binaryIssues(root, bare), fragment).level).toBe('ERROR')
+      const archived = await binaryArchive(
+        (r) => buildFeat(r, bare, { 'widgets/spec.md': delta }, { proposal: false }),
+        bare,
+      )
+      expect(archived.exitCode).not.toBe(0)
+      expect(archived.moved).toBe(false)
+      const { report, exitCode } = await cospecValidate(root, bare)
+      expect(byRule(report, 'openspec/validate')).toEqual([])
+      const found = byRule(report, rule).filter(
+        (i) => i.level === 'ERROR' && i.message.includes(`"${requirement}"`),
+      )
+      expect(found.length).toBeGreaterThanOrEqual(1)
+      expect(found.every((i) => i.path === 'specs/widgets/spec.md')).toBe(true)
+      expect(exitCode).toBe(1)
+    })
   }
 
   for (const [name, delta, fragment] of CONFLICT_SHAPES.filter(
     ([, , , rule]) => rule === 'archive/op-conflict',
   )) {
-    round4(`22.2 ${name}`)(
-      `22.2 entry 25 (${name}): the delegated "${fragment}" pairs with archive/op-conflict`,
-      async () => {
-        const root = mkTempRepo({ git: true })
-        buildFeat(root, name, { 'widgets/spec.md': delta })
-        const delegated = binaryOne(await binaryIssues(root, name), fragment)
-        expect(delegated.level).toBe('ERROR')
-        const { report } = await cospecValidate(root, name)
-        expect(messages(report)).not.toContain(delegated.message)
-        expect(byRule(report, 'archive/op-conflict')).toHaveLength(1)
-      },
-    )
+    test(`22.2 entry 25 (${name}): the delegated "${fragment}" pairs with archive/op-conflict`, async () => {
+      const root = mkTempRepo({ git: true })
+      buildFeat(root, name, { 'widgets/spec.md': delta })
+      const delegated = binaryOne(await binaryIssues(root, name), fragment)
+      expect(delegated.level).toBe('ERROR')
+      const { report } = await cospecValidate(root, name)
+      expect(messages(report)).not.toContain(delegated.message)
+      expect(byRule(report, 'archive/op-conflict')).toHaveLength(1)
+    })
   }
 })
 
@@ -3162,7 +3111,7 @@ function doubleReports(all: readonly ReportIssue[]): string[] {
 }
 
 describe('19. sweep', () => {
-  round4('19.1')('19.1 no report in this file carries one defect twice', () => {
+  test('19.1 no report in this file carries one defect twice', () => {
     expect(REPORTS.length).toBeGreaterThan(100)
     const doubles = REPORTS.flatMap(({ label, report }) =>
       doubleReports(issues(report)).map((d) => `${label}: ${d}`),
@@ -3182,35 +3131,31 @@ describe('19. sweep', () => {
     'target spec does not exist; only ADDED requirements are allowed',
   ]
 
-  round4('19.2')(
-    '19.2 every suppressed twin that names its requirement would be caught if relayed',
-    () => {
-      const suppressed: string[] = []
-      const caught: string[] = []
-      for (const { key, report } of REPORTS) {
-        const all = issues(report)
-        const relayed = new Set(
-          all.filter((i) => i.rule === 'openspec/validate').map((i) => i.message),
-        )
-        for (const bin of BINARY.get(key) ?? []) {
-          if (relayed.has(bin.message)) continue
-          if (NAMES_NO_REQUIREMENT.some((fragment) => bin.message.includes(fragment))) continue
-          if (all.every((i) => i.rule === 'openspec/validate' || i.rule.startsWith('meta/')))
-            continue
-          suppressed.push(bin.message)
-          // The path as cospec relays it: the binary's is relative to `specs/`.
-          const path = bin.path === undefined ? '' : `specs/${bin.path}`
-          const injected = {
-            level: bin.level,
-            rule: 'openspec/validate',
-            path,
-            message: bin.message,
-          }
-          if (doubleReports([...all, injected]).length > 0) caught.push(bin.message)
+  test('19.2 every suppressed twin that names its requirement would be caught if relayed', () => {
+    const suppressed: string[] = []
+    const caught: string[] = []
+    for (const { key, report } of REPORTS) {
+      const all = issues(report)
+      const relayed = new Set(
+        all.filter((i) => i.rule === 'openspec/validate').map((i) => i.message),
+      )
+      for (const bin of BINARY.get(key) ?? []) {
+        if (relayed.has(bin.message)) continue
+        if (NAMES_NO_REQUIREMENT.some((fragment) => bin.message.includes(fragment))) continue
+        if (all.every((i) => i.rule === 'openspec/validate' || i.rule.startsWith('meta/'))) continue
+        suppressed.push(bin.message)
+        // The path as cospec relays it: the binary's is relative to `specs/`.
+        const path = bin.path === undefined ? '' : `specs/${bin.path}`
+        const injected = {
+          level: bin.level,
+          rule: 'openspec/validate',
+          path,
+          message: bin.message,
         }
+        if (doubleReports([...all, injected]).length > 0) caught.push(bin.message)
       }
-      expect(suppressed.length).toBeGreaterThan(30)
-      expect(suppressed.filter((m) => !caught.includes(m))).toEqual([])
-    },
-  )
+    }
+    expect(suppressed.length).toBeGreaterThan(30)
+    expect(suppressed.filter((m) => !caught.includes(m))).toEqual([])
+  })
 })

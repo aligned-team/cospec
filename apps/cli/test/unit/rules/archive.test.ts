@@ -1308,3 +1308,49 @@ describe('archive/rebuilt-spec-invalid', () => {
     expect(found[0]?.message).toContain('leaving the header a requirement with no text')
   })
 })
+
+// The in-file conflicts openspec's validate refuses and no other archive/* arm
+// reports; a change cospec never delegates had no finding for them at all.
+describe('archive/op-conflict', () => {
+  const conflicts = (text: string, living = LIVING_TWO) =>
+    archiveRules(change(text, { living })).filter((i) => i.rule === 'archive/op-conflict')
+  const MOD =
+    '### Requirement: Existing\n\nThe system SHALL exist anew.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n'
+  const RENAME =
+    '## RENAMED Requirements\n\n- FROM: `### Requirement: Existing`\n- TO: `### Requirement: Renamed`\n\n'
+
+  test('a MODIFIED written twice is refused on the second copy', () => {
+    const text = `## MODIFIED Requirements\n\n${MOD}\n${MOD}`
+    expect(conflicts(text).map((i) => [i.level, i.line, i.message])).toEqual([
+      ['ERROR', 12, 'MODIFIED "Existing" appears twice in this delta'],
+    ])
+  })
+
+  test('a REMOVED written twice is refused on the second entry', () => {
+    const text =
+      '## REMOVED Requirements\n\n- `### Requirement: Existing`\n- `### Requirement: Existing`\n'
+    expect(conflicts(text).map((i) => [i.line, i.message])).toEqual([
+      [4, 'REMOVED "Existing" appears twice in this delta'],
+    ])
+  })
+
+  test('a REMOVED of a RENAMED source is refused, a fold variant too', () => {
+    for (const removed of ['Existing', 'existing']) {
+      const text = `${RENAME}## REMOVED Requirements\n\n- \`### Requirement: ${removed}\`\n`
+      expect(conflicts(text).map((i) => i.message)).toEqual([
+        `REMOVED "${removed}" names the source of RENAMED "Existing" -> "Renamed" in this delta`,
+      ])
+    }
+  })
+
+  test('distinct names, and a REMOVED of the rename target, are no conflict here', () => {
+    expect(
+      conflicts(
+        '## REMOVED Requirements\n\n- `### Requirement: Existing`\n- `### Requirement: Kept`\n',
+      ),
+    ).toEqual([])
+    expect(
+      conflicts(`${RENAME}## REMOVED Requirements\n\n- \`### Requirement: Renamed\`\n`),
+    ).toEqual([])
+  })
+})

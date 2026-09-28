@@ -495,6 +495,26 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
 
   // --- round-4 pairings: one defect, a cospec rule and a binary finding -----
   //
+  // 1.13.1's three in-file conflicts no other archive/* arm reports, vs
+  // archive/op-conflict, keyed on the requirement both name — for the
+  // RENAMED+REMOVED pair, the RENAMED FROM, which the binary quotes.
+  {
+    rule: 'archive/op-conflict',
+    delegated: /^Duplicate requirement in MODIFIED: "(.*)"$/,
+    nativeKey: /^MODIFIED "(.*)" appears twice in this delta$/,
+  },
+  {
+    rule: 'archive/op-conflict',
+    delegated: /^Duplicate requirement in REMOVED: "(.*)"$/,
+    nativeKey: /^REMOVED "(.*)" appears twice in this delta$/,
+  },
+  {
+    rule: 'archive/op-conflict',
+    delegated:
+      /^Requirement present in both RENAMED and REMOVED: "(.*?)"(?: \(REMOVED spells it ".*"\))?$/,
+    nativeKey: /^REMOVED ".*" names the source of RENAMED "(.*)" -> "/,
+  },
+  //
   // 1.13.1's orphaned-requirement WARNING vs deltas/orphaned-requirement.
   // Keyed on the requirement name, never the section text: cospec's advisory
   // reader quotes a header's `## Notes` with any trailing comment masked away,
