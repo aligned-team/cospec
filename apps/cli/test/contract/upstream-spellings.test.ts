@@ -1,12 +1,20 @@
 // Upstream spellings reach cospec (change `upstream-spellings`, ledger 1.1–1.10,
-// 2.1–2.2, 3.1–3.3, 4.1–4.5): every row runs the same argv through cospec and
-// the pinned binary (the upstream oracle, under Node) and compares cospec's
-// answer with the binary's, read at test time — no upstream string is typed
-// here. A row cospec does not answer yet runs as `test.failing` until the
-// commit that implements its surface flips it to `test`.
+// 1.12–1.14, 2.1–2.2, 3.1–3.3, 3.5–3.6, 4.1–4.5): every row runs the same argv
+// through cospec and the pinned binary (the upstream oracle, under Node) and
+// compares cospec's answer with the binary's, read at test time — no upstream
+// string is typed here. A row cospec does not answer yet runs as `test.failing`
+// until the commit that implements its surface flips it to `test`.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { parse as parseYaml } from 'yaml'
@@ -367,6 +375,213 @@ describe('1.10 new change --schema <unknown> relays the binary answer', () => {
   }, 30_000)
 })
 
+/** What `root` holds, minus the sandboxed HOME the oracle env creates there. */
+function entries(root: string): string[] {
+  return readdirSync(root)
+    .filter((name) => name !== '.oracle-home')
+    .toSorted()
+}
+
+/** The reason of the binary's `✖ Error: <reason>` refusal on stderr. */
+function upstreamError(run: SpawnResult): string {
+  const marker = '✖ Error: '
+  const at = run.stderr.indexOf(marker)
+  expect(at, detail('openspec', run)).toBeGreaterThanOrEqual(0)
+  return run.stderr.slice(at + marker.length).trim()
+}
+
+describe('1.12 an empty or cased tool list is read as the binary reads it', () => {
+  for (const value of ['', ' ', ',']) {
+    test.failing(
+      `init --tools '${value}' is refused as the binary refuses it, nothing written`,
+      async () => {
+        const argv = ['init', '--tools', value]
+        const upRoot = mkTempRepo()
+        const u = await runUpstream(argv, upRoot)
+        expect(u.exitCode, detail('openspec', u)).toBe(1)
+        const reason = upstreamError(u)
+        expect(entries(upRoot)).toEqual([])
+        const coRoot = mkTempRepo()
+        const c = await runCospec(argv, coRoot)
+        expect(c.exitCode, detail('cospec', c)).toBe(1)
+        expect(c.stdout).toBe('')
+        expect(c.stderr).toBe(`cospec: ${reason}\n`)
+        expect(entries(coRoot)).toEqual([])
+      },
+      30_000,
+    )
+  }
+
+  test.failing(
+    "init --harness '' is refused the same way, naming --harness",
+    async () => {
+      const u = await runUpstream(['init', '--tools', ''], mkTempRepo())
+      const reason = upstreamError(u)
+      const coRoot = mkTempRepo()
+      const c = await runCospec(['init', '--harness', ''], coRoot)
+      expect(c.exitCode, detail('cospec', c)).toBe(1)
+      expect(c.stdout).toBe('')
+      expect(c.stderr).toBe(`cospec: ${reason.replaceAll('--tools', '--harness')}\n`)
+      expect(entries(coRoot)).toEqual([])
+    },
+    30_000,
+  )
+
+  test.failing(
+    "experimental --tool '' prints the note, then the binary's refusal; nothing written",
+    async () => {
+      const argv = ['experimental', '--tool', '']
+      const upRoot = mkTempRepo()
+      const u = await runUpstream(argv, upRoot)
+      expect(u.exitCode, detail('openspec', u)).toBe(1)
+      const reason = upstreamError(u)
+      expect(entries(upRoot)).toEqual([])
+      const coRoot = mkTempRepo()
+      const c = await runCospec(argv, coRoot)
+      expect(c.exitCode, detail('cospec', c)).toBe(1)
+      expect(c.stdout).toBe(u.stdout.replaceAll('openspec', 'cospec'))
+      expect(c.stderr).toBe(`cospec: ${reason.replaceAll('--tools', '--tool')}\n`)
+      expect(entries(coRoot)).toEqual([])
+    },
+    30_000,
+  )
+
+  for (const [value, canonical] of [
+    ['ALL', 'all'],
+    [' all ', 'all'],
+    ['Claude', 'claude'],
+    ['claude, CODEX', 'claude,codex'],
+  ] as const) {
+    test.failing(
+      `init --tools '${value}' selects what --harness ${canonical} selects`,
+      async () => {
+        const u = await runUpstream(['init', '--tools', value], mkTempRepo())
+        expect(u.exitCode, detail('openspec', u)).toBe(0)
+        const coRoot = mkTempRepo()
+        const refRoot = mkTempRepo()
+        const c = await runCospec(['init', '--tools', value], coRoot)
+        const r = await runCospec(['init', '--harness', canonical], refRoot)
+        expect(r.exitCode, detail('cospec --harness', r)).toBe(0)
+        expect(c.exitCode, detail('cospec', c)).toBe(0)
+        expect(treeHash(coRoot)).toEqual(treeHash(refRoot))
+      },
+      60_000,
+    )
+  }
+})
+
+/** The line of the binary's stderr that warns about `config.yaml`. */
+function configWarning(run: SpawnResult): string {
+  const line = run.stderr
+    .split('\n')
+    .find((l) =>
+      /^(?:Warning: could not parse |openspec\/config\.yaml is not |Invalid 'schema')/.test(l),
+    )
+  expect(line, detail('openspec', run)).toBeDefined()
+  return line!
+}
+
+describe('1.13 new change reads an empty --schema and a broken config.yaml as the binary does', () => {
+  for (const template of ['cospec', 'upstream'] as const) {
+    test.failing(
+      `new change foo --schema '' takes the ${template} root's default schema`,
+      async () => {
+        const argv = ['new', 'change', 'foo', '--schema', '']
+        const from = template === 'cospec' ? cospecTemplate : upstreamTemplate
+        const coRoot = copyOf(from)
+        const upRoot = copyOf(from)
+        const u = await runUpstream(argv, upRoot)
+        expect(u.exitCode, detail('openspec', u)).toBe(0)
+        const c = await runCospec(argv, coRoot)
+        expect(c.exitCode, detail('cospec', c)).toBe(0)
+        expect(metadata(coRoot, 'foo')['schema']).toBe(metadata(upRoot, 'foo')['schema'])
+      },
+      30_000,
+    )
+  }
+
+  for (const [name, config] of [
+    ['an unparseable', 'schema: [unclosed\n'],
+    ['a non-object', 'hello\n'],
+    ['an empty', ''],
+    ['a non-string schema:', 'schema: 42\n'],
+    ['an empty schema:', 'schema: ""\n'],
+  ] as const) {
+    for (const asJson of [false, true]) {
+      const argv = ['new', 'change', 'foo', ...(asJson ? ['--json'] : [])]
+      test.failing(
+        `${argv.join(' ')} on ${name} config.yaml: the binary's warning, then spec-driven`,
+        async () => {
+          const coRoot = copyOf(upstreamTemplate)
+          const upRoot = copyOf(upstreamTemplate)
+          for (const root of [coRoot, upRoot])
+            writeFileSync(join(root, 'openspec', 'config.yaml'), config)
+          const u = await runUpstream(argv, upRoot)
+          expect(u.exitCode, detail('openspec', u)).toBe(0)
+          const warning = neutral(configWarning(u), upRoot)
+          const c = await runCospec(argv, coRoot)
+          expect(c.exitCode, detail('cospec', c)).toBe(0)
+          expect(neutral(c.stderr, coRoot).split('\n')).toContain(warning)
+          expect(metadata(coRoot, 'foo')['schema']).toBe(metadata(upRoot, 'foo')['schema'])
+          expect(metadata(coRoot, 'foo')['schema']).toBe('spec-driven')
+          if (asJson) expect(json(c)['change']).toMatchObject(json(u)['change'] as object)
+        },
+        30_000,
+      )
+    }
+  }
+
+  for (const asJson of [false, true]) {
+    const argv = ['new', 'change', 'foo', '--schema', 'nope', ...(asJson ? ['--json'] : [])]
+    test(`${argv.join(' ')} leaves no change on disk, as the binary`, async () => {
+      const coRoot = copyOf(upstreamTemplate)
+      const upRoot = copyOf(upstreamTemplate)
+      const u = await runUpstream(argv, upRoot)
+      expect(u.exitCode).toBe(1)
+      expect(existsSync(join(upRoot, 'openspec', 'changes', 'foo'))).toBe(false)
+      const before = treeHash(coRoot)
+      const c = await runCospec(argv, coRoot)
+      expect(c.exitCode, detail('cospec', c)).toBe(1)
+      expect(treeHash(coRoot)).toEqual(before)
+    }, 30_000)
+  }
+})
+
+describe('1.14 completion generate reads the shell name case-insensitively, as the binary', () => {
+  test.failing(
+    'completion generate BASH prints the bash script',
+    async () => {
+      const u = await runUpstream(['completion', 'generate', 'BASH'], mkTempRepo())
+      expect(u.exitCode, detail('openspec', u)).toBe(0)
+      const lower = await runUpstream(['completion', 'generate', 'bash'], mkTempRepo())
+      expect(u.stdout).toBe(lower.stdout)
+      const root = mkTempRepo()
+      const c = await runCospec(['completion', 'generate', 'BASH'], root)
+      const ref = await runCospec(['completion', 'generate', 'bash'], root)
+      expect(ref.exitCode).toBe(0)
+      expect(c.exitCode, detail('cospec', c)).toBe(0)
+      expect(c.stdout).toBe(ref.stdout)
+    },
+    30_000,
+  )
+
+  test.failing(
+    'completion generate POWERSHELL answers as powershell does',
+    async () => {
+      const root = mkTempRepo()
+      const c = await runCospec(['completion', 'generate', 'POWERSHELL'], root)
+      const ref = await runCospec(['completion', 'generate', 'powershell'], root)
+      expect(ref.exitCode).toBe(1)
+      expect({ exit: c.exitCode, stdout: c.stdout, stderr: c.stderr }).toEqual({
+        exit: ref.exitCode,
+        stdout: ref.stdout,
+        stderr: ref.stderr,
+      })
+    },
+    30_000,
+  )
+})
+
 // --- 2. program-level help -----------------------------------------------------
 
 describe('2.1 help [command] prints what --help prints', () => {
@@ -511,14 +726,26 @@ describe('3.2 instructions without a change or an artifact lets the binary answe
     }, 30_000)
   }
 
-  test('instructions apply --change nope --json: exactly one document', async () => {
-    const c = await runCospec(
-      ['instructions', 'apply', '--change', 'nope', '--json'],
-      twoChangeRoot(),
+  // With `--change` it is the gate (3.5), so apply's own refusal answers.
+  for (const asJson of [false, true]) {
+    const flag = asJson ? ['--json'] : []
+    test.failing(
+      `instructions apply --change nope${asJson ? ' --json' : ''} answers as cospec apply nope`,
+      async () => {
+        const root = twoChangeRoot()
+        const c = await runCospec(['instructions', 'apply', '--change', 'nope', ...flag], root)
+        const a = await runCospec(['apply', 'nope', ...flag], root)
+        expect(a.exitCode).toBe(1)
+        expect(a.stderr).toContain("unknown change 'nope'")
+        expect({ exit: c.exitCode, stdout: c.stdout, stderr: c.stderr }).toEqual({
+          exit: a.exitCode,
+          stdout: a.stdout,
+          stderr: a.stderr,
+        })
+      },
+      30_000,
     )
-    expect(c.exitCode, detail('cospec', c)).toBe(1)
-    expect(statusMessage(json(c))).toContain("'nope'")
-  }, 30_000)
+  }
 })
 
 describe('3.3 the new-change hint names cospec', () => {
@@ -539,6 +766,145 @@ describe('3.3 the new-change hint names cospec', () => {
         const text = asJson ? statusMessage(json(c)) : c.stderr
         expect(text).toContain(`${lead}Create one with: cospec new <type> <name>`)
         expect(c.stdout + c.stderr).not.toMatch(BARE_OPENSPEC)
+      },
+      30_000,
+    )
+  }
+})
+
+/**
+ * A cospec root holding `foo`, a feat change the gate blocks (none of its
+ * artifacts exist yet), and `1foo`, a change directory the binary reads but
+ * cospec's change-id grammar rejects; plus an empty `sub/deep` to run from.
+ */
+function gatedRoot(): string {
+  const root = copyOf(cospecTemplate)
+  for (const id of ['foo', '1foo']) {
+    mkdirSync(join(root, 'openspec', 'changes', id), { recursive: true })
+    writeFileSync(
+      join(root, 'openspec', 'changes', id, '.openspec.yaml'),
+      'schema: feat\ncreated: 2026-09-28\nschemaVersion: 2\n',
+    )
+  }
+  mkdirSync(join(root, 'sub', 'deep'), { recursive: true })
+  return root
+}
+
+function runCospecFrom(argv: readonly string[], root: string, cwd: string): Promise<SpawnResult> {
+  return cospec(['--', ...argv], { cwd: join(root, cwd), env: oracleEnv(root) })
+}
+
+/** A run's streams and exit code with `root`'s path made neutral. */
+function streams(run: SpawnResult, root: string): Record<string, unknown> {
+  return {
+    exit: run.exitCode,
+    stdout: neutral(run.stdout, root),
+    stderr: neutral(run.stderr, root),
+  }
+}
+
+describe('3.5 instructions apply --change is always the gate', () => {
+  test('the binary itself answers a blocked change with exit 0', async () => {
+    const u = await runUpstream(['instructions', 'apply', '--change', 'foo', '--json'], gatedRoot())
+    expect(u.exitCode, detail('openspec', u)).toBe(0)
+    expect(json(u)['state']).toBe('blocked')
+  }, 30_000)
+
+  for (const cwd of ['', 'sub/deep', 'openspec']) {
+    for (const asJson of [false, true]) {
+      const flag = asJson ? ['--json'] : []
+      const where = cwd === '' ? 'the root' : cwd
+      const register = cwd === '' ? test : test.failing
+      register(
+        `from ${where}: instructions apply --change foo${asJson ? ' --json' : ''} is cospec apply foo`,
+        async () => {
+          const root = gatedRoot()
+          const ref = gatedRoot()
+          const c = await runCospecFrom(
+            ['instructions', 'apply', '--change', 'foo', ...flag],
+            root,
+            cwd,
+          )
+          const a = await runCospecFrom(['apply', 'foo', ...flag], ref, cwd)
+          expect(a.exitCode, detail('cospec apply', a)).not.toBe(0)
+          expect(c.stdout + c.stderr).not.toContain('## Apply:')
+          expect(streams(c, root)).toEqual(streams(a, ref))
+          if (cwd === '') expect(c.exitCode, detail('cospec', c)).toBe(2)
+        },
+        30_000,
+      )
+    }
+  }
+
+  // Blocked (exit 2) from below the root needs the resolver to walk up to it,
+  // which tasks group 11 brings in with the rebase onto root-resolution-parity.
+  for (const cwd of ['sub/deep', 'openspec']) {
+    for (const asJson of [false, true]) {
+      const flag = asJson ? ['--json'] : []
+      test.failing(
+        `from ${cwd}: instructions apply --change foo${asJson ? ' --json' : ''} is blocked, exit 2`,
+        async () => {
+          const c = await runCospecFrom(
+            ['instructions', 'apply', '--change', 'foo', ...flag],
+            gatedRoot(),
+            cwd,
+          )
+          expect(c.exitCode, detail('cospec', c)).toBe(2)
+        },
+        30_000,
+      )
+    }
+  }
+
+  for (const asJson of [false, true]) {
+    const flag = asJson ? ['--json'] : []
+    test.failing(
+      `instructions apply --change 1foo${asJson ? ' --json' : ''} is refused as cospec apply 1foo`,
+      async () => {
+        const upRoot = gatedRoot()
+        const u = await runUpstream(['instructions', 'apply', '--change', '1foo', '--json'], upRoot)
+        expect(u.exitCode, detail('openspec', u)).toBe(0)
+        const root = gatedRoot()
+        const c = await runCospec(['instructions', 'apply', '--change', '1foo', ...flag], root)
+        const a = await runCospec(['apply', '1foo', ...flag], root)
+        expect(a.exitCode).toBe(1)
+        expect(a.stderr).toContain("unknown change '1foo'")
+        expect(streams(c, root)).toEqual(streams(a, root))
+      },
+      30_000,
+    )
+  }
+})
+
+describe('3.6 instructions apply --change --schema is refused before the gate', () => {
+  for (const asJson of [false, true]) {
+    const flag = asJson ? ['--json'] : []
+    const argv = ['instructions', 'apply', '--change', 'foo', '--schema', 'spec-driven', ...flag]
+    const register = asJson ? test.failing : test
+    register(
+      `${argv.join(' ')}: one refusal, nothing run or written`,
+      async () => {
+        // The binary would answer from spec-driven's apply requirements, which
+        // differ from the ones the gate enforces for this feat change.
+        const u = await runUpstream([...argv.slice(0, 6), '--json'], gatedRoot())
+        expect(u.exitCode, detail('openspec', u)).toBe(0)
+        expect(json(u)['schemaName']).toBe('spec-driven')
+        const root = gatedRoot()
+        const before = treeHash(root)
+        const c = await runCospec(argv, root)
+        expect(c.exitCode, detail('cospec', c)).toBe(1)
+        const message =
+          "'--schema' does not apply to 'apply' — the gate reads the change's own schema"
+        if (asJson) {
+          expect(c.stderr).toBe('')
+          expect(json(c)).toEqual({
+            status: [{ severity: 'error', code: 'schema_not_applicable', message }],
+          })
+        } else {
+          expect(c.stdout).toBe('')
+          expect(c.stderr).toBe(`cospec instructions: ${message}\n`)
+        }
+        expect(treeHash(root)).toEqual(before)
       },
       30_000,
     )

@@ -897,6 +897,45 @@ describe('unknown-option differential: an undeclared option before the command',
   register(PRE_COMMAND_ROWS)
 })
 
+// Commander offers its closest match only for an unknown long option, so an
+// unknown short one is refused with no hint in either tool, even one a single
+// edit from a declared short (`-Y` from `-y`, `-x` from `-h`).
+describe('unknown-option differential: no closest-match hint for an unknown short option', () => {
+  for (const { argv, command, option } of [
+    { argv: ['list', '-x'], command: 'list', option: '-x' },
+    { argv: ['validate', '-S'], command: 'validate', option: '-S' },
+    { argv: ['archive', 'c', '-Y'], command: 'archive', option: '-Y' },
+    { argv: ['-W', 'list'], command: undefined, option: '-W' },
+    { argv: ['-x', 'list'], command: undefined, option: '-x' },
+  ]) {
+    test.failing(
+      `${argv.join(' ')}: refused with no hint, as the binary`,
+      async () => {
+        const up = await oracle(argv, freshRoot())
+        expect(up.exitCode).toBe(1)
+        expect(up.stderr).toBe(`error: unknown option '${option}'\n`)
+        const root = freshRoot()
+        const before = treeHash(root)
+        const co = await runCospec(argv, root)
+        expect(co.exitCode).toBe(1)
+        expect(co.stdout).toBe('')
+        expect(co.stderr).toBe(
+          `cospec${command !== undefined ? ` ${command}` : ''}: unknown option '${option}'\n`,
+        )
+        expect(treeHash(root)).toEqual(before)
+      },
+      30_000,
+    )
+  }
+
+  test('an unknown long option still gets its closest match, as the binary', async () => {
+    const up = await oracle(['list', '--jsn'], freshRoot())
+    expect(up.stderr).toContain('(Did you mean --json?)')
+    const co = await runCospec(['list', '--jsn'], freshRoot())
+    expect(co.stderr).toBe(`${unknown('list', '--jsn')}\n${suggest('--json')}\n`)
+  }, 30_000)
+})
+
 describe('unknown-option differential: --store/--cwd refuse a missing or empty value', () => {
   register(GLOBAL_VALUE_ROWS)
 
