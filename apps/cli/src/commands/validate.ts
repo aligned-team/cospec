@@ -374,6 +374,35 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
     nativeKey: /^((?:ADDED|MODIFIED) ".*") must use SHALL\/MUST normative language$/,
   },
 
+  // 1.13.1 skipped-header INFOs vs deltas/skipped-header. Both readers skip
+  // the same `###` lines, so each is keyed on its header text: a second
+  // skipped header in the file is a second finding. Anchored through each
+  // sentence's own clause, and the not-a-requirement one excludes a
+  // `Scenario:` header, which is `deltas/scenario-depth`'s (below).
+  {
+    rule: 'deltas/skipped-header',
+    delegated:
+      /^Header "### ((?!Scenario:).+)" in .+ is not a "### Requirement:" header and is ignored by validation\./,
+    nativeKey:
+      /^header "### (.+)" in .+ is not a "### Requirement:" header and is ignored by validation$/,
+  },
+  {
+    rule: 'deltas/skipped-header',
+    delegated:
+      /^Header "### (.+)" in .+ is missing a requirement name and is ignored by validation\./,
+    nativeKey:
+      /^header "### (.+)" in .+ is missing a requirement name and is ignored by validation$/,
+  },
+  // A `### Scenario:` the binary skips as a header is the scenario cospec
+  // reports one level too shallow. Path-keyed (`()`): cospec raises one ERROR
+  // per such line, so a second one in the file is still reported.
+  {
+    rule: 'deltas/scenario-depth',
+    delegated:
+      /^Header "### Scenario:.*" in .+ is not a "### Requirement:" header and is ignored by validation\.()/,
+    nativeKey: /^scenario heading uses 3 hashtags; must be `#### Scenario:`()$/,
+  },
+
   // --- 1.12.0 archive-preflight INFO (`Validator.findArchiveBlockers`) ------
   //
   // 1.12 dry-runs archive's merge builder during `validate` and relays each

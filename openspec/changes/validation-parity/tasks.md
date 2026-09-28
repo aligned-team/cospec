@@ -71,7 +71,7 @@ trailer, never `--no-verify`).
       `deltas/requirement-shape`) and flip `1.2 twin`, 5.3 and those entries'
       5.1/5.2 tests. Commit
       `fix(validate): dedupe empty-section and SHALL/MUST findings`
-- [ ] 5.2 Add entries 3, 4 and 5 (skipped headers, a skipped `### Scenario:`)
+- [x] 5.2 Add entries 3, 4 and 5 (skipped headers, a skipped `### Scenario:`)
       and flip `4.1 twin` and those entries' 5.1/5.2 tests. Commit
       `fix(validate): dedupe skipped-header findings`
 - [ ] 5.3 Add entries 8 and 9 (cross-section) and flip `3.1 twin`, `3.2 twin`,

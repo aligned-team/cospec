@@ -832,7 +832,7 @@ describe('4. skipped headers', () => {
     expect(depth[0]?.line).toBe(lineOf(SKIPPED_HEADERS, '### Scenario: Shallow'))
   })
 
-  test.failing('4.1 twin: none of the delegated skipped-header INFOs is relayed', async () => {
+  test('4.1 twin: none of the delegated skipped-header INFOs is relayed', async () => {
     const root = mkTempRepo({ git: true })
     buildFeat(root, 'skipped', { 'widgets/spec.md': SKIPPED_HEADERS })
     const bin = await binaryIssues(root, 'skipped')
@@ -888,7 +888,7 @@ describe('5.1 one pinned-message test per DUPLICATE_CLASSES entry', () => {
     expect(byRule(report, 'archive/no-ops')).toHaveLength(1)
   })
 
-  test.failing('entry 3: a non-requirement header pairs with deltas/skipped-header', async () => {
+  test('entry 3: a non-requirement header pairs with deltas/skipped-header', async () => {
     const root = mkTempRepo({ git: true })
     buildFeat(root, 'skipped', { 'widgets/spec.md': SKIPPED_HEADERS })
     const delegated = binaryFind(await binaryIssues(root, 'skipped'), SKIPPED_FRAGMENT).filter(
@@ -904,24 +904,19 @@ describe('5.1 one pinned-message test per DUPLICATE_CLASSES entry', () => {
     }
   })
 
-  test.failing(
-    'entry 4: a nameless requirement header pairs with deltas/skipped-header',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      buildFeat(root, 'skipped', { 'widgets/spec.md': SKIPPED_HEADERS })
-      const delegated = binaryOne(await binaryIssues(root, 'skipped'), NAMELESS_FRAGMENT)
-      expect(delegated.level).toBe('INFO')
-      const { report } = await cospecValidate(root, 'skipped')
-      expect(messages(report)).not.toContain(delegated.message)
-      const native = byRule(report, 'deltas/skipped-header').filter(
-        (n) => n.line === delegated.line,
-      )
-      expect(native).toHaveLength(1)
-      expect(native[0]?.message).toContain('is missing a requirement name')
-    },
-  )
+  test('entry 4: a nameless requirement header pairs with deltas/skipped-header', async () => {
+    const root = mkTempRepo({ git: true })
+    buildFeat(root, 'skipped', { 'widgets/spec.md': SKIPPED_HEADERS })
+    const delegated = binaryOne(await binaryIssues(root, 'skipped'), NAMELESS_FRAGMENT)
+    expect(delegated.level).toBe('INFO')
+    const { report } = await cospecValidate(root, 'skipped')
+    expect(messages(report)).not.toContain(delegated.message)
+    const native = byRule(report, 'deltas/skipped-header').filter((n) => n.line === delegated.line)
+    expect(native).toHaveLength(1)
+    expect(native[0]?.message).toContain('is missing a requirement name')
+  })
 
-  test.failing('entry 5: a skipped ### Scenario: pairs with deltas/scenario-depth', async () => {
+  test('entry 5: a skipped ### Scenario: pairs with deltas/scenario-depth', async () => {
     const root = mkTempRepo({ git: true })
     buildFeat(root, 'skipped', { 'widgets/spec.md': SKIPPED_HEADERS })
     const delegated = binaryFind(await binaryIssues(root, 'skipped'), SKIPPED_FRAGMENT).filter(
@@ -1065,20 +1060,17 @@ describe('5.2 a delegated finding survives where its cospec twin is silent', () 
     }
   })
 
-  test.failing(
-    'entries 3 and 4: two skipped headers in one file are each suppressed by their own twin',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      buildFeat(root, 'two-skipped', { 'widgets/spec.md': TWO_SKIPPED })
-      const delegated = binaryFind(await binaryIssues(root, 'two-skipped'), SKIPPED_FRAGMENT)
-      expect(delegated).toHaveLength(2)
-      const { report } = await cospecValidate(root, 'two-skipped')
-      const native = byRule(report, 'deltas/skipped-header')
-      const suppressed = delegated.filter((d) => !messages(report).includes(d.message))
-      expect(suppressed).toHaveLength(native.length)
-      expect(linesOf(native)).toEqual(linesOf(delegated))
-    },
-  )
+  test('entries 3 and 4: two skipped headers in one file are each suppressed by their own twin', async () => {
+    const root = mkTempRepo({ git: true })
+    buildFeat(root, 'two-skipped', { 'widgets/spec.md': TWO_SKIPPED })
+    const delegated = binaryFind(await binaryIssues(root, 'two-skipped'), SKIPPED_FRAGMENT)
+    expect(delegated).toHaveLength(2)
+    const { report } = await cospecValidate(root, 'two-skipped')
+    const native = byRule(report, 'deltas/skipped-header')
+    const suppressed = delegated.filter((d) => !messages(report).includes(d.message))
+    expect(suppressed).toHaveLength(native.length)
+    expect(linesOf(native)).toEqual(linesOf(delegated))
+  })
 
   test('entries 3 and 5: headers inside an HTML comment keep their delegated INFOs', async () => {
     const root = mkTempRepo({ git: true })
