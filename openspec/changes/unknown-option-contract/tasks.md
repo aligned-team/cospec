@@ -595,3 +595,13 @@ red; 4–7 turn it green; 8 documents it.
       (`each reachable line is still in the pinned dist`) already covers them,
       so a pin bump that rewords the schema fails again until reclassified
       (ledger 1.66)
+- [x] 10.82 CI-only failure diagnosed and fixed: `oracleEnv()` set no Git
+      author/committer identity, so `store setup`'s initial commit (`git.js`
+      `assertGitCommitIdentity`) fell back to Git's own username+hostname
+      auto-detection under the sandboxed, config-less `HOME` — host-dependent,
+      and absent on a bare Linux CI runner account (empty GECOS, a bare
+      container hostname) where it happens to be present on a macOS dev account.
+      Set `GIT_AUTHOR_NAME`/`GIT_AUTHOR_EMAIL`/`GIT_COMMITTER_NAME`/
+      `GIT_COMMITTER_EMAIL` in `oracleEnv()` so every sandboxed run — both
+      tools, since `runCospec` uses the same env — has a deterministic identity
+      regardless of host (ledger 1.67)
