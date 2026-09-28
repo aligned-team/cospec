@@ -155,6 +155,20 @@ describe("new: a failed wrapped new change's reason", () => {
       expect(wrappedNewReason(result('', `\x1b[31m✖ Error: ${reason}\x1b[39m\n`))).toBe(reason)
     }
   })
+  // Free text is never pattern-matched: a path that happens to read like a
+  // remedy stays the user's, quoted or not, whatever it contains.
+  test.failing('leaves a path that reads like a remedy untouched, quoted or not', () => {
+    const reasons = [
+      "EACCES: permission denied, mkdir '/w/Bob's run openspec init dir/openspec/changes/y'",
+      'Invalid store declaration in /w/run openspec init/openspec/config.yaml: the store key is not a string.',
+      'Invalid store declaration in /w/a (openspec list)/openspec/config.yaml: the store key is not a string.',
+    ]
+    for (const reason of reasons) {
+      const doc = JSON.stringify({ change: null, status: [{ message: reason }] })
+      expect(wrappedNewReason(result(doc))).toBe(reason)
+      expect(wrappedNewReason(result('', `\x1b[31m✖ Error: ${reason}\x1b[39m\n`))).toBe(reason)
+    }
+  })
   test('respells a command named in a remedy context', () => {
     const doc = JSON.stringify({
       change: null,

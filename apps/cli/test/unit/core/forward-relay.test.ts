@@ -167,6 +167,15 @@ describe('respellRemedies', () => {
     ).toBe('Pass --store <id> to use one, or run cospec init to create a local root.')
   })
 
+  test.failing('a path that reads like a remedy stays as it is, quoted or not', () => {
+    for (const text of [
+      "✖ Error: EACCES: permission denied, mkdir '/w/Bob's run openspec init dir/openspec'\n",
+      '✖ Error: Invalid store declaration in /w/run openspec init/openspec/config.yaml: bad.\n',
+      '✖ Error: Invalid store declaration in /w/a (openspec list --specs)/openspec/config.yaml: bad.\n',
+    ])
+      expect(respellRemedies(text)).toBe(text)
+  })
+
   test('paths and prose that are not a relayed remedy stay as they are', () => {
     const text = 'openspec/changes/c1/ is nested. See .openspec.yaml; run openspec status by hand.'
     expect(respellRemedies(text)).toBe(text)
