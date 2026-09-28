@@ -280,7 +280,52 @@ describe('standalone pack smoke (bun-less)', () => {
     // stray node_modules copy.
     const extracted = readdirSync(join(cache, 'cospec')).find((d) => d.startsWith('openspec-'))
     expect(extracted, 'embedded openspec bundle was not extracted').toBeDefined()
-    expect(existsSync(join(cache, 'cospec', extracted!, 'vendor', 'bin', 'openspec.js'))).toBe(true)
+    const bundle = join(cache, 'cospec', extracted!, 'vendor', 'bin', 'openspec.js')
+    expect(existsSync(bundle)).toBe(true)
+
+    // Exactly one JSON document per `--json` call through the embedded bundle.
+    // Parsing the whole stdout rejects two concatenated documents; the sentinel
+    // count rejects a stdout that a first-document slice would have rescued.
+    const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
+
+    // Passthrough: cospec relays the wrapped `schemas --json` document.
+    const schemas = env([bin, 'schemas', '--json'])
+    const schemasOut = decode(schemas.stdout)
+    expect(schemas.exitCode, decode(schemas.stderr)).toBe(0)
+    expect(() => JSON.parse(schemasOut) as unknown).not.toThrow()
+    expect(schemasOut.split('"name": "feat"').length - 1).toBe(1)
+
+    // Delegated: `cospec new` wraps `new change --json`. cospec prints its own
+    // document on success, so the wrapped call's raw stdout is read by running
+    // the extracted bundle exactly the way the wrapper spawns it — the compiled
+    // binary as the runtime (BUN_BE_BUN=1) with the wrapped-call env.
+    const wrappedNew = Bun.spawnSync(
+      [bin, bundle, '--no-color', 'new', 'change', 'demo-raw', '--schema', 'feat', '--json'],
+      {
+        cwd: target,
+        env: {
+          ...process.env,
+          HOME: home,
+          PATH: path,
+          XDG_CACHE_HOME: cache,
+          NO_COLOR: '1',
+          BUN_BE_BUN: '1',
+          OPENSPEC_TELEMETRY: '0',
+          OPENSPEC_NO_COMPLETIONS: '1',
+        },
+      },
+    )
+    const wrappedNewOut = decode(wrappedNew.stdout)
+    expect(wrappedNew.exitCode, decode(wrappedNew.stderr)).toBe(0)
+    expect(() => JSON.parse(wrappedNewOut) as unknown).not.toThrow()
+    expect(wrappedNewOut.split('"id": "demo-raw"').length - 1).toBe(1)
+
+    // And the delegated call through cospec itself prints one document.
+    const createdJson = env([bin, 'new', 'feat', 'demo-json', '--json'])
+    const createdJsonOut = decode(createdJson.stdout)
+    expect(createdJson.exitCode, decode(createdJson.stderr)).toBe(0)
+    expect(() => JSON.parse(createdJsonOut) as unknown).not.toThrow()
+    expect(createdJsonOut.split('"change": "demo-json"').length - 1).toBe(1)
   }, 180_000)
 })
 
