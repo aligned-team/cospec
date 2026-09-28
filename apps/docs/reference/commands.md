@@ -310,15 +310,17 @@ the store's templates, or names the next unknown option (`--bogus`). Where
 OpenSpec's answer names a bare `openspec` command as the remedy, cospec relays
 it naming the cospec command of the same shape — `show`'s
 `Run "cospec status --change <id>"` for a change with no proposal.md (text and
-`--json`), `view`'s `cospec list --changes`/`--specs`, and `cospec init` in the
-no-root answer from `show`, `context` and `instructions` — and drops OpenSpec's
-noun-form `change show`/`spec show` suggestion, which cospec has no command for.
-Only OpenSpec's own remedy sentences are respelled, each where it appears
-verbatim: the path, name or list a sentence carries, and any other text — a
-directory named `run openspec init`, say — is relayed exactly as OpenSpec
-printed it. What a successful `show` or `instructions` prints is your own
-content, relayed untouched. The pre-spawn guards answer only what OpenSpec would
-not: an option where a subcommand belongs (`cospec config --bogus path`,
+`--json`), `view`'s `cospec list --changes`/`--specs`, `cospec init` in the
+no-root answer from `show`, `context` and `instructions`, and `schema init`'s
+`"cospec schema fork"` remedy (text and `--json`) and last next step,
+`3. Use with: cospec new <name> <slug>` — and drops OpenSpec's noun-form
+`change show`/`spec show` suggestion, which cospec has no command for. Only
+OpenSpec's own remedy sentences are respelled, each where it appears verbatim:
+the path, name or list a sentence carries, and any other text — a directory
+named `run openspec init`, say — is relayed exactly as OpenSpec printed it. What
+a successful `show` or `instructions` prints is your own content, relayed
+untouched. The pre-spawn guards answer only what OpenSpec would not: an option
+where a subcommand belongs (`cospec config --bogus path`,
 `cospec schema --bogus`) reaches OpenSpec, which refuses it as an unknown
 option, not an unknown subcommand, and `cospec show --bogus` or
 `cospec show --type` gets OpenSpec's own answer (`Unknown item '--bogus'.`,

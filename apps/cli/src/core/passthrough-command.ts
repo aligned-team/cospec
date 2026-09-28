@@ -138,3 +138,56 @@ export async function runPassthrough(
   if (result.stderr.length > 0) process.stderr.write(result.stderr)
   return code
 }
+
+// --- Structural respell of relayed JSON --------------------------------------
+
+/**
+ * A string field of a relayed `--json` document that holds a command for the
+ * user to run: its path of keys, `'[]'` stepping into every element of an
+ * array (`['references', '[]', 'fetch']`), and the fixed text upstream prints
+ * ahead of the command in that field, if any (`Run: ` in a reference's `fix`).
+ */
+export interface CommandField {
+  readonly path: readonly string[]
+  readonly lead?: string
+}
+
+const OPENSPEC_COMMAND = 'openspec '
+const COSPEC_COMMAND = 'cospec '
+
+/**
+ * `doc` with each field `fields` names that starts with its `lead` and then
+ * `openspec ` spelled `cospec ` — that one token in command position and
+ * nothing else, so the ids, paths and names after it (a store called
+ * `openspec-team`) and every field `fields` does not name pass through
+ * byte-for-byte. The rule reads the document's structure, never its rendered
+ * text, so nothing a user owns can stand in for a command. Returns a new
+ * document; `doc` is left as it was. A relay renders its text, human or
+ * `--json` (`renderJsonDocument`), from the result.
+ */
+export function respellCommandFields<T>(doc: T, fields: readonly CommandField[]): T {
+  const out = structuredClone(doc)
+  for (const field of fields) respellAt(out, field.path, field.lead ?? '')
+  return out
+}
+
+function respellAt(node: unknown, path: readonly string[], lead: string): void {
+  const [key, ...rest] = path
+  if (key === undefined || node === null || typeof node !== 'object') return
+  if (key === '[]') {
+    if (Array.isArray(node)) for (const item of node) respellAt(item, rest, lead)
+    return
+  }
+  if (Array.isArray(node) || !Object.hasOwn(node, key)) return
+  const record = node as Record<string, unknown>
+  const value = record[key]
+  if (rest.length > 0) return respellAt(value, rest, lead)
+  const command = lead + OPENSPEC_COMMAND
+  if (typeof value === 'string' && value.startsWith(command))
+    record[key] = lead + COSPEC_COMMAND + value.slice(command.length)
+}
+
+/** A document rendered as the binary renders its own: two-space JSON and a newline. */
+export function renderJsonDocument(doc: unknown): string {
+  return `${JSON.stringify(doc, null, 2)}\n`
+}

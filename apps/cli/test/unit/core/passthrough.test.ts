@@ -14,7 +14,11 @@ import {
   suppressRelayedStderrLine,
   type OpenspecResult,
 } from '../../../src/core/openspec.ts'
-import { callPassthrough } from '../../../src/core/passthrough-command.ts'
+import {
+  callPassthrough,
+  renderJsonDocument,
+  respellCommandFields,
+} from '../../../src/core/passthrough-command.ts'
 
 function result(partial: Partial<OpenspecResult>): OpenspecResult {
   return { stdout: '', stderr: '', exitCode: 0, ...partial }
@@ -416,5 +420,69 @@ describe('callPassthrough — a failed selection on a forward row (ledger 5.7)',
     } finally {
       rmSync(repo, { recursive: true, force: true })
     }
+  })
+})
+
+describe('respellCommandFields (structural respell of a relayed document)', () => {
+  const doc = {
+    references: [
+      {
+        store_id: 'openspec-team',
+        fetch: 'openspec show <spec-id> --type spec --store openspec-team',
+        status: [{ code: 'x', fix: 'Run: openspec store doctor openspec-team' }],
+      },
+      { store_id: 'plain', fetch: 'git clone -- r p && openspec store register p --id plain' },
+    ],
+    note: 'openspec show x',
+  }
+  const fields = [
+    { path: ['references', '[]', 'fetch'] },
+    { path: ['references', '[]', 'status', '[]', 'fix'], lead: 'Run: ' },
+  ]
+
+  test('spells only the leading openspec token of each named field', () => {
+    expect(respellCommandFields(doc, fields)).toEqual({
+      references: [
+        {
+          store_id: 'openspec-team',
+          fetch: 'cospec show <spec-id> --type spec --store openspec-team',
+          status: [{ code: 'x', fix: 'Run: cospec store doctor openspec-team' }],
+        },
+        // Not in command position: left for the owner of that field's shape.
+        { store_id: 'plain', fetch: 'git clone -- r p && openspec store register p --id plain' },
+      ],
+      // A field the map does not name is never touched.
+      note: 'openspec show x',
+    })
+  })
+
+  test('leaves the input document as it was', () => {
+    const before = structuredClone(doc)
+    respellCommandFields(doc, fields)
+    expect(doc).toEqual(before)
+  })
+
+  test('a missing path, a non-string value or a non-array step is left alone', () => {
+    const odd = { references: { fetch: 'openspec show x' }, other: [1, 'openspec x'] }
+    expect(
+      respellCommandFields(odd, [
+        { path: ['references', '[]', 'fetch'] },
+        { path: ['absent', 'fetch'] },
+        { path: ['other', '[]'] },
+      ]),
+    ).toEqual(odd)
+    expect(respellCommandFields({ fix: 42 }, [{ path: ['fix'] }])).toEqual({ fix: 42 })
+  })
+
+  test('a lead that does not match leaves the field alone', () => {
+    expect(
+      respellCommandFields({ fix: 'openspec store doctor x' }, [{ path: ['fix'], lead: 'Run: ' }]),
+    ).toEqual({
+      fix: 'openspec store doctor x',
+    })
+  })
+
+  test('renderJsonDocument renders two-space JSON and a newline', () => {
+    expect(renderJsonDocument({ a: [1] })).toBe('{\n  "a": [\n    1\n  ]\n}\n')
   })
 })

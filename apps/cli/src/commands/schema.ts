@@ -11,13 +11,21 @@
 // `schema.yaml` that every other command reads, so that destination name is
 // refused with exit 1 before the wrapped binary is ever spawned. Every
 // `schema` subcommand rejects `--store`, so the call spawns in the resolved
-// root instead (`spawnInRoot`), and `fork`/`init` write into that root.
+// root instead (`spawnInRoot`), and `fork`/`init` write into that root. A
+// failed call's remedies are spelled through cospec (`relayRespelled`), and a
+// successful `init`'s last next step too (`withCospecNextStep`).
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { isCospecType } from '../core/change.ts'
-import { isOptionToken, relayCommandLevel, subcommandOf } from '../core/forward-relay.ts'
-import { runPassthrough } from '../core/passthrough-command.ts'
+import {
+  isOptionToken,
+  relayCommandLevel,
+  relayRespelled,
+  subcommandOf,
+} from '../core/forward-relay.ts'
+import { callPassthrough } from '../core/passthrough-command.ts'
+import { respellRemedies } from '../core/remedies.ts'
 
 /** Upstream `openspec schema`'s subcommands, in its `--help` order. */
 const WRAPPED_SUBCOMMANDS = new Set(['which', 'validate', 'fork', 'init'])
@@ -60,19 +68,19 @@ function destinationName(sub: string, rest: string[]): string | undefined {
   return args[0]
 }
 
-export function run(ctx: CommandContext): Promise<number> {
+export async function run(ctx: CommandContext): Promise<number> {
   const { sub, rest, operand } = subcommandOf(ctx.args)
 
   if (sub === undefined) {
     process.stderr.write(`cospec schema: missing subcommand — ${EXPECTED_SUBCOMMANDS}\n`)
-    return Promise.resolve(EXIT.failure)
+    return EXIT.failure
   }
 
   if (!operand && isOptionToken(sub)) return relayCommandLevel(ctx, ['schema'], ctx.args)
 
   if (!WRAPPED_SUBCOMMANDS.has(sub)) {
     process.stderr.write(`cospec: unknown 'schema' subcommand '${sub}' — ${EXPECTED_SUBCOMMANDS}\n`)
-    return Promise.resolve(EXIT.failure)
+    return EXIT.failure
   }
 
   if (sub === 'fork' || sub === 'init') {
@@ -84,9 +92,39 @@ export function run(ctx: CommandContext): Promise<number> {
           "overwriting it would corrupt cospec's typed gates for that type. Choose a " +
           `destination name that is not one of the 11 cospec types.\n`,
       )
-      return Promise.resolve(EXIT.failure)
+      return EXIT.failure
     }
   }
 
-  return runPassthrough(ctx, { command: ['schema', sub], args: rest, spawnInRoot: true })
+  const { result } = await callPassthrough(ctx, {
+    command: ['schema', sub],
+    args: rest,
+    spawnInRoot: true,
+  })
+  const relayed =
+    sub === 'init' && result.exitCode === 0 && !ctx.flags.json
+      ? { ...result, stdout: withCospecNextStep(result.stdout) }
+      : result
+  // A failed call's remedies (`"openspec schema fork"`) are spelled through
+  // cospec, in text and in the `--json` `suggestion`.
+  return relayRespelled(relayed, ctx.flags.json)
+}
+
+/** Upstream's last next-step line, as a successful `schema init` prints it. */
+const USE_WITH_LINE = /^ {2}3\. Use with: openspec new --schema [a-z0-9]+(?:-[a-z0-9]+)*$/
+
+/**
+ * A successful human-mode `schema init` ends with upstream's
+ * `  3. Use with: openspec new --schema <name>`. That line is spelled through
+ * cospec's allowlist only as the output's last line — where the binary alone
+ * writes it, after the lines that carry the schema's path — and only with the
+ * kebab-case name the binary validated before creating anything; any other
+ * output is relayed as written. Its `--json` document names no command.
+ */
+function withCospecNextStep(stdout: string): string {
+  const body = stdout.endsWith('\n') ? stdout.slice(0, -1) : stdout
+  const start = body.lastIndexOf('\n') + 1
+  const last = body.slice(start)
+  if (!USE_WITH_LINE.test(last)) return stdout
+  return stdout.slice(0, start) + respellRemedies(last) + stdout.slice(body.length)
 }

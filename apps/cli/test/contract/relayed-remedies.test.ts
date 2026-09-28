@@ -643,3 +643,72 @@ describe('a successful context or instructions is relayed byte-for-byte', () => 
     }
   }
 })
+
+describe('schema relays name cospec (root-resolution-parity ledger 5.8)', () => {
+  const USE_WITH = (name: string) => `  3. Use with: openspec new --schema ${name}\n`
+  const COSPEC_USE_WITH = (name: string) => `  3. Use with: cospec new ${name} <slug>\n`
+
+  // Names and directories that read like the remedy must pass through untouched.
+  for (const [name, dir] of [
+    ['s1', undefined],
+    ['openspec-flow', undefined],
+    ['s2', '3. Use with: openspec new --schema x'],
+  ] as const) {
+    test(`init ${name}${dir === undefined ? '' : ` under '${dir}'`}: only the last line is respelled`, async () => {
+      const coRoot = fixtureRoot(dir)
+      const upRoot = fixtureRoot(dir)
+      const argv = ['schema', 'init', name, '--description', 'd']
+      const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+      const up = await oracle(argv, upRoot, { runtime: 'node' })
+      expect(up.exitCode).toBe(0)
+      expect(up.stdout.endsWith(USE_WITH(name))).toBe(true)
+      expect(co.exitCode, detail(co)).toBe(0)
+      const paths = (text: string, root: string): string =>
+        text.replaceAll(realpathSync(root), '<root>')
+      const expected = paths(up.stdout, upRoot).slice(0, -USE_WITH(name).length)
+      expect(paths(co.stdout, coRoot)).toBe(expected + COSPEC_USE_WITH(name))
+      if (dir !== undefined) expect(co.stdout).toContain(`${dir}/`)
+      expect(co.stderr).toBe(up.stderr)
+      expect(co.stdout.replaceAll(realpathSync(coRoot), '')).not.toMatch(BARE_OPENSPEC)
+    }, 30_000)
+  }
+
+  test('init --json: the success document names no command and is relayed as written', async () => {
+    const coRoot = fixtureRoot()
+    const upRoot = fixtureRoot()
+    const argv = ['schema', 'init', 's1', '--description', 'd', '--json']
+    const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+    const up = await oracle(argv, upRoot, { runtime: 'node' })
+    expect(co.exitCode, detail(co)).toBe(up.exitCode)
+    expect(co.stdout.replaceAll(realpathSync(coRoot), '<root>')).toBe(
+      up.stdout.replaceAll(realpathSync(upRoot), '<root>'),
+    )
+  }, 30_000)
+
+  for (const json of [false, true]) {
+    test(`init over an existing schema${json ? ' --json' : ''}: the fork remedy names cospec`, async () => {
+      const coRoot = fixtureRoot()
+      const upRoot = fixtureRoot()
+      const argv = ['schema', 'init', 's1', '--description', 'd', ...(json ? ['--json'] : [])]
+      await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+      await oracle(argv, upRoot, { runtime: 'node' })
+      const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+      const up = await oracle(argv, upRoot, { runtime: 'node' })
+      expect(up.exitCode).toBe(1)
+      expect(up.stdout + up.stderr).toContain(
+        json ? '\\"openspec schema fork\\" to copy' : '"openspec schema fork" to copy',
+      )
+      expect(co.exitCode, detail(co)).toBe(1)
+      const spell = (text: string, root: string): string =>
+        text
+          .replaceAll(realpathSync(root), '<root>')
+          .replaceAll(root, '<root>')
+          .replace('"openspec schema fork"', '"cospec schema fork"')
+          .replace('\\"openspec schema fork\\"', '\\"cospec schema fork\\"')
+      expect(spell(co.stdout, coRoot)).toBe(spell(up.stdout, upRoot))
+      expect(spell(co.stderr, coRoot)).toBe(spell(up.stderr, upRoot))
+      expect(co.stdout + co.stderr).toContain('cospec schema fork')
+      expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
+    }, 30_000)
+  }
+})

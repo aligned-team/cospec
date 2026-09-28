@@ -807,17 +807,13 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
  * cospec-roadmap's confirmed rulings (round 16: instructions' reference block
  * is upstream-spellings', context's is passthrough-json-and-doctor's); the
  * workset/config owner follows its ruling that R4 wires the allowlist into
- * those relays, and the schema owner its ruling that R2 wires it into
- * `schema.ts`.
+ * those relays. (`schema init`'s `3. Use with:` line, once owned by
+ * root-resolution-parity, is spelled by `schema.ts` itself.)
  */
-export const OWNERS = [
-  'upstream-spellings',
-  'passthrough-json-and-doctor',
-  'root-resolution-parity',
-] as const
+export const OWNERS = ['upstream-spellings', 'passthrough-json-and-doctor'] as const
 
 /** The cospec commands that relay a successful answer as the binary wrote it. */
-export const SUCCESS_RELAYS = ['instructions', 'context', 'workset', 'config', 'schema'] as const
+export const SUCCESS_RELAYS = ['instructions', 'context', 'workset', 'config'] as const
 
 /**
  * [module under dist/, trimmed source line, the cospec command whose successful
@@ -876,13 +872,6 @@ export const REACHABLE_OWNED: readonly (readonly [
     "console.log('Config updated. Run `openspec update` in your projects to apply.');",
     'config',
     'passthrough-json-and-doctor',
-  ],
-  // `schema init`'s next steps, exit 0.
-  [
-    'commands/schema.js',
-    'console.log(`  3. Use with: openspec new --schema ${name}`);',
-    'schema',
-    'root-resolution-parity',
   ],
   // The built-in `spec-driven` schema's own instruction text and proposal
   // template (`schemas/spec-driven/schema.yaml`, `templates/proposal.md`):
