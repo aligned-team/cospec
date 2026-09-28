@@ -436,18 +436,11 @@ const CUSTOM_CONFIG = '{\n  "profile": "custom",\n  "featureFlags": {}\n}\n'
 
 /**
  * `cmd` in `root`, its stdin fed by the shell `feeder` (`echo y |`, `</dev/null`),
- * telemetry off unless `telemetry` is `'default'` (the key unset, as a user's
- * shell leaves it).
+ * telemetry off (as cospec runs the binary).
  */
-async function fed(
-  feeder: string,
-  cmd: string[],
-  root: string,
-  telemetry: 'off' | 'default' = 'off',
-): Promise<SpawnResult> {
+async function fed(feeder: string, cmd: string[], root: string): Promise<SpawnResult> {
   const script = feeder.startsWith('<') ? `exec "$@" ${feeder}` : `${feeder} exec "$@"`
   const env: Record<string, string> = { ...oracleEnv(root), OPENSPEC_NO_COMPLETIONS: '1' }
-  if (telemetry === 'default') delete env.OPENSPEC_TELEMETRY
   const proc = Bun.spawn(['sh', '-c', script, 'sh', ...cmd], {
     cwd: root,
     stdin: 'ignore',
@@ -515,8 +508,9 @@ describe('config reset --all with stdin piped, not a terminal: cospec forwards i
   }
 
   // Declared rows: an answer already waiting on the pipe when the prompt is
-  // drawn. The binary's answer to it depends on timing (below); cospec forwards
-  // it unmodified to the binary running under Bun, whose confirm takes it.
+  // drawn. The binary's answer to it depends on timing (ledger 13.3, design
+  // D14); cospec forwards it unmodified to the binary running under Bun,
+  // whose confirm takes it.
   const typedAhead: [feeder: string, reset: boolean, answer: string][] = [
     ['echo y |', true, 'Configuration reset to defaults'],
     ['echo n |', false, 'Reset cancelled.'],
@@ -532,21 +526,12 @@ describe('config reset --all with stdin piped, not a terminal: cospec forwards i
     }, 30_000)
   }
 
-  // The race is upstream's: under Node the binary's first-run telemetry work
-  // (the default) delays its prompt past the waiting answer, which it then
-  // takes; with telemetry off the prompt is drawn first and the answer is
-  // discarded. Only the difference is asserted — each side's outcome is
-  // timing, recorded in ledger 13.3.
-  test("echo y | openspec config reset --all: the binary's answer depends on its telemetry", async () => {
-    const argv = ['node', openspecBinPath(), 'config', 'reset', '--all']
-    const [offRoot, onRoot] = [seededRoot(), seededRoot()]
-    const off = await fed('echo y |', argv, offRoot, 'off')
-    const on = await fed('echo y |', argv, onRoot, 'default')
-    const outcome = (answered: SpawnResult, root: string) =>
-      `exit ${answered.exitCode}, ${wasReset(root) ? 'reset' : 'not reset'}`
-    console.info(`telemetry off: ${outcome(off, offRoot)}; default: ${outcome(on, onRoot)}`)
-    expect(outcome(on, onRoot)).not.toBe(outcome(off, offRoot))
-  }, 30_000)
+  // No contract case here for the binary's telemetry-default timing: under
+  // Node the binary's first-run telemetry work delays its prompt past the
+  // waiting answer, which it then takes, but that race depends on how long
+  // the telemetry call takes on a given runner, so asserting it differs from
+  // the telemetry-off answer flakes on CI. The observation is recorded as
+  // evidence, not an assertion, in ledger 13.3 and design D14.
 })
 
 // --- review round 2: `config <leaf> <extra-arg> --json` (design D13) --------------------

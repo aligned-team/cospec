@@ -323,10 +323,12 @@ match: under Node the binary's answer to it depends on timing. With telemetry at
 its default, the first-run telemetry work delays the prompt and the waiting
 answer is taken (`echo y |` resets, exit 0; `echo n |` exit 0, nothing reset);
 with `OPENSPEC_TELEMETRY=0` it is not (exit 130, `Reset cancelled.`, nothing
-reset). The contract suite runs the binary both ways and asserts only that the
-two answers differ — the race is upstream's. cospec forces telemetry off but
-runs the binary under Bun, whose confirm takes the waiting answer, so cospec's
-answer is fixed and declared: `echo y |` resets (exit 0,
+reset) — the race is upstream's, timing-dependent, so the contract suite carries
+no assertion for it (it would flake on CI); recorded as evidence instead (5/5
+runs locally: telemetry at its default, `echo y |` resets, exit 0; telemetry
+off, `echo y |` cancels, exit 130 — ledger 13.3). cospec forces telemetry off
+but runs the binary under Bun, whose confirm takes the waiting answer, so
+cospec's answer is fixed and declared: `echo y |` resets (exit 0,
 `Configuration reset to defaults`) and `echo n |` answers no (exit 0,
 `Reset cancelled.`, nothing reset) — the answer of the binary with its telemetry
 at the default, stdout byte for byte, 5 of 5 probe runs each. It is declared in
