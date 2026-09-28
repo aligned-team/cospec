@@ -1408,6 +1408,11 @@ const NO_FLAG_FAILURES: readonly SelectionFailureCase[] = [
     setup: (sb) => repo(sb, 'm6', configOnly('store: [unclosed\n')),
   },
   {
+    id: 'M8',
+    code: 'invalid_store_id',
+    setup: (sb) => repo(sb, 'm8', configOnly('store: ""\n')),
+  },
+  {
     id: 'M9',
     code: 'unknown_store',
     setup: (sb) => repo(sb, 'm9', configOnly('store: nope\n')),
