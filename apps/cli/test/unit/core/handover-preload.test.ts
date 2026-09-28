@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -58,6 +59,7 @@ describe('handoverPreload', () => {
         if (previous === undefined) delete process.env.XDG_CACHE_HOME
         else process.env.XDG_CACHE_HOME = previous
         chmodSync(cache, 0o755)
+        rmSync(cache, { recursive: true, force: true })
       }
     },
   )
