@@ -15,11 +15,14 @@ artifact, it SHALL add no refusal of its own: the wrapped binary's own answer
 `Missing required argument <artifact>. Valid artifacts: …` message) SHALL be
 relayed, as one JSON document under `--json`, so a `--json` caller gets exactly
 one document on every path past the parse. `instructions apply` with no
-`--change` SHALL answer the same way; with a change it SHALL stay the
-cospec-native `apply` gate, unchanged. `archive` SHALL be listed among the
-artifacts the command advertises and SHALL pass through read-only — it SHALL NOT
-be aliased to `cospec archive`, because the wrapped `instructions archive`
-neither gates nor moves anything.
+`--change` SHALL answer the same way; with `--change <id>` it SHALL always be
+the cospec-native `apply` gate, unchanged, whatever the id and the working
+directory: `apply`'s own refusals (no `openspec/` directory, an unknown change,
+an id outside cospec's change-id grammar) SHALL answer for it, and the wrapped
+binary's ungated `instructions apply` SHALL never be relayed in its place.
+`archive` SHALL be listed among the artifacts the command advertises and SHALL
+pass through read-only — it SHALL NOT be aliased to `cospec archive`, because
+the wrapped `instructions archive` neither gates nor moves anything.
 
 For any other artifact, cospec SHALL call the wrapped binary with `--json` and
 build its answer from that document. It SHALL respell, through the shared
@@ -80,6 +83,16 @@ the binary's own text and exit code otherwise.
 - **THEN** stdout is exactly one JSON document whose status message is the
   binary's, listing the available changes or valid artifacts, exit 1, and the
   text form prints the same message
+
+#### Scenario: instructions apply with a change is always the gate
+
+- **WHEN** `cospec instructions apply --change <id>` (with or without `--json`)
+  runs from the project root, a subdirectory, or the `openspec/` directory, on a
+  change the gate blocks, on an id no change has, or on an id the binary reads
+  but cospec's change-id grammar rejects (`1foo`)
+- **THEN** stdout, stderr and the exit code are those of `cospec apply <id>` run
+  from the same directory (exit `2` on the blocked change from the root), and
+  the binary's `## Apply:` answer is never printed
 
 #### Scenario: Referenced-store fields name cospec
 

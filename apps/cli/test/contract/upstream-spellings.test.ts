@@ -729,22 +729,18 @@ describe('3.2 instructions without a change or an artifact lets the binary answe
   // With `--change` it is the gate (3.5), so apply's own refusal answers.
   for (const asJson of [false, true]) {
     const flag = asJson ? ['--json'] : []
-    test.failing(
-      `instructions apply --change nope${asJson ? ' --json' : ''} answers as cospec apply nope`,
-      async () => {
-        const root = twoChangeRoot()
-        const c = await runCospec(['instructions', 'apply', '--change', 'nope', ...flag], root)
-        const a = await runCospec(['apply', 'nope', ...flag], root)
-        expect(a.exitCode).toBe(1)
-        expect(a.stderr).toContain("unknown change 'nope'")
-        expect({ exit: c.exitCode, stdout: c.stdout, stderr: c.stderr }).toEqual({
-          exit: a.exitCode,
-          stdout: a.stdout,
-          stderr: a.stderr,
-        })
-      },
-      30_000,
-    )
+    test(`instructions apply --change nope${asJson ? ' --json' : ''} answers as cospec apply nope`, async () => {
+      const root = twoChangeRoot()
+      const c = await runCospec(['instructions', 'apply', '--change', 'nope', ...flag], root)
+      const a = await runCospec(['apply', 'nope', ...flag], root)
+      expect(a.exitCode).toBe(1)
+      expect(a.stderr).toContain("unknown change 'nope'")
+      expect({ exit: c.exitCode, stdout: c.stdout, stderr: c.stderr }).toEqual({
+        exit: a.exitCode,
+        stdout: a.stdout,
+        stderr: a.stderr,
+      })
+    }, 30_000)
   }
 })
 
@@ -814,25 +810,20 @@ describe('3.5 instructions apply --change is always the gate', () => {
     for (const asJson of [false, true]) {
       const flag = asJson ? ['--json'] : []
       const where = cwd === '' ? 'the root' : cwd
-      const register = cwd === '' ? test : test.failing
-      register(
-        `from ${where}: instructions apply --change foo${asJson ? ' --json' : ''} is cospec apply foo`,
-        async () => {
-          const root = gatedRoot()
-          const ref = gatedRoot()
-          const c = await runCospecFrom(
-            ['instructions', 'apply', '--change', 'foo', ...flag],
-            root,
-            cwd,
-          )
-          const a = await runCospecFrom(['apply', 'foo', ...flag], ref, cwd)
-          expect(a.exitCode, detail('cospec apply', a)).not.toBe(0)
-          expect(c.stdout + c.stderr).not.toContain('## Apply:')
-          expect(streams(c, root)).toEqual(streams(a, ref))
-          if (cwd === '') expect(c.exitCode, detail('cospec', c)).toBe(2)
-        },
-        30_000,
-      )
+      test(`from ${where}: instructions apply --change foo${asJson ? ' --json' : ''} is cospec apply foo`, async () => {
+        const root = gatedRoot()
+        const ref = gatedRoot()
+        const c = await runCospecFrom(
+          ['instructions', 'apply', '--change', 'foo', ...flag],
+          root,
+          cwd,
+        )
+        const a = await runCospecFrom(['apply', 'foo', ...flag], ref, cwd)
+        expect(a.exitCode, detail('cospec apply', a)).not.toBe(0)
+        expect(c.stdout + c.stderr).not.toContain('## Apply:')
+        expect(streams(c, root)).toEqual(streams(a, ref))
+        if (cwd === '') expect(c.exitCode, detail('cospec', c)).toBe(2)
+      }, 30_000)
     }
   }
 
@@ -858,21 +849,17 @@ describe('3.5 instructions apply --change is always the gate', () => {
 
   for (const asJson of [false, true]) {
     const flag = asJson ? ['--json'] : []
-    test.failing(
-      `instructions apply --change 1foo${asJson ? ' --json' : ''} is refused as cospec apply 1foo`,
-      async () => {
-        const upRoot = gatedRoot()
-        const u = await runUpstream(['instructions', 'apply', '--change', '1foo', '--json'], upRoot)
-        expect(u.exitCode, detail('openspec', u)).toBe(0)
-        const root = gatedRoot()
-        const c = await runCospec(['instructions', 'apply', '--change', '1foo', ...flag], root)
-        const a = await runCospec(['apply', '1foo', ...flag], root)
-        expect(a.exitCode).toBe(1)
-        expect(a.stderr).toContain("unknown change '1foo'")
-        expect(streams(c, root)).toEqual(streams(a, root))
-      },
-      30_000,
-    )
+    test(`instructions apply --change 1foo${asJson ? ' --json' : ''} is refused as cospec apply 1foo`, async () => {
+      const upRoot = gatedRoot()
+      const u = await runUpstream(['instructions', 'apply', '--change', '1foo', '--json'], upRoot)
+      expect(u.exitCode, detail('openspec', u)).toBe(0)
+      const root = gatedRoot()
+      const c = await runCospec(['instructions', 'apply', '--change', '1foo', ...flag], root)
+      const a = await runCospec(['apply', '1foo', ...flag], root)
+      expect(a.exitCode).toBe(1)
+      expect(a.stderr).toContain("unknown change '1foo'")
+      expect(streams(c, root)).toEqual(streams(a, root))
+    }, 30_000)
   }
 })
 
