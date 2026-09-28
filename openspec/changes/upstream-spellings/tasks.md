@@ -235,5 +235,5 @@ a time. Group 12 waits for the rebase in group 11.
 - [x] 16.3 `new change` with no `--schema` lets the binary resolve `config.yaml`
       (ledger 1.13); commit
       `fix(cli): let the binary resolve new change's default schema`
-- [ ] 16.4 Record the round-3 evidence (ledger 1.13, 7.5); commit
+- [x] 16.4 Record the round-3 evidence (ledger 1.13, 7.5); commit
       `chore(cli): record upstream-spellings round-3 evidence`
