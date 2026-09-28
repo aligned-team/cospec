@@ -717,7 +717,7 @@ describe('cli dispatcher: the program level resolves before the command sees its
     expect(completion.out).toContain('Usage: cospec completion')
   })
 
-  test.failing('store and workset refuse a help subcommand as upstream does', async () => {
+  test('store and workset refuse a help subcommand as upstream does', async () => {
     const store = await dispatch(['store', 'help'])
     expect(store.code).toBe(1)
     expect(store.err).toBe(await binaryRefusal(['store', 'help']))

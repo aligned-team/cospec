@@ -40,6 +40,13 @@ function plainRoot(): string {
   return dir
 }
 
+/** The fixture's files, minus the runtime's own cache under the sandboxed HOME. */
+function treeHash(root: string): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(hashTree(root)).filter(([rel]) => !rel.startsWith('.oracle-home/.cache/')),
+  )
+}
+
 function detail(run: SpawnResult): string {
   return `exit ${run.exitCode}\nstdout: ${run.stdout}\nstderr: ${run.stderr}`
 }
@@ -151,7 +158,8 @@ describe('a terminal-handover leaf refuses its argv before the handover (ledger 
   for (const [argv, json, guard] of MATRIX) {
     for (const withJson of json ? [false, true] : [false]) {
       const full = withJson ? [...argv, '--json'] : argv
-      const row = guard === true ? test : test.failing
+      // `workset open --json` never hands over: it runs piped (design D2).
+      const row = guard === true || (argv[0] === 'workset' && withJson) ? test : test.failing
       row(
         full.join(' '),
         async () => {
@@ -176,45 +184,37 @@ test.failing(
 
 describe('workset open --json is refused as the binary refuses it', () => {
   for (const saved of [false, true]) {
-    test.failing(
-      `workset open ${saved ? '<saved>' : 'x'} --json: one refusal document, nothing opened`,
-      async () => {
-        const root = plainRoot()
-        const member = join(root, 'member')
-        mkdirSync(member)
-        const name = saved ? 'w1' : 'x'
-        if (saved) {
-          const created = await oracle(['workset', 'create', 'w1', '--member', member], root)
-          expect(created.exitCode, detail(created)).toBe(0)
-        }
-        const argv = ['workset', 'open', name, '--json']
-        const up = await oracle(argv, root)
-        const before = hashTree(root)
-        const co = await cospec(argv, { cwd: root, env: oracleEnv(root) })
-        expect(hashTree(root)).toEqual(before)
-        expect(co.exitCode, detail(co)).toBe(1)
-        expect(documentCount(co.stdout), detail(co)).toBe(1)
-        const doc = JSON.parse(co.stdout) as { status: { code: string; fix: string }[] }
-        expect(doc).toEqual(JSON.parse(respellRemedies(up.stdout)) as typeof doc)
-        expect(doc.status[0]!.code).toBe('workset_open_json_unsupported')
-        expect(doc.status[0]!.fix).toContain('cospec workset list --json')
-        expect(BARE_OPENSPEC.test(co.stdout + co.stderr), detail(co)).toBe(false)
-      },
-      30_000,
-    )
+    test(`workset open ${saved ? '<saved>' : 'x'} --json: one refusal document, nothing opened`, async () => {
+      const root = plainRoot()
+      const member = join(root, 'member')
+      mkdirSync(member)
+      const name = saved ? 'w1' : 'x'
+      if (saved) {
+        const created = await oracle(['workset', 'create', 'w1', '--member', member], root)
+        expect(created.exitCode, detail(created)).toBe(0)
+      }
+      const argv = ['workset', 'open', name, '--json']
+      const up = await oracle(argv, root)
+      const before = treeHash(root)
+      const co = await cospec(argv, { cwd: root, env: oracleEnv(root) })
+      expect(treeHash(root)).toEqual(before)
+      expect(co.exitCode, detail(co)).toBe(1)
+      expect(documentCount(co.stdout), detail(co)).toBe(1)
+      const doc = JSON.parse(co.stdout) as { status: { code: string; fix: string }[] }
+      expect(doc).toEqual(JSON.parse(respellRemedies(up.stdout)) as typeof doc)
+      expect(doc.status[0]!.code).toBe('workset_open_json_unsupported')
+      expect(doc.status[0]!.fix).toContain('cospec workset list --json')
+      expect(BARE_OPENSPEC.test(co.stdout + co.stderr), detail(co)).toBe(false)
+    }, 30_000)
   }
 
   for (const argv of [
     ['workset', 'open', '--json'],
     ['workset', 'open', 'x', '--bogus', '--json'],
   ]) {
-    test.failing(
-      `${argv.join(' ')}: commander's refusal, before any handover (ledger 1.6)`,
-      async () => {
-        await expectPrevalidated(argv)
-      },
-      30_000,
-    )
+    test(`${argv.join(' ')}: commander's refusal, before any handover (ledger 1.6)`, async () => {
+      await expectPrevalidated(argv)
+    }, 30_000)
   }
 })
 

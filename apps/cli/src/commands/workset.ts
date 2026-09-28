@@ -14,8 +14,9 @@ import { EXIT } from '../cli.ts'
 import { commandRow, storePathInOptionPosition, storePathRefusal } from '../core/command-table.ts'
 import {
   forwardCall,
-  isOptionToken,
-  relayCommandLevel,
+  isParseRejection,
+  relayGroupRefusal,
+  relayRespelled,
   relayStorePathRefusal,
   subcommandOf,
 } from '../core/forward-relay.ts'
@@ -76,9 +77,8 @@ async function resolveWorksetOpenBin(cwd: string): Promise<string> {
  * `workset open` hands the terminal to the chosen tool (editor window / agent
  * session) — it is a handover exec, not a gated or JSON-checked call: inherit
  * stdio, `shell: false` (array argv, no shell interpolation), and propagate the
- * child's exact exit code. Never threads `--json`/`--no-color` — openspec's own
- * `workset open` rejects `--json` (`workset_open_json_unsupported`), and this
- * module deliberately never adds it either.
+ * child's exact exit code. Under `--json` it never hands over: the binary has
+ * no JSON mode for `open` and refuses it (`refuseOpenJson`).
  *
  * The handover class's one pre-spawn `--store-path` check (design decision
  * 2): with inherited stdio the binary's redirect would reach the terminal
@@ -96,6 +96,7 @@ async function runWorksetOpen(ctx: CommandContext, rest: string[]): Promise<numb
     process[refusal.stream].write(refusal.text)
     return EXIT.failure
   }
+  if (ctx.flags.json) return refuseOpenJson(ctx, rest)
   const bin = await resolveWorksetOpenBin(ctx.cwd)
   const proc = Bun.spawn([process.execPath, bin, 'workset', 'open', ...rest], {
     cwd: ctx.cwd,
@@ -107,15 +108,53 @@ async function runWorksetOpen(ctx: CommandContext, rest: string[]): Promise<numb
   return await proc.exited
 }
 
+/** `status[0].code` of a one-document answer, or undefined for any other stdout. */
+function firstStatusCode(stdout: string): string | undefined {
+  let doc: unknown
+  try {
+    doc = JSON.parse(stdout)
+  } catch (err) {
+    if (err instanceof SyntaxError) return undefined
+    throw err
+  }
+  const status = (doc as { status?: unknown } | null)?.status
+  const code = Array.isArray(status)
+    ? (status[0] as { code?: unknown } | undefined)?.code
+    : undefined
+  return typeof code === 'string' ? code : undefined
+}
+
+/**
+ * `workset open` under `--json` (design D2): the binary refuses the mode
+ * before it reads a workset, so the call runs piped, never handed over, and
+ * its one refusal document is relayed — or, first, commander's refusal of the
+ * argv (`missing required argument 'name'`), as the binary gives it.
+ */
+async function refuseOpenJson(ctx: CommandContext, rest: string[]): Promise<number> {
+  const result = await forwardCall(() =>
+    passthroughOpenspec(
+      { command: ['workset', 'open'], threaded: ['--json'], args: rest },
+      {
+        cwd: ctx.cwd,
+        expect: {
+          exitCodes: [1],
+          postCondition: (res) =>
+            isParseRejection(res) ||
+            firstStatusCode(res.stdout) === 'workset_open_json_unsupported' ||
+            'did not refuse --json with workset_open_json_unsupported',
+        },
+      },
+    ),
+  )
+  return relayRespelled(result, true)
+}
+
 export async function run(ctx: CommandContext): Promise<number> {
   const { sub, rest, operand } = subcommandOf(ctx.args)
-  if (sub === undefined) {
-    process.stderr.write('cospec workset: a subcommand is required (create|list|remove|open)\n')
-    return EXIT.failure
-  }
-  if (!operand && isOptionToken(sub)) return relayCommandLevel(ctx, ['workset'], ctx.args)
-  if (sub === 'open') return runWorksetOpen(ctx, rest)
-  if (isPassthroughSub(sub)) return runWorksetPassthrough(ctx, sub, rest)
-  process.stderr.write(`cospec workset: unknown subcommand '${sub}'\n`)
-  return EXIT.failure
+  if (sub === 'open' && !operand) return runWorksetOpen(ctx, rest)
+  if (sub !== undefined && !operand && isPassthroughSub(sub))
+    return runWorksetPassthrough(ctx, sub, rest)
+  // No subcommand, an unknown one, an option, or a token after `--`: the
+  // binary's own refusal (text, or its one document under `--json`).
+  return relayGroupRefusal(ctx, 'workset', ctx.args)
 }

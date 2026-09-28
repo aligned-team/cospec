@@ -194,38 +194,30 @@ describe('workset group refusals are the binary’s, spelled through cospec (led
     ['workset', 'bogus', '--json'],
     ['workset', '--json', '--', '--bogus'],
   ]) {
-    test.failing(
-      `${argv.join(' ')}: one document with unknown_workset_subcommand`,
-      async () => {
-        const root = plainRoot()
-        const up = await oracle(argv, root)
-        const co = await runCospec(argv, root)
-        expect(up.exitCode).toBe(1)
-        expect(co.exitCode, detail(co)).toBe(1)
-        expect(documentCount(co.stdout), detail(co)).toBe(1)
-        const doc = JSON.parse(co.stdout) as { status: { code: string; message: string }[] }
-        expect(doc).toEqual(respelledDoc(up.stdout) as typeof doc)
-        expect(doc.status[0]!.code).toBe('unknown_workset_subcommand')
-        expect(doc.status[0]!.message).toContain("'cospec workset'")
-        expect(BARE_OPENSPEC.test(co.stdout), detail(co)).toBe(false)
-      },
-      30_000,
-    )
+    test(`${argv.join(' ')}: one document with unknown_workset_subcommand`, async () => {
+      const root = plainRoot()
+      const up = await oracle(argv, root)
+      const co = await runCospec(argv, root)
+      expect(up.exitCode).toBe(1)
+      expect(co.exitCode, detail(co)).toBe(1)
+      expect(documentCount(co.stdout), detail(co)).toBe(1)
+      const doc = JSON.parse(co.stdout) as { status: { code: string; message: string }[] }
+      expect(doc).toEqual(respelledDoc(up.stdout) as typeof doc)
+      expect(doc.status[0]!.code).toBe('unknown_workset_subcommand')
+      expect(doc.status[0]!.message).toContain("'cospec workset'")
+      expect(BARE_OPENSPEC.test(co.stdout), detail(co)).toBe(false)
+    }, 30_000)
   }
 
   for (const argv of [['workset'], ['workset', 'bogus'], ['workset', '--', '--bogus']]) {
-    test.failing(
-      `${argv.join(' ')}: the binary's text refusal`,
-      async () => {
-        const root = plainRoot()
-        const up = await oracle(argv, root)
-        const co = await runCospec(argv, root)
-        expect(up.exitCode).toBe(1)
-        expectRespelledRelay(co, up)
-        expect(co.stderr).toContain("'cospec workset'")
-      },
-      30_000,
-    )
+    test(`${argv.join(' ')}: the binary's text refusal`, async () => {
+      const root = plainRoot()
+      const up = await oracle(argv, root)
+      const co = await runCospec(argv, root)
+      expect(up.exitCode).toBe(1)
+      expectRespelledRelay(co, up)
+      expect(co.stderr).toContain("'cospec workset'")
+    }, 30_000)
   }
 
   // Already relayed at the workset level before this change (a regression
@@ -242,18 +234,14 @@ describe('workset group refusals are the binary’s, spelled through cospec (led
   // `--` (the compiled launcher does not, unknown-option-contract ledger
   // 1.17), so the runner passes two; the binary runs under Node, which keeps
   // its one.
-  test.failing(
-    '-- workset --bogus: the binary’s missing-subcommand refusal',
-    async () => {
-      const root = plainRoot()
-      const up = await oracle(['--', 'workset', '--bogus'], root, { runtime: 'node' })
-      const co = await runCospec(['--', '--', 'workset', '--bogus'], root)
-      expect(up.exitCode).toBe(1)
-      expectRespelledRelay(co, up)
-      expect(co.stderr).toContain("Missing subcommand for 'cospec workset'")
-    },
-    30_000,
-  )
+  test('-- workset --bogus: the binary’s missing-subcommand refusal', async () => {
+    const root = plainRoot()
+    const up = await oracle(['--', 'workset', '--bogus'], root, { runtime: 'node' })
+    const co = await runCospec(['--', '--', 'workset', '--bogus'], root)
+    expect(up.exitCode).toBe(1)
+    expectRespelledRelay(co, up)
+    expect(co.stderr).toContain("Missing subcommand for 'cospec workset'")
+  }, 30_000)
 })
 
 // --- 3. context and schemas (post-rebase) ------------------------------------

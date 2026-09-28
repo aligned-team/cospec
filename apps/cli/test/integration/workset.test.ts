@@ -109,40 +109,32 @@ describe('cospec workset', () => {
       expect(res.stderr + res.stdout).toMatch(/not saved on this machine/)
     }, 30_000)
 
-    test.failing(
-      "--json is the binary's workset_open_json_unsupported refusal, nothing opened",
-      async () => {
-        const { cwd, env } = sandbox()
-        const upstream = await openspecRaw(
-          ['workset', 'open', 'not-saved-anywhere', '--json'],
-          cwd,
-          env,
-        )
-        const res = await cospec(['workset', 'open', 'not-saved-anywhere', '--json'], { cwd, env })
-        expect(res.exitCode).toBe(1)
-        const body = JSON.parse(res.stdout) as { status: Array<{ code: string }> }
-        expect(body).toEqual(JSON.parse(respellRemedies(upstream.stdout)) as typeof body)
-        expect(body.status[0]!.code).toBe('workset_open_json_unsupported')
-        expect(res.stderr + res.stdout).not.toMatch(/not saved on this machine/)
-      },
-      30_000,
-    )
+    test("--json is the binary's workset_open_json_unsupported refusal, nothing opened", async () => {
+      const { cwd, env } = sandbox()
+      const upstream = await openspecRaw(
+        ['workset', 'open', 'not-saved-anywhere', '--json'],
+        cwd,
+        env,
+      )
+      const res = await cospec(['workset', 'open', 'not-saved-anywhere', '--json'], { cwd, env })
+      expect(res.exitCode).toBe(1)
+      const body = JSON.parse(res.stdout) as { status: Array<{ code: string }> }
+      expect(body).toEqual(JSON.parse(respellRemedies(upstream.stdout)) as typeof body)
+      expect(body.status[0]!.code).toBe('workset_open_json_unsupported')
+      expect(res.stderr + res.stdout).not.toMatch(/not saved on this machine/)
+    }, 30_000)
   })
 
   for (const argv of [['workset', 'bogus'], ['workset']]) {
-    test.failing(
-      `${argv.join(' ')}: the binary's refusal, spelled through cospec`,
-      async () => {
-        const { cwd, env } = sandbox()
-        const upstream = await openspecRaw(argv, cwd, env)
-        const res = await cospec(argv, { cwd, env })
-        expect(upstream.exitCode).toBe(1)
-        expect(res.exitCode).toBe(1)
-        expect(res.stdout).toBe('')
-        expect(res.stderr).toBe(respellRemedies(upstream.stderr))
-        expect(res.stderr).toContain("'cospec workset'")
-      },
-      30_000,
-    )
+    test(`${argv.join(' ')}: the binary's refusal, spelled through cospec`, async () => {
+      const { cwd, env } = sandbox()
+      const upstream = await openspecRaw(argv, cwd, env)
+      const res = await cospec(argv, { cwd, env })
+      expect(upstream.exitCode).toBe(1)
+      expect(res.exitCode).toBe(1)
+      expect(res.stdout).toBe('')
+      expect(res.stderr).toBe(respellRemedies(upstream.stderr))
+      expect(res.stderr).toContain("'cospec workset'")
+    }, 30_000)
   }
 })
