@@ -1575,13 +1575,7 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * answered instead of commander's `missing required argument`). The fixes
  * empty this set.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  // upstream-spellings: `instructions` answered by the binary.
-  'instructions --change x',
-  'instructions --change x --json',
-  'instructions --store-path /x',
-  'instructions --json',
-])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
 
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot(row.store, row.userSchema, row.setup)

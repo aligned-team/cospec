@@ -361,7 +361,7 @@ function pendingKey([command, surface, owner]: [string, string, PendingOwner]): 
 }
 
 describe('pending surfaces', () => {
-  test.failing('the table marks exactly the design pending surfaces, each with its owner', () => {
+  test('the table marks exactly the design pending surfaces, each with its owner', () => {
     const actual = COMMAND_TABLE.flatMap(pendingSurfaces)
     expect(actual.map(pendingKey).toSorted()).toEqual(EXPECTED_PENDING.map(pendingKey).toSorted())
   })

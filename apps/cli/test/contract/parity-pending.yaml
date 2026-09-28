@@ -17,7 +17,6 @@
 # produce; the test verifies it against the pinned binary instead.
 
 # --- upstream-spellings ---------------------------------------------------------
-- { kind: flag, path: [instructions], flag: --schema, owner: upstream-spellings }
 
 # --- cli-surface-parity -----------------------------------------------------------
 - { kind: flag, path: [list], flag: --sort, owner: cli-surface-parity }

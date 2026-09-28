@@ -566,15 +566,15 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     json: 'accepted',
     store: 'accepted',
     declaresStorePath: true,
-    // Upstream's `instructions [artifact]` is optional (its action picks
-    // one); cospec requires it, so a missing artifact is refused at parse.
-    positionals: [upstreamArg({ name: 'artifact', required: true })],
+    // Upstream's `instructions [artifact]` is optional: with no artifact (or
+    // no `--change`) the binary answers itself, listing the valid ones.
+    positionals: [upstreamArg({ name: 'artifact', required: false })],
     flags: [
       upstream({
         name: '--change',
         takesValue: true,
         placeholder: '<slug>',
-        description: 'The change the artifact belongs to (required)',
+        description: 'The change the artifact belongs to',
       }),
       cospec({ name: '--allow-soft', description: 'Proceed past a soft block' }),
       upstream({
@@ -582,7 +582,6 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         takesValue: true,
         placeholder: '<name>',
         description: 'Schema override',
-        status: pending('upstream-spellings'),
       }),
     ],
     notes: [

@@ -511,9 +511,7 @@ const UPSTREAM_SPELLING_ROWS: readonly Row[] = [
  * Rows cospec does not answer as the binary does yet, keyed by argv, run as
  * `test.failing` until the commit implementing each surface removes its key.
  */
-const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  'instructions proposal --schema spec-driven --change x',
-])
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
 
 /**
  * One unknown-option row per `forward` command (ledger 5.3): cospec adds no

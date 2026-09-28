@@ -457,44 +457,28 @@ function twoChangeRoot(): string {
 }
 
 describe('3.1 instructions forwards --schema', () => {
-  test.failing(
-    'instructions proposal --change c1 --schema spec-driven --json',
-    async () => {
-      const argv = [
-        'instructions',
-        'proposal',
-        '--change',
-        'c1',
-        '--schema',
-        'spec-driven',
-        '--json',
-      ]
-      const c = await runCospec(argv, twoChangeRoot())
-      const u = await runUpstream(argv, twoChangeRoot())
-      expect(u.exitCode, detail('openspec', u)).toBe(0)
-      expect(c.exitCode, detail('cospec', c)).toBe(0)
-      const upDoc = json(u)
-      const coDoc = json(c)
-      for (const key of ['changeName', 'artifactId', 'schemaName', 'outputPath'])
-        expect(coDoc[key], key).toEqual(upDoc[key])
-      expect(Object.keys(coDoc).toSorted()).toEqual(Object.keys(upDoc).toSorted())
-    },
-    30_000,
-  )
+  test('instructions proposal --change c1 --schema spec-driven --json', async () => {
+    const argv = ['instructions', 'proposal', '--change', 'c1', '--schema', 'spec-driven', '--json']
+    const c = await runCospec(argv, twoChangeRoot())
+    const u = await runUpstream(argv, twoChangeRoot())
+    expect(u.exitCode, detail('openspec', u)).toBe(0)
+    expect(c.exitCode, detail('cospec', c)).toBe(0)
+    const upDoc = json(u)
+    const coDoc = json(c)
+    for (const key of ['changeName', 'artifactId', 'schemaName', 'outputPath'])
+      expect(coDoc[key], key).toEqual(upDoc[key])
+    expect(Object.keys(coDoc).toSorted()).toEqual(Object.keys(upDoc).toSorted())
+  }, 30_000)
 
-  test.failing(
-    'instructions proposal --change c1 --schema nope --json',
-    async () => {
-      const argv = ['instructions', 'proposal', '--change', 'c1', '--schema', 'nope', '--json']
-      const c = await runCospec(argv, twoChangeRoot())
-      const u = await runUpstream(argv, twoChangeRoot())
-      expect(u.exitCode).toBe(1)
-      expect(statusMessage(json(u))).toContain("Schema 'nope' not found")
-      expect(c.exitCode, detail('cospec', c)).toBe(1)
-      expect(statusMessage(json(c))).toBe(statusMessage(json(u)))
-    },
-    30_000,
-  )
+  test('instructions proposal --change c1 --schema nope --json', async () => {
+    const argv = ['instructions', 'proposal', '--change', 'c1', '--schema', 'nope', '--json']
+    const c = await runCospec(argv, twoChangeRoot())
+    const u = await runUpstream(argv, twoChangeRoot())
+    expect(u.exitCode).toBe(1)
+    expect(statusMessage(json(u))).toContain("Schema 'nope' not found")
+    expect(c.exitCode, detail('cospec', c)).toBe(1)
+    expect(statusMessage(json(c))).toBe(statusMessage(json(u)))
+  }, 30_000)
 })
 
 describe('3.2 instructions without a change or an artifact lets the binary answer', () => {
@@ -504,49 +488,37 @@ describe('3.2 instructions without a change or an artifact lets the binary answe
     ['instructions'],
     ['instructions', 'apply'],
   ]) {
-    test.failing(
-      `${argv.join(' ')} --json: exactly one document, the binary message`,
-      async () => {
-        const withJson = [...argv, '--json']
-        const c = await runCospec(withJson, twoChangeRoot())
-        const u = await runUpstream(withJson, twoChangeRoot())
-        expect(u.exitCode).toBe(1)
-        const message = statusMessage(json(u))
-        expect(message).toMatch(/^Missing required (?:option --change|argument <artifact>)/)
-        expect(c.exitCode, detail('cospec', c)).toBe(1)
-        expect(statusMessage(json(c))).toBe(message)
-      },
-      30_000,
-    )
+    test(`${argv.join(' ')} --json: exactly one document, the binary message`, async () => {
+      const withJson = [...argv, '--json']
+      const c = await runCospec(withJson, twoChangeRoot())
+      const u = await runUpstream(withJson, twoChangeRoot())
+      expect(u.exitCode).toBe(1)
+      const message = statusMessage(json(u))
+      expect(message).toMatch(/^Missing required (?:option --change|argument <artifact>)/)
+      expect(c.exitCode, detail('cospec', c)).toBe(1)
+      expect(statusMessage(json(c))).toBe(message)
+    }, 30_000)
 
-    test.failing(
-      `${argv.join(' ')}: the binary message as text`,
-      async () => {
-        const c = await runCospec(argv, twoChangeRoot())
-        const u = await runUpstream(argv, twoChangeRoot())
-        const message = statusMessage(json(await runUpstream([...argv, '--json'], twoChangeRoot())))
-        expect(u.exitCode).toBe(1)
-        expect(u.stderr).toContain(message)
-        expect(c.exitCode, detail('cospec', c)).toBe(1)
-        expect(c.stderr).toContain(message)
-        expect(c.stdout).toBe(u.stdout)
-      },
-      30_000,
-    )
+    test(`${argv.join(' ')}: the binary message as text`, async () => {
+      const c = await runCospec(argv, twoChangeRoot())
+      const u = await runUpstream(argv, twoChangeRoot())
+      const message = statusMessage(json(await runUpstream([...argv, '--json'], twoChangeRoot())))
+      expect(u.exitCode).toBe(1)
+      expect(u.stderr).toContain(message)
+      expect(c.exitCode, detail('cospec', c)).toBe(1)
+      expect(c.stderr).toContain(message)
+      expect(c.stdout).toBe(u.stdout)
+    }, 30_000)
   }
 
-  test.failing(
-    'instructions apply --change nope --json: exactly one document',
-    async () => {
-      const c = await runCospec(
-        ['instructions', 'apply', '--change', 'nope', '--json'],
-        twoChangeRoot(),
-      )
-      expect(c.exitCode, detail('cospec', c)).toBe(1)
-      expect(statusMessage(json(c))).toContain("'nope'")
-    },
-    30_000,
-  )
+  test('instructions apply --change nope --json: exactly one document', async () => {
+    const c = await runCospec(
+      ['instructions', 'apply', '--change', 'nope', '--json'],
+      twoChangeRoot(),
+    )
+    expect(c.exitCode, detail('cospec', c)).toBe(1)
+    expect(statusMessage(json(c))).toContain("'nope'")
+  }, 30_000)
 })
 
 describe('3.3 the new-change hint names cospec', () => {

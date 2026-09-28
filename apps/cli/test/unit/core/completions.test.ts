@@ -80,9 +80,9 @@ describe('buildCompletionSpec — matches COMMAND_TABLE', () => {
     expect(feedback.flags).toEqual(['--body', '--upstream'])
   })
 
-  test('instructions: --change and --allow-soft; pending --schema absent', () => {
+  test('instructions: --change, --allow-soft and --schema', () => {
     const instructions = spec.commands.find((c) => c.name === 'instructions')!
-    expect(instructions.flags).toEqual(['--change', '--allow-soft'])
+    expect(instructions.flags).toEqual(['--change', '--allow-soft', '--schema'])
   })
 
   // Regression: the pre-table `show` help omitted `--diff` and mis-described

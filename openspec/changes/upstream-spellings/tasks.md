@@ -129,13 +129,13 @@ a time. Group 12 waits for the rebase in group 11.
 
 ## 10. T5 — `instructions` forwarding (`apps/cli/src/commands/instructions.ts`; the `instructions` row and its pending entry)
 
-- [ ] 10.1 Mark `--schema` handled and the `artifact` positional optional,
+- [x] 10.1 Mark `--schema` handled and the `artifact` positional optional,
       delete the `instructions --schema` pending entry, forward `--change` /
       `--schema` whenever given, and drop the local `--change` refusal so the
       binary answers; forward `instructions apply` with no `--change`; verify
       ledger 3.1, 3.2, 3.4 and the `instructions … --schema` differential row
       pass
-- [ ] 10.2 Commit `fix(cli): forward every instructions flag to the binary`
+- [x] 10.2 Commit `fix(cli): forward every instructions flag to the binary`
 
 ## 11. Rebase onto `root-resolution-parity`
 
