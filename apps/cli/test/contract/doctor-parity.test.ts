@@ -258,4 +258,69 @@ describe('cospec doctor --json carries openspec doctor --json on every root', ()
     expect(upRoot).not.toBeNull()
     expect((doc as unknown as { root: { path: string } | null }).root?.path).toBe(upRoot!.path)
   }, 60_000)
+
+  /**
+   * A cospec-initialized store checkout `st1` under `root`, registered in
+   * `root`'s sandbox, so cospec's own checks find nothing on it.
+   */
+  async function initializedStore(root: string): Promise<string> {
+    const storeDir = join(root, 'store')
+    storeCheckout(storeDir, 'st1')
+    writeRegistry(root, { st1: storeDir })
+    const init = await cospec(['init', '.', '--harness', 'none'], {
+      cwd: storeDir,
+      env: oracleEnv(root),
+    })
+    if (init.exitCode !== 0) throw new Error(`cospec init failed on the store: ${detail(init)}`)
+    return storeDir
+  }
+
+  /** A project whose only `openspec/` content is a `store: st1` pointer, and its store. */
+  async function pointerRoot(): Promise<string> {
+    const root = mkTempRepo()
+    await initializedStore(root)
+    mkdirSync(join(root, 'openspec'), { recursive: true })
+    writeFileSync(join(root, 'openspec', 'config.yaml'), 'store: st1\n')
+    mkdirSync(join(root, 'sub'))
+    return root
+  }
+
+  /** A rootless directory whose global config names `st1` as the `defaultStore`. */
+  async function defaultStoreRoot(): Promise<string> {
+    const root = mkTempRepo()
+    await initializedStore(root)
+    const config = join(root, '.oracle-home', '.config', 'openspec')
+    mkdirSync(config, { recursive: true })
+    writeFileSync(join(config, 'config.json'), '{"defaultStore":"st1"}\n')
+    return root
+  }
+
+  // A declared pointer or a global defaultStore selects the store as the
+  // operating root: doctor's own checks read that root, not the directory it
+  // runs in, and the binary's report names the source it selected by.
+  for (const [name, make, where, source] of [
+    ['a store: pointer root', pointerRoot, '.', 'declared'],
+    ['a store: pointer root, from a subdirectory', pointerRoot, 'sub', 'declared'],
+    ['a global defaultStore root', defaultStoreRoot, '.', 'global_default'],
+  ] as const) {
+    test.failing(
+      `${name}: checks the selected store, root.source ${source}`,
+      async () => {
+        const root = await make()
+        const { co, doc, up } = await doctorBoth(['doctor', '--json'], root, join(root, where))
+        const upRoot = (up.json as { root: { source: string; path: string } | null }).root
+        expect(upRoot?.source).toBe(source)
+        const coRoot = (doc as unknown as { root: { source: string; path: string } | null }).root
+        expect(coRoot?.source, detail(co)).toBe(source)
+        expect(relationshipKeys(doc)).toEqual(expectedKeys(up))
+        expect(
+          doc.findings.filter((f) => f.level === 'ERROR'),
+          detail(co),
+        ).toEqual([])
+        expect(co.exitCode, detail(co)).toBe(up.exitCode)
+        expect(up.exitCode).toBe(0)
+      },
+      60_000,
+    )
+  }
 })
