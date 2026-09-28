@@ -90,23 +90,29 @@ export function relayStorePathRefusal(result: OpenspecResult, json: boolean): nu
  * binary's `--store-path` refusal answered with cospec's redirect, and
  * upstream's own remedy sentences spelled through cospec (`respellRemedies`)
  * in a failed call's answer. A successful answer is relayed untouched, except
- * that with `success: 'references'` — `context`'s working set and
- * `instructions`' reference block — the binary's own `Fetch:`/`Fix:` lines
- * (`fetch`/`fix` under `--json`) are spelled through cospec
- * (`respellReferenceRemedies`); the schema text, config context and rules,
- * spec summaries and paths around them stay byte-for-byte the binary's.
+ * that with `success: 'context'` or `'instructions'` the remedies the binary
+ * generates for its references — the `Fetch:`/`Fix:` lines of its own
+ * reference block or sections, located by structure, or under `--json` the
+ * parsed document's `fetch`/`fix` reference fields — are spelled through
+ * cospec (`respellReferenceRemedies`); the schema text, config context and
+ * rules, spec summaries and paths around them stay byte-for-byte the
+ * binary's, even a user line that reads like a reference line.
  * `show` keeps `'verbatim'`: a successful `show` prints the user's own change
  * or spec.
  */
 export function relayRespelled(
   result: OpenspecResult,
   json: boolean,
-  success: 'verbatim' | 'references' = 'verbatim',
+  success: 'verbatim' | 'context' | 'instructions' = 'verbatim',
 ): number {
   const refused = relayStorePathRefusal(result, json)
   if (refused !== undefined) return refused
   const ok = result.exitCode === 0
-  const out = !ok ? respellRemedies : success === 'references' ? respellReferenceRemedies : same
+  const out = !ok
+    ? respellRemedies
+    : success === 'verbatim'
+      ? same
+      : (text: string) => respellReferenceRemedies(text, success, json)
   const err = ok ? same : respellRemedies
   if (result.stdout.length > 0) process.stdout.write(out(result.stdout))
   if (result.stderr.length > 0) process.stderr.write(err(result.stderr))

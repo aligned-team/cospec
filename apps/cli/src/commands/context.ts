@@ -59,5 +59,5 @@ export async function run(ctx: CommandContext): Promise<number> {
     },
   )
 
-  return relayRespelled(result, ctx.flags.json, 'references')
+  return relayRespelled(result, ctx.flags.json, 'context')
 }

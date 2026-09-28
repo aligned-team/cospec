@@ -535,27 +535,191 @@ function respellWhole(value: string): string | undefined {
   return hit === undefined ? undefined : value.replace(hit.whole, replacement(hit.rule, 'text'))
 }
 
-// The reference block's own lines, as the binary renders them: a
-// `Fetch: <recipe>` or `Fix: <remedy>` line, or under `--json` (pretty-printed,
-// one property a line) a `"fetch"` or `"fix"` property.
-const REFERENCE_LINE = /^([ \t]*(?:Fetch|Fix): )(.*?)(\r?)$/gm
-const REFERENCE_FIELD = /^([ \t]*"(?:fetch|fix)": )("(?:[^"\\\n]|\\.)*")(,?\r?)$/gm
+/** A `Fetch:`/`Fix:` line's value spelled through cospec when it is one remedy. */
+function respellLabelled(line: string, labels: readonly string[]): string {
+  const label = labels.find((l) => line.startsWith(l))
+  const spelled = label === undefined ? undefined : respellWhole(line.slice(label.length))
+  return spelled === undefined ? line : `${label}${spelled}`
+}
+
+/** A store id as upstream's `isValidStoreId` accepts it: kebab-case. */
+const STORE_ID = '[a-z0-9]+(?:-[a-z0-9]+)*'
+// `renderEntryLines`' two entry headers: a resolved store and a diagnostic.
+const ENTRY_HEADER = new RegExp(`^Store ${STORE_ID}(?: \\(.*\\):|: .*)$`)
+const ENTRY_LINE = /^ {2}(?:- |Fetch: |Note: |Fix: )/
+const ENTRY_LABELS = ['  Fetch: ', '  Fix: '] as const
 
 /**
- * A successful `context` or `instructions` answer with only its reference
- * lines spelled through cospec: a `Fetch:`/`Fix:` line, or a `fetch`/`fix`
- * JSON property, whose whole value is one allowlisted remedy. Every other
- * byte — schema text, `config.yaml` context and rules, spec summaries, paths,
- * any other JSON value — is relayed as the binary wrote it.
+ * `instructions`' own `<referenced_stores>` element: the line right after
+ * `</task>` (and the `<project_context>` element, when there is one) that
+ * opens it, through its close. Upstream escapes `</task>` and
+ * `</project_context>` in every repo-supplied value but not
+ * `<referenced_stores>`, so position — never the tag alone — marks the
+ * binary's block; a template or context can print a lookalike anywhere.
  */
-export function respellReferenceRemedies(text: string): string {
-  return text
-    .replace(REFERENCE_LINE, (line: string, label: string, value: string, cr: string) => {
-      const spelled = respellWhole(value)
-      return spelled === undefined ? line : `${label}${spelled}${cr}`
-    })
-    .replace(REFERENCE_FIELD, (line: string, key: string, literal: string, tail: string) => {
-      const spelled = respellWhole(JSON.parse(literal) as string)
-      return spelled === undefined ? line : `${key}${JSON.stringify(spelled)}${tail}`
-    })
+function instructionsBlock(lines: readonly string[]): [number, number] | undefined {
+  let at = lines.indexOf('</task>')
+  if (at < 0) return undefined
+  at += 1
+  if (lines[at] === '') at += 1
+  if (lines[at] === '<project_context>') {
+    at = lines.indexOf('</project_context>', at)
+    if (at < 0) return undefined
+    at += 1
+    if (lines[at] === '') at += 1
+  }
+  if (lines[at] !== '<referenced_stores>') return undefined
+  const end = lines.indexOf('</referenced_stores>', at + 1)
+  return end < 0 ? undefined : [at + 1, end]
+}
+
+/** `instructions`' text answer with its reference block's remedies spelled. */
+function respellInstructionsText(text: string): string {
+  const lines = text.split('\n')
+  const block = instructionsBlock(lines)
+  if (block === undefined) return text
+  let inEntry = false
+  for (let i = block[0]; i < block[1]; i++) {
+    const line = lines[i]!
+    if (ENTRY_HEADER.test(line)) inEntry = true
+    else if (!inEntry || !ENTRY_LINE.test(line)) inEntry = false
+    else lines[i] = respellLabelled(line, ENTRY_LABELS)
+  }
+  return lines.join('\n')
+}
+
+/**
+ * `context`'s text answer with its own remedies spelled: the `    Fetch:` line
+ * under a member of `Referenced stores`, and the `    Fix:`/`  Fix:` lines of
+ * `Not available on this machine`, each section opened by its exact header
+ * line after a blank one and closed by the next blank line. `context` prints
+ * no repo prose; a path or id is indented or in parentheses, never a header.
+ */
+function respellContextText(text: string): string {
+  const lines = text.split('\n')
+  let section: readonly string[] = []
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!
+    const opens = i > 0 && lines[i - 1] === ''
+    if (line === '') section = []
+    else if (opens && line === 'Referenced stores') section = ['    Fetch: ']
+    else if (opens && line === 'Not available on this machine') section = ['    Fix: ', '  Fix: ']
+    else if (section.length > 0) lines[i] = respellLabelled(line, section)
+  }
+  return lines.join('\n')
+}
+
+type JsonPath = readonly (string | '*')[]
+
+// The fields upstream generates for its references: `instructions --json`
+// carries `assembleReferenceIndex`'s entries, `context --json`
+// `assembleWorkingSet`'s members and top-level status.
+const REFERENCE_FIELDS: Record<'context' | 'instructions', readonly JsonPath[]> = {
+  instructions: [
+    ['references', '*', 'fetch'],
+    ['references', '*', 'status', '*', 'fix'],
+  ],
+  context: [
+    ['members', '*', 'fetch'],
+    ['members', '*', 'status', '*', 'fix'],
+    ['status', '*', 'fix'],
+  ],
+}
+
+function pathMatches(path: readonly (string | number)[], want: JsonPath): boolean {
+  return (
+    path.length === want.length &&
+    want.every((seg, i) => (seg === '*' ? typeof path[i] === 'number' : path[i] === seg))
+  )
+}
+
+/**
+ * The offsets of every string value in the JSON document `text` whose path
+ * is one of `want`. `text` is known-valid JSON, so the scan only walks it.
+ */
+function stringSpans(text: string, want: readonly JsonPath[]): [number, number][] {
+  const spans: [number, number][] = []
+  let i = 0
+  const ws = () => {
+    while (/\s/.test(text[i] ?? '')) i++
+  }
+  const str = (): [number, number] => {
+    const start = i++
+    while (text[i] !== '"') i += text[i] === '\\' ? 2 : 1
+    i++
+    return [start, i]
+  }
+  const value = (path: (string | number)[]): void => {
+    ws()
+    const c = text[i]
+    if (c === '{') {
+      i++
+      ws()
+      while (text[i] !== '}') {
+        const [ks, ke] = str()
+        const key = JSON.parse(text.slice(ks, ke)) as string
+        ws()
+        i++ // ':'
+        value([...path, key])
+        ws()
+        if (text[i] === ',') i++
+        ws()
+      }
+      i++
+    } else if (c === '[') {
+      i++
+      ws()
+      for (let n = 0; text[i] !== ']'; n++) {
+        value([...path, n])
+        ws()
+        if (text[i] === ',') i++
+        ws()
+      }
+      i++
+    } else if (c === '"') {
+      const span = str()
+      if (want.some((w) => pathMatches(path, w))) spans.push(span)
+    } else {
+      while (i < text.length && !/[\s,\]}]/.test(text[i]!)) i++
+    }
+  }
+  value([])
+  return spans
+}
+
+/** A `--json` answer with only its reference fields' values spelled. */
+function respellReferenceFields(text: string, answer: 'context' | 'instructions'): string {
+  // Validates first: a successful --json answer is one JSON document, and
+  // anything else is an unexpected answer that must surface, not be relayed.
+  JSON.parse(text)
+  let out = ''
+  let last = 0
+  for (const [start, end] of stringSpans(text, REFERENCE_FIELDS[answer])) {
+    const spelled = respellWhole(JSON.parse(text.slice(start, end)) as string)
+    out +=
+      text.slice(last, start) +
+      (spelled === undefined ? text.slice(start, end) : JSON.stringify(spelled))
+    last = end
+  }
+  return out + text.slice(last)
+}
+
+/**
+ * A successful `context` or `instructions` answer with only the remedies the
+ * binary generates for its references spelled through cospec — each whole
+ * value one allowlisted remedy. Text: the `Fetch:`/`Fix:` lines of the
+ * binary's own reference block (`instructions`) or sections (`context`),
+ * located by structure. `--json`: the parsed document's reference fields,
+ * each value re-encoded in place. Every other byte — schema text,
+ * `config.yaml` context and rules, spec summaries, paths, any other JSON
+ * value, a user line that reads like a reference line — is relayed as the
+ * binary wrote it.
+ */
+export function respellReferenceRemedies(
+  text: string,
+  answer: 'context' | 'instructions',
+  json: boolean,
+): string {
+  if (json) return respellReferenceFields(text, answer)
+  return answer === 'instructions' ? respellInstructionsText(text) : respellContextText(text)
 }

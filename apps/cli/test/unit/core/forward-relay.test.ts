@@ -218,23 +218,36 @@ describe('relayRespelled', () => {
     expect(written).toEqual([{ stream: 'stdout', text: FIX }])
   })
 
-  test("'references' spells a successful answer's reference lines only", () => {
+  test("'context' spells a successful answer's reference section lines only", () => {
     const user = 'Run openspec init to create a root here.\n'
-    expect(
-      relayRespelled(
-        result({ exitCode: 0, stdout: user + FIX, stderr: user }),
-        false,
-        'references',
-      ),
-    ).toBe(0)
+    const stdout = `${user}\nNot available on this machine\n  - st2: x\n${FIX}`
+    expect(relayRespelled(result({ exitCode: 0, stdout, stderr: user }), false, 'context')).toBe(0)
     expect(written).toEqual([
-      { stream: 'stdout', text: user + SPELLED },
+      { stream: 'stdout', text: `${user}\nNot available on this machine\n  - st2: x\n${SPELLED}` },
       { stream: 'stderr', text: user },
     ])
   })
 
+  test("'instructions' leaves a Fix line outside its reference block alone", () => {
+    expect(relayRespelled(result({ exitCode: 0, stdout: FIX }), false, 'instructions')).toBe(0)
+    expect(written).toEqual([{ stream: 'stdout', text: FIX }])
+  })
+
+  test('--json reaches the reference fields of the parsed document', () => {
+    const doc = (fix: string) =>
+      `${JSON.stringify({ context: 'Run: openspec store doctor st2', status: [{ fix }] }, null, 2)}\n`
+    expect(
+      relayRespelled(
+        result({ exitCode: 0, stdout: doc('Run: openspec store doctor st2') }),
+        true,
+        'context',
+      ),
+    ).toBe(0)
+    expect(written).toEqual([{ stream: 'stdout', text: doc('Run: cospec store doctor st2') }])
+  })
+
   test('a failed answer is respelled either way', () => {
-    for (const mode of ['verbatim', 'references'] as const) {
+    for (const mode of ['verbatim', 'context', 'instructions'] as const) {
       written = []
       expect(relayRespelled(result({ exitCode: 1, stderr: FIX }), false, mode)).toBe(1)
       expect(written).toEqual([{ stream: 'stderr', text: SPELLED }])

@@ -51,5 +51,5 @@ export async function run(ctx: CommandContext): Promise<number> {
     command: ['instructions', artifact],
     args: ['--change', changeId],
   })
-  return relayRespelled(result, ctx.flags.json, 'references')
+  return relayRespelled(result, ctx.flags.json, 'instructions')
 }

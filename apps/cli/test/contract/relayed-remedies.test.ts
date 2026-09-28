@@ -512,9 +512,9 @@ describe("a successful context or instructions names cospec in upstream's remedi
       'schema: userschema\n',
     )
     const config = join(dir, 'openspec', 'config.yaml')
-    const template = join(schema, 'templates', 'proposal.md')
+    const proposal = join(schema, 'templates', 'proposal.md')
     if (where === 'template')
-      writeFileSync(template, `${readFileSync(template, 'utf8')}\n${lines}\n`)
+      writeFileSync(proposal, `${readFileSync(proposal, 'utf8')}\n${lines}\n`)
     if (where === 'context') {
       const block = lines
         .split('\n')
@@ -597,41 +597,34 @@ describe("a successful context or instructions names cospec in upstream's remedi
   for (const { name, where, lines } of USER_LINES) {
     for (const json of [false, true]) {
       const argv = ['instructions', 'proposal', '--change', 'done', ...(json ? ['--json'] : [])]
-      // Before the fix, every text row but the rule's (printed as `- Fix: …`)
-      // came back respelled; every --json row already held.
-      const failing = !json && where !== 'rule'
-      ;(failing ? test.failing : test)(
-        `${argv.join(' ')}: ${name} relayed as the binary prints it`,
-        async () => {
-          const coRoot = userLineRoot(where, lines)
-          const upRoot = userLineRoot(where, lines)
-          const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-          const up = await oracle(argv, upRoot, { runtime: 'node' })
-          expect(up.exitCode, detail(up)).toBe(0)
-          expect(co.exitCode, detail(co)).toBe(0)
-          const paths = (text: string, root: string): string =>
-            text
-              .replaceAll(realpathSync(root), '<root>')
-              .replaceAll(root, '<root>')
-              .replaceAll(basename(root), '<name>')
-          const coOut = paths(co.stdout, coRoot)
-          const upOut = paths(up.stdout, upRoot)
-          // The binary prints the user's lines as written.
-          const written = where === 'rule' ? lines.trim() : lines
-          expect(upOut).toContain(json ? JSON.stringify(written).slice(1, -1) : written)
-          if (json) {
-            expect(documentCount(co.stdout), detail(co)).toBe(1)
-            expect(JSON.parse(coOut), detail(co)).toEqual(referenceFieldsViaCospec(upOut))
-            expect(coOut, detail(co)).toBe(
-              `${JSON.stringify(referenceFieldsViaCospec(upOut), null, 2)}\n`,
-            )
-          } else {
-            expect(coOut, detail(co)).toBe(genuineBlockViaCospec(upOut, '<root>/store'))
-          }
-          expect(paths(co.stderr, coRoot)).toBe(paths(up.stderr, upRoot))
-        },
-        30_000,
-      )
+      test(`${argv.join(' ')}: ${name} relayed as the binary prints it`, async () => {
+        const coRoot = userLineRoot(where, lines)
+        const upRoot = userLineRoot(where, lines)
+        const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+        const up = await oracle(argv, upRoot, { runtime: 'node' })
+        expect(up.exitCode, detail(up)).toBe(0)
+        expect(co.exitCode, detail(co)).toBe(0)
+        const paths = (text: string, root: string): string =>
+          text
+            .replaceAll(realpathSync(root), '<root>')
+            .replaceAll(root, '<root>')
+            .replaceAll(basename(root), '<name>')
+        const coOut = paths(co.stdout, coRoot)
+        const upOut = paths(up.stdout, upRoot)
+        // The binary prints the user's lines as written.
+        const written = where === 'rule' ? lines.trim() : lines
+        expect(upOut).toContain(json ? JSON.stringify(written).slice(1, -1) : written)
+        if (json) {
+          expect(documentCount(co.stdout), detail(co)).toBe(1)
+          expect(JSON.parse(coOut), detail(co)).toEqual(referenceFieldsViaCospec(upOut))
+          expect(coOut, detail(co)).toBe(
+            `${JSON.stringify(referenceFieldsViaCospec(upOut), null, 2)}\n`,
+          )
+        } else {
+          expect(coOut, detail(co)).toBe(genuineBlockViaCospec(upOut, '<root>/store'))
+        }
+        expect(paths(co.stderr, coRoot)).toBe(paths(up.stderr, upRoot))
+      }, 30_000)
     }
   }
 

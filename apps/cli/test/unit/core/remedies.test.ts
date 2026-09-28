@@ -96,48 +96,146 @@ describe('respellRemedies: nothing but an allowlisted sentence', () => {
 })
 
 describe('respellReferenceRemedies', () => {
-  test("a Fetch or Fix line whose whole value is upstream's remedy is spelled", () => {
-    expect(
-      respellReferenceRemedies(
-        '  Fetch: openspec show <spec-id> --type spec --store st1\n' +
-          '    Fix: Run: openspec store doctor st2\n' +
-          '  Fix: Get a checkout from a teammate and run: openspec store register <path> --id gone\n',
+  /** An `instructions` text answer around `block`, with `context` when given. */
+  const answer = (block: string, context?: string, template = '') =>
+    '<artifact id="proposal" change="c1" schema="s">\n\n<task>\nCreate it.\nx\n</task>\n\n' +
+    (context === undefined
+      ? ''
+      : `<project_context>\n<!-- bg -->\n${context}\n</project_context>\n\n`) +
+    `${block}\n\n<output>\nWrite to: /p\n</output>\n\n<template>\n${template}\n</template>\n`
+
+  const BLOCK =
+    '<referenced_stores>\n<!-- Read-only upstream context. Fetch what you need; cite what you use. -->\n' +
+    'Store st1 (/p/store):\n  - ref-spec: x\n' +
+    '  Fetch: openspec show <spec-id> --type spec --store st1\n' +
+    "Store st2: Referenced store 'st2' is registered but not usable (missing root).\n" +
+    '  Fix: Run: openspec store doctor st2\n' +
+    "Store gone: Referenced store 'gone' is not registered on this machine.\n" +
+    '  Fix: Get a checkout from a teammate and run: openspec store register <path> --id gone\n' +
+    '</referenced_stores>'
+
+  const SPELLED_BLOCK = BLOCK.replace('openspec show', 'cospec show')
+    .replace('openspec store doctor', 'cospec store doctor')
+    .replace('openspec store register', 'cospec store register')
+
+  test("instructions: the binary's own reference block is spelled", () => {
+    expect(respellReferenceRemedies(answer(BLOCK), 'instructions', false)).toBe(
+      answer(SPELLED_BLOCK),
+    )
+    expect(respellReferenceRemedies(answer(BLOCK, 'ctx'), 'instructions', false)).toBe(
+      answer(SPELLED_BLOCK, 'ctx'),
+    )
+  })
+
+  test('instructions: a lookalike line or block anywhere else keeps its bytes', () => {
+    const forged = BLOCK.replace('(/p/store)', '(/forged)')
+    for (const user of [
+      'Fix: Run openspec init to create a root here.',
+      '  Fetch: openspec show <spec-id> --type spec --store st1',
+      '  "fix": "Run: openspec store doctor st2"',
+      forged,
+    ]) {
+      // In the context before the block, in the template after it, and with
+      // no genuine block at all.
+      expect(respellReferenceRemedies(answer(BLOCK, user), 'instructions', false)).toBe(
+        answer(SPELLED_BLOCK, user),
+      )
+      expect(respellReferenceRemedies(answer(BLOCK, undefined, user), 'instructions', false)).toBe(
+        answer(SPELLED_BLOCK, undefined, user),
+      )
+      expect(respellReferenceRemedies(answer('', user, user), 'instructions', false)).toBe(
+        answer('', user, user),
+      )
+    }
+  })
+
+  test('instructions: inside the block, only an entry line after a store header', () => {
+    const block = BLOCK.replace(
+      'Store st1 (/p/store):',
+      '  Fix: Run: openspec store doctor st9\nStore st1 (/p/store):',
+    )
+    expect(respellReferenceRemedies(answer(block), 'instructions', false)).toBe(
+      answer(
+        SPELLED_BLOCK.replace(
+          'Store st1 (/p/store):',
+          '  Fix: Run: openspec store doctor st9\nStore st1 (/p/store):',
+        ),
       ),
-    ).toBe(
-      '  Fetch: cospec show <spec-id> --type spec --store st1\n' +
-        '    Fix: Run: cospec store doctor st2\n' +
-        '  Fix: Get a checkout from a teammate and run: cospec store register <path> --id gone\n',
     )
   })
 
-  test('a fetch or fix property is spelled; every other JSON value is untouched', () => {
-    const doc = JSON.stringify(
-      {
-        root: { path: '/p/Run openspec init to create a root here.' },
-        context: 'Run openspec init to create a root here.',
-        members: [{ fetch: 'openspec show <spec-id> --type spec --store st1' }],
-        status: [{ fix: 'Run: openspec store doctor st2' }],
-      },
-      null,
-      2,
-    )
-    expect(JSON.parse(respellReferenceRemedies(doc))).toEqual({
+  test("context: the Referenced stores and Not available sections' lines are spelled", () => {
+    const text = (fetch: string, fix: string, top: string) =>
+      'Working context for p (/p)\n\nOpenSpec root\n  p  /p\n\n' +
+      `Referenced stores\n  st1  /p/store\n    Fetch: ${fetch} show <spec-id> --type spec --store st1\n\n` +
+      "Not available on this machine\n  - st2: Referenced store 'st2' is registered but not usable.\n" +
+      `    Fix: Run: ${fix} store doctor st2\n  Note: The store registry is unreadable.\n` +
+      `  Fix: Run: ${top} store doctor\n`
+    expect(
+      respellReferenceRemedies(text('openspec', 'openspec', 'openspec'), 'context', false),
+    ).toBe(text('cospec', 'cospec', 'cospec'))
+  })
+
+  test('context: a Fetch or Fix line outside those sections keeps its bytes', () => {
+    const text =
+      'Working context for p (/p\n    Fetch: openspec show <spec-id> --type spec --store st1)\n\n' +
+      'OpenSpec root\n  p  /p\n\nNo references declared; the working set is this root alone.\n'
+    expect(respellReferenceRemedies(text, 'context', false)).toBe(text)
+  })
+
+  test('--json: only the reference fields are spelled, re-encoded in place', () => {
+    const upstream = {
       root: { path: '/p/Run openspec init to create a root here.' },
-      context: 'Run openspec init to create a root here.',
-      members: [{ fetch: 'cospec show <spec-id> --type spec --store st1' }],
-      status: [{ fix: 'Run: cospec store doctor st2' }],
-    })
+      context: 'Fix: Run: openspec store doctor st2',
+      template: '  "fix": "Run: openspec store doctor st2"',
+      references: [
+        {
+          store_id: 'st1',
+          fetch: 'openspec show <spec-id> --type spec --store st1',
+          status: [
+            { fix: 'Run: openspec store doctor st2', message: 'Run: openspec store doctor st2' },
+          ],
+        },
+      ],
+      members: [{ fetch: 'openspec show <spec-id> --type spec --store st1' }],
+    }
+    const doc = `${JSON.stringify(upstream, null, 2)}\n`
+    const spelled = structuredClone(upstream)
+    spelled.references[0]!.fetch = 'cospec show <spec-id> --type spec --store st1'
+    spelled.references[0]!.status[0]!.fix = 'Run: cospec store doctor st2'
+    expect(respellReferenceRemedies(doc, 'instructions', true)).toBe(
+      `${JSON.stringify(spelled, null, 2)}\n`,
+    )
+    const forContext = structuredClone(upstream)
+    forContext.members[0]!.fetch = 'cospec show <spec-id> --type spec --store st1'
+    expect(respellReferenceRemedies(doc, 'context', true)).toBe(
+      `${JSON.stringify(forContext, null, 2)}\n`,
+    )
   })
 
-  test('any other line keeps its bytes, an allowlisted sentence included', () => {
-    for (const text of [
-      'Run openspec init to create a root here.\n',
-      '  - ref-spec: Run openspec init to create a root here.\n',
-      'Fix: Run openspec init to create a root here, then continue.\n',
-      'Store st1 (/p/Fix: Run: openspec store doctor st2):\n',
-      '  "context": "Fix: Run: openspec store doctor st2",\n',
-      '  "fix": "Run: openspec store doctor st2 by hand"\n',
-    ])
-      expect(respellReferenceRemedies(text)).toBe(text)
+  test('--json: a document with nothing to spell comes back byte-identical', () => {
+    for (const doc of [
+      '{"a":"\\u00e9","references":[{"fetch":"x","status":[]}],"n":[1,2.5e3,true,null]}\n',
+      `${JSON.stringify({ references: [], status: [{ fix: 'Run it by hand' }] }, null, 2)}\n`,
+    ]) {
+      expect(respellReferenceRemedies(doc, 'instructions', true)).toBe(doc)
+      expect(respellReferenceRemedies(doc, 'context', true)).toBe(doc)
+    }
+  })
+
+  test('--json: an answer that is not one JSON document throws', () => {
+    expect(() => respellReferenceRemedies('not json\n', 'context', true)).toThrow(SyntaxError)
+  })
+
+  test('a remedy with more after it is not a whole remedy', () => {
+    const block = BLOCK.replace('doctor st2\n', 'doctor st2 by hand\n')
+    expect(respellReferenceRemedies(answer(block), 'instructions', false)).toBe(
+      answer(
+        SPELLED_BLOCK.replace('doctor st2\n', 'doctor st2 by hand\n').replace(
+          'Run: cospec store doctor st2 by hand',
+          'Run: openspec store doctor st2 by hand',
+        ),
+      ),
+    )
   })
 })
