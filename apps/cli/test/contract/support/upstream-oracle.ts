@@ -90,15 +90,21 @@ export function oracleEnv(root: string): Record<string, string> {
   }
 }
 
-/** Which runtime executes the pinned binary's `bin/openspec.js`. */
+/** Which runtime executes the pinned binary's `bin/openspec.js`, and where. */
 export interface OracleOptions {
   runtime?: 'bun' | 'node'
+  /**
+   * The directory the binary runs in, when it is not `root` itself (a
+   * subdirectory, or a directory elsewhere in the same sandbox). The
+   * environment is still `oracleEnv(root)`.
+   */
+  cwd?: string
 }
 
 /**
  * Run the pinned binary (resolved by package path, never `$PATH`) with `argv`
- * in `root`, under `oracleEnv(root)`. Under Node every token arrives verbatim;
- * under Bun (the default) a leading `--` is dropped.
+ * in `root` (or `opts.cwd`), under `oracleEnv(root)`. Under Node every token
+ * arrives verbatim; under Bun (the default) a leading `--` is dropped.
  */
 export async function oracle(
   argv: string[],
@@ -109,7 +115,7 @@ export async function oracle(
   if (runtime === 'node' && Bun.which('node') === null)
     throw new Error('oracle: `node` is not on PATH, so the binary cannot run under Node')
   const proc = Bun.spawn([runtime, openspecBinPath(), ...argv], {
-    cwd: root,
+    cwd: opts.cwd ?? root,
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
@@ -128,8 +134,12 @@ export async function oracle(
  * Throws when stdout is not exactly one JSON document, so a caller never
  * compares against a partial or absent payload.
  */
-export async function oracleJson(argv: string[], root: string): Promise<OracleJsonRun> {
-  const run = await oracle(argv, root)
+export async function oracleJson(
+  argv: string[],
+  root: string,
+  opts: OracleOptions = {},
+): Promise<OracleJsonRun> {
+  const run = await oracle(argv, root, opts)
   let json: unknown
   try {
     json = JSON.parse(run.stdout)

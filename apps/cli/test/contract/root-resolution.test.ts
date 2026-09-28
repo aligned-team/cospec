@@ -36,20 +36,21 @@ import {
   RootSelectionError,
   type RootDiagnostic,
 } from '../../src/core/root.ts'
-import { cleanupAll, cospec, hashTree, openspec, writeFiles } from '../fixtures/support.ts'
+import { cleanupAll, cospec, hashTree, writeFiles } from '../fixtures/support.ts'
 import {
   captureStderr,
   makeSandbox,
-  oracle,
   type OracleDiagnostic,
   type OracleRoot,
   type OracleRun,
+  rootOracle,
   type Sandbox,
   setDefaultStore,
   setupStore,
   storePath,
   withSandboxEnv,
 } from './support/root-sandbox.ts'
+import { oracle } from './support/upstream-oracle.ts'
 
 afterAll(cleanupAll)
 
@@ -127,7 +128,7 @@ function row(spec: RowSpec): void {
       sb = await makeSandbox(spec.stores)
       fx = await spec.setup(sb)
       const storeArgs = fx.store === undefined ? [] : ['--store', fx.store]
-      o = await oracle(sb, fx.cwd, [spec.oracleCommand ?? 'list', '--json', ...storeArgs])
+      o = await rootOracle(sb, fx.cwd, [spec.oracleCommand ?? 'list', '--json', ...storeArgs])
     })
 
     test('oracle: the pinned binary reports the ledger outcome', async () => {
@@ -490,7 +491,7 @@ describe('root-resolution matrix (pinned binary as oracle)', () => {
     oracleCommand: 'status',
     expected: (_sb, fx) => ({ root: { path: canonical(repoOf(fx)), source: 'implicit' } }),
     oracleExtra: async (sb, fx) => {
-      const list = await oracle(sb, fx.cwd, ['list', '--json'])
+      const list = await rootOracle(sb, fx.cwd, ['list', '--json'])
       expect(list.exitCode).toBe(1)
       expect(list.diagnostic?.code).toBe('no_openspec_root')
     },
@@ -646,7 +647,7 @@ async function showSandbox(): Promise<Sandbox> {
   const sb = await makeSandbox()
   const cwd = bare(sb)
   for (const id of ['alpha', 'beta']) {
-    const res = await openspec(['new', 'change', 'demo-change', '--store', id], cwd, sb.env)
+    const res = await oracle(['new', 'change', 'demo-change', '--store', id], sb.dir, { cwd })
     if (res.exitCode !== 0)
       throw new Error(`openspec new change --store ${id} exited ${res.exitCode}: ${res.stderr}`)
     writeFiles(storePath(sb, id), { 'openspec/changes/demo-change/proposal.md': DEMO_PROPOSAL })
@@ -675,7 +676,7 @@ function showRow(spec: ShowRowSpec): void {
     beforeAll(async () => {
       sb = await showSandbox()
       fx = await spec.setup(sb)
-      o = await oracle(sb, fx.cwd, args())
+      o = await rootOracle(sb, fx.cwd, args())
     })
 
     test('oracle: the pinned binary reports the ledger root', () => {
@@ -985,7 +986,7 @@ describe('native commands operate on the resolved root (ledger 2.1-2.4, 2.7)', (
     })
 
     test('cospec list --store alpha prints the oracle banner exactly once', async () => {
-      const o = await openspec(['list', '--store', 'alpha'], cwd, sb.env)
+      const o = await oracle(['list', '--store', 'alpha'], sb.dir, { cwd })
       expect(o.exitCode).toBe(0)
       expect(bannerLines(o.stderr)).toEqual([banner('alpha')])
       const res = await cospec(['list', '--store', 'alpha'], { cwd, env: sb.env })
@@ -1124,7 +1125,7 @@ describe('a resolver hard-error under --json is one status document (ledger 5.4)
     test(`${c.id}: cospec ${c.argv.join(' ')} prints the oracle's diagnostic as one document`, async () => {
       const sb = await makeSandbox(c.stores)
       const cwd = c.setup(sb)
-      const o = await oracle(sb, cwd, c.argv)
+      const o = await rootOracle(sb, cwd, c.argv)
       expect(o.exitCode).toBe(1)
       expect(o.diagnostic?.code).toBe(c.code)
       const res = await cospec(c.argv, { cwd, env: sb.env })
@@ -1163,7 +1164,7 @@ describe('an empty --store= fails with invalid_store_id (ledger 5.5)', () => {
   test('--json: status[0] deep-equals the oracle', async () => {
     const sb = await makeSandbox()
     const cwd = bare(sb)
-    const o = await oracle(sb, cwd, ['list', '--json', '--store='])
+    const o = await rootOracle(sb, cwd, ['list', '--json', '--store='])
     expect(o.exitCode).toBe(1)
     expect(o.diagnostic).toEqual({
       severity: 'error',
@@ -1182,7 +1183,7 @@ describe('an empty --store= fails with invalid_store_id (ledger 5.5)', () => {
   test('human mode: the oracle text after cospec:', async () => {
     const sb = await makeSandbox()
     const cwd = bare(sb)
-    const up = await openspec(['list', '--store='], cwd, sb.env)
+    const up = await oracle(['list', '--store='], sb.dir, { cwd })
     expect(up.exitCode).toBe(1)
     const res = await cospec(['list', '--store='], { cwd, env: sb.env })
     expect(res.exitCode).toBe(1)

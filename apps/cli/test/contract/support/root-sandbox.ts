@@ -1,22 +1,25 @@
-// Sandbox + oracle helpers for the root-resolution differential matrix
-// (`../root-resolution.test.ts`). Interim, local to that suite: the shared
-// `upstream-oracle.ts` arrives with `unknown-option-contract`, and task 7.3 of
-// `root-resolution-parity` switches the oracle calls over to it after the rebase.
-//
-// Every sandbox owns its `HOME`, `XDG_DATA_HOME` (the store registry) and
-// `XDG_CONFIG_HOME` (the global config holding `defaultStore`), so neither the
-// pinned binary nor the in-process resolver ever sees the real machine's stores.
-// Stores are registered and `defaultStore` is set through the pinned binary
-// itself, never by writing its registry or config files by hand.
+// Sandbox builder for the root-resolution differential matrix
+// (`../root-resolution.test.ts`), on top of the shared oracle
+// (`upstream-oracle.ts`): every sandbox is an `oracleEnv` root, so the pinned
+// binary, cospec's CLI and the in-process resolver all run under the one
+// environment `oracleEnv(dir)` returns — its own `HOME`, `XDG_DATA_HOME` (the
+// store registry) and `XDG_CONFIG_HOME` (the global config holding
+// `defaultStore`), so none of them ever sees the real machine's stores. What
+// stays here is what the shared oracle has no equivalent for: stores
+// registered and `defaultStore` set through the pinned binary itself (never by
+// writing its registry or config files by hand), a run from any directory of
+// the sandbox read as the selected root or its diagnostic, and the in-process
+// environment and stderr capture.
 
-import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { mkTempRepo, openspec, type SpawnResult } from '../../fixtures/support.ts'
+import { mkTempRepo } from '../../fixtures/support.ts'
+import { oracle, oracleEnv, oracleJson, type OracleRun as UpstreamRun } from './upstream-oracle.ts'
 
 export interface Sandbox {
   /** Sandbox directory as `tmpdir()` spells it (not canonicalized). */
   dir: string
+  /** `$HOME` under the sandbox (`oracleEnv(dir).HOME`). */
   home: string
   env: Record<string, string>
 }
@@ -45,7 +48,7 @@ export interface OracleRun {
   diagnostic: OracleDiagnostic | undefined
 }
 
-function assertOk(label: string, res: SpawnResult): void {
+function assertOk(label: string, res: UpstreamRun): void {
   if (res.exitCode !== 0)
     throw new Error(`${label} exited ${res.exitCode}\nstdout: ${res.stdout}\nstderr: ${res.stderr}`)
 }
@@ -61,10 +64,9 @@ export async function setupStore(
   id: string,
   path = storePath(sb, id),
 ): Promise<string> {
-  const res = await openspec(
+  const res = await oracle(
     ['store', 'setup', id, '--path', path, '--no-init-git', '--json'],
     sb.dir,
-    sb.env,
   )
   assertOk(`openspec store setup ${id}`, res)
   return path
@@ -74,7 +76,7 @@ export async function setupStore(
 export async function setDefaultStore(sb: Sandbox, id: string): Promise<void> {
   assertOk(
     `openspec config set defaultStore ${id}`,
-    await openspec(['config', 'set', 'defaultStore', id], sb.dir, sb.env),
+    await oracle(['config', 'set', 'defaultStore', id], sb.dir),
   )
 }
 
@@ -84,45 +86,25 @@ export async function setDefaultStore(sb: Sandbox, id: string): Promise<void> {
  */
 export async function makeSandbox(stores: readonly string[] = ['alpha', 'beta']): Promise<Sandbox> {
   const dir = mkTempRepo()
-  const home = join(dir, 'home')
-  const data = join(dir, 'xdg-data')
-  const config = join(dir, 'xdg-config')
-  for (const d of [home, data, config]) mkdirSync(d, { recursive: true })
-  const sb: Sandbox = {
-    dir,
-    home,
-    env: {
-      HOME: home,
-      XDG_DATA_HOME: data,
-      XDG_CONFIG_HOME: config,
-      OPENSPEC_TELEMETRY: '0',
-    },
-  }
+  const env = oracleEnv(dir)
+  const sb: Sandbox = { dir, home: env['HOME']!, env }
   for (const id of stores) await setupStore(sb, id)
   return sb
 }
 
 /**
- * Run the pinned binary in `cwd` under the sandbox env and parse its single JSON
- * document. `args` must carry `--json`.
+ * Run the pinned binary in `cwd` (anywhere in the sandbox) under the sandbox
+ * env and read its single JSON document as the selected root, or the
+ * diagnostic it failed with. `args` must carry `--json`.
  */
-export async function oracle(sb: Sandbox, cwd: string, args: string[]): Promise<OracleRun> {
-  const res = await openspec(args, cwd, sb.env)
-  let body: { root?: OracleRoot | null; status?: OracleDiagnostic[] }
-  try {
-    body = JSON.parse(res.stdout) as typeof body
-  } catch {
-    throw new Error(
-      `openspec ${args.join(' ')} did not emit one JSON document (exit ${res.exitCode})\n` +
-        `stdout: ${res.stdout}\nstderr: ${res.stderr}`,
-    )
-  }
-  const failed = res.exitCode !== 0
+export async function rootOracle(sb: Sandbox, cwd: string, args: string[]): Promise<OracleRun> {
+  const run = await oracleJson(args, sb.dir, { cwd })
+  const body = run.json as { root?: OracleRoot | null; status?: OracleDiagnostic[] }
   return {
-    exitCode: res.exitCode,
-    stderr: res.stderr,
+    exitCode: run.exitCode,
+    stderr: run.stderr,
     root: body.root ?? null,
-    diagnostic: failed ? body.status?.[0] : undefined,
+    diagnostic: run.exitCode !== 0 ? body.status?.[0] : undefined,
   }
 }
 
