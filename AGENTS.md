@@ -241,7 +241,11 @@ the PR otherwise.
 
 **Tests** — every command change lands with a contract or integration test.
 Contract tests run the real pinned binary; a false archive PASS is a release
-blocker.
+blocker. The oracle (`test/contract/support/upstream-oracle.ts`) runs it under
+Bun with cospec's wrapped env, as the product does; pass `{ runtime: 'node' }`
+(the tests-only `mise.toml` node pin) only for an argv that starts with `--`.
+Assert errno failures through `test/fixtures/errno.ts` (code, syscall, path),
+never the OS-specific sentence.
 
 **Docs never drift** — zero drift between the published docs site and released
 behavior is non-negotiable. Any change that alters user-facing behavior —

@@ -66,6 +66,17 @@ cospec spawns OpenSpec; it never imports it.
   runtime minimum below (`instructions archive` needs `>=1.7.0`,
   `validate --archived` needs `>=1.9.0`) is enforced as its own runtime check,
   not by narrowing what version cospec will wrap at all.
+- **The contract oracle runs the binary as cospec does.** Differential contract
+  rows ask the pinned binary for the expected answer at test time
+  (`test/contract/support/upstream-oracle.ts`), and it spawns it the way
+  `core/openspec.ts` does: the running executable (Bun) on the resolved bin,
+  under `buildWrappedSpawnEnv`, so both sides of a differential run in the
+  runtime cospec's wrapped calls use. The one exception is `{ runtime: 'node' }`
+  for an argv whose first token is `--`, which Bun drops after the script path.
+  That Node is the `mise.toml` `node` pin, for tests and CI only — cospec itself
+  never runs Node. Errno failures are compared by errno code, syscall (`statx`
+  read as `stat`) and path (`test/fixtures/errno.ts`), never by the sentence,
+  which varies by runtime and kernel.
 
 ## The command table and the reachability test
 
