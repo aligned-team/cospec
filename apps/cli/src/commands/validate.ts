@@ -394,13 +394,15 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
       /^header "### (.+)" in .+ is missing a requirement name and is ignored by validation$/,
   },
   // A `### Scenario:` the binary skips as a header is the scenario cospec
-  // reports one level too shallow. Path-keyed (`()`): cospec raises one ERROR
-  // per such line, so a second one in the file is still reported.
+  // reports one level too shallow. Keyed on the header text both messages
+  // quote, not the file alone: the binary also reports a `### Scenario:`
+  // written inside an HTML comment, which cospec's advisory reader masks, and
+  // a path-only key let a real one elsewhere in the file suppress it.
   {
     rule: 'deltas/scenario-depth',
     delegated:
-      /^Header "### Scenario:.*" in .+ is not a "### Requirement:" header and is ignored by validation\.()/,
-    nativeKey: /^scenario heading uses 3 hashtags; must be `#### Scenario:`()$/,
+      /^Header "### (Scenario:.*)" in .+ is not a "### Requirement:" header and is ignored by validation\./,
+    nativeKey: /^scenario heading "### (Scenario:.*)" uses 3 hashtags; must be `#### Scenario:`$/,
   },
 
   // 1.13.1 cross-section conflicts vs archive/added-exists. Each native key

@@ -1387,41 +1387,38 @@ describe('10. the archive family reads what the binary archive reads', () => {
     expect(shape[0]?.message).toContain('"Widget polishing <!-- restated -->"')
   })
 
-  test.failing(
-    '10.5 a commented ### Scenario: keeps its delegated INFO beside a real one',
-    async () => {
-      const build = (root: string): void =>
-        buildFeat(root, 'two-shallow', { 'widgets/spec.md': SHALLOW_AND_COMMENTED_SCENARIO })
-      const root = mkTempRepo({ git: true })
-      build(root)
-      const archived = await binaryArchive(build, 'two-shallow')
-      expect(archived.exitCode).not.toBe(0)
-      expect(archived.moved).toBe(false)
-      const delegated = binaryFind(await binaryIssues(root, 'two-shallow'), '"### Scenario:')
-      expect(delegated).toHaveLength(2)
-      const at = (header: string): BinaryIssue => {
-        const found = delegated.filter(
-          (d) => d.line === lineOf(SHALLOW_AND_COMMENTED_SCENARIO, header),
-        )
-        expect(found).toHaveLength(1)
-        return found[0]!
-      }
-      const commented = at('### Scenario: Commented')
-      const shallow = at('### Scenario: Shallow')
-      expect(commented.level).toBe('INFO')
-      expect(shallow.level).toBe('INFO')
+  test('10.5 a commented ### Scenario: keeps its delegated INFO beside a real one', async () => {
+    const build = (root: string): void =>
+      buildFeat(root, 'two-shallow', { 'widgets/spec.md': SHALLOW_AND_COMMENTED_SCENARIO })
+    const root = mkTempRepo({ git: true })
+    build(root)
+    const archived = await binaryArchive(build, 'two-shallow')
+    expect(archived.exitCode).not.toBe(0)
+    expect(archived.moved).toBe(false)
+    const delegated = binaryFind(await binaryIssues(root, 'two-shallow'), '"### Scenario:')
+    expect(delegated).toHaveLength(2)
+    const at = (header: string): BinaryIssue => {
+      const found = delegated.filter(
+        (d) => d.line === lineOf(SHALLOW_AND_COMMENTED_SCENARIO, header),
+      )
+      expect(found).toHaveLength(1)
+      return found[0]!
+    }
+    const commented = at('### Scenario: Commented')
+    const shallow = at('### Scenario: Shallow')
+    expect(commented.level).toBe('INFO')
+    expect(shallow.level).toBe('INFO')
 
-      const { report } = await cospecValidate(root, 'two-shallow')
-      const depth = byRule(report, 'deltas/scenario-depth')
-      expect(linesOf(depth)).toEqual([
-        lineOf(SHALLOW_AND_COMMENTED_SCENARIO, '### Scenario: Shallow'),
-      ])
-      expect(messages(report)).not.toContain(shallow.message)
-      expect(messages(report)).toContain(commented.message)
-      // The in-block `### Scenario:` is scenario-depth's alone.
-      expect(byRule(report, 'archive/split-requirement')).toEqual([])
-    },
-  )
+    const { report } = await cospecValidate(root, 'two-shallow')
+    const depth = byRule(report, 'deltas/scenario-depth')
+    expect(linesOf(depth)).toEqual([
+      lineOf(SHALLOW_AND_COMMENTED_SCENARIO, '### Scenario: Shallow'),
+    ])
+    expect(messages(report)).not.toContain(shallow.message)
+    expect(messages(report)).toContain(commented.message)
+    // The in-block `### Scenario:` is scenario-depth's alone.
+    expect(byRule(report, 'archive/split-requirement')).toEqual([])
+  })
 })
 
 // --- 11. a header that splits a requirement is refused at pre-flight ----------------------

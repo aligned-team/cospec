@@ -116,7 +116,9 @@ export function deltasRules(change: LoadedChange): Issue[] {
         rule: 'deltas/scenario-depth',
         path: file.path,
         line: s.line,
-        message: 'scenario heading uses 3 hashtags; must be `#### Scenario:`',
+        // Quotes the header so the binary's skipped-header INFO for the same
+        // line pairs with this finding by its text, not by the file alone.
+        message: `scenario heading "### ${s.header}" uses 3 hashtags; must be \`#### Scenario:\``,
       })
     }
 

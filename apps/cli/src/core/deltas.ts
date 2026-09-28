@@ -192,7 +192,12 @@ export interface ParsedDelta {
   ops: DeltaOp[]
   /** section headers present but yielding zero entries. */
   emptySections: DeltaOperation[]
-  scenarioDepthIssues: { line: number }[]
+  /**
+   * `### Scenario:` lines, one level too shallow. `header` is the text after
+   * `### ` as written and trimmed — the text openspec quotes when it reports
+   * the same line as a skipped header.
+   */
+  scenarioDepthIssues: { line: number; header: string }[]
   /**
    * FROM:/TO: lines that formed no pair, in line order. A half-built RENAMED
    * op is never pushed to `ops` for these — see the RENAMED arm of
@@ -479,7 +484,7 @@ export function parseDeltaSpec(
 ): ParsedDelta {
   const { lines, source, fenced } = scanMarkdown(text, view)
   const ops: DeltaOp[] = []
-  const scenarioDepthIssues: { line: number }[] = []
+  const scenarioDepthIssues: ParsedDelta['scenarioDepthIssues'] = []
   const unpairedRenames: UnpairedRename[] = []
   const orphanedRequirements: OrphanedRequirement[] = []
   const skippedHeaders: SkippedHeader[] = []
@@ -556,7 +561,11 @@ export function parseDeltaSpec(
       continue
     }
 
-    if (SCENARIO_DEPTH_RE.test(raw)) scenarioDepthIssues.push({ line: lineNo })
+    if (SCENARIO_DEPTH_RE.test(raw))
+      scenarioDepthIssues.push({
+        line: lineNo,
+        header: ((source[i] ?? '').match(LEVEL3_HEADER_RE)?.[1] ?? raw.slice(3)).trim(),
+      })
 
     const section = raw.match(SECTION_RE)
     if (section !== null) {

@@ -389,7 +389,7 @@ describe('parseDeltaSpec skippedHeaders', () => {
     expect(p.ops[0]?.raw.endsWith('- **WHEN** a caller asks')).toBe(true)
     expect(p.ops[2]?.raw).toContain('### Between notes')
     expect(p.emptySections).toEqual([])
-    expect(p.scenarioDepthIssues).toEqual([{ line: 26 }])
+    expect(p.scenarioDepthIssues).toEqual([{ line: 26, header: 'Scenario: Shallow' }])
     expect(p.orphanedRequirements).toEqual([])
     expect(p.unpairedRenames).toEqual([])
   })
@@ -571,5 +571,21 @@ describe('deltas/requirement-shape names the header as written', () => {
       'x',
     )
     expect(p.ops.map((o) => [o.name, o.verbatimName])).toEqual([['Foo', 'Foo <!-- note -->']])
+  })
+})
+
+describe('deltas/scenario-depth quotes its header', () => {
+  test('the message names the header as written, for the dedupe key', () => {
+    const text =
+      '## ADDED Requirements\n\n### Requirement: X\n\nThe system SHALL x.\n\n###   Scenario: Shallow <!-- c -->\n'
+    const found = deltasRules(delta('specs/x/spec.md', 'x', text)).filter(
+      (i) => i.rule === 'deltas/scenario-depth',
+    )
+    expect(found.map((i) => [i.line, i.message])).toEqual([
+      [
+        7,
+        'scenario heading "### Scenario: Shallow <!-- c -->" uses 3 hashtags; must be `#### Scenario:`',
+      ],
+    ])
   })
 })
