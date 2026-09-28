@@ -1751,9 +1751,12 @@ function pinnedStoreErrorCodes(): Set<string> {
   for (const file of readdirSync(dir).filter((f) => f.endsWith('.js'))) {
     const text = readFileSync(join(dir, file), 'utf8')
     // `new StoreError(<message>, '<code>'` — the message is a template literal,
-    // a quoted string, or an expression with no top-level comma.
+    // a quoted string, or an expression with no top-level comma. The template
+    // branch keeps its alternatives mutually exclusive on `$` (a bare `[^`\\]`
+    // catch-all overlapping `\$\{[^}]*\}` is exponential-backtracking-prone on
+    // adversarial `${{}}`-repeated input — CodeQL js/redos).
     for (const m of text.matchAll(
-      /new StoreError\((?:`(?:[^`\\]|\\.|\$\{[^}]*\})*`|'(?:[^'\\]|\\.)*'|[^,`']*?),\s*('([a-z_]+)'|[\w.]+)/g,
+      /new StoreError\((?:`(?:[^`\\$]|\\.|\$(?!\{)|\$\{[^}]*\})*`|'(?:[^'\\]|\\.)*'|[^,`']*?),\s*('([a-z_]+)'|[\w.]+)/g,
     ))
       if (m[2] !== undefined) codes.add(m[2])
     // Codes passed by variable (`diagnostic.code`, `data.code`) are declared as `code: '<code>'`.
