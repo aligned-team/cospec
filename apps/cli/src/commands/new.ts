@@ -24,7 +24,7 @@ import {
   resolveChange,
   resolveSchema,
 } from '../core/change.ts'
-import { flagValue } from '../core/command-table.ts'
+import { COMMAND_TABLE, flagValue } from '../core/command-table.ts'
 import { respellRemedies } from '../core/forward-relay.ts'
 import type { OpenspecResult } from '../core/openspec.ts'
 import { OpenspecCallError, runOpenspec, threadedArgv } from '../core/openspec.ts'
@@ -141,12 +141,38 @@ export function cospecSchemaInstalled(
 // oxlint-disable-next-line no-control-regex -- matching the ESC that opens an SGR sequence
 const ANSI_SGR = /\x1b\[[0-9;]*m/g
 
+/** `openspec` naming one of cospec's commands, never part of a word or a path. */
+const OPENSPEC_COMMAND = new RegExp(
+  `(?<![\\w./-])openspec (?=(?:${COMMAND_TABLE.map((row) => row.name).join('|')})(?![\\w-]))`,
+  'g',
+)
+
+/**
+ * Where the binary's schema load error starts quoting the user's own schema
+ * (`resolver.js`: `Failed to parse schema at '<path>': <yaml error>`, or
+ * `Invalid schema at '<path>': <validation error>`): its path and excerpt.
+ */
+const SCHEMA_PAYLOAD = /(?:Failed to parse|Invalid) schema at '/
+
+/**
+ * `reason` with the remedies it names spelled through cospec: the
+ * `RELAYED_REMEDIES` spans, and `openspec <command>` wherever `<command>` is
+ * one cospec has. Nothing from a schema load error's payload on is touched —
+ * a path or a quoted excerpt of the user's schema is theirs, whatever it says.
+ */
+function respellReason(reason: string): string {
+  const at = reason.search(SCHEMA_PAYLOAD)
+  const head = at === -1 ? reason : reason.slice(0, at)
+  const payload = at === -1 ? '' : reason.slice(at)
+  return respellRemedies(head).replace(OPENSPEC_COMMAND, 'cospec ') + payload
+}
+
 /**
  * Why a failed wrapped `new change --json` refused: the message of its
  * document's first status entry (every failure of its own — an unparseable or
  * unknown schema, an existing change, an invalid name — answers with one),
- * else its stderr without color codes or its `✖ Error:` prefix. Any
- * `openspec …` command it names is spelled through cospec. Undefined when the
+ * else its stderr without color codes or its `✖ Error:` prefix, with its
+ * remedies spelled through cospec (`respellReason`). Undefined when the
  * binary said nothing.
  */
 export function wrappedNewReason(result: OpenspecResult): string | undefined {
@@ -164,11 +190,7 @@ export function wrappedNewReason(result: OpenspecResult): string | undefined {
     reason = marker === -1 ? stderr : stderr.slice(marker + '✖ Error:'.length)
   }
   reason = reason.trim()
-  if (reason.length === 0) return undefined
-  // Every command this reason can name has a cospec spelling, so the generic
-  // rule is safe here; it stays out of `RELAYED_REMEDIES`, which rewrites only
-  // named remedies because it runs over whole relayed screens.
-  return respellRemedies(reason).replace(/(?<![\w./-])openspec (?=[a-z])/g, 'cospec ')
+  return reason.length === 0 ? undefined : respellReason(reason)
 }
 
 /** The environment and home directory `run` finds the user-level schema directory from. */

@@ -92,7 +92,7 @@ describe("new: a failed wrapped new change's reason", () => {
   })
   // A schema's own content and path are the user's: only the remedy spellings
   // ahead of the binary's parse-error payload are respelled.
-  test.failing("leaves a schema parse error's path and quoted excerpt untouched", () => {
+  test("leaves a schema parse error's path and quoted excerpt untouched", () => {
     const payloads = [
       "Failed to parse schema at '/w/openspec new/schemas/broken/schema.yaml': Flow sequence in block collection must be sufficiently indented and end with a ] at line 3, column 1:\n\ndescription: run openspec init first\ninstruction: `openspec status --change x`\n",
       "Invalid schema at '/w/openspec/schemas/s1/schema.yaml': artifacts.0.id: Expected 'openspec list' to be a kebab-case id; see openspec schema validate",
@@ -111,15 +111,17 @@ describe("new: a failed wrapped new change's reason", () => {
       "Run 'cospec init' first. Failed to parse schema at '/w/s.yaml': openspec store setup",
     )
   })
-  test.failing('respells only openspec followed by a command cospec has', () => {
+  test('respells only openspec followed by a command cospec has', () => {
     const doc = JSON.stringify({
       change: null,
       status: [
-        { message: 'openspec widgets are not openspec store setup or `openspec new change x`' },
+        {
+          message: 'openspec widgets are not openspec store setup or `openspec status --change x`',
+        },
       ],
     })
     expect(wrappedNewReason(result(doc))).toBe(
-      'openspec widgets are not cospec store setup or `cospec new change x`',
+      'openspec widgets are not cospec store setup or `cospec status --change x`',
     )
   })
 })
