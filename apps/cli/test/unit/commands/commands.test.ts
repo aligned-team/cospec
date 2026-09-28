@@ -94,13 +94,20 @@ describe("new: a failed wrapped new change's reason", () => {
     expect(wrappedNewReason(result('', 'boom\n'))).toBe('boom')
     expect(wrappedNewReason(result('', ''))).toBeUndefined()
   })
-  test('spells any openspec command it names through cospec', () => {
+  // Only upstream's own sentences are respelled (`core/remedies.ts`), each
+  // verbatim; their holes (a list, a path) are relayed as captured.
+  test("spells each of upstream's own remedy sentences it holds through cospec", () => {
     const doc = JSON.stringify({
       change: null,
-      status: [{ message: "No OpenSpec root. Run 'openspec init' or openspec store setup <id>" }],
+      status: [
+        {
+          message:
+            'No OpenSpec root found in the current directory or its ancestors. Registered stores: st1, st2. Pass --store <id> to use one, or run openspec init to create a local root.',
+        },
+      ],
     })
     expect(wrappedNewReason(result(doc))).toBe(
-      "No OpenSpec root. Run 'cospec init' or cospec store setup <id>",
+      'No OpenSpec root found in the current directory or its ancestors. Registered stores: st1, st2. Pass --store <id> to use one, or run cospec init to create a local root.',
     )
   })
   // A schema's own content and path are the user's: only the remedy spellings
@@ -116,27 +123,24 @@ describe("new: a failed wrapped new change's reason", () => {
       const stderr = `\x1b[31m✖ Error: ${payload}\x1b[39m\n`
       expect(wrappedNewReason(result('', stderr))).toBe(payload.trim())
     }
-    // A remedy ahead of the payload is still respelled; the payload is not.
+    // An upstream sentence ahead of the payload is still respelled; the
+    // payload is not, even where the user's schema copies one verbatim.
     const mixed =
-      "Run 'openspec init' first. Failed to parse schema at '/w/s.yaml': openspec store setup"
+      "Run openspec init to create a root here. Failed to parse schema at '/w/s.yaml': Run openspec init to create a root here."
     const doc = JSON.stringify({ change: null, status: [{ message: mixed }] })
     expect(wrappedNewReason(result(doc))).toBe(
-      "Run 'cospec init' first. Failed to parse schema at '/w/s.yaml': openspec store setup",
+      "Run cospec init to create a root here. Failed to parse schema at '/w/s.yaml': Run openspec init to create a root here.",
     )
   })
-  // Prose naming a command is not a remedy: only a remedy's lead-in (`Run`,
-  // `Fix:`, `(`, a backtick, …) makes `openspec <command>` cospec's to respell.
-  test('respells only a remedy naming a command cospec has', () => {
-    const doc = JSON.stringify({
-      change: null,
-      status: [
-        {
-          message: 'openspec widgets are not openspec store setup or `openspec status --change x`',
-        },
-      ],
-    })
+  // Text that is not one of upstream's sentences is relayed verbatim, however
+  // remedy-like its wording (no lead-in, quote or backtick is a trigger).
+  test('respells only an upstream sentence, never prose that names a command', () => {
+    const prose = 'openspec widgets are not openspec store setup or `openspec status --change x`'
+    const remedy =
+      'Create it with `openspec instructions proposal --change x` (`openspec status --change x` shows what is left).'
+    const doc = JSON.stringify({ change: null, status: [{ message: `${prose}. ${remedy}` }] })
     expect(wrappedNewReason(result(doc))).toBe(
-      'openspec widgets are not openspec store setup or `cospec status --change x`',
+      `${prose}. Create it with \`cospec instructions proposal --change x\` (\`cospec status --change x\` shows what is left).`,
     )
   })
   // The binary quotes every path it reports (`mkdir '<path>'`) and ends an
@@ -157,7 +161,7 @@ describe("new: a failed wrapped new change's reason", () => {
   })
   // Free text is never pattern-matched: a path that happens to read like a
   // remedy stays the user's, quoted or not, whatever it contains.
-  test.failing('leaves a path that reads like a remedy untouched, quoted or not', () => {
+  test('leaves a path that reads like a remedy untouched, quoted or not', () => {
     const reasons = [
       "EACCES: permission denied, mkdir '/w/Bob's run openspec init dir/openspec/changes/y'",
       'Invalid store declaration in /w/run openspec init/openspec/config.yaml: the store key is not a string.',
@@ -169,19 +173,28 @@ describe("new: a failed wrapped new change's reason", () => {
       expect(wrappedNewReason(result('', `\x1b[31m✖ Error: ${reason}\x1b[39m\n`))).toBe(reason)
     }
   })
-  test('respells a command named in a remedy context', () => {
-    const doc = JSON.stringify({
-      change: null,
-      status: [
-        {
-          message:
-            'Fix: openspec store setup <id>. Run: openspec store doctor s1 (openspec validate --all), or run openspec list and `openspec new change y`',
-        },
+  // A sentence's hole is re-emitted unread: a path in it that reads like a
+  // remedy is still the user's.
+  test("respells upstream's store remedies, never the path a sentence names", () => {
+    const pairs = [
+      [
+        'Run openspec store setup s1 or openspec store register <path> first.',
+        'Run cospec store setup s1 or cospec store register <path> first.',
       ],
-    })
-    expect(wrappedNewReason(result(doc))).toBe(
-      'Fix: cospec store setup <id>. Run: cospec store doctor s1 (cospec validate --all), or run cospec list and `cospec new change y`',
-    )
+      [
+        'Pass a registered store id, or run openspec store list.',
+        'Pass a registered store id, or run cospec store list.',
+      ],
+      [
+        "Register the store (openspec store register <path> --id s1) or edit /w/Bob's run openspec init/openspec/config.yaml to name a registered store.",
+        "Register the store (cospec store register <path> --id s1) or edit /w/Bob's run openspec init/openspec/config.yaml to name a registered store.",
+      ],
+    ]
+    for (const [reason, respelled] of pairs) {
+      const doc = JSON.stringify({ change: null, status: [{ message: reason }] })
+      expect(wrappedNewReason(result(doc))).toBe(respelled!)
+      expect(wrappedNewReason(result('', `\x1b[31m✖ Error: ${reason}\x1b[39m\n`))).toBe(respelled!)
+    }
   })
 })
 

@@ -12,8 +12,8 @@ import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
 import { isCospecType, listChanges, resolveChange, type Change } from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
-import { respellRemedies } from '../core/forward-relay.ts'
 import { passthroughOpenspec } from '../core/openspec.ts'
+import { respellRemedies } from '../core/remedies.ts'
 import { resolveRoot } from '../core/root.ts'
 import {
   artifactRequires,

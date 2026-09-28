@@ -10,6 +10,7 @@ import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { isUpstreamStorePathRefusal, storePathRefusal } from './command-table.ts'
 import { OpenspecCallError, type OpenspecResult, passthroughOpenspec } from './openspec.ts'
+import { respellRemedies } from './remedies.ts'
 
 /**
  * Every refusal the pinned binary's commander (14.x, `lib/command.js`) raises
@@ -85,48 +86,9 @@ export function relayStorePathRefusal(result: OpenspecResult, json: boolean): nu
 }
 
 /**
- * The pinned binary's own remedies in the answers cospec relays (probed at
- * 1.13.1: `dist/commands/change.js`, `show.js`, `core/view.js`,
- * `commands/workflow/status.js`), each rewritten to the cospec command of the
- * same shape — or dropped where cospec has none:
- *
- * - `show` for a change with no proposal.md: `Run "openspec status --change
- *   <id>"`, on stderr, or with escaped quotes in its `--json` message.
- * - `show` for an id that is both a change and a spec: `Pass --type
- *   change|spec, or use: openspec change show / openspec spec show`. cospec
- *   has no noun-form commands, so the clause goes, leaving the wording
- *   upstream itself prints for a store root.
- * - `view`'s footer: `openspec list --changes` and `openspec list --specs`,
- *   each wrapped whole in color codes when color is on.
- * - `status --change <id>`'s text for a change on a schema cospec does not
- *   type: `Next: openspec instructions <artifact> --change "<id>" --json`.
- * - The no-root answer (`dist/core/root-selection.js`) that `show`, `context`
- *   and `instructions` relay: `Run openspec init to create a root here.`, or
- *   `run openspec init` twice where stores are registered — text, and the
- *   `--json` message and fix.
- */
-const RELAYED_REMEDIES: readonly (readonly [RegExp, string])[] = [
-  [
-    /Pass --type change\|spec, or use: openspec change show \/ openspec spec show/g,
-    'Pass --type change|spec.',
-  ],
-  [/(\\?")openspec (status --change )/g, '$1cospec $2'],
-  // A color code (`ESC[37m`) ends in a word character, so it counts as a left
-  // boundary too.
-  [/(?:(?<![\w./-])|(?<=\[\d+m))openspec (list --(?:changes|specs))\b/g, 'cospec $1'],
-  [/^Next: openspec (instructions )/gm, 'Next: cospec $1'],
-  [/(?<=\b[Rr]un )openspec init\b/g, 'cospec init'],
-]
-
-/** `text` with each of the binary's `RELAYED_REMEDIES` spelled through cospec. */
-export function respellRemedies(text: string): string {
-  return RELAYED_REMEDIES.reduce((out, [span, cospec]) => out.replace(span, cospec), text)
-}
-
-/**
  * Relays a passthrough call's answer, returning cospec's exit code: the
  * binary's `--store-path` refusal answered with cospec's redirect, a failed
- * call's `RELAYED_REMEDIES` spelled through cospec, and a call that succeeded
+ * call's upstream remedies spelled through cospec (`respellRemedies`), and a call that succeeded
  * verbatim — what it prints (a change, a spec, instructions) is the user's own
  * content.
  */

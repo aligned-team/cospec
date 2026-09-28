@@ -5,9 +5,9 @@ import {
   forwardCall,
   isParseRejection,
   relayStorePathRefusal,
-  respellRemedies,
 } from '../../../src/core/forward-relay.ts'
 import { OpenspecCallError, type OpenspecResult } from '../../../src/core/openspec.ts'
+import { respellRemedies } from '../../../src/core/remedies.ts'
 
 const UPSTREAM_REDIRECT =
   '✖ Error: --store-path is not supported. Register the path with openspec store register <path>, then select it with --store <id>.\n' +
@@ -126,9 +126,11 @@ describe('respellRemedies', () => {
     ).toBe(
       '✖ Error: Change "c1" has no proposal.md yet. Run "cospec status --change c1" to see which artifact comes next.\n',
     )
-    const json = JSON.stringify({ message: 'Run "openspec status --change c1" to see' }, null, 2)
+    const message =
+      'Change "c1" has no proposal.md yet. Run "openspec status --change c1" to see which artifact comes next.'
+    const json = JSON.stringify({ message }, null, 2)
     expect(JSON.parse(respellRemedies(json))).toEqual({
-      message: 'Run "cospec status --change c1" to see',
+      message: message.replace('"openspec status', '"cospec status'),
     })
   })
 
@@ -147,8 +149,12 @@ describe('respellRemedies', () => {
         '\nUse openspec list --changes or openspec list --specs for detailed views\n',
       ),
     ).toBe('\nUse cospec list --changes or cospec list --specs for detailed views\n')
-    expect(respellRemedies('Use \u001b[37mopenspec list --changes\u001b[39m')).toBe(
-      'Use \u001b[37mcospec list --changes\u001b[39m',
+    expect(
+      respellRemedies(
+        '\nUse \u001b[37mopenspec list --changes\u001b[39m or \u001b[37mopenspec list --specs\u001b[39m for detailed views',
+      ),
+    ).toBe(
+      '\nUse \u001b[37mcospec list --changes\u001b[39m or \u001b[37mcospec list --specs\u001b[39m for detailed views',
     )
   })
 
@@ -163,11 +169,15 @@ describe('respellRemedies', () => {
       'Fix: Run cospec init to create a root here.\n',
     )
     expect(
-      respellRemedies('Pass --store <id> to use one, or run openspec init to create a local root.'),
-    ).toBe('Pass --store <id> to use one, or run cospec init to create a local root.')
+      respellRemedies(
+        'No OpenSpec root found in the current directory or its ancestors. Registered stores: st1, st2. Pass --store <id> to use one, or run openspec init to create a local root.',
+      ),
+    ).toBe(
+      'No OpenSpec root found in the current directory or its ancestors. Registered stores: st1, st2. Pass --store <id> to use one, or run cospec init to create a local root.',
+    )
   })
 
-  test.failing('a path that reads like a remedy stays as it is, quoted or not', () => {
+  test('a path that reads like a remedy stays as it is, quoted or not', () => {
     for (const text of [
       "✖ Error: EACCES: permission denied, mkdir '/w/Bob's run openspec init dir/openspec'\n",
       '✖ Error: Invalid store declaration in /w/run openspec init/openspec/config.yaml: bad.\n',

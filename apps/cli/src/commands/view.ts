@@ -23,8 +23,8 @@ import { existsSync } from 'node:fs'
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { openspecDir } from '../core/change.ts'
-import { respellRemedies } from '../core/forward-relay.ts'
 import { passthroughOpenspec } from '../core/openspec.ts'
+import { respellRemedies } from '../core/remedies.ts'
 import { resolveRoot } from '../core/root.ts'
 
 export async function run(ctx: CommandContext): Promise<number> {
