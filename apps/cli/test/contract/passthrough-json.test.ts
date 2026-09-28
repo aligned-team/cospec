@@ -685,9 +685,9 @@ describe('config relays the binary’s own answer and reason (review round 2)', 
   }, 30_000)
 })
 
-// --- 7. a missing working directory (post-rebase) --------------------------------
+// --- 7. a missing working directory ------------------------------------------
 
-describe('a --cwd that does not exist is refused before any spawn (ledger 7.1, 7.2, post-rebase)', () => {
+describe('a --cwd that does not exist is refused before any spawn (ledger 7.1, 7.2)', () => {
   const COMMANDS: readonly string[][] = [
     ['store', 'list'],
     ['config', 'path'],
@@ -697,14 +697,39 @@ describe('a --cwd that does not exist is refused before any spawn (ledger 7.1, 7
     ['schemas'],
   ]
 
+  /** Where the resolver answers already (`root-resolution-parity`); the rest are this change's. */
+  const RESOLVED = new Set(['context', 'doctor', 'schemas'])
+
+  /**
+   * The command's own empty payload ahead of `status`, as the resolver prints
+   * it on a `--json` root-selection failure (`jsonFailurePayload`).
+   */
+  const PAYLOAD: Record<string, Record<string, unknown>> = {
+    context: { root: null, members: [] },
+    schemas: { schemas: [], root: null },
+  }
+
+  /**
+   * cospec run from source with Bun's transpiler cache off: the cache would
+   * otherwise land in the fixture's sandboxed home, and the rows assert the
+   * refusal writes nothing there.
+   */
+  function runUncached(argv: string[], root: string): Promise<SpawnResult> {
+    return cospec(argv, {
+      cwd: root,
+      env: { ...oracleEnv(root), BUN_RUNTIME_TRANSPILER_CACHE_PATH: '0' },
+    })
+  }
+
   for (const command of COMMANDS) {
-    test.failing(
+    const row = RESOLVED.has(command[0]!) ? test : test.failing
+    row(
       `${command.join(' ')} --cwd <missing>: the resolver's text refusal`,
       async () => {
         const root = plainRoot()
         const missing = join(root, 'no-such-dir')
         const tree = hashTree(root)
-        const co = await runCospec([...command, '--cwd', missing], root)
+        const co = await runUncached([...command, '--cwd', missing], root)
         expect(co.exitCode, detail(co)).toBe(1)
         expect(co.stdout, detail(co)).toBe('')
         expect(co.stderr, detail(co)).toBe(`cospec: directory not found: ${missing}\n`)
@@ -713,17 +738,17 @@ describe('a --cwd that does not exist is refused before any spawn (ledger 7.1, 7
       30_000,
     )
 
-    // doctor already refuses through the resolver it calls first.
-    const jsonRow = command[0] === 'doctor' ? test : test.failing
-    jsonRow(
+    row(
       `${command.join(' ')} --cwd <missing> --json: the resolver's document`,
       async () => {
         const root = plainRoot()
         const missing = join(root, 'no-such-dir')
-        const co = await runCospec([...command, '--cwd', missing, '--json'], root)
+        const tree = hashTree(root)
+        const co = await runUncached([...command, '--cwd', missing, '--json'], root)
         expect(co.exitCode, detail(co)).toBe(1)
         expect(documentCount(co.stdout), detail(co)).toBe(1)
         expect(JSON.parse(co.stdout)).toEqual({
+          ...PAYLOAD[command[0]!],
           status: [
             {
               severity: 'error',
@@ -733,6 +758,8 @@ describe('a --cwd that does not exist is refused before any spawn (ledger 7.1, 7
             },
           ],
         })
+        expect(co.stderr, detail(co)).toBe('')
+        expect(hashTree(root)).toEqual(tree)
       },
       30_000,
     )
