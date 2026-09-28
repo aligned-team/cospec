@@ -11,7 +11,8 @@
 # notice).
 #
 # The bundle is one platform-independent JS file produced with
-# `bun build --target=bun --minify` from the pinned openspec's bin entry. It is
+# `bun build --target=bun --minify` from the pinned openspec's bin entry (via
+# openspec-bundle.ts, which keeps the bundle to one CLI run). It is
 # a GENERATED, committed, drift-gated asset: the static `{ type: 'file' }` import
 # that embeds it (apps/cli/src/core/openspec-embedded.ts) must resolve on disk at
 # both `bun run` (dev module-load) and `bun build --compile` time, so it is
@@ -49,9 +50,14 @@ if [[ ! -f "${BIN_ENTRY}" ]]; then
   exit 1
 fi
 
+# `bun build --target=bun --minify` of the bin entry, through a load transform
+# that strips openspec's main-module self-run so the bundle runs the CLI once
+# (see openspec-bundle.ts).
+BUNDLE_GEN="${ROOT}/scripts/mise-tasks/vendor/openspec-bundle.ts"
+
 build() {
   local dest="$1"
-  bun build "${BIN_ENTRY}" --target=bun --minify --outfile "${dest}" >/dev/null
+  bun run "${BUNDLE_GEN}" "${BIN_ENTRY}" "${dest}"
 }
 
 if [[ "${CHECK}" == 1 ]]; then
