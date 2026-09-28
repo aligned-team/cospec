@@ -620,21 +620,18 @@ describe('1. each lane keeps its own severities', () => {
     )
   })
 
-  test.failing(
-    '1.2 twin: the delegated header-only SHALL/MUST WARNING is not relayed',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      buildFeat(root, 'header-only', { 'widgets/spec.md': HEADER_ONLY_SHALL })
-      const delegated = binaryOne(
-        await binaryIssues(root, 'header-only'),
-        'in the requirement body, not only in the header',
-      )
-      expect(delegated.level).toBe('WARNING')
-      const { report } = await cospecValidate(root, 'header-only')
-      expect(messages(report)).not.toContain(delegated.message)
-      expect(byRule(report, 'deltas/requirement-shape')).toHaveLength(1)
-    },
-  )
+  test('1.2 twin: the delegated header-only SHALL/MUST WARNING is not relayed', async () => {
+    const root = mkTempRepo({ git: true })
+    buildFeat(root, 'header-only', { 'widgets/spec.md': HEADER_ONLY_SHALL })
+    const delegated = binaryOne(
+      await binaryIssues(root, 'header-only'),
+      'in the requirement body, not only in the header',
+    )
+    expect(delegated.level).toBe('WARNING')
+    const { report } = await cospecValidate(root, 'header-only')
+    expect(messages(report)).not.toContain(delegated.message)
+    expect(byRule(report, 'deltas/requirement-shape')).toHaveLength(1)
+  })
 })
 
 // --- 2. task numbering warns --------------------------------------------------------
@@ -865,7 +862,7 @@ const buildEmptySection = (root: string): void =>
   buildFeat(root, 'empty-section', { 'widgets/spec.md': EMPTY_SECTION })
 
 describe('5.1 one pinned-message test per DUPLICATE_CLASSES entry', () => {
-  test.failing('entry 1: empty delta sections pair with archive/no-ops', async () => {
+  test('entry 1: empty delta sections pair with archive/no-ops', async () => {
     const root = mkTempRepo({ git: true })
     buildEmptySection(root)
     const delegated = binaryOne(
@@ -878,7 +875,7 @@ describe('5.1 one pinned-message test per DUPLICATE_CLASSES entry', () => {
     expect(byRule(report, 'archive/no-ops')).toHaveLength(1)
   })
 
-  test.failing('entry 2: no deltas at all pairs with archive/no-ops', async () => {
+  test('entry 2: no deltas at all pairs with archive/no-ops', async () => {
     const root = mkTempRepo({ git: true })
     buildEmptySection(root)
     const delegated = binaryOne(
@@ -956,44 +953,38 @@ describe('5.1 one pinned-message test per DUPLICATE_CLASSES entry', () => {
     ],
     ['no keyword anywhere', 'should contain SHALL or MUST (RFC 2119', 'WARNING', 'Plain thing'],
   ] as const)
-    test.failing(
-      `entry 6: the ${shape} SHALL/MUST finding pairs with deltas/requirement-shape`,
-      async () => {
-        const root = mkTempRepo({ git: true })
-        buildFeat(root, 'shall-shapes', { 'widgets/spec.md': SHALL_SHAPES })
-        const delegated = binaryFind(await binaryIssues(root, 'shall-shapes'), fragment).filter(
-          (i) => i.message.includes(`"${name}"`),
-        )
-        expect(delegated).toHaveLength(1)
-        expect(delegated[0]?.level).toBe(level)
-        const { report } = await cospecValidate(root, 'shall-shapes')
-        expect(messages(report)).not.toContain(delegated[0]?.message)
-        expect(
-          byRule(report, 'deltas/requirement-shape').filter((n) => n.message.includes(`"${name}"`)),
-        ).toHaveLength(1)
-      },
-    )
-
-  test.failing(
-    'entry 7: missing requirement text pairs with deltas/requirement-shape',
-    async () => {
+    test(`entry 6: the ${shape} SHALL/MUST finding pairs with deltas/requirement-shape`, async () => {
       const root = mkTempRepo({ git: true })
       buildFeat(root, 'shall-shapes', { 'widgets/spec.md': SHALL_SHAPES })
-      const delegated = binaryOne(
-        await binaryIssues(root, 'shall-shapes'),
-        'is missing requirement text',
+      const delegated = binaryFind(await binaryIssues(root, 'shall-shapes'), fragment).filter((i) =>
+        i.message.includes(`"${name}"`),
       )
-      expect(delegated.level).toBe('ERROR')
-      expect(delegated.message).toContain('"Nothing here"')
+      expect(delegated).toHaveLength(1)
+      expect(delegated[0]?.level).toBe(level)
       const { report } = await cospecValidate(root, 'shall-shapes')
-      expect(messages(report)).not.toContain(delegated.message)
+      expect(messages(report)).not.toContain(delegated[0]?.message)
       expect(
-        byRule(report, 'deltas/requirement-shape').filter((n) =>
-          n.message.includes('"Nothing here"'),
-        ),
+        byRule(report, 'deltas/requirement-shape').filter((n) => n.message.includes(`"${name}"`)),
       ).toHaveLength(1)
-    },
-  )
+    })
+
+  test('entry 7: missing requirement text pairs with deltas/requirement-shape', async () => {
+    const root = mkTempRepo({ git: true })
+    buildFeat(root, 'shall-shapes', { 'widgets/spec.md': SHALL_SHAPES })
+    const delegated = binaryOne(
+      await binaryIssues(root, 'shall-shapes'),
+      'is missing requirement text',
+    )
+    expect(delegated.level).toBe('ERROR')
+    expect(delegated.message).toContain('"Nothing here"')
+    const { report } = await cospecValidate(root, 'shall-shapes')
+    expect(messages(report)).not.toContain(delegated.message)
+    expect(
+      byRule(report, 'deltas/requirement-shape').filter((n) =>
+        n.message.includes('"Nothing here"'),
+      ),
+    ).toHaveLength(1)
+  })
 
   test.failing('entry 8: the ADDED/REMOVED conflict pairs with archive/added-exists', async () => {
     const root = mkTempRepo({ git: true })
@@ -1102,7 +1093,7 @@ describe('5.2 a delegated finding survives where its cospec twin is silent', () 
 })
 
 describe('5.3 an empty section is one finding', () => {
-  test.failing('5.3 exactly archive/no-ops, with neither delegated twin', async () => {
+  test('5.3 exactly archive/no-ops, with neither delegated twin', async () => {
     const root = mkTempRepo({ git: true })
     buildEmptySection(root)
     const { report } = await cospecValidate(root, 'empty-section')

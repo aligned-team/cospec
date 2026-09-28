@@ -67,7 +67,7 @@ trailer, never `--no-verify`).
 
 ## 5. T4 — dedupe entries (`apps/cli/src/commands/validate.ts`, `DUPLICATE_CLASSES` only)
 
-- [ ] 5.1 Add design D5 entries 1, 2, 6 and 7 (`archive/no-ops`,
+- [x] 5.1 Add design D5 entries 1, 2, 6 and 7 (`archive/no-ops`,
       `deltas/requirement-shape`) and flip `1.2 twin`, 5.3 and those entries'
       5.1/5.2 tests. Commit
       `fix(validate): dedupe empty-section and SHALL/MUST findings`

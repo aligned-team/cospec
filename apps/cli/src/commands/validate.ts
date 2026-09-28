@@ -343,6 +343,37 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
     nativeKey: /^MODIFIED "(.*)" drops scenario/,
   },
 
+  // 1.13.1 empty delta sections vs archive/no-ops: the same file, the same
+  // state. Keyed on the path alone — `()` captures '' on both sides — because
+  // the binary raises it at most once per file.
+  {
+    rule: 'archive/no-ops',
+    delegated: /^Delta sections .+ were found, but no requirement entries parsed\.()/,
+    nativeKey: /^delta file has requirement headers but no parseable operations()$/,
+  },
+  // 1.13.1 CHANGE_NO_DELTAS vs archive/no-ops. Item-level (`path: file`), and
+  // raised only when no delta file parsed an entry — which is exactly when
+  // cospec's rule fired on a file that has a delta header — so it has no key.
+  { rule: 'archive/no-ops', delegated: /^Change must have at least one delta\. No deltas found\./ },
+  // 1.13.1 SHALL/MUST grading vs deltas/requirement-shape. The binary splits
+  // the defect over three wordings and two levels — header-only (WARNING),
+  // empty body under a keyword header (ERROR), no keyword in the body at all
+  // (WARNING); cospec keeps its one ERROR (roadmap: cospec-typed schemas keep
+  // cospec severities). Keyed on `<OP> "<name>"`, so a requirement cospec
+  // counts as having SHALL/MUST — one in a scenario step, say — keeps the
+  // binary's finding.
+  {
+    rule: 'deltas/requirement-shape',
+    delegated: /^((?:ADDED|MODIFIED) ".*") (?:should|must) contain SHALL or MUST\b/,
+    nativeKey: /^((?:ADDED|MODIFIED) ".*") must use SHALL\/MUST normative language$/,
+  },
+  // The same defect with an empty body under a plain header.
+  {
+    rule: 'deltas/requirement-shape',
+    delegated: /^((?:ADDED|MODIFIED) ".*") is missing requirement text$/,
+    nativeKey: /^((?:ADDED|MODIFIED) ".*") must use SHALL\/MUST normative language$/,
+  },
+
   // --- 1.12.0 archive-preflight INFO (`Validator.findArchiveBlockers`) ------
   //
   // 1.12 dry-runs archive's merge builder during `validate` and relays each
