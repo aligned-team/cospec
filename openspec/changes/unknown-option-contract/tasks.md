@@ -529,3 +529,22 @@ red; 4–7 turn it green; 8 documents it.
       path after `already exists at`, and parses the document after a warning
       line; spec requirement + scenario, `reference/commands.md` (ledger 1.55,
       1.56)
+- [x] 10.61 Round-13 rows first (4519943): 2 unit cases as `test.failing`
+      (`wrappedNewReason` and the relay: an apostrophe in a quoted path, an
+      unquoted `Invalid store declaration in <path>` pointer path, a
+      `(openspec list)` directory); each input fails for its intended reason;
+      plain `test` at ca90823
+- [x] 10.62 `core/remedies.ts`: one allowlist of the pinned dist's exact
+      sentences naming `openspec <command>`, each with its cospec spelling;
+      `respellReason`/`OPENSPEC_REMEDY`/`REMEDY_LEAD`/`SINGLE_QUOTED` (new.ts)
+      and `RELAYED_REMEDIES` (forward-relay.ts) removed; `status`/`view`/`new`
+      and `relayRespelled` read it; contract `remedy-enumeration.test.ts` over
+      the dist with `support/remedy-sources.ts` (every line classified as an
+      allowlist id or a never-relayed reason); unit `remedies.test.ts` (every
+      entry respelled, text and JSON) (ledger 1.57)
+- [x] 10.63 `apply`'s relay guard (`relayThroughCospec`) reads the same
+      allowlist instead of its backtick-span rule (ledger 1.58)
+- [x] 10.64 Spec requirement + scenario
+      `Only upstream's own sentences are     respelled`, design decision 13,
+      `reference/commands.md` (`new` row, the relayed-remedy paragraph),
+      `concepts/apply-and-archive.md` (ledger 1.57, 1.58)

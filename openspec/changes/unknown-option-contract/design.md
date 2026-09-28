@@ -105,16 +105,18 @@ runtime by `dist/commands/spec.js:127`.
    these two commands altogether, which retires the marker.
    - A forward wrapper relays the binary's answer, and the binary writes its
      remedies as bare `openspec <command>`. `relayRespelled`
-     (`core/forward-relay.ts`) spells each remedy it knows at the pin
-     (`RELAYED_REMEDIES`: `show`'s `Run "openspec status --change <id>"` and its
-     noun-form `openspec change show / openspec spec show`, `view`'s
+     (`core/forward-relay.ts`) spells each of upstream's remedy sentences
+     through cospec from one allowlist (`core/remedies.ts`, decision 13:
+     `show`'s `Run "openspec status --change <id>"` and its noun-form
+     `openspec change show / openspec spec show`, `view`'s
      `openspec list --changes`/`--specs`, the no-root `run openspec init`,
-     legacy `status`'s `Next: openspec instructions …`) as the cospec command of
-     the same shape, or drops the clause where cospec has none (the noun-form
-     commands), and only on a failed call — a change, spec or instructions the
-     binary shows is the user's own text, relayed untouched. `view` respells its
-     footer, and `status --change <id>` on a schema cospec does not type relays
-     the binary's own status for it in text mode instead of pointing at bare
+     legacy `status`'s `Next: openspec instructions …`, and every other sentence
+     of the pin that names a command) as the cospec command of the same shape,
+     or drops the clause where cospec has none (the noun-form commands), and
+     only on a failed call — a change, spec or instructions the binary shows is
+     the user's own text, relayed untouched. `view` respells its footer, and
+     `status --change <id>` on a schema cospec does not type relays the binary's
+     own status for it in text mode instead of pointing at bare
      `openspec status`. `forward` rows: `show`, `templates`, `schemas`,
      `schema`, `store`, `workset`, `config`. `feedback` is a `table` row:
      `parseFeedbackArgs` already rejects unknown options, so the shared parser
@@ -274,9 +276,8 @@ runtime by `dist/commands/spec.js:127`.
    missing-argument branches (`new`'s usage refusal, the "is required" of
    `apply`, `archive`, `migrate` and `instructions`, `feedback`'s and
    `__complete`'s missing message or source) became unreachable and are removed.
-   `new` relays a failed wrapped call's reason with only its remedies respelled
-   — the `RELAYED_REMEDIES` spans and `openspec <command>` for a command in the
-   table — and nothing from a schema load error's
+   `new` relays a failed wrapped call's reason with only upstream's own remedy
+   sentences respelled (decision 13) and nothing from a schema load error's
    `Failed to parse schema at '…':` / `Invalid schema at '…':` payload on (the
    binary's `resolver.js` shapes), which quotes the user's own schema. A
    short-option cluster splits as commander's `parseOptions` splits it, one step
@@ -456,6 +457,36 @@ runtime by `dist/commands/spec.js:127`.
     unknown-option refusal of cospec's own on `forward` rows,
     `cospec <command> help` as help on every `table` row, and a bare `cospec`
     (or `cospec --`) printing help with exit 0 where upstream exits 1.
+
+13. **Relayed remedies: an allowlist of upstream's exact sentences, never a
+    pattern over free text.** `core/remedies.ts` holds every sentence of the
+    pinned dist that names a bare `openspec <command>`, each with its cospec
+    spelling; a relay rewrites an answer only where it holds one verbatim. A
+    sentence's holes (a name, a path, a list — upstream's `${…}`) are matched up
+    to the sentence's own next literal and re-emitted unread, so nothing the
+    user owns is ever rewritten, whatever it reads like. A bare command upstream
+    prints as a whole field (`Fix: openspec store register …`, a `fix`/`command`
+    JSON value, an indented example line) is matched only as that field, and
+    inside a sentence's `{cmd}` hole (`Create one with: <hint>`). Each sentence
+    also matches its JSON-escaped form, for `--json` messages. `new` keeps one
+    cut: a schema load error's payload is the user's schema, relayed as is even
+    where it copies an upstream sentence. The residual is exact: user text that
+    reproduces a whole upstream remedy sentence verbatim outside that payload is
+    respelled. Enforced by `test/contract/remedy-enumeration.test.ts`, which
+    reads the pinned dist and fails on any line naming `openspec <command>` that
+    is neither an allowlist entry nor listed
+    (`test/contract/support/remedy-sources.ts`) with the reason no cospec relay
+    prints it (only `init`/`update` run it, a terminal handover prints it,
+    cospec answers first, a noun-form command cospec lacks, …), keyed by module
+    and trimmed line, never line number. Rejected, after rounds 10–12:
+    respelling `openspec <table command>` after a remedy lead-in (`Run`, `with`,
+    `:`, `(`, a backtick), masking single-quoted spans, and cutting the reason
+    at `already exists at` — each left a free-text case (an apostrophe ends a
+    quoted span early; an unquoted path in
+    `Invalid store declaration in <path>: …`; `(openspec list)` in a directory
+    name). Entries for sentences only `store`/`workset`/`config`/`schema`/
+    `validate`/`archive`/`doctor` relay are data here; wiring those relays is
+    owned by the changes that own those files.
 
 ### Initial data-file contents
 

@@ -62,18 +62,17 @@ wrapped `new change --json` gives its own failures
 exit 1, with nothing on stderr; a failed wrapped call SHALL be answered with the
 binary's own reason (its `new change --json` document's message, after any
 warning line the binary logs ahead of it), as `cospec new: <reason>` in text and
-as the document's message under `--json`, with each remedy it names (a
-`RELAYED_REMEDIES` span, or `openspec <command>` for a command cospec has,
-opened by a remedy lead-in: `Run`, `run`, `Re-run`, `Use`, `Try`, `with`, `or`,
-a colon, an opening paren or backtick) spelled through cospec, and everything
-else left untouched: prose naming a command, a single-quoted span that opens no
-remedy (every path the binary reports, as in `mkdir '<path>'`), the path after
-`already exists at`, and everything from a schema load error's
+as the document's message under `--json`, with each of upstream's own remedy
+sentences it holds verbatim spelled through cospec, and everything else left
+untouched byte-for-byte: a path or name, however it reads (an apostrophe in it,
+`run openspec init` or `(openspec list)` in a directory name, quoted or not),
+prose naming a command, and everything from a schema load error's
 `Failed to parse schema at '…':` / `Invalid schema at '…':` payload on (the
-schema's path and quoted excerpt); a missing type or slug and an unknown option
-SHALL stay text parse refusals, as the binary's commander refusals are, answered
-before any other refusal (a missing `openspec/` tree included). `show` with no
-item (an empty token is none) SHALL, under `--json`, be one
+schema's path and quoted excerpt, the user's content even where it copies an
+upstream sentence); a missing type or slug and an unknown option SHALL stay text
+parse refusals, as the binary's commander refusals are, answered before any
+other refusal (a missing `openspec/` tree included). `show` with no item (an
+empty token is none) SHALL, under `--json`, be one
 `{status: [{severity: 'error', code: 'missing_item', message}]}` document on
 stdout, exit 1, with nothing on stderr. Each `table` row SHALL likewise declare
 whether its command honours the global `--store <id>`; on a row that does not,
@@ -200,6 +199,12 @@ help.
 - **THEN** the reason is the binary's
   `EACCES: permission denied, mkdir '<path>'` with the path unchanged, in text
   and as the `--json` document's message
+- **AND WHEN** that path has an apostrophe in it (`Bob's run openspec init dir`)
+- **THEN** the path is still relayed unchanged
+- **AND WHEN** the project's `openspec/config.yaml` has a malformed `store:` key
+  and its unquoted path contains `run openspec init` or `(openspec list)`
+- **THEN** the reason is the binary's `Invalid store declaration in <path>: …`
+  with the path unchanged
 
 #### Scenario: show with an empty item name gives cospec's item-name error
 
@@ -523,10 +528,17 @@ a bare `openspec` command. A remedy the binary writes as a bare
 `openspec <command>` in an answer cospec relays SHALL be spelled as the cospec
 command of the same shape, or dropped where cospec has no such command, while
 the content of a successful answer (a change, a spec, instructions) SHALL be
-relayed untouched. A pre-spawn guard SHALL answer only an argv the binary would
-not answer itself: a declared value-taking flag left without its value SHALL
-reach the binary as commander's missing value (or, for a flag the wrapper lifts
-itself, `config --scope`, SHALL be refused in the same
+relayed untouched. The respelling SHALL come from one allowlist of the pinned
+binary's exact sentences, each rewritten only where an answer holds it verbatim,
+with the path, name or list each sentence names re-emitted as the binary wrote
+it; no pattern over free text (a lead-in word, a quote, a paren) SHALL decide
+what is a remedy. Every sentence in the pinned binary that names a bare
+`openspec <command>` SHALL be in that allowlist or listed, with its reason, as
+never printed by a cospec relay, checked against the pinned dist. A pre-spawn
+guard SHALL answer only an argv the binary would not answer itself: a declared
+value-taking flag left without its value SHALL reach the binary as commander's
+missing value (or, for a flag the wrapper lifts itself, `config --scope`, SHALL
+be refused in the same
 `cospec <command>: option '<flag> <placeholder>' argument missing` form), and
 `show`'s item check SHALL treat an option `show` does not declare as the item,
 as the binary does. An option where a forwarded command's subcommand belongs
@@ -586,6 +598,23 @@ reported as a wrapped-call failure.
 - **THEN** stdout is the binary's own status for the change with its
   `Next: cospec instructions …` line, and `cospec status --all` points that
   change at `cospec status --change <id>`
+
+#### Scenario: Only upstream's own sentences are respelled
+
+- **WHEN** a relayed answer holds one of the pinned binary's remedy sentences
+  verbatim, such as
+  `Register the store (openspec store register <path> --id <id>) or edit <path> to name a registered store.`
+- **THEN** it is relayed as
+  `Register the store (cospec store register <path> --id <id>) or edit <path> to name a registered store.`,
+  the path it names unchanged even where that path reads `run openspec init`
+- **AND WHEN** `cospec show <id>` runs where the project's `store:` key is
+  malformed and the project path contains `run openspec init` or
+  `(openspec list)`
+- **THEN** the binary's `Invalid store declaration in <path>: …` and its fix are
+  relayed byte-for-byte, the path unchanged
+- **AND WHEN** a line of the pinned dist names a bare `openspec <command>` that
+  is neither in the allowlist nor listed as never relayed
+- **THEN** the remedy enumeration contract test fails
 
 #### Scenario: Upstream's unknown-option answer is relayed on a forwarded command
 
