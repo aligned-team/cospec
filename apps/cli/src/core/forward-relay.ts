@@ -8,7 +8,15 @@
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
-import { isUpstreamStorePathRefusal, storePathRefusal } from './command-table.ts'
+import {
+  type CommandRow,
+  isUpstreamStorePathRefusal,
+  type ParseRefusal,
+  parseSubcommandArgs,
+  splitShortCluster,
+  storePathRefusal,
+  takesNextToken,
+} from './command-table.ts'
 import {
   OpenspecCallError,
   type OpenspecResult,
@@ -215,4 +223,39 @@ export async function relayGroupRefusal(
     ),
   )
   return relayRespelled(result, ctx.flags.json)
+}
+
+/**
+ * The refusal the binary's commander would give a terminal-handover leaf's
+ * argv (`sub` of `row`, global flags already stripped), or undefined when it
+ * parses (design D8): the table parser's own refusal, so it is answered on
+ * cospec's streams before the terminal is handed over, never printed by the
+ * binary on it. Short clusters split as commander splits them (`-yz` is `-y`
+ * then an unknown `-z`), a value-taking flag keeping its value whole.
+ */
+export function prevalidateHandover(
+  row: CommandRow,
+  sub: string,
+  args: readonly string[],
+): ParseRefusal | undefined {
+  const leaf = row.subcommands?.find((s) => s.name === sub)
+  if (leaf === undefined) throw new Error(`cospec ${row.name}: no '${sub}' subcommand row`)
+  const surfaces = [leaf]
+  const tokens = [...args]
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i]!
+    if (tok === '--') break
+    if (i + 1 < tokens.length && takesNextToken(surfaces, tok, false)) {
+      i++
+      continue
+    }
+    const split = splitShortCluster(surfaces, tok)
+    if (split !== undefined) {
+      tokens.splice(i, 1, split.head, split.tail)
+      // A boolean head leaves the rest to rescan; a value-taking one takes it.
+      if (split.takesValue) i++
+    }
+  }
+  const result = parseSubcommandArgs(row, leaf, tokens)
+  return result.ok ? undefined : result.refusal
 }

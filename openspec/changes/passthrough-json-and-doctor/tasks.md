@@ -69,20 +69,20 @@ Files: `apps/cli/src/core/forward-relay.ts`, `apps/cli/src/core/remedies.ts`,
 `apps/cli/test/unit/core/command-table.test.ts`,
 `apps/cli/test/contract/support/remedy-sources.ts`.
 
-- [ ] 2.1 Add `relayGroupRefusal(ctx, group, args)` to `forward-relay.ts`
+- [x] 2.1 Add `relayGroupRefusal(ctx, group, args)` to `forward-relay.ts`
       (design D1: spawn `<group> [--json] <argv>` with the `--` kept, exit code
       `1`, post-condition "commander parse rejection or one document whose
       `status[0].code` is the group's unknown-subcommand code", relay through
       `respellRemedies`) with unit rows for the post-condition, and verify a
       stubbed answer of any other shape raises a wrapped-call error; commit
       `fix(cli): relay a forwarded group's own subcommand refusal`
-- [ ] 2.2 Add `respellLines(text, ids)` to `remedies.ts` (design D5) and the
+- [x] 2.2 Add `respellLines(text, ids)` to `remedies.ts` (design D5) and the
       `config/profile-interactive-required` sentence (design D9), move that
       line's `REMEDY_SOURCES` row from `notRelayed.PROFILE_HANDOVER` to the new
       id, and verify `remedies.test.ts` whole-line rows and
       `remedy-enumeration.test.ts` pass; commit
       `fix(cli): add whole-line respell and the profile interactive-mode sentence`
-- [ ] 2.3 Export a one-surface parser from `command-table.ts` (the existing
+- [x] 2.3 Export a one-surface parser from `command-table.ts` (the existing
       `parseSurface`, for one row and one subcommand) and add
       `prevalidateHandover(row, sub, args)` to `forward-relay.ts` returning the
       table parser's refusal or none, and verify unit rows for each handover

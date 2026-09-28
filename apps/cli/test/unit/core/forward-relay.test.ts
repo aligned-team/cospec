@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test'
 
 import type { CommandContext } from '../../../src/cli.ts'
-import { storePathRefusal } from '../../../src/core/command-table.ts'
+import { commandRow, storePathRefusal } from '../../../src/core/command-table.ts'
 import {
   forwardCall,
   isParseRejection,
+  prevalidateHandover,
   relayGroupRefusal,
   relayRespelled,
   relayStorePathRefusal,
@@ -343,5 +344,60 @@ describe('relayGroupRefusal', () => {
       relayGroupRefusal(groupCtx(false), 'workset', ['x']),
     )
     expect(text.error).toBeInstanceOf(OpenspecCallError)
+  })
+})
+
+describe('prevalidateHandover: each terminal-handover leaf refuses as commander would', () => {
+  const workset = commandRow('workset')!
+  const config = commandRow('config')!
+  const refusal = (row: typeof workset, sub: string, args: string[]) =>
+    prevalidateHandover(row, sub, args)?.message
+
+  test('workset open', () => {
+    expect(refusal(workset, 'open', ['x', '--bogus'])).toBe(
+      "cospec workset open: unknown option '--bogus'\n",
+    )
+    expect(refusal(workset, 'open', ['x', '--tool'])).toBe(
+      "cospec workset open: option '--tool <tool>' argument missing\n",
+    )
+    expect(refusal(workset, 'open', [])).toStartWith(
+      "cospec workset open: missing required argument 'name'\n",
+    )
+    expect(refusal(workset, 'open', ['x', 'y'])).toBe(
+      'cospec workset open: too many arguments. Expected 1 argument but got 2.\n',
+    )
+    expect(refusal(workset, 'open', ['x', '-zq'])).toStartWith(
+      "cospec workset open: unknown option '-zq'\n",
+    )
+    expect(refusal(workset, 'open', ['x', '--store-path', '/p'])).toBe(storePathRefusal(false).text)
+    expect(refusal(workset, 'open', ['x', '--tool', '--bogus'])).toBeUndefined()
+    expect(refusal(workset, 'open', ['--', '--x'])).toBeUndefined()
+  })
+
+  test('config edit, profile and reset --all', () => {
+    expect(refusal(config, 'edit', ['--bogus'])).toBe(
+      "cospec config edit: unknown option '--bogus'\n",
+    )
+    expect(refusal(config, 'edit', ['extra'])).toBe(
+      'cospec config edit: too many arguments. Expected 0 arguments but got 1.\n',
+    )
+    expect(refusal(config, 'edit', ['--store-path', '/p'])).toBe(storePathRefusal(false).text)
+    expect(refusal(config, 'profile', ['a', 'b'])).toBe(
+      'cospec config profile: too many arguments. Expected 1 argument but got 2.\n',
+    )
+    expect(refusal(config, 'profile', ['-zq'])).toStartWith(
+      "cospec config profile: unknown option '-zq'\n",
+    )
+    // Commander splits `-yz` into `-y` and an unknown `-z`.
+    expect(refusal(config, 'reset', ['--all', '-yz'])).toStartWith(
+      "cospec config reset: unknown option '-z'\n",
+    )
+    expect(refusal(config, 'edit', [])).toBeUndefined()
+    expect(refusal(config, 'profile', [])).toBeUndefined()
+    expect(refusal(config, 'reset', ['--all'])).toBeUndefined()
+  })
+
+  test('a subcommand the row does not have is a programming error', () => {
+    expect(() => prevalidateHandover(workset, 'nope', [])).toThrow("no 'nope' subcommand row")
   })
 })
