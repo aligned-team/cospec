@@ -2278,115 +2278,117 @@ const SWEEP_CWD_ARGVS = [
 describe('every file the resolver reads fails as the binary does (ledger 5.22)', () => {
   // The binary runs under Node, as `openspec` users run it: Bun's own errno
   // text for a failed `read` (EISDIR) omits the path Node's names.
-  const maybe = RUNNING_AS_ROOT ? describe.skip : describe
   for (const file of SWEEP_FILES)
     for (const fault of file.faults)
       for (const route of SWEEP_ROUTES)
-        maybe(`${file.id} as ${fault}, via ${route.id}`, () => {
-          let cell!: SweepCell
-          let undo = noUndo
-          const up = new Map<string, Seen>()
-          const ours = new Map<string, Seen>()
-          const key = argvKey
+        (fault === 'mode 000' && RUNNING_AS_ROOT ? describe.skip : describe)(
+          `${file.id} as ${fault}, via ${route.id}`,
+          () => {
+            let cell!: SweepCell
+            let undo = noUndo
+            const up = new Map<string, Seen>()
+            const ours = new Map<string, Seen>()
+            const key = argvKey
 
-          beforeAll(async () => {
-            const sb = await makeSandbox(['alpha'])
-            const repoDir = repo(sb, 'ptr', {
-              dirs: ['src/deep'],
-              files: { [`openspec/${file.pointerFile ?? 'config.yaml'}`]: 'store: alpha\n' },
+            beforeAll(async () => {
+              const sb = await makeSandbox(['alpha'])
+              const repoDir = repo(sb, 'ptr', {
+                dirs: ['src/deep'],
+                files: { [`openspec/${file.pointerFile ?? 'config.yaml'}`]: 'store: alpha\n' },
+              })
+              const { cwd, store } = await route.setup(sb, repoDir)
+              cell = { sb, repo: repoDir, cwd, store }
+              undo = injectFault(await file.path(cell), fault)
+              const runs: Promise<void>[] = []
+              for (const argv of [...SWEEP_ROOT_ARGVS, ['list']]) {
+                runs.push(
+                  oracle([...argv, ...store], sb.dir, { cwd, runtime: 'node' }).then((r) => {
+                    up.set(key(argv), r)
+                  }),
+                  cospec([...argv, ...store], { cwd, env: sb.env }).then((r) => {
+                    ours.set(key(argv), r)
+                  }),
+                )
+              }
+              // The binary takes no `--store` on these: its answer is the cwd's.
+              for (const argv of SWEEP_CWD_ARGVS)
+                runs.push(
+                  oracle([...argv], sb.dir, { cwd, runtime: 'node' }).then((r) => {
+                    up.set(key(argv), r)
+                  }),
+                  cospec([...argv, ...store], { cwd, env: sb.env }).then((r) => {
+                    ours.set(key(argv), r)
+                  }),
+                )
+              await Promise.all(runs)
             })
-            const { cwd, store } = await route.setup(sb, repoDir)
-            cell = { sb, repo: repoDir, cwd, store }
-            undo = injectFault(await file.path(cell), fault)
-            const runs: Promise<void>[] = []
-            for (const argv of [...SWEEP_ROOT_ARGVS, ['list']]) {
-              runs.push(
-                oracle([...argv, ...store], sb.dir, { cwd, runtime: 'node' }).then((r) => {
-                  up.set(key(argv), r)
-                }),
-                cospec([...argv, ...store], { cwd, env: sb.env }).then((r) => {
-                  ours.set(key(argv), r)
-                }),
-              )
+            afterAll(() => undo())
+
+            /** The binary's selection answer here: `status --json` accepts an implicit root (D6). */
+            const selection = (): OracleDiagnostic | undefined => {
+              const run = up.get('status --json')!
+              return run.exitCode === 0 ? undefined : oneDocument(run.stdout).status?.[0]
             }
-            // The binary takes no `--store` on these: its answer is the cwd's.
+
+            for (const argv of SWEEP_ROOT_ARGVS)
+              test(`cospec ${argv.join(' ')} prints one document and the binary's failure`, () => {
+                const res = ours.get(key(argv))!
+                const bin = up.get(key(argv))!
+                const doc = oneDocument(res.stdout)
+                const failed = selection()
+                if (argv[0] === 'doctor' && failed === undefined) {
+                  // A selection that succeeds hands doctor a root whose checks are
+                  // passthrough-json-and-doctor's (roadmap R4); only the one
+                  // document is this row's.
+                  expect(res.stdout.trim().startsWith('{')).toBe(true)
+                  return
+                }
+                const binCode = oneDocument(bin.stdout).status?.[0]?.code
+                // `list` refuses an implicit root upstream; cospec keeps D6's.
+                if (binCode !== 'no_openspec_root') expect(res.exitCode).toBe(bin.exitCode)
+                if (failed === undefined) return
+                expect(res.exitCode).toBe(1)
+                const ourStatus = doc.status?.[0]
+                if (isRawDiagnostic(failed)) {
+                  expect(ourStatus?.message).toBe(failed.message)
+                  expect(ourStatus).not.toHaveProperty('target')
+                  expect(ourStatus).not.toHaveProperty('fix')
+                } else expect(ourStatus?.code).toBe(failed.code)
+                expect(res.stderr).not.toMatch(/^E[A-Z]+: /m)
+              })
+
+            test("cospec list prints the binary's failure once", () => {
+              const res = ours.get('list')!
+              const bin = up.get('list')!
+              const failed = selection()
+              if (bin.stderr.includes('No OpenSpec root found from the current directory')) return
+              expect(res.exitCode).toBe(bin.exitCode)
+              if (!isRawDiagnostic(failed)) return
+              expect(res.stdout).toBe('')
+              expect(res.stderr).toBe(bin.stderr.replace(/^(?:✖ )?Error: /, 'cospec: '))
+              expect(res.stderr).toBe(`cospec: ${failed!.message}\n`)
+            })
+
             for (const argv of SWEEP_CWD_ARGVS)
-              runs.push(
-                oracle([...argv], sb.dir, { cwd, runtime: 'node' }).then((r) => {
-                  up.set(key(argv), r)
-                }),
-                cospec([...argv, ...store], { cwd, env: sb.env }).then((r) => {
-                  ours.set(key(argv), r)
-                }),
-              )
-            await Promise.all(runs)
-          })
-          afterAll(() => undo())
-
-          /** The binary's selection answer here: `status --json` accepts an implicit root (D6). */
-          const selection = (): OracleDiagnostic | undefined => {
-            const run = up.get('status --json')!
-            return run.exitCode === 0 ? undefined : oneDocument(run.stdout).status?.[0]
-          }
-
-          for (const argv of SWEEP_ROOT_ARGVS)
-            test(`cospec ${argv.join(' ')} prints one document and the binary's failure`, () => {
-              const res = ours.get(key(argv))!
-              const bin = up.get(key(argv))!
-              const doc = oneDocument(res.stdout)
-              const failed = selection()
-              if (argv[0] === 'doctor' && failed === undefined) {
-                // A selection that succeeds hands doctor a root whose checks are
-                // passthrough-json-and-doctor's (roadmap R4); only the one
-                // document is this row's.
-                expect(res.stdout.trim().startsWith('{')).toBe(true)
-                return
-              }
-              const binCode = oneDocument(bin.stdout).status?.[0]?.code
-              // `list` refuses an implicit root upstream; cospec keeps D6's.
-              if (binCode !== 'no_openspec_root') expect(res.exitCode).toBe(bin.exitCode)
-              if (failed === undefined) return
-              expect(res.exitCode).toBe(1)
-              const ourStatus = doc.status?.[0]
-              if (isRawDiagnostic(failed)) {
-                expect(ourStatus?.message).toBe(failed.message)
-                expect(ourStatus).not.toHaveProperty('target')
-                expect(ourStatus).not.toHaveProperty('fix')
-              } else expect(ourStatus?.code).toBe(failed.code)
-              expect(res.stderr).not.toMatch(/^E[A-Z]+: /m)
-            })
-
-          test("cospec list prints the binary's failure once", () => {
-            const res = ours.get('list')!
-            const bin = up.get('list')!
-            const failed = selection()
-            if (bin.stderr.includes('No OpenSpec root found from the current directory')) return
-            expect(res.exitCode).toBe(bin.exitCode)
-            if (!isRawDiagnostic(failed)) return
-            expect(res.stdout).toBe('')
-            expect(res.stderr).toBe(bin.stderr.replace(/^(?:✖ )?Error: /, 'cospec: '))
-            expect(res.stderr).toBe(`cospec: ${failed!.message}\n`)
-          })
-
-          for (const argv of SWEEP_CWD_ARGVS)
-            test(`cospec ${argv.join(' ')} answers as the binary does in the cwd`, () => {
-              const res = ours.get(key(argv))!
-              const bin = up.get(key(argv))!
-              expect(bin.exitCode).toBe(0)
-              if (cell.store.length === 0) {
-                expect(res).toEqual(bin)
-                return
-              }
-              // An explicit --store keeps its selection failure (ledger 5.15).
-              const failed = selection()
-              if (failed === undefined) {
-                expect(res.exitCode).toBe(0)
-                return
-              }
-              expect(res.exitCode).toBe(1)
-              const ourStatus = oneDocument(res.stdout).status?.[0]
-              if (isRawDiagnostic(failed)) expect(ourStatus?.message).toBe(failed.message)
-              else expect(ourStatus?.code).toBe(failed.code)
-            })
-        })
+              test(`cospec ${argv.join(' ')} answers as the binary does in the cwd`, () => {
+                const res = ours.get(key(argv))!
+                const bin = up.get(key(argv))!
+                expect(bin.exitCode).toBe(0)
+                if (cell.store.length === 0) {
+                  expect(res).toEqual(bin)
+                  return
+                }
+                // An explicit --store keeps its selection failure (ledger 5.15).
+                const failed = selection()
+                if (failed === undefined) {
+                  expect(res.exitCode).toBe(0)
+                  return
+                }
+                expect(res.exitCode).toBe(1)
+                const ourStatus = oneDocument(res.stdout).status?.[0]
+                if (isRawDiagnostic(failed)) expect(ourStatus?.message).toBe(failed.message)
+                else expect(ourStatus?.code).toBe(failed.code)
+              })
+          },
+        )
 })
