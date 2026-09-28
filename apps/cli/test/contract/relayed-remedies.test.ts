@@ -223,41 +223,33 @@ describe('show with an empty item name answers itself, never the binary screen',
     ['show', '--no-scenarios', '-r1'],
   ]
   for (const argv of ATTACHED) {
-    test.failing(
-      `${argv.join(' ')}: an attached short value is no item`,
-      async () => {
-        const coRoot = fixtureRoot()
-        const upRoot = fixtureRoot()
-        const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-        const up = await oracle(argv, upRoot, { runtime: 'node' })
-        expect(up.exitCode).toBe(1)
-        expect(up.stderr).toContain('Nothing to show. Try one of:')
-        expect(co.exitCode, detail(co)).toBe(1)
-        expect(co.stdout, detail(co)).toBe('')
-        expect(co.stderr, detail(co)).toBe(REQUIRED)
-      },
-      30_000,
-    )
-    test.failing(
-      `${argv.join(' ')} --json: one missing_item document`,
-      async () => {
-        const root = fixtureRoot()
-        const co = await cospec([...argv, '--json'], { cwd: root, env: oracleEnv(root) })
-        expect(co.exitCode, detail(co)).toBe(1)
-        expect(documentCount(co.stdout), detail(co)).toBe(1)
-        expect(JSON.parse(co.stdout)).toEqual({
-          status: [
-            {
-              severity: 'error',
-              code: 'missing_item',
-              message: 'an item name is required (cospec show <change-or-spec>)',
-            },
-          ],
-        })
-        expect(co.stderr, detail(co)).toBe('')
-      },
-      30_000,
-    )
+    test(`${argv.join(' ')}: an attached short value is no item`, async () => {
+      const coRoot = fixtureRoot()
+      const upRoot = fixtureRoot()
+      const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+      const up = await oracle(argv, upRoot, { runtime: 'node' })
+      expect(up.exitCode).toBe(1)
+      expect(up.stderr).toContain('Nothing to show. Try one of:')
+      expect(co.exitCode, detail(co)).toBe(1)
+      expect(co.stdout, detail(co)).toBe('')
+      expect(co.stderr, detail(co)).toBe(REQUIRED)
+    }, 30_000)
+    test(`${argv.join(' ')} --json: one missing_item document`, async () => {
+      const root = fixtureRoot()
+      const co = await cospec([...argv, '--json'], { cwd: root, env: oracleEnv(root) })
+      expect(co.exitCode, detail(co)).toBe(1)
+      expect(documentCount(co.stdout), detail(co)).toBe(1)
+      expect(JSON.parse(co.stdout)).toEqual({
+        status: [
+          {
+            severity: 'error',
+            code: 'missing_item',
+            message: 'an item name is required (cospec show <change-or-spec>)',
+          },
+        ],
+      })
+      expect(co.stderr, detail(co)).toBe('')
+    }, 30_000)
   }
 
   test('an empty token before an item still reaches the binary', async () => {

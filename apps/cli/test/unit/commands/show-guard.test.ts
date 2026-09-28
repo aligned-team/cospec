@@ -44,7 +44,7 @@ describe('show: binaryAnswers', () => {
   // Commander's short-option split: `-X<rest>` gives a value-taking `-X` the
   // rest as its value (`-r=1` too, value `=1`); a boolean `-X` leaves `-<rest>`
   // as the next token.
-  test.failing('an attached short value is its value, not an item', () => {
+  test('an attached short value is its value, not an item', () => {
     expect(binaryAnswers(['-r1'])).toBe(false)
     expect(binaryAnswers(['-r=1'])).toBe(false)
     expect(binaryAnswers(['-rr'])).toBe(false)

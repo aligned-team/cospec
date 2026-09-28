@@ -21,7 +21,7 @@ export const notRelayed = {
   STORE_PATH:
     "raised only for `--store-path`: table rows refuse it in cospec's parser before any spawn, and forward rows answer the binary's refusal with cospec's own redirect (`relayStorePathRefusal`)",
   SHOW_EMPTY:
-    "the binary's Nothing-to-show screen: `cospec show` answers a missing item itself (`commands/show.ts` binaryAnswers) and never spawns the binary for it",
+    "the binary's Nothing-to-show screen, printed only when commander leaves `show` no item: `cospec show` answers every such argv itself (`commands/show.ts` binaryAnswers — no token, an empty token, only declared flags with their values, a short value attached as `-r1`/`-r=1`/`-rr`) and never spawns the binary for it",
   VIEW_DIR:
     'names the `openspec/` directory, not a command, and `cospec view` refuses a root with no `openspec/` itself before spawning (`commands/view.ts`)',
   HIDDEN_OPTION:
