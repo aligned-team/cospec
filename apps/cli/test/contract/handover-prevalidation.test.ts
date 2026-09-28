@@ -14,7 +14,7 @@
 // the exit code and an empty stdout.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { chmodSync, cpSync, mkdirSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { run } from '../../src/cli.ts'
@@ -426,87 +426,78 @@ async function piped(cmd: string[], root: string, input: string | undefined): Pr
   return { stdout, stderr, exitCode }
 }
 
-describe('config reset --all with no terminal on stdin exits as the binary exits', () => {
-  for (const input of [undefined, 'y\n']) {
-    test(`stdin ${input === undefined ? 'empty' : 'piped “y”'}: cancelled, nothing reset`, async () => {
-      const root = plainRoot()
-      const argv = ['config', 'reset', '--all']
-      const before = treeHash(root)
-      const up = await piped(['node', openspecBinPath(), ...argv], root, input)
-      expect(treeHash(root)).toEqual(before)
-      const co = await piped([process.execPath, CLI_ENTRY, ...argv], root, input)
-      expect(treeHash(root)).toEqual(before)
-      expect(up.exitCode, detail(up)).toBe(130)
-      expect(co.exitCode, detail(co)).toBe(up.exitCode)
-      expect(co.stdout, detail(co)).toBe(respellRemedies(up.stdout))
-      expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
-    }, 30_000)
-  }
-})
+/** The sandbox's global config, as `config reset --all` resets it. */
+function globalConfig(root: string): string {
+  return join(root, '.oracle-home', '.config', 'openspec', 'config.json')
+}
 
-/**
- * `cmd` with `answer` written to its piped stdin once its prompt is drawn —
- * its first output, which the binary prints only when the confirm is ready —
- * or, for a caller that prints nothing until it exits (cospec buffers its
- * relay), after `fallbackMs` while it still runs.
- */
-async function answeredLate(cmd: string[], root: string, answer: string): Promise<SpawnResult> {
-  const proc = Bun.spawn(cmd, {
+/** A global config `config reset --all` changes when it resets. */
+const CUSTOM_CONFIG = '{\n  "profile": "custom",\n  "featureFlags": {}\n}\n'
+
+/** `cmd` in `root`, its stdin fed by the shell `feeder` (`echo y |`, `</dev/null`). */
+async function fed(feeder: string, cmd: string[], root: string): Promise<SpawnResult> {
+  const script = feeder.startsWith('<') ? `exec "$@" ${feeder}` : `${feeder} exec "$@"`
+  const proc = Bun.spawn(['sh', '-c', script, 'sh', ...cmd], {
     cwd: root,
-    stdin: 'pipe',
+    stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
     env: { ...oracleEnv(root), OPENSPEC_NO_COMPLETIONS: '1' },
   })
-  const fallbackMs = 1500
-  let drawn: () => void = () => {}
-  const prompted = new Promise<void>((resolve) => {
-    drawn = resolve
-  })
-  const stdout = (async () => {
-    const decoder = new TextDecoder()
-    let text = ''
-    for await (const chunk of proc.stdout) {
-      text += decoder.decode(chunk, { stream: true })
-      drawn()
-    }
-    return text + decoder.decode()
-  })()
-  const answered = (async () => {
-    await Promise.race([prompted, Bun.sleep(fallbackMs), proc.exited])
-    if (proc.exitCode !== null) return
-    proc.stdin.write(answer)
-    await proc.stdin.end()
-  })()
-  const [out, stderr, exitCode] = await Promise.all([
-    stdout,
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
     proc.exited,
-    answered,
   ])
-  return { stdout: out, stderr, exitCode }
+  return { stdout, stderr, exitCode }
 }
 
-describe('config reset --all fed a later answer on a pipe: cospec-only (design D14)', () => {
-  // The binary's confirm reads an answer that arrives on its pipe after the
-  // prompt and resets; cospec gives the confirm no stdin, so it cancels and
-  // resets nothing, as for an answer already waiting on the pipe — which the
-  // binary discards under Node and Bun would take.
-  test('the binary resets, exit 0; cospec cancels, exit 130, nothing reset', async () => {
-    const argv = ['config', 'reset', '--all']
-    const upRoot = plainRoot()
-    const up = await answeredLate(['node', openspecBinPath(), ...argv], upRoot, 'y\n')
-    expect(up.exitCode, detail(up)).toBe(0)
-    const root = plainRoot()
-    const before = treeHash(root)
-    const co = await answeredLate([process.execPath, CLI_ENTRY, ...argv], root, 'y\n')
-    expect(co.exitCode, detail(co)).toBe(130)
-    expect(treeHash(root)).toEqual(before)
-    const cancelled = await piped(['node', openspecBinPath(), ...argv], plainRoot(), undefined)
-    expect(terminalText(co.stdout), detail(co)).toBe(
-      terminalText(respellRemedies(cancelled.stdout)),
+/** The last line a run printed: its answer (`Reset cancelled.`, `Configuration reset to defaults`). */
+function lastLine(text: string): string | undefined {
+  return text.trimEnd().split('\n').at(-1)
+}
+
+describe('config reset --all with stdin piped, not a terminal: cospec forwards it (design D14)', () => {
+  // Under Node the confirm discards an answer already waiting on the pipe when
+  // it is drawn and takes one that arrives after; a stream that never stops
+  // (`yes`) answers it after its first chunk is discarded.
+  const cases: [feeder: string, exitCode: number, reset: boolean][] = [
+    ['echo y |', 130, false],
+    ['echo n |', 130, false],
+    ['</dev/null', 130, false],
+    ['(sleep 1; echo y) |', 0, true],
+    ['(sleep 1; echo n) |', 0, false],
+    ['yes |', 0, true],
+  ]
+  for (const [feeder, exitCode, reset] of cases) {
+    // Before forwarding, cospec gave the confirm no stdin, so it cancelled every case.
+    const row = exitCode === 130 ? test : test.failing
+    row(
+      `${feeder} cospec config reset --all: as the binary answers`,
+      async () => {
+        const argv = ['config', 'reset', '--all']
+        const [upRoot, coRoot] = [plainRoot(), plainRoot()]
+        for (const root of [upRoot, coRoot]) {
+          mkdirSync(dirname(globalConfig(root)), { recursive: true })
+          writeFileSync(globalConfig(root), CUSTOM_CONFIG)
+        }
+        const up = await fed(feeder, ['node', openspecBinPath(), ...argv], upRoot)
+        const co = await fed(feeder, [process.execPath, CLI_ENTRY, ...argv], coRoot)
+        expect(up.exitCode, detail(up)).toBe(exitCode)
+        expect(readFileSync(globalConfig(upRoot), 'utf8') !== CUSTOM_CONFIG).toBe(reset)
+        expect(co.exitCode, detail(co)).toBe(up.exitCode)
+        expect(readFileSync(globalConfig(coRoot), 'utf8')).toBe(
+          readFileSync(globalConfig(upRoot), 'utf8'),
+        )
+        expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
+        // `yes` answers every redraw the prompt makes before it closes, a count
+        // no run fixes, under Node as under cospec: its answer line is compared.
+        if (feeder === 'yes |') expect(lastLine(co.stdout), detail(co)).toBe(lastLine(up.stdout))
+        else expect(co.stdout, detail(co)).toBe(respellRemedies(up.stdout))
+      },
+      30_000,
     )
-  }, 30_000)
+  }
 })
 
 // --- review round 2: `config <leaf> <extra-arg> --json` (design D13) --------------------
