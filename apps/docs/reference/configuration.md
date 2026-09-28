@@ -181,7 +181,14 @@ The three tiers above are all repo-local. OpenSpec also keeps one machine-global
 config file, `~/.config/openspec/config.json`, and `cospec config <sub>` wraps
 it — cospec never reads or writes that file itself, adds no validation of its
 own, and relays upstream's key validation, value coercion, and
-prototype-pollution guard verbatim.
+prototype-pollution guard as OpenSpec answers, its remedies spelled `cospec`
+(`Fix it with "cospec config edit", …`, and `profile <preset>`'s
+``Config updated. Run `cospec update` in your projects to apply.``).
+
+`cospec config` with no subcommand (`--scope global` or not) prints
+`cospec config --help` on stderr and exits `1`, as OpenSpec prints its own
+`config` help there; under `--json` OpenSpec's refusal of `--json` at the
+`config` level (`error: unknown option '--json'`) is relayed instead.
 
 `cospec config` splits into two call classes:
 
@@ -194,7 +201,19 @@ prototype-pollution guard verbatim.
   survive cospec's piped `stdin: 'ignore'` spawn. cospec hands the terminal over
   instead: inherited stdio, the child's verbatim exit code (including `130` on
   prompt cancellation), and no `--json` — the same terminal-handover contract
-  [`cospec workset open`](/concepts/stores) uses.
+  [`cospec workset open`](/concepts/stores) uses. Nothing OpenSpec prints on
+  that terminal can be relayed, so before handing it over cospec refuses what
+  OpenSpec would, in OpenSpec's order: the argv first (an unknown option, an
+  excess argument, a short cluster such as `reset --all -yz`, `--store-path`),
+  on stderr with exit `1` and nothing on stdout, even under `--json`; then
+  `--json` (the envelope below). `profile` with no preset tests for a TTY on
+  stdout, as OpenSpec does: with none it runs piped, and OpenSpec's refusal is
+  relayed —
+  ``Interactive mode required. Use `cospec config profile core` or set config via environment/flags.``,
+  exit `1`; on a TTY a read-only piped check runs first, and an unreadable
+  global config gets OpenSpec's refusal (`cospec config edit` /
+  `cospec config reset --all`) instead of the menu. `edit` and `reset --all`
+  have no non-interactive branch and always hand over.
 
 `--scope` is a parent-level option (not `--store` — OpenSpec config is
 machine-global, so `cospec config` never resolves a root or threads
@@ -209,6 +228,12 @@ wraps their text output in its own `version: 1` envelope:
 | `get`                 | `{ version: 1, command: 'config get', key, value, found }` (`value`/`found` are `null`/`false` when the key is unset) |
 | `set`/`unset`/`reset` | `{ version: 1, command: 'config <sub>', ok, message }`                                                                |
 | a Class B subcommand  | `{ version: 1, command: 'config <sub>', ok: false, message: '… is interactive and cannot emit JSON' }`, exit `1`      |
+
+The envelope is for an answer the subcommand gave. When OpenSpec refuses the
+argv itself — `cospec config get foo --bogus --json`,
+`cospec config path --bogus --json` — its refusal
+(`error: unknown option '--bogus'`) is relayed on stderr, exit `1`, with nothing
+on stdout, as OpenSpec prints it before any output.
 
 `cospec config --store <id>` is refused outright (exit `1`, before spawning the
 wrapped binary) rather than silently ignored — OpenSpec config has no store
