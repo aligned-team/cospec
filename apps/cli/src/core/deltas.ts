@@ -433,59 +433,116 @@ function blank(s: string): string {
   return s.replace(/[^\n]/g, ' ')
 }
 
+const COMMENT_OPEN = '<!--'
+const COMMENT_CLOSE_RE = /--!?>/g
+
 /**
- * Blank out `<!-- … -->` spans in place, preserving every newline so line
- * numbers never shift. `--!>` terminates a comment too, and an unterminated
- * `<!--` comments out the rest of the file (openspec #1413).
+ * Blank out `<!-- … -->` spans line by line, preserving every line's length so
+ * line numbers never shift. `--!>` terminates a comment too, and an
+ * unterminated `<!--` comments out the rest of the file (openspec #1413).
+ *
+ * Fence-aware: `fenced` is the code-fence mask of the same raw lines, built
+ * first, and a comment can neither open nor close on a fenced line. A `<!--`
+ * shown inside a fenced example is code, not a comment — masking the text
+ * after it, as a whole-file regex did, hid every scenario below the example,
+ * and the scenario-preservation gate refused a merge openspec performs. A
+ * comment already open when a fence starts stays open across it, and the
+ * fenced lines inside it are blanked with the rest of the comment.
  */
-export function maskHtmlComments(text: string): string {
-  const masked = text.replace(/<!--[\s\S]*?--!?>/g, blank)
-  const unterminated = masked.indexOf('<!--')
-  if (unterminated === -1) return masked
-  return masked.slice(0, unterminated) + blank(masked.slice(unterminated))
+export function maskHtmlComments(lines: readonly string[], fenced: readonly boolean[]): string[] {
+  const masked: string[] = []
+  let open = false
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!
+    if (fenced[i] === true) {
+      masked.push(open ? blank(line) : line)
+      continue
+    }
+    let out = ''
+    let pos = 0
+    while (pos < line.length) {
+      if (open) {
+        COMMENT_CLOSE_RE.lastIndex = pos
+        const close = COMMENT_CLOSE_RE.exec(line)
+        const end = close === null ? line.length : close.index + close[0].length
+        out += blank(line.slice(pos, end))
+        pos = end
+        if (close !== null) open = false
+        continue
+      }
+      const start = line.indexOf(COMMENT_OPEN, pos)
+      if (start === -1) {
+        out += line.slice(pos)
+        break
+      }
+      out += line.slice(pos, start) + blank(COMMENT_OPEN)
+      pos = start + COMMENT_OPEN.length
+      open = true
+    }
+    masked.push(out)
+  }
+  return masked
+}
+
+/**
+ * One document, scanned once: the raw lines, their fence mask, and the
+ * comment-masked copy. Both `ReadView`s are read off this one scan, so the two
+ * can never disagree about where a fence starts or which line is which.
+ */
+export interface DocumentScan {
+  /** LF-normalized lines; BOM-stripped unless the scan was asked to keep it. */
+  source: string[]
+  /** `true` where `source[i]` sits inside a fenced code block — found on the raw lines. */
+  fenced: boolean[]
+  /** `source` with HTML comments blanked (`maskHtmlComments`). */
+  masked: string[]
+}
+
+/**
+ * Scan a markdown document. CR/CRLF fold to LF (a trailing `\r` leaks into
+ * every `(.+)$` capture), and a UTF-8 BOM is stripped as openspec's
+ * `MarkdownParser`, delta reader and `extractRequirementsSection` strip it.
+ * `keepBom` is for the one upstream reader that does not:
+ * `findMainSpecStructureIssues` (`spec-structure.ts`, 1.13.1) folds line
+ * endings only, so a BOM before a first-line `## Requirements` hides that
+ * header from it and the archive refuses the spec. Line counts never change.
+ */
+export function scanDocument(text: string, opts: { keepBom?: boolean } = {}): DocumentScan {
+  const folded = text.replace(/\r\n?/g, '\n')
+  const source = (opts.keepBom === true ? folded : folded.replace(/^﻿/, '')).split('\n')
+  const fenced = buildCodeFenceMask(source)
+  return { source, fenced, masked: maskHtmlComments(source, fenced) }
 }
 
 export interface ScannedMarkdown {
-  /** Structural view: BOM-stripped, LF-normalized, HTML comments blanked. */
+  /** The chosen view's lines (see `ReadView`), index-aligned with `source`. */
   lines: string[]
-  /** Verbatim view (same length/indices): BOM-stripped and LF-normalized only. */
+  /** Verbatim lines: BOM-stripped and LF-normalized only. */
   source: string[]
-  /** `true` where `lines[i]` sits inside a fenced code block. */
+  /** `true` where line `i` sits inside a fenced code block. */
   fenced: boolean[]
 }
 
 /**
- * Which view of a document a reader takes.
+ * Which view of the one scan a reader takes. Fences are masked in both — they
+ * are found on the raw lines before anything else — and the two differ only
+ * in HTML comments.
  *
- * - `masked` blanks HTML comments before reading structure — the view cospec's
- *   advisory rules (`deltas/*`, `specs/*`) have always read, so a commented-out
- *   header never draws an authoring finding.
- * - `verbatim` blanks nothing but fenced code, which is the view openspec's own
- *   delta and spec readers take (`requirement-blocks.ts`, `spec-structure.ts`,
- *   1.13.1: both build a code-fence mask and nothing else). The archive merges
- *   exactly what that view holds — an op written inside `<!-- … -->` is still
- *   parsed and applied, and a header's trailing comment is part of its name —
- *   so every `archive/*` rule reads it. Reading the masked view there let a
- *   commented op that collides or misses its target pass while the archive
- *   refused it, and refused a REMOVED `X` beside an ADDED `X <!-- note -->`
- *   that the archive applies as two names.
+ * - `verbatim` keeps comments. It is exactly what openspec's own readers see
+ *   (`requirement-blocks.ts`, `spec-structure.ts`, `markdown-parser.ts`,
+ *   1.13.1: each builds a code-fence mask and nothing else), and so what its
+ *   archive merges and re-validates: an op written inside `<!-- … -->` is
+ *   parsed and applied, and a header's trailing comment is part of its name.
+ *   Every `archive/*` rule reads it.
+ * - `masked` also blanks comments. Only the advisory `deltas/*` and `specs/*`
+ *   rules read it (and the hard archive gate, which is not a rule), so a
+ *   commented-out draft never draws an authoring finding.
  */
 export type ReadView = 'masked' | 'verbatim'
 
-/**
- * Prepare a markdown document for structural scanning.
- *
- * A UTF-8 BOM is stripped (otherwise a BOM-prefixed `# Spec` never matches an
- * anchored header regex) and CR/CRLF are folded to LF (a trailing `\r` leaks
- * into every `(.+)$` capture). Both keep the line count intact, as does the
- * comment mask, so a reported line number always addresses the author's file.
- * Under the `verbatim` view `lines` is `source` itself.
- */
 export function scanMarkdown(text: string, view: ReadView = 'masked'): ScannedMarkdown {
-  const normalized = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n')
-  const source = normalized.split('\n')
-  const lines = view === 'verbatim' ? source : maskHtmlComments(normalized).split('\n')
-  return { lines, source, fenced: buildCodeFenceMask(lines) }
+  const { source, fenced, masked } = scanDocument(text)
+  return { lines: view === 'verbatim' ? source : masked, source, fenced }
 }
 
 /**

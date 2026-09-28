@@ -4,10 +4,12 @@ import {
   findScenarioDrops,
   foldRequirementName,
   type LivingSpec,
+  maskHtmlComments,
   normalizeBlockRaw,
   normalizeRequirementName,
   parseDeltaSpec,
   parseLivingSpec,
+  scanDocument,
   scenarioDropMessage,
   scenarioNameFromHeader,
 } from '../../../src/core/deltas.ts'
@@ -2050,5 +2052,60 @@ describe('requirement header keyword case', () => {
     expect([...living.requirementNames]).toEqual(['Alpha'])
     expect(living.requirementScenarioCounts.get('Alpha')).toBe(1)
     expect(living.requirementScenarioNames.get('Alpha')).toEqual(['s1'])
+  })
+})
+
+// Round 3: one fence-aware scan. Fences are found on the raw lines first, and
+// an HTML comment can neither open nor close on a fenced line.
+describe('scanDocument: fences first, then comments', () => {
+  test('a "<!--" inside a fenced example opens no comment, so nothing after it is hidden', () => {
+    const text = [
+      '## MODIFIED Requirements',
+      '',
+      '### Requirement: X',
+      '',
+      'The system SHALL x.',
+      '',
+      '#### Scenario: explain',
+      '',
+      '```html',
+      '<!-- note',
+      '```',
+      '',
+      '#### Scenario: kept',
+      '',
+      '- **WHEN** a',
+    ].join('\n')
+    const p = parseDeltaSpec(text, 'specs/x/spec.md', 'x')
+    expect(p.ops[0]!.scenarioNames).toEqual(['explain', 'kept'])
+    expect(p.ops[0]!.scenarioCount).toBe(2)
+    expect(scanDocument(text).masked).toEqual(text.split('\n'))
+  })
+
+  test('a "-->" inside a fence does not close a comment opened before it', () => {
+    const lines = ['<!--', '```', '-->', '```', '#### Scenario: hidden', '-->', 'after']
+    const { fenced, masked } = scanDocument(lines.join('\n'))
+    expect(fenced).toEqual([false, true, true, true, false, false, false])
+    expect(masked.map((l) => l.trim())).toEqual(['', '', '', '', '', '', 'after'])
+  })
+
+  test('a fence opener inside a comment is still a fence, as the raw-line reader sees it', () => {
+    const { fenced } = scanDocument(['<!-- example', '```', '-->', '### Requirement: Y'].join('\n'))
+    expect(fenced).toEqual([false, true, true, true])
+  })
+
+  test('masking keeps every line length and column', () => {
+    const lines = ['a <!-- b --> c', '<!-- open', 'still', 'shut --> d']
+    const masked = maskHtmlComments(lines, [false, false, false, false])
+    expect(masked.map((l) => l.length)).toEqual(lines.map((l) => l.length))
+    expect(masked[0]).toBe(`a ${' '.repeat(10)} c`)
+    expect(masked[3]!.endsWith(' d')).toBe(true)
+    expect(masked[3]!.trim()).toBe('d')
+  })
+
+  test('the BOM is stripped unless the scan keeps it; line endings always fold', () => {
+    const text = '\uFEFF## Requirements\r\n\r\nx'
+    expect(scanDocument(text).source).toEqual(['## Requirements', '', 'x'])
+    expect(scanDocument(text, { keepBom: true }).source).toEqual(['\uFEFF## Requirements', '', 'x'])
   })
 })

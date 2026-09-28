@@ -1769,32 +1769,26 @@ describe('14. one view model: the scan is fence-aware and the archive family rea
   const buildFenced = (root: string): void =>
     buildFeat(root, 'fenced-opener', { 'widgets/spec.md': FENCED_COMMENT_OPENER })
 
-  test.failing(
-    '14.1 a "<!--" inside a fenced example hides no scenario, as the binary archives it',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      buildFenced(root)
-      const bin = await binaryIssues(root, 'fenced-opener')
-      expect(bin.filter((i) => i.level !== 'INFO')).toEqual([])
-      const archived = await binaryArchive(buildFenced, 'fenced-opener')
-      expect(archived.exitCode).toBe(0)
-      expect(archived.moved).toBe(true)
-      const { report, exitCode } = await cospecValidate(root, 'fenced-opener')
-      expect(problems(report)).toEqual([])
-      expect(exitCode).toBe(0)
-    },
-  )
+  test('14.1 a "<!--" inside a fenced example hides no scenario, as the binary archives it', async () => {
+    const root = mkTempRepo({ git: true })
+    buildFenced(root)
+    const bin = await binaryIssues(root, 'fenced-opener')
+    expect(bin.filter((i) => i.level !== 'INFO')).toEqual([])
+    const archived = await binaryArchive(buildFenced, 'fenced-opener')
+    expect(archived.exitCode).toBe(0)
+    expect(archived.moved).toBe(true)
+    const { report, exitCode } = await cospecValidate(root, 'fenced-opener')
+    expect(problems(report)).toEqual([])
+    expect(exitCode).toBe(0)
+  })
 
-  test.failing(
-    '14.2 cospec archive archives the same change: its hard gate reads the same scan',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      buildFenced(root)
-      const res = await cospec(['archive', 'fenced-opener'], { cwd: root })
-      expect(res.exitCode).toBe(0)
-      expect(existsSync(join(root, 'openspec/changes/fenced-opener'))).toBe(false)
-    },
-  )
+  test('14.2 cospec archive archives the same change: its hard gate reads the same scan', async () => {
+    const root = mkTempRepo({ git: true })
+    buildFenced(root)
+    const res = await cospec(['archive', 'fenced-opener'], { cwd: root })
+    expect(res.exitCode).toBe(0)
+    expect(existsSync(join(root, 'openspec/changes/fenced-opener'))).toBe(false)
+  })
 
   const buildHiddenLiving = (root: string): void =>
     buildFeat(
