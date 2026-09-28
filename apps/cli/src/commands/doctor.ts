@@ -591,8 +591,12 @@ export async function run(ctx: CommandContext): Promise<number> {
   // workspace with no `openspec/` of its own — that split is the point of
   // `cospec doctor --store <id>` run from a bare checkout.
   const root = await resolveRoot(ctx)
+  // From a subdirectory the local checks read the enclosing root the walk
+  // found; the invocation cwd stays the base only where no local root was
+  // walked to (a store-selected or implicit root).
+  const base = root.source === 'nearest' ? root.base : cwd
 
-  if (!existsSync(openspecDir(cwd))) {
+  if (!existsSync(openspecDir(base))) {
     findings.push({
       level: 'ERROR',
       check: 'initialized',
@@ -601,20 +605,20 @@ export async function run(ctx: CommandContext): Promise<number> {
     })
   } else {
     checkOpenspecVersion(findings)
-    checkLegacyLayout(checkDrift(cwd, findings), findings)
-    const mdFiles = harnessMarkdownFiles(cwd)
+    checkLegacyLayout(checkDrift(base, findings), findings)
+    const mdFiles = harnessMarkdownFiles(base)
     checkStaleness(mdFiles, findings)
-    checkDanglingRefs(cwd, mdFiles, findings)
-    checkConfig(cwd, findings)
-    checkOpsx(cwd, findings)
-    checkStaleSidecars(cwd, findings)
-    checkChangeSchemas(cwd, findings)
-    checkSchemaVersions(cwd, findings)
-    checkGateHooks(cwd, findings)
+    checkDanglingRefs(base, mdFiles, findings)
+    checkConfig(base, findings)
+    checkOpsx(base, findings)
+    checkStaleSidecars(base, findings)
+    checkChangeSchemas(base, findings)
+    checkSchemaVersions(base, findings)
+    checkGateHooks(base, findings)
     checkGlobalProfile(findings)
   }
 
-  await checkOpenspecRelationship(root, cwd, findings)
+  await checkOpenspecRelationship(root, base, findings)
 
   return report(findings, flags.json)
 }

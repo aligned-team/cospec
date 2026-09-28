@@ -357,3 +357,7 @@ files, task 7.7, both marked POST-REBASE.
       binary's `error` diagnostic, and turn it into a `RootSelectionError` in
       `root.ts` (respelled through `core/remedies.ts`, prefixed by
       `withOrigin`); list `invalid_store_registry` on the Stores page
+- [x] 9.4 REVIEW (ledger 5.18, design D2): add a failing row, then run
+      `doctor`'s local checks and `hasReferencesConfig` against `root.base` for
+      a `nearest` root, keeping `ctx.cwd` for every other root (minimal hunk;
+      `passthrough-json-and-doctor` owns `doctor.ts`)

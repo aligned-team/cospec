@@ -1731,3 +1731,49 @@ describe('an unreadable store registry fails selection with its diagnostic (ledg
     })
   }
 })
+
+// --- Ledger 5.18: doctor from a subdirectory checks the enclosing root ---
+
+interface DoctorFinding {
+  level: string
+  check: string
+  message: string
+}
+
+describe('cospec doctor from a subdirectory checks the enclosing root (ledger 5.18)', () => {
+  test("the findings are the root's, and the operating root is the binary's", async () => {
+    const sb = await makeSandbox([])
+    const dir = repo(sb, 'doc', {
+      dirs: ['openspec/changes/archive', 'openspec/specs', 'src/deep'],
+      files: {
+        'openspec/config.yaml': 'schema: spec-driven\nreferences:\n  - id: nonexistent-store\n',
+      },
+    })
+    const sub = join(dir, 'src', 'deep')
+    const o = await oracleJsonRoot(sb, sub)
+    expect(o).toEqual({ path: canonical(dir), source: 'nearest' })
+    const [atRoot, atSub] = await Promise.all([
+      cospec(['doctor', '--json'], { cwd: dir, env: sb.env }),
+      cospec(['doctor', '--json'], { cwd: sub, env: sb.env }),
+    ])
+    const findings = (stdout: string): DoctorFinding[] =>
+      (JSON.parse(stdout) as { findings: DoctorFinding[] }).findings
+    const fromSub = findings(atSub.stdout)
+    expect(fromSub.some((f) => f.check === 'initialized')).toBe(false)
+    expect(fromSub).toEqual(findings(atRoot.stdout))
+    expect(atSub.exitCode).toBe(atRoot.exitCode)
+    expect(fromSub.find((f) => f.check === 'openspec-root')?.message).toBe(
+      `operating root is nearest-sourced at ${o.path} (healthy per openspec doctor)`,
+    )
+    expect(fromSub.some((f) => f.check.startsWith('openspec-reference-nonexistent-store'))).toBe(
+      true,
+    )
+  })
+})
+
+/** The root `openspec doctor --json` reports from `cwd`. */
+async function oracleJsonRoot(sb: Sandbox, cwd: string): Promise<OracleRoot> {
+  const run = await oracle(['doctor', '--json'], sb.dir, { cwd })
+  const body = JSON.parse(run.stdout) as { root: { path: string; source: string } }
+  return { path: body.root.path, source: body.root.source }
+}

@@ -129,6 +129,17 @@ emits `root` in a JSON document reads `source` from the resolver's result.
 _Rejected:_ adding an optional `source` to `Root` in `core/openspec.ts`, which
 changes a type every command consumes for no behavioural gain.
 
+_Amended in review:_ `doctor` resolved the root but ran its local checks against
+`ctx.cwd`, so from `<repo>/src/deep` it reported only
+`no openspec/ directory at <repo>/src/deep` and skipped the `references:`
+relationship section, where the binary's `doctor --json` reports the enclosing
+root. Its local checks and `hasReferencesConfig` now read `root.base` for a
+`nearest` root and keep `ctx.cwd` otherwise, which leaves the explicit-`--store`
+bare-workspace case (the reason `doctor` resolves before its `initialized`
+check) unchanged. The hunk is minimal because `passthrough-json-and-doctor` owns
+`doctor.ts` and rebases onto it; what `doctor` should read for a pointer or
+`defaultStore` root is left to that change.
+
 **D3. Canonicalize the walk.** The walk starts from `realpathSync` of the cwd
 and returns canonical paths, exactly as `findNearestAncestor` does. A walk over
 the logical path picks a different ancestor whenever the cwd is reached through
