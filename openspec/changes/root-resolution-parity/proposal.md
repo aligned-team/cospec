@@ -111,9 +111,11 @@ checkout gets different roots than before.
   superset of upstream, which reads `process.cwd()` for these two commands: from
   a subdirectory, cospec finds the enclosing root's typed schemas and
   `schema fork`/`init` write into that root instead of creating a stray
-  `openspec/` in the subdirectory. Every other passthrough keeps its `--store`
-  threading for an explicit `--store`. `cospec schema`'s missing- and
-  unknown-subcommand errors name all four upstream subcommands (`which`,
+  `openspec/` in the subdirectory. When selection fails with no explicit
+  `--store`, both spawn in the invocation directory instead, as upstream always
+  does, so a selection failure never fails them. Every other passthrough keeps
+  its `--store` threading for an explicit `--store`. `cospec schema`'s missing-
+  and unknown-subcommand errors name all four upstream subcommands (`which`,
   `validate`, `fork`, `init`), not just the first two.
 - **One JSON document for resolver failures under `--json` (after the rebase
   onto `unknown-option-contract`).** A resolver hard-error in a `--json` run
@@ -163,7 +165,11 @@ checkout gets different roots than before.
   against the wrong directory (`cospec list --json` in a rootless directory with
   stores registered used to exit 0 with `changes: []`). A `--cwd` naming a
   missing directory still exits 1, now with `directory not found: <path>`
-  instead of a spawn error.
+  instead of a spawn error. `templates` and `schema` are the exception: with no
+  explicit `--store` they run in the invocation directory on any of these, as
+  `openspec` does. A `defaultStore` is validated as the raw value `openspec`
+  reads, so a padded or newline-ended id now fails with `invalid_store_id`
+  instead of selecting the trimmed store.
 
 ## Capabilities
 
