@@ -206,6 +206,24 @@ named change:
 
 </div>
 
+### Where OpenSpec's own wording still reaches you
+
+cospec prints each remedy OpenSpec gives as the cospec command of the same
+shape, so the next step you read names `cospec`. The one place it can't is a
+live terminal-handover session — `cospec config profile` with no preset, and
+`cospec workset open`, on a terminal (see
+[Configuration](/reference/configuration#machine-global-openspec-config)) —
+where OpenSpec itself drives the terminal cospec handed over and nothing is
+relayed: `config profile`'s menu path (its drift warning, its apply guidance,
+its other-projects line, and the output of the `update` it runs), and
+`workset open` when the workset's tool can't be found or launched (its
+install-or-rerun and alternative-tool lines). `config edit` and
+`config reset --all` print none. That is wording cospec can't respell, not a
+capability it lacks, so it is no named exception: the contract suite lists each
+such line of the pinned OpenSpec with the session that prints it
+([`remedy-sources.ts`](https://github.com/aligned-team/cospec/blob/main/apps/cli/test/contract/support/remedy-sources.ts)),
+and a pin that adds one fails the build until it is classified.
+
 ## Three failure modes cospec defends against
 
 Raw OpenSpec has a few behaviors that are easy to miss in a terminal but

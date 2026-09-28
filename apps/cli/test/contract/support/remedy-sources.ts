@@ -15,9 +15,9 @@ export const notRelayed = {
     "only `openspec update` runs it, or `config profile`'s apply step, which runs `update` inside the interactive `config profile` with no preset — a terminal handover (inherited stdio) no relay reads; cospec never spawns `update` (`cospec update` is native)",
   // The terminal-handover residual (design D11): what the binary can still
   // print inside a live interactive session, on the terminal cospec handed
-  // it, where no relay reads. Recorded here, and on the terminal-handover
-  // passage of the docs, pending cospec-roadmap's ruling on the record
-  // design D11 names (task 7.2); `exceptions.yaml` is untouched.
+  // it, where no relay reads. Recorded here, as cospec-roadmap ruled, and on
+  // the docs' "How cospec relates to OpenSpec" page; `exceptions.yaml`
+  // (capabilities cospec never implements) is untouched.
   HANDOVER_SESSION_PROFILE:
     "`config profile` with no preset, on a TTY once its pre-flight has cleared the handover (`commands/config.ts` runHandover): the interactive menu's session output, on the inherited terminal no relay reads; with no TTY on stdout or an unreadable config cospec runs the call piped and relays it respelled",
   HANDOVER_SESSION_WORKSET_OPEN:
