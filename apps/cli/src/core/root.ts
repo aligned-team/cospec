@@ -152,24 +152,24 @@ export class RawSelectionError extends RootSelectionError {
 }
 
 /**
- * An errno's message as Node's promise API words it, which is what the binary
- * (`fs.promises.readFile`, `fs.promises.stat`) reports: Node names the path on
- * every errno, while Bun, cospec's runtime, leaves it off a failed `read`
- * (`EISDIR: illegal operation on a directory, read`).
- */
-function errnoMessage(error: NodeJS.ErrnoException, path: string): string {
-  if (error.path !== undefined || !error.message.endsWith(`, ${error.syscall}`))
-    return error.message
-  return `${error.message} '${path}'`
-}
-
-/**
  * The one way the resolver touches the filesystem: `read(path)`'s value,
  * `null` when the path does not exist (`ENOENT`), and a `RawSelectionError`
- * carrying the binary's message for any other errno. What else a failure means
- * is each caller's, mirroring upstream's read of that file: the store's
- * metadata and root health let the raw error stand, while the pointer, the
- * global config and the ancestor walk treat every failure as upstream does.
+ * carrying the binary's message for any other errno, verbatim. What else a
+ * failure means is each caller's, mirroring upstream's read of that file: the
+ * store's metadata and root health let the raw error stand, while the
+ * pointer, the global config and the ancestor walk treat every failure as
+ * upstream does.
+ *
+ * The message is passed through as this runtime's `fs` throws it, with no
+ * reformatting: on every Node line this project supports (20 through 25,
+ * including 22, the version `ci-bun` pins) and on Bun alike, a failed `read`
+ * (`EISDIR: illegal operation on a directory, read`) carries no path, and
+ * `error.path` is `undefined` — an errno-and-runtime-version-dependent
+ * omission `fs.promises` fixed only in a Node line newer than any this
+ * project targets, confirmed directly (`node:{20,22,24,25}` and current
+ * `bun`, both Linux and macOS): a real, useful message with no quoted path
+ * to duplicate, not a gap to paper over by re-appending the path a caller
+ * already has.
  */
 function resolverRead<T>(path: string, read: (path: string) => T): T | null {
   try {
@@ -178,7 +178,7 @@ function resolverRead<T>(path: string, read: (path: string) => T): T | null {
     if (isErrnoCode(error, 'ENOENT')) return null
     const errno = error as NodeJS.ErrnoException
     if (error instanceof Error && typeof errno.code === 'string')
-      throw new RawSelectionError(errnoMessage(errno, path))
+      throw new RawSelectionError(errno.message)
     throw error
   }
 }

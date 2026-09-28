@@ -162,10 +162,11 @@ and never by resolving an ancestor of the missing path.
   has a `.openspec-store/store.yaml` that is a directory or unreadable, or an
   `openspec/` directory the user may not search
 - **THEN** the command exits 1 with the message the wrapped binary prints under
-  Node for that errno, naming the path, with no origin prefix and no fix line;
-  under `--json` it prints exactly one document whose `status` entry carries
-  that message; and `templates` and `schema` with no `--store` answer as the
-  wrapped binary does in the invocation directory
+  Node for that errno, verbatim (a path is in it only when Node's own message
+  for that errno carries one — a failed `read`, `EISDIR`, does not), with no
+  origin prefix and no fix line; under `--json` it prints exactly one document
+  whose `status` entry carries that message; and `templates` and `schema` with
+  no `--store` answer as the wrapped binary does in the invocation directory
 
 #### Scenario: A subdirectory resolves the enclosing root
 

@@ -2279,8 +2279,9 @@ const SWEEP_CWD_ARGVS = [
 ] as const
 
 describe('every file the resolver reads fails as the binary does (ledger 5.22)', () => {
-  // The binary runs under Node, as `openspec` users run it: Bun's own errno
-  // text for a failed `read` (EISDIR) omits the path Node's names.
+  // The binary runs under Node, as `openspec` users run it: on every Node line
+  // this project targets (20-25, including 22, what `ci-bun` pins) a failed
+  // `read`'s errno (EISDIR) carries no path, matching Bun's own message.
   for (const file of SWEEP_FILES)
     for (const fault of file.faults)
       for (const route of SWEEP_ROUTES)

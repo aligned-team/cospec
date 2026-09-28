@@ -219,11 +219,12 @@ tree, when it is (for example) a directory where a file belongs or has no read
 permission. The command fails with the operating system's message, as `openspec`
 prints it — for instance
 `cospec: EACCES: permission denied, open '<registry path>'` or
-`cospec: EISDIR: illegal operation on a directory, read '<store.yaml path>'` —
-with no origin prefix and no `Fix:` line, exit 1, and under `--json` that
-message is the one `status` entry. A `store:` pointer file that can't be read
-fails like one that isn't YAML (`invalid_store_pointer`), and an `openspec/`
-directory the walk can't look inside is not a root, as in `openspec`.
+`cospec: EISDIR: illegal operation on a directory, read` (a failed `read`
+carries no path in Node's own message, unlike `open` and `stat`) — with no
+origin prefix and no `Fix:` line, exit 1, and under `--json` that message is the
+one `status` entry. A `store:` pointer file that can't be read fails like one
+that isn't YAML (`invalid_store_pointer`), and an `openspec/` directory the walk
+can't look inside is not a root, as in `openspec`.
 
 An unregistered `--store` id fails loudly rather than silently falling back to
 the local repo, so a typo can never write a change to the wrong place:

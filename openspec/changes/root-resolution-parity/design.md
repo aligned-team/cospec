@@ -411,10 +411,18 @@ those two in the cwd. `root.ts` now reads the filesystem only through
 `RawSelectionError` (the general subclass that replaces `RawRegistryError`:
 `code` `store_error`, the binary's message, no target, no fix, rethrown
 unprefixed by `withOrigin`), and any other throw propagates. Its message is
-worded as Node's promise API words it, which is what the binary reports: Bun
-leaves the path off a failed `read`, so an `EISDIR` gains ` '<path>'`. Each
-caller then applies upstream's own semantics for that file: the store metadata
-read (`readOptionalStoreMetadataState`) and the root-health stats
+`error.message` verbatim, with no reformatting: probed directly against
+`node:{20,22,24,25}` (22 is what `ci-bun` pins) and current `bun`, on both Linux
+and macOS, a failed `read` (`EISDIR: illegal operation on a directory, read`)
+carries no path on either runtime — a real difference from `stat`/`open` errnos,
+which do — so there is no gap to paper over by re-appending a path neither
+side's message has. (An earlier round of this file assumed Node always names the
+path and Bun never does, based on a probe against a Node line newer than any
+this project targets; reappending the path there produced a message the pinned
+binary, run under a supported Node, does not print — a real divergence CI's own
+Node 22 run caught, not a flaky comparison.) Each caller then applies upstream's
+own semantics for that file: the store metadata read
+(`readOptionalStoreMetadataState`) and the root-health stats
 (`inspectOpenSpecRoot`'s `pathKind`) let the raw error stand; the pointer read
 (`readStorePointer`) treats any read failure as `unparseable`; the global config
 (`getGlobalConfig`) as defaults; the ancestor walk and the pointer's existence

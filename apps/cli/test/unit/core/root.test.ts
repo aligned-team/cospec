@@ -3,6 +3,7 @@ import {
   chmodSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   realpathSync,
   rmSync,
   statSync,
@@ -1168,14 +1169,24 @@ describe('resolveRoot — raw read failures (ledger 5.23)', () => {
   const RUNNING_AS_ROOT = process.getuid?.() === 0
   const maybe = RUNNING_AS_ROOT ? test.skip : test
 
-  test('store.yaml as a directory fails with the errno message naming the path', async () => {
+  test('store.yaml as a directory fails with the errno message, unmodified', async () => {
     await withGlobalConfig(undefined, async (env) => {
       const root = env.store('gamma')
       rmSync(storeMetadataFile(root))
       mkdirSync(storeMetadataFile(root))
+      // A failed `read` carries no path on this runtime's `fs` (Node 20-25,
+      // Bun): resolverRead relays the errno message as thrown, not a fixed
+      // string — assert against what `readFileSync` itself throws here.
+      let expected: string | undefined
+      try {
+        readFileSync(storeMetadataFile(root))
+      } catch (error) {
+        expected = (error as NodeJS.ErrnoException).message
+      }
+      if (expected === undefined) throw new Error('expected readFileSync to throw EISDIR')
       await rawRejection(
         resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }),
-        `EISDIR: illegal operation on a directory, read '${storeMetadataFile(root)}'`,
+        expected,
       )
     })
   }, 15_000)
@@ -1263,7 +1274,15 @@ describe('resolveRoot — raw read failures (ledger 5.23)', () => {
       const root = env.store('gamma')
       rmSync(storeMetadataFile(root))
       mkdirSync(storeMetadataFile(root))
-      const message = `EISDIR: illegal operation on a directory, read '${storeMetadataFile(root)}'`
+      // A failed `read` carries no path on this runtime's `fs` — assert
+      // against what `readFileSync` itself throws here, not a fixed string.
+      let message: string | undefined
+      try {
+        readFileSync(storeMetadataFile(root))
+      } catch (error) {
+        message = (error as NodeJS.ErrnoException).message
+      }
+      if (message === undefined) throw new Error('expected readFileSync to throw EISDIR')
       await rawRejection(
         resolveRoot({ cwd: repoWithConfig('store: gamma\n'), flags: JSON_FLAGS }),
         message,
