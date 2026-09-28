@@ -209,7 +209,7 @@ describe('cli dispatcher: a -- right after the command name', () => {
     expect(sub.out).toContain('Usage: cospec config path [options]')
   })
 
-  test.failing('a bare `config --` is config with no subcommand: its help on stderr', async () => {
+  test('a bare `config --` is config with no subcommand: its help on stderr', async () => {
     const help = await dispatch(['config', '--help'])
     const r = await dispatch(['config', '--'])
     expect(r.code).toBe(1)

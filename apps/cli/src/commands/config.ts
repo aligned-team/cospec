@@ -38,7 +38,7 @@
 import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
+import { commandHelpText, EXIT } from '../cli.ts'
 import { commandRow, storePathInOptionPosition, storePathRefusal } from '../core/command-table.ts'
 import {
   forwardCall,
@@ -104,7 +104,16 @@ export interface ConfigCommandLevel {
   args: string[]
 }
 
-export type ConfigPlan = ConfigCall | ConfigCommandLevel | ConfigPlanError
+/**
+ * No subcommand and no `--json`: the binary prints its own `config` help on
+ * stderr and exits 1, and that help names bare `openspec`, so cospec prints
+ * its own (design D7).
+ */
+export interface ConfigHelp {
+  kind: 'help'
+}
+
+export type ConfigPlan = ConfigCall | ConfigCommandLevel | ConfigHelp | ConfigPlanError
 
 const SUBS = CONFIG_SUBCOMMANDS.join('|')
 
@@ -153,9 +162,13 @@ export function planConfigCall(args: string[], opts: { json: boolean }): ConfigP
   }
 
   const { sub, rest: subArgs, operand } = subcommandOf(rest)
-  if (sub === undefined)
-    return { kind: 'error', message: `cospec config: a subcommand is required (${SUBS})` }
   const scopeArgs = scope === undefined ? [] : ['--scope', scope]
+  // Upstream's `config` level declares no `--json`, so under `--json` the
+  // binary's own refusal of it is relayed.
+  if (sub === undefined)
+    return opts.json
+      ? { kind: 'command-level', command: ['config', ...scopeArgs], args: ['--json'] }
+      : { kind: 'help' }
   if (!operand && isOptionToken(sub))
     return { kind: 'command-level', command: ['config', ...scopeArgs], args: rest }
   if (!isConfigSub(sub))
@@ -369,6 +382,12 @@ export async function run(ctx: CommandContext): Promise<number> {
   const plan = planConfigCall(ctx.args, { json: ctx.flags.json })
   if (plan.kind === 'error') {
     process.stderr.write(`${plan.message}\n`)
+    return EXIT.failure
+  }
+  if (plan.kind === 'help') {
+    const row = commandRow('config')
+    if (row === undefined) throw new Error("cospec config: no 'config' row")
+    process.stderr.write(commandHelpText(row))
     return EXIT.failure
   }
   if (plan.kind === 'command-level') return relayCommandLevel(ctx, plan.command, plan.args)

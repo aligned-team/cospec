@@ -78,7 +78,7 @@ describe('planConfigCall — --no-color and storeArgs are never threaded', () =>
   test('no built argv ever contains --no-color, across every subcommand', () => {
     for (const sub of CONFIG_SUBCOMMANDS) {
       const plan = planConfigCall([sub], { json: false })
-      if (plan.kind === 'error' || plan.kind === 'command-level') continue
+      if (plan.kind !== 'pass' && plan.kind !== 'handover') continue
       expect(plan.argv).not.toContain('--no-color')
     }
   })
@@ -102,7 +102,7 @@ describe('planConfigCall — --json is appended only for list', () => {
     test(`${sub} --json does NOT append --json to the wrapped argv`, () => {
       const args = sub === 'get' || sub === 'set' || sub === 'unset' ? [sub, 'someKey'] : [sub]
       const plan = planConfigCall(args, { json: true })
-      if (plan.kind === 'error' || plan.kind === 'command-level') return
+      if (plan.kind !== 'pass' && plan.kind !== 'handover') return
       expect(plan.argv).not.toContain('--json')
     })
   }
@@ -111,7 +111,7 @@ describe('planConfigCall — --json is appended only for list', () => {
 describe('planConfigCall — subcommand validation', () => {
   // Upstream prints its own `config` help on stderr and exits 1; cospec
   // prints its own, which names cospec's commands.
-  test.failing('a missing subcommand plans cospec’s config help, --scope or not', () => {
+  test('a missing subcommand plans cospec’s config help, --scope or not', () => {
     for (const args of [[], ['--scope', 'global'], ['--']]) {
       const plan = planConfigCall(args, { json: false })
       expect(plan.kind as string, args.join(' ')).toBe('help')
@@ -119,7 +119,7 @@ describe('planConfigCall — subcommand validation', () => {
   })
 
   // Upstream's `config` level declares no `--json`: the binary refuses it.
-  test.failing('a missing subcommand under --json relays the binary’s refusal of --json', () => {
+  test('a missing subcommand under --json relays the binary’s refusal of --json', () => {
     expect(planConfigCall([], { json: true })).toEqual({
       kind: 'command-level',
       command: ['config'],
