@@ -520,3 +520,12 @@ red; 4–7 turn it green; 8 documents it.
 - [x] 10.58 `wrappedNewReason` respells only `RELAYED_REMEDIES` spans and
       `openspec <table command>`, leaving a schema load error's payload
       untouched; `reference/commands.md` (ledger 1.54)
+- [x] 10.59 Round-12 rows first (8c21888, 89695a4): 3 `wrappedNewReason` unit
+      cases as `test.failing` (prose stays, quoted paths and the
+      `already exists     at` path stay, a warning line ahead of the document);
+      each fails for its intended reason; plain `test` at b4e7394 and 7236f18
+- [x] 10.60 `wrappedNewReason` respells `openspec <table command>` only after a
+      remedy lead-in, masks single-quoted spans that open no remedy, cuts the
+      path after `already exists at`, and parses the document after a warning
+      line; spec requirement + scenario, `reference/commands.md` (ledger 1.55,
+      1.56)

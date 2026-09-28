@@ -60,21 +60,26 @@ call) SHALL, under `--json`, be one JSON document on stdout in the shape the
 wrapped `new change --json` gives its own failures
 (`{change: null, status: [{severity: 'error', code: 'change_error', message}]}`),
 exit 1, with nothing on stderr; a failed wrapped call SHALL be answered with the
-binary's own reason (its `new change --json` document's message), as
-`cospec new: <reason>` in text and as the document's message under `--json`,
-with each remedy it names (a `RELAYED_REMEDIES` span, or `openspec <command>`
-for a command cospec has) spelled through cospec and everything from a schema
-load error's `Failed to parse schema at '…':` / `Invalid schema at '…':` payload
-on (the schema's path and quoted excerpt) left untouched; a missing type or slug
-and an unknown option SHALL stay text parse refusals, as the binary's commander
-refusals are, answered before any other refusal (a missing `openspec/` tree
-included). `show` with no item (an empty token is none) SHALL, under `--json`,
-be one `{status: [{severity: 'error', code: 'missing_item', message}]}` document
-on stdout, exit 1, with nothing on stderr. Each `table` row SHALL likewise
-declare whether its command honours the global `--store <id>`; on a row that
-does not, `--store` SHALL be refused as an unknown option in either form, after
-the command name or before it, before the command does any work, and SHALL never
-be silently ignored. A cospec-only positional that spells what an upstream flag
+binary's own reason (its `new change --json` document's message, after any
+warning line the binary logs ahead of it), as `cospec new: <reason>` in text and
+as the document's message under `--json`, with each remedy it names (a
+`RELAYED_REMEDIES` span, or `openspec <command>` for a command cospec has,
+opened by a remedy lead-in: `Run`, `run`, `Re-run`, `Use`, `Try`, `with`, `or`,
+a colon, an opening paren or backtick) spelled through cospec, and everything
+else left untouched: prose naming a command, a single-quoted span that opens no
+remedy (every path the binary reports, as in `mkdir '<path>'`), the path after
+`already exists at`, and everything from a schema load error's
+`Failed to parse schema at '…':` / `Invalid schema at '…':` payload on (the
+schema's path and quoted excerpt); a missing type or slug and an unknown option
+SHALL stay text parse refusals, as the binary's commander refusals are, answered
+before any other refusal (a missing `openspec/` tree included). `show` with no
+item (an empty token is none) SHALL, under `--json`, be one
+`{status: [{severity: 'error', code: 'missing_item', message}]}` document on
+stdout, exit 1, with nothing on stderr. Each `table` row SHALL likewise declare
+whether its command honours the global `--store <id>`; on a row that does not,
+`--store` SHALL be refused as an unknown option in either form, after the
+command name or before it, before the command does any work, and SHALL never be
+silently ignored. A cospec-only positional that spells what an upstream flag
 selects (`status`'s change, for `--change` and `--all`) SHALL count as an excess
 argument when given together with that flag, as upstream, which has no such
 positional, refuses it. A short-option cluster (`-yh`) SHALL split as commander
@@ -190,6 +195,11 @@ help.
   `openspec init`
 - **THEN** that text is relayed unchanged; only a remedy ahead of the payload is
   respelled to `cospec`
+- **AND WHEN** the binary cannot create the change directory (EACCES) and the
+  project path contains `openspec list`, `openspec new` or `openspec init`
+- **THEN** the reason is the binary's
+  `EACCES: permission denied, mkdir '<path>'` with the path unchanged, in text
+  and as the `--json` document's message
 
 #### Scenario: show with an empty item name gives cospec's item-name error
 
