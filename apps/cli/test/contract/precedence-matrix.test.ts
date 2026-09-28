@@ -43,6 +43,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
@@ -448,8 +449,8 @@ const THREADING_ROWS: readonly Row[] = [
     check: nothingWritten,
   },
   // A store-selected root threads `--store <id>` the same way on `show`; on
-  // `templates` and `schema` the `--store` stays where it was typed
-  // (`FORWARD_STORE_ROWS`), and the missing value still wins.
+  // `templates` and `schema` it selects the root the binary runs in and is
+  // never threaded (`FORWARD_STORE_ROWS`), and the missing value still wins.
   {
     argv: ['show', 'c1', '--store', 'st', '--type'],
     command: 'show',
@@ -476,15 +477,32 @@ const THREADING_ROWS: readonly Row[] = [
   },
 ]
 
+/** A copy of this repo's `feat` schema in the fixture store `st` only. */
+function featInStore(dir: string): void {
+  cpSync(join(REPO_SCHEMAS, 'feat'), join(dir, 'store', 'openspec', 'schemas', 'feat'), {
+    recursive: true,
+  })
+}
+
+/** The run answered from the fixture store's `feat` schema, not the local root's. */
+function answeredFromStore(tool: string, root: string, run: SpawnResult): void {
+  expect(run.stdout, tool).toContain(
+    join(realpathSync(root), 'store', 'openspec', 'schemas', 'feat'),
+  )
+}
+
 /**
  * Upstream's `templates` and every `schema` subcommand declare no `--store`,
- * so a `--store <id>` typed after the command name is the binary's to parse
- * where it stands: the first unknown option in argv order is the one it
- * names (`templates --bogus --store st` says `--bogus`, and a `--store-path`
- * ahead of it keeps its redirect), a flag after it still raises its missing
- * value, and nothing is written. A `--store` before the command name has no
- * upstream counterpart; the wrapper threads it right after the command path,
- * so a dangling value-taking flag can never take it and run.
+ * so cospec never passes it to them (root-resolution-parity T3): `--store` is
+ * cospec's global in either position there too, selecting the root the
+ * wrapper spawns the binary inside. Every other token reaches the binary in
+ * the user's order, so the first unknown option it names is the first one
+ * after the store (`templates --bogus --store st` says `--bogus`, and a
+ * `--store-path` ahead of it keeps its redirect), a flag after it still
+ * raises its missing value, and nothing is written. Where upstream refuses
+ * the `--store` itself — before the command name, or as the first unknown
+ * option after it — cospec's answer is a deliberate superset: the store's
+ * schema is read, or the next unknown option is the one named.
  */
 const FORWARD_STORE_ROWS: readonly Row[] = [
   {
@@ -505,11 +523,13 @@ const FORWARD_STORE_ROWS: readonly Row[] = [
     store: true,
     cospecStderr: "error: unknown option '--bogus'",
   },
+  // Superset: upstream names the `--store` it does not declare.
   {
     argv: ['templates', '--store', 'st', '--bogus'],
     command: 'templates',
     store: true,
-    cospecStderr: "error: unknown option '--store'",
+    cospecOnly: { outcome: 'unknown-option', exit: 1 },
+    cospecStderr: "error: unknown option '--bogus'",
   },
   {
     argv: ['schema', 'init', 's1', '--description', '--store', 'st'],
@@ -528,7 +548,7 @@ const FORWARD_STORE_ROWS: readonly Row[] = [
     command: 'templates',
     store: true,
     cospecOnly: { outcome: 'unknown-option', exit: 1 },
-    cospecStderr: "error: unknown option '--store'",
+    cospecStderr: "error: unknown option '--bogus'",
   },
   {
     argv: ['--store', 'st', 'schema', 'init', '--description'],
@@ -537,21 +557,23 @@ const FORWARD_STORE_ROWS: readonly Row[] = [
     cospecOnly: { outcome: 'missing-value', exit: 1 },
     check: nothingWritten,
   },
-  // A pre-command `--store` selects no root for these two: it is threaded
-  // right after the command path, where the binary refuses it, as
-  // `openspec --store <id> templates` does.
+  // Superset: a `--store` before the command name selects the store, which
+  // alone holds `feat` (`openspec --store st templates` is an unknown option).
   {
-    argv: ['--store', 'st', 'templates'],
+    argv: ['--store', 'st', 'templates', '--schema', 'feat'],
     command: 'templates',
     store: true,
-    cospecStderr: "error: unknown option '--store'",
+    setup: featInStore,
+    cospecOnly: { outcome: 'parsed', exit: 0 },
+    check: answeredFromStore,
   },
   {
     argv: ['--store', 'st', 'schema', 'which', 'feat'],
     command: 'schema',
     store: true,
-    cospecStderr: "error: unknown option '--store'",
-    check: nothingWritten,
+    setup: featInStore,
+    cospecOnly: { outcome: 'parsed', exit: 0 },
+    check: answeredFromStore,
   },
 ]
 

@@ -144,18 +144,6 @@ export type TableCommandRow = RowBase & {
 
 export interface ForwardCommandRow extends RowBase {
   readonly parse: 'forward'
-  /**
-   * The same-named upstream command declares no `--store` (upstream's
-   * `templates` and every `schema` subcommand), so a `--store <id>` after the
-   * command name is left in the argv where it stands, never absorbed: the
-   * binary parses it in the user's order, naming an earlier unknown option or
-   * `--store-path` first and raising a later flag's missing value, as it does
-   * for bare `openspec`. A `--store` before the command name selects no
-   * root: it is threaded right after the command path, where the binary
-   * refuses it as an unknown option (an earlier missing value still first),
-   * as `openspec --store <id> templates` does.
-   */
-  readonly storeInArgv?: true
 }
 
 export type CommandRow = TableCommandRow | ForwardCommandRow
@@ -777,7 +765,6 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     summary: 'Inspect a schema (which/validate)',
     hidden: false,
     parse: 'forward',
-    storeInArgv: true,
     positionals: [],
     flags: [],
     subcommands: [
@@ -828,7 +815,6 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     summary: 'List per-artifact template paths',
     hidden: false,
     parse: 'forward',
-    storeInArgv: true,
     positionals: [],
     flags: [
       upstream({

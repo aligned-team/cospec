@@ -259,12 +259,11 @@ disk, or `store` asserting the registry mutated) pass it through
 `expect.postCondition` — the same mechanism the gated commands use.
 
 Two rules keep a forward row's relay faithful to the binary. On `templates` and
-`schema`, whose upstream commands declare no `--store`, the row's `storeInArgv`
-marker keeps a post-command `--store <id>` in the argv where the user typed it
-(phase B never absorbs it), so the binary parses it in the user's order instead
-of meeting a threaded `--store` first; a pre-command `--store` is still threaded
-ahead, where the binary refuses it as an unknown option — it selects no root for
-these two. And `relayRespelled` (`core/forward-relay.ts`) answers the binary's
+`schema`, whose upstream commands declare no `--store`, `--store` is a cospec
+global in either position like everywhere else: it selects the root, and the
+wrapper spawns the binary inside `root.base` with no `--store` threaded
+(`spawnInRoot`), so the binary still parses every other token in the user's
+order. And `relayRespelled` (`core/forward-relay.ts`) answers the binary's
 `--store-path` refusal with cospec's redirect and, on a failed call only, spells
 each of upstream's remedy sentences (`core/remedies.ts`) as the cospec command
 of the same shape — or drops it where cospec has none — so the remedy a user
