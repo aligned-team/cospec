@@ -373,6 +373,14 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
     delegated: /^((?:ADDED|MODIFIED) ".*") is missing requirement text$/,
     nativeKey: /^((?:ADDED|MODIFIED) ".*") must use SHALL\/MUST normative language$/,
   },
+  // 1.13.1's missing-scenario ERROR vs the scenario arm of the same rule.
+  // Keyed on `<OP> "<name>"`, and not anchored at its end: the binary appends
+  // its empty-scenario hint to the sentence when the block has a bare header.
+  {
+    rule: 'deltas/requirement-shape',
+    delegated: /^((?:ADDED|MODIFIED) ".*") must include at least one scenario\b/,
+    nativeKey: /^((?:ADDED|MODIFIED) ".*") must include at least one #### Scenario:$/,
+  },
 
   // 1.13.1 skipped-header INFOs vs deltas/skipped-header. Both readers skip
   // the same `###` lines, so each is keyed on its header text: a second
@@ -437,6 +445,41 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
     delegated: /^Requirement present in both MODIFIED and ADDED: "(.*)"$/,
     nativeKey: /^ADDED "(.*)" is also MODIFIED in this delta$/,
   },
+  // 1.13.1 MODIFIED+REMOVED of one name vs archive/target-missing: the merge
+  // runs REMOVED first, so cospec reports the MODIFIED target already gone.
+  // Keyed on the name, and only on that "no longer exists" wording, so a
+  // MODIFIED whose target was never there stays a finding of its own.
+  {
+    rule: 'archive/target-missing',
+    delegated: /^Requirement present in both MODIFIED and REMOVED: "(.*)"$/,
+    nativeKey: /^MODIFIED target "(.+)" no longer exists in capability /,
+  },
+  // 1.13.1 duplicate ADDED vs archive/added-exists: by the time the second
+  // copy runs, the first has written the name, so cospec reports a collision.
+  {
+    rule: 'archive/added-exists',
+    delegated: /^Duplicate requirement in ADDED: "(.*)"$/,
+    nativeKey: /^ADDED "(.+)" already exists with different content/,
+  },
+  // 1.13.1's RENAMED conflicts. Two renames onto one name: the second finds
+  // the first's target standing. A rename onto an ADDED name: cospec's
+  // RENAMED-TO arm reports it (and the ADDED arms leave it alone). Two renames
+  // of one source: the second finds it already carried away.
+  {
+    rule: 'archive/added-exists',
+    delegated: /^Duplicate TO in RENAMED: "(.*)"$/,
+    nativeKey: /^RENAMED target "(.+)" collides with an existing requirement/,
+  },
+  {
+    rule: 'archive/added-exists',
+    delegated: /^RENAMED TO collides with ADDED for "(.*)"$/,
+    nativeKey: /^RENAMED target "(.+)" collides with an ADDED requirement/,
+  },
+  {
+    rule: 'archive/target-missing',
+    delegated: /^Duplicate FROM in RENAMED: "(.*)"$/,
+    nativeKey: /^RENAMED target "(.+)" no longer exists in capability /,
+  },
 
   // --- 1.12.0 archive-preflight INFO (`Validator.findArchiveBlockers`) ------
   //
@@ -489,13 +532,13 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
   },
   // 1.13.1's structurally-invalid living spec vs archive/target-invalid,
   // keyed on the capability both messages name. Only when every defect the
-  // binary lists is one cospec's rule reads (a misplaced or duplicate
-  // requirement), so a listed defect cospec does not check still reaches the
-  // reader.
+  // binary lists is one of the three kinds cospec's rule reads — a delta
+  // header, a misplaced or a duplicate requirement — so a listed defect
+  // cospec does not check still reaches the reader.
   {
     rule: 'archive/target-invalid',
     delegated:
-      /^Archive would refuse this delta: (.+?): target spec is structurally invalid and cannot be updated until fixed:(?:\nline \d+: Requirement header "[^\n]*" (?:duplicates the requirement declared on line \d+\.|appears outside the main ## Requirements section\.)[^\n]*)+\n?$/,
+      /^Archive would refuse this delta: (.+?): target spec is structurally invalid and cannot be updated until fixed:(?:\nline \d+: (?:Main spec contains delta header "[^\n]*"\.|Requirement header "[^\n]*" (?:duplicates the requirement declared on line \d+\.|appears outside the main ## Requirements section\.))[^\n]*)+\n?$/,
     nativeKey: /^living spec openspec\/specs\/(.+?)\/spec\.md is structurally invalid — /,
   },
   // 1.13.1's two case-collision refusals, paired with the fold arms

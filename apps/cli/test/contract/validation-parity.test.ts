@@ -204,11 +204,16 @@ interface JsonReport {
   summary: { byRule: Record<string, number> }
 }
 
+/** Every binary report this file read, keyed `<root> <name>`, for the sweep (section 19). */
+const BINARY = new Map<string, BinaryIssue[]>()
+
 /** Every issue the pinned binary's `validate --strict --json` reports for `name`. */
 async function binaryIssues(root: string, name: string): Promise<BinaryIssue[]> {
   const res = await openspec(['validate', name, '--strict', '--json'], root)
   const parsed = JSON.parse(res.stdout) as { items: { id: string; issues: BinaryIssue[] }[] }
-  return parsed.items.filter((i) => i.id === name).flatMap((i) => i.issues)
+  const found = parsed.items.filter((i) => i.id === name).flatMap((i) => i.issues)
+  BINARY.set(`${root} ${name}`, found)
+  return found
 }
 
 /** The binary issues whose message contains `fragment` — a locator, never an assertion. */
@@ -224,7 +229,7 @@ function binaryOne(bin: BinaryIssue[], fragment: string): BinaryIssue {
 }
 
 /** Every cospec report this file produced, for the double-report sweep (section 19). */
-const REPORTS: { label: string; report: JsonReport }[] = []
+const REPORTS: { label: string; key: string; report: JsonReport }[] = []
 
 async function cospecValidate(
   root: string,
@@ -233,7 +238,7 @@ async function cospecValidate(
 ): Promise<{ report: JsonReport; exitCode: number }> {
   const res = await cospec(['validate', name, '--strict', '--json', ...extra], { cwd: root })
   const report = JSON.parse(res.stdout) as JsonReport
-  REPORTS.push({ label: [name, ...extra].join(' '), report })
+  REPORTS.push({ label: [name, ...extra].join(' '), key: `${root} ${name}`, report })
   return { report, exitCode: res.exitCode }
 }
 
@@ -1860,20 +1865,13 @@ describe('14. one view model: the scan is fence-aware and the archive family rea
     expect(exitCode).toBe(0)
   })
 
-  for (const [row, name, living, fragment, twinNow] of [
-    ['14.6', 'living-bom', LIVING_BOM_REQUIREMENTS, 'outside', 'passing'],
-    ['14.7', 'living-delta-header', LIVING_DELTA_HEADER, 'delta header', 'failing'],
-    [
-      '14.8',
-      'living-commented-delta-header',
-      LIVING_COMMENTED_DELTA_HEADER,
-      'delta header',
-      'failing',
-    ],
+  for (const [row, name, living, fragment] of [
+    ['14.6', 'living-bom', LIVING_BOM_REQUIREMENTS, 'outside'],
+    ['14.7', 'living-delta-header', LIVING_DELTA_HEADER, 'delta header'],
+    ['14.8', 'living-commented-delta-header', LIVING_COMMENTED_DELTA_HEADER, 'delta header'],
   ] as const) {
     const build = (root: string): void =>
       buildFeat(root, name, { 'widgets/spec.md': MODIFIED_CACHING }, { living })
-    const twinTest = twinNow === 'failing' ? test.failing : test
 
     test(`${row} native: the living spec's ${fragment} is an archive/target-invalid ERROR, as the binary archive refuses`, async () => {
       const root = mkTempRepo({ git: true })
@@ -1889,21 +1887,18 @@ describe('14. one view model: the scan is fence-aware and the archive family rea
       expect(exitCode).toBe(1)
     })
 
-    twinTest(
-      `${row} twin: the delegated structurally-invalid dry-run INFO is not relayed`,
-      async () => {
-        const root = mkTempRepo({ git: true })
-        build(root)
-        const delegated = binaryOne(
-          await binaryIssues(root, name),
-          'target spec is structurally invalid',
-        )
-        expect(delegated.level).toBe('INFO')
-        expect(delegated.message.toLowerCase()).toContain(fragment)
-        const { report } = await cospecValidate(root, name)
-        expect(messages(report)).not.toContain(delegated.message)
-      },
-    )
+    test(`${row} twin: the delegated structurally-invalid dry-run INFO is not relayed`, async () => {
+      const root = mkTempRepo({ git: true })
+      build(root)
+      const delegated = binaryOne(
+        await binaryIssues(root, name),
+        'target spec is structurally invalid',
+      )
+      expect(delegated.level).toBe('INFO')
+      expect(delegated.message.toLowerCase()).toContain(fragment)
+      const { report } = await cospecValidate(root, name)
+      expect(messages(report)).not.toContain(delegated.message)
+    })
   }
 })
 
@@ -2173,7 +2168,7 @@ describe('17. one pinned-message test per round-3 DUPLICATE_CLASSES entry', () =
   for (const [entry, name, delta, fragment, rule, nativeFragment] of ROUND3_ENTRIES) {
     const build = (root: string): void => buildFeat(root, name, { 'widgets/spec.md': delta })
 
-    test.failing(`entry ${entry} (${name}): "${fragment}" pairs with ${rule}`, async () => {
+    test(`entry ${entry} (${name}): "${fragment}" pairs with ${rule}`, async () => {
       const root = mkTempRepo({ git: true })
       build(root)
       const archived = await binaryArchive(build, name)
@@ -2240,8 +2235,8 @@ describe('18. the legacy lane relays each round-3 shape at the binary level', ()
 // file name the same requirement or header: both quote it, so the quoted names
 // are the key (`### Requirement: ` and `### ` prefixes dropped, the way the two
 // tools quote a header differently). A relayed finding cospec has no rule for
-// quotes nothing any cospec finding quotes, so it passes. The one exception is
-// listed with its reason; it must keep matching, so a stale entry fails too.
+// quotes nothing any cospec finding quotes, so it passes — the survivors of
+// section 5.2 are exactly that shape, and no fixture needs an exception.
 
 const quotedNames = (message: string): string[] =>
   [...message.matchAll(/"([^"\n]+)"/g)].map((m) =>
@@ -2251,34 +2246,58 @@ const quotedNames = (message: string): string[] =>
       .trim(),
   )
 
-/** label → the quoted name a relayed finding may share with a cospec one, and why. */
-const SWEEP_EXCEPTIONS: Record<string, { name: string; why: string }> = {}
+/** Each relayed finding that restates a cospec finding in the same report. */
+function doubleReports(all: readonly ReportIssue[]): string[] {
+  const native = all.filter((i) => i.rule !== 'openspec/validate' && !i.rule.startsWith('meta/'))
+  const doubles: string[] = []
+  for (const relayed of all.filter((i) => i.rule === 'openspec/validate'))
+    for (const name of quotedNames(relayed.message)) {
+      const twin = native.find(
+        (n) => n.path === relayed.path && quotedNames(n.message).includes(name),
+      )
+      if (twin !== undefined) doubles.push(`${twin.rule} and the relayed "${relayed.message}"`)
+    }
+  return doubles
+}
 
 describe('19. sweep', () => {
-  test.failing('19.1 no report in this file carries one defect twice', () => {
+  test('19.1 no report in this file carries one defect twice', () => {
     expect(REPORTS.length).toBeGreaterThan(100)
-    const doubles: string[] = []
-    const excused = new Set<string>()
-    for (const { label, report } of REPORTS) {
+    const doubles = REPORTS.flatMap(({ label, report }) =>
+      doubleReports(issues(report)).map((d) => `${label}: ${d}`),
+    )
+    expect(doubles).toEqual([])
+  })
+
+  // The sweep has teeth: every binary finding a DUPLICATE_CLASSES entry
+  // suppressed on a typed-lane fixture, put back into cospec's report, is
+  // caught — except entries 1 and 2, whose messages name no requirement (they
+  // quote only the sections' syntax) and pair on the file alone.
+  const NAMES_NO_REQUIREMENT = [
+    'were found, but no requirement entries parsed',
+    'Change must have at least one delta',
+  ]
+
+  test('19.2 every suppressed twin that names its requirement would be caught if relayed', () => {
+    const suppressed: string[] = []
+    const caught: string[] = []
+    for (const { key, report } of REPORTS) {
       const all = issues(report)
-      const native = all.filter(
-        (i) => i.rule !== 'openspec/validate' && !i.rule.startsWith('meta/'),
+      const relayed = new Set(
+        all.filter((i) => i.rule === 'openspec/validate').map((i) => i.message),
       )
-      for (const relayed of all.filter((i) => i.rule === 'openspec/validate')) {
-        for (const name of quotedNames(relayed.message)) {
-          const twin = native.find(
-            (n) => n.path === relayed.path && quotedNames(n.message).includes(name),
-          )
-          if (twin === undefined) continue
-          if (SWEEP_EXCEPTIONS[label]?.name === name) {
-            excused.add(label)
-            continue
-          }
-          doubles.push(`${label}: ${twin.rule} and the relayed "${relayed.message}"`)
-        }
+      for (const bin of BINARY.get(key) ?? []) {
+        if (relayed.has(bin.message)) continue
+        if (NAMES_NO_REQUIREMENT.some((fragment) => bin.message.includes(fragment))) continue
+        if (all.every((i) => i.rule === 'openspec/validate' || i.rule.startsWith('meta/'))) continue
+        suppressed.push(bin.message)
+        // The path as cospec relays it: the binary's is relative to `specs/`.
+        const path = bin.path === undefined ? '' : `specs/${bin.path}`
+        const injected = { level: bin.level, rule: 'openspec/validate', path, message: bin.message }
+        if (doubleReports([...all, injected]).length > 0) caught.push(bin.message)
       }
     }
-    expect(doubles).toEqual([])
-    expect([...excused].toSorted()).toEqual(Object.keys(SWEEP_EXCEPTIONS).toSorted())
+    expect(suppressed.length).toBeGreaterThan(30)
+    expect(suppressed.filter((m) => !caught.includes(m))).toEqual([])
   })
 })
