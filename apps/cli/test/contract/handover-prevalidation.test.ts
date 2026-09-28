@@ -367,7 +367,12 @@ describe('config reset --all with no terminal on stdin exits as the binary exits
   }
 })
 
-/** `cmd` with `answer` written to its piped stdin only once `delayMs` has passed. */
+/**
+ * `cmd` with `answer` written to its piped stdin once its prompt is drawn —
+ * its first output, which the binary prints only when the confirm is ready —
+ * or, for a caller that prints nothing until it exits (cospec buffers its
+ * relay), after `fallbackMs` while it still runs.
+ */
 async function answeredLate(cmd: string[], root: string, answer: string): Promise<SpawnResult> {
   const proc = Bun.spawn(cmd, {
     cwd: root,
@@ -376,19 +381,33 @@ async function answeredLate(cmd: string[], root: string, answer: string): Promis
     stderr: 'pipe',
     env: { ...oracleEnv(root), OPENSPEC_NO_COMPLETIONS: '1' },
   })
-  const delayMs = 1500
+  const fallbackMs = 1500
+  let drawn: () => void = () => {}
+  const prompted = new Promise<void>((resolve) => {
+    drawn = resolve
+  })
+  const stdout = (async () => {
+    const decoder = new TextDecoder()
+    let text = ''
+    for await (const chunk of proc.stdout) {
+      text += decoder.decode(chunk, { stream: true })
+      drawn()
+    }
+    return text + decoder.decode()
+  })()
   const answered = (async () => {
-    await Bun.sleep(delayMs)
+    await Promise.race([prompted, Bun.sleep(fallbackMs), proc.exited])
+    if (proc.exitCode !== null) return
     proc.stdin.write(answer)
     await proc.stdin.end()
   })()
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
+  const [out, stderr, exitCode] = await Promise.all([
+    stdout,
     new Response(proc.stderr).text(),
     proc.exited,
     answered,
   ])
-  return { stdout, stderr, exitCode }
+  return { stdout: out, stderr, exitCode }
 }
 
 describe('config reset --all fed a later answer on a pipe: cospec-only (design D14)', () => {

@@ -14,7 +14,15 @@ function sandbox(): { cwd: string; env: Record<string, string> } {
   const workspace = mkTempRepo()
   const xdg = join(workspace, 'xdg')
   mkdirSync(xdg, { recursive: true })
-  return { cwd: workspace, env: { XDG_CONFIG_HOME: xdg, OPENSPEC_TELEMETRY: '0' } }
+  // A handover writes its preload to cospec's cache: the sandbox's, never the user's.
+  return {
+    cwd: workspace,
+    env: {
+      XDG_CONFIG_HOME: xdg,
+      XDG_CACHE_HOME: join(workspace, 'cache'),
+      OPENSPEC_TELEMETRY: '0',
+    },
+  }
 }
 
 describe('cospec config path/list/get (Class A, piped)', () => {

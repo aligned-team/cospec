@@ -18,9 +18,15 @@ function sandbox(): { cwd: string; env: Record<string, string> } {
   const member = join(workspace, 'member')
   mkdirSync(member, { recursive: true })
   const xdg = join(workspace, 'xdg')
+  // A handover writes its preload to cospec's cache: the sandbox's, never the user's.
   return {
     cwd: member,
-    env: { XDG_DATA_HOME: xdg, OPENSPEC_TELEMETRY: '0', OPENSPEC_NO_COMPLETIONS: '1' },
+    env: {
+      XDG_DATA_HOME: xdg,
+      XDG_CACHE_HOME: join(workspace, 'cache'),
+      OPENSPEC_TELEMETRY: '0',
+      OPENSPEC_NO_COMPLETIONS: '1',
+    },
   }
 }
 
