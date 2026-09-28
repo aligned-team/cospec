@@ -184,7 +184,7 @@ the orchestrator rules for (design D11).
       verify `remedy-enumeration.test.ts` passes and that each residual line is
       reachable only on the interactive path (ledger 6.7 walk-through notes);
       commit `test(cli): classify the terminal-handover residual`
-- [ ] 7.2 Record the residual as the orchestrator rules on design D11 —
+- [x] 7.2 Record the residual as the orchestrator rules on design D11 —
       recommended: the `remedy-sources.ts` reasons from 7.1 plus the docs
       passage of task 8.4, `exceptions.yaml` untouched; otherwise the ruled
       record with the reachability test's exactly-one assertion amended in the
@@ -219,7 +219,7 @@ Files: `apps/docs/reference/commands.md`, `apps/docs/concepts/stores.md`,
       succeed (ledger 9.8); commit any fix they required as
       `docs(cli): fix docs build`
 
-## 9. POST-REBASE — after `root-resolution-parity` merges
+## 9. POST-REBASE — after `root-resolution-parity` merged (`fad3b2f`)
 
 Files: `apps/cli/src/commands/context.ts`, `apps/cli/src/commands/schemas.ts`,
 `apps/cli/src/commands/doctor.ts`, `apps/cli/src/commands/store.ts`,
@@ -229,16 +229,16 @@ is missing), `apps/cli/src/core/root.ts` (only to export the resolver's
 directory check, design D10), `apps/cli/test/contract/relayed-remedies.test.ts`,
 `apps/cli/test/contract/support/remedy-sources.ts`.
 
-- [ ] 9.1 Rebase onto `main` with `--force-with-lease`, resolve conflicts
+- [x] 9.1 Rebase onto `main` with `--force-with-lease`, resolve conflicts
       against `root-resolution-parity`'s `root.ts`, `openspec.ts` and
       `passthrough-command.ts`, and verify `mise run check` is green with every
       group-1–8 row still passing; commit any conflict fix as
       `fix(cli): reconcile passthrough-json-and-doctor with the resolver`
-- [ ] 9.2 Check `--cwd` first in `store`, `config` and `workset` with the
+- [x] 9.2 Check `--cwd` first in `store`, `config` and `workset` with the
       resolver's own refusal (design D10), and verify ledger rows 7.1 and 7.2
       flip and pass for all six commands; commit
       `fix(cli): refuse a missing --cwd before spawning store, config or workset`
-- [ ] 9.3 Respell `context` structurally through the shared field-map helper
+- [x] 9.3 Respell `context` structurally through the shared field-map helper
       (design D4, D6: always `--json`, text rendered from the rewritten
       document, the declared-reference count, the two-call `--code-workspace`
       text path), remove `REACHABLE_OWNED` rows 1–7 and
@@ -247,10 +247,10 @@ directory check, design D10), `apps/cli/test/contract/relayed-remedies.test.ts`,
       `relayed-remedies.test.ts` context success rows, and verify ledger rows
       3.1–3.4 and 4.5 flip and pass; commit
       `fix(context): spell the reference block through cospec from its JSON structure`
-- [ ] 9.4 Relay `schemas`' failed answer through the allowlist (`relayRespelled`
+- [x] 9.4 Relay `schemas`' failed answer through the allowlist (`relayRespelled`
       over `callPassthrough`), and verify ledger row 3.5 flips and passes;
       commit `fix(schemas): spell a relayed no-root answer through cospec`
-- [ ] 9.5 Run doctor's own checks against the resolved local root's base (design
+- [x] 9.5 Run doctor's own checks against the resolved local root's base (design
       D3), and verify ledger row 2.7 flips and passes and every other doctor row
       still passes; commit
       `fix(doctor): diagnose the enclosing root from a subdirectory`
@@ -298,7 +298,7 @@ through `script -q` with stdin ended), and the fix flips it.
 Files: `openspec/changes/passthrough-json-and-doctor/verification.md`,
 `openspec/changes/passthrough-json-and-doctor/tasks.md`.
 
-- [ ] 11.1 Verify `reachability.test.ts` is green with no `parity-pending.yaml`
+- [x] 11.1 Verify `reachability.test.ts` is green with no `parity-pending.yaml`
       entry or pending surface owned by this change (ledger 8.1), no
       `test.failing`/`test.todo` remains in the four new test files (8.2), and
       the suites of ledger 8.3 pass; run the bare-`openspec` sweep of ledger
