@@ -42,7 +42,9 @@ export interface PassthroughCommandOptions {
    * nearest root, which also reaches an enclosing root from a subdirectory —
    * a deliberate superset of the binary, which reads its own cwd there. A
    * selection that fails with no explicit `--store` spawns in the invocation
-   * directory instead, as the binary always does (`isCwdFallback`).
+   * directory instead, as the binary always does (`isCwdFallback`). Root
+   * selection prints no invalid-global-config warning for these, as the
+   * binary never reads that file for them.
    */
   spawnInRoot?: boolean
   /** Upstream renders this command's failures as text under `--json`; see `PassthroughOptions.textFailure`. */
@@ -75,7 +77,8 @@ export async function callPassthrough(
   const inRoot = opts.spawnInRoot === true
   let root: ResolvedRoot | undefined
   try {
-    root = await resolveRoot(ctx)
+    // The binary's `templates`/`schema` never read the global config, so they never warn about it.
+    root = await resolveRoot(ctx, { globalConfigWarning: !inRoot })
   } catch (error) {
     if (!(inRoot && ctx.flags.store === undefined && isCwdFallback(error))) {
       // A forward row's argv (no table parse) is the binary's to refuse first.

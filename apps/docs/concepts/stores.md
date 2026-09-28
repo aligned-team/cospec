@@ -124,7 +124,8 @@ which root a command targets from any directory:
    object, and a config file that can't be read or parsed at all (a directory,
    no read permission, not JSON) count as unset, as they do for `openspec`; a
    file that isn't JSON also prints `openspec`'s own
-   `Warning: Invalid JSON in <path>, using defaults` on stderr, once;
+   `Warning: Invalid JSON in <path>, using defaults` on stderr, once (never for
+   `templates` or `schema`, which `openspec` runs without reading it);
 5. else, with any stores registered, cospec hard-errors naming them
    (`no_root_with_registered_stores`) rather than silently falling back to an
    empty cwd; with none registered, the cwd is an **implicit** root and each
@@ -255,12 +256,12 @@ selects a root for them. When selection fails and you passed no `--store` — no
 qualifying root with stores registered, a malformed or unregistered `store:`
 pointer, a stale or broken `defaultStore`, or a store registry or selected store
 that can't be read — cospec runs them in your working directory, with the same
-output, exit code and files written as `openspec` there. One line can differ: to
-select a root, cospec reads the global config, which `openspec` never reads for
-these two commands, so a global config that isn't JSON adds its
-`Warning: Invalid JSON …` line to cospec's stderr. With an explicit `--store`
-the selection error stands (the Errors table above), since `openspec` has no
-`--store` on these commands to fall back to.
+output, exit code and files written as `openspec` there. cospec reads the global
+config to select their root, which `openspec` never does for these two commands,
+so neither prints the `Warning: Invalid JSON …` line for them; every other
+command that selects a root prints it once, as `openspec` does. With an explicit
+`--store` the selection error stands (the Errors table above), since `openspec`
+has no `--store` on these commands to fall back to.
 
 ### `--store` on the wrapped call
 

@@ -581,11 +581,15 @@ const warnedInvalidJsonPaths = new Set<string>()
  * invalid": ANY failure to read or parse the file (missing, a directory, no
  * read permission, not JSON) and a JSON root that is not an object carry no
  * default, and only a file that is not JSON warns, once per path, with
- * upstream's own line. Catching the raw read failure below is that contract,
+ * upstream's own line — unless `warn: false`, for a command whose upstream
+ * counterpart never reads the file (design D8). Catching the raw read failure below is that contract,
  * not a swallowed error: the binary answers the same command with its
  * defaults.
  */
-export async function readDefaultStore(cwd: string): Promise<unknown> {
+export async function readDefaultStore(
+  cwd: string,
+  opts: { warn?: boolean } = {},
+): Promise<unknown> {
   const result = await runOpenspec(['config', 'path'], {
     cwd,
     expect: {
@@ -608,7 +612,7 @@ export async function readDefaultStore(cwd: string): Promise<unknown> {
     doc = JSON.parse(body)
   } catch (error) {
     if (!(error instanceof SyntaxError)) throw error
-    if (!warnedInvalidJsonPaths.has(configPath)) {
+    if (opts.warn !== false && !warnedInvalidJsonPaths.has(configPath)) {
       warnedInvalidJsonPaths.add(configPath)
       printOwnLine(`Warning: Invalid JSON in ${configPath}, using defaults`)
     }
@@ -661,12 +665,16 @@ async function resolveQualifyingRoot(cwd: string, base: string): Promise<Resolve
   )
 }
 
-async function selectRoot(cwd: string, store: string | undefined): Promise<ResolvedRoot> {
+async function selectRoot(
+  cwd: string,
+  store: string | undefined,
+  warnGlobalConfig: boolean,
+): Promise<ResolvedRoot> {
   if (store !== undefined) return resolveStore(cwd, store)
   const nearest = findQualifyingRoot(cwd)
   if (nearest !== null) return resolveQualifyingRoot(cwd, nearest)
   // Upstream tests the raw value for truthiness: `""`, `false` and `0` are unset.
-  const defaultId = await readDefaultStore(cwd)
+  const defaultId = await readDefaultStore(cwd, { warn: warnGlobalConfig })
   if (defaultId)
     return withOrigin(
       () => resolveStore(cwd, defaultId, 'global_default'),
@@ -703,13 +711,21 @@ async function selectRoot(cwd: string, store: string | undefined): Promise<Resol
  * time, verbatim from upstream, so the line survives a command that fails
  * after selecting it. An invocation directory that does not exist fails first
  * (`directory_not_found`, cospec's own code: upstream has no `--cwd`).
+ *
+ * `opts.globalConfigWarning: false` is for `templates` and `schema`, whose
+ * upstream actions never read the global config: cospec still reads it to
+ * select their root, but prints no `Warning: Invalid JSON …` line the binary
+ * would not (design D8).
  */
-export async function resolveRoot(ctx: {
-  cwd: string
-  flags: { store?: string; json?: boolean }
-}): Promise<ResolvedRoot> {
+export async function resolveRoot(
+  ctx: {
+    cwd: string
+    flags: { store?: string; json?: boolean }
+  },
+  opts: { globalConfigWarning?: boolean } = {},
+): Promise<ResolvedRoot> {
   assertInvocationDirectory(ctx.cwd)
-  const root = await selectRoot(ctx.cwd, ctx.flags.store)
+  const root = await selectRoot(ctx.cwd, ctx.flags.store, opts.globalConfigWarning !== false)
   if (root.store !== undefined && ctx.flags.json !== true)
     printOwnLine(`Using OpenSpec root: ${root.store} (${root.base})`)
   return root

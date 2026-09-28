@@ -33,7 +33,8 @@ which root a command targets from any directory:
    `getGlobalConfig()` reads it (no trimming or stringifying; falsy is unset; a
    file that can't be read or parsed — missing, a directory, unreadable, not
    JSON — or a non-object root is unset, and a file that isn't JSON prints
-   upstream's `Warning: Invalid JSON in <path>, using defaults` once);
+   upstream's `Warning: Invalid JSON in <path>, using defaults` once, except for
+   `templates` and `schema`, which upstream runs without reading the file);
 5. else, with any stores registered, a hard error naming them
    (`no_root_with_registered_stores`); with none, the cwd is an **implicit**
    root, and each command's own missing-`openspec/` check reports it from there.

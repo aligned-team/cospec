@@ -38,12 +38,13 @@ directory, no read permission, not JSON) SHALL count as having no
 `defaultStore`, as the wrapped binary's defaults do, and a file that is not JSON
 SHALL print the wrapped binary's
 `Warning: Invalid JSON in <path>, using defaults` line on stderr once per
-invocation. It SHALL only be probed after the earlier tiers miss, so the common
-local path costs no extra work. When no qualifying root and no `defaultStore`
-exist but at least one store is registered, the system SHALL fail with the
-`no_root_with_registered_stores` code and name every registered store id. Only
-when no store is registered SHALL the invocation directory be used as an
-implicit root.
+invocation, except for `templates` and `schema`, which SHALL print no such line
+because the wrapped binary never reads the global config for them. It SHALL only
+be probed after the earlier tiers miss, so the common local path costs no extra
+work. When no qualifying root and no `defaultStore` exist but at least one store
+is registered, the system SHALL fail with the `no_root_with_registered_stores`
+code and name every registered store id. Only when no store is registered SHALL
+the invocation directory be used as an implicit root.
 
 The system SHALL fail loudly on an unregistered store id, whether it comes from
 `--store`, a `store:` pointer or `defaultStore`, rather than falling back to the
@@ -132,7 +133,8 @@ and never by resolving an ancestor of the missing path.
   or a file that is not JSON, and a command runs from a rootless directory
 - **THEN** the command answers as it does with no global config file, and only
   for the file that is not JSON prints the wrapped binary's invalid-JSON
-  warning, once
+  warning, once; `templates` and `schema` print no warning, as the wrapped
+  binary does not
 
 #### Scenario: An unreadable store registry fails selection
 

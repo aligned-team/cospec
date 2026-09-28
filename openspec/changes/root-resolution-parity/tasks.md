@@ -388,6 +388,6 @@ files, task 7.7, both marked POST-REBASE.
       binary's per-file semantics on top (global config and pointer read as
       upstream reads them), and replace `RawRegistryError` with the general
       subclass
-- [ ] 11.2 REVIEW (ledger 5.24, design D5, D8): add failing rows, then stop
+- [x] 11.2 REVIEW (ledger 5.24, design D5, D8): add failing rows, then stop
       `templates` and `schema` printing the invalid-global-config warning, and
       update the Stores page, the commands page and `docs/stores.md`

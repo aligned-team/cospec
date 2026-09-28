@@ -213,6 +213,13 @@ appears once. The binary prints it only where its own selection reads the file
 (a rootless directory, not below a root); so does cospec. `templates` and
 `schema` are the one place the line is cospec's alone (D8).
 
+_Amended in review round 4:_ `templates` and `schema` do not print it. The
+binary never reads the global config for them, so the line was the one byte
+their cwd-fallback answer differed by. `readDefaultStore` takes `warn: false`,
+which `resolveRoot`'s `globalConfigWarning: false` passes and `callPassthrough`
+sets for a `spawnInRoot` call; the file is still read and still reads as unset.
+Every other root-selecting command prints the line once, as the binary does.
+
 **D6. The implicit root stays shared.** Upstream lets each command decide
 whether a rootless cwd is an implicit root (`list` and `validate` refuse with
 `no_openspec_root` unless `openspec/project.md` exists at the cwd; `status`
@@ -301,6 +308,13 @@ same class of line as the store banner these commands print on a store-selected
 root, and it names the file cospec acted on. _Rejected:_ muting it for these two
 commands, which would hide why a broken config left the user in the cwd rather
 than the `defaultStore` root.
+
+_Amended in review round 4:_ that rejection is reversed, and the fallback is now
+byte-for-byte the binary's. Parity wins: the binary never reads the global
+config for `templates` or `schema`, so it never warns there, and the warning was
+the only difference left. `callPassthrough` resolves a `spawnInRoot` call with
+`globalConfigWarning: false` (D5); a broken config still reads as no
+`defaultStore`, silently, as the binary's own unread config would.
 
 **D9. Store health is checked from the filesystem in `resolveStore`.**
 `store ls --json` lists a broken store with an empty `status` (probed), so

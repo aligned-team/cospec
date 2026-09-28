@@ -195,9 +195,9 @@ own working directory and so can't see either. When the root can't be selected
 and you passed no `--store` (no root with stores registered, a broken `store:`
 pointer or `defaultStore`, an unreadable store registry or selected store), they
 run in the invocation working directory and answer as `openspec` does there —
-the same output, exit code and files, plus the global config's
-`Warning: Invalid JSON …` line when that file isn't JSON, since only cospec
-reads it for these commands. See
+the same output, exit code, stderr and files — including no
+`Warning: Invalid JSON …` line for a global config that isn't JSON, since
+`openspec` never reads that file for these commands. See
 [Stores](/concepts/stores#templates-and-schema-reach-every-root-by-working-directory)
 for the full account.
 
