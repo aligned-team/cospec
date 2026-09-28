@@ -542,6 +542,32 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
     delegated: /^Change must have at least one delta\. No deltas found\./,
   },
 
+  // --- round-5 pairings -------------------------------------------------------
+  //
+  // A requirement a delta writes inside an HTML comment: the binary's delta
+  // validator reads it, cospec's advisory reader masks it, and the archive
+  // merges it — so the defect is `archive/rebuilt-spec-invalid`'s, on the
+  // commented header's line. Keyed on the requirement name both quote.
+  {
+    rule: 'archive/rebuilt-spec-invalid',
+    delegated: /^(?:ADDED|MODIFIED) "(.*)" is missing requirement text$/,
+    nativeKey:
+      /^requirement "(.*)" \(line \d+ of this delta\) has (?:.* and )?no text under its header\b/,
+  },
+  {
+    rule: 'archive/rebuilt-spec-invalid',
+    delegated:
+      /^(?:ADDED|MODIFIED) "(.*)" must contain SHALL or MUST in the requirement body, not only in the header\./,
+    nativeKey:
+      /^requirement "(.*)" \(line \d+ of this delta\) has (?:.* and )?no text under its header\b/,
+  },
+  {
+    rule: 'archive/rebuilt-spec-invalid',
+    delegated: /^(?:ADDED|MODIFIED) "(.*)" must include at least one scenario\b/,
+    nativeKey:
+      /^requirement "(.*)" \(line \d+ of this delta\) has (?:.* and )?no scenario in the rebuilt spec/,
+  },
+
   // --- 1.12.0 archive-preflight INFO (`Validator.findArchiveBlockers`) ------
   //
   // 1.12 dry-runs archive's merge builder during `validate` and relays each

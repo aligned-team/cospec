@@ -27,6 +27,7 @@ import {
   type LineOrigin,
   type RebuiltSpecIssue,
 } from '../rebuilt-spec.ts'
+import { requirementShapeIssues } from './deltas.ts'
 import type { Issue } from './issue.ts'
 import type { LoadedChange } from './schema-info.ts'
 
@@ -245,15 +246,18 @@ const CANONICAL_HEADER_RE = /^###\s*Requirement:\s*(.+?)\s*$/i
  * from.
  *
  * A requirement a delta block writes is that block's own rules' to report —
- * `deltas/requirement-shape` and the binary's validate for a block with no
- * scenario or no statement, `archive/split-requirement` for a header that cuts
- * one — so a finding on a delta line is kept only where none of those fires:
- * the rebuilt spec is the net under them, never a second report.
+ * `deltas/requirement-shape` for a block with no scenario or no statement,
+ * `archive/split-requirement` for a header that cuts one — so a finding on a
+ * delta line is dropped only where one of those reported that very line: the
+ * rebuilt spec is the net under them, never a second report. Never on the
+ * assumption that one did: a block written inside an HTML comment is merged by
+ * the archive but invisible to the masked reader behind
+ * `deltas/requirement-shape`, so only this rule sees it.
  */
 function rebuiltSpecIssues(
   change: LoadedChange,
   capability: string,
-  file: { path: string; text: string; parsed: ParsedDelta; splits: RequirementSplit[] },
+  file: DeltaFileView,
   living: string | undefined,
 ): Issue[] {
   const rebuilt = rebuildSpec({
@@ -274,11 +278,9 @@ function rebuiltSpecIssues(
         ? `line ${origin.line} of this delta`
         : `the new spec archive writes for '${capability}'`
   const splitLines = new Set(file.splits.map((s) => s.part.line))
-  const headSplit = new Set(file.splits.filter((s) => s.empty === 'head').map((s) => s.op))
-  const blockAt = (line: number): DeltaOp | undefined =>
-    file.parsed.ops.find(
-      (op) => op.line === line && (op.operation === 'ADDED' || op.operation === 'MODIFIED'),
-    )
+  const headSplitLines = new Set(
+    file.splits.filter((s) => s.empty === 'head').map((s) => s.op.line),
+  )
 
   const out: Issue[] = []
   const report = (origin: LineOrigin | undefined, message: string, hint: string): void => {
@@ -384,11 +386,9 @@ function rebuiltSpecIssues(
       if (issue.kind === 'requirement' && noBody.has(issue.line)) missingBody = true
       if (origin?.source === 'delta') {
         if (splitLines.has(origin.line)) continue
-        const op = blockAt(origin.line)
-        if (op !== undefined) {
-          if (op.scenarioCount === 0 || headSplit.has(op)) noScenario = false
-          missingBody = false
-        }
+        if (headSplitLines.has(origin.line) || file.shape.scenario.has(origin.line))
+          noScenario = false
+        if (file.shape.text.has(origin.line)) missingBody = false
       }
       if (!noScenario && !noText && !missingBody) continue
       const lacks = [
@@ -412,6 +412,17 @@ function rebuiltSpecIssues(
   return out
 }
 
+/** One delta file as the archive family reads it. */
+interface DeltaFileView {
+  path: string
+  text: string
+  /** the verbatim parse: what the archive merges. */
+  parsed: ParsedDelta
+  splits: RequirementSplit[]
+  /** the lines `deltas/requirement-shape` reported, by arm. */
+  shape: { text: Set<number>; scenario: Set<number> }
+}
+
 export interface ArchiveRuleOptions {
   strict: boolean
 }
@@ -429,7 +440,7 @@ export function archiveRules(
     /** the delta file path an op belongs to, parallel to `ops`. */
     paths: string[]
     /** each delta file of the capability, parsed on the verbatim view, with its splits. */
-    files: { path: string; text: string; parsed: ParsedDelta; splits: RequirementSplit[] }[]
+    files: DeltaFileView[]
   }
   const byCap = new Map<string, CapGroup>()
 
@@ -483,7 +494,14 @@ export function archiveRules(
       group.ops.push(op)
       group.paths.push(file.path)
     }
-    group.files.push({ path: file.path, text: file.text, parsed, splits })
+    const shape = { text: new Set<number>(), scenario: new Set<number>() }
+    for (const found of requirementShapeIssues(maskedParse, file.path))
+      if (found.line !== undefined)
+        (found.message.endsWith('must include at least one #### Scenario:')
+          ? shape.scenario
+          : shape.text
+        ).add(found.line)
+    group.files.push({ path: file.path, text: file.text, parsed, splits, shape })
     byCap.set(file.capability, group)
   }
 

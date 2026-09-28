@@ -36,20 +36,7 @@ afterAll(cleanupAll)
  * Round-5 rows that fail on the tree they were pinned on — each fix commit
  * takes its own ids out, and the last one removes the set.
  */
-const ROUND5_FAILING = new Set<string>([
-  '27.cmt-no-textn',
-  '27.cmt-no-text',
-  '27.cmt-modified-no-textn',
-  '27.cmt-modified-no-text',
-  '27.cmt-header-shalln',
-  '27.cmt-header-shall',
-  '27.cmt-no-scenarion',
-  '27.cmt-no-scenario',
-  '28.1',
-  '28.1n',
-  '28.2',
-  '28.2n',
-])
+const ROUND5_FAILING = new Set<string>(['28.1', '28.1n', '28.2', '28.2n'])
 const round5 = (id: string): typeof test => (ROUND5_FAILING.has(id) ? test.failing : test)
 
 // --- fixture builders --------------------------------------------------------

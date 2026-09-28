@@ -1258,6 +1258,20 @@ describe('archive/rebuilt-spec-invalid', () => {
     expect(rebuilt(text, LIVING)).toEqual([])
   })
 
+  test('a delta block inside an HTML comment is this rule’s: the masked reader never reported it', () => {
+    const text = `${ADD}\n<!--\n### Requirement: Draft\n\nThe system SHALL draft.\n-->\n`
+    expect(rebuilt(text, LIVING).map((i) => [i.line, i.message])).toEqual([
+      [13, 'requirement "Draft" (line 13 of this delta) has no scenario in the rebuilt spec'],
+    ])
+    const noText = `${ADD}\n<!--\n### Requirement: Draft\n\n#### Scenario: d\n\n- **WHEN** a\n-->\n`
+    expect(rebuilt(noText, LIVING).map((i) => [i.line, i.message])).toEqual([
+      [
+        13,
+        'requirement "Draft" (line 13 of this delta) has no text under its header in the rebuilt spec',
+      ],
+    ])
+  })
+
   test('a level-1 header in a delta block that takes its scenario is refused on the delta line', () => {
     const text = ADD.replace('#### Scenario: s', '# Aside\n\n#### Scenario: s')
     expect(rebuilt(text, LIVING).map((i) => [i.line, i.message])).toEqual([
