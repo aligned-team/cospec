@@ -522,3 +522,40 @@ export function respellRemedies(text: string): string {
   }
   return out
 }
+
+/** Every remedy as a whole-value pattern, in `respellRemedies`' precedence. */
+const WHOLE = [...SENTENCES, ...COMMAND_RULES].map((rule) => ({
+  rule,
+  whole: new RegExp(`^${body(rule.remedy.upstream, 'text', true)}$`),
+}))
+
+/** `value` spelled through cospec when it is, whole, one allowlisted remedy. */
+function respellWhole(value: string): string | undefined {
+  const hit = WHOLE.find(({ whole }) => whole.test(value))
+  return hit === undefined ? undefined : value.replace(hit.whole, replacement(hit.rule, 'text'))
+}
+
+// The reference block's own lines, as the binary renders them: a
+// `Fetch: <recipe>` or `Fix: <remedy>` line, or under `--json` (pretty-printed,
+// one property a line) a `"fetch"` or `"fix"` property.
+const REFERENCE_LINE = /^([ \t]*(?:Fetch|Fix): )(.*?)(\r?)$/gm
+const REFERENCE_FIELD = /^([ \t]*"(?:fetch|fix)": )("(?:[^"\\\n]|\\.)*")(,?\r?)$/gm
+
+/**
+ * A successful `context` or `instructions` answer with only its reference
+ * lines spelled through cospec: a `Fetch:`/`Fix:` line, or a `fetch`/`fix`
+ * JSON property, whose whole value is one allowlisted remedy. Every other
+ * byte — schema text, `config.yaml` context and rules, spec summaries, paths,
+ * any other JSON value — is relayed as the binary wrote it.
+ */
+export function respellReferenceRemedies(text: string): string {
+  return text
+    .replace(REFERENCE_LINE, (line: string, label: string, value: string, cr: string) => {
+      const spelled = respellWhole(value)
+      return spelled === undefined ? line : `${label}${spelled}${cr}`
+    })
+    .replace(REFERENCE_FIELD, (line: string, key: string, literal: string, tail: string) => {
+      const spelled = respellWhole(JSON.parse(literal) as string)
+      return spelled === undefined ? line : `${key}${JSON.stringify(spelled)}${tail}`
+    })
+}

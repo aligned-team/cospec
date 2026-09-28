@@ -474,60 +474,49 @@ describe("a successful context or instructions names cospec in upstream's remedi
     ['instructions', 'proposal', '--change', 'done'],
     ['instructions', 'proposal', '--change', 'done', '--json'],
   ]) {
-    test.failing(
-      `${argv.join(' ')}: template, context, rules and a spec Purpose relayed verbatim`,
-      async () => {
-        const coRoot = userContentRoot()
-        const upRoot = userContentRoot()
-        const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-        const up = await oracle(argv, upRoot, { runtime: 'node' })
-        expect(up.exitCode, detail(up)).toBe(0)
-        // Template, context, rule and the spec summary: four times each way.
-        const count = (text: string) => text.split(USER_SENTENCE).length - 1
-        expect(count(up.stdout)).toBeGreaterThanOrEqual(4)
-        expect(co.exitCode, detail(co)).toBe(0)
-        expect(count(co.stdout), detail(co)).toBe(count(up.stdout))
-        const paths = (text: string, root: string): string =>
-          text
-            .replaceAll(realpathSync(root), '<root>')
-            .replaceAll(root, '<root>')
-            .replaceAll(basename(root), '<name>')
-        // Only the reference block's own lines are cospec's spelling.
-        expect(paths(co.stdout, coRoot), detail(co)).toBe(viaCospec(paths(up.stdout, upRoot)))
-        expect(paths(co.stderr, coRoot)).toBe(paths(up.stderr, upRoot))
-      },
-      30_000,
-    )
+    test(`${argv.join(' ')}: template, context, rules and a spec Purpose relayed verbatim`, async () => {
+      const coRoot = userContentRoot()
+      const upRoot = userContentRoot()
+      const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+      const up = await oracle(argv, upRoot, { runtime: 'node' })
+      expect(up.exitCode, detail(up)).toBe(0)
+      // Template, context, rule and the spec summary: four times each way.
+      const count = (text: string) => text.split(USER_SENTENCE).length - 1
+      expect(count(up.stdout)).toBeGreaterThanOrEqual(4)
+      expect(co.exitCode, detail(co)).toBe(0)
+      expect(count(co.stdout), detail(co)).toBe(count(up.stdout))
+      const paths = (text: string, root: string): string =>
+        text
+          .replaceAll(realpathSync(root), '<root>')
+          .replaceAll(root, '<root>')
+          .replaceAll(basename(root), '<name>')
+      // Only the reference block's own lines are cospec's spelling.
+      expect(paths(co.stdout, coRoot), detail(co)).toBe(viaCospec(paths(up.stdout, upRoot)))
+      expect(paths(co.stderr, coRoot)).toBe(paths(up.stderr, upRoot))
+    }, 30_000)
   }
 
   // A project directory whose name holds an allowlisted sentence, or reads
   // like one: every path in the document is the binary's, byte for byte.
-  for (const { name, failing } of [
-    { name: USER_SENTENCE, failing: true },
-    { name: 'Run openspec init here', failing: false },
-  ]) {
+  for (const name of [USER_SENTENCE, 'Run openspec init here']) {
     for (const argv of [
       ['context', '--json'],
       ['instructions', 'proposal', '--change', 'done', '--json'],
     ]) {
-      ;(failing ? test.failing : test)(
-        `${argv.join(' ')} in a project dir named "${name}": its path untouched`,
-        async () => {
-          const coRoot = referencingRoot(name)
-          const upRoot = referencingRoot(name)
-          const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-          const up = await oracle(argv, upRoot, { runtime: 'node' })
-          expect(up.exitCode, detail(up)).toBe(0)
-          expect(co.exitCode, detail(co)).toBe(0)
-          expect(documentCount(co.stdout), detail(co)).toBe(1)
-          const doc = JSON.parse(co.stdout) as { root: { path: string } }
-          expect(doc.root.path).toBe(realpathSync(coRoot))
-          const parents = (text: string, root: string): string =>
-            text.replaceAll(realpathSync(dirname(root)), '<tmp>').replaceAll(dirname(root), '<tmp>')
-          expect(parents(co.stdout, coRoot), detail(co)).toBe(viaCospec(parents(up.stdout, upRoot)))
-        },
-        30_000,
-      )
+      test(`${argv.join(' ')} in a project dir named "${name}": its path untouched`, async () => {
+        const coRoot = referencingRoot(name)
+        const upRoot = referencingRoot(name)
+        const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+        const up = await oracle(argv, upRoot, { runtime: 'node' })
+        expect(up.exitCode, detail(up)).toBe(0)
+        expect(co.exitCode, detail(co)).toBe(0)
+        expect(documentCount(co.stdout), detail(co)).toBe(1)
+        const doc = JSON.parse(co.stdout) as { root: { path: string } }
+        expect(doc.root.path).toBe(realpathSync(coRoot))
+        const parents = (text: string, root: string): string =>
+          text.replaceAll(realpathSync(dirname(root)), '<tmp>').replaceAll(dirname(root), '<tmp>')
+        expect(parents(co.stdout, coRoot), detail(co)).toBe(viaCospec(parents(up.stdout, upRoot)))
+      }, 30_000)
     }
   }
 })

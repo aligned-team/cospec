@@ -218,13 +218,23 @@ describe('relayRespelled', () => {
     expect(written).toEqual([{ stream: 'stdout', text: FIX }])
   })
 
-  test("'respell' spells upstream's sentences in a successful answer too", () => {
-    expect(relayRespelled(result({ exitCode: 0, stdout: FIX }), false, 'respell')).toBe(0)
-    expect(written).toEqual([{ stream: 'stdout', text: SPELLED }])
+  test("'references' spells a successful answer's reference lines only", () => {
+    const user = 'Run openspec init to create a root here.\n'
+    expect(
+      relayRespelled(
+        result({ exitCode: 0, stdout: user + FIX, stderr: user }),
+        false,
+        'references',
+      ),
+    ).toBe(0)
+    expect(written).toEqual([
+      { stream: 'stdout', text: user + SPELLED },
+      { stream: 'stderr', text: user },
+    ])
   })
 
   test('a failed answer is respelled either way', () => {
-    for (const mode of ['verbatim', 'respell'] as const) {
+    for (const mode of ['verbatim', 'references'] as const) {
       written = []
       expect(relayRespelled(result({ exitCode: 1, stderr: FIX }), false, mode)).toBe(1)
       expect(written).toEqual([{ stream: 'stderr', text: SPELLED }])

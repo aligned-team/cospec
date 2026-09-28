@@ -10,7 +10,7 @@ import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { isUpstreamStorePathRefusal, storePathRefusal } from './command-table.ts'
 import { OpenspecCallError, type OpenspecResult, passthroughOpenspec } from './openspec.ts'
-import { respellRemedies } from './remedies.ts'
+import { respellReferenceRemedies, respellRemedies } from './remedies.ts'
 
 /**
  * Every refusal the pinned binary's commander (14.x, `lib/command.js`) raises
@@ -89,26 +89,31 @@ export function relayStorePathRefusal(result: OpenspecResult, json: boolean): nu
  * Relays a passthrough call's answer, returning cospec's exit code: the
  * binary's `--store-path` refusal answered with cospec's redirect, and
  * upstream's own remedy sentences spelled through cospec (`respellRemedies`)
- * in a failed call's answer — and in a successful one when `success` is
- * `'respell'`, for a command whose answer the binary renders itself
- * (`context`'s working set, `instructions`' reference block, each with its
- * `Fetch:`/`Fix:` lines). `show` keeps `'verbatim'`: what a successful `show`
- * prints is the user's own change or spec, which may quote upstream's
- * sentences word for word.
+ * in a failed call's answer. A successful answer is relayed untouched, except
+ * that with `success: 'references'` — `context`'s working set and
+ * `instructions`' reference block — the binary's own `Fetch:`/`Fix:` lines
+ * (`fetch`/`fix` under `--json`) are spelled through cospec
+ * (`respellReferenceRemedies`); the schema text, config context and rules,
+ * spec summaries and paths around them stay byte-for-byte the binary's.
+ * `show` keeps `'verbatim'`: a successful `show` prints the user's own change
+ * or spec.
  */
 export function relayRespelled(
   result: OpenspecResult,
   json: boolean,
-  success: 'verbatim' | 'respell' = 'verbatim',
+  success: 'verbatim' | 'references' = 'verbatim',
 ): number {
   const refused = relayStorePathRefusal(result, json)
   if (refused !== undefined) return refused
-  const relay =
-    result.exitCode === 0 && success === 'verbatim' ? (text: string) => text : respellRemedies
-  if (result.stdout.length > 0) process.stdout.write(relay(result.stdout))
-  if (result.stderr.length > 0) process.stderr.write(relay(result.stderr))
-  return result.exitCode === 0 ? EXIT.success : EXIT.failure
+  const ok = result.exitCode === 0
+  const out = !ok ? respellRemedies : success === 'references' ? respellReferenceRemedies : same
+  const err = ok ? same : respellRemedies
+  if (result.stdout.length > 0) process.stdout.write(out(result.stdout))
+  if (result.stderr.length > 0) process.stderr.write(err(result.stderr))
+  return ok ? EXIT.success : EXIT.failure
 }
+
+const same = (text: string): string => text
 
 /**
  * A forward row's subcommand and its argv. The dispatcher keeps a `--` ahead

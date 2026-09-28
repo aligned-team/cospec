@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 
-import { REMEDIES, type Remedy, respellRemedies } from '../../../src/core/remedies.ts'
+import {
+  REMEDIES,
+  type Remedy,
+  respellReferenceRemedies,
+  respellRemedies,
+} from '../../../src/core/remedies.ts'
 
 /** A bare `openspec` command a user could copy and run outside cospec. */
 const BARE_OPENSPEC = /\bopenspec [a-z-]/
@@ -87,5 +92,52 @@ describe('respellRemedies: nothing but an allowlisted sentence', () => {
       '  cospec new <type> c1 --store <id>\n',
     )
     expect(respellRemedies('  openspec list --store <id>\n')).toBe('  cospec list --store <id>\n')
+  })
+})
+
+describe('respellReferenceRemedies', () => {
+  test("a Fetch or Fix line whose whole value is upstream's remedy is spelled", () => {
+    expect(
+      respellReferenceRemedies(
+        '  Fetch: openspec show <spec-id> --type spec --store st1\n' +
+          '    Fix: Run: openspec store doctor st2\n' +
+          '  Fix: Get a checkout from a teammate and run: openspec store register <path> --id gone\n',
+      ),
+    ).toBe(
+      '  Fetch: cospec show <spec-id> --type spec --store st1\n' +
+        '    Fix: Run: cospec store doctor st2\n' +
+        '  Fix: Get a checkout from a teammate and run: cospec store register <path> --id gone\n',
+    )
+  })
+
+  test('a fetch or fix property is spelled; every other JSON value is untouched', () => {
+    const doc = JSON.stringify(
+      {
+        root: { path: '/p/Run openspec init to create a root here.' },
+        context: 'Run openspec init to create a root here.',
+        members: [{ fetch: 'openspec show <spec-id> --type spec --store st1' }],
+        status: [{ fix: 'Run: openspec store doctor st2' }],
+      },
+      null,
+      2,
+    )
+    expect(JSON.parse(respellReferenceRemedies(doc))).toEqual({
+      root: { path: '/p/Run openspec init to create a root here.' },
+      context: 'Run openspec init to create a root here.',
+      members: [{ fetch: 'cospec show <spec-id> --type spec --store st1' }],
+      status: [{ fix: 'Run: cospec store doctor st2' }],
+    })
+  })
+
+  test('any other line keeps its bytes, an allowlisted sentence included', () => {
+    for (const text of [
+      'Run openspec init to create a root here.\n',
+      '  - ref-spec: Run openspec init to create a root here.\n',
+      'Fix: Run openspec init to create a root here, then continue.\n',
+      'Store st1 (/p/Fix: Run: openspec store doctor st2):\n',
+      '  "context": "Fix: Run: openspec store doctor st2",\n',
+      '  "fix": "Run: openspec store doctor st2 by hand"\n',
+    ])
+      expect(respellReferenceRemedies(text)).toBe(text)
   })
 })
