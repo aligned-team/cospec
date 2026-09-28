@@ -223,13 +223,18 @@ function binaryOne(bin: BinaryIssue[], fragment: string): BinaryIssue {
   return found[0]!
 }
 
+/** Every cospec report this file produced, for the double-report sweep (section 19). */
+const REPORTS: { label: string; report: JsonReport }[] = []
+
 async function cospecValidate(
   root: string,
   name: string,
   extra: string[] = [],
 ): Promise<{ report: JsonReport; exitCode: number }> {
   const res = await cospec(['validate', name, '--strict', '--json', ...extra], { cwd: root })
-  return { report: JSON.parse(res.stdout) as JsonReport, exitCode: res.exitCode }
+  const report = JSON.parse(res.stdout) as JsonReport
+  REPORTS.push({ label: [name, ...extra].join(' '), report })
+  return { report, exitCode: res.exitCode }
 }
 
 function issues(report: JsonReport): ReportIssue[] {
@@ -1545,17 +1550,25 @@ describe('11. a header that splits a requirement is refused at pre-flight', () =
     expect(exitCode).toBe(0)
   })
 
-  test('11.6 under --fast the split is not checked and the delegated INFO is kept', async () => {
-    const root = mkTempRepo({ git: true })
-    buildFeat(root, 'split-before', { 'widgets/spec.md': SPLIT_BEFORE_SCENARIO })
-    const delegated = binaryOne(
-      await binaryIssues(root, 'split-before'),
-      'Header "### Notes inside"',
-    )
-    const { report } = await cospecValidate(root, 'split-before', ['--fast'])
-    expect(byRule(report, 'archive/split-requirement')).toEqual([])
-    expect(messages(report)).toContain(delegated.message)
-  })
+  // Re-pointed in round 3 (verification 16.1): with the split unchecked, the
+  // header is cospec's own INFO again, and the binary's INFO is its twin.
+  test.failing(
+    '11.6 under --fast the split is not checked: the header keeps its INFO, once',
+    async () => {
+      const root = mkTempRepo({ git: true })
+      buildFeat(root, 'split-before', { 'widgets/spec.md': SPLIT_BEFORE_SCENARIO })
+      const delegated = binaryOne(
+        await binaryIssues(root, 'split-before'),
+        'Header "### Notes inside"',
+      )
+      const { report } = await cospecValidate(root, 'split-before', ['--fast'])
+      expect(byRule(report, 'archive/split-requirement')).toEqual([])
+      expect(linesOf(byRule(report, 'deltas/skipped-header'))).toEqual([
+        lineOf(SPLIT_BEFORE_SCENARIO, '### Notes inside'),
+      ])
+      expect(messages(report)).not.toContain(delegated.message)
+    },
+  )
 })
 
 // --- 12. a structurally invalid living spec is refused at pre-flight ----------------------
@@ -1681,4 +1694,618 @@ describe('13. the legacy lane relays each round-2 shape at the binary level', ()
         'meta/legacy-schema',
       ])
     })
+})
+
+// --- 14. one view model: a fence-aware scan, read verbatim by the archive family ---------
+//
+// Round 3. Fences are found on the raw lines first, and an HTML comment can
+// neither open nor close on a fenced line. The verbatim view (fences masked,
+// comments kept — what openspec's readers and its archive see) feeds every
+// `archive/*` rule, scenario-preservation included; the comment-masked view
+// feeds only the advisory `deltas/*` rules.
+
+/** A `<!--` inside a fenced example, then the scenario the living spec has. */
+const FENCED_COMMENT_OPENER = `## MODIFIED Requirements
+
+### Requirement: Widget caching
+
+The system SHALL cache a rendered widget.
+
+#### Scenario: Explain the cache
+
+\`\`\`html
+<!-- cache note
+\`\`\`
+
+#### Scenario: Cache a widget
+
+- **WHEN** a caller requests the same widget twice
+- **THEN** the second request is served from cache
+`
+
+const EXPIRE_SCENARIO = `#### Scenario: Expire a widget
+
+- **WHEN** a minute passes
+- **THEN** the cache entry expires
+`
+
+const CACHE_THEN = '- **THEN** the second request is served from cache\n'
+
+/** The living `Widget caching` block also carries a scenario inside a multi-line comment. */
+const LIVING_COMMENTED_SCENARIO = LIVING.replace(
+  CACHE_THEN,
+  `${CACHE_THEN}\n<!--\n#### Scenario: Hidden cache rule\n\n- **WHEN** hidden\n- **THEN** still read\n-->\n`,
+)
+
+/** Living `Widget caching` carries a trailing comment in its header and two scenarios. */
+const LIVING_COMMENT_NAMED = LIVING.replace(
+  '### Requirement: Widget caching',
+  '### Requirement: Widget caching <!-- c -->',
+).replace(CACHE_THEN, `${CACHE_THEN}\n${EXPIRE_SCENARIO}`)
+
+/** The same header, dropping `Expire a widget`. */
+const MODIFIED_COMMENT_NAMED = MODIFIED_CACHING.replace(
+  '### Requirement: Widget caching',
+  '### Requirement: Widget caching <!-- c -->',
+)
+
+/** Living `Widget caching` with two scenarios. */
+const LIVING_TWO_SCENARIOS = LIVING.replace(CACHE_THEN, `${CACHE_THEN}\n${EXPIRE_SCENARIO}`)
+
+/** A MODIFIED that keeps `Expire a widget` only inside an HTML comment. */
+const MODIFIED_KEEPS_IN_COMMENT = `${MODIFIED_CACHING}\n<!--\n${EXPIRE_SCENARIO}-->\n`
+
+/** A UTF-8 BOM before a first-line `## Requirements`: upstream's structure reader keeps it. */
+const LIVING_BOM_REQUIREMENTS = `﻿${LIVING.slice(LIVING.indexOf('## Requirements'))}
+## Purpose
+
+Real purpose text for the widgets capability.
+`
+
+const LIVING_DELTA_HEADER = `${LIVING}\n## ADDED Requirements\n\nStray.\n`
+const LIVING_COMMENTED_DELTA_HEADER = `${LIVING}\n<!--\n## ADDED Requirements\n-->\n`
+
+describe('14. one view model: the scan is fence-aware and the archive family reads it verbatim', () => {
+  const buildFenced = (root: string): void =>
+    buildFeat(root, 'fenced-opener', { 'widgets/spec.md': FENCED_COMMENT_OPENER })
+
+  test.failing(
+    '14.1 a "<!--" inside a fenced example hides no scenario, as the binary archives it',
+    async () => {
+      const root = mkTempRepo({ git: true })
+      buildFenced(root)
+      const bin = await binaryIssues(root, 'fenced-opener')
+      expect(bin.filter((i) => i.level !== 'INFO')).toEqual([])
+      const archived = await binaryArchive(buildFenced, 'fenced-opener')
+      expect(archived.exitCode).toBe(0)
+      expect(archived.moved).toBe(true)
+      const { report, exitCode } = await cospecValidate(root, 'fenced-opener')
+      expect(problems(report)).toEqual([])
+      expect(exitCode).toBe(0)
+    },
+  )
+
+  test.failing(
+    '14.2 cospec archive archives the same change: its hard gate reads the same scan',
+    async () => {
+      const root = mkTempRepo({ git: true })
+      buildFenced(root)
+      const res = await cospec(['archive', 'fenced-opener'], { cwd: root })
+      expect(res.exitCode).toBe(0)
+      expect(existsSync(join(root, 'openspec/changes/fenced-opener'))).toBe(false)
+    },
+  )
+
+  const buildHiddenLiving = (root: string): void =>
+    buildFeat(
+      root,
+      'hidden-living',
+      { 'widgets/spec.md': MODIFIED_CACHING },
+      { living: LIVING_COMMENTED_SCENARIO },
+    )
+
+  test.failing(
+    '14.3 native: a living scenario inside a comment that the MODIFIED omits is archive/scenario-preservation',
+    async () => {
+      const root = mkTempRepo({ git: true })
+      buildHiddenLiving(root)
+      const archived = await binaryArchive(buildHiddenLiving, 'hidden-living')
+      expect(archived.exitCode).not.toBe(0)
+      expect(archived.moved).toBe(false)
+      const { report, exitCode } = await cospecValidate(root, 'hidden-living')
+      const drops = byRule(report, 'archive/scenario-preservation')
+      expect(drops).toHaveLength(1)
+      expect(drops[0]?.level).toBe('ERROR')
+      expect(drops[0]?.message).toContain('"Hidden cache rule"')
+      expect(exitCode).toBe(1)
+    },
+  )
+
+  test.failing('14.3 twin: the delegated omits-scenario ERROR is not relayed', async () => {
+    const root = mkTempRepo({ git: true })
+    buildHiddenLiving(root)
+    const delegated = binaryOne(await binaryIssues(root, 'hidden-living'), 'omits scenario(s)')
+    expect(delegated.level).toBe('ERROR')
+    const { report } = await cospecValidate(root, 'hidden-living')
+    expect(messages(report)).not.toContain(delegated.message)
+  })
+
+  test.failing(
+    '14.4 a comment-bearing MODIFIED header dropping a scenario is one finding, by its binary name',
+    async () => {
+      const build = (root: string): void =>
+        buildFeat(
+          root,
+          'comment-named-drop',
+          { 'widgets/spec.md': MODIFIED_COMMENT_NAMED },
+          { living: LIVING_COMMENT_NAMED },
+        )
+      const root = mkTempRepo({ git: true })
+      build(root)
+      const archived = await binaryArchive(build, 'comment-named-drop')
+      expect(archived.exitCode).not.toBe(0)
+      expect(archived.moved).toBe(false)
+      const delegated = binaryOne(
+        await binaryIssues(root, 'comment-named-drop'),
+        'omits scenario(s)',
+      )
+      expect(delegated.message).toContain('"Widget caching <!-- c -->"')
+      const { report } = await cospecValidate(root, 'comment-named-drop')
+      const drops = byRule(report, 'archive/scenario-preservation')
+      expect(drops).toHaveLength(1)
+      expect(drops[0]?.message).toContain('MODIFIED "Widget caching <!-- c -->" drops scenario')
+      expect(messages(report)).not.toContain(delegated.message)
+    },
+  )
+
+  test.failing(
+    '14.5 a MODIFIED keeping a living scenario only inside a comment is clean, as the binary archives it',
+    async () => {
+      const build = (root: string): void =>
+        buildFeat(
+          root,
+          'keeps-in-comment',
+          { 'widgets/spec.md': MODIFIED_KEEPS_IN_COMMENT },
+          { living: LIVING_TWO_SCENARIOS },
+        )
+      const root = mkTempRepo({ git: true })
+      build(root)
+      expect(binaryFind(await binaryIssues(root, 'keeps-in-comment'), 'omits scenario')).toEqual([])
+      const archived = await binaryArchive(build, 'keeps-in-comment')
+      expect(archived.exitCode).toBe(0)
+      expect(archived.moved).toBe(true)
+      const { report, exitCode } = await cospecValidate(root, 'keeps-in-comment')
+      expect(byRule(report, 'archive/scenario-preservation')).toEqual([])
+      expect(problems(report)).toEqual([])
+      expect(exitCode).toBe(0)
+    },
+  )
+
+  for (const [row, name, living, fragment, now] of [
+    ['14.6', 'living-bom', LIVING_BOM_REQUIREMENTS, 'outside', 'failing'],
+    ['14.7', 'living-delta-header', LIVING_DELTA_HEADER, 'delta header', 'passing'],
+    [
+      '14.8',
+      'living-commented-delta-header',
+      LIVING_COMMENTED_DELTA_HEADER,
+      'delta header',
+      'failing',
+    ],
+  ] as const) {
+    const build = (root: string): void =>
+      buildFeat(root, name, { 'widgets/spec.md': MODIFIED_CACHING }, { living })
+    const nativeTest = now === 'failing' ? test.failing : test
+
+    nativeTest(
+      `${row} native: the living spec's ${fragment} is an archive/target-invalid ERROR, as the binary archive refuses`,
+      async () => {
+        const root = mkTempRepo({ git: true })
+        build(root)
+        const archived = await binaryArchive(build, name)
+        expect(archived.exitCode).not.toBe(0)
+        expect(archived.moved).toBe(false)
+        const { report, exitCode } = await cospecValidate(root, name)
+        const found = byRule(report, 'archive/target-invalid')
+        expect(found).toHaveLength(1)
+        expect(found[0]?.level).toBe('ERROR')
+        expect(found[0]?.message).toContain(fragment)
+        expect(exitCode).toBe(1)
+      },
+    )
+
+    test.failing(
+      `${row} twin: the delegated structurally-invalid dry-run INFO is not relayed`,
+      async () => {
+        const root = mkTempRepo({ git: true })
+        build(root)
+        const delegated = binaryOne(
+          await binaryIssues(root, name),
+          'target spec is structurally invalid',
+        )
+        expect(delegated.level).toBe('INFO')
+        expect(delegated.message.toLowerCase()).toContain(fragment)
+        const { report } = await cospecValidate(root, name)
+        expect(messages(report)).not.toContain(delegated.message)
+      },
+    )
+  }
+})
+
+// --- 15. a skipped header inside a surviving living requirement ---------------------------
+//
+// The rebuilt spec the archive re-validates keeps every living requirement the
+// delta does not replace or remove, verbatim — so a `###` header already inside
+// one splits it there exactly as one inside an ADDED block does.
+
+const RENDER_TEXT = 'The system SHALL render a widget when requested.\n\n'
+
+const LIVING_SPLIT = LIVING.replace(RENDER_TEXT, `${RENDER_TEXT}### Notes on rendering\n\n`)
+const LIVING_SPLIT_COMMENTED = LIVING.replace(
+  RENDER_TEXT,
+  `${RENDER_TEXT}<!--\n### Notes on rendering\n-->\n\n`,
+)
+const LIVING_SPLIT_ONE_LINE_COMMENT = LIVING.replace(
+  RENDER_TEXT,
+  `${RENDER_TEXT}<!-- ### Notes on rendering -->\n\n`,
+)
+
+const MODIFIED_RENDERING = `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested, quickly.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered
+`
+
+const RENAMED_RENDERING = `## RENAMED Requirements
+
+- FROM: \`### Requirement: Widget rendering\`
+- TO: \`### Requirement: Widget drawing\`
+`
+
+describe('15. a skipped header inside a surviving living requirement is refused at pre-flight', () => {
+  for (const [row, name, delta, living, what] of [
+    ['15.1', 'living-split', MODIFIED_CACHING, LIVING_SPLIT, 'a visible header'],
+    [
+      '15.2',
+      'living-split-comment',
+      MODIFIED_CACHING,
+      LIVING_SPLIT_COMMENTED,
+      'a header in a comment',
+    ],
+    ['15.3', 'living-split-renamed', RENAMED_RENDERING, LIVING_SPLIT, 'a renamed requirement'],
+  ] as const) {
+    const build = (root: string): void =>
+      buildFeat(root, name, { 'widgets/spec.md': delta }, { living })
+
+    test.failing(
+      `${row} ${what} splitting a living requirement the delta keeps is archive/split-requirement`,
+      async () => {
+        const root = mkTempRepo({ git: true })
+        build(root)
+        // The binary's validate never sees it: its dry run stops before the
+        // rebuilt spec is re-validated.
+        expect((await binaryIssues(root, name)).filter((i) => i.level !== 'INFO')).toEqual([])
+        expect(binaryFind(await binaryIssues(root, name), 'Notes on rendering')).toEqual([])
+        const archived = await binaryArchive(build, name)
+        expect(archived.exitCode).not.toBe(0)
+        expect(archived.moved).toBe(false)
+        const { report, exitCode } = await cospecValidate(root, name)
+        const split = byRule(report, 'archive/split-requirement')
+        expect(split).toHaveLength(1)
+        expect(split[0]?.level).toBe('ERROR')
+        expect(split[0]?.message).toContain('"### Notes on rendering"')
+        expect(split[0]?.message).toContain('openspec/specs/widgets/spec.md')
+        expect(split[0]?.message).toContain(`line ${lineOf(living, '### Notes on rendering')}`)
+        expect(exitCode).toBe(1)
+      },
+    )
+  }
+
+  for (const [row, name, delta, living, what] of [
+    [
+      '15.4',
+      'living-split-replaced',
+      MODIFIED_RENDERING,
+      LIVING_SPLIT,
+      'a MODIFIED replacing the split requirement',
+    ],
+    [
+      '15.5',
+      'living-one-line-comment',
+      MODIFIED_CACHING,
+      LIVING_SPLIT_ONE_LINE_COMMENT,
+      'a one-line comment, which is no header',
+    ],
+  ] as const) {
+    const build = (root: string): void =>
+      buildFeat(root, name, { 'widgets/spec.md': delta }, { living })
+
+    test(`${row} ${what} is clean, as the binary archives it`, async () => {
+      const root = mkTempRepo({ git: true })
+      build(root)
+      const archived = await binaryArchive(build, name)
+      expect(archived.exitCode).toBe(0)
+      expect(archived.moved).toBe(true)
+      const { report, exitCode } = await cospecValidate(root, name)
+      expect(byRule(report, 'archive/split-requirement')).toEqual([])
+      expect(problems(report)).toEqual([])
+      expect(exitCode).toBe(0)
+    })
+  }
+})
+
+// --- 16. --fast keeps the skipped-header INFO wherever the split is not checked -----------
+
+describe('16. under --fast a splitting header keeps its deltas/skipped-header INFO', () => {
+  test.failing('16.2 a never-delegated change under --fast still reports the header', async () => {
+    const build = (root: string): void =>
+      buildFeat(
+        root,
+        'split-fast-bare',
+        { 'widgets/spec.md': SPLIT_BEFORE_SCENARIO },
+        { proposal: false },
+      )
+    const root = mkTempRepo({ git: true })
+    build(root)
+    await binaryIssues(root, 'split-fast-bare')
+    const archived = await binaryArchive(build, 'split-fast-bare')
+    expect(archived.exitCode).not.toBe(0)
+    expect(archived.moved).toBe(false)
+    const { report } = await cospecValidate(root, 'split-fast-bare', ['--fast'])
+    expect(byRule(report, 'openspec/validate')).toEqual([])
+    expect(byRule(report, 'archive/split-requirement')).toEqual([])
+    expect(linesOf(byRule(report, 'deltas/skipped-header'))).toEqual([
+      lineOf(SPLIT_BEFORE_SCENARIO, '### Notes inside'),
+    ])
+  })
+})
+
+// --- 17. DUPLICATE_CLASSES entries 13-18 ----------------------------------------------------
+
+const ADDED_NO_SCENARIO = `## ADDED Requirements
+
+### Requirement: Widget polishing
+
+The system SHALL polish widgets.
+`
+
+const MODIFIED_NO_SCENARIO = `## MODIFIED Requirements
+
+### Requirement: Widget caching
+
+The system SHALL cache a rendered widget.
+`
+
+const RENAMED_DUPLICATE_TO = `## RENAMED Requirements
+
+- FROM: \`### Requirement: Widget rendering\`
+- TO: \`### Requirement: Widget drawing\`
+- FROM: \`### Requirement: Widget caching\`
+- TO: \`### Requirement: Widget drawing\`
+`
+
+const RENAMED_TO_ADDED = `## ADDED Requirements
+
+### Requirement: Widget drawing
+
+The system SHALL draw widgets.
+
+#### Scenario: Draw
+
+- **WHEN** a caller draws
+- **THEN** it is drawn
+
+${RENAMED_RENDERING}`
+
+const MODIFIED_AND_REMOVED = `${MODIFIED_CACHING}
+## REMOVED Requirements
+
+### Requirement: Widget caching
+`
+
+const DUPLICATE_ADDED = `## ADDED Requirements
+
+### Requirement: Widget polishing
+
+The system SHALL polish widgets.
+
+#### Scenario: Polish
+
+- **WHEN** a caller polishes
+- **THEN** it shines
+
+### Requirement: Widget polishing
+
+The system SHALL polish widgets twice.
+
+#### Scenario: Polish twice
+
+- **WHEN** a caller polishes
+- **THEN** it shines twice
+`
+
+const RENAMED_DUPLICATE_FROM = `## RENAMED Requirements
+
+- FROM: \`### Requirement: Widget rendering\`
+- TO: \`### Requirement: Widget drawing\`
+- FROM: \`### Requirement: Widget rendering\`
+- TO: \`### Requirement: Widget painting\`
+`
+
+const ROUND3_ENTRIES = [
+  [
+    '13',
+    'added-no-scenario',
+    ADDED_NO_SCENARIO,
+    'must include at least one scenario',
+    'deltas/requirement-shape',
+    'must include at least one #### Scenario:',
+  ],
+  [
+    '13',
+    'modified-no-scenario',
+    MODIFIED_NO_SCENARIO,
+    'must include at least one scenario',
+    'deltas/requirement-shape',
+    'must include at least one #### Scenario:',
+  ],
+  [
+    '14',
+    'renamed-duplicate-to',
+    RENAMED_DUPLICATE_TO,
+    'Duplicate TO in RENAMED',
+    'archive/added-exists',
+    'collides with an existing requirement',
+  ],
+  [
+    '15',
+    'renamed-to-added',
+    RENAMED_TO_ADDED,
+    'RENAMED TO collides with ADDED',
+    'archive/added-exists',
+    'collides with an ADDED requirement',
+  ],
+  [
+    '16',
+    'modified-and-removed',
+    MODIFIED_AND_REMOVED,
+    'present in both MODIFIED and REMOVED',
+    'archive/target-missing',
+    'MODIFIED target "Widget caching" no longer exists',
+  ],
+  [
+    '17',
+    'duplicate-added',
+    DUPLICATE_ADDED,
+    'Duplicate requirement in ADDED',
+    'archive/added-exists',
+    'ADDED "Widget polishing" already exists with different content',
+  ],
+  [
+    '18',
+    'renamed-duplicate-from',
+    RENAMED_DUPLICATE_FROM,
+    'Duplicate FROM in RENAMED',
+    'archive/target-missing',
+    'RENAMED target "Widget rendering" no longer exists',
+  ],
+] as const
+
+describe('17. one pinned-message test per round-3 DUPLICATE_CLASSES entry', () => {
+  for (const [entry, name, delta, fragment, rule, nativeFragment] of ROUND3_ENTRIES) {
+    const build = (root: string): void => buildFeat(root, name, { 'widgets/spec.md': delta })
+
+    test.failing(`entry ${entry} (${name}): "${fragment}" pairs with ${rule}`, async () => {
+      const root = mkTempRepo({ git: true })
+      build(root)
+      const archived = await binaryArchive(build, name)
+      expect(archived.exitCode).not.toBe(0)
+      expect(archived.moved).toBe(false)
+      const delegated = binaryOne(await binaryIssues(root, name), fragment)
+      expect(delegated.level).toBe('ERROR')
+      const { report } = await cospecValidate(root, name)
+      expect(messages(report)).not.toContain(delegated.message)
+      expect(byRule(report, rule).filter((i) => i.message.includes(nativeFragment))).toHaveLength(1)
+    })
+  }
+
+  test('entries 14-18: under --fast every archive/* twin is unchecked and the delegated ERROR is kept', async () => {
+    for (const [, name, delta, fragment, rule] of ROUND3_ENTRIES) {
+      if (!rule.startsWith('archive/')) continue
+      const root = mkTempRepo({ git: true })
+      buildFeat(root, name, { 'widgets/spec.md': delta })
+      const delegated = binaryOne(await binaryIssues(root, name), fragment)
+      const { report } = await cospecValidate(root, name, ['--fast'])
+      expect(byRule(report, rule)).toEqual([])
+      expect(messages(report)).toContain(delegated.message)
+    }
+  })
+})
+
+// --- 18. the legacy lane keeps upstream's severity for every round-3 shape -----------------
+
+describe('18. the legacy lane relays each round-3 shape at the binary level', () => {
+  for (const [name, text, living] of [
+    ['legacy-fenced-opener', FENCED_COMMENT_OPENER, LIVING],
+    ['legacy-hidden-living', MODIFIED_CACHING, LIVING_COMMENTED_SCENARIO],
+    ['legacy-comment-named-drop', MODIFIED_COMMENT_NAMED, LIVING_COMMENT_NAMED],
+    ['legacy-keeps-in-comment', MODIFIED_KEEPS_IN_COMMENT, LIVING_TWO_SCENARIOS],
+    ['legacy-living-bom', MODIFIED_CACHING, LIVING_BOM_REQUIREMENTS],
+    ['legacy-living-delta-header', MODIFIED_CACHING, LIVING_DELTA_HEADER],
+    ['legacy-living-commented-delta-header', MODIFIED_CACHING, LIVING_COMMENTED_DELTA_HEADER],
+    ['legacy-living-split', MODIFIED_CACHING, LIVING_SPLIT],
+    ['legacy-living-split-renamed', RENAMED_RENDERING, LIVING_SPLIT],
+    ...ROUND3_ENTRIES.map(
+      ([, entryName, delta]) => [`legacy-${entryName}`, delta, LIVING] as const,
+    ),
+  ] as const)
+    test(`18.1 ${name}: every binary finding is relayed at its level, and no cospec rule runs`, async () => {
+      const root = mkTempRepo({ git: true })
+      buildSpecDriven(root, name, { 'widgets/spec.md': text }, TASKS_DONE, living)
+      const bin = await binaryIssues(root, name)
+      const { report } = await cospecValidate(root, name)
+      const all = issues(report)
+      const relayed = all
+        .filter((i) => i.rule === 'openspec/validate')
+        .map((i) => `${i.level} ${i.message}`)
+      expect(relayed.toSorted()).toEqual(bin.map((i) => `${i.level} ${i.message}`).toSorted())
+      expect(all.filter((i) => i.rule !== 'openspec/validate').map((i) => i.rule)).toEqual([
+        'meta/legacy-schema',
+      ])
+    })
+})
+
+// --- 19. sweep: no fixture in this file reports a defect twice -----------------------------
+//
+// Every cospec report above is swept. A defect is reported twice when a
+// relayed binary finding (`openspec/validate`) and a cospec finding on the same
+// file name the same requirement or header: both quote it, so the quoted names
+// are the key (`### Requirement: ` and `### ` prefixes dropped, the way the two
+// tools quote a header differently). A relayed finding cospec has no rule for
+// quotes nothing any cospec finding quotes, so it passes. The one exception is
+// listed with its reason; it must keep matching, so a stale entry fails too.
+
+const quotedNames = (message: string): string[] =>
+  [...message.matchAll(/"([^"\n]+)"/g)].map((m) =>
+    m[1]!
+      .replace(/^###\s+Requirement:\s*/i, '')
+      .replace(/^###\s+/, '')
+      .trim(),
+  )
+
+/** label → the quoted name a relayed finding may share with a cospec one, and why. */
+const SWEEP_EXCEPTIONS: Record<string, { name: string; why: string }> = {}
+
+describe('19. sweep', () => {
+  test.failing('19.1 no report in this file carries one defect twice', () => {
+    expect(REPORTS.length).toBeGreaterThan(100)
+    const doubles: string[] = []
+    const excused = new Set<string>()
+    for (const { label, report } of REPORTS) {
+      const all = issues(report)
+      const native = all.filter(
+        (i) => i.rule !== 'openspec/validate' && !i.rule.startsWith('meta/'),
+      )
+      for (const relayed of all.filter((i) => i.rule === 'openspec/validate')) {
+        for (const name of quotedNames(relayed.message)) {
+          const twin = native.find(
+            (n) => n.path === relayed.path && quotedNames(n.message).includes(name),
+          )
+          if (twin === undefined) continue
+          if (SWEEP_EXCEPTIONS[label]?.name === name) {
+            excused.add(label)
+            continue
+          }
+          doubles.push(`${label}: ${twin.rule} and the relayed "${relayed.message}"`)
+        }
+      }
+    }
+    expect(doubles).toEqual([])
+    expect([...excused].toSorted()).toEqual(Object.keys(SWEEP_EXCEPTIONS).toSorted())
+  })
 })
