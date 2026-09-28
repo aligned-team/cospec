@@ -173,17 +173,13 @@ describe('cospec doctor --json carries openspec doctor --json on every root', ()
     expect(co.exitCode, detail(co)).toBe(up.exitCode)
   }, 60_000)
 
-  test.failing(
-    'a references: root with usable, broken and unregistered stores (ledger 2.2)',
-    async () => {
-      const root = await referencingRoot()
-      const { co, doc, up } = await doctorBoth(['doctor', '--json'], root)
-      expect(relationshipKeys(doc)).toEqual(expectedKeys(up))
-      expect(co.exitCode, detail(co)).toBe(up.exitCode)
-      expect(BARE_OPENSPEC.test(JSON.stringify(relationshipKeys(doc))), detail(co)).toBe(false)
-    },
-    60_000,
-  )
+  test('a references: root with usable, broken and unregistered stores (ledger 2.2)', async () => {
+    const root = await referencingRoot()
+    const { co, doc, up } = await doctorBoth(['doctor', '--json'], root)
+    expect(relationshipKeys(doc)).toEqual(expectedKeys(up))
+    expect(co.exitCode, detail(co)).toBe(up.exitCode)
+    expect(BARE_OPENSPEC.test(JSON.stringify(relationshipKeys(doc))), detail(co)).toBe(false)
+  }, 60_000)
 
   test('a --store root (ledger 2.2)', async () => {
     const root = await referencingRoot()
@@ -192,21 +188,17 @@ describe('cospec doctor --json carries openspec doctor --json on every root', ()
     expect(co.exitCode, detail(co)).toBe(up.exitCode)
   }, 60_000)
 
-  test.failing(
-    'a store whose metadata is missing (ledger 2.2)',
-    async () => {
-      const root = await referencingRoot()
-      const { co, doc, up } = await doctorBoth(['doctor', '--store', 'st2', '--json'], root)
-      expect(up.exitCode).toBe(1)
-      expect((up.json as RelationshipKeys).status.map((s) => s.code)).toContain(
-        'store_identity_mismatch',
-      )
-      expect(relationshipKeys(doc)).toEqual(expectedKeys(up))
-      expect(co.exitCode, detail(co)).toBe(1)
-      expect(BARE_OPENSPEC.test(JSON.stringify(relationshipKeys(doc))), detail(co)).toBe(false)
-    },
-    60_000,
-  )
+  test('a store whose metadata is missing (ledger 2.2)', async () => {
+    const root = await referencingRoot()
+    const { co, doc, up } = await doctorBoth(['doctor', '--store', 'st2', '--json'], root)
+    expect(up.exitCode).toBe(1)
+    expect((up.json as RelationshipKeys).status.map((s) => s.code)).toContain(
+      'store_identity_mismatch',
+    )
+    expect(relationshipKeys(doc)).toEqual(expectedKeys(up))
+    expect(co.exitCode, detail(co)).toBe(1)
+    expect(BARE_OPENSPEC.test(JSON.stringify(relationshipKeys(doc))), detail(co)).toBe(false)
+  }, 60_000)
 
   test.failing(
     'a root whose only config is config.yml (ledger 2.3)',

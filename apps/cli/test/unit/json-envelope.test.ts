@@ -144,52 +144,49 @@ describe('doctor: the delegated relationship report', () => {
   })
 
   for (const exitCode of [0, 1]) {
-    test.failing(
-      `the binary's remedies in the carried keys and findings (exit ${exitCode})`,
-      async () => {
-        const check = exported<CheckRelationship>(doctorModule, 'checkOpenspecRelationship')
-        const doctorFix = upstream('root/store-doctor').replace('{id}', 'st2')
-        const doc = {
-          root: null,
-          store: null,
-          references: [
-            {
-              store_id: 'gone',
-              status: [
-                {
-                  severity: 'warning',
-                  code: 'reference_unresolved',
-                  message: "Referenced store 'gone' is not registered on this machine.",
-                  fix: upstream('references/get-checkout').replace('{id}', 'gone'),
-                },
-              ],
-            },
-          ],
-          status: [
-            {
-              // An error at exit 0 would be read as a failed answer.
-              severity: exitCode === 0 ? 'warning' : 'error',
-              code: 'store_identity_mismatch',
-              message: `Store 'st2' is missing identity metadata. ${doctorFix}`,
-              fix: doctorFix,
-            },
-          ],
-        }
-        const findings: Finding[] = []
-        const { value, error } = await stubbed(
-          () => ({ stdout: JSON.stringify(doc), exitCode }),
-          () => check(localRoot('/repo'), '/repo', findings, true),
-        )
-        expect(error).toBeUndefined()
-        const keys = value as RelationshipKeys
-        expect(keys.status[0]!.fix).toBe(doctorFix.replace('openspec', 'cospec'))
-        // A failed answer is respelled whole, message included; a successful
-        // one only in its fix fields.
-        expect(BARE_OPENSPEC.test(keys.status[0]!.message)).toBe(exitCode === 0)
-        for (const f of findings) expect(BARE_OPENSPEC.test(f.remedy ?? '')).toBe(false)
-        expect(BARE_OPENSPEC.test(JSON.stringify(keys.references))).toBe(false)
-      },
-    )
+    test(`the binary's remedies in the carried keys and findings (exit ${exitCode})`, async () => {
+      const check = exported<CheckRelationship>(doctorModule, 'checkOpenspecRelationship')
+      const doctorFix = upstream('root/store-doctor').replace('{id}', 'st2')
+      const doc = {
+        root: null,
+        store: null,
+        references: [
+          {
+            store_id: 'gone',
+            status: [
+              {
+                severity: 'warning',
+                code: 'reference_unresolved',
+                message: "Referenced store 'gone' is not registered on this machine.",
+                fix: upstream('references/get-checkout').replace('{id}', 'gone'),
+              },
+            ],
+          },
+        ],
+        status: [
+          {
+            // An error at exit 0 would be read as a failed answer.
+            severity: exitCode === 0 ? 'warning' : 'error',
+            code: 'store_identity_mismatch',
+            message: `Store 'st2' is missing identity metadata. ${doctorFix}`,
+            fix: doctorFix,
+          },
+        ],
+      }
+      const findings: Finding[] = []
+      const { value, error } = await stubbed(
+        () => ({ stdout: JSON.stringify(doc), exitCode }),
+        () => check(localRoot('/repo'), '/repo', findings, true),
+      )
+      expect(error).toBeUndefined()
+      const keys = value as RelationshipKeys
+      expect(keys.status[0]!.fix).toBe(doctorFix.replace('openspec', 'cospec'))
+      // A failed answer is respelled whole, message included; a successful
+      // one only in its fix fields.
+      expect(BARE_OPENSPEC.test(keys.status[0]!.message)).toBe(exitCode === 0)
+      for (const f of findings) expect(BARE_OPENSPEC.test(f.remedy ?? '')).toBe(false)
+      expect(BARE_OPENSPEC.test(JSON.stringify(keys.references))).toBe(false)
+    })
   }
 })
 

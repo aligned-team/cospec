@@ -43,6 +43,7 @@ import {
   satisfiesOpenspecRange,
   type Root,
 } from '../core/openspec.ts'
+import { respellRemedies } from '../core/remedies.ts'
 import { resolveRoot } from '../core/root.ts'
 import { HARNESS_NAMES } from '../harness/render.ts'
 import { OPSX_SHARED_SKILL_ROOT } from './init.ts'
@@ -474,6 +475,37 @@ interface OpenspecStoreDoctorEntry {
   status?: OpenspecStatusEntry[]
 }
 
+/**
+ * `status` with the binary's remedies spelled through cospec (design D4): each
+ * diagnostic's `fix`, and on a failed answer its `message` too — each field
+ * passed alone to the allowlist, so a path or an id is the binary's byte for
+ * byte and no key is added.
+ */
+function spellStatus(status: OpenspecStatusEntry[], failed: boolean): OpenspecStatusEntry[] {
+  return status.map((entry) => ({
+    ...entry,
+    ...(failed ? { message: respellRemedies(entry.message) } : {}),
+    ...(entry.fix === undefined ? {} : { fix: respellRemedies(entry.fix) }),
+  }))
+}
+
+/** The binary's four keys with every diagnostic list spelled through cospec. */
+function spellReport(keys: RelationshipReport, failed: boolean): RelationshipReport {
+  return {
+    root:
+      keys.root === null ? null : { ...keys.root, status: spellStatus(keys.root.status, failed) },
+    store:
+      keys.store === null
+        ? null
+        : { ...keys.store, status: spellStatus(keys.store.status, failed) },
+    references: keys.references.map((ref) => ({
+      ...ref,
+      status: spellStatus(ref.status, failed),
+    })),
+    status: spellStatus(keys.status, failed),
+  }
+}
+
 /** The binary's doctor document carries its four keys. */
 const doctorReportPostCondition: PostCondition = (result) => {
   let doc: unknown
@@ -519,12 +551,15 @@ export async function checkOpenspecRelationship(
       },
     )
     const parsed = JSON.parse(result.stdout) as RelationshipReport
-    delegated = {
-      root: parsed.root,
-      store: parsed.store,
-      references: parsed.references,
-      status: parsed.status,
-    }
+    delegated = spellReport(
+      {
+        root: parsed.root,
+        store: parsed.store,
+        references: parsed.references,
+        status: parsed.status,
+      },
+      result.exitCode !== 0,
+    )
     foldStatus('root', delegated.root?.status, findings)
     foldStatus('store', delegated.store?.status, findings)
     for (const ref of delegated.references)
@@ -560,7 +595,11 @@ export async function checkOpenspecRelationship(
     const parsed = JSON.parse(result.stdout) as { stores?: OpenspecStoreDoctorEntry[] }
     const entry = parsed.stores?.find((s) => s.id === root.store)
     if (entry !== undefined) {
-      foldStatus(`store-${entry.id}`, entry.status, findings)
+      foldStatus(
+        `store-${entry.id}`,
+        entry.status === undefined ? undefined : spellStatus(entry.status, result.exitCode !== 0),
+        findings,
+      )
       if (entry.git !== undefined) {
         const git = entry.git
         findings.push({
