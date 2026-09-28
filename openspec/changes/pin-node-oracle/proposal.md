@@ -24,6 +24,12 @@ the pin is for tests and CI only.
   change's `design.md` and `verification.md`.
 - `docs/architecture.md` and `.agents/shared.md` (+ `agents:sync`) where they
   state how the oracle runs.
+- `test/fixtures/support.ts`'s `openspec()`/`openspecRaw()` run the binary the
+  same way, under a private per-run HOME/XDG sandbox (`oracleEnv`, moved there).
+- `mise.lock` records a `sha256` for every shellcheck and taplo platform row, so
+  a fresh `mise install` leaves it byte-identical.
+- `errnoShape` compares whether a path is present as well as its value, and the
+  `resolverRead` comment and `stores.md` state the EISDIR text Bun prints.
 
 ## Impact
 

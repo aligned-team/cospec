@@ -139,7 +139,12 @@
       the unit 5.23 comment likewise; `stores.md` drops "in Node's own message"
       (its example line is unchanged). `errnoShape` gains `hasPath`, read from
       the message independently of the parse, and throws when the two disagree;
-      3 new `errno-shape.test.ts` rows (8 pass) pin that the same errno with and
+      2 new `errno-shape.test.ts` rows (7 pass) pin that the same errno with and
       without its path never compares equal and that an unparsed quoted path
       throws. The literal shapes in `root.test.ts` and `root-resolution.test.ts`
       carry `hasPath`. The three files: 876 pass, 0 fail
+- [x] 5.4 Run `mise run check` with color forcing unset and verify it exits 0 ->
+      `env -u FORCE_COLOR -u NO_COLOR -u COLORTERM -u CLICOLOR mise run check`
+      exit 0 at 45c898d: unit 1555, contract 1642, integration 167, bench 339,
+      release-test 14, all 0 fail. Per-row JUnit diff of the 10 helper suites
+      before and after 5.1: the same 104 distinct rows, all pass
