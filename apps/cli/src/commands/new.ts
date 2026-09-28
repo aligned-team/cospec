@@ -141,30 +141,60 @@ export function cospecSchemaInstalled(
 // oxlint-disable-next-line no-control-regex -- matching the ESC that opens an SGR sequence
 const ANSI_SGR = /\x1b\[[0-9;]*m/g
 
-/** `openspec` naming one of cospec's commands, never part of a word or a path. */
-const OPENSPEC_COMMAND = new RegExp(
-  `(?<![\\w./-])openspec (?=(?:${COMMAND_TABLE.map((row) => row.name).join('|')})(?![\\w-]))`,
+/**
+ * A remedy's lead-in, ending where its command starts: a verb the binary
+ * prefixes remedies with (`Run`, `run`, `Re-run`, `Use`, `Try`, `with`, `or`),
+ * a colon (`Fix: …`, `Run: …`, `Create it first: …`), or an opening paren or
+ * backtick.
+ */
+const REMEDY_LEAD = String.raw`(?:(?:^|[\s(])(?:[Rr]un|[Rr]e-run|[Uu]se|[Tt]ry|with|or)\s+|:\s+|[(\x60])`
+
+/** `openspec` opening a remedy that names one of cospec's commands, quoted or not. */
+const OPENSPEC_REMEDY = new RegExp(
+  `(?<=${REMEDY_LEAD}['"]?)openspec (?=(?:${COMMAND_TABLE.map((row) => row.name).join('|')})(?![\\w-]))`,
   'g',
 )
 
+/** Text ending in a remedy's lead-in: a quoted span right after it is that remedy. */
+const ENDS_IN_REMEDY_LEAD = new RegExp(`${REMEDY_LEAD}$`)
+
+/** A single-quoted span — how the binary quotes every path and name it reports. */
+const SINGLE_QUOTED = /'[^']*'/g
+
 /**
- * Where the binary's schema load error starts quoting the user's own schema
+ * Where the binary's reason starts quoting the user's own schema
  * (`resolver.js`: `Failed to parse schema at '<path>': <yaml error>`, or
  * `Invalid schema at '<path>': <validation error>`): its path and excerpt.
  */
 const SCHEMA_PAYLOAD = /(?:Failed to parse|Invalid) schema at '/
 
+/** The lead-in of an existing change's path (`change-utils.js`), which ends the reason. */
+const EXISTING_CHANGE_AT = / already exists at /
+
 /**
  * `reason` with the remedies it names spelled through cospec: the
- * `RELAYED_REMEDIES` spans, and `openspec <command>` wherever `<command>` is
- * one cospec has. Nothing from a schema load error's payload on is touched —
- * a path or a quoted excerpt of the user's schema is theirs, whatever it says.
+ * `RELAYED_REMEDIES` spans, and `openspec <command>` where `<command>` is one
+ * cospec has and a remedy's lead-in (`REMEDY_LEAD`) opens it. Anything else is
+ * the user's, whatever it says, and relayed verbatim: prose naming a command,
+ * a single-quoted span that does not open a remedy (every path the binary
+ * reports, `mkdir '<path>'` included), the path after `already exists at`,
+ * and a schema load error's path and quoted excerpt.
  */
 function respellReason(reason: string): string {
-  const at = reason.search(SCHEMA_PAYLOAD)
-  const head = at === -1 ? reason : reason.slice(0, at)
-  const payload = at === -1 ? '' : reason.slice(at)
-  return respellRemedies(head).replace(OPENSPEC_COMMAND, 'cospec ') + payload
+  const schemaAt = reason.search(SCHEMA_PAYLOAD)
+  const existing = EXISTING_CHANGE_AT.exec(reason)
+  const cuts = [schemaAt, existing === null ? -1 : existing.index + existing[0].length]
+  const at = Math.min(...cuts.map((cut) => (cut === -1 ? reason.length : cut)))
+  const head = reason.slice(0, at)
+  const kept: string[] = []
+  const masked = head.replace(SINGLE_QUOTED, (span, offset: number) => {
+    if (ENDS_IN_REMEDY_LEAD.test(head.slice(0, offset))) return span
+    kept.push(span)
+    return `\0${kept.length - 1}\0`
+  })
+  const respelled = respellRemedies(masked).replace(OPENSPEC_REMEDY, 'cospec ')
+  // oxlint-disable-next-line no-control-regex -- the NUL-delimited placeholders written above
+  return respelled.replace(/\0(\d+)\0/g, (_, i: string) => kept[Number(i)]!) + reason.slice(at)
 }
 
 /**

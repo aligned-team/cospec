@@ -113,7 +113,7 @@ describe("new: a failed wrapped new change's reason", () => {
   })
   // Prose naming a command is not a remedy: only a remedy's lead-in (`Run`,
   // `Fix:`, `(`, a backtick, …) makes `openspec <command>` cospec's to respell.
-  test.failing('respells only a remedy naming a command cospec has', () => {
+  test('respells only a remedy naming a command cospec has', () => {
     const doc = JSON.stringify({
       change: null,
       status: [
@@ -129,7 +129,7 @@ describe("new: a failed wrapped new change's reason", () => {
   // The binary quotes every path it reports (`mkdir '<path>'`) and ends an
   // existing change's message with its path: a directory named after a
   // command is still the user's.
-  test.failing('leaves a quoted path and the path after "already exists at" untouched', () => {
+  test('leaves a quoted path and the path after "already exists at" untouched', () => {
     const reasons = [
       "EACCES: permission denied, mkdir '/w/my openspec list dir/openspec/changes/y'",
       "EEXIST: file already exists, mkdir 'openspec new/openspec/changes/z'",
