@@ -303,24 +303,20 @@ describe('cospec doctor --json carries openspec doctor --json on every root', ()
     ['a store: pointer root, from a subdirectory', pointerRoot, 'sub', 'declared'],
     ['a global defaultStore root', defaultStoreRoot, '.', 'global_default'],
   ] as const) {
-    test.failing(
-      `${name}: checks the selected store, root.source ${source}`,
-      async () => {
-        const root = await make()
-        const { co, doc, up } = await doctorBoth(['doctor', '--json'], root, join(root, where))
-        const upRoot = (up.json as { root: { source: string; path: string } | null }).root
-        expect(upRoot?.source).toBe(source)
-        const coRoot = (doc as unknown as { root: { source: string; path: string } | null }).root
-        expect(coRoot?.source, detail(co)).toBe(source)
-        expect(relationshipKeys(doc)).toEqual(expectedKeys(up))
-        expect(
-          doc.findings.filter((f) => f.level === 'ERROR'),
-          detail(co),
-        ).toEqual([])
-        expect(co.exitCode, detail(co)).toBe(up.exitCode)
-        expect(up.exitCode).toBe(0)
-      },
-      60_000,
-    )
+    test(`${name}: checks the selected store, root.source ${source}`, async () => {
+      const root = await make()
+      const { co, doc, up } = await doctorBoth(['doctor', '--json'], root, join(root, where))
+      const upRoot = (up.json as { root: { source: string; path: string } | null }).root
+      expect(upRoot?.source).toBe(source)
+      const coRoot = (doc as unknown as { root: { source: string; path: string } | null }).root
+      expect(coRoot?.source, detail(co)).toBe(source)
+      expect(relationshipKeys(doc)).toEqual(expectedKeys(up))
+      expect(
+        doc.findings.filter((f) => f.level === 'ERROR'),
+        detail(co),
+      ).toEqual([])
+      expect(co.exitCode, detail(co)).toBe(up.exitCode)
+      expect(up.exitCode).toBe(0)
+    }, 60_000)
   }
 })

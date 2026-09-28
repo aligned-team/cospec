@@ -476,6 +476,13 @@ const NO_ROOT_CODES: ReadonlySet<string> = new Set([
   'no_root_with_registered_stores',
 ])
 
+/** Root sources whose resolved base, not the invocation directory, is what doctor checks. */
+const RESOLVED_BASE: ReadonlySet<ResolvedRoot['source']> = new Set([
+  'nearest',
+  'declared',
+  'global_default',
+])
+
 /** The binary's own failure payload shape, carried when its report could not be read. */
 const NO_REPORT: RelationshipReport = { root: null, store: null, references: [], status: [] }
 
@@ -700,10 +707,12 @@ export async function run(ctx: CommandContext): Promise<number> {
     cwd,
     storeArgs: flags.store === undefined ? [] : ['--store', flags.store],
   }
-  // From a subdirectory the local checks read the enclosing root the walk
-  // found; the invocation cwd stays the base only where no local root was
-  // walked to (a store-selected or implicit root, or none selected).
-  const base = selected?.source === 'nearest' ? selected.base : cwd
+  // The local checks read the resolved root: the enclosing root the walk
+  // found from a subdirectory, and the store a declared `store:` pointer or
+  // the global `defaultStore` selects. The invocation cwd stays the base only
+  // for an explicit `--store` (a bare workspace may run it), an implicit
+  // root, or none selected.
+  const base = selected !== undefined && RESOLVED_BASE.has(selected.source) ? selected.base : cwd
 
   // With no root selected there is nothing for cospec's own checks to read
   // (the directory may not even be readable); a selection that failed for any
