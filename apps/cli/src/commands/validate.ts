@@ -367,11 +367,13 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
     delegated: /^((?:ADDED|MODIFIED) ".*") (?:should|must) contain SHALL or MUST\b/,
     nativeKey: /^((?:ADDED|MODIFIED) ".*") must use SHALL\/MUST normative language$/,
   },
-  // The same defect with an empty body under a plain header.
+  // The same defect with an empty body under a plain header — whether cospec
+  // reads no SHALL/MUST at all, or one only in a scenario step.
   {
     rule: 'deltas/requirement-shape',
     delegated: /^((?:ADDED|MODIFIED) ".*") is missing requirement text$/,
-    nativeKey: /^((?:ADDED|MODIFIED) ".*") must use SHALL\/MUST normative language$/,
+    nativeKey:
+      /^((?:ADDED|MODIFIED) ".*") (?:must use SHALL\/MUST normative language|is missing requirement text)$/,
   },
   // 1.13.1's missing-scenario ERROR vs the scenario arm of the same rule.
   // Keyed on `<OP> "<name>"`, and not anchored at its end: the binary appends

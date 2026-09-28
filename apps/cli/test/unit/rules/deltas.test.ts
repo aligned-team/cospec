@@ -55,6 +55,22 @@ describe('deltasRules', () => {
     )
   })
 
+  test('deltas/requirement-shape refuses an empty statement whose SHALL sits only in a scenario', () => {
+    const scenario = '#### Scenario: s\n\n- **WHEN** a\n- **THEN** the system SHALL b\n'
+    const empty = `## ADDED Requirements\n\n### Requirement: X\n\n${scenario}`
+    const headerShall = `## MODIFIED Requirements\n\n### Requirement: The system MUST x\n\n${scenario}`
+    const withText = `## ADDED Requirements\n\n### Requirement: X\n\n**Reason**: kept\n\n${scenario}`
+    const shape = (text: string) =>
+      deltasRules(delta('specs/x/spec.md', 'x', text))
+        .filter((i) => i.rule === 'deltas/requirement-shape')
+        .map((i) => [i.level, i.line, i.message])
+    expect(shape(empty)).toEqual([['ERROR', 3, 'ADDED "X" is missing requirement text']])
+    expect(shape(headerShall)).toEqual([
+      ['ERROR', 3, 'MODIFIED "The system MUST x" must use SHALL/MUST normative language'],
+    ])
+    expect(shape(withText)).toEqual([])
+  })
+
   // A requirement whose only scenario is a bare header has no scenario at all,
   // and the author is staring at a visible `#### Scenario:` line while cospec
   // says there is none. Same condition and wording as openspec's

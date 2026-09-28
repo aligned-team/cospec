@@ -49,11 +49,6 @@ const ROUND5_FAILING = new Set<string>([
   '28.1n',
   '28.2',
   '28.2n',
-  '29.1',
-  '29.1n',
-  '29.2',
-  '29.2n',
-  '5.1.7b',
 ])
 const round5 = (id: string): typeof test => (ROUND5_FAILING.has(id) ? test.failing : test)
 
@@ -1103,7 +1098,10 @@ describe('5.1 one pinned-message test per DUPLICATE_CLASSES entry', () => {
       )
       expect(delegated.level).toBe('ERROR')
       const { report } = await cospecValidate(root, 'buffing')
-      expect(messages(report)).not.toContain(delegated.message)
+      // cospec words this one as the binary does, so the relay is what must be gone.
+      expect(byRule(report, 'openspec/validate').map((i) => i.message)).not.toContain(
+        delegated.message,
+      )
       const native = byRule(report, 'deltas/requirement-shape')
       expect(native.map((i) => [i.level, i.line])).toEqual([
         ['ERROR', lineOf(EMPTY_BODY_SHALL_IN_SCENARIO, '### Requirement: Widget buffing')],
@@ -3656,7 +3654,9 @@ describe('29. a requirement with no statement is refused natively', () => {
       const delegated = (await binaryIssues(root, name)).filter((i) => i.level === 'ERROR')
       expect(delegated).toHaveLength(1)
       const { report } = await cospecValidate(root, name)
-      expect(messages(report)).not.toContain(delegated[0]!.message)
+      expect(byRule(report, 'openspec/validate').map((i) => i.message)).not.toContain(
+        delegated[0]!.message,
+      )
       expect(byRule(report, 'deltas/requirement-shape')).toHaveLength(1)
     })
   }

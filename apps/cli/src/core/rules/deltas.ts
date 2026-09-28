@@ -1,7 +1,12 @@
 // deltas/* rules (DESIGN §4.3) — run before openspec delegation so cospec's
 // sharper diagnostics win. Rule IDs are frozen public API.
 
-import { findRequirementSplits, parseDeltaSpec, SHALL_MUST_RE } from '../deltas.ts'
+import {
+  findRequirementSplits,
+  parseDeltaSpec,
+  SHALL_MUST_RE,
+  type ParsedDelta,
+} from '../deltas.ts'
 import type { Issue } from './issue.ts'
 import type { LoadedChange } from './schema-info.ts'
 
@@ -25,6 +30,10 @@ const ROOT_SPEC_PATH = 'specs/spec.md'
  */
 const HEADER_ONLY_SHALL_HINT =
   'move the SHALL/MUST statement to the line immediately after the "### Requirement: ..." header'
+
+/** Why a requirement whose scenario says SHALL still has no statement. */
+const MISSING_TEXT_HINT =
+  'write the requirement statement on the line under its "### Requirement: ..." header; a SHALL/MUST in a scenario step is not one'
 
 const EMPTY_SCENARIO_HINT =
   'a scenario header with no body under it does not count; add its steps, e.g. "- **WHEN** ..." and "- **THEN** ..."'
@@ -239,41 +248,64 @@ export function deltasRules(
       })
     }
 
-    // deltas/requirement-shape. Named as the header is written — see
-    // `DeltaOp.verbatimName` — so a finding the binary shares names the same
-    // requirement, and its delegated twin is recognised.
-    for (const op of parsed.ops) {
-      if (op.operation !== 'ADDED' && op.operation !== 'MODIFIED') continue
-      const name = op.verbatimName ?? op.name
-      if (!op.hasShallMust) {
-        issues.push({
-          level: 'ERROR',
-          rule: 'deltas/requirement-shape',
-          path: file.path,
-          line: op.line,
-          message: `${op.operation} "${name}" must use SHALL/MUST normative language`,
-          hint:
-            op.name !== undefined && SHALL_MUST_RE.test(op.name)
-              ? HEADER_ONLY_SHALL_HINT
-              : undefined,
-        })
-      }
-      if (op.scenarioCount < 1) {
-        issues.push({
-          level: 'ERROR',
-          rule: 'deltas/requirement-shape',
-          path: file.path,
-          line: op.line,
-          message: `${op.operation} "${name}" must include at least one #### Scenario:`,
-          // Only when the block *has* a header that did not count — otherwise the
-          // hint answers a question the author never asked. Same condition and
-          // wording as openspec's `emptyScenarioHint`
-          // (`src/core/validation/validator.ts`, 1.13.1).
-          hint: op.emptyScenarioCount > 0 ? EMPTY_SCENARIO_HINT : undefined,
-        })
-      }
-    }
+    issues.push(...requirementShapeIssues(parsed, file.path))
   }
 
+  return issues
+}
+
+/**
+ * `deltas/requirement-shape` for one delta file, on its advisory (masked)
+ * parse. Named as the header is written — see `DeltaOp.verbatimName` — so a
+ * finding the binary shares names the same requirement, and its delegated twin
+ * is recognised. Exported so `archive/rebuilt-spec-invalid` leaves a delta line
+ * to this rule only where this rule reported it.
+ */
+export function requirementShapeIssues(parsed: ParsedDelta, path: string): Issue[] {
+  const issues: Issue[] = []
+  for (const op of parsed.ops) {
+    if (op.operation !== 'ADDED' && op.operation !== 'MODIFIED') continue
+    const name = op.verbatimName ?? op.name
+    const headerShall = op.name !== undefined && SHALL_MUST_RE.test(op.name)
+    if (!op.hasShallMust) {
+      issues.push({
+        level: 'ERROR',
+        rule: 'deltas/requirement-shape',
+        path,
+        line: op.line,
+        message: `${op.operation} "${name}" must use SHALL/MUST normative language`,
+        hint: headerShall ? HEADER_ONLY_SHALL_HINT : undefined,
+      })
+    } else if (op.parts?.[0]?.hasText === false) {
+      // openspec reads the statement off the lines between the header and the
+      // first header under it (`extractRequirementText`, 1.13.1), so a SHALL
+      // that sits only in a scenario step leaves the statement empty — an
+      // ERROR in its validate and its archive alike.
+      issues.push({
+        level: 'ERROR',
+        rule: 'deltas/requirement-shape',
+        path,
+        line: op.line,
+        message: headerShall
+          ? `${op.operation} "${name}" must use SHALL/MUST normative language`
+          : `${op.operation} "${name}" is missing requirement text`,
+        hint: headerShall ? HEADER_ONLY_SHALL_HINT : MISSING_TEXT_HINT,
+      })
+    }
+    if (op.scenarioCount < 1) {
+      issues.push({
+        level: 'ERROR',
+        rule: 'deltas/requirement-shape',
+        path,
+        line: op.line,
+        message: `${op.operation} "${name}" must include at least one #### Scenario:`,
+        // Only when the block *has* a header that did not count — otherwise the
+        // hint answers a question the author never asked. Same condition and
+        // wording as openspec's `emptyScenarioHint`
+        // (`src/core/validation/validator.ts`, 1.13.1).
+        hint: op.emptyScenarioCount > 0 ? EMPTY_SCENARIO_HINT : undefined,
+      })
+    }
+  }
   return issues
 }
