@@ -20,6 +20,9 @@ const ROOT_SPEC_PATH = 'specs/spec.md'
 const EMPTY_SCENARIO_HINT =
   'a scenario header with no body under it does not count; add its steps, e.g. "- **WHEN** ..." and "- **THEN** ..."'
 
+/** A skipped header that is a requirement header with no name (upstream's own test). */
+const NAMELESS_REQUIREMENT_RE = /^requirement:?$/i
+
 /**
  * `deltas/skip-specs-conflict` — a change declaring `skip_specs:` in
  * `.openspec.yaml` claims it touches no specs, so any file under `specs/`
@@ -171,6 +174,32 @@ export function deltasRules(change: LoadedChange): Issue[] {
         line: orphan.line,
         message: `requirement "${orphan.name}" is ${where}, which is not a delta section, so it is ignored`,
         hint: 'move it under "## ADDED Requirements", "## MODIFIED Requirements", "## REMOVED Requirements", or "## RENAMED Requirements"',
+      })
+    }
+
+    // deltas/skipped-header — a `###` header inside an ADDED/MODIFIED section
+    // that is not a named requirement header. Neither reader validates what
+    // sits under it as a requirement of its own, so a divider like
+    // `### Documentation Requirements` passes `validate` while the author may
+    // believe it holds requirements. INFO, as upstream reports it (1.13.1
+    // `validation/validator.ts`), in upstream's words split into message and
+    // hint. A `### Scenario:` line is `deltas/scenario-depth`'s alone: its
+    // remedy is `#### Scenario:`, not the `### Requirement:` this one suggests.
+    const depthLines = new Set(parsed.scenarioDepthIssues.map((d) => d.line))
+    for (const skipped of parsed.skippedHeaders) {
+      if (depthLines.has(skipped.line)) continue
+      const nameless = NAMELESS_REQUIREMENT_RE.test(skipped.header)
+      issues.push({
+        level: 'INFO',
+        rule: 'deltas/skipped-header',
+        path: file.path,
+        line: skipped.line,
+        message: nameless
+          ? `header "### ${skipped.header}" in ${skipped.section} is missing a requirement name and is ignored by validation`
+          : `header "### ${skipped.header}" in ${skipped.section} is not a "### Requirement:" header and is ignored by validation`,
+        hint: nameless
+          ? 'add a name, e.g. "### Requirement: <name>"'
+          : `use "### Requirement: ${skipped.header}" if it should be validated as a requirement`,
       })
     }
 

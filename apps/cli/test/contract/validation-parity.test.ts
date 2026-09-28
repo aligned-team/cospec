@@ -830,27 +830,24 @@ describe('3. cross-section conflicts appear in the validate preview', () => {
 // --- 4. skipped headers get a rule id ---------------------------------------------------
 
 describe('4. skipped headers', () => {
-  test.failing(
-    '4.1 native: each skipped header is a deltas/skipped-header INFO on the binary line',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      buildFeat(root, 'skipped', { 'widgets/spec.md': SKIPPED_HEADERS })
-      const bin = await binaryIssues(root, 'skipped')
-      const skippedLines = [
-        ...binaryFind(bin, SKIPPED_FRAGMENT),
-        ...binaryFind(bin, NAMELESS_FRAGMENT),
-      ].filter((i) => !i.message.includes('"### Scenario:'))
-      expect(skippedLines).toHaveLength(3)
+  test('4.1 native: each skipped header is a deltas/skipped-header INFO on the binary line', async () => {
+    const root = mkTempRepo({ git: true })
+    buildFeat(root, 'skipped', { 'widgets/spec.md': SKIPPED_HEADERS })
+    const bin = await binaryIssues(root, 'skipped')
+    const skippedLines = [
+      ...binaryFind(bin, SKIPPED_FRAGMENT),
+      ...binaryFind(bin, NAMELESS_FRAGMENT),
+    ].filter((i) => !i.message.includes('"### Scenario:'))
+    expect(skippedLines).toHaveLength(3)
 
-      const { report } = await cospecValidate(root, 'skipped')
-      const native = byRule(report, 'deltas/skipped-header')
-      expect(native.every((i) => i.level === 'INFO')).toBe(true)
-      expect(linesOf(native)).toEqual(linesOf(skippedLines))
-      const depth = byRule(report, 'deltas/scenario-depth')
-      expect(depth).toHaveLength(1)
-      expect(depth[0]?.line).toBe(lineOf(SKIPPED_HEADERS, '### Scenario: Shallow'))
-    },
-  )
+    const { report } = await cospecValidate(root, 'skipped')
+    const native = byRule(report, 'deltas/skipped-header')
+    expect(native.every((i) => i.level === 'INFO')).toBe(true)
+    expect(linesOf(native)).toEqual(linesOf(skippedLines))
+    const depth = byRule(report, 'deltas/scenario-depth')
+    expect(depth).toHaveLength(1)
+    expect(depth[0]?.line).toBe(lineOf(SKIPPED_HEADERS, '### Scenario: Shallow'))
+  })
 
   test.failing('4.1 twin: none of the delegated skipped-header INFOs is relayed', async () => {
     const root = mkTempRepo({ git: true })
@@ -862,7 +859,7 @@ describe('4. skipped headers', () => {
     for (const d of delegated) expect(messages(report)).not.toContain(d.message)
   })
 
-  test.failing('4.2 a never-delegated change still reports its skipped headers', async () => {
+  test('4.2 a never-delegated change still reports its skipped headers', async () => {
     const root = mkTempRepo({ git: true })
     buildFeat(root, 'skipped-local', { 'widgets/spec.md': SKIPPED_HEADERS }, { proposal: false })
     const { report } = await cospecValidate(root, 'skipped-local')

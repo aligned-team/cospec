@@ -406,3 +406,87 @@ describe('parseDeltaSpec skippedHeaders', () => {
     ])
   })
 })
+
+describe('deltas/skipped-header', () => {
+  const skippedIssues = (text: string) =>
+    deltasRules(delta('specs/x/spec.md', 'x', text)).filter(
+      (i) => i.rule === 'deltas/skipped-header',
+    )
+
+  test('an INFO for a header between blocks, inside a block, and each nameless shape', () => {
+    expect(
+      skippedIssues(SKIPPED).map((i) => ({ level: i.level, line: i.line, message: i.message })),
+    ).toEqual([
+      {
+        level: 'INFO',
+        line: 3,
+        message:
+          'header "### Documentation Requirements" in ADDED Requirements is not a "### Requirement:" header and is ignored by validation',
+      },
+      {
+        level: 'INFO',
+        line: 9,
+        message:
+          'header "### Notes inside" in ADDED Requirements is not a "### Requirement:" header and is ignored by validation',
+      },
+      {
+        level: 'INFO',
+        line: 18,
+        message:
+          'header "### Requirement:" in ADDED Requirements is missing a requirement name and is ignored by validation',
+      },
+      {
+        level: 'INFO',
+        line: 20,
+        message:
+          'header "### requirement" in ADDED Requirements is missing a requirement name and is ignored by validation',
+      },
+      {
+        level: 'INFO',
+        line: 40,
+        message:
+          'header "### Between notes" in MODIFIED Requirements is not a "### Requirement:" header and is ignored by validation',
+      },
+    ])
+  })
+
+  test('each shape carries its own hint', () => {
+    const [divider, , nameless] = skippedIssues(SKIPPED)
+    expect(divider?.hint).toBe(
+      'use "### Requirement: Documentation Requirements" if it should be validated as a requirement',
+    )
+    expect(nameless?.hint).toBe('add a name, e.g. "### Requirement: <name>"')
+  })
+
+  test('nothing for a fenced header, a REMOVED-section header, or a ### Scenario: line', () => {
+    const lines = skippedIssues(SKIPPED).map((i) => i.line)
+    const at = (header: string) => SKIPPED.split('\n').indexOf(header) + 1
+    for (const header of ['### Fenced header', '### Removed notes', '### Scenario: Shallow'])
+      expect(lines).not.toContain(at(header))
+    // The shallow scenario is reported once, by the rule whose remedy fits it.
+    expect(
+      rules(deltasRules(delta('specs/x/spec.md', 'x', SKIPPED))).filter(
+        (r) => r === 'deltas/scenario-depth',
+      ),
+    ).toHaveLength(1)
+  })
+
+  test('a scenario after a skipped header still counts, and INFO never moves the verdict', () => {
+    const text = `## ADDED Requirements
+
+### Requirement: X
+
+The system SHALL x.
+
+### Notes
+
+#### Scenario: s
+
+- **WHEN** a
+- **THEN** b
+`
+    const found = deltasRules(delta('specs/x/spec.md', 'x', text))
+    expect(rules(found)).toEqual(['deltas/skipped-header'])
+    expect(found.filter((i) => i.level !== 'INFO')).toEqual([])
+  })
+})

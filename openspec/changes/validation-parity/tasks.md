@@ -29,7 +29,7 @@ trailer, never `--no-verify`).
       and unit-test that `ops`, `hasShallMust`, scenario counts and line numbers
       are unchanged on the existing parser fixtures. Commit
       `fix(validate): record skipped delta headers in the parser`
-- [ ] 2.2 Add the `deltas/skipped-header` INFO (design D2) and its unit tests
+- [x] 2.2 Add the `deltas/skipped-header` INFO (design D2) and its unit tests
       (verification 4.3), then flip `4.1 native` and 4.2 in the contract file.
       Commit
       `fix(validate): report skipped delta headers as deltas/skipped-header`
