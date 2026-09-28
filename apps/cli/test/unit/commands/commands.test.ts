@@ -111,7 +111,9 @@ describe("new: a failed wrapped new change's reason", () => {
       "Run 'cospec init' first. Failed to parse schema at '/w/s.yaml': openspec store setup",
     )
   })
-  test('respells only openspec followed by a command cospec has', () => {
+  // Prose naming a command is not a remedy: only a remedy's lead-in (`Run`,
+  // `Fix:`, `(`, a backtick, …) makes `openspec <command>` cospec's to respell.
+  test.failing('respells only a remedy naming a command cospec has', () => {
     const doc = JSON.stringify({
       change: null,
       status: [
@@ -121,7 +123,37 @@ describe("new: a failed wrapped new change's reason", () => {
       ],
     })
     expect(wrappedNewReason(result(doc))).toBe(
-      'openspec widgets are not cospec store setup or `cospec status --change x`',
+      'openspec widgets are not openspec store setup or `cospec status --change x`',
+    )
+  })
+  // The binary quotes every path it reports (`mkdir '<path>'`) and ends an
+  // existing change's message with its path: a directory named after a
+  // command is still the user's.
+  test.failing('leaves a quoted path and the path after "already exists at" untouched', () => {
+    const reasons = [
+      "EACCES: permission denied, mkdir '/w/my openspec list dir/openspec/changes/y'",
+      "EEXIST: file already exists, mkdir 'openspec new/openspec/changes/z'",
+      "ENOTDIR: not a directory, mkdir '/w/run openspec init/openspec/changes/z'",
+      "Change 'x' already exists at /w/a openspec list/b openspec new/c openspec init/openspec/changes/x",
+    ]
+    for (const reason of reasons) {
+      const doc = JSON.stringify({ change: null, status: [{ message: reason }] })
+      expect(wrappedNewReason(result(doc))).toBe(reason)
+      expect(wrappedNewReason(result('', `\x1b[31m✖ Error: ${reason}\x1b[39m\n`))).toBe(reason)
+    }
+  })
+  test('respells a command named in a remedy context', () => {
+    const doc = JSON.stringify({
+      change: null,
+      status: [
+        {
+          message:
+            'Fix: openspec store setup <id>. Run: openspec store doctor s1 (openspec validate --all), or run openspec list and `openspec new change y`',
+        },
+      ],
+    })
+    expect(wrappedNewReason(result(doc))).toBe(
+      'Fix: cospec store setup <id>. Run: cospec store doctor s1 (cospec validate --all), or run cospec list and `cospec new change y`',
     )
   })
 })
