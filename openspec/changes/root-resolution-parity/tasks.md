@@ -381,7 +381,7 @@ files, task 7.7, both marked POST-REBASE.
 
 ## 11. REVIEW ROUND 4: one read helper for the resolver
 
-- [ ] 11.1 REVIEW (ledger 5.22, 5.23, design D9): add failing rows, then route
+- [x] 11.1 REVIEW (ledger 5.22, 5.23, design D9): add failing rows, then route
       every filesystem read the resolver performs through one helper (ENOENT is
       absent; any other errno is a raw `RootSelectionError` carrying Node's
       message, no target, no fix, unprefixed by `withOrigin`), apply the

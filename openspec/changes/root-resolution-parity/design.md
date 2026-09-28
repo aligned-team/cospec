@@ -360,6 +360,32 @@ the binary never reads the registry there. The raw case's `--json` `code` is
 is owned by `cli-surface-parity` (roadmap row 37); this change pins the message
 and the exit code.
 
+_Amended in review round 4:_ one read helper owns every read the resolver makes.
+Round 3 closed the raw-errno class for the registry only: a selected store's
+`.openspec-store/store.yaml` that is a directory or unreadable, or an
+`openspec/` it may not search, still escaped `resolveRoot` as a bare errno, so
+`--json` printed no document and `templates`/`schema` lost their cwd fallback,
+where the binary exits 1 with the errno's message (store routes) and answers
+those two in the cwd. `root.ts` now reads the filesystem only through
+`resolverRead(path, read)`: `ENOENT` is `null` (absent), any other errno is a
+`RawSelectionError` (the general subclass that replaces `RawRegistryError`:
+`code` `store_error`, the binary's message, no target, no fix, rethrown
+unprefixed by `withOrigin`), and any other throw propagates. Its message is
+worded as Node's promise API words it, which is what the binary reports: Bun
+leaves the path off a failed `read`, so an `EISDIR` gains ` '<path>'`. Each
+caller then applies upstream's own semantics for that file: the store metadata
+read (`readOptionalStoreMetadataState`) and the root-health stats
+(`inspectOpenSpecRoot`'s `pathKind`) let the raw error stand; the pointer read
+(`readStorePointer`) treats any read failure as `unparseable`; the global config
+(`getGlobalConfig`) as defaults; the ancestor walk and the pointer's existence
+probe (`existsSync`, a catch-all `statSync`) as absent. A registry `store ls`
+reports with a non-`StoreError` code becomes the same `RawSelectionError`.
+`assertInvocationDirectory` stays outside the helper: `--cwd` is cospec's own,
+and a directory the user may not stat must not become a selection failure
+`templates` and `schema` would run in. A fault-injection sweep (ledger 5.22)
+makes each file a directory and mode 000 on every route and compares cospec with
+the binary under Node.
+
 **D10. The banner is printed by `resolveRoot`.** `resolveRoot` widens its
 parameter to `flags: { store?: string; json?: boolean }`; every caller already
 passes the global flags, which carry `json`, so no caller changes. When the

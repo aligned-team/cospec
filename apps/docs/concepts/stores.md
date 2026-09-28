@@ -211,11 +211,17 @@ A pointer or `defaultStore` failure is prefixed with its origin —
 `Declared in <config path>: ` or `Global defaultStore '<id>': ` — so the message
 names where the bad id came from, not just that it's bad.
 
-A registry file cospec can't open at all (for example, one you have no read
-permission for) isn't a selection error: the command fails with the operating
-system's message, as `openspec` prints it —
-`cospec: EACCES: permission denied, open '<registry path>'` — with no origin
-prefix and no `Fix:` line, exit 1.
+A file cospec can't read at all isn't a selection error either — the store
+registry, or a selected store's `.openspec-store/store.yaml` or `openspec/`
+tree, when it is (for example) a directory where a file belongs or has no read
+permission. The command fails with the operating system's message, as `openspec`
+prints it — for instance
+`cospec: EACCES: permission denied, open '<registry path>'` or
+`cospec: EISDIR: illegal operation on a directory, read '<store.yaml path>'` —
+with no origin prefix and no `Fix:` line, exit 1, and under `--json` that
+message is the one `status` entry. A `store:` pointer file that can't be read
+fails like one that isn't YAML (`invalid_store_pointer`), and an `openspec/`
+directory the walk can't look inside is not a root, as in `openspec`.
 
 An unregistered `--store` id fails loudly rather than silently falling back to
 the local repo, so a typo can never write a change to the wrong place:
@@ -247,14 +253,14 @@ under the project.
 These two commands never fail on root selection alone, since `openspec` never
 selects a root for them. When selection fails and you passed no `--store` — no
 qualifying root with stores registered, a malformed or unregistered `store:`
-pointer, a stale or broken `defaultStore`, or an unreadable store registry —
-cospec runs them in your working directory, with the same output, exit code and
-files written as `openspec` there. One line can differ: to select a root, cospec
-reads the global config, which `openspec` never reads for these two commands, so
-a global config that isn't JSON adds its `Warning: Invalid JSON …` line to
-cospec's stderr. With an explicit `--store` the selection error stands (the
-Errors table above), since `openspec` has no `--store` on these commands to fall
-back to.
+pointer, a stale or broken `defaultStore`, or a store registry or selected store
+that can't be read — cospec runs them in your working directory, with the same
+output, exit code and files written as `openspec` there. One line can differ: to
+select a root, cospec reads the global config, which `openspec` never reads for
+these two commands, so a global config that isn't JSON adds its
+`Warning: Invalid JSON …` line to cospec's stderr. With an explicit `--store`
+the selection error stands (the Errors table above), since `openspec` has no
+`--store` on these commands to fall back to.
 
 ### `--store` on the wrapped call
 

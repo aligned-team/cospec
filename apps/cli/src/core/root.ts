@@ -30,7 +30,7 @@
 // surfaces it in `instructions`) and is deliberately NOT a root override — it
 // never redirects where a change is created or gated.
 
-import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { readFileSync, realpathSync, type Stats, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 
 import { parse as parseYaml } from 'yaml'
@@ -121,10 +121,84 @@ function printOwnLine(line: string): void {
   process.stderr.write(`${line}\n`)
 }
 
-// --- Filesystem probes -------------------------------------------------------
+// --- Filesystem reads --------------------------------------------------------
 
 function isErrnoCode(error: unknown, code: string): boolean {
   return (error as NodeJS.ErrnoException | undefined)?.code === code
+}
+
+/**
+ * The `code` of a raw failure's `--json` diagnostic: `store ls`'s fallback for
+ * a failure that is not a `StoreError`. The binary reports a per-command code
+ * there (`list_error`, `change_error`, …), which is `cli-surface-parity`'s
+ * (roadmap row 37); the message and the exit code are this class's contract.
+ */
+const RAW_FAILURE_CODE = 'store_error'
+
+/**
+ * A resolver read that upstream rethrows raw rather than as a selection
+ * diagnostic: an errno other than `ENOENT` from a file the selected store's
+ * inspection reads, or a registry read `store ls` failed with something other
+ * than a `StoreError`. It fails the command with the binary's message,
+ * verbatim, never behind a pointer's or `defaultStore`'s origin prefix, with no
+ * target and no fix, and exit 1; being a `RootSelectionError`, it is one
+ * `--json` document, and `templates`/`schema` fall back to the cwd for it.
+ */
+export class RawSelectionError extends RootSelectionError {
+  constructor(message: string) {
+    super({ code: RAW_FAILURE_CODE, message })
+    this.name = 'RawSelectionError'
+  }
+}
+
+/**
+ * An errno's message as Node's promise API words it, which is what the binary
+ * (`fs.promises.readFile`, `fs.promises.stat`) reports: Node names the path on
+ * every errno, while Bun, cospec's runtime, leaves it off a failed `read`
+ * (`EISDIR: illegal operation on a directory, read`).
+ */
+function errnoMessage(error: NodeJS.ErrnoException, path: string): string {
+  if (error.path !== undefined || !error.message.endsWith(`, ${error.syscall}`))
+    return error.message
+  return `${error.message} '${path}'`
+}
+
+/**
+ * The one way the resolver touches the filesystem: `read(path)`'s value,
+ * `null` when the path does not exist (`ENOENT`), and a `RawSelectionError`
+ * carrying the binary's message for any other errno. What else a failure means
+ * is each caller's, mirroring upstream's read of that file: the store's
+ * metadata and root health let the raw error stand, while the pointer, the
+ * global config and the ancestor walk treat every failure as upstream does.
+ */
+function resolverRead<T>(path: string, read: (path: string) => T): T | null {
+  try {
+    return read(path)
+  } catch (error) {
+    if (isErrnoCode(error, 'ENOENT')) return null
+    const errno = error as NodeJS.ErrnoException
+    if (error instanceof Error && typeof errno.code === 'string')
+      throw new RawSelectionError(errnoMessage(errno, path))
+    throw error
+  }
+}
+
+const readText = (path: string): string | null => resolverRead(path, (p) => readFileSync(p, 'utf8'))
+
+const statPath = (path: string): Stats | null => resolverRead(path, (p) => statSync(p))
+
+/**
+ * Upstream's catch-all probes (`existsSync`, and a `statSync` whose every
+ * failure reads as "not a directory"): a path the resolver may not stat is
+ * absent, never a failure, for the ancestor walk and the pointer lookup.
+ */
+function probe(path: string): Stats | null {
+  try {
+    return statPath(path)
+  } catch (error) {
+    if (error instanceof RawSelectionError) return null
+    throw error
+  }
 }
 
 function canonicalize(path: string): string {
@@ -140,34 +214,21 @@ function canonicalize(path: string): string {
 }
 
 function isDirectory(path: string): boolean {
-  try {
-    return statSync(path).isDirectory()
-  } catch {
-    return false
-  }
+  return probe(path)?.isDirectory() ?? false
 }
 
 function exists(path: string): boolean {
-  try {
-    statSync(path)
-    return true
-  } catch {
-    return false
-  }
+  return probe(path) !== null
 }
 
 type PathKind = 'directory' | 'file' | 'other' | 'missing'
 
-/** Upstream's `pathKind`: only a missing path is an expected outcome. */
+/** Upstream's `pathKind`: only a missing path is an expected outcome; any other errno is raw. */
 function pathKind(path: string): PathKind {
-  try {
-    const stat = statSync(path)
-    if (stat.isDirectory()) return 'directory'
-    return stat.isFile() ? 'file' : 'other'
-  } catch (error) {
-    if (isErrnoCode(error, 'ENOENT')) return 'missing'
-    throw error
-  }
+  const stat = statPath(path)
+  if (stat === null) return 'missing'
+  if (stat.isDirectory()) return 'directory'
+  return stat.isFile() ? 'file' : 'other'
 }
 
 /** The canonical directory a walk starts from; `resolveRoot` has asserted it exists. */
@@ -179,16 +240,19 @@ function canonicalStart(cwd: string): string {
  * `--cwd` is cospec's own flag, so nothing upstream guards it: an invocation
  * directory that is not an existing directory would otherwise surface as the
  * runtime's spawn ENOENT, naming the interpreter's path instead of the user's.
+ * It is not a read upstream's resolver makes, so it stays outside
+ * `resolverRead`: a directory the user may not stat must never become a
+ * selection failure `templates` and `schema` fall back to running in.
  */
 function assertInvocationDirectory(cwd: string): void {
-  let kind: PathKind
+  let isDir: boolean
   try {
-    kind = pathKind(cwd)
+    isDir = statSync(cwd).isDirectory()
   } catch (error) {
-    if (!isErrnoCode(error, 'ENOTDIR')) throw error
-    kind = 'missing'
+    if (!isErrnoCode(error, 'ENOENT') && !isErrnoCode(error, 'ENOTDIR')) throw error
+    isDir = false
   }
-  if (kind !== 'directory')
+  if (!isDir)
     throw new RootSelectionError({
       code: 'directory_not_found',
       message: `directory not found: ${cwd}`,
@@ -215,15 +279,25 @@ function configFilePath(base: string): string | null {
 /**
  * Read the `store:` pointer from `<base>/openspec/config.yaml` (else
  * `config.yml`). An empty, comment-only or non-mapping document carries no
- * pointer; an unreadable document or a non-string `store` is malformed, which
- * fails the command only where the pointer would be followed.
+ * pointer; a document that cannot be read (any errno, as upstream's
+ * `readStorePointer` catches every failure) or parsed, or a non-string
+ * `store`, is malformed, which fails the command only where the pointer would
+ * be followed.
  */
 export function configStorePointer(base: string): StorePointer {
   const filePath = configFilePath(base)
   if (filePath === null) return { filePath: null }
+  let body: string | null
+  try {
+    body = readText(filePath)
+  } catch (error) {
+    if (!(error instanceof RawSelectionError)) throw error
+    body = null
+  }
+  if (body === null) return { filePath, malformed: 'unparseable' }
   let doc: unknown
   try {
-    doc = parseYaml(readFileSync(filePath, 'utf8'))
+    doc = parseYaml(body)
   } catch {
     return { filePath, malformed: 'unparseable' }
   }
@@ -300,15 +374,14 @@ function invalidMetadata(detail: string): RootSelectionError {
   })
 }
 
-/** The metadata `id`, `null` when the file is missing; throws when it is invalid. */
+/**
+ * The metadata `id`, `null` when the file is missing; throws when it is
+ * invalid, and raw (as upstream's `readOptionalStoreMetadataState` rethrows)
+ * when it cannot be read.
+ */
 function readStoreMetadataId(storeRoot: string): string | null {
-  let body: string
-  try {
-    body = readFileSync(join(storeRoot, STORE_METADATA), 'utf8')
-  } catch (error) {
-    if (isErrnoCode(error, 'ENOENT')) return null
-    throw error
-  }
+  const body = readText(join(storeRoot, STORE_METADATA))
+  if (body === null) return null
   let doc: unknown
   try {
     doc = parseYaml(body)
@@ -395,21 +468,12 @@ function assertHealthyStore(id: string, storeRoot: string): void {
 }
 
 /**
- * A registry read that upstream's resolver rethrows raw rather than as a
- * selection diagnostic (not a `StoreError`: an errno such as `EACCES`). It
- * fails the command with the binary's message, verbatim and never behind a
- * pointer's or `defaultStore`'s origin prefix, and exit 1. Its `code` is
- * `store ls`'s fallback; the binary reports a per-command code for it.
- */
-class RawRegistryError extends RootSelectionError {}
-
-/**
  * The registered stores, as `openspec store ls --json` lists them. A registry
  * the binary cannot parse fails selection with the binary's own diagnostic
  * (`invalid_store_registry`, naming the file to repair), as upstream's
  * resolver turns its registry read's `StoreError` into a `RootSelectionError`;
  * its text is spelled through cospec's remedies like every relayed fix. Any
- * other read failure is a `RawRegistryError`, as upstream rethrows it raw.
+ * other read failure is a `RawSelectionError`, as upstream rethrows it raw.
  */
 async function registeredStores(cwd: string): Promise<StoreListEntry[]> {
   try {
@@ -417,7 +481,7 @@ async function registeredStores(cwd: string): Promise<StoreListEntry[]> {
   } catch (error) {
     if (!(error instanceof StoreRegistryError)) throw error
     const { code, message, target, fix } = error.diagnostic
-    if (!error.storeError) throw new RawRegistryError({ code, message })
+    if (!error.storeError) throw new RawSelectionError(message)
     throw new RootSelectionError({
       code,
       message: respellRemedies(message),
@@ -490,7 +554,7 @@ async function withOrigin(
   try {
     return await select()
   } catch (error) {
-    if (!(error instanceof RootSelectionError) || error instanceof RawRegistryError) throw error
+    if (!(error instanceof RootSelectionError) || error instanceof RawSelectionError) throw error
     const { code, message, target, fix } = error.diagnostic
     throw new RootSelectionError({
       code,
@@ -517,8 +581,9 @@ const warnedInvalidJsonPaths = new Set<string>()
  * invalid": ANY failure to read or parse the file (missing, a directory, no
  * read permission, not JSON) and a JSON root that is not an object carry no
  * default, and only a file that is not JSON warns, once per path, with
- * upstream's own line. The catch-all below is that contract, not a swallowed
- * error: the binary answers the same command with its defaults.
+ * upstream's own line. Catching the raw read failure below is that contract,
+ * not a swallowed error: the binary answers the same command with its
+ * defaults.
  */
 export async function readDefaultStore(cwd: string): Promise<unknown> {
   const result = await runOpenspec(['config', 'path'], {
@@ -529,12 +594,21 @@ export async function readDefaultStore(cwd: string): Promise<unknown> {
     },
   })
   const configPath = result.stdout.slice(0, -1)
-  if (!existsSync(configPath)) return undefined
+  if (!exists(configPath)) return undefined
+  let body: string | null
+  try {
+    body = readText(configPath)
+  } catch (error) {
+    if (!(error instanceof RawSelectionError)) throw error
+    return undefined
+  }
+  if (body === null) return undefined
   let doc: unknown
   try {
-    doc = JSON.parse(readFileSync(configPath, 'utf8'))
+    doc = JSON.parse(body)
   } catch (error) {
-    if (error instanceof SyntaxError && !warnedInvalidJsonPaths.has(configPath)) {
+    if (!(error instanceof SyntaxError)) throw error
+    if (!warnedInvalidJsonPaths.has(configPath)) {
       warnedInvalidJsonPaths.add(configPath)
       printOwnLine(`Warning: Invalid JSON in ${configPath}, using defaults`)
     }
