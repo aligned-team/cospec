@@ -861,17 +861,18 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
 
 /**
  * The roadmap PRs that own the spelling of a line R1 relays untouched on a
- * successful answer. The instructions and context owners are
- * cospec-roadmap's confirmed rulings (round 16: instructions' reference block
- * is upstream-spellings', context's is passthrough-json-and-doctor's); the
+ * successful answer. The context owner is cospec-roadmap's confirmed ruling
+ * (round 16: context's reference block is passthrough-json-and-doctor's); the
  * workset/config owner follows its ruling that R4 wires the allowlist into
  * those relays. (`schema init`'s `3. Use with:` line, once owned by
- * root-resolution-parity, is spelled by `schema.ts` itself.)
+ * root-resolution-parity, is spelled by `schema.ts` itself; `instructions`,
+ * once owned by upstream-spellings, builds its answer from the binary's
+ * document with its command fields spelled, `core/instructions-render.ts`.)
  */
-export const OWNERS = ['upstream-spellings', 'passthrough-json-and-doctor'] as const
+export const OWNERS = ['passthrough-json-and-doctor'] as const
 
 /** The cospec commands that relay a successful answer as the binary wrote it. */
-export const SUCCESS_RELAYS = ['instructions', 'context', 'workset', 'config'] as const
+export const SUCCESS_RELAYS = ['context', 'workset', 'config'] as const
 
 /**
  * [module under dist/, trimmed source line, the cospec command whose successful

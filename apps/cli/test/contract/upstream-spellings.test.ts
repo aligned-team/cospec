@@ -2,8 +2,8 @@
 // 1.12–1.14, 2.1–2.2, 3.1–3.3, 3.5–3.6, 4.1–4.5): every row runs the same argv
 // through cospec and the pinned binary (the upstream oracle, under Node) and
 // compares cospec's answer with the binary's, read at test time — no upstream
-// string is typed here. A row cospec does not answer yet runs as `test.failing`
-// until the commit that implements its surface flips it to `test`.
+// string is typed here. Each row was held (expected to fail) until the commit
+// that implemented its surface made it a plain `test`; none is held now.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import {

@@ -186,15 +186,15 @@ a time. Group 12 waits for the rebase in group 11.
 
 ## 14. Close-out
 
-- [ ] 14.1 Drop `upstream-spellings` from `PendingOwner`, `KNOWN_OWNERS`,
+- [x] 14.1 Drop `upstream-spellings` from `PendingOwner`, `KNOWN_OWNERS`,
       `OWNERS` and the `parity-pending.yaml` section header, and `instructions`
       from `SUCCESS_RELAYS` once no `REACHABLE_OWNED` row names it; verify
       ledger 4.6, 5.3 and 7.3
-- [ ] 14.2 Run `mise run test`, `test:contract`, `test:integration`,
+- [x] 14.2 Run `mise run test`, `test:contract`, `test:integration`,
       `generate:check` and `mise run check`; record evidence on every ledger
       row, and hand ledger 9.1 (`mise run eval:e2e`, human-held keys) to a human
       with the fixtures it needs
-- [ ] 14.3 Commit `chore(cli): close out upstream-spellings`
+- [x] 14.3 Commit `chore(cli): close out upstream-spellings`
 - [ ] 14.4 `mise run cospec -- archive upstream-spellings` as the last commit on
       the PR branch, before merge
 

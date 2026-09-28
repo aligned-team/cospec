@@ -411,8 +411,10 @@ describe('pending surfaces', () => {
     expectPendingRefusal('completion generate', 'powershell', 'completion-install')
   })
 
+  // `PendingOwner` no longer names it at all; this also guards the data.
   test('no pending surface is owned by upstream-spellings', () => {
-    expect(EXPECTED_PENDING.filter(([, , owner]) => owner === 'upstream-spellings')).toEqual([])
+    const owned = EXPECTED_PENDING.filter(([, , owner]) => `${owner}` === 'upstream-spellings')
+    expect(owned).toEqual([])
   })
 
   test('pending flags are never offered to help or completion', () => {

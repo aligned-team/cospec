@@ -118,7 +118,6 @@ const CANON_WORKFLOWS: readonly string[] = readdirSync(join(APP, 'src/canon/work
 
 /** The change slugs that may own a pending surface (the design's Non-Goals list). */
 const KNOWN_OWNERS: ReadonlySet<string> = new Set([
-  'upstream-spellings',
   'passthrough-json-and-doctor',
   'validation-parity',
   'cli-surface-parity',

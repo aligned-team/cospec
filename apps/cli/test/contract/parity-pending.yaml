@@ -16,8 +16,6 @@
 # `source: cli` marks a hidden surface the four registry sources cannot
 # produce; the test verifies it against the pinned binary instead.
 
-# --- upstream-spellings ---------------------------------------------------------
-
 # --- cli-surface-parity -----------------------------------------------------------
 - { kind: flag, path: [list], flag: --sort, owner: cli-surface-parity }
 - { kind: flag, path: [status], flag: --schema, owner: cli-surface-parity }

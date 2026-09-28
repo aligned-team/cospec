@@ -26,7 +26,6 @@
 
 /** Every change slug that owns a pending surface. */
 export type PendingOwner =
-  | 'upstream-spellings'
   | 'passthrough-json-and-doctor'
   | 'validation-parity'
   | 'cli-surface-parity'
