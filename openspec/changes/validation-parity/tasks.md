@@ -88,7 +88,7 @@ trailer, never `--no-verify`).
 
 ## 7. Close-out
 
-- [ ] 7.1 Record evidence on every verification row: 5.4 (existing dedupe and
+- [x] 7.1 Record evidence on every verification row: 5.4 (existing dedupe and
       archive-parity suites green), 6.2, 7.1 (`owner: validation-parity` count 0
       before and after, reachability green) and 9.1 (`mise run check` exit 0).
       Commit `docs(validate): record validation-parity evidence`
