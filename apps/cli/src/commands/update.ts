@@ -16,7 +16,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { openspecDir } from '../core/change.ts'
@@ -430,7 +430,9 @@ const DRIFT_OUTCOMES = new Set<WriteResult['outcome']>([
 ])
 
 export function run(ctx: CommandContext): number {
-  const { cwd, flags, parsed } = ctx
+  const { flags, parsed } = ctx
+  // `update [path]`: the project the path names, as upstream's `update` takes it.
+  const cwd = resolve(ctx.cwd, parsed!.positionals[0] ?? '.')
   const check = hasFlag(parsed!, '--check')
   const force = hasFlag(parsed!, '--force')
 

@@ -230,46 +230,36 @@ describe('1.4 new change --initiative / --areas answer the removed-option messag
 })
 
 describe('1.5 update [path] updates the project it names', () => {
-  test.failing(
-    'update ./other regenerates under ./other and leaves the parent alone',
-    async () => {
-      const parent = mkTempRepo()
-      const other = join(parent, 'other')
-      mkdirSync(other)
-      const init = await cospec(['init', '--harness', 'claude', '--no-gate'], {
-        cwd: other,
-        env: oracleEnv(parent),
-      })
-      expect(init.exitCode, detail('cospec init', init)).toBe(0)
-      const edited = join(other, '.claude', 'skills', 'cospec-apply-change', 'SKILL.md')
-      const canonical = readFileSync(edited, 'utf8')
-      writeFileSync(edited, `${canonical}\nedited\n`)
-      const outside = (tree: Record<string, string>) =>
-        Object.fromEntries(Object.entries(tree).filter(([rel]) => !rel.startsWith('other/')))
-      const before = outside(treeHash(parent))
-      const c = await runCospec(['update', './other'], parent)
-      expect(c.exitCode, detail('cospec', c)).toBe(0)
-      expect(c.stdout).toContain('.claude/skills/cospec-apply-change/SKILL.md')
-      expect(readFileSync(`${edited}.cospec-new`, 'utf8')).toBe(canonical)
-      expect(outside(treeHash(parent))).toEqual(before)
-    },
-    60_000,
-  )
+  test('update ./other regenerates under ./other and leaves the parent alone', async () => {
+    const parent = mkTempRepo()
+    const other = join(parent, 'other')
+    mkdirSync(other)
+    const init = await cospec(['init', '--harness', 'claude', '--no-gate'], {
+      cwd: other,
+      env: oracleEnv(parent),
+    })
+    expect(init.exitCode, detail('cospec init', init)).toBe(0)
+    const edited = join(other, '.claude', 'skills', 'cospec-apply-change', 'SKILL.md')
+    const canonical = readFileSync(edited, 'utf8')
+    writeFileSync(edited, `${canonical}\nedited\n`)
+    const outside = (tree: Record<string, string>) =>
+      Object.fromEntries(Object.entries(tree).filter(([rel]) => !rel.startsWith('other/')))
+    const before = outside(treeHash(parent))
+    const c = await runCospec(['update', './other'], parent)
+    expect(c.exitCode, detail('cospec', c)).toBe(0)
+    expect(c.stdout).toContain('.claude/skills/cospec-apply-change/SKILL.md')
+    expect(readFileSync(`${edited}.cospec-new`, 'utf8')).toBe(canonical)
+    expect(outside(treeHash(parent))).toEqual(before)
+  }, 60_000)
 
-  test.failing(
-    'update ./missing names the missing path, and fails as the binary does',
-    async () => {
-      const coRoot = mkTempRepo()
-      const c = await runCospec(['update', './missing'], coRoot)
-      const u = await runUpstream(['update', './missing'], mkTempRepo())
-      expect(u.exitCode, detail('openspec', u)).toBe(1)
-      expect(c.exitCode, detail('cospec', c)).toBe(1)
-      expect(c.stderr).toContain(
-        `no openspec/ directory at ${join(realpathSync(coRoot), 'missing')}`,
-      )
-    },
-    30_000,
-  )
+  test('update ./missing names the missing path, and fails as the binary does', async () => {
+    const coRoot = mkTempRepo()
+    const c = await runCospec(['update', './missing'], coRoot)
+    const u = await runUpstream(['update', './missing'], mkTempRepo())
+    expect(u.exitCode, detail('openspec', u)).toBe(1)
+    expect(c.exitCode, detail('cospec', c)).toBe(1)
+    expect(c.stderr).toContain(`no openspec/ directory at ${join(realpathSync(coRoot), 'missing')}`)
+  }, 30_000)
 })
 
 describe('1.6 completion generate [shell] is upstream spelling of completion [shell]', () => {

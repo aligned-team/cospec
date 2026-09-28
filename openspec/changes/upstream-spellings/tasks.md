@@ -102,10 +102,10 @@ a time. Group 12 waits for the rebase in group 11.
 
 ## 7. T3 — `update [path]` (`apps/cli/src/commands/update.ts`; the `update` row's positional and its pending entry)
 
-- [ ] 7.1 Mark the positional handled, delete its pending entry, and run
+- [x] 7.1 Mark the positional handled, delete its pending entry, and run
       `update.ts` on `resolve(ctx.cwd, path)`; verify ledger 1.5 and the
       `update .` / `update --force .` differential rows pass
-- [ ] 7.2 Commit `fix(cli): update the project named by update's path`
+- [x] 7.2 Commit `fix(cli): update the project named by update's path`
 
 ## 8. T4 — `completion generate` (`apps/cli/src/commands/completion.ts`; the `completion` row, its alias line, pending entries and hidden fixture)
 

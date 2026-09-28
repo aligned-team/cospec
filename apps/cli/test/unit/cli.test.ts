@@ -237,9 +237,11 @@ describe('cli dispatcher: help renders from the command table', () => {
   test('pending subcommands and positionals stay out of help', async () => {
     const completion = await dispatch(['completion', '--help'])
     expect(completion.out).toContain('Usage: cospec completion [bash|zsh|fish] [options]')
-    expect(completion.out).not.toContain('Subcommands:')
+    expect(completion.out).not.toMatch(/^ {2}(?:install|uninstall)\b/m)
+    expect(completion.out).not.toContain('powershell')
+    // `update [path]` is handled (change `upstream-spellings`).
     const update = await dispatch(['update', '--help'])
-    expect(update.out).toContain('Usage: cospec update [options]')
+    expect(update.out).toContain('Usage: cospec update [path] [options]')
   })
 })
 

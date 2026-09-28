@@ -17,7 +17,6 @@
 # produce; the test verifies it against the pinned binary instead.
 
 # --- upstream-spellings ---------------------------------------------------------
-- { kind: positional, path: [update], index: 0, owner: upstream-spellings }
 - { kind: command, path: [completion, generate], owner: upstream-spellings }
 - { kind: flag, path: [instructions], flag: --schema, owner: upstream-spellings }
 # Commander's implicit program-level `help [command]` (`openspec help`,

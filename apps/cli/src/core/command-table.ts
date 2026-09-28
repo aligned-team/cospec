@@ -340,7 +340,11 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     json: 'accepted',
     store: 'refused',
     positionals: [
-      upstreamArg({ name: 'path', required: false, status: pending('upstream-spellings') }),
+      upstreamArg({
+        name: 'path',
+        required: false,
+        description: 'The project to update (default: the current directory)',
+      }),
     ],
     flags: [
       cospec({ name: '--check', description: 'Drift gate: exit nonzero on drift, write nothing' }),
