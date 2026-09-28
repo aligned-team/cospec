@@ -73,6 +73,19 @@ export function oracleEnv(root: string): Record<string, string> {
     // once and edit nothing, never open a real editor on the test machine.
     EDITOR: 'true',
     VISUAL: 'true',
+    // `HOME` above hides any real `~/.gitconfig`, so `store setup`'s initial
+    // commit (`git.js` `assertGitCommitIdentity`) falls back to Git's own
+    // username+hostname auto-detection. That fallback is host-dependent: it
+    // reads the OS user's GECOS full name and needs a hostname Git accepts as
+    // a mail domain, both of which a plain Linux CI runner account typically
+    // lacks (empty GECOS, a bare container hostname), where a macOS account
+    // usually has both — so the same row passes on a dev machine and fails
+    // with `store_git_identity_missing` in CI. Setting the identity directly
+    // makes every sandboxed run deterministic across hosts.
+    GIT_AUTHOR_NAME: 'cospec test',
+    GIT_AUTHOR_EMAIL: 'cospec-test@example.invalid',
+    GIT_COMMITTER_NAME: 'cospec test',
+    GIT_COMMITTER_EMAIL: 'cospec-test@example.invalid',
     ...dirs,
   }
 }
