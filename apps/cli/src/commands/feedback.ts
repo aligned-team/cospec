@@ -123,12 +123,10 @@ export interface ParsedFeedbackArgs {
  */
 export function feedbackArgs(parsed: ParsedArgs): ParsedFeedbackArgs {
   const upstream = hasFlag(parsed, '--upstream')
-  const message = parsed.positionals[0]
+  // Required in the table: the parser has refused a missing one, as
+  // commander's `missing required argument`. A blank one is feedback's own rule.
+  const message = parsed.positionals[0]!
   const body = flagValue(parsed, '--body')
-  // No message at all is commander's missing required argument, as upstream
-  // words it; a blank one is feedback's own rule.
-  if (message === undefined)
-    return { upstream, error: "cospec feedback: missing required argument 'message'" }
   if (message.trim().length === 0)
     return {
       upstream,

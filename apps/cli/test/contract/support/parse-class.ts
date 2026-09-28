@@ -38,6 +38,7 @@ export const REFUSAL_SHAPES: readonly RegExp[] = [
   /^cospec(?: [\w-]+(?: [\w-]+)?)?: unknown option '/m,
   /^cospec(?: [\w-]+(?: [\w-]+)?)?: option '.+' argument missing$/m,
   /^cospec [\w-]+(?: [\w-]+)?: too many arguments\./m,
+  /^cospec [\w-]+(?: [\w-]+)?: missing required argument '/m,
   /--store-path is not supported\./,
 ]
 

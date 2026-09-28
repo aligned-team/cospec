@@ -170,9 +170,55 @@ describe('parseCommandArgs — refusals', () => {
     )
   })
 
-  test('a missing required positional is left to the command', () => {
-    expect(parsed('archive', []).positionals).toEqual([])
+  test("a missing required positional is commander's missing required argument", () => {
+    expect(refused('archive', [])).toEqual({
+      kind: 'missing-argument',
+      command: 'archive',
+      argument: 'change',
+      message:
+        "cospec archive: missing required argument 'change'\ncospec archive: usage — cospec archive <change>\n",
+    })
+    const usage =
+      'cospec new: usage — cospec new <type> <slug> | cospec new "<type>: <description>"\n'
+    expect(refused('new', []).message).toBe(
+      `cospec new: missing required argument 'type'\n${usage}`,
+    )
+    expect(refused('new', ['feat']).message).toBe(
+      `cospec new: missing required argument 'slug'\n${usage}`,
+    )
+    expect(refused('feedback', ['--body', 'b']).message).toStartWith(
+      "cospec feedback: missing required argument 'message'\n",
+    )
+    // Every table row with a required positional refuses it given nothing.
+    for (const row of COMMAND_TABLE) {
+      if (row.parse !== 'table') continue
+      const first = row.positionals[0]
+      if (first?.required !== true) expect(parse(row.name, []).ok, row.name).toBe(true)
+      else expect(refused(row.name, []), row.name).toMatchObject({ argument: first.name })
+    }
+  })
+
+  test('a compound value fills the positionals after it', () => {
     expect(parsed('new', ['feat: add a thing']).positionals).toEqual(['feat: add a thing'])
+    expect(refused('new', ['feat: add a thing', '--store-path', '/x']).kind).toBe('store-path')
+  })
+
+  test('a missing argument outranks --store-path and too-many, and yields to an unknown option', () => {
+    for (const args of [
+      ['--store-path', '/x'],
+      ['feat', '--store-path', '/x'],
+    ])
+      expect(refused('new', args).kind).toBe('missing-argument')
+    expect(refused('archive', ['--store-path=/x']).kind).toBe('missing-argument')
+    expect(refused('new', ['feat', '--bogus', '--store-path', '/x']).kind).toBe('unknown-option')
+    expect(refused('apply', ['--store-path', '/x']).kind).toBe('unknown-option')
+    expect(refused('new', ['feat', '--store-path'])).toMatchObject({ kind: 'missing-value' })
+    // A positional that --change or --all displaces is never missing.
+    expect(parse('status', ['--change', 'c']).ok).toBe(true)
+  })
+
+  test('check-commit takes no message file as the advisory no-op it is', () => {
+    expect(parsed('check-commit', []).positionals).toEqual([])
   })
 
   test('`--` ends option parsing', () => {

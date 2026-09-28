@@ -58,10 +58,18 @@ export interface FlagSpec {
 export interface PositionalSpec {
   readonly name: string
   /**
-   * Display only (`<name>` vs `[name]`). The parser never enforces presence:
-   * each command reports its own missing-argument error.
+   * `<name>` vs `[name]`, and enforced: given nothing, a required positional
+   * is refused as commander's `missing required argument '<name>'`, after the
+   * scan's unknown options and before too many arguments or any action-level
+   * refusal (`--store-path`, a root check).
    */
   readonly required: boolean
+  /**
+   * A value holding `separator` also fills every positional after this one:
+   * `new "feat: add a thing"` is a type and, derived from its text, a slug.
+   * `label` spells that form in the usage.
+   */
+  readonly compound?: { readonly separator: string; readonly label: string }
   readonly description?: string
   readonly values?: readonly string[]
   /** Values a user may type that are owed by a later change (refused as pending). */
@@ -333,7 +341,12 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     store: 'accepted',
     declaresStorePath: true,
     positionals: [
-      cospecArg({ name: 'type', required: true, description: 'Conventional-commit type' }),
+      cospecArg({
+        name: 'type',
+        required: true,
+        description: 'Conventional-commit type',
+        compound: { separator: ':', label: '"<type>: <description>"' },
+      }),
       cospecArg({ name: 'slug', required: true, description: 'Kebab-case change id' }),
     ],
     flags: [
@@ -470,6 +483,8 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     json: 'accepted',
     store: 'accepted',
     declaresStorePath: true,
+    // Upstream's `instructions [artifact]` is optional (its action picks
+    // one); cospec requires it, so a missing artifact is refused at parse.
     positionals: [upstreamArg({ name: 'artifact', required: true })],
     flags: [
       upstream({
@@ -517,6 +532,9 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     json: 'accepted',
     store: 'accepted',
     declaresStorePath: true,
+    // Upstream's `archive [change-name]` is optional (it prompts, and without
+    // a TTY aborts with exit 0); cospec requires it, so a missing change is
+    // refused at parse, ahead of the `--store-path` redirect.
     positionals: [upstreamArg({ name: 'change', required: true })],
     flags: [
       upstream({
@@ -945,7 +963,9 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     parse: 'table',
     json: 'accepted',
     store: 'refused',
-    positionals: [cospecArg({ name: 'msg-file', required: true })],
+    // Optional: an advisory commit-msg hook never refuses, so with no message
+    // file it exits 0 and says nothing.
+    positionals: [cospecArg({ name: 'msg-file', required: false })],
     flags: [],
   },
 ]
@@ -1033,6 +1053,13 @@ export type ParseRefusal =
       readonly owner: PendingOwner
       readonly message: string
     }
+  /** `message` names the positional, then gives the command's usage. */
+  | {
+      readonly kind: 'missing-argument'
+      readonly command: string
+      readonly argument: string
+      readonly message: string
+    }
   | {
       readonly kind: 'too-many-arguments'
       readonly command: string
@@ -1109,6 +1136,49 @@ function pendingRefusal(command: string, surface: string, owner: PendingOwner): 
     surface,
     owner,
     message: `cospec ${command}: '${surface}' is not supported yet\n`,
+  }
+}
+
+/**
+ * The first required positional in `slots` that `values` leaves empty, as
+ * commander checks them in order; none once a compound value fills the rest.
+ */
+function missingPositional(
+  slots: readonly PositionalSpec[],
+  values: readonly string[],
+): PositionalSpec | undefined {
+  for (const [index, slot] of slots.entries()) {
+    const value = values[index]
+    if (value === undefined) {
+      if (slot.required) return slot
+      continue
+    }
+    if (slot.compound !== undefined && value.includes(slot.compound.separator)) return undefined
+  }
+  return undefined
+}
+
+/** `cospec new <type> <slug> | cospec new "<type>: <description>"`. */
+function usage(command: string, slots: readonly PositionalSpec[]): string {
+  const offered = slots.filter((slot) => !isPending(slot.status))
+  const forms = [offered.map(positionalLabel)]
+  for (const [index, slot] of offered.entries()) {
+    if (slot.compound !== undefined)
+      forms.push([...offered.slice(0, index).map(positionalLabel), slot.compound.label])
+  }
+  return forms.map((form) => [`cospec ${command}`, ...form].join(' ')).join(' | ')
+}
+
+function missingArgument(
+  command: string,
+  slot: PositionalSpec,
+  slots: readonly PositionalSpec[],
+): ParseRefusal {
+  return {
+    kind: 'missing-argument',
+    command,
+    argument: slot.name,
+    message: `cospec ${command}: missing required argument '${slot.name}'\ncospec ${command}: usage — ${usage(command, slots)}\n`,
   }
 }
 
@@ -1236,6 +1306,8 @@ function parseSurface(
   const slots = surface.positionals.filter(
     (p) => p.displacedBy?.some((name) => flags[name] !== undefined) !== true,
   )
+  const missing = missingPositional(slots, positionals)
+  if (missing !== undefined) return { ok: false, refusal: missingArgument(command, missing, slots) }
   for (const [index, value] of positionals.entries()) {
     const slot = slots[index]
     if (slot === undefined) {
@@ -1275,9 +1347,11 @@ function parseSurface(
  * message is the redirect); then the first undeclared option or pending flag
  * in argv order (a pending flag's value consumed first, so it can never leak
  * into a positional; `--store-path` on a row that does not declare it, as an
- * `unknown-option` whose message is the redirect); then too many positionals
- * or a pending positional; and only then a declared `--store-path`, whose
- * value is consumed like any other. Every refusal exits 1.
+ * `unknown-option` whose message is the redirect); then a required
+ * positional given nothing (commander's `missing required argument`, text
+ * under `--json` too); then too many positionals or a pending positional; and
+ * only then a declared `--store-path`, whose value is consumed like any
+ * other. Every refusal exits 1.
  */
 export function parseCommandArgs(row: TableCommandRow, args: readonly string[]): ParseResult {
   const first = args[0]

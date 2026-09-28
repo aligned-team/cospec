@@ -290,12 +290,8 @@ export async function run(ctx: CommandContext): Promise<number> {
   const parsed = ctx.parsed!
   const userSkipSpecs = hasFlag(parsed, '--skip-specs')
   const forceIncomplete = hasFlag(parsed, '--force-incomplete')
-  const name = parsed.positionals[0]
-
-  if (name === undefined) {
-    process.stderr.write('cospec archive: a change name is required (cospec archive <change>)\n')
-    return EXIT.failure
-  }
+  // Required in the table: the parser has refused a missing one.
+  const name = parsed.positionals[0]!
 
   // Step 1: resolve change + schema (legacy still archives; step 2 delegates).
   const change = resolveChange(base, name)

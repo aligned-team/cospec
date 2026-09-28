@@ -298,28 +298,6 @@ describe('new: validation before delegation', () => {
       expect(r.out, args.join(' ')).toBe(doc(message))
     }
   })
-
-  test('a missing slug outside an openspec/ tree is the usage refusal, not the root one', async () => {
-    const bare = mkdtempSync(join(tmpdir(), 'cospec-noinit-'))
-    roots.push(bare)
-    for (const json of [false, true]) {
-      for (const args of [[], ['feat']]) {
-        // oxlint-disable-next-line no-await-in-loop -- each run writes the shared process streams
-        const r = await runCmd(newIn, ctx(bare, args, { command: 'new', json }))
-        expect(r.code).toBe(1)
-        expect(r.out).toBe('')
-        expect(r.err).toStartWith('cospec new: usage — cospec new <type> <slug>')
-        expect(r.err).not.toContain('no openspec/ directory')
-      }
-    }
-  })
-
-  test('a missing slug stays a text usage refusal under --json', async () => {
-    const r = await runCmd(newIn, ctx(repo(), ['feat'], { command: 'new', json: true }))
-    expect(r.code).toBe(1)
-    expect(r.out).toBe('')
-    expect(r.err).toContain('cospec new: usage — cospec new <type> <slug>')
-  })
 })
 
 describe('status', () => {
@@ -654,11 +632,17 @@ describe('list', () => {
 })
 
 describe('instructions: argument handling', () => {
-  test('missing artifact exits 1', async () => {
-    const cwd = repo()
-    const r = await runCmd(instructionsRun, ctx(cwd, [], { command: 'instructions' }))
-    expect(r.code).toBe(1)
-    expect(r.err).toContain('an artifact is required')
+  test('a missing artifact is refused by the table parser', () => {
+    const row = commandRow('instructions')
+    if (row?.parse !== 'table') throw new Error("no table row 'instructions'")
+    for (const args of [[], ['--change', 'x']]) {
+      const result = parseCommandArgs(row, args)
+      expect(result.ok, args.join(' ')).toBe(false)
+      if (!result.ok)
+        expect(result.refusal.message).toBe(
+          "cospec instructions: missing required argument 'artifact'\ncospec instructions: usage — cospec instructions <artifact>\n",
+        )
+    }
   })
 
   test('non-apply artifact without --change exits 1', async () => {

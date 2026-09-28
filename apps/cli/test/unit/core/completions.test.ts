@@ -182,8 +182,10 @@ describe('three-way parity: --help flags == completion flags == parser-accepted 
 
   for (const row of tableRows) {
     test(`${row.name}: the parser accepts every offered flag and refuses every pending one`, () => {
+      // Each required positional filled, so a refusal can only be the flag's.
+      const required = row.positionals.filter((p) => p.required).map(() => 'x')
       for (const flag of offeredFlags(row)) {
-        const args = flag.takesValue === true ? [flag.name, 'x'] : [flag.name]
+        const args = [...required, ...(flag.takesValue === true ? [flag.name, 'x'] : [flag.name])]
         const result = parseCommandArgs(row, args)
         expect(result.ok).toBe(true)
       }

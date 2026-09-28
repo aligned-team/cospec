@@ -287,12 +287,8 @@ export async function run(ctx: CommandContext): Promise<number> {
   // fast validation first, so that ERROR blocks the gate before this flag
   // ever gets a chance to paper over it.
   const cliSkipSpecs = hasFlag(parsedArgs, '--skip-specs')
-  const name = parsedArgs.positionals[0]
-
-  if (name === undefined) {
-    process.stderr.write('cospec apply: a change name is required (cospec apply <change>)\n')
-    return EXIT.failure
-  }
+  // Required in the table: the parser has refused a missing one.
+  const name = parsedArgs.positionals[0]!
 
   if (!existsSync(openspecDir(base))) {
     process.stderr.write(`cospec: no openspec/ directory at ${base} — run 'cospec init' first\n`)

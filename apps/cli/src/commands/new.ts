@@ -70,9 +70,9 @@ function typeTableText(): string {
  * One of `new`'s own refusals: `cospec new: <message>` on stderr, or for a
  * `--json` caller one document on stdout in the shape the wrapped
  * `new change --json` gives every failure of its own (unknown schema, existing
- * change, invalid name, unparseable schema), nothing on stderr. A missing slug
- * is not one: like the binary's commander `missing required argument`, it is
- * a parse-class refusal, text in both modes.
+ * change, invalid name, unparseable schema), nothing on stderr. A missing type
+ * or slug is not one: the table parser refuses it as commander's
+ * `missing required argument`, text in both modes.
  */
 function refuse(message: string, json: boolean): number {
   if (json) {
@@ -181,18 +181,10 @@ export async function run(ctx: CommandContext, user: UserSchemaHome = {}): Promi
   const { flags } = ctx
   const parsed = ctx.parsed!
   const positionals = parsed.positionals
-  const freeForm = positionals.length === 1 && positionals[0]!.includes(':')
-
-  // A missing slug is the binary's commander `missing required argument`,
-  // which it reports while parsing, before its action resolves a root: text in
-  // both modes, ahead of every other refusal.
-  if (!freeForm && positionals.length < 2) {
-    process.stderr.write(
-      'cospec new: usage — cospec new <type> <slug> | cospec new "<type>: <description>"\n',
-    )
-    process.stderr.write(typeTableText())
-    return EXIT.failure
-  }
+  // The table parser has refused a missing type or slug (commander's
+  // `missing required argument`, ahead of every refusal here); one positional
+  // is the compound `"<type>: <description>"` form.
+  const freeForm = positionals.length === 1
 
   const root = await resolveRoot(ctx)
   const base = root.base

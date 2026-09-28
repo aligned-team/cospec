@@ -8,8 +8,9 @@
 // unregistered store, or an unparseable wrapped payload all look the same:
 // no suggestions. The whole payload is built before anything is written, so a
 // late failure can never leave half a list on stdout. (Parse-time refusals from
-// the command table — an unknown option, or upstream's `schemas` /
-// `archived-changes` sources, still pending — do reach stderr; the generated
+// the command table — an unknown option, a missing source (commander's
+// `missing required argument`, as upstream prints it), or upstream's `schemas`
+// / `archived-changes` sources, still pending — do reach stderr; the generated
 // scripts call this with `2>/dev/null`, and never with those tokens.)
 
 import type { CommandContext } from '../cli.ts'
@@ -73,8 +74,9 @@ async function specItems(ctx: CommandContext): Promise<{ id: string; description
 }
 
 export async function run(ctx: CommandContext): Promise<number> {
-  const source = ctx.parsed!.positionals[0]
-  if (source === undefined || !isCompleteSource(source)) return EXIT.failure
+  // Required in the table: the parser has refused a missing one.
+  const source = ctx.parsed!.positionals[0]!
+  if (!isCompleteSource(source)) return EXIT.failure
   try {
     const items =
       source === 'types'

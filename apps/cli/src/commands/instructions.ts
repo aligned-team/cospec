@@ -12,34 +12,17 @@ import { relayRespelled } from '../core/forward-relay.ts'
 import { callPassthrough } from '../core/passthrough-command.ts'
 import { run as applyRun } from './apply.ts'
 
-// `archive` (OpenSpec 1.7 parity) is deliberately NOT aliased to `cospec
-// archive` the way `apply` is aliased to the apply gate: upstream's
-// `instructions archive` is read-only guidance, so it falls through to the
-// generic passthrough branch below like every other artifact id.
-const ARTIFACTS = [
-  'proposal',
-  'blocking-changes',
-  'specs',
-  'design',
-  'verification',
-  'tasks',
-  'apply',
-  'archive',
-]
-
 export async function run(ctx: CommandContext): Promise<number> {
   const parsed = ctx.parsed!
-  const artifact = parsed.positionals[0]
+  // Required in the table: the parser has refused a missing one.
+  const artifact = parsed.positionals[0]!
   const changeId = flagValue(parsed, '--change')
 
-  if (artifact === undefined) {
-    process.stderr.write(
-      `cospec instructions: an artifact is required (one of: ${ARTIFACTS.join(', ')})\n`,
-    )
-    return EXIT.failure
-  }
-
   // `instructions apply` is the apply gate under a different spelling.
+  // `archive` (OpenSpec 1.7 parity) is deliberately NOT aliased to `cospec
+  // archive`: upstream's `instructions archive` is read-only guidance, so it
+  // falls through to the generic passthrough branch below like every other
+  // artifact id.
   // apply.ts reads `ctx.parsed`, so re-parse against apply's own row rather
   // than spreading this command's `parsed` (its positional is `'apply'`, not
   // the change id, which apply.ts would otherwise resolve as the change name).

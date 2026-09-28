@@ -49,12 +49,8 @@ function migrateJson(
 export async function run(ctx: CommandContext): Promise<number> {
   const root = await resolveRoot(ctx)
   const base = root.base
-  const slug = ctx.parsed!.positionals[0]
-
-  if (slug === undefined) {
-    process.stderr.write('cospec migrate: a change name is required (cospec migrate <slug>)\n')
-    return EXIT.failure
-  }
+  // Required in the table: the parser has refused a missing one.
+  const slug = ctx.parsed!.positionals[0]!
 
   const change = resolveChange(base, slug)
   if (change === undefined) {
