@@ -139,7 +139,7 @@ a time. Group 12 waits for the rebase in group 11.
 
 ## 11. Rebase onto `root-resolution-parity`
 
-- [ ] 11.1 Once `root-resolution-parity` has merged, rebase this branch onto
+- [x] 11.1 Once `root-resolution-parity` has merged, rebase this branch onto
       `main` (`git rebase`, push with `--force-with-lease`), resolve conflicts
       in the registries row by row, and verify `mise run check` is green and the
       shared structural respell helper is exported from
