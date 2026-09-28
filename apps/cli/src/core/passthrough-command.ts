@@ -24,7 +24,7 @@ import {
   type OpenspecResult,
   type RunExpectation,
 } from './openspec.ts'
-import { respellWholeRemedy } from './remedies.ts'
+import { respellWhole, respellWholeRemedy } from './remedies.ts'
 import { resolveRoot, RootSelectionError, type ResolvedRoot } from './root.ts'
 
 export interface PassthroughCommandOptions {
@@ -195,8 +195,11 @@ export async function runPassthrough(
 /**
  * A string field of a relayed `--json` document that holds a command for the
  * user to run: its path of keys, `'[]'` stepping into every element of an
- * array (`['references', '[]', 'fetch']`), and the fixed text upstream prints
- * ahead of the command in that field, if any (`Run: ` in a reference's `fix`).
+ * array (`['references', '[]', 'fetch']`), and either the fixed text upstream
+ * prints ahead of the command in that field, if any (`Run: ` in a reference's
+ * `fix`), or the allowlist entries (`core/remedies.ts` ids) the field's whole
+ * value can be — the stricter rule: the field is spelled only when its whole
+ * value is one of them, holes filled, and `lead` is not read.
  */
 export interface CommandField {
   readonly path: readonly string[]
@@ -210,18 +213,28 @@ export interface CommandField {
    * spelled while a value with any text around the remedy stays as written.
    */
   readonly rule?: 'leading' | 'remedy'
+  /**
+   * The allowlist entries (`core/remedies.ts` ids) this field's whole value
+   * can be — stricter than `rule: 'remedy'`: the field is spelled only when
+   * its whole value is one of these named entries (`respellWhole`), holes
+   * filled, and neither `lead` nor `rule` is read.
+   */
+  readonly remedies?: readonly string[]
 }
 
 const OPENSPEC_COMMAND = 'openspec '
 const COSPEC_COMMAND = 'cospec '
 
 /**
- * `doc` with each field `fields` names that starts with its `lead` and then
- * `openspec ` spelled `cospec ` — that one token in command position and
- * nothing else, so the ids, paths and names after it (a store called
+ * `doc` with each field `fields` names spelled through cospec: a field with
+ * `remedies` only when its whole value is one of those named allowlist
+ * entries (`respellWhole`, the entry's holes re-emitted unread); a
+ * `remedy`-rule field only when its whole value is one allowlisted remedy,
+ * any entry (`respellWholeRemedy`); any other field when it starts with its
+ * `lead` and then `openspec `, that one token in command position and nothing
+ * else. Either way the ids, paths and names in a field (a store called
  * `openspec-team`) and every field `fields` does not name pass through
- * byte-for-byte; or, for a `remedy` field, the field's whole value spelled
- * through the allowlist when it is one remedy. The rule reads the document's structure, never its rendered
+ * byte-for-byte. The rule reads the document's structure, never its rendered
  * text, so nothing a user owns can stand in for a command. Returns a new
  * document; `doc` is left as it was. A relay renders its text, human or
  * `--json` (`renderJsonDocument`), from the result.
@@ -232,13 +245,15 @@ export function respellCommandFields<T>(doc: T, fields: readonly CommandField[])
   return out
 }
 
+/** A field's rule: its named remedies, else the generic remedy rule, else its leading command. */
 function spelling(field: CommandField): (value: string) => string {
+  const { remedies } = field
+  if (remedies !== undefined) return (value) => respellWhole(value, remedies)
   if (field.rule === 'remedy') return respellWholeRemedy
-  const command = (field.lead ?? '') + OPENSPEC_COMMAND
+  const lead = field.lead ?? ''
+  const command = lead + OPENSPEC_COMMAND
   return (value) =>
-    value.startsWith(command)
-      ? (field.lead ?? '') + COSPEC_COMMAND + value.slice(command.length)
-      : value
+    value.startsWith(command) ? lead + COSPEC_COMMAND + value.slice(command.length) : value
 }
 
 function respellAt(node: unknown, path: readonly string[], spell: (value: string) => string): void {

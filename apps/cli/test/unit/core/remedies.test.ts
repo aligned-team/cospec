@@ -6,6 +6,7 @@ import {
   respellLines,
   respellRemedies,
   respellSchemaLines,
+  respellWhole,
   respellWholeRemedy,
   SCHEMA_LINES,
 } from '../../../src/core/remedies.ts'
@@ -186,5 +187,45 @@ describe('respellLines: whole lines only', () => {
 
   test('an id the allowlist does not hold is a programming error', () => {
     expect(() => respellLines('x\n', ['no/such-id'])).toThrow("no allowlist entry 'no/such-id'")
+  })
+})
+
+describe('respellWhole: a whole value only', () => {
+  const IDS = [
+    'references/fetch',
+    'references/clone',
+    'references/get-checkout',
+    'references/store-doctor-id',
+    'references/store-doctor',
+    'references/list-rest',
+  ]
+
+  for (const id of IDS) {
+    const remedy = REMEDIES.find((r) => r.id === id)!
+    const upstream = fill(remedy.upstream, SAMPLE)
+    const cospec = fill(cospecOf(remedy), SAMPLE_SPELLED)
+    test(`${id}: the whole value`, () => {
+      expect(respellWhole(upstream, IDS)).toBe(cospec)
+    })
+
+    test(`${id}: never a value that only contains it`, () => {
+      for (const value of [`x ${upstream}`, `${upstream} x`, `${upstream}\n`])
+        expect(respellWhole(value, [id])).toBe(value)
+    })
+  }
+
+  test('a remedy the caller does not name stays as it is', () => {
+    const value = 'Run: openspec store doctor st1'
+    expect(respellWhole(value, ['references/fetch'])).toBe(value)
+  })
+
+  test("the holes are re-emitted unread: a store id holding 'openspec'", () => {
+    expect(respellWhole('openspec show <spec-id> --type spec --store openspec-x', IDS)).toBe(
+      'cospec show <spec-id> --type spec --store openspec-x',
+    )
+  })
+
+  test('an id the allowlist does not hold is a programming error', () => {
+    expect(() => respellWhole('x', ['no/such-id'])).toThrow("no allowlist entry 'no/such-id'")
   })
 })

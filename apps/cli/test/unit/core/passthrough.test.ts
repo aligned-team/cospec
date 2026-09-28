@@ -541,6 +541,41 @@ describe('respellCommandFields (structural respell of a relayed document)', () =
     })
   })
 
+  describe('a field with remedies: only a whole allowlisted value', () => {
+    const fixes = { path: ['status', '[]', 'fix'], remedies: ['references/store-doctor-id'] }
+
+    test('spells a value that is the named remedy, its id unread', () => {
+      expect(
+        respellCommandFields({ status: [{ fix: 'Run: openspec store doctor openspec-x' }] }, [
+          fixes,
+        ]),
+      ).toEqual({ status: [{ fix: 'Run: cospec store doctor openspec-x' }] })
+    })
+
+    for (const fix of [
+      // Contains the remedy, or starts like it: not the whole value.
+      'Run: openspec store doctor st1 and more',
+      'Note: Run: openspec store doctor st1',
+      // A remedy the field does not name.
+      'Run: openspec store doctor',
+      // The leading-token rule would spell this; the whole-value rule does not.
+      'openspec show x',
+    ])
+      test(`leaves ${JSON.stringify(fix)} as it is`, () => {
+        expect(respellCommandFields({ status: [{ fix }] }, [fixes])).toEqual({
+          status: [{ fix }],
+        })
+      })
+
+    test('reads no lead beside remedies', () => {
+      expect(
+        respellCommandFields({ fix: 'Run: openspec store doctor x' }, [
+          { path: ['fix'], lead: 'Run: ', remedies: ['references/fetch'] },
+        ]),
+      ).toEqual({ fix: 'Run: openspec store doctor x' })
+    })
+  })
+
   test('renderJsonDocument renders two-space JSON and a newline', () => {
     expect(renderJsonDocument({ a: [1] })).toBe('{\n  "a": [\n    1\n  ]\n}\n')
   })

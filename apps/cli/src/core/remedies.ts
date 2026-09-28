@@ -646,11 +646,7 @@ export function respellRemedies(text: string): string {
  * relayed as the binary wrote it.
  */
 export function respellLines(text: string, ids: readonly string[]): string {
-  const rules = ids.map((id) => {
-    const remedy = REMEDIES.find((r) => r.id === id)
-    if (remedy === undefined) throw new Error(`respellLines: no allowlist entry '${id}'`)
-    return { rule: compile(remedy), whole: new RegExp(`^${body(remedy.upstream, 'text', true)}$`) }
-  })
+  const rules = ids.map((id) => wholeRule(id, 'respellLines'))
   return text
     .split('\n')
     .map((line) => {
@@ -660,4 +656,26 @@ export function respellLines(text: string, ids: readonly string[]): string {
       return `${indent}${content!.replace(match.whole, replacement(match.rule, 'text'))}${cr}`
     })
     .join('\n')
+}
+
+/** One allowlist entry matched as a whole value, its holes filled. */
+function wholeRule(id: string, caller: string): { rule: Compiled; whole: RegExp } {
+  const remedy = REMEDIES.find((r) => r.id === id)
+  if (remedy === undefined) throw new Error(`${caller}: no allowlist entry '${id}'`)
+  return { rule: compile(remedy), whole: new RegExp(`^${body(remedy.upstream, 'text', true)}$`) }
+}
+
+/**
+ * `value` spelled through cospec when the whole of it is one of the named
+ * allowlist entries, its holes filled; otherwise `value` unchanged. For one
+ * field of a parsed document (`respellCommandFields`): a value that merely
+ * contains a remedy, or reads like one it does not name, is the binary's (or
+ * the user's) byte for byte.
+ */
+export function respellWhole(value: string, ids: readonly string[]): string {
+  for (const id of ids) {
+    const { rule, whole } = wholeRule(id, 'respellWhole')
+    if (whole.test(value)) return value.replace(whole, replacement(rule, 'text'))
+  }
+  return value
 }
