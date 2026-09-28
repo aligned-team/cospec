@@ -160,7 +160,26 @@ pass `--json`.
 A resolution failure exits `1` with a message and, where there is something to
 suggest, a `Fix:` line (both name `cospec`, never `openspec`) — the same as any
 other unhandled failure; see the tip below for how this differs from a gate
-result.
+result. Under `--json` the same failure is one document on stdout and nothing on
+stderr, the diagnostic in OpenSpec's `status` envelope (no `fix` key when there
+is nothing to suggest):
+
+```json
+{
+  "status": [
+    {
+      "severity": "error",
+      "code": "invalid_store_id",
+      "message": "Store id must not be empty",
+      "target": "store.id",
+      "fix": "Use kebab-case with lowercase letters, numbers, and single hyphen separators."
+    }
+  ]
+}
+```
+
+OpenSpec also prints each command's empty payload in that document
+(`"changes": []`, `"root": null` for `list`); cospec prints the envelope alone.
 
 | code                             | when                                                                    |
 | -------------------------------- | ----------------------------------------------------------------------- |

@@ -872,7 +872,8 @@ describe('unknown-option differential: --store/--cwd refuse a missing or empty v
   }, 30_000)
 
   // Upstream answers an empty store id after parsing (`Store id must not be
-  // empty`), so neither run is parse-rejected; both still exit 1 before any work.
+  // empty`), so neither run is parse-rejected; both still exit 1 before any
+  // work, with the same message and Fix line.
   for (const argv of [
     ['list', '--store='],
     ['list', '--store', ''],
@@ -885,7 +886,8 @@ describe('unknown-option differential: --store/--cwd refuse a missing or empty v
       expect(up.exitCode, up.stderr).toBe(1)
       expect(up.stderr).toContain('Store id must not be empty')
       expect(co.exitCode, co.stderr).toBe(1)
-      expect(co.stderr).toBe("cospec list: option '--store <id>' argument must not be empty\n")
+      // The resolver refuses it as upstream's does (root-resolution-parity 5.5).
+      expect(co.stderr).toBe(up.stderr.replace(/^(?:✖ )?Error: /, 'cospec: '))
       expect(co.stdout).toBe('')
       expect(treeHash(root)).toEqual(before)
     }, 30_000)

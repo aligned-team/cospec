@@ -23,9 +23,14 @@ the table.
 
 `--cwd` and `--store` need a value: given none, they're refused with
 `cospec <command>: option '--store <id>' argument missing` (or
-`'--cwd <path>'`), and given an empty one (`--store=`) with
-`… argument must not be empty`, exit `1` — the command never falls back to the
-local repo.
+`'--cwd <path>'`), exit `1`. An empty `--cwd=` is refused with
+`… argument must not be empty`, and so is an empty `--store=` on `store`,
+`workset` and `config`. On every command that selects its root through
+`--store`, an empty `--store=` is refused as OpenSpec refuses it —
+`cospec: Store id must not be empty` and its `Fix:` line, or the
+`invalid_store_id` document under `--json` (see
+[Stores](/concepts/stores#resolution-order)). Either way the exit is `1` and the
+command never falls back to the local repo.
 
 `--store` applies only where a command reads its root through it. `init`,
 `update`, `completion` and `feedback` never do — upstream refuses `--store` on

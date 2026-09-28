@@ -1474,11 +1474,14 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
     cospecOnly: { outcome: 'parsed', exit: 1 },
     cospecStderr: "cospec: option '--store <id>' argument must not be empty\n",
   },
+  // The empty id reaches the resolver on a root-selecting row (ledger 5.5).
   {
     argv: ['--store=', 'list'],
     command: 'list',
     cospecOnly: { outcome: 'parsed', exit: 1 },
-    cospecStderr: "cospec list: option '--store <id>' argument must not be empty\n",
+    cospecStderr:
+      'cospec: Store id must not be empty\n' +
+      'Fix: Use kebab-case with lowercase letters, numbers, and single hyphen separators.\n',
   },
   // `--store` takes the next token whatever it is, so no command is left.
   { argv: ['--store', 'list'], command: 'list', cospecOnly: { outcome: 'help:root', exit: 0 } },

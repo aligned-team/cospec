@@ -1156,3 +1156,41 @@ describe('a resolver hard-error under --json is one status document (ledger 5.4)
     expect(res.stderr).toContain('\nFix: ')
   })
 })
+
+// --- Ledger 5.5: an empty --store= is the resolver's invalid_store_id ---
+
+describe('an empty --store= fails with invalid_store_id (ledger 5.5)', () => {
+  test('--json: status[0] deep-equals the oracle', async () => {
+    const sb = await makeSandbox()
+    const cwd = bare(sb)
+    const o = await oracle(sb, cwd, ['list', '--json', '--store='])
+    expect(o.exitCode).toBe(1)
+    expect(o.diagnostic).toEqual({
+      severity: 'error',
+      code: 'invalid_store_id',
+      message: 'Store id must not be empty',
+      target: 'store.id',
+      fix: 'Use kebab-case with lowercase letters, numbers, and single hyphen separators.',
+    })
+    const res = await cospec(['list', '--json', '--store='], { cwd, env: sb.env })
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toBe('')
+    const doc = JSON.parse(res.stdout) as { status: OracleDiagnostic[] }
+    expect(doc).toEqual({ status: [o.diagnostic!] })
+  })
+
+  test('human mode: the oracle text after cospec:', async () => {
+    const sb = await makeSandbox()
+    const cwd = bare(sb)
+    const up = await openspec(['list', '--store='], cwd, sb.env)
+    expect(up.exitCode).toBe(1)
+    const res = await cospec(['list', '--store='], { cwd, env: sb.env })
+    expect(res.exitCode).toBe(1)
+    expect(res.stdout).toBe('')
+    expect(res.stderr).toBe(
+      'cospec: Store id must not be empty\n' +
+        'Fix: Use kebab-case with lowercase letters, numbers, and single hyphen separators.\n',
+    )
+    expect(res.stderr).toBe(up.stderr.replace(/^(?:✖ )?Error: /, 'cospec: '))
+  })
+})

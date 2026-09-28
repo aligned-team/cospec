@@ -144,6 +144,12 @@ export type TableCommandRow = RowBase & {
 
 export interface ForwardCommandRow extends RowBase {
   readonly parse: 'forward'
+  /**
+   * `accepted` when the command selects its root through the global
+   * `--store <id>` (`show`, `schemas`, `templates`, `schema`). Unset where
+   * it takes no root (`store`, `workset`, `config`).
+   */
+  readonly store?: 'accepted'
 }
 
 export type CommandRow = TableCommandRow | ForwardCommandRow
@@ -699,6 +705,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     summary: 'Show a change or spec (text or JSON)',
     hidden: false,
     parse: 'forward',
+    store: 'accepted',
     declaresStorePath: true,
     positionals: [upstreamArg({ name: 'item', required: true })],
     flags: [
@@ -756,6 +763,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     summary: 'List resolvable schemas',
     hidden: false,
     parse: 'forward',
+    store: 'accepted',
     declaresStorePath: true,
     positionals: [],
     flags: [],
@@ -765,6 +773,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     summary: 'Inspect a schema (which/validate)',
     hidden: false,
     parse: 'forward',
+    store: 'accepted',
     positionals: [],
     flags: [],
     subcommands: [
@@ -815,6 +824,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     summary: 'List per-artifact template paths',
     hidden: false,
     parse: 'forward',
+    store: 'accepted',
     positionals: [],
     flags: [
       upstream({

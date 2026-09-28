@@ -288,6 +288,8 @@ interface GlobalState {
   missing?: GlobalValueFlag
   /** The first `--cwd`/`--store` given an empty value (`--store=`, `--cwd ''`). */
   empty?: GlobalValueFlag
+  /** Some `--cwd` was given an empty value (never a root, on any row). */
+  emptyCwd?: true
 }
 
 type GlobalValueFlag = '--cwd' | '--store'
@@ -311,8 +313,13 @@ function takeGlobalValue(tokens: readonly string[], i: number, state: GlobalStat
   const last = eq === -1 ? i + 1 : i
   const value = eq === -1 ? tokens[last] : tok.slice(eq + 1)
   if (value === undefined) state.missing ??= flag
-  else if (value.length === 0) state.empty ??= flag
-  else if (flag === '--cwd') state.cwdRaw = value
+  else if (value.length === 0) {
+    state.empty ??= flag
+    // An empty store id is still the value a root-selecting row resolves
+    // (the resolver refuses it, as upstream's does), and the last one wins.
+    if (flag === '--cwd') state.emptyCwd = true
+    else state.storeRaw = value
+  } else if (flag === '--cwd') state.cwdRaw = value
   else state.storeRaw = value
   return last
 }
@@ -611,7 +618,14 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
     }
   }
 
-  if (state.empty !== undefined) return valueRefusal(row.name, state.empty, true)
+  // An empty `--store` on a row that selects its root through it reaches the
+  // resolver, which refuses it with upstream's `invalid_store_id` (text, or the
+  // `--json` document); every other empty value is refused here.
+  if (state.empty !== undefined) {
+    const storeRow = row.store === 'accepted'
+    if (!storeRow || state.emptyCwd === true)
+      return valueRefusal(row.name, storeRow ? '--cwd' : state.empty, true)
+  }
 
   const loadModule = COMMAND_MODULES[row.name]
   if (loadModule === undefined) {
