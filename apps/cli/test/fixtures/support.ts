@@ -163,6 +163,47 @@ export function mkTempRepo(opts: { fixture?: FixtureName; git?: boolean } = {}):
   return dir
 }
 
+/**
+ * Env pointing openspec's machine-global state (the store registry under
+ * `XDG_DATA_HOME`, the global config under `XDG_CONFIG_HOME`) at fresh empty
+ * dirs. Root selection hard-fails when stores are registered and no root
+ * exists, so a test of the rootless path must never see stores registered on
+ * the machine running it. Registered for `cleanupAll()`.
+ */
+export function emptyMachineStateEnv(): Record<string, string> {
+  const dir = mkdtempSync(join(tmpdir(), 'cospec-machine-'))
+  activeDirs.add(dir)
+  return machineStateEnv(dir)
+}
+
+function machineStateEnv(dir: string): Record<string, string> {
+  return { XDG_DATA_HOME: join(dir, 'data'), XDG_CONFIG_HOME: join(dir, 'config') }
+}
+
+/**
+ * Run an in-process `fn` with the `emptyMachineStateEnv()` vars applied to
+ * `process.env` (wrapped spawns read it at spawn time), restoring the env and
+ * removing the dirs after.
+ */
+export async function withEmptyMachineState<T>(fn: () => Promise<T>): Promise<T> {
+  const dir = mkdtempSync(join(tmpdir(), 'cospec-machine-'))
+  const env = machineStateEnv(dir)
+  const previous = new Map<string, string | undefined>()
+  for (const [key, value] of Object.entries(env)) {
+    previous.set(key, process.env[key])
+    process.env[key] = value
+  }
+  try {
+    return await fn()
+  } finally {
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
 /** Copy a checked-in fixture tree into `dest` (contents merged, not nested). */
 export function copyFixture(name: FixtureName, dest: string): void {
   mkdirSync(dest, { recursive: true })

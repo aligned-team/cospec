@@ -201,7 +201,13 @@ successful answer cospec relays untouched, with the roadmap PR that owns its
 spelling. `remedy-enumeration.test.ts` enforces this against the pinned dist, so
 a pin bump fails until each new line is classified. Never respell with a pattern
 over free text (a lead-in word, a quote, a backtick): a path, a name or a
-schema's own text must pass through byte-for-byte.
+schema's own text must pass through byte-for-byte. A successful answer's
+commands are respelled from structure instead: in a parsed `--json` document
+through `respellCommandFields` (`core/passthrough-command.ts` — a field path and
+the fixed lead before the command, rewriting only a leading `openspec` token,
+then rendering text from the result), or, where upstream has no such field, on a
+fixed line only the binary writes, found by its position in the binary's output
+and spelled through the allowlist (`schema init`'s last next step).
 
 **Wrapped-call discipline** — every call into the wrapped binary declares its
 expected exit codes, a stdout deny-list, and an observable post-condition. Trust

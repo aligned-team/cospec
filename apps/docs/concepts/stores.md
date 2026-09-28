@@ -97,27 +97,141 @@ The full key reference for `openspec/config.yaml` lives on
 
 ## Resolution order
 
-Each command resolves exactly one operating root, mirroring OpenSpec's own
-precedence:
+Each command resolves exactly one operating root — a qualifying-ancestor walk
+ported from OpenSpec's own resolver, so cospec and bare `openspec` agree on
+which root a command targets from any directory:
 
-1. an explicit `--store <id>` flag;
-2. else a `store:` pointer in the local `openspec/config.yaml`;
-3. else the local repo at the current directory, if `openspec/` exists there;
-4. else, as a **fallback**, the machine-global `defaultStore`
-   (`openspec config get defaultStore` — a raw value on stdout, no `--json`,
-   exit `1` when unset).
+1. an explicit `--store <id>` flag selects that store outright;
+2. else cospec walks upward from the canonical current directory looking for the
+   nearest `openspec/` that qualifies: either a **planning shape**
+   (`openspec/specs/` or `openspec/changes/` existing as a directory, not a
+   store checkout's own metadata) or, failing that, a config file
+   (`openspec/config.yaml`, else `openspec/config.yml`). A bare `openspec/` with
+   neither is skipped and the walk keeps going upward — this is what stops a
+   `~/openspec/<id>` store layout from making your home directory a phantom
+   root;
+3. at the qualifying ancestor, a **planning root always wins**. A `store:`
+   pointer sitting inside a real planning root is ignored — with a one-time
+   stderr warning naming the config file and the ignored id (except on
+   `templates` and `schema`, below) — because a real root is never redirected
+   out from under itself. Only a **config-only** `openspec/` (a config file with
+   no planning shape) follows its `store:` pointer;
+4. else, once the walk finds no qualifying ancestor at all, the machine-global
+   `defaultStore` is consulted as the last fallback. cospec reads it as
+   `openspec` does, from the global config file `cospec config path` names: the
+   JSON value exactly as written, so `" beta "`, `"beta\n"` or `["beta"]` fail
+   the same way they fail there. An empty string, `false`, a root that isn't an
+   object, and a config file that can't be read or parsed at all (a directory,
+   no read permission, not JSON) count as unset, as they do for `openspec`; a
+   file that isn't JSON also prints `openspec`'s own
+   `Warning: Invalid JSON in <path>, using defaults` on stderr, once (except on
+   `templates` and `schema`, below);
+5. else, with any stores registered, cospec hard-errors naming them
+   (`no_root_with_registered_stores`) rather than silently falling back to an
+   empty cwd; with none registered, the cwd is an **implicit** root and each
+   command's own missing-`openspec/` check reports it from there.
 
-`defaultStore` is consulted only once local-root resolution has already failed —
-it is a fallback for "no local repo, no explicit store," never a precedence tier
-that could redirect a command already running inside an existing local
-`openspec/` repo. `references:` is read-only context, never a root override
-either — it does not change where a change is created or gated.
+`references:` is read-only context, never a root override at any step above — it
+does not change where a change is created or gated.
+
+### Store verification
+
+Every store selection above — by `--store`, by a `store:` pointer, or by
+`defaultStore` — is verified on disk before it is used, not trusted from the
+registry listing. cospec reads the store's own `.openspec-store/store.yaml` and
+confirms it exists, parses, and names the same id the registry has
+(`store_identity_mismatch` if it's missing or names a different id;
+`invalid_store_metadata` if the file itself won't parse), then checks the
+store's root is a healthy OpenSpec tree — `openspec/` exists, a config file
+exists, and none of `specs/`, `changes/`, `changes/archive/` exists as something
+other than a directory (`unhealthy_store_root` otherwise, naming each problem it
+found).
+
+A store selected this way is announced on stderr, before the command's own
+output, on every human-mode invocation that resolves to a store — by `--store`,
+a `store:` pointer, or `defaultStore` — except `templates` and `schema`
+([below](#templates-and-schema-reach-every-root-by-working-directory)):
+
+```
+Using OpenSpec root: <id> (<path>)
+```
+
+It is the same line bare `openspec` prints, and it prints exactly once per
+command even when a relayed wrapped call prints it too. It is printed as soon as
+the store is selected, so it still appears when the command then fails. It is
+never printed under `--json`, and never for a local or implicit root. Scripts
+that read cospec's stderr for a store-backed root should expect this line, or
+pass `--json`.
+
+### Errors
+
+A resolution failure exits `1` with a message and, where there is something to
+suggest, a `Fix:` line (both name `cospec`, never `openspec`) — the same as any
+other unhandled failure; see the tip below for how this differs from a gate
+result. Under `--json` the same failure is one document on stdout and nothing on
+stderr, the diagnostic in OpenSpec's `status` envelope (no `fix` key when there
+is nothing to suggest):
+
+```json
+{
+  "status": [
+    {
+      "severity": "error",
+      "code": "invalid_store_id",
+      "message": "Store id must not be empty",
+      "target": "store.id",
+      "fix": "Use kebab-case with lowercase letters, numbers, and single hyphen separators."
+    }
+  ]
+}
+```
+
+`cospec context --json` and `cospec schemas --json` put their command's empty
+payload ahead of `status`, exactly as OpenSpec does (`"root": null`,
+`"members": []` for `context`; `"schemas": []`, `"root": null` for `schemas`).
+OpenSpec prints such a payload for other commands too (`"changes": []`,
+`"root": null` for `list`); there cospec prints the envelope alone.
+
+| code                             | when                                                                        |
+| -------------------------------- | --------------------------------------------------------------------------- |
+| `invalid_store_pointer`          | a `store:` value that isn't parseable YAML, or isn't a single id string     |
+| `invalid_store_id`               | a followed pointer, `--store` or `defaultStore` is an empty or malformed id |
+| `unknown_store`                  | a `--store`, pointer, or `defaultStore` id that isn't registered            |
+| `no_registered_stores`           | the same, on a machine with no stores registered at all                     |
+| `no_root_with_registered_stores` | no qualifying root, no `defaultStore`, but stores are registered            |
+| `store_identity_mismatch`        | a selected store's metadata is missing, or names a different id             |
+| `invalid_store_metadata`         | a selected store's `.openspec-store/store.yaml` doesn't parse               |
+| `unhealthy_store_root`           | a selected store's OpenSpec tree is incomplete or damaged                   |
+| `invalid_store_registry`         | the machine's store registry file doesn't parse as a registry               |
+| `directory_not_found`            | `--cwd` names a path that is not an existing directory                      |
+
+`directory_not_found` is cospec's own (OpenSpec has no `--cwd`): it is checked
+before anything else, prints `cospec: directory not found: <path>` with no
+`Fix:` line, and never resolves an ancestor of the missing path.
+
+A pointer or `defaultStore` failure is prefixed with its origin —
+`Declared in <config path>: ` or `Global defaultStore '<id>': ` — so the message
+names where the bad id came from, not just that it's bad.
+
+A file cospec can't read at all isn't a selection error either — the store
+registry, or a selected store's `.openspec-store/store.yaml` or `openspec/`
+tree, when it is (for example) a directory where a file belongs or has no read
+permission. The command fails with the operating system's message, as `openspec`
+prints it — for instance
+`cospec: EACCES: permission denied, open '<registry path>'` or
+`cospec: EISDIR: illegal operation on a directory, read` (a failed `read`
+carries no path in Node's own message, unlike `open` and `stat`) — with no
+origin prefix and no `Fix:` line, exit 1, and under `--json` that message is the
+one `status` entry. A `store:` pointer file that can't be read fails like one
+that isn't YAML (`invalid_store_pointer`), and an `openspec/` directory the walk
+can't look inside is not a root, as in `openspec`.
 
 An unregistered `--store` id fails loudly rather than silently falling back to
 the local repo, so a typo can never write a change to the wrong place:
 
 ```
 cospec: unknown store 'bogus-id' — register it with 'cospec store register <path>' or check 'cospec store ls'. Registered stores: platform
+Fix: Pass a registered store id, or run cospec store list.
 ```
 
 ::: tip Not a gate result This is a usage/resolution error, not a blocked gate —
@@ -125,6 +239,47 @@ it exits `1`, the same code as any other unhandled failure, not the `2`
 `apply`/`archive` use for a blocked change. Don't script against it as if it
 were a gate outcome; see [Apply and archive](/concepts/apply-and-archive) for
 the codes that are. :::
+
+### `templates` and `schema` reach every root by working directory
+
+`cospec templates` and `cospec schema which|validate|fork|init` spawn the
+wrapped call inside the resolved root itself, rather than the invocation
+directory, since every `schema` subcommand (and `templates`) rejects `--store`
+on the wrapped binary. This is a deliberate **superset** of `openspec`, which
+reads its own `process.cwd()` for these two commands: run from a subdirectory,
+`openspec templates --schema feat` can't see the project's `feat` schema, and
+`openspec schema fork`/`init` would create a stray `openspec/` in the
+subdirectory instead of writing into the project. `cospec` resolves the
+enclosing root first and spawns there, so the same commands work from anywhere
+under the project.
+
+These two commands never fail on root selection alone, since `openspec` never
+selects a root for them. When selection fails and you passed no `--store` — no
+qualifying root with stores registered, a malformed or unregistered `store:`
+pointer, a stale or broken `defaultStore`, or a store registry or selected store
+that can't be read — cospec runs them in your working directory, with the same
+output, exit code and files written as `openspec` there.
+
+`openspec` never selects a root for these two commands, so it prints none of the
+lines root selection prints elsewhere, and neither does cospec: no
+ignored-pointer warning on a planning root with a `store:` pointer, no
+`Using OpenSpec root: …` banner on a store-selected root (even with `--store`),
+and no `Warning: Invalid JSON …` line for a global config that isn't JSON. Their
+stderr is `openspec`'s alone. Every other command that selects a root prints
+each of those lines once, as `openspec` does. With an explicit `--store` the
+selection error stands (the Errors table above), since `openspec` has no
+`--store` on these commands to fall back to.
+
+### `--store` on the wrapped call
+
+Every wrapped call other than `templates`/`schema` (which never take it)
+receives `--store <id>` only when you passed `--store` explicitly. A root
+selected through a `store:` pointer or `defaultStore` spawns the wrapped call in
+your own working directory instead, letting the binary re-derive the same root
+itself from the same pointer or global config — so relayed JSON (`show --json`,
+`list --specs --json`, and the like) reports upstream's own
+`root.source: "declared"` or `"global_default"`, matching what bare `openspec`
+would report, instead of always reading `"store"`.
 
 ## Cross-repo context and worksets
 
@@ -161,8 +316,11 @@ finding set.
 
 Under the hood a resolved root carries three things: the store's on-disk base
 path (cospec's filesystem readers key on it — a store's layout is identical to a
-repo's), the working directory every wrapped `openspec` call spawns in, and the
-`--store <id>` args appended to that call. The working directory never changes
-even under `--store` — only the base path and the appended store args do — so
-relative-path flags you pass elsewhere on the command line still resolve against
-your actual shell location, not the store's.
+repo's), the working directory a wrapped `openspec` call spawns in, and the
+`--store <id>` args appended to that call. For most commands the working
+directory is unchanged — your actual shell location — and only the base path and
+the appended store args vary with the resolved root, so relative-path flags you
+pass elsewhere on the command line still resolve against where you ran the
+command, not the store's. `templates` and `schema` are the exception: they spawn
+inside the resolved root's own base path instead (see above), and never receive
+`--store` args at all, since both wrapped subcommands reject the flag.

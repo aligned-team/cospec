@@ -245,7 +245,12 @@ document on stdout**, mirroring OpenSpec's own
 `status:[{severity,code,message,fix?}]` failure shape. It never throws past a
 `--json` boundary; a violation becomes exit 1 with that envelope, not a stack
 trace that corrupts a machine reader. A deny-list trip or a disallowed exit code
-raises `OpenspecCallError` (a cospec bug, not a user error).
+raises `OpenspecCallError` (a cospec bug, not a user error). One declared
+exception: a call marked `textFailure` (`templates`, whose upstream action
+renders every failure with `failWithError(error)` and no JSON option) that fails
+with nothing on stdout is the binary's own answer, relayed as it is — stderr
+text, exit 1, no document; its success still owes one document, and a failure
+that printed anything on stdout must still parse as one.
 
 `core/passthrough-command.ts` layers the command-level wiring on top: it
 resolves the operating `Root`, threads the three global flags every wrapped call
@@ -259,17 +264,18 @@ disk, or `store` asserting the registry mutated) pass it through
 `expect.postCondition` — the same mechanism the gated commands use.
 
 Two rules keep a forward row's relay faithful to the binary. On `templates` and
-`schema`, whose upstream commands declare no `--store`, the row's `storeInArgv`
-marker keeps a post-command `--store <id>` in the argv where the user typed it
-(phase B never absorbs it), so the binary parses it in the user's order instead
-of meeting a threaded `--store` first; a pre-command `--store` is still threaded
-ahead, where the binary refuses it as an unknown option — it selects no root for
-these two. And `relayRespelled` (`core/forward-relay.ts`) answers the binary's
-`--store-path` refusal with cospec's redirect and, on a failed call only, spells
-each of upstream's remedy sentences (`core/remedies.ts`) as the cospec command
-of the same shape — or drops it where cospec has none — so the remedy a user
-reads names cospec; a successful call's output is the user's content and is
-relayed untouched.
+`schema`, whose upstream commands declare no `--store`, `--store` is a cospec
+global in either position like everywhere else: it selects the root, and the
+wrapper spawns the binary inside `root.base` with no `--store` threaded
+(`spawnInRoot`), so the binary still parses every other token in the user's
+order; when selection fails with no explicit `--store`, it spawns in the
+invocation cwd instead, where upstream always runs them (`isCwdFallback`). And
+`relayRespelled` (`core/forward-relay.ts`) answers the binary's `--store-path`
+refusal with cospec's redirect and, on a failed call only, spells each of
+upstream's remedy sentences (`core/remedies.ts`) as the cospec command of the
+same shape — or drops it where cospec has none — so the remedy a user reads
+names cospec; a successful call's output is the user's content and is relayed
+untouched.
 
 ### The terminal-handover class
 

@@ -6,6 +6,9 @@
 import type { CommandContext } from '../cli.ts'
 import { runPassthrough } from '../core/passthrough-command.ts'
 
+/** `schemas`' empty payload in a `--json` root-selection failure, as upstream prints it. */
+export const jsonFailurePayload = { schemas: [], root: null } as const
+
 export function run(ctx: CommandContext): Promise<number> {
   return runPassthrough(ctx, { command: ['schemas'], args: ctx.args })
 }

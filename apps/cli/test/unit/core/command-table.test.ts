@@ -613,14 +613,22 @@ describe('takesNextToken (phase B pairs a value-taking flag with its value)', ()
     ])
   })
 
-  test('a post-command --store stays in the argv on the passthrough rows upstream gives none', () => {
-    // dist/cli/index.js `templates` and commands/schema.js `which`/`validate`/
-    // `fork`/`init` declare no `--store <id>`; `show` and `schemas` do.
+  test('the forward rows that select their root through --store are marked accepted', () => {
+    // show/schemas declare `--store` upstream; templates/schema spawn in the
+    // store's root (root-resolution-parity). store/workset/config take no root.
+    const forward = COMMAND_TABLE.filter((row) => row.parse === 'forward')
     expect(
-      COMMAND_TABLE.filter((row) => row.parse === 'forward' && row.storeInArgv === true)
+      forward
+        .filter((row) => row.store === 'accepted')
         .map((row) => row.name)
         .toSorted(),
-    ).toEqual(['schema', 'templates'])
+    ).toEqual(['schema', 'schemas', 'show', 'templates'])
+    expect(
+      forward
+        .filter((row) => row.store === undefined)
+        .map((row) => row.name)
+        .toSorted(),
+    ).toEqual(['config', 'store', 'workset'])
   })
 })
 

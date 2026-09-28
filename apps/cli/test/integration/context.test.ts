@@ -7,7 +7,7 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { cleanupAll, cospec, mkTempRepo } from '../fixtures/support.ts'
+import { cleanupAll, cospec, emptyMachineStateEnv, mkTempRepo } from '../fixtures/support.ts'
 
 afterAll(cleanupAll)
 
@@ -67,7 +67,7 @@ describe('cospec context', () => {
 
   test('--json with no OpenSpec root anywhere surfaces the error status and exits 1', async () => {
     const repo = mkTempRepo()
-    const res = await cospec(['context', '--json'], { cwd: repo })
+    const res = await cospec(['context', '--json'], { cwd: repo, env: emptyMachineStateEnv() })
     expect(res.exitCode).toBe(1)
     const body = JSON.parse(res.stdout) as { status: Array<{ severity: string }> }
     expect(body.status.some((s) => s.severity === 'error')).toBe(true)

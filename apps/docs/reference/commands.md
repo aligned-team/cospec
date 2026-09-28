@@ -12,20 +12,25 @@ the table.
 
 ## Global flags
 
-| flag              | effect                                                                                                 |
-| ----------------- | ------------------------------------------------------------------------------------------------------ |
-| `--json`          | machine-readable output                                                                                |
-| `--no-color`      | disable ANSI color                                                                                     |
-| `--cwd <path>`    | run as if invoked from `<path>`                                                                        |
-| `--store <id>`    | operate against a registered OpenSpec store instead of the local repo — see [Stores](/concepts/stores) |
-| `-h`, `--help`    | show help for the command                                                                              |
-| `-V`, `--version` | print the installed cospec version and exit — in any position before `--`, ahead of everything else    |
+| flag              | effect                                                                                                                                                                                                                                                                             |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--json`          | machine-readable output                                                                                                                                                                                                                                                            |
+| `--no-color`      | disable ANSI color                                                                                                                                                                                                                                                                 |
+| `--cwd <path>`    | run as if invoked from `<path>`; a `<path>` that is not an existing directory fails with `cospec: directory not found: <path>` (exit `1`) on every command that resolves an operating root — see [Stores](/concepts/stores#errors)                                                 |
+| `--store <id>`    | operate against a registered OpenSpec store instead of the local repo; every command also resolves the enclosing root from a subdirectory, a `store:` config pointer, or the global `defaultStore` even with no `--store` at all — see [Stores](/concepts/stores#resolution-order) |
+| `-h`, `--help`    | show help for the command                                                                                                                                                                                                                                                          |
+| `-V`, `--version` | print the installed cospec version and exit — in any position before `--`, ahead of everything else                                                                                                                                                                                |
 
 `--cwd` and `--store` need a value: given none, they're refused with
 `cospec <command>: option '--store <id>' argument missing` (or
-`'--cwd <path>'`), and given an empty one (`--store=`) with
-`… argument must not be empty`, exit `1` — the command never falls back to the
-local repo.
+`'--cwd <path>'`), exit `1`. An empty `--cwd=` is refused with
+`… argument must not be empty`, and so is an empty `--store=` on `store`,
+`workset` and `config`. On every command that selects its root through
+`--store`, an empty `--store=` is refused as OpenSpec refuses it —
+`cospec: Store id must not be empty` and its `Fix:` line, or the
+`invalid_store_id` document under `--json` (see
+[Stores](/concepts/stores#resolution-order)). Either way the exit is `1` and the
+command never falls back to the local repo.
 
 `--store` applies only where a command reads its root through it. `init`,
 `update`, `completion` and `feedback` never do — upstream refuses `--store` on
@@ -164,10 +169,14 @@ binary under the same rigor as every gated command — a version-asserted spawn,
 declared set of acceptable exit codes, a stdout deny-list, and stdout/stderr
 relayed verbatim — and, when you pass `--json`, guarantees exactly one JSON
 document on stdout (never a stack trace, even on failure) so a script or agent
-reading the output can always parse it. None of this changes what the commands
-_do_ — `show`, `view`, `schemas`, `schema`, `templates`, and `config`'s own key
-semantics in particular are genuinely OpenSpec's own job, and their full
-semantics live on
+reading the output can always parse it. The exceptions are where OpenSpec itself
+answers in text: a failed `cospec templates --json` (an unknown `--schema`, say)
+relays OpenSpec's `✖ Error: …` line on stderr and exits `1` with nothing on
+stdout, exactly as `openspec templates --json` does, and so does a forwarded
+command's refused argument (`--bogus`), which is OpenSpec's own parse refusal.
+None of this changes what the commands _do_ — `show`, `view`, `schemas`,
+`schema`, `templates`, and `config`'s own key semantics in particular are
+genuinely OpenSpec's own job, and their full semantics live on
 [OpenSpec's command reference](https://github.com/Fission-AI/OpenSpec/blob/main/docs/commands.md)
 — it only guarantees they fail predictably instead of silently.
 
@@ -176,6 +185,22 @@ exceptions: they mutate the machine-global config file (or, for `edit` and a
 preset-less `profile`, hand the terminal over) — see
 [Configuration](/reference/configuration#machine-global-openspec-config) for the
 full call-class split and the precedence notes cospec prints alongside them.
+
+`templates` and `schema which`/`validate`/`fork`/`init` are a deliberate
+**superset** here: both reject `--store` on the wrapped binary, so cospec spawns
+them inside the resolved root's own directory instead of the invocation working
+directory — reaching a store-backed or ancestor-walked root, and (run from a
+subdirectory) the project's own schemas, where bare `openspec` reads only its
+own working directory and so can't see either. When the root can't be selected
+and you passed no `--store` (no root with stores registered, a broken `store:`
+pointer or `defaultStore`, an unreadable store registry or selected store), they
+run in the invocation working directory and answer as `openspec` does there —
+the same output, exit code, stderr and files. On every route they print none of
+root selection's own lines — no ignored-pointer warning, no
+`Using OpenSpec root: …` banner, no `Warning: Invalid JSON …` line — since
+`openspec` never selects a root for these commands. See
+[Stores](/concepts/stores#templates-and-schema-reach-every-root-by-working-directory)
+for the full account.
 
 For anything that's the wrapped binary's own job — the delta format, OpenSpec's
 glossary, or its own commands — see
@@ -281,41 +306,46 @@ verbatim. The flags cospec adds to the call (`--json`, `--no-color`,
 never become the value of an option you left without one:
 `cospec store setup s1 --path` is refused with OpenSpec's
 `option '--path <path>' argument missing` and writes nothing. OpenSpec's
-`templates` and `schema` subcommands declare no `--store`, so a `--store <id>`
-you type after `templates` or `schema` reaches OpenSpec where you typed it and
-is its unknown option there: `cospec templates --bogus --store <id>` names
-`--bogus`, as `openspec` does, and
+`templates` and `schema` subcommands declare no `--store`, so cospec never
+passes it to them: a `--store <id>` before or after the command name selects the
+root, and cospec runs them inside that root's directory instead — a deliberate
+superset, see
+[Stores](/concepts/stores#templates-and-schema-reach-every-root-by-working-directory).
+Every other token reaches OpenSpec as you typed it:
+`cospec templates --bogus --store <id>` names `--bogus`, as `openspec` does, and
 `cospec schema init s1 --store <id> --description` refuses the missing
-`--description` value. A `--store` before the command name selects no root for
-these two: cospec threads it right after the command path, ahead of your tokens,
-and OpenSpec refuses it there — `cospec --store <id> templates` answers
-`error: unknown option '--store'`, exit `1`, as
-`openspec --store <id> templates` does. Where OpenSpec's answer names a bare
-`openspec` command as the remedy, cospec relays it naming the cospec command of
-the same shape — `show`'s `Run "cospec status --change <id>"` for a change with
-no proposal.md (text and `--json`), `view`'s `cospec list --changes`/`--specs`,
-and `cospec init` in the no-root answer from `show`, `context` and
-`instructions` — and drops OpenSpec's noun-form `change show`/`spec show`
-suggestion, which cospec has no command for. Only OpenSpec's own remedy
-sentences are respelled, each where it appears verbatim: the path, name or list
-a sentence carries, and any other text — a directory named `run openspec init`,
-say — is relayed exactly as OpenSpec printed it. What a successful `show` or
-`instructions` prints is your own content, relayed untouched. The pre-spawn
-guards answer only what OpenSpec would not: an option where a subcommand belongs
-(`cospec config --bogus path`, `cospec schema --bogus`) reaches OpenSpec, which
-refuses it as an unknown option, not an unknown subcommand, and
-`cospec show --bogus` or `cospec show --type` gets OpenSpec's own answer
-(`Unknown item '--bogus'.`, `option '--type <type>' argument missing`); only a
-`show` with no item at all — an empty `""` is none, after `--` too, and `-r1`,
-`-r=1` or `-rr` is `-r` with its value, as OpenSpec reads it — gets cospec's
-item-name error (`cospec show: an item name is required`, exit `1`; under
-`--json` one `{"status":[{"severity":"error","code":"missing_item",…}]}`
-document on stdout) instead of OpenSpec's "Nothing to show" screen, which names
-bare `openspec` commands. `openspec show` itself accepts an unrecognized flag by
-design (`allowUnknownOption(true)`), so a cospec-side rejection there would be
-the divergence from upstream, not a fix for one; the same forwarding lets a
-newer in-range OpenSpec's new flag keep working immediately instead of failing
-until cospec's table catches up.
+`--description` value. Where `openspec` would refuse the `--store` itself
+(`openspec --store <id> templates`, or
+`openspec templates --store <id> --bogus`, which names `--store`), cospec reads
+the store's templates, or names the next unknown option (`--bogus`). Where
+OpenSpec's answer names a bare `openspec` command as the remedy, cospec relays
+it naming the cospec command of the same shape — `show`'s
+`Run "cospec status --change <id>"` for a change with no proposal.md (text and
+`--json`), `view`'s `cospec list --changes`/`--specs`, `cospec init` in the
+no-root answer from `show`, `context` and `instructions`, and `schema init`'s
+`"cospec schema fork"` remedy (text and `--json`) and last next step,
+`3. Use with: cospec new <name> <slug>` — and drops OpenSpec's noun-form
+`change show`/`spec show` suggestion, which cospec has no command for. Only
+OpenSpec's own remedy sentences are respelled, each where it appears verbatim:
+the path, name or list a sentence carries, and any other text — a directory
+named `run openspec init`, say — is relayed exactly as OpenSpec printed it. What
+a successful `show` or `instructions` prints is your own content, relayed
+untouched. The pre-spawn guards answer only what OpenSpec would not: an option
+where a subcommand belongs (`cospec config --bogus path`,
+`cospec schema --bogus`) reaches OpenSpec, which refuses it as an unknown
+option, not an unknown subcommand, and `cospec show --bogus` or
+`cospec show --type` gets OpenSpec's own answer (`Unknown item '--bogus'.`,
+`option '--type <type>' argument missing`); only a `show` with no item at all —
+an empty `""` is none, after `--` too, and `-r1`, `-r=1` or `-rr` is `-r` with
+its value, as OpenSpec reads it — gets cospec's item-name error
+(`cospec show: an item name is required`, exit `1`; under `--json` one
+`{"status":[{"severity":"error","code":"missing_item",…}]}` document on stdout)
+instead of OpenSpec's "Nothing to show" screen, which names bare `openspec`
+commands. `openspec show` itself accepts an unrecognized flag by design
+(`allowUnknownOption(true)`), so a cospec-side rejection there would be the
+divergence from upstream, not a fix for one; the same forwarding lets a newer
+in-range OpenSpec's new flag keep working immediately instead of failing until
+cospec's table catches up.
 
 **`--json` on a command that can't emit it.** `cospec view` renders a text
 dashboard and `cospec completion` prints a shell script; both refuse `--json`

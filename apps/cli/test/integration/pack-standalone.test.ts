@@ -14,7 +14,13 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { cpSync, existsSync, mkdirSync, readdirSync, symlinkSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
 
-import { cleanupAll, mkTempRepo, REPO_ROOT, writeFiles } from '../fixtures/support.ts'
+import {
+  cleanupAll,
+  emptyMachineStateEnv,
+  mkTempRepo,
+  REPO_ROOT,
+  writeFiles,
+} from '../fixtures/support.ts'
 
 afterAll(cleanupAll)
 
@@ -70,10 +76,11 @@ function run(
   cmd: string[],
   cwd: string,
   path: string,
+  env: Record<string, string> = {},
 ): { code: number; stdout: string; stderr: string } {
   const res = Bun.spawnSync(cmd, {
     cwd,
-    env: { ...process.env, PATH: path, NO_COLOR: '1' },
+    env: { ...process.env, PATH: path, NO_COLOR: '1', ...env },
   })
   return {
     code: res.exitCode,
@@ -159,7 +166,7 @@ describe('standalone pack smoke (bun-less)', () => {
     expect(ver.stdout.trim()).toBe(version)
 
     const target = mkTempRepo({ git: true })
-    const list = run([bin, 'list'], target, path)
+    const list = run([bin, 'list'], target, path, emptyMachineStateEnv())
     expect(list.code, list.stderr).toBe(0)
     expect(list.stdout).toContain('No active changes')
 

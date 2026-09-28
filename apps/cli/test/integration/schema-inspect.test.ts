@@ -124,10 +124,22 @@ describe('cospec schema fork/init — legacy lane, project-local schemas', () =>
     expect(readFileSync(canonFeatSchema, 'utf8')).toBe(before)
   })
 
+  // Upstream `openspec schema --help` (pinned 1.13.1) lists which, validate, fork and init.
   test('missing subcommand fails without calling the wrapped binary', async () => {
     const res = await cospec(['schema'], { cwd: root })
     expect(res.exitCode).toBe(1)
-    expect(res.stderr).toMatch(/missing subcommand/)
+    expect(res.stderr).toBe(
+      "cospec schema: missing subcommand — expected one of 'which', 'validate', 'fork', 'init'\n",
+    )
+  })
+
+  test('unknown subcommand names every real subcommand without calling the wrapped binary', async () => {
+    const res = await cospec(['schema', 'bogus'], { cwd: root })
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toBe(
+      "cospec: unknown 'schema' subcommand 'bogus' — expected one of 'which', 'validate', " +
+        "'fork', 'init'\n",
+    )
   })
 })
 

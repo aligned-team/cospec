@@ -387,28 +387,109 @@ export interface StoreListEntry {
   root: string
 }
 
+/** One entry of `openspec store ls --json`'s `status` array. */
+export interface StoreListDiagnostic {
+  severity: string
+  code: string
+  message: string
+  target?: string
+  fix?: string
+}
+
 /** Shape of `openspec store ls --json`. */
 export interface StoreListJson {
   stores: StoreListEntry[]
 }
 
 /**
+ * Every code the pinned binary raises as a `StoreError` (`dist/core/store/*.js`,
+ * enumerated against the pinned dist by `root-resolution.test.ts`). Upstream's
+ * resolver turns only a `StoreError` into a `RootSelectionError`
+ * (`fromStoreError`); any other failure reading the registry — an errno such as
+ * `EACCES` — is rethrown raw, and `store ls` reports it under its fallback code
+ * `store_error`.
+ */
+export const STORE_ERROR_CODES: ReadonlySet<string> = new Set([
+  'invalid_store_id',
+  'invalid_store_metadata',
+  'invalid_store_pointer',
+  'invalid_store_registry',
+  'no_store_registry',
+  'store_git_commit_failed',
+  'store_git_identity_missing',
+  'store_git_init_failed',
+  'store_id_conflict',
+  'store_metadata_id_mismatch',
+  'store_metadata_missing',
+  'store_not_found',
+  'store_path_conflict',
+  'store_path_missing',
+  'store_path_not_directory',
+  'store_path_required',
+  'store_register_identity_confirmation_required',
+  'store_register_root_unhealthy',
+  'store_registry_busy',
+  'store_registry_changed',
+  'store_remote_empty',
+  'store_remote_requires_hand_edit',
+  'store_remove_contains_registered_store',
+  'store_remove_metadata_missing',
+  'store_remove_path_not_directory',
+  'store_root_pointer_declared',
+  'store_setup_inside_git_repo',
+  'store_setup_non_empty_directory',
+  'store_setup_path_changed',
+  'store_setup_path_not_directory',
+  'store_setup_path_required',
+])
+
+/**
+ * `openspec store ls --json` could not read the registry and said why: exit 1
+ * with an `error` entry in its `status`. Still a wrapped-call failure for a
+ * caller that only lists; root selection reports it as upstream's resolver
+ * does. `storeError` says whether upstream raised it as a `StoreError`
+ * (`invalid_store_registry`, naming the file to repair), which its resolver
+ * turns into a selection diagnostic, or as a raw error (an errno such as
+ * `EACCES`, under `store ls`'s fallback code), which it rethrows as is.
+ */
+export class StoreRegistryError extends OpenspecCallError {
+  readonly diagnostic: StoreListDiagnostic
+  readonly storeError: boolean
+
+  constructor(message: string, result: OpenspecResult, diagnostic: StoreListDiagnostic) {
+    super(message, result)
+    this.name = 'StoreRegistryError'
+    this.diagnostic = diagnostic
+    this.storeError = STORE_ERROR_CODES.has(diagnostic.code)
+  }
+}
+
+/**
  * Typed `openspec store ls --json` — the machine-global store registry. Not
  * root-scoped (stores are registered per machine), so it takes a plain cwd and
- * never carries `--store`. Throws `OpenspecCallError` on a non-zero exit or an
- * unparseable body.
+ * never carries `--store`. A registry the binary cannot read (exit 1 with an
+ * `error` diagnostic) throws `StoreRegistryError`; any other failure, or an
+ * unparseable body, throws `OpenspecCallError`.
  */
 export async function openspecStoreList(cwd: string): Promise<StoreListJson> {
-  const res = await runOpenspec(['store', 'ls', '--json'], { cwd, expect: { exitCodes: [0] } })
+  const label = wrappedCallLabel(['store', 'ls', '--json'])
+  const res = await runOpenspec(['store', 'ls', '--json'], { cwd, expect: { exitCodes: [0, 1] } })
+  let parsed: Partial<StoreListJson>
   try {
-    const parsed = JSON.parse(res.stdout) as Partial<StoreListJson>
-    return { stores: Array.isArray(parsed.stores) ? parsed.stores : [] }
+    parsed = JSON.parse(res.stdout) as Partial<StoreListJson>
   } catch {
-    throw new OpenspecCallError(
-      `could not parse JSON from ${wrappedCallLabel(['store', 'ls', '--json'])}`,
-      res,
-    )
+    throw new OpenspecCallError(`could not parse JSON from ${label}`, res)
   }
+  if (res.exitCode !== 0) {
+    const status = (parsed as { status?: unknown }).status
+    const error = Array.isArray(status)
+      ? (status as StoreListDiagnostic[]).find((d) => d.severity === 'error')
+      : undefined
+    if (error === undefined)
+      throw new OpenspecCallError(`${label} exited ${res.exitCode} with no error diagnostic`, res)
+    throw new StoreRegistryError(`${label} reported ${error.code}: ${error.message}`, res, error)
+  }
+  return { stores: Array.isArray(parsed.stores) ? parsed.stores : [] }
 }
 
 // --- Typed JSON shapes for the wrapped commands (probed across the accepted
@@ -603,9 +684,18 @@ export function isOpenspecErrorStatus(body: unknown): boolean {
  * failure envelope while the raw exit code was 0, the returned result's
  * `exitCode` is normalized to 1 so cospec's own exit-code contract holds;
  * this never throws past a well-formed openspec-reported failure — the
- * failure body IS the one JSON document, which is the point.
+ * failure body IS the one JSON document, which is the point. With
+ * `textFailure`, a failed call (non-zero exit) that printed nothing on stdout
+ * is relayed as it is: that is the binary's own answer, not a violation.
  */
-export function enforcePassthroughJson(label: string, result: OpenspecResult): OpenspecResult {
+export function enforcePassthroughJson(
+  label: string,
+  result: OpenspecResult,
+  textFailure = false,
+): OpenspecResult {
+  // A command whose upstream action renders every failure as text (see
+  // `PassthroughOptions.textFailure`) answers a failure with stderr only.
+  if (textFailure && result.exitCode !== 0 && result.stdout === '') return result
   let body: unknown
   try {
     body = JSON.parse(result.stdout)
@@ -630,6 +720,14 @@ export interface PassthroughOptions {
    * to relay verbatim. `denyStdout`/`postCondition` still apply.
    */
   expect?: RunExpectation
+  /**
+   * The wrapped command's upstream action renders its failures as text even
+   * under `--json` (`templates`: `failWithError(error)` with no JSON option),
+   * so a failed call with nothing on stdout is its answer, relayed as it is.
+   * A success still owes one JSON document, and a failure that printed
+   * anything on stdout must still parse as one.
+   */
+  textFailure?: boolean
 }
 
 /**
@@ -662,6 +760,28 @@ export interface WrappedCall {
 }
 
 /**
+ * Exact stderr lines cospec already printed itself (the ignored-pointer warning
+ * and the store banner `resolveRoot` writes). A wrapped call spawned in the
+ * same directory re-derives the same root and prints the same line again, so
+ * `passthroughOpenspec` drops each registered line from the stderr it returns.
+ */
+const suppressedStderrLines = new Set<string>()
+
+/** Register a line (without its newline) to drop from relayed wrapped stderr. */
+export function suppressRelayedStderrLine(line: string): void {
+  suppressedStderrLines.add(line)
+}
+
+/** Drop every whole line registered with `suppressRelayedStderrLine` (pure on the set). */
+export function stripSuppressedStderr(stderr: string): string {
+  if (suppressedStderrLines.size === 0 || stderr.length === 0) return stderr
+  return stderr
+    .split(/(?<=\n)/u)
+    .filter((line) => !suppressedStderrLines.has(line.replace(/\r?\n$/u, '')))
+    .join('')
+}
+
+/**
  * The disciplined passthrough front door (DESIGN §1, WI-1). Version-asserted
  * spawn via `runOpenspec` (which itself spawns through `spawnOpenspec`) of
  * `threadedArgv(call…)`, enforcing the declared `RunExpectation` — and, when
@@ -670,7 +790,8 @@ export interface WrappedCall {
  * (possibly another flag's value) and holds the call to nothing. Returns the
  * (possibly exit-code-normalized) `OpenspecResult`; throws `OpenspecCallError`
  * on a deny-list hit, a disallowed exit code, or (in `--json` mode)
- * unparseable stdout.
+ * unparseable stdout. Lines `resolveRoot` already printed are dropped from
+ * the returned stderr.
  */
 export async function passthroughOpenspec(
   call: WrappedCall,
@@ -678,7 +799,8 @@ export async function passthroughOpenspec(
 ): Promise<OpenspecResult> {
   const argv = threadedArgv(call.command, call.threaded ?? [], call.args)
   const expect: RunExpectation = { exitCodes: [0, 1], ...opts.expect }
-  const result = await runOpenspec(argv, { cwd: opts.cwd, expect })
+  const raw = await runOpenspec(argv, { cwd: opts.cwd, expect })
+  const result = { ...raw, stderr: stripSuppressedStderr(raw.stderr) }
   if (call.threaded?.includes('--json') !== true) return result
-  return enforcePassthroughJson(wrappedCallLabel(argv), result)
+  return enforcePassthroughJson(wrappedCallLabel(argv), result, opts.textFailure === true)
 }

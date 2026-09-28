@@ -1,5 +1,13 @@
 import { afterAll, describe, expect, test } from 'bun:test'
-import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -21,6 +29,7 @@ import {
 } from '../../../src/commands/status.ts'
 import { run as validateRun } from '../../../src/commands/validate.ts'
 import { commandRow, parseCommandArgs } from '../../../src/core/command-table.ts'
+import { withEmptyMachineState } from '../../fixtures/support.ts'
 import {
   ctx,
   DONE_TASKS,
@@ -251,7 +260,9 @@ describe('new: validation before delegation', () => {
   test('no openspec/ directory exits 1 with an actionable init hint', async () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cospec-noinit-'))
     roots.push(cwd)
-    const r = await runCmd(newIn, ctx(cwd, ['feat', 'foo'], { command: 'new' }))
+    const r = await withEmptyMachineState(() =>
+      runCmd(newIn, ctx(cwd, ['feat', 'foo'], { command: 'new' })),
+    )
     expect(r.code).toBe(1)
     expect(r.err).toContain('no openspec/ directory')
     expect(r.err).toContain("run 'cospec init' first")
@@ -584,7 +595,7 @@ describe('status --all (OpenSpec 1.11 parity)', () => {
     expect(r.code).toBe(0)
     const parsed = JSON.parse(r.out) as { changes: { change: string }[]; root: string }
     expect(parsed.changes.map((c) => c.change)).toEqual(['alpha', 'zeta'])
-    expect(parsed.root).toBe(cwd)
+    expect(parsed.root).toBe(realpathSync(cwd))
   })
 
   test('single-change JSON shape is unchanged by the --all addition', async () => {
@@ -731,7 +742,9 @@ describe('validate: validation before delegation', () => {
   test('no openspec/ directory exits 1 with an actionable init hint', async () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cospec-noinit-'))
     roots.push(cwd)
-    const r = await runCmd(validateRun, ctx(cwd, [], { command: 'validate' }))
+    const r = await withEmptyMachineState(() =>
+      runCmd(validateRun, ctx(cwd, [], { command: 'validate' })),
+    )
     expect(r.code).toBe(1)
     expect(r.err).toContain('no openspec/ directory')
     expect(r.err).toContain("run 'cospec init' first")

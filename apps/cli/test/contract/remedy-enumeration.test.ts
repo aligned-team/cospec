@@ -185,3 +185,32 @@ describe('every allowlist entry is one of the pinned dist sentences', () => {
     })
   }
 })
+
+describe("shared.js's default new-change hint is never printed", () => {
+  // `validateChangeExists(…, hints)` falls back to a bare
+  // `openspec new change <name>` only when its caller passes no hint. Every
+  // caller in the pinned dist passes one (spelled through the allowlist as
+  // `workflow/new-change-hint` on its own line), and `templates` never calls
+  // it, so the fallback line is classified as never relayed, not as an
+  // allowlist entry some relay reaches.
+  const DEFAULT_HINT = "const newChangeHint = hints.newChangeHint ?? 'openspec new change <name>';"
+
+  test('every validateChangeExists caller passes its own newChangeHint', () => {
+    const calls = [...SOURCE]
+      .filter(([file]) => file !== 'commands/workflow/shared.js')
+      .flatMap(([file, lines]) =>
+        lines
+          .filter((line) => line.includes('validateChangeExists(') && !line.startsWith('import'))
+          .map((line) => `${file}: ${line}`),
+      )
+    expect(calls.length).toBeGreaterThan(0)
+    expect(calls.filter((call) => !call.includes('newChangeHint'))).toEqual([])
+    expect(calls.some((call) => call.startsWith('commands/workflow/templates.js'))).toBe(false)
+  })
+
+  test('its fallback line is classified as never relayed', () => {
+    expect(CLASSIFIED.get(key('commands/workflow/shared.js', DEFAULT_HINT))).toEqual([
+      notRelayed.DEFAULT_NEW_CHANGE_HINT,
+    ])
+  })
+})

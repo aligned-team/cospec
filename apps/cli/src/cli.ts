@@ -25,6 +25,7 @@ import {
   jsonRefusal,
   takesNextToken,
 } from './core/command-table.ts'
+import { RootSelectionError, rootSelectionDocument } from './core/root.ts'
 
 /** Global flags accepted before or after the subcommand on every command. */
 export interface GlobalFlags {
@@ -59,6 +60,12 @@ export interface CommandContext {
  */
 export interface CommandModule {
   run(ctx: CommandContext): number | Promise<number>
+  /**
+   * The command's own empty payload in its `--json` failure document, printed
+   * ahead of `status` when root selection fails, as upstream's
+   * `failurePayload` is (`context`: `{ root: null, members: [] }`).
+   */
+  readonly jsonFailurePayload?: Readonly<Record<string, unknown>>
 }
 
 /** The uniform exit-code contract (DESIGN §2). */
@@ -287,6 +294,8 @@ interface GlobalState {
   missing?: GlobalValueFlag
   /** The first `--cwd`/`--store` given an empty value (`--store=`, `--cwd ''`). */
   empty?: GlobalValueFlag
+  /** Some `--cwd` was given an empty value (never a root, on any row). */
+  emptyCwd?: true
 }
 
 type GlobalValueFlag = '--cwd' | '--store'
@@ -310,8 +319,13 @@ function takeGlobalValue(tokens: readonly string[], i: number, state: GlobalStat
   const last = eq === -1 ? i + 1 : i
   const value = eq === -1 ? tokens[last] : tok.slice(eq + 1)
   if (value === undefined) state.missing ??= flag
-  else if (value.length === 0) state.empty ??= flag
-  else if (flag === '--cwd') state.cwdRaw = value
+  else if (value.length === 0) {
+    state.empty ??= flag
+    // An empty store id is still the value a root-selecting row resolves
+    // (the resolver refuses it, as upstream's does), and the last one wins.
+    if (flag === '--cwd') state.emptyCwd = true
+    else state.storeRaw = value
+  } else if (flag === '--cwd') state.cwdRaw = value
   else state.storeRaw = value
   return last
 }
@@ -481,12 +495,11 @@ function resolveProgram(argv: readonly string[], state: GlobalState): number | C
  * Phase B, the command level: `row`'s own argv. A `--no-color` before the
  * first `--` is taken out first, as upstream's program level does, so it is
  * never a value. Global flags are absorbed up to a `--` (`--store` only on a
- * row that reads it: a `store: 'refused'` row's parser refuses it, and a
- * forward row marked `storeInArgv` hands it to the binary where it stands),
- * except a token that
- * is the value of a space-form value-taking flag the row or its named
- * subcommand declares, `--store-path` where it takes a value (kept with it, whatever it
- * looks like — a help flag, a global, `--`); a table row parses the rest, a
+ * row that reads it: a `store: 'refused'` row's parser refuses it), except a
+ * token that is the value of a space-form value-taking flag the row or its
+ * named subcommand declares, `--store-path` where it takes a value (kept with
+ * it, whatever it looks like — a help flag, a global, `--`); a table row
+ * parses the rest, a
  * forward row hands it to its wrapper untouched, `--store-path` included (the
  * binary is its authority there; the wrapper only respells the binary's
  * refusal). Outcomes follow
@@ -505,9 +518,6 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
   // token stays in the argv for the table parser to refuse as unknown, and a
   // program-level one is refused below with the row's other parse refusals.
   const storeRefused = row.parse === 'table' && row.store === 'refused'
-  // A forward row whose upstream command declares no `--store` hands it to
-  // the binary where the user typed it.
-  const storeKept = storeRefused || (row.parse === 'forward' && row.storeInArgv === true)
   const programStore = state.storeRaw !== undefined || state.empty === '--store'
   // After a leading `--`, or a `--` that is the first token to reach a row
   // with subcommands, every token is an operand.
@@ -565,7 +575,7 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
         wantHelp = true
       else if (tok === '--json') state.json = true
       else if (isHelpToken(tok)) wantHelp = true
-      else if (isGlobalValueToken(tok) && !(storeKept && isStoreToken(tok)))
+      else if (isGlobalValueToken(tok) && !(storeRefused && isStoreToken(tok)))
         i = takeGlobalValue(tokens, i, state)
       else {
         if (!isOptionLike(tok) && positionals++ === 0)
@@ -614,7 +624,14 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
     }
   }
 
-  if (state.empty !== undefined) return valueRefusal(row.name, state.empty, true)
+  // An empty `--store` on a row that selects its root through it reaches the
+  // resolver, which refuses it with upstream's `invalid_store_id` (text, or the
+  // `--json` document); every other empty value is refused here.
+  if (state.empty !== undefined) {
+    const storeRow = row.store === 'accepted'
+    if (!storeRow || state.emptyCwd === true)
+      return valueRefusal(row.name, storeRow ? '--cwd' : state.empty, true)
+  }
 
   const loadModule = COMMAND_MODULES[row.name]
   if (loadModule === undefined) {
@@ -642,7 +659,16 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
     cwd,
     ...(result?.ok === true ? { parsed: result.parsed } : {}),
   }
-  const code = await mod.run(ctx)
+  let code: number
+  try {
+    code = await mod.run(ctx)
+  } catch (error) {
+    // A `--json` caller is owed one document for a resolver hard-error too;
+    // every other failure keeps the top-level prose.
+    if (!(state.json && error instanceof RootSelectionError)) throw error
+    process.stdout.write(rootSelectionDocument(error, mod.jsonFailurePayload))
+    return EXIT.failure
+  }
   return typeof code === 'number' ? code : EXIT.success
 }
 

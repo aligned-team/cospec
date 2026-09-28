@@ -36,6 +36,8 @@ export const notRelayed = {
   NOUN_CHANGE_VALIDATE:
     'ChangeCommand.validate, run only by `openspec change validate`; cospec has no `change` command',
   NOUN_SPEC: 'only the noun-form `openspec spec …` commands run it; cospec has no `spec` command',
+  DEFAULT_NEW_CHANGE_HINT:
+    "`validateChangeExists`'s fallback hint, used only when a caller passes none: every caller (`instructions` three times, `status`) passes its own `newChangeHint`, allowlisted on its own line, and `templates` never calls it (`templates.js` validates only the schema; probed `templates` with no schema, `--schema nope` in text and `--json`, `-- x`, `x`, `--bogus`, `--json` and `--store <id>` under node, in a planning root and in a rootless directory with a store registered, none printing a `Create one with` sentence)",
   COMPLETION:
     "`cospec completion` is native (`commands/completion.ts`) and never spawns the binary's `completion`",
 } as const
@@ -730,7 +732,7 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
   [
     'commands/workflow/shared.js',
     "const newChangeHint = hints.newChangeHint ?? 'openspec new change <name>';",
-    'workflow/new-change-hint',
+    notRelayed.DEFAULT_NEW_CHANGE_HINT,
   ],
   [
     'commands/workflow/shared.js',
@@ -807,17 +809,13 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
  * cospec-roadmap's confirmed rulings (round 16: instructions' reference block
  * is upstream-spellings', context's is passthrough-json-and-doctor's); the
  * workset/config owner follows its ruling that R4 wires the allowlist into
- * those relays, and the schema owner its ruling that R2 wires it into
- * `schema.ts`.
+ * those relays. (`schema init`'s `3. Use with:` line, once owned by
+ * root-resolution-parity, is spelled by `schema.ts` itself.)
  */
-export const OWNERS = [
-  'upstream-spellings',
-  'passthrough-json-and-doctor',
-  'root-resolution-parity',
-] as const
+export const OWNERS = ['upstream-spellings', 'passthrough-json-and-doctor'] as const
 
 /** The cospec commands that relay a successful answer as the binary wrote it. */
-export const SUCCESS_RELAYS = ['instructions', 'context', 'workset', 'config', 'schema'] as const
+export const SUCCESS_RELAYS = ['instructions', 'context', 'workset', 'config'] as const
 
 /**
  * [module under dist/, trimmed source line, the cospec command whose successful
@@ -876,13 +874,6 @@ export const REACHABLE_OWNED: readonly (readonly [
     "console.log('Config updated. Run `openspec update` in your projects to apply.');",
     'config',
     'passthrough-json-and-doctor',
-  ],
-  // `schema init`'s next steps, exit 0.
-  [
-    'commands/schema.js',
-    'console.log(`  3. Use with: openspec new --schema ${name}`);',
-    'schema',
-    'root-resolution-parity',
   ],
   // The built-in `spec-driven` schema's own instruction text and proposal
   // template (`schemas/spec-driven/schema.yaml`, `templates/proposal.md`):

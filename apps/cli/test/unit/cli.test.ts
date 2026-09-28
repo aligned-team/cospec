@@ -5,6 +5,7 @@ import { join } from 'node:path'
 
 import pkg from '../../package.json'
 import { run } from '../../src/cli.ts'
+import { RootSelectionError } from '../../src/core/root.ts'
 
 /** Run the top-level dispatcher, capturing stdout/stderr and its exit code. */
 async function dispatch(argv: string[]): Promise<{ code: number; out: string; err: string }> {
@@ -466,8 +467,18 @@ describe('cli dispatcher: --cwd and --store refuse a missing or empty value', ()
     [['list', '--cwd'], "cospec list: option '--cwd <path>' argument missing\n"],
     [['--store'], "cospec: option '--store <id>' argument missing\n"],
     [['--cwd'], "cospec: option '--cwd <path>' argument missing\n"],
-    [['list', '--store='], "cospec list: option '--store <id>' argument must not be empty\n"],
-    [['list', '--store', ''], "cospec list: option '--store <id>' argument must not be empty\n"],
+    [
+      ['store', 'list', '--store='],
+      "cospec store: option '--store <id>' argument must not be empty\n",
+    ],
+    [
+      ['config', 'list', '--store='],
+      "cospec config: option '--store <id>' argument must not be empty\n",
+    ],
+    [
+      ['list', '--store=', '--cwd='],
+      "cospec list: option '--cwd <path>' argument must not be empty\n",
+    ],
     [['list', '--cwd='], "cospec list: option '--cwd <path>' argument must not be empty\n"],
     [['--cwd', '', 'list'], "cospec list: option '--cwd <path>' argument must not be empty\n"],
     [['--store='], "cospec: option '--store <id>' argument must not be empty\n"],
@@ -484,6 +495,28 @@ describe('cli dispatcher: --cwd and --store refuse a missing or empty value', ()
       expect(r.code).toBe(1)
       expect(r.err).toBe(err)
       expect(r.out).toBe('')
+    })
+  }
+
+  // On a row that selects its root through `--store`, an empty id is the
+  // resolver's to refuse, with upstream's `invalid_store_id` (ledger 5.5).
+  for (const argv of [
+    ['list', '--store='],
+    ['list', '--store', ''],
+    ['show', 'x', '--store='],
+    ['templates', '--store='],
+    ['--store=', 'list'],
+  ]) {
+    test(`${argv.map((a) => (a === '' ? "''" : a)).join(' ')} reaches the resolver`, async () => {
+      const err = await dispatch(argv).catch((error: unknown) => error)
+      expect(err).toBeInstanceOf(RootSelectionError)
+      expect((err as RootSelectionError).diagnostic).toEqual({
+        severity: 'error',
+        code: 'invalid_store_id',
+        message: 'Store id must not be empty',
+        target: 'store.id',
+        fix: 'Use kebab-case with lowercase letters, numbers, and single hyphen separators.',
+      })
     })
   }
 
@@ -553,9 +586,12 @@ describe('cli dispatcher: a -- before the command name', () => {
   })
 
   test('the empty value is refused only once the command after -- is reached', async () => {
-    const r = await dispatch(['--store=', '--', 'list'])
+    const r = await dispatch(['--cwd=', '--', 'list'])
     expect(r.code).toBe(1)
-    expect(r.err).toBe("cospec list: option '--store <id>' argument must not be empty\n")
+    expect(r.err).toBe("cospec list: option '--cwd <path>' argument must not be empty\n")
+    const err = await dispatch(['--store=', '--', 'list']).catch((error: unknown) => error)
+    expect(err).toBeInstanceOf(RootSelectionError)
+    expect((err as RootSelectionError).diagnostic.code).toBe('invalid_store_id')
   })
 
   for (const argv of [

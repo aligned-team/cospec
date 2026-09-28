@@ -145,17 +145,11 @@ export type TableCommandRow = RowBase & {
 export interface ForwardCommandRow extends RowBase {
   readonly parse: 'forward'
   /**
-   * The same-named upstream command declares no `--store` (upstream's
-   * `templates` and every `schema` subcommand), so a `--store <id>` after the
-   * command name is left in the argv where it stands, never absorbed: the
-   * binary parses it in the user's order, naming an earlier unknown option or
-   * `--store-path` first and raising a later flag's missing value, as it does
-   * for bare `openspec`. A `--store` before the command name selects no
-   * root: it is threaded right after the command path, where the binary
-   * refuses it as an unknown option (an earlier missing value still first),
-   * as `openspec --store <id> templates` does.
+   * `accepted` when the command selects its root through the global
+   * `--store <id>` (`show`, `schemas`, `templates`, `schema`). Unset where
+   * it takes no root (`store`, `workset`, `config`).
    */
-  readonly storeInArgv?: true
+  readonly store?: 'accepted'
 }
 
 export type CommandRow = TableCommandRow | ForwardCommandRow
@@ -711,6 +705,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     summary: 'Show a change or spec (text or JSON)',
     hidden: false,
     parse: 'forward',
+    store: 'accepted',
     declaresStorePath: true,
     positionals: [upstreamArg({ name: 'item', required: true })],
     flags: [
@@ -768,6 +763,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     summary: 'List resolvable schemas',
     hidden: false,
     parse: 'forward',
+    store: 'accepted',
     declaresStorePath: true,
     positionals: [],
     flags: [],
@@ -777,7 +773,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     summary: 'Inspect a schema (which/validate)',
     hidden: false,
     parse: 'forward',
-    storeInArgv: true,
+    store: 'accepted',
     positionals: [],
     flags: [],
     subcommands: [
@@ -828,7 +824,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     summary: 'List per-artifact template paths',
     hidden: false,
     parse: 'forward',
-    storeInArgv: true,
+    store: 'accepted',
     positionals: [],
     flags: [
       upstream({
