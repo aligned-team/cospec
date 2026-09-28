@@ -363,11 +363,11 @@ describe('parseDeltaSpec skippedHeaders', () => {
         emptyScenarioCount: 0,
         scenarioRemovalReasons: [],
         parts: [
-          { line: 5, scenarioCount: 0 },
-          { header: 'Notes inside', line: 9, scenarioCount: 1 },
-          { header: 'Requirement:', line: 18, scenarioCount: 0 },
-          { header: 'requirement', line: 20, scenarioCount: 0 },
-          { header: 'Scenario: Shallow', line: 26, scenarioCount: 0 },
+          { line: 5, scenarioCount: 0, hasText: true },
+          { header: 'Notes inside', line: 9, scenarioCount: 1, hasText: true },
+          { header: 'Requirement:', line: 18, scenarioCount: 0, hasText: false },
+          { header: 'requirement', line: 20, scenarioCount: 0, hasText: false },
+          { header: 'Scenario: Shallow', line: 26, scenarioCount: 0, hasText: true },
         ],
       },
       {
@@ -391,8 +391,8 @@ describe('parseDeltaSpec skippedHeaders', () => {
         emptyScenarioCount: 0,
         scenarioRemovalReasons: [],
         parts: [
-          { line: 38, scenarioCount: 0 },
-          { header: 'Between notes', line: 40, scenarioCount: 1 },
+          { line: 38, scenarioCount: 0, hasText: false },
+          { header: 'Between notes', line: 40, scenarioCount: 1, hasText: true },
         ],
       },
     ])

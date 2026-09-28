@@ -590,7 +590,7 @@ The system SHALL render, quickly.
       hasDeltaHeaders: false,
       purposeText: 'x',
     }
-    const skewed: LivingSpec = { ...view, archive: { ...view, structureIssues: [], splits: [] } }
+    const skewed: LivingSpec = { ...view, archive: { ...view, structureIssues: [], text: '' } }
     const p = parseDeltaSpec(
       `## MODIFIED Requirements
 

@@ -14,9 +14,11 @@
 // the rule and the track that adds the dedupe each flip their own half.
 
 import { afterAll, describe, expect, test } from 'bun:test'
-import { cpSync, existsSync, mkdirSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { parseDeltaSpec } from '../../src/core/deltas.ts'
+import { rebuildSpec } from '../../src/core/rebuilt-spec.ts'
 import {
   cleanupAll,
   cospec,
@@ -1906,29 +1908,7 @@ describe('14. one view model: the scan is fence-aware and the archive family rea
 
 /** Rows that fail on the tree until their fix lands; each fix commit removes its own ids. */
 const ROUND4_FAILING = new Set<string>([
-  '15.1',
-  '15.2',
-  '15.3',
-  '20.1',
-  '20.2',
-  '20.3',
-  '20.4',
-  '20.5',
-  '20.6',
-  '20.7',
-  '20.8',
-  '20.9',
-  '20.10',
-  '20.11',
-  '20.12',
-  '20.13',
-  '20.14',
-  '20.15',
   '20.16',
-  '20.24',
-  '20.30',
-  '20.31',
-  '20.32',
   'entry 19 rn-then-mod-old',
   'entry 20 newcap-modified',
   'entry 20 newcap-renamed',
@@ -2715,6 +2695,66 @@ describe('20. the rebuilt spec is validated as the archive validates it', () => 
       expect(byRule(report, REBUILT)).toHaveLength(1)
     },
   )
+})
+
+// --- 20.40 the port rebuilds what the binary writes, byte for byte -------------------------
+
+const REMOVED_CACHING = `## REMOVED Requirements
+
+- \`### Requirement: Widget caching\`
+`
+
+const GADGETS_WITH_PURPOSE = `## Purpose
+
+Gadgets purpose that is long enough to clear the fifty character bar.
+
+${addedPolishing(POLISH_SCENARIO)}`
+
+describe('20.40 the rebuilt spec the port builds is the spec the binary archive writes', () => {
+  const shapes: [string, string | undefined, string, Record<string, string>][] = [
+    // A retired capability's spec is deleted, not written.
+    ...REBUILT_ARCHIVED.filter((r) => r.yaml === undefined).map(
+      (r) =>
+        [r.name, r.living, Object.keys(r.specs)[0]!.split('/')[0]!, r.specs] as [
+          string,
+          string,
+          string,
+          Record<string, string>,
+        ],
+    ),
+    ['bb-renamed', LIVING, 'widgets', { 'widgets/spec.md': RENAMED_RENDERING }],
+    ['bb-removed', LIVING, 'widgets', { 'widgets/spec.md': REMOVED_CACHING }],
+    [
+      'bb-mixed',
+      inPreamble('Some prose.\n\n\n\n'),
+      'widgets',
+      {
+        'widgets/spec.md': `${RENAMED_RENDERING}\n${MODIFIED_CACHING}\n${addedPolishing(POLISH_SCENARIO)}`,
+      },
+    ],
+    ['bb-fenced', LIVING, 'widgets', { 'widgets/spec.md': FENCED_COMMENT_OPENER }],
+    ['bb-new-purpose', LIVING, 'gadgets', { 'gadgets/spec.md': GADGETS_WITH_PURPOSE }],
+  ]
+  for (const [name, living, capability, specs] of shapes)
+    test(`20.40 ${name}`, async () => {
+      const root = mkTempRepo({ git: true })
+      buildFeat(root, `bb-${name}`, specs, { living })
+      const livingPath = join(root, `openspec/specs/${capability}/spec.md`)
+      const before = existsSync(livingPath) ? readFileSync(livingPath, 'utf8') : undefined
+      const deltaText = Object.values(specs)[0]!
+      const rebuilt = rebuildSpec({
+        capability,
+        changeName: `bb-${name}`,
+        living: before,
+        deltaText,
+        delta: parseDeltaSpec(deltaText, `specs/${capability}/spec.md`, capability, 'verbatim'),
+      })
+      const res = await openspec(['archive', `bb-${name}`, '-y'], root)
+      expect(res.exitCode).toBe(0)
+      expect(rebuilt?.map((l) => l.text).join('\n')).toBe(
+        readFileSync(livingPath, 'utf8').replace(/\n$/, ''),
+      )
+    })
 })
 
 // --- 21. DUPLICATE_CLASSES entries 19-24 ----------------------------------------------------

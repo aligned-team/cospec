@@ -10,13 +10,23 @@ import {
   findScenarioDrops,
   foldRequirementName,
   normalizeBlockRaw,
+  normalizeRequirementName,
   parseDeltaSpec,
   SCENARIO_DROP_HINT,
   SCENARIO_DROP_NOTE_RETIRED,
   scenarioDropMessage,
   type DeltaOp,
   type LivingView,
+  type ParsedDelta,
+  type RequirementSplit,
 } from '../deltas.ts'
+import {
+  rebuildSpec,
+  validateRebuiltSpec,
+  type LineOrigin,
+  type RebuiltLine,
+  type RebuiltSpecIssue,
+} from '../rebuilt-spec.ts'
 import type { Issue } from './issue.ts'
 import type { LoadedChange } from './schema-info.ts'
 
@@ -149,6 +159,175 @@ function replayDeltaNames(
   return { visible: seen, crossSection }
 }
 
+/** The rules whose refusal stops the archive before it rebuilds the spec. */
+const MERGE_PRECONDITIONS: ReadonlySet<string> = new Set([
+  'archive/new-spec-non-added',
+  'archive/target-invalid',
+  'archive/target-missing',
+  'archive/added-exists',
+  'archive/op-conflict',
+])
+
+const REBUILT_HINT = {
+  scenario:
+    'openspec archive re-validates the whole rebuilt spec, where every header under "## Requirements" is a requirement that needs a "#### Scenario:" with steps ("Requirement must have at least one scenario") — give it one, make a stray header plain or bold text, or MODIFY or REMOVE the requirement in this delta',
+  text: 'openspec archive re-validates the whole rebuilt spec, where every header under "## Requirements" is a requirement named by its own text ("Requirement text cannot be empty") — name the header, or make it plain or bold text',
+  body: 'openspec archive re-validates the whole rebuilt spec, where every "### Requirement:" needs its statement on the lines under the header ("Requirement … must contain SHALL or MUST") — write one, or MODIFY the requirement in this delta with one',
+  purpose:
+    'openspec archive re-validates the whole rebuilt spec, which needs text under "## Purpose" ("Spec must have a Purpose section") — write the capability\'s Purpose in the living spec',
+  requirements:
+    'openspec archive re-validates the whole rebuilt spec, which needs at least one requirement ("Spec must have at least one requirement") — keep one, or set `retire_capabilities: true` in the change\'s .openspec.yaml to retire the capability',
+  misread:
+    'openspec reads the first header titled "Requirements", at any level, as the spec\'s Requirements section ("Spec must have at least one requirement") — rename that header or make it plain text',
+  structure:
+    'openspec archive re-validates the whole rebuilt spec and refuses its structure — fix the header the merge carries into it',
+} as const
+
+const CANONICAL_HEADER_RE = /^###\s*Requirement:\s*(.+?)\s*$/i
+
+/**
+ * `archive/rebuilt-spec-invalid` for one delta file: rebuild the spec the
+ * archive would write (`rebuildSpec`) and report each ERROR its validation
+ * raises (`validateRebuiltSpec`), named by the living or delta line it came
+ * from.
+ *
+ * A requirement a delta block writes is that block's own rules' to report —
+ * `deltas/requirement-shape` and the binary's validate for a block with no
+ * scenario or no statement, `archive/split-requirement` for a header that cuts
+ * one — so a finding on a delta line is kept only where none of those fires:
+ * the rebuilt spec is the net under them, never a second report.
+ */
+function rebuiltSpecIssues(
+  change: LoadedChange,
+  capability: string,
+  file: { path: string; text: string; parsed: ParsedDelta; splits: RequirementSplit[] },
+  living: string | undefined,
+): Issue[] {
+  const lines: RebuiltLine[] | undefined = rebuildSpec({
+    capability,
+    changeName: change.id,
+    living,
+    deltaText: file.text,
+    delta: file.parsed,
+  })
+  if (lines === undefined) return []
+  const livingFile = `openspec/specs/${capability}/spec.md`
+  const originOf = (index: number): LineOrigin | undefined => lines[index]?.origin
+  const where = (origin: LineOrigin | undefined): string =>
+    origin?.source === 'living'
+      ? `line ${origin.line} of ${livingFile}`
+      : origin?.source === 'delta'
+        ? `line ${origin.line} of this delta`
+        : `the new spec archive writes for '${capability}'`
+  const splitLines = new Set(file.splits.map((s) => s.part.line))
+  const headSplit = new Set(file.splits.filter((s) => s.empty === 'head').map((s) => s.op))
+  const blockAt = (line: number): DeltaOp | undefined =>
+    file.parsed.ops.find(
+      (op) => op.line === line && (op.operation === 'ADDED' || op.operation === 'MODIFIED'),
+    )
+
+  const out: Issue[] = []
+  const report = (origin: LineOrigin | undefined, message: string, hint: string): void => {
+    out.push({
+      level: 'ERROR',
+      rule: 'archive/rebuilt-spec-invalid',
+      path: file.path,
+      ...(origin?.source === 'delta' ? { line: origin.line } : {}),
+      message,
+      hint,
+    })
+  }
+  const found: RebuiltSpecIssue[] = validateRebuiltSpec(lines.map((l) => l.text))
+  const noBody = new Set(found.flatMap((i) => (i.kind === 'no-body' ? [i.line] : [])))
+  for (const issue of found) {
+    if (issue.kind === 'no-purpose')
+      report(
+        undefined,
+        living === undefined
+          ? `the new spec archive writes for '${capability}' has no ## Purpose text`
+          : `the rebuilt spec for '${capability}' has no ## Purpose text: ${livingFile} has none for the merge to keep`,
+        REBUILT_HINT.purpose,
+      )
+    else if (issue.kind === 'no-requirements-section')
+      report(
+        undefined,
+        `the rebuilt spec for '${capability}' has no Requirements section`,
+        REBUILT_HINT.requirements,
+      )
+    else if (issue.kind === 'no-requirements') {
+      // A capability this change retires is the archive's to delete, not a
+      // spec it writes — `retire_capabilities: true` takes it off this path.
+      if (issue.level === 2 && change.openspecYaml.retireCapabilities === true) continue
+      if (issue.level === 2)
+        report(
+          undefined,
+          `the rebuilt spec for '${capability}' has no requirement left`,
+          REBUILT_HINT.requirements,
+        )
+      else
+        report(
+          originOf(issue.line),
+          `the rebuilt spec for '${capability}' has no requirement: "${lines[issue.line]!.text.trim()}" (${where(originOf(issue.line))}) is read as its Requirements section, and nothing sits under it`,
+          REBUILT_HINT.misread,
+        )
+    } else if (issue.kind === 'structure') {
+      const origin = originOf(issue.issue.line - 1)
+      report(
+        origin,
+        `the rebuilt spec for '${capability}' is structurally invalid — ${
+          issue.issue.kind === 'delta-header'
+            ? `delta header "${issue.issue.name}" (${where(origin)})`
+            : issue.issue.kind === 'duplicate-requirement'
+              ? `requirement "${issue.issue.name}" (${where(origin)}) is declared twice`
+              : `requirement "${issue.issue.name}" (${where(origin)}) sits outside its ## Requirements section`
+        }`,
+        REBUILT_HINT.structure,
+      )
+    } else {
+      const origin = originOf(issue.line)
+      const header = issue.kind === 'requirement' ? issue.header : lines[issue.line]!.text.trim()
+      const canonical = CANONICAL_HEADER_RE.exec(header)?.[1]
+      const name = canonical === undefined ? undefined : normalizeRequirementName(canonical)
+      let noScenario = issue.kind === 'requirement' && issue.noScenario
+      const noText = issue.kind === 'requirement' && issue.noText
+      let missingBody = issue.kind === 'no-body'
+      // A no-body finding on a line that also lacks a scenario is folded into that one.
+      if (
+        issue.kind === 'no-body' &&
+        found.some((i) => i.kind === 'requirement' && i.line === issue.line)
+      )
+        continue
+      if (issue.kind === 'requirement' && noBody.has(issue.line)) missingBody = true
+      if (origin?.source === 'delta') {
+        if (splitLines.has(origin.line)) continue
+        const op = blockAt(origin.line)
+        if (op !== undefined) {
+          if (op.scenarioCount === 0 || headSplit.has(op)) noScenario = false
+          missingBody = false
+        }
+      }
+      if (!noScenario && !noText && !missingBody) continue
+      const lacks = [
+        ...(noText ? ['no text'] : []),
+        ...(missingBody ? ['no text under its header'] : []),
+        ...(noScenario ? ['no scenario'] : []),
+      ].join(' and ')
+      const cutBy =
+        issue.kind === 'requirement' && noScenario && issue.cutBy !== undefined
+          ? ` — header "${issue.cutBy.header}" (${where(originOf(issue.cutBy.line))}) splits it, and the scenarios below go with that header`
+          : ''
+      report(
+        origin,
+        name === undefined
+          ? `header "${header}" (${where(origin)}) becomes a requirement with ${lacks} in the rebuilt spec${cutBy}`
+          : `requirement "${name}" (${where(origin)}) has ${lacks} in the rebuilt spec${cutBy}`,
+        noScenario ? REBUILT_HINT.scenario : noText ? REBUILT_HINT.text : REBUILT_HINT.body,
+      )
+    }
+  }
+  return out
+}
+
 export interface ArchiveRuleOptions {
   strict: boolean
 }
@@ -165,6 +344,8 @@ export function archiveRules(
     ops: DeltaOp[]
     /** the delta file path an op belongs to, parallel to `ops`. */
     paths: string[]
+    /** each delta file of the capability, parsed on the verbatim view, with its splits. */
+    files: { path: string; text: string; parsed: ParsedDelta; splits: RequirementSplit[] }[]
   }
   const byCap = new Map<string, CapGroup>()
 
@@ -181,7 +362,8 @@ export function archiveRules(
     // `findRequirementSplits`). A `### Scenario:` line the advisory reader sees
     // is `deltas/scenario-depth`'s alone: its `#### Scenario:` fix mends both.
     const depthLines = new Set(maskedParse.scenarioDepthIssues.map((d) => d.line))
-    for (const split of findRequirementSplits(parsed)) {
+    const splits = findRequirementSplits(parsed)
+    for (const split of splits) {
       if (depthLines.has(split.part.line)) continue
       const { op, part } = split
       const header = `### ${part.header ?? ''}`
@@ -193,8 +375,11 @@ export function archiveRules(
         message:
           split.empty === 'head'
             ? `header "${header}" inside ${op.operation} "${op.name}" splits it when archived, leaving "${op.name}" with no scenario above the header`
-            : `header "${header}" inside ${op.operation} "${op.name}" splits it when archived, leaving the header a requirement with no scenario`,
-        hint: 'openspec archive re-validates the merged spec, where every "###" header starts a requirement that needs its own "#### Scenario:" — make the header plain or bold text, or move it above the first "### Requirement:"',
+            : `header "${header}" inside ${op.operation} "${op.name}" splits it when archived, leaving the header a requirement with no ${split.empty === 'text' ? 'text' : 'scenario'}`,
+        hint:
+          split.empty === 'text'
+            ? 'openspec archive re-validates the merged spec, where every "###" header starts a requirement named by its own text — a header with no title and no line of its own before its first scenario has none ("Requirement text cannot be empty"); name it, or make it plain or bold text'
+            : 'openspec archive re-validates the merged spec, where every "###" header starts a requirement that needs its own "#### Scenario:" — make the header plain or bold text, or move it above the first "### Requirement:"',
       })
     }
 
@@ -209,15 +394,17 @@ export function archiveRules(
         hint: 'add ADDED/MODIFIED/REMOVED/RENAMED entries or remove the empty section',
       })
 
-    const group = byCap.get(file.capability) ?? { ops: [], paths: [] }
+    const group = byCap.get(file.capability) ?? { ops: [], paths: [], files: [] }
     for (const op of parsed.ops) {
       group.ops.push(op)
       group.paths.push(file.path)
     }
+    group.files.push({ path: file.path, text: file.text, parsed, splits })
     byCap.set(file.capability, group)
   }
 
   for (const [capability, group] of byCap) {
+    const capabilityStart = issues.length
     // What the archive merges against: the living spec under the verbatim view.
     const living = change.livingSpecs.get(capability)?.archive
     const pathFor = (i: number): string => group.paths[i] ?? `specs/${capability}/spec.md`
@@ -241,69 +428,31 @@ export function archiveRules(
       // that fold onto each other are refused here exactly as they are against
       // a living spec. Every arm below that reads the living spec is guarded.
     } else {
-      // archive/target-invalid — the living spec must be a well-formed main spec.
-      // Every kind `findMainSpecStructureIssues` reports — a delta header, a
-      // misplaced or a duplicate requirement — is one openspec's archive
-      // refuses to update past, before merging anything.
-      const reasons: string[] = []
+      // archive/target-invalid — the three structural defects openspec's
+      // archive refuses to update past, before merging anything
+      // (`findMainSpecStructureIssues`). A missing `## Purpose` or
+      // `## Requirements` is not one of them: the merge appends an empty
+      // `## Requirements`, and what it cannot accept — no Purpose — is the
+      // rebuilt spec's to report (`archive/rebuilt-spec-invalid`).
       const deltaHeaders = living.structureIssues.some((d) => d.kind === 'delta-header')
-      if (!deltaHeaders && (!living.hasPurpose || !living.hasRequirements))
-        reasons.push(`it is missing ${!living.hasPurpose ? '## Purpose' : '## Requirements'}`)
-      for (const defect of living.structureIssues)
-        reasons.push(
-          defect.kind === 'delta-header'
-            ? `line ${defect.line}: delta header "${defect.name}" belongs only in a change's delta spec`
-            : defect.kind === 'duplicate-requirement'
-              ? `line ${defect.line}: requirement "${defect.name}" duplicates the one declared on line ${defect.firstLine}`
-              : `line ${defect.line}: requirement "${defect.name}" is outside the ## Requirements section, so openspec never reads it`,
-        )
-      if (reasons.length > 0)
+      if (living.structureIssues.length > 0)
         issues.push({
           level: 'ERROR',
           rule: 'archive/target-invalid',
           path: `specs/${capability}/spec.md`,
-          message: `living spec openspec/specs/${capability}/spec.md is structurally invalid — ${reasons.join('; ')}`,
-          ...(living.structureIssues.length === 0
-            ? {}
-            : {
-                hint: deltaHeaders
-                  ? 'openspec archive will not update a spec holding a delta header ("## ADDED Requirements" and its siblings), which cuts its ## Requirements section short — fix the living spec first'
-                  : 'openspec archive will not update a spec until every "### Requirement:" sits under "## Requirements" with a name no other requirement there uses — fix the living spec first',
-              }),
+          message: `living spec openspec/specs/${capability}/spec.md is structurally invalid — ${living.structureIssues
+            .map((defect) =>
+              defect.kind === 'delta-header'
+                ? `line ${defect.line}: delta header "${defect.name}" belongs only in a change's delta spec`
+                : defect.kind === 'duplicate-requirement'
+                  ? `line ${defect.line}: requirement "${defect.name}" duplicates the one declared on line ${defect.firstLine}`
+                  : `line ${defect.line}: requirement "${defect.name}" is outside the ## Requirements section, so openspec never reads it`,
+            )
+            .join('; ')}`,
+          hint: deltaHeaders
+            ? 'openspec archive will not update a spec holding a delta header ("## ADDED Requirements" and its siblings), which cuts its ## Requirements section short — fix the living spec first'
+            : 'openspec archive will not update a spec until every "### Requirement:" sits under "## Requirements" with a name no other requirement there uses — fix the living spec first',
         })
-
-      // archive/split-requirement, living side — the rebuilt spec the archive
-      // re-validates keeps every living requirement this delta neither
-      // replaces nor removes, as written, so a skipped `###` header already
-      // inside one splits it there exactly as one inside an ADDED block does
-      // (probed: refused beside an unrelated MODIFIED, and after a RENAMED
-      // carries the block to a new name; a MODIFIED replacing the block
-      // archives). REMOVED, MODIFIED and ADDED read the post-RENAMED names,
-      // as the merge applies them; an ADDED of the same name is the delta
-      // block's to report, which is the one the archive keeps.
-      const renamedTo = new Map<string, string>()
-      const replaced = new Set<string>()
-      for (const op of group.ops) {
-        if (op.operation === 'RENAMED') {
-          if (op.fromName !== undefined && op.toName !== undefined)
-            renamedTo.set(op.fromName, op.toName)
-        } else if (op.name !== undefined) replaced.add(op.name)
-      }
-      for (const split of living.splits) {
-        if (replaced.has(renamedTo.get(split.requirement) ?? split.requirement)) continue
-        const header = `### ${split.part.header ?? ''}`
-        const where = `on line ${split.part.line} of living requirement "${split.requirement}" in openspec/specs/${capability}/spec.md`
-        issues.push({
-          level: 'ERROR',
-          rule: 'archive/split-requirement',
-          path: `specs/${capability}/spec.md`,
-          message:
-            split.empty === 'head'
-              ? `header "${header}" ${where} splits it when archived, leaving "${split.requirement}" with no scenario above the header`
-              : `header "${header}" ${where} splits it when archived, leaving the header a requirement with no scenario`,
-          hint: 'openspec archive re-validates the whole rebuilt spec, and this requirement survives the merge as written — make the header plain or bold text in the living spec, or MODIFY the requirement in this delta without it',
-        })
-      }
     }
 
     // Ops whose target was absent for an upstream early-sync reason; the
@@ -516,6 +665,17 @@ export function archiveRules(
         }
       }
     }
+
+    // archive/rebuilt-spec-invalid — the archive merges the delta and then
+    // re-validates the whole spec it rebuilt, refusing to write it on any
+    // ERROR. A precondition refusal above stops the archive before it gets
+    // there, so the rebuilt spec is only read once nothing else refused.
+    const refused = issues
+      .slice(capabilityStart)
+      .some((i) => i.level === 'ERROR' && MERGE_PRECONDITIONS.has(i.rule))
+    if (!refused)
+      for (const file of group.files)
+        issues.push(...rebuiltSpecIssues(change, capability, file, living?.text))
   }
 
   // archive/scenario-preservation — the advisory mirror of the hard archive-command

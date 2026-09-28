@@ -618,12 +618,16 @@ more and keeping the spec alive misleads the next reader into building on it.
     )
   })
 
-  test('without the marker openspec refuses and cospec relays the refusal', async () => {
+  // openspec refuses a rebuilt spec with no requirement left; cospec's
+  // `archive/rebuilt-spec-invalid` now says so at pre-flight, before delegating,
+  // with the same way out.
+  test('without the marker cospec refuses before delegating, naming the marker', async () => {
     const root = await initRepo()
     buildRetire(root, 'retire-widgets', false)
     const res = await cospec(['archive', 'retire-widgets'], { cwd: root })
     expect(res.exitCode).toBe(1)
-    expect(res.stderr).toContain('retire_capabilities: true')
+    expect(res.stdout).toContain('archive/rebuilt-spec-invalid')
+    expect(res.stdout).toContain('retire_capabilities: true')
     expect(existsSync(join(root, 'openspec/specs/widgets/spec.md'))).toBe(true)
     expect(existsSync(join(root, 'openspec/changes/retire-widgets'))).toBe(true)
   })
