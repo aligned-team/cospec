@@ -352,3 +352,8 @@ files, task 7.7, both marked POST-REBASE.
       `openspec config path` prints, test it for truthiness, and pass it
       unchanged to `validateStoreId` and the registry lookup; update the Stores
       page, `docs/stores.md` and the `readDefaultStore` unit rows
+- [x] 9.3 REVIEW (ledger 5.17, design D9): add failing rows, then let
+      `openspecStoreList` accept exit 1 and throw `StoreRegistryError` with the
+      binary's `error` diagnostic, and turn it into a `RootSelectionError` in
+      `root.ts` (respelled through `core/remedies.ts`, prefixed by
+      `withOrigin`); list `invalid_store_registry` on the Stores page

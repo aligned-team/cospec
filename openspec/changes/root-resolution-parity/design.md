@@ -283,6 +283,26 @@ only; it adds no spawn. _Rejected:_ spawning `openspec store doctor <id> --json`
 on every store selection, which adds a spawn per command and reports a broader
 set of findings than the resolver fails on.
 
+_Amended in review:_ the registry read itself fails the way upstream's does.
+With a registry file the binary cannot parse, `openspec store ls --json` exits 1
+with
+`{stores: [], status: [{code: invalid_store_registry, target: store.registry, fix: "Repair or remove <registry path>."}]}`,
+and upstream's resolver raises the same diagnostic from its own registry read
+(`fromStoreError`), behind the `Declared in <file>: ` or
+`Global defaultStore '<id>': ` prefix for a pointer or `defaultStore` selection.
+cospec declared exit 0 only, so every such selection reported a wrapped-call
+violation. `openspecStoreList` now accepts exit 1 and throws
+`StoreRegistryError` (an `OpenspecCallError` carrying the diagnostic) when
+`status` has an `error` entry, and still throws a plain `OpenspecCallError` for
+exit 1 without one; `root.ts`'s `registeredStores` turns it into a
+`RootSelectionError` with the message and fix spelled through
+`core/remedies.ts`, so `withOrigin` adds the prefixes and the `--json` document
+and text failure are the binary's. The class lives in `openspec.ts` because
+`root.ts` imports that module (`import/no-cycle`); `store.ts`'s post-condition,
+which only lists, still sees an `OpenspecCallError`. `RootDiagnostic.target`
+becomes optional, as upstream's is, so a relayed diagnostic without one is never
+given an invented value.
+
 **D10. The banner is printed by `resolveRoot`.** `resolveRoot` widens its
 parameter to `flags: { store?: string; json?: boolean }`; every caller already
 passes the global flags, which carry `json`, so no caller changes. When the

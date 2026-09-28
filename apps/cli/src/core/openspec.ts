@@ -387,28 +387,62 @@ export interface StoreListEntry {
   root: string
 }
 
+/** One entry of `openspec store ls --json`'s `status` array. */
+export interface StoreListDiagnostic {
+  severity: string
+  code: string
+  message: string
+  target?: string
+  fix?: string
+}
+
 /** Shape of `openspec store ls --json`. */
 export interface StoreListJson {
   stores: StoreListEntry[]
 }
 
 /**
+ * `openspec store ls --json` could not read the registry and said why: exit 1
+ * with an `error` entry in its `status` (`invalid_store_registry`, naming the
+ * file to repair). Still a wrapped-call failure for a caller that only lists;
+ * root selection reports `diagnostic` as upstream's resolver does.
+ */
+export class StoreRegistryError extends OpenspecCallError {
+  readonly diagnostic: StoreListDiagnostic
+
+  constructor(message: string, result: OpenspecResult, diagnostic: StoreListDiagnostic) {
+    super(message, result)
+    this.name = 'StoreRegistryError'
+    this.diagnostic = diagnostic
+  }
+}
+
+/**
  * Typed `openspec store ls --json` — the machine-global store registry. Not
  * root-scoped (stores are registered per machine), so it takes a plain cwd and
- * never carries `--store`. Throws `OpenspecCallError` on a non-zero exit or an
- * unparseable body.
+ * never carries `--store`. A registry the binary cannot read (exit 1 with an
+ * `error` diagnostic) throws `StoreRegistryError`; any other failure, or an
+ * unparseable body, throws `OpenspecCallError`.
  */
 export async function openspecStoreList(cwd: string): Promise<StoreListJson> {
-  const res = await runOpenspec(['store', 'ls', '--json'], { cwd, expect: { exitCodes: [0] } })
+  const label = wrappedCallLabel(['store', 'ls', '--json'])
+  const res = await runOpenspec(['store', 'ls', '--json'], { cwd, expect: { exitCodes: [0, 1] } })
+  let parsed: Partial<StoreListJson>
   try {
-    const parsed = JSON.parse(res.stdout) as Partial<StoreListJson>
-    return { stores: Array.isArray(parsed.stores) ? parsed.stores : [] }
+    parsed = JSON.parse(res.stdout) as Partial<StoreListJson>
   } catch {
-    throw new OpenspecCallError(
-      `could not parse JSON from ${wrappedCallLabel(['store', 'ls', '--json'])}`,
-      res,
-    )
+    throw new OpenspecCallError(`could not parse JSON from ${label}`, res)
   }
+  if (res.exitCode !== 0) {
+    const status = (parsed as { status?: unknown }).status
+    const error = Array.isArray(status)
+      ? (status as StoreListDiagnostic[]).find((d) => d.severity === 'error')
+      : undefined
+    if (error === undefined)
+      throw new OpenspecCallError(`${label} exited ${res.exitCode} with no error diagnostic`, res)
+    throw new StoreRegistryError(`${label} reported ${error.code}: ${error.message}`, res, error)
+  }
+  return { stores: Array.isArray(parsed.stores) ? parsed.stores : [] }
 }
 
 // --- Typed JSON shapes for the wrapped commands (probed across the accepted

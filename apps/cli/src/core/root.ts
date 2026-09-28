@@ -35,7 +35,15 @@ import { dirname, join, resolve } from 'node:path'
 
 import { parse as parseYaml } from 'yaml'
 
-import { openspecStoreList, runOpenspec, suppressRelayedStderrLine, type Root } from './openspec.ts'
+import {
+  openspecStoreList,
+  runOpenspec,
+  StoreRegistryError,
+  suppressRelayedStderrLine,
+  type Root,
+  type StoreListEntry,
+} from './openspec.ts'
+import { respellRemedies } from './remedies.ts'
 
 export type { Root } from './openspec.ts'
 export { localRoot } from './openspec.ts'
@@ -49,7 +57,8 @@ export interface RootDiagnostic {
   severity: 'error'
   code: string
   message: string
-  target: string
+  /** Optional, as upstream's is; every diagnostic cospec builds itself has one. */
+  target?: string
   /** Optional, as upstream's is: a failure with nothing to suggest omits it. */
   fix?: string
 }
@@ -85,7 +94,15 @@ export function rootSelectionDocument(
   payload: Readonly<Record<string, unknown>> = {},
 ): string {
   const { severity, code, message, target, fix } = error.diagnostic
-  const status = [{ severity, code, message, target, ...(fix === undefined ? {} : { fix }) }]
+  const status = [
+    {
+      severity,
+      code,
+      message,
+      ...(target === undefined ? {} : { target }),
+      ...(fix === undefined ? {} : { fix }),
+    },
+  ]
   return `${JSON.stringify({ ...payload, status }, null, 2)}\n`
 }
 
@@ -378,6 +395,28 @@ function assertHealthyStore(id: string, storeRoot: string): void {
 }
 
 /**
+ * The registered stores, as `openspec store ls --json` lists them. A registry
+ * the binary cannot read fails selection with the binary's own diagnostic
+ * (`invalid_store_registry`, naming the file to repair), as upstream's
+ * resolver turns its registry read's error into a `RootSelectionError`; its
+ * text is spelled through cospec's remedies like every relayed fix.
+ */
+async function registeredStores(cwd: string): Promise<StoreListEntry[]> {
+  try {
+    return (await openspecStoreList(cwd)).stores
+  } catch (error) {
+    if (!(error instanceof StoreRegistryError)) throw error
+    const { code, message, target, fix } = error.diagnostic
+    throw new RootSelectionError({
+      code,
+      message: respellRemedies(message),
+      ...(target === undefined ? {} : { target }),
+      ...(fix === undefined ? {} : { fix: respellRemedies(fix) }),
+    })
+  }
+}
+
+/**
  * Resolve a store id to a root via the machine registry
  * (`openspec store ls --json`), verifying the store on disk first. Throws a
  * `RootSelectionError` naming the known stores when the id is not registered
@@ -391,7 +430,7 @@ export async function resolveStore(
   source: 'store' | 'declared' | 'global_default' = 'store',
 ): Promise<ResolvedRoot> {
   validateStoreId(id)
-  const { stores } = await openspecStoreList(cwd)
+  const stores = await registeredStores(cwd)
   const found = stores.find((s) => s.id === id)
   if (found === undefined) {
     const known = stores.map((s) => s.id).join(', ')
@@ -546,7 +585,7 @@ async function selectRoot(cwd: string, store: string | undefined): Promise<Resol
             'stale global default (cospec config unset defaultStore).'
           : undefined,
     )
-  const ids = (await openspecStoreList(cwd)).stores.map((s) => s.id)
+  const ids = (await registeredStores(cwd)).map((s) => s.id)
   if (ids.length > 0) {
     const registered = ids.toSorted((a, b) => a.localeCompare(b)).join(', ')
     throw new RootSelectionError({

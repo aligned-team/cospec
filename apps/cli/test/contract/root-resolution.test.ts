@@ -233,6 +233,14 @@ function removeGammaMetadata(sb: Sandbox): void {
   rmSync(join(gammaRoot(sb), '.openspec-store', 'store.yaml'))
 }
 
+/** Overwrite the sandbox's store registry with YAML the binary cannot parse. */
+function breakRegistry(sb: Sandbox): void {
+  writeFileSync(
+    join(sb.env['XDG_DATA_HOME']!, 'openspec', 'stores', 'registry.yaml'),
+    'version: [\n',
+  )
+}
+
 /** M16's layout: stores kept at `$HOME/openspec/<id>`, one of them named `specs`. */
 async function homeStores(sb: Sandbox): Promise<void> {
   await setupStore(sb, 'homestore', join(sb.home, 'openspec', 'homestore'))
@@ -1440,6 +1448,14 @@ const NO_FLAG_FAILURES: readonly SelectionFailureCase[] = [
       return bare(sb)
     },
   },
+  {
+    id: 'M29 (ledger 5.17)',
+    code: 'invalid_store_registry',
+    setup: (sb) => {
+      breakRegistry(sb)
+      return bare(sb)
+    },
+  },
 ]
 
 describe('templates and schema run in the cwd when selection fails without --store (ledger 5.15)', () => {
@@ -1506,6 +1522,15 @@ const FLAG_FAILURES: readonly (SelectionFailureCase & { store: string[] })[] = [
     },
   },
   { id: '--store=', code: 'invalid_store_id', store: ['--store='], setup: bare },
+  {
+    id: 'M29b --store alpha (ledger 5.17)',
+    code: 'invalid_store_registry',
+    store: ['--store', 'alpha'],
+    setup: (sb) => {
+      breakRegistry(sb)
+      return bare(sb)
+    },
+  },
 ]
 
 describe('templates and schema keep the selection failure of an explicit --store (ledger 5.15)', () => {
@@ -1625,4 +1650,84 @@ describe('defaultStore reaches selection as the raw value upstream reads (ledger
     expect(text.exitCode).toBe(1)
     expect(text.stderr).toBe(up.stderr.replace(/^(?:✖ )?Error: /, 'cospec: '))
   })
+})
+
+// --- Ledger 5.17: an unreadable store registry fails selection with its diagnostic ---
+
+interface RegistryRoute {
+  id: string
+  title: string
+  setup: (sb: Sandbox) => Promise<Fixture> | Fixture
+}
+
+/** The four ways selection reads the registry: rootless, `--store`, a pointer, `defaultStore`. */
+const REGISTRY_ROUTES: readonly RegistryRoute[] = [
+  { id: 'M29', title: 'rootless', setup: (sb) => at(bare(sb)) },
+  { id: 'M29b', title: 'explicit --store', setup: (sb) => at(bare(sb), undefined, 'alpha') },
+  {
+    id: 'M29c',
+    title: 'config-only pointer',
+    setup: (sb) => at(repo(sb, 'm29c', configOnly('store: alpha\n'))),
+  },
+  {
+    id: 'M29d',
+    title: 'defaultStore',
+    setup: async (sb) => {
+      await setDefaultStore(sb, 'alpha')
+      return at(bare(sb))
+    },
+  },
+]
+
+describe('an unreadable store registry fails selection with its diagnostic (ledger 5.17)', () => {
+  for (const route of REGISTRY_ROUTES) {
+    row({
+      id: route.id,
+      title: `malformed registry, ${route.title}`,
+      setup: async (sb) => {
+        const fx = await route.setup(sb)
+        breakRegistry(sb)
+        return fx
+      },
+      expected: () => code('invalid_store_registry'),
+    })
+
+    describe(`${route.id} malformed registry, ${route.title}: the CLI`, () => {
+      let sb!: Sandbox
+      let fx!: Fixture
+      const storeFlag = (): string[] => (fx.store === undefined ? [] : ['--store', fx.store])
+
+      beforeAll(async () => {
+        sb = await makeSandbox()
+        fx = await route.setup(sb)
+        breakRegistry(sb)
+      })
+
+      test("cospec context --json prints the binary's document", async () => {
+        const argv = ['context', '--json', ...storeFlag()]
+        const up = await oracle(argv, sb.dir, { cwd: fx.cwd })
+        expect(up.exitCode).toBe(1)
+        const res = await cospec(argv, { cwd: fx.cwd, env: sb.env })
+        expect(res.exitCode).toBe(1)
+        expect(res.stderr).toBe('')
+        expect(res.stdout).toBe(respell(up.stdout))
+      })
+
+      test("cospec list --json carries the binary's diagnostic", async () => {
+        const o = await rootOracle(sb, fx.cwd, ['list', '--json', ...storeFlag()])
+        const res = await cospec(['list', '--json', ...storeFlag()], { cwd: fx.cwd, env: sb.env })
+        expect(res.exitCode).toBe(1)
+        expect(JSON.parse(res.stdout)).toEqual({ status: [o.diagnostic] })
+      })
+
+      test("cospec list prints the binary's failure after cospec:", async () => {
+        const up = await oracle(['list', ...storeFlag()], sb.dir, { cwd: fx.cwd })
+        expect(up.exitCode).toBe(1)
+        const res = await cospec(['list', ...storeFlag()], { cwd: fx.cwd, env: sb.env })
+        expect(res.exitCode).toBe(1)
+        expect(res.stdout).toBe('')
+        expect(res.stderr).toBe(up.stderr.replace(/^(?:✖ )?Error: /, 'cospec: '))
+      })
+    })
+  }
 })

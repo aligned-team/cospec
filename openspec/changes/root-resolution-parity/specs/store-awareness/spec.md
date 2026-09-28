@@ -119,6 +119,15 @@ and never by resolving an ancestor of the missing path.
 - **THEN** the command fails with `invalid_store_id`, as bare `openspec` does,
   and does not select `beta`
 
+#### Scenario: An unreadable store registry fails selection
+
+- **WHEN** the machine's store registry file is not valid YAML and a command
+  selects its root with `--store`, a `store:` pointer, `defaultStore`, or from a
+  rootless directory
+- **THEN** the command exits 1 with the wrapped binary's
+  `invalid_store_registry` diagnostic, behind the same origin prefix for a
+  pointer or `defaultStore`, and never reports a wrapped-call violation
+
 #### Scenario: A subdirectory resolves the enclosing root
 
 - **WHEN** a command runs from `<repo>/src/deep` and `<repo>/openspec/` has a

@@ -196,6 +196,7 @@ OpenSpec prints such a payload for other commands too (`"changes": []`,
 | `store_identity_mismatch`        | a selected store's metadata is missing, or names a different id         |
 | `invalid_store_metadata`         | a selected store's `.openspec-store/store.yaml` doesn't parse           |
 | `unhealthy_store_root`           | a selected store's OpenSpec tree is incomplete or damaged               |
+| `invalid_store_registry`         | the machine's store registry file can't be read as a registry           |
 | `directory_not_found`            | `--cwd` names a path that is not an existing directory                  |
 
 `directory_not_found` is cospec's own (OpenSpec has no `--cwd`): it is checked
