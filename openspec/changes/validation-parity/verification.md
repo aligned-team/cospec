@@ -45,11 +45,11 @@
 
 ## 8. Docs on the owning pages
 
-- [ ] 8.1 @manual (agent) `apps/docs/reference/validation-rules.md` -> rows for `deltas/skipped-header`, `tasks/id-mismatch`, `tasks/id-duplicate`; `deltas/requirement-shape` mentions the header-only hint; `archive/added-exists` states the two cross-section shapes and no longer says a REMOVED-vacated header is free to re-use; the dedupe section lists every new pairing
-- [ ] 8.2 @manual (agent) `apps/docs/concepts/apply-and-archive.md` -> the early-sync prose no longer says an ADDED may re-use the exact header a REMOVED vacated, and names the cross-section refusal
-- [ ] 8.3 @manual (agent) `apps/docs/concepts/how-it-relates-to-openspec.md` -> its dedupe summary matches the new pairings
-- [ ] 8.4 @manual (agent) `docs/validation.md` -> rule list and dedupe paragraph match the reference page
-- [ ] 8.5 @integration (agent) `mise run docs:build` -> exit 0
+- [x] 8.1 @manual (agent) `apps/docs/reference/validation-rules.md` -> rows for `deltas/skipped-header`, `tasks/id-mismatch`, `tasks/id-duplicate`; `deltas/requirement-shape` mentions the header-only hint; `archive/added-exists` states the two cross-section shapes and no longer says a REMOVED-vacated header is free to re-use; the dedupe section lists every new pairing -> observed: rows added for `deltas/skipped-header` (I), `tasks/id-mismatch` (W) and `tasks/id-duplicate` (W), with a task-id paragraph above the `tasks/` table; `deltas/requirement-shape` names the header-only hint; `archive/added-exists` drops "RENAMED or REMOVED vacated" for "RENAMED vacated" and states both cross-section shapes, the fold-variant exemption and the identical-block case; the dedupe section gains a pairing table for the nine new entries plus the survive cases and the `--fast`/legacy-lane notes. `tasks/group-numbering` no longer claims to check `N.M` prefixes (it never did; `tasks/id-mismatch` does now)
+- [x] 8.2 @manual (agent) `apps/docs/concepts/apply-and-archive.md` -> the early-sync prose no longer says an ADDED may re-use the exact header a REMOVED vacated, and names the cross-section refusal -> observed: the exact-name paragraph now says an ADDED may re-use a header a RENAMED vacated, and a new paragraph names the cross-section refusal (REMOVED-vacated re-use and identical ADDED beside MODIFIED included) and the fold-variant exemption
+- [x] 8.3 @manual (agent) `apps/docs/concepts/how-it-relates-to-openspec.md` -> its dedupe summary matches the new pairings -> observed: a 1.13.1 bullet summarises the new pairings, the five cospec twins, severity kept, survivors relayed, legacy lane at OpenSpec's level, linking the pairing table
+- [x] 8.4 @manual (agent) `docs/validation.md` -> rule list and dedupe paragraph match the reference page -> observed: skipped-header and header-only-hint paragraph under the parser tolerances, a `Task ids` section, the cross-section paragraph under Composition, and a dedupe paragraph listing the nine entries and their keys
+- [x] 8.5 @integration (agent) `mise run docs:build` -> exit 0 -> observed: `mise run docs:build` exit 0 (`build complete`)
 
 ## 9. Full gate
 

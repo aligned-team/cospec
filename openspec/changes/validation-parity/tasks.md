@@ -82,7 +82,7 @@ trailer, never `--no-verify`).
 
 ## 6. T6 — docs (`apps/docs/reference/validation-rules.md`, `apps/docs/concepts/apply-and-archive.md`, `apps/docs/concepts/how-it-relates-to-openspec.md`, `docs/validation.md`)
 
-- [ ] 6.1 Update each page as design D9 describes (verification 8.1–8.4), then
+- [x] 6.1 Update each page as design D9 describes (verification 8.1–8.4), then
       run `mise run docs:build` (8.5). Commit
       `docs(validate): document validation-parity rules and dedupe`
 

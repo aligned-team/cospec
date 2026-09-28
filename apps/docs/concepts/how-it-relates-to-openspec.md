@@ -65,6 +65,16 @@ and the current pin:
   `cospec validate --strict` catches them before `cospec archive` ever
   delegates; the fourth (namespace folders) is a delegated refusal cospec relays
   verbatim rather than re-implementing its own detection of.
+- **1.13.1's change validator reports defects cospec's own rules already
+  catch:** empty delta sections and a change with no parsed delta, skipped `###`
+  headers, header-only and missing SHALL/MUST, and a requirement one delta file
+  both adds and removes or both adds and modifies. On a cospec-typed change each
+  delegated finding is deduped against its cospec twin (`archive/no-ops`,
+  `deltas/skipped-header`, `deltas/scenario-depth`, `deltas/requirement-shape`,
+  `archive/added-exists`) on the same file and the same name or header, and
+  cospec keeps its own severity; a finding with no cospec twin is still relayed,
+  and a legacy change relays all of them at OpenSpec's level. The pairing table
+  is on [Validation rules](/reference/validation-rules).
 
 ## cospec is an opinionated implementation of OpenSpec
 

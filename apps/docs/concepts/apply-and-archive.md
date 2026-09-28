@@ -201,13 +201,26 @@ to `A` archives cleanly.
 The exact-name checks read that same spec, not only the fold ones. A `MODIFIED`,
 a `REMOVED` or a `RENAMED` source naming a header this delta's own `RENAMED`
 just created resolves; chained renames (`A` → `B`, then `B` → `C`) apply; and an
-`ADDED` may re-use the exact header a `REMOVED` or a `RENAMED` vacated, for a
-genuinely new requirement. Each is a delta OpenSpec archives at exit `0`. The
-matching refusals stay: a target an earlier operation carried away is an
+`ADDED` may re-use the exact header a `RENAMED` vacated, for a genuinely new
+requirement. Each is a delta OpenSpec archives at exit `0`. The matching
+refusals stay: a target an earlier operation carried away is an
 `archive/target-missing` ERROR that says so, and `archive/scenario-preservation`
 follows the rename — a `MODIFIED` block on a renamed header is measured against
 the scenarios of the rename's source, which is the block OpenSpec compares it
 to.
+
+One pairing is refused before any of that replay matters: a delta file that
+`ADD`s a requirement name it also `REMOVE`s, or also `MODIFY`s, is an
+`archive/added-exists` ERROR on the `ADDED`
+(`ADDED "<name>" is also REMOVED in this delta`). OpenSpec's validator checks
+each delta file's own section names before any merge runs, and
+`openspec archive` validates first, so it refuses both — re-using the exact
+header a `REMOVED` in the same delta vacates included, and an `ADDED` block
+identical to the living requirement included when a `MODIFIED` of that name sits
+beside it. Retiring a requirement and re-adding it takes two changes. Names
+compare exactly here: a fold variant (`REMOVED Widget rendering` beside
+`ADDED WIDGET RENDERING`) is a different name to that check, and OpenSpec
+archives it.
 
 Everything else stays an ERROR: an `ADDED` collision whose body differs, a
 `RENAMED` with FROM and TO both absent, a `RENAMED` applied while both are

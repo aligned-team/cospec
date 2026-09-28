@@ -45,6 +45,14 @@ is never lied to. Parity is enforced by contract tests, never trusted. See
 [apply-archive.md](apply-archive.md) for the runtime verifier that backs these
 preconditions.
 
+`archive/added-exists` also checks each delta file's own section names, the way
+OpenSpec's validator does before any merge: an ADDED whose exact (normalised,
+not folded) name a REMOVED — or failing that, a MODIFIED — in the same file also
+names gets one ERROR, and the replay-based arms stay quiet for that op.
+`replayDeltaNames` returns the collision alongside each op's replayed view. The
+check runs for a living capability too, where an ADDED identical to the living
+block would otherwise read as an early-sync no-op beside the MODIFIED.
+
 ## Capability identity and discovery
 
 A capability is identified by its **full path** under `specs/`
@@ -119,6 +127,16 @@ naming the section it sits under. It is a warning, not an error, because
 pre-format archived changes still carry the shape; the fix is to move the block
 under a delta section.
 
+Inside an ADDED/MODIFIED section, the delta parser records every non-fenced
+`###` header that is not a named `### Requirement:` header in `skippedHeaders` —
+the same lines, with the same `^###\s+(.+?)\s*$` pattern, OpenSpec 1.13.1's
+reader skips — and changes nothing else it reports: the header stays part of the
+block it sits in. `deltas/skipped-header` (I) reports each one, except a
+`### Scenario:` line, which is `deltas/scenario-depth`'s. A SHALL/MUST counts in
+the body only; when it appears only in the requirement header,
+`deltas/requirement-shape` (E) carries a hint saying to move it to the line
+after the header.
+
 ## Checkbox grammar
 
 `tasks.md`, `verification.md` and `blocking-changes.md` share one checkbox
@@ -155,6 +173,18 @@ only add consequences — the verification and design soft nudges, and
 the fail-closed direction there. Only the marker set is shared; the canonical
 form stays `- [x] <token>`.
 
+## Task ids
+
+`TASK_NUM_RE` in `core/tasks.ts` is OpenSpec 1.13.1's `TASK_ID` (`1.2`, `1.2.3`,
+`1.3a`, `01.1`), and `parseTasks` records each item's enclosing `## N.` group as
+written, resetting on every level-two heading the way OpenSpec's
+`LEVEL_TWO_HEADING` does. `tasks/id-mismatch` (W) and `tasks/id-duplicate` (W)
+read ids only inside numbered groups, compare group numbers without leading
+zeros, and skip fenced lines. OpenSpec runs its own numbering check only for its
+built-in `spec-driven` schema, so there is no delegated twin on the cospec-typed
+lane, and a legacy `spec-driven` change gets OpenSpec's WARNINGs through the
+delegation instead.
+
 ## Duplicate diagnostics
 
 Once cospec started delegating to openspec 1.6+'s own overlapping rules (purpose
@@ -177,6 +207,20 @@ refusal against the widened `archive/added-exists`, its
 ERROR for the same state, and its new unpaired `FROM:`/`TO:` ERROR against
 cospec's `deltas/unpaired-rename` — the one pairing where the pin caught up to a
 rule cospec already had.
+
+1.13.1's change validator adds five more classes, nine entries: its
+empty-section and no-deltas ERRORs against `archive/no-ops` (path-keyed, and
+unkeyed for the change-level one); its two skipped-header INFOs against
+`deltas/skipped-header` (keyed on the header text) and the `### Scenario:` one
+against `deltas/scenario-depth` (path-keyed); its three SHALL/MUST wordings and
+`is missing requirement text` against `deltas/requirement-shape` (keyed on
+`<OP> "<name>"`); and `Requirement present in both ADDED and REMOVED` /
+`… MODIFIED and ADDED` against the cross-section arm of `archive/added-exists`
+(keyed on the name, each native key naming its own section). A path-only key is
+written as an empty capture group, `()`, on both regexes. Each entry has a
+contract test in `validation-parity.test.ts` that takes the delegated message
+from the pinned binary's own output, plus a case where the delegated finding
+survives because cospec's rule is silent.
 
 ## `.openspec.yaml` metadata keys
 
