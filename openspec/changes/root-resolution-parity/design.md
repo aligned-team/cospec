@@ -193,12 +193,25 @@ looked up a store named `false` (`unknown_store 'false'`) where the binary
 treats it as unset. `readDefaultStore` now asks `openspec config path` for the
 file (path discovery stays the binary's), parses it as JSON, and returns the raw
 value; a missing file, a `SyntaxError` and a non-object root read as unset, as
-upstream's defaults do, and any other read error propagates. `validateStoreId`
-and `resolveStore` take `unknown` and reproduce upstream's checks as written
-(`length === 0`, strict `===`, regex tests on the stringified value, strict
-lookup). Upstream also prints `Warning: Invalid JSON in <path>, using defaults`
-for a file that is not JSON; cospec's own read does not print it (neither did
-`config get`'s captured stderr), recorded in the review report.
+upstream's defaults do. `validateStoreId` and `resolveStore` take `unknown` and
+reproduce upstream's checks as written (`length === 0`, strict `===`, regex
+tests on the stringified value, strict lookup).
+
+_Amended in review round 3:_ the read mirrors `getGlobalConfig()` whole. Round
+2's read let an EISDIR or EACCES propagate, which crashed every root-selecting
+command from a rootless directory where the binary (and `main`, whose
+`config get` answered defaults) carried on with no `defaultStore`; upstream's
+documented contract is "defaults if the file doesn't exist or is invalid", so
+parity wins over cospec's never-swallow rule, which covers cospec's own errors.
+`readDefaultStore` now answers undefined when `existsSync` is false and for any
+throw from reading or parsing the file, and for a `SyntaxError` prints
+upstream's exact `Warning: Invalid JSON in <path>, using defaults` (it names no
+command, so nothing is respelled) once per path per process, as upstream's
+`warnedInvalidJsonPaths` does, through `printOwnLine`: a wrapped call that
+re-reads the file in the same invocation has its copy stripped (D7), so the line
+appears once. The binary prints it only where its own selection reads the file
+(a rootless directory, not below a root); so does cospec. `templates` and
+`schema` are the one place the line is cospec's alone (D8).
 
 **D6. The implicit root stays shared.** Upstream lets each command decide
 whether a rootless cwd is an implicit root (`list` and `validate` refuse with
@@ -277,6 +290,17 @@ and any explicit `--store`, empty or not, which keeps its diagnostic: the binary
 takes no `--store` on these commands, so there is no upstream answer to fall
 back to. _Rejected:_ falling back for a store-backed root that resolves, which
 would undo the superset for the working case.
+
+_Amended in review round 3:_ the fallback answers as the binary does except for
+one stderr line. Upstream's `templates` and `schema` never read the global
+config, while cospec reads `defaultStore` to select a root for them; a config
+file that is not JSON therefore prints upstream's `Warning: Invalid JSON …` line
+(D5) on cospec's stderr ahead of the binary's answer, which is otherwise
+byte-for-byte the binary's (stdout, the rest of stderr, exit code). It is the
+same class of line as the store banner these commands print on a store-selected
+root, and it names the file cospec acted on. _Rejected:_ muting it for these two
+commands, which would hide why a broken config left the user in the cwd rather
+than the `defaultStore` root.
 
 **D9. Store health is checked from the filesystem in `resolveStore`.**
 `store ls --json` lists a broken store with an empty `status` (probed), so

@@ -364,3 +364,17 @@ files, task 7.7, both marked POST-REBASE.
 - [x] 9.5 REVIEW (ledger 5.19): list `no_registered_stores` in the Stores page's
       error table and give its unknown-store example the `Fix:` line cospec
       prints
+
+## 10. REVIEW ROUND 3: upstream's read-failure semantics
+
+- [x] 10.1 REVIEW (ledger 5.20, design D5, D8): add failing rows, then read the
+      global config as upstream's `getGlobalConfig()` does: any read or parse
+      failure carries no `defaultStore`, and a file that is not JSON prints
+      upstream's `Warning: Invalid JSON in <path>, using defaults` once per path
+      through `printOwnLine`; narrow the Stores page, the commands page,
+      `docs/stores.md` and D5/D8 to what holds
+- [ ] 10.2 REVIEW (ledger 5.21, design D9): add failing rows, then turn only the
+      codes upstream raises as `StoreError` (enumerated from the pinned
+      `dist/core/store/*.js`) into a prefixed, respelled `RootSelectionError`;
+      any other registry read failure (an errno such as `EACCES`) fails with the
+      binary's message, unprefixed, and exit 1

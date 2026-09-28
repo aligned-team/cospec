@@ -1,5 +1,13 @@
 import { describe, expect, spyOn, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -885,7 +893,6 @@ describe('readDefaultStore', () => {
   }
 
   for (const [label, body] of [
-    ['a file that is not JSON', '{"defaultStore": "beta"'],
     ['a JSON root that is not an object', '"beta"'],
     ['a JSON array root', '[{"defaultStore": "beta"}]'],
   ] as const) {
@@ -893,12 +900,60 @@ describe('readDefaultStore', () => {
       await withGlobalConfig(
         undefined,
         async () => {
-          expect(await readDefaultStore(bareDir())).toBeUndefined()
+          const { value, stderr } = await captureStderr(() => readDefaultStore(bareDir()))
+          expect(value).toBeUndefined()
+          expect(stderr).toBe('')
         },
         body,
       )
     }, 15_000)
   }
+
+  test("undefined for a file that is not JSON, with upstream's warning printed once", async () => {
+    await withGlobalConfig(
+      undefined,
+      async () => {
+        const path = join(process.env.XDG_CONFIG_HOME!, 'openspec', 'config.json')
+        const { value, stderr } = await captureStderr(async () => [
+          await readDefaultStore(bareDir()),
+          await readDefaultStore(bareDir()),
+        ])
+        expect(value).toEqual([undefined, undefined])
+        expect(stderr).toBe(`Warning: Invalid JSON in ${path}, using defaults\n`)
+      },
+      '{"defaultStore": "beta"',
+    )
+  }, 15_000)
+
+  const unreadable: [string, (path: string) => void][] = [
+    ['a directory', (path) => mkdirSync(path, { recursive: true })],
+    ...(process.getuid?.() === 0
+      ? []
+      : [
+          [
+            'a file it may not read',
+            (path: string) => {
+              mkdirSync(join(path, '..'), { recursive: true })
+              writeFileSync(path, '{"defaultStore": "beta"}')
+              chmodSync(path, 0o000)
+            },
+          ] as [string, (path: string) => void],
+        ]),
+  ]
+  for (const [label, place] of unreadable)
+    test(`undefined, silently, when the config path is ${label}, as upstream reads defaults`, async () => {
+      await withGlobalConfig(undefined, async () => {
+        const path = join(process.env.XDG_CONFIG_HOME!, 'openspec', 'config.json')
+        place(path)
+        try {
+          const { value, stderr } = await captureStderr(() => readDefaultStore(bareDir()))
+          expect(value).toBeUndefined()
+          expect(stderr).toBe('')
+        } finally {
+          chmodSync(path, 0o755)
+        }
+      })
+    }, 15_000)
 })
 
 describe('resolveRoot — defaultStore fallback (W8)', () => {

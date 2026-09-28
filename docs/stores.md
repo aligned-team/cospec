@@ -30,7 +30,10 @@ which root a command targets from any directory:
 4. else, once the walk finds nothing, the machine-global `defaultStore` as the
    last **fallback**, read raw from the global config file at the path
    `openspec config path` prints and parsed as JSON, as upstream's
-   `getGlobalConfig()` reads it (no trimming or stringifying; falsy is unset);
+   `getGlobalConfig()` reads it (no trimming or stringifying; falsy is unset; a
+   file that can't be read or parsed — missing, a directory, unreadable, not
+   JSON — or a non-object root is unset, and a file that isn't JSON prints
+   upstream's `Warning: Invalid JSON in <path>, using defaults` once);
 5. else, with any stores registered, a hard error naming them
    (`no_root_with_registered_stores`); with none, the cwd is an **implicit**
    root, and each command's own missing-`openspec/` check reports it from there.

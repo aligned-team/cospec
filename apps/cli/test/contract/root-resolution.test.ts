@@ -20,6 +20,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import {
   appendFileSync,
+  chmodSync,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -1782,3 +1783,244 @@ async function oracleJsonRoot(sb: Sandbox, cwd: string): Promise<OracleRoot> {
   const body = JSON.parse(run.stdout) as { root: { path: string; source: string } }
   return { path: body.root.path, source: body.root.source }
 }
+
+// --- Ledger 5.20: a global config that cannot be read or parsed reads as defaults ---
+
+type GlobalConfigState = 'absent' | 'valid' | 'directory' | 'mode 000' | 'invalid JSON'
+
+const RUNNING_AS_ROOT = process.getuid?.() === 0
+
+/** The sandbox's global config file path, as the binary reports it. */
+async function globalConfigPath(sb: Sandbox): Promise<string> {
+  const run = await oracle(['config', 'path'], sb.dir)
+  if (run.exitCode !== 0) throw new Error(`openspec config path exited ${run.exitCode}`)
+  return run.stdout.replace(/\n$/, '')
+}
+
+/** Put the global config file into `state`, replacing whatever was there. */
+function placeGlobalConfig(path: string, state: GlobalConfigState): void {
+  try {
+    chmodSync(path, 0o644)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  }
+  rmSync(path, { recursive: true, force: true })
+  mkdirSync(dirname(path), { recursive: true })
+  const valid = '{"defaultStore": "alpha"}\n'
+  if (state === 'valid') writeFileSync(path, valid)
+  if (state === 'directory') mkdirSync(path)
+  if (state === 'invalid JSON') writeFileSync(path, '{"defaultStore": \n')
+  if (state === 'mode 000') {
+    writeFileSync(path, valid)
+    chmodSync(path, 0o000)
+  }
+}
+
+/** The first `status` entry of a `--json` document. */
+function firstStatus(stdout: string): unknown {
+  return (JSON.parse(stdout) as { status?: unknown[] }).status?.[0]
+}
+
+/** One run of either implementation: what a user sees. */
+interface Seen {
+  exitCode: number
+  stdout: string
+  stderr: string
+}
+
+describe('a global config that cannot be read or parsed reads as defaults (ledger 5.20)', () => {
+  // Upstream's getGlobalConfig() answers with its defaults (no defaultStore)
+  // for ANY failure to read or parse the file, and prints one warning for a
+  // file that is not JSON; `templates` and `schema` never read it at all.
+  const ROOT_ARGVS = [
+    ['list', '--json'],
+    ['status', '--json'],
+    ['doctor', '--json'],
+  ] as const
+  const CWD_ARGVS = [['templates'], ['schema', 'which', 'spec-driven']] as const
+  const BROKEN: readonly GlobalConfigState[] = ['directory', 'mode 000', 'invalid JSON']
+
+  let sb!: Sandbox
+  let configPath!: string
+  let cwds!: { name: string; dir: string }[]
+
+  beforeAll(async () => {
+    sb = await makeSandbox()
+    configPath = await globalConfigPath(sb)
+    cwds = [
+      { name: 'a rootless directory', dir: bare(sb) },
+      { name: 'a subdirectory of a planning root', dir: join(planningRoot(sb), 'src', 'deep') },
+    ]
+  })
+
+  afterAll(() => placeGlobalConfig(configPath, 'absent'))
+
+  const binary = async (state: GlobalConfigState, argv: readonly string[], cwd: string) => {
+    placeGlobalConfig(configPath, state)
+    const run = await oracle([...argv], sb.dir, { cwd })
+    return run as Seen
+  }
+  const ours = async (state: GlobalConfigState, argv: readonly string[], cwd: string) => {
+    placeGlobalConfig(configPath, state)
+    return (await cospec([...argv], { cwd, env: sb.env })) as Seen
+  }
+  const warning = (): string => `Warning: Invalid JSON in ${configPath}, using defaults\n`
+
+  for (const state of BROKEN) {
+    const maybe = state === 'mode 000' && RUNNING_AS_ROOT ? test.skip : test
+    for (const [c, cwdIndex] of [
+      ['a rootless directory', 0],
+      ['a subdirectory of a planning root', 1],
+    ] as const) {
+      describe(`${state}, from ${c}`, () => {
+        const cwd = (): string => cwds[cwdIndex]!.dir
+        // The binary warns only when root selection reads the file: rootless, not below a root.
+        const warns = state === 'invalid JSON' && cwdIndex === 0
+
+        for (const argv of ROOT_ARGVS) {
+          maybe(`oracle: ${argv.join(' ')} answers as with no config file`, async () => {
+            const broken = await binary(state, argv, cwd())
+            const absent = await binary('absent', argv, cwd())
+            expect(broken.exitCode).toBe(absent.exitCode)
+            expect(broken.stdout).toBe(absent.stdout)
+            expect(broken.stderr).toBe((warns ? warning() : '') + absent.stderr)
+          })
+
+          maybe(`cospec ${argv.join(' ')} answers as with no config file`, async () => {
+            const up = await binary(state, argv, cwd())
+            const broken = await ours(state, argv, cwd())
+            const absent = await ours('absent', argv, cwd())
+            expect(broken.stdout).toBe(absent.stdout)
+            expect(broken.exitCode).toBe(absent.exitCode)
+            expect(broken.stderr).toBe(up.stderr)
+            if (argv[0] !== 'doctor') expect(broken.exitCode).toBe(up.exitCode)
+            if (up.exitCode !== 0)
+              expect(firstStatus(broken.stdout)).toEqual(
+                JSON.parse(respell(JSON.stringify(firstStatus(up.stdout)))),
+              )
+          })
+        }
+
+        for (const argv of CWD_ARGVS) {
+          maybe(`cospec ${argv.join(' ')} answers as the binary does`, async () => {
+            const up = await binary(state, argv, cwd())
+            const res = await ours(state, argv, cwd())
+            expect(up.exitCode).toBe(0)
+            // cospec reads the config to select a root for these (design D8);
+            // the binary never does, so the warning is cospec's one extra line.
+            expect(res).toEqual({ ...up, stderr: (warns ? warning() : '') + up.stderr })
+          })
+        }
+
+        if (cwdIndex === 0)
+          maybe("cospec list prints the binary's text failure", async () => {
+            const up = await binary(state, ['list'], cwd())
+            const res = await ours(state, ['list'], cwd())
+            expect(res.exitCode).toBe(1)
+            expect(res.stdout).toBe('')
+            expect(res.stderr).toBe(respell(up.stderr.replace(/^(?:✖ )?Error: /m, 'cospec: ')))
+          })
+      })
+    }
+  }
+
+  describe('valid, with defaultStore alpha', () => {
+    for (const argv of [
+      ['list', '--json'],
+      ['status', '--json'],
+    ])
+      test(`from a rootless directory, ${argv.join(' ')} selects the binary's root`, async () => {
+        const cwd = cwds[0]!.dir
+        const up = await binary('valid', argv, cwd)
+        const res = await ours('valid', argv, cwd)
+        expect(up.exitCode).toBe(0)
+        expect(res.exitCode).toBe(0)
+        expect(res.stderr).toBe(up.stderr)
+        const root = (JSON.parse(up.stdout) as { root: OracleRoot }).root
+        expect(root).toEqual({
+          path: canonical(storePath(sb, 'alpha')),
+          source: 'global_default',
+          store_id: 'alpha',
+        })
+        if (argv[0] === 'status')
+          expect((JSON.parse(res.stdout) as { root: string }).root).toBe(root.path)
+      })
+
+    test("from a rootless directory, doctor --json operates on the binary's root", async () => {
+      const cwd = cwds[0]!.dir
+      const up = JSON.parse((await binary('valid', ['doctor', '--json'], cwd)).stdout) as {
+        root: { path: string; source: string }
+      }
+      const res = await ours('valid', ['doctor', '--json'], cwd)
+      const findings = (JSON.parse(res.stdout) as { findings: DoctorFinding[] }).findings
+      expect(findings.find((f) => f.check === 'openspec-root')?.message).toBe(
+        `operating root is ${up.root.source}-sourced at ${up.root.path} (healthy per openspec doctor)`,
+      )
+    })
+
+    test('from a subdirectory, the planning root wins', async () => {
+      const cwd = cwds[1]!.dir
+      const up = await binary('valid', ['status', '--json'], cwd)
+      const res = await ours('valid', ['status', '--json'], cwd)
+      expect(res.stderr).toBe(up.stderr)
+      expect((JSON.parse(res.stdout) as { root: string }).root).toBe(
+        (JSON.parse(up.stdout) as { root: OracleRoot }).root.path,
+      )
+    })
+
+    for (const argv of CWD_ARGVS)
+      for (const [c, cwdIndex] of [
+        ['rootless', 0],
+        ['subdirectory', 1],
+      ] as const)
+        test(`cospec ${argv.join(' ')} (${c}) answers as the binary does`, async () => {
+          const cwd = cwds[cwdIndex]!.dir
+          const up = await binary('valid', argv, cwd)
+          const res = await ours('valid', argv, cwd)
+          expect(up.exitCode).toBe(0)
+          if (cwdIndex === 1) expect(res).toEqual(up)
+          else {
+            // cospec spawns in the defaultStore root (design D8's superset); the binary reads its cwd.
+            expect(res.exitCode).toBe(0)
+            expect(res.stdout).toBe(up.stdout)
+          }
+        })
+  })
+
+  describe('invalid JSON with no store registered', () => {
+    // The only fixture where cospec reads the file and then relays a wrapped
+    // call whose own root selection reads it again: the warning prints once.
+    let bareSb!: Sandbox
+    let bareConfig!: string
+    beforeAll(async () => {
+      bareSb = await makeSandbox([])
+      bareConfig = await globalConfigPath(bareSb)
+    })
+    afterAll(() => placeGlobalConfig(bareConfig, 'absent'))
+
+    // `show` relays the wrapped call, whose own selection warns again (design D7).
+    for (const argv of [
+      ['list', '--json'],
+      ['list'],
+      ['status', '--json'],
+      ['show', '--json', 'x'],
+    ])
+      test(`cospec ${argv.join(' ')} from a rootless directory prints the warning once`, async () => {
+        const cwd = bare(bareSb)
+        placeGlobalConfig(bareConfig, 'invalid JSON')
+        const up = await oracle([...argv], bareSb.dir, { cwd })
+        const res = await cospec([...argv], { cwd, env: bareSb.env })
+        const line = `Warning: Invalid JSON in ${bareConfig}, using defaults\n`
+        expect(up.stderr.startsWith(line)).toBe(true)
+        expect(res.stderr.split(line).length - 1).toBe(1)
+        expect(res.stderr.startsWith(line)).toBe(true)
+        // Otherwise as with no config file: `list` keeps design D6's implicit root.
+        placeGlobalConfig(bareConfig, 'absent')
+        const absent = await cospec([...argv], { cwd, env: bareSb.env })
+        expect(res.stdout).toBe(absent.stdout)
+        expect(res.exitCode).toBe(absent.exitCode)
+        expect(res.stderr).toBe(line + absent.stderr)
+        if (argv[0] !== 'list') expect(res.exitCode).toBe(up.exitCode)
+      })
+  })
+})

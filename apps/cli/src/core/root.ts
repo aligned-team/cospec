@@ -30,7 +30,7 @@
 // surfaces it in `instructions`) and is deliberately NOT a root override — it
 // never redirects where a change is created or gated.
 
-import { readFileSync, realpathSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 
 import { parse as parseYaml } from 'yaml'
@@ -490,6 +490,9 @@ async function withOrigin(
   }
 }
 
+/** Config paths already warned about: upstream warns once per path per process. */
+const warnedInvalidJsonPaths = new Set<string>()
+
 /**
  * The machine-global `defaultStore`, read as upstream's `getGlobalConfig()`
  * reads it: the global config file — at the path `openspec config path`
@@ -497,8 +500,14 @@ async function withOrigin(
  * `defaultStore` value returned raw. A padded string, a trailing newline, a
  * number or an array reaches selection unchanged and fails there as the
  * binary's does; `config get` could not carry that, since it prints the value
- * as text. A missing file, a file that is not JSON, and a JSON root that is not
- * an object carry no default, as upstream falls back to its defaults for each.
+ * as text.
+ *
+ * Upstream's documented contract is "defaults if the file doesn't exist or is
+ * invalid": ANY failure to read or parse the file (missing, a directory, no
+ * read permission, not JSON) and a JSON root that is not an object carry no
+ * default, and only a file that is not JSON warns, once per path, with
+ * upstream's own line. The catch-all below is that contract, not a swallowed
+ * error: the binary answers the same command with its defaults.
  */
 export async function readDefaultStore(cwd: string): Promise<unknown> {
   const result = await runOpenspec(['config', 'path'], {
@@ -508,19 +517,17 @@ export async function readDefaultStore(cwd: string): Promise<unknown> {
       postCondition: (r) => /^[^\n]+\n$/u.test(r.stdout) || 'did not print one path',
     },
   })
-  let body: string
-  try {
-    body = readFileSync(result.stdout.slice(0, -1), 'utf8')
-  } catch (error) {
-    if (isErrnoCode(error, 'ENOENT')) return undefined
-    throw error
-  }
+  const configPath = result.stdout.slice(0, -1)
+  if (!existsSync(configPath)) return undefined
   let doc: unknown
   try {
-    doc = JSON.parse(body)
+    doc = JSON.parse(readFileSync(configPath, 'utf8'))
   } catch (error) {
-    if (error instanceof SyntaxError) return undefined
-    throw error
+    if (error instanceof SyntaxError && !warnedInvalidJsonPaths.has(configPath)) {
+      warnedInvalidJsonPaths.add(configPath)
+      printOwnLine(`Warning: Invalid JSON in ${configPath}, using defaults`)
+    }
+    return undefined
   }
   if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) return undefined
   return (doc as Record<string, unknown>).defaultStore
