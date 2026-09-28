@@ -447,7 +447,7 @@ The system SHALL other.
     // own section names first, and `Requirement present in both ADDED and
     // REMOVED` refuses the pair before any merge runs — `openspec archive`
     // validates first, so it aborts too. The replay alone called this applied.
-    test.failing('an ADDED re-using the exact header an earlier REMOVED vacated is refused', () => {
+    test('an ADDED re-using the exact header an earlier REMOVED vacated is refused', () => {
       const text =
         '## REMOVED Requirements\n\n- `### Requirement: Existing`\n\n' +
         `## ADDED Requirements\n\n${body('Existing', 'exist for a new reason')}`
@@ -863,7 +863,7 @@ describe('archive/added-exists: cross-section conflicts in one delta', () => {
   const block = (name: string, shall: string) =>
     `### Requirement: ${name}\n\nThe system SHALL ${shall}.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n`
 
-  test.failing('an ADDED with a differing body plus a MODIFIED of one name is one finding', () => {
+  test('an ADDED with a differing body plus a MODIFIED of one name is one finding', () => {
     const text =
       `## ADDED Requirements\n\n${block('Existing', 'exist differently')}\n` +
       `## MODIFIED Requirements\n\n${block('Existing', 'exist better')}`

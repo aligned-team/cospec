@@ -69,10 +69,31 @@ function foldNearMiss(
  * spec for it and applies the delta's ADDED ops to that, so two ADDED names
  * that fold onto each other are refused for a brand-new capability too.
  */
+/** The section an ADDED op's exact name also appears in, within its own delta file. */
+type CrossSection = 'REMOVED' | 'MODIFIED'
+
+interface ReplayedNames {
+  /** Each op's view of the spec when it runs. */
+  visible: Map<DeltaOp, ReadonlySet<string>>
+  /**
+   * ADDED ops whose exact name a REMOVED — or failing that, a MODIFIED — op
+   * in the SAME delta file also names. openspec's validator checks each delta
+   * file's own section name sets (`Requirement present in both ADDED and
+   * REMOVED` / `… MODIFIED and ADDED`, `validation/validator.ts`, 1.13.1)
+   * before any merge runs, and `openspec archive` validates first, so it
+   * refuses both. The comparison is on the parser's normalised names, never
+   * folded ones: a fold variant is a different name to that check, and the
+   * binary archives `REMOVED Widget rendering` + `ADDED WIDGET RENDERING`.
+   * It reads the delta, not the replayed set — the merge never gets to run.
+   */
+  crossSection: Map<DeltaOp, CrossSection>
+}
+
 function replayDeltaNames(
   living: LivingSpec | undefined,
   ops: readonly DeltaOp[],
-): Map<DeltaOp, ReadonlySet<string>> {
+  paths: readonly string[],
+): ReplayedNames {
   const working = new Set(living?.requirementNames ?? [])
   const seen = new Map<DeltaOp, ReadonlySet<string>>()
   const visit = (op: DeltaOp, apply: () => void): void => {
@@ -114,7 +135,17 @@ function replayDeltaNames(
         working.add(name)
       })
 
-  return seen
+  const crossSection = new Map<DeltaOp, CrossSection>()
+  const inFile = (operation: DeltaOp['operation'], name: string, path: string | undefined) =>
+    ops.some((o, j) => o.operation === operation && o.name === name && paths[j] === path)
+  for (let i = 0; i < ops.length; i++) {
+    const op = ops[i]!
+    if (op.operation !== 'ADDED' || op.name === undefined) continue
+    if (inFile('REMOVED', op.name, paths[i])) crossSection.set(op, 'REMOVED')
+    else if (inFile('MODIFIED', op.name, paths[i])) crossSection.set(op, 'MODIFIED')
+  }
+
+  return { visible: seen, crossSection }
 }
 
 export interface ArchiveRuleOptions {
@@ -212,7 +243,7 @@ export function archiveRules(
 
     // What each op's collision arms actually look at: the spec as openspec has
     // it by the time that op runs, not the pristine living spec.
-    const spec = replayDeltaNames(living, group.ops)
+    const spec = replayDeltaNames(living, group.ops, group.paths)
 
     /**
      * Where a name an op collides with came from. A fold twin is normally a
@@ -227,7 +258,8 @@ export function archiveRules(
     for (let i = 0; i < group.ops.length; i++) {
       const op = group.ops[i]!
       const path = pathFor(i)
-      const visible = spec.get(op) ?? new Set<string>()
+      const visible = spec.visible.get(op) ?? new Set<string>()
+      const conflict = spec.crossSection.get(op)
 
       // archive/target-missing — MODIFIED/REMOVED/RENAMED-FROM must already
       // exist, except for the two early-sync no-ops openspec performs at
@@ -283,13 +315,31 @@ export function archiveRules(
         }
       }
 
+      // archive/added-exists — one delta both ADDing and REMOVing, or ADDing
+      // and MODIFYing, one requirement name (see `ReplayedNames.crossSection`).
+      // Checked for a fresh capability and a living one alike: a living ADDED
+      // block identical to the requirement is an early-sync no-op on its own,
+      // but beside a MODIFIED of the same name the binary refuses it. Once it
+      // fires, the exact and fold arms below stay quiet for this op, so the op
+      // carries one finding.
+      if (conflict !== undefined)
+        issues.push({
+          level: 'ERROR',
+          rule: 'archive/added-exists',
+          path,
+          line: op.line,
+          message: `ADDED "${op.name}" is also ${conflict} in this delta`,
+          hint: `OpenSpec refuses a requirement that one delta both adds and ${conflict === 'REMOVED' ? 'removes' : 'modifies'} — keep one operation`,
+        })
+
       // archive/added-exists — ADDED must not already exist; RENAMED-TO must not
       // collide with an existing requirement or another ADDED in this delta.
       //
       // "Already exists" is the replayed set, not the pristine living spec:
-      // upstream's ADDED phase runs last, so a name this delta's own RENAMED or
-      // REMOVED already carried away is free by then and re-using the vacated
-      // header is not a collision at all.
+      // upstream's ADDED phase runs last, so a name this delta's own RENAMED
+      // already carried away is free by then and re-using the vacated header is
+      // not a collision at all. (A REMOVED-vacated header is the cross-section
+      // conflict above, refused before any merge runs.)
       //
       // An ADDED block whose normalized raw text equals the living requirement's
       // is openspec's early-sync no-op (`specs-apply.ts`, ADDED arm): the spec
@@ -303,6 +353,7 @@ export function archiveRules(
       if (
         op.operation === 'ADDED' &&
         op.name !== undefined &&
+        conflict === undefined &&
         !renamedTargets.has(op.name) &&
         visible.has(op.name)
       ) {
@@ -326,7 +377,12 @@ export function archiveRules(
       // leave two contradicting copies of one requirement in the spec. Exact
       // matching alone waved that through, so cospec reported clean on a delta
       // the binary aborts.
-      if (op.operation === 'ADDED' && op.name !== undefined && !visible.has(op.name)) {
+      if (
+        op.operation === 'ADDED' &&
+        op.name !== undefined &&
+        conflict === undefined &&
+        !visible.has(op.name)
+      ) {
         const nearMiss = foldNearMiss(visible, op.name)
         if (nearMiss !== undefined)
           issues.push({

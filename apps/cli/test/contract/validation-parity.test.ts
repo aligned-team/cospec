@@ -710,24 +710,21 @@ const buildLivingPair = (root: string): void =>
   buildFeat(root, 'living-pair', { 'widgets/spec.md': LIVING_ADDED_IDENTICAL_AND_MODIFIED })
 
 describe('3. cross-section conflicts appear in the validate preview', () => {
-  test.failing(
-    '3.1 native: REMOVED+ADDED of one name is refused, as the binary archive does',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      buildRemovedAndAdded(root)
-      const { report, exitCode } = await cospecValidate(root, 'remove-and-add')
-      const found = byRule(report, 'archive/added-exists')
-      expect(found).toHaveLength(1)
-      expect(found[0]?.level).toBe('ERROR')
-      expect(found[0]?.line).toBe(lineOf(REMOVED_AND_ADDED, '### Requirement: Widget rendering'))
-      expect(found[0]?.message).toContain('REMOVED')
-      expect(exitCode).toBe(1)
+  test('3.1 native: REMOVED+ADDED of one name is refused, as the binary archive does', async () => {
+    const root = mkTempRepo({ git: true })
+    buildRemovedAndAdded(root)
+    const { report, exitCode } = await cospecValidate(root, 'remove-and-add')
+    const found = byRule(report, 'archive/added-exists')
+    expect(found).toHaveLength(1)
+    expect(found[0]?.level).toBe('ERROR')
+    expect(found[0]?.line).toBe(lineOf(REMOVED_AND_ADDED, '### Requirement: Widget rendering'))
+    expect(found[0]?.message).toContain('REMOVED')
+    expect(exitCode).toBe(1)
 
-      const archived = await binaryArchive(buildRemovedAndAdded, 'remove-and-add')
-      expect(archived.exitCode).not.toBe(0)
-      expect(archived.moved).toBe(false)
-    },
-  )
+    const archived = await binaryArchive(buildRemovedAndAdded, 'remove-and-add')
+    expect(archived.exitCode).not.toBe(0)
+    expect(archived.moved).toBe(false)
+  })
 
   test.failing('3.1 twin: the delegated ADDED/REMOVED conflict is not relayed', async () => {
     const root = mkTempRepo({ git: true })
@@ -740,29 +737,24 @@ describe('3. cross-section conflicts appear in the validate preview', () => {
     expect(messages(report)).not.toContain(delegated.message)
   })
 
-  test.failing(
-    '3.2 native: a fresh capability both ADDing and MODIFYing a name is refused',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      buildGadgets(root)
-      const { report } = await cospecValidate(root, 'gadgets-pair')
-      const added = byRule(report, 'archive/added-exists')
-      expect(added).toHaveLength(1)
-      expect(added[0]?.line).toBe(
-        lineOf(GADGETS_ADDED_AND_MODIFIED, '### Requirement: Gadget thing'),
-      )
-      expect(added[0]?.message).toContain('MODIFIED')
-      const nonAdded = byRule(report, 'archive/new-spec-non-added')
-      expect(nonAdded).toHaveLength(1)
-      const modifiedLine =
-        GADGETS_ADDED_AND_MODIFIED.split('\n').lastIndexOf('### Requirement: Gadget thing') + 1
-      expect(nonAdded[0]?.line).toBe(modifiedLine)
+  test('3.2 native: a fresh capability both ADDing and MODIFYing a name is refused', async () => {
+    const root = mkTempRepo({ git: true })
+    buildGadgets(root)
+    const { report } = await cospecValidate(root, 'gadgets-pair')
+    const added = byRule(report, 'archive/added-exists')
+    expect(added).toHaveLength(1)
+    expect(added[0]?.line).toBe(lineOf(GADGETS_ADDED_AND_MODIFIED, '### Requirement: Gadget thing'))
+    expect(added[0]?.message).toContain('MODIFIED')
+    const nonAdded = byRule(report, 'archive/new-spec-non-added')
+    expect(nonAdded).toHaveLength(1)
+    const modifiedLine =
+      GADGETS_ADDED_AND_MODIFIED.split('\n').lastIndexOf('### Requirement: Gadget thing') + 1
+    expect(nonAdded[0]?.line).toBe(modifiedLine)
 
-      const archived = await binaryArchive(buildGadgets, 'gadgets-pair')
-      expect(archived.exitCode).not.toBe(0)
-      expect(archived.moved).toBe(false)
-    },
-  )
+    const archived = await binaryArchive(buildGadgets, 'gadgets-pair')
+    expect(archived.exitCode).not.toBe(0)
+    expect(archived.moved).toBe(false)
+  })
 
   test.failing('3.2 twin: the delegated MODIFIED/ADDED conflict is not relayed', async () => {
     const root = mkTempRepo({ git: true })
@@ -775,26 +767,23 @@ describe('3. cross-section conflicts appear in the validate preview', () => {
     expect(messages(report)).not.toContain(delegated.message)
   })
 
-  test.failing(
-    '3.3 native: a living ADDED-identical plus MODIFIED is no longer a false PASS',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      buildLivingPair(root)
-      const { report, exitCode } = await cospecValidate(root, 'living-pair')
-      const found = byRule(report, 'archive/added-exists')
-      expect(found).toHaveLength(1)
-      expect(found[0]?.level).toBe('ERROR')
-      expect(found[0]?.line).toBe(
-        lineOf(LIVING_ADDED_IDENTICAL_AND_MODIFIED, '### Requirement: Widget rendering'),
-      )
-      expect(found[0]?.message).toContain('MODIFIED')
-      expect(exitCode).toBe(1)
+  test('3.3 native: a living ADDED-identical plus MODIFIED is no longer a false PASS', async () => {
+    const root = mkTempRepo({ git: true })
+    buildLivingPair(root)
+    const { report, exitCode } = await cospecValidate(root, 'living-pair')
+    const found = byRule(report, 'archive/added-exists')
+    expect(found).toHaveLength(1)
+    expect(found[0]?.level).toBe('ERROR')
+    expect(found[0]?.line).toBe(
+      lineOf(LIVING_ADDED_IDENTICAL_AND_MODIFIED, '### Requirement: Widget rendering'),
+    )
+    expect(found[0]?.message).toContain('MODIFIED')
+    expect(exitCode).toBe(1)
 
-      const archived = await binaryArchive(buildLivingPair, 'living-pair')
-      expect(archived.exitCode).not.toBe(0)
-      expect(archived.moved).toBe(false)
-    },
-  )
+    const archived = await binaryArchive(buildLivingPair, 'living-pair')
+    expect(archived.exitCode).not.toBe(0)
+    expect(archived.moved).toBe(false)
+  })
 
   test.failing('3.3 twin: the delegated MODIFIED/ADDED conflict is not relayed', async () => {
     const root = mkTempRepo({ git: true })

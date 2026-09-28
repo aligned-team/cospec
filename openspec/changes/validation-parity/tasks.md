@@ -60,7 +60,7 @@ trailer, never `--no-verify`).
       the inverted and one-finding-per-op expectations `test.failing`; the
       fold-variant case passes today and lands as a plain `test`. Commit
       `test(validate): expect same-name REMOVED+ADDED to be refused`
-- [ ] 4.2 Extend `replayDeltaNames` and `archiveRules` as design D6 describes,
+- [x] 4.2 Extend `replayDeltaNames` and `archiveRules` as design D6 describes,
       un-fail 4.1's tests, and flip `3.1 native`, `3.2 native` and `3.3 native`.
       Row 3.4 stays green. Commit
       `fix(validate): refuse same-name cross-section conflicts at pre-flight`
