@@ -33,7 +33,7 @@ trailer, never `--no-verify`).
       (verification 4.3), then flip `4.1 native` and 4.2 in the contract file.
       Commit
       `fix(validate): report skipped delta headers as deltas/skipped-header`
-- [ ] 2.3 Add the header-only hint to `deltas/requirement-shape` (design D3) and
+- [x] 2.3 Add the header-only hint to `deltas/requirement-shape` (design D3) and
       its unit tests (verification 1.3), then flip `1.2 native`. Commit
       `fix(validate): hint where a header-only SHALL/MUST belongs`
 

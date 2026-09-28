@@ -40,7 +40,7 @@ const SCENARIO_RE = /^####\s+/
 const SCENARIO_BODY_END_RE = /^#{1,4}\s/
 /** 3-hashtag scenario heading — the probe §5.4 mis-parse (DESIGN deltas/scenario-depth). */
 const SCENARIO_DEPTH_RE = /^###\s+Scenario:/
-const SHALL_MUST_RE = /\b(SHALL|MUST)\b/
+export const SHALL_MUST_RE = /\b(SHALL|MUST)\b/
 /**
  * Any level-3 header. Inside an ADDED/MODIFIED section, one that is not a
  * requirement header is skipped by both readers — the binary's

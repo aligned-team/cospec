@@ -1,7 +1,7 @@
 // deltas/* rules (DESIGN §4.3) — run before openspec delegation so cospec's
 // sharper diagnostics win. Rule IDs are frozen public API.
 
-import { parseDeltaSpec } from '../deltas.ts'
+import { parseDeltaSpec, SHALL_MUST_RE } from '../deltas.ts'
 import type { Issue } from './issue.ts'
 import type { LoadedChange } from './schema-info.ts'
 
@@ -17,6 +17,15 @@ const ROOT_SPEC_PATH = 'specs/spec.md'
  * `emptyScenarioHint` (`src/core/validation/validator.ts`, 1.13.1) so an author
  * who hits it in both tools reads one instruction, not two.
  */
+/**
+ * Why a requirement whose header visibly says SHALL/MUST still has none: the
+ * keyword counts only in the body. openspec 1.13.1 gives the same instruction
+ * (`buildMissingShallOrMustMessage`, `src/core/validation/validator.ts`), which
+ * cospec states as a hint while its ERROR keeps cospec's own severity.
+ */
+const HEADER_ONLY_SHALL_HINT =
+  'move the SHALL/MUST statement to the line immediately after the "### Requirement: ..." header'
+
 const EMPTY_SCENARIO_HINT =
   'a scenario header with no body under it does not count; add its steps, e.g. "- **WHEN** ..." and "- **THEN** ..."'
 
@@ -213,6 +222,10 @@ export function deltasRules(change: LoadedChange): Issue[] {
           path: file.path,
           line: op.line,
           message: `${op.operation} "${op.name}" must use SHALL/MUST normative language`,
+          hint:
+            op.name !== undefined && SHALL_MUST_RE.test(op.name)
+              ? HEADER_ONLY_SHALL_HINT
+              : undefined,
         })
       }
       if (op.scenarioCount < 1) {

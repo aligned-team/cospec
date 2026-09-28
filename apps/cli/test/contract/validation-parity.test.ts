@@ -605,7 +605,7 @@ describe('1. each lane keeps its own severities', () => {
     ])
   })
 
-  test.failing('1.2 native: a header-only SHALL/MUST is one ERROR with the move hint', async () => {
+  test('1.2 native: a header-only SHALL/MUST is one ERROR with the move hint', async () => {
     const root = mkTempRepo({ git: true })
     buildFeat(root, 'header-only', { 'widgets/spec.md': HEADER_ONLY_SHALL })
     const { report } = await cospecValidate(root, 'header-only')

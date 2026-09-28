@@ -490,3 +490,56 @@ The system SHALL x.
     expect(found.filter((i) => i.level !== 'INFO')).toEqual([])
   })
 })
+
+describe('deltas/requirement-shape header-only SHALL/MUST hint', () => {
+  const shape = (header: string, body: string) =>
+    deltasRules(
+      delta(
+        'specs/x/spec.md',
+        'x',
+        `## ADDED Requirements\n\n### Requirement: ${header}\n\n${body}#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n`,
+      ),
+    ).filter((i) => i.rule === 'deltas/requirement-shape')
+
+  const HINT =
+    'move the SHALL/MUST statement to the line immediately after the "### Requirement: ..." header'
+
+  test('a keyword only in the header is an ERROR carrying the move hint', () => {
+    expect(shape('The system SHALL frob widgets', 'The system frobs widgets.\n\n')).toEqual([
+      {
+        level: 'ERROR',
+        rule: 'deltas/requirement-shape',
+        path: 'specs/x/spec.md',
+        line: 3,
+        message: 'ADDED "The system SHALL frob widgets" must use SHALL/MUST normative language',
+        hint: HINT,
+      },
+    ])
+  })
+
+  test('an empty body under a keyword header is an ERROR carrying the move hint', () => {
+    expect(shape('The system MUST be empty', '')).toEqual([
+      {
+        level: 'ERROR',
+        rule: 'deltas/requirement-shape',
+        path: 'specs/x/spec.md',
+        line: 3,
+        message: 'ADDED "The system MUST be empty" must use SHALL/MUST normative language',
+        hint: HINT,
+      },
+    ])
+  })
+
+  test('no keyword anywhere is the same ERROR with no hint', () => {
+    expect(shape('Plain thing', 'The system does a plain thing.\n\n')).toEqual([
+      {
+        level: 'ERROR',
+        rule: 'deltas/requirement-shape',
+        path: 'specs/x/spec.md',
+        line: 3,
+        message: 'ADDED "Plain thing" must use SHALL/MUST normative language',
+        hint: undefined,
+      },
+    ])
+  })
+})
