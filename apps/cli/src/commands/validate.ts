@@ -403,6 +403,20 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
     nativeKey: /^scenario heading uses 3 hashtags; must be `#### Scenario:`()$/,
   },
 
+  // 1.13.1 cross-section conflicts vs archive/added-exists. Each native key
+  // names its own section, so a delta that ADDs, REMOVEs and MODIFIES one name
+  // keeps the second delegated ERROR beside cospec's one finding.
+  {
+    rule: 'archive/added-exists',
+    delegated: /^Requirement present in both ADDED and REMOVED: "(.*)"$/,
+    nativeKey: /^ADDED "(.*)" is also REMOVED in this delta$/,
+  },
+  {
+    rule: 'archive/added-exists',
+    delegated: /^Requirement present in both MODIFIED and ADDED: "(.*)"$/,
+    nativeKey: /^ADDED "(.*)" is also MODIFIED in this delta$/,
+  },
+
   // --- 1.12.0 archive-preflight INFO (`Validator.findArchiveBlockers`) ------
   //
   // 1.12 dry-runs archive's merge builder during `validate` and relays each

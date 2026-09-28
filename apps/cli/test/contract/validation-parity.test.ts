@@ -723,7 +723,7 @@ describe('3. cross-section conflicts appear in the validate preview', () => {
     expect(archived.moved).toBe(false)
   })
 
-  test.failing('3.1 twin: the delegated ADDED/REMOVED conflict is not relayed', async () => {
+  test('3.1 twin: the delegated ADDED/REMOVED conflict is not relayed', async () => {
     const root = mkTempRepo({ git: true })
     buildRemovedAndAdded(root)
     const delegated = binaryOne(
@@ -753,7 +753,7 @@ describe('3. cross-section conflicts appear in the validate preview', () => {
     expect(archived.moved).toBe(false)
   })
 
-  test.failing('3.2 twin: the delegated MODIFIED/ADDED conflict is not relayed', async () => {
+  test('3.2 twin: the delegated MODIFIED/ADDED conflict is not relayed', async () => {
     const root = mkTempRepo({ git: true })
     buildGadgets(root)
     const delegated = binaryOne(
@@ -782,7 +782,7 @@ describe('3. cross-section conflicts appear in the validate preview', () => {
     expect(archived.moved).toBe(false)
   })
 
-  test.failing('3.3 twin: the delegated MODIFIED/ADDED conflict is not relayed', async () => {
+  test('3.3 twin: the delegated MODIFIED/ADDED conflict is not relayed', async () => {
     const root = mkTempRepo({ git: true })
     buildLivingPair(root)
     const delegated = binaryOne(
@@ -981,7 +981,7 @@ describe('5.1 one pinned-message test per DUPLICATE_CLASSES entry', () => {
     ).toHaveLength(1)
   })
 
-  test.failing('entry 8: the ADDED/REMOVED conflict pairs with archive/added-exists', async () => {
+  test('entry 8: the ADDED/REMOVED conflict pairs with archive/added-exists', async () => {
     const root = mkTempRepo({ git: true })
     buildRemovedAndAdded(root)
     const delegated = binaryOne(
@@ -994,7 +994,7 @@ describe('5.1 one pinned-message test per DUPLICATE_CLASSES entry', () => {
     expect(byRule(report, 'archive/added-exists')).toHaveLength(1)
   })
 
-  test.failing('entry 9: the MODIFIED/ADDED conflict pairs with archive/added-exists', async () => {
+  test('entry 9: the MODIFIED/ADDED conflict pairs with archive/added-exists', async () => {
     const root = mkTempRepo({ git: true })
     buildLivingPair(root)
     const delegated = binaryOne(

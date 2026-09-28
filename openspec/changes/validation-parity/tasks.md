@@ -74,7 +74,7 @@ trailer, never `--no-verify`).
 - [x] 5.2 Add entries 3, 4 and 5 (skipped headers, a skipped `### Scenario:`)
       and flip `4.1 twin` and those entries' 5.1/5.2 tests. Commit
       `fix(validate): dedupe skipped-header findings`
-- [ ] 5.3 Add entries 8 and 9 (cross-section) and flip `3.1 twin`, `3.2 twin`,
+- [x] 5.3 Add entries 8 and 9 (cross-section) and flip `3.1 twin`, `3.2 twin`,
       `3.3 twin` and those entries' 5.1/5.2 tests. Confirm
       `grep -nE 'test\.(todo|failing)'` finds nothing in the contract file
       (verification 7.2). Commit
