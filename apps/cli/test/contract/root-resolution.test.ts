@@ -1268,3 +1268,25 @@ describe("a forward row's parse refusal outranks a root-selection failure (ledge
     expect(res.stderr).toBe("cospec list: unknown option '--bogus'\n")
   })
 })
+
+// --- Ledger 5.6: templates --json -- x relays the binary's refusal ---
+
+describe("templates --json -- x relays the binary's refusal (ledger 5.6)", () => {
+  test('exit 1, empty stdout, the binary stderr verbatim', async () => {
+    const sb = await makeSandbox([])
+    const cwd = planningRoot(sb)
+    const argv = ['templates', '--json', '--', 'x']
+    const up = await oracle(argv, sb.dir, { cwd })
+    expect(up.exitCode).toBe(1)
+    expect(up.stdout).toBe('')
+    expect(up.stderr).toBe(
+      "error: too many arguments for 'templates'. Expected 0 arguments but got 1.\n",
+    )
+    const res = await cospec(argv, { cwd, env: sb.env })
+    expect(res.exitCode).toBe(1)
+    expect(res.stdout).toBe('')
+    expect(res.stderr).toBe(up.stderr)
+    expect(res.stderr).not.toContain('did not emit a single parseable JSON document')
+    expect(res.stderr).not.toMatch(BARE_OPENSPEC_COMMAND)
+  })
+})
