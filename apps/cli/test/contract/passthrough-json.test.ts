@@ -557,20 +557,14 @@ describe('a group refusal is the binary’s in the mode the binary chose (review
     ['workset', '--', 'bogus', '--json'],
     ['workset', '--', '--bogus', '--json'],
   ]) {
-    // The workset rows already relayed the binary's text: regression guards.
-    const run = argv[0] === 'workset' ? test : test.failing
-    run(
-      `${argv.join(' ')}: the binary’s answer, respelled`,
-      async () => {
-        const root = plainRoot()
-        const up = await oracle(argv, root, { runtime: 'node' })
-        const co = await runCospec(argv, root)
-        expect(up.exitCode, detail(up)).toBe(1)
-        expectRespelledRelay(co, up)
-        expect(documentCount(co.stdout), detail(co)).toBe(documentCount(up.stdout))
-      },
-      30_000,
-    )
+    test(`${argv.join(' ')}: the binary’s answer, respelled`, async () => {
+      const root = plainRoot()
+      const up = await oracle(argv, root, { runtime: 'node' })
+      const co = await runCospec(argv, root)
+      expect(up.exitCode, detail(up)).toBe(1)
+      expectRespelledRelay(co, up)
+      expect(documentCount(co.stdout), detail(co)).toBe(documentCount(up.stdout))
+    }, 30_000)
   }
 })
 

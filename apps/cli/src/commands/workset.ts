@@ -15,6 +15,7 @@ import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { commandRow, parseSubcommandArgs } from '../core/command-table.ts'
 import {
+  firstStatusCode,
   forwardCall,
   isParseRejection,
   prevalidateHandover,
@@ -220,22 +221,6 @@ export async function runWorksetOpen(
     },
   })
   return await proc.exited
-}
-
-/** `status[0].code` of a one-document answer, or undefined for any other stdout. */
-function firstStatusCode(stdout: string): string | undefined {
-  let doc: unknown
-  try {
-    doc = JSON.parse(stdout)
-  } catch (err) {
-    if (err instanceof SyntaxError) return undefined
-    throw err
-  }
-  const status = (doc as { status?: unknown } | null)?.status
-  const code = Array.isArray(status)
-    ? (status[0] as { code?: unknown } | undefined)?.code
-    : undefined
-  return typeof code === 'string' ? code : undefined
 }
 
 /**

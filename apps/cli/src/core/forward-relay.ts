@@ -166,34 +166,36 @@ const GROUP_REFUSAL_CODE = {
 
 export type RefusingGroup = keyof typeof GROUP_REFUSAL_CODE
 
+/** `status[0].code` of a one-document answer, or undefined for any other stdout. */
+export function firstStatusCode(stdout: string): string | undefined {
+  let doc: unknown
+  try {
+    doc = JSON.parse(stdout)
+  } catch (err) {
+    if (err instanceof SyntaxError) return undefined
+    throw err
+  }
+  const status = (doc as { status?: unknown } | null)?.status
+  const code = Array.isArray(status)
+    ? (status[0] as { code?: unknown } | undefined)?.code
+    : undefined
+  return typeof code === 'string' ? code : undefined
+}
+
 /**
  * What the binary answers a group whose first token is not a subcommand it
- * runs: commander's parse rejection; under `--json`, one document whose
- * `status[0].code` is the group's refusal code; otherwise its text refusal,
- * on stderr alone.
+ * runs: commander's parse rejection, its text refusal on stderr alone, or one
+ * document whose `status[0].code` is the group's refusal code. The binary
+ * picks the mode from the argv itself — the store group reads a `--json`
+ * among its operands, one after `--` included, where cospec's own flag
+ * parsing stops — so every shape is its answer whatever `ctx.flags.json` is.
  */
-function groupRefusalPostCondition(group: RefusingGroup, json: boolean): PostCondition {
-  return (result) => {
-    if (isParseRejection(result)) return true
-    if (!json)
-      return result.stdout.length === 0 && result.stderr.length > 0
-        ? true
-        : `did not refuse the ${group} argv on stderr alone`
-    let doc: unknown
-    try {
-      doc = JSON.parse(result.stdout)
-    } catch (err) {
-      if (err instanceof SyntaxError) return `did not answer the ${group} argv with one document`
-      throw err
-    }
-    const status = (doc as { status?: unknown } | null)?.status
-    const code = Array.isArray(status)
-      ? (status[0] as { code?: unknown } | undefined)?.code
-      : undefined
-    return code === GROUP_REFUSAL_CODE[group]
-      ? true
-      : `answered the ${group} argv with a document whose status[0].code is not ${GROUP_REFUSAL_CODE[group]}`
-  }
+function groupRefusalPostCondition(group: RefusingGroup): PostCondition {
+  return (result) =>
+    isParseRejection(result) ||
+    (result.stdout.length === 0 && result.stderr.length > 0) ||
+    firstStatusCode(result.stdout) === GROUP_REFUSAL_CODE[group] ||
+    `did not refuse the ${group} argv with a parse rejection, a stderr refusal, or one document whose status[0].code is ${GROUP_REFUSAL_CODE[group]}`
 }
 
 /**
@@ -217,7 +219,7 @@ export async function relayGroupRefusal(
         cwd: ctx.cwd,
         expect: {
           exitCodes: [1],
-          postCondition: groupRefusalPostCondition(group, ctx.flags.json),
+          postCondition: groupRefusalPostCondition(group),
         },
       },
     ),
