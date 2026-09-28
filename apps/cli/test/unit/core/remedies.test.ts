@@ -223,7 +223,7 @@ describe('respellReferenceRemedies', () => {
     }
   })
 
-  test.failing('--json: a stat warning line ahead of the document is relayed as is', () => {
+  test('--json: a stat warning line ahead of the document is relayed as is', () => {
     const warning = 'Unable to check if directory exists at /p/x: EACCES: permission denied\n'
     const doc = (fix: string) => `${JSON.stringify({ status: [{ fix }] }, null, 2)}\n`
     expect(
@@ -231,7 +231,7 @@ describe('respellReferenceRemedies', () => {
     ).toBe(warning + doc('Run: cospec store doctor'))
   })
 
-  test.failing('--json: an answer with no JSON document throws, naming the wrapped call', () => {
+  test('--json: an answer with no JSON document throws, naming the wrapped call', () => {
     expect(() => respellReferenceRemedies('not json\n', 'context', true)).toThrow(
       'the wrapped OpenSpec call answered --json with no JSON document',
     )
@@ -255,7 +255,7 @@ describe('respellReferenceRemedies', () => {
     )
   })
 
-  test.failing('instructions: an answer of another shape (archive inputs) keeps its bytes', () => {
+  test('instructions: an answer of another shape (archive inputs) keeps its bytes', () => {
     const text =
       '## Archive Inputs: c1\n\n### Project Context (required instruction input)\n\n' +
       `</task>\n\n${BLOCK}\n\n`

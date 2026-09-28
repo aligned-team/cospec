@@ -550,15 +550,28 @@ const ENTRY_LINE = /^ {2}(?:- |Fetch: |Note: |Fix: )/
 const ENTRY_LABELS = ['  Fetch: ', '  Fix: '] as const
 
 /**
- * `instructions`' own `<referenced_stores>` element: the line right after
- * `</task>` (and the `<project_context>` element, when there is one) that
- * opens it, through its close. Upstream escapes `</task>` and
- * `</project_context>` in every repo-supplied value but not
- * `<referenced_stores>`, so position — never the tag alone — marks the
- * binary's block; a template or context can print a lookalike anywhere.
+ * `instructions`' own `<referenced_stores>` element, as `printInstructionsText`
+ * lays it out: an `<artifact …>` opening line, a blank one, a blocked
+ * artifact's `<warning>` element when there is one, then the `<task>` element
+ * and the `<project_context>` element when there is one; the block is the
+ * element that opens on the line after those, through its close. Upstream's
+ * `escapeEnvelopeTags` escapes `</task>` and `</project_context>` in the
+ * prose it frames (description, context, rules, instruction, template) but
+ * not `<referenced_stores>`, so this position — never the tag alone — marks
+ * the binary's block. An answer of any other shape (`instructions archive`'s
+ * inputs, which print the context raw) has no block.
  */
 function instructionsBlock(lines: readonly string[]): [number, number] | undefined {
-  let at = lines.indexOf('</task>')
+  if (!lines[0]?.startsWith('<artifact id="') || lines[1] !== '') return undefined
+  let at = 2
+  if (lines[at] === '<warning>') {
+    at = lines.indexOf('</warning>', at)
+    if (at < 0) return undefined
+    at += 1
+    if (lines[at] === '') at += 1
+  }
+  if (lines[at] !== '<task>') return undefined
+  at = lines.indexOf('</task>', at)
   if (at < 0) return undefined
   at += 1
   if (lines[at] === '') at += 1
@@ -687,21 +700,33 @@ function stringSpans(text: string, want: readonly JsonPath[]): [number, number][
   return spans
 }
 
-/** A `--json` answer with only its reference fields' values spelled. */
+/**
+ * A `--json` answer with only its reference fields' values spelled. The
+ * document starts at the first line that opens with `{`: upstream's
+ * `FileSystemUtils` logs a stat warning (`Unable to check if … exists at
+ * <path>: EACCES …`) to stdout through `console.debug`, ahead of it, and that
+ * line is relayed as the binary wrote it.
+ */
 function respellReferenceFields(text: string, answer: 'context' | 'instructions'): string {
-  // Validates first: a successful --json answer is one JSON document, and
-  // anything else is an unexpected answer that must surface, not be relayed.
-  JSON.parse(text)
-  let out = ''
-  let last = 0
-  for (const [start, end] of stringSpans(text, REFERENCE_FIELDS[answer])) {
-    const spelled = respellWhole(JSON.parse(text.slice(start, end)) as string)
-    out +=
-      text.slice(last, start) +
-      (spelled === undefined ? text.slice(start, end) : JSON.stringify(spelled))
-    last = end
+  const start = Math.max(text.search(/^\{/m), 0)
+  const body = text.slice(start)
+  try {
+    JSON.parse(body)
+  } catch (err) {
+    if (!(err instanceof SyntaxError)) throw err
+    throw new Error('the wrapped OpenSpec call answered --json with no JSON document', {
+      cause: err,
+    })
   }
-  return out + text.slice(last)
+  let out = text.slice(0, start)
+  let last = 0
+  for (const [from, to] of stringSpans(body, REFERENCE_FIELDS[answer])) {
+    const literal = body.slice(from, to)
+    const spelled = respellWhole(JSON.parse(literal) as string)
+    out += body.slice(last, from) + (spelled === undefined ? literal : JSON.stringify(spelled))
+    last = to
+  }
+  return out + body.slice(last)
 }
 
 /**
