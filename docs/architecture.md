@@ -263,11 +263,17 @@ these two. And `relayRespelled` (`core/forward-relay.ts`) answers the binary's
 remedy sentences (`core/remedies.ts`) as the cospec command of the same shape —
 or drops it where cospec has none — so the remedy a user reads names cospec: in
 a failed call's answer, and in a successful `context` or `instructions` answer
-only on the reference block's own `Fetch:`/`Fix:` lines (`fetch`/`fix` under
-`--json`) whose whole value is an allowlisted sentence
-(`respellReferenceRemedies`). Everything else a successful answer holds — a
-`show`'s change or spec, a schema template, `config.yaml` context and rules, a
-referenced spec's summary, every path — is relayed untouched.
+only on the remedies the binary generates for its references, each whole value
+an allowlisted sentence (`respellReferenceRemedies`), located by structure: the
+`Fetch:`/`Fix:` entry lines of `instructions`' own `<referenced_stores>` element
+(the one right after `</task>` and the project context, since upstream escapes
+those two tags in repo text but not `<referenced_stores>`) and of `context`'s
+`Referenced stores` / `Not available on this machine` sections, or under
+`--json` the parsed document's `fetch`/`fix` reference fields, re-encoded in
+place. A user line that reads like a reference line is not one. Everything else
+a successful answer holds — a `show`'s change or spec, a schema template,
+`config.yaml` context and rules, a referenced spec's summary, every path — is
+relayed untouched.
 
 ### The terminal-handover class
 

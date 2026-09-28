@@ -585,3 +585,25 @@ red; 4–7 turn it green; 8 documents it.
 - [x] 10.72 `.agents/shared.md`'s allowlist discipline names
       `respellReferenceRemedies` for a successful `context`/`instructions`;
       `mise run agents:sync` (ledger 1.62)
+- [x] 10.73 Round-15 user-line rows first (cd0698c):
+      `instructions proposal     --change done`, text and `--json`, with a
+      template line `Fix: Run openspec init to create a root here.`, a context
+      line `Fetch: openspec show <spec-id> --type spec --store st1`, a rule
+      `  Fix: Pass a registered store id, or run openspec store list.`, a
+      template line `  "fix": "Run: openspec store doctor st2"`, and a forged
+      `<referenced_stores>` block in the context and in the template; the five
+      text rows other than the rule's as `test.failing` (each came back
+      respelled), the rule row and every `--json` row as plain `test`; plain
+      `test` at b09c65e (ledger 1.63)
+- [x] 10.74 `respellReferenceRemedies(text, answer, json)` locates the binary's
+      own remedies by structure: `instructions`' `<referenced_stores>` element
+      right after `</task>` and the project context, its entry lines after a
+      `Store <store-id>` header; `context`'s `Referenced stores` and
+      `Not available on this machine` sections; under `--json` the parsed
+      document's `references[]`/`members[]`/`status[]` `fetch`/`fix` fields,
+      re-encoded in place; round 14's `REFERENCE_LINE`/`REFERENCE_FIELD`
+      removed; `relayRespelled` takes `'context' | 'instructions'`; unit cases
+      (ledger 1.63)
+- [x] 10.75 Spec requirement + scenario, design decisions 1 and 13 (the round-14
+      residual closed), `reference/commands.md`, `docs/architecture.md`,
+      `.agents/shared.md` + `mise run agents:sync` (ledger 1.63)
