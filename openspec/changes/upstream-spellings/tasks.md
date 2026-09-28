@@ -120,12 +120,12 @@ a time. Group 12 waits for the rebase in group 11.
 
 ## 9. Program-level `help` (`apps/cli/src/commands/help.ts` new; `cli.ts` `COMMAND_MODULES` entry; the `help` row and its pending entry)
 
-- [ ] 9.1 Add the visible `help` row (`operands: 'lenient'`, optional `command`)
+- [x] 9.1 Add the visible `help` row (`operands: 'lenient'`, optional `command`)
       and `help.ts` (program help; a row's help, hidden rows included; program
       help on stderr and exit 1 for any other name, `help` included), reading
       `ctx.parsed` like every `table` module; delete the `help` pending entry;
       verify ledger 2.1–2.3, 5.5 and the `help --bogus` differential row pass
-- [ ] 9.2 Commit `fix(cli): answer program-level help like commander`
+- [x] 9.2 Commit `fix(cli): answer program-level help like commander`
 
 ## 10. T5 — `instructions` forwarding (`apps/cli/src/commands/instructions.ts`; the `instructions` row and its pending entry)
 

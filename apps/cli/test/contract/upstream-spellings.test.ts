@@ -403,8 +403,7 @@ describe('2.1 help [command] prints what --help prints', () => {
   // `-V` answers program-wide before any command is dispatched.
   const VERSION: [string[], 'version'] = [['help', '-V'], 'version']
   for (const [argv, same] of [...HELP, VERSION]) {
-    const register = same === 'version' ? test : test.failing
-    register(
+    test(
       argv.join(' '),
       async () => {
         const root = mkTempRepo()
@@ -427,7 +426,7 @@ describe('2.2 help <not a command> prints program help on stderr and fails', () 
     ['help', 'bogus'],
     ['help', 'help'],
   ]) {
-    test.failing(
+    test(
       argv.join(' '),
       async () => {
         const root = mkTempRepo()

@@ -446,6 +446,7 @@ describe('table shape', () => {
       'config',
       'completion',
       'feedback',
+      'help',
       '__complete',
       'check-commit',
       'experimental',
@@ -459,6 +460,8 @@ describe('table shape', () => {
     // own, never a command list in cli.ts.
     expect(commandRow('experimental')).toMatchObject({ parse: 'table', aliasOf: 'init' })
     expect(COMMAND_MODULES['experimental']).toBeDefined()
+    expect(commandRow('help')).toMatchObject({ parse: 'table', hidden: false, operands: 'lenient' })
+    expect(COMMAND_MODULES['help']).toBeDefined()
   })
 
   test('every row dispatches to a command module, and every module has a row, in the same order', async () => {
@@ -496,7 +499,15 @@ describe('table shape', () => {
     }
     const refused = COMMAND_TABLE.filter((row) => row.parse === 'table' && row.store === 'refused')
     expect(refused.map((row) => row.name).toSorted()).toEqual(
-      ['check-commit', 'completion', 'experimental', 'feedback', 'init', 'update'].toSorted(),
+      [
+        'check-commit',
+        'completion',
+        'experimental',
+        'feedback',
+        'help',
+        'init',
+        'update',
+      ].toSorted(),
     )
   })
 
@@ -638,11 +649,13 @@ describe('parseCommandArgs — aliases, hidden flags, lenient operands', () => {
     expect(offered).not.toContain('--secret')
   })
 
-  test('a lenient row ignores undeclared options and excess operands', () => {
-    expect(ok(lenient, ['--bogus', 'list', 'extra', '-x', '--store-path'])).toEqual({
+  test('a lenient row ends its operands at the first undeclared option, ignores the excess', () => {
+    expect(ok(lenient, ['list', 'extra', '-x', '--store-path'])).toEqual({
       positionals: ['list'],
       flags: {},
     })
+    expect(ok(lenient, ['--bogus', 'list'])).toEqual({ positionals: [], flags: {} })
+    expect(ok(lenient, ['--store-path', '/x', 'list'])).toEqual({ positionals: [], flags: {} })
     expect(ok(lenient, ['--', 'list'])).toEqual({ positionals: ['list'], flags: {} })
     expect(parseCommandArgs(tableRow('list'), ['--bogus']).ok).toBe(false)
   })
@@ -684,16 +697,14 @@ describe('upstream spellings (aliases, hidden flags, lenient operands)', () => {
     expect(parsed('new', ['change', 'x', '--initiative', 'y']).flags['--initiative']).toBe('y')
   })
 
-  test.failing(
-    "the help row's lenient operands ignore undeclared options and excess operands",
-    () => {
-      expect(parsed('help', ['--bogus', 'list', 'extra', '-x'])).toMatchObject({
-        positionals: ['list', 'extra'],
-        flags: {},
-      })
-      expect(parsed('help', [])).toMatchObject({ positionals: [] })
-    },
-  )
+  test("the help row's lenient operands ignore undeclared options and excess operands", () => {
+    expect(parsed('help', ['list', 'extra', '--bogus'])).toEqual({
+      positionals: ['list'],
+      flags: {},
+    })
+    expect(parsed('help', ['--json', 'list'])).toEqual({ positionals: [], flags: {} })
+    expect(parsed('help', [])).toMatchObject({ positionals: [] })
+  })
 })
 
 describe('--store-path guard', () => {

@@ -148,8 +148,11 @@ interface RowBase extends SurfaceSpec {
    */
   readonly aliasOf?: string
   /**
-   * `lenient`: undeclared options and excess operands are ignored instead of
-   * refused, as commander's implicit `help [command]` ignores them.
+   * `lenient`: nothing is refused, as commander's implicit `help [command]`
+   * reads its argv — the first undeclared option ends the operands (commander
+   * files it and everything after it as unknown), and excess operands are
+   * ignored. The dispatcher hands such a row its whole argv, cospec's global
+   * flags included: upstream's help command declares none of them.
    */
   readonly operands?: 'lenient'
 }
@@ -1028,6 +1031,20 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     ],
   },
   {
+    // Commander's implicit program-level `help [command]`, last in upstream's
+    // command list too. It reads only its first operand, never refuses, and
+    // declares no `--store` (`openspec --store x help` is an unknown option).
+    name: 'help',
+    summary: 'Display help for a command',
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    store: 'refused',
+    operands: 'lenient',
+    positionals: [upstreamArg({ name: 'command', required: false })],
+    flags: [],
+  },
+  {
     name: '__complete',
     summary: 'Dynamic completion source (changes|specs|types)',
     hidden: true,
@@ -1379,9 +1396,9 @@ function parseSurface(
     const name = eq > 0 ? tok.slice(0, eq) : tok
     const inline = eq > 0 ? tok.slice(eq + 1) : undefined
     const flag = surface.flags.find((f) => f.name === name || f.short === name)
-    // A lenient row ignores every option it does not declare, commander's
-    // help command's way; nothing it declares takes a value.
-    if (lenient && flag === undefined) continue
+    // On a lenient row the first undeclared option ends the operands, as
+    // commander files it and every later token as unknown.
+    if (lenient && flag === undefined) break
     if (isStorePathToken(tok) && !declaresStorePath) {
       // Undeclared upstream, so an unknown option that takes nothing: the
       // redirect, on stderr only, in the unknown option's place in the order.

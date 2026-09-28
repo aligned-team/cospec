@@ -110,6 +110,7 @@ export const COMMAND_MODULES: Record<string, () => Promise<Partial<CommandModule
   config: () => import('./commands/config.ts'),
   completion: () => import('./commands/completion.ts'),
   feedback: () => import('./commands/feedback.ts'),
+  help: () => import('./commands/help.ts'),
   __complete: () => import('./commands/complete.ts'),
   'check-commit': () => import('./commands/check-commit.ts'),
   experimental: () => import('./commands/experimental.ts'),
@@ -156,7 +157,8 @@ function globalOptions(flags: readonly FlagSpec[]): string {
 /** The global-flag help block every help screen ends with, rendered from `GLOBAL_FLAGS`. */
 export const GLOBAL_OPTIONS = globalOptions(GLOBAL_FLAGS)
 
-function helpText(): string {
+/** The program's own help: `cospec --help`, and `cospec help`. */
+export function programHelpText(): string {
   const visible = COMMAND_TABLE.filter((row) => !row.hidden)
   const rows = renderLines(visible.map((row) => ({ label: row.name, description: row.summary })))
   return `cospec — OpenSpec change management, sized to your commit type.
@@ -224,7 +226,7 @@ function argumentLines(positionals: readonly PositionalSpec[]): HelpLine[] {
  * table row: its positionals, its subcommands with each one's flags, and every
  * handled or accepted no-op flag — never a pending one.
  */
-function commandHelpText(row: CommandRow): string {
+export function commandHelpText(row: CommandRow): string {
   const sections: string[] = []
   const args = argumentLines(row.positionals)
   if (args.length > 0) sections.push(`Arguments:\n${renderLines(args)}`)
@@ -352,7 +354,7 @@ function storePathAnswer(json: boolean): number {
 }
 
 function rootHelp(): number {
-  process.stdout.write(helpText())
+  process.stdout.write(programHelpText())
   return EXIT.success
 }
 
@@ -529,6 +531,10 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
   // After a leading `--`, or a `--` that is the first token to reach a row
   // with subcommands, every token is an operand.
   if (call.terminated) wantHelp = routeOperands(row, call.tokens, rest)
+  // A lenient row (commander's help command) reads its argv itself: no
+  // global, help flag or `help` token is taken out of it.
+  else if (row.parse === 'table' && row.operands === 'lenient')
+    rest.push(...withoutProgramLevel(call.tokens, state))
   else {
     const tokens = withoutProgramLevel(call.tokens, state)
     const storePath = storePathTakesValue(row)

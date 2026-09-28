@@ -18,12 +18,6 @@
 
 # --- upstream-spellings ---------------------------------------------------------
 - { kind: flag, path: [instructions], flag: --schema, owner: upstream-spellings }
-# Commander's implicit program-level `help [command]` (`openspec help`,
-# `openspec help list`); cospec answers `unknown command 'help'` until then.
-# The entry covers its subtree, so the `[command]` positional (a hidden
-# fixture too) resolves here, as `new change --initiative` resolves to
-# `new change`.
-- { kind: command, path: [help], source: cli, owner: upstream-spellings }
 
 # --- cli-surface-parity -----------------------------------------------------------
 - { kind: flag, path: [list], flag: --sort, owner: cli-surface-parity }

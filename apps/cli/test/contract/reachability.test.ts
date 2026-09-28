@@ -241,8 +241,8 @@ function walkRegistry(registry: readonly RegistryCommand[]): Entry[] {
  * to the walk only after `present` confirms the pinned binary still has it.
  * `new change --initiative` / `--areas` are hidden-help options that print a
  * removed-option error; the table declares them hidden on `new change`, which
- * answers with the same error. `help`'s `[command]` positional resolves to
- * the pending `help` subtree in `parity-pending.yaml`.
+ * answers with the same error. Commander's implicit `help [command]` and its
+ * positional resolve to the table's `help` row.
  */
 const HIDDEN_FIXTURES: readonly {
   entry: Entry

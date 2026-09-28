@@ -1428,6 +1428,15 @@ const HELP_COMMAND_ROWS: readonly Row[] = [
   { argv: ['help', 'help'], command: 'help' },
   { argv: ['help', '--bogus'], command: 'help' },
   { argv: ['help', '--', 'list'], command: 'help' },
+  // The first option ends its operands: commander files it and the rest as
+  // unknown, cospec's globals included (the help command declares none).
+  { argv: ['help', '--bogus', 'list'], command: 'help' },
+  { argv: ['help', '--json', 'list'], command: 'help' },
+  { argv: ['help', '--store', 'list'], command: 'help' },
+  { argv: ['help', '--help'], command: 'help' },
+  { argv: ['help', 'list', '--help'], command: 'help' },
+  { argv: ['help', 'list', 'extra'], command: 'help' },
+  { argv: ['help', 'experimental'], command: 'help' },
 ]
 
 /**
@@ -1567,14 +1576,7 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
  * empty this set.
  */
 const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
-  // upstream-spellings: program-level help, and `instructions` answered by the binary.
-  'help',
-  'help list',
-  'help config path',
-  'help bogus',
-  'help help',
-  'help --bogus',
-  'help -- list',
+  // upstream-spellings: `instructions` answered by the binary.
   'instructions --change x',
   'instructions --change x --json',
   'instructions --store-path /x',

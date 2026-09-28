@@ -513,7 +513,6 @@ const UPSTREAM_SPELLING_ROWS: readonly Row[] = [
  */
 const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([
   'instructions proposal --schema spec-driven --change x',
-  'help --bogus',
 ])
 
 /**
