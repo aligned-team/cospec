@@ -358,7 +358,7 @@ describe('workset open: the read-only pre-flight on a terminal', () => {
     ['exit 1 (an unreadable worksets file)', { stdout: JSON.stringify(unreadable), exitCode: 1 }],
     ['exit 0 with an error in status[]', { stdout: JSON.stringify(flagged), exitCode: 0 }],
   ] as const) {
-    test.failing(`a refusing pre-flight answer, ${label}, is answered piped`, async () => {
+    test(`a refusing pre-flight answer, ${label}, is answered piped`, async () => {
       const open = exported<RunWorksetOpen>(worksetModule, 'runWorksetOpen')
       const { value, error, spawned } = await stubbed(
         (argv) => (argv[1] === 'list' ? reply : refusal),
@@ -376,8 +376,7 @@ describe('workset open: the read-only pre-flight on a terminal', () => {
   }
 
   for (const [code, path] of unusableMembers()) {
-    const run = code === 'ENOENT' || code === 'ENOTDIR' ? test : test.failing
-    run(`a member whose stat fails with ${code} is no folder, never a crash`, async () => {
+    test(`a member whose stat fails with ${code} is no folder, never a crash`, async () => {
       const open = exported<RunWorksetOpen>(worksetModule, 'runWorksetOpen')
       const list = { worksets: [{ name: 'w1', members: [{ name: 'm', path }] }], status: [] }
       const { value, error, spawned } = await stubbed(

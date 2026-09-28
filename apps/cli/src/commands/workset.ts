@@ -109,12 +109,21 @@ export function isWorksetOpenInteractive(
 
 interface WorksetList {
   worksets: { name: string; members: { name: string; path: string }[] }[]
+  status?: unknown
+}
+
+/** A list document's diagnostics (`status[]`), none when it carries no array. */
+function statusOf(doc: Partial<WorksetList>): { severity?: unknown }[] {
+  return Array.isArray(doc.status) ? (doc.status as { severity?: unknown }[]) : []
 }
 
 /**
  * The read-only pre-flight (design D8): whether the binary would refuse to
- * open `name` before launching anything — it is not saved, or none of its
- * member folders exists on this machine — read from `workset list --json`.
+ * open `name` before launching anything, read from `workset list --json` —
+ * the list itself refused (exit 1, or an error in its `status[]`: an
+ * unreadable worksets file, say), the name not saved, or none of its member
+ * folders on this machine. A refusal is answered by the piped
+ * `workset open`, which relays the binary's own words for it.
  */
 async function openIsRefused(ctx: CommandContext, name: string): Promise<boolean> {
   const result = await passthroughOpenspec(
@@ -122,7 +131,7 @@ async function openIsRefused(ctx: CommandContext, name: string): Promise<boolean
     {
       cwd: ctx.cwd,
       expect: {
-        exitCodes: [0],
+        exitCodes: [0, 1],
         postCondition: (res) => {
           let doc: Partial<WorksetList> | null
           try {
@@ -131,25 +140,49 @@ async function openIsRefused(ctx: CommandContext, name: string): Promise<boolean
             if (err instanceof SyntaxError) return 'did not emit parseable JSON'
             throw err
           }
-          return Array.isArray(doc?.worksets) || 'did not list a worksets[] array'
+          if (!Array.isArray(doc?.worksets)) return 'did not list a worksets[] array'
+          return (
+            res.exitCode === 0 ||
+            statusOf(doc).length > 0 ||
+            'exited 1 without a diagnostic in status[]'
+          )
         },
       },
     },
   )
-  const workset = (JSON.parse(result.stdout) as WorksetList).worksets.find((w) => w.name === name)
+  const list = JSON.parse(result.stdout) as WorksetList
+  if (result.exitCode !== 0 || statusOf(list).some((d) => d.severity === 'error')) return true
+  const workset = list.worksets.find((w) => w.name === name)
   if (workset === undefined) return true
   return !workset.members.some((member) => isDirectory(member.path))
 }
 
+/**
+ * The binary's `pathIsDirectory` (`core/file-state.js`): a member folder is
+ * one `stat` reads as a directory, and every way `stat` can fail on the path
+ * means it is not one — gone, a file on the way, a symlink loop, no search
+ * permission, a name too long, or a path `stat` refuses outright (a NUL
+ * byte), each of which the binary answers as a missing member folder.
+ */
 function isDirectory(path: string): boolean {
   try {
     return statSync(path).isDirectory()
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false
-    if ((err as NodeJS.ErrnoException).code === 'ENOTDIR') return false
+    if (STAT_REFUSALS.has((err as NodeJS.ErrnoException).code ?? '')) return false
     throw err
   }
 }
+
+/** The `stat` failures a member path can raise; each is the binary's "no such folder". */
+const STAT_REFUSALS: ReadonlySet<string> = new Set([
+  'ENOENT',
+  'ENOTDIR',
+  'ELOOP',
+  'EACCES',
+  'EPERM',
+  'ENAMETOOLONG',
+  'ERR_INVALID_ARG_VALUE',
+])
 
 /**
  * `workset open` run piped: with no terminal to prompt on, or for a workset

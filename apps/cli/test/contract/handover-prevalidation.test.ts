@@ -288,22 +288,16 @@ describe('on a terminal, a workset the binary refuses is answered as it refuses 
     ],
   ]
   for (const [label, body] of cases) {
-    test.failing(
-      `workset open w1 with ${label}`,
-      async () => {
-        const root = plainRoot()
-        writeWorksets(root, body)
-        const up = await ptyUpstream(['workset', 'open', 'w1'], root)
-        const co = await ptyCospec(['workset', 'open', 'w1'], root)
-        expect(up.exitCode, ptyDetail(up)).toBe(1)
-        expect(co.exitCode, ptyDetail(co)).toBe(1)
-        expect(terminalText(co.output), ptyDetail(co)).toBe(
-          respellRemedies(terminalText(up.output)),
-        )
-        expect(BARE_OPENSPEC.test(co.output), ptyDetail(co)).toBe(false)
-      },
-      30_000,
-    )
+    test(`workset open w1 with ${label}`, async () => {
+      const root = plainRoot()
+      writeWorksets(root, body)
+      const up = await ptyUpstream(['workset', 'open', 'w1'], root)
+      const co = await ptyCospec(['workset', 'open', 'w1'], root)
+      expect(up.exitCode, ptyDetail(up)).toBe(1)
+      expect(co.exitCode, ptyDetail(co)).toBe(1)
+      expect(terminalText(co.output), ptyDetail(co)).toBe(respellRemedies(terminalText(up.output)))
+      expect(BARE_OPENSPEC.test(co.output), ptyDetail(co)).toBe(false)
+    }, 30_000)
   }
 })
 
