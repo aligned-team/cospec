@@ -161,15 +161,13 @@ export class RawSelectionError extends RootSelectionError {
  * upstream does.
  *
  * The message is passed through as this runtime's `fs` throws it, with no
- * reformatting: on every Node line this project supports (20 through 25,
- * including 22, the version `ci-bun` pins) and on Bun alike, a failed `read`
- * (`EISDIR: illegal operation on a directory, read`) carries no path, and
- * `error.path` is `undefined` — an errno-and-runtime-version-dependent
- * omission `fs.promises` fixed only in a Node line newer than any this
- * project targets, confirmed directly (`node:{20,22,24,25}` and current
- * `bun`, both Linux and macOS): a real, useful message with no quoted path
- * to duplicate, not a gap to paper over by re-appending the path a caller
- * already has.
+ * reformatting. cospec runs the binary under Bun, and Bun (1.3.14) words a
+ * failed `read` (`store.yaml` as a directory) with no path —
+ * `EISDIR: illegal operation on a directory, read`, `error.path` undefined —
+ * in cospec's own `readFileSync` and in the binary's `fs.promises.readFile`
+ * alike, so the relayed message already matches the binary's. Node 22.23.2
+ * (the tests-only pin) prints the same line; cospec never runs Node, so a Node
+ * line that names the path there is not a message cospec's binary prints.
  */
 function resolverRead<T>(path: string, read: (path: string) => T): T | null {
   try {

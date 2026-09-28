@@ -39,6 +39,7 @@ import {
   RootSelectionError,
   type RootDiagnostic,
 } from '../../src/core/root.ts'
+import { errnoShape } from '../fixtures/errno.ts'
 import { cleanupAll, cospec, hashTree, writeFiles } from '../fixtures/support.ts'
 import {
   captureStderr,
@@ -1771,6 +1772,21 @@ function lockRegistry(sb: Sandbox): string {
   return path
 }
 
+/** cospec's text-mode lead before a raw failure, and the binary's. */
+const COSPEC_LEAD = /cospec: /
+const BINARY_LEAD = /(?:✖ )?Error: /
+
+/**
+ * The errno message `text` holds as its one line after `lead`. Throws on any
+ * other shape, so the line count and the lead stay asserted exactly while the
+ * message itself is compared through `errnoShape` (code, syscall, path).
+ */
+function errnoLine(text: string, lead: RegExp): string {
+  const match = new RegExp(`^${lead.source}([^\\n]*)\\n$`).exec(text)
+  if (match === null) throw new Error(`not one ${lead.source}line: ${JSON.stringify(text)}`)
+  return match[1]!
+}
+
 describe("only upstream's StoreError codes become resolver diagnostics (ledger 5.21)", () => {
   test("STORE_ERROR_CODES is exactly the pinned binary's StoreError codes", () => {
     const pinned = pinnedStoreErrorCodes()
@@ -1798,7 +1814,12 @@ describe("only upstream's StoreError codes become resolver diagnostics (ledger 5
         const up = await oracle(['list', '--json', ...storeFlag()], sb.dir, { cwd: fx.cwd })
         expect(up.exitCode).toBe(1)
         const status = firstStatus(up.stdout) as OracleDiagnostic
-        expect(status.message).toBe(`EACCES: permission denied, open '${registry}'`)
+        expect(errnoShape(status.message)).toEqual({
+          code: 'EACCES',
+          syscall: 'open',
+          hasPath: true,
+          path: registry,
+        })
         expect(status).not.toHaveProperty('fix')
       })
 
@@ -1812,7 +1833,9 @@ describe("only upstream's StoreError codes become resolver diagnostics (ledger 5
         expect(res.exitCode).toBe(up.exitCode)
         expect(res.stderr).toBe(up.stderr)
         const status = firstStatus(res.stdout) as OracleDiagnostic
-        expect(status.message).toBe((firstStatus(up.stdout) as OracleDiagnostic).message)
+        expect(errnoShape(status.message)).toEqual(
+          errnoShape((firstStatus(up.stdout) as OracleDiagnostic).message),
+        )
         expect(status).not.toHaveProperty('fix')
         expect(status).not.toHaveProperty('target')
       })
@@ -1823,7 +1846,9 @@ describe("only upstream's StoreError codes become resolver diagnostics (ledger 5
         const res = await cospec(['list', ...storeFlag()], { cwd: fx.cwd, env: sb.env })
         expect(res.exitCode).toBe(1)
         expect(res.stdout).toBe('')
-        expect(res.stderr).toBe(up.stderr.replace(/^(?:✖ )?Error: /, 'cospec: '))
+        expect(errnoShape(errnoLine(res.stderr, COSPEC_LEAD))).toEqual(
+          errnoShape(errnoLine(up.stderr, BINARY_LEAD)),
+        )
       })
 
       test('cospec templates --json answers as the binary does without --store', async () => {
@@ -1836,8 +1861,12 @@ describe("only upstream's StoreError codes become resolver diagnostics (ledger 5
         } else {
           // An explicit --store keeps its selection failure (ledger 5.15).
           expect(res.exitCode).toBe(1)
-          expect(firstStatus(res.stdout)).toMatchObject({
-            message: `EACCES: permission denied, open '${registry}'`,
+          const status = firstStatus(res.stdout) as OracleDiagnostic
+          expect(errnoShape(status.message)).toEqual({
+            code: 'EACCES',
+            syscall: 'open',
+            hasPath: true,
+            path: registry,
           })
         }
       })
@@ -2279,13 +2308,13 @@ const SWEEP_CWD_ARGVS = [
 ] as const
 
 describe('every file the resolver reads fails as the binary does (ledger 5.22)', () => {
-  // The binary runs under Node, as `openspec` users run it: on every Node line
-  // this project targets (20-25, including 22, what `ci-bun` pins) a failed
-  // `read`'s errno (EISDIR) carries no path, matching Bun's own message. A
-  // failed `stat` is not passed through as verbatim: Node always names the
-  // syscall `stat`, while Bun names it `statx` on a Linux kernel new enough to
-  // use that syscall (this project's Linux CI, not its macOS dev machines) —
-  // `nodeStatMessage` in `root.ts` rewrites it so these rows agree either way.
+  // The binary runs under Bun, as cospec's wrapped calls run it. A failed
+  // `read`'s errno (EISDIR) carries no path. A raw failure is compared by
+  // errno code, syscall and path (`errnoShape`), never by its sentence: Bun
+  // names a failed `stat` `statx` on a Linux kernel new enough to use that
+  // syscall (this project's Linux CI, not its macOS dev machines), while
+  // cospec's own message says `stat`, as Node-run `openspec` does
+  // (`nodeStatMessage` in `root.ts`), and `errnoShape` reads both as `stat`.
   for (const file of SWEEP_FILES)
     for (const fault of file.faults)
       for (const route of SWEEP_ROUTES)
@@ -2310,7 +2339,7 @@ describe('every file the resolver reads fails as the binary does (ledger 5.22)',
               const runs: Promise<void>[] = []
               for (const argv of [...SWEEP_ROOT_ARGVS, ['list']]) {
                 runs.push(
-                  oracle([...argv, ...store], sb.dir, { cwd, runtime: 'node' }).then((r) => {
+                  oracle([...argv, ...store], sb.dir, { cwd }).then((r) => {
                     up.set(key(argv), r)
                   }),
                   cospec([...argv, ...store], { cwd, env: sb.env }).then((r) => {
@@ -2321,7 +2350,7 @@ describe('every file the resolver reads fails as the binary does (ledger 5.22)',
               // The binary takes no `--store` on these: its answer is the cwd's.
               for (const argv of SWEEP_CWD_ARGVS)
                 runs.push(
-                  oracle([...argv], sb.dir, { cwd, runtime: 'node' }).then((r) => {
+                  oracle([...argv], sb.dir, { cwd }).then((r) => {
                     up.set(key(argv), r)
                   }),
                   cospec([...argv, ...store], { cwd, env: sb.env }).then((r) => {
@@ -2358,7 +2387,7 @@ describe('every file the resolver reads fails as the binary does (ledger 5.22)',
                 expect(res.exitCode).toBe(1)
                 const ourStatus = doc.status?.[0]
                 if (isRawDiagnostic(failed)) {
-                  expect(ourStatus?.message).toBe(failed.message)
+                  expect(errnoShape(ourStatus!.message)).toEqual(errnoShape(failed.message))
                   expect(ourStatus).not.toHaveProperty('target')
                   expect(ourStatus).not.toHaveProperty('fix')
                 } else expect(ourStatus?.code).toBe(failed.code)
@@ -2373,8 +2402,9 @@ describe('every file the resolver reads fails as the binary does (ledger 5.22)',
               expect(res.exitCode).toBe(bin.exitCode)
               if (!isRawDiagnostic(failed)) return
               expect(res.stdout).toBe('')
-              expect(res.stderr).toBe(bin.stderr.replace(/^(?:✖ )?Error: /, 'cospec: '))
-              expect(res.stderr).toBe(`cospec: ${failed!.message}\n`)
+              const shown = errnoShape(errnoLine(res.stderr, COSPEC_LEAD))
+              expect(shown).toEqual(errnoShape(errnoLine(bin.stderr, BINARY_LEAD)))
+              expect(shown).toEqual(errnoShape(failed!.message))
             })
 
             for (const argv of SWEEP_CWD_ARGVS)
@@ -2394,7 +2424,8 @@ describe('every file the resolver reads fails as the binary does (ledger 5.22)',
                 }
                 expect(res.exitCode).toBe(1)
                 const ourStatus = oneDocument(res.stdout).status?.[0]
-                if (isRawDiagnostic(failed)) expect(ourStatus?.message).toBe(failed.message)
+                if (isRawDiagnostic(failed))
+                  expect(errnoShape(ourStatus!.message)).toEqual(errnoShape(failed.message))
                 else expect(ourStatus?.code).toBe(failed.code)
               })
           },
@@ -2482,7 +2513,7 @@ describe('templates and schema print no resolver line (ledger 5.25)', () => {
   // Upstream's `templates` and `schema` actions never run root selection, so
   // the binary prints none of the lines `resolveRoot` prints (the ignored
   // pointer warning, the store banner, the invalid-global-config warning):
-  // only its own `Note:` lines. The binary runs under Node, as users run it.
+  // only its own `Note:` lines.
   for (const route of QUIET_ROUTES)
     describe(route.id, () => {
       let sb!: Sandbox
@@ -2497,7 +2528,7 @@ describe('templates and schema print no resolver line (ledger 5.25)', () => {
       })
 
       test('oracle and cospec: list prints the resolver line once on this route', async () => {
-        const up = await oracle(['list', ...flag()], sb.dir, { cwd, runtime: 'node' })
+        const up = await oracle(['list', ...flag()], sb.dir, { cwd })
         const res = await cospec(['list', ...flag()], { cwd, env: sb.env })
         expect(up.exitCode).toBe(0)
         expect(lineCount(up.stderr, route.line(sb, dir))).toBe(1)
@@ -2507,7 +2538,7 @@ describe('templates and schema print no resolver line (ledger 5.25)', () => {
 
       for (const argv of QUIET_ARGVS)
         test(`cospec ${argv.join(' ')} prints only the binary's stderr`, async () => {
-          const up = await oracle([...argv], sb.dir, { cwd: binaryCwd(), runtime: 'node' })
+          const up = await oracle([...argv], sb.dir, { cwd: binaryCwd() })
           const res = await cospec([...argv, ...flag()], { cwd, env: sb.env })
           expect(up.exitCode).toBe(0)
           expect(lineCount(up.stderr, route.line(sb, dir))).toBe(0)

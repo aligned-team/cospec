@@ -1,0 +1,150 @@
+# Tasks
+
+## 1. Pin node
+
+- [x] 1.1 Pin `node = "22.23.2"` in `mise.toml` (the Node `ci-bun` runs: the
+      ubuntu-24.04 20260920.314 image default, since `ci-bun` has no
+      `setup-node` step) and lock it with `mise lock node`, and verify
+      `git diff mise.lock` adds only `[[tools.node]]` rows, a following
+      `mise install` leaves `mise.lock` byte-identical, and
+      `mise exec -- node --version` prints `v22.23.2` -> `mise install` alone
+      wrote only the `[[tools.node]]` version/backend stanza (no platform rows,
+      which CI's linux-x64 drift gate would then add); `mise lock node` added
+      the 11 platform rows every other tool carries (+48 lines, nothing else
+      touched); the next `mise install` left `mise.lock` byte-identical (`cmp`);
+      `mise exec -- node --version` printed `v22.23.2`; the linux-x64 and
+      darwin-arm64 checksums match nodejs.org's `SHASUMS256.txt`
+
+## 2. Run the oracle under Bun
+
+- [x] 2.1 Make `oracle()` in `upstream-oracle.ts` spawn
+      `[process.execPath, <bin>, ...argv]` with `buildWrappedSpawnEnv` over
+      `oracleEnv(root)`, keeping `{ runtime: 'node' }`, and verify with a
+      contract row that the oracle's child sees the product's wrapped env ->
+      `oracleSpawn` builds the command, cwd and env; the new
+      `test/contract/upstream-oracle.test.ts` (5 pass) pins the command
+      (`process.execPath`, the package bin, argv untouched), the env
+      (`buildWrappedSpawnEnv(oracleEnv(root))`: every `WRAPPED_ENV` key set,
+      every color-forcing key absent even when the parent exports them), that
+      `{ runtime: 'node' }` swaps only the interpreter, that a color-forcing
+      parent leaves the binary's stderr empty, and that Bun drops a leading `--`
+      (`-- --version` prints `1.13.1`) where Node delivers it (exit 1,
+      `unknown command '--version'`). `root-sandbox.ts` routes through
+      `oracle()`, so it needed no change
+- [x] 2.2 Move every `runtime: 'node'` call site to the default except the rows
+      whose argv starts with `--`, document each remaining use, and verify the
+      three affected contract files pass -> 22 call sites moved (17 in
+      `relayed-remedies.test.ts`, 5 in `root-resolution.test.ts` ledgers 5.22
+      and 5.25); the one remaining use is `precedence-matrix.test.ts`'s
+      `runUpstream`, now `{ runtime: 'node' }` only when `argv[0] === '--'`,
+      documented in its header comment and JSDoc; all three files pass in the
+      full contract run (1639 pass, 0 fail)
+- [x] 2.3 Run the whole contract suite and verify every row that changed outcome
+      is either updated with probe evidence (cospec and the binary-under-Bun
+      agree) or reported as a product finding with its owning PR -> on macOS the
+      full suite under the Bun oracle, before any errno-row change, was 1639
+      pass, 0 fail: no row changed outcome (the added
+      `OPENSPEC_NO_COMPLETIONS`/`BUN_BE_BUN` keys flipped nothing). Linux,
+      probed in an `oven/bun:1.3.14` container as a non-root user: the binary
+      under Bun answers the ledger-5.22 store `openspec/` mode-000 cell with
+      `EACCES: permission denied, statx '<store>/openspec/config.yaml'`, while
+      cospec's resolver says `stat` (`nodeStatMessage`, owned by
+      `root-resolution-parity`, merged in #52) — a product finding, reported,
+      and absorbed by 3.1's syscall normalisation, not by changing either side
+
+## 3. Errno rows
+
+- [x] 3.1 Make every errno-message compare in the contract and unit suites
+      assert the errno code and the path (or normalise the syscall token), and
+      verify the rows pass -> `test/fixtures/errno.ts` `errnoShape` (code,
+      syscall with `statx` read as `stat`, first quoted path; throws on anything
+      else), pinned by `test/unit/errno-shape.test.ts` (5 pass); used by
+      `root.test.ts` ledger 5.23 (8 rows; the stat row also asserts no `statx`),
+      and `root-resolution.test.ts` ledger 5.21's registry rows and 5.22's
+      raw-failure compares (the text rows keep their one-line lead exact through
+      `errnoLine`). The remaining `EACCES`/`ENOTDIR` strings in
+      `commands.test.ts` and `forward-relay.test.ts` are fixed inputs to pure
+      relay rewrites, not runtime output, so they stay. The four files: 879
+      pass, 0 fail
+- [x] 3.2 Note the errno-message brittleness in the archived
+      `root-resolution-parity` `design.md` and `verification.md`, and verify
+      `mise run cospec-validate-all` still passes -> design D9 amendment (the
+      brittleness, the pin, the oracle runtime, the errno rows, and the Linux
+      `statx` divergence) and amendments on ledger rows 5.22 and 5.23;
+      `cospec-validate-all` 0 errors, 0 warnings
+
+## 4. Docs and gate
+
+- [x] 4.1 Update `docs/architecture.md` and `.agents/shared.md` where they state
+      how the oracle runs, run `mise run agents:sync`, and verify
+      `mise run agents:check` passes -> neither stated it before; added a
+      wrapping-boundary bullet to `docs/architecture.md` and three sentences to
+      shared.md's Tests discipline; `agents:sync` rewrote `CLAUDE.md` and
+      `AGENTS.md`; `agents:check` "All shared blocks are in sync." No
+      user-facing behaviour changed, so `apps/docs` is untouched
+- [x] 4.2 Run `mise run check` with color forcing unset and verify it exits 0 ->
+      `env -u FORCE_COLOR -u NO_COLOR -u COLORTERM -u CLICOLOR mise run     check`
+      exit 0: unit 1553, contract 1639, integration 167, bench 339, release-test
+      14, all 0 fail
+
+## 5. Round 2
+
+- [x] 5.1 Make `openspec()`/`openspecRaw()` in `test/fixtures/support.ts` spawn
+      `process.execPath` on the package bin under `buildWrappedSpawnEnv` over a
+      per-run `oracleEnv` sandbox with the caller's env applied on top
+      (`openspec()` keeping its leading `--no-color`), run every suite that uses
+      them, and widen `docs/architecture.md`'s oracle sentence to both helpers
+      -> `oracleEnv` moved into `support.ts` (re-exported by
+      `upstream-oracle.ts`; `import/no-cycle` forbids the reverse import);
+      `runBinary` makes the sandbox with `mkdtemp`, runs, and removes it. The 10
+      suites that call the helpers (version-tripwire, archive-parity,
+      parity-close-out, config-surface, added-early-sync, delta-bullet-markers,
+      hard-reality, archive-gotchas, archive-preflight-dedupe,
+      scenario-preservation): 105 pass, 0 fail before, and the same 105 pass, 0
+      fail after, so no row changed outcome. Three new rows in
+      `upstream-oracle.test.ts` (8 pass) pin it: under a color-forcing parent
+      each helper's `config path` lies in a `cospec-binary-home-` sandbox,
+      outside the real HOME, gone after the run, with empty stderr; a caller's
+      `XDG_CONFIG_HOME` wins. `docs/architecture.md` and `.agents/shared.md`
+      name both helpers (`agents:sync` rewrote `CLAUDE.md` and `AGENTS.md`)
+- [x] 5.2 Add the missing platform checksums for `aqua:koalaman/shellcheck` and
+      `aqua:tamasfe/taplo` to `mise.lock`, and verify a fresh `mise install` of
+      both leaves `mise.lock` byte-identical on macos-arm64, linux-arm64 and
+      linux-x64 -> all 22 platform rows (11 per tool) had a URL and no checksum,
+      and `mise lock` for the two tools wrote nothing (neither release publishes
+      checksums, so there is nothing to fetch). Control: a fresh `mise install`
+      (mise 2026.9.13) at HEAD appended a host-only `blake3:` row (macos-arm64
+      here; linux-x64 in a `debian:bookworm-slim` container), so CI's drift gate
+      passed only on a warm tool cache. Added a `sha256:` row to each of the 22
+      entries, hashed from the asset each row's URL names (+22 lines, nothing
+      else). A fresh sandboxed install then left `mise.lock` byte-identical
+      (`cmp`) on macos-arm64 and in linux/arm64 and linux/amd64 containers, as
+      did `mise lock` for both tools. A zeroed macos-arm64 taplo checksum made
+      the install fail with `Checksum     mismatch`, so the rows are checked,
+      not just carried. No other platform row in `mise.lock` lacks a checksum
+- [x] 5.3 Probe whether the binary under Bun names the path in its EISDIR
+      message for a `store.yaml` that is a directory, make cospec agree, state
+      what holds in `root.ts` and `apps/docs/concepts/stores.md`, and make
+      `errnoShape` compare path presence as well as value -> probe (sandboxed
+      store `gamma`, `store.yaml` replaced by a directory,
+      `list --json --store     gamma` and `list --store gamma`): the binary
+      under Bun 1.3.14 says `EISDIR: illegal operation on a directory, read`
+      (JSON `list_error`, text `✖ Error: …`) with no path, as it does under Node
+      22.23.2, and cospec says the same (`store_error`); in-process Bun
+      `readFileSync` and `fs.promises.readFile` both omit it (`error.path`
+      undefined). The branch already relays `error.message` verbatim (no
+      re-append; f57c18e removed it, and #52 shipped that), so no code changed.
+      The `resolverRead` comment (which cited unprobed Node 20-25 lines) now
+      states the Bun probe, the 1.3.14 version and that cospec never runs Node;
+      the unit 5.23 comment likewise; `stores.md` drops "in Node's own message"
+      (its example line is unchanged). `errnoShape` gains `hasPath`, read from
+      the message independently of the parse, and throws when the two disagree;
+      2 new `errno-shape.test.ts` rows (7 pass) pin that the same errno with and
+      without its path never compares equal and that an unparsed quoted path
+      throws. The literal shapes in `root.test.ts` and `root-resolution.test.ts`
+      carry `hasPath`. The three files: 876 pass, 0 fail
+- [x] 5.4 Run `mise run check` with color forcing unset and verify it exits 0 ->
+      `env -u FORCE_COLOR -u NO_COLOR -u COLORTERM -u CLICOLOR mise run check`
+      exit 0 at 45c898d: unit 1555, contract 1642, integration 167, bench 339,
+      release-test 14, all 0 fail. Per-row JUnit diff of the 10 helper suites
+      before and after 5.1: the same 104 distinct rows, all pass

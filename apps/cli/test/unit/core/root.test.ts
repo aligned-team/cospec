@@ -23,6 +23,7 @@ import {
   rootSelectionDocument,
   type RootSource,
 } from '../../../src/core/root.ts'
+import { type ErrnoShape, errnoShape } from '../../fixtures/errno.ts'
 
 // Fixtures live under `tmpdir()` as spelled, which is a symlink on macOS
 // (`/var` -> `/private/var`); the resolver returns canonical paths (design D3),
@@ -1146,7 +1147,13 @@ describe('rootSelectionDocument (design D12)', () => {
 })
 
 /** Await a resolver call expected to fail raw (ledger 5.23), checking its diagnostic. */
-async function rawRejection(promise: Promise<unknown>, message: string): Promise<void> {
+/**
+ * The rejection is a raw selection failure: the errno message alone as the
+ * `store_error` diagnostic (no target, no fix), whose errno code, syscall and
+ * path are `expected`. The sentence between them is the runtime's own wording,
+ * so it is never compared (`fixtures/errno.ts`). Returns the message.
+ */
+async function rawRejection(promise: Promise<unknown>, expected: ErrnoShape): Promise<string> {
   let caught: unknown
   try {
     await promise
@@ -1155,8 +1162,13 @@ async function rawRejection(promise: Promise<unknown>, message: string): Promise
   }
   expect(caught).toBeInstanceOf(RootSelectionError)
   const error = caught as RootSelectionError
-  expect(error.message).toBe(message)
-  expect(error.diagnostic).toEqual({ severity: 'error', code: 'store_error', message })
+  expect(errnoShape(error.message)).toEqual(expected)
+  expect(error.diagnostic).toEqual({
+    severity: 'error',
+    code: 'store_error',
+    message: error.message,
+  })
+  return error.message
 }
 
 const storeMetadataFile = (root: string): string => join(root, '.openspec-store', 'store.yaml')
@@ -1175,20 +1187,21 @@ describe('resolveRoot — raw read failures (ledger 5.23)', () => {
       const root = env.store('gamma')
       rmSync(storeMetadataFile(root))
       mkdirSync(storeMetadataFile(root))
-      // A failed `read` carries no path on this runtime's `fs` (Node 20-25,
-      // Bun): resolverRead relays the errno message as thrown, not a fixed
-      // string — assert against what `readFileSync` itself throws here.
-      let expected: string | undefined
+      // A failed `read` carries no path under Bun, the runtime cospec and its
+      // wrapped binary share, and resolverRead relays the errno message as
+      // thrown.
+      let thrown: string | undefined
       try {
         readFileSync(storeMetadataFile(root))
       } catch (error) {
-        expected = (error as NodeJS.ErrnoException).message
+        thrown = (error as NodeJS.ErrnoException).message
       }
-      if (expected === undefined) throw new Error('expected readFileSync to throw EISDIR')
-      await rawRejection(
+      if (thrown === undefined) throw new Error('expected readFileSync to throw EISDIR')
+      const message = await rawRejection(
         resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }),
-        expected,
+        { code: 'EISDIR', syscall: 'read', hasPath: false, path: null },
       )
+      expect(message).toBe(thrown)
     })
   }, 15_000)
 
@@ -1201,7 +1214,7 @@ describe('resolveRoot — raw read failures (ledger 5.23)', () => {
         try {
           await rawRejection(
             resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }),
-            `EACCES: permission denied, open '${storeMetadataFile(root)}'`,
+            { code: 'EACCES', syscall: 'open', hasPath: true, path: storeMetadataFile(root) },
           )
         } finally {
           chmodSync(storeMetadataFile(root), 0o644)
@@ -1216,10 +1229,12 @@ describe('resolveRoot — raw read failures (ledger 5.23)', () => {
       const root = env.store('gamma')
       rmSync(join(root, '.openspec-store'), { recursive: true })
       writeFileSync(join(root, '.openspec-store'), '')
-      await rawRejection(
-        resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }),
-        `ENOTDIR: not a directory, open '${storeMetadataFile(root)}'`,
-      )
+      await rawRejection(resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }), {
+        code: 'ENOTDIR',
+        syscall: 'open',
+        hasPath: true,
+        path: storeMetadataFile(root),
+      })
     })
   }, 15_000)
 
@@ -1228,10 +1243,12 @@ describe('resolveRoot — raw read failures (ledger 5.23)', () => {
       const root = env.store('gamma')
       rmSync(storeMetadataFile(root))
       symlinkSync('store.yaml', storeMetadataFile(root))
-      await rawRejection(
-        resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }),
-        `ELOOP: too many symbolic links encountered, open '${storeMetadataFile(root)}'`,
-      )
+      await rawRejection(resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }), {
+        code: 'ELOOP',
+        syscall: 'open',
+        hasPath: true,
+        path: storeMetadataFile(root),
+      })
     })
   }, 15_000)
 
@@ -1243,32 +1260,29 @@ describe('resolveRoot — raw read failures (ledger 5.23)', () => {
         const configYaml = join(root, 'openspec', 'config.yaml')
         chmodSync(join(root, 'openspec'), 0o000)
         try {
-          // The path and the rest of the message are captured from THIS
-          // runtime's own stat error, not hardcoded (they vary by runtime and
-          // OS). The syscall name is not: libuv calls it `statx` on a Linux
-          // kernel new enough for Bun to use that syscall, and `stat`
-          // elsewhere, but the binary always runs under Node, which always
-          // names it `stat` — byte-for-byte parity with the binary, this
-          // class's own contract, means cospec's own message must too,
-          // regardless of what this runtime's `statSync` calls it (design D9's
-          // round-6 amendment; `nodeStatMessage` applies the same rewrite in
-          // `root.ts`). Applying it to the captured message here as well as
-          // relying only on it in production keeps this assertion exact under
-          // either kernel, rather than tautologically comparing cospec to
-          // itself.
-          let expected: string | undefined
+          // Code, syscall and path are asserted, never the runtime's sentence.
+          // libuv calls the syscall `statx` on a Linux kernel new enough for
+          // Bun to use it, and `stat` elsewhere, while Node (how `openspec`
+          // users run the binary) always says `stat`: `nodeStatMessage` in
+          // `root.ts` spells cospec's own message Node's way (design D9's
+          // round-6 amendment), so the message must never carry `statx` on
+          // any kernel — asserted directly, since `errnoShape` reads either
+          // token as `stat`.
+          const message = await rawRejection(
+            resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }),
+            { code: 'EACCES', syscall: 'stat', hasPath: true, path: configYaml },
+          )
+          expect(message).not.toContain(', statx ')
+          let thrown: string | undefined
           try {
             statSync(configYaml)
           } catch (error) {
-            expected = nodeStatMessage((error as NodeJS.ErrnoException).message)
+            thrown = (error as NodeJS.ErrnoException).message
           }
-          if (expected === undefined) {
+          if (thrown === undefined) {
             throw new Error('expected statSync to throw EACCES on a mode-000 parent')
           }
-          await rawRejection(
-            resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }),
-            expected,
-          )
+          expect(message).toBe(nodeStatMessage(thrown))
         } finally {
           chmodSync(join(root, 'openspec'), 0o755)
         }
@@ -1307,20 +1321,17 @@ describe('resolveRoot — raw read failures (ledger 5.23)', () => {
       const root = env.store('gamma')
       rmSync(storeMetadataFile(root))
       mkdirSync(storeMetadataFile(root))
-      // A failed `read` carries no path on this runtime's `fs` — assert
-      // against what `readFileSync` itself throws here, not a fixed string.
-      let message: string | undefined
-      try {
-        readFileSync(storeMetadataFile(root))
-      } catch (error) {
-        message = (error as NodeJS.ErrnoException).message
-      }
-      if (message === undefined) throw new Error('expected readFileSync to throw EISDIR')
-      await rawRejection(
+      // A failed `read` carries no path on this runtime's `fs`.
+      const eisdir = { code: 'EISDIR', syscall: 'read', hasPath: false, path: null }
+      const viaPointer = await rawRejection(
         resolveRoot({ cwd: repoWithConfig('store: gamma\n'), flags: JSON_FLAGS }),
-        message,
+        eisdir,
       )
-      await rawRejection(resolveRoot({ cwd: bareDir(), flags: JSON_FLAGS }), message)
+      const viaDefault = await rawRejection(
+        resolveRoot({ cwd: bareDir(), flags: JSON_FLAGS }),
+        eisdir,
+      )
+      expect(viaDefault).toBe(viaPointer)
     })
   }, 15_000)
 

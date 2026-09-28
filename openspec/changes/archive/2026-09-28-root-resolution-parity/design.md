@@ -451,6 +451,29 @@ and a directory the user may not stat must not become a selection failure
 makes each file a directory and mode 000 on every route and compares cospec with
 the binary under Node.
 
+Amendment (change `pin-node-oracle`, after archive): comparing errno messages
+byte-for-byte was brittle, not just this `statx` case. The sentence between the
+code and the syscall is the runtime's own wording, the syscall token differs by
+runtime and kernel, and the comparison ran the binary under Node while cospec's
+wrapped calls run it under Bun — and under whatever Node the machine had:
+`ci-bun` never pinned Node (no `setup-node` step; it ran the runner image's
+default, 22.23.2), and a local `mise run check` ran mise-global `latest` (v26).
+So a row could pass on one machine and fail on another with neither tool
+changed. `mise.toml` now pins `node = "22.23.2"` for tests and CI; the contract
+oracle runs the binary the way `core/openspec.ts` does (Bun,
+`buildWrappedSpawnEnv`), keeping Node only for argv with a leading `--`; and
+every errno row (ledgers 5.22, 5.23, the registry mode-000 rows) asserts the
+errno code, the syscall token (`statx` read as `stat`) and the path through
+`test/fixtures/errno.ts`, never the sentence. `nodeStatMessage` stays: cospec
+still spells its own message the way Node-run `openspec` does, and 5.23's stat
+row asserts that message never carries `statx`. That leaves one known
+divergence, which the syscall normalisation absorbs rather than hides: on Linux
+the binary under Bun (the runtime cospec wraps it in) names the failed syscall
+`statx` — probed in an `oven/bun:1.3.14` container as a non-root user,
+`list --json --store alpha` with the store's `openspec/` at mode 000 answers
+`EACCES: permission denied, statx '<store>/openspec/config.yaml'` — while
+cospec's own resolver answers `stat`.
+
 **D10. The banner is printed by `resolveRoot`.** `resolveRoot` widens its
 parameter to `flags: { store?: string; json?: boolean }`; every caller already
 passes the global flags, which carry `json`, so no caller changes. When the

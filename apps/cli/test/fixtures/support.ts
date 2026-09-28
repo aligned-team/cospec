@@ -18,6 +18,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { buildWrappedSpawnEnv } from '../../src/core/openspec.ts'
+
 const here = dirname(fileURLToPath(import.meta.url))
 
 /**
@@ -78,19 +80,94 @@ async function spawn(
   // `$XDG_DATA_HOME`, say) cannot reach the child; an empty string would
   // still count as set.
   for (const key of unset) delete childEnv[key]
-  const proc = Bun.spawn(cmd, {
-    cwd,
-    stdin: 'ignore',
-    stdout: 'pipe',
-    stderr: 'pipe',
-    env: childEnv,
-  })
+  return run(cmd, cwd, childEnv)
+}
+
+async function run(
+  cmd: string[],
+  cwd: string,
+  env: Record<string, string | undefined>,
+): Promise<SpawnResult> {
+  const proc = Bun.spawn(cmd, { cwd, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', env })
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
     proc.exited,
   ])
   return { stdout, stderr, exitCode }
+}
+
+/**
+ * The sandbox environment for `root`, the parent env of every oracle run (and
+ * of a cospec run that must match it): color forcing stripped, `NO_COLOR=1`,
+ * `OPENSPEC_TELEMETRY=0`, and HOME, the XDG config/data/state/cache dirs,
+ * CODEX_HOME and ZDOTDIR redirected under `root/.oracle-home`, and
+ * `EDITOR`/`VISUAL` set to `true`. The binary itself runs under
+ * `buildWrappedSpawnEnv(oracleEnv(root))`, as cospec's child does when cospec
+ * is handed this env. Exported (and re-exported by the contract oracle) so a
+ * differential test can hand cospec the identical environment.
+ */
+export function oracleEnv(root: string): Record<string, string> {
+  const home = join(root, '.oracle-home')
+  const dirs = {
+    HOME: home,
+    XDG_CONFIG_HOME: join(home, '.config'),
+    XDG_DATA_HOME: join(home, '.local', 'share'),
+    XDG_STATE_HOME: join(home, '.local', 'state'),
+    XDG_CACHE_HOME: join(home, '.cache'),
+    CODEX_HOME: join(home, '.codex'),
+    ZDOTDIR: home,
+  }
+  for (const dir of Object.values(dirs)) mkdirSync(dir, { recursive: true })
+  return {
+    ...envWithoutColorForcing(),
+    NO_COLOR: '1',
+    OPENSPEC_TELEMETRY: '0',
+    // A terminal-handover leaf (`config edit`) that does run must return at
+    // once and edit nothing, never open a real editor on the test machine.
+    EDITOR: 'true',
+    VISUAL: 'true',
+    // `HOME` above hides any real `~/.gitconfig`, so `store setup`'s initial
+    // commit (`git.js` `assertGitCommitIdentity`) falls back to Git's own
+    // username+hostname auto-detection. That fallback is host-dependent: it
+    // reads the OS user's GECOS full name and needs a hostname Git accepts as
+    // a mail domain, both of which a plain Linux CI runner account typically
+    // lacks (empty GECOS, a bare container hostname), where a macOS account
+    // usually has both — so the same row passes on a dev machine and fails
+    // with `store_git_identity_missing` in CI. Setting the identity directly
+    // makes every sandboxed run deterministic across hosts.
+    GIT_AUTHOR_NAME: 'cospec test',
+    GIT_AUTHOR_EMAIL: 'cospec-test@example.invalid',
+    GIT_COMMITTER_NAME: 'cospec test',
+    GIT_COMMITTER_EMAIL: 'cospec-test@example.invalid',
+    ...dirs,
+  }
+}
+
+/**
+ * Run the pinned binary the way cospec's wrapped calls do (`spawnRaw` in
+ * `src/core/openspec.ts`): the running executable on the package bin, under
+ * `buildWrappedSpawnEnv`. The parent env is a private `oracleEnv` sandbox,
+ * made for this one run and removed after it, so the binary never reads or
+ * writes the real HOME (its `init` enumerates `~/.codex/prompts`, its global
+ * config lives under XDG); `env` is applied over the sandbox, so a caller's
+ * own `XDG_CONFIG_HOME` or `TZ` wins.
+ */
+async function runBinary(
+  args: string[],
+  cwd: string,
+  env?: Record<string, string>,
+): Promise<SpawnResult> {
+  const sandbox = mkdtempSync(join(tmpdir(), 'cospec-binary-home-'))
+  try {
+    return await run(
+      [process.execPath, openspecBinPath(), ...args],
+      cwd,
+      buildWrappedSpawnEnv({ ...oracleEnv(sandbox), ...env }),
+    )
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true })
+  }
 }
 
 /** Run the cospec CLI from source in `cwd`. */
@@ -116,7 +193,7 @@ export function cospecBin(
 }
 
 /**
- * Run the real bundled openspec binary in `cwd`.
+ * Run the real bundled openspec binary in `cwd`, as `runBinary` describes.
  *
  * `env` exists for the same reason `cospec`'s does, and is load-bearing for
  * `TZ`: assigning `process.env.TZ` in Bun changes the SUITE's zone but the key
@@ -129,7 +206,7 @@ export function openspec(
   cwd: string,
   env?: Record<string, string>,
 ): Promise<SpawnResult> {
-  return spawn(['bun', openspecBinPath(), '--no-color', ...args], cwd, env)
+  return runBinary(['--no-color', ...args], cwd, env)
 }
 
 /**
@@ -145,7 +222,7 @@ export function openspecRaw(
   cwd: string,
   env?: Record<string, string>,
 ): Promise<SpawnResult> {
-  return spawn(['bun', openspecBinPath(), ...args], cwd, env)
+  return runBinary(args, cwd, env)
 }
 
 const activeDirs = new Set<string>()
