@@ -285,6 +285,15 @@ module's `run`: a `RootSelectionError` in a `--json` run is written by
 same; where the binary adds its command's empty payload (`context`'s
 `root`/`members`, `schemas`'s `schemas`/`root`, `list`'s `changes`/`root`,
 `list --specs`'s `specs`/`root`), those keys are `cli-surface-parity`'s.
+_Amended before review:_ `context` and `schemas` already relayed the binary's
+whole failure document on `main`, so the generic envelope alone was a regression
+there. A command module may export `jsonFailurePayload`, which the dispatcher
+passes to `rootSelectionDocument(error, payload)`; the document is
+`{...payload, status}`, upstream's `w4` order. `context` exports
+`{root: null, members: []}` and `schemas` `{schemas: [], root: null}`, for every
+resolver failure (the binary prints them for `no_root_with_registered_stores`,
+`unknown_store` and `invalid_store_id` alike). `list`'s and `list --specs`'s
+keys stay `cli-surface-parity`'s.
 
 **D13. An empty `--store=` reaches the resolver (post-rebase).**
 `unknown-option-contract` refused an empty `--store` at parse time with

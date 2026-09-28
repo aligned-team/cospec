@@ -318,3 +318,10 @@ files, task 7.7, both marked POST-REBASE.
 - [x] 7.13 POST-REBASE: list `unknown-option-contract` under Blocked by in
       `blocking-changes.md` and run `mise run cospec -- sync-blockers`, which
       checks it off as archived
+
+## 8. PRE-REVIEW: restore payloads, relay upstream's text refusals, observe D7
+
+- [x] 8.1 PRE-REVIEW (ledger 5.11, design D12): add failing rows, then let a
+      command module export `jsonFailurePayload` that the dispatcher prints
+      ahead of `status` in a `--json` root-selection failure; `context` and
+      `schemas` export the binary's empty payloads; update the Stores page

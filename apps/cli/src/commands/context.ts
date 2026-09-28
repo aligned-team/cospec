@@ -16,6 +16,9 @@ import { relayRespelled } from '../core/forward-relay.ts'
 import { passthroughOpenspec, threadedArgv, wrappedCallLabel } from '../core/openspec.ts'
 import { resolveRoot } from '../core/root.ts'
 
+/** `context`'s empty payload in a `--json` root-selection failure, as upstream prints it. */
+export const jsonFailurePayload = { root: null, members: [] } as const
+
 export async function run(ctx: CommandContext): Promise<number> {
   const root = await resolveRoot(ctx)
   const parsed = ctx.parsed!

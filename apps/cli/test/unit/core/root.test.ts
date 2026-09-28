@@ -972,6 +972,23 @@ describe('rootSelectionDocument (design D12)', () => {
     )
   })
 
+  test("a command's payload comes first, then status, as upstream's failurePayload", () => {
+    const error = new RootSelectionError({
+      code: 'unknown_store',
+      message: 'Unknown store.',
+      target: 'store.id',
+      fix: 'Pass a registered store id, or run cospec store list.',
+    })
+    const text = rootSelectionDocument(error, { schemas: [], root: null })
+    expect(Object.keys(JSON.parse(text) as object)).toEqual(['schemas', 'root', 'status'])
+    expect(text).toBe(
+      '{\n  "schemas": [],\n  "root": null,\n  "status": [\n    {\n' +
+        '      "severity": "error",\n      "code": "unknown_store",\n' +
+        '      "message": "Unknown store.",\n      "target": "store.id",\n' +
+        '      "fix": "Pass a registered store id, or run cospec store list."\n    }\n  ]\n}\n',
+    )
+  })
+
   test('a diagnostic with no fix has no fix key', () => {
     const error = new RootSelectionError({
       code: 'directory_not_found',

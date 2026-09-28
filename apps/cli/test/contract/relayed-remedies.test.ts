@@ -395,24 +395,78 @@ describe('with a store registered, the resolver gives the no-root answer', () =>
     }, 30_000)
   }
 
-  test('context --json (a store registered)', async () => {
-    const coRoot = rootless(true)
-    const upRoot = rootless(true)
-    const co = await cospec(['context', '--json'], { cwd: coRoot, env: oracleEnv(coRoot) })
-    const up = await oracle(['context', '--json'], upRoot, { runtime: 'node' })
-    expect(co.exitCode, detail(co)).toBe(up.exitCode)
-    expect(co.stderr, detail(co)).toBe(up.stderr)
-    const upDoc = JSON.parse(up.stdout) as { status: unknown[] }
-    // The binary's document also carries context's own null payload; the
-    // per-command failure keys are cli-surface-parity's (design D12), so the
-    // difference is pinned exactly here and fails the moment either side moves.
-    expect(Object.keys(upDoc)).toEqual(['root', 'members', 'status'])
-    expect(upDoc).toMatchObject({ root: null, members: [] })
-    expect(co.stdout, detail(co)).toBe(
-      `${JSON.stringify({ status: JSON.parse(viaCospecInit(JSON.stringify(upDoc.status))) }, null, 2)}\n`,
-    )
-    expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
-  }, 30_000)
+  // `context` and `schemas` print their command's empty payload ahead of the
+  // `status` envelope (`w4`'s `failurePayload`, keys first), for every
+  // resolver failure: main relayed that document, and cospec's is the binary's
+  // byte-for-byte with its remedies spelled through cospec.
+  const payloads: readonly (readonly [argv: string[], keys: string[]])[] = [
+    [
+      ['context', '--json'],
+      ['root', 'members', 'status'],
+    ],
+    [
+      ['schemas', '--json'],
+      ['schemas', 'root', 'status'],
+    ],
+    [
+      ['context', '--json', '--store', 'nope'],
+      ['root', 'members', 'status'],
+    ],
+    [
+      ['schemas', '--json', '--store', 'nope'],
+      ['schemas', 'root', 'status'],
+    ],
+    [
+      ['context', '--json', '--store='],
+      ['root', 'members', 'status'],
+    ],
+    [
+      ['schemas', '--json', '--store='],
+      ['schemas', 'root', 'status'],
+    ],
+  ]
+  for (const [argv, keys] of payloads) {
+    test(`${argv.join(' ')} (a store registered) carries its command's payload`, async () => {
+      const coRoot = rootless(true)
+      const upRoot = rootless(true)
+      const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+      const up = await oracle(argv, upRoot, { runtime: 'node' })
+      expect(co.exitCode, detail(co)).toBe(up.exitCode)
+      expect(up.exitCode).toBe(1)
+      expect(co.stderr, detail(co)).toBe(up.stderr)
+      const upDoc = JSON.parse(up.stdout) as { status: { code: string }[] }
+      expect(Object.keys(upDoc)).toEqual(keys)
+      const coDoc = JSON.parse(co.stdout) as { status: unknown[] }
+      expect(Object.keys(coDoc), detail(co)).toEqual(keys)
+      // Every key but `status` is the binary's own, and `status` is its
+      // diagnostic with the remedies spelled through cospec.
+      const { status: upStatus, ...upPayload } = upDoc
+      const { status: coStatus, ...coPayload } = coDoc
+      expect(coPayload).toEqual(upPayload)
+      expect(coStatus).toHaveLength(1)
+      expect(coStatus[0]).toMatchObject({
+        severity: 'error',
+        code: upStatus[0]!.code,
+      })
+      expect(co.stdout + co.stderr).not.toMatch(BARE_OPENSPEC)
+    }, 30_000)
+  }
+
+  for (const argv of [
+    ['context', '--json'],
+    ['schemas', '--json'],
+  ]) {
+    test(`${argv.join(' ')} (a store registered) is the binary's document byte-for-byte`, async () => {
+      const coRoot = rootless(true)
+      const upRoot = rootless(true)
+      const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+      const up = await oracle(argv, upRoot, { runtime: 'node' })
+      expect(up.stdout + up.stderr).toMatch(/[Rr]un openspec init/)
+      expect(co.exitCode, detail(co)).toBe(up.exitCode)
+      expect(co.stdout, detail(co)).toBe(viaCospecInit(up.stdout))
+      expect(co.stderr, detail(co)).toBe(up.stderr)
+    }, 30_000)
+  }
 })
 
 describe('a successful context or instructions is relayed byte-for-byte', () => {

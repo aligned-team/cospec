@@ -60,6 +60,12 @@ export interface CommandContext {
  */
 export interface CommandModule {
   run(ctx: CommandContext): number | Promise<number>
+  /**
+   * The command's own empty payload in its `--json` failure document, printed
+   * ahead of `status` when root selection fails, as upstream's
+   * `failurePayload` is (`context`: `{ root: null, members: [] }`).
+   */
+  readonly jsonFailurePayload?: Readonly<Record<string, unknown>>
 }
 
 /** The uniform exit-code contract (DESIGN §2). */
@@ -660,7 +666,7 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
     // A `--json` caller is owed one document for a resolver hard-error too;
     // every other failure keeps the top-level prose.
     if (!(state.json && error instanceof RootSelectionError)) throw error
-    process.stdout.write(rootSelectionDocument(error))
+    process.stdout.write(rootSelectionDocument(error, mod.jsonFailurePayload))
     return EXIT.failure
   }
   return typeof code === 'number' ? code : EXIT.success

@@ -178,8 +178,11 @@ is nothing to suggest):
 }
 ```
 
-OpenSpec also prints each command's empty payload in that document
-(`"changes": []`, `"root": null` for `list`); cospec prints the envelope alone.
+`cospec context --json` and `cospec schemas --json` put their command's empty
+payload ahead of `status`, exactly as OpenSpec does (`"root": null`,
+`"members": []` for `context`; `"schemas": []`, `"root": null` for `schemas`).
+OpenSpec prints such a payload for other commands too (`"changes": []`,
+`"root": null` for `list`); there cospec prints the envelope alone.
 
 | code                             | when                                                                    |
 | -------------------------------- | ----------------------------------------------------------------------- |

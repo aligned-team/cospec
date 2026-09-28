@@ -209,6 +209,15 @@ and never by resolving an ancestor of the missing path.
 - **THEN** stdout is exactly one JSON document whose `status` array holds the
   diagnostic with its code and fix, and the command exits 1
 
+#### Scenario: context and schemas keep their payload in the failure document
+
+- **WHEN** `cospec context --json` or `cospec schemas --json` runs and root
+  resolution fails
+- **THEN** the one document carries the command's empty payload ahead of
+  `status` (`root: null, members: []` for `context`; `schemas: [], root: null`
+  for `schemas`), keys in the wrapped binary's order, as bare `openspec` prints
+  it
+
 #### Scenario: An empty store id fails selection
 
 - **WHEN** `cospec list --store=` runs, and again with `--json`

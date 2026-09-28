@@ -74,15 +74,19 @@ export class RootSelectionError extends Error {
 }
 
 /**
- * The one `--json` document for a resolver hard-error (design D12): upstream's
- * `status` envelope carrying the diagnostic, keys in upstream's order and
- * pretty-printed as the binary prints its own. Only the generic envelope —
- * each command's own failure keys (`changes: []`, `root: null`) are not here.
+ * The one `--json` document for a resolver hard-error (design D12): the
+ * command's own empty failure payload (`payload`, e.g. `context`'s
+ * `root: null, members: []`), then upstream's `status` envelope carrying the
+ * diagnostic — keys in upstream's order (`{...failurePayload, status}`) and
+ * pretty-printed as the binary prints its own.
  */
-export function rootSelectionDocument(error: RootSelectionError): string {
+export function rootSelectionDocument(
+  error: RootSelectionError,
+  payload: Readonly<Record<string, unknown>> = {},
+): string {
   const { severity, code, message, target, fix } = error.diagnostic
   const status = [{ severity, code, message, target, ...(fix === undefined ? {} : { fix }) }]
-  return `${JSON.stringify({ status }, null, 2)}\n`
+  return `${JSON.stringify({ ...payload, status }, null, 2)}\n`
 }
 
 const STORE_METADATA = join('.openspec-store', 'store.yaml')
