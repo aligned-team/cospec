@@ -11,9 +11,15 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 
-import { cleanupAll, cospec, mkTempRepo, type SpawnResult } from '../fixtures/support.ts'
+import {
+  cleanupAll,
+  cospec,
+  mkTempRepo,
+  openspecBinPath,
+  type SpawnResult,
+} from '../fixtures/support.ts'
 import { documentCount } from './support/parse-class.ts'
 import { oracle, oracleEnv, scaffoldOracleRoot } from './support/upstream-oracle.ts'
 
@@ -39,8 +45,9 @@ const SPEC =
  * proposal) and `sd1` (a change on OpenSpec's own `spec-driven` schema, which
  * cospec treats as legacy), each tool running in its own copy.
  */
-function fixtureRoot(): string {
-  const dir = mkTempRepo()
+function fixtureRoot(name?: string): string {
+  const dir = name === undefined ? mkTempRepo() : join(mkTempRepo(), name)
+  mkdirSync(dir, { recursive: true })
   cpSync(join(template, 'openspec'), join(dir, 'openspec'), { recursive: true })
   const changes = join(dir, 'openspec', 'changes')
   mkdirSync(join(changes, 'bare'), { recursive: true })
@@ -356,8 +363,8 @@ describe("a successful context or instructions names cospec in upstream's remedi
    * the binary's answer, at exit 0, carries a `Fetch:` recipe and two `Fix:`
    * remedies naming bare `openspec`.
    */
-  function referencingRoot(): string {
-    const dir = fixtureRoot()
+  function referencingRoot(name?: string): string {
+    const dir = fixtureRoot(name)
     const storeDir = join(dir, 'store')
     mkdirSync(join(storeDir, '.openspec-store'), { recursive: true })
     writeFileSync(join(storeDir, '.openspec-store', 'store.yaml'), 'version: 1\nid: st1\n')
@@ -429,5 +436,98 @@ describe("a successful context or instructions names cospec in upstream's remedi
       },
       30_000,
     )
+  }
+
+  /**
+   * One of upstream's allowlisted sentences, written by the user: in a schema
+   * template, `config.yaml`'s context and rules, and a referenced spec's
+   * Purpose. The binary prints each as the user wrote it, so cospec does too.
+   */
+  const USER_SENTENCE = 'Run openspec init to create a root here.'
+
+  /** `referencingRoot()` whose change `done` runs on a project schema. */
+  function userContentRoot(): string {
+    const dir = referencingRoot()
+    const schema = join(dir, 'openspec', 'schemas', 'userschema')
+    const pkg = join(dirname(openspecBinPath()), '..', 'schemas', 'spec-driven')
+    cpSync(pkg, schema, { recursive: true })
+    const template = join(schema, 'templates', 'proposal.md')
+    writeFileSync(template, `${readFileSync(template, 'utf8')}\n${USER_SENTENCE}\n`)
+    writeFileSync(
+      join(dir, 'openspec', 'changes', 'done', '.openspec.yaml'),
+      'schema: userschema\n',
+    )
+    const config = join(dir, 'openspec', 'config.yaml')
+    writeFileSync(
+      config,
+      `${readFileSync(config, 'utf8')}\ncontext: "${USER_SENTENCE}"\n` +
+        `rules:\n  proposal:\n    - "${USER_SENTENCE}"\n`,
+    )
+    writeFileSync(
+      join(dir, 'store', 'openspec', 'specs', 'ref-spec', 'spec.md'),
+      SPEC.replace('## Purpose\nx\n', `## Purpose\n${USER_SENTENCE}\n`),
+    )
+    return dir
+  }
+
+  for (const argv of [
+    ['instructions', 'proposal', '--change', 'done'],
+    ['instructions', 'proposal', '--change', 'done', '--json'],
+  ]) {
+    test.failing(
+      `${argv.join(' ')}: template, context, rules and a spec Purpose relayed verbatim`,
+      async () => {
+        const coRoot = userContentRoot()
+        const upRoot = userContentRoot()
+        const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+        const up = await oracle(argv, upRoot, { runtime: 'node' })
+        expect(up.exitCode, detail(up)).toBe(0)
+        // Template, context, rule and the spec summary: four times each way.
+        const count = (text: string) => text.split(USER_SENTENCE).length - 1
+        expect(count(up.stdout)).toBeGreaterThanOrEqual(4)
+        expect(co.exitCode, detail(co)).toBe(0)
+        expect(count(co.stdout), detail(co)).toBe(count(up.stdout))
+        const paths = (text: string, root: string): string =>
+          text
+            .replaceAll(realpathSync(root), '<root>')
+            .replaceAll(root, '<root>')
+            .replaceAll(basename(root), '<name>')
+        // Only the reference block's own lines are cospec's spelling.
+        expect(paths(co.stdout, coRoot), detail(co)).toBe(viaCospec(paths(up.stdout, upRoot)))
+        expect(paths(co.stderr, coRoot)).toBe(paths(up.stderr, upRoot))
+      },
+      30_000,
+    )
+  }
+
+  // A project directory whose name holds an allowlisted sentence, or reads
+  // like one: every path in the document is the binary's, byte for byte.
+  for (const { name, failing } of [
+    { name: USER_SENTENCE, failing: true },
+    { name: 'Run openspec init here', failing: false },
+  ]) {
+    for (const argv of [
+      ['context', '--json'],
+      ['instructions', 'proposal', '--change', 'done', '--json'],
+    ]) {
+      ;(failing ? test.failing : test)(
+        `${argv.join(' ')} in a project dir named "${name}": its path untouched`,
+        async () => {
+          const coRoot = referencingRoot(name)
+          const upRoot = referencingRoot(name)
+          const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+          const up = await oracle(argv, upRoot, { runtime: 'node' })
+          expect(up.exitCode, detail(up)).toBe(0)
+          expect(co.exitCode, detail(co)).toBe(0)
+          expect(documentCount(co.stdout), detail(co)).toBe(1)
+          const doc = JSON.parse(co.stdout) as { root: { path: string } }
+          expect(doc.root.path).toBe(realpathSync(coRoot))
+          const parents = (text: string, root: string): string =>
+            text.replaceAll(realpathSync(dirname(root)), '<tmp>').replaceAll(dirname(root), '<tmp>')
+          expect(parents(co.stdout, coRoot), detail(co)).toBe(viaCospec(parents(up.stdout, upRoot)))
+        },
+        30_000,
+      )
+    }
   }
 })
