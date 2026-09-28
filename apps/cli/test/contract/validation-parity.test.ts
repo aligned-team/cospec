@@ -2042,6 +2042,9 @@ const ADDED_NO_SCENARIO = `## ADDED Requirements
 The system SHALL polish widgets.
 `
 
+/** A bodyless scenario header: the binary appends its empty-scenario hint to the ERROR. */
+const ADDED_BARE_SCENARIO = `${ADDED_NO_SCENARIO}\n#### Scenario: Bare\n`
+
 const MODIFIED_NO_SCENARIO = `## MODIFIED Requirements
 
 ### Requirement: Widget caching
@@ -2111,6 +2114,14 @@ const ROUND3_ENTRIES = [
     'added-no-scenario',
     ADDED_NO_SCENARIO,
     'must include at least one scenario',
+    'deltas/requirement-shape',
+    'must include at least one #### Scenario:',
+  ],
+  [
+    '13',
+    'added-bare-scenario',
+    ADDED_BARE_SCENARIO,
+    'must include at least one scenario (a scenario header with no body',
     'deltas/requirement-shape',
     'must include at least one #### Scenario:',
   ],

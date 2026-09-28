@@ -344,7 +344,12 @@ it, and the archive refuses).
 scan fixes its fence bug here; its view is that change's to move. Until then the
 gate refuses a MODIFIED block that keeps a living scenario only inside a comment
 (the rule and the binary accept it), and a living scenario inside a comment that
-a MODIFIED drops is refused by the binary's archive instead of the gate.
+a MODIFIED drops is refused by the binary's archive instead of the gate. The
+integration row in `apps/cli/test/integration/archive-gates.test.ts` that
+expected a drop for scenarios kept only inside a comment is re-pointed: the
+binary archives that fixture (probed), the rule sees no drop, and
+`cospec archive` still refuses it before delegation through
+`deltas/requirement-shape` on the masked view.
 
 Rejected alternatives: switching every consumer to `verbatim`, which would raise
 authoring findings on commented-out drafts; and keeping the round-2 per-rule

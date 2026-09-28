@@ -139,7 +139,10 @@ ERROR for cospec-typed changes and only the binary's hint text is ported.
   `apps/cli/src/core/rules/tasks.ts`, `apps/cli/src/core/rules/archive.ts`,
   `apps/cli/src/commands/validate.ts` (`DUPLICATE_CLASSES` only).
 - Tests: `apps/cli/test/unit/rules/{deltas,tasks,archive}.test.ts`,
-  `apps/cli/test/contract/validation-parity.test.ts` (new).
+  `apps/cli/test/unit/parsers/deltas.test.ts`,
+  `apps/cli/test/contract/validation-parity.test.ts` (new), and one row of
+  `apps/cli/test/integration/archive-gates.test.ts` re-pointed at the verbatim
+  view (scenarios kept only inside a comment are no drop).
 - Docs: `apps/docs/reference/validation-rules.md` (owns the rule table and the
   dedupe section), `apps/docs/concepts/apply-and-archive.md` (owns the
   archive-shape prose), `apps/docs/concepts/how-it-relates-to-openspec.md` (its

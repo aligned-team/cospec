@@ -339,11 +339,12 @@ export function hasScenarioBody(body: readonly string[]): boolean {
  * exit 1). Withholding the name only trades cospec's own rule id and remedy for
  * the delegated `openspec/validate` twin.
  *
- * Body lines come from the masked structural view, the view every other
- * structural decision in this module reads: a body written entirely inside an
- * HTML comment is invisible here exactly as it is everywhere else. Fenced lines
- * *are* body content, matching openspec's `readScenarioBodies`, which slices
- * masked lines into the body rather than skipping them.
+ * Body lines come from the view the caller parses (`ReadView`): under
+ * `masked` a body written entirely inside an HTML comment is invisible here,
+ * as it is to every other structural decision on that view; under `verbatim`
+ * it counts, as it does to openspec. Fenced lines *are* body content, matching
+ * openspec's `readScenarioBodies`, which slices masked lines into the body
+ * rather than skipping them.
  */
 function scenarioReader<T>(on: {
   /** Every `#### ` header, body or not — the name arm of the gate. */
