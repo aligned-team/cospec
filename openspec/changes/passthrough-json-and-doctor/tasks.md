@@ -303,7 +303,7 @@ Files: `openspec/changes/passthrough-json-and-doctor/verification.md`,
       `test.failing`/`test.todo` remains in the four new test files (8.2), and
       the suites of ledger 8.3 pass; run the bare-`openspec` sweep of ledger
       4.6; commit `test(cli): close out passthrough-json-and-doctor gates`
-- [ ] 11.2 Run `mise run check` (ledger 9.9), mark every ledger row with its
+- [x] 11.2 Run `mise run check` (ledger 9.9), mark every ledger row with its
       observed result, and commit
       `docs(cli): record passthrough-json-and-doctor verification evidence`; the
       archive (`mise run cospec -- archive passthrough-json-and-doctor`) follows
