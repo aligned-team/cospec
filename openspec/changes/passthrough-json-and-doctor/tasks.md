@@ -18,7 +18,7 @@ Files: `apps/cli/test/contract/passthrough-json.test.ts` (new),
 `apps/cli/test/integration/store.test.ts`, `apps/cli/test/unit/cli.test.ts`,
 `apps/cli/test/unit/commands/config-args.test.ts`.
 
-- [ ] 1.1 Add `passthrough-json.test.ts` with ledger rows 1.1–1.4, 3.1–3.5,
+- [x] 1.1 Add `passthrough-json.test.ts` with ledger rows 1.1–1.4, 3.1–3.5,
       4.1–4.3, 5.1–5.3 and 7.1–7.2 as `test.failing` (the post-rebase rows 3.x
       and 7.x stay failing until group 9, one test per command and mode so each
       flips independently when the resolver's check lands at 9.1 and cospec's
@@ -26,13 +26,13 @@ Files: `apps/cli/test/contract/passthrough-json.test.ts` (new),
       and verify each fails for the recorded "before" reason, not a fixture
       error; commit
       `test(cli): pin passthrough group refusals and relays against the binary`
-- [ ] 1.2 Add `doctor-parity.test.ts` with ledger rows 2.1–2.3, 2.5 and 2.7 as
+- [x] 1.2 Add `doctor-parity.test.ts` with ledger rows 2.1–2.3, 2.5 and 2.7 as
       `test.failing` — the key oracle comparing `cospec doctor --json` with
       `oracleJson(['doctor', '--json'], root)` on the plain, references,
       `--store`, broken-store, `config.yml`, no-root and subdirectory fixtures —
       and verify each fails on the missing keys or findings; commit
       `test(cli): add doctor key oracle against openspec doctor --json`
-- [ ] 1.3 Add `handover-prevalidation.test.ts` with ledger rows 1.5, 1.6,
+- [x] 1.3 Add `handover-prevalidation.test.ts` with ledger rows 1.5, 1.6,
       6.1–6.4 as `test.failing`: the refusal-argv matrix for `workset open`,
       `config edit`, `config profile`, `config reset --all` (unknown option,
       dangling `--tool`, missing name, excess argument, short clusters,
@@ -40,13 +40,13 @@ Files: `apps/cli/test/contract/passthrough-json.test.ts` (new),
       binary, with a spawn-recording stub asserting no handover child; verify
       each fails on today's handover; commit
       `test(cli): pin terminal-handover pre-validation against the binary`
-- [ ] 1.4 Add `test/unit/json-envelope.test.ts` with ledger rows 2.6, 4.4, 6.5
+- [x] 1.4 Add `test/unit/json-envelope.test.ts` with ledger rows 2.6, 4.4, 6.5
       and 6.6 as `test.failing` (doctor envelope and WARNING remedy,
       `respellLines` positives and negatives, pre-flight decisions with injected
       interactivity, the `workset open` handover env) and verify each fails on a
       missing export or the old behaviour; commit
       `test(cli): add unit rows for passthrough envelopes and respell rules`
-- [ ] 1.5 Invert the existing rows that encode the defect —
+- [x] 1.5 Invert the existing rows that encode the defect —
       `doctor-relationship.test.ts` "a local repo with no store and no
       references skips the delegated section entirely" (ledger 2.4);
       `workset.test.ts` "never threads --json onto the handover exec", "an

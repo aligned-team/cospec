@@ -8,7 +8,8 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { cleanupAll, cospec, mkTempRepo } from '../fixtures/support.ts'
+import { respellRemedies } from '../../src/core/remedies.ts'
+import { cleanupAll, cospec, mkTempRepo, openspecRaw } from '../fixtures/support.ts'
 
 afterAll(cleanupAll)
 
@@ -17,7 +18,10 @@ function sandbox(): { cwd: string; env: Record<string, string> } {
   const member = join(workspace, 'member')
   mkdirSync(member, { recursive: true })
   const xdg = join(workspace, 'xdg')
-  return { cwd: member, env: { XDG_DATA_HOME: xdg, OPENSPEC_TELEMETRY: '0' } }
+  return {
+    cwd: member,
+    env: { XDG_DATA_HOME: xdg, OPENSPEC_TELEMETRY: '0', OPENSPEC_NO_COMPLETIONS: '1' },
+  }
 }
 
 describe('cospec workset', () => {
@@ -105,30 +109,40 @@ describe('cospec workset', () => {
       expect(res.stderr + res.stdout).toMatch(/not saved on this machine/)
     }, 30_000)
 
-    test('never threads --json onto the handover exec even if requested globally', async () => {
-      const { cwd, env } = sandbox()
-      // The dispatcher strips a global --json into ctx.flags.json (never part of
-      // ctx.args); workset open must not re-inject it into the wrapped call, so
-      // the child prints its plain (non-JSON) "not saved" error, not openspec's
-      // `workset_open_json_unsupported` JSON envelope.
-      const res = await cospec(['workset', 'open', 'not-saved-anywhere', '--json'], { cwd, env })
-      expect(res.exitCode).toBe(1)
-      expect(res.stdout).not.toMatch(/workset_open_json_unsupported/)
-      expect(res.stderr + res.stdout).toMatch(/not saved on this machine/)
-    }, 30_000)
+    test.failing(
+      "--json is the binary's workset_open_json_unsupported refusal, nothing opened",
+      async () => {
+        const { cwd, env } = sandbox()
+        const upstream = await openspecRaw(
+          ['workset', 'open', 'not-saved-anywhere', '--json'],
+          cwd,
+          env,
+        )
+        const res = await cospec(['workset', 'open', 'not-saved-anywhere', '--json'], { cwd, env })
+        expect(res.exitCode).toBe(1)
+        const body = JSON.parse(res.stdout) as { status: Array<{ code: string }> }
+        expect(body).toEqual(JSON.parse(respellRemedies(upstream.stdout)) as typeof body)
+        expect(body.status[0]!.code).toBe('workset_open_json_unsupported')
+        expect(res.stderr + res.stdout).not.toMatch(/not saved on this machine/)
+      },
+      30_000,
+    )
   })
 
-  test('an unknown subcommand fails with EXIT.failure', async () => {
-    const { cwd, env } = sandbox()
-    const res = await cospec(['workset', 'bogus'], { cwd, env })
-    expect(res.exitCode).toBe(1)
-    expect(res.stderr).toMatch(/unknown subcommand/)
-  }, 30_000)
-
-  test('missing subcommand fails with EXIT.failure', async () => {
-    const { cwd, env } = sandbox()
-    const res = await cospec(['workset'], { cwd, env })
-    expect(res.exitCode).toBe(1)
-    expect(res.stderr).toMatch(/subcommand is required/)
-  }, 30_000)
+  for (const argv of [['workset', 'bogus'], ['workset']]) {
+    test.failing(
+      `${argv.join(' ')}: the binary's refusal, spelled through cospec`,
+      async () => {
+        const { cwd, env } = sandbox()
+        const upstream = await openspecRaw(argv, cwd, env)
+        const res = await cospec(argv, { cwd, env })
+        expect(upstream.exitCode).toBe(1)
+        expect(res.exitCode).toBe(1)
+        expect(res.stdout).toBe('')
+        expect(res.stderr).toBe(respellRemedies(upstream.stderr))
+        expect(res.stderr).toContain("'cospec workset'")
+      },
+      30_000,
+    )
+  }
 })

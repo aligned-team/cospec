@@ -109,12 +109,27 @@ describe('planConfigCall — --json is appended only for list', () => {
 })
 
 describe('planConfigCall — subcommand validation', () => {
-  test('missing subcommand is a usage error naming all eight subcommands', () => {
-    const plan = planConfigCall([], { json: false })
-    expect(plan.kind).toBe('error')
-    if (plan.kind === 'error') {
-      for (const sub of CONFIG_SUBCOMMANDS) expect(plan.message).toContain(sub)
+  // Upstream prints its own `config` help on stderr and exits 1; cospec
+  // prints its own, which names cospec's commands.
+  test.failing('a missing subcommand plans cospec’s config help, --scope or not', () => {
+    for (const args of [[], ['--scope', 'global'], ['--']]) {
+      const plan = planConfigCall(args, { json: false })
+      expect(plan.kind as string, args.join(' ')).toBe('help')
     }
+  })
+
+  // Upstream's `config` level declares no `--json`: the binary refuses it.
+  test.failing('a missing subcommand under --json relays the binary’s refusal of --json', () => {
+    expect(planConfigCall([], { json: true })).toEqual({
+      kind: 'command-level',
+      command: ['config'],
+      args: ['--json'],
+    })
+    expect(planConfigCall(['--scope', 'global'], { json: true })).toEqual({
+      kind: 'command-level',
+      command: ['config', '--scope', 'global'],
+      args: ['--json'],
+    })
   })
 
   test('unknown subcommand is a usage error, not a wrapped spawn', () => {
