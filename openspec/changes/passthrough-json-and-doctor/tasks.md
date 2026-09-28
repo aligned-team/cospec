@@ -199,23 +199,23 @@ Files: `apps/docs/reference/commands.md`, `apps/docs/concepts/stores.md`,
 `docs/architecture.md`, `.agents/shared.md`, `CLAUDE.md`, `AGENTS.md`,
 `openspec/specs/openspec-relationship-health/spec.md` (Purpose only).
 
-- [ ] 8.1 Update the `doctor`, `store`, `workset`, `config` and `context` rows
+- [x] 8.1 Update the `doctor`, `store`, `workset`, `config` and `context` rows
       of `apps/docs/reference/commands.md` (ledger 9.1) and verify every changed
       fact is stated only there and linked elsewhere; commit
       `docs(cli): document passthrough JSON and doctor parity in commands`
-- [ ] 8.2 Update `apps/docs/concepts/stores.md` (doctor on every root; workset
+- [x] 8.2 Update `apps/docs/concepts/stores.md` (doctor on every root; workset
       refusals and `open --json`) and `docs/stores.md` (ledger 9.2, 9.4); commit
       `docs(cli): update the stores pages for the binary's refusals and doctor fold`
-- [ ] 8.3 Update `apps/docs/reference/configuration.md` (no-subcommand help,
+- [x] 8.3 Update `apps/docs/reference/configuration.md` (no-subcommand help,
       parse refusal under `--json`, handover pre-validation; ledger 9.3); commit
       `docs(cli): document config's help, parse relay and handover pre-validation`
-- [ ] 8.4 Update `docs/architecture.md` forward-row success relay and
+- [x] 8.4 Update `docs/architecture.md` forward-row success relay and
       terminal-handover class passages (structural respell, pre-validation
       order, the D11 residual; ledger 9.5), `.agents/shared.md` (ledger 9.6)
       then `mise run agents:sync`, and the living `openspec-relationship-health`
       Purpose (ledger 9.7); commit
       `docs(cli): state the success-path respell and handover pre-validation`
-- [ ] 8.5 Run `mise run docs:build` and `mise run agents:check` and verify both
+- [x] 8.5 Run `mise run docs:build` and `mise run agents:check` and verify both
       succeed (ledger 9.8); commit any fix they required as
       `docs(cli): fix docs build`
 

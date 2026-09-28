@@ -145,8 +145,9 @@ row or its named subcommand declares (`takesNextToken`), after first taking out
 a program-level `--no-color`, which upstream never treats as a value. The
 terminal-handover leaves (`config edit`/`profile`/`reset --all` without `-y`,
 `workset open`) are the one exception: with inherited stdio there is nothing to
-respell, so they check the option position statically from the row's declared
-flags and print the redirect without spawning.
+respell, so they parse their whole argv with the table parser
+(`prevalidateHandover`) and answer the redirect, or any other refusal the binary
+would give, without spawning.
 
 ### The reachability test is the parity gate
 
@@ -339,7 +340,18 @@ refusal with cospec's redirect and, on a failed call only, spells each of
 upstream's remedy sentences (`core/remedies.ts`) as the cospec command of the
 same shape — or drops it where cospec has none — so the remedy a user reads
 names cospec; a successful call's output is the user's content and is relayed
-untouched.
+untouched, except the binary's own guidance in it, respelled structurally, never
+by a pattern over its text: in a parsed `--json` document only the fields that
+carry it, each passed alone to the allowlist (`store`'s and `doctor`'s
+diagnostics: `fix` on a successful answer, `message` and `fix` on a failed one,
+cospec's text rendered from the rewritten document), and in a text answer with
+no document only a whole line that is an allowlisted sentence, its holes filled
+(`respellLines`: `workset create`'s and an empty `workset list`'s next step,
+`config profile <preset>`'s). A `store`/`workset` argv whose first token is no
+subcommand the wrapper dispatches is the binary's to refuse:
+`relayGroupRefusal` spawns `<group> [--json] <argv>`, declares exit `1` and a
+post-condition (commander's rejection, or one document carrying the group's
+`unknown_*_subcommand` code), and relays the answer respelled.
 
 ### The terminal-handover class
 
@@ -354,6 +366,37 @@ verbatim (including `130` on prompt cancellation), no `--json` (a `--json`
 caller gets a cospec-owned failure envelope instead of a faked result), and no
 `RunExpectation` — there is no exit-code allow-list to enforce against an
 interactive session a human is steering.
+
+Nothing the child prints on the handed-over terminal can be relayed, so each
+leaf first answers everything the binary would refuse, in commander's order
+(design D8 of `passthrough-json-and-doctor`): the argv's parse refusal
+(`prevalidateHandover`: the table parser over the leaf's own surface, short
+clusters split as commander splits them), text on stderr ahead of any `--json`
+envelope; then `--json` — `config`'s envelope, and for `workset open` a piped
+call relaying the binary's `workset_open_json_unsupported` document; then the
+binary's own interactivity test — `workset open` ports `isInteractive`
+(`OPEN_SPEC_INTERACTIVE=0`, `CI`, no TTY on stdin) and `config profile` tests
+stdout — and where it fails the call runs piped, declared exit codes and a
+post-condition, its answer relayed respelled; then a read-only pre-flight —
+`workset list --json` (an unsaved name or a workset with no member folder is
+answered through the piped call) and a piped `config profile` (an unreadable
+config's refusal is relayed; only the interactive-mode refusal clears the
+handover). `config edit` and `config reset --all` have no non-interactive branch
+and always hand over. Every handover env sets `OPENSPEC_TELEMETRY=0` and
+`OPENSPEC_NO_COMPLETIONS=1`.
+
+What the binary can still print naming a bare `openspec` command after all that
+is the residual of a live interactive session, on the terminal it was handed:
+`config profile`'s menu path (its drift warning, its apply guidance and its
+other-projects line, a failed in-process `update`'s line, and that `update`'s
+own output), and `workset open` on a TTY for a saved workset with a surviving
+member whose tool cannot be resolved or launched (the install-or-rerun and
+alternative-tool remedies). `config edit` and `config reset --all` print none.
+Each such dist line carries a `HANDOVER_SESSION_PROFILE` or
+`HANDOVER_SESSION_WORKSET_OPEN` reason (`notRelayed` in
+`test/contract/support/remedy-sources.ts`), naming its leaf, so the enumeration
+test keeps the list exact as the pin moves; `exceptions.yaml` — capabilities
+cospec never implements — is not where it lives.
 
 ## The failure modes cospec defends against
 

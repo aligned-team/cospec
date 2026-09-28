@@ -3,12 +3,13 @@
 ## Purpose
 
 cospec's `doctor` surfaces OpenSpec's cross-repo relationship health as a single
-read-only section. When the resolved root is store-backed or declares
-`references:`, `cospec doctor` delegates `openspec doctor --json` (and, for a
-store-backed root, `openspec store doctor --json`) and folds the returned
-root-relationship, reference-resolution, and store/git diagnostics into cospec's
-findings — never repairing anything — and notes a stray OpenSpec config
-profile/workflows block that cospec's canon/harness supersedes.
+read-only section. On every root, `cospec doctor` delegates
+`openspec doctor --json` (and, for a store-backed root,
+`openspec store doctor --json`), folds the returned root-relationship,
+reference-resolution, and store/git diagnostics into cospec's findings — never
+repairing anything — and carries OpenSpec's `root`, `store`, `references` and
+`status` keys in its own `--json` document; it also notes a stray OpenSpec
+config profile/workflows block that cospec's canon/harness supersedes.
 
 ## Requirements
 
