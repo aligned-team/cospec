@@ -2,7 +2,7 @@
 // (`~/.config/openspec/config.json`). cospec adds no gate and no config file of
 // its own: it never reads or writes that file directly, and never re-implements
 // upstream's key validation, value coercion, or its prototype-pollution guard —
-// every such error relays from the wrapped binary verbatim.
+// every such error relays from the wrapped binary, its remedies spelled through cospec.
 //
 // This command does NOT use `core/passthrough-command.ts`, for three verified
 // reasons (the `workset.ts` precedent):
@@ -57,6 +57,7 @@ import {
   threadedArgv,
   type WrappedCall,
 } from '../core/openspec.ts'
+import { respellLines, respellRemedies } from '../core/remedies.ts'
 
 /** The eight subcommands upstream's `config` command defines. */
 export const CONFIG_SUBCOMMANDS = [
@@ -236,6 +237,9 @@ const CONFIG_EXPECT: RunExpectation = {
   denyStdout: [/collects anonymous usage/i, /completion install/i],
 }
 
+/** `config profile <preset>`'s one next step: the binary's line, spelled whole. */
+const PROFILE_NEXT_STEP = ['config/profile-applied'] as const
+
 /**
  * Class A: piped, disciplined. `exitCodes` is the passthrough default `[0, 1]`;
  * a `--json` caller gets exactly one document either way — upstream's own for
@@ -260,14 +264,23 @@ async function runPiped(ctx: CommandContext, call: ConfigCall): Promise<number> 
     return EXIT.failure
   }
   const ok = result.exitCode === 0
-  const out = result.stdout.trim()
+  // A failed answer's remedies are spelled through cospec; a successful one is
+  // the binary's (a value the user stored, a path), but for `profile
+  // <preset>`'s whole next-step line (design D5).
+  const stdout = ok
+    ? call.sub === 'profile'
+      ? respellLines(result.stdout, PROFILE_NEXT_STEP)
+      : result.stdout
+    : respellRemedies(result.stdout)
+  const stderr = ok ? result.stderr : respellRemedies(result.stderr)
+  const out = stdout.trim()
 
   if (!ctx.flags.json) {
-    if (result.stdout.length > 0) process.stdout.write(result.stdout)
-    if (result.stderr.length > 0) process.stderr.write(result.stderr)
+    if (stdout.length > 0) process.stdout.write(stdout)
+    if (stderr.length > 0) process.stderr.write(stderr)
   } else if (call.sub === 'list') {
-    process.stdout.write(result.stdout)
-    if (result.stderr.length > 0) process.stderr.write(result.stderr)
+    process.stdout.write(stdout)
+    if (stderr.length > 0) process.stderr.write(stderr)
   } else if (call.sub === 'path') {
     process.stdout.write(jsonEnvelope({ version: 1, command: 'config path', path: out }))
   } else if (call.sub === 'get') {
@@ -281,7 +294,7 @@ async function runPiped(ctx: CommandContext, call: ConfigCall): Promise<number> 
       }),
     )
   } else {
-    const message = out.length > 0 ? out : result.stderr.trim()
+    const message = out.length > 0 ? out : stderr.trim()
     process.stdout.write(
       jsonEnvelope({
         version: 1,

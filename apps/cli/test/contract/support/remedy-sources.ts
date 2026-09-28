@@ -912,11 +912,4 @@ export const REACHABLE_OWNED: readonly (readonly [
     'context',
     'passthrough-json-and-doctor',
   ],
-  // `config profile <preset>`, exit 0.
-  [
-    'commands/config.js',
-    "console.log('Config updated. Run `openspec update` in your projects to apply.');",
-    'config',
-    'passthrough-json-and-doctor',
-  ],
 ]

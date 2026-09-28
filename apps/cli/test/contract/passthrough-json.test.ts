@@ -479,21 +479,17 @@ describe('workset and config next-step lines are spelled through cospec (ledger 
     expect(BARE_OPENSPEC.test(co.stdout + co.stderr), detail(co)).toBe(false)
   }, 30_000)
 
-  test.failing(
-    'config profile core: its next step names cospec update',
-    async () => {
-      const root = plainRoot()
-      const up = await oracle(['config', 'profile', 'core'], root)
-      const co = await runCospec(['config', 'profile', 'core'], root)
-      expect(up.exitCode, detail(up)).toBe(0)
-      expect(co.exitCode, detail(co)).toBe(0)
-      expect(co.stdout, detail(co)).toBe(byLine(up.stdout))
-      expect(co.stdout).toContain('`cospec update`')
-      expect(co.stderr).toContain("run 'cospec update'")
-      expect(BARE_OPENSPEC.test(co.stdout), detail(co)).toBe(false)
-    },
-    30_000,
-  )
+  test('config profile core: its next step names cospec update', async () => {
+    const root = plainRoot()
+    const up = await oracle(['config', 'profile', 'core'], root)
+    const co = await runCospec(['config', 'profile', 'core'], root)
+    expect(up.exitCode, detail(up)).toBe(0)
+    expect(co.exitCode, detail(co)).toBe(0)
+    expect(co.stdout, detail(co)).toBe(byLine(up.stdout))
+    expect(co.stdout).toContain('`cospec update`')
+    expect(co.stderr).toContain("run 'cospec update'")
+    expect(BARE_OPENSPEC.test(co.stdout), detail(co)).toBe(false)
+  }, 30_000)
 })
 
 // --- 5. config parity -----------------------------------------------------------
