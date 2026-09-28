@@ -359,6 +359,12 @@ under `BUN_BE_BUN=1`; the standalone smoke asserts it on the embedded bundle.
   blocking-changes.
 - [The field-map helper's shape is not on this branch] → group 9 runs after the
   rebase; D4 names the one extension this change would add.
+- [Every handover now writes a file] → the preload lands in cospec's cache
+  (`${XDG_CACHE_HOME:-~/.cache}/cospec`), so a cache directory cospec cannot
+  write makes each handover and the piped `config reset --all` fail with
+  cospec's write error, where a handover from a project install wrote nothing
+  before; a standalone install already extracts its bundle there for every
+  wrapped call.
 - [The preload reaches into signal-exit's process-wide emitter] → the key
   (`Symbol.for('signal-exit emitter')`) is signal-exit v4's published global and
   the pinned bundle's; with no emitter the preload does nothing, so an in-range
