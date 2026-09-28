@@ -6,11 +6,11 @@
 // bodies all resolve (the structural guard against openspec's dangling-ref
 // failure class); config.yaml parses with a known schema; no leftover opsx files
 // or stale .cospec-new sidecars; changes sit on known schemas; the git hooks
-// are installed when the gate was scaffolded; and, when the operating root is
-// store-backed or declares `references:`, a delegated `openspec doctor --json`
-// (and, for a store root, `openspec store doctor --json`) folds openspec's own
-// root-relationship/reference/store-health diagnostics in (read-only, never
-// repair — WI-8).
+// are installed when the gate was scaffolded; and, on every root, a delegated
+// `openspec doctor --json` (and, for a store root, `openspec store doctor
+// --json`) folds openspec's own root-relationship/reference/store-health
+// diagnostics in (read-only, never repair — WI-8), its `root`, `store`,
+// `references` and `status` keys carried in cospec's `--json` document.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -38,6 +38,7 @@ import {
   type OpenspecResolution,
   type OpenspecStatusEntry,
   passthroughOpenspec,
+  type PostCondition,
   resolveOpenspec,
   satisfiesOpenspecRange,
   type Root,
@@ -445,13 +446,20 @@ function hasReferencesConfig(cwd: string): boolean {
   }
 }
 
-/** Shape of the `root`/`store`/`references[]` sections of `openspec doctor --json`. */
-interface OpenspecDoctorJson {
-  root: { path?: string; source?: string; healthy?: boolean; status?: OpenspecStatusEntry[] } | null
-  store: { id?: string; status?: OpenspecStatusEntry[] } | null
-  references: { store_id?: string; status?: OpenspecStatusEntry[] }[]
-  status?: OpenspecStatusEntry[]
+/**
+ * The `root`, `store`, `references` and `status` keys of `openspec doctor
+ * --json`, which cospec's own `--json` document carries as the binary wrote
+ * them (design D3).
+ */
+export interface RelationshipReport {
+  root: { path?: string; source?: string; healthy?: boolean; status: OpenspecStatusEntry[] } | null
+  store: { id?: string; status: OpenspecStatusEntry[] } | null
+  references: { store_id?: string; status: OpenspecStatusEntry[] }[]
+  status: OpenspecStatusEntry[]
 }
+
+/** The binary's own failure payload shape, carried when its report could not be read. */
+const NO_REPORT: RelationshipReport = { root: null, store: null, references: [], status: [] }
 
 /** One entry of `openspec store doctor --json`'s `stores[]`. */
 interface OpenspecStoreDoctorEntry {
@@ -466,42 +474,71 @@ interface OpenspecStoreDoctorEntry {
   status?: OpenspecStatusEntry[]
 }
 
+/** The binary's doctor document carries its four keys. */
+const doctorReportPostCondition: PostCondition = (result) => {
+  let doc: unknown
+  try {
+    doc = JSON.parse(result.stdout)
+  } catch (err) {
+    if (err instanceof SyntaxError) return 'did not emit parseable JSON'
+    throw err
+  }
+  const keys = doc as Partial<RelationshipReport> | null
+  return (
+    (keys !== null &&
+      'root' in keys &&
+      'store' in keys &&
+      Array.isArray(keys.references) &&
+      Array.isArray(keys.status)) ||
+    'did not emit the root, store, references and status keys'
+  )
+}
+
 /**
- * Delegate `openspec doctor --json` (root-relationship + reference health) and,
- * for a store-backed root, `openspec store doctor --json` (store metadata + git
- * facts) — folding both into cospec's findings. Never repairs anything; a
- * failure to reach openspec surfaces as a WARNING, not a thrown error, since
- * this is an additive health section, not a gate.
+ * Delegate `openspec doctor --json` (root-relationship + reference health) on
+ * every root and, for a store-backed root, `openspec store doctor --json`
+ * (store metadata + git facts) — folding both into cospec's findings and
+ * returning the binary's four keys for cospec's `--json` document. Never
+ * repairs anything; a failure to reach openspec surfaces as a WARNING, not a
+ * thrown error, since this is an additive health section, not a gate.
  */
-async function checkOpenspecRelationship(
+export async function checkOpenspecRelationship(
   root: Root,
   cwd: string,
   findings: Finding[],
-): Promise<void> {
+): Promise<RelationshipReport> {
   const storeBacked = root.store !== undefined
-  if (!storeBacked && !hasReferencesConfig(cwd)) return
+  let delegated = NO_REPORT
 
   try {
     const result = await passthroughOpenspec(
       { command: ['doctor'], threaded: ['--json', ...root.storeArgs] },
       {
         cwd: root.cwd,
-        expect: { exitCodes: [0, 1] },
+        expect: { exitCodes: [0, 1], postCondition: doctorReportPostCondition },
       },
     )
-    const parsed = JSON.parse(result.stdout) as OpenspecDoctorJson
-    foldStatus('root', parsed.root?.status, findings)
-    foldStatus('store', parsed.store?.status, findings)
-    for (const ref of parsed.references)
+    const parsed = JSON.parse(result.stdout) as RelationshipReport
+    delegated = {
+      root: parsed.root,
+      store: parsed.store,
+      references: parsed.references,
+      status: parsed.status,
+    }
+    foldStatus('root', delegated.root?.status, findings)
+    foldStatus('store', delegated.store?.status, findings)
+    for (const ref of delegated.references)
       foldStatus(`reference-${ref.store_id ?? 'unknown'}`, ref.status, findings)
-    foldStatus('relationship', parsed.status, findings)
-    if (parsed.root !== null) {
+    foldStatus('relationship', delegated.status, findings)
+    // Only where the relationship is the point: a store root or one that
+    // declares `references:`, so a healthy plain root's report is unchanged.
+    if (delegated.root !== null && (storeBacked || hasReferencesConfig(cwd))) {
       findings.push({
         level: 'INFO',
         check: 'openspec-root',
-        message: `operating root is ${parsed.root?.source ?? 'unknown'}-sourced at ${
-          parsed.root?.path ?? root.base
-        } (${parsed.root?.healthy === true ? 'healthy' : 'unhealthy'} per openspec doctor)`,
+        message: `operating root is ${delegated.root.source ?? 'unknown'}-sourced at ${
+          delegated.root.path ?? root.base
+        } (${delegated.root.healthy === true ? 'healthy' : 'unhealthy'} per openspec doctor)`,
       })
     }
   } catch (err) {
@@ -514,7 +551,7 @@ async function checkOpenspecRelationship(
     })
   }
 
-  if (!storeBacked) return
+  if (!storeBacked) return delegated
   try {
     const result = await passthroughOpenspec(
       { command: ['store', 'doctor'], threaded: ['--json'], args: [root.store!] },
@@ -543,6 +580,7 @@ async function checkOpenspecRelationship(
       message: `could not read store doctor facts for '${root.store}': ${errorMessage(err)}`,
     })
   }
+  return delegated
 }
 
 /**
@@ -596,7 +634,8 @@ export async function run(ctx: CommandContext): Promise<number> {
   // walked to (a store-selected or implicit root).
   const base = root.source === 'nearest' ? root.base : cwd
 
-  if (!existsSync(openspecDir(base))) {
+  const initialized = existsSync(openspecDir(base))
+  if (!initialized) {
     findings.push({
       level: 'ERROR',
       check: 'initialized',
@@ -618,12 +657,12 @@ export async function run(ctx: CommandContext): Promise<number> {
     checkGlobalProfile(findings)
   }
 
-  await checkOpenspecRelationship(root, base, findings)
+  const relationship = await checkOpenspecRelationship(root, base, findings)
 
-  return report(findings, flags.json)
+  return report(findings, flags.json, relationship)
 }
 
-function report(findings: Finding[], json: boolean): number {
+function report(findings: Finding[], json: boolean, relationship: RelationshipReport): number {
   const errors = findings.filter((f) => f.level === 'ERROR').length
   const warnings = findings.filter((f) => f.level === 'WARNING').length
   const infos = findings.filter((f) => f.level === 'INFO').length
@@ -631,7 +670,7 @@ function report(findings: Finding[], json: boolean): number {
   if (json) {
     process.stdout.write(
       `${JSON.stringify(
-        { version: 1, findings, summary: { errors, warnings, infos } },
+        { version: 1, findings, summary: { errors, warnings, infos }, ...relationship },
         null,
         2,
       )}\n`,

@@ -164,18 +164,14 @@ async function oracleJsonIn(
 }
 
 describe('cospec doctor --json carries openspec doctor --json on every root', () => {
-  test.failing(
-    'a plain local root (ledger 2.1)',
-    async () => {
-      const root = await initializedRoot()
-      const { co, doc, up } = await doctorBoth(['doctor', '--json'], root)
-      expect(doc.version).toBe(1)
-      expect(Array.isArray(doc.findings)).toBe(true)
-      expect(relationshipKeys(doc)).toEqual(expectedKeys(up))
-      expect(co.exitCode, detail(co)).toBe(up.exitCode)
-    },
-    60_000,
-  )
+  test('a plain local root (ledger 2.1)', async () => {
+    const root = await initializedRoot()
+    const { co, doc, up } = await doctorBoth(['doctor', '--json'], root)
+    expect(doc.version).toBe(1)
+    expect(Array.isArray(doc.findings)).toBe(true)
+    expect(relationshipKeys(doc)).toEqual(expectedKeys(up))
+    expect(co.exitCode, detail(co)).toBe(up.exitCode)
+  }, 60_000)
 
   test.failing(
     'a references: root with usable, broken and unregistered stores (ledger 2.2)',
@@ -189,16 +185,12 @@ describe('cospec doctor --json carries openspec doctor --json on every root', ()
     60_000,
   )
 
-  test.failing(
-    'a --store root (ledger 2.2)',
-    async () => {
-      const root = await referencingRoot()
-      const { co, doc, up } = await doctorBoth(['doctor', '--store', 'st1', '--json'], root)
-      expect(relationshipKeys(doc)).toEqual(expectedKeys(up))
-      expect(co.exitCode, detail(co)).toBe(up.exitCode)
-    },
-    60_000,
-  )
+  test('a --store root (ledger 2.2)', async () => {
+    const root = await referencingRoot()
+    const { co, doc, up } = await doctorBoth(['doctor', '--store', 'st1', '--json'], root)
+    expect(relationshipKeys(doc)).toEqual(expectedKeys(up))
+    expect(co.exitCode, detail(co)).toBe(up.exitCode)
+  }, 60_000)
 
   test.failing(
     'a store whose metadata is missing (ledger 2.2)',

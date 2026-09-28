@@ -82,29 +82,25 @@ describe('cospec doctor — delegated openspec relationship health (WI-8)', () =
   // A plain local root folds `openspec doctor --json` too (design D3): one
   // delegated call, counted by wrapping `Bun.spawn` around an in-process run,
   // and on a healthy root nothing to report, so the text report is unchanged.
-  test.failing(
-    'a plain local root runs the delegated call once and, healthy, reports nothing of it',
-    async () => {
-      const dir = mkTempRepo()
-      mkdirSync(join(dir, 'openspec', 'changes', 'archive'), { recursive: true })
-      mkdirSync(join(dir, 'openspec', 'specs'), { recursive: true })
-      writeFileSync(join(dir, 'openspec', 'config.yaml'), 'schema: feat\n')
-      const env = { XDG_CONFIG_HOME: join(dir, 'xdg-config'), XDG_DATA_HOME: join(dir, 'xdg') }
+  test('a plain local root runs the delegated call once and, healthy, reports nothing of it', async () => {
+    const dir = mkTempRepo()
+    mkdirSync(join(dir, 'openspec', 'changes', 'archive'), { recursive: true })
+    mkdirSync(join(dir, 'openspec', 'specs'), { recursive: true })
+    writeFileSync(join(dir, 'openspec', 'config.yaml'), 'schema: feat\n')
+    const env = { XDG_CONFIG_HOME: join(dir, 'xdg-config'), XDG_DATA_HOME: join(dir, 'xdg') }
 
-      const json = await countingDoctor(['doctor', '--json', '--cwd', dir], env)
-      expect(existsSync(join(dir, 'openspec', 'config.yaml'))).toBe(true)
-      expect(json.doctorCalls).toBe(1)
-      const parsed = JSON.parse(json.stdout) as DoctorJson & { root: { healthy: boolean } | null }
-      expect(parsed.root?.healthy).toBe(true)
-      expect(parsed.findings.some((f) => f.check.startsWith('openspec-'))).toBe(false)
-      expect(parsed.findings.some((f) => f.check === 'store-git')).toBe(false)
+    const json = await countingDoctor(['doctor', '--json', '--cwd', dir], env)
+    expect(existsSync(join(dir, 'openspec', 'config.yaml'))).toBe(true)
+    expect(json.doctorCalls).toBe(1)
+    const parsed = JSON.parse(json.stdout) as DoctorJson & { root: { healthy: boolean } | null }
+    expect(parsed.root?.healthy).toBe(true)
+    expect(parsed.findings.some((f) => f.check.startsWith('openspec-'))).toBe(false)
+    expect(parsed.findings.some((f) => f.check === 'store-git')).toBe(false)
 
-      const text = await countingDoctor(['doctor', '--cwd', dir], env)
-      expect(text.doctorCalls).toBe(1)
-      expect(text.stdout).not.toContain('openspec-')
-    },
-    30_000,
-  )
+    const text = await countingDoctor(['doctor', '--cwd', dir], env)
+    expect(text.doctorCalls).toBe(1)
+    expect(text.stdout).not.toContain('openspec-')
+  }, 30_000)
 })
 
 /**
