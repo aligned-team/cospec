@@ -200,7 +200,8 @@ function respellReason(reason: string): string {
 /**
  * Why a failed wrapped `new change --json` refused: the message of its
  * document's first status entry (every failure of its own — an unparseable or
- * unknown schema, an existing change, an invalid name — answers with one),
+ * unknown schema, an existing change, an invalid name, a failed mkdir —
+ * answers with one, after any warning line it logged first),
  * else its stderr without color codes or its `✖ Error:` prefix, with its
  * remedies spelled through cospec (`respellReason`). Undefined when the
  * binary said nothing.
@@ -208,7 +209,11 @@ function respellReason(reason: string): string {
 export function wrappedNewReason(result: OpenspecResult): string | undefined {
   let reason: string | undefined
   try {
-    const doc = JSON.parse(result.stdout) as { status?: { message?: unknown }[] } | null
+    // A stat warning line (EACCES, ENOTDIR) can precede the document on stdout.
+    const start = result.stdout.search(/^\{/m)
+    const doc = JSON.parse(result.stdout.slice(Math.max(start, 0))) as {
+      status?: { message?: unknown }[]
+    } | null
     const message = doc?.status?.[0]?.message
     if (typeof message === 'string') reason = message
   } catch (err) {

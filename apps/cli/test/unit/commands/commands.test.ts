@@ -77,7 +77,7 @@ describe("new: a failed wrapped new change's reason", () => {
   // On EACCES/ENOTDIR the binary logs a stat warning to stdout ahead of its
   // --json document (`change-utils.js` directoryExists), so stdout is not one
   // document: its reason is still that document's message.
-  test.failing('takes the document that follows a warning line on stdout', () => {
+  test('takes the document that follows a warning line on stdout', () => {
     const message = "EACCES: permission denied, mkdir '/w/my openspec list dir/openspec/changes/y'"
     const doc = JSON.stringify(
       { change: null, status: [{ severity: 'error', code: 'change_error', message }] },
