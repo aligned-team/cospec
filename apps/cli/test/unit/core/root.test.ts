@@ -16,6 +16,7 @@ import { join } from 'node:path'
 import {
   configStorePointer,
   localRoot,
+  nodeStatMessage,
   readDefaultStore,
   resolveRoot,
   RootSelectionError,
@@ -1235,24 +1236,31 @@ describe('resolveRoot — raw read failures (ledger 5.23)', () => {
   }, 15_000)
 
   maybe(
-    "a store whose openspec/ is mode 000 fails with the stat's EACCES",
+    "a store whose openspec/ is mode 000 fails with the stat's EACCES, syscall named `stat`",
     async () => {
       await withGlobalConfig(undefined, async (env) => {
         const root = env.store('gamma')
         const configYaml = join(root, 'openspec', 'config.yaml')
         chmodSync(join(root, 'openspec'), 0o000)
         try {
-          // resolveRoot's raw passthrough must equal THIS runtime's own stat
-          // error for the same path, not a fixed string: libuv's stat call
-          // names the syscall `statx` on Linux and `stat` on macOS (Bun and
-          // Node can differ here too), so the expected message is captured
-          // from the runtime rather than hardcoded — a strict, not a loosened,
-          // assertion (see docs/architecture.md, "raw read failures").
+          // The path and the rest of the message are captured from THIS
+          // runtime's own stat error, not hardcoded (they vary by runtime and
+          // OS). The syscall name is not: libuv calls it `statx` on a Linux
+          // kernel new enough for Bun to use that syscall, and `stat`
+          // elsewhere, but the binary always runs under Node, which always
+          // names it `stat` — byte-for-byte parity with the binary, this
+          // class's own contract, means cospec's own message must too,
+          // regardless of what this runtime's `statSync` calls it (design D9's
+          // round-6 amendment; `nodeStatMessage` applies the same rewrite in
+          // `root.ts`). Applying it to the captured message here as well as
+          // relying only on it in production keeps this assertion exact under
+          // either kernel, rather than tautologically comparing cospec to
+          // itself.
           let expected: string | undefined
           try {
             statSync(configYaml)
           } catch (error) {
-            expected = (error as NodeJS.ErrnoException).message
+            expected = nodeStatMessage((error as NodeJS.ErrnoException).message)
           }
           if (expected === undefined) {
             throw new Error('expected statSync to throw EACCES on a mode-000 parent')
@@ -1268,6 +1276,31 @@ describe('resolveRoot — raw read failures (ledger 5.23)', () => {
     },
     15_000,
   )
+
+  describe('nodeStatMessage', () => {
+    // Deterministic, kernel-independent coverage of the rewrite itself: the
+    // test above depends on THIS machine's own runtime/kernel actually naming
+    // the syscall `statx` to exercise the rewrite at all (it only does, so
+    // far, on some Linux CI kernels — see design D9's round-6 amendment), so
+    // it alone cannot prove the rewrite fires on every dev machine.
+    test('rewrites a `statx` syscall name to `stat`', () => {
+      expect(nodeStatMessage("EACCES: permission denied, statx '/x/openspec/config.yaml'")).toBe(
+        "EACCES: permission denied, stat '/x/openspec/config.yaml'",
+      )
+    })
+
+    test('leaves a message already naming `stat` unchanged', () => {
+      expect(nodeStatMessage("EACCES: permission denied, stat '/x/openspec/config.yaml'")).toBe(
+        "EACCES: permission denied, stat '/x/openspec/config.yaml'",
+      )
+    })
+
+    test('leaves an unrelated errno message (no `stat`/`statx` syscall) unchanged', () => {
+      expect(nodeStatMessage('EISDIR: illegal operation on a directory, read')).toBe(
+        'EISDIR: illegal operation on a directory, read',
+      )
+    })
+  })
 
   test('a raw failure through a pointer or defaultStore carries no origin prefix', async () => {
     await withGlobalConfig('gamma', async (env) => {

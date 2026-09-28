@@ -185,7 +185,31 @@ function resolverRead<T>(path: string, read: (path: string) => T): T | null {
 
 const readText = (path: string): string | null => resolverRead(path, (p) => readFileSync(p, 'utf8'))
 
-const statPath = (path: string): Stats | null => resolverRead(path, (p) => statSync(p))
+/**
+ * The binary always runs under Node, whose `fs.promises.stat` names the
+ * failing syscall `stat` in every errno message. Bun's `statSync` reports the
+ * same failure as `statx` on a Linux kernel new enough for libuv to use that
+ * syscall, and `stat` elsewhere (macOS locally, some CI kernels) — a runtime
+ * detail this project's own unit tests deliberately capture from the live
+ * runtime rather than assert a literal, for exactly this reason (see
+ * `root.test.ts`, "resolveRoot — raw read failures"). Byte-for-byte parity
+ * with the binary's message, this class's contract, means cospec's own
+ * message can't carry that detail: normalize it at the resolver's one stat
+ * call site, not by asserting a looser message everywhere it is read.
+ */
+export function nodeStatMessage(message: string): string {
+  return message.replace(", statx '", ", stat '")
+}
+
+const statPath = (path: string): Stats | null => {
+  try {
+    return resolverRead(path, (p) => statSync(p))
+  } catch (error) {
+    if (error instanceof RawSelectionError)
+      throw new RawSelectionError(nodeStatMessage(error.message))
+    throw error
+  }
+}
 
 /**
  * Upstream's catch-all probes (`existsSync`, and a `statSync` whose every

@@ -420,7 +420,24 @@ side's message has. (An earlier round of this file assumed Node always names the
 path and Bun never does, based on a probe against a Node line newer than any
 this project targets; reappending the path there produced a message the pinned
 binary, run under a supported Node, does not print — a real divergence CI's own
-Node 22 run caught, not a flaky comparison.) Each caller then applies upstream's
+Node 22 run caught, not a flaky comparison.) `stat`'s own errno carries a
+second, narrower runtime difference that is not a case with nothing to
+reconcile: libuv names the failing syscall `stat` under Node always (so that is
+what the binary prints), but `statx` under Bun on a Linux kernel new enough for
+libuv to use that syscall there, and `stat` elsewhere (macOS locally, some CI
+kernels) — the project's own unit tests capture Bun's own message rather than
+assert a literal, for exactly this reason (`root.test.ts`, "raw read failures").
+Byte- for-byte parity with the binary, this class's own contract, means the
+syscall name must read `stat` regardless of what this runtime calls it, so
+`statPath` (the resolver's one `stat` call site) rewrites a bare `, statx '`
+segment to `, stat '` after `resolverRead` returns the raw error; `readText`'s
+message for a failed `read` is untouched, since Node and Bun already agree
+there. Found by CI's own Linux runner on a kernel where Bun's `statSync` does
+name it `statx` (ledger 5.22's mode-000 `openspec/` rows, not reproducible on
+this project's macOS dev machines, where Bun already says `stat`); ledger 5.23's
+matching unit row now applies the same rewrite to its dynamically captured
+expected message, so it stays exact under either kernel rather than
+tautologically comparing cospec to itself. Each caller then applies upstream's
 own semantics for that file: the store metadata read
 (`readOptionalStoreMetadataState`) and the root-health stats
 (`inspectOpenSpecRoot`'s `pathKind`) let the raw error stand; the pointer read

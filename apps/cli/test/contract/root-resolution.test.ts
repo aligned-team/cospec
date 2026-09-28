@@ -2281,7 +2281,11 @@ const SWEEP_CWD_ARGVS = [
 describe('every file the resolver reads fails as the binary does (ledger 5.22)', () => {
   // The binary runs under Node, as `openspec` users run it: on every Node line
   // this project targets (20-25, including 22, what `ci-bun` pins) a failed
-  // `read`'s errno (EISDIR) carries no path, matching Bun's own message.
+  // `read`'s errno (EISDIR) carries no path, matching Bun's own message. A
+  // failed `stat` is not passed through as verbatim: Node always names the
+  // syscall `stat`, while Bun names it `statx` on a Linux kernel new enough to
+  // use that syscall (this project's Linux CI, not its macOS dev machines) —
+  // `nodeStatMessage` in `root.ts` rewrites it so these rows agree either way.
   for (const file of SWEEP_FILES)
     for (const fault of file.faults)
       for (const route of SWEEP_ROUTES)
