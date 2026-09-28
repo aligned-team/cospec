@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { cpSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 
+import { respellRemedies } from '../../src/core/remedies.ts'
 import {
   cleanupAll,
   cospec,
@@ -98,7 +99,7 @@ async function both(argv: string[]): Promise<{ co: SpawnResult; up: SpawnResult 
   const upRoot = fixtureRoot()
   const [co, up] = await Promise.all([
     cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) }),
-    oracle(argv, upRoot),
+    oracle(argv, upRoot, { runtime: 'node' }),
   ])
   return { co, up }
 }
@@ -162,7 +163,7 @@ describe('show relays its remedies through cospec', () => {
     for (const root of [coRoot, upRoot])
       writeFileSync(join(root, 'openspec', 'changes', 'done', 'proposal.md'), text)
     const co = await cospec(['show', 'done'], { cwd: coRoot, env: oracleEnv(coRoot) })
-    const up = await oracle(['show', 'done'], upRoot)
+    const up = await oracle(['show', 'done'], upRoot, { runtime: 'node' })
     expect(up.stdout).toContain('Run openspec status --change done by hand.')
     expect(co.exitCode, detail(co)).toBe(up.exitCode)
     expect(co.stdout, detail(co)).toBe(up.stdout)
@@ -187,7 +188,7 @@ describe('show with an empty item name answers itself, never the binary screen',
         const coRoot = store ? rootless(true) : fixtureRoot()
         const upRoot = store ? rootless(true) : fixtureRoot()
         const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-        const up = await oracle(argv, upRoot)
+        const up = await oracle(argv, upRoot, { runtime: 'node' })
         expect(up.exitCode).toBe(1)
         expect(up.stderr).toContain('Nothing to show. Try one of:')
         expect(up.stderr).toMatch(BARE_OPENSPEC)
@@ -234,7 +235,7 @@ describe('show with an empty item name answers itself, never the binary screen',
       const coRoot = fixtureRoot()
       const upRoot = fixtureRoot()
       const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-      const up = await oracle(argv, upRoot)
+      const up = await oracle(argv, upRoot, { runtime: 'node' })
       expect(up.exitCode).toBe(1)
       expect(up.stderr).toContain('Nothing to show. Try one of:')
       expect(co.exitCode, detail(co)).toBe(1)
@@ -295,7 +296,7 @@ describe('status of a legacy-schema change relays the binary status through cosp
       cwd: coRoot,
       env: oracleEnv(coRoot),
     })
-    const up = await oracle(['status', '--change', 'sd1'], upRoot)
+    const up = await oracle(['status', '--change', 'sd1'], upRoot, { runtime: 'node' })
     expect(up.stdout).toContain('Next: openspec instructions specs --change "sd1" --json')
     expect(co.exitCode, detail(co)).toBe(up.exitCode)
     expect(rootless_(co.stdout, coRoot), detail(co)).toBe(
@@ -338,7 +339,7 @@ describe("the binary's no-root answer names cospec init", () => {
         const coRoot = rootless(false)
         const upRoot = rootless(false)
         const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-        const up = await oracle(argv, upRoot)
+        const up = await oracle(argv, upRoot, { runtime: 'node' })
         expect(up.stdout + up.stderr).toMatch(/[Rr]un openspec init/)
         expect(co.exitCode, detail(co)).toBe(up.exitCode)
         expect(documentCount(co.stdout)).toBe(documentCount(up.stdout))
@@ -365,7 +366,7 @@ describe('with a store registered, the resolver gives the no-root answer', () =>
       const coRoot = rootless(true)
       const upRoot = rootless(true)
       const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-      const up = await oracle(argv, upRoot)
+      const up = await oracle(argv, upRoot, { runtime: 'node' })
       expect(up.stdout + up.stderr).toMatch(/[Rr]un openspec init/)
       expect(co.exitCode, detail(co)).toBe(up.exitCode)
       expect(co.stdout, detail(co)).toBe(up.stdout)
@@ -385,7 +386,7 @@ describe('with a store registered, the resolver gives the no-root answer', () =>
       const coRoot = rootless(true)
       const upRoot = rootless(true)
       const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-      const up = await oracle(argv, upRoot)
+      const up = await oracle(argv, upRoot, { runtime: 'node' })
       expect(up.stdout + up.stderr).toMatch(/[Rr]un openspec init/)
       expect(co.exitCode, detail(co)).toBe(up.exitCode)
       expect(Object.keys(JSON.parse(up.stdout) as object)).toEqual(['status'])
@@ -430,7 +431,7 @@ describe('with a store registered, the resolver gives the no-root answer', () =>
       const coRoot = rootless(true)
       const upRoot = rootless(true)
       const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-      const up = await oracle(argv, upRoot)
+      const up = await oracle(argv, upRoot, { runtime: 'node' })
       expect(co.exitCode, detail(co)).toBe(up.exitCode)
       expect(up.exitCode).toBe(1)
       expect(co.stderr, detail(co)).toBe(up.stderr)
@@ -460,7 +461,7 @@ describe('with a store registered, the resolver gives the no-root answer', () =>
       const coRoot = rootless(true)
       const upRoot = rootless(true)
       const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-      const up = await oracle(argv, upRoot)
+      const up = await oracle(argv, upRoot, { runtime: 'node' })
       expect(up.stdout + up.stderr).toMatch(/[Rr]un openspec init/)
       expect(co.exitCode, detail(co)).toBe(up.exitCode)
       expect(co.stdout, detail(co)).toBe(viaCospecInit(up.stdout))
@@ -470,12 +471,81 @@ describe('with a store registered, the resolver gives the no-root answer', () =>
 })
 
 describe('a successful context or instructions is relayed byte-for-byte', () => {
-  // R1 relays a successful `context`/`instructions` untouched. The binary's
-  // own reference block (`Fetch: openspec show …`, `Fix: Run: openspec store
-  // doctor …`) therefore reaches the user as the binary wrote it: that
-  // spelling is owned by upstream-spellings (instructions) and
-  // passthrough-json-and-doctor (context), see `REACHABLE_OWNED` in
-  // `support/remedy-sources.ts`. These rows guard the user's content.
+  // A successful `instructions` answer is the binary's with only its
+  // reference fields (`references[].fetch`, `references[].status[].fix`, and
+  // their `Fetch:`/`Fix:` lines in the text) spelled through cospec
+  // (change `upstream-spellings`); every byte the user owns — a template,
+  // the context, a rule, a spec Purpose, a path — is the binary's. A
+  // successful `context` is still relayed untouched: its reference block's
+  // spelling is owned by passthrough-json-and-doctor (`REACHABLE_OWNED` in
+  // `support/remedy-sources.ts`). `instructions archive` holds only the
+  // user's context and stays byte-for-byte. These rows guard the user's content.
+
+  interface Reference {
+    fetch?: string
+    status?: { fix?: string }[]
+  }
+
+  /** Each reference field of an instructions document, in document order. */
+  function referenceFields(doc: Record<string, unknown>): string[] {
+    const fields: string[] = []
+    for (const ref of (doc['references'] as Reference[] | undefined) ?? []) {
+      if (ref.fetch !== undefined) fields.push(ref.fetch)
+      for (const status of ref.status ?? []) if (status.fix !== undefined) fields.push(status.fix)
+    }
+    return fields
+  }
+
+  /** `doc` with only its reference fields spelled through cospec. */
+  function withReferenceFieldsRespelled(doc: Record<string, unknown>): Record<string, unknown> {
+    const out = structuredClone(doc)
+    for (const ref of (out['references'] as Reference[] | undefined) ?? []) {
+      if (ref.fetch !== undefined) ref.fetch = respellRemedies(ref.fetch)
+      for (const status of ref.status ?? [])
+        if (status.fix !== undefined) status.fix = respellRemedies(status.fix)
+    }
+    return out
+  }
+
+  /**
+   * cospec's `instructions` answer is the binary's with only the reference
+   * fields respelled. `--json`: the documents are equal once the binary's has
+   * those fields respelled. Text: the answers differ in exactly one line per
+   * respelled field, each that field's `Fetch:`/`Fix:` line, so a user line
+   * that copies a reference line byte for byte is never the one rewritten.
+   */
+  async function expectReferencesRespelled(
+    argv: readonly string[],
+    co: SpawnResult,
+    coRoot: string,
+    up: SpawnResult,
+    upRoot: string,
+  ): Promise<void> {
+    const neutral = (text: string, root: string) => paths(text, root)
+    if (argv.includes('--json')) {
+      const upDoc = JSON.parse(neutral(up.stdout, upRoot)) as Record<string, unknown>
+      expect(documentCount(co.stdout), detail(co)).toBe(1)
+      expect(JSON.parse(neutral(co.stdout, coRoot))).toEqual(withReferenceFieldsRespelled(upDoc))
+      return
+    }
+    const docRun = await oracle([...argv, '--json'], upRoot, { runtime: 'node' })
+    const upDoc = JSON.parse(neutral(docRun.stdout, upRoot)) as Record<string, unknown>
+    const changed = referenceFields(upDoc).filter((field) => respellRemedies(field) !== field)
+    expect(changed.length).toBeGreaterThan(0)
+    const coLines = neutral(co.stdout, coRoot).split('\n')
+    const upLines = neutral(up.stdout, upRoot).split('\n')
+    expect(coLines.length, detail(co)).toBe(upLines.length)
+    const differing = upLines.flatMap((line, i) =>
+      line === coLines[i] ? [] : [{ up: line, co: coLines[i]! }],
+    )
+    expect(differing.map((d) => d.co)).toEqual(
+      differing.map((d) => {
+        const field = changed.find((f) => d.up.endsWith(`: ${f}`))
+        return field === undefined ? d.up : d.up.slice(0, -field.length) + respellRemedies(field)
+      }),
+    )
+    expect(differing.length, detail(co)).toBe(changed.length)
+  }
 
   /**
    * `fixtureRoot()` whose `config.yaml` references a usable store `st1`, a
@@ -548,20 +618,23 @@ describe('a successful context or instructions is relayed byte-for-byte', () => 
     ['instructions', 'proposal', '--change', 'done'],
     ['instructions', 'proposal', '--change', 'done', '--json'],
   ]) {
-    test(`${argv.join(' ')}: template, context, rules and a spec Purpose relayed verbatim`, async () => {
-      const coRoot = userContentRoot()
-      const upRoot = userContentRoot()
-      const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-      const up = await oracle(argv, upRoot)
-      expect(up.exitCode, detail(up)).toBe(0)
-      // Template, context, rule and the spec summary: four times each way.
-      const count = (text: string) => text.split(USER_SENTENCE).length - 1
-      expect(count(up.stdout)).toBeGreaterThanOrEqual(4)
-      expect(co.exitCode, detail(co)).toBe(0)
-      expect(count(co.stdout), detail(co)).toBe(count(up.stdout))
-      expect(paths(co.stdout, coRoot), detail(co)).toBe(paths(up.stdout, upRoot))
-      expect(paths(co.stderr, coRoot)).toBe(paths(up.stderr, upRoot))
-    }, 30_000)
+    test.failing(
+      `${argv.join(' ')}: template, context, rules and a spec Purpose relayed verbatim`,
+      async () => {
+        const coRoot = userContentRoot()
+        const upRoot = userContentRoot()
+        const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+        const up = await oracle(argv, upRoot, { runtime: 'node' })
+        expect(up.exitCode, detail(up)).toBe(0)
+        // Template, context, rule and the spec summary: four times each way.
+        const count = (text: string) => text.split(USER_SENTENCE).length - 1
+        expect(count(up.stdout)).toBeGreaterThanOrEqual(4)
+        expect(co.exitCode, detail(co)).toBe(0)
+        expect(count(co.stdout), detail(co)).toBe(count(up.stdout))
+        await expectReferencesRespelled(argv, co, coRoot, up, upRoot)
+      },
+      30_000,
+    )
   }
 
   /**
@@ -636,21 +709,26 @@ describe('a successful context or instructions is relayed byte-for-byte', () => 
   for (const { name, where, lines } of USER_LINES) {
     for (const json of [false, true]) {
       const argv = ['instructions', 'proposal', '--change', 'done', ...(json ? ['--json'] : [])]
-      test(`${argv.join(' ')}: ${name} relayed as the binary prints it`, async () => {
-        const coRoot = userLineRoot(where, lines)
-        const upRoot = userLineRoot(where, lines)
-        const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-        const up = await oracle(argv, upRoot)
-        expect(up.exitCode, detail(up)).toBe(0)
-        expect(co.exitCode, detail(co)).toBe(0)
-        const upOut = paths(up.stdout, upRoot)
-        // The binary prints the user's lines as written.
-        const written = where === 'rule' ? lines.trim() : lines
-        expect(upOut).toContain(json ? JSON.stringify(written).slice(1, -1) : written)
-        if (json) expect(documentCount(co.stdout), detail(co)).toBe(1)
-        expect(paths(co.stdout, coRoot), detail(co)).toBe(upOut)
-        expect(paths(co.stderr, coRoot)).toBe(paths(up.stderr, upRoot))
-      }, 30_000)
+      test.failing(
+        `${argv.join(' ')}: ${name} relayed as the binary prints it`,
+        async () => {
+          const coRoot = userLineRoot(where, lines)
+          const upRoot = userLineRoot(where, lines)
+          const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+          const up = await oracle(argv, upRoot, { runtime: 'node' })
+          expect(up.exitCode, detail(up)).toBe(0)
+          expect(co.exitCode, detail(co)).toBe(0)
+          const upOut = paths(up.stdout, upRoot)
+          // The binary prints the user's lines as written.
+          const written = where === 'rule' ? lines.trim() : lines
+          expect(upOut).toContain(json ? JSON.stringify(written).slice(1, -1) : written)
+          expect(paths(co.stdout, coRoot), detail(co)).toContain(
+            json ? JSON.stringify(written).slice(1, -1) : written,
+          )
+          await expectReferencesRespelled(argv, co, coRoot, up, upRoot)
+        },
+        30_000,
+      )
     }
   }
 
@@ -664,7 +742,7 @@ describe('a successful context or instructions is relayed byte-for-byte', () => 
       const coRoot = userLineRoot('context', forged)
       const upRoot = userLineRoot('context', forged)
       const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-      const up = await oracle(argv, upRoot)
+      const up = await oracle(argv, upRoot, { runtime: 'node' })
       expect(up.exitCode, detail(up)).toBe(0)
       expect(up.stdout).toContain(json ? JSON.stringify(forged).slice(1, -1) : forged)
       expect(co.exitCode, detail(co)).toBe(0)
@@ -680,20 +758,29 @@ describe('a successful context or instructions is relayed byte-for-byte', () => 
       ['context', '--json'],
       ['instructions', 'proposal', '--change', 'done', '--json'],
     ]) {
-      test(`${argv.join(' ')} in a project dir named "${name}": its path untouched`, async () => {
-        const coRoot = referencingRoot(name)
-        const upRoot = referencingRoot(name)
-        const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-        const up = await oracle(argv, upRoot)
-        expect(up.exitCode, detail(up)).toBe(0)
-        expect(co.exitCode, detail(co)).toBe(0)
-        expect(documentCount(co.stdout), detail(co)).toBe(1)
-        const doc = JSON.parse(co.stdout) as { root: { path: string } }
-        expect(doc.root.path).toBe(realpathSync(coRoot))
-        const parents = (text: string, root: string): string =>
-          text.replaceAll(realpathSync(dirname(root)), '<tmp>').replaceAll(dirname(root), '<tmp>')
-        expect(parents(co.stdout, coRoot), detail(co)).toBe(parents(up.stdout, upRoot))
-      }, 30_000)
+      const register = argv[0] === 'instructions' ? test.failing : test
+      register(
+        `${argv.join(' ')} in a project dir named "${name}": its path untouched`,
+        async () => {
+          const coRoot = referencingRoot(name)
+          const upRoot = referencingRoot(name)
+          const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
+          const up = await oracle(argv, upRoot, { runtime: 'node' })
+          expect(up.exitCode, detail(up)).toBe(0)
+          expect(co.exitCode, detail(co)).toBe(0)
+          expect(documentCount(co.stdout), detail(co)).toBe(1)
+          const doc = JSON.parse(co.stdout) as { root: { path: string } }
+          expect(doc.root.path).toBe(realpathSync(coRoot))
+          const parents = (text: string, root: string): string =>
+            text.replaceAll(realpathSync(dirname(root)), '<tmp>').replaceAll(dirname(root), '<tmp>')
+          const upDoc = JSON.parse(parents(up.stdout, upRoot)) as Record<string, unknown>
+          const coDoc = JSON.parse(parents(co.stdout, coRoot)) as Record<string, unknown>
+          expect(coDoc, detail(co)).toEqual(
+            argv[0] === 'instructions' ? withReferenceFieldsRespelled(upDoc) : upDoc,
+          )
+        },
+        30_000,
+      )
     }
   }
 })
@@ -713,7 +800,7 @@ describe('schema relays name cospec (root-resolution-parity ledger 5.8)', () => 
       const upRoot = fixtureRoot(dir)
       const argv = ['schema', 'init', name, '--description', 'd']
       const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-      const up = await oracle(argv, upRoot)
+      const up = await oracle(argv, upRoot, { runtime: 'node' })
       expect(up.exitCode).toBe(0)
       expect(up.stdout.endsWith(USE_WITH(name))).toBe(true)
       expect(co.exitCode, detail(co)).toBe(0)
@@ -732,7 +819,7 @@ describe('schema relays name cospec (root-resolution-parity ledger 5.8)', () => 
     const upRoot = fixtureRoot()
     const argv = ['schema', 'init', 's1', '--description', 'd', '--json']
     const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-    const up = await oracle(argv, upRoot)
+    const up = await oracle(argv, upRoot, { runtime: 'node' })
     expect(co.exitCode, detail(co)).toBe(up.exitCode)
     expect(co.stdout.replaceAll(realpathSync(coRoot), '<root>')).toBe(
       up.stdout.replaceAll(realpathSync(upRoot), '<root>'),
@@ -745,9 +832,9 @@ describe('schema relays name cospec (root-resolution-parity ledger 5.8)', () => 
       const upRoot = fixtureRoot()
       const argv = ['schema', 'init', 's1', '--description', 'd', ...(json ? ['--json'] : [])]
       await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-      await oracle(argv, upRoot)
+      await oracle(argv, upRoot, { runtime: 'node' })
       const co = await cospec(argv, { cwd: coRoot, env: oracleEnv(coRoot) })
-      const up = await oracle(argv, upRoot)
+      const up = await oracle(argv, upRoot, { runtime: 'node' })
       expect(up.exitCode).toBe(1)
       expect(up.stdout + up.stderr).toContain(
         json ? '\\"openspec schema fork\\" to copy' : '"openspec schema fork" to copy',

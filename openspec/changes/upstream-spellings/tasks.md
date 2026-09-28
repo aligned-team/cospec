@@ -10,31 +10,31 @@ a time. Group 12 waits for the rebase in group 11.
 
 ## 1. T7 — tests first (`apps/cli/test/contract/upstream-spellings.test.ts` new; the named rows of `unknown-option-differential.test.ts`, `precedence-matrix.test.ts`, `test/unit/core/command-table.test.ts`)
 
-- [ ] 1.1 Create `upstream-spellings.test.ts` on the upstream oracle with one
+- [x] 1.1 Create `upstream-spellings.test.ts` on the upstream oracle with one
       row per ledger row 1.1–1.10, 2.1–2.2, 3.1–3.3, 4.1–4.5, each as
       `test.failing`, each asking the pinned binary at test time (no hand-typed
       upstream string), and verify every row fails for the reason the ledger's
       "before" names
-- [ ] 1.2 Rewrite the `expect: 'pending'` differential rows
+- [x] 1.2 Rewrite the `expect: 'pending'` differential rows
       (`init --tools     claude .`, `update .`, `update --force .`,
       `new change x`, `completion generate bash`,
       `instructions … --schema spec-driven`) to their target expectation, add
       `experimental --json` as `cospec-only` and `help --bogus` (both parsed)
       and `experimental --bogus` (both parse-rejected) as `same`, mark each
       `test.failing`, and verify they fail for the reason the ledger names
-- [ ] 1.3 Rewrite the precedence matrix's `help` `PENDING_ROWS` as agreement
+- [x] 1.3 Rewrite the precedence matrix's `help` `PENDING_ROWS` as agreement
       rows, add `help bogus`, `help help`, `help --bogus`, `help -- list`, and
       move the `instructions` missing-argument rows and
       `instructions proposal --schema --help` to agreement with the binary, each
       `test.failing`, and verify they fail
-- [ ] 1.4 Remove the `upstream-spellings` rows from the pending lists in
+- [x] 1.4 Remove the `upstream-spellings` rows from the pending lists in
       `command-table.test.ts` and add the target assertions (alias spelling,
       hidden flags, lenient `help` operands) as `test.failing`
-- [ ] 1.5 Rewrite the `instructions` rows of `relayed-remedies.test.ts`'s "a
+- [x] 1.5 Rewrite the `instructions` rows of `relayed-remedies.test.ts`'s "a
       successful context or instructions is relayed byte-for-byte" block to the
       target (reference fields name `cospec`, user content untouched), leaving
       its `context` rows as they are, each `test.failing`
-- [ ] 1.6 Commit `test(cli): pin upstream spellings against the pinned binary`
+- [x] 1.6 Commit `test(cli): pin upstream spellings against the pinned binary`
 
 ## 2. T6 — alias marking and the two-way reachability check (`apps/cli/src/core/command-table.ts` shape and parser only; `apps/cli/test/contract/reachability.test.ts`)
 
