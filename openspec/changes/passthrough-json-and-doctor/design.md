@@ -113,12 +113,15 @@ With them gone, `OWNERS` loses `passthrough-json-and-doctor` and
 dispatch (none, unknown, option-shaped, after `--`) through one helper in
 `core/forward-relay.ts` that spawns `<group> [--json] <user argv>` (the `--`
 kept), declares exit code `1` and a post-condition that the answer is a
-commander parse rejection or one document whose `status[0].code` is
-`unknown_store_subcommand` / `unknown_workset_subcommand`, and relays it through
-`respellRemedies` (the sentences `store/*-subcommand*`,
-`store/lifecycle-example*`, `workset/*-subcommand` already exist). Rejected:
-cospec-owned envelopes — they would hand-type upstream's codes, messages and
-subcommand lists, and drift when the binary does.
+commander parse rejection, a text refusal on stderr alone, or one document whose
+`status[0].code` is `unknown_store_subcommand` / `unknown_workset_subcommand` —
+whichever `ctx.flags.json` is, because the binary picks the mode from the argv
+itself (the store group reads a `--json` among its operands, one after `--`
+included, where cospec's flag parsing stops: `store -- --json` answers one
+document) — and relays it through `respellRemedies` (the sentences
+`store/*-subcommand*`, `store/lifecycle-example*`, `workset/*-subcommand`
+already exist). Rejected: cospec-owned envelopes — they would hand-type
+upstream's codes, messages and subcommand lists, and drift when the binary does.
 
 **D2 — `workset open --json` is a piped call.** It spawns
 `workset open --json <user argv>` piped, declaring exit `1` and a post-condition
@@ -193,7 +196,20 @@ both, as the binary does (write first).
 binary's refusal of `--json` at the config level, relayed through
 `relayCommandLevel`. `runPiped` returns the relayed parse rejection
 (`isParseRejection`) before any envelope, text on stderr, exit 1. A successful
-`profile <preset>` goes through D5.
+`profile <preset>` goes through D5. A subcommand the binary does not define
+(`config bogus`, `config --scope project bogus`, `config -- --json`) is relayed
+through `relayCommandLevel` like an option in that position: commander's
+`unknown command` refusal, never cospec's own text. A `config list --json` the
+binary refuses before its action (exit 1, nothing on stdout, the reason on
+stderr — `--scope project`) is that answer, relayed respelled with exit 1, not
+the unparseable document the `--json` enforcement reads it as. The `path`/`get`
+envelopes carry a refusal's reason: a failed `path` is
+`{version, command, ok: false, message}` and a `get` the binary refused (an
+`Error:` line on stderr, its `--scope` check) is
+`{version, command, key, ok: false, message}`, `message` the respelled stderr; a
+`get` of an unset key keeps `{…, value: null, found: false}`, and beside any
+answer the binary gave, its stderr (an unreadable config's
+`Warning: Invalid JSON in …, using defaults`) is relayed.
 
 **D8 — Handover pre-validation.** `forward-relay.ts` gains `prevalidateHandover`
 built on a new `command-table.ts` export that parses one subcommand surface (the
@@ -208,16 +224,27 @@ TTY on stdin → piped, declaring exit codes `[0, 1]`: with a saved or `--tool`
 workspace-file tool the binary opens it from the pipe and exits 0, which is the
 command doing its job, and both outcomes are relayed); `config profile` with no
 preset tests stdout (no TTY → piped, the binary then refuses with its
-interactive-mode-required sentence, respelled). `config edit` and
-`config reset --all` have no non-interactive branch and always hand over.
-Pre-flights, each read-only: `workset open` runs `workset list --json` and, when
-the name is not saved or no member path is a directory, answers through the
-piped `workset open <argv>` (the binary refuses before it launches anything);
-`config profile` runs a piped `config profile` (stdout not a TTY), which the
-binary answers with its unreadable-config refusal or its
-interactive-mode-required refusal and nothing else — the first is relayed,
-respelled, without handing over; the second clears the handover. A pre-flight
-whose answer is neither is a wrapped-call violation.
+interactive-mode-required sentence, respelled); `config reset --all` tests
+stdin, as its confirm reads it (no TTY → piped under the handover preload, D15,
+declaring exit codes `[0, 1, 130]` and a post-condition that the binary printed
+an answer line after its prompt or a failure on stderr; its answer relayed and
+its exit code returned as it exits — 130 and `Reset cancelled.` on a closed
+input; see D14 for its stdin). `config edit` has no non-interactive branch and
+always hands over. Pre-flights, each read-only: `workset open` runs
+`workset list --json`, declaring exit codes `[0, 1]`, and answers through the
+piped `workset open <argv>` (the binary refuses before it launches anything, its
+`invalid_workset_file` diagnostic and `Fix:` respelled) when the list itself
+refused — exit 1, or an error in its `status[]` — or the name is not saved, or
+no member path is a directory; a member path is a directory only when `stat`
+reads it as one, and every `stat` failure that means "not usable as a member
+folder" (`ENOENT`, `ENOTDIR`, `ELOOP`, `EACCES`, `EPERM`, `ENAMETOOLONG`, a NUL
+byte) is no folder, as the binary's `pathIsDirectory` answers it, never a crash;
+`config profile` runs a piped `config profile` (stdout not a TTY), declaring
+exit code `1` and a refusal on stderr: its interactive-mode-required refusal
+clears the handover, and any other refusal (an unreadable config,
+`--scope project`'s `Project-local config is not yet implemented`) is relayed,
+respelled, without handing over. A pre-flight that answers otherwise is a
+wrapped-call violation.
 
 **D9 — New allowlist entries.** The piped non-interactive paths make one
 sentence relayable that is today listed as never relayed:
@@ -265,6 +292,50 @@ group 1 as failing rows. Upstream strings are never hand-typed in a test: every
 expected answer is the oracle's for the same argv on the same fixture, with only
 the allowlisted respelling applied.
 
+**D13 — `config <leaf> <extra-arg> --json` is cospec-only.** cospec's `--json`
+is a global flag on every `config` row, a superset of the binary's, which
+declares `--json` on `config list` alone. Given an excess argument and `--json`
+(`config edit extra --json`, `config path extra --json`,
+`config get a b --json`, …) the binary names `--json` as the unknown option,
+where cospec, having taken `--json` as its own, refuses the excess argument as
+too many. Both refuse before anything runs, exit `1`, nothing on stdout; the
+precedence matrix declares these rows cospec-only and the handover
+pre-validation suite pins the binary's half of each.
+
+**D14 — `config reset --all` piped gives the confirm no stdin.** With no TTY on
+stdin the piped call runs with `stdin: 'ignore'`, as every piped call does, so
+the confirm reads a closed input and cancels (130, `Reset cancelled.`, nothing
+reset). That is the binary's answer under Node for an empty stdin and for an
+answer already waiting on the pipe (`echo y | …`), which Node discards as input
+typed ahead of the prompt (inquirer defers its first render past the buffered
+data). Forwarding cospec's stdin was rejected: under Bun that waiting answer
+reaches the confirm and resets the global config where the binary cancels. The
+cost is one declared divergence — an answer that arrives on the pipe after the
+prompt is drawn (`(sleep 1; echo y) | …`), which the binary takes and resets
+(exit 0), cospec cancels (exit 130, nothing reset); the contract suite pins both
+halves as a cospec-only row.
+
+**D15 — The handover preload.** Every terminal handover (`workset open`,
+`config edit`/`profile`/`reset --all`) and the piped `config reset --all` run
+the binary as `<execPath> --preload <file> <bin> …`. Under Node the binary's
+inquirer prompts answer a closed input (Ctrl-D on a terminal, an ended pipe)
+through signal-exit: readline closes, the loop empties, Node emits `exit`
+through the `process.emit` signal-exit has patched, its listener rejects the
+pending prompt with `ExitPromptError`, and the binary's catch prints its
+cancellation line and sets exit 130 in a microtask Node drains before exiting.
+Under Bun — which runs every wrapped call, cospec depending on no node —
+readline closes the same way (a `close`, no error), but Bun dispatches
+`beforeExit`/`exit` natively, never through the patched `process.emit`, and
+drains no microtask an `exit` or `beforeExit` listener queues: the prompt is
+never rejected and the child exits 0 having printed only the prompt. The preload
+(`core/handover-preload.ts`, written content-addressed to cospec's cache beside
+the extracted bundle) emits signal-exit's `exit` once on its process-wide
+emitter (`Symbol.for('signal-exit emitter')`) from `beforeExit` and schedules
+one empty immediate so the rejection's handlers run; the child then prints the
+binary's own cancellation line and exits 130, the binary's answer, which the
+handover propagates verbatim. The compiled binary's runtime honours `--preload`
+under `BUN_BE_BUN=1`; the standalone smoke asserts it on the embedded bundle.
+
 ## Risks / Trade-offs
 
 - [The ported context renderer drifts from the binary's] → the differential
@@ -286,6 +357,15 @@ the allowlisted respelling applied.
   blocking-changes.
 - [The field-map helper's shape is not on this branch] → group 9 runs after the
   rebase; D4 names the one extension this change would add.
+- [The preload reaches into signal-exit's process-wide emitter] → the key
+  (`Symbol.for('signal-exit emitter')`) is signal-exit v4's published global and
+  the pinned bundle's; with no emitter the preload does nothing, so an in-range
+  binary without it keeps Bun's behaviour, and the pty rows against the binary
+  under Node fail on any difference in the cancellation answer.
+- [`config get`'s refusal is told from an unset key by an `Error:` line] → the
+  binary's action prints nothing on stderr for an unset key but its config
+  read's `Warning:` lines, and refuses in its `preAction` hook with `Error:`;
+  the contract rows for both answers compare with the binary's.
 
 ## Operational surface
 
@@ -293,9 +373,12 @@ No deploy topology changes. Runtime environment of wrapped calls: the
 `workset open` handover gains `OPENSPEC_NO_COMPLETIONS=1` beside `BUN_BE_BUN=1`
 and `OPENSPEC_TELEMETRY=0`; piped calls keep `WRAPPED_ENV`. New spawns: one
 read-only pre-flight per `workset open` / `config profile` handover, one per
-group refusal, and a second `context` call for text-mode `--code-workspace`. No
-new binary, version or architecture; the wrapped binary is still resolved by
-path and version-asserted before every handover.
+group refusal, and a second `context` call for text-mode `--code-workspace`.
+Every handover and the piped `config reset --all` carry `--preload <file>`
+(D15); cospec writes that one small file, content-addressed, to
+`${XDG_CACHE_HOME:-~/.cache}/cospec` beside the extracted bundle. No new binary,
+version or architecture; the wrapped binary is still resolved by path and
+version-asserted before every handover.
 
 ## Integration contract
 

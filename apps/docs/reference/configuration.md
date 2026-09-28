@@ -210,10 +210,24 @@ prototype-pollution guard as OpenSpec answers, its remedies spelled `cospec`
   stdout, as OpenSpec does: with none it runs piped, and OpenSpec's refusal is
   relayed —
   ``Interactive mode required. Use `cospec config profile core` or set config via environment/flags.``,
-  exit `1`; on a TTY a read-only piped check runs first, and an unreadable
-  global config gets OpenSpec's refusal (`cospec config edit` /
-  `cospec config reset --all`) instead of the menu. `edit` and `reset --all`
-  have no non-interactive branch and always hand over.
+  exit `1`; on a TTY a read-only piped check runs first, and anything OpenSpec
+  refuses before its menu — an unreadable global config (`cospec config edit` /
+  `cospec config reset --all`), `--scope project`
+  (`Error: Project-local config is not yet implemented`) — gets OpenSpec's
+  refusal instead of the menu. `reset --all` tests for a TTY on stdin, which its
+  confirm reads: with none it runs piped and its confirm gets no input, so it is
+  cancelled — `Reset cancelled.`, exit `130`, nothing reset — as OpenSpec
+  answers an empty stdin or an answer already waiting on the pipe
+  (`echo y | …`). An answer piped in after the prompt is drawn is the one
+  difference: OpenSpec takes it, cospec cancels; pass `-y` to reset from a
+  script. `edit` has no non-interactive branch and always hands over.
+
+A prompt given no input — Ctrl-D at a handed-over prompt, or an ended pipe — is
+cancelled as OpenSpec cancels it under Node: its cancellation line
+(`Reset cancelled.`, `Config profile cancelled.`) and exit `130`. OpenSpec runs
+under cospec's own runtime, so cospec runs it behind a small preload that
+delivers the exit notice OpenSpec's prompts listen for; cospec writes that file
+to its cache (`${XDG_CACHE_HOME:-~/.cache}/cospec`).
 
 `--scope` is a parent-level option (not `--store` — OpenSpec config is
 machine-global, so `cospec config` never resolves a root or threads
@@ -221,19 +235,34 @@ machine-global, so `cospec config` never resolves a root or threads
 subcommands still owe a `--json` caller exactly one JSON document, so cospec
 wraps their text output in its own `version: 1` envelope:
 
-| subcommand            | `--json` shape                                                                                                        |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `list`                | upstream's own document, relayed verbatim                                                                             |
-| `path`                | `{ version: 1, command: 'config path', path }`                                                                        |
-| `get`                 | `{ version: 1, command: 'config get', key, value, found }` (`value`/`found` are `null`/`false` when the key is unset) |
-| `set`/`unset`/`reset` | `{ version: 1, command: 'config <sub>', ok, message }`                                                                |
-| a Class B subcommand  | `{ version: 1, command: 'config <sub>', ok: false, message: '… is interactive and cannot emit JSON' }`, exit `1`      |
+| subcommand             | `--json` shape                                                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `list`                 | upstream's own document, relayed verbatim                                                                                |
+| `path`                 | `{ version: 1, command: 'config path', path }`                                                                           |
+| `get`                  | `{ version: 1, command: 'config get', key, value, found }` (`value`/`found` are `null`/`false` when the key is unset)    |
+| a refused `path`/`get` | `{ version: 1, command: 'config <sub>', key?, ok: false, message }` — `message` is OpenSpec's reason (`--scope project`) |
+| `set`/`unset`/`reset`  | `{ version: 1, command: 'config <sub>', ok, message }`                                                                   |
+| a Class B subcommand   | `{ version: 1, command: 'config <sub>', ok: false, message: '… is interactive and cannot emit JSON' }`, exit `1`         |
+
+Beside an answer OpenSpec gave, its stderr is relayed as well — an unreadable
+global config's `Warning: Invalid JSON in …, using defaults`, say. A
+`config list --json` OpenSpec refuses before listing (`--scope project`) has no
+document to relay: its reason is relayed on stderr, exit `1`, stdout empty.
 
 The envelope is for an answer the subcommand gave. When OpenSpec refuses the
 argv itself — `cospec config get foo --bogus --json`,
-`cospec config path --bogus --json` — its refusal
-(`error: unknown option '--bogus'`) is relayed on stderr, exit `1`, with nothing
-on stdout, as OpenSpec prints it before any output.
+`cospec config path --bogus --json`, an unknown subcommand
+(`cospec config bogus`, `cospec config -- --json`) — its refusal
+(`error: unknown option '--bogus'`, `error: unknown command 'bogus'`) is relayed
+on stderr, exit `1`, with nothing on stdout, as OpenSpec prints it before any
+output.
+
+`--json` is a cospec global flag on every `config` subcommand, where OpenSpec
+declares it on `list` alone. So given an excess argument too
+(`cospec config path extra --json`, `cospec config edit extra --json`), cospec
+refuses the excess argument (`error: too many arguments …`) where OpenSpec names
+`--json` as the unknown option; both exit `1` before anything runs, with nothing
+on stdout.
 
 `cospec config --store <id>` is refused outright (exit `1`, before spawning the
 wrapped binary) rather than silently ignored — OpenSpec config has no store
