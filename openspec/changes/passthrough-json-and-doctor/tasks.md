@@ -14,13 +14,17 @@ Files: `apps/cli/test/contract/passthrough-json.test.ts` (new),
 `apps/cli/test/contract/handover-prevalidation.test.ts` (new),
 `apps/cli/test/unit/json-envelope.test.ts` (new),
 `apps/cli/test/integration/doctor-relationship.test.ts`,
-`apps/cli/test/integration/workset.test.ts`.
+`apps/cli/test/integration/workset.test.ts`,
+`apps/cli/test/integration/store.test.ts`, `apps/cli/test/unit/cli.test.ts`,
+`apps/cli/test/unit/commands/config-args.test.ts`.
 
 - [ ] 1.1 Add `passthrough-json.test.ts` with ledger rows 1.1–1.4, 3.1–3.5,
       4.1–4.3, 5.1–5.3 and 7.1–7.2 as `test.failing` (the post-rebase rows 3.x
-      and 7.x stay failing until group 9; `cospec -- workset --bogus` runs
-      through the published bin), and verify each fails for the recorded
-      "before" reason, not a fixture error; commit
+      and 7.x stay failing until group 9, one test per command and mode so each
+      flips independently when the resolver's check lands at 9.1 and cospec's
+      own at 9.2; `cospec -- workset --bogus` runs through the published bin),
+      and verify each fails for the recorded "before" reason, not a fixture
+      error; commit
       `test(cli): pin passthrough group refusals and relays against the binary`
 - [ ] 1.2 Add `doctor-parity.test.ts` with ledger rows 2.1–2.3, 2.5 and 2.7 as
       `test.failing` — the key oracle comparing `cospec doctor --json` with
@@ -42,12 +46,17 @@ Files: `apps/cli/test/contract/passthrough-json.test.ts` (new),
       interactivity, the `workset open` handover env) and verify each fails on a
       missing export or the old behaviour; commit
       `test(cli): add unit rows for passthrough envelopes and respell rules`
-- [ ] 1.5 Invert the two integration rows that encode the defect —
+- [ ] 1.5 Invert the existing rows that encode the defect —
       `doctor-relationship.test.ts` "a local repo with no store and no
-      references skips the delegated section entirely" (ledger 2.4) and
+      references skips the delegated section entirely" (ledger 2.4);
       `workset.test.ts` "never threads --json onto the handover exec", "an
-      unknown subcommand fails", "missing subcommand fails" (ledger 1.3–1.5) —
-      as `test.failing` asserting the corrected behaviour, and verify they fail;
+      unknown subcommand fails", "missing subcommand fails" and
+      `store.test.ts`'s `unknown subcommand 'bogus'` row (ledger 1.2–1.5);
+      `unit/cli.test.ts`'s `store help` / `workset help` rows (the binary's
+      `Unknown command 'help' for 'cospec store'`, respelled) and its bare
+      `config --` row (cospec's `config` help on stderr, ledger 5.2); and the
+      `config-args.test.ts` missing-subcommand plan (ledger 5.2) — as
+      `test.failing` asserting the corrected behaviour, and verify they fail;
       commit
       `test(cli): invert integration rows that encoded the passthrough defects`
 

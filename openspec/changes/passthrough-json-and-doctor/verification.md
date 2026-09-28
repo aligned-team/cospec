@@ -55,7 +55,7 @@ applied — never a hand-typed copy. "Before" is this branch's base.
 - [ ] 6.4 @regression (agent) `cospec config profile` with stdout piped -> before: ``Use `openspec config profile core` …``; after: ``Interactive mode required. Use `cospec config profile core` or set config via environment/flags.``, exit 1
 - [ ] 6.5 @unit (agent) pre-flights with interactivity injected as a TTY -> `workset open` pre-flight answers an unsaved name and a workset with no surviving member folder through the piped call; `config profile` pre-flight relays the unreadable-config refusal respelled (`cospec config edit` / `cospec config reset --all`) and hands over only on the interactive-mode-required answer; any other pre-flight answer is a wrapped-call violation
 - [ ] 6.6 @unit (agent) the `workset open` handover env and `notRelayed.TIP` -> the env carries `OPENSPEC_NO_COMPLETIONS=1`, `OPENSPEC_TELEMETRY=0`, `BUN_BE_BUN=1`; `notRelayed.TIP` states every spawn sets it
-- [ ] 6.7 @manual (human) on a real terminal: `cospec config profile` through its menu, `cospec workset open <saved> --tool <uninstalled>`, `cospec config edit`, `cospec config reset --all` -> only the sentences design D11 enumerates can name bare `openspec`; each is recorded as the orchestrator ruled (task 7.2)
+- [ ] 6.7 @manual (agent) under a pseudo-terminal (`script`, keystrokes fed on its stdin), sandboxed: `cospec config profile` through its menu, `cospec workset open <saved> --tool <uninstalled>`, `cospec config edit`, `cospec config reset --all` -> only the sentences design D11 enumerates can name bare `openspec`; each is recorded as the orchestrator ruled (task 7.2)
 
 ## 7. Missing working directory (post-rebase)
 
@@ -66,7 +66,7 @@ applied — never a hand-typed copy. "Before" is this branch's base.
 
 - [ ] 8.1 @unit (agent) `reachability.test.ts` -> green; `parity-pending.yaml` and the command table hold no entry or pending surface owned by `passthrough-json-and-doctor` (the change owns no registry surface)
 - [ ] 8.2 @unit (agent) `grep -n "test.failing\|test.todo"` over the four new test files -> no hit
-- [ ] 8.3 @integration (agent) the store, workset, context, config and doctor integration suites and the relayed-remedies, remedy-enumeration and unknown-option-differential contract suites -> green
+- [ ] 8.3 @integration (agent) the store, workset, context, config and doctor integration suites and the relayed-remedies, remedy-enumeration, unknown-option-differential and precedence-matrix contract suites (whose `store help` / `workset help` rows now compare the binary's respelled refusal by kind) -> green
 
 ## 9. Docs and gate
 

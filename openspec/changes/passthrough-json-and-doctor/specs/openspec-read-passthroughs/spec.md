@@ -152,6 +152,9 @@ refusal before anything is spawned.
 - **THEN** the binary's refusal is printed with its remedy spelled
   `cospec workset …`, its exit code propagated, and no
   `Tip: Run 'openspec completion install'` line is printed
+- **AND WHEN** the saved workset names an installed workspace-file tool and
+  stdin has no TTY
+- **THEN** the piped call opens it as the binary does and cospec exits 0
 
 #### Scenario: A next-step line names cospec
 

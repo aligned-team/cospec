@@ -141,10 +141,12 @@ None.
   `test/contract/passthrough-json.test.ts`,
   `test/contract/handover-prevalidation.test.ts`,
   `test/unit/json-envelope.test.ts`;
-  `test/integration/doctor-relationship.test.ts` and `workset.test.ts` rows that
-  encoded the defect invert; `test/contract/relayed-remedies.test.ts` context
-  success rows; `test/contract/support/remedy-sources.ts` (`REACHABLE_OWNED`,
-  `OWNERS`, `SUCCESS_RELAYS`, the `TIP` and `PROFILE_HANDOVER` reasons).
+  `test/integration/doctor-relationship.test.ts` `workset.test.ts`,
+  `store.test.ts`, `unit/cli.test.ts` and `unit/commands/config-args.test.ts`
+  rows that encoded the defect invert; `test/contract/relayed-remedies.test.ts`
+  context success rows; `test/contract/support/remedy-sources.ts`
+  (`REACHABLE_OWNED`, `OWNERS`, `SUCCESS_RELAYS`, the `TIP` and
+  `PROFILE_HANDOVER` reasons).
 - Docs: `apps/docs/reference/commands.md`, `apps/docs/concepts/stores.md`,
   `apps/docs/reference/configuration.md`, `docs/stores.md`,
   `docs/architecture.md`; `.agents/shared.md` (the success-path respell rule and

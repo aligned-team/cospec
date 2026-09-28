@@ -29,8 +29,10 @@ once `root-resolution-parity` has merged, so this change's archive — the PR's
 last commit — follows that merge.
 
 `upstream-spellings` runs alongside this change. Its files and this change's are
-disjoint except three shared ones, edited in separate hunks:
-`test/contract/support/remedy-sources.ts` (each change removes its own
+disjoint except five shared ones, edited in separate hunks:
+`apps/cli/src/core/command-table.ts` (its rows versus this change's one additive
+parser export), `apps/cli/src/core/remedies.ts` (allowlist entries each change
+adds), `test/contract/support/remedy-sources.ts` (each change removes its own
 `REACHABLE_OWNED` rows), `test/contract/relayed-remedies.test.ts` (its
 `instructions` rows versus this change's `context` rows) and the
 `Forwarded commands are declared, not re-parsed` requirement of

@@ -204,17 +204,20 @@ exit 1, ahead of any `--json` envelope, as commander refuses before any output)
 → `--json` (config: the existing envelope; workset open: D2) → interactivity →
 pre-flight → handover. Interactivity is the binary's own test per leaf:
 `workset open` ports `isInteractive` (`OPEN_SPEC_INTERACTIVE=0`, `CI` set, or no
-TTY on stdin → piped); `config profile` with no preset tests stdout (no TTY →
-piped, the binary then refuses with its interactive-mode-required sentence,
-respelled). `config edit` and `config reset --all` have no non-interactive
-branch and always hand over. Pre-flights, each read-only: `workset open` runs
-`workset list --json` and, when the name is not saved or no member path is a
-directory, answers through the piped `workset open <argv>` (the binary refuses
-before it launches anything); `config profile` runs a piped `config profile`
-(stdout not a TTY), which the binary answers with its unreadable-config refusal
-or its interactive-mode-required refusal and nothing else — the first is
-relayed, respelled, without handing over; the second clears the handover. A
-pre-flight whose answer is neither is a wrapped-call violation.
+TTY on stdin → piped, declaring exit codes `[0, 1]`: with a saved or `--tool`
+workspace-file tool the binary opens it from the pipe and exits 0, which is the
+command doing its job, and both outcomes are relayed); `config profile` with no
+preset tests stdout (no TTY → piped, the binary then refuses with its
+interactive-mode-required sentence, respelled). `config edit` and
+`config reset --all` have no non-interactive branch and always hand over.
+Pre-flights, each read-only: `workset open` runs `workset list --json` and, when
+the name is not saved or no member path is a directory, answers through the
+piped `workset open <argv>` (the binary refuses before it launches anything);
+`config profile` runs a piped `config profile` (stdout not a TTY), which the
+binary answers with its unreadable-config refusal or its
+interactive-mode-required refusal and nothing else — the first is relayed,
+respelled, without handing over; the second clears the handover. A pre-flight
+whose answer is neither is a wrapped-call violation.
 
 **D9 — New allowlist entries.** The piped non-interactive paths make one
 sentence relayable that is today listed as never relayed:
