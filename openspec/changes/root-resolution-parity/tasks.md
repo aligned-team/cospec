@@ -330,3 +330,7 @@ files, task 7.7, both marked POST-REBASE.
       relays the binary's text refusal (exit 1, no document), relay through
       `relayRespelled`, and state the exception on the commands page and in
       `docs/architecture.md`
+- [x] 8.3 PRE-REVIEW (ledger 5.13, design D15): add a failing row, then classify
+      `validateChangeExists`'s fallback new-change hint line in
+      `support/remedy-sources.ts` as `notRelayed` with the probed reason,
+      keeping the `instructions`/`status` hint lines on the allowlist entry

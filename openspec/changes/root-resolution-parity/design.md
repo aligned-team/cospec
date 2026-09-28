@@ -350,15 +350,20 @@ first asked for is not reachable through `templates`: the pinned
 `dist/commands/workflow/templates.js` calls only `validateSchemaExists`, and the
 sentence lives in `validateChangeExists`
 (`dist/commands/workflow/shared.js:129`, `:144`), which only `instructions` and
-`status` reach. `schema.ts` now relays through `relayRespelled`, so a failed
-call's `"openspec schema fork"` remedy is spelled through the allowlist in text
-and in the `--json` `suggestion`; `schema init`'s `--json` success document
-names no command. Its human success output ends with
-`  3. Use with: openspec new --schema <name>`, the last line the binary writes
-(the lines before it carry the schema's path, where a user's directory name
-could read like the sentence), so only that final line is spelled, and only when
-it is exactly that shape with the kebab-case name the binary validated; the
-`REACHABLE_OWNED` entry for it is removed.
+`status` reach. Every such caller passes its own `newChangeHint` (allowlisted on
+its own line and respelled by those relays), so `validateChangeExists`'s
+fallback `hints.newChangeHint ?? 'openspec new change <name>'` is never printed:
+`support/remedy-sources.ts` classifies that line `notRelayed` with the probed
+reason rather than as the `workflow/new-change-hint` entry, and no relay of
+`templates` is claimed to reach any `Create one with` sentence. `schema.ts` now
+relays through `relayRespelled`, so a failed call's `"openspec schema fork"`
+remedy is spelled through the allowlist in text and in the `--json`
+`suggestion`; `schema init`'s `--json` success document names no command. Its
+human success output ends with `  3. Use with: openspec new --schema <name>`,
+the last line the binary writes (the lines before it carry the schema's path,
+where a user's directory name could read like the sentence), so only that final
+line is spelled, and only when it is exactly that shape with the kebab-case name
+the binary validated; the `REACHABLE_OWNED` entry for it is removed.
 
 ## Risks / Trade-offs
 
