@@ -37,7 +37,7 @@ describe('apply gate', () => {
   test('unknown change exits 1 with a suggestion', async () => {
     const cwd = repo()
     writeChange(cwd, 'add-widget', 'ci')
-    const r = await runCmd(applyRun, ctx(cwd, ['add-widgets']))
+    const r = await runCmd(applyRun, ctx(cwd, ['add-widgets'], { command: 'apply' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain("Did you mean 'add-widget'")
   })
@@ -45,7 +45,7 @@ describe('apply gate', () => {
   test('uninitialized repo reports the missing openspec/ dir, not "unknown change"', async () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cospec-uninit-'))
     roots.push(cwd)
-    const r = await runCmd(applyRun, ctx(cwd, ['foo']))
+    const r = await runCmd(applyRun, ctx(cwd, ['foo'], { command: 'apply' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('no openspec/ directory')
     expect(r.err).toContain("run 'cospec init' first")
@@ -55,7 +55,7 @@ describe('apply gate', () => {
   test('missing required artifacts exits 2 (reason=missing-artifacts)', async () => {
     const cwd = repo()
     writeChange(cwd, 'c', 'ci', { 'proposal.md': LITE_PROPOSAL })
-    const r = await runCmd(applyRun, ctx(cwd, ['c'], { json: true }))
+    const r = await runCmd(applyRun, ctx(cwd, ['c'], { json: true, command: 'apply' }))
     expect(r.code).toBe(2)
     const parsed = JSON.parse(r.out) as { gate: { reason: string; missingArtifacts: string[] } }
     expect(parsed.gate.reason).toBe('missing-artifacts')
@@ -70,7 +70,7 @@ describe('apply gate', () => {
       'blocking-changes.md': blockers('- [ ] `dep` — provides x'),
       'tasks.md': DONE_TASKS,
     })
-    const r = await runCmd(applyRun, ctx(cwd, ['c'], { json: true }))
+    const r = await runCmd(applyRun, ctx(cwd, ['c'], { json: true, command: 'apply' }))
     expect(r.code).toBe(2)
     const parsed = JSON.parse(r.out) as {
       gate: { reason: string; hardBlockers: { slug: string }[] }
@@ -93,7 +93,7 @@ describe('apply gate', () => {
         'blocking-changes.md': blockers(`${marker} [ ] \`dep\` — provides x`),
         'tasks.md': DONE_TASKS,
       })
-      const r = await runCmd(applyRun, ctx(cwd, ['c']))
+      const r = await runCmd(applyRun, ctx(cwd, ['c'], { command: 'apply' }))
       expect(r.code).toBe(1)
       expect(r.out + r.err).toContain('blockers/entry-grammar')
     }
@@ -107,7 +107,7 @@ describe('apply gate', () => {
       'blocking-changes.md': blockers('None.', '- [ ] `nice` — degrades gracefully'),
       'tasks.md': DONE_TASKS,
     })
-    const soft = await runCmd(applyRun, ctx(cwd, ['c']))
+    const soft = await runCmd(applyRun, ctx(cwd, ['c'], { command: 'apply' }))
     expect(soft.code).toBe(3)
     expect(soft.out).toContain('soft-blocked')
     // --allow-soft clears the soft gate (then step 5 hits openspec — asserted in lifecycle).
@@ -123,7 +123,7 @@ describe('apply gate', () => {
     })
     // Gate is clear (dep archived), so step 5 runs; the self-heal at step 4c has
     // already rewritten the checked box on disk regardless.
-    await runCmd(applyRun, ctx(cwd, ['c'], { json: true }))
+    await runCmd(applyRun, ctx(cwd, ['c'], { json: true, command: 'apply' }))
     const healed = readFileSync(join(dir, 'blocking-changes.md'), 'utf8')
     expect(healed).toContain('- [x] `dep` — provides x *(archived 2026-07-01)*')
   })
@@ -135,7 +135,7 @@ describe('apply gate', () => {
       'blocking-changes.md': EMPTY_BLOCKERS,
       'tasks.md': DONE_TASKS,
     })
-    const r = await runCmd(applyRun, ctx(cwd, ['c']))
+    const r = await runCmd(applyRun, ctx(cwd, ['c'], { command: 'apply' }))
     expect(r.code).toBe(1)
     expect(r.out).toContain('proposal/sections')
   })

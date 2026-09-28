@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import type { CommandContext } from '../../../src/cli.ts'
+import { commandRow, parseCommandArgs } from '../../../src/core/command-table.ts'
 import { computeContentHash, CURRENT_GENERATED_BY } from '../../../src/core/managed-files.ts'
 
 /** Create an isolated temp repo dir; caller cleans up via `cleanup`. */
@@ -14,9 +15,30 @@ export function cleanup(dir: string): void {
   rmSync(dir, { recursive: true, force: true })
 }
 
-/** Build a CommandContext for a command's `run`. */
-export function ctx(cwd: string, args: string[] = [], json = false): CommandContext {
-  return { args, flags: { json, noColor: true, cwd }, cwd }
+/**
+ * Build a CommandContext for a command's `run`, parsing `args` against its
+ * table row exactly as `cli.ts`'s dispatcher would — these tests call the
+ * command module directly, bypassing the dispatcher, so `ctx.parsed` has to be
+ * built here instead. `command` defaults to `init`, the row every call site in
+ * this suite exercises except the direct `update`/`doctor` calls.
+ */
+export function ctx(
+  cwd: string,
+  args: string[] = [],
+  json = false,
+  command = 'init',
+): CommandContext {
+  const row = commandRow(command)
+  if (row === undefined || row.parse !== 'table') {
+    return { args, flags: { json, noColor: true, cwd }, cwd }
+  }
+  const result = parseCommandArgs(row, args)
+  if (!result.ok) {
+    throw new Error(
+      `ctx(): 'cospec ${command} ${args.join(' ')}' does not parse: ${result.refusal.message}`,
+    )
+  }
+  return { args, flags: { json, noColor: true, cwd }, cwd, parsed: result.parsed }
 }
 
 /** Run a (sync) command entrypoint capturing stdout/stderr. */

@@ -39,6 +39,20 @@ describe('ci lifecycle', () => {
     expect(specsCaps()).toEqual([])
   })
 
+  test('a clear apply names its change in the canon gate prose (#48)', async () => {
+    authorCi(root, 'gate-prose', { tasksDone: false })
+    const json = await cospec(['apply', 'gate-prose', '--json'], { cwd: root })
+    expect(json.exitCode).toBe(0)
+    const instruction = (JSON.parse(json.stdout) as { apply: { instruction: string } }).apply
+      .instruction
+    expect(instruction).toContain('cospec apply "gate-prose" --json')
+    expect(instruction).not.toContain('<change>')
+    const human = await cospec(['apply', 'gate-prose'], { cwd: root })
+    expect(human.exitCode).toBe(0)
+    expect(human.stdout).toContain('cospec apply "gate-prose" --json')
+    expect(human.stdout).not.toContain('<change>')
+  })
+
   test('a planted specs/ dir on a ci change fails meta/forbidden-artifact', async () => {
     authorCi(root, 'bad-ci', { tasksDone: true })
     writeFiles(root, {

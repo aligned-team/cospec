@@ -157,7 +157,7 @@ describe('cospec feedback (native, aligned-team/cospec)', () => {
     const cwd = mkTempRepo()
     const res = await cospec(['feedback'], { cwd, env: { PATH: path } })
     expect(res.exitCode).toBe(1)
-    expect(res.stderr).toContain('a message is required')
+    expect(res.stderr).toContain("cospec feedback: missing required argument 'message'")
     expect(existsSync(logFile)).toBe(false)
   })
 })

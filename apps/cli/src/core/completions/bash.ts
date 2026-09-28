@@ -4,7 +4,7 @@
 // which fails silently, so a Tab in a non-repo directory offers nothing rather
 // than printing an error mid-completion.
 
-import type { CompletionSpec } from './spec.ts'
+import { type CompletionSpec, narrowedGlobals } from './spec.ts'
 
 /** Escape for a bash/zsh single-quoted string. */
 export function escapeSingleQuoted(value: string): string {
@@ -22,6 +22,10 @@ export function renderBashCompletion(spec: CompletionSpec): string {
   const flagArms = spec.commands
     .filter((c) => c.flags.length > 0)
     .map((c) => caseArm(c.name, [`flags='${escapeSingleQuoted(c.flags.join(' '))}'`]))
+    .join('\n')
+
+  const globalArms = narrowedGlobals(spec)
+    .map((c) => caseArm(c.name, [`globals='${escapeSingleQuoted(c.globalFlags.join(' '))}'`]))
     .join('\n')
 
   const positionalArms = spec.commands
@@ -78,6 +82,9 @@ ${flagValueArms}
     flags=""
     case "$cmd" in
 ${flagArms}
+    esac
+    case "$cmd" in
+${globalArms}
     esac
     COMPREPLY=( $(compgen -W "$flags $globals" -- "$cur") )
     return 0

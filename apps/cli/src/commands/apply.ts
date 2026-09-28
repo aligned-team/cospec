@@ -24,12 +24,14 @@ import {
   resolveSchema,
   type Change,
 } from '../core/change.ts'
+import { hasFlag } from '../core/command-table.ts'
 import {
   openspecApplyInstructions,
   OpenspecCallError,
   type ApplyInstructionsJson,
   type Root,
 } from '../core/openspec.ts'
+import { respellRemedies } from '../core/remedies.ts'
 import { renderHuman, renderJson, type ItemReport } from '../core/report.ts'
 import { resolveRoot } from '../core/root.ts'
 import { surfaceUnmetConsequences } from '../core/rules/meta.ts'
@@ -190,37 +192,44 @@ const SURFACE_SOFT_RULES = new Set<string>([
 
 // Every agent-facing OpenSpec access routes through `cospec` (CLAUDE.md), but
 // the wrapped binary writes its own remedies into the `instruction` and
-// `warnings` strings cospec relays verbatim. At 1.13.1 exactly three verbs
-// appear in those strings — `describeArtifactRemedy` emits
-// `openspec instructions <artifact> --change <name>` and
-// `openspec status --change <name>`; `collectApplyWarnings` emits
-// `openspec validate <name>` and another `openspec instructions …` — and each
-// maps 1:1 onto a cospec command with the identical argument shape.
-//
-// The match is anchored to a backtick-delimited span, never a bare `openspec `
-// token: `collectApplyWarnings`'s no-delta-specs warning embeds an absolute
-// `…/.openspec.yaml` path in the same string, and that path must survive
-// untouched. A verb outside the set is left alone too — relaying an unknown
-// upstream command as `cospec` would invent a surface that may not exist.
-const RELAYED_COMMAND_SPAN = /`openspec ((?:instructions|status|validate)(?:[ \t][^`]*)?)`/g
+// `warnings` strings cospec relays: `describeArtifactRemedy`'s
+// `Create it with \`openspec instructions …\` (\`openspec status …\` shows what
+// is left).` and `collectApplyWarnings`' `openspec validate`/`instructions`
+// sentences. Each is one of upstream's exact sentences in the remedy allowlist
+// (`core/remedies.ts`), respelled only where it stands verbatim, so the
+// change's own names and paths (the no-delta-specs warning's absolute
+// `…/.openspec.yaml`) and a schema's own instruction text pass through as
+// written.
 
-/** Rewrites backtick-delimited `openspec …` command spans to `cospec …`. */
+/** `text` with each of upstream's own remedy sentences spelled through cospec. */
 export function relayThroughCospec(text: string): string {
-  return text.replace(RELAYED_COMMAND_SPAN, '`cospec $1`')
+  return respellRemedies(text)
 }
 
+// The canon gate prose (`canon/apply-instruction.yaml`) is schema text, served
+// before any change exists, so it names the change as a placeholder (#48).
+const APPLY_PLACEHOLDER = 'cospec apply "<change>"'
+
 /**
- * The wrapped apply payload with every relayed remedy routed through cospec.
+ * The wrapped apply payload with every relayed remedy routed through cospec,
+ * and the canon gate prose's `cospec apply "<change>"` naming `changeId`, the
+ * change this run already resolved — never a placeholder for a named change.
  *
  * Applied once, at the call site, so both the human transcript and the `--json`
  * spread carry the same guarded strings — the JSON path is the one agents read.
  * Absent `warnings` stays absent (a change cospec correctly skips must not gain
  * an empty array that reads as "checked, none found").
  */
-export function relayApplyInstructions(instr: ApplyInstructionsJson): ApplyInstructionsJson {
+export function relayApplyInstructions(
+  instr: ApplyInstructionsJson,
+  changeId: string,
+): ApplyInstructionsJson {
   return {
     ...instr,
-    instruction: relayThroughCospec(instr.instruction),
+    instruction: relayThroughCospec(instr.instruction).replaceAll(
+      APPLY_PLACEHOLDER,
+      `cospec apply "${changeId}"`,
+    ),
     ...(instr.warnings !== undefined ? { warnings: instr.warnings.map(relayThroughCospec) } : {}),
   }
 }
@@ -241,7 +250,7 @@ function printReport(report: ItemReport, ctx: CommandContext): void {
 async function applyLegacy(change: Change, ctx: CommandContext, root: Root): Promise<number> {
   let instr: ApplyInstructionsJson
   try {
-    instr = relayApplyInstructions(await openspecApplyInstructions(root, change.id))
+    instr = relayApplyInstructions(await openspecApplyInstructions(root, change.id), change.id)
   } catch (err) {
     process.stderr.write(`cospec apply: ${(err as Error).message}\n`)
     return EXIT.failure
@@ -262,9 +271,10 @@ async function applyLegacy(change: Change, ctx: CommandContext, root: Root): Pro
 
 export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
+  const parsedArgs = ctx.parsed!
   const root = await resolveRoot(ctx)
   const base = root.base
-  const allowSoft = ctx.args.includes('--allow-soft')
+  const allowSoft = hasFlag(parsedArgs, '--allow-soft')
   // `skip_specs` precedence (DESIGN §5, OpenSpec 1.7 parity): the one-shot CLI
   // flag overrides a persisted `.openspec.yaml` marker, which overrides the
   // structural default (spec-bearing types must show deltas). The conflict
@@ -272,13 +282,9 @@ export async function run(ctx: CommandContext): Promise<number> {
   // validate-time ERROR owned by the validate rule family; Step 2 below runs
   // fast validation first, so that ERROR blocks the gate before this flag
   // ever gets a chance to paper over it.
-  const cliSkipSpecs = ctx.args.includes('--skip-specs')
-  const name = ctx.args.find((a) => !a.startsWith('-'))
-
-  if (name === undefined) {
-    process.stderr.write('cospec apply: a change name is required (cospec apply <change>)\n')
-    return EXIT.failure
-  }
+  const cliSkipSpecs = hasFlag(parsedArgs, '--skip-specs')
+  // Required in the table: the parser has refused a missing one.
+  const name = parsedArgs.positionals[0]!
 
   if (!existsSync(openspecDir(base))) {
     process.stderr.write(`cospec: no openspec/ directory at ${base} — run 'cospec init' first\n`)
@@ -439,7 +445,7 @@ export async function run(ctx: CommandContext): Promise<number> {
   // Step 5: fetch the apply payload from openspec.
   let instr: ApplyInstructionsJson
   try {
-    instr = relayApplyInstructions(await openspecApplyInstructions(root, change.id))
+    instr = relayApplyInstructions(await openspecApplyInstructions(root, change.id), change.id)
   } catch (err) {
     const msg = err instanceof OpenspecCallError ? err.message : (err as Error).message
     process.stderr.write(`cospec apply: ${msg}\n`)

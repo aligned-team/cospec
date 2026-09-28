@@ -7,5 +7,5 @@ import type { CommandContext } from '../cli.ts'
 import { runPassthrough } from '../core/passthrough-command.ts'
 
 export function run(ctx: CommandContext): Promise<number> {
-  return runPassthrough(ctx, { args: ['schemas', ...ctx.args] })
+  return runPassthrough(ctx, { command: ['schemas'], args: ctx.args })
 }

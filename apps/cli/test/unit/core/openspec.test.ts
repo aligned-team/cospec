@@ -19,7 +19,9 @@ import {
   PINNED_OPENSPEC_VERSION,
   runOpenspec,
   satisfiesOpenspecRange,
+  threadedArgv,
   WRAPPED_ENV,
+  wrappedCallLabel,
 } from '../../../src/core/openspec.ts'
 
 function result(partial: Partial<OpenspecResult>): OpenspecResult {
@@ -207,4 +209,47 @@ describe('wrapped calls against the real binary', () => {
       OpenspecCallError,
     )
   }, 30_000)
+})
+
+describe('threading flags onto a wrapped call', () => {
+  test('threaded flags land right after the command path, ahead of every user token', () => {
+    expect(threadedArgv(['templates'], ['--json', '--no-color'])).toEqual([
+      'templates',
+      '--json',
+      '--no-color',
+    ])
+    // A dangling value-taking flag stays dangling: the binary refuses it.
+    expect(threadedArgv(['store', 'setup'], ['--json'], ['s1', '--path'])).toEqual([
+      'store',
+      'setup',
+      '--json',
+      's1',
+      '--path',
+    ])
+    expect(threadedArgv(['show'], ['--store', 's'], ['c1', '--type'])).toEqual([
+      'show',
+      '--store',
+      's',
+      'c1',
+      '--type',
+    ])
+  })
+
+  test('threaded flags precede a user -- and never land among its operands', () => {
+    expect(threadedArgv(['show'], ['--store', 's'], ['foo', '--', '--json', '--'])).toEqual([
+      'show',
+      '--store',
+      's',
+      'foo',
+      '--',
+      '--json',
+      '--',
+    ])
+  })
+
+  test('a wrapped-call label never spells a bare openspec command', () => {
+    const label = wrappedCallLabel(['store', 'register', '--json', '.', '--id'])
+    expect(label).toContain('store register --json . --id')
+    expect(label).not.toMatch(/\bopenspec\b/)
+  })
 })

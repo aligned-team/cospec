@@ -9,6 +9,7 @@ import { basename } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
+import { jsonRefusal } from '../core/command-table.ts'
 import { renderBashCompletion } from '../core/completions/bash.ts'
 import { renderFishCompletion } from '../core/completions/fish.ts'
 import { buildCompletionSpec } from '../core/completions/spec.ts'
@@ -43,20 +44,17 @@ export function renderCompletion(shell: SupportedShell): string {
 export function run(ctx: CommandContext): number {
   // A shell script is not a JSON document, so `--json` is refused rather than
   // faked — but the refusal is still exactly one JSON document on stdout, which
-  // is what a `--json` caller is entitled to.
+  // is what a `--json` caller is entitled to. `cli.ts` already answers this
+  // before the module loads (the row is `json: 'refused'`); kept here too so
+  // a direct call to `run()` gets the same one-document refusal.
   if (ctx.flags.json) {
     process.stdout.write(
-      `${JSON.stringify({
-        version: 1,
-        command: 'completion',
-        ok: false,
-        message: 'cospec completion emits a shell script and cannot emit JSON',
-      })}\n`,
+      jsonRefusal('completion', 'cospec completion emits a shell script and cannot emit JSON'),
     )
     return EXIT.failure
   }
 
-  const requested = ctx.args[0]
+  const requested = ctx.parsed!.positionals[0]
   if (requested !== undefined && !isSupportedShell(requested)) {
     process.stderr.write(
       `cospec completion: unsupported shell '${requested}' ` +

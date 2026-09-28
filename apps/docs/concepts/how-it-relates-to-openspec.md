@@ -1,8 +1,8 @@
 ---
 title: How cospec relates to OpenSpec
 description:
-  cospec wraps OpenSpec rather than replacing it — the version pin, the
-  resolution rules, and the three failure modes cospec closes.
+  cospec is a drop-in replacement for OpenSpec, not a fork — the version pin,
+  the reachability contract, and the three failure modes cospec closes.
 ---
 
 # How cospec relates to OpenSpec
@@ -121,6 +121,45 @@ passing them through would write the opsx files cospec's own leftover scan flags
 [Configuration](/reference/configuration#machine-global-openspec-config) for
 `config`, and [Installation](/guide/installation#shell-completion) for
 `completion`.
+
+<script setup>
+import { data as parity } from '../.vitepress/parity.data.ts'
+</script>
+
+## Named exceptions
+
+"Every capability has a counterpart" is a checked claim, not a promise: a
+[reachability contract test](https://github.com/aligned-team/cospec/blob/main/apps/cli/test/contract/reachability.test.ts)
+walks every command, flag, tool id and workflow the pinned OpenSpec binary
+exposes and fails the build the moment one stops resolving to a cospec surface.
+Two kinds of entry resolve to a named exception instead of a command:
+
+<ul>
+  <li v-for="e in parity.exceptions" :key="e.surface">
+    <code>{{ e.surface }}</code> — {{ e.reason }}
+  </li>
+  <li v-for="d in parity.deprecated" :key="d.surface">
+    <code>{{ d.surface }}</code> — {{ d.note }} upstream; cospec never had
+    partial coverage of it and doesn't add one now.
+  </li>
+</ul>
+
+<div v-if="parity.pending.length">
+
+<h3 id="still-being-implemented">Still being implemented</h3>
+
+<p>
+Reachable in principle, not yet reachable from cospec — each is owed to a
+named change:
+</p>
+
+<ul>
+  <li v-for="p in parity.pending" :key="p.surface">
+    <code>{{ p.surface }}</code> — tracked by <code>{{ p.owner }}</code>
+  </li>
+</ul>
+
+</div>
 
 ## Three failure modes cospec defends against
 

@@ -67,13 +67,23 @@ async function spawn(
   cmd: string[],
   cwd: string,
   env?: Record<string, string>,
+  unset: readonly string[] = [],
 ): Promise<SpawnResult> {
+  const childEnv: Record<string, string | undefined> = {
+    ...envWithoutColorForcing(),
+    NO_COLOR: '1',
+    ...env,
+  }
+  // Deleted after the merge, so an ambient value (the suite's own
+  // `$XDG_DATA_HOME`, say) cannot reach the child; an empty string would
+  // still count as set.
+  for (const key of unset) delete childEnv[key]
   const proc = Bun.spawn(cmd, {
     cwd,
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
-    env: { ...envWithoutColorForcing(), NO_COLOR: '1', ...env },
+    env: childEnv,
   })
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
@@ -86,9 +96,14 @@ async function spawn(
 /** Run the cospec CLI from source in `cwd`. */
 export function cospec(
   args: string[],
-  opts: { cwd: string; env?: Record<string, string> },
+  opts: {
+    cwd: string
+    env?: Record<string, string>
+    /** Variables the child runs without, whatever the suite's own environment holds. */
+    unset?: readonly string[]
+  },
 ): Promise<SpawnResult> {
-  return spawn(['bun', CLI_ENTRY, ...args], opts.cwd, opts.env)
+  return spawn(['bun', CLI_ENTRY, ...args], opts.cwd, opts.env, opts.unset)
 }
 
 /** Run the packed-tarball `cospec` binary at `binPath` from `cwd`. */

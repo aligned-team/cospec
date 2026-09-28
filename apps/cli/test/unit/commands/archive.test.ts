@@ -39,7 +39,7 @@ describe('archive pre-flight', () => {
   test('unknown change exits 1 with a suggestion', async () => {
     const cwd = repo()
     writeChange(cwd, 'ship-it', 'ci', VALID_CI)
-    const r = await runCmd(archiveRun, ctx(cwd, ['ship-itt']))
+    const r = await runCmd(archiveRun, ctx(cwd, ['ship-itt'], { command: 'archive' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain("Did you mean 'ship-it'")
   })
@@ -51,7 +51,7 @@ describe('archive pre-flight', () => {
       'blocking-changes.md': EMPTY_BLOCKERS,
       'tasks.md': '## 1. G\n\n- [ ] 1.1 not done yet\n',
     })
-    const r = await runCmd(archiveRun, ctx(cwd, ['c']))
+    const r = await runCmd(archiveRun, ctx(cwd, ['c'], { command: 'archive' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('incomplete task')
     expect(r.err).toContain('--force-incomplete')
@@ -62,7 +62,7 @@ describe('archive pre-flight', () => {
     const today = new Date().toISOString().slice(0, 10)
     writeArchived(cwd, `${today}-c`, 'ci')
     writeChange(cwd, 'c', 'ci', VALID_CI)
-    const r = await runCmd(archiveRun, ctx(cwd, ['c']))
+    const r = await runCmd(archiveRun, ctx(cwd, ['c'], { command: 'archive' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('already exists')
   })
@@ -78,14 +78,17 @@ describe('archive pre-flight', () => {
       'blocking-changes.md': EMPTY_BLOCKERS,
       'tasks.md': '## 1. G\n\n- [x] 1.1 done\n+ [ ] 1.2 not done yet\n',
     })
-    const r = await runCmd(archiveRun, ctx(cwd, ['c']))
+    const r = await runCmd(archiveRun, ctx(cwd, ['c'], { command: 'archive' }))
     expect(r.code).toBe(1)
     // Refused by the grammar rule in step 2, ahead of the step 3 tasks gate —
     // and, unlike that gate, `--force-incomplete` does not waive it.
     expect(r.out).toContain('tasks/checkbox-grammar')
     expect(r.out).toContain('- [ ] 1.2 not done yet')
     expect(existsSync(join(cwd, 'openspec/changes/c'))).toBe(true)
-    const forced = await runCmd(archiveRun, ctx(cwd, ['c', '--force-incomplete']))
+    const forced = await runCmd(
+      archiveRun,
+      ctx(cwd, ['c', '--force-incomplete'], { command: 'archive' }),
+    )
     expect(forced.code).toBe(1)
     expect(existsSync(join(cwd, 'openspec/changes/c'))).toBe(true)
   })
@@ -97,7 +100,7 @@ describe('archive pre-flight', () => {
       'blocking-changes.md': EMPTY_BLOCKERS,
       'tasks.md': DONE_TASKS,
     })
-    const r = await runCmd(archiveRun, ctx(cwd, ['c']))
+    const r = await runCmd(archiveRun, ctx(cwd, ['c'], { command: 'archive' }))
     expect(r.code).toBe(1)
     expect(r.out).toContain('proposal/sections')
   })
@@ -130,7 +133,7 @@ describe('archive/verification-incomplete (DESIGN §3.5 step 1)', () => {
       ].join('\n'),
     })
     stampV2(cwd, 'c', 'fix')
-    const r = await runCmd(archiveRun, ctx(cwd, ['c']))
+    const r = await runCmd(archiveRun, ctx(cwd, ['c'], { command: 'archive' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('not fully resolved')
     expect(r.err).toContain('1.2 @unit')
@@ -149,7 +152,7 @@ describe('archive/verification-incomplete (DESIGN §3.5 step 1)', () => {
       ].join('\n'),
     })
     stampV2(cwd, 'c', 'fix')
-    const r = await runCmd(archiveRun, ctx(cwd, ['c']))
+    const r = await runCmd(archiveRun, ctx(cwd, ['c'], { command: 'archive' }))
     expect(r.code).toBe(1)
     expect(r.out).toContain('verification/row-grammar')
     expect(existsSync(join(cwd, 'openspec/changes/c'))).toBe(true)
@@ -159,7 +162,7 @@ describe('archive/verification-incomplete (DESIGN §3.5 step 1)', () => {
     const cwd = repo()
     writeChange(cwd, 'c', 'fix', VALID_FIX)
     stampV2(cwd, 'c', 'fix')
-    const r = await runCmd(archiveRun, ctx(cwd, ['c']))
+    const r = await runCmd(archiveRun, ctx(cwd, ['c'], { command: 'archive' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('does not exist yet')
     expect(existsSync(join(cwd, 'openspec/changes/c'))).toBe(true)

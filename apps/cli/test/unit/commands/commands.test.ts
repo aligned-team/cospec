@@ -1,11 +1,18 @@
 import { afterAll, describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import type { CommandContext } from '../../../src/cli.ts'
 import { run as instructionsRun } from '../../../src/commands/instructions.ts'
 import { run as listRun } from '../../../src/commands/list.ts'
-import { run as newRun, slugify } from '../../../src/commands/new.ts'
+import {
+  cospecSchemaInstalled,
+  run as newRun,
+  slugify,
+  userSchemasDir,
+  wrappedNewReason,
+} from '../../../src/commands/new.ts'
 import {
   computeStatus,
   gateLabel,
@@ -13,6 +20,7 @@ import {
   run as statusRun,
 } from '../../../src/commands/status.ts'
 import { run as validateRun } from '../../../src/commands/validate.ts'
+import { commandRow, parseCommandArgs } from '../../../src/core/command-table.ts'
 import {
   ctx,
   DONE_TASKS,
@@ -25,6 +33,13 @@ import {
 } from './helpers.ts'
 
 const roots: string[] = []
+// An empty home for every user-level schema lookup here, so a schema the
+// suite's own user has installed (`~/.local/share/openspec/schemas`,
+// `$XDG_DATA_HOME/openspec/schemas`) never answers for the repo.
+const SANDBOX_HOME = mkdtempSync(join(tmpdir(), 'cospec-home-'))
+roots.push(SANDBOX_HOME)
+const newIn = (context: CommandContext): Promise<number> =>
+  newRun(context, { env: {}, home: SANDBOX_HOME })
 function repo(schema?: string): string {
   const dir = makeRepo(schema)
   roots.push(dir)
@@ -48,11 +63,195 @@ describe('new: slugify', () => {
   })
 })
 
+describe("new: a failed wrapped new change's reason", () => {
+  const result = (stdout: string, stderr = '') => ({ stdout, stderr, exitCode: 1 })
+  test("takes its --json document's first status message", () => {
+    const doc = JSON.stringify({
+      change: null,
+      status: [
+        { severity: 'error', code: 'change_error', message: "Failed to parse schema at 'x'\n" },
+      ],
+    })
+    expect(wrappedNewReason(result(doc))).toBe("Failed to parse schema at 'x'")
+  })
+  // On EACCES/ENOTDIR the binary logs a stat warning to stdout ahead of its
+  // --json document (`change-utils.js` directoryExists), so stdout is not one
+  // document: its reason is still that document's message.
+  test('takes the document that follows a warning line on stdout', () => {
+    const message = "EACCES: permission denied, mkdir '/w/my openspec list dir/openspec/changes/y'"
+    const doc = JSON.stringify(
+      { change: null, status: [{ severity: 'error', code: 'change_error', message }] },
+      null,
+      2,
+    )
+    const stdout = `Unable to check if directory exists at /w/my openspec list dir/openspec/changes/y: EACCES: permission denied, stat '/w/my openspec list dir/openspec/changes/y'\n${doc}\n`
+    expect(wrappedNewReason(result(stdout))).toBe(message)
+  })
+  test('falls back to stderr without color codes or its error prefix', () => {
+    expect(wrappedNewReason(result('', "\x1b[31m✖ Error: Schema 'nope' not found\x1b[39m\n"))).toBe(
+      "Schema 'nope' not found",
+    )
+    expect(wrappedNewReason(result('', 'boom\n'))).toBe('boom')
+    expect(wrappedNewReason(result('', ''))).toBeUndefined()
+  })
+  // Only upstream's own sentences are respelled (`core/remedies.ts`), each
+  // verbatim; their holes (a list, a path) are relayed as captured.
+  test("spells each of upstream's own remedy sentences it holds through cospec", () => {
+    const doc = JSON.stringify({
+      change: null,
+      status: [
+        {
+          message:
+            'No OpenSpec root found in the current directory or its ancestors. Registered stores: st1, st2. Pass --store <id> to use one, or run openspec init to create a local root.',
+        },
+      ],
+    })
+    expect(wrappedNewReason(result(doc))).toBe(
+      'No OpenSpec root found in the current directory or its ancestors. Registered stores: st1, st2. Pass --store <id> to use one, or run cospec init to create a local root.',
+    )
+  })
+  // A schema's own content and path are the user's: only the remedy spellings
+  // ahead of the binary's parse-error payload are respelled.
+  test("leaves a schema parse error's path and quoted excerpt untouched", () => {
+    const payloads = [
+      "Failed to parse schema at '/w/openspec new/schemas/broken/schema.yaml': Flow sequence in block collection must be sufficiently indented and end with a ] at line 3, column 1:\n\ndescription: run openspec init first\ninstruction: `openspec status --change x`\n",
+      "Invalid schema at '/w/openspec/schemas/s1/schema.yaml': artifacts.0.id: Expected 'openspec list' to be a kebab-case id; see openspec schema validate",
+    ]
+    for (const payload of payloads) {
+      const doc = JSON.stringify({ change: null, status: [{ message: payload }] })
+      expect(wrappedNewReason(result(doc))).toBe(payload.trim())
+      const stderr = `\x1b[31m✖ Error: ${payload}\x1b[39m\n`
+      expect(wrappedNewReason(result('', stderr))).toBe(payload.trim())
+    }
+    // An upstream sentence ahead of the payload is still respelled; the
+    // payload is not, even where the user's schema copies one verbatim.
+    const mixed =
+      "Run openspec init to create a root here. Failed to parse schema at '/w/s.yaml': Run openspec init to create a root here."
+    const doc = JSON.stringify({ change: null, status: [{ message: mixed }] })
+    expect(wrappedNewReason(result(doc))).toBe(
+      "Run cospec init to create a root here. Failed to parse schema at '/w/s.yaml': Run openspec init to create a root here.",
+    )
+  })
+  // Text that is not one of upstream's sentences is relayed verbatim, however
+  // remedy-like its wording (no lead-in, quote or backtick is a trigger).
+  test('respells only an upstream sentence, never prose that names a command', () => {
+    const prose = 'openspec widgets are not openspec store setup or `openspec status --change x`'
+    const remedy =
+      'Create it with `openspec instructions proposal --change x` (`openspec status --change x` shows what is left).'
+    const doc = JSON.stringify({ change: null, status: [{ message: `${prose}. ${remedy}` }] })
+    expect(wrappedNewReason(result(doc))).toBe(
+      `${prose}. Create it with \`cospec instructions proposal --change x\` (\`cospec status --change x\` shows what is left).`,
+    )
+  })
+  // The binary quotes every path it reports (`mkdir '<path>'`) and ends an
+  // existing change's message with its path: a directory named after a
+  // command is still the user's.
+  test('leaves a quoted path and the path after "already exists at" untouched', () => {
+    const reasons = [
+      "EACCES: permission denied, mkdir '/w/my openspec list dir/openspec/changes/y'",
+      "EEXIST: file already exists, mkdir 'openspec new/openspec/changes/z'",
+      "ENOTDIR: not a directory, mkdir '/w/run openspec init/openspec/changes/z'",
+      "Change 'x' already exists at /w/a openspec list/b openspec new/c openspec init/openspec/changes/x",
+    ]
+    for (const reason of reasons) {
+      const doc = JSON.stringify({ change: null, status: [{ message: reason }] })
+      expect(wrappedNewReason(result(doc))).toBe(reason)
+      expect(wrappedNewReason(result('', `\x1b[31m✖ Error: ${reason}\x1b[39m\n`))).toBe(reason)
+    }
+  })
+  // Free text is never pattern-matched: a path that happens to read like a
+  // remedy stays the user's, quoted or not, whatever it contains.
+  test('leaves a path that reads like a remedy untouched, quoted or not', () => {
+    const reasons = [
+      "EACCES: permission denied, mkdir '/w/Bob's run openspec init dir/openspec/changes/y'",
+      'Invalid store declaration in /w/run openspec init/openspec/config.yaml: the store key is not a string.',
+      'Invalid store declaration in /w/a (openspec list)/openspec/config.yaml: the store key is not a string.',
+    ]
+    for (const reason of reasons) {
+      const doc = JSON.stringify({ change: null, status: [{ message: reason }] })
+      expect(wrappedNewReason(result(doc))).toBe(reason)
+      expect(wrappedNewReason(result('', `\x1b[31m✖ Error: ${reason}\x1b[39m\n`))).toBe(reason)
+    }
+  })
+  // A sentence's hole is re-emitted unread: a path in it that reads like a
+  // remedy is still the user's.
+  test("respells upstream's store remedies, never the path a sentence names", () => {
+    const pairs = [
+      [
+        'Run openspec store setup s1 or openspec store register <path> first.',
+        'Run cospec store setup s1 or cospec store register <path> first.',
+      ],
+      [
+        'Pass a registered store id, or run openspec store list.',
+        'Pass a registered store id, or run cospec store list.',
+      ],
+      [
+        "Register the store (openspec store register <path> --id s1) or edit /w/Bob's run openspec init/openspec/config.yaml to name a registered store.",
+        "Register the store (cospec store register <path> --id s1) or edit /w/Bob's run openspec init/openspec/config.yaml to name a registered store.",
+      ],
+    ]
+    for (const [reason, respelled] of pairs) {
+      const doc = JSON.stringify({ change: null, status: [{ message: reason }] })
+      expect(wrappedNewReason(result(doc))).toBe(respelled!)
+      expect(wrappedNewReason(result('', `\x1b[31m✖ Error: ${reason}\x1b[39m\n`))).toBe(respelled!)
+    }
+  })
+})
+
+describe('new: where the wrapped binary resolves a user-level schema', () => {
+  test('userSchemasDir follows its global data dir, never ~/.config', () => {
+    expect(userSchemasDir({ XDG_DATA_HOME: '/x' }, '/h', 'darwin')).toBe('/x/openspec/schemas')
+    expect(userSchemasDir({ XDG_DATA_HOME: '' }, '/h', 'linux')).toBe(
+      '/h/.local/share/openspec/schemas',
+    )
+    expect(userSchemasDir({}, '/h', 'darwin')).toBe('/h/.local/share/openspec/schemas')
+    expect(userSchemasDir({ LOCALAPPDATA: '/l' }, '/h', 'win32')).toBe(
+      join('/l', 'openspec', 'schemas'),
+    )
+    expect(userSchemasDir({}, '/h', 'win32')).toBe(
+      join('/h', 'AppData', 'Local', 'openspec', 'schemas'),
+    )
+  })
+
+  test('a project schema or a user-level one counts; a schema.yaml linked outside does not', () => {
+    const cwd = repo()
+    const data = mkdtempSync(join(tmpdir(), 'cospec-data-'))
+    roots.push(data)
+    const user = join(data, 'openspec', 'schemas')
+    // The data dir alone decides, whatever the suite's own home holds.
+    const installed = (): boolean =>
+      cospecSchemaInstalled(cwd, 'feat', { XDG_DATA_HOME: data }, SANDBOX_HOME)
+    expect(installed()).toBe(true)
+    cpSync(join(cwd, 'openspec', 'schemas', 'feat'), join(user, 'feat'), { recursive: true })
+    rmSync(join(cwd, 'openspec', 'schemas', 'feat'), { recursive: true })
+    expect(installed()).toBe(true)
+    rmSync(join(user, 'feat', 'schema.yaml'))
+    symlinkSync(
+      join(cwd, 'openspec', 'schemas', 'fix', 'schema.yaml'),
+      join(user, 'feat', 'schema.yaml'),
+    )
+    expect(installed()).toBe(false)
+    rmSync(join(user, 'feat'), { recursive: true })
+    expect(installed()).toBe(false)
+  })
+
+  test('with no $XDG_DATA_HOME the home directory decides', () => {
+    const cwd = repo()
+    const home = mkdtempSync(join(tmpdir(), 'cospec-home-'))
+    roots.push(home)
+    const user = join(home, '.local', 'share', 'openspec', 'schemas')
+    cpSync(join(cwd, 'openspec', 'schemas', 'feat'), join(user, 'feat'), { recursive: true })
+    rmSync(join(cwd, 'openspec', 'schemas', 'feat'), { recursive: true })
+    expect(cospecSchemaInstalled(cwd, 'feat', {}, home)).toBe(true)
+    expect(cospecSchemaInstalled(cwd, 'feat', {}, SANDBOX_HOME)).toBe(false)
+  })
+})
+
 describe('new: validation before delegation', () => {
   test('no openspec/ directory exits 1 with an actionable init hint', async () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cospec-noinit-'))
     roots.push(cwd)
-    const r = await runCmd(newRun, ctx(cwd, ['feat', 'foo']))
+    const r = await runCmd(newIn, ctx(cwd, ['feat', 'foo'], { command: 'new' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('no openspec/ directory')
     expect(r.err).toContain("run 'cospec init' first")
@@ -61,9 +260,44 @@ describe('new: validation before delegation', () => {
     expect(r.err).not.toContain('exited')
   })
 
+  test('a cospec type with no installed schema exits 1 naming the setup, not the wrapped call', async () => {
+    const cwd = repo()
+    rmSync(join(cwd, 'openspec', 'schemas', 'feat'), { recursive: true })
+    const r = await runCmd(newIn, ctx(cwd, ['feat', 'foo'], { command: 'new' }))
+    expect(r.code).toBe(1)
+    expect(r.err).toBe(
+      "cospec new: schema 'feat' is not installed in this repo — run 'cospec init' first\n",
+    )
+    expect(r.err).not.toContain('wrapped')
+  })
+
+  test("the missing-schema refusal under --json is one document in new change's shape", async () => {
+    const cwd = repo()
+    rmSync(join(cwd, 'openspec', 'schemas', 'feat'), { recursive: true })
+    const r = await runCmd(newIn, ctx(cwd, ['feat', 'foo'], { command: 'new', json: true }))
+    expect(r.code).toBe(1)
+    expect(r.err).toBe('')
+    expect(r.out).toBe(
+      `${JSON.stringify(
+        {
+          change: null,
+          status: [
+            {
+              severity: 'error',
+              code: 'change_error',
+              message: "schema 'feat' is not installed in this repo — run 'cospec init' first",
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    )
+  })
+
   test('unknown type exits 1 with a suggestion and the table', async () => {
     const cwd = repo()
-    const r = await runCmd(newRun, ctx(cwd, ['feaf', 'x']))
+    const r = await runCmd(newIn, ctx(cwd, ['feaf', 'x'], { command: 'new' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain("unknown type 'feaf'")
     expect(r.err).toContain("Did you mean 'feat'")
@@ -72,7 +306,7 @@ describe('new: validation before delegation', () => {
 
   test('invalid slug exits 1', async () => {
     const cwd = repo()
-    const r = await runCmd(newRun, ctx(cwd, ['ci', 'Bad_Slug']))
+    const r = await runCmd(newIn, ctx(cwd, ['ci', 'Bad_Slug'], { command: 'new' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('invalid slug')
   })
@@ -80,7 +314,7 @@ describe('new: validation before delegation', () => {
   test('collision with an active change exits 1', async () => {
     const cwd = repo()
     writeChange(cwd, 'dup', 'ci')
-    const r = await runCmd(newRun, ctx(cwd, ['ci', 'dup']))
+    const r = await runCmd(newIn, ctx(cwd, ['ci', 'dup'], { command: 'new' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('already exists')
   })
@@ -88,9 +322,55 @@ describe('new: validation before delegation', () => {
   test('collision with an archive-entry suffix exits 1', async () => {
     const cwd = repo()
     writeArchived(cwd, '2026-06-01-shipped', 'ci')
-    const r = await runCmd(newRun, ctx(cwd, ['ci', 'shipped']))
+    const r = await runCmd(newIn, ctx(cwd, ['ci', 'shipped'], { command: 'new' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('collides with an archived change')
+  })
+
+  test("under --json every own refusal is one document in new change's shape", async () => {
+    const doc = (message: string): string =>
+      `${JSON.stringify(
+        { change: null, status: [{ severity: 'error', code: 'change_error', message }] },
+        null,
+        2,
+      )}\n`
+    const bare = mkdtempSync(join(tmpdir(), 'cospec-noinit-'))
+    roots.push(bare)
+    const cwd = repo()
+    writeChange(cwd, 'dup', 'ci')
+    writeArchived(cwd, '2026-06-01-shipped', 'ci')
+    const cases: [string, string[], string][] = [
+      [bare, ['feat', 'foo'], "no openspec/ directory — run 'cospec init' first"],
+      [
+        cwd,
+        ['feaf', 'x'],
+        "unknown type 'feaf' — did you mean 'feat'? Valid types: " +
+          'build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test',
+      ],
+      [
+        cwd,
+        ['ci: !!!'],
+        "could not derive a slug from '!!!' — pass an explicit slug: cospec new ci <slug>",
+      ],
+      [
+        cwd,
+        ['ci', 'Bad_Slug'],
+        "invalid slug 'Bad_Slug' — must match ^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      ],
+      [cwd, ['ci', 'dup'], "change 'dup' already exists in openspec/changes/"],
+      [
+        cwd,
+        ['ci', 'shipped'],
+        "'shipped' collides with an archived change suffix — choose a different slug",
+      ],
+    ]
+    for (const [dir, args, message] of cases) {
+      // oxlint-disable-next-line no-await-in-loop -- each run writes the shared process streams
+      const r = await runCmd(newIn, ctx(dir, args, { command: 'new', json: true }))
+      expect(r.code, args.join(' ')).toBe(1)
+      expect(r.err, args.join(' ')).toBe('')
+      expect(r.out, args.join(' ')).toBe(doc(message))
+    }
   })
 })
 
@@ -98,7 +378,7 @@ describe('status', () => {
   test('empty change renders "in progress", never Unknown item', async () => {
     const cwd = repo()
     writeChange(cwd, 'bare', 'feat')
-    const r = await runCmd(statusRun, ctx(cwd, ['--change', 'bare']))
+    const r = await runCmd(statusRun, ctx(cwd, ['--change', 'bare'], { command: 'status' }))
     expect(r.code).toBe(0)
     expect(r.out).toContain('in progress — no artifacts yet')
     expect(r.out).toContain('cospec instructions proposal --change bare')
@@ -107,9 +387,47 @@ describe('status', () => {
   test('unknown change exits 1 with a suggestion', async () => {
     const cwd = repo()
     writeChange(cwd, 'add-widget', 'feat')
-    const r = await runCmd(statusRun, ctx(cwd, ['--change', 'add-widgets']))
+    const r = await runCmd(statusRun, ctx(cwd, ['--change', 'add-widgets'], { command: 'status' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain("Did you mean 'add-widget'")
+  })
+
+  test('under --json every refusal and the no-changes answer is one document', async () => {
+    const cwd = repo()
+    const none = await runCmd(statusRun, ctx(cwd, [], { json: true, command: 'status' }))
+    expect(none.code).toBe(0)
+    expect(JSON.parse(none.out)).toMatchObject({ changes: [], message: 'No active changes.' })
+
+    writeChange(cwd, 'add-widget', 'feat')
+    const unknown = await runCmd(
+      statusRun,
+      ctx(cwd, ['--change', 'add-widgets'], { json: true, command: 'status' }),
+    )
+    expect(unknown.code).toBe(1)
+    expect(unknown.err).toBe('')
+    expect(JSON.parse(unknown.out)).toEqual({
+      status: [
+        {
+          severity: 'error',
+          code: 'change_error',
+          message: "unknown change 'add-widgets'. Did you mean 'add-widget'?",
+        },
+      ],
+    })
+
+    writeChange(cwd, 'second', 'ci')
+    const required = await runCmd(statusRun, ctx(cwd, [], { json: true, command: 'status' }))
+    expect(required.code).toBe(1)
+    expect(required.err).toBe('')
+    expect(JSON.parse(required.out)).toEqual({
+      status: [
+        {
+          severity: 'error',
+          code: 'change_error',
+          message: '--change <id> is required. Active changes: add-widget, second',
+        },
+      ],
+    })
   })
 
   test('computeStatus reports artifacts, gate, and archive-readiness', () => {
@@ -163,7 +481,7 @@ describe('status', () => {
   test('human output marks each unwritten artifact ready or waiting', async () => {
     const cwd = repo()
     writeChange(cwd, 'partial', 'ci', { 'blocking-changes.md': EMPTY_BLOCKERS })
-    const r = await runCmd(statusRun, ctx(cwd, ['--change', 'partial']))
+    const r = await runCmd(statusRun, ctx(cwd, ['--change', 'partial'], { command: 'status' }))
     expect(r.code).toBe(0)
     expect(r.out).toMatch(/proposal.*ready/)
     expect(r.out).toMatch(/tasks.*waiting/)
@@ -204,7 +522,10 @@ describe('status', () => {
 describe('status --all (OpenSpec 1.11 parity)', () => {
   test('--all and --change are mutually exclusive', async () => {
     const cwd = repo()
-    const r = await runCmd(statusRun, ctx(cwd, ['--all', '--change', 'bare']))
+    const r = await runCmd(
+      statusRun,
+      ctx(cwd, ['--all', '--change', 'bare'], { command: 'status' }),
+    )
     expect(r.code).toBe(1)
     expect(r.err).toContain('--all and --change options are mutually exclusive')
   })
@@ -213,7 +534,10 @@ describe('status --all (OpenSpec 1.11 parity)', () => {
     // A caller that asked for JSON must always get something parseable — a
     // bare stderr line leaves it with nothing to parse.
     const cwd = repo()
-    const r = await runCmd(statusRun, ctx(cwd, ['--all', '--change', 'bare'], { json: true }))
+    const r = await runCmd(
+      statusRun,
+      ctx(cwd, ['--all', '--change', 'bare'], { json: true, command: 'status' }),
+    )
     expect(r.code).toBe(1)
     expect(r.err).toBe('')
     expect(JSON.parse(r.out)).toEqual({
@@ -223,16 +547,27 @@ describe('status --all (OpenSpec 1.11 parity)', () => {
     })
   })
 
-  test('--all and a positional change name are mutually exclusive', async () => {
-    const cwd = repo()
-    const r = await runCmd(statusRun, ctx(cwd, ['--all', 'bare']))
-    expect(r.code).toBe(1)
-    expect(r.err).toContain('mutually exclusive')
+  test('a positional change name beside --all or --change is an excess argument, as upstream', () => {
+    const status = commandRow('status')
+    if (status?.parse !== 'table') throw new Error('status is a table row')
+    for (const args of [
+      ['--all', 'bare'],
+      ['bare', '--change', 'other'],
+      ['--change', 'other', 'bare'],
+    ]) {
+      const result = parseCommandArgs(status, args)
+      expect(result.ok, args.join(' ')).toBe(false)
+      if (!result.ok)
+        expect(result.refusal.message).toBe(
+          'cospec status: too many arguments. Expected 0 arguments but got 1.\n',
+        )
+    }
+    expect(parseCommandArgs(status, ['bare']).ok).toBe(true)
   })
 
   test('no active changes: reports the empty case and exits 0', async () => {
     const cwd = repo()
-    const r = await runCmd(statusRun, ctx(cwd, ['--all']))
+    const r = await runCmd(statusRun, ctx(cwd, ['--all'], { command: 'status' }))
     expect(r.code).toBe(0)
     expect(r.out).toContain('no active changes')
   })
@@ -245,7 +580,7 @@ describe('status --all (OpenSpec 1.11 parity)', () => {
       'blocking-changes.md': EMPTY_BLOCKERS,
       'tasks.md': DONE_TASKS,
     })
-    const r = await runCmd(statusRun, ctx(cwd, ['--all'], { json: true }))
+    const r = await runCmd(statusRun, ctx(cwd, ['--all'], { json: true, command: 'status' }))
     expect(r.code).toBe(0)
     const parsed = JSON.parse(r.out) as { changes: { change: string }[]; root: string }
     expect(parsed.changes.map((c) => c.change)).toEqual(['alpha', 'zeta'])
@@ -259,8 +594,11 @@ describe('status --all (OpenSpec 1.11 parity)', () => {
       'blocking-changes.md': EMPTY_BLOCKERS,
       'tasks.md': DONE_TASKS,
     })
-    const single = await runCmd(statusRun, ctx(cwd, ['--change', 'c'], { json: true }))
-    const swept = await runCmd(statusRun, ctx(cwd, ['--all'], { json: true }))
+    const single = await runCmd(
+      statusRun,
+      ctx(cwd, ['--change', 'c'], { json: true, command: 'status' }),
+    )
+    const swept = await runCmd(statusRun, ctx(cwd, ['--all'], { json: true, command: 'status' }))
     const sweptParsed = JSON.parse(swept.out) as { changes: unknown[] }
     expect(sweptParsed.changes).toEqual([JSON.parse(single.out)])
     expect(computeStatus(cwd, { id: 'c', dir, schema: 'ci' }).change).toBe('c')
@@ -281,7 +619,7 @@ describe('status --all (OpenSpec 1.11 parity)', () => {
     const badDir = writeChange(cwd, 'bad', 'ci', { 'proposal.md': LITE_PROPOSAL })
     mkdirSync(join(badDir, 'blocking-changes.md'))
 
-    const r = await runCmd(statusRun, ctx(cwd, ['--all'], { json: true }))
+    const r = await runCmd(statusRun, ctx(cwd, ['--all'], { json: true, command: 'status' }))
     expect(r.code).toBe(1)
     const parsed = JSON.parse(r.out) as {
       changes: ({ change: string; error: string } | { change: string })[]
@@ -302,7 +640,7 @@ describe('list', () => {
       'blocking-changes.md': EMPTY_BLOCKERS,
       'tasks.md': DONE_TASKS,
     })
-    const r = await runCmd(listRun, ctx(cwd, []))
+    const r = await runCmd(listRun, ctx(cwd, [], { command: 'list' }))
     expect(r.code).toBe(0)
     expect(r.out).toContain('bare')
     expect(r.out).toContain('no artifacts yet')
@@ -322,7 +660,7 @@ describe('list', () => {
       'blocking-changes.md': `## Blocked by\n\n- [ ] \`dep\` — needed\n\n## Soft-blocked by\n\nNone.\n`,
       'tasks.md': DONE_TASKS,
     })
-    const r = await runCmd(listRun, ctx(cwd, ['--blocked'], { json: true }))
+    const r = await runCmd(listRun, ctx(cwd, ['--blocked'], { json: true, command: 'list' }))
     const parsed = JSON.parse(r.out) as { changes: { change: string }[] }
     expect(parsed.changes.map((c) => c.change)).toEqual(['blocked-one'])
   })
@@ -353,14 +691,14 @@ describe('list', () => {
       ].join('\n'),
     )
 
-    const jsonResult = await runCmd(listRun, ctx(cwd, ['--specs'], { json: true }))
+    const jsonResult = await runCmd(listRun, ctx(cwd, ['--specs'], { json: true, command: 'list' }))
     expect(jsonResult.code).toBe(0)
     const parsed = JSON.parse(jsonResult.out) as {
       specs: { id: string; requirementCount: number }[]
     }
     expect(parsed.specs).toEqual([{ id: 'widget', requirementCount: 1 }])
 
-    const humanResult = await runCmd(listRun, ctx(cwd, ['--specs']))
+    const humanResult = await runCmd(listRun, ctx(cwd, ['--specs'], { command: 'list' }))
     expect(humanResult.code).toBe(0)
     expect(humanResult.out).toContain('widget')
     expect(humanResult.out).toContain('1 requirement')
@@ -368,16 +706,22 @@ describe('list', () => {
 })
 
 describe('instructions: argument handling', () => {
-  test('missing artifact exits 1', async () => {
-    const cwd = repo()
-    const r = await runCmd(instructionsRun, ctx(cwd, []))
-    expect(r.code).toBe(1)
-    expect(r.err).toContain('an artifact is required')
+  test('a missing artifact is refused by the table parser', () => {
+    const row = commandRow('instructions')
+    if (row?.parse !== 'table') throw new Error("no table row 'instructions'")
+    for (const args of [[], ['--change', 'x']]) {
+      const result = parseCommandArgs(row, args)
+      expect(result.ok, args.join(' ')).toBe(false)
+      if (!result.ok)
+        expect(result.refusal.message).toBe(
+          "cospec instructions: missing required argument 'artifact'\ncospec instructions: usage — cospec instructions <artifact>\n",
+        )
+    }
   })
 
   test('non-apply artifact without --change exits 1', async () => {
     const cwd = repo()
-    const r = await runCmd(instructionsRun, ctx(cwd, ['proposal']))
+    const r = await runCmd(instructionsRun, ctx(cwd, ['proposal'], { command: 'instructions' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('--change <id> is required')
   })
@@ -387,7 +731,7 @@ describe('validate: validation before delegation', () => {
   test('no openspec/ directory exits 1 with an actionable init hint', async () => {
     const cwd = mkdtempSync(join(tmpdir(), 'cospec-noinit-'))
     roots.push(cwd)
-    const r = await runCmd(validateRun, ctx(cwd, []))
+    const r = await runCmd(validateRun, ctx(cwd, [], { command: 'validate' }))
     expect(r.code).toBe(1)
     expect(r.err).toContain('no openspec/ directory')
     expect(r.err).toContain("run 'cospec init' first")

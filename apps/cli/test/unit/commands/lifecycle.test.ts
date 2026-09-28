@@ -73,7 +73,7 @@ describe('apply clear gate (openspec instructions payload)', () => {
       'blocking-changes.md': EMPTY_BLOCKERS,
       'tasks.md': DONE_TASKS,
     })
-    const r = await runCmd(applyRun, ctx(cwd, ['c'], { json: true }))
+    const r = await runCmd(applyRun, ctx(cwd, ['c'], { json: true, command: 'apply' }))
     expect(r.code).toBe(0)
     const parsed = JSON.parse(r.out) as {
       gate: { state: string }
@@ -90,7 +90,10 @@ describe('apply clear gate (openspec instructions payload)', () => {
       'blocking-changes.md': EMPTY_BLOCKERS,
       'tasks.md': DONE_TASKS,
     })
-    const r = await runCmd(instructionsRun, ctx(cwd, ['apply', '--change', 'c'], { json: true }))
+    const r = await runCmd(
+      instructionsRun,
+      ctx(cwd, ['apply', '--change', 'c'], { json: true, command: 'instructions' }),
+    )
     expect(r.code).toBe(0)
     expect(JSON.parse(r.out).gate.state).toBe('clear')
   })
@@ -104,7 +107,7 @@ describe('archive: ci skip-specs', () => {
       'blocking-changes.md': EMPTY_BLOCKERS,
       'tasks.md': DONE_TASKS,
     })
-    const r = await runCmd(archiveRun, ctx(cwd, ['try-it'], { json: true }))
+    const r = await runCmd(archiveRun, ctx(cwd, ['try-it'], { json: true, command: 'archive' }))
     expect(r.code).toBe(0)
     const parsed = JSON.parse(r.out) as { archived: boolean; specs: string; target: string }
     expect(parsed.archived).toBe(true)
@@ -129,7 +132,7 @@ describe('archive: feat verifier + spec merge + blocker fan-out', () => {
       'tasks.md': DONE_TASKS,
     })
 
-    const r = await runCmd(archiveRun, ctx(cwd, ['add-widget'], { json: true }))
+    const r = await runCmd(archiveRun, ctx(cwd, ['add-widget'], { json: true, command: 'archive' }))
     expect(r.code).toBe(0)
     const parsed = JSON.parse(r.out) as {
       archived: boolean

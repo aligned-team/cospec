@@ -1,0 +1,113 @@
+# Pinned OpenSpec surfaces cospec does not reach yet, each tagged with the
+# change that implements it (`owner`). Read by reachability.test.ts, which
+# fails on an untagged entry, an entry whose surface the pinned binary no
+# longer has, an entry the command table does not mark pending for the same
+# owner, and a table surface marked pending with no entry here. The change
+# that implements a surface deletes its entry in the same commit. Also read by
+# the docs data loader (apps/docs/.vitepress/parity.data.ts).
+#
+# Entry kinds:
+#   command           a command path; covers its whole subtree
+#   flag              a flag on a command path; covers the flag's values
+#   positional        a positional slot (by index) on a command path
+#   positional-value  one value of a positional slot
+#   tool              an AI_TOOLS id
+#   tool-alias        a TOOL_ID_ALIASES key (`target` is the id it maps to)
+# `source: cli` marks a hidden surface the four registry sources cannot
+# produce; the test verifies it against the pinned binary instead.
+
+# --- upstream-spellings ---------------------------------------------------------
+- { kind: flag, path: [init], flag: --tools, owner: upstream-spellings }
+- { kind: command, path: [new, change], owner: upstream-spellings }
+- { kind: positional, path: [update], index: 0, owner: upstream-spellings }
+- { kind: command, path: [completion, generate], owner: upstream-spellings }
+- { kind: flag, path: [instructions], flag: --schema, owner: upstream-spellings }
+- { kind: command, path: [experimental], source: cli, owner: upstream-spellings }
+# Commander's implicit program-level `help [command]` (`openspec help`,
+# `openspec help list`); cospec answers `unknown command 'help'` until then.
+# The entry covers its subtree, so the `[command]` positional (a hidden
+# fixture too) resolves here, as `new change --initiative` resolves to
+# `new change`.
+- { kind: command, path: [help], source: cli, owner: upstream-spellings }
+
+# --- cli-surface-parity -----------------------------------------------------------
+- { kind: flag, path: [list], flag: --sort, owner: cli-surface-parity }
+- { kind: flag, path: [status], flag: --schema, owner: cli-surface-parity }
+- { kind: flag, path: [validate], flag: --type, owner: cli-surface-parity }
+- { kind: flag, path: [validate], flag: --report, owner: cli-surface-parity }
+- { kind: flag, path: [validate], flag: --concurrency, owner: cli-surface-parity }
+
+# Upstream's hidden `__complete <type>` (dist/cli/index.js) also serves these
+# two types; the walk cannot produce them.
+- kind: positional-value
+  path: [__complete]
+  index: 0
+  value: schemas
+  source: cli
+  owner: cli-surface-parity
+- kind: positional-value
+  path: [__complete]
+  index: 0
+  value: archived-changes
+  source: cli
+  owner: cli-surface-parity
+
+# --- archive-and-sync-parity ------------------------------------------------------
+- { kind: flag, path: [archive], flag: --no-validate, owner: archive-and-sync-parity }
+
+# --- tool-matrix ------------------------------------------------------------------
+- { kind: tool, id: amazon-q, owner: tool-matrix }
+- { kind: tool, id: antigravity, owner: tool-matrix }
+- { kind: tool, id: auggie, owner: tool-matrix }
+- { kind: tool, id: bob, owner: tool-matrix }
+- { kind: tool, id: cline, owner: tool-matrix }
+- { kind: tool, id: command-code, owner: tool-matrix }
+- { kind: tool, id: codeartsagent, owner: tool-matrix }
+- { kind: tool, id: devin, owner: tool-matrix }
+- { kind: tool, id: forgecode, owner: tool-matrix }
+- { kind: tool, id: codebuddy, owner: tool-matrix }
+- { kind: tool, id: continue, owner: tool-matrix }
+- { kind: tool, id: costrict, owner: tool-matrix }
+- { kind: tool, id: crush, owner: tool-matrix }
+- { kind: tool, id: cursor, owner: tool-matrix }
+- { kind: tool, id: factory, owner: tool-matrix }
+- { kind: tool, id: gemini, owner: tool-matrix }
+- { kind: tool, id: hermes, owner: tool-matrix }
+- { kind: tool, id: iflow, owner: tool-matrix }
+- { kind: tool, id: junie, owner: tool-matrix }
+- { kind: tool, id: kilocode, owner: tool-matrix }
+- { kind: tool, id: kimi, owner: tool-matrix }
+- { kind: tool, id: kiro, owner: tool-matrix }
+- { kind: tool, id: lingma, owner: tool-matrix }
+- { kind: tool, id: minimax-code, owner: tool-matrix }
+- { kind: tool, id: vibe, owner: tool-matrix }
+- { kind: tool, id: oh-my-pi, owner: tool-matrix }
+- { kind: tool, id: pi, owner: tool-matrix }
+- { kind: tool, id: codeassistant, owner: tool-matrix }
+- { kind: tool, id: qoder, owner: tool-matrix }
+- { kind: tool, id: qwen, owner: tool-matrix }
+- { kind: tool, id: rovodev, owner: tool-matrix }
+- { kind: tool, id: roocode, owner: tool-matrix }
+- { kind: tool, id: trae, owner: tool-matrix }
+- { kind: tool, id: zed, owner: tool-matrix }
+- { kind: tool, id: zcode, owner: tool-matrix }
+- { kind: tool-alias, id: windsurf, target: devin, owner: tool-matrix }
+
+# --- github-copilot ---------------------------------------------------------------
+- { kind: tool, id: github-copilot, owner: github-copilot }
+- { kind: flag, path: [init], flag: --copilot-cloud, owner: github-copilot }
+- { kind: flag, path: [init], flag: --no-copilot-cloud, owner: github-copilot }
+
+# --- completion-install -----------------------------------------------------------
+- { kind: command, path: [completion, install], owner: completion-install }
+- { kind: command, path: [completion, uninstall], owner: completion-install }
+- kind: positional-value
+  path: [completion]
+  index: 0
+  value: powershell
+  source: cli
+  owner: completion-install
+
+# --- workflow-profiles ------------------------------------------------------------
+- { kind: flag, path: [init], flag: --profile, owner: workflow-profiles }
+- { kind: flag, path: [init], flag: --language, owner: workflow-profiles }

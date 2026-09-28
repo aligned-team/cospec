@@ -11,6 +11,14 @@ import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
+import { commandRow, storePathInOptionPosition, storePathRefusal } from '../core/command-table.ts'
+import {
+  forwardCall,
+  isOptionToken,
+  relayCommandLevel,
+  relayStorePathRefusal,
+  subcommandOf,
+} from '../core/forward-relay.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
 import { passthroughOpenspec, resolveOpenspec, spawnOpenspec } from '../core/openspec.ts'
 
@@ -33,10 +41,15 @@ async function runWorksetPassthrough(
   sub: PassthroughSub,
   rest: string[],
 ): Promise<number> {
-  const args = ['workset', sub, ...rest]
-  if (ctx.flags.json) args.push('--json')
-  if (ctx.flags.noColor) args.push('--no-color')
-  const result = await passthroughOpenspec(args, { cwd: ctx.cwd })
+  const threaded = [
+    ...(ctx.flags.json ? ['--json'] : []),
+    ...(ctx.flags.noColor ? ['--no-color'] : []),
+  ]
+  const result = await forwardCall(() =>
+    passthroughOpenspec({ command: ['workset', sub], threaded, args: rest }, { cwd: ctx.cwd }),
+  )
+  const refused = relayStorePathRefusal(result, ctx.flags.json)
+  if (refused !== undefined) return refused
   if (result.stdout.length > 0) process.stdout.write(result.stdout)
   if (result.stderr.length > 0) process.stderr.write(result.stderr)
   return result.exitCode === 0 ? EXIT.success : EXIT.failure
@@ -66,8 +79,23 @@ async function resolveWorksetOpenBin(cwd: string): Promise<string> {
  * child's exact exit code. Never threads `--json`/`--no-color` — openspec's own
  * `workset open` rejects `--json` (`workset_open_json_unsupported`), and this
  * module deliberately never adds it either.
+ *
+ * The handover class's one pre-spawn `--store-path` check (design decision
+ * 2): with inherited stdio the binary's redirect would reach the terminal
+ * naming bare `openspec`, with nothing to respell, so a `--store-path` in
+ * option position is answered with cospec's redirect without spawning.
  */
 async function runWorksetOpen(ctx: CommandContext, rest: string[]): Promise<number> {
+  const row = commandRow('workset')
+  const open = row?.subcommands?.find((s) => s.name === 'open')
+  if (row === undefined || open === undefined) throw new Error("cospec workset: no 'open' row")
+  if (storePathInOptionPosition([row, open], rest)) {
+    // Upstream declares no `--store-path` here: commander's refusal precedes
+    // any output, so it is text even under `--json`.
+    const refusal = storePathRefusal(false)
+    process[refusal.stream].write(refusal.text)
+    return EXIT.failure
+  }
   const bin = await resolveWorksetOpenBin(ctx.cwd)
   const proc = Bun.spawn([process.execPath, bin, 'workset', 'open', ...rest], {
     cwd: ctx.cwd,
@@ -80,11 +108,12 @@ async function runWorksetOpen(ctx: CommandContext, rest: string[]): Promise<numb
 }
 
 export async function run(ctx: CommandContext): Promise<number> {
-  const [sub, ...rest] = ctx.args
+  const { sub, rest, operand } = subcommandOf(ctx.args)
   if (sub === undefined) {
     process.stderr.write('cospec workset: a subcommand is required (create|list|remove|open)\n')
     return EXIT.failure
   }
+  if (!operand && isOptionToken(sub)) return relayCommandLevel(ctx, ['workset'], ctx.args)
   if (sub === 'open') return runWorksetOpen(ctx, rest)
   if (isPassthroughSub(sub)) return runWorksetPassthrough(ctx, sub, rest)
   process.stderr.write(`cospec workset: unknown subcommand '${sub}'\n`)

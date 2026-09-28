@@ -1,0 +1,10 @@
+# Upstream OpenSpec capabilities cospec deliberately never implements.
+# Exactly one entry: cospec pins the wrapped binary, so upstream `update`'s
+# offer to self-upgrade it past that pin is out of scope for the life of
+# this pin. Read by apps/cli/test/contract/reachability.test.ts (which
+# asserts this file has exactly one entry) and the docs data loader
+# (apps/docs/.vitepress/parity.data.ts).
+- upstream: { kind: command, path: [update], surface: self-upgrade-offer }
+  reason: >-
+    upstream update offers to install a newer OpenSpec and re-run; cospec pins
+    the wrapped binary and the contract suite runs against that pin.

@@ -7,7 +7,8 @@
 // (opt out with `--no-cospec-init`). This reverses PR16's "store management
 // stays native" split — see the change proposal.
 //
-// Every wrapped call appends `--json` itself, regardless of the caller's own
+// Every wrapped call threads `--json` itself, right after the `store <sub>`
+// command path and ahead of the user's argv, regardless of the caller's own
 // `--json` flag, because the mutation/cleanup/list/doctor renderers below need
 // the structured body either way; `ctx.flags.json` only selects which
 // rendering (JSON passthrough vs. an ID/Location table) this command prints.
@@ -17,12 +18,16 @@ import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
+import { commandRow, parseCommandArgs, takesNextToken } from '../core/command-table.ts'
+import { isParseRejection, relayStorePathRefusal, subcommandOf } from '../core/forward-relay.ts'
 import {
+  OpenspecCallError,
   openspecStoreList,
   passthroughOpenspec,
   type OpenspecResult,
   type OpenspecStatusEntry,
   type PostCondition,
+  type WrappedCall,
 } from '../core/openspec.ts'
 import { run as runInit } from './init.ts'
 
@@ -89,23 +94,45 @@ interface CospecInitSummary {
 
 // --- arg plumbing ------------------------------------------------------
 
-/** Remove every occurrence of `flag` (a bare boolean flag), reporting whether it was present. */
-function stripFlag(args: string[], flag: string): { rest: string[]; present: boolean } {
+/**
+ * Remove every occurrence of `flag` (a bare boolean flag) in option position,
+ * reporting whether it was present. As commander reads the argv, a token that
+ * is the value of one of `sub`'s value-taking flags (`--path --no-cospec-init`
+ * sets the store up at `./--no-cospec-init`) and every token after `--` is
+ * not an option, so it stays for the binary.
+ */
+function stripFlag(
+  sub: Subcommand,
+  args: string[],
+  flag: string,
+): { rest: string[]; present: boolean } {
+  const surface = commandRow('store')?.subcommands?.find((s) => s.name === sub)
   let present = false
   const rest: string[] = []
-  for (const tok of args) {
+  for (let i = 0; i < args.length; i++) {
+    const tok = args[i]!
+    if (tok === '--') {
+      rest.push(...args.slice(i))
+      break
+    }
     if (tok === flag) {
       present = true
       continue
     }
     rest.push(tok)
+    // Upstream `store` declares no `--store-path`, so it never takes a value here.
+    if (i + 1 < args.length && takesNextToken(surface === undefined ? [] : [surface], tok, false))
+      rest.push(args[++i]!)
   }
   return { rest, present }
 }
 
-/** Append a canonical trailing `--json` — every wrapped store call parses JSON internally. */
-function withJson(args: string[]): string[] {
-  return [...args, '--json']
+/**
+ * The wrapped `store <sub>` call with cospec's `--json` threaded ahead of the
+ * user's argv — every wrapped store call parses JSON internally.
+ */
+function storeCall(sub: Subcommand, args: string[]): WrappedCall {
+  return { command: ['store', sub], threaded: ['--json'], args }
 }
 
 // --- stdout capture for the auto cospec-init sub-step -------------------
@@ -139,10 +166,18 @@ function captureStdout(fn: () => number): { output: string; code: number } {
  * receipt, folding a summary into this command's own output instead.
  */
 function autoCospecInit(root: string): CospecInitSummary {
+  // `init` reads `ctx.parsed`, which `cli.ts` only builds for the dispatched
+  // command, so parse this in-process call against init's own row.
+  const args = [root, '--harness', 'none']
+  const row = commandRow('init')
+  if (row?.parse !== 'table') throw new Error("cospec store: 'init' has no table row")
+  const result = parseCommandArgs(row, args)
+  if (!result.ok) throw new Error(`cospec store: auto cospec-init argv refused: ${args.join(' ')}`)
   const initCtx: CommandContext = {
-    args: [root, '--harness', 'none'],
+    args,
     flags: { json: true, noColor: false, cwd: process.cwd() },
     cwd: process.cwd(),
+    parsed: result.parsed,
   }
   const { output } = captureStdout(() => runInit(initCtx))
   let harnesses: string[] = []
@@ -289,6 +324,21 @@ function printFailure(ctx: CommandContext, payload: { status: OpenspecStatusEntr
   return EXIT.failure
 }
 
+/**
+ * Relay the binary's own parse rejection (the `forward`-row contract, design
+ * decision 1). Every subcommand here threads `--json` unconditionally (module
+ * header), so a rejection — which the binary answers on stderr in plain text,
+ * before it reaches its JSON renderer — surfaces as unparseable stdout; it is
+ * the user's answer, never a cospec bug. A rejection of `--store-path` is
+ * answered with cospec's redirect.
+ */
+function relayParseRejection(ctx: CommandContext, result: OpenspecResult): number {
+  const refused = relayStorePathRefusal(result, ctx.flags.json)
+  if (refused !== undefined) return refused
+  if (result.stderr.length > 0) process.stderr.write(result.stderr)
+  return EXIT.failure
+}
+
 /** A wrapped-call violation (deny-list, disallowed exit code, bad post-condition) — a cospec bug, not a user error. */
 function printCallError(ctx: CommandContext, err: unknown): number {
   const message = err instanceof Error ? err.message : String(err)
@@ -309,16 +359,20 @@ async function runSetupOrRegister(
   sub: 'setup' | 'register',
   rawArgs: string[],
 ): Promise<number> {
-  const { rest, present: noCospecInit } = stripFlag(rawArgs, '--no-cospec-init')
+  const { rest, present: noCospecInit } = stripFlag(sub, rawArgs, '--no-cospec-init')
   let result: OpenspecResult
   try {
-    result = await passthroughOpenspec(withJson(['store', sub, ...rest]), {
+    result = await passthroughOpenspec(storeCall(sub, rest), {
       cwd: ctx.cwd,
       expect: { postCondition: mutationPostCondition() },
     })
   } catch (err) {
+    if (err instanceof OpenspecCallError && isParseRejection(err.result))
+      return relayParseRejection(ctx, err.result)
     return printCallError(ctx, err)
   }
+  const refused = relayStorePathRefusal(result, ctx.flags.json)
+  if (refused !== undefined) return refused
   const payload = JSON.parse(result.stdout) as MutationPayload
   if (result.exitCode !== 0) return printFailure(ctx, payload)
 
@@ -334,13 +388,17 @@ async function runCleanup(
 ): Promise<number> {
   let result: OpenspecResult
   try {
-    result = await passthroughOpenspec(withJson(['store', sub, ...rawArgs]), {
+    result = await passthroughOpenspec(storeCall(sub, rawArgs), {
       cwd: ctx.cwd,
       expect: { postCondition: cleanupPostCondition(ctx.cwd, sub === 'remove') },
     })
   } catch (err) {
+    if (err instanceof OpenspecCallError && isParseRejection(err.result))
+      return relayParseRejection(ctx, err.result)
     return printCallError(ctx, err)
   }
+  const refused = relayStorePathRefusal(result, ctx.flags.json)
+  if (refused !== undefined) return refused
   const payload = JSON.parse(result.stdout) as CleanupPayload
   if (result.exitCode !== 0) return printFailure(ctx, payload)
   printCleanup(ctx, sub === 'remove' ? 'Removed store' : 'Unregistered store', payload)
@@ -350,13 +408,17 @@ async function runCleanup(
 async function runList(ctx: CommandContext, rawArgs: string[]): Promise<number> {
   let result: OpenspecResult
   try {
-    result = await passthroughOpenspec(withJson(['store', 'list', ...rawArgs]), {
+    result = await passthroughOpenspec(storeCall('list', rawArgs), {
       cwd: ctx.cwd,
       expect: { postCondition: listPostCondition },
     })
   } catch (err) {
+    if (err instanceof OpenspecCallError && isParseRejection(err.result))
+      return relayParseRejection(ctx, err.result)
     return printCallError(ctx, err)
   }
+  const refused = relayStorePathRefusal(result, ctx.flags.json)
+  if (refused !== undefined) return refused
   const payload = JSON.parse(result.stdout) as ListPayload
   if (ctx.flags.json) {
     process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`)
@@ -377,13 +439,17 @@ async function runList(ctx: CommandContext, rawArgs: string[]): Promise<number> 
 async function runDoctor(ctx: CommandContext, rawArgs: string[]): Promise<number> {
   let result: OpenspecResult
   try {
-    result = await passthroughOpenspec(withJson(['store', 'doctor', ...rawArgs]), {
+    result = await passthroughOpenspec(storeCall('doctor', rawArgs), {
       cwd: ctx.cwd,
       expect: { postCondition: doctorPostCondition },
     })
   } catch (err) {
+    if (err instanceof OpenspecCallError && isParseRejection(err.result))
+      return relayParseRejection(ctx, err.result)
     return printCallError(ctx, err)
   }
+  const refused = relayStorePathRefusal(result, ctx.flags.json)
+  if (refused !== undefined) return refused
   const payload = JSON.parse(result.stdout) as DoctorPayload
   if (ctx.flags.json) {
     process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`)
@@ -418,7 +484,7 @@ async function runDoctor(ctx: CommandContext, rawArgs: string[]): Promise<number
 // --- entrypoint --------------------------------------------------------
 
 export async function run(ctx: CommandContext): Promise<number> {
-  const [sub, ...rest] = ctx.args
+  const { sub, rest } = subcommandOf(ctx.args)
   if (!isSubcommand(sub)) {
     process.stderr.write(
       `cospec store: unknown subcommand '${sub ?? ''}'. Subcommands: ${SUBCOMMANDS.join(', ')}\n`,

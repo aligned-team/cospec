@@ -39,12 +39,22 @@ import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
+import { commandRow, storePathInOptionPosition, storePathRefusal } from '../core/command-table.ts'
+import {
+  forwardCall,
+  isOptionToken,
+  relayCommandLevel,
+  relayStorePathRefusal,
+  subcommandOf,
+} from '../core/forward-relay.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
 import {
   passthroughOpenspec,
   resolveOpenspec,
   type RunExpectation,
   spawnOpenspec,
+  threadedArgv,
+  type WrappedCall,
 } from '../core/openspec.ts'
 
 /** The eight subcommands upstream's `config` command defines. */
@@ -69,7 +79,9 @@ function isConfigSub(name: string): name is ConfigSub {
 export interface ConfigCall {
   kind: 'pass' | 'handover'
   sub: ConfigSub
-  /** Full argv for the wrapped binary, `config` first. */
+  /** The wrapped call: `config [--scope <s>] <sub>`, threaded `--json`, `subArgs`. */
+  wrapped: WrappedCall
+  /** Full argv for the wrapped binary, `config` first (`threadedArgv` of `wrapped`). */
   argv: string[]
   /** The subcommand's own args, with `--scope` already removed. */
   subArgs: string[]
@@ -80,7 +92,18 @@ export interface ConfigPlanError {
   message: string
 }
 
-export type ConfigPlan = ConfigCall | ConfigPlanError
+/**
+ * An option where the subcommand belongs (`config --bogus path`): the binary
+ * refuses it at the `config` level, so the call is relayed as-is.
+ */
+export interface ConfigCommandLevel {
+  kind: 'command-level'
+  /** `config` plus the lifted `--scope <s>`. */
+  command: string[]
+  args: string[]
+}
+
+export type ConfigPlan = ConfigCall | ConfigCommandLevel | ConfigPlanError
 
 const SUBS = CONFIG_SUBCOMMANDS.join('|')
 
@@ -93,22 +116,31 @@ function firstPositional(args: string[]): string | undefined {
  * Plan the wrapped call for `cospec config …` (pure, unit-testable).
  *
  * Rules: `--scope <v>` is a parent-command option, so it is lifted out of
- * wherever the caller typed it and re-emitted in its canonical position,
+ * wherever the caller typed it before any `--` and re-emitted in its canonical position,
  * between `config` and the subcommand. (Commander resolves it from the leaf
  * too on 1.11.0, so this is normalization, not a workaround — it keeps one
  * argv shape for every input.) Any value but `global` is upstream's error to
- * print, not cospec's to second-guess. `--json` is appended only for `list`.
- * `--no-color` and `root.storeArgs` are never appended (module header).
+ * print, not cospec's to second-guess. `--json` is threaded only for `list`,
+ * right after the subcommand and ahead of the user's argv. `--no-color` and
+ * `root.storeArgs` are never threaded (module header).
  */
 export function planConfigCall(args: string[], opts: { json: boolean }): ConfigPlan {
   let scope: string | undefined
   const rest: string[] = []
   for (let i = 0; i < args.length; i++) {
     const tok = args[i]!
+    // Past a `--` every token is an operand, `--scope` included.
+    if (tok === '--') {
+      rest.push(...args.slice(i))
+      break
+    }
     if (tok === '--scope') {
       const value = args[++i]
       if (value === undefined)
-        return { kind: 'error', message: 'cospec config: --scope requires a value' }
+        return {
+          kind: 'error',
+          message: "cospec config: option '--scope <scope>' argument missing",
+        }
       scope = value
       continue
     }
@@ -119,18 +151,19 @@ export function planConfigCall(args: string[], opts: { json: boolean }): ConfigP
     rest.push(tok)
   }
 
-  const sub = rest[0]
+  const { sub, rest: subArgs, operand } = subcommandOf(rest)
   if (sub === undefined)
     return { kind: 'error', message: `cospec config: a subcommand is required (${SUBS})` }
+  const scopeArgs = scope === undefined ? [] : ['--scope', scope]
+  if (!operand && isOptionToken(sub))
+    return { kind: 'command-level', command: ['config', ...scopeArgs], args: rest }
   if (!isConfigSub(sub))
     return { kind: 'error', message: `cospec config: unknown subcommand '${sub}' (${SUBS})` }
 
-  const subArgs = rest.slice(1)
-  const scopeArgs = scope === undefined ? [] : ['--scope', scope]
-  const argv = ['config', ...scopeArgs, sub, ...subArgs]
-  if (opts.json && sub === 'list') argv.push('--json')
-
-  return { kind: isHandoverCall(sub, subArgs) ? 'handover' : 'pass', sub, argv, subArgs }
+  const threaded = opts.json && sub === 'list' ? ['--json'] : []
+  const wrapped: WrappedCall = { command: ['config', ...scopeArgs, sub], threaded, args: subArgs }
+  const argv = threadedArgv(wrapped.command, threaded, subArgs)
+  return { kind: isHandoverCall(sub, subArgs) ? 'handover' : 'pass', sub, wrapped, argv, subArgs }
 }
 
 /**
@@ -199,7 +232,13 @@ const CONFIG_EXPECT: RunExpectation = {
  * logic — read `config list --json` for typed values).
  */
 async function runPiped(ctx: CommandContext, call: ConfigCall): Promise<number> {
-  const result = await passthroughOpenspec(call.argv, { cwd: ctx.cwd, expect: CONFIG_EXPECT })
+  const result = await forwardCall(() =>
+    passthroughOpenspec(call.wrapped, { cwd: ctx.cwd, expect: CONFIG_EXPECT }),
+  )
+  // Ahead of the cospec-owned envelopes: the binary's `--store-path` refusal
+  // is answered with cospec's redirect, never rendered as a `path` or `value`.
+  const refused = relayStorePathRefusal(result, ctx.flags.json)
+  if (refused !== undefined) return refused
   const ok = result.exitCode === 0
   const out = result.stdout.trim()
 
@@ -262,8 +301,23 @@ async function resolveHandoverBin(cwd: string): Promise<string> {
  * `--no-color` still reaches the child through the inherited `NO_COLOR=1` the
  * dispatcher sets). `OPENSPEC_NO_COMPLETIONS=1` is added over that precedent so
  * upstream's first-run completions tip can never surface from a cospec run.
+ *
+ * The handover class's one pre-spawn `--store-path` check (design decision
+ * 2): with inherited stdio the binary's refusal would reach the terminal
+ * unrespelled, so a `--store-path` in option position is answered with
+ * cospec's redirect without spawning — and never after the editor has run.
  */
 async function runHandover(ctx: CommandContext, call: ConfigCall): Promise<number> {
+  const row = commandRow('config')
+  const sub = row?.subcommands?.find((s) => s.name === call.sub)
+  if (row === undefined || sub === undefined) throw new Error(`cospec config: no '${call.sub}' row`)
+  if (storePathInOptionPosition([row, sub], call.subArgs)) {
+    // Upstream declares no `--store-path` here: commander's refusal precedes
+    // any output, so it is text even under `--json`.
+    const refusal = storePathRefusal(false)
+    process[refusal.stream].write(refusal.text)
+    return EXIT.failure
+  }
   if (ctx.flags.json) {
     process.stdout.write(
       jsonEnvelope({
@@ -310,5 +364,6 @@ export async function run(ctx: CommandContext): Promise<number> {
     process.stderr.write(`${plan.message}\n`)
     return EXIT.failure
   }
+  if (plan.kind === 'command-level') return relayCommandLevel(ctx, plan.command, plan.args)
   return plan.kind === 'handover' ? runHandover(ctx, plan) : runPiped(ctx, plan)
 }

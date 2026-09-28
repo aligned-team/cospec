@@ -56,7 +56,7 @@ async function stagedFiles(cwd: string): Promise<string[]> {
 }
 
 export async function run(ctx: CommandContext): Promise<number> {
-  const msgFile = ctx.args.find((a) => !a.startsWith('-'))
+  const msgFile = ctx.parsed!.positionals[0]
   if (msgFile === undefined || !existsSync(msgFile)) return 0
 
   const type = headerType(readFileSync(msgFile, 'utf8'))

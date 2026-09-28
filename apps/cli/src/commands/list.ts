@@ -15,6 +15,7 @@ import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
 import { isCospecType, listChanges } from '../core/change.ts'
+import { hasFlag } from '../core/command-table.ts'
 import { OpenspecCallError, passthroughOpenspec } from '../core/openspec.ts'
 import { resolveRoot } from '../core/root.ts'
 import { TYPE_ARTIFACTS } from '../core/rules/type-facts.ts'
@@ -49,7 +50,10 @@ async function runSpecs(
 ): Promise<number> {
   let result: Awaited<ReturnType<typeof passthroughOpenspec>>
   try {
-    result = await passthroughOpenspec(['list', '--specs', '--json'], { cwd, storeArgs })
+    result = await passthroughOpenspec(
+      { command: ['list'], threaded: ['--json', ...storeArgs], args: ['--specs'] },
+      { cwd },
+    )
   } catch (err) {
     if (err instanceof OpenspecCallError) {
       process.stderr.write(`${err.message}\n`)
@@ -105,12 +109,13 @@ interface Row {
 
 export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
+  const parsed = ctx.parsed!
   const root = await resolveRoot(ctx)
   const base = root.base
 
-  if (ctx.args.includes('--specs')) return runSpecs(ctx, root.cwd, root.storeArgs)
+  if (hasFlag(parsed, '--specs')) return runSpecs(ctx, root.cwd, root.storeArgs)
 
-  const onlyBlocked = ctx.args.includes('--blocked')
+  const onlyBlocked = hasFlag(parsed, '--blocked')
 
   const changes = listChanges(base)
   const archived = archiveMap(base)

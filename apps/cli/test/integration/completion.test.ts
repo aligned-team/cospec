@@ -68,9 +68,19 @@ describe('cospec completion', () => {
 
   test('an unsupported explicit shell exits 1 without touching $SHELL detection', async () => {
     const cwd = mkTempRepo()
+    const res = await cospec(['completion', 'tcsh'], { cwd })
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toContain("unsupported shell 'tcsh'")
+  })
+
+  // `powershell` is an upstream shell value owed to `completion-install`: the
+  // command table refuses it as pending before completion.ts runs.
+  test('powershell is refused as not supported yet, exit 1', async () => {
+    const cwd = mkTempRepo()
     const res = await cospec(['completion', 'powershell'], { cwd })
     expect(res.exitCode).toBe(1)
-    expect(res.stderr).toContain("unsupported shell 'powershell'")
+    expect(res.stderr).toBe("cospec completion: 'powershell' is not supported yet\n")
+    expect(res.stdout).toBe('')
   })
 
   test('--json is refused with exactly one JSON document on stdout, exit 1', async () => {
@@ -172,11 +182,15 @@ describe('cospec __complete (hidden dynamic completion source)', () => {
     expect(res.stderr).toBe('')
   })
 
-  test('no source at all is a silent exit 1', async () => {
+  // Upstream's `__complete <type>` prints commander's refusal here too; the
+  // generated scripts always pass a source, with stderr discarded.
+  test("no source at all is commander's missing required argument, exit 1", async () => {
     const cwd = mkTempRepo()
     const res = await cospec(['__complete'], { cwd })
     expect(res.exitCode).toBe(1)
     expect(res.stdout).toBe('')
-    expect(res.stderr).toBe('')
+    expect(res.stderr).toBe(
+      "cospec __complete: missing required argument 'source'\ncospec __complete: usage — cospec __complete <source>\n",
+    )
   })
 })

@@ -64,6 +64,97 @@ cospec spawns OpenSpec; it never imports it.
   `validate --archived` needs `>=1.9.0`) is enforced as its own runtime check,
   not by narrowing what version cospec will wrap at all.
 
+## The command table and the reachability test
+
+`apps/cli/src/core/command-table.ts` is the single source `cli.ts` dispatch,
+per-command `--help` rendering, and the shell completion spec
+(`core/completions/spec.ts`) all read, so the three descriptions of a command's
+flags can never drift the way they did when `--help` text was hand-written and
+completion extracted flags from it by regex.
+
+Every row declares every positional and flag the pinned `COMMAND_REGISTRY` gives
+the same-named upstream command, plus cospec's own flags, and marks each one
+**handled**, **no-op** (exactly three: `init --no-animation`,
+`archive -y`/`--yes`, `list --changes` — cospec already behaves as they ask by
+construction), or **pending** (owned by a later change, refused with
+`'<flag>' is not supported yet`, its value still consumed so it can never leak
+into a positional). Each row also carries a parse policy:
+
+- **`table`** — cospec parses the argv itself and rejects anything the row
+  doesn't declare. Most commands are `table`: `init`, `update`, `doctor`, `new`,
+  `migrate`, `validate`, `status`, `list`, `instructions`, `apply`, `archive`,
+  `sync-blockers`, `context`, `view`, `completion`, `feedback`, and the hidden
+  `__complete`/`check-commit`.
+- **`forward`** — the row is declared for reachability, help and completion, but
+  every token cospec's own pre-spawn guards don't consume reaches the wrapped
+  binary unchanged, which stays the unknown-option authority for the surfaces it
+  owns. `show`, `templates`, `schemas`, `schema`, `store`, `workset` and
+  `config` are `forward`: `openspec show` itself sets
+  `allowUnknownOption(true)`, so a cospec-side rejection there would be the
+  regression, not the fix, and it lets a newer in-range binary's new flag keep
+  working immediately instead of failing until cospec's table catches up. The
+  reachability test reads `parse: 'forward'` as that delegation: a forward row's
+  flags and positionals count as reached through the binary, and a separate
+  check keeps the row's declarations complete at the pin for help and
+  completion. A pre-spawn guard answers only what the binary would not: an
+  option where the subcommand belongs (`cospec config --bogus`) is relayed to
+  the binary at the command's level, and `show` treats an option it does not
+  declare as the item, as the binary does.
+
+A `table` row also declares whether its command honours the global `--json` and
+`--store`: a row that refuses `--json` answers it with one JSON refusal
+document, and a row whose module never resolves a root (`init`, `update`,
+`completion`, `feedback`, `check-commit`) refuses `--store` as an unknown option
+instead of absorbing and ignoring it.
+
+`--store-path` is refused on every row regardless of policy, in both
+`--store-path <path>` and `--store-path=<path>` forms and in both the
+pre-command and post-command position, with cospec's own redirect, because
+upstream's redirect text names bare `openspec` — the output-side rule below
+forbids that everywhere, this included. Where it lands follows the binary: a
+`table` row refuses it after the row's other parse refusals, and on a `forward`
+row the binary is the authority — the argv reaches it unchanged, it refuses a
+`--store-path` in option position in its own order (and runs the command when
+the token is another flag's value), and the wrapper only answers the binary's
+own `--store-path` refusal with cospec's redirect (`core/forward-relay.ts`).
+After the command name the space form's next token is its value whatever it
+looks like — only on a row marked `declaresStorePath`, whose upstream command
+declares the hidden option (`list`, `view`, `archive`, `validate`, `status`,
+`instructions`, `new`, `context`, `doctor`, `show`, `schemas`); elsewhere it is
+an unknown option that takes nothing, refused in scan order and outranked by
+help — so `cli.ts` phase B passes the pair through without absorbing a global
+flag or reading a help flag there — as it does for every value-taking flag the
+row or its named subcommand declares (`takesNextToken`), after first taking out
+a program-level `--no-color`, which upstream never treats as a value. The
+terminal-handover leaves (`config edit`/`profile`/`reset --all` without `-y`,
+`workset open`) are the one exception: with inherited stdio there is nothing to
+respell, so they check the option position statically from the row's declared
+flags and print the redirect without spawning.
+
+### The reachability test is the parity gate
+
+`apps/cli/test/contract/reachability.test.ts` is what keeps the table from
+silently falling behind the pinned binary. In tests only — never at runtime — it
+deep-imports four sources from the pinned OpenSpec dist:
+`dist/core/completions/command-registry.js`'s `COMMAND_REGISTRY` (every command
+path, positional, flag and flag value), `dist/core/config.js`'s `AI_TOOLS` and
+`TOOL_ID_ALIASES`, and `dist/core/profiles.js`'s `ALL_WORKFLOWS`. Every entry
+from those four sources must resolve to exactly one of five places: the command
+table, `apps/cli/src/canon/parity/aliases.yaml` (cospec spellings of upstream
+names that already work), `exceptions.yaml` (capabilities cospec deliberately
+never implements — today exactly one: the wrapped binary's self-upgrade offer,
+out of scope because cospec pins it), `deprecated.yaml` (upstream noun groups
+upstream itself has deprecated, each mark verified against the pinned binary's
+own registry description or runtime stderr rather than asserted), or
+`apps/cli/test/contract/parity-pending.yaml` (a pinned surface owed to a named
+later change). The test fails on an entry that resolves to none of the five, or
+to two of them, and the reverse direction is checked too — every table surface
+marked pending has exactly one `parity-pending.yaml` entry naming the same
+owner, so a change that implements a pending flag must delete that entry in the
+same commit, and a stale entry left behind fails the test by name. This is the
+parity gate every later OpenSpec-parity change reports its acceptance evidence
+against.
+
 ## The wrapped-call discipline
 
 Every call site into OpenSpec declares three things:
@@ -98,15 +189,22 @@ output and the human transcript. Left unrewritten, that is a routing- discipline
 leak: an agent obeying the printed remedy verbatim would call the bare binary.
 
 `relayThroughCospec` (`commands/apply.ts`) closes it as an output filter, not a
-fresh source of truth — it never invents a `cospec` surface upstream doesn't
-have. The match is anchored to a backtick-delimited command span, never a bare
-`openspec ` token, because `collectApplyWarnings`'s no-delta-specs warning
-embeds an absolute `…/.openspec.yaml` path in the same string that must not be
-touched. The verb set is closed and enumerated (`instructions`, `status`,
-`validate` — every verb the 1.13.1 remedy strings actually emit) rather than a
-wildcard match, so a verb outside it is deliberately left alone: relaying an
-unrecognized upstream command as `cospec` would fabricate a surface that may not
-exist. This is defence-in-depth, the same posture as the archive
+fresh source of truth: it is the one remedy allowlist (`core/remedies.ts`) every
+relay reads, the pinned binary's exact sentences that name a bare
+`openspec <command>`, each with its cospec spelling. Only a sentence that stands
+verbatim is rewritten; the name, path or list a sentence carries is re-emitted
+as the binary wrote it, so `collectApplyWarnings`'s absolute `…/.openspec.yaml`
+path, and any text upstream did not write (a schema's own instruction), pass
+through untouched. No pattern over free text (a lead-in word, a quote, a
+backtick) decides what is a remedy — three rounds of such patterns each left a
+path or excerpt they rewrote. `test/contract/remedy-enumeration.test.ts` reads
+the pinned dist and fails on any line naming `openspec <command>` that is
+neither an allowlist entry, nor listed
+(`test/contract/support/remedy-sources.ts`) with the reason no cospec relay
+prints it, nor listed (`REACHABLE_OWNED`) as reachable through a successful
+answer cospec relays untouched — a `context`/`instructions` reference block, a
+`workset`, `config` or `schema` next step — with the roadmap PR that owns its
+spelling. This is defence-in-depth, the same posture as the archive
 scenario-preservation gate below — cospec's own routing discipline is the
 primary guard (agents are told to call `cospec`, never `openspec`), and the
 relay guard is the belt-and-suspenders catch for the one path where upstream's
@@ -148,14 +246,27 @@ raises `OpenspecCallError` (a cospec bug, not a user error).
 
 `core/passthrough-command.ts` layers the command-level wiring on top: it
 resolves the operating `Root`, threads the three global flags every wrapped call
-owes (`--store` via `root.storeArgs`, `--json`, `--no-color`), and returns both
-the raw `OpenspecResult` (for a command that reshapes stdout, like `store`'s
-ID/Location table) and the mapped exit code. `runPassthrough` is the common case
-— relay verbatim; `callPassthrough` is for commands that inspect the result
-first. Commands that add their own post-condition (e.g. `context` asserting a
-`--code-workspace` file exists on disk, or `store` asserting the registry
-mutated) pass it through `expect.postCondition` — the same mechanism the gated
-commands use.
+owes (`--store` via `root.storeArgs`, `--json`, `--no-color`) right after the
+command path, and returns both the raw `OpenspecResult` (for a command that
+reshapes stdout, like `store`'s ID/Location table) and the mapped exit code.
+`runPassthrough` is the common case — relay verbatim; `callPassthrough` is for
+commands that inspect the result first. Commands that add their own
+post-condition (e.g. `context` asserting a `--code-workspace` file exists on
+disk, or `store` asserting the registry mutated) pass it through
+`expect.postCondition` — the same mechanism the gated commands use.
+
+Two rules keep a forward row's relay faithful to the binary. On `templates` and
+`schema`, whose upstream commands declare no `--store`, the row's `storeInArgv`
+marker keeps a post-command `--store <id>` in the argv where the user typed it
+(phase B never absorbs it), so the binary parses it in the user's order instead
+of meeting a threaded `--store` first; a pre-command `--store` is still threaded
+ahead, where the binary refuses it as an unknown option — it selects no root for
+these two. And `relayRespelled` (`core/forward-relay.ts`) answers the binary's
+`--store-path` refusal with cospec's redirect and, on a failed call only, spells
+each of upstream's remedy sentences (`core/remedies.ts`) as the cospec command
+of the same shape — or drops it where cospec has none — so the remedy a user
+reads names cospec; a successful call's output is the user's content and is
+relayed untouched.
 
 ### The terminal-handover class
 

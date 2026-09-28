@@ -27,7 +27,13 @@ export function renderFishCompletion(spec: CompletionSpec): string {
     '',
   ]
 
-  for (const flag of spec.globalFlags) lines.push(`complete -c cospec ${flagArg(flag)}`)
+  // A global a command refuses after its name is not offered there.
+  for (const flag of spec.globalFlags) {
+    const refusing = spec.commands.filter((c) => !c.globalFlags.includes(flag)).map((c) => c.name)
+    const guard =
+      refusing.length > 0 ? ` -n 'not __fish_seen_subcommand_from ${refusing.join(' ')}'` : ''
+    lines.push(`complete -c cospec${guard} ${flagArg(flag)}`)
+  }
   lines.push('')
 
   for (const command of spec.commands) {

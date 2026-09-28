@@ -17,6 +17,10 @@
 // right.
 
 import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { parse } from 'yaml'
 
 import { relayApplyInstructions, relayThroughCospec } from '../../../src/commands/apply.ts'
 import type { ApplyInstructionsJson } from '../../../src/core/openspec.ts'
@@ -130,10 +134,10 @@ describe('relayThroughCospec — the exact 1.13.1 remedy strings', () => {
 })
 
 describe('relayThroughCospec — the rewrite boundary', () => {
-  test('leaves a verb outside the 1.13.1 set alone rather than inventing a surface', () => {
+  test('leaves a command span outside any upstream sentence alone', () => {
     // `openspec new change <name>` is upstream's `newChangeHint`, which reaches
-    // users through a thrown error, never through `instruction`/`warnings`.
-    // Relaying it would claim a `cospec new change` surface that does not exist.
+    // users through a thrown error, never through `instruction`/`warnings`; as
+    // a backticked span in free text it is no upstream sentence.
     const s = 'Run `openspec new change <name>` first, or `openspec archive foo`.'
     expect(relayThroughCospec(s)).toBe(s)
   })
@@ -148,31 +152,44 @@ describe('relayThroughCospec — the rewrite boundary', () => {
     expect(relayThroughCospec(s)).toBe(s)
   })
 
-  test('rewrites a bare-argument span', () => {
-    expect(relayThroughCospec('run `openspec status` now')).toBe('run `cospec status` now')
+  // Only upstream's own sentences are respelled (`core/remedies.ts`): a span
+  // in text upstream did not write — a schema's own instruction, say — is the
+  // user's, however much it reads like a remedy.
+  test("leaves a command span that is not one of upstream's sentences alone", () => {
+    for (const s of [
+      'run `openspec status` now',
+      '`openspec validate a` then `openspec status --change a`',
+    ])
+      expect(relayThroughCospec(s)).toBe(s)
   })
 
-  test('rewrites every span in a multi-span string', () => {
-    const out = relayThroughCospec('`openspec validate a` then `openspec status --change a`')
-    expect(out).toBe('`cospec validate a` then `cospec status --change a`')
+  test('rewrites every upstream sentence in a multi-sentence string', () => {
+    const out = relayThroughCospec(`${WARN_UNREAD_DELTA}\n${REMEDY_ONE}`)
+    expect(out).toContain('`cospec validate unread-delta`')
+    expect(out).toContain('`cospec instructions verification --change v1-grandfathered`')
+    expect(out).toContain('`cospec status --change v1-grandfathered`')
+    expect(out).not.toMatch(/`openspec /)
   })
 })
 
 describe('relayApplyInstructions', () => {
   test('rewrites instruction and every warning', () => {
-    const out = relayApplyInstructions({
-      ...baseInstructions(),
-      state: 'blocked',
-      instruction: REMEDY_ONE,
-      warnings: [WARN_UNREAD_DELTA, WARN_NO_DELTAS],
-    })
+    const out = relayApplyInstructions(
+      {
+        ...baseInstructions(),
+        state: 'blocked',
+        instruction: REMEDY_ONE,
+        warnings: [WARN_UNREAD_DELTA, WARN_NO_DELTAS],
+      },
+      'c',
+    )
     expect(out.instruction).not.toMatch(/`openspec /)
     for (const w of out.warnings!) expect(w).not.toMatch(/`openspec /)
     expect(out.warnings).toHaveLength(2)
   })
 
   test('absent advisory fields stay absent — never empty arrays', () => {
-    const out = relayApplyInstructions(baseInstructions())
+    const out = relayApplyInstructions(baseInstructions(), 'c')
     // A payload from a wrapped binary that reported neither advisory field
     // must round-trip as "not reported", never as "reported empty": a consumer
     // reading `warnings: []` would conclude the binary checked and found
@@ -182,7 +199,7 @@ describe('relayApplyInstructions', () => {
   })
 
   test('an empty warnings array stays an empty array', () => {
-    const out = relayApplyInstructions({ ...baseInstructions(), warnings: [] })
+    const out = relayApplyInstructions({ ...baseInstructions(), warnings: [] }, 'c')
     expect(out.warnings).toEqual([])
   })
 
@@ -196,7 +213,29 @@ describe('relayApplyInstructions', () => {
       progress: { total: 3, complete: 1, remaining: 2 },
       instruction: REMEDY_ONE,
     }
-    const out = relayApplyInstructions(base)
+    const out = relayApplyInstructions(base, 'c')
     expect({ ...out, instruction: base.instruction }).toEqual(base)
+  })
+})
+
+// Issue #48: the canon apply prose (`canon/apply-instruction.yaml`) is schema
+// text, served before any change exists, so it names the change as
+// `"<change>"`. Printed for a change `cospec apply` already knows, the
+// placeholder is filled in; the canon keeps it.
+describe('relayApplyInstructions names the change in the canon gate prose', () => {
+  const canon = (
+    parse(
+      readFileSync(join(import.meta.dir, '../../../src/canon/apply-instruction.yaml'), 'utf8'),
+    ) as { instruction: string }
+  ).instruction
+
+  test('the canon prose keeps its placeholder', () => {
+    expect(canon).toContain('cospec apply "<change>" --json')
+  })
+
+  test('a named apply prints the slug, never the placeholder', () => {
+    const out = relayApplyInstructions({ ...baseInstructions(), instruction: canon }, 'add-login')
+    expect(out.instruction).toContain('cospec apply "add-login" --json')
+    expect(out.instruction).not.toContain('<change>')
   })
 })

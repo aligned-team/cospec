@@ -1,8 +1,8 @@
 // Operating-root resolution (store-awareness). Every command resolves exactly
 // one `Root` up front — the local repo cwd, or a registered OpenSpec store — and
 // then threads it: `root.base` to the filesystem readers, `root` to the wrapped
-// openspec calls (which append `root.storeArgs`). Resolution order mirrors
-// upstream `src/core/root-selection.ts` (openspec >=1.5.0) so cospec and bare
+// openspec calls (which thread `root.storeArgs` right after the command path).
+// Resolution order mirrors upstream `src/core/root-selection.ts` (openspec >=1.5.0) so cospec and bare
 // openspec agree on which root a command targets:
 //
 //   1. an explicit `--store <id>` global flag, else

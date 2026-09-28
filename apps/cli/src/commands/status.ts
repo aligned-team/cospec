@@ -11,6 +11,9 @@ import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
 import { isCospecType, listChanges, resolveChange, type Change } from '../core/change.ts'
+import { flagValue, hasFlag } from '../core/command-table.ts'
+import { passthroughOpenspec } from '../core/openspec.ts'
+import { respellRemedies } from '../core/remedies.ts'
 import { resolveRoot } from '../core/root.ts'
 import {
   artifactRequires,
@@ -21,13 +24,6 @@ import {
 import { parseTasks } from '../core/tasks.ts'
 import { computeVerificationVerdict, type VerificationVerdict } from '../core/verification.ts'
 import { archiveMap, artifactDone, closest, computeGate, hasSpecFiles, type Gate } from './apply.ts'
-
-function flagValue(args: string[], flag: string): string | undefined {
-  const idx = args.indexOf(flag)
-  if (idx >= 0 && idx + 1 < args.length) return args[idx + 1]
-  const eq = args.find((a) => a.startsWith(`${flag}=`))
-  return eq?.slice(flag.length + 1)
-}
 
 /** The `clear | soft-blocked (n) | blocked (n hard)` gate column (DESIGN §2.6). */
 export function gateLabel(gate: Gate): string {
@@ -204,7 +200,7 @@ function isFailure(entry: ChangeEntry | ChangeEntryFailure): entry is ChangeEntr
 function renderEntryHuman(entry: ChangeEntry | ChangeEntryFailure): string {
   if (isFailure(entry)) return `${entry.change}: ERROR — ${entry.error}\n`
   if ('legacy' in entry) {
-    return `${entry.change} (${entry.type}): legacy schema — use \`openspec status --change ${entry.change}\` for details\n`
+    return `${entry.change} (${entry.type}): legacy schema — use \`cospec status --change ${entry.change}\` for details\n`
   }
   if ('next' in entry) {
     return `${entry.change} (${entry.type}): in progress — no artifacts yet; next: ${entry.next}\n`
@@ -245,11 +241,25 @@ async function runAll(ctx: CommandContext): Promise<number> {
 
 const MUTEX_MESSAGE = 'The --all and --change options are mutually exclusive.'
 
+/**
+ * A lookup refusal under `--json`: one document on stdout in upstream's
+ * `failWithError` shape (`{status: [{severity, code, message}]}`, code
+ * `change_error`), exit 1, so a `--json` caller always gets something to parse.
+ */
+function changeErrorDocument(message: string): number {
+  const status = [{ severity: 'error', code: 'change_error', message }]
+  process.stdout.write(`${JSON.stringify({ status }, null, 2)}\n`)
+  return EXIT.failure
+}
+
 export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
+  const parsed = ctx.parsed!
 
-  if (ctx.args.includes('--all')) {
-    if (flagValue(ctx.args, '--change') !== undefined || ctx.args.some((a) => !a.startsWith('-'))) {
+  // A positional beside `--change` or `--all` never gets here: the table
+  // refuses it as an excess argument, as upstream (which has none) does.
+  if (hasFlag(parsed, '--all')) {
+    if (flagValue(parsed, '--change') !== undefined) {
       // Under --json the failure is a JSON envelope on stdout, never a bare
       // stderr line: a caller that asked for JSON must always get something
       // parseable, and openspec's own `--all`/`--change` mutex check is caught
@@ -268,16 +278,24 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   const root = await resolveRoot(ctx)
   const base = root.base
-  let id = flagValue(ctx.args, '--change') ?? ctx.args.find((a) => !a.startsWith('-'))
+  let id = flagValue(parsed, '--change') ?? parsed.positionals[0]
 
   const active = listChanges(base)
   if (id === undefined) {
     if (active.length === 1) {
       id = active[0]!.id
     } else if (active.length === 0) {
-      process.stdout.write('cospec status: no active changes\n')
+      process.stdout.write(
+        flags.json
+          ? `${JSON.stringify({ changes: [], root: base, message: 'No active changes.' }, null, 2)}\n`
+          : 'cospec status: no active changes\n',
+      )
       return EXIT.success
     } else {
+      if (flags.json)
+        return changeErrorDocument(
+          `--change <id> is required. Active changes: ${active.map((c) => c.id).join(', ')}`,
+        )
       process.stderr.write('cospec status: --change <id> is required\n')
       process.stderr.write(`active changes: ${active.map((c) => c.id).join(', ')}\n`)
       return EXIT.failure
@@ -286,11 +304,15 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   const change = resolveChange(base, id)
   if (change === undefined) {
-    process.stderr.write(`cospec status: unknown change '${id}'\n`)
     const suggestion = closest(
       id,
       active.map((c) => c.id),
     )
+    if (flags.json)
+      return changeErrorDocument(
+        `unknown change '${id}'${suggestion !== undefined ? `. Did you mean '${suggestion}'?` : ''}`,
+      )
+    process.stderr.write(`cospec status: unknown change '${id}'\n`)
     if (suggestion !== undefined) process.stderr.write(`Did you mean '${suggestion}'?\n`)
     return EXIT.failure
   }
@@ -321,18 +343,27 @@ export async function run(ctx: CommandContext): Promise<number> {
     return EXIT.success
   }
 
-  // Legacy / unknown schema: no cospec artifact matrix — report minimally.
+  // Legacy / unknown schema: no cospec artifact matrix. `--json` reports it
+  // minimally; text relays the binary's own status for the change, its
+  // `Next:` remedy spelled through cospec.
   if (!isCospecType(change.schema)) {
     if (flags.json) {
       process.stdout.write(
         `${JSON.stringify({ change: change.id, type: change.schema, legacy: true }, null, 2)}\n`,
       )
-    } else {
-      process.stdout.write(
-        `${change.id} (${change.schema}): legacy schema — use \`openspec status --change ${change.id}\` for details\n`,
-      )
+      return EXIT.success
     }
-    return EXIT.success
+    const result = await passthroughOpenspec(
+      {
+        command: ['status'],
+        threaded: [...(flags.noColor ? ['--no-color'] : []), ...root.storeArgs],
+        args: ['--change', change.id],
+      },
+      { cwd: root.cwd },
+    )
+    if (result.stdout.length > 0) process.stdout.write(respellRemedies(result.stdout))
+    if (result.stderr.length > 0) process.stderr.write(respellRemedies(result.stderr))
+    return result.exitCode === 0 ? EXIT.success : EXIT.failure
   }
 
   const status = computeStatus(base, change)
