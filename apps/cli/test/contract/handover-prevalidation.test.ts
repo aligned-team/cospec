@@ -390,26 +390,22 @@ describe.skipIf(process.getuid?.() === 0)(
       }, 30_000)
     }
 
-    test.failing(
-      'config reset --all with stdin empty, not a terminal',
-      async () => {
-        const root = plainRoot()
-        const argv = ['config', 'reset', '--all']
-        const before = treeHash(root)
-        const up = await withReadOnlyCache(root, () =>
-          piped(['node', openspecBinPath(), ...argv], root, undefined),
-        )
-        const co = await withReadOnlyCache(root, () =>
-          piped([process.execPath, CLI_ENTRY, ...argv], root, undefined),
-        )
-        expect(treeHash(root)).toEqual(before)
-        expect(up.exitCode, detail(up)).toBe(130)
-        expect(co.exitCode, detail(co)).toBe(up.exitCode)
-        expect(co.stdout, detail(co)).toBe(respellRemedies(up.stdout))
-        expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
-      },
-      30_000,
-    )
+    test('config reset --all with stdin empty, not a terminal', async () => {
+      const root = plainRoot()
+      const argv = ['config', 'reset', '--all']
+      const before = treeHash(root)
+      const up = await withReadOnlyCache(root, () =>
+        piped(['node', openspecBinPath(), ...argv], root, undefined),
+      )
+      const co = await withReadOnlyCache(root, () =>
+        piped([process.execPath, CLI_ENTRY, ...argv], root, undefined),
+      )
+      expect(treeHash(root)).toEqual(before)
+      expect(up.exitCode, detail(up)).toBe(130)
+      expect(co.exitCode, detail(co)).toBe(up.exitCode)
+      expect(co.stdout, detail(co)).toBe(respellRemedies(up.stdout))
+      expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
+    }, 30_000)
   },
 )
 
@@ -432,23 +428,19 @@ async function piped(cmd: string[], root: string, input: string | undefined): Pr
 
 describe('config reset --all with no terminal on stdin exits as the binary exits', () => {
   for (const input of [undefined, 'y\n']) {
-    test.failing(
-      `stdin ${input === undefined ? 'empty' : 'piped “y”'}: cancelled, nothing reset`,
-      async () => {
-        const root = plainRoot()
-        const argv = ['config', 'reset', '--all']
-        const before = treeHash(root)
-        const up = await piped(['node', openspecBinPath(), ...argv], root, input)
-        expect(treeHash(root)).toEqual(before)
-        const co = await piped([process.execPath, CLI_ENTRY, ...argv], root, input)
-        expect(treeHash(root)).toEqual(before)
-        expect(up.exitCode, detail(up)).toBe(130)
-        expect(co.exitCode, detail(co)).toBe(up.exitCode)
-        expect(co.stdout, detail(co)).toBe(respellRemedies(up.stdout))
-        expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
-      },
-      30_000,
-    )
+    test(`stdin ${input === undefined ? 'empty' : 'piped “y”'}: cancelled, nothing reset`, async () => {
+      const root = plainRoot()
+      const argv = ['config', 'reset', '--all']
+      const before = treeHash(root)
+      const up = await piped(['node', openspecBinPath(), ...argv], root, input)
+      expect(treeHash(root)).toEqual(before)
+      const co = await piped([process.execPath, CLI_ENTRY, ...argv], root, input)
+      expect(treeHash(root)).toEqual(before)
+      expect(up.exitCode, detail(up)).toBe(130)
+      expect(co.exitCode, detail(co)).toBe(up.exitCode)
+      expect(co.stdout, detail(co)).toBe(respellRemedies(up.stdout))
+      expect(co.stderr, detail(co)).toBe(respellRemedies(up.stderr))
+    }, 30_000)
   }
 })
 

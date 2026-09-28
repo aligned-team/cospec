@@ -415,6 +415,15 @@ function profilePiped(ctx: CommandContext, call: ConfigCall): Promise<OpenspecRe
 }
 
 /**
+ * SGR (colour and weight) escapes. The binary's prompts style through
+ * `node:util` `styleText`, which under Node checks the stream and emits none on
+ * a pipe; Bun's emits them regardless of `NO_COLOR` and `--no-color`. The
+ * piped call's stdout is always a pipe, so the binary under Node never prints
+ * one there; its cursor controls, which it does print, are kept.
+ */
+const SGR = new RegExp(`${String.fromCharCode(0x1b)}\\[[0-9;]*m`, 'g')
+
+/**
  * `config reset --all` with no terminal on stdin, run piped under the
  * handover preload: the binary's confirm reads a closed input and cancels as
  * it does under Node — 130, `Reset cancelled.`, nothing reset — and that
@@ -438,7 +447,8 @@ async function resetPiped(ctx: CommandContext, call: ConfigCall): Promise<number
           : res.stdout.endsWith('\n') || 'printed no answer line after its prompt',
     },
   })
-  const relay = result.exitCode === 0 ? (text: string) => text : respellRemedies
+  const respell = result.exitCode === 0 ? (text: string) => text : respellRemedies
+  const relay = (text: string) => respell(text.replace(SGR, ''))
   if (result.stdout.length > 0) process.stdout.write(relay(result.stdout))
   if (result.stderr.length > 0) process.stderr.write(relay(result.stderr))
   if (result.exitCode === 0)
