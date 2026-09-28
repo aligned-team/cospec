@@ -387,19 +387,21 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
   // skipped header in the file is a second finding. Anchored through each
   // sentence's own clause, and the not-a-requirement one excludes a
   // `Scenario:` header, which is `deltas/scenario-depth`'s (below).
+  // Captures may be empty: both tools quote a blank-titled `###   ` header as
+  // `"### "`.
   {
     rule: 'deltas/skipped-header',
     delegated:
-      /^Header "### ((?!Scenario:).+)" in .+ is not a "### Requirement:" header and is ignored by validation\./,
+      /^Header "### ((?!Scenario:).*)" in .+ is not a "### Requirement:" header and is ignored by validation\./,
     nativeKey:
-      /^header "### (.+)" in .+ is not a "### Requirement:" header and is ignored by validation$/,
+      /^header "### (.*)" in .+ is not a "### Requirement:" header and is ignored by validation$/,
   },
   {
     rule: 'deltas/skipped-header',
     delegated:
-      /^Header "### (.+)" in .+ is missing a requirement name and is ignored by validation\./,
+      /^Header "### (.*)" in .+ is missing a requirement name and is ignored by validation\./,
     nativeKey:
-      /^header "### (.+)" in .+ is missing a requirement name and is ignored by validation$/,
+      /^header "### (.*)" in .+ is missing a requirement name and is ignored by validation$/,
   },
   // A `### Scenario:` the binary skips as a header is the scenario cospec
   // reports one level too shallow. Keyed on the header text both messages
@@ -422,14 +424,14 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
   {
     rule: 'archive/split-requirement',
     delegated:
-      /^Header "### (.+)" in .+ is not a "### Requirement:" header and is ignored by validation\./,
-    nativeKey: /^header "### (.+?)" inside (?:ADDED|MODIFIED) ".*" splits it when archived/,
+      /^Header "### (.*)" in .+ is not a "### Requirement:" header and is ignored by validation\./,
+    nativeKey: /^header "### (.*?)" inside (?:ADDED|MODIFIED) ".*" splits it when archived/,
   },
   {
     rule: 'archive/split-requirement',
     delegated:
-      /^Header "### (.+)" in .+ is missing a requirement name and is ignored by validation\./,
-    nativeKey: /^header "### (.+?)" inside (?:ADDED|MODIFIED) ".*" splits it when archived/,
+      /^Header "### (.*)" in .+ is missing a requirement name and is ignored by validation\./,
+    nativeKey: /^header "### (.*?)" inside (?:ADDED|MODIFIED) ".*" splits it when archived/,
   },
 
   // 1.13.1 cross-section conflicts vs archive/added-exists. Each native key
@@ -480,6 +482,43 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
     delegated: /^Duplicate FROM in RENAMED: "(.*)"$/,
     nativeKey: /^RENAMED target "(.+)" no longer exists in capability /,
   },
+  // 1.13.1's MODIFIED of a RENAMED FROM vs archive/target-missing: the merge
+  // runs RENAMED first, so cospec reports the MODIFIED target carried away.
+  // The binary quotes the rename's TO, so cospec's message names it too and
+  // the two pair on that name.
+  {
+    rule: 'archive/target-missing',
+    delegated: /^MODIFIED references old name from RENAMED\. Use new header for "(.*)"$/,
+    nativeKey:
+      /^MODIFIED target ".*" no longer exists in capability '.*' — an earlier operation in this delta renamed it to "(.*)"$/,
+  },
+
+  // --- round-4 pairings: one defect, a cospec rule and a binary finding -----
+  //
+  // 1.13.1's orphaned-requirement WARNING vs deltas/orphaned-requirement.
+  // Keyed on the requirement name, never the section text: cospec's advisory
+  // reader quotes a header's `## Notes` with any trailing comment masked away,
+  // the binary with it.
+  {
+    rule: 'deltas/orphaned-requirement',
+    delegated:
+      /^Requirement "(.*)" is (?:under ".*"|above the first "## " section), which is not a delta section, so it is ignored\. Move it under /,
+    nativeKey:
+      /^requirement "(.*)" is (?:under ".*"|above the first "## " section), which is not a delta section, so it is ignored$/,
+  },
+  // 1.13.1's headerless-delta ERROR vs deltas/header-present, the same file.
+  {
+    rule: 'deltas/header-present',
+    delegated: /^No delta sections found\. Add headers such as "## ADDED Requirements"()/,
+    nativeKey:
+      /^no recognized delta header \(## ADDED\|MODIFIED\|REMOVED\|RENAMED Requirements\) found()$/,
+  },
+  // CHANGE_NO_DELTAS, item-level: raised only when no delta file parsed an
+  // entry, which a headerless file is. No key, as for archive/no-ops above.
+  {
+    rule: 'deltas/header-present',
+    delegated: /^Change must have at least one delta\. No deltas found\./,
+  },
 
   // --- 1.12.0 archive-preflight INFO (`Validator.findArchiveBlockers`) ------
   //
@@ -529,6 +568,14 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
     delegated:
       /^Archive would refuse this delta: .*ADDED failed for header "### Requirement: (.+?)" - already exists/,
     nativeKey: /^ADDED "(.+)" already exists with different content/,
+  },
+  // A new capability's MODIFIED/RENAMED vs archive/new-spec-non-added, keyed
+  // on the capability both messages name.
+  {
+    rule: 'archive/new-spec-non-added',
+    delegated:
+      /^Archive would refuse this delta: (.+?): target spec does not exist; only ADDED requirements are allowed for new specs\./,
+    nativeKey: / targets capability '(.+?)', which has no living spec — /,
   },
   // 1.13.1's structurally-invalid living spec vs archive/target-invalid,
   // keyed on the capability both messages name. Only when every defect the

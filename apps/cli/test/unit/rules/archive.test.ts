@@ -503,7 +503,7 @@ The system SHALL other.
       expect(rules(issues)).toEqual(['archive/target-missing'])
       expect(issues[0]?.message).toBe(
         'MODIFIED target "Existing" no longer exists in capability \'x\' — an earlier ' +
-          'operation in this delta renamed or removed it',
+          'operation in this delta renamed it to "Renamed"',
       )
     })
 

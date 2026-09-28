@@ -1908,16 +1908,6 @@ describe('14. one view model: the scan is fence-aware and the archive family rea
 
 /** Rows that fail on the tree until their fix lands; each fix commit removes its own ids. */
 const ROUND4_FAILING = new Set<string>([
-  '20.16',
-  'entry 19 rn-then-mod-old',
-  'entry 20 newcap-modified',
-  'entry 20 newcap-renamed',
-  'entry 21 orphan-under-notes',
-  'entry 21 orphan-above-first',
-  'entry 22 headerless-sections',
-  'entry 23 headerless-change',
-  'entry 24 blank-header-split',
-  'entries 21-24 fast',
   '22.1 dup-modified',
   '22.1 dup-removed',
   '22.1 renamed-and-removed',
@@ -1926,7 +1916,6 @@ const ROUND4_FAILING = new Set<string>([
   '22.2 dup-removed',
   '22.2 renamed-and-removed',
   '22.2 renamed-and-removed-fold',
-  '19.1',
   '19.2',
 ])
 const round4 = (id: string): typeof test => (ROUND4_FAILING.has(id) ? test.failing : test)

@@ -455,6 +455,21 @@ export function archiveRules(
         })
     }
 
+    /**
+     * What carried a living name away before `op` ran. A rename names where it
+     * went — the header the binary's own refusal quotes (`MODIFIED references
+     * old name from RENAMED. Use new header for "<to>"`) — so the two findings
+     * pair on it.
+     */
+    const goneBy = (op: DeltaOp, target: string): string => {
+      const rename = group.ops.find(
+        (o) => o !== op && o.operation === 'RENAMED' && o.fromName === target,
+      )
+      return rename?.toName === undefined
+        ? 'an earlier operation in this delta removed it'
+        : `an earlier operation in this delta renamed it to "${rename.toName}"`
+    }
+
     // Ops whose target was absent for an upstream early-sync reason; the
     // RENAMED-TO collision arm must not fire on those.
     const earlySynced = new Set<DeltaOp>()
@@ -534,7 +549,7 @@ export function archiveRules(
               path,
               line: op.line,
               message: living.requirementNames.has(target)
-                ? `${op.operation} target "${target}" no longer exists in capability '${capability}' — an earlier operation in this delta renamed or removed it`
+                ? `${op.operation} target "${target}" no longer exists in capability '${capability}' — ${goneBy(op, target)}`
                 : `${op.operation} target "${target}" does not exist in living spec openspec/specs/${capability}/spec.md`,
               ...(nearMiss === undefined
                 ? {}
