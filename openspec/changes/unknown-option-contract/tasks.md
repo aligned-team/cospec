@@ -578,3 +578,20 @@ red; 4–7 turn it green; 8 documents it.
       `--json` passthrough is `enforcePassthroughJson`'s, which rejects both
       stdouts before any relay runs, so neither behaviour was reachable and the
       spec and `reference/commands.md` state neither
+- [x] 10.81 Round-17 rows first: widen `remedy-enumeration.test.ts`'s scan from
+      `dist/**/*.js` alone to also walk the pinned package's
+      `schemas/**/*.{yaml,md}` (the built-in spec-driven schema's own
+      `schema.yaml` instruction text and `templates/*.md`), same
+      `NAMES_A_COMMAND` rule, comment handling per file's own syntax (a `.yaml`
+      whole-line `#` comment; a `.md` file has none here — an HTML comment in
+      these templates is guidance text the schema preserves byte-for-byte into
+      the artifact file, so it is never stripped); confirms 10 unclassified
+      `schemas/spec-driven/…` lines before classification
+      (`bun test apps/cli/test/contract/remedy-enumeration.test.ts`: 1 fail, the
+      10 lines listed). `REACHABLE_OWNED` gains all 10, relay `instructions`
+      (`commands/instructions.ts`'s thin passthrough relays a successful answer
+      untouched for a change on this schema), owner `upstream-spellings` per the
+      existing ruling; the stale-line test
+      (`each reachable line is still in the pinned dist`) already covers them,
+      so a pin bump that rewords the schema fails again until reclassified
+      (ledger 1.66)
