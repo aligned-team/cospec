@@ -42,11 +42,13 @@ an implicit root.
 
 The system SHALL fail loudly on an unregistered store id, whether it comes from
 `--store`, a `store:` pointer or `defaultStore`, rather than falling back to the
-local repository. Every resolver failure SHALL exit non-zero and SHALL carry the
-wrapped binary's diagnostic code and a fix line that names `cospec` commands,
-never bare `openspec`. The resolved root SHALL record its provenance as one of
-`store`, `declared`, `nearest`, `global_default` or `implicit`, matching the
-wrapped binary's `root.source` for the same invocation.
+local repository. Every resolver failure SHALL exit non-zero, except where the
+template-and-schema requirement below runs the command in the invocation
+directory instead, and SHALL carry the wrapped binary's diagnostic code and a
+fix line that names `cospec` commands, never bare `openspec`. The resolved root
+SHALL record its provenance as one of `store`, `declared`, `nearest`,
+`global_default` or `implicit`, matching the wrapped binary's `root.source` for
+the same invocation.
 
 Whichever way a store is selected, the system SHALL verify the registered store
 on disk before using it: missing or mismatched identity metadata SHALL fail with

@@ -268,12 +268,14 @@ Two rules keep a forward row's relay faithful to the binary. On `templates` and
 global in either position like everywhere else: it selects the root, and the
 wrapper spawns the binary inside `root.base` with no `--store` threaded
 (`spawnInRoot`), so the binary still parses every other token in the user's
-order. And `relayRespelled` (`core/forward-relay.ts`) answers the binary's
-`--store-path` refusal with cospec's redirect and, on a failed call only, spells
-each of upstream's remedy sentences (`core/remedies.ts`) as the cospec command
-of the same shape — or drops it where cospec has none — so the remedy a user
-reads names cospec; a successful call's output is the user's content and is
-relayed untouched.
+order; when selection fails with no explicit `--store`, it spawns in the
+invocation cwd instead, where upstream always runs them (`isCwdFallback`). And
+`relayRespelled` (`core/forward-relay.ts`) answers the binary's `--store-path`
+refusal with cospec's redirect and, on a failed call only, spells each of
+upstream's remedy sentences (`core/remedies.ts`) as the cospec command of the
+same shape — or drops it where cospec has none — so the remedy a user reads
+names cospec; a successful call's output is the user's content and is relayed
+untouched.
 
 ### The terminal-handover class
 

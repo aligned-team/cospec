@@ -189,12 +189,12 @@ lookup unchanged. cospec read it through `openspec config get defaultStore` and
 trimmed the text, so `" beta "` and `"beta\n"` selected `beta` where the binary
 fails with `invalid_store_id`, `["beta"]` (printed as JSON) failed as
 `invalid_store_id` where the binary reports `unknown_store 'beta'`, and `false`
-selected a store named `false` where the binary treats it as unset.
-`readDefaultStore` now asks `openspec config path` for the file (path discovery
-stays the binary's), parses it as JSON, and returns the raw value; a missing
-file, a `SyntaxError` and a non-object root read as unset, as upstream's
-defaults do, and any other read error propagates. `validateStoreId` and
-`resolveStore` take `unknown` and reproduce upstream's checks as written
+looked up a store named `false` (`unknown_store 'false'`) where the binary
+treats it as unset. `readDefaultStore` now asks `openspec config path` for the
+file (path discovery stays the binary's), parses it as JSON, and returns the raw
+value; a missing file, a `SyntaxError` and a non-object root read as unset, as
+upstream's defaults do, and any other read error propagates. `validateStoreId`
+and `resolveStore` take `unknown` and reproduce upstream's checks as written
 (`length === 0`, strict `===`, regex tests on the stringified value, strict
 lookup). Upstream also prints `Warning: Invalid JSON in <path>, using defaults`
 for a file that is not JSON; cospec's own read does not print it (neither did
