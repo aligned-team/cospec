@@ -154,13 +154,13 @@ a time. Group 12 waits for the rebase in group 11.
       and the text-mode failure path to a re-run relayed through
       `relayRespelled`; verify ledger 4.1
 - [x] 12.2 Commit `fix(cli): render instructions from the binary's document`
-- [ ] 12.3 Pass the document through the shared helper with the field map
+- [x] 12.3 Pass the document through the shared helper with the field map
       `references[].fetch`, `references[].status[].fix` and the whole-value
       allowlist rule (adding that rule to the helper if it lands with a
       leading-token rule only); remove the `instructions` `REACHABLE_OWNED` rows
       for `core/references.js`; flip the `instructions` rows of
       `relayed-remedies.test.ts` (task 1.5) to `test`; verify ledger 4.2 and 4.3
-- [ ] 12.4 Commit `fix(cli): spell instructions reference fields through cospec`
+- [x] 12.4 Commit `fix(cli): spell instructions reference fields through cospec`
 - [ ] 12.5 Add `SCHEMA_LINES` (the ten pinned `schemas/spec-driven/**` lines
       with their cospec spellings), the `schema which <name> --json`
       `source: package` gate, and move those ten rows from `REACHABLE_OWNED` to

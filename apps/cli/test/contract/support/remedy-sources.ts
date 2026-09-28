@@ -832,10 +832,13 @@ export const REACHABLE_OWNED: readonly (readonly [
   relay: (typeof SUCCESS_RELAYS)[number],
   owner: (typeof OWNERS)[number],
 ])[] = [
-  // `assembleReferenceIndex`'s entries: instructions' `<referenced_stores>`
-  // block and `references[]`, and context's `Referenced stores` / `Not
-  // available on this machine` sections and `members[]` (via
-  // `gatherRelationshipData` and `fetchRecipe`).
+  // `assembleReferenceIndex`'s entries in context's `Referenced stores` /
+  // `Not available on this machine` sections and `members[]` (via
+  // `gatherRelationshipData` and `fetchRecipe`). instructions' own
+  // `<referenced_stores>` block and `references[]` are built from its
+  // document, each `fetch`/`fix` spelled through the allowlist entries these
+  // lines already name in `REMEDY_SOURCES` (`INSTRUCTIONS_COMMAND_FIELDS` in
+  // `core/instructions-render.ts`).
   ...(
     [
       'return `git clone -- ${remote} ${quoted} && openspec store register ${quoted} --id ${id}`;',
@@ -845,10 +848,7 @@ export const REACHABLE_OWNED: readonly (readonly [
       "warning('reference_root_unhealthy', `Referenced store '${id}' is registered but not usable (${inspection.kind.replace(/_/g, ' ')}).`, `Run: openspec store doctor ${id}`),",
       "entry.status.push(warning('reference_index_truncated', `Referenced store '${id}' index truncated at the 50KB budget (${low} of ${specs.length} specs listed).`, `List the rest directly: openspec list --specs --store ${id}`));",
     ] as const
-  ).flatMap((line) => [
-    ['core/references.js', line, 'instructions', 'upstream-spellings'] as const,
-    ['core/references.js', line, 'context', 'passthrough-json-and-doctor'] as const,
-  ]),
+  ).map((line) => ['core/references.js', line, 'context', 'passthrough-json-and-doctor'] as const),
   // `inspectRelationships`' top-level status, context's `status[]`.
   [
     'core/relationship-health.js',

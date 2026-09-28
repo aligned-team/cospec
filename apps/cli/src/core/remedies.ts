@@ -507,6 +507,27 @@ function respellCommands(hole: string, dialect: Dialect): string {
   )
 }
 
+/** Every remedy, compiled to match only a whole string value, in `respellRemedies` order. */
+const WHOLE = [...SENTENCES, ...COMMAND_RULES].map((rule) => ({
+  rule,
+  pattern: new RegExp(`^${body(rule.remedy.upstream, 'text', true)}$`),
+}))
+
+/**
+ * `value` spelled through cospec when the whole of it is one allowlisted
+ * remedy (each hole re-emitted as captured), else `value` unchanged. For a
+ * document field that holds one remedy and nothing else (a reference's
+ * `fetch` or `fix`): a value with anything before or after the remedy, or no
+ * remedy at all, is never rewritten.
+ */
+export function respellWholeRemedy(value: string): string {
+  for (const { rule, pattern } of WHOLE) {
+    const match = pattern.exec(value)
+    if (match !== null) return replacement(rule, 'text')(...match)
+  }
+  return value
+}
+
 /**
  * `text` with each allowlisted upstream sentence it holds verbatim spelled
  * through cospec — as printed, or inside a JSON string — and every other byte

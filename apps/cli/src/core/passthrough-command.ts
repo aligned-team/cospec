@@ -24,6 +24,7 @@ import {
   type OpenspecResult,
   type RunExpectation,
 } from './openspec.ts'
+import { respellWholeRemedy } from './remedies.ts'
 import { resolveRoot, RootSelectionError, type ResolvedRoot } from './root.ts'
 
 export interface PassthroughCommandOptions {
@@ -200,6 +201,15 @@ export async function runPassthrough(
 export interface CommandField {
   readonly path: readonly string[]
   readonly lead?: string
+  /**
+   * How the field is spelled: `leading` (the default) rewrites the one
+   * `openspec ` token after `lead`; `remedy` rewrites the field only when its
+   * whole value is one allowlisted remedy (`respellWholeRemedy` in
+   * `core/remedies.ts`, each hole re-emitted as captured), so a command
+   * later in the value (`git clone … && openspec store register …`) is
+   * spelled while a value with any text around the remedy stays as written.
+   */
+  readonly rule?: 'leading' | 'remedy'
 }
 
 const OPENSPEC_COMMAND = 'openspec '
@@ -210,31 +220,39 @@ const COSPEC_COMMAND = 'cospec '
  * `openspec ` spelled `cospec ` — that one token in command position and
  * nothing else, so the ids, paths and names after it (a store called
  * `openspec-team`) and every field `fields` does not name pass through
- * byte-for-byte. The rule reads the document's structure, never its rendered
+ * byte-for-byte; or, for a `remedy` field, the field's whole value spelled
+ * through the allowlist when it is one remedy. The rule reads the document's structure, never its rendered
  * text, so nothing a user owns can stand in for a command. Returns a new
  * document; `doc` is left as it was. A relay renders its text, human or
  * `--json` (`renderJsonDocument`), from the result.
  */
 export function respellCommandFields<T>(doc: T, fields: readonly CommandField[]): T {
   const out = structuredClone(doc)
-  for (const field of fields) respellAt(out, field.path, field.lead ?? '')
+  for (const field of fields) respellAt(out, field.path, spelling(field))
   return out
 }
 
-function respellAt(node: unknown, path: readonly string[], lead: string): void {
+function spelling(field: CommandField): (value: string) => string {
+  if (field.rule === 'remedy') return respellWholeRemedy
+  const command = (field.lead ?? '') + OPENSPEC_COMMAND
+  return (value) =>
+    value.startsWith(command)
+      ? (field.lead ?? '') + COSPEC_COMMAND + value.slice(command.length)
+      : value
+}
+
+function respellAt(node: unknown, path: readonly string[], spell: (value: string) => string): void {
   const [key, ...rest] = path
   if (key === undefined || node === null || typeof node !== 'object') return
   if (key === '[]') {
-    if (Array.isArray(node)) for (const item of node) respellAt(item, rest, lead)
+    if (Array.isArray(node)) for (const item of node) respellAt(item, rest, spell)
     return
   }
   if (Array.isArray(node) || !Object.hasOwn(node, key)) return
   const record = node as Record<string, unknown>
   const value = record[key]
-  if (rest.length > 0) return respellAt(value, rest, lead)
-  const command = lead + OPENSPEC_COMMAND
-  if (typeof value === 'string' && value.startsWith(command))
-    record[key] = lead + COSPEC_COMMAND + value.slice(command.length)
+  if (rest.length > 0) return respellAt(value, rest, spell)
+  if (typeof value === 'string') record[key] = spell(value)
 }
 
 /** A document rendered as the binary renders its own: two-space JSON and a newline. */

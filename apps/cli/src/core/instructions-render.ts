@@ -1,13 +1,17 @@
 // cospec's `instructions <artifact>` answer, built from the pinned binary's
 // own `--json` document (change `upstream-spellings`, design decision 11): the
-// human text is rendered from the document by a port of the binary's printer
-// (`dist/commands/workflow/instructions.js` `printInstructionsText` and
-// `dist/core/references.js` `renderReferencedStoresBlock` with its escape
-// helpers, `@fission-ai/openspec` 1.13.1). The rendered text is never
+// document's command-bearing fields are spelled through cospec structurally
+// (`respellCommandFields` with the whole-value remedy rule), and the human
+// text is rendered from the rewritten document by a port of the binary's
+// printer (`dist/commands/workflow/instructions.js` `printInstructionsText`
+// and `dist/core/references.js` `renderReferencedStoresBlock` with its
+// escape helpers, `@fission-ai/openspec` 1.13.1). The rendered text is never
 // pattern-matched: a user's template, context, rule, spec Purpose, store id or
 // path reaches the answer exactly as the binary prints it.
 
 import { join } from 'node:path'
+
+import { type CommandField, respellCommandFields } from './passthrough-command.ts'
 
 /** The fields of the binary's document the printer reads. */
 export interface InstructionsDocument {
@@ -40,6 +44,21 @@ interface ReferenceEntry {
   specs?: { id: string; summary: string }[]
   fetch?: string
   status: { message: string; fix?: string }[]
+}
+
+/**
+ * The command-bearing fields of an `instructions` document: the fields
+ * `dist/core/references.js` fills with a command for the user to run. Each
+ * is rewritten only when its whole value is an allowlisted remedy.
+ */
+export const INSTRUCTIONS_COMMAND_FIELDS: readonly CommandField[] = [
+  { path: ['references', '[]', 'fetch'], rule: 'remedy' },
+  { path: ['references', '[]', 'status', '[]', 'fix'], rule: 'remedy' },
+]
+
+/** `doc` with only its command-bearing reference fields spelled through cospec. */
+export function respellInstructionsDocument<T>(doc: T): T {
+  return respellCommandFields(doc, INSTRUCTIONS_COMMAND_FIELDS)
 }
 
 /** The binary's text answer for `doc`, as `printInstructionsText` prints it. */

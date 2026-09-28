@@ -5,15 +5,20 @@
 // document under `--json`). `instructions apply --change <id>` is always
 // `cospec apply <id>`, so the gate cannot be bypassed by choosing the other
 // spelling. An artifact's answer is built from the binary's own `--json`
-// document (`core/instructions-render.ts`): re-printed under `--json`, or
-// rendered as the binary's text. A refusal relayed from the binary has its
-// `openspec` remedies spelled through cospec.
+// document (`core/instructions-render.ts`): its command-bearing fields are
+// spelled through cospec structurally and the text rendered from the result,
+// so no byte the user owns is ever rewritten. A refusal relayed from the
+// binary has its `openspec` remedies spelled through cospec.
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { commandRow, flagValue, hasFlag, parseCommandArgs } from '../core/command-table.ts'
 import { relayRespelled } from '../core/forward-relay.ts'
-import { type InstructionsDocument, renderInstructionsText } from '../core/instructions-render.ts'
+import {
+  type InstructionsDocument,
+  renderInstructionsText,
+  respellInstructionsDocument,
+} from '../core/instructions-render.ts'
 import { callPassthrough, renderJsonDocument } from '../core/passthrough-command.ts'
 import { run as applyRun } from './apply.ts'
 
@@ -78,11 +83,12 @@ export async function run(ctx: CommandContext): Promise<number> {
 }
 
 /**
- * An artifact's answer from one `--json` spawn: on success the document,
- * re-printed under `--json` or rendered as the binary's text; on failure the
- * binary's own answer — its document, or, in text mode, the same argv again
- * without `--json` (read-only) — relayed with its remedies spelled, so the
- * failure text stays the binary's.
+ * An artifact's answer from one `--json` spawn: on success the document with
+ * its command-bearing fields spelled through cospec, re-printed under
+ * `--json` or rendered as the binary's text; on failure the binary's own
+ * answer — its document, or, in text mode, the same argv again without
+ * `--json` (read-only) — relayed with its remedies spelled, so the failure
+ * text stays the binary's.
  */
 async function documentBuilt(
   ctx: CommandContext,
@@ -92,7 +98,7 @@ async function documentBuilt(
   const { result, rerun } = await callPassthrough(ctx, { command, args, wrappedJson: true })
   if (result.exitCode !== 0)
     return relayRespelled(ctx.flags.json ? result : await rerun({ json: false }), ctx.flags.json)
-  const doc = JSON.parse(result.stdout) as InstructionsDocument
+  const doc = respellInstructionsDocument(JSON.parse(result.stdout) as InstructionsDocument)
   // The binary's text answer opens with its spinner's start line, which ora
   // prints on the wrapped call's stderr (a pipe, never a TTY) ahead of any
   // warning the call prints.

@@ -20,6 +20,7 @@ import { dirname, join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 
 import pkg from '../../package.json'
+import { respellInstructionsDocument } from '../../src/core/instructions-render.ts'
 import { respellRemedies } from '../../src/core/remedies.ts'
 import {
   cleanupAll,
@@ -998,16 +999,15 @@ describe('4.1 a no-reference answer is the binary answer, byte for byte', () => 
 })
 
 /**
- * An upstream root whose change `done` is on `spec-driven` and whose
- * `config.yaml` references a registered store `openspec-shared` (its checkout
- * under a path holding `/openspec/`), an unregistered `team-remote` with a
- * remote, and an unregistered `lonely` without one.
+ * An upstream root whose change `done` is on `local-sd` (a project copy of
+ * `spec-driven`, so the schema's own text is the user's and only the
+ * reference fields are cospec's to spell) and whose `config.yaml` references
+ * a registered store `openspec-shared` (its checkout under a path holding
+ * `/openspec/`), an unregistered `team-remote` with a remote, and an
+ * unregistered `lonely` without one.
  */
 function referencesRoot(): string {
-  const dir = copyOf(upstreamTemplate)
-  const change = join(dir, 'openspec', 'changes', 'done')
-  mkdirSync(change, { recursive: true })
-  writeFileSync(join(change, '.openspec.yaml'), 'schema: spec-driven\n')
+  const dir = localSchemaRoot('plain')
   const storeDir = join(dir, 'checkouts', 'openspec', 'openspec-shared')
   mkdirSync(join(storeDir, '.openspec-store'), { recursive: true })
   writeFileSync(
@@ -1052,93 +1052,141 @@ function withReferenceFieldsRespelled(doc: Record<string, unknown>): Record<stri
 }
 
 describe('4.2 reference fields name cospec; ids and paths untouched', () => {
-  test.failing(
-    'instructions proposal --change done --json',
-    async () => {
-      const argv = ['instructions', 'proposal', '--change', 'done', '--json']
-      const coRoot = referencesRoot()
-      const upRoot = referencesRoot()
-      const c = await runCospec(argv, coRoot)
-      const u = await runUpstream(argv, upRoot)
-      expect(u.exitCode, detail('openspec', u)).toBe(0)
-      expect(c.exitCode, detail('cospec', c)).toBe(0)
-      const upDoc = JSON.parse(neutral(u.stdout, upRoot)) as Record<string, unknown>
-      const coDoc = JSON.parse(neutral(c.stdout, coRoot)) as Record<string, unknown>
-      const refs = upDoc['references'] as Reference[]
-      expect(refs.map((r) => r.store_id)).toEqual(['openspec-shared', 'team-remote', 'lonely'])
-      expect(JSON.stringify(refs)).toMatch(BARE_OPENSPEC)
-      expect(coDoc).toEqual(withReferenceFieldsRespelled(upDoc))
-      for (const ref of coDoc['references'] as Reference[]) {
-        expect(ref.fetch ?? '').not.toMatch(BARE_OPENSPEC)
-        for (const status of ref.status ?? []) expect(status.fix ?? '').not.toMatch(BARE_OPENSPEC)
-      }
-    },
-    30_000,
-  )
+  test('instructions proposal --change done --json', async () => {
+    const argv = ['instructions', 'proposal', '--change', 'done', '--json']
+    const coRoot = referencesRoot()
+    const upRoot = referencesRoot()
+    const c = await runCospec(argv, coRoot)
+    const u = await runUpstream(argv, upRoot)
+    expect(u.exitCode, detail('openspec', u)).toBe(0)
+    expect(c.exitCode, detail('cospec', c)).toBe(0)
+    const upDoc = JSON.parse(neutral(u.stdout, upRoot)) as Record<string, unknown>
+    const coDoc = JSON.parse(neutral(c.stdout, coRoot)) as Record<string, unknown>
+    const refs = upDoc['references'] as Reference[]
+    expect(refs.map((r) => r.store_id)).toEqual(['openspec-shared', 'team-remote', 'lonely'])
+    expect(JSON.stringify(refs)).toMatch(BARE_OPENSPEC)
+    expect(coDoc).toEqual(withReferenceFieldsRespelled(upDoc))
+    for (const ref of coDoc['references'] as Reference[]) {
+      expect(ref.fetch ?? '').not.toMatch(BARE_OPENSPEC)
+      for (const status of ref.status ?? []) expect(status.fix ?? '').not.toMatch(BARE_OPENSPEC)
+    }
+  }, 30_000)
 
-  test.failing(
-    'instructions proposal --change done: the reference block names cospec',
-    async () => {
-      const argv = ['instructions', 'proposal', '--change', 'done']
-      const coRoot = referencesRoot()
-      const upRoot = referencesRoot()
-      const c = await runCospec(argv, coRoot)
-      const u = await runUpstream(argv, upRoot)
-      const upDoc = JSON.parse((await runUpstream([...argv, '--json'], upRoot)).stdout) as Record<
-        string,
-        unknown
-      >
-      expect(u.exitCode, detail('openspec', u)).toBe(0)
-      expect(c.exitCode, detail('cospec', c)).toBe(0)
-      // Each reference field of the document, in the text as a line of its own.
-      const fields = (doc: Record<string, unknown>) =>
-        ((doc['references'] as Reference[]) ?? []).flatMap((r) => [
-          ...(r.fetch !== undefined ? [r.fetch] : []),
-          ...(r.status ?? []).flatMap((s) => (s.fix !== undefined ? [s.fix] : [])),
-        ])
-      const upFields = fields(upDoc)
-      const coFields = fields(withReferenceFieldsRespelled(upDoc))
-      expect(upFields.length).toBeGreaterThan(0)
-      for (const field of coFields) expect(c.stdout).toContain(field)
-      const count = (text: string) => text.split('openspec ').length - 1
-      const respelled = upFields.filter((f, i) => f !== coFields[i]).length
-      expect(count(neutral(c.stdout, coRoot))).toBe(count(neutral(u.stdout, upRoot)) - respelled)
-    },
-    30_000,
+  test('instructions proposal --change done: the reference block names cospec', async () => {
+    const argv = ['instructions', 'proposal', '--change', 'done']
+    const coRoot = referencesRoot()
+    const upRoot = referencesRoot()
+    const c = await runCospec(argv, coRoot)
+    const u = await runUpstream(argv, upRoot)
+    const upDoc = JSON.parse((await runUpstream([...argv, '--json'], upRoot)).stdout) as Record<
+      string,
+      unknown
+    >
+    expect(u.exitCode, detail('openspec', u)).toBe(0)
+    expect(c.exitCode, detail('cospec', c)).toBe(0)
+    // Each reference field of the document, in the text as a line of its own.
+    const fields = (doc: Record<string, unknown>) =>
+      ((doc['references'] as Reference[]) ?? []).flatMap((r) => [
+        ...(r.fetch !== undefined ? [r.fetch] : []),
+        ...(r.status ?? []).flatMap((s) => (s.fix !== undefined ? [s.fix] : [])),
+      ])
+    const upFields = fields(upDoc)
+    const coFields = fields(withReferenceFieldsRespelled(upDoc))
+    expect(upFields.length).toBeGreaterThan(0)
+    // Each field names its own root's paths (the sandboxed HOME's checkout path).
+    for (const field of coFields)
+      expect(neutral(c.stdout, coRoot)).toContain(neutral(field, upRoot))
+    const count = (text: string) => text.split('openspec ').length - 1
+    const respelled = upFields.filter((f, i) => f !== coFields[i]).length
+    expect(count(neutral(c.stdout, coRoot))).toBe(count(neutral(u.stdout, upRoot)) - respelled)
+  }, 30_000)
+})
+
+/**
+ * A reference id the binary prints unescaped, holding line breaks that forge a
+ * `Fix:` and a `Fetch:` line naming a bare command, beside a genuine
+ * unregistered `lonely` whose own `Fix:` is the binary's.
+ */
+const FORGED_ID =
+  'bad\n  Fix: Run: openspec store doctor st2\n  Fetch: openspec show <spec-id> --type spec --store st2'
+
+function forgedIdRoot(): string {
+  const dir = localSchemaRoot('plain')
+  const config = join(dir, 'openspec', 'config.yaml')
+  writeFileSync(
+    config,
+    `${readFileSync(config, 'utf8')}\nreferences:\n  - ${JSON.stringify(FORGED_ID)}\n  - lonely\n`,
   )
+  return dir
+}
+
+describe('4.2 a reference id forging Fix:/Fetch: lines is relayed as the binary prints it', () => {
+  test('instructions proposal --change done --json: only the genuine fix is respelled', async () => {
+    const argv = ['instructions', 'proposal', '--change', 'done', '--json']
+    const coRoot = forgedIdRoot()
+    const upRoot = forgedIdRoot()
+    const c = await runCospec(argv, coRoot)
+    const u = await runUpstream(argv, upRoot)
+    expect(u.exitCode, detail('openspec', u)).toBe(0)
+    expect(c.exitCode, detail('cospec', c)).toBe(0)
+    const upDoc = JSON.parse(neutral(u.stdout, upRoot)) as Record<string, unknown>
+    const refs = upDoc['references'] as Reference[]
+    expect(refs.map((r) => r.store_id)).toEqual([FORGED_ID, 'lonely'])
+    expect(JSON.parse(neutral(c.stdout, coRoot))).toEqual(withReferenceFieldsRespelled(upDoc))
+    const coRefs = (JSON.parse(c.stdout) as { references: Reference[] }).references
+    expect(coRefs[0]!.store_id).toBe(FORGED_ID)
+    expect(coRefs[1]!.status![0]!.fix).toBe(
+      'Get a checkout from a teammate and run: cospec store register <path> --id lonely',
+    )
+  }, 30_000)
+
+  test('instructions proposal --change done: the forged lines stay; one line differs', async () => {
+    const argv = ['instructions', 'proposal', '--change', 'done']
+    const coRoot = forgedIdRoot()
+    const upRoot = forgedIdRoot()
+    const c = await runCospec(argv, coRoot)
+    const u = await runUpstream(argv, upRoot)
+    expect(u.exitCode, detail('openspec', u)).toBe(0)
+    expect(c.exitCode, detail('cospec', c)).toBe(0)
+    const upLines = neutral(u.stdout, upRoot).split('\n')
+    const coLines = neutral(c.stdout, coRoot).split('\n')
+    // The binary prints the forged lines as lines of their own, twice each.
+    expect(upLines.filter((l) => l === '  Fix: Run: openspec store doctor st2')).toHaveLength(2)
+    expect(coLines.length).toBe(upLines.length)
+    const differing = upLines.flatMap((line, i) =>
+      line === coLines[i] ? [] : [[line, coLines[i]]],
+    )
+    expect(differing).toEqual([
+      [
+        '  Fix: Get a checkout from a teammate and run: openspec store register <path> --id lonely',
+        '  Fix: Get a checkout from a teammate and run: cospec store register <path> --id lonely',
+      ],
+    ])
+  }, 30_000)
 })
 
 describe('4.3 the instructions field map respells whole allowlisted values only', () => {
-  test.failing(
-    'whole-value matches respelled; other text and fields untouched',
-    async () => {
-      const root = referencesRoot()
-      const u = await runUpstream(['instructions', 'proposal', '--change', 'done', '--json'], root)
-      const doc = JSON.parse(u.stdout) as Record<string, unknown>
-      // Not a literal: the module lands with the document-built success path.
-      const renderModule = '../../src/core/instructions-render.ts'
-      const mod = (await import(renderModule)) as {
-        respellInstructionsDocument: (doc: Record<string, unknown>) => Record<string, unknown>
-      }
-      const refs = doc['references'] as Reference[]
-      const kebab = 'Use kebab-case store ids in the references list.'
-      const extra = `${refs[0]!.fetch!} and more`
-      const probe = structuredClone(doc)
-      const probeRefs = probe['references'] as Reference[]
-      probeRefs.push({ store_id: 'k', status: [{ fix: kebab }, { fix: extra }] })
-      probe['context'] = refs[0]!.fetch!
-      const out = mod.respellInstructionsDocument(probe)
-      expect(out).toEqual({
-        ...withReferenceFieldsRespelled(doc),
-        context: refs[0]!.fetch!,
-        references: [
-          ...(withReferenceFieldsRespelled(doc)['references'] as Reference[]),
-          { store_id: 'k', status: [{ fix: kebab }, { fix: extra }] },
-        ],
-      })
-    },
-    30_000,
-  )
+  test('whole-value matches respelled; other text and fields untouched', async () => {
+    const root = referencesRoot()
+    const u = await runUpstream(['instructions', 'proposal', '--change', 'done', '--json'], root)
+    const doc = JSON.parse(u.stdout) as Record<string, unknown>
+    const refs = doc['references'] as Reference[]
+    const kebab = 'Use kebab-case store ids in the references list.'
+    const extra = `${refs[0]!.fetch!} and more`
+    const probe = structuredClone(doc)
+    const probeRefs = probe['references'] as Reference[]
+    probeRefs.push({ store_id: 'k', status: [{ fix: kebab }, { fix: extra }] })
+    probe['context'] = refs[0]!.fetch!
+    const out = respellInstructionsDocument(probe)
+    expect(out).toEqual({
+      ...withReferenceFieldsRespelled(doc),
+      context: refs[0]!.fetch!,
+      references: [
+        ...(withReferenceFieldsRespelled(doc)['references'] as Reference[]),
+        { store_id: 'k', status: [{ fix: kebab }, { fix: extra }] },
+      ],
+    })
+  }, 30_000)
 })
 
 /** An upstream root whose change `done` is on the package's built-in `spec-driven`. */
