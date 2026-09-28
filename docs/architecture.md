@@ -189,15 +189,19 @@ output and the human transcript. Left unrewritten, that is a routing- discipline
 leak: an agent obeying the printed remedy verbatim would call the bare binary.
 
 `relayThroughCospec` (`commands/apply.ts`) closes it as an output filter, not a
-fresh source of truth — it never invents a `cospec` surface upstream doesn't
-have. The match is anchored to a backtick-delimited command span, never a bare
-`openspec ` token, because `collectApplyWarnings`'s no-delta-specs warning
-embeds an absolute `…/.openspec.yaml` path in the same string that must not be
-touched. The verb set is closed and enumerated (`instructions`, `status`,
-`validate` — every verb the 1.13.1 remedy strings actually emit) rather than a
-wildcard match, so a verb outside it is deliberately left alone: relaying an
-unrecognized upstream command as `cospec` would fabricate a surface that may not
-exist. This is defence-in-depth, the same posture as the archive
+fresh source of truth: it is the one remedy allowlist (`core/remedies.ts`) every
+relay reads, the pinned binary's exact sentences that name a bare
+`openspec <command>`, each with its cospec spelling. Only a sentence that stands
+verbatim is rewritten; the name, path or list a sentence carries is re-emitted
+as the binary wrote it, so `collectApplyWarnings`'s absolute `…/.openspec.yaml`
+path, and any text upstream did not write (a schema's own instruction), pass
+through untouched. No pattern over free text (a lead-in word, a quote, a
+backtick) decides what is a remedy — three rounds of such patterns each left a
+path or excerpt they rewrote. `test/contract/remedy-enumeration.test.ts` reads
+the pinned dist and fails on any line naming `openspec <command>` that is
+neither an allowlist entry nor listed
+(`test/contract/support/remedy-sources.ts`) with the reason no cospec relay
+prints it. This is defence-in-depth, the same posture as the archive
 scenario-preservation gate below — cospec's own routing discipline is the
 primary guard (agents are told to call `cospec`, never `openspec`), and the
 relay guard is the belt-and-suspenders catch for the one path where upstream's
@@ -255,11 +259,12 @@ marker keeps a post-command `--store <id>` in the argv where the user typed it
 of meeting a threaded `--store` first; a pre-command `--store` is still threaded
 ahead, where the binary refuses it as an unknown option — it selects no root for
 these two. And `relayRespelled` (`core/forward-relay.ts`) answers the binary's
-`--store-path` refusal with cospec's redirect and, on a failed call only, spells
-each bare-`openspec` remedy the binary writes (`RELAYED_REMEDIES`) as the cospec
-command of the same shape — or drops it where cospec has none — so the remedy a
-user reads names cospec; a successful call's output is the user's content and is
-relayed untouched.
+`--store-path` refusal with cospec's redirect and spells each of upstream's
+remedy sentences (`core/remedies.ts`) as the cospec command of the same shape —
+or drops it where cospec has none — so the remedy a user reads names cospec: in
+a failed call's answer, and in a successful `context` or `instructions` answer,
+whose reference block (`Fetch:`/`Fix:`) the binary renders itself. A successful
+`show` prints the user's own change or spec and is relayed untouched.
 
 ### The terminal-handover class
 

@@ -112,12 +112,13 @@ runtime by `dist/commands/spec.js:127`.
      `openspec list --changes`/`--specs`, the no-root `run openspec init`,
      legacy `status`'s `Next: openspec instructions …`, and every other sentence
      of the pin that names a command) as the cospec command of the same shape,
-     or drops the clause where cospec has none (the noun-form commands), and
-     only on a failed call — a change, spec or instructions the binary shows is
-     the user's own text, relayed untouched. `view` respells its footer, and
-     `status --change <id>` on a schema cospec does not type relays the binary's
-     own status for it in text mode instead of pointing at bare
-     `openspec status`. `forward` rows: `show`, `templates`, `schemas`,
+     or drops the clause where cospec has none (the noun-form commands), on a
+     failed call, and on a successful `context` or `instructions` too, whose
+     reference block (`Fetch:`/`Fix:`) the binary renders — a change or spec a
+     successful `show` prints is the user's own text, relayed untouched. `view`
+     respells its footer, and `status --change <id>` on a schema cospec does not
+     type relays the binary's own status for it in text mode instead of pointing
+     at bare `openspec status`. `forward` rows: `show`, `templates`, `schemas`,
      `schema`, `store`, `workset`, `config`. `feedback` is a `table` row:
      `parseFeedbackArgs` already rejects unknown options, so the shared parser
      replaces it and the `--upstream` relay rebuilds its argv from the parsed
@@ -470,15 +471,22 @@ runtime by `dist/commands/spec.js:127`.
     inside a sentence's `{cmd}` hole (`Create one with: <hint>`). Each sentence
     also matches its JSON-escaped form, for `--json` messages. `new` keeps one
     cut: a schema load error's payload is the user's schema, relayed as is even
-    where it copies an upstream sentence. The residual is exact: user text that
-    reproduces a whole upstream remedy sentence verbatim outside that payload is
-    respelled. Enforced by `test/contract/remedy-enumeration.test.ts`, which
-    reads the pinned dist and fails on any line naming `openspec <command>` that
-    is neither an allowlist entry nor listed
-    (`test/contract/support/remedy-sources.ts`) with the reason no cospec relay
-    prints it (only `init`/`update` run it, a terminal handover prints it,
-    cospec answers first, a noun-form command cospec lacks, …), keyed by module
-    and trimmed line, never line number. Rejected, after rounds 10–12:
+    where it copies an upstream sentence. On success, `context` and
+    `instructions` respell too — their reference block (`Fetch:`/`Fix:`) is the
+    binary's own rendering, remedies included, at exit 0 — while `show` stays
+    verbatim: a successful `show` prints the user's change or spec, which may
+    quote upstream's sentences word for word (this repo's own specs do). A
+    legacy schema's instruction text (the package's `schemas/spec-driven`,
+    outside `dist/`) is schema content and is relayed as the binary prints it.
+    The residual is exact: user text that reproduces a whole upstream remedy
+    sentence verbatim outside that payload, in a relayed failure or a
+    `context`/`instructions` answer, is respelled. Enforced by
+    `test/contract/remedy-enumeration.test.ts`, which reads the pinned dist and
+    fails on any line naming `openspec <command>` that is neither an allowlist
+    entry nor listed (`test/contract/support/remedy-sources.ts`) with the reason
+    no cospec relay prints it (only `init`/`update` run it, a terminal handover
+    prints it, cospec answers first, a noun-form command cospec lacks, …), keyed
+    by module and trimmed line, never line number. Rejected, after rounds 10–12:
     respelling `openspec <table command>` after a remedy lead-in (`Run`, `with`,
     `:`, `(`, a backtick), masking single-quoted spans, and cutting the reason
     at `already exists at` — each left a free-text case (an apostrophe ends a

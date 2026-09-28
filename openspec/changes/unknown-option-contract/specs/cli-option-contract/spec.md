@@ -526,19 +526,21 @@ binary where the user typed it, never absorbed as cospec's global; and cospec's
 runtime output SHALL name a wrapped call as the wrapped OpenSpec call, never as
 a bare `openspec` command. A remedy the binary writes as a bare
 `openspec <command>` in an answer cospec relays SHALL be spelled as the cospec
-command of the same shape, or dropped where cospec has no such command, while
-the content of a successful answer (a change, a spec, instructions) SHALL be
-relayed untouched. The respelling SHALL come from one allowlist of the pinned
-binary's exact sentences, each rewritten only where an answer holds it verbatim,
-with the path, name or list each sentence names re-emitted as the binary wrote
-it; no pattern over free text (a lead-in word, a quote, a paren) SHALL decide
-what is a remedy. Every sentence in the pinned binary that names a bare
-`openspec <command>` SHALL be in that allowlist or listed, with its reason, as
-never printed by a cospec relay, checked against the pinned dist. A pre-spawn
-guard SHALL answer only an argv the binary would not answer itself: a declared
-value-taking flag left without its value SHALL reach the binary as commander's
-missing value (or, for a flag the wrapper lifts itself, `config --scope`, SHALL
-be refused in the same
+command of the same shape, or dropped where cospec has no such command — in a
+failed call's answer, and in a successful `context` or `instructions` answer,
+whose reference block (`Fetch:`/`Fix:` lines) the binary renders itself — while
+the content of a successful `show` (a change, a spec) and the schema text a
+successful `instructions` prints SHALL be relayed untouched. The respelling
+SHALL come from one allowlist of the pinned binary's exact sentences, each
+rewritten only where an answer holds it verbatim, with the path, name or list
+each sentence names re-emitted as the binary wrote it; no pattern over free text
+(a lead-in word, a quote, a paren) SHALL decide what is a remedy. Every sentence
+in the pinned binary that names a bare `openspec <command>` SHALL be in that
+allowlist or listed, with its reason, as never printed by a cospec relay,
+checked against the pinned dist. A pre-spawn guard SHALL answer only an argv the
+binary would not answer itself: a declared value-taking flag left without its
+value SHALL reach the binary as commander's missing value (or, for a flag the
+wrapper lifts itself, `config --scope`, SHALL be refused in the same
 `cospec <command>: option '<flag> <placeholder>' argument missing` form), and
 `show`'s item check SHALL treat an option `show` does not declare as the item,
 as the binary does. An option where a forwarded command's subcommand belongs
@@ -612,6 +614,15 @@ reported as a wrapped-call failure.
   `(openspec list)`
 - **THEN** the binary's `Invalid store declaration in <path>: …` and its fix are
   relayed byte-for-byte, the path unchanged
+- **AND WHEN** `cospec context` or
+  `cospec instructions <artifact> --change <id>` succeeds on a root whose
+  `config.yaml` references a usable store, a registered store it cannot use and
+  an unregistered one
+- **THEN** its `Fetch: cospec show <spec-id> --type spec --store <id>`,
+  `Fix: Run: cospec store doctor <id>` and
+  `Fix: Get a checkout from a teammate and run: cospec store register <path> --id <id>`
+  lines (or `fetch`/`fix` values under `--json`) name cospec, and the rest of
+  the answer is the binary's, exit 0
 - **AND WHEN** a line of the pinned dist names a bare `openspec <command>` that
   is neither in the allowlist nor listed as never relayed
 - **THEN** the remedy enumeration contract test fails

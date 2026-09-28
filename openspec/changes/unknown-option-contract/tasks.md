@@ -548,3 +548,14 @@ red; 4–7 turn it green; 8 documents it.
       `Only upstream's own sentences are     respelled`, design decision 13,
       `reference/commands.md` (`new` row, the relayed-remedy paragraph),
       `concepts/apply-and-archive.md` (ledger 1.57, 1.58)
+- [x] 10.65 Success-path rows first (9149694): 4 `relayed-remedies.test.ts` rows
+      (`context`, `instructions proposal --change done`, each with and without
+      `--json`, over a root referencing a usable, an unusable and an
+      unregistered store) as `test.failing`, each failing on the bare
+      `Fetch:`/`Fix:` lines; plain `test` at e9ef302
+- [x] 10.66 `relayRespelled` takes `success: 'verbatim' | 'respell'`; `context`
+      and `instructions` pass `'respell'`, `show` keeps the verbatim default;
+      unit `relayRespelled` cases; spec requirement + scenario, design decisions
+      1 and 13, `reference/commands.md`, `docs/architecture.md` (ledger 1.59)
+- [x] 10.67 `.agents/shared.md` gains the "Relayed remedies come from one
+      allowlist" discipline; `mise run agents:sync` (ledger 1.60)

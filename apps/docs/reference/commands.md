@@ -299,22 +299,24 @@ and `cospec init` in the no-root answer from `show`, `context` and
 suggestion, which cospec has no command for. Only OpenSpec's own remedy
 sentences are respelled, each where it appears verbatim: the path, name or list
 a sentence carries, and any other text — a directory named `run openspec init`,
-say — is relayed exactly as OpenSpec printed it. What a successful `show` or
-`instructions` prints is your own content, relayed untouched. The pre-spawn
-guards answer only what OpenSpec would not: an option where a subcommand belongs
-(`cospec config --bogus path`, `cospec schema --bogus`) reaches OpenSpec, which
-refuses it as an unknown option, not an unknown subcommand, and
-`cospec show --bogus` or `cospec show --type` gets OpenSpec's own answer
-(`Unknown item '--bogus'.`, `option '--type <type>' argument missing`); only a
-`show` with no item at all — an empty `""` is none, after `--` too — gets
-cospec's item-name error (`cospec show: an item name is required`, exit `1`;
-under `--json` one `{"status":[{"severity":"error","code":"missing_item",…}]}`
-document on stdout) instead of OpenSpec's "Nothing to show" screen, which names
-bare `openspec` commands. `openspec show` itself accepts an unrecognized flag by
-design (`allowUnknownOption(true)`), so a cospec-side rejection there would be
-the divergence from upstream, not a fix for one; the same forwarding lets a
-newer in-range OpenSpec's new flag keep working immediately instead of failing
-until cospec's table catches up.
+say — is relayed exactly as OpenSpec printed it. A successful `context` or
+`instructions` names cospec in its referenced-store lines too (`Fetch:`,
+`Fix:`); what a successful `show` prints, and an artifact's schema text, is your
+own content, relayed untouched. The pre-spawn guards answer only what OpenSpec
+would not: an option where a subcommand belongs (`cospec config --bogus path`,
+`cospec schema --bogus`) reaches OpenSpec, which refuses it as an unknown
+option, not an unknown subcommand, and `cospec show --bogus` or
+`cospec show --type` gets OpenSpec's own answer (`Unknown item '--bogus'.`,
+`option '--type <type>' argument missing`); only a `show` with no item at all —
+an empty `""` is none, after `--` too — gets cospec's item-name error
+(`cospec show: an item name is required`, exit `1`; under `--json` one
+`{"status":[{"severity":"error","code":"missing_item",…}]}` document on stdout)
+instead of OpenSpec's "Nothing to show" screen, which names bare `openspec`
+commands. `openspec show` itself accepts an unrecognized flag by design
+(`allowUnknownOption(true)`), so a cospec-side rejection there would be the
+divergence from upstream, not a fix for one; the same forwarding lets a newer
+in-range OpenSpec's new flag keep working immediately instead of failing until
+cospec's table catches up.
 
 **`--json` on a command that can't emit it.** `cospec view` renders a text
 dashboard and `cospec completion` prints a shell script; both refuse `--json`
