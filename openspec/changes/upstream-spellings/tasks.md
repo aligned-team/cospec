@@ -55,11 +55,11 @@ a time. Group 12 waits for the rebase in group 11.
 
 ## 3. Remedy enumeration reads YAML as YAML (`apps/cli/test/contract/remedy-enumeration.test.ts`)
 
-- [ ] 3.1 Parse each pinned `.yaml` with `yaml` and enumerate the trimmed lines
+- [x] 3.1 Parse each pinned `.yaml` with `yaml` and enumerate the trimmed lines
       of every string scalar; drop `YAML_COMMENT` and its `isComment` branch;
       add the mutated-copy row of ledger 6.1; verify the existing
       classifications still match and the mutated heading fails the test
-- [ ] 3.2 Commit `test(cli): read pinned schema yaml by its own syntax`
+- [x] 3.2 Commit `test(cli): read pinned schema yaml by its own syntax`
 
 ## 4. T1 — `init --tools` (`apps/cli/src/commands/init.ts`; the `init` row, its `aliases.yaml` line and pending entry)
 
