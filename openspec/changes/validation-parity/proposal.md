@@ -58,14 +58,22 @@ ERROR for cospec-typed changes and only the binary's hint text is ported.
 - New rule `archive/split-requirement` (ERROR). A skipped header inside a block
   that leaves a piece of it with no scenario is refused by the binary's archive,
   which re-validates the rebuilt spec with every `###` header read as a
-  requirement of its own. The rule reports it instead of the INFO.
-- The `archive/*` family reads the delta and the living spec as the binary's
-  archive does, HTML comments included; the advisory rules keep masking them. A
-  commented op that collides or misses its target is refused, and `REMOVED X`
-  beside `ADDED "X <!-- note -->"` is no longer a conflict.
-- `archive/target-invalid` also refuses a living spec with a `### Requirement:`
-  outside `## Requirements`, or a duplicate requirement name, which the binary's
-  archive refuses to update.
+  requirement of its own. The rule reports it instead of the INFO — except under
+  `--fast`, where the rule doesn't run and the INFO stays. It also reports such
+  a header inside a living requirement the delta keeps.
+- One view model. Each delta and living spec is scanned once, code fences first,
+  and an HTML comment can't open or close on a fenced line, so a `<!--` inside a
+  fenced example no longer hides the scenarios after it. Every `archive/*` rule,
+  `archive/scenario-preservation` included, reads the verbatim view (fences
+  masked, comments kept) that the binary's archive reads; only the advisory
+  `deltas/*` rules keep masking comments. A commented op that collides or misses
+  its target is refused, `REMOVED X` beside `ADDED "X <!-- note -->"` is no
+  longer a conflict, and a scenario inside a comment counts as the archive
+  counts it.
+- `archive/target-invalid` also refuses a living spec with a delta header
+  (visible, or on its own line in a comment), a `### Requirement:` outside
+  `## Requirements`, or a duplicate requirement name, which the binary's archive
+  refuses to update. A BOM is kept for this check, as the binary keeps it.
 - New rules `tasks/id-mismatch` and `tasks/id-duplicate` (WARNING), ported from
   the binary's `findTaskNumberingIssues`. A task id whose leading group number
   disagrees with its enclosing `## N.` heading (with leading zeros normalised)
@@ -83,11 +91,15 @@ ERROR for cospec-typed changes and only the binary's hint text is ported.
   empty sections and no-deltas against `archive/no-ops`, the binary's two
   skipped-header INFO shapes against `deltas/skipped-header`, a skipped
   `### Scenario:` header against `deltas/scenario-depth`, the three SHALL/MUST
-  and missing-text messages against `deltas/requirement-shape`, and the two
-  cross-section messages against `archive/added-exists`, the two skipped-header
-  shapes against `archive/split-requirement`, and the dry-run's
-  structurally-invalid-target INFO against `archive/target-invalid`. Each
-  pairing gets a contract test that reads the message from the pinned binary.
+  and missing-text messages and the missing-scenario message against
+  `deltas/requirement-shape`, the two cross-section messages, duplicate ADDED,
+  duplicate RENAMED TO and RENAMED-TO-collides-with-ADDED against
+  `archive/added-exists`, MODIFIED+REMOVED and duplicate RENAMED FROM against
+  `archive/target-missing`, the two skipped-header shapes against
+  `archive/split-requirement`, and the dry-run's structurally-invalid-target
+  INFO against `archive/target-invalid`. Each pairing gets a contract test that
+  reads the message from the pinned binary, and a sweep over every report in the
+  parity suite checks that no defect is reported twice.
 - `apps/cli/test/contract/validation-parity.test.ts` (new) is a severity oracle
   on the legacy lane. For each finding the pinned binary gives a `spec-driven`
   fixture, cospec reports the same message at the same level.
@@ -95,8 +107,10 @@ ERROR for cospec-typed changes and only the binary's hint text is ported.
   fail `cospec validate --strict`, which the workflow requires, and a REMOVED
   plus ADDED (or ADDED plus MODIFIED) of one requirement name is now an ERROR at
   validate time instead of a refusal inside the delegated archive, as are a
-  splitting skipped header, a commented op the archive refuses, and a misplaced
-  or duplicate living requirement.
+  splitting skipped header (in the delta or in a living requirement the delta
+  keeps), a commented op the archive refuses, a living scenario inside a comment
+  that a MODIFIED drops, and a misplaced or duplicate living requirement or a
+  living delta header, visible or commented.
 
 ## Capabilities
 
@@ -118,8 +132,10 @@ ERROR for cospec-typed changes and only the binary's hint text is ported.
 
 ## Impact
 
-- `apps/cli/src/core/deltas.ts` (the parser records skipped headers),
-  `apps/cli/src/core/rules/deltas.ts`, `apps/cli/src/core/tasks.ts`,
+- `apps/cli/src/core/deltas.ts` (the parser records skipped headers; round 3:
+  the one fence-aware scan and the two-view living reader),
+  `apps/cli/src/core/rules/deltas.ts`, `apps/cli/src/core/rules/index.ts` (the
+  `deltasRules` call passes `--fast`), `apps/cli/src/core/tasks.ts`,
   `apps/cli/src/core/rules/tasks.ts`, `apps/cli/src/core/rules/archive.ts`,
   `apps/cli/src/commands/validate.ts` (`DUPLICATE_CLASSES` only).
 - Tests: `apps/cli/test/unit/rules/{deltas,tasks,archive}.test.ts`,

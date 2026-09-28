@@ -87,25 +87,58 @@ archive gates — parsing it as delta content previously risked a false
 
 cospec's delta and living-spec parsers tolerate a leading UTF-8 BOM and CRLF/CR
 line endings (both normalized before parsing; reported line numbers are
-unaffected), ignore markdown structure inside HTML comments (including a `--!>`
-terminator and an unterminated `<!--` that runs to end of file — an author's own
-comment inside `## Purpose` still counts as Purpose prose), and mask code fences
-using the same rule OpenSpec's own shared fence-masking uses: `~~~` fences are
-recognized alongside ` ``` `, and a fence only closes on a matching marker at
-least as long as the one that opened it.
+unaffected), and mask code fences using the same rule OpenSpec's own shared
+fence-masking uses: `~~~` fences are recognized alongside ` ``` `, and a fence
+only closes on a matching marker at least as long as the one that opened it.
 
-That comment mask is the advisory view (`ReadView` `masked`, the default). The
-`archive/*` family — every rule but `archive/scenario-preservation`, which
-mirrors the hard gate and reads what it reads — parses the delta and the living
-spec under the `verbatim` view instead: fenced code masked, HTML comments not,
-which is how OpenSpec 1.13.1's own delta and spec readers read them and so what
-its archive merges. An operation written inside `<!-- … -->` is still applied
-upstream, so a commented ADDED that collides or a commented MODIFIED whose
-target is missing is refused; a header's trailing comment is part of its name
-upstream, so `REMOVED Foo` beside `ADDED Foo <!-- note -->` is two names and is
-accepted. `parseLivingSpec` carries the verbatim requirement names and blocks in
-`archive`, and `deltas/requirement-shape` quotes a requirement by its verbatim
-header (`DeltaOp.verbatimName`) so its delegated twin keys on the same name.
+### One scan, two views
+
+Every document is scanned once (`scanDocument` in `core/deltas.ts`), and both
+views are read off that one scan, so they can never disagree about where a fence
+starts or which line is which:
+
+1. **Fences first.** The code-fence mask is built on the raw lines, before
+   anything else — exactly as OpenSpec's readers build it.
+2. **Comments second, fence-aware.** `maskHtmlComments` blanks `<!-- … -->` line
+   by line (a `--!>` terminator counts, and an unterminated `<!--` runs to end
+   of file), and a comment can neither open nor close on a fenced line. A `<!--`
+   shown inside a fenced example is code: masking the text after it — as the old
+   whole-file regex did — hid every scenario below the example, and the
+   scenario-preservation gate refused a merge OpenSpec performs. A comment open
+   when a fence starts stays open across it.
+
+The two `ReadView`s of that scan:
+
+- **`verbatim`** — fences masked, comments kept. It is exactly what OpenSpec
+  1.13.1's `MarkdownParser`, `findMainSpecStructureIssues`, delta reader and
+  archive read, so it feeds **every** `archive/*` rule: `archive/target-invalid`
+  (Purpose/Requirements presence and all three structure kinds),
+  `archive/added-exists`, `archive/target-missing`,
+  `archive/new-spec-non-added`, `archive/no-ops`, `archive/split-requirement` on
+  both the delta and the living spec, `archive/scenario-preservation` (its ops
+  and its living baseline), and the ops `replayDeltaNames` replays. An operation
+  written inside `<!-- … -->` is applied upstream, so a commented ADDED that
+  collides or a commented MODIFIED whose target is missing is refused; a
+  header's trailing comment is part of its name upstream, so `REMOVED Foo`
+  beside `ADDED Foo <!-- note -->` is two names and is accepted; a scenario
+  inside a comment counts on both sides of the scenario-loss check.
+  `parseLivingSpec` carries this view in `archive` (`LivingArchiveView`, which
+  adds `structureIssues` and `splits`).
+- **`masked`** — comments blanked too. Only the advisory `deltas/*` and
+  `specs/*` rules read it, so a commented-out draft draws no authoring finding
+  (an author's own comment inside `## Purpose` still counts as Purpose prose).
+  `deltas/requirement-shape` still quotes a requirement by its verbatim header
+  (`DeltaOp.verbatimName`) so its delegated twin keys on the same name. The hard
+  scenario-preservation gate in `commands/archive.ts` reads this view (it is not
+  a rule): it refuses a MODIFIED block that keeps a living scenario only inside
+  a comment, which the rule and OpenSpec's archive accept.
+
+The BOM is stripped in both views, as OpenSpec's `MarkdownParser`, delta reader
+and `extractRequirementsSection` strip it. `findLivingStructureIssues` alone
+scans with `keepBom`, because upstream's `findMainSpecStructureIssues` folds
+line endings only: a BOM before a first-line `## Requirements` hides that header
+from it, every requirement reads as outside the section, and the archive
+refuses.
 
 `## REMOVED Requirements` and `## RENAMED Requirements` bullets accept
 CommonMark's full marker set (`-`, `*`, `+`) with any leading whitespace, and a
@@ -161,9 +194,22 @@ above it, and any whose part has none — on the verbatim view, and
 `archive/split-requirement` (E) reports each. `deltas/skipped-header` (I)
 reports every other one — above the first requirement, or followed by a scenario
 of its own — except a `### Scenario:` line, which is `deltas/scenario-depth`'s
-(its message quotes the header). A SHALL/MUST counts in the body only; when it
-appears only in the requirement header, `deltas/requirement-shape` (E) carries a
-hint saying to move it to the line after the header.
+(its message quotes the header). The INFO yields to the ERROR only when the
+archive family runs: under `--fast` (`deltasRules(change, { fast })`) a
+splitting header keeps its INFO, so a change cospec never delegates still
+reports it.
+
+The living reader records the same `parts` for every requirement in the first
+`## Requirements` section, on the verbatim view, and `LivingArchiveView.splits`
+names each header that leaves a piece with no scenario. The rebuilt spec keeps
+every living requirement the delta does not MODIFY, REMOVE or ADD (read through
+the delta's RENAMEs, as the merge applies them), as written, so
+`archive/split-requirement` also reports a split in a surviving living
+requirement, naming the living line. OpenSpec's `validate` dry run stops before
+the rebuilt spec is re-validated, so it has no twin. A SHALL/MUST counts in the
+body only; when it appears only in the requirement header,
+`deltas/requirement-shape` (E) carries a hint saying to move it to the line
+after the header.
 
 ## Checkbox grammar
 
@@ -242,23 +288,41 @@ unkeyed for the change-level one); its two skipped-header INFOs against
 `deltas/skipped-header` (keyed on the header text) and the `### Scenario:` one
 against `deltas/scenario-depth` (keyed on the header text, which its message
 quotes, so a commented `### Scenario:` the advisory reader masks keeps its INFO
-beside a real one); its three SHALL/MUST wordings and
-`is missing requirement text` against `deltas/requirement-shape` (keyed on
-`<OP> "<name>"`); and `Requirement present in both ADDED and REMOVED` /
-`… MODIFIED and ADDED` against the cross-section arm of `archive/added-exists`
-(keyed on the name, each native key naming its own section). A path-only key is
-written as an empty capture group, `()`, on both regexes. Each entry has a
-contract test in `validation-parity.test.ts` that takes the delegated message
-from the pinned binary's own output, plus a case where the delegated finding
-survives because cospec's rule is silent.
+beside a real one with different text in the same file — when the two read the
+same, the real one's finding pairs with both INFOs and the commented one's is
+suppressed too); its three SHALL/MUST wordings and `is missing requirement text`
+against `deltas/requirement-shape` (keyed on `<OP> "<name>"`); and
+`Requirement present in both ADDED and REMOVED` / `… MODIFIED and ADDED` against
+the cross-section arm of `archive/added-exists` (keyed on the name, each native
+key naming its own section). A path-only key is written as an empty capture
+group, `()`, on both regexes. Each entry has a contract test in
+`validation-parity.test.ts` that takes the delegated message from the pinned
+binary's own output, plus a case where the delegated finding survives because
+cospec's rule is silent.
 
 Three more pair the checks that read the archive's view: both skipped-header
 INFOs, `### Scenario:` included, against `archive/split-requirement` (keyed on
 the header text), and the dry-run's `target spec is structurally invalid` INFO
 against `archive/target-invalid` (keyed on the capability) — only when every
-defect it lists is a misplaced or duplicate requirement, the two kinds
-`findLivingStructureIssues` ports from OpenSpec's `findMainSpecStructureIssues`
-(fenced lines excluded, comments not masked).
+defect it lists is a delta header, a misplaced or a duplicate requirement, the
+three kinds `findLivingStructureIssues` ports from OpenSpec's
+`findMainSpecStructureIssues` (fenced lines excluded, comments not masked, BOM
+kept).
+
+Six more close the typed-lane double reports a sweep over the parity suite
+found: `must include at least one scenario` (with or without OpenSpec's
+empty-scenario hint, so the regex is not anchored at its end) against the
+scenario arm of `deltas/requirement-shape` (keyed on `<OP> "<name>"`);
+`Duplicate requirement in ADDED`, `Duplicate TO in RENAMED` and
+`RENAMED TO collides with ADDED` against `archive/added-exists` (keyed on the
+name); and `Requirement present in both MODIFIED and REMOVED` and
+`Duplicate FROM in RENAMED` against `archive/target-missing`'s "no longer
+exists" wording (keyed on the name, so a MODIFIED whose target was never there
+stays its own finding). Under `--fast` the `archive/*` twins do not run and the
+delegated ERRORs are kept. Section 19 of `validation-parity.test.ts` sweeps
+every report the suite produces: a relayed finding that quotes the same
+requirement or header as a cospec finding on the same file fails it, and a
+second test re-injects every suppressed twin to show the sweep would catch it.
 
 ## `.openspec.yaml` metadata keys
 

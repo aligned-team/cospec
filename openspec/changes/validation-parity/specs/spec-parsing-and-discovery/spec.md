@@ -10,9 +10,11 @@ archive-precondition failure the wrapped binary dry-runs during validate, a
 delta-shaped file cospec's own discovery skips, a change whose tracked task
 files carry no checkbox at all, a `RENAMED` `FROM:`/`TO:` line that formed no
 pair, a delta file whose sections parse to no entries, a non-requirement `###`
-header the delta reader skips, a requirement missing SHALL/MUST or its
-requirement text, an `## ADDED` name the same delta file also removes or
-modifies, a skipped header that splits a requirement the archive refuses, and a
+header the delta reader skips, a requirement missing SHALL/MUST, its requirement
+text or a scenario, an `## ADDED` name the same delta file also removes or
+modifies, a `## MODIFIED` name it also removes, a duplicate `## ADDED` name, two
+`RENAMED` pairs sharing a source or a target, a `RENAMED` target the same delta
+ADDs, a skipped header that splits a requirement the archive refuses, and a
 living spec the archive refuses as structurally invalid. Suppression SHALL apply
 only when the native rule actually fired; when cospec's own rule is silent, the
 delegated issue SHALL still be reported so nothing is lost.
@@ -29,16 +31,25 @@ header, and a `### Requirement:` with no name) SHALL pair with
 `### Scenario:` header SHALL pair with `deltas/scenario-depth` on the same file
 and the same header text, so a `### Scenario:` written inside an HTML comment,
 which cospec's advisory reader masks, keeps its delegated INFO beside a real one
-in the same file. The keyword and missing-text messages SHALL pair with
-`deltas/requirement-shape` on the same file, operation and requirement name, the
-name read off the header as written — a trailing HTML comment included, as the
-wrapped binary reads it. The two cross-section messages (`ADDED and REMOVED`,
-`MODIFIED and ADDED`) SHALL pair with `archive/added-exists` on the same file
-and requirement name. The dry-run's structurally-invalid-target message SHALL
-pair with `archive/target-invalid` on the same file and capability, and only
-when every defect it lists is a requirement outside `## Requirements` or a
-duplicate requirement. Each pairing SHALL be covered by a contract test whose
-delegated message is read from the pinned binary, never typed by hand.
+with different text in the same file; a commented and a real `### Scenario:`
+with the same text SHALL both pair with the real one's finding. The keyword and
+missing-text messages SHALL pair with `deltas/requirement-shape` on the same
+file, operation and requirement name, the name read off the header as written —
+a trailing HTML comment included, as the wrapped binary reads it; so SHALL the
+missing-scenario message, with or without the binary's empty-scenario hint. The
+two cross-section messages (`ADDED and REMOVED`, `MODIFIED and ADDED`) SHALL
+pair with `archive/added-exists` on the same file and requirement name, and so
+SHALL the duplicate-ADDED, duplicate-RENAMED-target and
+RENAMED-target-collides-with-ADDED messages. The `MODIFIED and REMOVED` and
+duplicate-RENAMED-source messages SHALL pair with `archive/target-missing`'s "no
+longer exists" finding on the same file and requirement name. The dry-run's
+structurally-invalid-target message SHALL pair with `archive/target-invalid` on
+the same file and capability, and only when every defect it lists is a delta
+header, a requirement outside `## Requirements` or a duplicate requirement. Each
+pairing SHALL be covered by a contract test whose delegated message is read from
+the pinned binary, never typed by hand, and a sweep over every report the parity
+suite produces SHALL find no relayed finding naming the same requirement or
+header as a cospec finding on the same file.
 
 The archive-precondition family SHALL be paired one entry per upstream
 precondition shape, because a duplicate class carries a single native rule id
@@ -214,8 +225,10 @@ validated. A `### Scenario:` line that `deltas/scenario-depth` already reports
 SHALL NOT also be reported by this rule.
 
 The rule SHALL run on every cospec-typed change that carries delta files,
-whether or not cospec delegates the change to the wrapped binary. INFO SHALL
-never move `valid` or the exit code, with or without `--strict`.
+whether or not cospec delegates the change to the wrapped binary. A header that
+splits its requirement SHALL be left to `archive/split-requirement` only when
+the archive-precondition family runs; under `--fast` this rule SHALL report it.
+INFO SHALL never move `valid` or the exit code, with or without `--strict`.
 
 #### Scenario: A stray divider is reported
 
@@ -250,6 +263,14 @@ never move `valid` or the exit code, with or without `--strict`.
 - **WHEN** a cospec-typed change with a skipped header has no `proposal.md`, so
   cospec does not delegate it to the wrapped binary
 - **THEN** `deltas/skipped-header` is still reported
+
+#### Scenario: Under --fast a splitting header keeps its INFO
+
+- **WHEN** `cospec validate --fast` runs on a change whose `### Notes inside`
+  splits its requirement, delegated or not
+- **THEN** `deltas/skipped-header` reports that line at INFO, no
+  `archive/split-requirement` is raised, and the wrapped binary's INFO for the
+  line is not relayed beside it
 
 #### Scenario: A fenced header is not reported
 

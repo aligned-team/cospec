@@ -80,14 +80,14 @@ HOME/XDG/CODEX_HOME/ZDOTDIR:
 
 ### D1. Tracks and files
 
-| Track | Files (exclusive)                                                                                                                                              | Work                                                                                                                                                |
-| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| T1    | `apps/cli/src/core/deltas.ts`, `apps/cli/src/core/rules/deltas.ts`, `apps/cli/test/unit/rules/deltas.test.ts`                                                  | parser records `skippedHeaders`; `deltas/skipped-header` INFO; header-only hint on `deltas/requirement-shape`                                       |
-| T2    | `apps/cli/src/core/tasks.ts`, `apps/cli/src/core/rules/tasks.ts`, `apps/cli/test/unit/rules/tasks.test.ts`                                                     | `TASK_NUM_RE` widened to the task-id shape; per-item group; `tasks/id-mismatch`, `tasks/id-duplicate`                                               |
-| T3    | `apps/cli/src/core/rules/archive.ts`, `apps/cli/test/unit/rules/archive.test.ts`                                                                               | the two cross-section shapes through `replayDeltaNames`                                                                                             |
-| T4    | `apps/cli/src/commands/validate.ts` (`DUPLICATE_CLASSES` only)                                                                                                 | the dedupe entries in D5                                                                                                                            |
-| T5    | `apps/cli/test/contract/validation-parity.test.ts` (new)                                                                                                       | legacy severity oracle; one pinned-message test per D5 entry, plus its second-finding-survives case; archive agreement for the cross-section shapes |
-| T6    | `apps/docs/reference/validation-rules.md`, `apps/docs/concepts/apply-and-archive.md`, `apps/docs/concepts/how-it-relates-to-openspec.md`, `docs/validation.md` | docs on the page that owns each fact                                                                                                                |
+| Track | Files (exclusive)                                                                                                                                                               | Work                                                                                                                                                   |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| T1    | `apps/cli/src/core/deltas.ts`, `apps/cli/src/core/rules/deltas.ts`, `apps/cli/src/core/rules/index.ts` (the `deltasRules` call only), `apps/cli/test/unit/rules/deltas.test.ts` | parser records `skippedHeaders`; `deltas/skipped-header` INFO; header-only hint on `deltas/requirement-shape`; round 3: `--fast` reaches `deltasRules` |
+| T2    | `apps/cli/src/core/tasks.ts`, `apps/cli/src/core/rules/tasks.ts`, `apps/cli/test/unit/rules/tasks.test.ts`                                                                      | `TASK_NUM_RE` widened to the task-id shape; per-item group; `tasks/id-mismatch`, `tasks/id-duplicate`                                                  |
+| T3    | `apps/cli/src/core/rules/archive.ts`, `apps/cli/test/unit/rules/archive.test.ts`                                                                                                | the two cross-section shapes through `replayDeltaNames`                                                                                                |
+| T4    | `apps/cli/src/commands/validate.ts` (`DUPLICATE_CLASSES` only)                                                                                                                  | the dedupe entries in D5                                                                                                                               |
+| T5    | `apps/cli/test/contract/validation-parity.test.ts` (new)                                                                                                                        | legacy severity oracle; one pinned-message test per D5 entry, plus its second-finding-survives case; archive agreement for the cross-section shapes    |
+| T6    | `apps/docs/reference/validation-rules.md`, `apps/docs/concepts/apply-and-archive.md`, `apps/docs/concepts/how-it-relates-to-openspec.md`, `docs/validation.md`                  | docs on the page that owns each fact                                                                                                                   |
 
 `core/deltas.ts` joins T1 and `core/tasks.ts` joins T2 because neither rule can
 be written without its parser. Each file has one track, and no other roadmap
@@ -173,20 +173,26 @@ change to `mergeDelegated`. A key on path alone is written as an empty capture
 group, `()`, on both regexes, so `match[1] === ''` on each side and the existing
 path comparison does the rest.
 
-| #   | native rule                 | delegated message (probed)                                                                                                                | key                                                               |
-| --- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| 1   | `archive/no-ops`            | `Delta sections <list> were found, but no requirement entries parsed.`                                                                    | path (empty capture)                                              |
-| 2   | `archive/no-ops`            | `Change must have at least one delta. No deltas found.`                                                                                   | none (item-level: raised only when no delta file parsed an entry) |
-| 3   | `deltas/skipped-header`     | `Header "### <text>" in <section> is not a "### Requirement:" header and is ignored by validation.`                                       | path + `<text>`                                                   |
-| 4   | `deltas/skipped-header`     | `Header "### Requirement:" in <section> is missing a requirement name and is ignored by validation.`                                      | path + `<text>`                                                   |
-| 5   | `deltas/scenario-depth`     | entry 3's message where `<text>` starts `Scenario:`                                                                                       | path + `<text>` (the native message quotes the header)            |
-| 6   | `deltas/requirement-shape`  | `<OP> "<name>" should contain SHALL or MUST …` / `<OP> "<name>" must contain SHALL or MUST …`                                             | path + `<OP> "<name>"`                                            |
-| 7   | `deltas/requirement-shape`  | `<OP> "<name>" is missing requirement text`                                                                                               | path + `<OP> "<name>"`                                            |
-| 8   | `archive/added-exists`      | `Requirement present in both ADDED and REMOVED: "<name>"`                                                                                 | path + `<name>`                                                   |
-| 9   | `archive/added-exists`      | `Requirement present in both MODIFIED and ADDED: "<name>"`                                                                                | path + `<name>`                                                   |
-| 10  | `archive/split-requirement` | entry 3's message, `Scenario:` headers included                                                                                           | path + `<text>`                                                   |
-| 11  | `archive/split-requirement` | entry 4's message                                                                                                                         | path + `<text>`                                                   |
-| 12  | `archive/target-invalid`    | `Archive would refuse this delta: <cap>: target spec is structurally invalid …`, every listed defect a misplaced or duplicate requirement | path + `<cap>`                                                    |
+| #   | native rule                 | delegated message (probed)                                                                                                                                  | key                                                               |
+| --- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| 1   | `archive/no-ops`            | `Delta sections <list> were found, but no requirement entries parsed.`                                                                                      | path (empty capture)                                              |
+| 2   | `archive/no-ops`            | `Change must have at least one delta. No deltas found.`                                                                                                     | none (item-level: raised only when no delta file parsed an entry) |
+| 3   | `deltas/skipped-header`     | `Header "### <text>" in <section> is not a "### Requirement:" header and is ignored by validation.`                                                         | path + `<text>`                                                   |
+| 4   | `deltas/skipped-header`     | `Header "### Requirement:" in <section> is missing a requirement name and is ignored by validation.`                                                        | path + `<text>`                                                   |
+| 5   | `deltas/scenario-depth`     | entry 3's message where `<text>` starts `Scenario:`                                                                                                         | path + `<text>` (the native message quotes the header)            |
+| 6   | `deltas/requirement-shape`  | `<OP> "<name>" should contain SHALL or MUST …` / `<OP> "<name>" must contain SHALL or MUST …`                                                               | path + `<OP> "<name>"`                                            |
+| 7   | `deltas/requirement-shape`  | `<OP> "<name>" is missing requirement text`                                                                                                                 | path + `<OP> "<name>"`                                            |
+| 8   | `archive/added-exists`      | `Requirement present in both ADDED and REMOVED: "<name>"`                                                                                                   | path + `<name>`                                                   |
+| 9   | `archive/added-exists`      | `Requirement present in both MODIFIED and ADDED: "<name>"`                                                                                                  | path + `<name>`                                                   |
+| 10  | `archive/split-requirement` | entry 3's message, `Scenario:` headers included                                                                                                             | path + `<text>`                                                   |
+| 11  | `archive/split-requirement` | entry 4's message                                                                                                                                           | path + `<text>`                                                   |
+| 12  | `archive/target-invalid`    | `Archive would refuse this delta: <cap>: target spec is structurally invalid …`, every listed defect a delta header, a misplaced or a duplicate requirement | path + `<cap>`                                                    |
+| 13  | `deltas/requirement-shape`  | `<OP> "<name>" must include at least one scenario` (the binary's empty-scenario hint may follow)                                                            | path + `<OP> "<name>"`                                            |
+| 14  | `archive/added-exists`      | `Duplicate TO in RENAMED: "<name>"`                                                                                                                         | path + `<name>` (native: `collides with an existing requirement`) |
+| 15  | `archive/added-exists`      | `RENAMED TO collides with ADDED for "<name>"`                                                                                                               | path + `<name>` (native: `collides with an ADDED requirement`)    |
+| 16  | `archive/target-missing`    | `Requirement present in both MODIFIED and REMOVED: "<name>"`                                                                                                | path + `<name>` (native: `no longer exists`)                      |
+| 17  | `archive/added-exists`      | `Duplicate requirement in ADDED: "<name>"`                                                                                                                  | path + `<name>` (native: `already exists with different content`) |
+| 18  | `archive/target-missing`    | `Duplicate FROM in RENAMED: "<name>"`                                                                                                                       | path + `<name>` (native: `no longer exists`)                      |
 
 Each regex is anchored through a clause that tells it apart from its siblings
 (entry 3 through `is not a "### Requirement:" header`, entry 4 through
@@ -203,15 +209,27 @@ it as a third finding.
 Every `archive/*` twin is skipped under `--fast`. A delegated issue then has no
 twin and is kept, which is the existing safety-net behaviour.
 
+Entries 13–18 and entry 12's delta-header alternative came from the round-3
+review, which found each shape double-reported on the typed lane; entry 18 was
+found by probing the same RENAMED slice. Each rides an existing native finding:
+the second of two duplicate operations sees the first's effect in
+`replayDeltaNames` (a name already written, or a source already carried away),
+MODIFIED+REMOVED sees the REMOVED phase's, and a RENAMED-TO landing on an ADDED
+name is the RENAMED-TO arm's. A sweep (verification 19) then checks every report
+the parity suite produces: a relayed finding that quotes the same requirement or
+header as a cospec finding on the same file fails it.
+
 Entries 10–12 and entry 5's key came from the round-2 review. Entry 5 keyed on
 the path alone, so a real `### Scenario:` suppressed the binary's INFO for a
 commented one elsewhere in the file, which cospec's advisory reader never sees.
 It now keys on the header text, which `deltas/scenario-depth`'s message quotes;
 keying on the line instead would need a change to `mergeDelegated`, which is
-outside this change's slice of `validate.ts`. Entry 6's key is the name as the
-header is written (D10), so a comment-bearing header pairs. Entry 12 matches
-only when every defect the dry-run lists is one D12 reads, so a listed defect
-cospec doesn't check still reaches the reader.
+outside this change's slice of `validate.ts`. The key's residual: a commented
+and a real `### Scenario:` with identical text in one file both pair with the
+real one's finding, so the commented one's INFO is suppressed too. Entry 6's key
+is the name as the header is written (D10), so a comment-bearing header pairs.
+Entry 12 matches only when every defect the dry-run lists is one D12 reads, so a
+listed defect cospec doesn't check still reaches the reader.
 
 ### D6. Cross-section conflicts (T3)
 
@@ -277,33 +295,62 @@ and `docs/validation.md` its rule list and dedupe paragraph. No
 `.agents/shared.md` change: the workflow steps are the same, and the rules are
 documented on the reference page.
 
-### D10. Two read views: advisory masked, archive verbatim
+### D10. One view model: a fence-aware scan, read two ways
 
-The binary's delta reader (`requirement-blocks.ts`) and spec readers
-(`extractRequirementsSection`, `spec-structure.ts`, `MarkdownParser`) mask
-fenced code only. HTML comments are read as written, so the archive merges an op
-written inside `<!-- … -->`, and a header's trailing comment is part of its
-name. cospec's parser masked comments for every rule, so four shapes went wrong
-(probed under node in a sandboxed HOME): a commented ADDED that collides and a
-commented MODIFIED with a missing target passed while the archive refused them
-(a false PASS), `REMOVED X` beside `ADDED "X <!-- note -->"` was refused while
-the archive applies the two names, and a comment-bearing header missing
-SHALL/MUST was reported twice because the dedupe key named two requirements.
+Round 3 replaces the per-rule view choices rounds 1 and 2 made with one model.
 
-`scanMarkdown` and `parseDeltaSpec` take a `ReadView` (`masked`, the default, or
-`verbatim`), and `parseLivingSpec` also carries the living names and blocks
-under `verbatim` in `archive`. Every `archive/*` rule, the op list
-`replayDeltaNames` replays and its cross-section names read `verbatim`. The
-advisory `deltas/*` rules keep `masked`, so a commented-out header draws no
-authoring finding. `archive/scenario-preservation` keeps `masked` too: it
-mirrors the hard gate in `commands/archive.ts`, which reads that view, and the
-two must never disagree on one change. `deltas/requirement-shape` quotes
-`DeltaOp.verbatimName`, the header's name as written, so its delegated twin keys
-on the same name.
+**One scan.** `scanDocument` reads each delta file and living spec once: CR/CRLF
+folded to LF, the code-fence mask built on those raw lines first (exactly as the
+binary's `buildCodeFenceMask` builds it), then `maskHtmlComments` walks the
+lines with that mask in hand. A comment can neither open nor close on a fenced
+line, and one already open when a fence starts stays open across it. The old
+whole-file comment regex ran before the fence mask, so a `<!--` shown inside a
+fenced example masked every line after it: the scenarios below vanished, and
+`archive/scenario-preservation` and the hard archive gate refused a merge the
+binary performs (probed: validate clean, `archive -y` exit 0).
 
-Rejected alternative: switching every parser consumer to `verbatim`. That would
-raise authoring findings on commented-out drafts, and move the scenario gate's
-count arm, which reads masked bodies on purpose.
+**Two views of it.**
+
+- `verbatim` — fences masked, comments kept. It is exactly what the binary's
+  `MarkdownParser`, `findMainSpecStructureIssues`, delta reader and archive
+  read, so it feeds every `archive/*` rule: `archive/target-invalid`
+  (`hasPurpose`, `hasRequirements` and all three structure kinds),
+  `archive/added-exists`, `archive/target-missing`,
+  `archive/new-spec-non-added`, `archive/no-ops`, `archive/split-requirement` on
+  the delta and on the living spec (D11), `archive/scenario-preservation` (its
+  op list and its living baseline) and the ops `replayDeltaNames` replays.
+- `masked` — comments blanked too. Only the advisory `deltas/*` (and `specs/*`)
+  rules read it, so a commented-out draft draws no authoring finding.
+
+`parseDeltaSpec(text, path, cap, view)` picks a view of the scan.
+`parseLivingSpec` runs one reader, `readLivingView`, over both views of one
+scan: the top-level fields are the masked view (the `specs/*` rules and the hard
+gate read them), and `archive` is the verbatim `LivingArchiveView`, which adds
+`structureIssues` (`findLivingStructureIssues`) and `splits` (D11).
+`findScenarioDrops` takes the `ScenarioBaseline` shape both views satisfy.
+`deltas/requirement-shape` quotes `DeltaOp.verbatimName`, the header as written,
+so its delegated twin keys on the same name.
+
+**BOM.** The binary strips a UTF-8 BOM in `MarkdownParser`, its delta reader and
+`extractRequirementsSection`, but not in `findMainSpecStructureIssues`, which
+folds line endings only. So both views strip it, and `findLivingStructureIssues`
+alone scans with `keepBom` (probed: a BOM before a first-line `## Requirements`
+hides the header from the structure reader, every requirement reads as outside
+it, and the archive refuses).
+
+**The hard gate stays on the masked view.** `commands/archive.ts` is
+`archive-and-sync-parity`'s file, and its scenario-preservation gate calls
+`parseDeltaSpec` and `parseLivingSpec` with their masked defaults. The shared
+scan fixes its fence bug here; its view is that change's to move. Until then the
+gate refuses a MODIFIED block that keeps a living scenario only inside a comment
+(the rule and the binary accept it), and a living scenario inside a comment that
+a MODIFIED drops is refused by the binary's archive instead of the gate.
+
+Rejected alternatives: switching every consumer to `verbatim`, which would raise
+authoring findings on commented-out drafts; and keeping the round-2 per-rule
+choices (scenario-preservation and the Purpose/Requirements/delta-header checks
+on the masked view), which left a commented delta header and a commented living
+scenario as false PASSes and a comment-bearing MODIFIED name double-reported.
 
 ### D11. `archive/split-requirement`
 
@@ -324,40 +371,62 @@ header, only on one that leaves a piece empty.
 
 The parser records each ADDED/MODIFIED op's `parts`: its own head, then one per
 skipped header, each with a count of bodied scenarios, from the same scenario
-reader as the op's own count. `findRequirementSplits` returns a header when it
-is the first one and the head has no scenario, or when its own part has none.
-`archiveRules` reads it on the `verbatim` parse and reports an ERROR on the
-header's line; `deltasRules` skips those lines for `deltas/skipped-header`. A
+reader as the op's own count. `splitsOf` returns a header when it is the first
+one and the head has no scenario, or when its own part has none. `archiveRules`
+reads it on the `verbatim` parse and reports an ERROR on the header's line. A
 `### Scenario:` line the advisory reader sees stays `deltas/scenario-depth`'s:
-its `#### Scenario:` fix mends both. Under `--fast` the rule doesn't run and the
-binary's INFO is relayed.
+its `#### Scenario:` fix mends both.
+
+**The living side.** The rebuilt spec keeps every living requirement the delta
+neither replaces nor removes, as written, so a skipped header already inside one
+splits it there too (probed: refused beside an unrelated MODIFIED, and after a
+RENAMED carries the block to a new name; archived when a MODIFIED replaces the
+block; a one-line `<!-- ### Notes -->` is no header). `readLivingView` records
+the same `parts` for each requirement in the first `## Requirements` section —
+the one the archive rebuilds — and `LivingArchiveView.splits` lists the splits.
+`archiveRules` reports each in a requirement the delta keeps: REMOVED, MODIFIED
+and ADDED names are read through the delta's RENAMEs, as the merge applies them,
+and a same-named ADDED is left to the delta block, which is the one the archive
+keeps. The finding sits on the living spec's path and names the living line. The
+binary's `validate` dry run stops before the rebuilt spec is re-validated, so it
+has no delegated twin.
+
+**`--fast`.** `deltasRules(change, { fast })` suppresses `deltas/skipped-header`
+on a splitting header only when the archive family runs. Under `--fast` nothing
+else reports the header, so it keeps its INFO — and the binary's own INFO then
+pairs with it through entries 3/4. Round 2 suppressed it unconditionally, so a
+change cospec never delegates lost the only report it had.
 
 ### D12. Living-spec structure in `archive/target-invalid`
 
 Before merging, the binary's archive runs `findMainSpecStructureIssues` on the
-living spec. It refuses a `### Requirement:` outside the first `## Requirements`
-section and a second requirement under a normalised name already declared there.
-`archive/target-invalid` read neither, so `validate --strict` passed a change
-the archive refuses. `findLivingStructureIssues` ports those two kinds as
-upstream reads them: fenced lines blanked, HTML comments not masked, and the
-spec reader's `^###\s+Requirement:` header. `LivingSpec.structureIssues` carries
-them, and `archive/target-invalid` names each one's line after the reason it
-already gave. The function's third kind, a delta header, stays on the rule's
-existing masked check, which this change doesn't alter: a delta header written
-inside an HTML comment is still refused by the archive and reported only through
-the binary's dry-run INFO (entry 12 doesn't match it, so the INFO is kept).
+living spec. It refuses a delta header
+(`^##\s+(ADDED|MODIFIED|REMOVED|RENAMED)\s+Requirements\s*$`, case-insensitive),
+a `### Requirement:` outside the first `## Requirements` section, and a second
+requirement under a normalised name already declared there.
+`findLivingStructureIssues` ports all three as upstream reads them: fenced lines
+blanked, HTML comments not masked, the BOM kept, and the spec reader's
+`^###\s+Requirement:` header. `archive/target-invalid` reads them from
+`LivingSpec.archive.structureIssues` and names each one's line after the
+Purpose/Requirements reason it already gave (read on the verbatim view). The
+round-2 rule kept the delta-header check on its own masked flag, so a delta
+header on its own line inside a comment passed validate while the archive
+refused it, and entry 12 did not recognise the delta-header defect, so a visible
+one was reported twice.
 
 ## Operational surface
 
 The interactive surface is `cospec validate`'s report: four new rule ids appear
 in human and `--json` output, one hint gains text, `deltas/scenario-depth`
 quotes its header, `deltas/requirement-shape` names a requirement as its header
-is written, `archive/target-invalid` names two more defects, and delegated
-duplicates disappear. No command, flag, exit-code meaning, JSON key or process
-topology changes. There's no bind address, container, secret or connection
-limit. The wrapped binary is still resolved by path at the pinned version, and
-its accepted range doesn't change. Every contract test spawns it the way the
-suite already does, with `NO_COLOR` set.
+is written, `archive/target-invalid` names three more defects (a delta header
+now by its line), `archive/split-requirement` also reports on the living spec,
+`archive/scenario-preservation` reads HTML comments as the archive does, and
+delegated duplicates disappear. No command, flag, exit-code meaning, JSON key or
+process topology changes. There's no bind address, container, secret or
+connection limit. The wrapped binary is still resolved by path at the pinned
+version, and its accepted range doesn't change. Every contract test spawns it
+the way the suite already does, with `NO_COLOR` set.
 
 ## Risks / Trade-offs
 
