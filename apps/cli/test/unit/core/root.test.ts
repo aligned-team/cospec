@@ -1187,8 +1187,9 @@ describe('resolveRoot — raw read failures (ledger 5.23)', () => {
       const root = env.store('gamma')
       rmSync(storeMetadataFile(root))
       mkdirSync(storeMetadataFile(root))
-      // A failed `read` carries no path on this runtime's `fs` (Node 20-25,
-      // Bun), and resolverRead relays the errno message as thrown.
+      // A failed `read` carries no path under Bun, the runtime cospec and its
+      // wrapped binary share, and resolverRead relays the errno message as
+      // thrown.
       let thrown: string | undefined
       try {
         readFileSync(storeMetadataFile(root))
@@ -1198,7 +1199,7 @@ describe('resolveRoot — raw read failures (ledger 5.23)', () => {
       if (thrown === undefined) throw new Error('expected readFileSync to throw EISDIR')
       const message = await rawRejection(
         resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }),
-        { code: 'EISDIR', syscall: 'read', path: null },
+        { code: 'EISDIR', syscall: 'read', hasPath: false, path: null },
       )
       expect(message).toBe(thrown)
     })
@@ -1213,7 +1214,7 @@ describe('resolveRoot — raw read failures (ledger 5.23)', () => {
         try {
           await rawRejection(
             resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }),
-            { code: 'EACCES', syscall: 'open', path: storeMetadataFile(root) },
+            { code: 'EACCES', syscall: 'open', hasPath: true, path: storeMetadataFile(root) },
           )
         } finally {
           chmodSync(storeMetadataFile(root), 0o644)
@@ -1231,6 +1232,7 @@ describe('resolveRoot — raw read failures (ledger 5.23)', () => {
       await rawRejection(resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }), {
         code: 'ENOTDIR',
         syscall: 'open',
+        hasPath: true,
         path: storeMetadataFile(root),
       })
     })
@@ -1244,6 +1246,7 @@ describe('resolveRoot — raw read failures (ledger 5.23)', () => {
       await rawRejection(resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }), {
         code: 'ELOOP',
         syscall: 'open',
+        hasPath: true,
         path: storeMetadataFile(root),
       })
     })
@@ -1267,7 +1270,7 @@ describe('resolveRoot — raw read failures (ledger 5.23)', () => {
           // token as `stat`.
           const message = await rawRejection(
             resolveRoot({ cwd: bareDir(), flags: { store: 'gamma', json: true } }),
-            { code: 'EACCES', syscall: 'stat', path: configYaml },
+            { code: 'EACCES', syscall: 'stat', hasPath: true, path: configYaml },
           )
           expect(message).not.toContain(', statx ')
           let thrown: string | undefined
@@ -1319,7 +1322,7 @@ describe('resolveRoot — raw read failures (ledger 5.23)', () => {
       rmSync(storeMetadataFile(root))
       mkdirSync(storeMetadataFile(root))
       // A failed `read` carries no path on this runtime's `fs`.
-      const eisdir = { code: 'EISDIR', syscall: 'read', path: null }
+      const eisdir = { code: 'EISDIR', syscall: 'read', hasPath: false, path: null }
       const viaPointer = await rawRejection(
         resolveRoot({ cwd: repoWithConfig('store: gamma\n'), flags: JSON_FLAGS }),
         eisdir,

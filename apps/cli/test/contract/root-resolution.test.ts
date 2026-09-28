@@ -1817,6 +1817,7 @@ describe("only upstream's StoreError codes become resolver diagnostics (ledger 5
         expect(errnoShape(status.message)).toEqual({
           code: 'EACCES',
           syscall: 'open',
+          hasPath: true,
           path: registry,
         })
         expect(status).not.toHaveProperty('fix')
@@ -1864,6 +1865,7 @@ describe("only upstream's StoreError codes become resolver diagnostics (ledger 5
           expect(errnoShape(status.message)).toEqual({
             code: 'EACCES',
             syscall: 'open',
+            hasPath: true,
             path: registry,
           })
         }

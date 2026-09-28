@@ -7,11 +7,20 @@
 // of two errno messages passes on one machine and fails on another without
 // either tool changing. The token is normalised to the name Node uses; the
 // code and the path must match exactly.
+//
+// Whether a path is there at all is its own field, read from the message
+// independently of the parse: a runtime can name the path on one errno and
+// leave it off another (Bun's failed `read` says
+// `EISDIR: illegal operation on a directory, read`, with none), so a shape
+// that dropped an unparsed path to "no path" would let a message that names
+// one pass as one that does not.
 
 /** An errno message's code, syscall (`statx` read as `stat`) and quoted path. */
 export interface ErrnoShape {
   code: string
   syscall: string
+  /** Whether the message quotes any path at all. */
+  hasPath: boolean
   /** The first quoted path, or null for a failure that names none (`read`'s EISDIR). */
   path: string | null
 }
@@ -26,5 +35,15 @@ export function errnoShape(message: string): ErrnoShape {
   const match = ERRNO_MESSAGE.exec(message)
   if (match === null) throw new Error(`not an errno message: ${JSON.stringify(message)}`)
   const [, code, syscall, path] = match
-  return { code: code!, syscall: syscall === 'statx' ? 'stat' : syscall!, path: path ?? null }
+  const hasPath = message.includes("'")
+  if (hasPath !== (path !== undefined))
+    throw new Error(
+      `errno message quotes a path the parse did not read: ${JSON.stringify(message)}`,
+    )
+  return {
+    code: code!,
+    syscall: syscall === 'statx' ? 'stat' : syscall!,
+    hasPath,
+    path: path ?? null,
+  }
 }

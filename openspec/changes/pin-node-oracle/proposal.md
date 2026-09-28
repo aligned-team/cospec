@@ -30,5 +30,7 @@ the pin is for tests and CI only.
 - `mise.toml`, `mise.lock`; the contract-test oracle and the rows that call it;
   `docs/architecture.md`, `.agents/shared.md`, `CLAUDE.md`, `AGENTS.md`; the
   archived `root-resolution-parity` design and verification artifacts.
-- No product source or user-facing behaviour changes, so `apps/docs` is
-  untouched.
+- No user-facing behaviour changes. `apps/cli/src/core/root.ts` changes a
+  comment only, and `apps/docs/concepts/stores.md` rewords why a failed `read`
+  names no path (its example message is unchanged), so both state what holds
+  under Bun, the runtime cospec runs the binary in.

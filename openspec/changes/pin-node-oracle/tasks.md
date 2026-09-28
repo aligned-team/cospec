@@ -122,3 +122,24 @@
       did `mise lock` for both tools. A zeroed macos-arm64 taplo checksum made
       the install fail with `Checksum     mismatch`, so the rows are checked,
       not just carried. No other platform row in `mise.lock` lacks a checksum
+- [x] 5.3 Probe whether the binary under Bun names the path in its EISDIR
+      message for a `store.yaml` that is a directory, make cospec agree, state
+      what holds in `root.ts` and `apps/docs/concepts/stores.md`, and make
+      `errnoShape` compare path presence as well as value -> probe (sandboxed
+      store `gamma`, `store.yaml` replaced by a directory,
+      `list --json --store     gamma` and `list --store gamma`): the binary
+      under Bun 1.3.14 says `EISDIR: illegal operation on a directory, read`
+      (JSON `list_error`, text `✖ Error: …`) with no path, as it does under Node
+      22.23.2, and cospec says the same (`store_error`); in-process Bun
+      `readFileSync` and `fs.promises.readFile` both omit it (`error.path`
+      undefined). The branch already relays `error.message` verbatim (no
+      re-append; f57c18e removed it, and #52 shipped that), so no code changed.
+      The `resolverRead` comment (which cited unprobed Node 20-25 lines) now
+      states the Bun probe, the 1.3.14 version and that cospec never runs Node;
+      the unit 5.23 comment likewise; `stores.md` drops "in Node's own message"
+      (its example line is unchanged). `errnoShape` gains `hasPath`, read from
+      the message independently of the parse, and throws when the two disagree;
+      3 new `errno-shape.test.ts` rows (8 pass) pin that the same errno with and
+      without its path never compares equal and that an unparsed quoted path
+      throws. The literal shapes in `root.test.ts` and `root-resolution.test.ts`
+      carry `hasPath`. The three files: 876 pass, 0 fail
