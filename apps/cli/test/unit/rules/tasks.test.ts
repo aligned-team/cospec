@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { tasksRules } from '../../../src/core/rules/tasks.ts'
 import { parseTasks, TASK_NUM_RE } from '../../../src/core/tasks.ts'
@@ -122,5 +124,71 @@ describe('parseTasks item groups', () => {
     expect(id('1 x')).toBeUndefined()
     expect(id('1.2: x')).toBeUndefined()
     expect(id('v1.2 x')).toBeUndefined()
+  })
+})
+
+describe('tasks/id-mismatch and tasks/id-duplicate', () => {
+  const idIssues = (tasksText: string) =>
+    tasksRules(makeChange({ tasksText }))
+      .filter((i) => i.rule.startsWith('tasks/id-'))
+      .map((i) => ({
+        level: i.level,
+        rule: i.rule,
+        line: i.line,
+        message: i.message,
+        hint: i.hint,
+      }))
+
+  test('a task filed under the wrong group, and a repeated id', () => {
+    expect(idIssues('## 1. Build\n\n- [ ] 1.1 a\n- [ ] 2.1 b\n- [ ] 1.1 c\n')).toEqual([
+      {
+        level: 'WARNING',
+        rule: 'tasks/id-mismatch',
+        line: 4,
+        message: 'task "2.1" is under group 1, but its leading number points to group 2',
+        hint: 'move it to group 2 or renumber it',
+      },
+      {
+        level: 'WARNING',
+        rule: 'tasks/id-duplicate',
+        line: 5,
+        message: 'task id "1.1" is duplicated; it was first declared on line 3',
+        hint: undefined,
+      },
+    ])
+  })
+
+  test('deep ids are distinct, and a lettered id is an id', () => {
+    expect(idIssues('## 1. Build\n\n- [ ] 1.2.3 a\n- [ ] 1.2.4 b\n- [ ] 1.3a c\n')).toEqual([])
+    expect(idIssues('## 1. Build\n\n- [ ] 2.3a a\n').map((i) => i.message)).toEqual([
+      'task "2.3a" is under group 1, but its leading number points to group 2',
+    ])
+  })
+
+  test('a zero-padded id matches its group', () => {
+    expect(idIssues('## 1. Build\n\n- [ ] 01.1 a\n')).toEqual([])
+    expect(idIssues('## 01. Build\n\n- [ ] 1.1 a\n')).toEqual([])
+  })
+
+  test('a task under an unnumbered section after a group is not read', () => {
+    expect(
+      idIssues('## 1. Build\n\n- [ ] 1.1 a\n\n## Notes\n\n- [ ] 2.1 b\n- [ ] 1.1 c\n'),
+    ).toEqual([])
+  })
+
+  test('a file with no numbered group is skipped', () => {
+    expect(idIssues('## Build\n\n- [ ] 2.1 a\n- [ ] 2.1 b\n')).toEqual([])
+  })
+
+  test('fenced lines stay unread', () => {
+    expect(
+      idIssues('## 1. Build\n\n- [ ] 1.1 a\n\n```md\n- [ ] 1.1 a\n- [ ] 2.1 b\n```\n'),
+    ).toEqual([])
+  })
+
+  test('the rule reads the exported TASK_NUM_RE', () => {
+    const source = readFileSync(join(import.meta.dir, '../../../src/core/rules/tasks.ts'), 'utf8')
+    expect(source).toMatch(/import \{[^}]*\bTASK_NUM_RE\b[^}]*\} from '\.\.\/tasks\.ts'/)
+    expect(TASK_NUM_RE.source).toBe('^(\\d+(?:\\.\\d+)+(?:[A-Za-z]+)?)(?=\\s|$)')
   })
 })

@@ -640,44 +640,41 @@ describe('1. each lane keeps its own severities', () => {
 // --- 2. task numbering warns --------------------------------------------------------
 
 describe('2. task numbering', () => {
-  test.failing(
-    '2.1 a cospec-typed change warns on a mismatched and a duplicate task id',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      buildFeat(
-        root,
-        'misnumbered',
-        { 'widgets/spec.md': VALID_MODIFIED },
-        { tasks: TASKS_MISNUMBERED },
-      )
+  test('2.1 a cospec-typed change warns on a mismatched and a duplicate task id', async () => {
+    const root = mkTempRepo({ git: true })
+    buildFeat(
+      root,
+      'misnumbered',
+      { 'widgets/spec.md': VALID_MODIFIED },
+      { tasks: TASKS_MISNUMBERED },
+    )
 
-      // The binary runs its numbering check for its own `spec-driven` schema only,
-      // so on this lane there is no delegated twin to dedupe.
-      const bin = await binaryIssues(root, 'misnumbered')
-      expect(binaryFind(bin, 'but its leading number points to group')).toEqual([])
-      expect(binaryFind(bin, 'is duplicated; it was first declared')).toEqual([])
+    // The binary runs its numbering check for its own `spec-driven` schema only,
+    // so on this lane there is no delegated twin to dedupe.
+    const bin = await binaryIssues(root, 'misnumbered')
+    expect(binaryFind(bin, 'but its leading number points to group')).toEqual([])
+    expect(binaryFind(bin, 'is duplicated; it was first declared')).toEqual([])
 
-      const { report, exitCode } = await cospecValidate(root, 'misnumbered')
-      const found = problems(report).map((i) => ({ rule: i.rule, level: i.level, line: i.line }))
-      expect(found).toEqual([
-        {
-          rule: 'tasks/id-mismatch',
-          level: 'WARNING',
-          line: lineOf(TASKS_MISNUMBERED, '- [x] 2.1 Add a covering test'),
-        },
-        {
-          rule: 'tasks/id-duplicate',
-          level: 'WARNING',
-          line: lineOf(TASKS_MISNUMBERED, '- [x] 1.1 Update the docs'),
-        },
-      ])
-      const dup = byRule(report, 'tasks/id-duplicate')[0]
-      expect(dup?.message).toContain(
-        `line ${lineOf(TASKS_MISNUMBERED, '- [x] 1.1 Restate the requirement')}`,
-      )
-      expect(exitCode).toBe(1)
-    },
-  )
+    const { report, exitCode } = await cospecValidate(root, 'misnumbered')
+    const found = problems(report).map((i) => ({ rule: i.rule, level: i.level, line: i.line }))
+    expect(found).toEqual([
+      {
+        rule: 'tasks/id-mismatch',
+        level: 'WARNING',
+        line: lineOf(TASKS_MISNUMBERED, '- [x] 2.1 Add a covering test'),
+      },
+      {
+        rule: 'tasks/id-duplicate',
+        level: 'WARNING',
+        line: lineOf(TASKS_MISNUMBERED, '- [x] 1.1 Update the docs'),
+      },
+    ])
+    const dup = byRule(report, 'tasks/id-duplicate')[0]
+    expect(dup?.message).toContain(
+      `line ${lineOf(TASKS_MISNUMBERED, '- [x] 1.1 Restate the requirement')}`,
+    )
+    expect(exitCode).toBe(1)
+  })
 
   test('2.3 the legacy lane carries the binary numbering WARNINGs and no tasks/id-*', async () => {
     const root = mkTempRepo({ git: true })
