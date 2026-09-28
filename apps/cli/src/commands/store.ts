@@ -34,6 +34,7 @@ import {
   type PostCondition,
   type WrappedCall,
 } from '../core/openspec.ts'
+import { respellRemedies } from '../core/remedies.ts'
 import { run as runInit } from './init.ts'
 
 const SUBCOMMANDS = ['setup', 'register', 'unregister', 'remove', 'list', 'ls', 'doctor'] as const
@@ -246,7 +247,7 @@ function cleanupPostCondition(cwd: string, expectFilesDeleted: boolean): PostCon
 const listPostCondition: PostCondition = (result) => {
   if (result.exitCode !== 0) return true
   try {
-    const payload = JSON.parse(result.stdout) as ListPayload
+    const payload = spellPayload(JSON.parse(result.stdout) as ListPayload, result.exitCode !== 0)
     if (!Array.isArray(payload.stores)) return 'did not emit a stores[] array'
   } catch {
     return 'did not emit parseable JSON'
@@ -257,12 +258,57 @@ const listPostCondition: PostCondition = (result) => {
 const doctorPostCondition: PostCondition = (result) => {
   if (result.exitCode !== 0) return true
   try {
-    const payload = JSON.parse(result.stdout) as DoctorPayload
+    const payload = spellPayload(JSON.parse(result.stdout) as DoctorPayload, result.exitCode !== 0)
     if (!Array.isArray(payload.stores)) return 'did not emit a stores[] array'
   } catch {
     return 'did not emit parseable JSON'
   }
   return true
+}
+
+// --- the binary's remedies, spelled through cospec (design D4) ----------------
+
+/**
+ * `status` with the binary's remedies spelled through cospec: each
+ * diagnostic's `fix`, and on a failed answer its `message` too. Only those
+ * fields, each passed alone to the allowlist, so an id, a path or any other
+ * field is the binary's byte for byte, and no key is added.
+ */
+function spellStatus(status: OpenspecStatusEntry[], failed: boolean): OpenspecStatusEntry[] {
+  return status.map((entry) => ({
+    ...entry,
+    ...(failed ? { message: respellRemedies(entry.message) } : {}),
+    ...(entry.fix === undefined ? {} : { fix: respellRemedies(entry.fix) }),
+  }))
+}
+
+/**
+ * A store payload with every diagnostic list the binary emits spelled
+ * through cospec: `status[]`, and for `store doctor` each store's `status[]`
+ * and `openspec_root.status[]`.
+ */
+function spellPayload<T extends { status: OpenspecStatusEntry[] }>(payload: T, failed: boolean): T {
+  const stores = (payload as { stores?: unknown }).stores
+  return {
+    ...payload,
+    status: spellStatus(payload.status, failed),
+    ...(Array.isArray(stores)
+      ? {
+          stores: (stores as Partial<DoctorStoreEntry>[]).map((store) => ({
+            ...store,
+            ...(Array.isArray(store.status) ? { status: spellStatus(store.status, failed) } : {}),
+            ...(store.openspec_root === undefined
+              ? {}
+              : {
+                  openspec_root: {
+                    ...store.openspec_root,
+                    status: spellStatus(store.openspec_root.status, failed),
+                  },
+                }),
+          })),
+        }
+      : {}),
+  }
 }
 
 // --- rendering -----------------------------------------------------------
@@ -378,7 +424,7 @@ async function runSetupOrRegister(
   }
   const refused = relayStorePathRefusal(result, ctx.flags.json)
   if (refused !== undefined) return refused
-  const payload = JSON.parse(result.stdout) as MutationPayload
+  const payload = spellPayload(JSON.parse(result.stdout) as MutationPayload, result.exitCode !== 0)
   if (result.exitCode !== 0) return printFailure(ctx, payload)
 
   const init = noCospecInit ? undefined : autoCospecInit(payload.store!.root)
@@ -404,7 +450,7 @@ async function runCleanup(
   }
   const refused = relayStorePathRefusal(result, ctx.flags.json)
   if (refused !== undefined) return refused
-  const payload = JSON.parse(result.stdout) as CleanupPayload
+  const payload = spellPayload(JSON.parse(result.stdout) as CleanupPayload, result.exitCode !== 0)
   if (result.exitCode !== 0) return printFailure(ctx, payload)
   printCleanup(ctx, sub === 'remove' ? 'Removed store' : 'Unregistered store', payload)
   return EXIT.success
@@ -424,7 +470,7 @@ async function runList(ctx: CommandContext, rawArgs: string[]): Promise<number> 
   }
   const refused = relayStorePathRefusal(result, ctx.flags.json)
   if (refused !== undefined) return refused
-  const payload = JSON.parse(result.stdout) as ListPayload
+  const payload = spellPayload(JSON.parse(result.stdout) as ListPayload, result.exitCode !== 0)
   if (ctx.flags.json) {
     process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`)
     return result.exitCode === 0 ? EXIT.success : EXIT.failure
@@ -455,7 +501,7 @@ async function runDoctor(ctx: CommandContext, rawArgs: string[]): Promise<number
   }
   const refused = relayStorePathRefusal(result, ctx.flags.json)
   if (refused !== undefined) return refused
-  const payload = JSON.parse(result.stdout) as DoctorPayload
+  const payload = spellPayload(JSON.parse(result.stdout) as DoctorPayload, result.exitCode !== 0)
   if (ctx.flags.json) {
     process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`)
     return result.exitCode === 0 ? EXIT.success : EXIT.failure

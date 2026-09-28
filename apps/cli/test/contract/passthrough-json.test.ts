@@ -426,54 +426,42 @@ describe('store diagnostics are spelled through cospec (ledger 4.1)', () => {
     ['store', 'doctor', 'nope'],
     ['store', 'unregister', 'nope'],
   ]) {
-    test.failing(
-      `${argv.join(' ')}: the relayed fix names cospec`,
-      async () => {
-        const root = plainRoot()
-        const up = await oracleJson([...argv, '--json'], root)
-        const co = await runCospec(argv, root)
-        expect(co.exitCode, detail(co)).toBe(1)
-        const fix = (up.json as StatusDoc).status[0]!.fix!
-        expect(co.stderr, detail(co)).toContain(`Fix: ${respellRemedies(fix)}`)
-        expect(respellRemedies(fix)).not.toBe(fix)
-        expect(BARE_OPENSPEC.test(co.stdout + co.stderr), detail(co)).toBe(false)
-      },
-      30_000,
-    )
-  }
-
-  test.failing(
-    'store remove nope --json: the binary’s document, fix spelled cospec',
-    async () => {
+    test(`${argv.join(' ')}: the relayed fix names cospec`, async () => {
       const root = plainRoot()
-      const argv = ['store', 'remove', 'nope', '--json']
-      const up = await oracle(argv, root)
+      const up = await oracleJson([...argv, '--json'], root)
       const co = await runCospec(argv, root)
       expect(co.exitCode, detail(co)).toBe(1)
-      expect(JSON.parse(co.stdout)).toEqual(respelledDoc(up.stdout))
-      expect(BARE_OPENSPEC.test(co.stdout), detail(co)).toBe(false)
-    },
-    30_000,
-  )
+      const fix = (up.json as StatusDoc).status[0]!.fix!
+      expect(co.stderr, detail(co)).toContain(`Fix: ${respellRemedies(fix)}`)
+      expect(respellRemedies(fix)).not.toBe(fix)
+      expect(BARE_OPENSPEC.test(co.stdout + co.stderr), detail(co)).toBe(false)
+    }, 30_000)
+  }
 
-  test.failing(
-    'store doctor on a store whose checkout is gone: its fix spelled cospec',
-    async () => {
-      const root = plainRoot()
-      writeRegistry(root, { st4: join(root, 'gone-checkout') })
-      const up = await oracleJson(['store', 'doctor', '--json'], root)
-      const doc = up.json as { stores: StatusDoc[] }
-      const fixes = doc.stores.flatMap((s) => s.status.flatMap((d) => (d.fix ? [d.fix] : [])))
-      expect(fixes.some((fix) => respellRemedies(fix) !== fix)).toBe(true)
-      const text = await runCospec(['store', 'doctor'], root)
-      for (const fix of fixes)
-        expect(text.stdout, detail(text)).toContain(`Fix: ${respellRemedies(fix)}`)
-      expect(BARE_OPENSPEC.test(text.stdout + text.stderr), detail(text)).toBe(false)
-      const json = await runCospec(['store', 'doctor', '--json'], root)
-      expect(JSON.parse(json.stdout)).toEqual(JSON.parse(respellRemedies(JSON.stringify(doc))))
-    },
-    30_000,
-  )
+  test('store remove nope --json: the binary’s document, fix spelled cospec', async () => {
+    const root = plainRoot()
+    const argv = ['store', 'remove', 'nope', '--json']
+    const up = await oracle(argv, root)
+    const co = await runCospec(argv, root)
+    expect(co.exitCode, detail(co)).toBe(1)
+    expect(JSON.parse(co.stdout)).toEqual(respelledDoc(up.stdout))
+    expect(BARE_OPENSPEC.test(co.stdout), detail(co)).toBe(false)
+  }, 30_000)
+
+  test('store doctor on a store whose checkout is gone: its fix spelled cospec', async () => {
+    const root = plainRoot()
+    writeRegistry(root, { st4: join(root, 'gone-checkout') })
+    const up = await oracleJson(['store', 'doctor', '--json'], root)
+    const doc = up.json as { stores: StatusDoc[] }
+    const fixes = doc.stores.flatMap((s) => s.status.flatMap((d) => (d.fix ? [d.fix] : [])))
+    expect(fixes.some((fix) => respellRemedies(fix) !== fix)).toBe(true)
+    const text = await runCospec(['store', 'doctor'], root)
+    for (const fix of fixes)
+      expect(text.stdout, detail(text)).toContain(`Fix: ${respellRemedies(fix)}`)
+    expect(BARE_OPENSPEC.test(text.stdout + text.stderr), detail(text)).toBe(false)
+    const json = await runCospec(['store', 'doctor', '--json'], root)
+    expect(JSON.parse(json.stdout)).toEqual(JSON.parse(respellRemedies(JSON.stringify(doc))))
+  }, 30_000)
 })
 
 describe('workset and config next-step lines are spelled through cospec (ledger 4.2, 4.3)', () => {

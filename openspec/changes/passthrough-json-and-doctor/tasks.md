@@ -93,11 +93,11 @@ Files: `apps/cli/src/core/forward-relay.ts`, `apps/cli/src/core/remedies.ts`,
 
 Files: `apps/cli/src/commands/store.ts`.
 
-- [ ] 3.1 Route a missing, unknown, option-shaped or `--`-guarded first token
+- [x] 3.1 Route a missing, unknown, option-shaped or `--`-guarded first token
       through `relayGroupRefusal`, and verify ledger rows 1.1 and 1.2 flip from
       `test.failing` to `test` and pass; commit
       `fix(store): answer a missing or unknown subcommand with the binary's refusal`
-- [ ] 3.2 Spell every rendered and relayed diagnostic through cospec (design D4:
+- [x] 3.2 Spell every rendered and relayed diagnostic through cospec (design D4:
       `fix` on a successful payload; `message` and `fix` on a failed one), text
       and `--json`, and verify ledger row 4.1 flips and passes; commit
       `fix(store): spell relayed store diagnostics through cospec`
