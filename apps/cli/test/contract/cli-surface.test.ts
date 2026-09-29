@@ -654,7 +654,7 @@ function requiredDone(root: string, id: string): void {
 // --- 1. the key oracle rows ---------------------------------------------------------
 
 describe('1. the key oracle passes and keeps cospec keys', () => {
-  test.failing('1.1 list --json on the staged-mtime fixture', async () => {
+  test('1.1 list --json on the staged-mtime fixture', async () => {
     const root = listFixture()
     const up = await upstreamJson(['list', '--json'], root)
     const cs = await oursJson(['list', '--json'], root)
@@ -910,7 +910,7 @@ describe('4. namespace folders', () => {
       expect(e).toHaveProperty('artifacts')
   })
 
-  test.failing('4.3 list marks the folder in text and --json', async () => {
+  test('4.3 list marks the folder in text and --json', async () => {
     const root = listFixture()
     const up = await upstreamJson(['list', '--json'], root)
     const cs = await oursJson(['list', '--json'], root)
@@ -1088,7 +1088,7 @@ describe('6. list order and read failures', () => {
       return { root, restore: lock(join(root, 'openspec/changes/archive')) }
     }
 
-    test.failing('6.2 list: an unreadable archive lists normally with a warning', async () => {
+    test('6.2 list: an unreadable archive lists normally with a warning', async () => {
       const { root, restore } = lockedArchiveRoot()
       try {
         const up = await upstreamJson(['list', '--json'], root)
@@ -1153,14 +1153,13 @@ describe('6. list order and read failures', () => {
       }
     }
 
-    test.failing("6.3 list: an unreadable tasks.md is the binary's list_error", () =>
-      unreadableTasks(['list', '--json']),
-    )
+    test("6.3 list: an unreadable tasks.md is the binary's list_error", () =>
+      unreadableTasks(['list', '--json']))
 
     test("6.3 status: an unreadable tasks.md is the binary's change_error", () =>
       unreadableTasks(['status', '--change', 'beta', '--json']))
 
-    test.failing('6.4 an unreadable blocking-changes.md fails only its row', async () => {
+    test('6.4 an unreadable blocking-changes.md fails only its row', async () => {
       const root = listFixture()
       const blockers = join(root, 'openspec/changes/beta/blocking-changes.md')
       writeFiles(root, { 'openspec/changes/beta/blocking-changes.md': BLOCKERS })

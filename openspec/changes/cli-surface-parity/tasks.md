@@ -82,7 +82,7 @@ Co-Authored-By trailer, never `--no-verify`).
       `--sort` from pending to handled and delete its yaml entry in this commit.
       Flip rows 1.1, 1.2 and 6.1. Commit
       `feat(list): sort and carry OpenSpec's list keys`
-- [ ] 5.2 Mark namespace rows (`not a change`, `state: 'not-a-change'`,
+- [x] 5.2 Mark namespace rows (`not a change`, `state: 'not-a-change'`,
       `nested`, the trailing warnings), relay the binary's failure document, the
       archive warning, per-row `error` for `blocking-changes.md`, and the
       raw-resolver `list_error` payloads. Flip rows 4.3, 6.2–6.4 and the list
