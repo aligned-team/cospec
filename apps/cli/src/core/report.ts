@@ -63,6 +63,11 @@ export interface RenderOptions {
   noColor?: boolean
   /** Human header prefix; defaults to `cospec validate`. */
   title?: string
+  /**
+   * The findings report (`--report findings`): a change with no issue is
+   * folded into the header's counts, as a valid spec always is.
+   */
+  findingsOnly?: boolean
 }
 
 const COLORS = {
@@ -128,7 +133,8 @@ export function renderHuman(items: ItemReport[], opts: RenderOptions = {}): stri
     }
   }
 
-  for (const item of changes) renderItem(item)
+  for (const item of changes)
+    if (!(opts.findingsOnly === true && item.issues.length === 0)) renderItem(item)
 
   const invalidSpecs = specs.filter((item) => !item.valid || item.issues.length > 0)
   for (const item of invalidSpecs) renderItem(item)
@@ -163,4 +169,33 @@ export function toJson(items: ItemReport[]): ReportJson {
 /** Pretty-printed JSON string of `toJson`. */
 export function renderJson(items: ItemReport[]): string {
   return `${JSON.stringify(toJson(items), null, 2)}\n`
+}
+
+/** The scope a findings report names (the binary's `findingsScope`). */
+export type FindingsScope = 'all' | 'changes' | 'specs' | 'archived'
+
+/**
+ * The findings report (`--report findings`, design D7): the binary's
+ * `projectValidationFindings` — only the items with at least one issue, under
+ * its `report` object (its own nested `version: "1.0"`) — inside cospec's
+ * `version: 1` envelope. `summary` and `root` are the full report's.
+ */
+export function toFindings(
+  full: { items: ItemReport[]; summary: unknown; root?: unknown },
+  scope: FindingsScope,
+): Record<string, unknown> {
+  const itemFindings = full.items.filter((item) => item.issues.length > 0)
+  return {
+    version: 1,
+    report: {
+      kind: 'validation-findings',
+      version: '1.0',
+      scope,
+      returnedItems: itemFindings.length,
+      totalItems: full.items.length,
+    },
+    itemFindings,
+    summary: full.summary,
+    ...(full.root === undefined ? {} : { root: full.root }),
+  }
 }

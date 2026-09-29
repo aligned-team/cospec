@@ -1265,7 +1265,7 @@ describe('7. validate item resolution', () => {
     }
   })
 
-  test.failing('7.5 the four --report refusals, before any root', async () => {
+  test('7.5 the four --report refusals, before any root', async () => {
     const dir = mkTempRepo()
     const cases = [
       ['--report', 'bogus', '--all'],
@@ -1289,35 +1289,32 @@ describe('7. validate item resolution', () => {
     }
   })
 
-  test.failing(
-    "7.6 --report findings keeps full's exit code and lists only failing items",
-    async () => {
-      const root = cospecRoot()
-      writeChange(root, 'broken', { 'proposal.md': PROPOSAL }, 'nope')
-      writeChange(
-        root,
-        'clean',
-        {
-          'proposal.md': PROPOSAL,
-          'blocking-changes.md': BLOCKERS,
-          'tasks.md': '## 1. W\n\n- [x] 1.1 Done\n',
-        },
-        'chore',
-      )
-      for (const json of [[], ['--json']]) {
-        const full = await ours(['validate', '--all', '--report', 'full', ...json], root)
-        const findings = await ours(['validate', '--all', '--report', 'findings', ...json], root)
-        expect(full.exitCode).toBe(1)
-        expect(findings.exitCode).toBe(1)
-        if (json.length > 0) {
-          const doc = parseOne('findings', findings.stdout) as Row
-          expect(rowsOf(doc, 'itemFindings').map((i) => i.id)).toEqual(['broken'])
-        } else {
-          expect(findings.stdout).not.toContain('clean')
-        }
+  test("7.6 --report findings keeps full's exit code and lists only failing items", async () => {
+    const root = cospecRoot()
+    writeChange(root, 'broken', { 'proposal.md': PROPOSAL }, 'nope')
+    writeChange(
+      root,
+      'clean',
+      {
+        'proposal.md': PROPOSAL,
+        'blocking-changes.md': BLOCKERS,
+        'tasks.md': '## 1. W\n\n- [x] 1.1 Done\n',
+      },
+      'chore',
+    )
+    for (const json of [[], ['--json']]) {
+      const full = await ours(['validate', '--all', '--report', 'full', ...json], root)
+      const findings = await ours(['validate', '--all', '--report', 'findings', ...json], root)
+      expect(full.exitCode).toBe(1)
+      expect(findings.exitCode).toBe(1)
+      if (json.length > 0) {
+        const doc = parseOne('findings', findings.stdout) as Row
+        expect(rowsOf(doc, 'itemFindings').map((i) => i.id)).toEqual(['broken'])
+      } else {
+        expect(findings.stdout).not.toContain('clean')
       }
-    },
-  )
+    }
+  })
 
   unlessRoot('mode 000', () => {
     test.failing('7.8 an unreadable artifact is one meta/unreadable-artifact ERROR', async () => {

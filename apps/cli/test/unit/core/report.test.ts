@@ -8,6 +8,7 @@ import {
   renderJson,
   type ReportJson,
   summarize,
+  toFindings,
 } from '../../../src/core/report.ts'
 
 function issue(partial: Partial<Issue> & Pick<Issue, 'level' | 'rule'>): Issue {
@@ -148,5 +149,37 @@ describe('renderHuman', () => {
     // Guard against a NO_COLOR env in the runner masking this.
     if (process.env.NO_COLOR === undefined || process.env.NO_COLOR === '')
       expect(colored.includes('\x1b[')).toBe(true)
+  })
+})
+
+describe('toFindings (--report findings)', () => {
+  const clean: ItemReport = { id: 'clean', kind: 'change', type: 'chore', valid: true, issues: [] }
+  const items = [...sample, clean]
+
+  test("keeps only the items with issues under the binary's report object, inside version 1", () => {
+    const doc = toFindings(
+      { items, summary: { errors: 1 }, root: { path: '/r', source: 'nearest' } },
+      'all',
+    )
+    expect(doc).toEqual({
+      version: 1,
+      report: {
+        kind: 'validation-findings',
+        version: '1.0',
+        scope: 'all',
+        returnedItems: items.filter((i) => i.issues.length > 0).length,
+        totalItems: items.length,
+      },
+      itemFindings: items.filter((i) => i.issues.length > 0),
+      summary: { errors: 1 },
+      root: { path: '/r', source: 'nearest' },
+    })
+  })
+
+  test('a findings human report folds an issue-free change into the counts, as a valid spec is', () => {
+    const out = renderHuman(items, { noColor: true, findingsOnly: true })
+    expect(out).not.toContain('clean')
+    expect(out).toContain('add-widget')
+    expect(renderHuman(items, { noColor: true })).toContain('clean')
   })
 })

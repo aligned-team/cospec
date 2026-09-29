@@ -492,7 +492,6 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         placeholder: '<report>',
         values: ['full', 'findings'],
         description: 'Select bulk report content',
-        status: pending('cli-surface-parity'),
       }),
       upstream({
         name: '--concurrency',
