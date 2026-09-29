@@ -150,6 +150,8 @@ against the pinned binary run under Bun in a sandboxed HOME:
 - **BREAKING:**
   - `cospec list` now orders by most recent change first. Pass `--sort name` for
     the old order.
+  - `cospec list` outside an OpenSpec root answers OpenSpec's own
+    `no_openspec_root` refusal, exit 1, where it printed `No active changes.`
   - `cospec validate <name> --all|--changes|--specs` validates the bulk scope,
     not the one item.
   - An ambiguous `validate` name is refused, and an unknown one prints the
