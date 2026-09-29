@@ -63,8 +63,11 @@ and the current pin:
   three (`deltas/unpaired-rename`, the widened `archive/added-exists`,
   `deltas/unread-file` — see [Validation rules](/reference/validation-rules)) so
   `cospec validate --strict` catches them before `cospec archive` ever
-  delegates; the fourth (namespace folders) is a delegated refusal cospec relays
-  verbatim rather than re-implementing its own detection of.
+  delegates. The fourth, a namespace folder (`changes/mobile/refresh-token/`),
+  cospec detects natively with a port of OpenSpec's own detector: `status`
+  refuses it (`--change`) or reports it as a failure entry (`--all`), `list`
+  marks its row `not a change`, and `validate` reports it as one
+  `meta/nested-change` ERROR — each carrying OpenSpec's explanation verbatim.
 - **1.13.1's change validator reports defects cospec's own rules already
   catch:** empty delta sections and a change with no parsed delta, skipped `###`
   headers, header-only and missing SHALL/MUST, a requirement with no scenario, a
@@ -169,7 +172,9 @@ accepts `--schema <name>` and answers from that schema's apply requirements,
 while `cospec instructions apply --change <id>` is the gate, which enforces the
 change's own. cospec refuses `--schema` there before the gate runs rather than
 print a verdict and a payload that disagree — see
-[Commands](/reference/commands).
+[Commands](/reference/commands). `cospec status --schema <name>`, by contrast,
+takes OpenSpec's own meaning: a schema override for every change it reports, not
+a filter.
 
 ## Named exceptions
 

@@ -278,6 +278,40 @@ the gate; a successful `archive` (the user's context and operation guidance
 only) is relayed as the binary prints it, its text form from the same argv again
 without `--json` (the helper's `rerun`, which never selects the root twice).
 
+### `status`, `list` and `validate`: upstream keys by additive merge
+
+`cospec status`, `cospec list` and `cospec validate` compute their own documents
+— the gate column, archive-readiness, cospec's rule findings — and also carry
+every key the binary's own `--json` document for the same invocation does. The
+keys come from **one delegated call per invocation**, never one per change:
+`status --change <id> --json` (or `--all --json`, `--schema` forwarded) and
+`list --json` (`--sort name` forwarded), each with its expected exit codes
+`{0, 1}` and a post-condition that the answer is one document naming the change,
+the sweep or the rows, or carrying `status`. The binary's document is merged
+into cospec's by `mergeUpstream` (`core/upstream-keys.ts`): every key cospec
+lacks is added, plain objects merge key by key, arrays of objects merge entry by
+entry by an identity (`change`/`changeName`, `change`/`name`, an artifact's
+`id`), and a key both documents carry keeps cospec's value — a differing one is
+returned as a collision, never written. `root` is set from the resolver
+(`rootOutput`, the binary's `{path, source, store_id?}`) before the merge;
+`nextSteps` is the binary's value with each sentence spelled through the remedy
+allowlist (`respellWholeRemedy`). `list`'s rows, their order and their
+membership are the binary's; each keeps cospec's columns, computed by name.
+`validate` computes the binary's report keys itself (`root`, `durationMs`,
+`summary.totals`/`byType`, `toJson` in `core/report.ts`). Every envelope keeps
+`version: 1`. Text-mode `status` on a cospec-typed change stays spawn-free; a
+schema cospec doesn't type is rendered from the delegated document with a port
+of the binary's status printer.
+
+The gate is the **key oracle**, `test/contract/support/key-oracle.ts`: each
+`cli-surface.test.ts` row runs a command and the pinned binary on the same
+fixture and fails on an upstream key path cospec's document lacks, on an
+upstream value cospec reports differently, and on any collision outside its
+named list — `version` (cospec's format marker) and validate's `items[].type`
+(the change's schema; the binary's `change|spec` is cospec's `kind`). Timing
+values compare by type, validation verdicts by presence and type; a second check
+pins cospec's pre-existing keys to the values it computes natively.
+
 ## The disciplined-passthrough runner
 
 Not every wrapped command adds a cospec gate. Read-only reads (`show`, `view`,
@@ -525,29 +559,24 @@ placeholder there, and the literal text would leak to the model — so the two
 rendered bodies for the same workflow have different `contentHash`es on OpenCode
 by design, not by drift.
 
-### 4. Nested-change namespace folders (deferred, bounded by contract)
+### 4. Nested-change namespace folders
 
 Upstream refuses a `openspec/changes/` entry that is itself a namespace folder
-wrapping further changes, at both gates that matter: `openspec validate` reports
-`is not a change: it is a folder wrapping …`, and `openspec archive`
-hard-refuses with `archive_change_is_namespace_folder` before validation ever
-runs. cospec's `change.ts` has no shape check of its own and deliberately
-doesn't grow one here, so the safety property is inherited: `cospec validate`
-and `cospec archive` both refuse such an entry at exit 1, nothing merges and
-nothing moves.
-
-The refusal is cospec's own, though, not the relayed one. A namespace folder has
-no `.openspec.yaml`, so Step 2's fast validation raises `meta/openspec-yaml` and
-the run exits before it ever delegates — the reader is told the file is missing,
-with a hint (`cospec new <type> <slug>`) that points the wrong way, and never
-learns the folder is wrapping changes. Reporting quality is the whole of the
-gap: `cospec status` and `cospec list` would likewise show a fabricated artifact
-plan against a phantom empty schema. It is a UX defect, not a gate disagreement
-or a data-loss path, so it stays out of scope here, bounded instead by contract
-tests that pin both halves — the upstream text the binary really emits, and its
-documented absence from cospec's report, so the deferred work has a marker to
-flip. A proper fix is its own `feat`: a namespace-folder detector wired into all
-four command surfaces.
+wrapping further changes: `openspec validate` reports
+`is not a change: it is a folder wrapping …`, `status` refuses it, `list` marks
+it, and `openspec archive` hard-refuses with
+`archive_change_is_namespace_folder` before validation ever runs. cospec detects
+the folder natively with a port of the binary's detector —
+`findNestedChangesIn`, `findNestedChanges` and `describeNestedChange` in
+`core/change.ts`, the same three signals (a change-root marker, a file under
+`specs/`, an output of the schema the directory resolves to), a depth bound of
+three and the verbatim explanation. `status --change` refuses it (`change_error`
+under `--json`), `status --all` carries it as a failure entry, `list` marks its
+row `not a change` with state `not-a-change` and the binary's warning, and
+`validateChange` answers it with one `meta/nested-change` ERROR — so `validate`,
+`apply` and `archive` refuse it with the binary's explanation before anything is
+delegated. The archive's own dedicated refusal shape is
+`archive-and-sync-parity`'s.
 
 ## The static-matrix invariant
 
@@ -604,7 +633,9 @@ apps/cli/src/
 ├── core/
 │   ├── openspec.ts         spawn wrapper, version assert, passthroughOpenspec runner
 │   ├── passthrough-command.ts  global-flag threading for passthrough commands
-│   ├── change.ts           change discovery, .openspec.yaml, archive index
+│   ├── change.ts           change discovery, .openspec.yaml, archive index,
+│   │                       the namespace-folder detector
+│   ├── upstream-keys.ts    the additive merge of the binary's --json keys
 │   ├── report.ts           the Issue model + text/JSON renderers (frozen interface)
 │   ├── managed-files.ts    generatedBy/contentHash protocol + manifest
 │   ├── blockers.ts         blocking-changes.md parser, sync, lint
