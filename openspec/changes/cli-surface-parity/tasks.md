@@ -158,7 +158,7 @@ Co-Authored-By trailer, never `--no-verify`).
       with row 13.5. Commit
       `docs(validate): record how the validation-parity archive ran`
 
-- [ ] 9.3 Add the additive-JSON discipline paragraph to `.agents/shared.md`
+- [x] 9.3 Add the additive-JSON discipline paragraph to `.agents/shared.md`
       (design D12), run `mise run agents:sync`, and verify with row 13.7
       (`mise run agents:check` exit 0). Commit
       `docs(agents): record the additive upstream-key discipline`
