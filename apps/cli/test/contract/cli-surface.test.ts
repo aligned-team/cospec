@@ -711,22 +711,19 @@ describe('1. the key oracle passes and keeps cospec keys', () => {
     expect((cs.json as Row).version).toBe(1)
   })
 
-  test.failing(
-    '1.3 status --change alpha --json on a feat change with only proposal.md',
-    async () => {
-      const root = listFixture()
-      const up = await upstreamJson(['status', '--change', 'alpha', '--json'], root)
-      const cs = await oursJson(['status', '--change', 'alpha', '--json'], root)
-      captureStatus('1.3', cs)
-      expect(cs.exitCode).toBe(up.exitCode)
-      expectOracle(up.json, cs.json, STATUS_SPEC)
-      const native = computeStatus(root, resolveChange(root, 'alpha')!)
-      expect(
-        checkNativeKeys(cs.json, native, STATUS_ENTRY_SNAPSHOT, STATUS_SPEC.identities),
-      ).toEqual([])
-      expect((cs.json as Row).root).toEqual((up.json as Row).root)
-    },
-  )
+  test('1.3 status --change alpha --json on a feat change with only proposal.md', async () => {
+    const root = listFixture()
+    const up = await upstreamJson(['status', '--change', 'alpha', '--json'], root)
+    const cs = await oursJson(['status', '--change', 'alpha', '--json'], root)
+    captureStatus('1.3', cs)
+    expect(cs.exitCode).toBe(up.exitCode)
+    expectOracle(up.json, cs.json, STATUS_SPEC)
+    const native = computeStatus(root, resolveChange(root, 'alpha')!)
+    expect(checkNativeKeys(cs.json, native, STATUS_ENTRY_SNAPSHOT, STATUS_SPEC.identities)).toEqual(
+      [],
+    )
+    expect((cs.json as Row).root).toEqual((up.json as Row).root)
+  })
 
   test.failing('1.4 status --all --json on the list fixture', async () => {
     const root = listFixture()
