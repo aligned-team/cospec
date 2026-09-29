@@ -94,9 +94,13 @@ trailer, never `--no-verify`).
       archive-parity suites green), 6.2, 7.1 (`owner: validation-parity` count 0
       before and after, reachability green) and 9.1 (`mise run check` exit 0).
       Commit `docs(validate): record validation-parity evidence`
-- [ ] 7.2 Run `mise run cospec -- validate validation-parity --strict` and
+- [x] 7.2 Run `mise run cospec -- validate validation-parity --strict` and
       `mise run cospec -- archive validation-parity` as the PR branch's final
-      commit, after rebasing onto `main`
+      commit, after rebasing onto `main` — ticked by `cli-surface-parity`: the
+      archive ran with `--force-incomplete`, which waived the tasks gate for
+      this one self-referential row (it describes the archive run itself), and
+      both hard gates (`archive/verification-incomplete`,
+      `archive/scenario-preservation`) ran
 
 ## 8. Round 2 — the archive's view (review findings F1–F6)
 
