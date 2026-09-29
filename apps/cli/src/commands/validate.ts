@@ -223,6 +223,7 @@ interface OpenspecItem {
   id: string
   valid: boolean
   issues: OpenspecIssue[]
+  durationMs?: number
 }
 interface OpenspecValidateJson {
   items: OpenspecItem[]
@@ -824,6 +825,8 @@ async function validateSpecs(root: Root, only: string | undefined): Promise<Item
   const caps = livingSpecFiles(root.base).filter((c) => only === undefined || c.id === only)
   if (caps.length === 0) return []
 
+  // One delegation serves every spec, so each item's time runs from its start.
+  const start = Date.now()
   const delegated = new Map<string, OpenspecIssue[]>()
   for (const item of await delegate(root, ['--specs'])) delegated.set(item.id, item.issues)
 
@@ -835,7 +838,8 @@ async function validateSpecs(root: Root, only: string | undefined): Promise<Item
       (delegated.get(cap.id) ?? []).map((i) => mapDelegated(i)),
     )
     const errors = issues.filter((i) => i.level === 'ERROR').length
-    return { id: cap.id, kind: 'spec' as const, valid: errors === 0, issues }
+    const durationMs = Date.now() - start
+    return { id: cap.id, kind: 'spec' as const, valid: errors === 0, issues, durationMs }
   })
 }
 
@@ -868,6 +872,7 @@ async function validateArchived(root: Root): Promise<ItemReport[] | undefined> {
     kind: 'change' as const,
     valid: item.valid,
     issues: item.issues.map((i) => mapDelegated(i, true)),
+    ...(typeof item.durationMs === 'number' ? { durationMs: item.durationMs } : {}),
   }))
 }
 
@@ -975,17 +980,21 @@ async function validateItem(
           .find((p) => p !== undefined)
   if (problem !== undefined) return refuseItem(opts.json, 'invalid_item', problem)
 
+  const start = Date.now()
   if (kind === 'change') {
     const dir = join(base, 'openspec', 'changes', name)
-    if (!existsSync(dir))
-      return [
-        { id: name, kind: 'change', valid: false, issues: [itemMissingIssue('change', name)] },
-      ]
+    if (!existsSync(dir)) {
+      const issues = [itemMissingIssue('change', name)]
+      return [{ id: name, kind: 'change', valid: false, issues, durationMs: Date.now() - start }]
+    }
     const change = listChanges(base).find((c) => c.id === name) ?? { id: name, dir, schema: '' }
-    return [await validateChange(root, change, buildValidateContext(base), opts)]
+    const report = await validateChange(root, change, buildValidateContext(base), opts)
+    return [{ ...report, durationMs: Date.now() - start }]
   }
-  if (!existsSync(join(openspecDir(base), 'specs', ...name.split('/'), 'spec.md')))
-    return [{ id: name, kind: 'spec', valid: false, issues: [itemMissingIssue('spec', name)] }]
+  if (!existsSync(join(openspecDir(base), 'specs', ...name.split('/'), 'spec.md'))) {
+    const issues = [itemMissingIssue('spec', name)]
+    return [{ id: name, kind: 'spec', valid: false, issues, durationMs: Date.now() - start }]
+  }
   return validateSpecs(root, name)
 }
 
@@ -1075,12 +1084,12 @@ function renderReport(
   items: ItemReport[],
   opts: { json: boolean; strict: boolean; noColor: boolean; findings?: FindingsScope },
   root: ResolvedRoot,
+  kinds: readonly ItemReport['kind'][],
 ): string {
-  if (opts.findings !== undefined && opts.json) {
-    const full = { ...toJson(items), root: rootOutput(root) }
-    return `${JSON.stringify(toFindings(full, opts.findings), null, 2)}\n`
-  }
-  if (opts.json) return renderJson(items)
+  const upstream = { root: rootOutput(root), kinds }
+  if (opts.findings !== undefined && opts.json)
+    return `${JSON.stringify(toFindings(toJson(items, upstream), opts.findings), null, 2)}\n`
+  if (opts.json) return renderJson(items, upstream)
   return renderHuman(items, {
     strict: opts.strict,
     noColor: opts.noColor,
@@ -1151,11 +1160,13 @@ export async function run(ctx: CommandContext): Promise<number> {
       )
       return 1
     }
-    process.stdout.write(renderReport(archived, renderOpts, root))
+    process.stdout.write(renderReport(archived, renderOpts, root, ['change']))
     return reportExitCode(archived, strict)
   }
 
   const items: ItemReport[] = []
+  // The kinds in scope, each counted in `summary.byType` as the binary counts it.
+  const kinds: ItemReport['kind'][] = []
   if (name !== undefined && !bulk) {
     // A bulk flag beside a name runs the bulk scope and ignores the name, as
     // the binary does; a name alone is resolved as the binary resolves it.
@@ -1166,22 +1177,27 @@ export async function run(ctx: CommandContext): Promise<number> {
     })
     if (typeof resolved === 'number') return resolved
     items.push(...resolved)
+    kinds.push(...new Set(resolved.map((item) => item.kind)))
   } else {
     const changes = listChanges(base)
     const ctxRules = buildValidateContext(base)
     const doChanges = wantChanges || wantAll || !bulk
     const doSpecs = wantSpecs || wantAll || !bulk
+    if (doChanges) kinds.push('change')
+    if (doSpecs) kinds.push('spec')
     if (doChanges) {
       const bound = concurrencyBound(flagValue(parsed, '--concurrency'))
-      const reports = await mapPool(changes, bound, (change) =>
-        validateChange(root, change, ctxRules, { strict, fast }),
-      )
+      const reports = await mapPool(changes, bound, async (change) => {
+        const start = Date.now()
+        const report = await validateChange(root, change, ctxRules, { strict, fast })
+        return { ...report, durationMs: Date.now() - start }
+      })
       items.push(...reports)
     }
     if (doSpecs) items.push(...(await validateSpecs(root, undefined)))
   }
 
   // The findings report's exit code is always the full report's.
-  process.stdout.write(renderReport(items, renderOpts, root))
+  process.stdout.write(renderReport(items, renderOpts, root, kinds))
   return reportExitCode(items, strict)
 }

@@ -751,7 +751,7 @@ describe('1. the key oracle passes and keeps cospec keys', () => {
     expect(checkNativeKeys(cs.json, native, snapshot, STATUS_ALL_SPEC.identities)).toEqual([])
   })
 
-  test.failing('1.5 validate alpha --json and validate --all --json', async () => {
+  test('1.5 validate alpha --json and validate --all --json', async () => {
     const root = listFixture()
     writeChange(root, 'delta-one', {
       'proposal.md': PROPOSAL,
@@ -772,15 +772,26 @@ describe('1. the key oracle passes and keeps cospec keys', () => {
       expect(emptyArrays).toEqual([])
       const doc = cs.json as Row
       expect(doc.version).toBe(1)
+      // A change item's `type` is its schema (a namespace folder has none).
+      const schemas: Record<string, string> = {
+        alpha: 'feat',
+        beta: 'fix',
+        gamma: 'chore',
+        'delta-one': 'feat',
+      }
       for (const item of rowsOf(doc, 'items'))
-        if (item.kind === 'change') expect(typeof item.type).toBe('string')
+        if (item.kind === 'change' && schemas[String(item.id)] !== undefined)
+          expect({ id: item.id, type: item.type }).toEqual({
+            id: item.id,
+            type: schemas[String(item.id)],
+          })
       const summary = doc.summary as Row
       for (const key of ['errors', 'warnings', 'byRule', 'totals', 'byType'])
         expect(summary).toHaveProperty(key)
     }
   })
 
-  test.failing('1.6 validate --all --report findings --json', async () => {
+  test('1.6 validate --all --report findings --json', async () => {
     const root = listFixture()
     writeFiles(root, { 'openspec/specs/gadgets/spec.md': LIVING('gadgets') })
     const argv = ['validate', '--all', '--report', 'findings', '--json']

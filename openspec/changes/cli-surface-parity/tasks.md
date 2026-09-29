@@ -104,7 +104,7 @@ Co-Authored-By trailer, never `--no-verify`).
       `OPENSPEC_CONCURRENCY` and 6, with the unit row 7.7. Move `--concurrency`
       from pending to handled and delete its yaml entry in this commit. Commit
       `feat(validate): bound bulk validation with --concurrency`
-- [ ] 6.4 Add `root`, `items[].durationMs`, `summary.totals` and
+- [x] 6.4 Add `root`, `items[].durationMs`, `summary.totals` and
       `summary.byType` to the report JSON, keeping `version: 1` and the schema
       `items[].type`. Flip row 1.5. Commit
       `feat(validate): add OpenSpec's report keys to the JSON document`
