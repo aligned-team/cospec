@@ -1187,7 +1187,7 @@ describe('7. validate item resolution', () => {
     return root
   }
 
-  test.failing('7.1 an ambiguous name is refused in text and --json', async () => {
+  test('7.1 an ambiguous name is refused in text and --json', async () => {
     const root = itemRoot()
     const upText = await upstream(['validate', 'gamma'], root)
     const csText = await ours(['validate', 'gamma'], root)
@@ -1201,7 +1201,7 @@ describe('7. validate item resolution', () => {
     expect(cs.json).toEqual(up.json)
   })
 
-  test.failing("7.2 an unknown name gets the binary's nearest matches", async () => {
+  test("7.2 an unknown name gets the binary's nearest matches", async () => {
     const root = itemRoot()
     const empty = cospecRoot()
     for (const [name, dir] of [
@@ -1221,7 +1221,7 @@ describe('7. validate item resolution', () => {
     }
   })
 
-  test.failing('7.3 --type forces the kind, case-insensitively', async () => {
+  test('7.3 --type forces the kind, case-insensitively', async () => {
     const root = itemRoot()
     const kinds = async (argv: string[]) => {
       const up = await upstreamJson([...argv, '--json'], root)
@@ -1251,7 +1251,7 @@ describe('7. validate item resolution', () => {
     expect((item.issues as Row[]).map((i) => i.rule)).toEqual(['meta/item-missing'])
   })
 
-  test.failing('7.4 a bulk flag beside a name runs the bulk scope', async () => {
+  test('7.4 a bulk flag beside a name runs the bulk scope', async () => {
     const root = itemRoot()
     for (const flag of ['--all', '--changes', '--specs']) {
       const argv = ['validate', 'alpha', flag, '--json']

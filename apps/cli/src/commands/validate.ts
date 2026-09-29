@@ -17,10 +17,9 @@ import {
   isValidSchemaVersion,
   listChanges,
   openspecDir,
-  resolveChange,
   resolveSchema,
 } from '../core/change.ts'
-import { hasFlag } from '../core/command-table.ts'
+import { flagValue, hasFlag } from '../core/command-table.ts'
 import { parseLivingSpec } from '../core/deltas.ts'
 import { spawnOpenspec, type Root, threadedArgv } from '../core/openspec.ts'
 import {
@@ -33,6 +32,7 @@ import { resolveRoot } from '../core/root.ts'
 import { runChangeRules, specsRules } from '../core/rules/index.ts'
 import type { Issue, IssueLevel } from '../core/rules/issue.ts'
 import {
+  itemMissingIssue,
   nameKebabIssues,
   openspecYamlIssues,
   schemaClassificationIssues,
@@ -867,6 +867,124 @@ async function validateArchived(root: Root): Promise<ItemReport[] | undefined> {
   }))
 }
 
+// --- item resolution (the binary's `validateDirectItem`) ------------------------
+
+/** The binary's `utils/match` `levenshtein`. */
+function levenshtein(a: string, b: string): number {
+  const dp = Array.from({ length: a.length + 1 }, (_, i) =>
+    Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
+  )
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      dp[i]![j] = Math.min(dp[i - 1]![j]! + 1, dp[i]![j - 1]! + 1, dp[i - 1]![j - 1]! + cost)
+    }
+  return dp[a.length]![b.length]!
+}
+
+/**
+ * The binary's `nearestMatches(input, candidates, 5)`: the five nearest
+ * candidates by edit distance, stable in candidate order, duplicates kept.
+ */
+export function nearestMatches(input: string, candidates: readonly string[], max = 5): string[] {
+  return candidates
+    .map((candidate) => ({ candidate, distance: levenshtein(input, candidate) }))
+    .toSorted((a, b) => a.distance - b.distance)
+    .slice(0, max)
+    .map((s) => s.candidate)
+}
+
+/** The binary's `normalizeType`: `change` or `spec`, any case; anything else is no override. */
+function normalizeType(value: string | undefined): 'change' | 'spec' | undefined {
+  const v = value?.toLowerCase()
+  return v === 'change' || v === 'spec' ? v : undefined
+}
+
+/** The binary's `folderStyleNameProblem(value, label)` (`core/id.js`). */
+function folderStyleNameProblem(value: string, label: string): string | undefined {
+  if (value.length === 0) return `${label} must not be empty`
+  if (value === '.' || value === '..') return `${label} must not be '${value}'`
+  if (/[\\/]/u.test(value)) return `${label} must not contain path separators`
+  return undefined
+}
+
+/** The binary's ambiguity fix, `validate/ambiguous-noun-form` as cospec spells it (no noun-form commands). */
+const AMBIGUOUS_FIX = 'Pass --type change|spec.'
+
+/**
+ * An item-resolution refusal: the binary's message after `cospec: ` on
+ * stderr (and its fix on the next line), or its one-diagnostic document
+ * under `--json`; exit 1.
+ */
+function refuseItem(json: boolean, code: string, message: string, fix?: string): number {
+  if (json) {
+    const status = [{ severity: 'error', code, message, ...(fix === undefined ? {} : { fix }) }]
+    process.stdout.write(`${JSON.stringify({ status }, null, 2)}\n`)
+  } else process.stderr.write(`cospec: ${message}\n${fix === undefined ? '' : `${fix}\n`}`)
+  return 1
+}
+
+/**
+ * `cospec validate <name>` resolves the name as the binary does (design D7):
+ * `--type` forces the kind; else membership among the active change ids and
+ * the living spec ids — a name that is both is refused as ambiguous, one that
+ * is neither gets the binary's nearest matches. A forced kind first rejects a
+ * path-shaped name, then reports an item that is not on disk as one
+ * `meta/item-missing` ERROR.
+ */
+async function validateItem(
+  root: Root,
+  name: string,
+  typeFlag: string | undefined,
+  opts: { strict: boolean; fast: boolean; json: boolean },
+): Promise<ItemReport[] | number> {
+  const base = root.base
+  const changeIds = listChanges(base).map((c) => c.id)
+  const specIds = livingSpecFiles(base).map((s) => s.id)
+  const isChange = changeIds.includes(name)
+  const isSpec = specIds.includes(name)
+  const override = normalizeType(typeFlag)
+  const kind = override ?? (isChange ? 'change' : isSpec ? 'spec' : undefined)
+  if (kind === undefined) {
+    const suggestions = nearestMatches(name, [...changeIds, ...specIds])
+    const message =
+      suggestions.length > 0
+        ? `Unknown item '${name}'. Did you mean: ${suggestions.join(', ')}?`
+        : `Unknown item '${name}'.`
+    return refuseItem(opts.json, 'unknown_item', message)
+  }
+  if (override === undefined && isChange && isSpec)
+    return refuseItem(
+      opts.json,
+      'ambiguous_item',
+      `Ambiguous item '${name}' matches both a change and a spec.`,
+      AMBIGUOUS_FIX,
+    )
+  // Spec ids nest (`<area>/<capability>`), so the guard runs per segment;
+  // change names are flat and keep the whole-value check.
+  const problem =
+    kind === 'change'
+      ? folderStyleNameProblem(name, 'Change name')
+      : name
+          .split('/')
+          .map((segment) => folderStyleNameProblem(segment, 'Spec id'))
+          .find((p) => p !== undefined)
+  if (problem !== undefined) return refuseItem(opts.json, 'invalid_item', problem)
+
+  if (kind === 'change') {
+    const dir = join(base, 'openspec', 'changes', name)
+    if (!existsSync(dir))
+      return [
+        { id: name, kind: 'change', valid: false, issues: [itemMissingIssue('change', name)] },
+      ]
+    const change = listChanges(base).find((c) => c.id === name) ?? { id: name, dir, schema: '' }
+    return [await validateChange(root, change, buildValidateContext(base), opts)]
+  }
+  if (!existsSync(join(openspecDir(base), 'specs', ...name.split('/'), 'spec.md')))
+    return [{ id: name, kind: 'spec', valid: false, issues: [itemMissingIssue('spec', name)] }]
+  return validateSpecs(root, name)
+}
+
 // --- command entrypoint -----------------------------------------------------
 
 export async function run(ctx: CommandContext): Promise<number> {
@@ -907,25 +1025,23 @@ export async function run(ctx: CommandContext): Promise<number> {
     return reportExitCode(archived, strict)
   }
 
-  const changes = listChanges(base)
-  const ctxRules = buildValidateContext(base)
-
   const items: ItemReport[] = []
-
-  if (name !== undefined) {
-    // item-name auto-detection: change first, then living spec.
-    const change = resolveChange(base, name)
-    if (change !== undefined) {
-      items.push(await validateChange(root, change, ctxRules, { strict, fast }))
-    } else if (existsSync(join(openspecDir(base), 'specs', name, 'spec.md'))) {
-      items.push(...(await validateSpecs(root, name)))
-    } else {
-      process.stderr.write(`cospec: unknown item '${name}'\n`)
-      return 1
-    }
+  const bulk = wantAll || wantChanges || wantSpecs
+  if (name !== undefined && !bulk) {
+    // A bulk flag beside a name runs the bulk scope and ignores the name, as
+    // the binary does; a name alone is resolved as the binary resolves it.
+    const resolved = await validateItem(root, name, flagValue(parsed, '--type'), {
+      strict,
+      fast,
+      json: flags.json,
+    })
+    if (typeof resolved === 'number') return resolved
+    items.push(...resolved)
   } else {
-    const doChanges = wantChanges || wantAll || (!wantChanges && !wantSpecs)
-    const doSpecs = wantSpecs || wantAll || (!wantChanges && !wantSpecs)
+    const changes = listChanges(base)
+    const ctxRules = buildValidateContext(base)
+    const doChanges = wantChanges || wantAll || !bulk
+    const doSpecs = wantSpecs || wantAll || !bulk
     if (doChanges) {
       const reports = await Promise.all(
         changes.map((change) => validateChange(root, change, ctxRules, { strict, fast })),

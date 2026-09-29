@@ -17,7 +17,6 @@
 # produce; the test verifies it against the pinned binary instead.
 
 # --- cli-surface-parity -----------------------------------------------------------
-- { kind: flag, path: [validate], flag: --type, owner: cli-surface-parity }
 - { kind: flag, path: [validate], flag: --report, owner: cli-surface-parity }
 - { kind: flag, path: [validate], flag: --concurrency, owner: cli-surface-parity }
 

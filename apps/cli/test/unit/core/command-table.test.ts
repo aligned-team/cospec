@@ -73,9 +73,9 @@ describe('parseCommandArgs — the six ledger 1.5 cases', () => {
   })
 
   test('a pending flag consumes its value and never leaks it into a positional', () => {
-    const r = refused('validate', ['--type', 'change', 'x'])
-    expect(r).toMatchObject({ kind: 'pending', surface: '--type', owner: 'cli-surface-parity' })
-    expect(r.message).toBe("cospec validate: '--type' is not supported yet\n")
+    const r = refused('init', ['--profile', 'core', 'x', 'y'])
+    expect(r).toMatchObject({ kind: 'pending', surface: '--profile', owner: 'workflow-profiles' })
+    expect(r.message).toBe("cospec init: '--profile' is not supported yet\n")
 
     // `--bogus` is consumed as --language's value, so the pending refusal wins.
     expect(refused('init', ['--language', '--bogus'])).toMatchObject({
@@ -328,7 +328,6 @@ const EXPECTED_PENDING: [string, string, PendingOwner][] = [
   ['init', '--profile', 'workflow-profiles'],
   ['init', '--copilot-cloud', 'github-copilot'],
   ['init', '--no-copilot-cloud', 'github-copilot'],
-  ['validate', '--type', 'cli-surface-parity'],
   ['validate', '--report', 'cli-surface-parity'],
   ['validate', '--concurrency', 'cli-surface-parity'],
   ['archive', '--no-validate', 'archive-and-sync-parity'],
@@ -376,7 +375,6 @@ describe('pending surfaces', () => {
     'init --profile': ['--profile', 'core'],
     'init --copilot-cloud': ['--copilot-cloud'],
     'init --no-copilot-cloud': ['--no-copilot-cloud'],
-    'validate --type': ['--type', 'change', 'x'],
     'validate --report': ['--report', 'full'],
     'validate --concurrency': ['--concurrency', '4'],
     'archive --no-validate': ['c', '--no-validate'],

@@ -485,7 +485,6 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         placeholder: '<type>',
         values: ['change', 'spec'],
         description: 'Specify item type when ambiguous',
-        status: pending('cli-surface-parity'),
       }),
       upstream({
         name: '--report',

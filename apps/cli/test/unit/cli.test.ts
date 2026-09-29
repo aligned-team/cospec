@@ -287,9 +287,9 @@ describe('cli dispatcher: table rows parse before the module loads', () => {
   })
 
   test('a pending flag is refused as not supported yet', async () => {
-    const r = await dispatch(['validate', '--type', 'change', 'x'])
+    const r = await dispatch(['archive', 'x', '--no-validate'])
     expect(r.code).toBe(1)
-    expect(r.err).toBe("cospec validate: '--type' is not supported yet\n")
+    expect(r.err).toBe("cospec archive: '--no-validate' is not supported yet\n")
   })
 
   test('a value-taking flag with no value is refused', async () => {
@@ -381,7 +381,7 @@ describe("cli dispatcher: a value-taking flag's space-form value is never interc
     // with its value consumed, never help, never absorbed.
     [['init', '--language', '--help'], "cospec init: '--language' is not supported yet\n"],
     [['init', '--language', '--json'], "cospec init: '--language' is not supported yet\n"],
-    [['validate', '--type', '--store'], "cospec validate: '--type' is not supported yet\n"],
+    [['init', '--profile', '--store'], "cospec init: '--profile' is not supported yet\n"],
     // Upstream's program level takes `--no-color` out first, wherever it sits
     // before the first `--`: the flag takes the next token or has none.
     [
