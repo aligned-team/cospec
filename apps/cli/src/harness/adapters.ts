@@ -64,7 +64,7 @@ export interface HarnessAdapter {
   readonly requiresIdeRestart: boolean
   /** Paths whose existence makes init auto-select this tool. */
   readonly detectionPaths: readonly string[]
-  /** The line the init receipt prints for this tool. */
+  /** The line the init receipt prints for this tool, in selection order. */
   readonly setupNote?: string
   readonly searchAliases?: readonly string[]
 }
@@ -217,6 +217,28 @@ function rowRoots(row: HarnessAdapter): string[] {
 }
 
 /**
+ * The top-level repo dir that identifies a row: its commands dir, else its rules file, else
+ * its skills root. Doctor attributes a file to the row whose primary root prefixes it.
+ */
+export function primaryRoot(row: HarnessAdapter): string | undefined {
+  return rowRoots(row)[0]
+}
+
+/**
+ * Upstream's single IDE restart line (`formatIdeRestart`), printed after the setup notes
+ * when any of `rows` sets `requiresIdeRestart`; commands win over skills as in upstream's
+ * `resolveIdeRestartSurface`. Undefined when no row needs a restart.
+ */
+export function ideRestartLine(rows: readonly HarnessAdapter[]): string | undefined {
+  const flagged = rows.filter((row) => row.requiresIdeRestart)
+  if (flagged.some((row) => row.commands !== undefined)) {
+    return 'Restart your IDE to refresh commands.'
+  }
+  if (flagged.length > 0) return 'Restart your IDE to refresh skills.'
+  return undefined
+}
+
+/**
  * Top-level dirs to walk for leftovers, drift and sidecars. Two passes — each row's primary
  * root in table order, then any remaining roots — so the four rows derive today's `.<id>`
  * walk order; a single first-occurrence pass would put `.agents` before `.codex`.
@@ -224,7 +246,7 @@ function rowRoots(row: HarnessAdapter): string[] {
 export function scanRoots(table: readonly HarnessAdapter[] = HARNESS_TABLE): string[] {
   const out = new Set<string>()
   for (const row of table) {
-    const primary = rowRoots(row)[0]
+    const primary = primaryRoot(row)
     if (primary !== undefined) out.add(primary)
   }
   for (const row of table) for (const root of rowRoots(row)) out.add(root)

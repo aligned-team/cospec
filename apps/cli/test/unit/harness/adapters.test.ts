@@ -15,6 +15,7 @@ import {
   isBodyDialect,
   isHarnessName,
   legacySkillsRoots,
+  primaryRoot,
   removalRoots,
   renderCodexRules,
   scanRoots,
@@ -223,6 +224,12 @@ describe('HARNESS_TABLE invariants', () => {
 describe('HARNESS_TABLE derived roots', () => {
   test("scan roots are today's `.<id>` walk order", () => {
     expect(scanRoots()).toEqual(['.claude', '.codex', '.opencode', '.agents'])
+  })
+
+  test("each row's primary root is today's `.<id>` dir, so doctor attributes files as before", () => {
+    expect(HARNESS_TABLE.map((row) => primaryRoot(row))).toEqual(
+      HARNESS_NAMES.map((id) => `.${id}`),
+    )
   })
 
   test('removal roots are openspec plus every tool root', () => {
