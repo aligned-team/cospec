@@ -300,11 +300,18 @@ function schemaDir(name: string, projectRoot: string): string | undefined {
   return undefined
 }
 
+/** One artifact of a schema `loadSchema` has validated. */
+export interface LoadedSchemaArtifact {
+  id: string
+  generates: string
+}
+
 /**
- * openspec's `resolveSchema(name, projectRoot)`, for its throw alone: the
- * schema is found, read, parsed and validated, or the error says why.
+ * openspec's `resolveSchema(name, projectRoot)`: the schema is found, read,
+ * parsed and validated, or the error says why. Returns its artifacts, in
+ * declaration order.
  */
-function loadSchema(name: string, projectRoot: string): void {
+export function loadSchema(name: string, projectRoot: string): LoadedSchemaArtifact[] {
   const normalized = name.replace(/\.ya?ml$/, '')
   const dir = schemaDir(normalized, projectRoot)
   if (dir === undefined)
@@ -326,6 +333,10 @@ function loadSchema(name: string, projectRoot: string): void {
   }
   const problem = schemaProblem(parsed)
   if (problem !== undefined) throw new Error(`Invalid schema at '${path}': ${problem}`)
+  return ((parsed as Record<string, unknown>).artifacts as Record<string, unknown>[]).map((a) => ({
+    id: a.id as string,
+    generates: a.generates as string,
+  }))
 }
 
 /** openspec's `relativePathSchema(fieldName)` refinement. */
