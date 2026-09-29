@@ -936,7 +936,7 @@ describe('4. namespace folders', () => {
     expect(text.stdout.endsWith(`Warning: ${warning}\n`)).toBe(true)
   })
 
-  test.failing('4.4 validate reports the folder as one meta/nested-change', async () => {
+  test('4.4 validate reports the folder as one meta/nested-change', async () => {
     const root = listFixture()
     const message = await explanation(root)
     for (const argv of [
@@ -1328,7 +1328,7 @@ describe('7. validate item resolution', () => {
   })
 
   unlessRoot('mode 000', () => {
-    test.failing('7.8 an unreadable artifact is one meta/unreadable-artifact ERROR', async () => {
+    test('7.8 an unreadable artifact is one meta/unreadable-artifact ERROR', async () => {
       const root = cospecRoot()
       writeChange(root, 'other', { 'proposal.md': PROPOSAL }, 'chore')
       for (const file of ['proposal.md', 'tasks.md', 'specs/widgets/spec.md']) {
@@ -1363,7 +1363,7 @@ describe('7. validate item resolution', () => {
     })
   })
 
-  test.failing("7.9 the binary's no-deltas tip is relayed spelled cospec", async () => {
+  test("7.9 the binary's no-deltas tip is relayed spelled cospec", async () => {
     const root = cospecRoot()
     specDrivenChange(root, 'no-deltas')
     const cs = await oursJson(['validate', 'no-deltas', '--json'], root)
@@ -1447,7 +1447,7 @@ describe('8. resolver failures under --json', () => {
     test('8.1 list --specs --json', () => unreadableRegistry(SPECS_ROW))
     test('8.1 status --change a --json', () => unreadableRegistry(STATUS_ROW))
     test('8.1 status --all --json', () => unreadableRegistry(SWEEP_ROW))
-    test.failing('8.1 validate --all --json', () => unreadableRegistry(VALIDATE_ROW))
+    test('8.1 validate --all --json', () => unreadableRegistry(VALIDATE_ROW))
   })
 
   describe("8.4 an unknown store carries the binary's diagnostic inside its payload", () => {

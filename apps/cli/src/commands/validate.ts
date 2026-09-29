@@ -14,6 +14,9 @@ import type { CommandContext } from '../cli.ts'
 import { readRetireCapabilitiesMarker } from '../core/change-metadata.ts'
 import {
   archiveDir,
+  changesDir,
+  describeNestedChange,
+  findNestedChangesIn,
   isValidSchemaVersion,
   listChanges,
   openspecDir,
@@ -22,6 +25,7 @@ import {
 import { flagValue, hasFlag } from '../core/command-table.ts'
 import { parseLivingSpec } from '../core/deltas.ts'
 import { spawnOpenspec, type Root, threadedArgv } from '../core/openspec.ts'
+import { respellRemedies } from '../core/remedies.ts'
 import {
   exitCode as reportExitCode,
   renderHuman,
@@ -31,14 +35,16 @@ import {
   type FindingsScope,
   type ItemReport,
 } from '../core/report.ts'
-import { resolveRoot, type ResolvedRoot } from '../core/root.ts'
+import type { ResolvedRoot } from '../core/root.ts'
 import { runChangeRules, specsRules } from '../core/rules/index.ts'
 import type { Issue, IssueLevel } from '../core/rules/issue.ts'
 import {
   itemMissingIssue,
   nameKebabIssues,
+  nestedChangeIssue,
   openspecYamlIssues,
   schemaClassificationIssues,
+  unreadableArtifactIssue,
 } from '../core/rules/meta.ts'
 import {
   deriveSchemaInfo,
@@ -60,33 +66,74 @@ import {
   isDeltaSpecFile,
   unreadDeltaExpectation,
 } from '../core/spec-paths.ts'
-import { rootOutput } from '../core/upstream-keys.ts'
+import { resolveRootOrDocument, rootOutput } from '../core/upstream-keys.ts'
 
 // --- Change loading (filesystem → LoadedChange) ---------------------------
 
-function listFilesRelative(dir: string): string[] {
-  const out: string[] = []
-  const walk = (abs: string): void => {
-    for (const entry of readdirSync(abs, { withFileTypes: true })) {
-      const child = join(abs, entry.name)
-      if (entry.isDirectory()) walk(child)
-      else if (entry.isFile()) out.push(relative(dir, child).split(sep).join('/'))
+/** A change file that exists but could not be read: its change-relative path and errno code. */
+interface ReadFailure {
+  path: string
+  code: string
+}
+
+/**
+ * The one way a change is read (design D7): every errno but `ENOENT` is
+ * recorded against the file's change-relative path instead of thrown, so an
+ * unreadable artifact fails the change — `meta/unreadable-artifact` — never
+ * the command. Anything that is not an errno failure propagates.
+ */
+class ChangeReader {
+  readonly failures: ReadFailure[] = []
+
+  constructor(private readonly dir: string) {}
+
+  private record(error: unknown, abs: string): void {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    if (!(error instanceof Error) || typeof code !== 'string') throw error
+    if (code === 'ENOENT') return
+    this.failures.push({ path: relative(this.dir, abs).split(sep).join('/') || '.', code })
+  }
+
+  /** A file's text, `undefined` when it is absent or could not be read. */
+  read(abs: string): string | undefined {
+    try {
+      return readFileSync(abs, 'utf8')
+    } catch (error) {
+      this.record(error, abs)
+      return undefined
     }
   }
-  walk(dir)
-  return out.toSorted()
+
+  /** Every file under the change, change-relative and sorted; an unreadable directory is recorded. */
+  files(): string[] {
+    const out: string[] = []
+    const walk = (abs: string): void => {
+      let entries
+      try {
+        entries = readdirSync(abs, { withFileTypes: true })
+      } catch (error) {
+        this.record(error, abs)
+        return
+      }
+      for (const entry of entries) {
+        const child = join(abs, entry.name)
+        if (entry.isDirectory()) walk(child)
+        else if (entry.isFile()) out.push(relative(this.dir, child).split(sep).join('/'))
+      }
+    }
+    walk(this.dir)
+    return out.toSorted()
+  }
 }
 
-function readIfExists(path: string): string | undefined {
-  return existsSync(path) ? readFileSync(path, 'utf8') : undefined
-}
-
-function loadOpenspecYaml(changeDir: string): LoadedChange['openspecYaml'] {
+function loadOpenspecYaml(changeDir: string, reader: ChangeReader): LoadedChange['openspecYaml'] {
   const path = join(changeDir, '.openspec.yaml')
   if (!existsSync(path)) return { present: false, parseable: false }
+  const text = reader.read(path)
+  if (text === undefined) return { present: true, parseable: false }
   let doc: unknown
   try {
-    doc = parseYaml(readFileSync(path, 'utf8'))
+    doc = parseYaml(text)
   } catch {
     return { present: true, parseable: false }
   }
@@ -121,9 +168,14 @@ function loadOpenspecYaml(changeDir: string): LoadedChange['openspecYaml'] {
   }
 }
 
-function loadChange(base: string, id: string, dir: string): LoadedChange {
-  const files = existsSync(dir) ? listFilesRelative(dir) : []
-  const designText = readIfExists(join(dir, 'design.md'))
+function loadChange(
+  base: string,
+  id: string,
+  dir: string,
+): { load: LoadedChange; unreadable: ReadFailure[] } {
+  const reader = new ChangeReader(dir)
+  const files = existsSync(dir) ? reader.files() : []
+  const designText = reader.read(join(dir, 'design.md'))
   // Capability comes from the file's whole path under `specs/`, not its first
   // segment: the nested `specs/<area>/<capability>/spec.md` layout openspec grew
   // in 1.6.0 is one capability named `<area>/<capability>`, and that is the name
@@ -139,7 +191,7 @@ function loadChange(base: string, id: string, dir: string): LoadedChange {
     .map((f) => ({
       path: f,
       capability: capabilityForDeltaFile(f) ?? '',
-      text: readFileSync(join(dir, f), 'utf8'),
+      text: reader.read(join(dir, f)) ?? '',
     }))
 
   // Everything else under `specs/` that a merge would never read. Only
@@ -157,7 +209,7 @@ function loadChange(base: string, id: string, dir: string): LoadedChange {
     .map((f) => ({
       path: f,
       expected: unreadDeltaExpectation(f),
-      text: readFileSync(join(dir, f), 'utf8'),
+      text: reader.read(join(dir, f)) ?? '',
     }))
 
   const livingSpecs: LoadedChange['livingSpecs'] = new Map()
@@ -168,14 +220,14 @@ function loadChange(base: string, id: string, dir: string): LoadedChange {
       livingSpecs.set(cap, parseLivingSpec(readFileSync(livingPath, 'utf8')))
   }
 
-  return {
+  const load: LoadedChange = {
     id,
-    openspecYaml: loadOpenspecYaml(dir),
+    openspecYaml: loadOpenspecYaml(dir, reader),
     files,
-    proposalText: readIfExists(join(dir, 'proposal.md')),
-    blockersText: readIfExists(join(dir, 'blocking-changes.md')),
-    tasksText: readIfExists(join(dir, 'tasks.md')),
-    verificationText: readIfExists(join(dir, 'verification.md')),
+    proposalText: reader.read(join(dir, 'proposal.md')),
+    blockersText: reader.read(join(dir, 'blocking-changes.md')),
+    tasksText: reader.read(join(dir, 'tasks.md')),
+    verificationText: reader.read(join(dir, 'verification.md')),
     designExists: designText !== undefined,
     designText,
     deltaFiles,
@@ -183,6 +235,7 @@ function loadChange(base: string, id: string, dir: string): LoadedChange {
     livingSpecs,
     retireMarker: readRetireCapabilitiesMarker(dir),
   }
+  return { load, unreadable: reader.failures }
 }
 
 /**
@@ -271,7 +324,8 @@ function mapDelegated(issue: OpenspecIssue, deltaPaths = false): Issue {
     rule: 'openspec/validate',
     path,
     line: issue.line,
-    message: issue.message,
+    // Every allowlisted upstream remedy spelled through cospec, every other byte as written.
+    message: respellRemedies(issue.message),
   }
 }
 
@@ -766,7 +820,26 @@ export async function validateChange(
   ctx: ValidateContext,
   opts: { strict: boolean; fast: boolean },
 ): Promise<ItemReport> {
-  const load = loadChange(root.base, change.id, change.dir)
+  // A namespace folder is reported as one, and nothing else runs on it.
+  const nested = findNestedChangesIn(changesDir(root.base), change.id)
+  if (nested !== undefined)
+    return buildReport(
+      change.id,
+      [nestedChangeIssue(describeNestedChange(nested))],
+      undefined,
+      opts.strict,
+    )
+
+  const { load, unreadable } = loadChange(root.base, change.id, change.dir)
+  // An artifact that cannot be read fails the change, not the command, and
+  // nothing is delegated for it.
+  if (unreadable.length > 0)
+    return buildReport(
+      change.id,
+      unreadable.map((f) => unreadableArtifactIssue(f.path, f.code)),
+      load.openspecYaml.schema,
+      opts.strict,
+    )
   const y = load.openspecYaml
 
   // meta/openspec-yaml precondition — cannot classify without a schema.
@@ -863,7 +936,7 @@ async function validateArchived(root: Root): Promise<ItemReport[] | undefined> {
   try {
     parsed = JSON.parse(res.stdout) as OpenspecValidateJson
   } catch {
-    process.stderr.write(res.stderr)
+    process.stderr.write(respellRemedies(res.stderr))
     return undefined
   }
   if (!Array.isArray(parsed.items)) return undefined
@@ -1140,7 +1213,8 @@ export async function run(ctx: CommandContext): Promise<number> {
   }
   const renderOpts = { json: flags.json, strict, noColor: flags.noColor, findings }
 
-  const root = await resolveRoot(ctx)
+  const root = await resolveRootOrDocument(ctx, 'validate_error')
+  if (root === undefined) return 1
   const base = root.base
 
   if (!existsSync(openspecDir(base))) {
