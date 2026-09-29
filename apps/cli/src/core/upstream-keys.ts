@@ -5,7 +5,14 @@
 // (`test/contract/support/key-oracle.ts`) can prove that only its named
 // collisions ever arise.
 
-import type { ResolvedRoot, RootSource } from './root.ts'
+import {
+  RawSelectionError,
+  resolveRoot,
+  RootSelectionError,
+  rootSelectionDocument,
+  type ResolvedRoot,
+  type RootSource,
+} from './root.ts'
 
 /** The binary's `root` object (`toRootOutput`): `{path, source, store_id?}`. */
 export interface RootOutput {
@@ -98,4 +105,33 @@ export function mergeUpstream<T>(
   }
 
   return { value: merge(cospec, upstream, '') as T, collisions }
+}
+
+/**
+ * `resolveRoot` for a command answering `--json` with its own failure
+ * document (design D10): a selection failure prints one
+ * `{...payload, status}` document — `payload` the command's null-shape, as
+ * the binary's `failurePayload` is — and the command exits 1, so nothing
+ * reaches the top-level handler. A selection diagnostic keeps its own code; a
+ * raw resolver failure (`RawSelectionError`, which the binary rethrows rather
+ * than diagnoses) carries the command's code, as the binary's per-command
+ * handler reports it. `undefined` means the document is written. Outside
+ * `--json` the error propagates unchanged.
+ */
+export async function resolveRootOrDocument(
+  ctx: { cwd: string; flags: { store?: string; json?: boolean } },
+  code: string,
+  payload: Readonly<Record<string, unknown>> = {},
+): Promise<ResolvedRoot | undefined> {
+  try {
+    return await resolveRoot(ctx)
+  } catch (error) {
+    if (ctx.flags.json !== true || !(error instanceof RootSelectionError)) throw error
+    const reported =
+      error instanceof RawSelectionError
+        ? new RootSelectionError({ code, message: error.diagnostic.message })
+        : error
+    process.stdout.write(rootSelectionDocument(reported, payload))
+    return undefined
+  }
 }

@@ -2081,8 +2081,9 @@ describe('a global config that cannot be read or parsed reads as defaults (ledge
           source: 'global_default',
           store_id: 'alpha',
         })
+        // cli-surface-parity: status's `root` is the binary's object, not its path.
         if (argv[0] === 'status')
-          expect((JSON.parse(res.stdout) as { root: string }).root).toBe(root.path)
+          expect((JSON.parse(res.stdout) as { root: OracleRoot }).root).toEqual(root)
       })
 
     test("from a rootless directory, doctor --json operates on the binary's root", async () => {
@@ -2102,8 +2103,8 @@ describe('a global config that cannot be read or parsed reads as defaults (ledge
       const up = await binary('valid', ['status', '--json'], cwd)
       const res = await ours('valid', ['status', '--json'], cwd)
       expect(res.stderr).toBe(up.stderr)
-      expect((JSON.parse(res.stdout) as { root: string }).root).toBe(
-        (JSON.parse(up.stdout) as { root: OracleRoot }).root.path,
+      expect((JSON.parse(res.stdout) as { root: OracleRoot }).root).toEqual(
+        (JSON.parse(up.stdout) as { root: OracleRoot }).root,
       )
     })
 

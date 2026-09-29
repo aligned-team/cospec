@@ -12,6 +12,10 @@ import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
 import { schemaDir } from '../core/change-metadata.ts'
 import {
+  archiveDir,
+  changesDir,
+  describeNestedChange,
+  findNestedChangesIn,
   isCospecType,
   listChanges,
   projectConfigSchema,
@@ -21,7 +25,7 @@ import {
 import { flagValue, hasFlag } from '../core/command-table.ts'
 import { passthroughOpenspec, wrappedCallLabel } from '../core/openspec.ts'
 import { respellWholeRemedy } from '../core/remedies.ts'
-import { resolveRoot, type ResolvedRoot } from '../core/root.ts'
+import type { ResolvedRoot } from '../core/root.ts'
 import {
   artifactRequires,
   enforcedApplyRequires,
@@ -29,7 +33,12 @@ import {
   type CospecType,
 } from '../core/rules/type-facts.ts'
 import { parseTasks } from '../core/tasks.ts'
-import { mergeUpstream, rootOutput, type Identities } from '../core/upstream-keys.ts'
+import {
+  mergeUpstream,
+  resolveRootOrDocument,
+  rootOutput,
+  type Identities,
+} from '../core/upstream-keys.ts'
 import { computeVerificationVerdict, type VerificationVerdict } from '../core/verification.ts'
 import { archiveMap, artifactDone, closest, computeGate, hasSpecFiles, type Gate } from './apply.ts'
 
@@ -128,11 +137,50 @@ function cospecStates(
   })
 }
 
+/** A warning a status or list document carries (`--json`) or prints on stderr (text). */
+export interface ArchiveWarning {
+  code: 'archive_unreadable'
+  message: string
+}
+
+/**
+ * The archive index the gate column reads (design D4). The binary never reads
+ * `openspec/changes/archive/` for `status` or `list`, so an unreadable one
+ * must not fail them: the gate is computed from an empty index — which can
+ * only err toward `blocked`, never a false `clear` — and the warning says
+ * why. `apply` and `archive` read it through `archiveMap` and still refuse.
+ */
+export function readArchive(base: string): {
+  archived: Map<string, string>
+  warning?: ArchiveWarning
+} {
+  try {
+    return { archived: archiveMap(base) }
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    if (typeof code !== 'string' || code === 'ENOENT') throw error
+    return {
+      archived: new Map(),
+      warning: {
+        code: 'archive_unreadable',
+        message:
+          `could not read ${archiveDir(base)} (${code}); blocker gates are computed as if no change ` +
+          'were archived',
+      },
+    }
+  }
+}
+
 /**
  * Full status for a cospec-typed change with at least one artifact. Assumes the
- * caller has excluded the empty-change and legacy cases.
+ * caller has excluded the empty-change and legacy cases. `archived` is the
+ * archive index its gate reads (`readArchive`); read here when not given.
  */
-export function computeStatus(base: string, change: Change): ChangeStatus {
+export function computeStatus(
+  base: string,
+  change: Change,
+  archived?: Map<string, string>,
+): ChangeStatus {
   const type = change.schema as CospecType
   const facts = TYPE_ARTIFACTS[type]
   // Grandfathering: `required` mirrors the schemaVersion-filtered set the
@@ -151,7 +199,7 @@ export function computeStatus(base: string, change: Change): ChangeStatus {
   const gate = existsSync(blockersPath)
     ? computeGate(
         parseBlockers(readFileSync(blockersPath, 'utf8')),
-        archiveMap(base),
+        archived ?? archiveMap(base),
         new Set(listChanges(base).map((c) => c.id)),
       )
     : ({ state: 'clear', hard: [], soft: [] } satisfies Gate)
@@ -306,10 +354,32 @@ export function buildChangeEntry(
   base: string,
   change: Change,
   upstream?: Record<string, unknown>,
+  archived?: Map<string, string>,
 ): ChangeEntry {
   if (!hasAnyArtifact(change.dir)) return emptyChangeEntry(change)
   if (!isCospecType(change.schema)) return legacyChangeEntry(change, upstream)
-  return computeStatus(base, change)
+  return computeStatus(base, change, archived)
+}
+
+/** An errno failure reading a change's files: its message, as the binary reports it. */
+function readFailure(error: unknown): string | undefined {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code
+  return error instanceof Error && typeof code === 'string' ? error.message : undefined
+}
+
+/** A namespace folder's explanation (design D2), when `id` names one. */
+function namespaceExplanation(base: string, id: string): string | undefined {
+  const finding = findNestedChangesIn(changesDir(base), id)
+  return finding === undefined ? undefined : describeNestedChange(finding)
+}
+
+function printWarning(warning: ArchiveWarning | undefined): void {
+  if (warning !== undefined) process.stderr.write(`Warning: ${warning.message}\n`)
+}
+
+/** The document's `warnings`, when there is one to carry. */
+function warningsKey(warning: ArchiveWarning | undefined): { warnings?: ArchiveWarning[] } {
+  return warning === undefined ? {} : { warnings: [warning] }
 }
 
 function isFailure(entry: ChangeEntry | ChangeEntryFailure): entry is ChangeEntryFailure {
@@ -420,7 +490,8 @@ function sweepEntries(doc: Record<string, unknown>): Map<string, Record<string, 
  */
 async function runAll(ctx: CommandContext, override: string | undefined): Promise<number> {
   const { flags } = ctx
-  const root = await resolveRoot(ctx)
+  const root = await resolveRootOrDocument(ctx, 'change_error', BATCH_FAILURE_PAYLOAD)
+  if (root === undefined) return EXIT.failure
   const base = root.base
   // Checked before any change is enumerated, as the binary checks it.
   if (override !== undefined && schemaDir(override, base) === undefined)
@@ -435,9 +506,14 @@ async function runAll(ctx: CommandContext, override: string | undefined): Promis
       : undefined
   const byName = upstream === undefined ? new Map() : sweepEntries(upstream)
 
+  const { archived, warning } = readArchive(base)
   const entries: (ChangeEntry | ChangeEntryFailure)[] = changes.map((change) => {
+    // A namespace folder is a failure entry carrying its explanation, as the
+    // binary's sweep carries it.
+    const nested = namespaceExplanation(base, change.id)
+    if (nested !== undefined) return { change: change.id, error: nested }
     try {
-      return buildChangeEntry(base, change, byName.get(change.id))
+      return buildChangeEntry(base, change, byName.get(change.id), archived)
     } catch (err) {
       return { change: change.id, error: (err as Error).message }
     }
@@ -452,7 +528,7 @@ async function runAll(ctx: CommandContext, override: string | undefined): Promis
 
   if (flags.json) {
     const doc = mergeUpstream(
-      { changes: entries, root: rootOutput(root) },
+      { changes: entries, root: rootOutput(root), ...warningsKey(warning) },
       withRespelledNextSteps(upstream!),
       SWEEP_IDENTITIES,
     ).value
@@ -460,6 +536,7 @@ async function runAll(ctx: CommandContext, override: string | undefined): Promis
   } else if (entries.length === 0) {
     process.stdout.write('cospec status: no active changes\n')
   } else {
+    printWarning(warning)
     process.stdout.write(
       entries.map((entry) => renderEntryHuman(entry, byName.get(entry.change))).join('\n'),
     )
@@ -469,6 +546,9 @@ async function runAll(ctx: CommandContext, override: string | undefined): Promis
 }
 
 const MUTEX_MESSAGE = 'The --all and --change options are mutually exclusive.'
+
+/** The binary's `--all --json` failure null-shape (`BATCH_STATUS_FAILURE_PAYLOAD`). */
+const BATCH_FAILURE_PAYLOAD = { changes: [], root: null } as const
 
 /**
  * A lookup refusal under `--json`: one document on stdout in upstream's
@@ -591,7 +671,8 @@ export async function run(ctx: CommandContext): Promise<number> {
     return runAll(ctx, override)
   }
 
-  const root = await resolveRoot(ctx)
+  const root = await resolveRootOrDocument(ctx, 'change_error')
+  if (root === undefined) return EXIT.failure
   const base = root.base
   let id = flagValue(parsed, '--change') ?? parsed.positionals[0]
 
@@ -631,6 +712,14 @@ export async function run(ctx: CommandContext): Promise<number> {
     if (suggestion !== undefined) process.stderr.write(`Did you mean '${suggestion}'?\n`)
     return EXIT.failure
   }
+  // A namespace folder is refused, as the binary refuses it.
+  const nested = namespaceExplanation(base, found.id)
+  if (nested !== undefined) {
+    if (flags.json) return changeErrorDocument(nested)
+    process.stderr.write(`cospec status: ${nested}\n`)
+    return EXIT.failure
+  }
+
   // Checked after the change resolves and before it is reported, as the
   // binary checks it; with neither `--change` nor `--all` it is not checked.
   if (
@@ -658,8 +747,20 @@ export async function run(ctx: CommandContext): Promise<number> {
   }
 
   // Empty change: has .openspec.yaml but no artifacts yet (never "Unknown item").
-  const entry: ChangeEntry = buildChangeEntry(base, change)
+  const { archived, warning } = readArchive(base)
+  let entry: ChangeEntry
+  try {
+    entry = buildChangeEntry(base, change, undefined, archived)
+  } catch (error) {
+    // A change file that cannot be read fails the lookup, as the binary's does.
+    const message = readFailure(error)
+    if (message === undefined) throw error
+    if (flags.json) return changeErrorDocument(message)
+    process.stderr.write(`cospec status: ${message}\n`)
+    return EXIT.failure
+  }
   if (!flags.json) {
+    printWarning(warning)
     process.stdout.write(
       'state' in entry && entry.state === 'in-progress'
         ? `${change.id} (${change.schema}): in progress — no artifacts yet; next: ${entry.next}\n`
@@ -668,6 +769,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     return EXIT.success
   }
   const upstream = await delegatedStatus(root, ['--change', change.id, ...schemaArgs(override)])
-  process.stdout.write(`${JSON.stringify(mergedEntry(root, { ...entry }, upstream), null, 2)}\n`)
+  const doc = mergedEntry(root, { ...entry, ...warningsKey(warning) }, upstream)
+  process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`)
   return EXIT.success
 }

@@ -725,7 +725,7 @@ describe('1. the key oracle passes and keeps cospec keys', () => {
     expect((cs.json as Row).root).toEqual((up.json as Row).root)
   })
 
-  test.failing('1.4 status --all --json on the list fixture', async () => {
+  test('1.4 status --all --json on the list fixture', async () => {
     const root = listFixture()
     const up = await upstreamJson(['status', '--all', '--json'], root)
     const cs = await oursJson(['status', '--all', '--json'], root)
@@ -733,8 +733,12 @@ describe('1. the key oracle passes and keeps cospec keys', () => {
     expect(cs.exitCode).toBe(up.exitCode)
     const { failures, emptyArrays } = compareDocuments(up.json, cs.json, STATUS_ALL_SPEC)
     expect(failures).toEqual([])
+    // `linkedContext` is always empty upstream, and an artifact's
+    // `existingOutputPaths` is empty wherever that artifact is unwritten.
     expect(
-      emptyArrays.filter((p) => !p.endsWith('.requires') && !p.endsWith('linkedContext')),
+      emptyArrays.filter(
+        (p) => !p.endsWith('linkedContext') && !p.endsWith('.existingOutputPaths'),
+      ),
     ).toEqual([])
     const message = await explanation(root)
     const native = {
@@ -874,7 +878,7 @@ describe('3. status next steps', () => {
 // --- 4. a namespace folder is reported as one ----------------------------------------------
 
 describe('4. namespace folders', () => {
-  test.failing('4.1 status --change mobile refuses it in text and --json', async () => {
+  test('4.1 status --change mobile refuses it in text and --json', async () => {
     const root = listFixture()
     const message = await explanation(root)
     const upText = await upstream(['status', '--change', 'mobile'], root)
@@ -890,7 +894,7 @@ describe('4. namespace folders', () => {
     expect(cs.json).toEqual(up.json)
   })
 
-  test.failing('4.2 status --all --json carries the folder as a failure entry', async () => {
+  test('4.2 status --all --json carries the folder as a failure entry', async () => {
     const root = listFixture()
     const message = await explanation(root)
     const up = await upstreamJson(['status', '--all', '--json'], root)
@@ -1076,12 +1080,16 @@ describe('6. list order and read failures', () => {
   })
 
   unlessRoot('mode 000', () => {
-    test.failing('6.2 an unreadable archive lists normally with a warning', async () => {
+    /** The list fixture with `alpha` carrying blockers, its archive at mode 000. */
+    function lockedArchiveRoot(): { root: string; restore: () => void } {
       const root = listFixture()
       writeFiles(root, { 'openspec/changes/alpha/blocking-changes.md': BLOCKERS })
       stageMtimes(root, ['alpha', 'beta', 'gamma', 'mobile'])
-      const archive = join(root, 'openspec/changes/archive')
-      const restore = lock(archive)
+      return { root, restore: lock(join(root, 'openspec/changes/archive')) }
+    }
+
+    test.failing('6.2 list: an unreadable archive lists normally with a warning', async () => {
+      const { root, restore } = lockedArchiveRoot()
       try {
         const up = await upstreamJson(['list', '--json'], root)
         const cs = await oursJson(['list', '--json'], root)
@@ -1094,45 +1102,63 @@ describe('6. list order and read failures', () => {
         const text = await ours(['list'], root)
         expect(text.exitCode).toBe(0)
         expect(text.stderr).toContain('openspec/changes/archive')
-        const status = await oursJson(['status', '--change', 'alpha', '--json'], root)
-        captureStatus('6.2', status)
-        expect(status.exitCode).toBe(0)
-        const sw = ((status.json as Row).warnings ?? []) as Row[]
-        expect(sw.map((w) => w.code)).toEqual(['archive_unreadable'])
       } finally {
         restore()
       }
     })
 
-    test.failing(
-      "6.3 an unreadable tasks.md is the binary's list_error and change_error",
-      async () => {
-        const root = listFixture()
-        const tasks = join(root, 'openspec/changes/beta/tasks.md')
-        const restore = lock(tasks)
-        try {
-          for (const argv of [
-            ['list', '--json'],
-            ['status', '--change', 'beta', '--json'],
-          ]) {
-            const up = await upstreamJson(argv, root)
-            const cs = await oursJson(argv, root)
-            captureStatus(`6.3 ${argv[0]}`, cs)
-            expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
-            expect(up.exitCode).toBe(1)
-            const want = firstStatus(up.json)
-            const got = firstStatus(cs.json)
-            expect(got.code).toBe(want.code)
-            expect(errnoShape(got.message)).toEqual(errnoShape(want.message))
-            const { status: _u, ...upRest } = up.json as Row
-            const { status: _c, ...csRest } = cs.json as Row
-            expect(csRest).toEqual(upRest)
-          }
-        } finally {
-          restore()
+    test('6.2 status: an unreadable archive reports with a warning', async () => {
+      const { root, restore } = lockedArchiveRoot()
+      try {
+        const status = await oursJson(['status', '--change', 'alpha', '--json'], root)
+        captureStatus('6.2', status)
+        expect(status.exitCode).toBe(0)
+        const sw = ((status.json as Row).warnings ?? []) as Row[]
+        expect(sw.map((w) => w.code)).toEqual(['archive_unreadable'])
+        expect(String(sw[0]!.message)).toContain('openspec/changes/archive')
+        const text = await ours(['status', '--change', 'alpha'], root)
+        captureStatus('6.2 text', text)
+        expect(text.exitCode).toBe(0)
+        expect(text.stderr).toContain('openspec/changes/archive')
+      } finally {
+        restore()
+      }
+    })
+
+    /** Row 6.3 for one argv: the binary's failure document, by code and errno path. */
+    async function unreadableTasks(argv: string[]): Promise<void> {
+      const root = listFixture()
+      const restore = lock(join(root, 'openspec/changes/beta/tasks.md'))
+      try {
+        const up = await upstreamJson(argv, root)
+        const cs = await oursJson(argv, root)
+        captureStatus(`6.3 ${argv[0]}`, cs)
+        expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
+        expect(up.exitCode).toBe(1)
+        const want = firstStatus(up.json)
+        const got = firstStatus(cs.json)
+        expect(got.code).toBe(want.code)
+        // By code and path (ledger 6.3): the syscall is each runtime's own —
+        // the binary under Bun names the `realpath` its artifact glob runs first.
+        const shape = (message: string) => {
+          const { code, path } = errnoShape(message)
+          return { code, path }
         }
-      },
+        expect(shape(got.message)).toEqual(shape(want.message))
+        const { status: _u, ...upRest } = up.json as Row
+        const { status: _c, ...csRest } = cs.json as Row
+        expect(csRest).toEqual(upRest)
+      } finally {
+        restore()
+      }
+    }
+
+    test.failing("6.3 list: an unreadable tasks.md is the binary's list_error", () =>
+      unreadableTasks(['list', '--json']),
     )
+
+    test("6.3 status: an unreadable tasks.md is the binary's change_error", () =>
+      unreadableTasks(['status', '--change', 'beta', '--json']))
 
     test.failing('6.4 an unreadable blocking-changes.md fails only its row', async () => {
       const root = listFixture()
@@ -1354,62 +1380,76 @@ const RESOLVER_ROWS: { argv: string[]; code: string }[] = [
   { argv: ['validate', '--all', '--json'], code: 'validate_error' },
 ]
 
+/** Row 8.1 for one command: an unreadable store registry, the command's code and payload. */
+async function unreadableRegistry(row: { argv: string[]; code: string }): Promise<void> {
+  const sb = await makeSandbox(['s1'])
+  const registry = join(sb.env['XDG_DATA_HOME']!, 'openspec', 'stores', 'registry.yaml')
+  const restore = lock(registry)
+  try {
+    const argv = [...row.argv, '--store', 's1']
+    const up = await upstreamJson(argv, sb.dir)
+    const cs = await oursJson(argv, sb.dir)
+    expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
+    const want = firstStatus(up.json)
+    const got = firstStatus(cs.json)
+    expect({ argv, code: got.code }).toEqual({ argv, code: want.code })
+    expect(got.code).toBe(row.code)
+    expect(errnoShape(got.message)).toEqual(errnoShape(want.message))
+    const { status: _u, ...upRest } = up.json as Row
+    const { status: _c, ...csRest } = cs.json as Row
+    expect({ argv, payload: csRest }).toEqual({ argv, payload: upRest })
+  } finally {
+    restore()
+  }
+}
+
+/** Row 8.4 for one command: an unknown store, the binary's diagnostic in its payload. */
+async function unknownStore(row: { argv: string[] }): Promise<void> {
+  const sb = await makeSandbox(['s1'])
+  const argv = [...row.argv, '--store', 'nope']
+  const up = await upstream(argv, sb.dir)
+  const cs = await oursJson(argv, sb.dir)
+  expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
+  // The message is cospec's own documented wording (`concepts/stores.md`,
+  // root-resolution-parity); the code, target, fix and payload are the binary's.
+  const want = JSON.parse(respellRemedies(up.stdout)) as Row
+  const got = cs.json as Row
+  const { message: wantMessage, ...wantDiagnostic } = firstStatus(want)
+  const { message: gotMessage, ...gotDiagnostic } = firstStatus(got)
+  expect({ argv, diagnostic: gotDiagnostic }).toEqual({ argv, diagnostic: wantDiagnostic })
+  expect(wantMessage).toContain("'nope'")
+  expect(gotMessage).toContain("'nope'")
+  expect(gotMessage).toContain('Registered stores: s1')
+  const { status: _w, ...wantPayload } = want
+  const { status: _g, ...gotPayload } = got
+  expect({ argv, payload: gotPayload }).toEqual({ argv, payload: wantPayload })
+  expect(gotDiagnostic.code).toBe('unknown_store')
+}
+
+const [LIST_ROW, SPECS_ROW, STATUS_ROW, SWEEP_ROW, VALIDATE_ROW] = RESOLVER_ROWS as [
+  (typeof RESOLVER_ROWS)[number],
+  (typeof RESOLVER_ROWS)[number],
+  (typeof RESOLVER_ROWS)[number],
+  (typeof RESOLVER_ROWS)[number],
+  (typeof RESOLVER_ROWS)[number],
+]
+
 describe('8. resolver failures under --json', () => {
-  unlessRoot('mode 000', () => {
-    test.failing(
-      "8.1 an unreadable store registry carries each command's code and payload",
-      async () => {
-        const sb = await makeSandbox(['s1'])
-        const registry = join(sb.env['XDG_DATA_HOME']!, 'openspec', 'stores', 'registry.yaml')
-        const restore = lock(registry)
-        try {
-          for (const row of RESOLVER_ROWS) {
-            const argv = [...row.argv, '--store', 's1']
-            const up = await upstreamJson(argv, sb.dir)
-            const cs = await oursJson(argv, sb.dir)
-            expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
-            const want = firstStatus(up.json)
-            const got = firstStatus(cs.json)
-            expect({ argv, code: got.code }).toEqual({ argv, code: want.code })
-            expect(got.code).toBe(row.code)
-            expect(errnoShape(got.message)).toEqual(errnoShape(want.message))
-            const { status: _u, ...upRest } = up.json as Row
-            const { status: _c, ...csRest } = cs.json as Row
-            expect({ argv, payload: csRest }).toEqual({ argv, payload: upRest })
-          }
-        } finally {
-          restore()
-        }
-      },
-    )
+  unlessRoot('8.1 an unreadable store registry carries the command code and payload', () => {
+    test.failing('8.1 list --json', () => unreadableRegistry(LIST_ROW))
+    test.failing('8.1 list --specs --json', () => unreadableRegistry(SPECS_ROW))
+    test('8.1 status --change a --json', () => unreadableRegistry(STATUS_ROW))
+    test('8.1 status --all --json', () => unreadableRegistry(SWEEP_ROW))
+    test.failing('8.1 validate --all --json', () => unreadableRegistry(VALIDATE_ROW))
   })
 
-  test.failing(
-    "8.4 an unknown store carries the binary's diagnostic inside its payload",
-    async () => {
-      const sb = await makeSandbox(['s1'])
-      for (const row of RESOLVER_ROWS) {
-        const argv = [...row.argv, '--store', 'nope']
-        const up = await upstream(argv, sb.dir)
-        const cs = await oursJson(argv, sb.dir)
-        expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
-        // The message is cospec's own documented wording (`concepts/stores.md`,
-        // root-resolution-parity); the code, target, fix and payload are the binary's.
-        const want = JSON.parse(respellRemedies(up.stdout)) as Row
-        const got = cs.json as Row
-        const { message: wantMessage, ...wantDiagnostic } = firstStatus(want)
-        const { message: gotMessage, ...gotDiagnostic } = firstStatus(got)
-        expect({ argv, diagnostic: gotDiagnostic }).toEqual({ argv, diagnostic: wantDiagnostic })
-        expect(wantMessage).toContain("'nope'")
-        expect(gotMessage).toContain("'nope'")
-        expect(gotMessage).toContain('Registered stores: s1')
-        const { status: _w, ...wantPayload } = want
-        const { status: _g, ...gotPayload } = got
-        expect({ argv, payload: gotPayload }).toEqual({ argv, payload: wantPayload })
-        expect(gotDiagnostic.code).toBe('unknown_store')
-      }
-    },
-  )
+  describe("8.4 an unknown store carries the binary's diagnostic inside its payload", () => {
+    test.failing('8.4 list --json', () => unknownStore(LIST_ROW))
+    test.failing('8.4 list --specs --json', () => unknownStore(SPECS_ROW))
+    test('8.4 status --change a --json', () => unknownStore(STATUS_ROW))
+    test('8.4 status --all --json', () => unknownStore(SWEEP_ROW))
+    test('8.4 validate --all --json', () => unknownStore(VALIDATE_ROW))
+  })
 })
 
 // --- 9. completion serves schemas and archived changes ------------------------------------
