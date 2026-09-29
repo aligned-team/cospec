@@ -29,12 +29,20 @@ Workflow bodies are single-sourced from `canon/workflows/*.md`; the manifest
 commands root independent of it, filename template, extension, serializer,
 invocation prefix, body dialect, rules file, detection paths, legacy roots,
 setup note — is declared once, per tool, as a row of `HARNESS_TABLE` in
-`apps/cli/src/harness/adapters.ts`. `render.ts` reads the table; no tool's name
-appears as a branch anywhere in it. The table can express shapes no production
-row uses yet — a split commands root, `.prompt`/`.prompt.md`/ `.toml`
-extensions, the TOML serializer, the `@` invocation prefix, home-scoped skills —
-each exercised by a unit test through a fixture row passed via
-`RenderOptions.adapters`, so a later tool needs only a new row.
+`apps/cli/src/harness/adapters.ts`. `render.ts` reads the table, and so do
+`init` (the `--harness` value list, detection paths, leftover scan roots, setup
+notes), `update` (skills, legacy and rules-file roots for detection, and the
+removal roots manifest keys are contained to) and `doctor` (scan roots, and the
+skills and commands roots a reference resolves against); no tool's name appears
+as a branch anywhere in them. The table can express shapes no production row
+uses yet — a split commands root, `.prompt`/`.prompt.md`/ `.toml` extensions,
+the TOML serializer, the `@` invocation prefix, home-scoped skills — each
+exercised by a unit test through a fixture row passed via
+`RenderOptions.adapters` (or `GenerateOptions.adapters`), so a later tool needs
+only a new row. A TOML command carries no frontmatter, so, like the Codex rules
+file, it is tracked in `openspec/.cospec-manifest.json`. A home-scoped file
+renders, but `generate()` refuses to write it with an internal error until the
+home root is a managed root.
 
 ## What each workflow does
 
@@ -202,9 +210,10 @@ merged entry. If it does not parse, cospec prints the snippet and skips.
   picks up skills per session from `.agents/skills` (`$cospec-<skill>`) / the
   `agents` target generates no slash commands at all. After those, it prints
   upstream's single `Restart your IDE to refresh commands.` (or `skills.`) line
-  whenever any selected row's `requiresIdeRestart` is set — none of today's four
-  rows set it, so nothing extra prints. cospec ships no hooks, so no
-  `[features] hooks` config is needed.
+  whenever any selected row's `requiresIdeRestart` is set, and `update` prints
+  the same line after any write when a detected harness's row sets it — none of
+  today's four rows set it, so nothing extra prints. cospec ships no hooks, so
+  no `[features] hooks` config is needed.
 
 ## Per-harness smoke checklist
 
