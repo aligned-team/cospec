@@ -1,0 +1,16 @@
+cospec initialized in <TMP>  (state A)
+
+Schemas: 11 types in openspec/schemas/
+Config:  openspec/config.yaml (schema: feat)
+Files:   121 created
+Harness: claude, codex, opencode, agents
+         skills for codex/agents share the .agents/skills root (identical files)
+Permissions: merged Bash(cospec *) into .claude/settings.json
+
+Restart Claude Code to pick up /cospec commands.
+Codex: skills now live in .agents/skills and are invoked as $cospec-<skill>; they load per-session, so start a new one. .codex/rules/cospec.rules still pre-approves the read-only and gate cospec calls.
+OpenCode: reload the project to pick up /cospec- commands.
+Shared .agents/skills — read by Codex ($cospec-*), Zed, Antigravity and other AGENTS.md-aware assistants; start a new session to load the skills. No slash commands are generated for this target.
+
+Try: /cospec:propose "feat: <what you want to build>"
+Lightweight change? /cospec:propose "ci: fix release workflow" — 3 short artifacts.

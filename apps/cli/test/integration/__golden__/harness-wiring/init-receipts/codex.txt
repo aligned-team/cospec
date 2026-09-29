@@ -1,0 +1,12 @@
+cospec initialized in <TMP>  (state A)
+
+Schemas: 11 types in openspec/schemas/
+Config:  openspec/config.yaml (schema: feat)
+Files:   73 created
+Harness: codex
+         skills for codex/agents share the .agents/skills root (identical files)
+
+Codex: skills now live in .agents/skills and are invoked as $cospec-<skill>; they load per-session, so start a new one. .codex/rules/cospec.rules still pre-approves the read-only and gate cospec calls.
+
+Try: /cospec:propose "feat: <what you want to build>"
+Lightweight change? /cospec:propose "ci: fix release workflow" — 3 short artifacts.

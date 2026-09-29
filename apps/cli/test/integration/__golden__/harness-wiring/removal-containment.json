@@ -1,0 +1,22 @@
+[
+  {
+    "path": ".agents/leftover.md",
+    "outcome": "removed"
+  },
+  {
+    "path": ".claude/leftover.md",
+    "outcome": "removed"
+  },
+  {
+    "path": ".codex/leftover.md",
+    "outcome": "removed"
+  },
+  {
+    "path": ".opencode/leftover.md",
+    "outcome": "removed"
+  },
+  {
+    "path": "openspec/schemas/legacy-type/schema.yaml",
+    "outcome": "removed"
+  }
+]

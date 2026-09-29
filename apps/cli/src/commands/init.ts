@@ -15,8 +15,17 @@ import type { CommandContext } from '../cli.ts'
 import { openspecDir } from '../core/change.ts'
 import { flagSpelling, flagValue, hasFlag, type ParsedArgs } from '../core/command-table.ts'
 import { splitFrontmatter, type WriteResult } from '../core/managed-files.ts'
+import {
+  adapterFor,
+  HARNESS_TABLE,
+  type HarnessAdapter,
+  type HarnessName,
+  HARNESS_NAMES,
+  ideRestartLine,
+  isHarnessName,
+  scanRoots,
+} from '../harness/adapters.ts'
 import { mergeMiseToml, type MiseMergeResult } from '../harness/mise-merge.ts'
-import { type HarnessName, HARNESS_NAMES, isHarnessName } from '../harness/render.ts'
 import {
   COSPEC_PERMISSION,
   mergeClaudeSettings,
@@ -100,20 +109,15 @@ function parseHarnessArg(
   return { harnesses: out }
 }
 
-const VALID_HARNESS_MSG =
-  'valid values: claude, codex, opencode, agents, all, none (comma-separate for multiple, e.g. --harness claude,codex)'
+const VALID_HARNESS_MSG = `valid values: ${[...HARNESS_NAMES, 'all', 'none'].join(', ')} (comma-separate for multiple, e.g. --harness ${HARNESS_NAMES.slice(0, 2).join(',')})`
 
 /**
- * What proves a harness is in use here. `.<harness>` is the right signal for the
- * three vendor dirs, but a bare `.agents/` proves nothing — it commonly holds
- * only an `AGENTS.md` source or shared notes — so the `agents` target is detected
- * by its skills dir, which is the thing cospec would write into.
+ * Whether one of the row's `detectionPaths` exists. A bare `.agents/` proves
+ * nothing — it commonly holds only an `AGENTS.md` source or shared notes — which
+ * is why the `agents` row detects by its skills dir instead.
  */
-const DETECT_PATHS: Record<HarnessName, string> = {
-  claude: '.claude',
-  codex: '.codex',
-  opencode: '.opencode',
-  agents: '.agents/skills',
+function isDetected(cwd: string, h: HarnessName): boolean {
+  return adapterFor(h).detectionPaths.some((p) => existsSync(join(cwd, p)))
 }
 
 /**
@@ -130,7 +134,7 @@ function selectHarnesses(
     const parsed = parseHarnessArg(arg, spelling)
     return 'error' in parsed ? { harnesses: [], error: parsed.error } : parsed
   }
-  const detected = HARNESS_NAMES.filter((h) => existsSync(join(cwd, DETECT_PATHS[h])))
+  const detected = HARNESS_NAMES.filter((h) => isDetected(cwd, h))
   if (detected.length > 0) return { harnesses: detected }
   if (state === 'A') {
     return { harnesses: ['claude'], note: 'No harness detected; defaulting to claude.' }
@@ -272,7 +276,7 @@ function findOpsxFiles(cwd: string): OpsxFile[] {
       }
     }
   }
-  for (const h of HARNESS_NAMES) walk(`.${h}`)
+  for (const root of scanRoots()) walk(root)
   // openspec ≥1.8.0 writes its Codex skills to `.agents/skills/openspec-*/SKILL.md`
   // (1.7.0's `agents` target and 1.10/1.11's `zed`/`antigravity` share that root).
   // cospec now writes its own `cospec-*` skills there too; the two prefixes cannot
@@ -298,13 +302,20 @@ function removeOpsxFiles(cwd: string, files: OpsxFile[]): void {
 
 // --- receipt ----------------------------------------------------------------
 
-const RESTART_LINES: Record<HarnessName, string> = {
-  claude: 'Restart Claude Code to pick up /cospec commands.',
-  opencode: 'OpenCode: reload the project to pick up /cospec- commands.',
-  codex:
-    'Codex: skills now live in .agents/skills and are invoked as $cospec-<skill>; they load per-session, so start a new one. .codex/rules/cospec.rules still pre-approves the read-only and gate cospec calls.',
-  agents:
-    'Shared .agents/skills — read by Codex ($cospec-*), Zed, Antigravity and other AGENTS.md-aware assistants; start a new session to load the skills. No slash commands are generated for this target.',
+/**
+ * The receipt's closing block: each selected row's `setupNote` in selection
+ * order, then upstream's single IDE restart line when a selected row needs one.
+ * `table` is a test seam for rows the shipped table does not carry.
+ */
+export function setupNoteLines(
+  harnesses: readonly string[],
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): string[] {
+  const rows = harnesses.map((h) => adapterFor(h, table))
+  const lines = rows.flatMap((row) => (row.setupNote === undefined ? [] : [row.setupNote]))
+  const restart = ideRestartLine(rows)
+  if (restart !== undefined) lines.push(restart)
+  return lines
 }
 
 // --- command entrypoint -----------------------------------------------------
@@ -566,9 +577,10 @@ function printReceipt(target: string, d: ReceiptData): void {
     }
   }
 
-  if (d.harnesses.length > 0) {
+  const setup = setupNoteLines(d.harnesses)
+  if (setup.length > 0) {
     lines.push('')
-    for (const h of d.harnesses) lines.push(RESTART_LINES[h])
+    lines.push(...setup)
   }
 
   lines.push('')

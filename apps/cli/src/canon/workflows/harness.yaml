@@ -1,21 +1,10 @@
-# Per-harness rendering manifest (DESIGN 6.1). Consumed by src/harness/render.ts.
+# Workflow identity manifest (DESIGN 6.1). Consumed by src/harness/render.ts.
 # Workflow bodies are single-sourced in the sibling <id>.md files; render.ts pairs each
-# workflow with each selected harness surface and stamps generatedBy/contentHash frontmatter.
+# workflow with each selected tool row and stamps generatedBy/contentHash frontmatter.
 #
-# Skill directories exist for every harness. Command (slash) surfaces exist for claude and
-# opencode only; codex gets skills plus a prefix-rule allowlist (rulesPath) and no slash
-# commands. Path templates use {command} and {skill} placeholders.
-#
-# `codex` and `agents` both render into the vendor-neutral `.agents/skills` root that
-# Codex, Zed, Antigravity and other AGENTS.md-aware assistants read. They share one
-# bodyDialect, so selecting both emits one byte-identical set of files plus codex's
-# rules file. `legacySkillDirs` records the pre-1.11 location cospec migrates away from.
-#
-# `bodyDialect` picks how in-body `/cospec:<id>` references are respelled:
-#   canonical - left as `/cospec:<id>` (Claude registers those slash commands)
-#   opencode  - `/cospec-<id>`, matching the slash commands OpenCode registers
-#   shared    - `$cospec-<skill> (Codex) or /cospec-<skill> (other agents)`, because the
-#               shared root emits no command files and only skill names resolve there
+# This file declares workflow identity only. Every tool's layout — skills and commands
+# roots, filename templates, body dialect, rules file, legacy dirs, detection paths — is
+# declared once, in HARNESS_TABLE in src/harness/adapters.ts.
 #
 # `takesArguments` is audited per workflow: true when the body reads a positional
 # argument (a `<type>: <text>` or a change slug). It drives the OpenCode $ARGUMENTS
@@ -124,23 +113,3 @@ workflows:
     description: >-
       Walk a first-time user through one real cospec change end to end, narrating each step.
       Also use when the user says "cospec onboard" or "openspec onboard".
-
-harnesses:
-  claude:
-    commandDir: .claude/commands/cospec
-    commandFile: '{command}.md'
-    skillDir: .claude/skills/{skill}
-    bodyDialect: canonical
-  codex:
-    skillDir: .agents/skills/{skill}
-    legacySkillDirs: ['.codex/skills/{skill}']
-    rulesPath: .codex/rules/cospec.rules
-    bodyDialect: shared
-  agents:
-    skillDir: .agents/skills/{skill}
-    bodyDialect: shared
-  opencode:
-    commandDir: .opencode/commands
-    commandFile: 'cospec-{command}.md'
-    skillDir: .opencode/skills/{skill}
-    bodyDialect: opencode
