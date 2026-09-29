@@ -632,10 +632,18 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
   // binary lists is one of the three kinds cospec's rule reads — a delta
   // header, a misplaced or a duplicate requirement — so a listed defect
   // cospec does not check still reaches the reader.
+  //
+  // The quoted header text is spec content, not cospec's own — an attacker
+  // could seed a heading with repeated `".`-like runs. `[^\n]*"` before a
+  // required literal let the engine backtrack the quoted span against the
+  // trailing `[^\n]*` once per repeated "line N: …" entry, which is
+  // exponential in the number of lines (CodeQL js/redos). `[^"\n]*` makes
+  // each quoted span's end unambiguous — real header text never contains a
+  // literal `"` — so there is exactly one way to match and no backtracking.
   {
     rule: 'archive/target-invalid',
     delegated:
-      /^Archive would refuse this delta: (.+?): target spec is structurally invalid and cannot be updated until fixed:(?:\nline \d+: (?:Main spec contains delta header "[^\n]*"\.|Requirement header "[^\n]*" (?:duplicates the requirement declared on line \d+\.|appears outside the main ## Requirements section\.))[^\n]*)+\n?$/,
+      /^Archive would refuse this delta: (.+?): target spec is structurally invalid and cannot be updated until fixed:(?:\nline \d+: (?:Main spec contains delta header "[^"\n]*"\.|Requirement header "[^"\n]*" (?:duplicates the requirement declared on line \d+\.|appears outside the main ## Requirements section\.))[^\n]*)+\n?$/,
     nativeKey: /^living spec openspec\/specs\/(.+?)\/spec\.md is structurally invalid — /,
   },
   // 1.13.1's two case-collision refusals, paired with the fold arms
