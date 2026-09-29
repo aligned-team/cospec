@@ -180,7 +180,7 @@ describe('the target-invalid dedupe is linear (verification 11.2)', () => {
     /^Archive would refuse this delta: (.+?): target spec is structurally invalid and cannot be updated until fixed:(?:\nline \d+: (?:Main spec contains delta header "[^\n]*"\.|Requirement header "[^\n]*" (?:duplicates the requirement declared on line \d+\.|appears outside the main ## Requirements section\.))[^\n]*)+\n?$/
 
   /** The bound a linear matcher meets on the input below, and the pre-fix pattern does not. */
-  const BOUND_MS = 250
+  const BOUND_MS = 100
 
   /** 200 quote-heavy defect lines, then a line of a kind cospec's rule does not read. */
   function adversarial(): string {

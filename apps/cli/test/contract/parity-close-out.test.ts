@@ -185,12 +185,13 @@ ${LIVING_REQ}`,
     const res = await cospec(['validate', 'ns-wrap', '--strict'], { cwd: root })
     expect(res.exitCode).toBe(1)
     const issues = await validateIssues(root, 'ns-wrap')
-    // The wrapper has no `.openspec.yaml`, so cospec's meta rule fires in
-    // Step 2 and the run never reaches the delegated call.
-    expect(issues.map((i) => i.rule)).toContain('meta/openspec-yaml')
-    // Recorded, not asserted as desirable: the delegated namespace ERROR does
-    // not reach the reader. The deferred nested-change work closes this.
-    expect(issues.some((i) => i.message.includes('folder wrapping'))).toBe(false)
+    // cli-surface-parity's detector: one `meta/nested-change` ERROR carrying
+    // the binary's explanation, and no other rule — the missing
+    // `.openspec.yaml` the folder has is no longer the reported cause.
+    expect(issues.map((i) => i.rule)).toEqual(['meta/nested-change'])
+    expect(issues[0]?.message).toContain(
+      '"ns-wrap" is not a change: it is a folder wrapping openspec/changes/ns-wrap/real-change/',
+    )
   })
 
   test('cospec archive refuses and moves nothing', async () => {
