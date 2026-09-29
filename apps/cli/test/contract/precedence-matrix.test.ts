@@ -596,8 +596,24 @@ const VALUE_POSITION_ROWS: readonly Row[] = [
   { argv: ['init', '--tools', '--help'], command: 'init', check: nothingWritten },
   { argv: ['init', '--profile', '--help'], command: 'init', check: nothingWritten },
   { argv: ['init', '--language', '--help'], command: 'init', check: nothingWritten },
-  { argv: ['validate', '--concurrency', '--help'], command: 'validate' },
-  { argv: ['validate', '--type', '--json'], command: 'validate' },
+  // `--help` is `--concurrency`'s value (ignored as no positive integer), so no
+  // item and no scope is named: the binary prints its non-interactive hint and
+  // exits 1, while cospec — which never prompts — validates everything.
+  {
+    argv: ['validate', '--concurrency', '--help'],
+    command: 'validate',
+    cospecOnly: { outcome: 'parsed', exit: 0 },
+  },
+  // `--json` is `--type`'s value, so no item and no scope is named: the
+  // binary prints its non-interactive hint and exits 1, while cospec — which
+  // never prompts — validates everything, its documented opinion.
+  {
+    argv: ['validate', '--type', '--json'],
+    command: 'validate',
+    cospecOnly: { outcome: 'parsed', exit: 0 },
+  },
+  { argv: ['status', '--schema', '--json'], command: 'status' },
+  { argv: ['list', '--sort', '--help'], command: 'list' },
   { argv: ['templates', '--schema', '--help'], command: 'templates' },
   { argv: ['templates', '--schema', '--json'], command: 'templates' },
   { argv: ['show', 'c1', '--type', '--help'], command: 'show' },
@@ -615,20 +631,6 @@ const VALUE_POSITION_ROWS: readonly Row[] = [
   },
   { argv: ['store', 'setup', 's1', '--path', '--help'], command: 'store', check: storeSetUp },
   { argv: ['workset', 'create', 'w1', '--tool', '--help'], command: 'workset' },
-  // cospec refuses a pending flag as not supported yet once it has its value,
-  // where the binary runs with `--help` as the value (owned by later changes).
-  {
-    argv: ['list', '--sort', '--help'],
-    command: 'list',
-    cospecOnly: { outcome: 'parsed', exit: 1 },
-    cospecStderr: "cospec list: '--sort' is not supported yet\n",
-  },
-  {
-    argv: ['status', '--schema', '--json'],
-    command: 'status',
-    cospecOnly: { outcome: 'parsed', exit: 1 },
-    cospecStderr: "cospec status: '--schema' is not supported yet\n",
-  },
   // Every other declared value-taking flag, table and forward rows alike.
   { argv: ['feedback', '--body', '--help'], command: 'feedback' },
   { argv: ['templates', '--schema', '-h'], command: 'templates' },
@@ -656,11 +658,11 @@ const VALUE_POSITION_ROWS: readonly Row[] = [
   },
   { argv: ['workset', 'open', 'w1', '--tool', '--help'], command: 'workset' },
   { argv: ['config', '--scope', '--help', 'list'], command: 'config' },
+  // `--help` is `--report`'s value: both refuse it as an unknown report.
   {
     argv: ['validate', '--report', '--help'],
     command: 'validate',
-    cospecOnly: { outcome: 'parsed', exit: 1 },
-    cospecStderr: "cospec validate: '--report' is not supported yet\n",
+    cospecStderr: "Error: Unknown validation report '--help'.\n",
   },
   { argv: ['instructions', 'proposal', '--schema', '--help'], command: 'instructions' },
   // cospec-only flags take their value the same way.

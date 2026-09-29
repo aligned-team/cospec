@@ -1,9 +1,9 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { existsSync, readdirSync, readFileSync, statSync, type Dirent } from 'node:fs'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 
 import { parse as parseYaml } from 'yaml'
 
+import { loadSchema, userSchemasDir } from './change-metadata.ts'
 import { openspecPackageDir } from './openspec.ts'
 
 /**
@@ -125,25 +125,37 @@ function listDirs(path: string): string[] {
     .map((entry) => entry.name)
 }
 
-/** Active changes: every dir under `openspec/changes/` except `archive/`. */
+/**
+ * Active changes: every dir under `openspec/changes/` except `archive/` and
+ * dot-directories, as the binary's `getAvailableChanges` enumerates them.
+ */
 export function listChanges(cwd: string): Change[] {
+  return listChangeDirs(cwd).filter((change) => !change.id.startsWith('.'))
+}
+
+/**
+ * Every directory `openspec list` lists: all but `archive/`, dot-directories
+ * included, sorted by name.
+ */
+export function listChangeDirs(cwd: string): Change[] {
   const base = changesDir(cwd)
   return listDirs(base)
     .filter((name) => name !== 'archive')
     .toSorted()
-    .map((id) => {
-      const dir = join(base, id)
-      const yaml = readOpenspecYaml(dir)
-      return {
-        id,
-        dir,
-        schema: yaml?.schema ?? '',
-        created: yaml?.created,
-        schemaVersion: yaml?.schemaVersion,
-        skipSpecs: yaml?.skipSpecs,
-        retireCapabilities: yaml?.retireCapabilities,
-      }
-    })
+    .map((id) => changeAt(join(base, id), id))
+}
+
+function changeAt(dir: string, id: string): Change {
+  const yaml = readOpenspecYaml(dir)
+  return {
+    id,
+    dir,
+    schema: yaml?.schema ?? '',
+    created: yaml?.created,
+    schemaVersion: yaml?.schemaVersion,
+    skipSpecs: yaml?.skipSpecs,
+    retireCapabilities: yaml?.retireCapabilities,
+  }
 }
 
 /**
@@ -163,16 +175,7 @@ export function resolveChange(cwd: string, id: string): Change | undefined {
   if (!CHANGE_ID_RE.test(id)) return undefined
   const dir = join(changesDir(cwd), id)
   if (!existsSync(dir)) return undefined
-  const yaml = readOpenspecYaml(dir)
-  return {
-    id,
-    dir,
-    schema: yaml?.schema ?? '',
-    created: yaml?.created,
-    schemaVersion: yaml?.schemaVersion,
-    skipSpecs: yaml?.skipSpecs,
-    retireCapabilities: yaml?.retireCapabilities,
-  }
+  return changeAt(dir, id)
 }
 
 const ARCHIVE_ENTRY = /^(\d{4}-\d{2}-\d{2})-(.+)$/
@@ -247,7 +250,7 @@ export function resolveSchema(cwd: string, name: string): SchemaResolution {
   if (existsSync(projectSchema))
     return { name, kind: 'legacy', isCospecType: false, source: 'project' }
 
-  const userSchema = join(homedir(), '.config', 'openspec', 'schemas', name, 'schema.yaml')
+  const userSchema = join(userSchemasDir(), name, 'schema.yaml')
   if (existsSync(userSchema)) return { name, kind: 'legacy', isCospecType: false, source: 'user' }
 
   try {
@@ -259,4 +262,240 @@ export function resolveSchema(cwd: string, name: string): SchemaResolution {
   }
 
   return { name, kind: 'unknown', isCospecType: false }
+}
+
+// --- Namespace folders --------------------------------------------------------
+//
+// A port of the binary's `utils/nested-change` (design D2): a directory under
+// `openspec/changes/` that only wraps nested change directories
+// (`changes/mobile/refresh-token/`) is a namespace folder, not a change. The
+// probe only ever adds a diagnostic, so — as upstream — a path that cannot be
+// read counts as holding nothing rather than failing the command around it.
+
+/** Files that only ever sit at the root of a change directory. */
+const CHANGE_ROOT_MARKERS = ['.openspec.yaml', 'proposal.md', 'tasks.md', 'design.md'] as const
+
+/** How far below a candidate the search looks: upstream's `MAX_NESTING_DEPTH`. */
+const MAX_NESTING_DEPTH = 3
+
+export interface NestedChangeFinding {
+  /** The folder's name under `openspec/changes/`. */
+  name: string
+  /** Each nested change as `<folder>/<child>[/…]`, sorted. */
+  nested: string[]
+}
+
+function isErrno(error: unknown, code: string): boolean {
+  return (error as NodeJS.ErrnoException | undefined)?.code === code
+}
+
+/** `stat(path).isFile()`, false for a path that cannot be stat'ed (upstream's `.catch`). */
+function isRegularFile(path: string): boolean {
+  try {
+    return statSync(path).isFile()
+  } catch {
+    return false
+  }
+}
+
+/** `readdir(dir)`, or no entries when it cannot be read (upstream's `.catch(() => [])`). */
+function entriesOrNone(dir: string): Dirent[] {
+  try {
+    return readdirSync(dir, { withFileTypes: true })
+  } catch {
+    return []
+  }
+}
+
+/**
+ * upstream's `hasAnyFileUnder`: any non-dot file or symlink at any depth.
+ * A missing directory holds nothing; any other read failure is thrown for the
+ * caller to decide.
+ */
+function hasAnyFileUnder(dir: string): boolean {
+  let entries: Dirent[]
+  try {
+    entries = readdirSync(dir, { withFileTypes: true })
+  } catch (error) {
+    if (isErrno(error, 'ENOENT')) return false
+    throw error
+  }
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue
+    if (entry.isFile() || entry.isSymbolicLink()) return true
+    if (entry.isDirectory() && hasAnyFileUnder(join(dir, entry.name))) return true
+  }
+  return false
+}
+
+/**
+ * The root's `openspec/config.yaml` (else `config.yml`) `schema:` — upstream's
+ * `readProjectConfig(root)?.schema`. A config that cannot be read or parsed
+ * names none, as upstream falls back to its default then.
+ */
+export function projectConfigSchema(base: string): string | undefined {
+  const yaml = join(openspecDir(base), 'config.yaml')
+  const path = existsSync(yaml) ? yaml : join(openspecDir(base), 'config.yml')
+  if (!existsSync(path)) return undefined
+  let doc: unknown
+  try {
+    doc = parseYaml(readFileSync(path, 'utf8'))
+  } catch {
+    return undefined
+  }
+  if (doc === null || typeof doc !== 'object') return undefined
+  const schema = (doc as Record<string, unknown>).schema
+  return typeof schema === 'string' && schema.length > 0 ? schema : undefined
+}
+
+/** A `generates` pattern segment as a matcher; `**` spans any run of directories. */
+type GlobSegment = { any: true } | { any: false; raw: string; re: RegExp }
+
+function globSegments(pattern: string): GlobSegment[] {
+  return pattern.split('/').map((raw) => {
+    if (raw === '**') return { any: true }
+    let source = ''
+    for (let i = 0; i < raw.length; i++) {
+      const ch = raw[i]!
+      if (ch === '*') source += '[^/]*'
+      else if (ch === '?') source += '[^/]'
+      else if (ch === '[') {
+        const end = raw.indexOf(']', i + 1)
+        if (end === -1) source += '\\['
+        else {
+          source += `[${raw.slice(i + 1, end).replace(/\\/g, '\\\\')}]`
+          i = end
+        }
+      } else source += ch.replace(/[.+^${}()|\\]/g, '\\$&')
+    }
+    return { any: false, raw, re: new RegExp(`^${source}$`) }
+  })
+}
+
+/** Whether a file matching `segs[i..]` exists under `dir` (dot-entries only by an explicit dot). */
+function globHasFile(dir: string, segs: readonly GlobSegment[], i: number): boolean {
+  const seg = segs[i]
+  if (seg === undefined) return false
+  const last = i === segs.length - 1
+  const entries = entriesOrNone(dir).filter((e) => !e.name.startsWith('.'))
+  if (seg.any) {
+    if (last)
+      return entries.some(
+        (e) => isRegularFile(join(dir, e.name)) || globHasFile(join(dir, e.name), segs, i),
+      )
+    if (globHasFile(dir, segs, i + 1)) return true
+    return entries.some(
+      (e) => isDirectoryPath(join(dir, e.name)) && globHasFile(join(dir, e.name), segs, i),
+    )
+  }
+  const candidates = seg.raw.startsWith('.') ? entriesOrNone(dir) : entries
+  return candidates.some((e) => {
+    if (!seg.re.test(e.name)) return false
+    const path = join(dir, e.name)
+    return last ? isRegularFile(path) : isDirectoryPath(path) && globHasFile(path, segs, i + 1)
+  })
+}
+
+function isDirectoryPath(path: string): boolean {
+  try {
+    return statSync(path).isDirectory()
+  } catch {
+    return false
+  }
+}
+
+/** upstream's `artifactOutputExists(changeDir, generates)`, for a pattern inside the change. */
+function outputExists(changeDir: string, generates: string): boolean {
+  const target = resolve(changeDir, generates)
+  const rel = relative(changeDir, target)
+  if (rel.startsWith('..') || isAbsolute(rel)) return false
+  if (!/[*?[]/.test(generates)) return isRegularFile(target)
+  return globHasFile(changeDir, globSegments(generates.replace(/\\/g, '/')), 0)
+}
+
+/**
+ * upstream's `hasSchemaOutput`: `dir` holds a file where the schema it resolves
+ * to (its `.openspec.yaml`, else the root's `config.yaml`, else `spec-driven`)
+ * generates one. A schema that cannot be resolved gives no signal.
+ */
+function hasSchemaOutput(dir: string, projectRoot: string): boolean {
+  // A candidate reaching here has no regular `.openspec.yaml`; anything else at
+  // that path fails upstream's metadata read, which gives no signal.
+  if (existsSync(join(dir, '.openspec.yaml'))) return false
+  const name = projectConfigSchema(projectRoot) ?? 'spec-driven'
+  let artifacts: { generates: string }[]
+  try {
+    artifacts = loadSchema(name, projectRoot)
+  } catch {
+    return false
+  }
+  return artifacts.some((artifact) => outputExists(dir, artifact.generates))
+}
+
+/** upstream's `looksLikeChange`: a root marker, a populated `specs/`, or a schema output. */
+function looksLikeChange(dir: string, projectRoot: string): boolean {
+  if (CHANGE_ROOT_MARKERS.some((marker) => isRegularFile(join(dir, marker)))) return true
+  try {
+    if (hasAnyFileUnder(join(dir, 'specs'))) return true
+  } catch {
+    // upstream's `.catch(() => false)`: an unreadable `specs/` is no signal.
+  }
+  return hasSchemaOutput(dir, projectRoot)
+}
+
+function collectNested(
+  dir: string,
+  prefix: string,
+  depth: number,
+  found: string[],
+  projectRoot: string,
+): void {
+  if (depth > MAX_NESTING_DEPTH) return
+  for (const entry of entriesOrNone(dir)) {
+    if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+    const child = join(dir, entry.name)
+    const id = `${prefix}/${entry.name}`
+    if (looksLikeChange(child, projectRoot)) {
+      found.push(id)
+      continue
+    }
+    collectNested(child, id, depth + 1, found, projectRoot)
+  }
+}
+
+/**
+ * Whether `changes/<name>/` is a namespace folder holding nested change
+ * directories rather than a change of its own (upstream's
+ * `findNestedChangesIn`). `undefined` for every ordinary change, a scaffolded
+ * empty one included, for `archive` and for a dot-directory.
+ */
+export function findNestedChangesIn(dir: string, name: string): NestedChangeFinding | undefined {
+  if (name === 'archive' || name.startsWith('.')) return undefined
+  const folder = join(dir, name)
+  // changes/ is always <root>/openspec/changes, for project and store roots.
+  const projectRoot = resolve(dir, '..', '..')
+  if (looksLikeChange(folder, projectRoot)) return undefined
+  if (entriesOrNone(folder).some((e) => !e.name.startsWith('.') && !e.isDirectory()))
+    return undefined
+  const nested: string[] = []
+  collectNested(folder, name, 1, nested, projectRoot)
+  return nested.length === 0 ? undefined : { name, nested: nested.toSorted() }
+}
+
+/** `findNestedChangesIn` across every candidate name, for the commands that enumerate. */
+export function findNestedChanges(dir: string, names: readonly string[]): NestedChangeFinding[] {
+  return names.flatMap((name) => findNestedChangesIn(dir, name) ?? [])
+}
+
+/** upstream's `describeNestedChange`: the one explanation every surface prints, verbatim. */
+export function describeNestedChange(finding: NestedChangeFinding): string {
+  const list = finding.nested.map((id) => `openspec/changes/${id}/`).join(', ')
+  const example = finding.nested[0]!.split('/').join('-')
+  return (
+    `"${finding.name}" is not a change: it is a folder wrapping ${list}. ` +
+    'A change must be a directory directly under openspec/changes/, so those ' +
+    'nested directories are invisible to OpenSpec while the folder around them ' +
+    'is reported as a change. Nested paths are supported under openspec/specs/ ' +
+    `only. Rename each nested change to a flat name (for example "${example}").`
+  )
 }

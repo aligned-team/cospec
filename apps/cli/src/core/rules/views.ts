@@ -18,7 +18,9 @@ import type { Issue } from './issue.ts'
  * - `deltas/scenario-depth` refuses a visible `### Scenario:` only: the binary
  *   merely INFOs a commented one and archives it, so reading it verbatim would
  *   refuse what the binary archives, and a commented one that does split a
- *   requirement is `archive/split-requirement`'s, on the verbatim view.
+ *   requirement is `archive/split-requirement`'s, on the verbatim view. Proven
+ *   by `test/contract/validation-parity.test.ts` row 36.1 ("commented mis-depth
+ *   scenario: the binary archives it and cospec raises no deltas/scenario-depth").
  * - `specs/purpose-tbd` lints a living spec's Purpose and is read by neither
  *   `apply` nor `archive`.
  */

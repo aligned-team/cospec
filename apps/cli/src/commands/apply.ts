@@ -33,7 +33,6 @@ import {
 } from '../core/openspec.ts'
 import { respellRemedies } from '../core/remedies.ts'
 import { renderHuman, renderJson, type ItemReport } from '../core/report.ts'
-import { resolveRoot } from '../core/root.ts'
 import { surfaceUnmetConsequences } from '../core/rules/meta.ts'
 import {
   ARTIFACT_FILES,
@@ -41,6 +40,7 @@ import {
   type ArtifactId,
   type CospecType,
 } from '../core/rules/type-facts.ts'
+import { resolveRootOrDocument } from '../core/upstream-keys.ts'
 import { buildValidateContext, validateChange } from './validate.ts'
 
 // --- shared primitives (exported for status/list/archive/new) --------------
@@ -246,14 +246,30 @@ function printReport(report: ItemReport, ctx: CommandContext): void {
   process.stdout.write(out)
 }
 
+/**
+ * An early exit (design D10): `prose` on stderr, or under `--json` one
+ * `{status: [{severity, code: "change_error", message, fix?}]}` document on
+ * stdout — the code the binary's `instructions apply` reports for the same
+ * lookups — so a `--json` caller always gets one document. Exit 1.
+ */
+function earlyExit(ctx: CommandContext, prose: string, message: string, fix?: string): number {
+  if (ctx.flags.json) {
+    const status = [
+      { severity: 'error', code: 'change_error', message, ...(fix === undefined ? {} : { fix }) },
+    ]
+    process.stdout.write(`${JSON.stringify({ status }, null, 2)}\n`)
+  } else process.stderr.write(prose)
+  return EXIT.failure
+}
+
 /** Legacy schema: no cospec gate — delegate to openspec and exit per its state. */
 async function applyLegacy(change: Change, ctx: CommandContext, root: Root): Promise<number> {
   let instr: ApplyInstructionsJson
   try {
     instr = relayApplyInstructions(await openspecApplyInstructions(root, change.id), change.id)
   } catch (err) {
-    process.stderr.write(`cospec apply: ${(err as Error).message}\n`)
-    return EXIT.failure
+    const message = (err as Error).message
+    return earlyExit(ctx, `cospec apply: ${message}\n`, message)
   }
   if (ctx.flags.json) {
     process.stdout.write(
@@ -272,7 +288,8 @@ async function applyLegacy(change: Change, ctx: CommandContext, root: Root): Pro
 export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
   const parsedArgs = ctx.parsed!
-  const root = await resolveRoot(ctx)
+  const root = await resolveRootOrDocument(ctx, 'change_error')
+  if (root === undefined) return EXIT.failure
   const base = root.base
   const allowSoft = hasFlag(parsedArgs, '--allow-soft')
   // `skip_specs` precedence (DESIGN §5, OpenSpec 1.7 parity): the one-shot CLI
@@ -287,19 +304,22 @@ export async function run(ctx: CommandContext): Promise<number> {
   const name = parsedArgs.positionals[0]!
 
   if (!existsSync(openspecDir(base))) {
-    process.stderr.write(`cospec: no openspec/ directory at ${base} — run 'cospec init' first\n`)
-    return EXIT.failure
+    const message = `no openspec/ directory at ${base} — run 'cospec init' first`
+    return earlyExit(ctx, `cospec: ${message}\n`, message)
   }
 
   const change = resolveChange(base, name)
   if (change === undefined) {
-    process.stderr.write(`cospec apply: unknown change '${name}'\n`)
     const suggestion = closest(
       name,
       listChanges(base).map((c) => c.id),
     )
-    if (suggestion !== undefined) process.stderr.write(`Did you mean '${suggestion}'?\n`)
-    return EXIT.failure
+    const didYouMean = suggestion === undefined ? '' : `Did you mean '${suggestion}'?`
+    return earlyExit(
+      ctx,
+      `cospec apply: unknown change '${name}'\n${didYouMean === '' ? '' : `${didYouMean}\n`}`,
+      `unknown change '${name}'${didYouMean === '' ? '' : `. ${didYouMean}`}`,
+    )
   }
 
   // Step 1: legacy schemas bypass the cospec gate entirely.
@@ -448,8 +468,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     instr = relayApplyInstructions(await openspecApplyInstructions(root, change.id), change.id)
   } catch (err) {
     const msg = err instanceof OpenspecCallError ? err.message : (err as Error).message
-    process.stderr.write(`cospec apply: ${msg}\n`)
-    return EXIT.failure
+    return earlyExit(ctx, `cospec apply: ${msg}\n`, msg)
   }
 
   // Step 6: merged clear-gate output.

@@ -58,6 +58,9 @@ import { oracle } from './support/upstream-oracle.ts'
 
 afterAll(cleanupAll)
 
+/** `list`'s null-shape ahead of `status` in its `--json` failure document, as the binary prints it. */
+const LIST_PAYLOAD = { changes: [], root: null }
+
 interface CospecRoot {
   path: string
   source: string
@@ -1137,13 +1140,22 @@ describe('a resolver hard-error under --json is one status document (ledger 5.4)
     argv: string[]
     setup: (sb: Sandbox) => string
     code: string
+    /** The command's own null-shape ahead of `status`, as the binary prints it (cli-surface-parity). */
+    payload: Record<string, unknown>
   }[] = [
-    { id: 'M15', argv: ['list', '--json'], setup: bare, code: 'no_root_with_registered_stores' },
+    {
+      id: 'M15',
+      argv: ['list', '--json'],
+      setup: bare,
+      code: 'no_root_with_registered_stores',
+      payload: LIST_PAYLOAD,
+    },
     {
       id: 'M6',
       argv: ['status', '--json'],
       setup: (sb) => repo(sb, 'm6', configOnly('store: [unclosed\n')),
       code: 'invalid_store_pointer',
+      payload: {},
     },
     {
       id: 'M22',
@@ -1154,6 +1166,7 @@ describe('a resolver hard-error under --json is one status document (ledger 5.4)
         return bare(sb)
       },
       code: 'store_identity_mismatch',
+      payload: LIST_PAYLOAD,
     },
   ]
 
@@ -1168,7 +1181,9 @@ describe('a resolver hard-error under --json is one status document (ledger 5.4)
       expect(res.exitCode).toBe(1)
       expect(res.stderr).not.toMatch(/^cospec:/m)
       const doc = JSON.parse(res.stdout) as { status: RootDiagnostic[] }
-      expect(Object.keys(doc)).toEqual(['status'])
+      expect(Object.keys(doc)).toEqual([...Object.keys(c.payload), 'status'])
+      const { status: _status, ...payload } = doc
+      expect(payload).toEqual(c.payload)
       expect(doc.status).toHaveLength(1)
       const d = doc.status[0]!
       expect(Object.keys(d)).toEqual(['severity', 'code', 'message', 'target', 'fix'])
@@ -1213,7 +1228,7 @@ describe('an empty --store= fails with invalid_store_id (ledger 5.5)', () => {
     expect(res.exitCode).toBe(1)
     expect(res.stderr).toBe('')
     const doc = JSON.parse(res.stdout) as { status: OracleDiagnostic[] }
-    expect(doc).toEqual({ status: [o.diagnostic!] })
+    expect(doc).toEqual({ ...LIST_PAYLOAD, status: [o.diagnostic!] })
   })
 
   test('human mode: the oracle text after cospec:', async () => {
@@ -1652,7 +1667,7 @@ describe('defaultStore reaches selection as the raw value upstream reads (ledger
     const o = await rootOracle(sb, cwd, ['list', '--json'])
     const res = await cospec(['list', '--json'], { cwd, env: sb.env })
     expect(res.exitCode).toBe(1)
-    expect(JSON.parse(res.stdout)).toEqual({ status: [o.diagnostic] })
+    expect(JSON.parse(res.stdout)).toEqual({ ...LIST_PAYLOAD, status: [o.diagnostic] })
     const up = await oracle(['list'], sb.dir, { cwd })
     const text = await cospec(['list'], { cwd, env: sb.env })
     expect(text.exitCode).toBe(1)
@@ -1725,7 +1740,7 @@ describe('an unreadable store registry fails selection with its diagnostic (ledg
         const o = await rootOracle(sb, fx.cwd, ['list', '--json', ...storeFlag()])
         const res = await cospec(['list', '--json', ...storeFlag()], { cwd: fx.cwd, env: sb.env })
         expect(res.exitCode).toBe(1)
-        expect(JSON.parse(res.stdout)).toEqual({ status: [o.diagnostic] })
+        expect(JSON.parse(res.stdout)).toEqual({ ...LIST_PAYLOAD, status: [o.diagnostic] })
       })
 
       test("cospec list prints the binary's failure after cospec:", async () => {
@@ -2081,8 +2096,9 @@ describe('a global config that cannot be read or parsed reads as defaults (ledge
           source: 'global_default',
           store_id: 'alpha',
         })
+        // cli-surface-parity: status's `root` is the binary's object, not its path.
         if (argv[0] === 'status')
-          expect((JSON.parse(res.stdout) as { root: string }).root).toBe(root.path)
+          expect((JSON.parse(res.stdout) as { root: OracleRoot }).root).toEqual(root)
       })
 
     test("from a rootless directory, doctor --json operates on the binary's root", async () => {
@@ -2102,8 +2118,8 @@ describe('a global config that cannot be read or parsed reads as defaults (ledge
       const up = await binary('valid', ['status', '--json'], cwd)
       const res = await ours('valid', ['status', '--json'], cwd)
       expect(res.stderr).toBe(up.stderr)
-      expect((JSON.parse(res.stdout) as { root: string }).root).toBe(
-        (JSON.parse(up.stdout) as { root: OracleRoot }).root.path,
+      expect((JSON.parse(res.stdout) as { root: OracleRoot }).root).toEqual(
+        (JSON.parse(up.stdout) as { root: OracleRoot }).root,
       )
     })
 

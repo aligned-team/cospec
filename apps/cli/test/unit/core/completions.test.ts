@@ -124,12 +124,29 @@ describe('buildCompletionSpec — matches COMMAND_TABLE', () => {
     expect(spec.commands.find((c) => c.name === 'config')!.positional).toEqual([])
   })
 
-  test('dynamic flag values: status --change and instructions --change complete to changes', () => {
+  test('dynamic flag values: --change completes to changes, every --schema to schemas', () => {
     expect(spec.commands.find((c) => c.name === 'status')!.flagValues).toEqual({
       '--change': 'changes',
+      '--schema': 'schemas',
     })
     expect(spec.commands.find((c) => c.name === 'instructions')!.flagValues).toEqual({
       '--change': 'changes',
+      '--schema': 'schemas',
+    })
+    expect(spec.commands.find((c) => c.name === 'templates')!.flagValues).toEqual({
+      '--schema': 'schemas',
+    })
+    const declaring = spec.commands.filter((c) => c.flags.includes('--schema')).map((c) => c.name)
+    expect(
+      spec.commands.filter((c) => c.flagValues['--schema'] === 'schemas').map((c) => c.name),
+    ).toEqual(declaring)
+  })
+
+  test('schema which|validate|fork complete their first positional from schemas', () => {
+    expect(spec.commands.find((c) => c.name === 'schema')!.subcommandPositional).toEqual({
+      which: ['schemas'],
+      validate: ['schemas'],
+      fork: ['schemas'],
     })
   })
 })

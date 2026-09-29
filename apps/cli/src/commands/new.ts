@@ -14,6 +14,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
+import { userSchemasDir } from '../core/change-metadata.ts'
 import {
   CHANGE_ID_RE,
   changesDir,
@@ -92,28 +93,6 @@ function reportUnknownType(type: string, json: boolean): number {
   if (suggestion !== undefined) process.stderr.write(`Did you mean '${suggestion}'?\n`)
   process.stderr.write(typeTableText())
   return EXIT.failure
-}
-
-/**
- * The user-level schema directory the wrapped binary reads (its
- * `getUserSchemasDir()`, `<global data dir>/schemas`): `$XDG_DATA_HOME/openspec`
- * when that is set, else `%LOCALAPPDATA%\openspec` on Windows, else
- * `~/.local/share/openspec` — never `~/.config`, which holds only its config.
- */
-export function userSchemasDir(
-  env: NodeJS.ProcessEnv = process.env,
-  home: string = homedir(),
-  platform: NodeJS.Platform = process.platform,
-): string {
-  const xdg = env.XDG_DATA_HOME
-  if (xdg !== undefined && xdg.length > 0) return join(xdg, 'openspec', 'schemas')
-  if (platform === 'win32') {
-    const local = env.LOCALAPPDATA
-    return local !== undefined && local.length > 0
-      ? join(local, 'openspec', 'schemas')
-      : join(home, 'AppData', 'Local', 'openspec', 'schemas')
-  }
-  return join(home, '.local', 'share', 'openspec', 'schemas')
 }
 
 /**

@@ -160,15 +160,12 @@ describe('standalone pack smoke (bun-less)', () => {
     ).toBe(true)
 
     // 4. Run on Node only: version, then real subcommands (dispatch + embedded
-    //    canon, no wrapped openspec call, no bun).
+    //    canon, then the wrapped openspec call, no bun).
     const ver = run([bin, '--version'], consumer, path)
     expect(ver.code, ver.stderr).toBe(0)
     expect(ver.stdout.trim()).toBe(version)
 
     const target = mkTempRepo({ git: true })
-    const list = run([bin, 'list'], target, path, emptyMachineStateEnv())
-    expect(list.code, list.stderr).toBe(0)
-    expect(list.stdout).toContain('No active changes')
 
     // `init` is the README quickstart and exercises the embedded canon (the
     // compiled binary has no canon/ directory on disk — a regression here means
@@ -190,6 +187,12 @@ describe('standalone pack smoke (bun-less)', () => {
     const created = run([bin, 'new', 'chore', 'smoke-change'], target, path)
     expect(created.code, created.stderr).toBe(0)
     expect(existsSync(join(target, 'openspec/changes/smoke-change/.openspec.yaml'))).toBe(true)
+
+    // `list` makes one wrapped `list --json` call for its rows and their order
+    // (cli-surface-parity), so it too runs the full bun-less wrapped-call path.
+    const list = run([bin, 'list'], target, path, emptyMachineStateEnv())
+    expect(list.code, list.stderr).toBe(0)
+    expect(list.stdout).toContain('smoke-change')
 
     // `config`, `completion`, and `feedback` must dispatch from the compiled
     // binary too (not just from `bun run src/index.ts`) — literal `import()`

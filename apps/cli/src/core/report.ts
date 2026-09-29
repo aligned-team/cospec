@@ -25,6 +25,8 @@ export interface ItemReport {
   type?: string
   valid: boolean
   issues: Issue[]
+  /** Milliseconds spent validating the item, as the binary's `items[].durationMs`. */
+  durationMs?: number
 }
 
 export interface ReportSummary {
@@ -63,6 +65,11 @@ export interface RenderOptions {
   noColor?: boolean
   /** Human header prefix; defaults to `cospec validate`. */
   title?: string
+  /**
+   * The findings report (`--report findings`): a change with no issue is
+   * folded into the header's counts, as a valid spec always is.
+   */
+  findingsOnly?: boolean
 }
 
 const COLORS = {
@@ -128,7 +135,8 @@ export function renderHuman(items: ItemReport[], opts: RenderOptions = {}): stri
     }
   }
 
-  for (const item of changes) renderItem(item)
+  for (const item of changes)
+    if (!(opts.findingsOnly === true && item.issues.length === 0)) renderItem(item)
 
   const invalidSpecs = specs.filter((item) => !item.valid || item.issues.length > 0)
   for (const item of invalidSpecs) renderItem(item)
@@ -148,19 +156,89 @@ export function renderHuman(items: ItemReport[], opts: RenderOptions = {}): stri
   return `${lines.join('\n')}\n`
 }
 
+/** The binary's `{items, passed, failed}` count (its `summary.totals`). */
+export interface ItemTotals {
+  items: number
+  passed: number
+  failed: number
+}
+
 export interface ReportJson {
   version: 1
   items: ItemReport[]
-  summary: { errors: number; warnings: number; byRule: Record<string, number> }
+  summary: {
+    errors: number
+    warnings: number
+    byRule: Record<string, number>
+    totals?: ItemTotals
+    byType?: Partial<Record<ItemReport['kind'], ItemTotals>>
+  }
+  root?: unknown
 }
 
-/** The machine report object (DESIGN §4.4 `--json`). */
-export function toJson(items: ItemReport[]): ReportJson {
+/** The binary's keys a `validate` report carries beside cospec's own (design D7). */
+export interface UpstreamReportKeys {
+  /** The resolver's root, as the binary's `root` object. */
+  root: unknown
+  /** The kinds in scope, each of which gets a `summary.byType` count. */
+  kinds: readonly ItemReport['kind'][]
+}
+
+function totals(items: readonly ItemReport[]): ItemTotals {
+  const passed = items.filter((item) => item.valid).length
+  return { items: items.length, passed, failed: items.length - passed }
+}
+
+/**
+ * The machine report object (DESIGN §4.4 `--json`). With `upstream`, the
+ * binary's own report keys join cospec's — `summary.totals`,
+ * `summary.byType` for each kind in scope, and `root` — and `version`
+ * stays cospec's `1`.
+ */
+export function toJson(items: ItemReport[], upstream?: UpstreamReportKeys): ReportJson {
   const { errors, warnings, byRule } = summarize(items)
-  return { version: 1, items, summary: { errors, warnings, byRule } }
+  if (upstream === undefined) return { version: 1, items, summary: { errors, warnings, byRule } }
+  const byType = Object.fromEntries(
+    upstream.kinds.map((kind) => [kind, totals(items.filter((item) => item.kind === kind))]),
+  )
+  return {
+    version: 1,
+    items,
+    summary: { errors, warnings, byRule, totals: totals(items), byType },
+    root: upstream.root,
+  }
 }
 
 /** Pretty-printed JSON string of `toJson`. */
-export function renderJson(items: ItemReport[]): string {
-  return `${JSON.stringify(toJson(items), null, 2)}\n`
+export function renderJson(items: ItemReport[], upstream?: UpstreamReportKeys): string {
+  return `${JSON.stringify(toJson(items, upstream), null, 2)}\n`
+}
+
+/** The scope a findings report names (the binary's `findingsScope`). */
+export type FindingsScope = 'all' | 'changes' | 'specs' | 'archived'
+
+/**
+ * The findings report (`--report findings`, design D7): the binary's
+ * `projectValidationFindings` — only the items with at least one issue, under
+ * its `report` object (its own nested `version: "1.0"`) — inside cospec's
+ * `version: 1` envelope. `summary` and `root` are the full report's.
+ */
+export function toFindings(
+  full: { items: ItemReport[]; summary: unknown; root?: unknown },
+  scope: FindingsScope,
+): Record<string, unknown> {
+  const itemFindings = full.items.filter((item) => item.issues.length > 0)
+  return {
+    version: 1,
+    report: {
+      kind: 'validation-findings',
+      version: '1.0',
+      scope,
+      returnedItems: itemFindings.length,
+      totalItems: full.items.length,
+    },
+    itemFindings,
+    summary: full.summary,
+    ...(full.root === undefined ? {} : { root: full.root }),
+  }
 }

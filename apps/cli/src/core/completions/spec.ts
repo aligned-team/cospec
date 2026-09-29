@@ -21,7 +21,7 @@ import {
 } from '../command-table.ts'
 
 /** A completion source resolved at Tab time by the hidden `cospec __complete`. */
-export type DynamicSource = 'changes' | 'specs' | 'types'
+export type DynamicSource = 'changes' | 'specs' | 'types' | 'schemas'
 
 export interface CompletionCommand {
   name: string
@@ -32,6 +32,8 @@ export interface CompletionCommand {
   positional: DynamicSource[]
   /** Flags whose VALUE is dynamically completed (e.g. `--change <slug>`). */
   flagValues: Record<string, DynamicSource>
+  /** Sources completing a subcommand's first positional, per subcommand (`schema which <name>`). */
+  subcommandPositional: Record<string, DynamicSource[]>
   /**
    * The global flags offered after the command's name: its row's accepted
    * globals (`rowGlobalFlags`, so no `--store` on a `store: 'refused'` row)
@@ -57,11 +59,20 @@ const POSITIONAL: Record<string, DynamicSource[]> = {
   show: ['changes', 'specs'],
 }
 
-/** Flags whose value is a dynamic id, per command. */
+/**
+ * Flags whose value is a dynamic id, per command. Every row that declares
+ * `--schema` also completes its value from `schemas` (`buildCompletionSpec`),
+ * where the wrapped binary's own scripts complete schema names.
+ */
 const FLAG_VALUES: Record<string, Record<string, DynamicSource>> = {
   status: { '--change': 'changes' },
   instructions: { '--change': 'changes' },
   'sync-blockers': { '--change': 'changes' },
+}
+
+/** Subcommand positionals completed dynamically: the schema a `schema` subcommand names. */
+const SUBCOMMAND_POSITIONAL: Record<string, Record<string, DynamicSource[]>> = {
+  schema: { which: ['schemas'], validate: ['schemas'], fork: ['schemas'] },
 }
 
 /**
@@ -94,7 +105,13 @@ export function buildCompletionSpec(): CompletionSpec {
     summary: row.summary,
     flags: offeredFlagTokens(row.flags),
     positional: POSITIONAL[row.name] ?? [],
-    flagValues: FLAG_VALUES[row.name] ?? {},
+    flagValues: {
+      ...FLAG_VALUES[row.name],
+      ...(offeredFlags(row).some((f) => f.name === '--schema')
+        ? { '--schema': 'schemas' as const }
+        : {}),
+    },
+    subcommandPositional: SUBCOMMAND_POSITIONAL[row.name] ?? {},
     globalFlags: [...offeredFlagTokens(rowGlobalFlags(row)), '-V', '--version'],
   }))
   return { commands, globalFlags }
