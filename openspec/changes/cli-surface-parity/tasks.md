@@ -19,7 +19,7 @@ Co-Authored-By trailer, never `--no-verify`).
 
 ## 2. T6 — contract rows first (`apps/cli/test/contract/cli-surface.test.ts`, `apps/cli/test/contract/support/key-oracle.ts`)
 
-- [ ] 2.1 Write `key-oracle.ts` (design D5: identity matching, the six path
+- [x] 2.1 Write `key-oracle.ts` (design D5: identity matching, the six path
       classes, the native-key snapshot) and its self-test (verification 1.8),
       plus the fixture builders: the staged-mtime list fixture via `utimes`, the
       namespace folder, the detector matrix, a project fork, a `spec-driven`
