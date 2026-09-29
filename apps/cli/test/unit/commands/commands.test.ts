@@ -717,24 +717,23 @@ describe('list', () => {
 })
 
 describe('instructions: argument handling', () => {
-  test('a missing artifact is refused by the table parser', () => {
+  // Upstream's `instructions [artifact]` is optional, and its action answers a
+  // missing artifact or `--change` itself (change `upstream-spellings`).
+  test('a missing artifact parses: the binary answers it', () => {
     const row = commandRow('instructions')
     if (row?.parse !== 'table') throw new Error("no table row 'instructions'")
     for (const args of [[], ['--change', 'x']]) {
       const result = parseCommandArgs(row, args)
-      expect(result.ok, args.join(' ')).toBe(false)
-      if (!result.ok)
-        expect(result.refusal.message).toBe(
-          "cospec instructions: missing required argument 'artifact'\ncospec instructions: usage — cospec instructions <artifact>\n",
-        )
+      expect(result.ok, args.join(' ')).toBe(true)
     }
   })
 
-  test('non-apply artifact without --change exits 1', async () => {
+  test("non-apply artifact without --change exits 1 with the binary's answer", async () => {
     const cwd = repo()
     const r = await runCmd(instructionsRun, ctx(cwd, ['proposal'], { command: 'instructions' }))
     expect(r.code).toBe(1)
-    expect(r.err).toContain('--change <id> is required')
+    // The fixture has no changes, so the binary's answer is its new-change hint.
+    expect(r.err).toContain('No changes found. Create one with: cospec new <type> <name>')
   })
 })
 

@@ -6,17 +6,20 @@
 // roadmap PR named beside it (`REACHABLE_OWNED`). Reads the pinned package
 // itself — both the compiled `dist/**/*.js` (what runs) and the spec-driven
 // schema's `schemas/**/*.{yaml,md}` (the built-in schema's own instruction
-// text and templates, which `cospec instructions` relays untouched for a
-// change on that schema) — so a future pin that adds or rewords such a
-// sentence in either tree fails here until it is classified, and no new
-// remedy reaches a cospec user unaccounted for.
+// text and templates, which `cospec instructions` prints for a change on that
+// schema, its command lines spelled through `SCHEMA_LINES`) — so a future pin
+// that adds or rewords such a sentence in either tree fails here until it is
+// classified, and no new remedy reaches a cospec user unaccounted for.
 
 import { describe, expect, test } from 'bun:test'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
+import { parse as parseYaml } from 'yaml'
+
+import { commandRow } from '../../src/core/command-table.ts'
 import { openspecPackageDir } from '../../src/core/openspec.ts'
-import { REMEDIES } from '../../src/core/remedies.ts'
+import { REMEDIES, SCHEMA_LINES } from '../../src/core/remedies.ts'
 import {
   NOT_RELAYED_TREES,
   notRelayed,
@@ -35,20 +38,41 @@ const NAMES_A_COMMAND = /\bopenspec (?:[a-z]|\$\{)/
 /** A compiled JS line that is a comment, which the binary never prints. */
 const JS_COMMENT = /^(?:\/\/|\/\*|\*)/
 
-/** A YAML line that is a whole-line comment (never part of a rendered value). */
-const YAML_COMMENT = /^#/
-
 /**
  * A line the source never renders to a user, by the syntax of its file. A
- * `.md` template has no such construct here: an HTML comment in
- * `schemas/**\/*.md` is guidance text the schema's own template preserves
- * byte-for-byte into the artifact file `cospec instructions` writes, so it
- * reaches the user same as any other line and is never treated as a comment.
+ * `.yaml` file is read by its own syntax instead (`yamlLines`), so the parser
+ * drops its comments and a `#`-led line inside a block scalar — a Markdown
+ * heading in an instruction — is text like any other. A `.md` template has no
+ * such construct here: an HTML comment in `schemas/**\/*.md` is guidance text
+ * the schema's own template preserves byte-for-byte into the artifact file
+ * `cospec instructions` writes, so it reaches the user same as any other line
+ * and is never treated as a comment.
  */
 function isComment(file: string, line: string): boolean {
-  if (file.endsWith('.yaml')) return YAML_COMMENT.test(line)
-  if (file.endsWith('.md')) return false
-  return JS_COMMENT.test(line)
+  if (file.endsWith('.js')) return JS_COMMENT.test(line)
+  return false
+}
+
+/** The trimmed lines of every string scalar in a YAML document, keys included. */
+function yamlLines(text: string): string[] {
+  const lines: string[] = []
+  const walk = (node: unknown): void => {
+    if (typeof node === 'string') lines.push(...node.split('\n').map((line) => line.trim()))
+    else if (Array.isArray(node)) for (const item of node) walk(item)
+    else if (node !== null && typeof node === 'object')
+      for (const [key, value] of Object.entries(node)) {
+        walk(key)
+        walk(value)
+      }
+  }
+  walk(parseYaml(text) as unknown)
+  return lines
+}
+
+/** A source file's lines as the enumeration reads them: YAML by its syntax, the rest trimmed. */
+function sourceLines(file: string, text: string): string[] {
+  if (file.endsWith('.yaml')) return yamlLines(text)
+  return text.split('\n').map((line) => line.trim())
 }
 
 function modules(dir: string, extensions: readonly string[]): string[] {
@@ -62,9 +86,7 @@ function modules(dir: string, extensions: readonly string[]): string[] {
 function sourceEntries(dir: string, extensions: readonly string[], keyPrefix: string) {
   return modules(dir, extensions).map((path): [string, string[]] => [
     keyPrefix + relative(dir, path).split('\\').join('/'),
-    readFileSync(path, 'utf8')
-      .split('\n')
-      .map((line) => line.trim()),
+    sourceLines(path, readFileSync(path, 'utf8')),
   ])
 }
 
@@ -86,9 +108,23 @@ const CLASSIFIED = new Map<string, string[]>()
 for (const [file, line, where] of REMEDY_SOURCES) {
   CLASSIFIED.set(key(file, line), [...(CLASSIFIED.get(key(file, line)) ?? []), where])
 }
-const REMEDY_IDS = new Set(REMEDIES.map((remedy) => remedy.id))
+const REMEDY_IDS = new Set([...REMEDIES, ...SCHEMA_LINES].map((remedy) => remedy.id))
 const REASONS = new Set<string>(Object.values(notRelayed))
 const REACHABLE = new Set(REACHABLE_OWNED.map(([file, line]) => key(file, line)))
+
+/** Every line of `source` naming a bare `openspec` command that no category classifies. */
+function unclassified(source: ReadonlyMap<string, readonly string[]>): string[] {
+  const out: string[] = []
+  for (const [file, lines] of source) {
+    if (NOT_RELAYED_TREES.some(([prefix]) => file.startsWith(prefix))) continue
+    for (const line of lines) {
+      if (isComment(file, line) || !NAMES_A_COMMAND.test(line)) continue
+      const k = key(file, line)
+      if (!CLASSIFIED.has(k) && !REACHABLE.has(k)) out.push(`${file}: ${line}`)
+    }
+  }
+  return out
+}
 
 describe('every dist sentence naming a bare openspec command is classified', () => {
   test('the source tree has lines to classify', () => {
@@ -100,16 +136,29 @@ describe('every dist sentence naming a bare openspec command is classified', () 
   })
 
   test('each such line is allowlisted, never relayed, or reachable and owned', () => {
-    const unclassified: string[] = []
-    for (const [file, lines] of SOURCE) {
-      if (NOT_RELAYED_TREES.some(([prefix]) => file.startsWith(prefix))) continue
-      for (const line of lines) {
-        if (isComment(file, line) || !NAMES_A_COMMAND.test(line)) continue
-        const k = key(file, line)
-        if (!CLASSIFIED.has(k) && !REACHABLE.has(k)) unclassified.push(`${file}: ${line}`)
-      }
-    }
-    expect(unclassified).toEqual([])
+    expect(unclassified(SOURCE)).toEqual([])
+  })
+
+  // Ledger 6.1: a `#`-led line inside a block scalar is rendered text, never a
+  // comment, so one naming a bare command must be classified like any other;
+  // a real YAML comment is dropped by the parser.
+  test('a heading inside a schema block scalar is enumerated; a YAML comment is not', () => {
+    const file = 'schemas/spec-driven/schema.yaml'
+    const pinned = readFileSync(join(SCHEMAS, 'spec-driven', 'schema.yaml'), 'utf8')
+    const block = /^( *)instruction: \|\n( +)/m.exec(pinned)
+    if (block === null) throw new Error(`${file}: no instruction block scalar`)
+    const heading = '## Run openspec list first'
+    const comment = '# a comment naming openspec init'
+    const mutated =
+      `${comment}\n` +
+      pinned.slice(0, block.index + block[0].length) +
+      `${heading}\n${block[2]}` +
+      pinned.slice(block.index + block[0].length)
+    const source = new Map(SOURCE)
+    source.set(file, sourceLines(file, mutated))
+    const found = unclassified(source)
+    expect(found).toEqual([`${file}: ${heading}`])
+    expect(unclassified(SOURCE)).toEqual([])
   })
 
   test('each classified line is still in the pinned dist', () => {
@@ -144,6 +193,16 @@ describe('every dist sentence naming a bare openspec command is classified', () 
     expect(seen.length).toBe(new Set(seen).size)
   })
 
+  // Ledger 7.2: a reason that says cospec lacks a command must stay true.
+  test('no never-relayed reason names a command cospec has as absent', () => {
+    const stale = Object.entries(notRelayed).flatMap(([id, reason]) =>
+      [...reason.matchAll(/cospec has no `([\w-]+)` command/g)]
+        .filter((match) => commandRow(match[1]!) !== undefined)
+        .map((match) => `${id}: ${match[1]}`),
+    )
+    expect(stale).toEqual([])
+  })
+
   test('each never-relayed tree exists in the dist', () => {
     for (const [prefix] of NOT_RELAYED_TREES)
       expect(
@@ -151,6 +210,18 @@ describe('every dist sentence naming a bare openspec command is classified', () 
         prefix,
       ).toBe(true)
   })
+})
+
+describe('every built-in schema line entry is one of the pinned schema lines', () => {
+  for (const line of SCHEMA_LINES) {
+    test(line.id, () => {
+      const sources = REMEDY_SOURCES.filter(([, , where]) => where === line.id)
+      expect(sources.map(([, source]) => source)).toEqual([line.upstream])
+      const [file] = sources[0]!
+      expect(file.startsWith('schemas/spec-driven/'), file).toBe(true)
+      expect(SOURCE.get(file) ?? []).toContain(line.upstream)
+    })
+  }
 })
 
 /** A source line with its JS string escapes undone. */

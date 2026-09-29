@@ -7,6 +7,7 @@ import {
   closest,
   COMMAND_TABLE,
   commandRow,
+  flagSpelling,
   flagValue,
   GLOBAL_FLAGS,
   hasFlag,
@@ -110,7 +111,11 @@ describe('parseCommandArgs — the six ledger 1.5 cases', () => {
 
   test('--schem suggests --schema', () => {
     const r = refused('status', ['--schem', 'custom'])
-    expect(r).toMatchObject({ kind: 'unknown-option', option: '--schem', suggestion: '--schema' })
+    expect(r).toMatchObject({
+      kind: 'unknown-option',
+      option: '--schem',
+      suggestions: ['--schema'],
+    })
     expect(r.message).toBe("cospec status: unknown option '--schem'\nDid you mean '--schema'?\n")
   })
 
@@ -134,7 +139,7 @@ describe('parseCommandArgs — refusals', () => {
     expect(refused('validate', ['my-change', '--typo', 'x'])).toMatchObject({
       kind: 'unknown-option',
       option: '--typo',
-      suggestion: '--type',
+      suggestions: ['--type'],
     })
   })
 
@@ -142,17 +147,19 @@ describe('parseCommandArgs — refusals', () => {
     expect(refused('validate', ['--strict=1'])).toMatchObject({
       kind: 'unknown-option',
       option: '--strict=1',
-      suggestion: '--strict',
+      suggestions: ['--strict'],
     })
   })
 
-  test('an unknown short option suggests only short flags', () => {
-    expect(refused('archive', ['-x', 'c'])).toMatchObject({ kind: 'unknown-option', option: '-x' })
-    expect(refused('archive', ['-x', 'c'])).toMatchObject({ suggestion: '-y' })
+  test('an unknown short option gets no suggestion, as commander gives none', () => {
+    const refusal = refused('archive', ['-Y', 'c'])
+    expect(refusal).toMatchObject({ kind: 'unknown-option', option: '-Y' })
+    expect(refusal).not.toHaveProperty('suggestions')
+    expect(refusal?.message).toBe("cospec archive: unknown option '-Y'\n")
   })
 
   test('a typo of a global flag suggests the global', () => {
-    expect(refused('list', ['--jsn'])).toMatchObject({ suggestion: '--json' })
+    expect(refused('list', ['--jsn'])).toMatchObject({ suggestions: ['--json'] })
   })
 
   test('a value is the next token whatever it looks like (commander semantics)', () => {
@@ -300,35 +307,36 @@ describe('accepted no-ops', () => {
     expect(hasFlag(parsed(name, [...args]), flag)).toBe(true)
   })
 
-  test('exactly the three design no-ops are marked no-op', () => {
+  test('exactly the four design no-ops are marked no-op', () => {
     const noOps = COMMAND_TABLE.flatMap((row) =>
       row.flags.filter((f) => f.status === 'no-op').map((f) => `${row.name} ${f.name}`),
     )
-    expect(noOps.toSorted()).toEqual(['archive --yes', 'init --no-animation', 'list --changes'])
+    expect(noOps.toSorted()).toEqual([
+      'archive --yes',
+      'experimental --no-interactive',
+      'init --no-animation',
+      'list --changes',
+    ])
   })
 })
 
 // The design's pending table, restricted to what the command table marks
 // (tool ids, `experimental` and alias entries live elsewhere).
 const EXPECTED_PENDING: [string, string, PendingOwner][] = [
-  ['init', '--tools', 'upstream-spellings'],
   ['init', '--language', 'workflow-profiles'],
   ['init', '--profile', 'workflow-profiles'],
   ['init', '--copilot-cloud', 'github-copilot'],
   ['init', '--no-copilot-cloud', 'github-copilot'],
-  ['update', '[path]', 'upstream-spellings'],
-  ['new', 'change', 'upstream-spellings'],
   ['validate', '--type', 'cli-surface-parity'],
   ['validate', '--report', 'cli-surface-parity'],
   ['validate', '--concurrency', 'cli-surface-parity'],
   ['status', '--schema', 'cli-surface-parity'],
   ['list', '--sort', 'cli-surface-parity'],
-  ['instructions', '--schema', 'upstream-spellings'],
   ['archive', '--no-validate', 'archive-and-sync-parity'],
-  ['completion', 'generate', 'upstream-spellings'],
   ['completion', 'install', 'completion-install'],
   ['completion', 'uninstall', 'completion-install'],
   ['completion', 'powershell', 'completion-install'],
+  ['completion generate', 'powershell', 'completion-install'],
   ['__complete', 'schemas', 'cli-surface-parity'],
   ['__complete', 'archived-changes', 'cli-surface-parity'],
 ]
@@ -342,9 +350,14 @@ function pendingSurfaces(row: CommandRow): [string, string, PendingOwner][] {
       out.push([row.name, value, owner])
   }
   for (const s of row.subcommands ?? []) {
+    const path = `${row.name} ${s.name}`
     if (isPending(s.status)) out.push([row.name, s.name, s.status.pending])
-    for (const f of s.flags)
-      if (isPending(f.status)) out.push([`${row.name} ${s.name}`, f.name, f.status.pending])
+    for (const f of s.flags) if (isPending(f.status)) out.push([path, f.name, f.status.pending])
+    for (const p of s.positionals) {
+      if (isPending(p.status)) out.push([path, `[${p.name}]`, p.status.pending])
+      for (const [value, owner] of Object.entries(p.pendingValues ?? {}))
+        out.push([path, value, owner])
+    }
   }
   return out
 }
@@ -360,38 +373,49 @@ describe('pending surfaces', () => {
   })
 
   const argvFor: Record<string, string[]> = {
-    'init --tools': ['--tools', 'claude'],
     'init --language': ['--language', 'fr', '.'],
     'init --profile': ['--profile', 'core'],
     'init --copilot-cloud': ['--copilot-cloud'],
     'init --no-copilot-cloud': ['--no-copilot-cloud'],
-    'update [path]': ['.'],
-    'new change': ['change', 'my-change'],
     'validate --type': ['--type', 'change', 'x'],
     'validate --report': ['--report', 'full'],
     'validate --concurrency': ['--concurrency', '4'],
     'status --schema': ['--schema', 'custom'],
     'list --sort': ['--sort', 'name'],
-    'instructions --schema': ['proposal', '--schema', 'feat'],
     'archive --no-validate': ['c', '--no-validate'],
-    'completion generate': ['generate', 'zsh'],
     'completion install': ['install', 'zsh', '--verbose'],
     'completion uninstall': ['uninstall', '-y'],
     'completion powershell': ['powershell'],
+    'completion generate powershell': ['generate', 'powershell'],
     '__complete schemas': ['schemas'],
     '__complete archived-changes': ['archived-changes'],
   }
 
-  test.each(EXPECTED_PENDING)(
+  /** The pending refusal `command surface` gets, named on the row it was typed on. */
+  function expectPendingRefusal(command: string, surface: string, owner: PendingOwner): void {
+    const args = argvFor[`${command} ${surface}`]
+    if (args === undefined) throw new Error(`no argv for ${command} ${surface}`)
+    const row = command.split(' ')[0]!
+    const r = refused(row, args)
+    expect(r).toMatchObject({ kind: 'pending', surface, owner })
+    expect(r.message).toBe(`cospec ${command}: '${surface}' is not supported yet\n`)
+  }
+
+  const GENERATE_POWERSHELL = 'completion generate powershell'
+  test.each(EXPECTED_PENDING.filter(([c, s]) => `${c} ${s}` !== GENERATE_POWERSHELL))(
     '%s %s is refused as not supported yet',
-    (command, surface, owner) => {
-      const args = argvFor[`${command} ${surface}`]
-      if (args === undefined) throw new Error(`no argv for ${command} ${surface}`)
-      const r = refused(command, args)
-      expect(r).toMatchObject({ kind: 'pending', surface, owner })
-      expect(r.message).toBe(`cospec ${command}: '${surface}' is not supported yet\n`)
-    },
+    expectPendingRefusal,
   )
+
+  test(`${GENERATE_POWERSHELL} is refused as not supported yet`, () => {
+    expectPendingRefusal('completion generate', 'powershell', 'completion-install')
+  })
+
+  // `PendingOwner` no longer names it at all; this also guards the data.
+  test('no pending surface is owned by upstream-spellings', () => {
+    const owned = EXPECTED_PENDING.filter(([, , owner]) => `${owner}` === 'upstream-spellings')
+    expect(owned).toEqual([])
+  })
 
   test('pending flags are never offered to help or completion', () => {
     for (const row of COMMAND_TABLE)
@@ -405,7 +429,7 @@ describe('pending surfaces', () => {
 })
 
 describe('table shape', () => {
-  test('the rows, in help order, with exactly __complete and check-commit hidden', () => {
+  test('the rows, in help order, with exactly __complete, check-commit and experimental hidden', () => {
     expect(COMMAND_TABLE.map((row) => row.name)).toEqual([
       'init',
       'update',
@@ -430,13 +454,22 @@ describe('table shape', () => {
       'config',
       'completion',
       'feedback',
+      'help',
       '__complete',
       'check-commit',
+      'experimental',
     ])
     expect(COMMAND_TABLE.filter((row) => row.hidden).map((row) => row.name)).toEqual([
       '__complete',
       'check-commit',
+      'experimental',
     ])
+    // Design decision 5: `experimental` is a table row with a module of its
+    // own, never a command list in cli.ts.
+    expect(commandRow('experimental')).toMatchObject({ parse: 'table', aliasOf: 'init' })
+    expect(COMMAND_MODULES['experimental']).toBeDefined()
+    expect(commandRow('help')).toMatchObject({ parse: 'table', hidden: false, operands: 'lenient' })
+    expect(COMMAND_MODULES['help']).toBeDefined()
   })
 
   test('every row dispatches to a command module, and every module has a row, in the same order', async () => {
@@ -474,7 +507,15 @@ describe('table shape', () => {
     }
     const refused = COMMAND_TABLE.filter((row) => row.parse === 'table' && row.store === 'refused')
     expect(refused.map((row) => row.name).toSorted()).toEqual(
-      ['check-commit', 'completion', 'feedback', 'init', 'update'].toSorted(),
+      [
+        'check-commit',
+        'completion',
+        'experimental',
+        'feedback',
+        'help',
+        'init',
+        'update',
+      ].toSorted(),
     )
   })
 
@@ -538,6 +579,139 @@ describe('table shape', () => {
 
   test('no shipped table text names bare openspec as a command to run', () => {
     expect(JSON.stringify(COMMAND_TABLE)).not.toMatch(/\bopenspec (?!>=)[a-z]/)
+  })
+})
+
+function ok(row: TableCommandRow, args: string[]) {
+  const result = parseCommandArgs(row, args)
+  if (!result.ok) throw new Error(result.refusal.message)
+  return result.parsed
+}
+
+/**
+ * The parser's alias, hidden-flag and lenient-operand handling on synthetic
+ * rows, independent of which table surfaces carry the markings.
+ */
+describe('parseCommandArgs — aliases, hidden flags, lenient operands', () => {
+  const init = tableRow('init')
+  const aliased: TableCommandRow = {
+    ...init,
+    flags: [
+      ...init.flags.filter((f) => f.name !== '--tools'),
+      {
+        name: '--tools',
+        takesValue: true,
+        placeholder: '<tools>',
+        description: 'upstream spelling of --harness',
+        status: 'handled',
+        origin: 'upstream',
+        aliasOf: '--harness',
+      },
+      {
+        name: '--secret',
+        takesValue: true,
+        placeholder: '<x>',
+        description: 'hidden',
+        status: 'handled',
+        origin: 'upstream',
+        hidden: true,
+      },
+    ],
+  }
+  const lenient: TableCommandRow = {
+    ...tableRow('list'),
+    flags: [],
+    positionals: [{ name: 'command', required: false, status: 'handled', origin: 'upstream' }],
+    operands: 'lenient',
+  }
+  test("an alias flag's value is stored under the flag it spells, with the typed spelling", () => {
+    const p = ok(aliased, ['--tools', 'claude'])
+    expect(p.flags).toEqual({ '--harness': 'claude' })
+    expect(flagSpelling(p, '--harness')).toBe('--tools')
+    expect(flagSpelling(ok(aliased, ['--harness', 'claude']), '--harness')).toBe('--harness')
+    expect(flagSpelling(ok(aliased, []), '--harness')).toBe('--harness')
+  })
+
+  test('a repeat across the two spellings is last-wins', () => {
+    const tools = ok(aliased, ['--harness', 'a', '--tools=b'])
+    expect(flagValue(tools, '--harness')).toBe('b')
+    expect(flagSpelling(tools, '--harness')).toBe('--tools')
+    const harness = ok(aliased, ['--tools', 'b', '--harness', 'a'])
+    expect(flagValue(harness, '--harness')).toBe('a')
+    expect(flagSpelling(harness, '--harness')).toBe('--harness')
+  })
+
+  test('an alias flag with no value is refused naming its own placeholder', () => {
+    const result = parseCommandArgs(aliased, ['--tools'])
+    expect(result.ok).toBe(false)
+    if (!result.ok)
+      expect(result.refusal.message).toBe(
+        "cospec init: option '--tools <tools>' argument missing\n",
+      )
+  })
+
+  test('a hidden flag is parsed but never offered', () => {
+    expect(ok(aliased, ['--secret', 's']).flags['--secret']).toBe('s')
+    const offered = offeredFlags(aliased).map((f) => f.name)
+    expect(offered).toContain('--tools')
+    expect(offered).not.toContain('--secret')
+  })
+
+  test('a lenient row ends its operands at the first undeclared option, ignores the excess', () => {
+    expect(ok(lenient, ['list', 'extra', '-x', '--store-path'])).toEqual({
+      positionals: ['list'],
+      flags: {},
+    })
+    expect(ok(lenient, ['--bogus', 'list'])).toEqual({ positionals: [], flags: {} })
+    expect(ok(lenient, ['--store-path', '/x', 'list'])).toEqual({ positionals: [], flags: {} })
+    expect(ok(lenient, ['--', 'list'])).toEqual({ positionals: ['list'], flags: {} })
+    expect(parseCommandArgs(tableRow('list'), ['--bogus']).ok).toBe(false)
+  })
+})
+
+describe('upstream spellings (aliases, hidden flags, lenient operands)', () => {
+  test('init --tools stores its value under --harness and records the spelling', () => {
+    const p = parsed('init', ['--tools', 'claude,codex'])
+    expect(flagValue(p, '--harness')).toBe('claude,codex')
+    expect(hasFlag(p, '--tools')).toBe(false)
+    expect(flagSpelling(p, '--harness')).toBe('--tools')
+    expect(flagSpelling(parsed('init', ['--harness', 'none']), '--harness')).toBe('--harness')
+  })
+
+  test('a repeat across the two spellings is last-wins, as commander resolves it', () => {
+    const tools = parsed('init', ['--harness', 'claude', '--tools', 'codex'])
+    expect(flagValue(tools, '--harness')).toBe('codex')
+    expect(flagSpelling(tools, '--harness')).toBe('--tools')
+    const harness = parsed('init', ['--tools=codex', '--harness', 'claude'])
+    expect(flagValue(harness, '--harness')).toBe('claude')
+    expect(flagSpelling(harness, '--harness')).toBe('--harness')
+  })
+
+  test('--tools with no value is refused naming its own placeholder', () => {
+    expect(refused('init', ['--tools'])).toMatchObject({
+      kind: 'missing-value',
+      flag: '--tools',
+      message: "cospec init: option '--tools <tools>' argument missing\n",
+    })
+  })
+
+  test('a hidden flag is parsed but never offered to help or completion', () => {
+    const change = tableRow('new').subcommands?.find((sub) => sub.name === 'change')
+    if (change === undefined) throw new Error('no new change subcommand')
+    const offered = offeredFlags(change).map((flag) => flag.name)
+    expect(offered).toEqual(['--schema', '--description', '--goal'])
+    const hidden = change.flags.filter((flag) => 'hidden' in flag && flag.hidden === true)
+    expect(hidden.map((flag) => flag.name)).toEqual(['--initiative', '--areas'])
+    expect(parsed('new', ['change', 'x', '--initiative', 'y']).flags['--initiative']).toBe('y')
+  })
+
+  test("the help row's lenient operands ignore undeclared options and excess operands", () => {
+    expect(parsed('help', ['list', 'extra', '--bogus'])).toEqual({
+      positionals: ['list'],
+      flags: {},
+    })
+    expect(parsed('help', ['--json', 'list'])).toEqual({ positionals: [], flags: {} })
+    expect(parsed('help', [])).toMatchObject({ positionals: [] })
   })
 })
 

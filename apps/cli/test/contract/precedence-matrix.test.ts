@@ -662,12 +662,7 @@ const VALUE_POSITION_ROWS: readonly Row[] = [
     cospecOnly: { outcome: 'parsed', exit: 1 },
     cospecStderr: "cospec validate: '--report' is not supported yet\n",
   },
-  {
-    argv: ['instructions', 'proposal', '--schema', '--help'],
-    command: 'instructions',
-    cospecOnly: { outcome: 'parsed', exit: 1 },
-    cospecStderr: "cospec instructions: '--schema' is not supported yet\n",
-  },
+  { argv: ['instructions', 'proposal', '--schema', '--help'], command: 'instructions' },
   // cospec-only flags take their value the same way.
   // The fixture holds no cospec schemas, so `new` refuses the missing
   // schema; the row pins that `--help` was the value, never help.
@@ -1128,9 +1123,9 @@ const NEW_REFUSAL_ROWS: readonly Row[] = [
  * cospec answers it in its own format, the usage on the next line. Where the
  * upstream command declares the same required positional (`feedback
  * <message>`, `__complete <type>`) the row is the binary's; `new`, `apply`
- * and `migrate` are cospec's own, and upstream's `archive [change-name]` and
- * `instructions [artifact]` are optional where cospec requires them, so
- * those rows state cospec's answer. `check-commit`'s message file stays
+ * and `migrate` are cospec's own, and upstream's `archive [change-name]` is
+ * optional where cospec requires it, so those rows state cospec's answer;
+ * `instructions [artifact]` is optional in both. `check-commit`'s message file stays
  * optional: an advisory hook never refuses.
  */
 function missingArgument(command: string, name: string, usage: string): string {
@@ -1210,20 +1205,14 @@ const MISSING_ARGUMENT_ROWS: readonly Row[] = [
       check: textRefusal,
     }),
   ),
+  // Upstream's `instructions [artifact]` is optional: its action answers a
+  // missing artifact or change itself, one document under `--json`.
   ...[
     ['instructions', '--change', 'x'],
     ['instructions', '--change', 'x', '--json'],
     ['instructions', '--store-path', '/x'],
     ['instructions', '--json'],
-  ].map(
-    (argv): Row => ({
-      argv,
-      command: 'instructions',
-      cospecOnly: { outcome: 'missing-argument', exit: 1 },
-      cospecStderr: missingArgument('instructions', 'artifact', 'cospec instructions <artifact>'),
-      check: textRefusal,
-    }),
-  ),
+  ].map((argv): Row => ({ argv, command: 'instructions' })),
   {
     argv: ['feedback'],
     command: 'feedback',
@@ -1426,42 +1415,35 @@ const HELP_TOKEN_ROWS: readonly Row[] = [
 ]
 
 /**
- * Commander's implicit program-level `help [command]` (`parity-pending.yaml`,
- * owner `upstream-spellings`). There is no `help` row to refuse it with
- * `not supported yet` — adding one is the owner's work, and the reachability
- * gate requires that nothing on the cospec side resolves a pending top-level
- * command — so cospec answers it as an unknown command, as `experimental` is.
+ * Commander's implicit program-level `help [command]`: the program's help, or
+ * a command's (hidden ones included), on stdout; program help on stderr and
+ * exit 1 for anything else, `help` itself included. Its options and excess
+ * operands are ignored, as commander's help command ignores them.
  */
-const unknownCommand = { outcome: 'unknown-command', exit: 1 } as const
-const PENDING_ROWS: readonly Row[] = [
-  {
-    argv: ['help'],
-    command: 'help',
-    pending: {
-      owner: 'upstream-spellings',
-      upstream: { outcome: 'help:root', exit: 0 },
-      cospec: unknownCommand,
-    },
-  },
-  {
-    argv: ['help', 'list'],
-    command: 'help',
-    pending: {
-      owner: 'upstream-spellings',
-      upstream: { outcome: 'help:list', exit: 0 },
-      cospec: unknownCommand,
-    },
-  },
-  {
-    argv: ['help', 'config', 'path'],
-    command: 'help',
-    pending: {
-      owner: 'upstream-spellings',
-      upstream: { outcome: 'help:config', exit: 0 },
-      cospec: unknownCommand,
-    },
-  },
+const HELP_COMMAND_ROWS: readonly Row[] = [
+  { argv: ['help'], command: 'help' },
+  { argv: ['help', 'list'], command: 'help' },
+  { argv: ['help', 'config', 'path'], command: 'help' },
+  { argv: ['help', 'bogus'], command: 'help' },
+  { argv: ['help', 'help'], command: 'help' },
+  { argv: ['help', '--bogus'], command: 'help' },
+  { argv: ['help', '--', 'list'], command: 'help' },
+  // The first option ends its operands: commander files it and the rest as
+  // unknown, cospec's globals included (the help command declares none).
+  { argv: ['help', '--bogus', 'list'], command: 'help' },
+  { argv: ['help', '--json', 'list'], command: 'help' },
+  { argv: ['help', '--store', 'list'], command: 'help' },
+  { argv: ['help', '--help'], command: 'help' },
+  { argv: ['help', 'list', '--help'], command: 'help' },
+  { argv: ['help', 'list', 'extra'], command: 'help' },
+  { argv: ['help', 'experimental'], command: 'help' },
 ]
+
+/**
+ * A spelling the binary answers and cospec does not yet, owned by a later
+ * change in `parity-pending.yaml` (none today).
+ */
+const PENDING_ROWS: readonly Row[] = []
 
 /** cospec globals and divergences upstream has no counterpart for at that level. */
 const COSPEC_ONLY_ROWS: readonly Row[] = [
@@ -1671,6 +1653,7 @@ describe('precedence matrix: short-option clusters', () => register(SHORT_CLUSTE
 describe('precedence matrix: -- terminators', () => register(TERMINATOR_ROWS))
 describe('precedence matrix: a bare help token', () => register(HELP_TOKEN_ROWS))
 describe('precedence matrix: cospec-only rows', () => register(COSPEC_ONLY_ROWS))
+describe('precedence matrix: program-level help [command]', () => register(HELP_COMMAND_ROWS))
 describe('precedence matrix: pending spellings', () => register(PENDING_ROWS))
 
 describe('precedence matrix: new with a user-level schema and no $XDG_DATA_HOME', () => {
@@ -1722,6 +1705,7 @@ describe('precedence matrix: harness', () => {
       ...TERMINATOR_ROWS,
       ...HELP_TOKEN_ROWS,
       ...COSPEC_ONLY_ROWS,
+      ...HELP_COMMAND_ROWS,
       ...PENDING_ROWS,
     ].map(rowKey)
     expect(new Set(all).size).toBe(all.length)

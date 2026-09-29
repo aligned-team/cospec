@@ -6,7 +6,7 @@
 
 import { describe, expect, test } from 'bun:test'
 
-import { run } from '../../../src/cli.ts'
+import { commandHelpText, run } from '../../../src/cli.ts'
 import {
   COMMAND_TABLE,
   GLOBAL_FLAGS,
@@ -23,6 +23,10 @@ import { renderZshCompletion } from '../../../src/core/completions/zsh.ts'
 
 /** Capture `run()`'s stdout for a `--help` invocation. */
 async function helpOutput(command: string): Promise<string> {
+  // Commander's help command answers `help --help` with the program's help,
+  // so the `help` row's own screen is read from the renderer directly.
+  const row = COMMAND_TABLE.find((r) => r.name === command)
+  if (row?.parse === 'table' && row.operands === 'lenient') return commandHelpText(row)
   let out = ''
   const orig = process.stdout.write
   process.stdout.write = ((chunk: unknown): boolean => {
@@ -76,9 +80,9 @@ describe('buildCompletionSpec — matches COMMAND_TABLE', () => {
     expect(feedback.flags).toEqual(['--body', '--upstream'])
   })
 
-  test('instructions: --change and --allow-soft; pending --schema absent', () => {
+  test('instructions: --change, --allow-soft and --schema', () => {
     const instructions = spec.commands.find((c) => c.name === 'instructions')!
-    expect(instructions.flags).toEqual(['--change', '--allow-soft'])
+    expect(instructions.flags).toEqual(['--change', '--allow-soft', '--schema'])
   })
 
   // Regression: the pre-table `show` help omitted `--diff` and mis-described
@@ -104,17 +108,13 @@ describe('buildCompletionSpec — matches COMMAND_TABLE', () => {
     expect(archive.flags).toEqual(['--skip-specs', '--force-incomplete', '-y', '--yes'])
   })
 
-  test('init: pending flags (--tools, --language, --profile, --copilot-cloud, …) absent', () => {
+  test('init: pending flags (--language, --profile, --copilot-cloud, …) absent', () => {
     const init = spec.commands.find((c) => c.name === 'init')!
-    for (const flag of [
-      '--tools',
-      '--language',
-      '--profile',
-      '--copilot-cloud',
-      '--no-copilot-cloud',
-    ])
+    for (const flag of ['--language', '--profile', '--copilot-cloud', '--no-copilot-cloud'])
       expect(init.flags).not.toContain(flag)
     expect(init.flags).toContain('--no-animation')
+    // An alias flag completes like any offered flag.
+    expect(init.flags).toContain('--tools')
   })
 
   test('dynamic positionals: new→types, show→changes+specs, archive→changes', () => {
@@ -172,7 +172,7 @@ describe('three-way parity: --help flags == completion flags == parser-accepted 
     expect(renderBashCompletion(spec)).toMatch(/ {4}init\)\n {6}globals='[^']*'/)
     expect(renderZshCompletion(spec)).toMatch(/ {4}init\)\n {6}global_flags=\(/)
     expect(renderFishCompletion(spec)).toContain(
-      "complete -c cospec -n 'not __fish_seen_subcommand_from init update completion feedback' -l store",
+      "complete -c cospec -n 'not __fish_seen_subcommand_from init update completion feedback help' -l store",
     )
   })
 

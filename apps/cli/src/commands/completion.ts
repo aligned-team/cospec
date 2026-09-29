@@ -54,7 +54,10 @@ export function run(ctx: CommandContext): number {
     return EXIT.failure
   }
 
-  const requested = ctx.parsed!.positionals[0]
+  // `completion [shell]` and upstream's `completion generate [shell]` alike:
+  // the parser hands either spelling's `[shell]` over as the first positional,
+  // read case-insensitively as upstream's `normalizeShell` reads it.
+  const requested = ctx.parsed!.positionals[0]?.toLowerCase()
   if (requested !== undefined && !isSupportedShell(requested)) {
     process.stderr.write(
       `cospec completion: unsupported shell '${requested}' ` +

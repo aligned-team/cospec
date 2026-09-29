@@ -168,9 +168,19 @@ later change). The test fails on an entry that resolves to none of the five, or
 to two of them, and the reverse direction is checked too — every table surface
 marked pending has exactly one `parity-pending.yaml` entry naming the same
 owner, so a change that implements a pending flag must delete that entry in the
-same commit, and a stale entry left behind fails the test by name. This is the
-parity gate every later OpenSpec-parity change reports its acceptance evidence
-against.
+same commit, and a stale entry left behind fails the test by name.
+
+A row or flag that is one of `aliases.yaml`'s upstream spellings
+(`init --tools`, the hidden `experimental`/`new change`/`completion generate`
+rows) carries its own `aliasOf` marking to the canonical cospec name instead — a
+`flag` marking on a `FlagSpec`, or a `command` marking on a row or subcommand
+(the two alias kinds `aliases.yaml` pairs with the table). The test checks this
+pairing two ways: every `aliases.yaml` entry must have a matching marking
+somewhere in the table, and every marking must have a matching `aliases.yaml`
+entry, so an alias can never resolve silently through the table alone (leaving
+it uncounted by the registry) or drift out of sync with its own entry. This is
+the parity gate every later OpenSpec-parity change reports its acceptance
+evidence against.
 
 ## The wrapped-call discipline
 
@@ -219,13 +229,53 @@ the pinned dist and fails on any line naming `openspec <command>` that is
 neither an allowlist entry, nor listed
 (`test/contract/support/remedy-sources.ts`) with the reason no cospec relay
 prints it, nor listed (`REACHABLE_OWNED`) as reachable through a successful
-answer cospec relays untouched — a `context`/`instructions` reference block, a
-`workset`, `config` or `schema` next step — with the roadmap PR that owns its
-spelling. This is defence-in-depth, the same posture as the archive
-scenario-preservation gate below — cospec's own routing discipline is the
-primary guard (agents are told to call `cospec`, never `openspec`), and the
-relay guard is the belt-and-suspenders catch for the one path where upstream's
-own text is quoted back to the reader.
+answer cospec relays untouched — a `context` reference block, a `workset` or
+`config` next step — with the roadmap PR that owns its spelling. This is
+defence-in-depth, the same posture as the archive scenario-preservation gate
+below — cospec's own routing discipline is the primary guard (agents are told to
+call `cospec`, never `openspec`), and the relay guard is the belt-and-suspenders
+catch for the one path where upstream's own text is quoted back to the reader.
+
+### `instructions`: the answer is built from the binary's document
+
+A successful `instructions <artifact>` answer carries both the user's own text
+(the schema's instruction and template, `config.yaml`'s context and rules, a
+referenced spec's Purpose line, store ids and paths — none escaped for line
+breaks) and commands the binary wrote itself, so no text-layout anchor can tell
+them apart. `commands/instructions.ts` therefore spawns
+`instructions <artifact> --json` in every mode (`callPassthrough`'s
+`wrappedJson`), parses the document, and rewrites it by structure:
+`respellCommandFields` (`core/passthrough-command.ts`) with the field map
+`INSTRUCTIONS_COMMAND_FIELDS` (`core/instructions-render.ts`) —
+`references[].fetch` and `references[].status[].fix` — under the `remedy` rule,
+which rewrites a field only when its whole value is one allowlist entry
+(`respellWholeRemedy`), each hole re-emitted as captured. When
+`schema which <name> --json` reports `source: package` (the pinned built-in
+`spec-driven`, never a project or user copy and never one of cospec's types),
+each line of `instruction` and `template` that equals a `SCHEMA_LINES` entry
+(`core/remedies.ts`) after its indentation is spelled too. `--json` re-prints
+the document as the binary formats it; text mode renders it with a port of the
+binary's `printInstructionsText` and reference-block renderer (escape helpers
+included), plus the wrapped text call's non-TTY spinner line on stderr, so every
+byte the user owns is the binary's. Every failure — an artifact's, and the
+no-artifact, no-change, `apply`-without-a-change and `archive` answers, which
+spawn with `wrappedJson` too — is answered from the binary's own failure
+document: its `status[].message` and `status[].fix` pass the same `remedy` rule
+(`FAILURE_FIELDS`), so `Create one with: openspec new change <name>` is spelled
+while a message listing change names (`Available changes:` with a change named
+`Run: openspec store doctor`) is not one remedy and stays exactly as written.
+`--json` re-prints that document; text mode renders it as the binary's
+`failWithError` does — the branch's non-TTY spinner line
+(`Generating instructions...`, `Generating apply instructions...` or
+`Loading archive inputs...`), the call's own stderr, `✖ Error: <message>` and,
+when the status carries one, `Fix: <fix>`. cospec selects the root before the
+spawn with the same resolver and `--store`, so every failure document comes
+after the binary's spinner started. Only the two answers that come before any
+document — the `--store-path` refusal (cospec's redirect) and commander's parse
+refusal (relayed as printed) — are not rendered from one. `apply --change` stays
+the gate; a successful `archive` (the user's context and operation guidance
+only) is relayed as the binary prints it, its text form from the same argv again
+without `--json` (the helper's `rerun`, which never selects the root twice).
 
 ## The disciplined-passthrough runner
 

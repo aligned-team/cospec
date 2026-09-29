@@ -13,7 +13,7 @@ import { join, resolve } from 'node:path'
 import { canonFile } from '../canon/embedded.ts'
 import type { CommandContext } from '../cli.ts'
 import { openspecDir } from '../core/change.ts'
-import { flagValue, hasFlag, type ParsedArgs } from '../core/command-table.ts'
+import { flagSpelling, flagValue, hasFlag, type ParsedArgs } from '../core/command-table.ts'
 import { splitFrontmatter, type WriteResult } from '../core/managed-files.ts'
 import { mergeMiseToml, type MiseMergeResult } from '../harness/mise-merge.ts'
 import { type HarnessName, HARNESS_NAMES, isHarnessName } from '../harness/render.ts'
@@ -64,19 +64,40 @@ interface HarnessSelection {
   error?: string
 }
 
-function parseHarnessArg(value: string): HarnessName[] | undefined {
-  if (value === 'all') return [...HARNESS_NAMES]
-  if (value === 'none') return []
-  const names = value
+/**
+ * The harnesses a `--harness`/`--tools` list selects, read as upstream's
+ * `resolveToolsArg` reads `--tools`: the value trimmed, `all`/`none` and each
+ * comma-separated name matched case-insensitively. An empty list is refused
+ * with upstream's own sentence (naming the `spelling` the user typed), an
+ * unknown name with cospec's list of the valid ones.
+ */
+function parseHarnessArg(
+  value: string,
+  spelling: string,
+): { harnesses: HarnessName[] } | { error: string } {
+  const raw = value.trim()
+  if (raw.length === 0)
+    return {
+      error: `The ${spelling} option requires a value. Use "all", "none", or a comma-separated list of tool IDs.`,
+    }
+  const lower = raw.toLowerCase()
+  if (lower === 'all') return { harnesses: [...HARNESS_NAMES] }
+  if (lower === 'none') return { harnesses: [] }
+  const names = lower
     .split(',')
     .map((s) => s.trim())
     .filter((s) => s.length > 0)
+  if (names.length === 0)
+    return {
+      error: `The ${spelling} option requires at least one tool ID when not using "all" or "none".`,
+    }
   const out: HarnessName[] = []
   for (const name of names) {
-    if (!isHarnessName(name)) return undefined
+    if (!isHarnessName(name))
+      return { error: `invalid ${spelling} '${value}'; ${VALID_HARNESS_MSG}` }
     if (!out.includes(name)) out.push(name)
   }
-  return out
+  return { harnesses: out }
 }
 
 const VALID_HARNESS_MSG =
@@ -95,12 +116,19 @@ const DETECT_PATHS: Record<HarnessName, string> = {
   agents: '.agents/skills',
 }
 
-function selectHarnesses(cwd: string, state: RepoState, arg: string | undefined): HarnessSelection {
+/**
+ * `spelling` is the flag the user typed the list with (`--harness`, or
+ * upstream's `--tools`), so a refusal names what they wrote.
+ */
+function selectHarnesses(
+  cwd: string,
+  state: RepoState,
+  arg: string | undefined,
+  spelling: string,
+): HarnessSelection {
   if (arg !== undefined) {
-    const parsed = parseHarnessArg(arg)
-    if (parsed === undefined)
-      return { harnesses: [], error: `invalid --harness '${arg}'; ${VALID_HARNESS_MSG}` }
-    return { harnesses: parsed }
+    const parsed = parseHarnessArg(arg, spelling)
+    return 'error' in parsed ? { harnesses: [], error: parsed.error } : parsed
   }
   const detected = HARNESS_NAMES.filter((h) => existsSync(join(cwd, DETECT_PATHS[h])))
   if (detected.length > 0) return { harnesses: detected }
@@ -309,7 +337,7 @@ export function run(ctx: CommandContext): number {
 
   const notGitTree = !existsSync(join(target, '.git'))
 
-  const selection = selectHarnesses(target, state, harnessArg)
+  const selection = selectHarnesses(target, state, harnessArg, flagSpelling(parsed, '--harness'))
   if (selection.error !== undefined) {
     process.stderr.write(`cospec: ${selection.error}\n`)
     return 1

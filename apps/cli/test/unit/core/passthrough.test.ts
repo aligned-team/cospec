@@ -513,6 +513,34 @@ describe('respellCommandFields (structural respell of a relayed document)', () =
     })
   })
 
+  test('a remedy field is spelled only when its whole value is one allowlisted remedy', () => {
+    const clone =
+      "git clone -- https://x.invalid/t.git '/h/openspec/p' && openspec store register '/h/openspec/p' --id p"
+    const out = respellCommandFields(
+      {
+        references: [
+          { fetch: clone, status: [{ fix: 'Run: openspec store doctor openspec-team' }] },
+          { status: [{ fix: 'Use kebab-case store ids in the references list.' }] },
+          { status: [{ fix: 'Run: openspec store doctor x, please' }] },
+        ],
+      },
+      [
+        { path: ['references', '[]', 'fetch'], rule: 'remedy' },
+        { path: ['references', '[]', 'status', '[]', 'fix'], rule: 'remedy' },
+      ],
+    )
+    expect(out).toEqual({
+      references: [
+        {
+          fetch: clone.replace('&& openspec store', '&& cospec store'),
+          status: [{ fix: 'Run: cospec store doctor openspec-team' }],
+        },
+        { status: [{ fix: 'Use kebab-case store ids in the references list.' }] },
+        { status: [{ fix: 'Run: openspec store doctor x, please' }] },
+      ],
+    })
+  })
+
   test('renderJsonDocument renders two-space JSON and a newline', () => {
     expect(renderJsonDocument({ a: [1] })).toBe('{\n  "a": [\n    1\n  ]\n}\n')
   })

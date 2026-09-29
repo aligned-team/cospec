@@ -180,8 +180,14 @@ workflow the pinned OpenSpec binary exposes must resolve to exactly one of: the
 command table (`apps/cli/src/core/command-table.ts`), an alias in
 `apps/cli/src/canon/parity/aliases.yaml`, or a pending entry in
 `apps/cli/test/contract/parity-pending.yaml` tagged with the change that owns
-it. `apps/cli/test/contract/reachability.test.ts` enforces this against the
-pinned dist and is the gate — never a hand-maintained checklist, and never a
+it. A command-table row or flag that IS one of `aliases.yaml`'s upstream
+spellings (`init --tools`, the hidden `experimental`/`new change`/
+`completion generate` rows) carries an `aliasOf` marking to its canonical cospec
+name, and the test checks the pairing two ways — every `aliases.yaml` entry has
+a matching marking, and every marking has a matching entry — so an alias can
+never resolve silently through the table alone or drift out of sync with its
+registry. `apps/cli/test/contract/reachability.test.ts` enforces this against
+the pinned dist and is the gate — never a hand-maintained checklist, and never a
 proposal's non-goals section standing in for an entry. A capability cospec
 deliberately never implements lives only in
 `apps/cli/src/canon/parity/exceptions.yaml`, verified the same way, not as a
@@ -197,13 +203,21 @@ successful answer cospec relays untouched, with the roadmap PR that owns its
 spelling. `remedy-enumeration.test.ts` enforces this against the pinned dist, so
 a pin bump fails until each new line is classified. Never respell with a pattern
 over free text (a lead-in word, a quote, a backtick): a path, a name or a
-schema's own text must pass through byte-for-byte. A successful answer's
+user-owned schema's text must pass through byte-for-byte. A successful answer's
 commands are respelled from structure instead: in a parsed `--json` document
 through `respellCommandFields` (`core/passthrough-command.ts` — a field path and
-the fixed lead before the command, rewriting only a leading `openspec` token,
-then rendering text from the result), or, where upstream has no such field, on a
-fixed line only the binary writes, found by its position in the binary's output
-and spelled through the allowlist (`schema init`'s last next step).
+either the fixed lead before the command, rewriting only a leading `openspec`
+token, or the `remedy` rule, rewriting a field only when its whole value is one
+allowlist entry — then rendering text from the result), or, where upstream has
+no such field, on a fixed line only the binary writes, found by its position in
+the binary's output and spelled through the allowlist (`schema init`'s last next
+step). `cospec instructions <artifact>` is built this way from the binary's
+`--json` document (`core/instructions-render.ts` ports the text printer): its
+field map is `references[].fetch` / `references[].status[].fix`, and only for a
+change whose schema `schema which --json` reports as `source: package` (the
+pinned built-in `spec-driven`) are that schema's own command lines spelled, each
+a whole-line `SCHEMA_LINES` entry in `core/remedies.ts` — a project or user copy
+stays verbatim.
 
 **Wrapped-call discipline** — every call into the wrapped binary declares its
 expected exit codes, a stdout deny-list, and an observable post-condition. Trust

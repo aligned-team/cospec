@@ -16,20 +16,6 @@
 # `source: cli` marks a hidden surface the four registry sources cannot
 # produce; the test verifies it against the pinned binary instead.
 
-# --- upstream-spellings ---------------------------------------------------------
-- { kind: flag, path: [init], flag: --tools, owner: upstream-spellings }
-- { kind: command, path: [new, change], owner: upstream-spellings }
-- { kind: positional, path: [update], index: 0, owner: upstream-spellings }
-- { kind: command, path: [completion, generate], owner: upstream-spellings }
-- { kind: flag, path: [instructions], flag: --schema, owner: upstream-spellings }
-- { kind: command, path: [experimental], source: cli, owner: upstream-spellings }
-# Commander's implicit program-level `help [command]` (`openspec help`,
-# `openspec help list`); cospec answers `unknown command 'help'` until then.
-# The entry covers its subtree, so the `[command]` positional (a hidden
-# fixture too) resolves here, as `new change --initiative` resolves to
-# `new change`.
-- { kind: command, path: [help], source: cli, owner: upstream-spellings }
-
 # --- cli-surface-parity -----------------------------------------------------------
 - { kind: flag, path: [list], flag: --sort, owner: cli-surface-parity }
 - { kind: flag, path: [status], flag: --schema, owner: cli-surface-parity }
@@ -103,6 +89,12 @@
 - { kind: command, path: [completion, uninstall], owner: completion-install }
 - kind: positional-value
   path: [completion]
+  index: 0
+  value: powershell
+  source: cli
+  owner: completion-install
+- kind: positional-value
+  path: [completion, generate]
   index: 0
   value: powershell
   source: cli

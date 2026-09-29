@@ -1,45 +1,6 @@
-# cli-option-contract Specification
+# Spec Delta
 
-## Purpose
-
-cospec's command-line argv parse SHALL match the pinned OpenSpec binary's: one
-command table declares every command's positionals and flags (handled, accepted
-no-op, or pending), and one two-phase parser reads it so that table-parsed
-commands refuse an unknown option or excess positional before doing any work,
-forwarded commands (`show`, `templates`, `schemas`, `schema`, `store`,
-`workset`, `config`) leave unknown-option authority to the binary itself, and
-global flags, `--`, help, and `--store-path` are handled the same way upstream's
-commander parser handles them. The same table drives argv parsing, per-command
-`--help`, and shell completion, so the three surfaces cannot drift from one
-another, and a reachability test holds every pinned upstream command, flag, and
-positional accountable to the table, an alias, or a named pending entry.
-
-## Requirements
-
-### Requirement: One command table declares every command surface
-
-cospec SHALL hold one command table (`apps/cli/src/core/command-table.ts`) that
-declares, for every cospec command, its positionals and every flag, including
-every flag the pinned `COMMAND_REGISTRY` gives the same-named upstream command.
-Each flag SHALL be marked exactly one of **handled**, **accepted no-op**, or
-**pending** (carrying the slug of the change that implements it). cospec's own
-flags SHALL sit in the same table, marked **handled**. Each command row SHALL
-carry a parse policy, `table` or `forward`. The same table SHALL drive argv
-parsing, per-command `--help` and the completion spec, so none of the three can
-drift from the others.
-
-#### Scenario: A registry flag is present in the table
-
-- **WHEN** the pinned `COMMAND_REGISTRY` lists a flag on a command that cospec
-  implements under the same name
-- **THEN** the command's table row declares that flag with one of the three
-  markings, and `cospec <command> --help` lists it unless it is pending
-
-#### Scenario: Help and completion come from the table
-
-- **WHEN** a flag is added to a command's table row
-- **THEN** `cospec <command> --help` and `cospec completion <shell>` both list
-  it with no other edit
+## MODIFIED Requirements
 
 ### Requirement: Table-parsed commands reject what the table does not declare
 
@@ -290,285 +251,6 @@ help.
   `Did you mean one of '--sort', '--store'?` and `list --verson`
   `Did you mean '--version'?`, each exit 1, as the pinned binary suggests
 
-### Requirement: The global version flag is honoured in any position
-
-cospec SHALL treat `-V` / `--version` as a global flag in any position before a
-`--` terminator, on every command (`table` and `forward` alike) and after an
-unknown command, as the pinned binary's program-level option is: the program
-level finds it wherever it appears, even where a command-level flag would take
-it as its value (`cospec list --store --version`). A short cluster that starts
-with `-V` (`-Vh`) SHALL be a version request too, as commander splits it at the
-program level. A version request SHALL print cospec's own version on stdout and
-exit 0, ahead of every other answer, and SHALL do no work.
-
-#### Scenario: A post-command version flag prints the version
-
-- **WHEN** `cospec list --version` or `cospec validate x -V` runs
-- **THEN** stdout is cospec's version, nothing is listed or validated, and the
-  exit code is 0
-
-#### Scenario: A version flag wins over an unknown option
-
-- **WHEN** `cospec list --bogus --version` runs
-- **THEN** stdout is cospec's version and the exit code is 0
-
-### Requirement: The program level resolves before the command sees its argv
-
-cospec SHALL resolve its global flags in two phases, as the pinned binary's
-commander does, and SHALL never rank an answer of one phase against an answer of
-the other. Phase A, the program level, SHALL read the tokens before the command
-name (or before a leading `--`) and SHALL stop with its own answer, in this
-order: a `--cwd`/`--store` left without a value; then, at the first help flag or
-undeclared option (`--store-path` included), the program's help when a help flag
-appears anywhere in the argv phase A never dispatched, otherwise that option's
-refusal (`--store-path`'s redirect); with no command name, an empty
-`--cwd`/`--store` value, then the program's help. An unknown command SHALL
-answer with the program's help when a help flag follows it before a `--`, and
-otherwise as an unknown command. Only a known command SHALL reach phase B, where
-the command's own argv SHALL resolve in commander's per-level order: a missing
-value (a global's or the row's own, anywhere in the argv — a trailing
-`--store-path` answers its redirect here), then help, then the row's other parse
-refusals — the first undeclared option or pending flag in argv order, then too
-many arguments, then `--store-path` — then an empty `--cwd`/`--store` value,
-then the command runs. A missing value SHALL outrank an undeclared option or
-pending flag earlier in the argv, because commander raises it during its scan
-and reports an unknown option only after it. A `forward` row SHALL receive its
-argv unchanged apart from the threaded global flags. In phase B, a token right
-after the space form of a value-taking flag the row declares — or its subcommand
-declares, once the first positional names one — SHALL be that flag's value
-whatever it looks like (a help flag, a global flag, `--`), as commander takes
-it: it is never read as help and never absorbed as a global. The one exception
-is upstream's program-level `--no-color`: every `--no-color` before the first
-`--` SHALL be taken out before the command's argv is read, so it is never a
-value and the flag before it takes the next token or has none; past a `--` that
-a flag took as its value, `--no-color` and `-V`/`--version` SHALL be the
-command's own tokens, refused as unknown options like any other.
-
-#### Scenario: A value-taking flag's value is never help or a global
-
-- **WHEN** `cospec status --change --help`, `cospec init --tools --help`,
-  `cospec templates --schema --json` or `cospec show c1 --type --store st` runs
-- **THEN** the token after the flag is its value, as the pinned binary reads it
-  (`Change '--help' not found`, `Invalid tool(s): --help`): `status` looks up a
-  change named `--help` (`cospec status: unknown change '--help'`), `init`
-  refuses its pending `--tools` with the value consumed, and the forwarded rows
-  hand both tokens to the binary, which answers — never cospec's help, and never
-  a global `--json` or `--store`; each exits 1 in both tools
-
-#### Scenario: A program-level --no-color is never a value
-
-- **WHEN** `cospec status --change --no-color`, `cospec list --store --no-color`
-  or `cospec store setup s1 --path --no-color` runs
-- **THEN** the flag is left without a value and refused as argument missing,
-  exit 1, as the pinned binary refuses it, and nothing is written;
-  `cospec status --change --no-color c1` looks up `c1`
-
-#### Scenario: Past a -- taken as a value the program level has stopped
-
-- **WHEN** `cospec status --change -- --version` or
-  `cospec status --change -- --no-color` runs
-- **THEN** stderr refuses `--version` (or `--no-color`) as an unknown option of
-  `status` and the exit code is 1, as the pinned binary does; after
-  `cospec instructions proposal --change -- --json` the `--json` still applies
-  and stdout is one JSON document
-
-#### Scenario: Help before the command name wins over the command's argv
-
-- **WHEN** `cospec --help list --store` runs
-- **THEN** stdout is cospec's program help and the exit code is 0, as
-  `openspec --help list --store` prints its program help
-
-#### Scenario: A pre-command --store-path stops the program level
-
-- **WHEN** `cospec --store-path /x list --store` runs
-- **THEN** stderr is the `--store-path` redirect and the exit code is 1; the
-  missing `--store` value is never reached
-
-#### Scenario: A command's missing value is raised before its help
-
-- **WHEN** `cospec status --help --change` runs
-- **THEN** stderr is `cospec status: option '--change <slug>' argument missing`
-  and the exit code is 1, as `openspec status --help --change` refuses
-
-#### Scenario: A trailing missing value outranks an earlier unknown option
-
-- **WHEN** `cospec status --help --bogus --change`,
-  `cospec list --bogus --store-path` or `cospec list --sort x --store-path` runs
-- **THEN** the answer is the missing value (`--change`'s refusal, or the
-  `--store-path` redirect), not help, the unknown option or the pending flag,
-  and the exit code is 1, as the pinned binary refuses the missing value
-
-#### Scenario: A precedence matrix pins both phases against the binary
-
-- **WHEN** the precedence-matrix contract test runs each of its argv rows
-  through cospec and the pinned binary (under Node, so a leading `--` arrives
-  intact)
-- **THEN** each row's outcome (version, whose help, unknown command,
-  parse-rejected, parsed) and exit code match the binary's, and each row
-  declared cospec-only matches its stated outcome
-
-### Requirement: A bare help token follows the command's upstream counterpart
-
-A bare `help` as the first token after the command name that reaches the
-command's own argv — after any global flag cospec absorbs (`--no-color`,
-`--json`, `--cwd <path>`, `--store <id>`) — SHALL print the command's help and
-SHALL never run the command on every `table` row. On a `forward` row it SHALL
-print help only where the upstream command offers commander's implicit
-`help [subcommand]` (a command with subcommands whose upstream counterpart does
-not refuse `help`: `config` and `schema`); `store` and `workset` SHALL hand it
-to their wrapper, which refuses it as an unknown subcommand as upstream does,
-and a `forward` row without subcommands SHALL pass it to the binary as an
-operand. After a leading `--`, or a `--` that is the first token to reach a row
-with subcommands, `help` as the first operand SHALL print help on any row that
-offers the implicit help subcommand (`config`, `schema`, `new`, `completion`)
-and SHALL otherwise stay an operand.
-
-#### Scenario: help after an absorbed global flag
-
-- **WHEN** `cospec config --no-color help` or
-  `cospec completion --no-color help` runs
-- **THEN** stdout is that command's help and the exit code is 0, as
-  `openspec config --no-color help` prints it
-
-#### Scenario: The implicit help subcommand after a leading --
-
-- **WHEN** `cospec -- config help path` runs
-- **THEN** stdout is the `config path` help and the exit code is 0, as
-  `openspec -- config help path` prints it
-
-#### Scenario: store refuses a help subcommand
-
-- **WHEN** `cospec store help` runs
-- **THEN** stderr names `help` as an unknown subcommand and the exit code is 1,
-  as `openspec store help` refuses it
-
-### Requirement: An undeclared option before the command name is refused
-
-cospec SHALL refuse any option before the command name that is not one of its
-global flags (`--json`, `--no-color`, `-h`/`--help`, `-V`/`--version`, `--cwd`,
-`--store`) or `--store-path`, on every command (`table` and `forward` alike) and
-when the command is unknown or absent, with `cospec: unknown option '<x>'` on
-stderr, a closest-match suggestion among the global long flags on the next line
-when an unknown long (`--`) option is within edit distance of one — an unknown
-short option gets none, as commander offers none — and exit 1, before the
-command does any work, as the pinned binary's program-level commander refuses
-it. The refusal is a phase A answer: it SHALL yield only to a version request, a
-missing global value before it and a help flag anywhere in the argv, and SHALL
-come before anything after the command name is parsed, since the pinned binary
-refuses it before it parses the subcommand at all. Of an undeclared option and
-`--store-path` before the command name, the first in argv SHALL answer, and
-`--store-path` SHALL answer with its redirect. A `--` before the command name is
-a terminator, not an undeclared option.
-
-#### Scenario: An unknown option before the command does not run it
-
-- **WHEN** `cospec --bogus list` runs in a repo with active changes
-- **THEN** stderr is `cospec: unknown option '--bogus'`, nothing is listed, and
-  the exit code is 1, as `openspec --bogus list` refuses
-
-#### Scenario: A post-command missing value does not outrank it
-
-- **WHEN** `cospec --bogus list --store` runs
-- **THEN** stderr is `cospec: unknown option '--bogus'` and the exit code is 1,
-  as `openspec --bogus list --store` refuses
-
-#### Scenario: A near-miss global flag is suggested
-
-- **WHEN** `cospec --jsn list` runs
-- **THEN** stderr is `cospec: unknown option '--jsn'` followed by
-  `Did you mean '--json'?`, and the exit code is 1
-
-#### Scenario: An unknown short option before the command gets no suggestion
-
-- **WHEN** `cospec -x list` runs
-- **THEN** stderr is exactly `cospec: unknown option '-x'`, with no
-  `Did you mean` line, and the exit code is 1, as `openspec -x list` refuses
-
-### Requirement: Global flags stop at a -- terminator
-
-cospec SHALL recognise its global flags (`--json`, `--no-color`, `-h`/`--help`,
-`-V`/`--version`, `--cwd`, `--store`) before the command name and anywhere after
-it up to a `--` terminator, and SHALL treat every token after a post-command
-`--` as an operand of the command, as the pinned binary's commander does. The
-`--` and its operands SHALL reach the table parser, or the wrapped binary on a
-`forward` row, unchanged, and a global flag cospec threads onto a wrapped call
-SHALL be inserted before that `--` — right after the command path, ahead of
-every user token. A `--` before the command name SHALL NOT be refused as an
-unknown option: the token after it is the command name, the next one is still
-dispatched as the subcommand — whatever it looks like on a `forward` row with
-subcommands, and on a `table` row when it names one of the row's subcommands —
-and every later token is an operand of the command, as the pinned binary's
-program-level commander treats it. A `--` that is the first token to reach a row
-with subcommands SHALL route the same way: the next token is the subcommand, and
-a `--` stays in front of the remaining operands.
-
-#### Scenario: A -- right after a command with subcommands
-
-- **WHEN** `cospec config -- path` or `cospec store -- list` runs
-- **THEN** it answers as `cospec config path` or `cospec store list` does, as
-  the pinned binary does, and `cospec config --` answers as a bare
-  `cospec config`, exit 1
-
-#### Scenario: A global flag after -- is an operand
-
-- **WHEN** `cospec list -- --json` runs
-- **THEN** stderr is
-  `cospec list: too many arguments. Expected 0 arguments but got 1.`, nothing is
-  listed, and the exit code is 1, as `openspec list -- --json` refuses
-
-#### Scenario: A -- before the command runs the command
-
-- **WHEN** `cospec -- list` runs
-- **THEN** `list` runs as `cospec list` does, as `openspec -- list` does, and
-  `cospec -- list --help` is refused as too many arguments with exit 1, as
-  `openspec -- list --help` is
-
-#### Scenario: A forwarded command receives the operand verbatim
-
-- **WHEN** `cospec templates -- --json` runs
-- **THEN** the wrapped binary's `error: too many arguments for 'templates'` is
-  relayed on stderr and the exit code is 1
-
-### Requirement: Global --cwd and --store refuse a missing or empty value
-
-cospec SHALL refuse a global `--cwd` or `--store` given with no value, in any
-position before a `--` terminator, with
-`cospec <command>: option '<flag> <placeholder>' argument missing` on stderr
-(`cospec: …` when no command was given) and exit 1, and one given an empty value
-(`--store=`, `--cwd ''`) with
-`cospec <command>: option '<flag> <placeholder>' argument must not be empty` and
-exit 1. A missing value SHALL be refused while its phase parses — before that
-phase's help and parse refusals, as the pinned binary raises its own
-`option '--store <id>' argument missing` while it parses a command level — and a
-missing value after the command name SHALL never be reached when phase A has
-already answered (an undeclared option, `--store-path` or a help flag before the
-command name). An empty value SHALL be refused only after every parse-time
-answer — a version request, help, an unknown option, a `--store-path` refusal,
-an unknown command and the command's own parse refusals — and before the command
-does any work, as the pinned binary accepts an empty value while it parses and
-refuses an empty store id in its action code; with no command name, an empty
-value SHALL be refused unless a help flag is given. The command SHALL never run
-against the local repo instead.
-
-#### Scenario: A trailing --store is refused, not dropped
-
-- **WHEN** `cospec list --store` runs in a repo with active changes
-- **THEN** stderr is `cospec list: option '--store <id>' argument missing`,
-  nothing is listed, and the exit code is 1
-
-#### Scenario: An empty --cwd is refused
-
-- **WHEN** `cospec list --cwd=` runs
-- **THEN** stderr is
-  `cospec list: option '--cwd <path>' argument must not be empty` and the exit
-  code is 1
-
-#### Scenario: Help wins over an empty value
-
-- **WHEN** `cospec list --store= --help` runs
-- **THEN** stdout is the `list` help and the exit code is 0, as
-  `openspec list --store= --help` prints its help
-
 ### Requirement: Forwarded commands are declared, not re-parsed
 
 On a command whose parse policy is `forward`, cospec SHALL declare the command's
@@ -739,116 +421,6 @@ answer, never reported as a wrapped-call failure.
 - **THEN** the outcome is whatever the wrapped `show` produces for that argv,
   and cospec adds no refusal of its own
 
-### Requirement: Three upstream flags are accepted as no-ops
-
-cospec SHALL accept `init --no-animation`, `archive -y` / `archive --yes` and
-`list --changes` without error and without changing behaviour, because cospec
-already behaves as each flag requests.
-
-#### Scenario: Accepted no-ops do not fail
-
-- **WHEN** `cospec archive <change> -y`, `cospec init --no-animation .` and
-  `cospec list --changes` run
-- **THEN** each behaves exactly as it does without the flag
-
-### Requirement: --store-path is refused with a redirect
-
-cospec SHALL refuse `--store-path`, in the space and `=` forms, both before and
-after the command name and on every command, with exit 1 and upstream's redirect
-text respelled to name `cospec store register <path>` and `--store <id>`. On a
-command whose upstream counterpart declares the hidden `--store-path <path>`
-(the row's `declaresStorePath`: `list`, `view`, `archive`, `validate`, `status`,
-`instructions`, `new`, `context`, `doctor`, `show`, `schemas`), the space form
-SHALL take the next token as its value, and under `--json` the refusal SHALL be
-exactly one JSON document on stdout carrying `status[0].code`
-`store_path_not_supported`, `target` `store.id`, and `message` and `fix`
-respelled the same way. On every other command it SHALL be an unknown option
-that takes no value: refused in scan order after any earlier unknown option,
-outranked by help, and answered as stderr text even under `--json`. The text
-SHALL never name bare `openspec`. The refusal SHALL land where the pinned binary
-refuses `--store-path`: on a declaring `table` row after the row's
-unknown-option, pending and too-many-arguments refusals (a `--store-path` with
-no value is refused while parsing); on a `forward` row the binary SHALL be the
-authority — cospec SHALL NOT pre-decide from a raw `--store-path` token, SHALL
-hand the row's argv to its wrapper unchanged, SHALL relay any refusal the binary
-reaches first and SHALL answer the redirect in place of the binary's own
-`--store-path` refusal only, never for a call that exited 0 — except on a
-terminal-handover leaf (`config edit`, `config profile` with no preset,
-`config reset --all` without `-y`, `workset open`), where cospec SHALL answer
-the redirect without spawning when `--store-path` stands in option position by
-the row's declared flags; and after a leading `--` a `--store-path` SHALL be an
-operand.
-
-#### Scenario: --store-path after the command name
-
-- **WHEN** `cospec list --store-path /x` or `cospec list --store-path=/x` runs
-- **THEN** stderr carries the redirect text naming `cospec store register` and
-  `--store <id>`, nothing is listed, and the exit code is 1
-
-#### Scenario: --store-path before the command name
-
-- **WHEN** `cospec --store-path /x list` runs
-- **THEN** cospec prints the same redirect text, treats no part of the
-  invocation as a command name, and exits 1
-
-#### Scenario: An earlier refusal answers before --store-path
-
-- **WHEN** `cospec list --store-path /x --bogus`,
-  `cospec list a --store-path /x` or
-  `cospec config path --bogus --store-path /x` runs
-- **THEN** the answer is the unknown option `--bogus` or too many arguments, as
-  the pinned binary answers, and the exit code is 1
-
-#### Scenario: A --store-path that is another flag's value on a forward row
-
-- **WHEN** `cospec schema init s1 --description --store-path` runs in a project
-- **THEN** the schema `s1` is created and the exit code is 0, as the pinned
-  binary answers
-
-#### Scenario: A token after --store-path is its value
-
-- **WHEN** `cospec list --store-path --json`, `cospec list --store-path --store`
-  or `cospec show c1 --store-path --help` runs
-- **THEN** that token is `--store-path`'s value, neither absorbed as a global
-  flag nor read as help: stderr carries the redirect text, stdout is empty, and
-  the exit code is 1, as the pinned binary answers; before the command name
-  `--store-path` takes no value, so `cospec --store-path --help list` prints the
-  program's help and exits 0
-
-#### Scenario: --store-path on a terminal-handover leaf
-
-- **WHEN** `cospec config edit --store-path /x` runs
-- **THEN** stderr carries the redirect, the exit code is 1, and no editor runs
-  and no config file is written
-
-#### Scenario: --store-path under --json
-
-- **WHEN** `cospec list --json --store-path /x` runs
-- **THEN** stdout is one JSON document whose `status[0].code` is
-  `store_path_not_supported` and whose `fix` names `cospec store register`
-
-#### Scenario: --store-path where upstream never declares it
-
-- **WHEN** `cospec init --store-path --help`, `cospec init --bogus --store-path`
-  or `cospec init --store-path --json` runs
-- **THEN** it takes no value, as the pinned binary answers: the first prints
-  `init`'s help and exits 0, the second refuses `--bogus`, and the third prints
-  the redirect on stderr with nothing on stdout, exit 1
-
-### Requirement: Per-command help is rendered from the table
-
-`cospec <command> --help` SHALL render the command's positionals and every
-handled or accepted-no-op flag from the table, with each flag's placeholder and
-description. `cospec show --help` SHALL list `--diff` and `--requirements`, and
-SHALL describe `--requirements-only` as the deprecated alias of `--deltas-only`.
-
-#### Scenario: show --help lists the spec and diff flags
-
-- **WHEN** `cospec show --help` runs
-- **THEN** stdout lists `--diff`, `--requirements`, `--deltas-only`,
-  `--requirements-only`, `--no-scenarios`, `-r, --requirement <id>` and
-  `--type <change|spec>`, and exits 0
-
 ### Requirement: Every pinned upstream surface resolves somewhere
 
 A contract test SHALL import, in tests only, `COMMAND_REGISTRY` from the pinned
@@ -924,26 +496,44 @@ flag alias SHALL agree with upstream on whether the flag takes a value.
   aliases of `new`, `completion` and `init`, while the flags and positionals the
   table declares beneath them resolve to the table
 
-### Requirement: A per-command differential fixture pins the parse contract
+### Requirement: An undeclared option before the command name is refused
 
-For every `table` command, a contract fixture SHALL run the same argv through
-`cospec` and the pinned binary in the same fixture repo and SHALL classify each
-run as parse-rejected (an unknown-option, argument-missing, too-many- arguments
-or `--store-path` refusal) or parsed (any other outcome). Both tools SHALL land
-in the same class, and when both are parse-rejected the exit codes SHALL be
-equal. A fixture row declared `cospec-only` SHALL assert that cospec parses and
-the binary parse-rejects; a row declared `pending` SHALL assert that cospec
-fails with the not-supported-yet message and exit 1.
+cospec SHALL refuse any option before the command name that is not one of its
+global flags (`--json`, `--no-color`, `-h`/`--help`, `-V`/`--version`, `--cwd`,
+`--store`) or `--store-path`, on every command (`table` and `forward` alike) and
+when the command is unknown or absent, with `cospec: unknown option '<x>'` on
+stderr, a closest-match suggestion among the global long flags on the next line
+when an unknown long (`--`) option is within edit distance of one — an unknown
+short option gets none, as commander offers none — and exit 1, before the
+command does any work, as the pinned binary's program-level commander refuses
+it. The refusal is a phase A answer: it SHALL yield only to a version request, a
+missing global value before it and a help flag anywhere in the argv, and SHALL
+come before anything after the command name is parsed, since the pinned binary
+refuses it before it parses the subcommand at all. Of an undeclared option and
+`--store-path` before the command name, the first in argv SHALL answer, and
+`--store-path` SHALL answer with its redirect. A `--` before the command name is
+a terminator, not an undeclared option.
 
-#### Scenario: Same accept-or-reject answer
+#### Scenario: An unknown option before the command does not run it
 
-- **WHEN** the fixture runs `validate --typo x`, `status --schem custom`,
-  `list --changes`, `archive c -y` and `init --no-animation .` through both
-  tools
-- **THEN** each pair lands in the same class with the same exit code when
-  rejected
+- **WHEN** `cospec --bogus list` runs in a repo with active changes
+- **THEN** stderr is `cospec: unknown option '--bogus'`, nothing is listed, and
+  the exit code is 1, as `openspec --bogus list` refuses
 
-#### Scenario: cospec-only surfaces are expected divergence
+#### Scenario: A post-command missing value does not outrank it
 
-- **WHEN** the fixture runs `list --blocked` or `validate --fast`
-- **THEN** cospec parses, the binary parse-rejects, and the row passes
+- **WHEN** `cospec --bogus list --store` runs
+- **THEN** stderr is `cospec: unknown option '--bogus'` and the exit code is 1,
+  as `openspec --bogus list --store` refuses
+
+#### Scenario: A near-miss global flag is suggested
+
+- **WHEN** `cospec --jsn list` runs
+- **THEN** stderr is `cospec: unknown option '--jsn'` followed by
+  `Did you mean '--json'?`, and the exit code is 1
+
+#### Scenario: An unknown short option before the command gets no suggestion
+
+- **WHEN** `cospec -x list` runs
+- **THEN** stderr is exactly `cospec: unknown option '-x'`, with no
+  `Did you mean` line, and the exit code is 1, as `openspec -x list` refuses

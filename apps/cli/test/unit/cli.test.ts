@@ -212,9 +212,11 @@ describe('cli dispatcher: help renders from the command table', () => {
 
   test('pending flags never appear in help', async () => {
     const init = await dispatch(['init', '--help'])
-    for (const flag of ['--tools', '--language', '--profile', '--copilot-cloud'])
+    for (const flag of ['--language', '--profile', '--copilot-cloud'])
       expect(init.out).not.toContain(flag)
     expect(init.out).toContain('--no-animation')
+    // An alias flag is an offered flag: upstream's `init --help` lists `--tools`.
+    expect(init.out).toMatch(/^ {2}--tools <tools> +OpenSpec's spelling of --harness/m)
     const list = await dispatch(['list', '--help'])
     expect(list.out).not.toContain('--sort')
     expect(list.out).toContain('--changes')
@@ -235,9 +237,11 @@ describe('cli dispatcher: help renders from the command table', () => {
   test('pending subcommands and positionals stay out of help', async () => {
     const completion = await dispatch(['completion', '--help'])
     expect(completion.out).toContain('Usage: cospec completion [bash|zsh|fish] [options]')
-    expect(completion.out).not.toContain('Subcommands:')
+    expect(completion.out).not.toMatch(/^ {2}(?:install|uninstall)\b/m)
+    expect(completion.out).not.toContain('powershell')
+    // `update [path]` is handled (change `upstream-spellings`).
     const update = await dispatch(['update', '--help'])
-    expect(update.out).toContain('Usage: cospec update [options]')
+    expect(update.out).toContain('Usage: cospec update [path] [options]')
   })
 })
 
@@ -407,9 +411,10 @@ describe('cli dispatcher: an undeclared option before the command is refused', (
   for (const [argv, err] of [
     [['--bogus', 'list'], "cospec: unknown option '--bogus'\n"],
     [['--jsn', 'list'], "cospec: unknown option '--jsn'\nDid you mean '--json'?\n"],
-    [['--jsn=1', 'list'], "cospec: unknown option '--jsn=1'\nDid you mean '--json'?\n"],
+    // The whole token is compared, as commander's suggestSimilar does: none is close.
+    [['--jsn=1', 'list'], "cospec: unknown option '--jsn=1'\n"],
     [['--verison', 'list'], "cospec: unknown option '--verison'\nDid you mean '--version'?\n"],
-    [['-x', 'list'], "cospec: unknown option '-x'\nDid you mean '-h'?\n"],
+    [['-x', 'list'], "cospec: unknown option '-x'\n"],
     [['--bogus'], "cospec: unknown option '--bogus'\n"],
     [['--bogus', 'nosuch'], "cospec: unknown option '--bogus'\n"],
     [['--bogus', '--store-path', '/x', 'list'], "cospec: unknown option '--bogus'\n"],

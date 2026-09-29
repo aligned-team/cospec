@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 
-import { REMEDIES, type Remedy, respellRemedies } from '../../../src/core/remedies.ts'
+import {
+  REMEDIES,
+  type Remedy,
+  respellRemedies,
+  respellSchemaLines,
+  respellWholeRemedy,
+  SCHEMA_LINES,
+} from '../../../src/core/remedies.ts'
 
 /** A bare `openspec` command a user could copy and run outside cospec. */
 const BARE_OPENSPEC = /\bopenspec [a-z-]/
@@ -87,5 +94,66 @@ describe('respellRemedies: nothing but an allowlisted sentence', () => {
       '  cospec new <type> c1 --store <id>\n',
     )
     expect(respellRemedies('  openspec list --store <id>\n')).toBe('  cospec list --store <id>\n')
+  })
+})
+
+describe('respellWholeRemedy: a value that is one remedy, whole', () => {
+  test('each references/* fix and fetch the binary writes is spelled, holes as captured', () => {
+    const home = "'/home/u/openspec/openspec-team'"
+    const cases: [string, string][] = [
+      [
+        'openspec show <spec-id> --type spec --store openspec-team',
+        'cospec show <spec-id> --type spec --store openspec-team',
+      ],
+      ['Run: openspec store doctor openspec-team', 'Run: cospec store doctor openspec-team'],
+      ['Run: openspec store doctor', 'Run: cospec store doctor'],
+      [
+        `git clone -- https://x.invalid/t.git ${home} && openspec store register ${home} --id openspec-team`,
+        `git clone -- https://x.invalid/t.git ${home} && cospec store register ${home} --id openspec-team`,
+      ],
+      [
+        'Get a checkout from a teammate and run: openspec store register <path> --id openspec-x',
+        'Get a checkout from a teammate and run: cospec store register <path> --id openspec-x',
+      ],
+      [
+        'List the rest directly: openspec list --specs --store openspec-x',
+        'List the rest directly: cospec list --specs --store openspec-x',
+      ],
+      [
+        "Change 'nope' not found. No changes exist. Create one with: openspec new change <name>",
+        "Change 'nope' not found. No changes exist. Create one with: cospec new <type> <name>",
+      ],
+    ]
+    for (const [upstream, cospec] of cases) expect(respellWholeRemedy(upstream)).toBe(cospec)
+  })
+
+  test('anything around the remedy, or no remedy, leaves the value as written', () => {
+    for (const value of [
+      'Use kebab-case store ids in the references list.',
+      'openspec show <spec-id> --type spec --store st1 and more',
+      'Note: Run: openspec store doctor st2',
+      'Run: openspec store doctor st2\n  Fix: Run: openspec store doctor st3',
+      ' openspec show <spec-id> --type spec --store st1',
+      '',
+    ])
+      expect(respellWholeRemedy(value)).toBe(value)
+  })
+})
+
+describe('respellSchemaLines: the built-in schema lines, whole, after indentation', () => {
+  test('each entry is spelled with its indentation kept', () => {
+    for (const line of SCHEMA_LINES) {
+      expect(respellSchemaLines(line.upstream)).toBe(line.cospec)
+      expect(respellSchemaLines(`     ${line.upstream}`)).toBe(`     ${line.cospec}`)
+      expect(line.cospec).not.toMatch(/\bopenspec [a-z]/)
+    }
+  })
+
+  test('a line with anything more than an entry is left as written', () => {
+    const entry = SCHEMA_LINES[0]!.upstream
+    const text = `x ${entry}\n${entry} y\n\t${entry}\nopenspec list`
+    expect(respellSchemaLines(text)).toBe(
+      `x ${entry}\n${entry} y\n\t${SCHEMA_LINES[0]!.cospec}\nopenspec list`,
+    )
   })
 })

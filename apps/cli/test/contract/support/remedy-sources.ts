@@ -28,7 +28,8 @@ export const notRelayed = {
     'names the `openspec/` directory, not a command, and `cospec view` refuses a root with no `openspec/` itself before spawning (`commands/view.ts`)',
   HIDDEN_OPTION:
     'the description of the hidden `--store-path` option (`.hideHelp()`), which no help screen prints; cospec prints its own help',
-  EXPERIMENTAL: 'only `openspec experimental` runs it; cospec has no `experimental` command',
+  EXPERIMENTAL:
+    "`cospec experimental` is native (`commands/experimental.ts`): it prints its own respelled note and runs `cospec init`, never the binary's `experimental`",
   NOUN_CHANGE:
     'only the noun-form `openspec change …` commands run it; cospec has no `change` command',
   NOUN_CHANGE_NO_NAME:
@@ -801,21 +802,77 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
     "console.error('Note: OpenSpec collects anonymous usage stats. Opt out: OPENSPEC_TELEMETRY=0 or openspec config set telemetry.enabled false');",
     notRelayed.TELEMETRY,
   ],
+  // The built-in `spec-driven` schema's own instruction text and proposal
+  // template (`schemas/spec-driven/schema.yaml`, `templates/proposal.md`),
+  // printed only by `instructions` for a change on that schema: spelled
+  // through `SCHEMA_LINES` (`core/remedies.ts`) when the schema resolves from
+  // the package, never on a project or user copy (the user's own text).
+  [
+    'schemas/spec-driven/schema.yaml',
+    "run `openspec list --specs` for the project's capability inventory, then",
+    'spec-driven/proposal-list-specs',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    '`openspec show "<spec-id>" --type spec --json --no-scenarios` for any that',
+    'spec-driven/proposal-show-json',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'error. `openspec list` without `--specs` lists in-flight changes, not',
+    'spec-driven/proposal-list-changes',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'scenarios, with `openspec show "<spec-id>" --type spec` (same `--store` rule).',
+    'spec-driven/proposal-show',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'modified) or explicitly opt out of specs: `openspec validate` rejects a',
+    'spec-driven/proposal-validate',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    '- Modified capabilities: use the exact existing path from `openspec/specs/<capability-path>/` when creating the delta at `specs/<capability-path>/spec.md`. Run `openspec list --specs` to confirm that path before writing the delta, appending `--store "<id>"` only for a registered standalone store - a mistyped or invented path targets a capability that does not exist rather than the one you meant. Do not move or rename the capability.',
+    'spec-driven/specs-modified-path',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'sets `skip_specs: true` (no spec-level behavior change) - `openspec validate`',
+    'spec-driven/specs-skip-validate',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'one or two sentences (50+ characters, or `openspec validate --strict`',
+    'spec-driven/specs-validate-strict',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'directly. `planningHome.root` comes from the `openspec instructions ...',
+    'spec-driven/specs-planning-home',
+  ],
+  [
+    'schemas/spec-driven/templates/proposal.md',
+    'must set `skip_specs: true` in its .openspec.yaml - openspec validate rejects',
+    'spec-driven/template-proposal-validate',
+  ],
 ]
 
 /**
  * The roadmap PRs that own the spelling of a line R1 relays untouched on a
- * successful answer. The instructions and context owners are
- * cospec-roadmap's confirmed rulings (round 16: instructions' reference block
- * is upstream-spellings', context's is passthrough-json-and-doctor's); the
+ * successful answer. The context owner is cospec-roadmap's confirmed ruling
+ * (round 16: context's reference block is passthrough-json-and-doctor's); the
  * workset/config owner follows its ruling that R4 wires the allowlist into
  * those relays. (`schema init`'s `3. Use with:` line, once owned by
- * root-resolution-parity, is spelled by `schema.ts` itself.)
+ * root-resolution-parity, is spelled by `schema.ts` itself; `instructions`,
+ * once owned by upstream-spellings, builds its answer from the binary's
+ * document with its command fields spelled, `core/instructions-render.ts`.)
  */
-export const OWNERS = ['upstream-spellings', 'passthrough-json-and-doctor'] as const
+export const OWNERS = ['passthrough-json-and-doctor'] as const
 
 /** The cospec commands that relay a successful answer as the binary wrote it. */
-export const SUCCESS_RELAYS = ['instructions', 'context', 'workset', 'config'] as const
+export const SUCCESS_RELAYS = ['context', 'workset', 'config'] as const
 
 /**
  * [module under dist/, trimmed source line, the cospec command whose successful
@@ -831,10 +888,13 @@ export const REACHABLE_OWNED: readonly (readonly [
   relay: (typeof SUCCESS_RELAYS)[number],
   owner: (typeof OWNERS)[number],
 ])[] = [
-  // `assembleReferenceIndex`'s entries: instructions' `<referenced_stores>`
-  // block and `references[]`, and context's `Referenced stores` / `Not
-  // available on this machine` sections and `members[]` (via
-  // `gatherRelationshipData` and `fetchRecipe`).
+  // `assembleReferenceIndex`'s entries in context's `Referenced stores` /
+  // `Not available on this machine` sections and `members[]` (via
+  // `gatherRelationshipData` and `fetchRecipe`). instructions' own
+  // `<referenced_stores>` block and `references[]` are built from its
+  // document, each `fetch`/`fix` spelled through the allowlist entries these
+  // lines already name in `REMEDY_SOURCES` (`INSTRUCTIONS_COMMAND_FIELDS` in
+  // `core/instructions-render.ts`).
   ...(
     [
       'return `git clone -- ${remote} ${quoted} && openspec store register ${quoted} --id ${id}`;',
@@ -844,10 +904,7 @@ export const REACHABLE_OWNED: readonly (readonly [
       "warning('reference_root_unhealthy', `Referenced store '${id}' is registered but not usable (${inspection.kind.replace(/_/g, ' ')}).`, `Run: openspec store doctor ${id}`),",
       "entry.status.push(warning('reference_index_truncated', `Referenced store '${id}' index truncated at the 50KB budget (${low} of ${specs.length} specs listed).`, `List the rest directly: openspec list --specs --store ${id}`));",
     ] as const
-  ).flatMap((line) => [
-    ['core/references.js', line, 'instructions', 'upstream-spellings'] as const,
-    ['core/references.js', line, 'context', 'passthrough-json-and-doctor'] as const,
-  ]),
+  ).map((line) => ['core/references.js', line, 'context', 'passthrough-json-and-doctor'] as const),
   // `inspectRelationships`' top-level status, context's `status[]`.
   [
     'core/relationship-health.js',
@@ -874,71 +931,5 @@ export const REACHABLE_OWNED: readonly (readonly [
     "console.log('Config updated. Run `openspec update` in your projects to apply.');",
     'config',
     'passthrough-json-and-doctor',
-  ],
-  // The built-in `spec-driven` schema's own instruction text and proposal
-  // template (`schemas/spec-driven/schema.yaml`, `templates/proposal.md`):
-  // for a change on that schema (never on one of cospec's 11 typed schemas),
-  // `cospec instructions <artifact> --change <id>` is a thin passthrough
-  // (`commands/instructions.ts`) that relays the binary's successful answer
-  // untouched, so this text reaches the user unspelled.
-  [
-    'schemas/spec-driven/schema.yaml',
-    "run `openspec list --specs` for the project's capability inventory, then",
-    'instructions',
-    'upstream-spellings',
-  ],
-  [
-    'schemas/spec-driven/schema.yaml',
-    '`openspec show "<spec-id>" --type spec --json --no-scenarios` for any that',
-    'instructions',
-    'upstream-spellings',
-  ],
-  [
-    'schemas/spec-driven/schema.yaml',
-    'error. `openspec list` without `--specs` lists in-flight changes, not',
-    'instructions',
-    'upstream-spellings',
-  ],
-  [
-    'schemas/spec-driven/schema.yaml',
-    'scenarios, with `openspec show "<spec-id>" --type spec` (same `--store` rule).',
-    'instructions',
-    'upstream-spellings',
-  ],
-  [
-    'schemas/spec-driven/schema.yaml',
-    'modified) or explicitly opt out of specs: `openspec validate` rejects a',
-    'instructions',
-    'upstream-spellings',
-  ],
-  [
-    'schemas/spec-driven/schema.yaml',
-    '- Modified capabilities: use the exact existing path from `openspec/specs/<capability-path>/` when creating the delta at `specs/<capability-path>/spec.md`. Run `openspec list --specs` to confirm that path before writing the delta, appending `--store "<id>"` only for a registered standalone store - a mistyped or invented path targets a capability that does not exist rather than the one you meant. Do not move or rename the capability.',
-    'instructions',
-    'upstream-spellings',
-  ],
-  [
-    'schemas/spec-driven/schema.yaml',
-    'sets `skip_specs: true` (no spec-level behavior change) - `openspec validate`',
-    'instructions',
-    'upstream-spellings',
-  ],
-  [
-    'schemas/spec-driven/schema.yaml',
-    'one or two sentences (50+ characters, or `openspec validate --strict`',
-    'instructions',
-    'upstream-spellings',
-  ],
-  [
-    'schemas/spec-driven/schema.yaml',
-    'directly. `planningHome.root` comes from the `openspec instructions ...',
-    'instructions',
-    'upstream-spellings',
-  ],
-  [
-    'schemas/spec-driven/templates/proposal.md',
-    'must set `skip_specs: true` in its .openspec.yaml - openspec validate rejects',
-    'instructions',
-    'upstream-spellings',
   ],
 ]

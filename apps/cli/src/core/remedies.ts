@@ -507,6 +507,114 @@ function respellCommands(hole: string, dialect: Dialect): string {
   )
 }
 
+/** Every remedy, compiled to match only a whole string value, in `respellRemedies` order. */
+const WHOLE = [...SENTENCES, ...COMMAND_RULES].map((rule) => ({
+  rule,
+  pattern: new RegExp(`^${body(rule.remedy.upstream, 'text', true)}$`),
+}))
+
+/**
+ * `value` spelled through cospec when the whole of it is one allowlisted
+ * remedy (each hole re-emitted as captured), else `value` unchanged. For a
+ * document field that holds one remedy and nothing else (a reference's
+ * `fetch` or `fix`): a value with anything before or after the remedy, or no
+ * remedy at all, is never rewritten.
+ */
+export function respellWholeRemedy(value: string): string {
+  for (const { rule, pattern } of WHOLE) {
+    const match = pattern.exec(value)
+    if (match !== null) return replacement(rule, 'text')(...match)
+  }
+  return value
+}
+
+/**
+ * The lines of the pinned package's own built-in `spec-driven` schema
+ * (`schemas/spec-driven/schema.yaml` instructions and `templates/proposal.md`)
+ * that name a bare `openspec <command>`, each with its cospec spelling. They
+ * reach a user only in an `instructions` answer for a change on that schema,
+ * and only when it resolves from the package (`schema which --json` reports
+ * `source: package`): a project or user copy of the schema is the user's own
+ * text and is never rewritten. A line is rewritten only when it equals one of
+ * these, after its indentation.
+ */
+export const SCHEMA_LINES: readonly {
+  readonly id: string
+  readonly upstream: string
+  readonly cospec: string
+}[] = [
+  {
+    id: 'spec-driven/proposal-list-specs',
+    upstream: "run `openspec list --specs` for the project's capability inventory, then",
+    cospec: "run `cospec list --specs` for the project's capability inventory, then",
+  },
+  {
+    id: 'spec-driven/proposal-show-json',
+    upstream: '`openspec show "<spec-id>" --type spec --json --no-scenarios` for any that',
+    cospec: '`cospec show "<spec-id>" --type spec --json --no-scenarios` for any that',
+  },
+  {
+    id: 'spec-driven/proposal-list-changes',
+    upstream: 'error. `openspec list` without `--specs` lists in-flight changes, not',
+    cospec: 'error. `cospec list` without `--specs` lists in-flight changes, not',
+  },
+  {
+    id: 'spec-driven/proposal-show',
+    upstream: 'scenarios, with `openspec show "<spec-id>" --type spec` (same `--store` rule).',
+    cospec: 'scenarios, with `cospec show "<spec-id>" --type spec` (same `--store` rule).',
+  },
+  {
+    id: 'spec-driven/proposal-validate',
+    upstream: 'modified) or explicitly opt out of specs: `openspec validate` rejects a',
+    cospec: 'modified) or explicitly opt out of specs: `cospec validate` rejects a',
+  },
+  {
+    id: 'spec-driven/specs-modified-path',
+    upstream:
+      '- Modified capabilities: use the exact existing path from `openspec/specs/<capability-path>/` when creating the delta at `specs/<capability-path>/spec.md`. Run `openspec list --specs` to confirm that path before writing the delta, appending `--store "<id>"` only for a registered standalone store - a mistyped or invented path targets a capability that does not exist rather than the one you meant. Do not move or rename the capability.',
+    cospec:
+      '- Modified capabilities: use the exact existing path from `openspec/specs/<capability-path>/` when creating the delta at `specs/<capability-path>/spec.md`. Run `cospec list --specs` to confirm that path before writing the delta, appending `--store "<id>"` only for a registered standalone store - a mistyped or invented path targets a capability that does not exist rather than the one you meant. Do not move or rename the capability.',
+  },
+  {
+    id: 'spec-driven/specs-skip-validate',
+    upstream: 'sets `skip_specs: true` (no spec-level behavior change) - `openspec validate`',
+    cospec: 'sets `skip_specs: true` (no spec-level behavior change) - `cospec validate`',
+  },
+  {
+    id: 'spec-driven/specs-validate-strict',
+    upstream: 'one or two sentences (50+ characters, or `openspec validate --strict`',
+    cospec: 'one or two sentences (50+ characters, or `cospec validate --strict`',
+  },
+  {
+    id: 'spec-driven/specs-planning-home',
+    upstream: 'directly. `planningHome.root` comes from the `openspec instructions ...',
+    cospec: 'directly. `planningHome.root` comes from the `cospec instructions ...',
+  },
+  {
+    id: 'spec-driven/template-proposal-validate',
+    upstream: 'must set `skip_specs: true` in its .openspec.yaml - openspec validate rejects',
+    cospec: 'must set `skip_specs: true` in its .openspec.yaml - cospec validate rejects',
+  },
+]
+
+const SCHEMA_LINE_SPELLING = new Map(SCHEMA_LINES.map((line) => [line.upstream, line.cospec]))
+
+/**
+ * `text` (a built-in schema's instruction or template) with each line that
+ * equals a `SCHEMA_LINES` entry after its indentation spelled through cospec,
+ * the indentation kept; every other line unchanged.
+ */
+export function respellSchemaLines(text: string): string {
+  return text
+    .split('\n')
+    .map((line) => {
+      const indent = /^[ \t]*/.exec(line)![0]
+      const cospec = SCHEMA_LINE_SPELLING.get(line.slice(indent.length))
+      return cospec === undefined ? line : indent + cospec
+    })
+    .join('\n')
+}
+
 /**
  * `text` with each allowlisted upstream sentence it holds verbatim spelled
  * through cospec — as printed, or inside a JSON string — and every other byte

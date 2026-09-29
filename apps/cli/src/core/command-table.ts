@@ -26,7 +26,6 @@
 
 /** Every change slug that owns a pending surface. */
 export type PendingOwner =
-  | 'upstream-spellings'
   | 'passthrough-json-and-doctor'
   | 'validation-parity'
   | 'cli-surface-parity'
@@ -53,6 +52,16 @@ export interface FlagSpec {
   readonly description: string
   readonly status: SurfaceStatus
   readonly origin: SurfaceOrigin
+  /**
+   * Upstream's spelling of the flag this names on the same surface
+   * (`--tools` for `--harness`): parsed with its own placeholder, its value
+   * stored under that flag's name, the typed spelling recorded
+   * (`flagSpelling`). The reachability test resolves an aliased flag through
+   * `aliases.yaml`, never the table.
+   */
+  readonly aliasOf?: `--${string}`
+  /** Parsed like any flag, never offered to `--help` or completion (upstream hides it too). */
+  readonly hidden?: true
 }
 
 export interface PositionalSpec {
@@ -74,6 +83,11 @@ export interface PositionalSpec {
   readonly values?: readonly string[]
   /** Values a user may type that are owed by a later change (refused as pending). */
   readonly pendingValues?: Readonly<Record<string, PendingOwner>>
+  /**
+   * The command reads the value case-insensitively (upstream's `completion`
+   * lowercases its shell name), so a pending value is matched lowercased too.
+   */
+  readonly foldCase?: true
   /**
    * A cospec-only positional that spells what these flags select. Upstream
    * has no such positional, so given together with any of them it is the
@@ -98,6 +112,13 @@ export interface SubcommandSpec extends SurfaceSpec {
   readonly summary: string
   readonly status: SurfaceStatus
   readonly origin: SurfaceOrigin
+  /**
+   * The cospec command this subcommand is upstream's spelling of (`new change`
+   * of `new`): it dispatches to that command's module with its own declared
+   * surface parsed, and the reachability test resolves it through
+   * `aliases.yaml`.
+   */
+  readonly aliasOf?: string
 }
 
 interface RowBase extends SurfaceSpec {
@@ -125,6 +146,19 @@ interface RowBase extends SurfaceSpec {
    * document under `--json`.
    */
   readonly declaresStorePath?: true
+  /**
+   * The cospec command this row is upstream's spelling of (`experimental` of
+   * `init`), resolved through `aliases.yaml` by the reachability test.
+   */
+  readonly aliasOf?: string
+  /**
+   * `lenient`: nothing is refused, as commander's implicit `help [command]`
+   * reads its argv — the first undeclared option ends the operands (commander
+   * files it and everything after it as unknown), and excess operands are
+   * ignored. The dispatcher hands such a row its whole argv, cospec's global
+   * flags included: upstream's help command declares none of them.
+   */
+  readonly operands?: 'lenient'
 }
 
 export type TableCommandRow = RowBase & {
@@ -181,7 +215,11 @@ function upstreamArg(spec: PositionalInput): PositionalSpec {
 function cospecArg(spec: PositionalInput): PositionalSpec {
   return { ...spec, status: spec.status ?? HANDLED, origin: 'cospec' }
 }
-function sub(name: string, summary: string, surface: Partial<SurfaceSpec> = {}): SubcommandSpec {
+function sub(
+  name: string,
+  summary: string,
+  surface: Partial<SurfaceSpec> & { aliasOf?: string } = {},
+): SubcommandSpec {
   return {
     name,
     summary,
@@ -189,6 +227,7 @@ function sub(name: string, summary: string, surface: Partial<SurfaceSpec> = {}):
     origin: 'upstream',
     positionals: surface.positionals ?? [],
     flags: surface.flags ?? [],
+    ...(surface.aliasOf !== undefined ? { aliasOf: surface.aliasOf } : {}),
   }
 }
 function pendingSub(name: string, summary: string, owner: PendingOwner): SubcommandSpec {
@@ -270,8 +309,8 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         name: '--tools',
         takesValue: true,
         placeholder: '<tools>',
-        description: 'Configure AI tools non-interactively (upstream spelling of --harness)',
-        status: pending('upstream-spellings'),
+        description: "OpenSpec's spelling of --harness (same values)",
+        aliasOf: '--harness',
       }),
       upstream({
         name: '--language',
@@ -308,7 +347,11 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     json: 'accepted',
     store: 'refused',
     positionals: [
-      upstreamArg({ name: 'path', required: false, status: pending('upstream-spellings') }),
+      upstreamArg({
+        name: 'path',
+        required: false,
+        description: 'The project to update (default: the current directory)',
+      }),
     ],
     flags: [
       cospec({ name: '--check', description: 'Drift gate: exit nonzero on drift, write nothing' }),
@@ -350,8 +393,58 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         placeholder: '<text>',
         description: 'Seed the proposal with a one-line description',
       }),
+      cospec({
+        name: '--goal',
+        takesValue: true,
+        placeholder: '<text>',
+        description: "Store goal metadata in the change's .openspec.yaml",
+      }),
     ],
-    subcommands: [pendingSub('change', 'Create a new change directory', 'upstream-spellings')],
+    subcommands: [
+      // Upstream's spelling of `new`: the type is `--schema`, else the root's
+      // default schema (`config.yaml`'s `schema:`, else `spec-driven`).
+      sub('change', "OpenSpec's spelling: create a change of --schema's type", {
+        aliasOf: 'new',
+        positionals: [
+          upstreamArg({ name: 'name', required: true, description: 'Kebab-case change id' }),
+        ],
+        flags: [
+          upstream({
+            name: '--schema',
+            takesValue: true,
+            placeholder: '<name>',
+            description: "The change's type (default: the root's config.yaml schema)",
+          }),
+          upstream({
+            name: '--description',
+            takesValue: true,
+            placeholder: '<text>',
+            description: 'Seed the proposal with a one-line description',
+          }),
+          upstream({
+            name: '--goal',
+            takesValue: true,
+            placeholder: '<text>',
+            description: "Store goal metadata in the change's .openspec.yaml",
+          }),
+          // Removed upstream and hidden from its help; refused with its message.
+          upstream({
+            name: '--initiative',
+            takesValue: true,
+            placeholder: '<id>',
+            description: 'Removed upstream (refused)',
+            hidden: true,
+          }),
+          upstream({
+            name: '--areas',
+            takesValue: true,
+            placeholder: '<names>',
+            description: 'Removed upstream (refused)',
+            hidden: true,
+          }),
+        ],
+      }),
+    ],
   },
   {
     name: 'migrate',
@@ -477,15 +570,15 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     json: 'accepted',
     store: 'accepted',
     declaresStorePath: true,
-    // Upstream's `instructions [artifact]` is optional (its action picks
-    // one); cospec requires it, so a missing artifact is refused at parse.
-    positionals: [upstreamArg({ name: 'artifact', required: true })],
+    // Upstream's `instructions [artifact]` is optional: with no artifact (or
+    // no `--change`) the binary answers itself, listing the valid ones.
+    positionals: [upstreamArg({ name: 'artifact', required: false })],
     flags: [
       upstream({
         name: '--change',
         takesValue: true,
         placeholder: '<slug>',
-        description: 'The change the artifact belongs to (required)',
+        description: 'The change the artifact belongs to',
       }),
       cospec({ name: '--allow-soft', description: 'Proceed past a soft block' }),
       upstream({
@@ -493,7 +586,6 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         takesValue: true,
         placeholder: '<name>',
         description: 'Schema override',
-        status: pending('upstream-spellings'),
       }),
     ],
     notes: [
@@ -899,15 +991,24 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         required: false,
         values: ['bash', 'zsh', 'fish'],
         pendingValues: { powershell: 'completion-install' },
+        foldCase: true,
       }),
     ],
     flags: [],
     subcommands: [
-      pendingSub(
-        'generate',
-        'Generate completion script for a shell (outputs to stdout)',
-        'upstream-spellings',
-      ),
+      // Upstream's spelling of `completion [shell]`.
+      sub('generate', 'Generate completion script for a shell (outputs to stdout)', {
+        aliasOf: 'completion',
+        positionals: [
+          upstreamArg({
+            name: 'shell',
+            required: false,
+            values: ['bash', 'zsh', 'fish'],
+            pendingValues: { powershell: 'completion-install' },
+            foldCase: true,
+          }),
+        ],
+      }),
       pendingSub('install', 'Install completion script for a shell', 'completion-install'),
       pendingSub('uninstall', 'Uninstall completion script for a shell', 'completion-install'),
     ],
@@ -933,6 +1034,20 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         description: 'File at Fission-AI/OpenSpec instead of aligned-team/cospec',
       }),
     ],
+  },
+  {
+    // Commander's implicit program-level `help [command]`, last in upstream's
+    // command list too. It reads only its first operand, never refuses, and
+    // declares no `--store` (`openspec --store x help` is an unknown option).
+    name: 'help',
+    summary: 'Display help for a command',
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    store: 'refused',
+    operands: 'lenient',
+    positionals: [upstreamArg({ name: 'command', required: false })],
+    flags: [],
   },
   {
     name: '__complete',
@@ -964,6 +1079,31 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     positionals: [cospecArg({ name: 'msg-file', required: false })],
     flags: [],
   },
+  {
+    // Upstream's hidden, deprecated alias of `init`. It declares no
+    // `--store` and no `--json`; cospec accepts `--json` as `init` does.
+    name: 'experimental',
+    summary: 'Alias for init (deprecated)',
+    hidden: true,
+    aliasOf: 'init',
+    parse: 'table',
+    json: 'accepted',
+    store: 'refused',
+    positionals: [],
+    flags: [
+      upstream({
+        name: '--tool',
+        takesValue: true,
+        placeholder: '<tool-id>',
+        description: 'Target AI tool (maps to --harness)',
+      }),
+      upstream({
+        name: '--no-interactive',
+        description: 'Accepted for OpenSpec compatibility (cospec init never prompts)',
+        status: NO_OP,
+      }),
+    ],
+  },
 ]
 
 export function commandRow(name: string): CommandRow | undefined {
@@ -983,9 +1123,9 @@ export function positionalLabel(positional: PositionalSpec): string {
   return positional.required ? `<${positional.name}>` : `[${positional.name}]`
 }
 
-/** The flags `--help` and completion list: handled and accepted no-ops, never pending. */
+/** The flags `--help` and completion list: handled and accepted no-ops, never pending or hidden. */
 export function offeredFlags(surface: { readonly flags: readonly FlagSpec[] }): FlagSpec[] {
-  return surface.flags.filter((flag) => !isPending(flag.status))
+  return surface.flags.filter((flag) => !isPending(flag.status) && flag.hidden !== true)
 }
 
 // --- suggestion ------------------------------------------------------------------
@@ -1027,7 +1167,8 @@ export type ParseRefusal =
       readonly kind: 'unknown-option'
       readonly command: string
       readonly option: string
-      readonly suggestion?: string
+      /** Commander's closest long options, sorted; absent when none is close. */
+      readonly suggestions?: readonly string[]
       readonly message: string
     }
   /**
@@ -1072,8 +1213,13 @@ export type ParseRefusal =
 export interface ParsedArgs {
   readonly subcommand?: string
   readonly positionals: readonly string[]
-  /** Keyed by long flag name (`-y` lands under `--yes`); a boolean flag's value is `true`. */
+  /**
+   * Keyed by long flag name (`-y` lands under `--yes`, an alias flag's value
+   * under the flag it is an alias of); a boolean flag's value is `true`.
+   */
   readonly flags: Readonly<Record<string, string | true>>
+  /** The alias spelling that supplied a flag's value, keyed by the flag's name. */
+  readonly spellings?: Readonly<Record<string, string>>
 }
 
 export type ParseResult =
@@ -1090,14 +1236,64 @@ export function flagValue(parsed: ParsedArgs, name: `--${string}`): string | und
   return typeof value === 'string' ? value : undefined
 }
 
-/** The closest candidate to an unknown option, matched on its name before any `=`. */
-function optionSuggestion(option: string, candidates: readonly string[]): string | undefined {
-  const eq = option.startsWith('--') ? option.indexOf('=') : -1
-  return closest(eq > 0 ? option.slice(0, eq) : option, candidates)
+/**
+ * The spelling the user typed for flag `name`: an alias of it when that
+ * supplied the value (`--tools` for `--harness`), else `name`.
+ */
+export function flagSpelling(parsed: ParsedArgs, name: `--${string}`): `--${string}` {
+  const typed = parsed.spellings?.[name]
+  return typed !== undefined ? (typed as `--${string}`) : name
 }
 
-function suggestionHint(suggestion: string | undefined): string {
-  return suggestion !== undefined ? `Did you mean '${suggestion}'?\n` : ''
+const MAX_SUGGEST_DISTANCE = 3
+
+/** Commander's optimal-string-alignment distance, capped as `suggestSimilar` caps it. */
+function editDistance(a: string, b: string): number {
+  if (Math.abs(a.length - b.length) > MAX_SUGGEST_DISTANCE) return Math.max(a.length, b.length)
+  const d: number[][] = []
+  for (let i = 0; i <= a.length; i++) d[i] = [i]
+  for (let j = 0; j <= b.length; j++) d[0]![j] = j
+  for (let j = 1; j <= b.length; j++) {
+    for (let i = 1; i <= a.length; i++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      const row = d[i]!
+      row[j] = Math.min(d[i - 1]![j]! + 1, row[j - 1]! + 1, d[i - 1]![j - 1]! + cost)
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1])
+        row[j] = Math.min(row[j]!, d[i - 2]![j - 2]! + 1)
+    }
+  }
+  return d[a.length]![b.length]!
+}
+
+/**
+ * The long candidates commander's `suggestSimilar` offers for an unknown
+ * option, sorted: none for a short option; else, comparing the whole token
+ * and each candidate without their `--` (an `=value` stays part of the token),
+ * every candidate longer than one character whose similarity
+ * `(length - distance) / length` exceeds 0.4 at the best distance within 3.
+ */
+function optionSuggestions(option: string, candidates: readonly string[]): string[] {
+  if (!option.startsWith('--')) return []
+  const word = option.slice(2)
+  let similar: string[] = []
+  let bestDistance = MAX_SUGGEST_DISTANCE
+  for (const candidate of new Set(candidates.map((c) => c.slice(2)))) {
+    if (candidate.length <= 1) continue
+    const distance = editDistance(word, candidate)
+    const length = Math.max(word.length, candidate.length)
+    if ((length - distance) / length <= 0.4) continue
+    if (distance < bestDistance) {
+      bestDistance = distance
+      similar = [candidate]
+    } else if (distance === bestDistance) similar.push(candidate)
+  }
+  return similar.toSorted((a, b) => a.localeCompare(b)).map((candidate) => `--${candidate}`)
+}
+
+function suggestionHint(suggestions: readonly string[]): string {
+  const quoted = suggestions.map((name) => `'${name}'`)
+  if (quoted.length > 1) return `Did you mean one of ${quoted.join(', ')}?\n`
+  return quoted.length === 1 ? `Did you mean ${quoted[0]}?\n` : ''
 }
 
 /**
@@ -1106,22 +1302,19 @@ function suggestionHint(suggestion: string | undefined): string {
  * commander refuses it there whatever command follows.
  */
 export function globalUnknownOptionRefusal(option: string): string {
-  const candidates = option.startsWith('--')
-    ? [...GLOBAL_FLAGS.map((flag) => flag.name), '--version']
-    : [...GLOBAL_FLAGS.flatMap((flag) => (flag.short !== undefined ? [flag.short] : [])), '-V']
-  const hint = suggestionHint(optionSuggestion(option, candidates))
+  const candidates = [...GLOBAL_FLAGS.map((flag) => flag.name), '--version']
+  const hint = suggestionHint(optionSuggestions(option, candidates))
   return `cospec: unknown option '${option}'\n${hint}`
 }
 
 function unknownOption(command: string, option: string, candidates: string[]): ParseRefusal {
-  const suggestion = optionSuggestion(option, candidates)
-  const hint = suggestionHint(suggestion)
+  const suggestions = optionSuggestions(option, candidates)
   return {
     kind: 'unknown-option',
     command,
     option,
-    ...(suggestion !== undefined ? { suggestion } : {}),
-    message: `cospec ${command}: unknown option '${option}'\n${hint}`,
+    ...(suggestions.length > 0 ? { suggestions } : {}),
+    message: `cospec ${command}: unknown option '${option}'\n${suggestionHint(suggestions)}`,
   }
 }
 
@@ -1202,15 +1395,13 @@ export function isStorePathToken(tok: string): boolean {
   return tok === '--store-path' || tok.startsWith('--store-path=')
 }
 
-function suggestionCandidates(
-  surface: SurfaceSpec,
-  globals: readonly FlagSpec[],
-  dashes: 'long' | 'short',
-): string[] {
-  const flags = [...surface.flags, ...globals]
-  return dashes === 'long'
-    ? flags.map((flag) => flag.name)
-    : flags.flatMap((flag) => (flag.short !== undefined ? [flag.short] : []))
+/**
+ * What commander searches for a hint: the long options the command's help
+ * shows, then its parent's (`-V, --version` among them).
+ */
+function suggestionCandidates(surface: SurfaceSpec, globals: readonly FlagSpec[]): string[] {
+  const visible = [...surface.flags, ...globals].filter((flag) => flag.hidden !== true)
+  return [...visible.map((flag) => flag.name), '--version']
 }
 
 function parseSurface(
@@ -1219,9 +1410,11 @@ function parseSurface(
   globals: readonly FlagSpec[],
   args: readonly string[],
   declaresStorePath: boolean,
+  lenient = false,
 ): ParseResult {
   const positionals: string[] = []
   const flags: Record<string, string | true> = {}
+  const spellings: Record<string, string> = {}
   const storePath: ParseRefusal = { kind: 'store-path', command, message: STORE_PATH_TEXT }
   // Commander's order: a missing value is raised the moment the scan meets it,
   // while an unknown option is collected and reported only after the scan,
@@ -1241,6 +1434,13 @@ function parseSurface(
       positionals.push(tok)
       continue
     }
+    const eq = tok.startsWith('--') ? tok.indexOf('=') : -1
+    const name = eq > 0 ? tok.slice(0, eq) : tok
+    const inline = eq > 0 ? tok.slice(eq + 1) : undefined
+    const flag = surface.flags.find((f) => f.name === name || f.short === name)
+    // On a lenient row the first undeclared option ends the operands, as
+    // commander files it and every later token as unknown.
+    if (lenient && flag === undefined) break
     if (isStorePathToken(tok) && !declaresStorePath) {
       // Undeclared upstream, so an unknown option that takes nothing: the
       // redirect, on stderr only, in the unknown option's place in the order.
@@ -1263,14 +1463,9 @@ function parseSurface(
       continue
     }
 
-    const eq = tok.startsWith('--') ? tok.indexOf('=') : -1
-    const name = eq > 0 ? tok.slice(0, eq) : tok
-    const inline = eq > 0 ? tok.slice(eq + 1) : undefined
-    const flag = surface.flags.find((f) => f.name === name || f.short === name)
     // `--bool=x` is unknown as a whole token, as commander reports it.
     if (flag === undefined || (inline !== undefined && flag.takesValue !== true)) {
-      const dashes = tok.startsWith('--') ? 'long' : 'short'
-      recorded ??= unknownOption(command, tok, suggestionCandidates(surface, globals, dashes))
+      recorded ??= unknownOption(command, tok, suggestionCandidates(surface, globals))
       continue
     }
 
@@ -1295,13 +1490,18 @@ function parseSurface(
       recorded ??= pendingRefusal(command, flag.name, flag.status.pending)
       continue
     }
-    flags[flag.name] = value
+    // An alias and the flag it spells are one option: the last one typed wins.
+    const key = flag.aliasOf ?? flag.name
+    flags[key] = value
+    if (flag.aliasOf !== undefined) spellings[key] = flag.name
+    else delete spellings[key]
   }
 
   if (recorded !== undefined) return { ok: false, refusal: recorded }
   const slots = surface.positionals.filter(
     (p) => p.displacedBy?.some((name) => flags[name] !== undefined) !== true,
   )
+  if (lenient) positionals.splice(slots.length)
   const missing = missingPositional(slots, positionals)
   if (missing !== undefined) return { ok: false, refusal: missingArgument(command, missing, slots) }
   for (const [index, value] of positionals.entries()) {
@@ -1325,12 +1525,15 @@ function parseSurface(
         refusal: pendingRefusal(command, positionalLabel(slot), slot.status.pending),
       }
     }
-    const owner = slot.pendingValues?.[value]
-    if (owner !== undefined) return { ok: false, refusal: pendingRefusal(command, value, owner) }
+    const folded = slot.foldCase === true ? value.toLowerCase() : value
+    const owner = slot.pendingValues?.[folded]
+    if (owner !== undefined) return { ok: false, refusal: pendingRefusal(command, folded, owner) }
   }
 
   if (sawStorePath) return { ok: false, refusal: storePath }
-  return { ok: true, parsed: { positionals, flags } }
+  const parsed: ParsedArgs =
+    Object.keys(spellings).length > 0 ? { positionals, flags, spellings } : { positionals, flags }
+  return { ok: true, parsed }
 }
 
 /**
@@ -1355,7 +1558,9 @@ export function parseCommandArgs(row: TableCommandRow, args: readonly string[]):
     first !== undefined ? row.subcommands?.find((s) => s.name === first) : undefined
   const globals = rowGlobalFlags(row)
   const storePath = storePathTakesValue(row)
-  if (subcommand === undefined) return parseSurface(row.name, row, globals, args, storePath)
+  const lenient = row.operands === 'lenient'
+  if (subcommand === undefined)
+    return parseSurface(row.name, row, globals, args, storePath, lenient)
   if (isPending(subcommand.status)) {
     return {
       ok: false,

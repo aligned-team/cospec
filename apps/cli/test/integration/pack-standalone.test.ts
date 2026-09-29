@@ -333,6 +333,17 @@ describe('standalone pack smoke (bun-less)', () => {
     expect(createdJson.exitCode, decode(createdJson.stderr)).toBe(0)
     expect(() => JSON.parse(createdJsonOut) as unknown).not.toThrow()
     expect(createdJsonOut.split('"change": "demo-json"').length - 1).toBe(1)
+
+    // Upstream's spelling lifts the wrapped document's `change` and `root`
+    // objects, and `new.ts` requires its whole stdout to be one document
+    // (change `upstream-spellings`): a second one would fail the call.
+    const upstreamJson = env([bin, 'new', 'change', 'demo-up', '--schema', 'feat', '--json'])
+    const upstreamJsonOut = decode(upstreamJson.stdout)
+    expect(upstreamJson.exitCode, decode(upstreamJson.stderr)).toBe(0)
+    const upstreamDoc = JSON.parse(upstreamJsonOut) as { change: { id: string }; root: object }
+    expect(upstreamDoc.change.id).toBe('demo-up')
+    expect(typeof upstreamDoc.root).toBe('object')
+    expect(upstreamJsonOut.split('"id": "demo-up"').length - 1).toBe(1)
   }, 180_000)
 })
 

@@ -26,6 +26,7 @@ import { join } from 'node:path'
 
 import pkg from '../../package.json'
 import { COMMAND_TABLE } from '../../src/core/command-table.ts'
+import { respellRemedies } from '../../src/core/remedies.ts'
 import { cleanupAll, cospec, hashTree, mkTempRepo, type SpawnResult } from '../fixtures/support.ts'
 import { classify } from './support/parse-class.ts'
 import { oracle, oracleEnv, oracleJson, scaffoldOracleRoot } from './support/upstream-oracle.ts'
@@ -71,6 +72,10 @@ interface Row {
   setup?: (root: string) => void
   /** cospec's stdout, stderr and exit code equal the binary's exactly: it relays. */
   sameStreams?: true
+  /** cospec's exit code, beyond the class check (a parsed run that must succeed). */
+  exit?: number
+  /** cospec's streams and exit code are the binary's, its remedies spelled through cospec. */
+  relayed?: true
 }
 
 /**
@@ -379,12 +384,6 @@ const NATIVE_ROWS: readonly Row[] = [
  */
 const PENDING_ROWS: readonly Row[] = [
   {
-    argv: ['init', '--tools', 'claude', '.'],
-    command: 'init',
-    expect: 'pending',
-    pendingFlag: '--tools',
-  },
-  {
     argv: ['init', '--language', 'fr', '.'],
     command: 'init',
     expect: 'pending',
@@ -445,29 +444,7 @@ const PENDING_ROWS: readonly Row[] = [
     expect: 'pending',
     pendingFlag: '--no-validate',
   },
-  {
-    argv: ['instructions', 'proposal', '--schema', 'spec-driven', '--change', 'x'],
-    command: 'instructions',
-    expect: 'pending',
-    pendingFlag: '--schema',
-  },
-  // Pending positionals and subcommands (the BREAKING note names these):
-  // `update .` ran against the cwd on main and upstream, but `[path]` is owed
-  // to `upstream-spellings`.
-  { argv: ['update', '.'], command: 'update', expect: 'pending', pendingFlag: '[path]' },
-  {
-    argv: ['update', '--force', '.'],
-    command: 'update',
-    expect: 'pending',
-    pendingFlag: '[path]',
-  },
-  { argv: ['new', 'change', 'x'], command: 'new', expect: 'pending', pendingFlag: 'change' },
-  {
-    argv: ['completion', 'generate', 'bash'],
-    command: 'completion',
-    expect: 'pending',
-    pendingFlag: 'generate',
-  },
+  // Pending subcommands (the BREAKING note names these).
   {
     argv: ['completion', 'install'],
     command: 'completion',
@@ -494,6 +471,47 @@ const PENDING_ROWS: readonly Row[] = [
     pendingFlag: 'archived-changes',
   },
 ]
+
+/**
+ * The upstream spellings change `upstream-spellings` implements (ledger 7.1):
+ * each was a pending row refused as not supported yet, and now answers as the
+ * binary does. `experimental` accepts `--json` as `init` does, a cospec-only
+ * superset.
+ */
+const UPSTREAM_SPELLING_ROWS: readonly Row[] = [
+  { argv: ['init', '--tools', 'claude', '.'], command: 'init', expect: 'same', exit: 0 },
+  { argv: ['update', '.'], command: 'update', expect: 'same', exit: 0 },
+  { argv: ['update', '--force', '.'], command: 'update', expect: 'same', exit: 0 },
+  { argv: ['new', 'change', 'x'], command: 'new', expect: 'same', exit: 0 },
+  { argv: ['completion', 'generate', 'bash'], command: 'completion', expect: 'same', exit: 0 },
+  {
+    argv: ['instructions', 'proposal', '--schema', 'spec-driven', '--change', 'x'],
+    command: 'instructions',
+    expect: 'same',
+    relayed: true,
+  },
+  // A `.claude/` dir lets `init` detect its harness, so the run succeeds.
+  {
+    argv: ['experimental', '--json'],
+    command: 'experimental',
+    expect: 'cospec-only',
+    exit: 0,
+    setup: (root) => mkdirSync(join(root, '.claude')),
+  },
+  { argv: ['help', '--bogus'], command: 'help', expect: 'same', exit: 0 },
+  {
+    argv: ['experimental', '--bogus'],
+    command: 'experimental',
+    expect: 'same',
+    cospecStderr: unknown('experimental', '--bogus'),
+  },
+]
+
+/**
+ * Rows cospec does not answer as the binary does yet, keyed by argv, run as
+ * `test.failing` until the commit implementing each surface removes its key.
+ */
+const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
 
 /**
  * One unknown-option row per `forward` command (ledger 5.3): cospec adds no
@@ -787,6 +805,7 @@ async function checkRow(row: Row): Promise<void> {
   if (row.expect === 'cospec-only') {
     expect(coClass, detail).toBe('parsed')
     expect(upClass, upDetail).toBe('parse-rejected')
+    if (row.exit !== undefined) expect(co.exitCode, detail).toBe(row.exit)
     return
   }
 
@@ -799,6 +818,16 @@ async function checkRow(row: Row): Promise<void> {
     expect(treeHash(coRoot), 'a parse refusal must happen before any work').toEqual(before)
   }
   if (row.cospecStderr !== undefined) expect(co.stderr).toContain(row.cospecStderr)
+  if (row.exit !== undefined) {
+    expect(co.exitCode, detail).toBe(row.exit)
+    if (row.expect === 'same') expect(up.exitCode, upDetail).toBe(row.exit)
+  }
+  if (row.relayed === true)
+    expect({ exit: co.exitCode, stdout: co.stdout, stderr: co.stderr }).toEqual({
+      exit: up.exitCode,
+      stdout: respellRemedies(up.stdout),
+      stderr: respellRemedies(up.stderr),
+    })
   if (row.sameStreams === true)
     expect({ exit: co.exitCode, stdout: co.stdout, stderr: co.stderr }).toEqual({
       exit: up.exitCode,
@@ -810,7 +839,8 @@ async function checkRow(row: Row): Promise<void> {
 function register(rows: readonly Row[]): void {
   for (const row of rows) {
     const name = `${row.expect}: ${row.argv.join(' ')}`
-    test(name, () => checkRow(row), 30_000)
+    if (KNOWN_FAILING.has(row.argv.join(' '))) test.failing(name, () => checkRow(row), 30_000)
+    else test(name, () => checkRow(row), 30_000)
   }
 }
 
@@ -824,6 +854,15 @@ describe('unknown-option differential: cospec-native table commands', () => {
 
 describe('unknown-option differential: pending flags', () => {
   register(PENDING_ROWS)
+})
+
+describe('unknown-option differential: upstream spellings', () => {
+  register(UPSTREAM_SPELLING_ROWS)
+
+  test('every known-failing key names a row', () => {
+    const keys = UPSTREAM_SPELLING_ROWS.map((row) => row.argv.join(' '))
+    for (const key of KNOWN_FAILING) expect(keys).toContain(key)
+  })
 })
 
 describe('unknown-option differential: forward commands relay the binary', () => {
@@ -856,6 +895,118 @@ describe('unknown-option differential: a bare leading -- before the command', ()
 
 describe('unknown-option differential: an undeclared option before the command', () => {
   register(PRE_COMMAND_ROWS)
+})
+
+// Commander offers its closest match only for an unknown long option, so an
+// unknown short one is refused with no hint in either tool, even one a single
+// edit from a declared short (`-Y` from `-y`, `-x` from `-h`).
+describe('unknown-option differential: no closest-match hint for an unknown short option', () => {
+  for (const { argv, command, option } of [
+    { argv: ['list', '-x'], command: 'list', option: '-x' },
+    { argv: ['validate', '-S'], command: 'validate', option: '-S' },
+    { argv: ['archive', 'c', '-Y'], command: 'archive', option: '-Y' },
+    { argv: ['-W', 'list'], command: undefined, option: '-W' },
+    { argv: ['-x', 'list'], command: undefined, option: '-x' },
+  ]) {
+    test(`${argv.join(' ')}: refused with no hint, as the binary`, async () => {
+      const up = await oracle(argv, freshRoot())
+      expect(up.exitCode).toBe(1)
+      expect(up.stderr).toBe(`error: unknown option '${option}'\n`)
+      const root = freshRoot()
+      const before = treeHash(root)
+      const co = await runCospec(argv, root)
+      expect(co.exitCode).toBe(1)
+      expect(co.stdout).toBe('')
+      expect(co.stderr).toBe(
+        `cospec${command !== undefined ? ` ${command}` : ''}: unknown option '${option}'\n`,
+      )
+      expect(treeHash(root)).toEqual(before)
+    }, 30_000)
+  }
+
+  test('an unknown long option still gets its closest match, as the binary', async () => {
+    const up = await oracle(['list', '--jsn'], freshRoot())
+    expect(up.stderr).toContain('(Did you mean --json?)')
+    const co = await runCospec(['list', '--jsn'], freshRoot())
+    expect(co.stderr).toBe(`${unknown('list', '--jsn')}\n${suggest('--json')}\n`)
+  }, 30_000)
+})
+
+/**
+ * The binary's closest-match line in cospec's hint format: commander's
+ * `(Did you mean --x?)` / `(Did you mean one of --x, --y?)` as
+ * `Did you mean '--x'?` / `Did you mean one of '--x', '--y'?`; '' for none.
+ */
+function hintFrom(upstreamStderr: string): string {
+  const match = /^\(Did you mean (one of )?(.+)\?\)$/m.exec(upstreamStderr)
+  if (match === null) return ''
+  const names = match[2]!.split(', ').map((name) => `'${name}'`)
+  return `Did you mean ${match[1] ?? ''}${names.join(', ')}?\n`
+}
+
+// Commander's `suggestSimilar` for an unknown `--` option: the whole token
+// with `--` removed (no `=` split), no one-character candidates, similarity
+// above 0.4, and every candidate tied at the best distance.
+describe("unknown-option differential: a long option's hint is commander's suggestSimilar", () => {
+  const ROWS: readonly { argv: string[]; command: string; option: string; binary: string }[] = [
+    { argv: ['list', '--j'], command: 'list', option: '--j', binary: '' },
+    { argv: ['list', '--lng'], command: 'list', option: '--lng', binary: '' },
+    { argv: ['list', '--srt=name'], command: 'list', option: '--srt=name', binary: '' },
+    { argv: ['list', '--jsn=1'], command: 'list', option: '--jsn=1', binary: '' },
+    {
+      argv: ['list', '--sore'],
+      command: 'list',
+      option: '--sore',
+      binary: '(Did you mean one of --sort, --store?)',
+    },
+    {
+      argv: ['list', '--verson'],
+      command: 'list',
+      option: '--verson',
+      binary: '(Did you mean --version?)',
+    },
+    { argv: ['list', '--jsn'], command: 'list', option: '--jsn', binary: '(Did you mean --json?)' },
+    {
+      argv: ['list', '--sortt'],
+      command: 'list',
+      option: '--sortt',
+      binary: '(Did you mean --sort?)',
+    },
+    {
+      argv: ['validate', '--typo', 'x'],
+      command: 'validate',
+      option: '--typo',
+      binary: '(Did you mean --type?)',
+    },
+    {
+      argv: ['validate', '--strict=1'],
+      command: 'validate',
+      option: '--strict=1',
+      binary: '(Did you mean --strict?)',
+    },
+    {
+      argv: ['status', '--schem', 'custom'],
+      command: 'status',
+      option: '--schem',
+      binary: '(Did you mean --schema?)',
+    },
+  ]
+  for (const { argv, command, option, binary } of ROWS) {
+    test(`${argv.join(' ')}: ${binary === '' ? 'no hint' : binary}, as the binary`, async () => {
+      const up = await oracle(argv, freshRoot())
+      expect(up.exitCode).toBe(1)
+      expect(up.stderr).toBe(
+        `error: unknown option '${option}'\n${binary === '' ? '' : `${binary}\n`}`,
+      )
+      const root = freshRoot()
+      const before = treeHash(root)
+      const co = await runCospec(argv, root)
+      expect(co.exitCode).toBe(1)
+      expect(co.stdout).toBe('')
+      expect(co.stderr).toBe(`${unknown(command, option)}\n${hintFrom(up.stderr)}`)
+      expect(treeHash(root)).toEqual(before)
+    }, 30_000)
+  }
 })
 
 describe('unknown-option differential: --store/--cwd refuse a missing or empty value', () => {
