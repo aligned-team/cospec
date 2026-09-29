@@ -24,4 +24,5 @@ export interface ItemReport {
   type?: string
   valid: boolean
   issues: Issue[]
+  durationMs?: number
 }
