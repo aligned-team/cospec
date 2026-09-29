@@ -13,7 +13,7 @@
 
 ## 2. Every pending entry this change owns is gone [critical]
 
-- [x] 2.1 @integration (agent) `grep -c 'owner: cli-surface-parity' apps/cli/test/contract/parity-pending.yaml` before and after, and `mise run test:contract` reachability -> 7 before (`list --sort`, `status --schema`, `validate --type`, `validate --report`, `validate --concurrency`, `__complete schemas`, `__complete archived-changes`), 0 after, reachability green with no pending mark left for this owner in the command table -> observed: before: `git show main:apps/cli/test/contract/parity-pending.yaml | grep -c 'owner: cli-surface-parity'` = 7 (list --sort, status --schema, validate --type, validate --report, validate --concurrency, **complete schemas, **complete archived-changes); after: 0 in the worktree; `reachability.test.ts` green inside `mise run check` with no pending mark left for this owner
+- [x] 2.1 @integration (agent) `grep -c 'owner: cli-surface-parity' apps/cli/test/contract/parity-pending.yaml` before and after, and `mise run test:contract` reachability -> 7 before (`list --sort`, `status --schema`, `validate --type`, `validate --report`, `validate --concurrency`, `__complete schemas`, `__complete archived-changes`), 0 after, reachability green with no pending mark left for this owner in the command table -> observed: before: `git show main:apps/cli/test/contract/parity-pending.yaml | grep -c 'owner: cli-surface-parity'` = 7 (`list --sort`, `status --schema`, `validate --type`, `validate --report`, `validate --concurrency`, `__complete schemas`, `__complete archived-changes`); after: 0 in the worktree; `reachability.test.ts` green inside `mise run check` with no pending mark left for this owner
 
 ## 3. Every status entry names its next step [critical]
 
