@@ -379,12 +379,15 @@ The replayed set SHALL govern the exact-name arms too, not only the fold ones. A
 earlier `## RENAMED` in the same delta created SHALL resolve; a `## RENAMED`
 early sync's near-miss search SHALL see only the names that survive to that
 operation; and an `## ADDED` SHALL be free to re-use the exact header an earlier
-`## REMOVED` or `## RENAMED` vacated. Each of those is a delta the wrapped
-binary archives at exit 0, and judging them against the untouched living spec
-refused every one. The matching refusals SHALL stay: a target an earlier
-operation carried away is an `archive/target-missing` ERROR whose message says
-so, and an `## ADDED` landing on this delta's own `## RENAMED` target stays the
-`archive/added-exists` ERROR the binary's pre-validation raises, reported once.
+`## RENAMED` vacated. Each of those is a delta the wrapped binary archives at
+exit 0, and judging them against the untouched living spec refused every one. An
+`## ADDED` re-using the exact header an `## REMOVED` in the same delta file
+names is not one of them: the wrapped binary refuses that pair before it merges
+anything, and it is refused as a same-name cross-section conflict. The matching
+refusals SHALL stay: a target an earlier operation carried away is an
+`archive/target-missing` ERROR whose message says so, and an `## ADDED` landing
+on this delta's own `## RENAMED` target stays the `archive/added-exists` ERROR
+the binary's pre-validation raises, reported once.
 
 `archive/scenario-preservation` SHALL follow a rename with the requirement: a
 `## MODIFIED` block naming a header this delta renamed into existence SHALL be
@@ -540,3 +543,450 @@ file a bug.
   and no other operation in that capability removes it
 - **THEN** `cospec archive` reports the spec-merge verification failure and
   exits non-zero
+
+### Requirement: Same-name cross-section conflicts are refused at pre-flight
+
+The archive-precondition rule family SHALL refuse an `## ADDED` requirement
+whose exact name the same delta file also names under `## REMOVED` or under
+`## MODIFIED`, because the wrapped binary's validation refuses both pairs before
+its merge runs, and `openspec archive` exits without archiving. Names SHALL be
+compared after the same requirement-name normalisation the parser already
+applies, and never folded: an `## ADDED` that differs from a removed or modified
+name only in case or spacing SHALL NOT be a cross-section conflict, as the
+wrapped binary does not treat it as one.
+
+Each conflict SHALL be an `archive/added-exists` ERROR reported once, on the
+`## ADDED` operation, whose message names the requirement and the other section.
+The check SHALL read the delta file's own section names, not the replayed spec,
+so it SHALL fire on a new capability and on a living one alike, whether or not
+the living spec carries the name and whether or not the ADDED block matches the
+living requirement. When a cross-section conflict fires on an `## ADDED`
+operation, the other `archive/added-exists` arms SHALL NOT report a second
+finding on that same operation.
+
+The refusal SHALL happen at cospec's own pre-flight, before delegation, and a
+contract test SHALL run each pair through both `cospec validate --strict` and
+the pinned binary's `archive`, so that cospec refuses exactly the pairs the
+binary refuses.
+
+#### Scenario: REMOVED then ADDED of one name is refused
+
+- **WHEN** one delta file `## REMOVED`s `Widget rendering` and `## ADDED`s a new
+  `Widget rendering` with a different body, against a living spec that carries
+  it
+- **THEN** `cospec validate --strict` reports one `archive/added-exists` ERROR
+  on the ADDED operation naming the REMOVED pair, and the pinned binary's
+  archive refuses the same change
+
+#### Scenario: ADDED and MODIFIED of one name on a new capability is refused
+
+- **WHEN** a delta for a capability with no living spec both `## ADDED`s and
+  `## MODIFIED`s `Gadget thing`
+- **THEN** `archive/added-exists` is an ERROR on the ADDED operation naming the
+  MODIFIED pair, alongside the existing `archive/new-spec-non-added` on the
+  MODIFIED operation
+
+#### Scenario: ADDED matching the living block plus MODIFIED is refused
+
+- **WHEN** one delta both `## ADDED`s `Widget rendering` with a block identical
+  to the living requirement and `## MODIFIED`s `Widget rendering`
+- **THEN** `archive/added-exists` is an ERROR, although the early-sync exemption
+  would otherwise leave the ADDED silent, because the pinned binary refuses the
+  pair
+
+#### Scenario: A fold variant is not a cross-section conflict
+
+- **WHEN** one delta `## REMOVED`s `Widget rendering` and `## ADDED`s
+  `WIDGET RENDERING`
+- **THEN** no cross-section conflict is raised, and the pinned binary archives
+  the change
+
+#### Scenario: One refusal per ADDED operation
+
+- **WHEN** one delta `## ADDED`s `Widget rendering` with a body different from
+  the living requirement and `## MODIFIED`s `Widget rendering`
+- **THEN** the ADDED operation carries exactly one `archive/added-exists` ERROR,
+  the cross-section one
+
+### Requirement: Archive preconditions read what the archive merges
+
+cospec SHALL scan each delta file and living spec once, finding code fences on
+the raw lines before anything else, and SHALL NOT let an HTML comment open or
+close on a fenced line. Two views SHALL be read off that one scan: the verbatim
+view (fenced code masked, HTML comments kept — what the wrapped binary's readers
+and its archive read) and the masked view (HTML comments masked as well). Every
+rule in the archive-precondition family, `archive/scenario-preservation`
+included, SHALL read the verbatim view of both the delta files and the living
+spec: an operation written inside an HTML comment SHALL be checked as the
+operation the archive applies, a requirement header's trailing comment SHALL be
+part of its name, and a scenario inside a comment SHALL count on both sides of
+the scenario-loss check. Every other check that can change a gate outcome SHALL
+read the verbatim view too: every `deltas/*` finding at ERROR or WARNING that
+reads spec text — the statement, SHALL/MUST and scenario checks of
+`deltas/requirement-shape` among them — and the hard scenario-preservation gate
+of `cospec archive`. The masked view SHALL feed only advisory findings that no
+commented line can trigger (`deltas/skipped-header`, `deltas/scenario-depth`,
+`specs/purpose-tbd`), and the masked parse SHALL be a distinct type that no gate
+accepts, with a unit test enumerating every `archive/*` and `deltas/*` rule and
+proving each reads the view it is registered under. For every way an HTML
+comment has made the two readings differ — a statement, a requirement header or
+a scenario header inside a comment, a comment spanning a section boundary, a
+commented delta header in a living spec, a scenario kept only inside a comment,
+an unterminated comment, a commented orphan or unread file —
+`cospec validate --strict` and `cospec archive` SHALL accept exactly what the
+wrapped binary accepts. A UTF-8 BOM SHALL be stripped in both views, except in
+the living-spec structure check, which SHALL keep it as the wrapped binary's
+structure reader does. Each shape SHALL be covered by a contract test that runs
+the pinned binary's `validate` and `archive` on the fixture.
+
+#### Scenario: A comment opener inside a fenced example hides nothing
+
+- **WHEN** a MODIFIED block's first scenario is a fenced example containing
+  `<!-- note`, and its second scenario is the one the living spec has
+- **THEN** `cospec validate --strict` reports no finding and `cospec archive`
+  archives the change, as the binary's archive does
+
+#### Scenario: A living scenario inside a comment is one a MODIFIED can drop
+
+- **WHEN** the living `Widget caching` block carries a scenario inside an HTML
+  comment, and the MODIFIED block omits it
+- **THEN** `cospec validate --strict` reports `archive/scenario-preservation`
+  naming it, and the binary's archive refuses the change
+
+#### Scenario: A scenario kept inside a comment is kept
+
+- **WHEN** a MODIFIED block keeps a living scenario only inside an HTML comment
+- **THEN** `cospec validate --strict` reports no
+  `archive/scenario-preservation`, and the binary's archive applies the change
+
+#### Scenario: The hard gate keeps a scenario kept inside a comment
+
+- **WHEN** a MODIFIED block keeps a living scenario only inside an HTML comment
+- **THEN** `cospec archive` archives the change, as the binary's archive does
+
+#### Scenario: A comment spanning a section boundary is read as written
+
+- **WHEN** a delta's `## ADDED Requirements` header sits inside an HTML comment
+  above a complete requirement
+- **THEN** `cospec validate --strict` and `cospec archive` accept the change, as
+  the binary's validate and archive do
+
+#### Scenario: A gate cannot be handed the masked parse
+
+- **WHEN** a gate function is called with the comment-masked parse of a delta or
+  living spec
+- **THEN** the typecheck refuses the call
+
+#### Scenario: A commented ADDED that collides is refused
+
+- **WHEN** a delta's HTML comment carries an `## ADDED Requirements` section
+  whose `Widget rendering` block differs from the living one
+- **THEN** `cospec validate --strict` reports `archive/added-exists`, and the
+  binary's archive refuses the change
+
+#### Scenario: A commented MODIFIED with a missing target is refused
+
+- **WHEN** a delta's HTML comment carries a `## MODIFIED Requirements` block for
+  a requirement the living spec lacks
+- **THEN** `cospec validate --strict` reports `archive/target-missing`, and the
+  binary's archive refuses the change
+
+#### Scenario: A comment-bearing ADDED name is not the REMOVED one
+
+- **WHEN** a delta REMOVEs `Widget rendering` and ADDs
+  `### Requirement: Widget rendering <!-- restated -->`
+- **THEN** `cospec validate --strict` reports no cross-section conflict, and the
+  binary's archive applies both operations
+
+### Requirement: A skipped header that splits a requirement is refused at pre-flight
+
+The archive-precondition rule family SHALL refuse, as the ERROR
+`archive/split-requirement` on the header's line, a skipped `###` header inside
+an `## ADDED` or `## MODIFIED` requirement block that leaves a piece of the
+block with no scenario: the wrapped binary's archive appends the block as
+written and re-validates the rebuilt spec, where every `###` header is a
+requirement of its own, and refuses a requirement with no scenario. What counts
+as a scenario SHALL be read off the rebuilt spec's own parse, where any deeper
+header with a body under the piece — a `#####` included — is one, never off a
+count of `#### ` headers in the isolated block; where the merge refuses before
+building a spec, the block SHALL be read inside a spec of its own with the same
+parser. The header SHALL be refused when it is the block's first skipped header
+and the requirement's own text has no scenario above it, or when no scenario
+with a body follows it before the next header or the block's end. A header above
+the first requirement block, or one followed by a scenario of its own, SHALL NOT
+be refused, because the archive keeps it. A header inside an HTML comment SHALL
+be read as the archive reads it; a fenced one SHALL NOT. A `### Scenario:` line
+that `deltas/scenario-depth` already reports SHALL NOT also be reported by this
+rule. A header whose title is blank (`###` followed only by whitespace) SHALL
+also be refused when a scenario follows it but no line of text sits between the
+two, because the rebuilt spec reads it as a requirement with no text. The same
+cut inside a living requirement the delta keeps SHALL be
+`archive/rebuilt-spec-invalid`'s to report, not this rule's. Under `--fast` the
+rule SHALL NOT run, and `deltas/skipped-header` SHALL report the header at INFO
+instead.
+
+#### Scenario: A header between the text and the only scenario is refused
+
+- **WHEN** an ADDED `Widget thing` block carries `### Notes inside` between its
+  SHALL statement and its only `#### Scenario:`
+- **THEN** `cospec validate --strict` reports `archive/split-requirement` on
+  that line, and the binary's archive refuses the change
+
+#### Scenario: A nameless header after the scenario is refused
+
+- **WHEN** a `### Requirement:` line with no name follows a block's scenario
+- **THEN** `archive/split-requirement` reports it, and the binary's archive
+  refuses the change
+
+#### Scenario: A commented header splits the block too
+
+- **WHEN** a `### Hidden notes` line sits inside an HTML comment between a
+  requirement's text and its scenario
+- **THEN** `archive/split-requirement` reports it, and the binary's archive
+  refuses the change
+
+#### Scenario: A blank-titled header with no text before its scenario is refused
+
+- **WHEN** an ADDED block carries a `###` line with only whitespace after it
+  between two scenarios
+- **THEN** `archive/split-requirement` reports it as leaving a requirement with
+  no text, no `deltas/skipped-header` INFO is raised for it, and the binary's
+  archive refuses the change
+
+#### Scenario: A header whose only child is a bodied level-5 header is kept
+
+- **WHEN** a `### Notes` line whose only child is a `##### Sub-case` with steps
+  sits after a block's scenario, or above it under a `#####` of the block's own
+- **THEN** no `archive/split-requirement` is raised, `deltas/skipped-header`
+  reports the line at INFO, and the binary's archive applies the change
+
+#### Scenario: A header with its own scenario is kept
+
+- **WHEN** a `### Notes after` line followed by its own `#### Scenario:` sits
+  after a block's scenario
+- **THEN** no `archive/split-requirement` is raised, `deltas/skipped-header`
+  reports the line at INFO, and the binary's archive applies the change
+
+### Requirement: A structurally invalid living spec is refused at pre-flight
+
+`archive/target-invalid` SHALL refuse a living spec that carries a delta header
+(`## ADDED Requirements` and its siblings), a `### Requirement:` header outside
+its `## Requirements` section, or a second requirement under a normalised name
+already declared there, because the wrapped binary's archive refuses to update
+such a spec before merging anything. The check SHALL read the living spec as the
+wrapped binary's structure reader does: fenced lines excluded, HTML comments
+read as written, a UTF-8 BOM kept. The message SHALL name each defect's line. A
+living spec missing `## Requirements` or `## Purpose` SHALL NOT be refused by
+this rule, because the wrapped binary's archive refuses neither before merging:
+it appends an empty `## Requirements`, and a missing Purpose is the rebuilt
+spec's to refuse.
+
+#### Scenario: A delta header in a living spec is refused, commented or not
+
+- **WHEN** the living spec carries `## ADDED Requirements`, visibly or on its
+  own line inside an HTML comment
+- **THEN** `cospec validate --strict` reports `archive/target-invalid` naming
+  the delta header, and the binary's archive refuses the change
+
+#### Scenario: A BOM before a first-line ## Requirements is refused
+
+- **WHEN** the living spec opens with a UTF-8 BOM directly before
+  `## Requirements`
+- **THEN** `archive/target-invalid` names every requirement as outside the
+  section, and the binary's archive refuses the change
+
+#### Scenario: A duplicate living requirement is refused
+
+- **WHEN** the living spec declares `### Requirement: Widget rendering` twice
+  under `## Requirements`
+- **THEN** `cospec validate --strict` reports `archive/target-invalid` naming
+  the duplicate, and the binary's archive refuses the change
+
+#### Scenario: A requirement outside ## Requirements is refused
+
+- **WHEN** the living spec carries `### Requirement: Stray` under `## Purpose`,
+  written plainly or inside an HTML comment
+- **THEN** `archive/target-invalid` names it as outside the section, and the
+  binary's archive refuses the change
+
+#### Scenario: A fenced requirement header is not a defect
+
+- **WHEN** the `### Requirement: Stray` line under `## Purpose` sits inside a
+  fenced code block
+- **THEN** no `archive/target-invalid` is raised, and the binary's archive
+  applies the change
+
+#### Scenario: A living spec with no ## Requirements takes an ADDED
+
+- **WHEN** the living spec has a `## Purpose` and no `## Requirements`, and the
+  delta ADDs a requirement
+- **THEN** no `archive/target-invalid` is raised, cospec reports no ERROR, and
+  both the binary's archive and `cospec archive` apply the change
+
+### Requirement: The rebuilt spec is validated as the archive validates it
+
+The archive-precondition rule family SHALL rebuild each capability's main spec
+the way the wrapped binary's archive does — the living spec, or for a new
+capability the skeleton the archive writes with the delta's readable
+`## Purpose` carried, with the delta's operations applied in the binary's order
+(RENAMED, REMOVED, MODIFIED, ADDED), the living order kept and new blocks
+appended, and the preamble and every other section kept as written — reading
+both files on the verbatim view. It SHALL then run a port of the binary's
+main-spec validation over the result and report each ERROR it raises as the
+ERROR `archive/rebuilt-spec-invalid`, naming the header and the living-spec line
+it came from, or for a block the delta writes, its delta line. That validation
+takes every header under the first section titled `Requirements` as a
+requirement needing text and a scenario with a body, needs `## Purpose` text and
+at least one requirement, refuses the three structure defects, and needs a
+statement under every `### Requirement:` header.
+
+A finding on a line a delta block writes SHALL be dropped only where
+`deltas/requirement-shape` or `archive/split-requirement` reported that very
+line, never on the assumption that one did; a block written inside an HTML
+comment, which `deltas/requirement-shape` reads as the wrapped binary's
+validator does, SHALL be that rule's, as a visible one is. The rule SHALL NOT
+run for a capability another archive-precondition rule already refused, because
+the archive stops there first, nor where the merge itself refuses.
+
+The marker SHALL count only where the wrapped binary's archive honours it
+(`readBooleanMarker`): the whole `.openspec.yaml` passes its change-metadata
+schema and its `schema:` is one the binary lists and loads. A marker it cannot
+honour SHALL count as none, and the finding for a spec the change empties SHALL
+name the binary's reason. Under an honoured `retire_capabilities: true` the
+no-requirements ERROR SHALL be skipped only on the wrapped binary's own
+retirement decision: no requirement block survives the merge, every ERROR of the
+rebuilt spec is a no-requirements one at whatever level the header read as the
+Requirements section sits, nothing in the living spec sits outside what a
+retirement can name (the title, `## Purpose`, and each requirement block's own
+header, statement and scenario bullets), and this change removed a requirement
+block. A declared retirement the content blocks SHALL be reported with the
+blocking lines quoted as the binary's refusal quotes them; one the change did
+not empty SHALL be reported as such. Without the marker, the finding SHALL name
+the marker only when setting it alone would let the archive through, and the
+blocking lines otherwise. The legacy lane SHALL NOT run the rule. The rebuilt
+text SHALL equal, byte for byte, the spec the pinned binary writes for the same
+change.
+
+#### Scenario: A header above the first living requirement is refused
+
+- **WHEN** the living spec carries `### Notes`, a loose `#### Scenario:`, or a
+  `### Notes` inside a multi-line HTML comment between `## Requirements` and its
+  first requirement, and the delta MODIFIES `Widget rendering`
+- **THEN** `cospec validate --strict` reports one `archive/rebuilt-spec-invalid`
+  naming the header and its living line, the binary's validate reports nothing,
+  and the binary's archive refuses the change
+
+#### Scenario: A surviving requirement with no scenario is refused
+
+- **WHEN** a living requirement the delta keeps has no scenario, a scenario
+  header with no steps, or a scenario only inside a code fence, or the living
+  spec ends with a commented-out draft requirement
+- **THEN** `archive/rebuilt-spec-invalid` names the requirement and its living
+  line, and the binary's archive refuses the change
+
+#### Scenario: A split in a surviving living requirement is refused
+
+- **WHEN** the living `Widget rendering` block carries `### Notes on rendering`
+  above its only scenario, and the delta MODIFIES `Widget caching` or RENAMES
+  `Widget rendering`
+- **THEN** `archive/rebuilt-spec-invalid` names the requirement, the header and
+  the header's living line, no `archive/split-requirement` is raised, and the
+  binary's archive refuses the change
+
+#### Scenario: Spec-level defects are refused
+
+- **WHEN** the living spec has no `## Purpose` text, carries a
+  `### Requirements` heading under `## Purpose`, or the delta removes every
+  requirement without `retire_capabilities: true`
+- **THEN** `archive/rebuilt-spec-invalid` reports it, and the binary's archive
+  refuses the change
+
+#### Scenario: A declared retirement the archive refuses is refused
+
+- **WHEN** a change with `retire_capabilities: true` removes every requirement
+  of a living spec that also holds prose, a comment, a fence, a heading, a table
+  or a trailing section outside `## Purpose` and the blocks' own parts — above
+  the requirements, or inside or below a removed block — or removes none from a
+  spec with no `## Requirements`
+- **THEN** `cospec validate --strict` reports one `archive/rebuilt-spec-invalid`
+  quoting the blocking lines the binary's refusal quotes (or saying the change
+  removes none of its requirements), and the binary's archive refuses the change
+
+#### Scenario: A retirement the archive performs is clean
+
+- **WHEN** a change with `retire_capabilities: true` removes every requirement
+  of a living spec whose `## Purpose` holds a `### Requirements` or
+  `#### Requirements` heading, or whose scenario bullets wrap
+- **THEN** no `archive/rebuilt-spec-invalid` is raised, and the binary's archive
+  deletes the spec and archives the change
+
+#### Scenario: A block written inside an HTML comment is refused on its line
+
+- **WHEN** a delta carries a `### Requirement:` block inside an HTML comment
+  with no statement or no scenario, and the change is never delegated
+- **THEN** `archive/rebuilt-spec-invalid` reports it on the commented header's
+  delta line, and the binary's validate and archive refuse the change
+
+#### Scenario: Shapes the archive accepts are clean
+
+- **WHEN** a living requirement's scenario sits inside an HTML comment or under
+  a level-5 header, the preamble holds prose or a one-line comment, a MODIFIED
+  replaces a split requirement, or the change retires the capability it empties
+- **THEN** no `archive/rebuilt-spec-invalid` is raised, and the binary's archive
+  applies the change
+
+#### Scenario: A delta block the delta rules miss is refused on its line
+
+- **WHEN** an ADDED block carries a `# Aside` heading between its text and its
+  scenario
+- **THEN** `archive/rebuilt-spec-invalid` reports it on the block's delta line,
+  and the binary's archive refuses the change
+
+#### Scenario: cospec archive refuses before delegating
+
+- **WHEN** `cospec archive` runs on a change whose living spec carries a
+  preamble `### Notes`
+- **THEN** it exits non-zero naming `archive/rebuilt-spec-invalid`, and the
+  change stays in place
+
+#### Scenario: An unhonourable marker is refused with its reason
+
+- **WHEN** a change sets `retire_capabilities: true` with an empty `goal:`, an
+  `affected_areas:` that is not a list, a `created:` not in `YYYY-MM-DD` form,
+  or a `schema:` the binary cannot list, and REMOVEs every requirement
+- **THEN** `cospec validate` reports `archive/rebuilt-spec-invalid` naming the
+  reason the binary's archive quotes, and the binary's archive refuses the
+  change
+
+### Requirement: In-file operation conflicts are refused natively
+
+The archive-precondition rule family SHALL refuse, as the ERROR
+`archive/op-conflict`, the three conflicts inside one delta file that the
+wrapped binary's validate refuses and no other archive-precondition rule
+reports: a `## MODIFIED` requirement written twice, a `## REMOVED` requirement
+written twice (exact names), and a `## REMOVED` name that folds onto a
+`## RENAMED` FROM name. A cospec-typed change with no `proposal.md`, which
+cospec never delegates, SHALL be refused natively on every conflict shape the
+wrapped binary's validate reports.
+
+#### Scenario: A duplicated MODIFIED or REMOVED is refused
+
+- **WHEN** a delta MODIFIES `Widget caching` twice, or REMOVES it twice
+- **THEN** `archive/op-conflict` names it on the later entry, and the binary's
+  archive refuses the change
+
+#### Scenario: A REMOVED of a RENAMED source is refused
+
+- **WHEN** a delta RENAMES `Widget rendering` and REMOVES `Widget rendering` or
+  `widget  rendering`
+- **THEN** `archive/op-conflict` names the REMOVED and the RENAMED FROM, and the
+  binary's archive refuses the change
+
+#### Scenario: A never-delegated change is refused on every conflict shape
+
+- **WHEN** a cospec-typed change with no `proposal.md` carries any conflict the
+  binary's validate refuses — a duplicate ADDED, MODIFIED or REMOVED, a
+  duplicate RENAMED source or target, a cross-section pair, a REMOVED or
+  MODIFIED of a RENAMED source, or a RENAMED target the delta ADDs
+- **THEN** a native `archive/*` ERROR names the requirement, and no relayed
+  finding appears

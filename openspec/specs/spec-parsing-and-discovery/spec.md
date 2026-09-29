@@ -183,10 +183,68 @@ reported for the same file and the same defect — the placeholder `Purpose`, a
 root-level `specs/spec.md`, scenario loss in a MODIFIED delta, an
 archive-precondition failure the wrapped binary dry-runs during validate, a
 delta-shaped file cospec's own discovery skips, a change whose tracked task
-files carry no checkbox at all, and a `RENAMED` `FROM:`/`TO:` line that formed
-no pair. Suppression SHALL apply only when the native rule actually fired; when
+files carry no checkbox at all, a `RENAMED` `FROM:`/`TO:` line that formed no
+pair, a delta file whose sections parse to no entries, a non-requirement `###`
+header the delta reader skips, a requirement missing SHALL/MUST, its requirement
+text or a scenario, an `## ADDED` name the same delta file also removes or
+modifies, a `## MODIFIED` name it also removes, a duplicate `## ADDED` name, two
+`RENAMED` pairs sharing a source or a target, a `RENAMED` target the same delta
+ADDs, a skipped header that splits a requirement the archive refuses, a living
+spec the archive refuses as structurally invalid, a `## MODIFIED` of a `RENAMED`
+source, a `## MODIFIED` or `## RENAMED` on a capability with no living spec, a
+requirement outside every delta section, a delta with no delta section, a
+duplicate `## MODIFIED` or `## REMOVED` name, and a `## REMOVED` of a `RENAMED`
+source. Suppression SHALL apply only when the native rule actually fired; when
 cospec's own rule is silent, the delegated issue SHALL still be reported so
 nothing is lost.
+
+Each of those later pairings SHALL be keyed so that a second real finding
+survives. The empty-sections message SHALL pair with `archive/no-ops` on the
+same delta file, and the change-level no-deltas message with `archive/no-ops`
+fired anywhere on the item, because the wrapped binary raises it only when no
+delta file parsed an entry. The two skipped-header messages (a non-requirement
+header, and a `### Requirement:` with no name) SHALL pair with
+`deltas/skipped-header` on the same file and the same header text, and both (a
+`### Scenario:` header included) SHALL also pair with
+`archive/split-requirement` on the same file and the same header text. A skipped
+`### Scenario:` header SHALL pair with `deltas/scenario-depth` on the same file
+and the same header text, so a `### Scenario:` written inside an HTML comment,
+which cospec's advisory reader masks, keeps its delegated INFO beside a real one
+with different text in the same file; a commented and a real `### Scenario:`
+with the same text SHALL both pair with the real one's finding. The keyword and
+missing-text messages SHALL pair with `deltas/requirement-shape` on the same
+file, operation and requirement name (the missing-text message with either of
+that rule's two wordings for an empty statement), the name read off the header
+as written — a trailing HTML comment included, as the wrapped binary reads it;
+so SHALL the missing-scenario message, with or without the binary's
+empty-scenario hint. The two cross-section messages (`ADDED and REMOVED`,
+`MODIFIED and ADDED`) SHALL pair with `archive/added-exists` on the same file
+and requirement name, and so SHALL the duplicate-ADDED, duplicate-RENAMED-target
+and RENAMED-target-collides-with-ADDED messages. The `MODIFIED and REMOVED` and
+duplicate-RENAMED-source messages SHALL pair with `archive/target-missing`'s "no
+longer exists" finding on the same file and requirement name. The dry-run's
+structurally-invalid-target message SHALL pair with `archive/target-invalid` on
+the same file and capability, and only when every defect it lists is a delta
+header, a requirement outside `## Requirements` or a duplicate requirement. The
+MODIFIED-references-old-name message SHALL pair with `archive/target-missing` on
+the same file and the rename's TO name, which cospec's message names. The
+dry-run's target-spec-does-not-exist message SHALL pair with
+`archive/new-spec-non-added` on the same file and capability. The
+orphaned-requirement message SHALL pair with `deltas/orphaned-requirement` on
+the same file and requirement name, never the section text. The
+no-delta-sections message SHALL pair with `deltas/header-present` on the same
+file, and the change-level no-deltas message with it fired anywhere on the item.
+The duplicate-MODIFIED, duplicate-REMOVED and RENAMED-and-REMOVED messages SHALL
+pair with `archive/op-conflict` on the same file and requirement name, the
+RENAMED FROM for the last. For a requirement a delta writes inside an HTML
+comment, the missing-text, keyword-only-in-the-header and missing-scenario
+messages SHALL pair with `archive/rebuilt-spec-invalid`'s finding on that
+block's delta line, on the same file and requirement name. A header key SHALL
+match an empty header text, so a blank-titled `###` header pairs too. Each
+pairing SHALL be covered by a contract test whose delegated message is read from
+the pinned binary, never typed by hand, and a sweep over every report the parity
+suite produces SHALL find no relayed finding naming the same requirement or
+header as a cospec finding on the same file.
 
 The archive-precondition family SHALL be paired one entry per upstream
 precondition shape, because a duplicate class carries a single native rule id
@@ -268,6 +326,83 @@ dry-run issues arrive at INFO, which is counted and rendered but never scored.
   different path
 - **THEN** the root-level pairing does not suppress it, and the defect is
   reported
+
+#### Scenario: An empty delta section is reported once
+
+- **WHEN** a cospec-typed change's only delta file carries
+  `## ADDED Requirements` with no requirement under it, and the wrapped binary
+  reports both its empty-sections ERROR and its no-deltas ERROR
+- **THEN** the merged report contains exactly one finding for it, cospec's
+  `archive/no-ops`
+
+#### Scenario: A skipped header is reported once
+
+- **WHEN** a cospec-typed change's ADDED section carries
+  `### Documentation Requirements` and a nameless `### Requirement:` line above
+  its first requirement, and the wrapped binary reports an INFO for each
+- **THEN** the merged report contains one `deltas/skipped-header` INFO per line
+  and no delegated INFO for either
+
+#### Scenario: A splitting header is reported once
+
+- **WHEN** a `### Notes` line inside a requirement block leaves a piece of it
+  with no scenario, and the wrapped binary reports it as a skipped header
+- **THEN** the merged report contains one `archive/split-requirement` ERROR for
+  that line and no delegated INFO for it
+
+#### Scenario: A commented three-hashtag scenario keeps its INFO
+
+- **WHEN** a delta carries a real `### Scenario: Shallow` inside a block and a
+  `### Scenario: Commented` inside an HTML comment above the first requirement
+- **THEN** the merged report contains the `deltas/scenario-depth` ERROR for
+  `Shallow` and the wrapped binary's INFO for `Commented`
+
+#### Scenario: A comment-bearing requirement name is reported once
+
+- **WHEN** an ADDED `### Requirement: Widget polishing <!-- restated -->` lacks
+  SHALL/MUST, and the wrapped binary warns under that whole name
+- **THEN** the merged report contains one `deltas/requirement-shape` ERROR
+  naming `Widget polishing <!-- restated -->` and no delegated WARNING
+
+#### Scenario: A three-hashtag scenario is reported once
+
+- **WHEN** an ADDED section carries `### Scenario: Shallow`, which cospec
+  reports as `deltas/scenario-depth` and the wrapped binary reports as a skipped
+  header
+- **THEN** the merged report contains the `deltas/scenario-depth` ERROR and
+  neither a `deltas/skipped-header` nor a delegated INFO for that line
+
+#### Scenario: A missing SHALL/MUST is reported once
+
+- **WHEN** a cospec-typed change's ADDED requirements lack SHALL/MUST in the
+  body, one with the keyword only in its header, one with an empty body and one
+  with no keyword anywhere
+- **THEN** the merged report contains one `deltas/requirement-shape` ERROR per
+  requirement and none of the wrapped binary's three messages
+
+#### Scenario: A cross-section conflict is reported once
+
+- **WHEN** a cospec-typed change's delta both REMOVEs and ADDs
+  `Widget rendering`, and the wrapped binary reports the pair
+- **THEN** the merged report contains exactly one `archive/added-exists` ERROR
+  naming `Widget rendering` and no delegated cross-section message
+
+#### Scenario: Conflict, orphan and headerless doubles are reported once
+
+- **WHEN** a cospec-typed change's delta MODIFIES a requirement's RENAMED
+  source, MODIFIES on a capability with no living spec, carries a requirement
+  under `## Notes`, has no delta section, MODIFIES one requirement twice, or
+  carries a blank-titled `###` header that splits a block
+- **THEN** the merged report carries cospec's finding for it and not the wrapped
+  binary's twin, and the sweep over the parity suite finds no double report
+
+#### Scenario: A different header or requirement is a second finding
+
+- **WHEN** the wrapped binary reports a skipped header, a missing keyword or a
+  cross-section conflict for a header text, requirement name or delta file that
+  cospec's own rule did not fire on
+- **THEN** the delegated issue is not suppressed and appears in the merged
+  report
 
 ### Requirement: Requirement-block retention and scenario-name identity
 
@@ -483,3 +618,167 @@ the change touched no spec.
   delta-shaped file at an unread path
 - **THEN** the change is not treated as a no-delta change, and the archive does
   not report a clean skip
+
+### Requirement: Skipped delta headers are reported
+
+cospec SHALL report, as the INFO `deltas/skipped-header`, every level-three
+header inside an `## ADDED Requirements` or `## MODIFIED Requirements` section
+that the delta reader ignores and the archive keeps: a non-fenced `### <text>`
+line that is not a named `### Requirement:` header, whether it sits above the
+first requirement block or inside one without splitting it. A header inside a
+block that leaves a piece of it with no scenario is refused by the archive, and
+SHALL be reported as `archive/split-requirement` instead (see
+archive-integrity), never as both. The lines reported by the two rules together
+SHALL be the lines the wrapped binary's delta reader records as skipped, with
+the same line numbers, except a header this rule's advisory reader masks inside
+an HTML comment: it SHALL NOT report one, while the wrapped binary's own reader
+doesn't mask comments and keeps reporting it — above the first requirement that
+delegated INFO SHALL still reach the report unsuppressed, because no cospec rule
+has a twin to raise there. A header that is `### Requirement:` with no name
+SHALL get its own message, saying the name is missing and giving
+`### Requirement: <name>` as the fix. Any other header's hint SHALL name
+`### Requirement: <text>` as the spelling to use if the block is meant to be
+validated. A `### Scenario:` line that `deltas/scenario-depth` already reports
+SHALL NOT also be reported by this rule.
+
+The rule SHALL run on every cospec-typed change that carries delta files,
+whether or not cospec delegates the change to the wrapped binary. A header that
+splits its requirement SHALL be left to `archive/split-requirement` only when
+the archive-precondition family runs; under `--fast` this rule SHALL report it.
+INFO SHALL never move `valid` or the exit code, with or without `--strict`.
+
+#### Scenario: A stray divider is reported
+
+- **WHEN** a delta's `## ADDED Requirements` section carries
+  `### Documentation Requirements` above its first requirement
+- **THEN** `cospec validate` reports `deltas/skipped-header` at INFO on that
+  line, with a hint naming `### Requirement: Documentation Requirements`
+
+#### Scenario: A nameless requirement header is reported
+
+- **WHEN** a delta's ADDED section carries a `### Requirement:` line with no
+  name
+- **THEN** `deltas/skipped-header` reports it as missing a requirement name,
+  with a hint naming `### Requirement: <name>`
+
+#### Scenario: A header inside a requirement block that keeps a scenario is reported
+
+- **WHEN** a `### Notes` line followed by a `#### Scenario:` of its own sits
+  after a requirement's own scenario
+- **THEN** `deltas/skipped-header` reports that line, and no
+  `archive/split-requirement` is raised
+
+#### Scenario: A header that splits a requirement is left to the archive rule
+
+- **WHEN** a `### Notes` line sits between a requirement's body and its only
+  `#### Scenario:` block
+- **THEN** `deltas/skipped-header` does not report that line, and the
+  requirement's scenario still counts for `deltas/requirement-shape`
+
+#### Scenario: A change cospec does not delegate still gets the finding
+
+- **WHEN** a cospec-typed change with a skipped header has no `proposal.md`, so
+  cospec does not delegate it to the wrapped binary
+- **THEN** `deltas/skipped-header` is still reported
+
+#### Scenario: Under --fast a splitting header keeps its INFO
+
+- **WHEN** `cospec validate --fast` runs on a change whose `### Notes inside`
+  splits its requirement, delegated or not
+- **THEN** `deltas/skipped-header` reports that line at INFO, no
+  `archive/split-requirement` is raised, and the wrapped binary's INFO for the
+  line is not relayed beside it
+
+#### Scenario: A fenced header is not reported
+
+- **WHEN** a `### Example` line sits inside a fenced code block in an ADDED
+  requirement
+- **THEN** no `deltas/skipped-header` issue is raised for it
+
+#### Scenario: A header inside an HTML comment is not reported, and the delegated INFO survives
+
+- **WHEN** a `###` header sits inside an HTML comment above the first
+  requirement in an ADDED section of a change cospec delegates
+- **THEN** no `deltas/skipped-header` issue is raised for it, and the wrapped
+  binary's own INFO for that header reaches the merged report unsuppressed
+
+### Requirement: A header-only SHALL/MUST carries the body hint
+
+When an `## ADDED` or `## MODIFIED` requirement's body lacks SHALL or MUST and
+its `### Requirement:` header contains one, the `deltas/requirement-shape` ERROR
+SHALL carry the wrapped binary's hint: move the SHALL/MUST statement to the line
+immediately after the `### Requirement: ...` header. The ERROR's level, rule id
+and message SHALL stay as they are for a cospec-typed change, except that the
+message names the requirement by its header as written, a trailing HTML comment
+included. A requirement whose header lacks SHALL/MUST too SHALL get no hint.
+
+#### Scenario: The keyword only in the header
+
+- **WHEN** a cospec-typed change ADDs
+  `### Requirement: The system SHALL frob widgets` whose body reads
+  `The system frobs widgets.`
+- **THEN** `cospec validate` reports `deltas/requirement-shape` at ERROR with
+  the move-it-to-the-body hint
+
+#### Scenario: An empty body with the keyword in the header
+
+- **WHEN** an ADDED requirement's header holds SHALL and its body is empty
+- **THEN** the `deltas/requirement-shape` ERROR carries the same hint
+
+#### Scenario: No keyword anywhere
+
+- **WHEN** neither the header nor the body of an ADDED requirement holds SHALL
+  or MUST
+- **THEN** `deltas/requirement-shape` is an ERROR with no hint
+
+### Requirement: An empty statement is refused however its scenarios read
+
+An `## ADDED` or `## MODIFIED` requirement's statement SHALL be read as the
+wrapped binary's `extractRequirementBody` reads it: the lines between its
+`### Requirement:` header and the first header under it, blank and fenced lines
+skipped, an HTML comment kept as text, and `**Key**: value` metadata lines
+counted only when nothing else is there. An empty statement SHALL be the ERROR
+`deltas/requirement-shape` even when a scenario step holds SHALL or MUST,
+because the binary refuses an empty one in its validate and its archive; the
+message SHALL be `<OP> "<name>" is missing requirement text`, or the header-only
+wording and hint when the header itself holds SHALL/MUST, so it pairs with the
+binary's finding and a change cospec never delegates is refused too. SHALL/MUST
+SHALL count in the statement alone — never in a scenario step, a fenced example
+or the header — so a statement written inside an HTML comment is a statement,
+and one that is only a comment has no keyword.
+
+#### Scenario: A SHALL only in a scenario step, on a change never delegated
+
+- **WHEN** a change with no `proposal.md` ADDs `Widget buffing` with no
+  statement and a scenario step reading
+  `the system SHALL return a buffed widget`
+- **THEN** `cospec validate` reports `deltas/requirement-shape` at ERROR on the
+  header's line, and the binary's validate and archive refuse the change
+
+#### Scenario: The delegated twin is one finding
+
+- **WHEN** the same change carries a `proposal.md`
+- **THEN** the binary's `is missing requirement text` ERROR is not relayed
+  beside cospec's
+
+#### Scenario: A statement written inside a comment is a statement
+
+- **WHEN** an ADDED requirement's statement is
+  `<!-- The system SHALL export widgets. -->` and its scenario has steps
+- **THEN** `cospec validate` reports no `deltas/requirement-shape`, as the
+  binary's validate and archive accept it
+
+#### Scenario: A comment-only statement has no keyword
+
+- **WHEN** an ADDED requirement's statement is `<!-- draft note -->` and its
+  only SHALL sits in a scenario step
+- **THEN** `cospec validate` reports `deltas/requirement-shape` at ERROR,
+  `must use SHALL/MUST normative language`, and the binary's WARNING for it is
+  not relayed beside it
+
+#### Scenario: A SHALL in a fenced example is not the statement's
+
+- **WHEN** an ADDED requirement's statement is `The system exports widgets.` and
+  its only SHALL sits in a fenced example
+- **THEN** `cospec validate` reports `deltas/requirement-shape` at ERROR, as the
+  binary warns
