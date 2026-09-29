@@ -835,7 +835,7 @@ describe('3. status next steps', () => {
     expect((json.json as Row).next).toBe('cospec instructions proposal --change empty')
   })
 
-  test.failing("3.2 nextSteps equals the binary's, respelled, on five fixtures", async () => {
+  test("3.2 nextSteps equals the binary's, respelled, on five fixtures", async () => {
     const root = cospecRoot()
     writeChange(root, 'empty')
     writeChange(root, 'mid', { 'proposal.md': PROPOSAL })
@@ -963,7 +963,7 @@ function nextArtifact(line: string | undefined): string | undefined {
 }
 
 describe('5. schemas cospec does not type', () => {
-  test.failing('5.1 a project fork gets the binary status, spelled cospec', async () => {
+  test('5.1 a project fork gets the binary status, spelled cospec', async () => {
     const root = cospecRoot()
     projectFork(root)
     writeChange(root, 'forked', { 'proposal.md': PROPOSAL }, 'house')
@@ -983,7 +983,7 @@ describe('5. schemas cospec does not type', () => {
     expectOracle(up.json, cs.json, STATUS_SPEC)
   })
 
-  test.failing('5.2 a spec-driven change, singly and in the sweep', async () => {
+  test('5.2 a spec-driven change, singly and in the sweep', async () => {
     const root = cospecRoot()
     specDrivenChange(root)
     const upText = await upstream(['status', '--change', 'legacy-one'], root)
@@ -1000,7 +1000,7 @@ describe('5. schemas cospec does not type', () => {
       expect(sweep.stdout).toContain(line)
   })
 
-  test.failing('5.3 an unknown schema fails under --json', async () => {
+  test('5.3 an unknown schema fails under --json', async () => {
     const root = cospecRoot()
     unknownSchemaChange(root)
     const up = await upstreamJson(['status', '--change', 'ghost', '--json'], root)
@@ -1012,7 +1012,7 @@ describe('5. schemas cospec does not type', () => {
     expect(firstStatus(cs.json).message).toContain("Unknown schema 'nope'")
   })
 
-  test.failing('5.4 a hand-made change is typed by config.yaml', async () => {
+  test('5.4 a hand-made change is typed by config.yaml', async () => {
     const root = cospecRoot()
     handMadeChange(root)
     const up = await upstreamJson(['status', '--change', 'bare-dir', '--json'], root)

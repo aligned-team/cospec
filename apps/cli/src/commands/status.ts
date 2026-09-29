@@ -10,10 +10,16 @@ import { join } from 'node:path'
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
-import { isCospecType, listChanges, resolveChange, type Change } from '../core/change.ts'
+import {
+  isCospecType,
+  listChanges,
+  projectConfigSchema,
+  resolveChange,
+  type Change,
+} from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
 import { passthroughOpenspec, wrappedCallLabel } from '../core/openspec.ts'
-import { respellRemedies, respellWholeRemedy } from '../core/remedies.ts'
+import { respellWholeRemedy } from '../core/remedies.ts'
 import { resolveRoot, type ResolvedRoot } from '../core/root.ts'
 import {
   artifactRequires,
@@ -224,9 +230,18 @@ function emptyChangeEntry(change: Change) {
   }
 }
 
-/** The legacy/unknown-schema entry shape. */
-function legacyChangeEntry(change: Change) {
-  return { change: change.id, type: change.schema, legacy: true as const }
+/**
+ * A change on a schema cospec doesn't type: its identity, and — from the
+ * binary's own status for it — the next step (`resolveNext` over the
+ * binary's `artifacts[].status` and `applyRequires`).
+ */
+function legacyChangeEntry(
+  change: Change,
+  upstream: Record<string, unknown> | undefined,
+): { change: string; type: string; legacy: true; next?: string } {
+  const entry = { change: change.id, type: change.schema, legacy: true as const }
+  const next = upstream === undefined ? undefined : upstreamNext(upstream, change.id)
+  return next === undefined ? entry : { ...entry, next }
 }
 
 export type ChangeEntry =
@@ -240,13 +255,33 @@ export interface ChangeEntryFailure {
 }
 
 /**
- * One change's status entry — empty, legacy, or full — for a single change.
- * Never throws itself; a caller sweeping every change (`--all`) wraps this in
- * a try/catch per change so one bad change cannot abort the sweep.
+ * The change as status grades it (design D4): a directory with no
+ * `.openspec.yaml` takes its schema as the binary does — the root's
+ * `config.yaml` `schema:`, else `spec-driven` — at `schemaVersion` 1.
  */
-export function buildChangeEntry(base: string, change: Change): ChangeEntry {
+function gradedChange(base: string, change: Change): Change {
+  if (existsSync(join(change.dir, '.openspec.yaml'))) return change
+  return { ...change, schema: projectConfigSchema(base) ?? 'spec-driven', schemaVersion: 1 }
+}
+
+/** Whether the binary's status for this change must answer it (a schema cospec doesn't type). */
+function answeredUpstream(change: Change): boolean {
+  return hasAnyArtifact(change.dir) && !isCospecType(change.schema)
+}
+
+/**
+ * One change's status entry — empty, legacy, or full. A legacy entry takes its
+ * next step from `upstream`, the binary's status for the change. Never throws
+ * itself; a caller sweeping every change (`--all`) wraps this in a try/catch
+ * per change so one bad change cannot abort the sweep.
+ */
+export function buildChangeEntry(
+  base: string,
+  change: Change,
+  upstream?: Record<string, unknown>,
+): ChangeEntry {
   if (!hasAnyArtifact(change.dir)) return emptyChangeEntry(change)
-  if (!isCospecType(change.schema)) return legacyChangeEntry(change)
+  if (!isCospecType(change.schema)) return legacyChangeEntry(change, upstream)
   return computeStatus(base, change)
 }
 
@@ -254,10 +289,87 @@ function isFailure(entry: ChangeEntry | ChangeEntryFailure): entry is ChangeEntr
   return 'error' in entry
 }
 
-function renderEntryHuman(entry: ChangeEntry | ChangeEntryFailure): string {
+// --- the binary's status, for a schema cospec doesn't type ----------------------
+
+interface UpstreamArtifact {
+  id: string
+  status: ArtifactState
+  missingDeps?: string[]
+}
+
+function upstreamArtifacts(doc: Record<string, unknown>): UpstreamArtifact[] | undefined {
+  return Array.isArray(doc.artifacts) ? (doc.artifacts as UpstreamArtifact[]) : undefined
+}
+
+/** `resolveNext` over the binary's own artifact states and `applyRequires`. */
+function upstreamNext(doc: Record<string, unknown>, id: string): string | undefined {
+  const artifacts = upstreamArtifacts(doc)
+  if (artifacts === undefined) return undefined
+  const required = new Set(Array.isArray(doc.applyRequires) ? (doc.applyRequires as string[]) : [])
+  return resolveNext(
+    artifacts.map((a) => ({ id: a.id, state: a.status })),
+    required,
+    id,
+  )
+}
+
+/** The binary's diagnostics for a change it could not report, if it could not. */
+function upstreamFailure(doc: Record<string, unknown>): { message: string }[] | undefined {
+  if (upstreamArtifacts(doc) !== undefined) return undefined
+  return Array.isArray(doc.status) ? (doc.status as { message: string }[]) : undefined
+}
+
+const INDICATOR: Record<ArtifactState, string> = {
+  done: '[x]',
+  skipped: '[~]',
+  ready: '[ ]',
+  blocked: '[-]',
+}
+
+/**
+ * A port of the binary's `printStatusText` (`commands/workflow/status.js`)
+ * over its `status --json` document, uncoloured, with the `Next:` line from
+ * `resolveNext` — so nothing the binary wrote as prose is relayed or
+ * respelled.
+ */
+export function renderUpstreamHuman(
+  doc: Record<string, unknown>,
+  next: string | undefined,
+): string {
+  const artifacts = upstreamArtifacts(doc) ?? []
+  const done = artifacts.filter((a) => a.status === 'done').length
+  const skipped = artifacts.filter((a) => a.status === 'skipped').length
+  const lines = [`Change: ${String(doc.changeName)}`, `Schema: ${String(doc.schemaName)}`]
+  if (typeof doc.changeRoot === 'string' && doc.changeRoot.length > 0)
+    lines.push(`Change root: ${doc.changeRoot}`)
+  lines.push(
+    `Progress: ${done}/${artifacts.length - skipped} artifacts complete${skipped > 0 ? ` (${skipped} skipped)` : ''}`,
+  )
+  lines.push('')
+  for (const a of artifacts) {
+    let line = `${INDICATOR[a.status]} ${a.id}`
+    if (a.status === 'skipped') line += ' (skipped: change declares skip_specs)'
+    if (a.status === 'blocked' && a.missingDeps !== undefined && a.missingDeps.length > 0)
+      line += ` (blocked by: ${a.missingDeps.join(', ')})`
+    lines.push(line)
+  }
+  const complete = doc.isPlanningComplete === true
+  if (complete || next !== undefined) lines.push('')
+  if (complete) lines.push('All planning artifacts complete!')
+  if (next !== undefined) lines.push(`Next: ${next}`)
+  return `${lines.join('\n')}\n`
+}
+
+function renderEntryHuman(
+  entry: ChangeEntry | ChangeEntryFailure,
+  upstream: Record<string, unknown> | undefined,
+): string {
   if (isFailure(entry)) return `${entry.change}: ERROR — ${entry.error}\n`
   if ('legacy' in entry) {
-    return `${entry.change} (${entry.type}): legacy schema — use \`cospec status --change ${entry.change}\` for details\n`
+    const failure = upstream === undefined ? undefined : upstreamFailure(upstream)
+    if (upstream === undefined || failure !== undefined)
+      return `${entry.change}: ERROR — ${(failure ?? []).map((s) => s.message).join('\n')}\n`
+    return renderUpstreamHuman(upstream, entry.next)
   }
   if (entry.state === 'in-progress') {
     return `${entry.change} (${entry.type}): in progress — no artifacts yet; next: ${entry.next}\n`
@@ -265,41 +377,65 @@ function renderEntryHuman(entry: ChangeEntry | ChangeEntryFailure): string {
   return renderHuman(entry)
 }
 
+/** The binary's sweep entries by change name. */
+function sweepEntries(doc: Record<string, unknown>): Map<string, Record<string, unknown>> {
+  const changes = Array.isArray(doc.changes) ? (doc.changes as Record<string, unknown>[]) : []
+  return new Map(changes.map((c) => [String(c.changeName), c]))
+}
+
 /**
  * `cospec status --all` (OpenSpec 1.11 parity): a cospec-native sweep over
  * every active change, sorted by id. Unlike a single change lookup, one bad
  * change never aborts the sweep — it becomes a per-change failure entry and
- * the whole run still exits nonzero.
+ * the whole run still exits nonzero. The binary's sweep is fetched once, and
+ * only when an entry needs it: under `--json`, or for a change on a schema
+ * cospec doesn't type.
  */
 async function runAll(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
   const root = await resolveRoot(ctx)
   const base = root.base
-  const changes = listChanges(base).toSorted((a, b) => a.id.localeCompare(b.id))
+  const changes = listChanges(base)
+    .toSorted((a, b) => a.id.localeCompare(b.id))
+    .map((change) => gradedChange(base, change))
+
+  const upstream =
+    flags.json || changes.some(answeredUpstream)
+      ? await delegatedStatus(root, ['--all'])
+      : undefined
+  const byName = upstream === undefined ? new Map() : sweepEntries(upstream)
 
   const entries: (ChangeEntry | ChangeEntryFailure)[] = changes.map((change) => {
     try {
-      return buildChangeEntry(base, change)
+      return buildChangeEntry(base, change, byName.get(change.id))
     } catch (err) {
       return { change: change.id, error: (err as Error).message }
     }
   })
+  // A change the binary could not report fails the sweep when the binary's
+  // answer is the one it gets.
+  const upstreamFailed = entries.some((entry) => {
+    if (isFailure(entry) || !('legacy' in entry)) return false
+    const up = byName.get(entry.change)
+    return up === undefined || upstreamFailure(up) !== undefined
+  })
 
   if (flags.json) {
-    const upstream = await delegatedStatus(root, ['--all'])
     const doc = mergeUpstream(
       { changes: entries, root: rootOutput(root) },
-      withRespelledNextSteps(upstream),
+      withRespelledNextSteps(upstream!),
       SWEEP_IDENTITIES,
     ).value
     process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`)
   } else if (entries.length === 0) {
     process.stdout.write('cospec status: no active changes\n')
   } else {
-    process.stdout.write(entries.map(renderEntryHuman).join('\n'))
+    process.stdout.write(
+      entries.map((entry) => renderEntryHuman(entry, byName.get(entry.change))).join('\n'),
+    )
   }
 
-  return entries.some(isFailure) ? EXIT.failure : EXIT.success
+  return entries.some(isFailure) || upstreamFailed ? EXIT.failure : EXIT.success
 }
 
 const MUTEX_MESSAGE = 'The --all and --change options are mutually exclusive.'
@@ -386,13 +522,12 @@ function withRespelledNextSteps(doc: Record<string, unknown>): Record<string, un
     : single
 }
 
-/** cospec's entry for one change, the binary's document for it merged in, and `root`. */
-async function mergedEntry(
+/** cospec's entry, the binary's document for the same change merged in, and `root`. */
+function mergedEntry(
   root: ResolvedRoot,
   entry: Record<string, unknown>,
-  id: string,
-): Promise<Record<string, unknown>> {
-  const upstream = await delegatedStatus(root, ['--change', id])
+  upstream: Record<string, unknown>,
+): Record<string, unknown> {
   return mergeUpstream(
     { ...entry, root: rootOutput(root) },
     withRespelledNextSteps(upstream),
@@ -450,8 +585,8 @@ export async function run(ctx: CommandContext): Promise<number> {
     }
   }
 
-  const change = resolveChange(base, id)
-  if (change === undefined) {
+  const found = resolveChange(base, id)
+  if (found === undefined) {
     const suggestion = closest(
       id,
       active.map((c) => c.id),
@@ -464,49 +599,35 @@ export async function run(ctx: CommandContext): Promise<number> {
     if (suggestion !== undefined) process.stderr.write(`Did you mean '${suggestion}'?\n`)
     return EXIT.failure
   }
+  const change = gradedChange(base, found)
+
+  // A schema cospec doesn't type: the binary's own status answers it, in
+  // both modes, with the binary's outcome.
+  if (answeredUpstream(change)) {
+    const upstream = await delegatedStatus(root, ['--change', change.id])
+    const failure = upstreamFailure(upstream)
+    const entry = legacyChangeEntry(change, upstream)
+    if (flags.json) {
+      process.stdout.write(`${JSON.stringify(mergedEntry(root, entry, upstream), null, 2)}\n`)
+    } else if (failure !== undefined) {
+      for (const s of failure) process.stderr.write(`cospec status: ${s.message}\n`)
+    } else {
+      process.stdout.write(renderUpstreamHuman(upstream, entry.next))
+    }
+    return failure === undefined ? EXIT.success : EXIT.failure
+  }
 
   // Empty change: has .openspec.yaml but no artifacts yet (never "Unknown item").
-  if (!hasAnyArtifact(change.dir)) {
-    if (flags.json) {
-      const doc = await mergedEntry(root, emptyChangeEntry(change), change.id)
-      process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`)
-    } else {
-      process.stdout.write(
-        `${change.id} (${change.schema}): in progress — no artifacts yet; next: cospec instructions proposal --change ${change.id}\n`,
-      )
-    }
-    return EXIT.success
-  }
-
-  // Legacy / unknown schema: no cospec artifact matrix. `--json` reports it
-  // minimally; text relays the binary's own status for the change, its
-  // `Next:` remedy spelled through cospec.
-  if (!isCospecType(change.schema)) {
-    if (flags.json) {
-      process.stdout.write(
-        `${JSON.stringify({ change: change.id, type: change.schema, legacy: true }, null, 2)}\n`,
-      )
-      return EXIT.success
-    }
-    const result = await passthroughOpenspec(
-      {
-        command: ['status'],
-        threaded: [...(flags.noColor ? ['--no-color'] : []), ...root.storeArgs],
-        args: ['--change', change.id],
-      },
-      { cwd: root.cwd },
-    )
-    if (result.stdout.length > 0) process.stdout.write(respellRemedies(result.stdout))
-    if (result.stderr.length > 0) process.stderr.write(respellRemedies(result.stderr))
-    return result.exitCode === 0 ? EXIT.success : EXIT.failure
-  }
-
-  const status = computeStatus(base, change)
+  const entry: ChangeEntry = buildChangeEntry(base, change)
   if (!flags.json) {
-    process.stdout.write(renderHuman(status))
+    process.stdout.write(
+      'state' in entry && entry.state === 'in-progress'
+        ? `${change.id} (${change.schema}): in progress — no artifacts yet; next: ${entry.next}\n`
+        : renderHuman(entry as ChangeStatus),
+    )
     return EXIT.success
   }
-  const doc = await mergedEntry(root, { ...status }, change.id)
-  process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`)
+  const upstream = await delegatedStatus(root, ['--change', change.id])
+  process.stdout.write(`${JSON.stringify(mergedEntry(root, { ...entry }, upstream), null, 2)}\n`)
   return EXIT.success
 }

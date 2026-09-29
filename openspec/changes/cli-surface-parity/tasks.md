@@ -60,7 +60,7 @@ Co-Authored-By trailer, never `--no-verify`).
       `--all --json` call merged into cospec's documents with `root` as the
       resolver's object and `nextSteps` respelled. Flip rows 1.3, 1.4 and 3.2.
       Commit `feat(status): add OpenSpec's status keys to the JSON documents`
-- [ ] 4.3 Answer a schema cospec doesn't type (fork, `spec-driven`, unknown, no
+- [x] 4.3 Answer a schema cospec doesn't type (fork, `spec-driven`, unknown, no
       `.openspec.yaml`) from the delegated document: the text renderer port, the
       merged `--json` entry and the binary's exit code. Flip rows 5.1–5.4 and
       5.6. Commit
