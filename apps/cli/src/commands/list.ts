@@ -14,7 +14,13 @@ import { join } from 'node:path'
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
-import { isCospecType, listChanges } from '../core/change.ts'
+import {
+  changesDir,
+  findNestedChangesIn,
+  isCospecType,
+  listChangeDirs,
+  listChanges,
+} from '../core/change.ts'
 import { hasFlag } from '../core/command-table.ts'
 import { OpenspecCallError, passthroughOpenspec } from '../core/openspec.ts'
 import { resolveRoot } from '../core/root.ts'
@@ -105,6 +111,13 @@ interface Row {
   gateState: Gate['state']
   tasks: { total: number; complete: number }
   archiveReady: boolean
+  /** A namespace folder's nested changes (design D2), as the binary's row carries them. */
+  nested?: string[]
+}
+
+function nestedOf(base: string, id: string): { nested?: string[] } {
+  const finding = findNestedChangesIn(changesDir(base), id)
+  return finding === undefined ? {} : { nested: finding.nested }
 }
 
 export async function run(ctx: CommandContext): Promise<number> {
@@ -117,9 +130,9 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   const onlyBlocked = hasFlag(parsed, '--blocked')
 
-  const changes = listChanges(base)
+  const changes = listChangeDirs(base)
   const archived = archiveMap(base)
-  const active = new Set(changes.map((c) => c.id))
+  const active = new Set(listChanges(base).map((c) => c.id))
 
   const rows: Row[] = changes.map((change) => {
     const blockersPath = join(change.dir, 'blocking-changes.md')
@@ -152,6 +165,7 @@ export async function run(ctx: CommandContext): Promise<number> {
       gateState: gate.state,
       tasks: { total, complete },
       archiveReady,
+      ...nestedOf(base, change.id),
     }
   })
 

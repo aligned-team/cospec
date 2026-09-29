@@ -36,7 +36,7 @@ Co-Authored-By trailer, never `--no-verify`).
 
 ## 3. T1 — detector, meta rules, schema tier (`apps/cli/src/core/change.ts`, `apps/cli/src/core/rules/meta.ts`)
 
-- [ ] 3.1 Port `findNestedChangesIn`, `findNestedChanges` and
+- [x] 3.1 Port `findNestedChangesIn`, `findNestedChanges` and
       `describeNestedChange` into `change.ts` (design D2), with the detector
       unit table (verification 4.5), and make `listChanges` drop
       dot-directories. Verify with the unit table green and 4.6 flipped. Commit

@@ -915,7 +915,7 @@ describe('4. namespace folders', () => {
     }
   })
 
-  test.failing("4.6 the detector matrix nests every row as the binary's list does", async () => {
+  test("4.6 the detector matrix nests every row as the binary's list does", async () => {
     const root = cospecRoot()
     detectorMatrix(root)
     const up = await upstreamJson(['list', '--json'], root)
