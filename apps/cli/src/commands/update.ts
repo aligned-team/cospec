@@ -34,35 +34,37 @@ import {
   writeManifest,
 } from '../core/managed-files.ts'
 import { composeAllTypes, TYPE_TABLE } from '../core/schema-compose.ts'
+import {
+  adapterFor,
+  type HarnessAdapter,
+  type HarnessName,
+  HARNESS_NAMES,
+  ideRestartLine,
+  legacySkillsRoots,
+  removalRoots,
+  skillsRoot,
+} from '../harness/adapters.ts'
 import { LEGACY_CODEX_SKILL_ROOT, migrateLegacySkills } from '../harness/legacy-skills.ts'
-import { type HarnessName, HARNESS_NAMES, renderHarnessFiles } from '../harness/render.ts'
+import { renderHarnessFiles } from '../harness/render.ts'
 
 // --- harness detection -----------------------------------------------------
 
-/**
- * Skill base dir per harness (mirrors canon/workflows/harness.yaml). `codex` and
- * `agents` share the vendor-neutral `.agents/skills` root and render byte-identical
- * files there; codex adds `.codex/rules/cospec.rules` on top.
- */
-const SKILL_BASE: Record<HarnessName, string> = {
-  claude: '.claude/skills',
-  codex: '.agents/skills',
-  agents: '.agents/skills',
-  opencode: '.opencode/skills',
-}
-
-/** Skill roots a harness used to write to, still scanned for detection + migration. */
-const LEGACY_SKILL_BASE: Partial<Record<HarnessName, readonly string[]>> = {
-  codex: [LEGACY_CODEX_SKILL_ROOT],
-}
+// Every root and marker below is read from the harness's HARNESS_TABLE row.
+// `codex` and `agents` share the vendor-neutral `.agents/skills` root and render
+// byte-identical files there; codex adds its `rulesPath` on top.
 
 /**
- * A non-skill file that proves a harness was configured here. Needed because
- * `codex` and `agents` write the same skill tree: without the marker an
- * `agents`-only user would start getting a spurious `.codex/rules/cospec.rules`.
+ * A non-skill file that proves a harness was configured here: the row's
+ * `rulesPath`. Needed because `codex` and `agents` write the same skill tree:
+ * without the marker an `agents`-only user would start getting a spurious
+ * `.codex/rules/cospec.rules`.
  */
-const HARNESS_MARKER: Partial<Record<HarnessName, string>> = {
-  codex: '.codex/rules/cospec.rules',
+function harnessMarker(h: HarnessName): string | undefined {
+  return adapterFor(h).rulesPath
+}
+
+function skillBase(h: HarnessName): string {
+  return skillsRoot(adapterFor(h)).root
 }
 
 /** The sentinel skill every harness always emits — used for presence detection. */
@@ -70,26 +72,13 @@ const SENTINEL_SKILL = 'cospec-propose'
 
 /**
  * Directories cospec owns and is therefore allowed to delete manifest-tracked
- * files from: the `openspec/` tree (schemas + templates) and each harness's
- * top-level dir (e.g. `.claude`, `.codex`, `.opencode` — the codex rules file
- * lives under one of these). Manifest keys are untrusted (see
- * `resolveContainedPath`); any key that does not resolve inside one of these is
- * ignored rather than joined onto cwd and deleted.
+ * files from: the `openspec/` tree (schemas + templates) and every top-level dir
+ * a harness row writes under (skills, commands, rules file and legacy skills
+ * roots — e.g. `.codex`, which holds the codex rules file). Manifest keys are
+ * untrusted (see `resolveContainedPath`); any key that does not resolve inside
+ * one of these is ignored rather than joined onto cwd and deleted.
  */
-const MANAGED_REMOVAL_ROOTS: readonly string[] = [
-  ...new Set([
-    'openspec',
-    ...Object.values(SKILL_BASE).map(topLevel),
-    // `.codex` no longer contributes a skill base, but the codex rules file still
-    // lives there and is manifest-tracked, so it must stay removable.
-    ...Object.values(HARNESS_MARKER).flatMap((p) => (p === undefined ? [] : [topLevel(p)])),
-    ...Object.values(LEGACY_SKILL_BASE).flatMap((bases) => (bases ?? []).map(topLevel)),
-  ]),
-]
-
-function topLevel(path: string): string {
-  return path.split('/')[0]!
-}
+const MANAGED_REMOVAL_ROOTS: readonly string[] = removalRoots()
 
 function isCospecManagedMarkdown(text: string): boolean {
   const meta = readManagedMeta(text)
@@ -124,12 +113,12 @@ function hasSentinel(cwd: string, base: string): boolean {
 function hasHarnessEvidence(cwd: string, h: HarnessName): boolean {
   // A pre-migration install is detected by its LEGACY base alone — without that,
   // a `.codex/skills` tree would stop being regenerated and never be cleaned up.
-  if ((LEGACY_SKILL_BASE[h] ?? []).some((base) => hasSentinel(cwd, base))) return true
-  if (!hasSentinel(cwd, SKILL_BASE[h])) return false
+  if (legacySkillsRoots(adapterFor(h)).some((base) => hasSentinel(cwd, base))) return true
+  if (!hasSentinel(cwd, skillBase(h))) return false
   // A migrated codex install has no legacy tree left, so it is detected by the
   // shared sentinel plus the codex-only rules file; the marker is what keeps an
   // `agents`-only repo from acquiring a `.codex/` dir.
-  const marker = HARNESS_MARKER[h]
+  const marker = harnessMarker(h)
   return marker === undefined || existsSync(join(cwd, marker))
 }
 
@@ -148,11 +137,9 @@ function hasHarnessEvidence(cwd: string, h: HarnessName): boolean {
 export function detectHarnesses(cwd: string): HarnessName[] {
   const detected = HARNESS_NAMES.filter((h) => hasHarnessEvidence(cwd, h))
   const explainedBases = new Set(
-    detected.filter((h) => HARNESS_MARKER[h] !== undefined).map((h) => SKILL_BASE[h]),
+    detected.filter((h) => harnessMarker(h) !== undefined).map((h) => skillBase(h)),
   )
-  return detected.filter(
-    (h) => HARNESS_MARKER[h] !== undefined || !explainedBases.has(SKILL_BASE[h]),
-  )
+  return detected.filter((h) => harnessMarker(h) !== undefined || !explainedBases.has(skillBase(h)))
 }
 
 // --- atomic write ----------------------------------------------------------
@@ -281,6 +268,8 @@ export interface GenerateOptions {
   dryRun?: boolean
   /** Override the generatedBy stamp (tests). Defaults to the current version. */
   version?: string
+  /** Override the tool rows (tests), forwarded to `renderHarnessFiles`. */
+  adapters?: readonly HarnessAdapter[]
 }
 
 export interface GenerateResult {
@@ -332,9 +321,26 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
   }
 
   // Harness files.
-  const rendered = renderHarnessFiles({ harnesses: opts.harnesses, typeTable: TYPE_TABLE, version })
+  const rendered = renderHarnessFiles({
+    harnesses: opts.harnesses,
+    typeTable: TYPE_TABLE,
+    version,
+    adapters: opts.adapters,
+  })
+  // A home-relative path joined onto the repo would write outside the tool's
+  // real location; no managed root covers the home directory yet. Refused
+  // before any write, so nothing lands on disk.
   for (const file of rendered) {
-    if (file.kind === 'rules') {
+    if (file.scope === 'home') {
+      throw new Error(
+        `internal: ${file.harness} rendered home-scoped ${file.path}, which no managed root covers`,
+      )
+    }
+  }
+  for (const file of rendered) {
+    // Files with no frontmatter (the codex rules file, a TOML command) carry no
+    // self-describing provenance, so the manifest tracks them.
+    if (file.frontmatter === null) {
       flat.push({ relpath: file.path, abspath: join(cwd, file.path), content: file.content })
     } else {
       md.push({ relpath: file.path, abspath: join(cwd, file.path), content: file.content })
@@ -466,7 +472,22 @@ export function run(ctx: CommandContext): number {
 
   renderHuman(results, { check, harnesses, hadManifest: existsSync(manifestPath(cwd)) })
   for (const line of migrationLines(migration, check)) process.stdout.write(`${line}\n`)
+  // Upstream prints its restart line only when an update touched a tool's files.
+  const restart = check || drifted.length === 0 ? undefined : updateRestartLine(harnesses)
+  if (restart !== undefined) process.stdout.write(`${restart}\n`)
   return check && drifted.length > 0 ? 1 : 0
+}
+
+/**
+ * The update receipt's IDE restart line for the detected harnesses, or
+ * undefined when none of their rows sets `requiresIdeRestart`. `table` is a
+ * test seam for rows the shipped table does not carry.
+ */
+export function updateRestartLine(
+  harnesses: readonly string[],
+  table?: readonly HarnessAdapter[],
+): string | undefined {
+  return ideRestartLine(harnesses.map((h) => adapterFor(h, table)))
 }
 
 /**
