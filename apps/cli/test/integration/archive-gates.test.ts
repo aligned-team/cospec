@@ -287,15 +287,51 @@ The system SHALL render a widget when requested.
     expect(existsSync(join(root, 'openspec/changes/thin-widget-ok'))).toBe(true)
   })
 
-  // W4's masking is load-bearing on this gate: a scenario heading that only
-  // survives inside an HTML comment or a code fence is documentation, not a
-  // preserved scenario. Both cases must read as a drop to zero, not as two
-  // scenarios kept. Here the shape ERROR and the gate WARNING are reported
-  // together by the pre-delegation validation pass, so they land on stdout.
-  for (const [name, masked] of [
-    ['masked-comment', '<!--\n$BODY\n-->'],
-    ['masked-fence', '````\n$BODY\n````'],
-  ] as const) {
+  // A scenario heading that only survives inside a code fence is
+  // documentation, not a preserved scenario, to every reader: it must read as
+  // a drop to zero, not as two scenarios kept. Here the shape ERROR and the
+  // gate WARNING are reported together by the pre-delegation validation pass,
+  // so they land on stdout.
+  //
+  // Inside an HTML comment it is different. OpenSpec's archive reads comments
+  // as written, so it keeps both scenarios and archives the change (probed at
+  // 1.13.1), and cospec reads the same verbatim view everywhere a gate reads:
+  // `archive/scenario-preservation` sees no drop, `deltas/requirement-shape`
+  // sees both scenarios, and the hard gate keeps them. Until round 6 the
+  // advisory view behind `deltas/requirement-shape` saw no scenario at all and
+  // refused what the binary archives.
+  test('scenarios that survive only inside comment markup are kept, as the archive keeps them', async () => {
+    const root = await initRepo()
+    buildFeat(
+      root,
+      'masked-comment',
+      `## MODIFIED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested.
+
+<!--
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered
+
+#### Scenario: Render an empty widget
+
+- **WHEN** a caller requests an empty widget
+- **THEN** a placeholder is rendered
+-->
+`,
+    )
+    const res = await cospec(['archive', 'masked-comment'], { cwd: root })
+    expect(res.stdout).not.toContain('archive/scenario-preservation')
+    expect(res.stdout).not.toContain('deltas/requirement-shape')
+    expect(res.exitCode).toBe(0)
+    expect(existsSync(join(root, 'openspec/changes/masked-comment'))).toBe(false)
+  })
+
+  for (const [name, masked] of [['masked-fence', '````\n$BODY\n````']] as const) {
     test(`scenarios that survive only inside ${name.slice(7)} markup are not preserved`, async () => {
       const root = await initRepo()
       const body = `#### Scenario: Render a widget
@@ -581,12 +617,16 @@ more and keeping the spec alive misleads the next reader into building on it.
     )
   })
 
-  test('without the marker openspec refuses and cospec relays the refusal', async () => {
+  // openspec refuses a rebuilt spec with no requirement left; cospec's
+  // `archive/rebuilt-spec-invalid` now says so at pre-flight, before delegating,
+  // with the same way out.
+  test('without the marker cospec refuses before delegating, naming the marker', async () => {
     const root = await initRepo()
     buildRetire(root, 'retire-widgets', false)
     const res = await cospec(['archive', 'retire-widgets'], { cwd: root })
     expect(res.exitCode).toBe(1)
-    expect(res.stderr).toContain('retire_capabilities: true')
+    expect(res.stdout).toContain('archive/rebuilt-spec-invalid')
+    expect(res.stdout).toContain('retire_capabilities: true')
     expect(existsSync(join(root, 'openspec/specs/widgets/spec.md'))).toBe(true)
     expect(existsSync(join(root, 'openspec/changes/retire-widgets'))).toBe(true)
   })

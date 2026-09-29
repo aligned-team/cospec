@@ -6,6 +6,38 @@
 export type DeltaOperation = 'ADDED' | 'MODIFIED' | 'REMOVED' | 'RENAMED'
 
 /**
+ * Which view of one scan a reader takes. Fences are masked in both — they are
+ * found on the raw lines before anything else — and the two differ only in
+ * HTML comments.
+ *
+ * - `verbatim` keeps comments. It is exactly what openspec's own readers see
+ *   (`requirement-blocks.ts`, `requirement-text.ts`, `spec-structure.ts`,
+ *   `markdown-parser.ts`, 1.13.1: each builds a code-fence mask and nothing
+ *   else), and so what its validate checks and its archive merges and
+ *   re-validates: an op written inside `<!-- … -->` is parsed and applied, a
+ *   statement written inside one is the statement, and a header's trailing
+ *   comment is part of its name. Every check that can change a gate outcome
+ *   reads it — the `archive/*` family, every `deltas/*` finding at ERROR or
+ *   WARNING, and the hard archive gate.
+ * - `masked` also blanks comments. It survives only for the advisory findings
+ *   listed in `rules/views.ts` (`ADVISORY_RULES`), none of which a commented
+ *   line can trigger, so a commented-out draft never draws an authoring
+ *   finding.
+ *
+ * The two parses are distinct types (`Delta` and `AdvisoryDelta`, `LivingView`
+ * and `LivingView<'masked'>`), branded by `VIEW`, so no gate can be handed the
+ * masked one: every gate input is typed on the verbatim view.
+ */
+export type ReadView = 'masked' | 'verbatim'
+
+/**
+ * The type-only brand naming the view a parse was read under. It never exists
+ * at runtime; its one job is to make a masked parse unassignable to every
+ * parameter typed on the verbatim view.
+ */
+declare const VIEW: unique symbol
+
+/**
  * The canonical requirement header. The `Requirement:` keyword is matched
  * case-insensitively because both of openspec's readers are: the delta reader's
  * `REQUIREMENT_HEADER_REGEX` (`src/core/parsers/requirement-blocks.ts`,
@@ -38,9 +70,18 @@ const SCENARIO_RE = /^####\s+/
  * the body, not a boundary, so a scenario documenting sub-cases still has one.
  */
 const SCENARIO_BODY_END_RE = /^#{1,4}\s/
+/** Any header, `#` to `######` — where a requirement's statement ends (openspec's `HEADER_LINE`). */
+const ANY_HEADER_RE = /^#{1,6}\s/
 /** 3-hashtag scenario heading — the probe §5.4 mis-parse (DESIGN deltas/scenario-depth). */
 const SCENARIO_DEPTH_RE = /^###\s+Scenario:/
-const SHALL_MUST_RE = /\b(SHALL|MUST)\b/
+export const SHALL_MUST_RE = /\b(SHALL|MUST)\b/
+/**
+ * Any level-3 header. Inside an ADDED/MODIFIED section, one that is not a
+ * requirement header is skipped by both readers — the binary's
+ * `parseRequirementBlocksFromSection` (`src/core/parsers/requirement-blocks.ts`,
+ * 1.13.1) records it with this exact pattern, so cospec records the same lines.
+ */
+const LEVEL3_HEADER_RE = /^###\s+(.+?)\s*$/
 /**
  * REMOVED bullet form: `- \`### Requirement: X\``.
  *
@@ -85,13 +126,28 @@ const SECTION_TITLES: Record<string, DeltaOperation> = {
   'renamed requirements': 'RENAMED',
 }
 
-export interface DeltaOp {
+export interface DeltaOp<V extends ReadView = 'verbatim'> {
+  /** The view this op was read under — type-only (see `VIEW`). */
+  readonly [VIEW]?: V
   operation: DeltaOperation
   /** ADDED/MODIFIED/REMOVED requirement name (trimmed). */
   name?: string
+  /**
+   * ADDED/MODIFIED only: the name read off the header line as written,
+   * normalized like `name` but never comment-masked — the name openspec's own
+   * validator quotes. Equal to `name` except on an `AdvisoryDelta`, where a
+   * header's trailing `<!-- … -->` is blanked out of `name` (`Foo`) but is part
+   * of the binary's (`Foo <!-- note -->`).
+   */
+  verbatimName?: string
   fromName?: string
   toName?: string
   line: number
+  /**
+   * ADDED/MODIFIED: the requirement's statement — its body as openspec's
+   * `extractRequirementBody` reads it — contains SHALL or MUST. A keyword in
+   * the header, a scenario step or a fenced example is not in the statement.
+   */
   hasShallMust: boolean
   scenarioCount: number
   /**
@@ -120,6 +176,65 @@ export interface DeltaOp {
    * (MODIFIED only). Retired as an escape hatch — see `findScenarioDrops`;
    * kept so the gate can address an author who wrote one. */
   scenarioRemovalReasons: string[]
+  /**
+   * ADDED/MODIFIED only: the block cut at each skipped `###` header inside it
+   * (`SkippedHeader`), in order. The first part is the requirement's own, from
+   * its header; each later one opens at a skipped header. See
+   * `findRequirementSplits` (`rebuilt-spec.ts`) for why the cut matters.
+   */
+  parts?: RequirementPart[]
+}
+
+/** One piece of a requirement block, as the archive's rebuilt spec reads it. */
+export interface RequirementPart {
+  /** The skipped header opening this part, after `### `; absent for the first. */
+  header?: string
+  /** 1-based line of the part's first line (the requirement header for the first). */
+  line: number
+  /** `#### ` headers in this part that carry a body. */
+  scenarioCount: number
+  /**
+   * The part has a statement of its own: a non-blank, non-fenced line before
+   * its first header — for the first part, exactly a non-empty
+   * `extractRequirementBody`. The archive reads a skipped header whose text is
+   * blank (`###   `) as a requirement named by that statement, so without one
+   * it is a requirement with no text.
+   */
+  hasText: boolean
+}
+
+/** openspec's `METADATA_LINE` (`parsers/requirement-text.ts`): `**ID**: …` / `**Priority**: …`. */
+const METADATA_LINE_RE = /^\*\*[^*]+\*\*:/
+
+/**
+ * openspec's `extractRequirementBody` (`src/core/parsers/requirement-text.ts`,
+ * 1.13.1), ported line for line: the requirement's statement, read off the
+ * lines under its header. Every line up to the first header on a non-fenced
+ * line, skipping blank lines and every line inside a fenced block (masked on
+ * these lines alone, as upstream masks them); `**metadata**:` lines are the
+ * statement only when nothing else is. An HTML comment is text here, as it is
+ * to the binary — so a statement written inside one is a statement, and one
+ * that is only a comment has no SHALL/MUST.
+ *
+ * This is what the binary's validate grades (empty: `is missing requirement
+ * text`; no SHALL/MUST: `should contain SHALL or MUST`) and what its archive
+ * reads, so every gate that asks whether a requirement has a statement, or a
+ * normative one, asks it of this text.
+ */
+export function extractRequirementBody(bodyLines: readonly string[]): string {
+  const mask = buildCodeFenceMask(bodyLines)
+  const captured: string[] = []
+  const metadata: string[] = []
+  for (let i = 0; i < bodyLines.length; i++) {
+    if (mask[i] === true) continue
+    const line = bodyLines[i]!
+    if (ANY_HEADER_RE.test(line)) break
+    const trimmed = line.trim()
+    if (trimmed.length === 0) continue
+    if (METADATA_LINE_RE.test(trimmed)) metadata.push(trimmed)
+    else captured.push(trimmed)
+  }
+  return captured.length > 0 ? captured.join('\n') : metadata.join('\n')
 }
 
 /**
@@ -154,14 +269,36 @@ export interface OrphanedRequirement {
   line: number
 }
 
-export interface ParsedDelta {
+/**
+ * A `###` header inside an ADDED/MODIFIED section that is not a named
+ * `### Requirement:` header (a divider, a nameless `### Requirement:`, a
+ * `### Scenario:` one level too shallow). Neither reader validates what sits
+ * under it as a requirement of its own; it stays part of the block it is in.
+ */
+export interface SkippedHeader {
+  /** header text after `### `, trimmed. */
+  header: string
+  /** the section's `## ` title, first spelling as written (`ADDED Requirements`). */
+  section: string
+  /** 1-based line of the header. */
+  line: number
+}
+
+export interface ParsedDelta<V extends ReadView = 'verbatim'> {
+  /** The view this delta was read under — type-only (see `VIEW`). */
+  readonly [VIEW]?: V
   path: string
   capability: string
   headerPresent: boolean
-  ops: DeltaOp[]
+  ops: DeltaOp<V>[]
   /** section headers present but yielding zero entries. */
   emptySections: DeltaOperation[]
-  scenarioDepthIssues: { line: number }[]
+  /**
+   * `### Scenario:` lines, one level too shallow. `header` is the text after
+   * `### ` as written and trimmed — the text openspec quotes when it reports
+   * the same line as a skipped header.
+   */
+  scenarioDepthIssues: { line: number; header: string }[]
   /**
    * FROM:/TO: lines that formed no pair, in line order. A half-built RENAMED
    * op is never pushed to `ops` for these — see the RENAMED arm of
@@ -173,7 +310,19 @@ export interface ParsedDelta {
    * order — reported as the WARNING `deltas/orphaned-requirement`.
    */
   orphanedRequirements: OrphanedRequirement[]
+  /**
+   * Skipped `###` headers in ADDED/MODIFIED sections, in line order — the
+   * binary's `skippedHeaders`. Fenced lines are never recorded. Recording them
+   * changes nothing else this parser reports.
+   */
+  skippedHeaders: SkippedHeader[]
 }
+
+/** A delta as openspec reads it — the only parse a gate accepts. */
+export type Delta = ParsedDelta<'verbatim'>
+/** A delta with its HTML comments masked, for the advisory findings alone. */
+export type AdvisoryDelta = ParsedDelta<'masked'>
+export type AdvisoryDeltaOp = DeltaOp<'masked'>
 
 /**
  * openspec's `normalizeRequirementName` (`src/core/parsers/requirement-blocks.ts`,
@@ -280,11 +429,12 @@ export function hasScenarioBody(body: readonly string[]): boolean {
  * exit 1). Withholding the name only trades cospec's own rule id and remedy for
  * the delegated `openspec/validate` twin.
  *
- * Body lines come from the masked structural view, the view every other
- * structural decision in this module reads: a body written entirely inside an
- * HTML comment is invisible here exactly as it is everywhere else. Fenced lines
- * *are* body content, matching openspec's `readScenarioBodies`, which slices
- * masked lines into the body rather than skipping them.
+ * Body lines come from the view the caller parses (`ReadView`): under
+ * `masked` a body written entirely inside an HTML comment is invisible here,
+ * as it is to every other structural decision on that view; under `verbatim`
+ * it counts, as it does to openspec. Fenced lines *are* body content, matching
+ * openspec's `readScenarioBodies`, which slices masked lines into the body
+ * rather than skipping them.
  */
 function scenarioReader<T>(on: {
   /** Every `#### ` header, body or not — the name arm of the gate. */
@@ -374,49 +524,135 @@ function blank(s: string): string {
   return s.replace(/[^\n]/g, ' ')
 }
 
+const COMMENT_OPEN = '<!--'
+const COMMENT_CLOSE_RE = /--!?>/g
+
 /**
- * Blank out `<!-- … -->` spans in place, preserving every newline so line
- * numbers never shift. `--!>` terminates a comment too, and an unterminated
- * `<!--` comments out the rest of the file (openspec #1413).
+ * Blank out `<!-- … -->` spans line by line, preserving every line's length so
+ * line numbers never shift. `--!>` terminates a comment too, and an
+ * unterminated `<!--` comments out the rest of the file (openspec #1413).
+ *
+ * Fence-aware: `fenced` is the code-fence mask of the same raw lines, built
+ * first, and a comment can neither open nor close on a fenced line. A `<!--`
+ * shown inside a fenced example is code, not a comment — masking the text
+ * after it, as a whole-file regex did, hid every scenario below the example,
+ * and the scenario-preservation gate refused a merge openspec performs. A
+ * comment already open when a fence starts stays open across it, and the
+ * fenced lines inside it are blanked with the rest of the comment.
  */
-export function maskHtmlComments(text: string): string {
-  const masked = text.replace(/<!--[\s\S]*?--!?>/g, blank)
-  const unterminated = masked.indexOf('<!--')
-  if (unterminated === -1) return masked
-  return masked.slice(0, unterminated) + blank(masked.slice(unterminated))
+export function maskHtmlComments(lines: readonly string[], fenced: readonly boolean[]): string[] {
+  const masked: string[] = []
+  let open = false
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!
+    if (fenced[i] === true) {
+      masked.push(open ? blank(line) : line)
+      continue
+    }
+    let out = ''
+    let pos = 0
+    while (pos < line.length) {
+      if (open) {
+        COMMENT_CLOSE_RE.lastIndex = pos
+        const close = COMMENT_CLOSE_RE.exec(line)
+        const end = close === null ? line.length : close.index + close[0].length
+        out += blank(line.slice(pos, end))
+        pos = end
+        if (close !== null) open = false
+        continue
+      }
+      const start = line.indexOf(COMMENT_OPEN, pos)
+      if (start === -1) {
+        out += line.slice(pos)
+        break
+      }
+      out += line.slice(pos, start) + blank(COMMENT_OPEN)
+      pos = start + COMMENT_OPEN.length
+      open = true
+    }
+    masked.push(out)
+  }
+  return masked
+}
+
+/**
+ * One document, scanned once: the raw lines, their fence mask, and the
+ * comment-masked copy. Both `ReadView`s are read off this one scan, so the two
+ * can never disagree about where a fence starts or which line is which.
+ */
+export interface DocumentScan {
+  /** LF-normalized lines; BOM-stripped unless the scan was asked to keep it. */
+  source: string[]
+  /** `true` where `source[i]` sits inside a fenced code block — found on the raw lines. */
+  fenced: boolean[]
+  /** `source` with HTML comments blanked (`maskHtmlComments`). */
+  masked: string[]
+}
+
+/**
+ * Scan a markdown document. CR/CRLF fold to LF (a trailing `\r` leaks into
+ * every `(.+)$` capture), and a UTF-8 BOM is stripped as openspec's
+ * `MarkdownParser`, delta reader and `extractRequirementsSection` strip it.
+ * `keepBom` is for the one upstream reader that does not:
+ * `findMainSpecStructureIssues` (`spec-structure.ts`, 1.13.1) folds line
+ * endings only, so a BOM before a first-line `## Requirements` hides that
+ * header from it and the archive refuses the spec. Line counts never change.
+ */
+export function scanDocument(text: string, opts: { keepBom?: boolean } = {}): DocumentScan {
+  const folded = text.replace(/\r\n?/g, '\n')
+  const source = (opts.keepBom === true ? folded : folded.replace(/^﻿/, '')).split('\n')
+  const fenced = buildCodeFenceMask(source)
+  return { source, fenced, masked: maskHtmlComments(source, fenced) }
 }
 
 export interface ScannedMarkdown {
-  /** Structural view: BOM-stripped, LF-normalized, HTML comments blanked. */
+  /** The chosen view's lines (see `ReadView`), index-aligned with `source`. */
   lines: string[]
-  /** Verbatim view (same length/indices): BOM-stripped and LF-normalized only. */
+  /** Verbatim lines: BOM-stripped and LF-normalized only. */
   source: string[]
-  /** `true` where `lines[i]` sits inside a fenced code block. */
+  /** `true` where line `i` sits inside a fenced code block. */
   fenced: boolean[]
 }
 
-/**
- * Prepare a markdown document for structural scanning.
- *
- * A UTF-8 BOM is stripped (otherwise a BOM-prefixed `# Spec` never matches an
- * anchored header regex) and CR/CRLF are folded to LF (a trailing `\r` leaks
- * into every `(.+)$` capture). Both keep the line count intact, as does the
- * comment mask, so a reported line number always addresses the author's file.
- */
-export function scanMarkdown(text: string): ScannedMarkdown {
-  const normalized = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n')
-  const source = normalized.split('\n')
-  const lines = maskHtmlComments(normalized).split('\n')
-  return { lines, source, fenced: buildCodeFenceMask(lines) }
+export function scanMarkdown(text: string, view: ReadView = 'masked'): ScannedMarkdown {
+  const { source, fenced, masked } = scanDocument(text)
+  return { lines: view === 'verbatim' ? source : masked, source, fenced }
 }
 
-/** Parse a change-side delta spec. `capability` is the dir name (e.g. `widgets`). */
-export function parseDeltaSpec(text: string, path: string, capability: string): ParsedDelta {
-  const { lines, source, fenced } = scanMarkdown(text)
+/**
+ * Parse a change-side delta spec as openspec reads it — HTML comments kept (see
+ * `ReadView`). `capability` is the dir name (e.g. `widgets`).
+ */
+export function parseDeltaSpec(text: string, path: string, capability: string): Delta {
+  return readDelta(text, path, capability, 'verbatim')
+}
+
+/**
+ * The same delta with its HTML comments masked. Read only by the advisory
+ * findings `rules/views.ts` lists; no gate accepts its type.
+ */
+export function parseAdvisoryDelta(text: string, path: string, capability: string): AdvisoryDelta {
+  return readDelta(text, path, capability, 'masked')
+}
+
+function readDelta<V extends ReadView>(
+  text: string,
+  path: string,
+  capability: string,
+  view: V,
+): ParsedDelta<V> {
+  const { lines, source, fenced } = scanMarkdown(text, view)
   const ops: DeltaOp[] = []
-  const scenarioDepthIssues: { line: number }[] = []
+  const scenarioDepthIssues: ParsedDelta['scenarioDepthIssues'] = []
   const unpairedRenames: UnpairedRename[] = []
   const orphanedRequirements: OrphanedRequirement[] = []
+  const skippedHeaders: SkippedHeader[] = []
+  /**
+   * Each operation's first `## ` spelling. The binary folds every copy of a
+   * section into one and quotes the first title it met, so a header under a
+   * second `## Added Requirements` copy still reads `ADDED Requirements`.
+   */
+  const sectionTitles = new Map<DeltaOperation, string>()
   const sectionCounts = new Map<DeltaOperation, number>()
   const sectionsSeen = new Set<DeltaOperation>()
   let headerPresent = false
@@ -428,6 +664,8 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
   let openReq: DeltaOp | undefined
   /** Verbatim (unmasked) block lines for `openReq`. */
   let openRaw: string[] | undefined
+  /** `openReq`'s lines under its header, on this parse's view — its statement's source. */
+  let openBody: string[] | undefined
   /** The `FROM:` awaiting its `TO:` inside the current RENAMED section. */
   let pendingRename: { name: string; line: number } | undefined
   const scenarios = scenarioReader<DeltaOp>({
@@ -439,6 +677,17 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
       op.emptyScenarioCount++
     },
   })
+  // The same scenarios credited to the part of the block they sit in. Fed
+  // every call `scenarios` gets, so the two can never disagree on a boundary.
+  const partScenarios = scenarioReader<RequirementPart>({
+    header: () => {},
+    counted: (part) => {
+      part.scenarioCount++
+    },
+  })
+  const currentPart = (): RequirementPart | undefined => openReq?.parts?.at(-1)
+  /** Parts whose statement has ended at their first header (`RequirementPart.hasText`). */
+  const statementClosed = new WeakSet<RequirementPart>()
 
   const dropRename = (side: 'FROM' | 'TO', name: string, line: number) => {
     unpairedRenames.push({ side, name, line })
@@ -459,32 +708,45 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
     // Before the op is pushed: the last scenario's body ends with its block, and
     // `scenarios` still holds the op it belongs to.
     scenarios.close()
+    partScenarios.close()
     if (openReq !== undefined) {
       if (openRaw !== undefined) openReq.raw = openRaw.join('\n').trimEnd()
+      if (openBody !== undefined) {
+        const statement = extractRequirementBody(openBody)
+        openReq.hasShallMust = SHALL_MUST_RE.test(statement)
+        const head = openReq.parts?.[0]
+        if (head !== undefined) head.hasText = statement.length > 0
+      }
       ops.push(openReq)
       sectionCounts.set(openReq.operation, (sectionCounts.get(openReq.operation) ?? 0) + 1)
       openReq = undefined
     }
     openRaw = undefined
+    openBody = undefined
   }
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i]!
     const lineNo = i + 1
 
-    // Fenced lines carry no structure, but a SHALL/MUST inside a requirement's
-    // example block has always counted towards `hasShallMust` — keep that.
+    // Fenced lines carry no structure, and no statement: a SHALL/MUST in an
+    // example block is not one (`extractRequirementBody` skips them).
     if (fenced[i] === true) {
       // Fenced content is part of the block verbatim, but never structure: a
       // `#### ` line inside a fence is retained in `raw` and is not a scenario.
       // It is still *body*: a scenario whose steps are a fenced example has one.
       openRaw?.push(source[i] ?? '')
+      openBody?.push(raw)
       scenarios.body(raw)
-      if (openReq !== undefined && SHALL_MUST_RE.test(raw)) openReq.hasShallMust = true
+      partScenarios.body(raw)
       continue
     }
 
-    if (SCENARIO_DEPTH_RE.test(raw)) scenarioDepthIssues.push({ line: lineNo })
+    if (SCENARIO_DEPTH_RE.test(raw))
+      scenarioDepthIssues.push({
+        line: lineNo,
+        header: ((source[i] ?? '').match(LEVEL3_HEADER_RE)?.[1] ?? raw.slice(3)).trim(),
+      })
 
     const section = raw.match(SECTION_RE)
     if (section !== null) {
@@ -496,6 +758,7 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
       if (op !== undefined) {
         headerPresent = true
         currentOp = op
+        if (!sectionTitles.has(op)) sectionTitles.set(op, currentSection)
         sectionsSeen.add(op)
         if (!sectionCounts.has(op)) sectionCounts.set(op, 0)
       } else {
@@ -522,9 +785,11 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
       const req = raw.match(REQUIREMENT_RE)
       if (req !== null) {
         closeReq()
+        const name = normalize(req[1]!)
         openReq = {
           operation: currentOp,
-          name: normalize(req[1]!),
+          name,
+          verbatimName: normalize((source[i] ?? '').match(REQUIREMENT_RE)?.[1] ?? name),
           line: lineNo,
           hasShallMust: false,
           scenarioCount: 0,
@@ -532,19 +797,51 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
           emptyScenarioCount: 0,
           raw: '',
           scenarioRemovalReasons: [],
+          parts: [{ line: lineNo, scenarioCount: 0, hasText: false }],
         }
         openRaw = [source[i] ?? '']
+        openBody = []
         continue
+      }
+      // Detected on the masked line, quoted from the source one: the binary's
+      // reader quotes the header as written.
+      const skipped = raw.match(LEVEL3_HEADER_RE)
+      if (skipped !== null) {
+        const quoted = (source[i] ?? '').match(LEVEL3_HEADER_RE)?.[1] ?? skipped[1]!
+        skippedHeaders.push({
+          header: quoted.trim(),
+          section: sectionTitles.get(currentOp) ?? '',
+          line: lineNo,
+        })
       }
       if (openReq !== undefined) {
         openRaw?.push(source[i] ?? '')
+        openBody?.push(raw)
+        const part = currentPart()
+        if (part !== undefined && !statementClosed.has(part)) {
+          if (ANY_HEADER_RE.test(raw)) statementClosed.add(part)
+          else if (raw.trim() !== '') part.hasText = true
+        }
         if (SCENARIO_RE.test(raw)) {
           scenarios.open(openReq, scenarioNameFromHeader(source[i] ?? ''))
+          const part = currentPart()
+          if (part !== undefined) partScenarios.open(part, '')
         } else {
-          if (SCENARIO_BODY_END_RE.test(raw)) scenarios.close()
-          else scenarios.body(raw)
-          if (SHALL_MUST_RE.test(raw)) openReq.hasShallMust = true
+          if (SCENARIO_BODY_END_RE.test(raw)) {
+            scenarios.close()
+            partScenarios.close()
+          } else {
+            scenarios.body(raw)
+            partScenarios.body(raw)
+          }
         }
+        if (skipped !== null)
+          openReq.parts?.push({
+            header: skippedHeaders.at(-1)!.header,
+            line: lineNo,
+            scenarioCount: 0,
+            hasText: false,
+          })
         const removedNote = raw.match(SCENARIO_REMOVED_RE)
         if (removedNote !== null) openReq.scenarioRemovalReasons.push(removedNote[1]!.trim())
       }
@@ -624,19 +921,117 @@ export function parseDeltaSpec(text: string, path: string, capability: string): 
 
   // `unpairedRenames` is already in line order: a pending FROM: is only ever
   // dropped by a later line, and every other drop reports the line it is on.
+  // The brand is type-only, so the one parse is cast to the view it was read
+  // under.
   return {
     path,
     capability,
     headerPresent,
-    ops,
+    ops: ops as DeltaOp<V>[],
     emptySections,
     scenarioDepthIssues,
     unpairedRenames,
     orphanedRequirements,
+    skippedHeaders,
   }
 }
 
-export interface LivingSpec {
+/**
+ * A structural defect in a living spec that openspec's archive refuses to
+ * update past — the three kinds its `findMainSpecStructureIssues`
+ * (`src/core/parsers/spec-structure.ts`, 1.13.1) reports. The archive throws
+ * `target spec is structurally invalid and cannot be updated until fixed`
+ * before merging anything.
+ */
+export interface LivingStructureIssue {
+  kind: 'delta-header' | 'requirement-outside-requirements' | 'duplicate-requirement'
+  /** 1-based line of the offending header. */
+  line: number
+  /** delta-header: the header as written, trimmed; otherwise the requirement's normalized name. */
+  name: string
+  /** duplicate only: the line that first declared the name. */
+  firstLine?: number
+}
+
+const MAIN_REQUIREMENTS_HEADER_RE = /^##\s+Requirements\s*$/i
+const MAIN_SECTION_RE = /^##\s+/
+/** upstream's `DELTA_HEADER`: `\s+` between the words, case-insensitive. */
+const MAIN_DELTA_HEADER_RE = /^##\s+(ADDED|MODIFIED|REMOVED|RENAMED)\s+Requirements\s*$/i
+/** The spec-structure reader's header: `\s+` after `###`, unlike the delta reader's `\s*`. */
+const MAIN_REQUIREMENT_RE = /^###\s+Requirement:\s*(.+)\s*$/i
+
+/**
+ * openspec's `findMainSpecStructureIssues`, ported whole. Read exactly as
+ * upstream reads it: line endings folded, the BOM KEPT (that reader alone does
+ * not strip it — see `scanDocument`), fenced lines blanked, HTML comments NOT
+ * masked — a commented-out requirement under `## Purpose`, or a `## ADDED
+ * Requirements` on its own line inside a comment, is refused by the archive
+ * all the same.
+ */
+export function findLivingStructureIssues(text: string): LivingStructureIssue[] {
+  const { source, fenced } = scanDocument(text, { keepBom: true })
+  const lines = source.map((line, i) => (fenced[i] === true ? '' : line))
+  const issues: LivingStructureIssue[] = []
+  const firstLines = new Map<string, number>()
+  const start = lines.findIndex((line) => MAIN_REQUIREMENTS_HEADER_RE.test(line))
+  let end = lines.length
+  if (start !== -1)
+    for (let i = start + 1; i < lines.length; i++)
+      if (MAIN_SECTION_RE.test(lines[i]!)) {
+        end = i
+        break
+      }
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!
+    if (line.trim().length === 0) continue
+    if (MAIN_DELTA_HEADER_RE.test(line)) {
+      issues.push({ kind: 'delta-header', line: i + 1, name: line.trim() })
+      continue
+    }
+    const header = line.match(MAIN_REQUIREMENT_RE)
+    if (header === null) continue
+    const name = normalize(header[1]!)
+    if (start === -1 || i <= start || i >= end) {
+      issues.push({ kind: 'requirement-outside-requirements', line: i + 1, name })
+      continue
+    }
+    const firstLine = firstLines.get(name)
+    if (firstLine !== undefined)
+      issues.push({ kind: 'duplicate-requirement', line: i + 1, name, firstLine })
+    else firstLines.set(name, i + 1)
+  }
+  return issues
+}
+
+/**
+ * What a split leaves wanting: `head` and `own` a scenario (see
+ * `RequirementSplit.empty`), `text` a statement — a blank-titled header whose
+ * part has scenarios but no line of its own before them.
+ */
+export type SplitEmpty = 'head' | 'own' | 'text'
+
+/** A skipped header that splits its requirement into a piece with no scenario. */
+export interface RequirementSplit {
+  op: DeltaOp
+  /** The part the skipped header opens. */
+  part: RequirementPart
+  /**
+   * Which piece is left wanting: `head` — the requirement's own, above this
+   * (its first) skipped header, with no scenario — `own`, the header's part
+   * with no scenario, or `text`, the header's part with no statement.
+   */
+  empty: SplitEmpty
+}
+
+/**
+ * A living spec as one `ReadView` of its scan sees it. Both views are read by
+ * the one reader, `readLivingView`, with the same block boundaries: a block
+ * runs from its header to the next requirement header or `## ` section, fenced
+ * lines included verbatim.
+ */
+export interface LivingView<V extends ReadView = 'verbatim'> {
+  /** The view this spec was read under — type-only (see `VIEW`). */
+  readonly [VIEW]?: V
   requirementNames: Set<string>
   /**
    * requirement name → its current scenario count (archive/scenario-preservation):
@@ -655,9 +1050,34 @@ export interface LivingSpec {
   purposeText: string
 }
 
-/** Parse a living spec (openspec/specs/<cap>/spec.md) for archive precondition checks. */
-export function parseLivingSpec(text: string): LivingSpec {
-  const { lines, source, fenced } = scanMarkdown(text)
+/**
+ * The living spec as openspec's archive reads it: the `verbatim` view, what
+ * `findMainSpecStructureIssues` refuses, and the text itself — the archive
+ * rebuilds the spec from it (`rebuilt-spec.ts`). Every `archive/*` rule reads
+ * this and nothing else.
+ */
+export interface LivingArchiveView extends LivingView<'verbatim'> {
+  /** Defects the archive refuses to update past (`findLivingStructureIssues`). */
+  structureIssues: LivingStructureIssue[]
+  /** The living spec as read, which the archive merges the delta into. */
+  text: string
+}
+
+/**
+ * The living spec under both views. The top-level fields are the `verbatim`
+ * view — what the `archive/*` family and the hard archive gate in
+ * `commands/archive.ts` read — and `archive` is that same view; `advisory` is
+ * the `masked` one, read by the advisory `specs/*` lint alone.
+ */
+export interface LivingSpec extends LivingArchiveView {
+  archive: LivingArchiveView
+  advisory: LivingView<'masked'>
+}
+
+/** One reader for both views of a living spec's scan. */
+function readLivingView<V extends ReadView>(scan: DocumentScan, view: V): LivingView<V> {
+  const { source, fenced } = scan
+  const lines = view === 'verbatim' ? source : scan.masked
   const requirementNames = new Set<string>()
   const requirementScenarioCounts = new Map<string, number>()
   const requirementScenarioNames = new Map<string, string[]>()
@@ -749,6 +1169,29 @@ export function parseLivingSpec(text: string): LivingSpec {
   }
 }
 
+/** Parse a living spec (openspec/specs/<cap>/spec.md) under both views of one scan. */
+export function parseLivingSpec(text: string): LivingSpec {
+  const scan = scanDocument(text)
+  const archive: LivingArchiveView = {
+    ...readLivingView(scan, 'verbatim'),
+    structureIssues: findLivingStructureIssues(text),
+    text,
+  }
+  return { ...archive, archive, advisory: readLivingView(scan, 'masked') }
+}
+
+/**
+ * What `findScenarioDrops` reads of a living spec: the verbatim view, which is
+ * what the archive's own scenario-loss check reads. The `archive/scenario-
+ * preservation` rule passes `LivingSpec.archive`, and the hard gate in
+ * `commands/archive.ts` passes the `LivingSpec` itself; the brand keeps the
+ * masked view out of both.
+ */
+export type ScenarioBaseline = Pick<
+  LivingView,
+  typeof VIEW | 'requirementNames' | 'requirementScenarioCounts' | 'requirementScenarioNames'
+>
+
 export interface ScenarioDrop {
   capability: string
   name: string
@@ -824,7 +1267,7 @@ function missingCurrentScenarios(
  */
 export function findScenarioDrops(
   caps: readonly { capability: string; ops: readonly DeltaOp[] }[],
-  livingSpecs: ReadonlyMap<string, LivingSpec>,
+  livingSpecs: ReadonlyMap<string, ScenarioBaseline>,
 ): ScenarioDrop[] {
   const drops: ScenarioDrop[] = []
   for (const { capability, ops } of caps) {

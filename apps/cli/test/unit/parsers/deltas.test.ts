@@ -4,10 +4,14 @@ import {
   findScenarioDrops,
   foldRequirementName,
   type LivingSpec,
+  maskHtmlComments,
   normalizeBlockRaw,
   normalizeRequirementName,
+  parseAdvisoryDelta,
   parseDeltaSpec,
   parseLivingSpec,
+  extractRequirementBody,
+  scanDocument,
   scenarioDropMessage,
   scenarioNameFromHeader,
 } from '../../../src/core/deltas.ts'
@@ -578,7 +582,7 @@ The system SHALL render, quickly.
   // Hand-built because a real parse can never produce counts and names that
   // disagree.
   test('the count arm still fires when name extraction sees fewer living scenarios', () => {
-    const skewed: LivingSpec = {
+    const view = {
       requirementNames: new Set(['Widget rendering']),
       requirementScenarioCounts: new Map([['Widget rendering', 2]]),
       requirementScenarioNames: new Map([['Widget rendering', ['a']]]),
@@ -588,6 +592,8 @@ The system SHALL render, quickly.
       hasDeltaHeaders: false,
       purposeText: 'x',
     }
+    const archive = { ...view, structureIssues: [], text: '' }
+    const skewed: LivingSpec = { ...archive, archive, advisory: view }
     const p = parseDeltaSpec(
       `## MODIFIED Requirements
 
@@ -698,33 +704,39 @@ describe('parser tolerances: BOM, CRLF, HTML comments, fences', () => {
     expect(p.ops[0]!.scenarioRemovalReasons).toEqual(['it merged into s1.'])
   })
 
-  test('a commented-out requirement is not counted, and line numbers do not shift', () => {
-    const p = parseDeltaSpec(
-      [
-        '## ADDED Requirements',
-        '',
-        '<!--',
-        '### Requirement: Draft idea',
-        '',
-        '#### Scenario: never',
-        '-->',
-        '',
-        '### Requirement: Real',
-        '',
-        'The system SHALL x.',
-        '',
-        '#### Scenario: s',
-        '',
-        '- **WHEN** a',
-      ].join('\n'),
-      'specs/x/spec.md',
-      'x',
-    )
+  const COMMENTED_DRAFT = [
+    '## ADDED Requirements',
+    '',
+    '<!--',
+    '### Requirement: Draft idea',
+    '',
+    '#### Scenario: never',
+    '-->',
+    '',
+    '### Requirement: Real',
+    '',
+    'The system SHALL x.',
+    '',
+    '#### Scenario: s',
+    '',
+    '- **WHEN** a',
+  ].join('\n')
+
+  test('the advisory parse does not count a commented-out requirement, and line numbers do not shift', () => {
+    const p = parseAdvisoryDelta(COMMENTED_DRAFT, 'specs/x/spec.md', 'x')
     expect(p.ops).toHaveLength(1)
     expect(p.ops[0]!.name).toBe('Real')
     // 1-indexed line of `### Requirement: Real` in the ORIGINAL text.
     expect(p.ops[0]!.line).toBe(9)
     expect(p.ops[0]!.scenarioCount).toBe(1)
+  })
+
+  test('parseDeltaSpec reads a commented-out requirement, as openspec does', () => {
+    const p = parseDeltaSpec(COMMENTED_DRAFT, 'specs/x/spec.md', 'x')
+    expect(p.ops.map((o) => [o.name, o.line, o.scenarioCount])).toEqual([
+      ['Draft idea', 4, 1],
+      ['Real', 9, 1],
+    ])
   })
 
   test('a commented-out scenario does not inflate the living scenario count', () => {
@@ -748,14 +760,18 @@ describe('parser tolerances: BOM, CRLF, HTML comments, fences', () => {
     expect(living.requirementScenarioCounts.get('X')).toBe(1)
   })
 
-  test('an unterminated HTML comment masks the rest of the file', () => {
-    const p = parseDeltaSpec(
-      '## ADDED Requirements\n\n### Requirement: Real\n\nThe system SHALL x.\n\n#### Scenario: s\n\n- **WHEN** a\n\n<!--\n\n### Requirement: Dead\n\n#### Scenario: dead\n',
-      'specs/x/spec.md',
-      'x',
-    )
+  const UNTERMINATED =
+    '## ADDED Requirements\n\n### Requirement: Real\n\nThe system SHALL x.\n\n#### Scenario: s\n\n- **WHEN** a\n\n<!--\n\n### Requirement: Dead\n\n#### Scenario: dead\n'
+
+  test('an unterminated HTML comment masks the rest of the file on the advisory parse', () => {
+    const p = parseAdvisoryDelta(UNTERMINATED, 'specs/x/spec.md', 'x')
     expect(p.ops.map((o) => o.name)).toEqual(['Real'])
     expect(p.ops[0]!.scenarioCount).toBe(1)
+  })
+
+  test('parseDeltaSpec reads past an unterminated HTML comment, as openspec does', () => {
+    const p = parseDeltaSpec(UNTERMINATED, 'specs/x/spec.md', 'x')
+    expect(p.ops.map((o) => o.name)).toEqual(['Real', 'Dead'])
   })
 
   test('a `--!>` terminator closes a comment', () => {
@@ -843,13 +859,33 @@ describe('parser tolerances: BOM, CRLF, HTML comments, fences', () => {
     expect(living.requirementScenarioCounts.get('X')).toBe(1)
   })
 
-  test("SHALL inside a requirement's example fence still counts (unchanged)", () => {
+  // openspec's `extractRequirementBody` skips fenced lines, so an example
+  // block's SHALL is not the statement's (round 6; it used to count here).
+  test("SHALL inside a requirement's example fence is not its statement's, as openspec reads it", () => {
     const p = parseDeltaSpec(
       '## ADDED Requirements\n\n### Requirement: X\n\n```\nThe system SHALL x.\n```\n\n#### Scenario: s\n',
       'specs/x/spec.md',
       'x',
     )
-    expect(p.ops[0]!.hasShallMust).toBe(true)
+    expect(p.ops[0]!.hasShallMust).toBe(false)
+    expect(p.ops[0]!.parts?.[0]?.hasText).toBe(false)
+  })
+
+  test('extractRequirementBody reads the statement as openspec does', () => {
+    expect(
+      extractRequirementBody(['', 'The system SHALL x.', 'and wraps.', '#### Scenario: s']),
+    ).toBe('The system SHALL x.\nand wraps.')
+    expect(extractRequirementBody(['<!-- The system SHALL x. -->'])).toBe(
+      '<!-- The system SHALL x. -->',
+    )
+    expect(extractRequirementBody(['```', 'The system SHALL x.', '```', 'Plain.'])).toBe('Plain.')
+    expect(extractRequirementBody(['**ID**: R1', 'The system SHALL x.'])).toBe(
+      'The system SHALL x.',
+    )
+    expect(extractRequirementBody(['**Constraint**: The system MUST x.'])).toBe(
+      '**Constraint**: The system MUST x.',
+    )
+    expect(extractRequirementBody(['### Notes', 'The system SHALL x.'])).toBe('')
   })
 })
 
@@ -1687,10 +1723,25 @@ describe('bodyless scenario headers', () => {
     expect(op.emptyScenarioCount).toBe(1)
   })
 
-  test('a body that is only an HTML comment is no body, as everywhere else here', () => {
+  test('a body that is only an HTML comment is a body, as openspec reads it', () => {
     const op = deltaOf('', '#### Scenario: Hollow', '', '<!-- steps to be written -->')
-    expect(op.scenarioCount).toBe(0)
+    expect(op.scenarioCount).toBe(1)
     expect(op.raw).toContain('<!-- steps to be written -->')
+  })
+
+  test('the advisory parse reads a comment-only body as no body', () => {
+    const text = [
+      '## MODIFIED Requirements',
+      '',
+      '### Requirement: X',
+      '',
+      'The system SHALL x.',
+      '',
+      '#### Scenario: Hollow',
+      '',
+      '<!-- steps to be written -->',
+    ].join('\n')
+    expect(parseAdvisoryDelta(text, 'specs/x/spec.md', 'x').ops[0]!.scenarioCount).toBe(0)
   })
 
   test('the last scenario in a block keeps its body at a requirement boundary', () => {
@@ -2048,5 +2099,104 @@ describe('requirement header keyword case', () => {
     expect([...living.requirementNames]).toEqual(['Alpha'])
     expect(living.requirementScenarioCounts.get('Alpha')).toBe(1)
     expect(living.requirementScenarioNames.get('Alpha')).toEqual(['s1'])
+  })
+})
+
+// Round 3: one fence-aware scan. Fences are found on the raw lines first, and
+// an HTML comment can neither open nor close on a fenced line.
+describe('scanDocument: fences first, then comments', () => {
+  test('a "<!--" inside a fenced example opens no comment, so nothing after it is hidden', () => {
+    const text = [
+      '## MODIFIED Requirements',
+      '',
+      '### Requirement: X',
+      '',
+      'The system SHALL x.',
+      '',
+      '#### Scenario: explain',
+      '',
+      '```html',
+      '<!-- note',
+      '```',
+      '',
+      '#### Scenario: kept',
+      '',
+      '- **WHEN** a',
+    ].join('\n')
+    const p = parseDeltaSpec(text, 'specs/x/spec.md', 'x')
+    expect(p.ops[0]!.scenarioNames).toEqual(['explain', 'kept'])
+    expect(p.ops[0]!.scenarioCount).toBe(2)
+    expect(scanDocument(text).masked).toEqual(text.split('\n'))
+  })
+
+  test('a "-->" inside a fence does not close a comment opened before it', () => {
+    const lines = ['<!--', '```', '-->', '```', '#### Scenario: hidden', '-->', 'after']
+    const { fenced, masked } = scanDocument(lines.join('\n'))
+    expect(fenced).toEqual([false, true, true, true, false, false, false])
+    expect(masked.map((l) => l.trim())).toEqual(['', '', '', '', '', '', 'after'])
+  })
+
+  test('a fence opener inside a comment is still a fence, as the raw-line reader sees it', () => {
+    const { fenced } = scanDocument(['<!-- example', '```', '-->', '### Requirement: Y'].join('\n'))
+    expect(fenced).toEqual([false, true, true, true])
+  })
+
+  test('masking keeps every line length and column', () => {
+    const lines = ['a <!-- b --> c', '<!-- open', 'still', 'shut --> d']
+    const masked = maskHtmlComments(lines, [false, false, false, false])
+    expect(masked.map((l) => l.length)).toEqual(lines.map((l) => l.length))
+    expect(masked[0]).toBe(`a ${' '.repeat(10)} c`)
+    expect(masked[3]!.endsWith(' d')).toBe(true)
+    expect(masked[3]!.trim()).toBe('d')
+  })
+
+  test('the BOM is stripped unless the scan keeps it; line endings always fold', () => {
+    const text = '\uFEFF## Requirements\r\n\r\nx'
+    expect(scanDocument(text).source).toEqual(['## Requirements', '', 'x'])
+    expect(scanDocument(text, { keepBom: true }).source).toEqual(['\uFEFF## Requirements', '', 'x'])
+  })
+})
+
+describe('parseLivingSpec: two views of one scan', () => {
+  const living = [
+    '# X',
+    '',
+    '## Purpose',
+    '',
+    'Why.',
+    '',
+    '## Requirements',
+    '',
+    '### Requirement: X',
+    '',
+    'The system SHALL x.',
+    '',
+    '#### Scenario: real',
+    '',
+    '- **WHEN** a',
+    '',
+    '<!--',
+    '#### Scenario: commented',
+    '',
+    '- **WHEN** b',
+    '-->',
+  ].join('\n')
+
+  test('the advisory view drops a commented scenario; the top level and the archive view read it', () => {
+    const spec = parseLivingSpec(living)
+    expect(spec.advisory.requirementScenarioNames.get('X')).toEqual(['real'])
+    expect(spec.requirementScenarioNames.get('X')).toEqual(['real', 'commented'])
+    expect(spec.requirementScenarioCounts.get('X')).toBe(2)
+    expect(spec.archive.requirementScenarioNames.get('X')).toEqual(['real', 'commented'])
+    expect(spec.archive.requirementScenarioCounts.get('X')).toBe(2)
+  })
+
+  test('the archive view carries every structure kind, a commented delta header included', () => {
+    const spec = parseLivingSpec(`${living}\n\n<!--\n## REMOVED Requirements\n-->\n`)
+    expect(spec.advisory.hasDeltaHeaders).toBe(false)
+    expect(spec.hasDeltaHeaders).toBe(true)
+    expect(spec.archive.structureIssues).toEqual([
+      { kind: 'delta-header', line: 24, name: '## REMOVED Requirements' },
+    ])
   })
 })

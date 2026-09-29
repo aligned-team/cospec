@@ -11,6 +11,7 @@ import { join, relative, sep } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 
 import type { CommandContext } from '../cli.ts'
+import { readRetireCapabilitiesMarker } from '../core/change-metadata.ts'
 import {
   archiveDir,
   isValidSchemaVersion,
@@ -176,6 +177,7 @@ function loadChange(base: string, id: string, dir: string): LoadedChange {
     deltaFiles,
     unreadSpecFiles,
     livingSpecs,
+    retireMarker: readRetireCapabilitiesMarker(dir),
   }
 }
 
@@ -343,6 +345,231 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
     nativeKey: /^MODIFIED "(.*)" drops scenario/,
   },
 
+  // 1.13.1 empty delta sections vs archive/no-ops: the same file, the same
+  // state. Keyed on the path alone — `()` captures '' on both sides — because
+  // the binary raises it at most once per file.
+  {
+    rule: 'archive/no-ops',
+    delegated: /^Delta sections .+ were found, but no requirement entries parsed\.()/,
+    nativeKey: /^delta file has requirement headers but no parseable operations()$/,
+  },
+  // 1.13.1 CHANGE_NO_DELTAS vs archive/no-ops. Item-level (`path: file`), and
+  // raised only when no delta file parsed an entry — which is exactly when
+  // cospec's rule fired on a file that has a delta header — so it has no key.
+  { rule: 'archive/no-ops', delegated: /^Change must have at least one delta\. No deltas found\./ },
+  // 1.13.1 SHALL/MUST grading vs deltas/requirement-shape. The binary splits
+  // the defect over three wordings and two levels — header-only (WARNING),
+  // empty body under a keyword header (ERROR), no keyword in the body at all
+  // (WARNING); cospec keeps its one ERROR (roadmap: cospec-typed schemas keep
+  // cospec severities). Keyed on `<OP> "<name>"`, so a requirement cospec
+  // counts as having SHALL/MUST — one in a scenario step, say — keeps the
+  // binary's finding.
+  {
+    rule: 'deltas/requirement-shape',
+    delegated: /^((?:ADDED|MODIFIED) ".*") (?:should|must) contain SHALL or MUST\b/,
+    nativeKey: /^((?:ADDED|MODIFIED) ".*") must use SHALL\/MUST normative language$/,
+  },
+  // The same defect with an empty body under a plain header — whether cospec
+  // reads no SHALL/MUST at all, or one only in a scenario step.
+  {
+    rule: 'deltas/requirement-shape',
+    delegated: /^((?:ADDED|MODIFIED) ".*") is missing requirement text$/,
+    nativeKey:
+      /^((?:ADDED|MODIFIED) ".*") (?:must use SHALL\/MUST normative language|is missing requirement text)$/,
+  },
+  // 1.13.1's missing-scenario ERROR vs the scenario arm of the same rule.
+  // Keyed on `<OP> "<name>"`, and not anchored at its end: the binary appends
+  // its empty-scenario hint to the sentence when the block has a bare header.
+  {
+    rule: 'deltas/requirement-shape',
+    delegated: /^((?:ADDED|MODIFIED) ".*") must include at least one scenario\b/,
+    nativeKey: /^((?:ADDED|MODIFIED) ".*") must include at least one #### Scenario:$/,
+  },
+
+  // 1.13.1 skipped-header INFOs vs deltas/skipped-header. Both readers skip
+  // the same `###` lines, so each is keyed on its header text: a second
+  // skipped header in the file is a second finding. Anchored through each
+  // sentence's own clause, and the not-a-requirement one excludes a
+  // `Scenario:` header, which is `deltas/scenario-depth`'s (below).
+  // Captures may be empty: both tools quote a blank-titled `###   ` header as
+  // `"### "`.
+  {
+    rule: 'deltas/skipped-header',
+    delegated:
+      /^Header "### ((?!Scenario:).*)" in .+ is not a "### Requirement:" header and is ignored by validation\./,
+    nativeKey:
+      /^header "### (.*)" in .+ is not a "### Requirement:" header and is ignored by validation$/,
+  },
+  {
+    rule: 'deltas/skipped-header',
+    delegated:
+      /^Header "### (.*)" in .+ is missing a requirement name and is ignored by validation\./,
+    nativeKey:
+      /^header "### (.*)" in .+ is missing a requirement name and is ignored by validation$/,
+  },
+  // A `### Scenario:` the binary skips as a header is the scenario cospec
+  // reports one level too shallow. Keyed on the header text both messages
+  // quote, not the file alone: the binary also reports a `### Scenario:`
+  // written inside an HTML comment, which cospec's advisory reader masks, and
+  // a path-only key let a real one elsewhere in the file suppress it.
+  {
+    rule: 'deltas/scenario-depth',
+    delegated:
+      /^Header "### (Scenario:.*)" in .+ is not a "### Requirement:" header and is ignored by validation\./,
+    nativeKey: /^scenario heading "### (Scenario:.*)" uses 3 hashtags; must be `#### Scenario:`$/,
+  },
+
+  // 1.13.1 skipped-header INFOs vs archive/split-requirement: a skipped header
+  // inside an ADDED/MODIFIED block that the archive's rebuilt spec refuses is
+  // cospec's ERROR, not its `deltas/skipped-header` INFO. Keyed on the header
+  // text both messages quote, `### Scenario:` included — that entry's native
+  // twin, `deltas/scenario-depth`, stays silent on a header the advisory
+  // reader masks.
+  {
+    rule: 'archive/split-requirement',
+    delegated:
+      /^Header "### (.*)" in .+ is not a "### Requirement:" header and is ignored by validation\./,
+    nativeKey: /^header "### (.*?)" inside (?:ADDED|MODIFIED) ".*" splits it when archived/,
+  },
+  {
+    rule: 'archive/split-requirement',
+    delegated:
+      /^Header "### (.*)" in .+ is missing a requirement name and is ignored by validation\./,
+    nativeKey: /^header "### (.*?)" inside (?:ADDED|MODIFIED) ".*" splits it when archived/,
+  },
+
+  // 1.13.1 cross-section conflicts vs archive/added-exists. Each native key
+  // names its own section, so a delta that ADDs, REMOVEs and MODIFIES one name
+  // keeps the second delegated ERROR beside cospec's one finding.
+  {
+    rule: 'archive/added-exists',
+    delegated: /^Requirement present in both ADDED and REMOVED: "(.*)"$/,
+    nativeKey: /^ADDED "(.*)" is also REMOVED in this delta$/,
+  },
+  {
+    rule: 'archive/added-exists',
+    delegated: /^Requirement present in both MODIFIED and ADDED: "(.*)"$/,
+    nativeKey: /^ADDED "(.*)" is also MODIFIED in this delta$/,
+  },
+  // 1.13.1 MODIFIED+REMOVED of one name vs archive/target-missing: the merge
+  // runs REMOVED first, so cospec reports the MODIFIED target already gone.
+  // Keyed on the name, and only on that "no longer exists" wording, so a
+  // MODIFIED whose target was never there stays a finding of its own.
+  {
+    rule: 'archive/target-missing',
+    delegated: /^Requirement present in both MODIFIED and REMOVED: "(.*)"$/,
+    nativeKey: /^MODIFIED target "(.+)" no longer exists in capability /,
+  },
+  // 1.13.1 duplicate ADDED vs archive/added-exists: by the time the second
+  // copy runs, the first has written the name, so cospec reports a collision.
+  {
+    rule: 'archive/added-exists',
+    delegated: /^Duplicate requirement in ADDED: "(.*)"$/,
+    nativeKey: /^ADDED "(.+)" already exists with different content/,
+  },
+  // 1.13.1's RENAMED conflicts. Two renames onto one name: the second finds
+  // the first's target standing. A rename onto an ADDED name: cospec's
+  // RENAMED-TO arm reports it (and the ADDED arms leave it alone). Two renames
+  // of one source: the second finds it already carried away.
+  {
+    rule: 'archive/added-exists',
+    delegated: /^Duplicate TO in RENAMED: "(.*)"$/,
+    nativeKey: /^RENAMED target "(.+)" collides with an existing requirement/,
+  },
+  {
+    rule: 'archive/added-exists',
+    delegated: /^RENAMED TO collides with ADDED for "(.*)"$/,
+    nativeKey: /^RENAMED target "(.+)" collides with an ADDED requirement/,
+  },
+  {
+    rule: 'archive/target-missing',
+    delegated: /^Duplicate FROM in RENAMED: "(.*)"$/,
+    nativeKey: /^RENAMED target "(.+)" no longer exists in capability /,
+  },
+  // 1.13.1's MODIFIED of a RENAMED FROM vs archive/target-missing: the merge
+  // runs RENAMED first, so cospec reports the MODIFIED target carried away.
+  // The binary quotes the rename's TO, so cospec's message names it too and
+  // the two pair on that name.
+  {
+    rule: 'archive/target-missing',
+    delegated: /^MODIFIED references old name from RENAMED\. Use new header for "(.*)"$/,
+    nativeKey:
+      /^MODIFIED target ".*" no longer exists in capability '.*' — an earlier operation in this delta renamed it to "(.*)"$/,
+  },
+
+  // --- round-4 pairings: one defect, a cospec rule and a binary finding -----
+  //
+  // 1.13.1's three in-file conflicts no other archive/* arm reports, vs
+  // archive/op-conflict, keyed on the requirement both name — for the
+  // RENAMED+REMOVED pair, the RENAMED FROM, which the binary quotes.
+  {
+    rule: 'archive/op-conflict',
+    delegated: /^Duplicate requirement in MODIFIED: "(.*)"$/,
+    nativeKey: /^MODIFIED "(.*)" appears twice in this delta$/,
+  },
+  {
+    rule: 'archive/op-conflict',
+    delegated: /^Duplicate requirement in REMOVED: "(.*)"$/,
+    nativeKey: /^REMOVED "(.*)" appears twice in this delta$/,
+  },
+  {
+    rule: 'archive/op-conflict',
+    delegated:
+      /^Requirement present in both RENAMED and REMOVED: "(.*?)"(?: \(REMOVED spells it ".*"\))?$/,
+    nativeKey: /^REMOVED ".*" names the source of RENAMED "(.*)" -> "/,
+  },
+  //
+  // 1.13.1's orphaned-requirement WARNING vs deltas/orphaned-requirement.
+  // Keyed on the requirement name, never the section text: cospec's advisory
+  // reader quotes a header's `## Notes` with any trailing comment masked away,
+  // the binary with it.
+  {
+    rule: 'deltas/orphaned-requirement',
+    delegated:
+      /^Requirement "(.*)" is (?:under ".*"|above the first "## " section), which is not a delta section, so it is ignored\. Move it under /,
+    nativeKey:
+      /^requirement "(.*)" is (?:under ".*"|above the first "## " section), which is not a delta section, so it is ignored$/,
+  },
+  // 1.13.1's headerless-delta ERROR vs deltas/header-present, the same file.
+  {
+    rule: 'deltas/header-present',
+    delegated: /^No delta sections found\. Add headers such as "## ADDED Requirements"()/,
+    nativeKey:
+      /^no recognized delta header \(## ADDED\|MODIFIED\|REMOVED\|RENAMED Requirements\) found()$/,
+  },
+  // CHANGE_NO_DELTAS, item-level: raised only when no delta file parsed an
+  // entry, which a headerless file is. No key, as for archive/no-ops above.
+  {
+    rule: 'deltas/header-present',
+    delegated: /^Change must have at least one delta\. No deltas found\./,
+  },
+
+  // --- round-5 pairings -------------------------------------------------------
+  //
+  // A requirement a delta writes inside an HTML comment: the binary's delta
+  // validator reads it, cospec's advisory reader masks it, and the archive
+  // merges it — so the defect is `archive/rebuilt-spec-invalid`'s, on the
+  // commented header's line. Keyed on the requirement name both quote.
+  {
+    rule: 'archive/rebuilt-spec-invalid',
+    delegated: /^(?:ADDED|MODIFIED) "(.*)" is missing requirement text$/,
+    nativeKey:
+      /^requirement "(.*)" \(line \d+ of this delta\) has (?:.* and )?no text under its header\b/,
+  },
+  {
+    rule: 'archive/rebuilt-spec-invalid',
+    delegated:
+      /^(?:ADDED|MODIFIED) "(.*)" must contain SHALL or MUST in the requirement body, not only in the header\./,
+    nativeKey:
+      /^requirement "(.*)" \(line \d+ of this delta\) has (?:.* and )?no text under its header\b/,
+  },
+  {
+    rule: 'archive/rebuilt-spec-invalid',
+    delegated: /^(?:ADDED|MODIFIED) "(.*)" must include at least one scenario\b/,
+    nativeKey:
+      /^requirement "(.*)" \(line \d+ of this delta\) has (?:.* and )?no scenario in the rebuilt spec/,
+  },
+
   // --- 1.12.0 archive-preflight INFO (`Validator.findArchiveBlockers`) ------
   //
   // 1.12 dry-runs archive's merge builder during `validate` and relays each
@@ -391,6 +618,33 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
     delegated:
       /^Archive would refuse this delta: .*ADDED failed for header "### Requirement: (.+?)" - already exists/,
     nativeKey: /^ADDED "(.+)" already exists with different content/,
+  },
+  // A new capability's MODIFIED/RENAMED vs archive/new-spec-non-added, keyed
+  // on the capability both messages name.
+  {
+    rule: 'archive/new-spec-non-added',
+    delegated:
+      /^Archive would refuse this delta: (.+?): target spec does not exist; only ADDED requirements are allowed for new specs\./,
+    nativeKey: / targets capability '(.+?)', which has no living spec — /,
+  },
+  // 1.13.1's structurally-invalid living spec vs archive/target-invalid,
+  // keyed on the capability both messages name. Only when every defect the
+  // binary lists is one of the three kinds cospec's rule reads — a delta
+  // header, a misplaced or a duplicate requirement — so a listed defect
+  // cospec does not check still reaches the reader.
+  //
+  // The quoted header text is spec content, not cospec's own — an attacker
+  // could seed a heading with repeated `".`-like runs. `[^\n]*"` before a
+  // required literal let the engine backtrack the quoted span against the
+  // trailing `[^\n]*` once per repeated "line N: …" entry, which is
+  // exponential in the number of lines (CodeQL js/redos). `[^"\n]*` makes
+  // each quoted span's end unambiguous — real header text never contains a
+  // literal `"` — so there is exactly one way to match and no backtracking.
+  {
+    rule: 'archive/target-invalid',
+    delegated:
+      /^Archive would refuse this delta: (.+?): target spec is structurally invalid and cannot be updated until fixed:(?:\nline \d+: (?:Main spec contains delta header "[^"\n]*"\.|Requirement header "[^"\n]*" (?:duplicates the requirement declared on line \d+\.|appears outside the main ## Requirements section\.))[^\n]*)+\n?$/,
+    nativeKey: /^living spec openspec\/specs\/(.+?)\/spec\.md is structurally invalid — /,
   },
   // 1.13.1's two case-collision refusals, paired with the fold arms
   // `rules/archive.ts` grew for them.

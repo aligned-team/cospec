@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
+import { parseAdvisoryDelta, parseDeltaSpec } from '../../../src/core/deltas.ts'
 import {
   deltasRules,
   skipSpecsConflictIssues,
@@ -52,6 +53,26 @@ describe('deltasRules', () => {
     expect(rules(deltasRules(delta('specs/x/spec.md', 'x', noScenario)))).toContain(
       'deltas/requirement-shape',
     )
+  })
+
+  test('deltas/requirement-shape refuses an empty statement whose SHALL sits only in a scenario', () => {
+    const scenario = '#### Scenario: s\n\n- **WHEN** a\n- **THEN** the system SHALL b\n'
+    const empty = `## ADDED Requirements\n\n### Requirement: X\n\n${scenario}`
+    const headerShall = `## MODIFIED Requirements\n\n### Requirement: The system MUST x\n\n${scenario}`
+    const withText = `## ADDED Requirements\n\n### Requirement: X\n\n**Reason**: kept\n\n${scenario}`
+    const shape = (text: string) =>
+      deltasRules(delta('specs/x/spec.md', 'x', text))
+        .filter((i) => i.rule === 'deltas/requirement-shape')
+        .map((i) => [i.level, i.line, i.message])
+    expect(shape(empty)).toEqual([['ERROR', 3, 'ADDED "X" is missing requirement text']])
+    expect(shape(headerShall)).toEqual([
+      ['ERROR', 3, 'MODIFIED "The system MUST x" must use SHALL/MUST normative language'],
+    ])
+    // A metadata-only statement is text, as openspec reads it — with no
+    // SHALL/MUST in it, whatever the scenario says.
+    expect(shape(withText)).toEqual([
+      ['ERROR', 3, 'ADDED "X" must use SHALL/MUST normative language'],
+    ])
   })
 
   // A requirement whose only scenario is a bare header has no scenario at all,
@@ -273,6 +294,407 @@ describe('unreadDeltaFileIssues', () => {
     expect(unreadDeltaFileIssues(change).map((i) => i.path)).toEqual([
       'specs/x/notes.md',
       'specs/y.md',
+    ])
+  })
+})
+
+/**
+ * Every skipped-header shape at once: between blocks, inside a block, nameless
+ * (`### Requirement:` and `### requirement`), fenced, in a REMOVED section, a
+ * `### Scenario:` one level too shallow, and one inside a MODIFIED block.
+ */
+const SKIPPED = `## ADDED Requirements
+
+### Documentation Requirements
+
+### Requirement: Widget thing
+
+The system SHALL do a widget thing.
+
+### Notes inside
+
+The notes stay inside the block.
+
+#### Scenario: Works
+
+- **WHEN** a caller asks
+- **THEN** the thing is done
+
+### Requirement:
+
+### requirement
+
+\`\`\`md
+### Fenced header
+\`\`\`
+
+### Scenario: Shallow
+
+- **WHEN** a caller asks
+
+## REMOVED Requirements
+
+### Removed notes
+
+- \`### Requirement: Old thing\`
+
+## MODIFIED Requirements
+
+### Requirement: Other thing
+
+### Between notes
+
+The system MUST do the other thing.
+
+#### Scenario: Other
+
+- **WHEN** a
+- **THEN** b
+`
+
+describe('parseDeltaSpec skippedHeaders', () => {
+  test('records the lines the binary skips, and only those', () => {
+    const p = parseDeltaSpec(SKIPPED, 'specs/x/spec.md', 'x')
+    expect(p.skippedHeaders).toEqual([
+      { header: 'Documentation Requirements', section: 'ADDED Requirements', line: 3 },
+      { header: 'Notes inside', section: 'ADDED Requirements', line: 9 },
+      { header: 'Requirement:', section: 'ADDED Requirements', line: 18 },
+      { header: 'requirement', section: 'ADDED Requirements', line: 20 },
+      { header: 'Scenario: Shallow', section: 'ADDED Requirements', line: 26 },
+      { header: 'Between notes', section: 'MODIFIED Requirements', line: 40 },
+    ])
+  })
+
+  // Captured from the parser before `skippedHeaders` existed: recording the
+  // headers must not move a single op, count, line or block byte. (Only
+  // `verbatimName` and `parts` were added since: the first equals `name` on a
+  // comment-free header, the second only cuts the block at those headers.)
+  test('recording them leaves ops, SHALL/MUST, scenario counts and lines unchanged', () => {
+    const p = parseDeltaSpec(SKIPPED, 'specs/x/spec.md', 'x')
+    expect(p.ops.map(({ raw: _raw, ...op }) => op)).toEqual([
+      {
+        operation: 'ADDED',
+        name: 'Widget thing',
+        verbatimName: 'Widget thing',
+        line: 5,
+        hasShallMust: true,
+        scenarioCount: 1,
+        scenarioNames: ['Works'],
+        emptyScenarioCount: 0,
+        scenarioRemovalReasons: [],
+        parts: [
+          { line: 5, scenarioCount: 0, hasText: true },
+          { header: 'Notes inside', line: 9, scenarioCount: 1, hasText: true },
+          { header: 'Requirement:', line: 18, scenarioCount: 0, hasText: false },
+          { header: 'requirement', line: 20, scenarioCount: 0, hasText: false },
+          { header: 'Scenario: Shallow', line: 26, scenarioCount: 0, hasText: true },
+        ],
+      },
+      {
+        operation: 'REMOVED',
+        name: 'Old thing',
+        line: 34,
+        hasShallMust: false,
+        scenarioCount: 0,
+        scenarioNames: [],
+        emptyScenarioCount: 0,
+        scenarioRemovalReasons: [],
+      },
+      {
+        operation: 'MODIFIED',
+        name: 'Other thing',
+        verbatimName: 'Other thing',
+        line: 38,
+        // The statement ends at `### Between notes` before it says anything,
+        // so it holds no SHALL/MUST (round 6: read as `extractRequirementBody`).
+        hasShallMust: false,
+        scenarioCount: 1,
+        scenarioNames: ['Other'],
+        emptyScenarioCount: 0,
+        scenarioRemovalReasons: [],
+        parts: [
+          { line: 38, scenarioCount: 0, hasText: false },
+          { header: 'Between notes', line: 40, scenarioCount: 1, hasText: true },
+        ],
+      },
+    ])
+    // A skipped header stays part of the block it sits in, as upstream's does.
+    expect(p.ops[0]?.raw).toContain('### Notes inside')
+    expect(p.ops[0]?.raw.endsWith('- **WHEN** a caller asks')).toBe(true)
+    expect(p.ops[2]?.raw).toContain('### Between notes')
+    expect(p.emptySections).toEqual([])
+    expect(p.scenarioDepthIssues).toEqual([{ line: 26, header: 'Scenario: Shallow' }])
+    expect(p.orphanedRequirements).toEqual([])
+    expect(p.unpairedRenames).toEqual([])
+  })
+
+  test('a clean delta skips nothing', () => {
+    expect(parseDeltaSpec(GOOD, 'specs/x/spec.md', 'x').skippedHeaders).toEqual([])
+  })
+
+  test('a repeated section copy quotes the first spelling, as the binary does', () => {
+    const text = `## ADDED Requirements\n\n${GOOD.split('\n').slice(2).join('\n')}\n## Added Requirements\n\n### Stray\n`
+    expect(parseDeltaSpec(text, 'specs/x/spec.md', 'x').skippedHeaders).toEqual([
+      {
+        header: 'Stray',
+        section: 'ADDED Requirements',
+        line: text.split('\n').indexOf('### Stray') + 1,
+      },
+    ])
+  })
+})
+
+describe('deltas/skipped-header', () => {
+  const skippedIssues = (text: string) =>
+    deltasRules(delta('specs/x/spec.md', 'x', text)).filter(
+      (i) => i.rule === 'deltas/skipped-header',
+    )
+
+  test('an INFO only for a header the archive keeps; a splitting one is left to archive/*', () => {
+    // Every in-block header in SKIPPED leaves a piece of its block with no
+    // scenario, which the archive refuses — `archive/split-requirement`'s
+    // ERROR. Only the divider above the first requirement is this INFO.
+    expect(
+      skippedIssues(SKIPPED).map((i) => ({ level: i.level, line: i.line, message: i.message })),
+    ).toEqual([
+      {
+        level: 'INFO',
+        line: 3,
+        message:
+          'header "### Documentation Requirements" in ADDED Requirements is not a "### Requirement:" header and is ignored by validation',
+      },
+    ])
+  })
+
+  /** Both nameless shapes above the first requirement, and a harmless in-block divider. */
+  const KEPT = `## ADDED Requirements
+
+### Requirement:
+
+### requirement
+
+### Requirement: X
+
+The system SHALL x.
+
+#### Scenario: s
+
+- **WHEN** a
+- **THEN** b
+
+### Notes
+
+The system SHALL keep notes.
+
+#### Scenario: n
+
+- **WHEN** c
+- **THEN** d
+
+## MODIFIED Requirements
+
+### Between notes
+
+### Requirement: Other thing
+
+The system MUST do the other thing.
+
+#### Scenario: Other
+
+- **WHEN** a
+- **THEN** b
+`
+
+  test('an INFO for each nameless shape, a harmless in-block header, and a MODIFIED divider', () => {
+    expect(
+      skippedIssues(KEPT).map((i) => ({ level: i.level, line: i.line, message: i.message })),
+    ).toEqual([
+      {
+        level: 'INFO',
+        line: 3,
+        message:
+          'header "### Requirement:" in ADDED Requirements is missing a requirement name and is ignored by validation',
+      },
+      {
+        level: 'INFO',
+        line: 5,
+        message:
+          'header "### requirement" in ADDED Requirements is missing a requirement name and is ignored by validation',
+      },
+      {
+        level: 'INFO',
+        line: 16,
+        message:
+          'header "### Notes" in ADDED Requirements is not a "### Requirement:" header and is ignored by validation',
+      },
+      {
+        level: 'INFO',
+        line: 27,
+        message:
+          'header "### Between notes" in MODIFIED Requirements is not a "### Requirement:" header and is ignored by validation',
+      },
+    ])
+  })
+
+  test('each shape carries its own hint', () => {
+    const [nameless] = skippedIssues(KEPT)
+    const [divider] = skippedIssues(SKIPPED)
+    expect(divider?.hint).toBe(
+      'use "### Requirement: Documentation Requirements" if it should be validated as a requirement',
+    )
+    expect(nameless?.hint).toBe('add a name, e.g. "### Requirement: <name>"')
+  })
+
+  test('nothing for a fenced header, a REMOVED-section header, or a ### Scenario: line', () => {
+    const lines = skippedIssues(SKIPPED).map((i) => i.line)
+    const at = (header: string) => SKIPPED.split('\n').indexOf(header) + 1
+    for (const header of ['### Fenced header', '### Removed notes', '### Scenario: Shallow'])
+      expect(lines).not.toContain(at(header))
+    // The shallow scenario is reported once, by the rule whose remedy fits it.
+    expect(
+      rules(deltasRules(delta('specs/x/spec.md', 'x', SKIPPED))).filter(
+        (r) => r === 'deltas/scenario-depth',
+      ),
+    ).toHaveLength(1)
+  })
+
+  test("a scenario after a skipped header still counts; the header is archive/*'s", () => {
+    const text = `## ADDED Requirements
+
+### Requirement: X
+
+The system SHALL x.
+
+### Notes
+
+#### Scenario: s
+
+- **WHEN** a
+- **THEN** b
+`
+    // No requirement-shape finding: the scenario is still X's. No INFO either:
+    // the header leaves X's own piece with no scenario, which the archive refuses.
+    expect(deltasRules(delta('specs/x/spec.md', 'x', text))).toEqual([])
+  })
+
+  test('under --fast a splitting header keeps its INFO: no archive/* rule reports it', () => {
+    const fast = deltasRules(delta('specs/x/spec.md', 'x', SKIPPED), { fast: true }).filter(
+      (i) => i.rule === 'deltas/skipped-header',
+    )
+    const lineOf = (header: string) => SKIPPED.split('\n').indexOf(header) + 1
+    // Every skipped header but the fenced one, the REMOVED one and the
+    // `### Scenario:` line scenario-depth owns — the in-block ones included.
+    expect(fast.map((i) => i.line)).toEqual(
+      [
+        '### Documentation Requirements',
+        '### Notes inside',
+        '### Requirement:',
+        '### requirement',
+        '### Between notes',
+      ].map(lineOf),
+    )
+    expect(fast.every((i) => i.level === 'INFO')).toBe(true)
+  })
+
+  test('INFO never moves the verdict', () => {
+    const found = deltasRules(delta('specs/x/spec.md', 'x', KEPT))
+    expect(rules(found).every((r) => r === 'deltas/skipped-header')).toBe(true)
+    expect(found.filter((i) => i.level !== 'INFO')).toEqual([])
+  })
+})
+
+describe('deltas/requirement-shape header-only SHALL/MUST hint', () => {
+  const shape = (header: string, body: string) =>
+    deltasRules(
+      delta(
+        'specs/x/spec.md',
+        'x',
+        `## ADDED Requirements\n\n### Requirement: ${header}\n\n${body}#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n`,
+      ),
+    ).filter((i) => i.rule === 'deltas/requirement-shape')
+
+  const HINT =
+    'move the SHALL/MUST statement to the line immediately after the "### Requirement: ..." header'
+
+  test('a keyword only in the header is an ERROR carrying the move hint', () => {
+    expect(shape('The system SHALL frob widgets', 'The system frobs widgets.\n\n')).toEqual([
+      {
+        level: 'ERROR',
+        rule: 'deltas/requirement-shape',
+        path: 'specs/x/spec.md',
+        line: 3,
+        message: 'ADDED "The system SHALL frob widgets" must use SHALL/MUST normative language',
+        hint: HINT,
+      },
+    ])
+  })
+
+  test('an empty body under a keyword header is an ERROR carrying the move hint', () => {
+    expect(shape('The system MUST be empty', '')).toEqual([
+      {
+        level: 'ERROR',
+        rule: 'deltas/requirement-shape',
+        path: 'specs/x/spec.md',
+        line: 3,
+        message: 'ADDED "The system MUST be empty" must use SHALL/MUST normative language',
+        hint: HINT,
+      },
+    ])
+  })
+
+  test('no keyword anywhere is the same ERROR with no hint', () => {
+    expect(shape('Plain thing', 'The system does a plain thing.\n\n')).toEqual([
+      {
+        level: 'ERROR',
+        rule: 'deltas/requirement-shape',
+        path: 'specs/x/spec.md',
+        line: 3,
+        message: 'ADDED "Plain thing" must use SHALL/MUST normative language',
+        hint: undefined,
+      },
+    ])
+  })
+})
+
+// openspec's validator quotes a requirement by the header as written, trailing
+// HTML comment included, so cospec's finding must too — or its delegated twin
+// names a different requirement and is relayed as a second finding.
+describe('deltas/requirement-shape names the header as written', () => {
+  test('a comment-bearing header is named with its comment', () => {
+    const text =
+      '## ADDED Requirements\n\n### Requirement: Widget polishing <!-- restated -->\n\n' +
+      'The system polishes widgets.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n'
+    const found = deltasRules(delta('specs/x/spec.md', 'x', text))
+    expect(found.map((i) => [i.rule, i.message])).toEqual([
+      [
+        'deltas/requirement-shape',
+        'ADDED "Widget polishing <!-- restated -->" must use SHALL/MUST normative language',
+      ],
+    ])
+  })
+
+  test('the masked name still drives every other reading of an advisory op', () => {
+    const p = parseAdvisoryDelta(
+      '## ADDED Requirements\n\n### Requirement: Foo <!-- note -->\n\nThe system SHALL foo.\n',
+      'specs/x/spec.md',
+      'x',
+    )
+    expect(p.ops.map((o) => [o.name, o.verbatimName])).toEqual([['Foo', 'Foo <!-- note -->']])
+  })
+})
+
+describe('deltas/scenario-depth quotes its header', () => {
+  test('the message names the header as written, for the dedupe key', () => {
+    const text =
+      '## ADDED Requirements\n\n### Requirement: X\n\nThe system SHALL x.\n\n###   Scenario: Shallow <!-- c -->\n'
+    const found = deltasRules(delta('specs/x/spec.md', 'x', text)).filter(
+      (i) => i.rule === 'deltas/scenario-depth',
+    )
+    expect(found.map((i) => [i.line, i.message])).toEqual([
+      [
+        7,
+        'scenario heading "### Scenario: Shallow <!-- c -->" uses 3 hashtags; must be `#### Scenario:`',
+      ],
     ])
   })
 })

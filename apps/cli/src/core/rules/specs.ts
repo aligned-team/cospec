@@ -5,7 +5,7 @@
 // specs/, PMF10). Rule IDs are frozen public API.
 
 import type { LivingSpec } from '../deltas.ts'
-import type { Issue } from './issue.ts'
+import type { AdvisoryIssue } from './views.ts'
 
 /** The placeholder openspec writes into a spec created by archiving (probe §5.5). */
 const TBD_PLACEHOLDER = /TBD - created by archiving/
@@ -31,8 +31,8 @@ const LEADING_MARKER = /^(?:TBD|TODO)(?![\p{L}\p{N}\p{M}_])/iu
  * Cospec-added checks over a single living spec. `path` is the repo-relative
  * spec path used in the report.
  */
-export function specsRules(spec: LivingSpec, path: string): Issue[] {
-  const issues: Issue[] = []
+export function specsRules(spec: LivingSpec, path: string): AdvisoryIssue[] {
+  const issues: AdvisoryIssue[] = []
 
   // specs/purpose-tbd — the Purpose is a placeholder rather than one anyone
   // wrote. Two forms count and deliberately nothing else: the sentence archive
@@ -42,8 +42,10 @@ export function specsRules(spec: LivingSpec, path: string): Issue[] {
   // names the exact text to replace. An empty Purpose matches neither and stays
   // untouched — openspec's own empty-Purpose rule owns that case, and two
   // findings on one line help nobody.
-  const generated = TBD_PLACEHOLDER.test(spec.purposeText)
-  const leading = LEADING_MARKER.test(spec.purposeText)
+  // The advisory view (`rules/views.ts`): a lint that neither apply nor archive reads.
+  const { purposeText } = spec.advisory
+  const generated = TBD_PLACEHOLDER.test(purposeText)
+  const leading = LEADING_MARKER.test(purposeText)
   if (generated || leading) {
     issues.push({
       level: 'WARNING',

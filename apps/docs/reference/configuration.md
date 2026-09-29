@@ -61,16 +61,29 @@ two boolean keys:
   the marker makes `specs` optional, not forbidden.
 - **`retire_capabilities: true`** — authorizes openspec 1.8.0+ to delete a
   capability's living `spec.md` when a change's `REMOVED` operation takes its
-  last requirement. Without the marker, the merge refuses outright and cospec
-  relays the refusal with the change and spec untouched. Two footguns worth
-  knowing: the marker is only honored when the whole `.openspec.yaml` is valid
-  to openspec — in a repo whose `schema:` isn't registered with openspec, the
-  binary reports
-  `The marker present now cannot be honored (schema: unknown schema '<type>')`
-  and refuses regardless of the marker; and a retirement that _does_ go through
-  is reported by `cospec archive` as a `Retired:` line (and a `retired[]` array
-  in `--json`) — a living spec disappearing **without** the marker is treated as
-  an invariant breach, never silently accepted.
+  last requirement. Without the marker, the merge refuses outright, with the
+  change and spec untouched — cospec reports it at validate time on a
+  cospec-typed change (`archive/rebuilt-spec-invalid`) and relays openspec's
+  refusal on a legacy one. With it, the spec is deleted only when deleting it
+  loses nothing the merge cannot name: prose, a comment, a fence, a heading or a
+  table outside `## Purpose` and the requirement blocks' own parts — above the
+  requirements, inside or below a removed block, or in a trailing section —
+  keeps openspec writing the empty spec and refusing it, as does a spec the
+  change removed no requirement from; cospec reports both at validate time,
+  quoting the blocking lines. Two footguns worth knowing: the marker is only
+  honored when the whole `.openspec.yaml` is valid to openspec — a `created` in
+  `YYYY-MM-DD` form, a non-empty `goal`, `affected_areas` as a list of non-empty
+  strings, an `initiative` of exactly a kebab-case `store` and `id` — and its
+  `schema:` is one openspec lists and loads (in a repo whose `schema:` isn't
+  installed, `schema: unknown schema '<type>'`). Otherwise the binary counts the
+  change as unmarked and refuses the emptied spec, saying
+  `The marker present now cannot be honored (<reason>)`; cospec reports the same
+  at validate time on a cospec-typed change (`archive/rebuilt-spec-invalid`,
+  ending `retire_capabilities is set but cannot be honored (<reason>)`). And a
+  retirement that _does_ go through is reported by `cospec archive` as a
+  `Retired:` line (and a `retired[]` array in `--json`) — a living spec
+  disappearing **without** the marker is treated as an invariant breach, never
+  silently accepted.
 
 A key present but set to a non-boolean value is a validate-time ERROR
 (`meta/skip-specs-type`, `meta/retire-capabilities-type`).

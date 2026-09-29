@@ -1,9 +1,11 @@
 // deltas/* rules (DESIGN §4.3) — run before openspec delegation so cospec's
 // sharper diagnostics win. Rule IDs are frozen public API.
 
-import { parseDeltaSpec } from '../deltas.ts'
+import { parseAdvisoryDelta, parseDeltaSpec, SHALL_MUST_RE, type Delta } from '../deltas.ts'
+import { findRequirementSplits, rebuildSpec } from '../rebuilt-spec.ts'
 import type { Issue } from './issue.ts'
 import type { LoadedChange } from './schema-info.ts'
+import type { AdvisoryIssue } from './views.ts'
 
 const KEBAB_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/
 /** `specs/<capability-path>/spec.md` — the path may nest (`<area>/<capability>`). */
@@ -17,8 +19,29 @@ const ROOT_SPEC_PATH = 'specs/spec.md'
  * `emptyScenarioHint` (`src/core/validation/validator.ts`, 1.13.1) so an author
  * who hits it in both tools reads one instruction, not two.
  */
+/**
+ * Why a requirement whose header visibly says SHALL/MUST still has none: the
+ * keyword counts only in the body. openspec 1.13.1 gives the same instruction
+ * (`buildMissingShallOrMustMessage`, `src/core/validation/validator.ts`), which
+ * cospec states as a hint while its ERROR keeps cospec's own severity.
+ */
+const HEADER_ONLY_SHALL_HINT =
+  'move the SHALL/MUST statement to the line immediately after the "### Requirement: ..." header'
+
+/** Why a requirement has no statement — and, when its block says SHALL elsewhere, why that is none. */
+const MISSING_TEXT_HINT =
+  'write the requirement statement on the line under its "### Requirement: ..." header'
+const NOT_A_STATEMENT = 'a SHALL/MUST in a scenario step or a fenced example is not one'
+
+/** Why a statement is not normative although its block says SHALL/MUST somewhere below it. */
+const BODY_ONLY_SHALL_HINT =
+  'SHALL/MUST counts only in the statement under the "### Requirement: ..." header, not in a scenario step or a fenced example'
+
 const EMPTY_SCENARIO_HINT =
   'a scenario header with no body under it does not count; add its steps, e.g. "- **WHEN** ..." and "- **THEN** ..."'
+
+/** A skipped header that is a requirement header with no name (upstream's own test). */
+const NAMELESS_REQUIREMENT_RE = /^requirement:?$/i
 
 /**
  * `deltas/skip-specs-conflict` — a change declaring `skip_specs:` in
@@ -74,7 +97,18 @@ export function unreadDeltaFileIssues(change: LoadedChange): Issue[] {
   return issues
 }
 
-export function deltasRules(change: LoadedChange): Issue[] {
+export interface DeltasRuleOptions {
+  /**
+   * The archive-precondition family is skipped (`--fast`), so no
+   * `archive/split-requirement` stands in for a splitting header's INFO.
+   */
+  fast: boolean
+}
+
+export function deltasRules(
+  change: LoadedChange,
+  opts: DeltasRuleOptions = { fast: false },
+): Issue[] {
   const issues: Issue[] = []
 
   for (const file of change.deltaFiles) {
@@ -95,18 +129,14 @@ export function deltasRules(change: LoadedChange): Issue[] {
       continue
     }
 
+    // What openspec reads (see `ReadView`): every finding below that can
+    // change an outcome reads this parse. The masked one feeds only the
+    // advisory findings `rules/views.ts` lists.
     const parsed = parseDeltaSpec(file.text, file.path, file.capability)
+    const advisory = parseAdvisoryDelta(file.text, file.path, file.capability)
 
-    // deltas/scenario-depth
-    for (const s of parsed.scenarioDepthIssues) {
-      issues.push({
-        level: 'ERROR',
-        rule: 'deltas/scenario-depth',
-        path: file.path,
-        line: s.line,
-        message: 'scenario heading uses 3 hashtags; must be `#### Scenario:`',
-      })
-    }
+    const depth = scenarioDepthIssues(file)
+    issues.push(...depth)
 
     // deltas/capability-kebab — every segment of the capability path is
     // checked, so the nested `specs/<area>/<capability>/spec.md` layout
@@ -174,34 +204,151 @@ export function deltasRules(change: LoadedChange): Issue[] {
       })
     }
 
-    // deltas/requirement-shape
-    for (const op of parsed.ops) {
-      if (op.operation !== 'ADDED' && op.operation !== 'MODIFIED') continue
-      if (!op.hasShallMust) {
-        issues.push({
-          level: 'ERROR',
-          rule: 'deltas/requirement-shape',
-          path: file.path,
-          line: op.line,
-          message: `${op.operation} "${op.name}" must use SHALL/MUST normative language`,
-        })
+    // deltas/skipped-header — a `###` header inside an ADDED/MODIFIED section
+    // that is not a named requirement header. Neither reader validates what
+    // sits under it as a requirement of its own, so a divider like
+    // `### Documentation Requirements` passes `validate` while the author may
+    // believe it holds requirements. INFO, as upstream reports it (1.13.1
+    // `validation/validator.ts`), in upstream's words split into message and
+    // hint. A `### Scenario:` line is `deltas/scenario-depth`'s alone: its
+    // remedy is `#### Scenario:`, not the `### Requirement:` this one suggests.
+    //
+    // A header the archive refuses — one that splits its requirement into a
+    // piece with no scenario — is `archive/split-requirement`'s ERROR instead
+    // (see `findRequirementSplits`), so a line never carries both. Only when
+    // that family runs: under `--fast` nothing else reports the header, so it
+    // keeps its INFO — and a change cospec never delegates would otherwise
+    // lose the only report it had.
+    const depthLines = new Set(depth.map((d) => d.line))
+    const splitLines = new Set(opts.fast ? [] : splitsOf(change, file).map((s) => s.part.line))
+    for (const skipped of advisory.skippedHeaders) {
+      if (depthLines.has(skipped.line) || splitLines.has(skipped.line)) continue
+      const nameless = NAMELESS_REQUIREMENT_RE.test(skipped.header)
+      const info: AdvisoryIssue = {
+        level: 'INFO',
+        rule: 'deltas/skipped-header',
+        path: file.path,
+        line: skipped.line,
+        message: nameless
+          ? `header "### ${skipped.header}" in ${skipped.section} is missing a requirement name and is ignored by validation`
+          : `header "### ${skipped.header}" in ${skipped.section} is not a "### Requirement:" header and is ignored by validation`,
+        hint: nameless
+          ? 'add a name, e.g. "### Requirement: <name>"'
+          : `use "### Requirement: ${skipped.header}" if it should be validated as a requirement`,
       }
-      if (op.scenarioCount < 1) {
-        issues.push({
-          level: 'ERROR',
-          rule: 'deltas/requirement-shape',
-          path: file.path,
-          line: op.line,
-          message: `${op.operation} "${op.name}" must include at least one #### Scenario:`,
-          // Only when the block *has* a header that did not count — otherwise the
-          // hint answers a question the author never asked. Same condition and
-          // wording as openspec's `emptyScenarioHint`
-          // (`src/core/validation/validator.ts`, 1.13.1).
-          hint: op.emptyScenarioCount > 0 ? EMPTY_SCENARIO_HINT : undefined,
-        })
-      }
+      issues.push(info)
     }
+
+    issues.push(...requirementShapeIssues(parsed, file.path))
   }
 
+  return issues
+}
+
+/**
+ * `deltas/scenario-depth` for one delta file: a `### Scenario:` heading one
+ * level too shallow. Read on the masked view — an advisory finding (see
+ * `rules/views.ts`): the binary only INFOs a commented one and archives it, so
+ * a commented line never refuses here, while a visible one does. Exported so
+ * the archive family leaves each of these lines to this rule.
+ */
+export function scenarioDepthIssues(file: {
+  path: string
+  text: string
+  capability: string
+}): AdvisoryIssue[] {
+  return parseAdvisoryDelta(file.text, file.path, file.capability).scenarioDepthIssues.map((s) => ({
+    level: 'ERROR',
+    rule: 'deltas/scenario-depth',
+    path: file.path,
+    line: s.line,
+    // Quotes the header so the binary's skipped-header INFO for the same
+    // line pairs with this finding by its text, not by the file alone.
+    message: `scenario heading "### ${s.header}" uses 3 hashtags; must be \`#### Scenario:\``,
+  }))
+}
+
+/**
+ * The splits `archive/split-requirement` reports for one delta file — read off
+ * the same rebuilt spec it reads, so the INFO this family drops for a split is
+ * exactly the one that rule stands in for.
+ */
+function splitsOf(
+  change: LoadedChange,
+  file: { path: string; text: string; capability: string },
+): ReturnType<typeof findRequirementSplits> {
+  const verbatim = parseDeltaSpec(file.text, file.path, file.capability)
+  const rebuilt = rebuildSpec({
+    capability: file.capability,
+    changeName: change.id,
+    living: change.livingSpecs.get(file.capability)?.archive.text,
+    deltaText: file.text,
+    delta: verbatim,
+  })
+  return findRequirementSplits(verbatim, rebuilt?.lines)
+}
+
+/**
+ * `deltas/requirement-shape` for one delta file, on the parse openspec's own
+ * validator reads (`Delta`): a requirement written inside an HTML comment is
+ * one the binary validates and the archive merges, so it is checked here too,
+ * and a statement or scenario written inside one counts. Named as the header is
+ * written, so a finding the binary shares names the same requirement and its
+ * delegated twin is recognised. Exported so `archive/rebuilt-spec-invalid`
+ * leaves a delta line to this rule only where this rule reported it.
+ */
+export function requirementShapeIssues(parsed: Delta, path: string): Issue[] {
+  const issues: Issue[] = []
+  for (const op of parsed.ops) {
+    if (op.operation !== 'ADDED' && op.operation !== 'MODIFIED') continue
+    const name = op.verbatimName ?? op.name
+    const headerShall = op.name !== undefined && SHALL_MUST_RE.test(op.name)
+    // A keyword somewhere under the header that is not in the statement — a
+    // scenario step, a fenced example — which the author may think counts.
+    const shallBelow = SHALL_MUST_RE.test(op.raw.split('\n').slice(1).join('\n'))
+    // Graded in openspec's order (`validateChangeDeltaSpecs`, 1.13.1): an empty
+    // statement first, then one with no SHALL/MUST — both read off the body
+    // `extractRequirementBody` returns, where a comment is text and a scenario
+    // step or a fenced example is not.
+    if (op.parts?.[0]?.hasText === false) {
+      issues.push({
+        level: 'ERROR',
+        rule: 'deltas/requirement-shape',
+        path,
+        line: op.line,
+        message: headerShall
+          ? `${op.operation} "${name}" must use SHALL/MUST normative language`
+          : `${op.operation} "${name}" is missing requirement text`,
+        hint: headerShall
+          ? HEADER_ONLY_SHALL_HINT
+          : shallBelow
+            ? `${MISSING_TEXT_HINT}; ${NOT_A_STATEMENT}`
+            : MISSING_TEXT_HINT,
+      })
+    } else if (!op.hasShallMust) {
+      issues.push({
+        level: 'ERROR',
+        rule: 'deltas/requirement-shape',
+        path,
+        line: op.line,
+        message: `${op.operation} "${name}" must use SHALL/MUST normative language`,
+        hint: headerShall ? HEADER_ONLY_SHALL_HINT : shallBelow ? BODY_ONLY_SHALL_HINT : undefined,
+      })
+    }
+    if (op.scenarioCount < 1) {
+      issues.push({
+        level: 'ERROR',
+        rule: 'deltas/requirement-shape',
+        path,
+        line: op.line,
+        message: `${op.operation} "${name}" must include at least one #### Scenario:`,
+        // Only when the block *has* a header that did not count — otherwise the
+        // hint answers a question the author never asked. Same condition and
+        // wording as openspec's `emptyScenarioHint`
+        // (`src/core/validation/validator.ts`, 1.13.1).
+        hint: op.emptyScenarioCount > 0 ? EMPTY_SCENARIO_HINT : undefined,
+      })
+    }
+  }
   return issues
 }
