@@ -651,11 +651,11 @@ const VALUE_POSITION_ROWS: readonly Row[] = [
   },
   { argv: ['workset', 'open', 'w1', '--tool', '--help'], command: 'workset' },
   { argv: ['config', '--scope', '--help', 'list'], command: 'config' },
+  // `--help` is `--report`'s value: both refuse it as an unknown report.
   {
     argv: ['validate', '--report', '--help'],
     command: 'validate',
-    cospecOnly: { outcome: 'parsed', exit: 1 },
-    cospecStderr: "cospec validate: '--report' is not supported yet\n",
+    cospecStderr: "Error: Unknown validation report '--help'.\n",
   },
   { argv: ['instructions', 'proposal', '--schema', '--help'], command: 'instructions' },
   // cospec-only flags take their value the same way.

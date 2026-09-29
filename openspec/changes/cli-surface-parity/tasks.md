@@ -96,7 +96,7 @@ Co-Authored-By trailer, never `--no-verify`).
       precedence (design D7). Move `--type` from pending to handled and delete
       its yaml entry in this commit. Flip rows 7.1–7.4. Commit
       `feat(validate): resolve items and bulk scopes as OpenSpec does`
-- [ ] 6.2 Add `--report full|findings` with the four request refusals ahead of
+- [x] 6.2 Add `--report full|findings` with the four request refusals ahead of
       root resolution and `toFindings` in `report.ts`. Move `--report` from
       pending to handled and delete its yaml entry in this commit. Flip rows
       1.6, 7.5 and 7.6. Commit `feat(validate): add --report full|findings`

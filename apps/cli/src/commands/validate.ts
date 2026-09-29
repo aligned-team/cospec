@@ -26,9 +26,12 @@ import {
   exitCode as reportExitCode,
   renderHuman,
   renderJson,
+  toFindings,
+  toJson,
+  type FindingsScope,
   type ItemReport,
 } from '../core/report.ts'
-import { resolveRoot } from '../core/root.ts'
+import { resolveRoot, type ResolvedRoot } from '../core/root.ts'
 import { runChangeRules, specsRules } from '../core/rules/index.ts'
 import type { Issue, IssueLevel } from '../core/rules/issue.ts'
 import {
@@ -57,6 +60,7 @@ import {
   isDeltaSpecFile,
   unreadDeltaExpectation,
 } from '../core/spec-paths.ts'
+import { rootOutput } from '../core/upstream-keys.ts'
 
 // --- Change loading (filesystem → LoadedChange) ---------------------------
 
@@ -985,6 +989,59 @@ async function validateItem(
   return validateSpecs(root, name)
 }
 
+// --- --report (the binary's request validation) ---------------------------------
+
+/** The binary's one fix for every refused report request. */
+const REPORT_FIX =
+  'Use --report full|findings with --all, --changes, --specs, or --archived, without an item name. Do not combine archived and active scopes.'
+
+/**
+ * The binary's `--report` request validation, checked before any root is
+ * resolved: the refusal message, or undefined for an acceptable request.
+ */
+function reportRequestProblem(
+  report: string,
+  name: string | undefined,
+  archived: boolean,
+  bulk: boolean,
+): string | undefined {
+  if (report !== 'full' && report !== 'findings') return `Unknown validation report '${report}'.`
+  if (name !== undefined) return 'A validation report cannot be combined with an item name.'
+  if (archived && bulk) return 'A validation report cannot combine archived and active scopes.'
+  if (!archived && !bulk) return 'A validation report requires an explicit bulk scope.'
+  return undefined
+}
+
+/** The binary's `findingsScope` for an accepted `--report findings` request. */
+function findingsScope(o: {
+  archived: boolean
+  all: boolean
+  changes: boolean
+  specs: boolean
+}): FindingsScope {
+  if (o.archived) return 'archived'
+  if (o.all || (o.changes && o.specs)) return 'all'
+  return o.changes ? 'changes' : 'specs'
+}
+
+/** A report in the requested shape: the full report, or its findings projection. */
+function renderReport(
+  items: ItemReport[],
+  opts: { json: boolean; strict: boolean; noColor: boolean; findings?: FindingsScope },
+  root: ResolvedRoot,
+): string {
+  if (opts.findings !== undefined && opts.json) {
+    const full = { ...toJson(items), root: rootOutput(root) }
+    return `${JSON.stringify(toFindings(full, opts.findings), null, 2)}\n`
+  }
+  if (opts.json) return renderJson(items)
+  return renderHuman(items, {
+    strict: opts.strict,
+    noColor: opts.noColor,
+    findingsOnly: opts.findings !== undefined,
+  })
+}
+
 // --- command entrypoint -----------------------------------------------------
 
 export async function run(ctx: CommandContext): Promise<number> {
@@ -997,6 +1054,36 @@ export async function run(ctx: CommandContext): Promise<number> {
   const wantSpecs = hasFlag(parsed, '--specs')
   const wantArchived = hasFlag(parsed, '--archived')
   const name = parsed.positionals[0]
+  const bulk = wantAll || wantChanges || wantSpecs
+
+  // `--report` is validated before any root is resolved, as the binary does.
+  const report = flagValue(parsed, '--report')
+  let findings: FindingsScope | undefined
+  if (report !== undefined) {
+    const problem = reportRequestProblem(report, name, wantArchived, bulk)
+    if (problem !== undefined) {
+      if (flags.json) {
+        const status = [
+          {
+            severity: 'error',
+            code: 'invalid_validation_report_request',
+            message: problem,
+            fix: REPORT_FIX,
+          },
+        ]
+        process.stdout.write(`${JSON.stringify({ status }, null, 2)}\n`)
+      } else process.stderr.write(`Error: ${problem}\nFix: ${REPORT_FIX}\n`)
+      return 1
+    }
+    if (report === 'findings')
+      findings = findingsScope({
+        archived: wantArchived,
+        all: wantAll,
+        changes: wantChanges,
+        specs: wantSpecs,
+      })
+  }
+  const renderOpts = { json: flags.json, strict, noColor: flags.noColor, findings }
 
   const root = await resolveRoot(ctx)
   const base = root.base
@@ -1018,15 +1105,11 @@ export async function run(ctx: CommandContext): Promise<number> {
       )
       return 1
     }
-    const body = flags.json
-      ? renderJson(archived)
-      : renderHuman(archived, { strict, noColor: flags.noColor })
-    process.stdout.write(body)
+    process.stdout.write(renderReport(archived, renderOpts, root))
     return reportExitCode(archived, strict)
   }
 
   const items: ItemReport[] = []
-  const bulk = wantAll || wantChanges || wantSpecs
   if (name !== undefined && !bulk) {
     // A bulk flag beside a name runs the bulk scope and ignores the name, as
     // the binary does; a name alone is resolved as the binary resolves it.
@@ -1051,9 +1134,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     if (doSpecs) items.push(...(await validateSpecs(root, undefined)))
   }
 
-  const output = flags.json
-    ? renderJson(items)
-    : renderHuman(items, { strict, noColor: flags.noColor })
-  process.stdout.write(output)
+  // The findings report's exit code is always the full report's.
+  process.stdout.write(renderReport(items, renderOpts, root))
   return reportExitCode(items, strict)
 }
