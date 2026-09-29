@@ -151,7 +151,7 @@ Co-Authored-By trailer, never `--no-verify`).
       `docs/validation.md`'s parser-tolerances section. Verify with rows 12.2,
       13.1–13.4 and 13.6 (`mise run docs:build` exit 0). Commit
       `docs(cli): document cli-surface-parity behavior`
-- [ ] 9.2 Tick row 7.2 in
+- [x] 9.2 Tick row 7.2 in
       `openspec/changes/archive/2026-09-28-validation-parity/tasks.md` with a
       note: the archive ran with `--force-incomplete`, which waived the tasks
       gate for that one self-referential row, and both hard gates ran. Verify
