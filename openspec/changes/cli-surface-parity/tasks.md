@@ -41,7 +41,7 @@ Co-Authored-By trailer, never `--no-verify`).
       unit table (verification 4.5), and make `listChanges` drop
       dot-directories. Verify with the unit table green and 4.6 flipped. Commit
       `feat(cli): detect namespace folders the way OpenSpec does`
-- [ ] 3.2 Add `meta/nested-change`, `meta/unreadable-artifact` and
+- [x] 3.2 Add `meta/nested-change`, `meta/unreadable-artifact` and
       `meta/item-missing` issue builders to `meta.ts`, each unit-tested for
       level, path and message. Commit
       `feat(validate): add the nested-change, unreadable and missing-item rules`
