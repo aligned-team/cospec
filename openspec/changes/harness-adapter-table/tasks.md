@@ -198,26 +198,56 @@ re-taken after any T3 edit.
       built-binary `init --harness all --yes` -> 127 files, file-list digest
       equal to task 1.3's `c9ff1f08…6ff305`, normalized stdout
       `sha256:62918ecd…756a04` recorded in verification 3.7 and 3.8
-- [ ] 5.3 `init.ts`: build the `--harness` value set and invalid-value message
+- [x] 5.3 `init.ts`: build the `--harness` value set and invalid-value message
       from `HARNESS_NAMES`, replace `DETECT_PATHS` with each row's
       `detectionPaths`, walk the leftover sweep over the derived scan roots, and
       replace `RESTART_LINES` with each selected row's `setupNote` plus the
       `requiresIdeRestart` line. Commit; verify verification 3.1, 3.2 and 3.5
-      pass
-- [ ] 5.4 `update.ts`: derive `SKILL_BASE`, `LEGACY_SKILL_BASE`, the marker
+      pass -> commit `afc4b69f`: `VALID_HARNESS_MSG` built from `HARNESS_NAMES`
+      (same sentence), `isDetected` over each row's `detectionPaths`, the opsx
+      sweep over `scanRoots()`, and `setupNoteLines` (exported, `table` seam)
+      printing each selected row's `setupNote` then `ideRestartLine`'s single
+      restart line; `DETECT_PATHS` and `RESTART_LINES` deleted. `adapters.ts`
+      gains `primaryRoot` and `ideRestartLine`. With update/doctor still
+      unmodified: wiring test green (3.1, 3.2), `setup-notes.test.ts` 6 pass
+      (3.5), typecheck and lint green
+- [x] 5.4 `update.ts`: derive `SKILL_BASE`, `LEGACY_SKILL_BASE`, the marker
       (from `rulesPath`) and `MANAGED_REMOVAL_ROOTS` from the table, route
       manifest tracking on `frontmatter === null`, refuse a `scope: 'home'`
       file, and print the `requiresIdeRestart` line in the update receipt.
-      Commit; verify verification 3.2, 3.3 and 3.6 pass
-- [ ] 5.5 `doctor.ts`: derive its skill-base and command-location maps and its
+      Commit; verify verification 3.2, 3.3 and 3.6 pass -> commit `efd24ce8`:
+      skills root, legacy roots and marker read from the row (`skillsRoot`,
+      `legacySkillsRoots`, `rulesPath`),
+      `MANAGED_REMOVAL_ROOTS = removalRoots()`, manifest routing on
+      `frontmatter === null`, a `scope: 'home'` file refused before any write,
+      `GenerateOptions.adapters` seam, and `updateRestartLine` printed after a
+      write in the human receipt only; `SKILL_BASE`, `LEGACY_SKILL_BASE`,
+      `HARNESS_MARKER` and the stale "mirrors canon/workflows/harness.yaml"
+      comment deleted. Wiring test green (3.2, 3.3), `generate-rows.test.ts` 3
+      pass (3.6), `update-restart.test.ts` 2 pass
+- [x] 5.5 `doctor.ts`: derive its skill-base and command-location maps and its
       scan roots from the table, and attribute a file to the row whose primary
-      root prefixes it. Commit; verify verification 3.4 passes
-- [ ] 5.6 No-behavior-change check for group 5: run `mise run test`,
+      root prefixes it. Commit; verify verification 3.4 passes -> commit
+      `0b78f988`: `SKILL_BASE`/`COMMAND_LOC` replaced by the owning row's
+      `skillsRoot`/`commandPath`, both walks over `scanRoots()`, and attribution
+      by `primaryRoot`; `WORKFLOW_SKILL`'s comment now says it mirrors the
+      `workflows:` block (workflow identity), which is still true, rather than
+      implying tool layout lives there. Wiring doctor goldens match (3.4); a
+      reversed scan order fails them (mutation check, reverted)
+- [x] 5.6 No-behavior-change check for group 5: run `mise run test`,
       `mise run test:integration`, `mise run test:contract`,
       `mise run generate:check` and `mise run test:pack`, the golden diffs of
       verification 1.2 and 3.7, and the built-binary run of verification 3.8.
       Record the observed results for every row in verification sections 1 to 4.
-      Commit the ledger; verify every existing suite is green, unchanged
+      Commit the ledger; verify every existing suite is green, unchanged -> at
+      HEAD `77db34ae`: `mise run test` 1860, `test:integration` 184,
+      `test:contract` 2397 pass (all inside `mise run check`), `generate:check`
+      no drift, `test:pack` 2 pass; golden diffs 1.2 (`e7725617`/`703fe1b` vs
+      HEAD) and 3.7 (`46250568` vs HEAD) exit 0; the 3.8 built-binary run is
+      identical to task 5.2's (file list and normalized stdout). Every row in
+      verification sections 1 to 4 recorded `[x]`. The first suite run failed in
+      node children only, from this shell's stale `NODE_OPTIONS` preload (see
+      verification 1.5), and was re-run with it unset
 
 ## 6. Docs
 
@@ -238,10 +268,16 @@ Exclusive files: `docs/harness-integration.md`.
       `git diff --exit-code main -- apps/docs/` exits 0 (this change alters no
       user-facing behavior); `format:check` and `cospec validate --strict`
       green. The receipt wiring this page describes is T3's (held); the doc
-      leads the code within this PR by design
+      leads the code within this PR by design. After T3 landed, commit
+      `77db34ae` brought the page to HEAD: what `init`, `update` and `doctor`
+      read from the table, the manifest tracking of TOML commands, the
+      home-scope refusal and update's restart line
 
 ## 7. Close-out
 
-- [ ] 7.1 Confirm every verification row is `[x]` with observed evidence, run
+- [x] 7.1 Confirm every verification row is `[x]` with observed evidence, run
       `mise run cospec -- validate harness-adapter-table --strict` and
-      `mise run check`. Commit the final ledger; verify verification 5.3
+      `mise run check`. Commit the final ledger; verify verification 5.3 ->
+      every verification row is `[x]` with observed evidence (no `[ ]` or `[~]`
+      left); `validate harness-adapter-table --strict` passes; `mise run check`
+      green at `77db34ae` (verification 5.3) and re-run on this ledger commit
