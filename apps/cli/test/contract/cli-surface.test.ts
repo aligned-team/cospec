@@ -813,6 +813,31 @@ describe('1. the key oracle passes and keeps cospec keys', () => {
 // --- 3. every status entry names its next step ---------------------------------------
 
 describe('3. status next steps', () => {
+  test('3.1 a mid-build feat change prints and carries its next step', async () => {
+    const root = listFixture()
+    const text = await ours(['status', '--change', 'alpha'], root)
+    captureStatus('3.1 text', text)
+    expect(text.exitCode).toBe(0)
+    expect(
+      text.stdout.endsWith('Next: cospec instructions blocking-changes --change alpha\n'),
+    ).toBe(true)
+    const json = await oursJson(['status', '--change', 'alpha', '--json'], root)
+    captureStatus('3.1 json', json)
+    expect((json.json as Row).next).toBe('cospec instructions blocking-changes --change alpha')
+  })
+
+  test('3.5 an empty change keeps its next spelling in both modes', async () => {
+    const root = cospecRoot()
+    writeChange(root, 'empty')
+    const text = await ours(['status', '--change', 'empty'], root)
+    captureStatus('3.5 text', text)
+    expect(text.exitCode).toBe(0)
+    expect(text.stdout).toContain('next: cospec instructions proposal --change empty')
+    const json = await oursJson(['status', '--change', 'empty', '--json'], root)
+    captureStatus('3.5 json', json)
+    expect((json.json as Row).next).toBe('cospec instructions proposal --change empty')
+  })
+
   test.failing("3.2 nextSteps equals the binary's, respelled, on five fixtures", async () => {
     const root = cospecRoot()
     writeChange(root, 'empty')
@@ -1475,7 +1500,7 @@ describe('10. user schema directory', () => {
 // --- 5.6 no status output names a bare openspec command ------------------------------------
 
 describe('5.6 status outputs', () => {
-  test.failing('no captured status output names a bare openspec command', () => {
+  test('no captured status output names a bare openspec command', () => {
     expect(STATUS_OUTPUTS.length).toBeGreaterThan(10)
     const bare = STATUS_OUTPUTS.filter((o) => BARE_OPENSPEC.test(o.text)).map((o) => o.label)
     expect(bare).toEqual([])
