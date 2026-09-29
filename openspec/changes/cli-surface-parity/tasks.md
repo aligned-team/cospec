@@ -91,7 +91,7 @@ Co-Authored-By trailer, never `--no-verify`).
 
 ## 6. T4 — validate (`apps/cli/src/commands/validate.ts`, `apps/cli/src/core/report.ts`)
 
-- [ ] 6.1 Port item resolution: `--type`, the ambiguity refusal,
+- [x] 6.1 Port item resolution: `--type`, the ambiguity refusal,
       `nearestMatches`, `invalid_item`, `meta/item-missing`, and bulk-flag
       precedence (design D7). Move `--type` from pending to handled and delete
       its yaml entry in this commit. Flip rows 7.1–7.4. Commit
