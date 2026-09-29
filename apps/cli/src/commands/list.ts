@@ -1,12 +1,18 @@
-// `cospec list [--blocked]` (DESIGN §2.6). Lists active changes with cospec
-// columns — type, gate state, task progress, archive-readiness — derived from
-// the filesystem (done == file exists) and the deterministic blocker gate.
-// `--blocked` filters to changes whose gate is not clear.
+// `cospec list [--blocked] [--sort <order>]` (DESIGN §2.6). Lists active
+// changes with cospec columns — type, gate state, task progress,
+// archive-readiness — derived from the filesystem (done == file exists) and the
+// deterministic blocker gate. `--blocked` filters to changes whose gate is not
+// clear.
+//
+// The rows, their order and the binary's own keys come from one delegated
+// `openspec list --json` call (design D6): the binary's rows set the order and
+// the membership, each gets cospec's native columns by name, and the binary's
+// keys are merged in beside them (`core/upstream-keys.ts`). `--sort name`
+// is forwarded; any other value, like none, is the binary's recent-first order.
 //
 // `cospec list --specs` (WI-7) closes the spec-listing gap: cospec's own rules
 // are change-centric, so it delegates to `openspec list --specs --json`
-// (disciplined passthrough, WI-1) and renders cospec's own spec table —
-// change listing stays entirely native.
+// (disciplined passthrough, WI-1) and renders cospec's own spec table.
 
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -18,16 +24,21 @@ import {
   changesDir,
   findNestedChangesIn,
   isCospecType,
-  listChangeDirs,
   listChanges,
+  readOpenspecYaml,
 } from '../core/change.ts'
-import { hasFlag } from '../core/command-table.ts'
-import { OpenspecCallError, passthroughOpenspec } from '../core/openspec.ts'
-import { resolveRoot } from '../core/root.ts'
+import { flagValue, hasFlag } from '../core/command-table.ts'
+import {
+  OpenspecCallError,
+  passthroughOpenspec,
+  wrappedCallLabel,
+  type Root,
+} from '../core/openspec.ts'
 import { TYPE_ARTIFACTS } from '../core/rules/type-facts.ts'
 import { parseTasks } from '../core/tasks.ts'
-import { archiveMap, artifactDone, computeGate, type Gate } from './apply.ts'
-import { gateLabel, hasAnyArtifact } from './status.ts'
+import { mergeUpstream, resolveRootOrDocument } from '../core/upstream-keys.ts'
+import { artifactDone, computeGate, type Gate } from './apply.ts'
+import { gateLabel, hasAnyArtifact, readArchive } from './status.ts'
 
 interface SpecRow {
   id: string
@@ -36,29 +47,24 @@ interface SpecRow {
 
 interface OpenspecListSpecsJson {
   specs?: SpecRow[]
+  root?: unknown
   status?: { severity: string; code: string; message: string; fix?: string }[]
 }
 
 /**
  * Delegate spec listing to `openspec list --specs --json` (openspec's `list
  * --specs`/`--json` shape is `{ specs: [{id, requirementCount}], root, status?
- * }`, re-probed against the pinned 1.11.0 — `specs[]` unchanged, `root` is now
- * an object `{path, source}` which cospec does not read). Renders cospec's own
- * spec table so
- * `--specs` output style matches the change table above it. Never touches
- * cospec's own rule families — spec *validation* stays `cospec validate
- * --specs`; this is read-only listing.
+ * }`). Renders cospec's own spec table so `--specs` output style matches the
+ * change table; under `--json` cospec's `{version: 1, specs}` document carries
+ * the delegated `root`. Never touches cospec's own rule families — spec
+ * *validation* stays `cospec validate --specs`; this is read-only listing.
  */
-async function runSpecs(
-  ctx: CommandContext,
-  cwd: string,
-  storeArgs: readonly string[],
-): Promise<number> {
+async function runSpecs(ctx: CommandContext, root: Root): Promise<number> {
   let result: Awaited<ReturnType<typeof passthroughOpenspec>>
   try {
     result = await passthroughOpenspec(
-      { command: ['list'], threaded: ['--json', ...storeArgs], args: ['--specs'] },
-      { cwd },
+      { command: ['list'], threaded: ['--json', ...root.storeArgs], args: ['--specs'] },
+      { cwd: root.cwd },
     )
   } catch (err) {
     if (err instanceof OpenspecCallError) {
@@ -85,7 +91,8 @@ async function runSpecs(
   const specs = parsed.specs ?? []
 
   if (ctx.flags.json) {
-    process.stdout.write(`${JSON.stringify({ version: 1, specs }, null, 2)}\n`)
+    const doc = { version: 1, specs, ...(parsed.root === undefined ? {} : { root: parsed.root }) }
+    process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`)
     return EXIT.success
   }
 
@@ -120,59 +127,127 @@ function nestedOf(base: string, id: string): { nested?: string[] } {
   return finding === undefined ? {} : { nested: finding.nested }
 }
 
+/** cospec's native columns for the change directory `id`, computed as ever. */
+function nativeRow(
+  base: string,
+  id: string,
+  archived: Map<string, string>,
+  active: Set<string>,
+): Row {
+  const dir = join(changesDir(base), id)
+  const schema = readOpenspecYaml(dir)?.schema ?? ''
+  const blockersPath = join(dir, 'blocking-changes.md')
+  const gate = existsSync(blockersPath)
+    ? computeGate(parseBlockers(readFileSync(blockersPath, 'utf8')), archived, active)
+    : ({ state: 'clear', hard: [], soft: [] } satisfies Gate)
+
+  const empty = !hasAnyArtifact(dir)
+  const cospec = isCospecType(schema)
+
+  const tasksPath = join(dir, 'tasks.md')
+  const parsedTasks = existsSync(tasksPath)
+    ? parseTasks(readFileSync(tasksPath, 'utf8'))
+    : { items: [], malformed: [], groups: [] }
+  const total = parsedTasks.items.length
+  const complete = parsedTasks.items.filter((t) => t.checked).length
+
+  let archiveReady = false
+  if (cospec && !empty) {
+    const facts = TYPE_ARTIFACTS[schema as keyof typeof TYPE_ARTIFACTS]
+    const requiredDone = facts.applyRequires.every((a) => artifactDone(dir, a))
+    archiveReady = requiredDone && total > 0 && complete === total && gate.state === 'clear'
+  }
+
+  return {
+    change: id,
+    type: schema || '(none)',
+    state: empty ? 'in-progress' : 'building',
+    gate: gateLabel(gate),
+    gateState: gate.state,
+    tasks: { total, complete },
+    archiveReady,
+    ...nestedOf(base, id),
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+/**
+ * The one delegated `openspec list --json` call (design D6). Its failure
+ * document (`status`, exit 1) is an answer, not a violation; anything but one
+ * document carrying `changes` or `status` is.
+ */
+async function delegatedList(root: Root, args: string[]): Promise<Record<string, unknown>> {
+  const label = wrappedCallLabel(['list', '--json', ...root.storeArgs, ...args])
+  let doc: Record<string, unknown> | undefined
+  await passthroughOpenspec(
+    { command: ['list'], threaded: ['--json', ...root.storeArgs], args },
+    {
+      cwd: root.cwd,
+      expect: {
+        exitCodes: [0, 1],
+        postCondition: (result) => {
+          let parsed: unknown
+          try {
+            parsed = JSON.parse(result.stdout)
+          } catch {
+            return `${label} did not print one JSON document`
+          }
+          if (!isRecord(parsed)) return `${label} printed no JSON object`
+          if (!Array.isArray(parsed.changes) && !Array.isArray(parsed.status))
+            return `${label} printed neither changes nor a diagnostic`
+          doc = parsed
+          return true
+        },
+      },
+    },
+  )
+  return doc!
+}
+
+/** The binary's `list` null-shape under `--json` (`{changes: [], root: null}`). */
+const LIST_FAILURE_PAYLOAD = { changes: [], root: null } as const
+const SPECS_FAILURE_PAYLOAD = { specs: [], root: null } as const
+
 export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
   const parsed = ctx.parsed!
-  const root = await resolveRoot(ctx)
+  const specsMode = hasFlag(parsed, '--specs')
+  const root = await resolveRootOrDocument(
+    ctx,
+    'list_error',
+    specsMode ? SPECS_FAILURE_PAYLOAD : LIST_FAILURE_PAYLOAD,
+  )
+  if (root === undefined) return EXIT.failure
   const base = root.base
 
-  if (hasFlag(parsed, '--specs')) return runSpecs(ctx, root.cwd, root.storeArgs)
+  if (specsMode) return runSpecs(ctx, root)
 
   const onlyBlocked = hasFlag(parsed, '--blocked')
+  const upstream = await delegatedList(
+    root,
+    flagValue(parsed, '--sort') === 'name' ? ['--sort', 'name'] : [],
+  )
+  const upstreamRows = (Array.isArray(upstream.changes) ? upstream.changes : []) as Record<
+    string,
+    unknown
+  >[]
 
-  const changes = listChangeDirs(base)
-  const archived = archiveMap(base)
+  const { archived } = readArchive(base)
   const active = new Set(listChanges(base).map((c) => c.id))
-
-  const rows: Row[] = changes.map((change) => {
-    const blockersPath = join(change.dir, 'blocking-changes.md')
-    const gate = existsSync(blockersPath)
-      ? computeGate(parseBlockers(readFileSync(blockersPath, 'utf8')), archived, active)
-      : ({ state: 'clear', hard: [], soft: [] } satisfies Gate)
-
-    const empty = !hasAnyArtifact(change.dir)
-    const cospec = isCospecType(change.schema)
-
-    const tasksPath = join(change.dir, 'tasks.md')
-    const parsedTasks = existsSync(tasksPath)
-      ? parseTasks(readFileSync(tasksPath, 'utf8'))
-      : { items: [], malformed: [], groups: [] }
-    const total = parsedTasks.items.length
-    const complete = parsedTasks.items.filter((t) => t.checked).length
-
-    let archiveReady = false
-    if (cospec && !empty) {
-      const facts = TYPE_ARTIFACTS[change.schema as keyof typeof TYPE_ARTIFACTS]
-      const requiredDone = facts.applyRequires.every((id) => artifactDone(change.dir, id))
-      archiveReady = requiredDone && total > 0 && complete === total && gate.state === 'clear'
-    }
-
-    return {
-      change: change.id,
-      type: change.schema || '(none)',
-      state: empty ? 'in-progress' : 'building',
-      gate: gateLabel(gate),
-      gateState: gate.state,
-      tasks: { total, complete },
-      archiveReady,
-      ...nestedOf(base, change.id),
-    }
+  const rows = upstreamRows.map((upRow) => {
+    const native = nativeRow(base, String(upRow.name), archived, active)
+    return mergeUpstream(native, upRow).value
   })
 
   const shown = onlyBlocked ? rows.filter((r) => r.gateState !== 'clear') : rows
 
   if (flags.json) {
-    process.stdout.write(`${JSON.stringify({ version: 1, changes: shown }, null, 2)}\n`)
+    const { changes: _rows, ...rest } = upstream
+    const doc = mergeUpstream({ version: 1, changes: shown }, rest).value
+    process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`)
     return EXIT.success
   }
 

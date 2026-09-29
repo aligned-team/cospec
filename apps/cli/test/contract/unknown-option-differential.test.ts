@@ -427,12 +427,6 @@ const PENDING_ROWS: readonly Row[] = [
     pendingFlag: '--concurrency',
   },
   {
-    argv: ['list', '--sort', 'name'],
-    command: 'list',
-    expect: 'pending',
-    pendingFlag: '--sort',
-  },
-  {
     argv: ['archive', '--no-validate', 'x'],
     command: 'archive',
     expect: 'pending',
@@ -508,6 +502,7 @@ const UPSTREAM_SPELLING_ROWS: readonly Row[] = [
  */
 const CLI_SURFACE_ROWS: readonly Row[] = [
   { argv: ['status', '--schema', 'custom'], command: 'status', expect: 'same', exit: 0 },
+  { argv: ['list', '--sort', 'name'], command: 'list', expect: 'same', exit: 0 },
 ]
 
 /**

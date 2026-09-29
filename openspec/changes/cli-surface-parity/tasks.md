@@ -77,7 +77,7 @@ Co-Authored-By trailer, never `--no-verify`).
 
 ## 5. T3 — list (`apps/cli/src/commands/list.ts`)
 
-- [ ] 5.1 Make `list` one delegated `openspec list --json` call merged by name
+- [x] 5.1 Make `list` one delegated `openspec list --json` call merged by name
       (design D6), with `--sort` forwarded, and `root` on `--specs`. Move
       `--sort` from pending to handled and delete its yaml entry in this commit.
       Flip rows 1.1, 1.2 and 6.1. Commit

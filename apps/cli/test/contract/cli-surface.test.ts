@@ -693,7 +693,7 @@ describe('1. the key oracle passes and keeps cospec keys', () => {
     expect(checkNativeKeys(cs.json, native, snapshot, LIST_SPEC.identities)).toEqual([])
   })
 
-  test.failing('1.2 list --specs --json on a two-spec fixture', async () => {
+  test('1.2 list --specs --json on a two-spec fixture', async () => {
     const root = cospecRoot()
     writeFiles(root, {
       'openspec/specs/widgets/spec.md': LIVING('widgets'),
@@ -1067,7 +1067,7 @@ describe('5. schemas cospec does not type', () => {
 // --- 6. list sorts and survives read failures -----------------------------------------------
 
 describe('6. list order and read failures', () => {
-  test.failing('6.1 --sort recent|name|bogus orders rows as the binary does', async () => {
+  test('6.1 --sort recent|name|bogus orders rows as the binary does', async () => {
     const root = listFixture()
     for (const extra of [[], ['--sort', 'name'], ['--sort', 'bogus']]) {
       const up = await upstreamJson(['list', '--json', ...extra], root)
@@ -1436,16 +1436,16 @@ const [LIST_ROW, SPECS_ROW, STATUS_ROW, SWEEP_ROW, VALIDATE_ROW] = RESOLVER_ROWS
 
 describe('8. resolver failures under --json', () => {
   unlessRoot('8.1 an unreadable store registry carries the command code and payload', () => {
-    test.failing('8.1 list --json', () => unreadableRegistry(LIST_ROW))
-    test.failing('8.1 list --specs --json', () => unreadableRegistry(SPECS_ROW))
+    test('8.1 list --json', () => unreadableRegistry(LIST_ROW))
+    test('8.1 list --specs --json', () => unreadableRegistry(SPECS_ROW))
     test('8.1 status --change a --json', () => unreadableRegistry(STATUS_ROW))
     test('8.1 status --all --json', () => unreadableRegistry(SWEEP_ROW))
     test.failing('8.1 validate --all --json', () => unreadableRegistry(VALIDATE_ROW))
   })
 
   describe("8.4 an unknown store carries the binary's diagnostic inside its payload", () => {
-    test.failing('8.4 list --json', () => unknownStore(LIST_ROW))
-    test.failing('8.4 list --specs --json', () => unknownStore(SPECS_ROW))
+    test('8.4 list --json', () => unknownStore(LIST_ROW))
+    test('8.4 list --specs --json', () => unknownStore(SPECS_ROW))
     test('8.4 status --change a --json', () => unknownStore(STATUS_ROW))
     test('8.4 status --all --json', () => unknownStore(SWEEP_ROW))
     test('8.4 validate --all --json', () => unknownStore(VALIDATE_ROW))
