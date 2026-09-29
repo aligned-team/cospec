@@ -55,7 +55,7 @@ Co-Authored-By trailer, never `--no-verify`).
 - [x] 4.1 Add `resolveNext` and wire it to `next` on every entry and to the
       human `Next:` line (design D4), with the unit table 3.3 and the rows 3.1,
       3.4 and 3.5. Commit `feat(status): name the next step on every entry`
-- [ ] 4.2 Add `core/upstream-keys.ts` (design D3), its unit test (collision
+- [x] 4.2 Add `core/upstream-keys.ts` (design D3), its unit test (collision
       list, identity merge), and the one delegated `status --json` /
       `--all --json` call merged into cospec's documents with `root` as the
       resolver's object and `nextSteps` respelled. Flip rows 1.3, 1.4 and 3.2.

@@ -12,9 +12,9 @@ import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
 import { isCospecType, listChanges, resolveChange, type Change } from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
-import { passthroughOpenspec } from '../core/openspec.ts'
-import { respellRemedies } from '../core/remedies.ts'
-import { resolveRoot } from '../core/root.ts'
+import { passthroughOpenspec, wrappedCallLabel } from '../core/openspec.ts'
+import { respellRemedies, respellWholeRemedy } from '../core/remedies.ts'
+import { resolveRoot, type ResolvedRoot } from '../core/root.ts'
 import {
   artifactRequires,
   enforcedApplyRequires,
@@ -22,6 +22,7 @@ import {
   type CospecType,
 } from '../core/rules/type-facts.ts'
 import { parseTasks } from '../core/tasks.ts'
+import { mergeUpstream, rootOutput, type Identities } from '../core/upstream-keys.ts'
 import { computeVerificationVerdict, type VerificationVerdict } from '../core/verification.ts'
 import { archiveMap, artifactDone, closest, computeGate, hasSpecFiles, type Gate } from './apply.ts'
 
@@ -258,7 +259,7 @@ function renderEntryHuman(entry: ChangeEntry | ChangeEntryFailure): string {
   if ('legacy' in entry) {
     return `${entry.change} (${entry.type}): legacy schema — use \`cospec status --change ${entry.change}\` for details\n`
   }
-  if ('next' in entry) {
+  if (entry.state === 'in-progress') {
     return `${entry.change} (${entry.type}): in progress — no artifacts yet; next: ${entry.next}\n`
   }
   return renderHuman(entry)
@@ -285,7 +286,13 @@ async function runAll(ctx: CommandContext): Promise<number> {
   })
 
   if (flags.json) {
-    process.stdout.write(`${JSON.stringify({ changes: entries, root: base }, null, 2)}\n`)
+    const upstream = await delegatedStatus(root, ['--all'])
+    const doc = mergeUpstream(
+      { changes: entries, root: rootOutput(root) },
+      withRespelledNextSteps(upstream),
+      SWEEP_IDENTITIES,
+    ).value
+    process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`)
   } else if (entries.length === 0) {
     process.stdout.write('cospec status: no active changes\n')
   } else {
@@ -306,6 +313,91 @@ function changeErrorDocument(message: string): number {
   const status = [{ severity: 'error', code: 'change_error', message }]
   process.stdout.write(`${JSON.stringify({ status }, null, 2)}\n`)
   return EXIT.failure
+}
+
+/** Array identities between cospec's status documents and the binary's. */
+const ENTRY_IDENTITIES: Identities = { 'artifacts[]': { cospec: 'id', upstream: 'id' } }
+const SWEEP_IDENTITIES: Identities = {
+  'changes[]': { cospec: 'change', upstream: 'changeName' },
+  'changes[].artifacts[]': { cospec: 'id', upstream: 'id' },
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+/**
+ * The one delegated `openspec status … --json` call an invocation makes
+ * (design D4): the binary's own document for `args` (`--change <id>` or
+ * `--all`), in the resolved root. Its failure document (`status`, exit 1)
+ * is an answer, not a violation; anything but one document naming the change
+ * (or the sweep) or carrying `status` is.
+ */
+async function delegatedStatus(
+  root: ResolvedRoot,
+  args: string[],
+): Promise<Record<string, unknown>> {
+  const change = args[0] === '--change' ? args[1] : undefined
+  const label = wrappedCallLabel(['status', '--json', ...root.storeArgs, ...args])
+  let doc: Record<string, unknown> | undefined
+  await passthroughOpenspec(
+    { command: ['status'], threaded: ['--json', ...root.storeArgs], args },
+    {
+      cwd: root.cwd,
+      expect: {
+        exitCodes: [0, 1],
+        postCondition: (result) => {
+          let parsed: unknown
+          try {
+            parsed = JSON.parse(result.stdout)
+          } catch {
+            return `${label} did not print one JSON document`
+          }
+          if (!isRecord(parsed)) return `${label} printed no JSON object`
+          const named =
+            change === undefined ? Array.isArray(parsed.changes) : parsed.changeName === change
+          if (!named && !Array.isArray(parsed.status))
+            return `${label} printed neither the change's status nor a diagnostic`
+          doc = parsed
+          return true
+        },
+      },
+    },
+  )
+  return doc!
+}
+
+/** A binary status entry with each `nextSteps` sentence spelled through cospec. */
+function respellEntry(entry: unknown): unknown {
+  if (!isRecord(entry) || !Array.isArray(entry.nextSteps)) return entry
+  return {
+    ...entry,
+    nextSteps: entry.nextSteps.map((step: unknown) =>
+      typeof step === 'string' ? respellWholeRemedy(step) : step,
+    ),
+  }
+}
+
+/** The binary's document, single or sweep, its remedies spelled through cospec. */
+function withRespelledNextSteps(doc: Record<string, unknown>): Record<string, unknown> {
+  const single = respellEntry(doc) as Record<string, unknown>
+  return Array.isArray(single.changes)
+    ? { ...single, changes: single.changes.map(respellEntry) }
+    : single
+}
+
+/** cospec's entry for one change, the binary's document for it merged in, and `root`. */
+async function mergedEntry(
+  root: ResolvedRoot,
+  entry: Record<string, unknown>,
+  id: string,
+): Promise<Record<string, unknown>> {
+  const upstream = await delegatedStatus(root, ['--change', id])
+  return mergeUpstream(
+    { ...entry, root: rootOutput(root) },
+    withRespelledNextSteps(upstream),
+    ENTRY_IDENTITIES,
+  ).value
 }
 
 export async function run(ctx: CommandContext): Promise<number> {
@@ -343,7 +435,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     } else if (active.length === 0) {
       process.stdout.write(
         flags.json
-          ? `${JSON.stringify({ changes: [], root: base, message: 'No active changes.' }, null, 2)}\n`
+          ? `${JSON.stringify({ changes: [], message: 'No active changes.', root: rootOutput(root) }, null, 2)}\n`
           : 'cospec status: no active changes\n',
       )
       return EXIT.success
@@ -376,21 +468,8 @@ export async function run(ctx: CommandContext): Promise<number> {
   // Empty change: has .openspec.yaml but no artifacts yet (never "Unknown item").
   if (!hasAnyArtifact(change.dir)) {
     if (flags.json) {
-      process.stdout.write(
-        `${JSON.stringify(
-          {
-            change: change.id,
-            type: change.schema,
-            state: 'in-progress',
-            artifacts: [],
-            gate: 'clear',
-            archiveReady: false,
-            next: `cospec instructions proposal --change ${change.id}`,
-          },
-          null,
-          2,
-        )}\n`,
-      )
+      const doc = await mergedEntry(root, emptyChangeEntry(change), change.id)
+      process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`)
     } else {
       process.stdout.write(
         `${change.id} (${change.schema}): in progress — no artifacts yet; next: cospec instructions proposal --change ${change.id}\n`,
@@ -423,6 +502,11 @@ export async function run(ctx: CommandContext): Promise<number> {
   }
 
   const status = computeStatus(base, change)
-  process.stdout.write(flags.json ? `${JSON.stringify(status, null, 2)}\n` : renderHuman(status))
+  if (!flags.json) {
+    process.stdout.write(renderHuman(status))
+    return EXIT.success
+  }
+  const doc = await mergedEntry(root, { ...status }, change.id)
+  process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`)
   return EXIT.success
 }
