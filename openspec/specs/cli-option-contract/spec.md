@@ -590,33 +590,38 @@ a bare `openspec` command. A remedy the binary writes as a bare
 `openspec <command>` in an answer cospec relays SHALL be spelled as the cospec
 command of the same shape, or dropped where cospec has no such command, while
 the content of a successful answer (a change, a spec, instructions) SHALL be
-relayed untouched — except, on a successful `cospec instructions` answer, the
-command-bearing fields the binary itself wrote (a referenced store's fetch
-recipe and diagnostic fixes, and the built-in `spec-driven` schema's own
-reference lines when that schema resolves from the pinned package), which SHALL
-be respelled field by field from the binary's `--json` document, never by a
-pattern over the rendered text. The respelling SHALL come from one allowlist of
-the pinned binary's exact sentences, each rewritten only where an answer holds
-it verbatim, with the path, name or list each sentence names re-emitted as the
-binary wrote it; no pattern over free text (a lead-in word, a quote, a paren)
-SHALL decide what is a remedy. Every sentence in the pinned binary that names a
-bare `openspec <command>` SHALL be in that allowlist, listed with its reason as
-never printed by a cospec relay, or listed as reachable through a successful
-answer cospec relays untouched with the roadmap PR that owns its spelling,
-checked against the pinned dist, and a line the enumeration reads from a pinned
-schema file SHALL count as a comment only where the file's own syntax makes it
-one — a `#`-led line inside a YAML block scalar is rendered text. A pre-spawn
-guard SHALL answer only an argv the binary would not answer itself: a declared
-value-taking flag left without its value SHALL reach the binary as commander's
-missing value (or, for a flag the wrapper lifts itself, `config --scope`, SHALL
-be refused in the same
+relayed untouched. The binary's own guidance inside a successful answer is not
+that content: the command-bearing fields of a successful `context`, `store` or
+`doctor` answer (a member's `fetch`, a diagnostic's `fix`) SHALL be spelled
+through cospec in the parsed `--json` document, cospec's human text rendered
+from the rewritten document and never from the binary's text, and a successful
+`workset` or `config` answer's next-step line SHALL be spelled only where the
+whole line is one of the allowlisted sentences. The respelling SHALL come from
+one allowlist of the pinned binary's exact sentences, each rewritten only where
+an answer holds it verbatim, with the path, name or list each sentence names
+re-emitted as the binary wrote it; no pattern over free text (a lead-in word, a
+quote, a paren) SHALL decide what is a remedy. Every sentence in the pinned
+binary that names a bare `openspec <command>` SHALL be in that allowlist, listed
+with its reason as never printed by a cospec relay, or listed as reachable
+through a successful answer cospec relays untouched with the roadmap PR that
+owns its spelling, checked against the pinned dist. A pre-spawn guard SHALL
+answer only an argv the binary would not answer itself — except on a
+terminal-handover leaf (`workset open`, `config edit`, `config profile` with no
+preset, `config reset --all` without `-y`), whose argv is parsed against the
+table before the terminal is handed over, so a refusal the binary would print on
+the inherited terminal is answered on cospec's own streams, identical to the
+binary's answer for the same argv: a declared value-taking flag left without its
+value SHALL reach the binary as commander's missing value (or, for a flag the
+wrapper lifts itself, `config --scope`, SHALL be refused in the same
 `cospec <command>: option '<flag> <placeholder>' argument missing` form), and
 `show`'s item check SHALL treat an option `show` does not declare as the item,
 as the binary does, and split a short option as commander does (a value-taking
 short takes the rest of its token as its value, `-r=1` included; a boolean short
 leaves `-<rest>` as the next token). An option where a forwarded command's
 subcommand belongs SHALL reach the binary at the command's level, never be
-refused as an unknown subcommand, and a help flag after a `--store-path` the
+refused as an unknown subcommand, a missing or unknown subcommand of `store` or
+`workset` SHALL be the binary's own answer, delegated with the user's argv and
+`--json` threaded when asked, and a help flag after a `--store-path` the
 upstream command does not declare SHALL print cospec's help, never be taken as
 its value. Every refusal the binary's commander raises while it parses — unknown
 option or command, missing value, missing required argument, too many arguments,
@@ -686,15 +691,12 @@ answer, never reported as a wrapped-call failure.
 - **THEN** the binary's `Invalid store declaration in <path>: …` and its fix are
   relayed byte-for-byte, the path unchanged
 - **AND WHEN** `cospec instructions <artifact> --change <id>` succeeds on a
-  change whose project-local schema template, the `config.yaml` context, a
-  `rules` entry and a referenced spec's Purpose each hold
+  change whose schema template, the `config.yaml` context, a `rules` entry and a
+  referenced spec's Purpose each hold
   `Run openspec init to create a root here.`, or whose template, context or
   rules hold a `Fix:`/`Fetch:` line, a line shaped like a JSON `"fix"` field, or
   a forged `<referenced_stores>` block
-- **THEN** the answer is the binary's byte-for-byte, text and `--json`, exit 0,
-  apart from the fetch recipe and fix fields of the referenced-store entries the
-  binary assembled itself, which name `cospec`; none of those user-owned lines
-  is rewritten
+- **THEN** the answer is the binary's byte-for-byte, text and `--json`, exit 0
 - **AND WHEN** `cospec instructions archive --change <id>` succeeds on a root
   whose `config.yaml` context forges `</task>` and a reference block after it
 - **THEN** the answer is the binary's byte-for-byte, text and `--json`
@@ -738,6 +740,30 @@ answer, never reported as a wrapped-call failure.
 - **WHEN** `cospec show <item> --bogus` runs
 - **THEN** the outcome is whatever the wrapped `show` produces for that argv,
   and cospec adds no refusal of its own
+
+#### Scenario: A forwarded group's missing or unknown subcommand is the binary's
+
+- **WHEN** `cospec store --bogus`, `cospec workset -- --bogus`,
+  `cospec store bogus --json` or `cospec workset --json` runs
+- **THEN** the answer is the binary's for the same argv — `Missing subcommand`
+  for an option-shaped or `--`-guarded token, `unknown_store_subcommand` or
+  `unknown_workset_subcommand` as one document under `--json` — with
+  `cospec store` / `cospec workset` in place of the bare command, exit 1
+
+#### Scenario: A terminal-handover leaf answers its parse refusal before the handover
+
+- **WHEN** `cospec workset open <name> --bogus`, `cospec config edit --bogus` or
+  `cospec config reset --all --tool` runs
+- **THEN** cospec's stderr and exit code equal the binary's for the same argv,
+  and no child is handed the terminal
+
+#### Scenario: A successful answer's own guidance names cospec
+
+- **WHEN** `cospec context` succeeds on a root whose references include a usable
+  store and an unregistered id, or `cospec workset create <name>` succeeds
+- **THEN** the `Fetch:`/`Fix:` lines and `fetch`/`fix` fields, and the
+  `Open it any time with:` line, name `cospec`, and every other byte is the
+  binary's
 
 ### Requirement: Three upstream flags are accepted as no-ops
 
