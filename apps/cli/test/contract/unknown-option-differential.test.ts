@@ -408,12 +408,6 @@ const PENDING_ROWS: readonly Row[] = [
     pendingFlag: '--no-copilot-cloud',
   },
   {
-    argv: ['validate', '--concurrency', '4', '--all'],
-    command: 'validate',
-    expect: 'pending',
-    pendingFlag: '--concurrency',
-  },
-  {
     argv: ['archive', '--no-validate', 'x'],
     command: 'archive',
     expect: 'pending',
@@ -491,6 +485,7 @@ const CLI_SURFACE_ROWS: readonly Row[] = [
   { argv: ['status', '--schema', 'custom'], command: 'status', expect: 'same', exit: 0 },
   { argv: ['list', '--sort', 'name'], command: 'list', expect: 'same', exit: 0 },
   { argv: ['validate', '--report', 'findings', '--all'], command: 'validate', expect: 'same' },
+  { argv: ['validate', '--concurrency', '4', '--all'], command: 'validate', expect: 'same' },
   // `--type` takes `change` as its value, never the positional: `x` is the
   // item, and a change literally named `change` is not validated.
   {

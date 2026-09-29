@@ -989,6 +989,52 @@ async function validateItem(
   return validateSpecs(root, name)
 }
 
+// --- --concurrency ---------------------------------------------------------------
+
+/** The binary's bulk default when neither `--concurrency` nor `OPENSPEC_CONCURRENCY` names one. */
+const DEFAULT_CONCURRENCY = 6
+
+/** The binary's `normalizeConcurrency`: a positive `parseInt`, else nothing (never refused). */
+function normalizeConcurrency(value: string | undefined): number | undefined {
+  if (value === undefined || value.length === 0) return undefined
+  const n = Number.parseInt(value, 10)
+  return Number.isNaN(n) || n <= 0 ? undefined : n
+}
+
+/** How many change validations run at once: `--concurrency`, else `OPENSPEC_CONCURRENCY`, else 6. */
+export function concurrencyBound(
+  flag: string | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  return (
+    normalizeConcurrency(flag) ??
+    normalizeConcurrency(env.OPENSPEC_CONCURRENCY) ??
+    DEFAULT_CONCURRENCY
+  )
+}
+
+/**
+ * `fn` over `items` with at most `limit` calls in flight, the results in
+ * input order whatever order they settle in (design D7). A rejection rejects
+ * the whole pool, as `Promise.all` did.
+ */
+export async function mapPool<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = Array.from<R>({ length: items.length })
+  let next = 0
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const index = next++
+      results[index] = await fn(items[index]!)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+  return results
+}
+
 // --- --report (the binary's request validation) ---------------------------------
 
 /** The binary's one fix for every refused report request. */
@@ -1126,8 +1172,9 @@ export async function run(ctx: CommandContext): Promise<number> {
     const doChanges = wantChanges || wantAll || !bulk
     const doSpecs = wantSpecs || wantAll || !bulk
     if (doChanges) {
-      const reports = await Promise.all(
-        changes.map((change) => validateChange(root, change, ctxRules, { strict, fast })),
+      const bound = concurrencyBound(flagValue(parsed, '--concurrency'))
+      const reports = await mapPool(changes, bound, (change) =>
+        validateChange(root, change, ctxRules, { strict, fast }),
       )
       items.push(...reports)
     }

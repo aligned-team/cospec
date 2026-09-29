@@ -498,7 +498,6 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         takesValue: true,
         placeholder: '<n>',
         description: 'Max concurrent validations',
-        status: pending('cli-surface-parity'),
       }),
     ],
   },
