@@ -144,7 +144,7 @@ Co-Authored-By trailer, never `--no-verify`).
 
 ## 9. Docs
 
-- [ ] 9.1 Update `apps/docs/reference/commands.md`,
+- [x] 9.1 Update `apps/docs/reference/commands.md`,
       `apps/docs/reference/validation-rules.md`,
       `apps/docs/concepts/how-it-relates-to-openspec.md` and
       `docs/architecture.md` (design D12). Add the standing rule verbatim to
