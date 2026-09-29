@@ -34,9 +34,10 @@ import {
   wrappedCallLabel,
   type Root,
 } from '../core/openspec.ts'
+import { respellRemedies } from '../core/remedies.ts'
 import { TYPE_ARTIFACTS } from '../core/rules/type-facts.ts'
 import { parseTasks } from '../core/tasks.ts'
-import { mergeUpstream, resolveRootOrDocument } from '../core/upstream-keys.ts'
+import { mergeUpstream, resolveRootOrDocument, type Identities } from '../core/upstream-keys.ts'
 import { artifactDone, computeGate, type Gate } from './apply.ts'
 import { gateLabel, hasAnyArtifact, readArchive } from './status.ts'
 
@@ -113,7 +114,8 @@ async function runSpecs(ctx: CommandContext, root: Root): Promise<number> {
 interface Row {
   change: string
   type: string
-  state: 'in-progress' | 'building'
+  /** `not-a-change` for a namespace folder (design D6), which cospec used to call an empty change. */
+  state: 'in-progress' | 'building' | 'not-a-change'
   gate: string
   gateState: Gate['state']
   tasks: { total: number; complete: number }
@@ -122,19 +124,41 @@ interface Row {
   nested?: string[]
 }
 
-function nestedOf(base: string, id: string): { nested?: string[] } {
-  const finding = findNestedChangesIn(changesDir(base), id)
-  return finding === undefined ? {} : { nested: finding.nested }
+/** A row cospec could not compute: a file only its own columns read would not open. */
+interface FailedRow {
+  change: string
+  error: string
 }
 
-/** cospec's native columns for the change directory `id`, computed as ever. */
+/**
+ * cospec's native columns for the change directory `id`, computed as ever — a
+ * namespace folder marked `not-a-change` with its nested ids. A change file
+ * that cannot be read (errno) fails this row alone, as the binary never reads
+ * `blocking-changes.md`.
+ */
 function nativeRow(
+  base: string,
+  id: string,
+  archived: Map<string, string>,
+  active: Set<string>,
+): Row | FailedRow {
+  try {
+    return computeRow(base, id, archived, active)
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    if (!(error instanceof Error) || typeof code !== 'string') throw error
+    return { change: id, error: error.message }
+  }
+}
+
+function computeRow(
   base: string,
   id: string,
   archived: Map<string, string>,
   active: Set<string>,
 ): Row {
   const dir = join(changesDir(base), id)
+  const finding = findNestedChangesIn(changesDir(base), id)
   const schema = readOpenspecYaml(dir)?.schema ?? ''
   const blockersPath = join(dir, 'blocking-changes.md')
   const gate = existsSync(blockersPath)
@@ -161,14 +185,30 @@ function nativeRow(
   return {
     change: id,
     type: schema || '(none)',
-    state: empty ? 'in-progress' : 'building',
+    state: finding !== undefined ? 'not-a-change' : empty ? 'in-progress' : 'building',
     gate: gateLabel(gate),
     gateState: gate.state,
     tasks: { total, complete },
     archiveReady,
-    ...nestedOf(base, id),
+    ...(finding === undefined ? {} : { nested: finding.nested }),
   }
 }
+
+function isFailedRow(row: Row | FailedRow): row is FailedRow {
+  return 'error' in row
+}
+
+/** The binary's failure diagnostics, when its answer is a failure document. */
+function upstreamFailure(doc: Record<string, unknown>): { message: string }[] | undefined {
+  if (!Array.isArray(doc.status)) return undefined
+  const errors = (doc.status as { severity?: string; message: string }[]).filter(
+    (s) => s.severity === 'error',
+  )
+  return errors.length > 0 ? errors : undefined
+}
+
+/** The warnings `list` prints: `Warning: <message>` on stderr, or `warnings` under `--json`. */
+const WARNING_IDENTITY: Identities = { 'warnings[]': { cospec: 'message', upstream: 'message' } }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -230,40 +270,67 @@ export async function run(ctx: CommandContext): Promise<number> {
     root,
     flagValue(parsed, '--sort') === 'name' ? ['--sort', 'name'] : [],
   )
+
+  // A read failure the binary refuses (an unreadable tasks.md or change
+  // directory) is its answer, relayed: its document, or its messages.
+  const failure = upstreamFailure(upstream)
+  if (failure !== undefined) {
+    if (flags.json) process.stdout.write(respellRemedies(`${JSON.stringify(upstream, null, 2)}\n`))
+    else
+      for (const s of failure) process.stderr.write(`cospec list: ${respellRemedies(s.message)}\n`)
+    return EXIT.failure
+  }
+
   const upstreamRows = (Array.isArray(upstream.changes) ? upstream.changes : []) as Record<
     string,
     unknown
   >[]
 
-  const { archived } = readArchive(base)
+  const { archived, warning } = readArchive(base)
   const active = new Set(listChanges(base).map((c) => c.id))
   const rows = upstreamRows.map((upRow) => {
     const native = nativeRow(base, String(upRow.name), archived, active)
     return mergeUpstream(native, upRow).value
   })
+  const failed = rows.some(isFailedRow)
 
-  const shown = onlyBlocked ? rows.filter((r) => r.gateState !== 'clear') : rows
+  const shown = onlyBlocked ? rows.filter((r) => isFailedRow(r) || r.gateState !== 'clear') : rows
 
   if (flags.json) {
     const { changes: _rows, ...rest } = upstream
-    const doc = mergeUpstream({ version: 1, changes: shown }, rest).value
+    const doc = mergeUpstream(
+      { version: 1, changes: shown, ...(warning === undefined ? {} : { warnings: [warning] }) },
+      rest,
+      WARNING_IDENTITY,
+    ).value
     process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`)
-    return EXIT.success
+    return failed ? EXIT.failure : EXIT.success
   }
 
+  if (warning !== undefined) process.stderr.write(`Warning: ${warning.message}\n`)
   if (shown.length === 0) {
     process.stdout.write(onlyBlocked ? 'No blocked changes.\n' : 'No active changes.\n')
     return EXIT.success
   }
 
   const nameWidth = Math.max(...shown.map((r) => r.change.length), 6)
-  const typeWidth = Math.max(...shown.map((r) => r.type.length), 4)
+  const typeWidth = Math.max(...shown.map((r) => (isFailedRow(r) ? 0 : r.type.length)), 4)
   const lines = shown.map((r) => {
+    if (isFailedRow(r)) return `  ${r.change.padEnd(nameWidth)}  ERROR — ${r.error}`
     const tasks =
-      r.state === 'in-progress' ? 'no artifacts yet' : `${r.tasks.complete}/${r.tasks.total} tasks`
+      r.state === 'not-a-change'
+        ? 'not a change'
+        : r.state === 'in-progress'
+          ? 'no artifacts yet'
+          : `${r.tasks.complete}/${r.tasks.total} tasks`
     const ready = r.archiveReady ? '  archive-ready' : ''
     return `  ${r.change.padEnd(nameWidth)}  ${r.type.padEnd(typeWidth)}  ${r.gate.padEnd(18)}  ${tasks}${ready}`
   })
   process.stdout.write(`${lines.join('\n')}\n`)
-  return EXIT.success
+  // The binary's nested-folder warnings follow the table, as its text does.
+  const upstreamWarnings = (Array.isArray(upstream.warnings) ? upstream.warnings : []) as {
+    message: string
+  }[]
+  for (const w of upstreamWarnings) process.stdout.write(`\nWarning: ${w.message}\n`)
+  return failed ? EXIT.failure : EXIT.success
 }
