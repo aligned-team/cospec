@@ -341,11 +341,19 @@ function mapDelegated(issue: OpenspecIssue, deltaPaths = false): Issue {
  * that may be narrower, so the wrapped binary stays the safety net rather than
  * becoming noise to filter.
  */
+/**
+ * A delegated-message matcher: a `RegExp`, or a function-backed matcher of
+ * the same `exec` shape where one regex could not match in linear time.
+ */
+interface MessageMatcher {
+  exec(message: string): readonly (string | undefined)[] | null
+}
+
 interface DuplicateClass {
   /** the cospec rule whose finding already covers this defect. */
   rule: string
-  /** the delegated message for the same defect. */
-  delegated: RegExp
+  /** the delegated message for the same defect; `[1]` is its key when `nativeKey` is set. */
+  delegated: MessageMatcher
   /**
    * When set, the two findings must also name the same requirement and sit on
    * the same file: a *different* requirement's loss is a second real finding
@@ -353,6 +361,37 @@ interface DuplicateClass {
    * sides, so the two are compared on the requirement, never on the wording.
    */
   nativeKey?: RegExp
+}
+
+/** The fixed head of 1.13.1's structurally-invalid refusal; `[1]` is the capability. */
+const TARGET_INVALID_HEAD =
+  /^Archive would refuse this delta: (.+?): target spec is structurally invalid and cannot be updated until fixed:$/
+
+/**
+ * One defect line of that refusal, of a kind cospec's rule reads. The quoted
+ * header is spec content — the author's own text, `"` included — so its span
+ * is `.*` up to the fixed suffix, on one line; no group repeats around it.
+ */
+const TARGET_INVALID_LINE =
+  /^line \d+: (?:Main spec contains delta header ".*"\.|Requirement header ".*" (?:duplicates the requirement declared on line \d+\.|appears outside the main ## Requirements section\.))/
+
+/**
+ * The `archive/target-invalid` twin, matched in linear time (design D7): the
+ * fixed head once, then each line on its own. One regex over the whole list
+ * backtracked a quoted span against its trailing text once per repeated line —
+ * exponential on a quote-heavy message (CodeQL js/redos) — and narrowing the
+ * span to `[^"\n]*` to stop that missed every header holding a `"`.
+ */
+export const TARGET_INVALID: MessageMatcher = {
+  exec(message: string) {
+    const lines = message.split('\n')
+    if (lines.at(-1) === '') lines.pop()
+    const head = TARGET_INVALID_HEAD.exec(lines[0] ?? '')
+    if (head === null || lines.length < 2) return null
+    return lines.slice(1).every((line) => TARGET_INVALID_LINE.test(line))
+      ? [message, head[1]]
+      : null
+  },
 }
 
 const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
@@ -690,19 +729,11 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
   // keyed on the capability both messages name. Only when every defect the
   // binary lists is one of the three kinds cospec's rule reads — a delta
   // header, a misplaced or a duplicate requirement — so a listed defect
-  // cospec does not check still reaches the reader.
-  //
-  // The quoted header text is spec content, not cospec's own — an attacker
-  // could seed a heading with repeated `".`-like runs. `[^\n]*"` before a
-  // required literal let the engine backtrack the quoted span against the
-  // trailing `[^\n]*` once per repeated "line N: …" entry, which is
-  // exponential in the number of lines (CodeQL js/redos). `[^"\n]*` makes
-  // each quoted span's end unambiguous — real header text never contains a
-  // literal `"` — so there is exactly one way to match and no backtracking.
+  // cospec does not check still reaches the reader. Matched line by line
+  // (`TARGET_INVALID`), linear in the message whatever its quoted headers hold.
   {
     rule: 'archive/target-invalid',
-    delegated:
-      /^Archive would refuse this delta: (.+?): target spec is structurally invalid and cannot be updated until fixed:(?:\nline \d+: (?:Main spec contains delta header "[^"\n]*"\.|Requirement header "[^"\n]*" (?:duplicates the requirement declared on line \d+\.|appears outside the main ## Requirements section\.))[^\n]*)+\n?$/,
+    delegated: TARGET_INVALID,
     nativeKey: /^living spec openspec\/specs\/(.+?)\/spec\.md is structurally invalid — /,
   },
   // 1.13.1's two case-collision refusals, paired with the fold arms

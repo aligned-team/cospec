@@ -114,7 +114,7 @@ Co-Authored-By trailer, never `--no-verify`).
       fallback, and give raw resolver failures `validate_error`. Flip rows 4.4,
       7.8, 7.9 and the validate parts of 8.1 and 8.4. Commit
       `fix(validate): report unreadable artifacts and respell relayed remedies`
-- [ ] 6.6 Rewrite the `archive/target-invalid` dedupe as the per-line matcher,
+- [x] 6.6 Rewrite the `archive/target-invalid` dedupe as the per-line matcher,
       and make the ReDoS unit test fail on the pre-fix pattern
       (`test/unit/commands/validate.test.ts`). Add the quoted-header row to
       `validation-parity.test.ts`. Verify with rows 11.1 and 11.2. Commit
