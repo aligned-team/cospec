@@ -1579,6 +1579,28 @@ export function parseCommandArgs(row: TableCommandRow, args: readonly string[]):
     : result
 }
 
+/**
+ * Parse one subcommand's own argv (`sub` of `row`, the row's global flags
+ * already stripped) as `parseCommandArgs` parses a table row's: the same
+ * scan, order and refusal text. For a `forward` row's leaf that cospec must
+ * refuse itself before the binary runs (a terminal handover), since nothing
+ * the binary prints there can be relayed.
+ */
+export function parseSubcommandArgs(
+  row: CommandRow,
+  sub: SubcommandSpec,
+  args: readonly string[],
+): ParseResult {
+  const result = parseSurface(
+    `${row.name} ${sub.name}`,
+    sub,
+    rowGlobalFlags(row),
+    args,
+    storePathTakesValue(row),
+  )
+  return result.ok ? { ok: true, parsed: { ...result.parsed, subcommand: sub.name } } : result
+}
+
 // --- --store-path and --json refusals ----------------------------------------------
 
 /**

@@ -1445,6 +1445,8 @@ const HELP_COMMAND_ROWS: readonly Row[] = [
  */
 const PENDING_ROWS: readonly Row[] = []
 
+const tooMany = { outcome: 'too-many', exit: 1 } as const
+
 /** cospec globals and divergences upstream has no counterpart for at that level. */
 const COSPEC_ONLY_ROWS: readonly Row[] = [
   {
@@ -1520,6 +1522,31 @@ const COSPEC_ONLY_ROWS: readonly Row[] = [
   { argv: ['--no-color'], command: 'list', cospecOnly: { outcome: 'help:root', exit: 0 } },
   // cospec's `help` alias on a table row never runs the command.
   { argv: ['list', 'help'], command: 'list', cospecOnly: { outcome: 'help:list', exit: 0 } },
+  // cospec's `--json` is a global on every config row, a superset of the
+  // binary's (design D13): an excess argument is refused as too many, where
+  // the binary names `--json` as the unknown option. Both exit 1 before
+  // anything runs (handover-prevalidation.test.ts pins the binary's half).
+  {
+    argv: ['config', 'edit', 'extra', '--json'],
+    command: 'config',
+    cospecOnly: { outcome: 'too-many', exit: 1 },
+    check: nothingEdited,
+  },
+  {
+    argv: ['config', 'profile', 'a', 'b', '--json'],
+    command: 'config',
+    cospecOnly: { outcome: 'too-many', exit: 1 },
+  },
+  {
+    argv: ['config', 'reset', '--all', 'extra', '--json'],
+    command: 'config',
+    cospecOnly: { outcome: 'too-many', exit: 1 },
+  },
+  // The piped leaves the same: the binary declares `--json` on `list` alone.
+  { argv: ['config', 'path', 'extra', '--json'], command: 'config', cospecOnly: tooMany },
+  { argv: ['config', 'get', 'a', 'b', '--json'], command: 'config', cospecOnly: tooMany },
+  { argv: ['config', 'set', 'a', 'b', 'c', '--json'], command: 'config', cospecOnly: tooMany },
+  { argv: ['config', 'unset', 'a', 'b', '--json'], command: 'config', cospecOnly: tooMany },
   {
     argv: ['archive', 'help'],
     command: 'archive',

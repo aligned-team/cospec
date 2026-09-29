@@ -79,11 +79,23 @@ export interface RunExpectation {
   postCondition?: PostCondition
 }
 
-export interface RunOptions {
+export interface RunOptions extends SpawnShape {
   /** Absolute path the wrapped binary runs in (the target repo root). */
   cwd: string
   /** Declared expectations; omit for fully manual inspection (e.g. archive). */
   expect?: RunExpectation
+}
+
+/** How a piped wrapped call's child starts beyond its argv: by default, no preload and no stdin. */
+export interface SpawnShape {
+  /** A script the child's Bun runs ahead of the binary (`--preload <file>`). */
+  preload?: string
+  /**
+   * Input forwarded to the child's stdin once it has printed its prompt (its
+   * first stdout chunk); what arrives before is dropped, and the child's stdin
+   * ends when this does. Omitted, the child's stdin is closed.
+   */
+  input?: ReadableStream<Uint8Array>
 }
 
 /** Thrown when a wrapped call violates its declared expectations. */
@@ -243,20 +255,70 @@ export function buildWrappedSpawnEnv(
  * (a compiled binary otherwise always runs its embedded entrypoint). This is
  * what keeps the wrapped openspec calls working on machines with no bun.
  */
-async function spawnRaw(args: string[], cwd: string): Promise<OpenspecResult> {
-  const proc = Bun.spawn([process.execPath, openspecBin(), '--no-color', ...args], {
+async function spawnRaw(
+  args: string[],
+  cwd: string,
+  shape: SpawnShape = {},
+): Promise<OpenspecResult> {
+  const preload = shape.preload === undefined ? [] : ['--preload', shape.preload]
+  const proc = Bun.spawn([process.execPath, ...preload, openspecBin(), '--no-color', ...args], {
     cwd,
-    stdin: 'ignore',
+    stdin: shape.input === undefined ? 'ignore' : 'pipe',
     stdout: 'pipe',
     stderr: 'pipe',
     env: buildWrappedSpawnEnv(),
   })
-  const [stdout, stderr, exitCode] = await Promise.all([
+  if (shape.input === undefined || proc.stdin === undefined) {
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ])
+    return { stdout, stderr, exitCode }
+  }
+  const gate = { exited: false }
+  const reader = shape.input.getReader()
+  const forwarding = forwardInput(reader, proc.stdin, gate)
+  const [out, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
     proc.exited,
   ])
-  return { stdout, stderr, exitCode }
+  gate.exited = true
+  // The input may never end (`yes |`): stop reading it once the child is gone.
+  await reader.cancel()
+  await forwarding
+  return { stdout: out, stderr, exitCode }
+}
+
+/** Whether `error` is the broken pipe of a write to a child that has exited. */
+function isBrokenPipe(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException | undefined)?.code === 'EPIPE'
+}
+
+/**
+ * Pumps `reader` into the child's stdin unmodified — every chunk, whenever it
+ * arrives, the child's own prompt deciding what it takes — and ends the child's
+ * stdin when the input ends. A write the exited child can no longer take ends
+ * the pump.
+ */
+async function forwardInput(
+  reader: { read(): Promise<{ done: boolean; value?: Uint8Array }> },
+  sink: Bun.FileSink,
+  gate: { readonly exited: boolean },
+): Promise<void> {
+  try {
+    for (;;) {
+      const read = await reader.read()
+      if (read.done || gate.exited) break
+      if (read.value === undefined) continue
+      await sink.write(read.value)
+      await sink.flush()
+    }
+    if (!gate.exited) await sink.end()
+  } catch (error) {
+    if (!isBrokenPipe(error)) throw error
+  }
 }
 
 /**
@@ -291,9 +353,13 @@ function assertVersion(): Promise<void> {
  * Version-asserted spawn without expectation enforcement. Use for call sites
  * (e.g. `archive`) that must inspect the raw exit code and output themselves.
  */
-export async function spawnOpenspec(args: string[], cwd: string): Promise<OpenspecResult> {
+export async function spawnOpenspec(
+  args: string[],
+  cwd: string,
+  shape: SpawnShape = {},
+): Promise<OpenspecResult> {
   await assertVersion()
-  return spawnRaw(args, cwd)
+  return spawnRaw(args, cwd, shape)
 }
 
 /**
@@ -336,7 +402,7 @@ export function wrappedCallLabel(args: readonly string[]): string {
  * `OpenspecCallError` on any violation.
  */
 export async function runOpenspec(args: string[], opts: RunOptions): Promise<OpenspecResult> {
-  const result = await spawnOpenspec(args, opts.cwd)
+  const result = await spawnOpenspec(args, opts.cwd, { preload: opts.preload, input: opts.input })
   const expect = opts.expect
   if (expect) {
     const label = wrappedCallLabel(args)
@@ -709,7 +775,7 @@ export function enforcePassthroughJson(
   return result
 }
 
-export interface PassthroughOptions {
+export interface PassthroughOptions extends SpawnShape {
   /** Absolute path the wrapped binary runs in (the target repo root). */
   cwd: string
   /**
@@ -799,7 +865,12 @@ export async function passthroughOpenspec(
 ): Promise<OpenspecResult> {
   const argv = threadedArgv(call.command, call.threaded ?? [], call.args)
   const expect: RunExpectation = { exitCodes: [0, 1], ...opts.expect }
-  const raw = await runOpenspec(argv, { cwd: opts.cwd, expect })
+  const raw = await runOpenspec(argv, {
+    cwd: opts.cwd,
+    expect,
+    preload: opts.preload,
+    input: opts.input,
+  })
   const result = { ...raw, stderr: stripSuppressedStderr(raw.stderr) }
   if (call.threaded?.includes('--json') !== true) return result
   return enforcePassthroughJson(wrappedCallLabel(argv), result, opts.textFailure === true)

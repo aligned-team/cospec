@@ -3,24 +3,55 @@
 ## Purpose
 
 cospec's `doctor` surfaces OpenSpec's cross-repo relationship health as a single
-read-only section. When the resolved root is store-backed or declares
-`references:`, `cospec doctor` delegates `openspec doctor --json` (and, for a
-store-backed root, `openspec store doctor --json`) and folds the returned
-root-relationship, reference-resolution, and store/git diagnostics into cospec's
-findings — never repairing anything — and notes a stray OpenSpec config
-profile/workflows block that cospec's canon/harness supersedes.
+read-only section. On every root, `cospec doctor` delegates
+`openspec doctor --json` (and, for a store-backed root,
+`openspec store doctor --json`), folds the returned root-relationship,
+reference-resolution, and store/git diagnostics into cospec's findings — never
+repairing anything — and carries OpenSpec's `root`, `store`, `references` and
+`status` keys in its own `--json` document; it also notes a stray OpenSpec
+config profile/workflows block that cospec's canon/harness supersedes.
 
 ## Requirements
 
-### Requirement: Doctor surfaces openspec root-relationship and store health
+### Requirement: Doctor folds OpenSpec's relationship report on every root
 
-`cospec doctor` SHALL add a delegated, read-only section that, when the resolved
-root is store-backed or the repo declares a `references:` entry, runs
-`openspec doctor --json` and folds its `status[]` diagnostics into cospec's own
-findings, without attempting any repair. When the resolved root is a plain local
-repo with no store or `references:` pointer, this section SHALL be omitted.
-Existing `cospec doctor` findings and exit-1-on-ERROR semantics SHALL be
-unchanged.
+`cospec doctor` SHALL run the wrapped `openspec doctor --json` on every
+operating root — a plain local root included — and, for a store-backed root,
+`openspec store doctor --json`, folding the returned root, store, reference and
+top-level `status[]` diagnostics into cospec's own findings without attempting
+any repair. Existing `cospec doctor` findings and exit-1-on-ERROR semantics
+SHALL be unchanged. The `--json` document SHALL carry the binary's `root`,
+`store`, `references` and `status` keys at its top level, beside `version`,
+`findings` and `summary`, with the values the binary emitted for the same root;
+the only bytes that differ are the binary's own remedy sentences in their
+`message` and `fix` fields, spelled through cospec from the pinned binary's
+allowlist. When cospec's own `initialized` check already reports that the
+working directory has no OpenSpec root, the binary's no-root diagnostic SHALL be
+carried in `status` and SHALL NOT be folded a second time into `findings`.
+
+`cospec doctor` SHALL read the project config the way the binary does —
+`openspec/config.yaml`, else `openspec/config.yml` — for its own `config` check.
+Its own checks SHALL target the operating root the resolver selects for the
+directory: run from a subdirectory of a project, the enclosing root the resolver
+walks to, as `openspec doctor` does, and for an explicit `--store <id>`, a
+declared `store:` pointer or the global `defaultStore`, the store that selection
+resolves to — never the invocation directory, so `cospec doctor --store <id>`
+from a bare workspace with no `openspec/`, from its subdirectory or from inside
+another project checks the store and exits as `openspec doctor --store <id>`
+does. With no root selected its own checks SHALL NOT run: a directory with no
+root gets the one `initialized` ERROR, and a selection that fails for any other
+reason is reported by the binary's folded diagnostic alone. Each line the
+delegated `openspec doctor --json` writes to stderr (its config warnings, such
+as `Invalid 'context' field in config (must be string)`) that cospec did not
+already print itself SHALL be one `openspec-stderr` WARNING finding, its text
+spelled through the allowlist, so the text report prints it and the `--json`
+document carries it; cospec's stderr SHALL NOT repeat it. When the delegated
+call cannot be read, the WARNING finding's remedy SHALL name `cospec doctor`,
+never a bare `openspec` command.
+
+This requirement replaces "Doctor surfaces openspec root-relationship and store
+health", whose rule that a plain local root omits the delegated section was the
+defect. Its three surviving scenarios are carried over verbatim below.
 
 #### Scenario: Doctor reports store metadata and git facts
 
@@ -36,12 +67,6 @@ unchanged.
 - **THEN** the delegated openspec diagnostic for the broken reference is
   surfaced in cospec's report and the command exits 1
 
-#### Scenario: Plain local repo omits the relationship section
-
-- **WHEN** `cospec doctor` runs against a repo with no store and no
-  `references:` entry
-- **THEN** the report contains no delegated relationship/store-health section
-
 #### Scenario: Stray openspec config profile is noted
 
 - **WHEN** `cospec doctor` detects a stray native OpenSpec `config.yaml` profile
@@ -49,3 +74,68 @@ unchanged.
 - **THEN** the report includes a note-level finding stating the profile is
   superseded by cospec's canon + harness model, without exiting non-zero on that
   finding alone
+
+#### Scenario: A plain local root carries upstream's report keys
+
+- **WHEN** `cospec doctor --json` and `openspec doctor --json` run on the same
+  plain local root with no store and no `references:`
+- **THEN** cospec's document has `root`, `store`, `references` and `status`
+  equal to the binary's, alongside `version`, `findings` and `summary`
+
+#### Scenario: A references list in config.yml is read
+
+- **WHEN** `cospec doctor` runs on a root whose only config file is
+  `openspec/config.yml`, declaring a reference to an unregistered store
+- **THEN** the binary's `reference_unresolved` diagnostic is a finding and
+  appears under `references`, as `openspec doctor` reports it
+
+#### Scenario: Folded remedies name cospec
+
+- **WHEN** `cospec doctor`, text or `--json`, folds a diagnostic whose fix is
+  `Run: openspec store doctor <id>` or
+  `Get a checkout from a teammate and run: openspec store register <path> --id <id>`
+- **THEN** the finding's remedy and the carried `fix` read `cospec store …`, the
+  id and path unchanged, and no bare `openspec` command is printed
+
+#### Scenario: No root is reported once
+
+- **WHEN** `cospec doctor --json` runs in a directory with no OpenSpec root
+- **THEN** `findings` has the one `initialized` ERROR, `status` carries the
+  binary's no-root diagnostic with `cospec init` in its fix, and the command
+  exits 1
+
+#### Scenario: Doctor from a subdirectory diagnoses the enclosing root
+
+- **WHEN** `cospec doctor` runs from a subdirectory of an initialized project
+- **THEN** it reports on the enclosing project, with no `initialized` ERROR, as
+  `openspec doctor` reports the same root
+
+#### Scenario: Doctor on a pointer or defaultStore root diagnoses the store
+
+- **WHEN** `cospec doctor --json` runs in a project whose `openspec/config.yaml`
+  declares `store: <id>` (or one of its subdirectories), or in a rootless
+  directory whose global config sets `defaultStore: <id>`, for an initialized
+  store
+- **THEN** `root.source` is the binary's (`declared`, `global_default`), the
+  four keys equal the binary's, cospec's own checks report no ERROR on the
+  store, and the exit code is the binary's
+
+#### Scenario: Doctor with an explicit --store diagnoses the store
+
+- **WHEN** `cospec doctor --store <id>` or `cospec doctor --store <id> --json`
+  runs, for an initialized store, from a bare workspace with no `openspec/`,
+  from a subdirectory of one, or from inside another project
+- **THEN** `root.source` is the binary's (`store`), the four keys equal the
+  binary's, cospec's own checks read the store and report no ERROR (no
+  `initialized` ERROR, nothing about the other project), and the exit code is
+  the binary's, 0
+
+#### Scenario: Doctor folds OpenSpec's stderr config warnings
+
+- **WHEN** `cospec doctor` or `cospec doctor --json` runs on a plain, pointer or
+  `--store` root whose config has an invalid `context` or `references` field
+- **THEN** each line `openspec doctor --json` writes to stderr on the same
+  fixture is one `openspec-stderr` WARNING finding, in order, and none reaches
+  cospec's stderr
+- **AND** a line cospec's root selection already printed (an ignored `store:`
+  pointer, an unparseable global config) is printed once and never folded

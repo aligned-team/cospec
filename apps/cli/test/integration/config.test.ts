@@ -14,7 +14,15 @@ function sandbox(): { cwd: string; env: Record<string, string> } {
   const workspace = mkTempRepo()
   const xdg = join(workspace, 'xdg')
   mkdirSync(xdg, { recursive: true })
-  return { cwd: workspace, env: { XDG_CONFIG_HOME: xdg, OPENSPEC_TELEMETRY: '0' } }
+  // A handover writes its preload to cospec's cache: the sandbox's, never the user's.
+  return {
+    cwd: workspace,
+    env: {
+      XDG_CONFIG_HOME: xdg,
+      XDG_CACHE_HOME: join(workspace, 'cache'),
+      OPENSPEC_TELEMETRY: '0',
+    },
+  }
 }
 
 describe('cospec config path/list/get (Class A, piped)', () => {
@@ -172,11 +180,13 @@ describe('cospec config — usage errors', () => {
       expect(res.stderr).toContain(sub)
   })
 
-  test('an unknown subcommand is a usage error, not a wrapped spawn', async () => {
+  test('an unknown subcommand is the binary’s own refusal, relayed', async () => {
     const { cwd, env } = sandbox()
     const res = await cospec(['config', 'frobnicate'], { cwd, env })
     expect(res.exitCode).toBe(1)
-    expect(res.stderr).toContain("unknown subcommand 'frobnicate'")
+    expect(res.stdout).toBe('')
+    expect(res.stderr).toContain("'frobnicate'")
+    expect(res.stderr).not.toContain('cospec config:')
   })
 })
 

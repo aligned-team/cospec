@@ -5,7 +5,30 @@ import { join } from 'node:path'
 
 import pkg from '../../package.json'
 import { run } from '../../src/cli.ts'
+import { respellRemedies } from '../../src/core/remedies.ts'
 import { RootSelectionError } from '../../src/core/root.ts'
+import { openspecRaw } from '../fixtures/support.ts'
+
+/**
+ * The pinned binary's stderr for `argv` in a scratch directory, with its
+ * allowlisted remedies spelled through cospec: what a relayed refusal prints.
+ */
+async function binaryRefusal(argv: string[]): Promise<string> {
+  const dir = mkdtempSync(join(tmpdir(), 'cospec-cli-'))
+  try {
+    const upstream = await openspecRaw(argv, dir, {
+      HOME: dir,
+      XDG_CONFIG_HOME: join(dir, '.config'),
+      XDG_DATA_HOME: join(dir, '.local', 'share'),
+      OPENSPEC_TELEMETRY: '0',
+      OPENSPEC_NO_COMPLETIONS: '1',
+    })
+    expect(upstream.exitCode).toBe(1)
+    return respellRemedies(upstream.stderr)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
 
 /** Run the top-level dispatcher, capturing stdout/stderr and its exit code. */
 async function dispatch(argv: string[]): Promise<{ code: number; out: string; err: string }> {
@@ -165,9 +188,14 @@ describe('cli dispatcher: bare `help` token', () => {
       expect(r.code, argv.join(' ')).toBe(0)
       expect(r.out, argv.join(' ')).toContain(usage)
     }
+  })
+
+  // Upstream's store group has no help subcommand: `help` is the binary's
+  // unknown-command refusal, relayed with its sentences spelled through cospec.
+  test('`store --no-color help` is the binary’s refusal of help, respelled', async () => {
     const store = await dispatch(['store', '--no-color', 'help'])
     expect(store.code).toBe(1)
-    expect(store.err).toContain("cospec store: unknown subcommand 'help'")
+    expect(store.err).toBe(await binaryRefusal(['store', 'help']))
   })
 })
 
@@ -181,16 +209,21 @@ describe('cli dispatcher: a -- right after the command name', () => {
     expect(sub.out).toContain('Usage: cospec config path [options]')
   })
 
-  test('a bare `config --` is config with no subcommand', async () => {
+  test('a bare `config --` is config with no subcommand: its help on stderr', async () => {
+    const help = await dispatch(['config', '--help'])
     const r = await dispatch(['config', '--'])
     expect(r.code).toBe(1)
-    expect(r.err).toContain('cospec config: a subcommand is required')
+    expect(r.out).toBe('')
+    expect(r.err).toBe(help.out)
   })
 
   test('a routed --store-path is an unknown subcommand, not the redirect', async () => {
+    // The binary's own refusal, relayed (the precedence matrix compares it).
     const r = await dispatch(['config', '--', '--store-path', '/x'])
     expect(r.code).toBe(1)
-    expect(r.err).toContain("cospec config: unknown subcommand '--store-path'")
+    expect(r.out).toBe('')
+    expect(r.err).toContain("unknown command '--store-path'")
+    expect(r.err).not.toContain('--store-path is not supported')
   })
 
   test('a row without subcommands keeps -- as its operand terminator', async () => {
@@ -690,9 +723,9 @@ describe('cli dispatcher: the program level resolves before the command sees its
   test('store and workset refuse a help subcommand as upstream does', async () => {
     const store = await dispatch(['store', 'help'])
     expect(store.code).toBe(1)
-    expect(store.err).toContain("cospec store: unknown subcommand 'help'")
+    expect(store.err).toBe(await binaryRefusal(['store', 'help']))
     const workset = await dispatch(['--', 'workset', 'help'])
     expect(workset.code).toBe(1)
-    expect(workset.err).toContain("cospec workset: unknown subcommand 'help'")
+    expect(workset.err).toBe(await binaryRefusal(['workset', 'help']))
   })
 })

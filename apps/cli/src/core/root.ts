@@ -264,9 +264,12 @@ function canonicalStart(cwd: string): string {
  * runtime's spawn ENOENT, naming the interpreter's path instead of the user's.
  * It is not a read upstream's resolver makes, so it stays outside
  * `resolverRead`: a directory the user may not stat must never become a
- * selection failure `templates` and `schema` fall back to running in.
+ * selection failure `templates` and `schema` fall back to running in. The
+ * forward rows that select no root (`store`, `config`, `workset`) run it first
+ * too, so a missing `--cwd` is the same refusal on every command (design D10
+ * of `passthrough-json-and-doctor`).
  */
-function assertInvocationDirectory(cwd: string): void {
+export function assertInvocationDirectory(cwd: string): void {
   let isDir: boolean
   try {
     isDir = statSync(cwd).isDirectory()

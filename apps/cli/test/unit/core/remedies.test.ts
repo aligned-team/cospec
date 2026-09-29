@@ -3,8 +3,10 @@ import { describe, expect, test } from 'bun:test'
 import {
   REMEDIES,
   type Remedy,
+  respellLines,
   respellRemedies,
   respellSchemaLines,
+  respellWhole,
   respellWholeRemedy,
   SCHEMA_LINES,
 } from '../../../src/core/remedies.ts'
@@ -155,5 +157,75 @@ describe('respellSchemaLines: the built-in schema lines, whole, after indentatio
     expect(respellSchemaLines(text)).toBe(
       `x ${entry}\n${entry} y\n\t${SCHEMA_LINES[0]!.cospec}\nopenspec list`,
     )
+  })
+})
+
+describe('respellLines: whole lines only', () => {
+  const IDS = ['workset/open-any-time', 'workset/none-saved', 'config/profile-applied']
+
+  for (const id of IDS) {
+    const remedy = REMEDIES.find((r) => r.id === id)!
+    const upstream = fill(remedy.upstream, SAMPLE)
+    const cospec = fill(cospecOf(remedy), SAMPLE_SPELLED)
+    test(`${id}: the whole line, indented or not`, () => {
+      expect(respellLines(`${upstream}\n`, IDS)).toBe(`${cospec}\n`)
+      expect(respellLines(`  ${upstream}\r\n`, IDS)).toBe(`  ${cospec}\r\n`)
+    })
+
+    test(`${id}: never inside a longer line`, () => {
+      for (const line of [`x ${upstream}`, `${upstream} x`, `/w/${upstream}`])
+        expect(respellLines(`${line}\n`, IDS)).toBe(`${line}\n`)
+    })
+  }
+
+  test('a sentence split across lines, or one not named, stays as it is', () => {
+    const split = 'Open it any time with: openspec\nworkset open w1\n'
+    expect(respellLines(split, IDS)).toBe(split)
+    const unnamed = 'Use "openspec config list" to see available keys.\n'
+    expect(respellLines(unnamed, IDS)).toBe(unnamed)
+  })
+
+  test('an id the allowlist does not hold is a programming error', () => {
+    expect(() => respellLines('x\n', ['no/such-id'])).toThrow("no allowlist entry 'no/such-id'")
+  })
+})
+
+describe('respellWhole: a whole value only', () => {
+  const IDS = [
+    'references/fetch',
+    'references/clone',
+    'references/get-checkout',
+    'references/store-doctor-id',
+    'references/store-doctor',
+    'references/list-rest',
+  ]
+
+  for (const id of IDS) {
+    const remedy = REMEDIES.find((r) => r.id === id)!
+    const upstream = fill(remedy.upstream, SAMPLE)
+    const cospec = fill(cospecOf(remedy), SAMPLE_SPELLED)
+    test(`${id}: the whole value`, () => {
+      expect(respellWhole(upstream, IDS)).toBe(cospec)
+    })
+
+    test(`${id}: never a value that only contains it`, () => {
+      for (const value of [`x ${upstream}`, `${upstream} x`, `${upstream}\n`])
+        expect(respellWhole(value, [id])).toBe(value)
+    })
+  }
+
+  test('a remedy the caller does not name stays as it is', () => {
+    const value = 'Run: openspec store doctor st1'
+    expect(respellWhole(value, ['references/fetch'])).toBe(value)
+  })
+
+  test("the holes are re-emitted unread: a store id holding 'openspec'", () => {
+    expect(respellWhole('openspec show <spec-id> --type spec --store openspec-x', IDS)).toBe(
+      'cospec show <spec-id> --type spec --store openspec-x',
+    )
+  })
+
+  test('an id the allowlist does not hold is a programming error', () => {
+    expect(() => respellWhole('x', ['no/such-id'])).toThrow("no allowlist entry 'no/such-id'")
   })
 })

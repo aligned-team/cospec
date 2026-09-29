@@ -9,6 +9,7 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { run } from '../../src/cli.ts'
 import { cleanupAll, cospec, mkTempRepo } from '../fixtures/support.ts'
 
 afterAll(cleanupAll)
@@ -47,10 +48,11 @@ describe('cospec doctor — delegated openspec relationship health (WI-8)', () =
     const res = await cospec(['doctor', '--store', STORE_ID, '--json'], { cwd: workspace, env })
     const parsed = JSON.parse(res.stdout) as DoctorJson
 
-    // No local `openspec/` at the invocation cwd -> the local "initialized"
-    // ERROR still fires (it is about the invocation cwd, not the store), but
-    // the delegated section must still have run and surfaced store facts.
-    expect(parsed.findings.some((f) => f.check === 'initialized')).toBe(true)
+    // No local `openspec/` at the invocation cwd, but `--store` selects the
+    // store as the operating root: cospec's own checks read the store's
+    // `openspec/` (no "initialized" ERROR), and the delegated section still
+    // surfaces store facts.
+    expect(parsed.findings.some((f) => f.check === 'initialized')).toBe(false)
     expect(parsed.findings.some((f) => f.check === 'openspec-root')).toBe(true)
     expect(parsed.findings.some((f) => f.check === 'store-git')).toBe(true)
     const gitFinding = parsed.findings.find((f) => f.check === 'store-git')
@@ -78,21 +80,63 @@ describe('cospec doctor — delegated openspec relationship health (WI-8)', () =
     expect(refFinding?.level).toBe('WARNING')
   }, 30_000)
 
-  test('a local repo with no store and no references skips the delegated section entirely', async () => {
+  // A plain local root folds `openspec doctor --json` too (design D3): one
+  // delegated call, counted by wrapping `Bun.spawn` around an in-process run,
+  // and on a healthy root nothing to report, so the text report is unchanged.
+  test('a plain local root runs the delegated call once and, healthy, reports nothing of it', async () => {
     const dir = mkTempRepo()
     mkdirSync(join(dir, 'openspec', 'changes', 'archive'), { recursive: true })
     mkdirSync(join(dir, 'openspec', 'specs'), { recursive: true })
     writeFileSync(join(dir, 'openspec', 'config.yaml'), 'schema: feat\n')
-    const env = { XDG_CONFIG_HOME: join(dir, 'xdg-config') } // sandbox from the dev machine's real openspec config.json
+    const env = { XDG_CONFIG_HOME: join(dir, 'xdg-config'), XDG_DATA_HOME: join(dir, 'xdg') }
 
-    const res = await cospec(['doctor', '--json'], { cwd: dir, env })
+    const json = await countingDoctor(['doctor', '--json', '--cwd', dir], env)
     expect(existsSync(join(dir, 'openspec', 'config.yaml'))).toBe(true)
-    const parsed = JSON.parse(res.stdout) as DoctorJson
-    expect(
-      parsed.findings.some(
-        (f) => f.check === 'openspec-root' || f.check.startsWith('openspec-reference-'),
-      ),
-    ).toBe(false)
+    expect(json.doctorCalls).toBe(1)
+    const parsed = JSON.parse(json.stdout) as DoctorJson & { root: { healthy: boolean } | null }
+    expect(parsed.root?.healthy).toBe(true)
+    expect(parsed.findings.some((f) => f.check.startsWith('openspec-'))).toBe(false)
     expect(parsed.findings.some((f) => f.check === 'store-git')).toBe(false)
+
+    const text = await countingDoctor(['doctor', '--cwd', dir], env)
+    expect(text.doctorCalls).toBe(1)
+    expect(text.stdout).not.toContain('openspec-')
   }, 30_000)
 })
+
+/**
+ * `cospec <argv>` in-process with `env` over the process environment,
+ * counting the wrapped `doctor --json` calls it makes (each still runs).
+ */
+async function countingDoctor(
+  argv: string[],
+  env: Record<string, string>,
+): Promise<{ stdout: string; doctorCalls: number }> {
+  let doctorCalls = 0
+  let stdout = ''
+  const originalSpawn = Bun.spawn
+  const originalOut = process.stdout.write
+  const saved = Object.fromEntries(Object.keys(env).map((key) => [key, process.env[key]]))
+  Object.assign(process.env, env)
+  // @ts-expect-error — test-only override of Bun.spawn's overloaded signature.
+  Bun.spawn = (cmd: string[], opts: unknown) => {
+    const args = cmd.slice(3)
+    if (args[0] === 'doctor' && args.includes('--json')) doctorCalls++
+    return originalSpawn(cmd, opts as never)
+  }
+  process.stdout.write = ((chunk: unknown) => {
+    stdout += String(chunk)
+    return true
+  }) as typeof process.stdout.write
+  try {
+    await run(argv)
+    return { stdout, doctorCalls }
+  } finally {
+    Bun.spawn = originalSpawn
+    process.stdout.write = originalOut
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+  }
+}

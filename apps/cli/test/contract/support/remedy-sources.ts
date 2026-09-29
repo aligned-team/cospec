@@ -13,13 +13,20 @@ export const notRelayed = {
   INIT: "only `openspec init` runs it; `cospec init` is native and never spawns the binary's `init`",
   UPDATE:
     "only `openspec update` runs it, or `config profile`'s apply step, which runs `update` inside the interactive `config profile` with no preset — a terminal handover (inherited stdio) no relay reads; cospec never spawns `update` (`cospec update` is native)",
-  PROFILE_HANDOVER:
-    '`config profile` with no preset is a terminal handover (inherited stdio, `commands/config.ts` isHandoverCall): cospec relays none of its output',
+  // The terminal-handover residual (design D11): what the binary can still
+  // print inside a live interactive session, on the terminal cospec handed
+  // it, where no relay reads. Recorded here, as cospec-roadmap ruled, and on
+  // the docs' "How cospec relates to OpenSpec" page; `exceptions.yaml`
+  // (capabilities cospec never implements) is untouched.
+  HANDOVER_SESSION_PROFILE:
+    "`config profile` with no preset, on a TTY once its pre-flight has cleared the handover (`commands/config.ts` runHandover): the interactive menu's session output, on the inherited terminal no relay reads; with no TTY on stdout or an unreadable config cospec runs the call piped and relays it respelled",
+  HANDOVER_SESSION_WORKSET_OPEN:
+    '`workset open` on a TTY for a saved workset with a surviving member folder (`commands/workset.ts` runWorksetOpen), when the tool it resolves cannot be found or launched: printed on the inherited terminal no relay reads; with no TTY, `CI` or `OPEN_SPEC_INTERACTIVE=0` cospec runs the call piped and relays it respelled',
   VERSION:
     "upstream's update check is off under the wrapped env (`OPENSPEC_TELEMETRY=0`, `WRAPPED_ENV`), and cospec has no `upgrade` command",
   TELEMETRY:
     'every spawn sets `OPENSPEC_TELEMETRY=0` (`WRAPPED_ENV` and both handovers), which turns the first-run notice off',
-  TIP: 'piped spawns and the `config` handover set `OPENSPEC_NO_COMPLETIONS=1` (`WRAPPED_ENV`); the `workset open` handover does not, so the tip can print on its inherited stderr, which no relay reads',
+  TIP: 'every spawn sets `OPENSPEC_NO_COMPLETIONS=1` (`WRAPPED_ENV` and both handovers, `config` and `workset open`), which turns the first-run completions tip off',
   STORE_PATH:
     "raised only for `--store-path`: table rows refuse it in cospec's parser before any spawn, and forward rows answer the binary's refusal with cospec's own redirect (`relayStorePathRefusal`)",
   SHOW_EMPTY:
@@ -424,13 +431,28 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
   ],
   [
     'commands/workset-input.js',
+    "? `Install '${opener.command}' or run: openspec workset open ${worksetName} --tool ${alternative}`",
+    notRelayed.HANDOVER_SESSION_WORKSET_OPEN,
+  ],
+  [
+    'commands/workset-input.js',
     ": `Install '${opener.command}', then rerun: openspec workset open ${worksetName}`,",
     'workset/tool-rerun',
   ],
   [
     'commands/workset-input.js',
+    ": `Install '${opener.command}', then rerun: openspec workset open ${worksetName}`,",
+    notRelayed.HANDOVER_SESSION_WORKSET_OPEN,
+  ],
+  [
+    'commands/workset-input.js',
     'fix: `Install one of: ${commands}. Then rerun: openspec workset open ${worksetName}`,',
     'workset/no-tool',
+  ],
+  [
+    'commands/workset-input.js',
+    'fix: `Install one of: ${commands}. Then rerun: openspec workset open ${worksetName}`,',
+    notRelayed.HANDOVER_SESSION_WORKSET_OPEN,
   ],
   [
     'commands/show.js',
@@ -466,8 +488,18 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
   ],
   [
     'commands/config.js',
+    "console.log(colorize('Warning: Global config is not applied to this project. Run `openspec update` to sync.'));",
+    notRelayed.HANDOVER_SESSION_PROFILE,
+  ],
+  [
+    'commands/config.js',
     "console.log('Config updated. Run `openspec update` in your projects to apply.');",
     'config/profile-applied',
+  ],
+  [
+    'commands/config.js',
+    "console.log('Config updated. Run `openspec update` in your projects to apply.');",
+    notRelayed.HANDOVER_SESSION_PROFILE,
   ],
   [
     'commands/config.js',
@@ -482,17 +514,17 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
   [
     'commands/config.js',
     "console.error('Interactive mode required. Use `openspec config profile core` or set config via environment/flags.');",
-    notRelayed.PROFILE_HANDOVER,
+    'config/profile-interactive-required',
   ],
   [
     'commands/config.js',
     "console.log('Run `openspec update` in your other projects to apply.');",
-    notRelayed.PROFILE_HANDOVER,
+    notRelayed.HANDOVER_SESSION_PROFILE,
   ],
   [
     'commands/config.js',
     'console.error(`\\`openspec update\\` failed: ${asErrorMessage(error)}`);',
-    notRelayed.PROFILE_HANDOVER,
+    notRelayed.HANDOVER_SESSION_PROFILE,
   ],
   [
     'cli/index.js',
@@ -752,6 +784,11 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
   ],
   [
     'commands/workset.js',
+    'fix: `Open in VS Code or Cursor: openspec workset open ${name} --tool code`,',
+    notRelayed.HANDOVER_SESSION_WORKSET_OPEN,
+  ],
+  [
+    'commands/workset.js',
     'console.log(`Open it any time with: openspec workset open ${workset.name}`);',
     'workset/open-any-time',
   ],
@@ -785,6 +822,11 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
     'commands/workset.js',
     'fix: `Run: openspec workset open ${name} --tool ${alternative}`,',
     'workset/open-alternative',
+  ],
+  [
+    'commands/workset.js',
+    'fix: `Run: openspec workset open ${name} --tool ${alternative}`,',
+    notRelayed.HANDOVER_SESSION_WORKSET_OPEN,
   ],
   ['commands/workset.js', 'fix: `openspec workset remove ${name} --yes`,', 'workset/remove-yes'],
   [
@@ -861,18 +903,16 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
 
 /**
  * The roadmap PRs that own the spelling of a line R1 relays untouched on a
- * successful answer. The context owner is cospec-roadmap's confirmed ruling
- * (round 16: context's reference block is passthrough-json-and-doctor's); the
- * workset/config owner follows its ruling that R4 wires the allowlist into
- * those relays. (`schema init`'s `3. Use with:` line, once owned by
- * root-resolution-parity, is spelled by `schema.ts` itself; `instructions`,
- * once owned by upstream-spellings, builds its answer from the binary's
- * document with its command fields spelled, `core/instructions-render.ts`.)
+ * successful answer: instructions' reference block is upstream-spellings'
+ * (cospec-roadmap's confirmed ruling, round 16). (`schema init`'s
+ * `3. Use with:` line, once owned by root-resolution-parity, is spelled by
+ * `schema.ts` itself; context's reference block, and the next-step lines of
+ * workset and config, by passthrough-json-and-doctor.)
  */
-export const OWNERS = ['passthrough-json-and-doctor'] as const
+export const OWNERS = ['upstream-spellings'] as const
 
 /** The cospec commands that relay a successful answer as the binary wrote it. */
-export const SUCCESS_RELAYS = ['context', 'workset', 'config'] as const
+export const SUCCESS_RELAYS = ['instructions'] as const
 
 /**
  * [module under dist/, trimmed source line, the cospec command whose successful
@@ -888,13 +928,10 @@ export const REACHABLE_OWNED: readonly (readonly [
   relay: (typeof SUCCESS_RELAYS)[number],
   owner: (typeof OWNERS)[number],
 ])[] = [
-  // `assembleReferenceIndex`'s entries in context's `Referenced stores` /
-  // `Not available on this machine` sections and `members[]` (via
-  // `gatherRelationshipData` and `fetchRecipe`). instructions' own
-  // `<referenced_stores>` block and `references[]` are built from its
-  // document, each `fetch`/`fix` spelled through the allowlist entries these
-  // lines already name in `REMEDY_SOURCES` (`INSTRUCTIONS_COMMAND_FIELDS` in
-  // `core/instructions-render.ts`).
+  // `assembleReferenceIndex`'s entries: instructions' `<referenced_stores>`
+  // block and `references[]`. (context's `Referenced stores` / `Not
+  // available on this machine` sections and `members[]` carry the same lines,
+  // spelled by `commands/context.ts` from its document's command fields.)
   ...(
     [
       'return `git clone -- ${remote} ${quoted} && openspec store register ${quoted} --id ${id}`;',
@@ -904,32 +941,71 @@ export const REACHABLE_OWNED: readonly (readonly [
       "warning('reference_root_unhealthy', `Referenced store '${id}' is registered but not usable (${inspection.kind.replace(/_/g, ' ')}).`, `Run: openspec store doctor ${id}`),",
       "entry.status.push(warning('reference_index_truncated', `Referenced store '${id}' index truncated at the 50KB budget (${low} of ${specs.length} specs listed).`, `List the rest directly: openspec list --specs --store ${id}`));",
     ] as const
-  ).map((line) => ['core/references.js', line, 'context', 'passthrough-json-and-doctor'] as const),
-  // `inspectRelationships`' top-level status, context's `status[]`.
+  ).map((line) => ['core/references.js', line, 'instructions', 'upstream-spellings'] as const),
+  // The built-in `spec-driven` schema's own instruction text and proposal
+  // template (`schemas/spec-driven/schema.yaml`, `templates/proposal.md`):
+  // for a change on that schema (never on one of cospec's 11 typed schemas),
+  // `cospec instructions <artifact> --change <id>` is a thin passthrough
+  // (`commands/instructions.ts`) that relays the binary's successful answer
+  // untouched, so this text reaches the user unspelled.
   [
-    'core/relationship-health.js',
-    "status.push(warning('relationship_registry_unreadable', 'The store registry is unreadable; reference health cannot be checked.', 'Run: openspec store doctor'));",
-    'context',
-    'passthrough-json-and-doctor',
-  ],
-  // `workset create` and an empty `workset list`, exit 0.
-  [
-    'commands/workset.js',
-    'console.log(`Open it any time with: openspec workset open ${workset.name}`);',
-    'workset',
-    'passthrough-json-and-doctor',
+    'schemas/spec-driven/schema.yaml',
+    "run `openspec list --specs` for the project's capability inventory, then",
+    'instructions',
+    'upstream-spellings',
   ],
   [
-    'commands/workset.js',
-    "console.log('No worksets saved. Create one with: openspec workset create');",
-    'workset',
-    'passthrough-json-and-doctor',
+    'schemas/spec-driven/schema.yaml',
+    '`openspec show "<spec-id>" --type spec --json --no-scenarios` for any that',
+    'instructions',
+    'upstream-spellings',
   ],
-  // `config profile <preset>`, exit 0.
   [
-    'commands/config.js',
-    "console.log('Config updated. Run `openspec update` in your projects to apply.');",
-    'config',
-    'passthrough-json-and-doctor',
+    'schemas/spec-driven/schema.yaml',
+    'error. `openspec list` without `--specs` lists in-flight changes, not',
+    'instructions',
+    'upstream-spellings',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'scenarios, with `openspec show "<spec-id>" --type spec` (same `--store` rule).',
+    'instructions',
+    'upstream-spellings',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'modified) or explicitly opt out of specs: `openspec validate` rejects a',
+    'instructions',
+    'upstream-spellings',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    '- Modified capabilities: use the exact existing path from `openspec/specs/<capability-path>/` when creating the delta at `specs/<capability-path>/spec.md`. Run `openspec list --specs` to confirm that path before writing the delta, appending `--store "<id>"` only for a registered standalone store - a mistyped or invented path targets a capability that does not exist rather than the one you meant. Do not move or rename the capability.',
+    'instructions',
+    'upstream-spellings',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'sets `skip_specs: true` (no spec-level behavior change) - `openspec validate`',
+    'instructions',
+    'upstream-spellings',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'one or two sentences (50+ characters, or `openspec validate --strict`',
+    'instructions',
+    'upstream-spellings',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    'directly. `planningHome.root` comes from the `openspec instructions ...',
+    'instructions',
+    'upstream-spellings',
+  ],
+  [
+    'schemas/spec-driven/templates/proposal.md',
+    'must set `skip_specs: true` in its .openspec.yaml - openspec validate rejects',
+    'instructions',
+    'upstream-spellings',
   ],
 ]

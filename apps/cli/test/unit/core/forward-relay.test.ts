@@ -1,13 +1,20 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test'
 
-import { storePathRefusal } from '../../../src/core/command-table.ts'
+import type { CommandContext } from '../../../src/cli.ts'
+import { commandRow, storePathRefusal } from '../../../src/core/command-table.ts'
 import {
   forwardCall,
   isParseRejection,
+  prevalidateHandover,
+  relayGroupRefusal,
   relayRespelled,
   relayStorePathRefusal,
 } from '../../../src/core/forward-relay.ts'
-import { OpenspecCallError, type OpenspecResult } from '../../../src/core/openspec.ts'
+import {
+  OpenspecCallError,
+  type OpenspecResult,
+  PINNED_OPENSPEC_VERSION,
+} from '../../../src/core/openspec.ts'
 import { respellRemedies } from '../../../src/core/remedies.ts'
 
 const UPSTREAM_REDIRECT =
@@ -230,5 +237,167 @@ describe('relayRespelled', () => {
   test("a failed answer's upstream remedies are respelled", () => {
     expect(relayRespelled(result({ exitCode: 1, stderr: FIX }), false)).toBe(1)
     expect(written).toEqual([{ stream: 'stderr', text: SPELLED }])
+  })
+})
+
+/**
+ * Runs `fn` with every wrapped call answered by `canned` (the version probe
+ * with the pin) and process output captured; returns the wrapped argv.
+ */
+async function withCannedAnswer<T>(
+  canned: Partial<OpenspecResult>,
+  fn: () => Promise<T>,
+): Promise<{ value?: T; error?: unknown; argv: string[][]; out: string; err: string }> {
+  const argv: string[][] = []
+  let out = ''
+  let err = ''
+  const originalSpawn = Bun.spawn
+  const outSpy = spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+    out += String(chunk)
+    return true
+  })
+  const errSpy = spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+    err += String(chunk)
+    return true
+  })
+  // @ts-expect-error — test-only override of Bun.spawn's overloaded signature.
+  Bun.spawn = (cmd: string[]) => {
+    const args = cmd.slice(3)
+    const version = args.length === 1 && args[0] === '--version'
+    if (!version) argv.push(args)
+    const answer = version ? { stdout: `${PINNED_OPENSPEC_VERSION}\n` } : canned
+    return {
+      stdout: new Response(answer.stdout ?? '').body,
+      stderr: new Response(answer.stderr ?? '').body,
+      exited: Promise.resolve(answer.exitCode ?? 0),
+    }
+  }
+  try {
+    return { value: await fn(), argv, out, err }
+  } catch (error) {
+    return { error, argv, out, err }
+  } finally {
+    Bun.spawn = originalSpawn
+    outSpy.mockRestore()
+    errSpy.mockRestore()
+  }
+}
+
+function groupCtx(json: boolean): CommandContext {
+  return { args: [], flags: { json, noColor: false, cwd: '/repo' }, cwd: '/repo' }
+}
+
+describe('relayGroupRefusal', () => {
+  const doc = (code: string) =>
+    `${JSON.stringify({
+      status: [
+        {
+          severity: 'error',
+          code,
+          message: "Unknown command 'x' for 'openspec store'. Store subcommands: setup.",
+          fix: 'Run a store subcommand, or use the lifecycle command with --store <id>.',
+        },
+      ],
+    })}\n`
+
+  test('threads --json right after the group, ahead of the argv, its -- kept', async () => {
+    const run = await withCannedAnswer(
+      { stdout: doc('unknown_store_subcommand'), exitCode: 1 },
+      () => relayGroupRefusal(groupCtx(true), 'store', ['--', '--bogus']),
+    )
+    expect(run.argv).toEqual([['store', '--json', '--', '--bogus']])
+    expect(run.value).toBe(1)
+    expect(run.out).toBe(respellRemedies(doc('unknown_store_subcommand')))
+    expect(run.out).toContain("'cospec store'")
+  })
+
+  test("relays the binary's text refusal respelled, and commander's rejection", async () => {
+    const text =
+      "Error: unknown command 'x' for 'openspec store'.\n  openspec new change <change-id> --store <id>\n"
+    const refused = await withCannedAnswer({ stderr: text, exitCode: 1 }, () =>
+      relayGroupRefusal(groupCtx(false), 'store', ['x']),
+    )
+    expect(refused.argv).toEqual([['store', 'x']])
+    expect(refused.value).toBe(1)
+    expect(refused.err).toBe(respellRemedies(text))
+    const commander = "error: unknown option '--bogus'\n"
+    const rejected = await withCannedAnswer({ stderr: commander, exitCode: 1 }, () =>
+      relayGroupRefusal(groupCtx(true), 'workset', ['--bogus']),
+    )
+    expect(rejected.value).toBe(1)
+    expect(rejected.err).toBe(commander)
+  })
+
+  test('any other answer is a wrapped-call violation', async () => {
+    for (const canned of [
+      { stdout: doc('store_not_found'), exitCode: 1 },
+      { stdout: doc('unknown_store_subcommand'), exitCode: 0 },
+      { stdout: 'not a document', exitCode: 1 },
+    ]) {
+      const run = await withCannedAnswer(canned, () =>
+        relayGroupRefusal(groupCtx(true), 'store', ['x']),
+      )
+      expect(run.error).toBeInstanceOf(OpenspecCallError)
+      expect(run.out + run.err).toBe('')
+    }
+    const text = await withCannedAnswer({ stdout: 'x\n', exitCode: 1 }, () =>
+      relayGroupRefusal(groupCtx(false), 'workset', ['x']),
+    )
+    expect(text.error).toBeInstanceOf(OpenspecCallError)
+  })
+})
+
+describe('prevalidateHandover: each terminal-handover leaf refuses as commander would', () => {
+  const workset = commandRow('workset')!
+  const config = commandRow('config')!
+  const refusal = (row: typeof workset, sub: string, args: string[]) =>
+    prevalidateHandover(row, sub, args)?.message
+
+  test('workset open', () => {
+    expect(refusal(workset, 'open', ['x', '--bogus'])).toBe(
+      "cospec workset open: unknown option '--bogus'\n",
+    )
+    expect(refusal(workset, 'open', ['x', '--tool'])).toBe(
+      "cospec workset open: option '--tool <tool>' argument missing\n",
+    )
+    expect(refusal(workset, 'open', [])).toStartWith(
+      "cospec workset open: missing required argument 'name'\n",
+    )
+    expect(refusal(workset, 'open', ['x', 'y'])).toBe(
+      'cospec workset open: too many arguments. Expected 1 argument but got 2.\n',
+    )
+    expect(refusal(workset, 'open', ['x', '-zq'])).toStartWith(
+      "cospec workset open: unknown option '-zq'\n",
+    )
+    expect(refusal(workset, 'open', ['x', '--store-path', '/p'])).toBe(storePathRefusal(false).text)
+    expect(refusal(workset, 'open', ['x', '--tool', '--bogus'])).toBeUndefined()
+    expect(refusal(workset, 'open', ['--', '--x'])).toBeUndefined()
+  })
+
+  test('config edit, profile and reset --all', () => {
+    expect(refusal(config, 'edit', ['--bogus'])).toBe(
+      "cospec config edit: unknown option '--bogus'\n",
+    )
+    expect(refusal(config, 'edit', ['extra'])).toBe(
+      'cospec config edit: too many arguments. Expected 0 arguments but got 1.\n',
+    )
+    expect(refusal(config, 'edit', ['--store-path', '/p'])).toBe(storePathRefusal(false).text)
+    expect(refusal(config, 'profile', ['a', 'b'])).toBe(
+      'cospec config profile: too many arguments. Expected 1 argument but got 2.\n',
+    )
+    expect(refusal(config, 'profile', ['-zq'])).toStartWith(
+      "cospec config profile: unknown option '-zq'\n",
+    )
+    // Commander splits `-yz` into `-y` and an unknown `-z`.
+    expect(refusal(config, 'reset', ['--all', '-yz'])).toStartWith(
+      "cospec config reset: unknown option '-z'\n",
+    )
+    expect(refusal(config, 'edit', [])).toBeUndefined()
+    expect(refusal(config, 'profile', [])).toBeUndefined()
+    expect(refusal(config, 'reset', ['--all'])).toBeUndefined()
+  })
+
+  test('a subcommand the row does not have is a programming error', () => {
+    expect(() => prevalidateHandover(workset, 'nope', [])).toThrow("no 'nope' subcommand row")
   })
 })

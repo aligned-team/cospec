@@ -173,7 +173,10 @@ any OpenSpec user can switch with zero regressions: the change lifecycle, plus
 surfaces are disciplined passthroughs (no gate, full wrapped-call discipline);
 `config edit`/`profile`/`reset --all` (no `-y`) join `workset open` in the
 terminal-handover class instead (inherited stdio, verbatim child exit code, no
-`--json`); see docs/architecture.md and docs/stores.md.
+`--json`), each pre-validated before the handover — its argv refused by the
+table parser as the binary would refuse it, and piped instead when it could not
+be interactive or the binary would refuse it anyway; see docs/architecture.md
+and docs/stores.md.
 
 **The reachability test is the parity gate** — every command, flag, tool id and
 workflow the pinned OpenSpec binary exposes must resolve to exactly one of: the
@@ -201,23 +204,28 @@ relays call `respellRemedies`), or listed in
 relay prints it, or listed there (`REACHABLE_OWNED`) as reachable through a
 successful answer cospec relays untouched, with the roadmap PR that owns its
 spelling. `remedy-enumeration.test.ts` enforces this against the pinned dist, so
-a pin bump fails until each new line is classified. Never respell with a pattern
+a pin bump fails until each new line is classified. A failed answer is respelled
+wherever an allowlisted sentence stands verbatim. Never respell with a pattern
 over free text (a lead-in word, a quote, a backtick): a path, a name or a
 user-owned schema's text must pass through byte-for-byte. A successful answer's
-commands are respelled from structure instead: in a parsed `--json` document
-through `respellCommandFields` (`core/passthrough-command.ts` — a field path and
-either the fixed lead before the command, rewriting only a leading `openspec`
-token, or the `remedy` rule, rewriting a field only when its whole value is one
-allowlist entry — then rendering text from the result), or, where upstream has
-no such field, on a fixed line only the binary writes, found by its position in
-the binary's output and spelled through the allowlist (`schema init`'s last next
-step). `cospec instructions <artifact>` is built this way from the binary's
-`--json` document (`core/instructions-render.ts` ports the text printer): its
-field map is `references[].fetch` / `references[].status[].fix`, and only for a
-change whose schema `schema which --json` reports as `source: package` (the
-pinned built-in `spec-driven`) are that schema's own command lines spelled, each
-a whole-line `SCHEMA_LINES` entry in `core/remedies.ts` — a project or user copy
-stays verbatim.
+commands are respelled from structure instead, only where the binary gives its
+own guidance: in a parsed `--json` document through `respellCommandFields`
+(`core/passthrough-command.ts` — a field path and either the fixed lead before
+the command, rewriting only a leading `openspec` token, or the allowlist entries
+the whole value can be, rewriting it only when it is one of them; then rendering
+text from the result) or a field passed alone to the allowlist (a diagnostic's
+`fix`); where upstream has no such field, a whole allowlisted line
+(`respellLines`, for a next step with no document) or a fixed line only the
+binary writes, found by its position in the binary's output and spelled through
+the allowlist (`schema init`'s last next step). `cospec instructions <artifact>`
+is built this way from the binary's `--json` document
+(`core/instructions-render.ts` ports the text printer): its field map is
+`references[].fetch` / `references[].status[].fix`, and only for a change whose
+schema `schema which --json` reports as `source: package` (the pinned built-in
+`spec-driven`) are that schema's own command lines spelled, each a whole-line
+`SCHEMA_LINES` entry in `core/remedies.ts` — a project or user copy stays
+verbatim. What a live terminal-handover session prints is listed in
+`remedy-sources.ts` as its residual.
 
 **Gates read what the archive reads** — every check that can change a validate,
 apply or archive outcome reads a spec document the way the pinned binary's

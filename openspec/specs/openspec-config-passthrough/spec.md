@@ -29,6 +29,14 @@ append `--json` only for the `list` subcommand, and SHALL emit an extracted
 `--scope` value other than `global` SHALL be relayed to the wrapped binary
 unmodified so upstream's own refusal is what the user sees.
 
+With no subcommand (`cospec config`, `cospec config --scope global`), cospec
+SHALL print its own `config` help — the text `cospec config --help` prints — on
+stderr and exit 1, where the binary prints its own help naming bare `openspec`
+on stderr and exits 1; with `--json`, the binary's own refusal of `--json` at
+the `config` level SHALL be relayed. A `--cwd` that is not a directory SHALL be
+answered with the resolver's `directory not found` refusal before anything is
+spawned.
+
 #### Scenario: Built argv carries no store and no trailing no-color
 
 - **WHEN** the argv builder runs for each of `path`, `list`, `get`, `set`,
@@ -52,9 +60,13 @@ unmodified so upstream's own refusal is what the user sees.
 
 #### Scenario: A missing subcommand is a usage error
 
-- **WHEN** `cospec config` is invoked with no subcommand
-- **THEN** the command exits 1 with a usage message listing the supported
-  subcommands, and no wrapped binary is spawned
+- **WHEN** `cospec config` or `cospec config --scope global` is invoked with no
+  subcommand and no `--json`
+- **THEN** the command exits 1 with cospec's `config` help, listing the
+  supported subcommands, on stderr, and no wrapped binary is spawned
+- **AND WHEN** `cospec config --json` runs
+- **THEN** stderr is the binary's `error: unknown option '--json'` and the exit
+  code is 1, as `openspec config --json` answers
 
 ### Requirement: Non-interactive config subcommands are piped disciplined passthroughs
 
@@ -64,9 +76,13 @@ run as piped `passthroughOpenspec` calls declaring `expect.exitCodes` of
 key, an unknown key, an invalid stored config — which are results to relay
 rather than wrapped-call violations. Any other exit code, or a deny-listed
 stdout marker, SHALL surface as a cospec failure rather than as a relayed
-result. Wrapped stdout and stderr SHALL be relayed verbatim, and cospec SHALL
-NOT re-implement upstream's key validation, value coercion, or its
-prototype-pollution guard, nor read or write the global config file itself.
+result. Wrapped stdout and stderr SHALL be relayed as the binary wrote them,
+except that a failed answer's remedy sentences and a successful answer's
+next-step lines (`Config updated. Run \`openspec update\` in your projects to
+apply.`) SHALL be spelled through cospec from the pinned binary's allowlist, a
+next-step line only where it is a whole line. cospec SHALL NOT re-implement
+upstream's key validation, value coercion, or its prototype-pollution guard, nor
+read or write the global config file itself.
 
 #### Scenario: Reading the config path and list succeeds
 
@@ -81,6 +97,13 @@ prototype-pollution guard, nor read or write the global config file itself.
 - **THEN** the command exits 1 with upstream's own message and does not report a
   wrapped-call discipline violation
 
+#### Scenario: A profile preset's next step names cospec
+
+- **WHEN** `cospec config profile core` succeeds
+- **THEN** stdout reads
+  ``Config updated. Run `cospec update` in your projects to apply.`` and no bare
+  `openspec` command is printed
+
 ### Requirement: Interactive config subcommands hand over the terminal
 
 Three config subcommands SHALL be terminal-handover execs: `cospec config edit`,
@@ -94,6 +117,21 @@ upstream sets when a prompt is cancelled. These calls SHALL declare no
 carries, because inherited stdio leaves nothing for a stdout deny-list to
 inspect.
 
+Before handing the terminal over, each SHALL pre-validate: the subcommand's argv
+is parsed against the command table and a refusal commander would raise is
+answered on cospec's own streams exactly as the binary answers it, ahead of the
+`--json` envelope; `config profile` with no preset, when cospec's stdout is not
+a TTY (the binary's own test for that subcommand), runs as a piped call whose
+answer is relayed through the allowlist; and `config profile` reads the global
+config with a read-only `config list --json` first, relaying the binary's
+unreadable-config refusal, respelled, without handing over. `config reset --all`
+without `-y`, when cospec's stdin is not a TTY (the binary's own test, its
+confirm reading stdin), SHALL run as a piped call that forwards cospec's stdin
+to the confirm unmodified: input that arrives after the prompt is drawn is taken
+and a closed input cancels the prompt with exit `130`, as the binary answers
+each under Node with telemetry off; input already waiting when the prompt is
+drawn, which the binary answers by timing, is taken.
+
 #### Scenario: Editing hands the terminal to the editor
 
 - **WHEN** `cospec config edit` is invoked
@@ -106,11 +144,33 @@ inspect.
   wrapped process exits 130
 - **THEN** `cospec config profile` exits 130 rather than normalising the code
 
+#### Scenario: A piped answer reaches the reset confirm as it reaches the binary's
+
+- **WHEN** `cospec config reset --all` runs with stdin a pipe
+- **THEN** `</dev/null` cancels it with `Reset cancelled.` and exit `130`,
+  resetting nothing, and `(sleep 3; echo y) |` resets the global config with
+  exit `0`, as the binary answers each under Node with telemetry off
+
+#### Scenario: An answer already waiting on the pipe is taken
+
+- **WHEN** `cospec config reset --all` runs with `y` or `n` already waiting on
+  its stdin pipe when the prompt is drawn
+- **THEN** `echo y |` resets the global config and `echo n |` prints
+  `Reset cancelled.`, resetting nothing, each with exit `0`
+
 #### Scenario: A non-TTY caller gets upstream's own refusal
 
 - **WHEN** `cospec config profile` runs with no preset and no TTY attached
-- **THEN** upstream's own interactive-mode-required error is relayed verbatim
-  and its exit code propagated, with no cospec-invented substitute
+- **THEN** upstream's own interactive-mode-required error is relayed, its
+  `openspec config profile core` spelled `cospec config profile core`, and its
+  exit code propagated, with no cospec-invented substitute
+
+#### Scenario: A handover leaf's parse refusal is answered before the handover
+
+- **WHEN** `cospec config edit --bogus`, `cospec config reset --all --bogus` or
+  `cospec config profile --bogus` runs, with or without `--json`
+- **THEN** stderr is the refusal the binary prints for the same argv, the exit
+  code is 1, and no editor or prompt is started
 
 ### Requirement: Every config subcommand honours the one-JSON-document invariant
 
@@ -122,7 +182,11 @@ carrying `version: 1` and the invoked `command`, with `get` reporting the raw
 printed string in `value` plus a `found` boolean, and `set`/`unset`/`reset`
 reporting an `ok` boolean and a `message`. `--json` against a terminal-handover
 subcommand SHALL be refused with an envelope whose `ok` is `false` and exit 1,
-never faked by suppressing the interaction.
+never faked by suppressing the interaction. A refusal the binary's commander
+raises while it parses the argv (an unknown option, a missing value, a missing
+argument, too many arguments) comes before any output the binary could shape and
+SHALL be relayed as its text on stderr with exit 1 and no document, ahead of
+every envelope — the forward-row contract's rule for a parse refusal.
 
 #### Scenario: A cospec-owned envelope is exactly one document
 
@@ -135,6 +199,13 @@ never faked by suppressing the interaction.
 - **WHEN** `cospec config edit --json` is invoked
 - **THEN** stdout is exactly one JSON document reporting `ok: false` and naming
   the subcommand as interactive, the command exits 1, and no editor is spawned
+
+#### Scenario: A parse refusal is relayed, not enveloped
+
+- **WHEN** `cospec config get foo --bogus --json` or
+  `cospec config path --bogus --json` runs
+- **THEN** stderr is the binary's `error: unknown option '--bogus'`, stdout is
+  empty, and the exit code is 1, as `openspec` answers the same argv
 
 ### Requirement: Config notes name the keys cospec's own behaviour overrides
 

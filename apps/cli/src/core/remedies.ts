@@ -112,6 +112,12 @@ export const REMEDIES: readonly Remedy[] = [
     'Config updated. Run `openspec update` in your projects to apply.',
   ),
   sentence('config/list-keys', 'Use "openspec config list" to see available keys.'),
+  // Printed by `config profile` with no preset when stdout is not a TTY: the
+  // piped path cospec runs that leaf on when it cannot be interactive.
+  sentence(
+    'config/profile-interactive-required',
+    'Interactive mode required. Use `openspec config profile core` or set config via environment/flags.',
+  ),
   sentence('config/reset-usage', 'Usage: openspec config reset --all [-y]'),
   // commands/store.js
   command('store/setup-example-json', 'openspec store setup <id> --path ~/openspec/<id> --json'),
@@ -629,4 +635,47 @@ export function respellRemedies(text: string): string {
       out = out.replace(rule.pattern[dialect], replacement(rule, dialect))
   }
   return out
+}
+
+/**
+ * `text` with each line that is, after its indentation, one of the named
+ * allowlist sentences whole — its holes filled — spelled through cospec, and
+ * every other line unchanged (design D5). For a successful answer that has no
+ * document to respell structurally, only the binary's own next-step lines: a
+ * member path, a name or any other line that merely contains the sentence is
+ * relayed as the binary wrote it.
+ */
+export function respellLines(text: string, ids: readonly string[]): string {
+  const rules = ids.map((id) => wholeRule(id, 'respellLines'))
+  return text
+    .split('\n')
+    .map((line) => {
+      const [, indent, content, cr] = /^([ \t]*)(.*?)(\r?)$/.exec(line)!
+      const match = rules.find(({ whole }) => whole.test(content!))
+      if (match === undefined) return line
+      return `${indent}${content!.replace(match.whole, replacement(match.rule, 'text'))}${cr}`
+    })
+    .join('\n')
+}
+
+/** One allowlist entry matched as a whole value, its holes filled. */
+function wholeRule(id: string, caller: string): { rule: Compiled; whole: RegExp } {
+  const remedy = REMEDIES.find((r) => r.id === id)
+  if (remedy === undefined) throw new Error(`${caller}: no allowlist entry '${id}'`)
+  return { rule: compile(remedy), whole: new RegExp(`^${body(remedy.upstream, 'text', true)}$`) }
+}
+
+/**
+ * `value` spelled through cospec when the whole of it is one of the named
+ * allowlist entries, its holes filled; otherwise `value` unchanged. For one
+ * field of a parsed document (`respellCommandFields`): a value that merely
+ * contains a remedy, or reads like one it does not name, is the binary's (or
+ * the user's) byte for byte.
+ */
+export function respellWhole(value: string, ids: readonly string[]): string {
+  for (const id of ids) {
+    const { rule, whole } = wholeRule(id, 'respellWhole')
+    if (whole.test(value)) return value.replace(whole, replacement(rule, 'text'))
+  }
+  return value
 }

@@ -17,7 +17,7 @@ import { dirname, join } from 'node:path'
 import openspecBundlePath from '../vendor/openspec.bundle.js.tpl' with { type: 'file' }
 
 /** Root of the extraction cache (`${XDG_CACHE_HOME:-~/.cache}/cospec`). */
-function cacheRoot(): string {
+export function cacheRoot(): string {
   const xdg = process.env.XDG_CACHE_HOME
   const base = xdg !== undefined && xdg.length > 0 ? xdg : join(homedir(), '.cache')
   return join(base, 'cospec')

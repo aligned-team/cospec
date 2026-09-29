@@ -294,23 +294,33 @@ change-lifecycle steps:
   success, rather than trusting the wrapped exit code alone.
 - **`cospec workset create|list|remove|open`** — personal, local working views
   over a store or repo. `create`/`list`/`remove` behave exactly like their
-  `openspec` counterparts, relayed verbatim. `open` is different in kind: it
-  hands the terminal over to whatever editor or agent session the workset points
-  at — inherited stdio, the child's exact exit code, no `--json` (the wrapped
-  binary itself rejects `--json` on `open`). Worksets never take a `--store`
-  flag at all — they're local views, not store operations — so `cospec workset`
-  never threads `--store` the way every other command on this page does.
+  OpenSpec counterparts, relayed as OpenSpec answers them with its next steps
+  and remedies spelled `cospec`, and a missing or unknown subcommand gets
+  OpenSpec's own refusal. `open` is different in kind: it hands the terminal
+  over to whatever editor or agent session the workset points at — inherited
+  stdio, the child's exact exit code — once nothing OpenSpec would refuse is
+  left; under `--json` it opens nothing and relays OpenSpec's refusal of the
+  mode, and with no terminal it runs piped (the `workset` row on
+  [Commands](/reference/commands) has the details). Worksets never take a
+  `--store` flag at all — they're local views, not store operations — so
+  `cospec workset` never threads `--store` the way every other command on this
+  page does.
 
 ## `cospec doctor` also checks store health
 
-Plain `cospec doctor` — no `--store` needed — automatically folds in OpenSpec's
-own relationship diagnostics whenever the operating root is store-backed or
-declares `references:`: root-relationship health from `openspec doctor`, and,
-for a store-backed root, the same git/metadata facts `cospec store doctor`
-reports, as `openspec-*` findings alongside cospec's own checks. This is
-additive and read-only — it never repairs anything, only surfaces what's already
-there. See the `doctor` row on [Commands](/reference/commands) for the full
-finding set.
+Plain `cospec doctor` — no `--store` needed — folds in OpenSpec's own
+relationship diagnostics on every root: root-relationship and reference health
+from OpenSpec's doctor, and, for a store-backed root, the same git/metadata
+facts `cospec store doctor` reports, as `openspec-*` findings alongside cospec's
+own checks, with OpenSpec's report itself carried in `cospec doctor --json`.
+This is additive and read-only — it never repairs anything, only surfaces what's
+already there. An explicit `--store <id>`, a `store:` pointer or the global
+`defaultStore` makes the store the operating root, and cospec's own checks run
+on it — not on the directory you run it in — so `cospec doctor --store <id>`
+from a bare workspace with no `openspec/`, or from inside another project,
+checks the store and exits as `openspec doctor --store <id>` does. See the
+`doctor` row on [Commands](/reference/commands) for the full finding set and the
+`--json` keys.
 
 ## How it works
 

@@ -16,6 +16,7 @@ import {
   jsonRefusal,
   offeredFlags,
   parseCommandArgs,
+  parseSubcommandArgs,
   rowGlobalFlags,
   splitShortCluster,
   storePathInOptionPosition,
@@ -886,5 +887,25 @@ describe('closest', () => {
   test('within edit distance 3 only', () => {
     expect(closest('--schem', ['--schema', '--change'])).toBe('--schema')
     expect(closest('--bogus', ['--specs', '--blocked'])).toBeUndefined()
+  })
+})
+
+describe('parseSubcommandArgs (one forward-row leaf, parsed as a table row is)', () => {
+  test("parses a leaf's own argv and names the leaf in its refusals", () => {
+    const row = commandRow('workset')!
+    const open = row.subcommands!.find((s) => s.name === 'open')!
+    const ok = parseSubcommandArgs(row, open, ['w1', '--tool', 'code'])
+    expect(ok).toEqual({
+      ok: true,
+      parsed: { subcommand: 'open', positionals: ['w1'], flags: { '--tool': 'code' } },
+    })
+    const refused = parseSubcommandArgs(row, open, ['w1', '--tol', 'code'])
+    expect(refused.ok).toBe(false)
+    if (!refused.ok) {
+      expect(refused.refusal.kind).toBe('unknown-option')
+      expect(refused.refusal.message).toBe(
+        "cospec workset open: unknown option '--tol'\nDid you mean '--tool'?\n",
+      )
+    }
   })
 })

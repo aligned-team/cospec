@@ -11,7 +11,8 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { cleanupAll, cospec, mkTempRepo } from '../fixtures/support.ts'
+import { respellRemedies } from '../../src/core/remedies.ts'
+import { cleanupAll, cospec, mkTempRepo, openspecRaw } from '../fixtures/support.ts'
 
 afterAll(cleanupAll)
 
@@ -19,7 +20,10 @@ function sandbox(): { workspace: string; env: Record<string, string> } {
   const workspace = mkTempRepo()
   const xdg = join(workspace, 'xdg')
   mkdirSync(xdg, { recursive: true })
-  return { workspace, env: { XDG_DATA_HOME: xdg, OPENSPEC_TELEMETRY: '0' } }
+  return {
+    workspace,
+    env: { XDG_DATA_HOME: xdg, OPENSPEC_TELEMETRY: '0', OPENSPEC_NO_COMPLETIONS: '1' },
+  }
 }
 
 /** A healthy-but-unregistered OpenSpec root (config.yaml + specs/ + changes/archive/). */
@@ -124,10 +128,14 @@ describe('cospec store', () => {
     expect(listPayload.stores.some((s) => s.id === 'protected-store')).toBe(true)
   }, 30_000)
 
-  test('an unknown store subcommand fails with a helpful exit 1', async () => {
+  test("an unknown store subcommand is the binary's refusal, spelled through cospec", async () => {
     const { workspace, env } = sandbox()
+    const upstream = await openspecRaw(['store', 'bogus'], workspace, env)
     const res = await cospec(['store', 'bogus'], { cwd: workspace, env })
+    expect(upstream.exitCode).toBe(1)
     expect(res.exitCode).toBe(1)
-    expect(res.stderr).toMatch(/unknown subcommand 'bogus'/)
-  })
+    expect(res.stdout).toBe('')
+    expect(res.stderr).toBe(respellRemedies(upstream.stderr))
+    expect(res.stderr).toContain("'cospec store'")
+  }, 30_000)
 })

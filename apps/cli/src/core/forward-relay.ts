@@ -8,8 +8,21 @@
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
-import { isUpstreamStorePathRefusal, storePathRefusal } from './command-table.ts'
-import { OpenspecCallError, type OpenspecResult, passthroughOpenspec } from './openspec.ts'
+import {
+  type CommandRow,
+  isUpstreamStorePathRefusal,
+  type ParseRefusal,
+  parseSubcommandArgs,
+  splitShortCluster,
+  storePathRefusal,
+  takesNextToken,
+} from './command-table.ts'
+import {
+  OpenspecCallError,
+  type OpenspecResult,
+  passthroughOpenspec,
+  type PostCondition,
+} from './openspec.ts'
 import { respellRemedies } from './remedies.ts'
 
 /**
@@ -143,4 +156,108 @@ export async function relayCommandLevel(
   if (result.stdout.length > 0) process.stdout.write(result.stdout)
   if (result.stderr.length > 0) process.stderr.write(result.stderr)
   return result.exitCode === 0 ? EXIT.success : EXIT.failure
+}
+
+/** The code of the binary's one refusal document for a group given no subcommand it runs. */
+const GROUP_REFUSAL_CODE = {
+  store: 'unknown_store_subcommand',
+  workset: 'unknown_workset_subcommand',
+} as const
+
+export type RefusingGroup = keyof typeof GROUP_REFUSAL_CODE
+
+/** `status[0].code` of a one-document answer, or undefined for any other stdout. */
+export function firstStatusCode(stdout: string): string | undefined {
+  let doc: unknown
+  try {
+    doc = JSON.parse(stdout)
+  } catch (err) {
+    if (err instanceof SyntaxError) return undefined
+    throw err
+  }
+  const status = (doc as { status?: unknown } | null)?.status
+  const code = Array.isArray(status)
+    ? (status[0] as { code?: unknown } | undefined)?.code
+    : undefined
+  return typeof code === 'string' ? code : undefined
+}
+
+/**
+ * What the binary answers a group whose first token is not a subcommand it
+ * runs: commander's parse rejection, its text refusal on stderr alone, or one
+ * document whose `status[0].code` is the group's refusal code. The binary
+ * picks the mode from the argv itself — the store group reads a `--json`
+ * among its operands, one after `--` included, where cospec's own flag
+ * parsing stops — so every shape is its answer whatever `ctx.flags.json` is.
+ */
+function groupRefusalPostCondition(group: RefusingGroup): PostCondition {
+  return (result) =>
+    isParseRejection(result) ||
+    (result.stdout.length === 0 && result.stderr.length > 0) ||
+    firstStatusCode(result.stdout) === GROUP_REFUSAL_CODE[group] ||
+    `did not refuse the ${group} argv with a parse rejection, a stderr refusal, or one document whose status[0].code is ${GROUP_REFUSAL_CODE[group]}`
+}
+
+/**
+ * Relays the binary's own refusal of a `store`/`workset` argv whose first
+ * token is not a subcommand the wrapper dispatches — none, an unknown name,
+ * an option, or anything after a `--`, which the argv keeps — instead of
+ * cospec synthesizing one (design D1): `<group> [--json] <argv>` spawned
+ * piped, exit 1 declared, and its answer relayed with its sentences spelled
+ * through cospec (`respellRemedies`). Returns cospec's exit code.
+ */
+export async function relayGroupRefusal(
+  ctx: CommandContext,
+  group: RefusingGroup,
+  args: readonly string[],
+): Promise<number> {
+  const threaded = ctx.flags.json ? ['--json'] : []
+  const result = await forwardCall(() =>
+    passthroughOpenspec(
+      { command: [group], threaded, args },
+      {
+        cwd: ctx.cwd,
+        expect: {
+          exitCodes: [1],
+          postCondition: groupRefusalPostCondition(group),
+        },
+      },
+    ),
+  )
+  return relayRespelled(result, ctx.flags.json)
+}
+
+/**
+ * The refusal the binary's commander would give a terminal-handover leaf's
+ * argv (`sub` of `row`, global flags already stripped), or undefined when it
+ * parses (design D8): the table parser's own refusal, so it is answered on
+ * cospec's streams before the terminal is handed over, never printed by the
+ * binary on it. Short clusters split as commander splits them (`-yz` is `-y`
+ * then an unknown `-z`), a value-taking flag keeping its value whole.
+ */
+export function prevalidateHandover(
+  row: CommandRow,
+  sub: string,
+  args: readonly string[],
+): ParseRefusal | undefined {
+  const leaf = row.subcommands?.find((s) => s.name === sub)
+  if (leaf === undefined) throw new Error(`cospec ${row.name}: no '${sub}' subcommand row`)
+  const surfaces = [leaf]
+  const tokens = [...args]
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i]!
+    if (tok === '--') break
+    if (i + 1 < tokens.length && takesNextToken(surfaces, tok, false)) {
+      i++
+      continue
+    }
+    const split = splitShortCluster(surfaces, tok)
+    if (split !== undefined) {
+      tokens.splice(i, 1, split.head, split.tail)
+      // A boolean head leaves the rest to rescan; a value-taking one takes it.
+      if (split.takesValue) i++
+    }
+  }
+  const result = parseSubcommandArgs(row, leaf, tokens)
+  return result.ok ? undefined : result.refusal
 }

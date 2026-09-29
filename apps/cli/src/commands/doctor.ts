@@ -4,13 +4,14 @@
 // schemas/harness files are not drifted (reuses the update engine's dry run);
 // harness files are not stale/mixed-version; slash/skill references in generated
 // bodies all resolve (the structural guard against openspec's dangling-ref
-// failure class); config.yaml parses with a known schema; no leftover opsx files
+// failure class); config.yaml (else config.yml) parses with a known schema; no leftover opsx files
 // or stale .cospec-new sidecars; changes sit on known schemas; the git hooks
-// are installed when the gate was scaffolded; and, when the operating root is
-// store-backed or declares `references:`, a delegated `openspec doctor --json`
-// (and, for a store root, `openspec store doctor --json`) folds openspec's own
-// root-relationship/reference/store-health diagnostics in (read-only, never
-// repair — WI-8).
+// are installed when the gate was scaffolded; and, on every root, a delegated
+// `openspec doctor --json` (and, for a store root, `openspec store doctor
+// --json`) folds openspec's own root-relationship/reference/store-health
+// diagnostics in (read-only, never repair — WI-8), its `root`, `store`,
+// `references` and `status` keys carried in cospec's `--json` document and
+// each line of its stderr (config warnings) a WARNING finding.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -38,11 +39,13 @@ import {
   type OpenspecResolution,
   type OpenspecStatusEntry,
   passthroughOpenspec,
+  type PostCondition,
   resolveOpenspec,
   satisfiesOpenspecRange,
   type Root,
 } from '../core/openspec.ts'
-import { resolveRoot } from '../core/root.ts'
+import { respellRemedies } from '../core/remedies.ts'
+import { type ResolvedRoot, resolveRoot, RootSelectionError } from '../core/root.ts'
 import { HARNESS_NAMES } from '../harness/render.ts'
 import { OPSX_SHARED_SKILL_ROOT } from './init.ts'
 import { detectHarnesses, generate } from './update.ts'
@@ -280,17 +283,28 @@ function checkDanglingRefs(
   }
 }
 
+/**
+ * The project config the binary reads: `openspec/config.yaml`, else
+ * `openspec/config.yml` (upstream's `resolveConfigFilePath` order), relative
+ * to `cwd`; undefined when there is neither.
+ */
+function projectConfigFile(cwd: string): string | undefined {
+  return ['config.yaml', 'config.yml']
+    .map((name) => `openspec/${name}`)
+    .find((rel) => existsSync(join(cwd, rel)))
+}
+
 function checkConfig(cwd: string, findings: Finding[]): void {
-  const path = join(openspecDir(cwd), 'config.yaml')
-  if (!existsSync(path)) return
+  const rel = projectConfigFile(cwd)
+  if (rel === undefined) return
   let doc: unknown
   try {
-    doc = parseYaml(readFileSync(path, 'utf8'))
+    doc = parseYaml(readFileSync(join(cwd, rel), 'utf8'))
   } catch {
     findings.push({
       level: 'ERROR',
       check: 'config',
-      message: 'openspec/config.yaml does not parse as YAML',
+      message: `${rel} does not parse as YAML`,
       remedy: 'fix the YAML syntax',
     })
     return
@@ -301,7 +315,7 @@ function checkConfig(cwd: string, findings: Finding[]): void {
     findings.push({
       level: 'INFO',
       check: 'config',
-      message: `openspec/config.yaml default schema is '${schema}' (not one of the 11 cospec types)`,
+      message: `${rel} default schema is '${schema}' (not one of the 11 cospec types)`,
       remedy:
         'set `schema:` to a cospec type for the full guided workflow, or keep it if intentional',
     })
@@ -430,12 +444,12 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }
 
-/** True when `openspec/config.yaml` declares a non-empty `references:` list. */
+/** True when the project config (`projectConfigFile`) declares a non-empty `references:` list. */
 function hasReferencesConfig(cwd: string): boolean {
-  const path = join(openspecDir(cwd), 'config.yaml')
-  if (!existsSync(path)) return false
+  const rel = projectConfigFile(cwd)
+  if (rel === undefined) return false
   try {
-    const doc = parseYaml(readFileSync(path, 'utf8'))
+    const doc = parseYaml(readFileSync(join(cwd, rel), 'utf8'))
     if (doc === null || typeof doc !== 'object') return false
     const refs = (doc as Record<string, unknown>).references
     return Array.isArray(refs) && refs.length > 0
@@ -445,13 +459,34 @@ function hasReferencesConfig(cwd: string): boolean {
   }
 }
 
-/** Shape of the `root`/`store`/`references[]` sections of `openspec doctor --json`. */
-interface OpenspecDoctorJson {
-  root: { path?: string; source?: string; healthy?: boolean; status?: OpenspecStatusEntry[] } | null
-  store: { id?: string; status?: OpenspecStatusEntry[] } | null
-  references: { store_id?: string; status?: OpenspecStatusEntry[] }[]
-  status?: OpenspecStatusEntry[]
+/**
+ * The `root`, `store`, `references` and `status` keys of `openspec doctor
+ * --json`, which cospec's own `--json` document carries as the binary wrote
+ * them (design D3).
+ */
+export interface RelationshipReport {
+  root: { path?: string; source?: string; healthy?: boolean; status: OpenspecStatusEntry[] } | null
+  store: { id?: string; status: OpenspecStatusEntry[] } | null
+  references: { store_id?: string; status: OpenspecStatusEntry[] }[]
+  status: OpenspecStatusEntry[]
 }
+
+/** The binary's codes for "no OpenSpec root here" (`core/root-selection.js`). */
+const NO_ROOT_CODES: ReadonlySet<string> = new Set([
+  'no_openspec_root',
+  'no_root_with_registered_stores',
+])
+
+/** Root sources whose resolved base, not the invocation directory, is what doctor checks. */
+const RESOLVED_BASE: ReadonlySet<ResolvedRoot['source']> = new Set([
+  'nearest',
+  'store',
+  'declared',
+  'global_default',
+])
+
+/** The binary's own failure payload shape, carried when its report could not be read. */
+const NO_REPORT: RelationshipReport = { root: null, store: null, references: [], status: [] }
 
 /** One entry of `openspec store doctor --json`'s `stores[]`. */
 interface OpenspecStoreDoctorEntry {
@@ -467,54 +502,141 @@ interface OpenspecStoreDoctorEntry {
 }
 
 /**
- * Delegate `openspec doctor --json` (root-relationship + reference health) and,
- * for a store-backed root, `openspec store doctor --json` (store metadata + git
- * facts) — folding both into cospec's findings. Never repairs anything; a
- * failure to reach openspec surfaces as a WARNING, not a thrown error, since
- * this is an additive health section, not a gate.
+ * `status` with the binary's remedies spelled through cospec (design D4): each
+ * diagnostic's `fix`, and on a failed answer its `message` too — each field
+ * passed alone to the allowlist, so a path or an id is the binary's byte for
+ * byte and no key is added.
  */
-async function checkOpenspecRelationship(
+function spellStatus(status: OpenspecStatusEntry[], failed: boolean): OpenspecStatusEntry[] {
+  return status.map((entry) => ({
+    ...entry,
+    ...(failed ? { message: respellRemedies(entry.message) } : {}),
+    ...(entry.fix === undefined ? {} : { fix: respellRemedies(entry.fix) }),
+  }))
+}
+
+/** The binary's four keys with every diagnostic list spelled through cospec. */
+function spellReport(keys: RelationshipReport, failed: boolean): RelationshipReport {
+  return {
+    root:
+      keys.root === null ? null : { ...keys.root, status: spellStatus(keys.root.status, failed) },
+    store:
+      keys.store === null
+        ? null
+        : { ...keys.store, status: spellStatus(keys.store.status, failed) },
+    references: keys.references.map((ref) => ({
+      ...ref,
+      status: spellStatus(ref.status, failed),
+    })),
+    status: spellStatus(keys.status, failed),
+  }
+}
+
+/** The binary's doctor document carries its four keys. */
+const doctorReportPostCondition: PostCondition = (result) => {
+  let doc: unknown
+  try {
+    doc = JSON.parse(result.stdout)
+  } catch (err) {
+    if (err instanceof SyntaxError) return 'did not emit parseable JSON'
+    throw err
+  }
+  const keys = doc as Partial<RelationshipReport> | null
+  return (
+    (keys !== null &&
+      'root' in keys &&
+      'store' in keys &&
+      Array.isArray(keys.references) &&
+      Array.isArray(keys.status)) ||
+    'did not emit the root, store, references and status keys'
+  )
+}
+
+/**
+ * The wrapped call's stderr as findings: each non-blank line — OpenSpec's
+ * config warnings (`Invalid 'context' field in config (must be string)`, …) —
+ * one WARNING, passed alone to the remedies allowlist, so `--json` carries it
+ * and the text report prints it. `passthroughOpenspec` has already dropped the
+ * lines cospec printed itself.
+ */
+export function foldWrappedStderr(stderr: string, findings: Finding[]): void {
+  for (const line of stderr.split(/\r?\n/u)) {
+    if (line.trim() === '') continue
+    findings.push({ level: 'WARNING', check: 'openspec-stderr', message: respellRemedies(line) })
+  }
+}
+
+/**
+ * Delegate `openspec doctor --json` (root-relationship + reference health) on
+ * every root and, for a store-backed root, `openspec store doctor --json`
+ * (store metadata + git facts) — folding both into cospec's findings and
+ * returning the binary's four keys for cospec's `--json` document. Never
+ * repairs anything; a failure to reach openspec surfaces as a WARNING, not a
+ * thrown error, since this is an additive health section, not a gate.
+ */
+export async function checkOpenspecRelationship(
   root: Root,
   cwd: string,
   findings: Finding[],
-): Promise<void> {
+  initialized: boolean,
+): Promise<RelationshipReport> {
   const storeBacked = root.store !== undefined
-  if (!storeBacked && !hasReferencesConfig(cwd)) return
+  let delegated = NO_REPORT
 
   try {
     const result = await passthroughOpenspec(
       { command: ['doctor'], threaded: ['--json', ...root.storeArgs] },
       {
         cwd: root.cwd,
-        expect: { exitCodes: [0, 1] },
+        expect: { exitCodes: [0, 1], postCondition: doctorReportPostCondition },
       },
     )
-    const parsed = JSON.parse(result.stdout) as OpenspecDoctorJson
-    foldStatus('root', parsed.root?.status, findings)
-    foldStatus('store', parsed.store?.status, findings)
-    for (const ref of parsed.references)
+    foldWrappedStderr(result.stderr, findings)
+    const parsed = JSON.parse(result.stdout) as RelationshipReport
+    delegated = spellReport(
+      {
+        root: parsed.root,
+        store: parsed.store,
+        references: parsed.references,
+        status: parsed.status,
+      },
+      result.exitCode !== 0,
+    )
+    foldStatus('root', delegated.root?.status, findings)
+    foldStatus('store', delegated.store?.status, findings)
+    for (const ref of delegated.references)
       foldStatus(`reference-${ref.store_id ?? 'unknown'}`, ref.status, findings)
-    foldStatus('relationship', parsed.status, findings)
-    if (parsed.root !== null) {
+    // With no root, cospec's own `initialized` ERROR already reports it: the
+    // binary's no-root diagnostic stays in `status`, not a second finding.
+    foldStatus(
+      'relationship',
+      initialized ? delegated.status : delegated.status.filter((s) => !NO_ROOT_CODES.has(s.code)),
+      findings,
+    )
+    // Only where the relationship is the point: a store root or one that
+    // declares `references:`, so a healthy plain root's report is unchanged.
+    if (delegated.root !== null && (storeBacked || hasReferencesConfig(cwd))) {
       findings.push({
         level: 'INFO',
         check: 'openspec-root',
-        message: `operating root is ${parsed.root?.source ?? 'unknown'}-sourced at ${
-          parsed.root?.path ?? root.base
-        } (${parsed.root?.healthy === true ? 'healthy' : 'unhealthy'} per openspec doctor)`,
+        message: `operating root is ${delegated.root.source ?? 'unknown'}-sourced at ${
+          delegated.root.path ?? root.base
+        } (${delegated.root.healthy === true ? 'healthy' : 'unhealthy'} per OpenSpec's doctor)`,
       })
     }
   } catch (err) {
     findings.push({
       level: 'WARNING',
       check: 'openspec-doctor',
-      message: `could not read openspec root-relationship health: ${errorMessage(err)}`,
+      message: `could not read OpenSpec's root-relationship health: ${errorMessage(err)}`,
       remedy:
-        err instanceof OpenspecCallError ? undefined : 'run `openspec doctor` directly to inspect',
+        err instanceof OpenspecCallError
+          ? undefined
+          : "rerun `cospec doctor --json` to see OpenSpec's root, store and reference report",
     })
   }
 
-  if (!storeBacked) return
+  if (!storeBacked) return delegated
   try {
     const result = await passthroughOpenspec(
       { command: ['store', 'doctor'], threaded: ['--json'], args: [root.store!] },
@@ -523,7 +645,11 @@ async function checkOpenspecRelationship(
     const parsed = JSON.parse(result.stdout) as { stores?: OpenspecStoreDoctorEntry[] }
     const entry = parsed.stores?.find((s) => s.id === root.store)
     if (entry !== undefined) {
-      foldStatus(`store-${entry.id}`, entry.status, findings)
+      foldStatus(
+        `store-${entry.id}`,
+        entry.status === undefined ? undefined : spellStatus(entry.status, result.exitCode !== 0),
+        findings,
+      )
       if (entry.git !== undefined) {
         const git = entry.git
         findings.push({
@@ -543,6 +669,7 @@ async function checkOpenspecRelationship(
       message: `could not read store doctor facts for '${root.store}': ${errorMessage(err)}`,
     })
   }
+  return delegated
 }
 
 /**
@@ -585,25 +712,37 @@ function checkGlobalProfile(findings: Finding[]): void {
 export async function run(ctx: CommandContext): Promise<number> {
   const { cwd, flags } = ctx
   const findings: Finding[] = []
-  // Resolved up front (not gated on the local `initialized` check below): the
-  // cross-repo relationship section (WI-8) targets the OPERATING ROOT, which
-  // for an explicit `--store` invocation is deliberately allowed to be a plain
-  // workspace with no `openspec/` of its own — that split is the point of
-  // `cospec doctor --store <id>` run from a bare checkout.
-  const root = await resolveRoot(ctx)
-  // From a subdirectory the local checks read the enclosing root the walk
-  // found; the invocation cwd stays the base only where no local root was
-  // walked to (a store-selected or implicit root).
-  const base = root.source === 'nearest' ? root.base : cwd
+  // Resolved up front (not gated on the local `initialized` check below):
+  // both the relationship section (WI-8) and cospec's own checks target the
+  // OPERATING ROOT, so `cospec doctor --store <id>` checks the store even from
+  // a bare workspace with no `openspec/` of its own.
+  const selection = await selectRoot(ctx)
+  const selected = selection instanceof RootSelectionError ? undefined : selection
+  const root: Root = selected ?? {
+    base: cwd,
+    cwd,
+    storeArgs: flags.store === undefined ? [] : ['--store', flags.store],
+  }
+  // The local checks read the resolved root: the enclosing root the walk
+  // found from a subdirectory, and the store an explicit `--store`, a declared
+  // `store:` pointer or the global `defaultStore` selects. The invocation cwd
+  // stays the base only for an implicit root, or none selected.
+  const base = selected !== undefined && RESOLVED_BASE.has(selected.source) ? selected.base : cwd
 
-  if (!existsSync(openspecDir(base))) {
+  // With no root selected there is nothing for cospec's own checks to read
+  // (the directory may not even be readable); a selection that failed for any
+  // reason but "no root here" is reported by the binary's folded diagnostic.
+  const initialized = selected !== undefined && existsSync(openspecDir(base))
+  const failedOtherwise =
+    selection instanceof RootSelectionError && !NO_ROOT_CODES.has(selection.diagnostic.code)
+  if (!initialized && !failedOtherwise) {
     findings.push({
       level: 'ERROR',
       check: 'initialized',
       message: `no openspec/ directory at ${cwd}`,
       remedy: 'run `cospec init` to scaffold cospec',
     })
-  } else {
+  } else if (initialized) {
     checkOpenspecVersion(findings)
     checkLegacyLayout(checkDrift(base, findings), findings)
     const mdFiles = harnessMarkdownFiles(base)
@@ -618,12 +757,29 @@ export async function run(ctx: CommandContext): Promise<number> {
     checkGlobalProfile(findings)
   }
 
-  await checkOpenspecRelationship(root, base, findings)
+  const relationship = await checkOpenspecRelationship(root, base, findings, initialized)
 
-  return report(findings, flags.json)
+  return report(findings, flags.json, relationship)
 }
 
-function report(findings: Finding[], json: boolean): number {
+/**
+ * The operating root, or the selection's failure: doctor reports on every
+ * root, and the binary's own `doctor --json` answers a failed selection in its
+ * report (`root: null` and the selection's diagnostic in `status`), which
+ * doctor folds beside its own `initialized` check (design D3). A `--cwd` that
+ * does not exist is cospec's own refusal and stands.
+ */
+async function selectRoot(ctx: CommandContext): Promise<ResolvedRoot | RootSelectionError> {
+  try {
+    return await resolveRoot(ctx)
+  } catch (error) {
+    if (!(error instanceof RootSelectionError) || error.diagnostic.code === 'directory_not_found')
+      throw error
+    return error
+  }
+}
+
+function report(findings: Finding[], json: boolean, relationship: RelationshipReport): number {
   const errors = findings.filter((f) => f.level === 'ERROR').length
   const warnings = findings.filter((f) => f.level === 'WARNING').length
   const infos = findings.filter((f) => f.level === 'INFO').length
@@ -631,7 +787,7 @@ function report(findings: Finding[], json: boolean): number {
   if (json) {
     process.stdout.write(
       `${JSON.stringify(
-        { version: 1, findings, summary: { errors, warnings, infos } },
+        { version: 1, findings, summary: { errors, warnings, infos }, ...relationship },
         null,
         2,
       )}\n`,

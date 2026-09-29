@@ -2,7 +2,7 @@
 // (`~/.config/openspec/config.json`). cospec adds no gate and no config file of
 // its own: it never reads or writes that file directly, and never re-implements
 // upstream's key validation, value coercion, or its prototype-pollution guard —
-// every such error relays from the wrapped binary verbatim.
+// every such error relays from the wrapped binary, its remedies spelled through cospec.
 //
 // This command does NOT use `core/passthrough-command.ts`, for three verified
 // reasons (the `workset.ts` precedent):
@@ -30,25 +30,34 @@
 //   B. terminal handover (inherited stdio, exit code propagated verbatim,
 //      version-asserted first — the `workset open` pattern): `edit` (spawns
 //      $EDITOR), `profile` with no preset (inquirer menus behind an isTTY
-//      check), and `reset --all` without `-y` (inquirer confirm). cospec's
+//      check), and `reset --all` without `-y` (inquirer confirm) with a
+//      terminal on stdin — with none, it runs piped. cospec's
 //      piped spawn uses `stdin: 'ignore'`, so all three would hang or
 //      mis-report. Class B propagates 130 (prompt cancellation) unchanged and
-//      enforces no `RunExpectation` — the documented handover exception.
+//      enforces no `RunExpectation` — the documented handover exception —
+//      but first refuses what the binary would refuse (`runHandover`).
+//      `profile` with no TTY on stdout runs piped instead.
 
 import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
-import { EXIT } from '../cli.ts'
-import { commandRow, storePathInOptionPosition, storePathRefusal } from '../core/command-table.ts'
+import { commandHelpText, EXIT } from '../cli.ts'
+import { commandRow } from '../core/command-table.ts'
 import {
   forwardCall,
   isOptionToken,
+  isParseRejection,
+  prevalidateHandover,
   relayCommandLevel,
+  relayRespelled,
   relayStorePathRefusal,
   subcommandOf,
 } from '../core/forward-relay.ts'
+import { handoverPreload, preloadedArgv } from '../core/handover-preload.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
 import {
+  OpenspecCallError,
+  type OpenspecResult,
   passthroughOpenspec,
   resolveOpenspec,
   type RunExpectation,
@@ -56,6 +65,8 @@ import {
   threadedArgv,
   type WrappedCall,
 } from '../core/openspec.ts'
+import { REMEDIES, respellLines, respellRemedies } from '../core/remedies.ts'
+import { assertInvocationDirectory } from '../core/root.ts'
 
 /** The eight subcommands upstream's `config` command defines. */
 export const CONFIG_SUBCOMMANDS = [
@@ -93,8 +104,9 @@ export interface ConfigPlanError {
 }
 
 /**
- * An option where the subcommand belongs (`config --bogus path`): the binary
- * refuses it at the `config` level, so the call is relayed as-is.
+ * An option where the subcommand belongs (`config --bogus path`), or a
+ * subcommand the binary does not define (`config bogus`, `config -- --json`):
+ * the binary refuses it at the `config` level, so the call is relayed as-is.
  */
 export interface ConfigCommandLevel {
   kind: 'command-level'
@@ -103,9 +115,16 @@ export interface ConfigCommandLevel {
   args: string[]
 }
 
-export type ConfigPlan = ConfigCall | ConfigCommandLevel | ConfigPlanError
+/**
+ * No subcommand and no `--json`: the binary prints its own `config` help on
+ * stderr and exits 1, and that help names bare `openspec`, so cospec prints
+ * its own (design D7).
+ */
+export interface ConfigHelp {
+  kind: 'help'
+}
 
-const SUBS = CONFIG_SUBCOMMANDS.join('|')
+export type ConfigPlan = ConfigCall | ConfigCommandLevel | ConfigHelp | ConfigPlanError
 
 /** First non-flag token, i.e. the subcommand's first positional. */
 function firstPositional(args: string[]): string | undefined {
@@ -152,13 +171,17 @@ export function planConfigCall(args: string[], opts: { json: boolean }): ConfigP
   }
 
   const { sub, rest: subArgs, operand } = subcommandOf(rest)
-  if (sub === undefined)
-    return { kind: 'error', message: `cospec config: a subcommand is required (${SUBS})` }
   const scopeArgs = scope === undefined ? [] : ['--scope', scope]
-  if (!operand && isOptionToken(sub))
+  // Upstream's `config` level declares no `--json`, so under `--json` the
+  // binary's own refusal of it is relayed.
+  if (sub === undefined)
+    return opts.json
+      ? { kind: 'command-level', command: ['config', ...scopeArgs], args: ['--json'] }
+      : { kind: 'help' }
+  // An option where the subcommand belongs, or a name the binary does not
+  // define (after a `--` too): commander refuses it at the `config` level.
+  if ((!operand && isOptionToken(sub)) || !isConfigSub(sub))
     return { kind: 'command-level', command: ['config', ...scopeArgs], args: rest }
-  if (!isConfigSub(sub))
-    return { kind: 'error', message: `cospec config: unknown subcommand '${sub}' (${SUBS})` }
 
   const threaded = opts.json && sub === 'list' ? ['--json'] : []
   const wrapped: WrappedCall = { command: ['config', ...scopeArgs, sub], threaded, args: subArgs }
@@ -222,6 +245,9 @@ const CONFIG_EXPECT: RunExpectation = {
   denyStdout: [/collects anonymous usage/i, /completion install/i],
 }
 
+/** `config profile <preset>`'s one next step: the binary's line, spelled whole. */
+const PROFILE_NEXT_STEP = ['config/profile-applied'] as const
+
 /**
  * Class A: piped, disciplined. `exitCodes` is the passthrough default `[0, 1]`;
  * a `--json` caller gets exactly one document either way — upstream's own for
@@ -233,35 +259,60 @@ const CONFIG_EXPECT: RunExpectation = {
  */
 async function runPiped(ctx: CommandContext, call: ConfigCall): Promise<number> {
   const result = await forwardCall(() =>
-    passthroughOpenspec(call.wrapped, { cwd: ctx.cwd, expect: CONFIG_EXPECT }),
+    refusedOnStderr(() =>
+      passthroughOpenspec(call.wrapped, { cwd: ctx.cwd, expect: CONFIG_EXPECT }),
+    ),
   )
   // Ahead of the cospec-owned envelopes: the binary's `--store-path` refusal
-  // is answered with cospec's redirect, never rendered as a `path` or `value`.
+  // is answered with cospec's redirect, and commander's parse rejection
+  // relayed as the binary printed it (text, before any output, as commander
+  // refuses), never rendered as a `path`, `value` or `message`.
   const refused = relayStorePathRefusal(result, ctx.flags.json)
   if (refused !== undefined) return refused
+  if (isParseRejection(result)) {
+    process.stderr.write(result.stderr)
+    return EXIT.failure
+  }
   const ok = result.exitCode === 0
-  const out = result.stdout.trim()
+  // A failed answer's remedies are spelled through cospec; a successful one is
+  // the binary's (a value the user stored, a path), but for `profile
+  // <preset>`'s whole next-step line (design D5).
+  const stdout = ok
+    ? call.sub === 'profile'
+      ? respellLines(result.stdout, PROFILE_NEXT_STEP)
+      : result.stdout
+    : respellRemedies(result.stdout)
+  const stderr = ok ? result.stderr : respellRemedies(result.stderr)
+  const out = stdout.trim()
 
   if (!ctx.flags.json) {
-    if (result.stdout.length > 0) process.stdout.write(result.stdout)
-    if (result.stderr.length > 0) process.stderr.write(result.stderr)
+    if (stdout.length > 0) process.stdout.write(stdout)
+    if (stderr.length > 0) process.stderr.write(stderr)
   } else if (call.sub === 'list') {
-    process.stdout.write(result.stdout)
-    if (result.stderr.length > 0) process.stderr.write(result.stderr)
+    process.stdout.write(stdout)
+    if (stderr.length > 0) process.stderr.write(stderr)
   } else if (call.sub === 'path') {
-    process.stdout.write(jsonEnvelope({ version: 1, command: 'config path', path: out }))
-  } else if (call.sub === 'get') {
     process.stdout.write(
-      jsonEnvelope({
-        version: 1,
-        command: 'config get',
-        key: firstPositional(call.subArgs) ?? null,
-        value: ok ? out : null,
-        found: ok,
-      }),
+      jsonEnvelope(
+        ok
+          ? { version: 1, command: 'config path', path: out }
+          : { version: 1, command: 'config path', ok: false, message: stderr.trim() },
+      ),
     )
+    if (ok && stderr.length > 0) process.stderr.write(stderr)
+  } else if (call.sub === 'get') {
+    const key = firstPositional(call.subArgs) ?? null
+    const refused = !ok && isRefusal(stderr)
+    process.stdout.write(
+      jsonEnvelope(
+        refused
+          ? { version: 1, command: 'config get', key, ok: false, message: stderr.trim() }
+          : { version: 1, command: 'config get', key, value: ok ? out : null, found: ok },
+      ),
+    )
+    if (!refused && stderr.length > 0) process.stderr.write(stderr)
   } else {
-    const message = out.length > 0 ? out : result.stderr.trim()
+    const message = out.length > 0 ? out : stderr.trim()
     process.stdout.write(
       jsonEnvelope({
         version: 1,
@@ -275,6 +326,33 @@ async function runPiped(ctx: CommandContext, call: ConfigCall): Promise<number> 
   if (ok)
     for (const note of precedenceNotes(call.sub, call.subArgs)) process.stderr.write(`${note}\n`)
   return ok ? EXIT.success : EXIT.failure
+}
+
+/**
+ * A `config list --json` the binary refuses before its action runs
+ * (`--scope project`): exit 1, nothing on stdout and its reason on stderr.
+ * That is its answer to relay, not the unparseable document the `--json`
+ * enforcement reads it as; every other violation still throws.
+ */
+async function refusedOnStderr(call: () => Promise<OpenspecResult>): Promise<OpenspecResult> {
+  try {
+    return await call()
+  } catch (err) {
+    if (!(err instanceof OpenspecCallError)) throw err
+    const { exitCode, stdout, stderr } = err.result
+    if (exitCode === 1 && stdout.trim().length === 0 && stderr.length > 0) return err.result
+    throw err
+  }
+}
+
+/**
+ * Whether a failed `config get` was refused rather than finding no value: the
+ * binary refuses with an `Error:` line (its `--scope` check, before the
+ * action), and answers an unset key with exit 1 and at most the warnings its
+ * config read prints (`Warning: Invalid JSON in …, using defaults`).
+ */
+function isRefusal(stderr: string): boolean {
+  return stderr.split('\n').some((line) => line.startsWith('Error: '))
 }
 
 /**
@@ -292,6 +370,100 @@ async function resolveHandoverBin(cwd: string): Promise<string> {
     : extractEmbeddedOpenspec(resolved.version)
 }
 
+/** What a `config` handover leaf reads from the terminal it may hand over. */
+export interface ConfigTerminal {
+  /** `config profile`'s own interactivity test: its stdout is a TTY. */
+  readonly stdoutIsTTY: boolean
+  /** Whether `config reset --all`'s confirm reads a terminal (default: cospec's stdin is a TTY). */
+  readonly stdinIsTTY?: boolean
+  /** The input a piped `config reset --all` forwards to its confirm (default: cospec's stdin). */
+  readonly input?: () => ReadableStream<Uint8Array>
+}
+
+/** The binary's text for an allowlist entry, as it prints it (no holes). */
+function upstreamSentence(id: string): string {
+  const remedy = REMEDIES.find((r) => r.id === id)
+  if (remedy === undefined) throw new Error(`cospec config: no allowlist entry '${id}'`)
+  return remedy.upstream
+}
+
+/**
+ * Whether a piped `config profile` answered with the binary's
+ * interactive-mode-required refusal (stdout is a pipe) — the one answer that
+ * means it would prompt on a terminal. Anything else it refuses first (an
+ * unreadable global config, `--scope project`) is its refusal to relay.
+ */
+function wouldPrompt(result: OpenspecResult): boolean {
+  return (
+    result.stdout.length === 0 &&
+    result.stderr.split('\n').includes(upstreamSentence('config/profile-interactive-required'))
+  )
+}
+
+/**
+ * `config profile` with no preset run piped, read-only: with no preset the
+ * binary refuses what it cannot configure (an unreadable config, a scope it
+ * has not implemented) and, its stdout not a TTY, then refuses to prompt — it
+ * writes nothing either way, and says why on stderr.
+ */
+function profilePiped(ctx: CommandContext, call: ConfigCall): Promise<OpenspecResult> {
+  return passthroughOpenspec(call.wrapped, {
+    cwd: ctx.cwd,
+    expect: {
+      exitCodes: [1],
+      denyStdout: CONFIG_EXPECT.denyStdout,
+      postCondition: (res) => res.stderr.length > 0 || 'refused with nothing on stderr',
+    },
+  })
+}
+
+/**
+ * SGR (colour and weight) escapes. The binary's prompts style through
+ * `node:util` `styleText`, which under Node checks the stream and emits none on
+ * a pipe; Bun's emits them regardless of `NO_COLOR` and `--no-color`. The
+ * piped call's stdout is always a pipe, so the binary under Node never prints
+ * one there; its cursor controls, which it does print, are kept.
+ */
+const SGR = new RegExp(`${String.fromCharCode(0x1b)}\\[[0-9;]*m`, 'g')
+
+/**
+ * `config reset --all` with no terminal on stdin, run piped under the
+ * handover preload with cospec's stdin forwarded to the binary's confirm
+ * (design D14). Under Node the confirm discards an answer already waiting on
+ * its pipe when it is drawn (`echo y | …` cancels) and takes one that arrives
+ * after (`(sleep 1; echo y) | …` resets); Bun hands the confirm everything, so
+ * the forwarding drops what arrives before the prompt is printed. A closed
+ * input cancels as it does under Node (the preload) — 130, `Reset cancelled.`,
+ * nothing reset — and every answer is relayed with its exit code. The binary
+ * always prints an answer line after its prompt, or a failure on stderr.
+ */
+async function resetPiped(
+  ctx: CommandContext,
+  call: ConfigCall,
+  input: ReadableStream<Uint8Array>,
+): Promise<number> {
+  const result = await passthroughOpenspec(call.wrapped, {
+    cwd: ctx.cwd,
+    preload: handoverPreload(),
+    input,
+    expect: {
+      exitCodes: [0, 1, 130],
+      denyStdout: CONFIG_EXPECT.denyStdout,
+      postCondition: (res) =>
+        res.exitCode === 1
+          ? res.stderr.length > 0 || 'failed with nothing on stderr'
+          : res.stdout.endsWith('\n') || 'printed no answer line after its prompt',
+    },
+  })
+  const respell = result.exitCode === 0 ? (text: string) => text : respellRemedies
+  const relay = (text: string) => respell(text.replace(SGR, ''))
+  if (result.stdout.length > 0) process.stdout.write(relay(result.stdout))
+  if (result.stderr.length > 0) process.stderr.write(relay(result.stderr))
+  if (result.exitCode === 0)
+    for (const note of precedenceNotes(call.sub, call.subArgs)) process.stderr.write(`${note}\n`)
+  return result.exitCode
+}
+
 /**
  * Class B: hand the terminal over (array argv, no shell, inherited stdio) and
  * propagate the child's exit code verbatim — including 130 on prompt
@@ -302,20 +474,28 @@ async function resolveHandoverBin(cwd: string): Promise<string> {
  * dispatcher sets). `OPENSPEC_NO_COMPLETIONS=1` is added over that precedent so
  * upstream's first-run completions tip can never surface from a cospec run.
  *
- * The handover class's one pre-spawn `--store-path` check (design decision
- * 2): with inherited stdio the binary's refusal would reach the terminal
- * unrespelled, so a `--store-path` in option position is answered with
- * cospec's redirect without spawning — and never after the editor has run.
+ * Nothing the child prints on the terminal can be relayed, so the leaf first
+ * answers everything the binary would refuse (design D8), in commander's
+ * order: the argv's parse refusal (the table parser's, text on stderr ahead
+ * of any `--json` envelope, `--store-path`'s redirect included); `--json`
+ * (cospec's envelope — the leaf is interactive); and for `config profile`,
+ * whose own test is a TTY on stdout, the piped call when there is none, or
+ * else its read-only pre-flight, which relays any refusal but the
+ * interactive-mode one and hands over only once the binary would prompt;
+ * `config reset --all` hands over only with a terminal on stdin, and runs
+ * piped otherwise (`resetPiped`). `config edit` always hands over. Every
+ * handover runs under the handover preload (`core/handover-preload.ts`).
  */
-async function runHandover(ctx: CommandContext, call: ConfigCall): Promise<number> {
+export async function runHandover(
+  ctx: CommandContext,
+  call: ConfigCall,
+  terminal: ConfigTerminal = { stdoutIsTTY: process.stdout.isTTY === true },
+): Promise<number> {
   const row = commandRow('config')
-  const sub = row?.subcommands?.find((s) => s.name === call.sub)
-  if (row === undefined || sub === undefined) throw new Error(`cospec config: no '${call.sub}' row`)
-  if (storePathInOptionPosition([row, sub], call.subArgs)) {
-    // Upstream declares no `--store-path` here: commander's refusal precedes
-    // any output, so it is text even under `--json`.
-    const refusal = storePathRefusal(false)
-    process[refusal.stream].write(refusal.text)
+  if (row === undefined) throw new Error("cospec config: no 'config' row")
+  const refusal = prevalidateHandover(row, call.sub, call.subArgs)
+  if (refusal !== undefined) {
+    process.stderr.write(refusal.message)
     return EXIT.failure
   }
   if (ctx.flags.json) {
@@ -329,8 +509,14 @@ async function runHandover(ctx: CommandContext, call: ConfigCall): Promise<numbe
     )
     return EXIT.failure
   }
+  if (call.sub === 'profile') {
+    const result = await profilePiped(ctx, call)
+    if (!terminal.stdoutIsTTY || !wouldPrompt(result)) return relayRespelled(result, false)
+  }
+  if (call.sub === 'reset' && !(terminal.stdinIsTTY ?? process.stdin.isTTY === true))
+    return resetPiped(ctx, call, terminal.input?.() ?? Bun.stdin.stream())
   const bin = await resolveHandoverBin(ctx.cwd)
-  const proc = Bun.spawn([process.execPath, bin, ...call.argv], {
+  const proc = Bun.spawn(preloadedArgv(bin, call.argv), {
     cwd: ctx.cwd,
     stdin: 'inherit',
     stdout: 'inherit',
@@ -349,6 +535,8 @@ async function runHandover(ctx: CommandContext, call: ConfigCall): Promise<numbe
 }
 
 export async function run(ctx: CommandContext): Promise<number> {
+  // No wrapped call may spawn in a directory that is not there (design D10).
+  assertInvocationDirectory(ctx.cwd)
   // `--store` is absorbed as a global flag anywhere after the command name, so
   // silently ignoring it here would be misleading: OpenSpec config is
   // machine-global and has no store dimension at all.
@@ -362,6 +550,12 @@ export async function run(ctx: CommandContext): Promise<number> {
   const plan = planConfigCall(ctx.args, { json: ctx.flags.json })
   if (plan.kind === 'error') {
     process.stderr.write(`${plan.message}\n`)
+    return EXIT.failure
+  }
+  if (plan.kind === 'help') {
+    const row = commandRow('config')
+    if (row === undefined) throw new Error("cospec config: no 'config' row")
+    process.stderr.write(commandHelpText(row))
     return EXIT.failure
   }
   if (plan.kind === 'command-level') return relayCommandLevel(ctx, plan.command, plan.args)

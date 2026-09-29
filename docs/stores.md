@@ -69,6 +69,19 @@ cospec apply cross-repo-epic --store platform        # the gate, over the store
 cospec archive cross-repo-epic --store platform      # verified move, in the store
 ```
 
+## Relays
+
+`cospec store` and `cospec workset` answer a missing or unknown subcommand with
+the binary's own refusal (`core/forward-relay.ts` `relayGroupRefusal`), its one
+document under `--json`; `store`'s rendered and relayed diagnostics, `workset`'s
+next-step lines and every failed relay spell the binary's remedies through
+`core/remedies.ts`. `workset open` refuses its argv and `--json` before any
+handover and runs piped with no terminal, or when its read-only
+`workset list --json` pre-flight shows the binary would refuse the open (an
+unreadable worksets file, an unsaved name, no member folder on this machine).
+The site's [Commands](https://cospec.aligned.team/reference/commands) page owns
+the user-facing account.
+
 ## How it works (internals)
 
 A resolved `Root` carries three things: the store's on-disk `base` (cospec's

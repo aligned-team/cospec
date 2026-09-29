@@ -78,7 +78,7 @@ describe('planConfigCall — --no-color and storeArgs are never threaded', () =>
   test('no built argv ever contains --no-color, across every subcommand', () => {
     for (const sub of CONFIG_SUBCOMMANDS) {
       const plan = planConfigCall([sub], { json: false })
-      if (plan.kind === 'error' || plan.kind === 'command-level') continue
+      if (plan.kind !== 'pass' && plan.kind !== 'handover') continue
       expect(plan.argv).not.toContain('--no-color')
     }
   })
@@ -102,25 +102,52 @@ describe('planConfigCall — --json is appended only for list', () => {
     test(`${sub} --json does NOT append --json to the wrapped argv`, () => {
       const args = sub === 'get' || sub === 'set' || sub === 'unset' ? [sub, 'someKey'] : [sub]
       const plan = planConfigCall(args, { json: true })
-      if (plan.kind === 'error' || plan.kind === 'command-level') return
+      if (plan.kind !== 'pass' && plan.kind !== 'handover') return
       expect(plan.argv).not.toContain('--json')
     })
   }
 })
 
 describe('planConfigCall — subcommand validation', () => {
-  test('missing subcommand is a usage error naming all eight subcommands', () => {
-    const plan = planConfigCall([], { json: false })
-    expect(plan.kind).toBe('error')
-    if (plan.kind === 'error') {
-      for (const sub of CONFIG_SUBCOMMANDS) expect(plan.message).toContain(sub)
+  // Upstream prints its own `config` help on stderr and exits 1; cospec
+  // prints its own, which names cospec's commands.
+  test('a missing subcommand plans cospec’s config help, --scope or not', () => {
+    for (const args of [[], ['--scope', 'global'], ['--']]) {
+      const plan = planConfigCall(args, { json: false })
+      expect(plan.kind as string, args.join(' ')).toBe('help')
     }
   })
 
-  test('unknown subcommand is a usage error, not a wrapped spawn', () => {
-    const plan = planConfigCall(['frobnicate'], { json: false })
-    expect(plan.kind).toBe('error')
-    if (plan.kind === 'error') expect(plan.message).toContain("unknown subcommand 'frobnicate'")
+  // Upstream's `config` level declares no `--json`: the binary refuses it.
+  test('a missing subcommand under --json relays the binary’s refusal of --json', () => {
+    expect(planConfigCall([], { json: true })).toEqual({
+      kind: 'command-level',
+      command: ['config'],
+      args: ['--json'],
+    })
+    expect(planConfigCall(['--scope', 'global'], { json: true })).toEqual({
+      kind: 'command-level',
+      command: ['config', '--scope', 'global'],
+      args: ['--json'],
+    })
+  })
+
+  test('an unknown subcommand is relayed at the config level, before or after `--`', () => {
+    expect(planConfigCall(['frobnicate'], { json: false })).toEqual({
+      kind: 'command-level',
+      command: ['config'],
+      args: ['frobnicate'],
+    })
+    expect(planConfigCall(['--scope', 'project', 'frobnicate', 'x'], { json: true })).toEqual({
+      kind: 'command-level',
+      command: ['config', '--scope', 'project'],
+      args: ['frobnicate', 'x'],
+    })
+    expect(planConfigCall(['--', '--json'], { json: false })).toEqual({
+      kind: 'command-level',
+      command: ['config'],
+      args: ['--', '--json'],
+    })
   })
 
   test('every declared subcommand plans successfully with no extra args', () => {
