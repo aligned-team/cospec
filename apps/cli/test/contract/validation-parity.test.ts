@@ -1628,6 +1628,21 @@ The system SHALL render a widget twice.
 - **THEN** a widget is rendered again
 `
 
+/** A requirement header holding `"`, duplicated: the binary quotes it inside its own quotes. */
+const QUOTED_REQUIREMENT = `### Requirement: Widget "quoted" name
+
+The system SHALL name a quoted widget.
+
+#### Scenario: Name it
+
+- **WHEN** a caller names a widget
+- **THEN** the widget is named
+`
+
+const LIVING_DUPLICATE_QUOTED = `${LIVING}
+${QUOTED_REQUIREMENT}
+${QUOTED_REQUIREMENT}`
+
 const strayUnderPurpose = (stray: string): string =>
   LIVING.replace('## Purpose\n\n', `## Purpose\n\n${stray}\n\n`)
 
@@ -1671,6 +1686,31 @@ describe('12. a structurally invalid living spec is refused at pre-flight', () =
       expect(messages(report)).not.toContain(delegated.message)
     })
   }
+
+  // cli-surface-parity row 11.1: the per-line dedupe reads a header holding
+  // `"`, which the narrowed `[^"\n]*` pattern missed, reporting one defect twice.
+  test('12.5 a duplicated quoted requirement header is reported once, by cospec', async () => {
+    const root = mkTempRepo({ git: true })
+    buildFeat(
+      root,
+      'living-dup-quoted',
+      { 'widgets/spec.md': MODIFIED_CACHING },
+      { living: LIVING_DUPLICATE_QUOTED },
+    )
+    const delegated = binaryOne(
+      await binaryIssues(root, 'living-dup-quoted'),
+      'target spec is structurally invalid',
+    )
+    expect(delegated.level).toBe('INFO')
+    expect(delegated.message).toContain('Widget "quoted" name')
+    const { report, exitCode } = await cospecValidate(root, 'living-dup-quoted')
+    const found = byRule(report, 'archive/target-invalid')
+    expect(found).toHaveLength(1)
+    expect(found[0]?.level).toBe('ERROR')
+    expect(messages(report)).not.toContain(respellRemedies(delegated.message))
+    expect(relayedMessages(report).filter((m) => m.includes('structurally invalid'))).toEqual([])
+    expect(exitCode).toBe(1)
+  })
 
   test('12.4 a fenced requirement header outside ## Requirements is not a defect', async () => {
     const build = (root: string): void =>

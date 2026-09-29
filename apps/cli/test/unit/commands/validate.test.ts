@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 
-import { concurrencyBound, mapPool, mergeDelegated } from '../../../src/commands/validate.ts'
+import {
+  concurrencyBound,
+  mapPool,
+  mergeDelegated,
+  TARGET_INVALID,
+} from '../../../src/commands/validate.ts'
 import type { Issue } from '../../../src/core/rules/issue.ts'
 
 // mergeDelegated's DUPLICATE_CLASSES table drops a delegated (openspec/validate)
@@ -161,6 +166,68 @@ describe('mergeDelegated: archive/target-invalid vs the pinned dry-run message',
     const elapsedMs = performance.now() - start
     expect(elapsedMs).toBeLessThan(1000)
     expect(result).toEqual(delegated)
+  })
+})
+
+describe('the target-invalid dedupe is linear (verification 11.2)', () => {
+  /**
+   * The pattern before 74d5ea4 — kept here only, as the guard's reference: a
+   * quoted span `[^\n]*"` before a required literal, inside a repeated group,
+   * backtracks exponentially in the number of lines on a message that ends in
+   * a line it cannot match.
+   */
+  const PRE_FIX =
+    /^Archive would refuse this delta: (.+?): target spec is structurally invalid and cannot be updated until fixed:(?:\nline \d+: (?:Main spec contains delta header "[^\n]*"\.|Requirement header "[^\n]*" (?:duplicates the requirement declared on line \d+\.|appears outside the main ## Requirements section\.))[^\n]*)+\n?$/
+
+  /** The bound a linear matcher meets on the input below, and the pre-fix pattern does not. */
+  const BOUND_MS = 250
+
+  /** 200 quote-heavy defect lines, then a line of a kind cospec's rule does not read. */
+  function adversarial(): string {
+    const header = 'x".'.repeat(6) + 'x'
+    let message =
+      'Archive would refuse this delta: widgets: target spec is structurally invalid and ' +
+      'cannot be updated until fixed:'
+    for (let i = 0; i < 200; i++)
+      message += `\nline 9: Main spec contains delta header "${header}".`
+    return `${message}\nline 210: Some structural issue nobody expects.`
+  }
+
+  function timed(
+    matcher: { exec(m: string): unknown },
+    message: string,
+  ): { ms: number; hit: unknown } {
+    const start = performance.now()
+    const hit = matcher.exec(message)
+    return { ms: performance.now() - start, hit }
+  }
+
+  test('the pre-fix pattern exceeds the bound on the adversarial message', () => {
+    const { ms, hit } = timed(PRE_FIX, adversarial())
+    expect(hit).toBeNull()
+    expect(ms).toBeGreaterThan(BOUND_MS)
+  })
+
+  test('the per-line matcher refuses the same message well under the bound', () => {
+    const { ms, hit } = timed(TARGET_INVALID, adversarial())
+    expect(hit).toBeNull()
+    expect(ms).toBeLessThan(BOUND_MS)
+  })
+
+  test('the per-line matcher reads a quoted header and keys on the capability', () => {
+    const message =
+      'Archive would refuse this delta: widgets: target spec is structurally invalid and ' +
+      'cannot be updated until fixed:\nline 9: Requirement header ' +
+      '"### Requirement: Widget "quoted" name" duplicates the requirement declared on line 3. ' +
+      'Requirement names must be unique so spec updates cannot discard one block while ' +
+      'updating another.\n'
+    expect(TARGET_INVALID.exec(message)?.[1]).toBe('widgets')
+    // The narrowed pattern this replaces missed it, which reported the defect twice.
+    expect(
+      /^Archive would refuse this delta: (.+?): target spec is structurally invalid and cannot be updated until fixed:(?:\nline \d+: (?:Main spec contains delta header "[^"\n]*"\.|Requirement header "[^"\n]*" (?:duplicates the requirement declared on line \d+\.|appears outside the main ## Requirements section\.))[^\n]*)+\n?$/.exec(
+        message,
+      ),
+    ).toBeNull()
   })
 })
 
