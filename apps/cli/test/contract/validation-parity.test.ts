@@ -4231,6 +4231,58 @@ function doubleReports(all: readonly ReportIssue[]): string[] {
   return doubles
 }
 
+// --- 36. the deltas/scenario-depth masked-view exception is proven ------------------------
+//
+// `rules/views.ts` lets `deltas/scenario-depth` read the comment-masked view
+// (its one exception in the view-enumeration test, `views.test.ts`) because
+// reading the verbatim view would refuse what the binary archives. This row is
+// that proof, cited by name from both: a delta whose only mis-depth scenario
+// sits inside an HTML comment is archived by the binary, and cospec raises no
+// `deltas/scenario-depth` for it.
+
+/**
+ * A delta whose only `### Scenario:` (one `#` short) is inside an HTML comment
+ * ahead of its requirement, where the binary's archive skips it as a header of
+ * no requirement rather than splitting one.
+ */
+const COMMENTED_MISDEPTH_SCENARIO = `## ADDED Requirements
+
+<!--
+### Scenario: Shallow
+-->
+
+### Requirement: Widget sizing
+
+The system SHALL size a widget.
+
+#### Scenario: Size a widget
+
+- **WHEN** a caller sizes a widget
+- **THEN** the widget is sized
+`
+
+describe('36. the scenario-depth masked-view exception', () => {
+  const build = (root: string): void =>
+    buildFeat(root, 'commented-misdepth', { 'widgets/spec.md': COMMENTED_MISDEPTH_SCENARIO })
+
+  test('36.1 commented mis-depth scenario: the binary archives it and cospec raises no deltas/scenario-depth', async () => {
+    const archived = await binaryArchive(build, 'commented-misdepth')
+    expect(archived.exitCode).toBe(0)
+    expect(archived.moved).toBe(true)
+    const root = mkTempRepo({ git: true })
+    build(root)
+    const { report, exitCode } = await cospecValidate(root, 'commented-misdepth')
+    expect(byRule(report, 'deltas/scenario-depth')).toEqual([])
+    expect(problems(report)).toEqual([])
+    expect(exitCode).toBe(0)
+    // The counterfactual: the verbatim view reads the commented line, so a
+    // scenario-depth read there would refuse what the binary just archived.
+    const path = 'specs/widgets/spec.md'
+    const verbatim = parseDeltaSpec(COMMENTED_MISDEPTH_SCENARIO, path, 'widgets')
+    expect(verbatim.scenarioDepthIssues.map((d) => d.header)).toEqual(['Scenario: Shallow'])
+  })
+})
+
 describe('19. sweep', () => {
   test('19.1 no report in this file carries one defect twice', () => {
     expect(REPORTS.length).toBeGreaterThan(100)
