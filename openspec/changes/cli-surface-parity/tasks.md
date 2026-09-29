@@ -52,7 +52,7 @@ Co-Authored-By trailer, never `--no-verify`).
 
 ## 4. T2 — status (`apps/cli/src/commands/status.ts`, `apps/cli/src/core/upstream-keys.ts`)
 
-- [ ] 4.1 Add `resolveNext` and wire it to `next` on every entry and to the
+- [x] 4.1 Add `resolveNext` and wire it to `next` on every entry and to the
       human `Next:` line (design D4), with the unit table 3.3 and the rows 3.1,
       3.4 and 3.5. Commit `feat(status): name the next step on every entry`
 - [ ] 4.2 Add `core/upstream-keys.ts` (design D3), its unit test (collision

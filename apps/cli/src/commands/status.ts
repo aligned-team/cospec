@@ -69,6 +69,55 @@ export interface ChangeStatus {
   /** read-only verification verdict (DESIGN §3.6) — never a gate; `cospec apply`
    * and `cospec archive` are the only commands that gate on verification. */
   verification: VerificationVerdict
+  /** The next step (`resolveNext`), when there is one. */
+  next?: string
+}
+
+/** An artifact's state in its schema's build order, as the binary's `artifacts[].status` names them. */
+export type ArtifactState = 'done' | 'ready' | 'blocked' | 'skipped'
+
+/**
+ * The next step for a change (design D4), the one function the JSON `next`
+ * and the human `Next:` line both print: the first ready artifact the change
+ * requires to apply; else `cospec apply <id>` once every required artifact is
+ * done (a `skip_specs`-skipped one counts as done); else the first ready
+ * artifact of any kind; else nothing. Unlike the binary's `nextSteps`, an
+ * optional artifact still unwritten never holds the change back from its gate.
+ */
+export function resolveNext(
+  states: readonly { id: string; state: ArtifactState }[],
+  required: ReadonlySet<string>,
+  changeId: string,
+): string | undefined {
+  const instructions = (id: string): string => `cospec instructions ${id} --change ${changeId}`
+  const readyRequired = states.find((a) => a.state === 'ready' && required.has(a.id))
+  if (readyRequired !== undefined) return instructions(readyRequired.id)
+  const settled = (id: string): boolean => {
+    const state = states.find((a) => a.id === id)?.state
+    return state === 'done' || state === 'skipped'
+  }
+  if ([...required].every(settled)) return `cospec apply ${changeId}`
+  const ready = states.find((a) => a.state === 'ready')
+  return ready === undefined ? undefined : instructions(ready.id)
+}
+
+/**
+ * A cospec-typed change's artifact states from its own matrix: done is the
+ * file present, skipped a `skip_specs` change's absent `specs`, ready every
+ * artifact it requires done or skipped.
+ */
+function cospecStates(
+  type: CospecType,
+  done: ReadonlyMap<string, boolean>,
+  skipSpecs: boolean,
+): { id: string; state: ArtifactState }[] {
+  const facts = TYPE_ARTIFACTS[type]
+  const settled = (id: string): boolean => done.get(id) === true || (id === 'specs' && skipSpecs)
+  return facts.declared.map((id) => {
+    if (done.get(id) === true) return { id, state: 'done' }
+    if (id === 'specs' && skipSpecs) return { id, state: 'skipped' }
+    return { id, state: artifactRequires(type, id).every(settled) ? 'ready' : 'blocked' }
+  })
 }
 
 /**
@@ -119,6 +168,11 @@ export function computeStatus(base: string, change: Change): ChangeStatus {
     verificationText,
   )
 
+  const next = resolveNext(
+    cospecStates(type, done, change.skipSpecs === true),
+    applyRequires,
+    change.id,
+  )
   return {
     change: change.id,
     type: change.schema,
@@ -129,6 +183,7 @@ export function computeStatus(base: string, change: Change): ChangeStatus {
     tasks: { total, complete },
     archiveReady,
     verification,
+    ...(next === undefined ? {} : { next }),
   }
 }
 
@@ -151,6 +206,7 @@ function renderHuman(status: ChangeStatus): string {
       `  verification:  ${v.verified}/${v.total} verified, ${v.deferred} deferred, ${v.unresolved} unresolved`,
     )
   }
+  if (status.next !== undefined) lines.push(`Next: ${status.next}`)
   return `${lines.join('\n')}\n`
 }
 
