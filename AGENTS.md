@@ -215,20 +215,20 @@ user-owned schema's text must pass through byte-for-byte. A successful answer's
 commands are respelled from structure instead, only where the binary gives its
 own guidance: in a parsed `--json` document through `respellCommandFields`
 (`core/passthrough-command.ts` — a field path and either the fixed lead before
-the command, rewriting only a leading `openspec` token, or the allowlist
-entries the whole value can be, rewriting it only when it is one of them; then
-rendering text from the result) or a field passed alone to the allowlist (a
-diagnostic's `fix`); where upstream has no such field, a whole allowlisted line
+the command, rewriting only a leading `openspec` token, or the allowlist entries
+the whole value can be, rewriting it only when it is one of them; then rendering
+text from the result) or a field passed alone to the allowlist (a diagnostic's
+`fix`); where upstream has no such field, a whole allowlisted line
 (`respellLines`, for a next step with no document) or a fixed line only the
-binary writes, found by its position in the binary's output and spelled
-through the allowlist (`schema init`'s last next step). `cospec instructions
-<artifact>` is built this way from the binary's `--json` document
+binary writes, found by its position in the binary's output and spelled through
+the allowlist (`schema init`'s last next step). `cospec instructions <artifact>`
+is built this way from the binary's `--json` document
 (`core/instructions-render.ts` ports the text printer): its field map is
-`references[].fetch` / `references[].status[].fix`, and only for a change
-whose schema `schema which --json` reports as `source: package` (the pinned
-built-in `spec-driven`) are that schema's own command lines spelled, each a
-whole-line `SCHEMA_LINES` entry in `core/remedies.ts` — a project or user copy
-stays verbatim. What a live terminal-handover session prints is listed in
+`references[].fetch` / `references[].status[].fix`, and only for a change whose
+schema `schema which --json` reports as `source: package` (the pinned built-in
+`spec-driven`) are that schema's own command lines spelled, each a whole-line
+`SCHEMA_LINES` entry in `core/remedies.ts` — a project or user copy stays
+verbatim. What a live terminal-handover session prints is listed in
 `remedy-sources.ts` as its residual.
 
 **Gates read what the archive reads** — every check that can change a validate,
