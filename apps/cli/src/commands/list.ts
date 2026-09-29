@@ -199,9 +199,11 @@ function isFailedRow(row: Row | FailedRow): row is FailedRow {
 }
 
 /** The binary's failure diagnostics, when its answer is a failure document. */
-function upstreamFailure(doc: Record<string, unknown>): { message: string }[] | undefined {
+function upstreamFailure(
+  doc: Record<string, unknown>,
+): { message: string; fix?: string }[] | undefined {
   if (!Array.isArray(doc.status)) return undefined
-  const errors = (doc.status as { severity?: string; message: string }[]).filter(
+  const errors = (doc.status as { severity?: string; message: string; fix?: string }[]).filter(
     (s) => s.severity === 'error',
   )
   return errors.length > 0 ? errors : undefined
@@ -277,7 +279,11 @@ export async function run(ctx: CommandContext): Promise<number> {
   if (failure !== undefined) {
     if (flags.json) process.stdout.write(respellRemedies(`${JSON.stringify(upstream, null, 2)}\n`))
     else
-      for (const s of failure) process.stderr.write(`cospec list: ${respellRemedies(s.message)}\n`)
+      for (const s of failure) {
+        // The binary's text answer: its message, then its fix, each spelled through cospec.
+        process.stderr.write(`cospec list: ${respellRemedies(s.message)}\n`)
+        if (typeof s.fix === 'string') process.stderr.write(`Fix: ${respellRemedies(s.fix)}\n`)
+      }
     return EXIT.failure
   }
 

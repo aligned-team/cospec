@@ -1455,6 +1455,30 @@ const [LIST_ROW, SPECS_ROW, STATUS_ROW, SWEEP_ROW, VALIDATE_ROW] = RESOLVER_ROWS
   (typeof RESOLVER_ROWS)[number],
 ]
 
+// `list`'s rows come from the binary's `list --json`, which refuses a directory
+// with no OpenSpec root: cospec answers with that refusal, as the binary does.
+describe('list outside an OpenSpec root', () => {
+  test("list answers the binary's no-root refusal in text and --json", async () => {
+    const dir = mkTempRepo({ git: true })
+    const env = emptyMachineStateEnv()
+    const upText = await upstream(['list'], dir)
+    const csText = await ours(['list'], dir, dir, env)
+    expect({ exit: csText.exitCode, out: csText.stdout }).toEqual({
+      exit: upText.exitCode,
+      out: '',
+    })
+    expect(upText.exitCode).toBe(1)
+    expect(csText.stderr).toBe(
+      respellRemedies(upText.stderr.replace(/^(?:✖ )?Error: /, 'cospec list: ')),
+    )
+    const up = await upstreamJson(['list', '--json'], dir)
+    const cs = await oursJson(['list', '--json'], dir, dir, env)
+    expect(cs.exitCode).toBe(1)
+    expect(cs.json).toEqual(JSON.parse(respellRemedies(up.stdout)))
+    expect(firstStatus(cs.json).code).toBe('no_openspec_root')
+  })
+})
+
 describe('8. resolver failures under --json', () => {
   unlessRoot('8.1 an unreadable store registry carries the command code and payload', () => {
     test('8.1 list --json', () => unreadableRegistry(LIST_ROW))
