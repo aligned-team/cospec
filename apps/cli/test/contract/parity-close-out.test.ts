@@ -140,12 +140,14 @@ async function validateIssues(root: string, name: string): Promise<ReportIssue[]
 //
 // The plan predicted the bound would be upstream's own namespace ERROR
 // reaching the user through `mergeDelegated`. Probed at 1.13.1, it does NOT:
-// cospec's Step 2 fast validation raises `meta/openspec-yaml` on the wrapper's
-// missing `.openspec.yaml` and exits before delegating, so the reader is told
-// the file is missing rather than that the folder is a namespace. What IS
-// proven here is the part that matters for safety — both surfaces REFUSE, and
-// archive moves nothing — plus the exact upstream text the deferred change
-// will need to surface.
+// before `cli-surface-parity`, cospec's Step 2 fast validation raised
+// `meta/openspec-yaml` on the wrapper's missing `.openspec.yaml` and exited
+// before delegating, so the reader was told the file was missing rather than
+// that the folder is a namespace. `cli-surface-parity`'s native detector
+// (`meta/nested-change`, tested below) closed that gap — see the describe
+// block immediately below for the rule id it raises now. What IS proven here
+// is the part that matters for safety — both surfaces REFUSE, and archive
+// moves nothing — plus the exact upstream text the detector surfaces.
 describe('a namespace folder under openspec/changes/', () => {
   function buildNamespace(root: string): void {
     withFeatSchema(root)
