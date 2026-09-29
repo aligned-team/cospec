@@ -14,7 +14,7 @@
 // the exit code and an empty stdout.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { chmodSync, cpSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { run } from '../../src/cli.ts'
@@ -29,7 +29,7 @@ import {
   type SpawnResult,
 } from '../fixtures/support.ts'
 import { documentCount, refusalKind } from './support/parse-class.ts'
-import { type PtyRun, ptyRun, terminalText } from './support/pty.ts'
+import { CTRL_C, CTRL_D, type PtyKey, type PtyRun, ptyRun, terminalText } from './support/pty.ts'
 import { oracle, oracleEnv, scaffoldOracleRoot } from './support/upstream-oracle.ts'
 
 afterAll(cleanupAll)
@@ -253,16 +253,80 @@ describe('with no terminal the leaf runs piped and its answer is respelled', () 
 
 // --- review round 2: on a terminal, rows against the binary under Node -----------------
 
+/** Extra environment for one pty run. */
+interface PtyOptions {
+  key?: PtyKey
+  env?: Record<string, string>
+}
+
+/**
+ * `root`'s sandbox as a user's terminal has it: no `CI` and no
+ * `OPEN_SPEC_INTERACTIVE`, either of which makes `workset open` (the binary's
+ * `isInteractive`, and cospec's port of it) run non-interactively — `CI` is
+ * set on every CI runner, where a pty row would otherwise take another
+ * branch than on a developer's machine.
+ */
+function terminalEnv(root: string, extra: Record<string, string> = {}): Record<string, string> {
+  const env: Record<string, string> = { ...oracleEnv(root), ...extra }
+  delete env.CI
+  delete env.OPEN_SPEC_INTERACTIVE
+  return env
+}
+
 /** The binary under Node on a pseudo-terminal; its first-run completions tip off, as cospec's spawns have it. */
-function ptyUpstream(argv: string[], root: string): Promise<PtyRun> {
-  return ptyRun(['node', openspecBinPath(), ...argv], {
+function ptyUpstream(argv: string[], root: string, opts: PtyOptions = {}): Promise<PtyRun> {
+  return ptyRun([NODE, openspecBinPath(), ...argv], {
     cwd: root,
-    env: { ...oracleEnv(root), OPENSPEC_NO_COMPLETIONS: '1' },
+    env: terminalEnv(root, { OPENSPEC_NO_COMPLETIONS: '1', ...opts.env }),
+    key: opts.key,
   })
 }
 
-function ptyCospec(argv: string[], root: string): Promise<PtyRun> {
-  return ptyRun([process.execPath, CLI_ENTRY, ...argv], { cwd: root, env: oracleEnv(root) })
+function ptyCospec(argv: string[], root: string, opts: PtyOptions = {}): Promise<PtyRun> {
+  return ptyRun([process.execPath, CLI_ENTRY, ...argv], {
+    cwd: root,
+    env: terminalEnv(root, opts.env),
+    key: opts.key,
+  })
+}
+
+/** The `node` the rows run the binary under, resolved once, so a narrowed PATH still finds it. */
+const NODE = Bun.which('node') ?? 'node'
+
+/**
+ * A PATH whose one opener is a `code` in `root` that does nothing: `workset
+ * open`'s scan (`code`, `cursor`, `claude`, `codex` on PATH) finds exactly
+ * it on every machine, a CI runner (none installed) and a developer's (any
+ * installed) alike, so a saved workset's `Open with:` menu is drawn the same.
+ */
+function openerPath(root: string): string {
+  const bin = join(root, '.opener-bin')
+  mkdirSync(bin, { recursive: true })
+  writeFileSync(join(bin, 'code'), '#!/bin/sh\nexit 0\n')
+  chmodSync(join(bin, 'code'), 0o755)
+  return [bin, dirname(NODE), '/usr/bin', '/bin'].join(':')
+}
+
+/** A saved workset `w1` in `root`, with one member directory. */
+async function saveWorkset(root: string): Promise<void> {
+  const member = join(root, 'member')
+  mkdirSync(member)
+  const created = await oracle(['workset', 'create', 'w1', '--member', member], root)
+  expect(created.exitCode, detail(created)).toBe(0)
+}
+
+/** The text each leaf's first prompt draws, and so when a key is pressed at it. */
+const PROMPT: Record<string, string> = {
+  'config reset --all': 'Reset all configuration to defaults?',
+  'config profile': 'What do you want to configure?',
+  'workset open w1': 'Open with:',
+}
+
+/** `send` pressed at `argv`'s first prompt. */
+function at(argv: string[], send: string): PtyKey {
+  const after = PROMPT[argv.join(' ')]
+  if (after === undefined) throw new Error(`no prompt text for ${argv.join(' ')}`)
+  return { after, send }
 }
 
 function ptyDetail(pty: PtyRun): string {
@@ -313,23 +377,45 @@ describe('on a terminal, config profile hands over only when the binary would pr
   }, 30_000)
 })
 
-describe('a prompt whose terminal input ends (Ctrl-D) is cancelled as the binary cancels it', () => {
-  for (const argv of [
-    ['config', 'reset', '--all'],
-    ['config', 'profile'],
-  ]) {
-    test(`${argv.join(' ')}: the binary’s cancellation line and its exit code`, async () => {
-      const root = plainRoot()
-      const before = treeHash(root)
-      const up = await ptyUpstream(argv, root)
-      expect(treeHash(root)).toEqual(before)
-      const co = await ptyCospec(argv, root)
-      expect(treeHash(root)).toEqual(before)
-      expect(up.exitCode, ptyDetail(up)).toBe(130)
-      expect(co.exitCode, ptyDetail(co)).toBe(up.exitCode)
-      expect(terminalText(co.output), ptyDetail(co)).toBe(respellRemedies(terminalText(up.output)))
-    }, 30_000)
-  }
+describe('a prompt cancelled at the keyboard (Ctrl-C, Ctrl-D) is cancelled as the binary cancels it', () => {
+  // Both keys cancel the binary's prompt under Node on macOS and Linux alike
+  // (130 and its cancellation line): Ctrl-C through inquirer's own SIGINT
+  // handler, Ctrl-D by closing readline, which only the handover preload
+  // answers under Bun (design D15). A terminal hangup is not pinned: the
+  // binary under Node answers it differently per OS (ledger 16.2).
+  for (const [keyName, send] of [
+    ['Ctrl-C', CTRL_C],
+    ['Ctrl-D', CTRL_D],
+  ] as const)
+    for (const argv of [
+      ['config', 'reset', '--all'],
+      ['config', 'profile'],
+      ['workset', 'open', 'w1'],
+    ]) {
+      test(`${argv.join(' ')}, ${keyName}: the binary’s cancellation line and its exit code`, async () => {
+        // Two roots: `workset open` writes its `.code-workspace` before it
+        // prompts, so each run's writes are compared, not a shared tree.
+        const [upRoot, coRoot] = [plainRoot(), plainRoot()]
+        const env = async (root: string): Promise<Record<string, string>> => {
+          if (argv[0] !== 'workset') return {}
+          await saveWorkset(root)
+          return { PATH: openerPath(root) }
+        }
+        const [upEnv, coEnv] = [await env(upRoot), await env(coRoot)]
+        const upBefore = treeHash(upRoot)
+        const coBefore = treeHash(coRoot)
+        const up = await ptyUpstream(argv, upRoot, { key: at(argv, send), env: upEnv })
+        const co = await ptyCospec(argv, coRoot, { key: at(argv, send), env: coEnv })
+        const upChanged = changedPaths(upBefore, treeHash(upRoot))
+        if (argv[0] === 'config') expect(upChanged).toEqual([])
+        expect(changedPaths(coBefore, treeHash(coRoot))).toEqual(upChanged)
+        expect(up.exitCode, ptyDetail(up)).toBe(130)
+        expect(co.exitCode, ptyDetail(co)).toBe(up.exitCode)
+        expect(terminalText(co.output), ptyDetail(co)).toBe(
+          respellRemedies(terminalText(up.output)),
+        )
+      }, 30_000)
+    }
 })
 
 // --- review round 3: a cache directory cospec cannot write ----------------------------
@@ -358,6 +444,9 @@ async function withReadOnlyCache<T>(root: string, fn: () => Promise<T>): Promise
 describe.skipIf(process.getuid?.() === 0)(
   'with the cache directory read-only, every handover runs as the binary runs',
   () => {
+    // Each prompt is cancelled with Ctrl-D, the key only the preload answers
+    // under Bun (design D15); `config edit` runs `EDITOR=true`, prompting
+    // nothing.
     const cases: [argv: string[], saved: boolean][] = [
       [['config', 'reset', '--all'], false],
       [['config', 'profile'], false],
@@ -367,26 +456,19 @@ describe.skipIf(process.getuid?.() === 0)(
     for (const [argv, saved] of cases) {
       test(`${argv.join(' ')} on a terminal`, async () => {
         const [upRoot, coRoot] = [plainRoot(), plainRoot()]
-        if (saved)
-          for (const root of [upRoot, coRoot]) {
-            const member = join(root, 'member')
-            mkdirSync(member)
-            const created = await oracle(['workset', 'create', 'w1', '--member', member], root)
-            expect(created.exitCode, detail(created)).toBe(0)
-          }
+        const opts = (root: string): PtyOptions => ({
+          key: argv[0] === 'config' && argv[1] === 'edit' ? undefined : at(argv, CTRL_D),
+          env: saved ? { PATH: openerPath(root) } : {},
+        })
+        const [upOpts, coOpts] = [opts(upRoot), opts(coRoot)]
+        if (saved) for (const root of [upRoot, coRoot]) await saveWorkset(root)
         const upBefore = treeHash(upRoot)
         const coBefore = treeHash(coRoot)
-        const up = await withReadOnlyCache(upRoot, () => ptyUpstream(argv, upRoot))
-        const co = await withReadOnlyCache(coRoot, () => ptyCospec(argv, coRoot))
+        const up = await withReadOnlyCache(upRoot, () => ptyUpstream(argv, upRoot, upOpts))
+        const co = await withReadOnlyCache(coRoot, () => ptyCospec(argv, coRoot, coOpts))
         expect(co.exitCode, ptyDetail(co)).toBe(up.exitCode)
-        // Two roots (the changed-files check below needs them separate), so
-        // neutralize each root's own path before comparing: a saved workset
-        // with no detected tool prints its workspace file and member paths
-        // (both realpath'd — macOS's tmpdir symlinks `/var` to `/private/var`).
-        const neutral = (text: string, root: string): string =>
-          text.replaceAll(realpathSync(root), '<root>').replaceAll(root, '<root>')
-        expect(neutral(terminalText(co.output), coRoot), ptyDetail(co)).toBe(
-          neutral(respellRemedies(terminalText(up.output)), upRoot),
+        expect(terminalText(co.output), ptyDetail(co)).toBe(
+          respellRemedies(terminalText(up.output)),
         )
         // The files the binary writes (`config edit` its config, `workset
         // open` its `.code-workspace`), and no others.
