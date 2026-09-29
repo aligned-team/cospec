@@ -57,7 +57,17 @@ Probed facts that change the plan's wording:
 - An unreadable `changes/archive/` doesn't affect the binary's `list` or
   `status`. An unreadable `tasks.md` makes the binary's `list` answer
   `{changes: [], root: null, status: [{code: "list_error"}]}`, exit 1, and its
-  `status --change` answer `change_error`.
+  `status --change` answer `change_error` — under Bun, the runtime cospec runs
+  it in. Under Node the same binary counts the file as 0 tasks and lists
+  normally. Its `status` message names the `realpath` its artifact glob runs
+  first, where cospec's read names `open`, so the row compares code and path.
+- `list` with no OpenSpec root is refused (`no_openspec_root`, exit 1), so a
+  `list` whose rows come from the binary answers that refusal where cospec used
+  to print `No active changes.`; `status` with no root answers the
+  no-active-changes document on an implicit root, as before.
+- `__complete schemas` describes every schema as `schema`; cospec keeps each
+  schema's `description` from `schemas --json` (D9), and the ids and order
+  match.
 - `status --change <namespace folder>` is refused with `change_error`, exit 1.
   `status --all` carries the folder as `{changeName, status: [change_error]}`
   and exits 1.
@@ -177,8 +187,10 @@ keys flow through, and the oracle pins them against the pinned one.
 **`next` is single-sourced.** `resolveNext(statuses, required, id)` takes the
 artifact states in build order as `done | ready | blocked | skipped` and the set
 of artifacts the change requires. It returns the first ready required artifact,
-else the first ready artifact, else `cospec apply <id>` when every required one
-is done, else nothing. For a cospec type the states come from cospec's matrix:
+else `cospec apply <id>` once every required one is done, else the first ready
+artifact of any kind, else nothing — so an unwritten optional artifact never
+holds a change back from its gate (the spec's "Required artifacts done points at
+the gate" scenario). For a cospec type the states come from cospec's matrix:
 `done` is the file present, and `ready` is not done with every requirement done,
 where a `skip_specs`-skipped `specs` counts as done. The declared order is the
 build order, and a contract row checks that per type against the binary's
