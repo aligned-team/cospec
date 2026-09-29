@@ -427,12 +427,6 @@ const PENDING_ROWS: readonly Row[] = [
     pendingFlag: '--concurrency',
   },
   {
-    argv: ['status', '--schema', 'custom'],
-    command: 'status',
-    expect: 'pending',
-    pendingFlag: '--schema',
-  },
-  {
     argv: ['list', '--sort', 'name'],
     command: 'list',
     expect: 'pending',
@@ -505,6 +499,15 @@ const UPSTREAM_SPELLING_ROWS: readonly Row[] = [
     expect: 'same',
     cospecStderr: unknown('experimental', '--bogus'),
   },
+]
+
+/**
+ * The flags and sources change `cli-surface-parity` implements: each was a
+ * pending row refused as not supported yet, and now parses and runs as the
+ * binary does.
+ */
+const CLI_SURFACE_ROWS: readonly Row[] = [
+  { argv: ['status', '--schema', 'custom'], command: 'status', expect: 'same', exit: 0 },
 ]
 
 /**
@@ -863,6 +866,10 @@ describe('unknown-option differential: upstream spellings', () => {
     const keys = UPSTREAM_SPELLING_ROWS.map((row) => row.argv.join(' '))
     for (const key of KNOWN_FAILING) expect(keys).toContain(key)
   })
+})
+
+describe('unknown-option differential: cli-surface-parity flags', () => {
+  register(CLI_SURFACE_ROWS)
 })
 
 describe('unknown-option differential: forward commands relay the binary', () => {

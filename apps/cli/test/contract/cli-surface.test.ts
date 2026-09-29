@@ -1038,29 +1038,26 @@ describe('5. schemas cospec does not type', () => {
     expect(cs2.json).toMatchObject({ change: 'bare-dir', legacy: true, schemaName: 'spec-driven' })
   })
 
-  test.failing(
-    '5.5 --schema overrides, and an unknown one is refused as the binary refuses it',
-    async () => {
-      const root = listFixture()
-      const all = await oursJson(['status', '--all', '--schema', 'fix', '--json'], root)
-      captureStatus('5.5 fix', all)
-      for (const entry of rowsOf(all.json).filter((e) => e.change !== 'mobile')) {
-        expect(entry.type).toBe('fix')
-        expect(entry.schemaName).toBe('fix')
-      }
-      const refusal = async (argv: string[], dir: string) => {
-        const up = await upstreamJson(argv, dir)
-        const cs = await oursJson(argv, dir)
-        captureStatus(`5.5 ${argv.join(' ')}`, cs)
-        expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
-        expect(cs.json).toEqual(up.json)
-      }
-      await refusal(['status', '--change', 'alpha', '--schema', 'nope', '--json'], root)
-      const empty = cospecRoot()
-      await refusal(['status', '--all', '--schema', 'nope', '--json'], empty)
-      await refusal(['status', '--schema', 'nope', '--json'], empty)
-    },
-  )
+  test('5.5 --schema overrides, and an unknown one is refused as the binary refuses it', async () => {
+    const root = listFixture()
+    const all = await oursJson(['status', '--all', '--schema', 'fix', '--json'], root)
+    captureStatus('5.5 fix', all)
+    for (const entry of rowsOf(all.json).filter((e) => e.change !== 'mobile')) {
+      expect(entry.type).toBe('fix')
+      expect(entry.schemaName).toBe('fix')
+    }
+    const refusal = async (argv: string[], dir: string) => {
+      const up = await upstreamJson(argv, dir)
+      const cs = await oursJson(argv, dir)
+      captureStatus(`5.5 ${argv.join(' ')}`, cs)
+      expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
+      expect(cs.json).toEqual(up.json)
+    }
+    await refusal(['status', '--change', 'alpha', '--schema', 'nope', '--json'], root)
+    const empty = cospecRoot()
+    await refusal(['status', '--all', '--schema', 'nope', '--json'], empty)
+    await refusal(['status', '--schema', 'nope', '--json'], empty)
+  })
 })
 
 // --- 6. list sorts and survives read failures -----------------------------------------------

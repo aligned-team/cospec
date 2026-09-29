@@ -289,7 +289,7 @@ function schemaCandidateDir(schemasDir: string, name: string): string | undefine
 }
 
 /** openspec's `getSchemaDir(name, projectRoot)`: project, then user, then package. */
-function schemaDir(name: string, projectRoot: string): string | undefined {
+export function schemaDir(name: string, projectRoot: string): string | undefined {
   if (
     name.length === 0 ||
     name === '.' ||
