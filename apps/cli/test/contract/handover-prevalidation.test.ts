@@ -14,7 +14,7 @@
 // the exit code and an empty stdout.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { chmodSync, cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { run } from '../../src/cli.ts'
@@ -379,8 +379,14 @@ describe.skipIf(process.getuid?.() === 0)(
         const up = await withReadOnlyCache(upRoot, () => ptyUpstream(argv, upRoot))
         const co = await withReadOnlyCache(coRoot, () => ptyCospec(argv, coRoot))
         expect(co.exitCode, ptyDetail(co)).toBe(up.exitCode)
-        expect(terminalText(co.output), ptyDetail(co)).toBe(
-          respellRemedies(terminalText(up.output)),
+        // Two roots (the changed-files check below needs them separate), so
+        // neutralize each root's own path before comparing: a saved workset
+        // with no detected tool prints its workspace file and member paths
+        // (both realpath'd — macOS's tmpdir symlinks `/var` to `/private/var`).
+        const neutral = (text: string, root: string): string =>
+          text.replaceAll(realpathSync(root), '<root>').replaceAll(root, '<root>')
+        expect(neutral(terminalText(co.output), coRoot), ptyDetail(co)).toBe(
+          neutral(respellRemedies(terminalText(up.output)), upRoot),
         )
         // The files the binary writes (`config edit` its config, `workset
         // open` its `.code-workspace`), and no others.

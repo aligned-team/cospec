@@ -385,3 +385,26 @@ flips them.
 - [x] 15.2 State what now holds in design, spec and docs, the `--store`
       carve-out wording removed; commit
       `docs(cli): state doctor's --store checks on the selected store`
+
+## 16. Merge stage
+
+Files: `test/contract/handover-prevalidation.test.ts`. Found rebasing onto
+`root-resolution-parity` (#52), `standalone-json-once` (#56), `pin-node-oracle`
+(#57) and `upstream-spellings` (#55): `ci-bun` (Linux, ubuntu-24.04) was red on
+every prior CI run of this branch, including its own pre-rebase tip (`69e454c`)
+— nothing here, so this predates and is independent of the rebase.
+
+- [x] 16.1 Normalize each root's own path before comparing the read-only-cache
+      `workset open w1 on a terminal` row's terminal text: two separate roots
+      (`upRoot`/`coRoot`) are deliberate (the changed-files check needs them),
+      but the binary's "no saved tool" refusal embeds root-specific workspace
+      and member paths that only differ from each other, not from a real defect
+      — CI (no `code`/`cursor` on PATH) always takes this refusal path; a dev
+      machine with either installed takes a path-free prompt instead, so the gap
+      was invisible locally; commit
+      `fix(cli): normalize root paths in the read-only-cache pty comparison`
+- [ ] 16.2 Fix the other four `ci-bun` failures (two Ctrl-D-cancellation
+      timeouts, two more read-only-cache timeouts): `util-linux script`'s relay
+      of Ctrl-D into a raw-mode child pty on Linux — see verification 16.2 for
+      the isolated evidence. Not fixed in this session; blocks archive until
+      resolved or explicitly waived with `--force-incomplete`.
