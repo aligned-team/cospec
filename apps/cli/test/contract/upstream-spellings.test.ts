@@ -782,7 +782,13 @@ describe('3.2 instructions without a change or an artifact lets the binary answe
       const c = await runCospec(['instructions', 'apply', '--change', 'nope', ...flag], root)
       const a = await runCospec(['apply', 'nope', ...flag], root)
       expect(a.exitCode).toBe(1)
-      expect(a.stderr).toContain("unknown change 'nope'")
+      // Under --json apply's refusal is its one change_error document (cli-surface-parity).
+      if (asJson) {
+        expect(a.stderr).toBe('')
+        const doc = JSON.parse(a.stdout) as { status: { code: string; message: string }[] }
+        expect(doc.status[0]?.code).toBe('change_error')
+        expect(doc.status[0]?.message).toContain("unknown change 'nope'")
+      } else expect(a.stderr).toContain("unknown change 'nope'")
       expect({ exit: c.exitCode, stdout: c.stdout, stderr: c.stderr }).toEqual({
         exit: a.exitCode,
         stdout: a.stdout,
@@ -911,7 +917,13 @@ describe('3.5 instructions apply --change is always the gate', () => {
       const c = await runCospec(['instructions', 'apply', '--change', '1foo', ...flag], root)
       const a = await runCospec(['apply', '1foo', ...flag], root)
       expect(a.exitCode).toBe(1)
-      expect(a.stderr).toContain("unknown change '1foo'")
+      // Under --json apply's refusal is its one change_error document (cli-surface-parity).
+      if (asJson) {
+        expect(a.stderr).toBe('')
+        const doc = JSON.parse(a.stdout) as { status: { code: string; message: string }[] }
+        expect(doc.status[0]?.code).toBe('change_error')
+        expect(doc.status[0]?.message).toContain("unknown change '1foo'")
+      } else expect(a.stderr).toContain("unknown change '1foo'")
       expect(streams(c, root)).toEqual(streams(a, root))
     }, 30_000)
   }
