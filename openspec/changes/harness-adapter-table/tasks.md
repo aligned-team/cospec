@@ -185,12 +185,19 @@ re-taken after any T3 edit.
       changes recorded under `## Blocked by`, `sync-blockers` reports the change
       fully unblocked; verification 4.4 and 5.1 observed;
       `harness-render.test.ts` 15 pass on the rebased tree
-- [ ] 5.2 Before editing any command file, re-take the wiring characterization
+- [x] 5.2 Before editing any command file, re-take the wiring characterization
       on the rebased tree: run `harness-wiring.test.ts` under
       `COSPEC_GOLDEN_WRITE=1`, and record the built binary's
       `init --harness all` stdout for verification 3.8. Commit only the golden
       files and the ledger note, and record the sha in verification 3.7; verify
-      `git diff main -- apps/cli/src/commands/` is empty at that commit
+      `git diff main -- apps/cli/src/commands/` is empty at that commit ->
+      `git diff --exit-code origin/main -- apps/cli/src/commands/` exits 0
+      before and at this commit; `COSPEC_GOLDEN_WRITE=1` re-take of
+      `harness-wiring.test.ts` 17 pass and wrote every golden byte-identically,
+      so this commit carries only the ledger note (no golden file changed);
+      built-binary `init --harness all --yes` -> 127 files, file-list digest
+      equal to task 1.3's `c9ff1f08…6ff305`, normalized stdout
+      `sha256:62918ecd…756a04` recorded in verification 3.7 and 3.8
 - [ ] 5.3 `init.ts`: build the `--harness` value set and invalid-value message
       from `HARNESS_NAMES`, replace `DETECT_PATHS` with each row's
       `detectionPaths`, walk the leftover sweep over the derived scan roots, and
