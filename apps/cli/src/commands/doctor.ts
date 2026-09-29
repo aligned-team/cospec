@@ -46,7 +46,13 @@ import {
 } from '../core/openspec.ts'
 import { respellRemedies } from '../core/remedies.ts'
 import { type ResolvedRoot, resolveRoot, RootSelectionError } from '../core/root.ts'
-import { HARNESS_NAMES } from '../harness/render.ts'
+import {
+  commandPath,
+  HARNESS_TABLE,
+  primaryRoot,
+  scanRoots,
+  skillsRoot,
+} from '../harness/adapters.ts'
 import { OPSX_SHARED_SKILL_ROOT } from './init.ts'
 import { detectHarnesses, generate } from './update.ts'
 
@@ -59,7 +65,11 @@ interface Finding {
   remedy?: string
 }
 
-/** Workflow id → skill dir name (mirrors canon/workflows/harness.yaml). */
+/**
+ * Workflow id → skill dir name. Mirrors the `workflows:` block of
+ * canon/workflows/harness.yaml — workflow identity, not tool layout, which
+ * HARNESS_TABLE declares.
+ */
 const WORKFLOW_SKILL: Record<string, string> = {
   propose: 'cospec-propose',
   new: 'cospec-new-change',
@@ -79,20 +89,6 @@ const WORKFLOW_SKILL: Record<string, string> = {
 const SKILL_SUFFIX_WORKFLOW: Record<string, string> = Object.fromEntries(
   Object.entries(WORKFLOW_SKILL).map(([id, skill]) => [skill.replace(/^cospec-/, ''), id]),
 )
-
-const SKILL_BASE: Record<string, string> = {
-  claude: '.claude/skills',
-  codex: '.agents/skills',
-  agents: '.agents/skills',
-  opencode: '.opencode/skills',
-}
-
-const COMMAND_LOC: Record<string, { dir: string; file: (id: string) => string } | undefined> = {
-  claude: { dir: '.claude/commands/cospec', file: (id) => `${id}.md` },
-  opencode: { dir: '.opencode/commands', file: (id) => `cospec-${id}.md` },
-  codex: undefined,
-  agents: undefined,
-}
 
 // --- individual checks ------------------------------------------------------
 
@@ -205,7 +201,7 @@ function harnessMarkdownFiles(cwd: string): { relpath: string; text: string }[] 
       }
     }
   }
-  for (const h of HARNESS_NAMES) walk(`.${h}`)
+  for (const root of scanRoots()) walk(root)
   // openspec ≥1.8.0 writes its Codex skills to the shared `.agents/skills/` root.
   // cospec now writes its own `cospec-*` skills there as well; both prefixes coexist,
   // and the opsx check filters on provenance, never on the path.
@@ -248,8 +244,13 @@ function checkDanglingRefs(
   findings: Finding[],
 ): void {
   for (const f of files) {
-    const harness = HARNESS_NAMES.find((h) => f.relpath.startsWith(`.${h}/`))
-    if (harness === undefined) continue
+    // The row whose primary root prefixes the file owns it.
+    const row = HARNESS_TABLE.find((r) => {
+      const root = primaryRoot(r)
+      return root !== undefined && f.relpath.startsWith(`${root}/`)
+    })
+    if (row === undefined) continue
+    const harness = row.id
     const { body } = splitFrontmatter(f.text)
     const refs = new Set<string>()
     for (const m of body.matchAll(/\/cospec[:-]([a-z][a-z-]*)/g)) refs.add(m[1]!)
@@ -268,9 +269,9 @@ function checkDanglingRefs(
         })
         continue
       }
-      const skillExists = existsSync(join(cwd, SKILL_BASE[harness]!, skill, 'SKILL.md'))
-      const cmdLoc = COMMAND_LOC[harness]
-      const cmdExists = cmdLoc !== undefined && existsSync(join(cwd, cmdLoc.dir, cmdLoc.file(id)))
+      const skillExists = existsSync(join(cwd, skillsRoot(row).root, skill, 'SKILL.md'))
+      const cmdFile = commandPath(row, id)
+      const cmdExists = cmdFile !== undefined && existsSync(join(cwd, cmdFile))
       if (!skillExists && !cmdExists) {
         findings.push({
           level: 'ERROR',
@@ -360,7 +361,7 @@ function checkStaleSidecars(cwd: string, findings: Finding[]): void {
     }
   }
   walk('openspec')
-  for (const h of HARNESS_NAMES) walk(`.${h}`)
+  for (const root of scanRoots()) walk(root)
   for (const relpath of found) {
     findings.push({
       level: 'WARNING',
