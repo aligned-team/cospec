@@ -1046,7 +1046,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
   },
   {
     name: '__complete',
-    summary: 'Dynamic completion source (changes|specs|types)',
+    summary: 'Dynamic completion source (changes|specs|types|schemas|archived-changes)',
     hidden: true,
     parse: 'table',
     json: 'accepted',
@@ -1055,9 +1055,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
       cospecArg({
         name: 'source',
         required: true,
-        values: ['changes', 'specs', 'types'],
-        // Upstream's hidden `__complete <type>` also serves these two.
-        pendingValues: { schemas: 'cli-surface-parity', 'archived-changes': 'cli-surface-parity' },
+        values: ['changes', 'specs', 'types', 'schemas', 'archived-changes'],
       }),
     ],
     flags: [],

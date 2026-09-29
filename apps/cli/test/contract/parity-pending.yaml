@@ -16,23 +16,6 @@
 # `source: cli` marks a hidden surface the four registry sources cannot
 # produce; the test verifies it against the pinned binary instead.
 
-# --- cli-surface-parity -----------------------------------------------------------
-
-# Upstream's hidden `__complete <type>` (dist/cli/index.js) also serves these
-# two types; the walk cannot produce them.
-- kind: positional-value
-  path: [__complete]
-  index: 0
-  value: schemas
-  source: cli
-  owner: cli-surface-parity
-- kind: positional-value
-  path: [__complete]
-  index: 0
-  value: archived-changes
-  source: cli
-  owner: cli-surface-parity
-
 # --- archive-and-sync-parity ------------------------------------------------------
 - { kind: flag, path: [archive], flag: --no-validate, owner: archive-and-sync-parity }
 

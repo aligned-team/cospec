@@ -1462,7 +1462,7 @@ describe('8. resolver failures under --json', () => {
 // --- 9. completion serves schemas and archived changes ------------------------------------
 
 describe('9. __complete sources', () => {
-  test.failing('9.1 schemas and archived-changes complete as the binary lists them', async () => {
+  test('9.1 schemas and archived-changes complete as the binary lists them', async () => {
     const root = cospecRoot()
     projectFork(root)
     mkdirSync(join(root, 'openspec/changes/archive/2026-01-01-one'), { recursive: true })

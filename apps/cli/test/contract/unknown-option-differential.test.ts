@@ -426,19 +426,6 @@ const PENDING_ROWS: readonly Row[] = [
     expect: 'pending',
     pendingFlag: 'uninstall',
   },
-  // Upstream's hidden `__complete` also serves these two types.
-  {
-    argv: ['__complete', 'schemas'],
-    command: '__complete',
-    expect: 'pending',
-    pendingFlag: 'schemas',
-  },
-  {
-    argv: ['__complete', 'archived-changes'],
-    command: '__complete',
-    expect: 'pending',
-    pendingFlag: 'archived-changes',
-  },
 ]
 
 /**
@@ -486,6 +473,8 @@ const CLI_SURFACE_ROWS: readonly Row[] = [
   { argv: ['list', '--sort', 'name'], command: 'list', expect: 'same', exit: 0 },
   { argv: ['validate', '--report', 'findings', '--all'], command: 'validate', expect: 'same' },
   { argv: ['validate', '--concurrency', '4', '--all'], command: 'validate', expect: 'same' },
+  { argv: ['__complete', 'schemas'], command: '__complete', expect: 'same', exit: 0 },
+  { argv: ['__complete', 'archived-changes'], command: '__complete', expect: 'same', exit: 0 },
   // `--type` takes `change` as its value, never the positional: `x` is the
   // item, and a change literally named `change` is not validated.
   {
