@@ -130,7 +130,7 @@ Co-Authored-By trailer, never `--no-verify`).
       source names. Move both `__complete` values from pending to handled and
       delete both yaml entries in this commit. Flip row 9.1. Commit
       `feat(completion): serve the schemas and archived-changes sources`
-- [ ] 7.2 Wire `schemas` into `spec.ts` (`--schema` values and the three
+- [x] 7.2 Wire `schemas` into `spec.ts` (`--schema` values and the three
       `schema` subcommand positionals) and the bash, zsh and fish generators,
       verified by `completion.test.ts` (row 9.2). Commit
       `feat(completion): complete schema names in the generated scripts`

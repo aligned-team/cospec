@@ -9,6 +9,8 @@
 // `mise run check` must stay green on a minimal CI image.
 
 import { afterAll, describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { cleanupAll, cospec, mkTempRepo, writeFiles } from '../fixtures/support.ts'
 import { authorCi } from './support.ts'
@@ -192,5 +194,79 @@ describe('cospec __complete (hidden dynamic completion source)', () => {
     expect(res.stderr).toBe(
       "cospec __complete: missing required argument 'source'\ncospec __complete: usage — cospec __complete <source>\n",
     )
+  })
+})
+
+// Verification 9.2: the generated scripts complete schema names where the
+// binary's own scripts do — every `--schema` value a table row declares and the
+// first positional of `schema which|validate|fork` — from `cospec __complete
+// schemas`, and none of them ever calls the `openspec` binary.
+describe('generated scripts complete schema names from cospec __complete schemas', () => {
+  const SCHEMA_SLOTS: { words: string[]; label: string }[] = [
+    { words: ['status', '--schema', ''], label: 'status --schema' },
+    { words: ['templates', '--schema', ''], label: 'templates --schema' },
+    { words: ['instructions', 'proposal', '--schema', ''], label: 'instructions --schema' },
+    { words: ['schema', 'which', ''], label: 'schema which' },
+    { words: ['schema', 'validate', ''], label: 'schema validate' },
+    { words: ['schema', 'fork', ''], label: 'schema fork' },
+  ]
+
+  async function script(shell: string): Promise<string> {
+    const res = await cospec(['completion', shell], { cwd: mkTempRepo() })
+    expect(res.exitCode).toBe(0)
+    return res.stdout
+  }
+
+  test('no generated script names the openspec binary', async () => {
+    for (const shell of ['bash', 'zsh', 'fish'])
+      expect(await script(shell)).not.toMatch(/\bopenspec\b/)
+  })
+
+  const bash = Bun.which('bash') === null ? test.skip : test
+  for (const slot of SCHEMA_SLOTS)
+    bash(`bash: ${slot.label} calls cospec __complete schemas`, async () => {
+      const body = await script('bash')
+      const words = ['cospec', ...slot.words].map((w) => `'${w}'`).join(' ')
+      const program = [
+        body,
+        // A stub `cospec` records each call and answers one schema name.
+        'cospec() { printf "%s\\n" "$*" >> "$CALLS"; printf "house\\tschema\\n"; }',
+        `COMP_WORDS=(${words})`,
+        `COMP_CWORD=${slot.words.length}`,
+        '_cospec',
+        'printf "%s\\n" "${COMPREPLY[@]}"',
+      ].join('\n')
+      const calls = join(mkTempRepo(), 'calls')
+      const run = Bun.spawnSync(['bash', '-c', program], { env: { ...process.env, CALLS: calls } })
+      expect(run.exitCode, new TextDecoder().decode(run.stderr)).toBe(0)
+      expect(new TextDecoder().decode(run.stdout).trim()).toBe('house')
+      expect(readFileSync(calls, 'utf8')).toBe('__complete schemas\n')
+    })
+
+  test('zsh: each slot is an arm calling _cospec_dynamic schemas', async () => {
+    const body = await script('zsh')
+    for (const command of ['status', 'templates', 'instructions'])
+      expect(body).toMatch(
+        new RegExp(
+          `\\n {4}${command}\\)\\n(?: {6}.*\\n)*? {6}\\[\\[ \\$prev == '--schema' \\]\\] && \\{ _cospec_dynamic schemas; return \\}`,
+        ),
+      )
+    for (const sub of ['which', 'validate', 'fork'])
+      expect(body).toContain(
+        `    'schema ${sub}')\n      (( subpos == 0 )) && { _cospec_dynamic schemas; return }\n`,
+      )
+  })
+
+  test('fish: each slot completes from cospec __complete schemas', async () => {
+    const body = await script('fish')
+    const source = '"(cospec __complete schemas 2>/dev/null | cut -f1)"'
+    for (const command of ['status', 'templates', 'instructions'])
+      expect(body).toContain(
+        `complete -c cospec -n '__fish_seen_subcommand_from ${command}' -l schema -x -a ${source}`,
+      )
+    for (const sub of ['which', 'validate', 'fork'])
+      expect(body).toContain(
+        `complete -c cospec -n '__fish_seen_subcommand_from schema; and __fish_seen_subcommand_from ${sub}' -a ${source}`,
+      )
   })
 })

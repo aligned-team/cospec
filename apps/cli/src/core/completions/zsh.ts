@@ -44,6 +44,16 @@ export function renderZshCompletion(spec: CompletionSpec): string {
     )
     .join('\n')
 
+  const subcommandArms = spec.commands
+    .flatMap((c) =>
+      Object.entries(c.subcommandPositional).map(([sub, sources]) =>
+        caseArm(`'${c.name} ${sub}'`, [
+          `(( subpos == 0 )) && { ${sources.map((source) => `_cospec_dynamic ${source}`).join('; ')}; return }`,
+        ]),
+      ),
+    )
+    .join('\n')
+
   const flagValueArms = spec.commands
     .filter((c) => Object.keys(c.flagValues).length > 0)
     .map((c) =>
@@ -74,11 +84,17 @@ ${commands}
   )
   global_flags=(${globals})
 
-  local cmd='' prev='' i
+  local cmd='' sub='' prev='' i j subpos=0
   for (( i = 2; i < CURRENT; i++ )); do
     case \${words[i]} in
       -*) ;;
       *) cmd=\${words[i]}; break ;;
+    esac
+  done
+  for (( j = i + 1; j < CURRENT; j++ )); do
+    case \${words[j]} in
+      -*) ;;
+      *) if [[ -z $sub ]]; then sub=\${words[j]}; else (( subpos++ )); fi ;;
     esac
   done
   (( CURRENT > 1 )) && prev=\${words[CURRENT-1]}
@@ -104,6 +120,12 @@ ${globalArms}
     compadd -a flags
     compadd -a global_flags
     return
+  fi
+
+  if [[ -n $sub ]]; then
+    case "$cmd $sub" in
+${subcommandArms}
+    esac
   fi
 
   case $cmd in
