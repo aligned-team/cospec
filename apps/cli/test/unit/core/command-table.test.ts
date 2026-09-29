@@ -333,8 +333,6 @@ const EXPECTED_PENDING: [string, string, PendingOwner][] = [
   ['completion', 'uninstall', 'completion-install'],
   ['completion', 'powershell', 'completion-install'],
   ['completion generate', 'powershell', 'completion-install'],
-  ['__complete', 'schemas', 'cli-surface-parity'],
-  ['__complete', 'archived-changes', 'cli-surface-parity'],
 ]
 
 function pendingSurfaces(row: CommandRow): [string, string, PendingOwner][] {
@@ -378,8 +376,6 @@ describe('pending surfaces', () => {
     'completion uninstall': ['uninstall', '-y'],
     'completion powershell': ['powershell'],
     'completion generate powershell': ['generate', 'powershell'],
-    '__complete schemas': ['schemas'],
-    '__complete archived-changes': ['archived-changes'],
   }
 
   /** The pending refusal `command surface` gets, named on the row it was typed on. */

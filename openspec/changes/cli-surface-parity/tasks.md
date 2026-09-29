@@ -126,7 +126,7 @@ Co-Authored-By trailer, never `--no-verify`).
 
 ## 7. T5 — completion (`apps/cli/src/commands/complete.ts`, `apps/cli/src/core/completions/`)
 
-- [ ] 7.1 Add the `schemas` and `archived-changes` sources and case-insensitive
+- [x] 7.1 Add the `schemas` and `archived-changes` sources and case-insensitive
       source names. Move both `__complete` values from pending to handled and
       delete both yaml entries in this commit. Flip row 9.1. Commit
       `feat(completion): serve the schemas and archived-changes sources`
