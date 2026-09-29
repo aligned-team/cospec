@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { mergeDelegated } from '../../../src/commands/validate.ts'
+import { concurrencyBound, mapPool, mergeDelegated } from '../../../src/commands/validate.ts'
 import type { Issue } from '../../../src/core/rules/issue.ts'
 
 // mergeDelegated's DUPLICATE_CLASSES table drops a delegated (openspec/validate)
@@ -161,5 +161,43 @@ describe('mergeDelegated: archive/target-invalid vs the pinned dry-run message',
     const elapsedMs = performance.now() - start
     expect(elapsedMs).toBeLessThan(1000)
     expect(result).toEqual(delegated)
+  })
+})
+
+describe('the bulk validation pool (verification 7.7)', () => {
+  /** Eight stubbed validations; the most ever in flight at once, and the results. */
+  async function run(bound: number): Promise<{ peak: number; results: number[] }> {
+    let inFlight = 0
+    let peak = 0
+    const results = await mapPool([0, 1, 2, 3, 4, 5, 6, 7], bound, async (n) => {
+      inFlight++
+      peak = Math.max(peak, inFlight)
+      // Later items settle first, so the order is the pool's, not completion's.
+      await Bun.sleep(8 - n)
+      inFlight--
+      return n * 10
+    })
+    return { peak, results }
+  }
+
+  const cases: [string, string | undefined, NodeJS.ProcessEnv, number][] = [
+    ['--concurrency 2', '2', {}, 2],
+    ['--concurrency 0', '0', {}, 6],
+    ['--concurrency abc', 'abc', {}, 6],
+    ['unset, OPENSPEC_CONCURRENCY=3', undefined, { OPENSPEC_CONCURRENCY: '3' }, 3],
+    ['all unset', undefined, {}, 6],
+  ]
+  for (const [label, flag, env, bound] of cases)
+    test(`${label}: bounded at ${bound}, results in input order`, async () => {
+      expect(concurrencyBound(flag, env)).toBe(bound)
+      const { peak, results } = await run(concurrencyBound(flag, env))
+      expect(peak).toBe(bound)
+      expect(results).toEqual([0, 10, 20, 30, 40, 50, 60, 70])
+    })
+
+  test('a bad OPENSPEC_CONCURRENCY falls back to the default; the flag outranks the env', () => {
+    expect(concurrencyBound(undefined, { OPENSPEC_CONCURRENCY: 'abc' })).toBe(6)
+    expect(concurrencyBound('4', { OPENSPEC_CONCURRENCY: '3' })).toBe(4)
+    expect(concurrencyBound('abc', { OPENSPEC_CONCURRENCY: '3' })).toBe(3)
   })
 })

@@ -100,7 +100,7 @@ Co-Authored-By trailer, never `--no-verify`).
       root resolution and `toFindings` in `report.ts`. Move `--report` from
       pending to handled and delete its yaml entry in this commit. Flip rows
       1.6, 7.5 and 7.6. Commit `feat(validate): add --report full|findings`
-- [ ] 6.3 Replace `Promise.all` with the bounded pool honouring `--concurrency`,
+- [x] 6.3 Replace `Promise.all` with the bounded pool honouring `--concurrency`,
       `OPENSPEC_CONCURRENCY` and 6, with the unit row 7.7. Move `--concurrency`
       from pending to handled and delete its yaml entry in this commit. Commit
       `feat(validate): bound bulk validation with --concurrency`

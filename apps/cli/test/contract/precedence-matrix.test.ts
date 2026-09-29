@@ -596,7 +596,14 @@ const VALUE_POSITION_ROWS: readonly Row[] = [
   { argv: ['init', '--tools', '--help'], command: 'init', check: nothingWritten },
   { argv: ['init', '--profile', '--help'], command: 'init', check: nothingWritten },
   { argv: ['init', '--language', '--help'], command: 'init', check: nothingWritten },
-  { argv: ['validate', '--concurrency', '--help'], command: 'validate' },
+  // `--help` is `--concurrency`'s value (ignored as no positive integer), so no
+  // item and no scope is named: the binary prints its non-interactive hint and
+  // exits 1, while cospec — which never prompts — validates everything.
+  {
+    argv: ['validate', '--concurrency', '--help'],
+    command: 'validate',
+    cospecOnly: { outcome: 'parsed', exit: 0 },
+  },
   // `--json` is `--type`'s value, so no item and no scope is named: the
   // binary prints its non-interactive hint and exits 1, while cospec — which
   // never prompts — validates everything, its documented opinion.

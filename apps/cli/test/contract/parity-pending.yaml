@@ -17,7 +17,6 @@
 # produce; the test verifies it against the pinned binary instead.
 
 # --- cli-surface-parity -----------------------------------------------------------
-- { kind: flag, path: [validate], flag: --concurrency, owner: cli-surface-parity }
 
 # Upstream's hidden `__complete <type>` (dist/cli/index.js) also serves these
 # two types; the walk cannot produce them.
