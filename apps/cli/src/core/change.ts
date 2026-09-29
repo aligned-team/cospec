@@ -1,10 +1,9 @@
 import { existsSync, readdirSync, readFileSync, statSync, type Dirent } from 'node:fs'
-import { homedir } from 'node:os'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 
 import { parse as parseYaml } from 'yaml'
 
-import { loadSchema } from './change-metadata.ts'
+import { loadSchema, userSchemasDir } from './change-metadata.ts'
 import { openspecPackageDir } from './openspec.ts'
 
 /**
@@ -251,7 +250,7 @@ export function resolveSchema(cwd: string, name: string): SchemaResolution {
   if (existsSync(projectSchema))
     return { name, kind: 'legacy', isCospecType: false, source: 'project' }
 
-  const userSchema = join(homedir(), '.config', 'openspec', 'schemas', name, 'schema.yaml')
+  const userSchema = join(userSchemasDir(), name, 'schema.yaml')
   if (existsSync(userSchema)) return { name, kind: 'legacy', isCospecType: false, source: 'user' }
 
   try {

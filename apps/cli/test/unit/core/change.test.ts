@@ -1,8 +1,9 @@
 import { afterAll, describe, expect, test } from 'bun:test'
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
+import { userSchemasDir } from '../../../src/core/change-metadata.ts'
 import {
   changesDir,
   COSPEC_TYPES,
@@ -361,5 +362,63 @@ describe('listChanges drops dot-directories', () => {
     makeChange(cwd, 'alpha', 'schema: feat\n')
     makeChange(cwd, '.hidden', 'schema: feat\n')
     expect(listChanges(cwd).map((c) => c.id)).toEqual(['alpha'])
+  })
+})
+
+describe('the user schema tier (verification 10.1)', () => {
+  test("userSchemasDir is the binary's getGlobalDataDir plus schemas in every case", () => {
+    expect(userSchemasDir({ XDG_DATA_HOME: '/x' }, '/h', 'darwin')).toBe('/x/openspec/schemas')
+    expect(userSchemasDir({ XDG_DATA_HOME: '/x' }, '/h', 'linux')).toBe('/x/openspec/schemas')
+    expect(userSchemasDir({ XDG_DATA_HOME: '' }, '/h', 'linux')).toBe(
+      '/h/.local/share/openspec/schemas',
+    )
+    expect(userSchemasDir({}, '/h', 'darwin')).toBe('/h/.local/share/openspec/schemas')
+    expect(userSchemasDir({}, '/h', 'linux')).toBe('/h/.local/share/openspec/schemas')
+    expect(userSchemasDir({ LOCALAPPDATA: '/l' }, '/h', 'win32')).toBe(
+      join('/l', 'openspec', 'schemas'),
+    )
+    expect(userSchemasDir({ LOCALAPPDATA: '' }, '/h', 'win32')).toBe(
+      join('/h', 'AppData', 'Local', 'openspec', 'schemas'),
+    )
+    expect(userSchemasDir({}, '/h', 'win32')).toBe(
+      join('/h', 'AppData', 'Local', 'openspec', 'schemas'),
+    )
+  })
+
+  test('change.ts, new.ts and change-metadata.ts compute the directory in one place', () => {
+    const src = (rel: string) => readFileSync(join(import.meta.dir, '../../../src', rel), 'utf8')
+    const definitions = ['core/change.ts', 'commands/new.ts', 'core/change-metadata.ts'].filter(
+      (rel) => /function userSchemasDir\b/.test(src(rel)),
+    )
+    expect(definitions).toEqual(['core/change-metadata.ts'])
+    for (const rel of ['core/change.ts', 'commands/new.ts'])
+      expect(src(rel)).toMatch(
+        /import \{[^}]*\buserSchemasDir\b[^}]*\} from '(?:\.\.\/core|\.)\/change-metadata\.ts'/,
+      )
+    expect(src('core/change.ts')).not.toContain("'.config'")
+  })
+
+  test('resolveSchema classifies a schema under XDG_DATA_HOME as user, never one under ~/.config', () => {
+    const cwd = makeRepo()
+    const data = mkdtempSync(join(tmpdir(), 'cospec-data-'))
+    const home = mkdtempSync(join(tmpdir(), 'cospec-home-'))
+    roots.push(data, home)
+    const write = (dir: string, name: string) => {
+      mkdirSync(join(dir, name), { recursive: true })
+      writeFileSync(join(dir, name, 'schema.yaml'), `name: ${name}\n`)
+    }
+    write(join(data, 'openspec', 'schemas'), 'house-style')
+    write(join(home, '.config', 'openspec', 'schemas'), 'config-style')
+    const saved = { XDG_DATA_HOME: process.env.XDG_DATA_HOME, HOME: process.env.HOME }
+    process.env.XDG_DATA_HOME = data
+    process.env.HOME = home
+    try {
+      expect(resolveSchema(cwd, 'house-style')).toMatchObject({ kind: 'legacy', source: 'user' })
+      expect(resolveSchema(cwd, 'config-style').kind).toBe('unknown')
+    } finally {
+      for (const [key, value] of Object.entries(saved))
+        if (value === undefined) delete process.env[key]
+        else process.env[key] = value
+    }
   })
 })

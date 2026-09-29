@@ -1438,7 +1438,7 @@ describe('9. __complete sources', () => {
 // --- 10. schema classification reads the binary's user directory -----------------------------
 
 describe('10. user schema directory', () => {
-  test.failing('10.2 a user-dir schema is legacy; one under ~/.config is unknown', async () => {
+  test('10.2 a user-dir schema is legacy; one under ~/.config is unknown', async () => {
     const root = cospecRoot()
     const env = oracleEnv(root)
     const userDir = join(env['XDG_DATA_HOME']!, 'openspec', 'schemas', 'house-style')
@@ -1457,8 +1457,12 @@ describe('10. user schema directory', () => {
       (i.issues as Row[]).map((x) => respellRemedies(String(x.message))),
     )
     const relayed = rowsOf(cs.json, 'items').flatMap((i) =>
-      (i.issues as Row[]).filter((x) => x.rule === 'openspec/validate').map((x) => x.message),
+      (i.issues as Row[])
+        .filter((x) => x.rule === 'openspec/validate')
+        .map((x) => respellRemedies(String(x.message))),
     )
+    // Compared through the remedy allowlist on both sides: this row is about
+    // where the schema resolves; the relay spelling is row 7.9's.
     expect(relayed).toEqual(upMessages)
 
     const config = await oursJson(['validate', 'config-one', '--json'], root)
