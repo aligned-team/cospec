@@ -137,7 +137,7 @@ Co-Authored-By trailer, never `--no-verify`).
 
 ## 8. T7 — apply (`apps/cli/src/commands/apply.ts`)
 
-- [ ] 8.1 Answer every early exit under `--json` with one `change_error`
+- [x] 8.1 Answer every early exit under `--json` with one `change_error`
       document (design D10), with the unit test over every path (row 8.2). Flip
       rows 1.7 and 8.3. Commit
       `fix(apply): answer every early exit with one JSON document`

@@ -808,7 +808,7 @@ describe('1. the key oracle passes and keeps cospec keys', () => {
     expect(doc).toHaveProperty('root')
   })
 
-  test.failing('1.7 apply nope --json beside instructions apply --change nope --json', async () => {
+  test('1.7 apply nope --json beside instructions apply --change nope --json', async () => {
     const root = listFixture()
     const up = await upstreamJson(['instructions', 'apply', '--change', 'nope', '--json'], root)
     const cs = await oursJson(['apply', 'nope', '--json'], root)
@@ -1374,6 +1374,20 @@ describe('7. validate item resolution', () => {
       true,
     )
     for (const m of messages) expect(m).not.toMatch(BARE_OPENSPEC)
+  })
+})
+
+describe('8.3 apply under --json', () => {
+  test('8.3 cospec apply nope --json is one change_error document naming nope', async () => {
+    const root = listFixture()
+    const cs = await ours(['apply', 'nope', '--json'], root)
+    expect(cs.exitCode).toBe(1)
+    expect(cs.stderr).toBe('')
+    const doc = parseOne('cospec apply nope --json', cs.stdout) as Row
+    expect(Object.keys(doc)).toEqual(['status'])
+    const status = firstStatus(doc)
+    expect(status).toMatchObject({ severity: 'error', code: 'change_error' })
+    expect(status.message).toContain("'nope'")
   })
 })
 
