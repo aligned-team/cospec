@@ -119,7 +119,7 @@ Co-Authored-By trailer, never `--no-verify`).
       (`test/unit/commands/validate.test.ts`). Add the quoted-header row to
       `validation-parity.test.ts`. Verify with rows 11.1 and 11.2. Commit
       `fix(validate): match structurally-invalid targets in linear time`
-- [ ] 6.7 Add the commented mis-depth-scenario archive row to
+- [x] 6.7 Add the commented mis-depth-scenario archive row to
       `validation-parity.test.ts`, and cite it from the `deltas/scenario-depth`
       exception in `views.ts` and `views.test.ts`. Verify with row 12.1. Commit
       `test(validate): prove the scenario-depth masked-view exception`

@@ -168,6 +168,10 @@ describe('rule views', () => {
     expect(ADVISORY_RULES.filter((id) => !enumeratedRules().includes(id))).toEqual([])
   })
 
+  // Each advisory rule is an exception to the verbatim view, proven by a
+  // differential fixture: `deltas/scenario-depth`'s is
+  // `test/contract/validation-parity.test.ts` row 36.1 ("commented mis-depth
+  // scenario: the binary archives it and cospec raises no deltas/scenario-depth").
   const advisory = new Set<string>(ADVISORY_RULES)
   for (const [rule, fixture] of Object.entries(FIXTURES)) {
     if (advisory.has(rule))
