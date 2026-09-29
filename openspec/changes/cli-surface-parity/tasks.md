@@ -108,7 +108,7 @@ Co-Authored-By trailer, never `--no-verify`).
       `summary.byType` to the report JSON, keeping `version: 1` and the schema
       `items[].type`. Flip row 1.5. Commit
       `feat(validate): add OpenSpec's report keys to the JSON document`
-- [ ] 6.5 Read artifacts through the errno-recording helper and short-circuit to
+- [x] 6.5 Read artifacts through the errno-recording helper and short-circuit to
       `meta/unreadable-artifact`, and a namespace folder to
       `meta/nested-change`. Respell every delegated message and the `--archived`
       fallback, and give raw resolver failures `validate_error`. Flip rows 4.4,

@@ -20,6 +20,7 @@ import { dirname, join } from 'node:path'
 import { readRetireCapabilitiesMarker, type MarkerRead } from '../../src/core/change-metadata.ts'
 import { parseDeltaSpec } from '../../src/core/deltas.ts'
 import { rebuildSpec } from '../../src/core/rebuilt-spec.ts'
+import { respellRemedies } from '../../src/core/remedies.ts'
 import {
   cleanupAll,
   cospec,
@@ -675,7 +676,10 @@ describe('1. each lane keeps its own severities', () => {
     const relayed = all
       .filter((i) => i.rule === 'openspec/validate')
       .map((i) => `${i.level} ${i.message}`)
-    expect(relayed.toSorted()).toEqual(bin.map((i) => `${i.level} ${i.message}`).toSorted())
+    // Relayed with each allowlisted remedy spelled through cospec (cli-surface-parity).
+    expect(relayed.toSorted()).toEqual(
+      bin.map((i) => `${i.level} ${respellRemedies(i.message)}`).toSorted(),
+    )
     // cospec adds its classification note and nothing else: no cospec-typed rule
     // family runs on this lane.
     expect(all.filter((i) => i.rule !== 'openspec/validate').map((i) => i.rule)).toEqual([
@@ -1148,7 +1152,8 @@ describe('5.2 a delegated finding survives where its cospec twin is silent', () 
     ]
     const { report } = await cospecValidate(root, 'empty-section', ['--fast'])
     expect(byRule(report, 'archive/no-ops')).toEqual([])
-    for (const d of delegated) expect(messages(report)).toContain(d.message)
+    // Relayed with each allowlisted remedy spelled through cospec (cli-surface-parity).
+    for (const d of delegated) expect(messages(report)).toContain(respellRemedies(d.message))
   })
 
   test('entries 8 and 9: under --fast both cross-section ERRORs are kept', async () => {
@@ -1716,7 +1721,10 @@ describe('13. the legacy lane relays each round-2 shape at the binary level', ()
       const relayed = all
         .filter((i) => i.rule === 'openspec/validate')
         .map((i) => `${i.level} ${i.message}`)
-      expect(relayed.toSorted()).toEqual(bin.map((i) => `${i.level} ${i.message}`).toSorted())
+      // Relayed with each allowlisted remedy spelled through cospec (cli-surface-parity).
+      expect(relayed.toSorted()).toEqual(
+        bin.map((i) => `${i.level} ${respellRemedies(i.message)}`).toSorted(),
+      )
       expect(all.filter((i) => i.rule !== 'openspec/validate').map((i) => i.rule)).toEqual([
         'meta/legacy-schema',
       ])
@@ -2261,7 +2269,10 @@ describe('18. the legacy lane relays each round-3 shape at the binary level', ()
       const relayed = all
         .filter((i) => i.rule === 'openspec/validate')
         .map((i) => `${i.level} ${i.message}`)
-      expect(relayed.toSorted()).toEqual(bin.map((i) => `${i.level} ${i.message}`).toSorted())
+      // Relayed with each allowlisted remedy spelled through cospec (cli-surface-parity).
+      expect(relayed.toSorted()).toEqual(
+        bin.map((i) => `${i.level} ${respellRemedies(i.message)}`).toSorted(),
+      )
       expect(all.filter((i) => i.rule !== 'openspec/validate').map((i) => i.rule)).toEqual([
         'meta/legacy-schema',
       ])
@@ -3094,7 +3105,10 @@ describe('23. the legacy lane relays each round-4 shape at the binary level', ()
       const relayed = all
         .filter((i) => i.rule === 'openspec/validate')
         .map((i) => `${i.level} ${i.message}`)
-      expect(relayed.toSorted()).toEqual(bin.map((i) => `${i.level} ${i.message}`).toSorted())
+      // Relayed with each allowlisted remedy spelled through cospec (cli-surface-parity).
+      expect(relayed.toSorted()).toEqual(
+        bin.map((i) => `${i.level} ${respellRemedies(i.message)}`).toSorted(),
+      )
       expect(all.filter((i) => i.rule !== 'openspec/validate').map((i) => i.rule)).toEqual([
         'meta/legacy-schema',
       ])
@@ -3684,7 +3698,10 @@ describe('30. the legacy lane relays each round-5 shape at the binary level', ()
       const relayed = all
         .filter((i) => i.rule === 'openspec/validate')
         .map((i) => `${i.level} ${i.message}`)
-      expect(relayed.toSorted()).toEqual(bin.map((i) => `${i.level} ${i.message}`).toSorted())
+      // Relayed with each allowlisted remedy spelled through cospec (cli-surface-parity).
+      expect(relayed.toSorted()).toEqual(
+        bin.map((i) => `${i.level} ${respellRemedies(i.message)}`).toSorted(),
+      )
       expect(all.filter((i) => i.rule !== 'openspec/validate').map((i) => i.rule)).toEqual([
         'meta/legacy-schema',
       ])
@@ -4132,7 +4149,10 @@ describe('35. the legacy lane relays each round-6 shape at the binary level', ()
       const relayed = all
         .filter((i) => i.rule === 'openspec/validate')
         .map((i) => `${i.level} ${i.message}`)
-      expect(relayed.toSorted()).toEqual(bin.map((i) => `${i.level} ${i.message}`).toSorted())
+      // Relayed with each allowlisted remedy spelled through cospec (cli-surface-parity).
+      expect(relayed.toSorted()).toEqual(
+        bin.map((i) => `${i.level} ${respellRemedies(i.message)}`).toSorted(),
+      )
       expect(all.filter((i) => i.rule !== 'openspec/validate').map((i) => i.rule)).toEqual([
         'meta/legacy-schema',
       ])
