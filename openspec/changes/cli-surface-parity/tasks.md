@@ -27,7 +27,7 @@ Co-Authored-By trailer, never `--no-verify`).
       ambiguous `gamma`, and the mode-000 cases. The self-test passing under
       `mise run test:contract` is the check. Commit
       `test(cli): add the upstream key oracle and cli-surface fixtures`
-- [ ] 2.2 Add every contract row of verification groups 1, 3.2, 3.4, 4, 5, 6,
+- [x] 2.2 Add every contract row of verification groups 1, 3.2, 3.4, 4, 5, 6,
       7.1–7.6, 7.8, 7.9, 8.1, 8.4, 9.1, 10.2 to `cli-surface.test.ts`. Each
       reads the binary's answer at test time through the upstream oracle, and
       each row that fails on this tree is marked `test.failing`. Record the
