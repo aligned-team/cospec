@@ -557,7 +557,6 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         placeholder: '<order>',
         values: ['recent', 'name'],
         description: 'Sort order: "recent" (default) or "name"',
-        status: pending('cli-surface-parity'),
       }),
     ],
   },

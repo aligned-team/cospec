@@ -77,10 +77,10 @@ describe('parseCommandArgs — the six ledger 1.5 cases', () => {
     expect(r).toMatchObject({ kind: 'pending', surface: '--type', owner: 'cli-surface-parity' })
     expect(r.message).toBe("cospec validate: '--type' is not supported yet\n")
 
-    // `--bogus` is consumed as --sort's value, so the pending refusal wins.
-    expect(refused('list', ['--sort', '--bogus'])).toMatchObject({
+    // `--bogus` is consumed as --language's value, so the pending refusal wins.
+    expect(refused('init', ['--language', '--bogus'])).toMatchObject({
       kind: 'pending',
-      surface: '--sort',
+      surface: '--language',
     })
     expect(refused('init', ['--language', 'fr', '.'])).toMatchObject({
       kind: 'pending',
@@ -257,7 +257,7 @@ describe('parseCommandArgs — refusals', () => {
     expect(refused('list', ['--store-path', '/x', 'extra']).kind).toBe('too-many-arguments')
     expect(refused('list', ['--store-path=/x', 'extra']).kind).toBe('too-many-arguments')
     expect(refused('validate', ['--store-path', '/x', 'a', 'b']).kind).toBe('too-many-arguments')
-    expect(refused('list', ['--store-path', '/x', '--sort', 'name']).kind).toBe('pending')
+    expect(refused('archive', ['c', '--store-path', '/x', '--no-validate']).kind).toBe('pending')
     // Its value is consumed, so it never counts as a positional.
     expect(refused('validate', ['--store-path', '/x', 'a']).kind).toBe('store-path')
   })
@@ -282,11 +282,11 @@ describe('parseCommandArgs — refusals', () => {
       kind: 'missing-value',
       flag: '--change',
     })
-    expect(refused('list', ['--sort', 'x', '--bogus'])).toMatchObject({
+    expect(refused('init', ['--language', 'x', '--bogus'])).toMatchObject({
       kind: 'pending',
-      surface: '--sort',
+      surface: '--language',
     })
-    expect(refused('list', ['--bogus', '--sort', 'x'])).toMatchObject({
+    expect(refused('init', ['--bogus', '--language', 'x'])).toMatchObject({
       kind: 'unknown-option',
       option: '--bogus',
     })
@@ -294,7 +294,7 @@ describe('parseCommandArgs — refusals', () => {
 
   test('the recorded refusal outranks too many arguments', () => {
     expect(refused('list', ['a', '--bogus']).kind).toBe('unknown-option')
-    expect(refused('list', ['a', '--sort', 'x']).kind).toBe('pending')
+    expect(refused('init', ['a', 'b', '--language', 'x']).kind).toBe('pending')
   })
 })
 
@@ -331,7 +331,6 @@ const EXPECTED_PENDING: [string, string, PendingOwner][] = [
   ['validate', '--type', 'cli-surface-parity'],
   ['validate', '--report', 'cli-surface-parity'],
   ['validate', '--concurrency', 'cli-surface-parity'],
-  ['list', '--sort', 'cli-surface-parity'],
   ['archive', '--no-validate', 'archive-and-sync-parity'],
   ['completion', 'install', 'completion-install'],
   ['completion', 'uninstall', 'completion-install'],
@@ -380,7 +379,6 @@ describe('pending surfaces', () => {
     'validate --type': ['--type', 'change', 'x'],
     'validate --report': ['--report', 'full'],
     'validate --concurrency': ['--concurrency', '4'],
-    'list --sort': ['--sort', 'name'],
     'archive --no-validate': ['c', '--no-validate'],
     'completion install': ['install', 'zsh', '--verbose'],
     'completion uninstall': ['uninstall', '-y'],
@@ -423,6 +421,7 @@ describe('pending surfaces', () => {
       '--specs',
       '--blocked',
       '--changes',
+      '--sort',
     ])
   })
 })

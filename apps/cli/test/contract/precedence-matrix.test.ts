@@ -599,6 +599,7 @@ const VALUE_POSITION_ROWS: readonly Row[] = [
   { argv: ['validate', '--concurrency', '--help'], command: 'validate' },
   { argv: ['validate', '--type', '--json'], command: 'validate' },
   { argv: ['status', '--schema', '--json'], command: 'status' },
+  { argv: ['list', '--sort', '--help'], command: 'list' },
   { argv: ['templates', '--schema', '--help'], command: 'templates' },
   { argv: ['templates', '--schema', '--json'], command: 'templates' },
   { argv: ['show', 'c1', '--type', '--help'], command: 'show' },
@@ -616,14 +617,6 @@ const VALUE_POSITION_ROWS: readonly Row[] = [
   },
   { argv: ['store', 'setup', 's1', '--path', '--help'], command: 'store', check: storeSetUp },
   { argv: ['workset', 'create', 'w1', '--tool', '--help'], command: 'workset' },
-  // cospec refuses a pending flag as not supported yet once it has its value,
-  // where the binary runs with `--help` as the value (owned by later changes).
-  {
-    argv: ['list', '--sort', '--help'],
-    command: 'list',
-    cospecOnly: { outcome: 'parsed', exit: 1 },
-    cospecStderr: "cospec list: '--sort' is not supported yet\n",
-  },
   // Every other declared value-taking flag, table and forward rows alike.
   { argv: ['feedback', '--body', '--help'], command: 'feedback' },
   { argv: ['templates', '--schema', '-h'], command: 'templates' },

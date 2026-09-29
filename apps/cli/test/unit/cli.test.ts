@@ -250,9 +250,9 @@ describe('cli dispatcher: help renders from the command table', () => {
     expect(init.out).toContain('--no-animation')
     // An alias flag is an offered flag: upstream's `init --help` lists `--tools`.
     expect(init.out).toMatch(/^ {2}--tools <tools> +OpenSpec's spelling of --harness/m)
-    const list = await dispatch(['list', '--help'])
-    expect(list.out).not.toContain('--sort')
-    expect(list.out).toContain('--changes')
+    const archive = await dispatch(['archive', '--help'])
+    expect(archive.out).not.toContain('--no-validate')
+    expect(archive.out).toContain('--skip-specs')
   })
 
   test('a row with subcommands lists them with their flags; a subcommand has its own help', async () => {
@@ -379,13 +379,16 @@ describe("cli dispatcher: a value-taking flag's space-form value is never interc
   for (const [argv, err] of [
     // A help flag or a global there is the value: the pending flag is refused
     // with its value consumed, never help, never absorbed.
-    [['list', '--sort', '--help'], "cospec list: '--sort' is not supported yet\n"],
-    [['list', '--sort', '--json'], "cospec list: '--sort' is not supported yet\n"],
+    [['init', '--language', '--help'], "cospec init: '--language' is not supported yet\n"],
+    [['init', '--language', '--json'], "cospec init: '--language' is not supported yet\n"],
     [['validate', '--type', '--store'], "cospec validate: '--type' is not supported yet\n"],
     // Upstream's program level takes `--no-color` out first, wherever it sits
     // before the first `--`: the flag takes the next token or has none.
-    [['list', '--sort', '--no-color'], "cospec list: option '--sort <order>' argument missing\n"],
-    [['list', '--sort', '--no-color', 'x'], "cospec list: '--sort' is not supported yet\n"],
+    [
+      ['init', '--language', '--no-color'],
+      "cospec init: option '--language <language>' argument missing\n",
+    ],
+    [['init', '--language', '--no-color', 'x'], "cospec init: '--language' is not supported yet\n"],
     [['list', '--store', '--no-color'], "cospec list: option '--store <id>' argument missing\n"],
     // Past a `--` taken as a value the program level has stopped: both tokens
     // are the command's unknown options.
