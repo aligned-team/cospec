@@ -157,7 +157,10 @@ against the pinned binary run under Bun in a sandboxed HOME:
   - An ambiguous `validate` name is refused, and an unknown one prints the
     binary's message.
   - A namespace folder makes `status --change` and `status --all` exit 1 and
-    `validate` fail.
+    `validate` fail. `validate`, `apply` and `archive` (which share
+    `validateChange`) now report it as `meta/nested-change`, not
+    `meta/openspec-yaml` — a script grepping the old rule id for this case needs
+    the new one.
   - `status --json` on a schema cospec doesn't type exits 1 when the binary
     does.
   - `status` types a change directory without `.openspec.yaml` by `config.yaml`.

@@ -165,7 +165,7 @@ Co-Authored-By trailer, never `--no-verify`).
 
 ## 10. Close-out
 
-- [ ] 10.1 Record observed evidence on every verification row, confirm zero
+- [x] 10.1 Record observed evidence on every verification row, confirm zero
       `test.todo`/`test.failing` in `cli-surface.test.ts` (row 14.1), the
       pending count 7 → 0 (row 2.1), the BREAKING list (row 14.3),
       `validate --all --strict` (row 14.2) and `mise run check` (row 14.4).
