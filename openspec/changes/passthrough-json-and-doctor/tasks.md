@@ -403,8 +403,13 @@ every prior CI run of this branch, including its own pre-rebase tip (`69e454c`)
       machine with either installed takes a path-free prompt instead, so the gap
       was invisible locally; commit
       `fix(cli): normalize root paths in the read-only-cache pty comparison`
-- [ ] 16.2 Fix the other four `ci-bun` failures (two Ctrl-D-cancellation
-      timeouts, two more read-only-cache timeouts): `util-linux script`'s relay
-      of Ctrl-D into a raw-mode child pty on Linux — see verification 16.2 for
-      the isolated evidence. Not fixed in this session; blocks archive until
-      resolved or explicitly waived with `--force-incomplete`.
+- [x] 16.2 Fix the other four `ci-bun` failures (two Ctrl-D-cancellation
+      timeouts, two more read-only-cache timeouts): drive the pty rows through
+      `Bun.spawn`'s `terminal` option instead of `script`, whose util-linux
+      build never delivers the ended stdin to a raw-mode child; commit
+      `test(cli): press real keys at pty prompts through Bun's own terminal`
+- [x] 16.3 Probe what the binary under Node and cospec do per real user action
+      (Ctrl-C, Ctrl-D, hangup, non-TTY EOF) on macOS and in a Linux container;
+      pin Ctrl-C and Ctrl-D (both platform-stable), leave hangup unpinned (the
+      binary differs per OS), and describe it in design D15 and the docs
+      (verification 16.4, 16.5)

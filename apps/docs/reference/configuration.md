@@ -229,14 +229,15 @@ prototype-pollution guard as OpenSpec answers, its remedies spelled `cospec`
   either way. Pass `-y` to reset from a script. `edit` has no non-interactive
   branch and always hands over.
 
-A prompt given no input — Ctrl-D at a handed-over prompt, or an ended pipe — is
-cancelled as OpenSpec cancels it under Node: its cancellation line
-(`Reset cancelled.`, `Config profile cancelled.`) and exit `130`. OpenSpec runs
-under cospec's own runtime, so cospec runs it behind a small preload that
-delivers the exit notice OpenSpec's prompts listen for; cospec writes that file
-to its cache (`${XDG_CACHE_HOME:-~/.cache}/cospec`), or — when it cannot write
-there — to a directory of its own under the system temp directory, removed when
-cospec exits, so a read-only cache never stops a prompt.
+A prompt you cancel — Ctrl-C or Ctrl-D at a handed-over prompt — or one given no
+input at all (an ended pipe) is cancelled as OpenSpec cancels it under Node: its
+cancellation line (`Reset cancelled.`, `Config profile cancelled.`) and exit
+`130`. OpenSpec runs under cospec's own runtime, so cospec runs it behind a
+small preload that delivers the exit notice OpenSpec's prompts listen for when
+their input closes (Ctrl-D, an ended pipe); cospec writes that file to its cache
+(`${XDG_CACHE_HOME:-~/.cache}/cospec`), or — when it cannot write there — to a
+directory of its own under the system temp directory, removed when cospec exits,
+so a read-only cache never stops a prompt.
 
 `--scope` is a parent-level option (not `--store` — OpenSpec config is
 machine-global, so `cospec config` never resolves a root or threads

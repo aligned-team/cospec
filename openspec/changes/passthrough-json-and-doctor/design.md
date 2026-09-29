@@ -389,7 +389,26 @@ signal-exit's `exit` once on its process-wide emitter
 immediate so the rejection's handlers run; the child then prints the binary's
 own cancellation line and exits 130, the binary's answer, which the handover
 propagates verbatim. The compiled binary's runtime honours `--preload` under
-`BUN_BE_BUN=1`; the standalone smoke asserts it on the embedded bundle.
+`BUN_BE_BUN=1`; the standalone smoke asserts it on the embedded bundle. On a
+terminal a user cancels a prompt with a key, and the two keys take different
+paths. Ctrl-D reaches the prompt as a keypress (inquirer runs the terminal raw),
+and readline closes on it — the closed-input path above, which only the preload
+answers under Bun (the binary under bare Bun exits 0 printing only the prompt;
+with the preload 130 and its cancellation line). Ctrl-C is inquirer's own
+`SIGINT` handler, which rejects the prompt directly and needs no preload (130
+and the cancellation line under bare Bun too). Probed on macOS and in an
+ubuntu-24.04 container (Node 22.23.2, Bun 1.3.14), the binary under Node answers
+both keys the same on both OSes — 130 and `Reset cancelled.`,
+`Config profile cancelled.`, or `workset open`'s `Cancelled.` — and cospec
+matches on every leaf; the contract suite pins both keys against it (ledger
+16.2). A terminal hangup (the terminal's master closed) is not pinned: the
+binary under Node dies of `SIGHUP` (129) on macOS but crashes with an unhandled
+`setRawMode EIO` (exit 1) on Linux, an answer with no single behaviour to match;
+cospec's child dies of `SIGHUP` on both. The pty rows drive a real terminal
+through `Bun.spawn`'s `terminal` option (the pinned Bun, no new dependency,
+POSIX runners alike) and press each key only once its prompt is drawn: typed
+ahead, the terminal is still canonical and its line discipline answers the byte
+itself.
 
 ## Risks / Trade-offs
 

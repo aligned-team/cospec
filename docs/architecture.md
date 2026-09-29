@@ -410,7 +410,12 @@ natively and drains no microtask an exit listener queues, so without the preload
 the prompt is never rejected and the child exits 0. The preload emits
 signal-exit's `exit` once from `beforeExit` and turns the loop once more, so the
 binary's own catch prints its cancellation line and exits `130`, as it does
-under Node.
+under Node. At a handed-over prompt Ctrl-D is that closed input (readline closes
+on the keypress); Ctrl-C is inquirer's own `SIGINT` handler, which cancels the
+prompt under Bun without the preload. The contract suite pins both keys against
+the binary under Node on a real pseudo-terminal (`Bun.spawn`'s `terminal`
+option, `test/contract/support/pty.ts`), on macOS and Linux alike; a terminal
+hangup is left unpinned, as the binary answers it differently per OS.
 
 What the binary can still print naming a bare `openspec` command after all that
 is the residual of a live interactive session, on the terminal it was handed:
