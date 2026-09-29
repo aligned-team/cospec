@@ -45,7 +45,7 @@ Co-Authored-By trailer, never `--no-verify`).
       `meta/item-missing` issue builders to `meta.ts`, each unit-tested for
       level, path and message. Commit
       `feat(validate): add the nested-change, unreadable and missing-item rules`
-- [ ] 3.3 Export `userSchemasDir` from `change-metadata.ts`, and make
+- [x] 3.3 Export `userSchemasDir` from `change-metadata.ts`, and make
       `resolveSchema` (`change.ts`) and `new.ts` import it (design D8). Verify
       with the unit row 10.1 and the flipped contract row 10.2. Commit
       `fix(cli): classify user schemas from the directory OpenSpec reads`

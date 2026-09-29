@@ -18,7 +18,6 @@ import {
   cospecSchemaInstalled,
   run as newRun,
   slugify,
-  userSchemasDir,
   wrappedNewReason,
 } from '../../../src/commands/new.ts'
 import {
@@ -28,6 +27,7 @@ import {
   run as statusRun,
 } from '../../../src/commands/status.ts'
 import { run as validateRun } from '../../../src/commands/validate.ts'
+import { userSchemasDir } from '../../../src/core/change-metadata.ts'
 import { commandRow, parseCommandArgs } from '../../../src/core/command-table.ts'
 import { withEmptyMachineState } from '../../fixtures/support.ts'
 import {
