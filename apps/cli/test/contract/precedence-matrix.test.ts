@@ -598,6 +598,7 @@ const VALUE_POSITION_ROWS: readonly Row[] = [
   { argv: ['init', '--language', '--help'], command: 'init', check: nothingWritten },
   { argv: ['validate', '--concurrency', '--help'], command: 'validate' },
   { argv: ['validate', '--type', '--json'], command: 'validate' },
+  { argv: ['status', '--schema', '--json'], command: 'status' },
   { argv: ['templates', '--schema', '--help'], command: 'templates' },
   { argv: ['templates', '--schema', '--json'], command: 'templates' },
   { argv: ['show', 'c1', '--type', '--help'], command: 'show' },
@@ -622,12 +623,6 @@ const VALUE_POSITION_ROWS: readonly Row[] = [
     command: 'list',
     cospecOnly: { outcome: 'parsed', exit: 1 },
     cospecStderr: "cospec list: '--sort' is not supported yet\n",
-  },
-  {
-    argv: ['status', '--schema', '--json'],
-    command: 'status',
-    cospecOnly: { outcome: 'parsed', exit: 1 },
-    cospecStderr: "cospec status: '--schema' is not supported yet\n",
   },
   // Every other declared value-taking flag, table and forward rows alike.
   { argv: ['feedback', '--body', '--help'], command: 'feedback' },

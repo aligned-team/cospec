@@ -65,7 +65,7 @@ Co-Authored-By trailer, never `--no-verify`).
       merged `--json` entry and the binary's exit code. Flip rows 5.1–5.4 and
       5.6. Commit
       `feat(status): render schemas cospec does not type from OpenSpec's status`
-- [ ] 4.4 Accept `--schema` as an override, forwarded and checked as the binary
+- [x] 4.4 Accept `--schema` as an override, forwarded and checked as the binary
       checks it. Move it from pending to handled in `command-table.ts` and
       delete its `parity-pending.yaml` entry in this commit. Flip row 5.5.
       Commit `feat(status): accept --schema as OpenSpec's schema override`

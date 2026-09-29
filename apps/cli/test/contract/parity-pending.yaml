@@ -18,7 +18,6 @@
 
 # --- cli-surface-parity -----------------------------------------------------------
 - { kind: flag, path: [list], flag: --sort, owner: cli-surface-parity }
-- { kind: flag, path: [status], flag: --schema, owner: cli-surface-parity }
 - { kind: flag, path: [validate], flag: --type, owner: cli-surface-parity }
 - { kind: flag, path: [validate], flag: --report, owner: cli-surface-parity }
 - { kind: flag, path: [validate], flag: --concurrency, owner: cli-surface-parity }

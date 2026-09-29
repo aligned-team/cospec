@@ -10,6 +10,7 @@ import { join } from 'node:path'
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
+import { schemaDir } from '../core/change-metadata.ts'
 import {
   isCospecType,
   listChanges,
@@ -255,13 +256,39 @@ export interface ChangeEntryFailure {
 }
 
 /**
- * The change as status grades it (design D4): a directory with no
- * `.openspec.yaml` takes its schema as the binary does — the root's
- * `config.yaml` `schema:`, else `spec-driven` — at `schemaVersion` 1.
+ * The change as status grades it (design D4): `--schema` overrides its schema,
+ * as the binary's does; a directory with no `.openspec.yaml` takes its schema
+ * as the binary does — the root's `config.yaml` `schema:`, else
+ * `spec-driven` — at `schemaVersion` 1.
  */
-function gradedChange(base: string, change: Change): Change {
-  if (existsSync(join(change.dir, '.openspec.yaml'))) return change
-  return { ...change, schema: projectConfigSchema(base) ?? 'spec-driven', schemaVersion: 1 }
+function gradedChange(base: string, change: Change, override: string | undefined): Change {
+  const bare = !existsSync(join(change.dir, '.openspec.yaml'))
+  const schema = override ?? (bare ? (projectConfigSchema(base) ?? 'spec-driven') : change.schema)
+  return bare ? { ...change, schema, schemaVersion: 1 } : { ...change, schema }
+}
+
+/** `--schema <name>` as the binary forwards it, or nothing. */
+function schemaArgs(override: string | undefined): string[] {
+  return override === undefined ? [] : ['--schema', override]
+}
+
+/**
+ * The binary's refusal of an unknown `--schema` (its `validateSchemaExists`,
+ * project, user and package tiers), from a delegated `--json` call so the
+ * list of available schemas is the binary's: its document under `--json`,
+ * its message on stderr otherwise, exit 1.
+ */
+async function refuseUnknownSchema(
+  root: ResolvedRoot,
+  args: string[],
+  json: boolean,
+): Promise<number> {
+  const doc = await delegatedStatus(root, args)
+  if (json) process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`)
+  else
+    for (const s of upstreamFailure(doc) ?? [])
+      process.stderr.write(`cospec status: ${s.message}\n`)
+  return EXIT.failure
 }
 
 /** Whether the binary's status for this change must answer it (a schema cospec doesn't type). */
@@ -391,17 +418,20 @@ function sweepEntries(doc: Record<string, unknown>): Map<string, Record<string, 
  * only when an entry needs it: under `--json`, or for a change on a schema
  * cospec doesn't type.
  */
-async function runAll(ctx: CommandContext): Promise<number> {
+async function runAll(ctx: CommandContext, override: string | undefined): Promise<number> {
   const { flags } = ctx
   const root = await resolveRoot(ctx)
   const base = root.base
+  // Checked before any change is enumerated, as the binary checks it.
+  if (override !== undefined && schemaDir(override, base) === undefined)
+    return refuseUnknownSchema(root, ['--all', ...schemaArgs(override)], flags.json)
   const changes = listChanges(base)
     .toSorted((a, b) => a.id.localeCompare(b.id))
-    .map((change) => gradedChange(base, change))
+    .map((change) => gradedChange(base, change, override))
 
   const upstream =
     flags.json || changes.some(answeredUpstream)
-      ? await delegatedStatus(root, ['--all'])
+      ? await delegatedStatus(root, ['--all', ...schemaArgs(override)])
       : undefined
   const byName = upstream === undefined ? new Map() : sweepEntries(upstream)
 
@@ -538,6 +568,8 @@ function mergedEntry(
 export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
   const parsed = ctx.parsed!
+  // A schema override, as the binary's `--schema` is — never a filter.
+  const override = flagValue(parsed, '--schema')
 
   // A positional beside `--change` or `--all` never gets here: the table
   // refuses it as an excess argument, as upstream (which has none) does.
@@ -556,7 +588,7 @@ export async function run(ctx: CommandContext): Promise<number> {
       }
       return EXIT.failure
     }
-    return runAll(ctx)
+    return runAll(ctx, override)
   }
 
   const root = await resolveRoot(ctx)
@@ -599,12 +631,20 @@ export async function run(ctx: CommandContext): Promise<number> {
     if (suggestion !== undefined) process.stderr.write(`Did you mean '${suggestion}'?\n`)
     return EXIT.failure
   }
-  const change = gradedChange(base, found)
+  // Checked after the change resolves and before it is reported, as the
+  // binary checks it; with neither `--change` nor `--all` it is not checked.
+  if (
+    override !== undefined &&
+    flagValue(parsed, '--change') !== undefined &&
+    schemaDir(override, base) === undefined
+  )
+    return refuseUnknownSchema(root, ['--change', found.id, ...schemaArgs(override)], flags.json)
+  const change = gradedChange(base, found, override)
 
   // A schema cospec doesn't type: the binary's own status answers it, in
   // both modes, with the binary's outcome.
   if (answeredUpstream(change)) {
-    const upstream = await delegatedStatus(root, ['--change', change.id])
+    const upstream = await delegatedStatus(root, ['--change', change.id, ...schemaArgs(override)])
     const failure = upstreamFailure(upstream)
     const entry = legacyChangeEntry(change, upstream)
     if (flags.json) {
@@ -627,7 +667,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     )
     return EXIT.success
   }
-  const upstream = await delegatedStatus(root, ['--change', change.id])
+  const upstream = await delegatedStatus(root, ['--change', change.id, ...schemaArgs(override)])
   process.stdout.write(`${JSON.stringify(mergedEntry(root, { ...entry }, upstream), null, 2)}\n`)
   return EXIT.success
 }

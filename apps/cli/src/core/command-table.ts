@@ -531,7 +531,6 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         takesValue: true,
         placeholder: '<name>',
         description: 'Schema override',
-        status: pending('cli-surface-parity'),
       }),
     ],
   },

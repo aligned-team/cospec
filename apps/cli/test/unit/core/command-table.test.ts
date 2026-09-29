@@ -87,9 +87,9 @@ describe('parseCommandArgs — the six ledger 1.5 cases', () => {
       surface: '--language',
     })
     expect(refused('init', ['--language=fr'])).toMatchObject({ kind: 'pending' })
-    expect(refused('status', ['--schema', 'custom'])).toMatchObject({
+    expect(refused('init', ['--profile', 'custom'])).toMatchObject({
       kind: 'pending',
-      surface: '--schema',
+      surface: '--profile',
     })
   })
 
@@ -331,7 +331,6 @@ const EXPECTED_PENDING: [string, string, PendingOwner][] = [
   ['validate', '--type', 'cli-surface-parity'],
   ['validate', '--report', 'cli-surface-parity'],
   ['validate', '--concurrency', 'cli-surface-parity'],
-  ['status', '--schema', 'cli-surface-parity'],
   ['list', '--sort', 'cli-surface-parity'],
   ['archive', '--no-validate', 'archive-and-sync-parity'],
   ['completion', 'install', 'completion-install'],
@@ -381,7 +380,6 @@ describe('pending surfaces', () => {
     'validate --type': ['--type', 'change', 'x'],
     'validate --report': ['--report', 'full'],
     'validate --concurrency': ['--concurrency', '4'],
-    'status --schema': ['--schema', 'custom'],
     'list --sort': ['--sort', 'name'],
     'archive --no-validate': ['c', '--no-validate'],
     'completion install': ['install', 'zsh', '--verbose'],
