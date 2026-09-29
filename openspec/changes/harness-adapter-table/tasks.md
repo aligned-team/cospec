@@ -1,6 +1,6 @@
 # Tasks
 
-<!-- Each task ends in one commit. Groups 1 to 4 start now; group 5 waits for the three changes named in blocking-changes.md "Phase Gates". The archive is the branch's final commit, after 7.1. -->
+<!-- Each task ends in one commit. Groups 1 to 4 start now; group 5 waited for the three changes now recorded under blocking-changes.md "Blocked by". The archive is the branch's final commit, after 7.1. -->
 
 ## 1. Track T4 (before): baseline on unmodified code
 
@@ -172,11 +172,19 @@ characterization baseline on the rebased, unmodified tree (5.2), then implement
 T3 (5.3 to 5.5), then compare against that baseline (5.6). The baseline is never
 re-taken after any T3 edit.
 
-- [ ] 5.1 Rebase the branch onto `main` (`--force-with-lease`). Record the three
+- [x] 5.1 Rebase the branch onto `main` (`--force-with-lease`). Record the three
       changes under `## Blocked by` in `blocking-changes.md` as checked,
       archived entries, and run `mise run cospec -- sync-blockers`. Commit;
       verify verification 4.4 and 5.1 pass and the group 1.1 render golden test
-      is still green on the rebased tree
+      is still green on the rebased tree -> rebased onto `main` d25c5c0 with 0
+      conflicts (`git diff origin/main -- apps/cli/src/commands/` empty after
+      it);
+      `env -u FORCE_COLOR -u NO_COLOR -u COLORTERM -u CLICOLOR mise run check`
+      green on the rebased tree (unit 1848, integration 184, contract 2397,
+      bench 339, release-test 14) and pushed `--force-with-lease`; the three
+      changes recorded under `## Blocked by`, `sync-blockers` reports the change
+      fully unblocked; verification 4.4 and 5.1 observed;
+      `harness-render.test.ts` 15 pass on the rebased tree
 - [ ] 5.2 Before editing any command file, re-take the wiring characterization
       on the rebased tree: run `harness-wiring.test.ts` under
       `COSPEC_GOLDEN_WRITE=1`, and record the built binary's
