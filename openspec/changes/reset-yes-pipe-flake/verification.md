@@ -5,16 +5,17 @@ plus Node 22) over a copy of the worktree, HOME/XDG\_\* sandboxed.
 
 ## 1. A `yes |` reset relays the binary's answer [critical]
 
-- [ ] 1.1 @regression (agent) the contract row `yes | cospec config reset --all: as the binary answers` looped 20× in the Linux container -> before: fails a share of runs with `printed no answer line after its prompt`, exit 1; after: 0/20
-- [ ] 1.2 @regression (agent) `handover-preload.test.ts` mechanism row: a Bun child under the preload backlogs a piped stdout, then `console.log`s its answer, 20 times -> before (preload of `d25c5c0`): the answer is lost in some runs on Linux; after: present at the end of every run
-- [ ] 1.3 @runtime (agent) instrumented wrapped call in the container (copy only) -> failing runs show config reset, exit 0, and no `Configuration reset to defaults` anywhere in stdout
-- [ ] 1.4 @integration (agent) the same row looped 20× on macOS -> 0/20 before and after
+- [x] 1.1 @regression (agent) the contract row `yes | cospec config reset --all: as the binary answers` looped 20× in the Linux container -> before: fails a share of runs with `printed no answer line after its prompt`, exit 1; after: 0/20 -> observed: before, three 20-run loops on `d25c5c0` failed 3/20, 12/20 and 6/20 (a fourth, instrumented, 4/20) with exactly the #58 message; after, two 20-run loops 0/20 and 0/20 (`bun test test/contract/handover-prevalidation.test.ts -t 'yes \| cospec config reset --all'`, container `oven/bun:1.3.14` + Node 22.23.3, Linux arm64)
+- [x] 1.2 @regression (agent) `handover-preload.test.ts` mechanism row: a Bun child under the preload backlogs a piped stdout, then `console.log`s its answer, 20 times -> before (preload of `d25c5c0`): the answer is lost in some runs on Linux; after: present at the end of every run -> observed: with the new row and the old preload the container run fails (several of 20 runs end in a redraw, no answer line); with the fix 20/20 end `answer line\n` / `failure line\n`; macOS passes both (it never loses the line, as it never flaked)
+- [x] 1.3 @runtime (agent) instrumented wrapped call in the container (copy only) -> failing runs show config reset, exit 0, and no `Configuration reset to defaults` anywhere in stdout -> observed: 20 runs, 16 with the answer as the last line, 4 with exit 0, the config reset, and the answer absent from all of stdout (`indexOf` −1), stdout ending `\n\e[G\e[?25h`; a bare Bun child writing 20000 redraws then `console.log` lost it 13/20 (none with the routed preload: 0/20)
+- [x] 1.4 @integration (agent) the same row looped 20× on macOS -> 0/20 before and after -> observed: 0/20 before on `d25c5c0`; after, the whole `handover-prevalidation.test.ts` plus `handover-preload.test.ts` pass (71 pass, 0 fail)
 
 ## 2. The post-condition observes the answer
 
-- [ ] 2.1 @integration (agent) full `handover-prevalidation.test.ts` (every piped reset row, the read-only-cache rows, the pty handover rows) on macOS and in the container -> all pass
-- [ ] 2.2 @unit (agent) `env -u FORCE_COLOR -u NO_COLOR -u COLORTERM -u CLICOLOR mise run check` -> green
+- [x] 2.1 @integration (agent) full `handover-prevalidation.test.ts` (every piped reset row, the read-only-cache rows, the pty handover rows) on macOS and in the container -> all pass -> observed: macOS 71 pass, 0 fail; container 65 pass, 6 skip (root-only skips), 0 fail
+- [x] 2.2 @regression (agent) `json-envelope.test.ts` rows: a piped reset whose stdout ends in its answer line is relayed; one ending in only redraws, or a redraw and a newline, is refused -> observed: 33 pass, 0 fail; with the old post-condition the `a redraw and a newline` row fails (it relayed a reset with no answer line)
+- [x] 2.3 @unit (agent) `env -u FORCE_COLOR -u NO_COLOR -u COLORTERM -u CLICOLOR mise run check` -> green -> observed: exit 0 (format, lint, typecheck, drift, agents, schema; unit 1797 pass, integration 167 pass, contract 2397 pass, bench 339 pass, release-test 14 pass; 0 fail) on macOS arm64, `NODE_OPTIONS` unset
 
 ## 3. Docs
 
-- [ ] 3.1 @manual (agent) `docs/architecture.md` and `apps/docs/reference/configuration.md` describe the preload's console routing -> updated in this change
+- [x] 3.1 @manual (agent) `docs/architecture.md` and `apps/docs/reference/configuration.md` describe the preload's console routing -> updated in this change -> observed: `docs/architecture.md` (handover preload paragraph: console routing and the reset post-condition) and `apps/docs/reference/configuration.md` (the preload's output routing) updated; `mise run docs:build` completes

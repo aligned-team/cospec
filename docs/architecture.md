@@ -410,12 +410,22 @@ natively and drains no microtask an exit listener queues, so without the preload
 the prompt is never rejected and the child exits 0. The preload emits
 signal-exit's `exit` once from `beforeExit` and turns the loop once more, so the
 binary's own catch prints its cancellation line and exits `130`, as it does
-under Node. At a handed-over prompt Ctrl-D is that closed input (readline closes
-on the keypress); Ctrl-C is inquirer's own `SIGINT` handler, which cancels the
-prompt under Bun without the preload. The contract suite pins both keys against
-the binary under Node on a real pseudo-terminal (`Bun.spawn`'s `terminal`
-option, `test/contract/support/pty.ts`), on macOS and Linux alike; a terminal
-hangup is left unpinned, as the binary answers it differently per OS.
+under Node. Bun's console also writes past `process.stdout`'s queue: once the
+confirm's redraws (one per answer read — thousands under `yes |`) have
+backlogged a pipe, a line the binary then prints with `console.log` is lost at
+exit on Linux while the stream's queued output arrives, so a piped reset would
+reset and print no answer line. The preload routes `console.log` and
+`console.error` through `process.stdout`/`process.stderr` (formatted by
+`node:util` `format`), as Node's console writes, so every line arrives in order.
+The piped reset's post-condition is the binary's answer itself: its stdout's
+last line, cursor escapes removed, is `Configuration reset to defaults` or
+`Reset cancelled.` (exit 0 or 130), or its stderr is non-empty (exit 1). At a
+handed-over prompt Ctrl-D is that closed input (readline closes on the
+keypress); Ctrl-C is inquirer's own `SIGINT` handler, which cancels the prompt
+under Bun without the preload. The contract suite pins both keys against the
+binary under Node on a real pseudo-terminal (`Bun.spawn`'s `terminal` option,
+`test/contract/support/pty.ts`), on macOS and Linux alike; a terminal hangup is
+left unpinned, as the binary answers it differently per OS.
 
 What the binary can still print naming a bare `openspec` command after all that
 is the residual of a live interactive session, on the terminal it was handed:

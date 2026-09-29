@@ -18,6 +18,16 @@
 // `beforeExit` listener queues either, unless the loop turns again, so the
 // preload schedules one empty immediate: the rejected prompt's handlers run,
 // and the process exits as the binary then leaves it.
+//
+// Bun's console also writes past `process.stdout`'s queue, straight to the fd.
+// inquirer draws its prompt through `process.stdout`, once per answer it reads
+// (a `yes` feeder makes thousands of redraws); once that output has backlogged
+// a pipe, the stream queues and flushes it before exit, but a line the binary
+// then prints with `console.log` — its answer — is lost (on Linux), so the
+// piped `config reset --all` reset the config and relayed no answer line. Node's
+// console writes through the process streams; the preload routes Bun's
+// `console.log`/`console.error` through them the same way, formatted by
+// `node:util` `format` as Node's console formats them.
 
 import { createHash } from 'node:crypto'
 import {
@@ -36,6 +46,13 @@ import { cacheRoot } from './openspec-embedded.ts'
 
 /** The preload's source: plain JavaScript, run by the child's Bun before the binary. */
 export const HANDOVER_PRELOAD_SOURCE = `// cospec: answer a closed prompt input as the binary does under Node.
+import { format } from 'node:util'
+console.log = (...args) => {
+  process.stdout.write(format(...args) + '\\n')
+}
+console.error = (...args) => {
+  process.stderr.write(format(...args) + '\\n')
+}
 let emitted = false
 process.on('beforeExit', (code) => {
   const emitter = globalThis[Symbol.for('signal-exit emitter')]
