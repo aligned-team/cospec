@@ -81,7 +81,10 @@ export interface OracleSpec {
 export interface OracleResult {
   /** One line per defect, each naming the offending path. */
   readonly failures: string[]
-  /** Array paths the binary's document left empty, so a row can prove its fixture exercises them. */
+  /**
+   * Array paths the binary's document left empty in every instance, so a row
+   * can prove its fixture exercises at least one entry of each array.
+   */
   readonly emptyArrays: string[]
 }
 
@@ -193,7 +196,8 @@ export function compareDocuments(
 ): OracleResult {
   const c = compile(spec)
   const failures: string[] = []
-  const emptyArrays: string[] = []
+  const empty = new Set<string>()
+  const filled = new Set<string>()
 
   const walk = (
     up: unknown,
@@ -241,7 +245,8 @@ export function compareDocuments(
     }
     if (Array.isArray(up) && Array.isArray(cs)) {
       const elementPath = [...path, '[]']
-      if (up.length === 0) emptyArrays.push(render(path))
+      if (up.length === 0) empty.add(render(path))
+      else filled.add(render(path))
       const identity = identityFor(c, elementPath)
       const hasRespelled = c.respelled.some((p) => matches(p, elementPath))
       if (identity === undefined && !hasRespelled) {
@@ -279,7 +284,7 @@ export function compareDocuments(
   }
 
   walk(upstream, cospec, [], {})
-  return { failures, emptyArrays }
+  return { failures, emptyArrays: [...empty].filter((p) => !filled.has(p)) }
 }
 
 /**

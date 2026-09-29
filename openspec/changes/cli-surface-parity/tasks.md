@@ -69,7 +69,7 @@ Co-Authored-By trailer, never `--no-verify`).
       checks it. Move it from pending to handled in `command-table.ts` and
       delete its `parity-pending.yaml` entry in this commit. Flip row 5.5.
       Commit `feat(status): accept --schema as OpenSpec's schema override`
-- [ ] 4.5 Wire the detector (refusal and sweep failure entry), the
+- [x] 4.5 Wire the detector (refusal and sweep failure entry), the
       unreadable-archive warning with the empty-index gate, and `change_error`
       for other read failures and raw resolver failures (design D4, D10). Flip
       rows 4.1, 4.2, the status parts of 6.2, 6.3, 8.1 and 8.4. Commit

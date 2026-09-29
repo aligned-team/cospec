@@ -494,7 +494,8 @@ describe('table shape', () => {
   })
 
   test('a table row refuses --store exactly when its module never reads it', () => {
-    const readsStore = /\bresolveRoot\(|\brunPassthrough\(|\bcallPassthrough\(|flags\.store\b/
+    const readsStore =
+      /\bresolveRoot(?:OrDocument)?\(|\brunPassthrough\(|\bcallPassthrough\(|flags\.store\b/
     for (const row of COMMAND_TABLE) {
       if (row.parse !== 'table') continue
       const file = row.name === '__complete' ? 'complete' : row.name
