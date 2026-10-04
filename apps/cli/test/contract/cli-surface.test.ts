@@ -1675,40 +1675,37 @@ describe('15. round-2 review rows', () => {
     }
   })
 
-  test.failing(
-    '15.2 a hand-made change whose schema output a brace glob matches is a change',
-    async () => {
-      const root = cospecRoot('braced')
-      writeFiles(root, {
-        'openspec/schemas/braced/schema.yaml': [
-          'name: braced',
-          'version: 1',
-          'description: Outputs under rfc/',
-          'artifacts:',
-          '  - id: proposal',
-          "    generates: 'rfc/{proposal,design}*.md'",
-          '    description: The proposal',
-          '    template: t.md',
-          '    instruction: Write it.',
-          '    requires: []',
-          '',
-        ].join('\n'),
-        'openspec/schemas/braced/templates/t.md': '# t\n',
-        'openspec/changes/rfc-change/rfc/proposal.md': PROPOSAL,
-      })
-      const up = await upstreamJson(['list', '--json'], root)
-      const cs = await oursJson(['list', '--json'], root)
-      const upRow = rowsOf(up.json).find((r) => r.name === 'rfc-change')!
-      const row = rowsOf(cs.json).find((r) => r.change === 'rfc-change')!
-      expect(upRow.nested).toBeUndefined()
-      expect(row.state).not.toBe('not-a-change')
-      const validated = await oursJson(['validate', 'rfc-change', '--json'], root)
-      const rules = rowsOf(validated.json, 'items').flatMap((i) =>
-        (i.issues as Row[]).map((x) => x.rule),
-      )
-      expect(rules).not.toContain('meta/nested-change')
-    },
-  )
+  test('15.2 a hand-made change whose schema output a brace glob matches is a change', async () => {
+    const root = cospecRoot('braced')
+    writeFiles(root, {
+      'openspec/schemas/braced/schema.yaml': [
+        'name: braced',
+        'version: 1',
+        'description: Outputs under rfc/',
+        'artifacts:',
+        '  - id: proposal',
+        "    generates: 'rfc/{proposal,design}*.md'",
+        '    description: The proposal',
+        '    template: t.md',
+        '    instruction: Write it.',
+        '    requires: []',
+        '',
+      ].join('\n'),
+      'openspec/schemas/braced/templates/t.md': '# t\n',
+      'openspec/changes/rfc-change/rfc/proposal.md': PROPOSAL,
+    })
+    const up = await upstreamJson(['list', '--json'], root)
+    const cs = await oursJson(['list', '--json'], root)
+    const upRow = rowsOf(up.json).find((r) => r.name === 'rfc-change')!
+    const row = rowsOf(cs.json).find((r) => r.change === 'rfc-change')!
+    expect(upRow.nested).toBeUndefined()
+    expect(row.state).not.toBe('not-a-change')
+    const validated = await oursJson(['validate', 'rfc-change', '--json'], root)
+    const rules = rowsOf(validated.json, 'items').flatMap((i) =>
+      (i.issues as Row[]).map((x) => x.rule),
+    )
+    expect(rules).not.toContain('meta/nested-change')
+  })
 
   test.failing(
     "15.4 a custom schema's artifacts decide its status, singly and in the sweep",

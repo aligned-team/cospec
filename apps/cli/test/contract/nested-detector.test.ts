@@ -147,23 +147,10 @@ describe("the namespace-folder detector answers as the binary's findNestedChange
 
   for (const row of COSPEC_SCHEMAS) test(`cospec's ${row.name} schema`, () => compare(row))
 
-  for (const row of GLOB_SCHEMAS) {
-    const failing = [
-      'rfc-braces',
-      'rfc-extglob-at',
-      'rfc-extglob-negate',
-      'rfc-extglob-plus',
-      'rfc-extglob-qmark',
-      'notes-range',
-      'rfc-brace-globstar',
-    ].includes(row.name)
-    ;(failing ? test.failing : test)(
-      `a project schema generating ${CUSTOM_SCHEMAS[row.name]!.join(', ')}`,
-      () => compare(row),
-    )
-  }
+  for (const row of GLOB_SCHEMAS)
+    test(`a project schema generating ${CUSTOM_SCHEMAS[row.name]!.join(', ')}`, () => compare(row))
 
-  test.failing('no hand-made change holding only its schema output is reported as a folder', () => {
+  test('no hand-made change holding only its schema output is reported as a folder', () => {
     for (const row of [...PACKAGE_SCHEMAS, ...COSPEC_SCHEMAS, ...GLOB_SCHEMAS]) {
       const { root, names } = schemaRoot(row)
       const changesDir = join(root, 'openspec/changes')

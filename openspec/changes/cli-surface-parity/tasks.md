@@ -191,10 +191,13 @@ final commit.
       dot-directory, a linked capability) validates that file as the binary
       does, never an empty passing report. Verify with row 15.1. Commit
       `fix(validate): validate a forced spec that discovery skips`
-- [ ] 11.3 The namespace-folder detector matches `generates` with the binary's
-      glob semantics (fast-glob: braces, extglobs, negation) through a faithful
-      port in `core/glob.ts`, held to the pinned binary's modules. Verify with
-      rows 15.2 and 15.3. Commit
+- [x] 11.3 The namespace-folder detector matches `generates` with the binary's
+      glob semantics (fast-glob: braces, extglobs, negation) through
+      `core/glob.ts`, a line-for-line port of the binary's
+      `artifactOutputExists` over `fast-glob` pinned to the version the pinned
+      openspec resolves (embedded by `bun build --compile`, so the standalone
+      binary has it too), held to the pinned binary's modules. Verify with rows
+      15.2 and 15.3. Commit
       `fix(cli): match schema outputs with the binary's glob semantics`
 - [ ] 11.4 `packages/bench` `parseSchemaConformanceJson` returns null for a
       document with a `status[]` error or without `summary` or `items`. Verify

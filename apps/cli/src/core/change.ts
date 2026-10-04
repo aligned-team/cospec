@@ -1,9 +1,10 @@
 import { existsSync, readdirSync, readFileSync, statSync, type Dirent } from 'node:fs'
-import { isAbsolute, join, relative, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 
 import { parse as parseYaml } from 'yaml'
 
 import { loadSchema, userSchemasDir } from './change-metadata.ts'
+import { artifactOutputExists } from './glob.ts'
 import { openspecPackageDir } from './openspec.ts'
 
 /**
@@ -348,71 +349,6 @@ export function projectConfigSchema(base: string): string | undefined {
   return typeof schema === 'string' && schema.length > 0 ? schema : undefined
 }
 
-/** A `generates` pattern segment as a matcher; `**` spans any run of directories. */
-type GlobSegment = { any: true } | { any: false; raw: string; re: RegExp }
-
-function globSegments(pattern: string): GlobSegment[] {
-  return pattern.split('/').map((raw) => {
-    if (raw === '**') return { any: true }
-    let source = ''
-    for (let i = 0; i < raw.length; i++) {
-      const ch = raw[i]!
-      if (ch === '*') source += '[^/]*'
-      else if (ch === '?') source += '[^/]'
-      else if (ch === '[') {
-        const end = raw.indexOf(']', i + 1)
-        if (end === -1) source += '\\['
-        else {
-          source += `[${raw.slice(i + 1, end).replace(/\\/g, '\\\\')}]`
-          i = end
-        }
-      } else source += ch.replace(/[.+^${}()|\\]/g, '\\$&')
-    }
-    return { any: false, raw, re: new RegExp(`^${source}$`) }
-  })
-}
-
-/** Whether a file matching `segs[i..]` exists under `dir` (dot-entries only by an explicit dot). */
-function globHasFile(dir: string, segs: readonly GlobSegment[], i: number): boolean {
-  const seg = segs[i]
-  if (seg === undefined) return false
-  const last = i === segs.length - 1
-  const entries = entriesOrNone(dir).filter((e) => !e.name.startsWith('.'))
-  if (seg.any) {
-    if (last)
-      return entries.some(
-        (e) => isRegularFile(join(dir, e.name)) || globHasFile(join(dir, e.name), segs, i),
-      )
-    if (globHasFile(dir, segs, i + 1)) return true
-    return entries.some(
-      (e) => isDirectoryPath(join(dir, e.name)) && globHasFile(join(dir, e.name), segs, i),
-    )
-  }
-  const candidates = seg.raw.startsWith('.') ? entriesOrNone(dir) : entries
-  return candidates.some((e) => {
-    if (!seg.re.test(e.name)) return false
-    const path = join(dir, e.name)
-    return last ? isRegularFile(path) : isDirectoryPath(path) && globHasFile(path, segs, i + 1)
-  })
-}
-
-function isDirectoryPath(path: string): boolean {
-  try {
-    return statSync(path).isDirectory()
-  } catch {
-    return false
-  }
-}
-
-/** upstream's `artifactOutputExists(changeDir, generates)`, for a pattern inside the change. */
-function outputExists(changeDir: string, generates: string): boolean {
-  const target = resolve(changeDir, generates)
-  const rel = relative(changeDir, target)
-  if (rel.startsWith('..') || isAbsolute(rel)) return false
-  if (!/[*?[]/.test(generates)) return isRegularFile(target)
-  return globHasFile(changeDir, globSegments(generates.replace(/\\/g, '/')), 0)
-}
-
 /**
  * upstream's `hasSchemaOutput`: `dir` holds a file where the schema it resolves
  * to (its `.openspec.yaml`, else the root's `config.yaml`, else `spec-driven`)
@@ -429,7 +365,13 @@ function hasSchemaOutput(dir: string, projectRoot: string): boolean {
   } catch {
     return false
   }
-  return artifacts.some((artifact) => outputExists(dir, artifact.generates))
+  try {
+    return artifacts.some((artifact) => artifactOutputExists(dir, artifact.generates))
+  } catch {
+    // upstream's bare `catch`: an output it cannot resolve (one leaving the
+    // change, a linked directory cycle) gives no signal.
+    return false
+  }
 }
 
 /** upstream's `looksLikeChange`: a root marker, a populated `specs/`, or a schema output. */

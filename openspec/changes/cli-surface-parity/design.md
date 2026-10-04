@@ -145,7 +145,19 @@ returns the binary's sentence verbatim. That sentence names
    (its `.openspec.yaml` `schema:`, else `config.yaml` `schema:`, else
    `spec-driven`), across the project, user (D8) and package tiers. The signal
    is set when any artifact's `generates` glob matches a file. A schema that
-   can't be resolved gives no signal.
+   can't be resolved gives no signal. The match is the binary's own
+   `artifactOutputExists`, ported line for line in `core/glob.ts` (its
+   confinement checks and linked-cycle refusal included, each a throw that gives
+   no signal), over the binary's matcher: cospec pins `fast-glob` to the version
+   the pinned openspec resolves, so braces, numeric ranges, extglobs and
+   negation read as the binary reads them. `glob.test.ts` holds the version, the
+   brace expansions, the compiled regexes and the answers to the binary's
+   modules.
+
+   **Rejected:** loading fast-glob from the wrapped package's tree at run time
+   (a standalone install runs the embedded single-file bundle, with no tree to
+   load from), and re-implementing picomatch and braces by hand (a second
+   matcher to keep in step with the binary's).
 
 The guards follow the binary too: `hasOwnFile` means any non-dot, non-directory
 entry. Candidates skip `archive` and dot-names. The collect never descends into

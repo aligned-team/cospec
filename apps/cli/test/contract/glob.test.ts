@@ -1,11 +1,11 @@
-// `core/glob.ts`, cospec's port of the glob matching the pinned binary's
-// `artifactOutputExists` runs (fast-glob 3, micromatch 4, picomatch 2,
-// braces 3), held to those modules as the pinned package resolves them:
-// fast-glob's brace expansion, the regex fast-glob matches each pattern with
-// (under its own default settings' micromatch options), and the binary's
-// `artifactOutputExists` answer over one change directory. The port's surface
-// is `expandBraces(pattern)`, `makeRe(pattern)` and
-// `artifactOutputExists(changeDir, generates)`.
+// `core/glob.ts`, cospec's port of the pinned binary's `artifactOutputExists`
+// over the fast-glob cospec pins (fast-glob 3, micromatch 4, picomatch 2,
+// braces 3), held to those modules as the pinned package resolves them: the
+// same fast-glob version, fast-glob's brace expansion, the regex fast-glob
+// matches each pattern with (under its own default settings' micromatch
+// options), and the binary's `artifactOutputExists` answer over one change
+// directory. The port's surface is `expandBraces(pattern)`, `makeRe(pattern)`
+// and `artifactOutputExists(changeDir, generates)`.
 
 import { afterAll, describe, expect, test } from 'bun:test'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -136,7 +136,14 @@ function changeDir(files: readonly string[]): string {
 }
 
 describe("core/glob.ts answers as the pinned binary's glob modules", () => {
-  test.failing('every pattern expands its braces as fast-glob does', async () => {
+  test('cospec resolves the fast-glob the pinned binary resolves', () => {
+    const own = createRequire(PORT_MODULE)
+    const version = (req: NodeJS.Require) =>
+      (req(req.resolve('fast-glob/package.json')) as { version: string }).version
+    expect(version(own)).toBe(version(requireFromOpenspec))
+  })
+
+  test('every pattern expands its braces as fast-glob does', async () => {
     const { expandBraces } = await port()
     for (const pattern of PATTERNS)
       expect({ pattern, expanded: expandBraces(pattern) }).toEqual({
@@ -145,7 +152,7 @@ describe("core/glob.ts answers as the pinned binary's glob modules", () => {
       })
   })
 
-  test.failing("every pattern and each expansion compiles to fast-glob's regex", async () => {
+  test("every pattern and each expansion compiles to fast-glob's regex", async () => {
     const { makeRe } = await port()
     for (const pattern of new Set(
       PATTERNS.flatMap((p) => [p, ...fgPattern.expandBraceExpansion(p)]),
@@ -160,7 +167,7 @@ describe("core/glob.ts answers as the pinned binary's glob modules", () => {
     }
   })
 
-  test.failing("artifactOutputExists is the binary's over a populated change", async () => {
+  test("artifactOutputExists is the binary's over a populated change", async () => {
     const { artifactOutputExists } = await port()
     const dir = changeDir(FILES)
     for (const pattern of PATTERNS)
@@ -170,7 +177,7 @@ describe("core/glob.ts answers as the pinned binary's glob modules", () => {
       })
   })
 
-  test.failing("artifactOutputExists is the binary's with each file alone", async () => {
+  test("artifactOutputExists is the binary's with each file alone", async () => {
     const { artifactOutputExists } = await port()
     for (const file of FILES) {
       const dir = changeDir([file])
