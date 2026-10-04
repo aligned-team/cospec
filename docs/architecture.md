@@ -417,6 +417,11 @@ exit on Linux while the stream's queued output arrives, so a piped reset would
 reset and print no answer line. The preload routes `console.log` and
 `console.error` through `process.stdout`/`process.stderr` (formatted by
 `node:util` `format`), as Node's console writes, so every line arrives in order.
+Like Node's console, those writes ignore a stream whose reader has gone
+(`cospec workset open w1 | head -0`): the EPIPE arrives as the stream's `error`
+event, never thrown, so the preload holds a no-op `error` listener for each
+write (re-armed from its callback, as Node's console does) and the handover
+carries on and exits as the binary leaves it, instead of crashing with exit 1.
 The piped reset's post-condition is the binary's answer itself: its stdout's
 last line, cursor escapes removed, is `Configuration reset to defaults` or
 `Reset cancelled.` (exit 0 or 130), or its stderr is non-empty (exit 1). At a

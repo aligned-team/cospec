@@ -43,6 +43,16 @@ writes through `process.stdout`, so the binary under Node never loses it.
   shape for one command's symptom, and leaves handovers exposed); relaxing the
   post-condition (the row would still fail on the missing answer, and cospec
   would relay a reset with no answer line).
+- **The routed writes ignore a gone reader, as Node's console does.** A write to
+  a pipe whose reader has exited (`cospec workset open w1 | head -0`) fails with
+  EPIPE, delivered on Bun and Node alike as the stream's `error` event, never
+  thrown: with no listener it crashes the process (exit 1, Bun's crash report).
+  Node's console (`ignoreErrors`) holds a no-op `error` listener for each write
+  and re-arms it from the write's callback; Bun's native console ignores the
+  failure too. The preload's write does the same. Rejected: a `catch` narrowed
+  to `EPIPE` (unreachable — nothing is thrown); a listener that discriminates by
+  code (Node's console swallows every write error, so the binary under Node
+  never surfaces one either).
 - **Post-condition names the answer.** Exit 0/130: the last line of stdout,
   trimmed, is `Configuration reset to defaults` or `Reset cancelled.`. Exit 1:
   stderr non-empty. This is stronger than a trailing `\n` (a redraw ending in

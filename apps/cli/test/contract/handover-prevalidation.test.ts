@@ -14,7 +14,7 @@
 // the exit code and an empty stdout.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { chmodSync, cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { run } from '../../src/cli.ts'
@@ -416,6 +416,77 @@ describe('a prompt cancelled at the keyboard (Ctrl-C, Ctrl-D) is cancelled as th
         )
       }, 30_000)
     }
+})
+
+// --- a handover whose output reader has exited ----------------------------------------
+
+/**
+ * `cmd` on a terminal, through `sh`, with one output stream a pipe whose
+ * reader (`true`) exits at once — `cospec workset open w1 | head -0` — and the
+ * other stream, and `cmd`'s exit code (`[rc=N]`), on the terminal. stdin stays
+ * the terminal, so a handover leaf still hands over.
+ */
+function ptyClosed(
+  closed: 'stdout' | 'stderr',
+  cmd: string[],
+  root: string,
+  env: Record<string, string>,
+): Promise<PtyRun> {
+  const script =
+    closed === 'stdout'
+      ? '{ { "$@"; echo "[rc=$?]" >&3; } | true; } 3>&2'
+      : '{ { "$@" 2>&1 1>&3; echo "[rc=$?]" >&3; } | true; } 3>&1'
+  return ptyRun(['/bin/sh', '-c', script, 'sh', ...cmd], { cwd: root, env })
+}
+
+/** A saved workset `w1` whose first member folder is gone: `workset open` skips it on stderr. */
+async function saveWorksetMissingPrimary(root: string): Promise<void> {
+  const [gone, kept] = [join(root, 'gone'), join(root, 'member')]
+  for (const dir of [gone, kept]) mkdirSync(dir)
+  const created = await oracle(
+    ['workset', 'create', 'w1', '--member', gone, '--member', kept],
+    root,
+  )
+  expect(created.exitCode, detail(created)).toBe(0)
+  rmSync(gone, { recursive: true })
+}
+
+describe('a handover whose stdout or stderr reader has exited runs as the binary runs', () => {
+  // The binary under Node ignores a console write that fails because the
+  // stream's reader has gone (EPIPE): Node's console swallows it. Under Bun
+  // the preload routes the console through the process streams, so it must
+  // swallow it the same way, or the handover crashes (exit 1, Bun's crash
+  // report on the terminal) where the binary carries on.
+  const cases: [label: string, closed: 'stdout' | 'stderr', argv: string[], editor?: string][] = [
+    ['workset open w1 --tool code', 'stdout', ['workset', 'open', 'w1', '--tool', 'code']],
+    [
+      'workset open w1 --tool code, its primary skipped',
+      'stderr',
+      ['workset', 'open', 'w1', '--tool', 'code'],
+    ],
+    ['config edit, EDITOR=false', 'stderr', ['config', 'edit'], 'false'],
+  ]
+  for (const [label, closed, argv, editor] of cases)
+    test(`${label}, ${closed} closed`, async () => {
+      const [upRoot, coRoot] = [plainRoot(), plainRoot()]
+      const env = async (root: string): Promise<Record<string, string>> => {
+        if (editor !== undefined) return terminalEnv(root, { EDITOR: editor })
+        if (closed === 'stderr') await saveWorksetMissingPrimary(root)
+        else await saveWorkset(root)
+        return terminalEnv(root, { PATH: openerPath(root) })
+      }
+      const [upEnv, coEnv] = [await env(upRoot), await env(coRoot)]
+      const up = await ptyClosed(closed, [NODE, openspecBinPath(), ...argv], upRoot, {
+        ...upEnv,
+        OPENSPEC_NO_COMPLETIONS: '1',
+      })
+      const co = await ptyClosed(closed, [process.execPath, CLI_ENTRY, ...argv], coRoot, coEnv)
+      expect(terminalText(up.output), ptyDetail(up)).toContain(
+        `[rc=${argv[0] === 'config' ? 1 : 0}]`,
+      )
+      expect(co.exitCode, ptyDetail(co)).toBe(up.exitCode)
+      expect(terminalText(co.output), ptyDetail(co)).toBe(respellRemedies(terminalText(up.output)))
+    }, 30_000)
 })
 
 // --- review round 3: a cache directory cospec cannot write ----------------------------

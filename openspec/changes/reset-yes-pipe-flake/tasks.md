@@ -14,6 +14,9 @@
 - [x] 2.2 Make `resetPiped`'s post-condition require one of the binary's answer
       sentences as stdout's last line and verify the reset rows pass
 - [x] 2.3 Loop the contract row 20× in the container and verify 0/20 failures
+- [x] 2.4 Make the preload's console writes ignore a stream whose reader has
+      gone, as Node's console does, and verify the closed-stdout/stderr unit and
+      contract rows fail before and pass after
 
 ## 3. Docs and gate
 

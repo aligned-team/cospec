@@ -28,6 +28,16 @@
 // console writes through the process streams; the preload routes Bun's
 // `console.log`/`console.error` through them the same way, formatted by
 // `node:util` `format` as Node's console formats them.
+//
+// A write to a stream whose reader has gone (`… | head -0`, a closed pipe on
+// stdout or stderr) fails with EPIPE, delivered on both runtimes as the
+// stream's `error` event, never thrown — so no `catch` can see it, and with no
+// listener it crashes the process. Node's console (`ignoreErrors`, its default)
+// swallows it with a no-op `error` listener held for the write, re-armed from
+// the write's callback when the failure is reported before the event; Bun's
+// native console ignores it too. The preload's writes do the same, so a
+// handover whose output reader has exited carries on and exits as the binary
+// leaves it.
 
 import { createHash } from 'node:crypto'
 import {
@@ -47,12 +57,20 @@ import { cacheRoot } from './openspec-embedded.ts'
 /** The preload's source: plain JavaScript, run by the child's Bun before the binary. */
 export const HANDOVER_PRELOAD_SOURCE = `// cospec: answer a closed prompt input as the binary does under Node.
 import { format } from 'node:util'
-console.log = (...args) => {
-  process.stdout.write(format(...args) + '\\n')
+const ignore = () => {}
+const write = (stream, args) => {
+  try {
+    if (stream.listenerCount('error') === 0) stream.once('error', ignore)
+    stream.write(format(...args) + '\\n', (error) => {
+      if (error != null && !stream._writableState?.errorEmitted && stream.listenerCount('error') === 0)
+        stream.once('error', ignore)
+    })
+  } finally {
+    stream.removeListener('error', ignore)
+  }
 }
-console.error = (...args) => {
-  process.stderr.write(format(...args) + '\\n')
-}
+console.log = (...args) => write(process.stdout, args)
+console.error = (...args) => write(process.stderr, args)
 let emitted = false
 process.on('beforeExit', (code) => {
   const emitter = globalThis[Symbol.for('signal-exit emitter')]
