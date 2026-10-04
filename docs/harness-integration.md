@@ -30,27 +30,27 @@ commands root independent of it, filename template, extension, serializer,
 invocation prefix, body dialect, rules file, detection paths, legacy roots,
 setup note — is declared once, per tool, as a row of `HARNESS_TABLE` in
 `apps/cli/src/harness/adapters.ts`. `render.ts` reads the table, and so do
-`init` (the `--harness` value list, detection paths, leftover scan roots, setup
-notes), `update` (skills, legacy and rules-file roots for detection, the removal
-roots manifest keys are contained to, and the command extensions its orphan
-sweep matches in each commands dir) and `doctor` (scan roots, the row a file
-belongs to — the one whose primary root prefixes it, else whose skills root,
-commands dir or rules dir does — the invocation prefix its references are
-spelled with, and the skills and commands roots a reference resolves against).
-The table can express shapes no production row uses yet — a split commands root,
-`.prompt`/`.prompt.md`/ `.toml` extensions, the TOML serializer, the `@`
-invocation prefix, home-scoped skills — each exercised by a unit test through a
-fixture row passed via `RenderOptions.adapters` (or `GenerateOptions.adapters`,
-or doctor's `table` parameter). A new row is not yet the whole of a new tool;
-four things still sit outside the table. `init` merges cospec's permission into
-`.claude/settings.json` only when `claude` is selected, and selects `claude` on
-a fresh repo where nothing is detected; both are deliberate Claude-only
-behaviour. The init receipt's
-`skills for codex/agents share the .agents/skills root` line is keyed on those
-two ids, and doctor's harness scan reads only `.md` files, so a `.prompt` or
-`.toml` command gets no stale-version, dangling-reference or opsx check;
-`tool-matrix`, which adds the rows that need them, owns both. A TOML command
-carries no frontmatter, so, like the Codex rules file, it is tracked in
+`init` (the `--harness` value list, detection paths, leftover scan roots and the
+files the leftover scan reads, setup notes, and the receipt line naming the rows
+whose skills share one root), `update` (skills, legacy and rules-file roots for
+detection, the removal roots manifest keys are contained to, and the command
+extensions its orphan sweep matches in each commands dir) and `doctor` (scan
+roots, the files its frontmatter and reference checks read — each markdown row's
+commands by that row's extension under its commands dir, and the skill files
+under its skills roots — the row a file belongs to — the one whose primary root
+prefixes it, else whose skills root, commands dir or rules dir does — the
+invocation prefix its references are spelled with, and the skills and commands
+roots a reference resolves against). The table can express shapes no production
+row uses yet — a split commands root, `.prompt`/`.prompt.md`/ `.toml`
+extensions, the TOML serializer, the `@` invocation prefix, home-scoped skills —
+each exercised by a unit test through a fixture row passed via
+`RenderOptions.adapters` (or `GenerateOptions.adapters`, or the `table`
+parameter of doctor's checks and init's receipt and leftover helpers). Only
+deliberate Claude-only behaviour sits outside the table: `init` merges cospec's
+permission into `.claude/settings.json` only when `claude` is selected, selects
+`claude` on a fresh repo where nothing is detected, and closes its receipt with
+the `/cospec:propose` hint in Claude's spelling. A TOML command carries no
+frontmatter, so, like the Codex rules file, it is tracked in
 `openspec/.cospec-manifest.json`. A home-scoped file renders, but `generate()`
 refuses to write it with an internal error until the home root is a managed
 root.

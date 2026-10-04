@@ -129,6 +129,13 @@ All four have `invocationPrefix: '/'` and `requiresIdeRestart: false`, and each
   adds the home root to the managed roots).
 - Replacing the codex/agents rules-file tie-break with N-way arbitration:
   `tool-matrix`.
+- Moving init's Claude-only behaviour into the table. `init` merges
+  `Bash(cospec *)` into `.claude/settings.json` only when `claude` is selected,
+  and selects `claude` on a fresh repo where no row is detected. Both are
+  deliberate Claude-only behaviour, not tool layout, and stay in `init.ts`. So
+  does the receipt's closing `Try: /cospec:propose …` hint, which every
+  selection prints in the canonical spelling; respelling it per selected row
+  would change the receipt.
 
 ## Decisions
 
@@ -210,7 +217,11 @@ All four have `invocationPrefix: '/'` and `requiresIdeRestart: false`, and each
    removal. `update`'s orphan sweep, which removes an unmodified cospec command
    a run no longer emits, matches each command dir's entries against the
    `extension` of the markdown-serializer rows that render into it, never a
-   literal `.md`, and leaves a TOML row's dir to the manifest.
+   literal `.md`, and leaves a TOML row's dir to the manifest. Doctor's
+   frontmatter and reference scan and both opsx leftover scans read files the
+   same way (`isHarnessDocument`): each markdown row's `commands.extension`
+   under its `commands.dir`, plus the skill file's extension under a row's
+   skills roots.
 
 10. **Command frontmatter is a builder function on the row.** Rejected: an enum
     switched in `render.ts`. Each later tool's frontmatter keys (for example
@@ -308,4 +319,5 @@ All four have `invocationPrefix: '/'` and `requiresIdeRestart: false`, and each
 | Removal containment roots                                       | `update.ts`, derived from the table; containment check unchanged                                             |
 | Manifest (`openspec/.cospec-manifest.json`)                     | `update.ts` `generate()`, now keyed on `frontmatter === null`; tracks the rules file and any TOML command    |
 | Legacy `.codex/skills` migration                                | `harness/legacy-skills.ts`, unchanged                                                                        |
+| openspec's own shared skills root (`OPSX_SHARED_SKILL_ROOT`)    | `init.ts`: upstream's layout, not a cospec row, so both opsx leftover scans walk it whatever rows exist      |
 | Doctor's `WORKFLOW_SKILL` map                                   | `doctor.ts`, unchanged: it mirrors workflow identity, not tool layout                                        |

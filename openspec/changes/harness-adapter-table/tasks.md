@@ -335,3 +335,12 @@ Exclusive files: `docs/harness-integration.md`.
       the init case fails on the literal `.md` filter and passes after it;
       render and wiring goldens unchanged; what remains is named in design.md as
       deliberate
+- [x] 8.7 Record in design.md what stays outside the table on purpose (init's
+      Claude-only settings merge, `claude` default and `/cospec:propose` hint
+      under Non-Goals; openspec's `OPSX_SHARED_SKILL_ROOT` in Seam ownership)
+      and the per-row file scan in decision 9; rewrite
+      `docs/harness-integration.md` and `.agents/shared.md` so they no longer
+      list the receipt line or doctor's scan as gaps, then
+      `mise run agents:sync`. Verify verification 5.4 -> both texts name only
+      the Claude-only behaviour as outside the table; `CLAUDE.md`/`AGENTS.md`
+      re-synced; `apps/docs/` unchanged

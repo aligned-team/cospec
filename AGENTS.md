@@ -259,11 +259,12 @@ from `apps/cli/src/canon/` (schemas, workflow bodies and workflow identity) and
 each tool's layout: skills and commands dirs, filenames, serializer,
 frontmatter, body dialect, rules file, detection paths and receipt note.
 `render.ts`, `init`, `update` and `doctor` all read the table; none keeps its
-own copy of a layout fact. A new tool is mostly a new row, not only one:
-`init`'s `.claude/settings.json` merge and `claude` default, its codex/agents
-shared-root receipt line, and doctor's `.md`-only harness scan still sit outside
-the table (docs/harness-integration.md names them). Edit the canon or the table,
-run `mise run generate`; never hand-edit generated output. The `generate:check`
+own copy of a layout fact. A new tool is mostly a new row, not only one: a
+home-scoped skills root renders but is not yet written, and deliberate
+Claude-only behaviour sits outside the table — `init`'s `.claude/settings.json`
+merge, its `claude` default and its `/cospec:propose` receipt hint
+(docs/harness-integration.md names them). Edit the canon or the table, run
+`mise run generate`; never hand-edit generated output. The `generate:check`
 drift gate blocks the commit otherwise.
 
 **Error handling** — never silently swallow errors. Catch only specific expected
