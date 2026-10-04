@@ -55,12 +55,18 @@ Probed facts that change the plan's wording:
   `recent`.
 - `validate <name> --all` runs the bulk scope and ignores the name.
 - An unreadable `changes/archive/` doesn't affect the binary's `list` or
-  `status`. An unreadable `tasks.md` makes the binary's `list` answer
+  `status`. An unreadable `tasks.md` is answered by the binary's runtime, not
+  its code. The binary confines every artifact output through
+  `realpathSync.native` (`FileSystemUtils.canonicalizePotentialPath`) before
+  reading it, uncaught. Bun on macOS opens the file to resolve it, so at mode
+  000 the binary's `list` answers
   `{changes: [], root: null, status: [{code: "list_error"}]}`, exit 1, and its
-  `status --change` answer `change_error` — under Bun, the runtime cospec runs
-  it in. Under Node the same binary counts the file as 0 tasks and lists
-  normally. Its `status` message names the `realpath` its artifact glob runs
-  first, where cospec's read names `open`, so the row compares code and path.
+  `status --change` answers `change_error`, each naming `realpath`. Bun on Linux
+  (CI run 36547287646, as a non-root user) and Node anywhere resolve it without
+  opening it: the binary lists and reports the change, exit 0, its
+  `countTaskFile` counting the unreadable file as 0 tasks, and `status` marks
+  the `tasks` artifact done. Task 11.12 matches both through the binary's own
+  answer (D4, D6), never a prediction of it.
 - `list` with no OpenSpec root is refused (`no_openspec_root`, exit 1), so a
   `list` whose rows come from the binary answers that refusal where cospec used
   to print `No active changes.`; `status` with no root answers the
@@ -216,6 +222,20 @@ The merge follows D3. A cospec-typed entry keeps cospec's verdict. If the binary
 fails for it, the binary's `status` diagnostic is merged in and the exit code is
 cospec's. For a schema cospec doesn't type, the exit code is the binary's.
 
+**An unreadable `tasks.md` (task 11.12).** It is the one read cospec and the
+binary both make whose outcome is the runtime's: whether the binary reports the
+change depends on its `realpath`. So when cospec's own read of a change's
+`tasks.md` fails (an observed read, never a `stat`/`access` prediction), the
+binary decides whether the change can be reported, through the same one
+delegated call, made in text mode only then, so text-mode `status` stays
+spawn-free otherwise. Where the binary refuses it (Bun on macOS), its failure is
+the answer: its document under `--json`, `cospec status: <message>` in text, and
+under `--all` a failure entry carrying its message, into which its
+`{changeName, status}` merges, exit 1 — before, cospec's own read refused first
+and named `open` where the binary names `realpath`. Where the binary reports it
+(Linux), so does cospec, the file counted as no tasks with a `tasks_unreadable`
+warning.
+
 **Rendering a schema cospec doesn't type.** Text mode renders the delegated
 document with a port of the binary's `printStatusText`: `Change:`, `Schema:`,
 `Change root:`, `Progress:`, the `[x]/[ ]/[-]/[~]` lines, and
@@ -249,9 +269,12 @@ is caught in `status.ts` and `list.ts`, never inside `readArchiveIndex`, so the
 collision checks in `apply` and `archive` still refuse. The gate is computed
 from an empty index. That can only err toward `blocked`, never a false `clear`.
 A `warnings` entry `{code: "archive_unreadable", message}` (`--json`) or a
-stderr line (text) names the directory. Any other read failure while computing
-an entry becomes the `change_error` document (`--change`) or a failure entry
-(`--all`), as the binary answers.
+stderr line (text) names the directory. An unreadable `tasks.md` the binary
+reports past counts as no tasks, as the binary's `countTaskFile` counts it, with
+a `{code: "tasks_unreadable", message}` warning naming the file the same way, so
+the read is never silently dropped (`readChangeTasks`, shared with `list`). Any
+other read failure while computing an entry becomes the `change_error` document
+(`--change`) or a failure entry (`--all`), as the binary answers.
 
 ### D5. The key oracle (T6)
 
@@ -301,12 +324,14 @@ warnings is printed after the table as `Warning: <message>`.
 
 A delegated failure document (`status` present, exit 1) is relayed as one
 document under `--json` and as its messages on stderr otherwise, exit 1. That
-covers every read the binary performs, such as an unreadable `tasks.md` or
-change directory. An unreadable archive is caught as in D4. A failure reading a
-cospec-only file, `blocking-changes.md`, becomes `error: <message>` on that row,
-and the command exits 1, the same rule `status --all` applies to a per-change
-failure. `list --specs --json` copies the delegated `root` into cospec's
-`{version: 1, specs}` document.
+covers every read the binary refuses, such as an unreadable change directory or
+a `tasks.md` its runtime's `realpath` refuses (Bun on macOS). Where the binary
+lists the change instead (Linux), an unreadable `tasks.md` counts as no tasks
+with D4's `tasks_unreadable` warning. An unreadable archive is caught as in D4.
+A failure reading a cospec-only file, `blocking-changes.md`, becomes
+`error: <message>` on that row, and the command exits 1, the same rule
+`status --all` applies to a per-change failure. `list --specs --json` copies the
+delegated `root` into cospec's `{version: 1, specs}` document.
 
 **Rejected:** porting `getLastModified` and task counting natively to keep text
 mode spawn-free. `completedTasks`/`totalTasks` are the binary's own count,

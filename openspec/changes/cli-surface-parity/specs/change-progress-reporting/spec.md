@@ -139,3 +139,30 @@ does, from the root's `config.yaml` `schema:` and else `spec-driven`, at
   only `proposal.md` in a root whose `config.yaml` says `schema: feat`
 - **THEN** the entry is a `feat` change graded at `schemaVersion` 1, and its
   `schemaName` is `feat` as the binary reports
+
+### Requirement: Status answers an unreadable tasks file as the binary does
+
+When cospec's own read of a cospec-typed change's `tasks.md` fails,
+`cospec status` SHALL ask the binary whether the change can be reported, through
+its one delegated `openspec status --json` call, made in text mode only then.
+Where the binary refuses the change (its runtime's `realpath` refuses the file),
+the binary's failure SHALL be the answer: its `change_error` document under
+`--json`, its message on stderr in text, and under `--all` a failure entry
+carrying its message, exit 1. Where the binary reports the change, the file
+SHALL count as no tasks, as the binary counts it, with a warning naming the file
+on stderr, or in `warnings` as `{code: "tasks_unreadable", message}` under
+`--json`.
+
+#### Scenario: The binary refuses the change
+
+- **WHEN** `cospec status --change beta --json` runs with `beta`'s `tasks.md` at
+  mode 000 where the binary's `realpath` refuses the file (Bun on macOS)
+- **THEN** stdout is the binary's `change_error` document and the command exits
+  1
+
+#### Scenario: The binary reports the change
+
+- **WHEN** `cospec status --change beta --json` runs with `beta`'s `tasks.md` at
+  mode 000 where the binary reports the change (Linux)
+- **THEN** `tasks` counts 0 of 0, `warnings` names the file with
+  `tasks_unreadable`, and the command exits 0

@@ -224,7 +224,7 @@ final commit.
 - [ ] 11.11 Record observed evidence on every group-15 row, re-observe rows
       14.1–14.4, and update the docs pages that own each fact. Commit
       `docs(cli): record the round-2 review fixes`
-- [ ] 11.12 An unreadable `tasks.md` is answered as the binary answers it on
+- [x] 11.12 An unreadable `tasks.md` is answered as the binary answers it on
       each OS (CI run 36547287646: Linux red, macOS green). Where the binary
       refuses the change (its `realpath` confinement check, which fails under
       Bun on macOS), its `list_error` or `change_error` is relayed: its document

@@ -94,10 +94,13 @@ merge.
 leave the listing as the binary's. cospec's gate column SHALL then be computed
 from an empty archive index, and a warning naming the directory SHALL be printed
 on stderr, or added to `warnings` as `{code: "archive_unreadable", message}`
-under `--json`. A read failure the binary itself refuses (an unreadable
-`tasks.md` or change directory) SHALL be answered with the binary's refusal: its
-`list_error` document under `--json`, its message on stderr otherwise, and
-exit 1. A read failure only cospec's columns reach (an unreadable
+under `--json`. A read failure the binary itself refuses (an unreadable change
+directory, or a `tasks.md` its runtime's `realpath` refuses) SHALL be answered
+with the binary's refusal: its `list_error` document under `--json`, its message
+on stderr otherwise, and exit 1. An unreadable `tasks.md` the binary lists past
+SHALL count as no tasks, as the binary counts it, with a warning naming the file
+on stderr, or in `warnings` as `{code: "tasks_unreadable", message}` under
+`--json`. A read failure only cospec's columns reach (an unreadable
 `blocking-changes.md`) SHALL become that row's `error`, with the other rows
 listed, and exit 1.
 
@@ -111,9 +114,18 @@ listed, and exit 1.
 #### Scenario: An unreadable tasks file is the binary's list_error
 
 - **WHEN** `cospec list --json` runs with one change's `tasks.md` at mode 000
+  where the binary's `realpath` refuses the file (Bun on macOS)
 - **THEN** stdout is one
   `{changes: [], root: null, status: [{…, code: "list_error"}]}` document and
   the command exits 1
+
+#### Scenario: An unreadable tasks file the binary lists past
+
+- **WHEN** `cospec list --json` runs with one change's `tasks.md` at mode 000
+  where the binary lists the change (Linux)
+- **THEN** the change's row counts 0 of 0 tasks with no `error`, `warnings`
+  names the file with `tasks_unreadable`, and the command exits 0, as
+  `openspec list --json` does
 
 ### Requirement: Validate resolves one item as the binary does
 

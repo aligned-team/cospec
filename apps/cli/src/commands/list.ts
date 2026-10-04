@@ -36,10 +36,15 @@ import {
 } from '../core/openspec.ts'
 import { respellRemedies } from '../core/remedies.ts'
 import { TYPE_ARTIFACTS } from '../core/rules/type-facts.ts'
-import { parseTasks } from '../core/tasks.ts'
 import { mergeUpstream, resolveRootOrDocument, type Identities } from '../core/upstream-keys.ts'
 import { artifactDone, computeGate, type Gate } from './apply.ts'
-import { gateLabel, hasAnyArtifact, readArchive } from './status.ts'
+import {
+  gateLabel,
+  hasAnyArtifact,
+  readArchive,
+  readChangeTasks,
+  type ReadWarning,
+} from './status.ts'
 
 interface SpecRow {
   id: string
@@ -134,16 +139,18 @@ interface FailedRow {
  * cospec's native columns for the change directory `id`, computed as ever — a
  * namespace folder marked `not-a-change` with its nested ids. A change file
  * that cannot be read (errno) fails this row alone, as the binary never reads
- * `blocking-changes.md`.
+ * `blocking-changes.md`; an unreadable `tasks.md` counts as no tasks, as the
+ * binary counts it, its warning added to `warnings`.
  */
 function nativeRow(
   base: string,
   id: string,
   archived: Map<string, string>,
   active: Set<string>,
+  warnings: ReadWarning[],
 ): Row | FailedRow {
   try {
-    return computeRow(base, id, archived, active)
+    return computeRow(base, id, archived, active, warnings)
   } catch (error) {
     const code = (error as NodeJS.ErrnoException | undefined)?.code
     if (!(error instanceof Error) || typeof code !== 'string') throw error
@@ -156,6 +163,7 @@ function computeRow(
   id: string,
   archived: Map<string, string>,
   active: Set<string>,
+  warnings: ReadWarning[],
 ): Row {
   const dir = join(changesDir(base), id)
   const finding = findNestedChangesIn(changesDir(base), id)
@@ -168,10 +176,7 @@ function computeRow(
   const empty = !hasAnyArtifact(dir)
   const cospec = isCospecType(schema)
 
-  const tasksPath = join(dir, 'tasks.md')
-  const parsedTasks = existsSync(tasksPath)
-    ? parseTasks(readFileSync(tasksPath, 'utf8'))
-    : { items: [], malformed: [], groups: [] }
+  const parsedTasks = readChangeTasks(dir, warnings)
   const total = parsedTasks.items.length
   const complete = parsedTasks.items.filter((t) => t.checked).length
 
@@ -294,8 +299,9 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   const { archived, warning } = readArchive(base)
   const active = new Set(listChanges(base).map((c) => c.id))
+  const warnings: ReadWarning[] = warning === undefined ? [] : [warning]
   const rows = upstreamRows.map((upRow) => {
-    const native = nativeRow(base, String(upRow.name), archived, active)
+    const native = nativeRow(base, String(upRow.name), archived, active, warnings)
     return mergeUpstream(native, upRow).value
   })
   const failed = rows.some(isFailedRow)
@@ -305,7 +311,7 @@ export async function run(ctx: CommandContext): Promise<number> {
   if (flags.json) {
     const { changes: _rows, ...rest } = upstream
     const doc = mergeUpstream(
-      { version: 1, changes: shown, ...(warning === undefined ? {} : { warnings: [warning] }) },
+      { version: 1, changes: shown, ...(warnings.length === 0 ? {} : { warnings }) },
       rest,
       WARNING_IDENTITY,
     ).value
@@ -313,7 +319,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     return failed ? EXIT.failure : EXIT.success
   }
 
-  if (warning !== undefined) process.stderr.write(`Warning: ${warning.message}\n`)
+  for (const w of warnings) process.stderr.write(`Warning: ${w.message}\n`)
   if (shown.length === 0) {
     process.stdout.write(onlyBlocked ? 'No blocked changes.\n' : 'No active changes.\n')
     return EXIT.success
