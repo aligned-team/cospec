@@ -280,7 +280,9 @@ Exclusive files: `docs/harness-integration.md`.
       `mise run check`. Commit the final ledger; verify verification 5.3 ->
       every verification row is `[x]` with observed evidence (no `[ ]` or `[~]`
       left); `validate harness-adapter-table --strict` passes; `mise run check`
-      green at `77db34ae` (verification 5.3) and re-run on this ledger commit
+      green at `77db34ae` (verification 5.3) and re-run on this ledger commit;
+      re-run green at `211782d1` after the review fixes of group 8 (verification
+      5.3)
 
 ## 8. Review fixes: commands still hard-coding a tool shape
 
