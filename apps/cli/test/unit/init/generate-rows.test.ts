@@ -4,7 +4,7 @@
 // command is manifest-tracked like the codex rules file (design decision 9).
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { existsSync, readdirSync } from 'node:fs'
+import { copyFileSync, existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { generate } from '../../../src/commands/update.ts'
@@ -37,6 +37,30 @@ const TOML_ROW: HarnessAdapter = {
   bodyDialect: 'shared',
   requiresIdeRestart: false,
   detectionPaths: ['.toml-fixture'],
+}
+
+/** R9's `continue` shape: flat markdown commands with a `.prompt` extension. */
+function promptRow(extension: '.md' | '.prompt' | '.prompt.md'): HarnessAdapter {
+  return {
+    id: 'prompt-fixture',
+    displayName: 'Fixture tool with flat markdown commands',
+    skillsDir: '.prompt-fixture',
+    commands: {
+      dir: '.prompt-fixture/prompts',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension,
+      serializer: 'markdown',
+      frontmatter: (w, version, contentHash) => ({
+        description: w.description,
+        metadata: { author: 'cospec', generatedBy: version, contentHash },
+      }),
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: false,
+    detectionPaths: ['.prompt-fixture'],
+  }
 }
 
 describe('generate() over injected rows', () => {
@@ -90,5 +114,41 @@ describe('generate() over injected rows', () => {
     expect(first.manifest.files['.toml-fixture/skills/cospec-propose/SKILL.md']).toBeUndefined()
     const second = generate(dir, opts)
     expect(second.results.every((r) => r.outcome === 'unchanged')).toBe(true)
+  })
+
+  for (const extension of ['.md', '.prompt', '.prompt.md'] as const) {
+    test(`an unmodified cospec command no longer emitted is removed (${extension})`, () => {
+      const row = promptRow(extension)
+      const opts = { harnesses: [row.id as HarnessName], adapters: [row] }
+      generate(dir, opts)
+      // A byte copy of a managed command is still cospec-authored with a valid
+      // contentHash: exactly what a retired workflow leaves behind.
+      const live = `.prompt-fixture/prompts/cospec-new${extension}`
+      const orphan = `.prompt-fixture/prompts/cospec-retired${extension}`
+      copyFileSync(join(dir, live), join(dir, orphan))
+      const check = generate(dir, { ...opts, dryRun: true })
+      expect(check.results.filter((r) => r.outcome === 'removed')).toEqual([
+        { path: orphan, outcome: 'removed' },
+      ])
+      expect(existsSync(join(dir, orphan))).toBe(true)
+      const second = generate(dir, opts)
+      expect(second.results.filter((r) => r.outcome === 'removed')).toEqual([
+        { path: orphan, outcome: 'removed' },
+      ])
+      expect(existsSync(join(dir, orphan))).toBe(false)
+      expect(existsSync(join(dir, live))).toBe(true)
+    })
+  }
+
+  test('the markdown orphan sweep never touches a TOML command dir', () => {
+    const opts = { harnesses: [TOML_ROW.id as HarnessName], adapters: [TOML_ROW] }
+    generate(dir, opts)
+    // A cospec-authored markdown file in a TOML row's command dir is not a
+    // command that row renders; only the manifest decides TOML removals.
+    const stray = '.toml-fixture/commands/cospec/stray.md'
+    copyFileSync(join(dir, '.toml-fixture/skills/cospec-propose/SKILL.md'), join(dir, stray))
+    const second = generate(dir, opts)
+    expect(second.results.filter((r) => r.outcome === 'removed')).toEqual([])
+    expect(existsSync(join(dir, stray))).toBe(true)
   })
 })

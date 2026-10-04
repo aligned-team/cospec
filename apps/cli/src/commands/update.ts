@@ -36,6 +36,7 @@ import {
 import { composeAllTypes, TYPE_TABLE } from '../core/schema-compose.ts'
 import {
   adapterFor,
+  HARNESS_TABLE,
   type HarnessAdapter,
   type HarnessName,
   HARNESS_NAMES,
@@ -372,7 +373,8 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
     const removed = removeFrontmatterless(abspath, relpath, prevFiles[relpath], writeOpts)
     if (removed) results.push(removed)
   }
-  for (const removed of removeOrphanMarkdown(cwd, rendered, mdEmitted, writeOpts)) {
+  const table = opts.adapters ?? HARNESS_TABLE
+  for (const removed of removeOrphanMarkdown(cwd, rendered, mdEmitted, table, writeOpts)) {
     results.push(removed)
   }
 
@@ -389,13 +391,28 @@ function removeOrphanMarkdown(
   cwd: string,
   rendered: ReturnType<typeof renderHarnessFiles>,
   emitted: Set<string>,
+  table: readonly HarnessAdapter[],
   opts: WriteOpts,
 ): WriteResult[] {
   const skillBases = new Set<string>()
-  const commandDirs = new Set<string>()
+  // Command dir -> the extensions its rows render markdown commands with. A
+  // frontmatter-less (TOML) command is the manifest's to remove, so its dir is
+  // not swept here.
+  const commandDirs = new Map<string, Set<string>>()
   for (const f of rendered) {
     if (f.kind === 'skill') skillBases.add(dirname(dirname(f.path)))
-    else if (f.kind === 'command') commandDirs.add(dirname(f.path))
+    else if (f.kind === 'command' && f.frontmatter !== null) {
+      const extension = adapterFor(f.harness, table).commands?.extension
+      if (extension === undefined) {
+        throw new Error(
+          `internal: ${f.harness} rendered command ${f.path} but its row declares no commands`,
+        )
+      }
+      const dir = dirname(f.path)
+      const extensions = commandDirs.get(dir) ?? new Set<string>()
+      extensions.add(extension)
+      commandDirs.set(dir, extensions)
+    }
   }
   const out: WriteResult[] = []
   for (const base of skillBases) {
@@ -409,11 +426,11 @@ function removeOrphanMarkdown(
       if (removed) out.push(removed)
     }
   }
-  for (const dir of commandDirs) {
+  for (const [dir, extensions] of commandDirs) {
     const abs = join(cwd, dir)
     if (!existsSync(abs)) continue
     for (const entry of readdirSync(abs, { withFileTypes: true })) {
-      if (!entry.isFile() || !entry.name.endsWith('.md')) continue
+      if (!entry.isFile() || ![...extensions].some((ext) => entry.name.endsWith(ext))) continue
       const relpath = `${dir}/${entry.name}`
       if (emitted.has(relpath)) continue
       const removed = removeMarkdown(join(cwd, relpath), relpath, opts)
