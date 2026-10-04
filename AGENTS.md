@@ -260,7 +260,10 @@ each tool's layout: skills and commands dirs, filenames, serializer,
 frontmatter, body dialect, rules file, detection paths and receipt note.
 `render.ts`, `init`, `update` and `doctor` all read the table; none keeps its
 own copy of a layout fact. A new tool is mostly a new row, not only one: a
-home-scoped skills root renders but is not yet written, and deliberate
+home-scoped skills root renders but is not yet written; the legacy-skills
+migration (`harness/legacy-skills.ts`, its receipt and `update --check` lines,
+doctor's `legacy-layout` warning) covers only Codex's `.codex/skills`, so a new
+row's `legacySkillsDirs` is detected but never migrated; and deliberate
 Claude-only behaviour sits outside the table — `init`'s `.claude/settings.json`
 merge, its `claude` default and its `/cospec:propose` receipt hint
 (docs/harness-integration.md names them). Edit the canon or the table, run

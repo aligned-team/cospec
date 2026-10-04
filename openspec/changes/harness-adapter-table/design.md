@@ -220,8 +220,12 @@ All four have `invocationPrefix: '/'` and `requiresIdeRestart: false`, and each
    literal `.md`, and leaves a TOML row's dir to the manifest. Doctor's
    frontmatter and reference scan and both opsx leftover scans read files the
    same way (`isHarnessDocument`): each markdown row's `commands.extension`
-   under its `commands.dir`, plus the skill file's extension under a row's
-   skills roots.
+   under its `commands.dir`, plus every file with the skill file's extension
+   under a top-level dir that holds a row's skills or legacy skills root, not
+   only the skill files. For the four rows that is every `.md` file under the
+   scan roots, as before: a user's markdown under `.claude/` (a note, a nested
+   worktree's copy) is read too, and a row whose skills root sits under
+   `.github` would read every `.md` file there.
 
 10. **Command frontmatter is a builder function on the row.** Rejected: an enum
     switched in `render.ts`. Each later tool's frontmatter keys (for example
@@ -239,12 +243,16 @@ All four have `invocationPrefix: '/'` and `requiresIdeRestart: false`, and each
     segment of its commands dir, else its rules file, else its skills root. For
     the four rows this derives `['.claude', '.codex', '.opencode', '.agents']`,
     today's `.${id}` walk order, and a unit test pins that. Doctor attributes a
-    file to the row whose primary root prefixes it, which gives today's
-    attribution; a file no primary root prefixes falls to the first row whose
-    skills root, commands dir or rules dir does, so a row whose commands and
-    skills live under different roots owns both trees. Its dangling-ref check
-    matches `/cospec:<id>`, `/cospec-<id>` and the owning row's
-    `invocationPrefix` spelling (`@cospec-<id>`). Rejected: a single
+    file to the row with a surface (project or legacy skills root, commands dir,
+    rules dir) that is the longest prefix of it, so a row whose commands and
+    skills live under different roots owns both trees, and a commands dir under
+    another row's primary root (Antigravity's `.agents/workflows`) stays its own
+    row's. A surface two rows share goes to the row whose primary root also
+    prefixes the file, then to the earlier row, which keeps `.agents/skills`
+    with `agents` over `codex`; a file on no surface goes to the first row whose
+    primary root prefixes it. For the four rows that is today's attribution. Its
+    dangling-ref check matches `/cospec:<id>`, `/cospec-<id>` and the owning
+    row's `invocationPrefix` spelling (`@cospec-<id>`). Rejected: a single
     first-occurrence pass, which yields `.claude, .agents, .codex, .opencode`
     and reorders doctor's findings. Rejected: sorting findings, which changes
     today's order.

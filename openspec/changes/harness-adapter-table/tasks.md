@@ -344,3 +344,24 @@ Exclusive files: `docs/harness-integration.md`.
       `mise run agents:sync`. Verify verification 5.4 -> both texts name only
       the Claude-only behaviour as outside the table; `CLAUDE.md`/`AGENTS.md`
       re-synced; `apps/docs/` unchanged
+
+## 9. Review fixes: doctor attribution and what the docs say the scan reads
+
+- [x] 9.1 `doctor.ts`: attribute a file to the row with a surface (project or
+      legacy skills root, commands dir, rules dir) that is the longest prefix of
+      it; break a tie by primary root, then table order; fall back to the
+      primary root only for a file on no surface. Add the nested-commands and
+      legacy-root fixture rows to `doctor-rows.test.ts`. Verify verification
+      3.14 -> the nested-commands and legacy-root cases fail on the
+      primary-root-first `owningRow` and pass after it; the shared-root case and
+      the existing `.agents/skills` case keep `agents`; the four rows' doctor
+      goldens are unchanged
+- [x] 9.2 Correct `docs/harness-integration.md`, design.md decision 9 and
+      decision 12 and `.agents/shared.md`: the scan reads every `.md` file under
+      a top-level dir holding a row's skills or legacy skills root, with what
+      that means for user markdown and a `.github` row; doctor's longest-surface
+      attribution; the legacy-skills migration, its receipt and `update --check`
+      lines and doctor's `legacy-layout` warning cover only codex's
+      `.codex/skills`; then `mise run agents:sync`. Verify verification 5.4 ->
+      each text matches `isHarnessDocument`, `owningRow` and `legacy-skills.ts`;
+      `CLAUDE.md`/`AGENTS.md` re-synced; `apps/docs/` unchanged
