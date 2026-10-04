@@ -224,7 +224,8 @@ function rowRoots(row: HarnessAdapter): string[] {
 
 /**
  * The top-level repo dir that identifies a row: its commands dir, else its rules file, else
- * its skills root. Doctor attributes a file to the row whose primary root prefixes it.
+ * its skills root. Doctor attributes a file on no row's surface to the row whose primary
+ * root prefixes it, and breaks a tie between rows sharing a surface the same way.
  */
 export function primaryRoot(row: HarnessAdapter): string | undefined {
   return rowRoots(row)[0]

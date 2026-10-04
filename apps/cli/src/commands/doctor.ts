@@ -51,6 +51,7 @@ import {
   HARNESS_TABLE,
   type HarnessAdapter,
   isHarnessDocument,
+  legacySkillsRoots,
   primaryRoot,
   scanRoots,
   SKILL_EXTENSION,
@@ -251,26 +252,38 @@ export function checkStaleness(
 }
 
 /**
- * The row that owns a harness file: the one whose primary root prefixes it, so
- * a root two rows share keeps its primary owner; else the first row with a
- * surface (skills root, commands dir, rules dir) that prefixes it, which is how
- * a row whose skills and commands live under different roots owns both trees.
+ * The row that owns a harness file: the one with a surface (project or legacy
+ * skills root, commands dir, rules dir) that is the longest prefix of it, so a
+ * row whose commands dir sits under another row's primary root still owns its
+ * commands. A surface two rows share goes to the row whose primary root also
+ * prefixes the file, then to the earlier row. A file on no surface goes to the
+ * first row whose primary root prefixes it.
  */
 function owningRow(relpath: string, table: readonly HarnessAdapter[]): HarnessAdapter | undefined {
   const under = (dir: string): boolean => relpath.startsWith(`${dir}/`)
-  const byPrimary = table.find((r) => {
+  const underPrimary = (r: HarnessAdapter): boolean => {
     const root = primaryRoot(r)
     return root !== undefined && under(root)
-  })
-  if (byPrimary !== undefined) return byPrimary
-  return table.find((r) => {
-    const dirs: string[] = []
+  }
+  let best: { row: HarnessAdapter; length: number; primary: boolean } | undefined
+  for (const r of table) {
+    const dirs = legacySkillsRoots(r)
     const skills = skillsRoot(r)
     if (skills.scope === 'project') dirs.push(skills.root)
     if (r.commands !== undefined) dirs.push(r.commands.dir)
     if (r.rulesPath !== undefined) dirs.push(dirname(r.rulesPath))
-    return dirs.some(under)
-  })
+    const length = Math.max(-1, ...dirs.filter(under).map((d) => d.length))
+    if (length < 0) continue
+    const primary = underPrimary(r)
+    if (
+      best === undefined ||
+      length > best.length ||
+      (length === best.length && primary && !best.primary)
+    ) {
+      best = { row: r, length, primary }
+    }
+  }
+  return best?.row ?? table.find(underPrimary)
 }
 
 /**

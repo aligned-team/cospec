@@ -1,7 +1,8 @@
 // Doctor's harness checks over fixture rows injected through its `table` seam:
 // a reference is matched with the owning row's invocation prefix, a file under
-// a row's non-primary root (a split commands/skills layout) is still attributed
-// to that row, and the scan collects each markdown row's commands by that row's
+// a row's non-primary root (a split commands/skills layout), under another
+// row's primary root, or under a legacy skills root is still attributed to that
+// row, and the scan collects each markdown row's commands by that row's
 // own extension, so a `.prompt` command gets the stale-version, mixed-version
 // and dangling-reference checks a `.md` one does.
 
@@ -55,6 +56,36 @@ const SPLIT_ROW: HarnessAdapter = {
   bodyDialect: 'flat',
   requiresIdeRestart: false,
   detectionPaths: ['.split-rules'],
+}
+
+/** Antigravity's shape: skills in `.agents`, commands under `.agents/workflows`. */
+const NESTED_ROW: HarnessAdapter = {
+  id: 'nested-fixture',
+  displayName: "Fixture tool whose commands sit under another row's primary root",
+  skillsDir: '.agents',
+  commands: {
+    dir: '.agents/workflows',
+    namespacing: 'flat',
+    file: 'cospec-{command}',
+    extension: '.md',
+    serializer: 'markdown',
+  },
+  invocationPrefix: '/',
+  bodyDialect: 'flat',
+  requiresIdeRestart: false,
+  detectionPaths: ['.agents/workflows'],
+}
+
+/** A legacy skills root under no primary root (upstream antigravity's `.agent`). */
+const LEGACY_ROW: HarnessAdapter = {
+  id: 'legacy-fixture',
+  displayName: 'Fixture tool with a legacy skills root of its own',
+  skillsDir: '.xnew',
+  legacySkillsDirs: ['.xold'],
+  invocationPrefix: '/',
+  bodyDialect: 'flat',
+  requiresIdeRestart: false,
+  detectionPaths: ['.xnew'],
 }
 
 /** Continue's shape: markdown commands with a `.prompt` extension. */
@@ -158,6 +189,34 @@ describe('doctor dangling-ref check over injected rows', () => {
     put(dir, '.agents/skills/cospec-explore/SKILL.md', 'Then run /cospec-apply-change.\n')
     expect(danglingRefs(dir, HARNESS_TABLE).map((f) => f.message)).toEqual([
       '.agents/skills/cospec-explore/SKILL.md references /cospec:apply, but no agents skill or command file for it exists',
+    ])
+  })
+
+  test("a commands dir under an earlier row's primary root belongs to its own row", () => {
+    // `.agents` is agents' primary root, but `.agents/workflows` is the fixture's surface.
+    put(dir, '.agents/workflows/cospec-propose.md', 'Then run /cospec-apply.\n')
+    put(dir, '.agents/workflows/cospec-apply.md', 'x\n')
+    expect(danglingRefs(dir, [...HARNESS_TABLE, NESTED_ROW])).toEqual([])
+  })
+
+  test("a nested commands dir's missing target is reported under its own row", () => {
+    put(dir, '.agents/workflows/cospec-propose.md', 'Then run /cospec-apply.\n')
+    expect(danglingRefs(dir, [...HARNESS_TABLE, NESTED_ROW]).map((f) => f.message)).toEqual([
+      '.agents/workflows/cospec-propose.md references /cospec:apply, but no nested-fixture skill or command file for it exists',
+    ])
+  })
+
+  test('a shared skills root keeps its primary owner when a later row shares it', () => {
+    put(dir, '.agents/skills/cospec-explore/SKILL.md', 'Then run /cospec-apply-change.\n')
+    expect(danglingRefs(dir, [...HARNESS_TABLE, NESTED_ROW]).map((f) => f.message)).toEqual([
+      '.agents/skills/cospec-explore/SKILL.md references /cospec:apply, but no agents skill or command file for it exists',
+    ])
+  })
+
+  test('a legacy skills root no primary root covers is still checked', () => {
+    put(dir, '.xold/skills/cospec-propose/SKILL.md', 'Then run /cospec-bogus.\n')
+    expect(danglingRefs(dir, [LEGACY_ROW]).map((f) => f.message)).toEqual([
+      '.xold/skills/cospec-propose/SKILL.md references /cospec:bogus, which is not a known cospec workflow',
     ])
   })
 })
