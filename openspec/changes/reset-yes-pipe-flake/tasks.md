@@ -21,12 +21,16 @@
       `debug`, `warn`, `error`) through the stream Node's console writes it to,
       and verify the dist-enumeration and Node-routing contract rows fail before
       and pass after
+- [x] 2.6 Pin a handover's raw terminal bytes (`config edit`, no editor, its
+      uncoloured error lines) against the binary under Node, and verify the row
+      fails with Bun's native `console.error`
 
 ## 3. Docs and gate
 
 - [x] 3.1 Update `docs/architecture.md` and
-      `apps/docs/reference/configuration.md` for the preload's console routing
-      and verify `mise run docs:build`
+      `apps/docs/reference/configuration.md` for the preload's console routing,
+      its ignored gone reader and its uncoloured error lines, and verify
+      `mise run docs:build`
 - [x] 3.2 Run
       `env -u FORCE_COLOR -u NO_COLOR -u COLORTERM -u CLICOLOR mise run check`
       and verify it is green

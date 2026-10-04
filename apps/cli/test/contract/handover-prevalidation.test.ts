@@ -498,6 +498,37 @@ describe('a handover whose stdout or stderr reader has exited runs as the binary
     }, 30_000)
 })
 
+// --- a handover's console bytes on a terminal ---------------------------------------
+
+/** `env` with no editor configured and `NO_COLOR` unset, as a user's terminal may have it. */
+function withoutEditorOrNoColor(env: Record<string, string>): Record<string, string> {
+  for (const key of ['EDITOR', 'VISUAL', 'NO_COLOR']) delete env[key]
+  return env
+}
+
+describe('on a terminal, a handover’s console lines are the bytes the binary writes under Node', () => {
+  // Bun's native console colours `console.error` red on a terminal (unless
+  // `NO_COLOR` is set, as the sandbox otherwise sets it); Node's console
+  // writes the formatted string as is. The preload writes it as Node does, so
+  // the terminal gets the binary's bytes, escapes included — compared raw
+  // here, not through `terminalText`, which drops every escape.
+  test('config edit with no EDITOR or VISUAL: its error lines, uncoloured', async () => {
+    const [upRoot, coRoot] = [plainRoot(), plainRoot()]
+    const up = await ptyRun([NODE, openspecBinPath(), 'config', 'edit'], {
+      cwd: upRoot,
+      env: withoutEditorOrNoColor(terminalEnv(upRoot, { OPENSPEC_NO_COMPLETIONS: '1' })),
+    })
+    const co = await ptyRun([process.execPath, CLI_ENTRY, 'config', 'edit'], {
+      cwd: coRoot,
+      env: withoutEditorOrNoColor(terminalEnv(coRoot)),
+    })
+    expect(up.exitCode, ptyDetail(up)).toBe(1)
+    expect(up.output, ptyDetail(up)).toStartWith('Error: No editor configured\r\n')
+    expect(co.exitCode, ptyDetail(co)).toBe(up.exitCode)
+    expect(co.output, ptyDetail(co)).toBe(up.output)
+  }, 30_000)
+})
+
 // --- every console method the binary calls goes through the process streams ----------
 
 /** Every `.js` file under `dir`, recursively. */

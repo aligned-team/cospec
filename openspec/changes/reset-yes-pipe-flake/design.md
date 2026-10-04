@@ -71,6 +71,13 @@ writes through `process.stdout`, so the binary under Node never loses it.
 - [Handovers now format console output with `node:util` `format`, not Bun's
   console] → the binary prints strings; `format` of strings is identity, and it
   is Node's own formatter.
+- [Every handover's `console.error`/`console.warn` lines lose the red SGR Bun's
+  native console wraps them in on a terminal (`config edit`, `workset open`,
+  `config profile`)] → intended: the binary under Node prints them uncoloured,
+  and the handover now writes Node's bytes. Recorded in `docs/architecture.md`
+  and `apps/docs/reference/configuration.md`, and pinned by a pty row comparing
+  `config edit`'s raw terminal bytes (escapes kept) with the binary's under
+  Node.
 
 ## Operational surface
 
