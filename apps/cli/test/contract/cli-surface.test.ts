@@ -1707,49 +1707,55 @@ describe('15. round-2 review rows', () => {
     expect(rules).not.toContain('meta/nested-change')
   })
 
-  test.failing(
-    "15.4 a custom schema's artifacts decide its status, singly and in the sweep",
-    async () => {
-      const root = cospecRoot()
-      rfcSchema(root)
-      writeChange(root, 'r-empty', {}, 'rfc')
-      writeChange(root, 'r-doc', { 'doc.md': '# RFC\n' }, 'rfc')
-      for (const id of ['r-empty', 'r-doc']) {
-        const upText = await upstream(['status', '--change', id], root)
-        const csText = await ours(['status', '--change', id], root)
-        captureStatus(`15.4 ${id} text`, csText)
-        expect({ id, exit: csText.exitCode }).toEqual({ id, exit: upText.exitCode })
-        const u = statusText(upText.stdout)
-        expect(statusText(csText.stdout).body).toEqual(u.body)
-        expect(statusText(csText.stdout).next).toBe(
-          `Next: cospec instructions ${nextArtifact(u.next)} --change ${id}`,
-        )
-        const up = await upstreamJson(['status', '--change', id, '--json'], root)
-        const cs = await oursJson(['status', '--change', id, '--json'], root)
-        captureStatus(`15.4 ${id} json`, cs)
-        expect({ id, exit: cs.exitCode }).toEqual({ id, exit: up.exitCode })
-        expect((cs.json as Row).next).toBe(
-          `cospec instructions ${nextArtifact(u.next)} --change ${id}`,
-        )
-        expectOracle(up.json, cs.json, STATUS_SPEC)
-      }
-      const upAll = await upstreamJson(['status', '--all', '--json'], root)
-      const csAll = await oursJson(['status', '--all', '--json'], root)
-      captureStatus('15.4 sweep json', csAll)
-      expect(csAll.exitCode).toBe(upAll.exitCode)
-      const entry = (id: string) => rowsOf(csAll.json).find((e) => e.change === id)!
-      expect(entry('r-empty').next).toBe('cospec instructions doc --change r-empty')
-      expect(entry('r-doc').next).toBe('cospec instructions notes --change r-doc')
-      const sweep = await ours(['status', '--all'], root)
-      captureStatus('15.4 sweep text', sweep)
-      for (const id of ['r-empty', 'r-doc']) {
-        const upText = await upstream(['status', '--change', id], root)
-        for (const line of statusText(upText.stdout).body.filter((l) => l.length > 0))
-          expect(sweep.stdout).toContain(line)
-      }
-      expect(sweep.stdout).not.toContain('cospec instructions proposal')
-    },
-  )
+  test("15.4 a custom schema's artifacts decide its status, singly and in the sweep", async () => {
+    const root = cospecRoot()
+    rfcSchema(root)
+    writeChange(root, 'r-empty', {}, 'rfc')
+    writeChange(root, 'r-doc', { 'doc.md': '# RFC\n' }, 'rfc')
+    // `apply.requires: [doc]`: once `doc` is written the optional `notes`
+    // never holds r-doc back from its gate (D4), while the binary's own
+    // `nextSteps` still names `notes`.
+    const expected: Record<string, { next: string; upstreamNext: string }> = {
+      'r-empty': { next: 'cospec instructions doc --change r-empty', upstreamNext: 'doc' },
+      'r-doc': { next: 'cospec apply r-doc', upstreamNext: 'notes' },
+    }
+    for (const [id, { next, upstreamNext }] of Object.entries(expected)) {
+      const upText = await upstream(['status', '--change', id], root)
+      const csText = await ours(['status', '--change', id], root)
+      captureStatus(`15.4 ${id} text`, csText)
+      expect({ id, exit: csText.exitCode }).toEqual({ id, exit: upText.exitCode })
+      const u = statusText(upText.stdout)
+      expect(nextArtifact(u.next)).toBe(upstreamNext)
+      expect(statusText(csText.stdout).body).toEqual(u.body)
+      expect(statusText(csText.stdout).next).toBe(`Next: ${next}`)
+      const up = await upstreamJson(['status', '--change', id, '--json'], root)
+      const cs = await oursJson(['status', '--change', id, '--json'], root)
+      captureStatus(`15.4 ${id} json`, cs)
+      expect({ id, exit: cs.exitCode }).toEqual({ id, exit: up.exitCode })
+      expect((cs.json as Row).next).toBe(next)
+      expect((cs.json as Row).nextSteps).toEqual(
+        ((up.json as Row).nextSteps as string[]).map(respellWholeRemedy),
+      )
+      expect(JSON.stringify((cs.json as Row).nextSteps)).toContain(
+        `cospec instructions ${upstreamNext}`,
+      )
+      expectOracle(up.json, cs.json, STATUS_SPEC)
+    }
+    const upAll = await upstreamJson(['status', '--all', '--json'], root)
+    const csAll = await oursJson(['status', '--all', '--json'], root)
+    captureStatus('15.4 sweep json', csAll)
+    expect(csAll.exitCode).toBe(upAll.exitCode)
+    const entry = (id: string) => rowsOf(csAll.json).find((e) => e.change === id)!
+    for (const [id, { next }] of Object.entries(expected)) expect(entry(id).next).toBe(next)
+    const sweep = await ours(['status', '--all'], root)
+    captureStatus('15.4 sweep text', sweep)
+    for (const id of ['r-empty', 'r-doc']) {
+      const upText = await upstream(['status', '--change', id], root)
+      for (const line of statusText(upText.stdout).body.filter((l) => l.length > 0))
+        expect(sweep.stdout).toContain(line)
+    }
+    expect(sweep.stdout).not.toContain('cospec instructions proposal')
+  })
 
   unlessRoot('mode 000', () => {
     function lockedArchive(): { root: string; restore: () => void } {

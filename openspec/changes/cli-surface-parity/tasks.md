@@ -203,7 +203,7 @@ final commit.
       document with a `status[]` error or without `summary` or `items`. Verify
       with row 15.10. Commit
       `fix(bench): count a refused validate document as no report`
-- [ ] 11.5 `status` answers every change on a schema cospec doesn't type from
+- [x] 11.5 `status` answers every change on a schema cospec doesn't type from
       the binary's status, and a cospec-typed change with no artifacts takes its
       next step from its own matrix. Verify with row 15.4. Commit
       `fix(cli): take a custom schema's status from its own artifacts`

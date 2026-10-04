@@ -213,9 +213,15 @@ the gate" scenario). For a cospec type the states come from cospec's matrix:
 where a `skip_specs`-skipped `specs` counts as done. The declared order is the
 build order, and a contract row checks that per type against the binary's
 `artifacts[]` order. For any other schema the states come from the delegated
-document's `artifacts[].status`, with `applyRequires`. The JSON `next` and the
-human `Next:` line both print its return value. `nextSteps` isn't recomputed:
-it's the binary's value from the delegated document, each element passed through
+document's `artifacts[].status`, with `applyRequires`: every change on such a
+schema is answered from the binary's status, whether or not any artifact is
+written, since only its own schema names its artifacts (task 11.5; before, a
+change with none of cospec's file names read as an empty change pointing at
+`proposal`). Only a cospec-typed change is an empty-change entry, and its `next`
+is `resolveNext` over its own matrix with nothing done, which is
+`cospec instructions proposal` for every type. The JSON `next` and the human
+`Next:` line both print its return value. `nextSteps` isn't recomputed: it's the
+binary's value from the delegated document, each element passed through
 `respellWholeRemedy` (the `status/next-*-sentence` entries).
 
 **Why `next` doesn't copy `nextSteps`:** the binary's decision never finishes

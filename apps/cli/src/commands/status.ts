@@ -301,8 +301,17 @@ function renderHuman(status: ChangeStatus): string {
   return `${lines.join('\n')}\n`
 }
 
-/** The empty-change entry shape (`.openspec.yaml` present, no artifacts yet). */
-function emptyChangeEntry(change: Change) {
+/**
+ * The empty-change entry shape: a cospec-typed change (`.openspec.yaml`
+ * present) with no artifacts yet, its next step from its own matrix.
+ */
+function emptyChangeEntry(change: Change, type: CospecType) {
+  const required = new Set(enforcedApplyRequires(type, change.schemaVersion ?? 1))
+  const next = resolveNext(
+    cospecStates(type, new Map(), change.skipSpecs === true),
+    required,
+    change.id,
+  )
   return {
     change: change.id,
     type: change.schema,
@@ -310,7 +319,7 @@ function emptyChangeEntry(change: Change) {
     artifacts: [] as ArtifactStatus[],
     gate: 'clear',
     archiveReady: false,
-    next: `cospec instructions proposal --change ${change.id}`,
+    ...(next === undefined ? {} : { next }),
   }
 }
 
@@ -326,6 +335,11 @@ function legacyChangeEntry(
   const entry = { change: change.id, type: change.schema, legacy: true as const }
   const next = upstream === undefined ? undefined : upstreamNext(upstream, change.id)
   return next === undefined ? entry : { ...entry, next }
+}
+
+function emptyHuman(entry: { change: string; type: string; next?: string }): string {
+  const next = entry.next === undefined ? '' : `; next: ${entry.next}`
+  return `${entry.change} (${entry.type}): in progress — no artifacts yet${next}\n`
 }
 
 export type ChangeEntry =
@@ -374,16 +388,21 @@ async function refuseUnknownSchema(
   return EXIT.failure
 }
 
-/** Whether the binary's status for this change must answer it (a schema cospec doesn't type). */
+/**
+ * Whether the binary's status for this change must answer it: a schema cospec
+ * doesn't type, whose artifacts only its own schema names, written or not.
+ */
 function answeredUpstream(change: Change): boolean {
-  return hasAnyArtifact(change.dir) && !isCospecType(change.schema)
+  return !isCospecType(change.schema)
 }
 
 /**
- * One change's status entry — empty, legacy, or full. A legacy entry takes its
- * next step from `upstream`, the binary's status for the change. Never throws
- * itself; a caller sweeping every change (`--all`) wraps this in a try/catch
- * per change so one bad change cannot abort the sweep.
+ * One change's status entry — legacy, empty, or full. A legacy entry (any
+ * schema cospec doesn't type, with or without artifacts) takes its next step
+ * from `upstream`, the binary's status for the change; only a cospec-typed
+ * change is empty. Never throws itself; a caller sweeping every change
+ * (`--all`) wraps this in a try/catch per change so one bad change cannot
+ * abort the sweep.
  */
 export function buildChangeEntry(
   base: string,
@@ -392,8 +411,8 @@ export function buildChangeEntry(
   archived?: Map<string, string>,
   warnings: ReadWarning[] = [],
 ): ChangeEntry {
-  if (!hasAnyArtifact(change.dir)) return emptyChangeEntry(change)
   if (!isCospecType(change.schema)) return legacyChangeEntry(change, upstream)
+  if (!hasAnyArtifact(change.dir)) return emptyChangeEntry(change, change.schema)
   return computeStatus(base, change, archived, warnings)
 }
 
@@ -513,7 +532,7 @@ function renderEntryHuman(
     return renderUpstreamHuman(upstream, entry.next)
   }
   if (entry.state === 'in-progress') {
-    return `${entry.change} (${entry.type}): in progress — no artifacts yet; next: ${entry.next}\n`
+    return emptyHuman(entry)
   }
   return renderHuman(entry)
 }
@@ -846,7 +865,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     printWarnings(warnings)
     process.stdout.write(
       'state' in entry && entry.state === 'in-progress'
-        ? `${change.id} (${change.schema}): in progress — no artifacts yet; next: ${entry.next}\n`
+        ? emptyHuman(entry)
         : renderHuman(entry as ChangeStatus),
     )
     return EXIT.success
