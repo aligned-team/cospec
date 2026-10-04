@@ -287,39 +287,47 @@ function typeRequiresSpecs(type: CospecType): boolean {
 interface CospecValidateJson {
   items?: { issues?: { level?: string; rule?: string }[] }[]
   summary?: { errors?: number; warnings?: number; byRule?: Record<string, number> }
+  status?: { severity?: string }[]
 }
 
 /**
  * Parse a `cospec validate --json` stdout body (the frozen
  * `{items, summary:{errors,warnings,byRule}}` shape from
  * `apps/cli/src/core/report.ts`'s `toJson`) into rule-id counts — the raw data
- * behind the `schemaConformance` metric. Tolerant: a non-JSON body (e.g. an
- * openspec-arm tree with no cospec schema stamp) or a body missing
- * `summary.byRule` resolves to null/derived-from-items rather than throwing.
+ * behind the `schemaConformance` metric. A body that is no report is null, never
+ * a clean pass: non-JSON (e.g. an openspec-arm tree with no cospec schema
+ * stamp), a value that is not an object, a `status[]` carrying an error (a
+ * refusal document, or a report cospec could not finish), and a document
+ * without `summary` counts or an `items` array.
  * Falls back to counting `items[].issues[].rule` when `byRule` is
  * absent/empty, so an older or hand-built report shape still yields counts.
  * Exported (pure, no I/O) so rule-id parsing is unit-testable against fixture
  * JSON without spawning the real CLI.
  */
 export function parseSchemaConformanceJson(stdout: string): ConformanceCounts | null {
+  let value: unknown
   try {
-    const parsed = JSON.parse(stdout) as CospecValidateJson
-    const byRule: Record<string, number> = { ...parsed.summary?.byRule }
-    if (Object.keys(byRule).length === 0 && Array.isArray(parsed.items)) {
-      for (const item of parsed.items) {
-        for (const issue of item.issues ?? []) {
-          if (issue.rule !== undefined) byRule[issue.rule] = (byRule[issue.rule] ?? 0) + 1
-        }
+    value = JSON.parse(stdout)
+  } catch (error) {
+    if (error instanceof SyntaxError) return null
+    throw error
+  }
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
+  const parsed = value as CospecValidateJson
+  if (Array.isArray(parsed.status) && parsed.status.some((d) => d?.severity === 'error'))
+    return null
+  const summary = parsed.summary
+  if (summary === undefined || summary === null || !Array.isArray(parsed.items)) return null
+  if (typeof summary.errors !== 'number' || typeof summary.warnings !== 'number') return null
+  const byRule: Record<string, number> = { ...summary.byRule }
+  if (Object.keys(byRule).length === 0) {
+    for (const item of parsed.items) {
+      for (const issue of item.issues ?? []) {
+        if (issue.rule !== undefined) byRule[issue.rule] = (byRule[issue.rule] ?? 0) + 1
       }
     }
-    return {
-      errors: parsed.summary?.errors ?? 0,
-      warnings: parsed.summary?.warnings ?? 0,
-      byRule,
-    }
-  } catch {
-    return null
   }
+  return { errors: summary.errors, warnings: summary.warnings, byRule }
 }
 
 /**

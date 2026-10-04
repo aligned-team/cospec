@@ -199,7 +199,7 @@ final commit.
       binary has it too), held to the pinned binary's modules. Verify with rows
       15.2 and 15.3. Commit
       `fix(cli): match schema outputs with the binary's glob semantics`
-- [ ] 11.4 `packages/bench` `parseSchemaConformanceJson` returns null for a
+- [x] 11.4 `packages/bench` `parseSchemaConformanceJson` returns null for a
       document with a `status[]` error or without `summary` or `items`. Verify
       with row 15.10. Commit
       `fix(bench): count a refused validate document as no report`
