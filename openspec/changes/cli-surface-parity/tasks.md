@@ -224,3 +224,14 @@ final commit.
 - [ ] 11.11 Record observed evidence on every group-15 row, re-observe rows
       14.1–14.4, and update the docs pages that own each fact. Commit
       `docs(cli): record the round-2 review fixes`
+- [ ] 11.12 An unreadable `tasks.md` is answered as the binary answers it on
+      each OS (CI run 36547287646: Linux red, macOS green). Where the binary
+      refuses the change (its `realpath` confinement check, which fails under
+      Bun on macOS), its `list_error` or `change_error` is relayed: its document
+      under `--json`, its message in text, and `status --all`'s entry for the
+      change. Where it reports the change (Linux), cospec does too, counting the
+      file as no tasks, as the binary's `countTaskFile` does, with a
+      `tasks_unreadable` warning. `status` makes its one delegated call in text
+      mode too. Rows 15.11, 15.12 and 6.3 pass on macOS and in a Linux container
+      as a non-root user. Commit
+      `fix(cli): answer an unreadable tasks.md as the binary does`

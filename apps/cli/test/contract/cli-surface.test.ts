@@ -14,12 +14,13 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   statSync,
   symlinkSync,
   utimesSync,
   writeFileSync,
 } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import { computeStatus } from '../../src/commands/status.ts'
 import { COSPEC_TYPES, resolveChange } from '../../src/core/change.ts'
@@ -1855,6 +1856,129 @@ describe('15. round-2 review rows', () => {
           const text = await ours(['validate', 'foo'], root)
           expect(text.exitCode).toBe(1)
           expect(text.stdout).toContain('meta/unreadable-artifact')
+        } finally {
+          restore()
+        }
+      },
+    )
+
+    /**
+     * Whether this runtime's `realpath` refuses a mode-000 file. The binary
+     * confines every artifact output through `realpathSync.native` before it
+     * reads one: Bun on macOS opens the file to resolve it and fails with
+     * EACCES, Bun on Linux and Node anywhere resolve it without opening it.
+     * Where it refuses, the binary refuses the change; where it doesn't, the
+     * binary counts an unreadable `tasks.md` as no tasks.
+     */
+    function realpathRefuses(path: string): boolean {
+      try {
+        realpathSync.native(path)
+        return false
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'EACCES') return true
+        throw error
+      }
+    }
+
+    /** The list fixture with `beta`'s `tasks.md` at mode 000. */
+    function lockedTasks(): { root: string; tasks: string; restore: () => void } {
+      const root = listFixture()
+      const tasks = join(root, 'openspec/changes/beta/tasks.md')
+      return { root, tasks, restore: lock(tasks) }
+    }
+
+    /** cospec's `tasks_unreadable` warnings in `doc`, each naming `tasks` and its errno code. */
+    function expectTasksWarning(doc: unknown, tasks: string): void {
+      const warnings = (((doc as Row).warnings ?? []) as Row[]).filter(
+        (w) => w.code === 'tasks_unreadable',
+      )
+      expect(warnings).toHaveLength(1)
+      expect(String(warnings[0]!.message)).toContain(tasks)
+      expect(String(warnings[0]!.message)).toContain('EACCES')
+    }
+
+    test.failing(
+      '15.11 an unreadable tasks.md: list and status --change answer as the binary does',
+      async () => {
+        const { root, tasks, restore } = lockedTasks()
+        try {
+          const refused = realpathRefuses(tasks)
+          for (const argv of [
+            ['list', '--json'],
+            ['status', '--change', 'beta', '--json'],
+          ]) {
+            const up = await upstreamJson(argv, root)
+            const cs = await oursJson(argv, root)
+            captureStatus(`15.11 ${argv[0]}`, cs)
+            expect({ argv, exit: up.exitCode }).toEqual({ argv, exit: refused ? 1 : 0 })
+            expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
+            const textArgv = argv.filter((a) => a !== '--json')
+            const upText = await upstream(textArgv, root)
+            const text = await ours(textArgv, root)
+            expect({ textArgv, exit: text.exitCode }).toEqual({ textArgv, exit: upText.exitCode })
+            if (refused) {
+              // The binary's refusal, relayed whole: its document, its message.
+              expect(cs.json).toEqual(JSON.parse(respellRemedies(up.stdout)))
+              const d = firstStatus(up.json)
+              // The path the binary resolved: the change directory's own realpath.
+              const resolved = join(realpathSync(dirname(tasks)), 'tasks.md')
+              expect(errnoShape(d.message)).toMatchObject({ code: 'EACCES', path: resolved })
+              expect(text.stderr).toBe(`cospec ${argv[0]}: ${respellRemedies(d.message)}\n`)
+              continue
+            }
+            // The binary counts the file as no tasks; so does cospec, and says why.
+            expectOracle(up.json, cs.json, argv[0] === 'list' ? LIST_SPEC : STATUS_SPEC)
+            expectTasksWarning(cs.json, tasks)
+            expect(text.stderr).toContain(`Warning: could not read ${tasks} (EACCES)`)
+            if (argv[0] === 'list') {
+              const beta = rowsOf(cs.json).find((r) => r.change === 'beta')!
+              expect(beta.error).toBeUndefined()
+              expect(beta.tasks).toEqual({ total: 0, complete: 0 })
+              expect(text.stdout).toMatch(/^ {2}beta +fix +clear +0\/0 tasks$/m)
+            } else {
+              expect((cs.json as Row).tasks).toEqual({ total: 0, complete: 0 })
+              expect(text.stdout).toContain('  tasks:         0/0\n')
+            }
+          }
+        } finally {
+          restore()
+        }
+      },
+    )
+
+    test.failing(
+      '15.12 an unreadable tasks.md: status --all answers its change as the binary does',
+      async () => {
+        const { root, tasks, restore } = lockedTasks()
+        try {
+          const refused = realpathRefuses(tasks)
+          const up = await upstreamJson(['status', '--all', '--json'], root)
+          const cs = await oursJson(['status', '--all', '--json'], root)
+          captureStatus('15.12 json', cs)
+          const upText = await upstream(['status', '--all'], root)
+          const text = await ours(['status', '--all'], root)
+          captureStatus('15.12 text', text)
+          expect(cs.exitCode).toBe(up.exitCode)
+          expect(text.exitCode).toBe(upText.exitCode)
+          const upBeta = rowsOf(up.json).find((e) => e.changeName === 'beta')!
+          const beta = rowsOf(cs.json).find((e) => e.change === 'beta')!
+          expect(Array.isArray(upBeta.status)).toBe(refused)
+          if (refused) {
+            // The binary could not report beta: its failure is beta's entry, and the sweep fails.
+            const messages = (upBeta.status as Diagnostic[]).map((d) => d.message)
+            expect(up.exitCode).toBe(1)
+            expect(beta.error).toBe(messages.join('\n'))
+            expect(beta.status).toEqual(upBeta.status)
+            expect(text.stdout).toContain(`beta: ERROR — ${messages.join('\n')}\n`)
+            return
+          }
+          expect(up.exitCode).toBe(0)
+          expectOracle(up.json, cs.json, STATUS_ALL_SPEC)
+          expect(beta.error).toBeUndefined()
+          expect(beta.tasks).toEqual({ total: 0, complete: 0 })
+          expectTasksWarning(cs.json, tasks)
+          expect(text.stderr).toContain(`Warning: could not read ${tasks} (EACCES)`)
+          expect(text.stdout).toContain('  tasks:         0/0\n')
         } finally {
           restore()
         }
