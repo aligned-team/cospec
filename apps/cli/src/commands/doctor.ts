@@ -15,7 +15,7 @@
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import { parse as parseYaml } from 'yaml'
 
@@ -49,6 +49,7 @@ import { type ResolvedRoot, resolveRoot, RootSelectionError } from '../core/root
 import {
   commandPath,
   HARNESS_TABLE,
+  type HarnessAdapter,
   primaryRoot,
   scanRoots,
   skillsRoot,
@@ -58,7 +59,7 @@ import { detectHarnesses, generate } from './update.ts'
 
 type Level = 'ERROR' | 'WARNING' | 'INFO'
 
-interface Finding {
+export interface Finding {
   level: Level
   check: string
   message: string
@@ -184,7 +185,11 @@ function checkLegacyLayout(migration: WriteResult[], findings: Finding[]): void 
   }
 }
 
-function harnessMarkdownFiles(cwd: string): { relpath: string; text: string }[] {
+/** `table` is a test seam for rows the shipped table does not carry. */
+export function harnessMarkdownFiles(
+  cwd: string,
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): { relpath: string; text: string }[] {
   // Keyed by relpath: the `.agents` harness dir strictly contains the shared
   // `.agents/skills` opsx root, so the two walk ranges overlap and an unguarded
   // scan would report every finding in that tree twice.
@@ -201,7 +206,7 @@ function harnessMarkdownFiles(cwd: string): { relpath: string; text: string }[] 
       }
     }
   }
-  for (const root of scanRoots()) walk(root)
+  for (const root of scanRoots(table)) walk(root)
   // openspec ≥1.8.0 writes its Codex skills to the shared `.agents/skills/` root.
   // cospec now writes its own `cospec-*` skills there as well; both prefixes coexist,
   // and the opsx check filters on provenance, never on the path.
@@ -238,22 +243,53 @@ function checkStaleness(files: { relpath: string; text: string }[], findings: Fi
   }
 }
 
-function checkDanglingRefs(
+/**
+ * The row that owns a harness file: the one whose primary root prefixes it, so
+ * a root two rows share keeps its primary owner; else the first row with a
+ * surface (skills root, commands dir, rules dir) that prefixes it, which is how
+ * a row whose skills and commands live under different roots owns both trees.
+ */
+function owningRow(relpath: string, table: readonly HarnessAdapter[]): HarnessAdapter | undefined {
+  const under = (dir: string): boolean => relpath.startsWith(`${dir}/`)
+  const byPrimary = table.find((r) => {
+    const root = primaryRoot(r)
+    return root !== undefined && under(root)
+  })
+  if (byPrimary !== undefined) return byPrimary
+  return table.find((r) => {
+    const dirs: string[] = []
+    const skills = skillsRoot(r)
+    if (skills.scope === 'project') dirs.push(skills.root)
+    if (r.commands !== undefined) dirs.push(r.commands.dir)
+    if (r.rulesPath !== undefined) dirs.push(dirname(r.rulesPath))
+    return dirs.some(under)
+  })
+}
+
+/**
+ * A body's workflow references: `/cospec:<id>` and `/cospec-<id-or-skill>`,
+ * plus the row's own invocation prefix (`@cospec-<id>` for an `@` row), the
+ * spelling a flat row's bodies are rendered in.
+ */
+function referencePattern(row: HarnessAdapter): RegExp {
+  const sigils = [...new Set(['/', row.invocationPrefix])]
+  const alternation = sigils.map((s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')).join('|')
+  return new RegExp(`(?:${alternation})cospec[:-]([a-z][a-z-]*)`, 'g')
+}
+
+export function checkDanglingRefs(
   cwd: string,
   files: { relpath: string; text: string }[],
   findings: Finding[],
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): void {
   for (const f of files) {
-    // The row whose primary root prefixes the file owns it.
-    const row = HARNESS_TABLE.find((r) => {
-      const root = primaryRoot(r)
-      return root !== undefined && f.relpath.startsWith(`${root}/`)
-    })
+    const row = owningRow(f.relpath, table)
     if (row === undefined) continue
     const harness = row.id
     const { body } = splitFrontmatter(f.text)
     const refs = new Set<string>()
-    for (const m of body.matchAll(/\/cospec[:-]([a-z][a-z-]*)/g)) refs.add(m[1]!)
+    for (const m of body.matchAll(referencePattern(row))) refs.add(m[1]!)
     for (const ref of refs) {
       // A reference is spelled either with the workflow id (`/cospec:apply`,
       // `/cospec-apply`) or — in the shared `.agents` dialect, which emits no

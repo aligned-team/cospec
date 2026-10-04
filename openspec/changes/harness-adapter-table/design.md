@@ -207,7 +207,10 @@ All four have `invocationPrefix: '/'` and `requiresIdeRestart: false`, and each
    rows that is the same routing. Rejected: adding `author`/`contentHash` keys
    to the TOML. A tool's command parser may reject unknown keys, and the
    manifest path already provides provenance, drift detection and contained
-   removal.
+   removal. `update`'s orphan sweep, which removes an unmodified cospec command
+   a run no longer emits, matches each command dir's entries against the
+   `extension` of the markdown-serializer rows that render into it, never a
+   literal `.md`, and leaves a TOML row's dir to the manifest.
 
 10. **Command frontmatter is a builder function on the row.** Rejected: an enum
     switched in `render.ts`. Each later tool's frontmatter keys (for example
@@ -226,9 +229,14 @@ All four have `invocationPrefix: '/'` and `requiresIdeRestart: false`, and each
     the four rows this derives `['.claude', '.codex', '.opencode', '.agents']`,
     today's `.${id}` walk order, and a unit test pins that. Doctor attributes a
     file to the row whose primary root prefixes it, which gives today's
-    attribution. Rejected: a single first-occurrence pass, which yields
-    `.claude, .agents, .codex, .opencode` and reorders doctor's findings.
-    Rejected: sorting findings, which changes today's order.
+    attribution; a file no primary root prefixes falls to the first row whose
+    skills root, commands dir or rules dir does, so a row whose commands and
+    skills live under different roots owns both trees. Its dangling-ref check
+    matches `/cospec:<id>`, `/cospec-<id>` and the owning row's
+    `invocationPrefix` spelling (`@cospec-<id>`). Rejected: a single
+    first-occurrence pass, which yields `.claude, .agents, .codex, .opencode`
+    and reorders doctor's findings. Rejected: sorting findings, which changes
+    today's order.
 
 13. **`setupNote` carries today's receipt lines verbatim, and upstream's IDE
     restart line is driven by `requiresIdeRestart`.** The receipt prints each

@@ -281,3 +281,20 @@ Exclusive files: `docs/harness-integration.md`.
       every verification row is `[x]` with observed evidence (no `[ ]` or `[~]`
       left); `validate harness-adapter-table --strict` passes; `mise run check`
       green at `77db34ae` (verification 5.3) and re-run on this ledger commit
+
+## 8. Review fixes: commands still hard-coding a tool shape
+
+- [x] 8.1 `update.ts`: match the orphan sweep's command-dir entries against the
+      `extension` of the markdown-serializer rows rendering into each dir,
+      leaving TOML dirs to the manifest; add the `.prompt` fixture-row cases to
+      `generate-rows.test.ts`. Verify verification 3.9 -> `removeOrphanMarkdown`
+      takes the table and builds a dir -> extensions map; the `.prompt` and
+      TOML-dir cases fail on the literal `.md` filter and pass after it
+- [x] 8.2 `doctor.ts`: attribute a file by primary root, then by any row surface
+      (skills root, commands dir, rules dir), and match references with the
+      owning row's `invocationPrefix` as well as `/`; give
+      `harnessMarkdownFiles`/`checkDanglingRefs` a `table` seam and add
+      `doctor-rows.test.ts`. Verify verification 3.10 -> `owningRow` and
+      `referencePattern` in `doctor.ts`; the `@` and split-root cases fail
+      before the change and pass after it; the four rows' doctor goldens are
+      unchanged
