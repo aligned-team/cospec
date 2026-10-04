@@ -71,11 +71,16 @@ describe('the preload keeps every console line behind a backlogged stream', () =
   // the binary then `console.log`s is lost at exit on Linux, while everything
   // written through the stream arrives (issue #58). Under Node the console
   // writes through the stream. Each run backlogs both pipes, then prints its
-  // answer through the console; every run must end with it.
+  // answer through every console method the binary calls, interleaved; every
+  // run must end with each line, in order.
   const backlog = `const redraw = '\\u001b[43G\\u001b[44G'
 for (let i = 0; i < 20000; i++) { process.stdout.write(redraw); process.stderr.write(redraw) }
 console.log('answer %s', 'line')
-console.error('failure %s', 'line')`
+console.error('failure %s', 'line')
+console.info('info')
+console.warn('warn')
+console.debug('debug')
+console.error('failure')`
   test('20 runs of a Bun child that backlogs stdout and stderr, then answers', async () => {
     const preload = writeHandoverPreloadInto(mkdtempSync(join(tmpdir(), 'cospec-preload-')))
     const ends: string[] = []
@@ -91,9 +96,11 @@ console.error('failure %s', 'line')`
         new Response(proc.stderr).text(),
         proc.exited,
       ])
-      ends.push(`${exitCode} ${stdout.slice(-12)} ${stderr.slice(-13)}`)
+      ends.push(`${exitCode} ${stdout.slice(-23)} ${stderr.slice(-26)}`)
     }
-    expect(ends).toEqual(Array(20).fill('0 answer line\n failure line\n'))
+    expect(ends).toEqual(
+      Array(20).fill('0 answer line\ninfo\ndebug\n failure line\nwarn\nfailure\n'),
+    )
   }, 30_000)
 })
 

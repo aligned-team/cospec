@@ -36,13 +36,18 @@ writes through `process.stdout`, so the binary under Node never loses it.
 
 - **Route the console through the process streams in the preload.** The preload
   already exists to give the binary Node's semantics under Bun (the closed-input
-  `exit`); `console.log`/`console.error` become
-  `process.stdout.write(format(...) + '\n')`/`process.stderr.write(...)`,
-  `format` from `node:util`, which is what Node's console does. Rejected: giving
-  the child a file instead of a pipe for stdout (changes every wrapped call's
-  shape for one command's symptom, and leaves handovers exposed); relaxing the
-  post-condition (the row would still fail on the missing answer, and cospec
-  would relay a reset with no answer line).
+  `exit`); every console method the pinned binary calls (`CONSOLE_ROUTES`:
+  `log`/`info`/`debug`, `warn`/`error`) becomes
+  `process.stdout.write(format(...) + '\n')` or `process.stderr.write(...)` —
+  the stream Node's console writes it to — `format` from `node:util`, which is
+  what Node's console does. A method left on Bun's console would still write
+  past the queue (a line lost from the middle of a backlogged stream, or printed
+  ahead of an earlier one), so a contract row enumerates the dist's
+  `console.<method>` calls and fails a pin that adds one unrouted. Rejected:
+  giving the child a file instead of a pipe for stdout (changes every wrapped
+  call's shape for one command's symptom, and leaves handovers exposed);
+  relaxing the post-condition (the row would still fail on the missing answer,
+  and cospec would relay a reset with no answer line).
 - **The routed writes ignore a gone reader, as Node's console does.** A write to
   a pipe whose reader has exited (`cospec workset open w1 | head -0`) fails with
   EPIPE, delivered on Bun and Node alike as the stream's `error` event, never

@@ -414,10 +414,13 @@ under Node. Bun's console also writes past `process.stdout`'s queue: once the
 confirm's redraws (one per answer read — thousands under `yes |`) have
 backlogged a pipe, a line the binary then prints with `console.log` is lost at
 exit on Linux while the stream's queued output arrives, so a piped reset would
-reset and print no answer line. The preload routes `console.log` and
-`console.error` through `process.stdout`/`process.stderr` (formatted by
-`node:util` `format`), as Node's console writes, so every line arrives in order.
-Like Node's console, those writes ignore a stream whose reader has gone
+reset and print no answer line. The preload routes every console method the
+binary calls (`CONSOLE_ROUTES`: `console.log`/`info`/`debug` through
+`process.stdout`, `console.warn`/`error` through `process.stderr`, formatted by
+`node:util` `format`), as Node's console writes them, so every line arrives in
+order; a contract row enumerates the pinned dist's `console.<method>` calls and
+fails a pin that reaches for one the preload leaves on Bun's console. Like
+Node's console, those writes ignore a stream whose reader has gone
 (`cospec workset open w1 | head -0`): the EPIPE arrives as the stream's `error`
 event, never thrown, so the preload holds a no-op `error` listener for each
 write (re-armed from its callback, as Node's console does) and the handover

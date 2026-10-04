@@ -17,6 +17,10 @@
 - [x] 2.4 Make the preload's console writes ignore a stream whose reader has
       gone, as Node's console does, and verify the closed-stdout/stderr unit and
       contract rows fail before and pass after
+- [x] 2.5 Route every console method the pinned binary calls (`log`, `info`,
+      `debug`, `warn`, `error`) through the stream Node's console writes it to,
+      and verify the dist-enumeration and Node-routing contract rows fail before
+      and pass after
 
 ## 3. Docs and gate
 
