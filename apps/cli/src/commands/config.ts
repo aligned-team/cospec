@@ -426,6 +426,17 @@ function profilePiped(ctx: CommandContext, call: ConfigCall): Promise<OpenspecRe
  */
 const SGR = new RegExp(`${String.fromCharCode(0x1b)}\\[[0-9;]*m`, 'g')
 
+/** The lines the binary answers its reset confirm with: reset, or not. */
+const RESET_ANSWERS = new Set(['Configuration reset to defaults', 'Reset cancelled.'])
+
+/** CSI escapes: the cursor moves and shows the confirm prints ahead of its answer line. */
+const CSI = new RegExp(`${String.fromCharCode(0x1b)}\\[[0-9;?]*[A-Za-z]`, 'g')
+
+/** A run's last stdout line with its cursor escapes removed (`\e[G\e[?25h` precedes the answer). */
+function answerLine(stdout: string): string {
+  return (stdout.trimEnd().split('\n').at(-1) ?? '').replace(CSI, '')
+}
+
 /**
  * `config reset --all` with no terminal on stdin, run piped under the
  * handover preload with cospec's stdin forwarded to the binary's confirm
@@ -435,7 +446,8 @@ const SGR = new RegExp(`${String.fromCharCode(0x1b)}\\[[0-9;]*m`, 'g')
  * the forwarding drops what arrives before the prompt is printed. A closed
  * input cancels as it does under Node (the preload) — 130, `Reset cancelled.`,
  * nothing reset — and every answer is relayed with its exit code. The binary
- * always prints an answer line after its prompt, or a failure on stderr.
+ * always ends its stdout with one of its answer lines, after however many
+ * redraws of its prompt the input caused, or prints a failure on stderr.
  */
 async function resetPiped(
   ctx: CommandContext,
@@ -452,7 +464,7 @@ async function resetPiped(
       postCondition: (res) =>
         res.exitCode === 1
           ? res.stderr.length > 0 || 'failed with nothing on stderr'
-          : res.stdout.endsWith('\n') || 'printed no answer line after its prompt',
+          : RESET_ANSWERS.has(answerLine(res.stdout)) || 'printed no answer line after its prompt',
     },
   })
   const respell = result.exitCode === 0 ? (text: string) => text : respellRemedies

@@ -469,6 +469,9 @@ function handoverPlan(args: string[]): configModule.ConfigCall {
   return planned
 }
 
+/** The escape byte the binary's prompt draws its cursor controls with. */
+const ESC = String.fromCharCode(0x1b)
+
 describe('config handover pre-flights: only the binary’s own interactive answer hands over', () => {
   const tty = { stdoutIsTTY: true, stdinIsTTY: true }
 
@@ -489,7 +492,8 @@ describe('config handover pre-flights: only the binary’s own interactive answe
 
   test('config reset --all with no TTY on stdin runs piped and exits as the binary exits', async () => {
     const handover = exported<RunHandover>(configModule, 'runHandover')
-    const stdout = 'the binary’s prompt and its cancellation line\n'
+    // The binary's prompt, the cursor restore, and its cancellation line.
+    const stdout = `? Reset all configuration to defaults? (y/N)${ESC}[46G\n${ESC}[G${ESC}[?25hReset cancelled.\n`
     const { value, error, spawned } = await stubbed(
       () => ({ stdout, exitCode: 130 }),
       () =>
@@ -509,6 +513,38 @@ describe('config handover pre-flights: only the binary’s own interactive answe
     expect(value).toBe(130)
     expect(spawned.stdout).toBe(stdout)
   })
+
+  // The post-condition is the binary's answer line, after however many
+  // redraws: a run that reset (exit 0) and printed only redraws — the lost
+  // answer of issue #58, with or without a newline after the last one — is
+  // refused, and one that answered is relayed.
+  const redraws = `? Reset all configuration to defaults? (y/N)${`${ESC}[43G${ESC}[44G`.repeat(64)}${ESC}[43G\n${ESC}[G${ESC}[?25h`
+  for (const [ends, stdout, answered] of [
+    ['its answer line', `${redraws}Configuration reset to defaults\n`, true],
+    ['only its redraws', redraws, false],
+    ['a redraw and a newline', `${redraws}\n`, false],
+  ] as const) {
+    test(`config reset --all piped: stdout ending in ${ends} is ${answered ? 'relayed' : 'refused'}`, async () => {
+      const handover = exported<RunHandover>(configModule, 'runHandover')
+      const { value, error, spawned } = await stubbed(
+        () => ({ stdout, exitCode: 0 }),
+        () =>
+          handover(ctxFor('/repo'), handoverPlan(['reset', '--all']), {
+            stdoutIsTTY: true,
+            stdinIsTTY: false,
+            input: () => new Response('').body!,
+          }),
+      )
+      if (answered) {
+        expect(error).toBeUndefined()
+        expect(value).toBe(0)
+        expect(spawned.stdout).toBe(stdout)
+      } else {
+        expect(String(error)).toContain('printed no answer line after its prompt')
+        expect(spawned.stdout).toBe('')
+      }
+    })
+  }
 
   test('config reset --all with no TTY on stdin: any other answer is a wrapped-call violation', async () => {
     const handover = exported<RunHandover>(configModule, 'runHandover')

@@ -234,7 +234,12 @@ input at all (an ended pipe) is cancelled as OpenSpec cancels it under Node: its
 cancellation line (`Reset cancelled.`, `Config profile cancelled.`) and exit
 `130`. OpenSpec runs under cospec's own runtime, so cospec runs it behind a
 small preload that delivers the exit notice OpenSpec's prompts listen for when
-their input closes (Ctrl-D, an ended pipe); cospec writes that file to its cache
+their input closes (Ctrl-D, an ended pipe), and writes OpenSpec's printed lines
+through the output streams, as Node does, so an answer printed after a prompt
+has redrawn many times (`yes | …`) always arrives, and a line whose reader has
+already gone (`… | head -0`) is dropped without stopping OpenSpec, as Node drops
+it. Its error lines (`config edit`'s editor failures, say) print uncoloured, as
+OpenSpec prints them under Node. cospec writes that file to its cache
 (`${XDG_CACHE_HOME:-~/.cache}/cospec`), or — when it cannot write there — to a
 directory of its own under the system temp directory, removed when cospec exits,
 so a read-only cache never stops a prompt.

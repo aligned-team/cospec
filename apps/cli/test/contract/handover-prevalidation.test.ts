@@ -14,10 +14,19 @@
 // the exit code and an empty stdout.
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { chmodSync, cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  cpSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { run } from '../../src/cli.ts'
+import { CONSOLE_ROUTES, writeHandoverPreloadInto } from '../../src/core/handover-preload.ts'
 import { respellRemedies } from '../../src/core/remedies.ts'
 import {
   CLI_ENTRY,
@@ -416,6 +425,177 @@ describe('a prompt cancelled at the keyboard (Ctrl-C, Ctrl-D) is cancelled as th
         )
       }, 30_000)
     }
+})
+
+// --- a handover whose output reader has exited ----------------------------------------
+
+/**
+ * `cmd` on a terminal, through `sh`, with one output stream a pipe whose
+ * reader (`true`) exits at once — `cospec workset open w1 | head -0` — and the
+ * other stream, and `cmd`'s exit code (`[rc=N]`), on the terminal. stdin stays
+ * the terminal, so a handover leaf still hands over.
+ */
+function ptyClosed(
+  closed: 'stdout' | 'stderr',
+  cmd: string[],
+  root: string,
+  env: Record<string, string>,
+): Promise<PtyRun> {
+  const script =
+    closed === 'stdout'
+      ? '{ { "$@"; echo "[rc=$?]" >&3; } | true; } 3>&2'
+      : '{ { "$@" 2>&1 1>&3; echo "[rc=$?]" >&3; } | true; } 3>&1'
+  return ptyRun(['/bin/sh', '-c', script, 'sh', ...cmd], { cwd: root, env })
+}
+
+/** A saved workset `w1` whose first member folder is gone: `workset open` skips it on stderr. */
+async function saveWorksetMissingPrimary(root: string): Promise<void> {
+  const [gone, kept] = [join(root, 'gone'), join(root, 'member')]
+  for (const dir of [gone, kept]) mkdirSync(dir)
+  const created = await oracle(
+    ['workset', 'create', 'w1', '--member', gone, '--member', kept],
+    root,
+  )
+  expect(created.exitCode, detail(created)).toBe(0)
+  rmSync(gone, { recursive: true })
+}
+
+describe('a handover whose stdout or stderr reader has exited runs as the binary runs', () => {
+  // The binary under Node ignores a console write that fails because the
+  // stream's reader has gone (EPIPE): Node's console swallows it. Under Bun
+  // the preload routes the console through the process streams, so it must
+  // swallow it the same way, or the handover crashes (exit 1, Bun's crash
+  // report on the terminal) where the binary carries on.
+  const cases: [label: string, closed: 'stdout' | 'stderr', argv: string[], editor?: string][] = [
+    ['workset open w1 --tool code', 'stdout', ['workset', 'open', 'w1', '--tool', 'code']],
+    [
+      'workset open w1 --tool code, its primary skipped',
+      'stderr',
+      ['workset', 'open', 'w1', '--tool', 'code'],
+    ],
+    ['config edit, EDITOR=false', 'stderr', ['config', 'edit'], 'false'],
+  ]
+  for (const [label, closed, argv, editor] of cases)
+    test(`${label}, ${closed} closed`, async () => {
+      const [upRoot, coRoot] = [plainRoot(), plainRoot()]
+      const env = async (root: string): Promise<Record<string, string>> => {
+        if (editor !== undefined) return terminalEnv(root, { EDITOR: editor })
+        if (closed === 'stderr') await saveWorksetMissingPrimary(root)
+        else await saveWorkset(root)
+        return terminalEnv(root, { PATH: openerPath(root) })
+      }
+      const [upEnv, coEnv] = [await env(upRoot), await env(coRoot)]
+      const up = await ptyClosed(closed, [NODE, openspecBinPath(), ...argv], upRoot, {
+        ...upEnv,
+        OPENSPEC_NO_COMPLETIONS: '1',
+      })
+      const co = await ptyClosed(closed, [process.execPath, CLI_ENTRY, ...argv], coRoot, coEnv)
+      expect(terminalText(up.output), ptyDetail(up)).toContain(
+        `[rc=${argv[0] === 'config' ? 1 : 0}]`,
+      )
+      expect(co.exitCode, ptyDetail(co)).toBe(up.exitCode)
+      expect(terminalText(co.output), ptyDetail(co)).toBe(respellRemedies(terminalText(up.output)))
+    }, 30_000)
+})
+
+// --- a handover's console bytes on a terminal ---------------------------------------
+
+/** `env` with no editor configured and `NO_COLOR` unset, as a user's terminal may have it. */
+function withoutEditorOrNoColor(env: Record<string, string>): Record<string, string> {
+  for (const key of ['EDITOR', 'VISUAL', 'NO_COLOR']) delete env[key]
+  return env
+}
+
+describe('on a terminal, a handover’s console lines are the bytes the binary writes under Node', () => {
+  // Bun's native console colours `console.error` red on a terminal (unless
+  // `NO_COLOR` is set, as the sandbox otherwise sets it); Node's console
+  // writes the formatted string as is. The preload writes it as Node does, so
+  // the terminal gets the binary's bytes, escapes included — compared raw
+  // here, not through `terminalText`, which drops every escape.
+  test('config edit with no EDITOR or VISUAL: its error lines, uncoloured', async () => {
+    const [upRoot, coRoot] = [plainRoot(), plainRoot()]
+    const up = await ptyRun([NODE, openspecBinPath(), 'config', 'edit'], {
+      cwd: upRoot,
+      env: withoutEditorOrNoColor(terminalEnv(upRoot, { OPENSPEC_NO_COMPLETIONS: '1' })),
+    })
+    const co = await ptyRun([process.execPath, CLI_ENTRY, 'config', 'edit'], {
+      cwd: coRoot,
+      env: withoutEditorOrNoColor(terminalEnv(coRoot)),
+    })
+    expect(up.exitCode, ptyDetail(up)).toBe(1)
+    expect(up.output, ptyDetail(up)).toStartWith('Error: No editor configured\r\n')
+    expect(co.exitCode, ptyDetail(co)).toBe(up.exitCode)
+    expect(co.output, ptyDetail(co)).toBe(up.output)
+  }, 30_000)
+})
+
+// --- every console method the binary calls goes through the process streams ----------
+
+/** Every `.js` file under `dir`, recursively. */
+function jsFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name)
+    if (entry.isDirectory()) return jsFiles(path)
+    return entry.name.endsWith('.js') ? [path] : []
+  })
+}
+
+/** Every console method the pinned dist calls (`console.<method>` anywhere in it). */
+function distConsoleMethods(): string[] {
+  const dist = join(dirname(dirname(openspecBinPath())), 'dist')
+  const called = new Set<string>()
+  for (const file of jsFiles(dist))
+    for (const match of readFileSync(file, 'utf8').matchAll(/\bconsole\.([A-Za-z]+)/g))
+      called.add(match[1]!)
+  return [...called].toSorted()
+}
+
+describe('the preload routes each console method the binary calls as Node routes it', () => {
+  // Bun's native console writes past the process streams' queue; a method the
+  // preload leaves on it can lose a line from the middle of a backlogged
+  // stream, or print it ahead of an earlier one. Node's console writes each
+  // method through its stream.
+  test('the pinned dist calls no console method the preload leaves on Bun’s console', () => {
+    const called = distConsoleMethods()
+    expect(called.length).toBeGreaterThan(0)
+    expect(called.filter((method) => !Object.hasOwn(CONSOLE_ROUTES, method))).toEqual([])
+  })
+
+  test('each method the dist calls reaches the stream it reaches under Node', async () => {
+    // The child records what each process stream's `write` receives, calls
+    // every method the dist calls, then prints the record through the real
+    // stdout; under the preload, Bun's record must be Node's.
+    const methods = distConsoleMethods()
+    const child = `const real = process.stdout.write.bind(process.stdout)
+const seen = []
+for (const name of ['stdout', 'stderr'])
+  process[name].write = (chunk) => (seen.push([name, String(chunk)]), true)
+for (const method of ${JSON.stringify(methods)}) console[method]('%s line', method)
+real(JSON.stringify(seen) + '\\n')`
+    const dir = mkTempRepo()
+    writeFileSync(join(dir, 'child.mjs'), child)
+    const preload = writeHandoverPreloadInto(join(dir, 'cache'))
+    const spawnChild = async (cmd: string[]): Promise<SpawnResult> => {
+      const proc = Bun.spawn(cmd, {
+        cwd: dir,
+        stdin: 'ignore',
+        stdout: 'pipe',
+        stderr: 'pipe',
+        env: { ...oracleEnv(dir), BUN_BE_BUN: '1' },
+      })
+      const [stdout, stderr, exitCode] = await Promise.all([
+        new Response(proc.stdout).text(),
+        new Response(proc.stderr).text(),
+        proc.exited,
+      ])
+      return { stdout, stderr, exitCode }
+    }
+    const up = await spawnChild([NODE, 'child.mjs'])
+    const co = await spawnChild([process.execPath, '--preload', preload, 'child.mjs'])
+    expect(up.exitCode, detail(up)).toBe(0)
+    expect((JSON.parse(up.stdout) as unknown[]).length, detail(up)).toBe(methods.length)
+    expect(co, detail(co)).toEqual(up)
+  }, 30_000)
 })
 
 // --- review round 3: a cache directory cospec cannot write ----------------------------

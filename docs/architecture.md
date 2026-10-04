@@ -410,12 +410,36 @@ natively and drains no microtask an exit listener queues, so without the preload
 the prompt is never rejected and the child exits 0. The preload emits
 signal-exit's `exit` once from `beforeExit` and turns the loop once more, so the
 binary's own catch prints its cancellation line and exits `130`, as it does
-under Node. At a handed-over prompt Ctrl-D is that closed input (readline closes
-on the keypress); Ctrl-C is inquirer's own `SIGINT` handler, which cancels the
-prompt under Bun without the preload. The contract suite pins both keys against
-the binary under Node on a real pseudo-terminal (`Bun.spawn`'s `terminal`
-option, `test/contract/support/pty.ts`), on macOS and Linux alike; a terminal
-hangup is left unpinned, as the binary answers it differently per OS.
+under Node. Bun's console also writes past `process.stdout`'s queue: once the
+confirm's redraws (one per answer read — thousands under `yes |`) have
+backlogged a pipe, a line the binary then prints with `console.log` is lost at
+exit on Linux while the stream's queued output arrives, so a piped reset would
+reset and print no answer line. The preload routes every console method the
+binary calls (`CONSOLE_ROUTES`: `console.log`/`info`/`debug` through
+`process.stdout`, `console.warn`/`error` through `process.stderr`, formatted by
+`node:util` `format`), as Node's console writes them, so every line arrives in
+order; a contract row enumerates the pinned dist's `console.<method>` calls and
+fails a pin that reaches for one the preload leaves on Bun's console. The bytes
+change with it: Bun's native `console.error`/`console.warn` wrap each line in
+red SGR on a terminal (with `NO_COLOR` unset), Node's console does not, so every
+handover's error lines (`config edit`'s editor failures, `workset open`'s
+`Skipped`/`Using`/`Open manually` lines, `config profile`'s) now reach the
+terminal uncoloured, as the binary under Node writes them — a pty row compares
+`config edit`'s raw bytes with Node's. Like Node's console, those writes ignore
+a stream whose reader has gone (`cospec workset open w1 | head -0`): the EPIPE
+arrives as the stream's `error` event, never thrown, so the preload holds a
+no-op `error` listener for each write (re-armed from its callback, as Node's
+console does) and the handover carries on and exits as the binary leaves it,
+instead of crashing with exit 1. The piped reset's post-condition is the
+binary's answer itself: its stdout's last line, cursor escapes removed, is
+`Configuration reset to defaults` or `Reset cancelled.` (exit 0 or 130), or its
+stderr is non-empty (exit 1). At a handed-over prompt Ctrl-D is that closed
+input (readline closes on the keypress); Ctrl-C is inquirer's own `SIGINT`
+handler, which cancels the prompt under Bun without the preload. The contract
+suite pins both keys against the binary under Node on a real pseudo-terminal
+(`Bun.spawn`'s `terminal` option, `test/contract/support/pty.ts`), on macOS and
+Linux alike; a terminal hangup is left unpinned, as the binary answers it
+differently per OS.
 
 What the binary can still print naming a bare `openspec` command after all that
 is the residual of a live interactive session, on the terminal it was handed:
