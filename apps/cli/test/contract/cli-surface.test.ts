@@ -15,6 +15,7 @@ import {
   readdirSync,
   readFileSync,
   statSync,
+  symlinkSync,
   utimesSync,
   writeFileSync,
 } from 'node:fs'
@@ -1574,6 +1575,316 @@ describe('10. user schema directory', () => {
     const upConfig = await upstream(['status', '--change', 'config-one', '--json'], root)
     expect(upConfig.exitCode).toBe(1)
   })
+})
+
+// --- 15. round-2 review rows -----------------------------------------------------------
+
+/** A project schema `rfc` whose artifacts are `doc.md` and `notes.md` (notes needs doc). */
+function rfcSchema(root: string): void {
+  writeFiles(root, {
+    'openspec/schemas/rfc/schema.yaml': [
+      'name: rfc',
+      'version: 1',
+      'description: An rfc-style schema',
+      'artifacts:',
+      '  - id: doc',
+      '    generates: doc.md',
+      '    description: The RFC document',
+      '    template: doc.md',
+      '    instruction: Write the RFC.',
+      '    requires: []',
+      '  - id: notes',
+      '    generates: notes.md',
+      '    description: Review notes',
+      '    template: notes.md',
+      '    instruction: Write the notes.',
+      '    requires:',
+      '      - doc',
+      'apply:',
+      '  requires: [doc]',
+      '  tracks: null',
+      '',
+    ].join('\n'),
+    'openspec/schemas/rfc/templates/doc.md': '# Doc\n',
+    'openspec/schemas/rfc/templates/notes.md': '# Notes\n',
+  })
+}
+
+/** The document without its `warnings` key. */
+function withoutWarnings(doc: unknown): unknown {
+  const { warnings: _w, ...rest } = doc as Row
+  return rest
+}
+
+describe('15. round-2 review rows', () => {
+  test.failing(
+    '15.1 --type spec on a spec discovery skips validates the file, as the binary does',
+    async () => {
+      const root = cospecRoot()
+      writeFiles(root, {
+        'openspec/specs/.hidden/spec.md': '# hidden\n',
+        'openspec/specs/real/spec.md': LIVING('real'),
+      })
+      const outside = mkTempRepo()
+      writeFiles(outside, { 'cap/spec.md': '# linked\n' })
+      symlinkSync(join(outside, 'cap'), join(root, 'openspec/specs/linked'))
+      for (const id of ['.hidden', 'linked']) {
+        const up = await upstreamJson(['validate', id, '--type', 'spec', '--json'], root)
+        const cs = await oursJson(['validate', id, '--type', 'spec', '--json'], root)
+        expect({ id, exit: cs.exitCode }).toEqual({ id, exit: up.exitCode })
+        expect(up.exitCode).toBe(1)
+        const upItems = rowsOf(up.json, 'items')
+        const csItems = rowsOf(cs.json, 'items')
+        expect(csItems.map((i) => [i.id, i.valid])).toEqual(upItems.map((i) => [i.id, i.valid]))
+        const messages = (items: Row[]) =>
+          items.flatMap((i) => (i.issues as Row[]).map((x) => String(x.message)))
+        for (const m of messages(upItems)) expect(messages(csItems)).toContain(m)
+        const text = await ours(['validate', id, '--type', 'spec'], root)
+        expect({ id, exit: text.exitCode }).toEqual({ id, exit: up.exitCode })
+      }
+    },
+  )
+
+  test.failing(
+    '15.2 a hand-made change whose schema output a brace glob matches is a change',
+    async () => {
+      const root = cospecRoot('braced')
+      writeFiles(root, {
+        'openspec/schemas/braced/schema.yaml': [
+          'name: braced',
+          'version: 1',
+          'description: Outputs under rfc/',
+          'artifacts:',
+          '  - id: proposal',
+          "    generates: 'rfc/{proposal,design}*.md'",
+          '    description: The proposal',
+          '    template: t.md',
+          '    instruction: Write it.',
+          '    requires: []',
+          '',
+        ].join('\n'),
+        'openspec/schemas/braced/templates/t.md': '# t\n',
+        'openspec/changes/rfc-change/rfc/proposal.md': PROPOSAL,
+      })
+      const up = await upstreamJson(['list', '--json'], root)
+      const cs = await oursJson(['list', '--json'], root)
+      const upRow = rowsOf(up.json).find((r) => r.name === 'rfc-change')!
+      const row = rowsOf(cs.json).find((r) => r.change === 'rfc-change')!
+      expect(upRow.nested).toBeUndefined()
+      expect(row.state).not.toBe('not-a-change')
+      const validated = await oursJson(['validate', 'rfc-change', '--json'], root)
+      const rules = rowsOf(validated.json, 'items').flatMap((i) =>
+        (i.issues as Row[]).map((x) => x.rule),
+      )
+      expect(rules).not.toContain('meta/nested-change')
+    },
+  )
+
+  test.failing(
+    "15.4 a custom schema's artifacts decide its status, singly and in the sweep",
+    async () => {
+      const root = cospecRoot()
+      rfcSchema(root)
+      writeChange(root, 'r-empty', {}, 'rfc')
+      writeChange(root, 'r-doc', { 'doc.md': '# RFC\n' }, 'rfc')
+      for (const id of ['r-empty', 'r-doc']) {
+        const upText = await upstream(['status', '--change', id], root)
+        const csText = await ours(['status', '--change', id], root)
+        captureStatus(`15.4 ${id} text`, csText)
+        expect({ id, exit: csText.exitCode }).toEqual({ id, exit: upText.exitCode })
+        const u = statusText(upText.stdout)
+        expect(statusText(csText.stdout).body).toEqual(u.body)
+        expect(statusText(csText.stdout).next).toBe(
+          `Next: cospec instructions ${nextArtifact(u.next)} --change ${id}`,
+        )
+        const up = await upstreamJson(['status', '--change', id, '--json'], root)
+        const cs = await oursJson(['status', '--change', id, '--json'], root)
+        captureStatus(`15.4 ${id} json`, cs)
+        expect({ id, exit: cs.exitCode }).toEqual({ id, exit: up.exitCode })
+        expect((cs.json as Row).next).toBe(
+          `cospec instructions ${nextArtifact(u.next)} --change ${id}`,
+        )
+        expectOracle(up.json, cs.json, STATUS_SPEC)
+      }
+      const upAll = await upstreamJson(['status', '--all', '--json'], root)
+      const csAll = await oursJson(['status', '--all', '--json'], root)
+      captureStatus('15.4 sweep json', csAll)
+      expect(csAll.exitCode).toBe(upAll.exitCode)
+      const entry = (id: string) => rowsOf(csAll.json).find((e) => e.change === id)!
+      expect(entry('r-empty').next).toBe('cospec instructions doc --change r-empty')
+      expect(entry('r-doc').next).toBe('cospec instructions notes --change r-doc')
+      const sweep = await ours(['status', '--all'], root)
+      captureStatus('15.4 sweep text', sweep)
+      for (const id of ['r-empty', 'r-doc']) {
+        const upText = await upstream(['status', '--change', id], root)
+        for (const line of statusText(upText.stdout).body.filter((l) => l.length > 0))
+          expect(sweep.stdout).toContain(line)
+      }
+      expect(sweep.stdout).not.toContain('cospec instructions proposal')
+    },
+  )
+
+  unlessRoot('mode 000', () => {
+    function lockedArchive(): { root: string; restore: () => void } {
+      const root = cospecRoot()
+      requiredDone(root, 'ready')
+      writeFiles(root, { 'openspec/changes/archive/2026-01-01-old/proposal.md': PROPOSAL })
+      return { root, restore: lock(join(root, 'openspec/changes/archive')) }
+    }
+
+    test.failing("15.5 validate --archived relays the binary's failure document", async () => {
+      const { root, restore } = lockedArchive()
+      try {
+        const up = await upstreamJson(['validate', '--archived', '--json'], root)
+        const cs = await oursJson(['validate', '--archived', '--json'], root)
+        expect(up.exitCode).toBe(1)
+        expect(cs.exitCode).toBe(up.exitCode)
+        expect(cs.json).toEqual(JSON.parse(respellRemedies(up.stdout)))
+        const upText = await upstream(['validate', '--archived'], root)
+        const text = await ours(['validate', '--archived'], root)
+        expect(text.exitCode).toBe(upText.exitCode)
+        expect(text.stderr).toBe(`cospec: ${respellRemedies(firstStatus(up.json).message)}\n`)
+        expect(text.stderr).not.toContain('1.9.0')
+      } finally {
+        restore()
+      }
+    })
+
+    test.failing(
+      '15.6 an unreadable archive leaves validate and apply answering with a warning',
+      async () => {
+        const { root, restore } = lockedArchive()
+        const locked: { argv: string[]; run: JsonAnswer; text: SpawnResult }[] = []
+        const argvs = [
+          ['validate', 'ready', '--json'],
+          ['validate', '--all', '--json'],
+          ['apply', 'ready', '--json'],
+        ]
+        try {
+          for (const argv of argvs) {
+            const run = await oursJson(argv, root)
+            const text = await ours(
+              argv.filter((a) => a !== '--json'),
+              root,
+            )
+            locked.push({ argv, run, text })
+          }
+          const up = await upstreamJson(['validate', '--all', '--json'], root)
+          expect(locked[1]!.run.exitCode).toBe(up.exitCode)
+        } finally {
+          restore()
+        }
+        for (const { argv, run, text } of locked) {
+          const warnings = ((run.json as Row).warnings ?? []) as Row[]
+          expect({ argv, codes: warnings.map((w) => w.code) }).toEqual({
+            argv,
+            codes: ['archive_unreadable'],
+          })
+          expect(String(warnings[0]!.message)).toContain('openspec/changes/archive')
+          expect(text.stderr).toContain('Warning: could not read')
+          expect(text.stderr).toContain('openspec/changes/archive')
+        }
+        // With the archive readable again the answers are the same, bar the warning.
+        for (const { argv, run } of locked) {
+          const again = await oursJson(argv, root)
+          expect({ argv, exit: run.exitCode }).toEqual({ argv, exit: again.exitCode })
+          const scrub = (doc: unknown) =>
+            JSON.parse(
+              JSON.stringify(withoutWarnings(doc)).replace(/"durationMs": ?\d+/g, '"durationMs":0'),
+            )
+          expect(scrub(run.json)).toEqual(scrub(again.json))
+        }
+      },
+    )
+
+    test.failing("15.8 list --specs relays the binary's failure document and fix", async () => {
+      const root = cospecRoot()
+      writeFiles(root, { 'openspec/specs/locked/spec.md': LIVING('locked') })
+      const restore = lock(join(root, 'openspec/specs/locked'))
+      try {
+        const up = await upstreamJson(['list', '--specs', '--json'], root)
+        const cs = await oursJson(['list', '--specs', '--json'], root)
+        expect(up.exitCode).toBe(1)
+        expect(cs.exitCode).toBe(1)
+        expect(cs.json).toEqual(JSON.parse(respellRemedies(up.stdout)))
+        const text = await ours(['list', '--specs'], root)
+        expect(text.exitCode).toBe(1)
+        const d = firstStatus(up.json)
+        expect(text.stderr).toBe(
+          `cospec: ${respellRemedies(d.message)}\n${d.fix === undefined ? '' : `Fix: ${respellRemedies(d.fix)}\n`}`,
+        )
+      } finally {
+        restore()
+      }
+    })
+
+    test.failing(
+      '15.9 an unreadable living spec is one meta/unreadable-artifact ERROR',
+      async () => {
+        const root = cospecRoot()
+        writeFiles(root, {
+          'openspec/specs/foo/spec.md': LIVING('foo'),
+          'openspec/specs/bar/spec.md': LIVING('bar'),
+        })
+        const alone = await oursJson(['validate', 'bar', '--json'], root)
+        const barAlone = rowsOf(alone.json, 'items').find((i) => i.id === 'bar')!
+        const restore = lock(join(root, 'openspec/specs/foo/spec.md'))
+        try {
+          for (const argv of [
+            ['validate', 'foo', '--json'],
+            ['validate', 'foo', '--type', 'spec', '--json'],
+            ['validate', '--specs', '--json'],
+            ['validate', '--all', '--json'],
+          ]) {
+            const up = await upstream(argv, root)
+            const cs = await oursJson(argv, root)
+            expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
+            expect(cs.exitCode).toBe(1)
+            const items = rowsOf(cs.json, 'items')
+            const foo = items.find((i) => i.id === 'foo')!
+            const issues = foo.issues as Row[]
+            expect(issues).toHaveLength(1)
+            expect(issues[0]).toMatchObject({ level: 'ERROR', rule: 'meta/unreadable-artifact' })
+            expect(String(issues[0]!.message)).toContain('specs/foo/spec.md')
+            expect(String(issues[0]!.message)).toContain('EACCES')
+            if (argv.includes('foo')) continue
+            const bar = items.find((i) => i.id === 'bar')!
+            expect(bar.issues).toEqual(barAlone.issues)
+            expect(bar.valid).toBe(barAlone.valid)
+          }
+          const text = await ours(['validate', 'foo'], root)
+          expect(text.exitCode).toBe(1)
+          expect(text.stdout).toContain('meta/unreadable-artifact')
+        } finally {
+          restore()
+        }
+      },
+    )
+  })
+
+  test.failing(
+    "15.7 validate --json outside a root is the binary's one no_openspec_root document",
+    async () => {
+      const dir = mkTempRepo({ git: true })
+      const env = emptyMachineStateEnv()
+      for (const scope of ['--all', '--changes', '--specs']) {
+        const up = await upstreamJson(['validate', scope, '--json'], dir)
+        const cs = await oursJson(['validate', scope, '--json'], dir, dir, env)
+        expect({ scope, exit: cs.exitCode }).toEqual({ scope, exit: up.exitCode })
+        expect(cs.json).toEqual(JSON.parse(respellRemedies(up.stdout)))
+        expect(firstStatus(cs.json)).toEqual({
+          severity: 'error',
+          code: 'no_openspec_root',
+          message: 'No OpenSpec root found from the current directory.',
+          target: 'openspec.root',
+          fix: 'Run cospec init to create a root here.',
+        })
+      }
+      const bare = await oursJson(['validate', '--json'], dir, dir, env)
+      expect(bare.exitCode).toBe(1)
+      expect(firstStatus(bare.json).code).toBe('no_openspec_root')
+    },
+  )
 })
 
 // --- 5.6 no status output names a bare openspec command ------------------------------------

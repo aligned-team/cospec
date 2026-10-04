@@ -175,3 +175,52 @@ Co-Authored-By trailer, never `--no-verify`).
       `mise run cospec -- archive cli-surface-parity` with no `--force*` flag,
       as the PR branch's final commit. Verify with `git show --stat` listing
       only `openspec/` paths
+
+## 11. Round-2 review fixes
+
+Each fix below lands in its own commit, flipping its own `test.failing` rows
+(verification group 15) and ticking its own task. Task 10.2 stays the branch's
+final commit.
+
+- [x] 11.1 Write rows 15.1–15.10 first: the round-2 contract rows in
+      `cli-surface.test.ts`, `nested-detector.test.ts` and `glob.test.ts`, and
+      the bench parser rows in `packages/bench/test/unit/mechanical.test.ts`,
+      each as `test.failing`. Commit
+      `test(cli): add the round-2 review rows as failing`
+- [ ] 11.2 `validate <id> --type spec` on a spec file discovery skips (a
+      dot-directory, a linked capability) validates that file as the binary
+      does, never an empty passing report. Verify with row 15.1. Commit
+      `fix(validate): validate a forced spec that discovery skips`
+- [ ] 11.3 The namespace-folder detector matches `generates` with the binary's
+      glob semantics (fast-glob: braces, extglobs, negation) through a faithful
+      port in `core/glob.ts`, held to the pinned binary's modules. Verify with
+      rows 15.2 and 15.3. Commit
+      `fix(cli): match schema outputs with the binary's glob semantics`
+- [ ] 11.4 `packages/bench` `parseSchemaConformanceJson` returns null for a
+      document with a `status[]` error or without `summary` or `items`. Verify
+      with row 15.10. Commit
+      `fix(bench): count a refused validate document as no report`
+- [ ] 11.5 `status` answers every change on a schema cospec doesn't type from
+      the binary's status, and a cospec-typed change with no artifacts takes its
+      next step from its own matrix. Verify with row 15.4. Commit
+      `fix(cli): take a custom schema's status from its own artifacts`
+- [ ] 11.6 `validate --archived` relays the binary's failure document: under
+      `--json` that one document with the binary's exit code, in text its
+      messages. Verify with row 15.5. Commit
+      `fix(validate): relay the binary's --archived failure document`
+- [ ] 11.7 An unreadable `openspec/changes/archive/` leaves `validate` and
+      `apply` answering from an empty archive with an `archive_unreadable`
+      warning. Verify with row 15.6. Commit
+      `fix(cli): validate and apply past an unreadable archive`
+- [ ] 11.8 `validate --json` with no `openspec/` directory prints one
+      `no_openspec_root` document. Verify with row 15.7. Commit
+      `fix(validate): answer --json outside a root with one document`
+- [ ] 11.9 `list --specs` relays the binary's failure document under `--json`
+      and its message and fix in text. Verify with row 15.8. Commit
+      `fix(cli): relay a failed list --specs as the binary's document`
+- [ ] 11.10 An unreadable living `spec.md` is one `meta/unreadable-artifact`
+      ERROR on that spec. Verify with row 15.9. Commit
+      `fix(validate): report an unreadable living spec as an issue`
+- [ ] 11.11 Record observed evidence on every group-15 row, re-observe rows
+      14.1–14.4, and update the docs pages that own each fact. Commit
+      `docs(cli): record the round-2 review fixes`
