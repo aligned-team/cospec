@@ -43,6 +43,7 @@ import {
   ideRestartLine,
   legacySkillsRoots,
   removalRoots,
+  SKILL_FILE,
   skillsRoot,
 } from '../harness/adapters.ts'
 import { LEGACY_CODEX_SKILL_ROOT, migrateLegacySkills } from '../harness/legacy-skills.ts'
@@ -105,7 +106,7 @@ function readManagedMeta(text: string): ManagedMeta | undefined {
 }
 
 function hasSentinel(cwd: string, base: string): boolean {
-  const path = join(cwd, base, SENTINEL_SKILL, 'SKILL.md')
+  const path = join(cwd, base, SENTINEL_SKILL, SKILL_FILE)
   if (!existsSync(path)) return false
   return isCospecManagedMarkdown(readFileSync(path, 'utf8'))
 }
@@ -420,7 +421,7 @@ function removeOrphanMarkdown(
     if (!existsSync(abs)) continue
     for (const entry of readdirSync(abs, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue
-      const relpath = `${base}/${entry.name}/SKILL.md`
+      const relpath = `${base}/${entry.name}/${SKILL_FILE}`
       if (emitted.has(relpath)) continue
       const removed = removeMarkdown(join(cwd, relpath), relpath, opts)
       if (removed) out.push(removed)

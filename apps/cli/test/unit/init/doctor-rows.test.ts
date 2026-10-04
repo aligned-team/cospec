@@ -11,10 +11,12 @@ import { dirname, join } from 'node:path'
 
 import {
   checkDanglingRefs,
+  checkOpsx,
   checkStaleness,
   type Finding,
   harnessMarkdownFiles,
 } from '../../../src/commands/doctor.ts'
+import { findOpsxFiles } from '../../../src/commands/init.ts'
 import { CURRENT_GENERATED_BY } from '../../../src/core/managed-files.ts'
 import { HARNESS_TABLE, type HarnessAdapter } from '../../../src/harness/adapters.ts'
 import { cleanup, makeRepo } from './helpers.ts'
@@ -240,6 +242,33 @@ describe("doctor's harness scan reads each row's command extension", () => {
     )
     expect(harnessMarkdownFiles(dir, [TOML_ROW]).map((f) => f.relpath)).toEqual([
       '.toml-fixture/skills/cospec-apply-change/SKILL.md',
+    ])
+  })
+})
+
+describe("the opsx leftover scans read each row's command extension", () => {
+  let dir: string
+  beforeEach(() => {
+    dir = makeRepo()
+  })
+  afterEach(() => {
+    cleanup(dir)
+  })
+
+  const LEFTOVER = '.prompt-fixture/prompts/opsx-propose.prompt'
+
+  test("init finds an openspec-authored .prompt command in the row's commands dir", () => {
+    put(dir, LEFTOVER, '---\nname: "OPSX: Propose"\n---\nbody\n')
+    put(dir, '.prompt-fixture/prompts/mine.prompt', '---\nname: Mine\n---\nbody\n')
+    expect(findOpsxFiles(dir, [PROMPT_ROW])).toEqual([{ relpath: LEFTOVER }])
+  })
+
+  test('doctor warns on the same .prompt leftover', () => {
+    put(dir, LEFTOVER, '---\nname: "OPSX: Propose"\n---\nbody\n')
+    const findings: Finding[] = []
+    checkOpsx(dir, findings, [PROMPT_ROW])
+    expect(findings.map((f) => `${f.check} ${f.level} ${f.message}`)).toEqual([
+      `opsx-leftover WARNING leftover openspec (opsx) file: ${LEFTOVER} — two propose commands confuse agents`,
     ])
   })
 })

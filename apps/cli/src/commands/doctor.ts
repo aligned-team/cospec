@@ -366,8 +366,12 @@ function checkConfig(cwd: string, findings: Finding[]): void {
   }
 }
 
-function checkOpsx(cwd: string, findings: Finding[]): void {
-  for (const f of harnessMarkdownFiles(cwd)) {
+export function checkOpsx(
+  cwd: string,
+  findings: Finding[],
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): void {
+  for (const f of harnessMarkdownFiles(cwd, table)) {
     const { frontmatter } = splitFrontmatter(f.text)
     const meta = frontmatter?.metadata
     // Provenance-only, matching init's removal set (DESIGN §2.1/§6.6): flag a

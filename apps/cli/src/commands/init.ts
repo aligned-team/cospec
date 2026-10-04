@@ -22,8 +22,10 @@ import {
   type HarnessName,
   HARNESS_NAMES,
   ideRestartLine,
+  isHarnessDocument,
   isHarnessName,
   scanRoots,
+  SKILL_EXTENSION,
   skillsRoot,
 } from '../harness/adapters.ts'
 import { mergeMiseToml, type MiseMergeResult } from '../harness/mise-merge.ts'
@@ -229,7 +231,7 @@ function scaffoldGate(cwd: string): GateResult {
 // --- opsx detection / removal (§6.6) ----------------------------------------
 
 /** A leftover openspec-generated ("opsx") file — never something cospec authored. */
-interface OpsxFile {
+export interface OpsxFile {
   relpath: string
 }
 
@@ -261,28 +263,32 @@ function isOpsxMarkdown(text: string): boolean {
   return false
 }
 
-function findOpsxFiles(cwd: string): OpsxFile[] {
+/** `table` is a test seam for rows the shipped table does not carry. */
+export function findOpsxFiles(
+  cwd: string,
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): OpsxFile[] {
   // Keyed by relpath: `.agents` (a harness dir) strictly contains
   // `.agents/skills` (the shared opsx root), so the two walk ranges overlap and
   // an unguarded scan would list — and count — every leftover there twice.
   const found = new Set<string>()
-  const walk = (rel: string): void => {
+  const walk = (rel: string, accept: (relpath: string) => boolean): void => {
     const abs = join(cwd, rel)
     if (!existsSync(abs)) return
     for (const entry of readdirSync(abs, { withFileTypes: true })) {
       const childRel = `${rel}/${entry.name}`
-      if (entry.isDirectory()) walk(childRel)
-      else if (entry.isFile() && entry.name.endsWith('.md')) {
+      if (entry.isDirectory()) walk(childRel, accept)
+      else if (entry.isFile() && accept(childRel)) {
         if (isOpsxMarkdown(readFileSync(join(cwd, childRel), 'utf8'))) found.add(childRel)
       }
     }
   }
-  for (const root of scanRoots()) walk(root)
+  for (const root of scanRoots(table)) walk(root, (relpath) => isHarnessDocument(relpath, table))
   // openspec ≥1.8.0 writes its Codex skills to `.agents/skills/openspec-*/SKILL.md`
   // (1.7.0's `agents` target and 1.10/1.11's `zed`/`antigravity` share that root).
   // cospec now writes its own `cospec-*` skills there too; the two prefixes cannot
   // collide, and `isOpsxMarkdown` excludes anything cospec authored.
-  walk(OPSX_SHARED_SKILL_ROOT)
+  walk(OPSX_SHARED_SKILL_ROOT, (relpath) => relpath.endsWith(SKILL_EXTENSION))
   return [...found]
     .map((relpath) => ({ relpath }))
     .toSorted((a, b) => a.relpath.localeCompare(b.relpath))

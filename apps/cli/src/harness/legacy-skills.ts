@@ -25,6 +25,7 @@ import {
   splitFrontmatter,
   type WriteResult,
 } from '../core/managed-files.ts'
+import { SKILL_FILE } from './adapters.ts'
 
 /** Where cospec's Codex skills used to be written (cospec <= 0.6.0). */
 export const LEGACY_CODEX_SKILL_ROOT = '.codex/skills'
@@ -60,7 +61,7 @@ export function migrateLegacySkills(
   )
   for (const entry of entries) {
     if (!entry.isDirectory() || !entry.name.startsWith('cospec-')) continue
-    const relpath = `${LEGACY_CODEX_SKILL_ROOT}/${entry.name}/SKILL.md`
+    const relpath = `${LEGACY_CODEX_SKILL_ROOT}/${entry.name}/${SKILL_FILE}`
     const abspath = join(cwd, relpath)
     if (!existsSync(abspath)) continue
 
@@ -72,7 +73,7 @@ export function migrateLegacySkills(
     // No replacement was rendered for this skill (a workflow this version
     // dropped). Never delete without a replacement; report it so the user is
     // told the file is still sitting in a legacy location.
-    if (!emitted.has(`${SHARED_SKILL_ROOT}/${entry.name}/SKILL.md`)) {
+    if (!emitted.has(`${SHARED_SKILL_ROOT}/${entry.name}/${SKILL_FILE}`)) {
       out.push({ path: relpath, outcome: 'preserved-modified' })
       continue
     }

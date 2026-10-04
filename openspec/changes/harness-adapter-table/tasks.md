@@ -325,3 +325,13 @@ Exclusive files: `docs/harness-integration.md`.
       it in table order, printed when any selected row writes there; the
       synthetic-row cases fail on the id-keyed line and pass after it; the init
       receipt goldens are unchanged
+- [x] 8.6 Sweep `init.ts`, `update.ts`, `doctor.ts` and `harness/` for a literal
+      harness id, extension or root outside `HARNESS_TABLE`: init's opsx
+      leftover scan reads files through `isHarnessDocument` (a `table` seam on
+      `findOpsxFiles`, and on doctor's `checkOpsx`), and the skill filename
+      comes from `SKILL_FILE` in `adapters.ts` (`render.ts` through `skillPath`,
+      `update.ts`'s sentinel and orphan sweep, `legacy-skills.ts`); add the
+      `.prompt` opsx cases to `doctor-rows.test.ts`. Verify verification 3.13 ->
+      the init case fails on the literal `.md` filter and passes after it;
+      render and wiring goldens unchanged; what remains is named in design.md as
+      deliberate
