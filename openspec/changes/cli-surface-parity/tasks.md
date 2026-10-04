@@ -187,7 +187,7 @@ final commit.
       the bench parser rows in `packages/bench/test/unit/mechanical.test.ts`,
       each as `test.failing`. Commit
       `test(cli): add the round-2 review rows as failing`
-- [ ] 11.2 `validate <id> --type spec` on a spec file discovery skips (a
+- [x] 11.2 `validate <id> --type spec` on a spec file discovery skips (a
       dot-directory, a linked capability) validates that file as the binary
       does, never an empty passing report. Verify with row 15.1. Commit
       `fix(validate): validate a forced spec that discovery skips`

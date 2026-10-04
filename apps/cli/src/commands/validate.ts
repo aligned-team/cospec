@@ -934,17 +934,37 @@ async function validateSpecs(root: Root, only: string | undefined): Promise<Item
   const delegated = new Map<string, OpenspecIssue[]>()
   for (const item of await delegate(root, ['--specs'])) delegated.set(item.id, item.issues)
 
-  return caps.map((cap) => {
-    const path = `specs/${cap.id}/spec.md`
-    const living = parseLivingSpec(readFileSync(cap.specFile, 'utf8'))
-    const issues = mergeDelegated(
-      specsRules(living, path),
-      (delegated.get(cap.id) ?? []).map((i) => mapDelegated(i)),
-    )
-    const errors = issues.filter((i) => i.level === 'ERROR').length
-    const durationMs = Date.now() - start
-    return { id: cap.id, kind: 'spec' as const, valid: errors === 0, issues, durationMs }
-  })
+  return caps.map((cap) => specReport(cap, delegated.get(cap.id) ?? [], start))
+}
+
+/** One living spec's report: cospec's spec rules merged with the binary's issues for it. */
+function specReport(
+  cap: { id: string; specFile: string },
+  delegated: readonly OpenspecIssue[],
+  start: number,
+): ItemReport {
+  const path = `specs/${cap.id}/spec.md`
+  const living = parseLivingSpec(readFileSync(cap.specFile, 'utf8'))
+  const issues = mergeDelegated(
+    specsRules(living, path),
+    delegated.map((i) => mapDelegated(i)),
+  )
+  const errors = issues.filter((i) => i.level === 'ERROR').length
+  const durationMs = Date.now() - start
+  return { id: cap.id, kind: 'spec' as const, valid: errors === 0, issues, durationMs }
+}
+
+/**
+ * `validate <id> --type spec` on a spec file discovery skips (a dot-directory,
+ * a capability behind a linked directory): the binary's `validateDirectItem`
+ * validates the file at `specs/<id>/spec.md` anyway, and its bulk `--specs`
+ * sweep skips it too, so the binary is asked for that one item.
+ */
+async function validateForcedSpec(root: Root, id: string): Promise<ItemReport[]> {
+  const start = Date.now()
+  const specFile = join(openspecDir(root.base), 'specs', ...id.split('/'), 'spec.md')
+  const delegated = (await delegate(root, [id, '--type', 'spec'])).find((item) => item.id === id)
+  return [specReport({ id, specFile }, delegated?.issues ?? [], start)]
 }
 
 /**
@@ -1099,7 +1119,7 @@ async function validateItem(
     const issues = [itemMissingIssue('spec', name)]
     return [{ id: name, kind: 'spec', valid: false, issues, durationMs: Date.now() - start }]
   }
-  return validateSpecs(root, name)
+  return isSpec ? validateSpecs(root, name) : validateForcedSpec(root, name)
 }
 
 // --- --concurrency ---------------------------------------------------------------

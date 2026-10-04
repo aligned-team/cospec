@@ -1650,33 +1650,30 @@ function withoutWarnings(doc: unknown): unknown {
 }
 
 describe('15. round-2 review rows', () => {
-  test.failing(
-    '15.1 --type spec on a spec discovery skips validates the file, as the binary does',
-    async () => {
-      const root = cospecRoot()
-      writeFiles(root, {
-        'openspec/specs/.hidden/spec.md': '# hidden\n',
-        'openspec/specs/real/spec.md': LIVING('real'),
-      })
-      const outside = mkTempRepo()
-      writeFiles(outside, { 'cap/spec.md': '# linked\n' })
-      symlinkSync(join(outside, 'cap'), join(root, 'openspec/specs/linked'))
-      for (const id of ['.hidden', 'linked']) {
-        const up = await upstreamJson(['validate', id, '--type', 'spec', '--json'], root)
-        const cs = await oursJson(['validate', id, '--type', 'spec', '--json'], root)
-        expect({ id, exit: cs.exitCode }).toEqual({ id, exit: up.exitCode })
-        expect(up.exitCode).toBe(1)
-        const upItems = rowsOf(up.json, 'items')
-        const csItems = rowsOf(cs.json, 'items')
-        expect(csItems.map((i) => [i.id, i.valid])).toEqual(upItems.map((i) => [i.id, i.valid]))
-        const messages = (items: Row[]) =>
-          items.flatMap((i) => (i.issues as Row[]).map((x) => String(x.message)))
-        for (const m of messages(upItems)) expect(messages(csItems)).toContain(m)
-        const text = await ours(['validate', id, '--type', 'spec'], root)
-        expect({ id, exit: text.exitCode }).toEqual({ id, exit: up.exitCode })
-      }
-    },
-  )
+  test('15.1 --type spec on a spec discovery skips validates the file, as the binary does', async () => {
+    const root = cospecRoot()
+    writeFiles(root, {
+      'openspec/specs/.hidden/spec.md': '# hidden\n',
+      'openspec/specs/real/spec.md': LIVING('real'),
+    })
+    const outside = mkTempRepo()
+    writeFiles(outside, { 'cap/spec.md': '# linked\n' })
+    symlinkSync(join(outside, 'cap'), join(root, 'openspec/specs/linked'))
+    for (const id of ['.hidden', 'linked']) {
+      const up = await upstreamJson(['validate', id, '--type', 'spec', '--json'], root)
+      const cs = await oursJson(['validate', id, '--type', 'spec', '--json'], root)
+      expect({ id, exit: cs.exitCode }).toEqual({ id, exit: up.exitCode })
+      expect(up.exitCode).toBe(1)
+      const upItems = rowsOf(up.json, 'items')
+      const csItems = rowsOf(cs.json, 'items')
+      expect(csItems.map((i) => [i.id, i.valid])).toEqual(upItems.map((i) => [i.id, i.valid]))
+      const messages = (items: Row[]) =>
+        items.flatMap((i) => (i.issues as Row[]).map((x) => String(x.message)))
+      for (const m of messages(upItems)) expect(messages(csItems)).toContain(m)
+      const text = await ours(['validate', id, '--type', 'spec'], root)
+      expect({ id, exit: text.exitCode }).toEqual({ id, exit: up.exitCode })
+    }
+  })
 
   test.failing(
     '15.2 a hand-made change whose schema output a brace glob matches is a change',
