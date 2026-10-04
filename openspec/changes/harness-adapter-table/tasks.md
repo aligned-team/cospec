@@ -298,3 +298,9 @@ Exclusive files: `docs/harness-integration.md`.
       `referencePattern` in `doctor.ts`; the `@` and split-root cases fail
       before the change and pass after it; the four rows' doctor goldens are
       unchanged
+- [x] 8.3 Narrow `docs/harness-integration.md` and `.agents/shared.md` so they
+      say what the table drives and name what still sits outside it, then
+      `mise run agents:sync`. Verify verification 5.4 -> both texts drop the "a
+      new tool is only a new row" claim and name init's settings merge and
+      `claude` default, the codex/agents receipt line and doctor's `.md`-only
+      scan; `CLAUDE.md`/`AGENTS.md` re-synced
