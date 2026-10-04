@@ -13,6 +13,7 @@ import {
   type HarnessName,
   injectOpenCodeArgs,
   isBodyDialect,
+  isHarnessDocument,
   isHarnessName,
   legacySkillsRoots,
   primaryRoot,
@@ -237,6 +238,16 @@ describe('HARNESS_TABLE derived roots', () => {
       new Set(['openspec', '.claude', '.agents', '.opencode', '.codex']),
     )
     expect(removalRoots()).toHaveLength(5)
+  })
+
+  test("the four rows' harness documents are every .md file under the scan roots", () => {
+    for (const root of scanRoots()) {
+      expect(isHarnessDocument(`${root}/skills/cospec-explore/SKILL.md`)).toBe(true)
+      expect(isHarnessDocument(`${root}/notes/anything.md`)).toBe(true)
+      expect(isHarnessDocument(`${root}/rules/cospec.rules`)).toBe(false)
+      expect(isHarnessDocument(`${root}/commands/cospec-new.prompt`)).toBe(false)
+    }
+    expect(isHarnessDocument('elsewhere/notes.md')).toBe(false)
   })
 
   test("the codex row's legacy skills root is the one legacy-skills.ts migrates from", () => {

@@ -50,8 +50,11 @@ import {
   commandPath,
   HARNESS_TABLE,
   type HarnessAdapter,
+  isHarnessDocument,
   primaryRoot,
   scanRoots,
+  SKILL_EXTENSION,
+  skillPath,
   skillsRoot,
 } from '../harness/adapters.ts'
 import { OPSX_SHARED_SKILL_ROOT } from './init.ts'
@@ -194,27 +197,31 @@ export function harnessMarkdownFiles(
   // `.agents/skills` opsx root, so the two walk ranges overlap and an unguarded
   // scan would report every finding in that tree twice.
   const out = new Map<string, { relpath: string; text: string }>()
-  const walk = (rel: string): void => {
+  const walk = (rel: string, accept: (relpath: string) => boolean): void => {
     const abs = join(cwd, rel)
     if (!existsSync(abs)) return
     for (const entry of readdirSync(abs, { withFileTypes: true })) {
       const childRel = `${rel}/${entry.name}`
-      if (entry.isDirectory()) walk(childRel)
-      else if (entry.isFile() && entry.name.endsWith('.md')) {
+      if (entry.isDirectory()) walk(childRel, accept)
+      else if (entry.isFile() && accept(childRel)) {
         if (out.has(childRel)) continue
         out.set(childRel, { relpath: childRel, text: readFileSync(join(cwd, childRel), 'utf8') })
       }
     }
   }
-  for (const root of scanRoots(table)) walk(root)
-  // openspec ≥1.8.0 writes its Codex skills to the shared `.agents/skills/` root.
-  // cospec now writes its own `cospec-*` skills there as well; both prefixes coexist,
-  // and the opsx check filters on provenance, never on the path.
-  walk(OPSX_SHARED_SKILL_ROOT)
+  for (const root of scanRoots(table)) walk(root, (relpath) => isHarnessDocument(relpath, table))
+  // openspec ≥1.8.0 writes its Codex skills to the shared `.agents/skills/` root,
+  // whichever rows the table carries. cospec now writes its own `cospec-*` skills
+  // there as well; both prefixes coexist, and the opsx check filters on
+  // provenance, never on the path.
+  walk(OPSX_SHARED_SKILL_ROOT, (relpath) => relpath.endsWith(SKILL_EXTENSION))
   return [...out.values()]
 }
 
-function checkStaleness(files: { relpath: string; text: string }[], findings: Finding[]): void {
+export function checkStaleness(
+  files: { relpath: string; text: string }[],
+  findings: Finding[],
+): void {
   const versions = new Set<string>()
   for (const f of files) {
     const { frontmatter } = splitFrontmatter(f.text)
@@ -305,7 +312,7 @@ export function checkDanglingRefs(
         })
         continue
       }
-      const skillExists = existsSync(join(cwd, skillsRoot(row).root, skill, 'SKILL.md'))
+      const skillExists = existsSync(join(cwd, skillPath(row, skill)))
       const cmdFile = commandPath(row, id)
       const cmdExists = cmdFile !== undefined && existsSync(join(cwd, cmdFile))
       if (!skillExists && !cmdExists) {

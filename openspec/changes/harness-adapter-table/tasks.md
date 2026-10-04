@@ -306,3 +306,14 @@ Exclusive files: `docs/harness-integration.md`.
       new tool is only a new row" claim and name init's settings merge and
       `claude` default, the codex/agents receipt line and doctor's `.md`-only
       scan; `CLAUDE.md`/`AGENTS.md` re-synced
+- [x] 8.4 `doctor.ts`: collect harness files by each row's shape from the table,
+      never a literal `.md`: the skill file's extension under a dir holding a
+      row's skills or legacy skills root, and each markdown-serializer row's
+      `commands.extension` under its `commands.dir`, a TOML row's commands left
+      to the manifest (decision 9), through `isHarnessDocument` in
+      `adapters.ts`; export `checkStaleness` as a seam and add the `.prompt` and
+      TOML fixture-row cases to `doctor-rows.test.ts`. Verify verification 3.11
+      -> `harnessMarkdownFiles` walks the scan roots through `isHarnessDocument`
+      and the dangling-ref check resolves skills through `skillPath`; the three
+      `.prompt` cases fail on the literal `.md` filter and pass after it; the
+      four rows' doctor goldens are unchanged

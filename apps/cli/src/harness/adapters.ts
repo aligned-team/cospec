@@ -185,8 +185,14 @@ export function skillsRoot(row: HarnessAdapter): SkillsRoot {
   throw new Error(`internal: harness adapter row '${row.id}' declares no skills root`)
 }
 
+/** The file every row writes per skill, at `<skills root>/<skill>/SKILL_FILE`. */
+export const SKILL_FILE = 'SKILL.md'
+
+/** The skill file's extension: every skill, on every row, is markdown. */
+export const SKILL_EXTENSION = '.md'
+
 export function skillPath(row: HarnessAdapter, skill: string): string {
-  return `${skillsRoot(row).root}/${skill}/SKILL.md`
+  return `${skillsRoot(row).root}/${skill}/${SKILL_FILE}`
 }
 
 /** Skills roots this tool used in an earlier cospec version (`<legacy>/skills`). */
@@ -251,6 +257,37 @@ export function scanRoots(table: readonly HarnessAdapter[] = HARNESS_TABLE): str
   }
   for (const row of table) for (const root of rowRoots(row)) out.add(root)
   return [...out]
+}
+
+/**
+ * Which files under the scan roots are markdown harness documents, the ones doctor's
+ * frontmatter and reference checks and init's leftover scan read: every
+ * `SKILL_EXTENSION` file under a top-level dir holding a row's project skills root or
+ * legacy skills root, and each markdown-serializer row's command files, by that row's
+ * own `commands.extension` under its `commands.dir`. A TOML command carries no
+ * frontmatter and is left to the manifest (DESIGN decision 9). For the four rows this
+ * is every `.md` file under the scan roots.
+ */
+export function isHarnessDocument(
+  relpath: string,
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): boolean {
+  const top = topSegment(relpath)
+  return table.some((row) => {
+    const skills = skillsRoot(row)
+    const skillRoots = legacySkillsRoots(row)
+    if (skills.scope === 'project') skillRoots.push(skills.root)
+    if (relpath.endsWith(SKILL_EXTENSION) && skillRoots.some((root) => topSegment(root) === top)) {
+      return true
+    }
+    const c = row.commands
+    return (
+      c !== undefined &&
+      c.serializer === 'markdown' &&
+      relpath.startsWith(`${c.dir}/`) &&
+      relpath.endsWith(c.extension)
+    )
+  })
 }
 
 /** Dirs cospec owns and may delete manifest-tracked files from: `openspec` plus every row root. */
