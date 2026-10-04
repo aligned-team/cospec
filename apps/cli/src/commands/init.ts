@@ -24,6 +24,7 @@ import {
   ideRestartLine,
   isHarnessName,
   scanRoots,
+  skillsRoot,
 } from '../harness/adapters.ts'
 import { mergeMiseToml, type MiseMergeResult } from '../harness/mise-merge.ts'
 import {
@@ -318,6 +319,32 @@ export function setupNoteLines(
   return lines
 }
 
+/**
+ * One receipt line per skills root that two or more rows resolve to, printed
+ * when any selected row writes there. It names every row on that root, in table
+ * order, whether selected or not: render's dedupe makes them write the same
+ * files, which is what the line tells the user. `table` is a test seam.
+ */
+export function sharedSkillsRootLines(
+  harnesses: readonly string[],
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): string[] {
+  const byRoot = new Map<string, { root: string; ids: string[] }>()
+  for (const row of table) {
+    const { root, scope } = skillsRoot(row)
+    const shown = scope === 'home' ? `~/${root}` : root
+    const group = byRoot.get(shown) ?? { root: shown, ids: [] }
+    group.ids.push(row.id)
+    byRoot.set(shown, group)
+  }
+  return [...byRoot.values()]
+    .filter(({ ids }) => ids.length > 1 && ids.some((id) => harnesses.includes(id)))
+    .map(
+      ({ root, ids }) =>
+        `         skills for ${ids.join('/')} share the ${root} root (identical files)`,
+    )
+}
+
 // --- command entrypoint -----------------------------------------------------
 
 export function run(ctx: CommandContext): number {
@@ -499,9 +526,7 @@ function printReceipt(target: string, d: ReceiptData): void {
 
   if (d.harnesses.length > 0) {
     lines.push(`Harness: ${d.harnesses.join(', ')}`)
-    if (d.harnesses.includes('agents') || d.harnesses.includes('codex')) {
-      lines.push('         skills for codex/agents share the .agents/skills root (identical files)')
-    }
+    lines.push(...sharedSkillsRootLines(d.harnesses))
   } else {
     lines.push('Harness: none (schemas only)')
   }

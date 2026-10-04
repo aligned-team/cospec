@@ -317,3 +317,11 @@ Exclusive files: `docs/harness-integration.md`.
       and the dangling-ref check resolves skills through `skillPath`; the three
       `.prompt` cases fail on the literal `.md` filter and pass after it; the
       four rows' doctor goldens are unchanged
+- [x] 8.5 `init.ts`: derive the receipt's shared-skills-root line from the rows
+      whose resolved skills root is equal, not from the ids `codex` and
+      `agents`, through an exported `sharedSkillsRootLines(harnesses, table)`;
+      add the synthetic-row cases to `setup-notes.test.ts`. Verify verification
+      3.12 -> one line per root two or more rows resolve to, naming every row on
+      it in table order, printed when any selected row writes there; the
+      synthetic-row cases fail on the id-keyed line and pass after it; the init
+      receipt goldens are unchanged
