@@ -24,7 +24,16 @@ import {
 } from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
 import { parseLivingSpec } from '../core/deltas.ts'
-import { spawnOpenspec, type Root, threadedArgv } from '../core/openspec.ts'
+import {
+  isOpenspecErrorStatus,
+  openspecBelow,
+  runOpenspec,
+  spawnOpenspec,
+  type Root,
+  threadedArgv,
+  wrappedCallLabel,
+  wrappedOpenspecVersion,
+} from '../core/openspec.ts'
 import { respellRemedies } from '../core/remedies.ts'
 import {
   exitCode as reportExitCode,
@@ -967,37 +976,99 @@ async function validateForcedSpec(root: Root, id: string): Promise<ItemReport[]>
   return [specReport({ id, specFile }, delegated?.issues ?? [], start)]
 }
 
+/** The first openspec release whose `validate` takes `--archived`. */
+const ARCHIVED_SINCE = '1.9.0'
+
+/** A diagnostic of the binary's failure document (`{status: [...]}`). */
+interface StatusDiagnostic {
+  severity: string
+  code?: string
+  message: string
+  fix?: string
+}
+
+/**
+ * The binary's answer to `validate --archived`: its report's items, or its
+ * failure document (an unreadable `changes/archive/`, say) with its exit code.
+ */
+type ArchivedAnswer =
+  | { items: ItemReport[] }
+  | { failure: { status: StatusDiagnostic[] } & Record<string, unknown>; exitCode: number }
+
 /**
  * `cospec validate --archived` — pure delegation (openspec >= 1.9.0). The
  * wrapped binary walks `changes/archive/` and reports any archived change whose
  * tasks are not all complete; cospec has no native rule family for archived
- * changes, so nothing is merged in. Its envelope is relayed through cospec's
- * own renderer so the output and exit code match every other validate surface.
- *
- * Returns `undefined` when the wrapped binary produced no parseable envelope —
- * an openspec below 1.9.0 rejects the flag — so the caller can relay the
- * wrapped diagnostics verbatim instead of printing an empty, passing report.
+ * changes, so nothing is merged in. Its report is relayed through cospec's own
+ * renderer so the output and exit code match every other validate surface;
+ * its failure document is the answer as it stands. Whether the binary is too
+ * old for the flag is read from its version, never guessed from its output.
  */
-async function validateArchived(root: Root): Promise<ItemReport[] | undefined> {
-  const res = await spawnOpenspec(
-    threadedArgv(['validate'], ['--json', '--no-interactive', ...root.storeArgs], ['--archived']),
-    root.cwd,
+async function validateArchived(root: Root): Promise<ArchivedAnswer> {
+  const args = threadedArgv(
+    ['validate'],
+    ['--json', '--no-interactive', ...root.storeArgs],
+    ['--archived'],
   )
-  let parsed: OpenspecValidateJson
-  try {
-    parsed = JSON.parse(res.stdout) as OpenspecValidateJson
-  } catch {
-    process.stderr.write(respellRemedies(res.stderr))
-    return undefined
-  }
-  if (!Array.isArray(parsed.items)) return undefined
-  return parsed.items.map((item) => ({
-    id: item.id,
-    kind: 'change' as const,
-    valid: item.valid,
-    issues: item.issues.map((i) => mapDelegated(i, true)),
-    ...(typeof item.durationMs === 'number' ? { durationMs: item.durationMs } : {}),
+  const label = wrappedCallLabel(args)
+  let answer: ArchivedAnswer | undefined
+  await runOpenspec(args, {
+    cwd: root.cwd,
+    expect: {
+      exitCodes: [0, 1],
+      postCondition: (result) => {
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(result.stdout)
+        } catch {
+          return `${label} did not print one JSON document`
+        }
+        if (isOpenspecErrorStatus(parsed)) {
+          answer = {
+            failure: parsed as { status: StatusDiagnostic[] },
+            exitCode: result.exitCode,
+          }
+          return true
+        }
+        const items = (parsed as Partial<OpenspecValidateJson> | null)?.items
+        if (!Array.isArray(items))
+          return `${label} printed neither a validation report nor a diagnostic`
+        answer = {
+          items: items.map((item) => ({
+            id: item.id,
+            kind: 'change' as const,
+            valid: item.valid,
+            issues: item.issues.map((i) => mapDelegated(i, true)),
+            ...(typeof item.durationMs === 'number' ? { durationMs: item.durationMs } : {}),
+          })),
+        }
+        return true
+      },
+    },
+  })
+  return answer!
+}
+
+/**
+ * The binary's failure document as cospec relays it: each diagnostic's
+ * message and fix spelled through the remedy allowlist, the document (under
+ * `--json`) or `cospec: <message>` lines (text), with the binary's exit code.
+ */
+function relayFailure(
+  failure: { status: StatusDiagnostic[] } & Record<string, unknown>,
+  exitCode: number,
+  json: boolean,
+): number {
+  const status = failure.status.map((d) => ({
+    ...d,
+    message: respellRemedies(d.message),
+    ...(d.fix === undefined ? {} : { fix: respellRemedies(d.fix) }),
   }))
+  if (json) process.stdout.write(`${JSON.stringify({ ...failure, status }, null, 2)}\n`)
+  else
+    for (const d of status)
+      process.stderr.write(`cospec: ${d.message}\n${d.fix === undefined ? '' : `Fix: ${d.fix}\n`}`)
+  return exitCode
 }
 
 // --- item resolution (the binary's `validateDirectItem`) ------------------------
@@ -1277,16 +1348,18 @@ export async function run(ctx: CommandContext): Promise<number> {
   // changes/archive/, which active-change discovery deliberately excludes, and
   // it must never quietly alter an ordinary invocation.
   if (wantArchived) {
-    const archived = await validateArchived(root)
-    if (archived === undefined) {
+    const version = await wrappedOpenspecVersion()
+    if (openspecBelow(version, ARCHIVED_SINCE)) {
       process.stderr.write(
-        'cospec: the wrapped OpenSpec `validate --archived` call produced no report — it needs ' +
-          'OpenSpec >=1.9.0\n',
+        `cospec: validate --archived needs OpenSpec >=${ARCHIVED_SINCE}; the wrapped OpenSpec is ` +
+          `${version}\n`,
       )
       return 1
     }
-    process.stdout.write(renderReport(archived, renderOpts, root, ['change']))
-    return reportExitCode(archived, strict)
+    const archived = await validateArchived(root)
+    if ('failure' in archived) return relayFailure(archived.failure, archived.exitCode, flags.json)
+    process.stdout.write(renderReport(archived.items, renderOpts, root, ['change']))
+    return reportExitCode(archived.items, strict)
   }
 
   const items: ItemReport[] = []

@@ -207,7 +207,7 @@ final commit.
       the binary's status, and a cospec-typed change with no artifacts takes its
       next step from its own matrix. Verify with row 15.4. Commit
       `fix(cli): take a custom schema's status from its own artifacts`
-- [ ] 11.6 `validate --archived` relays the binary's failure document: under
+- [x] 11.6 `validate --archived` relays the binary's failure document: under
       `--json` that one document with the binary's exit code, in text its
       messages. Verify with row 15.5. Commit
       `fix(validate): relay the binary's --archived failure document`

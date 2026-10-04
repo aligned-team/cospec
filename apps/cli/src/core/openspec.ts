@@ -336,6 +336,24 @@ export function checkVersion(actual: string, allowDrift: boolean): void {
     )
 }
 
+/**
+ * True only when `version` parses and is below `floor`: an unparseable
+ * version (drift allowed) is never judged too old, so the wrapped call is
+ * made and its own answer decides.
+ */
+export function openspecBelow(version: string, floor: string): boolean {
+  const parsed = parseSemver(version)
+  return parsed !== null && compareSemver(parsed, parseSemverOrThrow(floor)) < 0
+}
+
+let versionRead: Promise<string> | undefined
+
+/** The wrapped binary's `--version`, read once per process (memoized). */
+export function wrappedOpenspecVersion(): Promise<string> {
+  versionRead ??= spawnRaw(['--version'], process.cwd()).then((res) => res.stdout.trim())
+  return versionRead
+}
+
 let versionAsserted: Promise<void> | undefined
 
 /** Assert the wrapped version once per process (memoized). */
@@ -343,8 +361,7 @@ function assertVersion(): Promise<void> {
   versionAsserted ??= (async () => {
     const allowDrift = process.env.COSPEC_ALLOW_OPENSPEC_DRIFT === '1'
     if (allowDrift) return
-    const res = await spawnRaw(['--version'], process.cwd())
-    checkVersion(res.stdout, false)
+    checkVersion(await wrappedOpenspecVersion(), false)
   })()
   return versionAsserted
 }

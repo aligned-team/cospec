@@ -236,10 +236,21 @@ SHALL still be one document.
 
 ### Requirement: Validate relays are spelled through cospec
 
-Every issue message `cospec validate` relays from the wrapped binary, and the
-wrapped diagnostics it relays when `--archived` gets no report, SHALL have each
-allowlisted upstream remedy spelled through cospec, with every other byte
-unchanged.
+Every issue message `cospec validate` relays from the wrapped binary, and each
+message and fix of the failure document the binary answers `--archived` with,
+SHALL have each allowlisted upstream remedy spelled through cospec, with every
+other byte unchanged. That failure document SHALL be the answer: under `--json`
+that one document with the binary's exit code, in text `cospec: <message>` on
+stderr. Whether the binary is too old for `--archived` SHALL be read from its
+version, never inferred from its answer.
+
+#### Scenario: An unreadable archive's --archived failure is the binary's
+
+- **WHEN** `cospec validate --archived --json` runs with
+  `openspec/changes/archive/` at mode 000
+- **THEN** it prints the binary's one `validate_error` document and exits 1, as
+  the binary does, and the text form prints `cospec: <message>` with no "needs
+  OpenSpec >=1.9.0" attribution
 
 #### Scenario: The no-deltas tip names cospec
 

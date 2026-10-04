@@ -1765,7 +1765,7 @@ describe('15. round-2 review rows', () => {
       return { root, restore: lock(join(root, 'openspec/changes/archive')) }
     }
 
-    test.failing("15.5 validate --archived relays the binary's failure document", async () => {
+    test("15.5 validate --archived relays the binary's failure document", async () => {
       const { root, restore } = lockedArchive()
       try {
         const up = await upstreamJson(['validate', '--archived', '--json'], root)
@@ -1778,6 +1778,9 @@ describe('15. round-2 review rows', () => {
         expect(text.exitCode).toBe(upText.exitCode)
         expect(text.stderr).toBe(`cospec: ${respellRemedies(firstStatus(up.json).message)}\n`)
         expect(text.stderr).not.toContain('1.9.0')
+        // Row 7.9's relay half: no relayed line names a bare `openspec` command.
+        for (const relayed of [cs.stdout, text.stderr])
+          expect(relayed).not.toMatch(/(^|[\s`'"])openspec\s/m)
       } finally {
         restore()
       }

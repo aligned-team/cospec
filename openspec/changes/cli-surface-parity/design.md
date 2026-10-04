@@ -402,8 +402,21 @@ computed in `toJson` beside cospec's `errors`/`warnings`/`byRule`.
 precondition does, and delegates nothing. A namespace folder short-circuits the
 same way, to `meta/nested-change`.
 
-**Relays**: `mapDelegated` passes each message through `respellRemedies`, and
-the `--archived` fallback passes the relayed stderr through it too.
+**Relays**: `mapDelegated` passes each message through `respellRemedies`.
+
+**`--archived`** (task 11.6) is one wrapped `validate --archived --json` call
+with expected exit codes {0, 1} and a post-condition of one JSON document that
+is either a report (`items[]`) or the binary's failure document (`status[]` with
+an error). A report renders through cospec's renderer as before. A failure
+document (an unreadable `openspec/changes/archive/` is `validate_error`
+`EACCES … scandir`) is the answer: under `--json` that document, each `message`
+and `fix` through `respellRemedies`, with the binary's exit code; in text
+`cospec: <message>` (and `Fix: <fix>`) on stderr. Whether the binary is too old
+for the flag is read from its `--version` (`openspecBelow(version, "1.9.0")`,
+one memoized read shared with the version assertion), never inferred from its
+output: before, any answer without `items` was reported as "it needs OpenSpec
+
+> =1.9.0", misattributing a delegated failure.
 
 **Dedupe**: the `archive/target-invalid` entry becomes a function matcher. It
 checks the fixed head with an anchored regex, splits the rest on `\n`, and tests
