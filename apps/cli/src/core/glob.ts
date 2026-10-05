@@ -99,8 +99,8 @@ function canonicalizePotentialPath(targetPath: string): string {
   }
 }
 
-/** The binary's `FileSystemUtils.assertPathWithin`. */
-function assertPathWithin(allowedDirectory: string, targetPath: string): void {
+/** The binary's `FileSystemUtils.assertPathWithin` (also archive's root confinement). */
+export function assertPathWithin(allowedDirectory: string, targetPath: string): void {
   const resolvedDirectory = resolve(allowedDirectory)
   const resolvedTarget = resolve(targetPath)
   if (!isPathWithin(resolvedDirectory, resolvedTarget))

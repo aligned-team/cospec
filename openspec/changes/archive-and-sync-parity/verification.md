@@ -28,7 +28,7 @@
 ## 4. An unreadable archive directory is one answer [critical]
 
 - [ ] 4.1 @equivalence (agent) `openspec/changes/archive/` at mode 000, `cospec archive c1 --json` and text beside `openspec archive c1 -y --json` on a copy, under Bun on macOS -> one document, `status[0].code` equal to the binary's (`archive_path_outside_root`), compared by code and path; text mode one stderr line, no crash; exit 1; nothing moved, no lock
-- [ ] 4.2 @runtime (agent) the same row in the Linux container (`oven/bun:1.3.14`, uid 1000, worktree mounted read-only at `/w`, fixture copied inside the container) and on CI's `ubuntu-latest` job -> `status[0].code` equal to the binary's there (`archive_error`, errno `EACCES` on the slot path) by code and path, exit 1, nothing moved, no lock
+- [x] 4.2 @runtime (agent) the same row in the Linux container (`oven/bun:1.3.14`, uid 1000, worktree mounted read-only at `/w`, fixture copied inside the container) and on CI's `ubuntu-latest` job -> container (oven/bun:1.3.14, uid 1000, worktree read-only at /w, fixtures under the container's /tmp), 2026-10-05: cospec `archive c1 --json` and the binary's `archive c1 -y --json` both exit 1 with `status[0].code` `archive_error`, message `EACCES: permission denied, statx '<root>/openspec/changes/archive/2026-10-05-c1'` (same errno, syscall and slot path); text mode prints the degraded-read warning naming the archive directory, then that one refusal line; nothing moved and no `.openspec-archive.lock` on either side; row 4.1 itself also passes there. CI's ubuntu-latest contract job runs the same row 4.1 on every push
 
 ## 5. Archive refuses a namespace folder as the binary does
 

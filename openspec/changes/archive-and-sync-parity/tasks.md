@@ -61,7 +61,7 @@ sandboxed HOME/XDG.
 - [x] 3.3 Refuse a namespace folder before revalidation (design D8). Flip row
       5.1. Commit
       `feat(cli): refuse a namespace folder as OpenSpec archive does`
-- [ ] 3.4 Add the path-confinement check and the guarded slot `lstat`, and route
+- [x] 3.4 Add the path-confinement check and the guarded slot `lstat`, and route
       archive-directory reads through the degraded index (design D7). Flip row
       4.1. Run row 4.2 in the Linux container and record its observed output in
       the ledger. Commit

@@ -6,7 +6,7 @@
 // stubbed for the three refusals that come after delegation.
 
 import { afterAll, describe, expect, test } from 'bun:test'
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { formatLocalDate, run as archiveRun } from '../../../src/commands/archive.ts'
@@ -30,7 +30,10 @@ function repo(): string {
   return dir
 }
 afterAll(() => {
-  for (const dir of roots) rmSync(dir, { recursive: true, force: true })
+  for (const dir of roots) {
+    chmodSync(join(dir, 'openspec/changes/archive'), 0o755)
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 const SOURCE = readFileSync(join(import.meta.dir, '../../../src/commands/archive.ts'), 'utf8')
@@ -116,6 +119,15 @@ const ADDED_NEW = `## ADDED Requirements\n\n${REQUIREMENT(RENDER)}`
 
 const CASES: Record<string, Case> = {
   'invalid-name': { build: () => 'a/b' },
+  // macOS refuses at the root confinement, Linux at the slot `lstat`: the
+  // same reason either way.
+  'archive-unreadable': {
+    build(cwd) {
+      writeChange(cwd, 'c', 'ci', CI)
+      chmodSync(join(cwd, 'openspec/changes/archive'), 0o000)
+      return 'c'
+    },
+  },
   'unknown-change': {
     build(cwd) {
       writeChange(cwd, 'c', 'ci', CI)

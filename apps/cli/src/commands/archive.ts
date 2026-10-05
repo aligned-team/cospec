@@ -7,7 +7,7 @@
 // merge, relays the wrapped binary's non-blocking warnings, then fans blocker
 // check-offs out across sibling changes and prints the flywheel summary.
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, lstatSync, readdirSync, readFileSync, type Dirent } from 'node:fs'
 import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
@@ -36,6 +36,7 @@ import {
 } from '../core/change.ts'
 import { hasFlag } from '../core/command-table.ts'
 import { parseLivingSpec, type DeltaOp } from '../core/deltas.ts'
+import { assertPathWithin } from '../core/glob.ts'
 import { spawnOpenspec, threadedArgv } from '../core/openspec.ts'
 import { renderHuman, renderJson } from '../core/report.ts'
 import { resolveRoot } from '../core/root.ts'
@@ -49,7 +50,7 @@ import {
 import { parseTasks } from '../core/tasks.ts'
 import { computeVerificationVerdict, parseVerification } from '../core/verification.ts'
 import { archiveMap, atomicWrite, closest, computeGate } from './apply.ts'
-import { buildValidateContext, validateChange } from './validate.ts'
+import { readValidateContext, validateChange } from './validate.ts'
 
 const ABORTED_RE = /\bAborted\b/
 const CANCELLED_RE = /\bArchive cancelled\b/
@@ -151,11 +152,59 @@ export function isArchiveTargetFor(changeId: string, dirName: string): boolean {
   return new RegExp(`^\\d{4}-\\d{2}-\\d{2}-${escapeRegExp(changeId)}$`).test(dirName)
 }
 
+/**
+ * The directories under `dir`. A directory that cannot be read lists nothing:
+ * the slot check has already answered for one the binary could not use, and
+ * an unreadable one it could use is reported by step 9 as what it saw.
+ */
 function basenames(dir: string): string[] {
-  if (!existsSync(dir)) return []
-  return readdirSync(dir, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => e.name)
+  let entries: Dirent[]
+  try {
+    entries = readdirSync(dir, { withFileTypes: true })
+  } catch (error) {
+    if (isErrno(error)) return []
+    throw error
+  }
+  return entries.filter((e) => e.isDirectory()).map((e) => e.name)
+}
+
+/** Whether `path` exists (`lstat`), or the errno message when it cannot be told. */
+function slotTaken(path: string): boolean | string {
+  try {
+    lstatSync(path)
+    return true
+  } catch (error) {
+    if (!isErrno(error)) throw error
+    return error.code === 'ENOENT' ? false : error.message
+  }
+}
+
+function isErrno(error: unknown): error is NodeJS.ErrnoException {
+  return typeof (error as NodeJS.ErrnoException | undefined)?.code === 'string'
+}
+
+/**
+ * The binary's first step (`ArchiveCommand.run`): each managed directory must
+ * resolve inside its parent, through the runtime's `realpath`. A directory the
+ * runtime cannot canonicalize (macOS's `realpath` on a mode-000 directory)
+ * fails it, as it fails the binary's.
+ */
+function managedDirOutsideRoot(base: string): string | undefined {
+  const changes = changesDir(base)
+  const pairs: [string, string][] = [
+    [base, changes],
+    [changes, archiveDir(base)],
+    [base, join(openspecDir(base), 'specs')],
+  ]
+  for (const [allowed, managed] of pairs) {
+    try {
+      assertPathWithin(allowed, managed)
+    } catch (error) {
+      if (!(error instanceof Error)) throw error
+      return managed
+    }
+  }
+  return undefined
 }
 
 function escapeRegExp(s: string): string {
@@ -275,6 +324,14 @@ export async function run(ctx: CommandContext): Promise<number> {
     return EXIT.failure
   }
 
+  // Step 0: the binary's root confinement, before anything is read.
+  const outside = managedDirOutsideRoot(base)
+  if (outside !== undefined) {
+    const diag = diagnostics.pathOutsideRoot(outside)
+    process.stderr.write(`cospec archive: ${diag.message}\n`)
+    return refuse('archive-unreadable', diag)
+  }
+
   // Step 1: resolve change + schema (legacy still archives; step 2 delegates).
   const nameProblem = changeNameProblem(name)
   if (nameProblem !== undefined) {
@@ -328,7 +385,10 @@ export async function run(ctx: CommandContext): Promise<number> {
   const skipSpecs = userSkipSpecs || !declaresSpecs || preOps.length === 0
 
   // Step 2: full validation (archive-precondition family unless skipping specs).
-  const vctx = buildValidateContext(base)
+  // An archive directory that cannot be read is read as empty, with a
+  // warning: the slot check below answers for it as the binary does.
+  const { ctx: vctx, warning } = readValidateContext(base)
+  if (warning !== undefined) process.stderr.write(`Warning: ${warning.message}\n`)
   const report = await validateChange(root, change, vctx, { strict: false, fast: skipSpecs })
   if (!report.valid) {
     if (!flags.json)
@@ -403,7 +463,7 @@ export async function run(ctx: CommandContext): Promise<number> {
   if (existsSync(ownBlockersPath)) {
     const ownGate = computeGate(
       parseBlockers(readFileSync(ownBlockersPath, 'utf8')),
-      archiveMap(base),
+      warning === undefined ? archiveMap(base) : new Map(),
       new Set(listChanges(base).map((c) => c.id)),
     )
     if (ownGate.hard.length > 0)
@@ -415,7 +475,14 @@ export async function run(ctx: CommandContext): Promise<number> {
   // Step 5: collision pre-check for today's slot (openspec archives as
   // YYYY-MM-DD-<name>, stamped in the LOCAL zone — see formatLocalDate).
   const slot = DATE_PREFIXED_RE.test(change.id) ? change.id : `${formatLocalDate()}-${change.id}`
-  if (existsSync(join(archiveDir(base), slot))) {
+  // `lstat`, as the binary's `assertArchiveDestinationAvailable`: any errno
+  // but ENOENT is its `archive_error`, in the runtime's own words.
+  const taken = slotTaken(join(archiveDir(base), slot))
+  if (typeof taken === 'string') {
+    process.stderr.write(`cospec archive: ${taken}\n`)
+    return refuse('archive-unreadable', diagnostics.error(taken))
+  }
+  if (taken) {
     process.stderr.write(
       `cospec archive: archive slot '${slot}' already exists — rename or remove it first.\n`,
     )

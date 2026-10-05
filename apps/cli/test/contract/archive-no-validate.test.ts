@@ -554,34 +554,36 @@ describe('3. the scenario-preservation gate reads the verbatim view', () => {
 // --- 4. an unreadable archive directory is one answer ---------------------------
 
 describe('4. an unreadable archive directory is one answer', () => {
-  test.failing(
-    "4.1 mode 000: cospec's code is the binary's on this runtime, text and --json",
-    async () => {
-      const { root, copy, name } = twin(R7_ARCHIVE_UNREADABLE)
-      try {
-        const res = await own('4.1', root, ['archive', name, '--json'])
-        const text = await own('4.1', root, ['archive', name])
-        const up = await binary(copy, ['archive', name, '-y', '--json'])
-        expect([res.exitCode, text.exitCode, up.exitCode]).toEqual([1, 1, 1])
-        const upStatus = (document(up.stdout).status as { code: string; message: string }[])[0]!
-        const csStatus = (document(res.stdout).status as { code: string; message: string }[])[0]!
-        expect(csStatus.code).toBe(upStatus.code)
-        if (upStatus.code === 'archive_error') {
-          const upErr = errnoShape(underRoot(copy, upStatus.message))
-          const csErr = errnoShape(underRoot(root, csStatus.message))
-          expect(csErr).toEqual(upErr)
-        } else expect(underRoot(root, csStatus.message)).toBe(underRoot(copy, upStatus.message))
-        expect(text.stdout).toBe('')
-        expect(text.stderr.trim().split('\n')).toHaveLength(1)
-        expect(text.stderr).not.toContain('    at ')
-        expect([archived(root, name), archived(copy, name)]).toEqual([false, false])
-      } finally {
-        restoreArchiveMode(root)
-        restoreArchiveMode(copy)
-      }
-      expect([locks(root), locks(copy)]).toEqual([[], []])
-    },
-  )
+  test("4.1 mode 000: cospec's code is the binary's on this runtime, text and --json", async () => {
+    const { root, copy, name } = twin(R7_ARCHIVE_UNREADABLE)
+    try {
+      const res = await own('4.1', root, ['archive', name, '--json'])
+      const text = await own('4.1', root, ['archive', name])
+      const up = await binary(copy, ['archive', name, '-y', '--json'])
+      expect([res.exitCode, text.exitCode, up.exitCode]).toEqual([1, 1, 1])
+      const upStatus = (document(up.stdout).status as { code: string; message: string }[])[0]!
+      const csStatus = (document(res.stdout).status as { code: string; message: string }[])[0]!
+      expect(csStatus.code).toBe(upStatus.code)
+      if (upStatus.code === 'archive_error') {
+        const upErr = errnoShape(underRoot(copy, upStatus.message))
+        const csErr = errnoShape(underRoot(root, csStatus.message))
+        expect(csErr).toEqual(upErr)
+      } else expect(underRoot(root, csStatus.message)).toBe(underRoot(copy, upStatus.message))
+      expect(text.stdout).toBe('')
+      // Where the binary's first step refuses (macOS), nothing else ran: one
+      // line. Where its slot check refuses (Linux), cospec's degraded archive
+      // read warned first, naming the directory.
+      const lines = text.stderr.trim().split('\n')
+      expect(lines).toHaveLength(upStatus.code === 'archive_path_outside_root' ? 1 : 2)
+      expect(lines.at(-1)).toBe(`cospec archive: ${csStatus.message}`)
+      expect(text.stderr).not.toContain('    at ')
+      expect([archived(root, name), archived(copy, name)]).toEqual([false, false])
+    } finally {
+      restoreArchiveMode(root)
+      restoreArchiveMode(copy)
+    }
+    expect([locks(root), locks(copy)]).toEqual([[], []])
+  })
 })
 
 // --- 5. a namespace folder ------------------------------------------------------
