@@ -295,7 +295,7 @@ final commit.
 - [x] 12.10 `apply` relays the binary's failure document when
       `instructions apply` refuses after the gate clears. Verify with row 16.11.
       Commit `fix(apply): relay the binary's apply instructions refusal`
-- [ ] 12.11 An unreadable directory no artifact lives in (a dot-directory, a
+- [x] 12.11 An unreadable directory no artifact lives in (a dot-directory, a
       directory outside `specs/`) leaves the change's answer unchanged. Verify
       with row 16.12. Commit
       `fix(validate): read past a directory no artifact lives in`

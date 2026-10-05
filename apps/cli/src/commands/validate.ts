@@ -127,7 +127,14 @@ class ChangeReader {
     }
   }
 
-  /** Every file under the change, change-relative and sorted; an unreadable directory is recorded. */
+  /**
+   * Every file under the change, change-relative and sorted. An unreadable
+   * directory an artifact can live in — the change itself, or `specs/` and a
+   * subtree of it outside every dot-directory — is recorded. Any other (a
+   * dot-directory, a scratch directory) is one neither cospec's artifacts nor
+   * the binary ever read: its files could only ever be `meta/unexpected-file`
+   * advisories, so the walk passes it by.
+   */
   files(): string[] {
     const out: string[] = []
     const walk = (abs: string): void => {
@@ -135,7 +142,9 @@ class ChangeReader {
       try {
         entries = readdirSync(abs, { withFileTypes: true })
       } catch (error) {
-        this.record(error, abs)
+        const rel = relative(this.dir, abs).split(sep).join('/')
+        if (holdsArtifacts(rel)) this.record(error, abs)
+        else if (typeof (error as NodeJS.ErrnoException | undefined)?.code !== 'string') throw error
         return
       }
       for (const entry of entries) {
@@ -147,6 +156,13 @@ class ChangeReader {
     walk(this.dir)
     return out.toSorted()
   }
+}
+
+/** Whether a change-relative directory can hold an artifact: the change, or `specs/` outside dot-directories. */
+function holdsArtifacts(rel: string): boolean {
+  if (rel === '') return true
+  const segments = rel.split('/')
+  return segments[0] === 'specs' && !segments.some((segment) => segment.startsWith('.'))
 }
 
 function loadOpenspecYaml(changeDir: string, reader: ChangeReader): LoadedChange['openspecYaml'] {

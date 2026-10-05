@@ -2485,41 +2485,38 @@ describe('16. round-3 review rows', () => {
       }
     })
 
-    test.failing(
-      '16.12 an unreadable directory no artifact lives in leaves the change as it is',
-      async () => {
-        const root = cospecRoot()
-        writeChange(root, 'demo', { 'proposal.md': PROPOSAL, 'specs/widgets/spec.md': DELTA })
-        for (const rel of ['.cache', 'specs/.h', 'scratch'])
-          mkdirSync(join(root, 'openspec/changes/demo', rel), { recursive: true })
-        const readable = await oursJson(['validate', 'demo', '--json'], root)
-        const upReadable = await upstream(['validate', 'demo', '--json'], root)
-        for (const rel of ['.cache', 'specs/.h', 'scratch']) {
-          const restore = lock(join(root, 'openspec/changes/demo', rel))
-          try {
-            // The binary never reads the directory: its answer is unchanged too.
-            const up = await upstream(['validate', 'demo', '--json'], root)
-            expect({ rel, upExit: up.exitCode }).toEqual({ rel, upExit: upReadable.exitCode })
-            const cs = await oursJson(['validate', 'demo', '--json'], root)
-            expect({ rel, exit: cs.exitCode }).toEqual({ rel, exit: readable.exitCode })
-            expect({ rel, doc: untimed(cs.json) }).toEqual({ rel, doc: untimed(readable.json) })
-          } finally {
-            restore()
-          }
-        }
-        // A directory an artifact can live in still fails the change.
-        const restore = lock(join(root, 'openspec/changes/demo/specs/widgets'))
+    test('16.12 an unreadable directory no artifact lives in leaves the change as it is', async () => {
+      const root = cospecRoot()
+      writeChange(root, 'demo', { 'proposal.md': PROPOSAL, 'specs/widgets/spec.md': DELTA })
+      for (const rel of ['.cache', 'specs/.h', 'scratch'])
+        mkdirSync(join(root, 'openspec/changes/demo', rel), { recursive: true })
+      const readable = await oursJson(['validate', 'demo', '--json'], root)
+      const upReadable = await upstream(['validate', 'demo', '--json'], root)
+      for (const rel of ['.cache', 'specs/.h', 'scratch']) {
+        const restore = lock(join(root, 'openspec/changes/demo', rel))
         try {
+          // The binary never reads the directory: its answer is unchanged too.
+          const up = await upstream(['validate', 'demo', '--json'], root)
+          expect({ rel, upExit: up.exitCode }).toEqual({ rel, upExit: upReadable.exitCode })
           const cs = await oursJson(['validate', 'demo', '--json'], root)
-          const rules = rowsOf(cs.json, 'items').flatMap((i) =>
-            (i.issues as Row[]).map((x) => x.rule),
-          )
-          expect(rules).toContain('meta/unreadable-artifact')
+          expect({ rel, exit: cs.exitCode }).toEqual({ rel, exit: readable.exitCode })
+          expect({ rel, doc: untimed(cs.json) }).toEqual({ rel, doc: untimed(readable.json) })
         } finally {
           restore()
         }
-      },
-    )
+      }
+      // A directory an artifact can live in still fails the change.
+      const restore = lock(join(root, 'openspec/changes/demo/specs/widgets'))
+      try {
+        const cs = await oursJson(['validate', 'demo', '--json'], root)
+        const rules = rowsOf(cs.json, 'items').flatMap((i) =>
+          (i.issues as Row[]).map((x) => x.rule),
+        )
+        expect(rules).toContain('meta/unreadable-artifact')
+      } finally {
+        restore()
+      }
+    })
   })
 })
 
