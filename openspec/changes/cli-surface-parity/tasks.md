@@ -324,3 +324,13 @@ group 17). Task 10.2 stays the branch's final commit.
       and in the `--all` sweep, and relays its refusal as `--json` does; the
       docs pages that own the fact say so. Verify with rows 17.3 and 17.4.
       Commit `fix(cli): refuse in text a change whose metadata is refused`
+- [x] 13.3 `changeMetadataRefused`'s own `listSchemas` call (13.2's `listed()`)
+      catches its errno failure (the project `openspec/schemas` unreadable or
+      not a directory) and answers refused, the same as every other read failure
+      in that function, instead of escaping `binaryDecides` uncaught — which,
+      called directly in the `--all` sweep's upstream-fetch decision and the
+      `--change` lookup's own decision, both outside any per-change try/catch,
+      crashed the whole command with a bare `cospec: ENOTDIR …` line instead of
+      the per-change refusal `--json` already answers correctly. Verify with row
+      17.5. Commit
+      `fix(cli): catch listSchemas's errno in changeMetadataRefused`

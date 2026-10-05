@@ -15,6 +15,7 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
+  renameSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -2708,6 +2709,63 @@ describe('17. round-4 review rows', () => {
     expect(text.exitCode).toBe(0)
     expect(text.stdout).toContain('gate:')
   }, 120_000)
+
+  /**
+   * `changeMetadataRefused` asks `listSchemas(base)` whether the change's
+   * `schema:` is one it lists, so a project `openspec/schemas` the binary
+   * cannot read as a directory (replaced by a file) fails that call with an
+   * errno, not a verdict. Before the fix this escaped `binaryDecides` — called
+   * directly in the `--all` sweep's upstream-fetch decision and the
+   * `--change` lookup's own decision, both outside any per-change try/catch —
+   * and crashed the whole command with a bare `cospec: ENOTDIR …` line instead
+   * of the per-change `cospec status: …` (lookup) / `ch1: ERROR — …` (sweep)
+   * refusal the binary itself answers with.
+   */
+  test('17.5 a project schemas directory the binary cannot read is refused in text too', async () => {
+    const root = cospecRoot()
+    writeChange(root, 'ch1', { 'proposal.md': PROPOSAL }, 'chore')
+    const schemas = join(root, 'openspec/schemas')
+    const saved = `${schemas}.saved`
+    renameSync(schemas, saved)
+    writeFileSync(schemas, 'not a directory\n')
+    try {
+      const up = await upstreamJson(['status', '--change', 'ch1', '--json'], root)
+      const cs = await oursJson(['status', '--change', 'ch1', '--json'], root)
+      captureStatus('17.5 json', cs)
+      const upText = await upstream(['status', '--change', 'ch1'], root)
+      const text = await ours(['status', '--change', 'ch1'], root)
+      captureStatus('17.5 text', text)
+      // The binary's listSchemas cannot read the project tier, so it refuses
+      // the change in both modes — never a top-level crash.
+      expect(up.exitCode).toBe(1)
+      expect(upText.exitCode).toBe(1)
+      expect(cs.exitCode).toBe(1)
+      expect(cs.json).toEqual(JSON.parse(respellRemedies(up.stdout)))
+      const messages = (up.json as { status: Diagnostic[] }).status.map((d) =>
+        respellRemedies(d.message),
+      )
+      expect(messages.length).toBeGreaterThan(0)
+      expect({ exit: text.exitCode, stdout: text.stdout }).toEqual({ exit: 1, stdout: '' })
+      expect(text.stderr).toEqual(messages.map((m) => `cospec status: ${m}\n`).join(''))
+
+      const upAll = await upstreamJson(['status', '--all', '--json'], root)
+      const all = await oursJson(['status', '--all', '--json'], root)
+      captureStatus('17.5 sweep json', all)
+      const upSweepText = await upstream(['status', '--all'], root)
+      const sweepText = await ours(['status', '--all'], root)
+      captureStatus('17.5 sweep text', sweepText)
+      expect(upAll.exitCode).toBe(1)
+      expect(upSweepText.exitCode).toBe(1)
+      expect(all.exitCode).toBe(1)
+      expect(sweepText.exitCode).toBe(1)
+      const ch1 = rowsOf(all.json).find((e) => e.change === 'ch1')!
+      expect(ch1.error).toEqual(messages.join('\n'))
+      expect(sweepText.stdout).toContain(`ch1: ERROR — ${messages.join('\n')}\n`)
+    } finally {
+      rmSync(schemas, { force: true })
+      renameSync(saved, schemas)
+    }
+  })
 })
 
 // --- 5.6 no status output names a bare openspec command ------------------------------------

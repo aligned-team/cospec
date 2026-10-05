@@ -117,7 +117,16 @@ export function changeMetadataRefused(changeDir: string, listed: () => readonly 
     return true
   }
   if (changeMetadataIssue(parsed) !== undefined) return true
-  return !listed().includes((parsed as Record<string, unknown>).schema as string)
+  try {
+    return !listed().includes((parsed as Record<string, unknown>).schema as string)
+  } catch (err) {
+    // `listed()` runs `listSchemas`, whose own errno failure (the schemas
+    // directory unreadable or not a directory) is the binary's to report, like
+    // every other read failure in this function.
+    const code = (err as NodeJS.ErrnoException | undefined)?.code
+    if (!(err instanceof Error) || typeof code !== 'string') throw err
+    return true
+  }
 }
 
 // --- zod 4, as far as openspec's two schemas reach ---------------------------
