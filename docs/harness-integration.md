@@ -37,15 +37,22 @@ detection, the removal roots manifest keys are contained to, and the command
 extensions its orphan sweep matches in each commands dir) and `doctor` (scan
 roots, the files its frontmatter and reference checks read, the row a file
 belongs to, the invocation prefix its references are spelled with, and the
-skills and commands roots a reference resolves against). Doctor and init's
-leftover scan read each markdown row's commands by that row's extension under
-its commands dir, and every `.md` file under each top-level dir that holds a
-row's skills or legacy skills root — not only the skill files. So a user's own
-markdown under `.claude/`, such as a note or a nested worktree's copy of the
-repo, is checked too, and a row whose skills root sat under `.github` would pull
-in every `.md` file there. This breadth is a known defect, not an intended scan
-boundary; it predates this change and is narrowed to `SKILL.md` and the table's
-command paths by the follow-on change `harness-receipt-and-doctor-scope`. A file
+skills and commands roots a reference resolves against). Doctor's
+`stale-harness`, `mixed-versions` and `dangling-ref` checks read only the files
+cospec writes (`isHarnessDocument`): `<skills root>/<skill>/SKILL.md`, with
+exactly one directory between a row's project or legacy skills root and the
+file, and each markdown row's command paths (`<commands.dir>/<commands.file>`
+with `{command}` as one path segment, plus `commands.extension`). Both shapes
+match on the full root, so a user's own markdown under `.claude/`, a deeper
+`SKILL.md` and a nested worktree's copy of the repo under `.claude/worktrees/`
+are not checked. init's opsx leftover scan (`isLeftoverCandidate` and
+`leftoverScanFiles` in `commands/init.ts`, which doctor's `opsx-leftover` check
+reads too) is wider: every `.md` file under each top-level dir that holds a
+row's skills or legacy skills root, each markdown row's files with its command
+extension under its commands dir, and the shared `.agents/skills` root. It has
+to be wider, because upstream's own command paths
+(`.claude/commands/opsx/<id>.md`, `.opencode/commands/opsx-<id>.md`) are not
+cospec's, and provenance, never the path, decides what is a leftover. A file
 belongs to the row with a skills, legacy skills, commands or rules dir that is
 the longest prefix of it. A dir two rows share goes to the row whose primary
 root also prefixes the file, then to the earlier row, and a file under none of
@@ -63,12 +70,15 @@ and doctor's `legacy-layout` warning all come from the constants in
 until `tool-matrix` drives the migration from the table. Deliberate Claude-only
 behaviour sits outside the table too: `init` merges cospec's permission into
 `.claude/settings.json` only when `claude` is selected, and selects `claude` on
-a fresh repo where nothing is detected. The receipt's closing hint is not in
-that deliberate set: it always prints `Try: /cospec:propose …` in Claude's
-spelling, whichever row was selected. That is a known defect, not intended
-behaviour; the follow-on change `harness-receipt-and-doctor-scope` spells it
-through the first selected row's dialect and invocation prefix instead. A TOML
-command carries no frontmatter, so, like the Codex rules file, it is tracked in
+a fresh repo where nothing is detected. The receipt's closing hint is not
+Claude-only: `receiptHintLines` passes its two lines through the first selected
+row's body dialect and invocation prefix with `transformBody`, so it reads
+`/cospec:propose` for Claude, `/cospec-propose` for OpenCode, and
+`$cospec-propose (Codex) or /cospec-propose (other agents)` for Codex and the
+shared `.agents` skills. The first selected row is the first id of an explicit
+`--harness` list as typed, otherwise the first selected row in table order; with
+`--harness none` the hint keeps `/cospec:propose`. A TOML command carries no
+frontmatter, so, like the Codex rules file, it is tracked in
 `openspec/.cospec-manifest.json`. A home-scoped file renders, but `generate()`
 refuses to write it with an internal error until the home root is a managed
 root.
@@ -203,15 +213,16 @@ merged entry. If it does not parse, cospec prints the snippet and skips.
   `--remove-opsx` (or interactive confirm; `--yes` = yes). User-authored files
   (no `generatedBy`) are never touched. `doctor` warns while both command sets
   coexist, because two propose commands confuse agents. The leftover scan also
-  walks `.agents/skills/` (`OPSX_SHARED_SKILL_ROOT`): openspec 1.8.0+ writes its
-  Codex (and 1.7.0's `agents`, 1.10's `zed`, 1.11's `antigravity`) skills to
-  that shared root instead of under a per-harness `.<tool>/` dir, so an install
-  done with any of those targets leaves no trace under the three `.<harness>`
-  dirs cospec otherwise scans. cospec now writes its own skills to that same
-  root (targets `codex` and `agents`), so the two toolchains' output coexists
-  there: cospec owns only its `cospec-*` dirs, and `--remove-opsx` still removes
-  only openspec-authored files. The superset walk of `.agents/` and the subset
-  walk of `.agents/skills/` are deduped, so a leftover is reported once.
+  walks `.agents/skills/` (`OPSX_SHARED_SKILL_ROOT`) whichever rows the table
+  carries: openspec 1.8.0+ writes its Codex (and 1.7.0's `agents`, 1.10's `zed`,
+  1.11's `antigravity`) skills to that shared root instead of under a
+  per-harness `.<tool>/` dir, so an install done with any of those targets
+  leaves no trace under the three `.<harness>` dirs cospec otherwise scans.
+  cospec now writes its own skills to that same root (targets `codex` and
+  `agents`), so the two toolchains' output coexists there: cospec owns only its
+  `cospec-*` dirs, and `--remove-opsx` still removes only openspec-authored
+  files. The superset walk of `.agents/` and the subset walk of
+  `.agents/skills/` are deduped, so a leftover is reported once.
 - **Shared `.agents/skills` root** — the `codex` and `agents` rows both declare
   `skillsDir: '.agents'` and `bodyDialect: 'shared'`, so they render
   byte-identical skill files there (same paths, same bodies, same

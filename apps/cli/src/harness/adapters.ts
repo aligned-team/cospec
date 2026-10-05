@@ -261,34 +261,44 @@ export function scanRoots(table: readonly HarnessAdapter[] = HARNESS_TABLE): str
 }
 
 /**
- * Which files under the scan roots are markdown harness documents, the ones doctor's
- * frontmatter and reference checks and init's leftover scan read: every
- * `SKILL_EXTENSION` file under a top-level dir holding a row's project skills root or
- * legacy skills root, and each markdown-serializer row's command files, by that row's
- * own `commands.extension` under its `commands.dir`. A TOML command carries no
- * frontmatter and is left to the manifest (DESIGN decision 9). For the four rows this
- * is every `.md` file under the scan roots.
+ * Which files under the scan roots are harness documents, the ones doctor's stale-harness,
+ * mixed-versions and dangling-ref checks read: only paths cospec generates (cospec-roadmap
+ * ruling 2026-10-04). That is `<skills root>/<skill>/SKILL_FILE`, with exactly one
+ * directory between a row's project or legacy skills root and the file, and each
+ * markdown-serializer row's command paths, `<commands.dir>/<commands.file><extension>` with
+ * `{command}` as one path segment. Both match on the full root, so a user's own markdown
+ * under a harness dir, a deeper `SKILL.md` and a nested worktree's checkout are not
+ * harness documents. A TOML command carries no frontmatter and is left to the manifest
+ * (DESIGN decision 9). The opsx leftover scan reads a wider set (init's
+ * `isLeftoverCandidate`), since what openspec wrote lives at its own paths.
  */
 export function isHarnessDocument(
   relpath: string,
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): boolean {
-  const top = topSegment(relpath)
   return table.some((row) => {
+    const roots = legacySkillsRoots(row)
     const skills = skillsRoot(row)
-    const skillRoots = legacySkillsRoots(row)
-    if (skills.scope === 'project') skillRoots.push(skills.root)
-    if (relpath.endsWith(SKILL_EXTENSION) && skillRoots.some((root) => topSegment(root) === top)) {
-      return true
-    }
+    if (skills.scope === 'project') roots.push(skills.root)
+    if (roots.some((root) => isSkillFileUnder(relpath, root))) return true
     const c = row.commands
-    return (
-      c !== undefined &&
-      c.serializer === 'markdown' &&
-      relpath.startsWith(`${c.dir}/`) &&
-      relpath.endsWith(c.extension)
-    )
+    return c !== undefined && c.serializer === 'markdown' && commandPathPattern(c).test(relpath)
   })
+}
+
+function isSkillFileUnder(relpath: string, root: string): boolean {
+  if (!relpath.startsWith(`${root}/`)) return false
+  const rest = relpath.slice(root.length + 1).split('/')
+  return rest.length === 2 && rest[0] !== '' && rest[1] === SKILL_FILE
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function commandPathPattern(c: CommandSurface): RegExp {
+  const file = c.file.split('{command}').map(escapeRegExp).join('[^/]+')
+  return new RegExp(`^${escapeRegExp(c.dir)}/${file}${escapeRegExp(c.extension)}$`)
 }
 
 /** Dirs cospec owns and may delete manifest-tracked files from: `openspec` plus every row root. */

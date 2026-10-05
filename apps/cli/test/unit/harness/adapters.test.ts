@@ -240,14 +240,34 @@ describe('HARNESS_TABLE derived roots', () => {
     expect(removalRoots()).toHaveLength(5)
   })
 
-  test("the four rows' harness documents are every .md file under the scan roots", () => {
+  test("each scan root's skills are harness documents; its rules and stray prompts are not", () => {
     for (const root of scanRoots()) {
       expect(isHarnessDocument(`${root}/skills/cospec-explore/SKILL.md`)).toBe(true)
-      expect(isHarnessDocument(`${root}/notes/anything.md`)).toBe(true)
       expect(isHarnessDocument(`${root}/rules/cospec.rules`)).toBe(false)
       expect(isHarnessDocument(`${root}/commands/cospec-new.prompt`)).toBe(false)
     }
     expect(isHarnessDocument('elsewhere/notes.md')).toBe(false)
+  })
+
+  test('other markdown under a scan root is not a harness document (cospec-roadmap ruling 2026-10-04)', () => {
+    for (const root of scanRoots()) {
+      expect(isHarnessDocument(`${root}/notes/anything.md`)).toBe(false)
+    }
+    expect(isHarnessDocument('.claude/notes.md')).toBe(false)
+    expect(isHarnessDocument('.claude/worktrees/wt/.claude/skills/x/SKILL.md')).toBe(false)
+    expect(isHarnessDocument('.claude/worktrees/wt/.claude/commands/cospec/propose.md')).toBe(false)
+    expect(isHarnessDocument('.claude/skills/x/y/SKILL.md')).toBe(false)
+    expect(isHarnessDocument('.claude/skills/x/README.md')).toBe(false)
+    expect(isHarnessDocument('.claude/commands/cospec/a/b.md')).toBe(false)
+    expect(isHarnessDocument('.claude/commands/notes.md')).toBe(false)
+    expect(isHarnessDocument('.opencode/commands/opsx-propose.md')).toBe(false)
+  })
+
+  test("the table's command paths and the legacy skills root are harness documents", () => {
+    expect(isHarnessDocument('.claude/commands/cospec/propose.md')).toBe(true)
+    expect(isHarnessDocument('.opencode/commands/cospec-propose.md')).toBe(true)
+    expect(isHarnessDocument('.codex/skills/cospec-propose/SKILL.md')).toBe(true)
+    expect(isHarnessDocument('.agents/skills/cospec-propose/SKILL.md')).toBe(true)
   })
 
   test("the codex row's legacy skills root is the one legacy-skills.ts migrates from", () => {

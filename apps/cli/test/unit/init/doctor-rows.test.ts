@@ -331,3 +331,75 @@ describe("the opsx leftover scans read each row's command extension", () => {
     ])
   })
 })
+
+// Verification 2.4 (harness-receipt-and-doctor-scope): a harness document is a
+// file at a path cospec generates, matched by shape on the full root.
+describe("doctor's harness scan collects only the paths cospec generates", () => {
+  let dir: string
+  beforeEach(() => {
+    dir = makeRepo()
+  })
+  afterEach(() => {
+    cleanup(dir)
+  })
+
+  test('a SKILL.md deeper than one directory under a skills root is not collected', () => {
+    put(dir, '.claude/skills/x/y/SKILL.md', managed('cospec@0.0.1', 'Run /cospec:bogus.\n'))
+    expect(harnessMarkdownFiles(dir, HARNESS_TABLE)).toEqual([])
+  })
+
+  test("a legacy skills root's <skill>/SKILL.md is still collected", () => {
+    put(dir, '.codex/skills/cospec-propose/SKILL.md', managed(CURRENT_GENERATED_BY, 'x\n'))
+    expect(harnessMarkdownFiles(dir, HARNESS_TABLE).map((f) => f.relpath)).toEqual([
+      '.codex/skills/cospec-propose/SKILL.md',
+    ])
+  })
+})
+
+// Verification 3.2 (harness-receipt-and-doctor-scope): upstream's legacy
+// command paths — `.claude/commands/opsx/<id>.md` and
+// `.opencode/commands/opsx-<id>.md`, from the pinned 1.13.1 dist's
+// `core/command-generation/adapters/{claude,opencode}.js` — are no harness
+// document, yet stay reachable through the leftover scan. The Claude fixture is
+// that adapter's frontmatter; the OpenCode adapter writes `description` only,
+// so its fixture carries the `name: "OPSX: …"` marker the provenance check
+// reads, to prove the path is still walked.
+describe("the opsx leftover scan still reads upstream's legacy command paths", () => {
+  let dir: string
+  beforeEach(() => {
+    dir = makeRepo()
+  })
+  afterEach(() => {
+    cleanup(dir)
+  })
+
+  const CLAUDE_LEFTOVER = '.claude/commands/opsx/propose.md'
+  const OPENCODE_LEFTOVER = '.opencode/commands/opsx-propose.md'
+
+  function plant(): void {
+    put(
+      dir,
+      CLAUDE_LEFTOVER,
+      '---\nname: "OPSX: Propose"\ndescription: "Propose a new change"\nallowed-tools: Bash(openspec *)\ncategory: "Workflow"\ntags: ["workflow", "artifacts"]\n---\n\nbody\n',
+    )
+    put(dir, OPENCODE_LEFTOVER, '---\nname: "OPSX: Propose"\ndescription: "Propose"\n---\n\nbody\n')
+  }
+
+  test('init lists both', () => {
+    plant()
+    expect(findOpsxFiles(dir)).toEqual([
+      { relpath: CLAUDE_LEFTOVER },
+      { relpath: OPENCODE_LEFTOVER },
+    ])
+  })
+
+  test('doctor warns on both', () => {
+    plant()
+    const findings: Finding[] = []
+    checkOpsx(dir, findings)
+    expect(findings.map((f) => `${f.check} ${f.level} ${f.message}`)).toEqual([
+      `opsx-leftover WARNING leftover openspec (opsx) file: ${CLAUDE_LEFTOVER} — two propose commands confuse agents`,
+      `opsx-leftover WARNING leftover openspec (opsx) file: ${OPENCODE_LEFTOVER} — two propose commands confuse agents`,
+    ])
+  })
+})

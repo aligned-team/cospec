@@ -64,6 +64,15 @@ unlike Claude Code and Codex, which bind the argument implicitly. The paired
 **skill** body never gets this placeholder, so the two rendered bodies
 legitimately differ for the same workflow on OpenCode.
 
+`cospec init`'s receipt ends with a `Try:` hint spelled the same way, for the
+first harness selected: the first one you list in `--harness` (so
+`--harness opencode,claude` prints OpenCode's spelling), otherwise the first
+detected in the order Claude Code, Codex, OpenCode, agents (`--harness all` and
+the fresh-repo default start with Claude Code). Claude Code gets
+`Try: /cospec:propose …`, OpenCode `Try: /cospec-propose …`, and Codex and
+agents `Try: $cospec-propose (Codex) or /cospec-propose (other agents) …`. With
+`--harness none` the hint keeps `/cospec:propose`.
+
 ## The shared `.agents/skills` root
 
 `.agents/skills` is the vendor-neutral skills root read by Codex, Zed,

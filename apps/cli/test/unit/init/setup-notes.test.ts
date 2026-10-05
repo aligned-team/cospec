@@ -6,7 +6,11 @@
 
 import { describe, expect, test } from 'bun:test'
 
-import { setupNoteLines, sharedSkillsRootLines } from '../../../src/commands/init.ts'
+import {
+  receiptHintLines,
+  setupNoteLines,
+  sharedSkillsRootLines,
+} from '../../../src/commands/init.ts'
 import { HARNESS_NAMES, HARNESS_TABLE, type HarnessAdapter } from '../../../src/harness/adapters.ts'
 
 const COMMANDS_LINE = 'Restart your IDE to refresh commands.'
@@ -153,5 +157,55 @@ describe('init receipt shared skills root line', () => {
     expect(sharedSkillsRootLines(['right'], [left, right])).toEqual([
       '         skills for left/right share the .pair/skills root (identical files)',
     ])
+  })
+})
+
+// Verification 1.6 (harness-receipt-and-doctor-scope): the receipt's two
+// closing hint lines are spelled through the first selected row's body dialect
+// and invocation prefix, the same respelling its generated bodies get.
+const hintLines = (propose: string): string[] => [
+  `Try: ${propose} "feat: <what you want to build>"`,
+  `Lightweight change? ${propose} "ci: fix release workflow" — 3 short artifacts.`,
+]
+const SHARED_PROPOSE = '$cospec-propose (Codex) or /cospec-propose (other agents)'
+
+/** A flat-dialect tool whose users type `@` before a command, as Amazon Q's do. */
+const AT_PREFIX_ROW: HarnessAdapter = {
+  ...IDE_WITH_COMMANDS,
+  id: 'at-cmds',
+  skillsDir: '.at-cmds',
+  commands: { ...IDE_WITH_COMMANDS.commands!, dir: '.at-cmds/commands' },
+  invocationPrefix: '@',
+  requiresIdeRestart: false,
+  detectionPaths: ['.at-cmds'],
+}
+
+describe('init receipt hint follows the first selected harness (verification 1.6)', () => {
+  test('claude, all and the claude default keep the canonical /cospec:propose', () => {
+    expect(receiptHintLines(['claude'])).toEqual(hintLines('/cospec:propose'))
+    expect(receiptHintLines([...HARNESS_NAMES])).toEqual(hintLines('/cospec:propose'))
+  })
+
+  test('no selected harness keeps the canonical /cospec:propose', () => {
+    expect(receiptHintLines([])).toEqual(hintLines('/cospec:propose'))
+  })
+
+  test('opencode names its flat /cospec-propose command', () => {
+    expect(receiptHintLines(['opencode'])).toEqual(hintLines('/cospec-propose'))
+  })
+
+  test('codex and agents name the shared skill', () => {
+    expect(receiptHintLines(['codex'])).toEqual(hintLines(SHARED_PROPOSE))
+    expect(receiptHintLines(['agents'])).toEqual(hintLines(SHARED_PROPOSE))
+  })
+
+  test('the first id of an explicit list decides', () => {
+    expect(receiptHintLines(['opencode', 'claude'])).toEqual(hintLines('/cospec-propose'))
+  })
+
+  test("a flat row's own invocation prefix is used", () => {
+    expect(receiptHintLines(['at-cmds'], [...HARNESS_TABLE, AT_PREFIX_ROW])).toEqual(
+      hintLines('@cospec-propose'),
+    )
   })
 })

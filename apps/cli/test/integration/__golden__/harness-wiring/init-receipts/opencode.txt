@@ -7,5 +7,5 @@ Harness: opencode
 
 OpenCode: reload the project to pick up /cospec- commands.
 
-Try: /cospec:propose "feat: <what you want to build>"
-Lightweight change? /cospec:propose "ci: fix release workflow" — 3 short artifacts.
+Try: /cospec-propose "feat: <what you want to build>"
+Lightweight change? /cospec-propose "ci: fix release workflow" — 3 short artifacts.
