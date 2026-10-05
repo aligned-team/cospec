@@ -991,8 +991,15 @@ describe('3.7 an instructions failure is the binary answer, rendered from its do
     for (const asJson of [false, true]) {
       const full = [...argv, ...(asJson ? ['--json'] : [])]
       test(`${full.join(' ')}: the listed change names are the binary's bytes`, async () => {
-        const c = await runCospec(full, remedyNamedRoot())
-        const u = await runUpstream(full, remedyNamedRoot())
+        // One shared root for both calls: the binary's own directory listing
+        // (dist's getAvailableChanges) is unsorted and cospec relays it
+        // verbatim, so two independently-created copies can land on different
+        // on-disk entry orders (overlayfs) even though neither side sorts —
+        // sharing the root removes that dependency instead of asserting an
+        // order either side doesn't guarantee.
+        const root = remedyNamedRoot()
+        const c = await runCospec(full, root)
+        const u = await runUpstream(full, root)
         expect(u.exitCode, detail('openspec', u)).toBe(1)
         for (const name of REMEDY_SHAPED_CHANGES)
           expect(asJson ? statusMessage(json(u)) : u.stderr).toContain(`\n  ${name}`)
@@ -1010,8 +1017,9 @@ describe('3.7 an instructions failure is the binary answer, rendered from its do
     for (const asJson of [false, true]) {
       const argv = ['instructions', 'proposal', '--change', name, ...(asJson ? ['--json'] : [])]
       test(`a listed name copied back resolves: ${JSON.stringify(argv)}`, async () => {
-        const c = await runCospec(argv, remedyNamedRoot())
-        const u = await runUpstream(argv, remedyNamedRoot())
+        const root = remedyNamedRoot()
+        const c = await runCospec(argv, root)
+        const u = await runUpstream(argv, root)
         expect(u.exitCode, detail('openspec', u)).toBe(0)
         expect(c.exitCode, detail('cospec', c)).toBe(0)
         if (asJson) expect(json(c)['changeName']).toBe(name)

@@ -14,7 +14,7 @@
 
 ## 3. `upstream-spellings.test.ts` row 3.7 is deterministic
 
-- [ ] 3.1 @integration (agent) row 3.7 against a shared `remedyNamedRoot()` root, run 20x locally -> no divergence in any run
+- [x] 3.1 @integration (agent) row 3.7 against a shared `remedyNamedRoot()` root, run 20x locally -> no divergence in any run — observed: `12 pass, 0 fail` identically across 20/20 local runs
 - [ ] 3.2 @e2e (agent) row 3.7 green on both `ubuntu-latest` and `macos` runners in this PR's CI -> both green
 
 ## 4. `status` already matches the binary on a mode-000 artifact [critical]

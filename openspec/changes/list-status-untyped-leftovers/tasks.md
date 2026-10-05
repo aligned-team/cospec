@@ -35,7 +35,7 @@
 
 ## 3. `upstream-spellings.test.ts` row 3.7: one shared root
 
-- [ ] 3.1 Change row 3.7 to call `remedyNamedRoot()` once and pass the same
+- [x] 3.1 Change row 3.7 to call `remedyNamedRoot()` once and pass the same
       directory to both the `runCospec` and `runUpstream` invocations, removing
       the two-independent-copy ordering dependency (design: Decisions). Verify:
       `bun test     apps/cli/test/contract/upstream-spellings.test.ts -t '3.7'`
