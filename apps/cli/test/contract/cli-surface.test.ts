@@ -475,6 +475,24 @@ describe('the key oracle', () => {
     expect(checkNativeKeys(native, native, snapshot, ids)).toEqual([])
   })
 
+  test('a kept path is compared by presence and type, never by its entries', () => {
+    const up = { artifacts: [{ id: 'proposal', status: 'ready' }] }
+    const kspec: OracleSpec = {
+      identities: { 'artifacts[]': { upstream: byKey('id'), cospec: byKey('id') } },
+      kept: ['artifacts'],
+    }
+    expect(compareDocuments(up, { artifacts: [] }, kspec).failures).toEqual([])
+    expect(compareDocuments(up, {}, kspec).failures).toEqual([
+      expect.stringContaining('artifacts: missing'),
+    ])
+    expect(compareDocuments(up, { artifacts: 'none' }, kspec).failures).toEqual([
+      expect.stringContaining('artifacts: kept value is a string'),
+    ])
+    expect(compareDocuments(up, { artifacts: [] }, { ...kspec, kept: [] }).failures).toEqual([
+      expect.stringContaining('no cospec entry'),
+    ])
+  })
+
   test('an empty upstream array is reported so a row can require its fixture to fill it', () => {
     const { emptyArrays } = compareDocuments({ warnings: [] }, { warnings: [] }, {})
     expect(emptyArrays).toEqual(['warnings'])
@@ -2018,6 +2036,514 @@ describe('15. round-2 review rows', () => {
     const bare = await oursJson(['validate', '--json'], dir, dir, env)
     expect(bare.exitCode).toBe(1)
     expect(firstStatus(bare.json).code).toBe('no_openspec_root')
+  })
+})
+
+// --- 16. round-3 review rows -----------------------------------------------------------
+
+/** `capability`'s MODIFIED delta, restating the living spec's one requirement. */
+const MODIFIED = (capability: string): string => `## MODIFIED Requirements
+
+### Requirement: ${capability} works
+
+The system SHALL make ${capability} work, restated.
+
+#### Scenario: It works
+
+- **WHEN** a caller uses ${capability}
+- **THEN** it works
+`
+
+/** A living spec with no `## Purpose` section: the binary's ERROR, no cospec rule. */
+const NO_PURPOSE = (name: string): string => `# ${name} Specification
+
+## Requirements
+
+### Requirement: ${name} works
+
+The system SHALL make ${name} work.
+
+#### Scenario: It works
+
+- **WHEN** a caller uses ${name}
+- **THEN** it works
+`
+
+/** A living spec carrying only the binary's WARNINGs: a brief purpose, no SHALL/MUST. */
+const WARNING_ONLY = (name: string): string => `# ${name} Specification
+
+## Purpose
+
+Short.
+
+## Requirements
+
+### Requirement: ${name} works
+
+The system makes ${name} work.
+
+#### Scenario: It works
+
+- **WHEN** a caller uses ${name}
+- **THEN** it works
+`
+
+/** Every issue message of every item in a validate document, by item id. */
+function messagesById(doc: unknown): Map<string, string[]> {
+  return new Map(
+    rowsOf(doc, 'items').map((i) => [
+      String(i.id),
+      (i.issues as Row[]).map((x) => String(x.message)),
+    ]),
+  )
+}
+
+/** A validate document with every `durationMs` zeroed. */
+function untimed(doc: unknown): unknown {
+  return JSON.parse(JSON.stringify(doc).replace(/"durationMs": ?\d+/g, '"durationMs":0'))
+}
+
+describe('16. round-3 review rows', () => {
+  test.failing(
+    "16.1 a change sharing a living spec's name is validated as one, in both lanes",
+    async () => {
+      const root = cospecRoot()
+      writeFiles(root, { 'openspec/specs/foo/spec.md': LIVING('foo') })
+      // `foo` on the binary's own schema with no deltas: the binary's ERROR.
+      specDrivenChange(root, 'foo')
+      // `bar` a `feat` change with a delta, so cospec delegates for it too.
+      writeChange(root, 'bar', { 'proposal.md': PROPOSAL, 'specs/widgets/spec.md': DELTA })
+      const barAlone = await oursJson(['validate', 'bar', '--type', 'change', '--json'], root)
+      writeFiles(root, { 'openspec/specs/bar/spec.md': LIVING('bar') })
+      for (const argv of [
+        ['validate', 'foo', '--type', 'change', '--json'],
+        ['validate', '--changes', '--json'],
+      ]) {
+        const up = await upstreamJson(argv, root)
+        const cs = await oursJson(argv, root)
+        expect({ argv, exit: up.exitCode }).toEqual({ argv, exit: 1 })
+        expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
+        const theirs = messagesById(up.json).get('foo') ?? []
+        expect(theirs.length).toBeGreaterThan(0)
+        expect({ argv, foo: messagesById(cs.json).get('foo') }).toEqual({
+          argv,
+          foo: expect.arrayContaining(theirs.map(respellRemedies)),
+        })
+        expect(rowsOf(cs.json, 'items').find((i) => i.id === 'foo')!.valid).toBe(false)
+      }
+      // The cospec lane: the living spec of the same name changes nothing.
+      const bar = await oursJson(['validate', 'bar', '--type', 'change', '--json'], root)
+      expect(bar.exitCode).toBe(barAlone.exitCode)
+      expect(untimed(bar.json)).toEqual(untimed(barAlone.json))
+      expect(JSON.stringify(bar.json)).not.toContain('Ambiguous')
+    },
+  )
+
+  test.failing(
+    '16.4 --strict fails a warning-only spec as the binary does, in valid and the totals',
+    async () => {
+      const root = cospecRoot()
+      writeFiles(root, { 'openspec/specs/baz/spec.md': WARNING_ONLY('baz') })
+      for (const argv of [
+        ['validate', '--specs', '--strict', '--json'],
+        ['validate', 'baz', '--strict', '--json'],
+      ]) {
+        const up = await upstreamJson(argv, root)
+        const cs = await oursJson(argv, root)
+        expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
+        const verdicts = (doc: unknown) => rowsOf(doc, 'items').map((i) => [i.id, i.valid])
+        expect({ argv, valid: verdicts(cs.json) }).toEqual({ argv, valid: verdicts(up.json) })
+        expect(verdicts(up.json)).toEqual([['baz', false]])
+        const summary = (doc: unknown) => (doc as { summary: Row }).summary
+        expect({ argv, totals: summary(cs.json).totals }).toEqual({
+          argv,
+          totals: summary(up.json).totals,
+        })
+        expect({ argv, byType: summary(cs.json).byType }).toEqual({
+          argv,
+          byType: summary(up.json).byType,
+        })
+      }
+    },
+  )
+
+  test.failing(
+    '16.5 validate <name> outside any root is an unknown item, as the binary answers',
+    async () => {
+      const dir = mkTempRepo({ git: true })
+      const env = emptyMachineStateEnv()
+      const up = await upstreamJson(['validate', 'foo', '--json'], dir)
+      const cs = await oursJson(['validate', 'foo', '--json'], dir, dir, env)
+      expect(up.exitCode).toBe(1)
+      expect(cs.exitCode).toBe(up.exitCode)
+      expect(cs.json).toEqual(up.json)
+      expect(firstStatus(cs.json).code).toBe('unknown_item')
+      const upText = await upstream(['validate', 'foo'], dir)
+      const text = await ours(['validate', 'foo'], dir, dir, env)
+      expect(text.exitCode).toBe(upText.exitCode)
+      expect(text.stderr).toBe(`cospec: ${upText.stderr.split('\n')[0]}\n`)
+      // The bulk scopes keep the binary's no-root refusal (row 15.7).
+      const bulk = await oursJson(['validate', 'foo', '--all', '--json'], dir, dir, env)
+      expect(firstStatus(bulk.json).code).toBe('no_openspec_root')
+    },
+  )
+
+  test.failing(
+    '16.6 an empty cospec-typed change keeps artifacts: [] in --change and --all',
+    async () => {
+      const root = cospecRoot()
+      writeChange(root, 'e1', {}, 'fix')
+      const up = await upstreamJson(['status', '--change', 'e1', '--json'], root)
+      const cs = await oursJson(['status', '--change', 'e1', '--json'], root)
+      captureStatus('16.6 json', cs)
+      expect(cs.exitCode).toBe(up.exitCode)
+      expect(((up.json as Row).artifacts as Row[]).length).toBeGreaterThan(0)
+      expect((cs.json as Row).artifacts).toEqual([])
+      expect((cs.json as Row).state).toBe('in-progress')
+      expectOracle(up.json, cs.json, { ...STATUS_SPEC, kept: ['artifacts'] })
+      const all = await oursJson(['status', '--all', '--json'], root)
+      captureStatus('16.6 sweep', all)
+      const entry = rowsOf(all.json).find((e) => e.change === 'e1')!
+      expect(entry.artifacts).toEqual([])
+      expect(entry.changeName).toBe('e1')
+    },
+  )
+
+  test.failing(
+    '16.7 a regular file under changes/ is no change, as the binary refuses it',
+    async () => {
+      const root = cospecRoot()
+      writeFiles(root, { 'openspec/changes/todo': 'not a change\n' })
+      const upText = await upstream(['status', '--change', 'todo'], root)
+      const text = await ours(['status', '--change', 'todo'], root)
+      captureStatus('16.7 text', text)
+      expect(upText.exitCode).toBe(1)
+      expect(text.exitCode).toBe(upText.exitCode)
+      expect(text.stdout).toBe('')
+      const up = await upstreamJson(['status', '--change', 'todo', '--json'], root)
+      const cs = await oursJson(['status', '--change', 'todo', '--json'], root)
+      captureStatus('16.7 json', cs)
+      expect(cs.exitCode).toBe(up.exitCode)
+      expect(Object.keys(cs.json as Row)).toEqual(['status'])
+      expect(firstStatus(cs.json).code).toBe('change_error')
+      const apply = await oursJson(['apply', 'todo', '--json'], root)
+      expect(apply.exitCode).toBe(1)
+      expect(firstStatus(apply.json)).toMatchObject({
+        code: 'change_error',
+        message: "unknown change 'todo'",
+      })
+    },
+  )
+
+  test.failing(
+    '16.8 a non-kebab change directory is looked up as the binary looks it up',
+    async () => {
+      const root = cospecRoot()
+      writeChange(root, 'Add_Auth', { 'proposal.md': PROPOSAL })
+      const upText = await upstream(['status', '--change', 'Add_Auth'], root)
+      const text = await ours(['status', '--change', 'Add_Auth'], root)
+      captureStatus('16.8 text', text)
+      expect(upText.exitCode).toBe(0)
+      expect(text.exitCode).toBe(upText.exitCode)
+      expect(text.stderr).not.toContain('Did you mean')
+      const up = await upstreamJson(['status', '--change', 'Add_Auth', '--json'], root)
+      const cs = await oursJson(['status', '--change', 'Add_Auth', '--json'], root)
+      captureStatus('16.8 json', cs)
+      expect(cs.exitCode).toBe(up.exitCode)
+      expect((cs.json as Row).change).toBe('Add_Auth')
+      expectOracle(up.json, cs.json, STATUS_SPEC)
+      // What the binary refuses as a lookup name stays refused, and is never suggested back.
+      writeFiles(root, { 'openspec/changes/.hidden/.openspec.yaml': 'schema: feat\n' })
+      for (const id of ['archive', '.hidden']) {
+        const refused = await ours(['status', '--change', id], root)
+        expect({ id, exit: refused.exitCode }).toEqual({ id, exit: 1 })
+        expect(refused.stderr).not.toContain(`Did you mean '${id}'?`)
+      }
+    },
+  )
+
+  unlessRoot('mode 000', () => {
+    test.failing(
+      "16.2 validate <spec> alone is answered whatever a sibling spec's mode",
+      async () => {
+        const root = cospecRoot()
+        writeFiles(root, {
+          'openspec/specs/foo/spec.md': LIVING('foo'),
+          'openspec/specs/bar/spec.md': NO_PURPOSE('bar'),
+        })
+        const readable = await oursJson(['validate', 'bar', '--json'], root)
+        expect(readable.exitCode).toBe(1)
+        const restore = lock(join(root, 'openspec/specs/foo/spec.md'))
+        try {
+          const up = await upstream(['validate', 'bar', '--json'], root)
+          const cs = await oursJson(['validate', 'bar', '--json'], root)
+          expect(up.exitCode).toBe(1)
+          expect(cs.exitCode).toBe(up.exitCode)
+          const item = rowsOf(cs.json, 'items')[0]!
+          expect([item.id, item.valid]).toEqual(['bar', false])
+          if (!realpathRefuses(join(root, 'openspec/specs/foo/spec.md'))) {
+            // The binary answers for bar alone: the same answer as with foo readable.
+            expect(untimed(cs.json)).toEqual(untimed(readable.json))
+            return
+          }
+          // The binary refuses bar over foo (Bun's `realpath` on macOS): its
+          // refusal is bar's ERROR, never an empty pass.
+          const d = firstStatus(JSON.parse(up.stdout))
+          expect(item.issues).toContainEqual(
+            expect.objectContaining({
+              level: 'ERROR',
+              rule: 'openspec/validate',
+              message: respellRemedies(d.message),
+            }),
+          )
+        } finally {
+          restore()
+        }
+      },
+    )
+
+    test.failing(
+      '16.3 an unreadable living spec a delta targets fails that change, never the command',
+      async () => {
+        const root = cospecRoot()
+        buildValidFeat(root, 'ready')
+        writeChange(root, 'c1', {
+          'proposal.md': PROPOSAL,
+          'specs/gadgets/spec.md': MODIFIED('gadgets'),
+        })
+        writeFiles(root, { 'openspec/specs/gadgets/spec.md': LIVING('gadgets') })
+        const alone = await oursJson(['validate', 'ready', '--json'], root)
+        const restore = lock(join(root, 'openspec/specs/gadgets/spec.md'))
+        try {
+          for (const argv of [
+            ['validate', 'c1', '--json'],
+            ['validate', '--all', '--json'],
+            ['validate', '--changes', '--json'],
+            ['apply', 'c1', '--json'],
+          ]) {
+            const cs = await oursJson(argv, root)
+            expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: 1 })
+            if (argv[0] === 'validate') {
+              const up = await upstream(argv, root)
+              expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
+            }
+            const c1 = rowsOf(cs.json, 'items').find((i) => i.id === 'c1')!
+            expect(c1.valid).toBe(false)
+            expect(c1.issues).toEqual([
+              expect.objectContaining({
+                level: 'ERROR',
+                rule: 'meta/unreadable-artifact',
+                path: 'specs/gadgets/spec.md',
+              }),
+            ])
+            const message = String((c1.issues as Row[])[0]!.message)
+            expect(message).toContain('openspec/specs/gadgets/spec.md')
+            expect(message).toContain('EACCES')
+            // Every other change keeps its own answer. Where the binary refuses
+            // it over the unreadable spec (Bun's `realpath` on macOS), that
+            // refusal is its one added ERROR.
+            const ready = rowsOf(cs.json, 'items').find((i) => i.id === 'ready')
+            if (ready !== undefined) {
+              const own = rowsOf(alone.json, 'items')[0]!.issues as Row[]
+              const issues = ready.issues as Row[]
+              for (const issue of own)
+                expect({ argv, issues }).toEqual({
+                  argv,
+                  issues: expect.arrayContaining([issue]),
+                })
+              const added = issues.filter(
+                (i) => !own.some((o) => JSON.stringify(o) === JSON.stringify(i)),
+              )
+              if (!realpathRefuses(join(root, 'openspec/specs/gadgets/spec.md')))
+                expect({ argv, added }).toEqual({ argv, added: [] })
+              for (const issue of added) {
+                expect(issue).toMatchObject({ level: 'ERROR', rule: 'openspec/validate' })
+                expect(String(issue.message)).toContain('openspec/specs/gadgets/spec.md')
+              }
+            }
+          }
+          const text = await ours(['validate', 'c1'], root)
+          expect(text.exitCode).toBe(1)
+          expect(text.stdout).toContain('meta/unreadable-artifact')
+        } finally {
+          restore()
+        }
+      },
+    )
+
+    test.failing(
+      '16.9 a change the binary refuses is refused by status, in both modes and the sweep',
+      async () => {
+        const root = cospecRoot()
+        writeChange(root, 'demo', { 'proposal.md': PROPOSAL })
+        writeChange(root, 'other', { 'proposal.md': PROPOSAL })
+        const dir = join(root, 'openspec/changes/demo')
+        const proposal = join(dir, 'proposal.md')
+        for (const locked of [dir, proposal]) {
+          const restore = lock(locked)
+          try {
+            const up = await upstreamJson(['status', '--change', 'demo', '--json'], root)
+            const cs = await oursJson(['status', '--change', 'demo', '--json'], root)
+            captureStatus(`16.9 ${locked} json`, cs)
+            const upText = await upstream(['status', '--change', 'demo'], root)
+            const text = await ours(['status', '--change', 'demo'], root)
+            captureStatus(`16.9 ${locked} text`, text)
+            expect({ locked, exit: cs.exitCode }).toEqual({ locked, exit: up.exitCode })
+            expect({ locked, exit: text.exitCode }).toEqual({ locked, exit: upText.exitCode })
+            const upAll = await upstreamJson(['status', '--all', '--json'], root)
+            const all = await oursJson(['status', '--all', '--json'], root)
+            captureStatus(`16.9 ${locked} sweep`, all)
+            expect({ locked, exit: all.exitCode }).toEqual({ locked, exit: upAll.exitCode })
+            const sweepText = await ours(['status', '--all'], root)
+            const upSweepText = await upstream(['status', '--all'], root)
+            expect({ locked, exit: sweepText.exitCode }).toEqual({
+              locked,
+              exit: upSweepText.exitCode,
+            })
+            const refused = up.exitCode === 1
+            // The directory refuses on every OS; the file where the runtime's `realpath` does.
+            if (locked === dir || realpathRefuses(proposal)) expect(refused).toBe(true)
+            const demo = rowsOf(all.json).find((e) => e.change === 'demo')!
+            if (!refused) {
+              expect(demo.error).toBeUndefined()
+              continue
+            }
+            expect(cs.json).toEqual(JSON.parse(respellRemedies(up.stdout)))
+            const d = firstStatus(up.json)
+            expect(text.stderr).toBe(`cospec status: ${respellRemedies(d.message)}\n`)
+            expect(text.stdout).toBe('')
+            expect(demo.error).toBe(respellRemedies(d.message))
+            expect(sweepText.stdout).toContain(`demo: ERROR — ${respellRemedies(d.message)}\n`)
+            expect(rowsOf(all.json).find((e) => e.change === 'other')!.error).toBeUndefined()
+          } finally {
+            restore()
+          }
+        }
+      },
+    )
+
+    test.failing(
+      '16.10 an unreadable planning directory is one --json document per command',
+      async () => {
+        const root = cospecRoot()
+        writeChange(root, 'demo', { 'proposal.md': PROPOSAL })
+        writeFiles(root, { 'openspec/specs/auth/spec.md': LIVING('auth') })
+        const cases: { locked: string; argvs: string[][] }[] = [
+          {
+            locked: 'openspec/changes',
+            argvs: [
+              ['validate', '--all', '--json'],
+              ['status', '--change', 'demo', '--json'],
+              ['status', '--all', '--json'],
+            ],
+          },
+          {
+            locked: 'openspec/specs',
+            argvs: [
+              ['validate', '--specs', '--json'],
+              ['validate', 'demo', '--json'],
+            ],
+          },
+          { locked: 'openspec/specs/auth', argvs: [['validate', '--all', '--json']] },
+        ]
+        for (const { locked, argvs } of cases) {
+          const restore = lock(join(root, locked))
+          try {
+            for (const argv of argvs) {
+              const up = await upstreamJson(argv, root)
+              const cs = await oursJson(argv, root)
+              if (argv[0] === 'status') captureStatus(`16.10 ${argv.join(' ')}`, cs)
+              expect({ argv, exit: up.exitCode }).toEqual({ argv, exit: 1 })
+              expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
+              expect({ argv, doc: cs.json }).toEqual({
+                argv,
+                doc: JSON.parse(respellRemedies(up.stdout)),
+              })
+              expect(cs.stderr).toBe('')
+            }
+            if (locked === 'openspec/changes') {
+              const apply = await oursJson(['apply', 'demo', '--json'], root)
+              expect(apply.exitCode).toBe(1)
+              const d = firstStatus(apply.json)
+              expect(d.code).toBe('change_error')
+              expect(errnoShape(d.message)).toMatchObject({
+                code: 'EACCES',
+                path: join(root, locked),
+              })
+              const text = await ours(['validate', '--all'], root)
+              expect(text.exitCode).toBe(1)
+              expect(text.stderr).toContain('EACCES')
+            }
+          } finally {
+            restore()
+          }
+        }
+      },
+    )
+
+    test.failing("16.11 apply relays the binary's refusal of the apply instructions", async () => {
+      const root = cospecRoot('chore')
+      writeChange(
+        root,
+        'c1',
+        { 'proposal.md': PROPOSAL, 'blocking-changes.md': BLOCKERS, 'tasks.md': TASKS },
+        'chore',
+      )
+      const clear = await oursJson(['apply', 'c1', '--json'], root)
+      expect((clear.json as Row).gate).toMatchObject({ state: 'clear' })
+      const restore = lock(join(root, 'openspec/schemas/chore/schema.yaml'))
+      try {
+        const up = await upstreamJson(['instructions', 'apply', '--change', 'c1', '--json'], root)
+        expect(up.exitCode).toBe(1)
+        const cs = await oursJson(['apply', 'c1', '--json'], root)
+        expect(cs.exitCode).toBe(1)
+        expect(cs.json).toEqual(JSON.parse(respellRemedies(up.stdout)))
+        const text = await ours(['apply', 'c1'], root)
+        expect(text.exitCode).toBe(1)
+        const d = firstStatus(up.json)
+        expect(text.stderr).toBe(
+          `cospec apply: ${respellRemedies(d.message)}\n${d.fix === undefined ? '' : `Fix: ${respellRemedies(d.fix)}\n`}`,
+        )
+      } finally {
+        restore()
+      }
+    })
+
+    test.failing(
+      '16.12 an unreadable directory no artifact lives in leaves the change as it is',
+      async () => {
+        const root = cospecRoot()
+        writeChange(root, 'demo', { 'proposal.md': PROPOSAL, 'specs/widgets/spec.md': DELTA })
+        for (const rel of ['.cache', 'specs/.h', 'scratch'])
+          mkdirSync(join(root, 'openspec/changes/demo', rel), { recursive: true })
+        const readable = await oursJson(['validate', 'demo', '--json'], root)
+        const upReadable = await upstream(['validate', 'demo', '--json'], root)
+        for (const rel of ['.cache', 'specs/.h', 'scratch']) {
+          const restore = lock(join(root, 'openspec/changes/demo', rel))
+          try {
+            // The binary never reads the directory: its answer is unchanged too.
+            const up = await upstream(['validate', 'demo', '--json'], root)
+            expect({ rel, upExit: up.exitCode }).toEqual({ rel, upExit: upReadable.exitCode })
+            const cs = await oursJson(['validate', 'demo', '--json'], root)
+            expect({ rel, exit: cs.exitCode }).toEqual({ rel, exit: readable.exitCode })
+            expect({ rel, doc: untimed(cs.json) }).toEqual({ rel, doc: untimed(readable.json) })
+          } finally {
+            restore()
+          }
+        }
+        // A directory an artifact can live in still fails the change.
+        const restore = lock(join(root, 'openspec/changes/demo/specs/widgets'))
+        try {
+          const cs = await oursJson(['validate', 'demo', '--json'], root)
+          const rules = rowsOf(cs.json, 'items').flatMap((i) =>
+            (i.issues as Row[]).map((x) => x.rule),
+          )
+          expect(rules).toContain('meta/unreadable-artifact')
+        } finally {
+          restore()
+        }
+      },
+    )
   })
 })
 

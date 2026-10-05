@@ -13,7 +13,14 @@
 import { respellWholeRemedy } from '../../../src/core/remedies.ts'
 
 /** How a shared path is compared. */
-export type PathClass = 'exempt' | 'timing' | 'verdict' | 'collision' | 'respelled' | 'equal'
+export type PathClass =
+  | 'exempt'
+  | 'timing'
+  | 'verdict'
+  | 'kept'
+  | 'collision'
+  | 'respelled'
+  | 'equal'
 
 /** One side's identity for an array entry; `undefined` for an entry with none. */
 export type Identity = (entry: Record<string, unknown>) => string | undefined
@@ -74,6 +81,12 @@ export interface OracleSpec {
   readonly verdict?: readonly string[]
   /** Upstream values cospec relays with each remedy spelled through cospec. */
   readonly respelled?: readonly string[]
+  /**
+   * Keys whose value is cospec's own pre-existing one (the in-progress
+   * status entry's empty `artifacts`): presence and JSON type only here, the
+   * value proven against cospec's native document by the row itself.
+   */
+  readonly kept?: readonly string[]
   /** The named collisions this command's document may carry (from `NAMED_COLLISIONS`). */
   readonly collisions?: readonly string[]
 }
@@ -152,6 +165,7 @@ interface Compiled {
   timing: Segments[]
   verdict: Segments[]
   respelled: Segments[]
+  kept: Segments[]
   collisions: [Segments, NamedCollision][]
 }
 
@@ -162,6 +176,7 @@ function compile(spec: OracleSpec): Compiled {
     timing: (spec.timing ?? []).map(segments),
     verdict: (spec.verdict ?? []).map(segments),
     respelled: (spec.respelled ?? []).map(segments),
+    kept: (spec.kept ?? []).map(segments),
     collisions: (spec.collisions ?? []).map((p) => {
       const entry = named.get(p)
       if (entry === undefined) throw new Error(`key oracle: '${p}' is not a named collision`)
@@ -175,6 +190,7 @@ function classify(c: Compiled, path: Segments): PathClass {
   if (c.collisions.some(([p]) => matches(p, path))) return 'collision'
   if (c.timing.some((p) => matches(p, path))) return 'timing'
   if (c.verdict.some((p) => matches(p, path))) return 'verdict'
+  if (c.kept.some((p) => matches(p, path))) return 'kept'
   if (c.respelled.some((p) => matches(p, path))) return 'respelled'
   return 'equal'
 }
@@ -218,7 +234,7 @@ export function compareDocuments(
       failures.push(`${label}: missing (the binary has ${JSON.stringify(up)})`)
       return
     }
-    if (cls === 'timing' || cls === 'verdict') {
+    if (cls === 'timing' || cls === 'verdict' || cls === 'kept') {
       if (jsonType(up) !== jsonType(cs))
         failures.push(
           `${label}: ${cls} value is a ${jsonType(cs)} where the binary's is a ${jsonType(up)}`,
