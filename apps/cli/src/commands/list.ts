@@ -20,14 +20,17 @@ import { join } from 'node:path'
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
+import { loadSchema, schemaDir } from '../core/change-metadata.ts'
 import {
   changesDir,
+  defaultProjectSchema,
   findNestedChangesIn,
   isCospecType,
   listChanges,
   readOpenspecYaml,
 } from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
+import { artifactOutputExists } from '../core/glob.ts'
 import {
   OpenspecCallError,
   passthroughOpenspec,
@@ -172,6 +175,45 @@ function nativeRow(
   }
 }
 
+/**
+ * Whether `dir` holds a file its own declared schema's `generates` pattern
+ * names — the only signal cospec has for an artifact it doesn't recognize by
+ * name (mirrors `core/change.ts`'s `hasSchemaOutput`, scoped to the change's
+ * own resolved schema rather than the project's default, since a
+ * schema-bearing change always names its own). A schema name that resolves to
+ * no directory at all gives no signal, as the binary's own `list` never loads
+ * a schema either (its row is task-progress-only; `dist/core/list.js`) — but a
+ * schema that does resolve and then fails to read, parse or validate is a
+ * real defect, not an absence, so it is surfaced as a warning on `id`'s row
+ * rather than silently counted as no artifacts.
+ */
+function hasDeclaredArtifact(
+  dir: string,
+  schema: string,
+  base: string,
+  id: string,
+  warnings: ReadWarning[],
+): boolean {
+  if (schemaDir(schema, base) === undefined) return false
+  let artifacts: { generates: string }[]
+  try {
+    artifacts = loadSchema(schema, base)
+  } catch (err) {
+    warnings.push({
+      code: 'schema_unreadable',
+      message: `${id}: ${err instanceof Error ? err.message : String(err)}; its artifacts are counted as none`,
+    })
+    return false
+  }
+  try {
+    return artifacts.some((artifact) => artifactOutputExists(dir, artifact.generates))
+  } catch {
+    // upstream's bare `catch` on an output it cannot resolve (one leaving
+    // the change, a linked directory cycle): no signal.
+    return false
+  }
+}
+
 function computeRow(
   base: string,
   id: string,
@@ -181,14 +223,30 @@ function computeRow(
 ): Row {
   const dir = join(changesDir(base), id)
   const finding = findNestedChangesIn(changesDir(base), id)
-  const schema = readOpenspecYaml(dir)?.schema ?? ''
+  // A change with no `.openspec.yaml` of its own takes its schema the way
+  // `cospec status`'s `gradedChange` and `core/change.ts`'s `hasSchemaOutput`
+  // do — the project's `config.yaml` `schema:`, else `spec-driven` — so a
+  // custom-named artifact under that fallback schema is never reported as no
+  // artifacts at all, and the row's type/completeness agree with `status`.
+  // A namespace folder is not a change at all (`state` below reports it as
+  // such), so it never takes this fallback — `status --all` discards its
+  // `gradedChange`-resolved schema the same way, reporting it as a failure
+  // entry with no `type` field rather than the project's default schema.
+  const bare = finding === undefined && !existsSync(join(dir, '.openspec.yaml'))
+  const schema = bare ? defaultProjectSchema(base) : (readOpenspecYaml(dir)?.schema ?? '')
   const blockersPath = join(dir, 'blocking-changes.md')
   const gate = existsSync(blockersPath)
     ? computeGate(parseBlockers(readFileSync(blockersPath, 'utf8')), archived, active)
     : ({ state: 'clear', hard: [], soft: [] } satisfies Gate)
 
-  const empty = !hasAnyArtifact(dir)
   const cospec = isCospecType(schema)
+  // cospec's fixed artifact filenames are the only signal for a cospec-typed
+  // change; a schema cospec doesn't type additionally gets its own declared
+  // schema's `generates` signal, so a custom-named artifact cospec doesn't
+  // recognize by filename is never reported as no artifacts at all (the
+  // misclassification task 11.5 fixed for `status`'s `state`/`next`).
+  const empty =
+    !hasAnyArtifact(dir) && (cospec || !hasDeclaredArtifact(dir, schema, base, id, warnings))
 
   const parsedTasks = readChangeTasks(dir, warnings)
   const total = parsedTasks.items.length

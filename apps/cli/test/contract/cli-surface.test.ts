@@ -2768,6 +2768,101 @@ describe('17. round-4 review rows', () => {
   })
 })
 
+// --- 18. list-status-untyped-leftovers ------------------------------------------------------
+
+describe('18. list-status-untyped-leftovers', () => {
+  test("18.1 list reports building for an untyped schema's own declared artifact", async () => {
+    const root = cospecRoot()
+    rfcSchema(root)
+    writeChange(root, 'r-doc', { 'doc.md': '# RFC\n' }, 'rfc')
+    writeChange(root, 'r-empty', {}, 'rfc')
+    const up = await upstreamJson(['list', '--json'], root)
+    const cs = await oursJson(['list', '--json'], root)
+    expect(cs.exitCode).toBe(up.exitCode)
+    const row = rowsOf(cs.json).find((r) => r.change === 'r-doc')!
+    expect(row.state).toBe('building')
+    expect(row.archiveReady).toBe(false)
+    const empty = rowsOf(cs.json).find((r) => r.change === 'r-empty')!
+    expect(empty.state).toBe('in-progress')
+    // cospec's native `state` and the binary's own task-count-only `status`
+    // coexist on the same row without a key collision.
+    const upRow = rowsOf(up.json).find((r) => r.name === 'r-doc')!
+    expect(upRow.status).toBe('no-tasks')
+    expect(row.status).toBe('no-tasks')
+    // `--sort` is irrelevant here (recency order is non-deterministic across
+    // filesystems); find r-doc's own line, wherever the table put it.
+    const text = await ours(['list'], root)
+    const line = text.stdout.split('\n').find((l) => l.includes('r-doc'))!
+    expect(line).toMatch(/^\s*r-doc\s+rfc\s+clear\s+0\/0 tasks\s*$/)
+  })
+
+  unlessRoot('mode 000', () => {
+    test('18.2 status: a mode-000 artifact other than tasks.md already answers as the binary does', async () => {
+      const root = listFixture()
+      const proposal = join(root, 'openspec/changes/alpha/proposal.md')
+      const restore = lock(proposal)
+      try {
+        for (const argv of [
+          ['status', '--change', 'alpha', '--json'],
+          ['status', '--all', '--json'],
+        ]) {
+          const up = await upstreamJson(argv, root)
+          const cs = await oursJson(argv, root)
+          captureStatus(`18.2 ${argv.join(' ')}`, cs)
+          // Ground truth is the measured binary answer, never a prediction:
+          // --change and --all can disagree on exit code for a reason
+          // unrelated to the mode-000 lock itself. `--all`'s sweep also walks
+          // `mobile`, the fixture's own namespace folder, which the binary
+          // reports as its own `change_error` ("is not a change") whether or
+          // not alpha's `proposal.md` is locked — confirmed on Linux/Bun,
+          // where the lock itself is read past in both modes (its `realpath`
+          // needs no read permission there) and only `mobile` drives --all's
+          // exit 1; on macOS/Bun the lock also refuses `--change alpha` on its
+          // own. Each invocation's own exit code and refusal shape decide the
+          // branch below, so this fixture quirk never has to be modeled.
+          if (argv[1] === '--all') {
+            const mobileEntry = rowsOf(up.json).find((e) => e.changeName === 'mobile')
+            expect(Array.isArray(mobileEntry?.status)).toBe(true)
+          }
+          expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
+          const textArgv = argv.filter((a) => a !== '--json')
+          const upText = await upstream(textArgv, root)
+          const text = await ours(textArgv, root)
+          captureStatus(`18.2 ${textArgv.join(' ')}`, text)
+          expect({ textArgv, exit: text.exitCode }).toEqual({ textArgv, exit: upText.exitCode })
+
+          const upEntry =
+            argv[1] === '--all'
+              ? rowsOf(up.json).find((e) => e.changeName === 'alpha')!
+              : (up.json as Row)
+          const refusedHere = Array.isArray(upEntry.status)
+          if (refusedHere) {
+            expect(up.exitCode).toBe(1)
+            const d = firstStatus(upEntry)
+            expect(errnoShape(d.message)).toMatchObject({
+              code: 'EACCES',
+              path: join(realpathSync(dirname(proposal)), 'proposal.md'),
+            })
+            continue
+          }
+          // The binary read past it and counts `proposal` done; so does cospec.
+          const upDone =
+            (upEntry.artifacts as Row[]).find((a) => a.id === 'proposal')!.status === 'done'
+          const csEntry =
+            argv[1] === '--all'
+              ? rowsOf(cs.json).find((e) => e.change === 'alpha')!
+              : (cs.json as Row)
+          const csDone = (csEntry.artifacts as Row[]).find((a) => a.id === 'proposal')!.done
+          expect(csDone).toBe(upDone)
+          expect(csDone).toBe(true)
+        }
+      } finally {
+        restore()
+      }
+    })
+  })
+})
+
 // --- 5.6 no status output names a bare openspec command ------------------------------------
 
 describe('5.6 status outputs', () => {

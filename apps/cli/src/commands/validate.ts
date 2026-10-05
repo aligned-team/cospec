@@ -1144,6 +1144,21 @@ async function validateForcedSpec(root: Root, id: string, strict: boolean): Prom
 const ARCHIVED_SINCE = '1.9.0'
 
 /**
+ * `validate --archived`'s refusal when the wrapped OpenSpec is below
+ * `ARCHIVED_SINCE`, or `undefined` when it isn't. A pure function of the
+ * version string (never spawns), so it is unit-testable without a fake
+ * binary: the command's own `--json`/text branch (`rootSelectionDocument` or
+ * `cospec: <message>`) matches every other early-exit refusal in this file.
+ */
+export function archivedUnsupportedRefusal(version: string): RootSelectionError | undefined {
+  if (!openspecBelow(version, ARCHIVED_SINCE)) return undefined
+  return new RootSelectionError({
+    code: 'openspec_version_too_old',
+    message: `validate --archived needs OpenSpec >=${ARCHIVED_SINCE}; the wrapped OpenSpec is ${version}`,
+  })
+}
+
+/**
  * The binary's answer to `validate --archived`: its report's items, or its
  * failure document (an unreadable `changes/archive/`, say) with its exit code.
  */
@@ -1483,15 +1498,25 @@ const NO_OPENSPEC_ROOT = new RootSelectionError({
 })
 
 /**
+ * Test-only override for the wrapped binary's version read — lets a unit test
+ * drive `--archived`'s version-floor refusal (`archivedUnsupportedRefusal`)
+ * without a fake binary, since `wrappedOpenspecVersion` memoizes its result
+ * once per process. Production callers omit it and get the real read.
+ */
+export interface ValidateDeps {
+  wrappedOpenspecVersion?: () => Promise<string>
+}
+
+/**
  * `cospec validate`: an errno failure it lets escape (an unreadable
  * `openspec/changes/` or `openspec/specs/`) is the binary's one
  * `validate_error` document under `--json`.
  */
-export function run(ctx: CommandContext): Promise<number> {
-  return answeringErrno(ctx.flags.json, { code: 'validate_error' }, () => validate(ctx))
+export function run(ctx: CommandContext, deps: ValidateDeps = {}): Promise<number> {
+  return answeringErrno(ctx.flags.json, { code: 'validate_error' }, () => validate(ctx, deps))
 }
 
-async function validate(ctx: CommandContext): Promise<number> {
+async function validate(ctx: CommandContext, deps: ValidateDeps): Promise<number> {
   const { flags } = ctx
   const parsed = ctx.parsed!
   const strict = hasFlag(parsed, '--strict')
@@ -1551,12 +1576,11 @@ async function validate(ctx: CommandContext): Promise<number> {
   // changes/archive/, which active-change discovery deliberately excludes, and
   // it must never quietly alter an ordinary invocation.
   if (wantArchived) {
-    const version = await wrappedOpenspecVersion()
-    if (openspecBelow(version, ARCHIVED_SINCE)) {
-      process.stderr.write(
-        `cospec: validate --archived needs OpenSpec >=${ARCHIVED_SINCE}; the wrapped OpenSpec is ` +
-          `${version}\n`,
-      )
+    const version = await (deps.wrappedOpenspecVersion ?? wrappedOpenspecVersion)()
+    const refusal = archivedUnsupportedRefusal(version)
+    if (refusal !== undefined) {
+      if (flags.json) process.stdout.write(rootSelectionDocument(refusal))
+      else process.stderr.write(`cospec: ${refusal.diagnostic.message}\n`)
       return 1
     }
     const archived = await validateArchived(root)

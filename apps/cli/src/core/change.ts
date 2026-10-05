@@ -367,6 +367,17 @@ export function projectConfigSchema(base: string): string | undefined {
 }
 
 /**
+ * The schema a change with no (or unusable) `.openspec.yaml` of its own
+ * resolves to: the project's `config.yaml` `schema:`, else `spec-driven` —
+ * upstream's own default-schema fallback. Shared by `hasSchemaOutput` below,
+ * `cospec status`'s `gradedChange` and `cospec list`'s row computation, so the
+ * three never drift apart on what a bare change's type is.
+ */
+export function defaultProjectSchema(base: string): string {
+  return projectConfigSchema(base) ?? 'spec-driven'
+}
+
+/**
  * upstream's `hasSchemaOutput`: `dir` holds a file where the schema it resolves
  * to (its `.openspec.yaml`, else the root's `config.yaml`, else `spec-driven`)
  * generates one. A schema that cannot be resolved gives no signal.
@@ -375,7 +386,7 @@ function hasSchemaOutput(dir: string, projectRoot: string): boolean {
   // A candidate reaching here has no regular `.openspec.yaml`; anything else at
   // that path fails upstream's metadata read, which gives no signal.
   if (existsSync(join(dir, '.openspec.yaml'))) return false
-  const name = projectConfigSchema(projectRoot) ?? 'spec-driven'
+  const name = defaultProjectSchema(projectRoot)
   let artifacts: { generates: string }[]
   try {
     artifacts = loadSchema(name, projectRoot)
