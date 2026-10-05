@@ -917,13 +917,14 @@ describe('3.5 instructions apply --change is always the gate', () => {
       const c = await runCospec(['instructions', 'apply', '--change', '1foo', ...flag], root)
       const a = await runCospec(['apply', '1foo', ...flag], root)
       expect(a.exitCode).toBe(1)
-      // Under --json apply's refusal is its one change_error document (cli-surface-parity).
+      // apply looks `1foo` up as the binary does (cli-surface-parity 16.8), and
+      // its gate refuses the name outside cospec's grammar: meta/name-kebab.
       if (asJson) {
         expect(a.stderr).toBe('')
-        const doc = JSON.parse(a.stdout) as { status: { code: string; message: string }[] }
-        expect(doc.status[0]?.code).toBe('change_error')
-        expect(doc.status[0]?.message).toContain("unknown change '1foo'")
-      } else expect(a.stderr).toContain("unknown change '1foo'")
+        const doc = JSON.parse(a.stdout) as { items: { id: string; issues: { rule: string }[] }[] }
+        expect(doc.items[0]?.id).toBe('1foo')
+        expect(doc.items[0]?.issues.map((i) => i.rule)).toContain('meta/name-kebab')
+      } else expect(a.stdout).toContain('meta/name-kebab')
       expect(streams(c, root)).toEqual(streams(a, root))
     }, 30_000)
   }
