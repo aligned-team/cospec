@@ -121,10 +121,12 @@ root.
   fan-out. A failure is reported and the loop continues; it is never fatal to
   the batch. Never hand-`mkdir`/`mv`, and never `--force` a spec collision —
   edit the later delta instead.
-- **sync-specs** — an honest body: spec sync is performed and verified by
-  `cospec archive` as one coupled step. To preview, run `cospec validate <c>`
-  and read the delta files. Mid-flight merging without archive is not supported.
-  Maps to opsx's `sync` workflow — see the name-mapping note below.
+- **sync-specs** — merges a change's delta specs into the main specs without
+  archiving it: preview with `cospec validate <c>` and the delta files, then run
+  `cospec sync-specs <c>`, which runs the binary's own archive merge on a
+  scratch copy, so a later `cospec archive` is a no-op merge with both hard
+  gates still run. Maps to opsx's `sync` workflow — see the name-mapping note
+  below.
 - **explore** — thinking-mode exploration; may create artifacts, never
   implementation code.
 - **onboard** — guided first real change, EXPLAIN→DO→SHOW→PAUSE: steers to a
@@ -142,10 +144,10 @@ root.
 
 ### Name mapping
 
-- `/opsx:sync` maps to `/cospec:sync-specs` — same job (preview/explain spec
-  merge, which only really happens inside `archive`), kept under its existing
-  cospec name rather than renamed to avoid churning tests, docs, and muscle
-  memory for zero gain.
+- `/opsx:sync` maps to `/cospec:sync-specs` — same job (merge the delta specs
+  into the main specs without archiving), kept under its existing cospec name
+  rather than renamed to avoid churning tests, docs, and muscle memory for zero
+  gain.
 - `/opsx:update` maps to `/cospec:update` — see **update** above.
 - opsx's `feedback` workflow has no cospec workflow counterpart; not part of
   parity. (Wrapping `openspec feedback` itself as a disciplined passthrough CLI

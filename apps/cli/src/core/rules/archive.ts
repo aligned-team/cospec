@@ -538,10 +538,14 @@ export function archiveRules(
     const pathFor = (i: number): string => group.paths[i] ?? `specs/${capability}/spec.md`
 
     if (living === undefined) {
-      // archive/new-spec-non-added — a brand-new capability may only ADD.
+      // archive/new-spec-non-added — the binary's merge refuses MODIFIED and
+      // RENAMED on a capability with no living spec. A REMOVED there is
+      // ignored with a warning ("nothing to remove") and the rest applied, so
+      // a REMOVED-only delta is the rebuilt spec's to refuse (it has no
+      // requirement), or the binary's skip under `retire_capabilities`.
       for (let i = 0; i < group.ops.length; i++) {
         const op = group.ops[i]!
-        if (op.operation === 'ADDED') continue
+        if (op.operation === 'ADDED' || op.operation === 'REMOVED') continue
         const name = op.operation === 'RENAMED' ? op.fromName : op.name
         issues.push({
           level: 'ERROR',

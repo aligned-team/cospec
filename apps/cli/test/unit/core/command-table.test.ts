@@ -257,7 +257,8 @@ describe('parseCommandArgs — refusals', () => {
     expect(refused('list', ['--store-path', '/x', 'extra']).kind).toBe('too-many-arguments')
     expect(refused('list', ['--store-path=/x', 'extra']).kind).toBe('too-many-arguments')
     expect(refused('validate', ['--store-path', '/x', 'a', 'b']).kind).toBe('too-many-arguments')
-    expect(refused('archive', ['c', '--store-path', '/x', '--no-validate']).kind).toBe('pending')
+    // `archive --no-validate` is handled now, so only --store-path is left to refuse.
+    expect(refused('archive', ['c', '--store-path', '/x', '--no-validate']).kind).toBe('store-path')
     // Its value is consumed, so it never counts as a positional.
     expect(refused('validate', ['--store-path', '/x', 'a']).kind).toBe('store-path')
   })
@@ -328,7 +329,6 @@ const EXPECTED_PENDING: [string, string, PendingOwner][] = [
   ['init', '--profile', 'workflow-profiles'],
   ['init', '--copilot-cloud', 'github-copilot'],
   ['init', '--no-copilot-cloud', 'github-copilot'],
-  ['archive', '--no-validate', 'archive-and-sync-parity'],
   ['completion', 'install', 'completion-install'],
   ['completion', 'uninstall', 'completion-install'],
   ['completion', 'powershell', 'completion-install'],
@@ -371,7 +371,6 @@ describe('pending surfaces', () => {
     'init --profile': ['--profile', 'core'],
     'init --copilot-cloud': ['--copilot-cloud'],
     'init --no-copilot-cloud': ['--no-copilot-cloud'],
-    'archive --no-validate': ['c', '--no-validate'],
     'completion install': ['install', 'zsh', '--verbose'],
     'completion uninstall': ['uninstall', '-y'],
     'completion powershell': ['powershell'],
@@ -430,6 +429,7 @@ describe('table shape', () => {
       'instructions',
       'apply',
       'archive',
+      'sync-specs',
       'sync-blockers',
       'store',
       'context',

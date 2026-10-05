@@ -634,10 +634,20 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
       }),
       upstream({
         name: '--no-validate',
-        description: 'Skip validation (not recommended)',
-        status: pending('archive-and-sync-parity'),
+        description:
+          "Skip revalidation, cospec's and the binary's (not recommended; every other gate still runs)",
       }),
     ],
+  },
+  {
+    name: 'sync-specs',
+    summary: "Merge a change's delta specs into the main specs without archiving it",
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    store: 'accepted',
+    positionals: [cospecArg({ name: 'change', required: true })],
+    flags: [],
   },
   {
     name: 'sync-blockers',

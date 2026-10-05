@@ -932,21 +932,14 @@ function archiveSlugsIn(base: string): Set<string> {
   )
 }
 
-/** The validate context as `archive` reads it: an unreadable archive refuses. */
-export function buildValidateContext(base: string): ValidateContext {
-  return {
-    archiveSlugs: archiveSlugsIn(base),
-    activeSlugs: new Set(listChanges(base).map((c) => c.id)),
-  }
-}
-
 /**
  * The validate context `validate` and `apply` read (task 11.7). The binary's
  * `validate` and `instructions apply` never read `openspec/changes/archive/`,
  * so an unreadable one must not fail them: it is read as empty, which can only
  * add an issue (a blocker or revert citation naming an archived change reads
  * as dangling) or keep a blocker open, never clear one, and the warning names
- * the directory. `archive` keeps `buildValidateContext`, which refuses.
+ * the directory. `archive` reads it the same way, and its slot check then
+ * answers for the unreadable directory as the binary's does.
  */
 export function readValidateContext(base: string): {
   ctx: ValidateContext

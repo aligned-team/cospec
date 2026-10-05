@@ -2,10 +2,18 @@
 // tree into a temp repo so the SAME change can be handed to both `cospec` and the
 // real `openspec` binary for parity/gotcha comparison (DESIGN §8.2).
 
-import { mkdirSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import {
+  chmodSync,
+  cpSync,
+  mkdirSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
+import { dirname, join, relative } from 'node:path'
 
-import { writeFiles } from '../fixtures/support.ts'
+import { REPO_ROOT, writeFiles } from '../fixtures/support.ts'
 
 /** Full-variant proposal that clears feat's proposal/sections + why-substantive. */
 const PROPOSAL = `# ${'change'}
@@ -632,10 +640,13 @@ The system SHALL cache a rendered widget.
   },
   {
     key: 'new-spec-non-added',
-    rule: 'archive/new-spec-non-added',
+    rule: 'archive/rebuilt-spec-invalid',
     expectAbort: true,
     build(root) {
-      // No living spec for this capability, yet the delta uses REMOVED.
+      // No living spec for this capability, yet the delta only REMOVEs. The
+      // binary ignores the REMOVED ("nothing to remove") and refuses the
+      // rebuilt spec, which has no requirement — so that is the rule that
+      // fires (archive-and-sync-parity design D9), not new-spec-non-added.
       writeChangeShell(root, 'new-spec-non-added', {
         'widgets/spec.md': `## REMOVED Requirements
 
@@ -829,3 +840,723 @@ ${marker} TO: \`### Requirement: Widget memoization\`
 `,
   })
 }
+
+// --- archive-and-sync-parity (archive --no-validate, archive's JSON, sync-specs) ---
+//
+// Every builder below writes a `feat` change at `schemaVersion: 2` with done
+// tasks and a resolved verification ledger, so `cospec validate --strict`,
+// `cospec archive` and the binary's own archive all accept it, except for the
+// one thing the builder is named for. The composed cospec schema is copied in
+// (`withCospecSchema`), because the binary honours `retire_capabilities:` and
+// reads `tracks:` only for a change whose `schema:` it can load.
+
+/** Copy this repo's composed cospec schema `schema` into `root`. */
+export function withCospecSchema(root: string, schema: string): void {
+  cpSync(join(REPO_ROOT, 'openspec/schemas', schema), join(root, 'openspec/schemas', schema), {
+    recursive: true,
+  })
+}
+
+const V2_PROPOSAL = `# change
+
+## Why
+
+The widgets capability has to change shape for the next release, and the main
+specs must say so; without this change the archive would describe a widget
+behaviour the product no longer has.
+
+## What Changes
+
+- Change the widgets capability as the spec deltas describe.
+
+## Capabilities
+
+### Modified Capabilities
+
+- widgets
+
+## Impact
+
+- No breaking changes.
+
+## Surfaces
+
+- [ ] interactive — a user-visible/interactive surface (UI, TUI, CLI UX)
+`
+
+/** A proposal that only cospec's typed rules refuse: it has no `## Why`. */
+const V2_PROPOSAL_NO_WHY = V2_PROPOSAL.replace(
+  /## Why\n\n[\s\S]*?\n\n## What Changes/,
+  '## What Changes',
+)
+
+const V2_TASKS_DONE = `## 1. Implementation
+
+- [x] 1.1 Implement the capability
+`
+
+const V2_TASKS_INCOMPLETE = `## 1. Implementation
+
+- [x] 1.1 Implement the capability
+- [ ] 1.2 Add a covering test
+`
+
+const V2_VERIFICATION_DONE = `# Verification
+
+## 1. Widgets behave [critical]
+
+- [x] 1.1 @integration (agent) render a widget -> rendered
+`
+
+const V2_VERIFICATION_BARE = `# Verification
+
+## 1. Widgets behave [critical]
+
+- [ ] 1.1 @integration (agent) render a widget -> rendered
+`
+
+const CHORE_PROPOSAL = `## Why
+
+The build scripts carry a stale path that every release has to work around;
+this removes the path so the release steps run without the manual fix-up.
+
+## What Changes
+
+- Remove the stale path from the build scripts.
+
+## Impact
+
+- No user-facing change.
+`
+
+export interface V2ChangeOptions {
+  /** `.openspec.yaml` lines after `schemaVersion: 2`. */
+  yamlExtra?: string
+  tasks?: string
+  /** `false` writes no verification.md. */
+  verification?: string | false
+  proposal?: string
+}
+
+/** A `feat` v2 change named `name` with `deltas` under its `specs/`. */
+export function writeV2Change(
+  root: string,
+  name: string,
+  deltas: Record<string, string>,
+  opts: V2ChangeOptions = {},
+): void {
+  withCospecSchema(root, 'feat')
+  const change = `openspec/changes/${name}`
+  const files: Record<string, string> = {
+    [`${change}/.openspec.yaml`]: `schema: feat\ncreated: 2026-10-05\nschemaVersion: 2\n${opts.yamlExtra ?? ''}`,
+    [`${change}/proposal.md`]: opts.proposal ?? V2_PROPOSAL,
+    [`${change}/blocking-changes.md`]: BLOCKERS,
+    [`${change}/tasks.md`]: opts.tasks ?? V2_TASKS_DONE,
+  }
+  if (opts.verification !== false)
+    files[`${change}/verification.md`] = opts.verification ?? V2_VERIFICATION_DONE
+  for (const [rel, body] of Object.entries(deltas)) files[`${change}/specs/${rel}`] = body
+  writeFiles(root, files)
+  mkdirSync(join(root, 'openspec/specs'), { recursive: true })
+  mkdirSync(join(root, 'openspec/changes/archive'), { recursive: true })
+}
+
+const RENDERING_BLOCK = `### Requirement: Widget rendering
+
+The system SHALL render a widget when requested.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered
+`
+
+const RENDERING_MODIFIED_BLOCK = `### Requirement: Widget rendering
+
+The system SHALL render a widget promptly when requested.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered
+`
+
+const LEGACY_REMOVED = `## REMOVED Requirements
+
+### Requirement: Widget legacy mode
+
+**Reason**: The legacy mode is gone.
+
+**Migration**: None.
+`
+
+/** A living requirement with two visible scenarios. */
+const RENDERING_TWO_SCENARIOS = `
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested.
+
+#### Scenario: Render a widget
+
+- **WHEN** a caller requests a widget
+- **THEN** a widget is rendered
+
+#### Scenario: Render an empty widget
+
+- **WHEN** a caller requests an empty widget
+- **THEN** a placeholder is rendered
+`
+
+/** One fixture: what it builds, and how each side's validate reads it. */
+export interface R7Fixture {
+  key: string
+  /** Writes the fixture into `root` and returns its change name. */
+  build(root: string): string
+  /**
+   * `openspec validate <name> --strict` exits 0. A change with no delta files
+   * fails it (`Change must have at least one delta`) and still archives.
+   */
+  binaryValid: boolean
+  /** `cospec validate <name> --strict` exits 0. */
+  cospecValid: boolean
+}
+
+function r7(
+  key: string,
+  binaryValid: boolean,
+  cospecValid: boolean,
+  build: (root: string) => string,
+): R7Fixture {
+  return { key, build, binaryValid, cospecValid }
+}
+
+/** ADDED on a capability with no living spec. */
+export const R7_ADDED_NEW = r7('added-new', true, true, (root) => {
+  writeV2Change(root, 'c1', { 'widgets/spec.md': `## ADDED Requirements\n\n${RENDERING_BLOCK}` })
+  return 'c1'
+})
+
+/** MODIFIED keeping every living scenario. */
+export const R7_MODIFIED = r7('modified', true, true, (root) => {
+  writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_TWO_REQS))
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## MODIFIED Requirements\n\n${RENDERING_MODIFIED_BLOCK}`,
+  })
+  return 'c1'
+})
+
+/** REMOVED of one of two living requirements. */
+export const R7_REMOVED = r7('removed', true, true, (root) => {
+  writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_TWO_REQS))
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## REMOVED Requirements
+
+### Requirement: ${MARKER_TARGET}
+
+**Reason**: Caching moved elsewhere.
+
+**Migration**: None.
+`,
+  })
+  return 'c1'
+})
+
+/** RENAMED of a living requirement. */
+export const R7_RENAMED = r7('renamed', true, true, (root) => {
+  writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_TWO_REQS))
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## RENAMED Requirements
+
+- FROM: \`### Requirement: ${MARKER_TARGET}\`
+- TO: \`### Requirement: Widget memoization\`
+`,
+  })
+  return 'c1'
+})
+
+/** REMOVED of a capability's last requirement under `retire_capabilities: true`. */
+export const R7_RETIRED = r7('retired', true, true, (root) => {
+  writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_WIDGET_REQ))
+  writeV2Change(
+    root,
+    'c1',
+    {
+      'widgets/spec.md': `## REMOVED Requirements
+
+### Requirement: Widget rendering
+
+**Reason**: The capability is retired.
+
+**Migration**: None.
+`,
+    },
+    { yamlExtra: 'retire_capabilities: true\n' },
+  )
+  return 'c1'
+})
+
+/** The delta shapes `sync-specs` must write byte-for-byte as archive does. */
+export const R7_SYNC_SHAPES: readonly R7Fixture[] = [
+  R7_ADDED_NEW,
+  R7_MODIFIED,
+  R7_REMOVED,
+  R7_RENAMED,
+  R7_RETIRED,
+]
+
+/** A MODIFIED block keeping one living scenario only inside an HTML comment. */
+export const R7_COMMENT_KEPT = r7('comment-kept-scenario', true, true, (root) => {
+  writeLivingSpec(root, 'widgets', livingSpec('widgets', RENDERING_TWO_SCENARIOS))
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## MODIFIED Requirements
+
+${RENDERING_MODIFIED_BLOCK}
+<!--
+#### Scenario: Render an empty widget
+
+- **WHEN** a caller requests an empty widget
+- **THEN** a placeholder is rendered
+-->
+`,
+  })
+  return 'c1'
+})
+
+/** A living requirement with a third scenario inside a comment the MODIFIED block omits. */
+export const R7_COMMENTED_LIVING_SCENARIO = r7(
+  'commented-living-scenario',
+  false,
+  false,
+  (root) => {
+    writeLivingSpec(
+      root,
+      'widgets',
+      livingSpec(
+        'widgets',
+        `${RENDERING_TWO_SCENARIOS}
+<!--
+#### Scenario: Render a hidden widget
+
+- **WHEN** a caller requests a hidden widget
+- **THEN** nothing is shown
+-->
+`,
+      ),
+    )
+    writeV2Change(root, 'c1', {
+      'widgets/spec.md': `## MODIFIED Requirements
+${RENDERING_TWO_SCENARIOS.replace('render a widget when', 'render a widget promptly when')}`,
+    })
+    return 'c1'
+  },
+)
+
+/** A living spec ending in a commented requirement header; MODIFIED keeps every visible scenario. */
+export const R7_COMMENTED_LIVING_HEADER = r7('commented-living-header', true, true, (root) => {
+  writeLivingSpec(
+    root,
+    'widgets',
+    livingSpec(
+      'widgets',
+      `${LIVING_WIDGET_REQ}
+<!--
+### Requirement: Widget drafts
+
+The system SHALL keep widget drafts.
+
+#### Scenario: Keep a draft
+
+- **WHEN** a caller saves a draft
+- **THEN** the draft is kept
+-->
+`,
+    ),
+  )
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## MODIFIED Requirements\n\n${RENDERING_MODIFIED_BLOCK}`,
+  })
+  return 'c1'
+})
+
+/** The MODIFIED fixture with a bare `[ ]` verification row. */
+export const R7_BARE_VERIFICATION = r7('bare-verification', true, true, (root) => {
+  R7_MODIFIED.build(root)
+  writeFileSync(join(root, 'openspec/changes/c1/verification.md'), V2_VERIFICATION_BARE)
+  return 'c1'
+})
+
+/** The MODIFIED fixture with an incomplete task. */
+export const R7_INCOMPLETE_TASK = r7('incomplete-task', true, true, (root) => {
+  R7_MODIFIED.build(root)
+  writeFileSync(join(root, 'openspec/changes/c1/tasks.md'), V2_TASKS_INCOMPLETE)
+  return 'c1'
+})
+
+/** A MODIFIED block that drops one of the living requirement's two scenarios. */
+export const R7_SCENARIO_DROP = r7('scenario-drop', false, false, (root) => {
+  writeLivingSpec(root, 'widgets', livingSpec('widgets', RENDERING_TWO_SCENARIOS))
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## MODIFIED Requirements\n\n${RENDERING_MODIFIED_BLOCK}`,
+  })
+  return 'c1'
+})
+
+/** The MODIFIED fixture with a proposal only cospec's typed rules refuse. */
+export const R7_REVALIDATION_ONLY = r7('revalidation-only', true, false, (root) => {
+  R7_MODIFIED.build(root)
+  writeFileSync(join(root, 'openspec/changes/c1/proposal.md'), V2_PROPOSAL_NO_WHY)
+  return 'c1'
+})
+
+/** A namespace folder `mobile/` wrapping the change `mobile/refresh/`. */
+export const R7_NAMESPACE = r7('namespace-folder', false, false, (root) => {
+  R7_MODIFIED.build(root)
+  const nested = join(root, 'openspec/changes/mobile/refresh')
+  mkdirSync(dirname(nested), { recursive: true })
+  cpSync(join(root, 'openspec/changes/c1'), nested, { recursive: true })
+  return 'mobile'
+})
+
+/** ADDED + REMOVED on a capability with no living spec. */
+export const R7_NEW_ADDED_REMOVED = r7('new-added-removed', true, true, (root) => {
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## ADDED Requirements\n\n${RENDERING_BLOCK}\n${LEGACY_REMOVED}`,
+  })
+  return 'c1'
+})
+
+/** REMOVED-only on a capability with no living spec, without the retire marker. */
+export const R7_NEW_REMOVED_ONLY = r7('new-removed-only', true, false, (root) => {
+  writeV2Change(root, 'c1', { 'widgets/spec.md': LEGACY_REMOVED })
+  return 'c1'
+})
+
+/** REMOVED-only on a capability with no living spec, under `retire_capabilities: true`. */
+export const R7_NEW_REMOVED_ONLY_MARKED = r7('new-removed-only-marked', true, true, (root) => {
+  writeV2Change(
+    root,
+    'c1',
+    { 'widgets/spec.md': LEGACY_REMOVED },
+    { yamlExtra: 'retire_capabilities: true\n' },
+  )
+  return 'c1'
+})
+
+/**
+ * `openspec/specs/alias -> widgets` with a delta for each name: `cospec
+ * validate --strict` passes it, and the binary's archive refuses it after
+ * taking its archive claim (`… resolve to the same target …`).
+ */
+export const R7_SYMLINKED_ALIAS = r7('symlinked-alias', true, true, (root) => {
+  writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_TWO_REQS))
+  symlinkSync('widgets', join(root, 'openspec/specs/alias'))
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## MODIFIED Requirements\n\n${RENDERING_MODIFIED_BLOCK}`,
+    'alias/spec.md': `## MODIFIED Requirements
+
+### Requirement: ${MARKER_TARGET}
+
+The system SHALL cache a rendered widget for a minute.
+
+#### Scenario: Cache a widget
+
+- **WHEN** a caller requests the same widget twice
+- **THEN** the second request is served from cache
+`,
+  })
+  return 'c1'
+})
+
+/** A new capability whose delta carries a Purpose under the binary's minimum length. */
+export const R7_SHORT_PURPOSE = r7('short-purpose', true, true, (root) => {
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## Purpose\n\nWidgets.\n\n## ADDED Requirements\n\n${RENDERING_BLOCK}`,
+  })
+  return 'c1'
+})
+
+/**
+ * A `feat` change with no delta files. `--strict` reports its missing `specs`
+ * artifact; archive's own (non-strict) revalidation reads that as INFO.
+ */
+export const R7_NO_DELTA = r7('no-delta-feat', false, false, (root) => {
+  writeV2Change(root, 'c1', {})
+  return 'c1'
+})
+
+/** A `feat` change with no delta files that declares `skip_specs: true`. */
+export const R7_SKIP_SPECS = r7('skip-specs-feat', true, true, (root) => {
+  writeV2Change(root, 'c1', {}, { yamlExtra: 'skip_specs: true\n' })
+  return 'c1'
+})
+
+/** A `chore` change (its schema has no specs artifact). */
+export const R7_CHORE = r7('chore', false, true, (root) => {
+  withCospecSchema(root, 'chore')
+  const change = 'openspec/changes/c1'
+  writeFiles(root, {
+    [`${change}/.openspec.yaml`]: 'schema: chore\ncreated: 2026-10-05\nschemaVersion: 2\n',
+    [`${change}/proposal.md`]: CHORE_PROPOSAL,
+    [`${change}/blocking-changes.md`]: BLOCKERS,
+    [`${change}/tasks.md`]: V2_TASKS_DONE,
+  })
+  mkdirSync(join(root, 'openspec/specs'), { recursive: true })
+  mkdirSync(join(root, 'openspec/changes/archive'), { recursive: true })
+  return 'c1'
+})
+
+/**
+ * The MODIFIED fixture with `openspec/changes/archive/` at mode 000. The
+ * caller restores the mode (`restoreArchiveMode`) before cleanup.
+ */
+export const R7_ARCHIVE_UNREADABLE = r7('archive-unreadable', true, true, (root) => {
+  R7_MODIFIED.build(root)
+  chmodSync(join(root, 'openspec/changes/archive'), 0o000)
+  return 'c1'
+})
+
+/** Undo `R7_ARCHIVE_UNREADABLE`'s mode so the tree can be removed. */
+export function restoreArchiveMode(root: string): void {
+  chmodSync(join(root, 'openspec/changes/archive'), 0o755)
+}
+
+/**
+ * MODIFIED on a capability with no living spec. The binary's `validate
+ * --strict` passes it with an INFO (`Archive would refuse this delta`).
+ */
+export const R7_NEW_MODIFIED = r7('new-modified', true, false, (root) => {
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## MODIFIED Requirements\n\n${RENDERING_MODIFIED_BLOCK}`,
+  })
+  return 'c1'
+})
+
+/** RENAMED on a capability with no living spec. */
+export const R7_NEW_RENAMED = r7('new-renamed', true, false, (root) => {
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## RENAMED Requirements
+
+- FROM: \`### Requirement: ${MARKER_TARGET}\`
+- TO: \`### Requirement: Widget memoization\`
+`,
+  })
+  return 'c1'
+})
+
+/** An ADDED requirement with no scenario: both validators, and both archives, refuse it. */
+export const R7_DELTA_INVALID = r7('delta-invalid', false, false, (root) => {
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## ADDED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested.
+`,
+  })
+  return 'c1'
+})
+
+// The early-sync shapes (verification 7.2): each delta is already reflected in
+// the living spec, so the binary's archive reports `Specs already in sync`.
+
+/** An ADDED block identical to the living requirement. */
+export const R7_SYNCED_ADDED = r7('synced-added', true, true, (root) => {
+  writeLivingSpec(root, 'widgets', livingSpec('widgets', `\n${RENDERING_BLOCK}`))
+  writeV2Change(root, 'c1', { 'widgets/spec.md': `## ADDED Requirements\n\n${RENDERING_BLOCK}` })
+  return 'c1'
+})
+
+/** A REMOVED whose requirement is already gone. */
+export const R7_SYNCED_REMOVED = r7('synced-removed', true, true, (root) => {
+  writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_WIDGET_REQ))
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## REMOVED Requirements
+
+### Requirement: ${MARKER_TARGET}
+
+**Reason**: Caching moved elsewhere.
+
+**Migration**: None.
+`,
+  })
+  return 'c1'
+})
+
+/** A RENAMED already applied: the source is gone and the target present. */
+export const R7_SYNCED_RENAMED = r7('synced-renamed', true, true, (root) => {
+  writeLivingSpec(
+    root,
+    'widgets',
+    livingSpec('widgets', LIVING_TWO_REQS.replace(MARKER_TARGET, 'Widget memoization')),
+  )
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## RENAMED Requirements
+
+- FROM: \`### Requirement: ${MARKER_TARGET}\`
+- TO: \`### Requirement: Widget memoization\`
+`,
+  })
+  return 'c1'
+})
+
+/** A MODIFIED block identical to the living requirement. */
+export const R7_SYNCED_MODIFIED = r7('synced-modified', true, true, (root) => {
+  writeLivingSpec(root, 'widgets', livingSpec('widgets', `\n${RENDERING_MODIFIED_BLOCK}`))
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## MODIFIED Requirements\n\n${RENDERING_MODIFIED_BLOCK}`,
+  })
+  return 'c1'
+})
+
+/** Each early-sync shape, the already-retired capability last. */
+export const R7_SYNCED_SHAPES: readonly R7Fixture[] = [
+  R7_SYNCED_ADDED,
+  R7_SYNCED_REMOVED,
+  R7_SYNCED_RENAMED,
+  R7_SYNCED_MODIFIED,
+  R7_NEW_REMOVED_ONLY_MARKED,
+]
+
+/** The MODIFIED fixture declaring `skip_specs: true` beside its delta file: a conflict both validators refuse. */
+export const R7_SKIP_SPECS_WITH_DELTA = r7('skip-specs-with-delta', false, false, (root) => {
+  R7_MODIFIED.build(root)
+  writeFileSync(
+    join(root, 'openspec/changes/c1/.openspec.yaml'),
+    'schema: feat\ncreated: 2026-10-05\nschemaVersion: 2\nskip_specs: true\n',
+  )
+  return 'c1'
+})
+
+/**
+ * A `feat` change whose only delta sits in a file the merge never reads, at
+ * `rel` under its `specs/`: both archives refuse it.
+ */
+function unreadDelta(key: string, rel: string): R7Fixture {
+  return r7(key, false, false, (root) => {
+    writeV2Change(root, 'c1', { [rel]: `## ADDED Requirements\n\n${RENDERING_BLOCK}` })
+    return 'c1'
+  })
+}
+
+/** The unread-delta-file shapes: a root `spec.md`, a flat `<cap>.md`, a note beside a capability. */
+export const R7_UNREAD_DELTAS: readonly R7Fixture[] = [
+  unreadDelta('unread-root-spec', 'spec.md'),
+  unreadDelta('unread-flat-file', 'widgets.md'),
+  unreadDelta('unread-note', 'widgets/notes.md'),
+]
+
+/**
+ * `R7_MODIFIED` with an ABSOLUTE `openspec/specs/alias` link to the root's own
+ * `widgets/` and the delta under `alias/` only: the binary merges through the
+ * alias into `widgets/spec.md`.
+ */
+export const R7_ABSOLUTE_ALIAS = r7('absolute-alias', true, true, (root) => {
+  writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_TWO_REQS))
+  symlinkSync(join(root, 'openspec/specs/widgets'), join(root, 'openspec/specs/alias'))
+  writeV2Change(root, 'c1', {
+    'alias/spec.md': `## MODIFIED Requirements\n\n${RENDERING_MODIFIED_BLOCK}`,
+  })
+  return 'c1'
+})
+
+/**
+ * `R7_SYMLINKED_ALIAS` with the alias an ABSOLUTE link: the binary refuses
+ * after its claim, as it refuses the relative one.
+ */
+export const R7_ABSOLUTE_ALIAS_CONFLICT = r7('absolute-alias-conflict', true, true, (root) => {
+  R7_SYMLINKED_ALIAS.build(root)
+  const alias = join(root, 'openspec/specs/alias')
+  unlinkSync(alias)
+  symlinkSync(join(root, 'openspec/specs/widgets'), alias)
+  return 'c1'
+})
+
+/**
+ * The living `widgets` spec kept at `specs/<kept>`, with `specs/widgets/spec.md`
+ * a relative link to it.
+ */
+function linkedLivingSpec(root: string, kept: string, requirements: string): void {
+  const file = join(root, 'openspec/specs', kept)
+  mkdirSync(dirname(file), { recursive: true })
+  writeFileSync(file, livingSpec('widgets', requirements))
+  mkdirSync(join(root, 'openspec/specs/widgets'), { recursive: true })
+  symlinkSync(
+    relative(join(root, 'openspec/specs/widgets'), file),
+    join(root, 'openspec/specs/widgets/spec.md'),
+  )
+}
+
+/**
+ * `R7_RETIRED` with the living `spec.md` a link to `specs/shared/widgets.md`:
+ * the binary unlinks the link and prunes `widgets/`.
+ */
+export const R7_RETIRED_LINKED = r7('retired-linked', true, true, (root) => {
+  R7_RETIRED.build(root)
+  rmSync(join(root, 'openspec/specs/widgets'), { recursive: true })
+  linkedLivingSpec(root, 'shared/widgets.md', LIVING_WIDGET_REQ)
+  return 'c1'
+})
+
+/**
+ * `R7_MODIFIED` with the living `spec.md` a link to `widgets/living.md`: the
+ * binary writes through it. (A link leaving the capability directory is one
+ * the binary's `validate` refuses.)
+ */
+export const R7_MODIFIED_LINKED = r7('modified-linked', true, true, (root) => {
+  R7_MODIFIED.build(root)
+  rmSync(join(root, 'openspec/specs/widgets'), { recursive: true })
+  linkedLivingSpec(root, 'widgets/living.md', LIVING_TWO_REQS)
+  return 'c1'
+})
+
+/**
+ * `R7_MODIFIED` beside an unrelated living spec no one can read (mode 000).
+ * Its validate flags hold where `realpath` resolves a mode-000 file (Linux);
+ * on macOS the binary's `validate` fails on it, so it stays out of
+ * `R7_FIXTURES`' smoke rows.
+ */
+export const R7_UNRELATED_UNREADABLE = r7('unrelated-unreadable', true, true, (root) => {
+  R7_MODIFIED.build(root)
+  writeLivingSpec(root, 'other', livingSpec('other', LIVING_WIDGET_REQ))
+  chmodSync(join(root, 'openspec/specs/other/spec.md'), 0o000)
+  return 'c1'
+})
+
+/** Undo `R7_UNRELATED_UNREADABLE`'s mode so the tree can be read and removed. */
+export function restoreUnrelatedMode(root: string): void {
+  chmodSync(join(root, 'openspec/specs/other/spec.md'), 0o644)
+}
+
+/** Every archive-and-sync-parity builder, for the smoke rows. */
+export const R7_FIXTURES: readonly R7Fixture[] = [
+  ...R7_SYNC_SHAPES,
+  R7_COMMENT_KEPT,
+  R7_COMMENTED_LIVING_SCENARIO,
+  R7_COMMENTED_LIVING_HEADER,
+  R7_BARE_VERIFICATION,
+  R7_INCOMPLETE_TASK,
+  R7_SCENARIO_DROP,
+  R7_REVALIDATION_ONLY,
+  R7_NAMESPACE,
+  R7_NEW_ADDED_REMOVED,
+  R7_NEW_REMOVED_ONLY,
+  R7_NEW_REMOVED_ONLY_MARKED,
+  R7_SYMLINKED_ALIAS,
+  R7_SHORT_PURPOSE,
+  R7_NO_DELTA,
+  R7_SKIP_SPECS,
+  R7_CHORE,
+  R7_ARCHIVE_UNREADABLE,
+  R7_NEW_MODIFIED,
+  R7_NEW_RENAMED,
+  R7_DELTA_INVALID,
+  R7_SYNCED_ADDED,
+  R7_SYNCED_REMOVED,
+  R7_SYNCED_RENAMED,
+  R7_SYNCED_MODIFIED,
+  ...R7_UNREAD_DELTAS,
+  R7_ABSOLUTE_ALIAS,
+  R7_ABSOLUTE_ALIAS_CONFLICT,
+  R7_RETIRED_LINKED,
+  R7_MODIFIED_LINKED,
+]

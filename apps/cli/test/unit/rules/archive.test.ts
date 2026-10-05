@@ -60,6 +60,54 @@ describe('archiveRules', () => {
     expect(rules(archiveRules(change(text)))).toContain('archive/new-spec-non-added')
   })
 
+  // Verification 6.5: on a capability with no living spec the binary's merge
+  // refuses only MODIFIED and RENAMED (`specs-apply.js`); a REMOVED there is
+  // ignored with a warning ("nothing to remove"), as an ADDED is applied.
+  const NEW_CAPABILITY_OPS: [string, string, boolean][] = [
+    ['ADDED', ADD, false],
+    [
+      'REMOVED',
+      `${ADD}\n## REMOVED Requirements\n\n### Requirement: Gone\n\n**Reason**: gone.\n`,
+      false,
+    ],
+    [
+      'MODIFIED',
+      '## MODIFIED Requirements\n\n### Requirement: Whatever\n\nThe system SHALL x.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n',
+      true,
+    ],
+    [
+      'RENAMED',
+      '## RENAMED Requirements\n\n- FROM: `### Requirement: Old`\n- TO: `### Requirement: New`\n',
+      true,
+    ],
+  ]
+  for (const [op, text, fires] of NEW_CAPABILITY_OPS)
+    test(`6.5 archive/new-spec-non-added on a new capability: ${op} ${fires ? 'fires' : 'does not'}`, () => {
+      expect(rules(archiveRules(change(text))).includes('archive/new-spec-non-added')).toBe(fires)
+    })
+
+  const REMOVED_ONLY = '## REMOVED Requirements\n\n### Requirement: Gone\n\n**Reason**: gone.\n'
+
+  test('a REMOVED-only delta on a new capability is refused by the rebuilt spec, not the op', () => {
+    const found = rules(archiveRules(change(REMOVED_ONLY)))
+    expect(found).toContain('archive/rebuilt-spec-invalid')
+    expect(found).not.toContain('archive/new-spec-non-added')
+  })
+
+  test("the same delta under retire_capabilities is the binary's skip: nothing to report", () => {
+    const marked = makeChange({
+      ...change(REMOVED_ONLY),
+      openspecYaml: {
+        present: true,
+        parseable: true,
+        schema: 'feat',
+        retireCapabilities: true,
+      },
+      retireMarker: { declared: true },
+    })
+    expect(archiveRules(marked)).toEqual([])
+  })
+
   test('archive/no-ops: header present, zero operations', () => {
     expect(rules(archiveRules(change('## ADDED Requirements\n\n(nothing parseable)\n')))).toContain(
       'archive/no-ops',

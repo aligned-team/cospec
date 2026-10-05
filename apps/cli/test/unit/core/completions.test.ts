@@ -103,9 +103,15 @@ describe('buildCompletionSpec — matches COMMAND_TABLE', () => {
     ])
   })
 
-  test('archive: handled flags plus the accepted no-op --yes; pending --no-validate absent', () => {
+  test('archive: handled flags plus the accepted no-op --yes', () => {
     const archive = spec.commands.find((c) => c.name === 'archive')!
-    expect(archive.flags).toEqual(['--skip-specs', '--force-incomplete', '-y', '--yes'])
+    expect(archive.flags).toEqual([
+      '--skip-specs',
+      '--force-incomplete',
+      '-y',
+      '--yes',
+      '--no-validate',
+    ])
   })
 
   test('init: pending flags (--language, --profile, --copilot-cloud, …) absent', () => {

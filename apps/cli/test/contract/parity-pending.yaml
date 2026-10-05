@@ -16,9 +16,6 @@
 # `source: cli` marks a hidden surface the four registry sources cannot
 # produce; the test verifies it against the pinned binary instead.
 
-# --- archive-and-sync-parity ------------------------------------------------------
-- { kind: flag, path: [archive], flag: --no-validate, owner: archive-and-sync-parity }
-
 # --- tool-matrix ------------------------------------------------------------------
 - { kind: tool, id: amazon-q, owner: tool-matrix }
 - { kind: tool, id: antigravity, owner: tool-matrix }

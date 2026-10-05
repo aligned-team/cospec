@@ -98,6 +98,7 @@ export const COMMAND_MODULES: Record<string, () => Promise<Partial<CommandModule
   instructions: () => import('./commands/instructions.ts'),
   apply: () => import('./commands/apply.ts'),
   archive: () => import('./commands/archive.ts'),
+  'sync-specs': () => import('./commands/sync-specs.ts'),
   'sync-blockers': () => import('./commands/sync-blockers.ts'),
   store: () => import('./commands/store.ts'),
   context: () => import('./commands/context.ts'),

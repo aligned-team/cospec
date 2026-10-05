@@ -7,15 +7,37 @@
 // merge, relays the wrapped binary's non-blocking warnings, then fans blocker
 // check-offs out across sibling changes and prints the flywheel summary.
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { createHash } from 'node:crypto'
+import {
+  existsSync,
+  lstatSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  type Dirent,
+} from 'node:fs'
+import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
+import {
+  changeNameProblem,
+  diagnostics,
+  failureDocument,
+  readArchiveSummary,
+  relayedReason,
+  type ArchiveDiagnostic,
+  type ArchiveRefusalReason,
+} from '../core/archive-output.ts'
 import { parseBlockers, syncBlockers } from '../core/blockers.ts'
 import {
   archiveDir,
+  changesDir,
+  describeNestedChange,
+  findNestedChangesIn,
   isCospecType,
+  listChangeDirs,
   listChanges,
   openspecDir,
   resolveChange,
@@ -23,24 +45,24 @@ import {
   type Change,
 } from '../core/change.ts'
 import { hasFlag } from '../core/command-table.ts'
-import {
-  findScenarioDrops,
-  parseDeltaSpec,
-  parseLivingSpec,
-  quoteScenarioNames,
-  SCENARIO_DROP_HINT,
-  SCENARIO_DROP_NOTE_RETIRED,
-  type DeltaOp,
-} from '../core/deltas.ts'
+import { parseLivingSpec, type DeltaOp } from '../core/deltas.ts'
+import { assertPathWithin } from '../core/glob.ts'
 import { spawnOpenspec, threadedArgv } from '../core/openspec.ts'
-import { renderHuman, renderJson, type ItemReport } from '../core/report.ts'
+import { respellRemedies } from '../core/remedies.ts'
+import { renderHuman, renderJson } from '../core/report.ts'
 import { resolveRoot } from '../core/root.ts'
 import { enforcedApplyRequires, TYPE_ARTIFACTS, type CospecType } from '../core/rules/type-facts.ts'
-import { capabilityForDeltaFile, isDeltaSpecFile } from '../core/spec-paths.ts'
+import {
+  changeDeltaOps,
+  scenarioGate,
+  scenarioRefusal,
+  type CapabilityDeltas,
+} from '../core/scenario-gate.ts'
 import { parseTasks } from '../core/tasks.ts'
+import { rootOutput } from '../core/upstream-keys.ts'
 import { computeVerificationVerdict, parseVerification } from '../core/verification.ts'
 import { archiveMap, atomicWrite, closest, computeGate } from './apply.ts'
-import { buildValidateContext, validateChange } from './validate.ts'
+import { readValidateContext, validateChange } from './validate.ts'
 
 const ABORTED_RE = /\bAborted\b/
 const CANCELLED_RE = /\bArchive cancelled\b/
@@ -106,57 +128,6 @@ export function collectArchiveWarnings(stdout: string): string[] {
   return warnings
 }
 
-interface CapabilityDeltas {
-  capability: string
-  ops: DeltaOp[]
-}
-
-/**
- * All change-side delta ops grouped by capability path
- * (`specs/<cap-path>/spec.md`).
- *
- * Only files literally named `spec.md` count, matching openspec's own change
- * parser and `discoverSpecFiles` on the living side. Companion markdown an
- * author keeps in a capability directory (`README.md`, `notes.md`, a
- * `spec-old.md` backup) is content `openspec archive` never merges, so parsing
- * it here would feed phantom ops to both hard gates below.
- *
- * The capability is the whole directory chain under `specs/`, so a nested
- * `specs/platform/session-layout/spec.md` groups under `platform/session-layout`
- * — the path openspec merges it to (`findSpecUpdates`, 1.6.0 #1353) and the path
- * every living-spec lookup below joins. Keying on the outermost directory
- * instead, as this did, pointed both hard archive gates at
- * `openspec/specs/platform/spec.md`, which does not exist, silently turning them
- * into no-ops for every nested spec.
- *
- * A `.md` sitting directly in `specs/` has no capability at all; openspec 1.7.0
- * blocks that layout outright, so it contributes no ops rather than inventing a
- * capability named after the file.
- */
-function changeDeltaOps(changeDir: string): CapabilityDeltas[] {
-  const root = join(changeDir, 'specs')
-  if (!existsSync(root)) return []
-  const byCap = new Map<string, DeltaOp[]>()
-  const walk = (dir: string): void => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const child = join(dir, entry.name)
-      if (entry.isDirectory()) {
-        if (!entry.name.startsWith('.')) walk(child)
-        continue
-      }
-      if (!entry.isFile() || !isDeltaSpecFile(entry.name)) continue
-      const capability = capabilityForDeltaFile(relative(changeDir, child))
-      if (capability === undefined) continue
-      const parsed = parseDeltaSpec(readFileSync(child, 'utf8'), child, capability)
-      const list = byCap.get(parsed.capability) ?? []
-      list.push(...parsed.ops)
-      byCap.set(parsed.capability, list)
-    }
-  }
-  walk(root)
-  return [...byCap.entries()].map(([capability, ops]) => ({ capability, ops }))
-}
-
 /**
  * Today's date in the process's local time zone, matching openspec's own
  * `formatLocalDate` (`src/utils/date.ts`). `toISOString()` is UTC, so from any
@@ -193,15 +164,110 @@ export function isArchiveTargetFor(changeId: string, dirName: string): boolean {
   return new RegExp(`^\\d{4}-\\d{2}-\\d{2}-${escapeRegExp(changeId)}$`).test(dirName)
 }
 
+/**
+ * The directories under `dir`. A directory that cannot be read lists nothing:
+ * the slot check has already answered for one the binary could not use, and
+ * an unreadable one it could use is reported by step 9 as what it saw.
+ */
 function basenames(dir: string): string[] {
-  if (!existsSync(dir)) return []
-  return readdirSync(dir, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => e.name)
+  let entries: Dirent[]
+  try {
+    entries = readdirSync(dir, { withFileTypes: true })
+  } catch (error) {
+    if (isErrno(error)) return []
+    throw error
+  }
+  return entries.filter((e) => e.isDirectory()).map((e) => e.name)
+}
+
+/** Whether `path` exists (`lstat`), or the errno message when it cannot be told. */
+function slotTaken(path: string): boolean | string {
+  try {
+    lstatSync(path)
+    return true
+  } catch (error) {
+    if (!isErrno(error)) throw error
+    return error.code === 'ENOENT' ? false : error.message
+  }
+}
+
+function isErrno(error: unknown): error is NodeJS.ErrnoException {
+  return typeof (error as NodeJS.ErrnoException | undefined)?.code === 'string'
+}
+
+/**
+ * The binary's first step (`ArchiveCommand.run`): each managed directory must
+ * resolve inside its parent, through the runtime's `realpath`. A directory the
+ * runtime cannot canonicalize (macOS's `realpath` on a mode-000 directory)
+ * fails it, as it fails the binary's.
+ */
+function managedDirOutsideRoot(base: string): string | undefined {
+  const changes = changesDir(base)
+  const pairs: [string, string][] = [
+    [base, changes],
+    [changes, archiveDir(base)],
+    [base, join(openspecDir(base), 'specs')],
+  ]
+  for (const [allowed, managed] of pairs) {
+    try {
+      assertPathWithin(allowed, managed)
+    } catch (error) {
+      if (!(error instanceof Error)) throw error
+      return managed
+    }
+  }
+  return undefined
 }
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+const NO_VALIDATE_BANNER =
+  "cospec archive: --no-validate skips revalidation, cospec's and the binary's; still running: " +
+  'the namespace-folder check, the tasks gate, archive/verification-incomplete, the archive-slot ' +
+  'check, archive/scenario-preservation and the on-disk verification.\n'
+
+/** Why no spec sync ran (`specsSkipReason`). */
+type SpecsSkipReason = 'flag' | 'schema' | 'no-deltas'
+
+const SKIP_LINES: Record<SpecsSkipReason, (schema: string) => string> = {
+  flag: () => 'skipped (--skip-specs)',
+  schema: (schema) => `none (the ${schema} schema has no specs artifact)`,
+  'no-deltas': () => 'none (no delta specs, so no spec sync)',
+}
+
+/**
+ * sha256 of each living `spec.md` the merge can write or delete — one per
+ * delta capability, by path — or `absent`. Nothing else under `specs/` is
+ * read, as the binary's archive reads nothing else: an unrelated spec no one
+ * can read must not fail an archive the binary completes. One this command
+ * cannot read is fingerprinted by its metadata, so the binary gives the
+ * answer it gives for it.
+ */
+function specFingerprint(base: string, caps: readonly CapabilityDeltas[]): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const { capability } of caps) {
+    const path = join(openspecDir(base), 'specs', ...capability.split('/'), 'spec.md')
+    out.set(path, fileFingerprint(path))
+  }
+  return out
+}
+
+function fileFingerprint(path: string): string {
+  try {
+    return createHash('sha256').update(readFileSync(path)).digest('hex')
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    if (code === 'ENOENT') return 'absent'
+    if (code !== 'EACCES' && code !== 'EPERM') throw error
+    const stat = statSync(path)
+    return `unreadable:${stat.mode}:${stat.size}:${stat.mtimeMs}`
+  }
+}
+
+function sameFingerprint(a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): boolean {
+  return a.size === b.size && [...a].every(([path, hash]) => b.get(path) === hash)
 }
 
 interface OpCounts {
@@ -223,12 +289,11 @@ function countOps(caps: CapabilityDeltas[]): OpCounts {
   return c
 }
 
-function printReport(report: ItemReport, ctx: CommandContext): void {
-  const out = ctx.flags.json
-    ? renderJson([report])
-    : renderHuman([report], { noColor: ctx.flags.noColor, title: 'cospec archive' })
-  process.stdout.write(out)
-}
+/**
+ * The `--json` payload a root-selection failure prints ahead of `status`, as
+ * the binary's `printJsonFailure(undefined, …)` does.
+ */
+export const jsonFailurePayload = { archive: null } as const
 
 /**
  * What the capability's other operations do to a name, which is what makes the
@@ -291,10 +356,51 @@ export async function run(ctx: CommandContext): Promise<number> {
   const parsed = ctx.parsed!
   const userSkipSpecs = hasFlag(parsed, '--skip-specs')
   const forceIncomplete = hasFlag(parsed, '--force-incomplete')
+  const noValidate = hasFlag(parsed, '--no-validate')
   // Required in the table: the parser has refused a missing one.
   const name = parsed.positionals[0]!
 
+  // Every refusal below answers `--json` with exactly one document; text mode
+  // keeps the prose each path writes to stderr.
+  let type: string | undefined
+  const refuse = (
+    reason: ArchiveRefusalReason,
+    diagnostic: ArchiveDiagnostic,
+    extra?: Readonly<Record<string, unknown>>,
+    moved = false,
+  ): number => {
+    if (flags.json)
+      process.stdout.write(
+        failureDocument({
+          change: name,
+          ...(type === undefined ? {} : { type }),
+          reason,
+          diagnostic,
+          root,
+          moved,
+          ...(extra === undefined ? {} : { extra }),
+        }),
+      )
+    return EXIT.failure
+  }
+
+  // stderr, so `--json`'s stdout stays the one document.
+  if (noValidate) process.stderr.write(NO_VALIDATE_BANNER)
+
+  // Step 0: the binary's root confinement, before anything is read.
+  const outside = managedDirOutsideRoot(base)
+  if (outside !== undefined) {
+    const diag = diagnostics.pathOutsideRoot(outside)
+    process.stderr.write(`cospec archive: ${diag.message}\n`)
+    return refuse('archive-unreadable', diag)
+  }
+
   // Step 1: resolve change + schema (legacy still archives; step 2 delegates).
+  const nameProblem = changeNameProblem(name)
+  if (nameProblem !== undefined) {
+    process.stderr.write(`cospec archive: ${nameProblem}\n`)
+    return refuse('invalid-name', diagnostics.invalidName(nameProblem))
+  }
   const change = resolveChange(base, name)
   if (change === undefined) {
     process.stderr.write(`cospec archive: unknown change '${name}'\n`)
@@ -303,8 +409,31 @@ export async function run(ctx: CommandContext): Promise<number> {
       listChanges(base).map((c) => c.id),
     )
     if (suggestion !== undefined) process.stderr.write(`Did you mean '${suggestion}'?\n`)
-    return EXIT.failure
+    return refuse(
+      'unknown-change',
+      diagnostics.notFound(
+        name,
+        listChangeDirs(base).map((c) => c.id),
+      ),
+    )
   }
+  type = change.schema
+
+  // A namespace folder is refused before anything reads it as a change, as
+  // the binary refuses it: archiving it would move the nested changes away
+  // unapplied.
+  const nested = findNestedChangesIn(changesDir(base), change.id)
+  if (nested !== undefined) {
+    const diag = diagnostics.namespaceFolder(
+      change.id,
+      describeNestedChange(nested),
+      nested.nested[0]!,
+      'archive',
+    )
+    process.stderr.write(`cospec archive: ${diag.message}\n${diag.fix!}\n`)
+    return refuse('namespace-folder', diag)
+  }
+
   const resolution = resolveSchema(base, change.schema)
 
   // Step 6 (decided early — needed for validation scope + snapshot): skip specs
@@ -316,14 +445,35 @@ export async function run(ctx: CommandContext): Promise<number> {
         ? TYPE_ARTIFACTS[change.schema as keyof typeof TYPE_ARTIFACTS].declared.includes('specs')
         : false
   const preOps = changeDeltaOps(change.dir)
-  const skipSpecs = userSkipSpecs || !declaresSpecs || preOps.length === 0
+  const skipReason: SpecsSkipReason | undefined = userSkipSpecs
+    ? 'flag'
+    : !declaresSpecs
+      ? 'schema'
+      : preOps.length === 0
+        ? 'no-deltas'
+        : undefined
+  const skipSpecs = skipReason !== undefined
 
-  // Step 2: full validation (archive-precondition family unless skipping specs).
-  const vctx = buildValidateContext(base)
-  const report = await validateChange(root, change, vctx, { strict: false, fast: skipSpecs })
-  if (!report.valid) {
-    printReport(report, ctx)
-    return EXIT.failure
+  // Step 2: full validation (archive-precondition family unless skipping specs),
+  // unless `--no-validate` asked to skip it — it is forwarded below, so the
+  // binary skips its own as an `openspec` user asked.
+  // An archive directory that cannot be read is read as empty, with a
+  // warning: the slot check below answers for it as the binary does.
+  const { ctx: vctx, warning } = readValidateContext(base)
+  if (warning !== undefined) process.stderr.write(`Warning: ${warning.message}\n`)
+  const report = noValidate
+    ? undefined
+    : await validateChange(root, change, vctx, { strict: false, fast: skipSpecs })
+  if (report !== undefined && !report.valid) {
+    if (!flags.json)
+      process.stdout.write(
+        renderHuman([report], { noColor: flags.noColor, title: 'cospec archive' }),
+      )
+    // Under --json the report keeps every key it carried; the refusal's join it.
+    const reportDoc = flags.json
+      ? (JSON.parse(renderJson([report])) as Record<string, unknown>)
+      : undefined
+    return refuse('validation', diagnostics.validationFailed(change.id, root), reportDoc)
   }
 
   // Step 3: tasks gate (stricter than openspec — -y alone does not waive).
@@ -338,7 +488,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     )
     for (const t of incomplete) process.stderr.write(`  - [ ] ${t.text}\n`)
     process.stderr.write('re-run with --force-incomplete to archive anyway.\n')
-    return EXIT.failure
+    return refuse('tasks-incomplete', diagnostics.tasksIncomplete(change.id, incomplete.length))
   }
 
   // Step 3b: verification-incomplete gate (DESIGN §3.5 step 1). Runs whenever
@@ -375,7 +525,10 @@ export async function run(ctx: CommandContext): Promise<number> {
       process.stderr.write(
         'resolve each row as `[x] … -> <evidence>`, or defer it as `[~] … -> defer: <reason>`.\n',
       )
-      return EXIT.failure
+      return refuse(
+        'archive/verification-incomplete',
+        diagnostics.verificationIncomplete(change.id),
+      )
     }
   }
 
@@ -384,7 +537,7 @@ export async function run(ctx: CommandContext): Promise<number> {
   if (existsSync(ownBlockersPath)) {
     const ownGate = computeGate(
       parseBlockers(readFileSync(ownBlockersPath, 'utf8')),
-      archiveMap(base),
+      warning === undefined ? archiveMap(base) : new Map(),
       new Set(listChanges(base).map((c) => c.id)),
     )
     if (ownGate.hard.length > 0)
@@ -396,15 +549,25 @@ export async function run(ctx: CommandContext): Promise<number> {
   // Step 5: collision pre-check for today's slot (openspec archives as
   // YYYY-MM-DD-<name>, stamped in the LOCAL zone — see formatLocalDate).
   const slot = DATE_PREFIXED_RE.test(change.id) ? change.id : `${formatLocalDate()}-${change.id}`
-  if (existsSync(join(archiveDir(base), slot))) {
+  // `lstat`, as the binary's `assertArchiveDestinationAvailable`: any errno
+  // but ENOENT is its `archive_error`, in the runtime's own words.
+  const taken = slotTaken(join(archiveDir(base), slot))
+  if (typeof taken === 'string') {
+    process.stderr.write(`cospec archive: ${taken}\n`)
+    return refuse('archive-unreadable', diagnostics.error(taken))
+  }
+  if (taken) {
     process.stderr.write(
       `cospec archive: archive slot '${slot}' already exists — rename or remove it first.\n`,
     )
-    return EXIT.failure
+    return refuse('slot-exists', diagnostics.targetExists(slot))
   }
 
-  // Step 7: snapshot.
+  // Step 7: snapshot — the archive's entries, and the bytes of each living spec
+  // the merge can write, which say whether it changed anything when the binary
+  // does not.
   const preArchiveDirs = new Set(basenames(archiveDir(base)))
+  const preSpecs = skipSpecs ? undefined : specFingerprint(base, preOps)
 
   // Step 7b: scenario-preservation gate (DESIGN §3.5 step 2) — before delegating
   // to `openspec archive`, specs-bearing changes only. Below openspec 1.8.0 the
@@ -415,40 +578,20 @@ export async function run(ctx: CommandContext): Promise<number> {
   // `livingCaps` doubles as step 10's record of which capabilities had a living
   // spec BEFORE the merge, so a spec that disappears can be told apart from one
   // that never existed.
-  const livingCaps = new Set<string>()
+  let livingCaps = new Set<string>()
   if (!skipSpecs && preOps.length > 0) {
-    const livingSpecs = new Map(
-      [...new Set(preOps.map((c) => c.capability))]
-        .map((cap): [string, ReturnType<typeof parseLivingSpec>] | undefined => {
-          const p = join(openspecDir(base), 'specs', cap, 'spec.md')
-          if (!existsSync(p)) return undefined
-          livingCaps.add(cap)
-          return [cap, parseLivingSpec(readFileSync(p, 'utf8'))]
-        })
-        .filter((e): e is [string, ReturnType<typeof parseLivingSpec>] => e !== undefined),
-    )
-    const drops = findScenarioDrops(preOps, livingSpecs)
-    if (drops.length > 0) {
-      process.stderr.write(
-        'cospec archive: scenario-preservation gate refused — a MODIFIED requirement drops scenarios:\n',
-      )
-      // The count clause keeps its shape even for a same-count name swap, where
-      // it reads `2 -> 2`: the missing-name clause carries the finding there.
-      for (const d of drops)
-        process.stderr.write(
-          `  ${d.capability}: "${d.name}" ${d.livingCount} -> ${d.deltaCount} scenario(s)${
-            d.missingNames.length > 0 ? `; missing: ${quoteScenarioNames(d.missingNames)}` : ''
-          }\n`,
-        )
-      if (drops.some((d) => d.noted)) process.stderr.write(`${SCENARIO_DROP_NOTE_RETIRED}.\n`)
-      process.stderr.write(`${SCENARIO_DROP_HINT}.\n`)
-      return EXIT.failure
+    const gate = scenarioGate(base, preOps)
+    livingCaps = gate.livingCaps
+    if (gate.drops.length > 0) {
+      process.stderr.write(scenarioRefusal('archive', gate.drops))
+      return refuse('archive/scenario-preservation', diagnostics.scenarioDropped(gate.drops))
     }
   }
 
   // Step 8: execute.
   const archiveArgs = [change.id, '-y']
   if (skipSpecs) archiveArgs.push('--skip-specs')
+  if (noValidate) archiveArgs.push('--no-validate')
   const res = await spawnOpenspec(threadedArgv(['archive'], root.storeArgs, archiveArgs), root.cwd)
 
   // Step 9: verify (date-agnostic — survives midnight rollover).
@@ -462,13 +605,19 @@ export async function run(ctx: CommandContext): Promise<number> {
   const success = res.exitCode === 0 && !abortedOutput && moved && targetHasYaml
 
   if (!success) {
-    return reportArchiveFailure(ctx, change, res, {
+    const aborted = reportArchiveFailure(change, res, {
       moved,
       newDirs,
       target,
       targetHasYaml,
       abortedOutput,
     })
+    return refuse(
+      aborted ? 'aborted' : 'half-state',
+      diagnostics.error(relayedReason(`${res.stdout}\n${res.stderr}`)),
+      { openspecExit: res.exitCode },
+      moved,
+    )
   }
 
   // Step 10: post-merge spot-check (skipped when no specs merged).
@@ -503,10 +652,9 @@ export async function run(ctx: CommandContext): Promise<number> {
       }
     }
     if (misses.length > 0) {
-      process.stderr.write(
-        `cospec archive: change was archived but spec merge verification failed for: ${misses.join('; ')} — this is a cospec/openspec invariant breach; please file a bug.\n`,
-      )
-      return EXIT.failure
+      const breach = `change was archived but spec merge verification failed for: ${misses.join('; ')} — this is a cospec/openspec invariant breach; please file a bug.`
+      process.stderr.write(`cospec archive: ${breach}\n`)
+      return refuse('spec-verification-failed', diagnostics.error(breach), undefined, true)
     }
   }
 
@@ -527,15 +675,28 @@ export async function run(ctx: CommandContext): Promise<number> {
     }
   }
 
-  // Step 12: flywheel summary.
+  // Step 12: flywheel summary. What the binary applied comes from its own
+  // `Totals:` and in-sync lines; a binary in range that prints neither leaves
+  // `totals` out and `specsUpdated` to what the disk shows.
   const counts = countOps(preOps)
-  const specsLine = skipSpecs
-    ? 'skipped'
-    : preOps.length === 0
-      ? 'none'
-      : `+${counts.added} ~${counts.modified} -${counts.removed} →${counts.renamed} applied and verified`
+  const summary = readArchiveSummary(
+    res.stdout,
+    preOps.map((c) => c.capability),
+  )
+  const specsUpdated = skipSpecs
+    ? false
+    : (summary.specsUpdated ??
+      !sameFingerprint(preSpecs ?? new Map(), specFingerprint(base, preOps)))
+  const specsLine =
+    skipReason !== undefined
+      ? SKIP_LINES[skipReason](change.schema)
+      : summary.specsUpdated === false
+        ? 'already in sync'
+        : `+${counts.added} ~${counts.modified} -${counts.removed} →${counts.renamed} applied and verified`
 
-  const warnings = collectArchiveWarnings(res.stdout)
+  // Relayed, so each allowlisted upstream remedy in them is spelled cospec.
+  const warnings = collectArchiveWarnings(res.stdout).map(respellRemedies)
+  const archiveWarnings = summary.warnings.map(respellRemedies)
 
   if (flags.json) {
     process.stdout.write(
@@ -546,9 +707,19 @@ export async function run(ctx: CommandContext): Promise<number> {
           archived: true,
           target,
           specs: skipSpecs ? 'skipped' : counts,
+          ...(skipReason === undefined ? {} : { specsSkipReason: skipReason }),
           retired,
           warnings,
           blockers: { checkedOff, nowUnblocked },
+          archive: {
+            change: change.id,
+            archivedAs: target,
+            path: realpathSync(join(archiveDir(base), target!)),
+            specsUpdated,
+            ...(skipSpecs || summary.totals === undefined ? {} : { totals: summary.totals }),
+            ...(archiveWarnings.length > 0 ? { warnings: archiveWarnings } : {}),
+          },
+          root: rootOutput(root),
         },
         null,
         2,
@@ -580,19 +751,22 @@ interface VerifyState {
   abortedOutput: boolean
 }
 
-/** Step 9 failure branch: clean abort vs. loud half-state. */
+/**
+ * Step 9 failure branch: clean abort vs. loud half-state, on stderr. True for
+ * a clean abort (nothing moved), false for a half-state.
+ */
 function reportArchiveFailure(
-  ctx: CommandContext,
   change: Change,
   res: { stdout: string; stderr: string; exitCode: number },
   state: VerifyState,
-): number {
-  const captured = `${res.stdout}${res.stderr}`
+): boolean {
+  const captured = respellRemedies(`${res.stdout}${res.stderr}`)
     .split('\n')
     .map((l) => `    ${l}`)
     .join('\n')
 
-  if (!state.moved && state.newDirs.length === 0) {
+  const aborted = !state.moved && state.newDirs.length === 0
+  if (aborted) {
     process.stderr.write(
       'The wrapped OpenSpec archive did not archive the change (it exited 0 but aborted).\n',
     )
@@ -612,20 +786,5 @@ function reportArchiveFailure(
     process.stderr.write(`${captured}\n`)
     process.stderr.write('Manual inspection required — the archive is in an inconsistent state.\n')
   }
-
-  if (ctx.flags.json)
-    process.stdout.write(
-      `${JSON.stringify(
-        {
-          change: change.id,
-          type: change.schema,
-          archived: false,
-          reason: !state.moved && state.newDirs.length === 0 ? 'aborted' : 'half-state',
-          openspecExit: res.exitCode,
-        },
-        null,
-        2,
-      )}\n`,
-    )
-  return EXIT.failure
+  return aborted
 }

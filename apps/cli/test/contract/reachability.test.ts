@@ -1056,11 +1056,11 @@ describe('reachability: negative cases (ledger 4.1, 4.3, 4.5)', () => {
   })
 
   test('a pending entry whose owner disagrees with the table fails', () => {
-    const pending = PENDING.filter((pe) => !(pe.kind === 'flag' && pe.flag === '--no-validate'))
-    pending.push({ kind: 'flag', path: ['archive'], flag: '--no-validate', owner: 'tool-matrix' })
+    const pending = PENDING.filter((pe) => !(pe.kind === 'flag' && pe.flag === '--language'))
+    pending.push({ kind: 'flag', path: ['init'], flag: '--language', owner: 'tool-matrix' })
     const failures = checkReachability({ ...model, pending })
     expect(failures).toContain(
-      "flag `archive --no-validate` is pending on 'tool-matrix' in parity-pending.yaml but on 'archive-and-sync-parity' in the command table",
+      "flag `init --language` is pending on 'tool-matrix' in parity-pending.yaml but on 'workflow-profiles' in the command table",
     )
   })
 

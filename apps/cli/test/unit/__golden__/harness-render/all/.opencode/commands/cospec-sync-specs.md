@@ -1,27 +1,27 @@
 ---
-description: Explain how spec sync works (it runs inside archive) and preview what would merge. Also use when the user says "cospec sync specs", "sync the specs", or "openspec sync".
+description: Merge a change's delta specs into the main specs without archiving it, exactly as archive would. Also use when the user says "cospec sync specs", "sync the specs", or "openspec sync".
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:78a4d09275959566ff92a490de91a93a695dd0acdbc259620b3c4156c61ba16c
+  contentHash: sha256:a64fe2fd251a64fb752391a0bc7298ca49edde939b1442bfedc3d0e6e5f33992
 ---
 
-Explain and preview spec synchronization. Spec sync is not a standalone step in
-cospec.
-
-Delta specs in a change are merged into the living specs under `openspec/specs/`
-**only** by `cospec archive`, which applies the merge and then verifies it as
-one coupled operation. There is no supported mid-flight "sync now without
-archiving" path. This is deliberate: a partial merge would leave a tree that
-neither validates nor archives cleanly.
+Merge a change's delta specs into the main specs under `openspec/specs/` without
+archiving the change. `cospec sync-specs` runs the archive's own merge — the
+pinned OpenSpec archive, on a scratch copy of the specs — and copies back only
+the main-spec files it changed, so the result is byte-for-byte what
+`cospec archive` would write. The change stays active, and its later archive is
+a no-op merge.
 
 **Provided arguments**: $ARGUMENTS
 
-## Preview what would merge
+## 1. Select the change
 
-If the user did not name a change, run `cospec list --json`: if exactly one
-active change exists, use it and announce `Using change: <slug>`; if more than
-one is plausible, ask.
+If the user named one, use it. Otherwise run `cospec list --json`: if exactly
+one active change exists, use it and announce `Using change: <slug>`; if more
+than one is plausible, ask.
+
+## 2. Preview the merge
 
 ```
 cospec validate <slug>
@@ -30,13 +30,26 @@ cospec validate <slug>
 This runs the archive-precondition checks (targets exist, no zero-op deltas, no
 ADDED collisions, scenarios are well-formed) and reports anything that would
 make the merge fail. Then read the delta files under
-`openspec/changes/<slug>/specs/**/spec.md` to see the exact ADDED / MODIFIED /
-REMOVED / RENAMED operations.
+`openspec/changes/<slug>/specs/**/spec.md` and tell the user which main specs
+the sync will create, change or delete: the ADDED / MODIFIED / REMOVED / RENAMED
+operations per capability, and any retirement (below) with its marker.
 
-A delta that targets a capability with no living spec yet may only ADD
-requirements — any MODIFIED, REMOVED, or RENAMED op there is a validate-time
-ERROR (`archive/new-spec-non-added`), not something that surfaces later at merge
-time.
+A delta that targets a capability with no living spec yet may ADD requirements
+there, and a REMOVED there is a no-op the merge warns about; a MODIFIED or
+RENAMED op targeting it is a validate-time ERROR (`archive/new-spec-non-added`).
+
+## 3. Sync
+
+```
+cospec sync-specs <slug>
+```
+
+Relay what it prints: one `Synced:` line per main-spec file written or deleted
+and the merge's totals, or that the specs were already in sync. The merge is the
+archive's own, so a refusal here is the refusal archive would give — relay it
+verbatim and fix what it names; never edit a main spec by hand to get past it.
+Nothing is written when it refuses, and the change is never archived by this
+step.
 
 ## Retiring a capability
 
@@ -48,8 +61,9 @@ the marker the merge refuses and reports the missing marker as the blocking
 condition. Deleting the file also deletes its `## Purpose` — name both when you
 report a retirement, and give the user a way to recover the file.
 
-## Actually sync
+## Afterwards
 
-Run `/cospec-archive` when the change is complete. The merge happens there, is
-verified, and blocker check-offs fan out automatically. To sanity-check the
-living specs on their own, run `cospec validate --specs`.
+The change is still active: finish its tasks and verification, then run
+`/cospec-archive`. Its merge finds the specs already in sync, and both hard
+archive gates still run. To sanity-check the living specs on their own, run
+`cospec validate --specs`.

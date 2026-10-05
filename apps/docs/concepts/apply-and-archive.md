@@ -111,7 +111,7 @@ equivalent of persisting `skip_specs: true` in `.openspec.yaml` (see
 then the persisted marker, then the structural default that a spec-bearing type
 must show deltas. :::
 
-## `cospec archive <change> [--skip-specs] [--force-incomplete] [--json]`
+## `cospec archive <change> [--skip-specs] [--force-incomplete] [--no-validate] [--json]`
 
 Archive is the step that moves a change out of `openspec/changes/` and merges
 its spec deltas into the living specs. Its steps run in a fixed order, and two
@@ -119,8 +119,12 @@ of them are hard gates with no `--force` flag:
 
 **Pre-flight**
 
-1. Resolve the change and its schema.
-2. Run full validation — errors exit `1`.
+1. Resolve the change and its schema. A namespace folder — a directory wrapping
+   nested changes rather than a change of its own — is refused here with
+   OpenSpec's message (`Cannot archive '<name>': …`), before anything reads it.
+2. Run full validation — errors exit `1`. `--no-validate` skips this step and is
+   passed on to OpenSpec, which then skips its own validation as well (see
+   below).
 3. **Tasks gate.** Any unchecked task in `tasks.md` exits `1` unless you pass
    `--force-incomplete`. Note that `-y` alone does not waive this — an automated
    caller can't skip real work just by auto-confirming prompts.
@@ -131,7 +135,9 @@ of them are hard gates with no `--force` flag:
    today.
 6. Decide whether to pass `--skip-specs` to OpenSpec — forced by the flag, by
    the type having no `specs` artifact, or by the change having no
-   `specs/**/spec.md` files.
+   `specs/**/spec.md` files. The summary's `Specs:` line names which one:
+   `skipped (--skip-specs)`, `none (the <type> schema has no specs artifact)` or
+   `none (no delta specs, so no spec sync)`.
 
 **The two hard gates**, both run before delegation, both exit `1` with no
 override:
@@ -172,6 +178,18 @@ override:
   first, under its own rule id, and stays the sole defence on openspec
   1.0.0–1.7.x inside the accepted `>=1.0.0 <2.0.0` range — 1.8.0+ runs its own
   overlapping check, making cospec's gate defence-in-depth from there on. :::
+
+**`--no-validate` skips revalidation only**
+
+`cospec archive <change> --no-validate` skips step 2 and passes `--no-validate`
+to OpenSpec's archive, so neither tool revalidates the change — what an
+`openspec archive --no-validate` user asked for. Every other step still runs:
+the namespace-folder refusal, the tasks gate, both hard gates below, the slot
+check, the on-disk verification and the spot-check. A banner on stderr says so
+before the first of them, in text and `--json` mode alike. Under the flag
+OpenSpec also skips its rebuilt-spec validation and retires no capability, so a
+`REMOVED` that empties a spec writes it empty instead of deleting it. cospec
+never prompts, so there is no confirmation to answer.
 
 **Early-synced operations are not blockers**
 
@@ -228,6 +246,23 @@ compare exactly here: a fold variant (`REMOVED Widget rendering` beside
 `ADDED WIDGET RENDERING`) is a different name to that check, and OpenSpec
 archives it.
 
+A `MODIFIED` whose block is identical to the living requirement, and a
+`REMOVED`-only delta under `retire_capabilities: true` on a capability whose
+spec is already gone, are no-ops too. A change whose every operation is already
+reflected in the living specs — synced early with
+[`cospec sync-specs`](/reference/commands), or by hand — archives as a no-op
+merge: OpenSpec reports the specs already in sync, the `Specs:` line reads
+`already in sync`, and both hard gates still run.
+
+On a capability with no living spec at all, `ADDED` is applied and `REMOVED` is
+a no-op OpenSpec warns about
+(`… REMOVED requirement(s) ignored for new spec (nothing to remove)`); only
+`MODIFIED` and `RENAMED` are refused there (`archive/new-spec-non-added`). A
+delta that only `REMOVE`s on such a capability, without
+`retire_capabilities: true`, is still refused — by
+`archive/rebuilt-spec-invalid`, because the spec it would write has no
+requirement.
+
 Everything else stays an ERROR: an `ADDED` collision whose body differs, a
 `RENAMED` with FROM and TO both absent, a `RENAMED` applied while both are
 present, a `RENAMED` whose TO collides with an `ADDED` in the same delta — a
@@ -236,8 +271,8 @@ early sync — and a `MODIFIED` whose target is absent.
 
 **Execute and verify**
 
-7. Delegate to `openspec archive <name> -y [--skip-specs]` and capture its
-   stdout, stderr, and exit code.
+7. Delegate to `openspec archive <name> -y [--skip-specs] [--no-validate]` and
+   capture its stdout, stderr, and exit code.
 8. **Verify on the filesystem — never trust the exit code alone.** OpenSpec can
    print `Aborted` (or thin a spec's scenarios during merge) and still exit `0`.
    cospec's verifier checks directly: the source change directory is gone, and a
@@ -271,8 +306,10 @@ On the success path, `cospec archive` no longer swallows the wrapped binary's
 own non-blocking warnings — a `Warning:` line per relayed warning, and a
 `Retired:` line naming any capability whose living spec the merge deleted. Both
 also appear in `--json`, as `warnings: string[]` and `retired: string[]` —
-always present, `[]` when nothing to report; the rest of the single-change JSON
-shape is unchanged.
+always present, `[]` when nothing to report. Relayed text is spelled `cospec`.
+The JSON document also carries OpenSpec's own `archive` and `root` keys, and
+every refusal answers one document; both shapes are on
+[Command reference](/reference/commands).
 
 ### Capability retirement
 
