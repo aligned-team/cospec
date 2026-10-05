@@ -10,7 +10,7 @@ sandboxed HOME/XDG.
 
 ## 1. T5 — fixtures and failing contract rows first (`apps/cli/test/contract/{archive-no-validate,sync-specs}.test.ts`)
 
-- [ ] 1.1 Add the fixture builders to `test/contract/fixtures.ts` (append only):
+- [x] 1.1 Add the fixture builders to `test/contract/fixtures.ts` (append only):
       feat v2 changes with resolved verification and done tasks for ADDED (new
       capability), MODIFIED, REMOVED, RENAMED and retired-capability deltas; the
       three verbatim-view differential fixtures (comment-kept scenario,
