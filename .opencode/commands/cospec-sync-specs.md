@@ -2,7 +2,7 @@
 description: Merge a change's delta specs into the main specs without archiving it, exactly as archive would. Also use when the user says "cospec sync specs", "sync the specs", or "openspec sync".
 metadata:
   author: cospec
-  generatedBy: cospec@0.8.3
+  generatedBy: cospec@0.9.0
   contentHash: sha256:a64fe2fd251a64fb752391a0bc7298ca49edde939b1442bfedc3d0e6e5f33992
 ---
 
