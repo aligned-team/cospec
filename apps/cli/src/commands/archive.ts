@@ -14,6 +14,7 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
+  statSync,
   type Dirent,
 } from 'node:fs'
 import { join } from 'node:path'
@@ -236,20 +237,33 @@ const SKIP_LINES: Record<SpecsSkipReason, (schema: string) => string> = {
   'no-deltas': () => 'none (no delta specs, so no spec sync)',
 }
 
-/** sha256 of every file under the root's `openspec/specs/`, by path. */
-function specFingerprint(base: string): Map<string, string> {
+/**
+ * sha256 of each living `spec.md` the merge can write or delete — one per
+ * delta capability, by path — or `absent`. Nothing else under `specs/` is
+ * read, as the binary's archive reads nothing else: an unrelated spec no one
+ * can read must not fail an archive the binary completes. One this command
+ * cannot read is fingerprinted by its metadata, so the binary gives the
+ * answer it gives for it.
+ */
+function specFingerprint(base: string, caps: readonly CapabilityDeltas[]): Map<string, string> {
   const out = new Map<string, string>()
-  const walk = (dir: string): void => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const child = join(dir, entry.name)
-      if (entry.isDirectory()) walk(child)
-      else if (entry.isFile())
-        out.set(child, createHash('sha256').update(readFileSync(child)).digest('hex'))
-    }
+  for (const { capability } of caps) {
+    const path = join(openspecDir(base), 'specs', ...capability.split('/'), 'spec.md')
+    out.set(path, fileFingerprint(path))
   }
-  const specs = join(openspecDir(base), 'specs')
-  if (existsSync(specs)) walk(specs)
   return out
+}
+
+function fileFingerprint(path: string): string {
+  try {
+    return createHash('sha256').update(readFileSync(path)).digest('hex')
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    if (code === 'ENOENT') return 'absent'
+    if (code !== 'EACCES' && code !== 'EPERM') throw error
+    const stat = statSync(path)
+    return `unreadable:${stat.mode}:${stat.size}:${stat.mtimeMs}`
+  }
 }
 
 function sameFingerprint(a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): boolean {
@@ -549,10 +563,11 @@ export async function run(ctx: CommandContext): Promise<number> {
     return refuse('slot-exists', diagnostics.targetExists(slot))
   }
 
-  // Step 7: snapshot — the archive's entries, and the main specs' bytes, which
-  // say whether the merge changed anything when the binary does not.
+  // Step 7: snapshot — the archive's entries, and the bytes of each living spec
+  // the merge can write, which say whether it changed anything when the binary
+  // does not.
   const preArchiveDirs = new Set(basenames(archiveDir(base)))
-  const preSpecs = skipSpecs ? undefined : specFingerprint(base)
+  const preSpecs = skipSpecs ? undefined : specFingerprint(base, preOps)
 
   // Step 7b: scenario-preservation gate (DESIGN §3.5 step 2) — before delegating
   // to `openspec archive`, specs-bearing changes only. Below openspec 1.8.0 the
@@ -670,7 +685,8 @@ export async function run(ctx: CommandContext): Promise<number> {
   )
   const specsUpdated = skipSpecs
     ? false
-    : (summary.specsUpdated ?? !sameFingerprint(preSpecs ?? new Map(), specFingerprint(base)))
+    : (summary.specsUpdated ??
+      !sameFingerprint(preSpecs ?? new Map(), specFingerprint(base, preOps)))
   const specsLine =
     skipReason !== undefined
       ? SKIP_LINES[skipReason](change.schema)

@@ -44,7 +44,9 @@ import {
   R7_SHORT_PURPOSE,
   R7_SYNCED_MODIFIED,
   R7_SYNCED_SHAPES,
+  R7_UNRELATED_UNREADABLE,
   restoreArchiveMode,
+  restoreUnrelatedMode,
   type R7Fixture,
 } from './fixtures.ts'
 import { byKey, checkNativeKeys, compareDocuments, type OracleSpec } from './support/key-oracle.ts'
@@ -272,6 +274,35 @@ describe('1. archive --no-validate skips only revalidation', () => {
     expect(document(res.stdout).archived).toBe(true)
     expect(res.stdout).not.toContain('revalidation')
     expectBanner(res.stderr)
+  })
+
+  test('1.7 an unrelated unreadable living spec: archived as the binary archives it, one document', async () => {
+    const { root, copy, name } = twin(R7_UNRELATED_UNREADABLE)
+    try {
+      const res = await own('1.7', root, ['archive', name, '--no-validate', '--json'])
+      const up = await binary(copy, ['archive', name, '-y', '--no-validate', '--json'])
+      expect([res.exitCode, up.exitCode]).toEqual([0, 0])
+      expect(document(res.stdout)).toMatchObject({ archived: true })
+      expect([archived(root, name), archived(copy, name)]).toEqual([true, true])
+      restoreUnrelatedMode(root)
+      restoreUnrelatedMode(copy)
+      expect(specsOf(root)).toEqual(specsOf(copy))
+    } finally {
+      restoreUnrelatedMode(root)
+      restoreUnrelatedMode(copy)
+    }
+  })
+
+  test('1.7 without --no-validate: one document, exit as the revalidation reads the tree', async () => {
+    const root = mkTempRepo({ git: true })
+    const name = R7_UNRELATED_UNREADABLE.build(root)
+    try {
+      const res = await own('1.7', root, ['archive', name, '--json'])
+      const doc = document(res.stdout)
+      expect(doc).toMatchObject({ change: name, archived: res.exitCode === 0 })
+    } finally {
+      restoreUnrelatedMode(root)
+    }
   })
 })
 

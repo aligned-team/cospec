@@ -192,9 +192,12 @@ exactly where `archive` does.
 `root` is `rootOutput(root)`. Under `--skip-specs` there is no `totals` key and
 `specsUpdated` is `false`, as in the binary. If a binary inside the accepted
 range prints no `Totals:` line, `totals` is left out rather than invented, and
-`specsUpdated` falls back to whether any main-spec file's bytes changed between
-step 7's snapshot and step 10. That needs the snapshot hashes, which step 10's
-spot-check reads anyway.
+`specsUpdated` falls back to whether the bytes of any living `spec.md` a delta
+targets changed between step 7's snapshot and step 10. That needs the snapshot
+hashes, which step 10's spot-check reads anyway. Only those files are read, as
+the binary's archive reads no other main spec, so an unrelated spec this process
+cannot read never fails an archive the binary completes; a target it cannot read
+is fingerprinted by its metadata and left to the binary to answer.
 
 _Rejected: switch the wrapped call to `archive --json`._ The binary prints
 proposal warnings only in human mode (`if (!json)`), so `--json` would delete

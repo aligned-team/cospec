@@ -1465,3 +1465,16 @@ export const R7_UNREAD_DELTAS: readonly R7Fixture[] = [
   unreadDelta('unread-flat-file', 'widgets.md'),
   unreadDelta('unread-note', 'widgets/notes.md'),
 ]
+
+/** `R7_MODIFIED` beside an unrelated living spec no one can read (mode 000). */
+export const R7_UNRELATED_UNREADABLE = r7('unrelated-unreadable', true, true, (root) => {
+  R7_MODIFIED.build(root)
+  writeLivingSpec(root, 'other', livingSpec('other', LIVING_WIDGET_REQ))
+  chmodSync(join(root, 'openspec/specs/other/spec.md'), 0o000)
+  return 'c1'
+})
+
+/** Undo `R7_UNRELATED_UNREADABLE`'s mode so the tree can be read and removed. */
+export function restoreUnrelatedMode(root: string): void {
+  chmodSync(join(root, 'openspec/specs/other/spec.md'), 0o644)
+}
