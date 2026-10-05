@@ -26,8 +26,8 @@ throwaway sandbox with HOME and XDG\_\* pointed into it.
 
 ## 4. Docs and agent docs
 
-- [ ] 4.1 @manual (agent) `apps/docs/guide/harness-setup.md` -> states that the receipt's `Try:` hint uses the first selected harness's spelling (and `none` keeps `/cospec:propose`); `mise run docs:build` exits 0
-- [ ] 4.2 @manual (agent) `apps/docs/reference/commands.md` `cospec doctor` row -> names the harness-check boundary and the BREAKING note for user markdown and nested worktree copies; `mise run docs:build` exits 0
+- [x] 4.1 @manual (agent) `apps/docs/guide/harness-setup.md` -> states that the receipt's `Try:` hint uses the first selected harness's spelling (and `none` keeps `/cospec:propose`); `mise run docs:build` exits 0 -> `apps/docs/guide/harness-setup.md` gains a paragraph after the per-harness syntax: the `Try:` hint uses the first selected harness's spelling (first listed, else first detected; `all` and the default start with Claude Code), with each spelling, and `--harness none` keeps `/cospec:propose`; `mise run docs:build` exits 0 ("build complete")
+- [x] 4.2 @manual (agent) `apps/docs/reference/commands.md` `cospec doctor` row -> names the harness-check boundary and the BREAKING note for user markdown and nested worktree copies; `mise run docs:build` exits 0 -> `apps/docs/reference/commands.md` `cospec doctor` row names the boundary (`<skills-root>/<skill>/SKILL.md` and each harness's command paths), says user markdown and nested worktree copies under `.claude/worktrees/` are never checked and that earlier releases checked every `.md` file there, and that `opsx-leftover` still reads every `--remove-opsx` location; `mise run docs:build` exits 0
 - [ ] 4.3 @manual (agent) `docs/harness-integration.md` and `.agents/shared.md` -> neither still calls the hint or the scan breadth a known defect; both describe the corrected behaviour; `mise run agents:check` exits 0
 - [ ] 4.4 @manual (agent) the fix commit body and the PR body -> each relays the proposal's BREAKING list, with no `!` and no `BREAKING CHANGE:` footer
 

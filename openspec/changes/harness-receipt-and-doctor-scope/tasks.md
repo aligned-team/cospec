@@ -71,14 +71,14 @@
 
 ## 4. Docs
 
-- [ ] 4.1 `apps/docs/guide/harness-setup.md`: state that `cospec init`'s closing
+- [x] 4.1 `apps/docs/guide/harness-setup.md`: state that `cospec init`'s closing
       `Try:` hint uses the first selected harness's spelling, and what `none`
       prints. Verify `mise run docs:build` exits 0.
-- [ ] 4.2 `apps/docs/reference/commands.md` `cospec doctor` row: name the
+- [x] 4.2 `apps/docs/reference/commands.md` `cospec doctor` row: name the
       boundary of the harness checks (`<skills-root>/<skill>/SKILL.md` and the
       table's command paths) and the BREAKING note (user markdown and nested
       worktree copies are no longer checked). Verify with `docs:build`.
-- [ ] 4.3 `docs/harness-integration.md`: rewrite the two "known defect …
+- [x] 4.3 `docs/harness-integration.md`: rewrite the two "known defect …
       follow-on change `harness-receipt-and-doctor-scope`" passages to describe
       the corrected behaviour. Verify `grep -n 'known defect'` finds neither
       passage.
