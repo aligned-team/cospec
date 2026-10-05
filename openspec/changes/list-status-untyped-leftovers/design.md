@@ -165,3 +165,25 @@ instructions call).
   live against the pinned binary on both OSes it runs in CI on), not a hardcoded
   assertion of "exit 0"/"exit 1" per OS, so a future binary regression would
   fail the row rather than passing silently.
+- [Item 4 (found in CI, not locally): the first cut of row 18.2 predicted
+  `up.exitCode` from a single `realpathRefuses(proposal)` check shared across
+  both `--change` and `--all` — CI's `ubuntu-latest` runner showed `--all`
+  refusing where `--change` did not for the same mode-000 `proposal.md` (a
+  divergence a plain `oven/bun:1.3.14` Docker probe on this machine could not
+  reproduce, so its exact mechanism is unconfirmed — GH Actions' own
+  filesystem/sandboxing is the leading candidate, not a `--all`-specific code
+  path: the binary's own sweep logic is identical per change)] → Rewrote the row
+  to never predict a measured exit code: each invocation (`--change`, `--all`)
+  reads its own `up` answer's shape (`Array.isArray(status)`) to decide the
+  refused/not-refused branch independently, exactly as the proven 15.11/15.12
+  tasks.md rows already do. `cs.exitCode === up.exitCode` is the only
+  cross-environment invariant asserted; the row now passes however this binary
+  version and this runner happen to answer.
+- [Item 1 (found in CI, not locally): the first cut of row 18.1's text assertion
+  anchored `r-doc`'s line with `\s+$`, relying on it being the last line of a
+  two-row table — `list`'s default order is recency (mtime), which is
+  environment-dependent, and CI's filesystem produced the opposite order from
+  this machine's, so the greedy `\s+$` silently matched across the newline into
+  the next row locally and failed once the order flipped] → Split `stdout` into
+  lines and matched `r-doc`'s own line directly, with an anchored, non-greedy
+  pattern — order-independent.

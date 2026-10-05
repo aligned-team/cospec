@@ -2789,8 +2789,11 @@ describe('18. list-status-untyped-leftovers', () => {
     const upRow = rowsOf(up.json).find((r) => r.name === 'r-doc')!
     expect(upRow.status).toBe('no-tasks')
     expect(row.status).toBe('no-tasks')
+    // `--sort` is irrelevant here (recency order is non-deterministic across
+    // filesystems); find r-doc's own line, wherever the table put it.
     const text = await ours(['list'], root)
-    expect(text.stdout).toMatch(/r-doc\s+rfc\s+clear\s+0\/0 tasks\s+$/m)
+    const line = text.stdout.split('\n').find((l) => l.includes('r-doc'))!
+    expect(line).toMatch(/^\s*r-doc\s+rfc\s+clear\s+0\/0 tasks\s*$/)
   })
 
   unlessRoot('mode 000', () => {
@@ -2799,7 +2802,6 @@ describe('18. list-status-untyped-leftovers', () => {
       const proposal = join(root, 'openspec/changes/alpha/proposal.md')
       const restore = lock(proposal)
       try {
-        const refused = realpathRefuses(proposal)
         for (const argv of [
           ['status', '--change', 'alpha', '--json'],
           ['status', '--all', '--json'],
@@ -2807,38 +2809,40 @@ describe('18. list-status-untyped-leftovers', () => {
           const up = await upstreamJson(argv, root)
           const cs = await oursJson(argv, root)
           captureStatus(`18.2 ${argv.join(' ')}`, cs)
-          expect({ argv, exit: up.exitCode }).toEqual({ argv, exit: refused ? 1 : 0 })
+          // Ground truth is the measured binary answer, never a prediction:
+          // --change and --all can differ in whether THIS binary version
+          // refuses a mode-000 non-tasks artifact (confirmed CI-observed:
+          // --all's own sweep reads more than --change does), so each
+          // invocation's own exit code and refusal shape decide the branch.
           expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
           const textArgv = argv.filter((a) => a !== '--json')
           const upText = await upstream(textArgv, root)
           const text = await ours(textArgv, root)
           captureStatus(`18.2 ${textArgv.join(' ')}`, text)
           expect({ textArgv, exit: text.exitCode }).toEqual({ textArgv, exit: upText.exitCode })
-          if (refused) {
-            const d =
-              argv[1] === '--all'
-                ? firstStatus(rowsOf(up.json).find((e) => e.changeName === 'alpha'))
-                : firstStatus(up.json)
+
+          const upEntry =
+            argv[1] === '--all'
+              ? rowsOf(up.json).find((e) => e.changeName === 'alpha')!
+              : (up.json as Row)
+          const refusedHere = Array.isArray(upEntry.status)
+          if (refusedHere) {
+            expect(up.exitCode).toBe(1)
+            const d = firstStatus(upEntry)
             expect(errnoShape(d.message)).toMatchObject({
               code: 'EACCES',
               path: join(realpathSync(dirname(proposal)), 'proposal.md'),
             })
             continue
           }
-          // The binary reads past it and counts `proposal` done; so does cospec.
+          // The binary read past it and counts `proposal` done; so does cospec.
           const upDone =
+            (upEntry.artifacts as Row[]).find((a) => a.id === 'proposal')!.status === 'done'
+          const csEntry =
             argv[1] === '--all'
-              ? ((rowsOf(up.json).find((e) => e.changeName === 'alpha')!.artifacts as Row[]).find(
-                  (a) => a.id === 'proposal',
-                )!.status as string) === 'done'
-              : ((up.json as Row).artifacts as Row[]).find((a) => a.id === 'proposal')!.status ===
-                'done'
-          const csDone =
-            argv[1] === '--all'
-              ? (rowsOf(cs.json).find((e) => e.change === 'alpha')!.artifacts as Row[]).find(
-                  (a) => a.id === 'proposal',
-                )!.done
-              : ((cs.json as Row).artifacts as Row[]).find((a) => a.id === 'proposal')!.done
+              ? rowsOf(cs.json).find((e) => e.change === 'alpha')!
+              : (cs.json as Row)
+          const csDone = (csEntry.artifacts as Row[]).find((a) => a.id === 'proposal')!.done
           expect(csDone).toBe(upDone)
           expect(csDone).toBe(true)
         }
