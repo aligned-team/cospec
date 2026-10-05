@@ -168,17 +168,25 @@ instructions call).
 - [Item 4 (found in CI, not locally): the first cut of row 18.2 predicted
   `up.exitCode` from a single `realpathRefuses(proposal)` check shared across
   both `--change` and `--all` — CI's `ubuntu-latest` runner showed `--all`
-  refusing where `--change` did not for the same mode-000 `proposal.md` (a
-  divergence a plain `oven/bun:1.3.14` Docker probe on this machine could not
-  reproduce, so its exact mechanism is unconfirmed — GH Actions' own
-  filesystem/sandboxing is the leading candidate, not a `--all`-specific code
-  path: the binary's own sweep logic is identical per change)] → Rewrote the row
-  to never predict a measured exit code: each invocation (`--change`, `--all`)
-  reads its own `up` answer's shape (`Array.isArray(status)`) to decide the
-  refused/not-refused branch independently, exactly as the proven 15.11/15.12
-  tasks.md rows already do. `cs.exitCode === up.exitCode` is the only
-  cross-environment invariant asserted; the row now passes however this binary
-  version and this runner happen to answer.
+  refusing where `--change` did not for the same mode-000 `proposal.md`] →
+  Rewrote the row to never predict a measured exit code: each invocation
+  (`--change`, `--all`) reads its own `up` answer's shape
+  (`Array.isArray(status)`) to decide the refused/not-refused branch
+  independently, exactly as the proven 15.11/15.12 tasks.md rows already do.
+  `cs.exitCode === up.exitCode` is the only cross-environment invariant
+  asserted; the row now passes however this binary version and this runner
+  happen to answer. The mechanism itself is confirmed, not a CI-only artifact:
+  the listed fixture's namespace folder (`mobile`, a folder wrapping a nested
+  change) makes the binary's own `--all` sweep report a `change_error` ("is not
+  a change") for `mobile` independent of any lock on `alpha`'s `proposal.md` —
+  reproduced directly against the pinned binary (both unlocked and locked, on
+  macOS and in an `oven/bun:1.3.14` container as non-root) — while
+  `--change alpha` only ever answers for `alpha`, never sweeping `mobile` at
+  all. Linux's own `realpath` also plays a part (it resolves a mode-000 file
+  without opening it, so a locked `proposal.md` is read past in every mode there
+  — only macOS/Bun's `realpath` opens the file and refuses it), but the
+  `--change` vs `--all` divergence specifically is `mobile`'s doing, not an OS-
+  or CI-runner-specific `realpath` quirk.
 - [Item 1 (found in CI, not locally): the first cut of row 18.1's text assertion
   anchored `r-doc`'s line with `\s+$`, relying on it being the last line of a
   two-row table — `list`'s default order is recency (mtime), which is

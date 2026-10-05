@@ -2810,10 +2810,20 @@ describe('18. list-status-untyped-leftovers', () => {
           const cs = await oursJson(argv, root)
           captureStatus(`18.2 ${argv.join(' ')}`, cs)
           // Ground truth is the measured binary answer, never a prediction:
-          // --change and --all can differ in whether THIS binary version
-          // refuses a mode-000 non-tasks artifact (confirmed CI-observed:
-          // --all's own sweep reads more than --change does), so each
-          // invocation's own exit code and refusal shape decide the branch.
+          // --change and --all can disagree on exit code for a reason
+          // unrelated to the mode-000 lock itself. `--all`'s sweep also walks
+          // `mobile`, the fixture's own namespace folder, which the binary
+          // reports as its own `change_error` ("is not a change") whether or
+          // not alpha's `proposal.md` is locked — confirmed on Linux/Bun,
+          // where the lock itself is read past in both modes (its `realpath`
+          // needs no read permission there) and only `mobile` drives --all's
+          // exit 1; on macOS/Bun the lock also refuses `--change alpha` on its
+          // own. Each invocation's own exit code and refusal shape decide the
+          // branch below, so this fixture quirk never has to be modeled.
+          if (argv[1] === '--all') {
+            const mobileEntry = rowsOf(up.json).find((e) => e.changeName === 'mobile')
+            expect(Array.isArray(mobileEntry?.status)).toBe(true)
+          }
           expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
           const textArgv = argv.filter((a) => a !== '--json')
           const upText = await upstream(textArgv, root)
