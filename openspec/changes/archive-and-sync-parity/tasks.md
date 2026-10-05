@@ -31,7 +31,7 @@ sandboxed HOME/XDG.
       each row that fails on this tree `test.failing` and record the failing
       count in the commit body. Verify with `mise run test:contract` green.
       Commit `test(cli): pin archive parity differentials as failing rows`
-- [ ] 1.3 Write every contract row of verification groups 9–12 and 5.2 in
+- [x] 1.3 Write every contract row of verification groups 9–12 and 5.2 in
       `sync-specs.test.ts`, each comparing against `openspec archive -y` on a
       copy (file list and sha256 per file), and all `test.failing` (the command
       doesn't exist yet). Verify with `mise run test:contract` green. Commit
