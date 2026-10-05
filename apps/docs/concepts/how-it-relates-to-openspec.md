@@ -64,10 +64,13 @@ and the current pin:
   `deltas/unread-file` — see [Validation rules](/reference/validation-rules)) so
   `cospec validate --strict` catches them before `cospec archive` ever
   delegates. The fourth, a namespace folder (`changes/mobile/refresh-token/`),
-  cospec detects natively with a port of OpenSpec's own detector: `status`
-  refuses it (`--change`) or reports it as a failure entry (`--all`), `list`
-  marks its row `not a change`, and `validate` reports it as one
-  `meta/nested-change` ERROR — each carrying OpenSpec's explanation verbatim.
+  cospec detects natively with a port of OpenSpec's own detector, matching a
+  schema's `generates` globs as OpenSpec does (braces, ranges, extglobs,
+  negation), so a change holding only its schema's outputs is never mistaken for
+  a folder: `status` refuses it (`--change`) or reports it as a failure entry
+  (`--all`), `list` marks its row `not a change`, and `validate` reports it as
+  one `meta/nested-change` ERROR — each carrying OpenSpec's explanation
+  verbatim.
 - **1.13.1's change validator reports defects cospec's own rules already
   catch:** empty delta sections and a change with no parsed delta, skipped `###`
   headers, header-only and missing SHALL/MUST, a requirement with no scenario, a

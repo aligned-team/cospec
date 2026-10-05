@@ -224,7 +224,7 @@ final commit.
 - [x] 11.10 An unreadable living `spec.md` is one `meta/unreadable-artifact`
       ERROR on that spec. Verify with row 15.9. Commit
       `fix(validate): report an unreadable living spec as an issue`
-- [ ] 11.11 Record observed evidence on every group-15 row, re-observe rows
+- [x] 11.11 Record observed evidence on every group-15 row, re-observe rows
       14.1–14.4, and update the docs pages that own each fact. Commit
       `docs(cli): record the round-2 review fixes`
 - [x] 11.12 An unreadable `tasks.md` is answered as the binary answers it on

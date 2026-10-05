@@ -95,6 +95,12 @@ a change with no delta specs, a tasks file with zero checkboxes) is already a
 mainly on the legacy/v1-schema and forked-schema lanes, where cospec's own gate
 is narrower than OpenSpec's.
 
+When `openspec/changes/archive/` can't be read, `apply` gates as if nothing were
+archived — a blocker naming an archived change stays open, never the reverse —
+and its document gains a top-level
+`"warnings": [{ "code": "archive_unreadable", "message": "…" }]` (a `Warning:`
+line on stderr in text). `archive` itself still refuses.
+
 ::: tip `--allow-soft` only waives **soft** blockers. Hard blockers have no
 override — the change they name has to actually land first. :::
 

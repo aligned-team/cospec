@@ -570,12 +570,20 @@ the folder natively with a port of the binary's detector —
 `findNestedChangesIn`, `findNestedChanges` and `describeNestedChange` in
 `core/change.ts`, the same three signals (a change-root marker, a file under
 `specs/`, an output of the schema the directory resolves to), a depth bound of
-three and the verbatim explanation. `status --change` refuses it (`change_error`
-under `--json`), `status --all` carries it as a failure entry, `list` marks its
-row `not a change` with state `not-a-change` and the binary's warning, and
-`validateChange` answers it with one `meta/nested-change` ERROR — so `validate`,
-`apply` and `archive` refuse it with the binary's explanation before anything is
-delegated. The archive's own dedicated refusal shape is
+three and the verbatim explanation. The schema-output signal matches each
+artifact's `generates` through `core/glob.ts`, a line-for-line port of the
+binary's `artifactOutputExists` over `fast-glob` — braces, numeric ranges,
+extglobs and negation as the binary reads them. `fast-glob` is an exact-pinned
+devDependency at the version the pinned openspec resolves, bundled into the
+standalone binary by `bun build --compile` (the embedded openspec bundle has no
+copy of its own to load), and `test/contract/glob.test.ts` holds the port's
+regex sources, brace expansions and answers to the pinned binary's own modules —
+it fails if an OpenSpec pin bump moves `fast-glob`. `status --change` refuses it
+(`change_error` under `--json`), `status --all` carries it as a failure entry,
+`list` marks its row `not a change` with state `not-a-change` and the binary's
+warning, and `validateChange` answers it with one `meta/nested-change` ERROR —
+so `validate`, `apply` and `archive` refuse it with the binary's explanation
+before anything is delegated. The archive's own dedicated refusal shape is
 `archive-and-sync-parity`'s.
 
 ## The static-matrix invariant
@@ -635,6 +643,7 @@ apps/cli/src/
 │   ├── passthrough-command.ts  global-flag threading for passthrough commands
 │   ├── change.ts           change discovery, .openspec.yaml, archive index,
 │   │                       the namespace-folder detector
+│   ├── glob.ts             the binary's artifactOutputExists over fast-glob
 │   ├── upstream-keys.ts    the additive merge of the binary's --json keys
 │   ├── report.ts           the Issue model + text/JSON renderers (frozen interface)
 │   ├── managed-files.ts    generatedBy/contentHash protocol + manifest
