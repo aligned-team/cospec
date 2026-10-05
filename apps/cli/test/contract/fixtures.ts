@@ -1447,3 +1447,21 @@ export const R7_SKIP_SPECS_WITH_DELTA = r7('skip-specs-with-delta', false, false
   )
   return 'c1'
 })
+
+/**
+ * A `feat` change whose only delta sits in a file the merge never reads, at
+ * `rel` under its `specs/`: both archives refuse it.
+ */
+function unreadDelta(key: string, rel: string): R7Fixture {
+  return r7(key, false, false, (root) => {
+    writeV2Change(root, 'c1', { [rel]: `## ADDED Requirements\n\n${RENDERING_BLOCK}` })
+    return 'c1'
+  })
+}
+
+/** The unread-delta-file shapes: a root `spec.md`, a flat `<cap>.md`, a note beside a capability. */
+export const R7_UNREAD_DELTAS: readonly R7Fixture[] = [
+  unreadDelta('unread-root-spec', 'spec.md'),
+  unreadDelta('unread-flat-file', 'widgets.md'),
+  unreadDelta('unread-note', 'widgets/notes.md'),
+]

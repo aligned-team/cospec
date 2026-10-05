@@ -123,10 +123,15 @@ its remedies spelled `cospec`.
 In text mode, `cospec sync-specs` SHALL print one line per main-spec file it
 wrote or deleted, then a summary carrying the binary's own applied totals. When
 the binary reported the specs already in sync, it SHALL say so and write
-nothing. When the change has no delta specs, or its schema has no specs
-artifact, or it declares `skip_specs: true`, it SHALL print that there is
-nothing to sync and why, run nothing, and exit 0. The binary's merge warnings
-SHALL be relayed, respelled. Under `--json` it SHALL print one document:
+nothing. When the change's schema has no specs artifact, it SHALL print that
+there is nothing to sync and why, run nothing, and exit 0. When the change has
+no delta specs or declares `skip_specs: true`, it SHALL first run archive's
+revalidation and refuse what it refuses, so a delta kept in a file the merge
+never reads (a `spec.md` at the root of the change's `specs/`, a
+`specs/<capability>.md`, a note beside a capability's `spec.md`) is refused as
+archive refuses it; otherwise it SHALL print that there is nothing to sync and
+why, run no merge, and exit 0. The binary's merge warnings SHALL be relayed,
+respelled. Under `--json` it SHALL print one document:
 `{change, type, synced, totals, files: {written, deleted}, warnings, root}` on
 success, and on any refusal
 `{change, synced: false, status: [{severity, code, message, fix?}]}` with the
@@ -144,3 +149,11 @@ synced specs are then the selected store's.
 - **WHEN** `cospec sync-specs` runs on a `chore` change
 - **THEN** it prints that the `chore` schema has no specs artifact, spawns
   nothing, and exits 0
+
+#### Scenario: A delta in a file the merge never reads is refused
+
+- **WHEN** `cospec sync-specs` runs on a `feat` change whose only
+  `## ADDED Requirements` sits in `specs/spec.md`, `specs/widgets.md` or
+  `specs/widgets/notes.md`
+- **THEN** it prints the revalidation report `cospec archive` prints for the
+  same change, exits 1, and writes nothing

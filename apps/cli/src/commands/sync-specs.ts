@@ -149,13 +149,13 @@ export async function run(ctx: CommandContext): Promise<number> {
       : change.skipSpecs === true
         ? 'skip-specs'
         : 'no-deltas'
-  if (nothing !== undefined) {
-    const why = {
+  const nothingToSync = (why: NothingToSync): number => {
+    const text = {
       schema: `the ${change.schema} schema has no specs artifact`,
       'skip-specs': `${change.id} declares skip_specs: true`,
       'no-deltas': `${change.id} has no delta specs`,
-    }[nothing]
-    if (!flags.json) process.stdout.write(`Nothing to sync: ${why}.\n`)
+    }[why]
+    if (!flags.json) process.stdout.write(`Nothing to sync: ${text}.\n`)
     else
       process.stdout.write(
         `${JSON.stringify(
@@ -163,7 +163,7 @@ export async function run(ctx: CommandContext): Promise<number> {
             change: change.id,
             type: change.schema,
             synced: false,
-            skipReason: nothing,
+            skipReason: why,
             files: { written: [], deleted: [] },
             warnings: [],
             root: rootOutput(root),
@@ -174,9 +174,13 @@ export async function run(ctx: CommandContext): Promise<number> {
       )
     return EXIT.success
   }
+  if (nothing === 'schema') return nothingToSync(nothing)
 
   // Step 2: archive's pre-merge checks — its revalidation, then the
-  // scenario-preservation gate.
+  // scenario-preservation gate. The revalidation runs before "no delta specs"
+  // is answered: a delta in a file the merge never reads (a root `spec.md`, a
+  // `<capability>.md`, a note beside `spec.md`) is no delta to `caps`, and is
+  // exactly what archive's revalidation refuses.
   const { ctx: vctx, warning } = readValidateContext(base)
   if (warning !== undefined) process.stderr.write(`Warning: ${warning.message}\n`)
   const report = await validateChange(root, change, vctx, { strict: false, fast: false })
@@ -190,6 +194,7 @@ export async function run(ctx: CommandContext): Promise<number> {
       : undefined
     return refuse('validation', diagnostics.validationFailed(change.id, root), reportDoc)
   }
+  if (nothing !== undefined) return nothingToSync(nothing)
   const gate = scenarioGate(base, caps)
   if (gate.drops.length > 0) {
     process.stderr.write(scenarioRefusal('sync-specs', gate.drops))

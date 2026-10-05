@@ -32,6 +32,7 @@ import {
   R7_SKIP_SPECS_WITH_DELTA,
   R7_SYMLINKED_ALIAS,
   R7_SYNC_SHAPES,
+  R7_UNREAD_DELTAS,
   writeLivingSpec,
   type R7Fixture,
 } from './fixtures.ts'
@@ -262,6 +263,28 @@ describe('10. sync-specs refuses what archive refuses', () => {
     expect(res.stdout).toContain('deltas/skip-specs-conflict')
     expect(openspecOf(root)).toEqual(before)
   })
+
+  for (const fixture of R7_UNREAD_DELTAS)
+    test(`10.2 ${fixture.key}: a delta file the merge never reads is refused as archive refuses it`, async () => {
+      const { root, copy, name } = twin(fixture)
+      const archived = await own('10.2', copy, ['archive', name])
+      expect(archived.exitCode).toBe(1)
+      const rules = [...new Set(archived.stdout.match(/\b[a-z]+\/[a-z-]+\b/g) ?? [])].filter((r) =>
+        r.startsWith('deltas/'),
+      )
+      expect(rules).not.toEqual([])
+      expect((await binary(copy, ['archive', name, '-y'])).exitCode).toBe(1)
+      const before = openspecOf(root)
+      const res = await ownWithoutScratch('10.2', root, ['sync-specs', name])
+      expect(res.exitCode).toBe(1)
+      expect(res.stdout).toContain('cospec sync-specs')
+      for (const rule of rules) expect(res.stdout).toContain(rule)
+      expect(res.stdout).not.toContain('Nothing to sync')
+      expect(openspecOf(root)).toEqual(before)
+      const j = await ownWithoutScratch('10.2', root, ['sync-specs', name, '--json'])
+      expect(j.exitCode).toBe(1)
+      expect(document(j.stdout)).toMatchObject({ change: name, synced: false })
+    })
 })
 
 // --- 11. a failed scratch run leaves nothing in the real tree ----------------------
