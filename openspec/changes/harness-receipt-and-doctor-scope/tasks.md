@@ -113,7 +113,7 @@
       `validate --strict` -> "0 errors, 0 warnings — validation passed"; every
       row in `verification.md` is `[x]` with observed evidence (5 sections, 18
       rows).
-- [ ] 7.3 `mise run cospec -- archive harness-receipt-and-doctor-scope` as the
+- [x] 7.3 `mise run cospec -- archive harness-receipt-and-doctor-scope` as the
       final commit on the PR branch, before merge. Verify the change dir moved
       under `openspec/changes/archive/` and the `harness-workflows` spec gained
-      both requirements.
+      both requirements. -> performed by the next commit (the archive commit).
