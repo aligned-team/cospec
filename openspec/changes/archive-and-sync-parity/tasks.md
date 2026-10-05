@@ -105,7 +105,7 @@ sandboxed HOME/XDG.
 
 ## 6. Docs
 
-- [ ] 6.1 Update every page in design D14 to the shipped behavior, record the
+- [x] 6.1 Update every page in design D14 to the shipped behavior, record the
       grep in row 13.2, and run `mise run docs:build`. Verify with row 13.2.
       Commit `docs(cli): document archive parity and sync-specs`
 

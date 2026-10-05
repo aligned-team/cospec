@@ -13,14 +13,15 @@ description:
 `sync-specs`, `explore`, `onboard`, `update` — into your agent harness by
 writing project files directly. This is cospec's full parity set with opsx
 1.13.1: every live opsx workflow has a cospec-adapted counterpart (opsx `sync`
-maps to cospec `sync-specs`, opsx `update` to cospec `update`), and cospec
-always emits the complete set to every configured harness — there's no
-core/custom profile split to opt into. There is no marketplace, no plugin
-package, and no global state under your home directory: everything lands inside
-the repo, under version control, and `cospec update` regenerates it in place.
-Every generated workflow body calls only `cospec` commands, never bare
-`openspec`, so a harness needs exactly one permission entry to run the whole
-loop.
+maps to cospec `sync-specs`, which merges a change's delta specs into the main
+specs without archiving it through `cospec sync-specs`; opsx `update` maps to
+cospec `update`), and cospec always emits the complete set to every configured
+harness — there's no core/custom profile split to opt into. There is no
+marketplace, no plugin package, and no global state under your home directory:
+everything lands inside the repo, under version control, and `cospec update`
+regenerates it in place. Every generated workflow body calls only `cospec`
+commands, never bare `openspec`, so a harness needs exactly one permission entry
+to run the whole loop.
 
 ## What gets written
 
