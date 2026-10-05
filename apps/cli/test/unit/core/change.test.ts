@@ -487,4 +487,23 @@ describe("changeMetadataRefused mirrors the binary's readChangeMetadata (verific
       chmodSync(file, 0o644)
     }
   })
+
+  test("listed()'s own errno failure is refused; any other throw still escapes", () => {
+    const dir = changeWith('schema: chore\n')
+    const enotdir = Object.assign(
+      new Error("ENOTDIR: not a directory, scandir '/r/openspec/schemas'"),
+      { code: 'ENOTDIR' },
+    )
+    expect(
+      changeMetadataRefused(dir, () => {
+        throw enotdir
+      }),
+    ).toBe(true)
+    const boom = new Error('boom')
+    expect(() =>
+      changeMetadataRefused(dir, () => {
+        throw boom
+      }),
+    ).toThrow(boom)
+  })
 })

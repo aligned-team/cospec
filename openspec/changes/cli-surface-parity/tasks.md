@@ -9,7 +9,7 @@ Co-Authored-By trailer, never `--no-verify`).
 
 ## 1. Rebase
 
-- [ ] 1.1 Once `passthrough-json-and-doctor` has merged, rebase this branch onto
+- [x] 1.1 Once `passthrough-json-and-doctor` has merged, rebase this branch onto
       `main` (`--force-with-lease`, no merge commit), run
       `bun install --frozen-lockfile` and `mise run check`. Re-check that none
       of its files are in D1's windows, and that design's `status.ts`,

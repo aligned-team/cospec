@@ -284,6 +284,16 @@ the same one delegated call and relays the refusal as above. Before, text mode
 exited 0 with cospec's table where `--json` and the binary exited 1 with
 `Invalid metadata`.
 
+`changeMetadataRefused`'s own `listSchemas` call can itself fail with an errno
+(the project `openspec/schemas` unreadable or not a directory) — distinct from
+`loadSchema`'s listing, which task 13.1's call site already guards. A naive port
+let that escape `binaryDecides` uncaught in both the `--all` sweep's
+upstream-fetch decision and the `--change` lookup's own decision, neither inside
+a per-change try/catch, crashing the whole command with a bare top-level
+`cospec: ENOTDIR …` line instead of the per-change refusal `--json` already
+answered correctly (task 13.3). `changeMetadataRefused` now catches it the same
+way it catches every other read failure in that function: refused, not thrown.
+
 **Rendering a schema cospec doesn't type.** Text mode renders the delegated
 document with a port of the binary's `printStatusText`: `Change:`, `Schema:`,
 `Change root:`, `Progress:`, the `[x]/[ ]/[-]/[~]` lines, and
