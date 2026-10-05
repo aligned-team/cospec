@@ -17,12 +17,12 @@
 - [x] 3.1 @regression (agent) unit row: a real-shape OpenCode opsx leftover fails `isOpsxMarkdown`/`findOpsxFiles` before the fix and passes after -> confirmed red by hand against unfixed source (returned `[]`); green after (`bun test`: 118 pass, 0 fail)
 - [x] 3.2 @unit (agent) a user-authored file at the same path with the same description-only frontmatter but no body marker is never listed, before or after the fix -> `bun test` green on both (`a user file at the same path shape with no body marker is never listed`)
 - [x] 3.3 @unit (agent) doctor's `opsx-leftover` fires on the real OpenCode shape via the shared `isOpsxMarkdown`, and the existing row-3.2 hand-made OpenCode fixture (`name: "OPSX: …"`) is unchanged -> `bun test` green, `the opsx leftover scan still reads upstream's legacy command paths` suite unedited and passing
-- [ ] 3.4 @integration (agent) the real pinned 1.13.1 binary's `init --tools opencode` output (contract suite), run through `cospec init --remove-opsx` in a sandboxed temp repo, is detected and removed -> `bun test` green against the pinned binary
+- [x] 3.4 @integration (agent) the real pinned 1.13.1 binary's `init --tools opencode` output (contract suite), run through `cospec init --remove-opsx` in a sandboxed temp repo, is detected and removed -> `apps/cli/test/contract/opsx-opencode-leftover.test.ts`: 2 pass, 0 fail (11 expect() calls) against the pinned 1.13.1 binary
 
 ## 4. No regression on existing leftover-scan behavior
 
-- [ ] 4.1 @unit (agent) the full existing opsx unit suite passes unchanged -> `bun test` green, no existing row edited
-- [ ] 4.2 @integration (agent) `vanilla-legacy.test.ts`'s `--remove-opsx` coexistence test passes unchanged -> `bun test` green
+- [x] 4.1 @unit (agent) the full existing opsx unit suite passes unchanged -> `init.test.ts` + `doctor-rows.test.ts`: 47 pass, 0 fail (104 expect() calls); no pre-existing row edited
+- [x] 4.2 @integration (agent) `vanilla-legacy.test.ts`'s `--remove-opsx` coexistence test passes unchanged -> 3 pass, 0 fail (13 expect() calls)
 
 ## 5. Docs and gate
 

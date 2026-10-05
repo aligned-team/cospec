@@ -36,7 +36,7 @@
       (`harness-receipt-and-doctor-scope`'s hand-made `name: "OPSX: …"` file,
       which proves the legacy command path is still walked) is unchanged and
       still passes
-- [ ] 3.3 Add a contract row that runs the real pinned binary's
+- [x] 3.3 Add a contract row that runs the real pinned binary's
       `init --tools opencode` in a sandboxed temp repo, then runs
       `cospec init --remove-opsx` and asserts the generated OpenCode files are
       removed -- verify it passes against the pinned 1.13.1 binary
