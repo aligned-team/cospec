@@ -262,7 +262,7 @@ final commit.
       warning-only spec in `valid` and the totals. Verify with rows 16.1, 16.2,
       16.4 and 15.9. Commit
       `fix(validate): name the kind on every delegated validation`
-- [ ] 12.3 The living spec a delta targets is read through the change's reader:
+- [x] 12.3 The living spec a delta targets is read through the change's reader:
       an unreadable one is the change's `meta/unreadable-artifact` ERROR on the
       delta's path, naming the file, and a change whose validation throws an
       errno failure is that change's ERROR in the bulk pool. Verify with row

@@ -24,6 +24,7 @@ import {
 } from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
 import { parseLivingSpec } from '../core/deltas.ts'
+import { errnoMessage } from '../core/errno.ts'
 import {
   isOpenspecErrorStatus,
   openspecBelow,
@@ -79,10 +80,15 @@ import type { ArchiveWarning } from './status.ts'
 
 // --- Change loading (filesystem → LoadedChange) ---------------------------
 
-/** A change file that exists but could not be read: its change-relative path and errno code. */
+/**
+ * A file that exists but could not be read: the change-relative path its
+ * issue is reported against, its errno code, and — for a file outside the
+ * change (the living spec a delta targets) — the root-relative file itself.
+ */
 interface ReadFailure {
   path: string
   code: string
+  file?: string
 }
 
 /**
@@ -96,19 +102,26 @@ class ChangeReader {
 
   constructor(private readonly dir: string) {}
 
-  private record(error: unknown, abs: string): void {
+  private record(error: unknown, abs: string, as?: { path: string; file: string }): void {
     const code = (error as NodeJS.ErrnoException | undefined)?.code
     if (!(error instanceof Error) || typeof code !== 'string') throw error
     if (code === 'ENOENT') return
-    this.failures.push({ path: relative(this.dir, abs).split(sep).join('/') || '.', code })
+    this.failures.push(
+      as === undefined
+        ? { path: relative(this.dir, abs).split(sep).join('/') || '.', code }
+        : { ...as, code },
+    )
   }
 
-  /** A file's text, `undefined` when it is absent or could not be read. */
-  read(abs: string): string | undefined {
+  /**
+   * A file's text, `undefined` when it is absent or could not be read. `as`
+   * reports a file outside the change against a change path instead.
+   */
+  read(abs: string, as?: { path: string; file: string }): string | undefined {
     try {
       return readFileSync(abs, 'utf8')
     } catch (error) {
-      this.record(error, abs)
+      this.record(error, abs, as)
       return undefined
     }
   }
@@ -221,12 +234,17 @@ function loadChange(
       text: reader.read(join(dir, f)) ?? '',
     }))
 
+  // The living spec each delta targets is read like an artifact: one that
+  // cannot be read fails the change against the delta's path, naming the file.
   const livingSpecs: LoadedChange['livingSpecs'] = new Map()
   for (const cap of new Set(deltaFiles.map((d) => d.capability))) {
     if (cap === '') continue
     const livingPath = join(openspecDir(base), 'specs', ...cap.split('/'), 'spec.md')
-    if (existsSync(livingPath))
-      livingSpecs.set(cap, parseLivingSpec(readFileSync(livingPath, 'utf8')))
+    const text = reader.read(livingPath, {
+      path: `specs/${cap}/spec.md`,
+      file: `openspec/specs/${cap}/spec.md`,
+    })
+    if (text !== undefined) livingSpecs.set(cap, parseLivingSpec(text))
   }
 
   const load: LoadedChange = {
@@ -962,7 +980,7 @@ export async function validateChange(
   if (unreadable.length > 0)
     return buildReport(
       change.id,
-      unreadable.map((f) => unreadableArtifactIssue(f.path, f.code)),
+      unreadable.map((f) => unreadableArtifactIssue(f.path, f.code, f.file)),
       load.openspecYaml.schema,
       opts.strict,
     )
@@ -1327,6 +1345,19 @@ async function validateItem(
     : validateForcedSpec(root, name, opts.strict)
 }
 
+/**
+ * A change whose validation threw an errno failure: one
+ * `meta/unreadable-artifact` ERROR naming the file it could not read. Anything
+ * that is not an errno failure propagates.
+ */
+export function erroredChange(base: string, id: string, error: unknown): ItemReport {
+  const { code, path } = (error ?? {}) as NodeJS.ErrnoException
+  if (errnoMessage(error) === undefined || code === undefined) throw error
+  const file = path === undefined ? undefined : relative(base, path).split(sep).join('/')
+  const issues = [unreadableArtifactIssue('.', code, file)]
+  return { id, kind: 'change', valid: false, issues }
+}
+
 // --- --concurrency ---------------------------------------------------------------
 
 /** The binary's bulk default when neither `--concurrency` nor `OPENSPEC_CONCURRENCY` names one. */
@@ -1541,10 +1572,17 @@ export async function run(ctx: CommandContext): Promise<number> {
       const { ctx: ctxRules, warning } = readValidateContext(base)
       if (warning !== undefined) warnings.push(warning)
       const bound = concurrencyBound(flagValue(parsed, '--concurrency'))
+      // One change that throws an errno failure is that change's ERROR, never
+      // the whole sweep's, as the binary's queue records a failed item.
       const reports = await mapPool(changes, bound, async (change) => {
         const start = Date.now()
-        const report = await validateChange(root, change, ctxRules, { strict, fast })
-        return { ...report, durationMs: Date.now() - start }
+        try {
+          const report = await validateChange(root, change, ctxRules, { strict, fast })
+          return { ...report, durationMs: Date.now() - start }
+        } catch (error) {
+          const failed = erroredChange(base, change.id, error)
+          return { ...failed, durationMs: Date.now() - start }
+        }
       })
       items.push(...reports)
     }

@@ -2313,60 +2313,57 @@ describe('16. round-3 review rows', () => {
       }
     })
 
-    test.failing(
-      '16.3 an unreadable living spec a delta targets fails that change, never the command',
-      async () => {
-        const root = cospecRoot()
-        buildValidFeat(root, 'ready')
-        writeChange(root, 'c1', {
-          'proposal.md': PROPOSAL,
-          'specs/gadgets/spec.md': MODIFIED('gadgets'),
-        })
-        writeFiles(root, { 'openspec/specs/gadgets/spec.md': LIVING('gadgets') })
-        const alone = await oursJson(['validate', 'ready', '--json'], root)
-        const restore = lock(join(root, 'openspec/specs/gadgets/spec.md'))
-        try {
-          for (const argv of [
-            ['validate', 'c1', '--json'],
-            ['validate', '--all', '--json'],
-            ['validate', '--changes', '--json'],
-            ['apply', 'c1', '--json'],
-          ]) {
-            const cs = await oursJson(argv, root)
-            expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: 1 })
-            if (argv[0] === 'validate') {
-              const up = await upstream(argv, root)
-              expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
-            }
-            const c1 = rowsOf(cs.json, 'items').find((i) => i.id === 'c1')!
-            expect(c1.valid).toBe(false)
-            expect(c1.issues).toEqual([
-              expect.objectContaining({
-                level: 'ERROR',
-                rule: 'meta/unreadable-artifact',
-                path: 'specs/gadgets/spec.md',
-              }),
-            ])
-            const message = String((c1.issues as Row[])[0]!.message)
-            expect(message).toContain('openspec/specs/gadgets/spec.md')
-            expect(message).toContain('EACCES')
-            // Every other change keeps its own answer. Where the binary refuses
-            // it over the unreadable spec (Bun's `realpath` on macOS), that
-            // refusal is its one added ERROR.
-            const ready = rowsOf(cs.json, 'items').find((i) => i.id === 'ready')
-            if (ready !== undefined) {
-              const own = rowsOf(alone.json, 'items')[0]!.issues as Row[]
-              expectOwnAnswer(argv, ready, own, join(root, 'openspec/specs/gadgets/spec.md'))
-            }
+    test('16.3 an unreadable living spec a delta targets fails that change, never the command', async () => {
+      const root = cospecRoot()
+      buildValidFeat(root, 'ready')
+      writeChange(root, 'c1', {
+        'proposal.md': PROPOSAL,
+        'specs/gadgets/spec.md': MODIFIED('gadgets'),
+      })
+      writeFiles(root, { 'openspec/specs/gadgets/spec.md': LIVING('gadgets') })
+      const alone = await oursJson(['validate', 'ready', '--json'], root)
+      const restore = lock(join(root, 'openspec/specs/gadgets/spec.md'))
+      try {
+        for (const argv of [
+          ['validate', 'c1', '--json'],
+          ['validate', '--all', '--json'],
+          ['validate', '--changes', '--json'],
+          ['apply', 'c1', '--json'],
+        ]) {
+          const cs = await oursJson(argv, root)
+          expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: 1 })
+          if (argv[0] === 'validate') {
+            const up = await upstream(argv, root)
+            expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
           }
-          const text = await ours(['validate', 'c1'], root)
-          expect(text.exitCode).toBe(1)
-          expect(text.stdout).toContain('meta/unreadable-artifact')
-        } finally {
-          restore()
+          const c1 = rowsOf(cs.json, 'items').find((i) => i.id === 'c1')!
+          expect(c1.valid).toBe(false)
+          expect(c1.issues).toEqual([
+            expect.objectContaining({
+              level: 'ERROR',
+              rule: 'meta/unreadable-artifact',
+              path: 'specs/gadgets/spec.md',
+            }),
+          ])
+          const message = String((c1.issues as Row[])[0]!.message)
+          expect(message).toContain('openspec/specs/gadgets/spec.md')
+          expect(message).toContain('EACCES')
+          // Every other change keeps its own answer. Where the binary refuses
+          // it over the unreadable spec (Bun's `realpath` on macOS), that
+          // refusal is its one added ERROR.
+          const ready = rowsOf(cs.json, 'items').find((i) => i.id === 'ready')
+          if (ready !== undefined) {
+            const own = rowsOf(alone.json, 'items')[0]!.issues as Row[]
+            expectOwnAnswer(argv, ready, own, join(root, 'openspec/specs/gadgets/spec.md'))
+          }
         }
-      },
-    )
+        const text = await ours(['validate', 'c1'], root)
+        expect(text.exitCode).toBe(1)
+        expect(text.stdout).toContain('meta/unreadable-artifact')
+      } finally {
+        restore()
+      }
+    })
 
     test.failing(
       '16.9 a change the binary refuses is refused by status, in both modes and the sweep',

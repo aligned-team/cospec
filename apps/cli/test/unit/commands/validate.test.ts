@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  erroredChange,
   concurrencyBound,
   mapPool,
   mergeDelegated,
@@ -342,5 +343,34 @@ describe('the bulk validation pool (verification 7.7)', () => {
     expect(concurrencyBound(undefined, { OPENSPEC_CONCURRENCY: 'abc' })).toBe(6)
     expect(concurrencyBound('4', { OPENSPEC_CONCURRENCY: '3' })).toBe(4)
     expect(concurrencyBound('abc', { OPENSPEC_CONCURRENCY: '3' })).toBe(3)
+  })
+})
+
+describe('a change whose validation throws (verification 16.3)', () => {
+  test("an errno failure is that change's meta/unreadable-artifact ERROR, naming the file", () => {
+    const error = Object.assign(new Error("EACCES: permission denied, open '/r/openspec/x.md'"), {
+      code: 'EACCES',
+      syscall: 'open',
+      path: '/r/openspec/x.md',
+    })
+    expect(erroredChange('/r', 'c1', error)).toEqual({
+      id: 'c1',
+      kind: 'change',
+      valid: false,
+      issues: [
+        {
+          level: 'ERROR',
+          rule: 'meta/unreadable-artifact',
+          path: '.',
+          message: 'could not read openspec/x.md (EACCES)',
+          hint: 'fix the file permissions (or replace the entry with a readable file) and re-run',
+        },
+      ],
+    })
+  })
+
+  test('anything that is not an errno failure propagates', () => {
+    const error = new Error('boom')
+    expect(() => erroredChange('/r', 'c1', error)).toThrow(error)
   })
 })

@@ -363,14 +363,15 @@ export function nestedChangeIssue(explanation: string): Issue {
 /**
  * `meta/unreadable-artifact` (design D7): a change file that exists but could
  * not be read. `path` is change-relative; `code` is the errno code
- * (`EACCES`, `EISDIR`, …).
+ * (`EACCES`, `EISDIR`, …); `file` names a file outside the change (the
+ * living spec a delta targets) reported against `path`.
  */
-export function unreadableArtifactIssue(path: string, code: string): Issue {
+export function unreadableArtifactIssue(path: string, code: string, file = path): Issue {
   return {
     level: 'ERROR',
     rule: 'meta/unreadable-artifact',
     path,
-    message: `could not read ${path} (${code})`,
+    message: `could not read ${file} (${code})`,
     hint: 'fix the file permissions (or replace the entry with a readable file) and re-run',
   }
 }
