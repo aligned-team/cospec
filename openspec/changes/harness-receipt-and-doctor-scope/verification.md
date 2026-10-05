@@ -33,5 +33,5 @@ throwaway sandbox with HOME and XDG\_\* pointed into it.
 
 ## 5. Gate
 
-- [ ] 5.1 @integration (agent) `mise run check` -> exit 0, with unit, integration, contract, bench and release counts and 0 fail recorded
-- [ ] 5.2 @integration (agent) `mise run cospec -- validate harness-receipt-and-doctor-scope --strict` -> clean
+- [x] 5.1 @integration (agent) `mise run check` -> exit 0, with unit, integration, contract, bench and release counts and 0 fail recorded -> `mise run check` at 27c283a4 exits 0: unit 1965 pass / 0 fail, integration 193 pass / 0 fail, contract 2521 pass / 0 fail (1437s), bench 343 pass / 0 fail, release-test 14 pass / 0 fail; lint, format:check, typecheck, generate:check, agents:check, vendor:openspec:check, cospec-validate-all and openspec:schema:validate all finish clean; no `test.failing`/`test.todo` row and both `KNOWN_FAILING` sets empty
+- [x] 5.2 @integration (agent) `mise run cospec -- validate harness-receipt-and-doctor-scope --strict` -> clean -> `mise run cospec -- validate harness-receipt-and-doctor-scope --strict` -> "0 errors, 0 warnings — validation passed"

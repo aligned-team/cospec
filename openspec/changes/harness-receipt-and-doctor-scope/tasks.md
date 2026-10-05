@@ -102,7 +102,7 @@
 
 ## 7. Gate and archive
 
-- [ ] 7.1 `mise run check` exits 0. Record the counts in the verification
+- [x] 7.1 `mise run check` exits 0. Record the counts in the verification
       ledger.
 - [ ] 7.2
       `mise run cospec -- validate harness-receipt-and-doctor-scope --strict` is
