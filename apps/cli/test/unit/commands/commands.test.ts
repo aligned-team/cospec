@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 import {
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   realpathSync,
@@ -701,6 +702,73 @@ describe('list', () => {
     const text = await runCmd(listRun, ctx(cwd, [], { command: 'list' }))
     expect(text.out).toMatch(/r-doc\s+rfc/)
     expect(text.out).not.toMatch(/r-doc\s+rfc\s+clear\s+no artifacts yet/)
+  })
+
+  test("a change with no .openspec.yaml takes config.yaml's schema, same as status, not '(none)'", async () => {
+    const cwd = repo()
+    // config.yaml's default schema is the untyped 'rfc', so a bare change dir
+    // (no .openspec.yaml of its own) resolves to 'rfc', not '(none)'.
+    mkdirSync(join(cwd, 'openspec', 'schemas', 'rfc', 'templates'), { recursive: true })
+    writeFileSync(
+      join(cwd, 'openspec', 'schemas', 'rfc', 'schema.yaml'),
+      [
+        'name: rfc',
+        'version: 1',
+        'description: An rfc-style schema',
+        'artifacts:',
+        '  - id: doc',
+        '    generates: doc.md',
+        '    description: The RFC document',
+        '    template: doc.md',
+        '    instruction: Write the RFC.',
+        '    requires: []',
+        'apply:',
+        '  requires: [doc]',
+        '  tracks: null',
+        '',
+      ].join('\n'),
+    )
+    writeFileSync(join(cwd, 'openspec', 'schemas', 'rfc', 'templates', 'doc.md'), '# Doc\n')
+    writeFileSync(join(cwd, 'openspec', 'config.yaml'), 'schema: rfc\n')
+    // No `writeChange` here on purpose: the whole point is a change directory
+    // with no `.openspec.yaml` of its own.
+    const bareDir = join(cwd, 'openspec', 'changes', 'b-noyaml')
+    mkdirSync(bareDir, { recursive: true })
+    writeFileSync(join(bareDir, 'doc.md'), '# RFC\n')
+
+    const r = await runCmd(listRun, ctx(cwd, [], { json: true, command: 'list' }))
+    expect(r.code).toBe(0)
+    const parsed = JSON.parse(r.out) as {
+      changes: { change: string; type: string; state: string }[]
+    }
+    const row = parsed.changes.find((c) => c.change === 'b-noyaml')
+    expect(row?.type).toBe('rfc')
+    expect(row?.state).toBe('building')
+  })
+
+  test('a declared schema that fails to load warns on the row instead of silently reporting empty', async () => {
+    const cwd = repo()
+    mkdirSync(join(cwd, 'openspec', 'schemas', 'broken'), { recursive: true })
+    // Deliberately unparsable: an unterminated flow mapping.
+    writeFileSync(join(cwd, 'openspec', 'schemas', 'broken', 'schema.yaml'), 'name: [broken\n')
+    const dir = writeChange(cwd, 'b-broken', 'broken', { 'doc.md': '# Doc\n' })
+    // The schema itself resolves (the directory exists) but fails to parse, so
+    // this must warn, not silently swallow the failure as "no such schema".
+    expect(existsSync(join(dir, 'doc.md'))).toBe(true)
+
+    const r = await runCmd(listRun, ctx(cwd, [], { json: true, command: 'list' }))
+    expect(r.code).toBe(0)
+    const parsed = JSON.parse(r.out) as {
+      changes: { change: string; state: string }[]
+      warnings?: { code: string; message: string }[]
+    }
+    const row = parsed.changes.find((c) => c.change === 'b-broken')
+    expect(row?.state).toBe('in-progress')
+    const warning = parsed.warnings?.find((w) => w.code === 'schema_unreadable')
+    expect(warning?.message).toContain('b-broken')
+
+    const text = await runCmd(listRun, ctx(cwd, [], { command: 'list' }))
+    expect(text.err).toContain('b-broken')
   })
 
   test('--blocked filters to gated changes', async () => {

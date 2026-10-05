@@ -19,11 +19,11 @@ import {
 import {
   archiveDir,
   changesDir,
+  defaultProjectSchema,
   describeNestedChange,
   findNestedChangesIn,
   isCospecType,
   listChanges,
-  projectConfigSchema,
   resolveChange,
   type Change,
 } from '../core/change.ts'
@@ -155,7 +155,19 @@ export interface TasksWarning {
   message: string
 }
 
-export type ReadWarning = ArchiveWarning | TasksWarning
+/**
+ * The warning for a change whose own declared schema resolves to a real
+ * schema directory but fails to load (read, parse or validate) — `list`'s
+ * `hasDeclaredArtifact`. A schema name that resolves to no directory at all
+ * gives no signal and no warning, matching the binary's own `list`, which
+ * never loads a schema.
+ */
+export interface SchemaWarning {
+  code: 'schema_unreadable'
+  message: string
+}
+
+export type ReadWarning = ArchiveWarning | TasksWarning | SchemaWarning
 
 const NO_TASKS: ParsedTasks = { items: [], malformed: [], groups: [] }
 
@@ -369,7 +381,7 @@ export interface ChangeEntryFailure {
  */
 function gradedChange(base: string, change: Change, override: string | undefined): Change {
   const bare = !existsSync(join(change.dir, '.openspec.yaml'))
-  const schema = override ?? (bare ? (projectConfigSchema(base) ?? 'spec-driven') : change.schema)
+  const schema = override ?? (bare ? defaultProjectSchema(base) : change.schema)
   return bare ? { ...change, schema, schemaVersion: 1 } : { ...change, schema }
 }
 
