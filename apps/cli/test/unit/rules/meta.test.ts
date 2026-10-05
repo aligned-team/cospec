@@ -1,8 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  itemMissingIssue,
   metadataKeyIssues,
   metaRules,
+  nestedChangeIssue,
+  unreadableArtifactIssue,
   schemaOutdatedIssues,
   surfaceUnmetConsequences,
 } from '../../../src/core/rules/meta.ts'
@@ -233,5 +236,45 @@ describe('metadataKeyIssues (skip_specs / retire_capabilities type check)', () =
   test('both flags fire together', () => {
     const issues = metadataKeyIssues({ skipSpecsInvalid: true, retireCapabilitiesInvalid: true })
     expect(rules(issues)).toEqual(['meta/skip-specs-type', 'meta/retire-capabilities-type'])
+  })
+})
+
+describe('the namespace, unreadable and missing-item rules', () => {
+  test('meta/nested-change carries the explanation verbatim at the change root', () => {
+    const issue = nestedChangeIssue('"mobile" is not a change: it is a folder wrapping …')
+    expect(issue).toEqual({
+      level: 'ERROR',
+      rule: 'meta/nested-change',
+      path: '.',
+      message: '"mobile" is not a change: it is a folder wrapping …',
+      hint:
+        'Move each nested change directly under openspec/changes/, folding the namespace into its name; ' +
+        'Only specs may be nested by domain; change directories are always flat',
+    })
+  })
+
+  test('meta/unreadable-artifact names the file and its errno code', () => {
+    const issue = unreadableArtifactIssue('specs/widgets/spec.md', 'EACCES')
+    expect(issue).toMatchObject({
+      level: 'ERROR',
+      rule: 'meta/unreadable-artifact',
+      path: 'specs/widgets/spec.md',
+      message: 'could not read specs/widgets/spec.md (EACCES)',
+    })
+  })
+
+  test('meta/item-missing names the absent change directory or living spec', () => {
+    expect(itemMissingIssue('change', 'nope')).toEqual({
+      level: 'ERROR',
+      rule: 'meta/item-missing',
+      path: '.',
+      message: 'no change directory at openspec/changes/nope/',
+    })
+    expect(itemMissingIssue('spec', 'area/cap')).toEqual({
+      level: 'ERROR',
+      rule: 'meta/item-missing',
+      path: 'specs/area/cap/spec.md',
+      message: 'no living spec at openspec/specs/area/cap/spec.md',
+    })
   })
 })

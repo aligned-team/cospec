@@ -14,28 +14,46 @@ import type { CommandContext } from '../cli.ts'
 import { readRetireCapabilitiesMarker } from '../core/change-metadata.ts'
 import {
   archiveDir,
+  changesDir,
+  describeNestedChange,
+  findNestedChangesIn,
   isValidSchemaVersion,
   listChanges,
   openspecDir,
-  resolveChange,
   resolveSchema,
 } from '../core/change.ts'
-import { hasFlag } from '../core/command-table.ts'
+import { flagValue, hasFlag } from '../core/command-table.ts'
 import { parseLivingSpec } from '../core/deltas.ts'
-import { spawnOpenspec, type Root, threadedArgv } from '../core/openspec.ts'
+import { answeringErrno, errnoMessage } from '../core/errno.ts'
+import {
+  isOpenspecErrorStatus,
+  openspecBelow,
+  runOpenspec,
+  type Root,
+  type StatusDiagnostic,
+  threadedArgv,
+  wrappedCallLabel,
+  wrappedOpenspecVersion,
+} from '../core/openspec.ts'
+import { respellRemedies } from '../core/remedies.ts'
 import {
   exitCode as reportExitCode,
   renderHuman,
-  renderJson,
+  toFindings,
+  toJson,
+  type FindingsScope,
   type ItemReport,
 } from '../core/report.ts'
-import { resolveRoot } from '../core/root.ts'
+import { type ResolvedRoot, RootSelectionError, rootSelectionDocument } from '../core/root.ts'
 import { runChangeRules, specsRules } from '../core/rules/index.ts'
 import type { Issue, IssueLevel } from '../core/rules/issue.ts'
 import {
+  itemMissingIssue,
   nameKebabIssues,
+  nestedChangeIssue,
   openspecYamlIssues,
   schemaClassificationIssues,
+  unreadableArtifactIssue,
 } from '../core/rules/meta.ts'
 import {
   deriveSchemaInfo,
@@ -53,36 +71,108 @@ import {
 } from '../core/rules/type-facts.ts'
 import {
   capabilityForDeltaFile,
+  type DiscoveredSpec,
   discoverSpecFiles,
   isDeltaSpecFile,
   unreadDeltaExpectation,
 } from '../core/spec-paths.ts'
+import { resolveRootOrDocument, rootOutput } from '../core/upstream-keys.ts'
+import type { ArchiveWarning } from './status.ts'
 
 // --- Change loading (filesystem → LoadedChange) ---------------------------
 
-function listFilesRelative(dir: string): string[] {
-  const out: string[] = []
-  const walk = (abs: string): void => {
-    for (const entry of readdirSync(abs, { withFileTypes: true })) {
-      const child = join(abs, entry.name)
-      if (entry.isDirectory()) walk(child)
-      else if (entry.isFile()) out.push(relative(dir, child).split(sep).join('/'))
+/**
+ * A file that exists but could not be read: the change-relative path its
+ * issue is reported against, its errno code, and — for a file outside the
+ * change (the living spec a delta targets) — the root-relative file itself.
+ */
+interface ReadFailure {
+  path: string
+  code: string
+  file?: string
+}
+
+/**
+ * The one way a change is read (design D7): every errno but `ENOENT` is
+ * recorded against the file's change-relative path instead of thrown, so an
+ * unreadable artifact fails the change — `meta/unreadable-artifact` — never
+ * the command. Anything that is not an errno failure propagates.
+ */
+class ChangeReader {
+  readonly failures: ReadFailure[] = []
+
+  constructor(private readonly dir: string) {}
+
+  private record(error: unknown, abs: string, as?: { path: string; file: string }): void {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    if (!(error instanceof Error) || typeof code !== 'string') throw error
+    if (code === 'ENOENT') return
+    this.failures.push(
+      as === undefined
+        ? { path: relative(this.dir, abs).split(sep).join('/') || '.', code }
+        : { ...as, code },
+    )
+  }
+
+  /**
+   * A file's text, `undefined` when it is absent or could not be read. `as`
+   * reports a file outside the change against a change path instead.
+   */
+  read(abs: string, as?: { path: string; file: string }): string | undefined {
+    try {
+      return readFileSync(abs, 'utf8')
+    } catch (error) {
+      this.record(error, abs, as)
+      return undefined
     }
   }
-  walk(dir)
-  return out.toSorted()
+
+  /**
+   * Every file under the change, change-relative and sorted. An unreadable
+   * directory an artifact can live in — the change itself, or `specs/` and a
+   * subtree of it outside every dot-directory — is recorded. Any other (a
+   * dot-directory, a scratch directory) is one neither cospec's artifacts nor
+   * the binary ever read: its files could only ever be `meta/unexpected-file`
+   * advisories, so the walk passes it by.
+   */
+  files(): string[] {
+    const out: string[] = []
+    const walk = (abs: string): void => {
+      let entries
+      try {
+        entries = readdirSync(abs, { withFileTypes: true })
+      } catch (error) {
+        const rel = relative(this.dir, abs).split(sep).join('/')
+        if (holdsArtifacts(rel)) this.record(error, abs)
+        else if (typeof (error as NodeJS.ErrnoException | undefined)?.code !== 'string') throw error
+        return
+      }
+      for (const entry of entries) {
+        const child = join(abs, entry.name)
+        if (entry.isDirectory()) walk(child)
+        else if (entry.isFile()) out.push(relative(this.dir, child).split(sep).join('/'))
+      }
+    }
+    walk(this.dir)
+    return out.toSorted()
+  }
 }
 
-function readIfExists(path: string): string | undefined {
-  return existsSync(path) ? readFileSync(path, 'utf8') : undefined
+/** Whether a change-relative directory can hold an artifact: the change, or `specs/` outside dot-directories. */
+function holdsArtifacts(rel: string): boolean {
+  if (rel === '') return true
+  const segments = rel.split('/')
+  return segments[0] === 'specs' && !segments.some((segment) => segment.startsWith('.'))
 }
 
-function loadOpenspecYaml(changeDir: string): LoadedChange['openspecYaml'] {
+function loadOpenspecYaml(changeDir: string, reader: ChangeReader): LoadedChange['openspecYaml'] {
   const path = join(changeDir, '.openspec.yaml')
   if (!existsSync(path)) return { present: false, parseable: false }
+  const text = reader.read(path)
+  if (text === undefined) return { present: true, parseable: false }
   let doc: unknown
   try {
-    doc = parseYaml(readFileSync(path, 'utf8'))
+    doc = parseYaml(text)
   } catch {
     return { present: true, parseable: false }
   }
@@ -117,9 +207,14 @@ function loadOpenspecYaml(changeDir: string): LoadedChange['openspecYaml'] {
   }
 }
 
-function loadChange(base: string, id: string, dir: string): LoadedChange {
-  const files = existsSync(dir) ? listFilesRelative(dir) : []
-  const designText = readIfExists(join(dir, 'design.md'))
+function loadChange(
+  base: string,
+  id: string,
+  dir: string,
+): { load: LoadedChange; unreadable: ReadFailure[] } {
+  const reader = new ChangeReader(dir)
+  const files = existsSync(dir) ? reader.files() : []
+  const designText = reader.read(join(dir, 'design.md'))
   // Capability comes from the file's whole path under `specs/`, not its first
   // segment: the nested `specs/<area>/<capability>/spec.md` layout openspec grew
   // in 1.6.0 is one capability named `<area>/<capability>`, and that is the name
@@ -135,7 +230,7 @@ function loadChange(base: string, id: string, dir: string): LoadedChange {
     .map((f) => ({
       path: f,
       capability: capabilityForDeltaFile(f) ?? '',
-      text: readFileSync(join(dir, f), 'utf8'),
+      text: reader.read(join(dir, f)) ?? '',
     }))
 
   // Everything else under `specs/` that a merge would never read. Only
@@ -153,25 +248,30 @@ function loadChange(base: string, id: string, dir: string): LoadedChange {
     .map((f) => ({
       path: f,
       expected: unreadDeltaExpectation(f),
-      text: readFileSync(join(dir, f), 'utf8'),
+      text: reader.read(join(dir, f)) ?? '',
     }))
 
+  // The living spec each delta targets is read like an artifact: one that
+  // cannot be read fails the change against the delta's path, naming the file.
   const livingSpecs: LoadedChange['livingSpecs'] = new Map()
   for (const cap of new Set(deltaFiles.map((d) => d.capability))) {
     if (cap === '') continue
     const livingPath = join(openspecDir(base), 'specs', ...cap.split('/'), 'spec.md')
-    if (existsSync(livingPath))
-      livingSpecs.set(cap, parseLivingSpec(readFileSync(livingPath, 'utf8')))
+    const text = reader.read(livingPath, {
+      path: `specs/${cap}/spec.md`,
+      file: `openspec/specs/${cap}/spec.md`,
+    })
+    if (text !== undefined) livingSpecs.set(cap, parseLivingSpec(text))
   }
 
-  return {
+  const load: LoadedChange = {
     id,
-    openspecYaml: loadOpenspecYaml(dir),
+    openspecYaml: loadOpenspecYaml(dir, reader),
     files,
-    proposalText: readIfExists(join(dir, 'proposal.md')),
-    blockersText: readIfExists(join(dir, 'blocking-changes.md')),
-    tasksText: readIfExists(join(dir, 'tasks.md')),
-    verificationText: readIfExists(join(dir, 'verification.md')),
+    proposalText: reader.read(join(dir, 'proposal.md')),
+    blockersText: reader.read(join(dir, 'blocking-changes.md')),
+    tasksText: reader.read(join(dir, 'tasks.md')),
+    verificationText: reader.read(join(dir, 'verification.md')),
     designExists: designText !== undefined,
     designText,
     deltaFiles,
@@ -179,6 +279,7 @@ function loadChange(base: string, id: string, dir: string): LoadedChange {
     livingSpecs,
     retireMarker: readRetireCapabilitiesMarker(dir),
   }
+  return { load, unreadable: reader.failures }
 }
 
 /**
@@ -219,6 +320,7 @@ interface OpenspecItem {
   id: string
   valid: boolean
   issues: OpenspecIssue[]
+  durationMs?: number
 }
 interface OpenspecValidateJson {
   items: OpenspecItem[]
@@ -266,7 +368,8 @@ function mapDelegated(issue: OpenspecIssue, deltaPaths = false): Issue {
     rule: 'openspec/validate',
     path,
     line: issue.line,
-    message: issue.message,
+    // Every allowlisted upstream remedy spelled through cospec, every other byte as written.
+    message: respellRemedies(issue.message),
   }
 }
 
@@ -282,11 +385,19 @@ function mapDelegated(issue: OpenspecIssue, deltaPaths = false): Issue {
  * that may be narrower, so the wrapped binary stays the safety net rather than
  * becoming noise to filter.
  */
+/**
+ * A delegated-message matcher: a `RegExp`, or a function-backed matcher of
+ * the same `exec` shape where one regex could not match in linear time.
+ */
+interface MessageMatcher {
+  exec(message: string): readonly (string | undefined)[] | null
+}
+
 interface DuplicateClass {
   /** the cospec rule whose finding already covers this defect. */
   rule: string
-  /** the delegated message for the same defect. */
-  delegated: RegExp
+  /** the delegated message for the same defect; `[1]` is its key when `nativeKey` is set. */
+  delegated: MessageMatcher
   /**
    * When set, the two findings must also name the same requirement and sit on
    * the same file: a *different* requirement's loss is a second real finding
@@ -294,6 +405,37 @@ interface DuplicateClass {
    * sides, so the two are compared on the requirement, never on the wording.
    */
   nativeKey?: RegExp
+}
+
+/** The fixed head of 1.13.1's structurally-invalid refusal; `[1]` is the capability. */
+export const TARGET_INVALID_HEAD =
+  /^Archive would refuse this delta: (.+?): target spec is structurally invalid and cannot be updated until fixed:$/
+
+/**
+ * One defect line of that refusal, of a kind cospec's rule reads. The quoted
+ * header is spec content — the author's own text, `"` included — so its span
+ * is `.*` up to the fixed suffix, on one line; no group repeats around it.
+ */
+export const TARGET_INVALID_LINE =
+  /^line \d+: (?:Main spec contains delta header ".*"\.|Requirement header ".*" (?:duplicates the requirement declared on line \d+\.|appears outside the main ## Requirements section\.))/
+
+/**
+ * The `archive/target-invalid` twin, matched in linear time (design D7): the
+ * fixed head once, then each line on its own. One regex over the whole list
+ * backtracked a quoted span against its trailing text once per repeated line —
+ * exponential on a quote-heavy message (CodeQL js/redos) — and narrowing the
+ * span to `[^"\n]*` to stop that missed every header holding a `"`.
+ */
+export const TARGET_INVALID: MessageMatcher = {
+  exec(message: string) {
+    const lines = message.split('\n')
+    if (lines.at(-1) === '') lines.pop()
+    const head = TARGET_INVALID_HEAD.exec(lines[0] ?? '')
+    if (head === null || lines.length < 2) return null
+    return lines.slice(1).every((line) => TARGET_INVALID_LINE.test(line))
+      ? [message, head[1]]
+      : null
+  },
 }
 
 const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
@@ -631,19 +773,11 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
   // keyed on the capability both messages name. Only when every defect the
   // binary lists is one of the three kinds cospec's rule reads — a delta
   // header, a misplaced or a duplicate requirement — so a listed defect
-  // cospec does not check still reaches the reader.
-  //
-  // The quoted header text is spec content, not cospec's own — an attacker
-  // could seed a heading with repeated `".`-like runs. `[^\n]*"` before a
-  // required literal let the engine backtrack the quoted span against the
-  // trailing `[^\n]*` once per repeated "line N: …" entry, which is
-  // exponential in the number of lines (CodeQL js/redos). `[^"\n]*` makes
-  // each quoted span's end unambiguous — real header text never contains a
-  // literal `"` — so there is exactly one way to match and no backtracking.
+  // cospec does not check still reaches the reader. Matched line by line
+  // (`TARGET_INVALID`), linear in the message whatever its quoted headers hold.
   {
     rule: 'archive/target-invalid',
-    delegated:
-      /^Archive would refuse this delta: (.+?): target spec is structurally invalid and cannot be updated until fixed:(?:\nline \d+: (?:Main spec contains delta header "[^"\n]*"\.|Requirement header "[^"\n]*" (?:duplicates the requirement declared on line \d+\.|appears outside the main ## Requirements section\.))[^\n]*)+\n?$/,
+    delegated: TARGET_INVALID,
     nativeKey: /^living spec openspec\/specs\/(.+?)\/spec\.md is structurally invalid — /,
   },
   // 1.13.1's two case-collision refusals, paired with the fold arms
@@ -684,22 +818,70 @@ export function mergeDelegated(native: Issue[], delegated: Issue[]): Issue[] {
 }
 
 /**
- * Run `openspec validate <args>` and return its parsed items. Tolerant: a
- * non-JSON body (e.g. the plain-text `Unknown item` an artifact-less change
- * yields) resolves to no items rather than throwing — cospec's own rules
- * already diagnose those states.
+ * The binary's answer to one delegated `openspec validate <args> --json`: its
+ * report's items, or — when it refused the request (an `ambiguous_item`, an
+ * errno it could not read past) — its failure document's diagnostics.
  */
-async function delegate(root: Root, args: string[]): Promise<OpenspecItem[]> {
-  const res = await spawnOpenspec(
-    threadedArgv(['validate'], ['--strict', '--json', '--no-interactive', ...root.storeArgs], args),
-    root.cwd,
+type Delegated = { items: OpenspecItem[] } | { refused: StatusDiagnostic[] }
+
+/**
+ * Run `openspec validate <args>` under the wrapped-call discipline: exit 0 or
+ * 1, and one JSON document that is either a validation report or a failure
+ * document. A refusal is an answer the caller reports, never a silent empty
+ * report.
+ */
+async function delegate(root: Root, args: string[]): Promise<Delegated> {
+  const argv = threadedArgv(
+    ['validate'],
+    ['--strict', '--json', '--no-interactive', ...root.storeArgs],
+    args,
   )
-  try {
-    const parsed = JSON.parse(res.stdout) as OpenspecValidateJson
-    return Array.isArray(parsed.items) ? parsed.items : []
-  } catch {
-    return []
-  }
+  const label = wrappedCallLabel(argv)
+  let answer: Delegated | undefined
+  await runOpenspec(argv, {
+    cwd: root.cwd,
+    expect: {
+      exitCodes: [0, 1],
+      postCondition: (result) => {
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(result.stdout)
+        } catch {
+          return `${label} did not print one JSON document`
+        }
+        if (isOpenspecErrorStatus(parsed)) {
+          answer = { refused: (parsed as { status: StatusDiagnostic[] }).status }
+          return true
+        }
+        const items = (parsed as Partial<OpenspecValidateJson> | null)?.items
+        if (!Array.isArray(items))
+          return `${label} printed neither a validation report nor a diagnostic`
+        answer = { items }
+        return true
+      },
+    },
+  })
+  return answer!
+}
+
+/**
+ * The binary's issues for item `id` from a delegated answer. A refusal is the
+ * item's: each diagnostic one `openspec/validate` issue at its severity, its
+ * remedies spelled through cospec, so the item fails rather than passing on
+ * an empty report.
+ */
+function delegatedIssues(answer: Delegated, id: string, deltaPaths: boolean): Issue[] {
+  if ('refused' in answer)
+    return answer.refused.map((d) => ({
+      level: normalizeLevel(d.severity),
+      rule: 'openspec/validate',
+      path: '.',
+      message: respellRemedies(d.message),
+      ...(d.fix === undefined ? {} : { hint: respellRemedies(d.fix) }),
+    }))
+  return answer.items
+    .filter((item) => item.id === id)
+    .flatMap((item) => item.issues.map((i) => mapDelegated(i, deltaPaths)))
 }
 
 // --- per-item validation ---------------------------------------------------
@@ -739,15 +921,53 @@ export function archivedSlugsFor(dirName: string): string[] {
   return [stripped, dirName]
 }
 
-export function buildValidateContext(base: string): ValidateContext {
-  const archiveSlugs = new Set(
+/** Every slug `openspec/changes/archive/` could hold; throws when it cannot be read. */
+function archiveSlugsIn(base: string): Set<string> {
+  return new Set(
     existsSync(archiveDir(base))
       ? readdirSync(archiveDir(base), { withFileTypes: true })
           .filter((e) => e.isDirectory())
           .flatMap((e) => archivedSlugsFor(e.name))
       : [],
   )
-  return { archiveSlugs, activeSlugs: new Set(listChanges(base).map((c) => c.id)) }
+}
+
+/** The validate context as `archive` reads it: an unreadable archive refuses. */
+export function buildValidateContext(base: string): ValidateContext {
+  return {
+    archiveSlugs: archiveSlugsIn(base),
+    activeSlugs: new Set(listChanges(base).map((c) => c.id)),
+  }
+}
+
+/**
+ * The validate context `validate` and `apply` read (task 11.7). The binary's
+ * `validate` and `instructions apply` never read `openspec/changes/archive/`,
+ * so an unreadable one must not fail them: it is read as empty, which can only
+ * add an issue (a blocker or revert citation naming an archived change reads
+ * as dangling) or keep a blocker open, never clear one, and the warning names
+ * the directory. `archive` keeps `buildValidateContext`, which refuses.
+ */
+export function readValidateContext(base: string): {
+  ctx: ValidateContext
+  warning?: ArchiveWarning
+} {
+  const activeSlugs = new Set(listChanges(base).map((c) => c.id))
+  try {
+    return { ctx: { archiveSlugs: archiveSlugsIn(base), activeSlugs } }
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    if (typeof code !== 'string' || code === 'ENOENT') throw error
+    return {
+      ctx: { archiveSlugs: new Set(), activeSlugs },
+      warning: {
+        code: 'archive_unreadable',
+        message:
+          `could not read ${archiveDir(base)} (${code}); validation and blocker gates are computed ` +
+          'as if no change were archived',
+      },
+    }
+  }
 }
 
 /**
@@ -761,7 +981,26 @@ export async function validateChange(
   ctx: ValidateContext,
   opts: { strict: boolean; fast: boolean },
 ): Promise<ItemReport> {
-  const load = loadChange(root.base, change.id, change.dir)
+  // A namespace folder is reported as one, and nothing else runs on it.
+  const nested = findNestedChangesIn(changesDir(root.base), change.id)
+  if (nested !== undefined)
+    return buildReport(
+      change.id,
+      [nestedChangeIssue(describeNestedChange(nested))],
+      undefined,
+      opts.strict,
+    )
+
+  const { load, unreadable } = loadChange(root.base, change.id, change.dir)
+  // An artifact that cannot be read fails the change, not the command, and
+  // nothing is delegated for it.
+  if (unreadable.length > 0)
+    return buildReport(
+      change.id,
+      unreadable.map((f) => unreadableArtifactIssue(f.path, f.code, f.file)),
+      load.openspecYaml.schema,
+      opts.strict,
+    )
   const y = load.openspecYaml
 
   // meta/openspec-yaml precondition — cannot classify without a schema.
@@ -782,10 +1021,8 @@ export async function validateChange(
       load.deltaFiles.length > 0 &&
       load.proposalText !== undefined
     ) {
-      const items = await delegate(root, [change.id])
-      const delegated = items
-        .filter((item) => item.id === change.id)
-        .flatMap((item) => item.issues.map((i) => mapDelegated(i, true)))
+      const answer = await delegate(root, [change.id, '--type', 'change'])
+      const delegated = delegatedIssues(answer, change.id, true)
       return buildReport(change.id, mergeDelegated(issues, delegated), y.schema, opts.strict)
     }
     return buildReport(change.id, issues, y.schema, opts.strict)
@@ -798,11 +1035,11 @@ export async function validateChange(
     ...nameKebabIssues(change.id),
     ...schemaClassificationIssues(stub),
   ]
-  if (resolution.kind === 'legacy') {
-    const items = await delegate(root, [change.id])
-    for (const item of items)
-      if (item.id === change.id) issues.push(...item.issues.map((i) => mapDelegated(i, true)))
-  }
+  // `--type change`: a change sharing a living spec's name is still a change.
+  if (resolution.kind === 'legacy')
+    issues.push(
+      ...delegatedIssues(await delegate(root, [change.id, '--type', 'change']), change.id, true),
+    )
   return buildReport(change.id, issues, y.schema, opts.strict)
 }
 
@@ -812,64 +1049,449 @@ export async function validateChange(
  * openspec itself uses (`<area>/<capability>`) rather than being missed
  * entirely by a one-level readdir.
  */
-function livingSpecFiles(base: string): { id: string; specFile: string }[] {
-  return discoverSpecFiles(join(openspecDir(base), 'specs'))
+function livingSpecFiles(base: string): DiscoveredSpec[] {
+  return discoverSpecFiles(join(openspecDir(base), 'specs'), { reportUnreadable: true })
 }
 
-async function validateSpecs(root: Root, only: string | undefined): Promise<ItemReport[]> {
+/** A living spec's text, or the errno code that kept it from being read (`meta/unreadable-artifact`). */
+type LivingRead = { text: string } | { code: string }
+
+function readLivingSpec(cap: DiscoveredSpec): LivingRead {
+  if (cap.unreadable !== undefined) return { code: cap.unreadable }
+  try {
+    return { text: readFileSync(cap.specFile, 'utf8') }
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    if (!(error instanceof Error) || typeof code !== 'string' || code === 'ENOENT') throw error
+    return { code }
+  }
+}
+
+async function validateSpecs(
+  root: Root,
+  only: string | undefined,
+  strict: boolean,
+): Promise<ItemReport[]> {
   const caps = livingSpecFiles(root.base).filter((c) => only === undefined || c.id === only)
   if (caps.length === 0) return []
 
-  const delegated = new Map<string, OpenspecIssue[]>()
-  for (const item of await delegate(root, ['--specs'])) delegated.set(item.id, item.issues)
+  // One delegation serves every spec, so each item's time runs from its start.
+  const start = Date.now()
+  const reads = caps.map((cap) => ({ cap, read: readLivingSpec(cap) }))
+  const delegated = new Map<string, Issue[]>()
+  const readable = reads.filter(({ read }) => 'text' in read).map(({ cap }) => cap.id)
+  const alone = async (): Promise<void> => {
+    for (const id of readable)
+      delegated.set(id, delegatedIssues(await delegate(root, [id, '--type', 'spec']), id, false))
+  }
+  // The binary's sweep answers for every spec only in a sweep where every
+  // spec is readable. A named spec is asked for alone, as is every readable
+  // spec when one is not (the binary's sweep may refuse the whole run over it:
+  // Bun's `realpath` on macOS) or when the sweep refuses anyway.
+  if (only === undefined && readable.length === reads.length) {
+    const sweep = await delegate(root, ['--specs'])
+    if ('items' in sweep)
+      for (const item of sweep.items)
+        delegated.set(
+          item.id,
+          item.issues.map((i) => mapDelegated(i)),
+        )
+    else await alone()
+  } else await alone()
 
-  return caps.map((cap) => {
-    const path = `specs/${cap.id}/spec.md`
-    const living = parseLivingSpec(readFileSync(cap.specFile, 'utf8'))
-    const issues = mergeDelegated(
-      specsRules(living, path),
-      (delegated.get(cap.id) ?? []).map((i) => mapDelegated(i)),
-    )
-    const errors = issues.filter((i) => i.level === 'ERROR').length
-    return { id: cap.id, kind: 'spec' as const, valid: errors === 0, issues }
-  })
+  return reads.map(({ cap, read }) =>
+    specReport(cap.id, read, delegated.get(cap.id) ?? [], start, strict),
+  )
 }
+
+/** One living spec's report: cospec's spec rules merged with the binary's issues for it. */
+function specReport(
+  id: string,
+  read: LivingRead,
+  delegated: readonly Issue[],
+  start: number,
+  strict: boolean,
+): ItemReport {
+  const path = `specs/${id}/spec.md`
+  const issues =
+    'code' in read
+      ? [unreadableArtifactIssue(path, read.code)]
+      : mergeDelegated(specsRules(parseLivingSpec(read.text), path), [...delegated])
+  const errors = issues.filter((i) => i.level === 'ERROR').length
+  const warnings = issues.filter((i) => i.level === 'WARNING').length
+  // `--strict` fails a spec on a warning, as the binary's `createReport` does.
+  const valid = errors === 0 && (!strict || warnings === 0)
+  const durationMs = Date.now() - start
+  return { id, kind: 'spec' as const, valid, issues, durationMs }
+}
+
+/**
+ * `validate <id> --type spec` on a spec file discovery skips (a dot-directory,
+ * a capability behind a linked directory): the binary's `validateDirectItem`
+ * validates the file at `specs/<id>/spec.md` anyway, and its bulk `--specs`
+ * sweep skips it too, so the binary is asked for that one item.
+ */
+async function validateForcedSpec(root: Root, id: string, strict: boolean): Promise<ItemReport[]> {
+  const start = Date.now()
+  const specFile = join(openspecDir(root.base), 'specs', ...id.split('/'), 'spec.md')
+  const read = readLivingSpec({ id, specFile })
+  const delegated =
+    'code' in read ? [] : delegatedIssues(await delegate(root, [id, '--type', 'spec']), id, false)
+  return [specReport(id, read, delegated, start, strict)]
+}
+
+/** The first openspec release whose `validate` takes `--archived`. */
+const ARCHIVED_SINCE = '1.9.0'
+
+/**
+ * The binary's answer to `validate --archived`: its report's items, or its
+ * failure document (an unreadable `changes/archive/`, say) with its exit code.
+ */
+type ArchivedAnswer =
+  | { items: ItemReport[] }
+  | { failure: { status: StatusDiagnostic[] } & Record<string, unknown>; exitCode: number }
 
 /**
  * `cospec validate --archived` — pure delegation (openspec >= 1.9.0). The
  * wrapped binary walks `changes/archive/` and reports any archived change whose
  * tasks are not all complete; cospec has no native rule family for archived
- * changes, so nothing is merged in. Its envelope is relayed through cospec's
- * own renderer so the output and exit code match every other validate surface.
- *
- * Returns `undefined` when the wrapped binary produced no parseable envelope —
- * an openspec below 1.9.0 rejects the flag — so the caller can relay the
- * wrapped diagnostics verbatim instead of printing an empty, passing report.
+ * changes, so nothing is merged in. Its report is relayed through cospec's own
+ * renderer so the output and exit code match every other validate surface;
+ * its failure document is the answer as it stands. Whether the binary is too
+ * old for the flag is read from its version, never guessed from its output.
  */
-async function validateArchived(root: Root): Promise<ItemReport[] | undefined> {
-  const res = await spawnOpenspec(
-    threadedArgv(['validate'], ['--json', '--no-interactive', ...root.storeArgs], ['--archived']),
-    root.cwd,
+async function validateArchived(root: Root): Promise<ArchivedAnswer> {
+  const args = threadedArgv(
+    ['validate'],
+    ['--json', '--no-interactive', ...root.storeArgs],
+    ['--archived'],
   )
-  let parsed: OpenspecValidateJson
-  try {
-    parsed = JSON.parse(res.stdout) as OpenspecValidateJson
-  } catch {
-    process.stderr.write(res.stderr)
-    return undefined
-  }
-  if (!Array.isArray(parsed.items)) return undefined
-  return parsed.items.map((item) => ({
-    id: item.id,
-    kind: 'change' as const,
-    valid: item.valid,
-    issues: item.issues.map((i) => mapDelegated(i, true)),
+  const label = wrappedCallLabel(args)
+  let answer: ArchivedAnswer | undefined
+  await runOpenspec(args, {
+    cwd: root.cwd,
+    expect: {
+      exitCodes: [0, 1],
+      postCondition: (result) => {
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(result.stdout)
+        } catch {
+          return `${label} did not print one JSON document`
+        }
+        if (isOpenspecErrorStatus(parsed)) {
+          answer = {
+            failure: parsed as { status: StatusDiagnostic[] },
+            exitCode: result.exitCode,
+          }
+          return true
+        }
+        const items = (parsed as Partial<OpenspecValidateJson> | null)?.items
+        if (!Array.isArray(items))
+          return `${label} printed neither a validation report nor a diagnostic`
+        answer = {
+          items: items.map((item) => ({
+            id: item.id,
+            kind: 'change' as const,
+            valid: item.valid,
+            issues: item.issues.map((i) => mapDelegated(i, true)),
+            ...(typeof item.durationMs === 'number' ? { durationMs: item.durationMs } : {}),
+          })),
+        }
+        return true
+      },
+    },
+  })
+  return answer!
+}
+
+/**
+ * The binary's failure document as cospec relays it: each diagnostic's
+ * message and fix spelled through the remedy allowlist, the document (under
+ * `--json`) or `cospec: <message>` lines (text), with the binary's exit code.
+ */
+function relayFailure(
+  failure: { status: StatusDiagnostic[] } & Record<string, unknown>,
+  exitCode: number,
+  json: boolean,
+): number {
+  const status = failure.status.map((d) => ({
+    ...d,
+    message: respellRemedies(d.message),
+    ...(d.fix === undefined ? {} : { fix: respellRemedies(d.fix) }),
   }))
+  if (json) process.stdout.write(`${JSON.stringify({ ...failure, status }, null, 2)}\n`)
+  else
+    for (const d of status)
+      process.stderr.write(`cospec: ${d.message}\n${d.fix === undefined ? '' : `Fix: ${d.fix}\n`}`)
+  return exitCode
+}
+
+// --- item resolution (the binary's `validateDirectItem`) ------------------------
+
+/** The binary's `utils/match` `levenshtein`. */
+function levenshtein(a: string, b: string): number {
+  const dp = Array.from({ length: a.length + 1 }, (_, i) =>
+    Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
+  )
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1
+      dp[i]![j] = Math.min(dp[i - 1]![j]! + 1, dp[i]![j - 1]! + 1, dp[i - 1]![j - 1]! + cost)
+    }
+  return dp[a.length]![b.length]!
+}
+
+/**
+ * The binary's `nearestMatches(input, candidates, 5)`: the five nearest
+ * candidates by edit distance, stable in candidate order, duplicates kept.
+ */
+export function nearestMatches(input: string, candidates: readonly string[], max = 5): string[] {
+  return candidates
+    .map((candidate) => ({ candidate, distance: levenshtein(input, candidate) }))
+    .toSorted((a, b) => a.distance - b.distance)
+    .slice(0, max)
+    .map((s) => s.candidate)
+}
+
+/** The binary's `normalizeType`: `change` or `spec`, any case; anything else is no override. */
+function normalizeType(value: string | undefined): 'change' | 'spec' | undefined {
+  const v = value?.toLowerCase()
+  return v === 'change' || v === 'spec' ? v : undefined
+}
+
+/** The binary's `folderStyleNameProblem(value, label)` (`core/id.js`). */
+function folderStyleNameProblem(value: string, label: string): string | undefined {
+  if (value.length === 0) return `${label} must not be empty`
+  if (value === '.' || value === '..') return `${label} must not be '${value}'`
+  if (/[\\/]/u.test(value)) return `${label} must not contain path separators`
+  return undefined
+}
+
+/** The binary's ambiguity fix, `validate/ambiguous-noun-form` as cospec spells it (no noun-form commands). */
+const AMBIGUOUS_FIX = 'Pass --type change|spec.'
+
+/**
+ * An item-resolution refusal: the binary's message after `cospec: ` on
+ * stderr (and its fix on the next line), or its one-diagnostic document
+ * under `--json`; exit 1.
+ */
+function refuseItem(json: boolean, code: string, message: string, fix?: string): number {
+  if (json) {
+    const status = [{ severity: 'error', code, message, ...(fix === undefined ? {} : { fix }) }]
+    process.stdout.write(`${JSON.stringify({ status }, null, 2)}\n`)
+  } else process.stderr.write(`cospec: ${message}\n${fix === undefined ? '' : `${fix}\n`}`)
+  return 1
+}
+
+/**
+ * `cospec validate <name>` resolves the name as the binary does (design D7):
+ * `--type` forces the kind; else membership among the active change ids and
+ * the living spec ids — a name that is both is refused as ambiguous, one that
+ * is neither gets the binary's nearest matches. A forced kind first rejects a
+ * path-shaped name, then reports an item that is not on disk as one
+ * `meta/item-missing` ERROR.
+ */
+async function validateItem(
+  root: Root,
+  name: string,
+  typeFlag: string | undefined,
+  opts: { strict: boolean; fast: boolean; json: boolean },
+  warnings: ArchiveWarning[],
+): Promise<ItemReport[] | number> {
+  const base = root.base
+  const changeIds = listChanges(base).map((c) => c.id)
+  const specIds = livingSpecFiles(base).map((s) => s.id)
+  const isChange = changeIds.includes(name)
+  const isSpec = specIds.includes(name)
+  const override = normalizeType(typeFlag)
+  const kind = override ?? (isChange ? 'change' : isSpec ? 'spec' : undefined)
+  if (kind === undefined) {
+    const suggestions = nearestMatches(name, [...changeIds, ...specIds])
+    const message =
+      suggestions.length > 0
+        ? `Unknown item '${name}'. Did you mean: ${suggestions.join(', ')}?`
+        : `Unknown item '${name}'.`
+    return refuseItem(opts.json, 'unknown_item', message)
+  }
+  if (override === undefined && isChange && isSpec)
+    return refuseItem(
+      opts.json,
+      'ambiguous_item',
+      `Ambiguous item '${name}' matches both a change and a spec.`,
+      AMBIGUOUS_FIX,
+    )
+  // Spec ids nest (`<area>/<capability>`), so the guard runs per segment;
+  // change names are flat and keep the whole-value check.
+  const problem =
+    kind === 'change'
+      ? folderStyleNameProblem(name, 'Change name')
+      : name
+          .split('/')
+          .map((segment) => folderStyleNameProblem(segment, 'Spec id'))
+          .find((p) => p !== undefined)
+  if (problem !== undefined) return refuseItem(opts.json, 'invalid_item', problem)
+
+  const start = Date.now()
+  if (kind === 'change') {
+    const dir = join(base, 'openspec', 'changes', name)
+    if (!existsSync(dir)) {
+      const issues = [itemMissingIssue('change', name)]
+      return [{ id: name, kind: 'change', valid: false, issues, durationMs: Date.now() - start }]
+    }
+    const change = listChanges(base).find((c) => c.id === name) ?? { id: name, dir, schema: '' }
+    const { ctx, warning } = readValidateContext(base)
+    if (warning !== undefined) warnings.push(warning)
+    const report = await validateChange(root, change, ctx, opts)
+    return [{ ...report, durationMs: Date.now() - start }]
+  }
+  if (!existsSync(join(openspecDir(base), 'specs', ...name.split('/'), 'spec.md'))) {
+    const issues = [itemMissingIssue('spec', name)]
+    return [{ id: name, kind: 'spec', valid: false, issues, durationMs: Date.now() - start }]
+  }
+  return isSpec
+    ? validateSpecs(root, name, opts.strict)
+    : validateForcedSpec(root, name, opts.strict)
+}
+
+/**
+ * A change whose validation threw an errno failure: one
+ * `meta/unreadable-artifact` ERROR naming the file it could not read. Anything
+ * that is not an errno failure propagates.
+ */
+export function erroredChange(base: string, id: string, error: unknown): ItemReport {
+  const { code, path } = (error ?? {}) as NodeJS.ErrnoException
+  if (errnoMessage(error) === undefined || code === undefined) throw error
+  const file = path === undefined ? undefined : relative(base, path).split(sep).join('/')
+  const issues = [unreadableArtifactIssue('.', code, file)]
+  return { id, kind: 'change', valid: false, issues }
+}
+
+// --- --concurrency ---------------------------------------------------------------
+
+/** The binary's bulk default when neither `--concurrency` nor `OPENSPEC_CONCURRENCY` names one. */
+const DEFAULT_CONCURRENCY = 6
+
+/** The binary's `normalizeConcurrency`: a positive `parseInt`, else nothing (never refused). */
+function normalizeConcurrency(value: string | undefined): number | undefined {
+  if (value === undefined || value.length === 0) return undefined
+  const n = Number.parseInt(value, 10)
+  return Number.isNaN(n) || n <= 0 ? undefined : n
+}
+
+/** How many change validations run at once: `--concurrency`, else `OPENSPEC_CONCURRENCY`, else 6. */
+export function concurrencyBound(
+  flag: string | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  return (
+    normalizeConcurrency(flag) ??
+    normalizeConcurrency(env.OPENSPEC_CONCURRENCY) ??
+    DEFAULT_CONCURRENCY
+  )
+}
+
+/**
+ * `fn` over `items` with at most `limit` calls in flight, the results in
+ * input order whatever order they settle in (design D7). A rejection rejects
+ * the whole pool, as `Promise.all` did.
+ */
+export async function mapPool<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = Array.from<R>({ length: items.length })
+  let next = 0
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const index = next++
+      results[index] = await fn(items[index]!)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+  return results
+}
+
+// --- --report (the binary's request validation) ---------------------------------
+
+/** The binary's one fix for every refused report request. */
+const REPORT_FIX =
+  'Use --report full|findings with --all, --changes, --specs, or --archived, without an item name. Do not combine archived and active scopes.'
+
+/**
+ * The binary's `--report` request validation, checked before any root is
+ * resolved: the refusal message, or undefined for an acceptable request.
+ */
+function reportRequestProblem(
+  report: string,
+  name: string | undefined,
+  archived: boolean,
+  bulk: boolean,
+): string | undefined {
+  if (report !== 'full' && report !== 'findings') return `Unknown validation report '${report}'.`
+  if (name !== undefined) return 'A validation report cannot be combined with an item name.'
+  if (archived && bulk) return 'A validation report cannot combine archived and active scopes.'
+  if (!archived && !bulk) return 'A validation report requires an explicit bulk scope.'
+  return undefined
+}
+
+/** The binary's `findingsScope` for an accepted `--report findings` request. */
+function findingsScope(o: {
+  archived: boolean
+  all: boolean
+  changes: boolean
+  specs: boolean
+}): FindingsScope {
+  if (o.archived) return 'archived'
+  if (o.all || (o.changes && o.specs)) return 'all'
+  return o.changes ? 'changes' : 'specs'
+}
+
+/** A report in the requested shape: the full report, or its findings projection. */
+function renderReport(
+  items: ItemReport[],
+  opts: { json: boolean; strict: boolean; noColor: boolean; findings?: FindingsScope },
+  root: ResolvedRoot,
+  kinds: readonly ItemReport['kind'][],
+  warnings: readonly ArchiveWarning[] = [],
+): string {
+  const upstream = { root: rootOutput(root), kinds }
+  const extra = warnings.length === 0 ? {} : { warnings: [...warnings] }
+  if (opts.findings !== undefined && opts.json)
+    return `${JSON.stringify({ ...toFindings(toJson(items, upstream), opts.findings), ...extra }, null, 2)}\n`
+  if (opts.json) return `${JSON.stringify({ ...toJson(items, upstream), ...extra }, null, 2)}\n`
+  for (const warning of warnings) process.stderr.write(`Warning: ${warning.message}\n`)
+  return renderHuman(items, {
+    strict: opts.strict,
+    noColor: opts.noColor,
+    findingsOnly: opts.findings !== undefined,
+  })
 }
 
 // --- command entrypoint -----------------------------------------------------
 
-export async function run(ctx: CommandContext): Promise<number> {
+/**
+ * The binary's refusal for a bulk `validate --json` with no root
+ * (`root-selection.js`, `allowImplicitRoot: false`), its fix spelled cospec.
+ */
+const NO_OPENSPEC_ROOT = new RootSelectionError({
+  code: 'no_openspec_root',
+  message: 'No OpenSpec root found from the current directory.',
+  target: 'openspec.root',
+  fix: respellRemedies('Run openspec init to create a root here.'),
+})
+
+/**
+ * `cospec validate`: an errno failure it lets escape (an unreadable
+ * `openspec/changes/` or `openspec/specs/`) is the binary's one
+ * `validate_error` document under `--json`.
+ */
+export function run(ctx: CommandContext): Promise<number> {
+  return answeringErrno(ctx.flags.json, { code: 'validate_error' }, () => validate(ctx))
+}
+
+async function validate(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
   const parsed = ctx.parsed!
   const strict = hasFlag(parsed, '--strict')
@@ -879,11 +1501,48 @@ export async function run(ctx: CommandContext): Promise<number> {
   const wantSpecs = hasFlag(parsed, '--specs')
   const wantArchived = hasFlag(parsed, '--archived')
   const name = parsed.positionals[0]
+  const bulk = wantAll || wantChanges || wantSpecs
 
-  const root = await resolveRoot(ctx)
+  // `--report` is validated before any root is resolved, as the binary does.
+  const report = flagValue(parsed, '--report')
+  let findings: FindingsScope | undefined
+  if (report !== undefined) {
+    const problem = reportRequestProblem(report, name, wantArchived, bulk)
+    if (problem !== undefined) {
+      if (flags.json) {
+        const status = [
+          {
+            severity: 'error',
+            code: 'invalid_validation_report_request',
+            message: problem,
+            fix: REPORT_FIX,
+          },
+        ]
+        process.stdout.write(`${JSON.stringify({ status }, null, 2)}\n`)
+      } else process.stderr.write(`Error: ${problem}\nFix: ${REPORT_FIX}\n`)
+      return 1
+    }
+    if (report === 'findings')
+      findings = findingsScope({
+        archived: wantArchived,
+        all: wantAll,
+        changes: wantChanges,
+        specs: wantSpecs,
+      })
+  }
+  const renderOpts = { json: flags.json, strict, noColor: flags.noColor, findings }
+
+  const root = await resolveRootOrDocument(ctx, 'validate_error')
+  if (root === undefined) return 1
   const base = root.base
 
-  if (!existsSync(openspecDir(base))) {
+  // A name alone is resolved even with no `openspec/` directory, as the
+  // binary resolves it against its implicit root: nothing matches it.
+  if (!existsSync(openspecDir(base)) && (bulk || wantArchived || name === undefined)) {
+    if (flags.json) {
+      process.stdout.write(rootSelectionDocument(NO_OPENSPEC_ROOT))
+      return 1
+    }
     process.stderr.write(`cospec: no openspec/ directory at ${base} — run 'cospec init' first\n`)
     return 1
   }
@@ -892,52 +1551,65 @@ export async function run(ctx: CommandContext): Promise<number> {
   // changes/archive/, which active-change discovery deliberately excludes, and
   // it must never quietly alter an ordinary invocation.
   if (wantArchived) {
-    const archived = await validateArchived(root)
-    if (archived === undefined) {
+    const version = await wrappedOpenspecVersion()
+    if (openspecBelow(version, ARCHIVED_SINCE)) {
       process.stderr.write(
-        'cospec: the wrapped OpenSpec `validate --archived` call produced no report — it needs ' +
-          'OpenSpec >=1.9.0\n',
+        `cospec: validate --archived needs OpenSpec >=${ARCHIVED_SINCE}; the wrapped OpenSpec is ` +
+          `${version}\n`,
       )
       return 1
     }
-    const body = flags.json
-      ? renderJson(archived)
-      : renderHuman(archived, { strict, noColor: flags.noColor })
-    process.stdout.write(body)
-    return reportExitCode(archived, strict)
+    const archived = await validateArchived(root)
+    if ('failure' in archived) return relayFailure(archived.failure, archived.exitCode, flags.json)
+    process.stdout.write(renderReport(archived.items, renderOpts, root, ['change']))
+    return reportExitCode(archived.items, strict)
   }
-
-  const changes = listChanges(base)
-  const ctxRules = buildValidateContext(base)
 
   const items: ItemReport[] = []
-
-  if (name !== undefined) {
-    // item-name auto-detection: change first, then living spec.
-    const change = resolveChange(base, name)
-    if (change !== undefined) {
-      items.push(await validateChange(root, change, ctxRules, { strict, fast }))
-    } else if (existsSync(join(openspecDir(base), 'specs', name, 'spec.md'))) {
-      items.push(...(await validateSpecs(root, name)))
-    } else {
-      process.stderr.write(`cospec: unknown item '${name}'\n`)
-      return 1
-    }
+  // The kinds in scope, each counted in `summary.byType` as the binary counts it.
+  const kinds: ItemReport['kind'][] = []
+  const warnings: ArchiveWarning[] = []
+  if (name !== undefined && !bulk) {
+    // A bulk flag beside a name runs the bulk scope and ignores the name, as
+    // the binary does; a name alone is resolved as the binary resolves it.
+    const resolved = await validateItem(
+      root,
+      name,
+      flagValue(parsed, '--type'),
+      { strict, fast, json: flags.json },
+      warnings,
+    )
+    if (typeof resolved === 'number') return resolved
+    items.push(...resolved)
+    kinds.push(...new Set(resolved.map((item) => item.kind)))
   } else {
-    const doChanges = wantChanges || wantAll || (!wantChanges && !wantSpecs)
-    const doSpecs = wantSpecs || wantAll || (!wantChanges && !wantSpecs)
+    const changes = listChanges(base)
+    const doChanges = wantChanges || wantAll || !bulk
+    const doSpecs = wantSpecs || wantAll || !bulk
+    if (doChanges) kinds.push('change')
+    if (doSpecs) kinds.push('spec')
     if (doChanges) {
-      const reports = await Promise.all(
-        changes.map((change) => validateChange(root, change, ctxRules, { strict, fast })),
-      )
+      const { ctx: ctxRules, warning } = readValidateContext(base)
+      if (warning !== undefined) warnings.push(warning)
+      const bound = concurrencyBound(flagValue(parsed, '--concurrency'))
+      // One change that throws an errno failure is that change's ERROR, never
+      // the whole sweep's, as the binary's queue records a failed item.
+      const reports = await mapPool(changes, bound, async (change) => {
+        const start = Date.now()
+        try {
+          const report = await validateChange(root, change, ctxRules, { strict, fast })
+          return { ...report, durationMs: Date.now() - start }
+        } catch (error) {
+          const failed = erroredChange(base, change.id, error)
+          return { ...failed, durationMs: Date.now() - start }
+        }
+      })
       items.push(...reports)
     }
-    if (doSpecs) items.push(...(await validateSpecs(root, undefined)))
+    if (doSpecs) items.push(...(await validateSpecs(root, undefined, strict)))
   }
 
-  const output = flags.json
-    ? renderJson(items)
-    : renderHuman(items, { strict, noColor: flags.noColor })
-  process.stdout.write(output)
+  // The findings report's exit code is always the full report's.
+  process.stdout.write(renderReport(items, renderOpts, root, kinds, warnings))
   return reportExitCode(items, strict)
 }

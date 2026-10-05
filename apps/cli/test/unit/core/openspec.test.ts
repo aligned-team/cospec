@@ -11,6 +11,7 @@ import {
   localRoot,
   openspecApplyInstructions,
   openspecArtifactInstructions,
+  openspecBelow,
   openspecList,
   openspecPackageDir,
   openspecStatus,
@@ -27,6 +28,22 @@ import {
 function result(partial: Partial<OpenspecResult>): OpenspecResult {
   return { stdout: '', stderr: '', exitCode: 0, ...partial }
 }
+
+describe('openspecBelow', () => {
+  test('a parseable version below the floor is below it', () => {
+    expect(openspecBelow('1.8.9', '1.9.0')).toBe(true)
+    expect(openspecBelow('1.0.0', '1.9.0')).toBe(true)
+  })
+  test('the floor and anything above it are not below it', () => {
+    expect(openspecBelow('1.9.0', '1.9.0')).toBe(false)
+    expect(openspecBelow('1.13.1', '1.9.0')).toBe(false)
+    expect(openspecBelow('2.0.0-beta.1', '1.9.0')).toBe(false)
+  })
+  test('an unparseable version is never judged too old', () => {
+    expect(openspecBelow('', '1.9.0')).toBe(false)
+    expect(openspecBelow('dev', '1.9.0')).toBe(false)
+  })
+})
 
 describe('satisfiesOpenspecRange', () => {
   test('accepts the floor, the pin, and everything up to the ceiling', () => {
@@ -191,10 +208,18 @@ describe('wrapped calls against the real binary', () => {
   }, 30_000)
 
   test('openspecApplyInstructions returns state and contextFiles', async () => {
-    const apply = await openspecApplyInstructions(localRoot(cwd), 'try-it')
+    const answer = await openspecApplyInstructions(localRoot(cwd), 'try-it')
+    if (!('instructions' in answer)) throw new Error(JSON.stringify(answer))
+    const apply = answer.instructions
     expect(apply.state).toBe('ready')
     expect(apply.progress).toEqual({ total: 2, complete: 1, remaining: 1 })
     expect(apply.contextFiles.proposal?.[0]).toContain('proposal.md')
+  }, 30_000)
+
+  test('openspecApplyInstructions answers a refusal with the failure document', async () => {
+    const answer = await openspecApplyInstructions(localRoot(cwd), 'no-such-change')
+    if (!('refused' in answer)) throw new Error(JSON.stringify(answer))
+    expect(answer.refused.status[0]).toMatchObject({ severity: 'error', code: 'change_error' })
   }, 30_000)
 
   test('openspecArtifactInstructions returns template and instruction', async () => {

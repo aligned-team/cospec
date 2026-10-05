@@ -202,7 +202,15 @@ archive reads. The two `ReadView`s of that scan:
   change, so reading it verbatim would refuse what the binary archives, while a
   commented one that does split a requirement is `archive/split-requirement`'s,
   on the verbatim view. `parseAdvisoryDelta` returns this view
-  (`AdvisoryDelta`), and `LivingSpec.advisory` carries it.
+  (`AdvisoryDelta`), and `LivingSpec.advisory` carries it. The proving fixture
+  is `test/contract/validation-parity.test.ts` row 36.1: a delta whose only
+  mis-depth scenario sits inside an HTML comment, which the binary archives and
+  on which cospec raises no `deltas/scenario-depth` (the verbatim parse would).
+
+The standing rule: a gate rule reads the verbatim view unless a differential
+fixture proves the verbatim view makes cospec refuse something the binary
+accepts AND the structural outcome is gated elsewhere on the verbatim view; such
+exceptions live only in the enumeration test with their fixture.
 
 The two parses are distinct types, branded by the view they were read under, so
 no gate can be handed the masked one: `Delta` and `AdvisoryDelta`, and

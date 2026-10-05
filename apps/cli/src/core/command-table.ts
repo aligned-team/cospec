@@ -485,7 +485,6 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         placeholder: '<type>',
         values: ['change', 'spec'],
         description: 'Specify item type when ambiguous',
-        status: pending('cli-surface-parity'),
       }),
       upstream({
         name: '--report',
@@ -493,14 +492,12 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         placeholder: '<report>',
         values: ['full', 'findings'],
         description: 'Select bulk report content',
-        status: pending('cli-surface-parity'),
       }),
       upstream({
         name: '--concurrency',
         takesValue: true,
         placeholder: '<n>',
         description: 'Max concurrent validations',
-        status: pending('cli-surface-parity'),
       }),
     ],
   },
@@ -531,7 +528,6 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         takesValue: true,
         placeholder: '<name>',
         description: 'Schema override',
-        status: pending('cli-surface-parity'),
       }),
     ],
   },
@@ -558,7 +554,6 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         placeholder: '<order>',
         values: ['recent', 'name'],
         description: 'Sort order: "recent" (default) or "name"',
-        status: pending('cli-surface-parity'),
       }),
     ],
   },
@@ -1051,7 +1046,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
   },
   {
     name: '__complete',
-    summary: 'Dynamic completion source (changes|specs|types)',
+    summary: 'Dynamic completion source (changes|specs|types|schemas|archived-changes)',
     hidden: true,
     parse: 'table',
     json: 'accepted',
@@ -1060,9 +1055,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
       cospecArg({
         name: 'source',
         required: true,
-        values: ['changes', 'specs', 'types'],
-        // Upstream's hidden `__complete <type>` also serves these two.
-        pendingValues: { schemas: 'cli-surface-parity', 'archived-changes': 'cli-surface-parity' },
+        values: ['changes', 'specs', 'types', 'schemas', 'archived-changes'],
       }),
     ],
     flags: [],

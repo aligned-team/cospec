@@ -52,6 +52,10 @@ export function renderFishCompletion(spec: CompletionSpec): string {
     }
     if (command.positional.length > 0)
       lines.push(`complete -c cospec ${seen} -a "${dynamicArg(command.positional)}"`)
+    for (const [sub, sources] of Object.entries(command.subcommandPositional))
+      lines.push(
+        `complete -c cospec -n '__fish_seen_subcommand_from ${command.name}; and __fish_seen_subcommand_from ${sub}' -a "${dynamicArg(sources)}"`,
+      )
   }
   lines.push('')
 

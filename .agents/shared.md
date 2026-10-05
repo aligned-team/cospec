@@ -238,6 +238,19 @@ advisory findings listed in `apps/cli/src/core/rules/views.ts`
 fixture proving it reads the view it is registered under. A new rule or gate
 takes the verbatim view unless no commented line can ever trigger it.
 
+**JSON documents are additive** — a cospec `--json` document that mirrors an
+OpenSpec command (`status`, `list`, `validate`, and `archive --json` next)
+carries every key upstream's document does: computed natively where cospec owns
+the fact (`validate`'s report keys), otherwise from one delegated call per
+invocation — never one per change — merged by identity through `mergeUpstream`
+(`apps/cli/src/core/upstream-keys.ts`). No cospec key is removed and no cospec
+value changed; every envelope keeps `version: 1`. The key oracle
+(`apps/cli/test/contract/support/key-oracle.ts`, rows in `cli-surface.test.ts`)
+is the gate: it fails on a missing upstream key, an upstream value reported
+differently, a changed pre-existing cospec key, and any collision outside its
+named list (`NAMED_COLLISIONS`: `version`, validate's `items[].type`), each
+entry stating why cospec's value wins.
+
 **Wrapped-call discipline** — every call into the wrapped binary declares its
 expected exit codes, a stdout deny-list, and an observable post-condition. Trust
 filesystem/JSON post-conditions, never exit codes alone (OpenSpec aborts with
@@ -263,10 +276,12 @@ out-of-scope issues as a proposed follow-up, not a silent fix.
 **Dependencies** — pin exact versions in `package.json`; regenerate the lockfile
 after editing the manifest. The OpenSpec pin is load-bearing: bumping it means
 running the contract suite and re-probing before updating
-`EXPECTED_OPENSPEC_VERSION`. Tool pins in `mise.toml` are lockfile-backed — bump
-a version and regenerate `mise.lock` in the same commit; CI's "mise lockfile
-drift gate" step (`mise install` then `git diff --exit-code mise.lock`) fails
-the PR otherwise.
+`EXPECTED_OPENSPEC_VERSION`, and moving the exact `fast-glob` devDependency to
+the version the new pin resolves (`core/glob.ts` ports the binary's glob
+matching over it; `test/contract/glob.test.ts` fails until they agree). Tool
+pins in `mise.toml` are lockfile-backed — bump a version and regenerate
+`mise.lock` in the same commit; CI's "mise lockfile drift gate" step
+(`mise install` then `git diff --exit-code mise.lock`) fails the PR otherwise.
 
 **Tests** — every command change lands with a contract or integration test.
 Contract tests run the real pinned binary; a false archive PASS is a release

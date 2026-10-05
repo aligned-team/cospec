@@ -91,6 +91,44 @@ function readBooleanMarker(changeDir: string, key: 'retire_capabilities'): Marke
   return unhonorable(`${where}${issue.message}`)
 }
 
+/**
+ * Whether openspec's `readChangeMetadata` (`utils/change-metadata.ts`) throws
+ * for a change, so every command that reads the change's metadata refuses it:
+ * its `.openspec.yaml` exists but cannot be read, is not YAML, fails
+ * `ChangeMetadataSchema` (a malformed `created`, an empty `goal`, a
+ * non-boolean `skip_specs`, an `initiative` that is not exactly `{store, id}`,
+ * …), or names a schema `listSchemas` does not list. `listed` answers the
+ * root's `listSchemas`, so a sweep computes it once.
+ */
+export function changeMetadataRefused(changeDir: string, listed: () => readonly string[]): boolean {
+  let raw: string
+  try {
+    raw = readFileSync(join(changeDir, METADATA_FILENAME), 'utf8')
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException | undefined)?.code
+    if (!(err instanceof Error) || typeof code !== 'string') throw err
+    return code !== 'ENOENT'
+  }
+  let parsed: unknown
+  try {
+    parsed = parseYaml(raw)
+  } catch (err) {
+    if (!(err instanceof Error)) throw err
+    return true
+  }
+  if (changeMetadataIssue(parsed) !== undefined) return true
+  try {
+    return !listed().includes((parsed as Record<string, unknown>).schema as string)
+  } catch (err) {
+    // `listed()` runs `listSchemas`, whose own errno failure (the schemas
+    // directory unreadable or not a directory) is the binary's to report, like
+    // every other read failure in this function.
+    const code = (err as NodeJS.ErrnoException | undefined)?.code
+    if (!(err instanceof Error) || typeof code !== 'string') throw err
+    return true
+  }
+}
+
 // --- zod 4, as far as openspec's two schemas reach ---------------------------
 
 interface ZodIssue {
@@ -185,17 +223,29 @@ export function changeMetadataIssue(value: unknown): ZodIssue | undefined {
 
 // --- listSchemas / resolveSchema ---------------------------------------------
 
-/** openspec's `getGlobalDataDir()`/schemas (`core/global-config.ts`). */
-function userSchemasDir(): string {
-  const xdg = process.env.XDG_DATA_HOME
+/**
+ * The user-level schema directory the wrapped binary reads, its
+ * `getGlobalDataDir()` + `schemas` (`core/global-config.ts`):
+ * `$XDG_DATA_HOME/openspec` when that is set and non-empty, else
+ * `%LOCALAPPDATA%\openspec` on Windows (`~/AppData/Local/openspec` without it),
+ * else `~/.local/share/openspec` — never `~/.config`, which holds only its
+ * config. The one place cospec computes it: every reader of the user tier
+ * (`resolveSchema`, `cospec new`, the schema listing here) calls this.
+ */
+export function userSchemasDir(
+  env: NodeJS.ProcessEnv = process.env,
+  home: string = homedir(),
+  platform: NodeJS.Platform = process.platform,
+): string {
+  const xdg = env.XDG_DATA_HOME
   if (xdg !== undefined && xdg.length > 0) return join(xdg, 'openspec', 'schemas')
-  if (process.platform === 'win32') {
-    const local = process.env.LOCALAPPDATA
+  if (platform === 'win32') {
+    const local = env.LOCALAPPDATA
     return local !== undefined && local.length > 0
       ? join(local, 'openspec', 'schemas')
-      : join(homedir(), 'AppData', 'Local', 'openspec', 'schemas')
+      : join(home, 'AppData', 'Local', 'openspec', 'schemas')
   }
-  return join(homedir(), '.local', 'share', 'openspec', 'schemas')
+  return join(home, '.local', 'share', 'openspec', 'schemas')
 }
 
 /**
@@ -277,7 +327,7 @@ function schemaCandidateDir(schemasDir: string, name: string): string | undefine
 }
 
 /** openspec's `getSchemaDir(name, projectRoot)`: project, then user, then package. */
-function schemaDir(name: string, projectRoot: string): string | undefined {
+export function schemaDir(name: string, projectRoot: string): string | undefined {
   if (
     name.length === 0 ||
     name === '.' ||
@@ -300,11 +350,18 @@ function schemaDir(name: string, projectRoot: string): string | undefined {
   return undefined
 }
 
+/** One artifact of a schema `loadSchema` has validated. */
+export interface LoadedSchemaArtifact {
+  id: string
+  generates: string
+}
+
 /**
- * openspec's `resolveSchema(name, projectRoot)`, for its throw alone: the
- * schema is found, read, parsed and validated, or the error says why.
+ * openspec's `resolveSchema(name, projectRoot)`: the schema is found, read,
+ * parsed and validated, or the error says why. Returns its artifacts, in
+ * declaration order.
  */
-function loadSchema(name: string, projectRoot: string): void {
+export function loadSchema(name: string, projectRoot: string): LoadedSchemaArtifact[] {
   const normalized = name.replace(/\.ya?ml$/, '')
   const dir = schemaDir(normalized, projectRoot)
   if (dir === undefined)
@@ -326,6 +383,10 @@ function loadSchema(name: string, projectRoot: string): void {
   }
   const problem = schemaProblem(parsed)
   if (problem !== undefined) throw new Error(`Invalid schema at '${path}': ${problem}`)
+  return ((parsed as Record<string, unknown>).artifacts as Record<string, unknown>[]).map((a) => ({
+    id: a.id as string,
+    generates: a.generates as string,
+  }))
 }
 
 /** openspec's `relativePathSchema(fieldName)` refinement. */

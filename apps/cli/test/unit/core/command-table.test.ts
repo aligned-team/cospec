@@ -73,23 +73,23 @@ describe('parseCommandArgs — the six ledger 1.5 cases', () => {
   })
 
   test('a pending flag consumes its value and never leaks it into a positional', () => {
-    const r = refused('validate', ['--type', 'change', 'x'])
-    expect(r).toMatchObject({ kind: 'pending', surface: '--type', owner: 'cli-surface-parity' })
-    expect(r.message).toBe("cospec validate: '--type' is not supported yet\n")
+    const r = refused('init', ['--profile', 'core', 'x', 'y'])
+    expect(r).toMatchObject({ kind: 'pending', surface: '--profile', owner: 'workflow-profiles' })
+    expect(r.message).toBe("cospec init: '--profile' is not supported yet\n")
 
-    // `--bogus` is consumed as --sort's value, so the pending refusal wins.
-    expect(refused('list', ['--sort', '--bogus'])).toMatchObject({
+    // `--bogus` is consumed as --language's value, so the pending refusal wins.
+    expect(refused('init', ['--language', '--bogus'])).toMatchObject({
       kind: 'pending',
-      surface: '--sort',
+      surface: '--language',
     })
     expect(refused('init', ['--language', 'fr', '.'])).toMatchObject({
       kind: 'pending',
       surface: '--language',
     })
     expect(refused('init', ['--language=fr'])).toMatchObject({ kind: 'pending' })
-    expect(refused('status', ['--schema', 'custom'])).toMatchObject({
+    expect(refused('init', ['--profile', 'custom'])).toMatchObject({
       kind: 'pending',
-      surface: '--schema',
+      surface: '--profile',
     })
   })
 
@@ -257,7 +257,7 @@ describe('parseCommandArgs — refusals', () => {
     expect(refused('list', ['--store-path', '/x', 'extra']).kind).toBe('too-many-arguments')
     expect(refused('list', ['--store-path=/x', 'extra']).kind).toBe('too-many-arguments')
     expect(refused('validate', ['--store-path', '/x', 'a', 'b']).kind).toBe('too-many-arguments')
-    expect(refused('list', ['--store-path', '/x', '--sort', 'name']).kind).toBe('pending')
+    expect(refused('archive', ['c', '--store-path', '/x', '--no-validate']).kind).toBe('pending')
     // Its value is consumed, so it never counts as a positional.
     expect(refused('validate', ['--store-path', '/x', 'a']).kind).toBe('store-path')
   })
@@ -282,11 +282,11 @@ describe('parseCommandArgs — refusals', () => {
       kind: 'missing-value',
       flag: '--change',
     })
-    expect(refused('list', ['--sort', 'x', '--bogus'])).toMatchObject({
+    expect(refused('init', ['--language', 'x', '--bogus'])).toMatchObject({
       kind: 'pending',
-      surface: '--sort',
+      surface: '--language',
     })
-    expect(refused('list', ['--bogus', '--sort', 'x'])).toMatchObject({
+    expect(refused('init', ['--bogus', '--language', 'x'])).toMatchObject({
       kind: 'unknown-option',
       option: '--bogus',
     })
@@ -294,7 +294,7 @@ describe('parseCommandArgs — refusals', () => {
 
   test('the recorded refusal outranks too many arguments', () => {
     expect(refused('list', ['a', '--bogus']).kind).toBe('unknown-option')
-    expect(refused('list', ['a', '--sort', 'x']).kind).toBe('pending')
+    expect(refused('init', ['a', 'b', '--language', 'x']).kind).toBe('pending')
   })
 })
 
@@ -328,18 +328,11 @@ const EXPECTED_PENDING: [string, string, PendingOwner][] = [
   ['init', '--profile', 'workflow-profiles'],
   ['init', '--copilot-cloud', 'github-copilot'],
   ['init', '--no-copilot-cloud', 'github-copilot'],
-  ['validate', '--type', 'cli-surface-parity'],
-  ['validate', '--report', 'cli-surface-parity'],
-  ['validate', '--concurrency', 'cli-surface-parity'],
-  ['status', '--schema', 'cli-surface-parity'],
-  ['list', '--sort', 'cli-surface-parity'],
   ['archive', '--no-validate', 'archive-and-sync-parity'],
   ['completion', 'install', 'completion-install'],
   ['completion', 'uninstall', 'completion-install'],
   ['completion', 'powershell', 'completion-install'],
   ['completion generate', 'powershell', 'completion-install'],
-  ['__complete', 'schemas', 'cli-surface-parity'],
-  ['__complete', 'archived-changes', 'cli-surface-parity'],
 ]
 
 function pendingSurfaces(row: CommandRow): [string, string, PendingOwner][] {
@@ -378,18 +371,11 @@ describe('pending surfaces', () => {
     'init --profile': ['--profile', 'core'],
     'init --copilot-cloud': ['--copilot-cloud'],
     'init --no-copilot-cloud': ['--no-copilot-cloud'],
-    'validate --type': ['--type', 'change', 'x'],
-    'validate --report': ['--report', 'full'],
-    'validate --concurrency': ['--concurrency', '4'],
-    'status --schema': ['--schema', 'custom'],
-    'list --sort': ['--sort', 'name'],
     'archive --no-validate': ['c', '--no-validate'],
     'completion install': ['install', 'zsh', '--verbose'],
     'completion uninstall': ['uninstall', '-y'],
     'completion powershell': ['powershell'],
     'completion generate powershell': ['generate', 'powershell'],
-    '__complete schemas': ['schemas'],
-    '__complete archived-changes': ['archived-changes'],
   }
 
   /** The pending refusal `command surface` gets, named on the row it was typed on. */
@@ -425,6 +411,7 @@ describe('pending surfaces', () => {
       '--specs',
       '--blocked',
       '--changes',
+      '--sort',
     ])
   })
 })
@@ -496,7 +483,8 @@ describe('table shape', () => {
   })
 
   test('a table row refuses --store exactly when its module never reads it', () => {
-    const readsStore = /\bresolveRoot\(|\brunPassthrough\(|\bcallPassthrough\(|flags\.store\b/
+    const readsStore =
+      /\bresolveRoot(?:OrDocument)?\(|\brunPassthrough\(|\bcallPassthrough\(|flags\.store\b/
     for (const row of COMMAND_TABLE) {
       if (row.parse !== 'table') continue
       const file = row.name === '__complete' ? 'complete' : row.name

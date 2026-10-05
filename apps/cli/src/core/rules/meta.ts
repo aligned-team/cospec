@@ -336,3 +336,62 @@ export function metaRules(
 
   return issues
 }
+
+/**
+ * The binary's two next-step bullets for a namespace folder
+ * (`commands/validate.js` `printNextSteps`), joined as one hint.
+ */
+const NESTED_CHANGE_HINT =
+  'Move each nested change directly under openspec/changes/, folding the namespace into its name; ' +
+  'Only specs may be nested by domain; change directories are always flat'
+
+/**
+ * `meta/nested-change` (design D2): the directory is a namespace folder, not a
+ * change. `explanation` is the binary's sentence (`describeNestedChange`),
+ * carried verbatim; no other rule runs on the folder.
+ */
+export function nestedChangeIssue(explanation: string): Issue {
+  return {
+    level: 'ERROR',
+    rule: 'meta/nested-change',
+    path: '.',
+    message: explanation,
+    hint: NESTED_CHANGE_HINT,
+  }
+}
+
+/**
+ * `meta/unreadable-artifact` (design D7): a change file that exists but could
+ * not be read. `path` is change-relative; `code` is the errno code
+ * (`EACCES`, `EISDIR`, …); `file` names a file outside the change (the
+ * living spec a delta targets) reported against `path`.
+ */
+export function unreadableArtifactIssue(path: string, code: string, file = path): Issue {
+  return {
+    level: 'ERROR',
+    rule: 'meta/unreadable-artifact',
+    path,
+    message: `could not read ${file} (${code})`,
+    hint: 'fix the file permissions (or replace the entry with a readable file) and re-run',
+  }
+}
+
+/**
+ * `meta/item-missing` (design D7): `--type` forced a kind whose item is not on
+ * disk — no change directory, or no living spec file.
+ */
+export function itemMissingIssue(kind: 'change' | 'spec', id: string): Issue {
+  return kind === 'change'
+    ? {
+        level: 'ERROR',
+        rule: 'meta/item-missing',
+        path: '.',
+        message: `no change directory at openspec/changes/${id}/`,
+      }
+    : {
+        level: 'ERROR',
+        rule: 'meta/item-missing',
+        path: `specs/${id}/spec.md`,
+        message: `no living spec at openspec/specs/${id}/spec.md`,
+      }
+}

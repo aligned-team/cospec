@@ -140,12 +140,14 @@ async function validateIssues(root: string, name: string): Promise<ReportIssue[]
 //
 // The plan predicted the bound would be upstream's own namespace ERROR
 // reaching the user through `mergeDelegated`. Probed at 1.13.1, it does NOT:
-// cospec's Step 2 fast validation raises `meta/openspec-yaml` on the wrapper's
-// missing `.openspec.yaml` and exits before delegating, so the reader is told
-// the file is missing rather than that the folder is a namespace. What IS
-// proven here is the part that matters for safety — both surfaces REFUSE, and
-// archive moves nothing — plus the exact upstream text the deferred change
-// will need to surface.
+// before `cli-surface-parity`, cospec's Step 2 fast validation raised
+// `meta/openspec-yaml` on the wrapper's missing `.openspec.yaml` and exited
+// before delegating, so the reader was told the file was missing rather than
+// that the folder is a namespace. `cli-surface-parity`'s native detector
+// (`meta/nested-change`, tested below) closed that gap — see the describe
+// block immediately below for the rule id it raises now. What IS proven here
+// is the part that matters for safety — both surfaces REFUSE, and archive
+// moves nothing — plus the exact upstream text the detector surfaces.
 describe('a namespace folder under openspec/changes/', () => {
   function buildNamespace(root: string): void {
     withFeatSchema(root)
@@ -185,12 +187,13 @@ ${LIVING_REQ}`,
     const res = await cospec(['validate', 'ns-wrap', '--strict'], { cwd: root })
     expect(res.exitCode).toBe(1)
     const issues = await validateIssues(root, 'ns-wrap')
-    // The wrapper has no `.openspec.yaml`, so cospec's meta rule fires in
-    // Step 2 and the run never reaches the delegated call.
-    expect(issues.map((i) => i.rule)).toContain('meta/openspec-yaml')
-    // Recorded, not asserted as desirable: the delegated namespace ERROR does
-    // not reach the reader. The deferred nested-change work closes this.
-    expect(issues.some((i) => i.message.includes('folder wrapping'))).toBe(false)
+    // cli-surface-parity's detector: one `meta/nested-change` ERROR carrying
+    // the binary's explanation, and no other rule — the missing
+    // `.openspec.yaml` the folder has is no longer the reported cause.
+    expect(issues.map((i) => i.rule)).toEqual(['meta/nested-change'])
+    expect(issues[0]?.message).toContain(
+      '"ns-wrap" is not a change: it is a folder wrapping openspec/changes/ns-wrap/real-change/',
+    )
   })
 
   test('cospec archive refuses and moves nothing', async () => {

@@ -86,12 +86,43 @@ describe('parseSchemaConformanceJson', () => {
     })
   })
 
-  test('defaults errors/warnings/byRule to zero/empty when summary is absent', () => {
-    expect(parseSchemaConformanceJson(JSON.stringify({ version: 1, items: [] }))).toEqual({
-      errors: 0,
-      warnings: 0,
-      byRule: {},
+  test('returns null when summary is absent: no report is not a clean pass', () => {
+    expect(parseSchemaConformanceJson(JSON.stringify({ version: 1, items: [] }))).toBeNull()
+  })
+
+  test('returns null when items is absent', () => {
+    const stdout = JSON.stringify({ version: 1, summary: { errors: 0, warnings: 0, byRule: {} } })
+    expect(parseSchemaConformanceJson(stdout)).toBeNull()
+  })
+
+  test('returns null on a status[] refusal document (cospec validate --json no-root)', () => {
+    const stdout = JSON.stringify({
+      status: [
+        {
+          severity: 'error',
+          code: 'no_openspec_root',
+          message: 'No OpenSpec root found from the current directory.',
+          target: 'openspec.root',
+          fix: 'Run cospec init to create a root here.',
+        },
+      ],
     })
+    expect(parseSchemaConformanceJson(stdout)).toBeNull()
+  })
+
+  test('returns null on a status[] error beside a report', () => {
+    const stdout = JSON.stringify({
+      version: 1,
+      items: [],
+      summary: { errors: 0, warnings: 0, byRule: {} },
+      status: [{ severity: 'error', code: 'validate_error', message: 'boom' }],
+    })
+    expect(parseSchemaConformanceJson(stdout)).toBeNull()
+  })
+
+  test('returns null on a JSON value that is not an object', () => {
+    expect(parseSchemaConformanceJson('null')).toBeNull()
+    expect(parseSchemaConformanceJson('[]')).toBeNull()
   })
 
   test('returns null on non-JSON stdout (e.g. an openspec-arm body)', () => {

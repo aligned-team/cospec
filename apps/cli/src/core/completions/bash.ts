@@ -33,6 +33,14 @@ export function renderBashCompletion(spec: CompletionSpec): string {
     .map((c) => caseArm(c.name, [`sources='${c.positional.join(' ')}'`]))
     .join('\n')
 
+  const subcommandArms = spec.commands
+    .flatMap((c) =>
+      Object.entries(c.subcommandPositional).map(([sub, sources]) =>
+        caseArm(`'${c.name} ${sub}'`, [`sources='${sources.join(' ')}'`]),
+      ),
+    )
+    .join('\n')
+
   const flagValueArms = spec.commands
     .filter((c) => Object.keys(c.flagValues).length > 0)
     .map((c) =>
@@ -53,7 +61,7 @@ _cospec_dynamic() {
 }
 
 _cospec() {
-  local cur prev cmd i flags sources items
+  local cur prev cmd sub i j subpos flags sources items
   cur="\${COMP_WORDS[COMP_CWORD]}"
   prev=""
   [[ $COMP_CWORD -gt 0 ]] && prev="\${COMP_WORDS[COMP_CWORD-1]}"
@@ -73,6 +81,16 @@ _cospec() {
     return 0
   fi
 
+  # The subcommand after the command, and how many positionals follow it.
+  sub=""
+  subpos=0
+  for (( j = i + 1; j < COMP_CWORD; j++ )); do
+    case "\${COMP_WORDS[j]}" in
+      -*) ;;
+      *) if [[ -z $sub ]]; then sub="\${COMP_WORDS[j]}"; else subpos=$((subpos + 1)); fi ;;
+    esac
+  done
+
   sources=""
   case "$cmd" in
 ${flagValueArms}
@@ -88,6 +106,12 @@ ${globalArms}
     esac
     COMPREPLY=( $(compgen -W "$flags $globals" -- "$cur") )
     return 0
+  fi
+
+  if [[ -z $sources && -n $sub && $subpos -eq 0 ]]; then
+    case "$cmd $sub" in
+${subcommandArms}
+    esac
   fi
 
   if [[ -z $sources ]]; then

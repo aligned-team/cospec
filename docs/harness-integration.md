@@ -30,7 +30,9 @@ internals behind it — content the site intentionally keeps at a higher level.
   write the artifact, until every `apply.requires` artifact is done. Each
   artifact in the status JSON carries `ready` (its `requires` are all done, so
   it can be authored next) alongside `done` and `required`, so the loop can pick
-  what to write without re-deriving the dependency graph.
+  what to write without re-deriving the dependency graph. A change with no
+  artifacts yet carries `artifacts: []`, and its `next` names the first one to
+  write.
 - **new** — scaffold-only entry point: pick the type, run
   `cospec new <type> <slug>`, print the typed artifact plan and the first
   artifact's instructions, then **stop** without authoring anything. Hands off

@@ -4,24 +4,47 @@
 // A change with a `.openspec.yaml` but no artifacts yet renders as "in progress"
 // rather than openspec's bare "Unknown item" (PMF10 / product gap #3).
 
-import { existsSync, readFileSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
-import { isCospecType, listChanges, resolveChange, type Change } from '../core/change.ts'
+import {
+  changeMetadataRefused,
+  listSchemas,
+  loadSchema,
+  schemaDir,
+} from '../core/change-metadata.ts'
+import {
+  archiveDir,
+  changesDir,
+  describeNestedChange,
+  findNestedChangesIn,
+  isCospecType,
+  listChanges,
+  projectConfigSchema,
+  resolveChange,
+  type Change,
+} from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
-import { passthroughOpenspec } from '../core/openspec.ts'
-import { respellRemedies } from '../core/remedies.ts'
-import { resolveRoot } from '../core/root.ts'
+import { answeringErrno } from '../core/errno.ts'
+import { passthroughOpenspec, wrappedCallLabel } from '../core/openspec.ts'
+import { respellRemedies, respellWholeRemedy } from '../core/remedies.ts'
+import type { ResolvedRoot } from '../core/root.ts'
 import {
   artifactRequires,
   enforcedApplyRequires,
   TYPE_ARTIFACTS,
   type CospecType,
 } from '../core/rules/type-facts.ts'
-import { parseTasks } from '../core/tasks.ts'
+import { parseTasks, type ParsedTasks } from '../core/tasks.ts'
+import {
+  mergeUpstream,
+  resolveRootOrDocument,
+  rootOutput,
+  type Identities,
+} from '../core/upstream-keys.ts'
 import { computeVerificationVerdict, type VerificationVerdict } from '../core/verification.ts'
 import { archiveMap, artifactDone, closest, computeGate, hasSpecFiles, type Gate } from './apply.ts'
 
@@ -69,13 +92,142 @@ export interface ChangeStatus {
   /** read-only verification verdict (DESIGN §3.6) — never a gate; `cospec apply`
    * and `cospec archive` are the only commands that gate on verification. */
   verification: VerificationVerdict
+  /** The next step (`resolveNext`), when there is one. */
+  next?: string
+}
+
+/** An artifact's state in its schema's build order, as the binary's `artifacts[].status` names them. */
+export type ArtifactState = 'done' | 'ready' | 'blocked' | 'skipped'
+
+/**
+ * The next step for a change (design D4), the one function the JSON `next`
+ * and the human `Next:` line both print: the first ready artifact the change
+ * requires to apply; else `cospec apply <id>` once every required artifact is
+ * done (a `skip_specs`-skipped one counts as done); else the first ready
+ * artifact of any kind; else nothing. Unlike the binary's `nextSteps`, an
+ * optional artifact still unwritten never holds the change back from its gate.
+ */
+export function resolveNext(
+  states: readonly { id: string; state: ArtifactState }[],
+  required: ReadonlySet<string>,
+  changeId: string,
+): string | undefined {
+  const instructions = (id: string): string => `cospec instructions ${id} --change ${changeId}`
+  const readyRequired = states.find((a) => a.state === 'ready' && required.has(a.id))
+  if (readyRequired !== undefined) return instructions(readyRequired.id)
+  const settled = (id: string): boolean => {
+    const state = states.find((a) => a.id === id)?.state
+    return state === 'done' || state === 'skipped'
+  }
+  if ([...required].every(settled)) return `cospec apply ${changeId}`
+  const ready = states.find((a) => a.state === 'ready')
+  return ready === undefined ? undefined : instructions(ready.id)
+}
+
+/**
+ * A cospec-typed change's artifact states from its own matrix: done is the
+ * file present, skipped a `skip_specs` change's absent `specs`, ready every
+ * artifact it requires done or skipped.
+ */
+function cospecStates(
+  type: CospecType,
+  done: ReadonlyMap<string, boolean>,
+  skipSpecs: boolean,
+): { id: string; state: ArtifactState }[] {
+  const facts = TYPE_ARTIFACTS[type]
+  const settled = (id: string): boolean => done.get(id) === true || (id === 'specs' && skipSpecs)
+  return facts.declared.map((id) => {
+    if (done.get(id) === true) return { id, state: 'done' }
+    if (id === 'specs' && skipSpecs) return { id, state: 'skipped' }
+    return { id, state: artifactRequires(type, id).every(settled) ? 'ready' : 'blocked' }
+  })
+}
+
+/** A warning a status or list document carries (`--json`) or prints on stderr (text). */
+export interface ArchiveWarning {
+  code: 'archive_unreadable'
+  message: string
+}
+
+/** The warning for a change whose `tasks.md` could not be read (`readChangeTasks`). */
+export interface TasksWarning {
+  code: 'tasks_unreadable'
+  message: string
+}
+
+export type ReadWarning = ArchiveWarning | TasksWarning
+
+const NO_TASKS: ParsedTasks = { items: [], malformed: [], groups: [] }
+
+/**
+ * A change's `tasks.md`, read as the binary's `countTaskFile` reads it: an
+ * absent file is no tasks, and so is one any other errno refuses, with a
+ * warning naming the file pushed onto `warnings`. Status has already asked
+ * the binary whether such a change can be reported at all
+ * (`hasUnreadableEntry`): it refuses the change where its runtime's `realpath`
+ * confinement check refuses the file (Bun on macOS), and counts the file as no
+ * tasks elsewhere.
+ */
+export function readChangeTasks(changeDir: string, warnings: ReadWarning[]): ParsedTasks {
+  const path = join(changeDir, 'tasks.md')
+  let text: string
+  try {
+    text = readFileSync(path, 'utf8')
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    if (typeof code !== 'string') throw error
+    if (code !== 'ENOENT')
+      warnings.push({
+        code: 'tasks_unreadable',
+        message: `could not read ${path} (${code}); its tasks are counted as none`,
+      })
+    return NO_TASKS
+  }
+  return parseTasks(text)
+}
+
+/**
+ * The archive index the gate column reads (design D4). The binary never reads
+ * `openspec/changes/archive/` for `status` or `list`, so an unreadable one
+ * must not fail them: the gate is computed from an empty index — which can
+ * only err toward `blocked`, never a false `clear` — and the warning says
+ * why. `validate` and `apply` read past it the same way
+ * (`readValidateContext`); `archive` reads it through `archiveMap` and still
+ * refuses.
+ */
+export function readArchive(base: string): {
+  archived: Map<string, string>
+  warning?: ArchiveWarning
+} {
+  try {
+    return { archived: archiveMap(base) }
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    if (typeof code !== 'string' || code === 'ENOENT') throw error
+    return {
+      archived: new Map(),
+      warning: {
+        code: 'archive_unreadable',
+        message:
+          `could not read ${archiveDir(base)} (${code}); blocker gates are computed as if no change ` +
+          'were archived',
+      },
+    }
+  }
 }
 
 /**
  * Full status for a cospec-typed change with at least one artifact. Assumes the
- * caller has excluded the empty-change and legacy cases.
+ * caller has excluded the empty-change and legacy cases. `archived` is the
+ * archive index its gate reads (`readArchive`); read here when not given. An
+ * unreadable `tasks.md` adds its warning to `warnings`.
  */
-export function computeStatus(base: string, change: Change): ChangeStatus {
+export function computeStatus(
+  base: string,
+  change: Change,
+  archived?: Map<string, string>,
+  warnings: ReadWarning[] = [],
+): ChangeStatus {
   const type = change.schema as CospecType
   const facts = TYPE_ARTIFACTS[type]
   // Grandfathering: `required` mirrors the schemaVersion-filtered set the
@@ -94,15 +246,12 @@ export function computeStatus(base: string, change: Change): ChangeStatus {
   const gate = existsSync(blockersPath)
     ? computeGate(
         parseBlockers(readFileSync(blockersPath, 'utf8')),
-        archiveMap(base),
+        archived ?? archiveMap(base),
         new Set(listChanges(base).map((c) => c.id)),
       )
     : ({ state: 'clear', hard: [], soft: [] } satisfies Gate)
 
-  const tasksPath = join(change.dir, 'tasks.md')
-  const parsedTasks = existsSync(tasksPath)
-    ? parseTasks(readFileSync(tasksPath, 'utf8'))
-    : { items: [], malformed: [], groups: [] }
+  const parsedTasks = readChangeTasks(change.dir, warnings)
   const total = parsedTasks.items.length
   const complete = parsedTasks.items.filter((t) => t.checked).length
 
@@ -119,6 +268,11 @@ export function computeStatus(base: string, change: Change): ChangeStatus {
     verificationText,
   )
 
+  const next = resolveNext(
+    cospecStates(type, done, change.skipSpecs === true),
+    applyRequires,
+    change.id,
+  )
   return {
     change: change.id,
     type: change.schema,
@@ -129,6 +283,7 @@ export function computeStatus(base: string, change: Change): ChangeStatus {
     tasks: { total, complete },
     archiveReady,
     verification,
+    ...(next === undefined ? {} : { next }),
   }
 }
 
@@ -151,11 +306,21 @@ function renderHuman(status: ChangeStatus): string {
       `  verification:  ${v.verified}/${v.total} verified, ${v.deferred} deferred, ${v.unresolved} unresolved`,
     )
   }
+  if (status.next !== undefined) lines.push(`Next: ${status.next}`)
   return `${lines.join('\n')}\n`
 }
 
-/** The empty-change entry shape (`.openspec.yaml` present, no artifacts yet). */
-function emptyChangeEntry(change: Change) {
+/**
+ * The empty-change entry shape: a cospec-typed change (`.openspec.yaml`
+ * present) with no artifacts yet, its next step from its own matrix.
+ */
+function emptyChangeEntry(change: Change, type: CospecType) {
+  const required = new Set(enforcedApplyRequires(type, change.schemaVersion ?? 1))
+  const next = resolveNext(
+    cospecStates(type, new Map(), change.skipSpecs === true),
+    required,
+    change.id,
+  )
   return {
     change: change.id,
     type: change.schema,
@@ -163,13 +328,27 @@ function emptyChangeEntry(change: Change) {
     artifacts: [] as ArtifactStatus[],
     gate: 'clear',
     archiveReady: false,
-    next: `cospec instructions proposal --change ${change.id}`,
+    ...(next === undefined ? {} : { next }),
   }
 }
 
-/** The legacy/unknown-schema entry shape. */
-function legacyChangeEntry(change: Change) {
-  return { change: change.id, type: change.schema, legacy: true as const }
+/**
+ * A change on a schema cospec doesn't type: its identity, and — from the
+ * binary's own status for it — the next step (`resolveNext` over the
+ * binary's `artifacts[].status` and `applyRequires`).
+ */
+function legacyChangeEntry(
+  change: Change,
+  upstream: Record<string, unknown> | undefined,
+): { change: string; type: string; legacy: true; next?: string } {
+  const entry = { change: change.id, type: change.schema, legacy: true as const }
+  const next = upstream === undefined ? undefined : upstreamNext(upstream, change.id)
+  return next === undefined ? entry : { ...entry, next }
+}
+
+function emptyHuman(entry: { change: string; type: string; next?: string }): string {
+  const next = entry.next === undefined ? '' : `; next: ${entry.next}`
+  return `${entry.change} (${entry.type}): in progress — no artifacts yet${next}\n`
 }
 
 export type ChangeEntry =
@@ -183,63 +362,373 @@ export interface ChangeEntryFailure {
 }
 
 /**
- * One change's status entry — empty, legacy, or full — for a single change.
- * Never throws itself; a caller sweeping every change (`--all`) wraps this in
- * a try/catch per change so one bad change cannot abort the sweep.
+ * The change as status grades it (design D4): `--schema` overrides its schema,
+ * as the binary's does; a directory with no `.openspec.yaml` takes its schema
+ * as the binary does — the root's `config.yaml` `schema:`, else
+ * `spec-driven` — at `schemaVersion` 1.
  */
-export function buildChangeEntry(base: string, change: Change): ChangeEntry {
-  if (!hasAnyArtifact(change.dir)) return emptyChangeEntry(change)
-  if (!isCospecType(change.schema)) return legacyChangeEntry(change)
-  return computeStatus(base, change)
+function gradedChange(base: string, change: Change, override: string | undefined): Change {
+  const bare = !existsSync(join(change.dir, '.openspec.yaml'))
+  const schema = override ?? (bare ? (projectConfigSchema(base) ?? 'spec-driven') : change.schema)
+  return bare ? { ...change, schema, schemaVersion: 1 } : { ...change, schema }
+}
+
+/** `--schema <name>` as the binary forwards it, or nothing. */
+function schemaArgs(override: string | undefined): string[] {
+  return override === undefined ? [] : ['--schema', override]
+}
+
+/**
+ * The binary's refusal of an unknown `--schema` (its `validateSchemaExists`,
+ * project, user and package tiers), from a delegated `--json` call so the
+ * list of available schemas is the binary's: its document under `--json`,
+ * its message on stderr otherwise, exit 1.
+ */
+async function refuseUnknownSchema(
+  root: ResolvedRoot,
+  args: string[],
+  json: boolean,
+): Promise<number> {
+  const doc = await delegatedStatus(root, args)
+  if (json) process.stdout.write(`${JSON.stringify(respelledUpstream(doc), null, 2)}\n`)
+  else
+    for (const s of upstreamFailure(doc) ?? [])
+      process.stderr.write(`cospec status: ${s.message}\n`)
+  return EXIT.failure
+}
+
+/**
+ * Whether the binary's status for this change must answer it: a schema cospec
+ * doesn't type, whose artifacts only its own schema names, written or not.
+ */
+function answeredUpstream(change: Change): boolean {
+  return !isCospecType(change.schema)
+}
+
+/**
+ * One change's status entry — legacy, empty, or full. A legacy entry (any
+ * schema cospec doesn't type, with or without artifacts) takes its next step
+ * from `upstream`, the binary's status for the change; only a cospec-typed
+ * change is empty. Never throws itself; a caller sweeping every change
+ * (`--all`) wraps this in a try/catch per change so one bad change cannot
+ * abort the sweep.
+ */
+export function buildChangeEntry(
+  base: string,
+  change: Change,
+  upstream?: Record<string, unknown>,
+  archived?: Map<string, string>,
+  warnings: ReadWarning[] = [],
+): ChangeEntry {
+  if (!isCospecType(change.schema)) return legacyChangeEntry(change, upstream)
+  if (!hasAnyArtifact(change.dir)) return emptyChangeEntry(change, change.schema)
+  return computeStatus(base, change, archived, warnings)
+}
+
+/** An errno failure reading a change's files: its message, as the binary reports it. */
+function readFailure(error: unknown): string | undefined {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code
+  return error instanceof Error && typeof code === 'string' ? error.message : undefined
+}
+
+/** What `binaryDecides` memoizes across a sweep: each schema's load, and `listSchemas`. */
+interface DecideCache {
+  loads: Map<string, boolean>
+  listed?: string[]
+}
+
+/**
+ * Whether the binary decides if a cospec-typed change can be reported at all,
+ * so status asks it in text mode as under `--json`: cospec cannot read some
+ * entry of the change (`hasUnreadableEntry`), the binary's
+ * `readChangeMetadata` refuses its `.openspec.yaml` (`changeMetadataRefused`:
+ * unreadable, not YAML, failing `ChangeMetadataSchema`, or naming a schema
+ * `listSchemas` does not list), or the binary cannot load the change's schema
+ * — `loadSchema`, its `resolveSchema`, finds no candidate in any tier, or
+ * cannot read, parse or validate the one it finds. Any of these, a spawn the
+ * binary answers without refusing costs only the spawn.
+ */
+function binaryDecides(
+  base: string,
+  change: Change,
+  cache: DecideCache = { loads: new Map() },
+): boolean {
+  if (hasUnreadableEntry(change.dir)) return true
+  if (changeMetadataRefused(change.dir, () => (cache.listed ??= listSchemas(base)))) return true
+  let loaded = cache.loads.get(change.schema)
+  if (loaded === undefined) {
+    try {
+      loadSchema(change.schema, base)
+      loaded = true
+    } catch (error) {
+      // Every failure to load (its own or an errno listing the schemas) is
+      // the binary's to report: the change goes to the binary.
+      if (!(error instanceof Error)) throw error
+      loaded = false
+    }
+    cache.loads.set(change.schema, loaded)
+  }
+  return !loaded
+}
+
+/**
+ * Whether cospec cannot read some entry of a change: the directory itself, or
+ * a file or directory under it (dot-entries aside, which the binary's artifact
+ * globs never match). Such a change is the binary's to report or refuse: it
+ * refuses where its runtime's `realpath` refuses the entry (Bun on macOS) and
+ * reads past it elsewhere, so status asks it, in text mode too.
+ */
+export function hasUnreadableEntry(dir: string): boolean {
+  const failed = (error: unknown): boolean => {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    if (!(error instanceof Error) || typeof code !== 'string') throw error
+    return code !== 'ENOENT'
+  }
+  const walk = (at: string): boolean => {
+    let entries
+    try {
+      entries = readdirSync(at, { withFileTypes: true })
+    } catch (error) {
+      return failed(error)
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue
+      const path = join(at, entry.name)
+      if (entry.isDirectory()) {
+        if (walk(path)) return true
+      } else if (entry.isFile()) {
+        try {
+          closeSync(openSync(path, 'r'))
+        } catch (error) {
+          if (failed(error)) return true
+        }
+      }
+    }
+    return false
+  }
+  return walk(dir)
+}
+
+/** A namespace folder's explanation (design D2), when `id` names one. */
+function namespaceExplanation(base: string, id: string): string | undefined {
+  const finding = findNestedChangesIn(changesDir(base), id)
+  return finding === undefined ? undefined : describeNestedChange(finding)
+}
+
+function printWarnings(warnings: readonly ReadWarning[]): void {
+  for (const warning of warnings) process.stderr.write(`Warning: ${warning.message}\n`)
+}
+
+/** The document's `warnings`, when there are any to carry. */
+function warningsKey(warnings: readonly ReadWarning[]): { warnings?: ReadWarning[] } {
+  return warnings.length === 0 ? {} : { warnings: [...warnings] }
+}
+
+/** The archive's warning, if any, then the tasks warnings in change order. */
+function readWarnings(
+  archive: ArchiveWarning | undefined,
+  tasks: readonly ReadWarning[],
+): ReadWarning[] {
+  return [...(archive === undefined ? [] : [archive]), ...tasks]
 }
 
 function isFailure(entry: ChangeEntry | ChangeEntryFailure): entry is ChangeEntryFailure {
   return 'error' in entry
 }
 
-function renderEntryHuman(entry: ChangeEntry | ChangeEntryFailure): string {
+// --- the binary's status, for a schema cospec doesn't type ----------------------
+
+interface UpstreamArtifact {
+  id: string
+  status: ArtifactState
+  missingDeps?: string[]
+}
+
+function upstreamArtifacts(doc: Record<string, unknown>): UpstreamArtifact[] | undefined {
+  return Array.isArray(doc.artifacts) ? (doc.artifacts as UpstreamArtifact[]) : undefined
+}
+
+/** `resolveNext` over the binary's own artifact states and `applyRequires`. */
+function upstreamNext(doc: Record<string, unknown>, id: string): string | undefined {
+  const artifacts = upstreamArtifacts(doc)
+  if (artifacts === undefined) return undefined
+  const required = new Set(Array.isArray(doc.applyRequires) ? (doc.applyRequires as string[]) : [])
+  return resolveNext(
+    artifacts.map((a) => ({ id: a.id, state: a.status })),
+    required,
+    id,
+  )
+}
+
+/**
+ * The binary's diagnostics for a change it could not report, if it could not,
+ * each spelled through the remedy allowlist as every relay of them is.
+ */
+export function upstreamFailure(doc: Record<string, unknown>): { message: string }[] | undefined {
+  if (upstreamArtifacts(doc) !== undefined) return undefined
+  return Array.isArray(doc.status) ? respellDiagnostics(doc.status) : undefined
+}
+
+const INDICATOR: Record<ArtifactState, string> = {
+  done: '[x]',
+  skipped: '[~]',
+  ready: '[ ]',
+  blocked: '[-]',
+}
+
+/**
+ * A port of the binary's `printStatusText` (`commands/workflow/status.js`)
+ * over its `status --json` document, uncoloured, with the `Next:` line from
+ * `resolveNext` — so nothing the binary wrote as prose is relayed or
+ * respelled.
+ */
+export function renderUpstreamHuman(
+  doc: Record<string, unknown>,
+  next: string | undefined,
+): string {
+  const artifacts = upstreamArtifacts(doc) ?? []
+  const done = artifacts.filter((a) => a.status === 'done').length
+  const skipped = artifacts.filter((a) => a.status === 'skipped').length
+  const lines = [`Change: ${String(doc.changeName)}`, `Schema: ${String(doc.schemaName)}`]
+  if (typeof doc.changeRoot === 'string' && doc.changeRoot.length > 0)
+    lines.push(`Change root: ${doc.changeRoot}`)
+  lines.push(
+    `Progress: ${done}/${artifacts.length - skipped} artifacts complete${skipped > 0 ? ` (${skipped} skipped)` : ''}`,
+  )
+  lines.push('')
+  for (const a of artifacts) {
+    let line = `${INDICATOR[a.status]} ${a.id}`
+    if (a.status === 'skipped') line += ' (skipped: change declares skip_specs)'
+    if (a.status === 'blocked' && a.missingDeps !== undefined && a.missingDeps.length > 0)
+      line += ` (blocked by: ${a.missingDeps.join(', ')})`
+    lines.push(line)
+  }
+  const complete = doc.isPlanningComplete === true
+  if (complete || next !== undefined) lines.push('')
+  if (complete) lines.push('All planning artifacts complete!')
+  if (next !== undefined) lines.push(`Next: ${next}`)
+  return `${lines.join('\n')}\n`
+}
+
+function renderEntryHuman(
+  entry: ChangeEntry | ChangeEntryFailure,
+  upstream: Record<string, unknown> | undefined,
+): string {
   if (isFailure(entry)) return `${entry.change}: ERROR — ${entry.error}\n`
   if ('legacy' in entry) {
-    return `${entry.change} (${entry.type}): legacy schema — use \`cospec status --change ${entry.change}\` for details\n`
+    const failure = upstream === undefined ? undefined : upstreamFailure(upstream)
+    if (upstream === undefined || failure !== undefined)
+      return `${entry.change}: ERROR — ${(failure ?? []).map((s) => s.message).join('\n')}\n`
+    return renderUpstreamHuman(upstream, entry.next)
   }
-  if ('next' in entry) {
-    return `${entry.change} (${entry.type}): in progress — no artifacts yet; next: ${entry.next}\n`
+  if (entry.state === 'in-progress') {
+    return emptyHuman(entry)
   }
   return renderHuman(entry)
+}
+
+/** The binary's sweep entries by change name. */
+function sweepEntries(doc: Record<string, unknown>): Map<string, Record<string, unknown>> {
+  const changes = Array.isArray(doc.changes) ? (doc.changes as Record<string, unknown>[]) : []
+  return new Map(changes.map((c) => [String(c.changeName), c]))
 }
 
 /**
  * `cospec status --all` (OpenSpec 1.11 parity): a cospec-native sweep over
  * every active change, sorted by id. Unlike a single change lookup, one bad
  * change never aborts the sweep — it becomes a per-change failure entry and
- * the whole run still exits nonzero.
+ * the whole run still exits nonzero. The binary's sweep is fetched once, and
+ * only when an entry needs it: under `--json`, for a change on a schema
+ * cospec doesn't type, or for a change the binary decides whether it can be
+ * reported at all (`binaryDecides`: an entry cospec cannot read, metadata the
+ * binary refuses, a schema it cannot load) — and a change it refuses is a failure entry.
  */
-async function runAll(ctx: CommandContext): Promise<number> {
+async function runAll(ctx: CommandContext, override: string | undefined): Promise<number> {
   const { flags } = ctx
-  const root = await resolveRoot(ctx)
+  const root = await resolveRootOrDocument(ctx, 'change_error', BATCH_FAILURE_PAYLOAD)
+  if (root === undefined) return EXIT.failure
   const base = root.base
-  const changes = listChanges(base).toSorted((a, b) => a.id.localeCompare(b.id))
+  // Checked before any change is enumerated, as the binary checks it.
+  if (override !== undefined && schemaDir(override, base) === undefined)
+    return refuseUnknownSchema(root, ['--all', ...schemaArgs(override)], flags.json)
+  const changes = listChanges(base)
+    .toSorted((a, b) => a.id.localeCompare(b.id))
+    .map((change) => gradedChange(base, change, override))
 
+  const sweepArgs = ['--all', ...schemaArgs(override)]
+  const cache: DecideCache = { loads: new Map() }
+  const upstream =
+    flags.json ||
+    changes.some(answeredUpstream) ||
+    changes.some((change) => binaryDecides(base, change, cache))
+      ? await delegatedStatus(root, sweepArgs)
+      : undefined
+  const byName = upstream === undefined ? new Map() : sweepEntries(upstream)
+
+  const { archived, warning } = readArchive(base)
+  const tasksWarnings = new Map<string, ReadWarning[]>()
   const entries: (ChangeEntry | ChangeEntryFailure)[] = changes.map((change) => {
+    // A namespace folder is a failure entry carrying its explanation, as the
+    // binary's sweep carries it.
+    const nested = namespaceExplanation(base, change.id)
+    if (nested !== undefined) return { change: change.id, error: nested }
+    // A cospec-typed change the binary refuses (one it cannot read, say) is a
+    // failure entry carrying the binary's message; a change on another schema
+    // keeps its legacy entry, whose failure the binary's entry carries.
+    if (!answeredUpstream(change)) {
+      const refused = upstreamFailure(byName.get(change.id) ?? {})
+      if (refused !== undefined)
+        return { change: change.id, error: refused.map((s) => s.message).join('\n') }
+    }
+    const own: ReadWarning[] = []
     try {
-      return buildChangeEntry(base, change)
+      return buildChangeEntry(base, change, byName.get(change.id), archived, own)
     } catch (err) {
       return { change: change.id, error: (err as Error).message }
+    } finally {
+      if (own.length > 0) tasksWarnings.set(change.id, own)
     }
+  })
+  const warnings = readWarnings(warning, [...tasksWarnings.values()].flat())
+  // A change the binary could not report fails the sweep when the binary's
+  // answer is the one it gets.
+  const upstreamFailed = entries.some((entry) => {
+    if (isFailure(entry) || !('legacy' in entry)) return false
+    const up = byName.get(entry.change)
+    return up === undefined || upstreamFailure(up) !== undefined
   })
 
   if (flags.json) {
-    process.stdout.write(`${JSON.stringify({ changes: entries, root: base }, null, 2)}\n`)
+    const inProgress = new Set(entries.filter(isInProgress).map((e) => e.change))
+    const changes = Array.isArray(upstream!.changes) ? upstream!.changes : []
+    const sweep = {
+      ...upstream!,
+      changes: changes.map((c: unknown) =>
+        isRecord(c) && inProgress.has(String(c.changeName)) ? forInProgress(c) : c,
+      ),
+    }
+    const doc = mergeUpstream(
+      { changes: entries, root: rootOutput(root), ...warningsKey(warnings) },
+      respelledUpstream(sweep),
+      SWEEP_IDENTITIES,
+    ).value
+    process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`)
   } else if (entries.length === 0) {
     process.stdout.write('cospec status: no active changes\n')
   } else {
-    process.stdout.write(entries.map(renderEntryHuman).join('\n'))
+    printWarnings(warnings)
+    process.stdout.write(
+      entries.map((entry) => renderEntryHuman(entry, byName.get(entry.change))).join('\n'),
+    )
   }
 
-  return entries.some(isFailure) ? EXIT.failure : EXIT.success
+  return entries.some(isFailure) || upstreamFailed ? EXIT.failure : EXIT.success
 }
 
 const MUTEX_MESSAGE = 'The --all and --change options are mutually exclusive.'
+
+/** The binary's `--all --json` failure null-shape (`BATCH_STATUS_FAILURE_PAYLOAD`). */
+const BATCH_FAILURE_PAYLOAD = { changes: [], root: null } as const
 
 /**
  * A lookup refusal under `--json`: one document on stdout in upstream's
@@ -252,9 +741,136 @@ function changeErrorDocument(message: string): number {
   return EXIT.failure
 }
 
-export async function run(ctx: CommandContext): Promise<number> {
+/** Array identities between cospec's status documents and the binary's. */
+const ENTRY_IDENTITIES: Identities = { 'artifacts[]': { cospec: 'id', upstream: 'id' } }
+const SWEEP_IDENTITIES: Identities = {
+  'changes[]': { cospec: 'change', upstream: 'changeName' },
+  'changes[].artifacts[]': { cospec: 'id', upstream: 'id' },
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+/**
+ * The one delegated `openspec status … --json` call an invocation makes
+ * (design D4): the binary's own document for `args` (`--change <id>` or
+ * `--all`), in the resolved root. Its failure document (`status`, exit 1)
+ * is an answer, not a violation; anything but one document naming the change
+ * (or the sweep) or carrying `status` is.
+ */
+async function delegatedStatus(
+  root: ResolvedRoot,
+  args: string[],
+): Promise<Record<string, unknown>> {
+  const change = args[0] === '--change' ? args[1] : undefined
+  const label = wrappedCallLabel(['status', '--json', ...root.storeArgs, ...args])
+  let doc: Record<string, unknown> | undefined
+  await passthroughOpenspec(
+    { command: ['status'], threaded: ['--json', ...root.storeArgs], args },
+    {
+      cwd: root.cwd,
+      expect: {
+        exitCodes: [0, 1],
+        postCondition: (result) => {
+          let parsed: unknown
+          try {
+            parsed = JSON.parse(result.stdout)
+          } catch {
+            return `${label} did not print one JSON document`
+          }
+          if (!isRecord(parsed)) return `${label} printed no JSON object`
+          const named =
+            change === undefined ? Array.isArray(parsed.changes) : parsed.changeName === change
+          if (!named && !Array.isArray(parsed.status))
+            return `${label} printed neither the change's status nor a diagnostic`
+          doc = parsed
+          return true
+        },
+      },
+    },
+  )
+  return doc!
+}
+
+/** The binary's diagnostics, each `message` and `fix` spelled through the remedy allowlist. */
+function respellDiagnostics(status: unknown[]): { message: string }[] {
+  return status.map((d) => {
+    if (!isRecord(d)) return d as { message: string }
+    const fix = typeof d.fix === 'string' ? { fix: respellRemedies(d.fix) } : {}
+    const message = typeof d.message === 'string' ? respellRemedies(d.message) : d.message
+    return { ...d, message, ...fix } as { message: string }
+  })
+}
+
+/**
+ * A binary status entry with each `nextSteps` sentence spelled through
+ * cospec, and each `status[]` diagnostic's message and fix.
+ */
+function respellEntry(entry: unknown): unknown {
+  if (!isRecord(entry)) return entry
+  const steps = Array.isArray(entry.nextSteps)
+    ? {
+        nextSteps: entry.nextSteps.map((step: unknown) =>
+          typeof step === 'string' ? respellWholeRemedy(step) : step,
+        ),
+      }
+    : {}
+  const status = Array.isArray(entry.status) ? { status: respellDiagnostics(entry.status) } : {}
+  return { ...entry, ...steps, ...status }
+}
+
+/** The binary's document, single or sweep, its remedies spelled through cospec. */
+export function respelledUpstream(doc: Record<string, unknown>): Record<string, unknown> {
+  const single = respellEntry(doc) as Record<string, unknown>
+  return Array.isArray(single.changes)
+    ? { ...single, changes: single.changes.map(respellEntry) }
+    : single
+}
+
+/**
+ * The binary's entry for an in-progress cospec change, without its
+ * `artifacts`: the entry's `artifacts: []` is cospec's own pre-existing value,
+ * so the binary's artifact objects are never appended into it (D3 never
+ * overwrites a cospec value).
+ */
+function forInProgress(upstream: Record<string, unknown>): Record<string, unknown> {
+  const { artifacts: _artifacts, ...rest } = upstream
+  return rest
+}
+
+function isInProgress(entry: unknown): boolean {
+  return isRecord(entry) && entry.state === 'in-progress'
+}
+
+/** cospec's entry, the binary's document for the same change merged in, and `root`. */
+function mergedEntry(
+  root: ResolvedRoot,
+  entry: Record<string, unknown>,
+  upstream: Record<string, unknown>,
+): Record<string, unknown> {
+  return mergeUpstream(
+    { ...entry, root: rootOutput(root) },
+    respelledUpstream(isInProgress(entry) ? forInProgress(upstream) : upstream),
+    ENTRY_IDENTITIES,
+  ).value
+}
+
+/**
+ * `cospec status`: an errno failure it lets escape (an unreadable
+ * `openspec/changes/`) is the binary's one `change_error` document under
+ * `--json`, carrying the sweep's null-shape for `--all`.
+ */
+export function run(ctx: CommandContext): Promise<number> {
+  const payload = hasFlag(ctx.parsed!, '--all') ? BATCH_FAILURE_PAYLOAD : {}
+  return answeringErrno(ctx.flags.json, { code: 'change_error', payload }, () => status(ctx))
+}
+
+async function status(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
   const parsed = ctx.parsed!
+  // A schema override, as the binary's `--schema` is — never a filter.
+  const override = flagValue(parsed, '--schema')
 
   // A positional beside `--change` or `--all` never gets here: the table
   // refuses it as an excess argument, as upstream (which has none) does.
@@ -273,10 +889,11 @@ export async function run(ctx: CommandContext): Promise<number> {
       }
       return EXIT.failure
     }
-    return runAll(ctx)
+    return runAll(ctx, override)
   }
 
-  const root = await resolveRoot(ctx)
+  const root = await resolveRootOrDocument(ctx, 'change_error')
+  if (root === undefined) return EXIT.failure
   const base = root.base
   let id = flagValue(parsed, '--change') ?? parsed.positionals[0]
 
@@ -287,7 +904,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     } else if (active.length === 0) {
       process.stdout.write(
         flags.json
-          ? `${JSON.stringify({ changes: [], root: base, message: 'No active changes.' }, null, 2)}\n`
+          ? `${JSON.stringify({ changes: [], message: 'No active changes.', root: rootOutput(root) }, null, 2)}\n`
           : 'cospec status: no active changes\n',
       )
       return EXIT.success
@@ -302,8 +919,8 @@ export async function run(ctx: CommandContext): Promise<number> {
     }
   }
 
-  const change = resolveChange(base, id)
-  if (change === undefined) {
+  const found = resolveChange(base, id)
+  if (found === undefined) {
     const suggestion = closest(
       id,
       active.map((c) => c.id),
@@ -316,57 +933,82 @@ export async function run(ctx: CommandContext): Promise<number> {
     if (suggestion !== undefined) process.stderr.write(`Did you mean '${suggestion}'?\n`)
     return EXIT.failure
   }
+  // A namespace folder is refused, as the binary refuses it.
+  const nested = namespaceExplanation(base, found.id)
+  if (nested !== undefined) {
+    if (flags.json) return changeErrorDocument(nested)
+    process.stderr.write(`cospec status: ${nested}\n`)
+    return EXIT.failure
+  }
+
+  // Checked after the change resolves and before it is reported, as the
+  // binary checks it; with neither `--change` nor `--all` it is not checked.
+  if (
+    override !== undefined &&
+    flagValue(parsed, '--change') !== undefined &&
+    schemaDir(override, base) === undefined
+  )
+    return refuseUnknownSchema(root, ['--change', found.id, ...schemaArgs(override)], flags.json)
+  const change = gradedChange(base, found, override)
+
+  // A schema cospec doesn't type: the binary's own status answers it, in
+  // both modes, with the binary's outcome.
+  if (answeredUpstream(change)) {
+    const upstream = await delegatedStatus(root, ['--change', change.id, ...schemaArgs(override)])
+    const failure = upstreamFailure(upstream)
+    const entry = legacyChangeEntry(change, upstream)
+    if (flags.json) {
+      process.stdout.write(`${JSON.stringify(mergedEntry(root, entry, upstream), null, 2)}\n`)
+    } else if (failure !== undefined) {
+      for (const s of failure) process.stderr.write(`cospec status: ${s.message}\n`)
+    } else {
+      process.stdout.write(renderUpstreamHuman(upstream, entry.next))
+    }
+    return failure === undefined ? EXIT.success : EXIT.failure
+  }
+
+  // The binary's status for the change, under `--json` or when the binary
+  // decides whether it can be reported (`binaryDecides`): any error in it is
+  // the binary's refusal, and the answer — its document under `--json`, its
+  // message in text.
+  const upstream =
+    flags.json || binaryDecides(base, change)
+      ? await delegatedStatus(root, ['--change', change.id, ...schemaArgs(override)])
+      : undefined
+  const refused = upstream === undefined ? undefined : upstreamFailure(upstream)
+  if (refused !== undefined) {
+    if (flags.json)
+      process.stdout.write(`${JSON.stringify(respelledUpstream(upstream!), null, 2)}\n`)
+    else for (const s of refused) process.stderr.write(`cospec status: ${s.message}\n`)
+    return EXIT.failure
+  }
 
   // Empty change: has .openspec.yaml but no artifacts yet (never "Unknown item").
-  if (!hasAnyArtifact(change.dir)) {
-    if (flags.json) {
-      process.stdout.write(
-        `${JSON.stringify(
-          {
-            change: change.id,
-            type: change.schema,
-            state: 'in-progress',
-            artifacts: [],
-            gate: 'clear',
-            archiveReady: false,
-            next: `cospec instructions proposal --change ${change.id}`,
-          },
-          null,
-          2,
-        )}\n`,
-      )
-    } else {
-      process.stdout.write(
-        `${change.id} (${change.schema}): in progress — no artifacts yet; next: cospec instructions proposal --change ${change.id}\n`,
-      )
-    }
+  // A tasks.md the binary reads past counts as no tasks, with a warning.
+  const { archived, warning } = readArchive(base)
+  const tasksWarnings: ReadWarning[] = []
+  let entry: ChangeEntry
+  try {
+    entry = buildChangeEntry(base, change, undefined, archived, tasksWarnings)
+  } catch (error) {
+    // A change file that cannot be read fails the lookup, as the binary's does.
+    const message = readFailure(error)
+    if (message === undefined) throw error
+    if (flags.json) return changeErrorDocument(message)
+    process.stderr.write(`cospec status: ${message}\n`)
+    return EXIT.failure
+  }
+  const warnings = readWarnings(warning, tasksWarnings)
+  if (!flags.json) {
+    printWarnings(warnings)
+    process.stdout.write(
+      'state' in entry && entry.state === 'in-progress'
+        ? emptyHuman(entry)
+        : renderHuman(entry as ChangeStatus),
+    )
     return EXIT.success
   }
-
-  // Legacy / unknown schema: no cospec artifact matrix. `--json` reports it
-  // minimally; text relays the binary's own status for the change, its
-  // `Next:` remedy spelled through cospec.
-  if (!isCospecType(change.schema)) {
-    if (flags.json) {
-      process.stdout.write(
-        `${JSON.stringify({ change: change.id, type: change.schema, legacy: true }, null, 2)}\n`,
-      )
-      return EXIT.success
-    }
-    const result = await passthroughOpenspec(
-      {
-        command: ['status'],
-        threaded: [...(flags.noColor ? ['--no-color'] : []), ...root.storeArgs],
-        args: ['--change', change.id],
-      },
-      { cwd: root.cwd },
-    )
-    if (result.stdout.length > 0) process.stdout.write(respellRemedies(result.stdout))
-    if (result.stderr.length > 0) process.stderr.write(respellRemedies(result.stderr))
-    return result.exitCode === 0 ? EXIT.success : EXIT.failure
-  }
-
-  const status = computeStatus(base, change)
-  process.stdout.write(flags.json ? `${JSON.stringify(status, null, 2)}\n` : renderHuman(status))
+  const doc = mergedEntry(root, { ...entry, ...warningsKey(warnings) }, upstream!)
+  process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`)
   return EXIT.success
 }

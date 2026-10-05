@@ -183,8 +183,9 @@ const DATE_PREFIXED_RE = /^\d{4}-\d{2}-\d{2}-/
  * Both accepted forms are real binary behaviour inside cospec's `>=1.0.0
  * <2.0.0` range: from 1.7.0 a change whose id already carries a date prefix
  * archives under that id verbatim (#1309), while older binaries re-prefix it.
- * cospec's own `CHANGE_ID_RE`/`meta/name-kebab` reject a date-prefixed id, so
- * the verbatim arm is defence for a change created outside cospec, not a path
+ * `cospec new` (`CHANGE_ID_RE`) never creates a date-prefixed id and
+ * `meta/name-kebab` fails one before archive moves anything, so the verbatim
+ * arm is defence for a change created outside cospec, not a path
  * `cospec archive` can reach on its own.
  */
 export function isArchiveTargetFor(changeId: string, dirName: string): boolean {

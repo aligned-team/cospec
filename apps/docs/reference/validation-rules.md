@@ -23,18 +23,41 @@ the `deltas/*` rules enforce, see OpenSpec's
 ## Command
 
 ```
-cospec validate [name] [--all|--changes|--specs] [--strict] [--json] [--fast]
+cospec validate [name] [--all|--changes|--specs|--archived] [--type change|spec]
+                [--report full|findings] [--concurrency <n>] [--strict] [--json] [--fast]
 ```
 
-| Flag        | Effect                                                             |
-| ----------- | ------------------------------------------------------------------ |
-| _(no args)_ | defaults to `--all`                                                |
-| `--strict`  | promotes every WARNING to blocking — this is what hooks and CI use |
-| `--fast`    | skips the archive-precondition checks (used internally by `apply`) |
-| `--json`    | machine-readable output (shape below)                              |
+| Flag                        | Effect                                                                                                                                         |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| _(no args)_                 | defaults to `--all`                                                                                                                            |
+| `--strict`                  | promotes every WARNING to blocking — this is what hooks and CI use                                                                             |
+| `--fast`                    | skips the archive-precondition checks (used internally by `apply`)                                                                             |
+| `--json`                    | machine-readable output (shape below)                                                                                                          |
+| `--type <change\|spec>`     | forces the kind of the named item, in any case; any other value is ignored, as OpenSpec ignores it                                             |
+| `--report <full\|findings>` | the full report (the default) or only the items with findings — needs a bulk scope and no name                                                 |
+| `--concurrency <n>`         | at most `n` change validations at once in a bulk scope; else `OPENSPEC_CONCURRENCY`, else 6 — a value that isn't a positive integer is ignored |
 
 Exit code is `1` if there are errors (or warnings under `--strict`), otherwise
-`0`.
+`0` — under `--report findings` too, which only narrows what is printed.
+
+A name is resolved as OpenSpec resolves it. `--all`, `--changes` or `--specs`
+beside a name runs that bulk scope and ignores the name. Otherwise a name that
+is both an active change and a living spec is refused
+(`Ambiguous item '<name>' matches both a change and a spec.`, fix
+`Pass --type change|spec.`; one `ambiguous_item` document under `--json`), and
+one that is neither prints OpenSpec's nearest matches
+(`Unknown item '<name>'. Did you mean: …?`, up to five ids, duplicates kept;
+`unknown_item`), both exit `1` — with no `openspec/` directory too, where a name
+alone matches nothing and is `unknown_item`. With `--type`, a path-shaped name
+is refused with OpenSpec's `invalid_item` message, and a forced kind naming
+nothing on disk is that item with one `meta/item-missing` ERROR. A forced
+`--type spec` reaches a `spec.md` the bulk scopes skip — under a dot-directory,
+or a capability behind a linked directory — and validates that file as OpenSpec
+does, never an empty passing report. `--report` requests are checked before any
+root is resolved: an unknown value, an item name, `--archived` with a bulk flag,
+or no bulk scope is refused with OpenSpec's message and fix (`Error: …` /
+`Fix: …` on stderr, or one `invalid_validation_report_request` document), exit
+`1`.
 
 ::: tip Which families run for a change Every change always runs `meta`,
 `proposal`, `blockers`, and `tasks`. Whether `verification`, `design`, `deltas`,
@@ -58,20 +81,23 @@ Every issue also carries a one-line hint.
 Structural checks on the change directory itself — `.openspec.yaml`, naming, and
 which artifact files are allowed to exist.
 
-| ID                              | Level        | Check                                                                                                                                                                                                                                                                                                       |
-| ------------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `meta/openspec-yaml`            | E            | `.openspec.yaml` is present, parseable, and has a non-empty `schema:`; `created:` must be `YYYY-MM-DD` when present                                                                                                                                                                                         |
-| `meta/schema-unknown`           | E            | the declared schema isn't one of the eleven cospec types and isn't resolvable any other way                                                                                                                                                                                                                 |
-| `meta/legacy-schema`            | I            | schema resolves but isn't a cospec type — the change runs in legacy mode                                                                                                                                                                                                                                    |
-| `meta/name-kebab`               | E            | the change directory isn't kebab-case with no `YYYY-MM-DD-` prefix (that prefix collides with archive naming)                                                                                                                                                                                               |
-| `meta/forbidden-artifact`       | E            | a file exists for an artifact the type doesn't declare — e.g. a `specs/` dir under `ci`                                                                                                                                                                                                                     |
-| `meta/unexpected-file`          | W            | a file matches no declared artifact glob (excludes `README.md`, `.openspec.yaml`, `.refine/`)                                                                                                                                                                                                               |
-| `meta/empty-change`             | I            | `.openspec.yaml` exists but the change has zero artifacts yet — reported as "in progress," not as an error                                                                                                                                                                                                  |
-| `meta/surface-unmet`            | W (E-strict) | a checked `## Surfaces` box's consequence is missing, for a type whose target isn't Forbidden — specifically, a type like `revert`/`build`/`ci` whose `verification.md` doesn't exist at all. A missing _row_ on a file that does exist is owned by `verification/*` instead, so this never double-reports. |
-| `meta/schema-outdated`          | I            | the change is on `schemaVersion` 1 (absent counts as 1) — some artifacts are grandfathered out until `cospec migrate`; never blocks                                                                                                                                                                         |
-| `meta/skip-specs-type`          | E            | `.openspec.yaml`'s `skip_specs` key is present but isn't a boolean                                                                                                                                                                                                                                          |
-| `meta/retire-capabilities-type` | E            | `.openspec.yaml`'s `retire_capabilities` key is present but isn't a boolean                                                                                                                                                                                                                                 |
-| `change/artifact-missing`       | I / E-strict | an artifact required by the type's apply gate doesn't exist yet (verification is excluded — `verification/missing` owns that case)                                                                                                                                                                          |
+| ID                              | Level        | Check                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `meta/openspec-yaml`            | E            | `.openspec.yaml` is present, parseable, and has a non-empty `schema:`; `created:` must be `YYYY-MM-DD` when present                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `meta/schema-unknown`           | E            | the declared schema isn't one of the eleven cospec types and isn't resolvable any other way                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `meta/legacy-schema`            | I            | schema resolves but isn't a cospec type — the change runs in legacy mode                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `meta/name-kebab`               | E            | the change directory isn't kebab-case with no `YYYY-MM-DD-` prefix (that prefix collides with archive naming)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `meta/forbidden-artifact`       | E            | a file exists for an artifact the type doesn't declare — e.g. a `specs/` dir under `ci`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `meta/unexpected-file`          | W            | a file matches no declared artifact glob (excludes `README.md`, `.openspec.yaml`, `.refine/`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `meta/empty-change`             | I            | `.openspec.yaml` exists but the change has zero artifacts yet — reported as "in progress," not as an error                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `meta/surface-unmet`            | W (E-strict) | a checked `## Surfaces` box's consequence is missing, for a type whose target isn't Forbidden — specifically, a type like `revert`/`build`/`ci` whose `verification.md` doesn't exist at all. A missing _row_ on a file that does exist is owned by `verification/*` instead, so this never double-reports.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `meta/schema-outdated`          | I            | the change is on `schemaVersion` 1 (absent counts as 1) — some artifacts are grandfathered out until `cospec migrate`; never blocks                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `meta/skip-specs-type`          | E            | `.openspec.yaml`'s `skip_specs` key is present but isn't a boolean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `meta/retire-capabilities-type` | E            | `.openspec.yaml`'s `retire_capabilities` key is present but isn't a boolean                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `meta/nested-change`            | E            | the directory is a namespace folder wrapping nested changes (`changes/mobile/refresh-token/`), not a change — the message is OpenSpec's explanation verbatim; no other rule runs on it and nothing is delegated                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `meta/unreadable-artifact`      | E            | a change file that exists could not be read (`could not read <file> (<errno code>)`) — a proposal, blockers, tasks, verification or design file, a delta or unread spec file, `.openspec.yaml`, a directory an artifact can live in (the change itself, `specs/` outside dot-directories — any other directory is passed by, as OpenSpec never reads it), or the living spec a delta targets (on the delta's path, `could not read openspec/specs/<cap>/spec.md (<errno code>)`); no other rule runs on the change and nothing is delegated. On a spec item it is the living `spec.md` itself (`could not read specs/<id>/spec.md (<errno code>)`), that spec's only issue, with nothing delegated for it — every other spec in scope is reported as it is alone, bar OpenSpec's refusal of it over the unreadable file where OpenSpec refuses (Bun's `realpath` on macOS): its one added `openspec/validate` ERROR |
+| `meta/item-missing`             | E            | `--type` forced a kind the name has nothing on disk for: no change directory at `openspec/changes/<id>/`, or no living spec at `openspec/specs/<id>/spec.md`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `change/artifact-missing`       | I / E-strict | an artifact required by the type's apply gate doesn't exist yet (verification is excluded — `verification/missing` owns that case)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 ## `proposal/`
 
@@ -295,7 +321,12 @@ thing that would refuse the merge as an **INFO**-level `openspec/validate` issue
 — one per precondition, one per delta file. INFO never blocks: `normalizeLevel`
 accepts it, but only ERROR and WARNING (WARNING only under `--strict`) count
 toward `valid` or the exit code, so this arrives as extra context, never a new
-way to fail.
+way to fail. Each delegated call names its item's kind (`--type change`, or
+`--type spec` for a named spec), so a change sharing a living spec's name is
+validated as a change. When OpenSpec refuses an item instead of reporting it
+(its `{status: [...]}` failure document — an errno it couldn't read past, say),
+each of its diagnostics is that item's `openspec/validate` issue at its
+severity, so the item fails rather than passing on an empty report.
 
 Most of what that dry-run reports is the same defect cospec's own `archive/*`
 family already caught as an ERROR — a MODIFIED/REMOVED/RENAMED target that's
@@ -403,7 +434,7 @@ cospec validate — 2 changes, 5 specs
 
 ```json
 {
-  "version": "...",
+  "version": 1,
   "items": [
     {
       "id": "add-widget",
@@ -420,12 +451,72 @@ cospec validate — 2 changes, 5 specs
           "hint": null,
           "fixable": false
         }
-      ]
+      ],
+      "durationMs": 12
     }
   ],
-  "summary": { "errors": 2, "warnings": 1, "byRule": { "...": 1 } }
+  "summary": {
+    "errors": 2,
+    "warnings": 1,
+    "byRule": { "...": 1 },
+    "totals": { "items": 7, "passed": 6, "failed": 1 },
+    "byType": {
+      "change": { "items": 2, "passed": 1, "failed": 1 },
+      "spec": { "items": 5, "passed": 5, "failed": 0 }
+    }
+  },
+  "root": { "path": "/path/to/repo", "source": "nearest" }
 }
 ```
+
+Beside cospec's own keys the document carries OpenSpec's report keys:
+`items[].durationMs`, `summary.totals`, `summary.byType` (one entry per kind in
+scope) and `root` (the selected root, `{path, source, store_id?}`). `version`
+stays cospec's format marker `1`, never OpenSpec's `"1.0"`. One key maps rather
+than matches: an item's `type` is cospec's documented value — a change's schema
+(`feat`), absent on a spec — while OpenSpec's `type` (`change`/`spec`) is what
+cospec calls `kind`.
+
+When `openspec/changes/archive/` can't be read, `validate` (and `apply`) answer
+as if nothing were archived and the document gains
+`"warnings": [{ "code": "archive_unreadable", "message": "could not read … (EACCES); …" }]`
+(a `Warning:` line on stderr in text) — an empty index can only add issues or
+keep blockers open, never clear one. A run that can't produce a report is one
+OpenSpec-shaped failure document instead,
+`{ "status": [{ "severity": "error", "code": "…", "message": "…", "fix"?: "…" }] }`,
+exit `1`: `no_openspec_root` (fix `Run cospec init to create a root here.`) for
+a bulk scope, `--archived` or a bare `validate --json` with no `openspec/`
+directory (a name alone is resolved, and is `unknown_item`), `validate_error`
+carrying the errno message when `openspec/changes/`, `openspec/specs/` or a
+capability directory can't be read, and OpenSpec's own document, respelled, when
+its `--archived` sweep fails. Under `--strict` an item with a warning, a change
+or a spec, is `valid: false` and counted as failed in `summary.totals`, as in
+OpenSpec's report.
+
+`--report findings --json` emits OpenSpec's findings projection inside the same
+`version: 1` envelope — only the items with at least one issue:
+
+```json
+{
+  "version": 1,
+  "report": {
+    "kind": "validation-findings",
+    "version": "1.0",
+    "scope": "all",
+    "returnedItems": 1,
+    "totalItems": 7
+  },
+  "itemFindings": [
+    { "id": "add-widget", "kind": "change", "type": "feat", "...": "..." }
+  ],
+  "summary": { "...": "as above" },
+  "root": { "path": "/path/to/repo", "source": "nearest" }
+}
+```
+
+`scope` is `all`, `changes`, `specs` or `archived`; `report.version` is
+OpenSpec's own nested marker. Text-mode findings fold every issue-free item into
+the header's counts.
 
 Each issue carries `level`, `rule`, `path`, an optional `line`, `message`, an
 optional `hint`, and `fixable`.

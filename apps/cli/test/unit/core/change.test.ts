@@ -1,10 +1,16 @@
 import { afterAll, describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
+import { changeMetadataRefused, userSchemasDir } from '../../../src/core/change-metadata.ts'
 import {
+  changeLookupNameProblem,
+  changesDir,
   COSPEC_TYPES,
+  describeNestedChange,
+  findNestedChanges,
+  findNestedChangesIn,
   isCospecType,
   listChanges,
   readArchiveIndex,
@@ -146,15 +152,31 @@ describe('listChanges / resolveChange', () => {
     expect(resolveChange(cwd, 'bare')?.schema).toBe('')
   })
 
-  test('rejects non-kebab ids and path traversal', () => {
+  test('refuses what the binary refuses as a lookup name, before touching disk', () => {
     const cwd = makeRepo()
     makeChange(cwd, 'real', 'schema: feat\n')
     // `../changes/real` would join back onto an existing change dir, so the
     // guard must reject the traversal id before resolveChange touches disk.
-    for (const bad of ['../changes/real', '../../etc', 'a/b', '..', 'Cap', '-lead', 'trail-', '']) {
+    for (const bad of ['../changes/real', '../../etc', 'a/b', 'a\\b', '..', '.', '', 'a\0b']) {
+      expect(changeLookupNameProblem(bad)).toBeDefined()
       expect(resolveChange(cwd, bad)).toBeUndefined()
     }
     expect(resolveChange(cwd, 'real')?.schema).toBe('feat')
+  })
+
+  test('looks a change up by its directory name, as the binary does (verification 16.7, 16.8)', () => {
+    const cwd = makeRepo()
+    makeChange(cwd, 'Add_Auth', 'schema: feat\n')
+    makeChange(cwd, '.hidden', 'schema: feat\n')
+    makeChange(cwd, 'archive', 'schema: feat\n')
+    writeFileSync(join(cwd, 'openspec/changes/todo'), 'not a change\n')
+    // A directory name outside the kebab grammar is still a change.
+    expect(resolveChange(cwd, 'Add_Auth')?.schema).toBe('feat')
+    // A hidden or reserved name is refused even when its directory exists.
+    expect(resolveChange(cwd, '.hidden')).toBeUndefined()
+    expect(resolveChange(cwd, 'archive')).toBeUndefined()
+    // A regular file is no change.
+    expect(resolveChange(cwd, 'todo')).toBeUndefined()
   })
 })
 
@@ -208,5 +230,280 @@ describe('resolveSchema', () => {
     const res = resolveSchema(cwd, 'nonexistent-schema-xyz')
     expect(res.kind).toBe('unknown')
     expect(res.isCospecType).toBe(false)
+  })
+})
+
+describe('the namespace-folder detector (verification 4.5)', () => {
+  /** A root whose `config.yaml` names a project schema generating into subdirectories. */
+  function detectorRepo(): string {
+    const cwd = makeRepo()
+    const schema = join(cwd, 'openspec', 'schemas', 'subdir', 'schema.yaml')
+    mkdirSync(dirname(schema), { recursive: true })
+    writeFileSync(
+      schema,
+      [
+        'name: subdir',
+        'version: 1',
+        'artifacts:',
+        '  - id: rfc',
+        '    generates: rfc/proposal.md',
+        '    description: the rfc',
+        '    template: rfc.md',
+        '  - id: notes',
+        '    generates: notes/**/*.md',
+        '    description: notes',
+        '    template: notes.md',
+        '',
+      ].join('\n'),
+    )
+    writeFileSync(join(cwd, 'openspec', 'config.yaml'), 'schema: subdir\n')
+    return cwd
+  }
+
+  function put(cwd: string, rel: string, body = 'x\n'): void {
+    const path = join(changesDir(cwd), rel)
+    mkdirSync(dirname(path), { recursive: true })
+    writeFileSync(path, body)
+  }
+
+  const nestedOf = (cwd: string, name: string) => findNestedChangesIn(changesDir(cwd), name)?.nested
+
+  test('each root marker makes a nested directory a change', () => {
+    const cwd = detectorRepo()
+    for (const marker of ['.openspec.yaml', 'proposal.md', 'tasks.md', 'design.md'])
+      put(cwd, `m-${marker.replace('.', '')}/c/${marker}`)
+    for (const marker of ['.openspec.yaml', 'proposal.md', 'tasks.md', 'design.md'])
+      expect(nestedOf(cwd, `m-${marker.replace('.', '')}`)).toEqual([
+        `m-${marker.replace('.', '')}/c`,
+      ])
+  })
+
+  test('a delta file only under specs/ is a change; a dot-file there is not', () => {
+    const cwd = detectorRepo()
+    put(cwd, 'delta/c/specs/widgets/spec.md')
+    put(cwd, 'dotspec/c/specs/.keep')
+    expect(nestedOf(cwd, 'delta')).toEqual(['delta/c'])
+    expect(nestedOf(cwd, 'dotspec')).toBeUndefined()
+  })
+
+  test("a schema output only is a change, at the schema's own subdirectory path", () => {
+    const cwd = detectorRepo()
+    put(cwd, 'rfc/c/rfc/proposal.md')
+    put(cwd, 'notes/c/notes/a/b.md')
+    put(cwd, 'wrong/c/rfc/other.md')
+    expect(nestedOf(cwd, 'rfc')).toEqual(['rfc/c'])
+    expect(nestedOf(cwd, 'notes')).toEqual(['notes/c'])
+    expect(nestedOf(cwd, 'wrong')).toBeUndefined()
+  })
+
+  test('a file of its own keeps a directory a change; a dot-file of its own does not', () => {
+    const cwd = detectorRepo()
+    put(cwd, 'own/README.md')
+    put(cwd, 'own/c/.openspec.yaml')
+    put(cwd, 'owndot/.DS_Store')
+    put(cwd, 'owndot/c/.openspec.yaml')
+    expect(nestedOf(cwd, 'own')).toBeUndefined()
+    expect(nestedOf(cwd, 'owndot')).toEqual(['owndot/c'])
+  })
+
+  test('depths one to three are searched, four is not', () => {
+    const cwd = detectorRepo()
+    put(cwd, 'd1/c/.openspec.yaml')
+    put(cwd, 'd2/a/c/.openspec.yaml')
+    put(cwd, 'd3/a/b/c/.openspec.yaml')
+    put(cwd, 'd4/a/b/c/d/.openspec.yaml')
+    expect(nestedOf(cwd, 'd1')).toEqual(['d1/c'])
+    expect(nestedOf(cwd, 'd2')).toEqual(['d2/a/c'])
+    expect(nestedOf(cwd, 'd3')).toEqual(['d3/a/b/c'])
+    expect(nestedOf(cwd, 'd4')).toBeUndefined()
+  })
+
+  test('a dot-directory, archive and a change-looking child are never descended', () => {
+    const cwd = detectorRepo()
+    put(cwd, '.hidden/c/.openspec.yaml')
+    put(cwd, 'archive/2026-01-01-x/c/.openspec.yaml')
+    put(cwd, 'dotchild/.c/.openspec.yaml')
+    put(cwd, 'shallow/c/.openspec.yaml')
+    put(cwd, 'shallow/c/deeper/.openspec.yaml')
+    expect(nestedOf(cwd, '.hidden')).toBeUndefined()
+    expect(nestedOf(cwd, 'archive')).toBeUndefined()
+    expect(nestedOf(cwd, 'dotchild')).toBeUndefined()
+    expect(nestedOf(cwd, 'shallow')).toEqual(['shallow/c'])
+  })
+
+  test('nested ids are sorted, and the explanation is upstream’s sentence', () => {
+    const cwd = detectorRepo()
+    put(cwd, 'two/zeta/.openspec.yaml')
+    put(cwd, 'two/eta/proposal.md')
+    const finding = findNestedChangesIn(changesDir(cwd), 'two')!
+    expect(finding).toEqual({ name: 'two', nested: ['two/eta', 'two/zeta'] })
+    expect(describeNestedChange(finding)).toBe(
+      '"two" is not a change: it is a folder wrapping openspec/changes/two/eta/, openspec/changes/two/zeta/. ' +
+        'A change must be a directory directly under openspec/changes/, so those nested directories are ' +
+        'invisible to OpenSpec while the folder around them is reported as a change. Nested paths are ' +
+        'supported under openspec/specs/ only. Rename each nested change to a flat name (for example "two-eta").',
+    )
+    expect(findNestedChanges(changesDir(cwd), ['two', 'missing']).map((f) => f.name)).toEqual([
+      'two',
+    ])
+  })
+
+  test('a change with a root marker is never a namespace folder', () => {
+    const cwd = detectorRepo()
+    put(cwd, 'alpha/proposal.md')
+    put(cwd, 'alpha/sub/.openspec.yaml')
+    expect(nestedOf(cwd, 'alpha')).toBeUndefined()
+  })
+
+  const asRoot = process.getuid?.() === 0
+  test.skipIf(asRoot)('an unreadable subdirectory reads as empty and nothing throws', () => {
+    const cwd = detectorRepo()
+    put(cwd, 'locked/c/.openspec.yaml')
+    put(cwd, 'locked/d/.openspec.yaml')
+    const locked = join(changesDir(cwd), 'locked', 'c')
+    chmodSync(locked, 0o000)
+    try {
+      expect(nestedOf(cwd, 'locked')).toEqual(['locked/d'])
+      chmodSync(join(changesDir(cwd), 'locked'), 0o000)
+      expect(nestedOf(cwd, 'locked')).toBeUndefined()
+    } finally {
+      chmodSync(join(changesDir(cwd), 'locked'), 0o755)
+      chmodSync(locked, 0o755)
+    }
+  })
+})
+
+describe('listChanges drops dot-directories', () => {
+  test('as the binary enumerates active changes', () => {
+    const cwd = makeRepo()
+    makeChange(cwd, 'alpha', 'schema: feat\n')
+    makeChange(cwd, '.hidden', 'schema: feat\n')
+    expect(listChanges(cwd).map((c) => c.id)).toEqual(['alpha'])
+  })
+})
+
+describe('the user schema tier (verification 10.1)', () => {
+  test("userSchemasDir is the binary's getGlobalDataDir plus schemas in every case", () => {
+    expect(userSchemasDir({ XDG_DATA_HOME: '/x' }, '/h', 'darwin')).toBe('/x/openspec/schemas')
+    expect(userSchemasDir({ XDG_DATA_HOME: '/x' }, '/h', 'linux')).toBe('/x/openspec/schemas')
+    expect(userSchemasDir({ XDG_DATA_HOME: '' }, '/h', 'linux')).toBe(
+      '/h/.local/share/openspec/schemas',
+    )
+    expect(userSchemasDir({}, '/h', 'darwin')).toBe('/h/.local/share/openspec/schemas')
+    expect(userSchemasDir({}, '/h', 'linux')).toBe('/h/.local/share/openspec/schemas')
+    expect(userSchemasDir({ LOCALAPPDATA: '/l' }, '/h', 'win32')).toBe(
+      join('/l', 'openspec', 'schemas'),
+    )
+    expect(userSchemasDir({ LOCALAPPDATA: '' }, '/h', 'win32')).toBe(
+      join('/h', 'AppData', 'Local', 'openspec', 'schemas'),
+    )
+    expect(userSchemasDir({}, '/h', 'win32')).toBe(
+      join('/h', 'AppData', 'Local', 'openspec', 'schemas'),
+    )
+  })
+
+  test('change.ts, new.ts and change-metadata.ts compute the directory in one place', () => {
+    const src = (rel: string) => readFileSync(join(import.meta.dir, '../../../src', rel), 'utf8')
+    const definitions = ['core/change.ts', 'commands/new.ts', 'core/change-metadata.ts'].filter(
+      (rel) => /function userSchemasDir\b/.test(src(rel)),
+    )
+    expect(definitions).toEqual(['core/change-metadata.ts'])
+    for (const rel of ['core/change.ts', 'commands/new.ts'])
+      expect(src(rel)).toMatch(
+        /import \{[^}]*\buserSchemasDir\b[^}]*\} from '(?:\.\.\/core|\.)\/change-metadata\.ts'/,
+      )
+    expect(src('core/change.ts')).not.toContain("'.config'")
+  })
+
+  test('resolveSchema classifies a schema under XDG_DATA_HOME as user, never one under ~/.config', () => {
+    const cwd = makeRepo()
+    const data = mkdtempSync(join(tmpdir(), 'cospec-data-'))
+    const home = mkdtempSync(join(tmpdir(), 'cospec-home-'))
+    roots.push(data, home)
+    const write = (dir: string, name: string) => {
+      mkdirSync(join(dir, name), { recursive: true })
+      writeFileSync(join(dir, name, 'schema.yaml'), `name: ${name}\n`)
+    }
+    write(join(data, 'openspec', 'schemas'), 'house-style')
+    write(join(home, '.config', 'openspec', 'schemas'), 'config-style')
+    const saved = { XDG_DATA_HOME: process.env.XDG_DATA_HOME, HOME: process.env.HOME }
+    process.env.XDG_DATA_HOME = data
+    process.env.HOME = home
+    try {
+      expect(resolveSchema(cwd, 'house-style')).toMatchObject({ kind: 'legacy', source: 'user' })
+      expect(resolveSchema(cwd, 'config-style').kind).toBe('unknown')
+    } finally {
+      for (const [key, value] of Object.entries(saved))
+        if (value === undefined) delete process.env[key]
+        else process.env[key] = value
+    }
+  })
+})
+
+describe("changeMetadataRefused mirrors the binary's readChangeMetadata (verification 17.3)", () => {
+  const listed = () => ['chore', 'feat']
+  const changeWith = (yaml: string | null): string => {
+    const cwd = makeRepo()
+    makeChange(cwd, 'c1', yaml)
+    return join(cwd, 'openspec', 'changes', 'c1')
+  }
+
+  test('a valid file, or none, is not refused', () => {
+    expect(changeMetadataRefused(changeWith('schema: chore\ncreated: 2026-09-01\n'), listed)).toBe(
+      false,
+    )
+    expect(changeMetadataRefused(changeWith(null), listed)).toBe(false)
+  })
+
+  test('each ChangeMetadataSchema failure is refused', () => {
+    for (const extra of [
+      'created: notadate',
+      'skip_specs: "yes"',
+      'retire_capabilities: 1',
+      'goal: ""',
+      'affected_areas: [""]',
+      'initiative: {store: s1}',
+      'initiative: {store: S1, id: i1}',
+      'initiative: {store: s1, id: i1, extra: x}',
+    ])
+      expect({
+        extra,
+        refused: changeMetadataRefused(changeWith(`schema: chore\n${extra}\n`), listed),
+      }).toEqual({ extra, refused: true })
+  })
+
+  test('a file that is not YAML, or names an unlisted schema, is refused', () => {
+    expect(changeMetadataRefused(changeWith('schema: [chore\n'), listed)).toBe(true)
+    expect(changeMetadataRefused(changeWith('schema: house-style\n'), listed)).toBe(true)
+  })
+
+  test.skipIf(process.getuid?.() === 0)('an unreadable file is refused', () => {
+    const dir = changeWith('schema: chore\n')
+    const file = join(dir, '.openspec.yaml')
+    chmodSync(file, 0o000)
+    try {
+      expect(changeMetadataRefused(dir, listed)).toBe(true)
+    } finally {
+      chmodSync(file, 0o644)
+    }
+  })
+
+  test("listed()'s own errno failure is refused; any other throw still escapes", () => {
+    const dir = changeWith('schema: chore\n')
+    const enotdir = Object.assign(
+      new Error("ENOTDIR: not a directory, scandir '/r/openspec/schemas'"),
+      { code: 'ENOTDIR' },
+    )
+    expect(
+      changeMetadataRefused(dir, () => {
+        throw enotdir
+      }),
+    ).toBe(true)
+    const boom = new Error('boom')
+    expect(() =>
+      changeMetadataRefused(dir, () => {
+        throw boom
+      }),
+    ).toThrow(boom)
   })
 })

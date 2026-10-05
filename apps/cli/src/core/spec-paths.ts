@@ -19,6 +19,12 @@ export interface DiscoveredSpec {
   id: string
   /** Path to the `spec.md` file; absolute when the specs root is absolute. */
   specFile: string
+  /**
+   * The errno code that kept a regular `spec.md` from being resolved, set only
+   * under `reportUnreadable` (Bun's `realpath` opens the file, so a mode-000
+   * spec fails confinement before it is ever read).
+   */
+  unreadable?: string
 }
 
 function errorCode(err: unknown): string | undefined {
@@ -104,8 +110,15 @@ function assertDiscoveredSpecPath(
  *   (EACCES, EIO, …) is thrown rather than swallowed: this feeds the archive
  *   merge path, where silently dropping an unreadable capability would recreate
  *   the data-loss class #1353 closed.
+ * - `reportUnreadable` (validate only) lists a regular `spec.md` whose
+ *   resolution fails with an errno as `unreadable`, never dropped: it is a
+ *   real file in a walked (never linked) directory, so it is still confined,
+ *   and the caller reports it without reading it.
  */
-export function discoverSpecFiles(specsRoot: string): DiscoveredSpec[] {
+export function discoverSpecFiles(
+  specsRoot: string,
+  opts: { reportUnreadable?: boolean } = {},
+): DiscoveredSpec[] {
   const results: DiscoveredSpec[] = []
   const walk = (dir: string, segments: string[]): void => {
     let entries
@@ -124,7 +137,14 @@ export function discoverSpecFiles(specsRoot: string): DiscoveredSpec[] {
       if (entry.name !== 'spec.md' || segments.length === 0) continue
       const specFile = join(dir, entry.name)
       if (entry.isFile()) {
-        assertDiscoveredSpecPath(specsRoot, dir, specFile)
+        try {
+          assertDiscoveredSpecPath(specsRoot, dir, specFile)
+        } catch (err) {
+          const code = errorCode(err)
+          if (opts.reportUnreadable !== true || code === undefined || code === 'ENOENT') throw err
+          results.push({ id: segments.join('/'), specFile, unreadable: code })
+          continue
+        }
         results.push({ id: segments.join('/'), specFile })
       } else if (entry.isSymbolicLink()) {
         let target

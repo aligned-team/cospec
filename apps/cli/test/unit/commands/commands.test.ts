@@ -18,7 +18,6 @@ import {
   cospecSchemaInstalled,
   run as newRun,
   slugify,
-  userSchemasDir,
   wrappedNewReason,
 } from '../../../src/commands/new.ts'
 import {
@@ -28,6 +27,7 @@ import {
   run as statusRun,
 } from '../../../src/commands/status.ts'
 import { run as validateRun } from '../../../src/commands/validate.ts'
+import { userSchemasDir } from '../../../src/core/change-metadata.ts'
 import { commandRow, parseCommandArgs } from '../../../src/core/command-table.ts'
 import { withEmptyMachineState } from '../../fixtures/support.ts'
 import {
@@ -593,9 +593,10 @@ describe('status --all (OpenSpec 1.11 parity)', () => {
     })
     const r = await runCmd(statusRun, ctx(cwd, ['--all'], { json: true, command: 'status' }))
     expect(r.code).toBe(0)
-    const parsed = JSON.parse(r.out) as { changes: { change: string }[]; root: string }
+    const parsed = JSON.parse(r.out) as { changes: { change: string }[]; root: unknown }
     expect(parsed.changes.map((c) => c.change)).toEqual(['alpha', 'zeta'])
-    expect(parsed.root).toBe(realpathSync(cwd))
+    // BREAKING (cli-surface-parity): the binary's {path, source} object, not a path string.
+    expect(parsed.root).toEqual({ path: realpathSync(cwd), source: 'nearest' })
   })
 
   test('single-change JSON shape is unchanged by the --all addition', async () => {
@@ -611,7 +612,11 @@ describe('status --all (OpenSpec 1.11 parity)', () => {
     )
     const swept = await runCmd(statusRun, ctx(cwd, ['--all'], { json: true, command: 'status' }))
     const sweptParsed = JSON.parse(swept.out) as { changes: unknown[] }
-    expect(sweptParsed.changes).toEqual([JSON.parse(single.out)])
+    // A sweep entry is the single document without its top-level `root`, which
+    // the sweep carries once, as the binary's `status --all --json` does.
+    const { root, ...entry } = JSON.parse(single.out) as Record<string, unknown>
+    expect(root).toEqual({ path: realpathSync(cwd), source: 'nearest' })
+    expect(sweptParsed.changes).toEqual([entry])
     expect(computeStatus(cwd, { id: 'c', dir, schema: 'ci' }).change).toBe('c')
   })
 

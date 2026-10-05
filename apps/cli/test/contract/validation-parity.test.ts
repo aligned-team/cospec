@@ -20,6 +20,7 @@ import { dirname, join } from 'node:path'
 import { readRetireCapabilitiesMarker, type MarkerRead } from '../../src/core/change-metadata.ts'
 import { parseDeltaSpec } from '../../src/core/deltas.ts'
 import { rebuildSpec } from '../../src/core/rebuilt-spec.ts'
+import { respellRemedies } from '../../src/core/remedies.ts'
 import {
   cleanupAll,
   cospec,
@@ -675,7 +676,10 @@ describe('1. each lane keeps its own severities', () => {
     const relayed = all
       .filter((i) => i.rule === 'openspec/validate')
       .map((i) => `${i.level} ${i.message}`)
-    expect(relayed.toSorted()).toEqual(bin.map((i) => `${i.level} ${i.message}`).toSorted())
+    // Relayed with each allowlisted remedy spelled through cospec (cli-surface-parity).
+    expect(relayed.toSorted()).toEqual(
+      bin.map((i) => `${i.level} ${respellRemedies(i.message)}`).toSorted(),
+    )
     // cospec adds its classification note and nothing else: no cospec-typed rule
     // family runs on this lane.
     expect(all.filter((i) => i.rule !== 'openspec/validate').map((i) => i.rule)).toEqual([
@@ -1148,7 +1152,8 @@ describe('5.2 a delegated finding survives where its cospec twin is silent', () 
     ]
     const { report } = await cospecValidate(root, 'empty-section', ['--fast'])
     expect(byRule(report, 'archive/no-ops')).toEqual([])
-    for (const d of delegated) expect(messages(report)).toContain(d.message)
+    // Relayed with each allowlisted remedy spelled through cospec (cli-surface-parity).
+    for (const d of delegated) expect(messages(report)).toContain(respellRemedies(d.message))
   })
 
   test('entries 8 and 9: under --fast both cross-section ERRORs are kept', async () => {
@@ -1623,6 +1628,21 @@ The system SHALL render a widget twice.
 - **THEN** a widget is rendered again
 `
 
+/** A requirement header holding `"`, duplicated: the binary quotes it inside its own quotes. */
+const QUOTED_REQUIREMENT = `### Requirement: Widget "quoted" name
+
+The system SHALL name a quoted widget.
+
+#### Scenario: Name it
+
+- **WHEN** a caller names a widget
+- **THEN** the widget is named
+`
+
+const LIVING_DUPLICATE_QUOTED = `${LIVING}
+${QUOTED_REQUIREMENT}
+${QUOTED_REQUIREMENT}`
+
 const strayUnderPurpose = (stray: string): string =>
   LIVING.replace('## Purpose\n\n', `## Purpose\n\n${stray}\n\n`)
 
@@ -1666,6 +1686,31 @@ describe('12. a structurally invalid living spec is refused at pre-flight', () =
       expect(messages(report)).not.toContain(delegated.message)
     })
   }
+
+  // cli-surface-parity row 11.1: the per-line dedupe reads a header holding
+  // `"`, which the narrowed `[^"\n]*` pattern missed, reporting one defect twice.
+  test('12.5 a duplicated quoted requirement header is reported once, by cospec', async () => {
+    const root = mkTempRepo({ git: true })
+    buildFeat(
+      root,
+      'living-dup-quoted',
+      { 'widgets/spec.md': MODIFIED_CACHING },
+      { living: LIVING_DUPLICATE_QUOTED },
+    )
+    const delegated = binaryOne(
+      await binaryIssues(root, 'living-dup-quoted'),
+      'target spec is structurally invalid',
+    )
+    expect(delegated.level).toBe('INFO')
+    expect(delegated.message).toContain('Widget "quoted" name')
+    const { report, exitCode } = await cospecValidate(root, 'living-dup-quoted')
+    const found = byRule(report, 'archive/target-invalid')
+    expect(found).toHaveLength(1)
+    expect(found[0]?.level).toBe('ERROR')
+    expect(messages(report)).not.toContain(respellRemedies(delegated.message))
+    expect(relayedMessages(report).filter((m) => m.includes('structurally invalid'))).toEqual([])
+    expect(exitCode).toBe(1)
+  })
 
   test('12.4 a fenced requirement header outside ## Requirements is not a defect', async () => {
     const build = (root: string): void =>
@@ -1716,7 +1761,10 @@ describe('13. the legacy lane relays each round-2 shape at the binary level', ()
       const relayed = all
         .filter((i) => i.rule === 'openspec/validate')
         .map((i) => `${i.level} ${i.message}`)
-      expect(relayed.toSorted()).toEqual(bin.map((i) => `${i.level} ${i.message}`).toSorted())
+      // Relayed with each allowlisted remedy spelled through cospec (cli-surface-parity).
+      expect(relayed.toSorted()).toEqual(
+        bin.map((i) => `${i.level} ${respellRemedies(i.message)}`).toSorted(),
+      )
       expect(all.filter((i) => i.rule !== 'openspec/validate').map((i) => i.rule)).toEqual([
         'meta/legacy-schema',
       ])
@@ -2261,7 +2309,10 @@ describe('18. the legacy lane relays each round-3 shape at the binary level', ()
       const relayed = all
         .filter((i) => i.rule === 'openspec/validate')
         .map((i) => `${i.level} ${i.message}`)
-      expect(relayed.toSorted()).toEqual(bin.map((i) => `${i.level} ${i.message}`).toSorted())
+      // Relayed with each allowlisted remedy spelled through cospec (cli-surface-parity).
+      expect(relayed.toSorted()).toEqual(
+        bin.map((i) => `${i.level} ${respellRemedies(i.message)}`).toSorted(),
+      )
       expect(all.filter((i) => i.rule !== 'openspec/validate').map((i) => i.rule)).toEqual([
         'meta/legacy-schema',
       ])
@@ -3094,7 +3145,10 @@ describe('23. the legacy lane relays each round-4 shape at the binary level', ()
       const relayed = all
         .filter((i) => i.rule === 'openspec/validate')
         .map((i) => `${i.level} ${i.message}`)
-      expect(relayed.toSorted()).toEqual(bin.map((i) => `${i.level} ${i.message}`).toSorted())
+      // Relayed with each allowlisted remedy spelled through cospec (cli-surface-parity).
+      expect(relayed.toSorted()).toEqual(
+        bin.map((i) => `${i.level} ${respellRemedies(i.message)}`).toSorted(),
+      )
       expect(all.filter((i) => i.rule !== 'openspec/validate').map((i) => i.rule)).toEqual([
         'meta/legacy-schema',
       ])
@@ -3684,7 +3738,10 @@ describe('30. the legacy lane relays each round-5 shape at the binary level', ()
       const relayed = all
         .filter((i) => i.rule === 'openspec/validate')
         .map((i) => `${i.level} ${i.message}`)
-      expect(relayed.toSorted()).toEqual(bin.map((i) => `${i.level} ${i.message}`).toSorted())
+      // Relayed with each allowlisted remedy spelled through cospec (cli-surface-parity).
+      expect(relayed.toSorted()).toEqual(
+        bin.map((i) => `${i.level} ${respellRemedies(i.message)}`).toSorted(),
+      )
       expect(all.filter((i) => i.rule !== 'openspec/validate').map((i) => i.rule)).toEqual([
         'meta/legacy-schema',
       ])
@@ -4132,7 +4189,10 @@ describe('35. the legacy lane relays each round-6 shape at the binary level', ()
       const relayed = all
         .filter((i) => i.rule === 'openspec/validate')
         .map((i) => `${i.level} ${i.message}`)
-      expect(relayed.toSorted()).toEqual(bin.map((i) => `${i.level} ${i.message}`).toSorted())
+      // Relayed with each allowlisted remedy spelled through cospec (cli-surface-parity).
+      expect(relayed.toSorted()).toEqual(
+        bin.map((i) => `${i.level} ${respellRemedies(i.message)}`).toSorted(),
+      )
       expect(all.filter((i) => i.rule !== 'openspec/validate').map((i) => i.rule)).toEqual([
         'meta/legacy-schema',
       ])
@@ -4170,6 +4230,58 @@ function doubleReports(all: readonly ReportIssue[]): string[] {
     }
   return doubles
 }
+
+// --- 36. the deltas/scenario-depth masked-view exception is proven ------------------------
+//
+// `rules/views.ts` lets `deltas/scenario-depth` read the comment-masked view
+// (its one exception in the view-enumeration test, `views.test.ts`) because
+// reading the verbatim view would refuse what the binary archives. This row is
+// that proof, cited by name from both: a delta whose only mis-depth scenario
+// sits inside an HTML comment is archived by the binary, and cospec raises no
+// `deltas/scenario-depth` for it.
+
+/**
+ * A delta whose only `### Scenario:` (one `#` short) is inside an HTML comment
+ * ahead of its requirement, where the binary's archive skips it as a header of
+ * no requirement rather than splitting one.
+ */
+const COMMENTED_MISDEPTH_SCENARIO = `## ADDED Requirements
+
+<!--
+### Scenario: Shallow
+-->
+
+### Requirement: Widget sizing
+
+The system SHALL size a widget.
+
+#### Scenario: Size a widget
+
+- **WHEN** a caller sizes a widget
+- **THEN** the widget is sized
+`
+
+describe('36. the scenario-depth masked-view exception', () => {
+  const build = (root: string): void =>
+    buildFeat(root, 'commented-misdepth', { 'widgets/spec.md': COMMENTED_MISDEPTH_SCENARIO })
+
+  test('36.1 commented mis-depth scenario: the binary archives it and cospec raises no deltas/scenario-depth', async () => {
+    const archived = await binaryArchive(build, 'commented-misdepth')
+    expect(archived.exitCode).toBe(0)
+    expect(archived.moved).toBe(true)
+    const root = mkTempRepo({ git: true })
+    build(root)
+    const { report, exitCode } = await cospecValidate(root, 'commented-misdepth')
+    expect(byRule(report, 'deltas/scenario-depth')).toEqual([])
+    expect(problems(report)).toEqual([])
+    expect(exitCode).toBe(0)
+    // The counterfactual: the verbatim view reads the commented line, so a
+    // scenario-depth read there would refuse what the binary just archived.
+    const path = 'specs/widgets/spec.md'
+    const verbatim = parseDeltaSpec(COMMENTED_MISDEPTH_SCENARIO, path, 'widgets')
+    expect(verbatim.scenarioDepthIssues.map((d) => d.header)).toEqual(['Scenario: Shallow'])
+  })
+})
 
 describe('19. sweep', () => {
   test('19.1 no report in this file carries one defect twice', () => {

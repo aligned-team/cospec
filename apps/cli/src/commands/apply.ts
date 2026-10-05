@@ -25,15 +25,16 @@ import {
   type Change,
 } from '../core/change.ts'
 import { hasFlag } from '../core/command-table.ts'
+import { answeringErrno } from '../core/errno.ts'
 import {
   openspecApplyInstructions,
   OpenspecCallError,
   type ApplyInstructionsJson,
   type Root,
+  type StatusDiagnostic,
 } from '../core/openspec.ts'
 import { respellRemedies } from '../core/remedies.ts'
-import { renderHuman, renderJson, type ItemReport } from '../core/report.ts'
-import { resolveRoot } from '../core/root.ts'
+import { renderHuman, toJson, type ItemReport } from '../core/report.ts'
 import { surfaceUnmetConsequences } from '../core/rules/meta.ts'
 import {
   ARTIFACT_FILES,
@@ -41,7 +42,9 @@ import {
   type ArtifactId,
   type CospecType,
 } from '../core/rules/type-facts.ts'
-import { buildValidateContext, validateChange } from './validate.ts'
+import { resolveRootOrDocument } from '../core/upstream-keys.ts'
+import type { ArchiveWarning } from './status.ts'
+import { readValidateContext, validateChange } from './validate.ts'
 
 // --- shared primitives (exported for status/list/archive/new) --------------
 
@@ -239,22 +242,98 @@ function printWarnings(instr: ApplyInstructionsJson): void {
   for (const w of instr.warnings ?? []) process.stdout.write(`Warning: ${w}\n`)
 }
 
-function printReport(report: ItemReport, ctx: CommandContext): void {
+/** The document's `warnings`, when there are any to carry. */
+function warningsKey(warnings: readonly ArchiveWarning[]): { warnings?: ArchiveWarning[] } {
+  return warnings.length === 0 ? {} : { warnings: [...warnings] }
+}
+
+function printReport(
+  report: ItemReport,
+  ctx: CommandContext,
+  warnings: readonly ArchiveWarning[],
+): void {
   const out = ctx.flags.json
-    ? renderJson([report])
+    ? `${JSON.stringify({ ...toJson([report]), ...warningsKey(warnings) }, null, 2)}\n`
     : renderHuman([report], { noColor: ctx.flags.noColor, title: 'cospec apply' })
   process.stdout.write(out)
 }
 
+/**
+ * An early exit (design D10): `prose` on stderr, or under `--json` one
+ * `{status: [{severity, code: "change_error", message, fix?}]}` document on
+ * stdout — the code the binary's `instructions apply` reports for the same
+ * lookups — so a `--json` caller always gets one document. Exit 1.
+ */
+function earlyExit(
+  ctx: CommandContext,
+  prose: string,
+  message: string,
+  fix?: string,
+  warnings: readonly ArchiveWarning[] = [],
+): number {
+  if (ctx.flags.json) {
+    const status = [
+      { severity: 'error', code: 'change_error', message, ...(fix === undefined ? {} : { fix }) },
+    ]
+    process.stdout.write(`${JSON.stringify({ status, ...warningsKey(warnings) }, null, 2)}\n`)
+  } else process.stderr.write(prose)
+  return EXIT.failure
+}
+
+/**
+ * The binary's refusal of `instructions apply`, relayed as the answer: its
+ * failure document under `--json`, each message and fix spelled through the
+ * remedy allowlist, or `cospec apply: <message>` and its `Fix:` line in text.
+ * Exit 1.
+ */
+function relayRefusal(
+  ctx: CommandContext,
+  refused: { status: StatusDiagnostic[] } & Record<string, unknown>,
+  warnings: readonly ArchiveWarning[] = [],
+): number {
+  const status = refused.status.map((d) => ({
+    ...d,
+    message: respellRemedies(d.message),
+    ...(d.fix === undefined ? {} : { fix: respellRemedies(d.fix) }),
+  }))
+  if (ctx.flags.json)
+    process.stdout.write(
+      `${JSON.stringify({ ...refused, status, ...warningsKey(warnings) }, null, 2)}\n`,
+    )
+  else
+    for (const d of status)
+      process.stderr.write(
+        `cospec apply: ${d.message}\n${d.fix === undefined ? '' : `Fix: ${d.fix}\n`}`,
+      )
+  return EXIT.failure
+}
+
+/**
+ * The apply payload the binary gives for `change`, relayed through cospec; or
+ * the exit code of the answer already printed when it refused the change or
+ * broke the call's contract.
+ */
+async function applyInstructions(
+  ctx: CommandContext,
+  root: Root,
+  change: Change,
+  warnings: readonly ArchiveWarning[] = [],
+): Promise<ApplyInstructionsJson | number> {
+  let answer
+  try {
+    answer = await openspecApplyInstructions(root, change.id)
+  } catch (err) {
+    const msg = err instanceof OpenspecCallError ? err.message : (err as Error).message
+    return earlyExit(ctx, `cospec apply: ${msg}\n`, msg, undefined, warnings)
+  }
+  if ('refused' in answer) return relayRefusal(ctx, answer.refused, warnings)
+  return relayApplyInstructions(answer.instructions, change.id)
+}
+
 /** Legacy schema: no cospec gate — delegate to openspec and exit per its state. */
 async function applyLegacy(change: Change, ctx: CommandContext, root: Root): Promise<number> {
-  let instr: ApplyInstructionsJson
-  try {
-    instr = relayApplyInstructions(await openspecApplyInstructions(root, change.id), change.id)
-  } catch (err) {
-    process.stderr.write(`cospec apply: ${(err as Error).message}\n`)
-    return EXIT.failure
-  }
+  const instr = await applyInstructions(ctx, root, change)
+  if (typeof instr === 'number') return instr
   if (ctx.flags.json) {
     process.stdout.write(
       `${JSON.stringify({ change: change.id, type: change.schema, legacy: true, apply: instr }, null, 2)}\n`,
@@ -269,10 +348,20 @@ async function applyLegacy(change: Change, ctx: CommandContext, root: Root): Pro
   return instr.state === 'blocked' ? EXIT.blocked : EXIT.success
 }
 
-export async function run(ctx: CommandContext): Promise<number> {
+/**
+ * `cospec apply`: an errno failure it lets escape (an unreadable
+ * `openspec/changes/`) is one `change_error` document under `--json`, the
+ * code the binary's `instructions apply` reports.
+ */
+export function run(ctx: CommandContext): Promise<number> {
+  return answeringErrno(ctx.flags.json, { code: 'change_error' }, () => apply(ctx))
+}
+
+async function apply(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
   const parsedArgs = ctx.parsed!
-  const root = await resolveRoot(ctx)
+  const root = await resolveRootOrDocument(ctx, 'change_error')
+  if (root === undefined) return EXIT.failure
   const base = root.base
   const allowSoft = hasFlag(parsedArgs, '--allow-soft')
   // `skip_specs` precedence (DESIGN §5, OpenSpec 1.7 parity): the one-shot CLI
@@ -287,19 +376,22 @@ export async function run(ctx: CommandContext): Promise<number> {
   const name = parsedArgs.positionals[0]!
 
   if (!existsSync(openspecDir(base))) {
-    process.stderr.write(`cospec: no openspec/ directory at ${base} — run 'cospec init' first\n`)
-    return EXIT.failure
+    const message = `no openspec/ directory at ${base} — run 'cospec init' first`
+    return earlyExit(ctx, `cospec: ${message}\n`, message)
   }
 
   const change = resolveChange(base, name)
   if (change === undefined) {
-    process.stderr.write(`cospec apply: unknown change '${name}'\n`)
     const suggestion = closest(
       name,
       listChanges(base).map((c) => c.id),
     )
-    if (suggestion !== undefined) process.stderr.write(`Did you mean '${suggestion}'?\n`)
-    return EXIT.failure
+    const didYouMean = suggestion === undefined ? '' : `Did you mean '${suggestion}'?`
+    return earlyExit(
+      ctx,
+      `cospec apply: unknown change '${name}'\n${didYouMean === '' ? '' : `${didYouMean}\n`}`,
+      `unknown change '${name}'${didYouMean === '' ? '' : `. ${didYouMean}`}`,
+    )
   }
 
   // Step 1: legacy schemas bypass the cospec gate entirely.
@@ -307,10 +399,14 @@ export async function run(ctx: CommandContext): Promise<number> {
   if (resolution.kind === 'legacy') return applyLegacy(change, ctx, root)
 
   // Step 2: fast validation. Errors block the gate outright.
-  const vctx = buildValidateContext(base)
+  // An unreadable archive is read as empty (`readValidateContext`): the gate
+  // can only err toward blocked, and the warning says why.
+  const { ctx: vctx, warning } = readValidateContext(base)
+  const warnings = warning === undefined ? [] : [warning]
+  if (!flags.json) for (const w of warnings) process.stderr.write(`Warning: ${w.message}\n`)
   const report = await validateChange(root, change, vctx, { strict: false, fast: true })
   if (!report.valid) {
-    printReport(report, ctx)
+    printReport(report, ctx, warnings)
     return EXIT.failure
   }
 
@@ -331,6 +427,7 @@ export async function run(ctx: CommandContext): Promise<number> {
           {
             change: change.id,
             type: change.schema,
+            ...warningsKey(warnings),
             gate: { state: 'blocked', reason: 'missing-artifacts', missingArtifacts: missing },
           },
           null,
@@ -347,7 +444,7 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   // Step 4: blocker gate. Self-heal against the archive first (§5.1 step 4c).
   const blockersPath = join(change.dir, BLOCKERS_FILE)
-  const archived = archiveMap(base)
+  const archived = warning === undefined ? archiveMap(base) : new Map<string, string>()
   const active = new Set(listChanges(base).map((c) => c.id))
   const original = readFileSync(blockersPath, 'utf8')
   const heal = syncBlockers(original, archived, active, { fix: true })
@@ -362,6 +459,7 @@ export async function run(ctx: CommandContext): Promise<number> {
           {
             change: change.id,
             type: change.schema,
+            ...warningsKey(warnings),
             gate: {
               state: 'blocked',
               reason: 'hard-blockers',
@@ -423,6 +521,7 @@ export async function run(ctx: CommandContext): Promise<number> {
           {
             change: change.id,
             type: change.schema,
+            ...warningsKey(warnings),
             gate: { state: 'soft-blocked', softBlockers: gate.soft, synced: heal.synced },
           },
           null,
@@ -442,15 +541,9 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   const softAcknowledged = allowSoft ? gate.soft.map((s) => s.slug) : []
 
-  // Step 5: fetch the apply payload from openspec.
-  let instr: ApplyInstructionsJson
-  try {
-    instr = relayApplyInstructions(await openspecApplyInstructions(root, change.id), change.id)
-  } catch (err) {
-    const msg = err instanceof OpenspecCallError ? err.message : (err as Error).message
-    process.stderr.write(`cospec apply: ${msg}\n`)
-    return EXIT.failure
-  }
+  // Step 5: fetch the apply payload from openspec; its refusal is the answer.
+  const instr = await applyInstructions(ctx, root, change, warnings)
+  if (typeof instr === 'number') return instr
 
   // Step 6: merged clear-gate output.
   if (flags.json) {
@@ -459,6 +552,7 @@ export async function run(ctx: CommandContext): Promise<number> {
         {
           change: change.id,
           type: change.schema,
+          ...warningsKey(warnings),
           gate: { state: 'clear', hardBlockers: [], softAcknowledged, synced: heal.synced },
           apply: instr,
         },

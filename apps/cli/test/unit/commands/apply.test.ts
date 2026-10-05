@@ -1,9 +1,10 @@
-// Apply-gate tests. Every path here resolves before step 5's `openspec
+// Apply-gate tests. Every gate path here resolves before step 5's `openspec
 // instructions apply` call (blocked/soft-blocked/validation-error/unknown), so
-// no wrapped binary is spawned. The clear-gate path is covered by lifecycle.test.ts.
+// no wrapped binary is spawned; only the early-exit rows' two failed wrapped
+// calls spawn it. The clear-gate path is covered by lifecycle.test.ts.
 
 import { afterAll, describe, expect, test } from 'bun:test'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -141,5 +142,77 @@ describe('apply gate', () => {
     const r = await runCmd(applyRun, ctx(cwd, ['c'], { command: 'apply' }))
     expect(r.code).toBe(1)
     expect(r.out).toContain('proposal/sections')
+  })
+})
+
+// Verification 8.2 (design D10): every early exit under `--json` is exactly one
+// `{status: [{severity, code, message, fix?}]}` document on stdout, nothing on
+// stderr, exit 1 — the code the binary's `instructions apply` reports for the
+// same lookups.
+describe('apply early exits under --json', () => {
+  /** The one failure document `out` must be, its `status[0]`. */
+  function oneDocument(r: { code: number; out: string; err: string }): Record<string, unknown> {
+    expect(r.code).toBe(1)
+    expect(r.err).toBe('')
+    const doc = JSON.parse(r.out) as { status: Record<string, unknown>[] }
+    expect(Object.keys(doc)).toEqual(['status'])
+    expect(doc.status).toHaveLength(1)
+    const [entry] = doc.status
+    expect(Object.keys(entry!).filter((k) => k !== 'fix')).toEqual(['severity', 'code', 'message'])
+    expect(entry).toMatchObject({ severity: 'error', code: 'change_error' })
+    expect(r.out).toBe(`${JSON.stringify(doc, null, 2)}\n`)
+    return entry!
+  }
+
+  const json = (cwd: string, args: string[]) => ctx(cwd, args, { json: true, command: 'apply' })
+
+  test('no openspec/ directory', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'cospec-uninit-'))
+    roots.push(cwd)
+    const r = await withEmptyMachineState(() => runCmd(applyRun, json(cwd, ['foo'])))
+    expect(String(oneDocument(r).message)).toContain('no openspec/ directory')
+  })
+
+  test('an unknown change, with its suggestion folded into the message', async () => {
+    const cwd = repo()
+    writeChange(cwd, 'add-widget', 'ci')
+    const r = await withEmptyMachineState(() => runCmd(applyRun, json(cwd, ['add-widgets'])))
+    expect(oneDocument(r).message).toBe("unknown change 'add-widgets'. Did you mean 'add-widget'?")
+  })
+
+  test('an unknown change with no suggestion', async () => {
+    const cwd = repo()
+    const r = await withEmptyMachineState(() => runCmd(applyRun, json(cwd, ['nope'])))
+    expect(oneDocument(r).message).toBe("unknown change 'nope'")
+  })
+
+  test('a failed legacy delegation', async () => {
+    const cwd = repo()
+    // A project schema that exists (so the change is legacy) but does not load.
+    const dir = join(cwd, 'openspec', 'schemas', 'broken')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'schema.yaml'), 'name: broken\n')
+    writeChange(cwd, 'legacy', 'broken', { 'proposal.md': LITE_PROPOSAL })
+    const r = await withEmptyMachineState(() => runCmd(applyRun, json(cwd, ['legacy'])))
+    // The binary's own refusal is the answer (verification 16.11), not the wrapper's.
+    const message = String(oneDocument(r).message)
+    expect(message).toStartWith('Invalid schema at ')
+    expect(message).toContain(join('schemas', 'broken', 'schema.yaml'))
+  })
+
+  test('a failed step-5 call', async () => {
+    // Every gate step clears, and the wrapped `instructions apply` then fails:
+    // the root carries no `ci` schema for the binary to resolve.
+    const cwd = mkdtempSync(join(tmpdir(), 'cospec-noschema-'))
+    roots.push(cwd)
+    mkdirSync(join(cwd, 'openspec', 'changes', 'archive'), { recursive: true })
+    writeChange(cwd, 'c', 'ci', {
+      'proposal.md': LITE_PROPOSAL,
+      'blocking-changes.md': EMPTY_BLOCKERS,
+      'tasks.md': DONE_TASKS,
+    })
+    const r = await withEmptyMachineState(() => runCmd(applyRun, json(cwd, ['c'])))
+    // The binary's own refusal is the answer (verification 16.11), not the wrapper's.
+    expect(String(oneDocument(r).message)).toStartWith("Unknown schema 'ci'.")
   })
 })
