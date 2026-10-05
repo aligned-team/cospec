@@ -403,3 +403,101 @@ describe("the opsx leftover scan still reads upstream's legacy command paths", (
     ])
   })
 })
+
+// Verification 2.1–2.3 (opsx-leftover-scan-scope): the opsx leftover scan's
+// walk never crosses into a nested git working tree — a directory holding its
+// own `.git` entry, such as a `.claude/worktrees/<name>/` checkout — so a copy
+// of the project living there is never listed or removed by the outer scan.
+describe('the opsx leftover scan does not cross a nested worktree boundary', () => {
+  let dir: string
+  beforeEach(() => {
+    dir = makeRepo()
+  })
+  afterEach(() => {
+    cleanup(dir)
+  })
+
+  const WT_LEFTOVER = '.claude/worktrees/wt/.claude/commands/opsx/apply.md'
+  const OUTER_LEFTOVER = '.claude/commands/opsx/apply.md'
+
+  function plantNestedWorktree(): void {
+    // `git worktree add` writes `.git` as a *file* (a gitdir pointer), not a
+    // directory — the boundary check must key on existence, not `isDirectory()`.
+    put(dir, '.claude/worktrees/wt/.git', 'gitdir: /elsewhere/.git/worktrees/wt\n')
+    put(dir, WT_LEFTOVER, "---\nname: 'OPSX: Apply'\n---\nreal openspec command\n")
+  }
+
+  test.failing('a real leftover inside a nested worktree checkout is not listed', () => {
+    plantNestedWorktree()
+    expect(findOpsxFiles(dir)).toEqual([])
+  })
+
+  test.failing("doctor's opsx-leftover never names a path under .claude/worktrees/", () => {
+    plantNestedWorktree()
+    const findings: Finding[] = []
+    checkOpsx(dir, findings)
+    expect(findings.filter((f) => f.message.includes('.claude/worktrees/'))).toEqual([])
+  })
+
+  test.failing('a sibling leftover outside any nested worktree is still (and only) found', () => {
+    plantNestedWorktree()
+    put(dir, OUTER_LEFTOVER, "---\nname: 'OPSX: Apply'\n---\nreal openspec command\n")
+    expect(findOpsxFiles(dir)).toEqual([{ relpath: OUTER_LEFTOVER }])
+  })
+})
+
+// Verification 3.1–3.3 (opsx-leftover-scan-scope): OpenCode's command adapter
+// (pinned 1.13.1 dist's `core/command-generation/adapters/opencode.js`) writes
+// frontmatter with only `description` — no `name`, no `metadata` — so neither
+// existing provenance marker ever matches a real OpenCode opsx leftover. The
+// body excerpt below is trimmed from the pinned binary's own probed
+// `init --tools opencode` output, keeping the frontmatter shape and the
+// literal `` `openspec list --json` `` reference every opsx workflow body
+// carries (the pinned dist's shared `PROJECT_ROOT_GUARD` template).
+describe('a real OpenCode opsx command leftover is detected by its own shape', () => {
+  let dir: string
+  beforeEach(() => {
+    dir = makeRepo()
+  })
+  afterEach(() => {
+    cleanup(dir)
+  })
+
+  const OPENCODE_REAL_LEFTOVER = '.opencode/commands/opsx-propose.md'
+  const REAL_SHAPE = `---
+description: "Propose a new change - create it and generate all artifacts in one step"
+---
+
+Propose a new change - create the change and generate all artifacts in one step.
+
+**Store selection:** If the user names a store (a store is a standalone OpenSpec repo registered on this machine) or the work lives in one, run \`openspec store list --json\` to discover registered store ids, then pass \`--store <id>\` on the commands that read or write specs and changes.
+
+**Project check:** These steps expect a project that already uses OpenSpec. Before the first step that writes anything, confirm the project has a root: run \`openspec list --json\` (with \`--store <id>\` when a store is selected, since the store is then the root) and read \`root\`.
+`
+
+  const OPENCODE_USER_NOTES = '.opencode/commands/opsx-notes.md'
+  const USER_SHAPE =
+    '---\ndescription: my personal opencode notes\n---\n\nJust my own checklist, nothing to do with openspec.\n'
+
+  test.failing('init lists and removes the real OpenCode shape', () => {
+    put(dir, OPENCODE_REAL_LEFTOVER, REAL_SHAPE)
+    expect(findOpsxFiles(dir)).toEqual([{ relpath: OPENCODE_REAL_LEFTOVER }])
+  })
+
+  test.failing("doctor's opsx-leftover fires on the real OpenCode shape", () => {
+    put(dir, OPENCODE_REAL_LEFTOVER, REAL_SHAPE)
+    const findings: Finding[] = []
+    checkOpsx(dir, findings)
+    expect(findings.map((f) => `${f.check} ${f.level} ${f.message}`)).toEqual([
+      `opsx-leftover WARNING leftover openspec (opsx) file: ${OPENCODE_REAL_LEFTOVER} — two propose commands confuse agents`,
+    ])
+  })
+
+  test('a user file at the same path shape with no body marker is never listed', () => {
+    put(dir, OPENCODE_USER_NOTES, USER_SHAPE)
+    expect(findOpsxFiles(dir)).toEqual([])
+    const findings: Finding[] = []
+    checkOpsx(dir, findings)
+    expect(findings).toEqual([])
+  })
+})
