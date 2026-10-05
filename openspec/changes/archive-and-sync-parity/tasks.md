@@ -87,7 +87,7 @@ sandboxed HOME/XDG.
       and pruning, and cleanup in `finally`) with unit rows 11.2 and 11.5.
       Verify with those unit rows. Commit
       `feat(cli): copy a root's spec inputs to a scratch tree and back`
-- [ ] 4.2 Add `commands/sync-specs.ts` (design D11 steps, wrapped-call
+- [x] 4.2 Add `commands/sync-specs.ts` (design D11 steps, wrapped-call
       discipline, text and `--json` output), its `core/command-table.ts` row
       (`json` and `store` accepted, one required `change` positional) and its
       `cli.ts` dispatch entry. Flip rows 9.1–9.4, 10.1, 10.2, 11.1, 11.3, 11.4,

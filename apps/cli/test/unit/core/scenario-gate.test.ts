@@ -51,6 +51,6 @@ describe('core/scenario-gate.ts', () => {
     const importers = readdirSync(dir).filter((f) =>
       readFileSync(join(dir, f), 'utf8').includes("from '../core/scenario-gate.ts'"),
     )
-    expect(importers).toContain('archive.ts')
+    expect(importers.toSorted()).toEqual(['archive.ts', 'sync-specs.ts'])
   })
 })

@@ -640,6 +640,16 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     ],
   },
   {
+    name: 'sync-specs',
+    summary: "Merge a change's delta specs into the main specs without archiving it",
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    store: 'accepted',
+    positionals: [cospecArg({ name: 'change', required: true })],
+    flags: [],
+  },
+  {
     name: 'sync-blockers',
     summary: 'Reconcile blocking-changes.md checkboxes',
     hidden: false,

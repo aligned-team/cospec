@@ -429,6 +429,7 @@ describe('table shape', () => {
       'instructions',
       'apply',
       'archive',
+      'sync-specs',
       'sync-blockers',
       'store',
       'context',

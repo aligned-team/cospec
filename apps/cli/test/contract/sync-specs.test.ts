@@ -153,25 +153,22 @@ function unresolveVerification(root: string, name: string): void {
 
 describe("9. sync-specs writes archive's main specs and leaves the change active", () => {
   for (const fixture of R7_SYNC_SHAPES)
-    test.failing(
-      `9.1 ${fixture.key}: the main specs are the binary's archive's, byte for byte`,
-      async () => {
-        const { root, copy, name } = twin(fixture)
-        const change = changeOf(root, name)
-        const tmp = privateTmp()
-        const res = await own('9.1', root, ['sync-specs', name], tmp)
-        const up = await binary(copy, ['archive', name, '-y'])
-        expect([res.exitCode, up.exitCode]).toEqual([0, 0])
-        expect(specsOf(root)).toEqual(specsOf(copy))
-        expect(specDirs(root)).toEqual(specDirs(copy))
-        expect(changeOf(root, name)).toEqual(change)
-        expect(archiveEntries(root)).toEqual([])
-        expect(readdirSync(tmp)).toEqual([])
-      },
-    )
+    test(`9.1 ${fixture.key}: the main specs are the binary's archive's, byte for byte`, async () => {
+      const { root, copy, name } = twin(fixture)
+      const change = changeOf(root, name)
+      const tmp = privateTmp()
+      const res = await own('9.1', root, ['sync-specs', name], tmp)
+      const up = await binary(copy, ['archive', name, '-y'])
+      expect([res.exitCode, up.exitCode]).toEqual([0, 0])
+      expect(specsOf(root)).toEqual(specsOf(copy))
+      expect(specDirs(root)).toEqual(specDirs(copy))
+      expect(changeOf(root, name)).toEqual(change)
+      expect(archiveEntries(root)).toEqual([])
+      expect(readdirSync(tmp)).toEqual([])
+    })
 
   for (const fixture of R7_SYNC_SHAPES)
-    test.failing(`9.2 ${fixture.key}: a later archive is the no-op merge`, async () => {
+    test(`9.2 ${fixture.key}: a later archive is the no-op merge`, async () => {
       const root = mkTempRepo({ git: true })
       const name = fixture.build(root)
       expect((await own('9.2', root, ['sync-specs', name])).exitCode).toBe(0)
@@ -184,7 +181,7 @@ describe("9. sync-specs writes archive's main specs and leaves the change active
     })
 
   for (const fixture of R7_SYNC_SHAPES)
-    test.failing(`9.3 ${fixture.key}: the verification gate still runs after a sync`, async () => {
+    test(`9.3 ${fixture.key}: the verification gate still runs after a sync`, async () => {
       const root = mkTempRepo({ git: true })
       const name = fixture.build(root)
       expect((await own('9.3', root, ['sync-specs', name])).exitCode).toBe(0)
@@ -194,7 +191,7 @@ describe("9. sync-specs writes archive's main specs and leaves the change active
       expect(res.stderr).toContain('verification.md is not fully resolved')
     })
 
-  test.failing('9.3 modified: the scenario gate still runs after a sync', async () => {
+  test('9.3 modified: the scenario gate still runs after a sync', async () => {
     const root = mkTempRepo({ git: true })
     const name = R7_MODIFIED.build(root)
     expect((await own('9.3', root, ['sync-specs', name])).exitCode).toBe(0)
@@ -212,7 +209,7 @@ describe("9. sync-specs writes archive's main specs and leaves the change active
     expect(res.stderr).toContain('scenario-preservation gate refused')
   })
 
-  test.failing('9.4 a second sync reports in sync and writes nothing', async () => {
+  test('9.4 a second sync reports in sync and writes nothing', async () => {
     const root = mkTempRepo({ git: true })
     const name = R7_MODIFIED.build(root)
     expect((await own('9.4', root, ['sync-specs', name])).exitCode).toBe(0)
@@ -228,58 +225,49 @@ describe("9. sync-specs writes archive's main specs and leaves the change active
 // --- 10. sync-specs refuses what archive refuses -----------------------------------
 
 describe('10. sync-specs refuses what archive refuses', () => {
-  test.failing(
-    '10.1 a scenario-dropping MODIFIED: refused, nothing written, no scratch left',
-    async () => {
-      const { root, copy, name } = twin(R7_SCENARIO_DROP)
-      const before = openspecOf(root)
-      const tmp = privateTmp()
-      const res = await own('10.1', root, ['sync-specs', name], tmp)
-      expect(res.exitCode).toBe(1)
-      expect(res.stderr).toContain('cospec sync-specs: scenario-preservation gate refused')
-      expect(openspecOf(root)).toEqual(before)
-      expect(readdirSync(tmp)).toEqual([])
-      const up = await binary(copy, ['archive', name, '-y'])
-      expect(up.exitCode).toBe(1)
-    },
-  )
+  test('10.1 a scenario-dropping MODIFIED: refused, nothing written, no scratch left', async () => {
+    const { root, copy, name } = twin(R7_SCENARIO_DROP)
+    const before = openspecOf(root)
+    const tmp = privateTmp()
+    const res = await own('10.1', root, ['sync-specs', name], tmp)
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toContain('cospec sync-specs: scenario-preservation gate refused')
+    expect(openspecOf(root)).toEqual(before)
+    expect(readdirSync(tmp)).toEqual([])
+    const up = await binary(copy, ['archive', name, '-y'])
+    expect(up.exitCode).toBe(1)
+  })
 
-  test.failing(
-    '10.2 a change revalidation refuses: the report, nothing spawned or written',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      const name = R7_DELTA_INVALID.build(root)
-      const before = openspecOf(root)
-      const res = await ownWithoutScratch('10.2', root, ['sync-specs', name])
-      expect(res.exitCode).toBe(1)
-      expect(res.stdout).toContain('cospec sync-specs')
-      expect(res.stdout).toContain('deltas/requirement-shape')
-      expect(openspecOf(root)).toEqual(before)
-    },
-  )
+  test('10.2 a change revalidation refuses: the report, nothing spawned or written', async () => {
+    const root = mkTempRepo({ git: true })
+    const name = R7_DELTA_INVALID.build(root)
+    const before = openspecOf(root)
+    const res = await ownWithoutScratch('10.2', root, ['sync-specs', name])
+    expect(res.exitCode).toBe(1)
+    expect(res.stdout).toContain('cospec sync-specs')
+    expect(res.stdout).toContain('deltas/requirement-shape')
+    expect(openspecOf(root)).toEqual(before)
+  })
 })
 
 // --- 11. a failed scratch run leaves nothing in the real tree ----------------------
 
 describe('11. a failed scratch run leaves nothing in the real tree', () => {
-  test.failing(
-    '11.1 the binary refuses after its claim: its reason relayed, no lock, tree unchanged',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      const name = R7_SYMLINKED_ALIAS.build(root)
-      expect((await own('11.1', root, ['validate', name, '--strict'])).exitCode).toBe(0)
-      const before = openspecOf(root)
-      const tmp = privateTmp()
-      const res = await own('11.1', root, ['sync-specs', name], tmp)
-      expect(res.exitCode).toBe(1)
-      expect(res.stderr).toContain('resolve to the same target')
-      expect(locks(root)).toEqual([])
-      expect(openspecOf(root)).toEqual(before)
-      expect(readdirSync(tmp)).toEqual([])
-    },
-  )
+  test('11.1 the binary refuses after its claim: its reason relayed, no lock, tree unchanged', async () => {
+    const root = mkTempRepo({ git: true })
+    const name = R7_SYMLINKED_ALIAS.build(root)
+    expect((await own('11.1', root, ['validate', name, '--strict'])).exitCode).toBe(0)
+    const before = openspecOf(root)
+    const tmp = privateTmp()
+    const res = await own('11.1', root, ['sync-specs', name], tmp)
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toContain('resolve to the same target')
+    expect(locks(root)).toEqual([])
+    expect(openspecOf(root)).toEqual(before)
+    expect(readdirSync(tmp)).toEqual([])
+  })
 
-  test.failing('11.3 sibling changes and a taken archive slot are never copied', async () => {
+  test('11.3 sibling changes and a taken archive slot are never copied', async () => {
     const root = mkTempRepo({ git: true })
     const name = R7_MODIFIED.build(root)
     for (const sibling of ['c2', 'c3'])
@@ -299,28 +287,25 @@ describe('11. a failed scratch run leaves nothing in the real tree', () => {
     expect(specsOf(root)).not.toEqual(specs)
   })
 
-  test.failing(
-    '11.4 a symlink leading outside the copied tree is refused before any spawn',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      const name = R7_MODIFIED.build(root)
-      const outside = mkTempRepo()
-      writeLivingSpec(outside, 'ext', '# ext\n')
-      symlinkSync(join(outside, 'openspec/specs/ext'), join(root, 'openspec/specs/ext'))
-      const before = openspecOf(root)
-      const res = await ownWithoutScratch('11.4', root, ['sync-specs', name])
-      expect(res.exitCode).toBe(1)
-      expect(res.stderr).toContain('openspec/specs/ext')
-      expect(res.stderr).toContain('leads outside')
-      expect(openspecOf(root)).toEqual(before)
-    },
-  )
+  test('11.4 a symlink leading outside the copied tree is refused before any spawn', async () => {
+    const root = mkTempRepo({ git: true })
+    const name = R7_MODIFIED.build(root)
+    const outside = mkTempRepo()
+    writeLivingSpec(outside, 'ext', '# ext\n')
+    symlinkSync(join(outside, 'openspec/specs/ext'), join(root, 'openspec/specs/ext'))
+    const before = openspecOf(root)
+    const res = await ownWithoutScratch('11.4', root, ['sync-specs', name])
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toContain('openspec/specs/ext')
+    expect(res.stderr).toContain('leads outside')
+    expect(openspecOf(root)).toEqual(before)
+  })
 })
 
 // --- 12. sync-specs output ----------------------------------------------------------
 
 describe('12. sync-specs output', () => {
-  test.failing('12.1 text and --json on the MODIFIED fixture', async () => {
+  test('12.1 text and --json on the MODIFIED fixture', async () => {
     const text = mkTempRepo({ git: true })
     const json = mkTempRepo({ git: true })
     const name = R7_MODIFIED.build(text)
@@ -343,7 +328,7 @@ describe('12. sync-specs output', () => {
     })
   })
 
-  test.failing('12.1 text on a new capability names the created file', async () => {
+  test('12.1 text on a new capability names the created file', async () => {
     const root = mkTempRepo({ git: true })
     const name = R7_ADDED_NEW.build(root)
     const res = await own('12.1', root, ['sync-specs', name])
@@ -358,7 +343,7 @@ describe('12. sync-specs output', () => {
     { fixture: R7_SKIP_SPECS, why: 'c1 declares skip_specs: true', reason: 'skip-specs' },
   ]
   for (const n of nothing)
-    test.failing(`12.2 ${n.fixture.key}: nothing to sync, and why, spawning nothing`, async () => {
+    test(`12.2 ${n.fixture.key}: nothing to sync, and why, spawning nothing`, async () => {
       const text = mkTempRepo({ git: true })
       const json = mkTempRepo({ git: true })
       const name = n.fixture.build(text)
@@ -374,31 +359,28 @@ describe('12. sync-specs output', () => {
       expect([doc.synced, doc.skipReason]).toEqual([false, n.reason])
     })
 
-  test.failing(
-    "12.3 --store syncs the store's main specs and leaves the cwd repo alone",
-    async () => {
-      const sb = await makeSandbox([])
-      const store = await setupStore(sb, 'alpha')
-      const name = R7_MODIFIED.build(store)
-      const repo = join(sb.dir, 'repo')
-      mkdirSync(repo)
-      R7_MODIFIED.build(repo)
-      const repoBefore = openspecOf(repo)
-      const storeBefore = specsOf(store)
-      const res = await own(
-        '12.3',
-        repo,
-        ['sync-specs', name, '--store', 'alpha'],
-        privateTmp(),
-        sb.env,
-      )
-      expect(res.exitCode).toBe(0)
-      expect(specsOf(store)).not.toEqual(storeBefore)
-      expect(openspecOf(repo)).toEqual(repoBefore)
-    },
-  )
+  test("12.3 --store syncs the store's main specs and leaves the cwd repo alone", async () => {
+    const sb = await makeSandbox([])
+    const store = await setupStore(sb, 'alpha')
+    const name = R7_MODIFIED.build(store)
+    const repo = join(sb.dir, 'repo')
+    mkdirSync(repo)
+    R7_MODIFIED.build(repo)
+    const repoBefore = openspecOf(repo)
+    const storeBefore = specsOf(store)
+    const res = await own(
+      '12.3',
+      repo,
+      ['sync-specs', name, '--store', 'alpha'],
+      privateTmp(),
+      sb.env,
+    )
+    expect(res.exitCode).toBe(0)
+    expect(specsOf(store)).not.toEqual(storeBefore)
+    expect(openspecOf(repo)).toEqual(repoBefore)
+  })
 
-  test.failing('12.4 an unknown change under --json is one failure document', async () => {
+  test('12.4 an unknown change under --json is one failure document', async () => {
     const root = mkTempRepo({ git: true })
     R7_MODIFIED.build(root)
     const res = await own('12.4', root, ['sync-specs', 'nope', '--json'])
@@ -411,26 +393,23 @@ describe('12. sync-specs output', () => {
     })
   })
 
-  test.failing(
-    "12.4 a refused scratch run under --json carries archive_error and the binary's reason",
-    async () => {
-      const root = mkTempRepo({ git: true })
-      const name = R7_SYMLINKED_ALIAS.build(root)
-      const res = await own('12.4', root, ['sync-specs', name, '--json'])
-      expect(res.exitCode).toBe(1)
-      const doc = document(res.stdout)
-      expect(doc).toMatchObject({ change: name, synced: false })
-      const status = (doc.status as { code: string; message: string }[])[0]!
-      expect(status.code).toBe('archive_error')
-      expect(status.message).toContain('resolve to the same target')
-    },
-  )
+  test("12.4 a refused scratch run under --json carries archive_error and the binary's reason", async () => {
+    const root = mkTempRepo({ git: true })
+    const name = R7_SYMLINKED_ALIAS.build(root)
+    const res = await own('12.4', root, ['sync-specs', name, '--json'])
+    expect(res.exitCode).toBe(1)
+    const doc = document(res.stdout)
+    expect(doc).toMatchObject({ change: name, synced: false })
+    const status = (doc.status as { code: string; message: string }[])[0]!
+    expect(status.code).toBe('archive_error')
+    expect(status.message).toContain('resolve to the same target')
+  })
 })
 
 // --- 5.2 a namespace folder ----------------------------------------------------------
 
 describe('5.2 sync-specs refuses a namespace folder', () => {
-  test.failing("text and --json: Cannot sync 'mobile', nothing spawned or written", async () => {
+  test("text and --json: Cannot sync 'mobile', nothing spawned or written", async () => {
     const root = mkTempRepo({ git: true })
     const name = R7_NAMESPACE.build(root)
     const before = openspecOf(root)
@@ -454,7 +433,7 @@ describe('5.2 sync-specs refuses a namespace folder', () => {
 // --- 8. relayed output is spelled cospec ----------------------------------------------
 
 describe('8. relayed sync-specs output is spelled cospec', () => {
-  test.failing('8.1 the carried-Purpose warning names cospec validate', async () => {
+  test('8.1 the carried-Purpose warning names cospec validate', async () => {
     const root = mkTempRepo({ git: true })
     const name = R7_SHORT_PURPOSE.build(root)
     const res = await own('8.1', root, ['sync-specs', name])
@@ -465,7 +444,7 @@ describe('8. relayed sync-specs output is spelled cospec', () => {
   })
 
   // Runs last: every output the rows above captured.
-  test.failing('8.2 no captured output names a bare allowlisted openspec command', () => {
+  test('8.2 no captured output names a bare allowlisted openspec command', () => {
     expect(CAPTURED.some(({ row }) => row === '8.1')).toBe(true)
     // Only rows where sync-specs ran to an answer of its own count: today's
     // tree has no such command, so this row is failing-first.
