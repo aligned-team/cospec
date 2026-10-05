@@ -292,7 +292,7 @@ final commit.
       in text, the change's sweep entry), and a change cospec cannot read asks
       the binary in text mode too. Verify with row 16.9. Commit
       `fix(cli): refuse a change status the binary refuses`
-- [ ] 12.10 `apply` relays the binary's failure document when
+- [x] 12.10 `apply` relays the binary's failure document when
       `instructions apply` refuses after the gate clears. Verify with row 16.11.
       Commit `fix(apply): relay the binary's apply instructions refusal`
 - [ ] 12.11 An unreadable directory no artifact lives in (a dot-directory, a

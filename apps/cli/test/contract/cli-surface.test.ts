@@ -2457,7 +2457,7 @@ describe('16. round-3 review rows', () => {
       }
     })
 
-    test.failing("16.11 apply relays the binary's refusal of the apply instructions", async () => {
+    test("16.11 apply relays the binary's refusal of the apply instructions", async () => {
       const root = cospecRoot('chore')
       writeChange(
         root,

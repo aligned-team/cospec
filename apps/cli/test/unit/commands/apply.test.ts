@@ -194,7 +194,10 @@ describe('apply early exits under --json', () => {
     writeFileSync(join(dir, 'schema.yaml'), 'name: broken\n')
     writeChange(cwd, 'legacy', 'broken', { 'proposal.md': LITE_PROPOSAL })
     const r = await withEmptyMachineState(() => runCmd(applyRun, json(cwd, ['legacy'])))
-    expect(String(oneDocument(r).message)).toContain('instructions apply')
+    // The binary's own refusal is the answer (verification 16.11), not the wrapper's.
+    const message = String(oneDocument(r).message)
+    expect(message).toStartWith('Invalid schema at ')
+    expect(message).toContain(join('schemas', 'broken', 'schema.yaml'))
   })
 
   test('a failed step-5 call', async () => {
@@ -209,6 +212,7 @@ describe('apply early exits under --json', () => {
       'tasks.md': DONE_TASKS,
     })
     const r = await withEmptyMachineState(() => runCmd(applyRun, json(cwd, ['c'])))
-    expect(String(oneDocument(r).message)).toContain('instructions apply')
+    // The binary's own refusal is the answer (verification 16.11), not the wrapper's.
+    expect(String(oneDocument(r).message)).toStartWith("Unknown schema 'ci'.")
   })
 })

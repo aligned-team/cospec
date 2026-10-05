@@ -706,12 +706,62 @@ export function openspecList(root: Root): Promise<ListJson> {
   return runJson<ListJson>(root, ['list'], [])
 }
 
-/** Typed `openspec instructions apply --change <id> --json`. */
-export function openspecApplyInstructions(
+/** A diagnostic of the binary's failure document (`{status: [...]}`). */
+export interface StatusDiagnostic {
+  severity: string
+  code?: string
+  message: string
+  fix?: string
+}
+
+/**
+ * The binary's answer to `instructions apply`: its payload, or — when it
+ * refuses the change (a schema it cannot read, say) — its failure document.
+ */
+export type ApplyInstructionsAnswer =
+  | { instructions: ApplyInstructionsJson }
+  | { refused: { status: StatusDiagnostic[] } & Record<string, unknown> }
+
+/**
+ * Typed `openspec instructions apply --change <id> --json`: exit 0 with its
+ * payload, or exit 1 with its failure document, which is an answer the caller
+ * relays rather than a violation. Anything else throws `OpenspecCallError`.
+ */
+export async function openspecApplyInstructions(
   root: Root,
   changeId: string,
-): Promise<ApplyInstructionsJson> {
-  return runJson<ApplyInstructionsJson>(root, ['instructions', 'apply'], ['--change', changeId])
+): Promise<ApplyInstructionsAnswer> {
+  const argv = threadedArgv(
+    ['instructions', 'apply'],
+    ['--json', ...root.storeArgs],
+    ['--change', changeId],
+  )
+  const label = wrappedCallLabel(argv)
+  let answer: ApplyInstructionsAnswer | undefined
+  await runOpenspec(argv, {
+    cwd: root.cwd,
+    expect: {
+      exitCodes: [0, 1],
+      postCondition: (result) => {
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(result.stdout)
+        } catch {
+          return `could not parse JSON from ${label}`
+        }
+        if (result.exitCode === 1) {
+          if (!isOpenspecErrorStatus(parsed)) return `${label} exited 1 without a failure document`
+          answer = { refused: parsed as { status: StatusDiagnostic[] } & Record<string, unknown> }
+          return true
+        }
+        const instruction = (parsed as Partial<ApplyInstructionsJson> | null)?.instruction
+        if (typeof instruction !== 'string') return `${label} printed no apply instructions`
+        answer = { instructions: parsed as ApplyInstructionsJson }
+        return true
+      },
+    },
+  })
+  return answer!
 }
 
 /** Typed `openspec instructions <artifact> --change <id> --json`. */

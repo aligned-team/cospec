@@ -30,6 +30,7 @@ import {
   openspecBelow,
   runOpenspec,
   type Root,
+  type StatusDiagnostic,
   threadedArgv,
   wrappedCallLabel,
   wrappedOpenspecVersion,
@@ -1125,14 +1126,6 @@ async function validateForcedSpec(root: Root, id: string, strict: boolean): Prom
 
 /** The first openspec release whose `validate` takes `--archived`. */
 const ARCHIVED_SINCE = '1.9.0'
-
-/** A diagnostic of the binary's failure document (`{status: [...]}`). */
-interface StatusDiagnostic {
-  severity: string
-  code?: string
-  message: string
-  fix?: string
-}
 
 /**
  * The binary's answer to `validate --archived`: its report's items, or its

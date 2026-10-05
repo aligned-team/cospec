@@ -208,10 +208,18 @@ describe('wrapped calls against the real binary', () => {
   }, 30_000)
 
   test('openspecApplyInstructions returns state and contextFiles', async () => {
-    const apply = await openspecApplyInstructions(localRoot(cwd), 'try-it')
+    const answer = await openspecApplyInstructions(localRoot(cwd), 'try-it')
+    if (!('instructions' in answer)) throw new Error(JSON.stringify(answer))
+    const apply = answer.instructions
     expect(apply.state).toBe('ready')
     expect(apply.progress).toEqual({ total: 2, complete: 1, remaining: 1 })
     expect(apply.contextFiles.proposal?.[0]).toContain('proposal.md')
+  }, 30_000)
+
+  test('openspecApplyInstructions answers a refusal with the failure document', async () => {
+    const answer = await openspecApplyInstructions(localRoot(cwd), 'no-such-change')
+    if (!('refused' in answer)) throw new Error(JSON.stringify(answer))
+    expect(answer.refused.status[0]).toMatchObject({ severity: 'error', code: 'change_error' })
   }, 30_000)
 
   test('openspecArtifactInstructions returns template and instruction', async () => {
