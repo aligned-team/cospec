@@ -24,11 +24,11 @@
 
 ## 2. `validate.ts`: `--archived --json` below the version floor
 
-- [ ] 2.1 Add a failing unit test exercising the `--archived` version-floor
+- [x] 2.1 Add a failing unit test exercising the `--archived` version-floor
       guard directly (stub `wrappedOpenspecVersion` below `ARCHIVED_SINCE`, as
       the existing `openspecBelow` unit tests do) asserting `--json` prints one
       parseable document, not stderr text — red against current `validate.ts`.
-- [ ] 2.2 Branch the guard on `flags.json` exactly as the no-root guard four
+- [x] 2.2 Branch the guard on `flags.json` exactly as the no-root guard four
       lines above it does, reusing `rootSelectionDocument`. Verify: 2.1's test
       goes green. Commit
       `fix(cli): relay validate --archived's version-floor refusal as JSON`

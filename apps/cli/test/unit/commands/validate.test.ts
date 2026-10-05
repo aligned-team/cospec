@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  archivedUnsupportedRefusal,
   erroredChange,
   concurrencyBound,
   mapPool,
@@ -9,6 +10,7 @@ import {
   TARGET_INVALID_HEAD,
   TARGET_INVALID_LINE,
 } from '../../../src/commands/validate.ts'
+import { rootSelectionDocument } from '../../../src/core/root.ts'
 import type { Issue } from '../../../src/core/rules/issue.ts'
 
 // mergeDelegated's DUPLICATE_CLASSES table drops a delegated (openspec/validate)
@@ -372,5 +374,37 @@ describe('a change whose validation throws (verification 16.3)', () => {
   test('anything that is not an errno failure propagates', () => {
     const error = new Error('boom')
     expect(() => erroredChange('/r', 'c1', error)).toThrow(error)
+  })
+})
+
+describe("archivedUnsupportedRefusal: validate --archived's version-floor guard", () => {
+  test('no refusal at or above the floor', () => {
+    expect(archivedUnsupportedRefusal('1.9.0')).toBeUndefined()
+    expect(archivedUnsupportedRefusal('1.13.1')).toBeUndefined()
+  })
+
+  test('a document under --json below the floor, not stderr text', () => {
+    const refusal = archivedUnsupportedRefusal('1.8.0')
+    expect(refusal).toBeDefined()
+    expect(refusal!.diagnostic.message).toBe(
+      'validate --archived needs OpenSpec >=1.9.0; the wrapped OpenSpec is 1.8.0',
+    )
+    // The command's --json branch calls rootSelectionDocument(refusal), exactly
+    // as its sibling no-root guard does: one parseable JSON document, never the
+    // unconditional stderr text the pre-fix guard wrote regardless of --json.
+    const doc = JSON.parse(rootSelectionDocument(refusal!)) as {
+      status: { severity: string; code: string; message: string }[]
+    }
+    expect(doc.status).toEqual([
+      {
+        severity: 'error',
+        code: 'openspec_version_too_old',
+        message: 'validate --archived needs OpenSpec >=1.9.0; the wrapped OpenSpec is 1.8.0',
+      },
+    ])
+  })
+
+  test('an unparseable version is never judged too old (drift allowed)', () => {
+    expect(archivedUnsupportedRefusal('not-a-version')).toBeUndefined()
   })
 })

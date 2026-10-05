@@ -9,8 +9,8 @@
 
 ## 2. `validate --archived --json` below the version floor prints a document
 
-- [ ] 2.1 @unit (agent) `wrappedOpenspecVersion` stubbed below `ARCHIVED_SINCE`, `validate --archived --json` -> one parseable JSON document on stdout, not stderr text
-- [ ] 2.2 @regression (agent) the same unit test before the fix FAILS (stderr text, unparseable stdout), after the fix PASSES -> captured in the commit that lands 2.2
+- [x] 2.1 @unit (agent) `wrappedOpenspecVersion` stubbed below `ARCHIVED_SINCE`, `validate --archived --json` -> one parseable JSON document on stdout, not stderr text — observed: factored `archivedUnsupportedRefusal(version)` (pure, no spawn) unit-tested directly; `validate.test.ts` "archivedUnsupportedRefusal" passes, `rootSelectionDocument(refusal)` parses to one `status[]` document
+- [x] 2.2 @regression (agent) the same unit test before the fix FAILS (stderr text, unparseable stdout), after the fix PASSES -> captured in the commit that lands 2.2 — observed: `archivedUnsupportedRefusal` did not exist before this commit (the guard wrote stderr text unconditionally inline); the test file would not compile against unmodified `validate.ts`, green once the export landed
 
 ## 3. `upstream-spellings.test.ts` row 3.7 is deterministic
 
