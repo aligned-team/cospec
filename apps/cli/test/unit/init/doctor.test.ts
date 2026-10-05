@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { run as doctorRun } from '../../../src/commands/doctor.ts'
@@ -218,5 +218,65 @@ describe('cospec doctor — the shared .agents/skills root', () => {
     seedShared(dir, 'codex')
     const { findings } = await doctorJson(dir)
     expect(findings.some((f) => f.check === 'legacy-layout')).toBe(false)
+  })
+})
+
+// Verification 2.1–2.3 (harness-receipt-and-doctor-scope): doctor's
+// stale-harness, mixed-versions and dangling-ref checks read only the files
+// cospec writes — `<skills-root>/<skill>/SKILL.md` and the table's command
+// paths — never a user's own markdown or a nested worktree's checkout.
+describe('cospec doctor — only the harness files cospec writes', () => {
+  let dir: string
+  beforeEach(() => {
+    dir = makeRepo()
+  })
+  afterEach(() => {
+    cleanup(dir)
+  })
+
+  /** A cospec-stamped file from an older cospec, referencing an unknown workflow. */
+  const OLD_COPY =
+    '---\nname: cospec-propose\nmetadata:\n  author: cospec\n  generatedBy: "cospec@0.0.1"\n---\n\nThen run /cospec:not-a-real-workflow.\n'
+
+  test.failing("a user's .claude/notes.md mentioning /cospec:foo gives no finding", async () => {
+    seed(dir)
+    writeFileSync(join(dir, '.claude/notes.md'), 'Try /cospec:foo once it exists.\n')
+    const { code, findings } = await doctorJson(dir)
+    expect(findings.filter((f) => f.message.includes('.claude/notes.md'))).toEqual([])
+    expect(code).toBe(0)
+    const human = await captureAsync(() => doctorRun(ctx(dir, [], false, 'doctor')))
+    expect(human.out).not.toContain('.claude/notes.md')
+    expect(human.code).toBe(0)
+  })
+
+  test.failing("a nested worktree's copy under .claude/worktrees/ is not checked", async () => {
+    seed(dir)
+    const wt = join(dir, '.claude/worktrees/wt/.claude')
+    mkdirSync(join(wt, 'skills/cospec-propose'), { recursive: true })
+    mkdirSync(join(wt, 'commands/cospec'), { recursive: true })
+    writeFileSync(join(wt, 'skills/cospec-propose/SKILL.md'), OLD_COPY)
+    writeFileSync(join(wt, 'commands/cospec/propose.md'), OLD_COPY)
+    const { code, findings } = await doctorJson(dir)
+    const harnessChecks = new Set(['stale-harness', 'mixed-versions', 'dangling-ref'])
+    expect(
+      findings.filter(
+        (f) => harnessChecks.has(f.check) && f.message.includes('.claude/worktrees/'),
+      ),
+    ).toEqual([])
+    expect(findings.filter((f) => f.check === 'mixed-versions')).toEqual([])
+    expect(code).toBe(0)
+  })
+
+  test('a dangling reference in a cospec-written command file is still an ERROR', async () => {
+    seed(dir)
+    const cmd = join(dir, '.claude/commands/cospec/propose.md')
+    writeFileSync(cmd, `${readFileSync(cmd, 'utf8')}\nThen run /cospec:not-a-real-workflow.\n`)
+    const { code, findings } = await doctorJson(dir)
+    expect(code).toBe(1)
+    expect(
+      findings.filter((f) => f.check === 'dangling-ref').map((f) => `${f.level} ${f.message}`),
+    ).toEqual([
+      'ERROR .claude/commands/cospec/propose.md references /cospec:not-a-real-workflow, which is not a known cospec workflow',
+    ])
   })
 })
