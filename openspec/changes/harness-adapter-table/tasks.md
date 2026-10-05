@@ -365,4 +365,17 @@ Exclusive files: `docs/harness-integration.md`.
       lines and doctor's `legacy-layout` warning cover only codex's
       `.codex/skills`; then `mise run agents:sync`. Verify verification 5.4 ->
       each text matches `isHarnessDocument`, `owningRow` and `legacy-skills.ts`;
+
+## 10. Review fixes: remove the self-written Non-Goal mislabeling
+
+- [x] 10.1 design.md's Non-Goals (Context) and decision 12 call the receipt's
+      `/cospec:propose` hint and doctor's scan breadth deliberate, unreviewed
+      self-assessments; an agent may not non-goal a defect it is the one
+      reporting. Reclassify both as known defects on `main`, routed by ruling to
+      the follow-on change `harness-receipt-and-doctor-scope`, not preserved on
+      purpose by this one; sync `docs/harness-integration.md` and
+      `.agents/shared.md`, then `mise run agents:sync`. Verify verification 5.5
+      -> design.md no longer calls either one deliberate; both docs name them as
+      known defects fixed by `harness-receipt-and-doctor-scope`; `CLAUDE.md`/
+      `AGENTS.md` re-synced; `git diff --exit-code main -- apps/docs/` exits 0
       `CLAUDE.md`/`AGENTS.md` re-synced; `apps/docs/` unchanged

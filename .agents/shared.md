@@ -261,8 +261,12 @@ migration (`harness/legacy-skills.ts`, its receipt and `update --check` lines,
 doctor's `legacy-layout` warning) covers only Codex's `.codex/skills`, so a new
 row's `legacySkillsDirs` is detected but never migrated; and deliberate
 Claude-only behaviour sits outside the table — `init`'s `.claude/settings.json`
-merge, its `claude` default and its `/cospec:propose` receipt hint
-(docs/harness-integration.md names them). Edit the canon or the table, run
+merge and its `claude` default (docs/harness-integration.md names them). The
+receipt's `/cospec:propose` hint, always in Claude's spelling regardless of
+selected row, and doctor's scan reading every `.md` file under a skills root
+rather than just `SKILL.md` and the table's command paths, are known defects on
+`main`, not part of that deliberate set; the follow-on change
+`harness-receipt-and-doctor-scope` fixes both. Edit the canon or the table, run
 `mise run generate`; never hand-edit generated output. The `generate:check`
 drift gate blocks the commit otherwise.
 

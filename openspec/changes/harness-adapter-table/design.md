@@ -132,10 +132,17 @@ All four have `invocationPrefix: '/'` and `requiresIdeRestart: false`, and each
 - Moving init's Claude-only behaviour into the table. `init` merges
   `Bash(cospec *)` into `.claude/settings.json` only when `claude` is selected,
   and selects `claude` on a fresh repo where no row is detected. Both are
-  deliberate Claude-only behaviour, not tool layout, and stay in `init.ts`. So
-  does the receipt's closing `Try: /cospec:propose …` hint, which every
-  selection prints in the canonical spelling; respelling it per selected row
-  would change the receipt.
+  deliberate Claude-only behaviour, not tool layout, and stay in `init.ts`.
+
+The receipt's closing `Try: /cospec:propose …` hint and doctor's
+`isHarnessDocument` scan breadth (decision 9) are not non-goals of this change:
+both are user-visible defects on `main` today. The hint prints only Claude's
+canonical spelling (`/cospec:propose`) no matter which row was selected, and the
+scan reads every `.md` file under a row's skills or legacy skills root rather
+than narrowing to `SKILL.md` and the table's command paths. Fixing either would
+not be byte-identical to `main`, so both stay out of this change's scope by
+ruling and are fixed in the follow-on change `harness-receipt-and-doctor-scope`
+(its PR number is assigned when it opens).
 
 ## Decisions
 
@@ -225,7 +232,12 @@ All four have `invocationPrefix: '/'` and `requiresIdeRestart: false`, and each
    only the skill files. For the four rows that is every `.md` file under the
    scan roots, as before: a user's markdown under `.claude/` (a note, a nested
    worktree's copy) is read too, and a row whose skills root sits under
-   `.github` would read every `.md` file there.
+   `.github` would read every `.md` file there. This breadth is a known defect,
+   not a deliberate design choice this change preserves on purpose; it predates
+   this change, fixing it is out of this change's byte-identical scope by
+   ruling, and the follow-on change `harness-receipt-and-doctor-scope` narrows
+   `isHarnessDocument` to `<skills-root>/<skill>/SKILL.md` and the table's
+   command paths.
 
 10. **Command frontmatter is a builder function on the row.** Rejected: an enum
     switched in `render.ts`. Each later tool's frontmatter keys (for example

@@ -43,26 +43,32 @@ its commands dir, and every `.md` file under each top-level dir that holds a
 row's skills or legacy skills root — not only the skill files. So a user's own
 markdown under `.claude/`, such as a note or a nested worktree's copy of the
 repo, is checked too, and a row whose skills root sat under `.github` would pull
-in every `.md` file there. A file belongs to the row with a skills, legacy
-skills, commands or rules dir that is the longest prefix of it. A dir two rows
-share goes to the row whose primary root also prefixes the file, then to the
-earlier row, and a file under none of them goes to the first row whose primary
-root prefixes it. The table can express shapes no production row uses yet — a
-split commands root, `.prompt`/`.prompt.md`/ `.toml` extensions, the TOML
-serializer, the `@` invocation prefix, home-scoped skills — each exercised by a
-unit test through a fixture row passed via `RenderOptions.adapters` (or
-`GenerateOptions.adapters`, or the `table` parameter of doctor's checks and
-init's receipt and leftover helpers). The legacy-skills migration sits outside
-the table: `update` moving cospec's skills out of a legacy root, its receipt and
-`update --check` lines, and doctor's `legacy-layout` warning all come from the
-constants in `harness/legacy-skills.ts` and cover only Codex's `.codex/skills`.
-Another row's `legacySkillsDirs` is detected and scanned, but never migrated or
-reported, until `tool-matrix` drives the migration from the table. Deliberate
-Claude-only behaviour sits outside the table too: `init` merges cospec's
-permission into `.claude/settings.json` only when `claude` is selected, selects
-`claude` on a fresh repo where nothing is detected, and closes its receipt with
-the `/cospec:propose` hint in Claude's spelling. A TOML command carries no
-frontmatter, so, like the Codex rules file, it is tracked in
+in every `.md` file there. This breadth is a known defect, not an intended scan
+boundary; it predates this change and is narrowed to `SKILL.md` and the table's
+command paths by the follow-on change `harness-receipt-and-doctor-scope`. A file
+belongs to the row with a skills, legacy skills, commands or rules dir that is
+the longest prefix of it. A dir two rows share goes to the row whose primary
+root also prefixes the file, then to the earlier row, and a file under none of
+them goes to the first row whose primary root prefixes it. The table can express
+shapes no production row uses yet — a split commands root,
+`.prompt`/`.prompt.md`/ `.toml` extensions, the TOML serializer, the `@`
+invocation prefix, home-scoped skills — each exercised by a unit test through a
+fixture row passed via `RenderOptions.adapters` (or `GenerateOptions.adapters`,
+or the `table` parameter of doctor's checks and init's receipt and leftover
+helpers). The legacy-skills migration sits outside the table: `update` moving
+cospec's skills out of a legacy root, its receipt and `update --check` lines,
+and doctor's `legacy-layout` warning all come from the constants in
+`harness/legacy-skills.ts` and cover only Codex's `.codex/skills`. Another row's
+`legacySkillsDirs` is detected and scanned, but never migrated or reported,
+until `tool-matrix` drives the migration from the table. Deliberate Claude-only
+behaviour sits outside the table too: `init` merges cospec's permission into
+`.claude/settings.json` only when `claude` is selected, and selects `claude` on
+a fresh repo where nothing is detected. The receipt's closing hint is not in
+that deliberate set: it always prints `Try: /cospec:propose …` in Claude's
+spelling, whichever row was selected. That is a known defect, not intended
+behaviour; the follow-on change `harness-receipt-and-doctor-scope` spells it
+through the first selected row's dialect and invocation prefix instead. A TOML
+command carries no frontmatter, so, like the Codex rules file, it is tracked in
 `openspec/.cospec-manifest.json`. A home-scoped file renders, but `generate()`
 refuses to write it with an internal error until the home root is a managed
 root.
