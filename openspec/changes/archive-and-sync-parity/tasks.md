@@ -124,10 +124,11 @@ sandboxed HOME/XDG.
       and row 14.2 (`mise run check` green), and run
       `mise run cospec -- validate archive-and-sync-parity --strict` clean.
       Commit `docs(cli): record archive-and-sync-parity evidence`
-- [ ] 8.2 Ask the user to run verification row 13.4 (`mise run eval:e2e` needs
+- [x] 8.2 Ask the user to run verification row 13.4 (`mise run eval:e2e` needs
       the human-held DeepSeek key) on the branch head and on `main`, and record
       the scores they report on the row. Verify by the row carrying both runs'
-      scores. Commit `docs(cli): record the archive-and-sync-parity eval run`
+      scores. Commit `docs(cli): record the archive-and-sync-parity eval run` ->
+      resolved as a deferred row (see verification 13.4)
 - [x] 8.3 Rebase onto `main` (`--force-with-lease`, no merge commit), rerun
       `bun install --frozen-lockfile` and `mise run check`, and confirm
       `git log main..HEAD` shows only this change's commits. The archive commit
