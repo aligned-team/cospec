@@ -5,9 +5,10 @@
 - [x] 1.1 Confirm the worktree branch sits on `main` with #51
       (`harness-adapter-table`) merged and `cospec apply` exits 0. Verify
       `git log` shows `16598dad` as an ancestor.
-- [ ] 1.2 Once this change's PR is open, record its number in `proposal.md`
+- [x] 1.2 Once this change's PR is open, record its number in `proposal.md`
       (Why) and in the verification ledger's header. Verify `grep -n '#'` finds
-      it in both.
+      it in both. -> PR #63 opened (draft);
+      `grep -n '#63' proposal.md     verification.md` finds both.
 
 ## 2. Receipt hint (tests first)
 
@@ -97,16 +98,21 @@
       the proposal's BREAKING list (receipt hint for opencode/codex/agents;
       doctor's narrowed harness checks), with no `!` and no `BREAKING CHANGE:`
       footer (design decision 6). Verify with `git log -1 --format=%B`.
-- [ ] 6.2 Relay the same BREAKING list verbatim in the PR body, which becomes
+- [x] 6.2 Relay the same BREAKING list verbatim in the PR body, which becomes
       the squash commit communique reads. Verify with `gh pr view --json body`.
+      -> `gh pr view 63 --json body` shows a `## Breaking` section with both
+      bullets copied verbatim from `proposal.md`'s BREAKING list.
 
 ## 7. Gate and archive
 
 - [x] 7.1 `mise run check` exits 0. Record the counts in the verification
       ledger.
-- [ ] 7.2
+- [x] 7.2
       `mise run cospec -- validate harness-receipt-and-doctor-scope --strict` is
-      clean and every verification row is `[x]` with observed evidence.
+      clean and every verification row is `[x]` with observed evidence. ->
+      `validate --strict` -> "0 errors, 0 warnings — validation passed"; every
+      row in `verification.md` is `[x]` with observed evidence (5 sections, 18
+      rows).
 - [ ] 7.3 `mise run cospec -- archive harness-receipt-and-doctor-scope` as the
       final commit on the PR branch, before merge. Verify the change dir moved
       under `openspec/changes/archive/` and the `harness-workflows` spec gained

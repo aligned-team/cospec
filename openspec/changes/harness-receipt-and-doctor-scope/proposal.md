@@ -6,7 +6,7 @@ Two user-visible defects on `main` were surfaced while reviewing
 `harness-adapter-table` (PR #51). That change was held to byte-identical output,
 so it could not fix either, and no later feature change may absorb them
 (cospec-roadmap ruling 2026-10-04): each is fixed here, in its own `fix` PR
-sequenced directly after #51 and before `tool-matrix` starts.
+(#63) sequenced directly after #51 and before `tool-matrix` starts.
 
 1. **The init receipt's closing hint is always spelled for Claude Code.**
    `cospec init` ends every receipt with
