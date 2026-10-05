@@ -2,7 +2,7 @@
 
 ## 1. Baseline
 
-- [ ] 1.1 Confirm the worktree branch sits on `main` with #51
+- [x] 1.1 Confirm the worktree branch sits on `main` with #51
       (`harness-adapter-table`) merged and `cospec apply` exits 0. Verify
       `git log` shows `16598dad` as an ancestor.
 - [ ] 1.2 Once this change's PR is open, record its number in `proposal.md`
