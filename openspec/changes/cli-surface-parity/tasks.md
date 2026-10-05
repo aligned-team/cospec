@@ -244,3 +244,65 @@ final commit.
       holds one) flags it while passing both of `TARGET_INVALID`'s patterns.
       Verify with row 15.13. Commit
       `test(validate): replace the exponential reference regex with a guard`
+
+## 12. Round-3 review fixes
+
+Each fix below lands in its own commit, flipping its own `test.failing` rows
+(verification group 16) and ticking its own task. Task 10.2 stays the branch's
+final commit.
+
+- [x] 12.1 Write rows 16.1–16.12 first: the round-3 contract rows in
+      `cli-surface.test.ts`, each as `test.failing`, and the key oracle's `kept`
+      class with its self-test. Commit
+      `test(cli): add the round-3 review rows as failing`
+- [ ] 12.2 Every delegated validation names its kind (`--type change` per
+      change, `--type spec` per named spec) under the wrapped-call discipline,
+      and a refusal the binary answers with a `status[]` document is the item's
+      `openspec/validate` ERROR, never an empty report; `--strict` fails a
+      warning-only spec in `valid` and the totals. Verify with rows 16.1, 16.2,
+      16.4 and 15.9. Commit
+      `fix(validate): name the kind on every delegated validation`
+- [ ] 12.3 The living spec a delta targets is read through the change's reader:
+      an unreadable one is the change's `meta/unreadable-artifact` ERROR on the
+      delta's path, naming the file, and a change whose validation throws an
+      errno failure is that change's ERROR in the bulk pool. Verify with row
+      16.3. Commit
+      `fix(validate): fail a change whose target living spec is unreadable`
+- [ ] 12.4 An errno failure `validate`, `status` or `apply` lets escape (an
+      unreadable `openspec/changes/`, `openspec/specs/` or capability directory)
+      is one `--json` document with the binary's per-command code and payload.
+      Verify with row 16.10. Commit
+      `fix(cli): answer an unreadable planning directory with one document`
+- [ ] 12.5 `validate <name>` with no `openspec/` directory resolves the name as
+      the binary does: `unknown_item`. Verify with row 16.5. Commit
+      `fix(validate): resolve a named item outside any root`
+- [ ] 12.6 `resolveChange` looks a change up as the binary's
+      `validateChangeExists` does: a directory, any name its
+      `validateChangeLookupName` accepts. Verify with rows 16.7 and 16.8. Commit
+      `fix(cli): look a change up as the binary does`
+- [ ] 12.7 Every binary diagnostic `status` relays is spelled through the remedy
+      allowlist, in text and in `status[]` under `--json`. Verify with row
+      16.13. Commit
+      `fix(cli): respell every status diagnostic the binary relays`
+- [ ] 12.8 An in-progress cospec-typed entry keeps `artifacts: []` under
+      `--json`, singly and in the sweep. Verify with row 16.6. Commit
+      `fix(cli): keep an empty change's artifacts empty under --json`
+- [ ] 12.9 `status` refuses a change the binary refuses: any error in the
+      delegated document is the answer (its document under `--json`, its message
+      in text, the change's sweep entry), and a change cospec cannot read asks
+      the binary in text mode too. Verify with row 16.9. Commit
+      `fix(cli): refuse a change status the binary refuses`
+- [ ] 12.10 `apply` relays the binary's failure document when
+      `instructions apply` refuses after the gate clears. Verify with row 16.11.
+      Commit `fix(apply): relay the binary's apply instructions refusal`
+- [ ] 12.11 An unreadable directory no artifact lives in (a dot-directory, a
+      directory outside `specs/`) leaves the change's answer unchanged. Verify
+      with row 16.12. Commit
+      `fix(validate): read past a directory no artifact lives in`
+- [ ] 12.12 Rows 15.4, 15.6 and 15.7 assert what their ledger rows promise, and
+      row 15.3 records the test file's own counts. Verify with rows 15.3, 15.4,
+      15.6 and 15.7. Commit
+      `test(cli): hold rows 15.4, 15.6 and 15.7 to their ledger`
+- [ ] 12.13 Record observed evidence on every group-16 row, re-observe rows
+      14.1–14.4, and update the docs pages that own each fact. Commit
+      `docs(cli): record the round-3 review fixes`
