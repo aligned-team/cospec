@@ -49,7 +49,7 @@ sandboxed HOME/XDG.
 
 ## 3. T1 — `cospec archive` (`apps/cli/src/commands/archive.ts`, `apps/cli/src/core/scenario-gate.ts`, `apps/cli/src/core/archive-output.ts`)
 
-- [ ] 3.1 Move `changeDeltaOps` and the scenario-preservation step into
+- [x] 3.1 Move `changeDeltaOps` and the scenario-preservation step into
       `core/scenario-gate.ts` (design D4), unchanged in behavior, with the
       type-level test 3.4. Verify with rows 3.1–3.3 still green and
       `grep -n findScenarioDrops apps/cli/src/commands` empty. Commit

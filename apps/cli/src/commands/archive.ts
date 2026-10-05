@@ -8,7 +8,7 @@
 // check-offs out across sibling changes and prints the flywheel summary.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
@@ -23,20 +23,17 @@ import {
   type Change,
 } from '../core/change.ts'
 import { hasFlag } from '../core/command-table.ts'
-import {
-  findScenarioDrops,
-  parseDeltaSpec,
-  parseLivingSpec,
-  quoteScenarioNames,
-  SCENARIO_DROP_HINT,
-  SCENARIO_DROP_NOTE_RETIRED,
-  type DeltaOp,
-} from '../core/deltas.ts'
+import { parseLivingSpec, type DeltaOp } from '../core/deltas.ts'
 import { spawnOpenspec, threadedArgv } from '../core/openspec.ts'
 import { renderHuman, renderJson, type ItemReport } from '../core/report.ts'
 import { resolveRoot } from '../core/root.ts'
 import { enforcedApplyRequires, TYPE_ARTIFACTS, type CospecType } from '../core/rules/type-facts.ts'
-import { capabilityForDeltaFile, isDeltaSpecFile } from '../core/spec-paths.ts'
+import {
+  changeDeltaOps,
+  scenarioGate,
+  scenarioRefusal,
+  type CapabilityDeltas,
+} from '../core/scenario-gate.ts'
 import { parseTasks } from '../core/tasks.ts'
 import { computeVerificationVerdict, parseVerification } from '../core/verification.ts'
 import { archiveMap, atomicWrite, closest, computeGate } from './apply.ts'
@@ -104,57 +101,6 @@ export function collectArchiveWarnings(stdout: string): string[] {
     if (retiring !== null && direct === null && bullet === null) retiringIndex = warnings.length - 1
   }
   return warnings
-}
-
-interface CapabilityDeltas {
-  capability: string
-  ops: DeltaOp[]
-}
-
-/**
- * All change-side delta ops grouped by capability path
- * (`specs/<cap-path>/spec.md`).
- *
- * Only files literally named `spec.md` count, matching openspec's own change
- * parser and `discoverSpecFiles` on the living side. Companion markdown an
- * author keeps in a capability directory (`README.md`, `notes.md`, a
- * `spec-old.md` backup) is content `openspec archive` never merges, so parsing
- * it here would feed phantom ops to both hard gates below.
- *
- * The capability is the whole directory chain under `specs/`, so a nested
- * `specs/platform/session-layout/spec.md` groups under `platform/session-layout`
- * — the path openspec merges it to (`findSpecUpdates`, 1.6.0 #1353) and the path
- * every living-spec lookup below joins. Keying on the outermost directory
- * instead, as this did, pointed both hard archive gates at
- * `openspec/specs/platform/spec.md`, which does not exist, silently turning them
- * into no-ops for every nested spec.
- *
- * A `.md` sitting directly in `specs/` has no capability at all; openspec 1.7.0
- * blocks that layout outright, so it contributes no ops rather than inventing a
- * capability named after the file.
- */
-function changeDeltaOps(changeDir: string): CapabilityDeltas[] {
-  const root = join(changeDir, 'specs')
-  if (!existsSync(root)) return []
-  const byCap = new Map<string, DeltaOp[]>()
-  const walk = (dir: string): void => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const child = join(dir, entry.name)
-      if (entry.isDirectory()) {
-        if (!entry.name.startsWith('.')) walk(child)
-        continue
-      }
-      if (!entry.isFile() || !isDeltaSpecFile(entry.name)) continue
-      const capability = capabilityForDeltaFile(relative(changeDir, child))
-      if (capability === undefined) continue
-      const parsed = parseDeltaSpec(readFileSync(child, 'utf8'), child, capability)
-      const list = byCap.get(parsed.capability) ?? []
-      list.push(...parsed.ops)
-      byCap.set(parsed.capability, list)
-    }
-  }
-  walk(root)
-  return [...byCap.entries()].map(([capability, ops]) => ({ capability, ops }))
 }
 
 /**
@@ -415,33 +361,12 @@ export async function run(ctx: CommandContext): Promise<number> {
   // `livingCaps` doubles as step 10's record of which capabilities had a living
   // spec BEFORE the merge, so a spec that disappears can be told apart from one
   // that never existed.
-  const livingCaps = new Set<string>()
+  let livingCaps = new Set<string>()
   if (!skipSpecs && preOps.length > 0) {
-    const livingSpecs = new Map(
-      [...new Set(preOps.map((c) => c.capability))]
-        .map((cap): [string, ReturnType<typeof parseLivingSpec>] | undefined => {
-          const p = join(openspecDir(base), 'specs', cap, 'spec.md')
-          if (!existsSync(p)) return undefined
-          livingCaps.add(cap)
-          return [cap, parseLivingSpec(readFileSync(p, 'utf8'))]
-        })
-        .filter((e): e is [string, ReturnType<typeof parseLivingSpec>] => e !== undefined),
-    )
-    const drops = findScenarioDrops(preOps, livingSpecs)
-    if (drops.length > 0) {
-      process.stderr.write(
-        'cospec archive: scenario-preservation gate refused — a MODIFIED requirement drops scenarios:\n',
-      )
-      // The count clause keeps its shape even for a same-count name swap, where
-      // it reads `2 -> 2`: the missing-name clause carries the finding there.
-      for (const d of drops)
-        process.stderr.write(
-          `  ${d.capability}: "${d.name}" ${d.livingCount} -> ${d.deltaCount} scenario(s)${
-            d.missingNames.length > 0 ? `; missing: ${quoteScenarioNames(d.missingNames)}` : ''
-          }\n`,
-        )
-      if (drops.some((d) => d.noted)) process.stderr.write(`${SCENARIO_DROP_NOTE_RETIRED}.\n`)
-      process.stderr.write(`${SCENARIO_DROP_HINT}.\n`)
+    const gate = scenarioGate(base, preOps)
+    livingCaps = gate.livingCaps
+    if (gate.drops.length > 0) {
+      process.stderr.write(scenarioRefusal('archive', gate.drops))
       return EXIT.failure
     }
   }
