@@ -70,8 +70,24 @@ export interface RenderedFile {
   content: string
 }
 
-interface WorkflowManifest {
+export interface WorkflowManifest {
   workflows: WorkflowDef[]
+}
+
+/**
+ * The canon workflow manifest, `canon/workflows/harness.yaml`. With no `canonDir` it
+ * resolves through the embedded registry, so the standalone compiled binary (which has no
+ * canon dir on disk) reads it too.
+ */
+export function readWorkflowManifest(canonDir?: string): WorkflowManifest {
+  const file =
+    canonDir === undefined ? canonFile('workflows/harness.yaml') : join(canonDir, 'harness.yaml')
+  return parse(readFileSync(file, 'utf8')) as WorkflowManifest
+}
+
+/** Workflow id → skill dir name, the map `transformBody`'s shared dialect spells with. */
+export function skillByWorkflowId(manifest: WorkflowManifest): Map<string, string> {
+  return new Map(manifest.workflows.map((w) => [w.id, w.skill] as const))
 }
 
 /**
@@ -84,10 +100,10 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
   // standalone compiled binary works (no canon dir exists on disk there).
   const workflowFile = (name: string): string =>
     opts.canonDir === undefined ? canonFile(`workflows/${name}`) : join(opts.canonDir, name)
-  const manifest = parse(readFileSync(workflowFile('harness.yaml'), 'utf8')) as WorkflowManifest
+  const manifest = readWorkflowManifest(opts.canonDir)
   const table = opts.adapters ?? HARNESS_TABLE
 
-  const skillById = new Map(manifest.workflows.map((w) => [w.id, w.skill] as const))
+  const skillById = skillByWorkflowId(manifest)
 
   // Keyed by output path: `codex` and `agents` share the `.agents/skills` root and render
   // byte-identical files there, so selecting both must emit each file exactly once rather

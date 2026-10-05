@@ -190,20 +190,20 @@ describe('init receipt hint follows the first selected harness (verification 1.6
     expect(receiptHintLines([])).toEqual(hintLines('/cospec:propose'))
   })
 
-  test.failing('opencode names its flat /cospec-propose command', () => {
+  test('opencode names its flat /cospec-propose command', () => {
     expect(receiptHintLines(['opencode'])).toEqual(hintLines('/cospec-propose'))
   })
 
-  test.failing('codex and agents name the shared skill', () => {
+  test('codex and agents name the shared skill', () => {
     expect(receiptHintLines(['codex'])).toEqual(hintLines(SHARED_PROPOSE))
     expect(receiptHintLines(['agents'])).toEqual(hintLines(SHARED_PROPOSE))
   })
 
-  test.failing('the first id of an explicit list decides', () => {
+  test('the first id of an explicit list decides', () => {
     expect(receiptHintLines(['opencode', 'claude'])).toEqual(hintLines('/cospec-propose'))
   })
 
-  test.failing("a flat row's own invocation prefix is used", () => {
+  test("a flat row's own invocation prefix is used", () => {
     expect(receiptHintLines(['at-cmds'], [...HARNESS_TABLE, AT_PREFIX_ROW])).toEqual(
       hintLines('@cospec-propose'),
     )

@@ -27,8 +27,10 @@ import {
   scanRoots,
   SKILL_EXTENSION,
   skillsRoot,
+  transformBody,
 } from '../harness/adapters.ts'
 import { mergeMiseToml, type MiseMergeResult } from '../harness/mise-merge.ts'
+import { readWorkflowManifest, skillByWorkflowId } from '../harness/render.ts'
 import {
   COSPEC_PERMISSION,
   mergeClaudeSettings,
@@ -352,16 +354,25 @@ export function sharedSkillsRootLines(
 }
 
 /**
- * The receipt's two closing hint lines.
+ * The receipt's two closing hint lines, spelled the way the first selected row invokes the
+ * propose workflow: through that row's body dialect and invocation prefix, the respelling
+ * its generated bodies get. The first selected row is the first id of an explicit list as
+ * typed, else the first in table order; with none selected the canonical spelling stays.
+ * `table` is a test seam for rows the shipped table does not carry.
  */
 export function receiptHintLines(
-  _harnesses: readonly string[],
-  _table: readonly HarnessAdapter[] = HARNESS_TABLE,
+  harnesses: readonly string[],
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): string[] {
-  return [
+  const lines = [
     'Try: /cospec:propose "feat: <what you want to build>"',
     'Lightweight change? /cospec:propose "ci: fix release workflow" — 3 short artifacts.',
   ]
+  const first = harnesses[0]
+  if (first === undefined) return lines
+  const row = adapterFor(first, table)
+  const skillById = skillByWorkflowId(readWorkflowManifest())
+  return lines.map((line) => transformBody(line, row.bodyDialect, skillById, row.invocationPrefix))
 }
 
 // --- command entrypoint -----------------------------------------------------

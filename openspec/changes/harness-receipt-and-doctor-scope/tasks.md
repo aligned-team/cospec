@@ -11,7 +11,7 @@
 
 ## 2. Receipt hint (tests first)
 
-- [ ] 2.1 Add unit tests for an exported `receiptHintLines`: - claude →
+- [x] 2.1 Add unit tests for an exported `receiptHintLines`: - claude →
       `/cospec:propose`. - opencode → `/cospec-propose`. - codex and agents →
       `$cospec-propose (Codex) or /cospec-propose (other agents)`. - `[]` (none)
       → `/cospec:propose`. - `opencode,claude` → `/cospec-propose`. - A
@@ -20,16 +20,16 @@
       Verify the opencode, codex, agents, explicit-order and `@` rows fail on
       the unmodified tree.
 
-- [ ] 2.2 Hand-edit only the two hint lines of
+- [x] 2.2 Hand-edit only the two hint lines of
       `test/integration/__golden__/harness-wiring/init-receipts/{opencode,codex,agents}.txt`
       to the spelling in design decision 1. This is a ruled golden change
       (cospec-roadmap 2026-10-04), not a regeneration. Verify those three
       receipt tests fail on the unmodified tree and
       `{claude,all,default,none}.txt` are untouched.
-- [ ] 2.3 Share the canon workflow-manifest read between `render.ts` and
+- [x] 2.3 Share the canon workflow-manifest read between `render.ts` and
       `init.ts` (design decision 2) and verify the harness-render goldens and
       `generate:check` are unchanged.
-- [ ] 2.4 Implement `receiptHintLines` with `transformBody` over the first
+- [x] 2.4 Implement `receiptHintLines` with `transformBody` over the first
       selected row's `bodyDialect` and `invocationPrefix`, and call it from
       `printReceipt`. Verify 2.1 and all seven init-receipt goldens pass.
 

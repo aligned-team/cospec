@@ -8,5 +8,5 @@ Harness: agents
 
 Shared .agents/skills — read by Codex ($cospec-*), Zed, Antigravity and other AGENTS.md-aware assistants; start a new session to load the skills. No slash commands are generated for this target.
 
-Try: /cospec:propose "feat: <what you want to build>"
-Lightweight change? /cospec:propose "ci: fix release workflow" — 3 short artifacts.
+Try: $cospec-propose (Codex) or /cospec-propose (other agents) "feat: <what you want to build>"
+Lightweight change? $cospec-propose (Codex) or /cospec-propose (other agents) "ci: fix release workflow" — 3 short artifacts.
