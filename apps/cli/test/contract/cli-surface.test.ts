@@ -15,6 +15,7 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
+  rmSync,
   statSync,
   symlinkSync,
   utimesSync,
@@ -2540,6 +2541,92 @@ describe('16. round-3 review rows', () => {
         restore()
       }
     })
+  })
+})
+
+// --- 17. round-4 review rows ------------------------------------------------------------
+
+describe('17. round-4 review rows', () => {
+  /**
+   * Each way a project's `chore` schema stops loading, as `break` leaves it;
+   * the returned restore puts the installed copy back.
+   */
+  const BROKEN_SCHEMAS: { how: string; rootOnly?: true; break: (dir: string) => () => void }[] = [
+    { how: 'removed', break: (dir) => (rmSync(dir, { recursive: true }), () => {}) },
+    {
+      how: 'unparsable',
+      break: (dir) => (writeFileSync(join(dir, 'schema.yaml'), 'name: [chore\n'), () => {}),
+    },
+    {
+      how: 'invalid',
+      break: (dir) => (
+        writeFileSync(join(dir, 'schema.yaml'), 'name: chore\nversion: 1\nartifacts: []\n'),
+        () => {}
+      ),
+    },
+    { how: 'locked', rootOnly: true, break: (dir) => lock(dir) },
+  ]
+
+  test('17.1 a cospec-typed change whose schema the binary cannot load is refused in text too', async () => {
+    const root = cospecRoot()
+    writeChange(root, 'ch1', { 'proposal.md': PROPOSAL }, 'chore')
+    writeChange(root, 'other', { 'proposal.md': PROPOSAL })
+    const dir = join(root, 'openspec/schemas/chore')
+    for (const { how, rootOnly, break: breakSchema } of BROKEN_SCHEMAS) {
+      if (rootOnly === true && RUNNING_AS_ROOT) continue
+      const restore = breakSchema(dir)
+      try {
+        const up = await upstreamJson(['status', '--change', 'ch1', '--json'], root)
+        const cs = await oursJson(['status', '--change', 'ch1', '--json'], root)
+        captureStatus(`17.1 ${how} json`, cs)
+        const upText = await upstream(['status', '--change', 'ch1'], root)
+        const text = await ours(['status', '--change', 'ch1'], root)
+        captureStatus(`17.1 ${how} text`, text)
+        // The binary cannot load the schema, so it refuses the change in both modes.
+        expect({ how, exit: up.exitCode }).toEqual({ how, exit: 1 })
+        expect({ how, exit: upText.exitCode }).toEqual({ how, exit: 1 })
+        expect({ how, exit: cs.exitCode }).toEqual({ how, exit: 1 })
+        expect(cs.json).toEqual(JSON.parse(respellRemedies(up.stdout)))
+        const messages = (up.json as { status: Diagnostic[] }).status.map((d) =>
+          respellRemedies(d.message),
+        )
+        expect(messages.length).toBeGreaterThan(0)
+        if (how === 'removed') expect(messages.join('\n')).toContain("Unknown schema 'chore'")
+        expect({ how, exit: text.exitCode, stdout: text.stdout }).toEqual({
+          how,
+          exit: 1,
+          stdout: '',
+        })
+        expect({ how, stderr: text.stderr }).toEqual({
+          how,
+          stderr: messages.map((m) => `cospec status: ${m}\n`).join(''),
+        })
+
+        const upAll = await upstreamJson(['status', '--all', '--json'], root)
+        const all = await oursJson(['status', '--all', '--json'], root)
+        captureStatus(`17.1 ${how} sweep json`, all)
+        const upSweepText = await upstream(['status', '--all'], root)
+        const sweepText = await ours(['status', '--all'], root)
+        captureStatus(`17.1 ${how} sweep text`, sweepText)
+        expect({ how, exit: upAll.exitCode }).toEqual({ how, exit: 1 })
+        expect({ how, exit: upSweepText.exitCode }).toEqual({ how, exit: 1 })
+        expect({ how, exit: all.exitCode }).toEqual({ how, exit: 1 })
+        expect({ how, exit: sweepText.exitCode }).toEqual({ how, exit: 1 })
+        const ch1 = rowsOf(all.json).find((e) => e.change === 'ch1')!
+        expect({ how, error: ch1.error }).toEqual({ how, error: messages.join('\n') })
+        expect(rowsOf(all.json).find((e) => e.change === 'other')!.error).toBeUndefined()
+        expect(sweepText.stdout).toContain(`ch1: ERROR — ${messages.join('\n')}\n`)
+        expect(sweepText.stdout).toContain('other  (feat)')
+      } finally {
+        restore()
+        rmSync(dir, { recursive: true, force: true })
+        cpSync(join(REPO_ROOT, 'openspec/schemas/chore'), dir, { recursive: true })
+      }
+    }
+    // The schema installed again: the change is cospec's own answer, spawn-free in text.
+    const text = await ours(['status', '--change', 'ch1'], root)
+    expect(text.exitCode).toBe(0)
+    expect(text.stdout).toContain('gate:')
   })
 })
 

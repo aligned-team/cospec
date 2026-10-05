@@ -88,7 +88,9 @@ Probed facts that change the plan's wording:
   per change.
 - Keep every cospec key and value, and prove it in the same oracle that proves
   the upstream keys.
-- Text-mode `status` on a cospec-typed change stays spawn-free.
+- Text-mode `status` on a cospec-typed change stays spawn-free, unless the
+  binary decides whether the change can be reported at all (an entry cospec
+  cannot read, a schema the binary cannot load).
 
 **Non-Goals:**
 
@@ -248,14 +250,24 @@ binary both make whose outcome is the runtime's: whether the binary reports the
 change depends on its `realpath`. So when cospec's own read of a change's
 `tasks.md` fails (an observed read, never a `stat`/`access` prediction), the
 binary decides whether the change can be reported, through the same one
-delegated call, made in text mode only then, so text-mode `status` stays
-spawn-free otherwise. Where the binary refuses it (Bun on macOS), its failure is
-the answer: its document under `--json`, `cospec status: <message>` in text, and
-under `--all` a failure entry carrying its message, into which its
-`{changeName, status}` merges, exit 1 — before, cospec's own read refused first
-and named `open` where the binary names `realpath`. Where the binary reports it
-(Linux), so does cospec, the file counted as no tasks with a `tasks_unreadable`
-warning.
+delegated call, made in text mode only then or for a schema the binary cannot
+load (below), so text-mode `status` stays spawn-free otherwise. Where the binary
+refuses it (Bun on macOS), its failure is the answer: its document under
+`--json`, `cospec status: <message>` in text, and under `--all` a failure entry
+carrying its message, into which its `{changeName, status}` merges, exit 1 —
+before, cospec's own read refused first and named `open` where the binary names
+`realpath`. Where the binary reports it (Linux), so does cospec, the file
+counted as no tasks with a `tasks_unreadable` warning.
+
+**A schema the binary cannot load (task 13.1).** cospec grades a cospec-typed
+change from its own type matrix, but the binary loads the change's schema before
+it reports anything, and refuses the change when the schema is missing from
+every tier, unreadable, unparsable or invalid. So when `loadSchema` (the port of
+the binary's `resolveSchema`) fails for the change's schema, text mode makes the
+same one delegated call, singly and for the sweep, and the binary's refusal is
+the answer as above: `cospec status: <message>` in text, a failure entry under
+`--all`, exit 1. Before, text mode rendered cospec's own table with
+`gate: clear` and exited 0 where `--json` and the binary both refused.
 
 **Rendering a schema cospec doesn't type.** Text mode renders the delegated
 document with a port of the binary's `printStatusText`: `Change:`, `Schema:`,

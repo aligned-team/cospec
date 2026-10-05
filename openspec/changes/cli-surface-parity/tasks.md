@@ -306,3 +306,15 @@ final commit.
 - [x] 12.13 Record observed evidence on every group-16 row, re-observe rows
       14.1–14.4, and update the docs pages that own each fact. Commit
       `docs(cli): record the round-3 review fixes`
+
+## 13. Round-4 review fixes
+
+Each fix below lands in its own commit with its own contract row (verification
+group 17). Task 10.2 stays the branch's final commit.
+
+- [x] 13.1 Text-mode `status` asks the binary for a cospec-typed change whose
+      schema the binary cannot load (missing, unreadable, unparsable or
+      invalid), singly and in the `--all` sweep, and relays its refusal as
+      `--json` does; the docs pages that own the fact say so. Verify with rows
+      17.1 and 17.2. Commit
+      `fix(cli): refuse in text a change whose schema cannot load`

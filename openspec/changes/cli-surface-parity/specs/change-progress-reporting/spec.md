@@ -144,14 +144,14 @@ does, from the root's `config.yaml` `schema:` and else `spec-driven`, at
 
 When cospec's own read of a cospec-typed change's `tasks.md` fails,
 `cospec status` SHALL ask the binary whether the change can be reported, through
-its one delegated `openspec status --json` call, made in text mode only then.
-Where the binary refuses the change (its runtime's `realpath` refuses the file),
-the binary's failure SHALL be the answer: its `change_error` document under
-`--json`, its message on stderr in text, and under `--all` a failure entry
-carrying its message, exit 1. Where the binary reports the change, the file
-SHALL count as no tasks, as the binary counts it, with a warning naming the file
-on stderr, or in `warnings` as `{code: "tasks_unreadable", message}` under
-`--json`.
+its one delegated `openspec status --json` call, made in text mode only then or
+for a schema the binary cannot load. Where the binary refuses the change (its
+runtime's `realpath` refuses the file), the binary's failure SHALL be the
+answer: its `change_error` document under `--json`, its message on stderr in
+text, and under `--all` a failure entry carrying its message, exit 1. Where the
+binary reports the change, the file SHALL count as no tasks, as the binary
+counts it, with a warning naming the file on stderr, or in `warnings` as
+`{code: "tasks_unreadable", message}` under `--json`.
 
 #### Scenario: The binary refuses the change
 
@@ -166,3 +166,29 @@ on stderr, or in `warnings` as `{code: "tasks_unreadable", message}` under
   mode 000 where the binary reports the change (Linux)
 - **THEN** `tasks` counts 0 of 0, `warnings` names the file with
   `tasks_unreadable`, and the command exits 0
+
+### Requirement: Status answers a change whose schema the binary cannot load as the binary does
+
+When the binary cannot load a cospec-typed change's schema (missing from every
+tier, unreadable, unparsable or invalid), `cospec status` SHALL ask the binary
+whether the change can be reported, through its one delegated
+`openspec status --json` call, in text mode as under `--json`, for `--change`
+and for the `--all` sweep. The binary's refusal SHALL be the answer: its
+`change_error` document under `--json`, its message on stderr in text with
+nothing on stdout, and under `--all` a failure entry carrying its message, exit
+
+1. Every other change in the sweep SHALL be reported as it is alone.
+
+#### Scenario: A removed project schema refuses the change in text
+
+- **WHEN** `cospec status --change ch1` runs in text mode on a `chore` change
+  whose root's `openspec/schemas/chore/` has been removed
+- **THEN** stderr is `cospec status: ` followed by the binary's `Unknown schema`
+  message, stdout is empty, and the command exits 1
+
+#### Scenario: The sweep carries the refusal as a failure entry
+
+- **WHEN** `cospec status --all` runs in text mode on the same root beside a
+  `feat` change `other`
+- **THEN** `ch1`'s block is `ch1: ERROR — <message>`, `other` is reported, and
+  the command exits 1

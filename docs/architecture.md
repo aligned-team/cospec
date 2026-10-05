@@ -299,9 +299,11 @@ allowlist (`respellWholeRemedy`). `list`'s rows, their order and their
 membership are the binary's; each keeps cospec's columns, computed by name.
 `validate` computes the binary's report keys itself (`root`, `durationMs`,
 `summary.totals`/`byType`, `toJson` in `core/report.ts`). Every envelope keeps
-`version: 1`. Text-mode `status` on a cospec-typed change stays spawn-free; a
-schema cospec doesn't type is rendered from the delegated document with a port
-of the binary's status printer.
+`version: 1`. Text-mode `status` on a cospec-typed change stays spawn-free
+unless the binary decides whether the change can be reported at all (an entry
+cospec cannot read, or a schema the binary cannot load), when it asks the binary
+and relays its refusal; a schema cospec doesn't type is rendered from the
+delegated document with a port of the binary's status printer.
 
 The gate is the **key oracle**, `test/contract/support/key-oracle.ts`: each
 `cli-surface.test.ts` row runs a command and the pinned binary on the same

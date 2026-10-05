@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
-import { schemaDir } from '../core/change-metadata.ts'
+import { loadSchema, schemaDir } from '../core/change-metadata.ts'
 import {
   archiveDir,
   changesDir,
@@ -427,6 +427,37 @@ function readFailure(error: unknown): string | undefined {
 }
 
 /**
+ * Whether the binary decides if a cospec-typed change can be reported at all,
+ * so status asks it in text mode as under `--json`: cospec cannot read some
+ * entry of the change (`hasUnreadableEntry`), or the binary cannot load the
+ * change's schema — `loadSchema`, its `resolveSchema`, finds no candidate in
+ * any tier, or cannot read, parse or validate the one it finds. Either way a
+ * spawn the binary answers without refusing costs only the spawn. `loads`
+ * memoizes the verdict per schema name across a sweep.
+ */
+function binaryDecides(
+  base: string,
+  change: Change,
+  loads: Map<string, boolean> = new Map(),
+): boolean {
+  if (hasUnreadableEntry(change.dir)) return true
+  let loaded = loads.get(change.schema)
+  if (loaded === undefined) {
+    try {
+      loadSchema(change.schema, base)
+      loaded = true
+    } catch (error) {
+      // Every failure to load (its own or an errno listing the schemas) is
+      // the binary's to report: the change goes to the binary.
+      if (!(error instanceof Error)) throw error
+      loaded = false
+    }
+    loads.set(change.schema, loaded)
+  }
+  return !loaded
+}
+
+/**
  * Whether cospec cannot read some entry of a change: the directory itself, or
  * a file or directory under it (dot-entries aside, which the binary's artifact
  * globs never match). Such a change is the binary's to report or refuse: it
@@ -594,9 +625,9 @@ function sweepEntries(doc: Record<string, unknown>): Map<string, Record<string, 
  * change never aborts the sweep — it becomes a per-change failure entry and
  * the whole run still exits nonzero. The binary's sweep is fetched once, and
  * only when an entry needs it: under `--json`, for a change on a schema
- * cospec doesn't type, or for a change cospec cannot read every entry of
- * (`hasUnreadableEntry`) — the binary decides whether that change can be
- * reported at all, and a change it refuses is a failure entry.
+ * cospec doesn't type, or for a change the binary decides whether it can be
+ * reported at all (`binaryDecides`: an entry cospec cannot read, a schema the
+ * binary cannot load) — and a change it refuses is a failure entry.
  */
 async function runAll(ctx: CommandContext, override: string | undefined): Promise<number> {
   const { flags } = ctx
@@ -611,10 +642,11 @@ async function runAll(ctx: CommandContext, override: string | undefined): Promis
     .map((change) => gradedChange(base, change, override))
 
   const sweepArgs = ['--all', ...schemaArgs(override)]
+  const loads = new Map<string, boolean>()
   const upstream =
     flags.json ||
     changes.some(answeredUpstream) ||
-    changes.some((change) => hasUnreadableEntry(change.dir))
+    changes.some((change) => binaryDecides(base, change, loads))
       ? await delegatedStatus(root, sweepArgs)
       : undefined
   const byName = upstream === undefined ? new Map() : sweepEntries(upstream)
@@ -921,11 +953,12 @@ async function status(ctx: CommandContext): Promise<number> {
     return failure === undefined ? EXIT.success : EXIT.failure
   }
 
-  // The binary's status for the change, under `--json` or when cospec cannot
-  // read some entry of it: any error in it is the binary's refusal, and the
-  // answer — its document under `--json`, its message in text.
+  // The binary's status for the change, under `--json` or when the binary
+  // decides whether it can be reported (`binaryDecides`): any error in it is
+  // the binary's refusal, and the answer — its document under `--json`, its
+  // message in text.
   const upstream =
-    flags.json || hasUnreadableEntry(change.dir)
+    flags.json || binaryDecides(base, change)
       ? await delegatedStatus(root, ['--change', change.id, ...schemaArgs(override)])
       : undefined
   const refused = upstream === undefined ? undefined : upstreamFailure(upstream)
