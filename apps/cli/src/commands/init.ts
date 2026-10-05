@@ -22,8 +22,8 @@ import {
   type HarnessName,
   HARNESS_NAMES,
   ideRestartLine,
-  isHarnessDocument,
   isHarnessName,
+  legacySkillsRoots,
   scanRoots,
   SKILL_EXTENSION,
   skillsRoot,
@@ -265,34 +265,82 @@ function isOpsxMarkdown(text: string): boolean {
   return false
 }
 
+/**
+ * Which files the opsx leftover scan reads. Wider than `isHarnessDocument`, because what
+ * openspec wrote sits at its own paths (`.claude/commands/opsx/<id>.md`,
+ * `.opencode/commands/opsx-<id>.md` in the pinned dist's command adapters): every
+ * `SKILL_EXTENSION` file under a top-level dir holding a row's project or legacy skills
+ * root, each markdown-serializer row's files with its own `commands.extension` under its
+ * `commands.dir`, and every `SKILL_EXTENSION` file under the shared `.agents/skills` root.
+ * Provenance, never this path set, decides what is a leftover.
+ */
+export function isLeftoverCandidate(
+  relpath: string,
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): boolean {
+  if (relpath.startsWith(`${OPSX_SHARED_SKILL_ROOT}/`) && relpath.endsWith(SKILL_EXTENSION)) {
+    return true
+  }
+  const top = relpath.split('/')[0]!
+  return table.some((row) => {
+    const skills = skillsRoot(row)
+    const skillRoots = legacySkillsRoots(row)
+    if (skills.scope === 'project') skillRoots.push(skills.root)
+    if (
+      relpath.endsWith(SKILL_EXTENSION) &&
+      skillRoots.some((root) => root.split('/')[0] === top)
+    ) {
+      return true
+    }
+    const c = row.commands
+    return (
+      c !== undefined &&
+      c.serializer === 'markdown' &&
+      relpath.startsWith(`${c.dir}/`) &&
+      relpath.endsWith(c.extension)
+    )
+  })
+}
+
+/**
+ * The opsx leftover scan behind `init --remove-opsx`, `init --json`'s `opsx.found` and
+ * doctor's `opsx-leftover`: every scan root, then the shared `.agents/skills` root
+ * openspec ≥1.8.0 writes its Codex (and agents/zed/antigravity) skills to whichever rows
+ * the table carries. `table` is a test seam for rows the shipped table does not carry.
+ */
+export function leftoverScanFiles(
+  cwd: string,
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): { relpath: string; text: string }[] {
+  // Keyed by relpath: `.agents` (a harness dir) strictly contains `.agents/skills`, so
+  // the two walk ranges overlap and an unguarded scan would list every file there twice.
+  const out = new Map<string, { relpath: string; text: string }>()
+  const walk = (rel: string): void => {
+    const abs = join(cwd, rel)
+    if (!existsSync(abs)) return
+    for (const entry of readdirSync(abs, { withFileTypes: true })) {
+      const childRel = `${rel}/${entry.name}`
+      if (entry.isDirectory()) walk(childRel)
+      else if (entry.isFile() && !out.has(childRel) && isLeftoverCandidate(childRel, table)) {
+        out.set(childRel, { relpath: childRel, text: readFileSync(join(cwd, childRel), 'utf8') })
+      }
+    }
+  }
+  for (const root of scanRoots(table)) walk(root)
+  walk(OPSX_SHARED_SKILL_ROOT)
+  return [...out.values()]
+}
+
 /** `table` is a test seam for rows the shipped table does not carry. */
 export function findOpsxFiles(
   cwd: string,
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): OpsxFile[] {
-  // Keyed by relpath: `.agents` (a harness dir) strictly contains
-  // `.agents/skills` (the shared opsx root), so the two walk ranges overlap and
-  // an unguarded scan would list — and count — every leftover there twice.
-  const found = new Set<string>()
-  const walk = (rel: string, accept: (relpath: string) => boolean): void => {
-    const abs = join(cwd, rel)
-    if (!existsSync(abs)) return
-    for (const entry of readdirSync(abs, { withFileTypes: true })) {
-      const childRel = `${rel}/${entry.name}`
-      if (entry.isDirectory()) walk(childRel, accept)
-      else if (entry.isFile() && accept(childRel)) {
-        if (isOpsxMarkdown(readFileSync(join(cwd, childRel), 'utf8'))) found.add(childRel)
-      }
-    }
-  }
-  for (const root of scanRoots(table)) walk(root, (relpath) => isHarnessDocument(relpath, table))
-  // openspec ≥1.8.0 writes its Codex skills to `.agents/skills/openspec-*/SKILL.md`
-  // (1.7.0's `agents` target and 1.10/1.11's `zed`/`antigravity` share that root).
-  // cospec now writes its own `cospec-*` skills there too; the two prefixes cannot
-  // collide, and `isOpsxMarkdown` excludes anything cospec authored.
-  walk(OPSX_SHARED_SKILL_ROOT, (relpath) => relpath.endsWith(SKILL_EXTENSION))
-  return [...found]
-    .map((relpath) => ({ relpath }))
+  // cospec writes its own `cospec-*` skills to `.agents/skills` too; the two prefixes
+  // cannot collide, and `isOpsxMarkdown` excludes anything cospec authored.
+  return leftoverScanFiles(cwd, table)
+    .filter((f) => isOpsxMarkdown(f.text))
+    .map(({ relpath }) => ({ relpath }))
     .toSorted((a, b) => a.relpath.localeCompare(b.relpath))
 }
 

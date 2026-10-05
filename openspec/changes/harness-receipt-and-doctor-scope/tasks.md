@@ -35,7 +35,7 @@
 
 ## 3. Doctor scope (tests first)
 
-- [ ] 3.1 Add doctor unit tests (`test/unit/init/doctor.test.ts` and
+- [x] 3.1 Add doctor unit tests (`test/unit/init/doctor.test.ts` and
       `doctor-rows.test.ts`): - A user `.claude/notes.md` with `/cospec:foo` and
       no frontmatter gives no finding. - A nested worktree under
       `.claude/worktrees/wt/` gives no finding. Its copies of
@@ -48,22 +48,22 @@
 
       Verify the two false-positive rows fail on the unmodified tree.
 
-- [ ] 3.2 Flip `test/unit/harness/adapters.test.ts`'s
+- [x] 3.2 Flip `test/unit/harness/adapters.test.ts`'s
       `isHarnessDocument('<root>/notes/anything.md')` assertion to `false`,
       citing the ruling in the test name. Add shape rows for a nested worktree
       path, a deeper `SKILL.md`, and a namespaced and a flat command path.
       Verify the flipped row fails on the unmodified tree.
-- [ ] 3.3 Narrow `isHarnessDocument` to the two shapes of design decision 4 and
+- [x] 3.3 Narrow `isHarnessDocument` to the two shapes of design decision 4 and
       rewrite its docstring. Verify 3.1 and 3.2 pass and the doctor `human.json`
       and `json.json` goldens are unchanged.
-- [ ] 3.4 Move the leftover-scan predicate and walker into `init.ts`
+- [x] 3.4 Move the leftover-scan predicate and walker into `init.ts`
       (`isLeftoverCandidate`, `leftoverScanFiles`, today's breadth) and point
       `findOpsxFiles` and doctor's `checkOpsx` at it. Drop
       `harnessMarkdownFiles`'s extra `.agents/skills` walk. Verify every
       existing opsx row passes unchanged: - `init.test.ts` opsx rows. -
       `doctor.test.ts` opsx and overlap rows. - `doctor-rows.test.ts` "opsx
       leftover scans read each row's command extension". - The doctor goldens.
-- [ ] 3.5 Add a regression row that the leftover scan still finds an
+- [x] 3.5 Add a regression row that the leftover scan still finds an
       openspec-authored `.claude/commands/opsx/propose.md` and
       `.opencode/commands/opsx-propose.md`, the paths the pinned 1.13.1 dist
       writes (`core/command-generation/adapters/{claude,opencode}.js`), in both

@@ -343,7 +343,7 @@ describe("doctor's harness scan collects only the paths cospec generates", () =>
     cleanup(dir)
   })
 
-  test.failing('a SKILL.md deeper than one directory under a skills root is not collected', () => {
+  test('a SKILL.md deeper than one directory under a skills root is not collected', () => {
     put(dir, '.claude/skills/x/y/SKILL.md', managed('cospec@0.0.1', 'Run /cospec:bogus.\n'))
     expect(harnessMarkdownFiles(dir, HARNESS_TABLE)).toEqual([])
   })

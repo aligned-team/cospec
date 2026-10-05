@@ -54,11 +54,10 @@ import {
   legacySkillsRoots,
   primaryRoot,
   scanRoots,
-  SKILL_EXTENSION,
   skillPath,
   skillsRoot,
 } from '../harness/adapters.ts'
-import { OPSX_SHARED_SKILL_ROOT } from './init.ts'
+import { leftoverScanFiles } from './init.ts'
 import { detectHarnesses, generate } from './update.ts'
 
 type Level = 'ERROR' | 'WARNING' | 'INFO'
@@ -189,34 +188,30 @@ function checkLegacyLayout(migration: WriteResult[], findings: Finding[]): void 
   }
 }
 
-/** `table` is a test seam for rows the shipped table does not carry. */
+/**
+ * The files cospec writes under the scan roots, which doctor's stale-harness,
+ * mixed-versions and dangling-ref checks read (`isHarnessDocument`). The walk descends
+ * every scan root; only acceptance is narrowed. `table` is a test seam for rows the
+ * shipped table does not carry.
+ */
 export function harnessMarkdownFiles(
   cwd: string,
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): { relpath: string; text: string }[] {
-  // Keyed by relpath: the `.agents` harness dir strictly contains the shared
-  // `.agents/skills` opsx root, so the two walk ranges overlap and an unguarded
-  // scan would report every finding in that tree twice.
-  const out = new Map<string, { relpath: string; text: string }>()
-  const walk = (rel: string, accept: (relpath: string) => boolean): void => {
+  const out: { relpath: string; text: string }[] = []
+  const walk = (rel: string): void => {
     const abs = join(cwd, rel)
     if (!existsSync(abs)) return
     for (const entry of readdirSync(abs, { withFileTypes: true })) {
       const childRel = `${rel}/${entry.name}`
-      if (entry.isDirectory()) walk(childRel, accept)
-      else if (entry.isFile() && accept(childRel)) {
-        if (out.has(childRel)) continue
-        out.set(childRel, { relpath: childRel, text: readFileSync(join(cwd, childRel), 'utf8') })
+      if (entry.isDirectory()) walk(childRel)
+      else if (entry.isFile() && isHarnessDocument(childRel, table)) {
+        out.push({ relpath: childRel, text: readFileSync(join(cwd, childRel), 'utf8') })
       }
     }
   }
-  for (const root of scanRoots(table)) walk(root, (relpath) => isHarnessDocument(relpath, table))
-  // openspec ≥1.8.0 writes its Codex skills to the shared `.agents/skills/` root,
-  // whichever rows the table carries. cospec now writes its own `cospec-*` skills
-  // there as well; both prefixes coexist, and the opsx check filters on
-  // provenance, never on the path.
-  walk(OPSX_SHARED_SKILL_ROOT, (relpath) => relpath.endsWith(SKILL_EXTENSION))
-  return [...out.values()]
+  for (const root of scanRoots(table)) walk(root)
+  return out
 }
 
 export function checkStaleness(
@@ -384,7 +379,7 @@ export function checkOpsx(
   findings: Finding[],
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): void {
-  for (const f of harnessMarkdownFiles(cwd, table)) {
+  for (const f of leftoverScanFiles(cwd, table)) {
     const { frontmatter } = splitFrontmatter(f.text)
     const meta = frontmatter?.metadata
     // Provenance-only, matching init's removal set (DESIGN §2.1/§6.6): flag a

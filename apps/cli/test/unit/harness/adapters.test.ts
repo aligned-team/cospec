@@ -249,24 +249,19 @@ describe('HARNESS_TABLE derived roots', () => {
     expect(isHarnessDocument('elsewhere/notes.md')).toBe(false)
   })
 
-  test.failing(
-    'other markdown under a scan root is not a harness document (cospec-roadmap ruling 2026-10-04)',
-    () => {
-      for (const root of scanRoots()) {
-        expect(isHarnessDocument(`${root}/notes/anything.md`)).toBe(false)
-      }
-      expect(isHarnessDocument('.claude/notes.md')).toBe(false)
-      expect(isHarnessDocument('.claude/worktrees/wt/.claude/skills/x/SKILL.md')).toBe(false)
-      expect(isHarnessDocument('.claude/worktrees/wt/.claude/commands/cospec/propose.md')).toBe(
-        false,
-      )
-      expect(isHarnessDocument('.claude/skills/x/y/SKILL.md')).toBe(false)
-      expect(isHarnessDocument('.claude/skills/x/README.md')).toBe(false)
-      expect(isHarnessDocument('.claude/commands/cospec/a/b.md')).toBe(false)
-      expect(isHarnessDocument('.claude/commands/notes.md')).toBe(false)
-      expect(isHarnessDocument('.opencode/commands/opsx-propose.md')).toBe(false)
-    },
-  )
+  test('other markdown under a scan root is not a harness document (cospec-roadmap ruling 2026-10-04)', () => {
+    for (const root of scanRoots()) {
+      expect(isHarnessDocument(`${root}/notes/anything.md`)).toBe(false)
+    }
+    expect(isHarnessDocument('.claude/notes.md')).toBe(false)
+    expect(isHarnessDocument('.claude/worktrees/wt/.claude/skills/x/SKILL.md')).toBe(false)
+    expect(isHarnessDocument('.claude/worktrees/wt/.claude/commands/cospec/propose.md')).toBe(false)
+    expect(isHarnessDocument('.claude/skills/x/y/SKILL.md')).toBe(false)
+    expect(isHarnessDocument('.claude/skills/x/README.md')).toBe(false)
+    expect(isHarnessDocument('.claude/commands/cospec/a/b.md')).toBe(false)
+    expect(isHarnessDocument('.claude/commands/notes.md')).toBe(false)
+    expect(isHarnessDocument('.opencode/commands/opsx-propose.md')).toBe(false)
+  })
 
   test("the table's command paths and the legacy skills root are harness documents", () => {
     expect(isHarnessDocument('.claude/commands/cospec/propose.md')).toBe(true)

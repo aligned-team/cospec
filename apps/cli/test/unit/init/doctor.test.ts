@@ -238,7 +238,7 @@ describe('cospec doctor — only the harness files cospec writes', () => {
   const OLD_COPY =
     '---\nname: cospec-propose\nmetadata:\n  author: cospec\n  generatedBy: "cospec@0.0.1"\n---\n\nThen run /cospec:not-a-real-workflow.\n'
 
-  test.failing("a user's .claude/notes.md mentioning /cospec:foo gives no finding", async () => {
+  test("a user's .claude/notes.md mentioning /cospec:foo gives no finding", async () => {
     seed(dir)
     writeFileSync(join(dir, '.claude/notes.md'), 'Try /cospec:foo once it exists.\n')
     const { code, findings } = await doctorJson(dir)
@@ -249,7 +249,7 @@ describe('cospec doctor — only the harness files cospec writes', () => {
     expect(human.code).toBe(0)
   })
 
-  test.failing("a nested worktree's copy under .claude/worktrees/ is not checked", async () => {
+  test("a nested worktree's copy under .claude/worktrees/ is not checked", async () => {
     seed(dir)
     const wt = join(dir, '.claude/worktrees/wt/.claude')
     mkdirSync(join(wt, 'skills/cospec-propose'), { recursive: true })
