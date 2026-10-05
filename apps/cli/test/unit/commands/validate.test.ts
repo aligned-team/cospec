@@ -5,6 +5,8 @@ import {
   mapPool,
   mergeDelegated,
   TARGET_INVALID,
+  TARGET_INVALID_HEAD,
+  TARGET_INVALID_LINE,
 } from '../../../src/commands/validate.ts'
 import type { Issue } from '../../../src/core/rules/issue.ts'
 
@@ -137,15 +139,14 @@ describe('mergeDelegated: archive/target-invalid vs the pinned dry-run message',
     expect(mergeDelegated(native, delegated)).toEqual([...native, ...delegated])
   })
 
-  // Regression: the delegated regex used to backtrack the quoted header span
-  // against a trailing `[^\n]*` once per "line N: …" repetition (CodeQL
-  // js/redos, GHAS alert on this PR). A living spec's requirement/delta
-  // headers are attacker-controlled markdown, so a header containing several
-  // `".`-like substrings, repeated over many defect lines, made matching
-  // exponential in the number of lines. Bounding the quoted span to `[^"\n]*`
-  // (real header text never contains a literal quote) makes the match
-  // deterministic; this must stay fast no matter how many lines or how much
-  // punctuation the header carries.
+  // Regression: one regex over the whole message used to backtrack the quoted
+  // header span against a trailing `[^\n]*` once per "line N: …" repetition
+  // (CodeQL js/redos). A living spec's requirement/delta headers are
+  // attacker-controlled markdown, so a header holding several `".`-like
+  // substrings, repeated over many defect lines, made matching exponential in
+  // the number of lines. TARGET_INVALID now matches the head once and each
+  // line on its own, so no group repeats around the quoted span; this must
+  // stay fast no matter how many lines or how much punctuation a header holds.
   test('a pathological delegated message with quote-heavy headers resolves quickly', () => {
     const quotesPerLine = 6
     const lines = 200
@@ -169,17 +170,103 @@ describe('mergeDelegated: archive/target-invalid vs the pinned dry-run message',
   })
 })
 
-describe('the target-invalid dedupe is linear (verification 11.2)', () => {
+/**
+ * Whether a regex source nests an unbounded quantifier (`*`, `+`, `{n,}`)
+ * inside a group that is itself unboundedly quantified — star height two, the
+ * shape behind every exponential-backtracking alert (CodeQL js/redos). It
+ * reads the source as text and never compiles it.
+ */
+function repeatsAQuantifiedGroup(source: string): boolean {
+  // One frame per open group: whether its body holds an unbounded quantifier.
+  const frames: boolean[] = [false]
+  // The atom a following quantifier applies to: a group's body flag, or false.
+  let atom: boolean | undefined
+  let i = 0
+  while (i < source.length) {
+    const c = source[i]!
+    if (c === '\\') {
+      atom = false
+      i += 2
+    } else if (c === '[') {
+      i++
+      while (i < source.length && source[i] !== ']') i += source[i] === '\\' ? 2 : 1
+      atom = false
+      i++
+    } else if (c === '(') {
+      frames.push(false)
+      atom = undefined
+      i++
+      if (source[i] === '?') {
+        i++
+        if (source[i] === '<' && source[i + 1] !== '=' && source[i + 1] !== '!')
+          i = source.indexOf('>', i) + 1
+        else i += source[i] === '<' ? 2 : 1
+      }
+    } else if (c === ')') {
+      const body = frames.pop()!
+      frames[frames.length - 1] ||= body
+      atom = body
+      i++
+    } else if (c === '*' || c === '+' || c === '?' || c === '{') {
+      let unbounded = c === '*' || c === '+'
+      if (c === '{') {
+        const close = source.indexOf('}', i)
+        // A `{` that opens no `{n}`/`{n,}`/`{n,m}` is a literal.
+        if (close === -1 || !/^\{\d+(?:,\d*)?$/.test(source.slice(i, close))) {
+          atom = false
+          i++
+          continue
+        }
+        unbounded = source.slice(i, close).endsWith(',')
+        i = close + 1
+      } else i++
+      if (source[i] === '?') i++
+      if (unbounded && atom === true) return true
+      if (unbounded) frames[frames.length - 1] = true
+      atom = undefined
+    } else {
+      atom = c === '|' || c === '^' || c === '$' ? undefined : false
+      i++
+    }
+  }
+  return false
+}
+
+describe('the target-invalid dedupe is linear (verification 11.2, 15.13)', () => {
   /**
-   * The pattern before 74d5ea4 — kept here only, as the guard's reference: a
-   * quoted span `[^\n]*"` before a required literal, inside a repeated group,
+   * The pattern before 74d5ea4, as text only — it is never compiled. A quoted
+   * span `[^\n]*"` before a required literal, inside a repeated group,
    * backtracks exponentially in the number of lines on a message that ends in
    * a line it cannot match.
    */
-  const PRE_FIX =
-    /^Archive would refuse this delta: (.+?): target spec is structurally invalid and cannot be updated until fixed:(?:\nline \d+: (?:Main spec contains delta header "[^\n]*"\.|Requirement header "[^\n]*" (?:duplicates the requirement declared on line \d+\.|appears outside the main ## Requirements section\.))[^\n]*)+\n?$/
+  const PRE_FIX_SOURCE =
+    '^Archive would refuse this delta: (.+?): target spec is structurally invalid and cannot ' +
+    'be updated until fixed:(?:\\nline \\d+: (?:Main spec contains delta header "[^\\n]*"\\.|' +
+    'Requirement header "[^\\n]*" (?:duplicates the requirement declared on line \\d+\\.|' +
+    'appears outside the main ## Requirements section\\.))[^\\n]*)+\\n?$'
 
-  /** The bound a linear matcher meets on the input below, and the pre-fix pattern does not. */
+  test('the star-height guard flags the pre-fix pattern and the textbook shapes', () => {
+    expect(repeatsAQuantifiedGroup(PRE_FIX_SOURCE)).toBe(true)
+    for (const shape of ['(a+)+', '(?:a|b*)*', '(?<n>x[^y]*)+z', '((ab)*c){2,}', '(a{1,})+'])
+      expect({ shape, flagged: repeatsAQuantifiedGroup(shape) }).toEqual({ shape, flagged: true })
+    for (const shape of [
+      '(a+)',
+      '(?:ab)+',
+      '(a+){2}',
+      '[(a+)+]',
+      '\\(a+\\)+',
+      '(a+)?b*',
+      '(a+){x}',
+    ])
+      expect({ shape, flagged: repeatsAQuantifiedGroup(shape) }).toEqual({ shape, flagged: false })
+  })
+
+  test("neither of the per-line matcher's patterns repeats a quantified group", () => {
+    expect(repeatsAQuantifiedGroup(TARGET_INVALID_HEAD.source)).toBe(false)
+    expect(repeatsAQuantifiedGroup(TARGET_INVALID_LINE.source)).toBe(false)
+  })
+
+  /** The bound a linear matcher meets on the input below; a backtracking one never finishes. */
   const BOUND_MS = 100
 
   /** 200 quote-heavy defect lines, then a line of a kind cospec's rule does not read. */
@@ -193,25 +280,11 @@ describe('the target-invalid dedupe is linear (verification 11.2)', () => {
     return `${message}\nline 210: Some structural issue nobody expects.`
   }
 
-  function timed(
-    matcher: { exec(m: string): unknown },
-    message: string,
-  ): { ms: number; hit: unknown } {
+  test('the per-line matcher refuses the adversarial message well under the bound', () => {
     const start = performance.now()
-    const hit = matcher.exec(message)
-    return { ms: performance.now() - start, hit }
-  }
-
-  test('the pre-fix pattern exceeds the bound on the adversarial message', () => {
-    const { ms, hit } = timed(PRE_FIX, adversarial())
+    const hit = TARGET_INVALID.exec(adversarial())
     expect(hit).toBeNull()
-    expect(ms).toBeGreaterThan(BOUND_MS)
-  })
-
-  test('the per-line matcher refuses the same message well under the bound', () => {
-    const { ms, hit } = timed(TARGET_INVALID, adversarial())
-    expect(hit).toBeNull()
-    expect(ms).toBeLessThan(BOUND_MS)
+    expect(performance.now() - start).toBeLessThan(BOUND_MS)
   })
 
   test('the per-line matcher reads a quoted header and keys on the capability', () => {
@@ -222,12 +295,15 @@ describe('the target-invalid dedupe is linear (verification 11.2)', () => {
       'Requirement names must be unique so spec updates cannot discard one block while ' +
       'updating another.\n'
     expect(TARGET_INVALID.exec(message)?.[1]).toBe('widgets')
-    // The narrowed pattern this replaces missed it, which reported the defect twice.
+    // The narrowed span this replaced (`[^"\n]*`) cannot cross the header's own
+    // `"`, so it missed this line and the defect was reported twice.
+    const line = message.split('\n')[1]!
+    expect(TARGET_INVALID_LINE.test(line)).toBe(true)
     expect(
-      /^Archive would refuse this delta: (.+?): target spec is structurally invalid and cannot be updated until fixed:(?:\nline \d+: (?:Main spec contains delta header "[^"\n]*"\.|Requirement header "[^"\n]*" (?:duplicates the requirement declared on line \d+\.|appears outside the main ## Requirements section\.))[^\n]*)+\n?$/.exec(
-        message,
+      /^line \d+: (?:Main spec contains delta header "[^"\n]*"\.|Requirement header "[^"\n]*" (?:duplicates the requirement declared on line \d+\.|appears outside the main ## Requirements section\.))/.test(
+        line,
       ),
-    ).toBeNull()
+    ).toBe(false)
   })
 })
 

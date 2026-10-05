@@ -374,7 +374,7 @@ interface DuplicateClass {
 }
 
 /** The fixed head of 1.13.1's structurally-invalid refusal; `[1]` is the capability. */
-const TARGET_INVALID_HEAD =
+export const TARGET_INVALID_HEAD =
   /^Archive would refuse this delta: (.+?): target spec is structurally invalid and cannot be updated until fixed:$/
 
 /**
@@ -382,7 +382,7 @@ const TARGET_INVALID_HEAD =
  * header is spec content — the author's own text, `"` included — so its span
  * is `.*` up to the fixed suffix, on one line; no group repeats around it.
  */
-const TARGET_INVALID_LINE =
+export const TARGET_INVALID_LINE =
   /^line \d+: (?:Main spec contains delta header ".*"\.|Requirement header ".*" (?:duplicates the requirement declared on line \d+\.|appears outside the main ## Requirements section\.))/
 
 /**

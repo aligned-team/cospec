@@ -238,3 +238,9 @@ final commit.
       mode too. Rows 15.11, 15.12 and 6.3 pass on macOS and in a Linux container
       as a non-root user. Commit
       `fix(cli): answer an unreadable tasks.md as the binary does`
+- [x] 11.13 CodeQL alert #15 (js/redos, high): the unit file keeps no
+      exponential regex. The pre-fix target-invalid pattern survives only as
+      text, and a star-height guard (an unbounded quantifier over a group that
+      holds one) flags it while passing both of `TARGET_INVALID`'s patterns.
+      Verify with row 15.13. Commit
+      `test(validate): replace the exponential reference regex with a guard`
