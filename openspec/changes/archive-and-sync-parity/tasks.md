@@ -82,7 +82,7 @@ sandboxed HOME/XDG.
 
 ## 4. T3 — `cospec sync-specs` (`apps/cli/src/commands/sync-specs.ts`, `apps/cli/src/core/scratch-root.ts`)
 
-- [ ] 4.1 Add `core/scratch-root.ts` (design D11: the scratch layout, the
+- [x] 4.1 Add `core/scratch-root.ts` (design D11: the scratch layout, the
       symlink-escape check, the pre/post fingerprint, copy-back with deletions
       and pruning, and cleanup in `finally`) with unit rows 11.2 and 11.5.
       Verify with those unit rows. Commit
