@@ -1498,15 +1498,25 @@ const NO_OPENSPEC_ROOT = new RootSelectionError({
 })
 
 /**
+ * Test-only override for the wrapped binary's version read — lets a unit test
+ * drive `--archived`'s version-floor refusal (`archivedUnsupportedRefusal`)
+ * without a fake binary, since `wrappedOpenspecVersion` memoizes its result
+ * once per process. Production callers omit it and get the real read.
+ */
+export interface ValidateDeps {
+  wrappedOpenspecVersion?: () => Promise<string>
+}
+
+/**
  * `cospec validate`: an errno failure it lets escape (an unreadable
  * `openspec/changes/` or `openspec/specs/`) is the binary's one
  * `validate_error` document under `--json`.
  */
-export function run(ctx: CommandContext): Promise<number> {
-  return answeringErrno(ctx.flags.json, { code: 'validate_error' }, () => validate(ctx))
+export function run(ctx: CommandContext, deps: ValidateDeps = {}): Promise<number> {
+  return answeringErrno(ctx.flags.json, { code: 'validate_error' }, () => validate(ctx, deps))
 }
 
-async function validate(ctx: CommandContext): Promise<number> {
+async function validate(ctx: CommandContext, deps: ValidateDeps): Promise<number> {
   const { flags } = ctx
   const parsed = ctx.parsed!
   const strict = hasFlag(parsed, '--strict')
@@ -1566,7 +1576,7 @@ async function validate(ctx: CommandContext): Promise<number> {
   // changes/archive/, which active-change discovery deliberately excludes, and
   // it must never quietly alter an ordinary invocation.
   if (wantArchived) {
-    const version = await wrappedOpenspecVersion()
+    const version = await (deps.wrappedOpenspecVersion ?? wrappedOpenspecVersion)()
     const refusal = archivedUnsupportedRefusal(version)
     if (refusal !== undefined) {
       if (flags.json) process.stdout.write(rootSelectionDocument(refusal))

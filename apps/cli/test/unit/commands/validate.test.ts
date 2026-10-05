@@ -1,4 +1,5 @@
-import { describe, expect, test } from 'bun:test'
+import { afterAll, describe, expect, test } from 'bun:test'
+import { rmSync } from 'node:fs'
 
 import {
   archivedUnsupportedRefusal,
@@ -6,12 +7,14 @@ import {
   concurrencyBound,
   mapPool,
   mergeDelegated,
+  run as validateRun,
   TARGET_INVALID,
   TARGET_INVALID_HEAD,
   TARGET_INVALID_LINE,
 } from '../../../src/commands/validate.ts'
 import { rootSelectionDocument } from '../../../src/core/root.ts'
 import type { Issue } from '../../../src/core/rules/issue.ts'
+import { ctx, makeRepo, runCmd } from './helpers.ts'
 
 // mergeDelegated's DUPLICATE_CLASSES table drops a delegated (openspec/validate)
 // issue only when a cospec-native issue already reported the same defect. The
@@ -406,5 +409,56 @@ describe("archivedUnsupportedRefusal: validate --archived's version-floor guard"
 
   test('an unparseable version is never judged too old (drift allowed)', () => {
     expect(archivedUnsupportedRefusal('not-a-version')).toBeUndefined()
+  })
+})
+
+describe("validate --archived: the command's own refusal branch below the version floor", () => {
+  // `wrappedOpenspecVersion` memoizes its result once per process, so the real
+  // wrapped binary (always >= ARCHIVED_SINCE in dev/CI) can never drive this
+  // branch through the command. `run`'s injectable `deps.wrappedOpenspecVersion`
+  // is the seam: reverting the command's refusal write (back to an
+  // unconditional stderr line, the pre-fix behaviour) fails these.
+  const roots: string[] = []
+  afterAll(() => {
+    for (const dir of roots) rmSync(dir, { recursive: true, force: true })
+  })
+  const repo = (): string => {
+    const dir = makeRepo()
+    roots.push(dir)
+    return dir
+  }
+  const oldVersion = { wrappedOpenspecVersion: () => Promise.resolve('1.8.0') }
+
+  test('--json: exactly one parseable refusal document on stdout, nothing on stderr', async () => {
+    const cwd = repo()
+    const r = await runCmd(
+      (c) => validateRun(c, oldVersion),
+      ctx(cwd, ['--archived'], { json: true, command: 'validate' }),
+    )
+    expect(r.code).toBe(1)
+    expect(r.err).toBe('')
+    const doc = JSON.parse(r.out) as {
+      status: { severity: string; code: string; message: string }[]
+    }
+    expect(doc.status).toEqual([
+      {
+        severity: 'error',
+        code: 'openspec_version_too_old',
+        message: 'validate --archived needs OpenSpec >=1.9.0; the wrapped OpenSpec is 1.8.0',
+      },
+    ])
+  })
+
+  test('text mode: the refusal on stderr, nothing on stdout', async () => {
+    const cwd = repo()
+    const r = await runCmd(
+      (c) => validateRun(c, oldVersion),
+      ctx(cwd, ['--archived'], { command: 'validate' }),
+    )
+    expect(r.code).toBe(1)
+    expect(r.out).toBe('')
+    expect(r.err).toBe(
+      'cospec: validate --archived needs OpenSpec >=1.9.0; the wrapped OpenSpec is 1.8.0\n',
+    )
   })
 })
