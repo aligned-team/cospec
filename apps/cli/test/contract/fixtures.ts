@@ -1437,3 +1437,13 @@ export const R7_FIXTURES: readonly R7Fixture[] = [
   R7_SYNCED_RENAMED,
   R7_SYNCED_MODIFIED,
 ]
+
+/** The MODIFIED fixture declaring `skip_specs: true` beside its delta file: a conflict both validators refuse. */
+export const R7_SKIP_SPECS_WITH_DELTA = r7('skip-specs-with-delta', false, false, (root) => {
+  R7_MODIFIED.build(root)
+  writeFileSync(
+    join(root, 'openspec/changes/c1/.openspec.yaml'),
+    'schema: feat\ncreated: 2026-10-05\nschemaVersion: 2\nskip_specs: true\n',
+  )
+  return 'c1'
+})
