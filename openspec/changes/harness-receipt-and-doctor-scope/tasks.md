@@ -93,7 +93,7 @@
 
 ## 6. Release notes
 
-- [ ] 6.1 Write the fix commit's body with a release-note paragraph that relays
+- [x] 6.1 Write the fix commit's body with a release-note paragraph that relays
       the proposal's BREAKING list (receipt hint for opencode/codex/agents;
       doctor's narrowed harness checks), with no `!` and no `BREAKING CHANGE:`
       footer (design decision 6). Verify with `git log -1 --format=%B`.
