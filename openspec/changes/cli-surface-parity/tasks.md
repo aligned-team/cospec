@@ -273,7 +273,7 @@ final commit.
       is one `--json` document with the binary's per-command code and payload.
       Verify with row 16.10. Commit
       `fix(cli): answer an unreadable planning directory with one document`
-- [ ] 12.5 `validate <name>` with no `openspec/` directory resolves the name as
+- [x] 12.5 `validate <name>` with no `openspec/` directory resolves the name as
       the binary does: `unknown_item`. Verify with row 16.5. Commit
       `fix(validate): resolve a named item outside any root`
 - [ ] 12.6 `resolveChange` looks a change up as the binary's

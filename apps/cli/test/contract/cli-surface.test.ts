@@ -2181,26 +2181,23 @@ describe('16. round-3 review rows', () => {
     }
   })
 
-  test.failing(
-    '16.5 validate <name> outside any root is an unknown item, as the binary answers',
-    async () => {
-      const dir = mkTempRepo({ git: true })
-      const env = emptyMachineStateEnv()
-      const up = await upstreamJson(['validate', 'foo', '--json'], dir)
-      const cs = await oursJson(['validate', 'foo', '--json'], dir, dir, env)
-      expect(up.exitCode).toBe(1)
-      expect(cs.exitCode).toBe(up.exitCode)
-      expect(cs.json).toEqual(up.json)
-      expect(firstStatus(cs.json).code).toBe('unknown_item')
-      const upText = await upstream(['validate', 'foo'], dir)
-      const text = await ours(['validate', 'foo'], dir, dir, env)
-      expect(text.exitCode).toBe(upText.exitCode)
-      expect(text.stderr).toBe(`cospec: ${upText.stderr.split('\n')[0]}\n`)
-      // The bulk scopes keep the binary's no-root refusal (row 15.7).
-      const bulk = await oursJson(['validate', 'foo', '--all', '--json'], dir, dir, env)
-      expect(firstStatus(bulk.json).code).toBe('no_openspec_root')
-    },
-  )
+  test('16.5 validate <name> outside any root is an unknown item, as the binary answers', async () => {
+    const dir = mkTempRepo({ git: true })
+    const env = emptyMachineStateEnv()
+    const up = await upstreamJson(['validate', 'foo', '--json'], dir)
+    const cs = await oursJson(['validate', 'foo', '--json'], dir, dir, env)
+    expect(up.exitCode).toBe(1)
+    expect(cs.exitCode).toBe(up.exitCode)
+    expect(cs.json).toEqual(up.json)
+    expect(firstStatus(cs.json).code).toBe('unknown_item')
+    const upText = await upstream(['validate', 'foo'], dir)
+    const text = await ours(['validate', 'foo'], dir, dir, env)
+    expect(text.exitCode).toBe(upText.exitCode)
+    expect(text.stderr).toBe(`cospec: ${upText.stderr.split('\n')[0]}\n`)
+    // The bulk scopes keep the binary's no-root refusal (row 15.7).
+    const bulk = await oursJson(['validate', 'foo', '--all', '--json'], dir, dir, env)
+    expect(firstStatus(bulk.json).code).toBe('no_openspec_root')
+  })
 
   test.failing(
     '16.6 an empty cospec-typed change keeps artifacts: [] in --change and --all',

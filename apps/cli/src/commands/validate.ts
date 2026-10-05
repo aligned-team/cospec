@@ -1527,7 +1527,9 @@ async function validate(ctx: CommandContext): Promise<number> {
   if (root === undefined) return 1
   const base = root.base
 
-  if (!existsSync(openspecDir(base))) {
+  // A name alone is resolved even with no `openspec/` directory, as the
+  // binary resolves it against its implicit root: nothing matches it.
+  if (!existsSync(openspecDir(base)) && (bulk || wantArchived || name === undefined)) {
     if (flags.json) {
       process.stdout.write(rootSelectionDocument(NO_OPENSPEC_ROOT))
       return 1
