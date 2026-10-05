@@ -2353,56 +2353,53 @@ describe('16. round-3 review rows', () => {
       }
     })
 
-    test.failing(
-      '16.9 a change the binary refuses is refused by status, in both modes and the sweep',
-      async () => {
-        const root = cospecRoot()
-        writeChange(root, 'demo', { 'proposal.md': PROPOSAL })
-        writeChange(root, 'other', { 'proposal.md': PROPOSAL })
-        const dir = join(root, 'openspec/changes/demo')
-        const proposal = join(dir, 'proposal.md')
-        for (const locked of [dir, proposal]) {
-          const restore = lock(locked)
-          try {
-            const up = await upstreamJson(['status', '--change', 'demo', '--json'], root)
-            const cs = await oursJson(['status', '--change', 'demo', '--json'], root)
-            captureStatus(`16.9 ${locked} json`, cs)
-            const upText = await upstream(['status', '--change', 'demo'], root)
-            const text = await ours(['status', '--change', 'demo'], root)
-            captureStatus(`16.9 ${locked} text`, text)
-            expect({ locked, exit: cs.exitCode }).toEqual({ locked, exit: up.exitCode })
-            expect({ locked, exit: text.exitCode }).toEqual({ locked, exit: upText.exitCode })
-            const upAll = await upstreamJson(['status', '--all', '--json'], root)
-            const all = await oursJson(['status', '--all', '--json'], root)
-            captureStatus(`16.9 ${locked} sweep`, all)
-            expect({ locked, exit: all.exitCode }).toEqual({ locked, exit: upAll.exitCode })
-            const sweepText = await ours(['status', '--all'], root)
-            const upSweepText = await upstream(['status', '--all'], root)
-            expect({ locked, exit: sweepText.exitCode }).toEqual({
-              locked,
-              exit: upSweepText.exitCode,
-            })
-            const refused = up.exitCode === 1
-            // The directory refuses on every OS; the file where the runtime's `realpath` does.
-            if (locked === dir || realpathRefuses(proposal)) expect(refused).toBe(true)
-            const demo = rowsOf(all.json).find((e) => e.change === 'demo')!
-            if (!refused) {
-              expect(demo.error).toBeUndefined()
-              continue
-            }
-            expect(cs.json).toEqual(JSON.parse(respellRemedies(up.stdout)))
-            const d = firstStatus(up.json)
-            expect(text.stderr).toBe(`cospec status: ${respellRemedies(d.message)}\n`)
-            expect(text.stdout).toBe('')
-            expect(demo.error).toBe(respellRemedies(d.message))
-            expect(sweepText.stdout).toContain(`demo: ERROR — ${respellRemedies(d.message)}\n`)
-            expect(rowsOf(all.json).find((e) => e.change === 'other')!.error).toBeUndefined()
-          } finally {
-            restore()
+    test('16.9 a change the binary refuses is refused by status, in both modes and the sweep', async () => {
+      const root = cospecRoot()
+      writeChange(root, 'demo', { 'proposal.md': PROPOSAL })
+      writeChange(root, 'other', { 'proposal.md': PROPOSAL })
+      const dir = join(root, 'openspec/changes/demo')
+      const proposal = join(dir, 'proposal.md')
+      for (const locked of [dir, proposal]) {
+        const restore = lock(locked)
+        try {
+          const up = await upstreamJson(['status', '--change', 'demo', '--json'], root)
+          const cs = await oursJson(['status', '--change', 'demo', '--json'], root)
+          captureStatus(`16.9 ${locked} json`, cs)
+          const upText = await upstream(['status', '--change', 'demo'], root)
+          const text = await ours(['status', '--change', 'demo'], root)
+          captureStatus(`16.9 ${locked} text`, text)
+          expect({ locked, exit: cs.exitCode }).toEqual({ locked, exit: up.exitCode })
+          expect({ locked, exit: text.exitCode }).toEqual({ locked, exit: upText.exitCode })
+          const upAll = await upstreamJson(['status', '--all', '--json'], root)
+          const all = await oursJson(['status', '--all', '--json'], root)
+          captureStatus(`16.9 ${locked} sweep`, all)
+          expect({ locked, exit: all.exitCode }).toEqual({ locked, exit: upAll.exitCode })
+          const sweepText = await ours(['status', '--all'], root)
+          const upSweepText = await upstream(['status', '--all'], root)
+          expect({ locked, exit: sweepText.exitCode }).toEqual({
+            locked,
+            exit: upSweepText.exitCode,
+          })
+          const refused = up.exitCode === 1
+          // The directory refuses on every OS; the file where the runtime's `realpath` does.
+          if (locked === dir || realpathRefuses(proposal)) expect(refused).toBe(true)
+          const demo = rowsOf(all.json).find((e) => e.change === 'demo')!
+          if (!refused) {
+            expect(demo.error).toBeUndefined()
+            continue
           }
+          expect(cs.json).toEqual(JSON.parse(respellRemedies(up.stdout)))
+          const d = firstStatus(up.json)
+          expect(text.stderr).toBe(`cospec status: ${respellRemedies(d.message)}\n`)
+          expect(text.stdout).toBe('')
+          expect(demo.error).toBe(respellRemedies(d.message))
+          expect(sweepText.stdout).toContain(`demo: ERROR — ${respellRemedies(d.message)}\n`)
+          expect(rowsOf(all.json).find((e) => e.change === 'other')!.error).toBeUndefined()
+        } finally {
+          restore()
         }
-      },
-    )
+      }
+    })
 
     test('16.10 an unreadable planning directory is one --json document per command', async () => {
       const root = cospecRoot()

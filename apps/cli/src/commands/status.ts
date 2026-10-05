@@ -4,7 +4,7 @@
 // A change with a `.openspec.yaml` but no artifacts yet renders as "in progress"
 // rather than openspec's bare "Unknown item" (PMF10 / product gap #3).
 
-import { existsSync, readFileSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
@@ -157,10 +157,11 @@ const NO_TASKS: ParsedTasks = { items: [], malformed: [], groups: [] }
 /**
  * A change's `tasks.md`, read as the binary's `countTaskFile` reads it: an
  * absent file is no tasks, and so is one any other errno refuses, with a
- * warning naming the file pushed onto `warnings`. A caller handed a warning
- * asks the binary whether the change can be reported at all: it refuses the
- * change where its runtime's `realpath` confinement check refuses the file
- * (Bun on macOS), and counts the file as no tasks elsewhere.
+ * warning naming the file pushed onto `warnings`. Status has already asked
+ * the binary whether such a change can be reported at all
+ * (`hasUnreadableEntry`): it refuses the change where its runtime's `realpath`
+ * confinement check refuses the file (Bun on macOS), and counts the file as no
+ * tasks elsewhere.
  */
 export function readChangeTasks(changeDir: string, warnings: ReadWarning[]): ParsedTasks {
   const path = join(changeDir, 'tasks.md')
@@ -425,6 +426,44 @@ function readFailure(error: unknown): string | undefined {
   return error instanceof Error && typeof code === 'string' ? error.message : undefined
 }
 
+/**
+ * Whether cospec cannot read some entry of a change: the directory itself, or
+ * a file or directory under it (dot-entries aside, which the binary's artifact
+ * globs never match). Such a change is the binary's to report or refuse: it
+ * refuses where its runtime's `realpath` refuses the entry (Bun on macOS) and
+ * reads past it elsewhere, so status asks it, in text mode too.
+ */
+export function hasUnreadableEntry(dir: string): boolean {
+  const failed = (error: unknown): boolean => {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    if (!(error instanceof Error) || typeof code !== 'string') throw error
+    return code !== 'ENOENT'
+  }
+  const walk = (at: string): boolean => {
+    let entries
+    try {
+      entries = readdirSync(at, { withFileTypes: true })
+    } catch (error) {
+      return failed(error)
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue
+      const path = join(at, entry.name)
+      if (entry.isDirectory()) {
+        if (walk(path)) return true
+      } else if (entry.isFile()) {
+        try {
+          closeSync(openSync(path, 'r'))
+        } catch (error) {
+          if (failed(error)) return true
+        }
+      }
+    }
+    return false
+  }
+  return walk(dir)
+}
+
 /** A namespace folder's explanation (design D2), when `id` names one. */
 function namespaceExplanation(base: string, id: string): string | undefined {
   const finding = findNestedChangesIn(changesDir(base), id)
@@ -555,8 +594,9 @@ function sweepEntries(doc: Record<string, unknown>): Map<string, Record<string, 
  * change never aborts the sweep — it becomes a per-change failure entry and
  * the whole run still exits nonzero. The binary's sweep is fetched once, and
  * only when an entry needs it: under `--json`, for a change on a schema
- * cospec doesn't type, or for a change whose `tasks.md` cospec could not read
- * — the binary decides whether that change can be reported at all.
+ * cospec doesn't type, or for a change cospec cannot read every entry of
+ * (`hasUnreadableEntry`) — the binary decides whether that change can be
+ * reported at all, and a change it refuses is a failure entry.
  */
 async function runAll(ctx: CommandContext, override: string | undefined): Promise<number> {
   const { flags } = ctx
@@ -571,19 +611,29 @@ async function runAll(ctx: CommandContext, override: string | undefined): Promis
     .map((change) => gradedChange(base, change, override))
 
   const sweepArgs = ['--all', ...schemaArgs(override)]
-  let upstream =
-    flags.json || changes.some(answeredUpstream)
+  const upstream =
+    flags.json ||
+    changes.some(answeredUpstream) ||
+    changes.some((change) => hasUnreadableEntry(change.dir))
       ? await delegatedStatus(root, sweepArgs)
       : undefined
-  let byName = upstream === undefined ? new Map() : sweepEntries(upstream)
+  const byName = upstream === undefined ? new Map() : sweepEntries(upstream)
 
   const { archived, warning } = readArchive(base)
   const tasksWarnings = new Map<string, ReadWarning[]>()
-  let entries: (ChangeEntry | ChangeEntryFailure)[] = changes.map((change) => {
+  const entries: (ChangeEntry | ChangeEntryFailure)[] = changes.map((change) => {
     // A namespace folder is a failure entry carrying its explanation, as the
     // binary's sweep carries it.
     const nested = namespaceExplanation(base, change.id)
     if (nested !== undefined) return { change: change.id, error: nested }
+    // A cospec-typed change the binary refuses (one it cannot read, say) is a
+    // failure entry carrying the binary's message; a change on another schema
+    // keeps its legacy entry, whose failure the binary's entry carries.
+    if (!answeredUpstream(change)) {
+      const refused = upstreamFailure(byName.get(change.id) ?? {})
+      if (refused !== undefined)
+        return { change: change.id, error: refused.map((s) => s.message).join('\n') }
+    }
     const own: ReadWarning[] = []
     try {
       return buildChangeEntry(base, change, byName.get(change.id), archived, own)
@@ -593,20 +643,6 @@ async function runAll(ctx: CommandContext, override: string | undefined): Promis
       if (own.length > 0) tasksWarnings.set(change.id, own)
     }
   })
-  // A change whose tasks.md cospec could not read is reported only when the
-  // binary reports it; where the binary refuses it (its runtime's `realpath`
-  // refuses the file), the binary's message is the change's entry.
-  if (tasksWarnings.size > 0) {
-    upstream ??= await delegatedStatus(root, sweepArgs)
-    byName = sweepEntries(upstream)
-    entries = entries.map((entry) => {
-      if (isFailure(entry) || !tasksWarnings.has(entry.change)) return entry
-      const refused = upstreamFailure(byName.get(entry.change) ?? {})
-      if (refused === undefined) return entry
-      tasksWarnings.delete(entry.change)
-      return { change: entry.change, error: refused.map((s) => s.message).join('\n') }
-    })
-  }
   const warnings = readWarnings(warning, [...tasksWarnings.values()].flat())
   // A change the binary could not report fails the sweep when the binary's
   // answer is the one it gets.
@@ -885,7 +921,23 @@ async function status(ctx: CommandContext): Promise<number> {
     return failure === undefined ? EXIT.success : EXIT.failure
   }
 
+  // The binary's status for the change, under `--json` or when cospec cannot
+  // read some entry of it: any error in it is the binary's refusal, and the
+  // answer — its document under `--json`, its message in text.
+  const upstream =
+    flags.json || hasUnreadableEntry(change.dir)
+      ? await delegatedStatus(root, ['--change', change.id, ...schemaArgs(override)])
+      : undefined
+  const refused = upstream === undefined ? undefined : upstreamFailure(upstream)
+  if (refused !== undefined) {
+    if (flags.json)
+      process.stdout.write(`${JSON.stringify(respelledUpstream(upstream!), null, 2)}\n`)
+    else for (const s of refused) process.stderr.write(`cospec status: ${s.message}\n`)
+    return EXIT.failure
+  }
+
   // Empty change: has .openspec.yaml but no artifacts yet (never "Unknown item").
+  // A tasks.md the binary reads past counts as no tasks, with a warning.
   const { archived, warning } = readArchive(base)
   const tasksWarnings: ReadWarning[] = []
   let entry: ChangeEntry
@@ -897,21 +949,6 @@ async function status(ctx: CommandContext): Promise<number> {
     if (message === undefined) throw error
     if (flags.json) return changeErrorDocument(message)
     process.stderr.write(`cospec status: ${message}\n`)
-    return EXIT.failure
-  }
-  // A tasks.md cospec could not read: whether the change can be reported at
-  // all is the binary's answer. It refuses the change where its runtime's
-  // `realpath` refuses the file, and counts the file as no tasks elsewhere.
-  const upstream =
-    flags.json || tasksWarnings.length > 0
-      ? await delegatedStatus(root, ['--change', change.id, ...schemaArgs(override)])
-      : undefined
-  const refused =
-    upstream === undefined || tasksWarnings.length === 0 ? undefined : upstreamFailure(upstream)
-  if (refused !== undefined) {
-    if (flags.json)
-      process.stdout.write(`${JSON.stringify(respelledUpstream(upstream!), null, 2)}\n`)
-    else for (const s of refused) process.stderr.write(`cospec status: ${s.message}\n`)
     return EXIT.failure
   }
   const warnings = readWarnings(warning, tasksWarnings)

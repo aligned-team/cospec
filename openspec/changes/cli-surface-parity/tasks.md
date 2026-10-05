@@ -287,7 +287,7 @@ final commit.
 - [x] 12.8 An in-progress cospec-typed entry keeps `artifacts: []` under
       `--json`, singly and in the sweep. Verify with row 16.6. Commit
       `fix(cli): keep an empty change's artifacts empty under --json`
-- [ ] 12.9 `status` refuses a change the binary refuses: any error in the
+- [x] 12.9 `status` refuses a change the binary refuses: any error in the
       delegated document is the answer (its document under `--json`, its message
       in text, the change's sweep entry), and a change cospec cannot read asks
       the binary in text mode too. Verify with row 16.9. Commit
