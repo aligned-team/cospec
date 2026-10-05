@@ -31,3 +31,11 @@ openspec/schemas/
 # checked-in fixture itself must never be reformatted, or the scenario would
 # start pre-completed.
 packages/bench/scenarios/fixtures/style/src/format.ts
+
+# harness-adapter-table (R8): committed raw golden files proving
+# renderHarnessFiles/init/update/doctor output is byte-identical across the
+# refactor (Buffer-compared, regenerated only under COSPEC_GOLDEN_WRITE=1).
+# `renderHarnessFiles`'s own output is their formatting authority; reflowing
+# them here would make a committed golden diverge from what the code actually
+# emits, defeating the byte-identity proof.
+__golden__/

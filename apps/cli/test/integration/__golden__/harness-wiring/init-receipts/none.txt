@@ -1,0 +1,9 @@
+cospec initialized in <TMP>  (state A)
+
+Schemas: 11 types in openspec/schemas/
+Config:  openspec/config.yaml (schema: feat)
+Files:   60 created
+Harness: none (schemas only)
+
+Try: /cospec:propose "feat: <what you want to build>"
+Lightweight change? /cospec:propose "ci: fix release workflow" — 3 short artifacts.

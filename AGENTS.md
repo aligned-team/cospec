@@ -49,6 +49,7 @@ self-hosts: this repo's own `openspec/` tree is managed by cospec.
 cospec/
 ├── apps/cli/          @aligned-team/cospec — the cospec CLI
 │   ├── src/canon/     single source of truth: schemas + workflows + gate
+│   ├── src/harness/   HARNESS_TABLE (per-tool layout) + the harness renderer
 │   ├── src/core/      openspec wrapper, parsers, validation, managed files
 │   ├── src/commands/  one file per cospec subcommand
 │   └── test/          unit / contract / integration / fixtures
@@ -266,9 +267,25 @@ fails, fix the root cause; never use `--no-verify`, `pre-commit`, or raw
 
 **Managed files are generated** — `openspec/schemas/**` and the harness dirs
 (`.claude/`, `.agents/skills/cospec-*/`, `.codex/`, `.opencode/`) are composed
-from `apps/cli/src/canon/`. Edit the canon, run `mise run generate`; never
-hand-edit generated output. The `generate:check` drift gate blocks the commit
-otherwise.
+from `apps/cli/src/canon/` (schemas, workflow bodies and workflow identity) and
+`HARNESS_TABLE` in `apps/cli/src/harness/adapters.ts` — the one declaration of
+each tool's layout: skills and commands dirs, filenames, serializer,
+frontmatter, body dialect, rules file, detection paths and receipt note.
+`render.ts`, `init`, `update` and `doctor` all read the table; none keeps its
+own copy of a layout fact. A new tool is mostly a new row, not only one: a
+home-scoped skills root renders but is not yet written; the legacy-skills
+migration (`harness/legacy-skills.ts`, its receipt and `update --check` lines,
+doctor's `legacy-layout` warning) covers only Codex's `.codex/skills`, so a new
+row's `legacySkillsDirs` is detected but never migrated; and deliberate
+Claude-only behaviour sits outside the table — `init`'s `.claude/settings.json`
+merge and its `claude` default (docs/harness-integration.md names them). The
+receipt's `/cospec:propose` hint, always in Claude's spelling regardless of
+selected row, and doctor's scan reading every `.md` file under a skills root
+rather than just `SKILL.md` and the table's command paths, are known defects on
+`main`, not part of that deliberate set; the follow-on change
+`harness-receipt-and-doctor-scope` fixes both. Edit the canon or the table, run
+`mise run generate`; never hand-edit generated output. The `generate:check`
+drift gate blocks the commit otherwise.
 
 **Error handling** — never silently swallow errors. Catch only specific expected
 cases; let unexpected exceptions propagate. Fixes must change observable

@@ -1,14 +1,22 @@
 import { describe, expect, test } from 'bun:test'
 import { createHash } from 'node:crypto'
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
 import {
+  adapterFor,
+  buildOpencodeCommandFrontmatter,
+  type CommandSurface,
+  type HarnessAdapter,
+} from '../../../src/harness/adapters.ts'
+import {
+  escapeTomlBasicString,
+  escapeTomlMultilineBasicString,
   hashBody,
   type HarnessName,
   renderHarnessFiles,
   renderTypeTable,
+  serializeTomlCommand,
 } from '../../../src/harness/render.ts'
 import {
   ARG_WORKFLOWS,
@@ -111,25 +119,19 @@ describe('renderHarnessFiles — shared .agents root', () => {
   })
 
   test('two harnesses writing one path with different bodies is a hard error', () => {
-    const canonDir = mkdtempSync(join(tmpdir(), 'cospec-render-conflict-'))
-    cpSync(join(import.meta.dir, '../../../src/canon/workflows'), canonDir, { recursive: true })
-    const manifestPath = join(canonDir, 'harness.yaml')
     // Give the shared root two dialects — the one thing the dedupe guard must refuse.
-    const manifest = readFileSync(manifestPath, 'utf8').replace(
-      /(agents:\n(?:.*\n)*?\s+bodyDialect: )shared/,
-      '$1canonical',
-    )
-    writeFileSync(manifestPath, manifest)
-    expect(manifest).toContain('bodyDialect: canonical')
+    const agents: HarnessAdapter = { ...adapterFor('agents'), bodyDialect: 'canonical' }
+    const adapters = [adapterFor('codex'), agents]
+    expect(adapterFor('codex', adapters).bodyDialect).toBe('shared')
+    expect(adapterFor('agents', adapters).bodyDialect).toBe('canonical')
     expect(() =>
       renderHarnessFiles({
         harnesses: ['codex', 'agents'],
         typeTable: TYPE_TABLE,
         version: TEST_VERSION,
-        canonDir,
+        adapters,
       }),
     ).toThrow(/harness render conflict: codex and agents both write \.agents\/skills\//)
-    rmSync(canonDir, { recursive: true, force: true })
   })
 })
 
@@ -278,5 +280,261 @@ describe('runtime-neutral prose', () => {
       expect(f.body).not.toContain('AskUserQuestion')
       expect(f.body).not.toContain('TodoWrite')
     }
+  })
+})
+
+// Fixture rows go through RenderOptions.adapters and never enter HARNESS_TABLE. They reuse
+// a real id so RenderOptions.harnesses keeps its HarnessName type; adapterFor looks the id
+// up in the override table.
+function renderRow(row: HarnessAdapter) {
+  return renderHarnessFiles({
+    harnesses: [row.id as HarnessName],
+    typeTable: TYPE_TABLE,
+    version: TEST_VERSION,
+    adapters: [row],
+  })
+}
+
+const markdownCommands = (
+  dir: string,
+  namespacing: 'namespaced' | 'flat',
+  extension: CommandSurface['extension'],
+): CommandSurface => ({
+  dir,
+  namespacing,
+  file: namespacing === 'namespaced' ? 'cospec/{command}' : 'cospec-{command}',
+  extension,
+  serializer: 'markdown',
+  frontmatter: buildOpencodeCommandFrontmatter,
+})
+
+const TOML_ROW: HarnessAdapter = {
+  ...adapterFor('opencode'),
+  skillsDir: '.gemini',
+  commands: {
+    dir: '.gemini/commands',
+    namespacing: 'namespaced',
+    file: 'cospec/{command}',
+    extension: '.toml',
+    serializer: 'toml',
+  },
+}
+
+describe('toml serializer', async () => {
+  // The package's exports map exposes only `.`, so the dist module is reached by path.
+  const pkgJson = Bun.resolveSync(
+    '@fission-ai/openspec/package.json',
+    join(import.meta.dir, '../../../src'),
+  )
+  const { geminiAdapter } = (await import(
+    join(dirname(pkgJson), 'dist/core/command-generation/adapters/gemini.js')
+  )) as { geminiAdapter: { formatFile: (content: Record<string, unknown>) => string } }
+  const upstream = (description: string, body: string): string =>
+    geminiAdapter.formatFile({
+      id: 'x',
+      name: 'X',
+      category: 'Workflow',
+      tags: [],
+      description,
+      body,
+    })
+
+  const bodies: Record<string, string> = {
+    backslash: 'a \\ path C:\\dir\\n and a trailing \\',
+    'triple quote': 'says """ then """" and "" alone',
+    tab: 'col\tcol\t',
+    'C0 control': 'bell\u0007 nul\u0000 esc\u001b del\u007f vt\u000b ff\u000c',
+    'lone CR': 'one\rtwo',
+    CRLF: 'line one\r\nline two\r\n\r\nline four',
+    'every ASCII code unit plus the C1 edges': [
+      ...Array.from({ length: 0x80 }, (_, i) => String.fromCharCode(i)),
+      '\u0080\u009f\u00a0é😀',
+    ].join(''),
+    'mixed with escapes after doubling': '\\"""\\\r\n\t\u0001',
+  }
+  for (const [name, body] of Object.entries(bodies)) {
+    test(`matches upstream's formatFile byte for byte: body with ${name}`, () => {
+      expect(serializeTomlCommand('plain', body)).toBe(upstream('plain', body))
+    })
+  }
+
+  test("matches upstream's formatFile on a description with a quote, newline, tab and C0", () => {
+    const description = 'Say "hi"\nthen\tgo \\ now\r\u0002'
+    expect(serializeTomlCommand(description, 'body')).toBe(upstream(description, 'body'))
+    const ascii = Array.from({ length: 0x80 }, (_, i) => String.fromCharCode(i)).join('')
+    expect(serializeTomlCommand(ascii, 'body')).toBe(upstream(ascii, 'body'))
+    expect(escapeTomlBasicString(description)).toBe('Say \\"hi\\"\\nthen\\tgo \\\\ now\\r\\u0002')
+  })
+
+  test('multiline escaping keeps raw LF and tab, normalizes CRLF, escapes a lone CR', () => {
+    expect(escapeTomlMultilineBasicString('a\r\nb\tc\rd"""e')).toBe('a\nb\tc\\rd""\\"e')
+  })
+
+  test('a toml row renders manifest-tracked commands: no frontmatter, no hash', () => {
+    const files = renderRow(TOML_ROW)
+    const commands = files.filter((f) => f.kind === 'command')
+    expect(commands).toHaveLength(12)
+    for (const f of commands) {
+      const skill = files.find((s) => s.kind === 'skill' && s.workflow === f.workflow)!
+      const description = skill.frontmatter!['description'] as string
+      expect(f.path).toMatch(/^\.gemini\/commands\/cospec\/[a-z-]+\.toml$/)
+      expect(f.scope).toBe('project')
+      expect(f.frontmatter).toBeNull()
+      expect(f.contentHash).toBeNull()
+      expect(f.content).toBe(upstream(description, f.body.replace(/\n$/, '')))
+      expect(f.content.startsWith('description = "')).toBe(true)
+      expect(f.content.endsWith(`${f.body.split('\n').at(-2)}\n"""\n`)).toBe(true)
+    }
+    // Skills on a toml row are still markdown with provenance frontmatter.
+    for (const f of files.filter((s) => s.kind === 'skill')) {
+      expect(f.content.startsWith('---\n')).toBe(true)
+      expect(f.contentHash).not.toBeNull()
+    }
+  })
+
+  test('a toml row that declares a frontmatter builder is refused', () => {
+    const row = {
+      ...TOML_ROW,
+      commands: { ...TOML_ROW.commands!, frontmatter: buildOpencodeCommandFrontmatter },
+    }
+    expect(() => renderRow(row)).toThrow(/toml commands, which carry no frontmatter/)
+  })
+
+  test('a markdown row with no frontmatter builder is refused', () => {
+    const row: HarnessAdapter = {
+      ...adapterFor('opencode'),
+      commands: { ...markdownCommands('.x/commands', 'flat', '.md'), frontmatter: undefined },
+    } as HarnessAdapter
+    expect(() => renderRow(row)).toThrow(/markdown commands but no frontmatter builder/)
+  })
+})
+
+describe('fixture rows — per-row command layout', () => {
+  test('a commands root independent of the skills root writes each surface under its own', () => {
+    const row: HarnessAdapter = {
+      ...adapterFor('opencode'),
+      skillsDir: '.cline',
+      commands: markdownCommands('.clinerules/workflows', 'flat', '.md'),
+    }
+    const files = renderRow(row)
+    const skills = files.filter((f) => f.kind === 'skill')
+    const commands = files.filter((f) => f.kind === 'command')
+    expect(skills).toHaveLength(12)
+    expect(commands).toHaveLength(12)
+    for (const f of skills) expect(f.path).toMatch(/^\.cline\/skills\/cospec-[a-z-]+\/SKILL\.md$/)
+    for (const f of commands)
+      expect(f.path).toMatch(/^\.clinerules\/workflows\/cospec-[a-z-]+\.md$/)
+  })
+
+  const extensions: [CommandSurface['extension'], CommandSurface['serializer']][] = [
+    ['.prompt', 'markdown'],
+    ['.prompt.md', 'markdown'],
+    ['.toml', 'toml'],
+  ]
+  for (const [extension, serializer] of extensions) {
+    test(`a ${extension} row writes <dir>/cospec-<command>${extension}`, () => {
+      const commands: CommandSurface =
+        serializer === 'toml'
+          ? {
+              ...TOML_ROW.commands!,
+              dir: '.x/prompts',
+              namespacing: 'flat',
+              file: 'cospec-{command}',
+            }
+          : markdownCommands('.x/prompts', 'flat', extension)
+      const files = renderRow({ ...adapterFor('opencode'), commands } as HarnessAdapter)
+      const paths = files.filter((f) => f.kind === 'command').map((f) => f.path)
+      expect(paths.toSorted()).toEqual(
+        WORKFLOW_COMMANDS.map((c) => `.x/prompts/cospec-${c}${extension}`).toSorted(),
+      )
+    })
+  }
+
+  test('a namespaced row writes <dir>/cospec/<command><ext>, a flat row <dir>/cospec-<command><ext>', () => {
+    for (const [namespacing, sep] of [
+      ['namespaced', '/'],
+      ['flat', '-'],
+    ] as const) {
+      const row = {
+        ...adapterFor('opencode'),
+        commands: markdownCommands('.x/c', namespacing, '.md'),
+      }
+      const paths = renderRow(row)
+        .filter((f) => f.kind === 'command')
+        .map((f) => f.path)
+      expect(paths.toSorted()).toEqual(
+        WORKFLOW_COMMANDS.map((c) => `.x/c/cospec${sep}${c}.md`).toSorted(),
+      )
+    }
+  })
+})
+
+describe('fixture rows — invocation prefix', () => {
+  const real = render(['opencode'])
+
+  // Relocated off `.opencode` so the fixture is a genuinely different row from the real one,
+  // and compared against the committed pre-change OpenCode golden rather than a live render —
+  // a regression in the flat `/` respelling would move both sides of a live-vs-live check.
+  test('a flat row with `/` is byte-identical to the committed OpenCode golden', () => {
+    const goldenRoot = join(import.meta.dir, '../__golden__/harness-render/opencode')
+    const row: HarnessAdapter = {
+      ...adapterFor('opencode'),
+      skillsDir: '.x',
+      commands: { ...adapterFor('opencode').commands!, dir: '.x/commands' },
+      invocationPrefix: '/',
+    }
+    const files = renderRow(row)
+    expect(files).toHaveLength(24)
+    for (const f of files) {
+      expect(f.path.startsWith('.x/')).toBe(true)
+      expect(f.body).not.toContain('/cospec:')
+      const golden = readFileSync(join(goldenRoot, `.opencode/${f.path.slice('.x/'.length)}`))
+      expect(Buffer.from(f.content, 'utf8').equals(golden)).toBe(true)
+    }
+    expect(files.some((f) => f.body.includes('/cospec-'))).toBe(true)
+  })
+
+  test('a flat row with `@` respells /cospec:<id> as @cospec-<id>', () => {
+    const files = renderRow({ ...adapterFor('opencode'), invocationPrefix: '@' })
+    expect(files.map((f) => f.path)).toEqual(real.map((f) => f.path))
+    let respelled = 0
+    for (const [i, f] of files.entries()) {
+      const r = real[i]!
+      expect(f.body).not.toContain('/cospec:')
+      expect(f.body).not.toContain('/cospec-')
+      expect(f.body).toBe(r.body.replaceAll('/cospec-', '@cospec-'))
+      if (f.body !== r.body) respelled++
+    }
+    expect(respelled).toBeGreaterThan(0)
+  })
+})
+
+describe('fixture rows — scope', () => {
+  test('a globalSkillsDir row renders its skills home-scoped at <root>/skills/<skill>/SKILL.md', () => {
+    const row: HarnessAdapter = {
+      id: 'agents',
+      displayName: 'MiniMax Code',
+      globalSkillsDir: '.minimax',
+      invocationPrefix: '/',
+      bodyDialect: 'shared',
+      requiresIdeRestart: false,
+      detectionPaths: [],
+    }
+    const files = renderRow(row)
+    expect(files).toHaveLength(12)
+    for (const f of files) {
+      expect(f.kind).toBe('skill')
+      expect(f.scope).toBe('home')
+      expect(f.path).toMatch(/^\.minimax\/skills\/cospec-[a-z-]+\/SKILL\.md$/)
+    }
+    expect(files.map((f) => f.path.split('/')[2]).toSorted()).toEqual(
+      [...WORKFLOW_SKILLS].toSorted(),
+    )
+  })
+
+  test('every file the four real rows render is project-scoped', () => {
+    const files = render()
+    expect(files.length).toBeGreaterThan(0)
+    for (const f of files) expect(f.scope).toBe('project')
   })
 })

@@ -1,0 +1,40 @@
+{
+  "exitCode": 1,
+  "findings": [
+    {
+      "level": "WARNING",
+      "check": "legacy-layout",
+      "message": ".codex/skills/cospec-propose/SKILL.md is a legacy location; cospec's Codex skills now live in .agents/skills",
+      "remedy": "run `cospec update` (`--force` to discard local edits to the legacy copy)"
+    },
+    {
+      "level": "ERROR",
+      "check": "dangling-ref",
+      "message": ".claude/commands/cospec/opsx-and-dangling.md references /cospec:not-a-real-workflow, which is not a known cospec workflow",
+      "remedy": "run `cospec update` to regenerate from canon"
+    },
+    {
+      "level": "WARNING",
+      "check": "opsx-leftover",
+      "message": "leftover openspec (opsx) file: .claude/commands/cospec/opsx-and-dangling.md — two propose commands confuse agents",
+      "remedy": "run `cospec init --remove-opsx` to delete provably openspec-generated files"
+    },
+    {
+      "level": "WARNING",
+      "check": "opsx-leftover",
+      "message": "leftover openspec (opsx) file: .agents/skills/openspec-propose/SKILL.md — two propose commands confuse agents",
+      "remedy": "run `cospec init --remove-opsx` to delete provably openspec-generated files"
+    },
+    {
+      "level": "WARNING",
+      "check": "stale-sidecar",
+      "message": "unreconciled sidecar: .claude/skills/cospec-propose/SKILL.md.cospec-new",
+      "remedy": "apply or discard the .cospec-new file, then delete it"
+    }
+  ],
+  "summary": {
+    "errors": 1,
+    "warnings": 4,
+    "infos": 0
+  }
+}

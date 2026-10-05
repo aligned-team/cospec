@@ -46,7 +46,11 @@ local generatedGlobs = canonGlobs + generatedOutputGlobs
 local formatterIgnoredGlobs = List(
   "apps/cli/src/vendor/**",
   "apps/cli/THIRD-PARTY-LICENSES.md",
-  "packages/bench/scenarios/fixtures/style/src/format.ts"
+  "packages/bench/scenarios/fixtures/style/src/format.ts",
+  // harness-adapter-table (R8): committed raw golden files (see
+  // .prettierignore's matching entry) — renderHarnessFiles's own output is
+  // their formatting authority, not oxfmt.
+  "**/__golden__/**"
 )
 
 local agentGlobs = List(".agents/shared.md", "CLAUDE.md", "AGENTS.md")

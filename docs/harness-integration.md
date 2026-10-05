@@ -23,6 +23,56 @@ by the site: [Harness setup](https://cospec.aligned.team/guide/harness-setup).
 This page covers what each generated workflow body actually does and the canon
 internals behind it — content the site intentionally keeps at a higher level.
 
+Workflow bodies are single-sourced from `canon/workflows/*.md`; the manifest
+`canon/workflows/harness.yaml` carries only their identity (`id`, `command`,
+`skill`, `title`, `takesArguments`). _Where_ a body lands — skills root,
+commands root independent of it, filename template, extension, serializer,
+invocation prefix, body dialect, rules file, detection paths, legacy roots,
+setup note — is declared once, per tool, as a row of `HARNESS_TABLE` in
+`apps/cli/src/harness/adapters.ts`. `render.ts` reads the table, and so do
+`init` (the `--harness` value list, detection paths, leftover scan roots and the
+files the leftover scan reads, setup notes, and the receipt line naming the rows
+whose skills share one root), `update` (skills, legacy and rules-file roots for
+detection, the removal roots manifest keys are contained to, and the command
+extensions its orphan sweep matches in each commands dir) and `doctor` (scan
+roots, the files its frontmatter and reference checks read, the row a file
+belongs to, the invocation prefix its references are spelled with, and the
+skills and commands roots a reference resolves against). Doctor and init's
+leftover scan read each markdown row's commands by that row's extension under
+its commands dir, and every `.md` file under each top-level dir that holds a
+row's skills or legacy skills root — not only the skill files. So a user's own
+markdown under `.claude/`, such as a note or a nested worktree's copy of the
+repo, is checked too, and a row whose skills root sat under `.github` would pull
+in every `.md` file there. This breadth is a known defect, not an intended scan
+boundary; it predates this change and is narrowed to `SKILL.md` and the table's
+command paths by the follow-on change `harness-receipt-and-doctor-scope`. A file
+belongs to the row with a skills, legacy skills, commands or rules dir that is
+the longest prefix of it. A dir two rows share goes to the row whose primary
+root also prefixes the file, then to the earlier row, and a file under none of
+them goes to the first row whose primary root prefixes it. The table can express
+shapes no production row uses yet — a split commands root,
+`.prompt`/`.prompt.md`/ `.toml` extensions, the TOML serializer, the `@`
+invocation prefix, home-scoped skills — each exercised by a unit test through a
+fixture row passed via `RenderOptions.adapters` (or `GenerateOptions.adapters`,
+or the `table` parameter of doctor's checks and init's receipt and leftover
+helpers). The legacy-skills migration sits outside the table: `update` moving
+cospec's skills out of a legacy root, its receipt and `update --check` lines,
+and doctor's `legacy-layout` warning all come from the constants in
+`harness/legacy-skills.ts` and cover only Codex's `.codex/skills`. Another row's
+`legacySkillsDirs` is detected and scanned, but never migrated or reported,
+until `tool-matrix` drives the migration from the table. Deliberate Claude-only
+behaviour sits outside the table too: `init` merges cospec's permission into
+`.claude/settings.json` only when `claude` is selected, and selects `claude` on
+a fresh repo where nothing is detected. The receipt's closing hint is not in
+that deliberate set: it always prints `Try: /cospec:propose …` in Claude's
+spelling, whichever row was selected. That is a known defect, not intended
+behaviour; the follow-on change `harness-receipt-and-doctor-scope` spells it
+through the first selected row's dialect and invocation prefix instead. A TOML
+command carries no frontmatter, so, like the Codex rules file, it is tracked in
+`openspec/.cospec-manifest.json`. A home-scoped file renders, but `generate()`
+refuses to write it with an internal error until the home root is a managed
+root.
+
 ## What each workflow does
 
 - **propose** — parse `<type>: <desc>` or ask via the eleven-type table; run
@@ -162,30 +212,39 @@ merged entry. If it does not parse, cospec prints the snippet and skips.
   there: cospec owns only its `cospec-*` dirs, and `--remove-opsx` still removes
   only openspec-authored files. The superset walk of `.agents/` and the subset
   walk of `.agents/skills/` are deduped, so a leftover is reported once.
-- **Shared `.agents/skills` root** — `codex` and `agents` render byte-identical
-  skill files there (same paths, same bodies, same `contentHash`), which is why
-  selecting both emits each file once and no per-tool ownership marker is
-  needed; two harnesses mapping one path to different bytes is a hard render
-  error. `codex` differs only by additionally emitting
-  `.codex/rules/cospec.rules`. Auto-detection keys on `.agents/skills`, not a
-  bare `.agents/`, so a repo with only `AGENTS.md` there is not a harness — and
-  since the shared tree cannot say which target wrote it, the rules file is the
+- **Shared `.agents/skills` root** — the `codex` and `agents` rows both declare
+  `skillsDir: '.agents'` and `bodyDialect: 'shared'`, so they render
+  byte-identical skill files there (same paths, same bodies, same
+  `contentHash`); selecting both emits each file once and no per-tool ownership
+  marker is needed. A table-invariant unit test pins that any two rows whose
+  rendered paths overlap must declare the same `bodyDialect` — two harnesses
+  mapping one path to different bytes is a hard render error otherwise. `codex`
+  differs only by additionally emitting `.codex/rules/cospec.rules` (its
+  `rulesPath`). Auto-detection keys on `.agents/skills`, not a bare `.agents/`,
+  so a repo with only `AGENTS.md` there is not a harness — and since the shared
+  tree cannot say which target wrote it, the codex row's `rulesPath` is the
   tie-breaker: present ⇒ `codex`, absent ⇒ `agents`, never both. Reporting both
   would invent a target the user never selected; reporting only `codex` loses
   nothing, because codex renders a strict superset of the agents file set.
 - **Legacy `.codex/skills` migration** — cospec previously wrote Codex skills
-  under `.codex/skills`. `cospec update` removes a legacy file only once its
-  replacement exists under `.agents/skills` AND its body still hashes to its own
-  stamped `contentHash`; a hand-edited copy is left in place and reported until
-  `--force`. Empty dirs are pruned with `rmdir`, never `rm -r`, and `.codex/`
-  itself is never removed (the rules file lives there). While any legacy file
-  remains, `doctor` emits a `legacy-layout` WARNING per file and
+  under `.codex/skills`; the codex row's `legacySkillsDirs: ['.codex']` derives
+  that root (`<dir>/skills`), tied by a unit test to the constant
+  `legacy-skills.ts` migrates from. `cospec update` removes a legacy file only
+  once its replacement exists under `.agents/skills` AND its body still hashes
+  to its own stamped `contentHash`; a hand-edited copy is left in place and
+  reported until `--force`. Empty dirs are pruned with `rmdir`, never `rm -r`,
+  and `.codex/` itself is never removed (the rules file lives there). While any
+  legacy file remains, `doctor` emits a `legacy-layout` WARNING per file and
   `update --check` exits `1`.
-- **Restart lines** — init ends with a per-harness note: restart Claude Code /
-  reload the OpenCode project / Codex picks up skills per session from
-  `.agents/skills` (`$cospec-<skill>`) / the `agents` target generates no slash
-  commands at all. cospec ships no hooks, so no `[features] hooks` config is
-  needed.
+- **Setup notes** — init ends by printing each selected row's `setupNote` in
+  selection order: restart Claude Code / reload the OpenCode project / Codex
+  picks up skills per session from `.agents/skills` (`$cospec-<skill>`) / the
+  `agents` target generates no slash commands at all. After those, it prints
+  upstream's single `Restart your IDE to refresh commands.` (or `skills.`) line
+  whenever any selected row's `requiresIdeRestart` is set, and `update` prints
+  the same line after any write when a detected harness's row sets it — none of
+  today's four rows set it, so nothing extra prints. cospec ships no hooks, so
+  no `[features] hooks` config is needed.
 
 ## Per-harness smoke checklist
 
