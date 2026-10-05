@@ -24,7 +24,7 @@ import {
 } from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
 import { parseLivingSpec } from '../core/deltas.ts'
-import { errnoMessage } from '../core/errno.ts'
+import { answeringErrno, errnoMessage } from '../core/errno.ts'
 import {
   isOpenspecErrorStatus,
   openspecBelow,
@@ -1473,7 +1473,16 @@ const NO_OPENSPEC_ROOT = new RootSelectionError({
   fix: respellRemedies('Run openspec init to create a root here.'),
 })
 
-export async function run(ctx: CommandContext): Promise<number> {
+/**
+ * `cospec validate`: an errno failure it lets escape (an unreadable
+ * `openspec/changes/` or `openspec/specs/`) is the binary's one
+ * `validate_error` document under `--json`.
+ */
+export function run(ctx: CommandContext): Promise<number> {
+  return answeringErrno(ctx.flags.json, { code: 'validate_error' }, () => validate(ctx))
+}
+
+async function validate(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
   const parsed = ctx.parsed!
   const strict = hasFlag(parsed, '--strict')

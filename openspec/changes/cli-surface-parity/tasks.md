@@ -268,7 +268,7 @@ final commit.
       errno failure is that change's ERROR in the bulk pool. Verify with row
       16.3. Commit
       `fix(validate): fail a change whose target living spec is unreadable`
-- [ ] 12.4 An errno failure `validate`, `status` or `apply` lets escape (an
+- [x] 12.4 An errno failure `validate`, `status` or `apply` lets escape (an
       unreadable `openspec/changes/`, `openspec/specs/` or capability directory)
       is one `--json` document with the binary's per-command code and payload.
       Verify with row 16.10. Commit

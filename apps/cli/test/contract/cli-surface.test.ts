@@ -2416,64 +2416,61 @@ describe('16. round-3 review rows', () => {
       },
     )
 
-    test.failing(
-      '16.10 an unreadable planning directory is one --json document per command',
-      async () => {
-        const root = cospecRoot()
-        writeChange(root, 'demo', { 'proposal.md': PROPOSAL })
-        writeFiles(root, { 'openspec/specs/auth/spec.md': LIVING('auth') })
-        const cases: { locked: string; argvs: string[][] }[] = [
-          {
-            locked: 'openspec/changes',
-            argvs: [
-              ['validate', '--all', '--json'],
-              ['status', '--change', 'demo', '--json'],
-              ['status', '--all', '--json'],
-            ],
-          },
-          {
-            locked: 'openspec/specs',
-            argvs: [
-              ['validate', '--specs', '--json'],
-              ['validate', 'demo', '--json'],
-            ],
-          },
-          { locked: 'openspec/specs/auth', argvs: [['validate', '--all', '--json']] },
-        ]
-        for (const { locked, argvs } of cases) {
-          const restore = lock(join(root, locked))
-          try {
-            for (const argv of argvs) {
-              const up = await upstreamJson(argv, root)
-              const cs = await oursJson(argv, root)
-              if (argv[0] === 'status') captureStatus(`16.10 ${argv.join(' ')}`, cs)
-              expect({ argv, exit: up.exitCode }).toEqual({ argv, exit: 1 })
-              expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
-              expect({ argv, doc: cs.json }).toEqual({
-                argv,
-                doc: JSON.parse(respellRemedies(up.stdout)),
-              })
-              expect(cs.stderr).toBe('')
-            }
-            if (locked === 'openspec/changes') {
-              const apply = await oursJson(['apply', 'demo', '--json'], root)
-              expect(apply.exitCode).toBe(1)
-              const d = firstStatus(apply.json)
-              expect(d.code).toBe('change_error')
-              expect(errnoShape(d.message)).toMatchObject({
-                code: 'EACCES',
-                path: join(root, locked),
-              })
-              const text = await ours(['validate', '--all'], root)
-              expect(text.exitCode).toBe(1)
-              expect(text.stderr).toContain('EACCES')
-            }
-          } finally {
-            restore()
+    test('16.10 an unreadable planning directory is one --json document per command', async () => {
+      const root = cospecRoot()
+      writeChange(root, 'demo', { 'proposal.md': PROPOSAL })
+      writeFiles(root, { 'openspec/specs/auth/spec.md': LIVING('auth') })
+      const cases: { locked: string; argvs: string[][] }[] = [
+        {
+          locked: 'openspec/changes',
+          argvs: [
+            ['validate', '--all', '--json'],
+            ['status', '--change', 'demo', '--json'],
+            ['status', '--all', '--json'],
+          ],
+        },
+        {
+          locked: 'openspec/specs',
+          argvs: [
+            ['validate', '--specs', '--json'],
+            ['validate', 'demo', '--json'],
+          ],
+        },
+        { locked: 'openspec/specs/auth', argvs: [['validate', '--all', '--json']] },
+      ]
+      for (const { locked, argvs } of cases) {
+        const restore = lock(join(root, locked))
+        try {
+          for (const argv of argvs) {
+            const up = await upstreamJson(argv, root)
+            const cs = await oursJson(argv, root)
+            if (argv[0] === 'status') captureStatus(`16.10 ${argv.join(' ')}`, cs)
+            expect({ argv, exit: up.exitCode }).toEqual({ argv, exit: 1 })
+            expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
+            expect({ argv, doc: cs.json }).toEqual({
+              argv,
+              doc: JSON.parse(respellRemedies(up.stdout)),
+            })
+            expect(cs.stderr).toBe('')
           }
+          if (locked === 'openspec/changes') {
+            const apply = await oursJson(['apply', 'demo', '--json'], root)
+            expect(apply.exitCode).toBe(1)
+            const d = firstStatus(apply.json)
+            expect(d.code).toBe('change_error')
+            expect(errnoShape(d.message)).toMatchObject({
+              code: 'EACCES',
+              path: join(realpathSync(root), locked),
+            })
+            const text = await ours(['validate', '--all'], root)
+            expect(text.exitCode).toBe(1)
+            expect(text.stderr).toContain('EACCES')
+          }
+        } finally {
+          restore()
         }
-      },
-    )
+      }
+    })
 
     test.failing("16.11 apply relays the binary's refusal of the apply instructions", async () => {
       const root = cospecRoot('chore')

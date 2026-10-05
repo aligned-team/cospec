@@ -25,6 +25,7 @@ import {
   type Change,
 } from '../core/change.ts'
 import { hasFlag } from '../core/command-table.ts'
+import { answeringErrno } from '../core/errno.ts'
 import {
   openspecApplyInstructions,
   OpenspecCallError,
@@ -301,7 +302,16 @@ async function applyLegacy(change: Change, ctx: CommandContext, root: Root): Pro
   return instr.state === 'blocked' ? EXIT.blocked : EXIT.success
 }
 
-export async function run(ctx: CommandContext): Promise<number> {
+/**
+ * `cospec apply`: an errno failure it lets escape (an unreadable
+ * `openspec/changes/`) is one `change_error` document under `--json`, the
+ * code the binary's `instructions apply` reports.
+ */
+export function run(ctx: CommandContext): Promise<number> {
+  return answeringErrno(ctx.flags.json, { code: 'change_error' }, () => apply(ctx))
+}
+
+async function apply(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
   const parsedArgs = ctx.parsed!
   const root = await resolveRootOrDocument(ctx, 'change_error')

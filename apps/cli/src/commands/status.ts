@@ -23,6 +23,7 @@ import {
   type Change,
 } from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
+import { answeringErrno } from '../core/errno.ts'
 import { passthroughOpenspec, wrappedCallLabel } from '../core/openspec.ts'
 import { respellRemedies, respellWholeRemedy } from '../core/remedies.ts'
 import type { ResolvedRoot } from '../core/root.ts'
@@ -731,7 +732,17 @@ function mergedEntry(
   ).value
 }
 
-export async function run(ctx: CommandContext): Promise<number> {
+/**
+ * `cospec status`: an errno failure it lets escape (an unreadable
+ * `openspec/changes/`) is the binary's one `change_error` document under
+ * `--json`, carrying the sweep's null-shape for `--all`.
+ */
+export function run(ctx: CommandContext): Promise<number> {
+  const payload = hasFlag(ctx.parsed!, '--all') ? BATCH_FAILURE_PAYLOAD : {}
+  return answeringErrno(ctx.flags.json, { code: 'change_error', payload }, () => status(ctx))
+}
+
+async function status(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
   const parsed = ctx.parsed!
   // A schema override, as the binary's `--schema` is — never a filter.
