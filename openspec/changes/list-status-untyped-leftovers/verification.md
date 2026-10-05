@@ -19,8 +19,8 @@
 
 ## 4. `status` already matches the binary on a mode-000 artifact [critical]
 
-- [ ] 4.1 @equivalence (agent) macOS: `cospec status --change <id>` (text and `--json`, single and `--all`) vs the pinned binary (spawned under Bun) with a mode-000 `proposal.md` -> both refuse `EACCES: permission denied, realpath '…/proposal.md'`, exit 1, in every mode
-- [ ] 4.2 @equivalence (agent) Linux (`oven/bun:1.3.14`, non-root UID 1000): same fixture -> both read past it, report `proposal` done, exit 0, in every mode
+- [x] 4.1 @equivalence (agent) macOS: `cospec status --change <id>` (text and `--json`, single and `--all`) vs the pinned binary (spawned under Bun) with a mode-000 `proposal.md` -> both refuse `EACCES: permission denied, realpath '…/proposal.md'`, exit 1, in every mode — observed directly (ad hoc probe) and via the `18.2` contract row (`realpathRefuses` true on this host): both exit 1, `errnoShape` matches `{code: 'EACCES', path: …/proposal.md}`
+- [x] 4.2 @equivalence (agent) Linux (`oven/bun:1.3.14`, non-root UID 1000): same fixture -> both read past it, report `proposal` done, exit 0, in every mode — observed via a local Docker probe (`docker run -u 1000:1000 oven/bun:1.3.14`, bind-mounted tree): both exit 0, both report `proposal` artifact `done`/`status: 'done'`; the `18.2` contract row asserts the same equality on whichever OS runs it (`refused` branches on the live `realpathRefuses` result, never `process.platform`)
 - [ ] 4.3 @e2e (agent) the new contract row (tasks.md 4.1) green on both `ubuntu-latest` and `macos` runners in this PR's CI -> both green, confirming the differential holds under the real CI containers too, not just the local Docker probe
 
 ## 5. Full gate

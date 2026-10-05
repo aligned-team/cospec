@@ -43,7 +43,7 @@
 
 ## 4. `status`: pin the mode-000-artifact behavior (no product change)
 
-- [ ] 4.1 Add a differential contract row to `cli-surface.test.ts`: a mode-000
+- [x] 4.1 Add a differential contract row to `cli-surface.test.ts`: a mode-000
       artifact other than `tasks.md` (e.g. `proposal.md`) on a cospec-typed
       change, `cospec status --change <id>` compared against the pinned binary
       in both text and `--json` mode — same exit code, same reported
@@ -52,7 +52,7 @@
       the observed behavior, never on `process.platform`). Verify:
       `bun test     apps/cli/test/contract/cli-surface.test.ts` passes locally
       (macOS) and in CI (Linux).
-- [ ] 4.2 Record in this change's verification ledger that both OS observations
+- [x] 4.2 Record in this change's verification ledger that both OS observations
       were differential, with no product change (design: Context item 4
       documents the evidence superseding the stage's verify report).
 
