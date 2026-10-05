@@ -303,6 +303,6 @@ final commit.
       row 15.3 records the test file's own counts. Verify with rows 15.3, 15.4,
       15.6 and 15.7. Commit
       `test(cli): hold rows 15.4, 15.6 and 15.7 to their ledger`
-- [ ] 12.13 Record observed evidence on every group-16 row, re-observe rows
+- [x] 12.13 Record observed evidence on every group-16 row, re-observe rows
       14.1–14.4, and update the docs pages that own each fact. Commit
       `docs(cli): record the round-3 review fixes`
