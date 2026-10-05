@@ -283,16 +283,24 @@ call, so the list of available schemas is the binary's.
 binary's `{changeName, status}` merges.
 
 **Unreadable archive.** An errno other than ENOENT from the archive index read
-is caught in `status.ts` and `list.ts`, never inside `readArchiveIndex`, so the
-collision checks in `apply` and `archive` still refuse. The gate is computed
-from an empty index. That can only err toward `blocked`, never a false `clear`.
-A `warnings` entry `{code: "archive_unreadable", message}` (`--json`) or a
-stderr line (text) names the directory. An unreadable `tasks.md` the binary
-reports past counts as no tasks, as the binary's `countTaskFile` counts it, with
-a `{code: "tasks_unreadable", message}` warning naming the file the same way, so
-the read is never silently dropped (`readChangeTasks`, shared with `list`). Any
-other read failure while computing an entry becomes the `change_error` document
-(`--change`) or a failure entry (`--all`), as the binary answers.
+is caught in `status.ts`, `list.ts` and, for `validate` and `apply` (task 11.7),
+`readValidateContext` in `validate.ts`, never inside `readArchiveIndex`. The
+binary's `validate` and `instructions apply` never read the archive either.
+`archive` keeps `buildValidateContext` and `archiveMap`, so its collision check
+and its on-disk verification still refuse. The gate is computed from an empty
+index. That can only err toward `blocked`, never a false `clear`. The same holds
+for the validate rules the archive feeds: a blocker or a revert citation naming
+an archived change reads as dangling, an issue added, never one removed.
+`apply`'s blocker self-heal only checks boxes for archived changes, so with an
+empty index it writes nothing it would not write otherwise. A `warnings` entry
+`{code: "archive_unreadable", message}` (`--json`, on every document `validate`
+and `apply` print past the read) or a stderr line (text) names the directory. An
+unreadable `tasks.md` the binary reports past counts as no tasks, as the
+binary's `countTaskFile` counts it, with a `{code: "tasks_unreadable", message}`
+warning naming the file the same way, so the read is never silently dropped
+(`readChangeTasks`, shared with `list`). Any other read failure while computing
+an entry becomes the `change_error` document (`--change`) or a failure entry
+(`--all`), as the binary answers.
 
 ### D5. The key oracle (T6)
 

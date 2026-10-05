@@ -227,6 +227,20 @@ error code, and SHALL run no other rule on that change and delegate nothing for
 it. The command SHALL never throw on such a file. Under `--json` the report
 SHALL still be one document.
 
+An unreadable `openspec/changes/archive/` is not a change artifact: the binary's
+`validate` and `instructions apply` never read it, so `cospec validate` and
+`cospec apply` SHALL answer as they do with it empty, carrying an
+`{code: "archive_unreadable", message}` warning naming the directory under
+`--json`, or printing it on stderr. `cospec archive` SHALL still refuse.
+
+#### Scenario: An unreadable archive leaves validate and apply answering
+
+- **WHEN** `cospec validate --all --json` and `cospec apply <id> --json` run
+  with `openspec/changes/archive/` at mode 000
+- **THEN** each prints one document that, bar its one `archive_unreadable`
+  warning, equals its answer with the archive readable, and `validate --all`
+  exits as the binary does
+
 #### Scenario: An unreadable tasks file fails the change, not the command
 
 - **WHEN** `cospec validate --all --json` runs with one change's `tasks.md` at

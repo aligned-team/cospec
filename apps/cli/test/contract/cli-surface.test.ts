@@ -36,6 +36,7 @@ import {
   type SpawnResult,
   writeFiles,
 } from '../fixtures/support.ts'
+import { buildValidFeat } from './fixtures.ts'
 import {
   byCodeAndName,
   byKey,
@@ -1760,7 +1761,9 @@ describe('15. round-2 review rows', () => {
   unlessRoot('mode 000', () => {
     function lockedArchive(): { root: string; restore: () => void } {
       const root = cospecRoot()
-      requiredDone(root, 'ready')
+      // A change both cospec's rules and the binary pass, so `validate --all`
+      // exits as the binary does and `apply` reaches a clear gate.
+      buildValidFeat(root, 'ready')
       writeFiles(root, { 'openspec/changes/archive/2026-01-01-old/proposal.md': PROPOSAL })
       return { root, restore: lock(join(root, 'openspec/changes/archive')) }
     }
@@ -1786,52 +1789,54 @@ describe('15. round-2 review rows', () => {
       }
     })
 
-    test.failing(
-      '15.6 an unreadable archive leaves validate and apply answering with a warning',
-      async () => {
-        const { root, restore } = lockedArchive()
-        const locked: { argv: string[]; run: JsonAnswer; text: SpawnResult }[] = []
-        const argvs = [
-          ['validate', 'ready', '--json'],
-          ['validate', '--all', '--json'],
-          ['apply', 'ready', '--json'],
-        ]
-        try {
-          for (const argv of argvs) {
-            const run = await oursJson(argv, root)
-            const text = await ours(
-              argv.filter((a) => a !== '--json'),
-              root,
-            )
-            locked.push({ argv, run, text })
-          }
-          const up = await upstreamJson(['validate', '--all', '--json'], root)
-          expect(locked[1]!.run.exitCode).toBe(up.exitCode)
-        } finally {
-          restore()
+    test('15.6 an unreadable archive leaves validate and apply answering with a warning', async () => {
+      const { root, restore } = lockedArchive()
+      const locked: { argv: string[]; run: JsonAnswer; text: SpawnResult }[] = []
+      const argvs = [
+        ['validate', 'ready', '--json'],
+        ['validate', '--all', '--json'],
+        ['apply', 'ready', '--json'],
+      ]
+      try {
+        for (const argv of argvs) {
+          const run = await oursJson(argv, root)
+          const text = await ours(
+            argv.filter((a) => a !== '--json'),
+            root,
+          )
+          locked.push({ argv, run, text })
         }
-        for (const { argv, run, text } of locked) {
-          const warnings = ((run.json as Row).warnings ?? []) as Row[]
-          expect({ argv, codes: warnings.map((w) => w.code) }).toEqual({
-            argv,
-            codes: ['archive_unreadable'],
-          })
-          expect(String(warnings[0]!.message)).toContain('openspec/changes/archive')
-          expect(text.stderr).toContain('Warning: could not read')
-          expect(text.stderr).toContain('openspec/changes/archive')
-        }
-        // With the archive readable again the answers are the same, bar the warning.
-        for (const { argv, run } of locked) {
-          const again = await oursJson(argv, root)
-          expect({ argv, exit: run.exitCode }).toEqual({ argv, exit: again.exitCode })
-          const scrub = (doc: unknown) =>
-            JSON.parse(
-              JSON.stringify(withoutWarnings(doc)).replace(/"durationMs": ?\d+/g, '"durationMs":0'),
-            )
-          expect(scrub(run.json)).toEqual(scrub(again.json))
-        }
-      },
-    )
+        const up = await upstreamJson(['validate', '--all', '--json'], root)
+        expect(locked[1]!.run.exitCode).toBe(up.exitCode)
+      } finally {
+        restore()
+      }
+      // Each answer is a passing one: validate passes, apply reaches a clear gate.
+      expect(locked.map(({ argv, run }) => [argv.join(' '), run.exitCode])).toEqual(
+        argvs.map((argv) => [argv.join(' '), 0]),
+      )
+      expect((locked[2]!.run.json as Row).gate).toMatchObject({ state: 'clear' })
+      for (const { argv, run, text } of locked) {
+        const warnings = ((run.json as Row).warnings ?? []) as Row[]
+        expect({ argv, codes: warnings.map((w) => w.code) }).toEqual({
+          argv,
+          codes: ['archive_unreadable'],
+        })
+        expect(String(warnings[0]!.message)).toContain('openspec/changes/archive')
+        expect(text.stderr).toContain('Warning: could not read')
+        expect(text.stderr).toContain('openspec/changes/archive')
+      }
+      // With the archive readable again the answers are the same, bar the warning.
+      for (const { argv, run } of locked) {
+        const again = await oursJson(argv, root)
+        expect({ argv, exit: run.exitCode }).toEqual({ argv, exit: again.exitCode })
+        const scrub = (doc: unknown) =>
+          JSON.parse(
+            JSON.stringify(withoutWarnings(doc)).replace(/"durationMs": ?\d+/g, '"durationMs":0'),
+          )
+        expect(scrub(run.json)).toEqual(scrub(again.json))
+      }
+    })
 
     test.failing("15.8 list --specs relays the binary's failure document and fix", async () => {
       const root = cospecRoot()

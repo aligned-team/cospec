@@ -211,7 +211,7 @@ final commit.
       `--json` that one document with the binary's exit code, in text its
       messages. Verify with row 15.5. Commit
       `fix(validate): relay the binary's --archived failure document`
-- [ ] 11.7 An unreadable `openspec/changes/archive/` leaves `validate` and
+- [x] 11.7 An unreadable `openspec/changes/archive/` leaves `validate` and
       `apply` answering from an empty archive with an `archive_unreadable`
       warning. Verify with row 15.6. Commit
       `fix(cli): validate and apply past an unreadable archive`

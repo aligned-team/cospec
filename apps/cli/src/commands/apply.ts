@@ -32,7 +32,7 @@ import {
   type Root,
 } from '../core/openspec.ts'
 import { respellRemedies } from '../core/remedies.ts'
-import { renderHuman, renderJson, type ItemReport } from '../core/report.ts'
+import { renderHuman, toJson, type ItemReport } from '../core/report.ts'
 import { surfaceUnmetConsequences } from '../core/rules/meta.ts'
 import {
   ARTIFACT_FILES,
@@ -41,7 +41,8 @@ import {
   type CospecType,
 } from '../core/rules/type-facts.ts'
 import { resolveRootOrDocument } from '../core/upstream-keys.ts'
-import { buildValidateContext, validateChange } from './validate.ts'
+import type { ArchiveWarning } from './status.ts'
+import { readValidateContext, validateChange } from './validate.ts'
 
 // --- shared primitives (exported for status/list/archive/new) --------------
 
@@ -239,9 +240,18 @@ function printWarnings(instr: ApplyInstructionsJson): void {
   for (const w of instr.warnings ?? []) process.stdout.write(`Warning: ${w}\n`)
 }
 
-function printReport(report: ItemReport, ctx: CommandContext): void {
+/** The document's `warnings`, when there are any to carry. */
+function warningsKey(warnings: readonly ArchiveWarning[]): { warnings?: ArchiveWarning[] } {
+  return warnings.length === 0 ? {} : { warnings: [...warnings] }
+}
+
+function printReport(
+  report: ItemReport,
+  ctx: CommandContext,
+  warnings: readonly ArchiveWarning[],
+): void {
   const out = ctx.flags.json
-    ? renderJson([report])
+    ? `${JSON.stringify({ ...toJson([report]), ...warningsKey(warnings) }, null, 2)}\n`
     : renderHuman([report], { noColor: ctx.flags.noColor, title: 'cospec apply' })
   process.stdout.write(out)
 }
@@ -252,12 +262,18 @@ function printReport(report: ItemReport, ctx: CommandContext): void {
  * stdout — the code the binary's `instructions apply` reports for the same
  * lookups — so a `--json` caller always gets one document. Exit 1.
  */
-function earlyExit(ctx: CommandContext, prose: string, message: string, fix?: string): number {
+function earlyExit(
+  ctx: CommandContext,
+  prose: string,
+  message: string,
+  fix?: string,
+  warnings: readonly ArchiveWarning[] = [],
+): number {
   if (ctx.flags.json) {
     const status = [
       { severity: 'error', code: 'change_error', message, ...(fix === undefined ? {} : { fix }) },
     ]
-    process.stdout.write(`${JSON.stringify({ status }, null, 2)}\n`)
+    process.stdout.write(`${JSON.stringify({ status, ...warningsKey(warnings) }, null, 2)}\n`)
   } else process.stderr.write(prose)
   return EXIT.failure
 }
@@ -327,10 +343,14 @@ export async function run(ctx: CommandContext): Promise<number> {
   if (resolution.kind === 'legacy') return applyLegacy(change, ctx, root)
 
   // Step 2: fast validation. Errors block the gate outright.
-  const vctx = buildValidateContext(base)
+  // An unreadable archive is read as empty (`readValidateContext`): the gate
+  // can only err toward blocked, and the warning says why.
+  const { ctx: vctx, warning } = readValidateContext(base)
+  const warnings = warning === undefined ? [] : [warning]
+  if (!flags.json) for (const w of warnings) process.stderr.write(`Warning: ${w.message}\n`)
   const report = await validateChange(root, change, vctx, { strict: false, fast: true })
   if (!report.valid) {
-    printReport(report, ctx)
+    printReport(report, ctx, warnings)
     return EXIT.failure
   }
 
@@ -351,6 +371,7 @@ export async function run(ctx: CommandContext): Promise<number> {
           {
             change: change.id,
             type: change.schema,
+            ...warningsKey(warnings),
             gate: { state: 'blocked', reason: 'missing-artifacts', missingArtifacts: missing },
           },
           null,
@@ -367,7 +388,7 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   // Step 4: blocker gate. Self-heal against the archive first (§5.1 step 4c).
   const blockersPath = join(change.dir, BLOCKERS_FILE)
-  const archived = archiveMap(base)
+  const archived = warning === undefined ? archiveMap(base) : new Map<string, string>()
   const active = new Set(listChanges(base).map((c) => c.id))
   const original = readFileSync(blockersPath, 'utf8')
   const heal = syncBlockers(original, archived, active, { fix: true })
@@ -382,6 +403,7 @@ export async function run(ctx: CommandContext): Promise<number> {
           {
             change: change.id,
             type: change.schema,
+            ...warningsKey(warnings),
             gate: {
               state: 'blocked',
               reason: 'hard-blockers',
@@ -443,6 +465,7 @@ export async function run(ctx: CommandContext): Promise<number> {
           {
             change: change.id,
             type: change.schema,
+            ...warningsKey(warnings),
             gate: { state: 'soft-blocked', softBlockers: gate.soft, synced: heal.synced },
           },
           null,
@@ -468,7 +491,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     instr = relayApplyInstructions(await openspecApplyInstructions(root, change.id), change.id)
   } catch (err) {
     const msg = err instanceof OpenspecCallError ? err.message : (err as Error).message
-    return earlyExit(ctx, `cospec apply: ${msg}\n`, msg)
+    return earlyExit(ctx, `cospec apply: ${msg}\n`, msg, undefined, warnings)
   }
 
   // Step 6: merged clear-gate output.
@@ -478,6 +501,7 @@ export async function run(ctx: CommandContext): Promise<number> {
         {
           change: change.id,
           type: change.schema,
+          ...warningsKey(warnings),
           gate: { state: 'clear', hardBlockers: [], softAcknowledged, synced: heal.synced },
           apply: instr,
         },

@@ -38,7 +38,6 @@ import { respellRemedies } from '../core/remedies.ts'
 import {
   exitCode as reportExitCode,
   renderHuman,
-  renderJson,
   toFindings,
   toJson,
   type FindingsScope,
@@ -76,6 +75,7 @@ import {
   unreadDeltaExpectation,
 } from '../core/spec-paths.ts'
 import { resolveRootOrDocument, rootOutput } from '../core/upstream-keys.ts'
+import type { ArchiveWarning } from './status.ts'
 
 // --- Change loading (filesystem → LoadedChange) ---------------------------
 
@@ -838,15 +838,53 @@ export function archivedSlugsFor(dirName: string): string[] {
   return [stripped, dirName]
 }
 
-export function buildValidateContext(base: string): ValidateContext {
-  const archiveSlugs = new Set(
+/** Every slug `openspec/changes/archive/` could hold; throws when it cannot be read. */
+function archiveSlugsIn(base: string): Set<string> {
+  return new Set(
     existsSync(archiveDir(base))
       ? readdirSync(archiveDir(base), { withFileTypes: true })
           .filter((e) => e.isDirectory())
           .flatMap((e) => archivedSlugsFor(e.name))
       : [],
   )
-  return { archiveSlugs, activeSlugs: new Set(listChanges(base).map((c) => c.id)) }
+}
+
+/** The validate context as `archive` reads it: an unreadable archive refuses. */
+export function buildValidateContext(base: string): ValidateContext {
+  return {
+    archiveSlugs: archiveSlugsIn(base),
+    activeSlugs: new Set(listChanges(base).map((c) => c.id)),
+  }
+}
+
+/**
+ * The validate context `validate` and `apply` read (task 11.7). The binary's
+ * `validate` and `instructions apply` never read `openspec/changes/archive/`,
+ * so an unreadable one must not fail them: it is read as empty, which can only
+ * add an issue (a blocker or revert citation naming an archived change reads
+ * as dangling) or keep a blocker open, never clear one, and the warning names
+ * the directory. `archive` keeps `buildValidateContext`, which refuses.
+ */
+export function readValidateContext(base: string): {
+  ctx: ValidateContext
+  warning?: ArchiveWarning
+} {
+  const activeSlugs = new Set(listChanges(base).map((c) => c.id))
+  try {
+    return { ctx: { archiveSlugs: archiveSlugsIn(base), activeSlugs } }
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    if (typeof code !== 'string' || code === 'ENOENT') throw error
+    return {
+      ctx: { archiveSlugs: new Set(), activeSlugs },
+      warning: {
+        code: 'archive_unreadable',
+        message:
+          `could not read ${archiveDir(base)} (${code}); validation and blocker gates are computed ` +
+          'as if no change were archived',
+      },
+    }
+  }
 }
 
 /**
@@ -1141,6 +1179,7 @@ async function validateItem(
   name: string,
   typeFlag: string | undefined,
   opts: { strict: boolean; fast: boolean; json: boolean },
+  warnings: ArchiveWarning[],
 ): Promise<ItemReport[] | number> {
   const base = root.base
   const changeIds = listChanges(base).map((c) => c.id)
@@ -1183,7 +1222,9 @@ async function validateItem(
       return [{ id: name, kind: 'change', valid: false, issues, durationMs: Date.now() - start }]
     }
     const change = listChanges(base).find((c) => c.id === name) ?? { id: name, dir, schema: '' }
-    const report = await validateChange(root, change, buildValidateContext(base), opts)
+    const { ctx, warning } = readValidateContext(base)
+    if (warning !== undefined) warnings.push(warning)
+    const report = await validateChange(root, change, ctx, opts)
     return [{ ...report, durationMs: Date.now() - start }]
   }
   if (!existsSync(join(openspecDir(base), 'specs', ...name.split('/'), 'spec.md'))) {
@@ -1280,11 +1321,14 @@ function renderReport(
   opts: { json: boolean; strict: boolean; noColor: boolean; findings?: FindingsScope },
   root: ResolvedRoot,
   kinds: readonly ItemReport['kind'][],
+  warnings: readonly ArchiveWarning[] = [],
 ): string {
   const upstream = { root: rootOutput(root), kinds }
+  const extra = warnings.length === 0 ? {} : { warnings: [...warnings] }
   if (opts.findings !== undefined && opts.json)
-    return `${JSON.stringify(toFindings(toJson(items, upstream), opts.findings), null, 2)}\n`
-  if (opts.json) return renderJson(items, upstream)
+    return `${JSON.stringify({ ...toFindings(toJson(items, upstream), opts.findings), ...extra }, null, 2)}\n`
+  if (opts.json) return `${JSON.stringify({ ...toJson(items, upstream), ...extra }, null, 2)}\n`
+  for (const warning of warnings) process.stderr.write(`Warning: ${warning.message}\n`)
   return renderHuman(items, {
     strict: opts.strict,
     noColor: opts.noColor,
@@ -1365,25 +1409,29 @@ export async function run(ctx: CommandContext): Promise<number> {
   const items: ItemReport[] = []
   // The kinds in scope, each counted in `summary.byType` as the binary counts it.
   const kinds: ItemReport['kind'][] = []
+  const warnings: ArchiveWarning[] = []
   if (name !== undefined && !bulk) {
     // A bulk flag beside a name runs the bulk scope and ignores the name, as
     // the binary does; a name alone is resolved as the binary resolves it.
-    const resolved = await validateItem(root, name, flagValue(parsed, '--type'), {
-      strict,
-      fast,
-      json: flags.json,
-    })
+    const resolved = await validateItem(
+      root,
+      name,
+      flagValue(parsed, '--type'),
+      { strict, fast, json: flags.json },
+      warnings,
+    )
     if (typeof resolved === 'number') return resolved
     items.push(...resolved)
     kinds.push(...new Set(resolved.map((item) => item.kind)))
   } else {
     const changes = listChanges(base)
-    const ctxRules = buildValidateContext(base)
     const doChanges = wantChanges || wantAll || !bulk
     const doSpecs = wantSpecs || wantAll || !bulk
     if (doChanges) kinds.push('change')
     if (doSpecs) kinds.push('spec')
     if (doChanges) {
+      const { ctx: ctxRules, warning } = readValidateContext(base)
+      if (warning !== undefined) warnings.push(warning)
       const bound = concurrencyBound(flagValue(parsed, '--concurrency'))
       const reports = await mapPool(changes, bound, async (change) => {
         const start = Date.now()
@@ -1396,6 +1444,6 @@ export async function run(ctx: CommandContext): Promise<number> {
   }
 
   // The findings report's exit code is always the full report's.
-  process.stdout.write(renderReport(items, renderOpts, root, kinds))
+  process.stdout.write(renderReport(items, renderOpts, root, kinds, warnings))
   return reportExitCode(items, strict)
 }

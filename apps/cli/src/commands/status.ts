@@ -184,7 +184,9 @@ export function readChangeTasks(changeDir: string, warnings: ReadWarning[]): Par
  * `openspec/changes/archive/` for `status` or `list`, so an unreadable one
  * must not fail them: the gate is computed from an empty index — which can
  * only err toward `blocked`, never a false `clear` — and the warning says
- * why. `apply` and `archive` read it through `archiveMap` and still refuse.
+ * why. `validate` and `apply` read past it the same way
+ * (`readValidateContext`); `archive` reads it through `archiveMap` and still
+ * refuses.
  */
 export function readArchive(base: string): {
   archived: Map<string, string>
