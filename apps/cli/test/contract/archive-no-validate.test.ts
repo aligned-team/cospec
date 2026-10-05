@@ -66,13 +66,6 @@ async function withFixture<T>(
   }
 }
 
-/**
- * Fixtures `cospec validate --strict` refuses on this tree although the change
- * ships them as valid: `archive/new-spec-non-added` still fires on REMOVED
- * (verification 6.1, 6.2).
- */
-const COSPEC_REFUSES_TODAY = new Set(['new-added-removed', 'new-removed-only-marked'])
-
 describe('fixtures: each builder reads as both validators are told it does', () => {
   for (const fixture of R7_FIXTURES) {
     test(`${fixture.key}: openspec validate --strict`, () =>
@@ -83,16 +76,14 @@ describe('fixtures: each builder reads as both validators are told it does', () 
           out: expect.any(String),
         })
       }))
-    const ownRow = COSPEC_REFUSES_TODAY.has(fixture.key) ? test.failing : test
-    ownRow(`${fixture.key}: cospec validate --strict`, () =>
+    test(`${fixture.key}: cospec validate --strict`, () =>
       withFixture(fixture, async (root, name) => {
         const res = await cospec(['validate', name, '--strict'], { cwd: root })
         expect({ valid: res.exitCode === 0, out: res.stdout + res.stderr }).toEqual({
           valid: fixture.cospecValid,
           out: expect.any(String),
         })
-      }),
-    )
+      }))
   }
 })
 
@@ -623,21 +614,18 @@ async function ownRules(row: string, root: string, name: string): Promise<string
 }
 
 describe('6. a new capability refuses only MODIFIED and RENAMED', () => {
-  test.failing(
-    '6.1 ADDED + REMOVED: both validate, both archive byte-identical, the warning relayed',
-    async () => {
-      const { root, copy, name } = twin(R7_NEW_ADDED_REMOVED)
-      expect(await ownRules('6.1', root, name)).toEqual([])
-      expect((await binary(copy, ['validate', name, '--strict'])).exitCode).toBe(0)
-      const res = await own('6.1', root, ['archive', name])
-      const up = await binary(copy, ['archive', name, '-y'])
-      expect([res.exitCode, up.exitCode]).toEqual([0, 0])
-      expect(specsOf(root)).toEqual(specsOf(copy))
-      expect(res.stdout).toContain(
-        'Warning:  widgets - 1 REMOVED requirement(s) ignored for new spec (nothing to remove).',
-      )
-    },
-  )
+  test('6.1 ADDED + REMOVED: both validate, both archive byte-identical, the warning relayed', async () => {
+    const { root, copy, name } = twin(R7_NEW_ADDED_REMOVED)
+    expect(await ownRules('6.1', root, name)).toEqual([])
+    expect((await binary(copy, ['validate', name, '--strict'])).exitCode).toBe(0)
+    const res = await own('6.1', root, ['archive', name])
+    const up = await binary(copy, ['archive', name, '-y'])
+    expect([res.exitCode, up.exitCode]).toEqual([0, 0])
+    expect(specsOf(root)).toEqual(specsOf(copy))
+    expect(res.stdout).toContain(
+      'Warning:  widgets - 1 REMOVED requirement(s) ignored for new spec (nothing to remove).',
+    )
+  })
 
   test.failing(
     '6.2 REMOVED-only under the marker: validate passes, archive reports in sync',
@@ -652,24 +640,21 @@ describe('6. a new capability refuses only MODIFIED and RENAMED', () => {
     },
   )
 
-  test.failing(
-    '6.3 REMOVED-only without the marker: rebuilt-spec-invalid, refused before delegating',
-    async () => {
-      const { root, copy, name } = twin(R7_NEW_REMOVED_ONLY)
-      const rules = await ownRules('6.3', root, name)
-      expect(rules).toContain('archive/rebuilt-spec-invalid')
-      expect(rules).not.toContain('archive/new-spec-non-added')
-      const res = await own('6.3', root, ['archive', name])
-      expect(res.exitCode).toBe(1)
-      expect(res.stdout).toContain('archive/rebuilt-spec-invalid')
-      expect(archived(root, name)).toBe(false)
-      const up = await binary(copy, ['archive', name, '-y'])
-      expect({ exit: up.exitCode, archived: archived(copy, name) }).toEqual({
-        exit: 1,
-        archived: false,
-      })
-    },
-  )
+  test('6.3 REMOVED-only without the marker: rebuilt-spec-invalid, refused before delegating', async () => {
+    const { root, copy, name } = twin(R7_NEW_REMOVED_ONLY)
+    const rules = await ownRules('6.3', root, name)
+    expect(rules).toContain('archive/rebuilt-spec-invalid')
+    expect(rules).not.toContain('archive/new-spec-non-added')
+    const res = await own('6.3', root, ['archive', name])
+    expect(res.exitCode).toBe(1)
+    expect(res.stdout).toContain('archive/rebuilt-spec-invalid')
+    expect(archived(root, name)).toBe(false)
+    const up = await binary(copy, ['archive', name, '-y'])
+    expect({ exit: up.exitCode, archived: archived(copy, name) }).toEqual({
+      exit: 1,
+      archived: false,
+    })
+  })
 
   for (const fixture of [R7_NEW_MODIFIED, R7_NEW_RENAMED])
     test(`6.4 ${fixture.key}: archive/new-spec-non-added is still an ERROR`, async () => {

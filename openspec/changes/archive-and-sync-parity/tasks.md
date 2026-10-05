@@ -39,7 +39,7 @@ sandboxed HOME/XDG.
 
 ## 2. T2 — `archive/new-spec-non-added` (`apps/cli/src/core/rules/archive.ts`)
 
-- [ ] 2.1 Skip REMOVED in the `living === undefined` arm (design D9), with the
+- [x] 2.1 Skip REMOVED in the `living === undefined` arm (design D9), with the
       unit table 6.5. Make `archive/rebuilt-spec-invalid` refuse the
       REMOVED-only no-marker case on the skeleton spec once the precondition no
       longer suppresses it, extending the rebuilt check to the skeleton if it

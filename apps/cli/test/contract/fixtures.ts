@@ -632,10 +632,13 @@ The system SHALL cache a rendered widget.
   },
   {
     key: 'new-spec-non-added',
-    rule: 'archive/new-spec-non-added',
+    rule: 'archive/rebuilt-spec-invalid',
     expectAbort: true,
     build(root) {
-      // No living spec for this capability, yet the delta uses REMOVED.
+      // No living spec for this capability, yet the delta only REMOVEs. The
+      // binary ignores the REMOVED ("nothing to remove") and refuses the
+      // rebuilt spec, which has no requirement — so that is the rule that
+      // fires (archive-and-sync-parity design D9), not new-spec-non-added.
       writeChangeShell(root, 'new-spec-non-added', {
         'widgets/spec.md': `## REMOVED Requirements
 
