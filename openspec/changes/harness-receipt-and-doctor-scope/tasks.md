@@ -85,7 +85,7 @@
 
 ## 5. Agent docs
 
-- [ ] 5.1 `.agents/shared.md`: replace the "known defects on `main` … the
+- [x] 5.1 `.agents/shared.md`: replace the "known defects on `main` … the
       follow-on change `harness-receipt-and-doctor-scope` fixes both" sentence
       with the corrected behaviour, then `mise run agents:sync`. Verify
       `mise run agents:check` exits 0 and `CLAUDE.md`/`AGENTS.md` carry the same
