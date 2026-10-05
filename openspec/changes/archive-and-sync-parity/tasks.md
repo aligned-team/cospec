@@ -128,7 +128,11 @@ sandboxed HOME/XDG.
       the human-held DeepSeek key) on the branch head and on `main`, and record
       the scores they report on the row. Verify by the row carrying both runs'
       scores. Commit `docs(cli): record the archive-and-sync-parity eval run`
-- [ ] 8.3 Rebase onto `main` (`--force-with-lease`, no merge commit), rerun
+- [x] 8.3 Rebase onto `main` (`--force-with-lease`, no merge commit), rerun
       `bun install --frozen-lockfile` and `mise run check`, and confirm
       `git log main..HEAD` shows only this change's commits. The archive commit
-      follows this one
+      follows this one -> 2026-10-05: already rebased onto `80ee3855` (fetch
+      showed no new commits); `bun install --frozen-lockfile` reported no
+      changes; `mise run check` exit 0 (unit 2025, integration 193, contract
+      2678, bench 343, release-test 14, 0 fail); `git log main..HEAD` lists only
+      this change's 23 commits
