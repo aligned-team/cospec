@@ -194,3 +194,81 @@ export function relayedReason(output: string): string {
   if (last === undefined) return 'the wrapped OpenSpec archive gave no reason'
   return ERROR_LINE_RE.exec(last)?.[1] ?? last
 }
+
+/** The binary's per-operation totals (`writeTotals`). */
+export interface ArchiveTotals {
+  added: number
+  modified: number
+  removed: number
+  renamed: number
+}
+
+/** What the binary's human-mode archive output says it applied. */
+export interface ArchiveSummary {
+  /** Its `Totals:` line; absent when it printed none (no spec sync ran). */
+  totals?: ArchiveTotals
+  /**
+   * `true` after `Specs updated successfully.`, `false` after
+   * `Specs already in sync; no files changed.`, absent when it printed neither.
+   */
+  specsUpdated?: boolean
+  /** The spec-merge warnings its `--json` document would carry (`archive.warnings`). */
+  warnings: string[]
+}
+
+// Fixed lines only the binary writes (`dist/core/archive.js`,
+// `dist/core/specs-apply.js`, 1.13.1), matched whole.
+const TOTALS_RE = /^Totals: \+ (\d+), ~ (\d+), - (\d+), → (\d+)$/
+const UPDATED_LINE = 'Specs updated successfully.'
+const IN_SYNC_LINE = 'Specs already in sync; no files changed.'
+const SPEC_WARNING_RE = /^⚠️ {2}Warning: (.+)$/
+const RETIRING_RE = /^Retiring (.+): all requirements removed\.$/
+const RECOVERY_RE = /^ {3}(\S.*)$/
+
+/**
+ * Read the binary's own summary of a successful human-mode archive.
+ * `capabilities` are the change's delta capabilities, which name the one each
+ * `Retiring <path>` line retired; its JSON note is rebuilt from that line and
+ * the recovery line under it.
+ */
+export function readArchiveSummary(
+  stdout: string,
+  capabilities: readonly string[] = [],
+): ArchiveSummary {
+  const summary: ArchiveSummary = { warnings: [] }
+  const lines = stdout.split('\n').map((l) => l.replace(/\r$/, ''))
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!
+    const totals = TOTALS_RE.exec(line)
+    if (totals !== null) {
+      summary.totals = {
+        added: Number(totals[1]),
+        modified: Number(totals[2]),
+        removed: Number(totals[3]),
+        renamed: Number(totals[4]),
+      }
+      continue
+    }
+    if (line === UPDATED_LINE) summary.specsUpdated = true
+    else if (line === IN_SYNC_LINE) summary.specsUpdated = false
+    const warning = SPEC_WARNING_RE.exec(line)
+    if (warning !== null) {
+      summary.warnings.push(warning[1]!)
+      continue
+    }
+    const retiring = RETIRING_RE.exec(line)
+    const recovery = RECOVERY_RE.exec(lines[i + 1] ?? '')
+    if (retiring === null || recovery === null) continue
+    const path = retiring[1]!
+    const id = capabilities.find(
+      (c) =>
+        path === `openspec/specs/${c}/spec.md` || path.endsWith(`/openspec/specs/${c}/spec.md`),
+    )
+    if (id === undefined) continue
+    summary.warnings.push(
+      `${id} - capability retired; deleted the main spec (all requirements removed, declared by retire_capabilities) at ${path}. Its section(s) went with it: Purpose. ${recovery[1]!}`,
+    )
+    i++
+  }
+  return summary
+}

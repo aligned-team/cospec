@@ -180,8 +180,14 @@ exactly where `archive` does.
   `Specs already in sync; no files changed.`, read by one line reader in
   `core/archive-output.ts`. Each is fixed text only the binary writes, found by
   its exact shape, never by a pattern over free text.
-- `warnings` from `collectArchiveWarnings` (already relayed today), only when
-  non-empty.
+- `warnings` from the binary's own warning lines, only when non-empty. The
+  binary wins over the wording above (probed while implementing): its JSON
+  `warnings` holds its spec-merge warnings (each `⚠️  Warning:` line) and one
+  note per retired capability, never the proposal warnings or the
+  tasks-with-`--yes` line `collectArchiveWarnings` also relays. So the line
+  reader rebuilds exactly that list (a retirement's note from its `Retiring`
+  line and the recovery line under it), and cospec's own top-level `warnings`
+  key keeps `collectArchiveWarnings`' relay unchanged.
 
 `root` is `rootOutput(root)`. Under `--skip-specs` there is no `totals` key and
 `specsUpdated` is `false`, as in the binary. If a binary inside the accepted

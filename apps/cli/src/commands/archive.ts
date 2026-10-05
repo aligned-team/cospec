@@ -7,7 +7,15 @@
 // merge, relays the wrapped binary's non-blocking warnings, then fans blocker
 // check-offs out across sibling changes and prints the flywheel summary.
 
-import { existsSync, lstatSync, readdirSync, readFileSync, type Dirent } from 'node:fs'
+import { createHash } from 'node:crypto'
+import {
+  existsSync,
+  lstatSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  type Dirent,
+} from 'node:fs'
 import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
@@ -16,6 +24,7 @@ import {
   changeNameProblem,
   diagnostics,
   failureDocument,
+  readArchiveSummary,
   relayedReason,
   type ArchiveDiagnostic,
   type ArchiveRefusalReason,
@@ -48,6 +57,7 @@ import {
   type CapabilityDeltas,
 } from '../core/scenario-gate.ts'
 import { parseTasks } from '../core/tasks.ts'
+import { rootOutput } from '../core/upstream-keys.ts'
 import { computeVerificationVerdict, parseVerification } from '../core/verification.ts'
 import { archiveMap, atomicWrite, closest, computeGate } from './apply.ts'
 import { readValidateContext, validateChange } from './validate.ts'
@@ -209,6 +219,35 @@ function managedDirOutsideRoot(base: string): string | undefined {
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/** Why no spec sync ran (`specsSkipReason`). */
+type SpecsSkipReason = 'flag' | 'schema' | 'no-deltas'
+
+const SKIP_LINES: Record<SpecsSkipReason, (schema: string) => string> = {
+  flag: () => 'skipped (--skip-specs)',
+  schema: (schema) => `none (the ${schema} schema has no specs artifact)`,
+  'no-deltas': () => 'none (no delta specs, so no spec sync)',
+}
+
+/** sha256 of every file under the root's `openspec/specs/`, by path. */
+function specFingerprint(base: string): Map<string, string> {
+  const out = new Map<string, string>()
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const child = join(dir, entry.name)
+      if (entry.isDirectory()) walk(child)
+      else if (entry.isFile())
+        out.set(child, createHash('sha256').update(readFileSync(child)).digest('hex'))
+    }
+  }
+  const specs = join(openspecDir(base), 'specs')
+  if (existsSync(specs)) walk(specs)
+  return out
+}
+
+function sameFingerprint(a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>): boolean {
+  return a.size === b.size && [...a].every(([path, hash]) => b.get(path) === hash)
 }
 
 interface OpCounts {
@@ -382,7 +421,14 @@ export async function run(ctx: CommandContext): Promise<number> {
         ? TYPE_ARTIFACTS[change.schema as keyof typeof TYPE_ARTIFACTS].declared.includes('specs')
         : false
   const preOps = changeDeltaOps(change.dir)
-  const skipSpecs = userSkipSpecs || !declaresSpecs || preOps.length === 0
+  const skipReason: SpecsSkipReason | undefined = userSkipSpecs
+    ? 'flag'
+    : !declaresSpecs
+      ? 'schema'
+      : preOps.length === 0
+        ? 'no-deltas'
+        : undefined
+  const skipSpecs = skipReason !== undefined
 
   // Step 2: full validation (archive-precondition family unless skipping specs).
   // An archive directory that cannot be read is read as empty, with a
@@ -489,8 +535,10 @@ export async function run(ctx: CommandContext): Promise<number> {
     return refuse('slot-exists', diagnostics.targetExists(slot))
   }
 
-  // Step 7: snapshot.
+  // Step 7: snapshot — the archive's entries, and the main specs' bytes, which
+  // say whether the merge changed anything when the binary does not.
   const preArchiveDirs = new Set(basenames(archiveDir(base)))
+  const preSpecs = skipSpecs ? undefined : specFingerprint(base)
 
   // Step 7b: scenario-preservation gate (DESIGN §3.5 step 2) — before delegating
   // to `openspec archive`, specs-bearing changes only. Below openspec 1.8.0 the
@@ -597,13 +645,23 @@ export async function run(ctx: CommandContext): Promise<number> {
     }
   }
 
-  // Step 12: flywheel summary.
+  // Step 12: flywheel summary. What the binary applied comes from its own
+  // `Totals:` and in-sync lines; a binary in range that prints neither leaves
+  // `totals` out and `specsUpdated` to what the disk shows.
   const counts = countOps(preOps)
-  const specsLine = skipSpecs
-    ? 'skipped'
-    : preOps.length === 0
-      ? 'none'
-      : `+${counts.added} ~${counts.modified} -${counts.removed} →${counts.renamed} applied and verified`
+  const summary = readArchiveSummary(
+    res.stdout,
+    preOps.map((c) => c.capability),
+  )
+  const specsUpdated = skipSpecs
+    ? false
+    : (summary.specsUpdated ?? !sameFingerprint(preSpecs ?? new Map(), specFingerprint(base)))
+  const specsLine =
+    skipReason !== undefined
+      ? SKIP_LINES[skipReason](change.schema)
+      : summary.specsUpdated === false
+        ? 'already in sync'
+        : `+${counts.added} ~${counts.modified} -${counts.removed} →${counts.renamed} applied and verified`
 
   const warnings = collectArchiveWarnings(res.stdout)
 
@@ -616,9 +674,19 @@ export async function run(ctx: CommandContext): Promise<number> {
           archived: true,
           target,
           specs: skipSpecs ? 'skipped' : counts,
+          ...(skipReason === undefined ? {} : { specsSkipReason: skipReason }),
           retired,
           warnings,
           blockers: { checkedOff, nowUnblocked },
+          archive: {
+            change: change.id,
+            archivedAs: target,
+            path: realpathSync(join(archiveDir(base), target!)),
+            specsUpdated,
+            ...(skipSpecs || summary.totals === undefined ? {} : { totals: summary.totals }),
+            ...(summary.warnings.length > 0 ? { warnings: summary.warnings } : {}),
+          },
+          root: rootOutput(root),
         },
         null,
         2,

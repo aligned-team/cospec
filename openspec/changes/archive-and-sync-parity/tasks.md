@@ -66,7 +66,7 @@ sandboxed HOME/XDG.
       4.1. Run row 4.2 in the Linux container and record its observed output in
       the ledger. Commit
       `fix(cli): answer an unreadable archive directory as OpenSpec does`
-- [ ] 3.5 Add the Totals/in-sync line reader with unit table 7.3, the success
+- [x] 3.5 Add the Totals/in-sync line reader with unit table 7.3, the success
       document's `archive` and `root` (design D5), the `Specs:` skip reasons,
       `specsSkipReason` and the `already in sync` line (design D10). Flip rows
       2.1, 2.2, 7.1 and 7.2. Commit

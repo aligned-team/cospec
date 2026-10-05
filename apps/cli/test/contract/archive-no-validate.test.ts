@@ -286,7 +286,7 @@ describe('1. archive --no-validate skips only revalidation', () => {
 // --- 2. archive's JSON documents carry the binary's keys ------------------------
 
 describe("2. archive's JSON documents carry the binary's keys", () => {
-  test.failing('2.1 a MODIFIED archive: archive and root as the binary reports them', async () => {
+  test('2.1 a MODIFIED archive: archive and root as the binary reports them', async () => {
     const { root, copy, name } = twin(R7_MODIFIED)
     const res = await own('2.1', root, ['archive', name, '--json'])
     const up = await binary(copy, ['archive', name, '-y', '--json'])
@@ -298,38 +298,32 @@ describe("2. archive's JSON documents carry the binary's keys", () => {
     expect(checkNativeKeys(cs, native, COSPEC_KEYS)).toEqual([])
   })
 
-  test.failing(
-    '2.2 --skip-specs: no totals, specsUpdated false, as the binary reports',
-    async () => {
-      const { root, copy, name } = twin(R7_MODIFIED)
-      const res = await own('2.2', root, ['archive', name, '--skip-specs', '--json'])
-      const up = await binary(copy, ['archive', name, '-y', '--skip-specs', '--json'])
-      expect([res.exitCode, up.exitCode]).toEqual([0, 0])
-      const cs = document(res.stdout)
-      const upDoc = document(up.stdout)
-      expect((upDoc.archive as Record<string, unknown>).totals).toBeUndefined()
-      expect(compareDocuments(upDoc, cs, { paths: roots(copy, root) }).failures).toEqual([])
-      expect((cs.archive as Record<string, unknown>).totals).toBeUndefined()
-      expect(checkNativeKeys(cs, nativeSuccess(name, 'skipped'), COSPEC_KEYS)).toEqual([])
-    },
-  )
+  test('2.2 --skip-specs: no totals, specsUpdated false, as the binary reports', async () => {
+    const { root, copy, name } = twin(R7_MODIFIED)
+    const res = await own('2.2', root, ['archive', name, '--skip-specs', '--json'])
+    const up = await binary(copy, ['archive', name, '-y', '--skip-specs', '--json'])
+    expect([res.exitCode, up.exitCode]).toEqual([0, 0])
+    const cs = document(res.stdout)
+    const upDoc = document(up.stdout)
+    expect((upDoc.archive as Record<string, unknown>).totals).toBeUndefined()
+    expect(compareDocuments(upDoc, cs, { paths: roots(copy, root) }).failures).toEqual([])
+    expect((cs.archive as Record<string, unknown>).totals).toBeUndefined()
+    expect(checkNativeKeys(cs, nativeSuccess(name, 'skipped'), COSPEC_KEYS)).toEqual([])
+  })
 
-  test.failing(
-    '2.2 an already-synced change: zero totals, specsUpdated false, as the binary reports',
-    async () => {
-      const { root, copy, name } = twin(R7_SYNCED_MODIFIED)
-      const res = await own('2.2', root, ['archive', name, '--json'])
-      const up = await binary(copy, ['archive', name, '-y', '--json'])
-      expect([res.exitCode, up.exitCode]).toEqual([0, 0])
-      const upDoc = document(up.stdout)
-      expect((upDoc.archive as Record<string, unknown>).specsUpdated).toBe(false)
-      expect(
-        compareDocuments(upDoc, document(res.stdout), { paths: roots(copy, root) }).failures,
-      ).toEqual([])
-    },
-  )
+  test('2.2 an already-synced change: zero totals, specsUpdated false, as the binary reports', async () => {
+    const { root, copy, name } = twin(R7_SYNCED_MODIFIED)
+    const res = await own('2.2', root, ['archive', name, '--json'])
+    const up = await binary(copy, ['archive', name, '-y', '--json'])
+    expect([res.exitCode, up.exitCode]).toEqual([0, 0])
+    const upDoc = document(up.stdout)
+    expect((upDoc.archive as Record<string, unknown>).specsUpdated).toBe(false)
+    expect(
+      compareDocuments(upDoc, document(res.stdout), { paths: roots(copy, root) }).failures,
+    ).toEqual([])
+  })
 
-  test.failing("2.2 a merge that warns: archive.warnings is the binary's", async () => {
+  test("2.2 a merge that warns: archive.warnings is the binary's", async () => {
     const { root, copy, name } = twin(R7_NEW_ADDED_REMOVED)
     const res = await own('2.2', root, ['archive', name, '--json'])
     const up = await binary(copy, ['archive', name, '-y', '--json'])
@@ -343,22 +337,19 @@ describe("2. archive's JSON documents carry the binary's keys", () => {
     ).toEqual([])
   })
 
-  test.failing(
-    "2.2 a retirement: archive.warnings carries the binary's retirement note",
-    async () => {
-      const { root, copy, name } = twin(R7_RETIRED)
-      const res = await own('2.2', root, ['archive', name, '--json'])
-      const up = await binary(copy, ['archive', name, '-y', '--json'])
-      expect([res.exitCode, up.exitCode]).toEqual([0, 0])
-      const upDoc = document(up.stdout)
-      expect((upDoc.archive as Record<string, unknown>).warnings).toEqual([
-        expect.stringContaining('capability retired'),
-      ])
-      expect(
-        compareDocuments(upDoc, document(res.stdout), { paths: roots(copy, root) }).failures,
-      ).toEqual([])
-    },
-  )
+  test("2.2 a retirement: archive.warnings carries the binary's retirement note", async () => {
+    const { root, copy, name } = twin(R7_RETIRED)
+    const res = await own('2.2', root, ['archive', name, '--json'])
+    const up = await binary(copy, ['archive', name, '-y', '--json'])
+    expect([res.exitCode, up.exitCode]).toEqual([0, 0])
+    const upDoc = document(up.stdout)
+    expect((upDoc.archive as Record<string, unknown>).warnings).toEqual([
+      expect.stringContaining('capability retired'),
+    ])
+    expect(
+      compareDocuments(upDoc, document(res.stdout), { paths: roots(copy, root) }).failures,
+    ).toEqual([])
+  })
 
   /** One failure row: cospec's document beside the binary's for the same refusal. */
   async function failureRow(
@@ -634,18 +625,15 @@ describe('6. a new capability refuses only MODIFIED and RENAMED', () => {
     )
   })
 
-  test.failing(
-    '6.2 REMOVED-only under the marker: validate passes, archive reports in sync',
-    async () => {
-      const { root, copy, name } = twin(R7_NEW_REMOVED_ONLY_MARKED)
-      expect(await ownRules('6.2', root, name)).toEqual([])
-      const res = await own('6.2', root, ['archive', name])
-      const up = await binary(copy, ['archive', name, '-y'])
-      expect([res.exitCode, up.exitCode]).toEqual([0, 0])
-      expect(up.stdout).toContain('Specs already in sync; no files changed.')
-      expect(res.stdout).toContain('Specs:    already in sync')
-    },
-  )
+  test('6.2 REMOVED-only under the marker: validate passes, archive reports in sync', async () => {
+    const { root, copy, name } = twin(R7_NEW_REMOVED_ONLY_MARKED)
+    expect(await ownRules('6.2', root, name)).toEqual([])
+    const res = await own('6.2', root, ['archive', name])
+    const up = await binary(copy, ['archive', name, '-y'])
+    expect([res.exitCode, up.exitCode]).toEqual([0, 0])
+    expect(up.stdout).toContain('Specs already in sync; no files changed.')
+    expect(res.stdout).toContain('Specs:    already in sync')
+  })
 
   test('6.3 REMOVED-only without the marker: rebuilt-spec-invalid, refused before delegating', async () => {
     const { root, copy, name } = twin(R7_NEW_REMOVED_ONLY)
@@ -704,7 +692,7 @@ describe('7. the Specs line and early-synced archives', () => {
     },
   ]
   for (const c of cases)
-    test.failing(`7.1 ${c.label}: the Specs line and specsSkipReason name the reason`, async () => {
+    test(`7.1 ${c.label}: the Specs line and specsSkipReason name the reason`, async () => {
       const text = mkTempRepo({ git: true })
       const json = mkTempRepo({ git: true })
       const name = c.fixture.build(text)
@@ -719,19 +707,16 @@ describe('7. the Specs line and early-synced archives', () => {
     })
 
   for (const fixture of R7_SYNCED_SHAPES)
-    test.failing(
-      `7.2 ${fixture.key}: both archive, the binary in sync, Specs: already in sync`,
-      async () => {
-        const { root, copy, name } = twin(fixture)
-        const res = await own('7.2', root, ['archive', name])
-        const up = await binary(copy, ['archive', name, '-y'])
-        expect([res.exitCode, up.exitCode]).toEqual([0, 0])
-        expect(up.stdout).toContain('Specs already in sync; no files changed.')
-        expect(res.stdout).toContain('Specs:    already in sync\n')
-        expect(res.stderr).not.toContain('invariant breach')
-        expect(specsOf(root)).toEqual(specsOf(copy))
-      },
-    )
+    test(`7.2 ${fixture.key}: both archive, the binary in sync, Specs: already in sync`, async () => {
+      const { root, copy, name } = twin(fixture)
+      const res = await own('7.2', root, ['archive', name])
+      const up = await binary(copy, ['archive', name, '-y'])
+      expect([res.exitCode, up.exitCode]).toEqual([0, 0])
+      expect(up.stdout).toContain('Specs already in sync; no files changed.')
+      expect(res.stdout).toContain('Specs:    already in sync\n')
+      expect(res.stderr).not.toContain('invariant breach')
+      expect(specsOf(root)).toEqual(specsOf(copy))
+    })
 })
 
 // --- 8. relayed archive output is spelled cospec ---------------------------------
