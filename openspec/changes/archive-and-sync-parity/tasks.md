@@ -119,7 +119,7 @@ sandboxed HOME/XDG.
 
 ## 8. Close-out
 
-- [ ] 8.1 Record observed evidence after `->` on every verification row, confirm
+- [x] 8.1 Record observed evidence after `->` on every verification row, confirm
       row 14.1 (no `test.failing`/`test.todo` left in the two new test files)
       and row 14.2 (`mise run check` green), and run
       `mise run cospec -- validate archive-and-sync-parity --strict` clean.
