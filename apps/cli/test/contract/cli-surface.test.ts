@@ -1783,10 +1783,19 @@ describe('15. round-2 review rows', () => {
     const csAll = await oursJson(['status', '--all', '--json'], root)
     captureStatus('15.4 sweep json', csAll)
     expect(csAll.exitCode).toBe(upAll.exitCode)
+    expectOracle(upAll.json, csAll.json, STATUS_ALL_SPEC)
     const entry = (id: string) => rowsOf(csAll.json).find((e) => e.change === id)!
     for (const [id, { next }] of Object.entries(expected)) expect(entry(id).next).toBe(next)
+    // Nothing in the sweep names `proposal`, which the rfc schema has none of.
+    for (const id of Object.keys(expected))
+      expect({ id, steps: [entry(id).next, ...(entry(id).nextSteps as string[])] }).toEqual({
+        id,
+        steps: expect.not.arrayContaining([expect.stringContaining('proposal')]),
+      })
+    const upSweep = await upstream(['status', '--all'], root)
     const sweep = await ours(['status', '--all'], root)
     captureStatus('15.4 sweep text', sweep)
+    expect(sweep.exitCode).toBe(upSweep.exitCode)
     for (const id of ['r-empty', 'r-doc']) {
       const upText = await upstream(['status', '--change', id], root)
       for (const line of statusText(upText.stdout).body.filter((l) => l.length > 0))
@@ -1863,8 +1872,19 @@ describe('15. round-2 review rows', () => {
         expect(text.stderr).toContain('Warning: could not read')
         expect(text.stderr).toContain('openspec/changes/archive')
       }
+      // Each text form exits as its --json form does.
+      for (const { argv, run, text } of locked)
+        expect({ argv, text: text.exitCode }).toEqual({ argv, text: run.exitCode })
       // With the archive readable again the answers are the same, bar the warning.
-      for (const { argv, run } of locked) {
+      for (const { argv, run, text } of locked) {
+        const textArgv = argv.filter((a) => a !== '--json')
+        const textAgain = await ours(textArgv, root)
+        expect({ textArgv, exit: text.exitCode, stdout: text.stdout }).toEqual({
+          textArgv,
+          exit: textAgain.exitCode,
+          stdout: textAgain.stdout,
+        })
+        expect(textAgain.stderr).not.toContain('Warning: could not read')
         const again = await oursJson(argv, root)
         expect({ argv, exit: run.exitCode }).toEqual({ argv, exit: again.exitCode })
         const scrub = (doc: unknown) =>
@@ -2040,6 +2060,7 @@ describe('15. round-2 review rows', () => {
   test("15.7 validate --json outside a root is the binary's one no_openspec_root document", async () => {
     const dir = mkTempRepo({ git: true })
     const env = emptyMachineStateEnv()
+    const scoped: unknown[] = []
     for (const scope of ['--all', '--changes', '--specs']) {
       const up = await upstreamJson(['validate', scope, '--json'], dir)
       const cs = await oursJson(['validate', scope, '--json'], dir, dir, env)
@@ -2052,10 +2073,12 @@ describe('15. round-2 review rows', () => {
         target: 'openspec.root',
         fix: 'Run cospec init to create a root here.',
       })
+      scoped.push(cs.json)
     }
+    // Bare `validate --json` answers the same document the scoped forms do.
     const bare = await oursJson(['validate', '--json'], dir, dir, env)
     expect(bare.exitCode).toBe(1)
-    expect(firstStatus(bare.json).code).toBe('no_openspec_root')
+    for (const doc of scoped) expect(bare.json).toEqual(doc)
   })
 })
 

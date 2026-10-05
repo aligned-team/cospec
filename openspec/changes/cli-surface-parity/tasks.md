@@ -299,7 +299,7 @@ final commit.
       directory outside `specs/`) leaves the change's answer unchanged. Verify
       with row 16.12. Commit
       `fix(validate): read past a directory no artifact lives in`
-- [ ] 12.12 Rows 15.4, 15.6 and 15.7 assert what their ledger rows promise, and
+- [x] 12.12 Rows 15.4, 15.6 and 15.7 assert what their ledger rows promise, and
       row 15.3 records the test file's own counts. Verify with rows 15.3, 15.4,
       15.6 and 15.7. Commit
       `test(cli): hold rows 15.4, 15.6 and 15.7 to their ledger`
