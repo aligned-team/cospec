@@ -126,8 +126,11 @@ through `cospec`:
    `archive/scenario-preservation` — no `--force`), delegates to
    `openspec archive`, verifies the move on disk, and fans out blocker sync.
    Schemas with no specs artifact (`ci`, `chore`, `docs`, …) correctly produce
-   no spec-sync deltas here. **Timing is non-negotiable** — see "Branch, PR, and
-   merge flow" below.
+   no spec-sync deltas here. To land a change's main specs before it is done,
+   `mise run cospec -- sync-specs <slug>` runs archive's own merge on a scratch
+   copy and leaves the change active; its later archive is a no-op merge with
+   both hard gates still run. **Timing is non-negotiable** — see "Branch, PR,
+   and merge flow" below.
 
 Steps 1–2 also have `/cospec:new` + `/cospec:ff`/`/cospec:continue` as
 entry-point variants of `/cospec:propose`, and you can optionally dress-rehearse
@@ -240,17 +243,21 @@ fixture proving it reads the view it is registered under. A new rule or gate
 takes the verbatim view unless no commented line can ever trigger it.
 
 **JSON documents are additive** — a cospec `--json` document that mirrors an
-OpenSpec command (`status`, `list`, `validate`, and `archive --json` next)
-carries every key upstream's document does: computed natively where cospec owns
-the fact (`validate`'s report keys), otherwise from one delegated call per
+OpenSpec command (`status`, `list`, `validate`, `archive`) carries every key
+upstream's document does: computed natively where cospec owns the fact
+(`validate`'s report keys; `archive`'s `archive`/`root`, read from what the
+wrapped human-mode archive reported and what cospec verified on disk, and its
+failure documents, one per refusal), otherwise from one delegated call per
 invocation — never one per change — merged by identity through `mergeUpstream`
 (`apps/cli/src/core/upstream-keys.ts`). No cospec key is removed and no cospec
-value changed; every envelope keeps `version: 1`. The key oracle
-(`apps/cli/test/contract/support/key-oracle.ts`, rows in `cli-surface.test.ts`)
-is the gate: it fails on a missing upstream key, an upstream value reported
-differently, a changed pre-existing cospec key, and any collision outside its
-named list (`NAMED_COLLISIONS`: `version`, validate's `items[].type`), each
-entry stating why cospec's value wins.
+value changed; every envelope that carried `version: 1` keeps it. The key oracle
+(`apps/cli/test/contract/support/key-oracle.ts`, rows in `cli-surface.test.ts`
+and `archive-no-validate.test.ts`) is the gate: it fails on a missing upstream
+key, an upstream value reported differently, a changed pre-existing cospec key,
+and any collision outside its named list (`NAMED_COLLISIONS`: `version`,
+validate's `items[].type`, and archive's tasks-gate `status[].fix`, where
+cospec's `--force-incomplete` wins because `--yes`, a no-op under cospec, does
+not lift its stricter gate), each entry stating why cospec's value wins.
 
 **Wrapped-call discipline** — every call into the wrapped binary declares its
 expected exit codes, a stdout deny-list, and an observable post-condition. Trust

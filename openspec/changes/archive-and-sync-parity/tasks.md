@@ -111,7 +111,7 @@ sandboxed HOME/XDG.
 
 ## 7. Agent guidance
 
-- [ ] 7.1 Add `cospec sync-specs` to `.agents/shared.md`'s workflow section
+- [x] 7.1 Add `cospec sync-specs` to `.agents/shared.md`'s workflow section
       (step 6), and update its "JSON documents are additive" paragraph for
       archive and the new named collision (design D14), then
       `mise run agents:sync`. Verify with row 13.3. Commit
