@@ -351,6 +351,19 @@ export function sharedSkillsRootLines(
     )
 }
 
+/**
+ * The receipt's two closing hint lines.
+ */
+export function receiptHintLines(
+  _harnesses: readonly string[],
+  _table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): string[] {
+  return [
+    'Try: /cospec:propose "feat: <what you want to build>"',
+    'Lightweight change? /cospec:propose "ci: fix release workflow" — 3 short artifacts.',
+  ]
+}
+
 // --- command entrypoint -----------------------------------------------------
 
 export function run(ctx: CommandContext): number {
@@ -615,8 +628,7 @@ function printReceipt(target: string, d: ReceiptData): void {
   }
 
   lines.push('')
-  lines.push('Try: /cospec:propose "feat: <what you want to build>"')
-  lines.push('Lightweight change? /cospec:propose "ci: fix release workflow" — 3 short artifacts.')
+  lines.push(...receiptHintLines(d.harnesses))
 
   process.stdout.write(`${lines.join('\n')}\n`)
 }
