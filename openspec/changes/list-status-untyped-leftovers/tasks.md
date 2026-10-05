@@ -58,6 +58,6 @@
 
 ## 5. Close out
 
-- [ ] 5.1 `mise run check` green (lint, format, typecheck, unit, contract,
+- [x] 5.1 `mise run check` green (lint, format, typecheck, unit, contract,
       integration, pack smoke).
 - [ ] 5.2 the archive commit follows this one

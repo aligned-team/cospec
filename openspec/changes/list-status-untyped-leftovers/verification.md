@@ -25,4 +25,4 @@
 
 ## 5. Full gate
 
-- [ ] 5.1 @e2e (agent) `mise run check` -> green
+- [x] 5.1 @e2e (agent) `mise run check` -> green — observed: lint, format:check, typecheck, generate:check, vendor:openspec:check, cospec-validate-all, agents:check, openspec:schema:validate all pass; `apps/cli:test` 1954 pass/0 fail, `apps/cli:test:integration` 193 pass/0 fail, `apps/cli:test:contract` 2523 pass/0 fail, `packages/bench:test` 343 pass/0 fail, `e2e:release-test` 14 pass/0 fail; `Finished in 1403.68s`, exit 0
