@@ -416,7 +416,7 @@ describe("2. archive's JSON documents carry the binary's keys", () => {
     expect((cs.status as { code: string }[])[0]!.code).toBe('archive_change_name_invalid')
   })
 
-  test.failing('2.3 namespace folder', async () => {
+  test('2.3 namespace folder', async () => {
     const { root, copy, name } = twin(R7_NAMESPACE)
     const cs = await failureRow(
       '2.3',
@@ -587,7 +587,7 @@ describe('4. an unreadable archive directory is one answer', () => {
 // --- 5. a namespace folder ------------------------------------------------------
 
 describe('5. archive refuses a namespace folder as the binary does', () => {
-  test.failing("5.1 text and --json: the binary's message and fix, nothing moved", async () => {
+  test("5.1 text and --json: the binary's message and fix, nothing moved", async () => {
     const { root, copy, name } = twin(R7_NAMESPACE)
     const text = await own('5.1', root, ['archive', name])
     const res = await own('5.1', root, ['archive', name, '--json'])

@@ -23,6 +23,9 @@ import {
 import { parseBlockers, syncBlockers } from '../core/blockers.ts'
 import {
   archiveDir,
+  changesDir,
+  describeNestedChange,
+  findNestedChangesIn,
   isCospecType,
   listChangeDirs,
   listChanges,
@@ -295,6 +298,22 @@ export async function run(ctx: CommandContext): Promise<number> {
     )
   }
   type = change.schema
+
+  // A namespace folder is refused before anything reads it as a change, as
+  // the binary refuses it: archiving it would move the nested changes away
+  // unapplied.
+  const nested = findNestedChangesIn(changesDir(base), change.id)
+  if (nested !== undefined) {
+    const diag = diagnostics.namespaceFolder(
+      change.id,
+      describeNestedChange(nested),
+      nested.nested[0]!,
+      'archive',
+    )
+    process.stderr.write(`cospec archive: ${diag.message}\n${diag.fix!}\n`)
+    return refuse('namespace-folder', diag)
+  }
+
   const resolution = resolveSchema(base, change.schema)
 
   // Step 6 (decided early — needed for validation scope + snapshot): skip specs

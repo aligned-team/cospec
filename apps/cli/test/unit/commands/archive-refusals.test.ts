@@ -122,6 +122,13 @@ const CASES: Record<string, Case> = {
       return 'nope'
     },
   },
+  'namespace-folder': {
+    build(cwd) {
+      writeChange(cwd, 'mobile/refresh', 'ci', CI)
+      rmSync(join(cwd, 'openspec/changes/mobile/.openspec.yaml'), { force: true })
+      return 'mobile'
+    },
+  },
   validation: {
     build(cwd) {
       feat(cwd, 'c', `## ADDED Requirements\n\n${REQUIREMENT('')}`)

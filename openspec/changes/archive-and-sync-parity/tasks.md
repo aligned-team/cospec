@@ -58,7 +58,7 @@ sandboxed HOME/XDG.
       `jsonFailurePayload = { archive: null }`, and one document on every
       refusal path, with the unit enumeration 2.5. Flip rows 2.3–2.6. Commit
       `feat(cli): answer every archive refusal with one JSON document`
-- [ ] 3.3 Refuse a namespace folder before revalidation (design D8). Flip row
+- [x] 3.3 Refuse a namespace folder before revalidation (design D8). Flip row
       5.1. Commit
       `feat(cli): refuse a namespace folder as OpenSpec archive does`
 - [ ] 3.4 Add the path-confinement check and the guarded slot `lstat`, and route
