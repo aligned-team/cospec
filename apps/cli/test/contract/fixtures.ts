@@ -2,8 +2,16 @@
 // tree into a temp repo so the SAME change can be handed to both `cospec` and the
 // real `openspec` binary for parity/gotcha comparison (DESIGN §8.2).
 
-import { chmodSync, cpSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import {
+  chmodSync,
+  cpSync,
+  mkdirSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs'
+import { dirname, join, relative } from 'node:path'
 
 import { REPO_ROOT, writeFiles } from '../fixtures/support.ts'
 
@@ -1465,6 +1473,70 @@ export const R7_UNREAD_DELTAS: readonly R7Fixture[] = [
   unreadDelta('unread-flat-file', 'widgets.md'),
   unreadDelta('unread-note', 'widgets/notes.md'),
 ]
+
+/**
+ * `R7_MODIFIED` with an ABSOLUTE `openspec/specs/alias` link to the root's own
+ * `widgets/` and the delta under `alias/` only: the binary merges through the
+ * alias into `widgets/spec.md`.
+ */
+export const R7_ABSOLUTE_ALIAS = r7('absolute-alias', true, true, (root) => {
+  writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_TWO_REQS))
+  symlinkSync(join(root, 'openspec/specs/widgets'), join(root, 'openspec/specs/alias'))
+  writeV2Change(root, 'c1', {
+    'alias/spec.md': `## MODIFIED Requirements\n\n${RENDERING_MODIFIED_BLOCK}`,
+  })
+  return 'c1'
+})
+
+/**
+ * `R7_SYMLINKED_ALIAS` with the alias an ABSOLUTE link: the binary refuses
+ * after its claim, as it refuses the relative one.
+ */
+export const R7_ABSOLUTE_ALIAS_CONFLICT = r7('absolute-alias-conflict', true, true, (root) => {
+  R7_SYMLINKED_ALIAS.build(root)
+  const alias = join(root, 'openspec/specs/alias')
+  unlinkSync(alias)
+  symlinkSync(join(root, 'openspec/specs/widgets'), alias)
+  return 'c1'
+})
+
+/**
+ * The living `widgets` spec kept at `specs/<kept>`, with `specs/widgets/spec.md`
+ * a relative link to it.
+ */
+function linkedLivingSpec(root: string, kept: string, requirements: string): void {
+  const file = join(root, 'openspec/specs', kept)
+  mkdirSync(dirname(file), { recursive: true })
+  writeFileSync(file, livingSpec('widgets', requirements))
+  mkdirSync(join(root, 'openspec/specs/widgets'), { recursive: true })
+  symlinkSync(
+    relative(join(root, 'openspec/specs/widgets'), file),
+    join(root, 'openspec/specs/widgets/spec.md'),
+  )
+}
+
+/**
+ * `R7_RETIRED` with the living `spec.md` a link to `specs/shared/widgets.md`:
+ * the binary unlinks the link and prunes `widgets/`.
+ */
+export const R7_RETIRED_LINKED = r7('retired-linked', true, true, (root) => {
+  R7_RETIRED.build(root)
+  rmSync(join(root, 'openspec/specs/widgets'), { recursive: true })
+  linkedLivingSpec(root, 'shared/widgets.md', LIVING_WIDGET_REQ)
+  return 'c1'
+})
+
+/**
+ * `R7_MODIFIED` with the living `spec.md` a link to `widgets/living.md`: the
+ * binary writes through it. (A link leaving the capability directory is one
+ * the binary's `validate` refuses.)
+ */
+export const R7_MODIFIED_LINKED = r7('modified-linked', true, true, (root) => {
+  R7_MODIFIED.build(root)
+  rmSync(join(root, 'openspec/specs/widgets'), { recursive: true })
+  linkedLivingSpec(root, 'widgets/living.md', LIVING_TWO_REQS)
+  return 'c1'
+})
 
 /** `R7_MODIFIED` beside an unrelated living spec no one can read (mode 000). */
 export const R7_UNRELATED_UNREADABLE = r7('unrelated-unreadable', true, true, (root) => {

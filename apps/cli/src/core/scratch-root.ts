@@ -2,14 +2,20 @@
 // `archive <change> -y` runs on a copy of what that archive reads — the root's
 // `config.yaml`/`config.yml`, `schemas/`, `specs/`, the one change and an empty
 // `changes/archive/` — in a fresh directory under the OS temp directory, and
-// only the main-spec files that run created, changed or deleted are copied
-// back. The binary never runs in the real tree, so its archive claim
+// only the main-spec entries that run created, changed or deleted are copied
+// back. A link inside the copied paths is re-pointed at its target's scratch
+// copy, so an absolute link (or one that climbs out and back in) aliases the
+// scratch tree as it aliases the real one, never the real tree itself. A file
+// or directory this command cannot read is copied as an empty placeholder of
+// the same mode, so the binary meets the same refusal there it meets in the
+// real tree. The binary never runs in the real tree, so its archive claim
 // (`.openspec-archive.lock`), its move and anything a failed run leaves behind
 // exist only in the scratch tree, which is removed whatever happens.
 
 import { createHash } from 'node:crypto'
 import {
   chmodSync,
+  copyFileSync,
   cpSync,
   existsSync,
   lstatSync,
@@ -17,13 +23,16 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  readlinkSync,
   realpathSync,
   renameSync,
   rmdirSync,
   rmSync,
   statSync,
+  symlinkSync,
   unlinkSync,
   writeFileSync,
+  type Stats,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, sep } from 'node:path'
@@ -43,7 +52,7 @@ export type ScratchRunner = (scratchBase: string) => Promise<ScratchRun>
 export interface ScratchSync {
   /** Main-spec files the run created or changed, relative to the root. */
   written: string[]
-  /** Main-spec files the run deleted, relative to the root. */
+  /** Main-spec files and links the run deleted, relative to the root. */
   deleted: string[]
   run: ScratchRun
 }
@@ -66,13 +75,19 @@ export class ScratchRefusal extends Error {
 
 const CONFIG_FILES = ['config.yaml', 'config.yml'] as const
 
-/** The paths under `openspec/` the binary's archive reads, relative to it. */
-function copiedPaths(openspec: string, changeId: string): string[] {
+/** A path under `openspec/` the binary's archive reads: as spelled there, and its real path. */
+interface CopiedRoot {
+  rel: string
+  real: string
+}
+
+/** The paths under `openspec/` the binary's archive reads. */
+function copiedRoots(openspec: string, changeId: string): CopiedRoot[] {
   return [
     ...CONFIG_FILES.filter((f) => existsSync(join(openspec, f))),
     ...['schemas', 'specs'].filter((d) => existsSync(join(openspec, d))),
     join('changes', changeId),
-  ]
+  ].map((rel) => ({ rel, real: realpathSync(join(openspec, rel)) }))
 }
 
 function within(parent: string, child: string): boolean {
@@ -80,16 +95,39 @@ function within(parent: string, child: string): boolean {
   return rel === '' || (!rel.startsWith(`..${sep}`) && rel !== '..' && !isAbsolute(rel))
 }
 
+/** Whether `error` says this process may not read the entry (rather than that it is missing or broken). */
+function unreadable(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code
+  return code === 'EACCES' || code === 'EPERM'
+}
+
+/** A directory's entries, or `undefined` when this process may not list it. */
+function listable(dir: string): string[] | undefined {
+  try {
+    return readdirSync(dir)
+  } catch (error) {
+    if (unreadable(error)) return undefined
+    throw error
+  }
+}
+
+/** The copied root holding the real path `target` (the deepest, should two nest). */
+function rootHolding(roots: readonly CopiedRoot[], target: string): CopiedRoot | undefined {
+  return roots
+    .filter((r) => within(r.real, target))
+    .toSorted((a, b) => b.real.length - a.real.length)[0]
+}
+
 /**
  * The first symbolic link under the copied paths whose target leaves them, as
  * a path relative to the root — the binary would write through it into the
- * real tree. A link inside them is copied as a link, so the scratch run sees
- * the same aliasing the real tree has.
+ * real tree. A link inside them is copied re-pointed at the scratch copy of its
+ * target, so the scratch run sees the same aliasing the real tree has. Each
+ * copied path is walked at its real path, as it is copied.
  */
 export function symlinkEscape(base: string, changeId: string): string | undefined {
   const openspec = join(base, 'openspec')
-  const roots = copiedPaths(openspec, changeId).map((p) => join(openspec, p))
-  const realRoots = roots.map((p) => realpathSync(p))
+  const roots = copiedRoots(openspec, changeId)
   const leaves = (link: string): boolean => {
     let target: string
     try {
@@ -99,42 +137,82 @@ export function symlinkEscape(base: string, changeId: string): string | undefine
       if ((error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') return true
       throw error
     }
-    return !realRoots.some((r) => within(r, target))
+    return rootHolding(roots, target) === undefined
   }
-  const walk = (path: string): string | undefined => {
+  const walk = (path: string, shown: string): string | undefined => {
     const stat = lstatSync(path)
-    if (stat.isSymbolicLink()) return leaves(path) ? relative(base, path) : undefined
+    if (stat.isSymbolicLink()) return leaves(path) ? shown : undefined
     if (!stat.isDirectory()) return undefined
-    for (const name of readdirSync(path).toSorted()) {
-      const found = walk(join(path, name))
+    // An unlistable directory is copied empty: no link in it reaches the run.
+    for (const name of (listable(path) ?? []).toSorted()) {
+      const found = walk(join(path, name), `${shown}/${name}`)
       if (found !== undefined) return found
     }
     return undefined
   }
   for (const root of roots) {
-    const found = walk(root)
+    const found = walk(root.real, ['openspec', ...root.rel.split(sep)].join('/'))
     if (found !== undefined) return found
   }
   return undefined
 }
 
 /**
- * Every entry under `dir`, relative to it: a file by its sha256, a link by its
- * target (never followed), a directory by `dir`.
+ * Copy `src` (a real path) to `dst`: a link re-pointed by `scratchFor` at the
+ * scratch copy of its target, a directory this process cannot list as an
+ * empty one, a file it cannot read as an empty file of the same mode.
+ */
+function copyEntry(src: string, dst: string, scratchFor: (target: string) => string): void {
+  const stat = lstatSync(src)
+  if (stat.isSymbolicLink()) {
+    symlinkSync(relative(dirname(dst), scratchFor(realpathSync(src))), dst)
+  } else if (stat.isDirectory()) {
+    mkdirSync(dst)
+    for (const name of listable(src) ?? []) copyEntry(join(src, name), join(dst, name), scratchFor)
+  } else if (stat.isFile()) {
+    try {
+      copyFileSync(src, dst)
+    } catch (error) {
+      if (!unreadable(error)) throw error
+      writeFileSync(dst, '')
+      chmodSync(dst, stat.mode & 0o7777)
+    }
+  } else cpSync(src, dst)
+}
+
+/** Copy every root into `scratchOpenspec`, each read at its real path. */
+function copyRoots(roots: readonly CopiedRoot[], scratchOpenspec: string): void {
+  const scratchFor = (target: string): string => {
+    const root = rootHolding(roots, target)
+    // `symlinkEscape` has refused every link that leaves the roots.
+    if (root === undefined)
+      throw new Error(`sync-specs: ${target} left the copied paths after they were checked`)
+    return join(scratchOpenspec, root.rel, relative(root.real, target))
+  }
+  for (const root of roots) copyEntry(root.real, join(scratchOpenspec, root.rel), scratchFor)
+}
+
+/**
+ * Every entry under `dir`, relative to it: a file by its sha256, a link by the
+ * target it holds (never followed), a directory by `dir`. A file this process
+ * cannot read is fingerprinted by its metadata, a directory it cannot list as
+ * `unlisted` with its metadata, unwalked.
  */
 function fingerprint(dir: string): Map<string, string> {
   const out = new Map<string, string>()
   const walk = (abs: string): void => {
-    for (const name of readdirSync(abs)) {
+    for (const name of listable(abs) ?? []) {
       const child = join(abs, name)
       const rel = relative(dir, child)
       const stat = lstatSync(child)
-      if (stat.isSymbolicLink()) out.set(rel, `link:${readlinkTarget(child)}`)
+      if (stat.isSymbolicLink()) out.set(rel, `link:${readlinkSync(child)}`)
       else if (stat.isDirectory()) {
-        out.set(rel, 'dir')
-        walk(child)
-      } else if (stat.isFile())
-        out.set(rel, `file:${createHash('sha256').update(readFileSync(child)).digest('hex')}`)
+        if (listable(child) === undefined) out.set(rel, `unlisted:${stat.mode}:${stat.mtimeMs}`)
+        else {
+          out.set(rel, 'dir')
+          walk(child)
+        }
+      } else if (stat.isFile()) out.set(rel, fileFingerprint(child, stat))
       else out.set(rel, `other:${stat.mode}`)
     }
   }
@@ -142,16 +220,12 @@ function fingerprint(dir: string): Map<string, string> {
   return out
 }
 
-function readlinkTarget(path: string): string {
-  return realpathSafe(path) ?? '<dangling>'
-}
-
-function realpathSafe(path: string): string | undefined {
+function fileFingerprint(path: string, stat: Stats): string {
   try {
-    return realpathSync(path)
+    return `file:${createHash('sha256').update(readFileSync(path)).digest('hex')}`
   } catch (error) {
-    if ((error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') return undefined
-    throw error
+    if (!unreadable(error)) throw error
+    return `unreadable:${stat.mode}:${stat.size}:${stat.mtimeMs}`
   }
 }
 
@@ -214,35 +288,44 @@ export async function syncThroughScratch(
       `${escape} is a symbolic link that leads outside the tree sync-specs copies; the wrapped archive would write through it into the real tree`,
     )
 
+  const realBefore = fingerprint(realSpecs)
   const scratch = mkdtempSync(join(tmpdir(), 'cospec-sync-'))
   try {
     const scratchOpenspec = join(scratch, 'openspec')
     mkdirSync(join(scratchOpenspec, 'changes/archive'), { recursive: true })
-    for (const rel of copiedPaths(openspec, changeId))
-      cpSync(join(openspec, rel), join(scratchOpenspec, rel), {
-        recursive: true,
-        verbatimSymlinks: true,
-      })
+    copyRoots(copiedRoots(openspec, changeId), scratchOpenspec)
     mkdirSync(join(scratchOpenspec, 'specs'), { recursive: true })
     const scratchSpecs = join(scratchOpenspec, 'specs')
 
-    const realBefore = fingerprint(realSpecs)
     const scratchBefore = fingerprint(scratchSpecs)
     const run = await runner(scratch)
     if (!scratchArchived(scratchOpenspec, changeId, run))
       throw new ScratchRefusal('scratch-run', relayedReason(`${run.stdout}\n${run.stderr}`), run)
 
+    // Every entry kind is diffed: a link the run removed (a retired capability
+    // whose `spec.md` is a link) is deleted like a file, and one it replaced
+    // with a file is written. The binary never creates or re-points a link,
+    // nor touches what it cannot read, so such a change is a breach, thrown
+    // before anything is copied back.
     const scratchAfter = fingerprint(scratchSpecs)
-    const written = [...scratchAfter]
-      .filter(([rel, kind]) => kind.startsWith('file:') && scratchBefore.get(rel) !== kind)
+    const written: string[] = []
+    for (const [rel, kind] of scratchAfter) {
+      const before = scratchBefore.get(rel)
+      if (before === kind || (kind === 'dir' && before === undefined)) continue
+      if (!kind.startsWith('file:'))
+        throw new Error(
+          `sync-specs: the scratch run left ${asRoot(rel)} as ${describeKind(kind)}${before === undefined ? '' : ` where it was ${describeKind(before)}`}; nothing was written`,
+        )
+      written.push(rel)
+    }
+    written.sort()
+    const gone = [...scratchBefore].filter(([rel]) => !scratchAfter.has(rel))
+    const deleted = gone
+      .filter(([, kind]) => kind !== 'dir')
       .map(([rel]) => rel)
       .toSorted()
-    const deleted = [...scratchBefore]
-      .filter(([rel, kind]) => kind.startsWith('file:') && !scratchAfter.has(rel))
-      .map(([rel]) => rel)
-      .toSorted()
-    const pruned = [...scratchBefore]
-      .filter(([rel, kind]) => kind === 'dir' && !scratchAfter.has(rel))
+    const pruned = gone
+      .filter(([, kind]) => kind === 'dir')
       .map(([rel]) => rel)
       // Deepest first, so a parent is empty when its turn comes.
       .toSorted((a, b) => b.length - a.length)
@@ -259,7 +342,7 @@ export async function syncThroughScratch(
     for (const rel of deleted) unlinkSync(join(realSpecs, rel))
     for (const rel of pruned) {
       const dir = join(realSpecs, rel)
-      if (existsSync(dir) && readdirSync(dir).length === 0) rmdirSync(dir)
+      if (existsSync(dir) && listable(dir)?.length === 0) rmdirSync(dir)
     }
 
     // Step 5: what landed is exactly what the run wrote, and nothing else moved.
@@ -278,4 +361,14 @@ export async function syncThroughScratch(
   } finally {
     rmSync(scratch, { recursive: true, force: true })
   }
+}
+
+/** A fingerprint kind, in words. */
+function describeKind(kind: string): string {
+  if (kind.startsWith('file:')) return 'a file'
+  if (kind.startsWith('link:')) return `a link to ${kind.slice('link:'.length)}`
+  if (kind === 'dir') return 'a directory'
+  if (kind.startsWith('unreadable:')) return 'an unreadable file'
+  if (kind.startsWith('unlisted:')) return 'an unlistable directory'
+  return 'a special file'
 }

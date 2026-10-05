@@ -317,17 +317,23 @@ Steps follow the spec. Mechanics:
 
 - **Scratch layout.** `mkdtempSync(join(tmpdir(), 'cospec-sync-'))` holds
   `openspec/`. Into it go `config.yaml`/`config.yml` (if present), `schemas/`,
-  `specs/` and `changes/<id>/`, plus an empty `changes/archive/`. The copy uses
-  `cpSync` with `verbatimSymlinks`. Copying the real archive would let today's
-  slot collide (a cospec archive of a same-named change earlier today), and
-  sibling changes are never read by the binary's archive. That is why this
-  departs from the roadmap's "copy of the root's `openspec/` tree": the binary
-  reads only this subset, and anything more is a way to fail that `archive`
-  wouldn't.
+  `specs/` and `changes/<id>/`, plus an empty `changes/archive/`. Each copied
+  path is read at its real path (a symlinked `specs/` is copied, not linked). A
+  file this process cannot read is copied as an empty file of the same mode, and
+  a directory it cannot list as an empty directory, so the binary meets the
+  refusal it meets in the real tree only if it reads one — and the binary's
+  archive reads no main spec but a delta's target, so an unrelated unreadable
+  spec fails neither. Copying the real archive would let today's slot collide (a
+  cospec archive of a same-named change earlier today), and sibling changes are
+  never read by the binary's archive. That is why this departs from the
+  roadmap's "copy of the root's `openspec/` tree": the binary reads only this
+  subset, and anything more is a way to fail that `archive` wouldn't.
 - **Symlinks.** Before copying, every symlink under the copied paths is
   resolved. One that leads outside the copied subtree is refused, naming it,
   because the binary would write through it into the real tree. One inside is
-  copied as a link, so the binary sees the same aliasing (fact 7).
+  copied as a relative link to the scratch copy of its target, so the binary
+  sees the same aliasing (fact 7) — and an absolute link, or one that climbs out
+  of the root and back in, aliases the scratch tree, never the real one.
 - **Spawn.** `spawnOpenspec(['archive', id, '-y'], scratchRoot)` with no store
   args (fact 6). Wrapped-call discipline: expected exits `{0, 1}`. The stdout
   deny-list is the existing archive one (`Aborted`, `Archive cancelled`). The
@@ -336,16 +342,21 @@ Steps follow the spec. Mechanics:
   proves the run resolved the scratch root and completed, and the real
   `openspec/changes/<id>` is still present, which proves it did not run in the
   real tree.
-- **Copy-back.** Before the spawn, a fingerprint (sha256 per file plus the file
-  list) is taken of the real `openspec/specs/`. After a verified run, the
-  scratch `specs/` is diffed against the scratch's pre-run copy to get the
-  written and deleted sets. Then the real `specs/` is fingerprinted again. If it
-  changed while the binary ran, the command refuses and writes nothing.
-  Otherwise each written file is applied with `atomicWrite` (mode preserved for
-  existing files), each deleted file is unlinked, and directories the binary
-  pruned are removed up to `specs/`. Step 5 re-reads each written file and
-  compares bytes, checks each deleted path is absent, and re-fingerprints
-  everything else.
+- **Copy-back.** Before the copy, a fingerprint (sha256 per file, the target
+  each link holds, metadata for an entry this process cannot read, plus the
+  entry list) is taken of the real `openspec/specs/`. After a verified run, the
+  scratch `specs/` is diffed against the scratch's pre-run copy, every entry
+  kind included, to get the written and deleted sets: a file created or changed
+  (a link the binary replaced with a file too) is written, and a file or link it
+  removed (a retired capability's linked `spec.md`) is deleted. The binary never
+  creates or re-points a link nor touches what it cannot read, so such a change
+  is an invariant breach thrown before any write. Then the real `specs/` is
+  fingerprinted again. If it changed while the binary ran, the command refuses
+  and writes nothing. Otherwise each written file is applied with `atomicWrite`
+  (mode preserved for existing files), each deleted file or link is unlinked,
+  and directories the binary pruned are removed up to `specs/`. Step 5 re-reads
+  each written file and compares bytes, checks each deleted path is absent, and
+  re-fingerprints everything else.
 - **Cleanup.** `rmSync(scratch, {recursive: true, force: true})` in a `finally`.
   The claim file can only ever exist inside the scratch tree, which is removed
   with it. The real tree is written only in the copy-back, after a verified run.

@@ -69,6 +69,15 @@ the change with both hard gates run and no further change to `openspec/specs/`.
   copy of each
 - **THEN** the two `openspec/specs/` trees are byte-identical on every fixture
 
+#### Scenario: A linked living spec is synced as the binary archives it
+
+- **WHEN** a capability's living `spec.md` is a relative symbolic link to a file
+  elsewhere under `openspec/specs/`, and `cospec sync-specs` runs on a change
+  that MODIFIES it and on one that retires it under `retire_capabilities: true`
+- **THEN** each `openspec/specs/` tree — files, directories and links — is the
+  one `openspec archive -y` leaves on a copy: the MODIFIED written through the
+  link, the retired capability's link deleted and its directory pruned
+
 #### Scenario: Archiving a synced change is a no-op merge
 
 - **WHEN** `cospec archive` runs on each fixture after `cospec sync-specs`, with
@@ -95,11 +104,16 @@ with no `--store`, so its nearest-root walk resolves the scratch directory. The
 command SHALL confirm that resolution from the run's own observable output
 before copying anything back. A symbolic link in the copied subtree that leads
 outside it SHALL be refused before the run, naming the link, because the binary
-would write through it into the real tree. The scratch directory SHALL be
-removed when the command ends, whether the run succeeded or failed. A failed run
-SHALL leave the real tree byte-identical, with no `.openspec-archive.lock` and
-no other new file anywhere under it, and SHALL relay the binary's reason with
-its remedies spelled `cospec`.
+would write through it into the real tree. A symbolic link inside it, absolute
+or relative, SHALL be copied pointing at the scratch copy of its target, so the
+run never writes through a link into the real tree. A file or directory under
+the copied subtree that the command cannot read SHALL NOT fail the command: the
+binary's archive reads no main spec but a delta's target, so an unrelated
+unreadable spec SHALL leave the sync answering as `cospec archive` answers. The
+scratch directory SHALL be removed when the command ends, whether the run
+succeeded or failed. A failed run SHALL leave the real tree byte-identical, with
+no `.openspec-archive.lock` and no other new file anywhere under it, and SHALL
+relay the binary's reason with its remedies spelled `cospec`.
 
 #### Scenario: A refused scratch run leaves nothing behind
 
@@ -110,6 +124,16 @@ its remedies spelled `cospec`.
   `.openspec-archive.lock` exists anywhere under the real root, every file under
   the real `openspec/` is byte-identical to before, and the scratch directory is
   gone
+
+#### Scenario: An absolute alias inside the specs never writes the real tree
+
+- **WHEN** `openspec/specs/alias` is an absolute symbolic link to the root's own
+  `openspec/specs/widgets/`, and `cospec sync-specs` runs on a change whose
+  deltas the binary refuses after its claim (`alias` and `widgets` resolving to
+  one spec), and on one whose only delta MODIFIES `alias`
+- **THEN** the refused run exits 1 with the binary's reason and leaves every
+  file under the real `openspec/` byte-identical, and the other exits 0 with
+  `openspec/specs/` byte-identical to `openspec archive -y`'s on a copy
 
 #### Scenario: Sibling changes and the archive are never copied
 

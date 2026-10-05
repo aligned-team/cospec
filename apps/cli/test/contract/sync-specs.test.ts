@@ -11,6 +11,7 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
+  readlinkSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs'
@@ -20,12 +21,16 @@ import { formatLocalDate } from '../../src/commands/archive.ts'
 import { respellRemedies } from '../../src/core/remedies.ts'
 import { cleanupAll, cospec, hashTree, mkTempRepo, writeFiles } from '../fixtures/support.ts'
 import {
+  R7_ABSOLUTE_ALIAS,
+  R7_ABSOLUTE_ALIAS_CONFLICT,
   R7_ADDED_NEW,
   R7_CHORE,
   R7_DELTA_INVALID,
   R7_MODIFIED,
+  R7_MODIFIED_LINKED,
   R7_NAMESPACE,
   R7_NO_DELTA,
+  R7_RETIRED_LINKED,
   R7_SCENARIO_DROP,
   R7_SHORT_PURPOSE,
   R7_SKIP_SPECS,
@@ -33,6 +38,8 @@ import {
   R7_SYMLINKED_ALIAS,
   R7_SYNC_SHAPES,
   R7_UNREAD_DELTAS,
+  R7_UNRELATED_UNREADABLE,
+  restoreUnrelatedMode,
   writeLivingSpec,
   type R7Fixture,
 } from './fixtures.ts'
@@ -116,6 +123,20 @@ function specDirs(root: string): string[] {
         out.push(relative(root, join(dir, e.name)))
         walk(join(dir, e.name))
       }
+  }
+  if (existsSync(join(root, 'openspec/specs'))) walk(join(root, 'openspec/specs'))
+  return out.toSorted()
+}
+
+/** Every symbolic link under `openspec/specs/`, with the target it holds. */
+function linksOf(root: string): [string, string][] {
+  const out: [string, string][] = []
+  const walk = (dir: string): void => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const child = join(dir, e.name)
+      if (e.isSymbolicLink()) out.push([relative(root, child), readlinkSync(child)])
+      else if (e.isDirectory()) walk(child)
+    }
   }
   if (existsSync(join(root, 'openspec/specs'))) walk(join(root, 'openspec/specs'))
   return out.toSorted()
@@ -222,6 +243,22 @@ describe("9. sync-specs writes archive's main specs and leaves the change active
     expect(res.stdout).not.toContain('Synced:')
     expect(openspecOf(root)).toEqual(once)
   })
+
+  // A file-level spec.md link, and an absolute in-tree capability alias: the
+  // binary writes through, deletes or re-points exactly as it would in place.
+  for (const fixture of [R7_RETIRED_LINKED, R7_MODIFIED_LINKED, R7_ABSOLUTE_ALIAS])
+    test(`9.5 ${fixture.key}: the main specs are the binary's archive's, byte for byte`, async () => {
+      const { root, copy, name } = twin(fixture)
+      const tmp = privateTmp()
+      const res = await own('9.5', root, ['sync-specs', name, '--json'], tmp)
+      const up = await binary(copy, ['archive', name, '-y'])
+      expect([res.exitCode, up.exitCode]).toEqual([0, 0])
+      expect(document(res.stdout)).toMatchObject({ synced: true })
+      expect(specsOf(root)).toEqual(specsOf(copy))
+      expect(specDirs(root)).toEqual(specDirs(copy))
+      expect(linksOf(root)).toEqual(linksOf(copy).map(([l, t]) => [l, t.replace(copy, root)]))
+      expect(readdirSync(tmp)).toEqual([])
+    })
 })
 
 // --- 10. sync-specs refuses what archive refuses -----------------------------------
@@ -336,6 +373,54 @@ describe('11. a failed scratch run leaves nothing in the real tree', () => {
     expect(res.stderr).toContain('openspec/specs/ext')
     expect(res.stderr).toContain('leads outside')
     expect(openspecOf(root)).toEqual(before)
+  })
+
+  test('11.4 an absolute in-tree alias the binary refuses: the real tree is byte-unchanged', async () => {
+    const { root, copy, name } = twin(R7_ABSOLUTE_ALIAS_CONFLICT)
+    const up = await binary(copy, ['archive', name, '-y'])
+    expect(up.exitCode).toBe(1)
+    const before = openspecOf(root)
+    const tmp = privateTmp()
+    const text = await own('11.4', root, ['sync-specs', name], tmp)
+    const json = await own('11.4', root, ['sync-specs', name, '--json'], tmp)
+    expect([text.exitCode, json.exitCode]).toEqual([1, 1])
+    expect(text.stderr).toContain('resolve to the same target')
+    const status = (document(json.stdout).status as { code: string; message: string }[])[0]!
+    expect(status.message).toContain('resolve to the same target')
+    expect(locks(root)).toEqual([])
+    expect(openspecOf(root)).toEqual(before)
+    expect(readdirSync(tmp)).toEqual([])
+  })
+
+  test('11.6 an unrelated unreadable living spec: answered as archive answers, one --json document', async () => {
+    const { root, copy, name } = twin(R7_UNRELATED_UNREADABLE)
+    const upstream = mkTempRepo({ git: true })
+    R7_UNRELATED_UNREADABLE.build(upstream)
+    try {
+      const tmp = privateTmp()
+      const res = await own('11.6', root, ['sync-specs', name, '--json'], tmp)
+      const archived = await own('11.6', copy, ['archive', name, '--json'])
+      const up = await binary(upstream, ['archive', name, '-y'])
+      const doc = document(res.stdout)
+      const archiveDoc = document(archived.stdout)
+      expect(readdirSync(tmp)).toEqual([])
+      expect(res.exitCode).toBe(archived.exitCode)
+      for (const dir of [root, copy, upstream]) restoreUnrelatedMode(dir)
+      if (archived.exitCode === 0) {
+        // Where cospec's revalidation reads the tree as the binary's archive
+        // does (Linux), the sync is the binary's merge.
+        expect(up.exitCode).toBe(0)
+        expect(doc).toMatchObject({ change: name, synced: true })
+        expect(specsOf(root)).toEqual(specsOf(upstream))
+      } else {
+        // macOS's realpath fails on a mode-000 file, and with it the
+        // revalidation: both commands refuse the same way, writing nothing.
+        expect(doc).toMatchObject({ change: name, synced: false, reason: archiveDoc.reason })
+        expect(specsOf(root)).toEqual(specsOf(copy))
+      }
+    } finally {
+      for (const dir of [root, copy, upstream]) restoreUnrelatedMode(dir)
+    }
   })
 })
 

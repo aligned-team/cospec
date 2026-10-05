@@ -56,13 +56,19 @@ provable by running archive's own merge. `core/scratch-root.ts` copies what the
 binary's archive reads — `config.yaml`/`config.yml`, `schemas/`, `specs/`, the
 one change and an empty `changes/archive/` (sibling changes and the real archive
 are never read by it, and copying the archive could collide on today's slot) —
-into `mkdtemp` under the OS temp directory, links copied as links. A link that
-leads outside the copied paths is refused first, because the binary would write
-through it into the real tree. The binary is spawned there with no `--store`: a
-directory holding `specs/` and `changes/` is a real root and wins the
-nearest-root walk. The run must leave the scratch change archived (exit 0, no
-abort, one archive entry with its `.openspec.yaml`); then the scratch `specs/`
-is diffed against its pre-run copy, the real `specs/` is re-fingerprinted (a
+into `mkdtemp` under the OS temp directory, each read at its real path. A link
+inside the copied paths is copied re-pointed at the scratch copy of its target,
+so an absolute in-tree alias aliases the scratch tree, never the real one; a
+link that leads outside them is refused first, because the binary would write
+through it into the real tree. A file this process cannot read is copied as an
+empty file of the same mode (a directory it cannot list, empty), so an unrelated
+unreadable spec — which the binary's archive never reads — fails nothing. The
+binary is spawned there with no `--store`: a directory holding `specs/` and
+`changes/` is a real root and wins the nearest-root walk. The run must leave the
+scratch change archived (exit 0, no abort, one archive entry with its
+`.openspec.yaml`); then the scratch `specs/` is diffed against its pre-run copy,
+every entry kind included (a linked `spec.md` the run removed is deleted, one it
+replaced with a file is written), the real `specs/` is re-fingerprinted (a
 change while the binary ran refuses, writing nothing), and only the written,
 deleted and pruned paths are applied and re-read. The scratch directory is
 removed in a `finally`, so the binary's `.openspec-archive.lock` — or any
