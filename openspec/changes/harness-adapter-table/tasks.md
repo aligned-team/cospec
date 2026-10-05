@@ -365,6 +365,7 @@ Exclusive files: `docs/harness-integration.md`.
       lines and doctor's `legacy-layout` warning cover only codex's
       `.codex/skills`; then `mise run agents:sync`. Verify verification 5.4 ->
       each text matches `isHarnessDocument`, `owningRow` and `legacy-skills.ts`;
+      `CLAUDE.md`/`AGENTS.md` re-synced; `apps/docs/` unchanged
 
 ## 10. Review fixes: remove the self-written Non-Goal mislabeling
 
@@ -378,4 +379,38 @@ Exclusive files: `docs/harness-integration.md`.
       -> design.md no longer calls either one deliberate; both docs name them as
       known defects fixed by `harness-receipt-and-doctor-scope`; `CLAUDE.md`/
       `AGENTS.md` re-synced; `git diff --exit-code main -- apps/docs/` exits 0
-      `CLAUDE.md`/`AGENTS.md` re-synced; `apps/docs/` unchanged
+
+## 11. Final rebase onto the v0.8.3 release and merge-time byte identity
+
+- [x] 11.1 Rebase the branch onto `main` a second time (`--force-with-lease`),
+      now `main` at the v0.8.3 release tag plus the `reset-yes-pipe-flake` fix
+      (`67f20c5d`, 2 commits past the task 5.1 rebase point, touching
+      `apps/cli/src/commands/config.ts` but neither this change's exclusive
+      files nor `apps/cli/src/harness/`); `bun install     --frozen-lockfile`.
+      Re-take byte identity on the rebased tree: the render golden (task 1.1's
+      baseline, commit `70b32f9e`) and wiring golden (task 5.2's baseline,
+      commit `2f5a9de7`) diffs against HEAD, and a sandboxed
+      `cospec init --harness all --yes` file-tree digest and normalized stdout
+      digest from a built binary on this branch against one built from `main`
+      `67f20c5d`, now with both trees on the same package version (`0.8.3`) so
+      the comparison is byte-identical including the version stamp, not modulo
+      it. Verify verification 5.6 (the modulo-stamp caveat dropped) -> rebased
+      onto `main` `67f20c5d` with 0 conflicts
+      (`git diff --exit-code     origin/main -- apps/cli/src/commands/` is
+      non-empty, as expected — it is this change's payload; the two advancing
+      commits since `d25c5c06`, the v0.8.3 release and `reset-yes-pipe-flake`,
+      touch `config.ts` (unrelated) but neither this change's exclusive files
+      (`init.ts`/`update.ts`/ `doctor.ts`) nor `apps/cli/src/harness/`);
+      `bun install     --frozen-lockfile` reports no changes (421 installs, 464
+      packages);
+      `git diff --exit-code 70b32f9e HEAD -- apps/cli/test/unit/__golden__/harness-render/`
+      and
+      `git diff --exit-code 2f5a9de7 HEAD --     apps/cli/test/integration/__golden__/harness-wiring/`
+      both exit 0; a sandboxed (private `HOME`/`XDG_*`/`CODEX_HOME`/`ZDOTDIR`,
+      `EDITOR=true`) `mise run build` + `cospec init --harness all --yes` in a
+      fresh `git init` repo, run once from this branch's binary and once from
+      `main` `67f20c5d`'s binary: both produce 127 files whose
+      `find | sort | xargs sha256sum | sort     | sha256sum` file-tree digest is
+      `sha256:599c19a0…0902`, and whose normalized (`<TMP>`-substituted) stdout
+      digest is `sha256:aa758dca…eb62` — identical between the two trees, with
+      no stamp caveat left (both at `cospec@0.8.3`); pushed `--force-with-lease`
