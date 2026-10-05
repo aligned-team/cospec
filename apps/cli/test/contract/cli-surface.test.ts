@@ -2002,29 +2002,26 @@ describe('15. round-2 review rows', () => {
     })
   })
 
-  test.failing(
-    "15.7 validate --json outside a root is the binary's one no_openspec_root document",
-    async () => {
-      const dir = mkTempRepo({ git: true })
-      const env = emptyMachineStateEnv()
-      for (const scope of ['--all', '--changes', '--specs']) {
-        const up = await upstreamJson(['validate', scope, '--json'], dir)
-        const cs = await oursJson(['validate', scope, '--json'], dir, dir, env)
-        expect({ scope, exit: cs.exitCode }).toEqual({ scope, exit: up.exitCode })
-        expect(cs.json).toEqual(JSON.parse(respellRemedies(up.stdout)))
-        expect(firstStatus(cs.json)).toEqual({
-          severity: 'error',
-          code: 'no_openspec_root',
-          message: 'No OpenSpec root found from the current directory.',
-          target: 'openspec.root',
-          fix: 'Run cospec init to create a root here.',
-        })
-      }
-      const bare = await oursJson(['validate', '--json'], dir, dir, env)
-      expect(bare.exitCode).toBe(1)
-      expect(firstStatus(bare.json).code).toBe('no_openspec_root')
-    },
-  )
+  test("15.7 validate --json outside a root is the binary's one no_openspec_root document", async () => {
+    const dir = mkTempRepo({ git: true })
+    const env = emptyMachineStateEnv()
+    for (const scope of ['--all', '--changes', '--specs']) {
+      const up = await upstreamJson(['validate', scope, '--json'], dir)
+      const cs = await oursJson(['validate', scope, '--json'], dir, dir, env)
+      expect({ scope, exit: cs.exitCode }).toEqual({ scope, exit: up.exitCode })
+      expect(cs.json).toEqual(JSON.parse(respellRemedies(up.stdout)))
+      expect(firstStatus(cs.json)).toEqual({
+        severity: 'error',
+        code: 'no_openspec_root',
+        message: 'No OpenSpec root found from the current directory.',
+        target: 'openspec.root',
+        fix: 'Run cospec init to create a root here.',
+      })
+    }
+    const bare = await oursJson(['validate', '--json'], dir, dir, env)
+    expect(bare.exitCode).toBe(1)
+    expect(firstStatus(bare.json).code).toBe('no_openspec_root')
+  })
 })
 
 // --- 5.6 no status output names a bare openspec command ------------------------------------

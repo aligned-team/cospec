@@ -215,7 +215,7 @@ final commit.
       `apply` answering from an empty archive with an `archive_unreadable`
       warning. Verify with row 15.6. Commit
       `fix(cli): validate and apply past an unreadable archive`
-- [ ] 11.8 `validate --json` with no `openspec/` directory prints one
+- [x] 11.8 `validate --json` with no `openspec/` directory prints one
       `no_openspec_root` document. Verify with row 15.7. Commit
       `fix(validate): answer --json outside a root with one document`
 - [ ] 11.9 `list --specs` relays the binary's failure document under `--json`

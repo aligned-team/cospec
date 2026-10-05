@@ -43,7 +43,7 @@ import {
   type FindingsScope,
   type ItemReport,
 } from '../core/report.ts'
-import type { ResolvedRoot } from '../core/root.ts'
+import { type ResolvedRoot, RootSelectionError, rootSelectionDocument } from '../core/root.ts'
 import { runChangeRules, specsRules } from '../core/rules/index.ts'
 import type { Issue, IssueLevel } from '../core/rules/issue.ts'
 import {
@@ -1338,6 +1338,17 @@ function renderReport(
 
 // --- command entrypoint -----------------------------------------------------
 
+/**
+ * The binary's refusal for a bulk `validate --json` with no root
+ * (`root-selection.js`, `allowImplicitRoot: false`), its fix spelled cospec.
+ */
+const NO_OPENSPEC_ROOT = new RootSelectionError({
+  code: 'no_openspec_root',
+  message: 'No OpenSpec root found from the current directory.',
+  target: 'openspec.root',
+  fix: respellRemedies('Run openspec init to create a root here.'),
+})
+
 export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
   const parsed = ctx.parsed!
@@ -1384,6 +1395,10 @@ export async function run(ctx: CommandContext): Promise<number> {
   const base = root.base
 
   if (!existsSync(openspecDir(base))) {
+    if (flags.json) {
+      process.stdout.write(rootSelectionDocument(NO_OPENSPEC_ROOT))
+      return 1
+    }
     process.stderr.write(`cospec: no openspec/ directory at ${base} — run 'cospec init' first\n`)
     return 1
   }
