@@ -167,9 +167,13 @@ archived, not just once per workflow invocation.
 ## Coexisting with OpenSpec's own files
 
 If a project previously ran plain `openspec init`, cospec's `init` detects
-OpenSpec's own generated files (frontmatter `author: openspec`) and lists them
-with a warning rather than silently leaving two competing command sets in place;
-pass `--remove-opsx` (or confirm interactively) to clean them up. Files you
-authored yourself are never touched. See
+OpenSpec's own generated files (frontmatter `author: openspec`, or, for
+OpenCode's description-only command files, the adapter's exact path plus a
+literal command reference in the body) and lists them with a warning rather than
+silently leaving two competing command sets in place; pass `--remove-opsx` (or
+confirm interactively) to clean them up. Files you authored yourself are never
+touched, and the scan never descends into a nested git worktree checkout (such
+as one under `.claude/worktrees/`) — that copy of the project is cleaned up by
+its own `cospec init --remove-opsx`. See
 [How it relates to OpenSpec](/concepts/how-it-relates-to-openspec) for the
 version pin this wrapping relies on.

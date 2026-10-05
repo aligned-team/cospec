@@ -26,5 +26,5 @@
 
 ## 5. Docs and gate
 
-- [ ] 5.1 @manual (agent) `docs/harness-integration.md` and `apps/docs`'s harness-setup/commands pages state the nested-worktree boundary and the OpenCode detection shape -> pages read and confirmed
+- [x] 5.1 @manual (agent) `docs/harness-integration.md` and `apps/docs`'s harness-setup/commands pages state the nested-worktree boundary and the OpenCode detection shape, `.agents/shared.md` updated and `mise run agents:sync` run -> pages read and confirmed; `mise run docs:build` exits 0; `mise run agents:check` reports "All shared blocks are in sync."; `mise run generate:check` reports "no drift"
 - [ ] 5.2 @manual (agent) `mise run check` exits 0 -> <pass/fail counts per suite>

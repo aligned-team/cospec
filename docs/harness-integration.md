@@ -52,33 +52,37 @@ row's skills or legacy skills root, each markdown row's files with its command
 extension under its commands dir, and the shared `.agents/skills` root. It has
 to be wider, because upstream's own command paths
 (`.claude/commands/opsx/<id>.md`, `.opencode/commands/opsx-<id>.md`) are not
-cospec's, and provenance, never the path, decides what is a leftover. A file
-belongs to the row with a skills, legacy skills, commands or rules dir that is
-the longest prefix of it. A dir two rows share goes to the row whose primary
-root also prefixes the file, then to the earlier row, and a file under none of
-them goes to the first row whose primary root prefixes it. The table can express
-shapes no production row uses yet — a split commands root,
-`.prompt`/`.prompt.md`/ `.toml` extensions, the TOML serializer, the `@`
-invocation prefix, home-scoped skills — each exercised by a unit test through a
-fixture row passed via `RenderOptions.adapters` (or `GenerateOptions.adapters`,
-or the `table` parameter of doctor's checks and init's receipt and leftover
-helpers). The legacy-skills migration sits outside the table: `update` moving
-cospec's skills out of a legacy root, its receipt and `update --check` lines,
-and doctor's `legacy-layout` warning all come from the constants in
-`harness/legacy-skills.ts` and cover only Codex's `.codex/skills`. Another row's
-`legacySkillsDirs` is detected and scanned, but never migrated or reported,
-until `tool-matrix` drives the migration from the table. Deliberate Claude-only
-behaviour sits outside the table too: `init` merges cospec's permission into
-`.claude/settings.json` only when `claude` is selected, and selects `claude` on
-a fresh repo where nothing is detected. The receipt's closing hint is not
-Claude-only: `receiptHintLines` passes its two lines through the first selected
-row's body dialect and invocation prefix with `transformBody`, so it reads
-`/cospec:propose` for Claude, `/cospec-propose` for OpenCode, and
-`$cospec-propose (Codex) or /cospec-propose (other agents)` for Codex and the
-shared `.agents` skills. The first selected row is the first id of an explicit
-`--harness` list as typed, otherwise the first selected row in table order; with
-`--harness none` the hint keeps `/cospec:propose`. A TOML command carries no
-frontmatter, so, like the Codex rules file, it is tracked in
+cospec's, and provenance, never the path, decides what is a leftover. The walk
+still stops at one boundary: a directory holding its own `.git` entry (a
+`git worktree add` checkout, where `.git` is a file, or an embedded clone, where
+it is a directory) is never descended into, so a nested worktree such as
+`.claude/worktrees/<name>/` is scanned by its own `cospec init --remove-opsx`,
+never swept up by the outer one. A file belongs to the row with a skills, legacy
+skills, commands or rules dir that is the longest prefix of it. A dir two rows
+share goes to the row whose primary root also prefixes the file, then to the
+earlier row, and a file under none of them goes to the first row whose primary
+root prefixes it. The table can express shapes no production row uses yet — a
+split commands root, `.prompt`/`.prompt.md`/ `.toml` extensions, the TOML
+serializer, the `@` invocation prefix, home-scoped skills — each exercised by a
+unit test through a fixture row passed via `RenderOptions.adapters` (or
+`GenerateOptions.adapters`, or the `table` parameter of doctor's checks and
+init's receipt and leftover helpers). The legacy-skills migration sits outside
+the table: `update` moving cospec's skills out of a legacy root, its receipt and
+`update --check` lines, and doctor's `legacy-layout` warning all come from the
+constants in `harness/legacy-skills.ts` and cover only Codex's `.codex/skills`.
+Another row's `legacySkillsDirs` is detected and scanned, but never migrated or
+reported, until `tool-matrix` drives the migration from the table. Deliberate
+Claude-only behaviour sits outside the table too: `init` merges cospec's
+permission into `.claude/settings.json` only when `claude` is selected, and
+selects `claude` on a fresh repo where nothing is detected. The receipt's
+closing hint is not Claude-only: `receiptHintLines` passes its two lines through
+the first selected row's body dialect and invocation prefix with
+`transformBody`, so it reads `/cospec:propose` for Claude, `/cospec-propose` for
+OpenCode, and `$cospec-propose (Codex) or /cospec-propose (other agents)` for
+Codex and the shared `.agents` skills. The first selected row is the first id of
+an explicit `--harness` list as typed, otherwise the first selected row in table
+order; with `--harness none` the hint keeps `/cospec:propose`. A TOML command
+carries no frontmatter, so, like the Codex rules file, it is tracked in
 `openspec/.cospec-manifest.json`. A home-scoped file renders, but `generate()`
 refuses to write it with an internal error until the home root is a managed
 root.
@@ -210,21 +214,30 @@ merged entry. If it does not parse, cospec prints the snippet and skips.
 ## Coexistence with OpenSpec's own files
 
 - **opsx files** — OpenSpec's own generated files (frontmatter
-  `generatedBy: "1.3.x"` + `author: openspec`) are never generated and never
-  required. Pre-existing ones are listed with a warning at init and removed with
+  `generatedBy: "1.3.x"` + `author: openspec` for a skill; `name: "OPSX: …"` for
+  most tools' command files) are never generated and never required.
+  Pre-existing ones are listed with a warning at init and removed with
   `--remove-opsx` (or interactive confirm; `--yes` = yes). User-authored files
-  (no `generatedBy`) are never touched. `doctor` warns while both command sets
-  coexist, because two propose commands confuse agents. The leftover scan also
-  walks `.agents/skills/` (`OPSX_SHARED_SKILL_ROOT`) whichever rows the table
-  carries: openspec 1.8.0+ writes its Codex (and 1.7.0's `agents`, 1.10's `zed`,
-  1.11's `antigravity`) skills to that shared root instead of under a
-  per-harness `.<tool>/` dir, so an install done with any of those targets
-  leaves no trace under the three `.<harness>` dirs cospec otherwise scans.
-  cospec now writes its own skills to that same root (targets `codex` and
-  `agents`), so the two toolchains' output coexists there: cospec owns only its
-  `cospec-*` dirs, and `--remove-opsx` still removes only openspec-authored
-  files. The superset walk of `.agents/` and the subset walk of
-  `.agents/skills/` are deduped, so a leftover is reported once.
+  (no `generatedBy`, no `name: "OPSX: …"`) are never touched. `doctor` warns
+  while both command sets coexist, because two propose commands confuse agents.
+  OpenCode's command adapter writes frontmatter with only `description` — no
+  `name`, no `metadata` — so neither marker above ever matches its own
+  `.opencode/commands/opsx-<id>.md` leftovers. Those are detected instead by the
+  combination of the adapter's exact path, a frontmatter with no key but
+  `description`, and a literal, backtick-quoted `` `openspec list --json` ``
+  command reference every opsx workflow body carries — never on path or
+  frontmatter shape alone, so a hand-written file at the same path with its own
+  prose body is left untouched. The leftover scan also walks `.agents/skills/`
+  (`OPSX_SHARED_SKILL_ROOT`) whichever rows the table carries: openspec 1.8.0+
+  writes its Codex (and 1.7.0's `agents`, 1.10's `zed`, 1.11's `antigravity`)
+  skills to that shared root instead of under a per-harness `.<tool>/` dir, so
+  an install done with any of those targets leaves no trace under the three
+  `.<harness>` dirs cospec otherwise scans. cospec now writes its own skills to
+  that same root (targets `codex` and `agents`), so the two toolchains' output
+  coexists there: cospec owns only its `cospec-*` dirs, and `--remove-opsx`
+  still removes only openspec-authored files. The superset walk of `.agents/`
+  and the subset walk of `.agents/skills/` are deduped, so a leftover is
+  reported once.
 - **Shared `.agents/skills` root** — the `codex` and `agents` rows both declare
   `skillsDir: '.agents'` and `bodyDialect: 'shared'`, so they render
   byte-identical skill files there (same paths, same bodies, same

@@ -43,10 +43,10 @@
 
 ## 4. Docs
 
-- [ ] 4.1 Update `docs/harness-integration.md`'s leftover-scan section with the
+- [x] 4.1 Update `docs/harness-integration.md`'s leftover-scan section with the
       nested-worktree boundary and the OpenCode detection shape -- verify by
       reading the rendered page section
-- [ ] 4.2 Update `apps/docs`' harness-setup and commands pages wherever they
+- [x] 4.2 Update `apps/docs`' harness-setup and commands pages wherever they
       describe `--remove-opsx` / doctor's `opsx-leftover` finding -- verify
       `mise run docs:build` succeeds
 

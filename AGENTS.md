@@ -292,9 +292,12 @@ and invocation prefix, and doctor's `stale-harness`, `mixed-versions` and
 (`<skills-root>/<skill>/SKILL.md` and the table's command paths), never a user's
 own markdown or a nested worktree's copy; init's opsx leftover scan, which
 doctor's `opsx-leftover` check shares, stays wider because upstream's files sit
-at their own paths. Edit the canon or the table, run `mise run generate`; never
-hand-edit generated output. The `generate:check` drift gate blocks the commit
-otherwise.
+at their own paths, but its walk stops at the same nested-worktree boundary (a
+directory with its own `.git` entry), and it detects a real OpenCode opsx
+command leftover by its description-only frontmatter shape plus a literal body
+marker, since OpenCode's own adapter carries neither of the other tools'
+markers. Edit the canon or the table, run `mise run generate`; never hand-edit
+generated output. The `generate:check` drift gate blocks the commit otherwise.
 
 **Error handling** — never silently swallow errors. Catch only specific expected
 cases; let unexpected exceptions propagate. Fixes must change observable
