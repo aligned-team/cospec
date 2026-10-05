@@ -228,7 +228,11 @@ function computeRow(
   // do — the project's `config.yaml` `schema:`, else `spec-driven` — so a
   // custom-named artifact under that fallback schema is never reported as no
   // artifacts at all, and the row's type/completeness agree with `status`.
-  const bare = !existsSync(join(dir, '.openspec.yaml'))
+  // A namespace folder is not a change at all (`state` below reports it as
+  // such), so it never takes this fallback — `status --all` discards its
+  // `gradedChange`-resolved schema the same way, reporting it as a failure
+  // entry with no `type` field rather than the project's default schema.
+  const bare = finding === undefined && !existsSync(join(dir, '.openspec.yaml'))
   const schema = bare ? defaultProjectSchema(base) : (readOpenspecYaml(dir)?.schema ?? '')
   const blockersPath = join(dir, 'blocking-changes.md')
   const gate = existsSync(blockersPath)

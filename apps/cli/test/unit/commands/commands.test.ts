@@ -746,6 +746,26 @@ describe('list', () => {
     expect(row?.state).toBe('building')
   })
 
+  test("a namespace folder never takes config.yaml's schema fallback (it is not a change)", async () => {
+    const cwd = repo('feat')
+    // A namespace folder (design D2): no `.openspec.yaml` of its own, only a
+    // nested child one level down. It also has no `.openspec.yaml`, so the
+    // bare-schema fallback must not mistake it for an ordinary bare change —
+    // it is reported as `not-a-change`, never typed by config.yaml's default.
+    const nested = join(cwd, 'openspec', 'changes', 'mobile', 'refresh-token')
+    mkdirSync(nested, { recursive: true })
+    writeFileSync(join(nested, '.openspec.yaml'), 'schema: feat\ncreated: 2026-09-01\n')
+
+    const r = await runCmd(listRun, ctx(cwd, [], { json: true, command: 'list' }))
+    expect(r.code).toBe(0)
+    const parsed = JSON.parse(r.out) as {
+      changes: { change: string; type: string; state: string }[]
+    }
+    const row = parsed.changes.find((c) => c.change === 'mobile')
+    expect(row?.state).toBe('not-a-change')
+    expect(row?.type).toBe('(none)')
+  })
+
   test('a declared schema that fails to load warns on the row instead of silently reporting empty', async () => {
     const cwd = repo()
     mkdirSync(join(cwd, 'openspec', 'schemas', 'broken'), { recursive: true })
