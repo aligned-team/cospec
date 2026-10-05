@@ -664,6 +664,45 @@ describe('list', () => {
     expect(r.out).toContain('archive-ready')
   })
 
+  test("an untyped schema's own declared artifact decides its state, not cospec's fixed filenames", async () => {
+    const cwd = repo()
+    // A schema cospec doesn't type, whose artifact lives under a filename
+    // none of cospec's own (proposal.md, tasks.md, ...) match.
+    mkdirSync(join(cwd, 'openspec', 'schemas', 'rfc', 'templates'), { recursive: true })
+    writeFileSync(
+      join(cwd, 'openspec', 'schemas', 'rfc', 'schema.yaml'),
+      [
+        'name: rfc',
+        'version: 1',
+        'description: An rfc-style schema',
+        'artifacts:',
+        '  - id: doc',
+        '    generates: doc.md',
+        '    description: The RFC document',
+        '    template: doc.md',
+        '    instruction: Write the RFC.',
+        '    requires: []',
+        'apply:',
+        '  requires: [doc]',
+        '  tracks: null',
+        '',
+      ].join('\n'),
+    )
+    writeFileSync(join(cwd, 'openspec', 'schemas', 'rfc', 'templates', 'doc.md'), '# Doc\n')
+    writeChange(cwd, 'r-doc', 'rfc', { 'doc.md': '# RFC\n' })
+    writeChange(cwd, 'r-empty', 'rfc')
+
+    const r = await runCmd(listRun, ctx(cwd, [], { json: true, command: 'list' }))
+    expect(r.code).toBe(0)
+    const parsed = JSON.parse(r.out) as { changes: { change: string; state: string }[] }
+    expect(parsed.changes.find((c) => c.change === 'r-doc')?.state).toBe('building')
+    expect(parsed.changes.find((c) => c.change === 'r-empty')?.state).toBe('in-progress')
+
+    const text = await runCmd(listRun, ctx(cwd, [], { command: 'list' }))
+    expect(text.out).toMatch(/r-doc\s+rfc/)
+    expect(text.out).not.toMatch(/r-doc\s+rfc\s+clear\s+no artifacts yet/)
+  })
+
   test('--blocked filters to gated changes', async () => {
     const cwd = repo()
     writeChange(cwd, 'clear-one', 'ci', {

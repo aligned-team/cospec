@@ -2768,6 +2768,87 @@ describe('17. round-4 review rows', () => {
   })
 })
 
+// --- 18. list-status-untyped-leftovers ------------------------------------------------------
+
+describe('18. list-status-untyped-leftovers', () => {
+  test("18.1 list reports building for an untyped schema's own declared artifact", async () => {
+    const root = cospecRoot()
+    rfcSchema(root)
+    writeChange(root, 'r-doc', { 'doc.md': '# RFC\n' }, 'rfc')
+    writeChange(root, 'r-empty', {}, 'rfc')
+    const up = await upstreamJson(['list', '--json'], root)
+    const cs = await oursJson(['list', '--json'], root)
+    expect(cs.exitCode).toBe(up.exitCode)
+    const row = rowsOf(cs.json).find((r) => r.change === 'r-doc')!
+    expect(row.state).toBe('building')
+    expect(row.archiveReady).toBe(false)
+    const empty = rowsOf(cs.json).find((r) => r.change === 'r-empty')!
+    expect(empty.state).toBe('in-progress')
+    // cospec's native `state` and the binary's own task-count-only `status`
+    // coexist on the same row without a key collision.
+    const upRow = rowsOf(up.json).find((r) => r.name === 'r-doc')!
+    expect(upRow.status).toBe('no-tasks')
+    expect(row.status).toBe('no-tasks')
+    const text = await ours(['list'], root)
+    expect(text.stdout).toMatch(/r-doc\s+rfc\s+clear\s+0\/0 tasks\s+$/m)
+  })
+
+  unlessRoot('mode 000', () => {
+    test('18.2 status: a mode-000 artifact other than tasks.md already answers as the binary does', async () => {
+      const root = listFixture()
+      const proposal = join(root, 'openspec/changes/alpha/proposal.md')
+      const restore = lock(proposal)
+      try {
+        const refused = realpathRefuses(proposal)
+        for (const argv of [
+          ['status', '--change', 'alpha', '--json'],
+          ['status', '--all', '--json'],
+        ]) {
+          const up = await upstreamJson(argv, root)
+          const cs = await oursJson(argv, root)
+          captureStatus(`18.2 ${argv.join(' ')}`, cs)
+          expect({ argv, exit: up.exitCode }).toEqual({ argv, exit: refused ? 1 : 0 })
+          expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
+          const textArgv = argv.filter((a) => a !== '--json')
+          const upText = await upstream(textArgv, root)
+          const text = await ours(textArgv, root)
+          captureStatus(`18.2 ${textArgv.join(' ')}`, text)
+          expect({ textArgv, exit: text.exitCode }).toEqual({ textArgv, exit: upText.exitCode })
+          if (refused) {
+            const d =
+              argv[1] === '--all'
+                ? firstStatus(rowsOf(up.json).find((e) => e.changeName === 'alpha'))
+                : firstStatus(up.json)
+            expect(errnoShape(d.message)).toMatchObject({
+              code: 'EACCES',
+              path: join(realpathSync(dirname(proposal)), 'proposal.md'),
+            })
+            continue
+          }
+          // The binary reads past it and counts `proposal` done; so does cospec.
+          const upDone =
+            argv[1] === '--all'
+              ? ((rowsOf(up.json).find((e) => e.changeName === 'alpha')!.artifacts as Row[]).find(
+                  (a) => a.id === 'proposal',
+                )!.status as string) === 'done'
+              : ((up.json as Row).artifacts as Row[]).find((a) => a.id === 'proposal')!.status ===
+                'done'
+          const csDone =
+            argv[1] === '--all'
+              ? (rowsOf(cs.json).find((e) => e.change === 'alpha')!.artifacts as Row[]).find(
+                  (a) => a.id === 'proposal',
+                )!.done
+              : ((cs.json as Row).artifacts as Row[]).find((a) => a.id === 'proposal')!.done
+          expect(csDone).toBe(upDone)
+          expect(csDone).toBe(true)
+        }
+      } finally {
+        restore()
+      }
+    })
+  })
+})
+
 // --- 5.6 no status output names a bare openspec command ------------------------------------
 
 describe('5.6 status outputs', () => {

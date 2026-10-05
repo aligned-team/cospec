@@ -2,10 +2,10 @@
 
 ## 1. `list` reports `building` for an untyped schema's own artifact [critical]
 
-- [ ] 1.1 @unit (agent) a change on a custom `rfc`-style schema (`generates: doc.md`) with `doc.md` written -> `computeRow`/`list.ts` reports `state: 'building'`, not `in-progress`
-- [ ] 1.2 @regression (agent) the same fixture against `list.ts` before the fix FAILS (`state: 'in-progress'`), after the fix PASSES (`state: 'building'`) -> red-then-green captured in the commit that lands 1.2
-- [ ] 1.3 @integration (agent) `cospec list --json` vs the pinned binary's `openspec list --json` on the same `rfc`-schema fixture: no key collision between cospec's native `state` and the binary's own `status`, `archiveReady: false` -> `cli-surface.test.ts` passes
-- [ ] 1.4 @e2e (agent) `mise run docs:build` after the `commands.md` edit -> build succeeds
+- [x] 1.1 @unit (agent) a change on a custom `rfc`-style schema (`generates: doc.md`) with `doc.md` written -> `computeRow`/`list.ts` reports `state: 'building'`, not `in-progress` — observed: `commands.test.ts` "an untyped schema's own declared artifact decides its state, not cospec's fixed filenames" passes
+- [x] 1.2 @regression (agent) the same fixture against `list.ts` before the fix FAILS (`state: 'in-progress'`), after the fix PASSES (`state: 'building'`) -> red-then-green captured in the commit that lands 1.2 — observed: red with `Received: "in-progress"` against unmodified `list.ts`, green after `hasDeclaredArtifact` landed
+- [x] 1.3 @integration (agent) `cospec list --json` vs the pinned binary's `openspec list --json` on the same `rfc`-schema fixture: no key collision between cospec's native `state` and the binary's own `status`, `archiveReady: false` -> `cli-surface.test.ts` passes — observed: `18.1 list reports building for an untyped schema's own declared artifact` passes, `row.status === upRow.status === 'no-tasks'`
+- [x] 1.4 @e2e (agent) `mise run docs:build` after the `commands.md` edit -> build succeeds — observed: `build complete in 1.94s`
 
 ## 2. `validate --archived --json` below the version floor prints a document
 

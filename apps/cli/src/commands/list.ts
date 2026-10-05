@@ -20,6 +20,7 @@ import { join } from 'node:path'
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
+import { loadSchema } from '../core/change-metadata.ts'
 import {
   changesDir,
   findNestedChangesIn,
@@ -28,6 +29,7 @@ import {
   readOpenspecYaml,
 } from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
+import { artifactOutputExists } from '../core/glob.ts'
 import {
   OpenspecCallError,
   passthroughOpenspec,
@@ -172,6 +174,31 @@ function nativeRow(
   }
 }
 
+/**
+ * Whether `dir` holds a file its own declared schema's `generates` pattern
+ * names — the only signal cospec has for an artifact it doesn't recognize by
+ * name (mirrors `core/change.ts`'s `hasSchemaOutput`, scoped to the change's
+ * own `.openspec.yaml` schema rather than the project's default, since a
+ * schema-bearing change always names its own). A schema cospec cannot load
+ * gives no signal, as the binary's own `list` never loads a schema either
+ * (its row is task-progress-only; `dist/core/list.js`).
+ */
+function hasDeclaredArtifact(dir: string, schema: string, base: string): boolean {
+  let artifacts: { generates: string }[]
+  try {
+    artifacts = loadSchema(schema, base)
+  } catch {
+    return false
+  }
+  try {
+    return artifacts.some((artifact) => artifactOutputExists(dir, artifact.generates))
+  } catch {
+    // upstream's bare `catch` on an output it cannot resolve (one leaving
+    // the change, a linked directory cycle): no signal.
+    return false
+  }
+}
+
 function computeRow(
   base: string,
   id: string,
@@ -187,8 +214,13 @@ function computeRow(
     ? computeGate(parseBlockers(readFileSync(blockersPath, 'utf8')), archived, active)
     : ({ state: 'clear', hard: [], soft: [] } satisfies Gate)
 
-  const empty = !hasAnyArtifact(dir)
   const cospec = isCospecType(schema)
+  // cospec's fixed artifact filenames are the only signal for a cospec-typed
+  // change; a schema cospec doesn't type additionally gets its own declared
+  // schema's `generates` signal, so a custom-named artifact cospec doesn't
+  // recognize by filename is never reported as no artifacts at all (the
+  // misclassification task 11.5 fixed for `status`'s `state`/`next`).
+  const empty = !hasAnyArtifact(dir) && (cospec || !hasDeclaredArtifact(dir, schema, base))
 
   const parsedTasks = readChangeTasks(dir, warnings)
   const total = parsedTasks.items.length

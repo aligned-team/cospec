@@ -2,15 +2,15 @@
 
 ## 1. `list.ts`: an untyped schema's own artifacts decide its state
 
-- [ ] 1.1 Add a failing unit test (`commands.test.ts`'s `describe('list', …)`):
+- [x] 1.1 Add a failing unit test (`commands.test.ts`'s `describe('list', …)`):
       a change on a custom schema (`generates: doc.md`) with `doc.md` written
       lists `state: 'building'`, not `in-progress`/"no artifacts yet" — red
       against current `list.ts` and verify with `bun test`.
-- [ ] 1.2 Add `hasDeclaredArtifact(dir, schema, base)` to `list.ts` and wire it
+- [x] 1.2 Add `hasDeclaredArtifact(dir, schema, base)` to `list.ts` and wire it
       into `computeRow`'s `empty` computation for a schema cospec doesn't type
       (design: Decisions). Verify: 1.1's test goes green. Commit
       `fix(cli): decide an untyped schema's list state from its own artifacts`
-- [ ] 1.3 Add a contract row to `cli-surface.test.ts` reusing the existing
+- [x] 1.3 Add a contract row to `cli-surface.test.ts` reusing the existing
       `rfcSchema` fixture: `cospec list --json`'s row for a change with `doc.md`
       written reports `state: 'building'`, `archiveReady: false` (an untyped
       schema is never archive-ready), compared against the pinned binary's own
@@ -18,7 +18,7 @@
       to confirm cospec's native `state` and the binary's own `status` key
       coexist without collision. Verify:
       `bun     test apps/cli/test/contract/cli-surface.test.ts` passes.
-- [ ] 1.4 Update `apps/docs/reference/commands.md`'s `cospec list` row to
+- [x] 1.4 Update `apps/docs/reference/commands.md`'s `cospec list` row to
       document the schema-output signal for an untyped schema's `state`. Verify:
       `mise run docs:build` succeeds.
 
