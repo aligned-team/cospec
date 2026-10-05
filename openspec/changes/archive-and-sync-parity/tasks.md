@@ -23,7 +23,7 @@ sandboxed HOME/XDG.
       a `chore` change; and the mode-000 archive case. Verify by a smoke row per
       builder that `openspec validate --strict` reads it. Commit
       `test(cli): add archive and sync-specs fixtures`
-- [ ] 1.2 Write every contract row of verification groups 1–3, 4.1, 5.1,
+- [x] 1.2 Write every contract row of verification groups 1–3, 4.1, 5.1,
       6.1–6.4, 7.1, 7.2, 8 and 2.3 in `archive-no-validate.test.ts`, each
       reading the binary's answer at test time through the upstream oracle, and
       the archive key-oracle rows through `support/key-oracle.ts`, adding the

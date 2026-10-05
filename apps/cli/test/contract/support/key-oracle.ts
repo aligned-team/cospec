@@ -10,6 +10,8 @@
 // by entry through an identity per path, never by index, so the two tools may
 // order a sweep differently; any other array is compared whole.
 
+import { relative } from 'node:path'
+
 import { respellWholeRemedy } from '../../../src/core/remedies.ts'
 
 /** How a shared path is compared. */
@@ -20,6 +22,7 @@ export type PathClass =
   | 'kept'
   | 'collision'
   | 'respelled'
+  | 'path'
   | 'equal'
 
 /** One side's identity for an array entry; `undefined` for an entry with none. */
@@ -70,7 +73,33 @@ export const NAMED_COLLISIONS: readonly NamedCollision[] = [
       return undefined
     },
   },
+  {
+    path: 'status[].fix',
+    reason:
+      "cospec's archive tasks gate is stricter than the binary's: `--yes` (a declared no-op under cospec, which never prompts) does not lift it, so the fix names the flag that does, `--force-incomplete`",
+    check: (up, cs) => {
+      if (up.code !== 'archive_tasks_incomplete')
+        return `named only for archive_tasks_incomplete, not ${JSON.stringify(up.code)}`
+      if (up.fix !== 'Complete the tasks or rerun with --yes.')
+        return `the binary's fix is ${JSON.stringify(up.fix)}`
+      if (cs.fix !== 'Complete the tasks or rerun with --force-incomplete.')
+        return `cospec's fix is ${JSON.stringify(cs.fix)}`
+      return undefined
+    },
+  },
 ]
+
+/**
+ * Absolute paths each tool reports under its own root, when the two runs
+ * cannot share one (an archive moves the change, so the binary archives a
+ * copy): equal when each is the same path relative to its own root. Both
+ * roots are canonical (`realpathSync`), as the binary reports them.
+ */
+export interface PathRoots {
+  readonly keys: readonly string[]
+  readonly upstreamRoot: string
+  readonly cospecRoot: string
+}
 
 export interface OracleSpec {
   /** Identity per array-of-objects path. */
@@ -89,6 +118,8 @@ export interface OracleSpec {
   readonly kept?: readonly string[]
   /** The named collisions this command's document may carry (from `NAMED_COLLISIONS`). */
   readonly collisions?: readonly string[]
+  /** Paths compared relative to each tool's root. */
+  readonly paths?: PathRoots
 }
 
 export interface OracleResult {
@@ -167,6 +198,12 @@ interface Compiled {
   respelled: Segments[]
   kept: Segments[]
   collisions: [Segments, NamedCollision][]
+  paths: Segments[]
+  roots?: PathRoots
+}
+
+function underOwnRoot(root: string, value: unknown): unknown {
+  return typeof value === 'string' ? relative(root, value) : value
 }
 
 function compile(spec: OracleSpec): Compiled {
@@ -182,6 +219,8 @@ function compile(spec: OracleSpec): Compiled {
       if (entry === undefined) throw new Error(`key oracle: '${p}' is not a named collision`)
       return [segments(p), entry]
     }),
+    paths: (spec.paths?.keys ?? []).map(segments),
+    ...(spec.paths === undefined ? {} : { roots: spec.paths }),
   }
 }
 
@@ -192,6 +231,7 @@ function classify(c: Compiled, path: Segments): PathClass {
   if (c.verdict.some((p) => matches(p, path))) return 'verdict'
   if (c.kept.some((p) => matches(p, path))) return 'kept'
   if (c.respelled.some((p) => matches(p, path))) return 'respelled'
+  if (c.paths.some((p) => matches(p, path))) return 'path'
   return 'equal'
 }
 
@@ -238,6 +278,16 @@ export function compareDocuments(
       if (jsonType(up) !== jsonType(cs))
         failures.push(
           `${label}: ${cls} value is a ${jsonType(cs)} where the binary's is a ${jsonType(up)}`,
+        )
+      return
+    }
+    if (cls === 'path') {
+      const roots = c.roots!
+      const want = underOwnRoot(roots.upstreamRoot, up)
+      const got = underOwnRoot(roots.cospecRoot, cs)
+      if (typeof up !== 'string' || !same(want, got))
+        failures.push(
+          `${label}: ${JSON.stringify(cs)} is not the binary's path ${JSON.stringify(up)} under its own root (${JSON.stringify(got)} vs ${JSON.stringify(want)})`,
         )
       return
     }

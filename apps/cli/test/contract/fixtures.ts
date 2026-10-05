@@ -1309,6 +1309,103 @@ export function restoreArchiveMode(root: string): void {
   chmodSync(join(root, 'openspec/changes/archive'), 0o755)
 }
 
+/**
+ * MODIFIED on a capability with no living spec. The binary's `validate
+ * --strict` passes it with an INFO (`Archive would refuse this delta`).
+ */
+export const R7_NEW_MODIFIED = r7('new-modified', true, false, (root) => {
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## MODIFIED Requirements\n\n${RENDERING_MODIFIED_BLOCK}`,
+  })
+  return 'c1'
+})
+
+/** RENAMED on a capability with no living spec. */
+export const R7_NEW_RENAMED = r7('new-renamed', true, false, (root) => {
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## RENAMED Requirements
+
+- FROM: \`### Requirement: ${MARKER_TARGET}\`
+- TO: \`### Requirement: Widget memoization\`
+`,
+  })
+  return 'c1'
+})
+
+/** An ADDED requirement with no scenario: both validators, and both archives, refuse it. */
+export const R7_DELTA_INVALID = r7('delta-invalid', false, false, (root) => {
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## ADDED Requirements
+
+### Requirement: Widget rendering
+
+The system SHALL render a widget when requested.
+`,
+  })
+  return 'c1'
+})
+
+// The early-sync shapes (verification 7.2): each delta is already reflected in
+// the living spec, so the binary's archive reports `Specs already in sync`.
+
+/** An ADDED block identical to the living requirement. */
+export const R7_SYNCED_ADDED = r7('synced-added', true, true, (root) => {
+  writeLivingSpec(root, 'widgets', livingSpec('widgets', `\n${RENDERING_BLOCK}`))
+  writeV2Change(root, 'c1', { 'widgets/spec.md': `## ADDED Requirements\n\n${RENDERING_BLOCK}` })
+  return 'c1'
+})
+
+/** A REMOVED whose requirement is already gone. */
+export const R7_SYNCED_REMOVED = r7('synced-removed', true, true, (root) => {
+  writeLivingSpec(root, 'widgets', livingSpec('widgets', LIVING_WIDGET_REQ))
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## REMOVED Requirements
+
+### Requirement: ${MARKER_TARGET}
+
+**Reason**: Caching moved elsewhere.
+
+**Migration**: None.
+`,
+  })
+  return 'c1'
+})
+
+/** A RENAMED already applied: the source is gone and the target present. */
+export const R7_SYNCED_RENAMED = r7('synced-renamed', true, true, (root) => {
+  writeLivingSpec(
+    root,
+    'widgets',
+    livingSpec('widgets', LIVING_TWO_REQS.replace(MARKER_TARGET, 'Widget memoization')),
+  )
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## RENAMED Requirements
+
+- FROM: \`### Requirement: ${MARKER_TARGET}\`
+- TO: \`### Requirement: Widget memoization\`
+`,
+  })
+  return 'c1'
+})
+
+/** A MODIFIED block identical to the living requirement. */
+export const R7_SYNCED_MODIFIED = r7('synced-modified', true, true, (root) => {
+  writeLivingSpec(root, 'widgets', livingSpec('widgets', `\n${RENDERING_MODIFIED_BLOCK}`))
+  writeV2Change(root, 'c1', {
+    'widgets/spec.md': `## MODIFIED Requirements\n\n${RENDERING_MODIFIED_BLOCK}`,
+  })
+  return 'c1'
+})
+
+/** Each early-sync shape, the already-retired capability last. */
+export const R7_SYNCED_SHAPES: readonly R7Fixture[] = [
+  R7_SYNCED_ADDED,
+  R7_SYNCED_REMOVED,
+  R7_SYNCED_RENAMED,
+  R7_SYNCED_MODIFIED,
+  R7_NEW_REMOVED_ONLY_MARKED,
+]
+
 /** Every archive-and-sync-parity builder, for the smoke rows. */
 export const R7_FIXTURES: readonly R7Fixture[] = [
   ...R7_SYNC_SHAPES,
@@ -1329,4 +1426,11 @@ export const R7_FIXTURES: readonly R7Fixture[] = [
   R7_SKIP_SPECS,
   R7_CHORE,
   R7_ARCHIVE_UNREADABLE,
+  R7_NEW_MODIFIED,
+  R7_NEW_RENAMED,
+  R7_DELTA_INVALID,
+  R7_SYNCED_ADDED,
+  R7_SYNCED_REMOVED,
+  R7_SYNCED_RENAMED,
+  R7_SYNCED_MODIFIED,
 ]
