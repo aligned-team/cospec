@@ -222,6 +222,11 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+const NO_VALIDATE_BANNER =
+  "cospec archive: --no-validate skips revalidation, cospec's and the binary's; still running: " +
+  'the namespace-folder check, the tasks gate, archive/verification-incomplete, the archive-slot ' +
+  'check, archive/scenario-preservation and the on-disk verification.\n'
+
 /** Why no spec sync ran (`specsSkipReason`). */
 type SpecsSkipReason = 'flag' | 'schema' | 'no-deltas'
 
@@ -337,6 +342,7 @@ export async function run(ctx: CommandContext): Promise<number> {
   const parsed = ctx.parsed!
   const userSkipSpecs = hasFlag(parsed, '--skip-specs')
   const forceIncomplete = hasFlag(parsed, '--force-incomplete')
+  const noValidate = hasFlag(parsed, '--no-validate')
   // Required in the table: the parser has refused a missing one.
   const name = parsed.positionals[0]!
 
@@ -363,6 +369,9 @@ export async function run(ctx: CommandContext): Promise<number> {
       )
     return EXIT.failure
   }
+
+  // stderr, so `--json`'s stdout stays the one document.
+  if (noValidate) process.stderr.write(NO_VALIDATE_BANNER)
 
   // Step 0: the binary's root confinement, before anything is read.
   const outside = managedDirOutsideRoot(base)
@@ -431,13 +440,17 @@ export async function run(ctx: CommandContext): Promise<number> {
         : undefined
   const skipSpecs = skipReason !== undefined
 
-  // Step 2: full validation (archive-precondition family unless skipping specs).
+  // Step 2: full validation (archive-precondition family unless skipping specs),
+  // unless `--no-validate` asked to skip it — it is forwarded below, so the
+  // binary skips its own as an `openspec` user asked.
   // An archive directory that cannot be read is read as empty, with a
   // warning: the slot check below answers for it as the binary does.
   const { ctx: vctx, warning } = readValidateContext(base)
   if (warning !== undefined) process.stderr.write(`Warning: ${warning.message}\n`)
-  const report = await validateChange(root, change, vctx, { strict: false, fast: skipSpecs })
-  if (!report.valid) {
+  const report = noValidate
+    ? undefined
+    : await validateChange(root, change, vctx, { strict: false, fast: skipSpecs })
+  if (report !== undefined && !report.valid) {
     if (!flags.json)
       process.stdout.write(
         renderHuman([report], { noColor: flags.noColor, title: 'cospec archive' }),
@@ -563,6 +576,7 @@ export async function run(ctx: CommandContext): Promise<number> {
   // Step 8: execute.
   const archiveArgs = [change.id, '-y']
   if (skipSpecs) archiveArgs.push('--skip-specs')
+  if (noValidate) archiveArgs.push('--no-validate')
   const res = await spawnOpenspec(threadedArgv(['archive'], root.storeArgs, archiveArgs), root.cwd)
 
   // Step 9: verify (date-agnostic — survives midnight rollover).

@@ -634,8 +634,8 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
       }),
       upstream({
         name: '--no-validate',
-        description: 'Skip validation (not recommended)',
-        status: pending('archive-and-sync-parity'),
+        description:
+          "Skip revalidation, cospec's and the binary's (not recommended; every other gate still runs)",
       }),
     ],
   },

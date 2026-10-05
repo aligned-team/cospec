@@ -207,7 +207,7 @@ const roots = (copy: string, root: string): OracleSpec['paths'] => ({
 // --- 1. --no-validate skips only revalidation ----------------------------------
 
 describe('1. archive --no-validate skips only revalidation', () => {
-  test.failing('1.1 the pending entry is gone and the flag is handled in the command table', () => {
+  test('1.1 the pending entry is gone and the flag is handled in the command table', () => {
     const pendingYaml = readFileSync(join(import.meta.dir, 'parity-pending.yaml'), 'utf8')
     expect(pendingYaml.match(/owner: archive-and-sync-parity/g) ?? []).toEqual([])
     const flag = COMMAND_TABLE.find((r) => r.name === 'archive')?.flags.find(
@@ -217,7 +217,7 @@ describe('1. archive --no-validate skips only revalidation', () => {
     expect(JSON.stringify(flag!.status)).not.toContain('pending')
   })
 
-  test.failing('1.2 a bare [ ] verification row is still refused', async () => {
+  test('1.2 a bare [ ] verification row is still refused', async () => {
     const root = mkTempRepo({ git: true })
     const name = R7_BARE_VERIFICATION.build(root)
     const res = await own('1.2', root, ['archive', name, '--no-validate'])
@@ -227,27 +227,24 @@ describe('1. archive --no-validate skips only revalidation', () => {
     expect(archived(root, name)).toBe(false)
   })
 
-  test.failing(
-    '1.3 a scenario-dropping MODIFIED is still refused, as the binary refuses it',
-    async () => {
-      const { root, copy, name } = twin(R7_SCENARIO_DROP)
-      const before = specsOf(root)
-      const res = await own('1.3', root, ['archive', name, '--no-validate'])
-      expect(res.exitCode).toBe(1)
-      expect(res.stderr).toContain('scenario-preservation gate refused')
-      expectBanner(res.stderr)
-      expect(archived(root, name)).toBe(false)
-      expect(specsOf(root)).toEqual(before)
-      // Recorded beside it: the binary under the flag refuses the merge too.
-      const up = await binary(copy, ['archive', name, '-y', '--no-validate'])
-      expect({ exit: up.exitCode, archived: archived(copy, name) }).toEqual({
-        exit: 1,
-        archived: false,
-      })
-    },
-  )
+  test('1.3 a scenario-dropping MODIFIED is still refused, as the binary refuses it', async () => {
+    const { root, copy, name } = twin(R7_SCENARIO_DROP)
+    const before = specsOf(root)
+    const res = await own('1.3', root, ['archive', name, '--no-validate'])
+    expect(res.exitCode).toBe(1)
+    expect(res.stderr).toContain('scenario-preservation gate refused')
+    expectBanner(res.stderr)
+    expect(archived(root, name)).toBe(false)
+    expect(specsOf(root)).toEqual(before)
+    // Recorded beside it: the binary under the flag refuses the merge too.
+    const up = await binary(copy, ['archive', name, '-y', '--no-validate'])
+    expect({ exit: up.exitCode, archived: archived(copy, name) }).toEqual({
+      exit: 1,
+      archived: false,
+    })
+  })
 
-  test.failing('1.4 an incomplete task is still refused', async () => {
+  test('1.4 an incomplete task is still refused', async () => {
     const root = mkTempRepo({ git: true })
     const name = R7_INCOMPLETE_TASK.build(root)
     const res = await own('1.4', root, ['archive', name, '--no-validate'])
@@ -257,31 +254,25 @@ describe('1. archive --no-validate skips only revalidation', () => {
     expect(archived(root, name)).toBe(false)
   })
 
-  test.failing(
-    '1.5 a change only revalidation refuses archives, as the binary archives it',
-    async () => {
-      const { root, copy, name } = twin(R7_REVALIDATION_ONLY)
-      const res = await own('1.5', root, ['archive', name, '--no-validate'])
-      const up = await binary(copy, ['archive', name, '-y', '--no-validate'])
-      expect([res.exitCode, up.exitCode]).toEqual([0, 0])
-      expect([archived(root, name), archived(copy, name)]).toEqual([true, true])
-      expect(specsOf(root)).toEqual(specsOf(copy))
-      expectBanner(res.stderr)
-    },
-  )
+  test('1.5 a change only revalidation refuses archives, as the binary archives it', async () => {
+    const { root, copy, name } = twin(R7_REVALIDATION_ONLY)
+    const res = await own('1.5', root, ['archive', name, '--no-validate'])
+    const up = await binary(copy, ['archive', name, '-y', '--no-validate'])
+    expect([res.exitCode, up.exitCode]).toEqual([0, 0])
+    expect([archived(root, name), archived(copy, name)]).toEqual([true, true])
+    expect(specsOf(root)).toEqual(specsOf(copy))
+    expectBanner(res.stderr)
+  })
 
-  test.failing(
-    '1.6 --json prints one document on stdout and the banner on stderr only',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      const name = R7_MODIFIED.build(root)
-      const res = await own('1.6', root, ['archive', name, '--no-validate', '--json'])
-      expect(res.exitCode).toBe(0)
-      expect(document(res.stdout).archived).toBe(true)
-      expect(res.stdout).not.toContain('revalidation')
-      expectBanner(res.stderr)
-    },
-  )
+  test('1.6 --json prints one document on stdout and the banner on stderr only', async () => {
+    const root = mkTempRepo({ git: true })
+    const name = R7_MODIFIED.build(root)
+    const res = await own('1.6', root, ['archive', name, '--no-validate', '--json'])
+    expect(res.exitCode).toBe(0)
+    expect(document(res.stdout).archived).toBe(true)
+    expect(res.stdout).not.toContain('revalidation')
+    expectBanner(res.stderr)
+  })
 })
 
 // --- 2. archive's JSON documents carry the binary's keys ------------------------

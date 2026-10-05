@@ -74,7 +74,7 @@ sandboxed HOME/XDG.
 - [x] 3.6 Wire `respellRemedies` into every relay (design D12). Flip rows 8.1
       (archive half) and 8.2 (archive outputs). Commit
       `fix(cli): spell relayed archive remedies as cospec`
-- [ ] 3.7 Accept `--no-validate` (design D3): skip `validateChange`, forward the
+- [x] 3.7 Accept `--no-validate` (design D3): skip `validateChange`, forward the
       flag, print the banner. Move the flag from pending to handled in
       `core/command-table.ts` and delete its `parity-pending.yaml` entry in this
       commit. Flip rows 1.1–1.6. Commit

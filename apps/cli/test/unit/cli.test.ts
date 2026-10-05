@@ -250,8 +250,9 @@ describe('cli dispatcher: help renders from the command table', () => {
     expect(init.out).toContain('--no-animation')
     // An alias flag is an offered flag: upstream's `init --help` lists `--tools`.
     expect(init.out).toMatch(/^ {2}--tools <tools> +OpenSpec's spelling of --harness/m)
+    // `archive --no-validate` is handled (change `archive-and-sync-parity`).
     const archive = await dispatch(['archive', '--help'])
-    expect(archive.out).not.toContain('--no-validate')
+    expect(archive.out).toMatch(/^ {2}--no-validate +Skip revalidation/m)
     expect(archive.out).toContain('--skip-specs')
   })
 
@@ -287,9 +288,9 @@ describe('cli dispatcher: table rows parse before the module loads', () => {
   })
 
   test('a pending flag is refused as not supported yet', async () => {
-    const r = await dispatch(['archive', 'x', '--no-validate'])
+    const r = await dispatch(['init', '--language', 'fr', '.'])
     expect(r.code).toBe(1)
-    expect(r.err).toBe("cospec archive: '--no-validate' is not supported yet\n")
+    expect(r.err).toBe("cospec init: '--language' is not supported yet\n")
   })
 
   test('a value-taking flag with no value is refused', async () => {

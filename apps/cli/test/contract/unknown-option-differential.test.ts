@@ -407,12 +407,6 @@ const PENDING_ROWS: readonly Row[] = [
     expect: 'pending',
     pendingFlag: '--no-copilot-cloud',
   },
-  {
-    argv: ['archive', '--no-validate', 'x'],
-    command: 'archive',
-    expect: 'pending',
-    pendingFlag: '--no-validate',
-  },
   // Pending subcommands (the BREAKING note names these).
   {
     argv: ['completion', 'install'],
@@ -483,6 +477,14 @@ const CLI_SURFACE_ROWS: readonly Row[] = [
     expect: 'same',
     setup: addChangeNamedChange,
   },
+]
+
+/**
+ * The flag change `archive-and-sync-parity` implements: a pending row refused
+ * as not supported yet, which now parses and runs as the binary does.
+ */
+const ARCHIVE_SYNC_ROWS: readonly Row[] = [
+  { argv: ['archive', '--no-validate', 'x'], command: 'archive', expect: 'same' },
 ]
 
 /**
@@ -845,6 +847,10 @@ describe('unknown-option differential: upstream spellings', () => {
 
 describe('unknown-option differential: cli-surface-parity flags', () => {
   register(CLI_SURFACE_ROWS)
+})
+
+describe('unknown-option differential: archive-and-sync-parity flags', () => {
+  register(ARCHIVE_SYNC_ROWS)
 })
 
 describe('unknown-option differential: forward commands relay the binary', () => {
