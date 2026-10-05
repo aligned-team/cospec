@@ -64,7 +64,7 @@
 ## 10. `cospec sync-specs` refuses what archive refuses [critical]
 
 - [x] 10.1 @equivalence (agent) a scenario-dropping MODIFIED -> sync-specs.test.ts row 10.1 passes: `cospec sync-specs: scenario-preservation gate refused`, exit 1, `openspec/` hash-identical, TMPDIR empty; the binary's archive on a copy exits 1
-- [x] 10.2 @integration (agent) a change revalidation refuses (an ADDED colliding with a differing living block) -> sync-specs.test.ts row 10.2 passes with TMPDIR unwritable: the `cospec sync-specs` validation report naming `deltas/requirement-shape` on stdout, exit 1, `openspec/` hash-identical
+- [x] 10.2 @integration (agent) a change revalidation refuses (an ADDED colliding with a differing living block) -> sync-specs.test.ts row 10.2 passes with TMPDIR unwritable: the `cospec sync-specs` validation report naming `deltas/requirement-shape` on stdout, exit 1, `openspec/` hash-identical; and a `skip_specs: true` change beside a delta file is refused with `deltas/skip-specs-conflict` exactly as `cospec archive` refuses it (exit 1, TMPDIR unwritable, nothing written)
 
 ## 11. A failed scratch run leaves nothing in the real tree [critical]
 

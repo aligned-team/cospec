@@ -130,8 +130,10 @@ export async function run(ctx: CommandContext): Promise<number> {
     return refuse('namespace-folder', diag)
   }
 
-  // Nothing to sync: the same three reasons archive skips its spec sync for,
-  // with `skip_specs: true` named on its own.
+  // Nothing to sync: the reasons archive skips its spec sync for, with
+  // `skip_specs: true` named on its own — only for a change with no delta
+  // files, as archive reads it: beside delta files the marker is a conflict
+  // the revalidation below refuses, as archive's does.
   const resolution = resolveSchema(base, change.schema)
   const declaresSpecs =
     resolution.kind === 'legacy'
@@ -142,11 +144,11 @@ export async function run(ctx: CommandContext): Promise<number> {
   const caps = changeDeltaOps(change.dir)
   const nothing: NothingToSync | undefined = !declaresSpecs
     ? 'schema'
-    : change.skipSpecs === true
-      ? 'skip-specs'
-      : caps.length === 0
-        ? 'no-deltas'
-        : undefined
+    : caps.length > 0
+      ? undefined
+      : change.skipSpecs === true
+        ? 'skip-specs'
+        : 'no-deltas'
   if (nothing !== undefined) {
     const why = {
       schema: `the ${change.schema} schema has no specs artifact`,

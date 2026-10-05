@@ -249,22 +249,19 @@ describe('10. sync-specs refuses what archive refuses', () => {
     expect(res.stdout).toContain('deltas/requirement-shape')
     expect(openspecOf(root)).toEqual(before)
   })
-  test.failing(
-    '10.2 skip_specs: true beside a delta file: refused as archive refuses it',
-    async () => {
-      const root = mkTempRepo({ git: true })
-      const name = R7_SKIP_SPECS_WITH_DELTA.build(root)
-      const archived = await own('10.2', root, ['archive', name])
-      expect(archived.exitCode).toBe(1)
-      expect(archived.stdout).toContain('deltas/skip-specs-conflict')
-      const before = openspecOf(root)
-      const res = await ownWithoutScratch('10.2', root, ['sync-specs', name])
-      expect(res.exitCode).toBe(1)
-      expect(res.stdout).toContain('cospec sync-specs')
-      expect(res.stdout).toContain('deltas/skip-specs-conflict')
-      expect(openspecOf(root)).toEqual(before)
-    },
-  )
+  test('10.2 skip_specs: true beside a delta file: refused as archive refuses it', async () => {
+    const root = mkTempRepo({ git: true })
+    const name = R7_SKIP_SPECS_WITH_DELTA.build(root)
+    const archived = await own('10.2', root, ['archive', name])
+    expect(archived.exitCode).toBe(1)
+    expect(archived.stdout).toContain('deltas/skip-specs-conflict')
+    const before = openspecOf(root)
+    const res = await ownWithoutScratch('10.2', root, ['sync-specs', name])
+    expect(res.exitCode).toBe(1)
+    expect(res.stdout).toContain('cospec sync-specs')
+    expect(res.stdout).toContain('deltas/skip-specs-conflict')
+    expect(openspecOf(root)).toEqual(before)
+  })
 })
 
 // --- 11. a failed scratch run leaves nothing in the real tree ----------------------
