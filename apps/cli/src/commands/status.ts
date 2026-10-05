@@ -617,9 +617,17 @@ async function runAll(ctx: CommandContext, override: string | undefined): Promis
   })
 
   if (flags.json) {
+    const inProgress = new Set(entries.filter(isInProgress).map((e) => e.change))
+    const changes = Array.isArray(upstream!.changes) ? upstream!.changes : []
+    const sweep = {
+      ...upstream!,
+      changes: changes.map((c: unknown) =>
+        isRecord(c) && inProgress.has(String(c.changeName)) ? forInProgress(c) : c,
+      ),
+    }
     const doc = mergeUpstream(
       { changes: entries, root: rootOutput(root), ...warningsKey(warnings) },
-      respelledUpstream(upstream!),
+      respelledUpstream(sweep),
       SWEEP_IDENTITIES,
     ).value
     process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`)
@@ -738,6 +746,21 @@ export function respelledUpstream(doc: Record<string, unknown>): Record<string, 
     : single
 }
 
+/**
+ * The binary's entry for an in-progress cospec change, without its
+ * `artifacts`: the entry's `artifacts: []` is cospec's own pre-existing value,
+ * so the binary's artifact objects are never appended into it (D3 never
+ * overwrites a cospec value).
+ */
+function forInProgress(upstream: Record<string, unknown>): Record<string, unknown> {
+  const { artifacts: _artifacts, ...rest } = upstream
+  return rest
+}
+
+function isInProgress(entry: unknown): boolean {
+  return isRecord(entry) && entry.state === 'in-progress'
+}
+
 /** cospec's entry, the binary's document for the same change merged in, and `root`. */
 function mergedEntry(
   root: ResolvedRoot,
@@ -746,7 +769,7 @@ function mergedEntry(
 ): Record<string, unknown> {
   return mergeUpstream(
     { ...entry, root: rootOutput(root) },
-    respelledUpstream(upstream),
+    respelledUpstream(isInProgress(entry) ? forInProgress(upstream) : upstream),
     ENTRY_IDENTITIES,
   ).value
 }

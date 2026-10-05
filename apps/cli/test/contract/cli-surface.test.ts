@@ -2199,26 +2199,23 @@ describe('16. round-3 review rows', () => {
     expect(firstStatus(bulk.json).code).toBe('no_openspec_root')
   })
 
-  test.failing(
-    '16.6 an empty cospec-typed change keeps artifacts: [] in --change and --all',
-    async () => {
-      const root = cospecRoot()
-      writeChange(root, 'e1', {}, 'fix')
-      const up = await upstreamJson(['status', '--change', 'e1', '--json'], root)
-      const cs = await oursJson(['status', '--change', 'e1', '--json'], root)
-      captureStatus('16.6 json', cs)
-      expect(cs.exitCode).toBe(up.exitCode)
-      expect(((up.json as Row).artifacts as Row[]).length).toBeGreaterThan(0)
-      expect((cs.json as Row).artifacts).toEqual([])
-      expect((cs.json as Row).state).toBe('in-progress')
-      expectOracle(up.json, cs.json, { ...STATUS_SPEC, kept: ['artifacts'] })
-      const all = await oursJson(['status', '--all', '--json'], root)
-      captureStatus('16.6 sweep', all)
-      const entry = rowsOf(all.json).find((e) => e.change === 'e1')!
-      expect(entry.artifacts).toEqual([])
-      expect(entry.changeName).toBe('e1')
-    },
-  )
+  test('16.6 an empty cospec-typed change keeps artifacts: [] in --change and --all', async () => {
+    const root = cospecRoot()
+    writeChange(root, 'e1', {}, 'fix')
+    const up = await upstreamJson(['status', '--change', 'e1', '--json'], root)
+    const cs = await oursJson(['status', '--change', 'e1', '--json'], root)
+    captureStatus('16.6 json', cs)
+    expect(cs.exitCode).toBe(up.exitCode)
+    expect(((up.json as Row).artifacts as Row[]).length).toBeGreaterThan(0)
+    expect((cs.json as Row).artifacts).toEqual([])
+    expect((cs.json as Row).state).toBe('in-progress')
+    expectOracle(up.json, cs.json, { ...STATUS_SPEC, kept: ['artifacts'] })
+    const all = await oursJson(['status', '--all', '--json'], root)
+    captureStatus('16.6 sweep', all)
+    const entry = rowsOf(all.json).find((e) => e.change === 'e1')!
+    expect(entry.artifacts).toEqual([])
+    expect(entry.changeName).toBe('e1')
+  })
 
   test('16.7 a regular file under changes/ is no change, as the binary refuses it', async () => {
     const root = cospecRoot()

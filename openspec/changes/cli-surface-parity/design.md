@@ -188,12 +188,15 @@ joined. Two more rules land in the same file for T4:
 copies every upstream key absent from cospec's object. It recurses into keys
 both documents carry when both values are plain objects. It merges arrays entry
 by entry by the identity function (`name`/`change`, `changeName`/`change`,
-artifact `id`). An upstream entry with no cospec counterpart is appended. It
-never overwrites a cospec value: a key present on both sides whose values differ
-keeps cospec's, and the key is returned in a `collisions` list that the oracle's
-unit test inspects. The `root` of the status documents is the one planned
-exception. `status.ts` sets it to the resolver's `{path, source, store_id?}`
-(the same object the binary prints) before merging, so no collision arises.
+artifact `id`). An upstream entry with no cospec counterpart is appended, except
+into the in-progress status entry's `artifacts: []`: that empty array is
+cospec's own pre-existing value, so the binary's artifacts are left out of its
+entry before the merge and the key oracle compares it as `kept`. It never
+overwrites a cospec value: a key present on both sides whose values differ keeps
+cospec's, and the key is returned in a `collisions` list that the oracle's unit
+test inspects. The `root` of the status documents is the one planned exception.
+`status.ts` sets it to the resolver's `{path, source, store_id?}` (the same
+object the binary prints) before merging, so no collision arises.
 
 **Rejected:** porting `planningHome`, `artifactPaths`, `actionContext` and the
 rest natively. They're the binary's facts, they differ across the accepted

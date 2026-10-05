@@ -51,8 +51,11 @@ different values and is not on the named collision list; and when a key from
 cospec's own pre-existing shape is missing or changed. Timing values
 (`durationMs`, `lastModified`) SHALL be compared by presence and type.
 Validation verdicts (`valid`, `issues`, the summary counts) SHALL be compared by
-presence and type, since each lane keeps its own findings. The oracle SHALL
-itself be tested to fail on a synthetic collision.
+presence and type, since each lane keeps its own findings. A key whose value is
+cospec's own pre-existing one SHALL be compared by presence and type too: the
+in-progress status entry's `artifacts: []`, into which the binary's artifacts
+are never appended. The oracle SHALL itself be tested to fail on a synthetic
+collision.
 
 #### Scenario: The oracle passes for every covered command
 

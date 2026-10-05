@@ -284,7 +284,7 @@ final commit.
       allowlist, in text and in `status[]` under `--json`. Verify with row
       16.13. Commit
       `fix(cli): respell every status diagnostic the binary relays`
-- [ ] 12.8 An in-progress cospec-typed entry keeps `artifacts: []` under
+- [x] 12.8 An in-progress cospec-typed entry keeps `artifacts: []` under
       `--json`, singly and in the sweep. Verify with row 16.6. Commit
       `fix(cli): keep an empty change's artifacts empty under --json`
 - [ ] 12.9 `status` refuses a change the binary refuses: any error in the
