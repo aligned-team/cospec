@@ -166,6 +166,10 @@ against the pinned binary run under Bun in a sandboxed HOME:
   - `status --change` and `status --all`, in text and `--json`, exit 1 with the
     binary's message on a cospec-typed change whose schema the binary cannot
     load (removed, unreadable, unparsable or invalid), where they reported it.
+  - `status --change` and `status --all`, in text and `--json`, exit 1 with the
+    binary's `Invalid metadata` message on a cospec-typed change whose
+    `.openspec.yaml` the binary refuses (a malformed `created`, an empty `goal`,
+    a non-boolean `skip_specs`, …), where they reported it.
   - `status` types a change directory without `.openspec.yaml` by `config.yaml`.
     `validate`, `apply` and `archive` still refuse it.
   - The `root` key of the `status --all` and no-active-changes documents is an
@@ -231,8 +235,8 @@ against the pinned binary run under Bun in a sandboxed HOME:
   `meta/item-missing`. Exit codes change only where BREAKING says.
 - `status --json` and `list` each make one wrapped call per invocation. Human
   `status` on a cospec-typed change still makes none, unless the binary decides
-  whether the change can be reported (an unreadable entry, a schema it cannot
-  load).
+  whether the change can be reported (an unreadable entry, a `.openspec.yaml` it
+  refuses, a schema it cannot load).
 
 ## Surfaces
 

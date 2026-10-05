@@ -2628,6 +2628,86 @@ describe('17. round-4 review rows', () => {
     expect(text.exitCode).toBe(0)
     expect(text.stdout).toContain('gate:')
   })
+
+  /** Each `.openspec.yaml` the binary's `ChangeMetadataSchema` refuses, its schema still loading. */
+  const REFUSED_METADATA: { how: string; yaml: string }[] = [
+    { how: 'created', yaml: 'schema: chore\ncreated: notadate\nschemaVersion: 2\n' },
+    { how: 'skip_specs', yaml: 'schema: chore\nskip_specs: "yes"\nschemaVersion: 2\n' },
+    { how: 'goal', yaml: 'schema: chore\ngoal: ""\nschemaVersion: 2\n' },
+    { how: 'affected_areas', yaml: 'schema: chore\naffected_areas: [1]\nschemaVersion: 2\n' },
+    { how: 'initiative', yaml: 'schema: chore\ninitiative: {store: s1}\nschemaVersion: 2\n' },
+    {
+      how: 'initiative key',
+      yaml: 'schema: chore\ninitiative: {store: s1, id: i1, extra: x}\nschemaVersion: 2\n',
+    },
+    {
+      how: 'retire_capabilities',
+      yaml: 'schema: chore\nretire_capabilities: "no"\nschemaVersion: 2\n',
+    },
+  ]
+
+  // Seven metadata shapes, eight spawns each: longer than the suite's default timeout.
+  test('17.3 a cospec-typed change whose metadata the binary refuses is refused in text too', async () => {
+    const root = cospecRoot()
+    const ch1 = writeChange(root, 'ch1', { 'proposal.md': PROPOSAL }, 'chore')
+    writeChange(root, 'other', { 'proposal.md': PROPOSAL })
+    const meta = join(ch1, '.openspec.yaml')
+    const valid = readFileSync(meta, 'utf8')
+    for (const { how, yaml } of REFUSED_METADATA) {
+      writeFileSync(meta, yaml)
+      try {
+        const up = await upstreamJson(['status', '--change', 'ch1', '--json'], root)
+        const cs = await oursJson(['status', '--change', 'ch1', '--json'], root)
+        captureStatus(`17.3 ${how} json`, cs)
+        const upText = await upstream(['status', '--change', 'ch1'], root)
+        const text = await ours(['status', '--change', 'ch1'], root)
+        captureStatus(`17.3 ${how} text`, text)
+        // The binary's readChangeMetadata refuses the file, so it refuses the change in both modes.
+        expect({ how, exit: up.exitCode }).toEqual({ how, exit: 1 })
+        expect({ how, exit: upText.exitCode }).toEqual({ how, exit: 1 })
+        expect({ how, exit: cs.exitCode }).toEqual({ how, exit: 1 })
+        expect(cs.json).toEqual(JSON.parse(respellRemedies(up.stdout)))
+        const messages = (up.json as { status: Diagnostic[] }).status.map((d) =>
+          respellRemedies(d.message),
+        )
+        expect({ how, joined: messages.join('\n') }).toEqual({
+          how,
+          joined: expect.stringContaining('Invalid metadata'),
+        })
+        expect({ how, exit: text.exitCode, stdout: text.stdout }).toEqual({
+          how,
+          exit: 1,
+          stdout: '',
+        })
+        expect({ how, stderr: text.stderr }).toEqual({
+          how,
+          stderr: messages.map((m) => `cospec status: ${m}\n`).join(''),
+        })
+
+        const upAll = await upstreamJson(['status', '--all', '--json'], root)
+        const all = await oursJson(['status', '--all', '--json'], root)
+        captureStatus(`17.3 ${how} sweep json`, all)
+        const upSweepText = await upstream(['status', '--all'], root)
+        const sweepText = await ours(['status', '--all'], root)
+        captureStatus(`17.3 ${how} sweep text`, sweepText)
+        expect({ how, exit: upAll.exitCode }).toEqual({ how, exit: 1 })
+        expect({ how, exit: upSweepText.exitCode }).toEqual({ how, exit: 1 })
+        expect({ how, exit: all.exitCode }).toEqual({ how, exit: 1 })
+        expect({ how, exit: sweepText.exitCode }).toEqual({ how, exit: 1 })
+        const entry = rowsOf(all.json).find((e) => e.change === 'ch1')!
+        expect({ how, error: entry.error }).toEqual({ how, error: messages.join('\n') })
+        expect(rowsOf(all.json).find((e) => e.change === 'other')!.error).toBeUndefined()
+        expect(sweepText.stdout).toContain(`ch1: ERROR — ${messages.join('\n')}\n`)
+        expect(sweepText.stdout).toContain('other  (feat)')
+      } finally {
+        writeFileSync(meta, valid)
+      }
+    }
+    // Valid metadata again: the change is cospec's own answer, exit 0 in text.
+    const text = await ours(['status', '--change', 'ch1'], root)
+    expect(text.exitCode).toBe(0)
+    expect(text.stdout).toContain('gate:')
+  }, 120_000)
 })
 
 // --- 5.6 no status output names a bare openspec command ------------------------------------

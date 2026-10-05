@@ -318,3 +318,9 @@ group 17). Task 10.2 stays the branch's final commit.
       `--json` does; the docs pages that own the fact say so. Verify with rows
       17.1 and 17.2. Commit
       `fix(cli): refuse in text a change whose schema cannot load`
+- [x] 13.2 Text-mode `status` asks the binary for a cospec-typed change whose
+      `.openspec.yaml` the binary's `readChangeMetadata` refuses (unreadable,
+      not YAML, an unlisted schema, or failing `ChangeMetadataSchema`), singly
+      and in the `--all` sweep, and relays its refusal as `--json` does; the
+      docs pages that own the fact say so. Verify with rows 17.3 and 17.4.
+      Commit `fix(cli): refuse in text a change whose metadata is refused`

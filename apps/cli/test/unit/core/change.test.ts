@@ -3,7 +3,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync 
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
-import { userSchemasDir } from '../../../src/core/change-metadata.ts'
+import { changeMetadataRefused, userSchemasDir } from '../../../src/core/change-metadata.ts'
 import {
   changeLookupNameProblem,
   changesDir,
@@ -436,6 +436,55 @@ describe('the user schema tier (verification 10.1)', () => {
       for (const [key, value] of Object.entries(saved))
         if (value === undefined) delete process.env[key]
         else process.env[key] = value
+    }
+  })
+})
+
+describe("changeMetadataRefused mirrors the binary's readChangeMetadata (verification 17.3)", () => {
+  const listed = () => ['chore', 'feat']
+  const changeWith = (yaml: string | null): string => {
+    const cwd = makeRepo()
+    makeChange(cwd, 'c1', yaml)
+    return join(cwd, 'openspec', 'changes', 'c1')
+  }
+
+  test('a valid file, or none, is not refused', () => {
+    expect(changeMetadataRefused(changeWith('schema: chore\ncreated: 2026-09-01\n'), listed)).toBe(
+      false,
+    )
+    expect(changeMetadataRefused(changeWith(null), listed)).toBe(false)
+  })
+
+  test('each ChangeMetadataSchema failure is refused', () => {
+    for (const extra of [
+      'created: notadate',
+      'skip_specs: "yes"',
+      'retire_capabilities: 1',
+      'goal: ""',
+      'affected_areas: [""]',
+      'initiative: {store: s1}',
+      'initiative: {store: S1, id: i1}',
+      'initiative: {store: s1, id: i1, extra: x}',
+    ])
+      expect({
+        extra,
+        refused: changeMetadataRefused(changeWith(`schema: chore\n${extra}\n`), listed),
+      }).toEqual({ extra, refused: true })
+  })
+
+  test('a file that is not YAML, or names an unlisted schema, is refused', () => {
+    expect(changeMetadataRefused(changeWith('schema: [chore\n'), listed)).toBe(true)
+    expect(changeMetadataRefused(changeWith('schema: house-style\n'), listed)).toBe(true)
+  })
+
+  test.skipIf(process.getuid?.() === 0)('an unreadable file is refused', () => {
+    const dir = changeWith('schema: chore\n')
+    const file = join(dir, '.openspec.yaml')
+    chmodSync(file, 0o000)
+    try {
+      expect(changeMetadataRefused(dir, listed)).toBe(true)
+    } finally {
+      chmodSync(file, 0o644)
     }
   })
 })

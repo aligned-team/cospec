@@ -91,6 +91,35 @@ function readBooleanMarker(changeDir: string, key: 'retire_capabilities'): Marke
   return unhonorable(`${where}${issue.message}`)
 }
 
+/**
+ * Whether openspec's `readChangeMetadata` (`utils/change-metadata.ts`) throws
+ * for a change, so every command that reads the change's metadata refuses it:
+ * its `.openspec.yaml` exists but cannot be read, is not YAML, fails
+ * `ChangeMetadataSchema` (a malformed `created`, an empty `goal`, a
+ * non-boolean `skip_specs`, an `initiative` that is not exactly `{store, id}`,
+ * …), or names a schema `listSchemas` does not list. `listed` answers the
+ * root's `listSchemas`, so a sweep computes it once.
+ */
+export function changeMetadataRefused(changeDir: string, listed: () => readonly string[]): boolean {
+  let raw: string
+  try {
+    raw = readFileSync(join(changeDir, METADATA_FILENAME), 'utf8')
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException | undefined)?.code
+    if (!(err instanceof Error) || typeof code !== 'string') throw err
+    return code !== 'ENOENT'
+  }
+  let parsed: unknown
+  try {
+    parsed = parseYaml(raw)
+  } catch (err) {
+    if (!(err instanceof Error)) throw err
+    return true
+  }
+  if (changeMetadataIssue(parsed) !== undefined) return true
+  return !listed().includes((parsed as Record<string, unknown>).schema as string)
+}
+
 // --- zod 4, as far as openspec's two schemas reach ---------------------------
 
 interface ZodIssue {

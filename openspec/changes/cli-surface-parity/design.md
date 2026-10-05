@@ -90,7 +90,8 @@ Probed facts that change the plan's wording:
   the upstream keys.
 - Text-mode `status` on a cospec-typed change stays spawn-free, unless the
   binary decides whether the change can be reported at all (an entry cospec
-  cannot read, a schema the binary cannot load).
+  cannot read, a `.openspec.yaml` the binary refuses, a schema the binary cannot
+  load).
 
 **Non-Goals:**
 
@@ -268,6 +269,20 @@ same one delegated call, singly and for the sweep, and the binary's refusal is
 the answer as above: `cospec status: <message>` in text, a failure entry under
 `--all`, exit 1. Before, text mode rendered cospec's own table with
 `gate: clear` and exited 0 where `--json` and the binary both refused.
+
+**Metadata the binary refuses (task 13.2).** Before it loads the schema, the
+binary reads the change's `.openspec.yaml` through `readChangeMetadata`, which
+refuses a file it cannot read, one that is not YAML, one that fails
+`ChangeMetadataSchema` (a `created` not `YYYY-MM-DD`, an empty `goal`, a
+non-boolean `skip_specs` or `retire_capabilities`, an `affected_areas` not a
+list of non-empty strings, an `initiative` not exactly a kebab-case
+`{store, id}`), and one naming a schema `listSchemas` does not list. cospec's
+own reader keeps only `schema:` and drops the rest, so such a change graded
+clean. `changeMetadataRefused` (in `core/change-metadata.ts`, beside the ported
+`ChangeMetadataSchema`) mirrors that read, and when it refuses, text mode makes
+the same one delegated call and relays the refusal as above. Before, text mode
+exited 0 with cospec's table where `--json` and the binary exited 1 with
+`Invalid metadata`.
 
 **Rendering a schema cospec doesn't type.** Text mode renders the delegated
 document with a port of the binary's `printStatusText`: `Change:`, `Schema:`,

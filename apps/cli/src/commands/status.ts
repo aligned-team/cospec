@@ -10,7 +10,12 @@ import { join } from 'node:path'
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { parseBlockers } from '../core/blockers.ts'
-import { loadSchema, schemaDir } from '../core/change-metadata.ts'
+import {
+  changeMetadataRefused,
+  listSchemas,
+  loadSchema,
+  schemaDir,
+} from '../core/change-metadata.ts'
 import {
   archiveDir,
   changesDir,
@@ -426,22 +431,31 @@ function readFailure(error: unknown): string | undefined {
   return error instanceof Error && typeof code === 'string' ? error.message : undefined
 }
 
+/** What `binaryDecides` memoizes across a sweep: each schema's load, and `listSchemas`. */
+interface DecideCache {
+  loads: Map<string, boolean>
+  listed?: string[]
+}
+
 /**
  * Whether the binary decides if a cospec-typed change can be reported at all,
  * so status asks it in text mode as under `--json`: cospec cannot read some
- * entry of the change (`hasUnreadableEntry`), or the binary cannot load the
- * change's schema — `loadSchema`, its `resolveSchema`, finds no candidate in
- * any tier, or cannot read, parse or validate the one it finds. Either way a
- * spawn the binary answers without refusing costs only the spawn. `loads`
- * memoizes the verdict per schema name across a sweep.
+ * entry of the change (`hasUnreadableEntry`), the binary's
+ * `readChangeMetadata` refuses its `.openspec.yaml` (`changeMetadataRefused`:
+ * unreadable, not YAML, failing `ChangeMetadataSchema`, or naming a schema
+ * `listSchemas` does not list), or the binary cannot load the change's schema
+ * — `loadSchema`, its `resolveSchema`, finds no candidate in any tier, or
+ * cannot read, parse or validate the one it finds. Any of these, a spawn the
+ * binary answers without refusing costs only the spawn.
  */
 function binaryDecides(
   base: string,
   change: Change,
-  loads: Map<string, boolean> = new Map(),
+  cache: DecideCache = { loads: new Map() },
 ): boolean {
   if (hasUnreadableEntry(change.dir)) return true
-  let loaded = loads.get(change.schema)
+  if (changeMetadataRefused(change.dir, () => (cache.listed ??= listSchemas(base)))) return true
+  let loaded = cache.loads.get(change.schema)
   if (loaded === undefined) {
     try {
       loadSchema(change.schema, base)
@@ -452,7 +466,7 @@ function binaryDecides(
       if (!(error instanceof Error)) throw error
       loaded = false
     }
-    loads.set(change.schema, loaded)
+    cache.loads.set(change.schema, loaded)
   }
   return !loaded
 }
@@ -626,8 +640,8 @@ function sweepEntries(doc: Record<string, unknown>): Map<string, Record<string, 
  * the whole run still exits nonzero. The binary's sweep is fetched once, and
  * only when an entry needs it: under `--json`, for a change on a schema
  * cospec doesn't type, or for a change the binary decides whether it can be
- * reported at all (`binaryDecides`: an entry cospec cannot read, a schema the
- * binary cannot load) — and a change it refuses is a failure entry.
+ * reported at all (`binaryDecides`: an entry cospec cannot read, metadata the
+ * binary refuses, a schema it cannot load) — and a change it refuses is a failure entry.
  */
 async function runAll(ctx: CommandContext, override: string | undefined): Promise<number> {
   const { flags } = ctx
@@ -642,11 +656,11 @@ async function runAll(ctx: CommandContext, override: string | undefined): Promis
     .map((change) => gradedChange(base, change, override))
 
   const sweepArgs = ['--all', ...schemaArgs(override)]
-  const loads = new Map<string, boolean>()
+  const cache: DecideCache = { loads: new Map() }
   const upstream =
     flags.json ||
     changes.some(answeredUpstream) ||
-    changes.some((change) => binaryDecides(base, change, loads))
+    changes.some((change) => binaryDecides(base, change, cache))
       ? await delegatedStatus(root, sweepArgs)
       : undefined
   const byName = upstream === undefined ? new Map() : sweepEntries(upstream)
