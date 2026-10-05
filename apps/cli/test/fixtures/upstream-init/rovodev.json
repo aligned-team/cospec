@@ -1,0 +1,147 @@
+{
+  "openspec": "1.13.1",
+  "argv": ["--no-color", "init", "--tools", "rovodev"],
+  "globalConfig": {
+    "profile": "custom",
+    "delivery": "both",
+    "workflows": [
+      "propose",
+      "explore",
+      "new",
+      "continue",
+      "apply",
+      "update",
+      "ff",
+      "sync",
+      "archive",
+      "bulk-archive",
+      "verify",
+      "onboard"
+    ]
+  },
+  "exitCode": 0,
+  "stdout": "- Creating OpenSpec structure...\n▌ OpenSpec structure created\n\nOpenSpec Setup Complete\n\nCreated: Rovo Dev CLI\n12 skills in .rovodev/\nCommands skipped for: rovodev (no adapter)\nConfig: openspec/config.yaml (schema: spec-driven)\n\nGetting started:\n  Start your first change: ask Rovo Dev CLI to use the openspec-propose skill with \"your idea\"\n\nLearn more: https://github.com/Fission-AI/OpenSpec\nFeedback:   https://github.com/Fission-AI/OpenSpec/issues\n\n",
+  "stderr": "- Setting up Rovo Dev CLI...\n✔ Setup complete for Rovo Dev CLI\n",
+  "files": [
+    {
+      "path": ".rovodev/skills/openspec-apply-change/SKILL.md",
+      "scope": "project",
+      "bytes": 10570,
+      "sha256": "977615da6df7379279308245ffaabe8b44e9d3ddfbe8646df54b57e974b852d7",
+      "headRule": "yaml-frontmatter",
+      "head": "---\nname: openspec-apply-change\ndescription: Implement tasks from an OpenSpec change. Use when the user wants to start implementing, continue implementation, or work through tasks. Also use when the user says \"openspec apply\", \"opsx apply\", or \"openspec implement\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+    },
+    {
+      "path": ".rovodev/skills/openspec-archive-change/SKILL.md",
+      "scope": "project",
+      "bytes": 14868,
+      "sha256": "9260ac971053d425bd560acd1d047df5f5426909aff9d5db018940b54c206af4",
+      "headRule": "yaml-frontmatter",
+      "head": "---\nname: openspec-archive-change\ndescription: Archive a completed OpenSpec change in the experimental workflow. Use when the user wants to finalize and archive a change after implementation is complete. Also use when the user says \"openspec archive\" or \"opsx archive\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+    },
+    {
+      "path": ".rovodev/skills/openspec-bulk-archive-change/SKILL.md",
+      "scope": "project",
+      "bytes": 21351,
+      "sha256": "a7ca5de5fdd259c12e6e3a1f889182bc666be5c8e3d4b77c3baa3d88c6abddbb",
+      "headRule": "yaml-frontmatter",
+      "head": "---\nname: openspec-bulk-archive-change\ndescription: Archive multiple completed OpenSpec changes at once. Use when archiving several parallel changes. Also use for a plural archive request - \"openspec bulk-archive\", \"opsx bulk-archive\", \"openspec archive all\", or \"openspec archive these changes\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+    },
+    {
+      "path": ".rovodev/skills/openspec-continue-change/SKILL.md",
+      "scope": "project",
+      "bytes": 9013,
+      "sha256": "350df5c92bd12cb9a48b511b6d7f4eff69e86c20b1e6f6c3e247306724c490c4",
+      "headRule": "yaml-frontmatter",
+      "head": "---\nname: openspec-continue-change\ndescription: Continue working on an OpenSpec change by creating the next artifact. Use when the user wants to progress their change, create the next artifact, or continue their workflow. Also use when the user says \"openspec continue\" or \"opsx continue\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+    },
+    {
+      "path": ".rovodev/skills/openspec-explore/SKILL.md",
+      "scope": "project",
+      "bytes": 22889,
+      "sha256": "a3a1d52142e207db720dfe03b636ad5f1dbc59acf6eed45e369962f38a9f092f",
+      "headRule": "yaml-frontmatter",
+      "head": "---\nname: openspec-explore\ndescription: Enter OpenSpec explore mode - a thinking partner for exploring ideas, investigating problems, and clarifying requirements in a project that uses OpenSpec. Use when the user wants to think through something before or during an OpenSpec change. Also use when the user says \"openspec explore\" or \"opsx explore\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+    },
+    {
+      "path": ".rovodev/skills/openspec-ff-change/SKILL.md",
+      "scope": "project",
+      "bytes": 11196,
+      "sha256": "e42d8d2329c0e1adbce4cb8ef5f0c03d01c0a08381cf17567dbe3889dbf1fc78",
+      "headRule": "yaml-frontmatter",
+      "head": "---\nname: openspec-ff-change\ndescription: Fast-forward through OpenSpec artifact creation. Use when the user wants to quickly create all artifacts needed for implementation without stepping through each one individually. Also use when the user says \"openspec ff\" or \"opsx ff\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+    },
+    {
+      "path": ".rovodev/skills/openspec-new-change/SKILL.md",
+      "scope": "project",
+      "bytes": 5894,
+      "sha256": "52382f0e22c21f718bec40bafa0896e8a92ae3cdf7a9740349c65c74e3f2da8f",
+      "headRule": "yaml-frontmatter",
+      "head": "---\nname: openspec-new-change\ndescription: Start a new OpenSpec change using the experimental artifact workflow. Use when the user wants to create a new feature, fix, or modification with a structured step-by-step approach. Also use when the user says \"openspec new change\" or \"opsx new\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+    },
+    {
+      "path": ".rovodev/skills/openspec-onboard/SKILL.md",
+      "scope": "project",
+      "bytes": 18389,
+      "sha256": "b72508afec30cb66c3374c0d035b449aa71835bcf1fc2b9d9acf231b4a510812",
+      "headRule": "yaml-frontmatter",
+      "head": "---\nname: openspec-onboard\ndescription: Guided onboarding for OpenSpec - walk through a complete workflow cycle with narration and real codebase work. Also use when the user says \"openspec onboard\" or \"opsx onboard\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+    },
+    {
+      "path": ".rovodev/skills/openspec-propose/SKILL.md",
+      "scope": "project",
+      "bytes": 16272,
+      "sha256": "4e016111d60242295f4d795aba5055b1724d355f8ef45dd18ce200e54c839cc0",
+      "headRule": "yaml-frontmatter",
+      "head": "---\nname: openspec-propose\ndescription: Propose a new OpenSpec change with all artifacts generated in one step. Use when the user wants to quickly describe what they want to build and get a complete proposal with design, specs, and tasks ready for implementation. Also use when the user says \"openspec propose\" or \"opsx propose\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+    },
+    {
+      "path": ".rovodev/skills/openspec-sync-specs/SKILL.md",
+      "scope": "project",
+      "bytes": 15788,
+      "sha256": "be5626945cbc12c466a42b790260f68bc77bd472f89c22f01572f602ffbd6886",
+      "headRule": "yaml-frontmatter",
+      "head": "---\nname: openspec-sync-specs\ndescription: Sync delta specs from an OpenSpec change to main specs. Use when the user wants to update main specs with changes from a delta spec, without archiving the change. Also use when the user says \"openspec sync\" or \"opsx sync\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+    },
+    {
+      "path": ".rovodev/skills/openspec-update-change/SKILL.md",
+      "scope": "project",
+      "bytes": 9123,
+      "sha256": "c57cb96d964bc2e1ccee8008d96ce99589d7d8893982e760f40a9de3658d142f",
+      "headRule": "yaml-frontmatter",
+      "head": "---\nname: openspec-update-change\ndescription: Update an OpenSpec change by revising its existing planning artifacts and keeping them coherent with one another. Use when the user wants to revise a change's plan, fold new decisions into it, or reconcile its artifacts after an edit. Also use when the user says \"openspec update change\" or \"opsx update\". If the user means the openspec update CLI command, which refreshes generated files, run that command instead. Never edits code.\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+    },
+    {
+      "path": ".rovodev/skills/openspec-verify-change/SKILL.md",
+      "scope": "project",
+      "bytes": 10035,
+      "sha256": "6e1f66ac59c85c19f33d8d681c9b1855ef681ffb4dd219ec171b0e40c5dd3d99",
+      "headRule": "yaml-frontmatter",
+      "head": "---\nname: openspec-verify-change\ndescription: Verify implementation matches OpenSpec change artifacts. Use when the user wants to validate that implementation is complete, correct, and coherent before archiving. Also use when the user says \"openspec verify\" or \"opsx verify\".\nallowed-tools: Bash(openspec:*)\nlicense: MIT\ncompatibility: Requires openspec CLI.\nmetadata:\n  author: openspec\n  version: \"1.0\"\n  generatedBy: \"1.13.1\"\n---\n"
+    },
+    {
+      "path": "openspec/changes/archive/.gitkeep",
+      "scope": "project",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "headRule": "none",
+      "head": ""
+    },
+    {
+      "path": "openspec/config.yaml",
+      "scope": "project",
+      "bytes": 922,
+      "sha256": "2a791b0ccc50e2c2ebbb3ba28692a4ad0e4b6ab94ed2151375ac404d7056e89a",
+      "headRule": "none",
+      "head": ""
+    },
+    {
+      "path": "openspec/specs/.gitkeep",
+      "scope": "project",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "headRule": "none",
+      "head": ""
+    }
+  ]
+}
