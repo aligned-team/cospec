@@ -101,7 +101,8 @@ const CAPTURED: { row: string; text: string }[] = []
 /** `cospec <args>` in `root`, under the sandbox env the oracle's child sees. */
 async function own(row: string, root: string, args: string[]): Promise<Run> {
   const res = await cospec(args, { cwd: root, env: oracleEnv(root) })
-  CAPTURED.push({ row, text: `${res.stdout}\n${res.stderr}` })
+  // Row 8.2 sweeps what `archive` itself printed, not the other commands a row runs.
+  if (args[0] === 'archive') CAPTURED.push({ row, text: `${res.stdout}\n${res.stderr}` })
   return res
 }
 
@@ -722,7 +723,7 @@ describe('7. the Specs line and early-synced archives', () => {
 // --- 8. relayed archive output is spelled cospec ---------------------------------
 
 describe('8. relayed archive output is spelled cospec', () => {
-  test.failing('8.1 the carried-Purpose warning names cospec validate', async () => {
+  test('8.1 the carried-Purpose warning names cospec validate', async () => {
     const root = mkTempRepo({ git: true })
     const name = R7_SHORT_PURPOSE.build(root)
     const res = await own('8.1', root, ['archive', name])
@@ -742,7 +743,7 @@ describe('8. relayed archive output is spelled cospec', () => {
   })
 
   // Runs last: every output the rows above captured.
-  test.failing('8.2 no captured output names a bare allowlisted openspec command', () => {
+  test('8.2 no captured output names a bare allowlisted openspec command', () => {
     expect(CAPTURED.length).toBeGreaterThan(20)
     const bare = CAPTURED.filter(({ text }) => respellRemedies(text) !== text).map(({ row }) => row)
     expect(bare).toEqual([])

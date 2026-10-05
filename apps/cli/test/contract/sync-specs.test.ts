@@ -70,7 +70,8 @@ async function own(
   env: Record<string, string> = oracleEnv(root),
 ): Promise<Run> {
   const res = await cospec(args, { cwd: root, env: { ...env, TMPDIR: tmp } })
-  CAPTURED.push({ row, text: `${res.stdout}\n${res.stderr}` })
+  // Row 8.2 sweeps what `sync-specs` itself printed, not the other commands a row runs.
+  if (args[0] === 'sync-specs') CAPTURED.push({ row, text: `${res.stdout}\n${res.stderr}` })
   return res
 }
 

@@ -71,7 +71,7 @@ sandboxed HOME/XDG.
       `specsSkipReason` and the `already in sync` line (design D10). Flip rows
       2.1, 2.2, 7.1 and 7.2. Commit
       `feat(cli): add OpenSpec's archive and root keys to archive's JSON`
-- [ ] 3.6 Wire `respellRemedies` into every relay (design D12). Flip rows 8.1
+- [x] 3.6 Wire `respellRemedies` into every relay (design D12). Flip rows 8.1
       (archive half) and 8.2 (archive outputs). Commit
       `fix(cli): spell relayed archive remedies as cospec`
 - [ ] 3.7 Accept `--no-validate` (design D3): skip `validateChange`, forward the

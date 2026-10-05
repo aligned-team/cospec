@@ -47,6 +47,7 @@ import { hasFlag } from '../core/command-table.ts'
 import { parseLivingSpec, type DeltaOp } from '../core/deltas.ts'
 import { assertPathWithin } from '../core/glob.ts'
 import { spawnOpenspec, threadedArgv } from '../core/openspec.ts'
+import { respellRemedies } from '../core/remedies.ts'
 import { renderHuman, renderJson } from '../core/report.ts'
 import { resolveRoot } from '../core/root.ts'
 import { enforcedApplyRequires, TYPE_ARTIFACTS, type CospecType } from '../core/rules/type-facts.ts'
@@ -663,7 +664,9 @@ export async function run(ctx: CommandContext): Promise<number> {
         ? 'already in sync'
         : `+${counts.added} ~${counts.modified} -${counts.removed} →${counts.renamed} applied and verified`
 
-  const warnings = collectArchiveWarnings(res.stdout)
+  // Relayed, so each allowlisted upstream remedy in them is spelled cospec.
+  const warnings = collectArchiveWarnings(res.stdout).map(respellRemedies)
+  const archiveWarnings = summary.warnings.map(respellRemedies)
 
   if (flags.json) {
     process.stdout.write(
@@ -684,7 +687,7 @@ export async function run(ctx: CommandContext): Promise<number> {
             path: realpathSync(join(archiveDir(base), target!)),
             specsUpdated,
             ...(skipSpecs || summary.totals === undefined ? {} : { totals: summary.totals }),
-            ...(summary.warnings.length > 0 ? { warnings: summary.warnings } : {}),
+            ...(archiveWarnings.length > 0 ? { warnings: archiveWarnings } : {}),
           },
           root: rootOutput(root),
         },
@@ -727,7 +730,7 @@ function reportArchiveFailure(
   res: { stdout: string; stderr: string; exitCode: number },
   state: VerifyState,
 ): boolean {
-  const captured = `${res.stdout}${res.stderr}`
+  const captured = respellRemedies(`${res.stdout}${res.stderr}`)
     .split('\n')
     .map((l) => `    ${l}`)
     .join('\n')
