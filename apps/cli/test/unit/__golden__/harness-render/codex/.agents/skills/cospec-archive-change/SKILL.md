@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:5c738047656ddb62b491db73be4646970619cfe5f01aee6779924b5bd8ef3373
+  contentHash: sha256:06ced83cc52c3802650079fd3a3c303bdc97302d803b45574762e7f5bd67a1eb
 ---
 
 Archive a completed change. `cospec archive` validates it, merges its spec
@@ -29,9 +29,15 @@ Relay the summary it prints verbatim: what was archived, which spec deltas were
 applied (`+a ~m -r →n`) or skipped, which sibling changes had blocker boxes
 checked, and which changes are now unblocked.
 
-A change that introduces a brand-new capability (no living spec yet) may only
-ADD requirements there — `cospec validate` refuses a MODIFIED, REMOVED, or
-RENAMED op targeting it before archive ever runs the merge.
+A change that introduces a brand-new capability (no living spec yet) may ADD
+requirements there, and a REMOVED there is a no-op the merge warns about;
+`cospec validate` refuses a MODIFIED or RENAMED op targeting it before archive
+ever runs the merge.
+
+A change whose specs were synced early with `$cospec-sync-specs (Codex) or /cospec-sync-specs (other agents)` archives as a
+no-op merge: the summary says the specs were already in sync, and both hard
+gates (`archive/verification-incomplete`, `archive/scenario-preservation`) still
+run.
 
 ## 3. On failure
 

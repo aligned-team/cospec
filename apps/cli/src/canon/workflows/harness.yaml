@@ -95,7 +95,7 @@ workflows:
     skill: cospec-sync-specs
     title: Sync specs
     description: >-
-      Explain how spec sync works (it runs inside archive) and preview what would merge.
+      Merge a change's delta specs into the main specs without archiving it, exactly as archive would.
       Also use when the user says "cospec sync specs", "sync the specs", or "openspec sync".
     takesArguments: true
   - id: explore

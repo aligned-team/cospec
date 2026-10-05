@@ -97,7 +97,7 @@ sandboxed HOME/XDG.
 
 ## 5. T4 — canon (`apps/cli/src/canon/workflows/{sync-specs,archive}.md`, `harness.yaml`)
 
-- [ ] 5.1 Rewrite `sync-specs.md`, add the early-sync sentence to `archive.md`,
+- [x] 5.1 Rewrite `sync-specs.md`, add the early-sync sentence to `archive.md`,
       update the `sync-specs` description in `harness.yaml` (design D13), and
       run `mise run generate`. Verify with row 13.1 and
       `mise run generate:check` clean. Commit
