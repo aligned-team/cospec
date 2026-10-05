@@ -28,7 +28,6 @@ import {
   isOpenspecErrorStatus,
   openspecBelow,
   runOpenspec,
-  spawnOpenspec,
   type Root,
   threadedArgv,
   wrappedCallLabel,
@@ -784,22 +783,70 @@ export function mergeDelegated(native: Issue[], delegated: Issue[]): Issue[] {
 }
 
 /**
- * Run `openspec validate <args>` and return its parsed items. Tolerant: a
- * non-JSON body (e.g. the plain-text `Unknown item` an artifact-less change
- * yields) resolves to no items rather than throwing — cospec's own rules
- * already diagnose those states.
+ * The binary's answer to one delegated `openspec validate <args> --json`: its
+ * report's items, or — when it refused the request (an `ambiguous_item`, an
+ * errno it could not read past) — its failure document's diagnostics.
  */
-async function delegate(root: Root, args: string[]): Promise<OpenspecItem[]> {
-  const res = await spawnOpenspec(
-    threadedArgv(['validate'], ['--strict', '--json', '--no-interactive', ...root.storeArgs], args),
-    root.cwd,
+type Delegated = { items: OpenspecItem[] } | { refused: StatusDiagnostic[] }
+
+/**
+ * Run `openspec validate <args>` under the wrapped-call discipline: exit 0 or
+ * 1, and one JSON document that is either a validation report or a failure
+ * document. A refusal is an answer the caller reports, never a silent empty
+ * report.
+ */
+async function delegate(root: Root, args: string[]): Promise<Delegated> {
+  const argv = threadedArgv(
+    ['validate'],
+    ['--strict', '--json', '--no-interactive', ...root.storeArgs],
+    args,
   )
-  try {
-    const parsed = JSON.parse(res.stdout) as OpenspecValidateJson
-    return Array.isArray(parsed.items) ? parsed.items : []
-  } catch {
-    return []
-  }
+  const label = wrappedCallLabel(argv)
+  let answer: Delegated | undefined
+  await runOpenspec(argv, {
+    cwd: root.cwd,
+    expect: {
+      exitCodes: [0, 1],
+      postCondition: (result) => {
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(result.stdout)
+        } catch {
+          return `${label} did not print one JSON document`
+        }
+        if (isOpenspecErrorStatus(parsed)) {
+          answer = { refused: (parsed as { status: StatusDiagnostic[] }).status }
+          return true
+        }
+        const items = (parsed as Partial<OpenspecValidateJson> | null)?.items
+        if (!Array.isArray(items))
+          return `${label} printed neither a validation report nor a diagnostic`
+        answer = { items }
+        return true
+      },
+    },
+  })
+  return answer!
+}
+
+/**
+ * The binary's issues for item `id` from a delegated answer. A refusal is the
+ * item's: each diagnostic one `openspec/validate` issue at its severity, its
+ * remedies spelled through cospec, so the item fails rather than passing on
+ * an empty report.
+ */
+function delegatedIssues(answer: Delegated, id: string, deltaPaths: boolean): Issue[] {
+  if ('refused' in answer)
+    return answer.refused.map((d) => ({
+      level: normalizeLevel(d.severity),
+      rule: 'openspec/validate',
+      path: '.',
+      message: respellRemedies(d.message),
+      ...(d.fix === undefined ? {} : { hint: respellRemedies(d.fix) }),
+    }))
+  return answer.items
+    .filter((item) => item.id === id)
+    .flatMap((item) => item.issues.map((i) => mapDelegated(i, deltaPaths)))
 }
 
 // --- per-item validation ---------------------------------------------------
@@ -939,10 +986,8 @@ export async function validateChange(
       load.deltaFiles.length > 0 &&
       load.proposalText !== undefined
     ) {
-      const items = await delegate(root, [change.id])
-      const delegated = items
-        .filter((item) => item.id === change.id)
-        .flatMap((item) => item.issues.map((i) => mapDelegated(i, true)))
+      const answer = await delegate(root, [change.id, '--type', 'change'])
+      const delegated = delegatedIssues(answer, change.id, true)
       return buildReport(change.id, mergeDelegated(issues, delegated), y.schema, opts.strict)
     }
     return buildReport(change.id, issues, y.schema, opts.strict)
@@ -955,11 +1000,11 @@ export async function validateChange(
     ...nameKebabIssues(change.id),
     ...schemaClassificationIssues(stub),
   ]
-  if (resolution.kind === 'legacy') {
-    const items = await delegate(root, [change.id])
-    for (const item of items)
-      if (item.id === change.id) issues.push(...item.issues.map((i) => mapDelegated(i, true)))
-  }
+  // `--type change`: a change sharing a living spec's name is still a change.
+  if (resolution.kind === 'legacy')
+    issues.push(
+      ...delegatedIssues(await delegate(root, [change.id, '--type', 'change']), change.id, true),
+    )
   return buildReport(change.id, issues, y.schema, opts.strict)
 }
 
@@ -987,46 +1032,62 @@ function readLivingSpec(cap: DiscoveredSpec): LivingRead {
   }
 }
 
-async function validateSpecs(root: Root, only: string | undefined): Promise<ItemReport[]> {
+async function validateSpecs(
+  root: Root,
+  only: string | undefined,
+  strict: boolean,
+): Promise<ItemReport[]> {
   const caps = livingSpecFiles(root.base).filter((c) => only === undefined || c.id === only)
   if (caps.length === 0) return []
 
   // One delegation serves every spec, so each item's time runs from its start.
   const start = Date.now()
   const reads = caps.map((cap) => ({ cap, read: readLivingSpec(cap) }))
-  const delegated = new Map<string, OpenspecIssue[]>()
+  const delegated = new Map<string, Issue[]>()
   const readable = reads.filter(({ read }) => 'text' in read).map(({ cap }) => cap.id)
-  if (readable.length === reads.length)
-    for (const item of await delegate(root, ['--specs'])) delegated.set(item.id, item.issues)
-  else
-    // An unreadable spec fails its own item and delegates nothing; the binary's
-    // sweep may refuse the whole run over it (Bun's `realpath` on macOS), so
-    // every readable spec is asked for alone.
+  const alone = async (): Promise<void> => {
     for (const id of readable)
-      for (const item of await delegate(root, [id, '--type', 'spec']))
-        if (item.id === id) delegated.set(id, item.issues)
+      delegated.set(id, delegatedIssues(await delegate(root, [id, '--type', 'spec']), id, false))
+  }
+  // The binary's sweep answers for every spec only in a sweep where every
+  // spec is readable. A named spec is asked for alone, as is every readable
+  // spec when one is not (the binary's sweep may refuse the whole run over it:
+  // Bun's `realpath` on macOS) or when the sweep refuses anyway.
+  if (only === undefined && readable.length === reads.length) {
+    const sweep = await delegate(root, ['--specs'])
+    if ('items' in sweep)
+      for (const item of sweep.items)
+        delegated.set(
+          item.id,
+          item.issues.map((i) => mapDelegated(i)),
+        )
+    else await alone()
+  } else await alone()
 
-  return reads.map(({ cap, read }) => specReport(cap.id, read, delegated.get(cap.id) ?? [], start))
+  return reads.map(({ cap, read }) =>
+    specReport(cap.id, read, delegated.get(cap.id) ?? [], start, strict),
+  )
 }
 
 /** One living spec's report: cospec's spec rules merged with the binary's issues for it. */
 function specReport(
   id: string,
   read: LivingRead,
-  delegated: readonly OpenspecIssue[],
+  delegated: readonly Issue[],
   start: number,
+  strict: boolean,
 ): ItemReport {
   const path = `specs/${id}/spec.md`
   const issues =
     'code' in read
       ? [unreadableArtifactIssue(path, read.code)]
-      : mergeDelegated(
-          specsRules(parseLivingSpec(read.text), path),
-          delegated.map((i) => mapDelegated(i)),
-        )
+      : mergeDelegated(specsRules(parseLivingSpec(read.text), path), [...delegated])
   const errors = issues.filter((i) => i.level === 'ERROR').length
+  const warnings = issues.filter((i) => i.level === 'WARNING').length
+  // `--strict` fails a spec on a warning, as the binary's `createReport` does.
+  const valid = errors === 0 && (!strict || warnings === 0)
   const durationMs = Date.now() - start
-  return { id, kind: 'spec' as const, valid: errors === 0, issues, durationMs }
+  return { id, kind: 'spec' as const, valid, issues, durationMs }
 }
 
 /**
@@ -1035,15 +1096,13 @@ function specReport(
  * validates the file at `specs/<id>/spec.md` anyway, and its bulk `--specs`
  * sweep skips it too, so the binary is asked for that one item.
  */
-async function validateForcedSpec(root: Root, id: string): Promise<ItemReport[]> {
+async function validateForcedSpec(root: Root, id: string, strict: boolean): Promise<ItemReport[]> {
   const start = Date.now()
   const specFile = join(openspecDir(root.base), 'specs', ...id.split('/'), 'spec.md')
   const read = readLivingSpec({ id, specFile })
   const delegated =
-    'code' in read
-      ? undefined
-      : (await delegate(root, [id, '--type', 'spec'])).find((item) => item.id === id)
-  return [specReport(id, read, delegated?.issues ?? [], start)]
+    'code' in read ? [] : delegatedIssues(await delegate(root, [id, '--type', 'spec']), id, false)
+  return [specReport(id, read, delegated, start, strict)]
 }
 
 /** The first openspec release whose `validate` takes `--archived`. */
@@ -1263,7 +1322,9 @@ async function validateItem(
     const issues = [itemMissingIssue('spec', name)]
     return [{ id: name, kind: 'spec', valid: false, issues, durationMs: Date.now() - start }]
   }
-  return isSpec ? validateSpecs(root, name) : validateForcedSpec(root, name)
+  return isSpec
+    ? validateSpecs(root, name, opts.strict)
+    : validateForcedSpec(root, name, opts.strict)
 }
 
 // --- --concurrency ---------------------------------------------------------------
@@ -1487,7 +1548,7 @@ export async function run(ctx: CommandContext): Promise<number> {
       })
       items.push(...reports)
     }
-    if (doSpecs) items.push(...(await validateSpecs(root, undefined)))
+    if (doSpecs) items.push(...(await validateSpecs(root, undefined, strict)))
   }
 
   // The findings report's exit code is always the full report's.

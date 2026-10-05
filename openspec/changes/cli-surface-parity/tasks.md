@@ -255,7 +255,7 @@ final commit.
       `cli-surface.test.ts`, each as `test.failing`, and the key oracle's `kept`
       class with its self-test. Commit
       `test(cli): add the round-3 review rows as failing`
-- [ ] 12.2 Every delegated validation names its kind (`--type change` per
+- [x] 12.2 Every delegated validation names its kind (`--type change` per
       change, `--type spec` per named spec) under the wrapped-call discipline,
       and a refusal the binary answers with a `status[]` document is the item's
       `openspec/validate` ERROR, never an empty report; `--strict` fails a
