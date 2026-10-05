@@ -479,12 +479,12 @@ Propose a new change - create the change and generate all artifacts in one step.
   const USER_SHAPE =
     '---\ndescription: my personal opencode notes\n---\n\nJust my own checklist, nothing to do with openspec.\n'
 
-  test.failing('init lists and removes the real OpenCode shape', () => {
+  test('init lists and removes the real OpenCode shape', () => {
     put(dir, OPENCODE_REAL_LEFTOVER, REAL_SHAPE)
     expect(findOpsxFiles(dir)).toEqual([{ relpath: OPENCODE_REAL_LEFTOVER }])
   })
 
-  test.failing("doctor's opsx-leftover fires on the real OpenCode shape", () => {
+  test("doctor's opsx-leftover fires on the real OpenCode shape", () => {
     put(dir, OPENCODE_REAL_LEFTOVER, REAL_SHAPE)
     const findings: Finding[] = []
     checkOpsx(dir, findings)

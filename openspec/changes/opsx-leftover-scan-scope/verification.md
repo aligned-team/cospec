@@ -14,9 +14,9 @@
 
 ## 3. OpenCode command leftovers are detected by their own shape [critical]
 
-- [ ] 3.1 @regression (agent) unit row: a real-shape OpenCode opsx leftover fails `isOpsxMarkdown`/`findOpsxFiles` before the fix and passes after -> `bun test` red before, green after
-- [ ] 3.2 @unit (agent) a user-authored file at the same path with the same description-only frontmatter but no body marker is never listed, before or after the fix -> `bun test` green on both
-- [ ] 3.3 @unit (agent) doctor's `opsx-leftover` fires on the real OpenCode shape via the shared `isOpsxMarkdown`, and the existing row-3.2 hand-made OpenCode fixture (`name: "OPSX: …"`) is unchanged -> `bun test` green
+- [x] 3.1 @regression (agent) unit row: a real-shape OpenCode opsx leftover fails `isOpsxMarkdown`/`findOpsxFiles` before the fix and passes after -> confirmed red by hand against unfixed source (returned `[]`); green after (`bun test`: 118 pass, 0 fail)
+- [x] 3.2 @unit (agent) a user-authored file at the same path with the same description-only frontmatter but no body marker is never listed, before or after the fix -> `bun test` green on both (`a user file at the same path shape with no body marker is never listed`)
+- [x] 3.3 @unit (agent) doctor's `opsx-leftover` fires on the real OpenCode shape via the shared `isOpsxMarkdown`, and the existing row-3.2 hand-made OpenCode fixture (`name: "OPSX: …"`) is unchanged -> `bun test` green, `the opsx leftover scan still reads upstream's legacy command paths` suite unedited and passing
 - [ ] 3.4 @integration (agent) the real pinned 1.13.1 binary's `init --tools opencode` output (contract suite), run through `cospec init --remove-opsx` in a sandboxed temp repo, is detected and removed -> `bun test` green against the pinned binary
 
 ## 4. No regression on existing leftover-scan behavior

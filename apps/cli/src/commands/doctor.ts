@@ -57,7 +57,7 @@ import {
   skillPath,
   skillsRoot,
 } from '../harness/adapters.ts'
-import { leftoverScanFiles } from './init.ts'
+import { isOpsxMarkdown, leftoverScanFiles } from './init.ts'
 import { detectHarnesses, generate } from './update.ts'
 
 type Level = 'ERROR' | 'WARNING' | 'INFO'
@@ -380,18 +380,12 @@ export function checkOpsx(
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): void {
   for (const f of leftoverScanFiles(cwd, table)) {
-    const { frontmatter } = splitFrontmatter(f.text)
-    const meta = frontmatter?.metadata
-    // Provenance-only, matching init's removal set (DESIGN §2.1/§6.6): flag a
-    // file only when its own frontmatter proves openspec authored it. Path/name
-    // conventions alone are not provenance — never warn on user-authored files.
-    const isOpsxSkill =
-      meta !== null &&
-      typeof meta === 'object' &&
-      (meta as Record<string, unknown>).author === 'openspec'
-    const name = frontmatter?.name
-    const isOpsxCommand = typeof name === 'string' && /^"?OPSX:/.test(name)
-    if (isOpsxSkill || isOpsxCommand) {
+    // Provenance-only, matching init's removal set (DESIGN §2.1/§6.6) and its exact
+    // predicate (init.ts's `isOpsxMarkdown`, shared rather than duplicated so the two
+    // never drift): flag a file only when its own frontmatter (or, for OpenCode's
+    // description-only shape, frontmatter plus body) proves openspec authored it.
+    // Path/name conventions alone are not provenance — never warn on user-authored files.
+    if (isOpsxMarkdown(f.relpath, f.text)) {
       findings.push({
         level: 'WARNING',
         check: 'opsx-leftover',

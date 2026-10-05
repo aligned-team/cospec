@@ -21,14 +21,14 @@
 
 ## 3. OpenCode command leftovers are detected by their own shape
 
-- [ ] 3.1 Add `test.failing` unit rows proving a real-shape OpenCode opsx
+- [x] 3.1 Add `test.failing` unit rows proving a real-shape OpenCode opsx
       leftover (description-only frontmatter, body carrying the literal
       `` `openspec list --json` `` reference) is NOT detected by
       `isOpsxMarkdown`/`findOpsxFiles`/`checkOpsx` today, and that a
       user-authored file at the same path shape with the same frontmatter shape
       but no body marker is correctly left alone already -- verify the first row
       fails and the second already passes against the unmodified source
-- [ ] 3.2 Give `isOpsxMarkdown` the new `(relpath, text)` signature and
+- [x] 3.2 Give `isOpsxMarkdown` the new `(relpath, text)` signature and
       OpenCode-shape branch, update `findOpsxFiles`' call site, and point
       `doctor.ts`'s `checkOpsx` at the shared `isOpsxMarkdown` instead of its
       own duplicated provenance check; flip 3.1's failing row to `test` --

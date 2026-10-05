@@ -240,13 +240,42 @@ export interface OpsxFile {
 /** Shared skills root openspec ≥1.8.0 writes Codex (and agents/zed/antigravity) skills into. */
 export const OPSX_SHARED_SKILL_ROOT = '.agents/skills'
 
-// Provenance-only: a file is opsx only when its own frontmatter proves openspec
-// authored it (DESIGN §2.1/§6.6 — "user-authored files (no generatedBy) never
-// touched"). Path/name conventions alone are NOT provenance: a plain
-// `.opencode/commands/opsx/notes.md` or `opsx-helper.md` a user wrote by hand
-// carries no marker and must never be deleted.
-function isOpsxMarkdown(text: string): boolean {
-  const { frontmatter } = splitFrontmatter(text)
+/**
+ * The exact path the pinned 1.13.1 OpenCode command adapter (dist
+ * `core/command-generation/adapters/opencode.js`) writes to: `.opencode/commands/opsx-<id>.md`,
+ * one path segment for `<id>`. cospec's own OpenCode commands live at
+ * `.opencode/commands/cospec-<id>.md` and never match this.
+ */
+const OPENCODE_OPSX_COMMAND_RE = /^\.opencode\/commands\/opsx-[^/]+\.md$/
+
+/**
+ * OpenCode's command adapter emits frontmatter with only `description` — no `name`, no
+ * `metadata` — so neither marker in `isOpsxMarkdown` below ever matches a real OpenCode
+ * opsx leftover (probed from the pinned binary's own `init --tools opencode` output).
+ * Detected instead by the combination the adapter's output always has: the exact path it
+ * writes to, frontmatter with no key but `description`, and the literal bare
+ * `` `openspec list --json` `` every opsx workflow body carries (the pinned dist's
+ * `PROJECT_ROOT_GUARD`, interpolated into all but one of its workflow templates) — a
+ * string cospec's own shipped bodies never contain, since cospec always respells its own
+ * commands as `cospec`, never bare `openspec`. The combination is provenance, not a
+ * path/name convention: a hand-written `.opencode/commands/opsx-notes.md` with its own
+ * prose body never carries that literal command reference.
+ */
+function isOpenCodeOpsxCommand(relpath: string, frontmatter: unknown, body: string): boolean {
+  if (!OPENCODE_OPSX_COMMAND_RE.test(relpath)) return false
+  if (frontmatter === null || typeof frontmatter !== 'object') return false
+  const keys = Object.keys(frontmatter as Record<string, unknown>)
+  if (keys.length !== 1 || keys[0] !== 'description') return false
+  return body.includes('`openspec list --json`')
+}
+
+// Provenance-only: a file is opsx only when its own frontmatter (or, for OpenCode's
+// description-only shape, its frontmatter plus body) proves openspec authored it (DESIGN
+// §2.1/§6.6 — "user-authored files (no generatedBy) never touched"). Path/name conventions
+// alone are NOT provenance: a plain `.opencode/commands/opsx/notes.md` or `opsx-helper.md`
+// a user wrote by hand carries no marker and must never be deleted.
+export function isOpsxMarkdown(relpath: string, text: string): boolean {
+  const { frontmatter, body } = splitFrontmatter(text)
   const meta = frontmatter?.metadata
   if (meta !== null && typeof meta === 'object') {
     const record = meta as Record<string, unknown>
@@ -262,7 +291,7 @@ function isOpsxMarkdown(text: string): boolean {
   // Command files (e.g. `.claude/commands/opsx/*.md`) carry `name: 'OPSX: …'`.
   const name = frontmatter?.name
   if (typeof name === 'string' && /^"?OPSX:/.test(name)) return true
-  return false
+  return isOpenCodeOpsxCommand(relpath, frontmatter, body)
 }
 
 /**
@@ -358,7 +387,7 @@ export function findOpsxFiles(
   // cospec writes its own `cospec-*` skills to `.agents/skills` too; the two prefixes
   // cannot collide, and `isOpsxMarkdown` excludes anything cospec authored.
   return leftoverScanFiles(cwd, table)
-    .filter((f) => isOpsxMarkdown(f.text))
+    .filter((f) => isOpsxMarkdown(f.relpath, f.text))
     .map(({ relpath }) => ({ relpath }))
     .toSorted((a, b) => a.relpath.localeCompare(b.relpath))
 }
