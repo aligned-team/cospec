@@ -170,11 +170,12 @@ Co-Authored-By trailer, never `--no-verify`).
       pending count 7 → 0 (row 2.1), the BREAKING list (row 14.3),
       `validate --all --strict` (row 14.2) and `mise run check` (row 14.4).
       Commit `docs(cli): record cli-surface-parity evidence`
-- [ ] 10.2 After the final rebase onto `main`, tick this row, run
+- [x] 10.2 After the final rebase onto `main`, tick this row, run
       `mise run cospec -- validate cli-surface-parity --strict`, then
       `mise run cospec -- archive cli-surface-parity` with no `--force*` flag,
       as the PR branch's final commit. Verify with `git show --stat` listing
-      only `openspec/` paths
+      only `openspec/` paths — performed by the next commit (the archive);
+      verified by its `git show --stat`
 
 ## 11. Round-2 review fixes
 
