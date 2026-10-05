@@ -1838,7 +1838,7 @@ describe('15. round-2 review rows', () => {
       }
     })
 
-    test.failing("15.8 list --specs relays the binary's failure document and fix", async () => {
+    test("15.8 list --specs relays the binary's failure document and fix", async () => {
       const root = cospecRoot()
       writeFiles(root, { 'openspec/specs/locked/spec.md': LIVING('locked') })
       const restore = lock(join(root, 'openspec/specs/locked'))

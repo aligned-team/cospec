@@ -218,7 +218,7 @@ final commit.
 - [x] 11.8 `validate --json` with no `openspec/` directory prints one
       `no_openspec_root` document. Verify with row 15.7. Commit
       `fix(validate): answer --json outside a root with one document`
-- [ ] 11.9 `list --specs` relays the binary's failure document under `--json`
+- [x] 11.9 `list --specs` relays the binary's failure document under `--json`
       and its message and fix in text. Verify with row 15.8. Commit
       `fix(cli): relay a failed list --specs as the binary's document`
 - [ ] 11.10 An unreadable living `spec.md` is one `meta/unreadable-artifact`

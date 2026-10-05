@@ -88,6 +88,20 @@ async function runSpecs(ctx: CommandContext, root: Root): Promise<number> {
     return EXIT.failure
   }
 
+  // A read the binary refuses (an unreadable capability directory) is its
+  // answer, relayed: its document under `--json`, else its message and fix.
+  const failure = upstreamFailure(parsed as Record<string, unknown>)
+  if (failure !== undefined) {
+    if (ctx.flags.json)
+      process.stdout.write(respellRemedies(`${JSON.stringify(parsed, null, 2)}\n`))
+    else
+      for (const s of failure) {
+        process.stderr.write(`cospec: ${respellRemedies(s.message)}\n`)
+        if (typeof s.fix === 'string') process.stderr.write(`Fix: ${respellRemedies(s.fix)}\n`)
+      }
+    return EXIT.failure
+  }
+
   if (result.exitCode !== 0) {
     const message = parsed.status?.map((s) => s.message).join('\n') ?? result.stderr
     process.stderr.write(`${message}\n`)
