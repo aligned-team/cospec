@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 
 import { userSchemasDir } from '../../../src/core/change-metadata.ts'
 import {
+  changeLookupNameProblem,
   changesDir,
   COSPEC_TYPES,
   describeNestedChange,
@@ -151,15 +152,31 @@ describe('listChanges / resolveChange', () => {
     expect(resolveChange(cwd, 'bare')?.schema).toBe('')
   })
 
-  test('rejects non-kebab ids and path traversal', () => {
+  test('refuses what the binary refuses as a lookup name, before touching disk', () => {
     const cwd = makeRepo()
     makeChange(cwd, 'real', 'schema: feat\n')
     // `../changes/real` would join back onto an existing change dir, so the
     // guard must reject the traversal id before resolveChange touches disk.
-    for (const bad of ['../changes/real', '../../etc', 'a/b', '..', 'Cap', '-lead', 'trail-', '']) {
+    for (const bad of ['../changes/real', '../../etc', 'a/b', 'a\\b', '..', '.', '', 'a\0b']) {
+      expect(changeLookupNameProblem(bad)).toBeDefined()
       expect(resolveChange(cwd, bad)).toBeUndefined()
     }
     expect(resolveChange(cwd, 'real')?.schema).toBe('feat')
+  })
+
+  test('looks a change up by its directory name, as the binary does (verification 16.7, 16.8)', () => {
+    const cwd = makeRepo()
+    makeChange(cwd, 'Add_Auth', 'schema: feat\n')
+    makeChange(cwd, '.hidden', 'schema: feat\n')
+    makeChange(cwd, 'archive', 'schema: feat\n')
+    writeFileSync(join(cwd, 'openspec/changes/todo'), 'not a change\n')
+    // A directory name outside the kebab grammar is still a change.
+    expect(resolveChange(cwd, 'Add_Auth')?.schema).toBe('feat')
+    // A hidden or reserved name is refused even when its directory exists.
+    expect(resolveChange(cwd, '.hidden')).toBeUndefined()
+    expect(resolveChange(cwd, 'archive')).toBeUndefined()
+    // A regular file is no change.
+    expect(resolveChange(cwd, 'todo')).toBeUndefined()
   })
 })
 

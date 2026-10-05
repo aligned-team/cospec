@@ -276,7 +276,7 @@ final commit.
 - [x] 12.5 `validate <name>` with no `openspec/` directory resolves the name as
       the binary does: `unknown_item`. Verify with row 16.5. Commit
       `fix(validate): resolve a named item outside any root`
-- [ ] 12.6 `resolveChange` looks a change up as the binary's
+- [x] 12.6 `resolveChange` looks a change up as the binary's
       `validateChangeExists` does: a directory, any name its
       `validateChangeLookupName` accepts. Verify with rows 16.7 and 16.8. Commit
       `fix(cli): look a change up as the binary does`

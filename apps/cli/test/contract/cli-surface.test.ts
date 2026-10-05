@@ -2220,58 +2220,52 @@ describe('16. round-3 review rows', () => {
     },
   )
 
-  test.failing(
-    '16.7 a regular file under changes/ is no change, as the binary refuses it',
-    async () => {
-      const root = cospecRoot()
-      writeFiles(root, { 'openspec/changes/todo': 'not a change\n' })
-      const upText = await upstream(['status', '--change', 'todo'], root)
-      const text = await ours(['status', '--change', 'todo'], root)
-      captureStatus('16.7 text', text)
-      expect(upText.exitCode).toBe(1)
-      expect(text.exitCode).toBe(upText.exitCode)
-      expect(text.stdout).toBe('')
-      const up = await upstreamJson(['status', '--change', 'todo', '--json'], root)
-      const cs = await oursJson(['status', '--change', 'todo', '--json'], root)
-      captureStatus('16.7 json', cs)
-      expect(cs.exitCode).toBe(up.exitCode)
-      expect(Object.keys(cs.json as Row)).toEqual(['status'])
-      expect(firstStatus(cs.json).code).toBe('change_error')
-      const apply = await oursJson(['apply', 'todo', '--json'], root)
-      expect(apply.exitCode).toBe(1)
-      expect(firstStatus(apply.json)).toMatchObject({
-        code: 'change_error',
-        message: "unknown change 'todo'",
-      })
-    },
-  )
+  test('16.7 a regular file under changes/ is no change, as the binary refuses it', async () => {
+    const root = cospecRoot()
+    writeFiles(root, { 'openspec/changes/todo': 'not a change\n' })
+    const upText = await upstream(['status', '--change', 'todo'], root)
+    const text = await ours(['status', '--change', 'todo'], root)
+    captureStatus('16.7 text', text)
+    expect(upText.exitCode).toBe(1)
+    expect(text.exitCode).toBe(upText.exitCode)
+    expect(text.stdout).toBe('')
+    const up = await upstreamJson(['status', '--change', 'todo', '--json'], root)
+    const cs = await oursJson(['status', '--change', 'todo', '--json'], root)
+    captureStatus('16.7 json', cs)
+    expect(cs.exitCode).toBe(up.exitCode)
+    expect(Object.keys(cs.json as Row)).toEqual(['status'])
+    expect(firstStatus(cs.json).code).toBe('change_error')
+    const apply = await oursJson(['apply', 'todo', '--json'], root)
+    expect(apply.exitCode).toBe(1)
+    expect(firstStatus(apply.json)).toMatchObject({
+      code: 'change_error',
+      message: "unknown change 'todo'",
+    })
+  })
 
-  test.failing(
-    '16.8 a non-kebab change directory is looked up as the binary looks it up',
-    async () => {
-      const root = cospecRoot()
-      writeChange(root, 'Add_Auth', { 'proposal.md': PROPOSAL })
-      const upText = await upstream(['status', '--change', 'Add_Auth'], root)
-      const text = await ours(['status', '--change', 'Add_Auth'], root)
-      captureStatus('16.8 text', text)
-      expect(upText.exitCode).toBe(0)
-      expect(text.exitCode).toBe(upText.exitCode)
-      expect(text.stderr).not.toContain('Did you mean')
-      const up = await upstreamJson(['status', '--change', 'Add_Auth', '--json'], root)
-      const cs = await oursJson(['status', '--change', 'Add_Auth', '--json'], root)
-      captureStatus('16.8 json', cs)
-      expect(cs.exitCode).toBe(up.exitCode)
-      expect((cs.json as Row).change).toBe('Add_Auth')
-      expectOracle(up.json, cs.json, STATUS_SPEC)
-      // What the binary refuses as a lookup name stays refused, and is never suggested back.
-      writeFiles(root, { 'openspec/changes/.hidden/.openspec.yaml': 'schema: feat\n' })
-      for (const id of ['archive', '.hidden']) {
-        const refused = await ours(['status', '--change', id], root)
-        expect({ id, exit: refused.exitCode }).toEqual({ id, exit: 1 })
-        expect(refused.stderr).not.toContain(`Did you mean '${id}'?`)
-      }
-    },
-  )
+  test('16.8 a non-kebab change directory is looked up as the binary looks it up', async () => {
+    const root = cospecRoot()
+    writeChange(root, 'Add_Auth', { 'proposal.md': PROPOSAL })
+    const upText = await upstream(['status', '--change', 'Add_Auth'], root)
+    const text = await ours(['status', '--change', 'Add_Auth'], root)
+    captureStatus('16.8 text', text)
+    expect(upText.exitCode).toBe(0)
+    expect(text.exitCode).toBe(upText.exitCode)
+    expect(text.stderr).not.toContain('Did you mean')
+    const up = await upstreamJson(['status', '--change', 'Add_Auth', '--json'], root)
+    const cs = await oursJson(['status', '--change', 'Add_Auth', '--json'], root)
+    captureStatus('16.8 json', cs)
+    expect(cs.exitCode).toBe(up.exitCode)
+    expect((cs.json as Row).change).toBe('Add_Auth')
+    expectOracle(up.json, cs.json, STATUS_SPEC)
+    // What the binary refuses as a lookup name stays refused, and is never suggested back.
+    writeFiles(root, { 'openspec/changes/.hidden/.openspec.yaml': 'schema: feat\n' })
+    for (const id of ['archive', '.hidden']) {
+      const refused = await ours(['status', '--change', id], root)
+      expect({ id, exit: refused.exitCode }).toEqual({ id, exit: 1 })
+      expect(refused.stderr).not.toContain(`Did you mean '${id}'?`)
+    }
+  })
 
   unlessRoot('mode 000', () => {
     test("16.2 validate <spec> alone is answered whatever a sibling spec's mode", async () => {

@@ -160,22 +160,39 @@ function changeAt(dir: string, id: string): Change {
 }
 
 /**
- * Change ids are kebab-case slugs (this is the canonical grammar `cospec new`
- * validates against). Anything else — an empty string, a path separator, or a
- * `..` traversal segment — can never name a real change, so id-taking readers
- * reject it up front rather than joining it onto `changesDir` and resolving a
- * path outside the changes tree.
+ * The kebab-case slug grammar `cospec new` creates a change under. A change
+ * made any other way is still looked up by its directory name
+ * (`changeLookupNameProblem`); `meta/name-kebab` reports the name.
  */
 export const CHANGE_ID_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/
 
 /**
- * Resolve an active change by exact id. `undefined` when the id is not a valid
- * kebab slug or the change does not exist.
+ * Why the binary's `validateChangeLookupName` refuses `name` as a change to
+ * look up, or undefined: a relative path segment, a path separator, a NUL, a
+ * leading dot, or the reserved `archive` — anything that would escape the
+ * changes directory or address an entry its change listing excludes. Empty
+ * names never reach the binary's check, which answers them first.
+ */
+export function changeLookupNameProblem(name: string): string | undefined {
+  if (name.length === 0) return 'Change name cannot be empty'
+  if (name === '.' || name === '..') return 'Change name cannot be a relative path segment'
+  if (name.includes('/') || name.includes('\\')) return 'Change name cannot contain path separators'
+  if (name.includes('\0')) return 'Change name cannot contain null characters'
+  if (name.startsWith('.')) return 'Change name cannot start with a dot'
+  if (name === 'archive') return "'archive' is reserved for archived changes"
+  return undefined
+}
+
+/**
+ * Resolve an active change by exact name, as the binary's
+ * `validateChangeExists` does: a name it accepts for lookup, naming a
+ * directory under `openspec/changes/`. `undefined` otherwise — a regular
+ * file of that name included.
  */
 export function resolveChange(cwd: string, id: string): Change | undefined {
-  if (!CHANGE_ID_RE.test(id)) return undefined
+  if (changeLookupNameProblem(id) !== undefined) return undefined
   const dir = join(changesDir(cwd), id)
-  if (!existsSync(dir)) return undefined
+  if (!existsSync(dir) || !statSync(dir).isDirectory()) return undefined
   return changeAt(dir, id)
 }
 
