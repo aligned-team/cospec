@@ -2,7 +2,7 @@
 
 ## 1. Baseline
 
-- [ ] 1.1 Confirm `harness-receipt-and-doctor-scope` (#63) is an ancestor of
+- [x] 1.1 Confirm `harness-receipt-and-doctor-scope` (#63) is an ancestor of
       this branch and `cospec apply opsx-leftover-scan-scope` exits 0, and
       verify the two defects reproduce on this baseline (a nested-worktree opsx
       leftover is listed/removed; a real OpenCode opsx leftover is not detected)
@@ -10,11 +10,11 @@
 
 ## 2. Leftover scan does not cross a nested worktree boundary
 
-- [ ] 2.1 Add a `test.failing` unit row proving a real openspec-authored
+- [x] 2.1 Add a `test.failing` unit row proving a real openspec-authored
       leftover inside a `.claude/worktrees/<name>/` directory carrying its own
       `.git` is listed by `findOpsxFiles` today (the regression row) and verify
       it fails against the unmodified source
-- [ ] 2.2 Add a boundary check to `leftoverScanFiles`' walk (a directory holding
+- [x] 2.2 Add a boundary check to `leftoverScanFiles`' walk (a directory holding
       its own `.git` entry is never descended into) and flip 2.1's row to a
       passing `test` -- verify `bun test` passes and a sibling leftover outside
       any nested worktree is still found

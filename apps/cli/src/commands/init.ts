@@ -303,10 +303,27 @@ export function isLeftoverCandidate(
 }
 
 /**
+ * True when `abs` is the root of a nested git working tree distinct from the project's
+ * own: a worktree checkout (`git worktree add` writes `.git` there as a *file* pointing at
+ * the real gitdir) or an embedded clone (`.git` as a directory). Checked by existence only,
+ * never `isDirectory()`, so the worktree-file case is caught too.
+ */
+function isNestedWorktreeRoot(abs: string): boolean {
+  return existsSync(join(abs, '.git'))
+}
+
+/**
  * The opsx leftover scan behind `init --remove-opsx`, `init --json`'s `opsx.found` and
  * doctor's `opsx-leftover`: every scan root, then the shared `.agents/skills` root
  * openspec ≥1.8.0 writes its Codex (and agents/zed/antigravity) skills to whichever rows
  * the table carries. `table` is a test seam for rows the shipped table does not carry.
+ *
+ * The walk never descends into a nested git working tree (a worktree checkout under, say,
+ * `.claude/worktrees/<name>/`, or any other embedded clone): such a directory is a distinct
+ * project with its own `cospec init --remove-opsx` to run, and a copy of a genuinely
+ * openspec-authored file living inside it must never be listed or removed by the outer
+ * scan. Only the directory boundary is pruned — the scan's acceptance (`isLeftoverCandidate`)
+ * is unchanged.
  */
 export function leftoverScanFiles(
   cwd: string,
@@ -320,8 +337,10 @@ export function leftoverScanFiles(
     if (!existsSync(abs)) return
     for (const entry of readdirSync(abs, { withFileTypes: true })) {
       const childRel = `${rel}/${entry.name}`
-      if (entry.isDirectory()) walk(childRel)
-      else if (entry.isFile() && !out.has(childRel) && isLeftoverCandidate(childRel, table)) {
+      if (entry.isDirectory()) {
+        if (isNestedWorktreeRoot(join(cwd, childRel))) continue
+        walk(childRel)
+      } else if (entry.isFile() && !out.has(childRel) && isLeftoverCandidate(childRel, table)) {
         out.set(childRel, { relpath: childRel, text: readFileSync(join(cwd, childRel), 'utf8') })
       }
     }

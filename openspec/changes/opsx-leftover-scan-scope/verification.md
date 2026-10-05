@@ -2,15 +2,15 @@
 
 ## 1. Baseline reproduces both defects [critical]
 
-- [ ] 1.1 @manual (agent) `16598dad` is an ancestor of this branch and `cospec apply opsx-leftover-scan-scope` exits 0 -> <git merge-base + exit code>
-- [ ] 1.2 @manual (agent) plant a `.claude/worktrees/<name>/.git` + a real opsx command leftover inside it, run `findOpsxFiles` on the unmodified source -> it lists the nested file (defect reproduces)
-- [ ] 1.3 @manual (agent) plant a real-shape OpenCode opsx leftover (description-only frontmatter + the literal body marker), run `findOpsxFiles` on the unmodified source -> it does NOT list the file (defect reproduces)
+- [x] 1.1 @manual (agent) `16598dad` is an ancestor of this branch and `cospec apply opsx-leftover-scan-scope` exits 0 -> `git merge-base --is-ancestor 16598dad HEAD` exit 0; `cospec apply` exit 0, gate clear
+- [x] 1.2 @manual (agent) plant a `.claude/worktrees/<name>/.git` + a real opsx command leftover inside it, run `findOpsxFiles` on the unmodified source -> listed `[{relpath:".claude/worktrees/wt/.claude/commands/opsx/apply.md"}]` (defect reproduced, then fixed)
+- [x] 1.3 @manual (agent) plant a real-shape OpenCode opsx leftover (description-only frontmatter + the literal body marker), run `findOpsxFiles` on the unmodified source -> returned `[]`, not listed (defect reproduced, then fixed in group 3)
 
 ## 2. Leftover scan does not cross a nested worktree boundary [critical]
 
-- [ ] 2.1 @regression (agent) unit row: a nested-worktree leftover fails (wrongly listed) before the fix and passes (not listed) after -> `bun test` red before, green after
-- [ ] 2.2 @unit (agent) a sibling openspec-authored leftover outside any nested worktree is still listed and removed -> `bun test` green
-- [ ] 2.3 @unit (agent) doctor's `opsx-leftover` finding over the same fixture names no path under `.claude/worktrees/` -> `bun test` green
+- [x] 2.1 @regression (agent) unit row: a nested-worktree leftover fails (wrongly listed) before the fix and passes (not listed) after -> red before `isNestedWorktreeRoot` existed (confirmed by hand), green after (`bun test apps/cli/test/unit/init/doctor-rows.test.ts`: 26 pass, 0 fail)
+- [x] 2.2 @unit (agent) a sibling openspec-authored leftover outside any nested worktree is still listed and removed -> `bun test` green (`a sibling leftover outside any nested worktree is still (and only) found`)
+- [x] 2.3 @unit (agent) doctor's `opsx-leftover` finding over the same fixture names no path under `.claude/worktrees/` -> `bun test` green (`doctor's opsx-leftover never names a path under .claude/worktrees/`)
 
 ## 3. OpenCode command leftovers are detected by their own shape [critical]
 

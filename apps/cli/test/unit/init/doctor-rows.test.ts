@@ -427,19 +427,19 @@ describe('the opsx leftover scan does not cross a nested worktree boundary', () 
     put(dir, WT_LEFTOVER, "---\nname: 'OPSX: Apply'\n---\nreal openspec command\n")
   }
 
-  test.failing('a real leftover inside a nested worktree checkout is not listed', () => {
+  test('a real leftover inside a nested worktree checkout is not listed', () => {
     plantNestedWorktree()
     expect(findOpsxFiles(dir)).toEqual([])
   })
 
-  test.failing("doctor's opsx-leftover never names a path under .claude/worktrees/", () => {
+  test("doctor's opsx-leftover never names a path under .claude/worktrees/", () => {
     plantNestedWorktree()
     const findings: Finding[] = []
     checkOpsx(dir, findings)
     expect(findings.filter((f) => f.message.includes('.claude/worktrees/'))).toEqual([])
   })
 
-  test.failing('a sibling leftover outside any nested worktree is still (and only) found', () => {
+  test('a sibling leftover outside any nested worktree is still (and only) found', () => {
     plantNestedWorktree()
     put(dir, OUTER_LEFTOVER, "---\nname: 'OPSX: Apply'\n---\nreal openspec command\n")
     expect(findOpsxFiles(dir)).toEqual([{ relpath: OUTER_LEFTOVER }])
