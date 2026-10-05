@@ -1859,48 +1859,45 @@ describe('15. round-2 review rows', () => {
       }
     })
 
-    test.failing(
-      '15.9 an unreadable living spec is one meta/unreadable-artifact ERROR',
-      async () => {
-        const root = cospecRoot()
-        writeFiles(root, {
-          'openspec/specs/foo/spec.md': LIVING('foo'),
-          'openspec/specs/bar/spec.md': LIVING('bar'),
-        })
-        const alone = await oursJson(['validate', 'bar', '--json'], root)
-        const barAlone = rowsOf(alone.json, 'items').find((i) => i.id === 'bar')!
-        const restore = lock(join(root, 'openspec/specs/foo/spec.md'))
-        try {
-          for (const argv of [
-            ['validate', 'foo', '--json'],
-            ['validate', 'foo', '--type', 'spec', '--json'],
-            ['validate', '--specs', '--json'],
-            ['validate', '--all', '--json'],
-          ]) {
-            const up = await upstream(argv, root)
-            const cs = await oursJson(argv, root)
-            expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
-            expect(cs.exitCode).toBe(1)
-            const items = rowsOf(cs.json, 'items')
-            const foo = items.find((i) => i.id === 'foo')!
-            const issues = foo.issues as Row[]
-            expect(issues).toHaveLength(1)
-            expect(issues[0]).toMatchObject({ level: 'ERROR', rule: 'meta/unreadable-artifact' })
-            expect(String(issues[0]!.message)).toContain('specs/foo/spec.md')
-            expect(String(issues[0]!.message)).toContain('EACCES')
-            if (argv.includes('foo')) continue
-            const bar = items.find((i) => i.id === 'bar')!
-            expect(bar.issues).toEqual(barAlone.issues)
-            expect(bar.valid).toBe(barAlone.valid)
-          }
-          const text = await ours(['validate', 'foo'], root)
-          expect(text.exitCode).toBe(1)
-          expect(text.stdout).toContain('meta/unreadable-artifact')
-        } finally {
-          restore()
+    test('15.9 an unreadable living spec is one meta/unreadable-artifact ERROR', async () => {
+      const root = cospecRoot()
+      writeFiles(root, {
+        'openspec/specs/foo/spec.md': LIVING('foo'),
+        'openspec/specs/bar/spec.md': LIVING('bar'),
+      })
+      const alone = await oursJson(['validate', 'bar', '--json'], root)
+      const barAlone = rowsOf(alone.json, 'items').find((i) => i.id === 'bar')!
+      const restore = lock(join(root, 'openspec/specs/foo/spec.md'))
+      try {
+        for (const argv of [
+          ['validate', 'foo', '--json'],
+          ['validate', 'foo', '--type', 'spec', '--json'],
+          ['validate', '--specs', '--json'],
+          ['validate', '--all', '--json'],
+        ]) {
+          const up = await upstream(argv, root)
+          const cs = await oursJson(argv, root)
+          expect({ argv, exit: cs.exitCode }).toEqual({ argv, exit: up.exitCode })
+          expect(cs.exitCode).toBe(1)
+          const items = rowsOf(cs.json, 'items')
+          const foo = items.find((i) => i.id === 'foo')!
+          const issues = foo.issues as Row[]
+          expect(issues).toHaveLength(1)
+          expect(issues[0]).toMatchObject({ level: 'ERROR', rule: 'meta/unreadable-artifact' })
+          expect(String(issues[0]!.message)).toContain('specs/foo/spec.md')
+          expect(String(issues[0]!.message)).toContain('EACCES')
+          if (argv.includes('foo')) continue
+          const bar = items.find((i) => i.id === 'bar')!
+          expect(bar.issues).toEqual(barAlone.issues)
+          expect(bar.valid).toBe(barAlone.valid)
         }
-      },
-    )
+        const text = await ours(['validate', 'foo'], root)
+        expect(text.exitCode).toBe(1)
+        expect(text.stdout).toContain('meta/unreadable-artifact')
+      } finally {
+        restore()
+      }
+    })
 
     /** The list fixture with `beta`'s `tasks.md` at mode 000. */
     function lockedTasks(): { root: string; tasks: string; restore: () => void } {

@@ -70,6 +70,7 @@ import {
 } from '../core/rules/type-facts.ts'
 import {
   capabilityForDeltaFile,
+  type DiscoveredSpec,
   discoverSpecFiles,
   isDeltaSpecFile,
   unreadDeltaExpectation,
@@ -968,8 +969,22 @@ export async function validateChange(
  * openspec itself uses (`<area>/<capability>`) rather than being missed
  * entirely by a one-level readdir.
  */
-function livingSpecFiles(base: string): { id: string; specFile: string }[] {
-  return discoverSpecFiles(join(openspecDir(base), 'specs'))
+function livingSpecFiles(base: string): DiscoveredSpec[] {
+  return discoverSpecFiles(join(openspecDir(base), 'specs'), { reportUnreadable: true })
+}
+
+/** A living spec's text, or the errno code that kept it from being read (`meta/unreadable-artifact`). */
+type LivingRead = { text: string } | { code: string }
+
+function readLivingSpec(cap: DiscoveredSpec): LivingRead {
+  if (cap.unreadable !== undefined) return { code: cap.unreadable }
+  try {
+    return { text: readFileSync(cap.specFile, 'utf8') }
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    if (!(error instanceof Error) || typeof code !== 'string' || code === 'ENOENT') throw error
+    return { code }
+  }
 }
 
 async function validateSpecs(root: Root, only: string | undefined): Promise<ItemReport[]> {
@@ -978,27 +993,40 @@ async function validateSpecs(root: Root, only: string | undefined): Promise<Item
 
   // One delegation serves every spec, so each item's time runs from its start.
   const start = Date.now()
+  const reads = caps.map((cap) => ({ cap, read: readLivingSpec(cap) }))
   const delegated = new Map<string, OpenspecIssue[]>()
-  for (const item of await delegate(root, ['--specs'])) delegated.set(item.id, item.issues)
+  const readable = reads.filter(({ read }) => 'text' in read).map(({ cap }) => cap.id)
+  if (readable.length === reads.length)
+    for (const item of await delegate(root, ['--specs'])) delegated.set(item.id, item.issues)
+  else
+    // An unreadable spec fails its own item and delegates nothing; the binary's
+    // sweep may refuse the whole run over it (Bun's `realpath` on macOS), so
+    // every readable spec is asked for alone.
+    for (const id of readable)
+      for (const item of await delegate(root, [id, '--type', 'spec']))
+        if (item.id === id) delegated.set(id, item.issues)
 
-  return caps.map((cap) => specReport(cap, delegated.get(cap.id) ?? [], start))
+  return reads.map(({ cap, read }) => specReport(cap.id, read, delegated.get(cap.id) ?? [], start))
 }
 
 /** One living spec's report: cospec's spec rules merged with the binary's issues for it. */
 function specReport(
-  cap: { id: string; specFile: string },
+  id: string,
+  read: LivingRead,
   delegated: readonly OpenspecIssue[],
   start: number,
 ): ItemReport {
-  const path = `specs/${cap.id}/spec.md`
-  const living = parseLivingSpec(readFileSync(cap.specFile, 'utf8'))
-  const issues = mergeDelegated(
-    specsRules(living, path),
-    delegated.map((i) => mapDelegated(i)),
-  )
+  const path = `specs/${id}/spec.md`
+  const issues =
+    'code' in read
+      ? [unreadableArtifactIssue(path, read.code)]
+      : mergeDelegated(
+          specsRules(parseLivingSpec(read.text), path),
+          delegated.map((i) => mapDelegated(i)),
+        )
   const errors = issues.filter((i) => i.level === 'ERROR').length
   const durationMs = Date.now() - start
-  return { id: cap.id, kind: 'spec' as const, valid: errors === 0, issues, durationMs }
+  return { id, kind: 'spec' as const, valid: errors === 0, issues, durationMs }
 }
 
 /**
@@ -1010,8 +1038,12 @@ function specReport(
 async function validateForcedSpec(root: Root, id: string): Promise<ItemReport[]> {
   const start = Date.now()
   const specFile = join(openspecDir(root.base), 'specs', ...id.split('/'), 'spec.md')
-  const delegated = (await delegate(root, [id, '--type', 'spec'])).find((item) => item.id === id)
-  return [specReport({ id, specFile }, delegated?.issues ?? [], start)]
+  const read = readLivingSpec({ id, specFile })
+  const delegated =
+    'code' in read
+      ? undefined
+      : (await delegate(root, [id, '--type', 'spec'])).find((item) => item.id === id)
+  return [specReport(id, read, delegated?.issues ?? [], start)]
 }
 
 /** The first openspec release whose `validate` takes `--archived`. */

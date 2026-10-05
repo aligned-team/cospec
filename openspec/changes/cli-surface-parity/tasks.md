@@ -221,7 +221,7 @@ final commit.
 - [x] 11.9 `list --specs` relays the binary's failure document under `--json`
       and its message and fix in text. Verify with row 15.8. Commit
       `fix(cli): relay a failed list --specs as the binary's document`
-- [ ] 11.10 An unreadable living `spec.md` is one `meta/unreadable-artifact`
+- [x] 11.10 An unreadable living `spec.md` is one `meta/unreadable-artifact`
       ERROR on that spec. Verify with row 15.9. Commit
       `fix(validate): report an unreadable living spec as an issue`
 - [ ] 11.11 Record observed evidence on every group-15 row, re-observe rows
