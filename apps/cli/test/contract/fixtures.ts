@@ -1417,35 +1417,6 @@ export const R7_SYNCED_SHAPES: readonly R7Fixture[] = [
   R7_NEW_REMOVED_ONLY_MARKED,
 ]
 
-/** Every archive-and-sync-parity builder, for the smoke rows. */
-export const R7_FIXTURES: readonly R7Fixture[] = [
-  ...R7_SYNC_SHAPES,
-  R7_COMMENT_KEPT,
-  R7_COMMENTED_LIVING_SCENARIO,
-  R7_COMMENTED_LIVING_HEADER,
-  R7_BARE_VERIFICATION,
-  R7_INCOMPLETE_TASK,
-  R7_SCENARIO_DROP,
-  R7_REVALIDATION_ONLY,
-  R7_NAMESPACE,
-  R7_NEW_ADDED_REMOVED,
-  R7_NEW_REMOVED_ONLY,
-  R7_NEW_REMOVED_ONLY_MARKED,
-  R7_SYMLINKED_ALIAS,
-  R7_SHORT_PURPOSE,
-  R7_NO_DELTA,
-  R7_SKIP_SPECS,
-  R7_CHORE,
-  R7_ARCHIVE_UNREADABLE,
-  R7_NEW_MODIFIED,
-  R7_NEW_RENAMED,
-  R7_DELTA_INVALID,
-  R7_SYNCED_ADDED,
-  R7_SYNCED_REMOVED,
-  R7_SYNCED_RENAMED,
-  R7_SYNCED_MODIFIED,
-]
-
 /** The MODIFIED fixture declaring `skip_specs: true` beside its delta file: a conflict both validators refuse. */
 export const R7_SKIP_SPECS_WITH_DELTA = r7('skip-specs-with-delta', false, false, (root) => {
   R7_MODIFIED.build(root)
@@ -1538,7 +1509,12 @@ export const R7_MODIFIED_LINKED = r7('modified-linked', true, true, (root) => {
   return 'c1'
 })
 
-/** `R7_MODIFIED` beside an unrelated living spec no one can read (mode 000). */
+/**
+ * `R7_MODIFIED` beside an unrelated living spec no one can read (mode 000).
+ * Its validate flags hold where `realpath` resolves a mode-000 file (Linux);
+ * on macOS the binary's `validate` fails on it, so it stays out of
+ * `R7_FIXTURES`' smoke rows.
+ */
 export const R7_UNRELATED_UNREADABLE = r7('unrelated-unreadable', true, true, (root) => {
   R7_MODIFIED.build(root)
   writeLivingSpec(root, 'other', livingSpec('other', LIVING_WIDGET_REQ))
@@ -1550,3 +1526,37 @@ export const R7_UNRELATED_UNREADABLE = r7('unrelated-unreadable', true, true, (r
 export function restoreUnrelatedMode(root: string): void {
   chmodSync(join(root, 'openspec/specs/other/spec.md'), 0o644)
 }
+
+/** Every archive-and-sync-parity builder, for the smoke rows. */
+export const R7_FIXTURES: readonly R7Fixture[] = [
+  ...R7_SYNC_SHAPES,
+  R7_COMMENT_KEPT,
+  R7_COMMENTED_LIVING_SCENARIO,
+  R7_COMMENTED_LIVING_HEADER,
+  R7_BARE_VERIFICATION,
+  R7_INCOMPLETE_TASK,
+  R7_SCENARIO_DROP,
+  R7_REVALIDATION_ONLY,
+  R7_NAMESPACE,
+  R7_NEW_ADDED_REMOVED,
+  R7_NEW_REMOVED_ONLY,
+  R7_NEW_REMOVED_ONLY_MARKED,
+  R7_SYMLINKED_ALIAS,
+  R7_SHORT_PURPOSE,
+  R7_NO_DELTA,
+  R7_SKIP_SPECS,
+  R7_CHORE,
+  R7_ARCHIVE_UNREADABLE,
+  R7_NEW_MODIFIED,
+  R7_NEW_RENAMED,
+  R7_DELTA_INVALID,
+  R7_SYNCED_ADDED,
+  R7_SYNCED_REMOVED,
+  R7_SYNCED_RENAMED,
+  R7_SYNCED_MODIFIED,
+  ...R7_UNREAD_DELTAS,
+  R7_ABSOLUTE_ALIAS,
+  R7_ABSOLUTE_ALIAS_CONFLICT,
+  R7_RETIRED_LINKED,
+  R7_MODIFIED_LINKED,
+]
