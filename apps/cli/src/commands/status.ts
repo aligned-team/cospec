@@ -384,7 +384,7 @@ async function refuseUnknownSchema(
   json: boolean,
 ): Promise<number> {
   const doc = await delegatedStatus(root, args)
-  if (json) process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`)
+  if (json) process.stdout.write(`${JSON.stringify(respelledUpstream(doc), null, 2)}\n`)
   else
     for (const s of upstreamFailure(doc) ?? [])
       process.stderr.write(`cospec status: ${s.message}\n`)
@@ -476,10 +476,13 @@ function upstreamNext(doc: Record<string, unknown>, id: string): string | undefi
   )
 }
 
-/** The binary's diagnostics for a change it could not report, if it could not. */
-function upstreamFailure(doc: Record<string, unknown>): { message: string }[] | undefined {
+/**
+ * The binary's diagnostics for a change it could not report, if it could not,
+ * each spelled through the remedy allowlist as every relay of them is.
+ */
+export function upstreamFailure(doc: Record<string, unknown>): { message: string }[] | undefined {
   if (upstreamArtifacts(doc) !== undefined) return undefined
-  return Array.isArray(doc.status) ? (doc.status as { message: string }[]) : undefined
+  return Array.isArray(doc.status) ? respellDiagnostics(doc.status) : undefined
 }
 
 const INDICATOR: Record<ArtifactState, string> = {
@@ -616,7 +619,7 @@ async function runAll(ctx: CommandContext, override: string | undefined): Promis
   if (flags.json) {
     const doc = mergeUpstream(
       { changes: entries, root: rootOutput(root), ...warningsKey(warnings) },
-      withRespelledNextSteps(upstream!),
+      respelledUpstream(upstream!),
       SWEEP_IDENTITIES,
     ).value
     process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`)
@@ -700,19 +703,35 @@ async function delegatedStatus(
   return doc!
 }
 
-/** A binary status entry with each `nextSteps` sentence spelled through cospec. */
+/** The binary's diagnostics, each `message` and `fix` spelled through the remedy allowlist. */
+function respellDiagnostics(status: unknown[]): { message: string }[] {
+  return status.map((d) => {
+    if (!isRecord(d)) return d as { message: string }
+    const fix = typeof d.fix === 'string' ? { fix: respellRemedies(d.fix) } : {}
+    const message = typeof d.message === 'string' ? respellRemedies(d.message) : d.message
+    return { ...d, message, ...fix } as { message: string }
+  })
+}
+
+/**
+ * A binary status entry with each `nextSteps` sentence spelled through
+ * cospec, and each `status[]` diagnostic's message and fix.
+ */
 function respellEntry(entry: unknown): unknown {
-  if (!isRecord(entry) || !Array.isArray(entry.nextSteps)) return entry
-  return {
-    ...entry,
-    nextSteps: entry.nextSteps.map((step: unknown) =>
-      typeof step === 'string' ? respellWholeRemedy(step) : step,
-    ),
-  }
+  if (!isRecord(entry)) return entry
+  const steps = Array.isArray(entry.nextSteps)
+    ? {
+        nextSteps: entry.nextSteps.map((step: unknown) =>
+          typeof step === 'string' ? respellWholeRemedy(step) : step,
+        ),
+      }
+    : {}
+  const status = Array.isArray(entry.status) ? { status: respellDiagnostics(entry.status) } : {}
+  return { ...entry, ...steps, ...status }
 }
 
 /** The binary's document, single or sweep, its remedies spelled through cospec. */
-function withRespelledNextSteps(doc: Record<string, unknown>): Record<string, unknown> {
+export function respelledUpstream(doc: Record<string, unknown>): Record<string, unknown> {
   const single = respellEntry(doc) as Record<string, unknown>
   return Array.isArray(single.changes)
     ? { ...single, changes: single.changes.map(respellEntry) }
@@ -727,7 +746,7 @@ function mergedEntry(
 ): Record<string, unknown> {
   return mergeUpstream(
     { ...entry, root: rootOutput(root) },
-    withRespelledNextSteps(upstream),
+    respelledUpstream(upstream),
     ENTRY_IDENTITIES,
   ).value
 }
@@ -867,10 +886,9 @@ async function status(ctx: CommandContext): Promise<number> {
   const refused =
     upstream === undefined || tasksWarnings.length === 0 ? undefined : upstreamFailure(upstream)
   if (refused !== undefined) {
-    if (flags.json) process.stdout.write(respellRemedies(`${JSON.stringify(upstream, null, 2)}\n`))
-    else
-      for (const s of refused)
-        process.stderr.write(`cospec status: ${respellRemedies(s.message)}\n`)
+    if (flags.json)
+      process.stdout.write(`${JSON.stringify(respelledUpstream(upstream!), null, 2)}\n`)
+    else for (const s of refused) process.stderr.write(`cospec status: ${s.message}\n`)
     return EXIT.failure
   }
   const warnings = readWarnings(warning, tasksWarnings)

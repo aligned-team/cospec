@@ -3,7 +3,14 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 import { rmSync } from 'node:fs'
 
-import { computeStatus, resolveNext, run as statusRun } from '../../../src/commands/status.ts'
+import {
+  computeStatus,
+  resolveNext,
+  respelledUpstream,
+  run as statusRun,
+  upstreamFailure,
+} from '../../../src/commands/status.ts'
+import { respellRemedies } from '../../../src/core/remedies.ts'
 import { ctx, makeRepo, writeChange } from './helpers.ts'
 
 const roots: string[] = []
@@ -101,5 +108,36 @@ describe('resolveNext (verification 3.3)', () => {
       schemaVersion: 2,
     })
     expect(status.next).toBe('cospec apply skip')
+  })
+})
+
+describe('every relayed binary diagnostic is spelled cospec (verification 16.13)', () => {
+  const NOT_FOUND =
+    "Change 'todo' not found. No changes exist. Create one with: openspec new change <name>"
+  const BARE = /(?<![\w./-])openspec\s+[a-z][\w-]*/
+  const failure = {
+    status: [{ severity: 'error', code: 'change_error', message: NOT_FOUND, fix: NOT_FOUND }],
+  }
+
+  test('the text relay reads respelled messages', () => {
+    const messages = upstreamFailure(failure)!.map((d) => d.message)
+    expect(messages).toEqual([respellRemedies(NOT_FOUND)])
+    expect(messages[0]).not.toMatch(BARE)
+    expect(messages[0]).not.toBe(NOT_FOUND)
+  })
+
+  test('the --json relay respells status[] message and fix, singly and in the sweep', () => {
+    const want = {
+      ...failure.status[0],
+      message: respellRemedies(NOT_FOUND),
+      fix: respellRemedies(NOT_FOUND),
+    }
+    expect(respelledUpstream(failure)).toEqual({ status: [want] })
+    const sweep = { changes: [{ changeName: 'todo', ...failure }], root: null }
+    expect(respelledUpstream(sweep)).toEqual({
+      changes: [{ changeName: 'todo', status: [want] }],
+      root: null,
+    })
+    expect(JSON.stringify(respelledUpstream(sweep))).not.toMatch(BARE)
   })
 })

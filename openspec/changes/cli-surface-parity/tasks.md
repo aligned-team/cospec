@@ -280,7 +280,7 @@ final commit.
       `validateChangeExists` does: a directory, any name its
       `validateChangeLookupName` accepts. Verify with rows 16.7 and 16.8. Commit
       `fix(cli): look a change up as the binary does`
-- [ ] 12.7 Every binary diagnostic `status` relays is spelled through the remedy
+- [x] 12.7 Every binary diagnostic `status` relays is spelled through the remedy
       allowlist, in text and in `status[]` under `--json`. Verify with row
       16.13. Commit
       `fix(cli): respell every status diagnostic the binary relays`
