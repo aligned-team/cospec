@@ -12,10 +12,19 @@ import { join } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
+import {
+  changeNameProblem,
+  diagnostics,
+  failureDocument,
+  relayedReason,
+  type ArchiveDiagnostic,
+  type ArchiveRefusalReason,
+} from '../core/archive-output.ts'
 import { parseBlockers, syncBlockers } from '../core/blockers.ts'
 import {
   archiveDir,
   isCospecType,
+  listChangeDirs,
   listChanges,
   openspecDir,
   resolveChange,
@@ -25,7 +34,7 @@ import {
 import { hasFlag } from '../core/command-table.ts'
 import { parseLivingSpec, type DeltaOp } from '../core/deltas.ts'
 import { spawnOpenspec, threadedArgv } from '../core/openspec.ts'
-import { renderHuman, renderJson, type ItemReport } from '../core/report.ts'
+import { renderHuman, renderJson } from '../core/report.ts'
 import { resolveRoot } from '../core/root.ts'
 import { enforcedApplyRequires, TYPE_ARTIFACTS, type CospecType } from '../core/rules/type-facts.ts'
 import {
@@ -169,12 +178,11 @@ function countOps(caps: CapabilityDeltas[]): OpCounts {
   return c
 }
 
-function printReport(report: ItemReport, ctx: CommandContext): void {
-  const out = ctx.flags.json
-    ? renderJson([report])
-    : renderHuman([report], { noColor: ctx.flags.noColor, title: 'cospec archive' })
-  process.stdout.write(out)
-}
+/**
+ * The `--json` payload a root-selection failure prints ahead of `status`, as
+ * the binary's `printJsonFailure(undefined, …)` does.
+ */
+export const jsonFailurePayload = { archive: null } as const
 
 /**
  * What the capability's other operations do to a name, which is what makes the
@@ -240,7 +248,36 @@ export async function run(ctx: CommandContext): Promise<number> {
   // Required in the table: the parser has refused a missing one.
   const name = parsed.positionals[0]!
 
+  // Every refusal below answers `--json` with exactly one document; text mode
+  // keeps the prose each path writes to stderr.
+  let type: string | undefined
+  const refuse = (
+    reason: ArchiveRefusalReason,
+    diagnostic: ArchiveDiagnostic,
+    extra?: Readonly<Record<string, unknown>>,
+    moved = false,
+  ): number => {
+    if (flags.json)
+      process.stdout.write(
+        failureDocument({
+          change: name,
+          ...(type === undefined ? {} : { type }),
+          reason,
+          diagnostic,
+          root,
+          moved,
+          ...(extra === undefined ? {} : { extra }),
+        }),
+      )
+    return EXIT.failure
+  }
+
   // Step 1: resolve change + schema (legacy still archives; step 2 delegates).
+  const nameProblem = changeNameProblem(name)
+  if (nameProblem !== undefined) {
+    process.stderr.write(`cospec archive: ${nameProblem}\n`)
+    return refuse('invalid-name', diagnostics.invalidName(nameProblem))
+  }
   const change = resolveChange(base, name)
   if (change === undefined) {
     process.stderr.write(`cospec archive: unknown change '${name}'\n`)
@@ -249,8 +286,15 @@ export async function run(ctx: CommandContext): Promise<number> {
       listChanges(base).map((c) => c.id),
     )
     if (suggestion !== undefined) process.stderr.write(`Did you mean '${suggestion}'?\n`)
-    return EXIT.failure
+    return refuse(
+      'unknown-change',
+      diagnostics.notFound(
+        name,
+        listChangeDirs(base).map((c) => c.id),
+      ),
+    )
   }
+  type = change.schema
   const resolution = resolveSchema(base, change.schema)
 
   // Step 6 (decided early — needed for validation scope + snapshot): skip specs
@@ -268,8 +312,15 @@ export async function run(ctx: CommandContext): Promise<number> {
   const vctx = buildValidateContext(base)
   const report = await validateChange(root, change, vctx, { strict: false, fast: skipSpecs })
   if (!report.valid) {
-    printReport(report, ctx)
-    return EXIT.failure
+    if (!flags.json)
+      process.stdout.write(
+        renderHuman([report], { noColor: flags.noColor, title: 'cospec archive' }),
+      )
+    // Under --json the report keeps every key it carried; the refusal's join it.
+    const reportDoc = flags.json
+      ? (JSON.parse(renderJson([report])) as Record<string, unknown>)
+      : undefined
+    return refuse('validation', diagnostics.validationFailed(change.id, root), reportDoc)
   }
 
   // Step 3: tasks gate (stricter than openspec — -y alone does not waive).
@@ -284,7 +335,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     )
     for (const t of incomplete) process.stderr.write(`  - [ ] ${t.text}\n`)
     process.stderr.write('re-run with --force-incomplete to archive anyway.\n')
-    return EXIT.failure
+    return refuse('tasks-incomplete', diagnostics.tasksIncomplete(change.id, incomplete.length))
   }
 
   // Step 3b: verification-incomplete gate (DESIGN §3.5 step 1). Runs whenever
@@ -321,7 +372,10 @@ export async function run(ctx: CommandContext): Promise<number> {
       process.stderr.write(
         'resolve each row as `[x] … -> <evidence>`, or defer it as `[~] … -> defer: <reason>`.\n',
       )
-      return EXIT.failure
+      return refuse(
+        'archive/verification-incomplete',
+        diagnostics.verificationIncomplete(change.id),
+      )
     }
   }
 
@@ -346,7 +400,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     process.stderr.write(
       `cospec archive: archive slot '${slot}' already exists — rename or remove it first.\n`,
     )
-    return EXIT.failure
+    return refuse('slot-exists', diagnostics.targetExists(slot))
   }
 
   // Step 7: snapshot.
@@ -367,7 +421,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     livingCaps = gate.livingCaps
     if (gate.drops.length > 0) {
       process.stderr.write(scenarioRefusal('archive', gate.drops))
-      return EXIT.failure
+      return refuse('archive/scenario-preservation', diagnostics.scenarioDropped(gate.drops))
     }
   }
 
@@ -387,13 +441,19 @@ export async function run(ctx: CommandContext): Promise<number> {
   const success = res.exitCode === 0 && !abortedOutput && moved && targetHasYaml
 
   if (!success) {
-    return reportArchiveFailure(ctx, change, res, {
+    const aborted = reportArchiveFailure(change, res, {
       moved,
       newDirs,
       target,
       targetHasYaml,
       abortedOutput,
     })
+    return refuse(
+      aborted ? 'aborted' : 'half-state',
+      diagnostics.error(relayedReason(`${res.stdout}\n${res.stderr}`)),
+      { openspecExit: res.exitCode },
+      moved,
+    )
   }
 
   // Step 10: post-merge spot-check (skipped when no specs merged).
@@ -428,10 +488,9 @@ export async function run(ctx: CommandContext): Promise<number> {
       }
     }
     if (misses.length > 0) {
-      process.stderr.write(
-        `cospec archive: change was archived but spec merge verification failed for: ${misses.join('; ')} — this is a cospec/openspec invariant breach; please file a bug.\n`,
-      )
-      return EXIT.failure
+      const breach = `change was archived but spec merge verification failed for: ${misses.join('; ')} — this is a cospec/openspec invariant breach; please file a bug.`
+      process.stderr.write(`cospec archive: ${breach}\n`)
+      return refuse('spec-verification-failed', diagnostics.error(breach), undefined, true)
     }
   }
 
@@ -505,19 +564,22 @@ interface VerifyState {
   abortedOutput: boolean
 }
 
-/** Step 9 failure branch: clean abort vs. loud half-state. */
+/**
+ * Step 9 failure branch: clean abort vs. loud half-state, on stderr. True for
+ * a clean abort (nothing moved), false for a half-state.
+ */
 function reportArchiveFailure(
-  ctx: CommandContext,
   change: Change,
   res: { stdout: string; stderr: string; exitCode: number },
   state: VerifyState,
-): number {
+): boolean {
   const captured = `${res.stdout}${res.stderr}`
     .split('\n')
     .map((l) => `    ${l}`)
     .join('\n')
 
-  if (!state.moved && state.newDirs.length === 0) {
+  const aborted = !state.moved && state.newDirs.length === 0
+  if (aborted) {
     process.stderr.write(
       'The wrapped OpenSpec archive did not archive the change (it exited 0 but aborted).\n',
     )
@@ -537,20 +599,5 @@ function reportArchiveFailure(
     process.stderr.write(`${captured}\n`)
     process.stderr.write('Manual inspection required — the archive is in an inconsistent state.\n')
   }
-
-  if (ctx.flags.json)
-    process.stdout.write(
-      `${JSON.stringify(
-        {
-          change: change.id,
-          type: change.schema,
-          archived: false,
-          reason: !state.moved && state.newDirs.length === 0 ? 'aborted' : 'half-state',
-          openspecExit: res.exitCode,
-        },
-        null,
-        2,
-      )}\n`,
-    )
-  return EXIT.failure
+  return aborted
 }

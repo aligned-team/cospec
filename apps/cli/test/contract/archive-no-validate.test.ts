@@ -47,7 +47,7 @@ import {
   restoreArchiveMode,
   type R7Fixture,
 } from './fixtures.ts'
-import { checkNativeKeys, compareDocuments, type OracleSpec } from './support/key-oracle.ts'
+import { byKey, checkNativeKeys, compareDocuments, type OracleSpec } from './support/key-oracle.ts'
 import { oracle, oracleEnv } from './support/upstream-oracle.ts'
 
 afterAll(cleanupAll)
@@ -193,6 +193,9 @@ function nativeSuccess(
     blockers: { checkedOff: [], nowUnblocked: [] },
   }
 }
+
+/** A failure document's `status[]`, paired by code. */
+const STATUS = { 'status[]': { upstream: byKey('code'), cospec: byKey('code') } } as const
 
 const roots = (copy: string, root: string): OracleSpec['paths'] => ({
   keys: ['archive.path', 'root.path'],
@@ -381,6 +384,7 @@ describe("2. archive's JSON documents carry the binary's keys", () => {
         upstreamRoot: realpathSync(copy),
         cospecRoot: realpathSync(root),
       },
+      identities: STATUS,
       respelled: ['status[].fix'],
       collisions,
     }
@@ -388,7 +392,7 @@ describe("2. archive's JSON documents carry the binary's keys", () => {
     return cs
   }
 
-  test.failing('2.3 unknown change', async () => {
+  test('2.3 unknown change', async () => {
     const { root, copy } = twin(R7_MODIFIED)
     const cs = await failureRow(
       '2.3',
@@ -400,7 +404,7 @@ describe("2. archive's JSON documents carry the binary's keys", () => {
     expect((cs.status as { code: string }[])[0]!.code).toBe('archive_change_not_found')
   })
 
-  test.failing('2.3 invalid change name', async () => {
+  test('2.3 invalid change name', async () => {
     const { root, copy } = twin(R7_MODIFIED)
     const cs = await failureRow(
       '2.3',
@@ -424,7 +428,7 @@ describe("2. archive's JSON documents carry the binary's keys", () => {
     expect((cs.status as { code: string }[])[0]!.code).toBe('archive_change_is_namespace_folder')
   })
 
-  test.failing('2.3 revalidation failure', async () => {
+  test('2.3 revalidation failure', async () => {
     const { root, copy, name } = twin(R7_DELTA_INVALID)
     const cs = await failureRow(
       '2.3',
@@ -438,7 +442,7 @@ describe("2. archive's JSON documents carry the binary's keys", () => {
     for (const key of ['version', 'items', 'summary']) expect(cs).toHaveProperty(key)
   })
 
-  test.failing('2.3 incomplete tasks (the binary without -y)', async () => {
+  test('2.3 incomplete tasks (the binary without -y)', async () => {
     const { root, copy, name } = twin(R7_INCOMPLETE_TASK)
     const cs = await failureRow(
       '2.3',
@@ -451,7 +455,7 @@ describe("2. archive's JSON documents carry the binary's keys", () => {
     expect((cs.status as { code: string }[])[0]!.code).toBe('archive_tasks_incomplete')
   })
 
-  test.failing('2.3 taken archive slot', async () => {
+  test('2.3 taken archive slot', async () => {
     const { root, copy, name } = twin(R7_MODIFIED)
     for (const r of [root, copy])
       writeFiles(r, {
@@ -468,7 +472,7 @@ describe("2. archive's JSON documents carry the binary's keys", () => {
     expect((cs.status as { code: string }[])[0]!.code).toBe('archive_target_exists')
   })
 
-  test.failing('2.3 scenario-dropping MODIFIED (the binary with -y)', async () => {
+  test('2.3 scenario-dropping MODIFIED (the binary with -y)', async () => {
     const { root, copy, name } = twin(R7_SCENARIO_DROP)
     // cospec's revalidation runs the advisory scenario rule at WARNING; the
     // hard gate is what refuses, so the change passes revalidation first.
@@ -483,7 +487,7 @@ describe("2. archive's JSON documents carry the binary's keys", () => {
     expect(cs.reason).toBe('archive/scenario-preservation')
   })
 
-  test.failing('2.4 a bare [ ] verification row is one cospec-only document', async () => {
+  test('2.4 a bare [ ] verification row is one cospec-only document', async () => {
     const root = mkTempRepo({ git: true })
     const name = R7_BARE_VERIFICATION.build(root)
     const res = await own('2.4', root, ['archive', name, '--json'])
@@ -494,21 +498,22 @@ describe("2. archive's JSON documents carry the binary's keys", () => {
     expect((cs.status as { code: string }[])[0]!.code).toBe('archive_verification_incomplete')
   })
 
-  test.failing(
-    "2.6 an unknown --store is the resolver document with archive's payload",
-    async () => {
-      const { root, copy, name } = twin(R7_MODIFIED)
-      const res = await own('2.6', root, ['archive', name, '--json', '--store', 'nope'])
-      const up = await binary(copy, ['archive', name, '--json', '--store', 'nope'])
-      expect([res.exitCode, up.exitCode]).toEqual([1, 1])
-      const upDoc = document(up.stdout)
-      expect(upDoc).toEqual({ archive: null, status: expect.any(Array) })
-      // The message is cospec's own resolver wording, which every command shares
-      // (`core/root.ts`); the code, target and fix are the binary's.
-      const spec: OracleSpec = { respelled: ['status[].fix'], verdict: ['status[].message'] }
-      expect(compareDocuments(upDoc, document(res.stdout), spec).failures).toEqual([])
-    },
-  )
+  test("2.6 an unknown --store is the resolver document with archive's payload", async () => {
+    const { root, copy, name } = twin(R7_MODIFIED)
+    const res = await own('2.6', root, ['archive', name, '--json', '--store', 'nope'])
+    const up = await binary(copy, ['archive', name, '--json', '--store', 'nope'])
+    expect([res.exitCode, up.exitCode]).toEqual([1, 1])
+    const upDoc = document(up.stdout)
+    expect(upDoc).toEqual({ archive: null, status: expect.any(Array) })
+    // The message is cospec's own resolver wording, which every command shares
+    // (`core/root.ts`); the code, target and fix are the binary's.
+    const spec: OracleSpec = {
+      identities: STATUS,
+      respelled: ['status[].fix'],
+      verdict: ['status[].message'],
+    }
+    expect(compareDocuments(upDoc, document(res.stdout), spec).failures).toEqual([])
+  })
 })
 
 // --- 3. the scenario-preservation gate reads the verbatim view -------------------

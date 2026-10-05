@@ -54,7 +54,7 @@ sandboxed HOME/XDG.
       type-level test 3.4. Verify with rows 3.1–3.3 still green and
       `grep -n findScenarioDrops apps/cli/src/commands` empty. Commit
       `refactor(cli): share the scenario-preservation gate`
-- [ ] 3.2 Add `core/archive-output.ts`'s failure-document builder (design D6),
+- [x] 3.2 Add `core/archive-output.ts`'s failure-document builder (design D6),
       `jsonFailurePayload = { archive: null }`, and one document on every
       refusal path, with the unit enumeration 2.5. Flip rows 2.3–2.6. Commit
       `feat(cli): answer every archive refusal with one JSON document`
