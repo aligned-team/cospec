@@ -1004,9 +1004,12 @@ describe('reachability: negative cases (ledger 4.1, 4.3, 4.5)', () => {
   })
 
   test('an entry removed from every place resolves nowhere and fails', () => {
-    const pending = PENDING.filter((pe) => !(pe.kind === 'tool' && pe.id === 'cursor'))
-    const failures = checkReachability({ ...model, pending })
-    expect(failures).toContain('tool id `cursor` resolves nowhere')
+    // `roocode` stays pending until its row lands (tool-matrix 7.7); the table override keeps
+    // the case true if it ever lands, so the removed entry still resolves nowhere.
+    const pending = PENDING.filter((pe) => !(pe.kind === 'tool' && pe.id === 'roocode'))
+    const harnessNames = model.harnessNames.filter((id) => id !== 'roocode')
+    const failures = checkReachability({ ...model, pending, harnessNames })
+    expect(failures).toContain('tool id `roocode` resolves nowhere')
   })
 
   test('an entry listed in two places fails', () => {

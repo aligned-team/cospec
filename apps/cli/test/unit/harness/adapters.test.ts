@@ -33,7 +33,7 @@ describe('isHarnessName', () => {
     expect(isHarnessName('codex')).toBe(true)
     expect(isHarnessName('opencode')).toBe(true)
     expect(isHarnessName('agents')).toBe(true)
-    expect(isHarnessName('cursor')).toBe(false)
+    expect(isHarnessName('not-a-tool')).toBe(false)
     expect(isHarnessName('all')).toBe(false)
   })
 })
@@ -163,8 +163,8 @@ describe('HARNESS_TABLE invariants', () => {
   test('HarnessName is the literal union of the table ids', () => {
     const ok: HarnessName = 'agents'
     // @ts-expect-error — an id the table does not declare is not a HarnessName
-    const bad: HarnessName = 'cursor'
-    expect<string[]>([ok, bad]).toEqual(['agents', 'cursor'])
+    const bad: HarnessName = 'not-a-tool'
+    expect<string[]>([ok, bad]).toEqual(['agents', 'not-a-tool'])
   })
 
   test("ids are unique and HARNESS_NAMES is today's four, in today's order", () => {
@@ -218,7 +218,7 @@ describe('HARNESS_TABLE invariants', () => {
   })
 
   test('adapterFor refuses an id the table does not declare', () => {
-    expect(() => adapterFor('cursor')).toThrow(/no harness adapter row for 'cursor'/)
+    expect(() => adapterFor('not-a-tool')).toThrow(/no harness adapter row for 'not-a-tool'/)
   })
 })
 
