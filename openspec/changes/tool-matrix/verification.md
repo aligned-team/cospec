@@ -10,7 +10,7 @@
 
 ## 2. The four existing rows are byte-identical to main [critical]
 
-- [ ] 2.1 @regression (agent) `git diff --exit-code <task 1.1 baseline sha> HEAD -- apps/cli/test/unit/__golden__/harness-render/{claude,codex,opencode,agents,all}` -> exit 0
+- [ ] 2.1 @regression (agent) `git diff --exit-code 72ce24a7 HEAD -- apps/cli/test/unit/__golden__/harness-render/{claude,codex,opencode,agents,all}` -> exit 0
 - [ ] 2.2 @integration (agent) `mise run test:integration -- test/integration/harness-wiring` with the receipt goldens diffed against the baseline -> only the `Harness:` list of `all`, the shared-root line of `codex`/`agents`/`all`, and the `all` setup notes and IDE-restart line changed; no rendered file changed
 - [ ] 2.3 @integration (agent) `mise run generate:check` on the repo itself -> clean, and the repo's own `.claude/`, `.agents/skills/`, `.codex/`, `.opencode/` are unchanged apart from the new `.agents/skills/.cospec-target`
 

@@ -2,14 +2,14 @@
 
 ## 1. Baseline and oracle (tests first)
 
-- [ ] 1.1 Rebase onto `main` if `opsx-leftover-scan-scope` or
+- [x] 1.1 Rebase onto `main` if `opsx-leftover-scan-scope` or
       `archive-and-sync-parity` has merged, then record the byte-identity
       baseline before any source edit: run
       `mise run test -- test/unit/harness-render.test.ts` and
       `test/integration/harness-wiring` on the unmodified tree, and write the
       baseline commit sha into verification row 2.1; verify both pass and
       `git status` shows no change under `__golden__/`
-- [ ] 1.2 Add the tests-owned oracle regenerator
+- [x] 1.2 Add the tests-owned oracle regenerator
       `apps/cli/test/contract/support/upstream-init-capture.ts` (pinned binary,
       private sandbox per tool, `profile: custom` with all 12 workflows,
       `delivery: both`, the head rule from design "The oracle") and
