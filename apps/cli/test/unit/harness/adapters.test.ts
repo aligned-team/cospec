@@ -167,10 +167,20 @@ describe('HARNESS_TABLE invariants', () => {
     expect<string[]>([ok, bad]).toEqual(['agents', 'not-a-tool'])
   })
 
-  test("ids are unique and HARNESS_NAMES is today's four, in today's order", () => {
+  test('ids are unique; HARNESS_NAMES is the shipped four, then rows in AI_TOOLS order', () => {
     const ids = HARNESS_TABLE.map((r) => r.id)
     expect(new Set(ids).size).toBe(ids.length)
-    expect(HARNESS_NAMES).toEqual(['claude', 'codex', 'opencode', 'agents'])
+    // The full order is the pinned AI_TOOLS order, asserted whole by harness-matrix.test.ts.
+    expect(HARNESS_NAMES).toEqual([
+      'claude',
+      'codex',
+      'opencode',
+      'agents',
+      'auggie',
+      'bob',
+      'costrict',
+      'factory',
+    ])
     expect(HARNESS_NAMES).toEqual(ids)
   })
 
@@ -199,8 +209,12 @@ describe('HARNESS_TABLE invariants', () => {
     expect(overlaps).toBe(1)
   })
 
-  test('the four rows are all repo-scoped, `/`-invoked and need no IDE restart', () => {
-    for (const row of HARNESS_TABLE as readonly HarnessAdapter[]) {
+  test('the four shipped rows are all repo-scoped, `/`-invoked and need no IDE restart', () => {
+    // Later rows may need an IDE restart or carry no setup note; the pinned capture decides.
+    const shipped = new Set(['claude', 'codex', 'opencode', 'agents'])
+    for (const row of (HARNESS_TABLE as readonly HarnessAdapter[]).filter((r) =>
+      shipped.has(r.id),
+    )) {
       expect(skillsRoot(row).scope).toBe('project')
       expect(row.invocationPrefix).toBe('/')
       expect(row.requiresIdeRestart).toBe(false)
@@ -223,21 +237,49 @@ describe('HARNESS_TABLE invariants', () => {
 })
 
 describe('HARNESS_TABLE derived roots', () => {
-  test("scan roots are today's `.<id>` walk order", () => {
-    expect(scanRoots()).toEqual(['.claude', '.codex', '.opencode', '.agents'])
+  test("scan roots are the shipped `.<id>` roots, then each row's upstream root", () => {
+    expect(scanRoots()).toEqual([
+      '.claude',
+      '.codex',
+      '.opencode',
+      '.agents',
+      '.augment',
+      '.bob',
+      '.cospec',
+      '.factory',
+    ])
   })
 
-  test("each row's primary root is today's `.<id>` dir, so doctor attributes files as before", () => {
-    expect(HARNESS_TABLE.map((row) => primaryRoot(row))).toEqual(
-      HARNESS_NAMES.map((id) => `.${id}`),
-    )
+  test("each row's primary root is its commands dir, else its rules file, else its skills root", () => {
+    // The shipped four keep `.<id>`; a row whose upstream dir is not `.<id>` (Auggie's
+    // `.augment`) is attributed by the dir upstream writes its files under.
+    expect(HARNESS_TABLE.map((row) => primaryRoot(row))).toEqual([
+      '.claude',
+      '.codex',
+      '.opencode',
+      '.agents',
+      '.augment',
+      '.bob',
+      '.cospec',
+      '.factory',
+    ])
   })
 
   test('removal roots are openspec plus every tool root', () => {
     expect(new Set(removalRoots())).toEqual(
-      new Set(['openspec', '.claude', '.agents', '.opencode', '.codex']),
+      new Set([
+        'openspec',
+        '.claude',
+        '.agents',
+        '.opencode',
+        '.codex',
+        '.augment',
+        '.bob',
+        '.cospec',
+        '.factory',
+      ]),
     )
-    expect(removalRoots()).toHaveLength(5)
+    expect(removalRoots()).toHaveLength(9)
   })
 
   test("each scan root's skills are harness documents; its rules and stray prompts are not", () => {

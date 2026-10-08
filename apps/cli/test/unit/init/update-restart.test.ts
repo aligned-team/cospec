@@ -6,7 +6,6 @@ import { describe, expect, test } from 'bun:test'
 
 import { updateRestartLine } from '../../../src/commands/update.ts'
 import {
-  HARNESS_NAMES,
   HARNESS_TABLE,
   type HarnessAdapter,
   ideRestartLine,
@@ -51,8 +50,12 @@ describe('update receipt restart line', () => {
     expect(updateRestartLine(['ide-skills'], TABLE)).toBe(SKILLS_LINE)
   })
 
-  test('never fires for the four real rows', () => {
-    expect(updateRestartLine([...HARNESS_NAMES])).toBeUndefined()
-    expect(ideRestartLine(HARNESS_TABLE)).toBeUndefined()
+  test('never fires for the four shipped rows', () => {
+    const shipped = ['claude', 'codex', 'opencode', 'agents'] as const
+    expect(updateRestartLine([...shipped])).toBeUndefined()
+    const rows = (HARNESS_TABLE as readonly HarnessAdapter[]).filter((r) =>
+      (shipped as readonly string[]).includes(r.id),
+    )
+    expect(ideRestartLine(rows)).toBeUndefined()
   })
 })

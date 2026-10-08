@@ -2,6 +2,10 @@
   "harnesses": [
     "claude",
     "codex",
-    "opencode"
+    "opencode",
+    "auggie",
+    "bob",
+    "costrict",
+    "factory"
   ]
 }

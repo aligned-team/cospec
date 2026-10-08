@@ -151,6 +151,75 @@ export const HARNESS_TABLE = [
       'agents.md',
     ],
   },
+  {
+    id: 'auggie',
+    displayName: 'Auggie (Augment CLI)',
+    skillsDir: '.augment',
+    commands: {
+      dir: '.augment/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildArgumentHintCommandFrontmatter,
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: false,
+    detectionPaths: ['.augment'],
+  },
+  {
+    id: 'bob',
+    displayName: 'Bob Shell',
+    skillsDir: '.bob',
+    commands: {
+      dir: '.bob/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildArgumentHintCommandFrontmatter,
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: false,
+    detectionPaths: ['.bob'],
+  },
+  {
+    id: 'costrict',
+    displayName: 'CoStrict',
+    skillsDir: '.cospec',
+    commands: {
+      // CoStrict keeps its commands under `openspec/`, not at the `<root>/commands` path.
+      dir: '.cospec/openspec/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildArgumentHintCommandFrontmatter,
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: true,
+    detectionPaths: ['.cospec'],
+  },
+  {
+    id: 'factory',
+    displayName: 'Factory Droid',
+    skillsDir: '.factory',
+    commands: {
+      dir: '.factory/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildArgumentHintCommandFrontmatter,
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: false,
+    detectionPaths: ['.factory'],
+  },
 ] as const satisfies readonly HarnessAdapter[]
 
 export type HarnessName = (typeof HARNESS_TABLE)[number]['id']
@@ -416,6 +485,22 @@ export function buildOpencodeCommandFrontmatter(
 ): Record<string, unknown> {
   return {
     description: w.description,
+    metadata: provenance(version, contentHash),
+  }
+}
+
+/**
+ * `description` plus an `argument-hint` on every command, as upstream writes it for Auggie,
+ * Bob, CoStrict and Factory: the hint is the same for all workflows.
+ */
+export function buildArgumentHintCommandFrontmatter(
+  w: WorkflowDef,
+  version: string,
+  contentHash: string,
+): Record<string, unknown> {
+  return {
+    description: w.description,
+    'argument-hint': 'command arguments',
     metadata: provenance(version, contentHash),
   }
 }

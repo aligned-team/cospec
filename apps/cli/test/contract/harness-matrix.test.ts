@@ -24,7 +24,9 @@
 // `setupNote` is asserted to include upstream's note, not to equal it.
 
 import { afterAll, describe, expect, test } from 'bun:test'
-import { join } from 'node:path'
+import { createHash } from 'node:crypto'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
 import { parse } from 'yaml'
 
@@ -37,7 +39,7 @@ import {
 } from '../../src/harness/adapters.ts'
 import { type HarnessName, renderHarnessFiles } from '../../src/harness/render.ts'
 import { cleanupAll, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.ts'
-import { TYPE_TABLE } from '../unit/harness/fixtures.ts'
+import { TEST_VERSION, TYPE_TABLE } from '../unit/harness/fixtures.ts'
 import { cutHead, readFixture, type UpstreamInitCapture } from './support/upstream-init-capture.ts'
 
 afterAll(cleanupAll)
@@ -93,10 +95,6 @@ const PENDING_ROWS = new Map<string, string>([
   ['minimax-code', '6.5'],
   ['rovodev', '6.6'],
   ['zed', '6.7'],
-  ['auggie', '7.2'],
-  ['bob', '7.2'],
-  ['factory', '7.2'],
-  ['costrict', '7.2'],
   ['codeassistant', '7.3'],
   ['junie', '7.3'],
   ['qwen', '7.3'],
@@ -298,7 +296,58 @@ async function checkRow(tool: UpstreamTool, skip: ReadonlySet<Check>): Promise<v
   if (!skip.has('legacyToolRoots')) checkLegacyToolRoots(row, tool)
   checkAdapterPaths(row, tool)
   checkRender(tool)
+  if (!SHIPPED_ROWS.includes(tool.value)) checkGolden(tool.value)
   await checkRoundTripDetection(tool.value, skip)
+}
+
+// --- the per-row golden (design decision 14) -----------------------------------------
+
+/**
+ * A landed row's own render, pinned as cospec wrote it: every path with its kind, workflow,
+ * content hash, byte length and sha256, plus the full bytes of the `propose` skill and
+ * command. It pins cospec's output, so it is written from the row (COSPEC_GOLDEN_WRITE=1)
+ * and never stands in for the oracle comparison above.
+ */
+const GOLDEN_ROOT = join(import.meta.dir, '../unit/__golden__/harness-render')
+
+function goldenOf(id: string): { index: unknown[]; full: { path: string; content: string }[] } {
+  const files = renderHarnessFiles({
+    harnesses: [id as HarnessName],
+    typeTable: TYPE_TABLE,
+    version: TEST_VERSION,
+  })
+  const index = files
+    .map((f) => ({
+      path: f.path,
+      kind: f.kind,
+      workflow: f.workflow,
+      harness: f.harness,
+      contentHash: f.contentHash,
+      bytes: Buffer.byteLength(f.content, 'utf8'),
+      sha256: createHash('sha256').update(f.content, 'utf8').digest('hex'),
+    }))
+    .toSorted((a, b) => a.path.localeCompare(b.path))
+  return { index, full: files.filter((f) => f.workflow === 'propose') }
+}
+
+function checkGolden(id: string): void {
+  const dir = join(GOLDEN_ROOT, id)
+  const { index, full } = goldenOf(id)
+  if (process.env.COSPEC_GOLDEN_WRITE === '1') {
+    rmSync(dir, { recursive: true, force: true })
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'index.json'), `${JSON.stringify(index, null, 2)}\n`)
+    for (const f of full) {
+      mkdirSync(dirname(join(dir, f.path)), { recursive: true })
+      writeFileSync(join(dir, f.path), f.content)
+    }
+    return
+  }
+  expect(existsSync(join(dir, 'index.json'))).toBe(true)
+  expect(JSON.parse(readFileSync(join(dir, 'index.json'), 'utf8'))).toEqual(index)
+  for (const f of full) {
+    expect(Buffer.from(f.content, 'utf8').equals(readFileSync(join(dir, f.path)))).toBe(true)
+  }
 }
 
 function fixtureFacts(name: string): unknown[] {

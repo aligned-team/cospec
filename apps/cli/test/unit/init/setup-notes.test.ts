@@ -64,7 +64,7 @@ const TABLE: readonly HarnessAdapter[] = [
 ]
 
 function note(id: string): string {
-  const row = HARNESS_TABLE.find((r) => r.id === id)
+  const row = (HARNESS_TABLE as readonly HarnessAdapter[]).find((r) => r.id === id)
   if (row?.setupNote === undefined) throw new Error(`fixture: ${id} has no setupNote`)
   return row.setupNote
 }
@@ -101,12 +101,14 @@ describe('init receipt setup notes (verification 3.5)', () => {
     expect(setupNoteLines(['opencode', 'ide-bare'], TABLE)).toEqual([note('opencode'), SKILLS_LINE])
   })
 
-  test('the four real rows print their notes in selection order and no restart line', () => {
-    const reversed = [...HARNESS_NAMES].toReversed()
+  test('the four shipped rows print their notes in selection order and no restart line', () => {
+    // Later rows may carry a restart line or no note; the pinned capture decides those.
+    const shipped = ['claude', 'codex', 'opencode', 'agents'] as const
+    const reversed = [...shipped].toReversed()
     const lines = setupNoteLines(reversed)
     expect(lines).toEqual(reversed.map(note))
     expect(lines.some((l) => l.startsWith('Restart your IDE'))).toBe(false)
-    for (const h of HARNESS_NAMES) expect(setupNoteLines([h])).toEqual([note(h)])
+    for (const h of shipped) expect(setupNoteLines([h])).toEqual([note(h)])
   })
 
   test('no selected harness prints nothing', () => {
