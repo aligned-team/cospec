@@ -99,8 +99,6 @@ const PENDING_ROWS = new Map<string, string>([
   ['junie', '7.3'],
   ['qwen', '7.3'],
   ['trae', '7.3'],
-  ['cursor', '7.4'],
-  ['iflow', '7.4'],
   ['oh-my-pi', '7.5'],
   ['command-code', '7.6'],
   ['roocode', '7.7'],

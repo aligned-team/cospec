@@ -204,6 +204,23 @@ export const HARNESS_TABLE = [
     detectionPaths: ['.cospec'],
   },
   {
+    id: 'cursor',
+    displayName: 'Cursor',
+    skillsDir: '.cursor',
+    commands: {
+      dir: '.cursor/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildCursorCommandFrontmatter,
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: true,
+    detectionPaths: ['.cursor'],
+  },
+  {
     id: 'factory',
     displayName: 'Factory Droid',
     skillsDir: '.factory',
@@ -219,6 +236,23 @@ export const HARNESS_TABLE = [
     bodyDialect: 'flat',
     requiresIdeRestart: false,
     detectionPaths: ['.factory'],
+  },
+  {
+    id: 'iflow',
+    displayName: 'iFlow',
+    skillsDir: '.iflow',
+    commands: {
+      dir: '.iflow/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildCursorCommandFrontmatter,
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: false,
+    detectionPaths: ['.iflow'],
   },
 ] as const satisfies readonly HarnessAdapter[]
 
@@ -501,6 +535,21 @@ export function buildArgumentHintCommandFrontmatter(
   return {
     description: w.description,
     'argument-hint': 'command arguments',
+    metadata: provenance(version, contentHash),
+  }
+}
+
+/** Cursor's `name` (a slash command), `id`, `category` and `description`; iFlow writes the same. */
+export function buildCursorCommandFrontmatter(
+  w: WorkflowDef,
+  version: string,
+  contentHash: string,
+): Record<string, unknown> {
+  return {
+    name: `/cospec-${w.command}`,
+    id: `cospec-${w.command}`,
+    category: 'Workflow',
+    description: w.description,
     metadata: provenance(version, contentHash),
   }
 }

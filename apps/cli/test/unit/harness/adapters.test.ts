@@ -179,7 +179,9 @@ describe('HARNESS_TABLE invariants', () => {
       'auggie',
       'bob',
       'costrict',
+      'cursor',
       'factory',
+      'iflow',
     ])
     expect(HARNESS_NAMES).toEqual(ids)
   })
@@ -246,7 +248,9 @@ describe('HARNESS_TABLE derived roots', () => {
       '.augment',
       '.bob',
       '.cospec',
+      '.cursor',
       '.factory',
+      '.iflow',
     ])
   })
 
@@ -261,7 +265,9 @@ describe('HARNESS_TABLE derived roots', () => {
       '.augment',
       '.bob',
       '.cospec',
+      '.cursor',
       '.factory',
+      '.iflow',
     ])
   })
 
@@ -276,10 +282,12 @@ describe('HARNESS_TABLE derived roots', () => {
         '.augment',
         '.bob',
         '.cospec',
+        '.cursor',
         '.factory',
+        '.iflow',
       ]),
     )
-    expect(removalRoots()).toHaveLength(9)
+    expect(removalRoots()).toHaveLength(11)
   })
 
   test("each scan root's skills are harness documents; its rules and stray prompts are not", () => {

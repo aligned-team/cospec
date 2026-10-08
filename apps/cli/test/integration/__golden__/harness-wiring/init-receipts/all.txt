@@ -2,8 +2,8 @@ cospec initialized in <TMP>  (state A)
 
 Schemas: 11 types in openspec/schemas/
 Config:  openspec/config.yaml (schema: feat)
-Files:   217 created
-Harness: claude, codex, opencode, agents, auggie, bob, costrict, factory
+Files:   265 created
+Harness: claude, codex, opencode, agents, auggie, bob, costrict, cursor, factory, iflow
          skills for codex/agents share the .agents/skills root (identical files)
 Permissions: merged Bash(cospec *) into .claude/settings.json
 
