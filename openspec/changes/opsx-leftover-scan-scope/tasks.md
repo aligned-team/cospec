@@ -52,10 +52,10 @@
 
 ## 5. Gate
 
-- [ ] 5.1 `mise run check` green (lint, format, typecheck, unit, integration,
+- [x] 5.1 `mise run check` green (lint, format, typecheck, unit, integration,
       contract, bench, generate:check, agents:check, vendor check, validate-all,
       schema:validate) -- verify by the task's own exit code
-- [ ] 5.2 `cospec validate opsx-leftover-scan-scope --strict` clean and every
+- [x] 5.2 `cospec validate opsx-leftover-scan-scope --strict` clean and every
       verification ledger row `[x]` with an observed result or
       `[~] defer:     <reason>` -- verify by reading the ledger
 - [ ] 5.3 `cospec archive opsx-leftover-scan-scope` -- the archive commit
