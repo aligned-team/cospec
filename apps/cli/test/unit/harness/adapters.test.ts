@@ -182,6 +182,10 @@ describe('HARNESS_TABLE invariants', () => {
       'cursor',
       'factory',
       'iflow',
+      'junie',
+      'codeassistant',
+      'qwen',
+      'trae',
     ])
     expect(HARNESS_NAMES).toEqual(ids)
   })
@@ -251,6 +255,10 @@ describe('HARNESS_TABLE derived roots', () => {
       '.cursor',
       '.factory',
       '.iflow',
+      '.junie',
+      '.codeassistant',
+      '.qwen',
+      '.trae',
     ])
   })
 
@@ -268,6 +276,10 @@ describe('HARNESS_TABLE derived roots', () => {
       '.cursor',
       '.factory',
       '.iflow',
+      '.junie',
+      '.codeassistant',
+      '.qwen',
+      '.trae',
     ])
   })
 
@@ -285,9 +297,13 @@ describe('HARNESS_TABLE derived roots', () => {
         '.cursor',
         '.factory',
         '.iflow',
+        '.junie',
+        '.codeassistant',
+        '.qwen',
+        '.trae',
       ]),
     )
-    expect(removalRoots()).toHaveLength(11)
+    expect(removalRoots()).toHaveLength(15)
   })
 
   test("each scan root's skills are harness documents; its rules and stray prompts are not", () => {

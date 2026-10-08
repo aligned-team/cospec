@@ -1,4 +1,4 @@
 {
   "exitCode": 1,
-  "stderr": "cospec: invalid --harness 'bogus'; valid values: claude, codex, opencode, agents, auggie, bob, costrict, cursor, factory, iflow, all, none (comma-separate for multiple, e.g. --harness claude,codex)\n"
+  "stderr": "cospec: invalid --harness 'bogus'; valid values: claude, codex, opencode, agents, auggie, bob, costrict, cursor, factory, iflow, junie, codeassistant, qwen, trae, all, none (comma-separate for multiple, e.g. --harness claude,codex)\n"
 }

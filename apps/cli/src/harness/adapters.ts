@@ -254,6 +254,75 @@ export const HARNESS_TABLE = [
     requiresIdeRestart: false,
     detectionPaths: ['.iflow'],
   },
+  {
+    id: 'junie',
+    displayName: 'Junie',
+    skillsDir: '.junie',
+    commands: {
+      dir: '.junie/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      // Upstream's key set is description alone, the same as OpenCode's.
+      frontmatter: buildOpencodeCommandFrontmatter,
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: true,
+    detectionPaths: ['.junie'],
+  },
+  {
+    id: 'codeassistant',
+    displayName: 'SourceCraft Code Assistant',
+    skillsDir: '.codeassistant',
+    commands: {
+      dir: '.codeassistant/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildOpencodeCommandFrontmatter,
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: false,
+    detectionPaths: ['.codeassistant'],
+  },
+  {
+    id: 'qwen',
+    displayName: 'Qwen Code',
+    skillsDir: '.qwen',
+    commands: {
+      dir: '.qwen/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildOpencodeCommandFrontmatter,
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: false,
+    detectionPaths: ['.qwen'],
+  },
+  {
+    id: 'trae',
+    displayName: 'Trae',
+    skillsDir: '.trae',
+    commands: {
+      dir: '.trae/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildNameDescriptionCommandFrontmatter,
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: true,
+    detectionPaths: ['.trae'],
+  },
 ] as const satisfies readonly HarnessAdapter[]
 
 export type HarnessName = (typeof HARNESS_TABLE)[number]['id']
@@ -549,6 +618,19 @@ export function buildCursorCommandFrontmatter(
     name: `/cospec-${w.command}`,
     id: `cospec-${w.command}`,
     category: 'Workflow',
+    description: w.description,
+    metadata: provenance(version, contentHash),
+  }
+}
+
+/** A `name` (Trae's `COSPEC: <title>`) and a `description`, as upstream writes them for Trae. */
+export function buildNameDescriptionCommandFrontmatter(
+  w: WorkflowDef,
+  version: string,
+  contentHash: string,
+): Record<string, unknown> {
+  return {
+    name: `COSPEC: ${w.title}`,
     description: w.description,
     metadata: provenance(version, contentHash),
   }

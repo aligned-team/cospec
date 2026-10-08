@@ -9,6 +9,10 @@
     "costrict",
     "cursor",
     "factory",
-    "iflow"
+    "iflow",
+    "junie",
+    "codeassistant",
+    "qwen",
+    "trae"
   ]
 }
