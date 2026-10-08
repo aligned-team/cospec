@@ -7,8 +7,16 @@
 // write is idempotent: a second `init` returns `unchanged` for every file and
 // leaves the tree clean.
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
+import { join, relative, resolve, sep } from 'node:path'
 
 import { canonFile } from '../canon/embedded.ts'
 import type { CommandContext } from '../cli.ts'
@@ -241,32 +249,70 @@ export interface OpsxFile {
 export const OPSX_SHARED_SKILL_ROOT = '.agents/skills'
 
 /**
+ * The 12 workflow file names the pinned 1.13.1 dist ever writes, across every adapter (dist
+ * `core/command-generation/workflowIdsByFileName`, confirmed against the vendored bundle):
+ * `opsx-<id>.md` for exactly these `<id>`s, never an arbitrary `opsx-*` spelling. Matching the
+ * id list, not a bare `opsx-[^/]+` wildcard, is itself part of the provenance — a user's own
+ * `.opencode/commands/opsx-status.md` (or any id the pinned dist never generates) can never
+ * satisfy it regardless of its frontmatter or body.
+ */
+const OPENCODE_OPSX_IDS = [
+  'apply',
+  'archive',
+  'bulk-archive',
+  'continue',
+  'explore',
+  'ff',
+  'new',
+  'onboard',
+  'propose',
+  'sync',
+  'update',
+  'verify',
+] as const
+
+/**
  * The exact path the pinned 1.13.1 OpenCode command adapter (dist
- * `core/command-generation/adapters/opencode.js`) writes to: `.opencode/commands/opsx-<id>.md`,
- * one path segment for `<id>`. cospec's own OpenCode commands live at
+ * `core/command-generation/adapters/opencode.js`) writes to: `.opencode/commands/opsx-<id>.md`
+ * for one of `OPENCODE_OPSX_IDS`. cospec's own OpenCode commands live at
  * `.opencode/commands/cospec-<id>.md` and never match this.
  */
-const OPENCODE_OPSX_COMMAND_RE = /^\.opencode\/commands\/opsx-[^/]+\.md$/
+const OPENCODE_OPSX_COMMAND_RE = new RegExp(
+  `^\\.opencode/commands/opsx-(?:${OPENCODE_OPSX_IDS.join('|')})\\.md$`,
+)
+
+/**
+ * The pinned dist's shared `PROJECT_ROOT_GUARD` template's distinctive lead sentence,
+ * interpolated verbatim into all but one of its workflow bodies (probed from the pinned
+ * binary's own `init --tools opencode` output). Requiring this whole sentence, not only the
+ * bare `` `openspec list --json` `` command reference it goes on to make, is itself part of
+ * the provenance check: a user's own command that happens to document or invoke that same
+ * command (e.g. "run `openspec list --json` and summarize each change") would otherwise
+ * satisfy a bare-substring check while never containing this exact upstream boilerplate
+ * sentence, which only the pinned dist's own generated bodies ever carry.
+ */
+const PROJECT_ROOT_GUARD_LEAD =
+  '**Project check:** These steps expect a project that already uses OpenSpec.'
 
 /**
  * OpenCode's command adapter emits frontmatter with only `description` — no `name`, no
  * `metadata` — so neither marker in `isOpsxMarkdown` below ever matches a real OpenCode
  * opsx leftover (probed from the pinned binary's own `init --tools opencode` output).
  * Detected instead by the combination the adapter's output always has: the exact path it
- * writes to, frontmatter with no key but `description`, and the literal bare
- * `` `openspec list --json` `` every opsx workflow body carries (the pinned dist's
- * `PROJECT_ROOT_GUARD`, interpolated into all but one of its workflow templates) — a
- * string cospec's own shipped bodies never contain, since cospec always respells its own
- * commands as `cospec`, never bare `openspec`. The combination is provenance, not a
- * path/name convention: a hand-written `.opencode/commands/opsx-notes.md` with its own
- * prose body never carries that literal command reference.
+ * writes to (one of the 12 ids the dist ever generates), frontmatter with no key but
+ * `description`, and the `PROJECT_ROOT_GUARD` lead sentence plus the literal bare
+ * `` `openspec list --json` `` reference every opsx workflow body carries — a string
+ * cospec's own shipped bodies never contain, since cospec always respells its own commands
+ * as `cospec`, never bare `openspec`. The combination is provenance, not a path/name
+ * convention: a hand-written `.opencode/commands/opsx-notes.md` with its own prose body, or
+ * a user's own command at a path outside the 12 ids, never matches.
  */
 function isOpenCodeOpsxCommand(relpath: string, frontmatter: unknown, body: string): boolean {
   if (!OPENCODE_OPSX_COMMAND_RE.test(relpath)) return false
   if (frontmatter === null || typeof frontmatter !== 'object') return false
   const keys = Object.keys(frontmatter as Record<string, unknown>)
   if (keys.length !== 1 || keys[0] !== 'description') return false
-  return body.includes('`openspec list --json`')
+  return body.includes(PROJECT_ROOT_GUARD_LEAD) && body.includes('`openspec list --json`')
 }
 
 // Provenance-only: a file is opsx only when its own frontmatter (or, for OpenCode's
@@ -342,6 +388,29 @@ function isNestedWorktreeRoot(abs: string): boolean {
 }
 
 /**
+ * True when `abs` does NOT resolve (symlinks followed) to somewhere inside `cwdReal`
+ * (`cwd`'s own real path). Every scan root (`.claude`, `.agents`, …) and the explicit
+ * `.agents/skills` walk is handed straight to `walk()` without first passing through a
+ * parent `readdirSync` — the per-child `Dirent.isDirectory()` check that already skips a
+ * *nested* symlinked directory never runs for the root segment itself, so a project whose
+ * `.claude` or `.agents/skills` is a symlink into another project's (or a shared) directory
+ * would otherwise have the scan read, list and delete files living entirely outside this
+ * project. Checked by realpath containment rather than `lstatSync` so a symlink that
+ * happens to resolve back inside the project (harmless) is not needlessly skipped, and so a
+ * multi-segment path (`.agents/skills`) is caught regardless of which segment is the link.
+ */
+function isOutsideProject(cwdReal: string, abs: string): boolean {
+  let real: string
+  try {
+    real = realpathSync(abs)
+  } catch {
+    return true
+  }
+  const rel = relative(cwdReal, real)
+  return rel === '..' || rel.startsWith(`..${sep}`) || resolve(rel) === rel
+}
+
+/**
  * The opsx leftover scan behind `init --remove-opsx`, `init --json`'s `opsx.found` and
  * doctor's `opsx-leftover`: every scan root, then the shared `.agents/skills` root
  * openspec ≥1.8.0 writes its Codex (and agents/zed/antigravity) skills to whichever rows
@@ -353,6 +422,10 @@ function isNestedWorktreeRoot(abs: string): boolean {
  * openspec-authored file living inside it must never be listed or removed by the outer
  * scan. Only the directory boundary is pruned — the scan's acceptance (`isLeftoverCandidate`)
  * is unchanged.
+ *
+ * Nor does it ever follow a scan root (or the explicit `.agents/skills` walk) out of the
+ * project: `isOutsideProject` is checked before `walk()` reads a root's directory, so a
+ * symlinked `.claude`, `.agents`, or `.agents/skills` pointing elsewhere is never read.
  */
 export function leftoverScanFiles(
   cwd: string,
@@ -361,9 +434,11 @@ export function leftoverScanFiles(
   // Keyed by relpath: `.agents` (a harness dir) strictly contains `.agents/skills`, so
   // the two walk ranges overlap and an unguarded scan would list every file there twice.
   const out = new Map<string, { relpath: string; text: string }>()
+  const cwdReal = realpathSync(cwd)
   const walk = (rel: string): void => {
     const abs = join(cwd, rel)
     if (!existsSync(abs)) return
+    if (isOutsideProject(cwdReal, abs)) return
     for (const entry of readdirSync(abs, { withFileTypes: true })) {
       const childRel = `${rel}/${entry.name}`
       if (entry.isDirectory()) {
@@ -392,16 +467,24 @@ export function findOpsxFiles(
     .toSorted((a, b) => a.relpath.localeCompare(b.relpath))
 }
 
+/**
+ * Re-checks `isOutsideProject` right before every delete, independent of `leftoverScanFiles`'
+ * own guard: removal must never trust the found-list alone to have stayed inside the project
+ * (a defense-in-depth pairing with the walk-time check, not a replacement for it).
+ */
 function removeOpsxFiles(cwd: string, files: OpsxFile[]): void {
+  const cwdReal = realpathSync(cwd)
   const dirs = new Set<string>()
   for (const f of files) {
     const abs = join(cwd, f.relpath)
-    if (existsSync(abs)) rmSync(abs)
+    if (existsSync(abs) && !isOutsideProject(cwdReal, abs)) rmSync(abs)
     dirs.add(join(abs, '..'))
   }
   // Prune now-empty containing dirs (openspec-* skill dirs, opsx command dir).
   for (const dir of dirs) {
-    if (existsSync(dir) && readdirSync(dir).length === 0) rmSync(dir, { recursive: true })
+    if (existsSync(dir) && !isOutsideProject(cwdReal, dir) && readdirSync(dir).length === 0) {
+      rmSync(dir, { recursive: true })
+    }
   }
 }
 

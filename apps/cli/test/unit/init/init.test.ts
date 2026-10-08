@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { run as initRun } from '../../../src/commands/init.ts'
@@ -199,6 +199,65 @@ describe('cospec init (DESIGN §2.1)', () => {
     // The genuine opsx command file was removed.
     expect(json.opsx.found).toContain('.claude/commands/opsx/apply.md')
     expect(existsSync(join(realDir, 'apply.md'))).toBe(false)
+  })
+
+  test('a symlinked .claude scan root pointing outside the project is never read or removed', () => {
+    // Mimic the repro: proj/.claude -> ../shared-claude, a directory outside this
+    // project holding a *real* openspec-authored leftover belonging to a different
+    // project (or a dotfiles-style shared checkout).
+    const outside = makeRepo()
+    try {
+      const realLeftover = join(outside, 'commands/opsx/apply.md')
+      mkdirSync(join(outside, 'commands/opsx'), { recursive: true })
+      writeFileSync(realLeftover, "---\nname: 'OPSX: Apply'\n---\nreal openspec command\n")
+      symlinkSync(outside, join(dir, '.claude'))
+
+      const { out } = capture(
+        () =>
+          initRun(
+            ctx(dir, ['--harness', 'none', '--no-gate', '--remove-opsx', '--yes'], true),
+          ) as number,
+      )
+      const json = JSON.parse(out) as { opsx: { found: string[]; removed: boolean } }
+      // Never listed (so never a candidate for removal either).
+      expect(json.opsx.found).toEqual([])
+      expect(json.opsx.removed).toBe(false)
+      // The file outside the project is untouched by --remove-opsx.
+      expect(existsSync(realLeftover)).toBe(true)
+    } finally {
+      cleanup(outside)
+    }
+  })
+
+  test('a symlinked .agents/skills pointing outside the project is never read via the explicit shared-skill walk', () => {
+    // `.agents` itself is a REAL directory here — only `skills` underneath is the
+    // symlink — so this targets the explicit `walk(OPSX_SHARED_SKILL_ROOT)` call
+    // specifically, not the ordinary per-child Dirent skip that already protects a
+    // symlinked child encountered while walking `.agents` itself.
+    const outside = makeRepo()
+    try {
+      const skillFile = join(outside, 'openspec-propose/SKILL.md')
+      mkdirSync(join(outside, 'openspec-propose'), { recursive: true })
+      writeFileSync(
+        skillFile,
+        '---\nname: openspec-propose\nmetadata:\n  author: openspec\n  generatedBy: "1.13.1"\n---\nbody\n',
+      )
+      mkdirSync(join(dir, '.agents'), { recursive: true })
+      symlinkSync(outside, join(dir, '.agents/skills'))
+
+      const { out } = capture(
+        () =>
+          initRun(
+            ctx(dir, ['--harness', 'none', '--no-gate', '--remove-opsx', '--yes'], true),
+          ) as number,
+      )
+      const json = JSON.parse(out) as { opsx: { found: string[]; removed: boolean } }
+      expect(json.opsx.found).toEqual([])
+      expect(json.opsx.removed).toBe(false)
+      expect(existsSync(skillFile)).toBe(true)
+    } finally {
+      cleanup(outside)
+    }
   })
 
   test('a bare `init --yes` (no --remove-opsx) never deletes unmarked user files', () => {

@@ -500,4 +500,35 @@ Propose a new change - create the change and generate all artifacts in one step.
     checkOpsx(dir, findings)
     expect(findings).toEqual([])
   })
+
+  // Regression (review finding): a bare `` `openspec list --json` `` substring is not
+  // enough — a user-authored command whose id the pinned dist never generates, and whose
+  // body coincidentally documents or invokes that same command, must never match.
+  const OPENCODE_USER_STATUS = '.opencode/commands/opsx-status.md'
+  const USER_STATUS_SHAPE =
+    '---\ndescription: Summarize my in-flight openspec changes\n---\n\n' +
+    'Run `openspec list --json` and give me a one-line summary of each change.\n'
+
+  test('a user command at an id the pinned dist never generates is never listed, even with the bare command substring', () => {
+    put(dir, OPENCODE_USER_STATUS, USER_STATUS_SHAPE)
+    expect(findOpsxFiles(dir)).toEqual([])
+    const findings: Finding[] = []
+    checkOpsx(dir, findings)
+    expect(findings).toEqual([])
+  })
+
+  // Same regression, but at a real dist id (`propose`): the bare substring alone, without
+  // the PROJECT_ROOT_GUARD's distinctive lead sentence, must not be enough either.
+  const OPENCODE_USER_PROPOSE_LOOKALIKE = '.opencode/commands/opsx-propose.md'
+  const USER_PROPOSE_LOOKALIKE_SHAPE =
+    '---\ndescription: my own propose helper\n---\n\n' +
+    'Run `openspec list --json` first, then draft a proposal from the result.\n'
+
+  test('a real-id user command with only the bare command substring (no guard lead sentence) is never listed', () => {
+    put(dir, OPENCODE_USER_PROPOSE_LOOKALIKE, USER_PROPOSE_LOOKALIKE_SHAPE)
+    expect(findOpsxFiles(dir)).toEqual([])
+    const findings: Finding[] = []
+    checkOpsx(dir, findings)
+    expect(findings).toEqual([])
+  })
 })
