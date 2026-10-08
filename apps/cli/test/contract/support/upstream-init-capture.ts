@@ -36,6 +36,7 @@ import {
 } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
 
+import { openspecPackageDir } from '../../../src/core/openspec.ts'
 import { cleanup, mkTempRepo } from '../../fixtures/support.ts'
 import { oracleEnv, oracleSpawn } from './upstream-oracle.ts'
 
@@ -235,12 +236,11 @@ export async function captureInit(tools: string): Promise<UpstreamInitCapture> {
     )
 
     return {
-      openspec: JSON.parse(
-        readFileSync(
-          join(import.meta.dir, '../../../node_modules/@fission-ai/openspec/package.json'),
-          'utf8',
-        ),
-      ).version as string,
+      openspec: (
+        JSON.parse(readFileSync(join(openspecPackageDir(), 'package.json'), 'utf8')) as {
+          version: string
+        }
+      ).version,
       argv,
       globalConfig: CAPTURE_GLOBAL_CONFIG,
       exitCode,
