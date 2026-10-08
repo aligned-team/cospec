@@ -27,4 +27,11 @@
 ## 5. Docs and gate
 
 - [x] 5.1 @manual (agent) `docs/harness-integration.md` and `apps/docs`'s harness-setup/commands pages state the nested-worktree boundary and the OpenCode detection shape, `.agents/shared.md` updated and `mise run agents:sync` run -> pages read and confirmed; `mise run docs:build` exits 0; `mise run agents:check` reports "All shared blocks are in sync."; `mise run generate:check` reports "no drift"
-- [ ] 5.2 @manual (agent) `mise run check` exits 0 -> <pass/fail counts per suite>
+- [x] 5.2 @manual (agent) `mise run check` exits 0 -> see 6.4 (the gate was re-run after the review-finding fixes in group 6 below; this row's own run folded into that one)
+
+## 6. Review-finding fixes (post-review)
+
+- [x] 6.1 @regression (agent) unit rows: a symlinked `.claude` scan root, and a symlinked `.agents/skills` root (`.agents` itself real), each pointing outside the project and holding a real openspec-authored leftover, are listed by `findOpsxFiles`/removed by `--remove-opsx` before the fix and are not listed/not removed after -> confirmed red against unfixed source (both files `.claude/commands/opsx/apply.md` and `.agents/skills/openspec-propose/SKILL.md` appeared in `opsx.found`); green after (`bun test apps/cli/test/unit/init/init.test.ts`: all pass)
+- [x] 6.2 @unit (agent) a user-authored OpenCode command at an id the pinned dist never generates (`opsx-status.md`), and a real-id (`opsx-propose.md`) lookalike carrying only the bare `` `openspec list --json` `` substring without the `PROJECT_ROOT_GUARD` lead sentence, are never listed, before or after the fix for the former only by the id restriction and the latter only by the lead-sentence requirement -> confirmed red against unfixed source (both wrongly listed); green after (`bun test apps/cli/test/unit/init/doctor-rows.test.ts`: all pass)
+- [x] 6.3 @manual (agent) design.md/spec.md updated for both fixes (symlink containment Decision 4 + spec requirement/scenarios; OpenCode Decision 2 rewritten for the id allowlist + full guard-lead sentence), `.agents/shared.md`/`docs/harness-integration.md`/`apps/docs` harness-setup+commands pages updated, `mise run agents:sync` run -> `mise run agents:check`: in sync; `mise run generate:check`: no drift
+- [ ] 6.4 @manual (agent) `mise run check` green after the review-finding fixes -> <pass/fail counts per suite>; `cospec validate opsx-leftover-scan-scope --strict` clean

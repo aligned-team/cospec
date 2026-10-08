@@ -29,6 +29,33 @@ file inside the project's own tree is unchanged.
 - **THEN** that file is still listed in `opsx.found` and removed by
   `--remove-opsx`
 
+### Requirement: Leftover scan never follows a symlinked scan root outside the project
+
+The opsx leftover scan SHALL NOT read or remove a file that resolves (symlinks
+followed) outside the project's own directory tree. Before reading a scan root's
+directory — any `scanRoots` entry (`.claude`, `.agents`, …) or the explicit
+shared `.agents/skills` walk — the scan SHALL resolve that path and skip it
+unless the resolved path stays inside the project's own resolved directory;
+`--remove-opsx` SHALL re-check the same containment immediately before deleting
+each file or pruning each now-empty directory. A symlink that resolves back
+inside the project is unaffected and is still walked normally.
+
+#### Scenario: A symlinked `.claude` outside the project is never read or removed
+
+- **WHEN** a project's `.claude` is a symlink to a directory outside the project
+  (a shared dotfiles directory, or another project's checkout) holding a real
+  openspec-authored command leftover, and `cospec init --remove-opsx` runs
+- **THEN** that file is not listed in `opsx.found`, produces no `opsx-leftover`
+  finding, is not removed, and still exists afterward
+
+#### Scenario: A symlinked `.agents/skills` outside the project is never read or removed
+
+- **WHEN** a project's `.agents` is a real directory but `.agents/skills` within
+  it is a symlink to a directory outside the project holding a real
+  openspec-authored skill leftover, and `cospec init --remove-opsx` runs
+- **THEN** that file is not listed in `opsx.found`, is not removed, and still
+  exists afterward
+
 ### Requirement: OpenCode command leftovers are detected by their own shape
 
 The pinned OpenCode command adapter writes `.opencode/commands/opsx-<id>.md`
@@ -36,19 +63,26 @@ with frontmatter carrying `description` only — no `name`, no `metadata` — so
 neither of the scan's existing provenance markers (skill
 `metadata.author: openspec`, command `name: "OPSX: …"`) can ever match it. The
 leftover scan SHALL also treat a file as an openspec-authored leftover when all
-of the following hold: its path matches `.opencode/commands/opsx-<id>.md` with
-one path segment for `<id>`; its frontmatter has no key but `description`; and
-its body contains the literal, backtick-quoted `` `openspec list --json` ``
-command reference every opsx workflow body carries. This detection SHALL NOT
-fire on path or frontmatter shape alone — the body's literal command reference
-is required, so a hand-written file at the same path with its own prose body is
-never matched.
+of the following hold: its path matches `.opencode/commands/opsx-<id>.md` where
+`<id>` is one of the 12 workflow ids the pinned dist's command-generation module
+ever writes (`propose`, `explore`, `new`, `continue`, `apply`, `update`, `ff`,
+`sync`, `archive`, `bulk-archive`, `verify`, `onboard`); its frontmatter has no
+key but `description`; and its body contains both the pinned dist's
+`PROJECT_ROOT_GUARD` template's literal lead sentence,
+`**Project check:** These steps expect a project that already uses OpenSpec.`,
+and the literal, backtick-quoted `` `openspec list --json` `` command reference
+every opsx workflow body carries. This detection SHALL NOT fire on path shape,
+frontmatter shape, or the bare command reference alone — an id outside the 12,
+or a body missing the guard's lead sentence, is never enough — so a hand-written
+file at a lookalike path, including one whose own prose happens to mention or
+invoke the same command, is never matched.
 
 #### Scenario: A real OpenCode opsx leftover is detected and removed
 
 - **WHEN** `.opencode/commands/opsx-propose.md` carries only a `description` key
-  in its frontmatter and a body containing `` `openspec list --json` ``, and
-  `cospec init --remove-opsx` runs
+  in its frontmatter and a body containing the `PROJECT_ROOT_GUARD` lead
+  sentence and `` `openspec list --json` ``, and `cospec init --remove-opsx`
+  runs
 - **THEN** `init --json`'s `opsx.found` lists that file, `cospec doctor` reports
   an `opsx-leftover` finding for it, and `--remove-opsx` deletes it
 
@@ -57,5 +91,23 @@ never matched.
 - **WHEN** `.opencode/commands/opsx-notes.md` carries only a `description` key
   in its frontmatter but a body of the user's own prose, with no
   `` `openspec list --json` `` reference, and `cospec init --remove-opsx` runs
+- **THEN** that file is not listed in `opsx.found`, produces no `opsx-leftover`
+  finding, and is not removed
+
+#### Scenario: A user's own file at an id the pinned dist never generates survives
+
+- **WHEN** `.opencode/commands/opsx-status.md` carries only a `description` key
+  in its frontmatter and a body that invokes or documents
+  `` `openspec list --json` `` for the user's own purposes, and
+  `cospec init --remove-opsx` runs
+- **THEN** that file is not listed in `opsx.found`, produces no `opsx-leftover`
+  finding, and is not removed, because `status` is not one of the 12 ids the
+  pinned dist ever generates
+
+#### Scenario: A real-id user file with only the bare command reference survives
+
+- **WHEN** `.opencode/commands/opsx-propose.md` carries only a `description` key
+  in its frontmatter and a body that quotes `` `openspec list --json` `` without
+  the `PROJECT_ROOT_GUARD` lead sentence, and `cospec init --remove-opsx` runs
 - **THEN** that file is not listed in `opsx.found`, produces no `opsx-leftover`
   finding, and is not removed
