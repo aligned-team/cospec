@@ -60,7 +60,7 @@ sandbox helper (task 5.1): `HOME`, `USERPROFILE`, `XDG_*`, `ZDOTDIR`,
 ## 8. The PowerShell script is cospec's
 
 - [ ] 8.1 @integration (agent) `cospec completion powershell` and `completion generate powershell` -> identical output that registers `Register-ArgumentCompleter -Native -CommandName cospec`, lists every non-hidden command, contains no `openspec`, and is ASCII only
-- [ ] 8.2 @unit (agent) the three-way parity test with PowerShell -> a flag the parser accepts completes and one that completes parses; a pending flag is absent
+- [x] 8.2 @unit (agent) the three-way parity test with PowerShell -> completions.test.ts parity rows read each row's PowerShell block (own flags equal the table's offered flags; globals per row; --store absent on init) and the parser rows accept every offered flag and refuse every pending one; powershell-completion.test.ts asserts no pending or hidden flag in any block
 - [ ] 8.3 @integration (agent) `pwsh -NoProfile` parses the script and `TabExpansion2` completes a command, a flag and `completion <Tab>` -> pass where `pwsh` is on `PATH`; recorded as skipped where it is not (this machine has no `pwsh`)
 
 ## 9. The tip shows once on a terminal [critical]

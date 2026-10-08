@@ -18,8 +18,10 @@ import {
 } from '../../../src/core/command-table.ts'
 import { renderBashCompletion } from '../../../src/core/completions/bash.ts'
 import { renderFishCompletion } from '../../../src/core/completions/fish.ts'
+import { renderPowerShellCompletion } from '../../../src/core/completions/powershell.ts'
 import { buildCompletionSpec, offeredFlagTokens } from '../../../src/core/completions/spec.ts'
 import { renderZshCompletion } from '../../../src/core/completions/zsh.ts'
+import { commandBlock, commandFlags } from './powershell-script.ts'
 
 /** Capture `run()`'s stdout for a `--help` invocation. */
 async function helpOutput(command: string): Promise<string> {
@@ -254,6 +256,15 @@ describe('three-way parity: --help flags == completion flags == parser-accepted 
       const completionCmd = spec.commands.find((c) => c.name === row.name)!
       const completionLong = completionCmd.flags.filter((token) => token.startsWith('--'))
       expect(completionLong).toEqual(expectedLong)
+      // The PowerShell script offers the same flags: its block's flags, minus
+      // the globals it appends, are the table's offered tokens.
+      const block = commandBlock(renderPowerShellCompletion(spec), row.name)!
+      const own = commandFlags(block)
+        .map((flag) => flag.name)
+        .filter(
+          (name) => !completionCmd.globalFlags.includes(name) || completionCmd.flags.includes(name),
+        )
+      expect(own.filter((name) => name.startsWith('--'))).toEqual(expectedLong)
     })
 
     test(`${row.name}: completion and --help offer exactly the globals the row accepts`, async () => {
@@ -284,6 +295,11 @@ describe('three-way parity: --help flags == completion flags == parser-accepted 
     expect(renderFishCompletion(spec)).toContain(
       "complete -c cospec -n 'not __fish_seen_subcommand_from init update completion feedback help' -l store",
     )
+    const powershell = renderPowerShellCompletion(spec)
+    expect(commandFlags(commandBlock(powershell, 'init')!).map((f) => f.name)).not.toContain(
+      '--store',
+    )
+    expect(commandFlags(commandBlock(powershell, 'list')!).map((f) => f.name)).toContain('--store')
   })
 
   // The parser only exists on `table` rows — a `forward` row hands its argv to

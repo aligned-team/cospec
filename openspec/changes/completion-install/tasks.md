@@ -2,7 +2,7 @@
 
 ## 1. T2: PowerShell generator
 
-- [ ] 1.1 Write the failing unit tests first in
+- [x] 1.1 Write the failing unit tests first in
       `apps/cli/test/unit/core/completions.test.ts` (and a new
       `powershell-completion.test.ts` beside it): `renderPowerShellCompletion`
       registers `Register-ArgumentCompleter -Native -CommandName cospec`, lists
@@ -11,13 +11,13 @@
       contains no `openspec`, is ASCII only, single-quotes every string, and
       parses under `pwsh -NoProfile` when `pwsh` is on `PATH` (skipped
       otherwise). Verify they fail with `mise run test`.
-- [ ] 1.2 Extend `apps/cli/src/core/completions/spec.ts`: each flag's
+- [x] 1.2 Extend `apps/cli/src/core/completions/spec.ts`: each flag's
       description (tooltip text) and each command's subcommands with their
       offered flags and its positional's closed value set, all read from the
       same table rows through `offeredFlags` so a pending flag stays absent.
       Verify the existing bash/zsh/fish scripts are byte-identical (their unit
       tests and goldens pass unchanged).
-- [ ] 1.3 Add `apps/cli/src/core/completions/powershell.ts`
+- [x] 1.3 Add `apps/cli/src/core/completions/powershell.ts`
       (`renderPowerShellCompletion`), completing commands, subcommands, flags,
       shell values and the dynamic sources through `cospec __complete`; verify
       the 1.1 tests pass.
