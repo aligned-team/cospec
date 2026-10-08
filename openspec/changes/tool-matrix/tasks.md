@@ -30,7 +30,7 @@
       assertions for the four existing rows except codex `detectionPaths`
       (`test.failing` until task 4.3); verify the suite runs with 35 expected
       failures and no unexpected one
-- [ ] 1.4 Add the invariant test
+- [x] 1.4 Add the invariant test
       `apps/cli/test/unit/harness/no-tool-branches.test.ts`: no `HARNESS_TABLE`
       id appears as a string literal in `apps/cli/src/commands/*.ts` outside the
       documented Claude-only lines (settings merge, fresh-repo default); verify
