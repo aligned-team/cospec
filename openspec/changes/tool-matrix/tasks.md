@@ -18,7 +18,7 @@
       committed `apps/cli/test/fixtures/upstream-init/*.json`; verify it passes
       against the fixtures committed by the planning commit, every field equal
       after parsing (oxfmt owns the files' layout)
-- [ ] 1.3 Add `apps/cli/test/contract/harness-matrix.test.ts`, importing the
+- [x] 1.3 Add `apps/cli/test/contract/harness-matrix.test.ts`, importing the
       pinned `AI_TOOLS`, `TOOL_ID_ALIASES`, `LEGACY_TOOL_ROOTS`,
       `LEGACY_SLASH_COMMAND_PATHS` and adapters in the test only: one
       `test.failing` per pinned id except `github-copilot` asserting the row's
