@@ -24,7 +24,7 @@
 
 ## 2. T3: the installer
 
-- [ ] 2.1 Write the failing unit tests first in
+- [x] 2.1 Write the failing unit tests first in
       `apps/cli/test/unit/core/completion-install.test.ts`, each taking a
       temporary home and an environment object, never process state: the five
       targets (zsh, Oh My Zsh through `ZSH` and through `~/.oh-my-zsh`,
@@ -39,7 +39,7 @@
       touching the rc file; the PowerShell encodings (UTF-8, UTF-8 BOM, UTF-16
       LE BOM round trip, UTF-16 BE refused); no written byte contains
       `openspec`. Verify they fail.
-- [ ] 2.2 Add `apps/cli/src/core/completions/install.ts`: one table of per-shell
+- [x] 2.2 Add `apps/cli/src/core/completions/install.ts`: one table of per-shell
       targets and rc wiring (not four classes), the marker insert and its exact
       inverse, the backup rule, the profile encoding handling, and
       `isCompletionInstalled(shell, env, home)`; verify the 2.1 tests pass.

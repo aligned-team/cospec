@@ -13,7 +13,7 @@ sandbox helper (task 5.1): `HOME`, `USERPROFILE`, `XDG_*`, `ZDOTDIR`,
 - [ ] 1.4 @integration (agent) same for PowerShell with `PROFILE` pointing into the temporary home, over a pre-existing profile -> `CospecCompletion.ps1` beside it, the block appended, profile byte-identical after uninstall
 - [ ] 1.5 @integration (agent) zsh with `ZSH` set to a temporary Oh My Zsh root -> script under `$ZSH/custom/completions/_cospec`, no `~/.zshrc` created, the `fpath` guidance printed; with `~/.oh-my-zsh` a directory and `ZSH` unset, the same
 - [ ] 1.6 @integration (agent) each shell with no pre-existing rc file -> the rc file holds only the bare block after install and no `COSPEC` marker after uninstall
-- [ ] 1.7 @unit (agent) `completion-install.test.ts` unit table: the five targets, block insertion points, replace-in-place and the exact-inverse removal -> pass
+- [x] 1.7 @unit (agent) `completion-install.test.ts` unit table: the five targets, block insertion points, replace-in-place and the exact-inverse removal -> completion-install.test.ts: the five targets, block insertion points, replace-in-place and `removeBlock(insertBlock(x)) === x` for eight originals at both placements pass
 
 ## 2. A second install changes nothing, and a changed script is backed up [critical]
 
@@ -26,7 +26,7 @@ sandbox helper (task 5.1): `HOME`, `USERPROFILE`, `XDG_*`, `ZDOTDIR`,
 
 - [ ] 3.1 @integration (agent) after installing all four shells under one temporary home, search every file the install created or edited for the token `openspec` (case-insensitive) -> zero matches in the scripts and the rc blocks; every script contains `cospec`
 - [ ] 3.2 @integration (agent) the installed zsh script is byte-identical to `cospec completion zsh` stdout, and likewise for bash, fish and PowerShell -> equal
-- [ ] 3.3 @unit (agent) installer unit tests: no written byte contains `openspec` for any shell, any home, any `PROFILE` -> pass
+- [x] 3.3 @unit (agent) installer unit tests: no written byte contains `openspec` for any shell, any home, any `PROFILE` -> completion-install.test.ts: every file the installer wrote for the four shells, its rc blocks and warnings, and the `OPENSPEC_NO_AUTO_CONFIG` manual lines contain no `openspec`
 
 ## 4. cospec's install and uninstall coexist with OpenSpec's
 
@@ -47,7 +47,7 @@ sandbox helper (task 5.1): `HOME`, `USERPROFILE`, `XDG_*`, `ZDOTDIR`,
 - [ ] 6.2 @integration (agent) an rc file holding a `# COSPEC:START` with no end marker -> install writes the script, leaves the rc file byte-identical, reports the marker error on stderr with the manual lines, exit 0; uninstall exits 1
 - [ ] 6.3 @integration (agent) a `$PROFILE` that is UTF-16 LE with a BOM -> install and uninstall leave it UTF-16 LE with a BOM and byte-identical afterward; a UTF-8 BOM profile likewise; a UTF-16 BE profile is not modified and the reason is reported
 - [ ] 6.4 @integration (agent) a script path that cannot be written (the completions directory made read-only) -> `✗` on stderr, exit 1, rc file untouched (skipped where the process can write anyway, such as root)
-- [ ] 6.5 @unit (agent) the corresponding unit cases of task 2.1 -> pass
+- [x] 6.5 @unit (agent) the corresponding unit cases of task 2.1 -> completion-install.test.ts: no-auto-config, unwritable script dir (a file where `.zsh` belongs), unreadable rc, one-marker rc, the four PowerShell encodings and the OpenSpec-coexistence cases pass (66 cases)
 
 ## 7. Shell resolution, refusals and `--json`
 
