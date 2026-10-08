@@ -157,6 +157,93 @@ describe('buildCompletionSpec — matches COMMAND_TABLE', () => {
   })
 })
 
+describe('buildCompletionSpec: tooltips, subcommands and value sets (PowerShell needs them)', () => {
+  const spec = buildCompletionSpec()
+
+  test('every offered flag token has the table description, short and long alike', () => {
+    for (const row of COMMAND_TABLE.filter((r) => !r.hidden)) {
+      const command = spec.commands.find((c) => c.name === row.name)!
+      expect(Object.keys(command.flagInfo).toSorted()).toEqual(command.flags.toSorted())
+      for (const flag of offeredFlags(row)) {
+        const long = command.flagInfo[flag.name]!
+        expect(long).toEqual({
+          description: flag.description,
+          takesValue: flag.takesValue === true,
+        })
+        if (flag.short !== undefined) expect(command.flagInfo[flag.short]).toEqual(long)
+      }
+    }
+  })
+
+  test('a pending or hidden flag has no entry', () => {
+    for (const row of COMMAND_TABLE.filter((r) => !r.hidden)) {
+      const command = spec.commands.find((c) => c.name === row.name)!
+      for (const flag of row.flags.filter((f) => isPending(f.status) || f.hidden === true))
+        expect(command.flagInfo).not.toHaveProperty(flag.name)
+    }
+  })
+
+  test('the globals have descriptions, -V and --version included', () => {
+    expect(Object.keys(spec.globalFlagInfo).toSorted()).toEqual(spec.globalFlags.toSorted())
+    for (const flag of offeredFlags({ flags: GLOBAL_FLAGS }))
+      expect(spec.globalFlagInfo[flag.name]).toEqual({
+        description: flag.description,
+        takesValue: flag.takesValue === true,
+      })
+    expect(spec.globalFlagInfo['-V']).toEqual({ description: 'Show version', takesValue: false })
+    expect(spec.globalFlagInfo['--version']).toEqual({
+      description: 'Show version',
+      takesValue: false,
+    })
+    expect(spec.globalFlagInfo['--cwd']!.takesValue).toBe(true)
+  })
+
+  test('each command lists its non-pending subcommands with their offered flags', () => {
+    for (const row of COMMAND_TABLE.filter((r) => !r.hidden)) {
+      const command = spec.commands.find((c) => c.name === row.name)!
+      const offered = (row.subcommands ?? []).filter((sub) => !isPending(sub.status))
+      expect(command.subcommands.map((sub) => sub.name)).toEqual(offered.map((sub) => sub.name))
+      for (const sub of offered) {
+        const model = command.subcommands.find((s) => s.name === sub.name)!
+        expect(model.summary).toBe(sub.summary)
+        expect(model.flags).toEqual(offeredFlagTokens(sub.flags))
+        expect(Object.keys(model.flagInfo).toSorted()).toEqual(model.flags.toSorted())
+      }
+    }
+  })
+
+  test('schema offers which, validate and fork among its subcommands', () => {
+    const names = spec.commands.find((c) => c.name === 'schema')!.subcommands.map((s) => s.name)
+    for (const name of ['which', 'validate', 'fork']) expect(names).toContain(name)
+  })
+
+  test("a positional's closed value set is the table's, unless pending", () => {
+    for (const row of COMMAND_TABLE.filter((r) => !r.hidden)) {
+      const command = spec.commands.find((c) => c.name === row.name)!
+      const first = row.positionals[0]
+      expect(command.choices).toEqual(
+        first === undefined || isPending(first.status) ? [] : [...(first.values ?? [])],
+      )
+    }
+    expect(spec.commands.find((c) => c.name === 'new')!.choices).toEqual([])
+    const completion = COMMAND_TABLE.find((r) => r.name === 'completion')!
+    expect(spec.commands.find((c) => c.name === 'completion')!.choices).toEqual([
+      ...(completion.positionals[0]!.values ?? []),
+    ])
+    for (const pendingValue of Object.keys(completion.positionals[0]!.pendingValues ?? {}))
+      expect(spec.commands.find((c) => c.name === 'completion')!.choices).not.toContain(
+        pendingValue,
+      )
+  })
+
+  test('the generate subcommand shares the shell value set', () => {
+    const completion = spec.commands.find((c) => c.name === 'completion')!
+    expect(completion.subcommands.find((s) => s.name === 'generate')!.choices).toEqual(
+      completion.choices,
+    )
+  })
+})
+
 describe('three-way parity: --help flags == completion flags == parser-accepted flags', () => {
   const spec = buildCompletionSpec()
   const visibleRows = COMMAND_TABLE.filter((row) => !row.hidden)

@@ -24,6 +24,7 @@ import {
   type SubcommandSpec,
   jsonRefusal,
   takesNextToken,
+  VERSION_DESCRIPTION,
 } from './core/command-table.ts'
 import { RootSelectionError, rootSelectionDocument } from './core/root.ts'
 
@@ -170,7 +171,7 @@ Commands:
 ${rows}
 
 ${GLOBAL_OPTIONS}
-${renderLines([{ label: VERSION_LABEL, description: 'Show version' }], GLOBAL_LABEL_WIDTH)}
+${renderLines([{ label: VERSION_LABEL, description: VERSION_DESCRIPTION }], GLOBAL_LABEL_WIDTH)}
 
 Run 'cospec <command> --help' for command-specific help.
 `

@@ -236,6 +236,9 @@ function pendingSub(name: string, summary: string, owner: PendingOwner): Subcomm
 
 // --- global flags ----------------------------------------------------------------
 
+/** The `-V, --version` description: `--help` and completion tooltips print the same words. */
+export const VERSION_DESCRIPTION = 'Show version'
+
 /**
  * Flags accepted before or after the command name on every command, stripped
  * by `cli.ts` before a row's parser runs. `-V, --version` is absorbed in any
