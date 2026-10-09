@@ -68,8 +68,8 @@
 
 ## 13. Docs and agent guidance
 
-- [ ] 13.1 @integration (agent) `mise run docs:build` -> passes; `apps/docs/guide/harness-setup.md`'s target table lists all 39 `HARNESS_TABLE` ids with their paths, invocation, restart and setup note, and no longer says nothing is written under the home directory; `apps/docs/reference/commands.md` documents `windsurf`, the fallback hint, `failed`/exit 1 and `update`'s question
-- [ ] 13.2 @integration (agent) `mise run agents:check` -> passes with `.agents/shared.md`'s table-only rule synced into `CLAUDE.md` and `AGENTS.md`
+- [x] 13.1 @integration (agent) `mise run docs:build` -> passes; `apps/docs/guide/harness-setup.md`'s target table lists all 39 `HARNESS_TABLE` ids with their paths, invocation, restart and setup note, and no longer says nothing is written under the home directory; `apps/docs/reference/commands.md` documents `windsurf`, the fallback hint, `failed`/exit 1 and `update`'s question -> `docs:build` exits 0 (`build complete`); the guide's table lists 39 ids, 36 `HARNESS_TABLE` rows and antigravity, zed and minimax-code, whose rows land with tasks 8.3, 6.7 and 6.5 and are re-checked at close-out; the home-directory sentence now names `~/.minimax/skills`; commands.md documents the `windsurf` alias, the unknown-tool hint and exit 1, `Failed:` and exit 1, and `update`'s consent question
+- [x] 13.2 @integration (agent) `mise run agents:check` -> passes with `.agents/shared.md`'s table-only rule synced into `CLAUDE.md` and `AGENTS.md` -> `agents:sync` rewrote CLAUDE.md and AGENTS.md from `.agents/shared.md`; `agents:check` exits 0 ("All shared blocks are in sync")
 
 ## 14. Full gate [critical]
 

@@ -202,17 +202,17 @@
 
 ## 10. Docs and agent guidance
 
-- [ ] 10.1 Update `apps/docs/guide/harness-setup.md`: the target table for all
+- [x] 10.1 Update `apps/docs/guide/harness-setup.md`: the target table for all
       39 rows (paths, invocation, restart, setup note), the shared `.agents`
       root and its marker, the home skills root replacing the "no global state
       under your home directory" sentence, legacy root moves; verify
       `mise run docs:build` passes and the table lists every `HARNESS_TABLE` id
-- [ ] 10.2 Update `apps/docs/reference/commands.md` (`--harness` values,
+- [x] 10.2 Update `apps/docs/reference/commands.md` (`--harness` values,
       `windsurf`, the fallback hint, `failed` and exit 1, `update`'s consent
       question, doctor's shared-root detection) and
       `docs/harness-integration.md` (the row fields, dialects, serializers,
       arbiter, home root); verify `mise run docs:build` passes
-- [ ] 10.3 Update `.agents/shared.md`: replace the "managed files" paragraph's
+- [x] 10.3 Update `.agents/shared.md`: replace the "managed files" paragraph's
       now-false limits (home-scoped root "renders but is not yet written",
       legacy migration "covers only Codex") with "a tool is a `HARNESS_TABLE`
       row; anything a row cannot express is a `harness/` dialect, serializer or

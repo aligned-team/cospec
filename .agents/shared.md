@@ -272,40 +272,44 @@ fails, fix the root cause; never use `--no-verify`, `pre-commit`, or raw
 (`.claude/`, `.agents/skills/cospec-*/`, `.codex/`, `.opencode/`) are composed
 from `apps/cli/src/canon/` (schemas, workflow bodies and workflow identity) and
 `HARNESS_TABLE` in `apps/cli/src/harness/adapters.ts` — the one declaration of
-each tool's layout: skills and commands dirs, filenames, serializer,
-frontmatter, body dialect, rules file, detection paths and receipt note.
-`render.ts`, `init`, `update` and `doctor` all read the table; none keeps its
-own copy of a layout fact. A new tool is mostly a new row, not only one: a
-home-scoped skills root renders but is not yet written; the legacy-skills
-migration (`harness/legacy-skills.ts`, its receipt and `update --check` lines,
-doctor's `legacy-layout` warning) covers only Codex's `.codex/skills`, so a new
-row's `legacySkillsDirs` is detected but never migrated; and deliberate
-Claude-only behaviour sits outside the table — `init`'s `.claude/settings.json`
-merge and its `claude` default (docs/harness-integration.md names them). The
-receipt's closing hint is spelled through the first selected row's body dialect
-and invocation prefix, and doctor's `stale-harness`, `mixed-versions` and
-`dangling-ref` checks read only the files cospec writes
-(`<skills-root>/<skill>/SKILL.md` and the table's command paths), never a user's
-own markdown or a nested worktree's copy (those reads, `stale-sidecar` and the
-opsx scan all descend through the one bounded walker, `walkProjectFiles` in
-`harness/scan-walk.ts`); init's opsx leftover scan, which doctor's
-`opsx-leftover` check shares, stays wider because upstream's files sit at their
-own paths, but its walk stops at the same nested-worktree boundary (a directory
+each tool's layout: skills and commands roots, filenames, serializer,
+frontmatter, body dialect, rules file, detection paths, legacy roots and receipt
+note. A tool is a `HARNESS_TABLE` row; anything a row cannot express is a
+`harness/` dialect, serializer or helper, never a branch in `commands/`. A
+shared skills root (`.agents/skills`) is written by one writer, the row named in
+`.agents/skills/.cospec-target` (`harness/shared-root.ts`). `render.ts`, `init`,
+`update` and `doctor` all read the table; none keeps its own copy of a layout
+fact. Deliberate Claude-only behaviour sits outside the table — `init`'s
+`.claude/settings.json` merge and its `claude` default
+(docs/harness-integration.md names them). The receipt's closing hint is spelled
+through the first selected row's body dialect and invocation prefix, and
+doctor's `stale-harness`, `mixed-versions` and `dangling-ref` checks read only
+the files cospec writes (`<skills-root>/<skill>/SKILL.md` and the table's
+command paths), never a user's own markdown or a nested worktree's copy (those
+reads, `stale-sidecar` and the opsx scan all descend through the one bounded
+walker, `walkProjectFiles` in `harness/scan-walk.ts`); init's opsx leftover
+scan, which doctor's `opsx-leftover` check shares, stays wider because
+upstream's files sit at their own paths (every tool's `legacyCommandPaths`
+included), but its walk stops at the same nested-worktree boundary (a directory
 with its own `.git` entry, scan roots and symlinks resolving into one included),
 never follows a scan root or the shared `.agents/skills` root out of the project
-(a symlinked `.claude`, `.agents`, or `.agents/skills` pointing elsewhere is
-never read, by realpath containment, not `lstat`, so a symlink that resolves
-back inside the project is still walked), and `removeOpsxFiles` re-checks the
-same containment right before every delete as defense in depth. It detects a
-real OpenCode opsx command leftover only by the combination of one of the 12
-workflow ids the pinned dist ever generates, its description-only frontmatter
-shape, and the `PROJECT_ROOT_GUARD` template's literal lead sentence plus its
-command reference — never a bare `opsx-*` path or a bare command substring,
-since OpenCode's own adapter carries neither of the other tools' markers but a
-user's own file can otherwise coincidentally carry the same path shape or quote
-the same command. Edit the canon or the table, run `mise run generate`; never
-hand-edit generated output. The `generate:check` drift gate blocks the commit
-otherwise.
+(by realpath containment, not `lstat`, so a symlink that resolves back inside
+the project is still walked), reports a directory it cannot list through the
+walker's `onUnreadable` callback rather than hiding it, and `removeOpsxFiles`
+re-checks the same containment right before every delete as defense in depth.
+It detects a real OpenCode opsx command leftover (`.opencode/commands/`) only by
+the combination of one of the 12 workflow ids the pinned dist ever generates,
+its description-only frontmatter shape, and the `PROJECT_ROOT_GUARD` template's
+literal lead sentence plus its command reference — never a bare `opsx-*` path or
+a bare command substring. Each row's expected output is
+the pinned OpenSpec binary's own `init --tools <id>` capture in
+`apps/cli/test/fixtures/upstream-init/<id>.json`, never cospec's output. After a
+pin bump, re-take the captures with
+`COSPEC_FIXTURE_WRITE=1 bun test test/contract/upstream-init-fixtures.test.ts`
+(run in `apps/cli`), then `mise run format:fix`; the regenerator is
+`apps/cli/test/contract/support/upstream-init-capture.ts`. Edit the canon or the
+table, run `mise run generate`; never hand-edit generated output. The
+`generate:check` drift gate blocks the commit otherwise.
 
 **Error handling** — never silently swallow errors. Catch only specific expected
 cases; let unexpected exceptions propagate. Fixes must change observable
