@@ -616,19 +616,19 @@ describe('fixture rows — skill and prose dialects', () => {
   })
 })
 
-describe('markdown-header and plain serializers', () => {
-  const bare = (serializer: 'markdown-header' | 'plain'): HarnessAdapter => ({
-    ...adapterFor('opencode'),
-    skillsDir: '.x',
-    commands: {
-      dir: '.x/workflows',
-      namespacing: 'flat',
-      file: 'cospec-{command}',
-      extension: '.md',
-      serializer,
-    },
-  })
+const bare = (serializer: 'markdown-header' | 'plain'): HarnessAdapter => ({
+  ...adapterFor('opencode'),
+  skillsDir: '.x',
+  commands: {
+    dir: '.x/workflows',
+    namespacing: 'flat',
+    file: 'cospec-{command}',
+    extension: '.md',
+    serializer,
+  },
+})
 
+describe('markdown-header and plain serializers', () => {
   test('markdown-header writes `# COSPEC: <title>`, the description, then the body', () => {
     const files = renderRow(bare('markdown-header'))
     const commands = files.filter((f) => f.kind === 'command')

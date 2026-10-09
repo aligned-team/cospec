@@ -479,20 +479,20 @@ describe('HARNESS_TABLE against the pinned OpenSpec AI_TOOLS', async () => {
   })
 })
 
-describe('isHarnessDocument — frontmatter-less command serializers', () => {
-  const row = (serializer: 'markdown-header' | 'plain' | 'toml'): HarnessAdapter => ({
-    ...adapterFor('opencode'),
-    id: 'bare-fixture',
-    skillsDir: '.bare',
-    commands: {
-      dir: '.bare/workflows',
-      namespacing: 'flat',
-      file: 'cospec-{command}',
-      extension: '.md',
-      serializer,
-    },
-  })
+const row = (serializer: 'markdown-header' | 'plain' | 'toml'): HarnessAdapter => ({
+  ...adapterFor('opencode'),
+  id: 'bare-fixture',
+  skillsDir: '.bare',
+  commands: {
+    dir: '.bare/workflows',
+    namespacing: 'flat',
+    file: 'cospec-{command}',
+    extension: '.md',
+    serializer,
+  },
+})
 
+describe('isHarnessDocument — frontmatter-less command serializers', () => {
   test('only the markdown serializer carries provenance, so only its commands are documents', () => {
     expect(carriesFrontmatter('markdown')).toBe(true)
     for (const s of ['markdown-header', 'plain', 'toml'] as const) {
