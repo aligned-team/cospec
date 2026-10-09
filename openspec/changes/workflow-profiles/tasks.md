@@ -108,7 +108,7 @@ rows write the `config.json` under test into the sandbox's
       `sync-specs` splice before the first `archive`/`bulk-archive`, explicit
       custom with no list empty), and verify it passes against the pinned
       `getProfileWorkflows` over the same inputs
-- [ ] 5.3 Write the failing rows of `test/contract/profiles.test.ts` for `init`
+- [x] 5.3 Write the failing rows of `test/contract/profiles.test.ts` for `init`
       (no profile installs twelve; explicit core key installs six and doctor has
       no `dangling-ref`; `{delivery:"both"}` alone installs twelve; `--profile`
       over a custom key; `custom [archive]` installs `sync-specs` and `archive`;
