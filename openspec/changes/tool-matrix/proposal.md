@@ -48,7 +48,7 @@ rows so that a tool is a row and nothing in `commands/` branches on a tool id.
 - **Shared `.agents/skills` arbitration.** `codex`, `agents`, `zed` and
   `antigravity` all write skills to `.agents/skills`. One writer per shared
   skills root is chosen with upstream's precedence (marker, then cospec's
-  pre-marker evidence, then a skills-native row, then table order), and
+  pre-marker evidence, then a skills-native row, then upstream tool order), and
   `generate()` writes a literal `.agents/skills/.cospec-target` marker naming
   it. `update`, `doctor` and `update --check` read the same arbiter.
 - **Legacy tool roots.** Upstream's `LEGACY_TOOL_ROOTS` moves of

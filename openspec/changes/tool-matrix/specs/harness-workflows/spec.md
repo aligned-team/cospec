@@ -12,12 +12,13 @@ the ownership marker `.agents/skills/.cospec-target` when it is among the
 preferred selected harnesses; then cospec's pre-marker evidence (the codex rules
 file `.codex/rules/cospec.rules`, or a legacy `.codex/skills/cospec-*/SKILL.md`,
 means `codex`); then `agents` when the root already holds a cospec skill; then
-`codex`; then the first selected harness in table order. The preferred harnesses
-are the selected ones with no slash-command surface when any is selected,
-otherwise all selected ones. cospec SHALL write the marker, containing the
-chosen harness id and a newline, whenever it writes that root, and SHALL track
-it in the manifest. cospec SHALL NOT write or read an
-`.agents/skills/.openspec-target` ownership marker.
+`codex`; then the first selected harness in the pinned OpenSpec binary's tool
+order (`antigravity`, `codex`, `zed`, `agents`). The preferred harnesses are the
+selected ones with no slash-command surface when any is selected, otherwise all
+selected ones. cospec SHALL write the marker, containing the chosen harness id
+and a newline, whenever it writes that root, and SHALL track it in the manifest.
+cospec SHALL NOT write or read an `.agents/skills/.openspec-target` ownership
+marker.
 
 `codex`, `agents` and `zed` SHALL render byte-identical shared skill files,
 including the stamped `contentHash`, through the single shared body dialect;
@@ -75,6 +76,18 @@ holds cospec files.
   `cospec init --harness agents,zed` runs
 - **THEN** the shared skills are rendered for `agents`, the marker still names
   `agents`, and `cospec update` afterwards detects `agents` and not `zed`
+
+#### Scenario: a configured owner stays the writer beside a new selection
+
+- **WHEN** `.agents/skills/.cospec-target` names `agents`, `agents` is
+  configured, and `cospec init --harness zed,antigravity` runs
+- **THEN** the shared skills are rendered for `agents`, the marker still names
+  `agents`, and the receipt line reads `(one tree, written for agents)`
+
+#### Scenario: a fresh root with agents and zed is written for zed
+
+- **WHEN** `cospec init --harness agents,zed` runs in a fresh repo
+- **THEN** the marker names `zed`, as the pinned binary's marker does
 
 #### Scenario: Antigravity alone writes flat skill references
 

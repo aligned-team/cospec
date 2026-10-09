@@ -172,7 +172,13 @@ managed file. The writer is chosen in this order:
 2. cospec's own evidence on disk — a `.codex/rules/cospec.rules` file, or a
    legacy `.codex/skills/cospec-*` skill, means `codex`;
 3. a cospec skill already in the root means `agents`;
-4. otherwise `codex`, then the first selected row in table order.
+4. otherwise `codex`, then the first selected row in OpenSpec's own tool order
+   (`antigravity`, `codex`, `zed`, `agents`), so `agents,zed` on a fresh root is
+   written for `zed`.
+
+When a later `cospec init` selects only rows beside a configured owner of the
+root (`agents` was set up, then `zed,antigravity`), the owner stays in the run
+and stays the writer, as OpenSpec does.
 
 Rows without commands (`codex`, `agents`, `zed`) are preferred over
 `antigravity` when any of them is selected. The receipt names the sharing rows
@@ -193,7 +199,9 @@ initialized with `openspec` **1.7.0+** (its vendor-neutral `agents` target, or
 1.8.0's Codex output, 1.10's `zed`, or 1.11's `antigravity`) may already have
 `openspec-*` skills in this root. The two coexist: cospec owns only its
 `cospec-*` directories and the marker, and `cospec init --remove-opsx` still
-removes only openspec-authored files (frontmatter `author: openspec`). :::
+removes only openspec-authored files (frontmatter `author: openspec`), plus
+OpenSpec's ownership marker `.agents/skills/.openspec-target` once no
+`openspec-*` skill is left beside it. :::
 
 ## Legacy tool roots
 
@@ -312,7 +320,10 @@ in the body) and lists them with a warning rather than silently leaving two
 competing command sets in place; pass `--remove-opsx` (or confirm interactively)
 to clean them up. Files you authored yourself are never touched — including one
 at a lookalike OpenCode path or id, or one whose own prose happens to mention
-the same upstream command. The scan also never descends into a nested git
+the same upstream command; an old pre-opsx command such as
+`.cursor/commands/openspec-*.md` counts as OpenSpec's only when it carries
+OpenSpec's `<!-- OPENSPEC:START -->` markers, so a same-named file without them
+is left alone (OpenSpec's own cleanup would remove it). The scan also never descends into a nested git
 worktree checkout (such as one under `.claude/worktrees/`, or a scan directory
 that is itself an embedded clone or a symlink into such a checkout) — that copy
 of the project is cleaned up by its own `cospec init --remove-opsx` — and never

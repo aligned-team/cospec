@@ -17,8 +17,13 @@ directory-scoped entries and their `managedFileNames`. A file SHALL be a
 leftover only when its content proves OpenSpec wrote it: an opsx-era file
 carries the pinned binary's root-guard reference to `` `openspec list --json` ``
 or the existing skill and command markers, and a pre-opsx file carries the
-`<!-- OPENSPEC:START -->`/`<!-- OPENSPEC:END -->` markers. A directory-scoped
-legacy folder SHALL be removed only once it is empty.
+`<!-- OPENSPEC:START -->`/`<!-- OPENSPEC:END -->` markers (for a file-pattern
+entry this is stricter than the pinned binary, which removes a file that matches
+by name; a same-named file without the markers is the user's). The one exception
+is the binary's shared-root ownership marker `.agents/skills/.openspec-target`:
+a file at exactly that path holding one tool id SHALL be a leftover once no
+`openspec-*` skill that is not itself a leftover remains under `.agents/skills`.
+A directory-scoped legacy folder SHALL be removed only once it is empty.
 
 #### Scenario: a Gemini TOML leftover is found and removed
 
@@ -40,6 +45,20 @@ legacy folder SHALL be removed only once it is empty.
 - **WHEN** `.cursor/commands/openspec-proposal.md` carries the OpenSpec markers
 - **THEN** it is reported as a leftover, and a
   `.cursor/commands/openspec-notes.md` without the markers is not
+
+#### Scenario: the shared-root ownership marker goes with its skills
+
+- **WHEN** `.agents/skills/.openspec-target` names `codex`, the root holds
+  OpenSpec's `openspec-propose/SKILL.md`, and
+  `cospec init --harness codex --remove-opsx` runs
+- **THEN** the marker is listed in `opsx.found` and removed with the skill, and
+  `.agents/skills/.cospec-target` is untouched
+
+#### Scenario: a skill of the user's own keeps the marker
+
+- **WHEN** the same marker sits beside a user-authored
+  `.agents/skills/openspec-mine/SKILL.md` that carries no OpenSpec provenance
+- **THEN** the marker is not listed and not removed
 
 #### Scenario: a legacy command folder keeps the user's file
 

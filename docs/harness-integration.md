@@ -305,7 +305,15 @@ merged entry. If it does not parse, cospec prints the snippet and skips.
   `zed` and `antigravity`), so the two toolchains' output coexists there: cospec
   owns only its `cospec-*` dirs, and `--remove-opsx` still removes only
   openspec-authored files. The superset walk of `.agents/` and the subset walk
-  of `.agents/skills/` are deduped, so a leftover is reported once.
+  of `.agents/skills/` are deduped, so a leftover is reported once. The one
+  non-frontmatter file it lists is the binary's ownership marker
+  `.agents/skills/.openspec-target` (a file holding one tool id), and only once
+  no `openspec-*` skill is left under the root for it to describe, so a skill
+  you wrote under that name keeps it. A pre-opsx command at a file-pattern
+  legacy path (`.cursor/commands/openspec-*.md`) is a leftover only when it
+  carries the `<!-- OPENSPEC:START -->`/`<!-- OPENSPEC:END -->` markers: the
+  binary's own cleanup removes such a file by name, and cospec deliberately does
+  not, because a same-named file without the markers is yours.
 - **Shared `.agents/skills` root** — four rows write to it: `codex`, `agents`,
   `zed` and `antigravity`. Their skill paths coincide, but Antigravity spells
   its skill bodies `/cospec-<skill>` (`flat`) while `codex`, `agents` and `zed`
@@ -315,19 +323,23 @@ merged entry. If it does not parse, cospec prints the snippet and skips.
   `.agents/skills/.cospec-target` when it is selected; cospec's pre-marker
   evidence (a `.codex/rules/cospec.rules` file or a legacy
   `.codex/skills/cospec-*` skill means `codex`); an existing cospec skill means
-  `agents`; then `codex`, then the first selected row in table order. Rows with
-  no commands form the preferred pool when any is selected. `generate()` passes
-  the writer set to the renderer, so no two rows emit one path; the
-  render-conflict error remains as the guard for a caller that bypasses the
-  arbiter. The marker is manifest-tracked, and cospec never reads or writes
-  upstream's `.openspec-target`, which names the owner of OpenSpec's own
-  `openspec-*` skills. Detection on `init`, `update` and `doctor` asks the same
-  question, is this row the writer here (`isSharedSkillTargetActive`), so a row
-  detected only through the shared tree is kept only when it is the writer.
-  Because the codex row's `detectionPaths` now match upstream's
-  (`.agents/skills` and `.codex/skills`), an agents-only repo is not
-  mis-detected as Codex. Auto-detection still keys on `.agents/skills`, not a
-  bare `.agents/`, so a repo with only `AGENTS.md` there is not a harness.
+  `agents`; then `codex`, then the first selected row in the pinned OpenSpec's
+  tool order (antigravity, codex, zed, agents). `init` also keeps a configured
+  owner of the root in the run when it selects only rows beside it (as the
+  binary does), so `init --harness agents` followed by
+  `init --harness zed,antigravity` leaves `agents` the writer. Rows with no
+  commands form the preferred pool when any is selected. `generate()` passes the
+  writer set to the renderer, so no two rows emit one path; the render-conflict
+  error remains as the guard for a caller that bypasses the arbiter. The marker
+  is manifest-tracked, and cospec never reads or writes upstream's
+  `.openspec-target`, which names the owner of OpenSpec's own `openspec-*`
+  skills. Detection on `init`, `update` and `doctor` asks the same question, is
+  this row the writer here (`isSharedSkillTargetActive`), so a row detected only
+  through the shared tree is kept only when it is the writer. Because the codex
+  row's `detectionPaths` now match upstream's (`.agents/skills` and
+  `.codex/skills`), an agents-only repo is not mis-detected as Codex.
+  Auto-detection still keys on `.agents/skills`, not a bare `.agents/`, so a
+  repo with only `AGENTS.md` there is not a harness.
 - **Legacy tool roots** — earlier releases wrote some files outside the current
   roots: `.codex/skills` (Codex), `.kimi` (Kimi Code), `.windsurf` (Devin) and
   `.agent` (Antigravity). Each row's `legacyToolRoots` names its legacy roots,

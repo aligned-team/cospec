@@ -252,22 +252,34 @@ Facts from the captures and the dist (`core/config.js`,
    `resolveSharedSkillWriters` order: the marker (`<root>/.cospec-target`) if it
    names a row of the preferred pool, then cospec's pre-marker evidence, then
    (when the root already holds a cospec skill) `agents`, then `codex`, then the
-   first row in table order. The preferred pool is the skills-native rows (no
-   `commands`) when any is selected, else all. cospec's pre-marker evidence
-   replaces upstream's content inference: cospec's `shared` bodies always
-   contain both `$cospec-` and `/cospec-`, so content cannot tell codex from
-   agents; the codex row's `rulesPath` (today's tie-break) or a legacy
-   `.codex/skills/cospec-*` skill means codex. `generate()` passes the writer
-   set to `renderHarnessFiles` (`skillWriters`), which renders a shared root's
-   skills from its writer only, so no two rows ever emit one path; the
-   render-conflict error stays as the guard for a caller that bypasses the
-   arbiter. After writing, `generate()` writes `<root>/.cospec-target`
-   containing the writer's id and a newline, manifest-tracked.
-   `isSharedSkillTargetActive(cwd, id)` (the `reconcileSharedSkillTargets` port)
-   answers `update`'s and `doctor`'s question "is this row the writer here".
-   cospec never reads or writes upstream's `.openspec-target`, which names the
-   owner of OpenSpec's `openspec-*` skills, not cospec's. The receipt's
-   shared-root line becomes
+   first row in the pinned binary's `AI_TOOLS` order (antigravity, codex, zed,
+   agents; `SHARED_ROOT_UPSTREAM_ORDER`, held to the pinned dist by a contract
+   test), which differs from cospec's table order where `zed` follows `agents`.
+   The preferred pool is the skills-native rows (no `commands`) when any is
+   selected, else all. cospec's pre-marker evidence replaces upstream's content
+   inference: cospec's `shared` bodies always contain both `$cospec-` and
+   `/cospec-`, so content cannot tell codex from agents; the codex row's
+   `rulesPath` (today's tie-break) or a legacy `.codex/skills/cospec-*` skill
+   means codex. `generate()` passes the writer set to `renderHarnessFiles`
+   (`skillWriters`), which renders a shared root's skills from its writer only,
+   so no two rows ever emit one path; the render-conflict error stays as the
+   guard for a caller that bypasses the arbiter. After writing, `generate()`
+   writes `<root>/.cospec-target` containing the writer's id and a newline,
+   manifest-tracked. `isSharedSkillTargetActive(cwd, id)` (the
+   `reconcileSharedSkillTargets` port) answers `update`'s and `doctor`'s
+   question "is this row the writer here". `init` ports upstream's owner
+   retention (`validateTools`'s `sharedSkillRootOwner`): for each selected row
+   but `codex`, a configured row that already owns its shared root (a marker or
+   a cospec skill, resolved by the reconcile order) joins the generation set, so
+   `init --harness agents` then `init --harness zed,antigravity` keeps `agents`
+   the writer, as the binary does, instead of flipping the marker to a row
+   selected beside it. The owner is refreshed like any generated row. A
+   differential contract test (`shared-root-differential.test.ts`) runs the same
+   `init` sequences through the binary and cospec and compares the writer each
+   leaves in its marker. cospec never reads or writes upstream's
+   `.openspec-target`, which names the owner of OpenSpec's `openspec-*` skills,
+   not cospec's; `--remove-opsx` deletes it (decision 12), as it deletes the
+   skills it describes. The receipt's shared-root line becomes
    `skills for codex/agents/antigravity/zed share the .agents/skills root (one tree, written for <writer>)`.
    Rejected: keeping render's path-dedupe as the arbiter by giving `antigravity`
    the `shared` skill dialect. Antigravity alone would then write `$cospec-…`
@@ -350,10 +362,20 @@ Facts from the captures and the dist (`core/config.js`,
     sentence `` `openspec list --json` `` (true for every command and skill
     upstream writes, whatever the wrapper), or the existing skill
     `metadata.author: openspec` / command `name: OPSX:` markers; a pre-opsx file
-    carries `<!-- OPENSPEC:START -->`…`<!-- OPENSPEC:END -->`, as upstream's
-    `isGeneratedLegacyCommand` requires. A directory entry is removed only once
-    empty. The walk keeps every boundary the scan has on `main` when this change
-    rebases.
+    carries `<!-- OPENSPEC:START -->`…`<!-- OPENSPEC:END -->`. For a directory
+    entry that is upstream's own rule (`isGeneratedLegacyCommand`, re-checked
+    per file). For a `files` pattern it is deliberately stricter than the
+    binary, which deletes a file matching the pattern by name and never
+    re-checks markers: a same-named file without the markers is the user's,
+    which is the rationale upstream itself gives for its directory rule, so
+    cospec keeps it and does not list it. `leftover-sweep.test.ts` holds both
+    sides: the binary removes a marker-less `.cursor/commands/openspec-*.md`,
+    cospec leaves it. The one file whose provenance is its path and shape is the
+    binary's `.agents/skills/.openspec-target` ownership marker (one tool id):
+    it is listed, and removed, once no `openspec-*` skill is left under the
+    shared root for it to describe, so a user-authored `openspec-*` skill keeps
+    it. A directory entry is removed only once empty. The walk keeps every
+    boundary the scan has on `main` when this change rebases.
 
 13. **Codex global prompt cleanup reports through the leftover scan.**
     `$CODEX_HOME/prompts` (trimmed, else `<home>/.codex/prompts`, resolved) is

@@ -103,6 +103,13 @@
       flip the codex `test.failing` in `harness-matrix.test.ts`; verify the spec
       scenarios "agents is detected by its skills dir" and "a bare .codex
       directory no longer selects codex" as integration tests
+- [x] 4.4 Break the writer's final tie in the pinned binary's `AI_TOOLS` order
+      (`SHARED_ROOT_UPSTREAM_ORDER`) and port its owner retention
+      (`sharedSkillRootOwner`, `withSharedRootOwners`) into `init`, so a
+      configured owner stays the writer; verify a differential contract test
+      runs the same `init` sequences through the binary and cospec and compares
+      the markers, and unit and integration tests cover the order and the
+      retention
 
 ## 5. Aliases and the unknown-tool hint (T7, part)
 
@@ -199,6 +206,12 @@
       integration test under a temp `CODEX_HOME` (allowlisted file removed after
       the replacement skill exists, a user prompt kept, nothing outside the temp
       dirs read) and one with codex not selected
+- [x] 9.4 List and remove the binary's `.agents/skills/.openspec-target` marker
+      once no `openspec-*` skill is left under the root, and record the
+      marker-pair rule for file-pattern legacy commands as a deliberate cospec
+      opinion (decision 12, docs, spec); verify the sweep contract test counts
+      the marker among the files the binary wrote and a contract test holds the
+      binary's removal of a marker-less file against cospec keeping it
 
 ## 10. Docs and agent guidance
 
