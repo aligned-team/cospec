@@ -23,4 +23,4 @@
 ## 4. Docs and gate
 
 - [x] 4.1 @integration (agent) `mise run docs:build` passes with the docs update -> `mise run docs:build` exit 0, build complete
-- [ ] 4.2 @integration (agent) `mise run check` green and `cospec validate doctor-unknown-rule-keys --strict` passes -> `mise run check` exit 0 (unit 2314 pass, integration 245 pass, contract 2818 pass, 0 fail); validate --strict passed
+- [x] 4.2 @integration (agent) `mise run check` green and `cospec validate doctor-unknown-rule-keys --strict` passes -> `mise run check` exit 0 on the rebased branch (unit 2775 pass, integration 355 pass, contract 2900 tests, bench 343 pass, 0 fail); validate --strict passed

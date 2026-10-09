@@ -35,4 +35,4 @@
       output
 - [x] 4.2 `mise run check` green, `validate --strict` passes, no `test.failing`
       left
-- [ ] 4.3 The archive commit follows this one
+- [x] 4.3 The archive commit follows this one
