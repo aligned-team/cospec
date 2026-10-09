@@ -123,7 +123,7 @@ describe('cospec doctor (DESIGN §2.3)', () => {
     }
 
     test('a mistyped key is one WARNING naming it and the known ids; exit code unchanged', async () => {
-      seed(dir)
+      await seed(dir)
       writeConfig('rules:\n  proposals:\n    - Mention rollout\n  proposal:\n    - Keep it short\n')
       const { code, findings } = await doctorJson(dir)
       const hits = ruleFindings(findings)
@@ -137,7 +137,7 @@ describe('cospec doctor (DESIGN §2.3)', () => {
     })
 
     test('every built-in artifact id is a valid key', async () => {
-      seed(dir)
+      await seed(dir)
       writeConfig(
         'rules:\n' +
           KNOWN.split(', ')
@@ -149,7 +149,7 @@ describe('cospec doctor (DESIGN §2.3)', () => {
     })
 
     test('an artifact id declared by a project schema is a valid key', async () => {
-      seed(dir)
+      await seed(dir)
       mkdirSync(join(dir, 'openspec/schemas/mine'), { recursive: true })
       writeFileSync(
         join(dir, 'openspec/schemas/mine/schema.yaml'),
@@ -164,14 +164,14 @@ describe('cospec doctor (DESIGN §2.3)', () => {
     })
 
     test('a key with no near id has no suggestion', async () => {
-      seed(dir)
+      await seed(dir)
       writeConfig('rules:\n  zzzzzzzz:\n    - a rule\n')
       const { findings } = await doctorJson(dir)
       expect(ruleFindings(findings)[0]?.message).not.toContain('did you mean')
     })
 
     test('absent or non-mapping rules produce no finding', async () => {
-      seed(dir)
+      await seed(dir)
       for (const body of ['', 'rules: not-a-map\n', 'rules:\n  - proposals\n', 'rules:\n']) {
         writeConfig(body)
         const { code, findings } = await doctorJson(dir)
@@ -181,7 +181,7 @@ describe('cospec doctor (DESIGN §2.3)', () => {
     })
 
     test('an artifact id of a user-global schema is a valid key', async () => {
-      seed(dir)
+      await seed(dir)
       writeSchema(join(dataHome, 'openspec/schemas'), 'usr', schemaYaml('usr', 'userextra'))
       writeConfig('rules:\n  userextra:\n    - a rule\n  nope:\n    - a rule\n')
       const { findings } = await doctorJson(dir)
@@ -192,7 +192,7 @@ describe('cospec doctor (DESIGN §2.3)', () => {
     })
 
     test('ids of a schema the binary rejects as invalid are not known', async () => {
-      seed(dir)
+      await seed(dir)
       // `requires` names an artifact the schema never declares: the binary skips it.
       writeSchema(
         join(dir, 'openspec/schemas'),
@@ -216,7 +216,7 @@ describe('cospec doctor (DESIGN §2.3)', () => {
     })
 
     test('a project schema shadows a same-named user-global schema', async () => {
-      seed(dir)
+      await seed(dir)
       writeSchema(join(dir, 'openspec/schemas'), 'usr', schemaYaml('usr', 'projid'))
       writeSchema(join(dataHome, 'openspec/schemas'), 'usr', schemaYaml('usr', 'shadowed'))
       writeConfig('rules:\n  projid:\n    - r\n  shadowed:\n    - r\n')
