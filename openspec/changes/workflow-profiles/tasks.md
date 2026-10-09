@@ -184,19 +184,19 @@ rows write the `config.json` under test into the sandbox's
 
 ## 8. T7 — the profile matrix and parity close-out (`test/contract/profiles.test.ts`)
 
-- [ ] 8.1 Complete the matrix: profile (unset, core, custom with and without
+- [x] 8.1 Complete the matrix: profile (unset, core, custom with and without
       `archive`) by delivery (unset, skills, commands, both) by harness (claude,
       codex, opencode, agents, and every row `tool-matrix` and `github-copilot`
       added with a distinct command surface), each cell running `init`, then
       `update`, then `doctor`, and verify every cell passes and none leaves a
       `test.failing` or `test.todo`
-- [ ] 8.2 Retarget the tests that used the closed pending entries as fixtures:
+- [x] 8.2 Retarget the tests that used the closed pending entries as fixtures:
       the `init --language` negative cases in `reachability.test.ts` (and any
       naming `init --profile`) and rows 77, 328, 329, 370 and 371 of
       `test/unit/core/command-table.test.ts`, onto a synthetic table row, drop
       `workflow-profiles` from `KNOWN_OWNERS` if nothing names it, and verify
       `mise run test:contract` and `mise run test` pass
-- [ ] 8.3 Add the reachability assertion that `parity-pending.yaml` is empty and
+- [x] 8.3 Add the reachability assertion that `parity-pending.yaml` is empty and
       a docs-loader test that an empty list renders, and verify
       `grep -c "owner:" apps/cli/test/contract/parity-pending.yaml` prints 0 and
       `mise run docs:build` succeeds
@@ -230,10 +230,10 @@ rows write the `config.json` under test into the sandbox's
 
 ## 10. Close-out
 
-- [ ] 10.1 Run `mise run generate:check`, `mise run openspec:schema:validate`,
+- [x] 10.1 Run `mise run generate:check`, `mise run openspec:schema:validate`,
       `mise run test:contract` and `mise run check`, and verify each exits 0 on
       the rebased branch with no tracked file changed by `mise run generate`
-- [ ] 10.2 Tick every `verification.md` row with its observed result or a
+- [x] 10.2 Tick every `verification.md` row with its observed result or a
       `[~] defer:` reason, set each blocking entry's archive date with
       `mise run cospec -- sync-blockers`, and verify
       `mise run cospec -- validate workflow-profiles --strict` is clean

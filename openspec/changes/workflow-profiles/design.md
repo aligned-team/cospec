@@ -469,6 +469,18 @@ INFO, because `update` never removes them and a WARNING with no way to clear it
 would be noise). With nothing explicit it reports nothing. The remedy points to
 `cospec config profile` and to deleting the named files by hand.
 
+**Drift is measured against what the row holds.** The drift check renders the
+effective set `update` would write (D4): the explicit profile's workflows plus
+those the row already has, under the explicit delivery. With no explicit profile
+it renders only what the row holds, because `init --profile core` is not
+remembered (the global file is never written), so a flag-built repo has nothing
+to measure its six against, and calling the other six "missing" would fail every
+such repo's `doctor`. A row holding some but not all workflows then gets one
+INFO, check id `installed-workflows`, naming the ones a bare `update` would
+install; a workflow with only one surface present is still a `schema-missing`
+ERROR. A `shared-root` marker is likewise written only for a root some selected
+row generates skills into, so `init` and a later `update` agree.
+
 The dangling-reference check keeps its skill-or-command-exists logic, which is
 what proves a resolved handoff: a narrowed install's bodies name only installed
 workflows, so it passes, and a body naming an absent one still fails. It also
