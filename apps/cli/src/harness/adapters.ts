@@ -780,6 +780,17 @@ export const HARNESS_TABLE = [
     detectionPaths: ['.trae'],
   },
   {
+    id: 'zed',
+    displayName: 'Zed Agent',
+    skillsDir: '.agents',
+    invocationPrefix: '/',
+    bodyDialect: 'shared',
+    requiresIdeRestart: false,
+    detectionPaths: ['.zed', '.agents/skills'],
+    setupNote:
+      'Zed Agent reads the shared .agents/skills; start a new session to load the skills. No slash commands are generated for this target.',
+  },
+  {
     id: 'zcode',
     displayName: 'ZCode',
     skillsDir: '.zcode',

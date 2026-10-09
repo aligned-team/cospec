@@ -301,6 +301,7 @@ describe('HARNESS_TABLE invariants', () => {
       'rovodev',
       'roocode',
       'trae',
+      'zed',
       'zcode',
     ])
     expect(HARNESS_NAMES).toEqual(ids)
@@ -327,8 +328,8 @@ describe('HARNESS_TABLE invariants', () => {
         expect(`${a.id}:${a.bodyDialect}`).toBe(`${a.id}:${b.bodyDialect}`)
       }
     }
-    // codex and agents share `.agents/skills`; the check must not be vacuous.
-    expect(overlaps).toBe(1)
+    // codex, agents and zed share `.agents/skills`; the check must not be vacuous.
+    expect(overlaps).toBe(3)
   })
 
   test('the four shipped rows are all repo-scoped, `/`-invoked and need no IDE restart', () => {
@@ -479,6 +480,7 @@ describe('HARNESS_TABLE derived roots', () => {
       '.rovodev',
       '.roo',
       '.trae',
+      '.agents',
       '.zcode',
     ])
   })
