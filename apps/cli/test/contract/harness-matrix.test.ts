@@ -86,11 +86,7 @@ const SHIPPED_ROWS = ['claude', 'codex', 'opencode', 'agents']
 // --- what is not yet true, and the task that makes it true ---------------------------
 
 /** Rows not yet in `HARNESS_TABLE`, each with the tasks.md item that adds it. */
-const PENDING_ROWS = new Map<string, string>([
-  ['minimax-code', '6.5'],
-  ['zed', '6.7'],
-  ['antigravity', '8.3'],
-])
+const PENDING_ROWS = new Map<string, string>([])
 
 type Check = 'detectionPaths' | 'legacyToolRoots' | 'initDetection'
 

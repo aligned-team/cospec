@@ -16,11 +16,6 @@
 # `source: cli` marks a hidden surface the four registry sources cannot
 # produce; the test verifies it against the pinned binary instead.
 
-# --- tool-matrix ------------------------------------------------------------------
-- { kind: tool, id: antigravity, owner: tool-matrix }
-- { kind: tool, id: minimax-code, owner: tool-matrix }
-- { kind: tool, id: zed, owner: tool-matrix }
-
 # --- github-copilot ---------------------------------------------------------------
 - { kind: tool, id: github-copilot, owner: github-copilot }
 - { kind: flag, path: [init], flag: --copilot-cloud, owner: github-copilot }

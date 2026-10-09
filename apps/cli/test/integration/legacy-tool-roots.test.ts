@@ -221,24 +221,20 @@ describe('legacy tool roots move on init', () => {
     expect(doc.opsx.found).toEqual(expect.arrayContaining(skillPaths('.agents')))
   }, 120_000)
 
-  test.failing(
-    'antigravity: .agent moves to .agents after generation (row lands in task 8.3)',
-    async () => {
-      const upstream = await upstreamInit('antigravity')
-      const repo = freshRepo()
-      plant(upstream, '.agents', repo, '.agent')
-      rmSync(join(repo.dir, '.agent/skills/.openspec-target'))
+  test('antigravity: .agent moves to .agents after generation', async () => {
+    const upstream = await upstreamInit('antigravity')
+    const repo = freshRepo()
+    plant(upstream, '.agents', repo, '.agent')
+    rmSync(join(repo.dir, '.agent/skills/.openspec-target'))
 
-      const doc = await initJson(repo, 'antigravity')
+    const doc = await initJson(repo, 'antigravity')
 
-      expect(existsSync(join(repo.dir, '.agent'))).toBe(false)
-      for (const from of [...skillPaths('.agent'), ...workflowPaths('.agent')]) {
-        const to = from.replace(/^\.agent\//, '.agents/')
-        expect(doc.migration).toContainEqual({ path: from, outcome: 'moved', to })
-      }
-    },
-    120_000,
-  )
+    expect(existsSync(join(repo.dir, '.agent'))).toBe(false)
+    for (const from of [...skillPaths('.agent'), ...workflowPaths('.agent')]) {
+      const to = from.replace(/^\.agent\//, '.agents/')
+      expect(doc.migration).toContainEqual({ path: from, outcome: 'moved', to })
+    }
+  }, 120_000)
 })
 
 describe('legacy tool roots move on update', () => {
