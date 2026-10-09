@@ -42,15 +42,23 @@ describe('init --harness values', () => {
 })
 
 // No shipped surface is pending any more (`parity-pending.yaml` is empty), so the refusal
-// machinery is exercised on a copy of the table in which `init --language` is marked pending,
-// as it was before `workflow-profiles` handled it.
+// machinery is exercised on a copy of the table whose `init` row carries one synthetic flag
+// marked pending. No real flag stands in for it.
 const FIXTURE_TABLE: readonly CommandRow[] = COMMAND_TABLE.map((row) =>
   row.name === 'init' && row.parse === 'table'
     ? {
         ...row,
-        flags: row.flags.map((f) =>
-          f.name === '--language' ? { ...f, status: pending('workflow-profiles') } : f,
-        ),
+        flags: [
+          ...row.flags,
+          {
+            name: '--pending-fixture',
+            takesValue: true,
+            placeholder: '<value>',
+            description: 'a synthetic pending flag',
+            status: pending('workflow-profiles'),
+            origin: 'upstream',
+          } as const,
+        ],
       }
     : row,
 )
@@ -98,20 +106,24 @@ describe('parseCommandArgs — the six ledger 1.5 cases', () => {
   })
 
   test('a pending flag consumes its value and never leaks it into a positional', () => {
-    const r = refused('init', ['--language', 'fr', 'x', 'y'])
-    expect(r).toMatchObject({ kind: 'pending', surface: '--language', owner: 'workflow-profiles' })
-    expect(r.message).toBe("cospec init: '--language' is not supported yet\n")
+    const r = refused('init', ['--pending-fixture', 'fr', 'x', 'y'])
+    expect(r).toMatchObject({
+      kind: 'pending',
+      surface: '--pending-fixture',
+      owner: 'workflow-profiles',
+    })
+    expect(r.message).toBe("cospec init: '--pending-fixture' is not supported yet\n")
 
-    // `--bogus` is consumed as --language's value, so the pending refusal wins.
-    expect(refused('init', ['--language', '--bogus'])).toMatchObject({
+    // `--bogus` is consumed as --pending-fixture's value, so the pending refusal wins.
+    expect(refused('init', ['--pending-fixture', '--bogus'])).toMatchObject({
       kind: 'pending',
-      surface: '--language',
+      surface: '--pending-fixture',
     })
-    expect(refused('init', ['--language', 'fr', '.'])).toMatchObject({
+    expect(refused('init', ['--pending-fixture', 'fr', '.'])).toMatchObject({
       kind: 'pending',
-      surface: '--language',
+      surface: '--pending-fixture',
     })
-    expect(refused('init', ['--language=fr'])).toMatchObject({ kind: 'pending' })
+    expect(refused('init', ['--pending-fixture=fr'])).toMatchObject({ kind: 'pending' })
   })
 
   test('a pending flag with no value is argument missing, as a handled flag is', () => {
@@ -126,8 +138,8 @@ describe('parseCommandArgs — the six ledger 1.5 cases', () => {
     expect(refused('status', ['--schema', 'x', '--schema'])).toMatchObject({
       kind: 'missing-value',
     })
-    expect(refused('init', ['--language']).message).toBe(
-      "cospec init: option '--language <language>' argument missing\n",
+    expect(refused('init', ['--pending-fixture']).message).toBe(
+      "cospec init: option '--pending-fixture <value>' argument missing\n",
     )
   })
 
@@ -304,11 +316,11 @@ describe('parseCommandArgs — refusals', () => {
       kind: 'missing-value',
       flag: '--change',
     })
-    expect(refused('init', ['--language', 'x', '--bogus'])).toMatchObject({
+    expect(refused('init', ['--pending-fixture', 'x', '--bogus'])).toMatchObject({
       kind: 'pending',
-      surface: '--language',
+      surface: '--pending-fixture',
     })
-    expect(refused('init', ['--bogus', '--language', 'x'])).toMatchObject({
+    expect(refused('init', ['--bogus', '--pending-fixture', 'x'])).toMatchObject({
       kind: 'unknown-option',
       option: '--bogus',
     })
@@ -316,7 +328,7 @@ describe('parseCommandArgs — refusals', () => {
 
   test('the recorded refusal outranks too many arguments', () => {
     expect(refused('list', ['a', '--bogus']).kind).toBe('unknown-option')
-    expect(refused('init', ['a', 'b', '--language', 'x']).kind).toBe('pending')
+    expect(refused('init', ['a', 'b', '--pending-fixture', 'x']).kind).toBe('pending')
   })
 })
 
@@ -346,7 +358,7 @@ describe('accepted no-ops', () => {
 // The fixture table's pending surfaces (tool ids, `experimental` and alias entries live
 // elsewhere); the shipped table has none.
 const EXPECTED_PENDING: [string, string, PendingOwner][] = [
-  ['init', '--language', 'workflow-profiles'],
+  ['init', '--pending-fixture', 'workflow-profiles'],
 ]
 
 function pendingSurfaces(row: CommandRow): [string, string, PendingOwner][] {
@@ -385,7 +397,7 @@ describe('pending surfaces', () => {
   })
 
   const argvFor: Record<string, string[]> = {
-    'init --language': ['--language', 'fr', '.'],
+    'init --pending-fixture': ['--pending-fixture', 'fr', '.'],
   }
 
   /** The pending refusal `command surface` gets, named on the row it was typed on. */

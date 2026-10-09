@@ -39,20 +39,28 @@ describe('isRelayedParseRefusal', () => {
   test("every shape of the table parser's refusal, generated from the parser", () => {
     const completion = table('completion')
     const open = commandRow('workset')!.subcommands!.find((s) => s.name === 'open')!
-    // No shipped flag is pending any more, so `init --language` is marked pending on a copy.
+    // No shipped flag is pending any more, so `init` gets a synthetic one marked pending on a copy.
     const init = table('init')
     const pendingInit: TableCommandRow = {
       ...init,
-      flags: init.flags.map((f) =>
-        f.name === '--language' ? { ...f, status: pending('workflow-profiles') } : f,
-      ),
+      flags: [
+        ...init.flags,
+        {
+          name: '--pending-fixture',
+          takesValue: true,
+          placeholder: '<value>',
+          description: 'a synthetic pending flag',
+          status: pending('workflow-profiles'),
+          origin: 'upstream',
+        },
+      ],
     }
     const valueFlag = commandRow('validate')!.flags!.find((f) => f.placeholder !== undefined)!
     const messages = [
       refusal(parseCommandArgs(completion, ['zsh', '--bogus'])),
       refusal(parseCommandArgs(completion, ['zsh', 'x', 'y'])),
       refusal(parseCommandArgs(table('new'), [])),
-      refusal(parseCommandArgs(pendingInit, ['--language', 'fr'])),
+      refusal(parseCommandArgs(pendingInit, ['--pending-fixture', 'fr'])),
       refusal(parseCommandArgs(table('validate'), [valueFlag.name])),
       refusal(parseSubcommandArgs(commandRow('workset')!, open, [])),
       refusal(parseSubcommandArgs(commandRow('workset')!, open, ['a', '--bogus'])),

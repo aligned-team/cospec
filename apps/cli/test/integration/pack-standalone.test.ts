@@ -266,6 +266,21 @@ describe('standalone pack smoke (bun-less)', () => {
     const init = env([bin, 'init', '--harness', 'none', '--yes'])
     expect(init.exitCode, new TextDecoder().decode(init.stderr)).toBe(0)
 
+    // The embedded canon carries the profile manifest: `--profile core` writes six workflows.
+    const profiled = mkTempRepo({ git: true })
+    const core = Bun.spawnSync(
+      [bin, 'init', '--harness', 'claude', '--profile', 'core', '--yes', '--no-gate'],
+      {
+        cwd: profiled,
+        env: { ...process.env, HOME: home, PATH: path, NO_COLOR: '1', XDG_CACHE_HOME: cache },
+      },
+    )
+    expect(core.exitCode, new TextDecoder().decode(core.stderr)).toBe(0)
+    expect(
+      readdirSync(join(profiled, '.claude', 'skills')).filter((d) => d.startsWith('cospec-')),
+    ).toHaveLength(6)
+    expect(readdirSync(join(profiled, '.claude', 'commands', 'cospec'))).toHaveLength(6)
+
     const created = env([bin, 'new', 'feat', 'demo'])
     expect(created.exitCode, new TextDecoder().decode(created.stderr)).toBe(0)
     expect(existsSync(join(target, 'openspec/changes/demo/.openspec.yaml'))).toBe(true)

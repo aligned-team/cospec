@@ -7,6 +7,7 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 import {
   chmodSync,
+  cpSync,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -284,6 +285,23 @@ describe('init --profile validation', () => {
   }, 120_000)
 })
 
+describe('a global config with no profile key', () => {
+  test('init and update leave it byte-identical, where the binary writes profile: custom', async () => {
+    const mine = sandbox({ delivery: 'both' })
+    const before = readFileSync(mine.configPath, 'utf8')
+    expect((await initIn(mine)).exitCode).toBe(0)
+    expect((await cospec(['update'], { cwd: mine.project, env: mine.env })).exitCode).toBe(0)
+    expect(readFileSync(mine.configPath, 'utf8')).toBe(before)
+
+    const theirs = sandbox({ delivery: 'both' })
+    // The binary migrates once it finds workflows it installed, so its second run is the one
+    // that writes the key.
+    expect((await upstreamInit(theirs.root, theirs.project, [])).exitCode).toBe(0)
+    expect((await upstreamInit(theirs.root, theirs.project, [])).exitCode).toBe(0)
+    expect(JSON.parse(readFileSync(theirs.configPath, 'utf8')).profile).toBe('custom')
+  }, 120_000)
+})
+
 describe('init --language', () => {
   const DIRECTIVE = (lang: string): string =>
     [
@@ -515,6 +533,81 @@ describe('init: the config.yaml it writes', () => {
     writeFileSync(path, uncommented)
     expect(await binaryReads(s, 'a')).not.toMatch(/Invalid|ignoring|Warning/)
   }, 60_000)
+})
+
+// cospec's own source tree, copied beside a modified canon body: the shipped canon is
+// embedded, so the refusal is observed by running the copy, never by editing the real one.
+function sourceCopy(root: string, applyBody: string, skipResolution = false): string {
+  const dest = join(root, 'cospec-src', 'apps', 'cli')
+  mkdirSync(dest, { recursive: true })
+  cpSync(join(import.meta.dir, '../../src'), join(dest, 'src'), { recursive: true })
+  cpSync(join(import.meta.dir, '../../package.json'), join(dest, 'package.json'))
+  symlinkSync(join(import.meta.dir, '../../node_modules'), join(dest, 'node_modules'))
+  symlinkSync(
+    join(import.meta.dir, '../../../../node_modules'),
+    join(root, 'cospec-src', 'node_modules'),
+  )
+  writeFileSync(join(dest, 'src', 'canon', 'workflows', 'apply.md'), applyBody)
+  if (skipResolution) {
+    // The render's resolution step becomes a pass-through, so a body reaches the write point
+    // with its markers still in it.
+    const render = join(dest, 'src', 'harness', 'render.ts')
+    const text = readFileSync(render, 'utf8')
+    const patched = text.replace(
+      'const rawBody = resolveOptionalWorkflows(',
+      'const rawBody = ((body: string, _installed: ReadonlySet<string>) => body)(',
+    )
+    expect(patched).not.toBe(text)
+    writeFileSync(render, patched)
+  }
+  return join(dest, 'src', 'index.ts')
+}
+
+describe('a canon body with a malformed conditional', () => {
+  test("update refuses with the binary's message and writes nothing", async () => {
+    const s = sandbox()
+    expect((await initIn(s)).exitCode).toBe(0)
+    const applyPath = join(import.meta.dir, '../../src/canon/workflows/apply.md')
+    const entry = sourceCopy(
+      s.root,
+      `${readFileSync(applyPath, 'utf8')}\n[[opsx:if-workflow apply]]x[[opsx:end]]\n`,
+    )
+    const before = hashTree(s.project)
+    const proc = Bun.spawnSync(['bun', entry, 'update'], {
+      cwd: s.project,
+      env: { ...process.env, ...s.env, NO_COLOR: '1' },
+    })
+    const run = { exitCode: proc.exitCode, stderr: new TextDecoder().decode(proc.stderr) }
+    expect(run.exitCode).toBe(1)
+    expect(messageOf(run.stderr)).toBe(
+      'Malformed optional-workflow conditional: markers are out of order or a block is incomplete. Each block needs the full [[opsx:if-workflow <id>]] ... [[opsx:else]] ... [[opsx:end]] form, and blocks cannot nest.',
+    )
+    expect(hashTree(s.project)).toEqual(before)
+  }, 120_000)
+})
+
+describe('a body that skips resolution', () => {
+  test('is refused at the write point, naming the skill, and nothing is written', async () => {
+    const s = sandbox()
+    expect((await initIn(s)).exitCode).toBe(0)
+    const applyPath = join(import.meta.dir, '../../src/canon/workflows/apply.md')
+    const entry = sourceCopy(
+      s.root,
+      `${readFileSync(applyPath, 'utf8')}\n[[opsx:if-workflow verify]]x[[opsx:else]]y[[opsx:end]]\n`,
+      true,
+    )
+    const before = hashTree(s.project)
+    const proc = Bun.spawnSync(['bun', entry, 'update'], {
+      cwd: s.project,
+      env: { ...process.env, ...s.env, NO_COLOR: '1' },
+    })
+    expect(proc.exitCode).toBe(1)
+    // The first skill rendered with a conditional in its canon body is `propose`'s.
+    expect(messageOf(new TextDecoder().decode(proc.stderr))).toStartWith(
+      "Skill 'cospec-propose' was generated without resolving its optional-workflow blocks: '[[opsx:if-workflow' is unresolved.",
+    )
+    expect(hashTree(s.project)).toEqual(before)
+  }, 120_000)
 })
 
 describe('init over an existing config.yaml', () => {
@@ -790,22 +883,36 @@ describe('update: the effective profile', () => {
 
   test('delivery skills, then commands, then both moves files and keeps every workflow', async () => {
     const s = await twelve()
+    // User files beside the managed ones: a skill of their own and a command in cospec's folder.
+    const mine = ['.claude/skills/my-own/SKILL.md', '.claude/commands/cospec/my-own.md']
+    for (const f of mine) {
+      mkdirSync(dirname(join(s.project, f)), { recursive: true })
+      writeFileSync(join(s.project, f), 'mine\n')
+    }
+    const intact = async (): Promise<void> => {
+      for (const f of mine) expect(readFileSync(join(s.project, f), 'utf8')).toBe('mine\n')
+      const findings = await doctorFindings(s)
+      expect(findings.filter((f) => f.level === 'ERROR')).toEqual([])
+    }
     setConfig(s, { delivery: 'skills' })
     const toSkills = await updateIn(s, ['--json'])
     expect(toSkills.exitCode).toBe(0)
     expect(installed(s.project)).toEqual({ skills: ALL_IDS, commands: [] })
     expect(files(toSkills.stdout).filter((f) => f.outcome === 'removed')).toHaveLength(12)
+    await intact()
 
     setConfig(s, { delivery: 'commands' })
     const toCommands = await updateIn(s, ['--json'])
     expect(toCommands.exitCode).toBe(0)
     expect(installed(s.project)).toEqual({ skills: [], commands: ALL_IDS })
+    await intact()
 
     setConfig(s, { delivery: 'both' })
     const toBoth = await updateIn(s, ['--json'])
     expect(toBoth.exitCode).toBe(0)
     expect(installed(s.project)).toEqual({ skills: ALL_IDS, commands: ALL_IDS })
     expect((await updateIn(s, ['--check'])).exitCode).toBe(0)
+    await intact()
   }, 240_000)
 
   test('delivery skills respells the bodies so none names a removed command', async () => {

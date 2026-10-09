@@ -13,7 +13,7 @@
 //
 // The capture shape, reproduced here exactly:
 // - `profile: custom` with all twelve workflows and `delivery: both`, because cospec
-//   always writes twelve workflows until `workflow-profiles` lands;
+//   writes all twelve workflows when no profile is set;
 // - one fresh git repo per case, `--no-color init --tools <ids>`;
 // - HOME, USERPROFILE, the XDG dirs, CODEX_HOME and ZDOTDIR private to the sandbox and
 //   `EDITOR=true` (`oracleEnv` plus `USERPROFILE`, which a home skills root resolves
