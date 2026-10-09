@@ -58,7 +58,7 @@ export const NOT_RELAYED_TREES: readonly (readonly [prefix: string, reason: stri
   ],
   [
     'core/github-copilot/',
-    'GitHub Copilot cloud files written only by `init --copilot-cloud`/`update`, which cospec never spawns',
+    'GitHub Copilot cloud files, ported natively by `harness/copilot-cloud.ts` (`init --copilot-cloud`/`update`) and never spawned',
   ],
   [
     'core/completions/generators/',

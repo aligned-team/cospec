@@ -161,7 +161,7 @@ its failing tests before its code.
       cells and an `update` series (opted in, opted out, undecided, tool
       dropped). Verify every cell passes, and a deliberately wrong tier order in
       a scratch edit makes a named cell fail.
-- [ ] 6.2 Add `remedy-sources.ts` rewording for the `core/github-copilot/` tree
+- [x] 6.2 Add `remedy-sources.ts` rewording for the `core/github-copilot/` tree
       (ported natively, never spawned) and confirm the three
       `openspec init --copilot-cloud` entries stay classified as not relayed.
       Verify `bun test test/contract/remedy-enumeration.test.ts` passes.
