@@ -62,14 +62,20 @@ function errnoCode(error: unknown): string | undefined {
   return typeof error.code === 'string' ? error.code : undefined
 }
 
-/** The config as JSON, unmerged with any defaults; a missing file is an empty object. */
+/**
+ * The config as JSON, unmerged with any defaults. A missing file is an empty
+ * object; a file that cannot be read is left alone like an unparsable one. The
+ * tip is best-effort and the command's output is already written, so an
+ * unreadable config must not fail every command, as upstream's doctor read does not.
+ */
 function readRaw(path: string): RawConfig {
   let text: string
   try {
     text = readFileSync(path, 'utf8')
   } catch (error) {
-    if (ABSENT_CODES.has(errnoCode(error) ?? '')) return { kind: 'ok', value: {} }
-    throw error
+    const code = errnoCode(error)
+    if (code === undefined) throw error
+    return ABSENT_CODES.has(code) ? { kind: 'ok', value: {} } : { kind: 'unreadable' }
   }
   let parsed: unknown
   try {

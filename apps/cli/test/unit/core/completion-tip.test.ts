@@ -271,6 +271,18 @@ describe('the config is read raw and written atomically', () => {
   })
 })
 
+describe('a config that cannot be read is left alone', () => {
+  // A directory where the file belongs fails the read with EISDIR for every user,
+  // root included, so the case holds wherever the suite runs.
+  test.each([false, true])('json=%p: unreadable, no output, nothing written', async (json) => {
+    const s = sandbox({}, { json })
+    mkdirSync(s.configPath, { recursive: true })
+    expect(await offerCompletionTip(s.input)).toBe('unreadable')
+    expect(s.stderr).toEqual([])
+    expect(statSync(s.configPath).isDirectory()).toBe(true)
+  })
+})
+
 describe('the tip retires silently', () => {
   test('an undetected shell records the flag and prints nothing', async () => {
     const s = sandbox({}, { detectShell: async () => undefined })
