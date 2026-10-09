@@ -127,6 +127,11 @@ export interface HarnessAdapter {
   readonly skillDialect?: BodyDialect
   /** The `skill` dialect's prefix; `/` when absent. */
   readonly skillInvocationPrefix?: SkillInvocationPrefix
+  /**
+   * How the row's skills name one another when it has commands but delivery is `skills`
+   * (upstream's natural-language skill tools); absent, `/<skill>`. See `harness/delivery.ts`.
+   */
+  readonly skillsOnlyDialect?: 'prose'
   /** A non-markdown, manifest-tracked rules file (Codex's prefix-rule allowlist). */
   readonly rulesPath?: string
   readonly requiresIdeRestart: boolean
@@ -744,6 +749,7 @@ export const HARNESS_TABLE = [
     },
     invocationPrefix: '/',
     bodyDialect: 'flat',
+    skillsOnlyDialect: 'prose',
     requiresIdeRestart: false,
     detectionPaths: ['.codeassistant'],
   },

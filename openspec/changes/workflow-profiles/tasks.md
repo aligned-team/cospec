@@ -64,7 +64,7 @@ rows write the `config.json` under test into the sandbox's
       `assertWorkflowConditionalsResolved`, the two helper constructors), flip
       the rows of 3.1, and verify the differential test passes across the whole
       matrix
-- [ ] 3.3 Write `test/unit/harness/delivery.test.ts` (the four predicates over
+- [x] 3.3 Write `test/unit/harness/delivery.test.ts` (the four predicates over
       every `HARNESS_TABLE` row, with a table-invariant test that classifies
       each row from its `commands` surface and `codex`, so a row added later
       needs no edit here; the shared-root rule; the zero-artifact line), add
