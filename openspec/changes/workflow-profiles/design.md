@@ -216,11 +216,26 @@ over cospec's rows, and the equivalent is a table-invariant test, so a row that
   `shouldGenerateSkills` is false and command files where
   `shouldGenerateCommands` is false.
 - **Skill spelling.** Under `delivery: skills`, an `adapter-backed` row's skill
-  bodies use the `shared` dialect (skill-name references), the port of
-  `getTransformerForTool`'s first branch. With `both` or `commands` they keep
-  the row's dialect. Without this, a Claude skill under `skills` delivery would
-  say `/cospec:apply` and name a command file that no longer exists, which
-  doctor would flag.
+  bodies are spelled with skill references, the port of
+  `getTransformerForTool`'s first branch
+  (`delivery === 'skills' || capability !== 'adapter-backed'` →
+  `getSkillReferenceTransformer(toolId)`). That transformer is per tool, not the
+  Codex one: the default is `/<skill>` (`/cospec-apply-change` here), `codex`
+  alone is `$<skill> (Codex) or /<skill> (other agents)`
+  (`transformToCodexCompatibleSkillReferences`, which is cospec's `shared`
+  dialect), `kimi` is `/skill:<skill>`, and the natural-language tools
+  (`rovodev`, `codeassistant`) get `the <skill> skill`. cospec's three dialects
+  have no plain `/<skill>` spelling, and applying `shared` to a Claude
+  skills-only install would tell a Claude user about Codex. So
+  `harness/delivery.ts` also exports `skillReferenceSpelling(row)`: the row's
+  own dialect when it is already `shared` (the `.agents` root, which stays
+  dual-spelled), the natural-language or `/skill:` spelling when `tool-matrix`
+  gives a row one (D13), and otherwise the default `<invocationPrefix><skill>`.
+  `transformBody` takes it as one more case rather than a fourth dialect name,
+  so a row adds no `render.ts` edit. With `both` or `commands` a body keeps the
+  row's dialect. Without this, a Claude skill under `skills` delivery would say
+  `/cospec:apply` and name a command file that no longer exists, which doctor
+  would flag.
 - **The other surface is removed.** A delivery switch removes the cospec-managed
   files of the surface no longer generated: skills under `commands`, commands
   under `skills`. `removeOrphanMarkdown` derives its sweep directories from the

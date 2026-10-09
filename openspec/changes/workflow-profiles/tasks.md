@@ -72,11 +72,14 @@ rows write the `config.json` under test into the sandbox's
       each capability
 - [ ] 3.4 Add `workflows` and `delivery` to `RenderOptions`; filter the emitted
       workflows; resolve conditionals on the raw body before `{{TYPE_TABLE}}`
-      and `transformBody`; skip skills or commands per delivery; spell an
-      adapter-backed row's skill bodies in the `shared` dialect under `skills`;
-      run the write-point assertion on every emitted body and again in
-      `generate()` before any write. Verify by the rows of 3.1 and 3.3 and by
-      `full-set-golden.test.ts` (task 1.4) still passing with no option set
+      and `transformBody`; skip skills or commands per delivery; under `skills`,
+      spell an adapter-backed row's skill bodies through
+      `skillReferenceSpelling(row)` (the default `/cospec-<skill>`, not the
+      Codex dual spelling, which only the shared root keeps; add it to
+      `harness/delivery.ts` with a unit case per spelling); run the write-point
+      assertion on every emitted body and again in `generate()` before any
+      write. Verify by the rows of 3.1 and 3.3 and by `full-set-golden.test.ts`
+      (task 1.4) still passing with no option set
 
 ## 4. T3 — wrap every cross-workflow reference (`apps/cli/src/canon/workflows/*.md`)
 

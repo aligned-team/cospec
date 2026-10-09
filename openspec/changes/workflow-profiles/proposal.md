@@ -129,6 +129,10 @@ would fail on every narrowed install.
 - Starts from `main` at v0.9.0. `github-copilot` (R10, on `tool-matrix`, R9) has
   not merged and edits `init.ts`, `update.ts` and `render.ts`; the implement
   stage rebases onto it. design.md states what each provides.
+- `agent-behavior` stays unchecked on purpose: with no profile or delivery set
+  the twelve rendered bodies are byte-identical, and a narrowed install's text
+  is deterministic template output asserted by exact render, so no eval would
+  score anything those assertions do not.
 - No wrapped-binary call is added; the binary is read in tests only, through the
   pinned dist.
 
