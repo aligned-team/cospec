@@ -104,13 +104,13 @@
 
 ## 5. T5: round trips under a temporary home
 
-- [ ] 5.1 Add a sandbox helper to `apps/cli/test/fixtures/support.ts` (every
+- [x] 5.1 Add a sandbox helper to `apps/cli/test/fixtures/support.ts` (every
       home-like variable under a fresh temporary directory, `SHELL` set,
       `ZSH`/`ZSH_CUSTOM`/`PSModulePath`/`CI`/`OPENSPEC_NO_COMPLETIONS`/
       `OPENSPEC_NO_AUTO_CONFIG` removed, and a guard that fails when the
       resolved `HOME` is outside the temporary directory); verify with a unit
       test that the guard rejects a real-looking home.
-- [ ] 5.2 Add `apps/cli/test/integration/completion-install.test.ts`: install
+- [x] 5.2 Add `apps/cli/test/integration/completion-install.test.ts`: install
       then uninstall for bash, zsh, fish and PowerShell; Oh My Zsh; a second
       install changing nothing; the backup after an edit; `cospec` in every
       installed file and no `openspec`; coexistence with the pinned binary's own
