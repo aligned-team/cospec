@@ -1,10 +1,16 @@
-import { describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import pkg from '../../package.json'
 import { run } from '../../src/cli.ts'
+import {
+  COMMAND_TABLE,
+  pending,
+  type SurfaceStatus,
+  type TableCommandRow,
+} from '../../src/core/command-table.ts'
 import { respellRemedies } from '../../src/core/remedies.ts'
 import { RootSelectionError } from '../../src/core/root.ts'
 import { openspecRaw } from '../fixtures/support.ts'
@@ -53,6 +59,24 @@ async function dispatch(argv: string[]): Promise<{ code: number; out: string; er
     process.stdout.write = origOut
     process.stderr.write = origErr
   }
+}
+
+/**
+ * No shipped surface is pending any more (`parity-pending.yaml` is empty), so the describes
+ * that exercise the dispatcher's pending refusal mark `init --language` pending for their
+ * duration, as it was before `workflow-profiles` handled it, and restore it after.
+ */
+function withInitLanguagePending(): void {
+  const row = COMMAND_TABLE.find((r) => r.name === 'init') as TableCommandRow
+  const flag = row.flags.find((f) => f.name === '--language') as { status: SurfaceStatus }
+  let handled: SurfaceStatus
+  beforeAll(() => {
+    handled = flag.status
+    flag.status = pending('workflow-profiles')
+  })
+  afterAll(() => {
+    flag.status = handled
+  })
 }
 
 describe('cli dispatcher: --store on a row that never reads it', () => {
@@ -234,6 +258,7 @@ describe('cli dispatcher: a -- right after the command name', () => {
 })
 
 describe('cli dispatcher: help renders from the command table', () => {
+  withInitLanguagePending()
   test('show --help lists --diff and --requirements, and --requirements-only as the deprecated alias', async () => {
     const r = await dispatch(['show', '--help'])
     expect(r.code).toBe(0)
@@ -288,6 +313,7 @@ describe('cli dispatcher: help renders from the command table', () => {
 })
 
 describe('cli dispatcher: table rows parse before the module loads', () => {
+  withInitLanguagePending()
   test('an unknown option is refused with exit 1 and a suggestion', async () => {
     const r = await dispatch(['status', '--schem', 'custom'])
     expect(r.code).toBe(1)
@@ -385,6 +411,7 @@ describe('cli dispatcher: --store-path is refused in every position', () => {
 })
 
 describe("cli dispatcher: a value-taking flag's space-form value is never intercepted", () => {
+  withInitLanguagePending()
   for (const [argv, err] of [
     // A help flag or a global there is the value: the pending flag is refused
     // with its value consumed, never help, never absorbed.

@@ -118,9 +118,15 @@ do conflict, which D13 names.
 holds it**. It finds the file the way `root.ts` does, by running
 `openspec config path` (so XDG, APPDATA and `OPENSPEC_*` discovery stays the
 binary's), parses the JSON, and treats a missing file, an unreadable one,
-invalid JSON and a non-object root as "nothing set". It never warns about
-invalid JSON: `readDefaultStore` already prints the binary's own line once per
-path, and a second printer would double it.
+invalid JSON and a non-object root as "nothing set". By default it never warns
+about invalid JSON: `readDefaultStore` already prints the binary's own line once
+per path, and a second printer would double it. **Binary override, probed at
+implementation:** `openspec init` (and `update`) print
+`Warning: Invalid JSON in <path>, using defaults` for an unparseable global
+file, and cospec's `init` reads that file through no other path. So `init`
+passes `warn: true`; both readers are one `readGlobalConfigDocument` in
+`root.ts` behind one once-per-path guard, so a command that reads both prints
+the line once.
 
 - **Explicit means present.** `raw.profile !== undefined`, the binary's own
   test. The roadmap's phrase "a `profile` key actually present in the
@@ -372,19 +378,22 @@ without moving a byte of the twelve-workflow render:
 
 ### D8. `init`
 
-Order, with the first failure stopping before any write (the binary resolves
-`--profile` ahead of tool setup and `--language` ahead of the scaffold):
+Order, with the first failure stopping before any write. **Binary override,
+probed at implementation:** the binary normalises `--language` in the
+`InitCommand` constructor and checks it against the target before it reads
+`--profile`, so `init --profile bogus --language ''` reports the language error.
+cospec follows the binary's order (steps 1 to 3 below are the old 2, 3, 1); the
+binary's own `--profile` check runs after its legacy cleanup has written, which
+cospec's does not.
 
-1. `--profile <v>`: not `core` or `custom` →
-   `cospec: Invalid profile "<v>". Available profiles: core, custom`, exit 1.
-2. `--language <v>` normalisation, in the binary's order, each
+1. `--language <v>` normalisation, in the binary's order, each
    `cospec: <message>` and exit 1: empty after trim →
    `The --language option requires a non-empty value.`; a control, bidi-control
    or `U+200B/2028/2029/FEFF` character (`/\p{Cc}|\p{Bidi_Control}|[​  ﻿]/u`) →
    `The --language option must be a single line without control or invisible formatting characters.`;
    the directive over 50 KB (`MAX_CONTEXT_SIZE`) →
    `The --language option is too long for OpenSpec's 50KB project context limit.`
-3. `--language` against the target: when neither `openspec/config.yaml` nor
+2. `--language` against the target: when neither `openspec/config.yaml` nor
    `config.yml` exists, the destination must be a writable project path, else
    `Cannot create openspec/config.yaml for --language: the destination is not writable.`
    (or `…: <reason>` for an escaping path). When one exists, its `context` must
@@ -393,6 +402,9 @@ Order, with the first failure stopping before any write (the binary resolves
    `--language does not overwrite an existing OpenSpec config. Add the language instruction to its context field instead.`
    Probed: `init --language English` over a config that holds Portuguese exits 1
    with that line; the same value that is already present exits 0.
+
+3. `--profile <v>`: not `core` or `custom` →
+   `cospec: Invalid profile "<v>". Available profiles: core, custom`, exit 1.
 
 The directive is **three** lines, not the roadmap's two (probed, and
 `formatLanguageContext`): `Language: <lang>`,

@@ -122,7 +122,7 @@ rows write the `config.json` under test into the sandbox's
       row's set, and delete the `init --profile` entry from
       `parity-pending.yaml` in the same commit; verify the rows of 5.3 pass and
       the reachability test resolves `--profile` to the table alone
-- [ ] 5.5 Write the failing `--language` rows (fresh repo gets the three lines;
+- [x] 5.5 Write the failing `--language` rows (fresh repo gets the three lines;
       a config with a differing context refuses; a config with no context
       refuses; the same directive accepted; empty, control-character, over-50-KB
       and unwritable-destination refusals, each with its message compared to the
@@ -130,7 +130,7 @@ rows write the `config.json` under test into the sandbox's
       fail, then implement the validation and the `context:` write in `init.ts`,
       delete the `init --language` entry from `parity-pending.yaml`, and verify
       the rows pass and `init --language` refuses before writing anything
-- [ ] 5.6 Add the commented `operations:`, `store:` and `references:` examples
+- [x] 5.6 Add the commented `operations:`, `store:` and `references:` examples
       to `CONFIG_YAML` (the binary's own `operations:` text, cospec-authored
       `store:` and `references:`), and verify by a test that parses the
       generated file with the pinned reader (`openspec status` in the sandbox)

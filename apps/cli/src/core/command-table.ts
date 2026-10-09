@@ -199,7 +199,11 @@ export function isPending(status: SurfaceStatus): status is { readonly pending: 
 
 const HANDLED = 'handled' as const
 const NO_OP = 'no-op' as const
-function pending(owner: PendingOwner): { readonly pending: PendingOwner } {
+/**
+ * A `{pending}` status. No shipped surface is pending any more (`parity-pending.yaml` is
+ * empty), so this is exported for the fixture rows that exercise the refusal machinery.
+ */
+export function pending(owner: PendingOwner): { readonly pending: PendingOwner } {
   return { pending: owner }
 }
 
@@ -323,7 +327,6 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         takesValue: true,
         placeholder: '<language>',
         description: 'Write new artifacts in this language',
-        status: pending('workflow-profiles'),
       }),
       upstream({
         name: '--profile',

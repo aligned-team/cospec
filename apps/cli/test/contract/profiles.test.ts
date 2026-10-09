@@ -190,6 +190,31 @@ describe('init: the effective profile', () => {
   }, 60_000)
 })
 
+describe('init: a global config file it cannot use', () => {
+  test("is read as nothing set, with the binary's one warning line", async () => {
+    const s = sandbox('{"profile": "core"')
+    const before = readFileSync(s.configPath, 'utf8')
+    const run = await initIn(s)
+    expect(run.exitCode).toBe(0)
+    expect(installed(s.project)).toEqual({ skills: ALL_IDS, commands: ALL_IDS })
+    const line = `Warning: Invalid JSON in ${s.configPath}, using defaults`
+    expect(run.stderr.split('\n').filter((l) => l === line)).toHaveLength(1)
+    const oracleDir = join(s.root, 'oracle')
+    mkdirSync(oracleDir)
+    const bin = await oracle(['init', '--tools', 'claude'], s.root, { ...NODE, cwd: oracleDir })
+    expect(bin.stderr).toContain(line)
+    expect(readFileSync(s.configPath, 'utf8')).toBe(before)
+  }, 60_000)
+
+  test('a non-object root sets nothing and warns of nothing', async () => {
+    const s = sandbox('["core"]')
+    const run = await initIn(s)
+    expect(run.exitCode).toBe(0)
+    expect(installed(s.project)).toEqual({ skills: ALL_IDS, commands: ALL_IDS })
+    expect(run.stderr).not.toContain('Warning')
+  }, 60_000)
+})
+
 describe('init --profile validation', () => {
   test("an invalid profile is refused before any write, with the binary's message", async () => {
     const s = sandbox({ profile: 'custom', workflows: ['verify'] })
@@ -278,190 +303,200 @@ describe('init --language', () => {
       writeFileSync(join(dir, 'openspec', 'config.yaml'), yaml)
     }
 
-  test.failing(
-    'a fresh repo gets the three-line directive as context, as the binary writes it',
-    async () => {
-      const { s, upstream } = pair()
-      const run = await initIn(s, ['--language', 'Portuguese'])
-      expect(run.exitCode).toBe(0)
-      const bin = await upstreamInit(s.root, upstream, ['--language', 'Portuguese'])
-      expect(bin.exitCode).toBe(0)
-      const ours = parse(readFileSync(join(s.project, 'openspec', 'config.yaml'), 'utf8'))
-      const theirs = parse(readFileSync(join(upstream, 'openspec', 'config.yaml'), 'utf8'))
-      expect(ours.context).toBe(theirs.context)
-      expect(ours.context).toBe(`${DIRECTIVE('Portuguese')}\n`)
-      expect(ours.schema).toBe('feat')
-    },
-    60_000,
-  )
+  test('a fresh repo gets the three-line directive as context, as the binary writes it', async () => {
+    const { s, upstream } = pair()
+    const run = await initIn(s, ['--language', 'Portuguese'])
+    expect(run.exitCode).toBe(0)
+    const bin = await upstreamInit(s.root, upstream, ['--language', 'Portuguese'])
+    expect(bin.exitCode).toBe(0)
+    const ours = parse(readFileSync(join(s.project, 'openspec', 'config.yaml'), 'utf8'))
+    const theirs = parse(readFileSync(join(upstream, 'openspec', 'config.yaml'), 'utf8'))
+    expect(ours.context).toBe(theirs.context)
+    expect(ours.context).toBe(`${DIRECTIVE('Portuguese')}\n`)
+    expect(ours.schema).toBe('feat')
+  }, 60_000)
 
-  test.failing(
-    'the language is trimmed, as the binary trims it',
-    async () => {
-      const { s } = pair()
-      const run = await initIn(s, ['--language', '  Español  '])
-      expect(run.exitCode).toBe(0)
-      const ours = parse(readFileSync(join(s.project, 'openspec', 'config.yaml'), 'utf8'))
-      expect(ours.context).toBe(`${DIRECTIVE('Español')}\n`)
-    },
-    60_000,
-  )
+  test('the language is trimmed, as the binary trims it', async () => {
+    const { s } = pair()
+    const run = await initIn(s, ['--language', '  Español  '])
+    expect(run.exitCode).toBe(0)
+    const ours = parse(readFileSync(join(s.project, 'openspec', 'config.yaml'), 'utf8'))
+    expect(ours.context).toBe(`${DIRECTIVE('Español')}\n`)
+  }, 60_000)
 
-  test.failing(
-    'a config whose context differs refuses, writing nothing',
-    async () => {
-      await expectRefusal(
-        ['--language', 'English'],
-        withConfig(`schema: feat\ncontext: |\n${DIRECTIVE('Portuguese').replace(/^/gm, '  ')}\n`),
-        '--language does not overwrite an existing OpenSpec config. Add the language instruction to its context field instead.',
-      )
-    },
-    60_000,
-  )
+  test('a config whose context differs refuses, writing nothing', async () => {
+    await expectRefusal(
+      ['--language', 'English'],
+      withConfig(`schema: feat\ncontext: |\n${DIRECTIVE('Portuguese').replace(/^/gm, '  ')}\n`),
+      '--language does not overwrite an existing OpenSpec config. Add the language instruction to its context field instead.',
+    )
+  }, 60_000)
 
-  test.failing(
-    'a config with no context at all refuses',
-    async () => {
-      await expectRefusal(['--language', 'English'], withConfig('schema: feat\n'))
-    },
-    60_000,
-  )
+  test('a config with no context at all refuses', async () => {
+    await expectRefusal(['--language', 'English'], withConfig('schema: feat\n'))
+  }, 60_000)
 
-  test.failing(
-    'config.yml alone counts as a config, so no config.yaml is written beside it',
-    async () => {
-      await expectRefusal(['--language', 'English'], (dir) => {
-        mkdirSync(join(dir, 'openspec'), { recursive: true })
-        writeFileSync(join(dir, 'openspec', 'config.yml'), 'schema: feat\n')
-      })
-    },
-    60_000,
-  )
+  test('config.yml alone counts as a config, so no config.yaml is written beside it', async () => {
+    await expectRefusal(['--language', 'English'], (dir) => {
+      mkdirSync(join(dir, 'openspec'), { recursive: true })
+      writeFileSync(join(dir, 'openspec', 'config.yml'), 'schema: feat\n')
+    })
+  }, 60_000)
 
-  test.failing(
-    'the same directive already in the context is accepted, and the config kept',
-    async () => {
-      const yaml = `schema: feat\ncontext: |\n  Team notes.\n${DIRECTIVE('Portuguese').replace(/^/gm, '  ')}\n`
-      const { s, upstream } = pair(withConfig(yaml))
-      const run = await initIn(s, ['--language', 'Portuguese'])
-      const bin = await upstreamInit(s.root, upstream, ['--language', 'Portuguese'])
-      expect(bin.exitCode).toBe(0)
-      expect(run.exitCode).toBe(0)
-      expect(readFileSync(join(s.project, 'openspec', 'config.yaml'), 'utf8')).toBe(yaml)
-    },
-    60_000,
-  )
+  test('the same directive already in the context is accepted, and the config kept', async () => {
+    const yaml = `schema: feat\ncontext: |\n  Team notes.\n${DIRECTIVE('Portuguese').replace(/^/gm, '  ')}\n`
+    const { s, upstream } = pair(withConfig(yaml))
+    const run = await initIn(s, ['--language', 'Portuguese'])
+    const bin = await upstreamInit(s.root, upstream, ['--language', 'Portuguese'])
+    expect(bin.exitCode).toBe(0)
+    expect(run.exitCode).toBe(0)
+    expect(readFileSync(join(s.project, 'openspec', 'config.yaml'), 'utf8')).toBe(yaml)
+  }, 60_000)
 
-  test.failing(
-    "an empty or blank value is refused with the binary's message",
-    async () => {
-      await expectRefusal(
-        ['--language', ''],
-        undefined,
-        'The --language option requires a non-empty value.',
-      )
-      await expectRefusal(
-        ['--language', '   '],
-        undefined,
-        'The --language option requires a non-empty value.',
-      )
-    },
-    120_000,
-  )
+  test("an empty or blank value is refused with the binary's message", async () => {
+    await expectRefusal(
+      ['--language', ''],
+      undefined,
+      'The --language option requires a non-empty value.',
+    )
+    await expectRefusal(
+      ['--language', '   '],
+      undefined,
+      'The --language option requires a non-empty value.',
+    )
+  }, 120_000)
 
-  test.failing(
-    'a control, bidi or invisible character is refused',
-    async () => {
-      const message =
-        'The --language option must be a single line without control or invisible formatting characters.'
-      const invisible = [0x07, 0x200b, 0x202e, 0x2028, 0xfeff].map(
-        (c) => `a${String.fromCharCode(c)}b`,
-      )
-      for (const value of ['a\tb', ...invisible]) {
-        await expectRefusal(['--language', value], undefined, message)
-      }
-    },
-    240_000,
-  )
+  test('a control, bidi or invisible character is refused', async () => {
+    const message =
+      'The --language option must be a single line without control or invisible formatting characters.'
+    const invisible = [0x07, 0x200b, 0x202e, 0x2028, 0xfeff].map(
+      (c) => `a${String.fromCharCode(c)}b`,
+    )
+    for (const value of ['a\tb', ...invisible]) {
+      await expectRefusal(['--language', value], undefined, message)
+    }
+  }, 240_000)
 
-  test.failing(
-    'a directive over 50KB is refused',
-    async () => {
-      await expectRefusal(
-        ['--language', 'x'.repeat(52_000)],
-        undefined,
-        "The --language option is too long for OpenSpec's 50KB project context limit.",
-      )
-    },
-    60_000,
-  )
+  test('a directive over 50KB is refused', async () => {
+    await expectRefusal(
+      ['--language', 'x'.repeat(52_000)],
+      undefined,
+      "The --language option is too long for OpenSpec's 50KB project context limit.",
+    )
+  }, 60_000)
 
-  test.failing(
-    'a destination that is not writable is refused',
-    async () => {
-      if (process.getuid?.() === 0) return
-      const { s, upstream } = pair((dir) => {
-        mkdirSync(join(dir, 'openspec'), { recursive: true })
-        chmodSync(join(dir, 'openspec'), 0o555)
-      })
-      try {
-        const run = await initIn(s, ['--language', 'French'])
-        const bin = await upstreamInit(s.root, upstream, ['--language', 'French'])
-        expect(bin.exitCode).toBe(1)
-        expect(run.exitCode).toBe(1)
-        expect(messageOf(run.stderr)).toBe(messageOf(bin.stderr))
-        expect(messageOf(run.stderr)).toBe(
-          'Cannot create openspec/config.yaml for --language: the destination is not writable.',
-        )
-        expect(readdirSync(join(s.project, 'openspec'))).toEqual([])
-      } finally {
-        chmodSync(join(s.project, 'openspec'), 0o755)
-        chmodSync(join(upstream, 'openspec'), 0o755)
-      }
-    },
-    60_000,
-  )
-
-  test.failing(
-    "a config path that leaves the project is refused with the binary's reason",
-    async () => {
-      const { s } = pair()
-      const outside = join(s.root, 'outside')
-      mkdirSync(outside)
-      symlinkSync(outside, join(s.project, 'openspec'))
+  test('a destination that is not writable is refused', async () => {
+    if (process.getuid?.() === 0) return
+    const { s, upstream } = pair((dir) => {
+      mkdirSync(join(dir, 'openspec'), { recursive: true })
+      chmodSync(join(dir, 'openspec'), 0o555)
+    })
+    try {
       const run = await initIn(s, ['--language', 'French'])
+      const bin = await upstreamInit(s.root, upstream, ['--language', 'French'])
+      expect(bin.exitCode).toBe(1)
       expect(run.exitCode).toBe(1)
-      expect(messageOf(run.stderr)).toStartWith(
-        'Cannot create openspec/config.yaml for --language: ',
-      )
-      expect(readdirSync(outside)).toEqual([])
-    },
-    60_000,
-  )
-
-  test.failing(
-    'a bad language is reported before a bad profile, as the binary orders them',
-    async () => {
-      await expectRefusal(
-        ['--language', '', '--profile', 'bogus'],
-        undefined,
-        'The --language option requires a non-empty value.',
-      )
-    },
-    60_000,
-  )
-
-  test.failing(
-    'a bad profile still stops a good language, before any write',
-    async () => {
-      const { s } = pair()
-      const run = await initIn(s, ['--language', 'French', '--profile', 'bogus'])
-      expect(run.exitCode).toBe(1)
+      expect(messageOf(run.stderr)).toBe(messageOf(bin.stderr))
       expect(messageOf(run.stderr)).toBe(
-        'Invalid profile "bogus". Available profiles: core, custom',
+        'Cannot create openspec/config.yaml for --language: the destination is not writable.',
       )
-      expect(readdirSync(s.project)).toEqual([])
-    },
-    60_000,
-  )
+      expect(readdirSync(join(s.project, 'openspec'))).toEqual([])
+    } finally {
+      chmodSync(join(s.project, 'openspec'), 0o755)
+      chmodSync(join(upstream, 'openspec'), 0o755)
+    }
+  }, 60_000)
+
+  test("a config path that leaves the project is refused with the binary's reason", async () => {
+    const { s } = pair()
+    const outside = join(s.root, 'outside')
+    mkdirSync(outside)
+    symlinkSync(outside, join(s.project, 'openspec'))
+    const run = await initIn(s, ['--language', 'French'])
+    expect(run.exitCode).toBe(1)
+    expect(messageOf(run.stderr)).toStartWith('Cannot create openspec/config.yaml for --language: ')
+    expect(readdirSync(outside)).toEqual([])
+  }, 60_000)
+
+  test('a bad language is reported before a bad profile, as the binary orders them', async () => {
+    await expectRefusal(
+      ['--language', '', '--profile', 'bogus'],
+      undefined,
+      'The --language option requires a non-empty value.',
+    )
+  }, 60_000)
+
+  test('a bad profile still stops a good language, before any write', async () => {
+    const { s } = pair()
+    const run = await initIn(s, ['--language', 'French', '--profile', 'bogus'])
+    expect(run.exitCode).toBe(1)
+    expect(messageOf(run.stderr)).toBe('Invalid profile "bogus". Available profiles: core, custom')
+    expect(readdirSync(s.project)).toEqual([])
+  }, 60_000)
+})
+
+describe('init: the config.yaml it writes', () => {
+  /** `openspec new change <slug>` reads the project config and prints any field warning. */
+  async function binaryReads(s: Sandbox, slug: string): Promise<string> {
+    const run = await oracle(['new', 'change', slug], s.root, { ...NODE, cwd: s.project })
+    expect(run.exitCode).toBe(0)
+    return `${run.stdout}${run.stderr}`
+  }
+
+  test('carries the commented operations, store and references examples', async () => {
+    const s = sandbox()
+    expect((await initIn(s)).exitCode).toBe(0)
+    const yaml = readFileSync(join(s.project, 'openspec', 'config.yaml'), 'utf8')
+    for (const heading of ['#   operations:', '#   store: team-plans', '#   references:']) {
+      expect(yaml).toContain(heading)
+    }
+    // The binary's own operations example, line for line.
+    expect(yaml).toContain(
+      [
+        '# Per-operation guidance (optional)',
+        '# Add advisory guidance for how apply and archive work should be conducted.',
+        '# This is separate from artifact rules above.',
+        '# Example:',
+        '#   operations:',
+        '#     apply:',
+        '#       guidance:',
+        '#         - Keep test summaries concise',
+        '#     archive:',
+        '#       guidance:',
+        '#         - Summarize the archive outcome before finishing',
+      ].join('\n'),
+    )
+  }, 60_000)
+
+  test('the pinned reader sees no warning in it, with or without --language', async () => {
+    const plain = sandbox()
+    expect((await initIn(plain)).exitCode).toBe(0)
+    expect(await binaryReads(plain, 'a')).not.toMatch(/Invalid|ignoring|Warning/)
+    const lang = sandbox()
+    expect((await initIn(lang, ['--language', 'French'])).exitCode).toBe(0)
+    expect(await binaryReads(lang, 'a')).not.toMatch(/Invalid|ignoring|Warning/)
+  }, 120_000)
+
+  test('the same reader does warn about a field that is wrong (the check can fail)', async () => {
+    const s = sandbox()
+    expect((await initIn(s)).exitCode).toBe(0)
+    const path = join(s.project, 'openspec', 'config.yaml')
+    writeFileSync(path, `${readFileSync(path, 'utf8')}\nreferences: not-a-list\n`)
+    expect(await binaryReads(s, 'a')).toContain("Invalid 'references' field")
+  }, 60_000)
+
+  test('the operations example, uncommented, is config the pinned reader accepts', async () => {
+    const s = sandbox()
+    expect((await initIn(s)).exitCode).toBe(0)
+    const path = join(s.project, 'openspec', 'config.yaml')
+    const text = readFileSync(path, 'utf8')
+    // `store:` names a store that is not registered and `references:` needs a clone source, so
+    // only the `operations:` block is uncommented.
+    const uncommented = text.replace(/#   operations:\n(#     .*\n)+/, (block) =>
+      block.replace(/^#   /gm, ''),
+    )
+    expect(uncommented).not.toBe(text)
+    writeFileSync(path, uncommented)
+    expect(await binaryReads(s, 'a')).not.toMatch(/Invalid|ignoring|Warning/)
+  }, 60_000)
 })

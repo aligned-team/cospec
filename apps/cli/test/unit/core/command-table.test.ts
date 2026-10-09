@@ -18,6 +18,7 @@ import {
   offeredFlags,
   parseCommandArgs,
   parseSubcommandArgs,
+  pending,
   rowGlobalFlags,
   splitShortCluster,
   storePathInOptionPosition,
@@ -40,8 +41,22 @@ describe('init --harness values', () => {
   })
 })
 
+// No shipped surface is pending any more (`parity-pending.yaml` is empty), so the refusal
+// machinery is exercised on a copy of the table in which `init --language` is marked pending,
+// as it was before `workflow-profiles` handled it.
+const FIXTURE_TABLE: readonly CommandRow[] = COMMAND_TABLE.map((row) =>
+  row.name === 'init' && row.parse === 'table'
+    ? {
+        ...row,
+        flags: row.flags.map((f) =>
+          f.name === '--language' ? { ...f, status: pending('workflow-profiles') } : f,
+        ),
+      }
+    : row,
+)
+
 function tableRow(name: string): TableCommandRow {
-  const row = commandRow(name)
+  const row = FIXTURE_TABLE.find((r) => r.name === name)
   if (row === undefined || row.parse !== 'table') throw new Error(`no table row '${name}'`)
   return row
 }
@@ -328,8 +343,8 @@ describe('accepted no-ops', () => {
   })
 })
 
-// The design's pending table, restricted to what the command table marks
-// (tool ids, `experimental` and alias entries live elsewhere).
+// The fixture table's pending surfaces (tool ids, `experimental` and alias entries live
+// elsewhere); the shipped table has none.
 const EXPECTED_PENDING: [string, string, PendingOwner][] = [
   ['init', '--language', 'workflow-profiles'],
 ]
@@ -360,8 +375,12 @@ function pendingKey([command, surface, owner]: [string, string, PendingOwner]): 
 }
 
 describe('pending surfaces', () => {
-  test('the table marks exactly the design pending surfaces, each with its owner', () => {
-    const actual = COMMAND_TABLE.flatMap(pendingSurfaces)
+  test('the shipped table marks no surface pending', () => {
+    expect(COMMAND_TABLE.flatMap(pendingSurfaces)).toEqual([])
+  })
+
+  test('the fixture table marks exactly the fixture pending surfaces, each with its owner', () => {
+    const actual = FIXTURE_TABLE.flatMap(pendingSurfaces)
     expect(actual.map(pendingKey).toSorted()).toEqual(EXPECTED_PENDING.map(pendingKey).toSorted())
   })
 
@@ -388,7 +407,7 @@ describe('pending surfaces', () => {
   })
 
   test('pending flags are never offered to help or completion', () => {
-    for (const row of COMMAND_TABLE)
+    for (const row of FIXTURE_TABLE)
       for (const f of offeredFlags(row)) expect(isPending(f.status)).toBe(false)
     expect(offeredFlags(tableRow('list')).map((f) => f.name)).toEqual([
       '--specs',

@@ -66,6 +66,7 @@ import {
   type FlagSpec,
   GLOBAL_FLAGS,
   isPending,
+  pending,
   type PositionalSpec,
   type SubcommandSpec,
   type SurfaceStatus,
@@ -1065,9 +1066,21 @@ describe('reachability: negative cases (ledger 4.1, 4.3, 4.5)', () => {
   })
 
   test('a pending entry whose owner disagrees with the table fails', () => {
-    const pending = PENDING.filter((pe) => !(pe.kind === 'flag' && pe.flag === '--language'))
-    pending.push({ kind: 'flag', path: ['init'], flag: '--language', owner: 'tool-matrix' })
-    const failures = checkReachability({ ...model, pending })
+    // No shipped surface is pending, so the table carries one fixture flag marked pending.
+    const table = COMMAND_TABLE.map((row) =>
+      row.name === 'init'
+        ? {
+            ...row,
+            flags: row.flags.map((f) =>
+              f.name === '--language' ? { ...f, status: pending('workflow-profiles') } : f,
+            ),
+          }
+        : row,
+    )
+    const pendingEntries: PendingEntry[] = [
+      { kind: 'flag', path: ['init'], flag: '--language', owner: 'tool-matrix' },
+    ]
+    const failures = checkReachability({ ...model, table, pending: pendingEntries })
     expect(failures).toContain(
       "flag `init --language` is pending on 'tool-matrix' in parity-pending.yaml but on 'workflow-profiles' in the command table",
     )
