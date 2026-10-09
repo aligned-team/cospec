@@ -1106,6 +1106,12 @@ export interface WorkflowDef {
    * OpenCode `$ARGUMENTS` injection below.
    */
   takesArguments?: boolean
+  /**
+   * Whether the workflow is in upstream's `core` profile (`CORE_WORKFLOWS` in the pinned
+   * binary's `core/profiles.js`, where `sync` is cospec's `sync-specs`). Present only as
+   * `true`; a profile without `custom` workflows installs exactly these.
+   */
+  core?: boolean
 }
 
 const WORKFLOW_REF_RE = /\/cospec:([a-z][a-z0-9-]*)/g

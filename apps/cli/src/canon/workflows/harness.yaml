@@ -10,6 +10,10 @@
 # argument (a `<type>: <text>` or a change slug). It drives the OpenCode $ARGUMENTS
 # injection in src/harness/adapters.ts — OpenCode drops whatever the user typed after
 # the slash command unless the command body names the placeholder.
+#
+# `core: true` marks the six workflows upstream's core profile installs (CORE_WORKFLOWS in
+# the pinned binary, where `sync` is `sync-specs` here); test/unit/harness/core-workflows.test.ts
+# compares the set to the pinned dist.
 
 workflows:
   - id: propose
@@ -21,6 +25,7 @@ workflows:
       Also use when the user says "cospec propose" or "openspec propose".
     injectTypeTable: true
     takesArguments: true
+    core: true
   - id: new
     command: new
     skill: cospec-new-change
@@ -57,6 +62,7 @@ workflows:
       `cospec update` CLI command, which regenerates this repo's managed harness and schema
       files, not a change's artifacts.
     takesArguments: true
+    core: true
   - id: apply
     command: apply
     skill: cospec-apply-change
@@ -65,6 +71,7 @@ workflows:
       Run the apply gate for a change and implement its tasks, obeying the gate's exit code.
       Also use when the user says "cospec apply" or "openspec apply".
     takesArguments: true
+    core: true
   - id: verify
     command: verify
     skill: cospec-verify-change
@@ -82,6 +89,7 @@ workflows:
       Archive a completed change — validate, merge specs, verify, and fan blockers out.
       Also use when the user says "cospec archive" or "openspec archive".
     takesArguments: true
+    core: true
   - id: bulk-archive
     command: bulk-archive
     skill: cospec-bulk-archive-change
@@ -98,6 +106,7 @@ workflows:
       Merge a change's delta specs into the main specs without archiving it, exactly as archive would.
       Also use when the user says "cospec sync specs", "sync the specs", or "openspec sync".
     takesArguments: true
+    core: true
   - id: explore
     command: explore
     skill: cospec-explore
@@ -106,6 +115,7 @@ workflows:
       Investigate the codebase or a spec question without writing implementation code.
       Also use when the user says "cospec explore" or "openspec explore".
     takesArguments: true
+    core: true
   - id: onboard
     command: onboard
     skill: cospec-onboard

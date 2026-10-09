@@ -41,7 +41,7 @@ rows write the `config.json` under test into the sandbox's
 
 ## 2. T1 — core workflows in the manifest (`apps/cli/src/canon/workflows/harness.yaml`)
 
-- [ ] 2.1 Write `test/unit/harness/core-workflows.test.ts` as `test.failing`
+- [x] 2.1 Write `test/unit/harness/core-workflows.test.ts` as `test.failing`
       (exactly `propose`, `explore`, `apply`, `update`, `sync-specs`, `archive`
       carry `core: true`, and the set equals the pinned `core/profiles.js`
       `CORE_WORKFLOWS` with `sync` read as `sync-specs`, imported in tests
