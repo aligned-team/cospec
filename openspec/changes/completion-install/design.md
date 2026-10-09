@@ -246,8 +246,12 @@ returns in `runCommand`, whatever the exit code, so the tip trails the command's
 own output.
 
 Error handling follows the repo rule, not upstream's blanket catch: a missing
-config, malformed JSON and a failed write (an `errno` error) are the expected
-cases and are handled; anything else propagates. A shared key has one
+config, malformed JSON, a config whose read fails with an `errno` error and a
+failed write (an `errno` error) are the expected cases and are handled; anything
+else propagates. A config that cannot be read is left alone exactly as malformed
+JSON is: the tip is best-effort and the command's own output is already written,
+and upstream's read never fails a command, so an unreadable config must not turn
+every cospec command into a failure after its output. A shared key has one
 consequence, accepted: a user who has already seen OpenSpec's tip has
 `completionTipSeen` set and never sees cospec's.
 
