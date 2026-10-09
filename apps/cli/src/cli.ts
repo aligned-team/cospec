@@ -1,3 +1,4 @@
+import { homedir } from 'node:os'
 import { resolve } from 'node:path'
 
 import pkg from '../package.json'
@@ -26,6 +27,7 @@ import {
   takesNextToken,
   VERSION_DESCRIPTION,
 } from './core/command-table.ts'
+import { offerCompletionTip } from './core/completion-tip.ts'
 import { RootSelectionError, rootSelectionDocument } from './core/root.ts'
 
 /** Global flags accepted before or after the subcommand on every command. */
@@ -684,6 +686,25 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
     process.stdout.write(rootSelectionDocument(error, mod.jsonFailurePayload))
     return EXIT.failure
   }
+  // After the command's own output and whatever its exit code. Help, parse
+  // refusals, unknown commands and thrown errors all return before this line.
+  await offerCompletionTip({
+    command: row.name,
+    hidden: row.hidden,
+    json: flags.json,
+    env: process.env,
+    home: homedir(),
+    platform: process.platform,
+    stderrIsTTY: process.stderr.isTTY === true,
+    stderr: (text) => {
+      process.stderr.write(text)
+    },
+    detectShell: async () =>
+      (await import('./commands/completion.ts')).detectShell(
+        process.env.SHELL,
+        process.env.PSModulePath,
+      ),
+  })
   return typeof code === 'number' ? code : EXIT.success
 }
 

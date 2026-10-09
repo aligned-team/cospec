@@ -66,7 +66,7 @@ sandbox helper (task 5.1): `HOME`, `USERPROFILE`, `XDG_*`, `ZDOTDIR`,
 ## 9. The tip shows once on a terminal [critical]
 
 - [ ] 9.1 @e2e (agent) run a command through a pty (`script`) with `CI` unset, a fresh config dir and `SHELL=/bin/zsh`, twice -> the first run prints a blank line then `Tip: Run 'cospec completion install' for shell completions` on stderr after the command's own output and writes `completionTipSeen: true`; the second prints nothing extra (skipped where `script` is absent)
-- [ ] 9.2 @unit (agent) `completion-tip.test.ts` with the TTY flag injected -> shows once; the flag is written before the message; a write that fails leaves the tip unprinted
+- [x] 9.2 @unit (agent) `completion-tip.test.ts` with the TTY flag injected -> completion-tip.test.ts: 58 pass; shows once; the flag is written before the message; a write that fails leaves the tip unprinted, with no output and no config created
 - [ ] 9.3 @integration (agent) the same pty run with the shell's script already installed, and with `SHELL=/bin/tcsh` -> no tip printed and `completionTipSeen` recorded in both
 
 ## 10. The tip never shows where nobody reads it [critical]

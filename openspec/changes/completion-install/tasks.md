@@ -85,7 +85,7 @@
 
 ## 4. T4: the one-shot tip
 
-- [ ] 4.1 Write the failing unit tests first in
+- [x] 4.1 Write the failing unit tests first in
       `apps/cli/test/unit/core/completion-tip.test.ts`, with the TTY flag, the
       environment, the config dir and the installed check injected: each
       suppression rule (`CI` values `true`, `1`, `yes`, `on`, `True` suppress;
@@ -96,7 +96,7 @@
       alone, the flag recorded before the message, an atomic `0o600` write, a
       failed write leaving the tip unprinted, and the silent retire on an
       undetected shell or an installed script. Verify they fail.
-- [ ] 4.2 Add `apps/cli/src/core/completion-tip.ts` (decision logic, raw config
+- [x] 4.2 Add `apps/cli/src/core/completion-tip.ts` (decision logic, raw config
       read, atomic write, the message) and call it from `runCommand` in
       `apps/cli/src/cli.ts` after `mod.run(ctx)` returns, never after help, a
       parse refusal, an unknown command or a thrown error; verify the 4.1 tests
