@@ -15,12 +15,13 @@ import {
 } from 'node:fs'
 import { dirname, join } from 'node:path'
 
+import { ptyRun, terminalText } from '../contract/support/pty.ts'
 import {
   assertNoAncestorOpenspec,
   CAPTURE_GLOBAL_CONFIG,
 } from '../contract/support/upstream-init-capture.ts'
 import { oracleSpawn } from '../contract/support/upstream-oracle.ts'
-import { cleanupAll, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.ts'
+import { cleanupAll, CLI_ENTRY, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.ts'
 
 afterAll(cleanupAll)
 
@@ -274,6 +275,62 @@ describe('legacy tool roots move on update', () => {
     expect(run.exitCode).toBe(1)
     expect(run.stdout).toContain('Would migrate 12 skills: .kimi → .kimi-code\n')
     expect(files(repo.dir, '.kimi')).toEqual(before)
+  }, 120_000)
+})
+
+describe("update's consent question on a terminal", () => {
+  /** A devin repo whose `.windsurf/` holds upstream's own `init --tools devin` output. */
+  async function windsurfRepo(): Promise<Repo> {
+    const upstream = await upstreamInit('devin')
+    const repo = freshRepo()
+    const init = await cospec(['init', '--harness', 'devin'], { cwd: repo.dir, env: repo.env })
+    expect(init.exitCode).toBe(0)
+    plant(upstream, '.devin', repo, '.windsurf')
+    return repo
+  }
+
+  const QUESTION = 'Move 12 skills and 12 commands from .windsurf/ to .devin/? (Y/n)'
+
+  test('"n" leaves .windsurf in place and says so', async () => {
+    const repo = await windsurfRepo()
+    const run = await ptyRun([process.execPath, CLI_ENTRY, 'update'], {
+      cwd: repo.dir,
+      env: repo.env,
+      key: { after: QUESTION, send: 'n\r' },
+    })
+    expect(run.exitCode).toBe(0)
+    const text = terminalText(run.output)
+    expect(text).toContain('Windsurf is now Devin Desktop')
+    expect(text).toContain(QUESTION)
+    expect(text).toContain('Left in place: 12 skills and 12 commands in .windsurf/')
+    expect(files(repo.dir, '.windsurf')).toEqual(
+      [...skillPaths('.windsurf'), ...workflowPaths('.windsurf')].toSorted(),
+    )
+  }, 120_000)
+
+  test('"y" moves the files', async () => {
+    const repo = await windsurfRepo()
+    const run = await ptyRun([process.execPath, CLI_ENTRY, 'update'], {
+      cwd: repo.dir,
+      env: repo.env,
+      key: { after: QUESTION, send: 'y\r' },
+    })
+    expect(run.exitCode).toBe(0)
+    expect(terminalText(run.output)).toContain(
+      'Migrated 12 skills and 12 commands: .windsurf → .devin',
+    )
+    expect(existsSync(join(repo.dir, '.windsurf'))).toBe(false)
+  }, 120_000)
+
+  test('--force moves without asking', async () => {
+    const repo = await windsurfRepo()
+    const run = await ptyRun([process.execPath, CLI_ENTRY, 'update', '--force'], {
+      cwd: repo.dir,
+      env: repo.env,
+    })
+    expect(run.exitCode).toBe(0)
+    expect(terminalText(run.output)).not.toContain('(Y/n)')
+    expect(existsSync(join(repo.dir, '.windsurf'))).toBe(false)
   }, 120_000)
 })
 
