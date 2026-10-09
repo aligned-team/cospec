@@ -911,6 +911,37 @@ async function doctorFindings(s: Sandbox): Promise<DoctorFinding[]> {
   return JSON.parse(run.stdout).findings
 }
 
+describe('doctor: a repo whose profile came from the flag alone', () => {
+  test('is clean, and names at INFO the workflows an update would install', async () => {
+    const s = sandbox()
+    expect((await initIn(s, ['--profile', 'core'])).exitCode).toBe(0)
+    const run = await cospec(['doctor', '--json'], { cwd: s.project, env: s.env })
+    expect(run.exitCode).toBe(0)
+    const findings = JSON.parse(run.stdout).findings as DoctorFinding[]
+    expect(findings.filter((f) => f.level === 'ERROR' || f.level === 'WARNING')).toEqual([])
+    const info = findings.filter((f) => f.check === 'installed-workflows')
+    expect(info).toHaveLength(1)
+    expect(info[0]!.level).toBe('INFO')
+    for (const id of ALL_IDS.filter((w) => !CORE_IDS.includes(w)))
+      expect(info[0]!.message).toContain(id)
+    expect(info[0]!.message).not.toContain('propose')
+  }, 120_000)
+
+  test('a workflow with one surface deleted is still reported missing', async () => {
+    const s = sandbox()
+    expect((await initIn(s, ['--profile', 'core'])).exitCode).toBe(0)
+    rmSync(join(s.project, commandPath(CLAUDE, 'apply')!))
+    const findings = await doctorFindings(s)
+    expect(findings.some((f) => f.level === 'ERROR' && f.check === 'schema-missing')).toBe(true)
+  }, 120_000)
+
+  test('a twelve-workflow repo with nothing set reports no installed-workflows finding', async () => {
+    const s = sandbox()
+    expect((await initIn(s)).exitCode).toBe(0)
+    expect((await doctorFindings(s)).filter((f) => f.check === 'installed-workflows')).toEqual([])
+  }, 120_000)
+})
+
 describe('doctor: the global profile and the installed set', () => {
   const OUTSIDE_CORE = ALL_IDS.filter((id) => !CORE_IDS.includes(id))
 
@@ -1130,13 +1161,9 @@ describe('the profile x delivery x harness matrix', () => {
   }
 
   for (const row of ROWS) {
-    test.failing(
-      `${row.id}: every profile x delivery cell passes init, update and doctor`,
-      async () => {
-        const cells = PROFILES.flatMap((profile) => DELIVERIES.map((d) => cell(row, profile, d)))
-        expect((await Promise.all(cells)).flat()).toEqual([])
-      },
-      300_000,
-    )
+    test(`${row.id}: every profile x delivery cell passes init, update and doctor`, async () => {
+      const cells = PROFILES.flatMap((profile) => DELIVERIES.map((d) => cell(row, profile, d)))
+      expect((await Promise.all(cells)).flat()).toEqual([])
+    }, 300_000)
   }
 })

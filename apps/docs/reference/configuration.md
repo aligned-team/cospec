@@ -266,7 +266,10 @@ never set `profile` keeps all twelve workflows.
 | `delivery`  | `skills`, `commands`, `both` | Which surface each workflow is written to. Unset means `both`. Any other present value acts as `both`.                                                                                                  |
 
 `cospec init --profile core|custom` overrides the `profile` key for that one
-run. The `workflows` list still comes from the file.
+run. The `workflows` list still comes from the file. The flag is not saved: a
+later `cospec update` with no `profile` key writes all twelve workflows, and
+`cospec doctor` says so at INFO (`installed-workflows`) instead of calling the
+workflows the repo never had missing.
 
 `cospec update` never removes an installed workflow. Its set is the profile's
 plus every cospec workflow the repo already has, so narrowing a profile leaves

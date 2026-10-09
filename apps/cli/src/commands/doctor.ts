@@ -53,6 +53,7 @@ import {
   commandPath,
   HARNESS_TABLE,
   type HarnessAdapter,
+  type HarnessName,
   isHarnessDocument,
   legacySkillsRoots,
   primaryRoot,
@@ -144,6 +145,33 @@ export function checkOpenspecVersion(
   }
 }
 
+/**
+ * With no explicit profile, `update` writes every workflow; a row that holds only some (it was
+ * initialised with `--profile`, which the global config does not remember) is told so at INFO.
+ * A row holding none is not reported: it is not an installed harness.
+ */
+function reportAbsentWorkflows(
+  cwd: string,
+  harnesses: readonly HarnessName[],
+  manifest: ReturnType<typeof readManifest>,
+  findings: Finding[],
+): void {
+  const all = readWorkflowManifest().workflows.map((w) => w.id)
+  const tracked = manifest?.files ?? {}
+  for (const id of harnesses) {
+    const held = installedWorkflowIds(cwd, adapterFor(id), tracked)
+    const absent = all.filter((w) => !held.has(w))
+    if (absent.length === 0 || absent.length === all.length) continue
+    findings.push({
+      level: 'INFO',
+      check: 'installed-workflows',
+      message: `${id} holds ${held.size} of ${all.length} workflows and no profile is set, so \`cospec update\` would install: ${absent.join(', ')}`,
+      remedy:
+        'set `profile` in the global config (`cospec config profile`) to keep the set you have, or run `cospec update` for all twelve',
+    })
+  }
+}
+
 function checkDrift(cwd: string, findings: Finding[], selection: WorkflowSelection): WriteResult[] {
   const manifest = readManifest(cwd)
   if (manifest === undefined) {
@@ -156,15 +184,18 @@ function checkDrift(cwd: string, findings: Finding[], selection: WorkflowSelecti
   }
 
   const harnesses = detectHarnesses(cwd)
-  // Drift is measured against what `update` would write: the explicit profile's workflows and
-  // delivery, plus every workflow a row already holds, so a workflow outside the profile is
-  // neither "missing" nor "out of date".
+  // Drift is measured against the explicit profile's workflows and delivery plus every workflow
+  // a row already holds, so a workflow outside the profile is neither "missing" nor "out of
+  // date". With no explicit profile (a repo `init --profile` built from the flag alone, which
+  // nothing persists) only what a row holds is measured; a workflow it holds none of is
+  // reported once at INFO instead, since `update` would write it.
   const { results, failed, migration } = generate(cwd, {
     harnesses,
     dryRun: true,
-    workflows: selection.installed,
+    workflows: selection.installed ?? new Set<string>(),
     delivery: selection.delivery,
   })
+  if (selection.installed === undefined) reportAbsentWorkflows(cwd, harnesses, manifest, findings)
   // A dry run writes nothing, so what fails here is a managed file cospec cannot read.
   for (const f of failed) {
     findings.push({
