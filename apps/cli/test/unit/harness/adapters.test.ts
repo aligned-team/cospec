@@ -12,7 +12,7 @@ import {
   HARNESS_TABLE,
   type HarnessAdapter,
   type HarnessName,
-  injectOpenCodeArgs,
+  injectArgumentPlaceholder,
   isBodyDialect,
   isHarnessDocument,
   isHarnessName,
@@ -172,30 +172,45 @@ describe('workflowReferencePattern', () => {
   })
 })
 
-describe('injectOpenCodeArgs', () => {
+describe('injectArgumentPlaceholder', () => {
+  test("takes the row's placeholder and defaults to $ARGUMENTS", () => {
+    const body = 'Do the thing.\n\n## 1. Pick the change\n\nbody\n'
+    expect(injectArgumentPlaceholder(body, '$@')).toBe(
+      'Do the thing.\n\n**Provided arguments**: $@\n\n## 1. Pick the change\n\nbody\n',
+    )
+    expect(injectArgumentPlaceholder(body)).toBe(injectArgumentPlaceholder(body, '$ARGUMENTS'))
+  })
+
+  test('a body that already names either placeholder is returned unchanged', () => {
+    for (const named of ['Use $@ here.\n\n## 1. A\n', 'Use $ARGUMENTS here.\n\n## 1. A\n']) {
+      expect(injectArgumentPlaceholder(named, '$@')).toBe(named)
+      expect(injectArgumentPlaceholder(named, '$ARGUMENTS')).toBe(named)
+    }
+  })
+
   test('inserts the placeholder as its own paragraph before the first section', () => {
     const body = 'Do the thing.\n\n## 1. Pick the change\n\nbody\n'
-    expect(injectOpenCodeArgs(body)).toBe(
+    expect(injectArgumentPlaceholder(body)).toBe(
       'Do the thing.\n\n**Provided arguments**: $ARGUMENTS\n\n## 1. Pick the change\n\nbody\n',
     )
   })
 
   test('is a no-op when the body already names an argument placeholder', () => {
     const withArgs = 'Do it with $ARGUMENTS.\n\n## 1. Go\n'
-    expect(injectOpenCodeArgs(withArgs)).toBe(withArgs)
+    expect(injectArgumentPlaceholder(withArgs)).toBe(withArgs)
     const withPositional = 'Do it with $1.\n\n## 1. Go\n'
-    expect(injectOpenCodeArgs(withPositional)).toBe(withPositional)
+    expect(injectArgumentPlaceholder(withPositional)).toBe(withPositional)
   })
 
   test('appends at the end when the body has no section heading', () => {
-    expect(injectOpenCodeArgs('Just a paragraph.\n')).toBe(
+    expect(injectArgumentPlaceholder('Just a paragraph.\n')).toBe(
       'Just a paragraph.\n\n**Provided arguments**: $ARGUMENTS\n',
     )
   })
 
   test('preserves CRLF line endings', () => {
     const body = 'Do the thing.\r\n\r\n## 1. Go\r\n'
-    expect(injectOpenCodeArgs(body)).toBe(
+    expect(injectArgumentPlaceholder(body)).toBe(
       'Do the thing.\r\n\r\n**Provided arguments**: $ARGUMENTS\r\n\r\n## 1. Go\r\n',
     )
   })
@@ -311,7 +326,7 @@ describe('HARNESS_TABLE invariants', () => {
     expect(adapterFor('claude').commands?.frontmatter).toBe(buildClaudeCommandFrontmatter)
     expect(adapterFor('claude').commands?.injectArguments).toBeUndefined()
     expect(adapterFor('opencode').commands?.frontmatter).toBe(buildOpencodeCommandFrontmatter)
-    expect(adapterFor('opencode').commands?.injectArguments).toBe(true)
+    expect(adapterFor('opencode').commands?.injectArguments).toBe('$ARGUMENTS')
     expect(adapterFor('codex').commands).toBeUndefined()
     expect(adapterFor('agents').commands).toBeUndefined()
   })

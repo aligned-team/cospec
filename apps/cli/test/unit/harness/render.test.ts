@@ -272,6 +272,38 @@ describe('OpenCode $ARGUMENTS injection', () => {
   })
 })
 
+describe('fixture rows — argument placeholder', () => {
+  const placeholderRow = (placeholder: '$ARGUMENTS' | '$@'): HarnessAdapter => ({
+    ...adapterFor('opencode'),
+    skillsDir: '.x',
+    commands: {
+      ...markdownCommands('.x/prompts', 'flat', '.md'),
+      injectArguments: placeholder,
+    },
+  })
+
+  test('a `$@` row names it once in each arg-taking command and nowhere in a skill', () => {
+    const files = renderRow(placeholderRow('$@'))
+    const argWorkflows = new Set<string>(ARG_WORKFLOWS)
+    for (const f of files.filter((c) => c.kind === 'command')) {
+      expect(f.body.split('**Provided arguments**: $@\n\n## ').length - 1).toBe(
+        argWorkflows.has(f.workflow!) ? 1 : 0,
+      )
+      expect(f.body).not.toContain('$ARGUMENTS')
+    }
+    for (const f of files.filter((c) => c.kind === 'skill')) {
+      expect(f.body).not.toContain('$@')
+      expect(f.body).not.toContain('$ARGUMENTS')
+    }
+  })
+
+  test('the `$ARGUMENTS` row matches the opencode row but for its path', () => {
+    const real = render(['opencode']).filter((f) => f.kind === 'command')
+    const fixture = renderRow(placeholderRow('$ARGUMENTS')).filter((f) => f.kind === 'command')
+    expect(fixture.map((f) => f.body)).toEqual(real.map((f) => f.body))
+  })
+})
+
 describe('runtime-neutral prose', () => {
   // Bodies render byte-identically into Codex and OpenCode, neither of which has
   // Claude Code's AskUserQuestion or TodoWrite tools; naming them there is an

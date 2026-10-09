@@ -15,7 +15,7 @@ import {
   HARNESS_TABLE,
   type HarnessAdapter,
   type HarnessName,
-  injectOpenCodeArgs,
+  injectArgumentPlaceholder,
   renderCodexRules,
   serializeFrontmatter,
   skillPath,
@@ -160,11 +160,11 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
           ? skillBody
           : transformBody(injected, commandSpell.dialect, skillById, commandSpell.prefix)
       // OpenCode drops a slash command's arguments unless the body names them, so an
-      // arg-taking workflow's COMMAND body carries `$ARGUMENTS` while its skill body
+      // arg-taking workflow's COMMAND body carries the row's placeholder while its skill body
       // does not — which is why each surface hashes its own body.
       const commandBody =
-        commands?.injectArguments === true && w.takesArguments === true
-          ? injectOpenCodeArgs(spelled)
+        commands?.injectArguments !== undefined && w.takesArguments === true
+          ? injectArgumentPlaceholder(spelled, commands.injectArguments)
           : spelled
       const skillSection = `\n${skillBody}`
       const skillHash = hashBody(skillSection)

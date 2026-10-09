@@ -35,6 +35,8 @@ export type CommandFrontmatterBuilder = (
   contentHash: string,
 ) => Record<string, unknown>
 
+export type ArgumentPlaceholder = '$ARGUMENTS' | '$@'
+
 export type CommandSerializer = 'markdown' | 'toml' | 'markdown-header' | 'plain'
 
 /** Whether a serializer's files carry YAML frontmatter, so cospec's own provenance. */
@@ -59,8 +61,12 @@ export interface CommandSurface {
   readonly serializer: CommandSerializer
   /** Markdown serializer only. */
   readonly frontmatter?: CommandFrontmatterBuilder
-  /** OpenCode's `$ARGUMENTS` paragraph on arg-taking workflows (see `injectOpenCodeArgs`). */
-  readonly injectArguments?: boolean
+  /**
+   * The placeholder a tool substitutes a command's arguments into (`$ARGUMENTS` for OpenCode,
+   * `$@` for Pi). Present: an arg-taking workflow's command body carries a
+   * `**Provided arguments**: <placeholder>` paragraph (see `injectArgumentPlaceholder`).
+   */
+  readonly injectArguments?: ArgumentPlaceholder
 }
 
 /**
@@ -147,7 +153,7 @@ export const HARNESS_TABLE = [
       extension: '.md',
       serializer: 'markdown',
       frontmatter: buildOpencodeCommandFrontmatter,
-      injectArguments: true,
+      injectArguments: '$ARGUMENTS',
     },
     invocationPrefix: '/',
     bodyDialect: 'flat',
@@ -601,24 +607,27 @@ export function workflowReferencePattern(row: HarnessAdapter): RegExp {
 }
 
 /**
- * OpenCode passes a slash command's arguments ONLY through an explicit placeholder:
- * a body with no `$ARGUMENTS` silently drops everything the user typed after
- * `/cospec-new`. Claude and Codex bind the argument implicitly, so this is an
- * OpenCode-command-only transform — a skill body never gets the placeholder, since
- * nothing substitutes it there and the literal text would leak to the model.
+ * Some tools (OpenCode, Command Code, Pi, Oh My Pi) pass a slash command's arguments ONLY
+ * through an explicit placeholder: a body with none silently drops everything the user typed
+ * after `/cospec-new`. Claude and Codex bind the argument implicitly, so this is a
+ * command-only transform; a skill body never gets the placeholder, since nothing substitutes
+ * it there and the literal text would leak to the model.
  *
  * The placeholder is inserted as its own paragraph immediately before the body's
  * first `## ` section — the point where cospec bodies stop describing the workflow
- * and start reading input. Idempotent: a body that already carries `$ARGUMENTS` or
+ * and start reading input. Idempotent: a body that already carries `$ARGUMENTS`, `$@` or
  * `$1`… is returned unchanged. CRLF bodies keep CRLF.
  */
-const ARGUMENT_PLACEHOLDER_RE = /\$(?:ARGUMENTS\b|[1-9]\d*\b)/
+const ARGUMENT_PLACEHOLDER_RE = /\$(?:ARGUMENTS\b|@|[1-9]\d*\b)/
 const FIRST_SECTION_RE = /^## /m
 
-export function injectOpenCodeArgs(body: string): string {
+export function injectArgumentPlaceholder(
+  body: string,
+  placeholder: ArgumentPlaceholder = '$ARGUMENTS',
+): string {
   if (ARGUMENT_PLACEHOLDER_RE.test(body)) return body
   const eol = body.includes('\r\n') ? '\r\n' : '\n'
-  const line = `**Provided arguments**: $ARGUMENTS`
+  const line = `**Provided arguments**: ${placeholder}`
   const match = FIRST_SECTION_RE.exec(body)
   if (match === null) return `${body.replace(/\s+$/, '')}${eol}${eol}${line}${eol}`
   return `${body.slice(0, match.index)}${line}${eol}${eol}${body.slice(match.index)}`
