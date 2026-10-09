@@ -276,6 +276,17 @@ temporary directory (the home sandbox helper, design §13 of completion-install)
 never the real home. Unit tests of `install.ts` take the home directory as a
 parameter.
 
+**Workflow profiles are explicit-only** — a narrower installed set (`profile`)
+or surface (`delivery`) applies only when set: `init --profile`, or the key
+present in the machine-global config. The binary's built-in `core` default does
+not count. `cospec update` never removes an installed workflow; delivery is the
+one exception. Every reader of those keys goes through `core/global-profile.ts`
+(`readGlobalProfile`, over `readGlobalConfigDocument` in `core/root.ts`); add no
+second reader. The conditional grammar port (`harness/optional-workflow.ts`) is
+checked cell by cell against the pinned dist by
+`test/contract/optional-workflow-differential.test.ts`, and must stay green on a
+pin bump.
+
 **Never bypass hk** — hooks are managed by hk (jdx/hk) via mise. If a hook
 fails, fix the root cause; never use `--no-verify`, `pre-commit`, or raw
 `.git/hooks/` scripts.
