@@ -297,64 +297,52 @@ describe('Codex global prompts', () => {
   const homeEntries = (doc: InitDoc): HomeEntry[] =>
     doc.opsx.found.filter((f): f is HomeEntry => typeof f === 'object')
 
-  test.failing(
-    'CODEX_HOME is honoured: the allowlisted prompt goes once the skill exists',
-    async () => {
-      const { repo, prompts } = promptRepo()
-      const run = await cospec(['init', '--harness', 'codex', '--remove-opsx', '--json'], {
+  test('CODEX_HOME is honoured: the allowlisted prompt goes once the skill exists', async () => {
+    const { repo, prompts } = promptRepo()
+    const run = await cospec(['init', '--harness', 'codex', '--remove-opsx', '--json'], {
+      cwd: repo.dir,
+      env: repo.env,
+    })
+    expect(run.exitCode).toBe(0)
+    const doc = JSON.parse(run.stdout) as InitDoc
+    expect(homeEntries(doc)).toEqual([
+      { path: join(prompts, 'opsx-apply.md'), scope: 'home', removed: true },
+    ])
+    expect(existsSync(join(repo.dir, '.agents/skills/cospec-apply-change/SKILL.md'))).toBe(true)
+    expect(existsSync(join(prompts, 'opsx-apply.md'))).toBe(false)
+    expect(readFileSync(join(prompts, 'my-prompt.md'), 'utf8')).toBe('mine\n')
+  }, 120_000)
+
+  test('without --remove-opsx the prompt is listed by its absolute path and kept', async () => {
+    const { repo, prompts } = promptRepo()
+    const run = await cospec(['init', '--harness', 'codex'], { cwd: repo.dir, env: repo.env })
+    expect(run.exitCode).toBe(0)
+    expect(run.stdout).toContain(`  ${join(prompts, 'opsx-apply.md')}\n`)
+    expect(existsSync(join(prompts, 'opsx-apply.md'))).toBe(true)
+  }, 120_000)
+
+  test('an unset or blank CODEX_HOME falls back to <home>/.codex/prompts', async () => {
+    const repo = freshRepo()
+    const prompts = join(repo.env.HOME!, '.codex', 'prompts')
+    mkdirSync(prompts, { recursive: true })
+    writeFileSync(join(prompts, 'opsx-propose.md'), 'OpenSpec propose prompt\n')
+    const { CODEX_HOME: _, ...withoutCodexHome } = repo.env
+    const cases = [
+      { env: { ...repo.env, CODEX_HOME: '  ' }, unset: [] },
+      { env: withoutCodexHome, unset: ['CODEX_HOME'] },
+    ]
+    for (const { env, unset } of cases) {
+      const run = await cospec(['init', '--harness', 'codex', '--json'], {
         cwd: repo.dir,
-        env: repo.env,
+        env,
+        unset,
       })
       expect(run.exitCode).toBe(0)
-      const doc = JSON.parse(run.stdout) as InitDoc
-      expect(homeEntries(doc)).toEqual([
-        { path: join(prompts, 'opsx-apply.md'), scope: 'home', removed: true },
+      expect(homeEntries(JSON.parse(run.stdout) as InitDoc)).toEqual([
+        { path: join(prompts, 'opsx-propose.md'), scope: 'home', removed: false },
       ])
-      expect(existsSync(join(repo.dir, '.agents/skills/cospec-apply-change/SKILL.md'))).toBe(true)
-      expect(existsSync(join(prompts, 'opsx-apply.md'))).toBe(false)
-      expect(readFileSync(join(prompts, 'my-prompt.md'), 'utf8')).toBe('mine\n')
-    },
-    120_000,
-  )
-
-  test.failing(
-    'without --remove-opsx the prompt is listed by its absolute path and kept',
-    async () => {
-      const { repo, prompts } = promptRepo()
-      const run = await cospec(['init', '--harness', 'codex'], { cwd: repo.dir, env: repo.env })
-      expect(run.exitCode).toBe(0)
-      expect(run.stdout).toContain(`  ${join(prompts, 'opsx-apply.md')}\n`)
-      expect(existsSync(join(prompts, 'opsx-apply.md'))).toBe(true)
-    },
-    120_000,
-  )
-
-  test.failing(
-    'an unset or blank CODEX_HOME falls back to <home>/.codex/prompts',
-    async () => {
-      const repo = freshRepo()
-      const prompts = join(repo.env.HOME!, '.codex', 'prompts')
-      mkdirSync(prompts, { recursive: true })
-      writeFileSync(join(prompts, 'opsx-propose.md'), 'OpenSpec propose prompt\n')
-      const { CODEX_HOME: _, ...withoutCodexHome } = repo.env
-      const cases = [
-        { env: { ...repo.env, CODEX_HOME: '  ' }, unset: [] },
-        { env: withoutCodexHome, unset: ['CODEX_HOME'] },
-      ]
-      for (const { env, unset } of cases) {
-        const run = await cospec(['init', '--harness', 'codex', '--json'], {
-          cwd: repo.dir,
-          env,
-          unset,
-        })
-        expect(run.exitCode).toBe(0)
-        expect(homeEntries(JSON.parse(run.stdout) as InitDoc)).toEqual([
-          { path: join(prompts, 'opsx-propose.md'), scope: 'home', removed: false },
-        ])
-      }
-    },
-    120_000,
-  )
+    }
+  }, 120_000)
 
   test('codex not selected: no global prompt is listed or removed', async () => {
     const { repo, prompts } = promptRepo()

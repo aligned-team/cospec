@@ -27,6 +27,7 @@ import {
   rmdirSync,
   rmSync,
 } from 'node:fs'
+import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
 import {
@@ -160,7 +161,7 @@ const OPENSPEC_SKILL_DIRS = [
   'openspec-propose',
 ] as const
 
-/** Upstream's `COMMAND_IDS`: the `opsx-<id>` command files OpenSpec writes. */
+/** Upstream's `COMMAND_IDS`, index for index the workflow of `OPENSPEC_SKILL_DIRS`. */
 const OPENSPEC_COMMAND_IDS = [
   'explore',
   'new',
@@ -541,4 +542,51 @@ function withinProject(cwd: string, abs: string): boolean {
   if (target === undefined) return false
   const rel = relative(realpathSync.native(cwd), target)
   return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))
+}
+
+// --- global prompts (upstream `LEGACY_GLOBAL_SLASH_COMMAND_PATHS`, design decision 13) -----
+
+/** An OpenSpec prompt outside the project, and the cospec skill that replaces it. */
+export interface GlobalPromptLeftover {
+  /** Absolute. */
+  path: string
+  /** Repo-relative path of the replacement skill; the prompt goes only once it was emitted. */
+  replacement: string
+}
+
+/**
+ * Upstream's allowlisted global prompts for each selected row that has them: the twelve
+ * `opsx-<workflow>.md` names in the resolved prompts dir, nothing else there. The names and
+ * the directory are upstream's rule; content is not read.
+ */
+export function findGlobalPromptLeftovers(
+  harnesses: readonly string[],
+  opts: { env?: NodeJS.ProcessEnv; table?: readonly HarnessAdapter[] } = {},
+): GlobalPromptLeftover[] {
+  const table: readonly HarnessAdapter[] = opts.table ?? HARNESS_TABLE
+  const out: GlobalPromptLeftover[] = []
+  for (const row of table) {
+    const prompts = row.legacyGlobalPrompts
+    if (prompts === undefined || row.skillsDir === undefined || !harnesses.includes(row.id)) {
+      continue
+    }
+    const dir = globalPromptDir(prompts, opts.env ?? process.env)
+    for (const [i, id] of OPENSPEC_COMMAND_IDS.entries()) {
+      const path = join(dir, `opsx-${id}.md`)
+      if (!existsSync(path) || !lstatSync(path).isFile()) continue
+      const skillDir = OPENSPEC_SKILL_DIRS[i]!.replace(/^openspec-/, 'cospec-')
+      out.push({ path, replacement: `${row.skillsDir}/skills/${skillDir}/${SKILL_FILE}` })
+    }
+  }
+  return out
+}
+
+/** Upstream's `getCodexPromptDir`, generalised over the row's variable and fallback. */
+function globalPromptDir(
+  prompts: { readonly env: string; readonly fallback: string },
+  env: NodeJS.ProcessEnv,
+): string {
+  const fromEnv = env[prompts.env]?.trim()
+  const home = fromEnv === undefined || fromEnv === '' ? join(homedir(), prompts.fallback) : fromEnv
+  return join(resolve(home), 'prompts')
 }

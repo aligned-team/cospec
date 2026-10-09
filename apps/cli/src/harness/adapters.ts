@@ -96,6 +96,12 @@ export interface HarnessAdapter {
   readonly legacySkillsDirs?: readonly string[]
   /** Upstream's `LEGACY_TOOL_ROOTS` entries for this tool; row data, moved by `legacy-skills.ts`. */
   readonly legacyToolRoots?: readonly LegacyToolRoot[]
+  /**
+   * Upstream's `LEGACY_GLOBAL_SLASH_COMMAND_PATHS` entry: the home directory OpenSpec once wrote
+   * this tool's `prompts/opsx-<workflow>.md` into — `$<env>` when set and non-blank, else
+   * `<home>/<fallback>`. Read by the leftover scan only when the row is selected.
+   */
+  readonly legacyGlobalPrompts?: { readonly env: string; readonly fallback: string }
   readonly commands?: CommandSurface
   readonly invocationPrefix: InvocationPrefix
   /** Spells the row's command bodies, and its skill bodies unless `skillDialect` is set. */
@@ -146,6 +152,7 @@ export const HARNESS_TABLE = [
     skillsDir: '.agents',
     legacySkillsDirs: ['.codex'],
     legacyToolRoots: [{ root: '.codex', needsConsent: false, timing: 'after-generation' }],
+    legacyGlobalPrompts: { env: 'CODEX_HOME', fallback: '.codex' },
     invocationPrefix: '/',
     bodyDialect: 'shared',
     rulesPath: '.codex/rules/cospec.rules',

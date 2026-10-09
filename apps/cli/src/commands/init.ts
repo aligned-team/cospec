@@ -38,6 +38,8 @@ import {
   respellInvocationHint,
 } from '../harness/adapters.ts'
 import {
+  findGlobalPromptLeftovers,
+  type GlobalPromptLeftover,
   legacyMoveEntries,
   legacyMoveLines,
   type LegacyToolMove,
@@ -240,6 +242,11 @@ function scaffoldGate(cwd: string): GateResult {
 }
 
 // --- opsx detection / removal (§6.6) ----------------------------------------
+
+/** An openspec prompt outside the project, and whether this run removed it. */
+interface HomeLeftover extends GlobalPromptLeftover {
+  removed: boolean
+}
 
 /** A leftover openspec-generated ("opsx") file — never something cospec authored. */
 export interface OpsxFile {
@@ -583,12 +590,13 @@ export function run(ctx: CommandContext): number {
 
   // Schemas + harness files + manifest.
   const { results, migration, skillWriters } = generate(target, { harnesses, force })
+  const emitted = emittedPaths(results)
   // After generation, so cospec's replacement exists before a legacy file moves.
   moves.push(
     ...moveLegacyToolRoots(target, {
       timing: 'after-generation',
       toolIds: harnesses,
-      emitted: emittedPaths(results),
+      emitted,
       dryRun: false,
     }),
   )
@@ -621,6 +629,13 @@ export function run(ctx: CommandContext): number {
   const opsx = findOpsxFiles(target)
   const opsxRemoved = opsx.length > 0 && (removeOpsx || yes)
   if (opsxRemoved) removeOpsxFiles(target, opsx)
+  // Outside the project: only the explicit flag removes them, and only once this run wrote
+  // the skill that replaces each one.
+  const homeOpsx: HomeLeftover[] = findGlobalPromptLeftovers(harnesses).map((p) => {
+    const removed = removeOpsx && emitted.has(p.replacement)
+    if (removed) rmSync(p.path)
+    return { ...p, removed }
+  })
 
   if (flags.json) {
     process.stdout.write(
@@ -645,7 +660,13 @@ export function run(ctx: CommandContext): number {
             : null,
           config: { written: configWritten },
           settings: settings ? { status: settings.status, added: settings.added } : null,
-          opsx: { found: opsx.map((o) => o.relpath), removed: opsxRemoved },
+          opsx: {
+            found: [
+              ...opsx.map((o) => o.relpath),
+              ...homeOpsx.map((h) => ({ path: h.path, scope: 'home', removed: h.removed })),
+            ],
+            removed: opsxRemoved,
+          },
           notGitTree,
           files: results,
           migration: [...migration, ...legacyMoveEntries(moves)],
@@ -669,6 +690,8 @@ export function run(ctx: CommandContext): number {
     settings,
     opsx,
     opsxRemoved,
+    homeOpsx,
+    removeOpsx,
     notGitTree,
     autoNote: selection.note,
   })
@@ -709,6 +732,8 @@ interface ReceiptData {
   settings?: SettingsMergeResult
   opsx: OpsxFile[]
   opsxRemoved: boolean
+  homeOpsx: HomeLeftover[]
+  removeOpsx: boolean
   notGitTree: boolean
   autoNote?: string
 }
@@ -811,6 +836,24 @@ function printReceipt(target: string, d: ReceiptData): void {
         'Re-run with --remove-opsx to delete them (only provably openspec-generated files).',
       )
     }
+  }
+
+  const homeRemoved = d.homeOpsx.filter((h) => h.removed)
+  const homeKept = d.homeOpsx.filter((h) => !h.removed)
+  if (homeRemoved.length > 0) {
+    lines.push('')
+    lines.push(`Removed ${homeRemoved.length} openspec prompt(s) outside this project:`)
+    for (const h of homeRemoved) lines.push(`  ${h.path}`)
+  }
+  if (homeKept.length > 0) {
+    lines.push('')
+    lines.push(`Found ${homeKept.length} openspec prompt(s) outside this project:`)
+    for (const h of homeKept) lines.push(`  ${h.path}`)
+    lines.push(
+      d.removeOpsx
+        ? 'Kept: this run wrote no cospec skill to replace them.'
+        : 'Re-run with --remove-opsx to delete them (only the names openspec wrote there).',
+    )
   }
 
   const setup = setupNoteLines(d.harnesses)
