@@ -146,7 +146,7 @@ rows write the `config.json` under test into the sandbox's
 
 ## 6. T5 — update (`apps/cli/src/commands/update.ts`)
 
-- [ ] 6.1 Write the failing `update` rows in `profiles.test.ts`: an explicit
+- [x] 6.1 Write the failing `update` rows in `profiles.test.ts`: an explicit
       core key over a twelve-workflow repo removes nothing; a custom profile
       that adds `verify` creates only it; delivery `skills`, then `commands`,
       then `both` moves files both ways and keeps every workflow installed; a
@@ -155,13 +155,13 @@ rows write the `config.json` under test into the sandbox's
       `commands`; `codex` keeping skills under `commands`; and `update --check`
       exits 0 on a repo that sets nothing, and verify they fail on the current
       `update`
-- [ ] 6.2 In `generate()`, compute each row's effective set (profile plus
+- [x] 6.2 In `generate()`, compute each row's effective set (profile plus
       installed cospec-managed skill or command, or a manifest-tracked command),
       make `removeOrphanMarkdown` sweep the rows' directories rather than the
       rendered files' so a delivery switch removes the dropped surface, and
       apply the shared-root rule; verify the install, never-remove and delivery
       rows of 6.1
-- [ ] 6.3 Widen `hasHarnessEvidence` to any cospec-managed workflow skill or
+- [x] 6.3 Widen `hasHarnessEvidence` to any cospec-managed workflow skill or
       command file, keeping the `codex`/`agents` rules, make `update.run` async,
       add the receipt line, the zero-artifact line and the `profile`/`delivery`
       JSON keys, and verify the detection rows of 6.1 and the existing

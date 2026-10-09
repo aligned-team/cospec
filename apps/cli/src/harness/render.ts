@@ -80,6 +80,11 @@ export interface RenderOptions {
    * conditional resolves against them. Absent, every manifest workflow is installed.
    */
   workflows?: ReadonlySet<string>
+  /**
+   * A row's own installed set, which replaces `workflows` for that row: `update` keeps every
+   * workflow a row already has installed, so rows of one run can hold different sets.
+   */
+  workflowsByHarness?: ReadonlyMap<string, ReadonlySet<string>>
   /** Which surfaces each row generates (design D5). Absent, `both`. */
   delivery?: Delivery
 }
@@ -137,8 +142,7 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
   // References are spelled over the whole manifest; a reference to a workflow outside the set
   // is the canon's to wrap in a conditional, not render's to drop.
   const skillById = skillByWorkflowId(manifest)
-  const installed = opts.workflows ?? new Set(manifest.workflows.map((w) => w.id))
-  const workflows = manifest.workflows.filter((w) => installed.has(w.id))
+  const everyWorkflow = new Set(manifest.workflows.map((w) => w.id))
   const delivery = opts.delivery ?? 'both'
 
   // Keyed by output path: `codex` and `agents` share the `.agents/skills` root and render
@@ -172,6 +176,8 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
 
   for (const harness of opts.harnesses) {
     const row = adapterFor(harness, table)
+    const installed = opts.workflowsByHarness?.get(harness) ?? opts.workflows ?? everyWorkflow
+    const workflows = manifest.workflows.filter((w) => installed.has(w.id))
     const skills = skillsRoot(row)
     const rootRows = (sharedRoots.get(skillsRootKey(row)) ?? [harness]).map((id) =>
       adapterFor(id, table),

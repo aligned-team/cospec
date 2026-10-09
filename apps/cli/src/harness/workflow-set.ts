@@ -2,7 +2,9 @@
 // `core: true` entries; `custom` is the user's own list, spelled as upstream spells it, read the
 // way the pinned binary's `getProfileWorkflows` reads it plus the filtering `update` applies.
 
-import type { WorkflowManifest } from './render.ts'
+import type { GlobalProfile } from '../core/global-profile.ts'
+import type { Delivery } from './delivery.ts'
+import { readWorkflowManifest, type WorkflowManifest } from './render.ts'
 
 export type Profile = 'core' | 'custom'
 
@@ -43,4 +45,52 @@ export function profileWorkflows(
   const dependent = listed.findIndex((id) => SYNC_DEPENDENTS.has(id))
   if (dependent === -1 || listed.includes(SYNC)) return listed
   return [...listed.slice(0, dependent), SYNC, ...listed.slice(dependent)]
+}
+
+/** How the effective profile and delivery were chosen, for the receipt and `--json`. */
+export interface WorkflowSelection {
+  /** The profile in force, or undefined when no flag or global key set one. */
+  profile?: { name: Profile; source: 'flag' | 'config'; workflows: string[] }
+  /** Whether the global file set `delivery`. */
+  deliverySet: boolean
+  delivery: Delivery
+  /** The installed workflow ids; undefined installs every workflow. */
+  installed?: ReadonlySet<string>
+}
+
+/**
+ * The profile a `--profile` flag, else the global file's `profile` key, selects; nothing when
+ * neither is set (upstream's built-in `core` default is not a choice the user made). The
+ * workflow list is the global file's even when the flag picks the profile.
+ */
+export function selectWorkflows(
+  flagProfile: Profile | undefined,
+  global: GlobalProfile,
+): WorkflowSelection {
+  const name = flagProfile ?? global.profile
+  const delivery = global.delivery ?? 'both'
+  const base = { deliverySet: global.delivery !== undefined, delivery }
+  if (name === undefined) return base
+  const workflows = profileWorkflows(name, global.workflows, readWorkflowManifest())
+  return {
+    ...base,
+    profile: { name, source: flagProfile !== undefined ? 'flag' : 'config', workflows },
+    installed: new Set(workflows),
+  }
+}
+
+/** The receipt's one line naming the explicit profile and delivery, or none when neither is set. */
+export function workflowsLine(selection: WorkflowSelection): string | undefined {
+  const { profile } = selection
+  if (profile === undefined && !selection.deliverySet) return undefined
+  const total = readWorkflowManifest().workflows.length
+  const count = profile?.workflows.length ?? total
+  const parts: string[] = []
+  if (profile !== undefined) {
+    const by = profile.source === 'flag' ? '--profile' : 'the global config'
+    parts.push(`profile ${profile.name}, set by ${by}`)
+  }
+  if (selection.deliverySet) parts.push(`delivery ${selection.delivery}, set by the global config`)
+  const none = count === 0 ? '; no workflows selected' : ''
+  return `Workflows: ${count} of ${total} (${parts.join('; ')}${none})`
 }

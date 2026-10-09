@@ -49,16 +49,15 @@ const configured = (): void => {
   generate(dir, { harnesses: [...COPILOT], cloud: 'leave' })
 }
 const update = (...args: string[]) =>
-  capture(
-    () =>
-      updateRun(
-        ctx(
-          dir,
-          args.filter((a) => a !== '--json'),
-          args.includes('--json'),
-          'update',
-        ),
-      ) as number,
+  captureAsync(() =>
+    updateRun(
+      ctx(
+        dir,
+        args.filter((a) => a !== '--json'),
+        args.includes('--json'),
+        'update',
+      ),
+    ),
   )
 
 describe('generate() with an explicit directive', () => {
@@ -296,35 +295,35 @@ describe('the alternate profile and the failures', () => {
 })
 
 describe('update', () => {
-  test('re-syncs a deleted managed file while opted in, then reports up to date', () => {
+  test('re-syncs a deleted managed file while opted in, then reports up to date', async () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(true)
     rmSync(join(dir, WORKFLOW))
-    const first = update()
+    const first = await update()
     expect(first.code).toBe(0)
     expect(first.out).toContain(WORKFLOW)
     expect(has(WORKFLOW)).toBe(true)
-    expect(update().out).toContain('everything up to date')
+    expect((await update()).out).toContain('everything up to date')
   })
 
-  test('opted in, out, in again: out removes the managed files and says so', () => {
+  test('opted in, out, in again: out removes the managed files and says so', async () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(true)
     setCloud(false)
-    const off = update()
+    const off = await update()
     expect(off.code).toBe(0)
     expect(off.out).toContain('Removed: 2 Copilot cloud agent file(s) (opted out of cloud files)')
     expect(has(WORKFLOW) || has(AGENT)).toBe(false)
     setCloud(true)
-    update()
+    await update()
     expect(has(WORKFLOW) && has(AGENT)).toBe(true)
   })
 
-  test('a hand-edited agent file survives opt-out, the managed workflow is removed', () => {
+  test('a hand-edited agent file survives opt-out, the managed workflow is removed', async () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     put(AGENT, `${read(AGENT)}\nMy rule.\n`)
     setCloud(false)
-    const off = update()
+    const off = await update()
     expect(off.code).toBe(0)
     expect(off.out).toContain('Removed: 1 Copilot cloud agent file(s) (opted out of cloud files)')
     expect(off.out).toContain(
@@ -334,11 +333,11 @@ describe('update', () => {
     expect(read(AGENT)).toContain('My rule.')
   })
 
-  test('github-copilot not configured removes the managed files with its own reason', () => {
+  test('github-copilot not configured removes the managed files with its own reason', async () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     rmSync(join(dir, '.github/skills'), { recursive: true })
     rmSync(join(dir, '.github/prompts'), { recursive: true })
-    const out = update()
+    const out = await update()
     expect(out.code).toBe(0)
     expect(out.out).toContain(
       'Removed: 2 Copilot cloud agent file(s) (github-copilot not configured)',
@@ -346,77 +345,77 @@ describe('update', () => {
     expect(has(WORKFLOW) || has(AGENT)).toBe(false)
   })
 
-  test('undecided is silent on a run that is not interactive', () => {
+  test('undecided is silent on a run that is not interactive', async () => {
     configured()
-    const out = update()
+    const out = await update()
     expect(out.out).not.toContain('opt-in')
     expect(out.out).not.toContain('Removed')
     expect(has(WORKFLOW)).toBe(false)
   })
 
-  test('--check exits 1 for a missing managed cloud file and writes nothing', () => {
+  test('--check exits 1 for a missing managed cloud file and writes nothing', async () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(true)
     rmSync(join(dir, WORKFLOW))
-    const out = update('--check')
+    const out = await update('--check')
     expect(out.code).toBe(1)
     expect(out.out).toContain(WORKFLOW)
     expect(has(WORKFLOW)).toBe(false)
   })
 
-  test('--check exits 1 when an opt-out would remove a managed file, and removes nothing', () => {
+  test('--check exits 1 when an opt-out would remove a managed file, and removes nothing', async () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(false)
-    const out = update('--check')
+    const out = await update('--check')
     expect(out.code).toBe(1)
     expect(has(WORKFLOW) && has(AGENT)).toBe(true)
   })
 
-  test('--check is clean while opted in and in sync, and for an opted-out edited file', () => {
+  test('--check is clean while opted in and in sync, and for an opted-out edited file', async () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(true)
-    expect(update('--check').code).toBe(0)
+    expect((await update('--check')).code).toBe(0)
     put(AGENT, `${read(AGENT)}\nMy rule.\n`)
     setCloud(false)
     rmSync(join(dir, WORKFLOW))
-    expect(update('--check').code).toBe(0)
+    expect((await update('--check')).code).toBe(0)
   })
 
-  test('the conflict is one Warning line on stderr and the exit code is kept', () => {
+  test('the conflict is one Warning line on stderr and the exit code is kept', async () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(true)
     put(COPILOT_AGENT_ALTERNATE_FILE, 'mine\n')
     put(AGENT, 'also mine\n')
-    const out = update()
+    const out = await update()
     expect(out.code).toBe(0)
     expect(out.err).toBe(`Warning: failed to sync Copilot cloud agent files: ${CONFLICT}\n`)
     expect(out.out).not.toContain('Failed:')
   })
 
-  test('a path guard keeps the exit code too', () => {
+  test('a path guard keeps the exit code too', async () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(true)
     rmSync(join(dir, AGENT))
     mkdirSync(join(dir, AGENT), { recursive: true })
-    const out = update()
+    const out = await update()
     expect(out.code).toBe(0)
     expect(out.err).toContain('Warning: failed to sync Copilot cloud agent files: ')
     expect(out.err).toContain('Managed Copilot path is not a regular file')
   })
 
-  test('--json stays one document: removed files are listed, the warning goes to stderr', () => {
+  test('--json stays one document: removed files are listed, the warning goes to stderr', async () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(false)
-    const out = update('--json')
+    const out = await update('--json')
     const doc = JSON.parse(out.out) as { files: { path: string; outcome: string }[] }
     expect(outcomes(doc.files)).toEqual({ [WORKFLOW]: 'removed', [AGENT]: 'removed' })
     expect(out.err).toBe('')
   })
 
-  test('a config that cannot be read propagates', () => {
+  test('a config that cannot be read propagates', async () => {
     configured()
     mkdirSync(join(dir, 'openspec/config.yaml'), { recursive: true })
-    expect(() => update()).toThrow()
+    await expect(update()).rejects.toThrow()
   })
 })
 

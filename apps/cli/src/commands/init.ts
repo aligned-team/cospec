@@ -31,7 +31,7 @@ import {
   type ParsedArgs,
 } from '../core/command-table.ts'
 import { isolatedWriteFailure } from '../core/errno.ts'
-import { type GlobalProfile, readGlobalProfile } from '../core/global-profile.ts'
+import { readGlobalProfile } from '../core/global-profile.ts'
 import { languageDirective, languageRefusal, normalizeLanguage } from '../core/init-language.ts'
 import { askLine, isInteractive } from '../core/interactive.ts'
 import { splitFrontmatter, type WriteResult } from '../core/managed-files.ts'
@@ -66,7 +66,7 @@ import {
   persistCopilotCloudOptIn,
   resolveConfigFilePath,
 } from '../harness/copilot-cloud.ts'
-import { type Delivery, zeroArtifactLine } from '../harness/delivery.ts'
+import { zeroArtifactLine } from '../harness/delivery.ts'
 import { homeSkillsDir } from '../harness/home-root.ts'
 import {
   findLegacyConfigBlocks,
@@ -91,7 +91,13 @@ import {
   type SettingsMergeResult,
 } from '../harness/settings-merge.ts'
 import { availableHarnesses, withSharedRootOwners } from '../harness/shared-root.ts'
-import { isProfile, type Profile, profileWorkflows } from '../harness/workflow-set.ts'
+import {
+  isProfile,
+  type Profile,
+  selectWorkflows,
+  type WorkflowSelection,
+  workflowsLine,
+} from '../harness/workflow-set.ts'
 import {
   detectHarnesses,
   emittedPaths,
@@ -701,54 +707,6 @@ export function receiptHintLines(
   const row = adapterFor(first, table)
   const skillById = skillByWorkflowId(readWorkflowManifest())
   return lines.map((line) => respellInvocationHint(line, row, skillById))
-}
-
-/** How the effective profile and delivery were chosen, for the receipt and `--json`. */
-export interface WorkflowSelection {
-  /** The profile in force, or undefined when no flag or global key set one. */
-  profile?: { name: Profile; source: 'flag' | 'config'; workflows: string[] }
-  /** Whether the global file set `delivery`. */
-  deliverySet: boolean
-  delivery: Delivery
-  /** The installed workflow ids; undefined installs every workflow. */
-  installed?: ReadonlySet<string>
-}
-
-/**
- * The profile a `--profile` flag, else the global file's `profile` key, selects; nothing when
- * neither is set (upstream's built-in `core` default is not a choice the user made). The
- * workflow list is the global file's even when the flag picks the profile.
- */
-export function selectWorkflows(
-  flagProfile: Profile | undefined,
-  global: GlobalProfile,
-): WorkflowSelection {
-  const name = flagProfile ?? global.profile
-  const delivery = global.delivery ?? 'both'
-  const base = { deliverySet: global.delivery !== undefined, delivery }
-  if (name === undefined) return base
-  const workflows = profileWorkflows(name, global.workflows, readWorkflowManifest())
-  return {
-    ...base,
-    profile: { name, source: flagProfile !== undefined ? 'flag' : 'config', workflows },
-    installed: new Set(workflows),
-  }
-}
-
-/** The receipt's one line naming the explicit profile and delivery, or none when neither is set. */
-export function workflowsLine(selection: WorkflowSelection): string | undefined {
-  const { profile } = selection
-  if (profile === undefined && !selection.deliverySet) return undefined
-  const total = readWorkflowManifest().workflows.length
-  const count = profile?.workflows.length ?? total
-  const parts: string[] = []
-  if (profile !== undefined) {
-    const by = profile.source === 'flag' ? '--profile' : 'the global config'
-    parts.push(`profile ${profile.name}, set by ${by}`)
-  }
-  if (selection.deliverySet) parts.push(`delivery ${selection.delivery}, set by the global config`)
-  const none = count === 0 ? '; no workflows selected' : ''
-  return `Workflows: ${count} of ${total} (${parts.join('; ')}${none})`
 }
 
 // --- command entrypoint -----------------------------------------------------

@@ -3,7 +3,8 @@
 
 import { describe, expect, test } from 'bun:test'
 
-import { receiptHintLines, selectWorkflows, workflowsLine } from '../../../src/commands/init.ts'
+import { receiptHintLines } from '../../../src/commands/init.ts'
+import { selectWorkflows, workflowsLine } from '../../../src/harness/workflow-set.ts'
 
 describe('selectWorkflows', () => {
   test('nothing set selects nothing and installs every workflow', () => {
