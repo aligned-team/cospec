@@ -53,8 +53,8 @@ function plantEntries(): Planted {
     }
     for (const pattern of [entry.pattern].flat()) {
       const content = pattern.includes('/opsx-') ? ROOT_GUARD : MARKED
-      planted.leftovers.set(pattern.replace('*', 'proposal'), content)
-      planted.decoys.set(pattern.replace('*', 'notes'), USER_TEXT)
+      planted.leftovers.set(pattern.replaceAll('*', 'proposal'), content)
+      planted.decoys.set(pattern.replaceAll('*', 'notes'), USER_TEXT)
     }
   }
   return planted
