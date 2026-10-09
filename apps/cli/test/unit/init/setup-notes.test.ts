@@ -182,6 +182,52 @@ const AT_PREFIX_ROW: HarnessAdapter = {
   detectionPaths: ['.at-cmds'],
 }
 
+const SKILLS_ONLY: HarnessAdapter = {
+  id: 'skills-only',
+  displayName: 'Fixture Skills Tool',
+  skillsDir: '.skills-only',
+  invocationPrefix: '/',
+  bodyDialect: 'skill',
+  requiresIdeRestart: false,
+  detectionPaths: ['.skills-only'],
+}
+const SKILL_PREFIX_ROW: HarnessAdapter = {
+  ...SKILLS_ONLY,
+  id: 'skill-prefix',
+  skillInvocationPrefix: '/skill:',
+}
+const PROSE_ROW: HarnessAdapter = { ...SKILLS_ONLY, id: 'prose-row', bodyDialect: 'prose' }
+/** Devin's shape: flat commands, but skills referenced by skill name. */
+const SPLIT_DIALECT_ROW: HarnessAdapter = {
+  ...AT_PREFIX_ROW,
+  id: 'split-dialect',
+  invocationPrefix: '/',
+  skillDialect: 'skill',
+}
+const FIXTURES = [...HARNESS_TABLE, SKILLS_ONLY, SKILL_PREFIX_ROW, PROSE_ROW, SPLIT_DIALECT_ROW]
+
+describe('init receipt hint follows the first selected row skill spelling', () => {
+  test('a skill-dialect row names its skill behind `/`', () => {
+    expect(receiptHintLines(['skills-only'], FIXTURES)).toEqual(hintLines('/cospec-propose'))
+  })
+
+  test('a `/skill:` row names its skill behind its prefix', () => {
+    expect(receiptHintLines(['skill-prefix'], FIXTURES)).toEqual(hintLines('/skill:cospec-propose'))
+  })
+
+  test('a prose row asks the tool by name', () => {
+    expect(receiptHintLines(['prose-row'], FIXTURES)).toEqual([
+      'Try: ask Fixture Skills Tool to use the cospec-propose skill with "feat: <what you want to build>"',
+      'Lightweight change? ask Fixture Skills Tool to use the cospec-propose skill with "ci: fix release workflow" — 3 short artifacts.',
+    ])
+  })
+
+  test("a row whose skills differ from its commands is spelled by its skills' dialect", () => {
+    // Its commands are `/cospec-<id>`; its skills `/cospec-<skill>`: the hint names the skill.
+    expect(receiptHintLines(['split-dialect'], FIXTURES)).toEqual(hintLines('/cospec-propose'))
+  })
+})
+
 describe('init receipt hint follows the first selected harness (verification 1.6)', () => {
   test('claude, all and the claude default keep the canonical /cospec:propose', () => {
     expect(receiptHintLines(['claude'])).toEqual(hintLines('/cospec:propose'))

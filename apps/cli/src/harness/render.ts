@@ -54,6 +54,14 @@ export interface RenderOptions {
    * shapes no shipped row uses, and never enter HARNESS_TABLE.
    */
   adapters?: readonly HarnessAdapter[]
+  /**
+   * The rows that write a shared skills root's skills: when two or more selected rows resolve
+   * to one skills root, only the row named here renders that root's skills (its commands and
+   * rules files are still every row's own). Absent, every row renders its own skills and the
+   * conflict guard below is the only arbiter. A shared root with no writer named is a
+   * caller's bug and throws, rather than silently writing no skills.
+   */
+  skillWriters?: ReadonlySet<string>
 }
 
 export interface RenderedFile {
@@ -126,9 +134,24 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
     }
   }
 
+  const sharedRoots = sharedSkillRoots(opts.harnesses, table)
+  if (opts.skillWriters !== undefined) {
+    for (const [root, ids] of sharedRoots) {
+      if (!ids.some((id) => opts.skillWriters!.has(id))) {
+        throw new Error(
+          `internal: skillWriters names none of ${ids.join(', ')}, which share the ${root.split(':')[1]} skills root`,
+        )
+      }
+    }
+  }
+
   for (const harness of opts.harnesses) {
     const row = adapterFor(harness, table)
     const skills = skillsRoot(row)
+    const writesSkills =
+      opts.skillWriters === undefined ||
+      !sharedRoots.has(skillsRootKey(row)) ||
+      opts.skillWriters.has(harness)
     const commands = row.commands
     if (commands?.serializer === 'markdown' && commands.frontmatter === undefined) {
       throw new Error(
@@ -169,19 +192,21 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
       const skillSection = `\n${skillBody}`
       const skillHash = hashBody(skillSection)
 
-      emit(
-        assemble({
-          harness,
-          kind: 'skill',
-          workflow: w.id,
-          path: skillPath(row, w.skill),
-          scope: skills.scope,
-          frontmatter: buildSkillFrontmatter(w, version, skillHash),
-          body: skillBody,
-          bodySection: skillSection,
-          contentHash: skillHash,
-        }),
-      )
+      if (writesSkills) {
+        emit(
+          assemble({
+            harness,
+            kind: 'skill',
+            workflow: w.id,
+            path: skillPath(row, w.skill),
+            scope: skills.scope,
+            frontmatter: buildSkillFrontmatter(w, version, skillHash),
+            body: skillBody,
+            bodySection: skillSection,
+            contentHash: skillHash,
+          }),
+        )
+      }
 
       const path = commandPath(row, w.command)
       if (
@@ -244,6 +269,25 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
     }
   }
   return [...out.values()]
+}
+
+/** A skills root's identity: a project root and a home root of the same name are two roots. */
+function skillsRootKey(row: HarnessAdapter): string {
+  const { root, scope } = skillsRoot(row)
+  return `${scope}:${root}`
+}
+
+/** The skills roots two or more of `harnesses` resolve to, each with its rows in selection order. */
+function sharedSkillRoots(
+  harnesses: readonly HarnessName[],
+  table: readonly HarnessAdapter[],
+): Map<string, HarnessName[]> {
+  const byRoot = new Map<string, HarnessName[]>()
+  for (const id of new Set(harnesses)) {
+    const key = skillsRootKey(adapterFor(id, table))
+    byRoot.set(key, [...(byRoot.get(key) ?? []), id])
+  }
+  return new Map([...byRoot].filter(([, ids]) => ids.length > 1))
 }
 
 /**

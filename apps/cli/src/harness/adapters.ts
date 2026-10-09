@@ -590,6 +590,24 @@ export function commandSpelling(row: HarnessAdapter): {
 }
 
 /**
+ * Respell one `/cospec:<id>` invocation in a receipt hint the way the row's SKILLS are
+ * referenced. A prose row has no invocation syntax, so the hint asks the tool by name:
+ * `ask <tool> to use the cospec-<skill> skill with <arguments>`.
+ */
+export function respellInvocationHint(
+  line: string,
+  row: HarnessAdapter,
+  skillById: ReadonlyMap<string, string>,
+): string {
+  const { dialect, prefix } = skillSpelling(row)
+  if (dialect !== 'prose') return transformBody(line, dialect, skillById, prefix)
+  return line.replace(/\/cospec:([a-z][a-z0-9-]*) /, (whole, id: string) => {
+    const skill = skillById.get(id)
+    return skill === undefined ? whole : `ask ${row.displayName} to use the ${skill} skill with `
+  })
+}
+
+/**
  * The pattern that finds a row's workflow references in a body, with the workflow id or skill
  * suffix as capture group 1: `/cospec:<id>`, the row's own prefix (`@cospec-<id>`), and the
  * spellings its dialects emit: `/skill:cospec-<skill>` and `the cospec-<skill> skill`.

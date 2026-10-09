@@ -35,7 +35,7 @@ import {
   scanRoots,
   SKILL_EXTENSION,
   skillsRoot,
-  transformBody,
+  respellInvocationHint,
 } from '../harness/adapters.ts'
 import { mergeMiseToml, type MiseMergeResult } from '../harness/mise-merge.ts'
 import { readWorkflowManifest, skillByWorkflowId } from '../harness/render.ts'
@@ -518,7 +518,7 @@ export function receiptHintLines(
   if (first === undefined) return lines
   const row = adapterFor(first, table)
   const skillById = skillByWorkflowId(readWorkflowManifest())
-  return lines.map((line) => transformBody(line, row.bodyDialect, skillById, row.invocationPrefix))
+  return lines.map((line) => respellInvocationHint(line, row, skillById))
 }
 
 // --- command entrypoint -----------------------------------------------------

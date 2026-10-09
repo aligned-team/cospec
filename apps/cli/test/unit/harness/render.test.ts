@@ -136,6 +136,84 @@ describe('renderHarnessFiles — shared .agents root', () => {
   })
 })
 
+describe('renderHarnessFiles — skillWriters', () => {
+  // Two rows on one skills root with different bodies: the conflict guard refuses them
+  // together, and a writer set is how a caller says which one owns the skills.
+  const owner = (id: string, bodyDialect: HarnessAdapter['bodyDialect']): HarnessAdapter => ({
+    id,
+    displayName: id,
+    skillsDir: '.shared',
+    invocationPrefix: '/',
+    bodyDialect,
+    requiresIdeRestart: false,
+    detectionPaths: ['.shared'],
+  })
+  const withCommands = (row: HarnessAdapter): HarnessAdapter => ({
+    ...row,
+    commands: {
+      dir: `.${row.id}/workflows`,
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildOpencodeCommandFrontmatter,
+    },
+  })
+  const a = owner('a', 'shared')
+  const b = withCommands(owner('b', 'flat'))
+  const run = (harnesses: string[], skillWriters?: ReadonlySet<string>) =>
+    renderHarnessFiles({
+      harnesses,
+      typeTable: TYPE_TABLE,
+      version: TEST_VERSION,
+      adapters: [a, b],
+      skillWriters,
+    })
+
+  test('without a writer set the guard refuses two bodies on one root', () => {
+    expect(() => run(['a', 'b'])).toThrow(/harness render conflict/)
+  })
+
+  test("a shared root's skills render from its writer only", () => {
+    for (const writer of ['a', 'b']) {
+      const files = run(['a', 'b'], new Set([writer]))
+      const skills = files.filter((f) => f.kind === 'skill')
+      expect(skills).toHaveLength(12)
+      expect(new Set(skills.map((f) => f.harness))).toEqual(new Set([writer]))
+    }
+  })
+
+  test("a non-writer's commands are still its own", () => {
+    const files = run(['a', 'b'], new Set(['a']))
+    const commands = files.filter((f) => f.kind === 'command')
+    expect(commands).toHaveLength(12)
+    expect(new Set(commands.map((f) => f.harness))).toEqual(new Set(['b']))
+    expect(files.filter((f) => f.kind === 'skill')[0]!.body).toContain('$cospec-')
+  })
+
+  test('a row alone on its root writes its skills whether or not it is named', () => {
+    const files = run(['b'], new Set())
+    expect(files.filter((f) => f.kind === 'skill')).toHaveLength(12)
+  })
+
+  test('a shared root with no writer named is an internal error, not a silent no-op', () => {
+    expect(() => run(['a', 'b'], new Set())).toThrow(
+      /^internal: skillWriters names none of a, b, which share the \.shared\/skills skills root$/,
+    )
+  })
+
+  test('the real rows are unchanged by a writer set naming codex', () => {
+    const before = render(['codex', 'agents'])
+    const after = renderHarnessFiles({
+      harnesses: ['codex', 'agents'],
+      typeTable: TYPE_TABLE,
+      version: TEST_VERSION,
+      skillWriters: new Set(['codex']),
+    })
+    expect(after.map((f) => [f.path, f.content])).toEqual(before.map((f) => [f.path, f.content]))
+  })
+})
+
 describe('renderHarnessFiles — content snapshots', () => {
   // `agents` is omitted deliberately: it renders the same paths and bytes as `codex`
   // (asserted above), so a second snapshot of the same 12 files would only add churn.
