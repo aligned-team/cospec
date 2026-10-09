@@ -461,8 +461,9 @@ never-removes policy and where the one reader lives.
 
 ### D13. Dependencies this change is built on
 
-`tool-matrix` (R9) and `github-copilot` (R10) have not merged. This change is
-authored against `main` at v0.9.0 and the implement stage rebases onto them.
+`tool-matrix` (R9), `github-copilot` (R10) and `completion-install` (R11) have
+merged and are archived. This change was authored against `main` at v0.9.0 and
+the implement stage rebased onto them.
 
 - **From `tool-matrix`:** every `AI_TOOLS` id as a `HARNESS_TABLE` row (more
   rows with and without `commands`, flat and TOML commands, `needsConsent`

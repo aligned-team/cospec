@@ -12,12 +12,12 @@ rows write the `config.json` under test into the sandbox's
 
 ## 1. Dependency gate (runs first; blocks groups 2 to 10)
 
-- [ ] 1.1 Confirm `tool-matrix` and `github-copilot` are merged and archived on
+- [x] 1.1 Confirm `tool-matrix` and `github-copilot` are merged and archived on
       `origin/main` (`git log origin/main`, `cospec list --archived` or the
       `openspec/changes/archive/` listing) and verify by naming both archive
       directories in the commit message; if either is absent, stop and report
       the blocker instead of starting group 2
-- [ ] 1.2 Rebase `worktree-workflow-profiles` onto that `main` (`git rebase`,
+- [x] 1.2 Rebase `worktree-workflow-profiles` onto that `main` (`git rebase`,
       then `git push --force-with-lease`), add both changes to
       `blocking-changes.md` "Blocked by" as `[x]` entries with their archive
       dates, and verify with
@@ -26,12 +26,12 @@ rows write the `config.json` under test into the sandbox's
       changes' `design.md` and the merged `render.ts`, `init.ts`, `update.ts`,
       `adapters.ts`, and record in this file's commit body each place design
       D13's touch points moved
-- [ ] 1.3 Check `apps/cli/test/contract/parity-pending.yaml`: confirm
+- [x] 1.3 Check `apps/cli/test/contract/parity-pending.yaml`: confirm
       `completion-install`'s entries are gone (it merged) or record that it has
       not, so verification row 8.4 is ticked only with a true statement; verify
       by `grep -c "owner:" apps/cli/test/contract/parity-pending.yaml` and the
       owners listed
-- [ ] 1.4 Capture the full-set golden before any source change: render the
+- [x] 1.4 Capture the full-set golden before any source change: render the
       twelve bodies for every shipped row with all twelve installed into
       `apps/cli/test/fixtures/golden/profiles-full-set/` (extend the
       adapter-table golden set if one already holds them), and verify it is
