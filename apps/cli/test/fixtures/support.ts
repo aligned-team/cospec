@@ -34,9 +34,26 @@ const here = dirname(fileURLToPath(import.meta.url))
  */
 export const COLOR_ENV_KEYS = ['FORCE_COLOR', 'COLORTERM', 'CLICOLOR', 'CLICOLOR_FORCE'] as const
 
-/** `process.env` with every color-forcing key (`COLOR_ENV_KEYS`) removed. */
+/**
+ * The zone the suite process itself runs in. `bun test` leaves `$TZ` unset and
+ * runs in UTC, while a child spawned from `{ ...process.env }` — which does not
+ * reliably carry a `process.env.TZ` assignment either — falls back to the
+ * machine's own zone. A row that expects a date computed in-process
+ * (`formatLocalDate()`) then disagrees with the date the child stamped for
+ * every hour the two zones sit on different calendar days.
+ */
+export function suiteZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone
+}
+
+/**
+ * `process.env` with every color-forcing key (`COLOR_ENV_KEYS`) removed and
+ * `TZ` pinned to `suiteZone()`, so a child stamps dates in the zone the test
+ * computes its expected dates in. A caller's own `TZ`, applied over this env,
+ * wins.
+ */
 export function envWithoutColorForcing(): Record<string, string> {
-  const out: Record<string, string> = { ...process.env } as Record<string, string>
+  const out: Record<string, string> = { ...process.env, TZ: suiteZone() } as Record<string, string>
   for (const key of COLOR_ENV_KEYS) delete out[key]
   return out
 }
