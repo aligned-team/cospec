@@ -136,34 +136,37 @@ describe('renderHarnessFiles — shared .agents root', () => {
   })
 })
 
+// Two rows on one skills root with different bodies: the conflict guard refuses them
+// together, and a writer set is how a caller says which one owns the skills.
+const owner = (id: string, bodyDialect: HarnessAdapter['bodyDialect']): HarnessAdapter => ({
+  id,
+  displayName: id,
+  skillsDir: '.shared',
+  invocationPrefix: '/',
+  bodyDialect,
+  requiresIdeRestart: false,
+  detectionPaths: ['.shared'],
+})
+const withCommands = (row: HarnessAdapter): HarnessAdapter => ({
+  ...row,
+  commands: {
+    dir: `.${row.id}/workflows`,
+    namespacing: 'flat',
+    file: 'cospec-{command}',
+    extension: '.md',
+    serializer: 'markdown',
+    frontmatter: buildOpencodeCommandFrontmatter,
+  },
+})
+
 describe('renderHarnessFiles — skillWriters', () => {
   // Two rows on one skills root with different bodies: the conflict guard refuses them
   // together, and a writer set is how a caller says which one owns the skills.
-  const owner = (id: string, bodyDialect: HarnessAdapter['bodyDialect']): HarnessAdapter => ({
-    id,
-    displayName: id,
-    skillsDir: '.shared',
-    invocationPrefix: '/',
-    bodyDialect,
-    requiresIdeRestart: false,
-    detectionPaths: ['.shared'],
-  })
-  const withCommands = (row: HarnessAdapter): HarnessAdapter => ({
-    ...row,
-    commands: {
-      dir: `.${row.id}/workflows`,
-      namespacing: 'flat',
-      file: 'cospec-{command}',
-      extension: '.md',
-      serializer: 'markdown',
-      frontmatter: buildOpencodeCommandFrontmatter,
-    },
-  })
   const a = owner('a', 'shared')
   const b = withCommands(owner('b', 'flat'))
   const run = (harnesses: string[], skillWriters?: ReadonlySet<string>) =>
     renderHarnessFiles({
-      harnesses,
+      harnesses: harnesses as HarnessName[],
       typeTable: TYPE_TABLE,
       version: TEST_VERSION,
       adapters: [a, b],
@@ -179,7 +182,7 @@ describe('renderHarnessFiles — skillWriters', () => {
       const files = run(['a', 'b'], new Set([writer]))
       const skills = files.filter((f) => f.kind === 'skill')
       expect(skills).toHaveLength(12)
-      expect(new Set(skills.map((f) => f.harness))).toEqual(new Set([writer]))
+      expect(new Set<string>(skills.map((f) => f.harness))).toEqual(new Set([writer]))
     }
   })
 
@@ -187,8 +190,8 @@ describe('renderHarnessFiles — skillWriters', () => {
     const files = run(['a', 'b'], new Set(['a']))
     const commands = files.filter((f) => f.kind === 'command')
     expect(commands).toHaveLength(12)
-    expect(new Set(commands.map((f) => f.harness))).toEqual(new Set(['b']))
-    expect(files.filter((f) => f.kind === 'skill')[0]!.body).toContain('$cospec-')
+    expect(new Set<string>(commands.map((f) => f.harness))).toEqual(new Set(['b']))
+    expect(files.find((f) => f.kind === 'skill')!.body).toContain('$cospec-')
   })
 
   test('a row alone on its root writes its skills whether or not it is named', () => {
