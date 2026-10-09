@@ -21,22 +21,6 @@
 - { kind: flag, path: [init], flag: --copilot-cloud, owner: github-copilot }
 - { kind: flag, path: [init], flag: --no-copilot-cloud, owner: github-copilot }
 
-# --- completion-install -----------------------------------------------------------
-- { kind: command, path: [completion, install], owner: completion-install }
-- { kind: command, path: [completion, uninstall], owner: completion-install }
-- kind: positional-value
-  path: [completion]
-  index: 0
-  value: powershell
-  source: cli
-  owner: completion-install
-- kind: positional-value
-  path: [completion, generate]
-  index: 0
-  value: powershell
-  source: cli
-  owner: completion-install
-
 # --- workflow-profiles ------------------------------------------------------------
 - { kind: flag, path: [init], flag: --profile, owner: workflow-profiles }
 - { kind: flag, path: [init], flag: --language, owner: workflow-profiles }

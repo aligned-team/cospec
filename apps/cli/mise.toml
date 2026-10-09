@@ -19,15 +19,15 @@ run = "bun run src/index.ts --"
 # unit run in ci.yml).
 [tasks.test]
 description = "Run unit tests"
-run = "bun test test/unit --timeout 30000"
+run = "bun test test/unit --preload ./test/fixtures/no-completion-tip.ts --timeout 30000"
 
 [tasks."test:contract"]
 description = "Contract tests against the real pinned openspec binary"
-run = "bun test test/contract --timeout 30000"
+run = "bun test test/contract --preload ./test/fixtures/no-completion-tip.ts --timeout 30000"
 
 [tasks."test:integration"]
 description = "Integration tests over the 3 repo states + lifecycles"
-run = "bun test test/integration --timeout 30000"
+run = "bun test test/integration --preload ./test/fixtures/no-completion-tip.ts --timeout 30000"
 
 [tasks."test:pack"]
 description = "Pack smoke: bun pm pack -> tarball install -> bunx cospec"

@@ -21,9 +21,13 @@ marketplace and no plugin package. Almost everything lands inside the repo,
 under version control, and `cospec update` regenerates it in place. One tool is
 the exception: `minimax-code` reads its skills only from your home directory, so
 those skills are written there and shared by every project on the machine
-([see below](#the-home-skills-root-minimax-code)). Every generated workflow body
-calls only `cospec` commands, never bare `openspec`, so a harness needs exactly
-one permission entry to run the whole loop.
+([see below](#the-home-skills-root-minimax-code)). The only other things cospec
+writes outside the repo are a shell completion script and its rc wiring, and
+only when you run `cospec completion install`, plus the one-time
+`completionTipSeen` flag in OpenSpec's global config (see
+[Shell completion](/guide/installation#shell-completion)). Every generated
+workflow body calls only `cospec` commands, never bare `openspec`, so a harness
+needs exactly one permission entry to run the whole loop.
 
 ## Target table
 

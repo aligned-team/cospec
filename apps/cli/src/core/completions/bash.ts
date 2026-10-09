@@ -1,6 +1,7 @@
 // bash completion generator. Emits a single `_cospec` function plus its
-// `complete -F` registration — no rc-file mutation, no installer (see the
-// docs' copy-paste one-liner). Dynamic ids come from `cospec __complete`,
+// `complete -F` registration — no rc-file mutation: writing the script and
+// wiring the shell to load it is `cospec completion install`'s job
+// (core/completions/install.ts). Dynamic ids come from `cospec __complete`,
 // which fails silently, so a Tab in a non-repo directory offers nothing rather
 // than printing an error mid-completion.
 

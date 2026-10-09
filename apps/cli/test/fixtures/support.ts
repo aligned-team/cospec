@@ -11,6 +11,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
@@ -369,4 +370,193 @@ export function cleanup(dir: string): void {
 export function cleanupAll(): void {
   for (const dir of activeDirs) rmSync(dir, { recursive: true, force: true })
   activeDirs.clear()
+}
+
+/**
+ * Variables a completion test must not inherit from the suite's environment
+ * (design §13): the rc and config dirs an Oh My Zsh or PowerShell probe reads,
+ * CI's tip suppression, and the two opt-outs the preload sets for the suite.
+ */
+const HOME_UNSET = [
+  'ZSH',
+  'ZSH_CUSTOM',
+  'PSModulePath',
+  'CI',
+  'OPENSPEC_NO_COMPLETIONS',
+  'OPENSPEC_NO_AUTO_CONFIG',
+] as const
+
+/**
+ * A temporary home for a test that installs, uninstalls or prints the tip
+ * (design §13). `env` holds every home-like variable under `home`; `unset` is
+ * the list `cospec()` removes from the child's inherited environment. Removed
+ * by `cleanup(sandbox.root)`.
+ */
+export interface HomeSandbox {
+  readonly root: string
+  readonly home: string
+  readonly env: Record<string, string>
+  readonly unset: readonly string[]
+}
+
+/** `path` with symlinks resolved; a missing path resolves lexically. */
+function realOrResolved(path: string): string {
+  try {
+    return realpathSync(path)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    return resolve(path)
+  }
+}
+
+/**
+ * Throws unless `home` resolves inside the temporary directory. Compared on
+ * realpaths because macOS `tmpdir()` (`/var/folders/...`) resolves to
+ * `/private/var/...`. Called before every sandboxed spawn, so a test that
+ * would touch a real home fails before the child starts.
+ */
+export function assertTempHome(home: string | undefined): void {
+  if (home === undefined || home === '') throw new Error('test HOME is unset')
+  const real = realOrResolved(home)
+  const temp = realOrResolved(tmpdir())
+  if (real !== temp && !real.startsWith(temp + sep)) {
+    throw new Error(`test HOME ${home} is outside the temporary directory ${temp}`)
+  }
+}
+
+/** A fresh sandbox whose home is `<root>/home`, every home-like path under it. */
+export function homeSandbox(): HomeSandbox {
+  const root = mkdtempSync(join(tmpdir(), 'cospec-home-'))
+  activeDirs.add(root)
+  const home = join(root, 'home')
+  const dirs = {
+    XDG_CONFIG_HOME: join(home, '.config'),
+    XDG_DATA_HOME: join(home, '.local', 'share'),
+    XDG_STATE_HOME: join(home, '.local', 'state'),
+    XDG_CACHE_HOME: join(home, '.cache'),
+    CODEX_HOME: join(home, '.codex'),
+  }
+  for (const dir of [home, ...Object.values(dirs)]) mkdirSync(dir, { recursive: true })
+  return {
+    root,
+    home,
+    env: {
+      HOME: home,
+      USERPROFILE: home,
+      ZDOTDIR: home,
+      PROFILE: join(home, '.config', 'powershell', 'Microsoft.PowerShell_profile.ps1'),
+      SHELL: '/bin/zsh',
+      // Bun's transpiler cache otherwise lands under HOME (Library/Caches on
+      // macOS), where the file snapshots would see it.
+      BUN_RUNTIME_TRANSPILER_CACHE_PATH: join(root, 'bun-transpiler-cache'),
+      ...dirs,
+    },
+    unset: HOME_UNSET,
+  }
+}
+
+/**
+ * The env and unset list for one sandboxed child: `extra` wins over the
+ * sandbox, and a variable the caller sets is never also unset.
+ */
+function sandboxed(
+  sandbox: HomeSandbox,
+  extra: { env?: Record<string, string>; unset?: readonly string[] } = {},
+): { env: Record<string, string>; unset: readonly string[] } {
+  const env: Record<string, string> = { ...sandbox.env, ...extra.env }
+  // A caller's unset removes the sandbox's own value too (SHELL, say), so the
+  // child inherits neither; it is listed for `cospec()` to delete from the
+  // inherited environment as well.
+  for (const key of extra.unset ?? []) delete env[key]
+  assertTempHome(env.HOME)
+  const unset = [...sandbox.unset, ...(extra.unset ?? [])].filter((key) => !(key in env))
+  return { env, unset }
+}
+
+/** Run the cospec CLI from source under `sandbox`. */
+export function homeCospec(
+  sandbox: HomeSandbox,
+  args: string[],
+  opts: { cwd: string; env?: Record<string, string>; unset?: readonly string[] },
+): Promise<SpawnResult> {
+  const { env, unset } = sandboxed(sandbox, opts)
+  return cospec(args, { cwd: opts.cwd, env, unset })
+}
+
+/**
+ * Run the pinned openspec binary under `sandbox`, with `OPENSPEC_NO_COMPLETIONS`
+ * set by the caller when a probe must stay quiet. The binary never inherits the
+ * suite's environment, so only the sandbox and `env` reach it.
+ */
+export function homeOpenspec(
+  sandbox: HomeSandbox,
+  args: string[],
+  opts: { cwd: string; env?: Record<string, string> },
+): Promise<SpawnResult> {
+  const { env } = sandboxed(sandbox, opts)
+  return openspecRaw(args, opts.cwd, env)
+}
+
+/**
+ * Whether a pseudo-terminal can be driven here. Bun's `terminal` spawn option
+ * is POSIX-only, so Windows hosts skip the pty rows.
+ */
+export function ptyAvailable(): boolean {
+  return process.platform !== 'win32'
+}
+
+/**
+ * Run `cmd` under a pseudo-terminal, so the child sees a TTY on stdin, stdout
+ * and stderr (the tip and the uninstall prompt both gate on one). Each
+ * `answers` pair types `reply` once `prompt` has appeared in the output, so an
+ * answer never lands before the child is reading (typed-ahead input can be
+ * dropped when the child switches the terminal into raw mode). Output is what
+ * the terminal received, stdout and stderr merged, with CRLF folded to LF.
+ * Skipped where `ptyAvailable()` is false.
+ */
+export async function ptyRun(
+  sandbox: HomeSandbox,
+  cmd: string[],
+  opts: {
+    cwd: string
+    env?: Record<string, string>
+    unset?: readonly string[]
+    answers?: readonly (readonly [prompt: string, reply: string])[]
+  },
+): Promise<{ output: string; exitCode: number }> {
+  const { env, unset } = sandboxed(sandbox, opts)
+  const childEnv: Record<string, string | undefined> = {
+    ...envWithoutColorForcing(),
+    NO_COLOR: '1',
+    ...env,
+  }
+  for (const key of unset) delete childEnv[key]
+  const chunks: Uint8Array[] = []
+  const answers = [...(opts.answers ?? [])]
+  let seen = ''
+  const decoder = new TextDecoder()
+  const proc = Bun.spawn(cmd, {
+    cwd: opts.cwd,
+    env: childEnv,
+    terminal: {
+      cols: 100,
+      rows: 40,
+      data(terminal, chunk) {
+        chunks.push(chunk)
+        seen += decoder.decode(chunk, { stream: true })
+        const next = answers[0]
+        if (next !== undefined && seen.includes(next[0])) {
+          answers.shift()
+          terminal.write(next[1])
+        }
+      },
+    },
+  })
+  const exitCode = await proc.exited
+  proc.terminal?.close()
+  const output = Buffer.concat(chunks).toString('utf8').replaceAll('\r\n', '\n')
+  if (answers.length > 0) {
+    throw new Error(`the child exited before the prompt ${JSON.stringify(answers[0]?.[0])}`)
+  }
+  return { output, exitCode }
 }

@@ -268,11 +268,17 @@ describe('cli dispatcher: help renders from the command table', () => {
     expect(setup.out).toContain('--path <dir>')
   })
 
-  test('pending subcommands and positionals stay out of help', async () => {
+  test('completion help lists its subcommands and every shell; pending flags stay out of help', async () => {
     const completion = await dispatch(['completion', '--help'])
-    expect(completion.out).toContain('Usage: cospec completion [bash|zsh|fish] [options]')
-    expect(completion.out).not.toMatch(/^ {2}(?:install|uninstall)\b/m)
-    expect(completion.out).not.toContain('powershell')
+    expect(completion.out).toContain(
+      'Usage: cospec completion [bash|zsh|fish|powershell] [options]',
+    )
+    expect(completion.out).toMatch(/^ {2}install +Install completion script for a shell$/m)
+    expect(completion.out).toMatch(/^ {2}uninstall +Uninstall completion script for a shell$/m)
+    expect(completion.out).toMatch(/^ {4}--verbose +Show detailed installation output$/m)
+    expect(completion.out).toMatch(/^ {4}-y, --yes +Skip confirmation prompts$/m)
+    const init = await dispatch(['init', '--help'])
+    expect(init.out).not.toContain('--language')
     // `update [path]` is handled (change `upstream-spellings`).
     const update = await dispatch(['update', '--help'])
     expect(update.out).toContain('Usage: cospec update [path] [options]')
@@ -656,7 +662,7 @@ describe('cli dispatcher: a -- before the command name', () => {
     expect(r.code).toBe(1)
     // `completion` reads it as its shell operand, never as the `--json` flag.
     expect(r.err).toBe(
-      "cospec completion: unsupported shell '--json' (supported: bash, zsh, fish)\n",
+      "cospec completion: unsupported shell '--json' (supported: bash, zsh, fish, powershell)\n",
     )
     expect(r.out).toBe('')
   })

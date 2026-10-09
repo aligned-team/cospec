@@ -179,16 +179,25 @@ a substitute for going through `cospec schema`. :::
 
 The three tiers above are all repo-local. OpenSpec also keeps one machine-global
 config file, `~/.config/openspec/config.json`, and `cospec config <sub>` wraps
-it — cospec never reads or writes that file itself, adds no validation of its
-own, and relays upstream's key validation, value coercion, and
-prototype-pollution guard as OpenSpec answers, its remedies spelled `cospec`
-(`Fix it with "cospec config edit", …`, and `profile <preset>`'s
+it — cospec never reads or writes that file itself except for the one key below,
+adds no validation of its own, and relays upstream's key validation, value
+coercion, and prototype-pollution guard as OpenSpec answers, its remedies
+spelled `cospec` (`Fix it with "cospec config edit", …`, and
+`profile <preset>`'s
 ``Config updated. Run `cospec update` in your projects to apply.``).
 
 `cospec config` with no subcommand (`--scope global` or not) prints
 `cospec config --help` on stderr and exits `1`, as OpenSpec prints its own
 `config` help there; under `--json` OpenSpec's refusal of `--json` at the
 `config` level (`error: unknown option '--json'`) is relayed instead.
+
+### `completionTipSeen`: runtime-managed
+
+cospec writes one key here itself. After the completion tip has shown once on a
+terminal, cospec sets `completionTipSeen: true` and never shows the tip again.
+It is runtime-managed, not a setting you tune, and OpenSpec reads the same flag,
+so a user who has seen OpenSpec's tip never sees cospec's. The tip's rules are
+on [Shell completion](/guide/installation#shell-completion).
 
 `cospec config` splits into two call classes:
 

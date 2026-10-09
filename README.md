@@ -117,7 +117,8 @@ grandfathering, and a blocking-changes ledger with auto-sync.
 | `cospec schemas` / `schema`      | inspect resolvable schemas (`schema which`/`validate`)                                            |
 | `cospec templates`               | list per-artifact template paths                                                                  |
 | `cospec config <sub>`            | machine-global OpenSpec config: `path`/`list`/`get`/`set`/`unset`/`reset`/`edit`/`profile`        |
-| `cospec completion [shell]`      | print a bash/zsh/fish completion script, generated natively (no install step)                     |
+| `cospec completion [shell]`      | print a bash/zsh/fish/powershell completion script, generated natively                            |
+| `cospec completion install`      | write that script and wire your shell to load it; `uninstall` removes both                        |
 | `cospec feedback "<msg>"`        | file a bug report at `aligned-team/cospec` via `gh`; `--upstream` files at OpenSpec's own tracker |
 
 Global flags on every command: `--json`, `--no-color`, `--cwd <path>`,
@@ -160,9 +161,9 @@ See [docs/stores.md](docs/stores.md). Full reference:
 ## Harness setup
 
 `cospec init --harness <list>` generates agent files by direct project-file
-injection — no marketplaces, no plugin packages, no global state. Every workflow
-calls only `cospec` commands, so a single permission entry covers the whole
-loop.
+injection — no marketplaces, no plugin packages, no global harness state. Every
+workflow calls only `cospec` commands, so a single permission entry covers the
+whole loop.
 
 - **Claude Code** — `.claude/commands/cospec/*.md` (`/cospec:propose …`) and
   `.claude/skills/cospec-*/SKILL.md`. init additively merges `Bash(cospec *)`

@@ -4,9 +4,10 @@ cospec generates agent files by **direct project-file injection** — the same
 model OpenSpec uses. No marketplaces, no plugin packages. Files land in the
 repo, with one deliberate home-directory root: `minimax-code` reads its skills
 only from `~/.minimax/skills`, so cospec writes them there. Global prompts
-(`~/.codex/prompts`), `CODEX_HOME`, `~/.claude` and shell completions stay out
-of scope. A Claude marketplace plugin could be layered later without changing
-this contract.
+(`~/.codex/prompts`), `CODEX_HOME` and `~/.claude` stay out of scope. Shell
+completion is not a harness file: `cospec completion install` writes one outside
+the repo only when asked (see `apps/docs/guide/installation.md`). A Claude
+marketplace plugin could be layered later without changing this contract.
 
 ## What gets written
 

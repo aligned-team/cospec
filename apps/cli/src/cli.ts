@@ -1,3 +1,4 @@
+import { homedir } from 'node:os'
 import { resolve } from 'node:path'
 
 import pkg from '../package.json'
@@ -24,7 +25,10 @@ import {
   type SubcommandSpec,
   jsonRefusal,
   takesNextToken,
+  VERSION_DESCRIPTION,
 } from './core/command-table.ts'
+import { offerCompletionTip } from './core/completion-tip.ts'
+import { isRelayedParseRefusal } from './core/parse-rejection.ts'
 import { RootSelectionError, rootSelectionDocument } from './core/root.ts'
 
 /** Global flags accepted before or after the subcommand on every command. */
@@ -170,7 +174,7 @@ Commands:
 ${rows}
 
 ${GLOBAL_OPTIONS}
-${renderLines([{ label: VERSION_LABEL, description: 'Show version' }], GLOBAL_LABEL_WIDTH)}
+${renderLines([{ label: VERSION_LABEL, description: VERSION_DESCRIPTION }], GLOBAL_LABEL_WIDTH)}
 
 Run 'cospec <command> --help' for command-specific help.
 `
@@ -673,6 +677,9 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
     cwd,
     ...(result?.ok === true ? { parsed: result.parsed } : {}),
   }
+  // A forward row's argv is parsed by the binary, so its parse refusal is only
+  // known from what the row relayed.
+  const tee = row.parse === 'forward' ? teeStandardStreams() : undefined
   let code: number
   try {
     code = await mod.run(ctx)
@@ -682,8 +689,66 @@ async function runCommand(row: CommandRow, call: CommandCall, state: GlobalState
     if (!(state.json && error instanceof RootSelectionError)) throw error
     process.stdout.write(rootSelectionDocument(error, mod.jsonFailurePayload))
     return EXIT.failure
+  } finally {
+    tee?.restore()
   }
+  // The binary's tip hangs off commander's postAction hook, which a parse
+  // refusal never reaches; a forward row that relayed one tips no more.
+  if (
+    tee !== undefined &&
+    code !== EXIT.success &&
+    isRelayedParseRefusal({ stdout: tee.stdout(), stderr: tee.stderr() })
+  ) {
+    return code
+  }
+  // After the command's own output and whatever its exit code. Help, parse
+  // refusals, unknown commands and thrown errors all return before this line.
+  await offerCompletionTip({
+    command: row.name,
+    hidden: row.hidden,
+    json: flags.json,
+    env: process.env,
+    home: homedir(),
+    platform: process.platform,
+    stderrIsTTY: process.stderr.isTTY === true,
+    stderr: (text) => {
+      process.stderr.write(text)
+    },
+    detectShell: async () =>
+      (await import('./commands/completion.ts')).detectShell(
+        process.env.SHELL,
+        process.env.PSModulePath,
+      ),
+  })
   return typeof code === 'number' ? code : EXIT.success
+}
+
+/**
+ * Records what is written to stdout and stderr, still passing every write
+ * through, until `restore`.
+ */
+function teeStandardStreams(): {
+  stdout(): string
+  stderr(): string
+  restore(): void
+} {
+  const seen = { stdout: '', stderr: '' }
+  const originals = { stdout: process.stdout.write, stderr: process.stderr.write }
+  for (const name of ['stdout', 'stderr'] as const) {
+    const original = originals[name]
+    process[name].write = function (this: unknown, chunk: unknown, ...rest: unknown[]) {
+      seen[name] += typeof chunk === 'string' ? chunk : Buffer.from(chunk as Uint8Array).toString()
+      return (original as (...args: unknown[]) => boolean).call(process[name], chunk, ...rest)
+    } as typeof process.stdout.write
+  }
+  return {
+    stdout: () => seen.stdout,
+    stderr: () => seen.stderr,
+    restore() {
+      process.stdout.write = originals.stdout
+      process.stderr.write = originals.stderr
+    },
+  }
 }
 
 /**

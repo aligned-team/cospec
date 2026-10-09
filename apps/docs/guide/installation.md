@@ -116,28 +116,90 @@ and how permissions are configured.
 
 ## Shell completion
 
-`cospec completion [bash|zsh|fish]` prints a completion script to stdout,
-generated natively from cospec's own command table — never a passthrough to
-OpenSpec's own completion installer, which writes a function that shells out to
-bare `openspec`. `cospec completion generate [shell]` is upstream's own spelling
-of the same command and works identically. There's no `install`/`uninstall`
-subcommand; wire the output into your shell yourself:
+`cospec completion [bash|zsh|fish|powershell]` prints a completion script to
+stdout, generated natively from cospec's own command table. It never passes
+through to OpenSpec's installer, which writes a function that shells out to bare
+`openspec`. `cospec completion generate [shell]` is upstream's own spelling of
+the same command and works identically.
 
-::: code-group
+`cospec completion install [shell]` writes that script to the shell's completion
+directory and wires the shell to load it. `cospec completion uninstall [shell]`
+removes both. Omit the shell argument and cospec detects it from `$SHELL`
+(PowerShell is detected from `PSModulePath` when `$SHELL` is unset).
 
-```sh [bash]
-echo 'eval "$(cospec completion bash)"' >> ~/.bashrc
+```sh
+cospec completion install            # detect the shell, write the script, wire the rc file
+cospec completion install zsh --verbose
+cospec completion uninstall bash -y  # remove without the confirmation prompt
 ```
 
-```sh [zsh]
-echo 'eval "$(cospec completion zsh)"' >> ~/.zshrc
+| Shell      | Script written to                                                 | Rc file edited                                                          |
+| ---------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| zsh        | `~/.zsh/completions/_cospec`                                      | `~/.zshrc`: `fpath` and `compinit`                                      |
+| zsh (OMZ)  | `$ZSH_CUSTOM/completions/_cospec` (default `~/.oh-my-zsh/custom`) | none, Oh My Zsh loads that directory                                    |
+| bash       | `~/.local/share/bash-completion/completions/cospec`               | `~/.bashrc`: sources every file in that directory                       |
+| fish       | `~/.config/fish/completions/cospec.fish`                          | none, fish autoloads that directory                                     |
+| PowerShell | `CospecCompletion.ps1` beside your `$PROFILE`                     | `$PROFILE`: dot-sources the script, on every profile path Windows lists |
+
+Oh My Zsh is detected the way upstream detects it: `$ZSH` is set, or
+`~/.oh-my-zsh` is a directory.
+
+What `install` does, and what `uninstall` undoes:
+
+- The rc edit is one block bracketed by `# COSPEC:START` and `# COSPEC:END`.
+  `uninstall` removes exactly that block, so the rc file is left as it was
+  before `install`.
+- When the script already exists with different bytes, `install` copies it to
+  `<script>.backup-<timestamp>` before overwriting it. The rc file is not backed
+  up. When both the script and the rc block are already current, `install`
+  changes nothing. When the script is current but the rc block is gone,
+  `install` writes the block back and says so.
+- `install` ends with the command that reloads your shell (`exec zsh`,
+  `exec bash`, `. $PROFILE`). Fish needs none: it loads the script as soon as it
+  exists, and `install` says so.
+- `uninstall` asks before it removes anything. Answer `y` or `yes` to remove;
+  any other answer cancels. `-y` (`--yes`) skips the prompt. With no terminal
+  and no `-y`, `uninstall` refuses and exits `1`, so a piped run never removes
+  anything by accident.
+- `--verbose` shows the detailed output, including the backup path when one is
+  made.
+
+Paths are derived from your home directory, not from `ZDOTDIR` or
+`XDG_CONFIG_HOME`. A zsh that reads `$ZDOTDIR/.zshrc` does not read the
+`~/.zshrc` that `install` edits, so for that setup add the same `fpath` and
+`compinit` lines to `$ZDOTDIR/.zshrc` yourself, pointing at the script's
+directory.
+
+Set `OPENSPEC_NO_AUTO_CONFIG=1` to keep `install` from editing any rc file on
+zsh, bash or PowerShell. It still writes the script and prints the lines to add
+by hand. Fish is unaffected, since it never edits an rc file.
+
+### The completion tip
+
+On an interactive terminal, the first time you run a cospec command without a
+completion script installed, cospec prints once, on stderr, after the command's
+own output:
+
+```txt
+Tip: Run 'cospec completion install' for shell completions
 ```
 
-```sh [fish]
-cospec completion fish > ~/.config/fish/completions/cospec.fish
-```
+The tip is recorded as `completionTipSeen: true` in the global config
+(`openspec/config.json` under `$XDG_CONFIG_HOME`, else `%APPDATA%` on Windows,
+else `~/.config`), so it never repeats, and OpenSpec reads the same flag. It is
+not shown when:
 
-:::
+- `CI` is set to anything other than `''`, `false`, `0`, `no` or `off`, or
+  `OPENSPEC_NO_COMPLETIONS` is exactly `1`;
+- the command is `--help`, `help`, `--json`, `completion`, a hidden command, or
+  the hidden `__complete`;
+- the run ended in a parse refusal (an unknown option, a missing value or
+  argument, too many arguments, an unknown command), including one OpenSpec's
+  parser raises for a command cospec forwards to it, such as
+  `cospec schemas --bogus`;
+- stderr is not a terminal (the tip waits for a run a person will read);
+- your shell is undetected or unsupported, or its completion script is already
+  installed.
 
 Omit the shell argument and cospec detects it from `$SHELL`. Completion covers
 every command and flag cospec declares, plus dynamic suggestions for change

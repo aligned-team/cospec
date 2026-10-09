@@ -407,19 +407,6 @@ const PENDING_ROWS: readonly Row[] = [
     expect: 'pending',
     pendingFlag: '--no-copilot-cloud',
   },
-  // Pending subcommands (the BREAKING note names these).
-  {
-    argv: ['completion', 'install'],
-    command: 'completion',
-    expect: 'pending',
-    pendingFlag: 'install',
-  },
-  {
-    argv: ['completion', 'uninstall'],
-    command: 'completion',
-    expect: 'pending',
-    pendingFlag: 'uninstall',
-  },
 ]
 
 /**

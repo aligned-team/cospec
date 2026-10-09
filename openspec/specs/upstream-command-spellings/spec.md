@@ -193,7 +193,7 @@ directory.
 `cospec completion [shell]`: the same script, the same `$SHELL` detection, the
 same refusals and the same `--json` refusal document. On both spellings the
 shell name SHALL be read case-insensitively, as upstream's `completion generate`
-lowercases it, a pending shell included.
+lowercases it, `powershell` included.
 
 #### Scenario: The same script under both spellings
 
@@ -205,7 +205,8 @@ lowercases it, a pending shell included.
 - **WHEN** `cospec completion generate BASH` runs
 - **THEN** it prints what `cospec completion generate bash` prints, exit 0
 - **AND WHEN** `cospec completion generate POWERSHELL` runs
-- **THEN** it answers exactly as `cospec completion generate powershell` does
+- **THEN** it prints what `cospec completion generate powershell` prints, which
+  is what `cospec completion powershell` prints, exit 0
 
 ### Requirement: Program-level help follows commander's help command
 

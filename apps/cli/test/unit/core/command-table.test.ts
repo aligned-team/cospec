@@ -329,10 +329,6 @@ const EXPECTED_PENDING: [string, string, PendingOwner][] = [
   ['init', '--profile', 'workflow-profiles'],
   ['init', '--copilot-cloud', 'github-copilot'],
   ['init', '--no-copilot-cloud', 'github-copilot'],
-  ['completion', 'install', 'completion-install'],
-  ['completion', 'uninstall', 'completion-install'],
-  ['completion', 'powershell', 'completion-install'],
-  ['completion generate', 'powershell', 'completion-install'],
 ]
 
 function pendingSurfaces(row: CommandRow): [string, string, PendingOwner][] {
@@ -371,10 +367,6 @@ describe('pending surfaces', () => {
     'init --profile': ['--profile', 'core'],
     'init --copilot-cloud': ['--copilot-cloud'],
     'init --no-copilot-cloud': ['--no-copilot-cloud'],
-    'completion install': ['install', 'zsh', '--verbose'],
-    'completion uninstall': ['uninstall', '-y'],
-    'completion powershell': ['powershell'],
-    'completion generate powershell': ['generate', 'powershell'],
   }
 
   /** The pending refusal `command surface` gets, named on the row it was typed on. */
@@ -387,15 +379,7 @@ describe('pending surfaces', () => {
     expect(r.message).toBe(`cospec ${command}: '${surface}' is not supported yet\n`)
   }
 
-  const GENERATE_POWERSHELL = 'completion generate powershell'
-  test.each(EXPECTED_PENDING.filter(([c, s]) => `${c} ${s}` !== GENERATE_POWERSHELL))(
-    '%s %s is refused as not supported yet',
-    expectPendingRefusal,
-  )
-
-  test(`${GENERATE_POWERSHELL} is refused as not supported yet`, () => {
-    expectPendingRefusal('completion generate', 'powershell', 'completion-install')
-  })
+  test.each(EXPECTED_PENDING)('%s %s is refused as not supported yet', expectPendingRefusal)
 
   // `PendingOwner` no longer names it at all; this also guards the data.
   test('no pending surface is owned by upstream-spellings', () => {
