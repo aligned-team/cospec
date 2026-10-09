@@ -1,0 +1,126 @@
+// The leftover scan reads every tool's own upstream output (design decision 12, verification
+// 5.3): for each row of `HARNESS_TABLE`, the pinned binary's live `init --tools <id>` output is
+// planted in a repo, doctor names every file it wrote under the tool's directories as
+// `opsx-leftover`, and `init --remove-opsx` deletes exactly those files and no cospec file.
+// Never compared against cospec's own output; the planted tree is the binary's.
+
+import { afterAll, describe, expect, test } from 'bun:test'
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { HARNESS_NAMES } from '../../src/harness/adapters.ts'
+import { cleanupAll, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.ts'
+import { assertNoAncestorOpenspec, CAPTURE_GLOBAL_CONFIG } from './support/upstream-init-capture.ts'
+import { oracleSpawn } from './support/upstream-oracle.ts'
+
+afterAll(cleanupAll)
+
+/** Rows whose output the scan does not yet read in full, and the task that makes it so. */
+const SWEEP_PENDING = new Map<string, string>([
+  ['opencode', '9.1'],
+  ['amazon-q', '9.1'],
+  ['auggie', '9.1'],
+  ['bob', '9.1'],
+  ['cline', '9.1'],
+  ['command-code', '9.1'],
+  ['continue', '9.1'],
+  ['costrict', '9.1'],
+  ['cursor', '9.1'],
+  ['factory', '9.1'],
+  ['gemini', '9.1'],
+  ['iflow', '9.1'],
+  ['junie', '9.1'],
+  ['kilocode', '9.1'],
+  ['kiro', '9.1'],
+  ['oh-my-pi', '9.1'],
+  ['pi', '9.1'],
+  ['codeassistant', '9.1'],
+  ['qwen', '9.1'],
+  ['roocode', '9.1'],
+])
+
+/** Every file under `dir` (relative, sorted), skipping `.git` and the repo's `openspec/` tree. */
+function toolFiles(dir: string, rel = ''): string[] {
+  const abs = join(dir, rel)
+  if (!existsSync(abs)) return []
+  return readdirSync(abs, { withFileTypes: true })
+    .flatMap((e) => {
+      const child = rel === '' ? e.name : `${rel}/${e.name}`
+      if (rel === '' && (e.name === '.git' || e.name === 'openspec')) return []
+      return e.isDirectory() ? toolFiles(dir, child) : [child]
+    })
+    .toSorted()
+}
+
+/** The pinned binary's `init --tools <id>` in its own sandbox; the project dir it wrote. */
+async function upstreamProject(tool: string): Promise<string> {
+  const sandbox = mkTempRepo()
+  assertNoAncestorOpenspec(sandbox)
+  const project = join(sandbox, 'project')
+  mkdirSync(project)
+  const env = oracleEnv(sandbox)
+  const configDir = join(env.XDG_CONFIG_HOME!, 'openspec')
+  mkdirSync(configDir, { recursive: true })
+  writeFileSync(join(configDir, 'config.json'), JSON.stringify(CAPTURE_GLOBAL_CONFIG, null, 2))
+  const spawn = oracleSpawn(['--no-color', 'init', '--tools', tool], sandbox, {
+    runtime: 'node',
+    cwd: project,
+  })
+  const proc = Bun.spawn(spawn.cmd, {
+    cwd: spawn.cwd,
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+    env: { ...spawn.env, USERPROFILE: env.HOME! },
+  })
+  const [stderr, exitCode] = await Promise.all([new Response(proc.stderr).text(), proc.exited])
+  if (exitCode !== 0) throw new Error(`upstream init --tools ${tool} failed: ${stderr}`)
+  Bun.spawnSync(['git', 'init', '-q'], { cwd: project })
+  return project
+}
+
+interface DoctorJson {
+  findings: { check: string; message: string }[]
+}
+
+async function sweepRow(id: string): Promise<void> {
+  const project = await upstreamProject(id)
+  const env = oracleEnv(mkTempRepo())
+  const wrote = toolFiles(project).filter((f) => !f.endsWith('/.openspec-target'))
+  expect(wrote.length).toBeGreaterThan(0)
+
+  const doctor = await cospec(['doctor', '--json'], { cwd: project, env })
+  const named = (JSON.parse(doctor.stdout) as DoctorJson).findings
+    .filter((f) => f.check === 'opsx-leftover')
+    .map((f) => /: (\S+) — /.exec(f.message)?.[1])
+    .toSorted()
+  expect(named).toEqual(wrote)
+
+  const run = await cospec(['init', '--harness', id, '--no-gate', '--remove-opsx', '--json'], {
+    cwd: project,
+    env,
+  })
+  expect(run.exitCode).toBe(0)
+  const doc = JSON.parse(run.stdout) as { opsx: { found: string[]; removed: boolean } }
+  expect(doc.opsx.found.toSorted()).toEqual(wrote)
+  expect(doc.opsx.removed).toBe(true)
+  for (const rel of wrote) expect(existsSync(join(project, rel))).toBe(false)
+  // What is left is cospec's own output and the shared-root marker, never a file the binary wrote.
+  for (const rel of toolFiles(project)) {
+    expect(wrote).not.toContain(rel)
+    if (rel.endsWith('.md'))
+      expect(readFileSync(join(project, rel), 'utf8')).not.toContain('`openspec ')
+  }
+}
+
+describe("the leftover scan reads each row's upstream output", () => {
+  for (const id of HARNESS_NAMES) {
+    const pending = SWEEP_PENDING.get(id)
+    const run = pending === undefined ? test : test.failing
+    run(
+      `${id}: doctor names, and --remove-opsx removes, every file the binary wrote${pending === undefined ? '' : ` (task ${pending})`}`,
+      () => sweepRow(id),
+      120_000,
+    )
+  }
+})
