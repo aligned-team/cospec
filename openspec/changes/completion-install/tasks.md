@@ -46,19 +46,19 @@
 
 ## 3. T1: the commands
 
-- [ ] 3.1 Write the failing tests first: unit tests for the shell resolver
+- [x] 3.1 Write the failing tests first: unit tests for the shell resolver
       (explicit argument case-insensitive, `$SHELL` with a login dash,
       `PSModulePath` when `$SHELL` is unset, `tcsh` refused naming all four
       shells, per operation) and for the install/uninstall output (messages,
       `--verbose` lines, the reload command per shell, `Uninstall cancelled.`,
       the non-terminal refusal naming `-y`). Verify they fail.
-- [ ] 3.2 Edit `apps/cli/src/core/command-table.ts`: the `install` and
+- [x] 3.2 Edit `apps/cli/src/core/command-table.ts`: the `install` and
       `uninstall` rows stop being `pendingSub` and gain `--verbose` and
       `-y, --yes`; `powershell` joins `values` on both shell positionals and
       `pendingValues` goes; rewrite the row's `notes` line. Verify
       `cospec     completion --help` and `cospec completion install --help` list
       them and `mise run test:contract` reachability still passes after 3.4.
-- [ ] 3.3 Edit `apps/cli/src/commands/completion.ts`: replace the "Generate-only
+- [x] 3.3 Edit `apps/cli/src/commands/completion.ts`: replace the "Generate-only
       by design" header, add `powershell` to `SUPPORTED_SHELLS`, extend
       `detectShell` with the `PSModulePath` fallback, add one shared resolver
       for `generate`, `install` and `uninstall`, and add the `install` and
@@ -66,7 +66,7 @@
       native `y/N` prompt, no spinner and no `console.debug`. Verify the 3.1
       tests pass and `cospec completion install --json` prints one refusal
       document.
-- [ ] 3.4 Remove the `[completion, install]`, `[completion, uninstall]` and the
+- [x] 3.4 Remove the `[completion, install]`, `[completion, uninstall]` and the
       two `powershell` `positional-value` entries (`completion` index 0 and
       `completion generate` index 0) from
       `apps/cli/test/contract/parity-pending.yaml`, the `completion-install`

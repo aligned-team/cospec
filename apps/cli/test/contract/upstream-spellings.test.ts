@@ -621,7 +621,8 @@ describe('1.14 completion generate reads the shell name case-insensitively, as t
     const root = mkTempRepo()
     const c = await runCospec(['completion', 'generate', 'POWERSHELL'], root)
     const ref = await runCospec(['completion', 'generate', 'powershell'], root)
-    expect(ref.exitCode).toBe(1)
+    expect(ref.exitCode).toBe(0)
+    expect(ref.stdout).toContain('Register-ArgumentCompleter -Native -CommandName cospec')
     expect({ exit: c.exitCode, stdout: c.stdout, stderr: c.stderr }).toEqual({
       exit: ref.exitCode,
       stdout: ref.stdout,

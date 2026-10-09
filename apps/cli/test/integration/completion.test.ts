@@ -1,4 +1,4 @@
-// `cospec completion [bash|zsh|fish]` and the hidden `cospec __complete` (DESIGN
+// `cospec completion [bash|zsh|fish|powershell]` and the hidden `cospec __complete` (DESIGN
 // §2, ledger rows 2.2–2.4). Generation is exercised through the real CLI
 // entrypoint (never by importing the render functions directly) so this proves
 // the wired-up command, not just the pure generator (that lives in
@@ -12,6 +12,7 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { COMMAND_TABLE } from '../../src/core/command-table.ts'
 import { cleanupAll, cospec, mkTempRepo, writeFiles } from '../fixtures/support.ts'
 import { authorCi } from './support.ts'
 
@@ -75,14 +76,49 @@ describe('cospec completion', () => {
     expect(res.stderr).toContain("unsupported shell 'tcsh'")
   })
 
-  // `powershell` is an upstream shell value owed to `completion-install`: the
-  // command table refuses it as pending before completion.ts runs.
-  test('powershell is refused as not supported yet, exit 1', async () => {
+  test('powershell prints the PowerShell script, as `generate powershell` does', async () => {
     const cwd = mkTempRepo()
     const res = await cospec(['completion', 'powershell'], { cwd })
-    expect(res.exitCode).toBe(1)
-    expect(res.stderr).toBe("cospec completion: 'powershell' is not supported yet\n")
-    expect(res.stdout).toBe('')
+    expect(res.exitCode).toBe(0)
+    expect(res.stderr).toBe('')
+    expect(res.stdout).toContain('Register-ArgumentCompleter -Native -CommandName cospec')
+    const generate = await cospec(['completion', 'generate', 'POWERSHELL'], { cwd })
+    expect(generate.stdout).toBe(res.stdout)
+    for (const row of COMMAND_TABLE) {
+      if (row.hidden) expect(res.stdout).not.toContain(`'${row.name}'`)
+      else expect(res.stdout).toContain(`'${row.name}'`)
+    }
+    // No invocation of the wrapped binary: its name only ever appears inside a
+    // flag's description, which the table words in prose ("a registered OpenSpec store").
+    expect(res.stdout.replace(/Description = '(?:[^']|'')*'/g, '')).not.toMatch(/openspec/i)
+    expect([...res.stdout].every((char) => char.codePointAt(0)! < 128)).toBe(true)
+  })
+
+  // These two never reach the installer: `--help` is answered before the
+  // module loads and `--json` is refused, so neither writes under the home the
+  // spawned process inherits.
+  test('--help lists install, uninstall, --verbose and -y, --yes', async () => {
+    const cwd = mkTempRepo()
+    const top = await cospec(['completion', '--help'], { cwd })
+    expect(top.exitCode).toBe(0)
+    expect(top.stdout).toContain('install')
+    expect(top.stdout).toContain('uninstall')
+    const install = await cospec(['completion', 'install', '--help'], { cwd })
+    expect(install.exitCode).toBe(0)
+    expect(install.stdout).toContain('--verbose')
+    const uninstall = await cospec(['completion', 'uninstall', '--help'], { cwd })
+    expect(uninstall.exitCode).toBe(0)
+    expect(uninstall.stdout).toContain('-y, --yes')
+  })
+
+  test('install and uninstall --json are refused with one document, nothing written', async () => {
+    const cwd = mkTempRepo()
+    for (const sub of ['install', 'uninstall']) {
+      const res = await cospec(['completion', sub, 'zsh', '--json'], { cwd })
+      expect(res.exitCode).toBe(1)
+      expect(res.stderr).toBe('')
+      expect(JSON.parse(res.stdout)).toMatchObject({ command: 'completion', ok: false })
+    }
   })
 
   test('--json is refused with exactly one JSON document on stdout, exit 1', async () => {

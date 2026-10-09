@@ -230,9 +230,6 @@ function sub(
     ...(surface.aliasOf !== undefined ? { aliasOf: surface.aliasOf } : {}),
   }
 }
-function pendingSub(name: string, summary: string, owner: PendingOwner): SubcommandSpec {
-  return { name, summary, status: pending(owner), origin: 'upstream', positionals: [], flags: [] }
-}
 
 // --- global flags ----------------------------------------------------------------
 
@@ -274,6 +271,9 @@ export function rowGlobalFlags(row: CommandRow): readonly FlagSpec[] {
 }
 
 // --- the table -------------------------------------------------------------------
+
+/** The shells `completion` prints, installs and uninstalls a script for. */
+const COMPLETION_SHELLS = ['bash', 'zsh', 'fish', 'powershell'] as const
 
 /** Row order is `--help`'s command order. */
 export const COMMAND_TABLE: readonly CommandRow[] = [
@@ -997,8 +997,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
       cospecArg({
         name: 'shell',
         required: false,
-        values: ['bash', 'zsh', 'fish'],
-        pendingValues: { powershell: 'completion-install' },
+        values: COMPLETION_SHELLS,
         foldCase: true,
       }),
     ],
@@ -1011,16 +1010,38 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
           upstreamArg({
             name: 'shell',
             required: false,
-            values: ['bash', 'zsh', 'fish'],
-            pendingValues: { powershell: 'completion-install' },
+            values: COMPLETION_SHELLS,
             foldCase: true,
           }),
         ],
       }),
-      pendingSub('install', 'Install completion script for a shell', 'completion-install'),
-      pendingSub('uninstall', 'Uninstall completion script for a shell', 'completion-install'),
+      sub('install', 'Install completion script for a shell', {
+        positionals: [
+          upstreamArg({
+            name: 'shell',
+            required: false,
+            values: COMPLETION_SHELLS,
+            foldCase: true,
+          }),
+        ],
+        flags: [upstream({ name: '--verbose', description: 'Show detailed installation output' })],
+      }),
+      sub('uninstall', 'Uninstall completion script for a shell', {
+        positionals: [
+          upstreamArg({
+            name: 'shell',
+            required: false,
+            values: COMPLETION_SHELLS,
+            foldCase: true,
+          }),
+        ],
+        flags: [upstream({ name: '--yes', short: '-y', description: 'Skip confirmation prompts' })],
+      }),
     ],
-    notes: ['(shell omitted: detected from $SHELL; the script is printed, never installed)'],
+    notes: [
+      '(shell omitted: detected from $SHELL; install writes the script and wires your',
+      ' shell to load it, uninstall removes both, and the bare form prints the script)',
+    ],
   },
   {
     name: 'feedback',

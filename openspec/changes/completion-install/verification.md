@@ -54,8 +54,8 @@ sandbox helper (task 5.1): `HOME`, `USERPROFILE`, `XDG_*`, `ZDOTDIR`,
 - [ ] 7.1 @integration (agent) `completion install` with `SHELL=/bin/tcsh`, `completion uninstall -y` likewise, and `completion` likewise -> each exit 1 naming bash, zsh, fish and powershell and the explicit form of its own operation, nothing written
 - [ ] 7.2 @integration (agent) `completion install` with `SHELL` unset and `PSModulePath` set -> installs PowerShell; `completion` there prints the PowerShell script
 - [ ] 7.3 @integration (agent) `completion install ZSH` and `completion generate POWERSHELL` -> case-insensitive, as upstream
-- [ ] 7.4 @integration (agent) `completion install --json`, `completion uninstall --json` and `completion zsh --json` -> each exactly one JSON refusal document on stdout, exit 1, nothing written
-- [ ] 7.5 @integration (agent) `cospec completion --help` and `cospec completion install --help` -> list `install`, `uninstall`, `--verbose` and `-y, --yes`; `completion install` no longer answers `is not supported yet`
+- [x] 7.4 @integration (agent) `completion install --json`, `completion uninstall --json` and `completion zsh --json` -> completion.test.ts: `install zsh --json` and `uninstall zsh --json` each print one `{command: completion, ok: false}` document, exit 1, empty stderr, and the dispatch unit test shows no `.zsh` created; `completion zsh --json` unchanged
+- [x] 7.5 @integration (agent) `cospec completion --help` and `cospec completion install --help` -> completion.test.ts and cli.test.ts: `completion --help` lists `install`, `uninstall`, `--verbose` and `-y, --yes`, the usage names powershell, and `install --help` and `uninstall --help` print them; `completion install` is a handled row, no longer refused as pending
 
 ## 8. The PowerShell script is cospec's
 
@@ -88,7 +88,7 @@ sandbox helper (task 5.1): `HOME`, `USERPROFILE`, `XDG_*`, `ZDOTDIR`,
 ## 12. The parity surface
 
 - [ ] 12.1 @regression (agent) `grep -c 'completion-install' apps/cli/test/contract/parity-pending.yaml` before and after, then `mise run test:contract` -> 4 entries before, 0 after; reachability resolves `completion install`, `completion uninstall` and both `powershell` values through the table, and parity-close-out passes
-- [ ] 12.2 @unit (agent) `command-table.test.ts` with the four `completion` pending rows removed -> `EXPECTED_PENDING` and the pending-refusal cases pass
+- [x] 12.2 @unit (agent) `command-table.test.ts` with the four `completion` pending rows removed -> command-table.test.ts: EXPECTED_PENDING holds the four `init` rows only, the four completion rows and the `completion generate powershell` case are gone -> 77 pass
 
 ## 13. The tests never touch the real home
 
