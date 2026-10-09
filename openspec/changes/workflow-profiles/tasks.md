@@ -83,7 +83,7 @@ rows write the `config.json` under test into the sandbox's
 
 ## 4. T3 — wrap every cross-workflow reference (`apps/cli/src/canon/workflows/*.md`)
 
-- [ ] 4.1 Write `test/unit/canon/workflow-references.test.ts` as `test.failing`
+- [x] 4.1 Write `test/unit/canon/workflow-references.test.ts` as `test.failing`
       (any `/cospec:<id>` outside a conditional branch, any marker id outside
       the manifest, and any fallback naming `/cospec:` fails, naming file and
       line) plus `test/unit/harness/narrowed-render.test.ts` (rendering the core
