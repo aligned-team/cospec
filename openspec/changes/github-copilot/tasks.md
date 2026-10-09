@@ -87,13 +87,13 @@ its failing tests before its code.
 
 ## 4. T3: `init --copilot-cloud` and `--no-copilot-cloud` (`commands/init.ts`)
 
-- [ ] 4.1 Write the failing unit tests for the parser: `occurrences` records
+- [x] 4.1 Write the failing unit tests for the parser: `occurrences` records
       long flags in argv order across alias, short and `=` spellings, and
       `lastFlagOf` returns `true`, `false` and `undefined` for
       `--copilot-cloud --no-copilot-cloud`, its reverse, a repeated flag and
       neither. Verify they fail first, then add `ParsedArgs.occurrences` and
       `lastFlagOf` in `core/command-table.ts`.
-- [ ] 4.2 Remove the three pending entries: delete the `github-copilot` block
+- [x] 4.2 Remove the three pending entries: delete the `github-copilot` block
       from `test/contract/parity-pending.yaml`, flip the two flag rows in
       `core/command-table.ts` from pending to handled, and update the four tests
       that assert pending (`test/unit/core/command-table.test.ts`

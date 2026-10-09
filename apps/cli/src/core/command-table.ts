@@ -333,12 +333,10 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
       upstream({
         name: '--copilot-cloud',
         description: 'Generate GitHub Copilot cloud coding-agent files',
-        status: pending('github-copilot'),
       }),
       upstream({
         name: '--no-copilot-cloud',
         description: 'Skip generating GitHub Copilot cloud coding-agent files',
-        status: pending('github-copilot'),
       }),
     ],
   },
@@ -1247,6 +1245,13 @@ export interface ParsedArgs {
   readonly flags: Readonly<Record<string, string | true>>
   /** The alias spelling that supplied a flag's value, keyed by the flag's name. */
   readonly spellings?: Readonly<Record<string, string>>
+  /**
+   * Every long flag typed, in argv order, each under the flag it spells (an alias or a short
+   * flag lands under its long name, an `=` value under its flag); absent when none was typed.
+   * `flags` keeps only one entry per flag, so a pair whose last occurrence decides
+   * (`--copilot-cloud` / `--no-copilot-cloud`) reads the order here, through `lastFlagOf`.
+   */
+  readonly occurrences?: readonly string[]
 }
 
 export type ParseResult =
@@ -1255,6 +1260,23 @@ export type ParseResult =
 
 export function hasFlag(parsed: ParsedArgs, name: `--${string}`): boolean {
   return parsed.flags[name] !== undefined
+}
+
+/**
+ * Which of a flag pair was typed last: `true` for `positive`, `false` for `negative`, and
+ * `undefined` when neither was typed. Commander's own rule for `--x` / `--no-x`.
+ */
+export function lastFlagOf(
+  parsed: ParsedArgs,
+  positive: `--${string}`,
+  negative: `--${string}`,
+): boolean | undefined {
+  const typed = parsed.occurrences ?? []
+  for (let i = typed.length - 1; i >= 0; i--) {
+    if (typed[i] === positive) return true
+    if (typed[i] === negative) return false
+  }
+  return undefined
 }
 
 /** A value-taking flag's value; undefined when absent. */
@@ -1442,6 +1464,7 @@ function parseSurface(
   const positionals: string[] = []
   const flags: Record<string, string | true> = {}
   const spellings: Record<string, string> = {}
+  const occurrences: string[] = []
   const storePath: ParseRefusal = { kind: 'store-path', command, message: STORE_PATH_TEXT }
   // Commander's order: a missing value is raised the moment the scan meets it,
   // while an unknown option is collected and reported only after the scan,
@@ -1520,6 +1543,7 @@ function parseSurface(
     // An alias and the flag it spells are one option: the last one typed wins.
     const key = flag.aliasOf ?? flag.name
     flags[key] = value
+    occurrences.push(key)
     if (flag.aliasOf !== undefined) spellings[key] = flag.name
     else delete spellings[key]
   }
@@ -1558,8 +1582,12 @@ function parseSurface(
   }
 
   if (sawStorePath) return { ok: false, refusal: storePath }
-  const parsed: ParsedArgs =
-    Object.keys(spellings).length > 0 ? { positionals, flags, spellings } : { positionals, flags }
+  const parsed: ParsedArgs = {
+    positionals,
+    flags,
+    ...(Object.keys(spellings).length > 0 ? { spellings } : {}),
+    ...(occurrences.length > 0 ? { occurrences } : {}),
+  }
   return { ok: true, parsed }
 }
 
