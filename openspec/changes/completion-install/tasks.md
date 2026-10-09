@@ -163,7 +163,7 @@
       result after `->`, every install and uninstall row run under a temporary
       `HOME`; verify `mise run cospec -- validate completion-install --strict`
       passes and no row is a bare `[ ]`.
-- [ ] 7.3 Tick this box last, after every other task and every ledger row: the
+- [x] 7.3 Tick this box last, after every other task and every ledger row: the
       archive commit follows this one, so the change is archived as the final
       commit on the PR branch and never in a PR of its own. Verify with
       `mise run cospec -- validate completion-install --strict`.
