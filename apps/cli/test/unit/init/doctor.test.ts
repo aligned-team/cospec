@@ -227,6 +227,48 @@ describe('cospec doctor (DESIGN §2.3)', () => {
     })
   })
 
+  describe('verification.layers in the config', () => {
+    const layerWarnings = async (config: string): Promise<JsonFinding[]> => {
+      seed(dir)
+      writeFileSync(join(dir, 'openspec/config.yaml'), config)
+      const { code, findings } = await doctorJson(dir)
+      expect(code).toBe(0)
+      return findings.filter((f) => f.check === 'config' && f.message.includes('verification'))
+    }
+
+    test.each([
+      ['verification is a scalar', 'verification: uat\n', '`verification` is not a mapping'],
+      [
+        'layers is a scalar',
+        'verification:\n  layers: uat\n',
+        '`verification.layers` is not a list',
+      ],
+      [
+        'layers is a mapping',
+        'verification:\n  layers:\n    uat: true\n',
+        '`verification.layers` is not a list',
+      ],
+      ['a non-string entry', 'verification:\n  layers: [uat, 7]\n', '7'],
+      ['an entry with whitespace', 'verification:\n  layers: ["two words"]\n', '"two words"'],
+      ['an empty entry', 'verification:\n  layers: [uat, ""]\n', '""'],
+    ])('a malformed declaration warns (%s)', async (_name, config, detail) => {
+      const found = await layerWarnings(config)
+      expect(found).toHaveLength(1)
+      expect(found[0]?.level).toBe('WARNING')
+      expect(found[0]?.message).toContain(detail)
+    })
+
+    test.each([
+      ['absent', 'schema: feat\n'],
+      ['block list', 'verification:\n  layers:\n    - uat\n'],
+      ['flow list, @-prefixed', 'verification:\n  layers: ["@uat", staging]\n'],
+      ['verification with no value', 'verification:\n'],
+      ['layers with no value', 'verification:\n  layers:\n'],
+    ])('a well-formed or absent declaration is silent (%s)', async (_name, config) => {
+      expect(await layerWarnings(config)).toEqual([])
+    })
+  })
+
   // `generatedBy` here is an arbitrary openspec version, not cospec's pin: the
   // detector matches the SHAPE (`author: openspec` + a bare semver), and the
   // `.agents/` case below deliberately uses a different one.

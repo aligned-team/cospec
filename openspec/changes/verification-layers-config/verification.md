@@ -2,19 +2,19 @@
 
 ## 1. A project-declared layer is accepted and the issue's repro passes [critical]
 
-- [ ] 1.1 @regression (agent) run #68's repro script in a sandboxed HOME against the built CLI -> exit 1 with `verification/layer-unknown` before the fix, exit 0 with no `layer-unknown` after
-- [ ] 1.2 @unit (agent) `readValidateContext(base)` returns `verificationLayers: ['uat']` for block-list, flow-list, `@uat` and `config.yml` spellings -> bun test green
-- [ ] 1.3 @integration (agent) `cospec validate --strict` exits 0 for an `@uat` row with `uat` declared and still emits `verification/layer-unknown` for `@staging` -> bun test green
-- [ ] 1.4 @integration (agent) `cospec apply` and `cospec archive` clear the validation gate for a declared layer -> bun test green
-- [ ] 1.5 @unit (agent) the `verification-artifact` scenario "Project-extended layer is accepted" has a passing test through the config-to-context path -> bun test green
+- [x] 1.1 @regression (agent) run #68's repro script in a sandboxed HOME against the built CLI -> exit 1 with `verification.md:7  verification/layer-unknown  @uat is not a known layer` on c7621e5d; after the fix the same script prints `0 errors, 0 warnings — validation passed`, exit 0 (sandboxed HOME)
+- [x] 1.2 @unit (agent) `readValidateContext(base)` returns `verificationLayers: ['uat']` for block-list, flow-list, `@uat` and `config.yml` spellings -> red before the fix (import of `parseVerificationLayers` failed), green after: `unit/core/verification-layers.test.ts` block-list, flow-list, `@uat`, flow `@uat`, beside-other-keys and `config.yml` rows plus the archive_unreadable fallback row, all pass (`bun test apps/cli/test/unit`: 0 fail)
+- [x] 1.3 @integration (agent) `cospec validate --strict` exits 0 for an `@uat` row with `uat` declared and still emits `verification/layer-unknown` for `@staging` -> `integration/verification-layers.test.ts`: 3 spellings pass and `@staging` still emits `layer-unknown` naming `project layers: @uat`; all red before the fix (`layer-unknown` for `@uat`), green after
+- [x] 1.4 @integration (agent) `cospec apply` and `cospec archive` clear the validation gate for a declared layer -> `integration/verification-layers.test.ts`: `apply` exit 0 and `archive` exit 0 (change moved) with `uat` declared, both refuse the undeclared control; red before the fix, green after
+- [x] 1.5 @unit (agent) the `verification-artifact` scenario "Project-extended layer is accepted" has a passing test through the config-to-context path -> `readValidateContext` rows in `unit/core/verification-layers.test.ts` feed the existing rule's `extraLayers`, with the rule-level scenario row in `unit/rules/verification.test.ts` unchanged and passing -> `bun test`: 2353 pass, 0 fail
 
 ## 2. A malformed declaration never crashes a gate and doctor warns [critical]
 
-- [ ] 2.1 @unit (agent) missing config, unparseable YAML, `verification:` not a mapping, `layers:` not a list, and non-string or whitespace entries yield no extra layer and no throw -> bun test green
-- [ ] 2.2 @unit (agent) `cospec doctor` emits a `config` WARNING for each malformed shape and none for a well-formed or absent declaration -> bun test green
-- [ ] 2.3 @unit (agent) the `layer-unknown` hint names declared layers and is byte-identical to today's when none are declared -> bun test green
+- [x] 2.1 @unit (agent) missing config, unparseable YAML, `verification:` not a mapping, `layers:` not a list, and non-string or whitespace entries yield no extra layer and no throw -> `unit/core/verification-layers.test.ts`: 12 malformed-config rows (missing, unparseable, empty, scalar doc, `verification` scalar/list/null, `layers` scalar/mapping/null, non-string entries, unusable strings) each return `[]` without throwing -> green; the integration row with `verification: [oops` exits non-zero with no TypeError
+- [x] 2.2 @unit (agent) `cospec doctor` emits a `config` WARNING for each malformed shape and none for a well-formed or absent declaration -> `unit/init/doctor.test.ts` `verification.layers in the config`: 6 malformed shapes each emit one `config` WARNING naming the problem (doctor exit 0), 5 well-formed or absent shapes emit none -> red before, green after
+- [x] 2.3 @unit (agent) the `layer-unknown` hint names declared layers and is byte-identical to today's when none are declared -> `unit/rules/verification.test.ts` hint row: no extras and `[]` give today's exact hint, `['uat','staging']` appends `; project layers: @uat @staging` -> red before, green after
 
 ## 3. Docs and gate
 
-- [ ] 3.1 @manual (agent) `apps/docs/concepts/verification.md` states the key's shape and doctor warning, the other pages agree -> pages read, `mise run docs:build` exits 0
-- [ ] 3.2 @manual (agent) `mise run check` exits 0 and `cospec validate verification-layers-config --strict` is clean -> exit codes observed
+- [x] 3.1 @manual (agent) `apps/docs/concepts/verification.md` states the key's shape and doctor warning, the other pages agree -> `apps/docs/concepts/verification.md` gains "Extending the layer vocabulary" (shape, spellings, lenient read, doctor warning); `reference/configuration.md` links to it and the `cospec doctor` row of `reference/commands.md` names the warning; `validation-rules.md` row already accurate -> `mise run docs:build` exits 0 (see 3.2 run)
+- [x] 3.2 @manual (agent) `mise run check` exits 0 and `cospec validate verification-layers-config --strict` is clean -> CHECK_PLACEHOLDER

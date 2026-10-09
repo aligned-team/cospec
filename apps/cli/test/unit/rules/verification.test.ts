@@ -83,6 +83,24 @@ describe('grammar and vocabulary rules', () => {
     expect(rules(issues)).not.toContain('verification/layer-unknown')
   })
 
+  test('the layer-unknown hint names the declared layers, and is unchanged with none', () => {
+    const change = makeChange({
+      verificationText: '## 1. G [critical]\n- [ ] 1.1 @smoke run -> pass',
+    })
+    const hintOf = (extraLayers?: readonly string[]): string | undefined =>
+      verificationRules(change, feat, { strict: false, extraLayers }).find(
+        (i) => i.rule === 'verification/layer-unknown',
+      )?.hint
+    const bare = hintOf()
+    expect(bare).toBe(
+      'core layers: @unit @integration @e2e @manual @runtime @regression @equivalence @benchmark @eval — extend via openspec/config.yaml verification.layers',
+    )
+    expect(hintOf([])).toBe(bare)
+    expect(hintOf(['uat', 'staging'])).toBe(
+      'core layers: @unit @integration @e2e @manual @runtime @regression @equivalence @benchmark @eval; project layers: @uat @staging — extend via openspec/config.yaml verification.layers',
+    )
+  })
+
   test('verification/owner-unknown for a bad owner token', () => {
     const issues = verificationRules(
       makeChange({ verificationText: '## 1. G [critical]\n- [ ] 1.1 @e2e (bot) run -> pass' }),

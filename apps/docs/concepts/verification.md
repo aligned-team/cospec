@@ -37,8 +37,8 @@ as you implement, in step with `tasks.md`.
   deferred (must carry `defer: <reason>`).
 - **`@<layer>`** — a closed vocabulary: `@unit @integration @e2e @manual
 @runtime @regression @equivalence @benchmark @eval`. Projects can extend it
-  via `openspec/config.yaml` (`verification.layers`); an unrecognized token
-  fails closed.
+  via `openspec/config.yaml` (`verification.layers`, below); an unrecognized
+  token fails closed.
 - **`(<owner>)`** — optional, `(agent)` or `(human)`. Defaults: `@manual`
   implies `(human)`, everything else implies `(agent)`. A `(human)`/`@manual`
   row is flagged in reports as CI-uncatchable — something no pipeline can
@@ -49,6 +49,30 @@ as you implement, in step with `tasks.md`.
 
 As you implement, mark each row `[x]` with the observed result after `->`,
 or `[~] defer: <reason>` for a row you deliberately won't run.
+
+### Extending the layer vocabulary
+
+List the extra layers under `verification.layers` in `openspec/config.yaml`
+(else `config.yml`):
+
+```yaml
+verification:
+  layers:
+    - uat
+    - staging
+```
+
+A row tagged `@uat` or `@staging` then passes `verification/layer-unknown` in
+`validate`, `apply`, `archive` and `sync-specs`; any other token still fails
+closed, and the error's hint names the layers your config declares. An entry may
+be written with or without a leading `@` (`"@uat"`), and one that repeats a core
+layer is harmless. Each entry must be a single token without spaces.
+
+The setting is read leniently, so a typo never crashes a gate: a missing or
+unparseable config, a `verification` that is not a mapping, a `layers` that is
+not a list, or an entry that is not a non-empty string adds no layer for it.
+Since that fails closed as `verification/layer-unknown`, `cospec doctor` reports
+a malformed `verification.layers` as a `config` warning.
 
 ## Per-type required rows
 

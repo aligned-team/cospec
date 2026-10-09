@@ -56,8 +56,9 @@ For the full key reference and syntax, see OpenSpec's
 
 One extra vocabulary lever lives here too: `verification.layers` lets you extend
 the closed set of `@<layer>` tokens (`@unit`, `@e2e`, `@manual`, and so on) that
-verification rows can cite — see [Verification](/concepts/verification) for the
-full grammar.
+verification rows can cite — see
+[Verification](/concepts/verification#extending-the-layer-vocabulary) for the
+key's shape and the full grammar.
 
 ### Per-change metadata: `skip_specs` and `retire_capabilities`
 
