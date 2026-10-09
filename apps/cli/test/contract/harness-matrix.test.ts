@@ -87,31 +87,9 @@ const SHIPPED_ROWS = ['claude', 'codex', 'opencode', 'agents']
 
 /** Rows not yet in `HARNESS_TABLE`, each with the tasks.md item that adds it. */
 const PENDING_ROWS = new Map<string, string>([
-  ['codeartsagent', '6.2'],
-  ['forgecode', '6.2'],
-  ['vibe', '6.2'],
-  ['hermes', '6.3'],
-  ['kimi', '6.4'],
   ['minimax-code', '6.5'],
-  ['rovodev', '6.6'],
   ['zed', '6.7'],
-  ['oh-my-pi', '7.5'],
-  ['command-code', '7.6'],
-  ['roocode', '7.7'],
-  ['amazon-q', '8.2'],
   ['antigravity', '8.3'],
-  ['cline', '8.4'],
-  ['devin', '8.5'],
-  ['kilocode', '8.6'],
-  ['pi', '8.6'],
-  ['codebuddy', '8.7'],
-  ['crush', '8.7'],
-  ['lingma', '8.7'],
-  ['qoder', '8.7'],
-  ['zcode', '8.7'],
-  ['continue', '8.8'],
-  ['kiro', '8.8'],
-  ['gemini', '8.8'],
 ])
 
 type Check = 'detectionPaths' | 'legacyToolRoots' | 'initDetection'

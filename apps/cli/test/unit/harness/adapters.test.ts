@@ -270,16 +270,38 @@ describe('HARNESS_TABLE invariants', () => {
       'codex',
       'opencode',
       'agents',
+      'amazon-q',
       'auggie',
       'bob',
+      'cline',
+      'command-code',
+      'codeartsagent',
+      'devin',
+      'forgecode',
+      'codebuddy',
+      'continue',
       'costrict',
+      'crush',
       'cursor',
       'factory',
+      'gemini',
+      'hermes',
       'iflow',
       'junie',
+      'kilocode',
+      'kimi',
+      'kiro',
+      'lingma',
+      'vibe',
+      'oh-my-pi',
+      'pi',
       'codeassistant',
+      'qoder',
       'qwen',
+      'rovodev',
+      'roocode',
       'trae',
+      'zcode',
     ])
     expect(HARNESS_NAMES).toEqual(ids)
   })
@@ -336,6 +358,45 @@ describe('HARNESS_TABLE invariants', () => {
   })
 })
 
+const primary = [
+  '.claude',
+  '.codex',
+  '.opencode',
+  '.agents',
+  '.amazonq',
+  '.augment',
+  '.bob',
+  '.clinerules',
+  '.commandcode',
+  '.codeartsdoer',
+  '.devin',
+  '.forge',
+  '.codebuddy',
+  '.continue',
+  '.cospec',
+  '.crush',
+  '.cursor',
+  '.factory',
+  '.gemini',
+  '.hermes',
+  '.iflow',
+  '.junie',
+  '.kilocode',
+  '.kimi-code',
+  '.kiro',
+  '.lingma',
+  '.vibe',
+  '.omp',
+  '.pi',
+  '.codeassistant',
+  '.qoder',
+  '.qwen',
+  '.rovodev',
+  '.roo',
+  '.trae',
+  '.zcode',
+]
+
 describe('HARNESS_TABLE derived roots', () => {
   test("scan roots are the shipped `.<id>` roots, then each row's upstream root", () => {
     expect(scanRoots()).toEqual([
@@ -343,16 +404,39 @@ describe('HARNESS_TABLE derived roots', () => {
       '.codex',
       '.opencode',
       '.agents',
+      '.amazonq',
       '.augment',
       '.bob',
+      '.clinerules',
+      '.commandcode',
+      '.codeartsdoer',
+      '.devin',
+      '.forge',
+      '.codebuddy',
+      '.continue',
       '.cospec',
+      '.crush',
       '.cursor',
       '.factory',
+      '.gemini',
+      '.hermes',
       '.iflow',
       '.junie',
+      '.kilocode',
+      '.kimi-code',
+      '.kiro',
+      '.lingma',
+      '.vibe',
+      '.omp',
+      '.pi',
       '.codeassistant',
+      '.qoder',
       '.qwen',
+      '.rovodev',
+      '.roo',
       '.trae',
+      '.zcode',
+      '.cline',
     ])
   })
 
@@ -364,45 +448,56 @@ describe('HARNESS_TABLE derived roots', () => {
       '.codex',
       '.opencode',
       '.agents',
+      '.amazonq',
       '.augment',
       '.bob',
+      '.clinerules',
+      '.commandcode',
+      '.codeartsdoer',
+      '.devin',
+      '.forge',
+      '.codebuddy',
+      '.continue',
       '.cospec',
+      '.crush',
       '.cursor',
       '.factory',
+      '.gemini',
+      '.hermes',
       '.iflow',
       '.junie',
+      '.kilocode',
+      '.kimi-code',
+      '.kiro',
+      '.lingma',
+      '.vibe',
+      '.omp',
+      '.pi',
       '.codeassistant',
+      '.qoder',
       '.qwen',
+      '.rovodev',
+      '.roo',
       '.trae',
+      '.zcode',
     ])
   })
 
   test('removal roots are openspec plus every tool root', () => {
-    expect(new Set(removalRoots())).toEqual(
-      new Set([
-        'openspec',
-        '.claude',
-        '.agents',
-        '.opencode',
-        '.codex',
-        '.augment',
-        '.bob',
-        '.cospec',
-        '.cursor',
-        '.factory',
-        '.iflow',
-        '.junie',
-        '.codeassistant',
-        '.qwen',
-        '.trae',
-      ]),
-    )
-    expect(removalRoots()).toHaveLength(15)
+    expect(new Set(removalRoots())).toEqual(new Set(['openspec', ...primary, '.cline']))
+    expect(removalRoots()).toHaveLength(38)
   })
 
   test("each scan root's skills are harness documents; its rules and stray prompts are not", () => {
+    // A scan root that is only a commands root (Cline's `.clinerules`) holds no skills; a
+    // legacy skills root (Codex's `.codex`) still does.
+    const skillRoots = new Set<string | undefined>()
+    for (const row of HARNESS_TABLE as readonly HarnessAdapter[]) {
+      skillRoots.add(row.skillsDir)
+      for (const legacy of row.legacySkillsDirs ?? []) skillRoots.add(legacy)
+    }
     for (const root of scanRoots()) {
-      expect(isHarnessDocument(`${root}/skills/cospec-explore/SKILL.md`)).toBe(true)
+      expect(isHarnessDocument(`${root}/skills/cospec-explore/SKILL.md`)).toBe(skillRoots.has(root))
       expect(isHarnessDocument(`${root}/rules/cospec.rules`)).toBe(false)
       expect(isHarnessDocument(`${root}/commands/cospec-new.prompt`)).toBe(false)
     }

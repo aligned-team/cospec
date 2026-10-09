@@ -1,0 +1,218 @@
+[
+  {
+    "path": ".devin/skills/cospec-apply-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "apply",
+    "harness": "devin",
+    "contentHash": "sha256:9e30e79f7dda83a89ae8adb885263f9eb5a10e7a385cc403f7d72c66fe521d4b",
+    "bytes": 2273,
+    "sha256": "0225d7bb3baa06b82ee76408433342b6e6ce8a26e0af6a9c6381f070aacbccf1"
+  },
+  {
+    "path": ".devin/skills/cospec-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "archive",
+    "harness": "devin",
+    "contentHash": "sha256:36e96e1d8f0c4ed338183b20d77114de85ce3b9ce8a98518de673d2d7bbf4dcb",
+    "bytes": 3095,
+    "sha256": "29374632ba97d190b58afb30f626d7e282e8ce043d19caf527583369c5b28f1f"
+  },
+  {
+    "path": ".devin/skills/cospec-bulk-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "bulk-archive",
+    "harness": "devin",
+    "contentHash": "sha256:80e856ac6307583b37a0f77e2a5621654cc5057220aa31aedf664481e4c3e7d0",
+    "bytes": 3054,
+    "sha256": "1bec7eba29b976f6a4b5276219d6ceab811ce6e9d3466ba1b601adaee3edeb12"
+  },
+  {
+    "path": ".devin/skills/cospec-continue-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "continue",
+    "harness": "devin",
+    "contentHash": "sha256:4ba87d509fcfc8f6e1ad11de2e6ca229f06938814bd31d8beb051ff7c5a7d680",
+    "bytes": 2509,
+    "sha256": "36cfb147c75ca3cd2c71a75cc256cf54bccf51531de5c193e3ebb0c93d4c36cb"
+  },
+  {
+    "path": ".devin/skills/cospec-explore/SKILL.md",
+    "kind": "skill",
+    "workflow": "explore",
+    "harness": "devin",
+    "contentHash": "sha256:c9ee139f903dee97f4e6e5ef4ac53fa6b1e203d7854e978103e79611be1a46a8",
+    "bytes": 6730,
+    "sha256": "fa63cfb67385c460b3d579f49cd8682042447f23634d58161738e8dbc559ba67"
+  },
+  {
+    "path": ".devin/skills/cospec-ff-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "ff",
+    "harness": "devin",
+    "contentHash": "sha256:4ca91cebbb6adc5ae14806635e66f2076c23ad6ca98e5c66c148c7c87417f966",
+    "bytes": 3552,
+    "sha256": "79336e99ae79974c638f92362a7a24db23fa22c45afa80e664c7c3c0c126acea"
+  },
+  {
+    "path": ".devin/skills/cospec-new-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "new",
+    "harness": "devin",
+    "contentHash": "sha256:ad5cbb7f5171f0fc15f12d45c931d98cbc2ade108fb6e080dfc1e33c1ce7613a",
+    "bytes": 3349,
+    "sha256": "349492294518d8a3397e7e3c4c44ee843967fe6a9a4d258eb3bb2382328ad0db"
+  },
+  {
+    "path": ".devin/skills/cospec-onboard/SKILL.md",
+    "kind": "skill",
+    "workflow": "onboard",
+    "harness": "devin",
+    "contentHash": "sha256:eab6ab2db9e5574f080925dfa56ae54d0f8e52036a7aaa2f1324cb9ba89508e1",
+    "bytes": 3195,
+    "sha256": "f982279ab89b21132728dd6e54243e90fcf04e18d2ef22df53beb473622fca47"
+  },
+  {
+    "path": ".devin/skills/cospec-propose/SKILL.md",
+    "kind": "skill",
+    "workflow": "propose",
+    "harness": "devin",
+    "contentHash": "sha256:d58a4bfdafde05607a0f4237bf6308635e4baf0e71efc0c4fc84891b4874b014",
+    "bytes": 6514,
+    "sha256": "8e9fbf7865c4ebfadf1f5f00dde08e82fbb1dcea41784e9cebdaf5c53b0e6326"
+  },
+  {
+    "path": ".devin/skills/cospec-sync-specs/SKILL.md",
+    "kind": "skill",
+    "workflow": "sync-specs",
+    "harness": "devin",
+    "contentHash": "sha256:3626f08c77d66e84d1331db25b0f989fdba7f8c0fc22816c49e12cf8b96f703f",
+    "bytes": 3087,
+    "sha256": "cd4d26f81efe6b9ec4551ab70d2aed1d53fd8e285947a77bd90d4e6b76085d4c"
+  },
+  {
+    "path": ".devin/skills/cospec-update-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "update",
+    "harness": "devin",
+    "contentHash": "sha256:6174310de78dd7a66b60ff088871dd23be3d8f220ac19c3e5e218edf5c115147",
+    "bytes": 4345,
+    "sha256": "d20038103a04c57d490b4f73ce2a9bbdb837dd94441c8a247cc64f5a3b5cdd1a"
+  },
+  {
+    "path": ".devin/skills/cospec-verify-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "verify",
+    "harness": "devin",
+    "contentHash": "sha256:dc92449f088f7b2e74596f5ef31fd51c7c8ae59ebf7ed5e803b7f4536b63a92c",
+    "bytes": 2650,
+    "sha256": "a67be9653be8bb05743a3eab8c4ef0b1534cdbb9649da9ccc2d39e7bc32da968"
+  },
+  {
+    "path": ".devin/workflows/cospec-apply.md",
+    "kind": "command",
+    "workflow": "apply",
+    "harness": "devin",
+    "contentHash": "sha256:0a592f8e240b1a1b70b0b40785fb1bb04f25702de3e264af0fff88b45b824635",
+    "bytes": 2235,
+    "sha256": "7b2704c47ab5e48141cc37e19ca5fc87ceb820bd62bc3f1b09073eccc0c36834"
+  },
+  {
+    "path": ".devin/workflows/cospec-archive.md",
+    "kind": "command",
+    "workflow": "archive",
+    "harness": "devin",
+    "contentHash": "sha256:1f0e3bc2a8cf332628b0a74650bb73691913e94445ae43074167315b946548f6",
+    "bytes": 3057,
+    "sha256": "7a9258cdf96dbb0e580553e44455f0afa49ae48c2a305cd865e88b8c7cbe29c8"
+  },
+  {
+    "path": ".devin/workflows/cospec-bulk-archive.md",
+    "kind": "command",
+    "workflow": "bulk-archive",
+    "harness": "devin",
+    "contentHash": "sha256:a530a027e099f802ba55426c09dae1bd579881a9647cf133108b6f176fe206c3",
+    "bytes": 3016,
+    "sha256": "78a51f75be95e5e948ca77771549de411b16bfbbe4b37449495da78becdfabaf"
+  },
+  {
+    "path": ".devin/workflows/cospec-continue.md",
+    "kind": "command",
+    "workflow": "continue",
+    "harness": "devin",
+    "contentHash": "sha256:5452d22965cf5216dc800c0fa52cb756ea521831e1b6063dba1a29ef3dea3daa",
+    "bytes": 2464,
+    "sha256": "bdd3abf1788658f54e5b1e616f526b199127a0962eaa2f3d0a15d18295854568"
+  },
+  {
+    "path": ".devin/workflows/cospec-explore.md",
+    "kind": "command",
+    "workflow": "explore",
+    "harness": "devin",
+    "contentHash": "sha256:1918d6dc9bf5fe10b6f691e7144868bf8f14d2e17802474845e2e828e3cac108",
+    "bytes": 6685,
+    "sha256": "d4f91763bf7a9df70d69ee0252d0a2d31d15f39bf322c377446dc308174ef151"
+  },
+  {
+    "path": ".devin/workflows/cospec-ff.md",
+    "kind": "command",
+    "workflow": "ff",
+    "harness": "devin",
+    "contentHash": "sha256:9501c042a5736fef6a8d38123a71332849c5b14cf865c6bd119560b6b26f4747",
+    "bytes": 3510,
+    "sha256": "db4b673f4ba873da3abf39351a6881474a50938a96be3ac122c7f87860fe8efd"
+  },
+  {
+    "path": ".devin/workflows/cospec-new.md",
+    "kind": "command",
+    "workflow": "new",
+    "harness": "devin",
+    "contentHash": "sha256:78f1b653ca9d27d8af2e463c0a895f76707888b3e2b502a3dc5e1ff0a2fe28ab",
+    "bytes": 3290,
+    "sha256": "578fdc56a288fbf2ead86aced3a3e60f418b79fe0a6603d7c03870899aecd7a9"
+  },
+  {
+    "path": ".devin/workflows/cospec-onboard.md",
+    "kind": "command",
+    "workflow": "onboard",
+    "harness": "devin",
+    "contentHash": "sha256:1c6874a1abb688f0e7dc04816ab881a811f3097d1ec25af822c8d322e0d42c76",
+    "bytes": 3150,
+    "sha256": "5a66adef180cc930205bd46942debfe6781be7760b8594e13c87b41f30cf8b29"
+  },
+  {
+    "path": ".devin/workflows/cospec-propose.md",
+    "kind": "command",
+    "workflow": "propose",
+    "harness": "devin",
+    "contentHash": "sha256:58737496aefa0b8ba4882c7904368305465e898ee067bf902e8e55a4882cfd10",
+    "bytes": 6483,
+    "sha256": "353e8e011b9b7278f0c4c7b3e27d2f814bec46aa1ccabc3dbfa53e0af85aef04"
+  },
+  {
+    "path": ".devin/workflows/cospec-sync-specs.md",
+    "kind": "command",
+    "workflow": "sync-specs",
+    "harness": "devin",
+    "contentHash": "sha256:6557ec661d62b69c5956fe188cb2b2cd37639bfceb3fb7b6bb2330c0db9321ed",
+    "bytes": 3056,
+    "sha256": "a20f9df3e2203f94f319ff966c4d2ab7b54daabb13f51e928d66c4736b231fd6"
+  },
+  {
+    "path": ".devin/workflows/cospec-update.md",
+    "kind": "command",
+    "workflow": "update",
+    "harness": "devin",
+    "contentHash": "sha256:e59d8659510a3a7eee0f3c631f7cc6fe5cba9b8e625dec84d2e853637d72780b",
+    "bytes": 4237,
+    "sha256": "6fa6030badb7b31df4f7e9fa18217046db4b1de09e3fac0646847ec01cf80b4b"
+  },
+  {
+    "path": ".devin/workflows/cospec-verify.md",
+    "kind": "command",
+    "workflow": "verify",
+    "harness": "devin",
+    "contentHash": "sha256:49d95e8ab9359318596fe9f22c83c17f8b7a12934127df8e746035c8a53d0d6a",
+    "bytes": 2598,
+    "sha256": "24624c3593ef73c569bb73f841a1b26f1c22f8325f6cfcd02fda98c55a6ba0ac"
+  }
+]

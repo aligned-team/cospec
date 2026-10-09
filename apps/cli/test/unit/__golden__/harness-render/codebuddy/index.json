@@ -1,0 +1,218 @@
+[
+  {
+    "path": ".codebuddy/commands/cospec/apply.md",
+    "kind": "command",
+    "workflow": "apply",
+    "harness": "codebuddy",
+    "contentHash": "sha256:7a8e6f62141f0dd909b84b2accfd01d21f7151e7bf568a6946e9cd8fac34b98e",
+    "bytes": 2223,
+    "sha256": "d3b2aff998389f15f927e217c97bc608e34bb504a41fcf852a89cf877c47aae3"
+  },
+  {
+    "path": ".codebuddy/commands/cospec/archive.md",
+    "kind": "command",
+    "workflow": "archive",
+    "harness": "codebuddy",
+    "contentHash": "sha256:4ef8b0e5e83be85e5cf8f1c811e6947bbaeaec8a6df188fa96609d6a46aa220f",
+    "bytes": 3045,
+    "sha256": "607f02dfbf08e95383ea2df27b1fc25a9f55b310c5a8d33a2f34a1cfe37cf7ed"
+  },
+  {
+    "path": ".codebuddy/commands/cospec/bulk-archive.md",
+    "kind": "command",
+    "workflow": "bulk-archive",
+    "harness": "codebuddy",
+    "contentHash": "sha256:eb06828bc1c92dc2b4785adc3c3823e8c06dd4ea2afa3d07818c498043bf3fa5",
+    "bytes": 3004,
+    "sha256": "99cfc76b13db4baa6ad64be6c597de622d466c39176adf4c5f9e9af15f6f93de"
+  },
+  {
+    "path": ".codebuddy/commands/cospec/continue.md",
+    "kind": "command",
+    "workflow": "continue",
+    "harness": "codebuddy",
+    "contentHash": "sha256:2b7c61ad71a36a9dbe6e864a51a0c5e0ca2f115240ccb1abb1a38279e04869d4",
+    "bytes": 2452,
+    "sha256": "54e613171a863ae82c639c433515809bbb71c691163bc653827a752387e0a200"
+  },
+  {
+    "path": ".codebuddy/commands/cospec/explore.md",
+    "kind": "command",
+    "workflow": "explore",
+    "harness": "codebuddy",
+    "contentHash": "sha256:3d08e2f260accffd6585f4cca53bf70ca5e12517105f346e84ae636da837b2c8",
+    "bytes": 6673,
+    "sha256": "125166962d65fd5e0ef02a14c00d8a35adf3e391f5d31384d4fcc51d74e62545"
+  },
+  {
+    "path": ".codebuddy/commands/cospec/ff.md",
+    "kind": "command",
+    "workflow": "ff",
+    "harness": "codebuddy",
+    "contentHash": "sha256:297fcf956284a582d82fe043cbdc0091ade5810399cdc4f9b0417a9014a9938f",
+    "bytes": 3498,
+    "sha256": "2c80f3d5d433ddb4e016e031559a82e44274b20b669f9144f7bc07ad3f9bf6c9"
+  },
+  {
+    "path": ".codebuddy/commands/cospec/new.md",
+    "kind": "command",
+    "workflow": "new",
+    "harness": "codebuddy",
+    "contentHash": "sha256:82c924ccd2ffdfe3a23631cab3fb22cdb27bf3610b8b8a17f55940a01c19c0de",
+    "bytes": 3278,
+    "sha256": "9526fa5d058968b1ddf8410dddb3c61d4abace7725c0eec966d391d6f83f2c36"
+  },
+  {
+    "path": ".codebuddy/commands/cospec/onboard.md",
+    "kind": "command",
+    "workflow": "onboard",
+    "harness": "codebuddy",
+    "contentHash": "sha256:c0acf01721c99e0b50950041c4080c330b709e81b07ef095b69784b1bedc7960",
+    "bytes": 3138,
+    "sha256": "4898f4554a2b9a8894c451b01cb676a58ffa1a2c66d983de86d51815e3cc32ab"
+  },
+  {
+    "path": ".codebuddy/commands/cospec/propose.md",
+    "kind": "command",
+    "workflow": "propose",
+    "harness": "codebuddy",
+    "contentHash": "sha256:92dbc15f3d38b0b2fcaf8ef460a955c09925dc7d7d088a9a29ad285662280ff8",
+    "bytes": 6471,
+    "sha256": "a42ec38ffb6fd01a5044a41efb42828c08e2afcb51be05027e7de19ec69664e1"
+  },
+  {
+    "path": ".codebuddy/commands/cospec/sync-specs.md",
+    "kind": "command",
+    "workflow": "sync-specs",
+    "harness": "codebuddy",
+    "contentHash": "sha256:c6671819783b5458bb4ceb83e6c0ea0716c94d919a1b813d5ef25fef16307d21",
+    "bytes": 3044,
+    "sha256": "ed8834b876d051068836b5c4ad520581d0398f35b3308bebfbec8e8cf65d9c6f"
+  },
+  {
+    "path": ".codebuddy/commands/cospec/update.md",
+    "kind": "command",
+    "workflow": "update",
+    "harness": "codebuddy",
+    "contentHash": "sha256:071b20f1bf23bfa8cde1f211a9f3bb8dff8c6ffabd5f8e25be16304a15de7330",
+    "bytes": 4225,
+    "sha256": "4287134ec86d9f88dd67dfb06cf551542010c249d0b344f3e8b8b108e9bbe8c9"
+  },
+  {
+    "path": ".codebuddy/commands/cospec/verify.md",
+    "kind": "command",
+    "workflow": "verify",
+    "harness": "codebuddy",
+    "contentHash": "sha256:d77817df123483dd7f40b93919041d8e5b09c2b55bc9681e503ffd5b63b9076a",
+    "bytes": 2586,
+    "sha256": "edc2ff8d54273dec7d71e387563339767f6c1efcea123f790fcb63e0f786a66c"
+  },
+  {
+    "path": ".codebuddy/skills/cospec-apply-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "apply",
+    "harness": "codebuddy",
+    "contentHash": "sha256:7a8e6f62141f0dd909b84b2accfd01d21f7151e7bf568a6946e9cd8fac34b98e",
+    "bytes": 2266,
+    "sha256": "89abac5691e6b26e674efc823ef676c8b382d85935249c87752deda9d3504b5b"
+  },
+  {
+    "path": ".codebuddy/skills/cospec-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "archive",
+    "harness": "codebuddy",
+    "contentHash": "sha256:4ef8b0e5e83be85e5cf8f1c811e6947bbaeaec8a6df188fa96609d6a46aa220f",
+    "bytes": 3088,
+    "sha256": "97502af27f44d7eb6222d60b3d0ee74a84e3f2776c3b577d51a117632f6f851f"
+  },
+  {
+    "path": ".codebuddy/skills/cospec-bulk-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "bulk-archive",
+    "harness": "codebuddy",
+    "contentHash": "sha256:eb06828bc1c92dc2b4785adc3c3823e8c06dd4ea2afa3d07818c498043bf3fa5",
+    "bytes": 3047,
+    "sha256": "1ecdcbc647cf6c153e2c32825d0e09f2233f956834b070ec26bfee64b9ea2029"
+  },
+  {
+    "path": ".codebuddy/skills/cospec-continue-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "continue",
+    "harness": "codebuddy",
+    "contentHash": "sha256:2b7c61ad71a36a9dbe6e864a51a0c5e0ca2f115240ccb1abb1a38279e04869d4",
+    "bytes": 2495,
+    "sha256": "fa4580648e44e6010590c479ecfd4e9e090bccd659b365dbe15c5d98431f7c9e"
+  },
+  {
+    "path": ".codebuddy/skills/cospec-explore/SKILL.md",
+    "kind": "skill",
+    "workflow": "explore",
+    "harness": "codebuddy",
+    "contentHash": "sha256:3d08e2f260accffd6585f4cca53bf70ca5e12517105f346e84ae636da837b2c8",
+    "bytes": 6709,
+    "sha256": "4aabe66b0ad40e06e7b039db1e042774c3bcb9a7869b8d8c83a660e8c1e3e13c"
+  },
+  {
+    "path": ".codebuddy/skills/cospec-ff-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "ff",
+    "harness": "codebuddy",
+    "contentHash": "sha256:297fcf956284a582d82fe043cbdc0091ade5810399cdc4f9b0417a9014a9938f",
+    "bytes": 3531,
+    "sha256": "3fc8e8ac1718de49b3bbae25b402e300d36547d939b567a4add7f63bba2d8b79"
+  },
+  {
+    "path": ".codebuddy/skills/cospec-new-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "new",
+    "harness": "codebuddy",
+    "contentHash": "sha256:82c924ccd2ffdfe3a23631cab3fb22cdb27bf3610b8b8a17f55940a01c19c0de",
+    "bytes": 3321,
+    "sha256": "d07922d05d6e31392b12c9675d60af45601b2e54c9affe8078a317bab6b33129"
+  },
+  {
+    "path": ".codebuddy/skills/cospec-onboard/SKILL.md",
+    "kind": "skill",
+    "workflow": "onboard",
+    "harness": "codebuddy",
+    "contentHash": "sha256:c0acf01721c99e0b50950041c4080c330b709e81b07ef095b69784b1bedc7960",
+    "bytes": 3174,
+    "sha256": "12128b5f1da6a9d47c6509844b93ab9bff395504785fcb1d20fa78c4b108b6fc"
+  },
+  {
+    "path": ".codebuddy/skills/cospec-propose/SKILL.md",
+    "kind": "skill",
+    "workflow": "propose",
+    "harness": "codebuddy",
+    "contentHash": "sha256:92dbc15f3d38b0b2fcaf8ef460a955c09925dc7d7d088a9a29ad285662280ff8",
+    "bytes": 6507,
+    "sha256": "d1f77bd35dad90deaf9a06678d2319c63556525e8e9ed236fe89c40e0907fef0"
+  },
+  {
+    "path": ".codebuddy/skills/cospec-sync-specs/SKILL.md",
+    "kind": "skill",
+    "workflow": "sync-specs",
+    "harness": "codebuddy",
+    "contentHash": "sha256:c6671819783b5458bb4ceb83e6c0ea0716c94d919a1b813d5ef25fef16307d21",
+    "bytes": 3080,
+    "sha256": "5d4a4f0f657cf3c653abfe3fc8264f8af0af92c391c180fde03d6b87d36f974c"
+  },
+  {
+    "path": ".codebuddy/skills/cospec-update-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "update",
+    "harness": "codebuddy",
+    "contentHash": "sha256:071b20f1bf23bfa8cde1f211a9f3bb8dff8c6ffabd5f8e25be16304a15de7330",
+    "bytes": 4268,
+    "sha256": "7019e02a77e8fbd5229ae36585477e6efe885383a06f8e7267285aa52a5d1399"
+  },
+  {
+    "path": ".codebuddy/skills/cospec-verify-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "verify",
+    "harness": "codebuddy",
+    "contentHash": "sha256:d77817df123483dd7f40b93919041d8e5b09c2b55bc9681e503ffd5b63b9076a",
+    "bytes": 2629,
+    "sha256": "d04fbb6394b78e29899c97aa3da16e873a378e4a829e806cebd1192d1aef7c8d"
+  }
+]

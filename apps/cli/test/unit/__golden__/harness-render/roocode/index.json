@@ -1,0 +1,218 @@
+[
+  {
+    "path": ".roo/commands/cospec-apply.md",
+    "kind": "command",
+    "workflow": "apply",
+    "harness": "roocode",
+    "contentHash": null,
+    "bytes": 2019,
+    "sha256": "036fce38188d1e456a17bbf20ae479913288369b77f09e8f8702877ed28d818b"
+  },
+  {
+    "path": ".roo/commands/cospec-archive.md",
+    "kind": "command",
+    "workflow": "archive",
+    "harness": "roocode",
+    "contentHash": null,
+    "bytes": 2841,
+    "sha256": "16468c0de2e83b2465d3fdac9af4c5ccda331f7998738276a2a8b7f265d14f09"
+  },
+  {
+    "path": ".roo/commands/cospec-bulk-archive.md",
+    "kind": "command",
+    "workflow": "bulk-archive",
+    "harness": "roocode",
+    "contentHash": null,
+    "bytes": 2800,
+    "sha256": "611a149f7e99256210066cea65eb81c5e8e34dae6bc63b15b8db42cb93f1fed8"
+  },
+  {
+    "path": ".roo/commands/cospec-continue.md",
+    "kind": "command",
+    "workflow": "continue",
+    "harness": "roocode",
+    "contentHash": null,
+    "bytes": 2248,
+    "sha256": "5283ef685884b0900604850ee9de0e281e810c989460c1f1162fd6144b6df11c"
+  },
+  {
+    "path": ".roo/commands/cospec-explore.md",
+    "kind": "command",
+    "workflow": "explore",
+    "harness": "roocode",
+    "contentHash": null,
+    "bytes": 6469,
+    "sha256": "109ec02bd663342ad7134770cb949b0b2b82a10c1c30ef3a7881870219f5705e"
+  },
+  {
+    "path": ".roo/commands/cospec-ff.md",
+    "kind": "command",
+    "workflow": "ff",
+    "harness": "roocode",
+    "contentHash": null,
+    "bytes": 3294,
+    "sha256": "0647e4fb9ed95e7c4174ae48d0c56670da8aa4fc89740b720039e54577390948"
+  },
+  {
+    "path": ".roo/commands/cospec-new.md",
+    "kind": "command",
+    "workflow": "new",
+    "harness": "roocode",
+    "contentHash": null,
+    "bytes": 3074,
+    "sha256": "8b693eb79d2b541a4bd229348ada37146ca3a3b50fc20fae58ca25e1f8976afa"
+  },
+  {
+    "path": ".roo/commands/cospec-onboard.md",
+    "kind": "command",
+    "workflow": "onboard",
+    "harness": "roocode",
+    "contentHash": null,
+    "bytes": 2934,
+    "sha256": "cee82ea5813d3591a7926ddcf5c7c64890329dd8cdd0a63b4b8748dc2339719a"
+  },
+  {
+    "path": ".roo/commands/cospec-propose.md",
+    "kind": "command",
+    "workflow": "propose",
+    "harness": "roocode",
+    "contentHash": null,
+    "bytes": 6267,
+    "sha256": "34d97f1b28bf9a1ac2f2398b2fd438a0a43e4e9aa478f487a4cb3716e7dc073c"
+  },
+  {
+    "path": ".roo/commands/cospec-sync-specs.md",
+    "kind": "command",
+    "workflow": "sync-specs",
+    "harness": "roocode",
+    "contentHash": null,
+    "bytes": 2840,
+    "sha256": "8e4c76babba20b3eed3a38b2c95dcc39547e9d96026272d9395966885b0bd40b"
+  },
+  {
+    "path": ".roo/commands/cospec-update.md",
+    "kind": "command",
+    "workflow": "update",
+    "harness": "roocode",
+    "contentHash": null,
+    "bytes": 4021,
+    "sha256": "30f5ed7fa99bcc666a2ea17bed9288c95340a07ce9051c8a08499a7589bc2d16"
+  },
+  {
+    "path": ".roo/commands/cospec-verify.md",
+    "kind": "command",
+    "workflow": "verify",
+    "harness": "roocode",
+    "contentHash": null,
+    "bytes": 2382,
+    "sha256": "02f4551d7709a5bc55a2b5c774806d5e14676964e6eccfb414c392b7dfc9f732"
+  },
+  {
+    "path": ".roo/skills/cospec-apply-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "apply",
+    "harness": "roocode",
+    "contentHash": "sha256:0a592f8e240b1a1b70b0b40785fb1bb04f25702de3e264af0fff88b45b824635",
+    "bytes": 2266,
+    "sha256": "5f59045b3237f47e00c3a59bd7f4f6d18b43ac2f3a9db73c5cd8d779a43bd5ae"
+  },
+  {
+    "path": ".roo/skills/cospec-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "archive",
+    "harness": "roocode",
+    "contentHash": "sha256:1f0e3bc2a8cf332628b0a74650bb73691913e94445ae43074167315b946548f6",
+    "bytes": 3088,
+    "sha256": "c2fe7067924480fddf0e59ec73a52b5822a7a1f79a7eefe2d962ee5fc855356d"
+  },
+  {
+    "path": ".roo/skills/cospec-bulk-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "bulk-archive",
+    "harness": "roocode",
+    "contentHash": "sha256:a530a027e099f802ba55426c09dae1bd579881a9647cf133108b6f176fe206c3",
+    "bytes": 3047,
+    "sha256": "fc4d4cec6feb0b8ed2688980cf1b963688e6349f2327478deebce27e0165a0ee"
+  },
+  {
+    "path": ".roo/skills/cospec-continue-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "continue",
+    "harness": "roocode",
+    "contentHash": "sha256:5452d22965cf5216dc800c0fa52cb756ea521831e1b6063dba1a29ef3dea3daa",
+    "bytes": 2495,
+    "sha256": "dfd8b2aa5d57edcad5e743cde41ef1483c4f1eb1ba3604a530227b2ab3d9de6e"
+  },
+  {
+    "path": ".roo/skills/cospec-explore/SKILL.md",
+    "kind": "skill",
+    "workflow": "explore",
+    "harness": "roocode",
+    "contentHash": "sha256:1918d6dc9bf5fe10b6f691e7144868bf8f14d2e17802474845e2e828e3cac108",
+    "bytes": 6709,
+    "sha256": "171c2a1bd519a88b50976eec6513ae8dd82a042266dc2d66351d08ad41e13455"
+  },
+  {
+    "path": ".roo/skills/cospec-ff-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "ff",
+    "harness": "roocode",
+    "contentHash": "sha256:9501c042a5736fef6a8d38123a71332849c5b14cf865c6bd119560b6b26f4747",
+    "bytes": 3531,
+    "sha256": "c8b7f404dc35e6586147c2911e4ef3de0068a2cee37680fde376241fa622ae1e"
+  },
+  {
+    "path": ".roo/skills/cospec-new-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "new",
+    "harness": "roocode",
+    "contentHash": "sha256:78f1b653ca9d27d8af2e463c0a895f76707888b3e2b502a3dc5e1ff0a2fe28ab",
+    "bytes": 3321,
+    "sha256": "5595390d9abe29013810da38a63fbd2836ef52e6d4e9c13ac7fb69d32e9eb497"
+  },
+  {
+    "path": ".roo/skills/cospec-onboard/SKILL.md",
+    "kind": "skill",
+    "workflow": "onboard",
+    "harness": "roocode",
+    "contentHash": "sha256:1c6874a1abb688f0e7dc04816ab881a811f3097d1ec25af822c8d322e0d42c76",
+    "bytes": 3174,
+    "sha256": "947cc906139259158f3e51699f62a3664492c54d8219347787f3bc12df03b2c2"
+  },
+  {
+    "path": ".roo/skills/cospec-propose/SKILL.md",
+    "kind": "skill",
+    "workflow": "propose",
+    "harness": "roocode",
+    "contentHash": "sha256:58737496aefa0b8ba4882c7904368305465e898ee067bf902e8e55a4882cfd10",
+    "bytes": 6507,
+    "sha256": "ff72643a64730c019c2a59c2470168bdb6c5716ca61f02b227a735df964b7fd9"
+  },
+  {
+    "path": ".roo/skills/cospec-sync-specs/SKILL.md",
+    "kind": "skill",
+    "workflow": "sync-specs",
+    "harness": "roocode",
+    "contentHash": "sha256:6557ec661d62b69c5956fe188cb2b2cd37639bfceb3fb7b6bb2330c0db9321ed",
+    "bytes": 3080,
+    "sha256": "27d23fe479118e4634b325a40c2992f2e94e41302e637f9e14108fa65c9b1391"
+  },
+  {
+    "path": ".roo/skills/cospec-update-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "update",
+    "harness": "roocode",
+    "contentHash": "sha256:e59d8659510a3a7eee0f3c631f7cc6fe5cba9b8e625dec84d2e853637d72780b",
+    "bytes": 4268,
+    "sha256": "52f5ab6dc37228ce67f57409d01a4faea5f3b6a17bbe6a23adec4508e052c592"
+  },
+  {
+    "path": ".roo/skills/cospec-verify-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "verify",
+    "harness": "roocode",
+    "contentHash": "sha256:49d95e8ab9359318596fe9f22c83c17f8b7a12934127df8e746035c8a53d0d6a",
+    "bytes": 2629,
+    "sha256": "6e392a3517b0ac18db6b6e8973c84a9c3596cf91d150f4a78f0132d5d7b7c417"
+  }
+]

@@ -17,31 +17,9 @@
 # produce; the test verifies it against the pinned binary instead.
 
 # --- tool-matrix ------------------------------------------------------------------
-- { kind: tool, id: amazon-q, owner: tool-matrix }
 - { kind: tool, id: antigravity, owner: tool-matrix }
-- { kind: tool, id: cline, owner: tool-matrix }
-- { kind: tool, id: command-code, owner: tool-matrix }
-- { kind: tool, id: codeartsagent, owner: tool-matrix }
-- { kind: tool, id: devin, owner: tool-matrix }
-- { kind: tool, id: forgecode, owner: tool-matrix }
-- { kind: tool, id: codebuddy, owner: tool-matrix }
-- { kind: tool, id: continue, owner: tool-matrix }
-- { kind: tool, id: crush, owner: tool-matrix }
-- { kind: tool, id: gemini, owner: tool-matrix }
-- { kind: tool, id: hermes, owner: tool-matrix }
-- { kind: tool, id: kilocode, owner: tool-matrix }
-- { kind: tool, id: kimi, owner: tool-matrix }
-- { kind: tool, id: kiro, owner: tool-matrix }
-- { kind: tool, id: lingma, owner: tool-matrix }
 - { kind: tool, id: minimax-code, owner: tool-matrix }
-- { kind: tool, id: vibe, owner: tool-matrix }
-- { kind: tool, id: oh-my-pi, owner: tool-matrix }
-- { kind: tool, id: pi, owner: tool-matrix }
-- { kind: tool, id: qoder, owner: tool-matrix }
-- { kind: tool, id: rovodev, owner: tool-matrix }
-- { kind: tool, id: roocode, owner: tool-matrix }
 - { kind: tool, id: zed, owner: tool-matrix }
-- { kind: tool, id: zcode, owner: tool-matrix }
 - { kind: tool-alias, id: windsurf, target: devin, owner: tool-matrix }
 
 # --- github-copilot ---------------------------------------------------------------
