@@ -10,6 +10,7 @@ import {
   COPILOT_CLOUD_IGNORED_FLAG,
   COPILOT_CLOUD_PROMPT,
   copilotAgentContent,
+  copilotCloudDirective,
   copilotSetupStepsContent,
   decideCopilotCloud,
   type CopilotCloudDecision,
@@ -311,8 +312,8 @@ describe('tier 4: the interactive confirm', () => {
     expect(run.asked).toEqual([COPILOT_CLOUD_PROMPT])
   })
 
-  test.each(['', '\n', 'n', 'N', 'no', 'maybe', undefined])(
-    'an answer of %p (default No, EOF included) persists false and opts out',
+  test.each(['', '\n', 'n', 'N', 'no', 'maybe'])(
+    'an answer of %p (default No) persists false and opts out',
     (answer) => {
       const run = prompted(answer)
       expect(SHAPE(run.decision)).toEqual({
@@ -325,6 +326,20 @@ describe('tier 4: the interactive confirm', () => {
       })
     },
   )
+
+  test('input that ends before a line (EOF) is no answer: tier 5, nothing saved or removed', () => {
+    const run = prompted(undefined)
+    expect(run.asked).toEqual([COPILOT_CLOUD_PROMPT])
+    expect(SHAPE(run.decision)).toEqual({
+      tier: 'undecided',
+      write: false,
+      persist: undefined,
+      optedOut: false,
+      skippedUndecided: true,
+      ignoredFlag: false,
+    })
+    expect(copilotCloudDirective(run.decision)).toBe('leave')
+  })
 
   test('a persisted value, a flag or a managed file is reached before the prompt', () => {
     config('true')

@@ -81,7 +81,7 @@ run was probed**; tier 4 below is read from source only).
    | 1    | a flag was given                           | flag   | flag    | `!flag`                          |
    | 2    | `githubCopilot.cloudAgent` is a boolean    | value  | no      | `!value` (beats tier 3)          |
    | 3    | a managed cloud file exists                | yes    | no      | no                               |
-   | 4    | `canPromptInteractively()` and the confirm | answer | answer  | `!answer`                        |
+   | 4    | `canPromptInteractively()` and the confirm | answer | answer  | `!answer` (EOF is no answer: 5)  |
    | 5    | none of the above                          | no     | no      | no; prints the "Skipped" hint    |
 
    Two things the comment does not say, both in the code: the "tool not

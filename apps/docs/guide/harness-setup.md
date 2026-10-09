@@ -321,8 +321,8 @@ document.
 A flag or an answered question is saved as `githubCopilot.cloudAgent` in
 `openspec/config.yaml`, after init has written that file. Comments and other
 keys stay as they are. OpenSpec's own `init` reads the same key, so a repo that
-uses both tools shares one decision. A skipped question, a flag left off and
-`update` save nothing.
+uses both tools shares one decision. A skipped question (including Ctrl-D at
+it), a flag left off and `update` save nothing.
 
 ### Removal and updates
 

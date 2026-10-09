@@ -354,16 +354,24 @@ describe('the interactive confirm on a terminal', () => {
     expect(config(r)).toContain('githubCopilot:\n  cloudAgent: false')
   }, 120_000)
 
-  test.each([['n\r'], [CTRL_D]])(
-    'an answer of %p is No and is saved',
-    async (send) => {
-      const r = detected()
-      const out = await run(r, ['--no-gate'], { send })
-      expect(out.exitCode).toBe(0)
-      expect(config(r)).toContain('cloudAgent: false')
-    },
-    120_000,
-  )
+  test('an answer of n is No and is saved', async () => {
+    const r = detected()
+    const out = await run(r, ['--no-gate'], { send: 'n\r' })
+    expect(out.exitCode).toBe(0)
+    expect(config(r)).toContain('cloudAgent: false')
+  }, 120_000)
+
+  test('Ctrl-D is no answer: nothing is written or saved, the Skipped line prints, and it asks again', async () => {
+    const r = detected()
+    const out = await run(r, ['--no-gate'], { send: CTRL_D })
+    expect(out.exitCode).toBe(0)
+    expect(has(r, WORKFLOW) || has(r, AGENT)).toBe(false)
+    expect(config(r)).not.toContain('githubCopilot')
+    expect(terminalText(out.output)).toContain(SKIPPED)
+    const again = await run(r, ['--no-gate'], { send: 'y\r' })
+    expect(terminalText(again.output)).toContain(QUESTION)
+    expect(config(r)).toContain('cloudAgent: true')
+  }, 120_000)
 
   test('y is saved as true', async () => {
     const r = detected()

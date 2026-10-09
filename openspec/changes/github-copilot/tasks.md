@@ -109,8 +109,8 @@ its failing tests before its code.
       (`test/unit/init/copilot-cloud.test.ts`): one row per cell of design
       decision 1's table, including the pre row, a tier-2 `false` with files
       present and no flag, malformed config as undecided, tier 4 with an
-      injected terminal and answers (`y`, `n`, empty, EOF) and its three gates
-      (`--harness` given, `--json`, a `CI` variable or
+      injected terminal and answers (`y`, `n`, empty; EOF as no answer, tier 5)
+      and its three gates (`--harness` given, `--json`, a `CI` variable or
       `OPEN_SPEC_INTERACTIVE=0`), and the flag-without-tool sentence on stdout
       (stderr plus `ignoredFlag` under `--json`). Verify they fail first.
 - [x] 4.4 Implement the tier decision, the persist call (flag or answered

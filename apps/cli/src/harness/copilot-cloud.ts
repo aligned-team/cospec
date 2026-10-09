@@ -377,7 +377,8 @@ export function hasManagedCloudFiles(
  * binary's `resolveCopilotCloudDecision`. In order: the tool is not selected (a flag is then
  * reported, never applied); a flag; a boolean in config; a managed file on disk; an
  * interactive confirm (default No, only when no tool list and no `--json` was given); skip.
- * Only a flag or an answered confirm persists. Closed stdin answers the confirm No.
+ * Only a flag or an answered confirm persists. Stdin that ends before a line (Ctrl-D) is no
+ * answer: the run takes tier 5, as if it had not been asked.
  */
 export function decideCopilotCloud(input: CopilotCloudDecisionInput): CopilotCloudDecision {
   const { cwd, flag } = input
@@ -420,15 +421,20 @@ export function decideCopilotCloud(input: CopilotCloudDecisionInput): CopilotClo
     }
   }
   if (!input.harnessGiven && !input.json && input.terminal.interactive) {
-    const reply = input.terminal.ask(COPILOT_CLOUD_PROMPT)?.trim().toLowerCase()
-    const answer = reply === 'y' || reply === 'yes'
-    return {
-      tier: 'prompt',
-      write: answer,
-      persist: answer,
-      optedOut: !answer,
-      skippedUndecided: false,
-      ignoredFlag: false,
+    const typed = input.terminal.ask(COPILOT_CLOUD_PROMPT)
+    // Input that ended before a line did (Ctrl-D) is no answer: nothing is written, removed or
+    // saved, so the question comes back next run and the receipt says how to opt in.
+    if (typed !== undefined) {
+      const reply = typed.trim().toLowerCase()
+      const answer = reply === 'y' || reply === 'yes'
+      return {
+        tier: 'prompt',
+        write: answer,
+        persist: answer,
+        optedOut: !answer,
+        skippedUndecided: false,
+        ignoredFlag: false,
+      }
     }
   }
   return {

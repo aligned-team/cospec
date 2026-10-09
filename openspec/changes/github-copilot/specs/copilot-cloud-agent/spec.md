@@ -75,6 +75,8 @@ SHALL take tier 5.
 - **THEN** the prompt text is upstream's, no cloud file is written, and the
   config holds `cloudAgent: false`
 - **AND** an answer of `y` writes both files and persists `cloudAgent: true`
+- **AND** input that ends before an answer (Ctrl-D) is no answer: tier 5
+  applies, nothing is written, removed or saved, and the Skipped line prints
 
 #### Scenario: An explicit harness list never prompts
 
