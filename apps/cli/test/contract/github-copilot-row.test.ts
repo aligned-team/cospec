@@ -29,7 +29,7 @@ const { CommandAdapterRegistry } = (await import(
 const UPSTREAM = AI_TOOLS.find((t) => t.value === 'github-copilot')!
 
 describe('the github-copilot row against the pinned AI_TOOLS', () => {
-  test.failing("skills root, restart flag and display name are upstream's", () => {
+  test("skills root, restart flag and display name are upstream's", () => {
     const row = adapterFor('github-copilot')
     expect(row.displayName).toBe(UPSTREAM.name)
     expect(row.skillsDir).toBe(UPSTREAM.skillsDir)
@@ -42,12 +42,12 @@ describe('the github-copilot row against the pinned AI_TOOLS', () => {
     expect(UPSTREAM.setupNote).toBeUndefined()
   })
 
-  test.failing("all seven detection paths, in upstream's order", () => {
+  test("all seven detection paths, in upstream's order", () => {
     expect(UPSTREAM.detectionPaths).toHaveLength(7)
     expect([...adapterFor('github-copilot').detectionPaths]).toEqual(UPSTREAM.detectionPaths!)
   })
 
-  test.failing("the command path is the adapter's, with opsx read as cospec", () => {
+  test("the command path is the adapter's, with opsx read as cospec", () => {
     const row = adapterFor('github-copilot')
     expect(row.commands?.extension).toBe('.prompt.md')
     for (const id of ['propose', 'apply', 'archive', 'bulk-archive', 'explore', 'verify']) {
@@ -57,7 +57,7 @@ describe('the github-copilot row against the pinned AI_TOOLS', () => {
     expect(commandPath(row, 'sync-specs')).toBe('.github/prompts/cospec-sync-specs.prompt.md')
   })
 
-  test.failing("the row sits between gemini and hermes, upstream's slot", () => {
+  test("the row sits between gemini and hermes, upstream's slot", () => {
     const names: readonly string[] = HARNESS_NAMES
     const at = names.indexOf('github-copilot')
     expect(names[at - 1]).toBe('gemini')

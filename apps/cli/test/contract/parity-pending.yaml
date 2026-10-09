@@ -17,7 +17,6 @@
 # produce; the test verifies it against the pinned binary instead.
 
 # --- github-copilot ---------------------------------------------------------------
-- { kind: tool, id: github-copilot, owner: github-copilot }
 - { kind: flag, path: [init], flag: --copilot-cloud, owner: github-copilot }
 - { kind: flag, path: [init], flag: --no-copilot-cloud, owner: github-copilot }
 

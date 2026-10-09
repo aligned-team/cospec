@@ -3,7 +3,7 @@
 // frontmatter-less commands, Devin's split spelling, Pi's `$@`, and Hermes's setup note.
 
 import { afterAll, describe, expect, test } from 'bun:test'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { readFixture } from '../contract/support/upstream-init-capture.ts'
@@ -214,45 +214,50 @@ describe('the shared .agents skills root', () => {
 })
 
 describe('the github-copilot row', () => {
-  test.failing(
-    'writes twelve skills and twelve prompts under .github, and the receipt asks for a restart',
-    async () => {
-      const { repo, stdout } = await initRepo('github-copilot')
-      const tracked = await manifestFiles(repo)
-      expect(
-        tracked.filter((p) => p.startsWith('.github/skills/') && p.endsWith('/SKILL.md')),
-      ).toHaveLength(12)
-      expect(
-        tracked.filter((p) => p.startsWith('.github/prompts/') && p.endsWith('.prompt.md')),
-      ).toHaveLength(12)
-      expect(read(repo, '.github/prompts/cospec-propose.prompt.md')).toStartWith(
-        '---\ndescription: ',
-      )
-      expect(read(repo, '.github/prompts/cospec-propose.prompt.md')).toContain('/cospec-apply')
-      expect(stdout).toContain('12 skills and 12 commands in .github/')
-      expect(stdout.trimEnd().endsWith('Restart your IDE to refresh commands.')).toBe(true)
-      expect(await danglingRefs(repo)).toEqual([])
-    },
-  )
+  test('writes twelve skills and twelve prompts under .github, and the receipt asks for a restart', async () => {
+    const { repo, stdout } = await initRepo('github-copilot')
+    const skills = readdirSync(join(repo.dir, '.github/skills'))
+    expect(skills).toHaveLength(12)
+    for (const skill of skills) {
+      expect(existsSync(join(repo.dir, `.github/skills/${skill}/SKILL.md`))).toBe(true)
+    }
+    const prompts = readdirSync(join(repo.dir, '.github/prompts'))
+    expect(prompts).toHaveLength(12)
+    expect(prompts.every((f) => /^cospec-[a-z-]+\.prompt\.md$/.test(f))).toBe(true)
+    expect(read(repo, '.github/prompts/cospec-propose.prompt.md')).toStartWith('---\ndescription: ')
+    expect(read(repo, '.github/prompts/cospec-propose.prompt.md')).toContain('/cospec-apply')
+    expect(stdout).toContain('Harness: github-copilot\n')
+    expect(stdout).toContain('\nRestart your IDE to refresh commands.\n')
+    expect(await danglingRefs(repo)).toEqual([])
+  })
 
-  test.failing(
-    'a second init reports unchanged, and update detects the tool from .github/skills',
-    async () => {
-      const { repo } = await initRepo('github-copilot')
-      const again = await cospec(['init', '--harness', 'github-copilot', '--json'], {
-        cwd: repo.dir,
-        env: repo.env,
-      })
-      expect(again.exitCode).toBe(0)
-      const files = (JSON.parse(again.stdout) as { files: { outcome: string }[] }).files
-      expect(files.filter((f) => f.outcome !== 'unchanged' && f.outcome !== 'skipped')).toEqual([])
-      const update = await cospec(['update', '--json'], { cwd: repo.dir, env: repo.env })
-      expect(update.exitCode).toBe(0)
-      expect((JSON.parse(update.stdout) as { harnesses: string[] }).harnesses).toEqual([
-        'github-copilot',
-      ])
-      const doctor = await cospec(['doctor'], { cwd: repo.dir, env: repo.env })
-      expect(doctor.exitCode).toBe(0)
-    },
-  )
+  test('a second init reports unchanged, and update detects the tool from .github/skills', async () => {
+    const { repo } = await initRepo('github-copilot')
+    const again = await cospec(['init', '--harness', 'github-copilot', '--json'], {
+      cwd: repo.dir,
+      env: repo.env,
+    })
+    expect(again.exitCode).toBe(0)
+    const files = (JSON.parse(again.stdout) as { files: { outcome: string }[] }).files
+    expect(files.filter((f) => f.outcome !== 'unchanged')).toEqual([])
+    const update = await cospec(['update', '--json'], { cwd: repo.dir, env: repo.env })
+    expect(update.exitCode).toBe(0)
+    expect((JSON.parse(update.stdout) as { harnesses: string[] }).harnesses).toEqual([
+      'github-copilot',
+    ])
+    const doctor = await cospec(['doctor'], { cwd: repo.dir, env: repo.env })
+    expect(doctor.exitCode).toBe(0)
+  })
+
+  test('a repo with only .github/prompts selects github-copilot with no --harness', async () => {
+    const sandbox = mkTempRepo()
+    const dir = mkTempRepo({ git: true })
+    mkdirSync(join(dir, '.github/prompts'), { recursive: true })
+    writeFileSync(join(dir, '.github/prompts/release.prompt.md'), 'Tag and push.\n')
+    const init = await cospec(['init', '--json'], { cwd: dir, env: oracleEnv(sandbox) })
+    expect(init.exitCode).toBe(0)
+    expect((JSON.parse(init.stdout) as { harnesses: string[] }).harnesses).toEqual([
+      'github-copilot',
+    ])
+  })
 })

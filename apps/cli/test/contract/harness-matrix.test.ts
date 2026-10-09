@@ -309,15 +309,14 @@ function fixtureFacts(name: string): unknown[] {
 
 describe('harness matrix', () => {
   for (const tool of UPSTREAM_TOOLS) {
-    const run = tool.value === 'github-copilot' ? test.failing : test
-    run(
+    test(
       `${tool.value}: row, adapter paths, render and detection match the pinned binary`,
       () => checkRow(tool, new Set<Check>()),
       120_000,
     )
   }
 
-  test.failing('the table is the pinned AI_TOOLS, shipped rows first', () => {
+  test('the table is the pinned AI_TOOLS, shipped rows first', () => {
     expect<string[]>([...HARNESS_NAMES]).toEqual([
       ...SHIPPED_ROWS,
       ...UPSTREAM_TOOLS.map((t) => t.value).filter((id) => !SHIPPED_ROWS.includes(id)),

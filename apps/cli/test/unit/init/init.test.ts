@@ -452,7 +452,7 @@ describe('the opsx leftover scan under .github (the github-copilot row)', () => 
     )
   }
 
-  test.failing('the opsx prompt, the pre-opsx prompt and the openspec skill are listed', () => {
+  test('the opsx prompt, the pre-opsx prompt and the openspec skill are listed', () => {
     plant()
     const { out } = capture(
       () => initRun(ctx(dir, ['--harness', 'claude', '--yes'], true)) as number,
@@ -465,7 +465,7 @@ describe('the opsx leftover scan under .github (the github-copilot row)', () => 
     ])
   })
 
-  test.failing('--remove-opsx removes them, and a user prompt beside them stays', () => {
+  test('--remove-opsx removes them, and a user prompt beside them stays', () => {
     plant()
     const { out } = capture(
       () => initRun(ctx(dir, ['--harness', 'claude', '--remove-opsx', '--yes'], true)) as number,

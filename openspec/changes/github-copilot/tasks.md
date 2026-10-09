@@ -24,7 +24,7 @@ its failing tests before its code.
 
 ## 2. T1: the `github-copilot` harness row (`harness/adapters.ts`)
 
-- [ ] 2.1 Write the failing tests first: a contract test
+- [x] 2.1 Write the failing tests first: a contract test
       (`test/contract/github-copilot-row.test.ts`) that deep-imports the pinned
       `AI_TOOLS` entry and `command-generation/adapters/github-copilot.js` in
       tests only and asserts the row's `skillsDir`, `detectionPaths` (all seven,
@@ -35,22 +35,22 @@ its failing tests before its code.
       frontmatter; amend `tool-matrix`'s order assertion so the row sits between
       `gemini` and `hermes`. Verify the new rows fail on the unmodified tree
       (`github-copilot` is not a row).
-- [ ] 2.2 Add the row to `HARNESS_TABLE` as design decision 4 states, and the
+- [x] 2.2 Add the row to `HARNESS_TABLE` as design decision 4 states, and the
       `.github/prompts/openspec-*.prompt.md` entry in the row's legacy command
       path field. Verify 2.1 passes, `mise run typecheck` is clean, and the
       table-invariant tests (declared namespacing agrees with `file`, no
       `commands/` tool-id literal) still pass.
-- [ ] 2.3 Add leftover-scan rows (`test/unit/init/`): a
+- [x] 2.3 Add leftover-scan rows (`test/unit/init/`): a
       `.github/prompts/opsx-propose.prompt.md` carrying upstream's provenance
       and a `.github/prompts/openspec-propose.prompt.md` are listed and removed
       by `--remove-opsx`; a user's `.github/prompts/release.prompt.md` is not.
       Verify they fail first, then pass with 2.2.
-- [ ] 2.4 Regenerate the generated trees and goldens that gain the row: the
+- [x] 2.4 Regenerate the generated trees and goldens that gain the row: the
       `--harness all` receipt, the `harnesses` array in the init and update JSON
       goldens, and `harness-wiring` goldens. Verify the diff is only the new
       harness's lines, `mise run generate:check` exits 0, and `git diff` shows
       no change to a golden for `claude`, `codex`, `opencode` or `agents` alone.
-- [ ] 2.5 Add a `harness-wiring` integration row:
+- [x] 2.5 Add a `harness-wiring` integration row:
       `init --harness github-copilot` in a temp repo writes twelve skills and
       twelve prompts under `.github`, the receipt names the harness and ends
       with `Restart your IDE to refresh commands.`, a second run reports
