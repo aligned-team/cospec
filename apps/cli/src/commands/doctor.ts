@@ -58,8 +58,9 @@ import {
   skillsRoot,
   workflowReferencePattern,
 } from '../harness/adapters.ts'
+import { homeSkillsDir } from '../harness/home-root.ts'
 import { walkProjectFiles } from '../harness/scan-walk.ts'
-import { isOpsxLeftover, leftoverScanFiles } from './init.ts'
+import { homeSkillLeftovers, isOpsxLeftover, leftoverScanFiles } from './init.ts'
 import { detectHarnesses, generate } from './update.ts'
 
 type Level = 'ERROR' | 'WARNING' | 'INFO'
@@ -373,6 +374,16 @@ export function checkOpsx(
   findings: Finding[],
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): void {
+  // A home-scoped row's skills dir sits outside the project; it is read here, never written.
+  const homeIds = table.filter((row) => homeSkillsDir(row) !== undefined).map((row) => row.id)
+  for (const h of homeSkillLeftovers(homeIds)) {
+    findings.push({
+      level: 'WARNING',
+      check: 'opsx-leftover',
+      message: `leftover openspec (opsx) file: ${h.path} — two propose commands confuse agents`,
+      remedy: 'run `cospec init --remove-opsx` to delete provably openspec-generated files',
+    })
+  }
   for (const f of leftoverScanFiles(cwd, table)) {
     // Provenance-only, the one predicate init's removal uses (DESIGN §2.1/§6.6): flag a file
     // only when its own content proves openspec wrote it. Path/name conventions alone are not

@@ -651,6 +651,15 @@ export const HARNESS_TABLE = [
     detectionPaths: ['.lingma'],
   },
   {
+    id: 'minimax-code',
+    displayName: 'MiniMax Code',
+    globalSkillsDir: '.minimax',
+    invocationPrefix: '/',
+    bodyDialect: 'skill',
+    requiresIdeRestart: false,
+    detectionPaths: [],
+  },
+  {
     id: 'vibe',
     displayName: 'Mistral Vibe',
     skillsDir: '.vibe',

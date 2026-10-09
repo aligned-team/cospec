@@ -8,7 +8,7 @@ import { afterAll, describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { HARNESS_NAMES } from '../../src/harness/adapters.ts'
+import { type HarnessAdapter, HARNESS_NAMES, HARNESS_TABLE } from '../../src/harness/adapters.ts'
 import { cleanupAll, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.ts'
 import { assertNoAncestorOpenspec, CAPTURE_GLOBAL_CONFIG } from './support/upstream-init-capture.ts'
 import { oracleSpawn } from './support/upstream-oracle.ts'
@@ -32,7 +32,7 @@ function toolFiles(dir: string, rel = ''): string[] {
 }
 
 /** The pinned binary's `init --tools <id>` in its own sandbox; the project dir it wrote. */
-async function upstreamProject(tool: string): Promise<string> {
+async function upstreamProject(tool: string): Promise<{ project: string; home: string }> {
   const sandbox = mkTempRepo()
   assertNoAncestorOpenspec(sandbox)
   const project = join(sandbox, 'project')
@@ -55,17 +55,33 @@ async function upstreamProject(tool: string): Promise<string> {
   const [stderr, exitCode] = await Promise.all([new Response(proc.stderr).text(), proc.exited])
   if (exitCode !== 0) throw new Error(`upstream init --tools ${tool} failed: ${stderr}`)
   Bun.spawnSync(['git', 'init', '-q'], { cwd: project })
-  return project
+  return { project, home: env.HOME! }
 }
 
 interface DoctorJson {
   findings: { check: string; message: string }[]
 }
 
+/**
+ * A home-scoped row (`globalSkillsDir`) writes under the sandbox HOME, never the project, so its
+ * files are named by absolute path and its cospec run shares that HOME.
+ */
 async function sweepRow(id: string): Promise<void> {
-  const project = await upstreamProject(id)
-  const env = oracleEnv(mkTempRepo())
-  const wrote = toolFiles(project).filter((f) => !f.endsWith('/.openspec-target'))
+  const row: HarnessAdapter = HARNESS_TABLE.find((r) => r.id === id)!
+  const home = row.skillsDir === undefined && row.globalSkillsDir !== undefined
+  const homeDir = row.globalSkillsDir ?? ''
+  const upstream = await upstreamProject(id)
+  const project = upstream.project
+  const env = home
+    ? { ...oracleEnv(mkTempRepo()), HOME: upstream.home, USERPROFILE: upstream.home }
+    : oracleEnv(mkTempRepo())
+  // `wrote` is relative to the base the binary wrote under; a project file is named by its
+  // relative path, a home file by its absolute one.
+  const base = home ? upstream.home : project
+  const wrote = home
+    ? toolFiles(join(upstream.home, homeDir)).map((f) => join(homeDir, f))
+    : toolFiles(project).filter((f) => !f.endsWith('/.openspec-target'))
+  const shown = (rel: string): string => (home ? join(base, rel) : rel)
   expect(wrote.length).toBeGreaterThan(0)
 
   const doctor = await cospec(['doctor', '--json'], { cwd: project, env })
@@ -73,18 +89,35 @@ async function sweepRow(id: string): Promise<void> {
     .filter((f) => f.check === 'opsx-leftover')
     .map((f) => /: (\S+) — /.exec(f.message)?.[1])
     .toSorted()
-  expect(named).toEqual(wrote)
+  expect(named).toEqual(wrote.map(shown).toSorted())
 
   const run = await cospec(['init', '--harness', id, '--no-gate', '--remove-opsx', '--json'], {
     cwd: project,
     env,
   })
   expect(run.exitCode).toBe(0)
-  const doc = JSON.parse(run.stdout) as { opsx: { found: string[]; removed: boolean } }
-  expect(doc.opsx.found.toSorted()).toEqual(wrote)
-  expect(doc.opsx.removed).toBe(true)
-  for (const rel of wrote) expect(existsSync(join(project, rel))).toBe(false)
+  const doc = JSON.parse(run.stdout) as {
+    opsx: {
+      found: (string | { path: string; scope: string; removed: boolean })[]
+      removed: boolean
+    }
+  }
+  const found = doc.opsx.found.map((f) => (typeof f === 'string' ? f : f.path))
+  expect(found.toSorted()).toEqual(wrote.map(shown).toSorted())
+  for (const f of doc.opsx.found) {
+    if (typeof f !== 'string')
+      expect({ scope: f.scope, removed: f.removed }).toEqual({ scope: 'home', removed: true })
+  }
+  if (!home) expect(doc.opsx.removed).toBe(true)
+  for (const rel of wrote) expect(existsSync(join(base, rel))).toBe(false)
+
   // What is left is cospec's own output and the shared-root marker, never a file the binary wrote.
+  if (home) {
+    for (const name of readdirSync(join(upstream.home, homeDir, 'skills'))) {
+      expect(name.startsWith('cospec-')).toBe(true)
+    }
+    return
+  }
   for (const rel of toolFiles(project)) {
     expect(wrote).not.toContain(rel)
     if (rel.endsWith('.md'))

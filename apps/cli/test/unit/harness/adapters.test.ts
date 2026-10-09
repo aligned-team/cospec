@@ -295,6 +295,7 @@ describe('HARNESS_TABLE invariants', () => {
       'kimi',
       'kiro',
       'lingma',
+      'minimax-code',
       'vibe',
       'oh-my-pi',
       'pi',
@@ -479,6 +480,8 @@ describe('HARNESS_TABLE derived roots', () => {
       '.kimi-code',
       '.kiro',
       '.lingma',
+      // minimax-code is home-scoped: no project root at all
+      undefined,
       '.vibe',
       '.omp',
       '.pi',

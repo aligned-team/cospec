@@ -18,7 +18,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 
 import { canonFile } from '../canon/embedded.ts'
 import type { CommandContext } from '../cli.ts'
@@ -46,6 +46,7 @@ import {
   respellInvocationHint,
   universalHarnessHint,
 } from '../harness/adapters.ts'
+import { homeSkillsDir } from '../harness/home-root.ts'
 import {
   findGlobalPromptLeftovers,
   type GlobalPromptLeftover,
@@ -400,6 +401,35 @@ export function isOpsxLeftover(
 }
 
 /**
+ * The openspec skills a home-scoped row left under its home skills dir, each with the absolute
+ * cospec skill that replaces it. Provenance is `isOpsxLeftover`'s, the one predicate every
+ * project-scope leftover uses. `rows` are the ids to read; a row with no home skills dir, or
+ * whose dir does not exist, contributes nothing.
+ */
+export function homeSkillLeftovers(rows: readonly string[]): GlobalPromptLeftover[] {
+  const out: GlobalPromptLeftover[] = []
+  for (const row of HARNESS_TABLE) {
+    const dir = homeSkillsDir(row)
+    if (dir === undefined || !rows.includes(row.id) || !existsSync(dir)) continue
+    for (const name of readdirSync(dir).toSorted()) {
+      const file = join(dir, name, SKILL_FILE)
+      if (!existsSync(file) || !lstatSync(file).isFile()) continue
+      if (!isOpsxLeftover(`${name}/${SKILL_FILE}`, readFileSync(file, 'utf8'))) continue
+      const replacement = join(dir, name.replace(/^openspec-/, 'cospec-'), SKILL_FILE)
+      out.push({ path: file, replacement })
+    }
+  }
+  return out
+}
+
+/** Removes a leftover home skill's now-empty `openspec-*` directory; never any other folder. */
+function removeHomeSkillFile(path: string): void {
+  rmSync(path)
+  const dir = dirname(path)
+  if (basename(dir).startsWith('openspec-') && readdirSync(dir).length === 0) rmdirSync(dir)
+}
+
+/**
  * Which files the opsx leftover scan reads. Wider than `isHarnessDocument`, because what
  * openspec wrote sits at its own paths (`.claude/commands/opsx/<id>.md`,
  * `.opencode/commands/opsx-<id>.md` in the pinned dist's command adapters): every
@@ -722,9 +752,12 @@ export function run(ctx: CommandContext): number {
   if (opsxRemoved) removeOpsxFiles(target, opsx)
   // Outside the project: only the explicit flag removes them, and only once this run wrote
   // the skill that replaces each one.
-  const homeOpsx: HomeLeftover[] = findGlobalPromptLeftovers(harnesses).map((p) => {
+  const homeOpsx: HomeLeftover[] = [
+    ...findGlobalPromptLeftovers(harnesses),
+    ...homeSkillLeftovers(harnesses),
+  ].map((p) => {
     const removed = removeOpsx && emitted.has(p.replacement)
-    if (removed) rmSync(p.path)
+    if (removed) removeHomeSkillFile(p.path)
     return { path: p.path, replacement: p.replacement, removed }
   })
 
@@ -940,12 +973,12 @@ function printReceipt(target: string, d: ReceiptData): void {
   const homeKept = d.homeOpsx.filter((h) => !h.removed)
   if (homeRemoved.length > 0) {
     lines.push('')
-    lines.push(`Removed ${homeRemoved.length} openspec prompt(s) outside this project:`)
+    lines.push(`Removed ${homeRemoved.length} openspec file(s) outside this project:`)
     for (const h of homeRemoved) lines.push(`  ${h.path}`)
   }
   if (homeKept.length > 0) {
     lines.push('')
-    lines.push(`Found ${homeKept.length} openspec prompt(s) outside this project:`)
+    lines.push(`Found ${homeKept.length} openspec file(s) outside this project:`)
     for (const h of homeKept) lines.push(`  ${h.path}`)
     lines.push(
       d.removeOpsx

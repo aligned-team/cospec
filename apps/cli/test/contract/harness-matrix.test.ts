@@ -94,7 +94,7 @@ type Check = 'detectionPaths' | 'legacyToolRoots' | 'initDetection'
 const SHIPPED_GAPS: Record<string, Partial<Record<Check, string>>> = {}
 
 /** The table's id order lands whole only with the last row (task 8.9). */
-const TABLE_ORDER_TASK: string | undefined = '8.9'
+const TABLE_ORDER_TASK: string | undefined = undefined
 
 // --- helpers -------------------------------------------------------------------------
 
