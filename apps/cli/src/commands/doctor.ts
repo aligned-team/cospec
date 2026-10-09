@@ -13,7 +13,7 @@
 // `references` and `status` keys carried in cospec's `--json` document and
 // each line of its stderr (config warnings) a WARNING finding.
 
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -46,6 +46,7 @@ import {
 } from '../core/openspec.ts'
 import { respellRemedies } from '../core/remedies.ts'
 import { type ResolvedRoot, resolveRoot, RootSelectionError } from '../core/root.ts'
+import { ARTIFACT_IDS } from '../core/rules/type-facts.ts'
 import {
   commandPath,
   HARNESS_TABLE,
@@ -356,6 +357,7 @@ function checkConfig(cwd: string, findings: Finding[]): void {
     })
     return
   }
+  checkRuleKeys(cwd, rel, doc, findings)
   const schema =
     doc !== null && typeof doc === 'object' ? (doc as Record<string, unknown>).schema : undefined
   if (typeof schema === 'string' && !(COSPEC_TYPES as readonly string[]).includes(schema)) {
@@ -365,6 +367,102 @@ function checkConfig(cwd: string, findings: Finding[]): void {
       message: `${rel} default schema is '${schema}' (not one of the 11 cospec types)`,
       remedy:
         'set `schema:` to a cospec type for the full guided workflow, or keep it if intentional',
+    })
+  }
+}
+
+/** Levenshtein distance, case-insensitive: the closest-id hint on a mistyped rule key. */
+function editDistance(a: string, b: string): number {
+  const x = a.toLowerCase()
+  const y = b.toLowerCase()
+  let prev = Array.from({ length: y.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= x.length; i++) {
+    const row = [i]
+    for (let j = 1; j <= y.length; j++) {
+      row.push(
+        Math.min(
+          (prev[j] ?? 0) + 1,
+          (row[j - 1] ?? 0) + 1,
+          (prev[j - 1] ?? 0) + (x[i - 1] === y[j - 1] ? 0 : 1),
+        ),
+      )
+    }
+    prev = row
+  }
+  return prev[y.length] ?? 0
+}
+
+/**
+ * The artifact ids every project schema under `openspec/schemas/*` declares,
+ * plus the schema files that could not be read or parsed (so the id set is
+ * known to be incomplete).
+ */
+function projectSchemaArtifactIds(cwd: string): { ids: Set<string>; unreadable: string[] } {
+  const ids = new Set<string>()
+  const unreadable: string[] = []
+  const dir = join(openspecDir(cwd), 'schemas')
+  if (!existsSync(dir)) return { ids, unreadable }
+  for (const entry of readdirSync(dir).sort()) {
+    const file = join(dir, entry, 'schema.yaml')
+    if (!existsSync(file)) continue
+    const rel = `openspec/schemas/${entry}/schema.yaml`
+    try {
+      const doc: unknown = parseYaml(readFileSync(file, 'utf8'))
+      const artifacts =
+        doc !== null && typeof doc === 'object'
+          ? (doc as Record<string, unknown>).artifacts
+          : undefined
+      if (!Array.isArray(artifacts)) continue
+      for (const a of artifacts) {
+        const id =
+          a !== null && typeof a === 'object' ? (a as Record<string, unknown>).id : undefined
+        if (typeof id === 'string') ids.add(id)
+      }
+    } catch (error) {
+      unreadable.push(`${rel} (${errorMessage(error)})`)
+    }
+  }
+  return { ids, unreadable }
+}
+
+/**
+ * A `rules:` key that is no artifact id in any available schema silently drops
+ * its rule list: the wrapped binary only notices while generating instructions,
+ * as one stderr line, which doctor's delegated call never reaches. Known ids are
+ * the built-ins plus every project schema's own; when a project schema cannot be
+ * read the set is incomplete, so that is reported instead of guessing.
+ */
+function checkRuleKeys(cwd: string, rel: string, doc: unknown, findings: Finding[]): void {
+  const rules =
+    doc !== null && typeof doc === 'object' ? (doc as Record<string, unknown>).rules : undefined
+  if (rules === null || typeof rules !== 'object' || Array.isArray(rules)) return
+  const keys = Object.keys(rules)
+  if (keys.length === 0) return
+  const { ids, unreadable } = projectSchemaArtifactIds(cwd)
+  if (unreadable.length > 0) {
+    findings.push({
+      level: 'WARNING',
+      check: 'config',
+      message: `cannot check ${rel} rules keys against artifact ids: ${unreadable.join('; ')}`,
+      remedy: 'fix the project schema file, then re-run `cospec doctor`',
+    })
+    return
+  }
+  for (const id of ARTIFACT_IDS) ids.add(id)
+  const known = [...ids].sort()
+  for (const key of keys) {
+    if (ids.has(key)) continue
+    const near = known
+      .map((id) => ({ id, d: editDistance(key, id) }))
+      .filter((c) => c.d <= 2)
+      .sort((a, b) => a.d - b.d)[0]
+    findings.push({
+      level: 'WARNING',
+      check: 'config',
+      message:
+        `${rel}: rules.${key} is not an artifact id (known: ${known.join(', ')}); ` +
+        `its rules are ignored${near === undefined ? '' : ` — did you mean '${near.id}'?`}`,
+      remedy: 'rename the key to an artifact id; its rules are currently ignored',
     })
   }
 }

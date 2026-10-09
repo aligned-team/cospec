@@ -86,6 +86,89 @@ describe('cospec doctor (DESIGN §2.3)', () => {
     expect(findings.some((f) => f.check === 'config' && f.level === 'INFO')).toBe(true)
   })
 
+  describe('rules: keys that are not artifact ids (issue #69)', () => {
+    const KNOWN = 'blocking-changes, design, proposal, specs, tasks, verification'
+
+    function writeConfig(rules: string): void {
+      writeFileSync(join(dir, 'openspec/config.yaml'), `schema: feat\n${rules}`)
+    }
+
+    function ruleFindings(findings: JsonFinding[]): JsonFinding[] {
+      return findings.filter((f) => f.check === 'config' && f.message.includes('rules.'))
+    }
+
+    test('a mistyped key is one WARNING naming it and the known ids; exit code unchanged', async () => {
+      seed(dir)
+      writeConfig('rules:\n  proposals:\n    - Mention rollout\n  proposal:\n    - Keep it short\n')
+      const { code, findings } = await doctorJson(dir)
+      const hits = ruleFindings(findings)
+      expect(code).toBe(0)
+      expect(hits).toHaveLength(1)
+      expect(hits[0]?.level).toBe('WARNING')
+      expect(hits[0]?.message).toContain('rules.proposals is not an artifact id')
+      expect(hits[0]?.message).toContain(`known: ${KNOWN}`)
+      expect(hits[0]?.message).toContain('its rules are ignored')
+      expect(hits[0]?.message).toContain("did you mean 'proposal'?")
+    })
+
+    test('every built-in artifact id is a valid key', async () => {
+      seed(dir)
+      writeConfig(
+        'rules:\n' +
+          KNOWN.split(', ')
+            .map((id) => `  ${id}:\n    - a rule\n`)
+            .join(''),
+      )
+      const { findings } = await doctorJson(dir)
+      expect(ruleFindings(findings)).toEqual([])
+    })
+
+    test('an artifact id declared by a project schema is a valid key', async () => {
+      seed(dir)
+      mkdirSync(join(dir, 'openspec/schemas/mine'), { recursive: true })
+      writeFileSync(
+        join(dir, 'openspec/schemas/mine/schema.yaml'),
+        'name: mine\nversion: 1\nartifacts:\n  - id: extra\n    generates: extra.md\n    description: x\n    template: extra.md\n    requires: []\n',
+      )
+      writeConfig('rules:\n  extra:\n    - a rule\n  nope:\n    - a rule\n')
+      const { findings } = await doctorJson(dir)
+      const hits = ruleFindings(findings)
+      expect(hits).toHaveLength(1)
+      expect(hits[0]?.message).toContain('rules.nope')
+      expect(hits[0]?.message).toContain('extra')
+    })
+
+    test('a key with no near id has no suggestion', async () => {
+      seed(dir)
+      writeConfig('rules:\n  zzzzzzzz:\n    - a rule\n')
+      const { findings } = await doctorJson(dir)
+      expect(ruleFindings(findings)[0]?.message).not.toContain('did you mean')
+    })
+
+    test('absent or non-mapping rules produce no finding', async () => {
+      seed(dir)
+      for (const body of ['', 'rules: not-a-map\n', 'rules:\n  - proposals\n', 'rules:\n']) {
+        writeConfig(body)
+        const { code, findings } = await doctorJson(dir)
+        expect(code).toBe(0)
+        expect(ruleFindings(findings)).toEqual([])
+      }
+    })
+
+    test('an unparseable project schema is reported and suppresses key flagging', async () => {
+      seed(dir)
+      mkdirSync(join(dir, 'openspec/schemas/broken'), { recursive: true })
+      writeFileSync(join(dir, 'openspec/schemas/broken/schema.yaml'), 'artifacts: [unclosed\n')
+      writeConfig('rules:\n  proposals:\n    - a rule\n')
+      const { findings } = await doctorJson(dir)
+      const hits = findings.filter((f) => f.check === 'config')
+      expect(hits).toHaveLength(1)
+      expect(hits[0]?.level).toBe('WARNING')
+      expect(hits[0]?.message).toContain('openspec/schemas/broken/schema.yaml')
+      expect(hits[0]?.message).not.toContain('rules.proposals is not')
+    })
+  })
+
   // `generatedBy` here is an arbitrary openspec version, not cospec's pin: the
   // detector matches the SHAPE (`author: openspec` + a bare semver), and the
   // `.agents/` case below deliberately uses a different one.
