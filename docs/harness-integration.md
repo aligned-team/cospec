@@ -52,12 +52,35 @@ row's skills or legacy skills root, each markdown row's files with its command
 extension under its commands dir, and the shared `.agents/skills` root. It has
 to be wider, because upstream's own command paths
 (`.claude/commands/opsx/<id>.md`, `.opencode/commands/opsx-<id>.md`) are not
-cospec's, and provenance, never the path, decides what is a leftover. A file
-belongs to the row with a skills, legacy skills, commands or rules dir that is
-the longest prefix of it. A dir two rows share goes to the row whose primary
-root also prefixes the file, then to the earlier row, and a file under none of
-them goes to the first row whose primary root prefixes it. The table can express
-shapes no production row uses yet — a split commands root,
+cospec's, and provenance, never the path, decides what is a leftover. The walk
+stops at two boundaries, and it is one shared walker (`walkProjectFiles` in
+`harness/scan-walk.ts`) that doctor's harness-file read and its `stale-sidecar`
+check descend with too, so neither crosses a nested worktree or leaves the
+project either. First, a directory holding its own `.git` entry (a
+`git worktree add` checkout, where `.git` is a file, or an embedded clone, where
+it is a directory) is never descended into, so a nested worktree such as
+`.claude/worktrees/<name>/` is scanned by its own `cospec init --remove-opsx`,
+never swept up by the outer one. That boundary also applies to a scan root
+itself: a root that holds its own `.git`, sits inside a directory that does, or
+is a symlink resolving into one (a `.claude` pointing into a worktree under the
+project) is never read, and `--remove-opsx` re-checks the same test, on the path
+and its resolved target, immediately before every delete. Second, a scan root
+itself — any `scanRoots` entry, or the explicit `.agents/skills` walk — is never
+read if it resolves (symlinks followed) outside the project: before `walk()`
+reads a root's directory, it resolves the path with `realpathSync` and skips it
+unless the result stays inside the project's own resolved directory, and
+`--remove-opsx`'s removal step re-checks the same containment immediately before
+every delete, independent of the walk. This is checked by realpath containment
+rather than by `lstat`-ing the root segment, so a multi-segment path
+(`.agents/skills`) is caught regardless of which segment is the symlink, and a
+symlink that happens to resolve back inside the project (harmless) is not
+needlessly skipped — only a `.claude`, `.agents`, or `.agents/skills` that
+escapes the project (a shared dotfiles directory, a sibling project) is ever
+skipped. A file belongs to the row with a skills, legacy skills, commands or
+rules dir that is the longest prefix of it. A dir two rows share goes to the row
+whose primary root also prefixes the file, then to the earlier row, and a file
+under none of them goes to the first row whose primary root prefixes it. The
+table can express shapes no production row uses yet — a split commands root,
 `.prompt`/`.prompt.md`/ `.toml` extensions, the TOML serializer, the `@`
 invocation prefix, home-scoped skills — each exercised by a unit test through a
 fixture row passed via `RenderOptions.adapters` (or `GenerateOptions.adapters`,
@@ -210,21 +233,36 @@ merged entry. If it does not parse, cospec prints the snippet and skips.
 ## Coexistence with OpenSpec's own files
 
 - **opsx files** — OpenSpec's own generated files (frontmatter
-  `generatedBy: "1.3.x"` + `author: openspec`) are never generated and never
-  required. Pre-existing ones are listed with a warning at init and removed with
+  `generatedBy: "1.3.x"` + `author: openspec` for a skill; `name: "OPSX: …"` for
+  most tools' command files) are never generated and never required.
+  Pre-existing ones are listed with a warning at init and removed with
   `--remove-opsx` (or interactive confirm; `--yes` = yes). User-authored files
-  (no `generatedBy`) are never touched. `doctor` warns while both command sets
-  coexist, because two propose commands confuse agents. The leftover scan also
-  walks `.agents/skills/` (`OPSX_SHARED_SKILL_ROOT`) whichever rows the table
-  carries: openspec 1.8.0+ writes its Codex (and 1.7.0's `agents`, 1.10's `zed`,
-  1.11's `antigravity`) skills to that shared root instead of under a
-  per-harness `.<tool>/` dir, so an install done with any of those targets
-  leaves no trace under the three `.<harness>` dirs cospec otherwise scans.
-  cospec now writes its own skills to that same root (targets `codex` and
-  `agents`), so the two toolchains' output coexists there: cospec owns only its
-  `cospec-*` dirs, and `--remove-opsx` still removes only openspec-authored
-  files. The superset walk of `.agents/` and the subset walk of
-  `.agents/skills/` are deduped, so a leftover is reported once.
+  (no `generatedBy`, no `name: "OPSX: …"`) are never touched. `doctor` warns
+  while both command sets coexist, because two propose commands confuse agents.
+  OpenCode's command adapter writes frontmatter with only `description` — no
+  `name`, no `metadata` — so neither marker above ever matches its own
+  `.opencode/commands/opsx-<id>.md` leftovers. Those are detected instead by the
+  combination of the adapter's exact path restricted to one of the 12 workflow
+  ids the pinned dist ever generates (`propose`, `explore`, `new`, `continue`,
+  `apply`, `update`, `ff`, `sync`, `archive`, `bulk-archive`, `verify`,
+  `onboard`), a frontmatter with no key but `description`, and the pinned dist's
+  `PROJECT_ROOT_GUARD` template's literal lead sentence
+  (`**Project check:** These steps expect a project that already uses OpenSpec.`)
+  plus its backtick-quoted `` `openspec list --json` `` command reference —
+  never on path shape, frontmatter shape, or the bare command reference alone,
+  so a hand-written file at the same path with its own prose body, an id the
+  pinned dist never generates, or a body that merely quotes the same command for
+  its own reasons, is left untouched. The leftover scan also walks
+  `.agents/skills/` (`OPSX_SHARED_SKILL_ROOT`) whichever rows the table carries:
+  openspec 1.8.0+ writes its Codex (and 1.7.0's `agents`, 1.10's `zed`, 1.11's
+  `antigravity`) skills to that shared root instead of under a per-harness
+  `.<tool>/` dir, so an install done with any of those targets leaves no trace
+  under the three `.<harness>` dirs cospec otherwise scans. cospec now writes
+  its own skills to that same root (targets `codex` and `agents`), so the two
+  toolchains' output coexists there: cospec owns only its `cospec-*` dirs, and
+  `--remove-opsx` still removes only openspec-authored files. The superset walk
+  of `.agents/` and the subset walk of `.agents/skills/` are deduped, so a
+  leftover is reported once.
 - **Shared `.agents/skills` root** — the `codex` and `agents` rows both declare
   `skillsDir: '.agents'` and `bodyDialect: 'shared'`, so they render
   byte-identical skill files there (same paths, same bodies, same

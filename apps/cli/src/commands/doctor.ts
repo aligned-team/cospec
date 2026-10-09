@@ -13,7 +13,7 @@
 // `references` and `status` keys carried in cospec's `--json` document and
 // each line of its stderr (config warnings) a WARNING finding.
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -57,7 +57,8 @@ import {
   skillPath,
   skillsRoot,
 } from '../harness/adapters.ts'
-import { leftoverScanFiles } from './init.ts'
+import { walkProjectFiles } from '../harness/scan-walk.ts'
+import { isOpsxMarkdown, leftoverScanFiles } from './init.ts'
 import { detectHarnesses, generate } from './update.ts'
 
 type Level = 'ERROR' | 'WARNING' | 'INFO'
@@ -191,26 +192,20 @@ function checkLegacyLayout(migration: WriteResult[], findings: Finding[]): void 
 /**
  * The files cospec writes under the scan roots, which doctor's stale-harness,
  * mixed-versions and dangling-ref checks read (`isHarnessDocument`). The walk descends
- * every scan root; only acceptance is narrowed. `table` is a test seam for rows the
- * shipped table does not carry.
+ * every scan root through the shared bounded walk (`walkProjectFiles`: never into a
+ * nested worktree, never out of the project); only acceptance is narrowed. `table` is a
+ * test seam for rows the shipped table does not carry.
  */
 export function harnessMarkdownFiles(
   cwd: string,
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): { relpath: string; text: string }[] {
   const out: { relpath: string; text: string }[] = []
-  const walk = (rel: string): void => {
-    const abs = join(cwd, rel)
-    if (!existsSync(abs)) return
-    for (const entry of readdirSync(abs, { withFileTypes: true })) {
-      const childRel = `${rel}/${entry.name}`
-      if (entry.isDirectory()) walk(childRel)
-      else if (entry.isFile() && isHarnessDocument(childRel, table)) {
-        out.push({ relpath: childRel, text: readFileSync(join(cwd, childRel), 'utf8') })
-      }
+  walkProjectFiles(cwd, scanRoots(table), (relpath) => {
+    if (isHarnessDocument(relpath, table)) {
+      out.push({ relpath, text: readFileSync(join(cwd, relpath), 'utf8') })
     }
-  }
-  for (const root of scanRoots(table)) walk(root)
+  })
   return out
 }
 
@@ -380,18 +375,12 @@ export function checkOpsx(
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): void {
   for (const f of leftoverScanFiles(cwd, table)) {
-    const { frontmatter } = splitFrontmatter(f.text)
-    const meta = frontmatter?.metadata
-    // Provenance-only, matching init's removal set (DESIGN §2.1/§6.6): flag a
-    // file only when its own frontmatter proves openspec authored it. Path/name
-    // conventions alone are not provenance — never warn on user-authored files.
-    const isOpsxSkill =
-      meta !== null &&
-      typeof meta === 'object' &&
-      (meta as Record<string, unknown>).author === 'openspec'
-    const name = frontmatter?.name
-    const isOpsxCommand = typeof name === 'string' && /^"?OPSX:/.test(name)
-    if (isOpsxSkill || isOpsxCommand) {
+    // Provenance-only, matching init's removal set (DESIGN §2.1/§6.6) and its exact
+    // predicate (init.ts's `isOpsxMarkdown`, shared rather than duplicated so the two
+    // never drift): flag a file only when its own frontmatter (or, for OpenCode's
+    // description-only shape, frontmatter plus body) proves openspec authored it.
+    // Path/name conventions alone are not provenance — never warn on user-authored files.
+    if (isOpsxMarkdown(f.relpath, f.text)) {
       findings.push({
         level: 'WARNING',
         check: 'opsx-leftover',
@@ -404,19 +393,14 @@ export function checkOpsx(
 
 function checkStaleSidecars(cwd: string, findings: Finding[]): void {
   const found = new Set<string>()
-  const walk = (rel: string): void => {
-    const abs = join(cwd, rel)
-    if (!existsSync(abs)) return
-    for (const entry of readdirSync(abs, { withFileTypes: true })) {
-      const childRel = `${rel}/${entry.name}`
-      if (entry.isDirectory()) {
-        if (entry.name === 'archive') continue
-        walk(childRel)
-      } else if (entry.isFile() && entry.name.endsWith('.cospec-new')) found.add(childRel)
-    }
-  }
-  walk('openspec')
-  for (const root of scanRoots()) walk(root)
+  walkProjectFiles(
+    cwd,
+    ['openspec', ...scanRoots()],
+    (relpath) => {
+      if (relpath.endsWith('.cospec-new')) found.add(relpath)
+    },
+    (name) => name === 'archive',
+  )
   for (const relpath of found) {
     findings.push({
       level: 'WARNING',
