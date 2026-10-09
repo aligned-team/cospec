@@ -352,18 +352,77 @@ function hasAnyFileUnder(dir: string): boolean {
  * names none, as upstream falls back to its default then.
  */
 export function projectConfigSchema(base: string): string | undefined {
-  const yaml = join(openspecDir(base), 'config.yaml')
-  const path = existsSync(yaml) ? yaml : join(openspecDir(base), 'config.yml')
-  if (!existsSync(path)) return undefined
-  let doc: unknown
-  try {
-    doc = parseYaml(readFileSync(path, 'utf8'))
-  } catch {
-    return undefined
-  }
+  const doc = readProjectConfig(base)
   if (doc === null || typeof doc !== 'object') return undefined
   const schema = (doc as Record<string, unknown>).schema
   return typeof schema === 'string' && schema.length > 0 ? schema : undefined
+}
+
+/**
+ * The root's `openspec/config.yaml` (else `config.yml`) parsed, or `undefined`
+ * when there is none or it does not parse. Callers that need to tell a parse
+ * failure from absence (`cospec doctor`) read the file themselves.
+ */
+function readProjectConfig(base: string): unknown {
+  const yaml = join(openspecDir(base), 'config.yaml')
+  const path = existsSync(yaml) ? yaml : join(openspecDir(base), 'config.yml')
+  if (!existsSync(path)) return undefined
+  try {
+    return parseYaml(readFileSync(path, 'utf8'))
+  } catch {
+    return undefined
+  }
+}
+
+export interface VerificationLayers {
+  /** The usable extra layer tokens, without a leading `@`, in declaration order. */
+  layers: string[]
+  /** One description per malformed part of the declaration, for `cospec doctor`. */
+  problems: string[]
+}
+
+/**
+ * `verification.layers` from a parsed `config.yaml`: the project's extension of
+ * the closed `@<layer>` vocabulary. Lenient by design — a gate must never crash
+ * on a config typo — so anything unusable adds no layer and is named in
+ * `problems` instead. An entry is a string; one leading `@` is stripped (the
+ * docs write tokens as `@<layer>`) and what is left must be non-empty with no
+ * whitespace, because a row's layer token is `\S+` and could never match
+ * otherwise. A key present with no value (`verification:`) reads as absent.
+ */
+export function parseVerificationLayers(doc: unknown): VerificationLayers {
+  const none: VerificationLayers = { layers: [], problems: [] }
+  if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) return none
+  const block = (doc as Record<string, unknown>).verification
+  if (block === null || block === undefined) return none
+  if (typeof block !== 'object' || Array.isArray(block)) {
+    return { layers: [], problems: ['`verification` is not a mapping'] }
+  }
+  const declared = (block as Record<string, unknown>).layers
+  if (declared === null || declared === undefined) return none
+  if (!Array.isArray(declared)) {
+    return { layers: [], problems: ['`verification.layers` is not a list'] }
+  }
+  const layers: string[] = []
+  const problems: string[] = []
+  for (const entry of declared as unknown[]) {
+    const token = typeof entry === 'string' ? entry.trim().replace(/^@/, '') : ''
+    if (token.length === 0 || /\s/.test(token)) {
+      problems.push(JSON.stringify(entry) ?? String(entry))
+    } else if (!layers.includes(token)) {
+      layers.push(token)
+    }
+  }
+  return { layers, problems }
+}
+
+/**
+ * The extra `@<layer>` tokens the root's config declares under
+ * `verification.layers`; `[]` when there is no config, it does not parse, or the
+ * declaration is unusable (see `parseVerificationLayers`).
+ */
+export function projectVerificationLayers(base: string): readonly string[] {
+  return parseVerificationLayers(readProjectConfig(base)).layers
 }
 
 /**

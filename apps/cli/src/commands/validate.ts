@@ -20,6 +20,7 @@ import {
   isValidSchemaVersion,
   listChanges,
   openspecDir,
+  projectVerificationLayers,
   resolveSchema,
 } from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
@@ -946,13 +947,16 @@ export function readValidateContext(base: string): {
   warning?: ArchiveWarning
 } {
   const activeSlugs = new Set(listChanges(base).map((c) => c.id))
+  // The project's `verification.layers` extends the closed `@<layer>` vocabulary
+  // for every gate that validates through this context.
+  const verificationLayers = projectVerificationLayers(base)
   try {
-    return { ctx: { archiveSlugs: archiveSlugsIn(base), activeSlugs } }
+    return { ctx: { archiveSlugs: archiveSlugsIn(base), activeSlugs, verificationLayers } }
   } catch (error) {
     const code = (error as NodeJS.ErrnoException | undefined)?.code
     if (typeof code !== 'string' || code === 'ENOENT') throw error
     return {
-      ctx: { archiveSlugs: new Set(), activeSlugs },
+      ctx: { archiveSlugs: new Set(), activeSlugs, verificationLayers },
       warning: {
         code: 'archive_unreadable',
         message:

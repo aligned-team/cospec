@@ -12,6 +12,16 @@ import { isCospecType } from './type-facts.ts'
 
 const FILE = 'verification.md'
 
+const CORE_LAYER_HINT =
+  'core layers: @unit @integration @e2e @manual @runtime @regression @equivalence @benchmark @eval'
+
+/** The `layer-unknown` hint, naming the project's declared layers when it has any. */
+function layerHint(extraLayers: readonly string[]): string {
+  const project =
+    extraLayers.length > 0 ? `; project layers: ${extraLayers.map((l) => `@${l}`).join(' ')}` : ''
+  return `${CORE_LAYER_HINT}${project} — extend via openspec/config.yaml verification.layers`
+}
+
 export interface VerificationRuleOptions {
   strict: boolean
   /** project-extended layers (openspec/config.yaml verification.layers). */
@@ -86,7 +96,7 @@ export function verificationRules(
         path: FILE,
         line: row.line,
         message: `@${row.layer} is not a known layer`,
-        hint: 'core layers: @unit @integration @e2e @manual @runtime @regression @equivalence @benchmark @eval — extend via openspec/config.yaml verification.layers',
+        hint: layerHint(extraLayers),
       })
     }
     // verification/owner-unknown (fail-closed)

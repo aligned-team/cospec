@@ -26,6 +26,7 @@ import {
   isCospecType,
   listChanges,
   openspecDir,
+  parseVerificationLayers,
   resolveSchema,
 } from '../core/change.ts'
 import {
@@ -367,6 +368,18 @@ async function checkConfig(root: Root, cwd: string, findings: Finding[]): Promis
       message: `${rel} default schema is '${schema}' (not one of the 11 cospec types)`,
       remedy:
         'set `schema:` to a cospec type for the full guided workflow, or keep it if intentional',
+    })
+  }
+  // Gates read `verification.layers` leniently (a malformed one adds no layer), so a
+  // typo would otherwise fail closed as `verification/layer-unknown` with no clue why.
+  const { problems } = parseVerificationLayers(doc)
+  if (problems.length > 0) {
+    findings.push({
+      level: 'WARNING',
+      check: 'config',
+      message: `${rel} verification.layers is malformed and adds no layer: ${problems.join(', ')}`,
+      remedy:
+        'declare it as a list of layer names, for example `verification:` then `layers: [uat]`; each name is one token without spaces',
     })
   }
 }
