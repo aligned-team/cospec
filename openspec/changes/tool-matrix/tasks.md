@@ -248,4 +248,4 @@
 - [x] 11.2 Record every verification row's observed result in `verification.md`
       and run `mise run cospec -- validate tool-matrix --strict`; verify it
       passes
-- [ ] 11.3 the archive commit follows this one
+- [x] 11.3 the archive commit follows this one
