@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { openspecPackageDir } from '../../src/core/openspec.ts'
-import { HARNESS_TABLE, skillsRoot } from '../../src/harness/adapters.ts'
+import { type HarnessAdapter, HARNESS_TABLE, skillsRoot } from '../../src/harness/adapters.ts'
 import { SHARED_ROOT_UPSTREAM_ORDER } from '../../src/harness/shared-root.ts'
 import { cleanupAll, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.ts'
 import { assertNoAncestorOpenspec, CAPTURE_GLOBAL_CONFIG } from './support/upstream-init-capture.ts'
@@ -22,6 +22,7 @@ const { AI_TOOLS } = (await import(join(openspecPackageDir(), 'dist/core/config.
 }
 
 const MARKER_DIR = '.agents/skills'
+const TABLE: readonly HarnessAdapter[] = HARNESS_TABLE
 
 /** Runs `openspec init --tools <tools>` for each step, in order, in one project. */
 async function upstreamMarker(steps: string[]): Promise<string | undefined> {
@@ -65,7 +66,7 @@ async function cospecMarker(steps: string[]): Promise<string | undefined> {
 
 describe('the shared-root tie-break order is the pinned AI_TOOLS order', () => {
   test('SHARED_ROOT_UPSTREAM_ORDER lists every table row on a shared root, in upstream order', () => {
-    const shared = HARNESS_TABLE.filter((r) => r.skillsDir === '.agents').map((r) => r.id)
+    const shared = TABLE.filter((r) => r.skillsDir === '.agents').map((r) => r.id)
     const upstream = AI_TOOLS.filter((t) => t.skillsDir === '.agents').map((t) => t.value)
     expect([...SHARED_ROOT_UPSTREAM_ORDER]).toEqual(upstream)
     expect(shared.toSorted()).toEqual(upstream.toSorted())
@@ -73,7 +74,7 @@ describe('the shared-root tie-break order is the pinned AI_TOOLS order', () => {
 
   test('no other project skills root is shared by two rows', () => {
     const byRoot = new Map<string, string[]>()
-    for (const r of HARNESS_TABLE) {
+    for (const r of TABLE) {
       const { root, scope } = skillsRoot(r)
       if (scope === 'project') byRoot.set(root, [...(byRoot.get(root) ?? []), r.id])
     }
