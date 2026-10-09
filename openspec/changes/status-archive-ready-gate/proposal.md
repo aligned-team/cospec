@@ -21,6 +21,11 @@ grandfathered v1 change can read differently across the two commands.
 
 ## What Changes
 
+- `verification.blockedReasons` also names every `verification/*` ERROR that
+  `cospec archive`'s validation raises on the ledger (a deferred row without a
+  `defer:` reason, a group with no rows, a checked row without evidence, an
+  unknown layer or owner, a missing per-type row), so a ledger archive refuses
+  on validation is not archive-ready either.
 - `archiveReady` is false whenever `verification.blockedReasons` is non-empty,
   in `cospec status` (JSON and the `archive-ready:` text line, for one change
   and under `--all`) and in `cospec list` (the `archive-ready` marker and the
@@ -53,16 +58,18 @@ grandfathered v1 change can read differently across the two commands.
 
 - `apps/cli/src/commands/status.ts`, `apps/cli/src/commands/list.ts` and a
   shared readiness helper next to the gate in `apps/cli/src/commands/apply.ts`.
-- `apps/cli/src/core/verification.ts`: a reader that loads `verification.md` and
-  computes the verdict, used by `status` and `list`.
+- `apps/cli/src/core/verification-verdict.ts`: a reader that loads
+  `verification.md` and computes the verdict (the archive gate's computation
+  plus the ledger's validation errors), used by `status` and `list`.
 - Tests: `status`/`list` unit and integration cases, plus a property test that a
   change reported `archiveReady: true` is not refused by
   `archive/verification-incomplete`.
 - `apps/docs/reference/commands.md` (the `status` and `list` rows own the
   archive-readiness fact).
 - `openspec/specs/verification-artifact/spec.md` via the delta spec.
-- Out of scope: `archive/scenario-preservation` and delta-spec validity are
-  still not modelled by `archiveReady`; the docs now say what it does cover.
+- Out of scope: `archive/scenario-preservation` and validation errors outside
+  `verification.md` (delta specs, proposal, design) are still not modelled by
+  `archiveReady`; the docs now say what it does cover.
 
 ## Surfaces
 

@@ -36,8 +36,9 @@ different `apply.requires` sets.
 
 **Non-Goals:**
 
-- Modelling `archive/scenario-preservation` or delta-spec validity in
-  `archiveReady`. The docs state what the flag covers instead.
+- Modelling `archive/scenario-preservation` or validation errors outside
+  `verification.md` (delta specs, proposal, design) in `archiveReady`. The docs
+  state what the flag covers instead.
 - Changing `Next:`; it follows the documented algorithm (`cospec apply <id>`
   once every required artifact exists).
 - Changing any JSON key or text-line shape; only the flag's value changes.
@@ -59,10 +60,20 @@ different `apply.requires` sets.
    `artifactDone` and the tasks rules that `list` imports. Rejected: a core
    module, since the helper needs the `Gate` type and sits with the gate it
    summarises.
-3. **One reader, `readVerificationVerdict(changeDir, declared)`, in
-   `core/verification.ts`**, reading `verification.md` when present and calling
-   `computeVerificationVerdict`. `status` and `list` use it; `archive` keeps its
-   own read because it also lists the offending rows.
+3. **One reader, `readVerificationVerdict(changeDir, change, applyRequires)`, in
+   `core/verification-verdict.ts`**, reading `verification.md` when present,
+   calling `computeVerificationVerdict` (unresolved and unparseable rows, the
+   archive gate's own computation) and adding one reason per `verification/*`
+   ERROR that `verificationRules` raises at `strict: false` (`structure`,
+   `deferred-reason`, `evidence-required`, `layer-unknown`, `owner-unknown` and
+   the per-type required rows), which is what `cospec archive`'s validation step
+   refuses on. `row-grammar` is skipped (already the "do not parse" reason) and
+   WARNINGs are skipped (a surface-promoted row rule is an ERROR under
+   `--strict` only, and archive validates without it). It lives apart from
+   `core/verification.ts` because the rules import that parser. `status` and
+   `list` use it; `archive`'s hard gate keeps `computeVerificationVerdict` and
+   its own read because it also lists the offending rows, and `--no-validate`
+   still skips validation's ledger rules as before.
 4. **`list` adopts `status`'s required set.** `list` reads the change's
    `schemaVersion` from `.openspec.yaml` and uses `enforcedApplyRequires`, so
    the two commands agree on a grandfathered change (the gates already do).
@@ -76,9 +87,9 @@ different `apply.requires` sets.
 - [Consumers that treated `archiveReady: true` as "tasks done" see it flip to
   false while verification rows remain] -> this is the intended correction and
   is called out as a value-only BREAKING note in the proposal.
-- [The flag still ignores `archive/scenario-preservation` and delta-spec
-  validity] -> documented on the owning docs page; a change can still be refused
-  by those gates.
+- [The flag still ignores `archive/scenario-preservation` and validation errors
+  outside `verification.md`] -> documented on the owning docs page; a change can
+  still be refused by those gates.
 - [`list` now reads one more file per change] -> only for cospec-typed,
   non-empty changes whose schemaVersion enforces `verification`.
 

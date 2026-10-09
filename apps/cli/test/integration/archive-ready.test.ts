@@ -79,6 +79,35 @@ const VERIFICATION = {
 - [x] 1.1 @regression (agent) run the widget with empty input -> no crash after
 - [x] 1.2 a row with no layer and no owner
 `,
+  // Archive's validation refuses each of these on a `verification/*` ERROR even
+  // though no row is bare `[ ]` and every row parses.
+  deferredNoReason: `# Verification
+
+## 1. Empty input is handled [critical]
+
+- [x] 1.1 @regression (agent) run the widget with empty input -> no crash after
+- [~] 1.2 @manual (human) try it in a browser -> nope
+`,
+  emptyGroup: `# Verification
+
+## 1. Empty input is handled [critical]
+
+- [x] 1.1 @regression (agent) run the widget with empty input -> no crash after
+
+## 2. Nothing is listed here
+`,
+  evidenceMissing: `# Verification
+
+## 1. Empty input is handled [critical]
+
+- [x] 1.1 @regression (agent) run the widget with empty input ->
+`,
+  noRegressionRow: `# Verification
+
+## 1. Empty input is handled [critical]
+
+- [x] 1.1 @e2e (agent) drive the real flow with empty input -> no crash
+`,
   resolved: `# Verification
 
 ## 1. Empty input is handled [critical]
@@ -120,6 +149,10 @@ const V2 = 'schemaVersion: 2\n'
 const FIXTURES: Fixture[] = [
   change('unresolved-rows', 'fix', V2, FIX_PROPOSAL, VERIFICATION.unresolved, false),
   change('malformed-row', 'fix', V2, FIX_PROPOSAL, VERIFICATION.malformed, false),
+  change('deferred-no-reason', 'fix', V2, FIX_PROPOSAL, VERIFICATION.deferredNoReason, false),
+  change('empty-group', 'fix', V2, FIX_PROPOSAL, VERIFICATION.emptyGroup, false),
+  change('evidence-missing', 'fix', V2, FIX_PROPOSAL, VERIFICATION.evidenceMissing, false),
+  change('no-regression-row', 'fix', V2, FIX_PROPOSAL, VERIFICATION.noRegressionRow, false),
   change('no-verification-file', 'fix', V2, FIX_PROPOSAL, undefined, false),
   change('resolved-rows', 'fix', V2, FIX_PROPOSAL, VERIFICATION.resolved, true),
   // Grandfathered: no schemaVersion stamp means v1, where verification is not enforced.
@@ -177,6 +210,14 @@ describe('archiveReady parity across status, status --all and list', () => {
   }, 120_000)
 })
 
+const VALIDATION_REFUSED = new Set([
+  'malformed-row',
+  'deferred-no-reason',
+  'empty-group',
+  'evidence-missing',
+  'no-regression-row',
+])
+
 describe('archiveReady: true is never refused by archive/verification-incomplete', () => {
   for (const f of FIXTURES) {
     test(`${f.slug}: the flag and the archive gate agree`, async () => {
@@ -185,18 +226,26 @@ describe('archiveReady: true is never refused by archive/verification-incomplete
         (await cospec(['status', '--change', f.slug, '--json'], { cwd: root })).stdout,
       ) as { archiveReady: boolean }
       const res = await cospec(['archive', f.slug, '--json'], { cwd: root })
-      const refusedOnVerification = `${res.stdout}${res.stderr}`.includes(
-        'archive/verification-incomplete',
-      )
+      const output = `${res.stdout}${res.stderr}`
+      const refusedOnVerification = output.includes('archive/verification-incomplete')
+      const statusReasons = JSON.parse(
+        (await cospec(['status', '--change', f.slug, '--json'], { cwd: root })).stdout,
+      ) as { verification: { blockedReasons: string[] } }
+      // Whatever `verification/*` rule archive's validation refuses on is a
+      // blockedReason the status verdict already named.
+      for (const m of output.matchAll(/verification\/[a-z-]+/g)) {
+        if (m[0] === 'verification/row-grammar') continue
+        expect(statusReasons.verification.blockedReasons.join('\n')).toContain(m[0])
+      }
       if (status.archiveReady) {
         expect(refusedOnVerification).toBe(false)
         expect(res.exitCode).toBe(0)
       } else {
         // And the reverse for these fixtures: a not-ready change is refused. A
-        // row that does not parse is refused earlier, by validate's
-        // `verification/row-grammar`; the rest by the verification gate itself.
+        // ledger that is not well-formed is refused earlier, by validate's
+        // `verification/*` rules; the rest by the verification gate itself.
         expect(res.exitCode).not.toBe(0)
-        if (f.slug !== 'malformed-row') expect(refusedOnVerification).toBe(true)
+        if (!VALIDATION_REFUSED.has(f.slug)) expect(refusedOnVerification).toBe(true)
       }
     })
   }

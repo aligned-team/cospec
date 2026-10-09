@@ -148,9 +148,11 @@ export function hasSpecFiles(changeDir: string): boolean {
 /**
  * Whether `cospec archive` has nothing left to refuse on that a status view can
  * know: every enforced artifact exists, every task is checked, the blocker gate
- * is clear, and the verification verdict (the archive gate's own computation)
+ * is clear, and the verification verdict (the archive gate's own computation
+ * plus every `verification/*` error archive's validation raises on the ledger)
  * names no blocking reason. The one definition `status` and `list` share.
- * `archive/scenario-preservation` and delta-spec validity are not modelled.
+ * `archive/scenario-preservation` and validation errors outside `verification.md`
+ * (delta specs, proposal, design) are not modelled.
  */
 export function isArchiveReady(input: {
   requiredDone: boolean

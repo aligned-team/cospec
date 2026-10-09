@@ -7,10 +7,8 @@ import { rmSync } from 'node:fs'
 
 import { isArchiveReady } from '../../../src/commands/apply.ts'
 import { computeStatus } from '../../../src/commands/status.ts'
-import {
-  computeVerificationVerdict,
-  readVerificationVerdict,
-} from '../../../src/core/verification.ts'
+import { readVerificationVerdict } from '../../../src/core/verification-verdict.ts'
+import { computeVerificationVerdict } from '../../../src/core/verification.ts'
 import { DONE_TASKS, EMPTY_BLOCKERS, LITE_PROPOSAL, makeRepo, writeChange } from './helpers.ts'
 
 const roots: string[] = []
@@ -106,6 +104,69 @@ describe('computeStatus: archiveReady follows the verification gate', () => {
   })
 })
 
+const DEFERRED_NO_REASON = `# Verification
+
+## 1. Empty input is handled [critical]
+
+- [x] 1.1 @regression (agent) run the widget with empty input -> no crash after
+- [~] 1.2 @manual (human) try it in a browser -> nope
+`
+
+const EMPTY_GROUP = `# Verification
+
+## 1. Empty input is handled [critical]
+
+- [x] 1.1 @regression (agent) run the widget with empty input -> no crash after
+
+## 2. Nothing is listed here
+`
+
+describe('computeStatus: archiveReady follows the ledger errors archive validates', () => {
+  test('a deferred row with no `defer:` reason is not archive-ready', () => {
+    const cwd = repo()
+    const status = computeStatus(cwd, fixChange(cwd, DEFERRED_NO_REASON))
+    expect(status.archiveReady).toBe(false)
+    expect(status.verification.unresolved).toBe(0)
+    expect(status.verification.blockedReasons).toHaveLength(1)
+    expect(status.verification.blockedReasons[0]).toContain('verification/deferred-reason (line 6)')
+  })
+
+  test('a group with no rows is not archive-ready', () => {
+    const cwd = repo()
+    const status = computeStatus(cwd, fixChange(cwd, EMPTY_GROUP))
+    expect(status.archiveReady).toBe(false)
+    expect(status.verification.blockedReasons).toHaveLength(1)
+    expect(status.verification.blockedReasons[0]).toContain('verification/structure (line 7)')
+  })
+
+  test('a fix with no @regression row is not archive-ready', () => {
+    const cwd = repo()
+    const ledger = RESOLVED.replace('@regression', '@e2e')
+    const status = computeStatus(cwd, fixChange(cwd, ledger))
+    expect(status.archiveReady).toBe(false)
+    expect(status.verification.blockedReasons[0]).toContain('verification/reproduces-bug')
+  })
+
+  test('a row that does not parse is named once, not again as row-grammar', () => {
+    const cwd = repo()
+    const status = computeStatus(cwd, fixChange(cwd, MALFORMED))
+    expect(status.verification.blockedReasons).toEqual(['1 row(s) do not parse'])
+  })
+
+  test('a surface-promoted row rule is a warning for archive, so it does not block', () => {
+    const cwd = repo()
+    const dir = writeChange(cwd, 'c', 'fix', {
+      'proposal.md': LITE_PROPOSAL.replace('- [ ] interactive', '- [x] interactive'),
+      'blocking-changes.md': EMPTY_BLOCKERS,
+      'tasks.md': DONE_TASKS,
+      'verification.md': RESOLVED.replace('@manual', '@unit'),
+    })
+    const status = computeStatus(cwd, { id: 'c', dir, schema: 'fix', schemaVersion: 2 })
+    expect(status.verification.blockedReasons).toEqual([])
+    expect(status.archiveReady).toBe(true)
+  })
+})
+
 describe('isArchiveReady', () => {
   const clear = { state: 'clear' as const, hard: [], soft: [] }
   const blocked = { state: 'blocked' as const, hard: [{ slug: 'a', active: true }], soft: [] }
@@ -147,7 +208,8 @@ describe('readVerificationVerdict', () => {
   test('reads verification.md when the type enforces it, and nothing otherwise', () => {
     const cwd = repo()
     const { dir } = fixChange(cwd, UNRESOLVED)
-    expect(readVerificationVerdict(dir, true).unresolved).toBe(1)
-    expect(readVerificationVerdict(dir, false).declared).toBe(false)
+    const change = { id: 'c', schema: 'fix' }
+    expect(readVerificationVerdict(dir, change, ['verification']).unresolved).toBe(1)
+    expect(readVerificationVerdict(dir, change, ['proposal']).declared).toBe(false)
   })
 })

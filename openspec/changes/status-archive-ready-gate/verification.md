@@ -8,6 +8,9 @@
 - [x] 1.4 @unit (agent) the same change with a row that does not parse -> unit test: row with no layer/owner gives `archiveReady: false`, reason `1 row(s) do not parse`
 - [x] 1.5 @integration (agent) a v1 `feat` change with no `verification.md`, and a `chore`/`docs` change -> unit tests (v1 fix without verification.md, ci change) and integration fixtures `v1-no-verification`, `ci-change` all true; existing schema-versioning grandfathering test green in `mise run check`
 
+- [x] 1.6 @unit (agent) a `fix` change whose ledger has `[~] ... -> nope`, an empty `## 2.` group, or no `@regression` row -> unit tests in test/unit/commands/archive-ready.test.ts: `archiveReady: false`, one `blockedReasons` entry each (`verification/deferred-reason (line 6)`, `verification/structure (line 7)`, `verification/reproduces-bug`); a row that does not parse is still the single `1 row(s) do not parse`; a surface-promoted warning does not block
+- [x] 1.7 @regression (agent) the review finding's repro (`[~] ... -> nope`, empty group) against `status`, `list` and `archive` -> integration fixtures `deferred-no-reason`, `empty-group`, `evidence-missing`, `no-regression-row`: status, status --all and list all false, archive exit 1 on the `verification/*` rule, and every `verification/*` rule archive names is in status's `blockedReasons`
+
 ## 2. list agrees with status
 
 - [x] 2.1 @integration (agent) `cospec list` and `cospec status` over the unresolved, malformed, resolved, v1 and `chore`/`docs` fixtures -> test/integration/archive-ready.test.ts: status, status --all, list JSON and text agree on all six fixtures (unresolved, malformed, no file, resolved, v1, ci); failed for unresolved before the fix
@@ -15,5 +18,5 @@
 
 ## 3. Docs and gates
 
-- [x] 3.1 @manual (agent) read `apps/docs/reference/commands.md` status and list rows -> commands.md status row defines archiveReady (artifacts, tasks, gate, verification; not scenario-preservation or delta-spec validity); list row points to it; both carry a BREAKING value note; `mise run docs:build` exit 0
+- [x] 3.1 @manual (agent) read `apps/docs/reference/commands.md` status and list rows -> commands.md status row defines archiveReady (artifacts, tasks, gate, verification incl. ledger validation errors; not scenario-preservation or validation errors outside verification.md); list row points to it; both carry a BREAKING value note; `mise run docs:build` exit 0
 - [x] 3.2 @integration (agent) `mise run check`, `mise run docs:build`, `cospec validate status-archive-ready-gate --strict` -> `mise run check` exit 0 (2316 unit, 252 integration, contract, pack, bench, release tests, 0 fail); `docs:build` exit 0; `validate status-archive-ready-gate --strict` passed

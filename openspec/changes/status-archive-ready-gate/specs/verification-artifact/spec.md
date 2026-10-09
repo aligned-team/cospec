@@ -5,11 +5,13 @@
 `cospec status <slug> --json` SHALL emit a read-only `verification` block
 reporting
 `{ declared, total, verified, deferred, unresolved, ciUncatchable, blockedReasons }`
-derived from the same computation the archive gate uses. The block SHALL NOT be
-a gate, SHALL NOT introduce a new artifact, and SHALL carry no autonomy,
-exposure, or embargo governance state. The `archiveReady` flag of
-`cospec status` and of `cospec list` SHALL be false whenever `blockedReasons` is
-non-empty, and the two commands SHALL report the same value for the same change.
+derived from the same computation the archive gate uses, plus every
+`verification/*` ERROR that `cospec archive`'s validation raises on
+`verification.md`. The block SHALL NOT be a gate, SHALL NOT introduce a new
+artifact, and SHALL carry no autonomy, exposure, or embargo governance state.
+The `archiveReady` flag of `cospec status` and of `cospec list` SHALL be false
+whenever `blockedReasons` is non-empty, and the two commands SHALL report the
+same value for the same change.
 
 #### Scenario: status reports the verification block
 
@@ -31,6 +33,15 @@ non-empty, and the two commands SHALL report the same value for the same change.
   change whose tasks are done, whose gate is clear and whose `verification.md`
   has a bare `- [ ]` row or a row that does not parse
 - **THEN** `archiveReady` is `false` in both, and `status` lists the reason in
+  `verification.blockedReasons`
+
+#### Scenario: a ledger that archive's validation refuses makes archiveReady false
+
+- **WHEN** `cospec status <slug> --json` or `cospec list --json` runs on a `fix`
+  change whose tasks are done, whose gate is clear and whose `verification.md`
+  has a `[~]` row with no `defer: <reason>`, or a `## N.` group with no rows
+- **THEN** `archiveReady` is `false` in both, and `status` lists the
+  `verification/deferred-reason` or `verification/structure` reason in
   `verification.blockedReasons`
 
 #### Scenario: resolved rows leave archiveReady true

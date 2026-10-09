@@ -45,7 +45,8 @@ import {
   rootOutput,
   type Identities,
 } from '../core/upstream-keys.ts'
-import { readVerificationVerdict, type VerificationVerdict } from '../core/verification.ts'
+import { readVerificationVerdict } from '../core/verification-verdict.ts'
+import { type VerificationVerdict } from '../core/verification.ts'
 import {
   archiveMap,
   artifactDone,
@@ -276,9 +277,14 @@ export function computeStatus(
   const complete = parsedTasks.items.filter((t) => t.checked).length
 
   const requiredDone = artifacts.filter((a) => a.required).every((a) => a.done)
-  // The verdict is the archive gate's own computation, so the flag below cannot
-  // say ready while `cospec archive` would refuse on `verification.md`.
-  const verification = readVerificationVerdict(change.dir, applyRequires.has('verification'))
+  // The verdict is the archive gate's own computation plus the ledger errors
+  // archive's validation raises, so the flag below cannot say ready while
+  // `cospec archive` would refuse on `verification.md`.
+  const verification = readVerificationVerdict(
+    change.dir,
+    { id: change.id, schema: change.schema },
+    [...applyRequires],
+  )
   const archiveReady = isArchiveReady({
     requiredDone,
     tasks: { total, complete },

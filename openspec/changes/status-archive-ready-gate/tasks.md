@@ -23,12 +23,24 @@
       `list.ts` (`schemaVersion`-filtered required set), and verify tasks
       1.1-1.3 now pass and the existing v1 grandfathering test stays green
 
+## 2b. Ledger validation errors (review finding)
+
+- [x] 2b.1 Add `computeStatus` unit tests and integration fixtures
+      (`deferred-no-reason`, `empty-group`, `evidence-missing`,
+      `no-regression-row`) that each report `archiveReady: false` with the
+      `verification/*` reason while `cospec archive` refuses them, and verify
+      they fail before the fix
+- [x] 2b.2 Move the reader to `core/verification-verdict.ts` and add one
+      `blockedReasons` entry per `verification/*` ERROR from `verificationRules`
+      at `strict: false`, and verify tasks 2b.1 now pass
+
 ## 3. Docs
 
 - [x] 3.1 State what `archiveReady` covers (required artifacts, tasks, blocker
-      gate, verification gate; not scenario-preservation or delta-spec validity)
-      in the `cospec status` row of `apps/docs/reference/commands.md` and point
-      the `cospec list` row at it, and verify `mise run docs:build` passes
+      gate, verification gate and its ledger validation errors; not
+      scenario-preservation or validation errors outside `verification.md`) in
+      the `cospec status` row of `apps/docs/reference/commands.md` and point the
+      `cospec list` row at it, and verify `mise run docs:build` passes
 - [x] 3.2 Confirm `.agents/shared.md` needs no change (no workflow, task or
       convention changed) and verify `mise run agents:check` is clean
 
