@@ -27,6 +27,9 @@ function archivedDirs(): string[] {
     .map((e) => e.name)
 }
 
+// Each test spawns the CLI several times (the first runs six), which does not
+// fit the default 5s under a loaded host; the second reads the archives the
+// first leaves, so a timeout in the first would otherwise cascade.
 describe('feat lifecycle', () => {
   test('drives new → validate → gate → archive → fan-out', async () => {
     // The provider (blocker) and the consumer that hard-depends on it.
@@ -76,7 +79,7 @@ describe('feat lifecycle', () => {
     const livingSpec = join(root, 'openspec/specs/consumer-cap/spec.md')
     expect(existsSync(livingSpec)).toBe(true)
     expect(readFileSync(livingSpec, 'utf8')).toContain('### Requirement: consumer-cap behavior')
-  })
+  }, 30_000)
 
   // The nested multi-area layout openspec grew in 1.6.0. cospec used to derive
   // the capability from the FIRST path segment, so this change's capability read
@@ -189,5 +192,5 @@ describe('feat lifecycle', () => {
 
     // The archived changes this suite finished earlier pass the same sweep.
     expect(report.items.find((i) => i.id.endsWith('-consumer'))?.valid).toBe(true)
-  })
+  }, 30_000)
 })
