@@ -24,6 +24,7 @@ import {
   subcommandOf,
 } from '../core/forward-relay.ts'
 import { preloadedArgv } from '../core/handover-preload.ts'
+import { isInteractive } from '../core/interactive.ts'
 import { extractEmbeddedOpenspec } from '../core/openspec-embedded.ts'
 import { passthroughOpenspec, resolveOpenspec, spawnOpenspec } from '../core/openspec.ts'
 import { respellLines } from '../core/remedies.ts'
@@ -95,19 +96,8 @@ export interface WorksetTerminal {
   readonly interactive: boolean
 }
 
-/**
- * The binary's `isInteractive()` (`utils/interactive.js`), as the handed-over
- * child would compute it: `OPEN_SPEC_INTERACTIVE=0` or a `CI` variable turns
- * it off, and otherwise stdin must be a TTY.
- */
-export function isWorksetOpenInteractive(
-  env: Readonly<Record<string, string | undefined>> = process.env,
-  stdinIsTTY: boolean = process.stdin.isTTY === true,
-): boolean {
-  if (env.OPEN_SPEC_INTERACTIVE === '0') return false
-  if ('CI' in env) return false
-  return stdinIsTTY
-}
+/** The binary's `isInteractive()`, as the handed-over child would compute it (`core/interactive.ts`). */
+export const isWorksetOpenInteractive = isInteractive
 
 interface WorksetList {
   worksets: { name: string; members: { name: string; path: string }[] }[]

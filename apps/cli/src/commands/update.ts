@@ -49,6 +49,7 @@ import {
   SKILL_FILE,
   skillsRoot,
 } from '../harness/adapters.ts'
+import type { CopilotCloudDirective, CopilotCloudReport } from '../harness/copilot-cloud.ts'
 import { hasHomeSkillEvidence, resolveHomeDir } from '../harness/home-root.ts'
 import {
   canAskLegacyConsent,
@@ -315,6 +316,12 @@ export interface GenerateOptions {
   version?: string
   /** Override the tool rows (tests), forwarded to `renderHarnessFiles`. */
   adapters?: readonly HarnessAdapter[]
+  /**
+   * What to do with the Copilot cloud files (`github-copilot`'s two opt-in files). `init`
+   * passes its decision's outcome; absent, `generate()` resolves it from `cwd` (the persisted
+   * boolean, then a managed file on disk), as `update` and `doctor` need.
+   */
+  cloud?: CopilotCloudDirective
 }
 
 /** One generated file `generate()` could not write, sidecar or remove (design decision 10). */
@@ -334,6 +341,8 @@ export interface GenerateResult {
   manifest: Manifest
   /** The rows that wrote (or would write) each skills root; one per shared root. */
   skillWriters: ReadonlySet<string>
+  /** The Copilot cloud files after the run; absent when the run did not handle them. */
+  cloud?: CopilotCloudReport
 }
 
 /** Run one file operation, recording an isolated write failure against `path` instead of throwing. */

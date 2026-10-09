@@ -7,6 +7,8 @@ Harness: claude, codex, opencode, agents, amazon-q, antigravity, auggie, bob, cl
          skills for codex/agents/antigravity/zed share the .agents/skills root (one tree, written for codex)
 Permissions: merged Bash(cospec *) into .claude/settings.json
 
+Skipped GitHub Copilot cloud files (opt-in). Enable with 'cospec init --copilot-cloud'.
+
 Restart Claude Code to pick up /cospec commands.
 Codex: skills now live in .agents/skills and are invoked as $cospec-<skill>; they load per-session, so start a new one. .codex/rules/cospec.rules still pre-approves the read-only and gate cospec calls.
 OpenCode: reload the project to pick up /cospec- commands.

@@ -105,7 +105,7 @@ its failing tests before its code.
       `github-copilot` tool, flag and flag entries gone, `cospec init --help`
       and the completion spec list both flags, and
       `cospec init --copilot-cloud .` no longer prints `is not supported yet`.
-- [ ] 4.3 Write the failing decision tests
+- [x] 4.3 Write the failing decision tests
       (`test/unit/init/copilot-cloud.test.ts`): one row per cell of design
       decision 1's table, including the pre row, a tier-2 `false` with files
       present and no flag, malformed config as undecided, tier 4 with an
@@ -113,7 +113,7 @@ its failing tests before its code.
       (`--harness` given, `--json`, a `CI` variable or
       `OPEN_SPEC_INTERACTIVE=0`), and the flag-without-tool sentence on stdout
       (stderr plus `ignoredFlag` under `--json`). Verify they fail first.
-- [ ] 4.4 Implement the tier decision, the persist call (flag or answered
+- [x] 4.4 Implement the tier decision, the persist call (flag or answered
       confirm only), the confirm prompt, the notice, the receipt lines and the
       `copilotCloud` JSON key in `commands/init.ts`, moving the interactive
       check out of `workset.ts` into a shared module both import. Verify 4.3

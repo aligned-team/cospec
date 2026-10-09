@@ -23,8 +23,15 @@ import { basename, dirname, join, resolve } from 'node:path'
 import { canonFile } from '../canon/embedded.ts'
 import type { CommandContext } from '../cli.ts'
 import { openspecDir } from '../core/change.ts'
-import { flagSpelling, flagValue, hasFlag, type ParsedArgs } from '../core/command-table.ts'
+import {
+  flagSpelling,
+  flagValue,
+  hasFlag,
+  lastFlagOf,
+  type ParsedArgs,
+} from '../core/command-table.ts'
 import { isolatedWriteFailure } from '../core/errno.ts'
+import { askLine, isInteractive } from '../core/interactive.ts'
 import { splitFrontmatter, type WriteResult } from '../core/managed-files.ts'
 import {
   adapterFor,
@@ -46,6 +53,16 @@ import {
   respellInvocationHint,
   universalHarnessHint,
 } from '../harness/adapters.ts'
+import {
+  copilotCloudDirective,
+  copilotCloudReceiptLines,
+  COPILOT_HARNESS,
+  copilotSucceeded,
+  COPILOT_CLOUD_IGNORED_FLAG,
+  decideCopilotCloud,
+  emptyCopilotCloudReport,
+  persistCopilotCloudOptIn,
+} from '../harness/copilot-cloud.ts'
 import { homeSkillsDir } from '../harness/home-root.ts'
 import {
   findGlobalPromptLeftovers,
@@ -669,6 +686,23 @@ export function run(ctx: CommandContext): number {
   }
   const { harnesses } = selection
 
+  // Whether to write GitHub Copilot's cloud files is decided before anything is written, as
+  // upstream does, so the prompt and the ignored-flag notice come first.
+  const cloudDecision = decideCopilotCloud({
+    cwd: target,
+    selected: harnesses.includes(COPILOT_HARNESS),
+    flag: lastFlagOf(parsed, '--copilot-cloud', '--no-copilot-cloud'),
+    harnessGiven: harnessArg !== undefined,
+    json: flags.json,
+    terminal: { interactive: isInteractive(), ask: (q) => askLine(`${q} (y/N)`) },
+  })
+  if (cloudDecision.ignoredFlag) {
+    // `--json` keeps stdout one document; the notice goes to stderr with it.
+    const notice = `${COPILOT_CLOUD_IGNORED_FLAG}\n`
+    if (flags.json) process.stderr.write(notice)
+    else process.stdout.write(notice)
+  }
+
   // Scaffold the tree.
   mkdirSync(join(target, 'openspec', 'specs'), { recursive: true })
   mkdirSync(join(target, 'openspec', 'changes', 'archive'), { recursive: true })
@@ -687,9 +721,10 @@ export function run(ctx: CommandContext): number {
   // generation so the arbiter keeps its marker (design decision 6). Read before anything is
   // written, as `generate` reads the marker itself.
   const generated = withSharedRootOwners(target, harnesses, new Set(detectHarnesses(target)))
-  const { results, failed, migration, skillWriters } = generate(target, {
+  const { results, failed, migration, skillWriters, cloud } = generate(target, {
     harnesses: generated as HarnessName[],
     force,
+    cloud: copilotCloudDirective(cloudDecision),
   })
   const emitted = emittedPaths(results)
   // After generation, so cospec's replacement exists before a legacy file moves.
@@ -709,6 +744,18 @@ export function run(ctx: CommandContext): number {
     writeFileSync(configPath, CONFIG_YAML)
     configWritten = true
   }
+
+  // Only a decision made this run is remembered (a flag or an answered confirm), and only once
+  // config.yaml exists, so a later `update`, which never asks, honors it.
+  const cloudPersisted =
+    cloudDecision.persist !== undefined && persistCopilotCloudOptIn(target, cloudDecision.persist)
+      ? cloudDecision.persist
+      : null
+  const cloudReport = cloud ?? emptyCopilotCloudReport()
+  const copilotOk = copilotSucceeded(
+    harnesses,
+    failed.map((f) => f.path),
+  )
 
   // Gate.
   const gate = gateEnabled ? scaffoldGate(target) : undefined
@@ -767,6 +814,16 @@ export function run(ctx: CommandContext): number {
               }
             : null,
           config: { written: configWritten },
+          copilotCloud: {
+            tier: cloudDecision.tier,
+            enabled: cloudDecision.write,
+            persisted: cloudPersisted,
+            ignoredFlag: cloudDecision.ignoredFlag,
+            present: cloudDecision.write && copilotOk ? cloudReport.present : [],
+            collisions: cloudDecision.write && copilotOk ? cloudReport.collisions : [],
+            removed: cloudReport.removed,
+            leftInPlace: cloudReport.leftInPlace,
+          },
           settings: settings ? { status: settings.status, added: settings.added } : null,
           opsx: {
             found: [
@@ -804,6 +861,7 @@ export function run(ctx: CommandContext): number {
     removeOpsx,
     notGitTree,
     autoNote: selection.note,
+    cloudLines: copilotCloudReceiptLines(cloudDecision, cloudReport, copilotOk),
   })
   return failed.length > 0 ? 1 : 0
 }
@@ -847,6 +905,8 @@ interface ReceiptData {
   removeOpsx: boolean
   notGitTree: boolean
   autoNote?: string
+  /** The Copilot cloud files' outcome (`copilotCloudReceiptLines`); empty for any other tool. */
+  cloudLines: string[]
 }
 
 function printReceipt(target: string, d: ReceiptData): void {
@@ -969,6 +1029,11 @@ function printReceipt(target: string, d: ReceiptData): void {
         ? 'Kept: this run wrote no cospec skill to replace them.'
         : 'Re-run with --remove-opsx to delete them (only the names openspec wrote there).',
     )
+  }
+
+  if (d.cloudLines.length > 0) {
+    lines.push('')
+    lines.push(...d.cloudLines)
   }
 
   const setup = setupNoteLines(d.harnesses)
