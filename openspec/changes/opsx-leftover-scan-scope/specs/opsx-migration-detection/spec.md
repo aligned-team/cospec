@@ -56,6 +56,29 @@ inside the project is unaffected and is still walked normally.
 - **THEN** that file is not listed in `opsx.found`, is not removed, and still
   exists afterward
 
+### Requirement: Doctor's other scan-root walks share the same boundary
+
+`cospec doctor`'s `stale-sidecar` check and its read of cospec-written harness
+files (behind `stale-harness`, `mixed-versions` and `dangling-ref`) SHALL
+descend the scan roots with the same boundary as the opsx leftover scan: never
+into a nested git working tree, and never out of the project through a scan root
+(or `openspec/`) that resolves outside it.
+
+#### Scenario: A nested worktree's sidecar is not reported
+
+- **WHEN** a repo holds a nested git worktree checkout under
+  `.claude/worktrees/<name>/` containing a `.cospec-new` sidecar, and
+  `cospec doctor` runs in the outer project
+- **THEN** no `stale-sidecar` finding names a path inside that worktree, while a
+  `.cospec-new` sidecar under the project's own `.claude/` is still reported
+
+#### Scenario: A symlinked `.claude` outside the project is not walked
+
+- **WHEN** a project's `.claude` is a symlink to a directory outside the project
+  holding a `.cospec-new` sidecar or a cospec-stamped harness file, and
+  `cospec doctor` runs
+- **THEN** no `stale-sidecar` or harness-file finding is produced for it
+
 ### Requirement: OpenCode command leftovers are detected by their own shape
 
 The pinned OpenCode command adapter writes `.opencode/commands/opsx-<id>.md`

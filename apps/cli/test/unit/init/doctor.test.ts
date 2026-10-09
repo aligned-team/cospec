@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { run as doctorRun } from '../../../src/commands/doctor.ts'
+import { harnessMarkdownFiles, run as doctorRun } from '../../../src/commands/doctor.ts'
 import { run as initRun } from '../../../src/commands/init.ts'
 import { withEmptyMachineState } from '../../fixtures/support.ts'
 import { capture, captureAsync, cleanup, ctx, makeRepo, managedMarkdown } from './helpers.ts'
@@ -277,6 +277,74 @@ describe('cospec doctor — only the harness files cospec writes', () => {
       findings.filter((f) => f.check === 'dangling-ref').map((f) => `${f.level} ${f.message}`),
     ).toEqual([
       'ERROR .claude/commands/cospec/propose.md references /cospec:not-a-real-workflow, which is not a known cospec workflow',
+    ])
+  })
+})
+
+// Review finding (opsx-leftover-scan-scope): doctor's stale-sidecar and harness-markdown
+// walks share the opsx scan's boundary — never into a nested git worktree, never out of
+// the project through a symlinked scan root.
+describe('cospec doctor — scans stay inside the project', () => {
+  let dir: string
+  let outside: string
+  beforeEach(() => {
+    dir = makeRepo()
+    outside = makeRepo()
+  })
+  afterEach(() => {
+    cleanup(dir)
+    cleanup(outside)
+  })
+
+  const OLD_COPY =
+    '---\nname: cospec-propose\nmetadata:\n  author: cospec\n  generatedBy: "cospec@0.0.1"\n---\n\nbody\n'
+
+  const sidecars = (findings: JsonFinding[]): string[] =>
+    findings.filter((f) => f.check === 'stale-sidecar').map((f) => f.message)
+
+  test("a nested worktree's .cospec-new sidecar is not reported; the project's own still is", async () => {
+    seed(dir)
+    const wtSidecar = '.claude/worktrees/wt/.claude/skills/cospec-x/SKILL.md.cospec-new'
+    mkdirSync(join(dir, '.claude/worktrees/wt/.claude/skills/cospec-x'), { recursive: true })
+    // `git worktree add` writes `.git` as a file, a gitdir pointer.
+    writeFileSync(join(dir, '.claude/worktrees/wt/.git'), 'gitdir: /elsewhere/.git/worktrees/wt\n')
+    writeFileSync(join(dir, wtSidecar), 'x\n')
+    writeFileSync(join(dir, '.claude/commands/cospec/apply.md.cospec-new'), 'x\n')
+    const { findings } = await doctorJson(dir)
+    expect(sidecars(findings)).toEqual([
+      'unreconciled sidecar: .claude/commands/cospec/apply.md.cospec-new',
+    ])
+  })
+
+  test('a symlinked .claude resolving outside the project is not walked for sidecars', async () => {
+    mkdirSync(join(outside, 'commands/cospec'), { recursive: true })
+    writeFileSync(join(outside, 'commands/cospec/apply.md.cospec-new'), 'x\n')
+    seed(dir)
+    rmSync(join(dir, '.claude'), { recursive: true })
+    symlinkSync(outside, join(dir, '.claude'))
+    const { findings } = await doctorJson(dir)
+    expect(sidecars(findings)).toEqual([])
+  })
+
+  test('a symlinked .claude resolving outside the project is never read for harness files', () => {
+    mkdirSync(join(outside, 'skills/cospec-propose'), { recursive: true })
+    writeFileSync(join(outside, 'skills/cospec-propose/SKILL.md'), OLD_COPY)
+    symlinkSync(outside, join(dir, '.claude'))
+    expect(harnessMarkdownFiles(dir)).toEqual([])
+  })
+
+  test('a nested git checkout at a harness path is never read for harness files', () => {
+    const nested = join(dir, '.claude/skills/cospec-propose')
+    mkdirSync(join(nested, '.git'), { recursive: true })
+    writeFileSync(join(nested, 'SKILL.md'), OLD_COPY)
+    expect(harnessMarkdownFiles(dir)).toEqual([])
+  })
+
+  test('the project own harness file is still read (control)', () => {
+    mkdirSync(join(dir, '.claude/skills/cospec-propose'), { recursive: true })
+    writeFileSync(join(dir, '.claude/skills/cospec-propose/SKILL.md'), OLD_COPY)
+    expect(harnessMarkdownFiles(dir).map((f) => f.relpath)).toEqual([
+      '.claude/skills/cospec-propose/SKILL.md',
     ])
   })
 })

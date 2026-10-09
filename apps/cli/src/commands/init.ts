@@ -16,7 +16,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { join, relative, resolve, sep } from 'node:path'
+import { join, resolve } from 'node:path'
 
 import { canonFile } from '../canon/embedded.ts'
 import type { CommandContext } from '../cli.ts'
@@ -39,6 +39,7 @@ import {
 } from '../harness/adapters.ts'
 import { mergeMiseToml, type MiseMergeResult } from '../harness/mise-merge.ts'
 import { readWorkflowManifest, skillByWorkflowId } from '../harness/render.ts'
+import { walkProjectFiles, isOutsideProject } from '../harness/scan-walk.ts'
 import {
   COSPEC_PERMISSION,
   mergeClaudeSettings,
@@ -378,39 +379,6 @@ export function isLeftoverCandidate(
 }
 
 /**
- * True when `abs` is the root of a nested git working tree distinct from the project's
- * own: a worktree checkout (`git worktree add` writes `.git` there as a *file* pointing at
- * the real gitdir) or an embedded clone (`.git` as a directory). Checked by existence only,
- * never `isDirectory()`, so the worktree-file case is caught too.
- */
-function isNestedWorktreeRoot(abs: string): boolean {
-  return existsSync(join(abs, '.git'))
-}
-
-/**
- * True when `abs` does NOT resolve (symlinks followed) to somewhere inside `cwdReal`
- * (`cwd`'s own real path). Every scan root (`.claude`, `.agents`, …) and the explicit
- * `.agents/skills` walk is handed straight to `walk()` without first passing through a
- * parent `readdirSync` — the per-child `Dirent.isDirectory()` check that already skips a
- * *nested* symlinked directory never runs for the root segment itself, so a project whose
- * `.claude` or `.agents/skills` is a symlink into another project's (or a shared) directory
- * would otherwise have the scan read, list and delete files living entirely outside this
- * project. Checked by realpath containment rather than `lstatSync` so a symlink that
- * happens to resolve back inside the project (harmless) is not needlessly skipped, and so a
- * multi-segment path (`.agents/skills`) is caught regardless of which segment is the link.
- */
-function isOutsideProject(cwdReal: string, abs: string): boolean {
-  let real: string
-  try {
-    real = realpathSync(abs)
-  } catch {
-    return true
-  }
-  const rel = relative(cwdReal, real)
-  return rel === '..' || rel.startsWith(`..${sep}`) || resolve(rel) === rel
-}
-
-/**
  * The opsx leftover scan behind `init --remove-opsx`, `init --json`'s `opsx.found` and
  * doctor's `opsx-leftover`: every scan root, then the shared `.agents/skills` root
  * openspec ≥1.8.0 writes its Codex (and agents/zed/antigravity) skills to whichever rows
@@ -434,23 +402,11 @@ export function leftoverScanFiles(
   // Keyed by relpath: `.agents` (a harness dir) strictly contains `.agents/skills`, so
   // the two walk ranges overlap and an unguarded scan would list every file there twice.
   const out = new Map<string, { relpath: string; text: string }>()
-  const cwdReal = realpathSync(cwd)
-  const walk = (rel: string): void => {
-    const abs = join(cwd, rel)
-    if (!existsSync(abs)) return
-    if (isOutsideProject(cwdReal, abs)) return
-    for (const entry of readdirSync(abs, { withFileTypes: true })) {
-      const childRel = `${rel}/${entry.name}`
-      if (entry.isDirectory()) {
-        if (isNestedWorktreeRoot(join(cwd, childRel))) continue
-        walk(childRel)
-      } else if (entry.isFile() && !out.has(childRel) && isLeftoverCandidate(childRel, table)) {
-        out.set(childRel, { relpath: childRel, text: readFileSync(join(cwd, childRel), 'utf8') })
-      }
+  walkProjectFiles(cwd, [...scanRoots(table), OPSX_SHARED_SKILL_ROOT], (relpath) => {
+    if (!out.has(relpath) && isLeftoverCandidate(relpath, table)) {
+      out.set(relpath, { relpath, text: readFileSync(join(cwd, relpath), 'utf8') })
     }
-  }
-  for (const root of scanRoots(table)) walk(root)
-  walk(OPSX_SHARED_SKILL_ROOT)
+  })
   return [...out.values()]
 }
 

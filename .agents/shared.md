@@ -286,10 +286,12 @@ receipt's closing hint is spelled through the first selected row's body dialect
 and invocation prefix, and doctor's `stale-harness`, `mixed-versions` and
 `dangling-ref` checks read only the files cospec writes
 (`<skills-root>/<skill>/SKILL.md` and the table's command paths), never a user's
-own markdown or a nested worktree's copy; init's opsx leftover scan, which
-doctor's `opsx-leftover` check shares, stays wider because upstream's files sit
-at their own paths, but its walk stops at the same nested-worktree boundary (a
-directory with its own `.git` entry), never follows a scan root or the shared
+own markdown or a nested worktree's copy (those reads, `stale-sidecar` and the
+opsx scan all descend through the one bounded walker, `walkProjectFiles` in
+`harness/scan-walk.ts`); init's opsx leftover scan, which doctor's
+`opsx-leftover` check shares, stays wider because upstream's files sit at their
+own paths, but its walk stops at the same nested-worktree boundary (a directory
+with its own `.git` entry), never follows a scan root or the shared
 `.agents/skills` root out of the project (a symlinked `.claude`, `.agents`, or
 `.agents/skills` pointing elsewhere is never read, by realpath containment, not
 `lstat`, so a symlink that resolves back inside the project is still walked),

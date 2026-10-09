@@ -58,5 +58,17 @@
 - [x] 5.2 `cospec validate opsx-leftover-scan-scope --strict` clean and every
       verification ledger row `[x]` with an observed result or
       `[~] defer:     <reason>` -- verify by reading the ledger
+
 - [ ] 5.3 `cospec archive opsx-leftover-scan-scope` -- the archive commit
       follows this one
+
+## 6. Review-finding fixes (round 2)
+
+- [x] 6.1 Add the guard-lead-carrying user fixture at the never-generated id
+      `opsx-status.md` (plus a same-body real-id control) to
+      `doctor-rows.test.ts` -- verify it fails when the id allowlist is relaxed
+      to `opsx-[^/]+`
+- [x] 6.2 Extract `walkProjectFiles` into `harness/scan-walk.ts` and route the
+      leftover scan, `harnessMarkdownFiles` and `checkStaleSidecars` through it,
+      with unit rows for a nested worktree and a symlinked root -- verify they
+      fail against the unmodified walks and pass after

@@ -53,7 +53,10 @@ extension under its commands dir, and the shared `.agents/skills` root. It has
 to be wider, because upstream's own command paths
 (`.claude/commands/opsx/<id>.md`, `.opencode/commands/opsx-<id>.md`) are not
 cospec's, and provenance, never the path, decides what is a leftover. The walk
-stops at two boundaries. First, a directory holding its own `.git` entry (a
+stops at two boundaries, and it is one shared walker (`walkProjectFiles` in
+`harness/scan-walk.ts`) that doctor's harness-file read and its `stale-sidecar`
+check descend with too, so neither crosses a nested worktree or leaves the
+project either. First, a directory holding its own `.git` entry (a
 `git worktree add` checkout, where `.git` is a file, or an embedded clone, where
 it is a directory) is never descended into, so a nested worktree such as
 `.claude/worktrees/<name>/` is scanned by its own `cospec init --remove-opsx`,

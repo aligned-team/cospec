@@ -175,6 +175,24 @@ same class of boundary, by containment rather than by git-ness.
    before statting) without ever flagging the escape, and it would also skip an
    in-project symlink that poses no risk at all.
 
+5. **One bounded walker for every project scan.** `leftoverScanFiles`' two
+   guards (the nested-`.git` prune and the realpath containment) move,
+   unchanged, into `harness/scan-walk.ts`'s
+   `walkProjectFiles(cwd, roots, visit, skipDir?)`, and the three scans that
+   descend the scan roots all call it: the opsx leftover scan, doctor's
+   `harnessMarkdownFiles` (the read behind `stale-harness`, `mixed-versions`,
+   `dangling-ref`) and doctor's `checkStaleSidecars` (which also walks
+   `openspec/` and prunes `archive` through `skipDir`). Before this, the latter
+   two kept their own unbounded walk, so a nested worktree's `.cospec-new`
+   sidecar was reported as the outer project's and a symlinked `.claude` was
+   read from outside the project, contradicting the docs' claim that a nested
+   worktree's copy "is never checked". A fix to one guard now reaches every scan
+   by construction.
+
+   _Alternative rejected:_ narrow the docs claim and test each walk separately.
+   It leaves two copies of the boundary to drift and the warning, whose remedy
+   tells the user to apply or discard another checkout's file, still wrong.
+
 ## Operational surface
 
 Nothing changes in how cospec deploys or runs. The fix touches only which local
