@@ -848,6 +848,8 @@ describe('10. when the tip stays quiet', () => {
       })
       expect(result.output).not.toContain("Tip: Run 'openspec completion install'")
     },
+    // Six sequential pty spawns of the CLI: well past the default 5s on a busy host.
+    60_000,
   )
 })
 
