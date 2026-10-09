@@ -594,29 +594,20 @@ async function withOrigin(
 const warnedInvalidJsonPaths = new Set<string>()
 
 /**
- * The machine-global `defaultStore`, read as upstream's `getGlobalConfig()`
- * reads it: the global config file — at the path `openspec config path`
- * prints, so path discovery stays the binary's — parsed as JSON, with its
- * `defaultStore` value returned raw. A padded string, a trailing newline, a
- * number or an array reaches selection unchanged and fails there as the
- * binary's does; `config get` could not carry that, since it prints the value
- * as text.
- *
- * Upstream's documented contract is "defaults if the file doesn't exist or is
- * invalid": ANY failure to read or parse the file (missing, a directory, no
- * read permission, not JSON) and a JSON root that is not an object carry no
- * default, and only a file that is not JSON warns, once per path, with
- * upstream's own line — unless `warn: false`, for a command whose upstream
- * counterpart never runs root selection (design D8). A silent read leaves the
- * path unwarned, so a later warning read still prints the line once. Catching
- * the raw read failure below is that contract,
- * not a swallowed error: the binary answers the same command with its
- * defaults.
+ * The machine-global config document, read as upstream's `getGlobalConfig()` reads it: the file
+ * at the path `openspec config path` prints (so path discovery stays the binary's), parsed as
+ * JSON. Upstream's documented contract is "defaults if the file doesn't exist or is invalid":
+ * ANY failure to read or parse the file (missing, a directory, no read permission, not JSON) and
+ * a JSON root that is not an object carry no document, and only a file that is not JSON warns,
+ * once per path, with upstream's own line — unless `warn: false`, for a command whose upstream
+ * counterpart never runs root selection (design D8). A silent read leaves the path unwarned, so
+ * a later warning read still prints the line once. Catching the raw read failure below is that
+ * contract, not a swallowed error: the binary answers the same command with its defaults.
  */
-export async function readDefaultStore(
+export async function readGlobalConfigDocument(
   cwd: string,
   opts: { warn?: boolean } = {},
-): Promise<unknown> {
+): Promise<Record<string, unknown> | undefined> {
   const result = await runOpenspec(['config', 'path'], {
     cwd,
     expect: {
@@ -646,7 +637,19 @@ export async function readDefaultStore(
     return undefined
   }
   if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) return undefined
-  return (doc as Record<string, unknown>).defaultStore
+  return doc as Record<string, unknown>
+}
+
+/**
+ * The machine-global `defaultStore`, with its value returned raw: a padded string, a trailing
+ * newline, a number or an array reaches selection unchanged and fails there as the binary's
+ * does; `config get` could not carry that, since it prints the value as text.
+ */
+export async function readDefaultStore(
+  cwd: string,
+  opts: { warn?: boolean } = {},
+): Promise<unknown> {
+  return (await readGlobalConfigDocument(cwd, opts))?.defaultStore
 }
 
 // --- Selection ---------------------------------------------------------------

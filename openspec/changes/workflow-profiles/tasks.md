@@ -96,13 +96,13 @@ rows write the `config.json` under test into the sandbox's
 
 ## 5. T4 — init and the global config reader (`init.ts`, `command-table.ts`)
 
-- [ ] 5.1 Write `test/unit/core/global-profile.test.ts` as `test.failing` and
+- [x] 5.1 Write `test/unit/core/global-profile.test.ts` as `test.failing` and
       add `core/global-profile.ts` (explicit key presence,
       `openspec config path` discovery, missing/unreadable/invalid/non-object
       file as nothing set, no warning of its own), then verify the cases pass,
       including `profile: null` counting as explicit and an unrecognised profile
       value selecting core
-- [ ] 5.2 Write `test/unit/harness/workflow-set.test.ts` and add
+- [x] 5.2 Write `test/unit/harness/workflow-set.test.ts` and add
       `harness/workflow-set.ts` (core from the manifest, custom list with `sync`
       read as `sync-specs`, unknown ids dropped, non-array as empty, the
       `sync-specs` splice before the first `archive`/`bulk-archive`, explicit
