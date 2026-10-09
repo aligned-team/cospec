@@ -27,6 +27,7 @@ run through `test/contract/support/upstream-oracle.ts`.
 - [ ] 3.3 @integration (agent) `update` after each step of 3.1 -> opted in: both files `unchanged`; opted out: files stay absent; a deleted managed file under `true` comes back as `created` in `update --json`
 - [ ] 3.4 @integration (agent) `update` when `github-copilot` is no longer detected (the `.github/skills/cospec-*` tree deleted) and when the config holds `false` -> managed cloud files are removed with `Removed: <n> Copilot cloud agent file(s) (github-copilot not configured)` and `... (opted out of cloud files)`; undecided prints the `cospec init --copilot-cloud` hint only on an interactive run
 - [ ] 3.5 @integration (agent) `update --check` and `cospec doctor` with `cloudAgent: true` and the agent file missing -> `update --check` exits 1 listing it as `created` and writes nothing; `doctor` reports the same drift; with the file present both are clean
+- [ ] 3.6 @integration (agent) a repo with only `openspec/config.yml` (`schema: spec-driven`), then `init --harness github-copilot --copilot-cloud` -> no `openspec/config.yaml` is created, the receipt has no `Config:` line, and `githubCopilot.cloudAgent: true` lands in `config.yml` with its other keys unchanged
 
 ## 4. A hand-edited cloud file survives opt-out, a managed one is removed [critical]
 

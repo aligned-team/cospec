@@ -105,6 +105,18 @@ describe('persisting the decision', () => {
     expect(after).toContain('githubCopilot:\n  cloudAgent: true\n')
   })
 
+  test('a config.yml-only repo keeps its one config: no config.yaml shadows it, and the key lands in it', async () => {
+    const r = repo()
+    mkdirSync(join(r.dir, 'openspec'), { recursive: true })
+    writeFileSync(join(r.dir, 'openspec/config.yml'), 'schema: spec-driven\ncontext: mine\n')
+    const run = await init(r, '--harness', 'github-copilot', '--copilot-cloud')
+    expect(run.exitCode).toBe(0)
+    expect(has(r, 'openspec/config.yaml')).toBe(false)
+    expect(run.stdout).not.toContain('Config:')
+    const yml = readFileSync(join(r.dir, 'openspec/config.yml'), 'utf8')
+    expect(yml).toBe('schema: spec-driven\ncontext: mine\ngithubCopilot:\n  cloudAgent: true\n')
+  })
+
   test('--no-copilot-cloud persists false', async () => {
     const r = repo()
     await init(r, '--harness', 'github-copilot', '--no-copilot-cloud')

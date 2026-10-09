@@ -319,10 +319,11 @@ and writes nothing. Under `--json` that line goes to stderr, so stdout stays one
 document.
 
 A flag or an answered question is saved as `githubCopilot.cloudAgent` in
-`openspec/config.yaml`, after init has written that file. Comments and other
-keys stay as they are. OpenSpec's own `init` reads the same key, so a repo that
-uses both tools shares one decision. A skipped question (including Ctrl-D at
-it), a flag left off and `update` save nothing.
+`openspec/config.yaml` (or `config.yml`, when only that exists; init never adds
+a `config.yaml` beside it), after init has written the config. Comments and
+other keys stay as they are. OpenSpec's own `init` reads the same key, so a repo
+that uses both tools shares one decision. A skipped question (including Ctrl-D
+at it), a flag left off and `update` save nothing.
 
 ### Removal and updates
 

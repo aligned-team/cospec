@@ -1,7 +1,7 @@
 // `cospec init [path]` (DESIGN §2.1). Detects the repo state (A fresh / B
 // existing-no-openspec / C existing-openspec), scaffolds `openspec/`, composes
 // and writes the 11 schemas + harness files through the shared managed-file
-// engine (update.ts / §6.5), writes `config.yaml` only when absent, optionally
+// engine (update.ts / §6.5), writes `config.yaml` only when no config file exists, optionally
 // scaffolds the commit gate (§7), additively merges Claude permissions (§6.4),
 // detects/removes leftover opsx files (§6.6), and prints the receipt. Every
 // write is idempotent: a second `init` returns `unchanged` for every file and
@@ -62,6 +62,7 @@ import {
   decideCopilotCloud,
   emptyCopilotCloudReport,
   persistCopilotCloudOptIn,
+  resolveConfigFilePath,
 } from '../harness/copilot-cloud.ts'
 import { homeSkillsDir } from '../harness/home-root.ts'
 import {
@@ -737,11 +738,11 @@ export function run(ctx: CommandContext): number {
     }),
   )
 
-  // config.yaml — only if absent (never modified once present).
-  const configPath = join(target, 'openspec', 'config.yaml')
+  // config.yaml — only if neither config file exists (never modified once present). A
+  // config.yml-only repo already has its config; a config.yaml beside it would shadow it.
   let configWritten = false
-  if (!existsSync(configPath)) {
-    writeFileSync(configPath, CONFIG_YAML)
+  if (resolveConfigFilePath(target) === undefined) {
+    writeFileSync(join(target, 'openspec', 'config.yaml'), CONFIG_YAML)
     configWritten = true
   }
 

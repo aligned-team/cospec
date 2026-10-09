@@ -213,15 +213,17 @@ run was probed**; tier 4 below is read from source only).
    `YAMLMap`, `Document`; the `yaml` package is already a dependency), so
    comments and order survive, a non-map `githubCopilot` is replaced, and a
    non-mapping root starts a fresh document. It runs after `init` has written
-   `config.yaml` (and writes nothing when no config file exists, upstream's
-   no-op). Config path order is `config.yaml` then `config.yml`
-   (`resolveConfigFilePath`). The binary swallows every persist and removal
-   failure with an empty `catch`; cospec does not: a YAML parse error leaves the
-   file untouched with a stderr warning, `EACCES`/`EPERM`/`EROFS` warn with the
-   code and path and do not fail the init, anything else propagates. Reading
-   `githubCopilot.cloudAgent` is a small native reader, not the binary's
-   `readProjectConfig`: a malformed value is undecided and cospec prints the
-   binary's warning
+   its config (`init` writes `config.yaml` only when neither `config.yaml` nor
+   `config.yml` exists, as upstream's `createConfig` does, so a
+   `config.yml`-only repo gets no shadow file), into whichever file exists, and
+   writes nothing when no config file exists, upstream's no-op. Config path
+   order is `config.yaml` then `config.yml` (`resolveConfigFilePath`). The
+   binary swallows every persist and removal failure with an empty `catch`;
+   cospec does not: a YAML parse error leaves the file untouched with a stderr
+   warning, `EACCES`/`EPERM`/`EROFS` warn with the code and path and do not fail
+   the init, anything else propagates. Reading `githubCopilot.cloudAgent` is a
+   small native reader, not the binary's `readProjectConfig`: a malformed value
+   is undecided and cospec prints the binary's warning
    (`Invalid 'githubCopilot.cloudAgent' field in config (must be a boolean)`,
    `Invalid 'githubCopilot' field in config (must be an object)`) to stderr. The
    `CONFIG_YAML` template is not changed (its header says cospec never
