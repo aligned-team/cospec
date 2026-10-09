@@ -66,7 +66,10 @@ function initIn(s: Sandbox, args: string[] = []) {
 /** The workflow ids that have a Claude skill, and those that have a Claude command, on disk. */
 function installed(project: string): { skills: string[]; commands: string[] } {
   const skillsDir = join(project, '.claude', 'skills')
-  const skillDirs = existsSync(skillsDir) ? readdirSync(skillsDir) : []
+  // A skill is installed by its file: a removed one may leave its (empty) directory.
+  const skillDirs = existsSync(skillsDir)
+    ? readdirSync(skillsDir).filter((d) => existsSync(join(skillsDir, d, 'SKILL.md')))
+    : []
   const skills = MANIFEST.filter((w) => skillDirs.includes(w.skill)).map((w) => w.id)
   const commands = MANIFEST.filter((w) =>
     existsSync(join(project, commandPath(CLAUDE, w.command)!)),
@@ -628,4 +631,265 @@ describe('init: OpenSpec blocks in root-level config files', () => {
     expect(run.exitCode).toBe(0)
     expect(readFileSync(outside, 'utf8')).toBe(BLOCK)
   }, 60_000)
+})
+
+describe('update: the effective profile', () => {
+  const setConfig = (s: Sandbox, config: object): void => {
+    mkdirSync(dirname(s.configPath), { recursive: true })
+    writeFileSync(s.configPath, `${JSON.stringify(config, null, 2)}\n`)
+  }
+  const updateIn = (s: Sandbox, args: string[] = []) =>
+    cospec(['update', ...args], { cwd: s.project, env: s.env })
+  const files = (stdout: string): { path: string; outcome: string }[] => JSON.parse(stdout).files
+  /** A repo that init wrote with nothing set: all twelve workflows, both surfaces. */
+  async function twelve(harness = 'claude'): Promise<Sandbox> {
+    const s = sandbox()
+    const run = await cospec(['init', '--harness', harness, '--no-gate'], {
+      cwd: s.project,
+      env: s.env,
+    })
+    expect(run.exitCode).toBe(0)
+    return s
+  }
+  const skillFiles = (project: string, root: string): string[] => {
+    const dir = join(project, root)
+    return (existsSync(dir) ? readdirSync(dir) : [])
+      .filter((d) => existsSync(join(dir, d, 'SKILL.md')))
+      .toSorted()
+  }
+
+  test.failing(
+    'an explicit core key over twelve installed workflows removes nothing',
+    async () => {
+      const s = await twelve()
+      setConfig(s, { profile: 'core' })
+      const run = await updateIn(s, ['--json'])
+      expect(run.exitCode).toBe(0)
+      expect(files(run.stdout).filter((f) => f.outcome === 'removed')).toEqual([])
+      expect(installed(s.project)).toEqual({ skills: ALL_IDS, commands: ALL_IDS })
+      expect(JSON.parse(run.stdout).profile).toMatchObject({ name: 'core', source: 'config' })
+      const check = await updateIn(s, ['--check'])
+      expect(check.exitCode).toBe(0)
+    },
+    120_000,
+  )
+
+  test.failing(
+    'the human receipt names the explicit profile and the delivery',
+    async () => {
+      const s = await twelve()
+      setConfig(s, { profile: 'core', delivery: 'both' })
+      const run = await updateIn(s)
+      expect(run.exitCode).toBe(0)
+      expect(run.stdout).toContain(
+        'Workflows: 6 of 12 (profile core, set by the global config; delivery both, set by the global config)',
+      )
+    },
+    120_000,
+  )
+
+  test('update --check exits 0 on a repo that sets nothing', async () => {
+    const s = await twelve()
+    const check = await updateIn(s, ['--check'])
+    expect(check.exitCode).toBe(0)
+    expect(check.stdout).toContain('no drift')
+    expect(check.stdout).not.toContain('Workflows:')
+  }, 120_000)
+
+  test.failing(
+    'a repo that sets nothing reports no profile and delivery both',
+    async () => {
+      const s = await twelve()
+      const doc = JSON.parse((await updateIn(s, ['--json'])).stdout)
+      expect(doc.profile).toBeNull()
+      expect(doc.delivery).toBe('both')
+    },
+    120_000,
+  )
+
+  test.failing(
+    'a custom profile that adds verify creates only verify',
+    async () => {
+      const s = sandbox({ profile: 'core' })
+      expect((await initIn(s)).exitCode).toBe(0)
+      expect(installed(s.project).skills).toEqual(CORE_IDS)
+      setConfig(s, {
+        profile: 'custom',
+        workflows: [...CORE_IDS.filter((i) => i !== 'sync-specs'), 'verify'],
+      })
+      const run = await updateIn(s, ['--json'])
+      expect(run.exitCode).toBe(0)
+      const created = files(run.stdout)
+        .filter((f) => f.outcome === 'created')
+        .map((f) => f.path)
+        .toSorted()
+      expect(created).toEqual(
+        [
+          '.claude/commands/cospec/verify.md',
+          '.claude/skills/cospec-verify-change/SKILL.md',
+        ].toSorted(),
+      )
+      expect(installed(s.project).skills).toEqual([...CORE_IDS, 'verify'].toSorted())
+    },
+    120_000,
+  )
+
+  test.failing(
+    'custom [archive] adds sync-specs beside archive',
+    async () => {
+      const s = sandbox({ profile: 'custom', workflows: ['verify'] })
+      expect((await initIn(s)).exitCode).toBe(0)
+      expect(installed(s.project).skills).toEqual(['verify'])
+      setConfig(s, { profile: 'custom', workflows: ['verify', 'archive'] })
+      const run = await updateIn(s, ['--json'])
+      expect(run.exitCode).toBe(0)
+      expect(installed(s.project)).toEqual({
+        skills: ['archive', 'sync-specs', 'verify'],
+        commands: ['archive', 'sync-specs', 'verify'],
+      })
+    },
+    120_000,
+  )
+
+  test.failing(
+    'delivery skills, then commands, then both moves files and keeps every workflow',
+    async () => {
+      const s = await twelve()
+      setConfig(s, { delivery: 'skills' })
+      const toSkills = await updateIn(s, ['--json'])
+      expect(toSkills.exitCode).toBe(0)
+      expect(installed(s.project)).toEqual({ skills: ALL_IDS, commands: [] })
+      expect(files(toSkills.stdout).filter((f) => f.outcome === 'removed')).toHaveLength(12)
+
+      setConfig(s, { delivery: 'commands' })
+      const toCommands = await updateIn(s, ['--json'])
+      expect(toCommands.exitCode).toBe(0)
+      expect(installed(s.project)).toEqual({ skills: [], commands: ALL_IDS })
+
+      setConfig(s, { delivery: 'both' })
+      const toBoth = await updateIn(s, ['--json'])
+      expect(toBoth.exitCode).toBe(0)
+      expect(installed(s.project)).toEqual({ skills: ALL_IDS, commands: ALL_IDS })
+      expect((await updateIn(s, ['--check'])).exitCode).toBe(0)
+    },
+    240_000,
+  )
+
+  test.failing(
+    'delivery skills respells the bodies so none names a removed command',
+    async () => {
+      const s = await twelve()
+      setConfig(s, { delivery: 'skills' })
+      expect((await updateIn(s)).exitCode).toBe(0)
+      const body = readFileSync(
+        join(s.project, '.claude', 'skills', 'cospec-apply-change', 'SKILL.md'),
+        'utf8',
+      )
+      expect(body).not.toContain('/cospec:')
+      const doctor = await cospec(['doctor', '--json'], { cwd: s.project, env: s.env })
+      const checks = (JSON.parse(doctor.stdout).findings as { check: string }[]).map((f) => f.check)
+      expect(checks).not.toContain('dangling-ref')
+    },
+    120_000,
+  )
+
+  test.failing(
+    'a harness added later gets the profile set while claude keeps twelve',
+    async () => {
+      const s = await twelve()
+      setConfig(s, { profile: 'core' })
+      const add = await cospec(['init', '--harness', 'cursor', '--no-gate'], {
+        cwd: s.project,
+        env: s.env,
+      })
+      expect(add.exitCode).toBe(0)
+      const cursor = adapterFor('cursor')
+      const cursorIds = (): string[] =>
+        MANIFEST.filter((w) => existsSync(join(s.project, commandPath(cursor, w.command)!)))
+          .map((w) => w.id)
+          .toSorted()
+      expect(cursorIds()).toEqual(CORE_IDS)
+      const run = await updateIn(s)
+      expect(run.exitCode).toBe(0)
+      expect(installed(s.project)).toEqual({ skills: ALL_IDS, commands: ALL_IDS })
+      expect(cursorIds()).toEqual(CORE_IDS)
+    },
+    240_000,
+  )
+
+  test.failing(
+    'detection holds with no propose skill installed',
+    async () => {
+      const s = sandbox({ profile: 'custom', workflows: ['explore'] })
+      expect((await initIn(s)).exitCode).toBe(0)
+      expect(installed(s.project).skills).toEqual(['explore'])
+      const doc = JSON.parse((await updateIn(s, ['--json'])).stdout)
+      expect(doc.harnesses).toEqual(['claude'])
+      setConfig(s, { profile: 'custom', workflows: ['explore', 'verify'] })
+      const run = await updateIn(s, ['--json'])
+      expect(run.exitCode).toBe(0)
+      expect(installed(s.project).skills).toEqual(['explore', 'verify'])
+    },
+    120_000,
+  )
+
+  test.failing(
+    'detection holds with commands only',
+    async () => {
+      const s = sandbox({ delivery: 'commands' })
+      expect((await initIn(s)).exitCode).toBe(0)
+      expect(installed(s.project)).toEqual({ skills: [], commands: ALL_IDS })
+      const doc = JSON.parse((await updateIn(s, ['--json'])).stdout)
+      expect(doc.harnesses).toEqual(['claude'])
+      expect(doc.delivery).toBe('commands')
+      expect((await updateIn(s, ['--check'])).exitCode).toBe(0)
+    },
+    120_000,
+  )
+
+  test.failing(
+    'a skills-only row under commands writes and keeps nothing, and says so',
+    async () => {
+      const s = await twelve('agents')
+      expect(skillFiles(s.project, '.agents/skills')).toHaveLength(12)
+      setConfig(s, { delivery: 'commands' })
+      const run = await updateIn(s)
+      expect(run.exitCode).toBe(0)
+      expect(skillFiles(s.project, '.agents/skills')).toEqual([])
+      expect(run.stdout).toContain('No skills or commands were generated for')
+      expect(run.stdout).toContain("Run 'cospec config set delivery both' to generate skills.")
+    },
+    120_000,
+  )
+
+  test.failing(
+    'codex keeps its skills under commands',
+    async () => {
+      const s = await twelve('codex')
+      setConfig(s, { delivery: 'commands' })
+      const run = await updateIn(s)
+      expect(run.exitCode).toBe(0)
+      expect(skillFiles(s.project, '.agents/skills')).toHaveLength(12)
+      expect(run.stdout).not.toContain('No skills or commands were generated')
+      expect(JSON.parse((await updateIn(s, ['--json'])).stdout).delivery).toBe('commands')
+    },
+    120_000,
+  )
+
+  test.failing(
+    "an invalid global config is read as nothing set, with the binary's one warning",
+    async () => {
+      const s = await twelve()
+      mkdirSync(dirname(s.configPath), { recursive: true })
+      writeFileSync(s.configPath, '{ nope')
+      const run = await updateIn(s)
+      expect(run.exitCode).toBe(0)
+      expect(installed(s.project)).toEqual({ skills: ALL_IDS, commands: ALL_IDS })
+      const lines = `${run.stdout}${run.stderr}`
+        .split('\n')
+        .filter((l) => l.startsWith('Warning: Invalid JSON in'))
+      expect(lines).toHaveLength(1)
+    },
+    120_000,
+  )
 })
