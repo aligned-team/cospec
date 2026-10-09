@@ -89,6 +89,31 @@ function readMeta(frontmatter: Record<string, unknown> | undefined): ManagedMeta
   }
 }
 
+export type ManagedState = 'managed' | 'modified' | 'foreign'
+
+/**
+ * Classify existing markdown by its own provenance, without writing: `managed` when the
+ * `metadata` block names cospec and its `contentHash` still matches the body, `modified`
+ * when it names cospec but the body changed since, `foreign` when it carries no provenance.
+ */
+export function classifyManagedMarkdown(text: string): ManagedState {
+  const { frontmatter, body } = splitFrontmatter(text)
+  const meta = readMeta(frontmatter)
+  if (meta === undefined || meta.author !== MANAGED_AUTHOR || meta.contentHash === undefined) {
+    return 'foreign'
+  }
+  return meta.contentHash === computeContentHash(body) ? 'managed' : 'modified'
+}
+
+/**
+ * Classify an existing frontmatter-less file against the manifest hash `priorHash`: no hash
+ * means cospec never wrote it (`foreign`), a differing hash means it was edited since.
+ */
+export function classifyManifestFile(text: string, priorHash: string | undefined): ManagedState {
+  if (priorHash === undefined) return 'foreign'
+  return computeContentHash(text) === priorHash ? 'managed' : 'modified'
+}
+
 export interface ManagedFrontmatter {
   /** Frontmatter fields excluding the injected `metadata` block (e.g. name, description). */
   fields: Record<string, unknown>

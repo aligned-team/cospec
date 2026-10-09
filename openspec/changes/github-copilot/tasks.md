@@ -59,7 +59,7 @@ its failing tests before its code.
 
 ## 3. T2: cloud templates and the managed check (`canon/`, `harness/copilot-cloud.ts`)
 
-- [ ] 3.1 Write the failing unit tests
+- [x] 3.1 Write the failing unit tests
       (`test/unit/harness/copilot-cloud.test.ts`): the workflow template has job
       `copilot-setup-steps`, `npm install -g @aligned-team/cospec`,
       `cospec --version`, the
@@ -69,14 +69,14 @@ its failing tests before its code.
       `openspec`; "managed" classification for each file: untouched, edited,
       foreign, OpenSpec's own `openspec.agent.md` and `copilot-setup-steps.yml`.
       Verify they fail first (no module).
-- [ ] 3.2 Add `canon/github-copilot/copilot-setup-steps.yml.tpl` and
+- [x] 3.2 Add `canon/github-copilot/copilot-setup-steps.yml.tpl` and
       `cospec.agent.md.tpl`, register both in `canon/embedded.ts`, and add
       `harness/copilot-cloud.ts` (templates, `COPILOT_CLOUD_FILES`, the managed
       classification, the alternate-profile classifier with its two path guards
       and the conflict sentence, `readCopilotCloudOptIn`,
       `persistCopilotCloudOptIn`). Verify 3.1 passes and the embedded-registry
       test fails if an entry is removed.
-- [ ] 3.3 Add the persist rows
+- [x] 3.3 Add the persist rows
       (`test/unit/harness/copilot-cloud-persist.test.ts`): comments and key
       order survive (a header, a trailing comment, a `context:` block), a scalar
       `githubCopilot: false` is replaced by a map, a non-map root starts a fresh
