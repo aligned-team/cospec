@@ -179,13 +179,13 @@ its failing tests before its code.
       OpenSpec-file collision), and fix the "no global state" and "four
       harnesses" wording only where this change makes it untrue. Verify
       `mise run docs:build` exits 0.
-- [ ] 7.2 Update `apps/docs/reference/configuration.md`, the page that owns
+- [x] 7.2 Update `apps/docs/reference/configuration.md`, the page that owns
       `githubCopilot.cloudAgent`: document the key, who writes it and when, and
       replace "never touched by cospec" with the one-key exception. Verify
       `mise run docs:build` exits 0 and
       `grep -n "never touched" apps/docs/reference/configuration.md` shows only
       the corrected sentence.
-- [ ] 7.3 Update the `cospec init` row of `apps/docs/reference/commands.md` for
+- [x] 7.3 Update the `cospec init` row of `apps/docs/reference/commands.md` for
       the two flags and the `--json` `copilotCloud` key. Verify
       `mise run docs:build` exits 0.
 - [ ] 7.4 Update `.agents/shared.md` (the `.github` managed root, the cloud
