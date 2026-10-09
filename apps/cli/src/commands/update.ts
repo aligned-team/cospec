@@ -528,7 +528,11 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
     }
   }
   // The writer's id on each shared root it writes, manifest-tracked like any frontmatter-less file.
+  // A root the delivery generates no skills into (`commands` with only `agents` selected) gets
+  // no marker either, so `init` and a later `update` agree that nothing is written there.
   for (const marker of sharedTargetMarkers(skillWriters, table)) {
+    const root = marker.relpath.slice(0, marker.relpath.lastIndexOf('/') + 1)
+    if (!rendered.some((f) => f.path.startsWith(root))) continue
     flat.push({
       relpath: marker.relpath,
       abspath: join(cwd, marker.relpath),

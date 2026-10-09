@@ -66,7 +66,11 @@ import { findLegacyConfigBlocks } from '../harness/legacy-config-blocks.ts'
 import { residualWorkflowMarker } from '../harness/optional-workflow.ts'
 import { readWorkflowManifest } from '../harness/render.ts'
 import { walkProjectFiles } from '../harness/scan-walk.ts'
-import { profileWorkflows } from '../harness/workflow-set.ts'
+import {
+  profileWorkflows,
+  selectWorkflows,
+  type WorkflowSelection,
+} from '../harness/workflow-set.ts'
 import { homeSkillLeftovers, leftoverScanFiles, opsxLeftoverFiles } from './init.ts'
 import { detectHarnesses, generate, installedWorkflowIds } from './update.ts'
 
@@ -140,7 +144,7 @@ export function checkOpenspecVersion(
   }
 }
 
-function checkDrift(cwd: string, findings: Finding[]): WriteResult[] {
+function checkDrift(cwd: string, findings: Finding[], selection: WorkflowSelection): WriteResult[] {
   const manifest = readManifest(cwd)
   if (manifest === undefined) {
     findings.push({
@@ -152,7 +156,15 @@ function checkDrift(cwd: string, findings: Finding[]): WriteResult[] {
   }
 
   const harnesses = detectHarnesses(cwd)
-  const { results, failed, migration } = generate(cwd, { harnesses, dryRun: true })
+  // Drift is measured against what `update` would write: the explicit profile's workflows and
+  // delivery, plus every workflow a row already holds, so a workflow outside the profile is
+  // neither "missing" nor "out of date".
+  const { results, failed, migration } = generate(cwd, {
+    harnesses,
+    dryRun: true,
+    workflows: selection.installed,
+    delivery: selection.delivery,
+  })
   // A dry run writes nothing, so what fails here is a managed file cospec cannot read.
   for (const f of failed) {
     findings.push({
@@ -945,7 +957,8 @@ export async function run(ctx: CommandContext): Promise<number> {
     })
   } else if (initialized) {
     checkOpenspecVersion(findings)
-    checkLegacyLayout(checkDrift(base, findings), findings)
+    const profile = selectWorkflows(undefined, await readGlobalProfile(base))
+    checkLegacyLayout(checkDrift(base, findings, profile), findings)
     const mdFiles = harnessMarkdownFiles(base)
     checkStaleness(mdFiles, findings)
     checkDanglingRefs(base, mdFiles, findings)

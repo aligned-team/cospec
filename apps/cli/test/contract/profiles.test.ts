@@ -1073,13 +1073,9 @@ describe('the profile x delivery x harness matrix', () => {
   }
 
   for (const row of ROWS) {
-    test.failing(
-      `${row.id}: every profile x delivery cell passes init, update and doctor`,
-      async () => {
-        const cells = PROFILES.flatMap((profile) => DELIVERIES.map((d) => cell(row, profile, d)))
-        expect((await Promise.all(cells)).flat()).toEqual([])
-      },
-      300_000,
-    )
+    test(`${row.id}: every profile x delivery cell passes init, update and doctor`, async () => {
+      const cells = PROFILES.flatMap((profile) => DELIVERIES.map((d) => cell(row, profile, d)))
+      expect((await Promise.all(cells)).flat()).toEqual([])
+    }, 300_000)
   }
 })
