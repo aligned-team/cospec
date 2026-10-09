@@ -6,11 +6,15 @@ cospec ships completion for the binary users actually type, generated from its
 own exported `COMMANDS` table and `GLOBAL_OPTIONS` rather than passed through
 from OpenSpec — upstream's installer would write a completion function for the
 `openspec` binary into the user's rc file, permanently instructing a dotfile to
-call the bare binary this repo forbids. `cospec completion [bash|zsh|fish]`
-prints to stdout only, writes nothing, and detects the shell from `$SHELL` when
-omitted. The hidden `cospec __complete <changes|specs|types>` is the dynamic
-source behind the generated scripts, and its failure contract — exit 1 with both
-streams empty — is what keeps a failure from ever corrupting a Tab press.
+call the bare binary this repo forbids.
+`cospec completion [bash|zsh|fish|powershell]` prints to stdout only and writes
+nothing. `cospec completion install` and `uninstall` are the only writers: they
+touch cospec's own script and its own rc block, under cospec's own names and
+markers, so they never touch an OpenSpec install. Both detect the shell from
+`$SHELL` when omitted. The hidden `cospec __complete <changes|specs|types>` is
+the dynamic source behind the generated scripts, and its failure contract — exit
+1 with both streams empty — is what keeps a failure from ever corrupting a Tab
+press.
 
 ## Requirements
 

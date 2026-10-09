@@ -123,20 +123,20 @@
 
 ## 6. Docs, shared guidance and the living spec
 
-- [ ] 6.1 Update `apps/docs/guide/installation.md` "Shell completion": the "no
+- [x] 6.1 Update `apps/docs/guide/installation.md` "Shell completion": the "no
       `install`/`uninstall`" paragraph and the per-shell copy-paste one-liners
       go in favour of `cospec completion install`, its `--verbose`, `uninstall`
       and `-y`, the four shells, the targets table, the home-derived rule and
       the `ZDOTDIR` limit, `OPENSPEC_NO_AUTO_CONFIG`, and the tip with its
       suppression rules. Verify with `mise run docs:build` and a search showing
       the removed sentence is gone.
-- [ ] 6.2 Update `apps/docs/reference/commands.md`: the `completion` row (four
+- [x] 6.2 Update `apps/docs/reference/commands.md`: the `completion` row (four
       shells, `install`, `uninstall`, `--verbose`, `-y`), the example of a
       pending subcommand's `'<subcommand>' is not supported yet` answer (it
       named `completion install` and `uninstall`; point it at a subcommand that
       is still pending), and the `--json` refusal sentence that names
       `completion`. Verify with `mise run docs:build`.
-- [ ] 6.3 Update `apps/docs/guide/harness-setup.md`: the "no global state under
+- [x] 6.3 Update `apps/docs/guide/harness-setup.md`: the "no global state under
       your home directory" sentence, to say what cospec writes under home and
       only when asked (`completion install`) or once (`completionTipSeen`);
       record `completionTipSeen` on the page that owns the global config keys
@@ -145,11 +145,11 @@
       lists shell completions as out of scope) and `README.md` to the harness
       files it is about. Verify with `mise run docs:build`, and a rebase-time
       check that R9 has not already rewritten the sentence.
-- [ ] 6.4 Update `.agents/shared.md` (cospec writes under home now; the
+- [x] 6.4 Update `.agents/shared.md` (cospec writes under home now; the
       installer and tip live in `core/completions/install.ts` and
       `core/completion-tip.ts`; tests that install use the home sandbox helper)
       and run `mise run agents:sync`; verify `mise run agents:check` passes.
-- [ ] 6.5 Edit the Purpose paragraph of
+- [x] 6.5 Edit the Purpose paragraph of
       `openspec/specs/cospec-shell-completion/spec.md` (it says the command
       "writes nothing" and is "stdout only"), which archive's requirement merge
       does not touch. Verify `mise run cospec -- validate --specs --strict`

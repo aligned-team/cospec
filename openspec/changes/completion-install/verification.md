@@ -97,12 +97,12 @@ sandbox helper (task 5.1): `HOME`, `USERPROFILE`, `XDG_*`, `ZDOTDIR`,
 
 ## 14. Docs and shared guidance
 
-- [ ] 14.1 @integration (agent) `mise run docs:build` -> exits 0
-- [ ] 14.2 @integration (agent) search `apps/docs` for "no `install`/`uninstall`", "copy-paste only" and "is not supported yet`— there's no" -> no match;`installation.md`describes`install`, `uninstall`, `--verbose`, `-y`, the four shells, the targets, the `ZDOTDIR`limit,`OPENSPEC_NO_AUTO_CONFIG` and the tip's suppression rules
-- [ ] 14.3 @integration (agent) `commands.md`'s `completion` row, its "Not supported yet" example and its `--json` sentence, `harness-setup.md`'s "no global state" sentence, `docs/harness-integration.md`, `README.md` and `configuration.md`'s `completionTipSeen` entry -> each read and consistent with the behaviour rows above
-- [ ] 14.4 @integration (agent) `mise run agents:check` after `mise run agents:sync` -> exits 0, and `.agents/shared.md` names the installer, the tip and the home sandbox helper
-- [ ] 14.5 @integration (agent) `mise run cospec -- validate --specs --strict` -> `cospec-shell-completion` and `upstream-command-spellings` valid with the Purpose paragraph edited
+- [x] 14.1 @integration (agent) `mise run docs:build` -> exits 0 -> `mise run docs:build` exits 0 (run before and after the format fix)
+- [x] 14.2 @integration (agent) search `apps/docs` for "no `install`/`uninstall`", "copy-paste only" and "is not supported yet`— there's no" -> no match;`installation.md`describes`install`, `uninstall`, `--verbose`, `-y`, the four shells, the targets, the `ZDOTDIR`limit,`OPENSPEC_NO_AUTO_CONFIG`and the tip's suppression rules -> search of`apps/docs`(dist excluded) for the three phrases finds no match;`installation.md`describes`install`, `uninstall`, `--verbose`, `-y`, the four shells, the targets table, `OPENSPEC_NO_AUTO_CONFIG` and the tip with its suppression rules
+- [x] 14.3 @integration (agent) `commands.md`'s `completion` row, its "Not supported yet" example and its `--json` sentence, `harness-setup.md`'s "no global state" sentence, `docs/harness-integration.md`, `README.md` and `configuration.md`'s `completionTipSeen` entry -> each read and consistent with the behaviour rows above -> `commands.md` `completion` row lists `install`/`uninstall`, `--verbose`, `-y` and powershell; the pending example now names `cospec init --profile` (no subcommand is pending today); the `--json` sentence says prints or installs; `harness-setup.md`, `docs/harness-integration.md` and `README.md` scope the no-global-state claim to harness files; `configuration.md` records `completionTipSeen` as runtime-managed
+- [x] 14.4 @integration (agent) `mise run agents:check` after `mise run agents:sync` -> exits 0, and `.agents/shared.md` names the installer, the tip and the home sandbox helper -> `mise run agents:sync` then `mise run agents:check` exit 0; `.agents/shared.md` names the installer (`core/completions/install.ts`), the tip (`core/completion-tip.ts`) and the home sandbox rule (design §13)
+- [x] 14.5 @integration (agent) `mise run cospec -- validate --specs --strict` -> `cospec-shell-completion` and `upstream-command-spellings` valid with the Purpose paragraph edited
 
 ## 15. The full gate
 
-- [ ] 15.1 @regression (agent) `mise run check` -> exits 0 (lint, format, typecheck, unit, contract, integration, bench unit, pack smoke, generate and agents drift, docs build)
+- [ ] 15.1 @regression (agent) `mise run check` -> exits 0 (lint, format, typecheck, unit, contract, integration, bench unit, pack smoke, generate and agents drift, docs build) -> `validate --specs --strict` exits 0; `--json` reports `cospec-shell-completion` and `upstream-command-spellings` with `valid: true`
