@@ -12,6 +12,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  readSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -47,7 +48,16 @@ import {
   SKILL_FILE,
   skillsRoot,
 } from '../harness/adapters.ts'
-import { LEGACY_CODEX_SKILL_ROOT, migrateLegacySkills } from '../harness/legacy-skills.ts'
+import {
+  canAskLegacyConsent,
+  consentLegacyMoves,
+  LEGACY_CODEX_SKILL_ROOT,
+  legacyMoveEntries,
+  legacyMoveLines,
+  type LegacyToolMove,
+  migrateLegacySkills,
+  moveLegacyToolRoots,
+} from '../harness/legacy-skills.ts'
 import { readWorkflowManifest, renderHarnessFiles } from '../harness/render.ts'
 import {
   isSharedSkillTargetActive,
@@ -498,11 +508,39 @@ export function run(ctx: CommandContext): number {
     return 1
   }
 
+  // Upstream's order: legacy tool roots move before detection, so a renamed tool's files
+  // are where its row looks; the consent-gated ones are asked about (or, unattended, moved).
+  const moves: LegacyToolMove[] = moveLegacyToolRoots(cwd, {
+    timing: 'before-generation',
+    dryRun: check,
+  })
+  if (!check) {
+    const interactive = canAskLegacyConsent({
+      stdinIsTTY: process.stdin.isTTY === true,
+      stdoutIsTTY: process.stdout.isTTY === true,
+      json: flags.json,
+      force,
+    })
+    moves.push(...consentLegacyMoves(cwd, { interactive, ask: askOnTerminal }))
+  }
+
   const harnesses = detectHarnesses(cwd)
   const { results, migration } = generate(cwd, { harnesses, force, dryRun: check })
+  moves.push(
+    ...moveLegacyToolRoots(cwd, {
+      timing: 'after-generation',
+      toolIds: harnesses,
+      emitted: emittedPaths(results),
+      dryRun: check,
+    }),
+  )
   // A remaining legacy layout is drift: `cospec update --check` (and therefore
-  // `generate:check` in CI) must fail while `.codex/skills` still holds cospec files.
+  // `generate:check` in CI) must fail while `.codex/skills` still holds cospec files,
+  // or while a legacy tool root holds OpenSpec files the update would move.
   const drifted = [...results, ...migration].filter((r) => DRIFT_OUTCOMES.has(r.outcome))
+  const wouldMove = legacyMoveEntries(moves).some(
+    (e) => e.outcome === 'moved' || e.outcome === 'removed',
+  )
 
   if (flags.json) {
     process.stdout.write(
@@ -512,21 +550,49 @@ export function run(ctx: CommandContext): number {
           mode: check ? 'check' : force ? 'force' : 'write',
           harnesses,
           files: results,
-          migration,
+          migration: [...migration, ...legacyMoveEntries(moves)],
         },
         null,
         2,
       )}\n`,
     )
-    return check && drifted.length > 0 ? 1 : 0
+    return check && (drifted.length > 0 || wouldMove) ? 1 : 0
   }
 
-  renderHuman(results, { check, harnesses, hadManifest: existsSync(manifestPath(cwd)) })
+  renderHuman(results, {
+    check,
+    harnesses,
+    hadManifest: existsSync(manifestPath(cwd)),
+    movesPending: wouldMove,
+  })
   for (const line of migrationLines(migration, check)) process.stdout.write(`${line}\n`)
+  for (const line of legacyMoveLines(moves, check)) process.stdout.write(`${line}\n`)
   // Upstream prints its restart line only when an update touched a tool's files.
   const restart = check || drifted.length === 0 ? undefined : updateRestartLine(harnesses)
   if (restart !== undefined) process.stdout.write(`${restart}\n`)
-  return check && drifted.length > 0 ? 1 : 0
+  return check && (drifted.length > 0 || wouldMove) ? 1 : 0
+}
+
+/** The repo-relative paths a `generate()` run wrote or would write (everything but removals). */
+export function emittedPaths(results: readonly WriteResult[]): Set<string> {
+  return new Set(results.filter((r) => r.outcome !== 'removed').map((r) => r.path))
+}
+
+/**
+ * `update`'s yes/no question on a terminal, upstream's default yes. A closed stdin is not
+ * consent, and it does not abort the update.
+ */
+function askOnTerminal(question: string, notice: string): boolean {
+  process.stdout.write(`${notice}\n${question} (Y/n) `)
+  const buf = Buffer.alloc(256)
+  let answer = ''
+  while (!answer.includes('\n')) {
+    const n = readSync(0, buf, 0, buf.length, null)
+    if (n === 0) return false
+    answer += buf.toString('utf8', 0, n)
+  }
+  const a = answer.trim().toLowerCase()
+  return a === '' || a === 'y' || a === 'yes'
 }
 
 /**
@@ -569,10 +635,12 @@ export function migrationLines(migration: WriteResult[], check: boolean): string
 
 function renderHuman(
   results: WriteResult[],
-  opts: { check: boolean; harnesses: HarnessName[]; hadManifest: boolean },
+  opts: { check: boolean; harnesses: HarnessName[]; hadManifest: boolean; movesPending: boolean },
 ): void {
   const changed = results.filter((r) => DRIFT_OUTCOMES.has(r.outcome))
   if (changed.length === 0) {
+    // The legacy-root lines that follow say what changed (or would).
+    if (opts.movesPending) return
     process.stdout.write(
       opts.check ? 'cospec update --check: no drift\n' : 'cospec update: everything up to date\n',
     )

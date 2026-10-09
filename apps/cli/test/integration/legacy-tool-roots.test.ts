@@ -15,7 +15,10 @@ import {
 } from 'node:fs'
 import { dirname, join } from 'node:path'
 
-import { assertNoAncestorOpenspec } from '../contract/support/upstream-init-capture.ts'
+import {
+  assertNoAncestorOpenspec,
+  CAPTURE_GLOBAL_CONFIG,
+} from '../contract/support/upstream-init-capture.ts'
 import { oracleSpawn } from '../contract/support/upstream-oracle.ts'
 import { cleanupAll, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.ts'
 
@@ -55,6 +58,10 @@ async function upstreamInit(tool: string): Promise<string> {
     cwd: project,
   })
   const home = spawn.env.HOME!
+  // Every workflow, as the committed captures run it, so all twelve skills are written.
+  const configDir = join(spawn.env.XDG_CONFIG_HOME!, 'openspec')
+  mkdirSync(configDir, { recursive: true })
+  writeFileSync(join(configDir, 'config.json'), JSON.stringify(CAPTURE_GLOBAL_CONFIG, null, 2))
   const proc = Bun.spawn(spawn.cmd, {
     cwd: spawn.cwd,
     stdin: 'ignore',
@@ -127,111 +134,91 @@ async function initJson(repo: Repo, harness: string): Promise<InitDoc> {
 }
 
 describe('legacy tool roots move on init', () => {
-  test.failing(
-    "kimi: OpenSpec's .kimi skills move to .kimi-code, .kimi goes once empty",
-    async () => {
-      const upstream = await upstreamInit('kimi')
-      const repo = freshRepo()
-      plant(upstream, '.kimi-code', repo, '.kimi')
-      const before = Object.fromEntries(
-        skillPaths('.kimi').map((p) => [p, readFileSync(join(repo.dir, p), 'utf8')]),
-      )
+  test("kimi: OpenSpec's .kimi skills move to .kimi-code, .kimi goes once empty", async () => {
+    const upstream = await upstreamInit('kimi')
+    const repo = freshRepo()
+    plant(upstream, '.kimi-code', repo, '.kimi')
+    const before = Object.fromEntries(
+      skillPaths('.kimi').map((p) => [p, readFileSync(join(repo.dir, p), 'utf8')]),
+    )
 
-      const doc = await initJson(repo, 'kimi')
+    const doc = await initJson(repo, 'kimi')
 
-      expect(existsSync(join(repo.dir, '.kimi'))).toBe(false)
-      for (const [from, text] of Object.entries(before)) {
-        const to = from.replace(/^\.kimi\//, '.kimi-code/')
-        expect(readFileSync(join(repo.dir, to), 'utf8')).toBe(text)
-        expect(doc.migration).toContainEqual({ path: from, outcome: 'moved', to })
-      }
-      // The moved files are OpenSpec's, so the leftover scan reports them where they now are.
-      expect(doc.opsx.found).toEqual(expect.arrayContaining(skillPaths('.kimi-code')))
-    },
-    120_000,
-  )
+    expect(existsSync(join(repo.dir, '.kimi'))).toBe(false)
+    for (const [from, text] of Object.entries(before)) {
+      const to = from.replace(/^\.kimi\//, '.kimi-code/')
+      expect(readFileSync(join(repo.dir, to), 'utf8')).toBe(text)
+      expect(doc.migration).toContainEqual({ path: from, outcome: 'moved', to })
+    }
+    // The moved files are OpenSpec's, so the leftover scan reports them where they now are.
+    expect(doc.opsx.found).toEqual(expect.arrayContaining(skillPaths('.kimi-code')))
+  }, 120_000)
 
-  test.failing(
-    'kimi: the receipt reports the move',
-    async () => {
-      const upstream = await upstreamInit('kimi')
-      const repo = freshRepo()
-      plant(upstream, '.kimi-code', repo, '.kimi')
-      const run = await cospec(['init', '--harness', 'kimi'], { cwd: repo.dir, env: repo.env })
-      expect(run.exitCode).toBe(0)
-      expect(run.stdout).toContain('Migrated 12 skills: .kimi → .kimi-code\n')
-    },
-    120_000,
-  )
+  test('kimi: the receipt reports the move', async () => {
+    const upstream = await upstreamInit('kimi')
+    const repo = freshRepo()
+    plant(upstream, '.kimi-code', repo, '.kimi')
+    const run = await cospec(['init', '--harness', 'kimi'], { cwd: repo.dir, env: repo.env })
+    expect(run.exitCode).toBe(0)
+    expect(run.stdout).toContain('Migrated 12 skills: .kimi → .kimi-code\n')
+  }, 120_000)
 
-  test.failing(
-    'devin: selecting it moves .windsurf; a user workflow there stays',
-    async () => {
-      const upstream = await upstreamInit('devin')
-      const repo = freshRepo()
-      plant(upstream, '.devin', repo, '.windsurf')
-      const userFlow = join(repo.dir, '.windsurf/workflows/my-flow.md')
-      writeFileSync(userFlow, '# My flow\n\nMine.\n')
+  test('devin: selecting it moves .windsurf; a user workflow there stays', async () => {
+    const upstream = await upstreamInit('devin')
+    const repo = freshRepo()
+    plant(upstream, '.devin', repo, '.windsurf')
+    const userFlow = join(repo.dir, '.windsurf/workflows/my-flow.md')
+    writeFileSync(userFlow, '# My flow\n\nMine.\n')
 
-      const doc = await initJson(repo, 'devin')
+    const doc = await initJson(repo, 'devin')
 
-      expect(files(repo.dir, '.windsurf')).toEqual(['workflows/my-flow.md'])
-      expect(readFileSync(userFlow, 'utf8')).toBe('# My flow\n\nMine.\n')
-      for (const from of [...skillPaths('.windsurf'), ...workflowPaths('.windsurf')]) {
-        const to = from.replace(/^\.windsurf\//, '.devin/')
-        expect(existsSync(join(repo.dir, to))).toBe(true)
-        expect(doc.migration).toContainEqual({ path: from, outcome: 'moved', to })
-      }
-    },
-    120_000,
-  )
+    expect(files(repo.dir, '.windsurf')).toEqual(['.windsurf/workflows/my-flow.md'])
+    expect(readFileSync(userFlow, 'utf8')).toBe('# My flow\n\nMine.\n')
+    for (const from of [...skillPaths('.windsurf'), ...workflowPaths('.windsurf')]) {
+      const to = from.replace(/^\.windsurf\//, '.devin/')
+      expect(existsSync(join(repo.dir, to))).toBe(true)
+      expect(doc.migration).toContainEqual({ path: from, outcome: 'moved', to })
+    }
+  }, 120_000)
 
-  test.failing(
-    'devin: a differing destination keeps both copies and reports it',
-    async () => {
-      const upstream = await upstreamInit('devin')
-      const repo = freshRepo()
-      plant(upstream, '.devin', repo, '.windsurf')
-      const dest = join(repo.dir, '.devin/workflows/opsx-apply.md')
-      mkdirSync(dirname(dest), { recursive: true })
-      writeFileSync(dest, '# customised\n')
-      const legacy = readFileSync(join(repo.dir, '.windsurf/workflows/opsx-apply.md'), 'utf8')
+  test('devin: a differing destination keeps both copies and reports it', async () => {
+    const upstream = await upstreamInit('devin')
+    const repo = freshRepo()
+    plant(upstream, '.devin', repo, '.windsurf')
+    const dest = join(repo.dir, '.devin/workflows/opsx-apply.md')
+    mkdirSync(dirname(dest), { recursive: true })
+    writeFileSync(dest, '# customised\n')
+    const legacy = readFileSync(join(repo.dir, '.windsurf/workflows/opsx-apply.md'), 'utf8')
 
-      const run = await cospec(['init', '--harness', 'devin'], { cwd: repo.dir, env: repo.env })
-      expect(run.exitCode).toBe(0)
-      expect(readFileSync(dest, 'utf8')).toBe('# customised\n')
-      expect(readFileSync(join(repo.dir, '.windsurf/workflows/opsx-apply.md'), 'utf8')).toBe(legacy)
-      expect(run.stdout).toContain('Migrated 12 skills and 11 commands: .windsurf → .devin\n')
-      expect(run.stdout).toContain(
-        'Left 1 file in .windsurf/ that differs from the copy in .devin/. Nothing was ' +
-          'overwritten — compare the two and delete the .windsurf/ copy once you have kept ' +
-          'anything you customized.\n',
-      )
-    },
-    120_000,
-  )
+    const run = await cospec(['init', '--harness', 'devin'], { cwd: repo.dir, env: repo.env })
+    expect(run.exitCode).toBe(0)
+    expect(readFileSync(dest, 'utf8')).toBe('# customised\n')
+    expect(readFileSync(join(repo.dir, '.windsurf/workflows/opsx-apply.md'), 'utf8')).toBe(legacy)
+    expect(run.stdout).toContain('Migrated 12 skills and 11 commands: .windsurf → .devin\n')
+    expect(run.stdout).toContain(
+      'Left 1 file in .windsurf/ that differs from the copy in .devin/. Nothing was ' +
+        'overwritten — compare the two and delete the .windsurf/ copy once you have kept ' +
+        'anything you customized.\n',
+    )
+  }, 120_000)
 
-  test.failing(
-    "codex: OpenSpec's .codex skills move to .agents after cospec's are written",
-    async () => {
-      const upstream = await upstreamInit('codex')
-      const repo = freshRepo()
-      plant(upstream, '.agents/skills', repo, '.codex/skills')
-      rmSync(join(repo.dir, '.codex/skills/.openspec-target'))
+  test("codex: OpenSpec's .codex skills move to .agents after cospec's are written", async () => {
+    const upstream = await upstreamInit('codex')
+    const repo = freshRepo()
+    plant(upstream, '.agents/skills', repo, '.codex/skills')
+    rmSync(join(repo.dir, '.codex/skills/.openspec-target'))
 
-      const doc = await initJson(repo, 'codex')
+    const doc = await initJson(repo, 'codex')
 
-      expect(existsSync(join(repo.dir, '.codex/skills'))).toBe(false)
-      expect(existsSync(join(repo.dir, '.codex/rules/cospec.rules'))).toBe(true)
-      for (const from of skillPaths('.codex')) {
-        const to = from.replace(/^\.codex\//, '.agents/')
-        expect(existsSync(join(repo.dir, to))).toBe(true)
-        expect(doc.migration).toContainEqual({ path: from, outcome: 'moved', to })
-      }
-      expect(doc.opsx.found).toEqual(expect.arrayContaining(skillPaths('.agents')))
-    },
-    120_000,
-  )
+    expect(existsSync(join(repo.dir, '.codex/skills'))).toBe(false)
+    expect(existsSync(join(repo.dir, '.codex/rules/cospec.rules'))).toBe(true)
+    for (const from of skillPaths('.codex')) {
+      const to = from.replace(/^\.codex\//, '.agents/')
+      expect(existsSync(join(repo.dir, to))).toBe(true)
+      expect(doc.migration).toContainEqual({ path: from, outcome: 'moved', to })
+    }
+    expect(doc.opsx.found).toEqual(expect.arrayContaining(skillPaths('.agents')))
+  }, 120_000)
 
   test.failing(
     'antigravity: .agent moves to .agents after generation (row lands in task 8.3)',
@@ -254,46 +241,38 @@ describe('legacy tool roots move on init', () => {
 })
 
 describe('legacy tool roots move on update', () => {
-  test.failing(
-    'update --json moves .windsurf without asking when devin is detected',
-    async () => {
-      const upstream = await upstreamInit('devin')
-      const repo = freshRepo()
-      expect(
-        (await cospec(['init', '--harness', 'devin'], { cwd: repo.dir, env: repo.env })).exitCode,
-      ).toBe(0)
-      plant(upstream, '.devin', repo, '.windsurf')
+  test('update --json moves .windsurf without asking when devin is detected', async () => {
+    const upstream = await upstreamInit('devin')
+    const repo = freshRepo()
+    expect(
+      (await cospec(['init', '--harness', 'devin'], { cwd: repo.dir, env: repo.env })).exitCode,
+    ).toBe(0)
+    plant(upstream, '.devin', repo, '.windsurf')
 
-      const run = await cospec(['update', '--json'], { cwd: repo.dir, env: repo.env })
-      expect(run.exitCode).toBe(0)
-      const doc = JSON.parse(run.stdout) as { harnesses: string[]; migration: MoveEntry[] }
-      expect(doc.harnesses).toContain('devin')
-      expect(existsSync(join(repo.dir, '.windsurf'))).toBe(false)
-      for (const from of [...skillPaths('.windsurf'), ...workflowPaths('.windsurf')]) {
-        const to = from.replace(/^\.windsurf\//, '.devin/')
-        expect(existsSync(join(repo.dir, to))).toBe(true)
-        expect(doc.migration).toContainEqual({ path: from, outcome: 'moved', to })
-      }
-    },
-    120_000,
-  )
+    const run = await cospec(['update', '--json'], { cwd: repo.dir, env: repo.env })
+    expect(run.exitCode).toBe(0)
+    const doc = JSON.parse(run.stdout) as { harnesses: string[]; migration: MoveEntry[] }
+    expect(doc.harnesses).toContain('devin')
+    expect(existsSync(join(repo.dir, '.windsurf'))).toBe(false)
+    for (const from of [...skillPaths('.windsurf'), ...workflowPaths('.windsurf')]) {
+      const to = from.replace(/^\.windsurf\//, '.devin/')
+      expect(existsSync(join(repo.dir, to))).toBe(true)
+      expect(doc.migration).toContainEqual({ path: from, outcome: 'moved', to })
+    }
+  }, 120_000)
 
-  test.failing(
-    'update --check reports the move as drift and moves nothing',
-    async () => {
-      const upstream = await upstreamInit('kimi')
-      const repo = freshRepo()
-      expect(
-        (await cospec(['init', '--harness', 'kimi'], { cwd: repo.dir, env: repo.env })).exitCode,
-      ).toBe(0)
-      plant(upstream, '.kimi-code', repo, '.kimi')
-      const before = files(repo.dir, '.kimi')
+  test('update --check reports the move as drift and moves nothing', async () => {
+    const upstream = await upstreamInit('kimi')
+    const repo = freshRepo()
+    expect(
+      (await cospec(['init', '--harness', 'kimi'], { cwd: repo.dir, env: repo.env })).exitCode,
+    ).toBe(0)
+    plant(upstream, '.kimi-code', repo, '.kimi')
+    const before = files(repo.dir, '.kimi')
 
-      const run = await cospec(['update', '--check'], { cwd: repo.dir, env: repo.env })
-      expect(run.exitCode).toBe(1)
-      expect(run.stdout).toContain('Would migrate 12 skills: .kimi → .kimi-code\n')
-      expect(files(repo.dir, '.kimi')).toEqual(before)
-    },
-    120_000,
-  )
+    const run = await cospec(['update', '--check'], { cwd: repo.dir, env: repo.env })
+    expect(run.exitCode).toBe(1)
+    expect(run.stdout).toContain('Would migrate 12 skills: .kimi → .kimi-code\n')
+    expect(files(repo.dir, '.kimi')).toEqual(before)
+  }, 120_000)
 })

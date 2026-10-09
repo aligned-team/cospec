@@ -37,6 +37,12 @@ import {
   skillsRoot,
   respellInvocationHint,
 } from '../harness/adapters.ts'
+import {
+  legacyMoveEntries,
+  legacyMoveLines,
+  type LegacyToolMove,
+  moveLegacyToolRoots,
+} from '../harness/legacy-skills.ts'
 import { mergeMiseToml, type MiseMergeResult } from '../harness/mise-merge.ts'
 import { readWorkflowManifest, skillByWorkflowId } from '../harness/render.ts'
 import { isInsideNestedCheckout, isOutsideProject, walkProjectFiles } from '../harness/scan-walk.ts'
@@ -46,7 +52,7 @@ import {
   type SettingsMergeResult,
 } from '../harness/settings-merge.ts'
 import { availableHarnesses } from '../harness/shared-root.ts'
-import { generate, migrationLines } from './update.ts'
+import { emittedPaths, generate, migrationLines } from './update.ts'
 
 // --- repo state -------------------------------------------------------------
 
@@ -548,6 +554,13 @@ export function run(ctx: CommandContext): number {
 
   const notGitTree = !existsSync(join(target, '.git'))
 
+  // Upstream's order: roots needing no consent move first, whichever tools are selected,
+  // so a renamed tool's files sit where detection and generation look.
+  const moves: LegacyToolMove[] = moveLegacyToolRoots(target, {
+    timing: 'before-generation',
+    dryRun: false,
+  })
+
   const selection = selectHarnesses(target, state, harnessArg, flagSpelling(parsed, '--harness'))
   if (selection.error !== undefined) {
     process.stderr.write(`cospec: ${selection.error}\n`)
@@ -559,8 +572,26 @@ export function run(ctx: CommandContext): number {
   mkdirSync(join(target, 'openspec', 'specs'), { recursive: true })
   mkdirSync(join(target, 'openspec', 'changes', 'archive'), { recursive: true })
 
+  // Selecting a renamed tool is consent to leave its former root (`.windsurf`).
+  moves.push(
+    ...moveLegacyToolRoots(target, {
+      timing: 'before-generation',
+      toolIds: harnesses,
+      dryRun: false,
+    }),
+  )
+
   // Schemas + harness files + manifest.
   const { results, migration, skillWriters } = generate(target, { harnesses, force })
+  // After generation, so cospec's replacement exists before a legacy file moves.
+  moves.push(
+    ...moveLegacyToolRoots(target, {
+      timing: 'after-generation',
+      toolIds: harnesses,
+      emitted: emittedPaths(results),
+      dryRun: false,
+    }),
+  )
 
   // config.yaml — only if absent (never modified once present).
   const configPath = join(target, 'openspec', 'config.yaml')
@@ -617,7 +648,7 @@ export function run(ctx: CommandContext): number {
           opsx: { found: opsx.map((o) => o.relpath), removed: opsxRemoved },
           notGitTree,
           files: results,
-          migration,
+          migration: [...migration, ...legacyMoveEntries(moves)],
         },
         null,
         2,
@@ -632,6 +663,7 @@ export function run(ctx: CommandContext): number {
     skillWriters,
     results,
     migration,
+    moves,
     configWritten,
     gate,
     settings,
@@ -671,6 +703,7 @@ interface ReceiptData {
   skillWriters: ReadonlySet<string>
   results: WriteResult[]
   migration: WriteResult[]
+  moves: LegacyToolMove[]
   configWritten: boolean
   gate?: GateResult
   settings?: SettingsMergeResult
@@ -756,7 +789,10 @@ function printReceipt(target: string, d: ReceiptData): void {
     )
   }
 
-  const migrationReport = migrationLines(d.migration, false)
+  const migrationReport = [
+    ...migrationLines(d.migration, false),
+    ...legacyMoveLines(d.moves, false),
+  ]
   if (migrationReport.length > 0) {
     lines.push('')
     lines.push(...migrationReport)

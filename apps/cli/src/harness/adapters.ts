@@ -76,6 +76,8 @@ export interface LegacyToolRoot {
   readonly needsConsent: boolean
   /** `before-generation` when absent. */
   readonly timing?: 'before-generation' | 'after-generation'
+  /** Why `update` asks before the move (upstream's `legacyMigrationNotice` for the tool). */
+  readonly consentNotice?: string
 }
 
 /**
@@ -143,6 +145,7 @@ export const HARNESS_TABLE = [
     displayName: 'Codex',
     skillsDir: '.agents',
     legacySkillsDirs: ['.codex'],
+    legacyToolRoots: [{ root: '.codex', needsConsent: false, timing: 'after-generation' }],
     invocationPrefix: '/',
     bodyDialect: 'shared',
     rulesPath: '.codex/rules/cospec.rules',
@@ -291,7 +294,16 @@ export const HARNESS_TABLE = [
     id: 'devin',
     displayName: 'Devin Desktop (formerly Windsurf)',
     skillsDir: '.devin',
-    legacyToolRoots: [{ root: '.windsurf', needsConsent: true }],
+    legacyToolRoots: [
+      {
+        root: '.windsurf',
+        needsConsent: true,
+        consentNotice:
+          'Windsurf is now Devin Desktop, and its config directory moved from .windsurf/ to ' +
+          '.devin/. Devin Desktop reads .windsurf/ only as a fallback, and Devin Local does ' +
+          'not read it at all.',
+      },
+    ],
     commands: {
       dir: '.devin/workflows',
       namespacing: 'flat',

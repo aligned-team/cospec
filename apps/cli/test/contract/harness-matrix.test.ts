@@ -95,9 +95,7 @@ const PENDING_ROWS = new Map<string, string>([
 type Check = 'detectionPaths' | 'legacyToolRoots' | 'initDetection'
 
 /** Checks a shipped row does not yet pass, each with the task that aligns it. */
-const SHIPPED_GAPS: Record<string, Partial<Record<Check, string>>> = {
-  codex: { legacyToolRoots: '9.2' },
-}
+const SHIPPED_GAPS: Record<string, Partial<Record<Check, string>>> = {}
 
 /** The table's id order lands whole only with the last row (task 8.9). */
 const TABLE_ORDER_TASK: string | undefined = '8.9'
