@@ -15,9 +15,6 @@ import { oracleSpawn } from './support/upstream-oracle.ts'
 
 afterAll(cleanupAll)
 
-/** Rows whose output the scan does not yet read in full, and the task that makes it so. */
-const SWEEP_PENDING = new Map<string, string>()
-
 /** Every file under `dir` (relative, sorted), skipping `.git` and the repo's `openspec/` tree. */
 function toolFiles(dir: string, rel = ''): string[] {
   const abs = join(dir, rel)
@@ -127,10 +124,8 @@ async function sweepRow(id: string): Promise<void> {
 
 describe("the leftover scan reads each row's upstream output", () => {
   for (const id of HARNESS_NAMES) {
-    const pending = SWEEP_PENDING.get(id)
-    const run = pending === undefined ? test : test.failing
-    run(
-      `${id}: doctor names, and --remove-opsx removes, every file the binary wrote${pending === undefined ? '' : ` (task ${pending})`}`,
+    test(
+      `${id}: doctor names, and --remove-opsx removes, every file the binary wrote`,
       () => sweepRow(id),
       120_000,
     )

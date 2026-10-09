@@ -4,12 +4,8 @@
 // pin by `upstream-init-fixtures.test.ts`). The pinned `AI_TOOLS`, `LEGACY_TOOL_ROOTS` and
 // command adapters are imported here, in tests only; cospec never calls them at runtime.
 //
-// One test per pinned id except `github-copilot` (a pending entry owned by a later change).
-// A row that has not landed yet is listed in `PENDING_ROWS` with the task that lands it, and
-// its test is `test.failing`; bun fails a `test.failing` that starts passing, so landing the
-// row forces the entry's removal in the same commit. A gap in a shipped row (a detection or
-// legacy-root field a later task aligns) is listed in `SHIPPED_GAPS` the same way. Both
-// tables are empty when the change closes.
+// One test per pinned id except `github-copilot` (a pending entry owned by a later change), each
+// a plain test: every row is in `HARNESS_TABLE`, and no check is pending.
 //
 // Comparison rule for the render (design decision 14), against the capture's tool files
 // (everything outside `openspec/` except the shared-root marker, which `generate()` writes):
@@ -83,18 +79,7 @@ const UPSTREAM_TOOLS = AI_TOOLS.filter((t) => t.value !== 'github-copilot')
 /** The rows `HARNESS_TABLE` shipped before this change; their output stays byte-identical. */
 const SHIPPED_ROWS = ['claude', 'codex', 'opencode', 'agents']
 
-// --- what is not yet true, and the task that makes it true ---------------------------
-
-/** Rows not yet in `HARNESS_TABLE`, each with the tasks.md item that adds it. */
-const PENDING_ROWS = new Map<string, string>([])
-
 type Check = 'detectionPaths' | 'legacyToolRoots' | 'initDetection'
-
-/** Checks a shipped row does not yet pass, each with the task that aligns it. */
-const SHIPPED_GAPS: Record<string, Partial<Record<Check, string>>> = {}
-
-/** The table's id order lands whole only with the last row (task 8.9). */
-const TABLE_ORDER_TASK: string | undefined = undefined
 
 // --- helpers -------------------------------------------------------------------------
 
@@ -324,46 +309,19 @@ function fixtureFacts(name: string): unknown[] {
 
 describe('harness matrix', () => {
   for (const tool of UPSTREAM_TOOLS) {
-    const pending = PENDING_ROWS.get(tool.value)
-    const gaps = SHIPPED_GAPS[tool.value] ?? {}
-    const skip = new Set(Object.keys(gaps) as Check[])
-    const run = pending === undefined ? test : test.failing
-    const suffix = pending === undefined ? '' : ` (row lands in task ${pending})`
-
-    run(
-      `${tool.value}: row, adapter paths, render and detection match the pinned binary${suffix}`,
-      () => checkRow(tool, skip),
+    test(
+      `${tool.value}: row, adapter paths, render and detection match the pinned binary`,
+      () => checkRow(tool, new Set<Check>()),
       120_000,
     )
-
-    for (const [check, task] of Object.entries(gaps) as [Check, string][]) {
-      test.failing(
-        `${tool.value}: ${check} matches the pinned binary (task ${task})`,
-        async () => {
-          const row = adapterFor(tool.value)
-          if (check === 'detectionPaths') checkDetectionPaths(row, tool)
-          else if (check === 'legacyToolRoots') checkLegacyToolRoots(row, tool)
-          else await checkRoundTripDetection(tool.value, new Set())
-        },
-        120_000,
-      )
-    }
   }
 
-  const tableOrder = (): void => {
+  test('the table is the pinned AI_TOOLS minus github-copilot, shipped rows first', () => {
     expect<string[]>([...HARNESS_NAMES]).toEqual([
       ...SHIPPED_ROWS,
       ...UPSTREAM_TOOLS.map((t) => t.value).filter((id) => !SHIPPED_ROWS.includes(id)),
     ])
-  }
-  if (TABLE_ORDER_TASK === undefined) {
-    test('the table is the pinned AI_TOOLS minus github-copilot, shipped rows first', tableOrder)
-  } else {
-    test.failing(
-      `the table is the pinned AI_TOOLS minus github-copilot, shipped rows first (task ${TABLE_ORDER_TASK})`,
-      tableOrder,
-    )
-  }
+  })
 
   test('every capture agrees with the pinned adapters, so the rule below has an oracle', () => {
     for (const tool of UPSTREAM_TOOLS) {
