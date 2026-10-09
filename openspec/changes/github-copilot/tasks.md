@@ -188,7 +188,7 @@ its failing tests before its code.
 - [x] 7.3 Update the `cospec init` row of `apps/docs/reference/commands.md` for
       the two flags and the `--json` `copilotCloud` key. Verify
       `mise run docs:build` exits 0.
-- [ ] 7.4 Update `.agents/shared.md` (the `.github` managed root, the cloud
+- [x] 7.4 Update `.agents/shared.md` (the `.github` managed root, the cloud
       files, the persisted key, the decision tiers' home in
       `harness/copilot-cloud.ts`), then `mise run agents:sync`. Verify
       `mise run agents:check` exits 0 and `CLAUDE.md` and `AGENTS.md` carry the
