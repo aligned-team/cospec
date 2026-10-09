@@ -56,6 +56,7 @@ import {
   moveLegacyToolRoots,
 } from '../harness/legacy-skills.ts'
 import { mergeMiseToml, type MiseMergeResult } from '../harness/mise-merge.ts'
+import { isOpenCodeOpsxCommand, OPENCODE_COMMANDS_PREFIX } from '../harness/opencode-opsx.ts'
 import { readWorkflowManifest, skillByWorkflowId } from '../harness/render.ts'
 import { isInsideNestedCheckout, isOutsideProject, walkProjectFiles } from '../harness/scan-walk.ts'
 import {
@@ -281,75 +282,6 @@ export interface OpsxFile {
 export const OPSX_SHARED_SKILL_ROOT = '.agents/skills'
 
 /**
- * The 12 workflow file names the pinned 1.13.1 dist ever writes, across every adapter (dist
- * `core/command-generation/workflowIdsByFileName`, confirmed against the vendored bundle):
- * `opsx-<id>.md` for exactly these `<id>`s, never an arbitrary `opsx-*` spelling. Matching the
- * id list, not a bare `opsx-[^/]+` wildcard, is itself part of the provenance — a user's own
- * `.opencode/commands/opsx-status.md` (or any id the pinned dist never generates) can never
- * satisfy it regardless of its frontmatter or body.
- */
-const OPENCODE_OPSX_IDS = [
-  'apply',
-  'archive',
-  'bulk-archive',
-  'continue',
-  'explore',
-  'ff',
-  'new',
-  'onboard',
-  'propose',
-  'sync',
-  'update',
-  'verify',
-] as const
-
-/**
- * The exact path the pinned 1.13.1 OpenCode command adapter (dist
- * `core/command-generation/adapters/opencode.js`) writes to: `.opencode/commands/opsx-<id>.md`
- * for one of `OPENCODE_OPSX_IDS`. cospec's own OpenCode commands live at
- * `.opencode/commands/cospec-<id>.md` and never match this.
- */
-const OPENCODE_OPSX_COMMAND_RE = new RegExp(
-  `^\\.opencode/commands/opsx-(?:${OPENCODE_OPSX_IDS.join('|')})\\.md$`,
-)
-
-/**
- * The pinned dist's shared `PROJECT_ROOT_GUARD` template's distinctive lead sentence,
- * interpolated verbatim into all but one of its workflow bodies (probed from the pinned
- * binary's own `init --tools opencode` output). Requiring this whole sentence, not only the
- * bare `` `openspec list --json` `` command reference it goes on to make, is itself part of
- * the provenance check: a user's own command that happens to document or invoke that same
- * command (e.g. "run `openspec list --json` and summarize each change") would otherwise
- * satisfy a bare-substring check while never containing this exact upstream boilerplate
- * sentence, which only the pinned dist's own generated bodies ever carry.
- */
-const PROJECT_ROOT_GUARD_LEAD =
-  '**Project check:** These steps expect a project that already uses OpenSpec.'
-
-/**
- * OpenCode's command adapter emits frontmatter with only `description` — no `name`, no
- * `metadata` — so neither marker in `isOpsxMarkdown` below ever matches a real OpenCode
- * opsx leftover (probed from the pinned binary's own `init --tools opencode` output).
- * Detected instead by the combination the adapter's output always has: the exact path it
- * writes to (one of the 12 ids the dist ever generates), frontmatter with no key but
- * `description`, and the `PROJECT_ROOT_GUARD` lead sentence plus the literal bare
- * `` `openspec list --json` `` reference every opsx workflow body carries — a string
- * cospec's own shipped bodies never contain, since cospec always respells its own commands
- * as `cospec`, never bare `openspec`. The combination is provenance, not a path/name
- * convention: a hand-written `.opencode/commands/opsx-notes.md` with its own prose body, or
- * a user's own command at a path outside the 12 ids, never matches.
- */
-function isOpenCodeOpsxCommand(relpath: string, frontmatter: unknown, body: string): boolean {
-  if (!OPENCODE_OPSX_COMMAND_RE.test(relpath)) return false
-  if (frontmatter === null || typeof frontmatter !== 'object') return false
-  const keys = Object.keys(frontmatter as Record<string, unknown>)
-  if (keys.length !== 1 || keys[0] !== 'description') return false
-  return body.includes(PROJECT_ROOT_GUARD_LEAD) && body.includes('`openspec list --json`')
-}
-
-const OPENCODE_COMMANDS_PREFIX = '.opencode/commands/'
-
-/**
  * The ownership marker the pinned binary writes in a shared skills root: the id of the tool
  * its own `openspec-*` skills were written for. cospec's marker is `.cospec-target`; this one
  * is the binary's and means nothing once its skills are gone.
@@ -384,7 +316,7 @@ export function isOpsxLeftover(
   text: string,
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): boolean {
-  const { frontmatter, body } = splitFrontmatter(text)
+  const { frontmatter } = splitFrontmatter(text)
   const meta = frontmatter?.metadata
   if (meta !== null && typeof meta === 'object') {
     const record = meta as Record<string, unknown>
@@ -404,7 +336,7 @@ export function isOpsxLeftover(
   // OpenCode's current command directory is decided by the adapter's own output shape alone: a
   // bare root-guard reference there is as likely a user's command as the binary's.
   if (relpath.startsWith(OPENCODE_COMMANDS_PREFIX)) {
-    return isOpenCodeOpsxCommand(relpath, frontmatter, body)
+    return isOpenCodeOpsxCommand(relpath, text)
   }
   if (text.includes(ROOT_GUARD_REFERENCE)) return true
   return (

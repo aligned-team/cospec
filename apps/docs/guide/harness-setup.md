@@ -323,13 +323,13 @@ at a lookalike OpenCode path or id, or one whose own prose happens to mention
 the same upstream command; an old pre-opsx command such as
 `.cursor/commands/openspec-*.md` counts as OpenSpec's only when it carries
 OpenSpec's `<!-- OPENSPEC:START -->` markers, so a same-named file without them
-is left alone (OpenSpec's own cleanup would remove it). The scan also never descends into a nested git
-worktree checkout (such as one under `.claude/worktrees/`, or a scan directory
-that is itself an embedded clone or a symlink into such a checkout) — that copy
-of the project is cleaned up by its own `cospec init --remove-opsx` — and never
-follows a symlinked scan root (a `.claude` or `.agents/skills` that is itself a
-symlink to a directory outside the project) out of the project either; a
-directory outside your project is never listed or deleted by `--remove-opsx`,
-however it's reached. See
+is left alone (OpenSpec's own cleanup would remove it). The scan also never
+descends into a nested git worktree checkout (such as one under
+`.claude/worktrees/`, or a scan directory that is itself an embedded clone or a
+symlink into such a checkout) — that copy of the project is cleaned up by its
+own `cospec init --remove-opsx` — and never follows a symlinked scan root (a
+`.claude` or `.agents/skills` that is itself a symlink to a directory outside
+the project) out of the project either; a directory outside your project is
+never listed or deleted by `--remove-opsx`, however it's reached. See
 [How it relates to OpenSpec](/concepts/how-it-relates-to-openspec) for the
 version pin this wrapping relies on.

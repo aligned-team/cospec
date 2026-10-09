@@ -70,6 +70,8 @@ export interface OracleOptions {
    * environment is still `oracleEnv(root)`.
    */
   cwd?: string
+  /** Variables set over the sandbox environment for this one run (a `USERPROFILE` row). */
+  env?: Record<string, string>
 }
 
 /** The command, cwd and env one oracle run spawns. */
@@ -97,7 +99,7 @@ export function oracleSpawn(argv: string[], root: string, opts: OracleOptions = 
   return {
     cmd: [interpreter, openspecBinPath(), ...argv],
     cwd: opts.cwd ?? root,
-    env: buildWrappedSpawnEnv(oracleEnv(root)),
+    env: { ...buildWrappedSpawnEnv(oracleEnv(root)), ...opts.env },
   }
 }
 

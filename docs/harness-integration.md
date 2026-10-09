@@ -68,8 +68,8 @@ the pinned oracle. A shape no production row uses yet is exercised by a unit
 test through a fixture row passed via `RenderOptions.adapters`.
 
 The opsx leftover scan (`isLeftoverCandidate` and `leftoverScanFiles` in
-`commands/init.ts`, which doctor's `opsx-leftover` check reads too) is wider than
-doctor's harness-file read, because upstream's own command paths
+`commands/init.ts`, which doctor's `opsx-leftover` check reads too) is wider
+than doctor's harness-file read, because upstream's own command paths
 (`.claude/commands/opsx/<id>.md`, `.opencode/commands/opsx-<id>.md`) are not
 cospec's and provenance, never the path, decides what is a leftover. It reads
 every `.md` file under each top-level dir that holds a row's skills or legacy
@@ -295,25 +295,24 @@ merged entry. If it does not parse, cospec prints the snippet and skips.
   the only test; elsewhere a command's root guard (`openspec list --json`) or,
   at a path a row's `legacyCommandPaths` names, the pre-opsx
   `<!-- OPENSPEC:START -->` / `<!-- OPENSPEC:END -->` pair is the proof. The
-  leftover scan also
-  walks `.agents/skills/` (`OPSX_SHARED_SKILL_ROOT`) whichever rows the table
-  carries: openspec 1.8.0+ writes its Codex (and 1.7.0's `agents`, 1.10's `zed`,
-  1.11's `antigravity`) skills to that shared root instead of under a
-  per-harness `.<tool>/` dir, so an install done with any of those targets
-  leaves no trace under the three `.<harness>` dirs cospec otherwise scans.
-  cospec now writes its own skills to that same root (targets `codex`, `agents`,
-  `zed` and `antigravity`), so the two toolchains' output coexists there: cospec
-  owns only its `cospec-*` dirs, and `--remove-opsx` still removes only
-  openspec-authored files. The superset walk of `.agents/` and the subset walk
-  of `.agents/skills/` are deduped, so a leftover is reported once. The one
-  non-frontmatter file it lists is the binary's ownership marker
-  `.agents/skills/.openspec-target` (a file holding one tool id), and only once
-  no `openspec-*` skill is left under the root for it to describe, so a skill
-  you wrote under that name keeps it. A pre-opsx command at a file-pattern
-  legacy path (`.cursor/commands/openspec-*.md`) is a leftover only when it
-  carries the `<!-- OPENSPEC:START -->`/`<!-- OPENSPEC:END -->` markers: the
-  binary's own cleanup removes such a file by name, and cospec deliberately does
-  not, because a same-named file without the markers is yours.
+  leftover scan also walks `.agents/skills/` (`OPSX_SHARED_SKILL_ROOT`)
+  whichever rows the table carries: openspec 1.8.0+ writes its Codex (and
+  1.7.0's `agents`, 1.10's `zed`, 1.11's `antigravity`) skills to that shared
+  root instead of under a per-harness `.<tool>/` dir, so an install done with
+  any of those targets leaves no trace under the three `.<harness>` dirs cospec
+  otherwise scans. cospec now writes its own skills to that same root (targets
+  `codex`, `agents`, `zed` and `antigravity`), so the two toolchains' output
+  coexists there: cospec owns only its `cospec-*` dirs, and `--remove-opsx`
+  still removes only openspec-authored files. The superset walk of `.agents/`
+  and the subset walk of `.agents/skills/` are deduped, so a leftover is
+  reported once. The one non-frontmatter file it lists is the binary's ownership
+  marker `.agents/skills/.openspec-target` (a file holding one tool id), and
+  only once no `openspec-*` skill is left under the root for it to describe, so
+  a skill you wrote under that name keeps it. A pre-opsx command at a
+  file-pattern legacy path (`.cursor/commands/openspec-*.md`) is a leftover only
+  when it carries the `<!-- OPENSPEC:START -->`/`<!-- OPENSPEC:END -->` markers:
+  the binary's own cleanup removes such a file by name, and cospec deliberately
+  does not, because a same-named file without the markers is yours.
 - **Shared `.agents/skills` root** — four rows write to it: `codex`, `agents`,
   `zed` and `antigravity`. Their skill paths coincide, but Antigravity spells
   its skill bodies `/cospec-<skill>` (`flat`) while `codex`, `agents` and `zed`

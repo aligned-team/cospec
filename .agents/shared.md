@@ -296,13 +296,13 @@ never follows a scan root or the shared `.agents/skills` root out of the project
 (by realpath containment, not `lstat`, so a symlink that resolves back inside
 the project is still walked), reports a directory it cannot list through the
 walker's `onUnreadable` callback rather than hiding it, and `removeOpsxFiles`
-re-checks the same containment right before every delete as defense in depth.
-It detects a real OpenCode opsx command leftover (`.opencode/commands/`) only by
+re-checks the same containment right before every delete as defense in depth. It
+detects a real OpenCode opsx command leftover (`.opencode/commands/`) only by
 the combination of one of the 12 workflow ids the pinned dist ever generates,
 its description-only frontmatter shape, and the `PROJECT_ROOT_GUARD` template's
 literal lead sentence plus its command reference — never a bare `opsx-*` path or
-a bare command substring. Each row's expected output is
-the pinned OpenSpec binary's own `init --tools <id>` capture in
+a bare command substring. Each row's expected output is the pinned OpenSpec
+binary's own `init --tools <id>` capture in
 `apps/cli/test/fixtures/upstream-init/<id>.json`, never cospec's output. After a
 pin bump, re-take the captures with
 `COSPEC_FIXTURE_WRITE=1 bun test test/contract/upstream-init-fixtures.test.ts`
