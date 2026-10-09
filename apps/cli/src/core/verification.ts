@@ -5,6 +5,9 @@
 // fail-closed: a checkbox-like line that does not match the row shape is reported
 // as `verification/row-grammar` (the rule layer emits; this module only parses).
 
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { splitLines } from './lines.ts'
 // The ledger's row detector is the tasks detector: one house checkbox grammar,
 // one marker set. See `CHECKBOX_LIKE` in ./tasks.ts for the openspec 1.13.1
@@ -291,4 +294,19 @@ export function computeVerificationVerdict(
     ciUncatchable,
     blockedReasons,
   }
+}
+
+/**
+ * The verdict for the change at `changeDir`: reads its `verification.md` (absent
+ * is `undefined`) and computes the verdict `status`, `list` and the archive gate
+ * share. `declared` is whether the change's type and `schemaVersion` enforce
+ * `verification`; when false the file is not read at all.
+ */
+export function readVerificationVerdict(changeDir: string, declared: boolean): VerificationVerdict {
+  if (!declared) return EMPTY_VERDICT
+  const path = join(changeDir, 'verification.md')
+  return computeVerificationVerdict(
+    declared,
+    existsSync(path) ? readFileSync(path, 'utf8') : undefined,
+  )
 }

@@ -43,6 +43,7 @@ import {
   type CospecType,
 } from '../core/rules/type-facts.ts'
 import { resolveRootOrDocument } from '../core/upstream-keys.ts'
+import type { VerificationVerdict } from '../core/verification.ts'
 import type { ArchiveWarning } from './status.ts'
 import { readValidateContext, validateChange } from './validate.ts'
 
@@ -142,6 +143,29 @@ function specDirHasMd(dir: string): boolean {
 export function hasSpecFiles(changeDir: string): boolean {
   const root = join(changeDir, 'specs')
   return existsSync(root) && specDirHasMd(root)
+}
+
+/**
+ * Whether `cospec archive` has nothing left to refuse on that a status view can
+ * know: every enforced artifact exists, every task is checked, the blocker gate
+ * is clear, and the verification verdict (the archive gate's own computation)
+ * names no blocking reason. The one definition `status` and `list` share.
+ * `archive/scenario-preservation` and delta-spec validity are not modelled.
+ */
+export function isArchiveReady(input: {
+  requiredDone: boolean
+  tasks: { total: number; complete: number }
+  gate: Gate
+  verdict: VerificationVerdict
+}): boolean {
+  const { requiredDone, tasks, gate, verdict } = input
+  return (
+    requiredDone &&
+    tasks.total > 0 &&
+    tasks.complete === tasks.total &&
+    gate.state === 'clear' &&
+    verdict.blockedReasons.length === 0
+  )
 }
 
 /** Whether an artifact's generated file exists (mirrors openspec detectCompleted). */

@@ -2,18 +2,18 @@
 
 ## 1. archiveReady follows the verification gate in status [critical]
 
-- [ ] 1.1 @regression (agent) run issue #67's repro script against the built CLI from this branch, failing before the fix -> `status --json` reports `archiveReady: false` with `blockedReasons` non-empty, text says `archive-ready: no`, `list` omits the `archive-ready` marker, and `archive` refuses
-- [ ] 1.2 @unit (agent) `computeStatus` on a `fix` change with a bare `[ ]` row -> `archiveReady: false` and `blockedReasons` non-empty
-- [ ] 1.3 @unit (agent) the same change with every row `[x]` or `[~] ... -> defer: ...` -> `archiveReady: true`
-- [ ] 1.4 @unit (agent) the same change with a row that does not parse -> `archiveReady: false`
-- [ ] 1.5 @integration (agent) a v1 `feat` change with no `verification.md`, and a `chore`/`docs` change -> `archiveReady` still true
+- [x] 1.1 @regression (agent) run issue #67's repro script against the built CLI from this branch, failing before the fix -> before the fix `status --json` said `archiveReady:true`, text `archive-ready: yes`, `list` showed the marker while `archive` refused; after the fix `archiveReady:false` with `blockedReasons:["3 row(s) still unresolved (bare [ ])"]`, text `archive-ready: no`, `list` row has no marker, `archive` exit 1 (logs repro-before/after)
+- [x] 1.2 @unit (agent) `computeStatus` on a `fix` change with a bare `[ ]` row -> `computeStatus` unit test in test/unit/commands/archive-ready.test.ts: false with blockedReasons `1 row(s) still unresolved (bare [ ])`; failed before the fix (isArchiveReady import missing, flag true)
+- [x] 1.3 @unit (agent) the same change with every row `[x]` or `[~] ... -> unit test: every row `[x]`/`[~] defer`gives`archiveReady: true`, blockedReasons `[]`
+- [x] 1.4 @unit (agent) the same change with a row that does not parse -> unit test: row with no layer/owner gives `archiveReady: false`, reason `1 row(s) do not parse`
+- [x] 1.5 @integration (agent) a v1 `feat` change with no `verification.md`, and a `chore`/`docs` change -> unit tests (v1 fix without verification.md, ci change) and integration fixtures `v1-no-verification`, `ci-change` all true; existing schema-versioning grandfathering test green in `mise run check`
 
 ## 2. list agrees with status
 
-- [ ] 2.1 @integration (agent) `cospec list` and `cospec status` over the unresolved, malformed, resolved, v1 and `chore`/`docs` fixtures -> same `archiveReady` value and marker for each change
-- [ ] 2.2 @integration (agent) property over the fixtures: every change reporting `archiveReady: true` -> `cospec archive` does not fail with `archive/verification-incomplete`
+- [x] 2.1 @integration (agent) `cospec list` and `cospec status` over the unresolved, malformed, resolved, v1 and `chore`/`docs` fixtures -> test/integration/archive-ready.test.ts: status, status --all, list JSON and text agree on all six fixtures (unresolved, malformed, no file, resolved, v1, ci); failed for unresolved before the fix
+- [x] 2.2 @integration (agent) property over the fixtures: every change reporting `archiveReady: true` -> same file, one test per fixture: archiveReady true implies archive exit 0 and no `archive/verification-incomplete`; not ready implies refusal (malformed row refused earlier by `verification/row-grammar`); 7 pass
 
 ## 3. Docs and gates
 
-- [ ] 3.1 @manual (agent) read `apps/docs/reference/commands.md` status and list rows -> they name what `archiveReady` covers and what it does not
-- [ ] 3.2 @integration (agent) `mise run check`, `mise run docs:build`, `cospec validate status-archive-ready-gate --strict` -> all pass
+- [x] 3.1 @manual (agent) read `apps/docs/reference/commands.md` status and list rows -> commands.md status row defines archiveReady (artifacts, tasks, gate, verification; not scenario-preservation or delta-spec validity); list row points to it; both carry a BREAKING value note; `mise run docs:build` exit 0
+- [x] 3.2 @integration (agent) `mise run check`, `mise run docs:build`, `cospec validate status-archive-ready-gate --strict` -> `mise run check` exit 0 (2316 unit, 252 integration, contract, pack, bench, release tests, 0 fail); `docs:build` exit 0; `validate status-archive-ready-gate --strict` passed
