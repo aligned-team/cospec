@@ -189,6 +189,13 @@ same class of boundary, by containment rather than by git-ness.
    worktree's copy "is never checked". A fix to one guard now reaches every scan
    by construction.
 
+   The nested-checkout prune also covers a scan _root_: `walkProjectFiles`
+   refuses a root that is itself a checkout, sits inside one, or resolves
+   (symlinks followed) into one, by walking up from the lexical and the real
+   path toward the project root and refusing on any `.git` entry (the project's
+   own `.git` is the stop, never a boundary). `removeOpsxFiles` runs the same
+   test, `isInsideNestedCheckout`, before every delete and prune.
+
    _Alternative rejected:_ narrow the docs claim and test each walk separately.
    It leaves two copies of the boundary to drift and the warning, whose remedy
    tells the user to apply or discard another checkout's file, still wrong.

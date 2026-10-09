@@ -60,30 +60,34 @@ project either. First, a directory holding its own `.git` entry (a
 `git worktree add` checkout, where `.git` is a file, or an embedded clone, where
 it is a directory) is never descended into, so a nested worktree such as
 `.claude/worktrees/<name>/` is scanned by its own `cospec init --remove-opsx`,
-never swept up by the outer one. Second, a scan root itself — any `scanRoots`
-entry, or the explicit `.agents/skills` walk — is never read if it resolves
-(symlinks followed) outside the project: before `walk()` reads a root's
-directory, it resolves the path with `realpathSync` and skips it unless the
-result stays inside the project's own resolved directory, and `--remove-opsx`'s
-removal step re-checks the same containment immediately before every delete,
-independent of the walk. This is checked by realpath containment rather than by
-`lstat`-ing the root segment, so a multi-segment path (`.agents/skills`) is
-caught regardless of which segment is the symlink, and a symlink that happens to
-resolve back inside the project (harmless) is not needlessly skipped — only a
-`.claude`, `.agents`, or `.agents/skills` that escapes the project (a shared
-dotfiles directory, a sibling project) is ever skipped. A file belongs to the
-row with a skills, legacy skills, commands or rules dir that is the longest
-prefix of it. A dir two rows share goes to the row whose primary root also
-prefixes the file, then to the earlier row, and a file under none of them goes
-to the first row whose primary root prefixes it. The table can express shapes no
-production row uses yet — a split commands root, `.prompt`/`.prompt.md`/ `.toml`
-extensions, the TOML serializer, the `@` invocation prefix, home-scoped skills —
-each exercised by a unit test through a fixture row passed via
-`RenderOptions.adapters` (or `GenerateOptions.adapters`, or the `table`
-parameter of doctor's checks and init's receipt and leftover helpers). The
-legacy-skills migration sits outside the table: `update` moving cospec's skills
-out of a legacy root, its receipt and `update --check` lines, and doctor's
-`legacy-layout` warning all come from the constants in
+never swept up by the outer one. That boundary also applies to a scan root
+itself: a root that holds its own `.git`, sits inside a directory that does, or
+is a symlink resolving into one (a `.claude` pointing into a worktree under the
+project) is never read, and `--remove-opsx` re-checks the same test, on the path
+and its resolved target, immediately before every delete. Second, a scan root
+itself — any `scanRoots` entry, or the explicit `.agents/skills` walk — is never
+read if it resolves (symlinks followed) outside the project: before `walk()`
+reads a root's directory, it resolves the path with `realpathSync` and skips it
+unless the result stays inside the project's own resolved directory, and
+`--remove-opsx`'s removal step re-checks the same containment immediately before
+every delete, independent of the walk. This is checked by realpath containment
+rather than by `lstat`-ing the root segment, so a multi-segment path
+(`.agents/skills`) is caught regardless of which segment is the symlink, and a
+symlink that happens to resolve back inside the project (harmless) is not
+needlessly skipped — only a `.claude`, `.agents`, or `.agents/skills` that
+escapes the project (a shared dotfiles directory, a sibling project) is ever
+skipped. A file belongs to the row with a skills, legacy skills, commands or
+rules dir that is the longest prefix of it. A dir two rows share goes to the row
+whose primary root also prefixes the file, then to the earlier row, and a file
+under none of them goes to the first row whose primary root prefixes it. The
+table can express shapes no production row uses yet — a split commands root,
+`.prompt`/`.prompt.md`/ `.toml` extensions, the TOML serializer, the `@`
+invocation prefix, home-scoped skills — each exercised by a unit test through a
+fixture row passed via `RenderOptions.adapters` (or `GenerateOptions.adapters`,
+or the `table` parameter of doctor's checks and init's receipt and leftover
+helpers). The legacy-skills migration sits outside the table: `update` moving
+cospec's skills out of a legacy root, its receipt and `update --check` lines,
+and doctor's `legacy-layout` warning all come from the constants in
 `harness/legacy-skills.ts` and cover only Codex's `.codex/skills`. Another row's
 `legacySkillsDirs` is detected and scanned, but never migrated or reported,
 until `tool-matrix` drives the migration from the table. Deliberate Claude-only

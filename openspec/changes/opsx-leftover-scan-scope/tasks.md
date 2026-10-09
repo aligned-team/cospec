@@ -72,3 +72,17 @@
       leftover scan, `harnessMarkdownFiles` and `checkStaleSidecars` through it,
       with unit rows for a nested worktree and a symlinked root -- verify they
       fail against the unmodified walks and pass after
+
+## 7. Review-finding fixes (round 3)
+
+- [x] 7.1 Apply the nested-checkout test to a scan root and to the real path it
+      resolves to (`isInsideNestedCheckout` in `harness/scan-walk.ts`), with
+      `scan-walk.test.ts` and `doctor.test.ts` rows for an embedded-clone root,
+      a symlinked root into a nested worktree and a symlinked `openspec` --
+      verify they fail against the unfixed walker and pass after
+- [x] 7.2 Give `removeOpsxFiles` the same test before every delete and prune,
+      with `init.test.ts` rows for a symlinked `.agents/skills` into a worktree
+      and an embedded `.claude` clone -- verify the nested file survives
+- [x] 7.3 State the root-level boundary in `docs/harness-integration.md`, the
+      harness-setup page and the spec/design, then rerun the gate -- verify by
+      `mise run check` exit code

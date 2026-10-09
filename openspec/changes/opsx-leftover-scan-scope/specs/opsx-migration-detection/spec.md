@@ -56,13 +56,24 @@ inside the project is unaffected and is still walked normally.
 - **THEN** that file is not listed in `opsx.found`, is not removed, and still
   exists afterward
 
+#### Scenario: A scan root that is, or resolves into, a nested checkout is never read or removed
+
+- **WHEN** a scan root (`.claude`, `.agents`, `.agents/skills`, `openspec`) is
+  itself an embedded clone (holds its own `.git`), sits inside one, or is a
+  symlink resolving into a nested worktree checkout inside the project, holding
+  a real openspec-authored leftover, and `cospec init --remove-opsx` runs
+- **THEN** that file is not listed in `opsx.found`, is not removed, and still
+  exists afterward; `--remove-opsx` re-checks the same nested-checkout test on
+  the path and its resolved target immediately before each delete
+
 ### Requirement: Doctor's other scan-root walks share the same boundary
 
 `cospec doctor`'s `stale-sidecar` check and its read of cospec-written harness
 files (behind `stale-harness`, `mixed-versions` and `dangling-ref`) SHALL
 descend the scan roots with the same boundary as the opsx leftover scan: never
-into a nested git working tree, and never out of the project through a scan root
-(or `openspec/`) that resolves outside it.
+into a nested git working tree (a scan root that is, sits in, or resolves into
+one included), and never out of the project through a scan root (or `openspec/`)
+that resolves outside it.
 
 #### Scenario: A nested worktree's sidecar is not reported
 

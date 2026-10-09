@@ -175,10 +175,12 @@ competing command sets in place; pass `--remove-opsx` (or confirm interactively)
 to clean them up. Files you authored yourself are never touched — including one
 at a lookalike OpenCode path or id, or one whose own prose happens to mention
 the same upstream command. The scan also never descends into a nested git
-worktree checkout (such as one under `.claude/worktrees/`) — that copy of the
-project is cleaned up by its own `cospec init --remove-opsx` — and never follows
-a symlinked scan root (a `.claude` or `.agents/skills` that is itself a symlink
-to a directory outside the project) out of the project either; a directory
-outside your project is never listed or deleted by `--remove-opsx`, however it's
-reached. See [How it relates to OpenSpec](/concepts/how-it-relates-to-openspec)
-for the version pin this wrapping relies on.
+worktree checkout (such as one under `.claude/worktrees/`, or a scan directory
+that is itself an embedded clone or a symlink into such a checkout) — that copy
+of the project is cleaned up by its own `cospec init --remove-opsx` — and never
+follows a symlinked scan root (a `.claude` or `.agents/skills` that is itself a
+symlink to a directory outside the project) out of the project either; a
+directory outside your project is never listed or deleted by `--remove-opsx`,
+however it's reached. See
+[How it relates to OpenSpec](/concepts/how-it-relates-to-openspec) for the
+version pin this wrapping relies on.
