@@ -237,6 +237,10 @@ on the machine.
   own with the same name is never touched.
 - **Dry runs.** `cospec update --check` and `cospec doctor` read that root and
   never write it.
+- **Leftovers.** An OpenSpec-authored skill under that root
+  (`metadata.author: openspec`) is listed by its absolute path by `cospec init`
+  and `cospec doctor`. `cospec init --remove-opsx` deletes it, and only once
+  this run has written the cospec skill that replaces it.
 
 ::: tip Managed files, not hand-edited ones Everything above is a _managed
 file_: cospec tracks it by content hash and regenerates it on `cospec update`.
