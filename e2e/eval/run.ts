@@ -14,6 +14,7 @@ import { mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { HARNESS_NAMES, HARNESS_TABLE, skillsRoot } from '../../apps/cli/src/harness/adapters.ts'
 import {
   createSandbox,
   formatTranscript,
@@ -50,18 +51,44 @@ const FIXTURE_SENTINELS: Sentinels = {
 }
 
 /**
- * System prompt = the actual rendered Claude skill bodies. Rendering them into a
- * throwaway repo means the eval tests the instructions cospec really ships.
+ * The harness whose skill bodies the eval ships to the model: `COSPEC_EVAL_HARNESS`, default
+ * `claude`. An id that is not a harness is refused rather than falling back silently.
  */
-async function renderSkillBodies(): Promise<string> {
+function evalHarness(): string {
+  const id = process.env.COSPEC_EVAL_HARNESS ?? 'claude'
+  if (!(HARNESS_NAMES as readonly string[]).includes(id)) {
+    throw new Error(
+      `COSPEC_EVAL_HARNESS=${id} is not a harness; expected one of ${HARNESS_NAMES.join(', ')}`,
+    )
+  }
+  return id
+}
+
+/**
+ * System prompt = the actual rendered skill bodies of the harness `evalHarness()` names.
+ * Rendering them into a throwaway repo means the eval tests the instructions cospec really
+ * ships. A home-scoped row writes under a sandbox HOME, never the real one.
+ */
+async function renderSkillBodies(harness: string): Promise<string> {
+  const row = HARNESS_TABLE.find((r) => r.id === harness)!
   const sandbox = await createSandbox(REPO_ROOT)
   try {
-    const init = await runCospec(sandbox, REPO_ROOT, ['init', '.', '--harness', 'claude', '--yes'])
+    const home = join(sandbox, '.eval-home')
+    await mkdir(home, { recursive: true })
+    const homeEnv = { HOME: home, USERPROFILE: home }
+    const init = await runCospec(
+      sandbox,
+      REPO_ROOT,
+      ['init', '.', '--harness', harness, '--yes'],
+      homeEnv,
+    )
     if (init.exitCode !== 0) {
       throw new Error(
-        `could not render skill bodies (cospec init --harness claude exit ${init.exitCode})`,
+        `could not render skill bodies (cospec init --harness ${harness} exit ${init.exitCode})`,
       )
     }
+    const skillRoot = skillsRoot(row)
+    const base = skillRoot.scope === 'home' ? home : sandbox
     const skills = [
       'cospec-propose',
       'cospec-apply-change',
@@ -70,7 +97,7 @@ async function renderSkillBodies(): Promise<string> {
     ]
     const parts: string[] = []
     for (const skill of skills) {
-      const body = await readFileOr(sandbox, `.claude/skills/${skill}/SKILL.md`)
+      const body = await readFileOr(base, `${skillRoot.root}/skills/${skill}/SKILL.md`)
       if (body !== undefined) {
         parts.push(body)
       }
@@ -111,7 +138,7 @@ async function main(): Promise<number> {
 
   console.log(`eval:e2e — model ${model}; running ${SCENARIOS.length} scenarios…`)
   const started = Date.now()
-  const systemPrompt = await renderSkillBodies()
+  const systemPrompt = await renderSkillBodies(evalHarness())
   const ctx: EvalContext = { repoRoot: REPO_ROOT, apiKey, model, baseUrl, systemPrompt, sentinels }
 
   // One timestamped directory per run holds report.json plus a redacted

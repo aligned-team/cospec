@@ -1,0 +1,110 @@
+[
+  {
+    "path": ".kimi-code/skills/cospec-apply-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "apply",
+    "harness": "kimi",
+    "contentHash": "sha256:47bb07734312df99ece2c62e4617dbf3651845e4a011d8f32bf33a33e3ceb291",
+    "bytes": 2279,
+    "sha256": "0704e4e1f6b8c0a8c4d4f6c81c3b2737b02704f9ad48c1d352e3672919547595"
+  },
+  {
+    "path": ".kimi-code/skills/cospec-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "archive",
+    "harness": "kimi",
+    "contentHash": "sha256:f34cc0360fb073248e7751351a796c9f5cc258b7fa5c8d3f02e872c9e249473d",
+    "bytes": 3107,
+    "sha256": "c476b7a7b865092d8d8c6e7d760225a3da77b88662b0c90d3da8330563e68961"
+  },
+  {
+    "path": ".kimi-code/skills/cospec-bulk-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "bulk-archive",
+    "harness": "kimi",
+    "contentHash": "sha256:eb1ab65e41f9cad75d9ab3bc9033e130afa7d78e19dbe5f43d169b4cba2c6af2",
+    "bytes": 3060,
+    "sha256": "51d0b7a9fda96f1f3bd52c325153c7fc610c957562867c32b163a086ea60b2b1"
+  },
+  {
+    "path": ".kimi-code/skills/cospec-continue-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "continue",
+    "harness": "kimi",
+    "contentHash": "sha256:9ef794b6c81673e695f9aee6a18cb53a113ad0525d7ac7306f0cc381e58f747d",
+    "bytes": 2527,
+    "sha256": "13c2f5acf01effc8328ee388d9ed05188926ac6bc7484b6b4a84a1af9ca5658b"
+  },
+  {
+    "path": ".kimi-code/skills/cospec-explore/SKILL.md",
+    "kind": "skill",
+    "workflow": "explore",
+    "harness": "kimi",
+    "contentHash": "sha256:e9dd8ceee77ab63589bde6971b24447a2f4621d4e177ac25e51ee19bc8747746",
+    "bytes": 6766,
+    "sha256": "b51400e682ce7aed3d824b2ab8554c0e6144f976b5a060d4449c599b457fedf4"
+  },
+  {
+    "path": ".kimi-code/skills/cospec-ff-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "ff",
+    "harness": "kimi",
+    "contentHash": "sha256:92c5f26c1e8e44decd1134235da84355f8325541d3f196b94f8ecfaa89ca0a83",
+    "bytes": 3570,
+    "sha256": "32ed95977da2a9abb9cc746b74cc6e8c06bc73695b5d7571ab72988c406a59bf"
+  },
+  {
+    "path": ".kimi-code/skills/cospec-new-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "new",
+    "harness": "kimi",
+    "contentHash": "sha256:0016ac0d2a1e796bc693ad9eef86deec4746522b47605786b092a0e6883e9bfa",
+    "bytes": 3373,
+    "sha256": "b354987d62cf4bdeb7e08247e4e3263dd97d390acfe3c59d35bbe54ba0218a52"
+  },
+  {
+    "path": ".kimi-code/skills/cospec-onboard/SKILL.md",
+    "kind": "skill",
+    "workflow": "onboard",
+    "harness": "kimi",
+    "contentHash": "sha256:597f99529410853e34eda82ca3279d2b7a823eb03df68e2c60eb7984ce0c5748",
+    "bytes": 3219,
+    "sha256": "20aaeaf88734b1aafa0dbde41880ef31e976996c848df98a09f8cc60ec03cfe6"
+  },
+  {
+    "path": ".kimi-code/skills/cospec-propose/SKILL.md",
+    "kind": "skill",
+    "workflow": "propose",
+    "harness": "kimi",
+    "contentHash": "sha256:ca12c1a6153afe79c11cdd9aad1598b4940a13eff58161a2fa05b4eedefe5205",
+    "bytes": 6520,
+    "sha256": "6a0c0d0dd327bd0d8c283392258430cf81952a4c7dbc71d804940cd1c6946ddb"
+  },
+  {
+    "path": ".kimi-code/skills/cospec-sync-specs/SKILL.md",
+    "kind": "skill",
+    "workflow": "sync-specs",
+    "harness": "kimi",
+    "contentHash": "sha256:a0fb31b90f40b8b9b49201a0042136843942ea9e1cbcc9ea06d6956e58d4f7e4",
+    "bytes": 3093,
+    "sha256": "9912580ae672e95e60684b1befdd0f99d60cd9c8f668d185b91f0d31a4deeba5"
+  },
+  {
+    "path": ".kimi-code/skills/cospec-update-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "update",
+    "harness": "kimi",
+    "contentHash": "sha256:310a1611d76252b578493c3ce6ab97935faa3da6d2a71b2cc3a6eef273bd39f4",
+    "bytes": 4411,
+    "sha256": "46f59b2f87f44df2da8eff2f3b1a62b1c0c7f6b080047d3e4e667cfd489122a0"
+  },
+  {
+    "path": ".kimi-code/skills/cospec-verify-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "verify",
+    "harness": "kimi",
+    "contentHash": "sha256:974dec74e1a310a9e6cedf238ca5319c9f899581fca053ddfad54904905482b9",
+    "bytes": 2668,
+    "sha256": "bd30540f4cecfcd77bad3f814399f8163226b31b86f41263c57cadd7394c4f53"
+  }
+]

@@ -12,6 +12,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  readSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -21,6 +22,7 @@ import { dirname, join, resolve } from 'node:path'
 import type { CommandContext } from '../cli.ts'
 import { openspecDir } from '../core/change.ts'
 import { hasFlag } from '../core/command-table.ts'
+import { isolatedWriteFailure } from '../core/errno.ts'
 import {
   computeContentHash,
   CURRENT_GENERATED_BY,
@@ -36,38 +38,40 @@ import {
 import { composeAllTypes, TYPE_TABLE } from '../core/schema-compose.ts'
 import {
   adapterFor,
+  carriesFrontmatter,
+  commandPath,
   HARNESS_TABLE,
   type HarnessAdapter,
   type HarnessName,
-  HARNESS_NAMES,
   ideRestartLine,
   legacySkillsRoots,
   removalRoots,
   SKILL_FILE,
   skillsRoot,
 } from '../harness/adapters.ts'
-import { LEGACY_CODEX_SKILL_ROOT, migrateLegacySkills } from '../harness/legacy-skills.ts'
-import { renderHarnessFiles } from '../harness/render.ts'
+import { hasHomeSkillEvidence, resolveHomeDir } from '../harness/home-root.ts'
+import {
+  canAskLegacyConsent,
+  consentLegacyMoves,
+  LEGACY_CODEX_SKILL_ROOT,
+  legacyMoveEntries,
+  legacyMoveLines,
+  type LegacyToolMove,
+  migrateLegacySkills,
+  moveLegacyToolRoots,
+} from '../harness/legacy-skills.ts'
+import { readWorkflowManifest, renderHarnessFiles } from '../harness/render.ts'
+import {
+  isSharedSkillTargetActive,
+  resolveSharedSkillWriters,
+  sharedTargetMarkers,
+} from '../harness/shared-root.ts'
 
 // --- harness detection -----------------------------------------------------
 
-// Every root and marker below is read from the harness's HARNESS_TABLE row.
-// `codex` and `agents` share the vendor-neutral `.agents/skills` root and render
-// byte-identical files there; codex adds its `rulesPath` on top.
-
-/**
- * A non-skill file that proves a harness was configured here: the row's
- * `rulesPath`. Needed because `codex` and `agents` write the same skill tree:
- * without the marker an `agents`-only user would start getting a spurious
- * `.codex/rules/cospec.rules`.
- */
-function harnessMarker(h: HarnessName): string | undefined {
-  return adapterFor(h).rulesPath
-}
-
-function skillBase(h: HarnessName): string {
-  return skillsRoot(adapterFor(h)).root
-}
+// Every root and marker below is read from the harness's HARNESS_TABLE row. Rows that share
+// a skills root (`.agents/skills`) write it from one chosen writer (`harness/shared-root.ts`),
+// so that tree is evidence only for its writer.
 
 /** The sentinel skill every harness always emits — used for presence detection. */
 const SENTINEL_SKILL = 'cospec-propose'
@@ -111,37 +115,70 @@ function hasSentinel(cwd: string, base: string): boolean {
   return isCospecManagedMarkdown(readFileSync(path, 'utf8'))
 }
 
-/** Sentinel/marker evidence that this harness was configured in `cwd`. */
-function hasHarnessEvidence(cwd: string, h: HarnessName): boolean {
-  // A pre-migration install is detected by its LEGACY base alone — without that,
-  // a `.codex/skills` tree would stop being regenerated and never be cleaned up.
-  if (legacySkillsRoots(adapterFor(h)).some((base) => hasSentinel(cwd, base))) return true
-  if (!hasSentinel(cwd, skillBase(h))) return false
-  // A migrated codex install has no legacy tree left, so it is detected by the
-  // shared sentinel plus the codex-only rules file; the marker is what keeps an
-  // `agents`-only repo from acquiring a `.codex/` dir.
-  const marker = harnessMarker(h)
-  return marker === undefined || existsSync(join(cwd, marker))
+/**
+ * Whether the row's command surface holds cospec's command for the sentinel workflow: a
+ * markdown command by its frontmatter provenance, a frontmatter-less one by its manifest entry.
+ */
+function hasSentinelCommand(
+  cwd: string,
+  row: HarnessAdapter,
+  tracked: Readonly<Record<string, string>>,
+): boolean {
+  const workflow = readWorkflowManifest().workflows.find((w) => w.skill === SENTINEL_SKILL)
+  if (workflow === undefined) {
+    throw new Error(`internal: no workflow renders the sentinel skill ${SENTINEL_SKILL}`)
+  }
+  const relpath = commandPath(row, workflow.command)
+  if (relpath === undefined || !existsSync(join(cwd, relpath))) return false
+  if (!carriesFrontmatter(row.commands!.serializer)) return tracked[relpath] !== undefined
+  return isCospecManagedMarkdown(readFileSync(join(cwd, relpath), 'utf8'))
 }
 
 /**
- * Harnesses whose skill dir already holds a cospec-generated sentinel skill.
- *
- * `codex` and `agents` render the same `.agents/skills` tree, so that tree alone
- * cannot say which one was selected — only codex leaves further evidence (its
- * rules file). A marker-less harness is therefore reported only when no detected
- * marker-bearing harness already accounts for the shared root: otherwise every
- * codex-only repo would report `agents` too, and `detectHarnesses` — the only
- * record of what the user opted into — would invent a target from zero evidence.
- * Dropping `agents` from a repo that really did select both costs nothing today
- * (codex writes a superset of what agents writes, byte for byte).
+ * Evidence that this harness was configured in `cwd`: a cospec sentinel skill in its legacy
+ * root; or in its skills root when it is that root's writer (for a home-scoped row, a cospec
+ * skill in the home skills directory); or its sentinel command; or its rules file.
  */
-export function detectHarnesses(cwd: string): HarnessName[] {
-  const detected = HARNESS_NAMES.filter((h) => hasHarnessEvidence(cwd, h))
-  const explainedBases = new Set(
-    detected.filter((h) => harnessMarker(h) !== undefined).map((h) => skillBase(h)),
-  )
-  return detected.filter((h) => harnessMarker(h) !== undefined || !explainedBases.has(skillBase(h)))
+function hasHarnessEvidence(
+  cwd: string,
+  row: HarnessAdapter,
+  table: readonly HarnessAdapter[],
+  tracked: Readonly<Record<string, string>>,
+): boolean {
+  // A pre-migration install is detected by its LEGACY base alone — without that,
+  // a `.codex/skills` tree would stop being regenerated and never be cleaned up.
+  if (legacySkillsRoots(row).some((base) => hasSentinel(cwd, base))) return true
+  const skills = skillsRoot(row)
+  if (
+    skills.scope === 'project' &&
+    hasSentinel(cwd, skills.root) &&
+    isSharedSkillTargetActive(cwd, row.id, table)
+  ) {
+    return true
+  }
+  // A home-scoped row has no project skills; its evidence is a cospec skill in the home root.
+  if (skills.scope === 'home' && hasHomeSkillEvidence(row, ['cospec'])) return true
+  if (hasSentinelCommand(cwd, row, tracked)) return true
+  return row.rulesPath !== undefined && existsSync(join(cwd, row.rulesPath))
+}
+
+/**
+ * The harnesses configured in `cwd`, in table order. A shared skills root is evidence only
+ * for the row that writes it, so a repo whose `.agents/skills` was written for codex does not
+ * report agents or zed as well; a row on that root is still reported through a surface of
+ * its own (a rules file, a command directory). A harness the last run could not write is
+ * reported too, so the next `update` retries it. `table` is a test seam.
+ */
+export function detectHarnesses(
+  cwd: string,
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): HarnessName[] {
+  const manifest = readManifest(cwd)
+  const tracked = manifest?.files ?? {}
+  const retry = new Set(manifest?.retry ?? [])
+  return table
+    .filter((row) => retry.has(row.id) || hasHarnessEvidence(cwd, row, table, tracked))
+    .map((row) => row.id as HarnessName)
 }
 
 // --- atomic write ----------------------------------------------------------
@@ -150,7 +187,13 @@ function atomicWrite(path: string, content: string): void {
   mkdirSync(dirname(path), { recursive: true })
   const tmp = `${path}.cospec-tmp-${process.pid}-${Date.now()}`
   writeFileSync(tmp, content)
-  renameSync(tmp, path)
+  try {
+    renameSync(tmp, path)
+  } catch (error) {
+    // A target that is a directory fails the rename; do not leave the staged copy behind.
+    rmSync(tmp, { force: true })
+    throw error
+  }
 }
 
 // --- managed writes (dry-run aware) ----------------------------------------
@@ -274,13 +317,27 @@ export interface GenerateOptions {
   adapters?: readonly HarnessAdapter[]
 }
 
+/** One generated file `generate()` could not write, sidecar or remove (design decision 10). */
+export interface FailedWrite {
+  path: string
+  /** The errno failure's own message (`EACCES: permission denied, mkdir '…'`). */
+  error: string
+}
+
 export interface GenerateResult {
   results: WriteResult[]
+  /** Files left as they were because of a permission or path-type error. */
+  failed: FailedWrite[]
   /** Legacy-layout outcomes from the `.codex/skills` -> `.agents/skills` move. */
   migration: WriteResult[]
   /** The manifest that was (or would be) written. */
   manifest: Manifest
+  /** The rows that wrote (or would write) each skills root; one per shared root. */
+  skillWriters: ReadonlySet<string>
 }
+
+/** Run one file operation, recording an isolated write failure against `path` instead of throwing. */
+type Attempt = <T>(path: string, op: () => T) => T | undefined
 
 interface FlatFile {
   relpath: string
@@ -303,7 +360,7 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
   const prevFiles = prev?.files ?? {}
 
   const flat: FlatFile[] = []
-  const md: { relpath: string; abspath: string; content: string }[] = []
+  const md: { relpath: string; abspath: string; content: string; scope?: 'home' }[] = []
 
   // Schemas + templates (frontmatter-less).
   for (const composed of composeAllTypes()) {
@@ -322,44 +379,87 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
     }
   }
 
-  // Harness files.
+  // Harness files. A shared skills root is rendered from its one writer, read from disk
+  // (marker, then evidence) before anything is written.
+  const table = opts.adapters ?? HARNESS_TABLE
+  const skillWriters = resolveSharedSkillWriters(cwd, opts.harnesses, table)
   const rendered = renderHarnessFiles({
     harnesses: opts.harnesses,
     typeTable: TYPE_TABLE,
     version,
     adapters: opts.adapters,
+    skillWriters,
   })
-  // A home-relative path joined onto the repo would write outside the tool's
-  // real location; no managed root covers the home directory yet. Refused
-  // before any write, so nothing lands on disk.
+  // A home-scoped file (a row with `globalSkillsDir`) lives under the resolved home directory
+  // and is reported by its absolute path, which no project path can equal. Skills are
+  // self-describing markdown, so no home path is ever a manifest key.
+  const home = resolveHomeDir()
   for (const file of rendered) {
-    if (file.scope === 'home') {
-      throw new Error(
-        `internal: ${file.harness} rendered home-scoped ${file.path}, which no managed root covers`,
-      )
-    }
-  }
-  for (const file of rendered) {
+    const isHome = file.scope === 'home'
+    const abspath = isHome ? join(home, file.path) : join(cwd, file.path)
     // Files with no frontmatter (the codex rules file, a TOML command) carry no
     // self-describing provenance, so the manifest tracks them.
     if (file.frontmatter === null) {
-      flat.push({ relpath: file.path, abspath: join(cwd, file.path), content: file.content })
+      if (isHome) {
+        throw new Error(
+          `internal: ${file.harness} rendered ${file.path} under the home directory with no frontmatter, which no manifest can track`,
+        )
+      }
+      flat.push({ relpath: file.path, abspath, content: file.content })
     } else {
-      md.push({ relpath: file.path, abspath: join(cwd, file.path), content: file.content })
+      md.push({
+        relpath: isHome ? abspath : file.path,
+        abspath,
+        content: file.content,
+        ...(isHome ? { scope: 'home' as const } : {}),
+      })
     }
+  }
+  // The writer's id on each shared root it writes, manifest-tracked like any frontmatter-less file.
+  for (const marker of sharedTargetMarkers(skillWriters, table)) {
+    flat.push({
+      relpath: marker.relpath,
+      abspath: join(cwd, marker.relpath),
+      content: marker.content,
+    })
   }
 
   const results: WriteResult[] = []
+  const failed: FailedWrite[] = []
   const newManifest: Manifest = { cospecVersion: version, files: {} }
+  // A permission or path-type error costs only its own file (design decision 10); any other
+  // error is not this run's to hide and propagates.
+  const attempt: Attempt = (path, op) => {
+    try {
+      return op()
+    } catch (error) {
+      const message = isolatedWriteFailure(error)
+      if (message === undefined) throw error
+      failed.push({ path, error: message })
+      return undefined
+    }
+  }
 
   for (const f of flat) {
-    results.push(
+    const written = attempt(f.relpath, () =>
       writeFrontmatterless(f.abspath, f.relpath, f.content, prevFiles[f.relpath], writeOpts),
     )
-    newManifest.files[f.relpath] = computeContentHash(f.content)
+    if (written !== undefined) {
+      results.push(written)
+      newManifest.files[f.relpath] = computeContentHash(f.content)
+    } else if (prevFiles[f.relpath] !== undefined) {
+      // Still the last content cospec wrote, so the next run can tell it from a user's edit.
+      newManifest.files[f.relpath] = prevFiles[f.relpath]!
+    }
   }
   const mdEmitted = new Set(md.map((f) => f.relpath))
-  for (const f of md) results.push(writeMarkdown(f.abspath, f.relpath, f.content, writeOpts))
+  for (const f of md) {
+    const written = attempt(f.relpath, () =>
+      writeMarkdown(f.abspath, f.relpath, f.content, writeOpts),
+    )
+    if (written !== undefined)
+      results.push(f.scope === 'home' ? { ...written, scope: 'home' } : written)
+  }
 
   // Removals: frontmatter-less files the previous manifest tracked that we no
   // longer emit; and orphaned cospec-managed markdown in the harness dirs.
@@ -371,37 +471,66 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
     // key like `../victim.txt` resolves outside and is skipped entirely.
     const abspath = resolveContainedPath(cwd, relpath, MANAGED_REMOVAL_ROOTS)
     if (abspath === undefined) continue
-    const removed = removeFrontmatterless(abspath, relpath, prevFiles[relpath], writeOpts)
-    if (removed) results.push(removed)
-  }
-  const table = opts.adapters ?? HARNESS_TABLE
-  for (const removed of removeOrphanMarkdown(cwd, rendered, mdEmitted, table, writeOpts)) {
+    const removed = attempt(relpath, () =>
+      removeFrontmatterless(abspath, relpath, prevFiles[relpath], writeOpts),
+    )
+    if (removed === undefined) {
+      // Not removed because it could not be: keep tracking it so the next run tries again.
+      if (failed.some((f) => f.path === relpath)) newManifest.files[relpath] = prevFiles[relpath]!
+      continue
+    }
     results.push(removed)
   }
+  for (const removed of removeOrphanMarkdown(
+    cwd,
+    home,
+    rendered,
+    mdEmitted,
+    table,
+    writeOpts,
+    attempt,
+  )) {
+    results.push(removed)
+  }
+
+  // A harness with a file that failed is retried by the next `update`, however little of it exists.
+  const harnessOfPath = new Map(
+    rendered.map((f) => [f.scope === 'home' ? join(home, f.path) : f.path, f.harness as string]),
+  )
+  const retry = new Set(
+    (prev?.retry ?? []).filter((id) => !opts.harnesses.includes(id as HarnessName)),
+  )
+  for (const f of failed) {
+    const harness = harnessOfPath.get(f.path)
+    if (harness !== undefined) retry.add(harness)
+  }
+  if (retry.size > 0) newManifest.retry = [...retry]
 
   // After generation, never before: the fresh copy under `.agents/skills` must
   // already exist before a legacy duplicate is removed.
   const migration = migrateLegacySkills(cwd, mdEmitted, writeOpts)
 
   if (!writeOpts.dryRun) writeManifest(cwd, newManifest)
-  return { results, migration, manifest: newManifest }
+  return { results, failed, migration, manifest: newManifest, skillWriters }
 }
 
 /** Scan the emitted harnesses' skill/command dirs for cospec markdown we no longer emit. */
 function removeOrphanMarkdown(
   cwd: string,
+  home: string,
   rendered: ReturnType<typeof renderHarnessFiles>,
   emitted: Set<string>,
   table: readonly HarnessAdapter[],
   opts: WriteOpts,
+  attempt: Attempt,
 ): WriteResult[] {
-  const skillBases = new Set<string>()
+  const skillBases = new Map<string, 'project' | 'home'>()
   // Command dir -> the extensions its rows render markdown commands with. A
   // frontmatter-less (TOML) command is the manifest's to remove, so its dir is
   // not swept here.
   const commandDirs = new Map<string, Set<string>>()
   for (const f of rendered) {
-    if (f.kind === 'skill') skillBases.add(dirname(dirname(f.path)))
+    if (f.kind === 'skill') skillBases.set(dirname(dirname(f.path)), f.scope)
     else if (f.kind === 'command' && f.frontmatter !== null) {
       const extension = adapterFor(f.harness, table).commands?.extension
       if (extension === undefined) {
@@ -416,25 +545,33 @@ function removeOrphanMarkdown(
     }
   }
   const out: WriteResult[] = []
-  for (const base of skillBases) {
-    const abs = join(cwd, base)
-    if (!existsSync(abs)) continue
-    for (const entry of readdirSync(abs, { withFileTypes: true })) {
+  for (const [base, scope] of skillBases) {
+    // A home-scoped base is swept at its absolute path; what it removes is contained in it.
+    const absBase = scope === 'home' ? join(home, base) : join(cwd, base)
+    const shown = scope === 'home' ? absBase : base
+    if (!existsSync(absBase)) continue
+    const entries = attempt(shown, () => readdirSync(absBase, { withFileTypes: true }))
+    for (const entry of entries ?? []) {
       if (!entry.isDirectory()) continue
-      const relpath = `${base}/${entry.name}/${SKILL_FILE}`
+      const relpath = `${shown}/${entry.name}/${SKILL_FILE}`
       if (emitted.has(relpath)) continue
-      const removed = removeMarkdown(join(cwd, relpath), relpath, opts)
-      if (removed) out.push(removed)
+      const abspath = join(absBase, entry.name, SKILL_FILE)
+      if (scope === 'home' && resolveContainedPath(cwd, abspath, [], [absBase]) === undefined) {
+        continue
+      }
+      const removed = attempt(relpath, () => removeMarkdown(abspath, relpath, opts))
+      if (removed) out.push(scope === 'home' ? { ...removed, scope } : removed)
     }
   }
   for (const [dir, extensions] of commandDirs) {
     const abs = join(cwd, dir)
     if (!existsSync(abs)) continue
-    for (const entry of readdirSync(abs, { withFileTypes: true })) {
+    const entries = attempt(dir, () => readdirSync(abs, { withFileTypes: true }))
+    for (const entry of entries ?? []) {
       if (!entry.isFile() || ![...extensions].some((ext) => entry.name.endsWith(ext))) continue
       const relpath = `${dir}/${entry.name}`
       if (emitted.has(relpath)) continue
-      const removed = removeMarkdown(join(cwd, relpath), relpath, opts)
+      const removed = attempt(relpath, () => removeMarkdown(join(cwd, relpath), relpath, opts))
       if (removed) out.push(removed)
     }
   }
@@ -465,11 +602,42 @@ export function run(ctx: CommandContext): number {
     return 1
   }
 
+  // Upstream's order: legacy tool roots move before detection, so a renamed tool's files
+  // are where its row looks; the consent-gated ones are asked about (or, unattended, moved).
+  const moves: LegacyToolMove[] = moveLegacyToolRoots(cwd, {
+    timing: 'before-generation',
+    dryRun: check,
+  })
+  if (!check) {
+    const interactive = canAskLegacyConsent({
+      stdinIsTTY: process.stdin.isTTY === true,
+      stdoutIsTTY: process.stdout.isTTY === true,
+      json: flags.json,
+      force,
+    })
+    moves.push(...consentLegacyMoves(cwd, { interactive, ask: askOnTerminal }))
+  }
+
   const harnesses = detectHarnesses(cwd)
-  const { results, migration } = generate(cwd, { harnesses, force, dryRun: check })
+  const { results, failed, migration } = generate(cwd, { harnesses, force, dryRun: check })
+  moves.push(
+    ...moveLegacyToolRoots(cwd, {
+      timing: 'after-generation',
+      toolIds: harnesses,
+      emitted: emittedPaths(results),
+      dryRun: check,
+    }),
+  )
   // A remaining legacy layout is drift: `cospec update --check` (and therefore
-  // `generate:check` in CI) must fail while `.codex/skills` still holds cospec files.
+  // `generate:check` in CI) must fail while `.codex/skills` still holds cospec files,
+  // or while a legacy tool root holds OpenSpec files the update would move.
   const drifted = [...results, ...migration].filter((r) => DRIFT_OUTCOMES.has(r.outcome))
+  const wouldMove = legacyMoveEntries(moves).some(
+    (e) => e.outcome === 'moved' || e.outcome === 'removed',
+  )
+
+  // A file that could not be written is a failed run, in every mode.
+  const exitCode = failed.length > 0 || (check && (drifted.length > 0 || wouldMove)) ? 1 : 0
 
   if (flags.json) {
     process.stdout.write(
@@ -479,21 +647,52 @@ export function run(ctx: CommandContext): number {
           mode: check ? 'check' : force ? 'force' : 'write',
           harnesses,
           files: results,
-          migration,
+          failed,
+          migration: [...migration, ...legacyMoveEntries(moves)],
         },
         null,
         2,
       )}\n`,
     )
-    return check && drifted.length > 0 ? 1 : 0
+    return exitCode
   }
 
-  renderHuman(results, { check, harnesses, hadManifest: existsSync(manifestPath(cwd)) })
+  renderHuman(results, {
+    check,
+    harnesses,
+    hadManifest: existsSync(manifestPath(cwd)),
+    movesPending: wouldMove,
+    failed: failed.length > 0,
+  })
   for (const line of migrationLines(migration, check)) process.stdout.write(`${line}\n`)
+  for (const line of legacyMoveLines(moves, check)) process.stdout.write(`${line}\n`)
+  for (const line of failedLines(failed)) process.stdout.write(`${line}\n`)
   // Upstream prints its restart line only when an update touched a tool's files.
   const restart = check || drifted.length === 0 ? undefined : updateRestartLine(harnesses)
   if (restart !== undefined) process.stdout.write(`${restart}\n`)
-  return check && drifted.length > 0 ? 1 : 0
+  return exitCode
+}
+
+/** The repo-relative paths a `generate()` run wrote or would write (everything but removals). */
+export function emittedPaths(results: readonly WriteResult[]): Set<string> {
+  return new Set(results.filter((r) => r.outcome !== 'removed').map((r) => r.path))
+}
+
+/**
+ * `update`'s yes/no question on a terminal, upstream's default yes. A closed stdin is not
+ * consent, and it does not abort the update.
+ */
+function askOnTerminal(question: string, notice: string): boolean {
+  process.stdout.write(`${notice}\n${question} (Y/n) `)
+  const buf = Buffer.alloc(256)
+  let answer = ''
+  while (!answer.includes('\n')) {
+    const n = readSync(0, buf, 0, buf.length, null)
+    if (n === 0) return false
+    answer += buf.toString('utf8', 0, n)
+  }
+  const a = answer.trim().toLowerCase()
+  return a === '' || a === 'y' || a === 'yes'
 }
 
 /**
@@ -534,12 +733,26 @@ export function migrationLines(migration: WriteResult[], check: boolean): string
   return lines
 }
 
+/** The receipt's `Failed:` block, one line per file `generate()` could not write; empty when none. */
+export function failedLines(failed: readonly FailedWrite[]): string[] {
+  if (failed.length === 0) return []
+  return ['Failed:', ...failed.map((f) => `  ${f.path}  ${f.error}`)]
+}
+
 function renderHuman(
   results: WriteResult[],
-  opts: { check: boolean; harnesses: HarnessName[]; hadManifest: boolean },
+  opts: {
+    check: boolean
+    harnesses: HarnessName[]
+    hadManifest: boolean
+    movesPending: boolean
+    failed: boolean
+  },
 ): void {
   const changed = results.filter((r) => DRIFT_OUTCOMES.has(r.outcome))
   if (changed.length === 0) {
+    // The legacy-root and `Failed:` lines that follow say what changed (or would, or could not).
+    if (opts.movesPending || opts.failed) return
     process.stdout.write(
       opts.check ? 'cospec update --check: no drift\n' : 'cospec update: everything up to date\n',
     )

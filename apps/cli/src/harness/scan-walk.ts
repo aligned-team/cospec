@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, realpathSync } from 'node:fs'
+import { type Dirent, existsSync, readdirSync, realpathSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 
 /**
@@ -74,12 +74,16 @@ export function isInsideNestedCheckout(cwd: string, cwdReal: string, abs: string
  * - `skipDir` prunes further directories by name.
  *
  * `visit` is called for each regular file with its `/`-joined path relative to `cwd`.
+ * A directory whose listing fails is handed to `onUnreadable` with its relative path and the
+ * error, and the walk goes on; the callback rethrows what it does not recognise. Without a
+ * callback the error propagates.
  */
 export function walkProjectFiles(
   cwd: string,
   roots: readonly string[],
   visit: (relpath: string) => void,
   skipDir: (name: string) => boolean = () => false,
+  onUnreadable?: (relpath: string, error: unknown) => void,
 ): void {
   const cwdReal = realpathSync(cwd)
   const walk = (rel: string, isRoot: boolean): void => {
@@ -87,7 +91,15 @@ export function walkProjectFiles(
     if (!existsSync(abs)) return
     if (isOutsideProject(cwdReal, abs)) return
     if (isRoot && isInsideNestedCheckout(cwd, cwdReal, abs)) return
-    for (const entry of readdirSync(abs, { withFileTypes: true })) {
+    let entries: Dirent[]
+    try {
+      entries = readdirSync(abs, { withFileTypes: true })
+    } catch (error) {
+      if (onUnreadable === undefined) throw error
+      onUnreadable(rel, error)
+      return
+    }
+    for (const entry of entries) {
       const childRel = `${rel}/${entry.name}`
       if (entry.isDirectory()) {
         if (skipDir(entry.name) || isNestedWorktreeRoot(join(cwd, childRel))) continue

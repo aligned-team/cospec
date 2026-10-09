@@ -56,9 +56,11 @@ import {
   scanRoots,
   skillPath,
   skillsRoot,
+  workflowReferencePattern,
 } from '../harness/adapters.ts'
+import { homeSkillsDir } from '../harness/home-root.ts'
 import { walkProjectFiles } from '../harness/scan-walk.ts'
-import { isOpsxMarkdown, leftoverScanFiles } from './init.ts'
+import { homeSkillLeftovers, leftoverScanFiles, opsxLeftoverFiles } from './init.ts'
 import { detectHarnesses, generate } from './update.ts'
 
 type Level = 'ERROR' | 'WARNING' | 'INFO'
@@ -143,7 +145,16 @@ function checkDrift(cwd: string, findings: Finding[]): WriteResult[] {
   }
 
   const harnesses = detectHarnesses(cwd)
-  const { results, migration } = generate(cwd, { harnesses, dryRun: true })
+  const { results, failed, migration } = generate(cwd, { harnesses, dryRun: true })
+  // A dry run writes nothing, so what fails here is a managed file cospec cannot read.
+  for (const f of failed) {
+    findings.push({
+      level: 'ERROR',
+      check: 'unreadable-file',
+      message: `${f.path} cannot be checked against canon (${f.error})`,
+      remedy: 'fix the permissions on the file or its directory, then re-run `cospec doctor`',
+    })
+  }
   for (const r of results) {
     if (r.outcome === 'unchanged') continue
     if (r.outcome === 'created') {
@@ -276,17 +287,6 @@ function owningRow(relpath: string, table: readonly HarnessAdapter[]): HarnessAd
   return best?.row ?? table.find(underPrimary)
 }
 
-/**
- * A body's workflow references: `/cospec:<id>` and `/cospec-<id-or-skill>`,
- * plus the row's own invocation prefix (`@cospec-<id>` for an `@` row), the
- * spelling a flat row's bodies are rendered in.
- */
-function referencePattern(row: HarnessAdapter): RegExp {
-  const sigils = [...new Set(['/', row.invocationPrefix])]
-  const alternation = sigils.map((s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')).join('|')
-  return new RegExp(`(?:${alternation})cospec[:-]([a-z][a-z-]*)`, 'g')
-}
-
 export function checkDanglingRefs(
   cwd: string,
   files: { relpath: string; text: string }[],
@@ -299,7 +299,7 @@ export function checkDanglingRefs(
     const harness = row.id
     const { body } = splitFrontmatter(f.text)
     const refs = new Set<string>()
-    for (const m of body.matchAll(referencePattern(row))) refs.add(m[1]!)
+    for (const m of body.matchAll(workflowReferencePattern(row))) refs.add(m[1]!)
     for (const ref of refs) {
       // A reference is spelled either with the workflow id (`/cospec:apply`,
       // `/cospec-apply`) or — in the shared `.agents` dialect, which emits no
@@ -374,20 +374,26 @@ export function checkOpsx(
   findings: Finding[],
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): void {
-  for (const f of leftoverScanFiles(cwd, table)) {
-    // Provenance-only, matching init's removal set (DESIGN §2.1/§6.6) and its exact
-    // predicate (init.ts's `isOpsxMarkdown`, shared rather than duplicated so the two
-    // never drift): flag a file only when its own frontmatter (or, for OpenCode's
-    // description-only shape, frontmatter plus body) proves openspec authored it.
-    // Path/name conventions alone are not provenance — never warn on user-authored files.
-    if (isOpsxMarkdown(f.relpath, f.text)) {
-      findings.push({
-        level: 'WARNING',
-        check: 'opsx-leftover',
-        message: `leftover openspec (opsx) file: ${f.relpath} — two propose commands confuse agents`,
-        remedy: 'run `cospec init --remove-opsx` to delete provably openspec-generated files',
-      })
-    }
+  // A home-scoped row's skills dir sits outside the project; it is read here, never written.
+  const homeIds = table.filter((row) => homeSkillsDir(row) !== undefined).map((row) => row.id)
+  for (const h of homeSkillLeftovers(homeIds)) {
+    findings.push({
+      level: 'WARNING',
+      check: 'opsx-leftover',
+      message: `leftover openspec (opsx) file: ${h.path} — two propose commands confuse agents`,
+      remedy: 'run `cospec init --remove-opsx` to delete provably openspec-generated files',
+    })
+  }
+  // Provenance-only, the one predicate init's removal uses (DESIGN §2.1/§6.6): flag a file
+  // only when its own content proves openspec wrote it. Path/name conventions alone are not
+  // provenance — never warn on user-authored files.
+  for (const f of opsxLeftoverFiles(leftoverScanFiles(cwd, table), table)) {
+    findings.push({
+      level: 'WARNING',
+      check: 'opsx-leftover',
+      message: `leftover openspec (opsx) file: ${f.relpath} — two propose commands confuse agents`,
+      remedy: 'run `cospec init --remove-opsx` to delete provably openspec-generated files',
+    })
   }
 }
 

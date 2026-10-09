@@ -117,6 +117,9 @@ export function oracleEnv(root: string): Record<string, string> {
     XDG_CACHE_HOME: join(home, '.cache'),
     CODEX_HOME: join(home, '.codex'),
     ZDOTDIR: home,
+    // The pinned binary's home skills root reads `USERPROFILE` before `HOME`, so a `USERPROFILE`
+    // exported by the host would point a home-scoped tool outside this sandbox.
+    USERPROFILE: home,
   }
   for (const dir of Object.values(dirs)) mkdirSync(dir, { recursive: true })
   return {

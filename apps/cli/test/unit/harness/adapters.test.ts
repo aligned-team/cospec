@@ -6,12 +6,13 @@ import {
   BODY_DIALECTS,
   buildClaudeCommandFrontmatter,
   buildOpencodeCommandFrontmatter,
+  carriesFrontmatter,
   commandPath,
   HARNESS_NAMES,
   HARNESS_TABLE,
   type HarnessAdapter,
   type HarnessName,
-  injectOpenCodeArgs,
+  injectArgumentPlaceholder,
   isBodyDialect,
   isHarnessDocument,
   isHarnessName,
@@ -24,6 +25,7 @@ import {
   skillPath,
   skillsRoot,
   transformBody,
+  workflowReferencePattern,
 } from '../../../src/harness/adapters.ts'
 import { LEGACY_CODEX_SKILL_ROOT } from '../../../src/harness/legacy-skills.ts'
 
@@ -33,7 +35,7 @@ describe('isHarnessName', () => {
     expect(isHarnessName('codex')).toBe(true)
     expect(isHarnessName('opencode')).toBe(true)
     expect(isHarnessName('agents')).toBe(true)
-    expect(isHarnessName('cursor')).toBe(false)
+    expect(isHarnessName('not-a-tool')).toBe(false)
     expect(isHarnessName('all')).toBe(false)
   })
 })
@@ -41,7 +43,7 @@ describe('isHarnessName', () => {
 describe('isBodyDialect', () => {
   test('accepts exactly the declared dialects', () => {
     for (const dialect of BODY_DIALECTS) expect(isBodyDialect(dialect)).toBe(true)
-    expect(BODY_DIALECTS).toEqual(['canonical', 'shared', 'flat'])
+    expect(BODY_DIALECTS).toEqual(['canonical', 'shared', 'flat', 'skill', 'prose'])
     expect(isBodyDialect('codex')).toBe(false)
     expect(isBodyDialect('')).toBe(false)
   })
@@ -93,30 +95,122 @@ describe('transformBody', () => {
   })
 })
 
-describe('injectOpenCodeArgs', () => {
+describe('transformBody — skill and prose dialects', () => {
+  const body = 'Run /cospec:apply then /cospec:archive when done.'
+  const skillById = new Map([
+    ['apply', 'cospec-apply-change'],
+    ['archive', 'cospec-archive-change'],
+  ])
+
+  test('skill spells each reference as its skill name behind `/` by default', () => {
+    expect(transformBody(body, 'skill', skillById)).toBe(
+      'Run /cospec-apply-change then /cospec-archive-change when done.',
+    )
+  })
+
+  test("skill takes the row's `/skill:` prefix", () => {
+    expect(transformBody(body, 'skill', skillById, '/skill:')).toBe(
+      'Run /skill:cospec-apply-change then /skill:cospec-archive-change when done.',
+    )
+  })
+
+  test('prose names the skill without any invocation syntax', () => {
+    expect(transformBody(body, 'prose', skillById)).toBe(
+      'Run the cospec-apply-change skill then the cospec-archive-change skill when done.',
+    )
+  })
+
+  test('both leave an unknown id verbatim so doctor still flags it as dangling', () => {
+    expect(transformBody('see /cospec:nope', 'skill', skillById, '/skill:')).toBe(
+      'see /cospec:nope',
+    )
+    expect(transformBody('see /cospec:nope', 'prose', skillById)).toBe('see /cospec:nope')
+  })
+})
+
+const refsIn = (row: HarnessAdapter, text: string): string[] =>
+  [...text.matchAll(workflowReferencePattern(row))].map((m) => m[1]!)
+
+describe('workflowReferencePattern', () => {
+  const refs = refsIn
+  const text =
+    'a /cospec:apply b /cospec-verify c @cospec-explore d /skill:cospec-onboard e the cospec-sync-specs skill f the cospec-manifest'
+
+  test('a canonical row reads `/cospec:<id>` and `/cospec-<id>` only', () => {
+    expect(refs(adapterFor('claude'), text)).toEqual(['apply', 'verify'])
+  })
+
+  test('an @ row also reads `@cospec-<id>`', () => {
+    expect(refs({ ...adapterFor('opencode'), invocationPrefix: '@' }, text)).toEqual([
+      'apply',
+      'verify',
+      'explore',
+    ])
+  })
+
+  test('a `/skill:` row also reads `/skill:cospec-<skill>`', () => {
+    const row = {
+      ...adapterFor('agents'),
+      bodyDialect: 'skill',
+      skillInvocationPrefix: '/skill:',
+    } as HarnessAdapter
+    expect(refs(row, text)).toEqual(['apply', 'verify', 'onboard'])
+  })
+
+  test('a prose row also reads `the cospec-<skill> skill`, and only with the trailing word', () => {
+    const row = { ...adapterFor('agents'), bodyDialect: 'prose' } as HarnessAdapter
+    expect(refs(row, text)).toEqual(['apply', 'verify', 'sync-specs'])
+  })
+
+  test('a skill dialect on skills alone is enough for the row to be read that way', () => {
+    const row = {
+      ...adapterFor('cursor'),
+      skillDialect: 'skill',
+      skillInvocationPrefix: '/skill:',
+    } as HarnessAdapter
+    expect(refs(row, text)).toEqual(['apply', 'verify', 'onboard'])
+  })
+})
+
+describe('injectArgumentPlaceholder', () => {
+  test("takes the row's placeholder and defaults to $ARGUMENTS", () => {
+    const body = 'Do the thing.\n\n## 1. Pick the change\n\nbody\n'
+    expect(injectArgumentPlaceholder(body, '$@')).toBe(
+      'Do the thing.\n\n**Provided arguments**: $@\n\n## 1. Pick the change\n\nbody\n',
+    )
+    expect(injectArgumentPlaceholder(body)).toBe(injectArgumentPlaceholder(body, '$ARGUMENTS'))
+  })
+
+  test('a body that already names either placeholder is returned unchanged', () => {
+    for (const named of ['Use $@ here.\n\n## 1. A\n', 'Use $ARGUMENTS here.\n\n## 1. A\n']) {
+      expect(injectArgumentPlaceholder(named, '$@')).toBe(named)
+      expect(injectArgumentPlaceholder(named, '$ARGUMENTS')).toBe(named)
+    }
+  })
+
   test('inserts the placeholder as its own paragraph before the first section', () => {
     const body = 'Do the thing.\n\n## 1. Pick the change\n\nbody\n'
-    expect(injectOpenCodeArgs(body)).toBe(
+    expect(injectArgumentPlaceholder(body)).toBe(
       'Do the thing.\n\n**Provided arguments**: $ARGUMENTS\n\n## 1. Pick the change\n\nbody\n',
     )
   })
 
   test('is a no-op when the body already names an argument placeholder', () => {
     const withArgs = 'Do it with $ARGUMENTS.\n\n## 1. Go\n'
-    expect(injectOpenCodeArgs(withArgs)).toBe(withArgs)
+    expect(injectArgumentPlaceholder(withArgs)).toBe(withArgs)
     const withPositional = 'Do it with $1.\n\n## 1. Go\n'
-    expect(injectOpenCodeArgs(withPositional)).toBe(withPositional)
+    expect(injectArgumentPlaceholder(withPositional)).toBe(withPositional)
   })
 
   test('appends at the end when the body has no section heading', () => {
-    expect(injectOpenCodeArgs('Just a paragraph.\n')).toBe(
+    expect(injectArgumentPlaceholder('Just a paragraph.\n')).toBe(
       'Just a paragraph.\n\n**Provided arguments**: $ARGUMENTS\n',
     )
   })
 
   test('preserves CRLF line endings', () => {
     const body = 'Do the thing.\r\n\r\n## 1. Go\r\n'
-    expect(injectOpenCodeArgs(body)).toBe(
+    expect(injectArgumentPlaceholder(body)).toBe(
       'Do the thing.\r\n\r\n**Provided arguments**: $ARGUMENTS\r\n\r\n## 1. Go\r\n',
     )
   })
@@ -159,18 +253,61 @@ function pathsOf(row: HarnessAdapter): Set<string> {
   return out
 }
 
+const ARBITRATED_DIALECT = new Set(['antigravity'])
+
 describe('HARNESS_TABLE invariants', () => {
   test('HarnessName is the literal union of the table ids', () => {
     const ok: HarnessName = 'agents'
     // @ts-expect-error — an id the table does not declare is not a HarnessName
-    const bad: HarnessName = 'cursor'
-    expect<string[]>([ok, bad]).toEqual(['agents', 'cursor'])
+    const bad: HarnessName = 'not-a-tool'
+    expect<string[]>([ok, bad]).toEqual(['agents', 'not-a-tool'])
   })
 
-  test("ids are unique and HARNESS_NAMES is today's four, in today's order", () => {
+  test('ids are unique; HARNESS_NAMES is the shipped four, then rows in AI_TOOLS order', () => {
     const ids = HARNESS_TABLE.map((r) => r.id)
     expect(new Set(ids).size).toBe(ids.length)
-    expect(HARNESS_NAMES).toEqual(['claude', 'codex', 'opencode', 'agents'])
+    // The full order is the pinned AI_TOOLS order, asserted whole by harness-matrix.test.ts.
+    expect(HARNESS_NAMES).toEqual([
+      'claude',
+      'codex',
+      'opencode',
+      'agents',
+      'amazon-q',
+      'antigravity',
+      'auggie',
+      'bob',
+      'cline',
+      'command-code',
+      'codeartsagent',
+      'devin',
+      'forgecode',
+      'codebuddy',
+      'continue',
+      'costrict',
+      'crush',
+      'cursor',
+      'factory',
+      'gemini',
+      'hermes',
+      'iflow',
+      'junie',
+      'kilocode',
+      'kimi',
+      'kiro',
+      'lingma',
+      'minimax-code',
+      'vibe',
+      'oh-my-pi',
+      'pi',
+      'codeassistant',
+      'qoder',
+      'qwen',
+      'rovodev',
+      'roocode',
+      'trae',
+      'zed',
+      'zcode',
+    ])
     expect(HARNESS_NAMES).toEqual(ids)
   })
 
@@ -192,15 +329,22 @@ describe('HARNESS_TABLE invariants', () => {
         const shared = [...pathsOf(a)].some((p) => pathsOf(b).has(p))
         if (!shared) continue
         overlaps++
+        // antigravity's flat skills share `.agents/skills` with the shared-dialect rows; the
+        // shared-root arbiter writes one dialect there (its writer's), so only this pair is exempt.
+        if (ARBITRATED_DIALECT.has(a.id) || ARBITRATED_DIALECT.has(b.id)) continue
         expect(`${a.id}:${a.bodyDialect}`).toBe(`${a.id}:${b.bodyDialect}`)
       }
     }
-    // codex and agents share `.agents/skills`; the check must not be vacuous.
-    expect(overlaps).toBe(1)
+    // codex, agents, antigravity and zed share `.agents/skills`; the check must not be vacuous.
+    expect(overlaps).toBe(6)
   })
 
-  test('the four rows are all repo-scoped, `/`-invoked and need no IDE restart', () => {
-    for (const row of HARNESS_TABLE as readonly HarnessAdapter[]) {
+  test('the four shipped rows are all repo-scoped, `/`-invoked and need no IDE restart', () => {
+    // Later rows may need an IDE restart or carry no setup note; the pinned capture decides.
+    const shipped = new Set(['claude', 'codex', 'opencode', 'agents'])
+    for (const row of (HARNESS_TABLE as readonly HarnessAdapter[]).filter((r) =>
+      shipped.has(r.id),
+    )) {
       expect(skillsRoot(row).scope).toBe('project')
       expect(row.invocationPrefix).toBe('/')
       expect(row.requiresIdeRestart).toBe(false)
@@ -212,37 +356,161 @@ describe('HARNESS_TABLE invariants', () => {
     expect(adapterFor('claude').commands?.frontmatter).toBe(buildClaudeCommandFrontmatter)
     expect(adapterFor('claude').commands?.injectArguments).toBeUndefined()
     expect(adapterFor('opencode').commands?.frontmatter).toBe(buildOpencodeCommandFrontmatter)
-    expect(adapterFor('opencode').commands?.injectArguments).toBe(true)
+    expect(adapterFor('opencode').commands?.injectArguments).toBe('$ARGUMENTS')
     expect(adapterFor('codex').commands).toBeUndefined()
     expect(adapterFor('agents').commands).toBeUndefined()
   })
 
   test('adapterFor refuses an id the table does not declare', () => {
-    expect(() => adapterFor('cursor')).toThrow(/no harness adapter row for 'cursor'/)
+    expect(() => adapterFor('not-a-tool')).toThrow(/no harness adapter row for 'not-a-tool'/)
   })
 })
 
+const primary = [
+  '.claude',
+  '.codex',
+  '.opencode',
+  '.agents',
+  '.amazonq',
+  '.augment',
+  '.bob',
+  '.clinerules',
+  '.commandcode',
+  '.codeartsdoer',
+  '.devin',
+  '.forge',
+  '.codebuddy',
+  '.continue',
+  '.cospec',
+  '.crush',
+  '.cursor',
+  '.factory',
+  '.gemini',
+  '.hermes',
+  '.iflow',
+  '.junie',
+  '.kilocode',
+  '.kimi-code',
+  '.kiro',
+  '.lingma',
+  '.vibe',
+  '.omp',
+  '.pi',
+  '.codeassistant',
+  '.qoder',
+  '.qwen',
+  '.rovodev',
+  '.roo',
+  '.trae',
+  '.zcode',
+]
+
 describe('HARNESS_TABLE derived roots', () => {
-  test("scan roots are today's `.<id>` walk order", () => {
-    expect(scanRoots()).toEqual(['.claude', '.codex', '.opencode', '.agents'])
+  test("scan roots are the shipped `.<id>` roots, then each row's upstream root", () => {
+    expect(scanRoots()).toEqual([
+      '.claude',
+      '.codex',
+      '.opencode',
+      '.agents',
+      '.amazonq',
+      '.augment',
+      '.bob',
+      '.clinerules',
+      '.commandcode',
+      '.codeartsdoer',
+      '.devin',
+      '.forge',
+      '.codebuddy',
+      '.continue',
+      '.cospec',
+      '.crush',
+      '.cursor',
+      '.factory',
+      '.gemini',
+      '.hermes',
+      '.iflow',
+      '.junie',
+      '.kilocode',
+      '.kimi-code',
+      '.kiro',
+      '.lingma',
+      '.vibe',
+      '.omp',
+      '.pi',
+      '.codeassistant',
+      '.qoder',
+      '.qwen',
+      '.rovodev',
+      '.roo',
+      '.trae',
+      '.zcode',
+      '.agent',
+      '.cline',
+    ])
   })
 
-  test("each row's primary root is today's `.<id>` dir, so doctor attributes files as before", () => {
-    expect(HARNESS_TABLE.map((row) => primaryRoot(row))).toEqual(
-      HARNESS_NAMES.map((id) => `.${id}`),
-    )
+  test("each row's primary root is its commands dir, else its rules file, else its skills root", () => {
+    // The shipped four keep `.<id>`; a row whose upstream dir is not `.<id>` (Auggie's
+    // `.augment`) is attributed by the dir upstream writes its files under.
+    expect(HARNESS_TABLE.map((row) => primaryRoot(row))).toEqual([
+      '.claude',
+      '.codex',
+      '.opencode',
+      '.agents',
+      '.amazonq',
+      '.agents',
+      '.augment',
+      '.bob',
+      '.clinerules',
+      '.commandcode',
+      '.codeartsdoer',
+      '.devin',
+      '.forge',
+      '.codebuddy',
+      '.continue',
+      '.cospec',
+      '.crush',
+      '.cursor',
+      '.factory',
+      '.gemini',
+      '.hermes',
+      '.iflow',
+      '.junie',
+      '.kilocode',
+      '.kimi-code',
+      '.kiro',
+      '.lingma',
+      // minimax-code is home-scoped: no project root at all
+      undefined,
+      '.vibe',
+      '.omp',
+      '.pi',
+      '.codeassistant',
+      '.qoder',
+      '.qwen',
+      '.rovodev',
+      '.roo',
+      '.trae',
+      '.agents',
+      '.zcode',
+    ])
   })
 
   test('removal roots are openspec plus every tool root', () => {
-    expect(new Set(removalRoots())).toEqual(
-      new Set(['openspec', '.claude', '.agents', '.opencode', '.codex']),
-    )
-    expect(removalRoots()).toHaveLength(5)
+    expect(new Set(removalRoots())).toEqual(new Set(['openspec', ...primary, '.agent', '.cline']))
+    expect(removalRoots()).toHaveLength(39)
   })
 
   test("each scan root's skills are harness documents; its rules and stray prompts are not", () => {
+    // A scan root that is only a commands root (Cline's `.clinerules`) holds no skills; a
+    // legacy skills root (Codex's `.codex`) still does.
+    const skillRoots = new Set<string | undefined>()
+    for (const row of HARNESS_TABLE as readonly HarnessAdapter[]) {
+      skillRoots.add(row.skillsDir)
+      for (const legacy of row.legacySkillsDirs ?? []) skillRoots.add(legacy)
+    }
     for (const root of scanRoots()) {
-      expect(isHarnessDocument(`${root}/skills/cospec-explore/SKILL.md`)).toBe(true)
+      expect(isHarnessDocument(`${root}/skills/cospec-explore/SKILL.md`)).toBe(skillRoots.has(root))
       expect(isHarnessDocument(`${root}/rules/cospec.rules`)).toBe(false)
       expect(isHarnessDocument(`${root}/commands/cospec-new.prompt`)).toBe(false)
     }
@@ -326,10 +594,39 @@ describe('HARNESS_TABLE against the pinned OpenSpec AI_TOOLS', async () => {
     })
   })
 
-  test('codex: detectionPaths deliberately diverge from upstream (tool-matrix aligns them)', () => {
-    // Upstream's would select codex on an agents-only repo — a behaviour change this
-    // refactor must not make. The `tool-matrix` change owns aligning it.
+  test("codex: detectionPaths are upstream's, arbitrated through the shared root", () => {
+    // `.agents/skills` selects codex only as that root's writer (`availableHarnesses`), so an
+    // agents-only repo still never selects codex.
     expect(upstream('codex').detectionPaths).toEqual(['.agents/skills', '.codex/skills'])
-    expect(adapterFor('codex').detectionPaths).toEqual(['.codex'])
+    expect(adapterFor('codex').detectionPaths).toEqual(['.agents/skills', '.codex/skills'])
+  })
+})
+
+const row = (serializer: 'markdown-header' | 'plain' | 'toml'): HarnessAdapter => ({
+  ...adapterFor('opencode'),
+  id: 'bare-fixture',
+  skillsDir: '.bare',
+  commands: {
+    dir: '.bare/workflows',
+    namespacing: 'flat',
+    file: 'cospec-{command}',
+    extension: '.md',
+    serializer,
+  },
+})
+
+describe('isHarnessDocument — frontmatter-less command serializers', () => {
+  test('only the markdown serializer carries provenance, so only its commands are documents', () => {
+    expect(carriesFrontmatter('markdown')).toBe(true)
+    for (const s of ['markdown-header', 'plain', 'toml'] as const) {
+      expect(carriesFrontmatter(s)).toBe(false)
+      expect(isHarnessDocument('.bare/workflows/cospec-propose.md', [row(s)])).toBe(false)
+      expect(isHarnessDocument('.bare/skills/cospec-propose/SKILL.md', [row(s)])).toBe(true)
+    }
+    expect(
+      isHarnessDocument('.bare/workflows/cospec-propose.md', [
+        { ...row('plain'), commands: { ...row('plain').commands!, serializer: 'markdown' } },
+      ]),
+    ).toBe(true)
   })
 })

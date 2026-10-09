@@ -2,15 +2,18 @@ cospec initialized in <TMP>  (state A)
 
 Schemas: 11 types in openspec/schemas/
 Config:  openspec/config.yaml (schema: feat)
-Files:   121 created
-Harness: claude, codex, opencode, agents
-         skills for codex/agents share the .agents/skills root (identical files)
+Files:   842 created
+Harness: claude, codex, opencode, agents, amazon-q, antigravity, auggie, bob, cline, command-code, codeartsagent, devin, forgecode, codebuddy, continue, costrict, crush, cursor, factory, gemini, hermes, iflow, junie, kilocode, kimi, kiro, lingma, minimax-code, vibe, oh-my-pi, pi, codeassistant, qoder, qwen, rovodev, roocode, trae, zed, zcode
+         skills for codex/agents/antigravity/zed share the .agents/skills root (one tree, written for codex)
 Permissions: merged Bash(cospec *) into .claude/settings.json
 
 Restart Claude Code to pick up /cospec commands.
 Codex: skills now live in .agents/skills and are invoked as $cospec-<skill>; they load per-session, so start a new one. .codex/rules/cospec.rules still pre-approves the read-only and gate cospec calls.
 OpenCode: reload the project to pick up /cospec- commands.
 Shared .agents/skills — read by Codex ($cospec-*), Zed, Antigravity and other AGENTS.md-aware assistants; start a new session to load the skills. No slash commands are generated for this target.
+Setup required for Hermes Agent: Hermes only loads skills from ~/.hermes/skills by default. Add this project's .hermes/skills directory to skills.external_dirs in ~/.hermes/config.yaml so Hermes picks up the generated OpenSpec skills.
+Zed Agent reads the shared .agents/skills; start a new session to load the skills. No slash commands are generated for this target.
+Restart your IDE to refresh commands.
 
 Try: /cospec:propose "feat: <what you want to build>"
 Lightweight change? /cospec:propose "ci: fix release workflow" — 3 short artifacts.

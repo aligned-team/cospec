@@ -71,7 +71,7 @@ import {
   type SurfaceStatus,
 } from '../../src/core/command-table.ts'
 import { openspecPackageDir } from '../../src/core/openspec.ts'
-import { HARNESS_NAMES } from '../../src/harness/adapters.ts'
+import { HARNESS_ID_ALIASES, HARNESS_NAMES } from '../../src/harness/adapters.ts'
 import { cleanupAll, hashTree } from '../fixtures/support.ts'
 import { oracle, type OracleRun, scaffoldOracleRoot } from './support/upstream-oracle.ts'
 
@@ -349,6 +349,8 @@ interface Model {
   table: readonly CommandRow[]
   globalFlags: readonly string[]
   harnessNames: readonly string[]
+  /** `HARNESS_ID_ALIASES`: a retired upstream id and the harness it selects. */
+  harnessAliases: Readonly<Record<string, string>>
   canonWorkflows: readonly string[]
   pending: readonly PendingEntry[]
   aliases: readonly AliasEntry[]
@@ -408,8 +410,11 @@ function undeclaredOnForwardRows(model: Model): string[] {
 function cospecReaches(model: Model, entry: Entry): boolean {
   switch (entry.kind) {
     case 'tool':
-    case 'tool-alias':
       return model.harnessNames.includes(entry.id)
+    case 'tool-alias':
+      return (
+        model.harnessAliases[entry.id] === entry.target && model.harnessNames.includes(entry.target)
+      )
     case 'workflow':
       return model.canonWorkflows.includes(entry.id)
     default: {
@@ -897,6 +902,7 @@ beforeAll(async () => {
     table: COMMAND_TABLE,
     globalFlags: GLOBAL_FLAGS.map((f) => f.name),
     harnessNames: HARNESS_NAMES,
+    harnessAliases: HARNESS_ID_ALIASES,
     canonWorkflows: CANON_WORKFLOWS,
     pending: PENDING,
     aliases: ALIASES,
@@ -1004,9 +1010,12 @@ describe('reachability: negative cases (ledger 4.1, 4.3, 4.5)', () => {
   })
 
   test('an entry removed from every place resolves nowhere and fails', () => {
-    const pending = PENDING.filter((pe) => !(pe.kind === 'tool' && pe.id === 'cursor'))
-    const failures = checkReachability({ ...model, pending })
-    expect(failures).toContain('tool id `cursor` resolves nowhere')
+    // `roocode` stays pending until its row lands (tool-matrix 7.7); the table override keeps
+    // the case true if it ever lands, so the removed entry still resolves nowhere.
+    const pending = PENDING.filter((pe) => !(pe.kind === 'tool' && pe.id === 'roocode'))
+    const harnessNames = model.harnessNames.filter((id) => id !== 'roocode')
+    const failures = checkReachability({ ...model, pending, harnessNames })
+    expect(failures).toContain('tool id `roocode` resolves nowhere')
   })
 
   test('an entry listed in two places fails', () => {

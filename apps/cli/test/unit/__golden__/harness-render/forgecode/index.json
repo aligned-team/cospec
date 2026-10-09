@@ -1,0 +1,110 @@
+[
+  {
+    "path": ".forge/skills/cospec-apply-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "apply",
+    "harness": "forgecode",
+    "contentHash": "sha256:9e30e79f7dda83a89ae8adb885263f9eb5a10e7a385cc403f7d72c66fe521d4b",
+    "bytes": 2273,
+    "sha256": "0225d7bb3baa06b82ee76408433342b6e6ce8a26e0af6a9c6381f070aacbccf1"
+  },
+  {
+    "path": ".forge/skills/cospec-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "archive",
+    "harness": "forgecode",
+    "contentHash": "sha256:36e96e1d8f0c4ed338183b20d77114de85ce3b9ce8a98518de673d2d7bbf4dcb",
+    "bytes": 3095,
+    "sha256": "29374632ba97d190b58afb30f626d7e282e8ce043d19caf527583369c5b28f1f"
+  },
+  {
+    "path": ".forge/skills/cospec-bulk-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "bulk-archive",
+    "harness": "forgecode",
+    "contentHash": "sha256:80e856ac6307583b37a0f77e2a5621654cc5057220aa31aedf664481e4c3e7d0",
+    "bytes": 3054,
+    "sha256": "1bec7eba29b976f6a4b5276219d6ceab811ce6e9d3466ba1b601adaee3edeb12"
+  },
+  {
+    "path": ".forge/skills/cospec-continue-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "continue",
+    "harness": "forgecode",
+    "contentHash": "sha256:4ba87d509fcfc8f6e1ad11de2e6ca229f06938814bd31d8beb051ff7c5a7d680",
+    "bytes": 2509,
+    "sha256": "36cfb147c75ca3cd2c71a75cc256cf54bccf51531de5c193e3ebb0c93d4c36cb"
+  },
+  {
+    "path": ".forge/skills/cospec-explore/SKILL.md",
+    "kind": "skill",
+    "workflow": "explore",
+    "harness": "forgecode",
+    "contentHash": "sha256:c9ee139f903dee97f4e6e5ef4ac53fa6b1e203d7854e978103e79611be1a46a8",
+    "bytes": 6730,
+    "sha256": "fa63cfb67385c460b3d579f49cd8682042447f23634d58161738e8dbc559ba67"
+  },
+  {
+    "path": ".forge/skills/cospec-ff-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "ff",
+    "harness": "forgecode",
+    "contentHash": "sha256:4ca91cebbb6adc5ae14806635e66f2076c23ad6ca98e5c66c148c7c87417f966",
+    "bytes": 3552,
+    "sha256": "79336e99ae79974c638f92362a7a24db23fa22c45afa80e664c7c3c0c126acea"
+  },
+  {
+    "path": ".forge/skills/cospec-new-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "new",
+    "harness": "forgecode",
+    "contentHash": "sha256:ad5cbb7f5171f0fc15f12d45c931d98cbc2ade108fb6e080dfc1e33c1ce7613a",
+    "bytes": 3349,
+    "sha256": "349492294518d8a3397e7e3c4c44ee843967fe6a9a4d258eb3bb2382328ad0db"
+  },
+  {
+    "path": ".forge/skills/cospec-onboard/SKILL.md",
+    "kind": "skill",
+    "workflow": "onboard",
+    "harness": "forgecode",
+    "contentHash": "sha256:eab6ab2db9e5574f080925dfa56ae54d0f8e52036a7aaa2f1324cb9ba89508e1",
+    "bytes": 3195,
+    "sha256": "f982279ab89b21132728dd6e54243e90fcf04e18d2ef22df53beb473622fca47"
+  },
+  {
+    "path": ".forge/skills/cospec-propose/SKILL.md",
+    "kind": "skill",
+    "workflow": "propose",
+    "harness": "forgecode",
+    "contentHash": "sha256:d58a4bfdafde05607a0f4237bf6308635e4baf0e71efc0c4fc84891b4874b014",
+    "bytes": 6514,
+    "sha256": "8e9fbf7865c4ebfadf1f5f00dde08e82fbb1dcea41784e9cebdaf5c53b0e6326"
+  },
+  {
+    "path": ".forge/skills/cospec-sync-specs/SKILL.md",
+    "kind": "skill",
+    "workflow": "sync-specs",
+    "harness": "forgecode",
+    "contentHash": "sha256:3626f08c77d66e84d1331db25b0f989fdba7f8c0fc22816c49e12cf8b96f703f",
+    "bytes": 3087,
+    "sha256": "cd4d26f81efe6b9ec4551ab70d2aed1d53fd8e285947a77bd90d4e6b76085d4c"
+  },
+  {
+    "path": ".forge/skills/cospec-update-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "update",
+    "harness": "forgecode",
+    "contentHash": "sha256:6174310de78dd7a66b60ff088871dd23be3d8f220ac19c3e5e218edf5c115147",
+    "bytes": 4345,
+    "sha256": "d20038103a04c57d490b4f73ce2a9bbdb837dd94441c8a247cc64f5a3b5cdd1a"
+  },
+  {
+    "path": ".forge/skills/cospec-verify-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "verify",
+    "harness": "forgecode",
+    "contentHash": "sha256:dc92449f088f7b2e74596f5ef31fd51c7c8ae59ebf7ed5e803b7f4536b63a92c",
+    "bytes": 2650,
+    "sha256": "a67be9653be8bb05743a3eab8c4ef0b1534cdbb9649da9ccc2d39e7bc32da968"
+  }
+]

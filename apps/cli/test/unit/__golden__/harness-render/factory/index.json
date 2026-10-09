@@ -1,0 +1,218 @@
+[
+  {
+    "path": ".factory/commands/cospec-apply.md",
+    "kind": "command",
+    "workflow": "apply",
+    "harness": "factory",
+    "contentHash": "sha256:0a592f8e240b1a1b70b0b40785fb1bb04f25702de3e264af0fff88b45b824635",
+    "bytes": 2197,
+    "sha256": "c80abe3c54d37e2eb857658691f4f20a5a3736b9ce33449b2237da870fa56c97"
+  },
+  {
+    "path": ".factory/commands/cospec-archive.md",
+    "kind": "command",
+    "workflow": "archive",
+    "harness": "factory",
+    "contentHash": "sha256:1f0e3bc2a8cf332628b0a74650bb73691913e94445ae43074167315b946548f6",
+    "bytes": 3017,
+    "sha256": "90ee30d2c2af897b1a1171df6d3cc3716899380e51700d8a996104d1e4812e5b"
+  },
+  {
+    "path": ".factory/commands/cospec-bulk-archive.md",
+    "kind": "command",
+    "workflow": "bulk-archive",
+    "harness": "factory",
+    "contentHash": "sha256:a530a027e099f802ba55426c09dae1bd579881a9647cf133108b6f176fe206c3",
+    "bytes": 2971,
+    "sha256": "77b99ffe935880b030a20d31bcb88feaca65a4d5867abd460270900394d8de9d"
+  },
+  {
+    "path": ".factory/commands/cospec-continue.md",
+    "kind": "command",
+    "workflow": "continue",
+    "harness": "factory",
+    "contentHash": "sha256:5452d22965cf5216dc800c0fa52cb756ea521831e1b6063dba1a29ef3dea3daa",
+    "bytes": 2423,
+    "sha256": "fa3b78fdedc977c17eb4bb912e5596717b4e334085221eaf748be53b7af82d91"
+  },
+  {
+    "path": ".factory/commands/cospec-explore.md",
+    "kind": "command",
+    "workflow": "explore",
+    "harness": "factory",
+    "contentHash": "sha256:1918d6dc9bf5fe10b6f691e7144868bf8f14d2e17802474845e2e828e3cac108",
+    "bytes": 6645,
+    "sha256": "0a2f514d4974ff92b6bdd5533a973b09c98097ef6891936b32e2e067082f746f"
+  },
+  {
+    "path": ".factory/commands/cospec-ff.md",
+    "kind": "command",
+    "workflow": "ff",
+    "harness": "factory",
+    "contentHash": "sha256:9501c042a5736fef6a8d38123a71332849c5b14cf865c6bd119560b6b26f4747",
+    "bytes": 3465,
+    "sha256": "5bfe06bbc2e4043fb1e8be6d678c9e326d999753419ffe9c6cc47464239be318"
+  },
+  {
+    "path": ".factory/commands/cospec-new.md",
+    "kind": "command",
+    "workflow": "new",
+    "harness": "factory",
+    "contentHash": "sha256:78f1b653ca9d27d8af2e463c0a895f76707888b3e2b502a3dc5e1ff0a2fe28ab",
+    "bytes": 3254,
+    "sha256": "99c0d217c9f6b5d76aecbb6a281a6059effbbfdf80a3939141747a251f9435cf"
+  },
+  {
+    "path": ".factory/commands/cospec-onboard.md",
+    "kind": "command",
+    "workflow": "onboard",
+    "harness": "factory",
+    "contentHash": "sha256:1c6874a1abb688f0e7dc04816ab881a811f3097d1ec25af822c8d322e0d42c76",
+    "bytes": 3110,
+    "sha256": "c060e0369c563f774ba7a90a4fd5b764c91f19ccc13fe9c2c08bed53f765ac76"
+  },
+  {
+    "path": ".factory/commands/cospec-propose.md",
+    "kind": "command",
+    "workflow": "propose",
+    "harness": "factory",
+    "contentHash": "sha256:58737496aefa0b8ba4882c7904368305465e898ee067bf902e8e55a4882cfd10",
+    "bytes": 6443,
+    "sha256": "cb27ce900f508584fdec2b0d7e8a004f60c15fc7e9eccf13220ed11d5bb4527f"
+  },
+  {
+    "path": ".factory/commands/cospec-sync-specs.md",
+    "kind": "command",
+    "workflow": "sync-specs",
+    "harness": "factory",
+    "contentHash": "sha256:6557ec661d62b69c5956fe188cb2b2cd37639bfceb3fb7b6bb2330c0db9321ed",
+    "bytes": 3013,
+    "sha256": "52a97639e17c4b538947dccfd0974fd9cfa1f1d61d9872f9769ecde4521b3cc2"
+  },
+  {
+    "path": ".factory/commands/cospec-update.md",
+    "kind": "command",
+    "workflow": "update",
+    "harness": "factory",
+    "contentHash": "sha256:e59d8659510a3a7eee0f3c631f7cc6fe5cba9b8e625dec84d2e853637d72780b",
+    "bytes": 4198,
+    "sha256": "8ea37586305985478c908530fcc38c2841c0715d83aa11e1535c1beb83713892"
+  },
+  {
+    "path": ".factory/commands/cospec-verify.md",
+    "kind": "command",
+    "workflow": "verify",
+    "harness": "factory",
+    "contentHash": "sha256:49d95e8ab9359318596fe9f22c83c17f8b7a12934127df8e746035c8a53d0d6a",
+    "bytes": 2559,
+    "sha256": "9af9efa221fcddc7cf6be609b0fb740d8381da41a92c00a541aa9ccdaaf4117b"
+  },
+  {
+    "path": ".factory/skills/cospec-apply-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "apply",
+    "harness": "factory",
+    "contentHash": "sha256:0a592f8e240b1a1b70b0b40785fb1bb04f25702de3e264af0fff88b45b824635",
+    "bytes": 2266,
+    "sha256": "5f59045b3237f47e00c3a59bd7f4f6d18b43ac2f3a9db73c5cd8d779a43bd5ae"
+  },
+  {
+    "path": ".factory/skills/cospec-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "archive",
+    "harness": "factory",
+    "contentHash": "sha256:1f0e3bc2a8cf332628b0a74650bb73691913e94445ae43074167315b946548f6",
+    "bytes": 3088,
+    "sha256": "c2fe7067924480fddf0e59ec73a52b5822a7a1f79a7eefe2d962ee5fc855356d"
+  },
+  {
+    "path": ".factory/skills/cospec-bulk-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "bulk-archive",
+    "harness": "factory",
+    "contentHash": "sha256:a530a027e099f802ba55426c09dae1bd579881a9647cf133108b6f176fe206c3",
+    "bytes": 3047,
+    "sha256": "fc4d4cec6feb0b8ed2688980cf1b963688e6349f2327478deebce27e0165a0ee"
+  },
+  {
+    "path": ".factory/skills/cospec-continue-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "continue",
+    "harness": "factory",
+    "contentHash": "sha256:5452d22965cf5216dc800c0fa52cb756ea521831e1b6063dba1a29ef3dea3daa",
+    "bytes": 2495,
+    "sha256": "dfd8b2aa5d57edcad5e743cde41ef1483c4f1eb1ba3604a530227b2ab3d9de6e"
+  },
+  {
+    "path": ".factory/skills/cospec-explore/SKILL.md",
+    "kind": "skill",
+    "workflow": "explore",
+    "harness": "factory",
+    "contentHash": "sha256:1918d6dc9bf5fe10b6f691e7144868bf8f14d2e17802474845e2e828e3cac108",
+    "bytes": 6709,
+    "sha256": "171c2a1bd519a88b50976eec6513ae8dd82a042266dc2d66351d08ad41e13455"
+  },
+  {
+    "path": ".factory/skills/cospec-ff-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "ff",
+    "harness": "factory",
+    "contentHash": "sha256:9501c042a5736fef6a8d38123a71332849c5b14cf865c6bd119560b6b26f4747",
+    "bytes": 3531,
+    "sha256": "c8b7f404dc35e6586147c2911e4ef3de0068a2cee37680fde376241fa622ae1e"
+  },
+  {
+    "path": ".factory/skills/cospec-new-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "new",
+    "harness": "factory",
+    "contentHash": "sha256:78f1b653ca9d27d8af2e463c0a895f76707888b3e2b502a3dc5e1ff0a2fe28ab",
+    "bytes": 3321,
+    "sha256": "5595390d9abe29013810da38a63fbd2836ef52e6d4e9c13ac7fb69d32e9eb497"
+  },
+  {
+    "path": ".factory/skills/cospec-onboard/SKILL.md",
+    "kind": "skill",
+    "workflow": "onboard",
+    "harness": "factory",
+    "contentHash": "sha256:1c6874a1abb688f0e7dc04816ab881a811f3097d1ec25af822c8d322e0d42c76",
+    "bytes": 3174,
+    "sha256": "947cc906139259158f3e51699f62a3664492c54d8219347787f3bc12df03b2c2"
+  },
+  {
+    "path": ".factory/skills/cospec-propose/SKILL.md",
+    "kind": "skill",
+    "workflow": "propose",
+    "harness": "factory",
+    "contentHash": "sha256:58737496aefa0b8ba4882c7904368305465e898ee067bf902e8e55a4882cfd10",
+    "bytes": 6507,
+    "sha256": "ff72643a64730c019c2a59c2470168bdb6c5716ca61f02b227a735df964b7fd9"
+  },
+  {
+    "path": ".factory/skills/cospec-sync-specs/SKILL.md",
+    "kind": "skill",
+    "workflow": "sync-specs",
+    "harness": "factory",
+    "contentHash": "sha256:6557ec661d62b69c5956fe188cb2b2cd37639bfceb3fb7b6bb2330c0db9321ed",
+    "bytes": 3080,
+    "sha256": "27d23fe479118e4634b325a40c2992f2e94e41302e637f9e14108fa65c9b1391"
+  },
+  {
+    "path": ".factory/skills/cospec-update-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "update",
+    "harness": "factory",
+    "contentHash": "sha256:e59d8659510a3a7eee0f3c631f7cc6fe5cba9b8e625dec84d2e853637d72780b",
+    "bytes": 4268,
+    "sha256": "52f5ab6dc37228ce67f57409d01a4faea5f3b6a17bbe6a23adec4508e052c592"
+  },
+  {
+    "path": ".factory/skills/cospec-verify-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "verify",
+    "harness": "factory",
+    "contentHash": "sha256:49d95e8ab9359318596fe9f22c83c17f8b7a12934127df8e746035c8a53d0d6a",
+    "bytes": 2629,
+    "sha256": "6e392a3517b0ac18db6b6e8973c84a9c3596cf91d150f4a78f0132d5d7b7c417"
+  }
+]

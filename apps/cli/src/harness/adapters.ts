@@ -4,9 +4,15 @@ import { stringify } from 'yaml'
  * How a harness surface respells in-body `/cospec:<id>` references. Keyed by dialect rather
  * than by harness name so that `codex` and `agents` are provably byte-identical.
  */
-export type BodyDialect = 'canonical' | 'shared' | 'flat'
+export type BodyDialect = 'canonical' | 'shared' | 'flat' | 'skill' | 'prose'
 
-export const BODY_DIALECTS: readonly BodyDialect[] = ['canonical', 'shared', 'flat']
+export const BODY_DIALECTS: readonly BodyDialect[] = [
+  'canonical',
+  'shared',
+  'flat',
+  'skill',
+  'prose',
+]
 
 export function isBodyDialect(value: string): value is BodyDialect {
   return (BODY_DIALECTS as readonly string[]).includes(value)
@@ -14,6 +20,9 @@ export function isBodyDialect(value: string): value is BodyDialect {
 
 /** The sigil a tool's users type before a command name (Amazon Q uses `@`). */
 export type InvocationPrefix = '/' | '@'
+
+/** What a tool's users type before a skill name (Kimi Code uses `/skill:`). */
+export type SkillInvocationPrefix = '/' | '/skill:'
 
 /**
  * Builds a command file's YAML frontmatter from the workflow, the generatedBy stamp and the
@@ -26,6 +35,15 @@ export type CommandFrontmatterBuilder = (
   contentHash: string,
 ) => Record<string, unknown>
 
+export type ArgumentPlaceholder = '$ARGUMENTS' | '$@'
+
+export type CommandSerializer = 'markdown' | 'toml' | 'markdown-header' | 'plain'
+
+/** Whether a serializer's files carry YAML frontmatter, so cospec's own provenance. */
+export function carriesFrontmatter(serializer: CommandSerializer): boolean {
+  return serializer === 'markdown'
+}
+
 /** A tool's slash-command surface. Independent of its skills root. */
 export interface CommandSurface {
   /** Repo-relative commands root. */
@@ -35,12 +53,47 @@ export interface CommandSurface {
   /** Filename template under `dir`, without extension: `cospec/{command}` or `cospec-{command}`. */
   readonly file: string
   readonly extension: '.md' | '.prompt' | '.prompt.md' | '.toml'
-  readonly serializer: 'markdown' | 'toml'
+  /**
+   * `markdown` carries YAML frontmatter, and with it cospec's provenance. The other three
+   * carry none and are manifest-tracked: `toml` (Gemini), `markdown-header` (a `# <name>`
+   * title, the description, then the body) and `plain` (the body alone).
+   */
+  readonly serializer: CommandSerializer
   /** Markdown serializer only. */
   readonly frontmatter?: CommandFrontmatterBuilder
-  /** OpenCode's `$ARGUMENTS` paragraph on arg-taking workflows (see `injectOpenCodeArgs`). */
-  readonly injectArguments?: boolean
+  /**
+   * The placeholder a tool substitutes a command's arguments into (`$ARGUMENTS` for OpenCode,
+   * `$@` for Pi). Present: an arg-taking workflow's command body carries a
+   * `**Provided arguments**: <placeholder>` paragraph (see `injectArgumentPlaceholder`).
+   */
+  readonly injectArguments?: ArgumentPlaceholder
 }
+
+/** A tool root an earlier OpenSpec used, whose files move to the current root (`LEGACY_TOOL_ROOTS`). */
+export interface LegacyToolRoot {
+  readonly root: string
+  /** Whether `update` asks before moving it. */
+  readonly needsConsent: boolean
+  /** `before-generation` when absent. */
+  readonly timing?: 'before-generation' | 'after-generation'
+  /** Why `update` asks before the move (upstream's `legacyMigrationNotice` for the tool). */
+  readonly consentNotice?: string
+}
+
+/**
+ * Where an earlier OpenSpec's slash-command registry wrote pre-opsx commands, one entry of the
+ * pinned binary's `LEGACY_SLASH_COMMAND_PATHS`. A `directory` entry lists the files OpenSpec
+ * put there, because users keep their own commands in the same folder: only those names are
+ * OpenSpec's, and the folder goes only once it is empty. A `files` entry is anchored glob(s)
+ * where `*` stays inside one path segment.
+ */
+export type LegacyCommandPath =
+  | {
+      readonly type: 'directory'
+      readonly path: string
+      readonly managedFileNames: readonly string[]
+    }
+  | { readonly type: 'files'; readonly patterns: readonly string[] }
 
 /**
  * One tool's complete layout. Field names follow the pinned OpenSpec `AI_TOOLS` entries
@@ -56,9 +109,24 @@ export interface HarnessAdapter {
   /** Home-relative root; used only when the row has no `skillsDir`. */
   readonly globalSkillsDir?: string
   readonly legacySkillsDirs?: readonly string[]
+  /** Upstream's `LEGACY_TOOL_ROOTS` entries for this tool; row data, moved by `legacy-skills.ts`. */
+  readonly legacyToolRoots?: readonly LegacyToolRoot[]
+  /** Upstream's `LEGACY_SLASH_COMMAND_PATHS` entry for this tool; read by the leftover scan. */
+  readonly legacyCommandPaths?: readonly LegacyCommandPath[]
+  /**
+   * Upstream's `LEGACY_GLOBAL_SLASH_COMMAND_PATHS` entry: the home directory OpenSpec once wrote
+   * this tool's `prompts/opsx-<workflow>.md` into — `$<env>` when set and non-blank, else
+   * `<home>/<fallback>`. Read by the leftover scan only when the row is selected.
+   */
+  readonly legacyGlobalPrompts?: { readonly env: string; readonly fallback: string }
   readonly commands?: CommandSurface
   readonly invocationPrefix: InvocationPrefix
+  /** Spells the row's command bodies, and its skill bodies unless `skillDialect` is set. */
   readonly bodyDialect: BodyDialect
+  /** Spells the row's skill bodies when they differ from its commands' (Devin). */
+  readonly skillDialect?: BodyDialect
+  /** The `skill` dialect's prefix; `/` when absent. */
+  readonly skillInvocationPrefix?: SkillInvocationPrefix
   /** A non-markdown, manifest-tracked rules file (Codex's prefix-rule allowlist). */
   readonly rulesPath?: string
   readonly requiresIdeRestart: boolean
@@ -68,6 +136,10 @@ export interface HarnessAdapter {
   readonly setupNote?: string
   readonly searchAliases?: readonly string[]
 }
+
+/** The three commands the old slash-command registry wrote into each directory. */
+const LEGACY_DIRECTORY_COMMAND_FILES = ['proposal.md', 'apply.md', 'archive.md'] as const
+const LEGACY_GEMINI_COMMAND_FILES = ['proposal.toml', 'apply.toml', 'archive.toml'] as const
 
 /**
  * The one declaration of every tool cospec generates project files for (DESIGN §6.1).
@@ -89,6 +161,13 @@ export const HARNESS_TABLE = [
       serializer: 'markdown',
       frontmatter: buildClaudeCommandFrontmatter,
     },
+    legacyCommandPaths: [
+      {
+        type: 'directory',
+        path: '.claude/commands/openspec',
+        managedFileNames: LEGACY_DIRECTORY_COMMAND_FILES,
+      },
+    ],
     invocationPrefix: '/',
     bodyDialect: 'canonical',
     requiresIdeRestart: false,
@@ -100,13 +179,16 @@ export const HARNESS_TABLE = [
     displayName: 'Codex',
     skillsDir: '.agents',
     legacySkillsDirs: ['.codex'],
+    legacyToolRoots: [{ root: '.codex', needsConsent: false, timing: 'after-generation' }],
+    legacyGlobalPrompts: { env: 'CODEX_HOME', fallback: '.codex' },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.codex/prompts/openspec-*.md'] }],
     invocationPrefix: '/',
     bodyDialect: 'shared',
     rulesPath: '.codex/rules/cospec.rules',
     requiresIdeRestart: false,
-    // Upstream's is ['.agents/skills', '.codex/skills'], which would select codex on an
-    // agents-only repo; aligning it is a behaviour change owned by a later change.
-    detectionPaths: ['.codex'],
+    // Upstream's paths; `.agents/skills` selects codex only as that root's writer
+    // (`availableHarnesses`), so an agents-only repo stays agents-only.
+    detectionPaths: ['.agents/skills', '.codex/skills'],
     setupNote:
       'Codex: skills now live in .agents/skills and are invoked as $cospec-<skill>; they load per-session, so start a new one. .codex/rules/cospec.rules still pre-approves the read-only and gate cospec calls.',
   },
@@ -121,8 +203,14 @@ export const HARNESS_TABLE = [
       extension: '.md',
       serializer: 'markdown',
       frontmatter: buildOpencodeCommandFrontmatter,
-      injectArguments: true,
+      injectArguments: '$ARGUMENTS',
     },
+    legacyCommandPaths: [
+      {
+        type: 'files',
+        patterns: ['.opencode/command/opsx-*.md', '.opencode/command/openspec-*.md'],
+      },
+    ],
     invocationPrefix: '/',
     bodyDialect: 'flat',
     requiresIdeRestart: false,
@@ -151,6 +239,603 @@ export const HARNESS_TABLE = [
       'agents.md',
     ],
   },
+  {
+    id: 'amazon-q',
+    displayName: 'Amazon Q Developer',
+    skillsDir: '.amazonq',
+    commands: {
+      dir: '.amazonq/prompts',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildOpencodeCommandFrontmatter,
+    },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.amazonq/prompts/openspec-*.md'] }],
+    invocationPrefix: '@',
+    bodyDialect: 'flat',
+    requiresIdeRestart: true,
+    detectionPaths: ['.amazonq'],
+  },
+  {
+    id: 'antigravity',
+    displayName: 'Antigravity',
+    skillsDir: '.agents',
+    legacySkillsDirs: ['.agent'],
+    legacyToolRoots: [{ root: '.agent', needsConsent: false, timing: 'after-generation' }],
+    legacyCommandPaths: [{ type: 'files', patterns: ['.agent/workflows/openspec-*.md'] }],
+    commands: {
+      dir: '.agents/workflows',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildOpencodeCommandFrontmatter,
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: true,
+    detectionPaths: ['.agent', '.agents/workflows'],
+  },
+  {
+    id: 'auggie',
+    displayName: 'Auggie (Augment CLI)',
+    skillsDir: '.augment',
+    commands: {
+      dir: '.augment/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildArgumentHintCommandFrontmatter,
+    },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.augment/commands/openspec-*.md'] }],
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: false,
+    detectionPaths: ['.augment'],
+  },
+  {
+    id: 'bob',
+    displayName: 'Bob Shell',
+    skillsDir: '.bob',
+    commands: {
+      dir: '.bob/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildArgumentHintCommandFrontmatter,
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: false,
+    detectionPaths: ['.bob'],
+  },
+  {
+    id: 'cline',
+    displayName: 'Cline',
+    skillsDir: '.cline',
+    commands: {
+      dir: '.clinerules/workflows',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown-header',
+    },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.clinerules/workflows/openspec-*.md'] }],
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: true,
+    detectionPaths: ['.cline'],
+  },
+  {
+    id: 'command-code',
+    displayName: 'Command Code',
+    skillsDir: '.commandcode',
+    commands: {
+      dir: '.commandcode/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'plain',
+      injectArguments: '$ARGUMENTS',
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: false,
+    detectionPaths: ['.commandcode'],
+  },
+  {
+    id: 'codeartsagent',
+    displayName: 'CodeArts',
+    skillsDir: '.codeartsdoer',
+    invocationPrefix: '/',
+    bodyDialect: 'skill',
+    requiresIdeRestart: false,
+    detectionPaths: ['.codeartsdoer'],
+  },
+  {
+    id: 'devin',
+    displayName: 'Devin Desktop (formerly Windsurf)',
+    skillsDir: '.devin',
+    legacyToolRoots: [
+      {
+        root: '.windsurf',
+        needsConsent: true,
+        consentNotice:
+          'Windsurf is now Devin Desktop, and its config directory moved from .windsurf/ to ' +
+          '.devin/. Devin Desktop reads .windsurf/ only as a fallback, and Devin Local does ' +
+          'not read it at all.',
+      },
+    ],
+    commands: {
+      dir: '.devin/workflows',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildClaudeCommandFrontmatter,
+    },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.windsurf/workflows/openspec-*.md'] }],
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    skillDialect: 'skill',
+    requiresIdeRestart: true,
+    detectionPaths: ['.devin', '.windsurf'],
+  },
+  {
+    id: 'forgecode',
+    displayName: 'ForgeCode',
+    skillsDir: '.forge',
+    invocationPrefix: '/',
+    bodyDialect: 'skill',
+    requiresIdeRestart: false,
+    detectionPaths: ['.forge'],
+  },
+  {
+    id: 'codebuddy',
+    displayName: 'CodeBuddy Code (CLI)',
+    skillsDir: '.codebuddy',
+    commands: {
+      dir: '.codebuddy/commands',
+      namespacing: 'namespaced',
+      file: 'cospec/{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildNameDescriptionHintCommandFrontmatter,
+    },
+    legacyCommandPaths: [
+      {
+        type: 'directory',
+        path: '.codebuddy/commands/openspec',
+        managedFileNames: LEGACY_DIRECTORY_COMMAND_FILES,
+      },
+    ],
+    invocationPrefix: '/',
+    bodyDialect: 'canonical',
+    requiresIdeRestart: false,
+    detectionPaths: ['.codebuddy'],
+  },
+  {
+    id: 'continue',
+    displayName: 'Continue',
+    skillsDir: '.continue',
+    commands: {
+      dir: '.continue/prompts',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.prompt',
+      serializer: 'markdown',
+      frontmatter: buildInvokableCommandFrontmatter,
+    },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.continue/prompts/openspec-*.prompt'] }],
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: true,
+    detectionPaths: ['.continue'],
+  },
+  {
+    id: 'costrict',
+    displayName: 'CoStrict',
+    skillsDir: '.cospec',
+    commands: {
+      // CoStrict keeps its commands under `openspec/`, not at the `<root>/commands` path.
+      dir: '.cospec/openspec/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildArgumentHintCommandFrontmatter,
+    },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.cospec/openspec/commands/openspec-*.md'] }],
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: true,
+    detectionPaths: ['.cospec'],
+  },
+  {
+    id: 'crush',
+    displayName: 'Crush',
+    skillsDir: '.crush',
+    commands: {
+      dir: '.crush/commands',
+      namespacing: 'namespaced',
+      file: 'cospec/{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildClaudeCommandFrontmatter,
+    },
+    legacyCommandPaths: [
+      {
+        type: 'directory',
+        path: '.crush/commands/openspec',
+        managedFileNames: LEGACY_DIRECTORY_COMMAND_FILES,
+      },
+    ],
+    invocationPrefix: '/',
+    bodyDialect: 'canonical',
+    requiresIdeRestart: false,
+    detectionPaths: ['.crush'],
+  },
+  {
+    id: 'cursor',
+    displayName: 'Cursor',
+    skillsDir: '.cursor',
+    commands: {
+      dir: '.cursor/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildCursorCommandFrontmatter,
+    },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.cursor/commands/openspec-*.md'] }],
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: true,
+    detectionPaths: ['.cursor'],
+  },
+  {
+    id: 'factory',
+    displayName: 'Factory Droid',
+    skillsDir: '.factory',
+    commands: {
+      dir: '.factory/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildArgumentHintCommandFrontmatter,
+    },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.factory/commands/openspec-*.md'] }],
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: false,
+    detectionPaths: ['.factory'],
+  },
+  {
+    id: 'gemini',
+    displayName: 'Gemini CLI',
+    skillsDir: '.gemini',
+    commands: {
+      dir: '.gemini/commands',
+      namespacing: 'namespaced',
+      file: 'cospec/{command}',
+      extension: '.toml',
+      serializer: 'toml',
+    },
+    legacyCommandPaths: [
+      {
+        type: 'directory',
+        path: '.gemini/commands/openspec',
+        managedFileNames: LEGACY_GEMINI_COMMAND_FILES,
+      },
+    ],
+    invocationPrefix: '/',
+    bodyDialect: 'canonical',
+    requiresIdeRestart: false,
+    detectionPaths: ['.gemini'],
+  },
+  {
+    id: 'hermes',
+    displayName: 'Hermes Agent',
+    skillsDir: '.hermes',
+    invocationPrefix: '/',
+    bodyDialect: 'skill',
+    requiresIdeRestart: false,
+    detectionPaths: ['.hermes', 'HERMES.md', '.hermes.md'],
+    setupNote:
+      "Setup required for Hermes Agent: Hermes only loads skills from ~/.hermes/skills by default. Add this project's .hermes/skills directory to skills.external_dirs in ~/.hermes/config.yaml so Hermes picks up the generated OpenSpec skills.",
+  },
+  {
+    id: 'iflow',
+    displayName: 'iFlow',
+    skillsDir: '.iflow',
+    commands: {
+      dir: '.iflow/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildCursorCommandFrontmatter,
+    },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.iflow/commands/openspec-*.md'] }],
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: false,
+    detectionPaths: ['.iflow'],
+  },
+  {
+    id: 'junie',
+    displayName: 'Junie',
+    skillsDir: '.junie',
+    commands: {
+      dir: '.junie/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      // Upstream's key set is description alone, the same as OpenCode's.
+      frontmatter: buildOpencodeCommandFrontmatter,
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: true,
+    detectionPaths: ['.junie'],
+  },
+  {
+    id: 'kilocode',
+    displayName: 'Kilo Code',
+    skillsDir: '.kilocode',
+    commands: {
+      dir: '.kilocode/workflows',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'plain',
+    },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.kilocode/workflows/openspec-*.md'] }],
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: true,
+    detectionPaths: ['.kilocode'],
+  },
+  {
+    id: 'kimi',
+    displayName: 'Kimi Code',
+    skillsDir: '.kimi-code',
+    legacyToolRoots: [{ root: '.kimi', needsConsent: false }],
+    invocationPrefix: '/',
+    bodyDialect: 'skill',
+    skillInvocationPrefix: '/skill:',
+    requiresIdeRestart: false,
+    detectionPaths: ['.kimi-code', '.kimi'],
+  },
+  {
+    id: 'kiro',
+    displayName: 'Kiro',
+    skillsDir: '.kiro',
+    commands: {
+      dir: '.kiro/prompts',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.prompt.md',
+      serializer: 'markdown',
+      frontmatter: buildOpencodeCommandFrontmatter,
+    },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.kiro/prompts/openspec-*.prompt.md'] }],
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: true,
+    detectionPaths: ['.kiro'],
+  },
+  {
+    id: 'lingma',
+    displayName: 'Lingma',
+    skillsDir: '.lingma',
+    commands: {
+      dir: '.lingma/commands',
+      namespacing: 'namespaced',
+      file: 'cospec/{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildClaudeCommandFrontmatter,
+    },
+    legacyCommandPaths: [
+      { type: 'directory', path: '.lingma/commands/openspec', managedFileNames: [] },
+    ],
+    invocationPrefix: '/',
+    bodyDialect: 'canonical',
+    requiresIdeRestart: true,
+    detectionPaths: ['.lingma'],
+  },
+  {
+    id: 'minimax-code',
+    displayName: 'MiniMax Code',
+    globalSkillsDir: '.minimax',
+    invocationPrefix: '/',
+    bodyDialect: 'skill',
+    requiresIdeRestart: false,
+    detectionPaths: [],
+  },
+  {
+    id: 'vibe',
+    displayName: 'Mistral Vibe',
+    skillsDir: '.vibe',
+    invocationPrefix: '/',
+    bodyDialect: 'skill',
+    requiresIdeRestart: false,
+    detectionPaths: ['.vibe'],
+  },
+  {
+    id: 'oh-my-pi',
+    displayName: 'Oh My Pi',
+    skillsDir: '.omp',
+    commands: {
+      dir: '.omp/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildOpencodeCommandFrontmatter,
+      injectArguments: '$@',
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: false,
+    detectionPaths: ['.omp'],
+  },
+  {
+    id: 'pi',
+    displayName: 'Pi',
+    skillsDir: '.pi',
+    commands: {
+      dir: '.pi/prompts',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildOpencodeCommandFrontmatter,
+      injectArguments: '$@',
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: false,
+    detectionPaths: ['.pi'],
+  },
+  {
+    id: 'codeassistant',
+    displayName: 'SourceCraft Code Assistant',
+    skillsDir: '.codeassistant',
+    commands: {
+      dir: '.codeassistant/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildOpencodeCommandFrontmatter,
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: false,
+    detectionPaths: ['.codeassistant'],
+  },
+  {
+    id: 'qoder',
+    displayName: 'Qoder',
+    skillsDir: '.qoder',
+    commands: {
+      dir: '.qoder/commands',
+      namespacing: 'namespaced',
+      file: 'cospec/{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildClaudeCommandFrontmatter,
+    },
+    legacyCommandPaths: [
+      {
+        type: 'directory',
+        path: '.qoder/commands/openspec',
+        managedFileNames: LEGACY_DIRECTORY_COMMAND_FILES,
+      },
+    ],
+    invocationPrefix: '/',
+    bodyDialect: 'canonical',
+    requiresIdeRestart: true,
+    detectionPaths: ['.qoder'],
+  },
+  {
+    id: 'qwen',
+    displayName: 'Qwen Code',
+    skillsDir: '.qwen',
+    commands: {
+      dir: '.qwen/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildOpencodeCommandFrontmatter,
+    },
+    legacyCommandPaths: [
+      { type: 'files', patterns: ['.qwen/commands/opsx-*.toml', '.qwen/commands/openspec-*.toml'] },
+    ],
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: false,
+    detectionPaths: ['.qwen'],
+  },
+  {
+    id: 'rovodev',
+    displayName: 'Rovo Dev CLI',
+    skillsDir: '.rovodev',
+    invocationPrefix: '/',
+    bodyDialect: 'prose',
+    requiresIdeRestart: false,
+    detectionPaths: ['.rovodev/skills', '.rovodev'],
+  },
+  {
+    id: 'roocode',
+    displayName: 'Zoo Code',
+    skillsDir: '.roo',
+    commands: {
+      dir: '.roo/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown-header',
+    },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.roo/commands/openspec-*.md'] }],
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: true,
+    detectionPaths: ['.roo'],
+  },
+  {
+    id: 'trae',
+    displayName: 'Trae',
+    skillsDir: '.trae',
+    commands: {
+      dir: '.trae/commands',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildNameDescriptionCommandFrontmatter,
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: true,
+    detectionPaths: ['.trae'],
+  },
+  {
+    id: 'zed',
+    displayName: 'Zed Agent',
+    skillsDir: '.agents',
+    invocationPrefix: '/',
+    bodyDialect: 'shared',
+    requiresIdeRestart: false,
+    detectionPaths: ['.zed', '.agents/skills'],
+    setupNote:
+      'Zed Agent reads the shared .agents/skills; start a new session to load the skills. No slash commands are generated for this target.',
+  },
+  {
+    id: 'zcode',
+    displayName: 'ZCode',
+    skillsDir: '.zcode',
+    commands: {
+      dir: '.zcode/commands',
+      namespacing: 'namespaced',
+      file: 'cospec/{command}',
+      extension: '.md',
+      serializer: 'markdown',
+      frontmatter: buildClaudeCommandFrontmatter,
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'canonical',
+    requiresIdeRestart: false,
+    detectionPaths: ['.zcode'],
+  },
 ] as const satisfies readonly HarnessAdapter[]
 
 export type HarnessName = (typeof HARNESS_TABLE)[number]['id']
@@ -159,6 +844,32 @@ export const HARNESS_NAMES: readonly HarnessName[] = HARNESS_TABLE.map((row) => 
 
 export function isHarnessName(value: string): value is HarnessName {
   return (HARNESS_NAMES as readonly string[]).includes(value)
+}
+
+/**
+ * Retired tool ids that still resolve, upstream's `TOOL_ID_ALIASES`: Windsurf became Devin
+ * Desktop and its config directory moved, so `--harness windsurf` selects `devin`. An alias is
+ * never a row: it would write and detect a tool that no longer exists under that name.
+ */
+export const HARNESS_ID_ALIASES: Readonly<Record<string, HarnessName>> = { windsurf: 'devin' }
+
+/** `id` resolved through `HARNESS_ID_ALIASES`; a current id comes back untouched. */
+export function resolveHarnessIdAlias(id: string): string {
+  return Object.hasOwn(HARNESS_ID_ALIASES, id) ? HARNESS_ID_ALIASES[id]! : id
+}
+
+/**
+ * Upstream's `universalToolFallbackHint`, spelled for the flag the user typed: the scripted
+ * counterpart of the picker's empty-search hint. Undefined when the vendor-neutral `agents`
+ * row is not in `table`, so the hint never names a choice the caller cannot make.
+ */
+export function universalHarnessHint(
+  spelling: string,
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): string | undefined {
+  const universal = table.find((row) => row.id === 'agents')
+  if (universal === undefined) return undefined
+  return `Tool not listed? Use ${spelling} ${universal.id}: the vendor-neutral target that writes ${skillsRoot(universal).root}/ for any assistant.`
 }
 
 /** The row for `id` in `table`. An id the table does not declare is a programming error. */
@@ -301,6 +1012,52 @@ function commandPathPattern(c: CommandSurface): RegExp {
   return new RegExp(`^${escapeRegExp(c.dir)}/${file}${escapeRegExp(c.extension)}$`)
 }
 
+function legacyCommandEntries(table: readonly HarnessAdapter[]): LegacyCommandPath[] {
+  return table.flatMap((row) => [...(row.legacyCommandPaths ?? [])])
+}
+
+/** A glob whose only wildcard is `*`, kept inside one path segment, as an anchored pattern. */
+function legacyGlob(pattern: string): RegExp {
+  const source = pattern.split('*').map(escapeRegExp).join('[^/]*')
+  return new RegExp(`^${source}$`)
+}
+
+/**
+ * Whether `relpath` is a path some row's `legacyCommandPaths` names: a managed file of a
+ * directory entry (by exact name, so a user's own file in the same folder is not), or a match
+ * of a `files` entry's pattern. Anchored at the repo root, so a nested checkout's copy of the
+ * same path is not one.
+ */
+export function isLegacyCommandPath(
+  relpath: string,
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): boolean {
+  return legacyCommandEntries(table).some((entry) =>
+    entry.type === 'directory'
+      ? entry.managedFileNames.some((name) => relpath === `${entry.path}/${name}`)
+      : entry.patterns.some((pattern) => legacyGlob(pattern).test(relpath)),
+  )
+}
+
+/** Top-level repo dirs the rows' `legacyCommandPaths` sit under; the leftover scan walks them. */
+export function legacyCommandRoots(table: readonly HarnessAdapter[] = HARNESS_TABLE): string[] {
+  const roots = legacyCommandEntries(table).flatMap((entry) =>
+    entry.type === 'directory' ? [entry.path] : entry.patterns,
+  )
+  return [...new Set(roots.map(topSegment))]
+}
+
+/** The directory entries' folders, each removed once nothing is left in it. */
+export function legacyCommandDirs(table: readonly HarnessAdapter[] = HARNESS_TABLE): string[] {
+  return [
+    ...new Set(
+      legacyCommandEntries(table).flatMap((entry) =>
+        entry.type === 'directory' ? [entry.path] : [],
+      ),
+    ),
+  ]
+}
+
 /** Dirs cospec owns and may delete manifest-tracked files from: `openspec` plus every row root. */
 export function removalRoots(table: readonly HarnessAdapter[] = HARNESS_TABLE): string[] {
   return [...new Set(['openspec', ...scanRoots(table)])]
@@ -338,41 +1095,110 @@ const WORKFLOW_REF_RE = /\/cospec:([a-z][a-z0-9-]*)/g
  *   only the skill directory name resolves, and only 4 of the 12 workflows spell their id
  *   the same as their skill suffix. An id absent from `skillById` is left verbatim so
  *   doctor's dangling-ref check still fires on a genuinely bad reference.
+ * - `skill` — `<prefix>cospec-<skill>` (`/` by default, `/skill:` for Kimi Code), for a
+ *   tool that invokes a skill by name and has no command for it.
+ * - `prose` — `the cospec-<skill> skill`, for a tool with no invocation syntax at all.
+ *
+ * `shared`, `skill` and `prose` map an id through `skillById` and leave an unknown one verbatim.
  */
 export function transformBody(
   body: string,
   dialect: BodyDialect,
   skillById: ReadonlyMap<string, string>,
-  invocationPrefix: InvocationPrefix = '/',
+  invocationPrefix: InvocationPrefix | SkillInvocationPrefix = '/',
 ): string {
   if (dialect === 'canonical') return body
   if (dialect === 'flat') return body.replaceAll('/cospec:', `${invocationPrefix}cospec-`)
   return body.replace(WORKFLOW_REF_RE, (whole, id: string) => {
     const skill = skillById.get(id)
     if (skill === undefined) return whole
+    if (dialect === 'skill') return `${invocationPrefix}${skill}`
+    if (dialect === 'prose') return `the ${skill} skill`
     return `$${skill} (Codex) or /${skill} (other agents)`
   })
 }
 
+/** The dialect and prefix that spell a row's skill bodies. */
+export function skillSpelling(row: HarnessAdapter): {
+  dialect: BodyDialect
+  prefix: InvocationPrefix | SkillInvocationPrefix
+} {
+  const dialect = row.skillDialect ?? row.bodyDialect
+  return {
+    dialect,
+    prefix: dialect === 'skill' ? (row.skillInvocationPrefix ?? '/') : row.invocationPrefix,
+  }
+}
+
+/** The dialect and prefix that spell a row's command bodies. */
+export function commandSpelling(row: HarnessAdapter): {
+  dialect: BodyDialect
+  prefix: InvocationPrefix | SkillInvocationPrefix
+} {
+  const dialect = row.bodyDialect
+  return {
+    dialect,
+    prefix: dialect === 'skill' ? (row.skillInvocationPrefix ?? '/') : row.invocationPrefix,
+  }
+}
+
 /**
- * OpenCode passes a slash command's arguments ONLY through an explicit placeholder:
- * a body with no `$ARGUMENTS` silently drops everything the user typed after
- * `/cospec-new`. Claude and Codex bind the argument implicitly, so this is an
- * OpenCode-command-only transform — a skill body never gets the placeholder, since
- * nothing substitutes it there and the literal text would leak to the model.
+ * Respell one `/cospec:<id>` invocation in a receipt hint the way the row's SKILLS are
+ * referenced. A prose row has no invocation syntax, so the hint asks the tool by name:
+ * `ask <tool> to use the cospec-<skill> skill with <arguments>`.
+ */
+export function respellInvocationHint(
+  line: string,
+  row: HarnessAdapter,
+  skillById: ReadonlyMap<string, string>,
+): string {
+  const { dialect, prefix } = skillSpelling(row)
+  if (dialect !== 'prose') return transformBody(line, dialect, skillById, prefix)
+  return line.replace(/\/cospec:([a-z][a-z0-9-]*) /, (whole, id: string) => {
+    const skill = skillById.get(id)
+    return skill === undefined ? whole : `ask ${row.displayName} to use the ${skill} skill with `
+  })
+}
+
+/**
+ * The pattern that finds a row's workflow references in a body, with the workflow id or skill
+ * suffix as capture group 1: `/cospec:<id>`, the row's own prefix (`@cospec-<id>`), and the
+ * spellings its dialects emit: `/skill:cospec-<skill>` and `the cospec-<skill> skill`.
+ */
+export function workflowReferencePattern(row: HarnessAdapter): RegExp {
+  const dialects = new Set([row.bodyDialect, row.skillDialect ?? row.bodyDialect])
+  const sigils = [...new Set(['/', row.invocationPrefix])].map((s) => escapeRegExp(s))
+  const behind = [`(?:${sigils.join('|')})cospec[:-]`]
+  if (dialects.has('skill') && row.skillInvocationPrefix === '/skill:') {
+    behind.push(`${escapeRegExp(row.skillInvocationPrefix)}cospec-`)
+  }
+  const branches = behind.map((b) => `(?<=${b})`)
+  if (dialects.has('prose')) branches.push('(?<=the cospec-)(?=[a-z][a-z-]* skill)')
+  return new RegExp(`(?:${branches.join('|')})([a-z][a-z-]*)`, 'g')
+}
+
+/**
+ * Some tools (OpenCode, Command Code, Pi, Oh My Pi) pass a slash command's arguments ONLY
+ * through an explicit placeholder: a body with none silently drops everything the user typed
+ * after `/cospec-new`. Claude and Codex bind the argument implicitly, so this is a
+ * command-only transform; a skill body never gets the placeholder, since nothing substitutes
+ * it there and the literal text would leak to the model.
  *
  * The placeholder is inserted as its own paragraph immediately before the body's
  * first `## ` section — the point where cospec bodies stop describing the workflow
- * and start reading input. Idempotent: a body that already carries `$ARGUMENTS` or
+ * and start reading input. Idempotent: a body that already carries `$ARGUMENTS`, `$@` or
  * `$1`… is returned unchanged. CRLF bodies keep CRLF.
  */
-const ARGUMENT_PLACEHOLDER_RE = /\$(?:ARGUMENTS\b|[1-9]\d*\b)/
+const ARGUMENT_PLACEHOLDER_RE = /\$(?:ARGUMENTS\b|@|[1-9]\d*\b)/
 const FIRST_SECTION_RE = /^## /m
 
-export function injectOpenCodeArgs(body: string): string {
+export function injectArgumentPlaceholder(
+  body: string,
+  placeholder: ArgumentPlaceholder = '$ARGUMENTS',
+): string {
   if (ARGUMENT_PLACEHOLDER_RE.test(body)) return body
   const eol = body.includes('\r\n') ? '\r\n' : '\n'
-  const line = `**Provided arguments**: $ARGUMENTS`
+  const line = `**Provided arguments**: ${placeholder}`
   const match = FIRST_SECTION_RE.exec(body)
   if (match === null) return `${body.replace(/\s+$/, '')}${eol}${eol}${line}${eol}`
   return `${body.slice(0, match.index)}${line}${eol}${eol}${body.slice(match.index)}`
@@ -416,6 +1242,81 @@ export function buildOpencodeCommandFrontmatter(
 ): Record<string, unknown> {
   return {
     description: w.description,
+    metadata: provenance(version, contentHash),
+  }
+}
+
+/**
+ * `description` plus an `argument-hint` on every command, as upstream writes it for Auggie,
+ * Bob, CoStrict and Factory: the hint is the same for all workflows.
+ */
+export function buildArgumentHintCommandFrontmatter(
+  w: WorkflowDef,
+  version: string,
+  contentHash: string,
+): Record<string, unknown> {
+  return {
+    description: w.description,
+    'argument-hint': 'command arguments',
+    metadata: provenance(version, contentHash),
+  }
+}
+
+/** Cursor's `name` (a slash command), `id`, `category` and `description`; iFlow writes the same. */
+export function buildCursorCommandFrontmatter(
+  w: WorkflowDef,
+  version: string,
+  contentHash: string,
+): Record<string, unknown> {
+  return {
+    name: `/cospec-${w.command}`,
+    id: `cospec-${w.command}`,
+    category: 'Workflow',
+    description: w.description,
+    metadata: provenance(version, contentHash),
+  }
+}
+
+/** A `name` (Trae's `COSPEC: <title>`) and a `description`, as upstream writes them for Trae. */
+export function buildNameDescriptionCommandFrontmatter(
+  w: WorkflowDef,
+  version: string,
+  contentHash: string,
+): Record<string, unknown> {
+  return {
+    name: `COSPEC: ${w.title}`,
+    description: w.description,
+    metadata: provenance(version, contentHash),
+  }
+}
+
+/**
+ * `name`, `description` and a bracketed `argument-hint`, as upstream writes them for
+ * CodeBuddy; its hint differs from Auggie's by the brackets.
+ */
+export function buildNameDescriptionHintCommandFrontmatter(
+  w: WorkflowDef,
+  version: string,
+  contentHash: string,
+): Record<string, unknown> {
+  return {
+    name: `COSPEC: ${w.title}`,
+    description: w.description,
+    'argument-hint': '[command arguments]',
+    metadata: provenance(version, contentHash),
+  }
+}
+
+/** Continue's `name` (the file's own command name), `description` and `invokable: true`. */
+export function buildInvokableCommandFrontmatter(
+  w: WorkflowDef,
+  version: string,
+  contentHash: string,
+): Record<string, unknown> {
+  return {
+    name: `cospec-${w.command}`,
+    description: w.description,
+    invokable: true,
     metadata: provenance(version, contentHash),
   }
 }

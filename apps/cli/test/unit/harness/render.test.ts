@@ -16,6 +16,7 @@ import {
   type HarnessName,
   renderHarnessFiles,
   renderTypeTable,
+  serializeMarkdownHeaderCommand,
   serializeTomlCommand,
 } from '../../../src/harness/render.ts'
 import {
@@ -132,6 +133,87 @@ describe('renderHarnessFiles — shared .agents root', () => {
         adapters,
       }),
     ).toThrow(/harness render conflict: codex and agents both write \.agents\/skills\//)
+  })
+})
+
+// Two rows on one skills root with different bodies: the conflict guard refuses them
+// together, and a writer set is how a caller says which one owns the skills.
+const owner = (id: string, bodyDialect: HarnessAdapter['bodyDialect']): HarnessAdapter => ({
+  id,
+  displayName: id,
+  skillsDir: '.shared',
+  invocationPrefix: '/',
+  bodyDialect,
+  requiresIdeRestart: false,
+  detectionPaths: ['.shared'],
+})
+const withCommands = (row: HarnessAdapter): HarnessAdapter => ({
+  ...row,
+  commands: {
+    dir: `.${row.id}/workflows`,
+    namespacing: 'flat',
+    file: 'cospec-{command}',
+    extension: '.md',
+    serializer: 'markdown',
+    frontmatter: buildOpencodeCommandFrontmatter,
+  },
+})
+
+describe('renderHarnessFiles — skillWriters', () => {
+  // Two rows on one skills root with different bodies: the conflict guard refuses them
+  // together, and a writer set is how a caller says which one owns the skills.
+  const a = owner('a', 'shared')
+  const b = withCommands(owner('b', 'flat'))
+  const run = (harnesses: string[], skillWriters?: ReadonlySet<string>) =>
+    renderHarnessFiles({
+      harnesses: harnesses as HarnessName[],
+      typeTable: TYPE_TABLE,
+      version: TEST_VERSION,
+      adapters: [a, b],
+      skillWriters,
+    })
+
+  test('without a writer set the guard refuses two bodies on one root', () => {
+    expect(() => run(['a', 'b'])).toThrow(/harness render conflict/)
+  })
+
+  test("a shared root's skills render from its writer only", () => {
+    for (const writer of ['a', 'b']) {
+      const files = run(['a', 'b'], new Set([writer]))
+      const skills = files.filter((f) => f.kind === 'skill')
+      expect(skills).toHaveLength(12)
+      expect(new Set<string>(skills.map((f) => f.harness))).toEqual(new Set([writer]))
+    }
+  })
+
+  test("a non-writer's commands are still its own", () => {
+    const files = run(['a', 'b'], new Set(['a']))
+    const commands = files.filter((f) => f.kind === 'command')
+    expect(commands).toHaveLength(12)
+    expect(new Set<string>(commands.map((f) => f.harness))).toEqual(new Set(['b']))
+    expect(files.find((f) => f.kind === 'skill')!.body).toContain('$cospec-')
+  })
+
+  test('a row alone on its root writes its skills whether or not it is named', () => {
+    const files = run(['b'], new Set())
+    expect(files.filter((f) => f.kind === 'skill')).toHaveLength(12)
+  })
+
+  test('a shared root with no writer named is an internal error, not a silent no-op', () => {
+    expect(() => run(['a', 'b'], new Set())).toThrow(
+      /^internal: skillWriters names none of a, b, which share the \.shared\/skills skills root$/,
+    )
+  })
+
+  test('the real rows are unchanged by a writer set naming codex', () => {
+    const before = render(['codex', 'agents'])
+    const after = renderHarnessFiles({
+      harnesses: ['codex', 'agents'],
+      typeTable: TYPE_TABLE,
+      version: TEST_VERSION,
+      skillWriters: new Set(['codex']),
+    })
+    expect(after.map((f) => [f.path, f.content])).toEqual(before.map((f) => [f.path, f.content]))
   })
 })
 
@@ -268,6 +350,38 @@ describe('OpenCode $ARGUMENTS injection', () => {
     const command = files.find((f) => f.kind === 'command' && f.workflow === 'onboard')!
     const skill = files.find((f) => f.kind === 'skill' && f.workflow === 'onboard')!
     expect(command.contentHash).toBe(skill.contentHash)
+  })
+})
+
+describe('fixture rows — argument placeholder', () => {
+  const placeholderRow = (placeholder: '$ARGUMENTS' | '$@'): HarnessAdapter => ({
+    ...adapterFor('opencode'),
+    skillsDir: '.x',
+    commands: {
+      ...markdownCommands('.x/prompts', 'flat', '.md'),
+      injectArguments: placeholder,
+    },
+  })
+
+  test('a `$@` row names it once in each arg-taking command and nowhere in a skill', () => {
+    const files = renderRow(placeholderRow('$@'))
+    const argWorkflows = new Set<string>(ARG_WORKFLOWS)
+    for (const f of files.filter((c) => c.kind === 'command')) {
+      expect(f.body.split('**Provided arguments**: $@\n\n## ').length - 1).toBe(
+        argWorkflows.has(f.workflow!) ? 1 : 0,
+      )
+      expect(f.body).not.toContain('$ARGUMENTS')
+    }
+    for (const f of files.filter((c) => c.kind === 'skill')) {
+      expect(f.body).not.toContain('$@')
+      expect(f.body).not.toContain('$ARGUMENTS')
+    }
+  })
+
+  test('the `$ARGUMENTS` row matches the opencode row but for its path', () => {
+    const real = render(['opencode']).filter((f) => f.kind === 'command')
+    const fixture = renderRow(placeholderRow('$ARGUMENTS')).filter((f) => f.kind === 'command')
+    expect(fixture.map((f) => f.body)).toEqual(real.map((f) => f.body))
   })
 })
 
@@ -537,4 +651,148 @@ describe('fixture rows — scope', () => {
     expect(files.length).toBeGreaterThan(0)
     for (const f of files) expect(f.scope).toBe('project')
   })
+})
+
+const skillsOnly = (over: Partial<HarnessAdapter>): HarnessAdapter => ({
+  id: 'agents',
+  displayName: 'Fixture skills-only tool',
+  skillsDir: '.x',
+  invocationPrefix: '/',
+  bodyDialect: 'skill',
+  requiresIdeRestart: false,
+  detectionPaths: ['.x'],
+  ...over,
+})
+
+describe('fixture rows — skill and prose dialects', () => {
+  const sharedRef = /\$cospec-[a-z-]+ \(Codex\) or /
+
+  test('the skill dialect spells `/cospec-<skill>`, which names a skill and no command', () => {
+    const files = renderRow(skillsOnly({}))
+    expect(files).toHaveLength(12)
+    for (const f of files) {
+      expect(f.body).not.toContain('/cospec:')
+      expect(f.body).not.toMatch(sharedRef)
+    }
+    const propose = files.find((f) => f.workflow === 'propose')!
+    expect(propose.body).toContain('/cospec-apply-change')
+    expect(propose.body).not.toContain('/skill:')
+  })
+
+  test('skillInvocationPrefix `/skill:` spells `/skill:cospec-<skill>`', () => {
+    const files = renderRow(skillsOnly({ skillInvocationPrefix: '/skill:' }))
+    const refs = files.flatMap((f) => [...f.body.matchAll(/\/skill:cospec-([a-z-]+)/g)])
+    expect(refs.length).toBeGreaterThan(0)
+    for (const m of refs) expect(WORKFLOW_SKILLS as readonly string[]).toContain(`cospec-${m[1]}`)
+    for (const f of files) expect(f.body).not.toContain('/cospec:')
+  })
+
+  test('the prose dialect spells `the cospec-<skill> skill`', () => {
+    const files = renderRow(skillsOnly({ bodyDialect: 'prose' }))
+    const propose = files.find((f) => f.workflow === 'propose')!
+    expect(propose.body).toMatch(/the cospec-[a-z-]+ skill/)
+    for (const f of files) {
+      expect(f.body).not.toContain('/cospec:')
+      expect(f.body).not.toContain('/cospec-')
+    }
+  })
+
+  test('skillDialect spells the skills and bodyDialect the commands (Devin)', () => {
+    const row: HarnessAdapter = {
+      ...adapterFor('opencode'),
+      skillsDir: '.x',
+      commands: markdownCommands('.x/workflows', 'flat', '.md'),
+      bodyDialect: 'flat',
+      skillDialect: 'skill',
+    }
+    const files = renderRow(row)
+    const skill = files.find((f) => f.kind === 'skill' && f.workflow === 'propose')!
+    const command = files.find((f) => f.kind === 'command' && f.workflow === 'propose')!
+    expect(skill.body).toContain('/cospec-apply-change')
+    expect(skill.body).not.toContain('/cospec-apply ')
+    expect(command.body).toContain('/cospec-apply')
+    expect(command.body).not.toContain('/cospec-apply-change')
+    expect(skill.body).not.toBe(command.body)
+  })
+
+  test('a row whose skillDialect equals its bodyDialect renders one body for both surfaces', () => {
+    const row: HarnessAdapter = {
+      ...adapterFor('opencode'),
+      skillsDir: '.x',
+      commands: markdownCommands('.x/workflows', 'flat', '.md'),
+      skillDialect: 'flat',
+    }
+    const files = renderRow(row)
+    const skill = files.find((f) => f.kind === 'skill' && f.workflow === 'verify')!
+    const command = files.find((f) => f.kind === 'command' && f.workflow === 'verify')!
+    expect(skill.body).toBe(command.body)
+  })
+})
+
+const bare = (serializer: 'markdown-header' | 'plain'): HarnessAdapter => ({
+  ...adapterFor('opencode'),
+  skillsDir: '.x',
+  commands: {
+    dir: '.x/workflows',
+    namespacing: 'flat',
+    file: 'cospec-{command}',
+    extension: '.md',
+    serializer,
+  },
+})
+
+describe('markdown-header and plain serializers', () => {
+  test('markdown-header writes `# COSPEC: <title>`, the description, then the body', () => {
+    const files = renderRow(bare('markdown-header'))
+    const commands = files.filter((f) => f.kind === 'command')
+    expect(commands).toHaveLength(12)
+    for (const f of commands) {
+      const skill = files.find((s) => s.kind === 'skill' && s.workflow === f.workflow)!
+      const description = skill.frontmatter!['description'] as string
+      const title = f.content.split('\n')[0]!
+      expect(title).toMatch(/^# COSPEC: \S/)
+      expect(f.content).toBe(`${title}\n\n${description}\n\n${f.body}`)
+      expect(f.content).not.toContain('---\n')
+      expect(f.frontmatter).toBeNull()
+      expect(f.contentHash).toBeNull()
+    }
+    expect(commands.find((f) => f.workflow === 'propose')!.content).toMatch(
+      /^# COSPEC: Propose\n\nPropose a new change and generate/,
+    )
+  })
+
+  test('serializeMarkdownHeaderCommand is the pinned Cline adapter layout', () => {
+    expect(serializeMarkdownHeaderCommand('COSPEC: T', 'desc', 'body\n')).toBe(
+      '# COSPEC: T\n\ndesc\n\nbody\n',
+    )
+  })
+
+  test('plain writes the body alone', () => {
+    const files = renderRow(bare('plain'))
+    const commands = files.filter((f) => f.kind === 'command')
+    expect(commands).toHaveLength(12)
+    for (const f of commands) {
+      expect(f.content).toBe(f.body)
+      expect(f.content.endsWith('\n')).toBe(true)
+      expect(f.content.endsWith('\n\n')).toBe(false)
+      expect(f.frontmatter).toBeNull()
+      expect(f.contentHash).toBeNull()
+    }
+    for (const f of files.filter((s) => s.kind === 'skill')) {
+      expect(f.content.startsWith('---\n')).toBe(true)
+      expect(f.contentHash).not.toBeNull()
+    }
+  })
+
+  for (const serializer of ['markdown-header', 'plain'] as const) {
+    test(`a ${serializer} row that declares a frontmatter builder is refused`, () => {
+      const row = {
+        ...bare(serializer),
+        commands: { ...bare(serializer).commands!, frontmatter: buildOpencodeCommandFrontmatter },
+      }
+      expect(() => renderRow(row)).toThrow(
+        new RegExp(`has ${serializer} commands, which carry no frontmatter`),
+      )
+    })
+  }
 })

@@ -9,15 +9,18 @@ import { canonFile } from '../canon/embedded.ts'
 import {
   adapterFor,
   buildSkillFrontmatter,
+  carriesFrontmatter,
   commandPath,
+  commandSpelling,
   HARNESS_TABLE,
   type HarnessAdapter,
   type HarnessName,
-  injectOpenCodeArgs,
+  injectArgumentPlaceholder,
   renderCodexRules,
   serializeFrontmatter,
   skillPath,
   skillsRoot,
+  skillSpelling,
   transformBody,
   type WorkflowDef,
 } from './adapters.ts'
@@ -51,6 +54,14 @@ export interface RenderOptions {
    * shapes no shipped row uses, and never enter HARNESS_TABLE.
    */
   adapters?: readonly HarnessAdapter[]
+  /**
+   * The rows that write a shared skills root's skills: when two or more selected rows resolve
+   * to one skills root, only the row named here renders that root's skills (its commands and
+   * rules files are still every row's own). Absent, every row renders its own skills and the
+   * conflict guard below is the only arbiter. A shared root with no writer named is a
+   * caller's bug and throws, rather than silently writing no skills.
+   */
+  skillWriters?: ReadonlySet<string>
 }
 
 export interface RenderedFile {
@@ -123,19 +134,38 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
     }
   }
 
+  const sharedRoots = sharedSkillRoots(opts.harnesses, table)
+  if (opts.skillWriters !== undefined) {
+    for (const [root, ids] of sharedRoots) {
+      if (!ids.some((id) => opts.skillWriters!.has(id))) {
+        throw new Error(
+          `internal: skillWriters names none of ${ids.join(', ')}, which share the ${root.split(':')[1]} skills root`,
+        )
+      }
+    }
+  }
+
   for (const harness of opts.harnesses) {
     const row = adapterFor(harness, table)
     const skills = skillsRoot(row)
+    const writesSkills =
+      opts.skillWriters === undefined ||
+      !sharedRoots.has(skillsRootKey(row)) ||
+      opts.skillWriters.has(harness)
     const commands = row.commands
     if (commands?.serializer === 'markdown' && commands.frontmatter === undefined) {
       throw new Error(
         `internal: harness '${harness}' has markdown commands but no frontmatter builder`,
       )
     }
-    if (commands?.serializer === 'toml' && commands.frontmatter !== undefined) {
+    if (
+      commands !== undefined &&
+      !carriesFrontmatter(commands.serializer) &&
+      commands.frontmatter !== undefined
+    ) {
       throw new Error(
-        `internal: harness '${harness}' has toml commands, which carry no frontmatter, ` +
-          'but declares a frontmatter builder',
+        `internal: harness '${harness}' has ${commands.serializer} commands, which carry no ` +
+          'frontmatter, but declares a frontmatter builder',
       )
     }
     for (const w of manifest.workflows) {
@@ -143,37 +173,56 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
       const injected = w.injectTypeTable
         ? rawBody.replace('{{TYPE_TABLE}}', renderTypeTable(opts.typeTable))
         : rawBody
-      const skillBody = transformBody(injected, row.bodyDialect, skillById, row.invocationPrefix)
+      const skillSpell = skillSpelling(row)
+      const skillBody = transformBody(injected, skillSpell.dialect, skillById, skillSpell.prefix)
+      // A row's commands spell references by `bodyDialect`, its skills by `skillDialect`
+      // (Devin's differ), so a differing command body is respelled from the injected canon.
+      const commandSpell = commandSpelling(row)
+      const spelled =
+        commandSpell.dialect === skillSpell.dialect && commandSpell.prefix === skillSpell.prefix
+          ? skillBody
+          : transformBody(injected, commandSpell.dialect, skillById, commandSpell.prefix)
       // OpenCode drops a slash command's arguments unless the body names them, so an
-      // arg-taking workflow's COMMAND body carries `$ARGUMENTS` while its skill body
+      // arg-taking workflow's COMMAND body carries the row's placeholder while its skill body
       // does not — which is why each surface hashes its own body.
       const commandBody =
-        commands?.injectArguments === true && w.takesArguments === true
-          ? injectOpenCodeArgs(skillBody)
-          : skillBody
+        commands?.injectArguments !== undefined && w.takesArguments === true
+          ? injectArgumentPlaceholder(spelled, commands.injectArguments)
+          : spelled
       const skillSection = `\n${skillBody}`
       const skillHash = hashBody(skillSection)
 
-      emit(
-        assemble({
-          harness,
-          kind: 'skill',
-          workflow: w.id,
-          path: skillPath(row, w.skill),
-          scope: skills.scope,
-          frontmatter: buildSkillFrontmatter(w, version, skillHash),
-          body: skillBody,
-          bodySection: skillSection,
-          contentHash: skillHash,
-        }),
-      )
+      if (writesSkills) {
+        emit(
+          assemble({
+            harness,
+            kind: 'skill',
+            workflow: w.id,
+            path: skillPath(row, w.skill),
+            scope: skills.scope,
+            frontmatter: buildSkillFrontmatter(w, version, skillHash),
+            body: skillBody,
+            bodySection: skillSection,
+            contentHash: skillHash,
+          }),
+        )
+      }
 
       const path = commandPath(row, w.command)
-      if (commands?.serializer === 'toml' && path !== undefined) {
-        // Provenance for a TOML command lives in the manifest, like the rules file, so it
-        // has no frontmatter and no body hash. normalizeBody leaves exactly one trailing
-        // newline, which upstream's template supplies itself.
-        const content = serializeTomlCommand(w.description, commandBody.replace(/\n$/, ''))
+      if (
+        commands !== undefined &&
+        !carriesFrontmatter(commands.serializer) &&
+        path !== undefined
+      ) {
+        // Provenance for a frontmatter-less command lives in the manifest, like the rules
+        // file, so it has no frontmatter and no body hash. normalizeBody leaves exactly one
+        // trailing newline, which upstream's TOML template supplies itself.
+        const content =
+          commands.serializer === 'toml'
+            ? serializeTomlCommand(w.description, commandBody.replace(/\n$/, ''))
+            : commands.serializer === 'markdown-header'
+              ? serializeMarkdownHeaderCommand(`COSPEC: ${w.title}`, w.description, commandBody)
+              : commandBody
         emit({
           harness,
           kind: 'command',
@@ -220,6 +269,25 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
     }
   }
   return [...out.values()]
+}
+
+/** A skills root's identity: a project root and a home root of the same name are two roots. */
+function skillsRootKey(row: HarnessAdapter): string {
+  const { root, scope } = skillsRoot(row)
+  return `${scope}:${root}`
+}
+
+/** The skills roots two or more of `harnesses` resolve to, each with its rows in selection order. */
+function sharedSkillRoots(
+  harnesses: readonly HarnessName[],
+  table: readonly HarnessAdapter[],
+): Map<string, HarnessName[]> {
+  const byRoot = new Map<string, HarnessName[]>()
+  for (const id of new Set(harnesses)) {
+    const key = skillsRootKey(adapterFor(id, table))
+    byRoot.set(key, [...(byRoot.get(key) ?? []), id])
+  }
+  return new Map([...byRoot].filter(([, ids]) => ids.length > 1))
 }
 
 /**
@@ -291,6 +359,19 @@ prompt = """
 ${escapeTomlMultilineBasicString(body)}
 """
 `
+}
+
+/**
+ * A Markdown-header command file (Cline, Zoo Code): the title as the one `# ` header the tool
+ * reads as the command's name, the description, then the body. A frontmatter block would show
+ * up as literal text there.
+ */
+export function serializeMarkdownHeaderCommand(
+  title: string,
+  description: string,
+  body: string,
+): string {
+  return `# ${title}\n\n${description}\n\n${body}`
 }
 
 interface AssembleArgs {

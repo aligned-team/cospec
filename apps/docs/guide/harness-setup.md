@@ -1,9 +1,9 @@
 ---
 title: Harness setup
 description:
-  What cospec init writes for Claude Code, Codex, OpenCode, and the shared
-  .agents root — skills, commands, the one permission entry, and how to confirm
-  it loaded.
+  What cospec init writes for each of the 39 agent tools — skills, commands, the
+  shared .agents root and its writer marker, the one home-scoped root, the
+  legacy moves — and how to confirm it loaded.
 ---
 
 # Harness setup
@@ -17,102 +17,238 @@ maps to cospec `sync-specs`, which merges a change's delta specs into the main
 specs without archiving it through `cospec sync-specs`; opsx `update` maps to
 cospec `update`), and cospec always emits the complete set to every configured
 harness — there's no core/custom profile split to opt into. There is no
-marketplace, no plugin package, and no global state under your home directory:
-everything lands inside the repo, under version control, and `cospec update`
-regenerates it in place. Every generated workflow body calls only `cospec`
-commands, never bare `openspec`, so a harness needs exactly one permission entry
-to run the whole loop.
+marketplace and no plugin package. Almost everything lands inside the repo,
+under version control, and `cospec update` regenerates it in place. One tool is
+the exception: `minimax-code` reads its skills only from your home directory, so
+those skills are written there and shared by every project on the machine
+([see below](#the-home-skills-root-minimax-code)). Every generated workflow body
+calls only `cospec` commands, never bare `openspec`, so a harness needs exactly
+one permission entry to run the whole loop.
 
-## What gets written
+## Target table
 
-::: code-group
+Every tool cospec can configure is one row below. `--harness` takes any id in
+the first column, a comma-separated list of them, `all` or `none`; `windsurf` is
+still accepted as an alias of `devin`. Paths are relative to the repo unless
+marked as home-scoped. `<workflow>` stands for one of the twelve workflow ids
+and `<skill>` for its skill name (`cospec-<skill>`, below).
 
-```txt [Claude Code]
-.claude/commands/cospec/{propose,new,continue,ff,apply,verify,archive,bulk-archive,sync-specs,explore,onboard,update}.md
-.claude/skills/cospec-{propose,new-change,continue-change,ff-change,apply-change,verify-change,archive-change,bulk-archive-change,sync-specs,explore,onboard,update-change}/SKILL.md
-.claude/settings.json   # Bash(cospec *) merged into permissions.allow
-```
+| `--harness`     | Tool                                      | Skills                      | Command files                                    | Invoke                             | Restart         |
+| --------------- | ----------------------------------------- | --------------------------- | ------------------------------------------------ | ---------------------------------- | --------------- |
+| `agents`        | Other / Universal (shared .agents skills) | `.agents/skills/` (shared)  | —                                                | `/cospec-<skill>`                  | new session     |
+| `amazon-q`      | Amazon Q Developer                        | `.amazonq/skills/`          | `.amazonq/prompts/cospec-<workflow>.md`          | `@cospec-<workflow>`               | restart IDE     |
+| `antigravity`   | Antigravity                               | `.agents/skills/` (shared)  | `.agents/workflows/cospec-<workflow>.md`         | `/cospec-<workflow>`               | restart IDE     |
+| `auggie`        | Auggie (Augment CLI)                      | `.augment/skills/`          | `.augment/commands/cospec-<workflow>.md`         | `/cospec-<workflow>`               | —               |
+| `bob`           | Bob Shell                                 | `.bob/skills/`              | `.bob/commands/cospec-<workflow>.md`             | `/cospec-<workflow>`               | —               |
+| `claude`        | Claude Code                               | `.claude/skills/`           | `.claude/commands/cospec/<workflow>.md`          | `/cospec:<workflow>`               | restart session |
+| `cline`         | Cline                                     | `.cline/skills/`            | `.clinerules/workflows/cospec-<workflow>.md`     | `/cospec-<workflow>`               | restart IDE     |
+| `codeartsagent` | CodeArts                                  | `.codeartsdoer/skills/`     | —                                                | `/cospec-<skill>`                  | —               |
+| `codeassistant` | SourceCraft Code Assistant                | `.codeassistant/skills/`    | `.codeassistant/commands/cospec-<workflow>.md`   | `/cospec-<workflow>`               | —               |
+| `codebuddy`     | CodeBuddy Code (CLI)                      | `.codebuddy/skills/`        | `.codebuddy/commands/cospec/<workflow>.md`       | `/cospec:<workflow>`               | —               |
+| `codex`         | Codex                                     | `.agents/skills/` (shared)  | —                                                | `$cospec-<skill>`                  | new session     |
+| `command-code`  | Command Code                              | `.commandcode/skills/`      | `.commandcode/commands/cospec-<workflow>.md`     | `/cospec-<workflow>`               | —               |
+| `continue`      | Continue                                  | `.continue/skills/`         | `.continue/prompts/cospec-<workflow>.prompt`     | `/cospec-<workflow>`               | restart IDE     |
+| `costrict`      | CoStrict                                  | `.cospec/skills/`           | `.cospec/openspec/commands/cospec-<workflow>.md` | `/cospec-<workflow>`               | restart IDE     |
+| `crush`         | Crush                                     | `.crush/skills/`            | `.crush/commands/cospec/<workflow>.md`           | `/cospec:<workflow>`               | —               |
+| `cursor`        | Cursor                                    | `.cursor/skills/`           | `.cursor/commands/cospec-<workflow>.md`          | `/cospec-<workflow>`               | restart IDE     |
+| `devin`         | Devin Desktop (formerly Windsurf)         | `.devin/skills/`            | `.devin/workflows/cospec-<workflow>.md`          | `/cospec-<workflow>`               | restart IDE     |
+| `factory`       | Factory Droid                             | `.factory/skills/`          | `.factory/commands/cospec-<workflow>.md`         | `/cospec-<workflow>`               | —               |
+| `forgecode`     | ForgeCode                                 | `.forge/skills/`            | —                                                | `/cospec-<skill>`                  | —               |
+| `gemini`        | Gemini CLI                                | `.gemini/skills/`           | `.gemini/commands/cospec/<workflow>.toml`        | `/cospec:<workflow>`               | —               |
+| `hermes`        | Hermes Agent                              | `.hermes/skills/`           | —                                                | `/cospec-<skill>`                  | —               |
+| `iflow`         | iFlow                                     | `.iflow/skills/`            | `.iflow/commands/cospec-<workflow>.md`           | `/cospec-<workflow>`               | —               |
+| `junie`         | Junie                                     | `.junie/skills/`            | `.junie/commands/cospec-<workflow>.md`           | `/cospec-<workflow>`               | restart IDE     |
+| `kilocode`      | Kilo Code                                 | `.kilocode/skills/`         | `.kilocode/workflows/cospec-<workflow>.md`       | `/cospec-<workflow>`               | restart IDE     |
+| `kimi`          | Kimi Code                                 | `.kimi-code/skills/`        | —                                                | `/skill:cospec-<skill>`            | —               |
+| `kiro`          | Kiro                                      | `.kiro/skills/`             | `.kiro/prompts/cospec-<workflow>.prompt.md`      | `/cospec-<workflow>`               | restart IDE     |
+| `lingma`        | Lingma                                    | `.lingma/skills/`           | `.lingma/commands/cospec/<workflow>.md`          | `/cospec:<workflow>`               | restart IDE     |
+| `minimax-code`  | MiniMax Code                              | `~/.minimax/skills/` (home) | —                                                | `/cospec-<skill>`                  | —               |
+| `oh-my-pi`      | Oh My Pi                                  | `.omp/skills/`              | `.omp/commands/cospec-<workflow>.md`             | `/cospec-<workflow>`               | —               |
+| `opencode`      | OpenCode                                  | `.opencode/skills/`         | `.opencode/commands/cospec-<workflow>.md`        | `/cospec-<workflow>`               | reload project  |
+| `pi`            | Pi                                        | `.pi/skills/`               | `.pi/prompts/cospec-<workflow>.md`               | `/cospec-<workflow>`               | —               |
+| `qoder`         | Qoder                                     | `.qoder/skills/`            | `.qoder/commands/cospec/<workflow>.md`           | `/cospec:<workflow>`               | restart IDE     |
+| `qwen`          | Qwen Code                                 | `.qwen/skills/`             | `.qwen/commands/cospec-<workflow>.md`            | `/cospec-<workflow>`               | —               |
+| `roocode`       | Zoo Code                                  | `.roo/skills/`              | `.roo/commands/cospec-<workflow>.md`             | `/cospec-<workflow>`               | restart IDE     |
+| `rovodev`       | Rovo Dev CLI                              | `.rovodev/skills/`          | —                                                | ask for the `cospec-<skill>` skill | —               |
+| `trae`          | Trae                                      | `.trae/skills/`             | `.trae/commands/cospec-<workflow>.md`            | `/cospec-<workflow>`               | restart IDE     |
+| `vibe`          | Mistral Vibe                              | `.vibe/skills/`             | —                                                | `/cospec-<skill>`                  | —               |
+| `zcode`         | ZCode                                     | `.zcode/skills/`            | `.zcode/commands/cospec/<workflow>.md`           | `/cospec:<workflow>`               | —               |
+| `zed`           | Zed Agent                                 | `.agents/skills/` (shared)  | —                                                | `/cospec-<skill>`                  | —               |
 
-```txt [Codex]
-.agents/skills/cospec-{same twelve}/SKILL.md   # the shared root, below
-.codex/rules/cospec.rules   # pre-approves read-only + gate cospec calls
-```
+Skill names differ from workflow ids, so spell them through the table: `propose`
+is `cospec-propose`, `new` is `cospec-new-change`, `continue` is
+`cospec-continue-change`, `ff` is `cospec-ff-change`, `apply` is
+`cospec-apply-change`, `verify` is `cospec-verify-change`, `archive` is
+`cospec-archive-change`, `bulk-archive` is `cospec-bulk-archive-change`,
+`sync-specs` is `cospec-sync-specs`, `explore` is `cospec-explore`, `onboard` is
+`cospec-onboard` and `update` is `cospec-update-change`. Only four of the twelve
+spell the same (`/cospec:apply` becomes `$cospec-apply-change` in Codex).
 
-```txt [agents]
-.agents/skills/cospec-{same twelve}/SKILL.md
-```
+Each row also sets how its files are spelled:
 
-```txt [OpenCode]
-.opencode/commands/cospec-{same twelve}.md   # full workflow bodies
-.opencode/skills/cospec-{same twelve}/SKILL.md
-```
+- **Claude Code** writes `/cospec:<workflow>` commands in namespaced folders
+  (`.claude/commands/cospec/`), and its commands point at the paired skill. Init
+  also reads `.claude/settings.json` (creating `{}` if it doesn't exist yet) and
+  additively merges `Bash(cospec *)` into `permissions.allow`. Nothing else in
+  the file is touched, and nothing is removed. If the file doesn't parse as
+  JSON, cospec prints the snippet to add by hand instead of guessing at your
+  settings.
+- **Codex** writes its skills to the shared `.agents/skills` root and also
+  `.codex/rules/cospec.rules`, which pre-approves the read-only and gate
+  `cospec` calls. Pick `agents` alone when you want the skills without those
+  rules.
+- **OpenCode** writes self-contained command bodies, so they work even when
+  `.claude/` is absent.
+- **agents** (`.agents/skills`, read by Zed, Antigravity and other
+  AGENTS.md-aware assistants) emits no command files; its bodies name the skill
+  (`$cospec-<skill>` in Codex, `/cospec-<skill>` elsewhere) rather than a slash
+  command that would not resolve.
+- **Antigravity** and **Zed** share the `.agents/skills` root with `codex` and
+  `agents`. Only one of the four writes it; see "The shared `.agents/skills`
+  root" below.
+- **Kimi Code** names skills with the `/skill:` prefix
+  (`/skill:cospec-<skill>`), and its workflows are skills only.
+- **Devin Desktop** (`devin`, formerly Windsurf) writes flat workflow commands
+  and spells its skills differently from its commands, so its command bodies and
+  skill bodies differ on purpose.
+- **Rovo Dev** (`rovodev`) has no invocation syntax. Its bodies, and cospec's
+  receipt hint, ask the tool by name:
+  `ask <tool> to use the cospec-<skill> skill with <arguments>`.
+- **Skills-only rows** (`codeartsagent`, `forgecode`, `hermes`, `kimi`,
+  `minimax-code`, `rovodev`, `vibe`, `zed`) write no command files; invoke the
+  skill instead.
 
-:::
+Some workflows take a positional argument (a type and description, or a change
+slug). Where a tool only forwards a command's arguments through an explicit
+placeholder, cospec inserts one in the command body: `$ARGUMENTS` for OpenCode
+and Command Code, `$@` for Pi and Oh My Pi. Tools that bind arguments implicitly
+get no placeholder. Skill bodies never get one, so the command and skill bodies
+for the same workflow can legitimately differ.
 
-Slash command syntax is adapted per harness — `/cospec:propose` in Claude Code,
-`/cospec-propose` in OpenCode. The shared `.agents/skills` root emits no command
-files at all, so bodies written there name the **skill** (`$cospec-propose` in
-Codex, `/cospec-propose` in other AGENTS.md-aware assistants) rather than a
-slash command that would not resolve. Skill names and workflow ids are not
-interchangeable — only four of the twelve spell the same (`/cospec:apply`
-becomes `$cospec-apply-change`). OpenCode's command bodies are self-contained
-(they work even when `.claude/` is absent), whereas Claude Code's commands point
-at the paired skill. For a workflow that reads a positional argument (a type +
-description, or a change slug), OpenCode's **command** body additionally gets a
-`$ARGUMENTS` placeholder inserted before its first section — OpenCode only
-forwards a slash command's typed arguments through an explicit placeholder,
-unlike Claude Code and Codex, which bind the argument implicitly. The paired
-**skill** body never gets this placeholder, so the two rendered bodies
-legitimately differ for the same workflow on OpenCode.
+### Setup notes
 
-`cospec init`'s receipt ends with a `Try:` hint spelled the same way, for the
-first harness selected: the first one you list in `--harness` (so
-`--harness opencode,claude` prints OpenCode's spelling), otherwise the first
-detected in the order Claude Code, Codex, OpenCode, agents (`--harness all` and
-the fresh-repo default start with Claude Code). Claude Code gets
-`Try: /cospec:propose …`, OpenCode `Try: /cospec-propose …`, and Codex and
-agents `Try: $cospec-propose (Codex) or /cospec-propose (other agents) …`. With
-`--harness none` the hint keeps `/cospec:propose`.
+Init prints each selected row's setup note in selection order:
+
+- **Claude Code** — restart Claude Code to pick up `/cospec:*` commands.
+- **Codex** — skills load per session from `.agents/skills`, invoked as
+  `$cospec-<skill>`; start a new session.
+- **OpenCode** — reload the project to pick up `/cospec-*` commands.
+- **agents** — skills are read from `.agents/skills`; start a new session to
+  load them. No slash commands are generated.
+- **Hermes Agent** — Hermes only loads skills from `~/.hermes/skills` by
+  default. Add this project's `.hermes/skills` directory to
+  `skills.external_dirs` in `~/.hermes/config.yaml` so Hermes picks up the
+  generated skills.
+
+Rows that set a restart flag (the table's **Restart** column says `restart IDE`)
+make init print one more line after the notes:
+`Restart your IDE to refresh commands.`, or `skills.` when the row writes skills
+only. `cospec update` prints the same line after any write when a detected
+harness's row sets the flag.
+
+### Receipt hint
+
+`cospec init`'s receipt ends with a `Try:` hint spelled for the first harness
+selected: the first one you list in `--harness` (so `--harness opencode,claude`
+prints OpenCode's spelling), otherwise the first selected in table order. Claude
+Code gets `Try: /cospec:propose …`, OpenCode `Try: /cospec-propose …`, and Codex
+and the shared-root rows
+`Try: $cospec-propose (Codex) or /cospec-propose (other agents) …`. Rovo Dev
+asks by name. With `--harness none` the hint keeps `/cospec:propose`.
 
 ## The shared `.agents/skills` root
 
 `.agents/skills` is the vendor-neutral skills root read by Codex, Zed,
-Antigravity and other AGENTS.md-aware assistants. cospec writes its skills there
-for two targets — `codex` and `agents` — and they are **byte-identical**,
-contentHash included: selecting both writes each file exactly once, and there is
-no per-tool ownership marker to reconcile. The only difference between the two
-is that `codex` additionally emits `.codex/rules/cospec.rules`. Pick `agents`
-alone when you want the skills without Codex's approval rules.
+Antigravity and other AGENTS.md-aware assistants. Four rows write to it:
+`codex`, `agents`, `zed` and `antigravity`. Their skill files land at the same
+paths, but Antigravity spells its skills as `/cospec-<skill>` while the others
+spell `$cospec-<skill>` in Codex, so the tree can hold only one set of bytes.
+cospec therefore writes it from one **writer** and records the writer in a
+marker file, `.agents/skills/.cospec-target`, which is manifest-tracked like any
+managed file. The writer is chosen in this order:
 
-Auto-detection keys on `.agents/skills`, not a bare `.agents/` directory, so a
-repo that only keeps an `AGENTS.md` or notes under `.agents/` is not treated as
-a harness. Because the two targets write the same tree, the skills alone cannot
-say which one you picked: a repo that also has `.codex/rules/cospec.rules` is
-detected as `codex`, and one without it as `agents`. A repo that selected both
-therefore re-generates as `codex` — which writes every file `agents` writes,
-byte for byte, so nothing is lost.
+1. the row the marker names, if it is one of the selected rows that writes the
+   tree (a marker naming a row that is not selected does not count);
+2. cospec's own evidence on disk — a `.codex/rules/cospec.rules` file, or a
+   legacy `.codex/skills/cospec-*` skill, means `codex`;
+3. a cospec skill already in the root means `agents`;
+4. otherwise `codex`, then the first selected row in OpenSpec's own tool order
+   (`antigravity`, `codex`, `zed`, `agents`), so `agents,zed` on a fresh root is
+   written for `zed`.
 
-::: warning Moved from `.codex/skills/` Earlier versions of cospec wrote Codex's
-skills to `.codex/skills/`. `cospec update` migrates them: a legacy file whose
-body still hashes to its own stamped `contentHash` is removed once the
-replacement exists under `.agents/skills`, and a file you hand-edited is **left
-in place**, reported, and only discarded with `--force`. Until the legacy
-directory is clear, `cospec doctor` reports a `legacy-layout` warning and
-`cospec update --check` exits `1`, so CI drift gates catch it. `.codex/` itself
-is never removed — the rules file still lives there. :::
+When a later `cospec init` selects only rows beside a configured owner of the
+root (`agents` was set up, then `zed,antigravity`), the owner stays in the run
+and stays the writer, as OpenSpec does.
+
+Rows without commands (`codex`, `agents`, `zed`) are preferred over
+`antigravity` when any of them is selected. The receipt names the sharing rows
+and the writer:
+
+```txt
+skills for codex/agents/antigravity/zed share the .agents/skills root (one tree, written for codex)
+```
+
+`cospec update` and `cospec doctor` ask the same question — is this row the
+writer here? — so they agree with init. Rows whose skills root is detected only
+through the shared tree are kept only when they are the writer, so a repo with
+just an `AGENTS.md` (or notes under `.agents/`) is not a harness. Auto-detection
+keys on `.agents/skills`, not a bare `.agents/` directory.
 
 ::: tip Coexisting with OpenSpec's own `.agents/skills/` A project previously
 initialized with `openspec` **1.7.0+** (its vendor-neutral `agents` target, or
 1.8.0's Codex output, 1.10's `zed`, or 1.11's `antigravity`) may already have
 `openspec-*` skills in this root. The two coexist: cospec owns only its
-`cospec-*` directories, and `cospec init --remove-opsx` still removes only
-openspec-authored files (frontmatter `author: openspec`). :::
+`cospec-*` directories and the marker, and `cospec init --remove-opsx` still
+removes only openspec-authored files (frontmatter `author: openspec`), plus
+OpenSpec's ownership marker `.agents/skills/.openspec-target` once no
+`openspec-*` skill is left beside it. :::
 
-For Claude Code specifically, init reads `.claude/settings.json` (creating `{}`
-if it doesn't exist yet) and additively merges `Bash(cospec *)` into
-`permissions.allow`. Nothing else in the file is touched, and nothing is
-removed. If the file doesn't parse as JSON, cospec prints the snippet to add by
-hand instead of guessing at your settings.
+## Legacy tool roots
+
+Earlier releases of OpenSpec and cospec wrote some files to other roots. `init`
+and `update` move them to the current root:
+
+| Legacy root      | Tool          | When it moves                                 | Consent                                                                                                                    |
+| ---------------- | ------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `.codex/skills/` | `codex`       | after generation, once the replacement exists | none                                                                                                                       |
+| `.kimi/`         | `kimi`        | before generation                             | none                                                                                                                       |
+| `.windsurf/`     | `devin`       | before generation                             | selecting `devin` in `init` is consent; `update` asks on a terminal, and a "no" leaves the files in place and reports them |
+| `.agent/`        | `antigravity` | after generation                              | none                                                                                                                       |
+
+A move carries OpenSpec's own files — `openspec-<skill>/SKILL.md` skills and
+`opsx-*` commands. If the destination already holds an identical file, the
+legacy copy is dropped; a differing one keeps both and is reported. Directories
+are removed only when empty. cospec's own legacy skills under `.codex/skills`
+follow the managed-file rule: a copy whose body still matches its stamped
+`contentHash` is removed once its replacement exists under `.agents/skills`, and
+a hand-edited copy is **left in place**, reported, and only discarded with
+`--force`. `.codex/` itself is never removed, because the rules file lives
+there. While a legacy file or a pending move remains, `cospec doctor` reports a
+`legacy-layout` warning and `cospec update --check` exits `1`, so CI drift gates
+catch it. Every move appears in init's or update's receipt and in the `--json`
+`migration` array.
+
+## The home skills root (minimax-code)
+
+`minimax-code` reads its skills only from `~/.minimax/skills`, so this one root
+lives outside the repo. cospec resolves the home directory the way upstream
+does: `USERPROFILE`, else `HOME`, else the operating system's home directory. An
+empty value counts as unset. The skills it writes are visible to every project
+on the machine.
+
+- **Selection.** Init selects `minimax-code` in any repo when that home
+  directory already holds a skill cospec or OpenSpec wrote, as upstream does, so
+  the tool is picked up without a flag. You can also name it explicitly with
+  `--harness minimax-code`.
+- **Ownership.** `cospec update` rewrites and removes only the files cospec
+  authored there, identified by their frontmatter provenance. A skill of your
+  own with the same name is never touched.
+- **Dry runs.** `cospec update --check` and `cospec doctor` read that root and
+  never write it.
+- **Leftovers.** An OpenSpec-authored skill under that root
+  (`metadata.author: openspec`) is listed by its absolute path by `cospec init`
+  and `cospec doctor`. `cospec init --remove-opsx` deletes it, and only once
+  this run has written the cospec skill that replaces it.
 
 ::: tip Managed files, not hand-edited ones Everything above is a _managed
 file_: cospec tracks it by content hash and regenerates it on `cospec update`.
@@ -120,6 +256,12 @@ If you've hand-edited one, cospec writes its version alongside as
 `<file>.cospec-new` rather than overwriting your changes. See
 [Configuration](/reference/configuration) for the full managed-file protocol.
 :::
+
+::: warning Failed writes If a file cannot be written (permissions, a read-only
+filesystem, or a path that is a file where a directory belongs), `init` and
+`update` skip only that file, print a `Failed:` block naming its path and the
+reason, and exit `1`. Every other file is still written, and the failed file is
+retried by the next run. :::
 
 ## Restart or reload per harness
 
@@ -131,8 +273,12 @@ lifecycle, so pick up newly generated files with:
 - **Codex** — start a new session; skills are loaded per session from
   `.agents/skills`, invoked as `$cospec-<skill>`.
 - **OpenCode** — reload the project.
-- **agents** — however the assistant reading `.agents/skills` reloads; cospec
-  generates no slash commands for this target.
+- **agents, Zed, Antigravity** — however the assistant reading `.agents/skills`
+  reloads. Antigravity also prints the restart line for its commands.
+- **MiniMax Code** — start a new session; its skills live in
+  `~/.minimax/skills`.
+- **Other restart rows** — restart the IDE when init prints
+  `Restart your IDE to refresh commands.` (or `skills.`).
 
 cospec ships no hooks, so there's no `[features] hooks` configuration to add
 anywhere.
@@ -174,13 +320,16 @@ in the body) and lists them with a warning rather than silently leaving two
 competing command sets in place; pass `--remove-opsx` (or confirm interactively)
 to clean them up. Files you authored yourself are never touched — including one
 at a lookalike OpenCode path or id, or one whose own prose happens to mention
-the same upstream command. The scan also never descends into a nested git
-worktree checkout (such as one under `.claude/worktrees/`, or a scan directory
-that is itself an embedded clone or a symlink into such a checkout) — that copy
-of the project is cleaned up by its own `cospec init --remove-opsx` — and never
-follows a symlinked scan root (a `.claude` or `.agents/skills` that is itself a
-symlink to a directory outside the project) out of the project either; a
-directory outside your project is never listed or deleted by `--remove-opsx`,
-however it's reached. See
+the same upstream command; an old pre-opsx command such as
+`.cursor/commands/openspec-*.md` counts as OpenSpec's only when it carries
+OpenSpec's `<!-- OPENSPEC:START -->` markers, so a same-named file without them
+is left alone (OpenSpec's own cleanup would remove it). The scan also never
+descends into a nested git worktree checkout (such as one under
+`.claude/worktrees/`, or a scan directory that is itself an embedded clone or a
+symlink into such a checkout) — that copy of the project is cleaned up by its
+own `cospec init --remove-opsx` — and never follows a symlinked scan root (a
+`.claude` or `.agents/skills` that is itself a symlink to a directory outside
+the project) out of the project either; a directory outside your project is
+never listed or deleted by `--remove-opsx`, however it's reached. See
 [How it relates to OpenSpec](/concepts/how-it-relates-to-openspec) for the
 version pin this wrapping relies on.

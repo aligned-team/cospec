@@ -61,12 +61,13 @@ export async function runCospec(
   sandbox: string,
   repoRoot: string,
   args: readonly string[],
+  extraEnv: Record<string, string> = {},
 ): Promise<CospecResult> {
   const proc = Bun.spawn(['bun', 'run', join(repoRoot, 'apps/cli/src/index.ts'), '--', ...args], {
     cwd: sandbox,
     stdout: 'pipe',
     stderr: 'pipe',
-    env: { ...process.env, NO_COLOR: '1' },
+    env: { ...process.env, NO_COLOR: '1', ...extraEnv },
   })
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),

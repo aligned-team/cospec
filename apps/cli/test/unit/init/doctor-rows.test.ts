@@ -58,13 +58,13 @@ const SPLIT_ROW: HarnessAdapter = {
   detectionPaths: ['.split-rules'],
 }
 
-/** Antigravity's shape: skills in `.agents`, commands under `.agents/workflows`. */
+/** A nested commands dir under the shared `.agents` root; no shipped row claims this path. */
 const NESTED_ROW: HarnessAdapter = {
   id: 'nested-fixture',
   displayName: "Fixture tool whose commands sit under another row's primary root",
   skillsDir: '.agents',
   commands: {
-    dir: '.agents/workflows',
+    dir: '.agents/fixture-workflows',
     namespacing: 'flat',
     file: 'cospec-{command}',
     extension: '.md',
@@ -73,7 +73,7 @@ const NESTED_ROW: HarnessAdapter = {
   invocationPrefix: '/',
   bodyDialect: 'flat',
   requiresIdeRestart: false,
-  detectionPaths: ['.agents/workflows'],
+  detectionPaths: ['.agents/fixture-workflows'],
 }
 
 /** A legacy skills root under no primary root (upstream antigravity's `.agent`). */
@@ -124,6 +124,29 @@ const TOML_ROW: HarnessAdapter = {
   detectionPaths: ['.toml-fixture'],
 }
 
+/** Kimi Code's shape: skills only, invoked as `/skill:<name>`. */
+const SKILL_PREFIX_ROW: HarnessAdapter = {
+  id: 'skill-fixture',
+  displayName: 'Fixture tool invoked with /skill:',
+  skillsDir: '.skill-fixture',
+  invocationPrefix: '/',
+  bodyDialect: 'skill',
+  skillInvocationPrefix: '/skill:',
+  requiresIdeRestart: false,
+  detectionPaths: ['.skill-fixture'],
+}
+
+/** Rovo Dev's shape: skills only, referenced in prose. */
+const PROSE_ROW: HarnessAdapter = {
+  id: 'prose-fixture',
+  displayName: 'Fixture tool with prose references',
+  skillsDir: '.prose-fixture',
+  invocationPrefix: '/',
+  bodyDialect: 'prose',
+  requiresIdeRestart: false,
+  detectionPaths: ['.prose-fixture'],
+}
+
 /** A cospec-generated file stamped with `generatedBy`. */
 function managed(generatedBy: string, body: string): string {
   return `---\ndescription: fixture\nmetadata:\n  author: cospec\n  generatedBy: ${generatedBy}\n  contentHash: sha256:fixture\n---\n${body}`
@@ -162,6 +185,30 @@ describe('doctor dangling-ref check over injected rows', () => {
     ])
   })
 
+  test('a `/skill:` row: an unknown /skill:cospec-<id> is a dangling ERROR', () => {
+    put(dir, '.skill-fixture/skills/cospec-explore/SKILL.md', 'Then run /skill:cospec-nope.\n')
+    expect(danglingRefs(dir, [SKILL_PREFIX_ROW]).map((f) => f.message)).toEqual([
+      '.skill-fixture/skills/cospec-explore/SKILL.md references /cospec:nope, which is not a known cospec workflow',
+    ])
+  })
+
+  test('a `/skill:` row: /skill:cospec-<skill> resolves against its own skill file', () => {
+    put(dir, '.skill-fixture/skills/cospec-explore/SKILL.md', 'Then run /skill:cospec-explore.\n')
+    expect(danglingRefs(dir, [SKILL_PREFIX_ROW])).toEqual([])
+  })
+
+  test('a prose row: an unknown `the cospec-<id> skill` is a dangling ERROR', () => {
+    put(dir, '.prose-fixture/skills/cospec-explore/SKILL.md', 'Ask for the cospec-nope skill.\n')
+    expect(danglingRefs(dir, [PROSE_ROW]).map((f) => f.message)).toEqual([
+      '.prose-fixture/skills/cospec-explore/SKILL.md references /cospec:nope, which is not a known cospec workflow',
+    ])
+  })
+
+  test('a prose row: the cospec-<skill> skill resolves against its own skill file', () => {
+    put(dir, '.prose-fixture/skills/cospec-explore/SKILL.md', 'Ask for the cospec-explore skill.\n')
+    expect(danglingRefs(dir, [PROSE_ROW])).toEqual([])
+  })
+
   test('an @-prefix row: @cospec-<id> resolves against its own files', () => {
     put(dir, '.at-fixture/prompts/cospec-apply.md', 'Then run @cospec-apply and @cospec-verify.\n')
     // `apply` has its command file; `verify` has neither skill nor command.
@@ -193,16 +240,16 @@ describe('doctor dangling-ref check over injected rows', () => {
   })
 
   test("a commands dir under an earlier row's primary root belongs to its own row", () => {
-    // `.agents` is agents' primary root, but `.agents/workflows` is the fixture's surface.
-    put(dir, '.agents/workflows/cospec-propose.md', 'Then run /cospec-apply.\n')
-    put(dir, '.agents/workflows/cospec-apply.md', 'x\n')
+    // `.agents` is agents' primary root, but `.agents/fixture-workflows` is the fixture's surface.
+    put(dir, '.agents/fixture-workflows/cospec-propose.md', 'Then run /cospec-apply.\n')
+    put(dir, '.agents/fixture-workflows/cospec-apply.md', 'x\n')
     expect(danglingRefs(dir, [...HARNESS_TABLE, NESTED_ROW])).toEqual([])
   })
 
   test("a nested commands dir's missing target is reported under its own row", () => {
-    put(dir, '.agents/workflows/cospec-propose.md', 'Then run /cospec-apply.\n')
+    put(dir, '.agents/fixture-workflows/cospec-propose.md', 'Then run /cospec-apply.\n')
     expect(danglingRefs(dir, [...HARNESS_TABLE, NESTED_ROW]).map((f) => f.message)).toEqual([
-      '.agents/workflows/cospec-propose.md references /cospec:apply, but no nested-fixture skill or command file for it exists',
+      '.agents/fixture-workflows/cospec-propose.md references /cospec:apply, but no nested-fixture skill or command file for it exists',
     ])
   })
 

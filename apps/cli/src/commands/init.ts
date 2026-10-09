@@ -9,19 +9,22 @@
 
 import {
   existsSync,
+  lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
   realpathSync,
+  rmdirSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 
 import { canonFile } from '../canon/embedded.ts'
 import type { CommandContext } from '../cli.ts'
 import { openspecDir } from '../core/change.ts'
 import { flagSpelling, flagValue, hasFlag, type ParsedArgs } from '../core/command-table.ts'
+import { isolatedWriteFailure } from '../core/errno.ts'
 import { splitFrontmatter, type WriteResult } from '../core/managed-files.ts'
 import {
   adapterFor,
@@ -31,13 +34,29 @@ import {
   HARNESS_NAMES,
   ideRestartLine,
   isHarnessName,
+  isLegacyCommandPath,
+  legacyCommandDirs,
+  legacyCommandRoots,
   legacySkillsRoots,
   scanRoots,
   SKILL_EXTENSION,
+  SKILL_FILE,
   skillsRoot,
-  transformBody,
+  resolveHarnessIdAlias,
+  respellInvocationHint,
+  universalHarnessHint,
 } from '../harness/adapters.ts'
+import { homeSkillsDir } from '../harness/home-root.ts'
+import {
+  findGlobalPromptLeftovers,
+  type GlobalPromptLeftover,
+  legacyMoveEntries,
+  legacyMoveLines,
+  type LegacyToolMove,
+  moveLegacyToolRoots,
+} from '../harness/legacy-skills.ts'
 import { mergeMiseToml, type MiseMergeResult } from '../harness/mise-merge.ts'
+import { isOpenCodeOpsxCommand, OPENCODE_COMMANDS_PREFIX } from '../harness/opencode-opsx.ts'
 import { readWorkflowManifest, skillByWorkflowId } from '../harness/render.ts'
 import { isInsideNestedCheckout, isOutsideProject, walkProjectFiles } from '../harness/scan-walk.ts'
 import {
@@ -45,7 +64,15 @@ import {
   mergeClaudeSettings,
   type SettingsMergeResult,
 } from '../harness/settings-merge.ts'
-import { generate, migrationLines } from './update.ts'
+import { availableHarnesses, withSharedRootOwners } from '../harness/shared-root.ts'
+import {
+  detectHarnesses,
+  emittedPaths,
+  type FailedWrite,
+  failedLines,
+  generate,
+  migrationLines,
+} from './update.ts'
 
 // --- repo state -------------------------------------------------------------
 
@@ -90,9 +117,9 @@ interface HarnessSelection {
 /**
  * The harnesses a `--harness`/`--tools` list selects, read as upstream's
  * `resolveToolsArg` reads `--tools`: the value trimmed, `all`/`none` and each
- * comma-separated name matched case-insensitively. An empty list is refused
- * with upstream's own sentence (naming the `spelling` the user typed), an
- * unknown name with cospec's list of the valid ones.
+ * comma-separated name matched case-insensitively, a retired id resolved first. An empty list
+ * is refused with upstream's own sentence (naming the `spelling` the user typed), an unknown
+ * name with cospec's list of the valid ones and upstream's pointer at `agents`.
  */
 function parseHarnessArg(
   value: string,
@@ -116,23 +143,21 @@ function parseHarnessArg(
     }
   const out: HarnessName[] = []
   for (const name of names) {
-    if (!isHarnessName(name))
-      return { error: `invalid ${spelling} '${value}'; ${VALID_HARNESS_MSG}` }
-    if (!out.includes(name)) out.push(name)
+    // A retired id resolves to its current tool before it is checked, as upstream's
+    // `resolveToolIdAlias` does, so a rebrand does not break a scripted `--harness windsurf`.
+    const resolved = resolveHarnessIdAlias(name)
+    if (!isHarnessName(resolved)) {
+      const hint = universalHarnessHint(spelling)
+      return {
+        error: `invalid ${spelling} '${value}'; ${VALID_HARNESS_MSG}${hint === undefined ? '' : `\n${hint}`}`,
+      }
+    }
+    if (!out.includes(resolved)) out.push(resolved)
   }
   return { harnesses: out }
 }
 
 const VALID_HARNESS_MSG = `valid values: ${[...HARNESS_NAMES, 'all', 'none'].join(', ')} (comma-separate for multiple, e.g. --harness ${HARNESS_NAMES.slice(0, 2).join(',')})`
-
-/**
- * Whether one of the row's `detectionPaths` exists. A bare `.agents/` proves
- * nothing — it commonly holds only an `AGENTS.md` source or shared notes — which
- * is why the `agents` row detects by its skills dir instead.
- */
-function isDetected(cwd: string, h: HarnessName): boolean {
-  return adapterFor(h).detectionPaths.some((p) => existsSync(join(cwd, p)))
-}
 
 /**
  * `spelling` is the flag the user typed the list with (`--harness`, or
@@ -148,7 +173,9 @@ function selectHarnesses(
     const parsed = parseHarnessArg(arg, spelling)
     return 'error' in parsed ? { harnesses: [], error: parsed.error } : parsed
   }
-  const detected = HARNESS_NAMES.filter((h) => isDetected(cwd, h))
+  // A bare `.agents/` proves nothing (it commonly holds only an `AGENTS.md` source), and a
+  // shared `.agents/skills` tree selects only the row it was written for.
+  const detected = availableHarnesses(cwd) as HarnessName[]
   if (detected.length > 0) return { harnesses: detected }
   if (state === 'A') {
     return { harnesses: ['claude'], note: 'No harness detected; defaulting to claude.' }
@@ -241,6 +268,11 @@ function scaffoldGate(cwd: string): GateResult {
 
 // --- opsx detection / removal (§6.6) ----------------------------------------
 
+/** An openspec prompt outside the project, and whether this run removed it. */
+interface HomeLeftover extends GlobalPromptLeftover {
+  removed: boolean
+}
+
 /** A leftover openspec-generated ("opsx") file — never something cospec authored. */
 export interface OpsxFile {
   relpath: string
@@ -250,79 +282,41 @@ export interface OpsxFile {
 export const OPSX_SHARED_SKILL_ROOT = '.agents/skills'
 
 /**
- * The 12 workflow file names the pinned 1.13.1 dist ever writes, across every adapter (dist
- * `core/command-generation/workflowIdsByFileName`, confirmed against the vendored bundle):
- * `opsx-<id>.md` for exactly these `<id>`s, never an arbitrary `opsx-*` spelling. Matching the
- * id list, not a bare `opsx-[^/]+` wildcard, is itself part of the provenance — a user's own
- * `.opencode/commands/opsx-status.md` (or any id the pinned dist never generates) can never
- * satisfy it regardless of its frontmatter or body.
+ * The ownership marker the pinned binary writes in a shared skills root: the id of the tool
+ * its own `openspec-*` skills were written for. cospec's marker is `.cospec-target`; this one
+ * is the binary's and means nothing once its skills are gone.
  */
-const OPENCODE_OPSX_IDS = [
-  'apply',
-  'archive',
-  'bulk-archive',
-  'continue',
-  'explore',
-  'ff',
-  'new',
-  'onboard',
-  'propose',
-  'sync',
-  'update',
-  'verify',
-] as const
+export const OPSX_TARGET_MARKER = `${OPSX_SHARED_SKILL_ROOT}/.openspec-target`
+
+// The pinned binary's pre-opsx markers: every legacy slash command it wrote carries the pair.
+const OPENSPEC_MARKERS = { start: '<!-- OPENSPEC:START -->', end: '<!-- OPENSPEC:END -->' }
+
+// Every command and skill the pinned binary writes carries its project-root guard, which names
+// this command whatever the wrapper: YAML, a Markdown header, TOML or none.
+const ROOT_GUARD_REFERENCE = '`openspec list --json`'
 
 /**
- * The exact path the pinned 1.13.1 OpenCode command adapter (dist
- * `core/command-generation/adapters/opencode.js`) writes to: `.opencode/commands/opsx-<id>.md`
- * for one of `OPENCODE_OPSX_IDS`. cospec's own OpenCode commands live at
- * `.opencode/commands/cospec-<id>.md` and never match this.
+ * Provenance, never the path, decides what is a leftover: a file is opsx only when its own
+ * content proves openspec wrote it (DESIGN §2.1/§6.6, "user-authored files never touched"). A
+ * plain `.opencode/commands/opsx/notes.md` or `opsx-helper.md` a user wrote by hand carries no
+ * proof and must never be deleted. The proof is one of:
+ * - a skill's or command's frontmatter: `metadata.author: openspec` with a bare-semver
+ *   `generatedBy`, or `name: "OPSX: …"`;
+ * - for a file that is not a skill, the root guard `openspec list --json` (a command with no
+ *   frontmatter, or one whose frontmatter carries no `name`), except under OpenCode's
+ *   `.opencode/commands/`, where only the adapter's exact shape counts (`isOpenCodeOpsxCommand`:
+ *   one of the 12 ids, description-only frontmatter, the guard's lead sentence);
+ * - for a path a row's `legacyCommandPaths` names, the pre-opsx `<!-- OPENSPEC:START -->` /
+ *   `<!-- OPENSPEC:END -->` pair, as upstream's `isGeneratedLegacyCommand` requires.
+ * cospec's own files carry `author: cospec` and never any of the three.
+ * `table` is a test seam for rows the shipped table does not carry.
  */
-const OPENCODE_OPSX_COMMAND_RE = new RegExp(
-  `^\\.opencode/commands/opsx-(?:${OPENCODE_OPSX_IDS.join('|')})\\.md$`,
-)
-
-/**
- * The pinned dist's shared `PROJECT_ROOT_GUARD` template's distinctive lead sentence,
- * interpolated verbatim into all but one of its workflow bodies (probed from the pinned
- * binary's own `init --tools opencode` output). Requiring this whole sentence, not only the
- * bare `` `openspec list --json` `` command reference it goes on to make, is itself part of
- * the provenance check: a user's own command that happens to document or invoke that same
- * command (e.g. "run `openspec list --json` and summarize each change") would otherwise
- * satisfy a bare-substring check while never containing this exact upstream boilerplate
- * sentence, which only the pinned dist's own generated bodies ever carry.
- */
-const PROJECT_ROOT_GUARD_LEAD =
-  '**Project check:** These steps expect a project that already uses OpenSpec.'
-
-/**
- * OpenCode's command adapter emits frontmatter with only `description` — no `name`, no
- * `metadata` — so neither marker in `isOpsxMarkdown` below ever matches a real OpenCode
- * opsx leftover (probed from the pinned binary's own `init --tools opencode` output).
- * Detected instead by the combination the adapter's output always has: the exact path it
- * writes to (one of the 12 ids the dist ever generates), frontmatter with no key but
- * `description`, and the `PROJECT_ROOT_GUARD` lead sentence plus the literal bare
- * `` `openspec list --json` `` reference every opsx workflow body carries — a string
- * cospec's own shipped bodies never contain, since cospec always respells its own commands
- * as `cospec`, never bare `openspec`. The combination is provenance, not a path/name
- * convention: a hand-written `.opencode/commands/opsx-notes.md` with its own prose body, or
- * a user's own command at a path outside the 12 ids, never matches.
- */
-function isOpenCodeOpsxCommand(relpath: string, frontmatter: unknown, body: string): boolean {
-  if (!OPENCODE_OPSX_COMMAND_RE.test(relpath)) return false
-  if (frontmatter === null || typeof frontmatter !== 'object') return false
-  const keys = Object.keys(frontmatter as Record<string, unknown>)
-  if (keys.length !== 1 || keys[0] !== 'description') return false
-  return body.includes(PROJECT_ROOT_GUARD_LEAD) && body.includes('`openspec list --json`')
-}
-
-// Provenance-only: a file is opsx only when its own frontmatter (or, for OpenCode's
-// description-only shape, its frontmatter plus body) proves openspec authored it (DESIGN
-// §2.1/§6.6 — "user-authored files (no generatedBy) never touched"). Path/name conventions
-// alone are NOT provenance: a plain `.opencode/commands/opsx/notes.md` or `opsx-helper.md`
-// a user wrote by hand carries no marker and must never be deleted.
-export function isOpsxMarkdown(relpath: string, text: string): boolean {
-  const { frontmatter, body } = splitFrontmatter(text)
+export function isOpsxLeftover(
+  relpath: string,
+  text: string,
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): boolean {
+  const { frontmatter } = splitFrontmatter(text)
   const meta = frontmatter?.metadata
   if (meta !== null && typeof meta === 'object') {
     const record = meta as Record<string, unknown>
@@ -338,7 +332,47 @@ export function isOpsxMarkdown(relpath: string, text: string): boolean {
   // Command files (e.g. `.claude/commands/opsx/*.md`) carry `name: 'OPSX: …'`.
   const name = frontmatter?.name
   if (typeof name === 'string' && /^"?OPSX:/.test(name)) return true
-  return isOpenCodeOpsxCommand(relpath, frontmatter, body)
+  if (relpath.split('/').at(-1) === SKILL_FILE) return false
+  // OpenCode's current command directory is decided by the adapter's own output shape alone: a
+  // bare root-guard reference there is as likely a user's command as the binary's.
+  if (relpath.startsWith(OPENCODE_COMMANDS_PREFIX)) {
+    return isOpenCodeOpsxCommand(relpath, text)
+  }
+  if (text.includes(ROOT_GUARD_REFERENCE)) return true
+  return (
+    isLegacyCommandPath(relpath, table) &&
+    text.includes(OPENSPEC_MARKERS.start) &&
+    text.includes(OPENSPEC_MARKERS.end)
+  )
+}
+
+/**
+ * The openspec skills a home-scoped row left under its home skills dir, each with the absolute
+ * cospec skill that replaces it. Provenance is `isOpsxLeftover`'s, the one predicate every
+ * project-scope leftover uses. `rows` are the ids to read; a row with no home skills dir, or
+ * whose dir does not exist, contributes nothing.
+ */
+export function homeSkillLeftovers(rows: readonly string[]): GlobalPromptLeftover[] {
+  const out: GlobalPromptLeftover[] = []
+  for (const row of HARNESS_TABLE) {
+    const dir = homeSkillsDir(row)
+    if (dir === undefined || !rows.includes(row.id) || !existsSync(dir)) continue
+    for (const name of readdirSync(dir).toSorted()) {
+      const file = join(dir, name, SKILL_FILE)
+      if (!existsSync(file) || !lstatSync(file).isFile()) continue
+      if (!isOpsxLeftover(`${name}/${SKILL_FILE}`, readFileSync(file, 'utf8'))) continue
+      const replacement = join(dir, name.replace(/^openspec-/, 'cospec-'), SKILL_FILE)
+      out.push({ path: file, replacement })
+    }
+  }
+  return out
+}
+
+/** Removes a leftover home skill's now-empty `openspec-*` directory; never any other folder. */
+function removeHomeSkillFile(path: string): void {
+  rmSync(path)
+  const dir = dirname(path)
+  if (basename(dir).startsWith('openspec-') && readdirSync(dir).length === 0) rmdirSync(dir)
 }
 
 /**
@@ -346,17 +380,20 @@ export function isOpsxMarkdown(relpath: string, text: string): boolean {
  * openspec wrote sits at its own paths (`.claude/commands/opsx/<id>.md`,
  * `.opencode/commands/opsx-<id>.md` in the pinned dist's command adapters): every
  * `SKILL_EXTENSION` file under a top-level dir holding a row's project or legacy skills
- * root, each markdown-serializer row's files with its own `commands.extension` under its
- * `commands.dir`, and every `SKILL_EXTENSION` file under the shared `.agents/skills` root.
- * Provenance, never this path set, decides what is a leftover.
+ * root, each row's files with its own `commands.extension` under its `commands.dir` whatever
+ * its serializer (the `.toml`, `.prompt` and `.prompt.md` commands included), every
+ * `SKILL_EXTENSION` file under the shared `.agents/skills` root, and every path a row's
+ * `legacyCommandPaths` names. Provenance, never this path set, decides what is a leftover.
  */
 export function isLeftoverCandidate(
   relpath: string,
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): boolean {
+  if (relpath === OPSX_TARGET_MARKER) return true
   if (relpath.startsWith(`${OPSX_SHARED_SKILL_ROOT}/`) && relpath.endsWith(SKILL_EXTENSION)) {
     return true
   }
+  if (isLegacyCommandPath(relpath, table)) return true
   const top = relpath.split('/')[0]!
   return table.some((row) => {
     const skills = skillsRoot(row)
@@ -369,12 +406,7 @@ export function isLeftoverCandidate(
       return true
     }
     const c = row.commands
-    return (
-      c !== undefined &&
-      c.serializer === 'markdown' &&
-      relpath.startsWith(`${c.dir}/`) &&
-      relpath.endsWith(c.extension)
-    )
+    return c !== undefined && relpath.startsWith(`${c.dir}/`) && relpath.endsWith(c.extension)
   })
 }
 
@@ -394,31 +426,78 @@ export function isLeftoverCandidate(
  * Nor does it ever follow a scan root (or the explicit `.agents/skills` walk) out of the
  * project: `isOutsideProject` is checked before `walk()` reads a root's directory, so a
  * symlinked `.claude`, `.agents`, or `.agents/skills` pointing elsewhere is never read.
+ *
+ * A directory that cannot be read for permission or path-type reasons is recorded in
+ * `unreadable` when the caller passes one, so it is reported rather than hidden; without it
+ * the error propagates. The walk reports it through `walkProjectFiles`' own callback.
  */
 export function leftoverScanFiles(
   cwd: string,
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
+  unreadable?: FailedWrite[],
 ): { relpath: string; text: string }[] {
   // Keyed by relpath: `.agents` (a harness dir) strictly contains `.agents/skills`, so
   // the two walk ranges overlap and an unguarded scan would list every file there twice.
   const out = new Map<string, { relpath: string; text: string }>()
-  walkProjectFiles(cwd, [...scanRoots(table), OPSX_SHARED_SKILL_ROOT], (relpath) => {
-    if (!out.has(relpath) && isLeftoverCandidate(relpath, table)) {
-      out.set(relpath, { relpath, text: readFileSync(join(cwd, relpath), 'utf8') })
-    }
-  })
+  walkProjectFiles(
+    cwd,
+    // The legacy command roots (`.windsurf`, `.qwen`, ...) are not scan roots: `scanRoots` also
+    // feeds removal and sidecar walks, which must not reach a tool root cospec never wrote.
+    [...new Set([...scanRoots(table), ...legacyCommandRoots(table)]), OPSX_SHARED_SKILL_ROOT],
+    (relpath) => {
+      if (!out.has(relpath) && isLeftoverCandidate(relpath, table)) {
+        out.set(relpath, { relpath, text: readFileSync(join(cwd, relpath), 'utf8') })
+      }
+    },
+    undefined,
+    unreadable === undefined
+      ? undefined
+      : (relpath, error) => {
+          const message = isolatedWriteFailure(error)
+          if (message === undefined) throw error
+          unreadable.push({ path: relpath, error: message })
+        },
+  )
   return [...out.values()]
+}
+
+/** A marker holds one tool id; anything else in that file is not the binary's. */
+const TARGET_MARKER_CONTENT = /^[a-z0-9][a-z0-9-]*\s*$/
+
+/**
+ * The scanned files that are openspec leftovers. `isOpsxLeftover` decides each file alone; the
+ * `.openspec-target` marker is the one file whose provenance is its path and shape, and it
+ * names the owner of the binary's `openspec-*` skills, so it goes only once none of those
+ * skills is left under the root for it to describe (one the user wrote stays, and keeps it).
+ */
+export function opsxLeftoverFiles(
+  files: readonly { relpath: string; text: string }[],
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): { relpath: string; text: string }[] {
+  const hits = files.filter(
+    (f) => f.relpath !== OPSX_TARGET_MARKER && isOpsxLeftover(f.relpath, f.text, table),
+  )
+  const marker = files.find((f) => f.relpath === OPSX_TARGET_MARKER)
+  if (marker === undefined || !TARGET_MARKER_CONTENT.test(marker.text)) return hits
+  const removed = new Set(hits.map((f) => f.relpath))
+  const skillsLeft = files.some(
+    (f) =>
+      f.relpath.startsWith(`${OPSX_SHARED_SKILL_ROOT}/openspec-`) &&
+      f.relpath.split('/').at(-1) === SKILL_FILE &&
+      !removed.has(f.relpath),
+  )
+  return skillsLeft ? hits : [...hits, marker]
 }
 
 /** `table` is a test seam for rows the shipped table does not carry. */
 export function findOpsxFiles(
   cwd: string,
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
+  unreadable?: FailedWrite[],
 ): OpsxFile[] {
   // cospec writes its own `cospec-*` skills to `.agents/skills` too; the two prefixes
-  // cannot collide, and `isOpsxMarkdown` excludes anything cospec authored.
-  return leftoverScanFiles(cwd, table)
-    .filter((f) => isOpsxMarkdown(f.relpath, f.text))
+  // cannot collide, and `isOpsxLeftover` excludes anything cospec authored.
+  return opsxLeftoverFiles(leftoverScanFiles(cwd, table, unreadable), table)
     .map(({ relpath }) => ({ relpath }))
     .toSorted((a, b) => a.relpath.localeCompare(b.relpath))
 }
@@ -427,8 +506,15 @@ export function findOpsxFiles(
  * Re-checks `isOutsideProject` right before every delete, independent of `leftoverScanFiles`'
  * own guard: removal must never trust the found-list alone to have stayed inside the project
  * (a defense-in-depth pairing with the walk-time check, not a replacement for it).
+ * `table` is a test seam. A folder of a row's `legacyCommandPaths` directory entry goes once
+ * nothing is left in it, as upstream's `settleLegacyCommandDir` does, never recursively:
+ * whatever remains is the user's. A folder that is itself a link is never followed.
  */
-function removeOpsxFiles(cwd: string, files: OpsxFile[]): void {
+function removeOpsxFiles(
+  cwd: string,
+  files: OpsxFile[],
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): void {
   const cwdReal = realpathSync(cwd)
   const dirs = new Set<string>()
   for (const f of files) {
@@ -451,6 +537,18 @@ function removeOpsxFiles(cwd: string, files: OpsxFile[]): void {
       readdirSync(dir).length === 0
     ) {
       rmSync(dir, { recursive: true })
+    }
+  }
+  for (const rel of legacyCommandDirs(table)) {
+    const abs = join(cwd, rel)
+    if (
+      existsSync(abs) &&
+      lstatSync(abs).isDirectory() &&
+      !isOutsideProject(cwdReal, abs) &&
+      !isInsideNestedCheckout(cwd, cwdReal, abs) &&
+      readdirSync(abs).length === 0
+    ) {
+      rmdirSync(abs)
     }
   }
 }
@@ -476,11 +574,14 @@ export function setupNoteLines(
 /**
  * One receipt line per skills root that two or more rows resolve to, printed
  * when any selected row writes there. It names every row on that root, in table
- * order, whether selected or not: render's dedupe makes them write the same
- * files, which is what the line tells the user. `table` is a test seam.
+ * order, whether selected or not, and the one row the tree was written for
+ * (`writers`, the arbiter's answer that `generate` returns; a configured owner kept beside
+ * the selection counts). `table` is a
+ * test seam.
  */
 export function sharedSkillsRootLines(
   harnesses: readonly string[],
+  writers: ReadonlySet<string>,
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): string[] {
   const byRoot = new Map<string, { root: string; ids: string[] }>()
@@ -493,10 +594,13 @@ export function sharedSkillsRootLines(
   }
   return [...byRoot.values()]
     .filter(({ ids }) => ids.length > 1 && ids.some((id) => harnesses.includes(id)))
-    .map(
-      ({ root, ids }) =>
-        `         skills for ${ids.join('/')} share the ${root} root (identical files)`,
-    )
+    .map(({ root, ids }) => {
+      // The writer may be a configured owner kept beside the selection, so it need not be
+      // selected itself.
+      const writer = ids.find((id) => writers.has(id))
+      if (writer === undefined) throw new Error(`internal: no writer for the ${root} root`)
+      return `         skills for ${ids.join('/')} share the ${root} root (one tree, written for ${writer})`
+    })
 }
 
 /**
@@ -518,7 +622,7 @@ export function receiptHintLines(
   if (first === undefined) return lines
   const row = adapterFor(first, table)
   const skillById = skillByWorkflowId(readWorkflowManifest())
-  return lines.map((line) => transformBody(line, row.bodyDialect, skillById, row.invocationPrefix))
+  return lines.map((line) => respellInvocationHint(line, row, skillById))
 }
 
 // --- command entrypoint -----------------------------------------------------
@@ -551,6 +655,13 @@ export function run(ctx: CommandContext): number {
 
   const notGitTree = !existsSync(join(target, '.git'))
 
+  // Upstream's order: roots needing no consent move first, whichever tools are selected,
+  // so a renamed tool's files sit where detection and generation look.
+  const moves: LegacyToolMove[] = moveLegacyToolRoots(target, {
+    timing: 'before-generation',
+    dryRun: false,
+  })
+
   const selection = selectHarnesses(target, state, harnessArg, flagSpelling(parsed, '--harness'))
   if (selection.error !== undefined) {
     process.stderr.write(`cospec: ${selection.error}\n`)
@@ -562,8 +673,34 @@ export function run(ctx: CommandContext): number {
   mkdirSync(join(target, 'openspec', 'specs'), { recursive: true })
   mkdirSync(join(target, 'openspec', 'changes', 'archive'), { recursive: true })
 
+  // Selecting a renamed tool is consent to leave its former root (`.windsurf`).
+  moves.push(
+    ...moveLegacyToolRoots(target, {
+      timing: 'before-generation',
+      toolIds: harnesses,
+      dryRun: false,
+    }),
+  )
+
   // Schemas + harness files + manifest.
-  const { results, migration } = generate(target, { harnesses, force })
+  // A selected row may share its skills root with a configured owner; the owner joins the
+  // generation so the arbiter keeps its marker (design decision 6). Read before anything is
+  // written, as `generate` reads the marker itself.
+  const generated = withSharedRootOwners(target, harnesses, new Set(detectHarnesses(target)))
+  const { results, failed, migration, skillWriters } = generate(target, {
+    harnesses: generated as HarnessName[],
+    force,
+  })
+  const emitted = emittedPaths(results)
+  // After generation, so cospec's replacement exists before a legacy file moves.
+  moves.push(
+    ...moveLegacyToolRoots(target, {
+      timing: 'after-generation',
+      toolIds: harnesses,
+      emitted,
+      dryRun: false,
+    }),
+  )
 
   // config.yaml — only if absent (never modified once present).
   const configPath = join(target, 'openspec', 'config.yaml')
@@ -590,9 +727,23 @@ export function run(ctx: CommandContext): number {
   }
 
   // Opsx detection / removal.
-  const opsx = findOpsxFiles(target)
+  // A directory the scan cannot read is reported with the failed writes, unless a failed write
+  // under it already names it.
+  const unreadable: FailedWrite[] = []
+  const opsx = findOpsxFiles(target, undefined, unreadable)
+  failed.push(...unreadable.filter((u) => !failed.some((f) => f.path.startsWith(`${u.path}/`))))
   const opsxRemoved = opsx.length > 0 && (removeOpsx || yes)
   if (opsxRemoved) removeOpsxFiles(target, opsx)
+  // Outside the project: only the explicit flag removes them, and only once this run wrote
+  // the skill that replaces each one.
+  const homeOpsx: HomeLeftover[] = [
+    ...findGlobalPromptLeftovers(harnesses),
+    ...homeSkillLeftovers(harnesses),
+  ].map((p) => {
+    const removed = removeOpsx && emitted.has(p.replacement)
+    if (removed) removeHomeSkillFile(p.path)
+    return { path: p.path, replacement: p.replacement, removed }
+  })
 
   if (flags.json) {
     process.stdout.write(
@@ -617,32 +768,44 @@ export function run(ctx: CommandContext): number {
             : null,
           config: { written: configWritten },
           settings: settings ? { status: settings.status, added: settings.added } : null,
-          opsx: { found: opsx.map((o) => o.relpath), removed: opsxRemoved },
+          opsx: {
+            found: [
+              ...opsx.map((o) => o.relpath),
+              ...homeOpsx.map((h) => ({ path: h.path, scope: 'home', removed: h.removed })),
+            ],
+            removed: opsxRemoved,
+          },
           notGitTree,
           files: results,
-          migration,
+          failed,
+          migration: [...migration, ...legacyMoveEntries(moves)],
         },
         null,
         2,
       )}\n`,
     )
-    return 0
+    return failed.length > 0 ? 1 : 0
   }
 
   printReceipt(target, {
     state,
     harnesses,
+    skillWriters,
     results,
+    failed,
     migration,
+    moves,
     configWritten,
     gate,
     settings,
     opsx,
     opsxRemoved,
+    homeOpsx,
+    removeOpsx,
     notGitTree,
     autoNote: selection.note,
   })
-  return 0
+  return failed.length > 0 ? 1 : 0
 }
 
 type TargetResolution = { ok: true; target: string } | { ok: false; error: string }
@@ -670,13 +833,18 @@ function resolveTarget(cwd: string, parsed: ParsedArgs): TargetResolution {
 interface ReceiptData {
   state: RepoState
   harnesses: HarnessName[]
+  skillWriters: ReadonlySet<string>
   results: WriteResult[]
+  failed: FailedWrite[]
   migration: WriteResult[]
+  moves: LegacyToolMove[]
   configWritten: boolean
   gate?: GateResult
   settings?: SettingsMergeResult
   opsx: OpsxFile[]
   opsxRemoved: boolean
+  homeOpsx: HomeLeftover[]
+  removeOpsx: boolean
   notGitTree: boolean
   autoNote?: string
 }
@@ -702,7 +870,7 @@ function printReceipt(target: string, d: ReceiptData): void {
 
   if (d.harnesses.length > 0) {
     lines.push(`Harness: ${d.harnesses.join(', ')}`)
-    lines.push(...sharedSkillsRootLines(d.harnesses))
+    lines.push(...sharedSkillsRootLines(d.harnesses, d.skillWriters))
   } else {
     lines.push('Harness: none (schemas only)')
   }
@@ -757,10 +925,17 @@ function printReceipt(target: string, d: ReceiptData): void {
     )
   }
 
-  const migrationReport = migrationLines(d.migration, false)
+  const migrationReport = [
+    ...migrationLines(d.migration, false),
+    ...legacyMoveLines(d.moves, false),
+  ]
   if (migrationReport.length > 0) {
     lines.push('')
     lines.push(...migrationReport)
+  }
+  if (d.failed.length > 0) {
+    lines.push('')
+    lines.push(...failedLines(d.failed))
   }
 
   if (d.opsx.length > 0) {
@@ -776,6 +951,24 @@ function printReceipt(target: string, d: ReceiptData): void {
         'Re-run with --remove-opsx to delete them (only provably openspec-generated files).',
       )
     }
+  }
+
+  const homeRemoved = d.homeOpsx.filter((h) => h.removed)
+  const homeKept = d.homeOpsx.filter((h) => !h.removed)
+  if (homeRemoved.length > 0) {
+    lines.push('')
+    lines.push(`Removed ${homeRemoved.length} openspec file(s) outside this project:`)
+    for (const h of homeRemoved) lines.push(`  ${h.path}`)
+  }
+  if (homeKept.length > 0) {
+    lines.push('')
+    lines.push(`Found ${homeKept.length} openspec file(s) outside this project:`)
+    for (const h of homeKept) lines.push(`  ${h.path}`)
+    lines.push(
+      d.removeOpsx
+        ? 'Kept: this run wrote no cospec skill to replace them.'
+        : 'Re-run with --remove-opsx to delete them (only the names openspec wrote there).',
+    )
   }
 
   const setup = setupNoteLines(d.harnesses)

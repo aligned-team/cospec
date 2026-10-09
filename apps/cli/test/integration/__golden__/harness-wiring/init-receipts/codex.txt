@@ -2,9 +2,9 @@ cospec initialized in <TMP>  (state A)
 
 Schemas: 11 types in openspec/schemas/
 Config:  openspec/config.yaml (schema: feat)
-Files:   73 created
+Files:   74 created
 Harness: codex
-         skills for codex/agents share the .agents/skills root (identical files)
+         skills for codex/agents/antigravity/zed share the .agents/skills root (one tree, written for codex)
 
 Codex: skills now live in .agents/skills and are invoked as $cospec-<skill>; they load per-session, so start a new one. .codex/rules/cospec.rules still pre-approves the read-only and gate cospec calls.
 

@@ -1,0 +1,110 @@
+[
+  {
+    "path": ".rovodev/skills/cospec-apply-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "apply",
+    "harness": "rovodev",
+    "contentHash": "sha256:58c486593d6882249bbd401fd38defe429076032ca0698729546d504005aaccd",
+    "bytes": 2282,
+    "sha256": "3f56f2c4bc66e892b6a3ab4b6a4fe41fdb4a513eac776a6162649f2877a1b469"
+  },
+  {
+    "path": ".rovodev/skills/cospec-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "archive",
+    "harness": "rovodev",
+    "contentHash": "sha256:c9c72479e6c2b5d1281d67d3f76a7b01d34e21ed05930140440b63b37735c060",
+    "bytes": 3113,
+    "sha256": "d94b7d7d3700c9dcc6485456f8384cd3537c87257302ccf8df2f5d63304a0b9c"
+  },
+  {
+    "path": ".rovodev/skills/cospec-bulk-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "bulk-archive",
+    "harness": "rovodev",
+    "contentHash": "sha256:ff6585a5e04dff8abb50097dac16d2381cb2c0f9be817037ca3659af4b4c5b93",
+    "bytes": 3063,
+    "sha256": "d4370c778b77ce07122d22d3e3626733c0835bf2cb4dbcfe2edd5dd7d53976aa"
+  },
+  {
+    "path": ".rovodev/skills/cospec-continue-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "continue",
+    "harness": "rovodev",
+    "contentHash": "sha256:1841dfbc06e3691d75ed3acc8b7e5eaea66793e72dac67d5ee4d3bec533299a3",
+    "bytes": 2536,
+    "sha256": "356d914355921f15fbe6cae668b8993d7f995e492ced4b7e1edad334abed1d0d"
+  },
+  {
+    "path": ".rovodev/skills/cospec-explore/SKILL.md",
+    "kind": "skill",
+    "workflow": "explore",
+    "harness": "rovodev",
+    "contentHash": "sha256:a07833de421eedccf54f18ab56a4c460c5d3fed4b8553882d0b919b367167927",
+    "bytes": 6784,
+    "sha256": "80daebc93921f531136694d0466a4c4caedaed48971432e0f25f172416b4338c"
+  },
+  {
+    "path": ".rovodev/skills/cospec-ff-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "ff",
+    "harness": "rovodev",
+    "contentHash": "sha256:b8ab5f506c914ede2892ac0f464a9d08bf3fcb69035919f461f10d5d3b10d1b5",
+    "bytes": 3579,
+    "sha256": "6888250e96a9da22f78e8d13cfda9ccec9546e8ae1ad0ff4c7c572bdba4e7300"
+  },
+  {
+    "path": ".rovodev/skills/cospec-new-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "new",
+    "harness": "rovodev",
+    "contentHash": "sha256:c573c1cc5ed33e9d1b8e64497e5384ad3923ba08c442139c786f434dd19b32a0",
+    "bytes": 3385,
+    "sha256": "9e1bd2a282bfb20efc1d584a25e708613ab5ac6a6d4fe7978b8fcac6070e6f4f"
+  },
+  {
+    "path": ".rovodev/skills/cospec-onboard/SKILL.md",
+    "kind": "skill",
+    "workflow": "onboard",
+    "harness": "rovodev",
+    "contentHash": "sha256:2cf1397db0e25b0d15784d789096c8d36258032e072aeaccec74adc6c4b2d468",
+    "bytes": 3231,
+    "sha256": "63604a63469b1cb84380b2355a068ad355a1ca2e57e507b5b0895a3269f13578"
+  },
+  {
+    "path": ".rovodev/skills/cospec-propose/SKILL.md",
+    "kind": "skill",
+    "workflow": "propose",
+    "harness": "rovodev",
+    "contentHash": "sha256:ba0cfe3c04bc4d9ed0264df7e946105cb1d6eaa986f40bc2a8af95fe0ebd98a0",
+    "bytes": 6523,
+    "sha256": "52c99134164fdfb068646d516f150913989b283e18917cb4590ac345ec761bc0"
+  },
+  {
+    "path": ".rovodev/skills/cospec-sync-specs/SKILL.md",
+    "kind": "skill",
+    "workflow": "sync-specs",
+    "harness": "rovodev",
+    "contentHash": "sha256:4de24f832a7c4a52c540f15443972d48e5311bdc84da5b6d8ef0e26269066b56",
+    "bytes": 3096,
+    "sha256": "8b8930ccd03146ad570ed65d4cd08dbeaf4b746bb55d3496fd8eb597ddc1cb34"
+  },
+  {
+    "path": ".rovodev/skills/cospec-update-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "update",
+    "harness": "rovodev",
+    "contentHash": "sha256:d5683d2e4a37e632745904f47158afd9be0c3e571837306824a9e93e6d7e34b3",
+    "bytes": 4444,
+    "sha256": "adf43d507334b4b48013a651e44228a038b2b97d5b1ae729d7b1be008f0e4ea8"
+  },
+  {
+    "path": ".rovodev/skills/cospec-verify-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "verify",
+    "harness": "rovodev",
+    "contentHash": "sha256:3d6cc7a5c513169d27b1a8f549aa6fed03896757b943cb10319bdbebbd36a6d2",
+    "bytes": 2677,
+    "sha256": "40173a60c27091791736450da90efce5fb05985896e7fc5aae6c3b04ebff1f9a"
+  }
+]

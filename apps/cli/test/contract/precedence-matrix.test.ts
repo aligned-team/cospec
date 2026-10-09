@@ -49,6 +49,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { parse } from 'yaml'
@@ -128,13 +129,21 @@ function freshRoot(store = false, userSchema?: Row['userSchema'], setup?: Row['s
 }
 
 /** cospec with `argv` delivered verbatim (Bun eats the `--` after the entry path). */
-function runCospec(argv: readonly string[], root: string): Promise<SpawnResult> {
-  return cospec(['--', ...argv], { cwd: root, env: oracleEnv(root) })
+function runCospec(
+  argv: readonly string[],
+  root: string,
+  env: Record<string, string> = {},
+): Promise<SpawnResult> {
+  return cospec(['--', ...argv], { cwd: root, env: { ...oracleEnv(root), ...env } })
 }
 
 /** The binary with `argv` delivered verbatim: under Node only when Bun would drop a leading `--`. */
-function runUpstream(argv: readonly string[], root: string): Promise<SpawnResult> {
-  return oracle([...argv], root, argv[0] === '--' ? { runtime: 'node' } : {})
+function runUpstream(
+  argv: readonly string[],
+  root: string,
+  env: Record<string, string> = {},
+): Promise<SpawnResult> {
+  return oracle([...argv], root, { ...(argv[0] === '--' ? { runtime: 'node' as const } : {}), env })
 }
 
 interface Row {
@@ -163,6 +172,8 @@ interface Row {
   userSchema?: 'data' | 'config'
   /** Shapes each tool's root before its snapshot is taken (a change, a schema, no tree). */
   setup?: (root: string) => void
+  /** Variables set over the sandbox environment for both tools (a `USERPROFILE` apart from `HOME`). */
+  env?: Record<string, string>
   /** Tells apart two rows sharing an argv (a different `setup`), in its key and name. */
   variant?: string
 }
@@ -596,6 +607,25 @@ const VALUE_POSITION_ROWS: readonly Row[] = [
   { argv: ['init', '--tools', '--help'], command: 'init', check: nothingWritten },
   { argv: ['init', '--profile', '--help'], command: 'init', check: nothingWritten },
   { argv: ['init', '--language', '--help'], command: 'init', check: nothingWritten },
+  // The home skills root reads `USERPROFILE` before `HOME` in the binary (`resolveToolSkillsDir`);
+  // the answer must not move with it, whether it names the sandbox home or a directory beside it.
+  ...[
+    {
+      variant: 'USERPROFILE apart from HOME',
+      userprofile: join(tmpdir(), 'cospec-userprofile-row'),
+    },
+    { variant: 'USERPROFILE empty', userprofile: '' },
+  ].flatMap(({ variant, userprofile }) =>
+    ['--tools', '--profile'].map(
+      (flag): Row => ({
+        argv: ['init', flag, '--help'],
+        command: 'init',
+        check: nothingWritten,
+        env: { USERPROFILE: userprofile },
+        variant,
+      }),
+    ),
+  ),
   // `--help` is `--concurrency`'s value (ignored as no positive integer), so no
   // item and no scope is named: the binary prints its non-interactive hint and
   // exits 1, while cospec — which never prompts — validates everything.
@@ -1608,20 +1638,20 @@ const KNOWN_FAILING: ReadonlySet<string> = new Set<string>([])
 
 async function checkRow(row: Row): Promise<void> {
   const coRoot = freshRoot(row.store, row.userSchema, row.setup)
-  const co = await runCospec(row.argv, coRoot)
+  const co = await runCospec(row.argv, coRoot, row.env)
   const coOutcome = outcome(co, row.command, row.argv)
   const detail = `cospec exit ${co.exitCode}\nstdout: ${co.stdout.slice(0, 200)}\nstderr: ${co.stderr.slice(0, 300)}`
   if (row.cospecOnly !== undefined) {
     expect({ outcome: coOutcome, exit: co.exitCode }, detail).toEqual(row.cospecOnly)
   } else if (row.pending !== undefined) {
-    const up = await runUpstream(row.argv, freshRoot(row.store, row.userSchema, row.setup))
+    const up = await runUpstream(row.argv, freshRoot(row.store, row.userSchema, row.setup), row.env)
     expect({ outcome: outcome(up, row.command, row.argv), exit: up.exitCode }).toEqual(
       row.pending.upstream,
     )
     expect({ outcome: coOutcome, exit: co.exitCode }, detail).toEqual(row.pending.cospec)
   } else {
     const upRoot = freshRoot(row.store, row.userSchema, row.setup)
-    const up = await runUpstream(row.argv, upRoot)
+    const up = await runUpstream(row.argv, upRoot, row.env)
     const upDetail = `openspec exit ${up.exitCode}\nstdout: ${up.stdout.slice(0, 200)}\nstderr: ${up.stderr.slice(0, 300)}`
     expect(
       { outcome: coOutcome, exit: co.exitCode, documents: documentCount(co.stdout) },
