@@ -50,12 +50,12 @@
 
 ## 9. Pre-opsx leftovers are found for every tool
 
-- [ ] 9.1 @integration (agent) for every `LEGACY_SLASH_COMMAND_PATHS` entry that has a row (`.opencode/command/` and `.qwen/commands/*.toml` included), a marker-carrying fixture -> reported by doctor and `init --json` `opsx.found`, removed by `--remove-opsx`; a same-named file without the markers is not; a directory entry holding a user file keeps the folder
+- [x] 9.1 @integration (agent) for every `LEGACY_SLASH_COMMAND_PATHS` entry that has a row (`.opencode/command/` and `.qwen/commands/*.toml` included), a marker-carrying fixture -> reported by doctor and `init --json` `opsx.found`, removed by `--remove-opsx`; a same-named file without the markers is not; a directory entry holding a user file keeps the folder -> test/integration/legacy-command-sweep.test.ts passes: 32 marker or root-guard fixtures (all 21 entries that have a row) named by doctor and by `opsx.found`, removed by `--remove-opsx`, same-shaped files without the markers kept byte for byte, `.claude/commands/openspec/` kept with the user's `mine.md`, an emptied folder (`.lingma`'s included) removed; test/unit/harness/legacy-command-paths.test.ts: every row's `legacyCommandPaths` equals the pinned entry (`github-copilot` and `antigravity` have no row yet)
 
 ## 10. Reachability and the table-only rule [critical]
 
 - [ ] 10.1 @integration (agent) `mise run test:contract -- test/contract/reachability.test.ts` -> passes; `parity-pending.yaml` has no `tool-matrix` entry; the only pending `tool` is `github-copilot`; `windsurf` resolves through `HARNESS_ID_ALIASES` to `devin`
-- [ ] 10.2 @integration (agent) `cospec init --tools universal` in a sandbox repo -> exit 1, `universal` named invalid, the fallback hint line spelled `--tools`, nothing written; with `--harness universal` the hint is spelled `--harness`
+- [x] 10.2 @integration (agent) `cospec init --tools universal` in a sandbox repo -> exit 1, `universal` named invalid, the fallback hint line spelled `--tools`, nothing written; with `--harness universal` the hint is spelled `--harness` -> test/integration/harness-aliases.test.ts passes for both spellings: exit 1, two stderr lines, the first naming `universal`, the second upstream's hint spelled as typed, nothing written
 - [ ] 10.3 @unit (agent) `no-tool-branches.test.ts` -> no `HARNESS_TABLE` id literal in `apps/cli/src/commands/` outside the documented Claude-only lines
 
 ## 11. The oracle fixtures reproduce

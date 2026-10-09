@@ -106,7 +106,7 @@
 
 ## 5. Aliases and the unknown-tool hint (T7, part)
 
-- [ ] 5.1 Add `HARNESS_ID_ALIASES` and resolve it in `parseHarnessArg`; append
+- [x] 5.1 Add `HARNESS_ID_ALIASES` and resolve it in `parseHarnessArg`; append
       upstream's fallback hint to the unknown-value error, spelled for the flag
       typed; change `reachability.test.ts`'s `tool-alias` case to check
       `HARNESS_ID_ALIASES[id]` against the pinned target; verify an integration
@@ -182,7 +182,7 @@
 
 ## 9. Legacy roots and leftovers (T5, T7)
 
-- [ ] 9.1 Extend the leftover scan per design decision 12 (every row's upstream
+- [x] 9.1 Extend the leftover scan per design decision 12 (every row's upstream
       command location, `legacyCommandPaths` from `LEGACY_SLASH_COMMAND_PATHS`,
       root-guard and `OPENSPEC:START/END` provenance, directory entries removed
       only once empty), keeping any walk boundary `main` has; verify a contract
