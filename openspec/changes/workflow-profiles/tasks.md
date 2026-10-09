@@ -237,7 +237,7 @@ rows write the `config.json` under test into the sandbox's
       `[~] defer:` reason, set each blocking entry's archive date with
       `mise run cospec -- sync-blockers`, and verify
       `mise run cospec -- validate workflow-profiles --strict` is clean
-- [ ] 10.3 Final task: confirm the branch is rebased on `origin/main` with
+- [x] 10.3 Final task: confirm the branch is rebased on `origin/main` with
       `mise run check` green and the ledger resolved, and push it, verifying
       with `git log origin/main..HEAD` that every commit is conventional; the
       archive commit follows this one
