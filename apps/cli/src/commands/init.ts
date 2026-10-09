@@ -63,8 +63,15 @@ import {
   mergeClaudeSettings,
   type SettingsMergeResult,
 } from '../harness/settings-merge.ts'
-import { availableHarnesses } from '../harness/shared-root.ts'
-import { emittedPaths, type FailedWrite, failedLines, generate, migrationLines } from './update.ts'
+import { availableHarnesses, withSharedRootOwners } from '../harness/shared-root.ts'
+import {
+  detectHarnesses,
+  emittedPaths,
+  type FailedWrite,
+  failedLines,
+  generate,
+  migrationLines,
+} from './update.ts'
 
 // --- repo state -------------------------------------------------------------
 
@@ -600,8 +607,9 @@ export function setupNoteLines(
 /**
  * One receipt line per skills root that two or more rows resolve to, printed
  * when any selected row writes there. It names every row on that root, in table
- * order, whether selected or not, and the one selected row the tree was written
- * for (`writers`, the arbiter's answer that `generate` returns). `table` is a
+ * order, whether selected or not, and the one row the tree was written for
+ * (`writers`, the arbiter's answer that `generate` returns; a configured owner kept beside
+ * the selection counts). `table` is a
  * test seam.
  */
 export function sharedSkillsRootLines(
@@ -620,7 +628,9 @@ export function sharedSkillsRootLines(
   return [...byRoot.values()]
     .filter(({ ids }) => ids.length > 1 && ids.some((id) => harnesses.includes(id)))
     .map(({ root, ids }) => {
-      const writer = ids.find((id) => harnesses.includes(id) && writers.has(id))
+      // The writer may be a configured owner kept beside the selection, so it need not be
+      // selected itself.
+      const writer = ids.find((id) => writers.has(id))
       if (writer === undefined) throw new Error(`internal: no writer for the ${root} root`)
       return `         skills for ${ids.join('/')} share the ${root} root (one tree, written for ${writer})`
     })
@@ -706,7 +716,14 @@ export function run(ctx: CommandContext): number {
   )
 
   // Schemas + harness files + manifest.
-  const { results, failed, migration, skillWriters } = generate(target, { harnesses, force })
+  // A selected row may share its skills root with a configured owner; the owner joins the
+  // generation so the arbiter keeps its marker (design decision 6). Read before anything is
+  // written, as `generate` reads the marker itself.
+  const generated = withSharedRootOwners(target, harnesses, new Set(detectHarnesses(target)))
+  const { results, failed, migration, skillWriters } = generate(target, {
+    harnesses: generated as HarnessName[],
+    force,
+  })
   const emitted = emittedPaths(results)
   // After generation, so cospec's replacement exists before a legacy file moves.
   moves.push(

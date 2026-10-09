@@ -29,6 +29,20 @@ const NEUTRAL_ID = 'agents'
 /** Upstream's preferred fresh owner: its skills spell both the Codex and the generic form. */
 const DUAL_SPELLING_ID = 'codex'
 
+/**
+ * The rows that share `.agents/skills`, in the pinned binary's `AI_TOOLS` order (antigravity,
+ * codex, zed, agents). Upstream sorts each shared root's group by that order before its
+ * arbiter reads `group[0]` or finds the first row with legacy skills, so cospec's table order
+ * (agents ahead of zed) would pick a different writer. A row not listed sorts after, in table
+ * order. The contract test `harness-matrix.test.ts` holds this list to the pinned dist.
+ */
+export const SHARED_ROOT_UPSTREAM_ORDER: readonly string[] = [
+  'antigravity',
+  'codex',
+  'zed',
+  'agents',
+]
+
 function skillNames(): string[] {
   return readWorkflowManifest().workflows.map((w) => w.skill)
 }
@@ -102,13 +116,18 @@ function tableIndex(table: readonly HarnessAdapter[], id: string): number {
 }
 
 /**
- * The given rows grouped by project skills root, each group in table order. A home-scoped
- * row has no project root to share and is returned alone under its own key.
+ * The given rows grouped by project skills root, each group in upstream's `AI_TOOLS` order
+ * (`SHARED_ROOT_UPSTREAM_ORDER`, then table order). A home-scoped row has no project root to
+ * share and is returned alone under its own key.
  */
 function groupByRoot(
   ids: readonly string[],
   table: readonly HarnessAdapter[],
 ): Map<string, HarnessAdapter[]> {
+  const rank = (r: HarnessAdapter): number => {
+    const at = SHARED_ROOT_UPSTREAM_ORDER.indexOf(r.id)
+    return at === -1 ? SHARED_ROOT_UPSTREAM_ORDER.length : at
+  }
   const rows = [...new Set(ids)]
     .toSorted((a, b) => tableIndex(table, a) - tableIndex(table, b))
     .map((id) => table[tableIndex(table, id)]!)
@@ -118,7 +137,10 @@ function groupByRoot(
     const key = scope === 'project' ? root : `home:${r.id}`
     groups.set(key, [...(groups.get(key) ?? []), r])
   }
-  return groups
+  // `toSorted` is stable, so rows of equal rank keep table order.
+  return new Map(
+    [...groups].map(([key, group]) => [key, group.toSorted((a, b) => rank(a) - rank(b))]),
+  )
 }
 
 /**
@@ -126,7 +148,7 @@ function groupByRoot(
  * A row alone on its root is its own writer. Otherwise the preferred pool is the selected
  * rows with no command surface when any is selected, else all of them, and the writer is
  * the first of: the marker's row, the pre-marker evidence's row, `agents` when the root
- * already holds a cospec skill, `codex`, the pool's first row in table order.
+ * already holds a cospec skill, `codex`, the pool's first row in upstream's `AI_TOOLS` order.
  */
 export function resolveSharedSkillWriters(
   cwd: string,
@@ -155,9 +177,9 @@ export function resolveSharedSkillWriters(
 
 /**
  * The row each group of `ids` that shares a skills root was last written for (upstream's
- * `reconcileSharedSkillTargets`), in table order: the marker's row, the pre-marker
+ * `reconcileSharedSkillTargets`), in table order across roots: the marker's row, the pre-marker
  * evidence's row, `agents` when the root holds a cospec skill, a row whose legacy root still
- * holds one, else `agents`. With `agents` absent from the group, its first row stands in.
+ * holds one, else `agents`. With `agents` absent from the group, its first row in upstream's order stands in.
  */
 export function reconcileSharedSkillTargets(
   cwd: string,
@@ -208,6 +230,52 @@ export function isSharedSkillTargetActive(
     sharing.map((r) => r.id),
     table,
   ).includes(id)
+}
+
+/**
+ * The row that already owns `id`'s shared skills root, when a DIFFERENT one does (upstream's
+ * `sharedSkillRootOwner`): only a root that already carries an ownership signal, a marker or a
+ * cospec skill, has an owner, so a first run on an empty root claims nothing.
+ */
+export function sharedSkillRootOwner(
+  cwd: string,
+  id: string,
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): string | undefined {
+  const row = table[tableIndex(table, id)]!
+  const sharing = rowsSharingRoot(row, table)
+  if (sharing.length < 2) return undefined
+  const { root } = skillsRoot(row)
+  const signal = readSharedSkillTarget(cwd, root) !== undefined || hasCurrentSkills(cwd, root)
+  if (!signal) return undefined
+  const owner = reconcileSharedSkillTargets(
+    cwd,
+    sharing.map((r) => r.id),
+    table,
+  )[0]
+  return owner !== undefined && owner !== id ? owner : undefined
+}
+
+/**
+ * `ids` plus, for each selected row but `codex` (which consolidates its own legacy tree), the
+ * configured row that already owns its shared skills root, so the arbiter sees the owner and
+ * keeps its marker instead of flipping it to a row selected beside it (upstream's
+ * `validateTools`). `configured` is the rows already set up in `cwd`. The result keeps `ids`
+ * first, in order.
+ */
+export function withSharedRootOwners(
+  cwd: string,
+  ids: readonly string[],
+  configured: ReadonlySet<string>,
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): string[] {
+  const out = [...ids]
+  for (const id of ids) {
+    if (id === DUAL_SPELLING_ID) continue
+    const owner = sharedSkillRootOwner(cwd, id, table)
+    if (owner !== undefined && configured.has(owner) && !out.includes(owner)) out.push(owner)
+  }
+  return out
 }
 
 export interface SharedTargetMarker {

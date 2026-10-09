@@ -188,4 +188,27 @@ describe('the shared .agents skills root', () => {
     const check = await cospec(['update', '--check', '--json'], { cwd: dir, env })
     expect((JSON.parse(check.stdout) as { harnesses: string[] }).harnesses).toEqual(['agents'])
   })
+
+  test('a configured owner stays the writer when a later run selects only rows beside it', async () => {
+    const dir = mkTempRepo({ git: true })
+    const env = oracleEnv(mkTempRepo())
+    expect((await cospec(['init', '--harness', 'agents'], { cwd: dir, env })).exitCode).toBe(0)
+    const next = await cospec(['init', '--harness', 'zed,antigravity'], { cwd: dir, env })
+    expect(next.exitCode).toBe(0)
+    expect(readFileSync(join(dir, '.agents/skills/.cospec-target'), 'utf8')).toBe('agents\n')
+    expect(next.stdout).toContain(
+      'skills for codex/agents/antigravity/zed share the .agents/skills root (one tree, written for agents)',
+    )
+    const check = await cospec(['update', '--check', '--json'], { cwd: dir, env })
+    expect((JSON.parse(check.stdout) as { harnesses: string[] }).harnesses).toEqual([
+      'agents',
+      'antigravity',
+    ])
+  })
+
+  test('agents,zed on a fresh root is written for zed, as the binary writes it', async () => {
+    const { repo, stdout } = await initRepo('agents,zed')
+    expect(read(repo, '.agents/skills/.cospec-target')).toBe('zed\n')
+    expect(stdout).toContain('(one tree, written for zed)')
+  })
 })

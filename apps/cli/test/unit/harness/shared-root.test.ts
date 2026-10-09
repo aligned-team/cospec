@@ -9,8 +9,11 @@ import {
   readSharedSkillTarget,
   reconcileSharedSkillTargets,
   resolveSharedSkillWriters,
+  SHARED_ROOT_UPSTREAM_ORDER,
   SHARED_TARGET_MARKER,
+  sharedSkillRootOwner,
   sharedTargetMarkers,
+  withSharedRootOwners,
 } from '../../../src/harness/shared-root.ts'
 import { row, SHARED_ROOT_TABLE as TABLE } from './shared-root-table.ts'
 
@@ -44,8 +47,10 @@ describe('resolveSharedSkillWriters — upstream precedence', () => {
     expect(writers(['claude', 'antigravity'])).toEqual(['antigravity', 'claude'])
   })
 
-  test('a fresh root without codex falls to the first preferred row in table order', () => {
-    expect(writers(['zed', 'agents'])).toEqual(['agents'])
+  test("a fresh root without codex falls to the first preferred row in upstream's AI_TOOLS order", () => {
+    // The table lists agents before zed; the pinned binary lists zed before agents.
+    expect(writers(['agents', 'zed'])).toEqual(['zed'])
+    expect(writers(['zed', 'agents'])).toEqual(['zed'])
   })
 
   test('skills-native rows are preferred over a row with a command surface', () => {
@@ -100,7 +105,7 @@ describe('resolveSharedSkillWriters — upstream precedence', () => {
 
   test('evidence for an unselected codex is passed over', () => {
     rulesFile()
-    expect(writers(['zed', 'agents'])).toEqual(['agents'])
+    expect(writers(['zed', 'agents'])).toEqual(['zed'])
   })
 
   test('the marker is trimmed, and a blank one is no signal', () => {
@@ -219,5 +224,80 @@ describe('availableHarnesses — upstream getAvailableTools', () => {
   test("a legacy .codex/skills tree selects codex as the shared root's writer", () => {
     legacyCodexSkill()
     expect(available()).toEqual(['codex'])
+  })
+})
+
+describe('SHARED_ROOT_UPSTREAM_ORDER', () => {
+  test('names every row the test table puts on the shared root, so none sorts by accident', () => {
+    const shared = TABLE.filter((r) => r.skillsDir === '.agents').map((r) => r.id)
+    expect(shared.toSorted()).toEqual([...SHARED_ROOT_UPSTREAM_ORDER].toSorted())
+  })
+
+  test('a row outside the list sorts after the listed ones, in table order', () => {
+    const extra = [...TABLE, row('ag2'), row('ag1')]
+    expect([...resolveSharedSkillWriters(dir, ['ag2', 'ag1'], extra)]).toEqual(['ag2'])
+    expect([...resolveSharedSkillWriters(dir, ['ag2', 'zed'], extra)]).toEqual(['zed'])
+  })
+})
+
+describe('sharedSkillRootOwner / withSharedRootOwners — upstream sharedSkillRootOwner', () => {
+  const configured = new Set(['agents', 'codex', 'zed', 'antigravity'])
+
+  test('an empty root has no owner, so a first run claims nothing', () => {
+    expect(sharedSkillRootOwner(dir, 'zed', TABLE)).toBeUndefined()
+    expect(withSharedRootOwners(dir, ['zed', 'antigravity'], configured, TABLE)).toEqual([
+      'zed',
+      'antigravity',
+    ])
+  })
+
+  test('a marker names the owner of every other row on the root', () => {
+    mark('agents')
+    expect(sharedSkillRootOwner(dir, 'zed', TABLE)).toBe('agents')
+    expect(sharedSkillRootOwner(dir, 'agents', TABLE)).toBeUndefined()
+  })
+
+  test('existing skills with no marker are the agents tree', () => {
+    currentSkill()
+    expect(sharedSkillRootOwner(dir, 'zed', TABLE)).toBe('agents')
+  })
+
+  test('a row alone on its root has no owner', () => {
+    mark('agents')
+    expect(sharedSkillRootOwner(dir, 'claude', TABLE)).toBeUndefined()
+  })
+
+  test('the owner joins the selection and stays the writer', () => {
+    mark('agents')
+    currentSkill()
+    const ids = withSharedRootOwners(dir, ['zed', 'antigravity'], configured, TABLE)
+    expect(ids).toEqual(['zed', 'antigravity', 'agents'])
+    expect(writers(ids)).toEqual(['agents'])
+  })
+
+  test('a codex owner is kept beside a lone zed selection', () => {
+    mark('codex')
+    rulesFile()
+    const ids = withSharedRootOwners(dir, ['zed'], configured, TABLE)
+    expect(ids).toEqual(['zed', 'codex'])
+    expect(writers(ids)).toEqual(['codex'])
+  })
+
+  test('a selected codex consolidates its own tree and adds no owner', () => {
+    mark('agents')
+    expect(withSharedRootOwners(dir, ['codex'], configured, TABLE)).toEqual(['codex'])
+  })
+
+  test('an owner that is not configured is not added', () => {
+    mark('agents')
+    expect(withSharedRootOwners(dir, ['zed'], new Set(['zed']), TABLE)).toEqual(['zed'])
+  })
+
+  test('a selected owner is not added twice', () => {
+    mark('agents')
+    expect(withSharedRootOwners(dir, ['agents', 'zed'], configured, TABLE)).toEqual([
+      'agents',
+      'zed',
+    ])
   })
 })
