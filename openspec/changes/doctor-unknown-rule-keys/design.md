@@ -21,22 +21,25 @@ it parses and whether `schema:` is a cospec type.
 
 - Surfacing the same warning from `cospec instructions --json` (the issue marks
   it out of scope).
-- Flagging against user-global or package schemas outside the project: the
-  built-in package schema's ids are a subset of the six built-in ids already.
+- Re-implementing the binary's schema validation inside cospec: the listing the
+  binary itself prints is the one source of truth.
 
 ## Decisions
 
 - Implement in `checkConfig`, as the issue recommends: the check is cospec's own
   and sits beside the existing config checks, rather than scraping the binary
   (which cannot run it from doctor's call). `foldWrappedStderr` is kept.
-- Known ids = `ARTIFACT_IDS` plus artifact ids from each
-  `openspec/schemas/*/schema.yaml` (`artifacts[].id`), mirroring OpenSpec's "any
-  available schema" wording. Rejected: `ARTIFACT_IDS` alone, which would
-  false-positive on forked schemas.
-- An unreadable or unparseable project schema is reported as one `WARNING`
-  (`check: config`) and suppresses key flagging for that run, since the known-id
-  set is incomplete; swallowing the failure or flagging against a partial set
-  would both mislead.
+- Known ids = the `artifacts` of every entry in the wrapped binary's own
+  `schemas --json` listing (function `l5` in the vendored bundle, the set its
+  `XC` rules check uses): project, user-global (`$XDG_DATA_HOME`) and package
+  schemas, with invalid schemas dropped and shadowed ones hidden. Rejected:
+  `ARTIFACT_IDS` alone (false-positives on forked and user-global schemas) and
+  parsing `openspec/schemas/*` ourselves (misses user-global schemas and
+  over-accepts ids from schemas the binary rejects or shadows).
+- If the listing call fails or is malformed, doctor reports one `WARNING`
+  (`check: config`) and flags no key, since the known-id set is unknown;
+  swallowing the failure or flagging against a guess would both mislead.
+- The extra `schemas --json` spawn happens only when `rules:` has keys.
 - One finding per unknown key, `WARNING`, `check: config`, so the existing JSON
   shape and exit-code rule (warnings never fail doctor) are untouched.
 - The closest-id hint uses Levenshtein distance (case-insensitive) with a
@@ -47,7 +50,5 @@ it parses and whether `schema:` is a cospec type.
 
 ## Risks / Trade-offs
 
-- A user-global schema with its own artifact ids is not consulted, so a rule key
-  for it would be flagged → the warning says rules for it are ignored by the
-  project schemas only; acceptable since project config rules key
-  project-resolvable schemas.
+- The check costs one extra wrapped call, only for configs that declare `rules:`
+  keys; a failure of that call degrades to a single WARNING, never an error.

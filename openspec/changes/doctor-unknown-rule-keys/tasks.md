@@ -9,13 +9,19 @@
       finding; a project schema declaring custom artifact `extra` makes
       `rules.extra` valid; absent/non-mapping `rules` yields no finding
 - [x] 1.3 Add doctor tests: `--json` carries the finding with `check: config`;
-      closest-id suggestion; an unparseable project schema is reported and
-      suppresses key flagging
+      closest-id suggestion; ids of schemas the binary rejects as invalid are
+      not known and raise no finding of their own
+
+- [x] 1.4 Add doctor tests: a user-global schema's artifact id (private
+      `XDG_DATA_HOME`) is a valid key; a project schema shadows a same-named
+      user-global schema; verify the user-global and invalid-schema rows fail on
+      the project-dir-only implementation
 
 ## 2. Fix
 
-- [x] 2.1 Implement the rule-key check in `checkConfig` (known ids = built-ins +
-      project schemas) and verify the new tests pass
+- [x] 2.1 Implement the rule-key check in `checkConfig` (known ids = the
+      artifact ids in the wrapped binary's own `schemas --json` listing:
+      project, user-global and package) and verify the new tests pass
 
 ## 3. Docs
 

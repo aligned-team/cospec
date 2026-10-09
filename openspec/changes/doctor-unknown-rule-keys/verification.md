@@ -11,10 +11,14 @@
 - [x] 2.2 @unit (agent) project schema declaring custom artifact `extra` makes `rules.extra` valid -> `an artifact id declared by a project schema is a valid key` green (extra valid, nope flagged)
 - [x] 2.3 @unit (agent) absent `rules:` and non-mapping `rules:` yield no new finding -> `absent or non-mapping rules produce no finding` green (empty, string, list, null)
 
+- [x] 2.4 @unit (agent) an artifact id declared by a user-global schema (private `XDG_DATA_HOME`) is a valid key -> `an artifact id of a user-global schema is a valid key` green; fails on the project-dir-only implementation
+- [x] 2.5 @unit (agent) ids of an invalid (unresolvable `requires`) or unparseable schema, project or user-global, are not known and the dropped schema raises no finding -> `ids of a schema the binary rejects as invalid are not known` green; fails on the project-dir-only implementation
+- [x] 2.6 @unit (agent) a project schema shadows a same-named user-global schema, so the shadowed ids are flagged -> `a project schema shadows a same-named user-global schema` green
+
 ## 3. Output shape
 
 - [x] 3.1 @unit (agent) `doctor --json` carries the finding with `check: config` -> every new row reads findings from `doctor --json` with `check: config`; green
-- [x] 3.2 @unit (agent) an unparseable project schema is reported once and suppresses key flagging -> `an unparseable project schema is reported and suppresses key flagging` green
+- [x] 3.2 @unit (agent) an unparseable project schema is dropped as the binary drops it: no finding of its own, its ids not known -> covered by `ids of a schema the binary rejects as invalid are not known` green
 
 ## 4. Docs and gate
 

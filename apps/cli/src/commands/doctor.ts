@@ -4,7 +4,8 @@
 // schemas/harness files are not drifted (reuses the update engine's dry run);
 // harness files are not stale/mixed-version; slash/skill references in generated
 // bodies all resolve (the structural guard against openspec's dangling-ref
-// failure class); config.yaml (else config.yml) parses with a known schema; no leftover opsx files
+// failure class); config.yaml (else config.yml) parses with a known schema and
+// its `rules:` keys are artifact ids of a schema the binary resolves; no leftover opsx files
 // or stale .cospec-new sidecars; changes sit on known schemas; the git hooks
 // are installed when the gate was scaffolded; and, on every root, a delegated
 // `openspec doctor --json` (and, for a store root, `openspec store doctor
@@ -13,7 +14,7 @@
 // `references` and `status` keys carried in cospec's `--json` document and
 // each line of its stderr (config warnings) a WARNING finding.
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -46,7 +47,6 @@ import {
 } from '../core/openspec.ts'
 import { respellRemedies } from '../core/remedies.ts'
 import { type ResolvedRoot, resolveRoot, RootSelectionError } from '../core/root.ts'
-import { ARTIFACT_IDS } from '../core/rules/type-facts.ts'
 import {
   commandPath,
   HARNESS_TABLE,
@@ -342,7 +342,7 @@ function projectConfigFile(cwd: string): string | undefined {
     .find((rel) => existsSync(join(cwd, rel)))
 }
 
-function checkConfig(cwd: string, findings: Finding[]): void {
+async function checkConfig(root: Root, cwd: string, findings: Finding[]): Promise<void> {
   const rel = projectConfigFile(cwd)
   if (rel === undefined) return
   let doc: unknown
@@ -357,7 +357,7 @@ function checkConfig(cwd: string, findings: Finding[]): void {
     })
     return
   }
-  checkRuleKeys(cwd, rel, doc, findings)
+  await checkRuleKeys(root, rel, doc, findings)
   const schema =
     doc !== null && typeof doc === 'object' ? (doc as Record<string, unknown>).schema : undefined
   if (typeof schema === 'string' && !(COSPEC_TYPES as readonly string[]).includes(schema)) {
@@ -393,62 +393,65 @@ function editDistance(a: string, b: string): number {
 }
 
 /**
- * The artifact ids every project schema under `openspec/schemas/*` declares,
- * plus the schema files that could not be read or parsed (so the id set is
- * known to be incomplete).
+ * The artifact ids of every schema the wrapped binary can resolve, read from
+ * its own `schemas --json` listing: project schemas, user-global schemas under
+ * `$XDG_DATA_HOME/openspec/schemas`, and the package schema, with invalid
+ * schemas dropped and a shadowed one hidden — the exact set its instruction
+ * generator checks `rules:` keys against. Rejects when the listing cannot be
+ * obtained, so the set is never guessed.
  */
-function projectSchemaArtifactIds(cwd: string): { ids: Set<string>; unreadable: string[] } {
+async function resolvableArtifactIds(root: Root): Promise<Set<string>> {
+  const result = await passthroughOpenspec(
+    { command: ['schemas'], threaded: ['--json', ...root.storeArgs] },
+    { cwd: root.cwd, expect: { exitCodes: [0, 1] } },
+  )
+  if (result.exitCode !== 0) throw new Error(`exited ${result.exitCode}`)
+  const listing: unknown = JSON.parse(result.stdout)
+  if (!Array.isArray(listing)) throw new Error('did not list schemas as an array')
   const ids = new Set<string>()
-  const unreadable: string[] = []
-  const dir = join(openspecDir(cwd), 'schemas')
-  if (!existsSync(dir)) return { ids, unreadable }
-  for (const entry of readdirSync(dir).sort()) {
-    const file = join(dir, entry, 'schema.yaml')
-    if (!existsSync(file)) continue
-    const rel = `openspec/schemas/${entry}/schema.yaml`
-    try {
-      const doc: unknown = parseYaml(readFileSync(file, 'utf8'))
-      const artifacts =
-        doc !== null && typeof doc === 'object'
-          ? (doc as Record<string, unknown>).artifacts
-          : undefined
-      if (!Array.isArray(artifacts)) continue
-      for (const a of artifacts) {
-        const id =
-          a !== null && typeof a === 'object' ? (a as Record<string, unknown>).id : undefined
-        if (typeof id === 'string') ids.add(id)
-      }
-    } catch (error) {
-      unreadable.push(`${rel} (${errorMessage(error)})`)
-    }
+  for (const entry of listing) {
+    const artifacts =
+      entry !== null && typeof entry === 'object'
+        ? (entry as Record<string, unknown>).artifacts
+        : undefined
+    if (!Array.isArray(artifacts)) throw new Error('listed a schema without an artifacts array')
+    for (const id of artifacts) if (typeof id === 'string') ids.add(id)
   }
-  return { ids, unreadable }
+  return ids
 }
 
 /**
  * A `rules:` key that is no artifact id in any available schema silently drops
  * its rule list: the wrapped binary only notices while generating instructions,
- * as one stderr line, which doctor's delegated call never reaches. Known ids are
- * the built-ins plus every project schema's own; when a project schema cannot be
- * read the set is incomplete, so that is reported instead of guessing.
+ * as one stderr line, which doctor's delegated call never reaches. Known ids
+ * come from the binary's own schema listing (`resolvableArtifactIds`), so a
+ * user-global or forked schema's ids are valid and an invalid or shadowed
+ * schema's are not, exactly as the binary decides; when the listing cannot be
+ * read the set is unknown, so that is reported instead of guessing.
  */
-function checkRuleKeys(cwd: string, rel: string, doc: unknown, findings: Finding[]): void {
+async function checkRuleKeys(
+  root: Root,
+  rel: string,
+  doc: unknown,
+  findings: Finding[],
+): Promise<void> {
   const rules =
     doc !== null && typeof doc === 'object' ? (doc as Record<string, unknown>).rules : undefined
   if (rules === null || typeof rules !== 'object' || Array.isArray(rules)) return
   const keys = Object.keys(rules)
   if (keys.length === 0) return
-  const { ids, unreadable } = projectSchemaArtifactIds(cwd)
-  if (unreadable.length > 0) {
+  let ids: Set<string>
+  try {
+    ids = await resolvableArtifactIds(root)
+  } catch (error) {
     findings.push({
       level: 'WARNING',
       check: 'config',
-      message: `cannot check ${rel} rules keys against artifact ids: ${unreadable.join('; ')}`,
-      remedy: 'fix the project schema file, then re-run `cospec doctor`',
+      message: `cannot check ${rel} rules keys against artifact ids: ${errorMessage(error)}`,
+      remedy: "run `cospec schemas` to see OpenSpec's schema listing, then re-run `cospec doctor`",
     })
     return
   }
-  for (const id of ARTIFACT_IDS) ids.add(id)
   const known = [...ids].sort()
   for (const key of keys) {
     if (ids.has(key)) continue
@@ -892,7 +895,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     const mdFiles = harnessMarkdownFiles(base)
     checkStaleness(mdFiles, findings)
     checkDanglingRefs(base, mdFiles, findings)
-    checkConfig(base, findings)
+    await checkConfig(root, base, findings)
     checkOpsx(base, findings)
     checkStaleSidecars(base, findings)
     checkChangeSchemas(base, findings)
