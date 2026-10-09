@@ -11,6 +11,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
@@ -369,4 +370,180 @@ export function cleanup(dir: string): void {
 export function cleanupAll(): void {
   for (const dir of activeDirs) rmSync(dir, { recursive: true, force: true })
   activeDirs.clear()
+}
+
+/**
+ * Variables a completion test must not inherit from the suite's environment
+ * (design §13): the rc and config dirs an Oh My Zsh or PowerShell probe reads,
+ * CI's tip suppression, and the two opt-outs the preload sets for the suite.
+ */
+const HOME_UNSET = [
+  'ZSH',
+  'ZSH_CUSTOM',
+  'PSModulePath',
+  'CI',
+  'OPENSPEC_NO_COMPLETIONS',
+  'OPENSPEC_NO_AUTO_CONFIG',
+] as const
+
+/**
+ * A temporary home for a test that installs, uninstalls or prints the tip
+ * (design §13). `env` holds every home-like variable under `home`; `unset` is
+ * the list `cospec()` removes from the child's inherited environment. Removed
+ * by `cleanup(sandbox.root)`.
+ */
+export interface HomeSandbox {
+  readonly root: string
+  readonly home: string
+  readonly env: Record<string, string>
+  readonly unset: readonly string[]
+}
+
+/** `path` with symlinks resolved; a missing path resolves lexically. */
+function realOrResolved(path: string): string {
+  try {
+    return realpathSync(path)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    return resolve(path)
+  }
+}
+
+/**
+ * Throws unless `home` resolves inside the temporary directory. Compared on
+ * realpaths because macOS `tmpdir()` (`/var/folders/...`) resolves to
+ * `/private/var/...`. Called before every sandboxed spawn, so a test that
+ * would touch a real home fails before the child starts.
+ */
+export function assertTempHome(home: string | undefined): void {
+  if (home === undefined || home === '') throw new Error('test HOME is unset')
+  const real = realOrResolved(home)
+  const temp = realOrResolved(tmpdir())
+  if (real !== temp && !real.startsWith(temp + sep)) {
+    throw new Error(`test HOME ${home} is outside the temporary directory ${temp}`)
+  }
+}
+
+/** A fresh sandbox whose home is `<root>/home`, every home-like path under it. */
+export function homeSandbox(): HomeSandbox {
+  const root = mkdtempSync(join(tmpdir(), 'cospec-home-'))
+  activeDirs.add(root)
+  const home = join(root, 'home')
+  const dirs = {
+    XDG_CONFIG_HOME: join(home, '.config'),
+    XDG_DATA_HOME: join(home, '.local', 'share'),
+    XDG_STATE_HOME: join(home, '.local', 'state'),
+    XDG_CACHE_HOME: join(home, '.cache'),
+    CODEX_HOME: join(home, '.codex'),
+  }
+  for (const dir of [home, ...Object.values(dirs)]) mkdirSync(dir, { recursive: true })
+  return {
+    root,
+    home,
+    env: {
+      HOME: home,
+      USERPROFILE: home,
+      ZDOTDIR: home,
+      PROFILE: join(home, '.config', 'powershell', 'Microsoft.PowerShell_profile.ps1'),
+      SHELL: '/bin/zsh',
+      ...dirs,
+    },
+    unset: HOME_UNSET,
+  }
+}
+
+/**
+ * The env and unset list for one sandboxed child: `extra` wins over the
+ * sandbox, and a variable the caller sets is never also unset.
+ */
+function sandboxed(
+  sandbox: HomeSandbox,
+  extra: { env?: Record<string, string>; unset?: readonly string[] } = {},
+): { env: Record<string, string>; unset: readonly string[] } {
+  const env = { ...sandbox.env, ...extra.env }
+  assertTempHome(env.HOME)
+  const unset = [...sandbox.unset, ...(extra.unset ?? [])].filter((key) => !(key in env))
+  return { env, unset }
+}
+
+/** Run the cospec CLI from source under `sandbox`. */
+export function homeCospec(
+  sandbox: HomeSandbox,
+  args: string[],
+  opts: { cwd: string; env?: Record<string, string>; unset?: readonly string[] },
+): Promise<SpawnResult> {
+  const { env, unset } = sandboxed(sandbox, opts)
+  return cospec(args, { cwd: opts.cwd, env, unset })
+}
+
+/**
+ * Run the pinned openspec binary under `sandbox`, with `OPENSPEC_NO_COMPLETIONS`
+ * set by the caller when a probe must stay quiet. The binary never inherits the
+ * suite's environment, so only the sandbox and `env` reach it.
+ */
+export function homeOpenspec(
+  sandbox: HomeSandbox,
+  args: string[],
+  opts: { cwd: string; env?: Record<string, string> },
+): Promise<SpawnResult> {
+  const { env } = sandboxed(sandbox, opts)
+  return openspecRaw(args, opts.cwd, env)
+}
+
+/** Whether a pty can be simulated here: `script` on the PATH. */
+export function ptyAvailable(): boolean {
+  return Bun.which('script') !== null
+}
+
+/** Single-quote `word` for `sh -c` (util-linux `script -c` takes one string). */
+function shellWord(word: string): string {
+  return `'${word.replaceAll("'", `'\\''`)}'`
+}
+
+/**
+ * Run `cmd` under a pseudo-terminal, so the child sees a TTY on stdin, stdout
+ * and stderr (the tip and the uninstall prompt both gate on one). `input`
+ * lines are typed into the terminal. `script` treats a closed stdin as EOF
+ * and types a `^D` first, so stdin stays open until the child exits. Output
+ * merges stdout and stderr, as a terminal does, with CRLF folded to LF.
+ * Skipped on hosts without `script` (see `ptyAvailable`).
+ */
+export async function ptyRun(
+  sandbox: HomeSandbox,
+  cmd: string[],
+  opts: {
+    cwd: string
+    env?: Record<string, string>
+    unset?: readonly string[]
+    input?: readonly string[]
+  },
+): Promise<SpawnResult & { output: string }> {
+  const { env, unset } = sandboxed(sandbox, opts)
+  const childEnv: Record<string, string | undefined> = {
+    ...envWithoutColorForcing(),
+    NO_COLOR: '1',
+    ...env,
+  }
+  for (const key of unset) delete childEnv[key]
+  const argv =
+    process.platform === 'darwin'
+      ? ['script', '-q', '/dev/null', ...cmd]
+      : ['script', '-qec', cmd.map(shellWord).join(' '), '/dev/null']
+  const proc = Bun.spawn(argv, {
+    cwd: opts.cwd,
+    stdin: 'pipe',
+    stdout: 'pipe',
+    stderr: 'pipe',
+    env: childEnv,
+  })
+  for (const line of opts.input ?? []) proc.stdin.write(line)
+  await proc.stdin.flush()
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+    proc.exited,
+  ])
+  proc.stdin.end()
+  const output = stdout.replaceAll('\r\n', '\n')
+  return { stdout: output, stderr, exitCode, output }
 }
