@@ -10,6 +10,7 @@ import {
   adapterFor,
   buildSkillFrontmatter,
   commandPath,
+  commandSpelling,
   HARNESS_TABLE,
   type HarnessAdapter,
   type HarnessName,
@@ -18,6 +19,7 @@ import {
   serializeFrontmatter,
   skillPath,
   skillsRoot,
+  skillSpelling,
   transformBody,
   type WorkflowDef,
 } from './adapters.ts'
@@ -143,14 +145,22 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
       const injected = w.injectTypeTable
         ? rawBody.replace('{{TYPE_TABLE}}', renderTypeTable(opts.typeTable))
         : rawBody
-      const skillBody = transformBody(injected, row.bodyDialect, skillById, row.invocationPrefix)
+      const skillSpell = skillSpelling(row)
+      const skillBody = transformBody(injected, skillSpell.dialect, skillById, skillSpell.prefix)
+      // A row's commands spell references by `bodyDialect`, its skills by `skillDialect`
+      // (Devin's differ), so a differing command body is respelled from the injected canon.
+      const commandSpell = commandSpelling(row)
+      const spelled =
+        commandSpell.dialect === skillSpell.dialect && commandSpell.prefix === skillSpell.prefix
+          ? skillBody
+          : transformBody(injected, commandSpell.dialect, skillById, commandSpell.prefix)
       // OpenCode drops a slash command's arguments unless the body names them, so an
       // arg-taking workflow's COMMAND body carries `$ARGUMENTS` while its skill body
       // does not — which is why each surface hashes its own body.
       const commandBody =
         commands?.injectArguments === true && w.takesArguments === true
-          ? injectOpenCodeArgs(skillBody)
-          : skillBody
+          ? injectOpenCodeArgs(spelled)
+          : spelled
       const skillSection = `\n${skillBody}`
       const skillHash = hashBody(skillSection)
 

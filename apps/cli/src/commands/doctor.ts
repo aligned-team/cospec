@@ -56,6 +56,7 @@ import {
   scanRoots,
   skillPath,
   skillsRoot,
+  workflowReferencePattern,
 } from '../harness/adapters.ts'
 import { walkProjectFiles } from '../harness/scan-walk.ts'
 import { isOpsxMarkdown, leftoverScanFiles } from './init.ts'
@@ -276,17 +277,6 @@ function owningRow(relpath: string, table: readonly HarnessAdapter[]): HarnessAd
   return best?.row ?? table.find(underPrimary)
 }
 
-/**
- * A body's workflow references: `/cospec:<id>` and `/cospec-<id-or-skill>`,
- * plus the row's own invocation prefix (`@cospec-<id>` for an `@` row), the
- * spelling a flat row's bodies are rendered in.
- */
-function referencePattern(row: HarnessAdapter): RegExp {
-  const sigils = [...new Set(['/', row.invocationPrefix])]
-  const alternation = sigils.map((s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')).join('|')
-  return new RegExp(`(?:${alternation})cospec[:-]([a-z][a-z-]*)`, 'g')
-}
-
 export function checkDanglingRefs(
   cwd: string,
   files: { relpath: string; text: string }[],
@@ -299,7 +289,7 @@ export function checkDanglingRefs(
     const harness = row.id
     const { body } = splitFrontmatter(f.text)
     const refs = new Set<string>()
-    for (const m of body.matchAll(referencePattern(row))) refs.add(m[1]!)
+    for (const m of body.matchAll(workflowReferencePattern(row))) refs.add(m[1]!)
     for (const ref of refs) {
       // A reference is spelled either with the workflow id (`/cospec:apply`,
       // `/cospec-apply`) or — in the shared `.agents` dialect, which emits no

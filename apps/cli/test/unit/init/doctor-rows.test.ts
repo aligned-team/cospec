@@ -124,6 +124,29 @@ const TOML_ROW: HarnessAdapter = {
   detectionPaths: ['.toml-fixture'],
 }
 
+/** Kimi Code's shape: skills only, invoked as `/skill:<name>`. */
+const SKILL_PREFIX_ROW: HarnessAdapter = {
+  id: 'skill-fixture',
+  displayName: 'Fixture tool invoked with /skill:',
+  skillsDir: '.skill-fixture',
+  invocationPrefix: '/',
+  bodyDialect: 'skill',
+  skillInvocationPrefix: '/skill:',
+  requiresIdeRestart: false,
+  detectionPaths: ['.skill-fixture'],
+}
+
+/** Rovo Dev's shape: skills only, referenced in prose. */
+const PROSE_ROW: HarnessAdapter = {
+  id: 'prose-fixture',
+  displayName: 'Fixture tool with prose references',
+  skillsDir: '.prose-fixture',
+  invocationPrefix: '/',
+  bodyDialect: 'prose',
+  requiresIdeRestart: false,
+  detectionPaths: ['.prose-fixture'],
+}
+
 /** A cospec-generated file stamped with `generatedBy`. */
 function managed(generatedBy: string, body: string): string {
   return `---\ndescription: fixture\nmetadata:\n  author: cospec\n  generatedBy: ${generatedBy}\n  contentHash: sha256:fixture\n---\n${body}`
@@ -160,6 +183,30 @@ describe('doctor dangling-ref check over injected rows', () => {
         remedy: 'run `cospec update` to regenerate from canon',
       },
     ])
+  })
+
+  test('a `/skill:` row: an unknown /skill:cospec-<id> is a dangling ERROR', () => {
+    put(dir, '.skill-fixture/skills/cospec-explore/SKILL.md', 'Then run /skill:cospec-nope.\n')
+    expect(danglingRefs(dir, [SKILL_PREFIX_ROW]).map((f) => f.message)).toEqual([
+      '.skill-fixture/skills/cospec-explore/SKILL.md references /cospec:nope, which is not a known cospec workflow',
+    ])
+  })
+
+  test('a `/skill:` row: /skill:cospec-<skill> resolves against its own skill file', () => {
+    put(dir, '.skill-fixture/skills/cospec-explore/SKILL.md', 'Then run /skill:cospec-explore.\n')
+    expect(danglingRefs(dir, [SKILL_PREFIX_ROW])).toEqual([])
+  })
+
+  test('a prose row: an unknown `the cospec-<id> skill` is a dangling ERROR', () => {
+    put(dir, '.prose-fixture/skills/cospec-explore/SKILL.md', 'Ask for the cospec-nope skill.\n')
+    expect(danglingRefs(dir, [PROSE_ROW]).map((f) => f.message)).toEqual([
+      '.prose-fixture/skills/cospec-explore/SKILL.md references /cospec:nope, which is not a known cospec workflow',
+    ])
+  })
+
+  test('a prose row: the cospec-<skill> skill resolves against its own skill file', () => {
+    put(dir, '.prose-fixture/skills/cospec-explore/SKILL.md', 'Ask for the cospec-explore skill.\n')
+    expect(danglingRefs(dir, [PROSE_ROW])).toEqual([])
   })
 
   test('an @-prefix row: @cospec-<id> resolves against its own files', () => {

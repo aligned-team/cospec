@@ -24,6 +24,7 @@ import {
   skillPath,
   skillsRoot,
   transformBody,
+  workflowReferencePattern,
 } from '../../../src/harness/adapters.ts'
 import { LEGACY_CODEX_SKILL_ROOT } from '../../../src/harness/legacy-skills.ts'
 
@@ -41,7 +42,7 @@ describe('isHarnessName', () => {
 describe('isBodyDialect', () => {
   test('accepts exactly the declared dialects', () => {
     for (const dialect of BODY_DIALECTS) expect(isBodyDialect(dialect)).toBe(true)
-    expect(BODY_DIALECTS).toEqual(['canonical', 'shared', 'flat'])
+    expect(BODY_DIALECTS).toEqual(['canonical', 'shared', 'flat', 'skill', 'prose'])
     expect(isBodyDialect('codex')).toBe(false)
     expect(isBodyDialect('')).toBe(false)
   })
@@ -90,6 +91,81 @@ describe('transformBody', () => {
   test('shared uses the skill name, not the workflow id — they differ for most workflows', () => {
     expect(transformBody('/cospec:apply', 'shared', skillById)).not.toContain('/cospec-apply ')
     expect(transformBody('/cospec:apply', 'shared', skillById)).toContain('cospec-apply-change')
+  })
+})
+
+describe('transformBody — skill and prose dialects', () => {
+  const body = 'Run /cospec:apply then /cospec:archive when done.'
+  const skillById = new Map([
+    ['apply', 'cospec-apply-change'],
+    ['archive', 'cospec-archive-change'],
+  ])
+
+  test('skill spells each reference as its skill name behind `/` by default', () => {
+    expect(transformBody(body, 'skill', skillById)).toBe(
+      'Run /cospec-apply-change then /cospec-archive-change when done.',
+    )
+  })
+
+  test("skill takes the row's `/skill:` prefix", () => {
+    expect(transformBody(body, 'skill', skillById, '/skill:')).toBe(
+      'Run /skill:cospec-apply-change then /skill:cospec-archive-change when done.',
+    )
+  })
+
+  test('prose names the skill without any invocation syntax', () => {
+    expect(transformBody(body, 'prose', skillById)).toBe(
+      'Run the cospec-apply-change skill then the cospec-archive-change skill when done.',
+    )
+  })
+
+  test('both leave an unknown id verbatim so doctor still flags it as dangling', () => {
+    expect(transformBody('see /cospec:nope', 'skill', skillById, '/skill:')).toBe(
+      'see /cospec:nope',
+    )
+    expect(transformBody('see /cospec:nope', 'prose', skillById)).toBe('see /cospec:nope')
+  })
+})
+
+describe('workflowReferencePattern', () => {
+  const refs = (row: HarnessAdapter, text: string): string[] =>
+    [...text.matchAll(workflowReferencePattern(row))].map((m) => m[1]!)
+  const text =
+    'a /cospec:apply b /cospec-verify c @cospec-explore d /skill:cospec-onboard e the cospec-sync-specs skill f the cospec-manifest'
+
+  test('a canonical row reads `/cospec:<id>` and `/cospec-<id>` only', () => {
+    expect(refs(adapterFor('claude'), text)).toEqual(['apply', 'verify'])
+  })
+
+  test('an @ row also reads `@cospec-<id>`', () => {
+    expect(refs({ ...adapterFor('opencode'), invocationPrefix: '@' }, text)).toEqual([
+      'apply',
+      'verify',
+      'explore',
+    ])
+  })
+
+  test('a `/skill:` row also reads `/skill:cospec-<skill>`', () => {
+    const row = {
+      ...adapterFor('agents'),
+      bodyDialect: 'skill',
+      skillInvocationPrefix: '/skill:',
+    } as HarnessAdapter
+    expect(refs(row, text)).toEqual(['apply', 'verify', 'onboard'])
+  })
+
+  test('a prose row also reads `the cospec-<skill> skill`, and only with the trailing word', () => {
+    const row = { ...adapterFor('agents'), bodyDialect: 'prose' } as HarnessAdapter
+    expect(refs(row, text)).toEqual(['apply', 'verify', 'sync-specs'])
+  })
+
+  test('a skill dialect on skills alone is enough for the row to be read that way', () => {
+    const row = {
+      ...adapterFor('cursor'),
+      skillDialect: 'skill',
+      skillInvocationPrefix: '/skill:',
+    } as HarnessAdapter
+    expect(refs(row, text)).toEqual(['apply', 'verify', 'onboard'])
   })
 })
 

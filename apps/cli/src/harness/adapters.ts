@@ -4,9 +4,15 @@ import { stringify } from 'yaml'
  * How a harness surface respells in-body `/cospec:<id>` references. Keyed by dialect rather
  * than by harness name so that `codex` and `agents` are provably byte-identical.
  */
-export type BodyDialect = 'canonical' | 'shared' | 'flat'
+export type BodyDialect = 'canonical' | 'shared' | 'flat' | 'skill' | 'prose'
 
-export const BODY_DIALECTS: readonly BodyDialect[] = ['canonical', 'shared', 'flat']
+export const BODY_DIALECTS: readonly BodyDialect[] = [
+  'canonical',
+  'shared',
+  'flat',
+  'skill',
+  'prose',
+]
 
 export function isBodyDialect(value: string): value is BodyDialect {
   return (BODY_DIALECTS as readonly string[]).includes(value)
@@ -14,6 +20,9 @@ export function isBodyDialect(value: string): value is BodyDialect {
 
 /** The sigil a tool's users type before a command name (Amazon Q uses `@`). */
 export type InvocationPrefix = '/' | '@'
+
+/** What a tool's users type before a skill name (Kimi Code uses `/skill:`). */
+export type SkillInvocationPrefix = '/' | '/skill:'
 
 /**
  * Builds a command file's YAML frontmatter from the workflow, the generatedBy stamp and the
@@ -58,7 +67,12 @@ export interface HarnessAdapter {
   readonly legacySkillsDirs?: readonly string[]
   readonly commands?: CommandSurface
   readonly invocationPrefix: InvocationPrefix
+  /** Spells the row's command bodies, and its skill bodies unless `skillDialect` is set. */
   readonly bodyDialect: BodyDialect
+  /** Spells the row's skill bodies when they differ from its commands' (Devin). */
+  readonly skillDialect?: BodyDialect
+  /** The `skill` dialect's prefix; `/` when absent. */
+  readonly skillInvocationPrefix?: SkillInvocationPrefix
   /** A non-markdown, manifest-tracked rules file (Codex's prefix-rule allowlist). */
   readonly rulesPath?: string
   readonly requiresIdeRestart: boolean
@@ -510,20 +524,68 @@ const WORKFLOW_REF_RE = /\/cospec:([a-z][a-z0-9-]*)/g
  *   only the skill directory name resolves, and only 4 of the 12 workflows spell their id
  *   the same as their skill suffix. An id absent from `skillById` is left verbatim so
  *   doctor's dangling-ref check still fires on a genuinely bad reference.
+ * - `skill` — `<prefix>cospec-<skill>` (`/` by default, `/skill:` for Kimi Code), for a
+ *   tool that invokes a skill by name and has no command for it.
+ * - `prose` — `the cospec-<skill> skill`, for a tool with no invocation syntax at all.
+ *
+ * `shared`, `skill` and `prose` map an id through `skillById` and leave an unknown one verbatim.
  */
 export function transformBody(
   body: string,
   dialect: BodyDialect,
   skillById: ReadonlyMap<string, string>,
-  invocationPrefix: InvocationPrefix = '/',
+  invocationPrefix: InvocationPrefix | SkillInvocationPrefix = '/',
 ): string {
   if (dialect === 'canonical') return body
   if (dialect === 'flat') return body.replaceAll('/cospec:', `${invocationPrefix}cospec-`)
   return body.replace(WORKFLOW_REF_RE, (whole, id: string) => {
     const skill = skillById.get(id)
     if (skill === undefined) return whole
+    if (dialect === 'skill') return `${invocationPrefix}${skill}`
+    if (dialect === 'prose') return `the ${skill} skill`
     return `$${skill} (Codex) or /${skill} (other agents)`
   })
+}
+
+/** The dialect and prefix that spell a row's skill bodies. */
+export function skillSpelling(row: HarnessAdapter): {
+  dialect: BodyDialect
+  prefix: InvocationPrefix | SkillInvocationPrefix
+} {
+  const dialect = row.skillDialect ?? row.bodyDialect
+  return {
+    dialect,
+    prefix: dialect === 'skill' ? (row.skillInvocationPrefix ?? '/') : row.invocationPrefix,
+  }
+}
+
+/** The dialect and prefix that spell a row's command bodies. */
+export function commandSpelling(row: HarnessAdapter): {
+  dialect: BodyDialect
+  prefix: InvocationPrefix | SkillInvocationPrefix
+} {
+  const dialect = row.bodyDialect
+  return {
+    dialect,
+    prefix: dialect === 'skill' ? (row.skillInvocationPrefix ?? '/') : row.invocationPrefix,
+  }
+}
+
+/**
+ * The pattern that finds a row's workflow references in a body, with the workflow id or skill
+ * suffix as capture group 1: `/cospec:<id>`, the row's own prefix (`@cospec-<id>`), and the
+ * spellings its dialects emit: `/skill:cospec-<skill>` and `the cospec-<skill> skill`.
+ */
+export function workflowReferencePattern(row: HarnessAdapter): RegExp {
+  const dialects = new Set([row.bodyDialect, row.skillDialect ?? row.bodyDialect])
+  const sigils = [...new Set(['/', row.invocationPrefix])].map((s) => escapeRegExp(s))
+  const behind = [`(?:${sigils.join('|')})cospec[:-]`]
+  if (dialects.has('skill') && row.skillInvocationPrefix === '/skill:') {
+    behind.push(`${escapeRegExp(row.skillInvocationPrefix)}cospec-`)
+  }
+  const branches = behind.map((b) => `(?<=${b})`)
+  if (dialects.has('prose')) branches.push('(?<=the cospec-)(?=[a-z][a-z-]* skill)')
+  return new RegExp(`(?:${branches.join('|')})([a-z][a-z-]*)`, 'g')
 }
 
 /**

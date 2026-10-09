@@ -538,3 +538,78 @@ describe('fixture rows — scope', () => {
     for (const f of files) expect(f.scope).toBe('project')
   })
 })
+
+describe('fixture rows — skill and prose dialects', () => {
+  const skillsOnly = (over: Partial<HarnessAdapter>): HarnessAdapter => ({
+    id: 'agents',
+    displayName: 'Fixture skills-only tool',
+    skillsDir: '.x',
+    invocationPrefix: '/',
+    bodyDialect: 'skill',
+    requiresIdeRestart: false,
+    detectionPaths: ['.x'],
+    ...over,
+  })
+  const sharedRef = /\$cospec-[a-z-]+ \(Codex\) or /
+
+  test('the skill dialect spells `/cospec-<skill>`, which names a skill and no command', () => {
+    const files = renderRow(skillsOnly({}))
+    expect(files).toHaveLength(12)
+    for (const f of files) {
+      expect(f.body).not.toContain('/cospec:')
+      expect(f.body).not.toMatch(sharedRef)
+    }
+    const propose = files.find((f) => f.workflow === 'propose')!
+    expect(propose.body).toContain('/cospec-apply-change')
+    expect(propose.body).not.toContain('/skill:')
+  })
+
+  test('skillInvocationPrefix `/skill:` spells `/skill:cospec-<skill>`', () => {
+    const files = renderRow(skillsOnly({ skillInvocationPrefix: '/skill:' }))
+    const refs = files.flatMap((f) => [...f.body.matchAll(/\/skill:cospec-([a-z-]+)/g)])
+    expect(refs.length).toBeGreaterThan(0)
+    for (const m of refs) expect(WORKFLOW_SKILLS as readonly string[]).toContain(`cospec-${m[1]}`)
+    for (const f of files) expect(f.body).not.toContain('/cospec:')
+  })
+
+  test('the prose dialect spells `the cospec-<skill> skill`', () => {
+    const files = renderRow(skillsOnly({ bodyDialect: 'prose' }))
+    const propose = files.find((f) => f.workflow === 'propose')!
+    expect(propose.body).toMatch(/the cospec-[a-z-]+ skill/)
+    for (const f of files) {
+      expect(f.body).not.toContain('/cospec:')
+      expect(f.body).not.toContain('/cospec-')
+    }
+  })
+
+  test('skillDialect spells the skills and bodyDialect the commands (Devin)', () => {
+    const row: HarnessAdapter = {
+      ...adapterFor('opencode'),
+      skillsDir: '.x',
+      commands: markdownCommands('.x/workflows', 'flat', '.md'),
+      bodyDialect: 'flat',
+      skillDialect: 'skill',
+    }
+    const files = renderRow(row)
+    const skill = files.find((f) => f.kind === 'skill' && f.workflow === 'propose')!
+    const command = files.find((f) => f.kind === 'command' && f.workflow === 'propose')!
+    expect(skill.body).toContain('/cospec-apply-change')
+    expect(skill.body).not.toContain('/cospec-apply ')
+    expect(command.body).toContain('/cospec-apply')
+    expect(command.body).not.toContain('/cospec-apply-change')
+    expect(skill.body).not.toBe(command.body)
+  })
+
+  test('a row whose skillDialect equals its bodyDialect renders one body for both surfaces', () => {
+    const row: HarnessAdapter = {
+      ...adapterFor('opencode'),
+      skillsDir: '.x',
+      commands: markdownCommands('.x/workflows', 'flat', '.md'),
+      skillDialect: 'flat',
+    }
+    const files = renderRow(row)
+    const skill = files.find((f) => f.kind === 'skill' && f.workflow === 'verify')!
+    const command = files.find((f) => f.kind === 'command' && f.workflow === 'verify')!
+    expect(skill.body).toBe(command.body)
+  })
+})
