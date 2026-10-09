@@ -37,23 +37,32 @@ export const COLOR_ENV_KEYS = ['FORCE_COLOR', 'COLORTERM', 'CLICOLOR', 'CLICOLOR
 /**
  * The zone the suite process itself runs in. `bun test` leaves `$TZ` unset and
  * runs in UTC, while a child spawned from `{ ...process.env }` — which does not
- * reliably carry a `process.env.TZ` assignment either — falls back to the
- * machine's own zone. A row that expects a date computed in-process
- * (`formatLocalDate()`) then disagrees with the date the child stamped for
- * every hour the two zones sit on different calendar days.
+ * carry a `process.env.TZ` assignment either — falls back to the machine's own
+ * zone. A row that expects a date computed in-process (`formatLocalDate()`)
+ * then disagrees with the date the child stamped for every hour the two zones
+ * sit on different calendar days.
  */
 export function suiteZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone
 }
 
 /**
- * `process.env` with every color-forcing key (`COLOR_ENV_KEYS`) removed and
- * `TZ` pinned to `suiteZone()`, so a child stamps dates in the zone the test
- * computes its expected dates in. A caller's own `TZ`, applied over this env,
- * wins.
+ * `env` for a spawned child, with `TZ` pinned to `suiteZone()` unless `env`
+ * names its own. Applied where a child is spawned, never inside `oracleEnv`:
+ * several suites assign an `oracleEnv` onto `process.env` and later `delete` the
+ * keys, and in Bun a `delete` of a `TZ` that was assigned leaves later `TZ`
+ * assignments without effect, which would break every row that skews the
+ * suite's zone afterwards.
  */
+export function withSuiteZone<T extends Record<string, string | undefined>>(
+  env: T,
+): T & { TZ: string | undefined } {
+  return { TZ: suiteZone(), ...env }
+}
+
+/** `process.env` with every color-forcing key (`COLOR_ENV_KEYS`) removed. */
 export function envWithoutColorForcing(): Record<string, string> {
-  const out: Record<string, string> = { ...process.env, TZ: suiteZone() } as Record<string, string>
+  const out: Record<string, string> = { ...process.env } as Record<string, string>
   for (const key of COLOR_ENV_KEYS) delete out[key]
   return out
 }
@@ -88,11 +97,11 @@ async function spawn(
   env?: Record<string, string>,
   unset: readonly string[] = [],
 ): Promise<SpawnResult> {
-  const childEnv: Record<string, string | undefined> = {
+  const childEnv: Record<string, string | undefined> = withSuiteZone({
     ...envWithoutColorForcing(),
     NO_COLOR: '1',
     ...env,
-  }
+  })
   // Deleted after the merge, so an ambient value (the suite's own
   // `$XDG_DATA_HOME`, say) cannot reach the child; an empty string would
   // still count as set.
@@ -183,7 +192,7 @@ async function runBinary(
     return await run(
       [process.execPath, openspecBinPath(), ...args],
       cwd,
-      buildWrappedSpawnEnv({ ...oracleEnv(sandbox), ...env }),
+      withSuiteZone(buildWrappedSpawnEnv({ ...oracleEnv(sandbox), ...env })),
     )
   } finally {
     rmSync(sandbox, { recursive: true, force: true })

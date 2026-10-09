@@ -12,13 +12,19 @@ hands children a zone the suite never used.
 
 ## What Changes
 
-- `apps/cli/test/fixtures/support.ts`: `envWithoutColorForcing()` and
-  `oracleEnv()` pin `TZ` to the suite's own zone, so every spawned child
-  (cospec, the pinned binary, the oracle) stamps dates in the zone the test's
-  expected date is computed in. An explicit `TZ` from a caller still wins.
+- `apps/cli/test/fixtures/support.ts`: `withSuiteZone()` pins `TZ` to the
+  suite's own zone where a child is spawned (`spawn`, `runBinary`, and the
+  oracle's `oracleSpawn`), so every child (cospec, the pinned binary, the
+  oracle) stamps dates in the zone the test's expected date is computed in. An
+  explicit `TZ` from a caller still wins. It is applied at the spawn, never
+  inside `oracleEnv()`: several suites assign an `oracleEnv` onto `process.env`
+  and later `delete` its keys, and in Bun a `delete` of an assigned `TZ` leaves
+  later `TZ` assignments without effect, which broke the zone-skewing rows of
+  `archive-gotchas.test.ts` in the full contract run.
 - `apps/cli/test/unit/support-env.test.ts`: rows proving a child spawned through
-  the helpers sees the suite's zone, including a zone assigned to
-  `process.env.TZ` after startup.
+  the helpers sees the suite's zone (including one assigned to `process.env.TZ`
+  mid-suite), that a caller's `TZ` wins, and that the sandbox envs carry no
+  `TZ`.
 
 ## Impact
 

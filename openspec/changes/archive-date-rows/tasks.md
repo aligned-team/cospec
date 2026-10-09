@@ -3,12 +3,13 @@
 ## 1. Pin spawned children to the suite zone
 
 - [x] 1.1 Add rows to `apps/cli/test/unit/support-env.test.ts` first and verify
-      they fail without the fix -> 3 of 6 failed (`TZ` undefined on
-      `envWithoutColorForcing()` and `oracleEnv()`), as bun test leaves `$TZ`
-      unset
-- [x] 1.2 Pin `TZ` to the suite's zone in `envWithoutColorForcing()`
-      (`apps/cli/test/fixtures/support.ts`), which `spawn` and `oracleEnv` build
-      on, and verify `support-env.test.ts` passes -> 6 pass, 0 fail
+      they fail without the fix -> the first version's rows failed (no `TZ`
+      pinned on the spawn env), as bun test leaves `$TZ` unset
+- [x] 1.2 Pin `TZ` to the suite's zone with `withSuiteZone()` in `spawn`,
+      `runBinary` and `oracleSpawn`, never in `oracleEnv()` (suites assign it
+      onto `process.env` and `delete` it, and a Bun `delete` of an assigned `TZ`
+      leaves later assignments without effect), and verify `support-env.test.ts`
+      passes -> 6 pass, 0 fail
 - [x] 1.3 Verify `archive-no-validate.test.ts` rows 2.1-2.3 with a forced split
       (children UTC-12, suite UTC) fail without the fix and pass with it -> 112
       pass / 3 fail (2.1, 2.2, 2.3) before; 115 pass after, under default and

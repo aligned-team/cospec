@@ -5,12 +5,14 @@
 
 import { afterEach, describe, expect, test } from 'bun:test'
 
+import { oracleSpawn } from '../contract/support/upstream-oracle.ts'
 import {
   COLOR_ENV_KEYS,
   envWithoutColorForcing,
   mkTempRepo,
   oracleEnv,
   suiteZone,
+  withSuiteZone,
 } from '../fixtures/support.ts'
 
 describe('envWithoutColorForcing', () => {
@@ -42,12 +44,12 @@ describe('envWithoutColorForcing', () => {
 // spawned from `{ ...process.env }` falls back to the machine's zone. A row that
 // expects a date computed in-process then disagrees with the date a child stamped
 // for the hours the two zones are on different calendar days (19:00-24:00 in
-// America/Chicago), so the helpers pin the child to the suite's own zone.
+// America/Chicago), so every spawn helper pins the child to the suite's own zone.
 describe('the suite zone reaches every spawned child', () => {
   const originalZone = suiteZone()
 
-  // Restored by assignment, never `delete`: Bun re-reads the zone on either, and a
-  // `delete` would fall back to the machine's zone instead of the suite's own.
+  // Restored by assignment, never `delete`: in Bun a `delete` of an assigned `TZ`
+  // leaves later assignments without effect.
   afterEach(() => {
     process.env.TZ = originalZone
   })
@@ -62,26 +64,30 @@ describe('the suite zone reaches every spawned child', () => {
     return out.trim()
   }
 
-  test('envWithoutColorForcing carries the suite zone', () => {
-    expect(envWithoutColorForcing().TZ).toBe(suiteZone())
-  })
-
-  test('a zone assigned to process.env.TZ mid-suite is the zone a child runs in', async () => {
+  test('withSuiteZone carries the suite zone, with or without one assigned mid-suite', async () => {
+    expect(withSuiteZone({}).TZ).toBe(originalZone)
     // Never the machine's own zone, so the row cannot pass by coincidence.
     process.env.TZ = 'Pacific/Kiritimati'
-    expect(envWithoutColorForcing().TZ).toBe('Pacific/Kiritimati')
-    expect(await childZone(envWithoutColorForcing())).toBe('Pacific/Kiritimati')
+    expect(withSuiteZone({}).TZ).toBe('Pacific/Kiritimati')
+    expect(await childZone(withSuiteZone({ ...envWithoutColorForcing() }))).toBe(
+      'Pacific/Kiritimati',
+    )
+  })
+
+  test('a caller-supplied TZ wins over the suite zone', async () => {
+    expect(withSuiteZone({ TZ: 'Etc/GMT+12' }).TZ).toBe('Etc/GMT+12')
+    expect(await childZone(withSuiteZone({ ...envWithoutColorForcing(), TZ: 'Etc/GMT+12' }))).toBe(
+      'Etc/GMT+12',
+    )
+  })
+
+  test('the oracle spawns the pinned binary in the suite zone', () => {
     process.env.TZ = 'Etc/GMT+12'
-    expect(await childZone(envWithoutColorForcing())).toBe('Etc/GMT+12')
+    expect(oracleSpawn(['list'], mkTempRepo()).env.TZ).toBe('Etc/GMT+12')
   })
 
-  test('the sandbox env a differential row hands cospec and the binary carries it too', async () => {
-    const env = oracleEnv(mkTempRepo())
-    expect(env.TZ).toBe(suiteZone())
-    expect(await childZone(env)).toBe(suiteZone())
-  })
-
-  test('a caller-supplied TZ still wins over the suite zone', () => {
-    expect({ ...oracleEnv(mkTempRepo()), TZ: 'Etc/GMT+12' }.TZ).toBe('Etc/GMT+12')
+  test('the sandbox env carries no TZ: suites assign it onto process.env and delete it', () => {
+    expect(oracleEnv(mkTempRepo())).not.toHaveProperty('TZ')
+    expect(envWithoutColorForcing()).not.toHaveProperty('TZ')
   })
 })
