@@ -287,8 +287,10 @@ identity) and `HARNESS_TABLE` in `apps/cli/src/harness/adapters.ts` — the one
 declaration of each tool's layout: skills and commands roots, filenames,
 serializer, frontmatter, body dialect, rules file, detection paths, legacy roots
 and receipt note. A tool is a `HARNESS_TABLE` row; anything a row cannot express
-is a `harness/` dialect, serializer or helper, never a branch in `commands/`.
-The GitHub Copilot cloud-agent files
+is a `harness/` dialect, serializer or helper, never a branch in `commands/` —
+`no-tool-branches.test.ts` fails on a tool-id literal there and on any imported
+constant that holds one, so a command asks a `harness/` helper such as
+`copilotSelected`. The GitHub Copilot cloud-agent files
 (`.github/workflows/copilot-setup-steps.yml` and
 `.github/agents/cospec.agent.md`) are opt-in: `.github` is a removal root
 through the `github-copilot` row, their decision tiers and the managed-file

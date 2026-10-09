@@ -57,9 +57,9 @@ import {
   classifyCloudFile,
   classifyCopilotAgentReconciliation,
   COPILOT_CLOUD_FILES,
-  COPILOT_HARNESS,
   type CopilotCloudDirective,
   copilotAgentFrontmatter,
+  copilotSelected,
   type CopilotCloudReport,
   copilotCloudUpdateLines,
   copilotSetupStepsContent,
@@ -460,8 +460,7 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
   // The Copilot cloud files (design decisions 7 and 8): emitted while the directive is `write`,
   // taken away while it is `remove`, left alone (record and all) otherwise. A profile conflict
   // or a path guard costs the cloud files only; the rest of the run still writes.
-  const cloudDirective =
-    opts.cloud ?? implicitCopilotCloudDirective(cwd, opts.harnesses.includes(COPILOT_HARNESS), prev)
+  const cloudDirective = opts.cloud ?? implicitCopilotCloudDirective(cwd, opts.harnesses, prev)
   let cloudActive = cloudDirective !== 'leave'
   let removeManagedAgent = false
   if (cloudDirective === 'write') {
@@ -797,7 +796,7 @@ export function run(ctx: CommandContext): number {
   for (const line of failedLines(failed)) process.stdout.write(`${line}\n`)
   const cloudLines = copilotCloudUpdateLines({
     directive: generated.cloudDirective,
-    configured: harnesses.includes(COPILOT_HARNESS),
+    configured: copilotSelected(harnesses),
     report: generated.cloud,
     check,
     json: flags.json,

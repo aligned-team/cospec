@@ -56,7 +56,7 @@ import {
 import {
   copilotCloudDirective,
   copilotCloudReceiptLines,
-  COPILOT_HARNESS,
+  copilotSelected,
   copilotSucceeded,
   COPILOT_CLOUD_IGNORED_FLAG,
   decideCopilotCloud,
@@ -691,7 +691,7 @@ export function run(ctx: CommandContext): number {
   // upstream does, so the prompt and the ignored-flag notice come first.
   const cloudDecision = decideCopilotCloud({
     cwd: target,
-    selected: harnesses.includes(COPILOT_HARNESS),
+    selected: copilotSelected(harnesses),
     flag: lastFlagOf(parsed, '--copilot-cloud', '--no-copilot-cloud'),
     harnessGiven: harnessArg !== undefined,
     json: flags.json,
