@@ -59,7 +59,7 @@
       verification ledger row `[x]` with an observed result or
       `[~] defer:     <reason>` -- verify by reading the ledger
 
-- [ ] 5.3 `cospec archive opsx-leftover-scan-scope` -- the archive commit
+- [x] 5.3 `cospec archive opsx-leftover-scan-scope` -- the archive commit
       follows this one
 
 ## 6. Review-finding fixes (round 2)
