@@ -230,3 +230,30 @@ export function sharedTargetMarkers(
   }
   return markers
 }
+
+/**
+ * The rows init auto-selects in `cwd`, in table order (upstream's `getAvailableTools`). A row
+ * is available when one of its `detectionPaths` exists. A path ending in `/skills` is a shared
+ * skills root, not an independent signal, so a row available only through one is kept only
+ * when reconciling the available rows on that root resolves to it: an `.agents/skills` tree
+ * selects its writer, not every row that reads it.
+ */
+export function availableHarnesses(
+  cwd: string,
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): string[] {
+  const exists = (relpath: string): boolean => existsSync(join(cwd, relpath))
+  const available = table.filter((r) => r.detectionPaths.some(exists))
+  const active = new Set(
+    reconcileSharedSkillTargets(
+      cwd,
+      available.filter((r) => r.skillsDir !== undefined).map((r) => r.id),
+      table,
+    ),
+  )
+  const independent = (r: HarnessAdapter): boolean =>
+    r.detectionPaths.some((p) => !p.endsWith('/skills') && exists(p))
+  return available
+    .filter((r) => r.skillsDir === undefined || independent(r) || active.has(r.id))
+    .map((r) => r.id)
+}

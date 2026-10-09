@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
+  availableHarnesses,
   isSharedSkillTargetActive,
   readSharedSkillTarget,
   reconcileSharedSkillTargets,
@@ -193,5 +194,30 @@ describe('sharedTargetMarkers', () => {
 
   test('a writer alone on its root in the table gets none', () => {
     expect(sharedTargetMarkers(new Set(['claude']), TABLE)).toEqual([])
+  })
+})
+
+describe('availableHarnesses — upstream getAvailableTools', () => {
+  const available = (): string[] => availableHarnesses(dir, TABLE)
+
+  test('a bare .agents/ selects nothing; an .agents/skills tree selects only its writer', () => {
+    mkdirSync(join(dir, '.agents'))
+    expect(available()).toEqual([])
+    currentSkill()
+    expect(available()).toEqual(['agents'])
+    mark('codex')
+    expect(available()).toEqual(['codex'])
+  })
+
+  test('a non-skills detection path selects its row whoever writes the shared root', () => {
+    currentSkill()
+    mkdirSync(join(dir, '.zed'))
+    put('.agents/workflows/cospec-propose.md')
+    expect(available()).toEqual(['agents', 'antigravity', 'zed'])
+  })
+
+  test("a legacy .codex/skills tree selects codex as the shared root's writer", () => {
+    legacyCodexSkill()
+    expect(available()).toEqual(['codex'])
   })
 })

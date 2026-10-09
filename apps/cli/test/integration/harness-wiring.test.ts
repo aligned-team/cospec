@@ -165,6 +165,28 @@ describe('detection — init auto-detect (path existence) vs detectHarnesses (se
     })
   }
 
+  test('agents is detected by its skills dir, never by a bare .agents/', async () => {
+    const root = tempRepo({ git: true })
+    mkdirSync(join(root, '.agents'), { recursive: true })
+    writeFileSync(join(root, '.agents/AGENTS.md'), '# notes\n')
+    const bare = await cospec(['init', '--json', '--no-gate', '--yes'], { cwd: root })
+    expect((JSON.parse(bare.stdout) as { harnesses: string[] }).harnesses).toEqual(['claude'])
+
+    const seeded = tempRepo({ git: true })
+    mkdirSync(join(seeded, '.agents/skills/cospec-propose'), { recursive: true })
+    writeFileSync(join(seeded, '.agents/skills/cospec-propose/SKILL.md'), '# propose\n')
+    const detected = await cospec(['init', '--json', '--no-gate', '--yes'], { cwd: seeded })
+    expect((JSON.parse(detected.stdout) as { harnesses: string[] }).harnesses).toEqual(['agents'])
+  })
+
+  test("a bare .codex directory holding a user's config.toml no longer selects codex", async () => {
+    const root = tempRepo({ git: true })
+    mkdirSync(join(root, '.codex'), { recursive: true })
+    writeFileSync(join(root, '.codex/config.toml'), 'model = "o3"\n')
+    const res = await cospec(['init', '--json', '--no-gate', '--yes'], { cwd: root })
+    expect((JSON.parse(res.stdout) as { harnesses: string[] }).harnesses).not.toContain('codex')
+  })
+
   test('an agents-only repo never acquires .codex/rules/cospec.rules', async () => {
     const root = tempRepo({ git: true })
     await seedDetectionFixture('agents-only', root)

@@ -147,9 +147,9 @@ export const HARNESS_TABLE = [
     bodyDialect: 'shared',
     rulesPath: '.codex/rules/cospec.rules',
     requiresIdeRestart: false,
-    // Upstream's is ['.agents/skills', '.codex/skills'], which would select codex on an
-    // agents-only repo; aligning it is a behaviour change owned by a later change.
-    detectionPaths: ['.codex'],
+    // Upstream's paths; `.agents/skills` selects codex only as that root's writer
+    // (`availableHarnesses`), so an agents-only repo stays agents-only.
+    detectionPaths: ['.agents/skills', '.codex/skills'],
     setupNote:
       'Codex: skills now live in .agents/skills and are invoked as $cospec-<skill>; they load per-session, so start a new one. .codex/rules/cospec.rules still pre-approves the read-only and gate cospec calls.',
   },

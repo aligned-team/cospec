@@ -96,7 +96,7 @@ type Check = 'detectionPaths' | 'legacyToolRoots' | 'initDetection'
 
 /** Checks a shipped row does not yet pass, each with the task that aligns it. */
 const SHIPPED_GAPS: Record<string, Partial<Record<Check, string>>> = {
-  codex: { detectionPaths: '4.3', legacyToolRoots: '9.2', initDetection: '4.3' },
+  codex: { legacyToolRoots: '9.2' },
 }
 
 /** The table's id order lands whole only with the last row (task 8.9). */

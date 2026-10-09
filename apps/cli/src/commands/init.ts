@@ -45,6 +45,7 @@ import {
   mergeClaudeSettings,
   type SettingsMergeResult,
 } from '../harness/settings-merge.ts'
+import { availableHarnesses } from '../harness/shared-root.ts'
 import { generate, migrationLines } from './update.ts'
 
 // --- repo state -------------------------------------------------------------
@@ -126,15 +127,6 @@ function parseHarnessArg(
 const VALID_HARNESS_MSG = `valid values: ${[...HARNESS_NAMES, 'all', 'none'].join(', ')} (comma-separate for multiple, e.g. --harness ${HARNESS_NAMES.slice(0, 2).join(',')})`
 
 /**
- * Whether one of the row's `detectionPaths` exists. A bare `.agents/` proves
- * nothing — it commonly holds only an `AGENTS.md` source or shared notes — which
- * is why the `agents` row detects by its skills dir instead.
- */
-function isDetected(cwd: string, h: HarnessName): boolean {
-  return adapterFor(h).detectionPaths.some((p) => existsSync(join(cwd, p)))
-}
-
-/**
  * `spelling` is the flag the user typed the list with (`--harness`, or
  * upstream's `--tools`), so a refusal names what they wrote.
  */
@@ -148,7 +140,9 @@ function selectHarnesses(
     const parsed = parseHarnessArg(arg, spelling)
     return 'error' in parsed ? { harnesses: [], error: parsed.error } : parsed
   }
-  const detected = HARNESS_NAMES.filter((h) => isDetected(cwd, h))
+  // A bare `.agents/` proves nothing (it commonly holds only an `AGENTS.md` source), and a
+  // shared `.agents/skills` tree selects only the row it was written for.
+  const detected = availableHarnesses(cwd) as HarnessName[]
   if (detected.length > 0) return { harnesses: detected }
   if (state === 'A') {
     return { harnesses: ['claude'], note: 'No harness detected; defaulting to claude.' }

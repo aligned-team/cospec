@@ -98,7 +98,7 @@
       (only the shared-root line, `Harness:` list, notes and restart line
       change) and `setup-notes.test.ts`; verify the four render goldens are
       unchanged and the receipt diff is exactly those lines
-- [ ] 4.3 Port `getAvailableTools` to init detection (a `/skills` path selects
+- [x] 4.3 Port `getAvailableTools` to init detection (a `/skills` path selects
       only the arbitrated writer) and set codex `detectionPaths` to upstream's;
       flip the codex `test.failing` in `harness-matrix.test.ts`; verify the spec
       scenarios "agents is detected by its skills dir" and "a bare .codex

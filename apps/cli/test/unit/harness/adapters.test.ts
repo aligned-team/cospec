@@ -581,11 +581,11 @@ describe('HARNESS_TABLE against the pinned OpenSpec AI_TOOLS', async () => {
     })
   })
 
-  test('codex: detectionPaths deliberately diverge from upstream (tool-matrix aligns them)', () => {
-    // Upstream's would select codex on an agents-only repo — a behaviour change this
-    // refactor must not make. The `tool-matrix` change owns aligning it.
+  test("codex: detectionPaths are upstream's, arbitrated through the shared root", () => {
+    // `.agents/skills` selects codex only as that root's writer (`availableHarnesses`), so an
+    // agents-only repo still never selects codex.
     expect(upstream('codex').detectionPaths).toEqual(['.agents/skills', '.codex/skills'])
-    expect(adapterFor('codex').detectionPaths).toEqual(['.codex'])
+    expect(adapterFor('codex').detectionPaths).toEqual(['.agents/skills', '.codex/skills'])
   })
 })
 
