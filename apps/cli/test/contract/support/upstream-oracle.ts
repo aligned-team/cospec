@@ -42,7 +42,7 @@
 import { join } from 'node:path'
 
 import { buildWrappedSpawnEnv } from '../../../src/core/openspec.ts'
-import { mkTempRepo, openspecBinPath, oracleEnv } from '../../fixtures/support.ts'
+import { mkTempRepo, openspecBinPath, oracleEnv, withSuiteZone } from '../../fixtures/support.ts'
 
 // Defined beside `openspec()`/`openspecRaw()`, which run under the same sandbox.
 export { oracleEnv }
@@ -86,7 +86,8 @@ export interface OracleSpawn {
  * package path, never `$PATH`) under the running executable — as `spawnRaw`
  * does — or under `node` from PATH for `{ runtime: 'node' }`, with `argv`
  * untouched, in `root` (or `opts.cwd`), under
- * `buildWrappedSpawnEnv(oracleEnv(root))`.
+ * `buildWrappedSpawnEnv(oracleEnv(root))`, with `TZ` pinned to the suite's zone
+ * (`withSuiteZone`).
  */
 export function oracleSpawn(argv: string[], root: string, opts: OracleOptions = {}): OracleSpawn {
   let interpreter = process.execPath
@@ -99,7 +100,7 @@ export function oracleSpawn(argv: string[], root: string, opts: OracleOptions = 
   return {
     cmd: [interpreter, openspecBinPath(), ...argv],
     cwd: opts.cwd ?? root,
-    env: { ...buildWrappedSpawnEnv(oracleEnv(root)), ...opts.env },
+    env: withSuiteZone({ ...buildWrappedSpawnEnv(oracleEnv(root)), ...opts.env }),
   }
 }
 

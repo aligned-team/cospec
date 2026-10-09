@@ -22,6 +22,7 @@ import {
   openspec,
   openspecBinPath,
   openspecRaw,
+  withSuiteZone,
 } from '../fixtures/support.ts'
 import { oracle, oracleEnv, oracleSpawn } from './support/upstream-oracle.ts'
 
@@ -58,7 +59,7 @@ describe('the oracle spawns the pinned binary as cospec does', () => {
     forceColorInParent()
     const root = mkTempRepo()
     const { env } = oracleSpawn(['list'], root)
-    expect(env).toEqual(buildWrappedSpawnEnv(oracleEnv(root)))
+    expect(env).toEqual(withSuiteZone(buildWrappedSpawnEnv(oracleEnv(root))))
     for (const [key, value] of Object.entries(WRAPPED_ENV)) expect(env[key]).toBe(value)
     for (const key of COLOR_FORCING_ENV_KEYS) expect(Object.hasOwn(env, key)).toBe(false)
     expect(env['HOME']).toBe(oracleEnv(root)['HOME'])
