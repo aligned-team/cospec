@@ -630,3 +630,51 @@ describe('isHarnessDocument — frontmatter-less command serializers', () => {
     ).toBe(true)
   })
 })
+
+describe('the github-copilot row (design decision 4)', () => {
+  const copilot = () => adapterFor('github-copilot')
+
+  test.failing(
+    'writes flat `.prompt.md` commands under .github/prompts with the `/` prefix',
+    () => {
+      const c = copilot().commands!
+      expect(c.dir).toBe('.github/prompts')
+      expect(c.namespacing).toBe('flat')
+      expect(c.file).toBe('cospec-{command}')
+      expect(c.extension).toBe('.prompt.md')
+      expect(c.serializer).toBe('markdown')
+      expect(copilot().invocationPrefix).toBe('/')
+      expect(copilot().bodyDialect).toBe('flat')
+      expect(commandPath(copilot(), 'propose')).toBe('.github/prompts/cospec-propose.prompt.md')
+      expect(skillPath(copilot(), 'cospec-propose')).toBe('.github/skills/cospec-propose/SKILL.md')
+    },
+  )
+
+  test.failing("command frontmatter is `description` plus cospec's provenance", () => {
+    const fm = copilot().commands!.frontmatter!
+    expect(fm).toBe(buildOpencodeCommandFrontmatter)
+    const head = fm(
+      { id: 'x', command: 'x', skill: 'cospec-x', title: 'X', description: 'D' },
+      'v',
+      'h',
+    )
+    expect(Object.keys(head).toSorted()).toEqual(['description', 'metadata'])
+  })
+
+  test.failing("upstream's openspec-*.prompt.md files are the row's legacy command path", () => {
+    expect(copilot().legacyCommandPaths).toEqual([
+      { type: 'files', patterns: ['.github/prompts/openspec-*.prompt.md'] },
+    ])
+  })
+
+  test.failing(
+    'a harness document is a command or a skill under .github, not other .github markdown',
+    () => {
+      const table = [copilot()]
+      expect(isHarnessDocument('.github/prompts/cospec-propose.prompt.md', table)).toBe(true)
+      expect(isHarnessDocument('.github/skills/cospec-propose/SKILL.md', table)).toBe(true)
+      expect(isHarnessDocument('.github/prompts/release.prompt.md', table)).toBe(false)
+      expect(isHarnessDocument('.github/copilot-instructions.md', table)).toBe(false)
+    },
+  )
+})

@@ -212,3 +212,47 @@ describe('the shared .agents skills root', () => {
     expect(stdout).toContain('(one tree, written for zed)')
   })
 })
+
+describe('the github-copilot row', () => {
+  test.failing(
+    'writes twelve skills and twelve prompts under .github, and the receipt asks for a restart',
+    async () => {
+      const { repo, stdout } = await initRepo('github-copilot')
+      const tracked = await manifestFiles(repo)
+      expect(
+        tracked.filter((p) => p.startsWith('.github/skills/') && p.endsWith('/SKILL.md')),
+      ).toHaveLength(12)
+      expect(
+        tracked.filter((p) => p.startsWith('.github/prompts/') && p.endsWith('.prompt.md')),
+      ).toHaveLength(12)
+      expect(read(repo, '.github/prompts/cospec-propose.prompt.md')).toStartWith(
+        '---\ndescription: ',
+      )
+      expect(read(repo, '.github/prompts/cospec-propose.prompt.md')).toContain('/cospec-apply')
+      expect(stdout).toContain('12 skills and 12 commands in .github/')
+      expect(stdout.trimEnd().endsWith('Restart your IDE to refresh commands.')).toBe(true)
+      expect(await danglingRefs(repo)).toEqual([])
+    },
+  )
+
+  test.failing(
+    'a second init reports unchanged, and update detects the tool from .github/skills',
+    async () => {
+      const { repo } = await initRepo('github-copilot')
+      const again = await cospec(['init', '--harness', 'github-copilot', '--json'], {
+        cwd: repo.dir,
+        env: repo.env,
+      })
+      expect(again.exitCode).toBe(0)
+      const files = (JSON.parse(again.stdout) as { files: { outcome: string }[] }).files
+      expect(files.filter((f) => f.outcome !== 'unchanged' && f.outcome !== 'skipped')).toEqual([])
+      const update = await cospec(['update', '--json'], { cwd: repo.dir, env: repo.env })
+      expect(update.exitCode).toBe(0)
+      expect((JSON.parse(update.stdout) as { harnesses: string[] }).harnesses).toEqual([
+        'github-copilot',
+      ])
+      const doctor = await cospec(['doctor'], { cwd: repo.dir, env: repo.env })
+      expect(doctor.exitCode).toBe(0)
+    },
+  )
+})

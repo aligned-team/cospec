@@ -424,3 +424,57 @@ function plantOpsx(dir: string): void {
     '---\nname: openspec-propose\nmetadata:\n  author: openspec\n  generatedBy: "1.11.0"\n---\nbody\n',
   )
 }
+
+describe('the opsx leftover scan under .github (the github-copilot row)', () => {
+  let dir: string
+  beforeEach(() => {
+    dir = makeRepo()
+  })
+  afterEach(() => {
+    cleanup(dir)
+  })
+
+  // The binary's own prompt: description-only frontmatter, then the root guard in the body.
+  const UPSTREAM_PROMPT =
+    '---\ndescription: "Propose a new change"\n---\n\nRun `openspec list --json` and read `root`.\n'
+  const LEGACY_PROMPT = '<!-- OPENSPEC:START -->\nOpenSpec instructions\n<!-- OPENSPEC:END -->\n'
+  const USER_PROMPT = '---\ndescription: "Cut a release"\n---\n\nTag and push.\n'
+
+  function plant(): void {
+    mkdirSync(join(dir, '.github/prompts'), { recursive: true })
+    writeFileSync(join(dir, '.github/prompts/opsx-propose.prompt.md'), UPSTREAM_PROMPT)
+    writeFileSync(join(dir, '.github/prompts/openspec-propose.prompt.md'), LEGACY_PROMPT)
+    writeFileSync(join(dir, '.github/prompts/release.prompt.md'), USER_PROMPT)
+    mkdirSync(join(dir, '.github/skills/openspec-propose'), { recursive: true })
+    writeFileSync(
+      join(dir, '.github/skills/openspec-propose/SKILL.md'),
+      '---\nname: openspec-propose\nmetadata:\n  author: openspec\n  generatedBy: "1.13.1"\n---\nbody\n',
+    )
+  }
+
+  test.failing('the opsx prompt, the pre-opsx prompt and the openspec skill are listed', () => {
+    plant()
+    const { out } = capture(
+      () => initRun(ctx(dir, ['--harness', 'claude', '--yes'], true)) as number,
+    )
+    const json = JSON.parse(out) as { opsx: { found: string[] } }
+    expect(json.opsx.found.toSorted()).toEqual([
+      '.github/prompts/openspec-propose.prompt.md',
+      '.github/prompts/opsx-propose.prompt.md',
+      '.github/skills/openspec-propose/SKILL.md',
+    ])
+  })
+
+  test.failing('--remove-opsx removes them, and a user prompt beside them stays', () => {
+    plant()
+    const { out } = capture(
+      () => initRun(ctx(dir, ['--harness', 'claude', '--remove-opsx', '--yes'], true)) as number,
+    )
+    const json = JSON.parse(out) as { opsx: { found: string[]; removed: boolean } }
+    expect(json.opsx.removed).toBe(true)
+    expect(existsSync(join(dir, '.github/prompts/opsx-propose.prompt.md'))).toBe(false)
+    expect(existsSync(join(dir, '.github/prompts/openspec-propose.prompt.md'))).toBe(false)
+    expect(existsSync(join(dir, '.github/skills/openspec-propose'))).toBe(false)
+    expect(readFileSync(join(dir, '.github/prompts/release.prompt.md'), 'utf8')).toBe(USER_PROMPT)
+  })
+})
