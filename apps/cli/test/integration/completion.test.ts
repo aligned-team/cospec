@@ -13,6 +13,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { COMMAND_TABLE } from '../../src/core/command-table.ts'
+import { openspecCommandLines } from '../fixtures/openspec-command.ts'
 import { cleanupAll, cospec, mkTempRepo, writeFiles } from '../fixtures/support.ts'
 import { authorCi } from './support.ts'
 
@@ -90,7 +91,7 @@ describe('cospec completion', () => {
     }
     // No invocation of the wrapped binary: its name only ever appears inside a
     // flag's description, which the table words in prose ("a registered OpenSpec store").
-    expect(res.stdout.replace(/Description = '(?:[^']|'')*'/g, '')).not.toMatch(/openspec/i)
+    expect(openspecCommandLines(res.stdout)).toEqual([])
     expect([...res.stdout].every((char) => char.codePointAt(0)! < 128)).toBe(true)
   })
 
@@ -255,7 +256,7 @@ describe('generated scripts complete schema names from cospec __complete schemas
 
   test('no generated script names the openspec binary', async () => {
     for (const shell of ['bash', 'zsh', 'fish'])
-      expect(await script(shell)).not.toMatch(/\bopenspec\b/)
+      expect(openspecCommandLines(await script(shell))).toEqual([])
   })
 
   const bash = Bun.which('bash') === null ? test.skip : test

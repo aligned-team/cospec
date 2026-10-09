@@ -18,6 +18,7 @@ import {
 } from '../../../src/core/command-table.ts'
 import { renderPowerShellCompletion } from '../../../src/core/completions/powershell.ts'
 import { buildCompletionSpec, offeredFlagTokens } from '../../../src/core/completions/spec.ts'
+import { openspecCommandLines } from '../../fixtures/openspec-command.ts'
 import {
   commandBlock,
   commandFlags,
@@ -152,15 +153,12 @@ describe('renderPowerShellCompletion: subcommands, values and dynamic sources', 
 })
 
 describe('renderPowerShellCompletion: text', () => {
-  test('names no openspec binary: no code or comment line does', () => {
+  test('names no openspec command: no line runs, registers or looks it up', () => {
     // A tooltip is the table's own `--help` description (asserted above, byte
-    // for byte), and three of those mention OpenSpec's tool or file by name
+    // for byte), and some of those name OpenSpec's product or file in prose
     // (`init --remove-opsx`, `validate --archived`, `new --goal`'s
-    // `.openspec.yaml`). Those are prose about the wrapped tool, never an
-    // invocation; the failure this guards is a script line that RUNS it, so
-    // the tooltip literals are masked before the check.
-    const outsideTooltips = script.replaceAll(/Description = '(?:[^']|'')*'/g, "Description = ''")
-    expect(outsideTooltips).not.toMatch(/\bopenspec\b/i)
+    // `.openspec.yaml`). The rule is no bare `openspec` command, not no word.
+    expect(openspecCommandLines(script)).toEqual([])
   })
 
   test('is ASCII only, LF terminated, with no control character', () => {

@@ -12,20 +12,22 @@ positional source and flag from cospec's own command table
 the wrapped binary's registry. Printing SHALL have no side effects: neither
 spelling SHALL write to, read, or offer to modify any shell rc file or
 completions directory, and no generated script SHALL emit any instruction that
-invokes bare `openspec`. Hidden command entries SHALL be excluded from the
-generated script. Flags marked pending in the table SHALL be excluded from
-completion until the change that implements them lands. Because the completion
-spec, `--help` and the argv parser read the same table rows, a flag the parser
-accepts SHALL always complete, and a flag that completes SHALL always parse.
-Writing a script into a user's home is the job of `completion install` alone.
+invokes bare `openspec`. The product name "OpenSpec" inside a flag or command
+description copied from the command table is prose, not an invocation, and is
+allowed. Hidden command entries SHALL be excluded from the generated script.
+Flags marked pending in the table SHALL be excluded from completion until the
+change that implements them lands. Because the completion spec, `--help` and the
+argv parser read the same table rows, a flag the parser accepts SHALL always
+complete, and a flag that completes SHALL always parse. Writing a script into a
+user's home is the job of `completion install` alone.
 
 #### Scenario: Every non-hidden command appears in each shell's script
 
 - **WHEN** `cospec completion bash`, `cospec completion zsh`,
   `cospec completion fish`, and `cospec completion powershell` are generated
 - **THEN** each script lists every non-hidden command in the table, lists no
-  hidden entry, contains no `openspec` invocation, and per-command flags equal
-  the table's handled and accepted-no-op flags for that command
+  hidden entry, has no line where `openspec` is a command token, and per-command
+  flags equal the table's handled and accepted-no-op flags for that command
 
 #### Scenario: Generated scripts parse in their own shells
 
@@ -106,12 +108,13 @@ rc file SHALL be created holding the bare block; a zsh or bash block SHALL be
 inserted at the top followed by one blank line; a PowerShell block SHALL be
 appended; an existing block SHALL be replaced in place; a start marker without
 its end marker, or the reverse, SHALL NOT be edited and SHALL be reported. Every
-name and line cospec writes SHALL invoke `cospec` and SHALL NOT contain the
-token `openspec`. With `OPENSPEC_NO_AUTO_CONFIG=1` the rc file SHALL NOT be
-edited and the lines to add SHALL be printed instead. With `--verbose` the
-installed path, the backup path when one was made, and the rc file configured
-SHALL be printed. A script that cannot be written SHALL fail with `✗ <reason>`
-on stderr and exit 1, leaving every rc file untouched.
+name and line cospec writes SHALL invoke `cospec` and SHALL NOT contain
+`openspec` as a command token, and no rc block line and no file name SHALL
+contain the token `openspec` at all. With `OPENSPEC_NO_AUTO_CONFIG=1` the rc
+file SHALL NOT be edited and the lines to add SHALL be printed instead. With
+`--verbose` the installed path, the backup path when one was made, and the rc
+file configured SHALL be printed. A script that cannot be written SHALL fail
+with `✗ <reason>` on stderr and exit 1, leaving every rc file untouched.
 
 #### Scenario: Install and uninstall round-trip under a temporary home
 
@@ -124,8 +127,8 @@ on stderr and exit 1, leaving every rc file untouched.
 #### Scenario: The installed files call cospec
 
 - **WHEN** a script is installed for each shell
-- **THEN** the script and every rc block contain `cospec` and no occurrence of
-  `openspec`
+- **THEN** the script and every rc block contain `cospec`, no line of either has
+  `openspec` as a command token, and no rc block line mentions `openspec`
 
 #### Scenario: Fish and Oh My Zsh edit no rc file
 
@@ -228,18 +231,19 @@ same command table as the other shells that registers a native argument
 completer for `cospec`
 (`Register-ArgumentCompleter -Native -CommandName cospec`), completing commands,
 subcommands, flags, the closed shell values and the dynamic sources through
-`cospec __complete`. The script SHALL be ASCII only, SHALL contain no `openspec`
-invocation, and SHALL quote every string so that no summary or description can
-expand in PowerShell. `cospec completion install powershell` SHALL wire the
-profile as the install requirement describes, reading and writing the profile in
-the encoding it already has (UTF-8, UTF-8 with a BOM, or UTF-16 LE) and refusing
-a UTF-16 BE profile.
+`cospec __complete`. The script SHALL be ASCII only, SHALL have no line where
+`openspec` is a command token, and SHALL quote every string so that no summary
+or description can expand in PowerShell. `cospec completion install powershell`
+SHALL wire the profile as the install requirement describes, reading and writing
+the profile in the encoding it already has (UTF-8, UTF-8 with a BOM, or UTF-16
+LE) and refusing a UTF-16 BE profile.
 
 #### Scenario: The PowerShell script is cospec's
 
 - **WHEN** `cospec completion powershell` runs
 - **THEN** the script registers a completer for `cospec`, lists every non-hidden
-  command, offers each command's table flags, and contains no `openspec`
+  command, offers each command's table flags, and has no line where `openspec`
+  is a command token
 
 #### Scenario: A profile keeps its encoding
 

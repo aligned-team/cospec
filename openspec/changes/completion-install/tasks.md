@@ -8,9 +8,9 @@
       registers `Register-ArgumentCompleter -Native -CommandName cospec`, lists
       every non-hidden command and no hidden one, offers each command's flags as
       the table's offered flags (the three-way parity test gains PowerShell),
-      contains no `openspec`, is ASCII only, single-quotes every string, and
-      parses under `pwsh -NoProfile` when `pwsh` is on `PATH` (skipped
-      otherwise). Verify they fail with `mise run test`.
+      has no line where `openspec` is a command token, is ASCII only,
+      single-quotes every string, and parses under `pwsh -NoProfile` when `pwsh`
+      is on `PATH` (skipped otherwise). Verify they fail with `mise run test`.
 - [x] 1.2 Extend `apps/cli/src/core/completions/spec.ts`: each flag's
       description (tooltip text) and each command's subcommands with their
       offered flags and its positional's closed value set, all read from the

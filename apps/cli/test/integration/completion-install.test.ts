@@ -19,6 +19,7 @@ import {
 import { dirname, join } from 'node:path'
 
 import { COMMAND_TABLE } from '../../src/core/command-table.ts'
+import { openspecCommandLines } from '../fixtures/openspec-command.ts'
 import {
   cleanup,
   homeCospec,
@@ -337,7 +338,7 @@ function openspecLines(text: string): string[] {
 }
 
 describe('3. the installed files name cospec', () => {
-  test('3.1 after four installs, every script names cospec and the rc blocks mention openspec nowhere', async () => {
+  test('3.1 after four installs, every script names cospec and no installed line has openspec as a command token', async () => {
     const sb = sandbox()
     const p = paths(sb)
     for (const shell of ['bash', 'zsh', 'fish', 'powershell']) {
@@ -350,13 +351,11 @@ describe('3. the installed files name cospec', () => {
     for (const rc of [p.bashRc, p.zshRc, p.psProfile]) {
       expect(openspecLines(readFileSync(rc, 'utf8'))).toEqual([])
     }
-    // Each script's remaining `openspec` mentions are `--help` descriptions
-    // that name the wrapped tool; every one sits inside a quoted description.
-    // Zero sit anywhere else. (Ruling pending, ledger row 3.1.)
-    for (const script of scripts) {
-      for (const line of openspecLines(readFileSync(script, 'utf8'))) {
-        expect(line).toMatch(/['"][^'"]*openspec[^'"]*['"]/i)
-      }
+    // The rule is no bare `openspec` command in shipped output: a script's
+    // `--help` description may name the product ("a registered OpenSpec
+    // store"), but no script line runs, registers or looks up `openspec`.
+    for (const file of [...scripts, p.bashRc, p.zshRc, p.psProfile]) {
+      expect(openspecCommandLines(readFileSync(file, 'utf8'))).toEqual([])
     }
   })
 
@@ -683,10 +682,8 @@ describe('8. the PowerShell script', () => {
       expect(first.stdout).toContain(row.name)
     }
     expect([...first.stdout].every((c) => c.charCodeAt(0) < 128)).toBe(true)
-    // Same rule as 3.1: every `openspec` mention sits inside a quoted description.
-    for (const line of openspecLines(first.stdout)) {
-      expect(line).toMatch(/['"][^'"]*openspec[^'"]*['"]/i)
-    }
+    // Same rule as 3.1: no line has `openspec` as a command token.
+    expect(openspecCommandLines(first.stdout)).toEqual([])
   })
 
   const pwsh = Bun.which('pwsh') !== null ? test : test.skip
