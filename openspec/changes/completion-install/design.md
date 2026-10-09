@@ -251,6 +251,20 @@ is commander's `postAction` semantics. The hook sits after `mod.run(ctx)`
 returns in `runCommand`, whatever the exit code, so the tip trails the command's
 own output.
 
+A forward row is the exception to "the module ran": the binary parses its argv,
+so its commander refusal (exit 1, `error: ...` on stderr, nothing on stdout)
+comes back through the module like any answer. The pinned binary's tip is a
+commander `postAction` hook (`dist/cli/index.js`), reached only once an action
+runs; its own conditions are `CI`, `OPENSPEC_NO_COMPLETIONS`, a readable config,
+`--json`, a `completion` or `__complete` run, a non-TTY stderr, and an installed
+or unsupported shell, and none of them is the exit code, since actions that
+return after setting `process.exitCode = 1` still tip. So the dispatcher tees
+what a forward row relays and skips the tip when the run exited nonzero with a
+parse refusal as its whole answer, in the binary's spelling (`isParseRejection`)
+or cospec's own for the rows it pre-validates before a handover
+(`isRelayedParseRefusal`, `core/parse-rejection.ts`). Any other forwarded
+failure still tips, as before.
+
 Error handling follows the repo rule, not upstream's blanket catch: a missing
 config, malformed JSON, a config whose read fails with an `errno` error and a
 failed write (an `errno` error) are the expected cases and are handled; anything

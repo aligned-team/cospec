@@ -193,6 +193,10 @@ not shown when:
   `OPENSPEC_NO_COMPLETIONS` is exactly `1`;
 - the command is `--help`, `help`, `--json`, `completion`, a hidden command, or
   the hidden `__complete`;
+- the run ended in a parse refusal (an unknown option, a missing value or
+  argument, too many arguments, an unknown command), including one OpenSpec's
+  parser raises for a command cospec forwards to it, such as
+  `cospec schemas --bogus`;
 - stderr is not a terminal (the tip waits for a run a person will read);
 - your shell is undetected or unsupported, or its completion script is already
   installed.

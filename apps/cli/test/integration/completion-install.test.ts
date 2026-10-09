@@ -873,10 +873,18 @@ describe('10. when the tip stays quiet', () => {
     async () => {
       const sb = sandbox()
       const p = paths(sb)
-      // A table-parsed refusal (`completion --bogus`), which the design names.
-      // A forwarded command's own refusal is a separate case; see the PR's
-      // judgment calls.
-      const cases = [['--help'], ['no-such-command'], ['completion', 'zsh', '--bogus']]
+      // A table-parsed refusal (`completion --bogus`), and a forwarded
+      // command's own: the binary's commander refuses it (exit 1, `error:` on
+      // stderr) before any action, so upstream's postAction tip never runs.
+      const cases = [
+        ['--help'],
+        ['no-such-command'],
+        ['completion', 'zsh', '--bogus'],
+        ['schemas', '--bogus'],
+        ['list', '--bogus'],
+        ['config', 'get', '--bogus'],
+        ['workset', 'open', '--bogus'],
+      ]
       for (const args of cases) {
         const result = await ptyRun(sb, [process.execPath, cliEntry(), ...args], {
           cwd: sb.root,
@@ -885,6 +893,29 @@ describe('10. when the tip stays quiet', () => {
         expect(result.output).not.toContain('Tip: Run')
       }
       expect(existsSync(p.configFile)).toBe(false)
+    },
+  )
+
+  pty(
+    '10.5 a forwarded command that ran, even to a failure, still tips; its parse refusal does not',
+    async () => {
+      const sb = sandbox()
+      const p = paths(sb)
+      const refused = await ptyRun(sb, [process.execPath, cliEntry(), 'schemas', '--bogus'], {
+        cwd: sb.root,
+        env: { SHELL: '/bin/zsh' },
+      })
+      expect(refused.exitCode).toBe(1)
+      expect(refused.output).toContain("error: unknown option '--bogus'")
+      expect(refused.output).not.toContain('Tip: Run')
+      expect(existsSync(p.configFile)).toBe(false)
+
+      const ran = await ptyRun(sb, [process.execPath, cliEntry(), 'schemas'], {
+        cwd: sb.root,
+        env: { SHELL: '/bin/zsh' },
+      })
+      expect(ran.exitCode).toBe(0)
+      expect(ran.output).toContain(TIP)
     },
   )
 

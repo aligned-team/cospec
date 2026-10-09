@@ -294,6 +294,14 @@ command. A write that fails SHALL leave the tip unprinted.
   `__complete`, or as `help`
 - **THEN** no tip is printed
 
+#### Scenario: A parse refusal never tips, forwarded commands included
+
+- **WHEN** a command runs on a terminal against a fresh config dir and ends in a
+  parse refusal: `completion zsh --bogus`, an unknown command, or a forwarded
+  command's own refusal such as `schemas --bogus` (exit 1,
+  `error: unknown option '--bogus'` on stderr)
+- **THEN** no tip is printed, and the config is not created or modified
+
 #### Scenario: A deferred run keeps the tip owed
 
 - **WHEN** a command runs with `--json`, or with stderr piped, against a fresh
