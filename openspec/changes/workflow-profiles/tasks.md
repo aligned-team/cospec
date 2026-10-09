@@ -135,7 +135,7 @@ rows write the `config.json` under test into the sandbox's
       `store:` and `references:`), and verify by a test that parses the
       generated file with the pinned reader (`openspec status` in the sandbox)
       and sees no warning, and that the file contains the three example headings
-- [ ] 5.7 Write the failing rows for root-level legacy blocks (all eight
+- [x] 5.7 Write the failing rows for root-level legacy blocks (all eight
       filenames match the pinned `LEGACY_CONFIG_FILES`; a block stripped and the
       rest kept; a block-only file written empty and not deleted; an inline
       mention left alone; CRLF kept; no consent lists and changes nothing; each

@@ -541,102 +541,74 @@ describe('init: OpenSpec blocks in root-level config files', () => {
     return { s, upstream, run, ours: rootFiles(s.project), theirs: rootFiles(upstream) }
   }
 
-  test.failing(
-    'all eight files are scanned, as the binary scans them',
-    async () => {
-      const files = Object.fromEntries(FILES.map((name) => [name, `# ${name}\n\n${BLOCK}`]))
-      const { ours, theirs } = await strippedBoth(files)
-      expect(ours).toEqual(theirs)
-      for (const name of FILES) expect(ours[name]).toBe(`# ${name}\n`)
-    },
-    60_000,
-  )
+  test('all eight files are scanned, as the binary scans them', async () => {
+    const files = Object.fromEntries(FILES.map((name) => [name, `# ${name}\n\n${BLOCK}`]))
+    const { ours, theirs } = await strippedBoth(files)
+    expect(ours).toEqual(theirs)
+    for (const name of FILES) expect(ours[name]).toBe(`# ${name}\n`)
+  }, 60_000)
 
-  test.failing(
-    'a block is stripped and the rest of the file kept',
-    async () => {
-      const { ours, theirs } = await strippedBoth({
-        'AGENTS.md': `Team rules.\n\n${BLOCK}\nMore rules.\n`,
-      })
-      expect(ours).toEqual(theirs)
-      expect(ours['AGENTS.md']).toBe('Team rules.\n\nMore rules.\n')
-    },
-    60_000,
-  )
+  test('a block is stripped and the rest of the file kept', async () => {
+    const { ours, theirs } = await strippedBoth({
+      'AGENTS.md': `Team rules.\n\n${BLOCK}\nMore rules.\n`,
+    })
+    expect(ours).toEqual(theirs)
+    expect(ours['AGENTS.md']).toBe('Team rules.\n\nMore rules.\n')
+  }, 60_000)
 
-  test.failing(
-    'a file holding only the block is written empty, never deleted',
-    async () => {
-      const { ours, theirs } = await strippedBoth({ 'CLAUDE.md': BLOCK })
-      expect(theirs['CLAUDE.md']).toBe('')
-      expect(ours['CLAUDE.md']).toBe('')
-    },
-    60_000,
-  )
+  test('a file holding only the block is written empty, never deleted', async () => {
+    const { ours, theirs } = await strippedBoth({ 'CLAUDE.md': BLOCK })
+    expect(theirs['CLAUDE.md']).toBe('')
+    expect(ours['CLAUDE.md']).toBe('')
+  }, 60_000)
 
-  test.failing(
-    'markers that share a line with other text are left alone',
-    async () => {
-      const inline = `Wrap it in ${START} and ${END} markers.\n`
-      const { s, ours, theirs, run } = await strippedBoth({ 'CLINE.md': inline })
-      expect(ours).toEqual(theirs)
-      expect(ours['CLINE.md']).toBe(inline)
-      expect(run.stdout).not.toContain('Removed OpenSpec markers from CLINE.md')
-      expect(run.stdout).toContain('Left CLINE.md unchanged')
-      const doc = JSON.parse((await initIn(s, ['--json', '--remove-opsx'])).stdout)
-      expect(doc.opsx.found).toContain('CLINE.md')
-      expect(rootFiles(s.project)['CLINE.md']).toBe(inline)
-    },
-    60_000,
-  )
+  test('markers that share a line with other text are left alone', async () => {
+    const inline = `Wrap it in ${START} and ${END} markers.\n`
+    const { s, ours, theirs, run } = await strippedBoth({ 'CLINE.md': inline })
+    expect(ours).toEqual(theirs)
+    expect(ours['CLINE.md']).toBe(inline)
+    expect(run.stdout).not.toContain('Removed OpenSpec markers from CLINE.md')
+    expect(run.stdout).toContain('Left CLINE.md unchanged')
+    const doc = JSON.parse((await initIn(s, ['--json', '--remove-opsx'])).stdout)
+    expect(doc.opsx.found).toContain('CLINE.md')
+    expect(rootFiles(s.project)['CLINE.md']).toBe(inline)
+  }, 60_000)
 
-  test.failing(
-    'line endings and blank-line collapsing come out as the binary leaves them',
-    async () => {
-      const crlf = `a\r\n\r\n\r\n\r\n${START}\r\nx\r\n${END}\r\nb\r\n`
-      const lf = `a\n\n\n\n${START}\nx\n${END}\n\n\nb\n`
-      const { ours, theirs } = await strippedBoth({ 'QWEN.md': crlf, 'QODER.md': lf })
-      expect(ours).toEqual(theirs)
-      expect(ours['QWEN.md']).toBe('a\n\nb\r\n')
-    },
-    60_000,
-  )
+  test('line endings and blank-line collapsing come out as the binary leaves them', async () => {
+    const crlf = `a\r\n\r\n\r\n\r\n${START}\r\nx\r\n${END}\r\nb\r\n`
+    const lf = `a\n\n\n\n${START}\nx\n${END}\n\n\nb\n`
+    const { ours, theirs } = await strippedBoth({ 'QWEN.md': crlf, 'QODER.md': lf })
+    expect(ours).toEqual(theirs)
+    expect(ours['QWEN.md']).toBe('a\n\nb\r\n')
+  }, 60_000)
 
-  test.failing(
-    'without --remove-opsx or --yes the files are listed and nothing changes',
-    async () => {
-      const files = { 'CLAUDE.md': BLOCK, 'AGENTS.md': `keep me\n\n${BLOCK}` }
-      const s = sandbox()
-      plant(files)(s.project)
-      const before = rootFiles(s.project)
-      const run = await initIn(s, ['--json'])
-      expect(run.exitCode).toBe(0)
-      const doc = JSON.parse(run.stdout)
-      expect(doc.opsx.found).toEqual(expect.arrayContaining(['CLAUDE.md', 'AGENTS.md']))
-      expect(doc.opsx.removed).toBe(false)
-      expect(rootFiles(s.project)).toEqual(before)
-      const human = await initIn(s)
-      expect(human.stdout).toContain('CLAUDE.md')
-      expect(human.stdout).toContain('--remove-opsx')
-      expect(rootFiles(s.project)).toEqual(before)
-    },
-    60_000,
-  )
+  test('without --remove-opsx or --yes the files are listed and nothing changes', async () => {
+    const files = { 'CLAUDE.md': BLOCK, 'AGENTS.md': `keep me\n\n${BLOCK}` }
+    const s = sandbox()
+    plant(files)(s.project)
+    const before = rootFiles(s.project)
+    const run = await initIn(s, ['--json'])
+    expect(run.exitCode).toBe(0)
+    const doc = JSON.parse(run.stdout)
+    expect(doc.opsx.found).toEqual(expect.arrayContaining(['CLAUDE.md', 'AGENTS.md']))
+    expect(doc.opsx.removed).toBe(false)
+    expect(rootFiles(s.project)).toEqual(before)
+    const human = await initIn(s)
+    expect(human.stdout).toContain('CLAUDE.md')
+    expect(human.stdout).toContain('--remove-opsx')
+    expect(rootFiles(s.project)).toEqual(before)
+  }, 60_000)
 
-  test.failing(
-    '--yes consents, and the receipt names each file',
-    async () => {
-      const s = sandbox()
-      plant({ 'CLAUDE.md': BLOCK, 'AGENTS.md': `keep me\n\n${BLOCK}` })(s.project)
-      const run = await initIn(s, ['--yes'])
-      expect(run.exitCode).toBe(0)
-      expect(run.stdout).toContain('Removed OpenSpec markers from CLAUDE.md')
-      expect(run.stdout).toContain('Removed OpenSpec markers from AGENTS.md')
-      expect(rootFiles(s.project)['CLAUDE.md']).toBe('')
-      expect(rootFiles(s.project)['AGENTS.md']).toBe('keep me\n')
-    },
-    60_000,
-  )
+  test('--yes consents, and the receipt names each file', async () => {
+    const s = sandbox()
+    plant({ 'CLAUDE.md': BLOCK, 'AGENTS.md': `keep me\n\n${BLOCK}` })(s.project)
+    const run = await initIn(s, ['--yes'])
+    expect(run.exitCode).toBe(0)
+    expect(run.stdout).toContain('Removed OpenSpec markers from CLAUDE.md')
+    expect(run.stdout).toContain('Removed OpenSpec markers from AGENTS.md')
+    expect(rootFiles(s.project)['CLAUDE.md']).toBe('')
+    expect(rootFiles(s.project)['AGENTS.md']).toBe('keep me\n')
+  }, 60_000)
 
   test('a file without both markers is not listed', async () => {
     const s = sandbox()

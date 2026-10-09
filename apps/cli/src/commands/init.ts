@@ -69,6 +69,11 @@ import {
 import { type Delivery, zeroArtifactLine } from '../harness/delivery.ts'
 import { homeSkillsDir } from '../harness/home-root.ts'
 import {
+  findLegacyConfigBlocks,
+  type LegacyConfigBlock,
+  stripLegacyConfigBlocks,
+} from '../harness/legacy-config-blocks.ts'
+import {
   findGlobalPromptLeftovers,
   type GlobalPromptLeftover,
   legacyMoveEntries,
@@ -915,8 +920,15 @@ export async function run(ctx: CommandContext): Promise<number> {
   const unreadable: FailedWrite[] = []
   const opsx = findOpsxFiles(target, undefined, unreadable)
   failed.push(...unreadable.filter((u) => !failed.some((f) => f.path.startsWith(`${u.path}/`))))
-  const opsxRemoved = opsx.length > 0 && (removeOpsx || yes)
-  if (opsxRemoved) removeOpsxFiles(target, opsx)
+  // The pre-opsx block in a root config file (CLAUDE.md, AGENTS.md, ...) is stripped under the
+  // same consent, and the file is never deleted, as the binary's cleanup never deletes it.
+  const legacyBlocks = findLegacyConfigBlocks(target)
+  const opsxRemoved = (opsx.length > 0 || legacyBlocks.length > 0) && (removeOpsx || yes)
+  const legacyStripped = new Set<string>()
+  if (opsxRemoved) {
+    removeOpsxFiles(target, opsx)
+    for (const relpath of stripLegacyConfigBlocks(target, legacyBlocks)) legacyStripped.add(relpath)
+  }
   // Outside the project: only the explicit flag removes them, and only once this run wrote
   // the skill that replaces each one.
   const homeOpsx: HomeLeftover[] = [
@@ -966,6 +978,7 @@ export async function run(ctx: CommandContext): Promise<number> {
           opsx: {
             found: [
               ...opsx.map((o) => o.relpath),
+              ...legacyBlocks.map((b) => b.relpath),
               ...homeOpsx.map((h) => ({ path: h.path, scope: 'home', removed: h.removed })),
             ],
             removed: opsxRemoved,
@@ -995,6 +1008,8 @@ export async function run(ctx: CommandContext): Promise<number> {
     settings,
     opsx,
     opsxRemoved,
+    legacyBlocks,
+    legacyStripped,
     homeOpsx,
     removeOpsx,
     notGitTree,
@@ -1040,6 +1055,9 @@ interface ReceiptData {
   settings?: SettingsMergeResult
   opsx: OpsxFile[]
   opsxRemoved: boolean
+  /** Root config files holding a pre-opsx block, and those whose content the strip changed. */
+  legacyBlocks: LegacyConfigBlock[]
+  legacyStripped: ReadonlySet<string>
   homeOpsx: HomeLeftover[]
   removeOpsx: boolean
   notGitTree: boolean
@@ -1152,6 +1170,27 @@ function printReceipt(target: string, d: ReceiptData): void {
       for (const o of d.opsx) lines.push(`  ${o.relpath}`)
       lines.push(
         'Re-run with --remove-opsx to delete them (only provably openspec-generated files).',
+      )
+    }
+  }
+
+  if (d.legacyBlocks.length > 0) {
+    lines.push('')
+    if (d.opsxRemoved) {
+      for (const block of d.legacyBlocks) {
+        lines.push(
+          d.legacyStripped.has(block.relpath)
+            ? `Removed OpenSpec markers from ${block.relpath}`
+            : `Left ${block.relpath} unchanged: its OpenSpec markers share a line with other text.`,
+        )
+      }
+    } else {
+      lines.push(
+        `Found an OpenSpec block in ${d.legacyBlocks.length} project config file(s) — its instructions are superseded:`,
+      )
+      for (const block of d.legacyBlocks) lines.push(`  ${block.relpath}`)
+      lines.push(
+        'Re-run with --remove-opsx to strip each block (the rest of the file is kept, and no file is deleted).',
       )
     }
   }
