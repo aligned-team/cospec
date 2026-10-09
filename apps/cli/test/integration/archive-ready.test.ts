@@ -159,6 +159,19 @@ const FIXTURES: Fixture[] = [
   change('v1-no-verification', 'fix', '', FIX_PROPOSAL, undefined, true),
   // A type that forbids verification is unaffected.
   change('ci-change', 'ci', V2, CI_PROPOSAL, undefined, true),
+  // A type that declares verification without requiring it, and a v1 change,
+  // still have a present ledger validated by archive; unresolved rows do not block.
+  change(
+    'build-deferred-no-reason',
+    'build',
+    V2,
+    CI_PROPOSAL,
+    VERIFICATION.deferredNoReason,
+    false,
+  ),
+  change('ci-empty-group', 'ci', V2, CI_PROPOSAL, VERIFICATION.emptyGroup, false),
+  change('v1-fix-empty-group', 'fix', '', FIX_PROPOSAL, VERIFICATION.emptyGroup, false),
+  change('ci-unresolved-rows', 'ci', V2, CI_PROPOSAL, VERIFICATION.unresolved, true),
 ]
 
 async function setup(): Promise<string> {
@@ -185,7 +198,7 @@ describe('archiveReady parity across status, status --all and list', () => {
       ) as { archiveReady: boolean; verification: { blockedReasons: string[] } }
       const text = (await cospec(['status', '--change', f.slug], { cwd: root })).stdout
       const row = list.changes.find((c) => c.change === f.slug)
-      const line = listText.split('\n').find((l) => l.includes(f.slug)) ?? ''
+      const line = listText.split('\n').find((l) => l.trim().split(/\s+/)[0] === f.slug) ?? ''
 
       expect({ slug: f.slug, status: one.archiveReady }).toEqual({
         slug: f.slug,
@@ -216,6 +229,9 @@ const VALIDATION_REFUSED = new Set([
   'empty-group',
   'evidence-missing',
   'no-regression-row',
+  'build-deferred-no-reason',
+  'ci-empty-group',
+  'v1-fix-empty-group',
 ])
 
 describe('archiveReady: true is never refused by archive/verification-incomplete', () => {

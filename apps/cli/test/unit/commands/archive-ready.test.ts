@@ -167,6 +167,68 @@ describe('computeStatus: archiveReady follows the ledger errors archive validate
   })
 })
 
+/** A change whose type declares `verification` without requiring it, or a v1 change. */
+function unenforcedChange(cwd: string, schema: string, schemaVersion: number, ledger: string) {
+  const dir = writeChange(cwd, 'c', schema, {
+    'proposal.md': LITE_PROPOSAL,
+    'blocking-changes.md': EMPTY_BLOCKERS,
+    'tasks.md': DONE_TASKS,
+    'verification.md': ledger,
+  })
+  return { id: 'c', dir, schema, schemaVersion }
+}
+
+describe('computeStatus: a declared-but-unenforced ledger is still validated like archive does', () => {
+  for (const schema of ['build', 'ci', 'revert']) {
+    test(`a ${schema} ledger with a deferred row and no reason is not archive-ready`, () => {
+      const cwd = repo()
+      const status = computeStatus(cwd, unenforcedChange(cwd, schema, 2, DEFERRED_NO_REASON))
+      expect(status.verification.declared).toBe(false)
+      expect(status.archiveReady).toBe(false)
+      expect(status.verification.blockedReasons).toHaveLength(1)
+      expect(status.verification.blockedReasons[0]).toContain(
+        'verification/deferred-reason (line 6)',
+      )
+    })
+
+    test(`a ${schema} ledger with an empty group is not archive-ready`, () => {
+      const cwd = repo()
+      const status = computeStatus(cwd, unenforcedChange(cwd, schema, 2, EMPTY_GROUP))
+      expect(status.archiveReady).toBe(false)
+      expect(status.verification.blockedReasons[0]).toContain('verification/structure (line 7)')
+    })
+
+    test(`a ${schema} ledger with an unresolved row stays archive-ready (not enforced)`, () => {
+      const cwd = repo()
+      const status = computeStatus(cwd, unenforcedChange(cwd, schema, 2, UNRESOLVED))
+      expect(status.verification.blockedReasons).toEqual([])
+      expect(status.archiveReady).toBe(true)
+    })
+  }
+
+  test('a v1 fix ledger with an empty group is not archive-ready', () => {
+    const cwd = repo()
+    const status = computeStatus(cwd, unenforcedChange(cwd, 'fix', 1, EMPTY_GROUP))
+    expect(status.verification.declared).toBe(false)
+    expect(status.archiveReady).toBe(false)
+    expect(status.verification.blockedReasons[0]).toContain('verification/structure (line 7)')
+  })
+
+  test('a v1 fix ledger is not held to the v2 per-type rows', () => {
+    const cwd = repo()
+    const ledger = RESOLVED.replace('@regression', '@e2e')
+    const status = computeStatus(cwd, unenforcedChange(cwd, 'fix', 1, ledger))
+    expect(status.verification.blockedReasons).toEqual([])
+    expect(status.archiveReady).toBe(true)
+  })
+
+  test('a type that forbids verification never reads a stray ledger', () => {
+    const cwd = repo()
+    const status = computeStatus(cwd, unenforcedChange(cwd, 'chore', 2, DEFERRED_NO_REASON))
+    expect(status.verification.blockedReasons).toEqual([])
+  })
+})
+
 describe('isArchiveReady', () => {
   const clear = { state: 'clear' as const, hard: [], soft: [] }
   const blocked = { state: 'blocked' as const, hard: [{ slug: 'a', active: true }], soft: [] }
@@ -211,5 +273,6 @@ describe('readVerificationVerdict', () => {
     const change = { id: 'c', schema: 'fix' }
     expect(readVerificationVerdict(dir, change, ['verification']).unresolved).toBe(1)
     expect(readVerificationVerdict(dir, change, ['proposal']).declared).toBe(false)
+    expect(readVerificationVerdict(dir, change, ['proposal']).blockedReasons).toEqual([])
   })
 })

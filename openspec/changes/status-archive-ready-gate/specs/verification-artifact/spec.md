@@ -55,6 +55,19 @@ same value for the same change.
 #### Scenario: grandfathered and verification-free changes are unaffected
 
 - **WHEN** the change is a v1 change with no `verification.md`, or its type
-  forbids or does not require `verification`
+  forbids `verification`, or does not require it and carries no
+  `verification.md`
 - **THEN** its `archiveReady` is decided by required artifacts, tasks and the
   blocker gate alone
+
+#### Scenario: a present ledger on an unenforced type is still validated
+
+- **WHEN** `cospec status <slug> --json` or `cospec list --json` runs on a
+  `build`, `ci` or `revert` change, or a schemaVersion 1 `fix`/`feat`/`perf`/
+  `refactor` change, whose tasks are done, whose gate is clear and whose
+  `verification.md` has a `[~]` row with no `defer: <reason>` or a `## N.` group
+  with no rows
+- **THEN** `archiveReady` is `false` in both, `verification.declared` stays
+  `false`, and `status` lists the `verification/*` reason in
+  `verification.blockedReasons`, because `cospec archive` validates that ledger
+  and refuses it; a bare `- [ ]` row on such a change does not block

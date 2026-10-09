@@ -48,12 +48,17 @@ different `apply.requires` sets.
 1. **Fold the verdict into the flag; do not add a new key.** The issue's
    recommended option: `archiveReady` becomes
    `requiredDone && tasksDone && gate.state === 'clear' && verdict.blockedReasons.length === 0`.
-   The verdict is already grandfather-aware (`declared` is
-   `applyRequires.has('verification')` and an undeclared verdict has no
-   reasons), so v1 changes and types that forbid or omit `verification` are
-   unaffected. Rejected: a separate `verificationReady` key. It would leave
-   `archiveReady` lying and force every consumer to learn the extra key (and
-   JSON documents are additive-only).
+   The gate's own verdict (unresolved and unparseable rows) is
+   grandfather-aware: `declared` is `applyRequires.has('verification')`, so v1
+   changes and types that omit `verification` are never held to an unresolved
+   row. Archive's validation is wider, though: it runs the ledger rules whenever
+   the type _declares_ `verification` and the file exists. So a present ledger
+   on a `build`/`ci`/`revert` change, or on a v1 `fix`/`feat`/`perf`/`refactor`
+   change, is validated too, and its `verification/*` ERRORs are named in
+   `blockedReasons` while `declared` stays `false`. A type that forbids
+   `verification` never reads a ledger. Rejected: a separate `verificationReady`
+   key. It would leave `archiveReady` lying and force every consumer to learn
+   the extra key (and JSON documents are additive-only).
 2. **One helper, `isArchiveReady`, beside `computeGate` in
    `commands/apply.ts`**, taking `{ requiredDone, tasks, gate, verdict }`.
    `status` and `list` both call it. `apply.ts` already owns the gate,
@@ -70,10 +75,13 @@ different `apply.requires` sets.
    refuses on. `row-grammar` is skipped (already the "do not parse" reason) and
    WARNINGs are skipped (a surface-promoted row rule is an ERROR under
    `--strict` only, and archive validates without it). It lives apart from
-   `core/verification.ts` because the rules import that parser. `status` and
-   `list` use it; `archive`'s hard gate keeps `computeVerificationVerdict` and
-   its own read because it also lists the offending rows, and `--no-validate`
-   still skips validation's ledger rules as before.
+   `core/verification.ts` because the rules import that parser. The ledger rules
+   run on the version-filtered required set (so a v1 `fix` is not asked for an
+   `@regression` row) but are gated on the type's declared set, as archive's
+   are. `status` and `list` use it; `archive`'s hard gate keeps
+   `computeVerificationVerdict` and its own read because it also lists the
+   offending rows, and `--no-validate` still skips validation's ledger rules as
+   before.
 4. **`list` adopts `status`'s required set.** `list` reads the change's
    `schemaVersion` from `.openspec.yaml` and uses `enforcedApplyRequires`, so
    the two commands agree on a grandfathered change (the gates already do).

@@ -11,6 +11,8 @@
 - [x] 1.6 @unit (agent) a `fix` change whose ledger has `[~] ... -> nope`, an empty `## 2.` group, or no `@regression` row -> unit tests in test/unit/commands/archive-ready.test.ts: `archiveReady: false`, one `blockedReasons` entry each (`verification/deferred-reason (line 6)`, `verification/structure (line 7)`, `verification/reproduces-bug`); a row that does not parse is still the single `1 row(s) do not parse`; a surface-promoted warning does not block
 - [x] 1.7 @regression (agent) the review finding's repro (`[~] ... -> nope`, empty group) against `status`, `list` and `archive` -> integration fixtures `deferred-no-reason`, `empty-group`, `evidence-missing`, `no-regression-row`: status, status --all and list all false, archive exit 1 on the `verification/*` rule, and every `verification/*` rule archive names is in status's `blockedReasons`
 
+- [x] 1.8 @regression (agent) a `build`/`ci`/`revert` change or a v1 `fix` with `[~] ... -> nope` or an empty `## 2.` group, and an unresolved `[ ]` row on a `ci` change as the control -> unit tests (7 failed before the fix) and integration fixtures `build-deferred-no-reason`, `ci-empty-group`, `v1-fix-empty-group` (status, status --all, list false; archive refuses on `verification/*`) and `ci-unresolved-rows` (true; archive exit 0)
+
 ## 2. list agrees with status
 
 - [x] 2.1 @integration (agent) `cospec list` and `cospec status` over the unresolved, malformed, resolved, v1 and `chore`/`docs` fixtures -> test/integration/archive-ready.test.ts: status, status --all, list JSON and text agree on all six fixtures (unresolved, malformed, no file, resolved, v1, ci); failed for unresolved before the fix

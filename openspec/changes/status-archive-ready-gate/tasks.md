@@ -34,13 +34,25 @@
       `blockedReasons` entry per `verification/*` ERROR from `verificationRules`
       at `strict: false`, and verify tasks 2b.1 now pass
 
+## 2c. Unenforced ledgers (review finding)
+
+- [x] 2c.1 Add `computeStatus` unit tests and integration fixtures
+      (`build-deferred-no-reason`, `ci-empty-group`, `v1-fix-empty-group`, plus
+      the `ci-unresolved-rows` control) for a ledger on a
+      declared-but-unenforced type or a v1 change, and verify they fail before
+      the fix
+- [x] 2c.2 Read and validate the ledger in `readVerificationVerdict` whenever
+      the type declares `verification`, keeping the gate's own verdict gated on
+      the enforced set, and verify tasks 2c.1 now pass
+
 ## 3. Docs
 
 - [x] 3.1 State what `archiveReady` covers (required artifacts, tasks, blocker
       gate, verification gate and its ledger validation errors; not
       scenario-preservation or validation errors outside `verification.md`) in
       the `cospec status` row of `apps/docs/reference/commands.md` and point the
-      `cospec list` row at it, and verify `mise run docs:build` passes
+      `cospec list` row at it, and verify `mise run docs:build` passes (the
+      `cospec status` row also states that an unenforced ledger is validated)
 - [x] 3.2 Confirm `.agents/shared.md` needs no change (no workflow, task or
       convention changed) and verify `mise run agents:check` is clean
 
