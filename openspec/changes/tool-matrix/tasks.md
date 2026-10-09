@@ -241,7 +241,7 @@
 
 ## 11. Close-out
 
-- [ ] 11.1 Run `mise run check`; verify it passes with `mise run generate:check`
+- [x] 11.1 Run `mise run check`; verify it passes with `mise run generate:check`
       clean and the five pre-existing render golden directories unchanged
       against the task 1.1 baseline
       (`git diff --exit-code <baseline> HEAD -- apps/cli/test/unit/__golden__/harness-render/{claude,codex,opencode,agents,all}`)

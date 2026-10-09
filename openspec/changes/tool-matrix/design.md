@@ -405,6 +405,19 @@ Facts from the captures and the dist (`core/config.js`,
     a head whose upstream keys are all present (respelled) plus cospec's
     `metadata` where the wrapper is YAML. `setupNote` is asserted to _include_
     upstream's note (`harness-adapter-table` decision 13), not to equal it.
+    Ruling: cospec writes its own canon workflow ids (`sync-specs` and the
+    cospec-only workflows) in place of upstream's workflow set, so the
+    comparison, in the contract test and in the sandbox e2e rows, is per path
+    shape for each id (directories, filename template, extension, frontmatter
+    keys, invocation spelling, setup note) and never the workflow-id set.
+
+15. **Ledger rulings for human-tagged rows.** A manual-only check that the
+    roadmap's acceptance evidence does not name is deferred: the per-row
+    contract tests against the pinned binary's captured output are its gate
+    (verification 1.5). The `.windsurf` consent question is observed through the
+    contract pty driver as an agent row (verification 8.3). The advisory eval
+    row stays in the ledger as a deferral because eval never gates CI and its
+    key is held by the maintainer (verification 12.1).
 
 ## Operational surface
 
