@@ -719,6 +719,37 @@ export function buildNameDescriptionCommandFrontmatter(
   }
 }
 
+/**
+ * `name`, `description` and a bracketed `argument-hint`, as upstream writes them for
+ * CodeBuddy; its hint differs from Auggie's by the brackets.
+ */
+export function buildNameDescriptionHintCommandFrontmatter(
+  w: WorkflowDef,
+  version: string,
+  contentHash: string,
+): Record<string, unknown> {
+  return {
+    name: `COSPEC: ${w.title}`,
+    description: w.description,
+    'argument-hint': '[command arguments]',
+    metadata: provenance(version, contentHash),
+  }
+}
+
+/** Continue's `name` (the file's own command name), `description` and `invokable: true`. */
+export function buildInvokableCommandFrontmatter(
+  w: WorkflowDef,
+  version: string,
+  contentHash: string,
+): Record<string, unknown> {
+  return {
+    name: `cospec-${w.command}`,
+    description: w.description,
+    invokable: true,
+    metadata: provenance(version, contentHash),
+  }
+}
+
 function provenance(version: string, contentHash: string): Record<string, unknown> {
   return { author: 'cospec', generatedBy: version, contentHash }
 }
