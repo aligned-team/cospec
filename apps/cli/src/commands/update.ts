@@ -68,6 +68,7 @@ import {
   implicitCopilotCloudDirective,
   isCopilotCloudPath,
 } from '../harness/copilot-cloud.ts'
+import type { Delivery } from '../harness/delivery.ts'
 import { hasHomeSkillEvidence, resolveHomeDir } from '../harness/home-root.ts'
 import {
   canAskLegacyConsent,
@@ -345,6 +346,12 @@ export interface GenerateOptions {
    * boolean, then a managed file on disk), as `update` and `doctor` need.
    */
   cloud?: CopilotCloudDirective
+  /**
+   * The workflow ids to install and the surfaces to write them to, forwarded to
+   * `renderHarnessFiles`. Absent, every workflow and both surfaces, as before a profile existed.
+   */
+  workflows?: ReadonlySet<string>
+  delivery?: Delivery
 }
 
 /** One generated file `generate()` could not write, sidecar or remove (design decision 10). */
@@ -423,6 +430,8 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
     version,
     adapters: opts.adapters,
     skillWriters,
+    workflows: opts.workflows,
+    delivery: opts.delivery,
   })
   // Checked over the whole rendered set before anything is written, so a body that skipped
   // conditional resolution never reaches disk (design D6).

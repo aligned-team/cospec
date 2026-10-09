@@ -160,11 +160,11 @@ describe('init and update report a per-file failure', () => {
     failed: { path: string; error: string }[]
   }
 
-  test('init lists the failures, exits 1, and update retries them', () => {
+  test('init lists the failures, exits 1, and update retries them', async () => {
     mkdirSync(join(dir, '.cursor'))
     lock('.cursor')
-    const init = capture(
-      () => initRun(ctx(dir, ['--harness', 'claude,cursor', '--yes'], true)) as number,
+    const init = await captureAsync(() =>
+      initRun(ctx(dir, ['--harness', 'claude,cursor', '--yes'], true)),
     )
     expect(init.code).toBe(1)
     const doc = JSON.parse(init.out) as FailedDoc
@@ -177,19 +177,21 @@ describe('init and update report a per-file failure', () => {
     for (const path of pathsOf('cursor', '.cursor/')) expect(existsSync(join(dir, path))).toBe(true)
   })
 
-  test('the human receipts print a Failed: block naming each path', () => {
+  test('the human receipts print a Failed: block naming each path', async () => {
     mkdirSync(join(dir, '.cursor'))
     lock('.cursor')
-    const init = capture(() => initRun(ctx(dir, ['--harness', 'claude,cursor', '--yes'])) as number)
+    const init = await captureAsync(() =>
+      initRun(ctx(dir, ['--harness', 'claude,cursor', '--yes'])),
+    )
     expect(init.code).toBe(1)
     expect(init.out).toContain('Failed:')
     expect(init.out).toContain('.cursor/skills/cospec-propose/SKILL.md')
     expect(init.out).toContain('EACCES')
   })
 
-  test('update records one failed entry and still writes the other harness', () => {
-    const seed = capture(
-      () => initRun(ctx(dir, ['--harness', 'claude,cursor', '--yes'], true)) as number,
+  test('update records one failed entry and still writes the other harness', async () => {
+    const seed = await captureAsync(() =>
+      initRun(ctx(dir, ['--harness', 'claude,cursor', '--yes'], true)),
     )
     expect(seed.code).toBe(0)
     const stale = [
@@ -229,7 +231,7 @@ describe('doctor does not hide a managed file it cannot read', () => {
   })
 
   test('a managed path that is a directory is an unreadable-file ERROR and exit 1', async () => {
-    const seed = capture(() => initRun(ctx(dir, ['--harness', 'claude', '--yes'])) as number)
+    const seed = await captureAsync(() => initRun(ctx(dir, ['--harness', 'claude', '--yes'])))
     expect(seed.code).toBe(0)
     const command = join(dir, '.claude/commands/cospec/propose.md')
     rmSync(command)

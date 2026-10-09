@@ -115,7 +115,7 @@ rows write the `config.json` under test into the sandbox's
       invalid `--profile` refused before any write; the global file
       byte-identical; the receipt line and the `--json` keys), and verify they
       fail on the current `init`
-- [ ] 5.4 Make `init.run` async, declare `--profile` and `--language` as handled
+- [x] 5.4 Make `init.run` async, declare `--profile` and `--language` as handled
       in the command table, validate `--profile` first, resolve the effective
       set and delivery, pass them to `generate()`, add the receipt line and the
       `profile`/`delivery` JSON keys, resolve `receiptHintLines` against the

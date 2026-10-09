@@ -331,7 +331,6 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         placeholder: '<profile>',
         values: ['core', 'custom'],
         description: 'Override the global config profile (core or custom)',
-        status: pending('workflow-profiles'),
       }),
       upstream({
         name: '--copilot-cloud',

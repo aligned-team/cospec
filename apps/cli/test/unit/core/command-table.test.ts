@@ -83,9 +83,9 @@ describe('parseCommandArgs — the six ledger 1.5 cases', () => {
   })
 
   test('a pending flag consumes its value and never leaks it into a positional', () => {
-    const r = refused('init', ['--profile', 'core', 'x', 'y'])
-    expect(r).toMatchObject({ kind: 'pending', surface: '--profile', owner: 'workflow-profiles' })
-    expect(r.message).toBe("cospec init: '--profile' is not supported yet\n")
+    const r = refused('init', ['--language', 'fr', 'x', 'y'])
+    expect(r).toMatchObject({ kind: 'pending', surface: '--language', owner: 'workflow-profiles' })
+    expect(r.message).toBe("cospec init: '--language' is not supported yet\n")
 
     // `--bogus` is consumed as --language's value, so the pending refusal wins.
     expect(refused('init', ['--language', '--bogus'])).toMatchObject({
@@ -97,10 +97,6 @@ describe('parseCommandArgs — the six ledger 1.5 cases', () => {
       surface: '--language',
     })
     expect(refused('init', ['--language=fr'])).toMatchObject({ kind: 'pending' })
-    expect(refused('init', ['--profile', 'custom'])).toMatchObject({
-      kind: 'pending',
-      surface: '--profile',
-    })
   })
 
   test('a pending flag with no value is argument missing, as a handled flag is', () => {
@@ -336,7 +332,6 @@ describe('accepted no-ops', () => {
 // (tool ids, `experimental` and alias entries live elsewhere).
 const EXPECTED_PENDING: [string, string, PendingOwner][] = [
   ['init', '--language', 'workflow-profiles'],
-  ['init', '--profile', 'workflow-profiles'],
 ]
 
 function pendingSurfaces(row: CommandRow): [string, string, PendingOwner][] {
@@ -372,7 +367,6 @@ describe('pending surfaces', () => {
 
   const argvFor: Record<string, string[]> = {
     'init --language': ['--language', 'fr', '.'],
-    'init --profile': ['--profile', 'core'],
   }
 
   /** The pending refusal `command surface` gets, named on the row it was typed on. */

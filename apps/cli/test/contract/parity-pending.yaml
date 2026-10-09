@@ -17,5 +17,4 @@
 # produce; the test verifies it against the pinned binary instead.
 
 # --- workflow-profiles ------------------------------------------------------------
-- { kind: flag, path: [init], flag: --profile, owner: workflow-profiles }
 - { kind: flag, path: [init], flag: --language, owner: workflow-profiles }

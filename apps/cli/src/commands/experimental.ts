@@ -13,7 +13,7 @@ import { run as initRun } from './init.ts'
 export const DEPRECATION_NOTE =
   'Note: "cospec experimental" is deprecated. Use "cospec init" instead.'
 
-export function run(ctx: CommandContext): number {
+export function run(ctx: CommandContext): number | Promise<number> {
   const tool = flagValue(ctx.parsed!, '--tool')
   if (!ctx.flags.json) process.stdout.write(`${DEPRECATION_NOTE}\n`)
   // init.ts reads `ctx.parsed`, so re-parse against init's own row, as

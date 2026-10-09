@@ -6,15 +6,15 @@ import { join } from 'node:path'
 import { harnessMarkdownFiles, run as doctorRun } from '../../../src/commands/doctor.ts'
 import { run as initRun } from '../../../src/commands/init.ts'
 import { withEmptyMachineState } from '../../fixtures/support.ts'
-import { capture, captureAsync, cleanup, ctx, makeRepo, managedMarkdown } from './helpers.ts'
+import { captureAsync, cleanup, ctx, makeRepo, managedMarkdown } from './helpers.ts'
 
-function seed(dir: string): void {
-  capture(() => initRun(ctx(dir, ['--harness', 'claude', '--yes'])) as number)
+async function seed(dir: string): Promise<void> {
+  await captureAsync(() => initRun(ctx(dir, ['--harness', 'claude', '--yes'])))
 }
 
 /** Init a repo on a harness that renders into the shared `.agents/skills` root. */
-function seedShared(dir: string, harness: 'codex' | 'agents'): void {
-  capture(() => initRun(ctx(dir, ['--harness', harness, '--yes'])) as number)
+async function seedShared(dir: string, harness: 'codex' | 'agents'): Promise<void> {
+  await captureAsync(() => initRun(ctx(dir, ['--harness', harness, '--yes'])))
 }
 
 interface JsonFinding {
@@ -39,7 +39,7 @@ describe('cospec doctor (DESIGN §2.3)', () => {
   })
 
   test('a clean freshly-initialized repo passes (exit 0, no errors)', async () => {
-    seed(dir)
+    await seed(dir)
     const { code, findings } = await doctorJson(dir)
     expect(code).toBe(0)
     expect(findings.filter((f) => f.level === 'ERROR')).toEqual([])
@@ -52,7 +52,7 @@ describe('cospec doctor (DESIGN §2.3)', () => {
   })
 
   test('missing manifest is an ERROR', async () => {
-    seed(dir)
+    await seed(dir)
     rmSync(join(dir, 'openspec/.cospec-manifest.json'))
     const { code, findings } = await doctorJson(dir)
     expect(code).toBe(1)
@@ -60,7 +60,7 @@ describe('cospec doctor (DESIGN §2.3)', () => {
   })
 
   test('a missing managed schema file is a schema-missing ERROR', async () => {
-    seed(dir)
+    await seed(dir)
     rmSync(join(dir, 'openspec/schemas/ci/schema.yaml'))
     const { code, findings } = await doctorJson(dir)
     expect(code).toBe(1)
@@ -68,7 +68,7 @@ describe('cospec doctor (DESIGN §2.3)', () => {
   })
 
   test('a dangling /cospec: reference in a harness body is an ERROR', async () => {
-    seed(dir)
+    await seed(dir)
     mkdirSync(join(dir, '.claude/skills/cospec-rogue'), { recursive: true })
     writeFileSync(
       join(dir, '.claude/skills/cospec-rogue/SKILL.md'),
@@ -80,7 +80,7 @@ describe('cospec doctor (DESIGN §2.3)', () => {
   })
 
   test('a non-cospec config schema is reported as INFO (not an error)', async () => {
-    seed(dir)
+    await seed(dir)
     writeFileSync(join(dir, 'openspec/config.yaml'), 'schema: my-fork\n')
     const { code, findings } = await doctorJson(dir)
     expect(code).toBe(0)
@@ -273,7 +273,7 @@ describe('cospec doctor (DESIGN §2.3)', () => {
   // detector matches the SHAPE (`author: openspec` + a bare semver), and the
   // `.agents/` case below deliberately uses a different one.
   test('a leftover opsx file is a WARNING', async () => {
-    seed(dir)
+    await seed(dir)
     const skill = join(dir, '.claude/skills/openspec-apply-change')
     mkdirSync(skill, { recursive: true })
     writeFileSync(
@@ -286,7 +286,7 @@ describe('cospec doctor (DESIGN §2.3)', () => {
   })
 
   test('a leftover under `.agents/skills/` is a WARNING (openspec ≥1.8 Codex root)', async () => {
-    seed(dir)
+    await seed(dir)
     const skill = join(dir, '.agents/skills/openspec-propose')
     mkdirSync(skill, { recursive: true })
     writeFileSync(
@@ -299,7 +299,7 @@ describe('cospec doctor (DESIGN §2.3)', () => {
   })
 
   test('a user-authored path-matching file is NOT flagged as opsx (provenance-only)', async () => {
-    seed(dir)
+    await seed(dir)
     const cmdDir = join(dir, '.opencode/commands/opsx')
     mkdirSync(cmdDir, { recursive: true })
     writeFileSync(join(cmdDir, 'mynotes.md'), '# my notes, no openspec provenance\n')
@@ -309,14 +309,14 @@ describe('cospec doctor (DESIGN §2.3)', () => {
   })
 
   test('an unreconciled .cospec-new sidecar is a WARNING', async () => {
-    seed(dir)
+    await seed(dir)
     writeFileSync(join(dir, 'openspec/schemas/ci/schema.yaml.cospec-new'), 'x\n')
     const { findings } = await doctorJson(dir)
     expect(findings.some((f) => f.check === 'stale-sidecar')).toBe(true)
   })
 
   test('a change on a forked (legacy) schema resolves as change-schema INFO, not WARNING/ERROR', async () => {
-    seed(dir)
+    await seed(dir)
     mkdirSync(join(dir, 'openspec/schemas/my-fork'), { recursive: true })
     writeFileSync(join(dir, 'openspec/schemas/my-fork/schema.yaml'), 'name: my-fork\nversion: 1\n')
     mkdirSync(join(dir, 'openspec/changes/forked-change'), { recursive: true })
@@ -345,14 +345,14 @@ describe('cospec doctor — the shared .agents/skills root', () => {
   // Doctor resolves both spellings; if it did not, every generated body here
   // would be flagged.
   test('generated shared-root bodies raise no dangling-ref findings', async () => {
-    seedShared(dir, 'agents')
+    await seedShared(dir, 'agents')
     const { code, findings } = await doctorJson(dir)
     expect(findings.filter((f) => f.check === 'dangling-ref')).toEqual([])
     expect(code).toBe(0)
   })
 
   test('an unknown skill-name reference under .agents/ is a single ERROR', async () => {
-    seedShared(dir, 'agents')
+    await seedShared(dir, 'agents')
     mkdirSync(join(dir, '.agents/skills/cospec-rogue'), { recursive: true })
     writeFileSync(
       join(dir, '.agents/skills/cospec-rogue/SKILL.md'),
@@ -369,7 +369,7 @@ describe('cospec doctor — the shared .agents/skills root', () => {
   })
 
   test('a real workflow whose skill file is missing is still a dangling ERROR', async () => {
-    seedShared(dir, 'agents')
+    await seedShared(dir, 'agents')
     rmSync(join(dir, '.agents/skills/cospec-apply-change'), { recursive: true })
     const { code, findings } = await doctorJson(dir)
     expect(code).toBe(1)
@@ -379,7 +379,7 @@ describe('cospec doctor — the shared .agents/skills root', () => {
   })
 
   test('a leftover .codex/skills file is a legacy-layout WARNING, not drift', async () => {
-    seedShared(dir, 'codex')
+    await seedShared(dir, 'codex')
     mkdirSync(join(dir, '.codex/skills/cospec-propose'), { recursive: true })
     writeFileSync(
       join(dir, '.codex/skills/cospec-propose/SKILL.md'),
@@ -398,7 +398,7 @@ describe('cospec doctor — the shared .agents/skills root', () => {
   })
 
   test('no legacy-layout finding once the legacy tree is gone', async () => {
-    seedShared(dir, 'codex')
+    await seedShared(dir, 'codex')
     const { findings } = await doctorJson(dir)
     expect(findings.some((f) => f.check === 'legacy-layout')).toBe(false)
   })
@@ -422,7 +422,7 @@ describe('cospec doctor — only the harness files cospec writes', () => {
     '---\nname: cospec-propose\nmetadata:\n  author: cospec\n  generatedBy: "cospec@0.0.1"\n---\n\nThen run /cospec:not-a-real-workflow.\n'
 
   test("a user's .claude/notes.md mentioning /cospec:foo gives no finding", async () => {
-    seed(dir)
+    await seed(dir)
     writeFileSync(join(dir, '.claude/notes.md'), 'Try /cospec:foo once it exists.\n')
     const { code, findings } = await doctorJson(dir)
     expect(findings.filter((f) => f.message.includes('.claude/notes.md'))).toEqual([])
@@ -433,7 +433,7 @@ describe('cospec doctor — only the harness files cospec writes', () => {
   })
 
   test("a nested worktree's copy under .claude/worktrees/ is not checked", async () => {
-    seed(dir)
+    await seed(dir)
     const wt = join(dir, '.claude/worktrees/wt/.claude')
     mkdirSync(join(wt, 'skills/cospec-propose'), { recursive: true })
     mkdirSync(join(wt, 'commands/cospec'), { recursive: true })
@@ -451,7 +451,7 @@ describe('cospec doctor — only the harness files cospec writes', () => {
   })
 
   test('a dangling reference in a cospec-written command file is still an ERROR', async () => {
-    seed(dir)
+    await seed(dir)
     const cmd = join(dir, '.claude/commands/cospec/propose.md')
     writeFileSync(cmd, `${readFileSync(cmd, 'utf8')}\nThen run /cospec:not-a-real-workflow.\n`)
     const { code, findings } = await doctorJson(dir)
@@ -486,7 +486,7 @@ describe('cospec doctor — scans stay inside the project', () => {
     findings.filter((f) => f.check === 'stale-sidecar').map((f) => f.message)
 
   test("a nested worktree's .cospec-new sidecar is not reported; the project's own still is", async () => {
-    seed(dir)
+    await seed(dir)
     const wtSidecar = '.claude/worktrees/wt/.claude/skills/cospec-x/SKILL.md.cospec-new'
     mkdirSync(join(dir, '.claude/worktrees/wt/.claude/skills/cospec-x'), { recursive: true })
     // `git worktree add` writes `.git` as a file, a gitdir pointer.
@@ -502,7 +502,7 @@ describe('cospec doctor — scans stay inside the project', () => {
   test('a symlinked .claude resolving outside the project is not walked for sidecars', async () => {
     mkdirSync(join(outside, 'commands/cospec'), { recursive: true })
     writeFileSync(join(outside, 'commands/cospec/apply.md.cospec-new'), 'x\n')
-    seed(dir)
+    await seed(dir)
     rmSync(join(dir, '.claude'), { recursive: true })
     symlinkSync(outside, join(dir, '.claude'))
     const { findings } = await doctorJson(dir)
@@ -540,7 +540,7 @@ describe('cospec doctor — scans stay inside the project', () => {
   })
 
   test("an openspec symlinked into a nested worktree's openspec reports none of its sidecars", async () => {
-    seed(dir)
+    await seed(dir)
     const wt = join(dir, '.claude/worktrees/feat')
     mkdirSync(join(wt, 'openspec/changes/x'), { recursive: true })
     writeFileSync(join(wt, '.git'), 'gitdir: /elsewhere/.git/worktrees/feat\n')

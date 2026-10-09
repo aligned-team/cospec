@@ -3,10 +3,10 @@ import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 
 import { join } from 'node:path'
 
 import { run as initRun } from '../../../src/commands/init.ts'
-import { capture, cleanup, ctx, makeRepo } from './helpers.ts'
+import { captureAsync, cleanup, ctx, makeRepo } from './helpers.ts'
 
-function runInit(dir: string, args: string[]): { code: number; out: string; err: string } {
-  return capture(() => initRun(ctx(dir, args)) as number)
+function runInit(dir: string, args: string[]): Promise<{ code: number; out: string; err: string }> {
+  return captureAsync(() => initRun(ctx(dir, args)))
 }
 
 describe('cospec init (DESIGN §2.1)', () => {
@@ -18,8 +18,8 @@ describe('cospec init (DESIGN §2.1)', () => {
     cleanup(dir)
   })
 
-  test('state A (fresh): scaffolds openspec, config schema:feat, and gate on by default', () => {
-    const { code } = runInit(dir, ['--harness', 'claude', '--yes'])
+  test('state A (fresh): scaffolds openspec, config schema:feat, and gate on by default', async () => {
+    const { code } = await runInit(dir, ['--harness', 'claude', '--yes'])
     expect(code).toBe(0)
     expect(existsSync(join(dir, 'openspec/changes/archive'))).toBe(true)
     expect(existsSync(join(dir, 'openspec/specs'))).toBe(true)
@@ -32,18 +32,18 @@ describe('cospec init (DESIGN §2.1)', () => {
     expect(existsSync(join(dir, 'mise.toml'))).toBe(true)
   })
 
-  test('state B (package.json, no openspec): gate off by default', () => {
+  test('state B (package.json, no openspec): gate off by default', async () => {
     writeFileSync(join(dir, 'package.json'), '{"name":"x"}\n')
-    const { code } = runInit(dir, ['--harness', 'none'])
+    const { code } = await runInit(dir, ['--harness', 'none'])
     expect(code).toBe(0)
     expect(existsSync(join(dir, 'openspec/schemas/feat/schema.yaml'))).toBe(true)
     expect(existsSync(join(dir, 'hk.pkl'))).toBe(false)
   })
 
-  test('state B with --gate: writes absent gate files but never overwrites an existing one', () => {
+  test('state B with --gate: writes absent gate files but never overwrites an existing one', async () => {
     writeFileSync(join(dir, 'package.json'), '{"name":"x"}\n')
     writeFileSync(join(dir, 'hk.pkl'), 'MY OWN HK\n')
-    const { code, out } = runInit(dir, ['--harness', 'none', '--gate'])
+    const { code, out } = await runInit(dir, ['--harness', 'none', '--gate'])
     expect(code).toBe(0)
     // Existing hk.pkl untouched; snippet printed instead.
     expect(readFileSync(join(dir, 'hk.pkl'), 'utf8')).toBe('MY OWN HK\n')
@@ -52,7 +52,7 @@ describe('cospec init (DESIGN §2.1)', () => {
     expect(existsSync(join(dir, 'commitlint.config.mjs'))).toBe(true)
   })
 
-  test('state B with --gate: additively merges the gate into an existing mise.toml, idempotently', () => {
+  test('state B with --gate: additively merges the gate into an existing mise.toml, idempotently', async () => {
     writeFileSync(join(dir, 'package.json'), '{"name":"x"}\n')
     // The documented install-flow mise.toml (the `oops` shape): a cospec pin,
     // experimental flag, and a top-level bare key. Zero conflicts.
@@ -60,7 +60,7 @@ describe('cospec init (DESIGN §2.1)', () => {
       join(dir, 'mise.toml'),
       'monorepo_root = true\n\n[settings]\nexperimental = true\n\n[tools]\n"github:aligned-team/cospec" = "0.5.0"\n',
     )
-    const { code } = runInit(dir, ['--harness', 'none', '--gate'])
+    const { code } = await runInit(dir, ['--harness', 'none', '--gate'])
     expect(code).toBe(0)
     const merged = readFileSync(join(dir, 'mise.toml'), 'utf8')
     // Gate content merged in.
@@ -72,28 +72,28 @@ describe('cospec init (DESIGN §2.1)', () => {
     expect(merged).toContain('"github:aligned-team/cospec" = "0.5.0"')
     expect(merged).not.toContain('"npm:@aligned-team/cospec"')
     // Second init reports mise status `unchanged` and leaves the file identical.
-    const { out } = capture(
-      () => initRun(ctx(dir, ['--harness', 'none', '--gate'], true)) as number,
+    const { out } = await captureAsync(() =>
+      initRun(ctx(dir, ['--harness', 'none', '--gate'], true)),
     )
     const json = JSON.parse(out) as { gate: { mise: { status: string } } }
     expect(json.gate.mise.status).toBe('unchanged')
     expect(readFileSync(join(dir, 'mise.toml'), 'utf8')).toBe(merged)
   })
 
-  test('config.yaml is written only when absent (never modified)', () => {
+  test('config.yaml is written only when absent (never modified)', async () => {
     mkdirSync(join(dir, 'openspec'), { recursive: true })
     writeFileSync(join(dir, 'openspec/config.yaml'), 'schema: custom-thing\n')
-    runInit(dir, ['--harness', 'none'])
+    await runInit(dir, ['--harness', 'none'])
     expect(readFileSync(join(dir, 'openspec/config.yaml'), 'utf8')).toBe('schema: custom-thing\n')
   })
 
-  test('claude harness additively merges the permission into settings.json', () => {
+  test('claude harness additively merges the permission into settings.json', async () => {
     mkdirSync(join(dir, '.claude'), { recursive: true })
     writeFileSync(
       join(dir, '.claude/settings.json'),
       JSON.stringify({ permissions: { allow: ['Bash(ls)'] } }, null, 2),
     )
-    runInit(dir, ['--harness', 'claude', '--yes'])
+    await runInit(dir, ['--harness', 'claude', '--yes'])
     const settings = JSON.parse(readFileSync(join(dir, '.claude/settings.json'), 'utf8')) as {
       permissions: { allow: string[] }
     }
@@ -101,30 +101,30 @@ describe('cospec init (DESIGN §2.1)', () => {
     expect(settings.permissions.allow).toContain('Bash(cospec *)')
   })
 
-  test('invalid --harness exits 1 with the valid-values message', () => {
-    const { code, err } = runInit(dir, ['--harness', 'bogus'])
+  test('invalid --harness exits 1 with the valid-values message', async () => {
+    const { code, err } = await runInit(dir, ['--harness', 'bogus'])
     expect(code).toBe(1)
     expect(err).toContain('invalid --harness')
   })
 
-  test('state B/C with no harness and no flag exits 1', () => {
+  test('state B/C with no harness and no flag exits 1', async () => {
     writeFileSync(join(dir, 'package.json'), '{}')
-    const { code, err } = runInit(dir, [])
+    const { code, err } = await runInit(dir, [])
     expect(code).toBe(1)
     expect(err).toContain('no harness detected')
   })
 
-  test('opsx files are listed but not removed without --remove-opsx', () => {
+  test('opsx files are listed but not removed without --remove-opsx', async () => {
     plantOpsx(dir)
-    const { out } = runInit(dir, ['--harness', 'claude'])
+    const { out } = await runInit(dir, ['--harness', 'claude'])
     expect(out).toContain('leftover openspec (opsx)')
     expect(existsSync(join(dir, '.claude/skills/openspec-apply-change/SKILL.md'))).toBe(true)
     expect(existsSync(join(dir, '.agents/skills/openspec-propose/SKILL.md'))).toBe(true)
   })
 
-  test('--remove-opsx deletes provably openspec-generated files and prunes empty dirs', () => {
+  test('--remove-opsx deletes provably openspec-generated files and prunes empty dirs', async () => {
     plantOpsx(dir)
-    const { out } = runInit(dir, ['--harness', 'claude', '--remove-opsx'])
+    const { out } = await runInit(dir, ['--harness', 'claude', '--remove-opsx'])
     expect(out).toContain('Removed')
     expect(existsSync(join(dir, '.claude/skills/openspec-apply-change/SKILL.md'))).toBe(false)
     expect(existsSync(join(dir, '.claude/skills/openspec-apply-change'))).toBe(false)
@@ -132,10 +132,10 @@ describe('cospec init (DESIGN §2.1)', () => {
     expect(existsSync(join(dir, '.claude/skills/cospec-propose/SKILL.md'))).toBe(true)
   })
 
-  test('a `.agents/skills/` leftover is found and removed (openspec ≥1.8 Codex root)', () => {
+  test('a `.agents/skills/` leftover is found and removed (openspec ≥1.8 Codex root)', async () => {
     plantOpsx(dir)
-    const { out } = capture(
-      () => initRun(ctx(dir, ['--harness', 'claude', '--remove-opsx', '--yes'], true)) as number,
+    const { out } = await captureAsync(() =>
+      initRun(ctx(dir, ['--harness', 'claude', '--remove-opsx', '--yes'], true)),
     )
     const json = JSON.parse(out) as { opsx: { found: string[]; removed: boolean } }
     expect(json.opsx.found).toContain('.agents/skills/openspec-propose/SKILL.md')
@@ -143,7 +143,7 @@ describe('cospec init (DESIGN §2.1)', () => {
     expect(existsSync(join(dir, '.agents/skills/openspec-propose'))).toBe(false)
   })
 
-  test('a `.agents/skills/` file cospec or a third party wrote is never removed', () => {
+  test('a `.agents/skills/` file cospec or a third party wrote is never removed', async () => {
     // `.agents/` is a shared root: other tools and the user live there too. Only
     // openspec provenance may be deleted — cospec's own stamp and no stamp at all
     // must both survive `--remove-opsx`.
@@ -157,8 +157,8 @@ describe('cospec init (DESIGN §2.1)', () => {
     mkdirSync(theirs, { recursive: true })
     writeFileSync(join(theirs, 'SKILL.md'), '---\nname: team-runbook\n---\nhand-written\n')
 
-    const { out } = capture(
-      () => initRun(ctx(dir, ['--harness', 'claude', '--remove-opsx', '--yes'], true)) as number,
+    const { out } = await captureAsync(() =>
+      initRun(ctx(dir, ['--harness', 'claude', '--remove-opsx', '--yes'], true)),
     )
     const json = JSON.parse(out) as { opsx: { found: string[] } }
     expect(json.opsx.found).toEqual([])
@@ -166,7 +166,7 @@ describe('cospec init (DESIGN §2.1)', () => {
     expect(existsSync(join(theirs, 'SKILL.md'))).toBe(true)
   })
 
-  test('user-authored path-matching files are never removed (provenance-only)', () => {
+  test('user-authored path-matching files are never removed (provenance-only)', async () => {
     // Plant files whose only "opsx-ness" is the path/name convention, with no
     // openspec provenance frontmatter — a user's personal notes (finding repro).
     const cmdDir = join(dir, '.opencode/commands/opsx')
@@ -187,8 +187,8 @@ describe('cospec init (DESIGN §2.1)', () => {
       "---\nname: 'OPSX: Apply'\n---\nreal openspec command\n",
     )
 
-    const { out } = capture(
-      () => initRun(ctx(dir, ['--harness', 'opencode', '--remove-opsx', '--yes'], true)) as number,
+    const { out } = await captureAsync(() =>
+      initRun(ctx(dir, ['--harness', 'opencode', '--remove-opsx', '--yes'], true)),
     )
     const json = JSON.parse(out) as { opsx: { found: string[]; removed: boolean } }
     // User files survive and were never even reported.
@@ -201,7 +201,7 @@ describe('cospec init (DESIGN §2.1)', () => {
     expect(existsSync(join(realDir, 'apply.md'))).toBe(false)
   })
 
-  test('a symlinked .claude scan root pointing outside the project is never read or removed', () => {
+  test('a symlinked .claude scan root pointing outside the project is never read or removed', async () => {
     // Mimic the repro: proj/.claude -> ../shared-claude, a directory outside this
     // project holding a *real* openspec-authored leftover belonging to a different
     // project (or a dotfiles-style shared checkout).
@@ -212,11 +212,8 @@ describe('cospec init (DESIGN §2.1)', () => {
       writeFileSync(realLeftover, "---\nname: 'OPSX: Apply'\n---\nreal openspec command\n")
       symlinkSync(outside, join(dir, '.claude'))
 
-      const { out } = capture(
-        () =>
-          initRun(
-            ctx(dir, ['--harness', 'none', '--no-gate', '--remove-opsx', '--yes'], true),
-          ) as number,
+      const { out } = await captureAsync(() =>
+        initRun(ctx(dir, ['--harness', 'none', '--no-gate', '--remove-opsx', '--yes'], true)),
       )
       const json = JSON.parse(out) as { opsx: { found: string[]; removed: boolean } }
       // Never listed (so never a candidate for removal either).
@@ -229,7 +226,7 @@ describe('cospec init (DESIGN §2.1)', () => {
     }
   })
 
-  test('a symlinked .agents/skills pointing outside the project is never read via the explicit shared-skill walk', () => {
+  test('a symlinked .agents/skills pointing outside the project is never read via the explicit shared-skill walk', async () => {
     // `.agents` itself is a REAL directory here — only `skills` underneath is the
     // symlink — so this targets the explicit `walk(OPSX_SHARED_SKILL_ROOT)` call
     // specifically, not the ordinary per-child Dirent skip that already protects a
@@ -245,11 +242,8 @@ describe('cospec init (DESIGN §2.1)', () => {
       mkdirSync(join(dir, '.agents'), { recursive: true })
       symlinkSync(outside, join(dir, '.agents/skills'))
 
-      const { out } = capture(
-        () =>
-          initRun(
-            ctx(dir, ['--harness', 'none', '--no-gate', '--remove-opsx', '--yes'], true),
-          ) as number,
+      const { out } = await captureAsync(() =>
+        initRun(ctx(dir, ['--harness', 'none', '--no-gate', '--remove-opsx', '--yes'], true)),
       )
       const json = JSON.parse(out) as { opsx: { found: string[]; removed: boolean } }
       expect(json.opsx.found).toEqual([])
@@ -263,17 +257,18 @@ describe('cospec init (DESIGN §2.1)', () => {
   const OPENSPEC_SKILL =
     '---\nname: openspec-propose\nmetadata:\n  author: openspec\n  generatedBy: "1.3.1"\n---\nbody\n'
 
-  const removeOpsx = (dir: string): { opsx: { found: string[]; removed: boolean } } =>
+  const removeOpsx = async (
+    dir: string,
+  ): Promise<{ opsx: { found: string[]; removed: boolean } }> =>
     JSON.parse(
-      capture(
-        () =>
-          initRun(
-            ctx(dir, ['--harness', 'claude', '--no-gate', '--remove-opsx', '--yes'], true),
-          ) as number,
+      (
+        await captureAsync(() =>
+          initRun(ctx(dir, ['--harness', 'claude', '--no-gate', '--remove-opsx', '--yes'], true)),
+        )
       ).out,
     ) as { opsx: { found: string[]; removed: boolean } }
 
-  test('a symlinked .agents/skills resolving into a nested worktree never deletes its files', () => {
+  test('a symlinked .agents/skills resolving into a nested worktree never deletes its files', async () => {
     const skill = join(dir, '.claude/worktrees/feat/.agents/skills/openspec-propose/SKILL.md')
     mkdirSync(join(skill, '..'), { recursive: true })
     writeFileSync(skill, OPENSPEC_SKILL)
@@ -282,45 +277,45 @@ describe('cospec init (DESIGN §2.1)', () => {
     mkdirSync(join(dir, '.agents'), { recursive: true })
     symlinkSync(join(dir, '.claude/worktrees/feat/.agents/skills'), join(dir, '.agents/skills'))
 
-    const json = removeOpsx(dir)
+    const json = await removeOpsx(dir)
     expect(json.opsx.found).toEqual([])
     expect(json.opsx.removed).toBe(false)
     expect(existsSync(skill)).toBe(true)
   })
 
-  test('an embedded clone at .claude is never scanned or deleted from', () => {
+  test('an embedded clone at .claude is never scanned or deleted from', async () => {
     const skill = join(dir, '.claude/skills/openspec-propose/SKILL.md')
     mkdirSync(join(skill, '..'), { recursive: true })
     mkdirSync(join(dir, '.claude/.git'), { recursive: true })
     writeFileSync(skill, OPENSPEC_SKILL)
 
-    const json = removeOpsx(dir)
+    const json = await removeOpsx(dir)
     expect(json.opsx.found).toEqual([])
     expect(json.opsx.removed).toBe(false)
     expect(existsSync(skill)).toBe(true)
   })
 
-  test('a bare `init --yes` (no --remove-opsx) never deletes unmarked user files', () => {
+  test('a bare `init --yes` (no --remove-opsx) never deletes unmarked user files', async () => {
     const cmdDir = join(dir, '.opencode/commands/opsx')
     mkdirSync(cmdDir, { recursive: true })
     writeFileSync(join(cmdDir, 'mynotes.md'), '# personal notes, no provenance\n')
-    runInit(dir, ['--harness', 'opencode', '--yes'])
+    await runInit(dir, ['--harness', 'opencode', '--yes'])
     expect(existsSync(join(cmdDir, 'mynotes.md'))).toBe(true)
   })
 
-  test('a second init leaves the tree unchanged (idempotent)', () => {
-    runInit(dir, ['--harness', 'claude', '--yes'])
-    const { code, out } = capture(
-      () => initRun(ctx(dir, ['--harness', 'claude', '--yes'], true)) as number,
+  test('a second init leaves the tree unchanged (idempotent)', async () => {
+    await runInit(dir, ['--harness', 'claude', '--yes'])
+    const { code, out } = await captureAsync(() =>
+      initRun(ctx(dir, ['--harness', 'claude', '--yes'], true)),
     )
     expect(code).toBe(0)
     const json = JSON.parse(out) as { files: { outcome: string }[] }
     expect(json.files.every((f) => f.outcome === 'unchanged')).toBe(true)
   })
 
-  test('--json reports state, harnesses, and per-file outcomes', () => {
-    const { out } = capture(
-      () => initRun(ctx(dir, ['--harness', 'claude,codex', '--yes'], true)) as number,
+  test('--json reports state, harnesses, and per-file outcomes', async () => {
+    const { out } = await captureAsync(() =>
+      initRun(ctx(dir, ['--harness', 'claude,codex', '--yes'], true)),
     )
     const json = JSON.parse(out) as {
       state: string
@@ -332,30 +327,32 @@ describe('cospec init (DESIGN §2.1)', () => {
     expect(json.config.written).toBe(true)
   })
 
-  test('state C re-init resyncs an already-adopted gate with no --gate flag', () => {
+  test('state C re-init resyncs an already-adopted gate with no --gate flag', async () => {
     mkdirSync(join(dir, 'openspec'), { recursive: true })
     writeFileSync(
       join(dir, 'mise.toml'),
       '[tools]\n"npm:@aligned-team/cospec" = "0.5.1"\n\n[tasks."cospec:apply"]\nrun = "cospec apply"\n',
     )
-    const { code, out } = runInit(dir, ['--harness', 'none'])
+    const { code, out } = await runInit(dir, ['--harness', 'none'])
     expect(code).toBe(0)
     // Gate ran: hk.pkl/commitlint written fresh, mise.toml merge is idempotent.
     expect(existsSync(join(dir, 'hk.pkl'))).toBe(true)
     expect(existsSync(join(dir, 'commitlint.config.mjs'))).toBe(true)
     expect(out).not.toContain('no commit gate configured')
 
-    const { out: jsonOut } = capture(() => initRun(ctx(dir, ['--harness', 'none'], true)) as number)
+    const { out: jsonOut } = await captureAsync(() =>
+      initRun(ctx(dir, ['--harness', 'none'], true)),
+    )
     const json = JSON.parse(jsonOut) as { gate: { mise: { status: string } } | null }
     expect(json.gate).not.toBeNull()
     expect(['merged', 'unchanged']).toContain(json.gate!.mise.status)
   })
 
-  test('state C re-init with no adopted gate prints a hint and touches nothing gate-related', () => {
+  test('state C re-init with no adopted gate prints a hint and touches nothing gate-related', async () => {
     mkdirSync(join(dir, 'openspec'), { recursive: true })
     writeFileSync(join(dir, 'mise.toml'), '[tools]\nbun = "1.3.0"\n')
     const before = readFileSync(join(dir, 'mise.toml'), 'utf8')
-    const { code, out } = runInit(dir, ['--harness', 'none'])
+    const { code, out } = await runInit(dir, ['--harness', 'none'])
     expect(code).toBe(0)
     expect(out).toContain(
       "Gate: no commit gate configured. Run 'cospec init --gate' to add it (merges into your mise.toml).",
@@ -364,28 +361,30 @@ describe('cospec init (DESIGN §2.1)', () => {
     expect(existsSync(join(dir, 'hk.pkl'))).toBe(false)
     expect(existsSync(join(dir, 'commitlint.config.mjs'))).toBe(false)
 
-    const { out: jsonOut } = capture(() => initRun(ctx(dir, ['--harness', 'none'], true)) as number)
+    const { out: jsonOut } = await captureAsync(() =>
+      initRun(ctx(dir, ['--harness', 'none'], true)),
+    )
     const json = JSON.parse(jsonOut) as { gate: unknown }
     expect(json.gate).toBeNull()
   })
 
-  test('exists-but-empty mise.toml + --gate: template written and reported as a write', () => {
+  test('exists-but-empty mise.toml + --gate: template written and reported as a write', async () => {
     writeFileSync(join(dir, 'package.json'), '{"name":"x"}\n')
     writeFileSync(join(dir, 'mise.toml'), '')
-    const { code, out } = runInit(dir, ['--harness', 'none', '--gate'])
+    const { code, out } = await runInit(dir, ['--harness', 'none', '--gate'])
     expect(code).toBe(0)
     expect(readFileSync(join(dir, 'mise.toml'), 'utf8').length).toBeGreaterThan(0)
     expect(out).toContain('Gate:    wrote')
     expect(out).toContain('mise.toml')
   })
 
-  test('exists-but-empty mise.toml + --gate: --json gate.written lists mise.toml', () => {
+  test('exists-but-empty mise.toml + --gate: --json gate.written lists mise.toml', async () => {
     const dir2 = makeRepo()
     try {
       writeFileSync(join(dir2, 'package.json'), '{"name":"x"}\n')
       writeFileSync(join(dir2, 'mise.toml'), '')
-      const { out } = capture(
-        () => initRun(ctx(dir2, ['--harness', 'none', '--gate'], true)) as number,
+      const { out } = await captureAsync(() =>
+        initRun(ctx(dir2, ['--harness', 'none', '--gate'], true)),
       )
       const json = JSON.parse(out) as { gate: { written: string[] } }
       expect(json.gate.written).toContain('mise.toml')
@@ -394,9 +393,9 @@ describe('cospec init (DESIGN §2.1)', () => {
     }
   })
 
-  test('cospec init help: exit 1, no ./help directory created, no other write', () => {
+  test('cospec init help: exit 1, no ./help directory created, no other write', async () => {
     const before = existsSync(join(dir, 'openspec'))
-    const { code, err } = runInit(dir, ['help'])
+    const { code, err } = await runInit(dir, ['help'])
     expect(code).toBe(1)
     expect(err).toContain('--help')
     expect(existsSync(join(dir, 'help'))).toBe(false)
@@ -452,10 +451,10 @@ describe('the opsx leftover scan under .github (the github-copilot row)', () => 
     )
   }
 
-  test('the opsx prompt, the pre-opsx prompt and the openspec skill are listed', () => {
+  test('the opsx prompt, the pre-opsx prompt and the openspec skill are listed', async () => {
     plant()
-    const { out } = capture(
-      () => initRun(ctx(dir, ['--harness', 'claude', '--yes'], true)) as number,
+    const { out } = await captureAsync(() =>
+      initRun(ctx(dir, ['--harness', 'claude', '--yes'], true)),
     )
     const json = JSON.parse(out) as { opsx: { found: string[] } }
     expect(json.opsx.found.toSorted()).toEqual([
@@ -465,10 +464,10 @@ describe('the opsx leftover scan under .github (the github-copilot row)', () => 
     ])
   })
 
-  test('--remove-opsx removes them, and a user prompt beside them stays', () => {
+  test('--remove-opsx removes them, and a user prompt beside them stays', async () => {
     plant()
-    const { out } = capture(
-      () => initRun(ctx(dir, ['--harness', 'claude', '--remove-opsx', '--yes'], true)) as number,
+    const { out } = await captureAsync(() =>
+      initRun(ctx(dir, ['--harness', 'claude', '--remove-opsx', '--yes'], true)),
     )
     const json = JSON.parse(out) as { opsx: { found: string[]; removed: boolean } }
     expect(json.opsx.removed).toBe(true)

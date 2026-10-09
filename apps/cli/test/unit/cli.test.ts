@@ -245,7 +245,7 @@ describe('cli dispatcher: help renders from the command table', () => {
 
   test('pending flags never appear in help', async () => {
     const init = await dispatch(['init', '--help'])
-    for (const flag of ['--language', '--profile']) expect(init.out).not.toContain(flag)
+    for (const flag of ['--language']) expect(init.out).not.toContain(flag)
     // `--copilot-cloud` and its negation are handled (change `github-copilot`).
     expect(init.out).toMatch(/^ {2}--copilot-cloud +Generate GitHub Copilot cloud/m)
     expect(init.out).toMatch(/^ {2}--no-copilot-cloud +Skip generating GitHub Copilot cloud/m)
@@ -390,7 +390,7 @@ describe("cli dispatcher: a value-taking flag's space-form value is never interc
     // with its value consumed, never help, never absorbed.
     [['init', '--language', '--help'], "cospec init: '--language' is not supported yet\n"],
     [['init', '--language', '--json'], "cospec init: '--language' is not supported yet\n"],
-    [['init', '--profile', '--store'], "cospec init: '--profile' is not supported yet\n"],
+    [['init', '--language', '--store'], "cospec init: '--language' is not supported yet\n"],
     // Upstream's program level takes `--no-color` out first, wherever it sits
     // before the first `--`: the flag takes the next token or has none.
     [

@@ -31,6 +31,7 @@ import {
   type ParsedArgs,
 } from '../core/command-table.ts'
 import { isolatedWriteFailure } from '../core/errno.ts'
+import { type GlobalProfile, readGlobalProfile } from '../core/global-profile.ts'
 import { askLine, isInteractive } from '../core/interactive.ts'
 import { splitFrontmatter, type WriteResult } from '../core/managed-files.ts'
 import {
@@ -64,6 +65,7 @@ import {
   persistCopilotCloudOptIn,
   resolveConfigFilePath,
 } from '../harness/copilot-cloud.ts'
+import { type Delivery, zeroArtifactLine } from '../harness/delivery.ts'
 import { homeSkillsDir } from '../harness/home-root.ts'
 import {
   findGlobalPromptLeftovers,
@@ -83,6 +85,7 @@ import {
   type SettingsMergeResult,
 } from '../harness/settings-merge.ts'
 import { availableHarnesses, withSharedRootOwners } from '../harness/shared-root.ts'
+import { isProfile, type Profile, profileWorkflows } from '../harness/workflow-set.ts'
 import {
   detectHarnesses,
   emittedPaths,
@@ -622,30 +625,87 @@ export function sharedSkillsRootLines(
 }
 
 /**
- * The receipt's two closing hint lines, spelled the way the first selected row invokes the
- * propose workflow: through that row's body dialect and invocation prefix, the respelling
+ * The receipt's closing hint lines, spelled the way the first selected row invokes the
+ * workflow they name: through that row's body dialect and invocation prefix, the respelling
  * its generated bodies get. The first selected row is the first id of an explicit list as
  * typed, else the first in table order; with none selected the canonical spelling stays.
+ *
+ * They name `propose` when the installed set holds it, else `new`, else point at
+ * `config profile`, as upstream's receipt does (`workflows`: absent means every workflow).
  * `table` is a test seam for rows the shipped table does not carry.
  */
 export function receiptHintLines(
   harnesses: readonly string[],
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
+  workflows?: ReadonlySet<string>,
 ): string[] {
-  const lines = [
-    'Try: /cospec:propose "feat: <what you want to build>"',
-    'Lightweight change? /cospec:propose "ci: fix release workflow" — 3 short artifacts.',
-  ]
+  const has = (id: string): boolean => workflows === undefined || workflows.has(id)
+  const lines = has('propose')
+    ? [
+        'Try: /cospec:propose "feat: <what you want to build>"',
+        'Lightweight change? /cospec:propose "ci: fix release workflow" — 3 short artifacts.',
+      ]
+    : has('new')
+      ? ['Try: /cospec:new "feat: <what you want to build>"']
+      : ["Done. Run 'cospec config profile' to configure your workflows."]
   const first = harnesses[0]
-  if (first === undefined) return lines
+  if (first === undefined || lines.every((line) => !line.includes('/cospec:'))) return lines
   const row = adapterFor(first, table)
   const skillById = skillByWorkflowId(readWorkflowManifest())
   return lines.map((line) => respellInvocationHint(line, row, skillById))
 }
 
+/** How the effective profile and delivery were chosen, for the receipt and `--json`. */
+export interface WorkflowSelection {
+  /** The profile in force, or undefined when no flag or global key set one. */
+  profile?: { name: Profile; source: 'flag' | 'config'; workflows: string[] }
+  /** Whether the global file set `delivery`. */
+  deliverySet: boolean
+  delivery: Delivery
+  /** The installed workflow ids; undefined installs every workflow. */
+  installed?: ReadonlySet<string>
+}
+
+/**
+ * The profile a `--profile` flag, else the global file's `profile` key, selects; nothing when
+ * neither is set (upstream's built-in `core` default is not a choice the user made). The
+ * workflow list is the global file's even when the flag picks the profile.
+ */
+export function selectWorkflows(
+  flagProfile: Profile | undefined,
+  global: GlobalProfile,
+): WorkflowSelection {
+  const name = flagProfile ?? global.profile
+  const delivery = global.delivery ?? 'both'
+  const base = { deliverySet: global.delivery !== undefined, delivery }
+  if (name === undefined) return base
+  const workflows = profileWorkflows(name, global.workflows, readWorkflowManifest())
+  return {
+    ...base,
+    profile: { name, source: flagProfile !== undefined ? 'flag' : 'config', workflows },
+    installed: new Set(workflows),
+  }
+}
+
+/** The receipt's one line naming the explicit profile and delivery, or none when neither is set. */
+export function workflowsLine(selection: WorkflowSelection): string | undefined {
+  const { profile } = selection
+  if (profile === undefined && !selection.deliverySet) return undefined
+  const total = readWorkflowManifest().workflows.length
+  const count = profile?.workflows.length ?? total
+  const parts: string[] = []
+  if (profile !== undefined) {
+    const by = profile.source === 'flag' ? '--profile' : 'the global config'
+    parts.push(`profile ${profile.name}, set by ${by}`)
+  }
+  if (selection.deliverySet) parts.push(`delivery ${selection.delivery}, set by the global config`)
+  const none = count === 0 ? '; no workflows selected' : ''
+  return `Workflows: ${count} of ${total} (${parts.join('; ')}${none})`
+}
+
 // --- command entrypoint -----------------------------------------------------
 
-export function run(ctx: CommandContext): number {
+export async function run(ctx: CommandContext): Promise<number> {
   const parsed = ctx.parsed!
   const resolved = resolveTarget(ctx.cwd, parsed)
   if (!resolved.ok) {
@@ -658,6 +718,20 @@ export function run(ctx: CommandContext): number {
   const force = hasFlag(parsed, '--force')
   const removeOpsx = hasFlag(parsed, '--remove-opsx')
   const harnessArg = flagValue(parsed, '--harness')
+
+  // Refused before any write, as the binary refuses ahead of its tool setup. The profile is
+  // explicit only when a flag or the global file's own key says so.
+  const profileArg = flagValue(parsed, '--profile')
+  if (profileArg !== undefined && !isProfile(profileArg)) {
+    process.stderr.write(
+      `cospec: Invalid profile "${profileArg}". Available profiles: core, custom\n`,
+    )
+    return 1
+  }
+  const workflowSel = selectWorkflows(
+    profileArg as Profile | undefined,
+    await readGlobalProfile(ctx.cwd, { warn: true }),
+  )
 
   const state = detectState(target)
   // A state-A (fresh) repo defaults the gate on; otherwise re-init resyncs an
@@ -726,6 +800,8 @@ export function run(ctx: CommandContext): number {
     harnesses: generated as HarnessName[],
     force,
     cloud: copilotCloudDirective(cloudDecision),
+    workflows: workflowSel.installed,
+    delivery: workflowSel.delivery,
   })
   const emitted = emittedPaths(results)
   // After generation, so cospec's replacement exists before a legacy file moves.
@@ -801,6 +877,8 @@ export function run(ctx: CommandContext): number {
           path: target,
           state,
           harnesses,
+          profile: workflowSel.profile ?? null,
+          delivery: workflowSel.delivery,
           gate: gate
             ? {
                 written: gate.written,
@@ -862,6 +940,7 @@ export function run(ctx: CommandContext): number {
     removeOpsx,
     notGitTree,
     autoNote: selection.note,
+    workflows: workflowSel,
     cloudLines: copilotCloudReceiptLines(cloudDecision, cloudReport, copilotOk),
   })
   return failed.length > 0 ? 1 : 0
@@ -906,6 +985,7 @@ interface ReceiptData {
   removeOpsx: boolean
   notGitTree: boolean
   autoNote?: string
+  workflows: WorkflowSelection
   /** The Copilot cloud files' outcome (`copilotCloudReceiptLines`); empty for any other tool. */
   cloudLines: string[]
 }
@@ -928,6 +1008,9 @@ function printReceipt(target: string, d: ReceiptData): void {
   if (preserved.length > 0) {
     lines.push(`Preserved: ${preserved.length} edited file(s) — new versions in .cospec-new`)
   }
+
+  const workflowsNote = workflowsLine(d.workflows)
+  if (workflowsNote !== undefined) lines.push(workflowsNote)
 
   if (d.harnesses.length > 0) {
     lines.push(`Harness: ${d.harnesses.join(', ')}`)
@@ -1037,6 +1120,15 @@ function printReceipt(target: string, d: ReceiptData): void {
     lines.push(...d.cloudLines)
   }
 
+  const noArtifacts = zeroArtifactLine(
+    d.harnesses.map((h) => adapterFor(h)),
+    d.workflows.delivery,
+  )
+  if (noArtifacts !== undefined) {
+    lines.push('')
+    lines.push(noArtifacts)
+  }
+
   const setup = setupNoteLines(d.harnesses)
   if (setup.length > 0) {
     lines.push('')
@@ -1044,7 +1136,7 @@ function printReceipt(target: string, d: ReceiptData): void {
   }
 
   lines.push('')
-  lines.push(...receiptHintLines(d.harnesses))
+  lines.push(...receiptHintLines(d.harnesses, HARNESS_TABLE, d.workflows.installed))
 
   process.stdout.write(`${lines.join('\n')}\n`)
 }
