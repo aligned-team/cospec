@@ -373,36 +373,27 @@ describe('standalone pack smoke (bun-less)', () => {
 
   // The Copilot cloud files come from the embedded canon too: the compiled binary has no
   // `canon/` directory on disk, so a template missing from `canon/embedded.ts` shows here.
-  // `test.failing` until `generate()` writes them (tasks.md 5.2); the decision and the
-  // persisted opt-in already work.
-  test.failing(
-    'the compiled binary writes both Copilot cloud files from the embedded canon',
-    async () => {
-      const { binName } = hostPlatform()
-      const binDir = mkTempRepo()
-      const bin = join(binDir, binName)
-      const compile = Bun.spawnSync(
-        ['bun', 'build', '--compile', 'src/index.ts', '--outfile', bin],
-        {
-          cwd: cliDir,
-        },
-      )
-      expect(compile.exitCode, new TextDecoder().decode(compile.stderr)).toBe(0)
-      const home = mkTempRepo()
-      const target = mkTempRepo({ git: true })
-      const init = Bun.spawnSync(
-        [bin, 'init', '--harness', 'github-copilot', '--copilot-cloud', '--no-gate'],
-        {
-          cwd: target,
-          env: { ...process.env, HOME: home, PATH: bunlessPath(), NO_COLOR: '1' },
-        },
-      )
-      expect(init.exitCode, new TextDecoder().decode(init.stderr)).toBe(0)
-      expect(existsSync(join(target, '.github/workflows/copilot-setup-steps.yml'))).toBe(true)
-      expect(existsSync(join(target, '.github/agents/cospec.agent.md'))).toBe(true)
-    },
-    180_000,
-  )
+  test('the compiled binary writes both Copilot cloud files from the embedded canon', async () => {
+    const { binName } = hostPlatform()
+    const binDir = mkTempRepo()
+    const bin = join(binDir, binName)
+    const compile = Bun.spawnSync(['bun', 'build', '--compile', 'src/index.ts', '--outfile', bin], {
+      cwd: cliDir,
+    })
+    expect(compile.exitCode, new TextDecoder().decode(compile.stderr)).toBe(0)
+    const home = mkTempRepo()
+    const target = mkTempRepo({ git: true })
+    const init = Bun.spawnSync(
+      [bin, 'init', '--harness', 'github-copilot', '--copilot-cloud', '--no-gate'],
+      {
+        cwd: target,
+        env: { ...process.env, HOME: home, PATH: bunlessPath(), NO_COLOR: '1' },
+      },
+    )
+    expect(init.exitCode, new TextDecoder().decode(init.stderr)).toBe(0)
+    expect(existsSync(join(target, '.github/workflows/copilot-setup-steps.yml'))).toBe(true)
+    expect(existsSync(join(target, '.github/agents/cospec.agent.md'))).toBe(true)
+  }, 180_000)
 })
 
 function packBun(dir: string): string {

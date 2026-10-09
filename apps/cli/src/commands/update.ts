@@ -23,6 +23,7 @@ import type { CommandContext } from '../cli.ts'
 import { openspecDir } from '../core/change.ts'
 import { hasFlag } from '../core/command-table.ts'
 import { isolatedWriteFailure } from '../core/errno.ts'
+import { isInteractive } from '../core/interactive.ts'
 import {
   computeContentHash,
   CURRENT_GENERATED_BY,
@@ -31,6 +32,7 @@ import {
   manifestPath,
   readManifest,
   resolveContainedPath,
+  renderManaged,
   splitFrontmatter,
   type WriteResult,
   writeManifest,
@@ -49,7 +51,23 @@ import {
   SKILL_FILE,
   skillsRoot,
 } from '../harness/adapters.ts'
-import type { CopilotCloudDirective, CopilotCloudReport } from '../harness/copilot-cloud.ts'
+import {
+  assertCopilotCloudPaths,
+  assertCopilotCloudRemovalPaths,
+  classifyCloudFile,
+  classifyCopilotAgentReconciliation,
+  COPILOT_CLOUD_FILES,
+  COPILOT_HARNESS,
+  type CopilotCloudDirective,
+  copilotAgentFrontmatter,
+  type CopilotCloudReport,
+  copilotCloudUpdateLines,
+  copilotSetupStepsContent,
+  emptyCopilotCloudReport,
+  expectedCloudFailure,
+  implicitCopilotCloudDirective,
+  isCopilotCloudPath,
+} from '../harness/copilot-cloud.ts'
 import { hasHomeSkillEvidence, resolveHomeDir } from '../harness/home-root.ts'
 import {
   canAskLegacyConsent,
@@ -341,8 +359,10 @@ export interface GenerateResult {
   manifest: Manifest
   /** The rows that wrote (or would write) each skills root; one per shared root. */
   skillWriters: ReadonlySet<string>
-  /** The Copilot cloud files after the run; absent when the run did not handle them. */
+  /** The Copilot cloud files after the run; absent when the run left them alone. */
   cloud?: CopilotCloudReport
+  /** What the run did with the cloud files: the option `init` passed, else the resolved one. */
+  cloudDirective: CopilotCloudDirective
 }
 
 /** Run one file operation, recording an isolated write failure against `path` instead of throwing. */
@@ -436,6 +456,39 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
   const results: WriteResult[] = []
   const failed: FailedWrite[] = []
   const newManifest: Manifest = { cospecVersion: version, files: {} }
+
+  // The Copilot cloud files (design decisions 7 and 8): emitted while the directive is `write`,
+  // taken away while it is `remove`, left alone (record and all) otherwise. A profile conflict
+  // or a path guard costs the cloud files only; the rest of the run still writes.
+  const cloudDirective =
+    opts.cloud ?? implicitCopilotCloudDirective(cwd, opts.harnesses.includes(COPILOT_HARNESS), prev)
+  let cloudActive = cloudDirective !== 'leave'
+  let removeManagedAgent = false
+  if (cloudDirective === 'write') {
+    try {
+      assertCopilotCloudPaths(cwd)
+      const reconciliation = classifyCopilotAgentReconciliation(cwd, prev)
+      flat.push({
+        relpath: COPILOT_CLOUD_FILES.setupSteps,
+        abspath: join(cwd, COPILOT_CLOUD_FILES.setupSteps),
+        content: copilotSetupStepsContent(),
+      })
+      if (reconciliation === 'reconcile') {
+        md.push({
+          relpath: COPILOT_CLOUD_FILES.agent,
+          abspath: join(cwd, COPILOT_CLOUD_FILES.agent),
+          content: renderManaged(copilotAgentFrontmatter(), version),
+        })
+      } else if (reconciliation === 'remove-managed') {
+        removeManagedAgent = true
+      }
+    } catch (error) {
+      const failure = expectedCloudFailure(error, COPILOT_CLOUD_FILES.agent)
+      if (failure === undefined) throw error
+      failed.push(failure)
+      cloudActive = false
+    }
+  }
   // A permission or path-type error costs only its own file (design decision 10); any other
   // error is not this run's to hide and propagates.
   const attempt: Attempt = (path, op) => {
@@ -455,7 +508,10 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
     )
     if (written !== undefined) {
       results.push(written)
-      newManifest.files[f.relpath] = computeContentHash(f.content)
+      // A workflow that was already there and is not ours was never written by cospec: recording
+      // its hash as ours would later report it as "edited since cospec wrote it".
+      const neverOurs = isCopilotCloudPath(f.relpath) && written.outcome === 'preserved-foreign'
+      if (!neverOurs) newManifest.files[f.relpath] = computeContentHash(f.content)
     } else if (prevFiles[f.relpath] !== undefined) {
       // Still the last content cospec wrote, so the next run can tell it from a user's edit.
       newManifest.files[f.relpath] = prevFiles[f.relpath]!
@@ -470,11 +526,64 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
       results.push(f.scope === 'home' ? { ...written, scope: 'home' } : written)
   }
 
+  const cloud = cloudActive ? emptyCopilotCloudReport() : undefined
+  // Set once removal's guards passed: only then is a cloud file's manifest record settled.
+  let removalRan = false
+  if (cloud !== undefined) {
+    const removeCloudFile = (relpath: string): void => {
+      const state = classifyCloudFile(cwd, relpath, prev)
+      if (state === 'managed') {
+        const removed = attempt(relpath, () => {
+          if (!writeOpts.dryRun) rmSync(join(cwd, relpath))
+          return true
+        })
+        if (removed !== undefined) {
+          results.push({ path: relpath, outcome: 'removed' })
+          cloud.removed.push(relpath)
+        }
+      } else if (state === 'modified') {
+        cloud.leftInPlace.push(relpath)
+      }
+    }
+    if (cloudDirective === 'remove') {
+      try {
+        assertCopilotCloudRemovalPaths(cwd)
+        removalRan = true
+        removeCloudFile(COPILOT_CLOUD_FILES.setupSteps)
+        removeCloudFile(COPILOT_CLOUD_FILES.agent)
+      } catch (error) {
+        const failure = expectedCloudFailure(error, COPILOT_CLOUD_FILES.agent)
+        if (failure === undefined) throw error
+        failed.push(failure)
+      }
+    } else {
+      if (removeManagedAgent) removeCloudFile(COPILOT_CLOUD_FILES.agent)
+      for (const r of results) {
+        if (!isCopilotCloudPath(r.path)) continue
+        if (r.outcome === 'preserved-foreign' || r.outcome === 'preserved-modified') {
+          cloud.collisions.push(r.path)
+        } else if (r.outcome !== 'removed') {
+          cloud.present.push(r.path)
+        }
+      }
+    }
+  }
+
   // Removals: frontmatter-less files the previous manifest tracked that we no
   // longer emit; and orphaned cospec-managed markdown in the harness dirs.
   const flatEmitted = new Set(flat.map((f) => f.relpath))
   for (const relpath of Object.keys(prevFiles)) {
     if (flatEmitted.has(relpath)) continue
+    // The cloud workflow is the directive's to remove (above), never this loop's: an edited one
+    // is reported, not drift, and an undecided run keeps its record.
+    if (isCopilotCloudPath(relpath)) {
+      const settled =
+        removalRan &&
+        !cloud?.leftInPlace.includes(relpath) &&
+        !failed.some((f) => f.path === relpath)
+      if (!settled) newManifest.files[relpath] = prevFiles[relpath]!
+      continue
+    }
     // The manifest is committed and may be attacker-controlled; contain the key
     // to the dirs cospec owns before turning it into a delete target. A poisoned
     // key like `../victim.txt` resolves outside and is skipped entirely.
@@ -520,7 +629,7 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
   const migration = migrateLegacySkills(cwd, mdEmitted, writeOpts)
 
   if (!writeOpts.dryRun) writeManifest(cwd, newManifest)
-  return { results, failed, migration, manifest: newManifest, skillWriters }
+  return { results, failed, migration, manifest: newManifest, skillWriters, cloud, cloudDirective }
 }
 
 /** Scan the emitted harnesses' skill/command dirs for cospec markdown we no longer emit. */
@@ -628,7 +737,13 @@ export function run(ctx: CommandContext): number {
   }
 
   const harnesses = detectHarnesses(cwd)
-  const { results, failed, migration } = generate(cwd, { harnesses, force, dryRun: check })
+  const generated = generate(cwd, { harnesses, force, dryRun: check })
+  const { results, migration } = generated
+  // The binary catches a failed cloud sync into one Warning and keeps the exit code; cospec does
+  // the same for the failures it expects there (a profile conflict, a path guard, the errno set)
+  // and leaves every other failed write a failed run.
+  const failed = generated.failed.filter((f) => !isCopilotCloudPath(f.path))
+  const cloudWarnings = generated.failed.filter((f) => isCopilotCloudPath(f.path))
   moves.push(
     ...moveLegacyToolRoots(cwd, {
       timing: 'after-generation',
@@ -647,6 +762,10 @@ export function run(ctx: CommandContext): number {
 
   // A file that could not be written is a failed run, in every mode.
   const exitCode = failed.length > 0 || (check && (drifted.length > 0 || wouldMove)) ? 1 : 0
+
+  for (const w of cloudWarnings) {
+    process.stderr.write(`Warning: failed to sync Copilot cloud agent files: ${w.error}\n`)
+  }
 
   if (flags.json) {
     process.stdout.write(
@@ -676,6 +795,15 @@ export function run(ctx: CommandContext): number {
   for (const line of migrationLines(migration, check)) process.stdout.write(`${line}\n`)
   for (const line of legacyMoveLines(moves, check)) process.stdout.write(`${line}\n`)
   for (const line of failedLines(failed)) process.stdout.write(`${line}\n`)
+  const cloudLines = copilotCloudUpdateLines({
+    directive: generated.cloudDirective,
+    configured: harnesses.includes(COPILOT_HARNESS),
+    report: generated.cloud,
+    check,
+    json: flags.json,
+    interactive: isInteractive(),
+  })
+  for (const line of cloudLines) process.stdout.write(`${line}\n`)
   // Upstream prints its restart line only when an update touched a tool's files.
   const restart = check || drifted.length === 0 ? undefined : updateRestartLine(harnesses)
   if (restart !== undefined) process.stdout.write(`${restart}\n`)

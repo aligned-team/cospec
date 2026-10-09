@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { Document, isMap, parse as parseYaml, parseDocument, YAMLMap } from 'yaml'
 
 import { canonFile } from '../canon/embedded.ts'
+import { isolatedWriteFailure } from '../core/errno.ts'
 import {
   classifyManagedMarkdown,
   classifyManifestFile,
@@ -35,6 +36,42 @@ export const COPILOT_CLOUD_FILES = {
 export const COPILOT_AGENT_ALTERNATE_FILE = '.github/agents/cospec.md'
 
 const CLOUD_PATHS: readonly string[] = Object.values(COPILOT_CLOUD_FILES)
+
+/** Whether `relPath` is one of the two files this module manages. */
+export function isCopilotCloudPath(relPath: string): boolean {
+  return CLOUD_PATHS.includes(relPath)
+}
+
+/**
+ * A failure the binary's `update` catches into one Warning line, and `init` records as the
+ * Copilot tool's failure: a profile conflict or a path guard. `path` is the cloud file it
+ * belongs to (set where the check knows it). Anything else is not this class and propagates.
+ */
+export class CopilotCloudError extends Error {
+  path: string | undefined
+
+  constructor(message: string, path?: string) {
+    super(message)
+    this.name = 'CopilotCloudError'
+    this.path = path
+  }
+}
+
+/**
+ * The failure to record for `error` when it is one this module expects (a profile conflict, a
+ * path guard, or the permission and path-type errno set a write isolates), against the cloud
+ * file it belongs to. `undefined` for anything else, which the caller rethrows.
+ */
+export function expectedCloudFailure(
+  error: unknown,
+  fallbackPath: string,
+): { path: string; error: string } | undefined {
+  if (error instanceof CopilotCloudError) {
+    return { path: error.path ?? fallbackPath, error: error.message }
+  }
+  const message = isolatedWriteFailure(error)
+  return message === undefined ? undefined : { path: fallbackPath, error: message }
+}
 
 export function copilotSetupStepsContent(): string {
   return readFileSync(canonFile('github-copilot/copilot-setup-steps.yml.tpl'), 'utf8')
@@ -100,8 +137,9 @@ export function classifyCopilotAgentReconciliation(
   const state = classifyCloudFile(cwd, COPILOT_CLOUD_FILES.agent, manifest)
   if (state === 'absent') return 'skip'
   if (state === 'managed') return 'remove-managed'
-  throw new Error(
+  throw new CopilotCloudError(
     `Conflicting Copilot agent profiles: preserve either ${COPILOT_AGENT_ALTERNATE_FILE} or ${COPILOT_CLOUD_FILES.agent}`,
+    COPILOT_CLOUD_FILES.agent,
   )
 }
 
@@ -115,11 +153,11 @@ export function assertCreatableFilePath(filePath: string): void {
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
-    if (isDir === false) throw new Error(`Parent path is not a directory: ${candidate}`)
+    if (isDir === false) throw new CopilotCloudError(`Parent path is not a directory: ${candidate}`)
     if (isDir === true) return
     const parent = dirname(candidate)
     if (parent === candidate) {
-      throw new Error(`Cannot resolve a directory ancestor for: ${filePath}`)
+      throw new CopilotCloudError(`Cannot resolve a directory ancestor for: ${filePath}`)
     }
     candidate = parent
   }
@@ -129,10 +167,28 @@ export function assertCreatableFilePath(filePath: string): void {
 export function assertMissingOrRegularFile(filePath: string): void {
   try {
     if (!statSync(filePath).isFile()) {
-      throw new Error(`Managed Copilot path is not a regular file: ${filePath}`)
+      throw new CopilotCloudError(`Managed Copilot path is not a regular file: ${filePath}`)
     }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+  }
+}
+
+/**
+ * Run one guard, attributing a failure to `relPath`: a path guard's own error, or the errno
+ * set a write isolates (`ENOTDIR` for an ancestor that is a file). Other errors propagate.
+ */
+function guard(relPath: string, check: () => void): void {
+  try {
+    check()
+  } catch (error) {
+    if (error instanceof CopilotCloudError) {
+      error.path ??= relPath
+      throw error
+    }
+    const failure = expectedCloudFailure(error, relPath)
+    if (failure === undefined) throw error
+    throw new CopilotCloudError(failure.error, relPath)
   }
 }
 
@@ -140,11 +196,20 @@ export function assertMissingOrRegularFile(filePath: string): void {
 export function assertCopilotCloudPaths(cwd: string): void {
   const setupSteps = join(cwd, COPILOT_CLOUD_FILES.setupSteps)
   const agent = join(cwd, COPILOT_CLOUD_FILES.agent)
-  assertCreatableFilePath(setupSteps)
-  assertCreatableFilePath(agent)
-  assertMissingOrRegularFile(setupSteps)
-  assertMissingOrRegularFile(agent)
-  assertMissingOrRegularFile(join(cwd, COPILOT_AGENT_ALTERNATE_FILE))
+  guard(COPILOT_CLOUD_FILES.setupSteps, () => assertCreatableFilePath(setupSteps))
+  guard(COPILOT_CLOUD_FILES.agent, () => assertCreatableFilePath(agent))
+  guard(COPILOT_CLOUD_FILES.setupSteps, () => assertMissingOrRegularFile(setupSteps))
+  guard(COPILOT_CLOUD_FILES.agent, () => assertMissingOrRegularFile(agent))
+  guard(COPILOT_CLOUD_FILES.agent, () =>
+    assertMissingOrRegularFile(join(cwd, COPILOT_AGENT_ALTERNATE_FILE)),
+  )
+}
+
+/** The path guards that run before any cloud file is removed (the binary's removal order). */
+export function assertCopilotCloudRemovalPaths(cwd: string): void {
+  for (const relPath of CLOUD_PATHS) {
+    guard(relPath, () => assertMissingOrRegularFile(join(cwd, relPath)))
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -402,6 +467,58 @@ export type CopilotCloudDirective = 'write' | 'remove' | 'leave'
 export function copilotCloudDirective(decision: CopilotCloudDecision): CopilotCloudDirective {
   if (decision.write) return 'write'
   return decision.optedOut ? 'remove' : 'leave'
+}
+
+/**
+ * What a run that was not told (`update`, `doctor`) does with the cloud files, ported from the
+ * binary's `syncCopilotCloudFiles`: the tool not configured removes them; a persisted `true`
+ * writes and `false` removes; undecided keeps them current when a managed one is on disk
+ * (tier 3) and otherwise leaves them alone.
+ */
+export function implicitCopilotCloudDirective(
+  cwd: string,
+  selected: boolean,
+  manifest: Manifest | undefined,
+  warn?: Warn,
+): CopilotCloudDirective {
+  if (!selected) return 'remove'
+  const persisted = readCopilotCloudOptIn(cwd, warn)
+  if (persisted !== undefined) return persisted ? 'write' : 'remove'
+  return hasManagedCloudFiles(cwd, manifest) ? 'write' : 'leave'
+}
+
+/** The hint an interactive, undecided `update` prints; names cospec's own command. */
+export const COPILOT_CLOUD_UPDATE_HINT =
+  "GitHub Copilot cloud coding-agent files are available (opt-in). Enable with 'cospec init --copilot-cloud'."
+
+/**
+ * The lines `update` prints about the cloud files after a write run (never for `--check`, which
+ * only reports drift): what an opt-out or a dropped tool removed and what it left, or, when
+ * nothing was ever decided and a person is at the terminal, how to opt in.
+ */
+export function copilotCloudUpdateLines(input: {
+  directive: CopilotCloudDirective
+  /** `github-copilot` is among the configured tools. */
+  configured: boolean
+  report: CopilotCloudReport | undefined
+  check: boolean
+  json: boolean
+  interactive: boolean
+}): string[] {
+  if (input.check) return []
+  if (input.directive === 'leave') {
+    return input.configured && !input.json && input.interactive ? [COPILOT_CLOUD_UPDATE_HINT] : []
+  }
+  if (input.directive !== 'remove' || input.report === undefined) return []
+  const reason = input.configured ? 'opted out of cloud files' : 'github-copilot not configured'
+  const lines: string[] = []
+  if (input.report.removed.length > 0) {
+    lines.push(`Removed: ${input.report.removed.length} Copilot cloud agent file(s) (${reason})`)
+  }
+  for (const path of input.report.leftInPlace) {
+    lines.push(`Left ${path} in place: edited since cospec wrote it (${reason}).`)
+  }
+  return lines
 }
 
 /** The receipt lines for one run's cloud outcome (design decision 11). */

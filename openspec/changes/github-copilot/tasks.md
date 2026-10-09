@@ -119,7 +119,7 @@ its failing tests before its code.
       check out of `workset.ts` into a shared module both import. Verify 4.3
       passes, the existing `workset` interactive tests pass unchanged, and an
       init receipt for `claude` is byte-identical to `main`.
-- [ ] 4.5 Add integration rows (`test/integration/init-copilot-cloud.test.ts`):
+- [x] 4.5 Add integration rows (`test/integration/init-copilot-cloud.test.ts`):
       opt in, out, in again; an edited agent file survives opt-out while the
       workflow is removed; a foreign workflow is never overwritten, gets a
       `.cospec-new` sidecar and the "Left your existing" line; OpenSpec's own
@@ -129,7 +129,7 @@ its failing tests before its code.
 
 ## 5. T4: `update` re-sync and removal (`commands/update.ts`)
 
-- [ ] 5.1 Write the failing tests (`test/unit/init/update-copilot-cloud.test.ts`
+- [x] 5.1 Write the failing tests (`test/unit/init/update-copilot-cloud.test.ts`
       and an integration file): `generate()` with `cloud` true emits both files
       and a second call returns `unchanged`; with `cloud` false removes an
       unedited workflow and agent file and reports an edited one in
@@ -142,7 +142,7 @@ its failing tests before its code.
       nothing, and `cospec doctor` reports it; the Warning line for the conflict
       and each guard keeps the exit code, and an unexpected exception
       propagates. Verify they fail first.
-- [ ] 5.2 Implement the cloud emit and removal in `generate()` and the report in
+- [x] 5.2 Implement the cloud emit and removal in `generate()` and the report in
       `update` (design decisions 7, 8 and 10), carrying `cloud` on
       `GenerateResult` and the `--json` `files` list. Verify 5.1 passes,
       `bun test test/unit` stays green, and `mise run generate:check` exits 0 on
@@ -150,7 +150,7 @@ its failing tests before its code.
 
 ## 6. T5: the precedence matrix (`test/contract/copilot-cloud.test.ts`)
 
-- [ ] 6.1 Write the matrix: for each cell of flag state (none,
+- [x] 6.1 Write the matrix: for each cell of flag state (none,
       `--copilot-cloud`, `--no-copilot-cloud`, both orders) x config state
       (absent, `true`, `false`, malformed) x file state (none, managed, edited)
       x tool (`github-copilot`, `claude`), run the pinned binary through the
@@ -165,7 +165,7 @@ its failing tests before its code.
       (ported natively, never spawned) and confirm the three
       `openspec init --copilot-cloud` entries stay classified as not relayed.
       Verify `bun test test/contract/remedy-enumeration.test.ts` passes.
-- [ ] 6.3 Extend `pack-standalone` smoke: the compiled binary runs
+- [x] 6.3 Extend `pack-standalone` smoke: the compiled binary runs
       `init --harness github-copilot --copilot-cloud` in a temp directory and
       writes both cloud files from the embedded canon. Verify
       `mise run test:pack` passes.

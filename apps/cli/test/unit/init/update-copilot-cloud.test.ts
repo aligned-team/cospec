@@ -24,9 +24,6 @@ const COPILOT = ['github-copilot'] as const
 const CONFLICT =
   'Conflicting Copilot agent profiles: preserve either .github/agents/cospec.md or .github/agents/cospec.agent.md'
 
-// `test.failing` until `generate()` takes the directive (tasks.md 5.2); flipped to `test` there.
-const t = test.failing
-
 let dir: string
 beforeEach(() => {
   dir = makeRepo()
@@ -52,10 +49,20 @@ const configured = (): void => {
   generate(dir, { harnesses: [...COPILOT], cloud: 'leave' })
 }
 const update = (...args: string[]) =>
-  capture(() => updateRun(ctx(dir, args, args.includes('--json'), 'update')) as number)
+  capture(
+    () =>
+      updateRun(
+        ctx(
+          dir,
+          args.filter((a) => a !== '--json'),
+          args.includes('--json'),
+          'update',
+        ),
+      ) as number,
+  )
 
 describe('generate() with an explicit directive', () => {
-  t('write emits both files, and a second call reports them unchanged', () => {
+  test('write emits both files, and a second call reports them unchanged', () => {
     const first = generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     expect(outcomes(first.results)).toEqual({ [WORKFLOW]: 'created', [AGENT]: 'created' })
     expect(first.cloud).toEqual({
@@ -71,7 +78,7 @@ describe('generate() with an explicit directive', () => {
     expect(second.cloud?.present).toEqual([WORKFLOW, AGENT])
   })
 
-  t('remove takes away an unedited workflow and agent file', () => {
+  test('remove takes away an unedited workflow and agent file', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     const off = generate(dir, { harnesses: [...COPILOT], cloud: 'remove' })
     expect(outcomes(off.results)).toEqual({ [WORKFLOW]: 'removed', [AGENT]: 'removed' })
@@ -85,7 +92,7 @@ describe('generate() with an explicit directive', () => {
     expect(readManifest(dir)?.files[WORKFLOW]).toBeUndefined()
   })
 
-  t('remove reports an edited file in leftInPlace, not as drift, and keeps its record', () => {
+  test('remove reports an edited file in leftInPlace, not as drift, and keeps its record', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     put(AGENT, `${read(AGENT)}\nMy rule.\n`)
     put(WORKFLOW, `${read(WORKFLOW)}# mine\n`)
@@ -102,21 +109,18 @@ describe('generate() with an explicit directive', () => {
     expect(readManifest(dir)?.files[WORKFLOW]).toBeDefined()
   })
 
-  t(
-    'remove never touches a file cospec did not write (OpenSpec own files, a foreign workflow)',
-    () => {
-      put('.github/agents/openspec.agent.md', 'theirs\n')
-      put(WORKFLOW, 'name: mine\n')
-      put(AGENT, 'also mine\n')
-      const off = generate(dir, { harnesses: [...COPILOT], cloud: 'remove' })
-      expect(off.cloud).toEqual({ present: [], collisions: [], removed: [], leftInPlace: [] })
-      expect(read('.github/agents/openspec.agent.md')).toBe('theirs\n')
-      expect(read(WORKFLOW)).toBe('name: mine\n')
-      expect(read(AGENT)).toBe('also mine\n')
-    },
-  )
+  test('remove never touches a file cospec did not write (OpenSpec own files, a foreign workflow)', () => {
+    put('.github/agents/openspec.agent.md', 'theirs\n')
+    put(WORKFLOW, 'name: mine\n')
+    put(AGENT, 'also mine\n')
+    const off = generate(dir, { harnesses: [...COPILOT], cloud: 'remove' })
+    expect(off.cloud).toEqual({ present: [], collisions: [], removed: [], leftInPlace: [] })
+    expect(read('.github/agents/openspec.agent.md')).toBe('theirs\n')
+    expect(read(WORKFLOW)).toBe('name: mine\n')
+    expect(read(AGENT)).toBe('also mine\n')
+  })
 
-  t('leave touches neither file and keeps the workflow record', () => {
+  test('leave touches neither file and keeps the workflow record', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     put(WORKFLOW, `${read(WORKFLOW)}# mine\n`)
     const kept = readManifest(dir)?.files[WORKFLOW]
@@ -126,7 +130,7 @@ describe('generate() with an explicit directive', () => {
     expect(readManifest(dir)?.files[WORKFLOW]).toBe(kept)
   })
 
-  t('a foreign workflow gets a sidecar and is a collision, and is never recorded as ours', () => {
+  test('a foreign workflow gets a sidecar and is a collision, and is never recorded as ours', () => {
     put(WORKFLOW, 'name: mine\n')
     const out = generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     expect(outcomes(out.results)[WORKFLOW]).toBe('preserved-foreign')
@@ -141,7 +145,7 @@ describe('generate() with an explicit directive', () => {
     expect(read(WORKFLOW)).toBe('name: mine\n')
   })
 
-  t('an edited agent file on write is a collision with a sidecar, not an overwrite', () => {
+  test('an edited agent file on write is a collision with a sidecar, not an overwrite', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     put(AGENT, `${read(AGENT)}\nMy rule.\n`)
     const out = generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
@@ -151,7 +155,7 @@ describe('generate() with an explicit directive', () => {
     expect(has(`${AGENT}.cospec-new`)).toBe(true)
   })
 
-  t('a dry run reports what it would do and writes nothing', () => {
+  test('a dry run reports what it would do and writes nothing', () => {
     const would = generate(dir, { harnesses: [...COPILOT], cloud: 'write', dryRun: true })
     expect(outcomes(would.results)).toEqual({ [WORKFLOW]: 'created', [AGENT]: 'created' })
     expect(has('.github/workflows') || has('.github/agents')).toBe(false)
@@ -161,28 +165,28 @@ describe('generate() with an explicit directive', () => {
     expect(has(WORKFLOW) && has(AGENT)).toBe(true)
   })
 
-  t('the version override stamps the agent file', () => {
+  test('the version override stamps the agent file', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write', version: '9.9.9' })
     expect(read(AGENT)).toContain('generatedBy: 9.9.9')
   })
 })
 
 describe('generate() resolving the directive itself', () => {
-  t('a persisted true writes both files', () => {
+  test('a persisted true writes both files', () => {
     configured()
     setCloud(true)
     const out = generate(dir, { harnesses: [...COPILOT] })
     expect(out.cloud?.present).toEqual([WORKFLOW, AGENT])
   })
 
-  t('a persisted false removes the managed files', () => {
+  test('a persisted false removes the managed files', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(false)
     const out = generate(dir, { harnesses: [...COPILOT] })
     expect(out.cloud?.removed).toEqual([WORKFLOW, AGENT])
   })
 
-  t('false beats a managed file on disk, true beats a missing one', () => {
+  test('false beats a managed file on disk, true beats a missing one', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(false)
     generate(dir, { harnesses: [...COPILOT] })
@@ -192,7 +196,7 @@ describe('generate() resolving the directive itself', () => {
     expect(has(WORKFLOW) && has(AGENT)).toBe(true)
   })
 
-  t('with no config, a managed file on disk keeps both files current (tier 3)', () => {
+  test('with no config, a managed file on disk keeps both files current (tier 3)', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     rmSync(join(dir, WORKFLOW))
     const out = generate(dir, { harnesses: [...COPILOT] })
@@ -206,7 +210,7 @@ describe('generate() resolving the directive itself', () => {
     expect(has('.github/workflows') || has('.github/agents')).toBe(false)
   })
 
-  t('a malformed value is undecided and warns on stderr', () => {
+  test('a malformed value is undecided and warns on stderr', () => {
     configured()
     setCloud('"yes"')
     const { err, out } = (() => {
@@ -221,7 +225,7 @@ describe('generate() resolving the directive itself', () => {
     expect(err).toContain("Invalid 'githubCopilot.cloudAgent' field in config (must be a boolean)")
   })
 
-  t('github-copilot not among the harnesses removes the managed files, whatever the config', () => {
+  test('github-copilot not among the harnesses removes the managed files, whatever the config', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(true)
     const out = generate(dir, { harnesses: ['claude'] })
@@ -229,7 +233,7 @@ describe('generate() resolving the directive itself', () => {
     expect(has(WORKFLOW) || has(AGENT)).toBe(false)
   })
 
-  t('a config that cannot be read is not swallowed', () => {
+  test('a config that cannot be read is not swallowed', () => {
     configured()
     mkdirSync(join(dir, 'openspec/config.yaml'), { recursive: true })
     expect(() => generate(dir, { harnesses: [...COPILOT] })).toThrow()
@@ -237,7 +241,7 @@ describe('generate() resolving the directive itself', () => {
 })
 
 describe('the alternate profile and the failures', () => {
-  t('cospec.md present with no profile suppresses the agent file only', () => {
+  test('cospec.md present with no profile suppresses the agent file only', () => {
     put(COPILOT_AGENT_ALTERNATE_FILE, 'mine\n')
     const out = generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     expect(outcomes(out.results)).toEqual({ [WORKFLOW]: 'created' })
@@ -245,7 +249,7 @@ describe('the alternate profile and the failures', () => {
     expect(has(AGENT)).toBe(false)
   })
 
-  t('cospec.md present with an untouched managed profile removes the profile', () => {
+  test('cospec.md present with an untouched managed profile removes the profile', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     put(COPILOT_AGENT_ALTERNATE_FILE, 'mine\n')
     const out = generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
@@ -254,7 +258,7 @@ describe('the alternate profile and the failures', () => {
     expect(has(AGENT)).toBe(false)
   })
 
-  t('both profiles with the agent file unmanaged is recorded against the agent path', () => {
+  test('both profiles with the agent file unmanaged is recorded against the agent path', () => {
     put(COPILOT_AGENT_ALTERNATE_FILE, 'mine\n')
     put(AGENT, 'also mine\n')
     const out = generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
@@ -264,7 +268,7 @@ describe('the alternate profile and the failures', () => {
     expect(has('.github/skills')).toBe(true)
   })
 
-  t('a managed path that is a directory is a recorded failure and nothing cloud is written', () => {
+  test('a managed path that is a directory is a recorded failure and nothing cloud is written', () => {
     mkdirSync(join(dir, AGENT), { recursive: true })
     const out = generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     expect(out.failed.map((f) => f.path)).toContain(AGENT)
@@ -274,7 +278,7 @@ describe('the alternate profile and the failures', () => {
     expect(has(WORKFLOW)).toBe(false)
   })
 
-  t('a parent that is a file is a recorded failure against the workflow', () => {
+  test('a parent that is a file is a recorded failure against the workflow', () => {
     put('.github/workflows', 'a file, not a directory')
     const out = generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     expect(out.failed.find((f) => f.path === WORKFLOW)?.error).toContain(
@@ -282,7 +286,7 @@ describe('the alternate profile and the failures', () => {
     )
   })
 
-  t('removal guards a managed path that is a directory the same way', () => {
+  test('removal guards a managed path that is a directory the same way', () => {
     mkdirSync(join(dir, WORKFLOW), { recursive: true })
     const out = generate(dir, { harnesses: [...COPILOT], cloud: 'remove' })
     expect(out.failed.find((f) => f.path === WORKFLOW)?.error).toContain(
@@ -292,7 +296,7 @@ describe('the alternate profile and the failures', () => {
 })
 
 describe('update', () => {
-  t('re-syncs a deleted managed file while opted in, then reports up to date', () => {
+  test('re-syncs a deleted managed file while opted in, then reports up to date', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(true)
     rmSync(join(dir, WORKFLOW))
@@ -303,7 +307,7 @@ describe('update', () => {
     expect(update().out).toContain('everything up to date')
   })
 
-  t('opted in, out, in again: out removes the managed files and says so', () => {
+  test('opted in, out, in again: out removes the managed files and says so', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(true)
     setCloud(false)
@@ -316,7 +320,7 @@ describe('update', () => {
     expect(has(WORKFLOW) && has(AGENT)).toBe(true)
   })
 
-  t('a hand-edited agent file survives opt-out, the managed workflow is removed', () => {
+  test('a hand-edited agent file survives opt-out, the managed workflow is removed', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     put(AGENT, `${read(AGENT)}\nMy rule.\n`)
     setCloud(false)
@@ -330,7 +334,7 @@ describe('update', () => {
     expect(read(AGENT)).toContain('My rule.')
   })
 
-  t('github-copilot not configured removes the managed files with its own reason', () => {
+  test('github-copilot not configured removes the managed files with its own reason', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     rmSync(join(dir, '.github/skills'), { recursive: true })
     rmSync(join(dir, '.github/prompts'), { recursive: true })
@@ -350,7 +354,7 @@ describe('update', () => {
     expect(has(WORKFLOW)).toBe(false)
   })
 
-  t('--check exits 1 for a missing managed cloud file and writes nothing', () => {
+  test('--check exits 1 for a missing managed cloud file and writes nothing', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(true)
     rmSync(join(dir, WORKFLOW))
@@ -360,7 +364,7 @@ describe('update', () => {
     expect(has(WORKFLOW)).toBe(false)
   })
 
-  t('--check exits 1 when an opt-out would remove a managed file, and removes nothing', () => {
+  test('--check exits 1 when an opt-out would remove a managed file, and removes nothing', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(false)
     const out = update('--check')
@@ -368,7 +372,7 @@ describe('update', () => {
     expect(has(WORKFLOW) && has(AGENT)).toBe(true)
   })
 
-  t('--check is clean while opted in and in sync, and for an opted-out edited file', () => {
+  test('--check is clean while opted in and in sync, and for an opted-out edited file', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(true)
     expect(update('--check').code).toBe(0)
@@ -378,7 +382,7 @@ describe('update', () => {
     expect(update('--check').code).toBe(0)
   })
 
-  t('the conflict is one Warning line on stderr and the exit code is kept', () => {
+  test('the conflict is one Warning line on stderr and the exit code is kept', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(true)
     put(COPILOT_AGENT_ALTERNATE_FILE, 'mine\n')
@@ -389,7 +393,7 @@ describe('update', () => {
     expect(out.out).not.toContain('Failed:')
   })
 
-  t('a path guard keeps the exit code too', () => {
+  test('a path guard keeps the exit code too', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(true)
     rmSync(join(dir, AGENT))
@@ -400,7 +404,7 @@ describe('update', () => {
     expect(out.err).toContain('Managed Copilot path is not a regular file')
   })
 
-  t('--json stays one document: removed files are listed, the warning goes to stderr', () => {
+  test('--json stays one document: removed files are listed, the warning goes to stderr', () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(false)
     const out = update('--json')
@@ -409,7 +413,7 @@ describe('update', () => {
     expect(out.err).toBe('')
   })
 
-  t('a config that cannot be read propagates', () => {
+  test('a config that cannot be read propagates', () => {
     configured()
     mkdirSync(join(dir, 'openspec/config.yaml'), { recursive: true })
     expect(() => update()).toThrow()
@@ -417,7 +421,7 @@ describe('update', () => {
 })
 
 describe('doctor', () => {
-  t('reports a missing managed cloud file as a missing managed file', async () => {
+  test('reports a missing managed cloud file as a missing managed file', async () => {
     generate(dir, { harnesses: [...COPILOT], cloud: 'write' })
     setCloud(true)
     rmSync(join(dir, WORKFLOW))

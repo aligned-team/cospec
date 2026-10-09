@@ -1,8 +1,7 @@
 // `cospec init --copilot-cloud` / `--no-copilot-cloud` through the CLI as a subprocess: the
 // decision (flag, config, files, skip), what is persisted to `openspec/config.yaml`, the
-// ignored-flag notice, the receipt sentences and the `--json` `copilotCloud` key. The rows
-// that need the two cloud files written or removed are `test.failing` until `generate()`
-// emits and removes them (tasks.md 5.2); each says so.
+// ignored-flag notice, the receipt sentences and the `--json` `copilotCloud` key, and the two
+// cloud files written and removed.
 
 import { afterAll, describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -201,14 +200,11 @@ describe('the --json copilotCloud key', () => {
     expect(cloudOf(third.stdout)).toMatchObject({ tier: 'config', enabled: true, persisted: null })
   })
 
-  test.failing(
-    'a flag lists both written paths in present (flipped by task 5.2: generate() emits them)',
-    async () => {
-      const r = repo()
-      const run = await init(r, '--harness', 'github-copilot', '--copilot-cloud', '--json')
-      expect(cloudOf(run.stdout).present).toEqual([WORKFLOW, AGENT])
-    },
-  )
+  test('a flag lists both written paths in present emits them)', async () => {
+    const r = repo()
+    const run = await init(r, '--harness', 'github-copilot', '--copilot-cloud', '--json')
+    expect(cloudOf(run.stdout).present).toEqual([WORKFLOW, AGENT])
+  })
 
   test('an explicit --harness never prompts, even where a terminal could', async () => {
     const r = repo()
@@ -217,10 +213,8 @@ describe('the --json copilotCloud key', () => {
   })
 })
 
-// Everything below needs the cloud files on disk: flipped by tasks.md 5.2, when `generate()`
-// takes the `cloud` directive `init` already passes.
 describe('opting in, out and in again', () => {
-  test.failing('in writes both files, out removes them, in writes them again', async () => {
+  test('in writes both files, out removes them, in writes them again', async () => {
     const r = repo()
     const on = await init(r, '--harness', 'github-copilot', '--copilot-cloud')
     expect(on.stdout).toContain(`GitHub Copilot cloud files: ${WORKFLOW}, ${AGENT}`)
@@ -234,7 +228,7 @@ describe('opting in, out and in again', () => {
     expect(has(r, WORKFLOW) && has(r, AGENT)).toBe(true)
   })
 
-  test.failing('a second run reports both files unchanged', async () => {
+  test('a second run reports both files unchanged', async () => {
     const r = repo()
     await init(r, '--harness', 'github-copilot', '--copilot-cloud')
     const again = await init(r, '--harness', 'github-copilot', '--json')
@@ -244,7 +238,7 @@ describe('opting in, out and in again', () => {
     expect(files.map((f) => f.outcome)).toEqual(['unchanged', 'unchanged'])
   })
 
-  test.failing('an edited agent file survives opt-out while the workflow is removed', async () => {
+  test('an edited agent file survives opt-out while the workflow is removed', async () => {
     const r = repo()
     await init(r, '--harness', 'github-copilot', '--copilot-cloud')
     writeFileSync(join(r.dir, AGENT), `${readFileSync(join(r.dir, AGENT), 'utf8')}\nMy rule.\n`)
@@ -257,22 +251,19 @@ describe('opting in, out and in again', () => {
     )
   })
 
-  test.failing(
-    'a foreign workflow is never overwritten: sidecar and the Left-your-existing line',
-    async () => {
-      const r = repo()
-      mkdirSync(join(r.dir, '.github/workflows'), { recursive: true })
-      writeFileSync(join(r.dir, WORKFLOW), 'name: mine\n')
-      const run = await init(r, '--harness', 'github-copilot', '--copilot-cloud')
-      expect(readFileSync(join(r.dir, WORKFLOW), 'utf8')).toBe('name: mine\n')
-      expect(has(r, `${WORKFLOW}.cospec-new`)).toBe(true)
-      expect(run.stdout).toContain(
-        `Left your existing ${WORKFLOW} untouched — add the cospec install step by hand so the Copilot cloud agent can run cospec.`,
-      )
-    },
-  )
+  test('a foreign workflow is never overwritten: sidecar and the Left-your-existing line', async () => {
+    const r = repo()
+    mkdirSync(join(r.dir, '.github/workflows'), { recursive: true })
+    writeFileSync(join(r.dir, WORKFLOW), 'name: mine\n')
+    const run = await init(r, '--harness', 'github-copilot', '--copilot-cloud')
+    expect(readFileSync(join(r.dir, WORKFLOW), 'utf8')).toBe('name: mine\n')
+    expect(has(r, `${WORKFLOW}.cospec-new`)).toBe(true)
+    expect(run.stdout).toContain(
+      `Left your existing ${WORKFLOW} untouched — add the cospec install step by hand so the Copilot cloud agent can run cospec.`,
+    )
+  })
 
-  test.failing("OpenSpec's own openspec.agent.md is untouched", async () => {
+  test("OpenSpec's own openspec.agent.md is untouched", async () => {
     const r = repo()
     mkdirSync(join(r.dir, '.github/agents'), { recursive: true })
     writeFileSync(join(r.dir, '.github/agents/openspec.agent.md'), 'theirs\n')
@@ -283,7 +274,7 @@ describe('opting in, out and in again', () => {
     expect(has(r, AGENT)).toBe(false)
   })
 
-  test.failing('the alternate profile cospec.md suppresses the agent file', async () => {
+  test('the alternate profile cospec.md suppresses the agent file', async () => {
     const r = repo()
     mkdirSync(join(r.dir, '.github/agents'), { recursive: true })
     writeFileSync(join(r.dir, '.github/agents/cospec.md'), 'mine\n')
@@ -293,40 +284,34 @@ describe('opting in, out and in again', () => {
     expect(has(r, WORKFLOW)).toBe(true)
   })
 
-  test.failing(
-    'both profiles with the agent file unmanaged is a conflict: exit 1, skills written',
-    async () => {
-      const r = repo()
-      mkdirSync(join(r.dir, '.github/agents'), { recursive: true })
-      writeFileSync(join(r.dir, '.github/agents/cospec.md'), 'mine\n')
-      writeFileSync(join(r.dir, AGENT), 'also mine\n')
-      const run = await init(r, '--harness', 'github-copilot', '--copilot-cloud')
-      expect(run.exitCode).toBe(1)
-      expect(run.stdout).toContain(
-        'Conflicting Copilot agent profiles: preserve either .github/agents/cospec.md or .github/agents/cospec.agent.md',
-      )
-      expect(has(r, '.github/skills')).toBe(true)
-      expect(has(r, '.github/prompts')).toBe(true)
-    },
-  )
+  test('both profiles with the agent file unmanaged is a conflict: exit 1, skills written', async () => {
+    const r = repo()
+    mkdirSync(join(r.dir, '.github/agents'), { recursive: true })
+    writeFileSync(join(r.dir, '.github/agents/cospec.md'), 'mine\n')
+    writeFileSync(join(r.dir, AGENT), 'also mine\n')
+    const run = await init(r, '--harness', 'github-copilot', '--copilot-cloud')
+    expect(run.exitCode).toBe(1)
+    expect(run.stdout).toContain(
+      'Conflicting Copilot agent profiles: preserve either .github/agents/cospec.md or .github/agents/cospec.agent.md',
+    )
+    expect(has(r, '.github/skills')).toBe(true)
+    expect(has(r, '.github/prompts')).toBe(true)
+  })
 
-  test.failing(
-    'a managed file on disk with no config key refreshes without persisting (tier 3)',
-    async () => {
-      const r = repo()
-      await init(r, '--harness', 'github-copilot', '--copilot-cloud')
-      const text = config(r).replace(/githubCopilot:\n {2}cloudAgent: true\n?/, '')
-      writeFileSync(join(r.dir, 'openspec/config.yaml'), text)
-      const run = await init(r, '--harness', 'github-copilot', '--json')
-      expect(cloudOf(run.stdout)).toMatchObject({
-        tier: 'existing-files',
-        enabled: true,
-        persisted: null,
-      })
-      expect(cloudOf(run.stdout).present).toEqual([WORKFLOW, AGENT])
-      expect(config(r)).not.toContain('githubCopilot')
-    },
-  )
+  test('a managed file on disk with no config key refreshes without persisting (tier 3)', async () => {
+    const r = repo()
+    await init(r, '--harness', 'github-copilot', '--copilot-cloud')
+    const text = config(r).replace(/githubCopilot:\n {2}cloudAgent: true\n?/, '')
+    writeFileSync(join(r.dir, 'openspec/config.yaml'), text)
+    const run = await init(r, '--harness', 'github-copilot', '--json')
+    expect(cloudOf(run.stdout)).toMatchObject({
+      tier: 'existing-files',
+      enabled: true,
+      persisted: null,
+    })
+    expect(cloudOf(run.stdout).present).toEqual([WORKFLOW, AGENT])
+    expect(config(r)).not.toContain('githubCopilot')
+  })
 })
 
 // Tier 4 on a real pseudo-terminal: the binary cannot be driven to this cell without answering
@@ -387,15 +372,11 @@ describe('the interactive confirm on a terminal', () => {
     expect(config(r)).toContain('githubCopilot:\n  cloudAgent: true')
   }, 120_000)
 
-  test.failing(
-    'y also writes both files (flipped by task 5.2)',
-    async () => {
-      const r = detected()
-      await run(r, ['--no-gate'], { send: 'y\r' })
-      expect(has(r, WORKFLOW) && has(r, AGENT)).toBe(true)
-    },
-    120_000,
-  )
+  test('y also writes both files', async () => {
+    const r = detected()
+    await run(r, ['--no-gate'], { send: 'y\r' })
+    expect(has(r, WORKFLOW) && has(r, AGENT)).toBe(true)
+  }, 120_000)
 
   const GATES: [string, string[], Record<string, string> | undefined][] = [
     ['--harness given', ['--no-gate', '--harness', 'github-copilot'], undefined],

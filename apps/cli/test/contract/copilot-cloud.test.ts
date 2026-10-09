@@ -6,10 +6,6 @@
 // files are not compared: they name different tools. Tier 4 needs a terminal and the binary's
 // tool picker answered first, so it is outside this matrix (`init-copilot-cloud.test.ts` drives
 // cospec's on a pty).
-//
-// Cells that need cospec to write or remove the files are `test.failing` until `generate()`
-// does (tasks.md 5.2); the cells that need only the decision, the persist and the sentences
-// pass now.
 
 import { afterAll, describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -34,30 +30,12 @@ interface Cell {
   files: FileState
   /** Extra planting, given the agent name (`openspec` or `cospec`) the side's files carry. */
   plant?: (dir: string, agent: string) => void
-  /** Overrides `needsFiles` for a planted cell the decision alone settles. */
-  emits?: boolean
   label?: string
 }
 
 const WORKFLOW = '.github/workflows/copilot-setup-steps.yml'
 const agentPath = (name: string): string => `.github/agents/${name}.agent.md`
 const altPath = (name: string): string => `.github/agents/${name}.md`
-
-/** The last of the pair typed, as commander resolves it. */
-function lastFlag(flags: readonly string[]): boolean | undefined {
-  const last = flags.findLast((f) => f === '--copilot-cloud' || f === '--no-copilot-cloud')
-  return last === undefined ? undefined : last === '--copilot-cloud'
-}
-
-/** Whether the cell needs cospec to write or remove a cloud file (`generate()`, task 5.2). */
-function needsFiles(cell: Cell): boolean {
-  if (cell.emits !== undefined) return cell.emits
-  if (cell.tool !== 'github-copilot') return cell.files !== 'none'
-  if (cell.plant !== undefined) return true
-  if (cell.files !== 'none') return true
-  const flag = lastFlag(cell.flags)
-  return flag === true || (flag === undefined && cell.config === 'true')
-}
 
 interface Side {
   agent: 'openspec' | 'cospec'
@@ -135,7 +113,8 @@ const SENTENCES: RegExp[] = [
   /(Removed: \d+ Copilot cloud agent file\(s\) \(opted out of cloud files\))/,
   /(GitHub Copilot cloud files: .*)/,
   /(Left your existing .*)/,
-  /(Conflicting Copilot agent profiles: .*)/,
+  // The binary wraps the sentence in parentheses in its failure line; the sentence is compared.
+  /(Conflicting Copilot agent profiles: preserve either \S+ or [^\s)]+)/,
   /(Invalid 'githubCopilot[^\n]*)/,
 ]
 
@@ -203,8 +182,7 @@ function nameOf(cell: Cell): string {
 function register(cells: Cell[]): void {
   for (const cell of cells) {
     const run = (): Promise<void> => compare(cell)
-    if (needsFiles(cell)) test.failing(nameOf(cell), run, 120_000)
-    else test(nameOf(cell), run, 120_000)
+    test(nameOf(cell), run, 120_000)
   }
 }
 
@@ -275,7 +253,6 @@ describe('the alternate profile and files cospec did not write', () => {
       config: 'absent',
       files: 'none',
       label: 'an unmanaged workflow survives an opt-out',
-      emits: false,
       plant: (dir) => put(dir, WORKFLOW, 'name: mine\n'),
     },
   ])
