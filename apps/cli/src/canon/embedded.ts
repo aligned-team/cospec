@@ -20,6 +20,8 @@ import artifactVerification from './artifacts/verification/meta.yaml' with { typ
 import gateCommitlint from './gate/commitlint.config.mjs.tpl' with { type: 'file' }
 import gateHk from './gate/hk.pkl.tpl' with { type: 'file' }
 import gateMise from './gate/mise.toml.tpl' with { type: 'file' }
+import copilotSetupSteps from './github-copilot/copilot-setup-steps.yml.tpl' with { type: 'file' }
+import copilotAgent from './github-copilot/cospec.agent.md.tpl' with { type: 'file' }
 import typeBuild from './types/build.yaml' with { type: 'file' }
 import typeChore from './types/chore.yaml' with { type: 'file' }
 import typeCi from './types/ci.yaml' with { type: 'file' }
@@ -54,6 +56,8 @@ const CANON_FILES: Record<string, string> = {
   'artifacts/specs/meta.yaml': artifactSpecs,
   'artifacts/tasks/meta.yaml': artifactTasks,
   'artifacts/verification/meta.yaml': artifactVerification,
+  'github-copilot/copilot-setup-steps.yml.tpl': copilotSetupSteps,
+  'github-copilot/cospec.agent.md.tpl': copilotAgent,
   'gate/commitlint.config.mjs.tpl': gateCommitlint,
   'gate/hk.pkl.tpl': gateHk,
   'gate/mise.toml.tpl': gateMise,

@@ -11,7 +11,7 @@
 // release matrix (see openspec verification rows 4.x).
 
 import { afterAll, describe, expect, test } from 'bun:test'
-import { cpSync, existsSync, mkdirSync, readdirSync, symlinkSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
 
 import {
@@ -369,6 +369,33 @@ describe('standalone pack smoke (bun-less)', () => {
     expect(upstreamDoc.change.id).toBe('demo-up')
     expect(typeof upstreamDoc.root).toBe('object')
     expect(upstreamJsonOut.split('"id": "demo-up"').length - 1).toBe(1)
+  }, 180_000)
+
+  // The Copilot cloud files come from the embedded canon too: the compiled binary has no
+  // `canon/` directory on disk, so a template missing from `canon/embedded.ts` shows here.
+  test('the compiled binary writes both Copilot cloud files from the embedded canon', async () => {
+    const { binName } = hostPlatform()
+    const binDir = mkTempRepo()
+    const bin = join(binDir, binName)
+    const compile = Bun.spawnSync(['bun', 'build', '--compile', 'src/index.ts', '--outfile', bin], {
+      cwd: cliDir,
+    })
+    expect(compile.exitCode, new TextDecoder().decode(compile.stderr)).toBe(0)
+    const home = mkTempRepo()
+    const target = mkTempRepo({ git: true })
+    const init = Bun.spawnSync(
+      [bin, 'init', '--harness', 'github-copilot', '--copilot-cloud', '--no-gate'],
+      {
+        cwd: target,
+        env: { ...process.env, HOME: home, PATH: bunlessPath(), NO_COLOR: '1' },
+      },
+    )
+    expect(init.exitCode, new TextDecoder().decode(init.stderr)).toBe(0)
+    expect(existsSync(join(target, '.github/workflows/copilot-setup-steps.yml'))).toBe(true)
+    expect(existsSync(join(target, '.github/agents/cospec.agent.md'))).toBe(true)
+    const workflow = readFileSync(join(target, '.github/workflows/copilot-setup-steps.yml'), 'utf8')
+    expect(workflow).toContain('npm install -g @aligned-team/cospec')
+    expect(workflow).toContain('cospec --version')
   }, 180_000)
 })
 

@@ -2,10 +2,12 @@ cospec initialized in <TMP>  (state A)
 
 Schemas: 11 types in openspec/schemas/
 Config:  openspec/config.yaml (schema: feat)
-Files:   842 created
-Harness: claude, codex, opencode, agents, amazon-q, antigravity, auggie, bob, cline, command-code, codeartsagent, devin, forgecode, codebuddy, continue, costrict, crush, cursor, factory, gemini, hermes, iflow, junie, kilocode, kimi, kiro, lingma, minimax-code, vibe, oh-my-pi, pi, codeassistant, qoder, qwen, rovodev, roocode, trae, zed, zcode
+Files:   866 created
+Harness: claude, codex, opencode, agents, amazon-q, antigravity, auggie, bob, cline, command-code, codeartsagent, devin, forgecode, codebuddy, continue, costrict, crush, cursor, factory, gemini, github-copilot, hermes, iflow, junie, kilocode, kimi, kiro, lingma, minimax-code, vibe, oh-my-pi, pi, codeassistant, qoder, qwen, rovodev, roocode, trae, zed, zcode
          skills for codex/agents/antigravity/zed share the .agents/skills root (one tree, written for codex)
 Permissions: merged Bash(cospec *) into .claude/settings.json
+
+Skipped GitHub Copilot cloud files (opt-in). Enable with 'cospec init --copilot-cloud'.
 
 Restart Claude Code to pick up /cospec commands.
 Codex: skills now live in .agents/skills and are invoked as $cospec-<skill>; they load per-session, so start a new one. .codex/rules/cospec.rules still pre-approves the read-only and gate cospec calls.

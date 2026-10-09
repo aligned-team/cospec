@@ -14,6 +14,7 @@ import {
   isPending,
   isStorePathToken,
   jsonRefusal,
+  lastFlagOf,
   offeredFlags,
   parseCommandArgs,
   parseSubcommandArgs,
@@ -29,6 +30,15 @@ import {
   type PendingOwner,
   type TableCommandRow,
 } from '../../../src/core/command-table.ts'
+import { HARNESS_NAMES } from '../../../src/harness/adapters.ts'
+
+describe('init --harness values', () => {
+  test('the help lists every harness table id plus all and none, so a new row is never missing', () => {
+    const harness = tableRow('init').flags.find((f) => f.name === '--harness')
+    const listed = harness?.description.split(' ')[0]?.split(',')
+    expect(listed).toEqual([...HARNESS_NAMES, 'all', 'none'])
+  })
+})
 
 function tableRow(name: string): TableCommandRow {
   const row = commandRow(name)
@@ -327,8 +337,6 @@ describe('accepted no-ops', () => {
 const EXPECTED_PENDING: [string, string, PendingOwner][] = [
   ['init', '--language', 'workflow-profiles'],
   ['init', '--profile', 'workflow-profiles'],
-  ['init', '--copilot-cloud', 'github-copilot'],
-  ['init', '--no-copilot-cloud', 'github-copilot'],
 ]
 
 function pendingSurfaces(row: CommandRow): [string, string, PendingOwner][] {
@@ -365,8 +373,6 @@ describe('pending surfaces', () => {
   const argvFor: Record<string, string[]> = {
     'init --language': ['--language', 'fr', '.'],
     'init --profile': ['--profile', 'core'],
-    'init --copilot-cloud': ['--copilot-cloud'],
-    'init --no-copilot-cloud': ['--no-copilot-cloud'],
   }
 
   /** The pending refusal `command surface` gets, named on the row it was typed on. */
@@ -612,6 +618,29 @@ describe('parseCommandArgs — aliases, hidden flags, lenient operands', () => {
     const harness = ok(aliased, ['--tools', 'b', '--harness', 'a'])
     expect(flagValue(harness, '--harness')).toBe('a')
     expect(flagSpelling(harness, '--harness')).toBe('--harness')
+  })
+
+  test('occurrences lists each long flag in argv order across alias, short and = spellings', () => {
+    const p = ok(aliased, ['--tools=a', '--force', '--harness', 'b', '--yes'])
+    expect(p.occurrences).toEqual(['--harness', '--force', '--harness', '--yes'])
+    expect(ok(tableRow('archive'), ['c', '-y', '--yes']).occurrences).toEqual(['--yes', '--yes'])
+  })
+
+  test('occurrences is absent when no flag was given and omits a positional', () => {
+    expect(ok(aliased, ['.']).occurrences).toBeUndefined()
+  })
+
+  test('lastFlagOf is the last of the pair typed, whichever spelling or count', () => {
+    const init = tableRow('init')
+    const pair = ['--copilot-cloud', '--no-copilot-cloud'] as const
+    const last = (args: string[]) => lastFlagOf(ok(init, args), ...pair)
+    expect(last(['--copilot-cloud', '--no-copilot-cloud'])).toBe(false)
+    expect(last(['--no-copilot-cloud', '--copilot-cloud'])).toBe(true)
+    expect(last(['--copilot-cloud', '--no-copilot-cloud', '--copilot-cloud'])).toBe(true)
+    expect(last(['--no-copilot-cloud', '--no-copilot-cloud'])).toBe(false)
+    expect(last(['--copilot-cloud'])).toBe(true)
+    expect(last(['--force'])).toBeUndefined()
+    expect(last([])).toBeUndefined()
   })
 
   test('an alias flag with no value is refused naming its own placeholder', () => {
@@ -869,7 +898,12 @@ describe('parseSubcommandArgs (one forward-row leaf, parsed as a table row is)',
     const ok = parseSubcommandArgs(row, open, ['w1', '--tool', 'code'])
     expect(ok).toEqual({
       ok: true,
-      parsed: { subcommand: 'open', positionals: ['w1'], flags: { '--tool': 'code' } },
+      parsed: {
+        subcommand: 'open',
+        positionals: ['w1'],
+        flags: { '--tool': 'code' },
+        occurrences: ['--tool'],
+      },
     })
     const refused = parseSubcommandArgs(row, open, ['w1', '--tol', 'code'])
     expect(refused.ok).toBe(false)

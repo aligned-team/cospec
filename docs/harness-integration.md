@@ -64,9 +64,11 @@ matches), and `doctor` (scan roots, the files its frontmatter and reference
 checks read, the row a file belongs to, and the invocation prefix its references
 are spelled with) all read the table. A new tool is a new row. Anything a row
 cannot express is a `harness/` dialect, serializer or helper, never a branch in
-`commands/`; `harness-matrix.test.ts` compares each production row's render with
-the pinned oracle. A shape no production row uses yet is exercised by a unit
-test through a fixture row passed via `RenderOptions.adapters`.
+`commands/` (`no-tool-branches.test.ts` fails on a tool-id literal there and on
+an imported constant holding one); `harness-matrix.test.ts` compares each
+production row's render with the pinned oracle. A shape no production row uses
+yet is exercised by a unit test through a fixture row passed via
+`RenderOptions.adapters`.
 
 The opsx leftover scan (`isLeftoverCandidate` and `leftoverScanFiles` in
 `commands/init.ts`, which doctor's `opsx-leftover` check reads too) is wider

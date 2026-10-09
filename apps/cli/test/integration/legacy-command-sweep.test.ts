@@ -21,10 +21,8 @@ const { LEGACY_SLASH_COMMAND_PATHS } = (await import(
   join(openspecPackageDir(), 'dist/core/legacy-cleanup.js')
 )) as { LEGACY_SLASH_COMMAND_PATHS: Record<string, UpstreamEntry> }
 
-/** Upstream's entries for tools that have a row; the rest belong to rows a later task adds. */
-const ENTRIES = Object.entries(LEGACY_SLASH_COMMAND_PATHS).filter(([id]) =>
-  (HARNESS_NAMES as readonly string[]).includes(id),
-)
+/** Upstream's entries, every one of which belongs to a row. */
+const ENTRIES = Object.entries(LEGACY_SLASH_COMMAND_PATHS)
 
 const MARKED = '<!-- OPENSPEC:START -->\nOpenSpec instructions\n<!-- OPENSPEC:END -->\n'
 // What every opsx-era command the pinned binary writes carries, whatever its wrapper.
@@ -78,12 +76,8 @@ interface DoctorJson {
 }
 
 describe('pre-opsx leftovers at every LEGACY_SLASH_COMMAND_PATHS entry that has a row', () => {
-  test('the pinned binary lists entries for rows we ship, the others owned by later rows', () => {
-    expect(ENTRIES.map(([id]) => id).toSorted()).toEqual(
-      Object.keys(LEGACY_SLASH_COMMAND_PATHS)
-        .filter((id) => id !== 'github-copilot')
-        .toSorted(),
-    )
+  test('every entry the pinned binary lists belongs to a row we ship', () => {
+    for (const [id] of ENTRIES) expect(HARNESS_NAMES as readonly string[]).toContain(id)
   })
 
   test('doctor and init --json report each marker-carrying file and no other', async () => {

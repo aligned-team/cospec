@@ -285,18 +285,26 @@ fails, fix the root cause; never use `--no-verify`, `pre-commit`, or raw
 `.git/hooks/` scripts.
 
 **Managed files are generated** — `openspec/schemas/**` and the harness dirs
-(`.claude/`, `.agents/skills/cospec-*/`, `.codex/`, `.opencode/`) are composed
-from `apps/cli/src/canon/` (schemas, workflow bodies and workflow identity) and
-`HARNESS_TABLE` in `apps/cli/src/harness/adapters.ts` — the one declaration of
-each tool's layout: skills and commands roots, filenames, serializer,
-frontmatter, body dialect, rules file, detection paths, legacy roots and receipt
-note. A tool is a `HARNESS_TABLE` row; anything a row cannot express is a
-`harness/` dialect, serializer or helper, never a branch in `commands/`. A
-shared skills root (`.agents/skills`) is written by one writer, the row named in
-`.agents/skills/.cospec-target` (`harness/shared-root.ts`). `render.ts`, `init`,
-`update` and `doctor` all read the table; none keeps its own copy of a layout
-fact. Deliberate Claude-only behaviour sits outside the table — `init`'s
-`.claude/settings.json` merge and its `claude` default
+(`.claude/`, `.agents/skills/cospec-*/`, `.codex/`, `.github/`, `.opencode/`)
+are composed from `apps/cli/src/canon/` (schemas, workflow bodies and workflow
+identity) and `HARNESS_TABLE` in `apps/cli/src/harness/adapters.ts` — the one
+declaration of each tool's layout: skills and commands roots, filenames,
+serializer, frontmatter, body dialect, rules file, detection paths, legacy roots
+and receipt note. A tool is a `HARNESS_TABLE` row; anything a row cannot express
+is a `harness/` dialect, serializer or helper, never a branch in `commands/` —
+`no-tool-branches.test.ts` fails on a tool-id literal there and on any imported
+constant that holds one, so a command asks a `harness/` helper such as
+`copilotSelected`. The GitHub Copilot cloud-agent files
+(`.github/workflows/copilot-setup-steps.yml` and
+`.github/agents/cospec.agent.md`) are opt-in: `.github` is a removal root
+through the `github-copilot` row, their decision tiers and the managed-file
+checks live in `harness/copilot-cloud.ts`, and the one persisted key is
+`githubCopilot.cloudAgent` in `openspec/config.yaml`, which OpenSpec's own init
+reads too. A shared skills root (`.agents/skills`) is written by one writer, the
+row named in `.agents/skills/.cospec-target` (`harness/shared-root.ts`).
+`render.ts`, `init`, `update` and `doctor` all read the table; none keeps its
+own copy of a layout fact. Deliberate Claude-only behaviour sits outside the
+table — `init`'s `.claude/settings.json` merge and its `claude` default
 (docs/harness-integration.md names them). The receipt's closing hint is spelled
 through the first selected row's body dialect and invocation prefix, and
 doctor's `stale-harness`, `mixed-versions` and `dangling-ref` checks read only

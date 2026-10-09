@@ -395,17 +395,25 @@ const PENDING_ROWS: readonly Row[] = [
     expect: 'pending',
     pendingFlag: '--profile',
   },
+]
+
+/**
+ * The Copilot cloud flags (change `github-copilot`): each was a pending row refused as not
+ * supported yet, and now parses as the binary's does. With `--tools claude` the tool is not
+ * selected, so both print the flag-ignored sentence on stdout and exit 0.
+ */
+const COPILOT_CLOUD_ROWS: readonly Row[] = [
   {
-    argv: ['init', '--copilot-cloud', '.'],
+    argv: ['init', '--tools', 'claude', '--copilot-cloud', '.'],
     command: 'init',
-    expect: 'pending',
-    pendingFlag: '--copilot-cloud',
+    expect: 'same',
+    exit: 0,
   },
   {
-    argv: ['init', '--no-copilot-cloud', '.'],
+    argv: ['init', '--tools', 'claude', '--no-copilot-cloud', '.'],
     command: 'init',
-    expect: 'pending',
-    pendingFlag: '--no-copilot-cloud',
+    expect: 'same',
+    exit: 0,
   },
 ]
 
@@ -821,6 +829,10 @@ describe('unknown-option differential: cospec-native table commands', () => {
 
 describe('unknown-option differential: pending flags', () => {
   register(PENDING_ROWS)
+})
+
+describe('unknown-option differential: Copilot cloud flags', () => {
+  register(COPILOT_CLOUD_ROWS)
 })
 
 describe('unknown-option differential: upstream spellings', () => {

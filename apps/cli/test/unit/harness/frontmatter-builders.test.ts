@@ -37,7 +37,11 @@ function upstreamHead(id: string): Record<string, unknown> {
 }
 
 const BUILDERS: [string, CommandFrontmatterBuilder, string[]][] = [
-  ['description', buildOpencodeCommandFrontmatter, ['junie', 'amazon-q', 'kiro', 'pi']],
+  [
+    'description',
+    buildOpencodeCommandFrontmatter,
+    ['junie', 'amazon-q', 'kiro', 'pi', 'github-copilot'],
+  ],
   ['description + argument-hint', buildArgumentHintCommandFrontmatter, ['auggie', 'bob']],
   ['name + description', buildNameDescriptionCommandFrontmatter, ['trae']],
   ['name + description + argument-hint', buildNameDescriptionHintCommandFrontmatter, ['codebuddy']],
