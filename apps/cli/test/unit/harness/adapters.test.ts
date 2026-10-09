@@ -253,6 +253,8 @@ function pathsOf(row: HarnessAdapter): Set<string> {
   return out
 }
 
+const ARBITRATED_DIALECT = new Set(['antigravity'])
+
 describe('HARNESS_TABLE invariants', () => {
   test('HarnessName is the literal union of the table ids', () => {
     const ok: HarnessName = 'agents'
@@ -271,6 +273,7 @@ describe('HARNESS_TABLE invariants', () => {
       'opencode',
       'agents',
       'amazon-q',
+      'antigravity',
       'auggie',
       'bob',
       'cline',
@@ -325,11 +328,14 @@ describe('HARNESS_TABLE invariants', () => {
         const shared = [...pathsOf(a)].some((p) => pathsOf(b).has(p))
         if (!shared) continue
         overlaps++
+        // antigravity's flat skills share `.agents/skills` with the shared-dialect rows; the
+        // shared-root arbiter writes one dialect there (its writer's), so only this pair is exempt.
+        if (ARBITRATED_DIALECT.has(a.id) || ARBITRATED_DIALECT.has(b.id)) continue
         expect(`${a.id}:${a.bodyDialect}`).toBe(`${a.id}:${b.bodyDialect}`)
       }
     }
-    // codex, agents and zed share `.agents/skills`; the check must not be vacuous.
-    expect(overlaps).toBe(3)
+    // codex, agents, antigravity and zed share `.agents/skills`; the check must not be vacuous.
+    expect(overlaps).toBe(6)
   })
 
   test('the four shipped rows are all repo-scoped, `/`-invoked and need no IDE restart', () => {
@@ -437,6 +443,7 @@ describe('HARNESS_TABLE derived roots', () => {
       '.roo',
       '.trae',
       '.zcode',
+      '.agent',
       '.cline',
     ])
   })
@@ -450,6 +457,7 @@ describe('HARNESS_TABLE derived roots', () => {
       '.opencode',
       '.agents',
       '.amazonq',
+      '.agents',
       '.augment',
       '.bob',
       '.clinerules',
@@ -486,8 +494,8 @@ describe('HARNESS_TABLE derived roots', () => {
   })
 
   test('removal roots are openspec plus every tool root', () => {
-    expect(new Set(removalRoots())).toEqual(new Set(['openspec', ...primary, '.cline']))
-    expect(removalRoots()).toHaveLength(38)
+    expect(new Set(removalRoots())).toEqual(new Set(['openspec', ...primary, '.agent', '.cline']))
+    expect(removalRoots()).toHaveLength(39)
   })
 
   test("each scan root's skills are harness documents; its rules and stray prompts are not", () => {

@@ -58,13 +58,13 @@ const SPLIT_ROW: HarnessAdapter = {
   detectionPaths: ['.split-rules'],
 }
 
-/** Antigravity's shape: skills in `.agents`, commands under `.agents/workflows`. */
+/** A nested commands dir under the shared `.agents` root; no shipped row claims this path. */
 const NESTED_ROW: HarnessAdapter = {
   id: 'nested-fixture',
   displayName: "Fixture tool whose commands sit under another row's primary root",
   skillsDir: '.agents',
   commands: {
-    dir: '.agents/workflows',
+    dir: '.agents/fixture-workflows',
     namespacing: 'flat',
     file: 'cospec-{command}',
     extension: '.md',
@@ -73,7 +73,7 @@ const NESTED_ROW: HarnessAdapter = {
   invocationPrefix: '/',
   bodyDialect: 'flat',
   requiresIdeRestart: false,
-  detectionPaths: ['.agents/workflows'],
+  detectionPaths: ['.agents/fixture-workflows'],
 }
 
 /** A legacy skills root under no primary root (upstream antigravity's `.agent`). */
@@ -240,16 +240,16 @@ describe('doctor dangling-ref check over injected rows', () => {
   })
 
   test("a commands dir under an earlier row's primary root belongs to its own row", () => {
-    // `.agents` is agents' primary root, but `.agents/workflows` is the fixture's surface.
-    put(dir, '.agents/workflows/cospec-propose.md', 'Then run /cospec-apply.\n')
-    put(dir, '.agents/workflows/cospec-apply.md', 'x\n')
+    // `.agents` is agents' primary root, but `.agents/fixture-workflows` is the fixture's surface.
+    put(dir, '.agents/fixture-workflows/cospec-propose.md', 'Then run /cospec-apply.\n')
+    put(dir, '.agents/fixture-workflows/cospec-apply.md', 'x\n')
     expect(danglingRefs(dir, [...HARNESS_TABLE, NESTED_ROW])).toEqual([])
   })
 
   test("a nested commands dir's missing target is reported under its own row", () => {
-    put(dir, '.agents/workflows/cospec-propose.md', 'Then run /cospec-apply.\n')
+    put(dir, '.agents/fixture-workflows/cospec-propose.md', 'Then run /cospec-apply.\n')
     expect(danglingRefs(dir, [...HARNESS_TABLE, NESTED_ROW]).map((f) => f.message)).toEqual([
-      '.agents/workflows/cospec-propose.md references /cospec:apply, but no nested-fixture skill or command file for it exists',
+      '.agents/fixture-workflows/cospec-propose.md references /cospec:apply, but no nested-fixture skill or command file for it exists',
     ])
   })
 

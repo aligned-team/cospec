@@ -81,7 +81,7 @@ describe('pre-opsx leftovers at every LEGACY_SLASH_COMMAND_PATHS entry that has 
   test('the pinned binary lists entries for rows we ship, the others owned by later rows', () => {
     expect(ENTRIES.map(([id]) => id).toSorted()).toEqual(
       Object.keys(LEGACY_SLASH_COMMAND_PATHS)
-        .filter((id) => id !== 'github-copilot' && id !== 'antigravity')
+        .filter((id) => id !== 'github-copilot')
         .toSorted(),
     )
   })

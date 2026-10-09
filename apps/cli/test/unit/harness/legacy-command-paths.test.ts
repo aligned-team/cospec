@@ -44,6 +44,6 @@ describe('legacyCommandPaths', () => {
   test('an entry with no row belongs to a tool a later row adds, not to another row', () => {
     const ids = new Set<string>(HARNESS_TABLE.map((row) => row.id))
     const unclaimed = Object.keys(LEGACY_SLASH_COMMAND_PATHS).filter((id) => !ids.has(id))
-    expect(unclaimed.toSorted()).toEqual(['antigravity', 'github-copilot'])
+    expect(unclaimed.toSorted()).toEqual(['github-copilot'])
   })
 })

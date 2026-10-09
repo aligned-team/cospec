@@ -4,7 +4,7 @@ Schemas: 11 types in openspec/schemas/
 Config:  openspec/config.yaml (schema: feat)
 Files:   73 created
 Harness: agents
-         skills for codex/agents/zed share the .agents/skills root (one tree, written for agents)
+         skills for codex/agents/antigravity/zed share the .agents/skills root (one tree, written for agents)
 
 Shared .agents/skills — read by Codex ($cospec-*), Zed, Antigravity and other AGENTS.md-aware assistants; start a new session to load the skills. No slash commands are generated for this target.
 
