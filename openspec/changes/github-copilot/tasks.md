@@ -172,7 +172,7 @@ its failing tests before its code.
 
 ## 7. Docs and agent docs
 
-- [ ] 7.1 Update `apps/docs/guide/harness-setup.md`: add GitHub Copilot to the
+- [x] 7.1 Update `apps/docs/guide/harness-setup.md`: add GitHub Copilot to the
       harness list and the "What gets written" tabs, the per-harness syntax and
       restart notes, the cloud-agent opt-in (flags, the five tiers in the order
       stated, the two files, removal and what survives it, update behaviour, the

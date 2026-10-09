@@ -1,7 +1,7 @@
 ---
 title: Harness setup
 description:
-  What cospec init writes for each of the 39 agent tools — skills, commands, the
+  What cospec init writes for each of the 40 agent tools — skills, commands, the
   shared .agents root and its writer marker, the one home-scoped root, the
   legacy moves — and how to confirm it loaded.
 ---
@@ -37,47 +37,48 @@ still accepted as an alias of `devin`. Paths are relative to the repo unless
 marked as home-scoped. `<workflow>` stands for one of the twelve workflow ids
 and `<skill>` for its skill name (`cospec-<skill>`, below).
 
-| `--harness`     | Tool                                      | Skills                      | Command files                                    | Invoke                             | Restart         |
-| --------------- | ----------------------------------------- | --------------------------- | ------------------------------------------------ | ---------------------------------- | --------------- |
-| `agents`        | Other / Universal (shared .agents skills) | `.agents/skills/` (shared)  | —                                                | `/cospec-<skill>`                  | new session     |
-| `amazon-q`      | Amazon Q Developer                        | `.amazonq/skills/`          | `.amazonq/prompts/cospec-<workflow>.md`          | `@cospec-<workflow>`               | restart IDE     |
-| `antigravity`   | Antigravity                               | `.agents/skills/` (shared)  | `.agents/workflows/cospec-<workflow>.md`         | `/cospec-<workflow>`               | restart IDE     |
-| `auggie`        | Auggie (Augment CLI)                      | `.augment/skills/`          | `.augment/commands/cospec-<workflow>.md`         | `/cospec-<workflow>`               | —               |
-| `bob`           | Bob Shell                                 | `.bob/skills/`              | `.bob/commands/cospec-<workflow>.md`             | `/cospec-<workflow>`               | —               |
-| `claude`        | Claude Code                               | `.claude/skills/`           | `.claude/commands/cospec/<workflow>.md`          | `/cospec:<workflow>`               | restart session |
-| `cline`         | Cline                                     | `.cline/skills/`            | `.clinerules/workflows/cospec-<workflow>.md`     | `/cospec-<workflow>`               | restart IDE     |
-| `codeartsagent` | CodeArts                                  | `.codeartsdoer/skills/`     | —                                                | `/cospec-<skill>`                  | —               |
-| `codeassistant` | SourceCraft Code Assistant                | `.codeassistant/skills/`    | `.codeassistant/commands/cospec-<workflow>.md`   | `/cospec-<workflow>`               | —               |
-| `codebuddy`     | CodeBuddy Code (CLI)                      | `.codebuddy/skills/`        | `.codebuddy/commands/cospec/<workflow>.md`       | `/cospec:<workflow>`               | —               |
-| `codex`         | Codex                                     | `.agents/skills/` (shared)  | —                                                | `$cospec-<skill>`                  | new session     |
-| `command-code`  | Command Code                              | `.commandcode/skills/`      | `.commandcode/commands/cospec-<workflow>.md`     | `/cospec-<workflow>`               | —               |
-| `continue`      | Continue                                  | `.continue/skills/`         | `.continue/prompts/cospec-<workflow>.prompt`     | `/cospec-<workflow>`               | restart IDE     |
-| `costrict`      | CoStrict                                  | `.cospec/skills/`           | `.cospec/openspec/commands/cospec-<workflow>.md` | `/cospec-<workflow>`               | restart IDE     |
-| `crush`         | Crush                                     | `.crush/skills/`            | `.crush/commands/cospec/<workflow>.md`           | `/cospec:<workflow>`               | —               |
-| `cursor`        | Cursor                                    | `.cursor/skills/`           | `.cursor/commands/cospec-<workflow>.md`          | `/cospec-<workflow>`               | restart IDE     |
-| `devin`         | Devin Desktop (formerly Windsurf)         | `.devin/skills/`            | `.devin/workflows/cospec-<workflow>.md`          | `/cospec-<workflow>`               | restart IDE     |
-| `factory`       | Factory Droid                             | `.factory/skills/`          | `.factory/commands/cospec-<workflow>.md`         | `/cospec-<workflow>`               | —               |
-| `forgecode`     | ForgeCode                                 | `.forge/skills/`            | —                                                | `/cospec-<skill>`                  | —               |
-| `gemini`        | Gemini CLI                                | `.gemini/skills/`           | `.gemini/commands/cospec/<workflow>.toml`        | `/cospec:<workflow>`               | —               |
-| `hermes`        | Hermes Agent                              | `.hermes/skills/`           | —                                                | `/cospec-<skill>`                  | —               |
-| `iflow`         | iFlow                                     | `.iflow/skills/`            | `.iflow/commands/cospec-<workflow>.md`           | `/cospec-<workflow>`               | —               |
-| `junie`         | Junie                                     | `.junie/skills/`            | `.junie/commands/cospec-<workflow>.md`           | `/cospec-<workflow>`               | restart IDE     |
-| `kilocode`      | Kilo Code                                 | `.kilocode/skills/`         | `.kilocode/workflows/cospec-<workflow>.md`       | `/cospec-<workflow>`               | restart IDE     |
-| `kimi`          | Kimi Code                                 | `.kimi-code/skills/`        | —                                                | `/skill:cospec-<skill>`            | —               |
-| `kiro`          | Kiro                                      | `.kiro/skills/`             | `.kiro/prompts/cospec-<workflow>.prompt.md`      | `/cospec-<workflow>`               | restart IDE     |
-| `lingma`        | Lingma                                    | `.lingma/skills/`           | `.lingma/commands/cospec/<workflow>.md`          | `/cospec:<workflow>`               | restart IDE     |
-| `minimax-code`  | MiniMax Code                              | `~/.minimax/skills/` (home) | —                                                | `/cospec-<skill>`                  | —               |
-| `oh-my-pi`      | Oh My Pi                                  | `.omp/skills/`              | `.omp/commands/cospec-<workflow>.md`             | `/cospec-<workflow>`               | —               |
-| `opencode`      | OpenCode                                  | `.opencode/skills/`         | `.opencode/commands/cospec-<workflow>.md`        | `/cospec-<workflow>`               | reload project  |
-| `pi`            | Pi                                        | `.pi/skills/`               | `.pi/prompts/cospec-<workflow>.md`               | `/cospec-<workflow>`               | —               |
-| `qoder`         | Qoder                                     | `.qoder/skills/`            | `.qoder/commands/cospec/<workflow>.md`           | `/cospec:<workflow>`               | restart IDE     |
-| `qwen`          | Qwen Code                                 | `.qwen/skills/`             | `.qwen/commands/cospec-<workflow>.md`            | `/cospec-<workflow>`               | —               |
-| `roocode`       | Zoo Code                                  | `.roo/skills/`              | `.roo/commands/cospec-<workflow>.md`             | `/cospec-<workflow>`               | restart IDE     |
-| `rovodev`       | Rovo Dev CLI                              | `.rovodev/skills/`          | —                                                | ask for the `cospec-<skill>` skill | —               |
-| `trae`          | Trae                                      | `.trae/skills/`             | `.trae/commands/cospec-<workflow>.md`            | `/cospec-<workflow>`               | restart IDE     |
-| `vibe`          | Mistral Vibe                              | `.vibe/skills/`             | —                                                | `/cospec-<skill>`                  | —               |
-| `zcode`         | ZCode                                     | `.zcode/skills/`            | `.zcode/commands/cospec/<workflow>.md`           | `/cospec:<workflow>`               | —               |
-| `zed`           | Zed Agent                                 | `.agents/skills/` (shared)  | —                                                | `/cospec-<skill>`                  | —               |
+| `--harness`      | Tool                                      | Skills                      | Command files                                    | Invoke                             | Restart         |
+| ---------------- | ----------------------------------------- | --------------------------- | ------------------------------------------------ | ---------------------------------- | --------------- |
+| `agents`         | Other / Universal (shared .agents skills) | `.agents/skills/` (shared)  | —                                                | `/cospec-<skill>`                  | new session     |
+| `amazon-q`       | Amazon Q Developer                        | `.amazonq/skills/`          | `.amazonq/prompts/cospec-<workflow>.md`          | `@cospec-<workflow>`               | restart IDE     |
+| `antigravity`    | Antigravity                               | `.agents/skills/` (shared)  | `.agents/workflows/cospec-<workflow>.md`         | `/cospec-<workflow>`               | restart IDE     |
+| `auggie`         | Auggie (Augment CLI)                      | `.augment/skills/`          | `.augment/commands/cospec-<workflow>.md`         | `/cospec-<workflow>`               | —               |
+| `bob`            | Bob Shell                                 | `.bob/skills/`              | `.bob/commands/cospec-<workflow>.md`             | `/cospec-<workflow>`               | —               |
+| `claude`         | Claude Code                               | `.claude/skills/`           | `.claude/commands/cospec/<workflow>.md`          | `/cospec:<workflow>`               | restart session |
+| `cline`          | Cline                                     | `.cline/skills/`            | `.clinerules/workflows/cospec-<workflow>.md`     | `/cospec-<workflow>`               | restart IDE     |
+| `codeartsagent`  | CodeArts                                  | `.codeartsdoer/skills/`     | —                                                | `/cospec-<skill>`                  | —               |
+| `codeassistant`  | SourceCraft Code Assistant                | `.codeassistant/skills/`    | `.codeassistant/commands/cospec-<workflow>.md`   | `/cospec-<workflow>`               | —               |
+| `codebuddy`      | CodeBuddy Code (CLI)                      | `.codebuddy/skills/`        | `.codebuddy/commands/cospec/<workflow>.md`       | `/cospec:<workflow>`               | —               |
+| `codex`          | Codex                                     | `.agents/skills/` (shared)  | —                                                | `$cospec-<skill>`                  | new session     |
+| `command-code`   | Command Code                              | `.commandcode/skills/`      | `.commandcode/commands/cospec-<workflow>.md`     | `/cospec-<workflow>`               | —               |
+| `continue`       | Continue                                  | `.continue/skills/`         | `.continue/prompts/cospec-<workflow>.prompt`     | `/cospec-<workflow>`               | restart IDE     |
+| `costrict`       | CoStrict                                  | `.cospec/skills/`           | `.cospec/openspec/commands/cospec-<workflow>.md` | `/cospec-<workflow>`               | restart IDE     |
+| `crush`          | Crush                                     | `.crush/skills/`            | `.crush/commands/cospec/<workflow>.md`           | `/cospec:<workflow>`               | —               |
+| `cursor`         | Cursor                                    | `.cursor/skills/`           | `.cursor/commands/cospec-<workflow>.md`          | `/cospec-<workflow>`               | restart IDE     |
+| `devin`          | Devin Desktop (formerly Windsurf)         | `.devin/skills/`            | `.devin/workflows/cospec-<workflow>.md`          | `/cospec-<workflow>`               | restart IDE     |
+| `factory`        | Factory Droid                             | `.factory/skills/`          | `.factory/commands/cospec-<workflow>.md`         | `/cospec-<workflow>`               | —               |
+| `forgecode`      | ForgeCode                                 | `.forge/skills/`            | —                                                | `/cospec-<skill>`                  | —               |
+| `gemini`         | Gemini CLI                                | `.gemini/skills/`           | `.gemini/commands/cospec/<workflow>.toml`        | `/cospec:<workflow>`               | —               |
+| `github-copilot` | GitHub Copilot                            | `.github/skills/`           | `.github/prompts/cospec-<workflow>.prompt.md`    | `/cospec-<workflow>`               | restart IDE     |
+| `hermes`         | Hermes Agent                              | `.hermes/skills/`           | —                                                | `/cospec-<skill>`                  | —               |
+| `iflow`          | iFlow                                     | `.iflow/skills/`            | `.iflow/commands/cospec-<workflow>.md`           | `/cospec-<workflow>`               | —               |
+| `junie`          | Junie                                     | `.junie/skills/`            | `.junie/commands/cospec-<workflow>.md`           | `/cospec-<workflow>`               | restart IDE     |
+| `kilocode`       | Kilo Code                                 | `.kilocode/skills/`         | `.kilocode/workflows/cospec-<workflow>.md`       | `/cospec-<workflow>`               | restart IDE     |
+| `kimi`           | Kimi Code                                 | `.kimi-code/skills/`        | —                                                | `/skill:cospec-<skill>`            | —               |
+| `kiro`           | Kiro                                      | `.kiro/skills/`             | `.kiro/prompts/cospec-<workflow>.prompt.md`      | `/cospec-<workflow>`               | restart IDE     |
+| `lingma`         | Lingma                                    | `.lingma/skills/`           | `.lingma/commands/cospec/<workflow>.md`          | `/cospec:<workflow>`               | restart IDE     |
+| `minimax-code`   | MiniMax Code                              | `~/.minimax/skills/` (home) | —                                                | `/cospec-<skill>`                  | —               |
+| `oh-my-pi`       | Oh My Pi                                  | `.omp/skills/`              | `.omp/commands/cospec-<workflow>.md`             | `/cospec-<workflow>`               | —               |
+| `opencode`       | OpenCode                                  | `.opencode/skills/`         | `.opencode/commands/cospec-<workflow>.md`        | `/cospec-<workflow>`               | reload project  |
+| `pi`             | Pi                                        | `.pi/skills/`               | `.pi/prompts/cospec-<workflow>.md`               | `/cospec-<workflow>`               | —               |
+| `qoder`          | Qoder                                     | `.qoder/skills/`            | `.qoder/commands/cospec/<workflow>.md`           | `/cospec:<workflow>`               | restart IDE     |
+| `qwen`           | Qwen Code                                 | `.qwen/skills/`             | `.qwen/commands/cospec-<workflow>.md`            | `/cospec-<workflow>`               | —               |
+| `roocode`        | Zoo Code                                  | `.roo/skills/`              | `.roo/commands/cospec-<workflow>.md`             | `/cospec-<workflow>`               | restart IDE     |
+| `rovodev`        | Rovo Dev CLI                              | `.rovodev/skills/`          | —                                                | ask for the `cospec-<skill>` skill | —               |
+| `trae`           | Trae                                      | `.trae/skills/`             | `.trae/commands/cospec-<workflow>.md`            | `/cospec-<workflow>`               | restart IDE     |
+| `vibe`           | Mistral Vibe                              | `.vibe/skills/`             | —                                                | `/cospec-<skill>`                  | —               |
+| `zcode`          | ZCode                                     | `.zcode/skills/`            | `.zcode/commands/cospec/<workflow>.md`           | `/cospec:<workflow>`               | —               |
+| `zed`            | Zed Agent                                 | `.agents/skills/` (shared)  | —                                                | `/cospec-<skill>`                  | —               |
 
 Skill names differ from workflow ids, so spell them through the table: `propose`
 is `cospec-propose`, `new` is `cospec-new-change`, `continue` is
@@ -118,6 +119,11 @@ Each row also sets how its files are spelled:
 - **Rovo Dev** (`rovodev`) has no invocation syntax. Its bodies, and cospec's
   receipt hint, ask the tool by name:
   `ask <tool> to use the cospec-<skill> skill with <arguments>`.
+- **GitHub Copilot** (`github-copilot`) writes skills under `.github/skills/`
+  and one prompt file per workflow under `.github/prompts/`, each with a
+  `description` frontmatter line and cospec's provenance. Its restart line comes
+  from the row's restart flag. The cloud coding agent is a separate opt-in; see
+  [GitHub Copilot cloud agent](#github-copilot-cloud-agent-opt-in) below.
 - **Skills-only rows** (`codeartsagent`, `forgecode`, `hermes`, `kimi`,
   `minimax-code`, `rovodev`, `vibe`, `zed`) write no command files; invoke the
   skill instead.
@@ -266,6 +272,88 @@ filesystem, or a path that is a file where a directory belongs), `init` and
 `update` skip only that file, print a `Failed:` block naming its path and the
 reason, and exit `1`. Every other file is still written, and the failed file is
 retried by the next run. :::
+
+## GitHub Copilot cloud agent (opt-in)
+
+The `github-copilot` row writes Copilot's editor files. The GitHub-hosted
+Copilot coding agent (github.com) reads two more files, and cospec writes them
+only when you opt in:
+
+- `.github/workflows/copilot-setup-steps.yml`, the setup workflow. Its job is
+  named `copilot-setup-steps`, as GitHub requires; it installs
+  `@aligned-team/cospec` and runs `cospec --version`. The install is unpinned so
+  the file doesn't change on every release, since cospec already pins the
+  OpenSpec it wraps.
+- `.github/agents/cospec.agent.md`, a custom agent that walks the loop:
+  `cospec new`, `cospec instructions`, `cospec validate --strict`,
+  `cospec apply` (with the gate's exit codes) and `cospec archive`.
+
+The agent file is `cospec.agent.md`, not `openspec.agent.md`. OpenSpec's own
+files are never read, overwritten or removed by cospec, so both tools can live
+in one repo.
+
+### How init decides
+
+`cospec init` uses the first of these that applies:
+
+1. **A flag on this run.** `--copilot-cloud` writes the files;
+   `--no-copilot-cloud` skips them and removes cospec's untouched copies. If
+   both are given, the last one wins.
+2. **`githubCopilot.cloudAgent` in `openspec/config.yaml`**, when it is a
+   boolean. `true` writes; `false` removes, even with no flag and even when the
+   files exist. The key is described in
+   [the configuration reference](/reference/configuration#the-copilot-cloud-agent-key).
+3. **Files already there.** When cospec's managed copies exist, from an earlier
+   opt-in, init keeps them current.
+4. **A y/N question**, default No, asked only when `github-copilot` is selected
+   and init can prompt: no `--harness` or `--json`, and not in CI, with
+   `OPEN_SPEC_INTERACTIVE=0`, or with a non-terminal stdin.
+5. **Otherwise, skip.** Init prints
+   `Skipped GitHub Copilot cloud files (opt-in). Enable with 'cospec init --copilot-cloud'.`
+   and saves nothing.
+
+The two flags act only when `github-copilot` is among the harnesses. Without it,
+init prints
+`--copilot-cloud/--no-copilot-cloud was ignored because the github-copilot tool was not selected.`
+and writes nothing. Under `--json` that line goes to stderr, so stdout stays one
+document.
+
+A flag or an answered question is saved as `githubCopilot.cloudAgent` in
+`openspec/config.yaml`, after init has written that file. Comments and other
+keys stay as they are. OpenSpec's own `init` reads the same key, so a repo that
+uses both tools shares one decision. A skipped question, a flag left off and
+`update` save nothing.
+
+### Removal and updates
+
+- `cospec update` re-syncs the files on every run while the decision is on. An
+  untouched file is rewritten when cospec's content changes.
+- When `github-copilot` is no longer configured, or `cloudAgent` is `false`,
+  update removes the untouched copies and says why:
+  `Removed: <n> Copilot cloud agent file(s) (opted out of cloud files)` or
+  `(github-copilot not configured)`.
+- A file you edited since cospec wrote it is never removed. Update reports it:
+  `Left <path> in place: edited since cospec wrote it (opted out of cloud files).`
+  A file with no cospec provenance is never touched.
+- When nothing is decided and you are at a terminal, update prints
+  `GitHub Copilot cloud coding-agent files are available (opt-in). Enable with 'cospec init --copilot-cloud'.`
+  It never prompts or saves a choice, and it doesn't print this on `--check` or
+  `--json`.
+- `cospec update --check` and `cospec doctor` report cloud-file drift like any
+  other managed file.
+
+### Files cospec does not own
+
+If `.github/workflows/copilot-setup-steps.yml` already exists and isn't cospec's
+(OpenSpec's own copy, say), init leaves it alone, writes cospec's version beside
+it as `copilot-setup-steps.yml.cospec-new`, and asks you to add the cospec
+install step to your file by hand. Copilot also reads a custom-agent profile
+named `cospec.md`, which cospec treats as an alternate. If it exists, cospec
+doesn't write `cospec.agent.md`, though it does remove its own untouched copy.
+If `cospec.md` and an unmanaged `cospec.agent.md` both exist, init reports
+`Conflicting Copilot agent profiles: preserve either .github/agents/cospec.md or .github/agents/cospec.agent.md`
+in its `Failed:` block and exits 1, and `update` prints
+`Warning: failed to sync Copilot cloud agent files: <message>` and goes on.
 
 ## Restart or reload per harness
 
