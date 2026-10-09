@@ -92,15 +92,6 @@ export function openspecBinPath(): string {
   return join(dirname(pkgJson), 'bin', 'openspec.js')
 }
 
-/**
- * The zone this suite computes dates in, handed to every child explicitly.
- * `bun test` runs in UTC without setting `TZ`, so a child that inherits no
- * `TZ` falls back to the machine's zone, and a date the suite computes
- * (`formatLocalDate()`) disagrees with the one a child stamps for the hours
- * the two zones are on different days.
- */
-const suiteZone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone
-
 async function spawn(
   cmd: string[],
   cwd: string,
@@ -110,7 +101,6 @@ async function spawn(
   const childEnv: Record<string, string | undefined> = withSuiteZone({
     ...envWithoutColorForcing(),
     NO_COLOR: '1',
-    TZ: suiteZone(),
     ...env,
   })
   // Deleted after the merge, so an ambient value (the suite's own
@@ -162,7 +152,6 @@ export function oracleEnv(root: string): Record<string, string> {
   return {
     ...envWithoutColorForcing(),
     NO_COLOR: '1',
-    TZ: suiteZone(),
     OPENSPEC_TELEMETRY: '0',
     // A terminal-handover leaf (`config edit`) that does run must return at
     // once and edit nothing, never open a real editor on the test machine.
