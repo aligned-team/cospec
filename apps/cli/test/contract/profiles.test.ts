@@ -517,6 +517,48 @@ describe('init: the config.yaml it writes', () => {
   }, 60_000)
 })
 
+describe('init over an existing config.yaml', () => {
+  test('a second init leaves the file byte-identical, with and without --language', async () => {
+    const s = sandbox()
+    expect((await initIn(s, ['--language', 'French'])).exitCode).toBe(0)
+    const path = join(s.project, 'openspec', 'config.yaml')
+    const first = readFileSync(path, 'utf8')
+    expect((await initIn(s)).exitCode).toBe(0)
+    expect(readFileSync(path, 'utf8')).toBe(first)
+    expect((await initIn(s, ['--language', 'French'])).exitCode).toBe(0)
+    expect(readFileSync(path, 'utf8')).toBe(first)
+    const hand = '# mine\nschema: feat\n'
+    writeFileSync(path, hand)
+    expect((await initIn(s)).exitCode).toBe(0)
+    expect(readFileSync(path, 'utf8')).toBe(hand)
+  }, 120_000)
+})
+
+describe('github-copilot under a profile', () => {
+  test('--profile core with --copilot-cloud writes six prompts and skills, and update keeps the cloud files', async () => {
+    const s = sandbox()
+    const copilot = adapterFor('github-copilot')
+    const run = await cospec(
+      ['init', '--harness', 'github-copilot', '--profile', 'core', '--copilot-cloud', '--no-gate'],
+      { cwd: s.project, env: s.env },
+    )
+    expect(run.exitCode).toBe(0)
+    const present = (path: string) => existsSync(join(s.project, path))
+    const ids = (probe: (w: (typeof MANIFEST)[number]) => boolean) =>
+      MANIFEST.filter(probe)
+        .map((w) => w.id)
+        .toSorted()
+    expect(ids((w) => present(commandPath(copilot, w.command)!))).toEqual(CORE_IDS)
+    expect(ids((w) => present(skillPath(copilot, w.skill)))).toEqual(CORE_IDS)
+    const cloud = ['.github/workflows/copilot-setup-steps.yml', '.github/agents/cospec.agent.md']
+    for (const f of cloud) expect(present(f)).toBe(true)
+    const update = await cospec(['update', '--json'], { cwd: s.project, env: s.env })
+    expect(update.exitCode).toBe(0)
+    expect(files(update.stdout).filter((f) => f.outcome === 'removed')).toEqual([])
+    for (const f of cloud) expect(present(f)).toBe(true)
+  }, 120_000)
+})
+
 describe('init: OpenSpec blocks in root-level config files', () => {
   const START = '<!-- OPENSPEC:START -->'
   const END = '<!-- OPENSPEC:END -->'
