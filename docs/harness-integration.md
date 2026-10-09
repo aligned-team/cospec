@@ -17,8 +17,11 @@ single-sourced in `canon/workflows/*.md` and rendered per harness. This is
 cospec's full opsx 1.13.1 parity set: every live opsx workflow (`propose`,
 `new`, `explore`, `continue`, `apply`, `ff`, `sync`, `archive`, `bulk-archive`,
 `verify`, `onboard`, `update`) has a cospec-adapted counterpart — `sync` maps to
-`sync-specs` (see below). cospec has no core/custom profile split: it always
-emits the full twelve to every configured harness.
+`sync-specs` (see below). By default every configured harness gets the full
+twelve. A narrower set (`core` or `custom`) and a `delivery` mode apply only
+when set explicitly, by `cospec init --profile` or a `profile` / `delivery` key
+present in the machine-global config; see
+[Harness setup](https://cospec.aligned.team/guide/harness-setup#choosing-the-workflow-set).
 
 The exact per-harness file tree each `cospec init` writes, the slash-syntax
 substitution, the restart/reload notes, and the smoke-test checklist are owned

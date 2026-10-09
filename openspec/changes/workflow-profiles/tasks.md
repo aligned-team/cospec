@@ -203,27 +203,27 @@ rows write the `config.json` under test into the sandbox's
 
 ## 9. Docs and shared guidance
 
-- [ ] 9.1 `apps/docs/guide/harness-setup.md`: remove the "no core/custom profile
+- [x] 9.1 `apps/docs/guide/harness-setup.md`: remove the "no core/custom profile
       split" sentence and describe explicit-only profiles, delivery and
       never-removes; fix the "no global state" sentence's neighbours that this
       change touches (cospec reads the global config, writes none), and verify
       with `mise run docs:build` and a grep for the removed sentence
-- [ ] 9.2 `apps/docs/reference/configuration.md`: `profile`, `workflows`,
+- [x] 9.2 `apps/docs/reference/configuration.md`: `profile`, `workflows`,
       `delivery` and `context` on the page that owns them, the note at the end
       of the machine-global section that said these keys are inert, and the
       `config.yaml` examples; verify with `mise run docs:build`
-- [ ] 9.3 `apps/docs/reference/commands.md`: the `init` row (`--profile`,
+- [x] 9.3 `apps/docs/reference/commands.md`: the `init` row (`--profile`,
       `--language`, the root-file sweep under `--remove-opsx`), the `update` row
       (never removes; delivery), the `doctor` row, and the BREAKING cases;
       verify with `mise run docs:build` and by reading each flag against the
       table's `--help`
-- [ ] 9.4 `apps/docs/concepts/how-it-relates-to-openspec.md` (the loader renders
+- [x] 9.4 `apps/docs/concepts/how-it-relates-to-openspec.md` (the loader renders
       an empty pending list; the sentence that every OpenSpec capability has a
       counterpart reads true), `docs/harness-integration.md` (line 17),
       `docs/architecture.md` (the grammar port, the one reader, the capability
       derivation), and verify `mise run docs:build` and a grep for "no
       core/custom profile split" across `apps/docs` and `docs` finds nothing
-- [ ] 9.5 `.agents/shared.md`: the explicit-only rule, the never-removes policy,
+- [x] 9.5 `.agents/shared.md`: the explicit-only rule, the never-removes policy,
       where the one reader lives and the conditional grammar's differential
       test, then `mise run agents:sync` and verify `mise run agents:check`
       passes

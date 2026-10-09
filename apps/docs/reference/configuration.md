@@ -31,8 +31,9 @@ below. :::
 ## Tier 2: `openspec/config.yaml`
 
 Your own change and spec content, plus `openspec/config.yaml`, is never touched
-by cospec, except for one key: `githubCopilot.cloudAgent`, which init writes
-when you pass a Copilot cloud flag or answer its question. The config file gives
+by cospec, except for two keys: `githubCopilot.cloudAgent`, which init writes
+when you pass a Copilot cloud flag or answer its question, and `context`, which
+`cospec init --language` writes when it creates the file. The config file gives
 you two levers, both delegated straight to the wrapped OpenSpec binary:
 
 - **`context`** — free-text project context injected into every generated
@@ -53,6 +54,23 @@ absent or not a mapping is not reported.
 
 For the full key reference and syntax, see OpenSpec's
 [customization guide](https://github.com/Fission-AI/OpenSpec/blob/main/docs/customization.md).
+
+`cospec init --language <language>` writes the context for you. A new
+`config.yaml` gets upstream's three-line directive as its `context`:
+
+```yaml
+context: |
+  Language: <language>
+  All artifacts must be written in <language>.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+```
+
+`init` refuses, writing nothing, when a `config.yaml` (or `config.yml`) already
+exists and its `context` does not already hold that directive. A new file also
+carries commented examples of three more keys: `operations:` (advisory guidance
+for `apply` and `archive`), `store:` (the registered store that holds this
+repo's planning) and `references:` (other stores this project reads). They are
+comments until you uncomment them.
 
 One extra vocabulary lever lives here too: `verification.layers` lets you extend
 the closed set of `@<layer>` tokens (`@unit`, `@e2e`, `@manual`, and so on) that
@@ -220,17 +238,52 @@ a substitute for going through `cospec schema`. :::
 
 The three tiers above are all repo-local. OpenSpec also keeps one machine-global
 config file, `~/.config/openspec/config.json`, and `cospec config <sub>` wraps
-it — cospec never reads or writes that file itself except for the one key below,
-adds no validation of its own, and relays upstream's key validation, value
-coercion, and prototype-pollution guard as OpenSpec answers, its remedies
-spelled `cospec` (`Fix it with "cospec config edit", …`, and
-`profile <preset>`'s
+it. cospec reads four of its keys itself — `profile`, `workflows` and `delivery`
+(see [Installed workflows and delivery](#installed-workflows-and-delivery)), and
+`defaultStore` — and writes one, `completionTipSeen` (below). It adds no
+validation of its own, and relays upstream's key validation, value coercion, and
+prototype-pollution guard as OpenSpec answers, its remedies spelled `cospec`
+(`Fix it with "cospec config edit", …`, and `profile <preset>`'s
 ``Config updated. Run `cospec update` in your projects to apply.``).
 
 `cospec config` with no subcommand (`--scope global` or not) prints
 `cospec config --help` on stderr and exits `1`, as OpenSpec prints its own
 `config` help there; under `--json` OpenSpec's refusal of `--json` at the
 `config` level (`error: unknown option '--json'`) is relayed instead.
+
+### Installed workflows and delivery
+
+`profile`, `workflows` and `delivery` choose which workflows `cospec init` and
+`cospec update` install, and which surface each one is written to. A key applies
+only when it is present in the file. OpenSpec's built-in default
+(`profile: core`, reported for an unset key) does not count, so a machine that
+never set `profile` keeps all twelve workflows.
+
+| key         | values                       | effect                                                                                                                                                                                                  |
+| ----------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `profile`   | `core`, `custom`             | `core` installs `propose`, `explore`, `apply`, `update`, `sync-specs` and `archive`. `custom` installs the `workflows` list. Any other present value acts as `core`.                                    |
+| `workflows` | a list of workflow ids       | Read only with `custom`. Ids are spelled as upstream spells them (`sync` means `sync-specs`); unknown ids are dropped, and `sync-specs` is added before `archive` or `bulk-archive` when it is missing. |
+| `delivery`  | `skills`, `commands`, `both` | Which surface each workflow is written to. Unset means `both`. Any other present value acts as `both`.                                                                                                  |
+
+`cospec init --profile core|custom` overrides the `profile` key for that one
+run. The `workflows` list still comes from the file.
+
+`cospec update` never removes an installed workflow. Its set is the profile's
+plus every cospec workflow the repo already has, so narrowing a profile leaves
+the dropped workflows in place, and `cospec doctor` names them. Delivery is the
+one exception, as the BREAKING notes below say. `cospec doctor` also reports the
+explicit `profile` and `delivery` it reads, as an INFO finding.
+
+::: warning BREAKING Two keys that cospec used to ignore now take effect, so a
+machine whose global config already sets them gets different output:
+
+- An explicit `profile: core` makes `cospec init` in a fresh repo install six
+  workflows, where it installed twelve. An explicit `profile: custom` installs
+  only its `workflows` list.
+- An explicit `delivery: skills` or `delivery: commands` makes `cospec init`
+  write that one surface only. `cospec update` then removes the other surface's
+  cospec files in a repo that has both. An absent `delivery` key, or
+  `delivery: both`, changes nothing. :::
 
 ### `completionTipSeen`: runtime-managed
 
@@ -343,14 +396,16 @@ bypasses the key just written:
 - **`set telemetry.enabled`** — cospec forces `OPENSPEC_TELEMETRY=0` on every
   wrapped call regardless of this key, so the setting affects bare `openspec`
   runs only.
-- **`profile <preset>` / `set profile|workflows|delivery`** — cospec's harness
-  files (`.claude/`, `.codex/`, `.opencode/`) are generated from cospec canon,
-  not from these OpenSpec keys; run `cospec update`, not `openspec update`, to
-  regenerate them.
+- **`profile <preset>` / `set profile|workflows|delivery`** — the key takes
+  effect on the next `cospec init` or `cospec update`, which regenerate the
+  harness files (`.claude/`, `.codex/`, `.opencode/`) from cospec canon. Run
+  `cospec update`, not `openspec update`. The stderr note says so:
+  `note: cospec's harness files are generated from cospec canon — run 'cospec update', not 'openspec update'.`
 
-`defaultStore` is the one global key cospec itself reads (as a fallback root
-during store resolution) but, until this command, had no way to set from cospec
-— see [Stores](/concepts/stores#cross-repo-context-and-worksets) for the full
+`defaultStore` is the other global key cospec itself reads, beside `profile`,
+`workflows` and `delivery` (as a fallback root during store resolution). Until
+this command, it had no way to set from cospec — see
+[Stores](/concepts/stores#cross-repo-context-and-worksets) for the full
 resolution order.
 
 ## The managed-file protocol

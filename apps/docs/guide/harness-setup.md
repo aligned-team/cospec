@@ -8,19 +8,20 @@ description:
 
 # Harness setup
 
-`cospec init --harness <list>` wires cospec's twelve workflows — `propose`,
-`new`, `continue`, `ff`, `apply`, `verify`, `archive`, `bulk-archive`,
-`sync-specs`, `explore`, `onboard`, `update` — into your agent harness by
-writing project files directly. This is cospec's full parity set with opsx
-1.13.1: every live opsx workflow has a cospec-adapted counterpart (opsx `sync`
-maps to cospec `sync-specs`, which merges a change's delta specs into the main
-specs without archiving it through `cospec sync-specs`; opsx `update` maps to
-cospec `update`), and cospec always emits the complete set to every configured
-harness — there's no core/custom profile split to opt into. There is no
-marketplace and no plugin package. Almost everything lands inside the repo,
-under version control, and `cospec update` regenerates it in place. One tool is
-the exception: `minimax-code` reads its skills only from your home directory, so
-those skills are written there and shared by every project on the machine
+`cospec init --harness <list>` wires cospec's workflows — `propose`, `new`,
+`continue`, `ff`, `apply`, `verify`, `archive`, `bulk-archive`, `sync-specs`,
+`explore`, `onboard`, `update` — into your agent harness by writing project
+files directly. This is cospec's full parity set with opsx 1.13.1: every live
+opsx workflow has a cospec-adapted counterpart (opsx `sync` maps to cospec
+`sync-specs`, which merges a change's delta specs into the main specs without
+archiving it through `cospec sync-specs`; opsx `update` maps to cospec
+`update`). By default every configured harness gets all twelve. A narrower set
+is written only when you choose one explicitly
+([below](#choosing-the-workflow-set)). There is no marketplace and no plugin
+package. Almost everything lands inside the repo, under version control, and
+`cospec update` regenerates it in place. One tool is the exception:
+`minimax-code` reads its skills only from your home directory, so those skills
+are written there and shared by every project on the machine
 ([see below](#the-home-skills-root-minimax-code)). The only other things cospec
 writes outside the repo are a shell completion script and its rc wiring, and
 only when you run `cospec completion install`, plus the one-time
@@ -29,12 +30,43 @@ only when you run `cospec completion install`, plus the one-time
 workflow body calls only `cospec` commands, never bare `openspec`, so a harness
 needs exactly one permission entry to run the whole loop.
 
+## Choosing the workflow set
+
+A narrower set applies only when you set it. The built-in default that OpenSpec
+reports for an unset `profile` does not count, so a machine that never set one
+gets all twelve workflows.
+
+- **Profile.** `cospec init --profile core|custom` sets it for one repo. The
+  same key can be set in the machine-global config file
+  (`cospec config profile core`, or `cospec config set profile custom`), and it
+  applies only while present there. `core` installs six workflows: `propose`,
+  `explore`, `apply`, `update`, `sync-specs` and `archive`. `custom` installs
+  the `workflows` list from that same file.
+- **Custom list.** Ids are spelled as upstream spells them, so `sync` means
+  `sync-specs`. Ids cospec does not know are dropped. `sync-specs` is added
+  before `archive` or `bulk-archive` when the list has one of those and not
+  `sync-specs`.
+- **Delivery.** `delivery` (`skills`, `commands` or `both`) chooses which
+  surface each workflow is written to. Unset means `both`, which is what cospec
+  has always written. A value other than `skills` or `commands` acts as `both`.
+
+cospec reads these keys and never writes them. `cospec update` never removes an
+installed workflow: it writes the profile's set plus every cospec workflow the
+repo already has, so a profile that drops one leaves its files in place, and
+`cospec doctor` names them. Delivery is the one exception: switching to one
+surface removes the other surface's cospec files. Under a narrower set, a
+handoff to a workflow that is not installed falls back to the raw `cospec`
+command, so no generated body points at a missing workflow. The full key
+reference, and the two BREAKING cases for an explicit `profile` or `delivery`,
+are in
+[Configuration](/reference/configuration#installed-workflows-and-delivery).
+
 ## Target table
 
 Every tool cospec can configure is one row below. `--harness` takes any id in
 the first column, a comma-separated list of them, `all` or `none`; `windsurf` is
 still accepted as an alias of `devin`. Paths are relative to the repo unless
-marked as home-scoped. `<workflow>` stands for one of the twelve workflow ids
+marked as home-scoped. `<workflow>` stands for one of the installed workflow ids
 and `<skill>` for its skill name (`cospec-<skill>`, below).
 
 | `--harness`      | Tool                                      | Skills                      | Command files                                    | Invoke                             | Restart         |

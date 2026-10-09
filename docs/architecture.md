@@ -635,6 +635,27 @@ reviewable composed outputs are the golden snapshot files in the unit tests and
 this repo's own committed `openspec/schemas/**` and harness directories, both
 drift-gated by `generate:check`.
 
+## Workflow profiles and delivery
+
+The installed workflow set and delivery surface are read from the machine-global
+config's `profile`, `workflows` and `delivery` keys by one reader,
+`core/global-profile.ts`. It runs through `readGlobalConfigDocument` in
+`core/root.ts`, which locates the file by spawning `openspec config path` and
+holds the once-per-path warning guard, so a command that reads both these keys
+and `defaultStore` prints the binary's invalid-JSON line once. A key counts only
+when the file holds it: the binary's built-in `core` default is not a choice.
+
+`harness/workflow-set.ts` maps a profile to workflow ids, and
+`harness/delivery.ts` derives each row's command-surface capability from its
+`HarnessAdapter` (`adapter-backed`, `skills-invocable` for `codex`, or `none`)
+and the skill and command predicates. It restates the binary's
+`command-surface.js` over cospec's rows; a table-invariant test keeps the two
+aligned when a row is added. `harness/optional-workflow.ts` is a verbatim port
+of the binary's `[[opsx:if-workflow <id>]]` resolver, its whole-line resolution,
+and its malformed and unresolved marker failures. The differential test
+`test/contract/optional-workflow-differential.test.ts` checks it cell by cell
+against the pinned dist's module.
+
 ## Module map
 
 ```
@@ -642,6 +663,7 @@ apps/cli/src/
 ├── index.ts / cli.ts       argv dispatch, global flags, lazy command import
 ├── commands/               one file per subcommand
 ├── core/
+│   ├── global-profile.ts   the one reader of the global profile, workflows and delivery keys
 │   ├── openspec.ts         spawn wrapper, version assert, passthroughOpenspec runner
 │   ├── passthrough-command.ts  global-flag threading for passthrough commands
 │   ├── change.ts           change discovery, .openspec.yaml, archive index,
@@ -663,6 +685,9 @@ apps/cli/src/
 │   ├── verification-verdict.ts  the verdict status/list report (archive gate + ledger errors)
 │   ├── schema-compose.ts   canon → schema.yaml + templates per type
 │   └── rules/              one module per rule family
-├── harness/                per-harness adapters, render, settings merge
+├── harness/                per-harness adapters, render, settings merge,
+│                           workflow-set.ts (profile to ids), delivery.ts
+│                           (surface predicates), optional-workflow.ts (the
+│                           [[opsx:if-workflow]] grammar)
 └── canon/                  artifacts, types, workflows, gate templates
 ```
