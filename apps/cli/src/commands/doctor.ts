@@ -59,7 +59,7 @@ import {
   workflowReferencePattern,
 } from '../harness/adapters.ts'
 import { walkProjectFiles } from '../harness/scan-walk.ts'
-import { isOpsxMarkdown, leftoverScanFiles } from './init.ts'
+import { isOpsxLeftover, leftoverScanFiles } from './init.ts'
 import { detectHarnesses, generate } from './update.ts'
 
 type Level = 'ERROR' | 'WARNING' | 'INFO'
@@ -374,12 +374,10 @@ export function checkOpsx(
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): void {
   for (const f of leftoverScanFiles(cwd, table)) {
-    // Provenance-only, matching init's removal set (DESIGN §2.1/§6.6) and its exact
-    // predicate (init.ts's `isOpsxMarkdown`, shared rather than duplicated so the two
-    // never drift): flag a file only when its own frontmatter (or, for OpenCode's
-    // description-only shape, frontmatter plus body) proves openspec authored it.
-    // Path/name conventions alone are not provenance — never warn on user-authored files.
-    if (isOpsxMarkdown(f.relpath, f.text)) {
+    // Provenance-only, the one predicate init's removal uses (DESIGN §2.1/§6.6): flag a file
+    // only when its own content proves openspec wrote it. Path/name conventions alone are not
+    // provenance — never warn on user-authored files.
+    if (isOpsxLeftover(f.relpath, f.text, table)) {
       findings.push({
         level: 'WARNING',
         check: 'opsx-leftover',

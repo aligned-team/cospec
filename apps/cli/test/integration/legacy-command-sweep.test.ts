@@ -86,79 +86,67 @@ describe('pre-opsx leftovers at every LEGACY_SLASH_COMMAND_PATHS entry that has 
     )
   })
 
-  test.failing(
-    'doctor and init --json report each marker-carrying file and no other',
-    async () => {
-      const planted = plantEntries()
-      const { dir, env } = repoWith(planted)
-      const expected = [...planted.leftovers.keys()].toSorted()
+  test('doctor and init --json report each marker-carrying file and no other', async () => {
+    const planted = plantEntries()
+    const { dir, env } = repoWith(planted)
+    const expected = [...planted.leftovers.keys()].toSorted()
 
-      const doctor = await cospec(['doctor', '--json'], { cwd: dir, env })
-      const findings = (JSON.parse(doctor.stdout) as DoctorJson).findings.filter(
-        (f) => f.check === 'opsx-leftover',
-      )
-      const named = expected.filter((rel) => findings.some((f) => f.message.includes(` ${rel} `)))
-      expect(named).toEqual(expected)
-      expect(findings).toHaveLength(expected.length)
+    const doctor = await cospec(['doctor', '--json'], { cwd: dir, env })
+    const findings = (JSON.parse(doctor.stdout) as DoctorJson).findings.filter(
+      (f) => f.check === 'opsx-leftover',
+    )
+    const named = expected.filter((rel) => findings.some((f) => f.message.includes(` ${rel} `)))
+    expect(named).toEqual(expected)
+    expect(findings).toHaveLength(expected.length)
 
-      const run = await cospec(['init', '--harness', 'none', '--no-gate', '--json'], {
+    const run = await cospec(['init', '--harness', 'none', '--no-gate', '--json'], {
+      cwd: dir,
+      env,
+    })
+    expect(run.exitCode).toBe(0)
+    const doc = JSON.parse(run.stdout) as { opsx: { found: string[]; removed: boolean } }
+    expect(doc.opsx.found.toSorted()).toEqual(expected)
+  }, 120_000)
+
+  test('--remove-opsx removes exactly those, empties each folder and keeps the user files', async () => {
+    const planted = plantEntries()
+    const { dir, env } = repoWith(planted)
+    const run = await cospec(
+      ['init', '--harness', 'none', '--no-gate', '--remove-opsx', '--json'],
+      {
         cwd: dir,
         env,
-      })
-      expect(run.exitCode).toBe(0)
-      const doc = JSON.parse(run.stdout) as { opsx: { found: string[]; removed: boolean } }
-      expect(doc.opsx.found.toSorted()).toEqual(expected)
-    },
-    120_000,
-  )
+      },
+    )
+    expect(run.exitCode).toBe(0)
+    for (const rel of planted.leftovers.keys()) expect(existsSync(join(dir, rel))).toBe(false)
+    for (const [rel, text] of planted.decoys)
+      expect(readFileSync(join(dir, rel), 'utf8')).toBe(text)
+    // A folder is removed once nothing is left in it, the empty `.lingma` one included.
+    for (const folder of planted.folders) expect(existsSync(join(dir, folder))).toBe(false)
+  }, 120_000)
 
-  test.failing(
-    '--remove-opsx removes exactly those, empties each folder and keeps the user files',
-    async () => {
-      const planted = plantEntries()
-      const { dir, env } = repoWith(planted)
-      const run = await cospec(
-        ['init', '--harness', 'none', '--no-gate', '--remove-opsx', '--json'],
-        {
-          cwd: dir,
-          env,
-        },
-      )
-      expect(run.exitCode).toBe(0)
-      for (const rel of planted.leftovers.keys()) expect(existsSync(join(dir, rel))).toBe(false)
-      for (const [rel, text] of planted.decoys)
-        expect(readFileSync(join(dir, rel), 'utf8')).toBe(text)
-      // A folder is removed once nothing is left in it, the empty `.lingma` one included.
-      for (const folder of planted.folders) expect(existsSync(join(dir, folder))).toBe(false)
-    },
-    120_000,
-  )
+  test('a legacy folder holding a user file keeps the folder and the file', async () => {
+    const planted: Planted = { leftovers: new Map(), decoys: new Map(), folders: [] }
+    for (const name of ['proposal.md', 'apply.md', 'archive.md']) {
+      planted.leftovers.set(`.claude/commands/openspec/${name}`, MARKED)
+    }
+    // Carries the markers but is not a name OpenSpec wrote there, so it is the user's.
+    planted.decoys.set('.claude/commands/openspec/mine.md', MARKED)
+    const { dir, env } = repoWith(planted)
 
-  test.failing(
-    'a legacy folder holding a user file keeps the folder and the file',
-    async () => {
-      const planted: Planted = { leftovers: new Map(), decoys: new Map(), folders: [] }
-      for (const name of ['proposal.md', 'apply.md', 'archive.md']) {
-        planted.leftovers.set(`.claude/commands/openspec/${name}`, MARKED)
-      }
-      // Carries the markers but is not a name OpenSpec wrote there, so it is the user's.
-      planted.decoys.set('.claude/commands/openspec/mine.md', MARKED)
-      const { dir, env } = repoWith(planted)
-
-      const run = await cospec(
-        ['init', '--harness', 'none', '--no-gate', '--remove-opsx', '--json'],
-        {
-          cwd: dir,
-          env,
-        },
-      )
-      expect(run.exitCode).toBe(0)
-      expect(
-        (JSON.parse(run.stdout) as { opsx: { found: string[] } }).opsx.found.toSorted(),
-      ).toEqual([...planted.leftovers.keys()].toSorted())
-      expect(readdirSync(join(dir, '.claude/commands/openspec'))).toEqual(['mine.md'])
-      expect(readFileSync(join(dir, '.claude/commands/openspec/mine.md'), 'utf8')).toBe(MARKED)
-    },
-    60_000,
-  )
+    const run = await cospec(
+      ['init', '--harness', 'none', '--no-gate', '--remove-opsx', '--json'],
+      {
+        cwd: dir,
+        env,
+      },
+    )
+    expect(run.exitCode).toBe(0)
+    expect((JSON.parse(run.stdout) as { opsx: { found: string[] } }).opsx.found.toSorted()).toEqual(
+      [...planted.leftovers.keys()].toSorted(),
+    )
+    expect(readdirSync(join(dir, '.claude/commands/openspec'))).toEqual(['mine.md'])
+    expect(readFileSync(join(dir, '.claude/commands/openspec/mine.md'), 'utf8')).toBe(MARKED)
+  }, 60_000)
 })

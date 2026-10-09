@@ -16,28 +16,7 @@ import { oracleSpawn } from './support/upstream-oracle.ts'
 afterAll(cleanupAll)
 
 /** Rows whose output the scan does not yet read in full, and the task that makes it so. */
-const SWEEP_PENDING = new Map<string, string>([
-  ['opencode', '9.1'],
-  ['amazon-q', '9.1'],
-  ['auggie', '9.1'],
-  ['bob', '9.1'],
-  ['cline', '9.1'],
-  ['command-code', '9.1'],
-  ['continue', '9.1'],
-  ['costrict', '9.1'],
-  ['cursor', '9.1'],
-  ['factory', '9.1'],
-  ['gemini', '9.1'],
-  ['iflow', '9.1'],
-  ['junie', '9.1'],
-  ['kilocode', '9.1'],
-  ['kiro', '9.1'],
-  ['oh-my-pi', '9.1'],
-  ['pi', '9.1'],
-  ['codeassistant', '9.1'],
-  ['qwen', '9.1'],
-  ['roocode', '9.1'],
-])
+const SWEEP_PENDING = new Map<string, string>()
 
 /** Every file under `dir` (relative, sorted), skipping `.git` and the repo's `openspec/` tree. */
 function toolFiles(dir: string, rel = ''): string[] {

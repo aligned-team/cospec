@@ -36,9 +36,7 @@ function upstreamEntries(id: string): RowEntry[] {
 
 describe('legacyCommandPaths', () => {
   for (const row of HARNESS_TABLE) {
-    // A row the binary lists nothing for passes already; the others gain the field with 9.1.
-    const run = upstreamEntries(row.id).length === 0 ? test : test.failing
-    run(`${row.id}: equals the pinned binary's entry, or none`, () => {
+    test(`${row.id}: equals the pinned binary's entry, or none`, () => {
       expect(rowEntries(row)).toEqual(upstreamEntries(row.id))
     })
   }

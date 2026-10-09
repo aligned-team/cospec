@@ -81,6 +81,21 @@ export interface LegacyToolRoot {
 }
 
 /**
+ * Where an earlier OpenSpec's slash-command registry wrote pre-opsx commands, one entry of the
+ * pinned binary's `LEGACY_SLASH_COMMAND_PATHS`. A `directory` entry lists the files OpenSpec
+ * put there, because users keep their own commands in the same folder: only those names are
+ * OpenSpec's, and the folder goes only once it is empty. A `files` entry is anchored glob(s)
+ * where `*` stays inside one path segment.
+ */
+export type LegacyCommandPath =
+  | {
+      readonly type: 'directory'
+      readonly path: string
+      readonly managedFileNames: readonly string[]
+    }
+  | { readonly type: 'files'; readonly patterns: readonly string[] }
+
+/**
  * One tool's complete layout. Field names follow the pinned OpenSpec `AI_TOOLS` entries
  * wherever upstream has the field, with upstream's meaning: `skillsDir`, `globalSkillsDir`
  * and `legacySkillsDirs` are tool ROOTS, with skills at `<root>/skills/<skill>/SKILL.md`.
@@ -96,6 +111,8 @@ export interface HarnessAdapter {
   readonly legacySkillsDirs?: readonly string[]
   /** Upstream's `LEGACY_TOOL_ROOTS` entries for this tool; row data, moved by `legacy-skills.ts`. */
   readonly legacyToolRoots?: readonly LegacyToolRoot[]
+  /** Upstream's `LEGACY_SLASH_COMMAND_PATHS` entry for this tool; read by the leftover scan. */
+  readonly legacyCommandPaths?: readonly LegacyCommandPath[]
   /**
    * Upstream's `LEGACY_GLOBAL_SLASH_COMMAND_PATHS` entry: the home directory OpenSpec once wrote
    * this tool's `prompts/opsx-<workflow>.md` into — `$<env>` when set and non-blank, else
@@ -120,6 +137,10 @@ export interface HarnessAdapter {
   readonly searchAliases?: readonly string[]
 }
 
+/** The three commands the old slash-command registry wrote into each directory. */
+const LEGACY_DIRECTORY_COMMAND_FILES = ['proposal.md', 'apply.md', 'archive.md'] as const
+const LEGACY_GEMINI_COMMAND_FILES = ['proposal.toml', 'apply.toml', 'archive.toml'] as const
+
 /**
  * The one declaration of every tool cospec generates project files for (DESIGN §6.1).
  * `agents` is the vendor-neutral `.agents/skills` root read by Codex, Zed, Antigravity and
@@ -140,6 +161,13 @@ export const HARNESS_TABLE = [
       serializer: 'markdown',
       frontmatter: buildClaudeCommandFrontmatter,
     },
+    legacyCommandPaths: [
+      {
+        type: 'directory',
+        path: '.claude/commands/openspec',
+        managedFileNames: LEGACY_DIRECTORY_COMMAND_FILES,
+      },
+    ],
     invocationPrefix: '/',
     bodyDialect: 'canonical',
     requiresIdeRestart: false,
@@ -153,6 +181,7 @@ export const HARNESS_TABLE = [
     legacySkillsDirs: ['.codex'],
     legacyToolRoots: [{ root: '.codex', needsConsent: false, timing: 'after-generation' }],
     legacyGlobalPrompts: { env: 'CODEX_HOME', fallback: '.codex' },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.codex/prompts/openspec-*.md'] }],
     invocationPrefix: '/',
     bodyDialect: 'shared',
     rulesPath: '.codex/rules/cospec.rules',
@@ -176,6 +205,12 @@ export const HARNESS_TABLE = [
       frontmatter: buildOpencodeCommandFrontmatter,
       injectArguments: '$ARGUMENTS',
     },
+    legacyCommandPaths: [
+      {
+        type: 'files',
+        patterns: ['.opencode/command/opsx-*.md', '.opencode/command/openspec-*.md'],
+      },
+    ],
     invocationPrefix: '/',
     bodyDialect: 'flat',
     requiresIdeRestart: false,
@@ -216,6 +251,7 @@ export const HARNESS_TABLE = [
       serializer: 'markdown',
       frontmatter: buildOpencodeCommandFrontmatter,
     },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.amazonq/prompts/openspec-*.md'] }],
     invocationPrefix: '@',
     bodyDialect: 'flat',
     requiresIdeRestart: true,
@@ -233,6 +269,7 @@ export const HARNESS_TABLE = [
       serializer: 'markdown',
       frontmatter: buildArgumentHintCommandFrontmatter,
     },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.augment/commands/openspec-*.md'] }],
     invocationPrefix: '/',
     bodyDialect: 'flat',
     requiresIdeRestart: false,
@@ -266,6 +303,7 @@ export const HARNESS_TABLE = [
       extension: '.md',
       serializer: 'markdown-header',
     },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.clinerules/workflows/openspec-*.md'] }],
     invocationPrefix: '/',
     bodyDialect: 'flat',
     requiresIdeRestart: true,
@@ -319,6 +357,7 @@ export const HARNESS_TABLE = [
       serializer: 'markdown',
       frontmatter: buildClaudeCommandFrontmatter,
     },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.windsurf/workflows/openspec-*.md'] }],
     invocationPrefix: '/',
     bodyDialect: 'flat',
     skillDialect: 'skill',
@@ -346,6 +385,13 @@ export const HARNESS_TABLE = [
       serializer: 'markdown',
       frontmatter: buildNameDescriptionHintCommandFrontmatter,
     },
+    legacyCommandPaths: [
+      {
+        type: 'directory',
+        path: '.codebuddy/commands/openspec',
+        managedFileNames: LEGACY_DIRECTORY_COMMAND_FILES,
+      },
+    ],
     invocationPrefix: '/',
     bodyDialect: 'canonical',
     requiresIdeRestart: false,
@@ -363,6 +409,7 @@ export const HARNESS_TABLE = [
       serializer: 'markdown',
       frontmatter: buildInvokableCommandFrontmatter,
     },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.continue/prompts/openspec-*.prompt'] }],
     invocationPrefix: '/',
     bodyDialect: 'flat',
     requiresIdeRestart: true,
@@ -381,6 +428,7 @@ export const HARNESS_TABLE = [
       serializer: 'markdown',
       frontmatter: buildArgumentHintCommandFrontmatter,
     },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.cospec/openspec/commands/openspec-*.md'] }],
     invocationPrefix: '/',
     bodyDialect: 'flat',
     requiresIdeRestart: true,
@@ -398,6 +446,13 @@ export const HARNESS_TABLE = [
       serializer: 'markdown',
       frontmatter: buildClaudeCommandFrontmatter,
     },
+    legacyCommandPaths: [
+      {
+        type: 'directory',
+        path: '.crush/commands/openspec',
+        managedFileNames: LEGACY_DIRECTORY_COMMAND_FILES,
+      },
+    ],
     invocationPrefix: '/',
     bodyDialect: 'canonical',
     requiresIdeRestart: false,
@@ -415,6 +470,7 @@ export const HARNESS_TABLE = [
       serializer: 'markdown',
       frontmatter: buildCursorCommandFrontmatter,
     },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.cursor/commands/openspec-*.md'] }],
     invocationPrefix: '/',
     bodyDialect: 'flat',
     requiresIdeRestart: true,
@@ -432,6 +488,7 @@ export const HARNESS_TABLE = [
       serializer: 'markdown',
       frontmatter: buildArgumentHintCommandFrontmatter,
     },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.factory/commands/openspec-*.md'] }],
     invocationPrefix: '/',
     bodyDialect: 'flat',
     requiresIdeRestart: false,
@@ -448,6 +505,13 @@ export const HARNESS_TABLE = [
       extension: '.toml',
       serializer: 'toml',
     },
+    legacyCommandPaths: [
+      {
+        type: 'directory',
+        path: '.gemini/commands/openspec',
+        managedFileNames: LEGACY_GEMINI_COMMAND_FILES,
+      },
+    ],
     invocationPrefix: '/',
     bodyDialect: 'canonical',
     requiresIdeRestart: false,
@@ -476,6 +540,7 @@ export const HARNESS_TABLE = [
       serializer: 'markdown',
       frontmatter: buildCursorCommandFrontmatter,
     },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.iflow/commands/openspec-*.md'] }],
     invocationPrefix: '/',
     bodyDialect: 'flat',
     requiresIdeRestart: false,
@@ -510,6 +575,7 @@ export const HARNESS_TABLE = [
       extension: '.md',
       serializer: 'plain',
     },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.kilocode/workflows/openspec-*.md'] }],
     invocationPrefix: '/',
     bodyDialect: 'flat',
     requiresIdeRestart: true,
@@ -538,6 +604,7 @@ export const HARNESS_TABLE = [
       serializer: 'markdown',
       frontmatter: buildOpencodeCommandFrontmatter,
     },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.kiro/prompts/openspec-*.prompt.md'] }],
     invocationPrefix: '/',
     bodyDialect: 'flat',
     requiresIdeRestart: true,
@@ -555,6 +622,9 @@ export const HARNESS_TABLE = [
       serializer: 'markdown',
       frontmatter: buildClaudeCommandFrontmatter,
     },
+    legacyCommandPaths: [
+      { type: 'directory', path: '.lingma/commands/openspec', managedFileNames: [] },
+    ],
     invocationPrefix: '/',
     bodyDialect: 'canonical',
     requiresIdeRestart: true,
@@ -634,6 +704,13 @@ export const HARNESS_TABLE = [
       serializer: 'markdown',
       frontmatter: buildClaudeCommandFrontmatter,
     },
+    legacyCommandPaths: [
+      {
+        type: 'directory',
+        path: '.qoder/commands/openspec',
+        managedFileNames: LEGACY_DIRECTORY_COMMAND_FILES,
+      },
+    ],
     invocationPrefix: '/',
     bodyDialect: 'canonical',
     requiresIdeRestart: true,
@@ -651,6 +728,9 @@ export const HARNESS_TABLE = [
       serializer: 'markdown',
       frontmatter: buildOpencodeCommandFrontmatter,
     },
+    legacyCommandPaths: [
+      { type: 'files', patterns: ['.qwen/commands/opsx-*.toml', '.qwen/commands/openspec-*.toml'] },
+    ],
     invocationPrefix: '/',
     bodyDialect: 'flat',
     requiresIdeRestart: false,
@@ -676,6 +756,7 @@ export const HARNESS_TABLE = [
       extension: '.md',
       serializer: 'markdown-header',
     },
+    legacyCommandPaths: [{ type: 'files', patterns: ['.roo/commands/openspec-*.md'] }],
     invocationPrefix: '/',
     bodyDialect: 'flat',
     requiresIdeRestart: true,
@@ -889,6 +970,52 @@ function escapeRegExp(text: string): string {
 function commandPathPattern(c: CommandSurface): RegExp {
   const file = c.file.split('{command}').map(escapeRegExp).join('[^/]+')
   return new RegExp(`^${escapeRegExp(c.dir)}/${file}${escapeRegExp(c.extension)}$`)
+}
+
+function legacyCommandEntries(table: readonly HarnessAdapter[]): LegacyCommandPath[] {
+  return table.flatMap((row) => [...(row.legacyCommandPaths ?? [])])
+}
+
+/** A glob whose only wildcard is `*`, kept inside one path segment, as an anchored pattern. */
+function legacyGlob(pattern: string): RegExp {
+  const source = pattern.split('*').map(escapeRegExp).join('[^/]*')
+  return new RegExp(`^${source}$`)
+}
+
+/**
+ * Whether `relpath` is a path some row's `legacyCommandPaths` names: a managed file of a
+ * directory entry (by exact name, so a user's own file in the same folder is not), or a match
+ * of a `files` entry's pattern. Anchored at the repo root, so a nested checkout's copy of the
+ * same path is not one.
+ */
+export function isLegacyCommandPath(
+  relpath: string,
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): boolean {
+  return legacyCommandEntries(table).some((entry) =>
+    entry.type === 'directory'
+      ? entry.managedFileNames.some((name) => relpath === `${entry.path}/${name}`)
+      : entry.patterns.some((pattern) => legacyGlob(pattern).test(relpath)),
+  )
+}
+
+/** Top-level repo dirs the rows' `legacyCommandPaths` sit under; the leftover scan walks them. */
+export function legacyCommandRoots(table: readonly HarnessAdapter[] = HARNESS_TABLE): string[] {
+  const roots = legacyCommandEntries(table).flatMap((entry) =>
+    entry.type === 'directory' ? [entry.path] : entry.patterns,
+  )
+  return [...new Set(roots.map(topSegment))]
+}
+
+/** The directory entries' folders, each removed once nothing is left in it. */
+export function legacyCommandDirs(table: readonly HarnessAdapter[] = HARNESS_TABLE): string[] {
+  return [
+    ...new Set(
+      legacyCommandEntries(table).flatMap((entry) =>
+        entry.type === 'directory' ? [entry.path] : [],
+      ),
+    ),
+  ]
 }
 
 /** Dirs cospec owns and may delete manifest-tracked files from: `openspec` plus every row root. */
