@@ -350,6 +350,26 @@ would score nothing the assertion does not.
 A canon unit test fails on any `/cospec:<id>` outside a conditional branch, any
 marker id outside the manifest, and any fallback naming `/cospec:`.
 
+**Recorded at T3 (task 4.2).** Two decisions were needed to land the wrap
+without moving a byte of the twelve-workflow render:
+
+- `.oxfmtrc.json` sets `proseWrap: preserve` for
+  `apps/cli/src/canon/workflows/*.md`, the same override `verification.md`
+  carries. A canon line break is rendered output (the body is emitted as
+  written), so oxfmt re-flowing a paragraph to 80 columns would change every
+  generated file; and reflow can split a marker's `if-workflow <id>` at its
+  space, which the resolver would not recognise.
+- Where the table's command is false in its sentence, the fallback is the raw
+  command that is true there, and a sentence that refers to another workflow's
+  numbered step reads its fallback as the plain action. Examples: the
+  `/cospec:propose` planning-artifacts clause in `explore.md` falls back to
+  `cospec instructions <artifact> --change <slug>` (`cospec new` writes no
+  planning artifact); the `continue.md` "same loop as propose step 3" falls back
+  to "For each ready artifact". Self-references (`continue`/`update` in their
+  own bodies) never render their fallback, since a body renders only when
+  installed. Multi-reference sentences keep one conditional per reference, so a
+  few fallbacks repeat the same command.
+
 ### D8. `init`
 
 Order, with the first failure stopping before any write (the binary resolves

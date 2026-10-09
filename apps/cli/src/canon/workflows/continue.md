@@ -13,7 +13,7 @@ cospec list --json
 ```
 
 If the user named a change, use it. If exactly one active change exists, use it
-and announce `Using change: <slug>`, naming `/cospec:continue <other-slug>` as
+and announce `Using change: <slug>`, naming `[[opsx:if-workflow continue]]/cospec:continue <other-slug>[[opsx:else]]cospec instructions <artifact> --change <other-slug>[[opsx:end]]` as
 the override. If more than one is plausible, ask the user which one, showing
 each change's type and gate state.
 
@@ -28,7 +28,7 @@ write next.
 
 ## 3. Finish the artifacts
 
-Run the same loop as `/cospec:propose` step 3: for each ready artifact, call
+[[opsx:if-workflow propose]]Run the same loop as `/cospec:propose` step 3: for[[opsx:else]]For[[opsx:end]] each ready artifact, call
 `cospec instructions <artifact> --change <slug> --json`, write it to the named
 path, and repeat until every required artifact exists. Apply `context` and
 `rules` as constraints, never copy them into the output. Re-read every completed
@@ -50,4 +50,4 @@ cospec validate <slug> --strict
 ```
 
 Fix all issues (re-running the formatter over anything you edit), then tell the
-user the change is apply-ready — next step `/cospec:apply`.
+user the change is apply-ready — next step `[[opsx:if-workflow apply]]/cospec:apply[[opsx:else]]cospec apply <slug>[[opsx:end]]`.

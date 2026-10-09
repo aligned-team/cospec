@@ -36,7 +36,7 @@ for (const [name, ids] of SETS) {
     expect(bodies.filter((b) => b.includes('[[opsx:'))).toEqual([])
   })
 
-  test.failing(`${name}: no body names an uninstalled workflow`, () => {
+  test(`${name}: no body names an uninstalled workflow`, () => {
     const uninstalled = manifest.filter((w) => !ids.includes(w.id))
     const named = render()
       .filter((f) => f.kind !== 'rules')

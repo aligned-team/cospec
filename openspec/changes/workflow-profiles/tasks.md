@@ -89,7 +89,7 @@ rows write the `config.json` under test into the sandbox's
       line) plus `test/unit/harness/narrowed-render.test.ts` (rendering the core
       six, and `custom: [archive]`, yields no body naming an uninstalled
       workflow), and verify both fail on the current canon
-- [ ] 4.2 Wrap each reference in the twelve bodies per design D7's fallback
+- [x] 4.2 Wrap each reference in the twelve bodies per design D7's fallback
       table, run `mise run generate`, and verify the rows of 4.1 pass,
       `mise run generate:check` reports no drift, and `full-set-golden.test.ts`
       is unchanged (the full-set render is byte-identical)

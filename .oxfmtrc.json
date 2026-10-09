@@ -27,6 +27,10 @@
     {
       "files": ["**/verification.md"],
       "options": { "proseWrap": "preserve" }
+    },
+    {
+      "files": ["apps/cli/src/canon/workflows/*.md"],
+      "options": { "proseWrap": "preserve" }
     }
   ]
 }

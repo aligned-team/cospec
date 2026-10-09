@@ -40,4 +40,4 @@ Obey the exit code:
 ## 3. Finish
 
 When every task is checked, tell the user the change is ready to archive — next
-step `/cospec:archive`.
+step `[[opsx:if-workflow archive]]/cospec:archive[[opsx:else]]cospec archive <slug>[[opsx:end]]`.

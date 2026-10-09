@@ -1,7 +1,7 @@
 // Cross-workflow references in the canon (workflow-profiles task 4.1, design D7). Every
 // `/cospec:<id>` in a workflow body sits in the if-branch of a conditional on that same id, and
 // no fallback names `/cospec:`, so a narrowed install never prints a command for a workflow it
-// does not carry. The scanner is exercised on fixtures first so a passing `test.failing` row
+// does not carry. The scanner is exercised on fixtures first so a passing row
 // cannot be a vacuous pass.
 
 import { describe, expect, test } from 'bun:test'
@@ -78,16 +78,13 @@ const files = readdirSync(CANON)
   .toSorted()
 
 describe('cross-workflow references in the canon', () => {
-  test.failing(
-    'every /cospec:<id> sits in its own if-branch, with no /cospec: in a fallback',
-    () => {
-      const violations = files.flatMap((f) =>
-        referenceViolations(
-          relative(REPO_ROOT, join(CANON, f)),
-          readFileSync(join(CANON, f), 'utf8'),
-        ),
-      )
-      expect(violations).toEqual([])
-    },
-  )
+  test('every /cospec:<id> sits in its own if-branch, with no /cospec: in a fallback', () => {
+    const violations = files.flatMap((f) =>
+      referenceViolations(
+        relative(REPO_ROOT, join(CANON, f)),
+        readFileSync(join(CANON, f), 'utf8'),
+      ),
+    )
+    expect(violations).toEqual([])
+  })
 })

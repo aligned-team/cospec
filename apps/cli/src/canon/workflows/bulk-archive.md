@@ -60,5 +60,5 @@ not understand:
 ## 5. Report and hand off
 
 Summarize the batch: which changes archived cleanly, which failed and why, and
-which changes are newly unblocked. Offer to `/cospec:apply` anything newly
+which changes are newly unblocked. Offer to `[[opsx:if-workflow apply]]/cospec:apply[[opsx:else]]cospec apply <slug>[[opsx:end]]` anything newly
 unblocked.

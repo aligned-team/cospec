@@ -23,7 +23,7 @@ requirements there, and a REMOVED there is a no-op the merge warns about;
 `cospec validate` refuses a MODIFIED or RENAMED op targeting it before archive
 ever runs the merge.
 
-A change whose specs were synced early with `/cospec:sync-specs` archives as a
+A change whose specs were synced early with `[[opsx:if-workflow sync-specs]]/cospec:sync-specs[[opsx:else]]cospec sync-specs <slug>[[opsx:end]]` archives as a
 no-op merge: the summary says the specs were already in sync, and both hard
 gates (`archive/verification-incomplete`, `archive/scenario-preservation`) still
 run.
@@ -57,4 +57,4 @@ quote its Purpose, and tell the user how to recover it (a `git checkout` of that
 path when the spec lived in this checkout).
 
 Never bypass validation. If a change is reported as now unblocked, offer to
-`/cospec:apply` it next.
+`[[opsx:if-workflow apply]]/cospec:apply[[opsx:else]]cospec apply <slug>[[opsx:end]]` it next.

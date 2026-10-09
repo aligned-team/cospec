@@ -92,8 +92,8 @@ Once confirmed, create the change with `cospec new <type> <slug>` — never by
 hand — and draft or refine each artifact via
 `cospec instructions <artifact> --change <slug> --json`, following its template
 and format exactly. When the requested capture is done, stop there and name
-where the work continues: `/cospec:propose` writes any remaining planning
-artifacts, and `/cospec:apply` implements the change once tasks exist. Capturing
+where the work continues: [[opsx:if-workflow propose]]`/cospec:propose` writes any remaining planning
+artifacts[[opsx:else]]author any remaining planning artifacts with `cospec instructions <artifact> --change <slug>`[[opsx:end]], and `[[opsx:if-workflow apply]]/cospec:apply[[opsx:else]]cospec apply <slug>[[opsx:end]]` implements the change once tasks exist. Capturing
 an artifact never starts implementing it.
 
 ## What you must not do
@@ -102,15 +102,15 @@ an artifact never starts implementing it.
   as code: creating or editing `openspec/schemas/`, templates, or
   `openspec/config.yaml` is a change, not thinking.
 - Do not run `cospec apply` or `cospec archive`. Implementation happens from
-  `/cospec:apply`, never from explore mode.
+  `[[opsx:if-workflow apply]]/cospec:apply[[opsx:else]]cospec apply <slug>[[opsx:end]]`, never from explore mode.
 - Do not create a new change unless the user explicitly asks. If the exploration
-  concludes that work is warranted, recommend `/cospec:propose "<type>: <what>"`
+  concludes that work is warranted, recommend `[[opsx:if-workflow propose]]/cospec:propose "<type>: <what>"[[opsx:else]]cospec new <type> <slug>[[opsx:end]]`
   and stop.
 - Do not hand-create a change directory under `openspec/changes/`. `cospec new`
   writes the metadata that makes a change real — and only after the user has
   confirmed.
 
 Report findings clearly, cite the files you read, and end with one concrete
-recommended next step — `/cospec:propose "<type>: <what>"` when the exploration
-concluded that work is warranted, or `/cospec:apply <slug>` when the change it
+recommended next step — `[[opsx:if-workflow propose]]/cospec:propose "<type>: <what>"[[opsx:else]]cospec new <type> <slug>[[opsx:end]]` when the exploration
+concluded that work is warranted, or `[[opsx:if-workflow apply]]/cospec:apply <slug>[[opsx:else]]cospec apply <slug>[[opsx:end]]` when the change it
 belongs to already has tasks.

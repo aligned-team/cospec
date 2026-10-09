@@ -1,6 +1,6 @@
 Scaffold a new openspec change and stop. This workflow creates the change and
 shows you its typed artifact plan — it does not author any artifact. Hand off to
-`/cospec:ff` or `/cospec:continue` to actually write them.
+`[[opsx:if-workflow ff]]/cospec:ff[[opsx:else]]cospec instructions <artifact> --change <slug>[[opsx:end]]` or `[[opsx:if-workflow continue]]/cospec:continue[[opsx:else]]cospec instructions <artifact> --change <slug>[[opsx:end]]` to actually write them.
 
 All work goes through `cospec`. Never call `openspec` directly, and never
 hand-edit the bookkeeping under `openspec/changes/`.
@@ -43,7 +43,7 @@ scaffolds and previews.
 
 Tell the user the change is scaffolded and offer two ways to continue:
 
-- `/cospec:ff` — author every remaining artifact in one pass.
-- `/cospec:continue` — author one artifact at a time, reviewing each.
+- [[opsx:if-workflow ff]]`/cospec:ff` — author every remaining artifact in one pass.[[opsx:else]]`cospec instructions <artifact> --change <slug>` for each remaining artifact, in turn.[[opsx:end]]
+- [[opsx:if-workflow continue]]`/cospec:continue` — author one artifact at a time, reviewing each.[[opsx:else]]`cospec instructions <artifact> --change <slug>` — author one artifact at a time, reviewing each.[[opsx:end]]
 
 Do not create any artifact file yourself in this workflow.
