@@ -690,6 +690,21 @@ describe('8. the PowerShell script', () => {
   })
 
   const pwsh = Bun.which('pwsh') !== null ? test : test.skip
+
+  /** Run a script under `pwsh -NoProfile` with every home-like path in the sandbox. */
+  function pwshFile(sb: HomeSandbox, file: string, args: string[]) {
+    return Bun.spawnSync(['pwsh', '-NoProfile', '-File', file, ...args], {
+      cwd: sb.root,
+      env: {
+        ...process.env,
+        ...sb.env,
+        DOTNET_CLI_HOME: sb.home,
+        POWERSHELL_TELEMETRY_OPTOUT: '1',
+        POWERSHELL_UPDATECHECK: 'Off',
+      },
+    })
+  }
+
   pwsh(
     '8.3 pwsh parses the script and TabExpansion2 completes a command, a flag and completion <Tab>',
     async () => {
@@ -707,18 +722,54 @@ describe('8. the PowerShell script', () => {
           '. $args[0]',
           "$cmd = (TabExpansion2 'cospec comp' 11).CompletionMatches.CompletionText",
           "$flag = (TabExpansion2 'cospec --' 9).CompletionMatches.CompletionText",
-          "$sub = (TabExpansion2 'cospec completion ' 17).CompletionMatches.CompletionText",
+          // The cursor sits after the trailing space (offset 18), so the next word is a subcommand.
+          "$sub = (TabExpansion2 'cospec completion ' 18).CompletionMatches.CompletionText",
           'Write-Output ("CMD=" + ($cmd -join ","))',
           'Write-Output ("FLAG=" + ($flag -join ","))',
           'Write-Output ("SUB=" + ($sub -join ","))',
         ].join('\n'),
       )
-      const result = Bun.spawnSync(['pwsh', '-NoProfile', '-File', probe, script], { cwd: sb.root })
+      const result = pwshFile(sb, probe, [script])
       expect(result.exitCode).toBe(0)
-      const out = result.stdout.toString()
-      expect(out).toContain('completion')
-      expect(out).toContain('--json')
-      expect(out).toContain('bash')
+      const lines = result.stdout.toString().split('\n')
+      const field = (name: string) =>
+        (lines.find((line) => line.startsWith(`${name}=`)) ?? '').slice(name.length + 1).trim()
+      expect(field('CMD').split(',')).toContain('completion')
+      expect(field('FLAG').split(',')).toContain('--json')
+      expect(field('SUB').split(',')).toEqual(
+        expect.arrayContaining(['install', 'uninstall', 'bash', 'zsh', 'fish', 'powershell']),
+      )
+    },
+  )
+
+  pwsh(
+    '8.4 pwsh parses the installed script and the profile block, and a profile path with an apostrophe loads',
+    async () => {
+      const sb = sandbox()
+      const profile = join(sb.home, '.config', "it's here", 'profile.ps1')
+      mkdirSync(dirname(profile), { recursive: true })
+      writeFileSync(profile, '# existing\n')
+      expect((await install(sb, 'powershell', [], { PROFILE: profile })).exitCode).toBe(0)
+      const script = join(dirname(profile), 'CospecCompletion.ps1')
+
+      const probe = join(sb.root, 'probe-profile.ps1')
+      writeFileSync(
+        probe,
+        [
+          'foreach ($file in $args) {',
+          '  $errors = $null',
+          '  [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$null, [ref]$errors) | Out-Null',
+          '  if ($errors.Count -gt 0) { Write-Output ("PARSE-ERROR " + $file + ": " + $errors[0].Message); exit 2 }',
+          '}',
+          '. $args[1]',
+          "$cmd = (TabExpansion2 'cospec comp' 11).CompletionMatches.CompletionText",
+          'Write-Output ("CMD=" + ($cmd -join ","))',
+        ].join('\n'),
+      )
+      const result = pwshFile(sb, probe, [script, profile])
+      expect(result.stdout.toString()).not.toContain('PARSE-ERROR')
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout.toString()).toContain('CMD=completion')
     },
   )
 })
@@ -791,6 +842,8 @@ describe('10. when the tip stays quiet', () => {
         expect(result.output).not.toContain('Tip: Run')
       }
     },
+    // Six sequential pty spawns of the CLI: well past the default 5s on a busy host.
+    60_000,
   )
 
   test('10.2 a plain run with stderr piped prints no tip and creates no config file', async () => {
@@ -848,8 +901,6 @@ describe('10. when the tip stays quiet', () => {
       })
       expect(result.output).not.toContain("Tip: Run 'openspec completion install'")
     },
-    // Six sequential pty spawns of the CLI: well past the default 5s on a busy host.
-    60_000,
   )
 })
 
