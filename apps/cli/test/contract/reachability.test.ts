@@ -957,6 +957,10 @@ describe('reachability: every pinned OpenSpec surface resolves exactly once', ()
 })
 
 describe('parity data files', () => {
+  test('parity-pending.yaml is empty: every pinned surface is reachable', () => {
+    expect(PENDING).toEqual([])
+  })
+
   test('every parity-pending.yaml entry carries a known owner slug', () => {
     const bad = PENDING.filter((pe) => pe.owner === undefined || !KNOWN_OWNERS.has(pe.owner))
     expect(bad.map((pe) => label(pe))).toEqual([])

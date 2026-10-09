@@ -19,7 +19,19 @@ import { dirname, join } from 'node:path'
 
 import { parse } from 'yaml'
 
-import { adapterFor, commandPath } from '../../src/harness/adapters.ts'
+import {
+  adapterFor,
+  commandPath,
+  HARNESS_TABLE,
+  type HarnessAdapter,
+  skillPath,
+} from '../../src/harness/adapters.ts'
+import {
+  commandSurfaceCapability,
+  type Delivery,
+  shouldGenerateCommands,
+  shouldGenerateSkills,
+} from '../../src/harness/delivery.ts'
 import { readWorkflowManifest } from '../../src/harness/render.ts'
 import { cleanupAll, cospec, hashTree, mkTempRepo, oracleEnv } from '../fixtures/support.ts'
 import { oracle } from './support/upstream-oracle.ts'
@@ -957,4 +969,117 @@ describe('doctor: the global profile and the installed set', () => {
     const after = (await doctorFindings(s)).filter((f) => f.check === 'opsx-leftover')
     expect(after).toEqual([])
   }, 120_000)
+})
+
+// The matrix (task 8.1): profile x delivery x harness, each cell running init, update and doctor
+// in its own sandbox. The harness list is one row per distinct command surface, so a row added
+// to HARNESS_TABLE with a new surface joins the matrix with no edit here.
+describe('the profile x delivery x harness matrix', () => {
+  type ProfileCase = { name: string; config?: object; expected: string[] }
+  const PROFILES: ProfileCase[] = [
+    { name: 'unset', expected: ALL_IDS },
+    { name: 'core', config: { profile: 'core' }, expected: CORE_IDS },
+    {
+      name: 'custom with archive',
+      config: { profile: 'custom', workflows: ['archive'] },
+      expected: ['archive', 'sync-specs'],
+    },
+    {
+      name: 'custom without archive',
+      config: { profile: 'custom', workflows: ['explore', 'verify'] },
+      expected: ['explore', 'verify'],
+    },
+  ]
+  const DELIVERIES: (Delivery | undefined)[] = [undefined, 'skills', 'commands', 'both']
+
+  const surfaceKey = (r: HarnessAdapter): string =>
+    JSON.stringify([
+      commandSurfaceCapability(r),
+      r.commands?.serializer,
+      r.commands?.namespacing,
+      r.commands?.injectArguments,
+      r.bodyDialect,
+      r.skillDialect,
+      r.skillsOnlyDialect,
+      r.invocationPrefix,
+      r.rulesPath !== undefined,
+      r.skillsDir !== undefined,
+    ])
+  const seen = new Set<string>()
+  const ROWS: HarnessAdapter[] = []
+  for (const row of HARNESS_TABLE as readonly HarnessAdapter[]) {
+    const key = surfaceKey(row)
+    const named = ['claude', 'codex', 'opencode', 'agents', 'github-copilot'].includes(row.id)
+    if (named || !seen.has(key)) ROWS.push(row)
+    seen.add(key)
+  }
+
+  test('the four named rows and the copilot row are in the matrix', () => {
+    const ids = ROWS.map((r) => r.id)
+    for (const id of ['claude', 'codex', 'opencode', 'agents', 'github-copilot'])
+      expect(ids).toContain(id)
+  })
+
+  async function cell(row: HarnessAdapter, profile: ProfileCase, delivery?: Delivery) {
+    const label = `${row.id} / ${profile.name} / delivery ${delivery ?? 'unset'}`
+    const problems: string[] = []
+    const config = {
+      ...profile.config,
+      ...(delivery === undefined ? {} : { delivery }),
+    }
+    const s = sandbox(Object.keys(config).length === 0 ? undefined : config)
+    const run = (args: string[]) => cospec(args, { cwd: s.project, env: s.env })
+    const effective: Delivery = delivery ?? 'both'
+    const expectFiles = (phase: string): void => {
+      for (const w of MANIFEST) {
+        const want = profile.expected.includes(w.id)
+        if (row.skillsDir !== undefined) {
+          const have = existsSync(join(s.project, skillPath(row, w.skill)))
+          const should = want && shouldGenerateSkills(row, effective)
+          if (have !== should)
+            problems.push(`${phase}: skill ${w.id} present=${have}, want ${should}`)
+        }
+        const cmd = commandPath(row, w.command)
+        if (cmd !== undefined) {
+          const have = existsSync(join(s.project, cmd))
+          const should = want && shouldGenerateCommands(row, effective)
+          if (have !== should)
+            problems.push(`${phase}: command ${w.id} present=${have}, want ${should}`)
+        }
+      }
+    }
+    const init = await run(['init', '--harness', row.id, '--no-gate'])
+    if (init.exitCode !== 0)
+      problems.push(`init exit ${init.exitCode}: ${init.stderr.slice(0, 200)}`)
+    expectFiles('init')
+    const update = await run(['update', '--json'])
+    if (update.exitCode !== 0) {
+      problems.push(`update exit ${update.exitCode}: ${update.stderr.slice(0, 200)}`)
+    } else {
+      const moved = files(update.stdout).filter(
+        (f) => !['unchanged', 'skipped'].includes(f.outcome),
+      )
+      if (moved.length > 0)
+        problems.push(`update changed ${moved.map((f) => `${f.path}:${f.outcome}`).join(', ')}`)
+    }
+    expectFiles('update')
+    const doctor = await run(['doctor', '--json'])
+    if (doctor.exitCode !== 0) problems.push(`doctor exit ${doctor.exitCode}`)
+    const bad = (JSON.parse(doctor.stdout).findings as DoctorFinding[]).filter(
+      (f) => f.level === 'ERROR' || f.check === 'stale-harness' || f.check === 'mixed-versions',
+    )
+    for (const f of bad) problems.push(`doctor ${f.level} ${f.check}: ${f.message.slice(0, 120)}`)
+    return problems.map((p) => `${label}: ${p}`)
+  }
+
+  for (const row of ROWS) {
+    test.failing(
+      `${row.id}: every profile x delivery cell passes init, update and doctor`,
+      async () => {
+        const cells = PROFILES.flatMap((profile) => DELIVERIES.map((d) => cell(row, profile, d)))
+        expect((await Promise.all(cells)).flat()).toEqual([])
+      },
+      300_000,
+    )
+  }
 })
