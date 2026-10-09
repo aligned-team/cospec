@@ -41,6 +41,16 @@ you two levers, both delegated straight to the wrapped OpenSpec binary:
   `tasks`, `verification`, and so on), injected natively by OpenSpec into the
   instructions it renders.
 
+A `rules` key that is not an artifact id — a typo such as `proposals` for
+`proposal` — silently drops that whole rule list; OpenSpec only prints one
+stderr line while generating instructions. `cospec doctor` reports each such key
+as a `config` warning that names it, lists the known ids (every artifact id of
+the schemas OpenSpec resolves — project, user-global and package — as its own
+`cospec schemas` listing shows them; a schema OpenSpec rejects as invalid
+contributes none) and suggests the closest id. If that listing cannot be read,
+doctor says so in one `config` warning and flags no key. A `rules` that is
+absent or not a mapping is not reported.
+
 For the full key reference and syntax, see OpenSpec's
 [customization guide](https://github.com/Fission-AI/OpenSpec/blob/main/docs/customization.md).
 

@@ -4,7 +4,8 @@
 // schemas/harness files are not drifted (reuses the update engine's dry run);
 // harness files are not stale/mixed-version; slash/skill references in generated
 // bodies all resolve (the structural guard against openspec's dangling-ref
-// failure class); config.yaml (else config.yml) parses with a known schema; no leftover opsx files
+// failure class); config.yaml (else config.yml) parses with a known schema and
+// its `rules:` keys are artifact ids of a schema the binary resolves; no leftover opsx files
 // or stale .cospec-new sidecars; changes sit on known schemas; the git hooks
 // are installed when the gate was scaffolded; and, on every root, a delegated
 // `openspec doctor --json` (and, for a store root, `openspec store doctor
@@ -341,7 +342,7 @@ function projectConfigFile(cwd: string): string | undefined {
     .find((rel) => existsSync(join(cwd, rel)))
 }
 
-function checkConfig(cwd: string, findings: Finding[]): void {
+async function checkConfig(root: Root, cwd: string, findings: Finding[]): Promise<void> {
   const rel = projectConfigFile(cwd)
   if (rel === undefined) return
   let doc: unknown
@@ -356,6 +357,7 @@ function checkConfig(cwd: string, findings: Finding[]): void {
     })
     return
   }
+  await checkRuleKeys(root, rel, doc, findings)
   const schema =
     doc !== null && typeof doc === 'object' ? (doc as Record<string, unknown>).schema : undefined
   if (typeof schema === 'string' && !(COSPEC_TYPES as readonly string[]).includes(schema)) {
@@ -365,6 +367,105 @@ function checkConfig(cwd: string, findings: Finding[]): void {
       message: `${rel} default schema is '${schema}' (not one of the 11 cospec types)`,
       remedy:
         'set `schema:` to a cospec type for the full guided workflow, or keep it if intentional',
+    })
+  }
+}
+
+/** Levenshtein distance, case-insensitive: the closest-id hint on a mistyped rule key. */
+function editDistance(a: string, b: string): number {
+  const x = a.toLowerCase()
+  const y = b.toLowerCase()
+  let prev = Array.from({ length: y.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= x.length; i++) {
+    const row = [i]
+    for (let j = 1; j <= y.length; j++) {
+      row.push(
+        Math.min(
+          (prev[j] ?? 0) + 1,
+          (row[j - 1] ?? 0) + 1,
+          (prev[j - 1] ?? 0) + (x[i - 1] === y[j - 1] ? 0 : 1),
+        ),
+      )
+    }
+    prev = row
+  }
+  return prev[y.length] ?? 0
+}
+
+/**
+ * The artifact ids of every schema the wrapped binary can resolve, read from
+ * its own `schemas --json` listing: project schemas, user-global schemas under
+ * `$XDG_DATA_HOME/openspec/schemas`, and the package schema, with invalid
+ * schemas dropped and a shadowed one hidden — the exact set its instruction
+ * generator checks `rules:` keys against. Rejects when the listing cannot be
+ * obtained, so the set is never guessed.
+ */
+async function resolvableArtifactIds(root: Root): Promise<Set<string>> {
+  const result = await passthroughOpenspec(
+    { command: ['schemas'], threaded: ['--json', ...root.storeArgs] },
+    { cwd: root.cwd, expect: { exitCodes: [0, 1] } },
+  )
+  if (result.exitCode !== 0) throw new Error(`exited ${result.exitCode}`)
+  const listing: unknown = JSON.parse(result.stdout)
+  if (!Array.isArray(listing)) throw new Error('did not list schemas as an array')
+  const ids = new Set<string>()
+  for (const entry of listing) {
+    const artifacts =
+      entry !== null && typeof entry === 'object'
+        ? (entry as Record<string, unknown>).artifacts
+        : undefined
+    if (!Array.isArray(artifacts)) throw new Error('listed a schema without an artifacts array')
+    for (const id of artifacts) if (typeof id === 'string') ids.add(id)
+  }
+  return ids
+}
+
+/**
+ * A `rules:` key that is no artifact id in any available schema silently drops
+ * its rule list: the wrapped binary only notices while generating instructions,
+ * as one stderr line, which doctor's delegated call never reaches. Known ids
+ * come from the binary's own schema listing (`resolvableArtifactIds`), so a
+ * user-global or forked schema's ids are valid and an invalid or shadowed
+ * schema's are not, exactly as the binary decides; when the listing cannot be
+ * read the set is unknown, so that is reported instead of guessing.
+ */
+async function checkRuleKeys(
+  root: Root,
+  rel: string,
+  doc: unknown,
+  findings: Finding[],
+): Promise<void> {
+  const rules =
+    doc !== null && typeof doc === 'object' ? (doc as Record<string, unknown>).rules : undefined
+  if (rules === null || typeof rules !== 'object' || Array.isArray(rules)) return
+  const keys = Object.keys(rules)
+  if (keys.length === 0) return
+  let ids: Set<string>
+  try {
+    ids = await resolvableArtifactIds(root)
+  } catch (error) {
+    findings.push({
+      level: 'WARNING',
+      check: 'config',
+      message: `cannot check ${rel} rules keys against artifact ids: ${errorMessage(error)}`,
+      remedy: "run `cospec schemas` to see OpenSpec's schema listing, then re-run `cospec doctor`",
+    })
+    return
+  }
+  const known = [...ids].sort()
+  for (const key of keys) {
+    if (ids.has(key)) continue
+    const near = known
+      .map((id) => ({ id, d: editDistance(key, id) }))
+      .filter((c) => c.d <= 2)
+      .sort((a, b) => a.d - b.d)[0]
+    findings.push({
+      level: 'WARNING',
+      check: 'config',
+      message:
+        `${rel}: rules.${key} is not an artifact id (known: ${known.join(', ')}); ` +
+        `its rules are ignored${near === undefined ? '' : ` — did you mean '${near.id}'?`}`,
+      remedy: 'rename the key to an artifact id; its rules are currently ignored',
     })
   }
 }
@@ -794,7 +895,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     const mdFiles = harnessMarkdownFiles(base)
     checkStaleness(mdFiles, findings)
     checkDanglingRefs(base, mdFiles, findings)
-    checkConfig(base, findings)
+    await checkConfig(root, base, findings)
     checkOpsx(base, findings)
     checkStaleSidecars(base, findings)
     checkChangeSchemas(base, findings)

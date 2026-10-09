@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { harnessMarkdownFiles, run as doctorRun } from '../../../src/commands/doctor.ts'
@@ -84,6 +85,146 @@ describe('cospec doctor (DESIGN §2.3)', () => {
     const { code, findings } = await doctorJson(dir)
     expect(code).toBe(0)
     expect(findings.some((f) => f.check === 'config' && f.level === 'INFO')).toBe(true)
+  })
+
+  describe('rules: keys that are not artifact ids (issue #69)', () => {
+    const KNOWN = 'blocking-changes, design, proposal, specs, tasks, verification'
+
+    // The binary's schema listing reads `$XDG_DATA_HOME/openspec/schemas`; point it
+    // at a private dir so the developer's own user-global schemas never leak in.
+    let dataHome: string
+    let previousDataHome: string | undefined
+    beforeEach(() => {
+      dataHome = mkdtempSync(join(tmpdir(), 'cospec-doctor-xdg-'))
+      previousDataHome = process.env.XDG_DATA_HOME
+      process.env.XDG_DATA_HOME = dataHome
+    })
+    afterEach(() => {
+      if (previousDataHome === undefined) delete process.env.XDG_DATA_HOME
+      else process.env.XDG_DATA_HOME = previousDataHome
+      rmSync(dataHome, { recursive: true, force: true })
+    })
+
+    function schemaYaml(name: string, id: string, requires = '[]'): string {
+      return `name: ${name}\nversion: 1\nartifacts:\n  - id: ${id}\n    generates: ${id}.md\n    description: x\n    template: ${id}.md\n    requires: ${requires}\n`
+    }
+
+    function writeSchema(root: string, name: string, yaml: string): void {
+      mkdirSync(join(root, name), { recursive: true })
+      writeFileSync(join(root, name, 'schema.yaml'), yaml)
+    }
+
+    function writeConfig(rules: string): void {
+      writeFileSync(join(dir, 'openspec/config.yaml'), `schema: feat\n${rules}`)
+    }
+
+    function ruleFindings(findings: JsonFinding[]): JsonFinding[] {
+      return findings.filter((f) => f.check === 'config' && f.message.includes('rules.'))
+    }
+
+    test('a mistyped key is one WARNING naming it and the known ids; exit code unchanged', async () => {
+      seed(dir)
+      writeConfig('rules:\n  proposals:\n    - Mention rollout\n  proposal:\n    - Keep it short\n')
+      const { code, findings } = await doctorJson(dir)
+      const hits = ruleFindings(findings)
+      expect(code).toBe(0)
+      expect(hits).toHaveLength(1)
+      expect(hits[0]?.level).toBe('WARNING')
+      expect(hits[0]?.message).toContain('rules.proposals is not an artifact id')
+      expect(hits[0]?.message).toContain(`known: ${KNOWN}`)
+      expect(hits[0]?.message).toContain('its rules are ignored')
+      expect(hits[0]?.message).toContain("did you mean 'proposal'?")
+    })
+
+    test('every built-in artifact id is a valid key', async () => {
+      seed(dir)
+      writeConfig(
+        'rules:\n' +
+          KNOWN.split(', ')
+            .map((id) => `  ${id}:\n    - a rule\n`)
+            .join(''),
+      )
+      const { findings } = await doctorJson(dir)
+      expect(ruleFindings(findings)).toEqual([])
+    })
+
+    test('an artifact id declared by a project schema is a valid key', async () => {
+      seed(dir)
+      mkdirSync(join(dir, 'openspec/schemas/mine'), { recursive: true })
+      writeFileSync(
+        join(dir, 'openspec/schemas/mine/schema.yaml'),
+        'name: mine\nversion: 1\nartifacts:\n  - id: extra\n    generates: extra.md\n    description: x\n    template: extra.md\n    requires: []\n',
+      )
+      writeConfig('rules:\n  extra:\n    - a rule\n  nope:\n    - a rule\n')
+      const { findings } = await doctorJson(dir)
+      const hits = ruleFindings(findings)
+      expect(hits).toHaveLength(1)
+      expect(hits[0]?.message).toContain('rules.nope')
+      expect(hits[0]?.message).toContain('extra')
+    })
+
+    test('a key with no near id has no suggestion', async () => {
+      seed(dir)
+      writeConfig('rules:\n  zzzzzzzz:\n    - a rule\n')
+      const { findings } = await doctorJson(dir)
+      expect(ruleFindings(findings)[0]?.message).not.toContain('did you mean')
+    })
+
+    test('absent or non-mapping rules produce no finding', async () => {
+      seed(dir)
+      for (const body of ['', 'rules: not-a-map\n', 'rules:\n  - proposals\n', 'rules:\n']) {
+        writeConfig(body)
+        const { code, findings } = await doctorJson(dir)
+        expect(code).toBe(0)
+        expect(ruleFindings(findings)).toEqual([])
+      }
+    })
+
+    test('an artifact id of a user-global schema is a valid key', async () => {
+      seed(dir)
+      writeSchema(join(dataHome, 'openspec/schemas'), 'usr', schemaYaml('usr', 'userextra'))
+      writeConfig('rules:\n  userextra:\n    - a rule\n  nope:\n    - a rule\n')
+      const { findings } = await doctorJson(dir)
+      const hits = ruleFindings(findings)
+      expect(hits).toHaveLength(1)
+      expect(hits[0]?.message).toContain('rules.nope')
+      expect(hits[0]?.message).toContain('userextra')
+    })
+
+    test('ids of a schema the binary rejects as invalid are not known', async () => {
+      seed(dir)
+      // `requires` names an artifact the schema never declares: the binary skips it.
+      writeSchema(
+        join(dir, 'openspec/schemas'),
+        'cyclic',
+        schemaYaml('cyclic', 'cyclicid', '[missing]'),
+      )
+      writeSchema(
+        join(dataHome, 'openspec/schemas'),
+        'usr',
+        schemaYaml('usr', 'userbad', '[missing]'),
+      )
+      // An unparseable one is dropped the same way, with no finding of its own.
+      writeSchema(join(dir, 'openspec/schemas'), 'broken', 'artifacts: [unclosed\n')
+      writeConfig('rules:\n  cyclicid:\n    - r\n  userbad:\n    - r\n  proposal:\n    - r\n')
+      const { findings } = await doctorJson(dir)
+      const hits = ruleFindings(findings)
+      expect(hits.map((f) => /rules\.(\S+)/u.exec(f.message)?.[1])).toEqual(['cyclicid', 'userbad'])
+      expect(findings.filter((f) => f.check === 'config' && !f.message.includes('rules.'))).toEqual(
+        [],
+      )
+    })
+
+    test('a project schema shadows a same-named user-global schema', async () => {
+      seed(dir)
+      writeSchema(join(dir, 'openspec/schemas'), 'usr', schemaYaml('usr', 'projid'))
+      writeSchema(join(dataHome, 'openspec/schemas'), 'usr', schemaYaml('usr', 'shadowed'))
+      writeConfig('rules:\n  projid:\n    - r\n  shadowed:\n    - r\n')
+      const { findings } = await doctorJson(dir)
+      const hits = ruleFindings(findings)
+      expect(hits).toHaveLength(1)
+      expect(hits[0]?.message).toContain('rules.shadowed is not an artifact id')
+    })
   })
 
   // `generatedBy` here is an arbitrary openspec version, not cospec's pin: the
