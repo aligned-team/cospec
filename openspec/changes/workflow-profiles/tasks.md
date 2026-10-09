@@ -50,7 +50,7 @@ rows write the `config.json` under test into the sandbox's
 
 ## 3. T2 — conditionals, delivery and the render options (`harness/render.ts`)
 
-- [ ] 3.1 Write the failing rows: `test/unit/harness/optional-workflow.test.ts`
+- [x] 3.1 Write the failing rows: `test/unit/harness/optional-workflow.test.ts`
       (whole-line drop, inline, blank-line preservation, each of the three
       failure messages quoted in design D6, a truncated block in the dropped
       branch failing for every set) and
@@ -59,7 +59,7 @@ rows write the `config.json` under test into the sandbox's
       of well-formed and malformed texts and installed sets; outputs and thrown
       messages compared for equality), and verify both fail for want of the
       module
-- [ ] 3.2 Port `harness/optional-workflow.ts` from the pinned dist (patterns,
+- [x] 3.2 Port `harness/optional-workflow.ts` from the pinned dist (patterns,
       `assertConditionalsWellFormed`, `resolveOptionalWorkflows`,
       `assertWorkflowConditionalsResolved`, the two helper constructors), flip
       the rows of 3.1, and verify the differential test passes across the whole
