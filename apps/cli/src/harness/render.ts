@@ -9,6 +9,7 @@ import { canonFile } from '../canon/embedded.ts'
 import {
   adapterFor,
   buildSkillFrontmatter,
+  carriesFrontmatter,
   commandPath,
   commandSpelling,
   HARNESS_TABLE,
@@ -134,10 +135,14 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
         `internal: harness '${harness}' has markdown commands but no frontmatter builder`,
       )
     }
-    if (commands?.serializer === 'toml' && commands.frontmatter !== undefined) {
+    if (
+      commands !== undefined &&
+      !carriesFrontmatter(commands.serializer) &&
+      commands.frontmatter !== undefined
+    ) {
       throw new Error(
-        `internal: harness '${harness}' has toml commands, which carry no frontmatter, ` +
-          'but declares a frontmatter builder',
+        `internal: harness '${harness}' has ${commands.serializer} commands, which carry no ` +
+          'frontmatter, but declares a frontmatter builder',
       )
     }
     for (const w of manifest.workflows) {
@@ -179,11 +184,20 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
       )
 
       const path = commandPath(row, w.command)
-      if (commands?.serializer === 'toml' && path !== undefined) {
-        // Provenance for a TOML command lives in the manifest, like the rules file, so it
-        // has no frontmatter and no body hash. normalizeBody leaves exactly one trailing
-        // newline, which upstream's template supplies itself.
-        const content = serializeTomlCommand(w.description, commandBody.replace(/\n$/, ''))
+      if (
+        commands !== undefined &&
+        !carriesFrontmatter(commands.serializer) &&
+        path !== undefined
+      ) {
+        // Provenance for a frontmatter-less command lives in the manifest, like the rules
+        // file, so it has no frontmatter and no body hash. normalizeBody leaves exactly one
+        // trailing newline, which upstream's TOML template supplies itself.
+        const content =
+          commands.serializer === 'toml'
+            ? serializeTomlCommand(w.description, commandBody.replace(/\n$/, ''))
+            : commands.serializer === 'markdown-header'
+              ? serializeMarkdownHeaderCommand(`COSPEC: ${w.title}`, w.description, commandBody)
+              : commandBody
         emit({
           harness,
           kind: 'command',
@@ -301,6 +315,19 @@ prompt = """
 ${escapeTomlMultilineBasicString(body)}
 """
 `
+}
+
+/**
+ * A Markdown-header command file (Cline, Zoo Code): the title as the one `# ` header the tool
+ * reads as the command's name, the description, then the body. A frontmatter block would show
+ * up as literal text there.
+ */
+export function serializeMarkdownHeaderCommand(
+  title: string,
+  description: string,
+  body: string,
+): string {
+  return `# ${title}\n\n${description}\n\n${body}`
 }
 
 interface AssembleArgs {

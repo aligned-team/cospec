@@ -4,7 +4,7 @@
 // command is manifest-tracked like the codex rules file (design decision 9).
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { copyFileSync, existsSync, readdirSync } from 'node:fs'
+import { copyFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { generate } from '../../../src/commands/update.ts'
@@ -150,5 +150,91 @@ describe('generate() over injected rows', () => {
     const second = generate(dir, opts)
     expect(second.results.filter((r) => r.outcome === 'removed')).toEqual([])
     expect(existsSync(join(dir, stray))).toBe(true)
+  })
+})
+
+/**
+ * Cline's and Kilo Code's shapes: markdown commands with no frontmatter block at all. The
+ * fixture sits under `.opencode`, a root the real table owns, because removal is contained to
+ * the table's own roots.
+ */
+function bareRow(serializer: 'markdown-header' | 'plain'): HarnessAdapter {
+  return {
+    id: 'bare-fixture',
+    displayName: 'Fixture tool with frontmatter-less commands',
+    skillsDir: '.opencode',
+    commands: {
+      dir: '.opencode/workflows',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer,
+    },
+    invocationPrefix: '/',
+    bodyDialect: 'flat',
+    requiresIdeRestart: false,
+    detectionPaths: ['.opencode'],
+  }
+}
+
+describe.each(['markdown-header', 'plain'] as const)('generate() over a %s row', (serializer) => {
+  let dir: string
+  const row = bareRow(serializer)
+  const opts = { harnesses: [row.id as HarnessName], adapters: [row] }
+  const command = '.opencode/workflows/cospec-propose.md'
+  beforeEach(() => {
+    dir = makeRepo()
+  })
+  afterEach(() => {
+    cleanup(dir)
+  })
+
+  test('its commands are manifest entries and its skills are not', () => {
+    const first = generate(dir, opts)
+    expect(first.manifest.files[command]).toMatch(/^sha256:/)
+    expect(readManifest(dir)?.files[command]).toBe(first.manifest.files[command])
+    expect(first.manifest.files['.opencode/skills/cospec-propose/SKILL.md']).toBeUndefined()
+    const commands = Object.keys(first.manifest.files).filter((p) =>
+      p.startsWith('.opencode/workflows/'),
+    )
+    expect(commands).toHaveLength(12)
+    expect(generate(dir, opts).results.every((r) => r.outcome === 'unchanged')).toBe(true)
+  })
+
+  test('a hand edit is preserved and the regenerated file lands in a .cospec-new sidecar', () => {
+    generate(dir, opts)
+    const generated = readFileSync(join(dir, command), 'utf8')
+    writeFileSync(join(dir, command), `${generated}\nmy own note\n`)
+    const second = generate(dir, opts)
+    expect(second.results.filter((r) => r.outcome === 'preserved-modified')).toEqual([
+      { path: command, outcome: 'preserved-modified', sidecar: `${command}.cospec-new` },
+    ])
+    expect(readFileSync(join(dir, command), 'utf8')).toContain('my own note')
+    expect(readFileSync(join(dir, `${command}.cospec-new`), 'utf8')).toBe(generated)
+  })
+
+  test('the markdown orphan sweep never touches its command dir', () => {
+    generate(dir, opts)
+    // A cospec-authored markdown file in the dir is not a command this row renders as
+    // markdown; only the manifest decides this row's removals.
+    const stray = '.opencode/workflows/cospec-stray.md'
+    copyFileSync(join(dir, '.opencode/skills/cospec-propose/SKILL.md'), join(dir, stray))
+    const second = generate(dir, opts)
+    expect(second.results.filter((r) => r.outcome === 'removed')).toEqual([])
+    expect(existsSync(join(dir, stray))).toBe(true)
+  })
+
+  test('a retired command the manifest tracked is removed, an edited one kept', () => {
+    generate(dir, opts)
+    const retired = '.opencode/workflows/cospec-retired.md'
+    copyFileSync(join(dir, command), join(dir, retired))
+    const manifest = readManifest(dir)!
+    manifest.files[retired] = manifest.files[command]!
+    writeFileSync(join(dir, 'openspec/.cospec-manifest.json'), `${JSON.stringify(manifest)}\n`)
+    const second = generate(dir, opts)
+    expect(second.results.filter((r) => r.outcome === 'removed')).toEqual([
+      { path: retired, outcome: 'removed' },
+    ])
+    expect(existsSync(join(dir, retired))).toBe(false)
   })
 })

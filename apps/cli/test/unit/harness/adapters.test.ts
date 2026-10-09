@@ -6,6 +6,7 @@ import {
   BODY_DIALECTS,
   buildClaudeCommandFrontmatter,
   buildOpencodeCommandFrontmatter,
+  carriesFrontmatter,
   commandPath,
   HARNESS_NAMES,
   HARNESS_TABLE,
@@ -475,5 +476,34 @@ describe('HARNESS_TABLE against the pinned OpenSpec AI_TOOLS', async () => {
     // refactor must not make. The `tool-matrix` change owns aligning it.
     expect(upstream('codex').detectionPaths).toEqual(['.agents/skills', '.codex/skills'])
     expect(adapterFor('codex').detectionPaths).toEqual(['.codex'])
+  })
+})
+
+describe('isHarnessDocument — frontmatter-less command serializers', () => {
+  const row = (serializer: 'markdown-header' | 'plain' | 'toml'): HarnessAdapter => ({
+    ...adapterFor('opencode'),
+    id: 'bare-fixture',
+    skillsDir: '.bare',
+    commands: {
+      dir: '.bare/workflows',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer,
+    },
+  })
+
+  test('only the markdown serializer carries provenance, so only its commands are documents', () => {
+    expect(carriesFrontmatter('markdown')).toBe(true)
+    for (const s of ['markdown-header', 'plain', 'toml'] as const) {
+      expect(carriesFrontmatter(s)).toBe(false)
+      expect(isHarnessDocument('.bare/workflows/cospec-propose.md', [row(s)])).toBe(false)
+      expect(isHarnessDocument('.bare/skills/cospec-propose/SKILL.md', [row(s)])).toBe(true)
+    }
+    expect(
+      isHarnessDocument('.bare/workflows/cospec-propose.md', [
+        { ...row('plain'), commands: { ...row('plain').commands!, serializer: 'markdown' } },
+      ]),
+    ).toBe(true)
   })
 })

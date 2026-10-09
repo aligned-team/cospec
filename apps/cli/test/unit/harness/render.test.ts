@@ -16,6 +16,7 @@ import {
   type HarnessName,
   renderHarnessFiles,
   renderTypeTable,
+  serializeMarkdownHeaderCommand,
   serializeTomlCommand,
 } from '../../../src/harness/render.ts'
 import {
@@ -613,4 +614,72 @@ describe('fixture rows — skill and prose dialects', () => {
     const command = files.find((f) => f.kind === 'command' && f.workflow === 'verify')!
     expect(skill.body).toBe(command.body)
   })
+})
+
+describe('markdown-header and plain serializers', () => {
+  const bare = (serializer: 'markdown-header' | 'plain'): HarnessAdapter => ({
+    ...adapterFor('opencode'),
+    skillsDir: '.x',
+    commands: {
+      dir: '.x/workflows',
+      namespacing: 'flat',
+      file: 'cospec-{command}',
+      extension: '.md',
+      serializer,
+    },
+  })
+
+  test('markdown-header writes `# COSPEC: <title>`, the description, then the body', () => {
+    const files = renderRow(bare('markdown-header'))
+    const commands = files.filter((f) => f.kind === 'command')
+    expect(commands).toHaveLength(12)
+    for (const f of commands) {
+      const skill = files.find((s) => s.kind === 'skill' && s.workflow === f.workflow)!
+      const description = skill.frontmatter!['description'] as string
+      const title = f.content.split('\n')[0]!
+      expect(title).toMatch(/^# COSPEC: \S/)
+      expect(f.content).toBe(`${title}\n\n${description}\n\n${f.body}`)
+      expect(f.content).not.toContain('---\n')
+      expect(f.frontmatter).toBeNull()
+      expect(f.contentHash).toBeNull()
+    }
+    expect(commands.find((f) => f.workflow === 'propose')!.content).toMatch(
+      /^# COSPEC: Propose\n\nPropose a new change and generate/,
+    )
+  })
+
+  test('serializeMarkdownHeaderCommand is the pinned Cline adapter layout', () => {
+    expect(serializeMarkdownHeaderCommand('COSPEC: T', 'desc', 'body\n')).toBe(
+      '# COSPEC: T\n\ndesc\n\nbody\n',
+    )
+  })
+
+  test('plain writes the body alone', () => {
+    const files = renderRow(bare('plain'))
+    const commands = files.filter((f) => f.kind === 'command')
+    expect(commands).toHaveLength(12)
+    for (const f of commands) {
+      expect(f.content).toBe(f.body)
+      expect(f.content.endsWith('\n')).toBe(true)
+      expect(f.content.endsWith('\n\n')).toBe(false)
+      expect(f.frontmatter).toBeNull()
+      expect(f.contentHash).toBeNull()
+    }
+    for (const f of files.filter((s) => s.kind === 'skill')) {
+      expect(f.content.startsWith('---\n')).toBe(true)
+      expect(f.contentHash).not.toBeNull()
+    }
+  })
+
+  for (const serializer of ['markdown-header', 'plain'] as const) {
+    test(`a ${serializer} row that declares a frontmatter builder is refused`, () => {
+      const row = {
+        ...bare(serializer),
+        commands: { ...bare(serializer).commands!, frontmatter: buildOpencodeCommandFrontmatter },
+      }
+      expect(() => renderRow(row)).toThrow(
+        new RegExp(`has ${serializer} commands, which carry no frontmatter`),
+      )
+    })
+  }
 })

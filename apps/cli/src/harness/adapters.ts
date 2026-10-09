@@ -35,6 +35,13 @@ export type CommandFrontmatterBuilder = (
   contentHash: string,
 ) => Record<string, unknown>
 
+export type CommandSerializer = 'markdown' | 'toml' | 'markdown-header' | 'plain'
+
+/** Whether a serializer's files carry YAML frontmatter, so cospec's own provenance. */
+export function carriesFrontmatter(serializer: CommandSerializer): boolean {
+  return serializer === 'markdown'
+}
+
 /** A tool's slash-command surface. Independent of its skills root. */
 export interface CommandSurface {
   /** Repo-relative commands root. */
@@ -44,7 +51,12 @@ export interface CommandSurface {
   /** Filename template under `dir`, without extension: `cospec/{command}` or `cospec-{command}`. */
   readonly file: string
   readonly extension: '.md' | '.prompt' | '.prompt.md' | '.toml'
-  readonly serializer: 'markdown' | 'toml'
+  /**
+   * `markdown` carries YAML frontmatter, and with it cospec's provenance. The other three
+   * carry none and are manifest-tracked: `toml` (Gemini), `markdown-header` (a `# <name>`
+   * title, the description, then the body) and `plain` (the body alone).
+   */
+  readonly serializer: CommandSerializer
   /** Markdown serializer only. */
   readonly frontmatter?: CommandFrontmatterBuilder
   /** OpenCode's `$ARGUMENTS` paragraph on arg-taking workflows (see `injectOpenCodeArgs`). */
