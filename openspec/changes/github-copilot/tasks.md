@@ -6,7 +6,7 @@ its failing tests before its code.
 
 ## 1. Baseline and rebase
 
-- [ ] 1.1 Rebase the branch onto `main` once `tool-matrix` is archived there,
+- [x] 1.1 Rebase the branch onto `main` once `tool-matrix` is archived there,
       with `git rebase` and `--force-with-lease` (never a merge commit). Re-read
       the seams design.md's Context names (the row field for upstream's legacy
       command paths, the failure-isolation seam, the order assertion). Verify
@@ -16,7 +16,7 @@ its failing tests before its code.
       and dated from its archive directory name. Verify
       `mise run cospec -- validate github-copilot --strict` is clean and
       `mise run cospec -- apply github-copilot` exits 0.
-- [ ] 1.3 Read `tool-matrix`'s archived `harness-workflows` requirements. If
+- [x] 1.3 Read `tool-matrix`'s archived `harness-workflows` requirements. If
       "Every pinned tool id is a harness" (or any other requirement) names
       `github-copilot` as excluded, add a MODIFIED delta to
       `specs/harness-workflows/spec.md` carrying the full updated requirement.
@@ -193,16 +193,16 @@ its failing tests before its code.
       `harness/copilot-cloud.ts`), then `mise run agents:sync`. Verify
       `mise run agents:check` exits 0 and `CLAUDE.md` and `AGENTS.md` carry the
       text.
-- [ ] 7.5 Put the proposal's BREAKING list verbatim in the PR body and the
+- [x] 7.5 Put the proposal's BREAKING list verbatim in the PR body and the
       commit body, without `!` and without a `BREAKING CHANGE:` footer. Verify
       `git log -1 --format=%B` shows it.
 
 ## 8. Gate
 
-- [ ] 8.1 Run `mise run check` and record the counts. Verify exit 0 with unit,
+- [x] 8.1 Run `mise run check` and record the counts. Verify exit 0 with unit,
       integration, contract, bench and release counts, 0 failures, and no
       `test.failing` or `test.todo` row left.
-- [ ] 8.2 Run `mise run cospec -- validate github-copilot --strict` and
+- [x] 8.2 Run `mise run cospec -- validate github-copilot --strict` and
       `mise run cospec -- apply github-copilot`. Verify both are clean and the
       verification ledger has no bare `[ ]` row, then commit; the archive commit
       follows this one.

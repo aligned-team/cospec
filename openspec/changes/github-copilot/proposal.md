@@ -90,9 +90,9 @@ when it wrote them, removal on opt-out, and re-sync on `update`.
 ### Modified Capabilities
 
 - `harness-workflows`: gains the requirement that `github-copilot` is a harness
-  target (paths, dialect, detection, restart line, legacy prompt path). The
-  delta only adds requirements, so it does not collide with the requirements
-  `tool-matrix` adds or modifies in the same file.
+  target (paths, dialect, detection, restart line, legacy prompt path), and
+  modifies "Every pinned tool id is a harness", which `tool-matrix` archived
+  with `github-copilot` as its one exclusion, to accept every id.
 
 ## Impact
 
