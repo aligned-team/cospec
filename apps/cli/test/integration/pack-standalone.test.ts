@@ -11,7 +11,7 @@
 // release matrix (see openspec verification rows 4.x).
 
 import { afterAll, describe, expect, test } from 'bun:test'
-import { cpSync, existsSync, mkdirSync, readdirSync, symlinkSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync } from 'node:fs'
 import { delimiter, dirname, join } from 'node:path'
 
 import {
@@ -393,6 +393,9 @@ describe('standalone pack smoke (bun-less)', () => {
     expect(init.exitCode, new TextDecoder().decode(init.stderr)).toBe(0)
     expect(existsSync(join(target, '.github/workflows/copilot-setup-steps.yml'))).toBe(true)
     expect(existsSync(join(target, '.github/agents/cospec.agent.md'))).toBe(true)
+    const workflow = readFileSync(join(target, '.github/workflows/copilot-setup-steps.yml'), 'utf8')
+    expect(workflow).toContain('npm install -g @aligned-team/cospec')
+    expect(workflow).toContain('cospec --version')
   }, 180_000)
 })
 
