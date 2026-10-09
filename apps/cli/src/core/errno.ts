@@ -10,6 +10,32 @@ export function errnoMessage(error: unknown): string | undefined {
     : undefined
 }
 
+/** The errnos a generated file's write, sidecar or removal may fail with and be isolated. */
+const ISOLATED_WRITE_ERRNOS: ReadonlySet<string> = new Set([
+  'EACCES',
+  'EPERM',
+  'EROFS',
+  'ENOTDIR',
+  'EISDIR',
+])
+
+/** The temp file `atomicWrite` stages a write in: its name varies per run and means nothing to a reader. */
+const STAGING_SUFFIX = /\.cospec-tmp-\d+-\d+/g
+
+/**
+ * The message of a permission or path-type errno failure (tool-matrix design decision 10),
+ * naming the generated file rather than the staging file a write went through; undefined
+ * for every other error, which the caller must rethrow.
+ */
+export function isolatedWriteFailure(error: unknown): string | undefined {
+  const message = errnoMessage(error)
+  if (message === undefined) return undefined
+  const { code } = error as NodeJS.ErrnoException
+  return code !== undefined && ISOLATED_WRITE_ERRNOS.has(code)
+    ? message.replace(STAGING_SUFFIX, '')
+    : undefined
+}
+
 /**
  * Run `command`, answering an errno failure it throws (an unreadable
  * `openspec/changes/`, say) under `--json` with the binary's one

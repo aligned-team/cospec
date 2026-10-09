@@ -22,6 +22,7 @@ import { dirname, join, resolve } from 'node:path'
 import type { CommandContext } from '../cli.ts'
 import { openspecDir } from '../core/change.ts'
 import { hasFlag } from '../core/command-table.ts'
+import { isolatedWriteFailure } from '../core/errno.ts'
 import {
   computeContentHash,
   CURRENT_GENERATED_BY,
@@ -162,15 +163,18 @@ function hasHarnessEvidence(
  * The harnesses configured in `cwd`, in table order. A shared skills root is evidence only
  * for the row that writes it, so a repo whose `.agents/skills` was written for codex does not
  * report agents or zed as well; a row on that root is still reported through a surface of
- * its own (a rules file, a command directory). `table` is a test seam.
+ * its own (a rules file, a command directory). A harness the last run could not write is
+ * reported too, so the next `update` retries it. `table` is a test seam.
  */
 export function detectHarnesses(
   cwd: string,
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): HarnessName[] {
-  const tracked = readManifest(cwd)?.files ?? {}
+  const manifest = readManifest(cwd)
+  const tracked = manifest?.files ?? {}
+  const retry = new Set(manifest?.retry ?? [])
   return table
-    .filter((row) => hasHarnessEvidence(cwd, row, table, tracked))
+    .filter((row) => retry.has(row.id) || hasHarnessEvidence(cwd, row, table, tracked))
     .map((row) => row.id as HarnessName)
 }
 
@@ -180,7 +184,13 @@ function atomicWrite(path: string, content: string): void {
   mkdirSync(dirname(path), { recursive: true })
   const tmp = `${path}.cospec-tmp-${process.pid}-${Date.now()}`
   writeFileSync(tmp, content)
-  renameSync(tmp, path)
+  try {
+    renameSync(tmp, path)
+  } catch (error) {
+    // A target that is a directory fails the rename; do not leave the staged copy behind.
+    rmSync(tmp, { force: true })
+    throw error
+  }
 }
 
 // --- managed writes (dry-run aware) ----------------------------------------
@@ -323,6 +333,9 @@ export interface GenerateResult {
   skillWriters: ReadonlySet<string>
 }
 
+/** Run one file operation, recording an isolated write failure against `path` instead of throwing. */
+type Attempt = <T>(path: string, op: () => T) => T | undefined
+
 interface FlatFile {
   relpath: string
   abspath: string
@@ -403,16 +416,40 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
   }
 
   const results: WriteResult[] = []
+  const failed: FailedWrite[] = []
   const newManifest: Manifest = { cospecVersion: version, files: {} }
+  // A permission or path-type error costs only its own file (design decision 10); any other
+  // error is not this run's to hide and propagates.
+  const attempt: Attempt = (path, op) => {
+    try {
+      return op()
+    } catch (error) {
+      const message = isolatedWriteFailure(error)
+      if (message === undefined) throw error
+      failed.push({ path, error: message })
+      return undefined
+    }
+  }
 
   for (const f of flat) {
-    results.push(
+    const written = attempt(f.relpath, () =>
       writeFrontmatterless(f.abspath, f.relpath, f.content, prevFiles[f.relpath], writeOpts),
     )
-    newManifest.files[f.relpath] = computeContentHash(f.content)
+    if (written !== undefined) {
+      results.push(written)
+      newManifest.files[f.relpath] = computeContentHash(f.content)
+    } else if (prevFiles[f.relpath] !== undefined) {
+      // Still the last content cospec wrote, so the next run can tell it from a user's edit.
+      newManifest.files[f.relpath] = prevFiles[f.relpath]!
+    }
   }
   const mdEmitted = new Set(md.map((f) => f.relpath))
-  for (const f of md) results.push(writeMarkdown(f.abspath, f.relpath, f.content, writeOpts))
+  for (const f of md) {
+    const written = attempt(f.relpath, () =>
+      writeMarkdown(f.abspath, f.relpath, f.content, writeOpts),
+    )
+    if (written !== undefined) results.push(written)
+  }
 
   // Removals: frontmatter-less files the previous manifest tracked that we no
   // longer emit; and orphaned cospec-managed markdown in the harness dirs.
@@ -424,19 +461,37 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
     // key like `../victim.txt` resolves outside and is skipped entirely.
     const abspath = resolveContainedPath(cwd, relpath, MANAGED_REMOVAL_ROOTS)
     if (abspath === undefined) continue
-    const removed = removeFrontmatterless(abspath, relpath, prevFiles[relpath], writeOpts)
-    if (removed) results.push(removed)
-  }
-  for (const removed of removeOrphanMarkdown(cwd, rendered, mdEmitted, table, writeOpts)) {
+    const removed = attempt(relpath, () =>
+      removeFrontmatterless(abspath, relpath, prevFiles[relpath], writeOpts),
+    )
+    if (removed === undefined) {
+      // Not removed because it could not be: keep tracking it so the next run tries again.
+      if (failed.some((f) => f.path === relpath)) newManifest.files[relpath] = prevFiles[relpath]!
+      continue
+    }
     results.push(removed)
   }
+  for (const removed of removeOrphanMarkdown(cwd, rendered, mdEmitted, table, writeOpts, attempt)) {
+    results.push(removed)
+  }
+
+  // A harness with a file that failed is retried by the next `update`, however little of it exists.
+  const harnessOfPath = new Map(rendered.map((f) => [f.path, f.harness as string]))
+  const retry = new Set(
+    (prev?.retry ?? []).filter((id) => !opts.harnesses.includes(id as HarnessName)),
+  )
+  for (const f of failed) {
+    const harness = harnessOfPath.get(f.path)
+    if (harness !== undefined) retry.add(harness)
+  }
+  if (retry.size > 0) newManifest.retry = [...retry]
 
   // After generation, never before: the fresh copy under `.agents/skills` must
   // already exist before a legacy duplicate is removed.
   const migration = migrateLegacySkills(cwd, mdEmitted, writeOpts)
 
   if (!writeOpts.dryRun) writeManifest(cwd, newManifest)
-  return { results, failed: [], migration, manifest: newManifest, skillWriters }
+  return { results, failed, migration, manifest: newManifest, skillWriters }
 }
 
 /** Scan the emitted harnesses' skill/command dirs for cospec markdown we no longer emit. */
@@ -446,6 +501,7 @@ function removeOrphanMarkdown(
   emitted: Set<string>,
   table: readonly HarnessAdapter[],
   opts: WriteOpts,
+  attempt: Attempt,
 ): WriteResult[] {
   const skillBases = new Set<string>()
   // Command dir -> the extensions its rows render markdown commands with. A
@@ -471,22 +527,24 @@ function removeOrphanMarkdown(
   for (const base of skillBases) {
     const abs = join(cwd, base)
     if (!existsSync(abs)) continue
-    for (const entry of readdirSync(abs, { withFileTypes: true })) {
+    const entries = attempt(base, () => readdirSync(abs, { withFileTypes: true }))
+    for (const entry of entries ?? []) {
       if (!entry.isDirectory()) continue
       const relpath = `${base}/${entry.name}/${SKILL_FILE}`
       if (emitted.has(relpath)) continue
-      const removed = removeMarkdown(join(cwd, relpath), relpath, opts)
+      const removed = attempt(relpath, () => removeMarkdown(join(cwd, relpath), relpath, opts))
       if (removed) out.push(removed)
     }
   }
   for (const [dir, extensions] of commandDirs) {
     const abs = join(cwd, dir)
     if (!existsSync(abs)) continue
-    for (const entry of readdirSync(abs, { withFileTypes: true })) {
+    const entries = attempt(dir, () => readdirSync(abs, { withFileTypes: true }))
+    for (const entry of entries ?? []) {
       if (!entry.isFile() || ![...extensions].some((ext) => entry.name.endsWith(ext))) continue
       const relpath = `${dir}/${entry.name}`
       if (emitted.has(relpath)) continue
-      const removed = removeMarkdown(join(cwd, relpath), relpath, opts)
+      const removed = attempt(relpath, () => removeMarkdown(join(cwd, relpath), relpath, opts))
       if (removed) out.push(removed)
     }
   }
@@ -534,7 +592,7 @@ export function run(ctx: CommandContext): number {
   }
 
   const harnesses = detectHarnesses(cwd)
-  const { results, migration } = generate(cwd, { harnesses, force, dryRun: check })
+  const { results, failed, migration } = generate(cwd, { harnesses, force, dryRun: check })
   moves.push(
     ...moveLegacyToolRoots(cwd, {
       timing: 'after-generation',
@@ -551,6 +609,9 @@ export function run(ctx: CommandContext): number {
     (e) => e.outcome === 'moved' || e.outcome === 'removed',
   )
 
+  // A file that could not be written is a failed run, in every mode.
+  const exitCode = failed.length > 0 || (check && (drifted.length > 0 || wouldMove)) ? 1 : 0
+
   if (flags.json) {
     process.stdout.write(
       `${JSON.stringify(
@@ -559,13 +620,14 @@ export function run(ctx: CommandContext): number {
           mode: check ? 'check' : force ? 'force' : 'write',
           harnesses,
           files: results,
+          failed,
           migration: [...migration, ...legacyMoveEntries(moves)],
         },
         null,
         2,
       )}\n`,
     )
-    return check && (drifted.length > 0 || wouldMove) ? 1 : 0
+    return exitCode
   }
 
   renderHuman(results, {
@@ -573,13 +635,15 @@ export function run(ctx: CommandContext): number {
     harnesses,
     hadManifest: existsSync(manifestPath(cwd)),
     movesPending: wouldMove,
+    failed: failed.length > 0,
   })
   for (const line of migrationLines(migration, check)) process.stdout.write(`${line}\n`)
   for (const line of legacyMoveLines(moves, check)) process.stdout.write(`${line}\n`)
+  for (const line of failedLines(failed)) process.stdout.write(`${line}\n`)
   // Upstream prints its restart line only when an update touched a tool's files.
   const restart = check || drifted.length === 0 ? undefined : updateRestartLine(harnesses)
   if (restart !== undefined) process.stdout.write(`${restart}\n`)
-  return check && (drifted.length > 0 || wouldMove) ? 1 : 0
+  return exitCode
 }
 
 /** The repo-relative paths a `generate()` run wrote or would write (everything but removals). */
@@ -642,14 +706,26 @@ export function migrationLines(migration: WriteResult[], check: boolean): string
   return lines
 }
 
+/** The receipt's `Failed:` block, one line per file `generate()` could not write; empty when none. */
+export function failedLines(failed: readonly FailedWrite[]): string[] {
+  if (failed.length === 0) return []
+  return ['Failed:', ...failed.map((f) => `  ${f.path}  ${f.error}`)]
+}
+
 function renderHuman(
   results: WriteResult[],
-  opts: { check: boolean; harnesses: HarnessName[]; hadManifest: boolean; movesPending: boolean },
+  opts: {
+    check: boolean
+    harnesses: HarnessName[]
+    hadManifest: boolean
+    movesPending: boolean
+    failed: boolean
+  },
 ): void {
   const changed = results.filter((r) => DRIFT_OUTCOMES.has(r.outcome))
   if (changed.length === 0) {
-    // The legacy-root lines that follow say what changed (or would).
-    if (opts.movesPending) return
+    // The legacy-root and `Failed:` lines that follow say what changed (or would, or could not).
+    if (opts.movesPending || opts.failed) return
     process.stdout.write(
       opts.check ? 'cospec update --check: no drift\n' : 'cospec update: everything up to date\n',
     )

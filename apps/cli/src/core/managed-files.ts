@@ -274,6 +274,12 @@ export interface Manifest {
   cospecVersion: string
   /** repo-relative path → `sha256:<hex>` of the generated content. */
   files: Record<string, string>
+  /**
+   * Harnesses with a file the last run could not write. A harness none of whose files exist
+   * leaves no other evidence for `update` to find, so this is how the next run retries it.
+   * Absent when empty.
+   */
+  retry?: string[]
 }
 
 export function manifestPath(cwd: string): string {
@@ -293,9 +299,13 @@ export function readManifest(cwd: string): Manifest | undefined {
   if (doc === null || typeof doc !== 'object') return undefined
   const record = doc as Record<string, unknown>
   const files = record.files
+  const retry = Array.isArray(record.retry)
+    ? record.retry.filter((id): id is string => typeof id === 'string')
+    : []
   return {
     cospecVersion: typeof record.cospecVersion === 'string' ? record.cospecVersion : '',
     files: files !== null && typeof files === 'object' ? (files as Record<string, string>) : {},
+    ...(retry.length > 0 ? { retry } : {}),
   }
 }
 

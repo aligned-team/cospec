@@ -69,7 +69,7 @@
 
 ## 3. Engine (T6: `update.ts` `generate()`, `managed-files.ts`)
 
-- [ ] 3.1 Land `test.failing` integration tests first: a mode-000 harness dir
+- [x] 3.1 Land `test.failing` integration tests first: a mode-000 harness dir
       yields one `failed` entry per unwritable file, every other harness
       written, exit 1, `failed` in `init --json`/`update --json` and the
       receipt, and a retry after `chmod` writing them with exit 0; then isolate

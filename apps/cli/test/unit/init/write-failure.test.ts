@@ -4,14 +4,23 @@
 // and every locked directory is made writable again before the temp repo is removed.
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { chmodSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 
+import { run as doctorRun } from '../../../src/commands/doctor.ts'
 import { run as initRun } from '../../../src/commands/init.ts'
 import { generate, run as updateRun } from '../../../src/commands/update.ts'
 import { readManifest } from '../../../src/core/managed-files.ts'
 import { errnoShape } from '../../fixtures/errno.ts'
-import { capture, cleanup, ctx, makeRepo } from './helpers.ts'
+import { capture, captureAsync, cleanup, ctx, makeRepo } from './helpers.ts'
 
 const CODEX_RULES = '.codex/rules/cospec.rules'
 
@@ -44,30 +53,27 @@ describe('generate() isolates a per-file write failure', () => {
     cleanup(dir)
   })
 
-  test.failing(
-    'a locked harness dir fails once per file while every other harness is written',
-    () => {
-      mkdirSync(join(dir, '.cursor'))
-      lock('.cursor')
-      const result = generate(dir, { harnesses: ['claude', 'cursor'] })
+  test('a locked harness dir fails once per file while every other harness is written', () => {
+    mkdirSync(join(dir, '.cursor'))
+    lock('.cursor')
+    const result = generate(dir, { harnesses: ['claude', 'cursor'] })
 
-      const expected = pathsOf('cursor', '.cursor/')
-      expect(expected.length).toBeGreaterThan(0)
-      expect(result.failed.map((f) => f.path).toSorted()).toEqual(expected)
-      for (const f of result.failed) {
-        const shape = errnoShape(f.error)
-        expect(shape.code).toBe('EACCES')
-        expect(shape.path?.startsWith(join(dir, '.cursor'))).toBe(true)
-      }
-      // A file that failed is not also reported as a result.
-      expect(result.results.filter((r) => r.path.startsWith('.cursor/'))).toEqual([])
-      expect(existsSync(join(dir, '.claude/skills/cospec-propose/SKILL.md'))).toBe(true)
-      expect(existsSync(join(dir, '.claude/commands/cospec/propose.md'))).toBe(true)
-      expect(existsSync(join(dir, 'openspec/schemas/feat/schema.yaml'))).toBe(true)
-    },
-  )
+    const expected = pathsOf('cursor', '.cursor/')
+    expect(expected.length).toBeGreaterThan(0)
+    expect(result.failed.map((f) => f.path).toSorted()).toEqual(expected)
+    for (const f of result.failed) {
+      const shape = errnoShape(f.error)
+      expect(shape.code).toBe('EACCES')
+      expect(shape.path?.startsWith(join(dir, '.cursor'))).toBe(true)
+    }
+    // A file that failed is not also reported as a result.
+    expect(result.results.filter((r) => r.path.startsWith('.cursor/'))).toEqual([])
+    expect(existsSync(join(dir, '.claude/skills/cospec-propose/SKILL.md'))).toBe(true)
+    expect(existsSync(join(dir, '.claude/commands/cospec/propose.md'))).toBe(true)
+    expect(existsSync(join(dir, 'openspec/schemas/feat/schema.yaml'))).toBe(true)
+  })
 
-  test.failing('a retry after the dir is writable again writes every failed file', () => {
+  test('a retry after the dir is writable again writes every failed file', () => {
     mkdirSync(join(dir, '.cursor'))
     lock('.cursor')
     expect(generate(dir, { harnesses: ['claude', 'cursor'] }).failed.length).toBeGreaterThan(0)
@@ -78,7 +84,7 @@ describe('generate() isolates a per-file write failure', () => {
     for (const path of pathsOf('cursor', '.cursor/')) expect(existsSync(join(dir, path))).toBe(true)
   })
 
-  test.failing('a file whose parent is a regular file fails with ENOTDIR', () => {
+  test('a file whose parent is a regular file fails with ENOTDIR', () => {
     writeFileSync(join(dir, '.cursor'), 'not a directory\n')
     const result = generate(dir, { harnesses: ['claude', 'cursor'] })
     expect(result.failed.map((f) => f.path).toSorted()).toEqual(pathsOf('cursor', '.cursor/'))
@@ -86,7 +92,7 @@ describe('generate() isolates a per-file write failure', () => {
     expect(existsSync(join(dir, '.claude/skills/cospec-propose/SKILL.md'))).toBe(true)
   })
 
-  test.failing('a managed path that is a directory fails with EISDIR', () => {
+  test('a managed path that is a directory fails with EISDIR', () => {
     mkdirSync(join(dir, '.claude/skills/cospec-propose/SKILL.md'), { recursive: true })
     const result = generate(dir, { harnesses: ['claude'] })
     expect(result.failed.map((f) => f.path)).toEqual(['.claude/skills/cospec-propose/SKILL.md'])
@@ -94,25 +100,22 @@ describe('generate() isolates a per-file write failure', () => {
     expect(existsSync(join(dir, '.claude/skills/cospec-apply-change/SKILL.md'))).toBe(true)
   })
 
-  test.failing(
-    'a tracked file that failed is left out of the manifest so the next run retries',
-    () => {
-      mkdirSync(join(dir, '.codex'))
-      lock('.codex')
-      const result = generate(dir, { harnesses: ['claude', 'codex'] })
-      expect(result.failed.map((f) => f.path)).toEqual([CODEX_RULES])
-      expect(result.manifest.files[CODEX_RULES]).toBeUndefined()
-      expect(readManifest(dir)?.files[CODEX_RULES]).toBeUndefined()
-      chmodSync(join(dir, '.codex'), 0o755)
+  test('a tracked file that failed is left out of the manifest so the next run retries', () => {
+    mkdirSync(join(dir, '.codex'))
+    lock('.codex')
+    const result = generate(dir, { harnesses: ['claude', 'codex'] })
+    expect(result.failed.map((f) => f.path)).toEqual([CODEX_RULES])
+    expect(result.manifest.files[CODEX_RULES]).toBeUndefined()
+    expect(readManifest(dir)?.files[CODEX_RULES]).toBeUndefined()
+    chmodSync(join(dir, '.codex'), 0o755)
 
-      const retry = generate(dir, { harnesses: ['claude', 'codex'] })
-      expect(retry.failed).toEqual([])
-      expect(existsSync(join(dir, CODEX_RULES))).toBe(true)
-      expect(readManifest(dir)?.files[CODEX_RULES]).toBeDefined()
-    },
-  )
+    const retry = generate(dir, { harnesses: ['claude', 'codex'] })
+    expect(retry.failed).toEqual([])
+    expect(existsSync(join(dir, CODEX_RULES))).toBe(true)
+    expect(readManifest(dir)?.files[CODEX_RULES]).toBeDefined()
+  })
 
-  test.failing('a removal that failed keeps its manifest entry so the next run removes it', () => {
+  test('a removal that failed keeps its manifest entry so the next run removes it', () => {
     generate(dir, { harnesses: ['claude', 'codex'] })
     const tracked = readManifest(dir)?.files[CODEX_RULES]
     expect(tracked).toBeDefined()
@@ -157,7 +160,7 @@ describe('init and update report a per-file failure', () => {
     failed: { path: string; error: string }[]
   }
 
-  test.failing('init lists the failures, exits 1, and update retries them', () => {
+  test('init lists the failures, exits 1, and update retries them', () => {
     mkdirSync(join(dir, '.cursor'))
     lock('.cursor')
     const init = capture(
@@ -174,7 +177,7 @@ describe('init and update report a per-file failure', () => {
     for (const path of pathsOf('cursor', '.cursor/')) expect(existsSync(join(dir, path))).toBe(true)
   })
 
-  test.failing('the human receipts print a Failed: block naming each path', () => {
+  test('the human receipts print a Failed: block naming each path', () => {
     mkdirSync(join(dir, '.cursor'))
     lock('.cursor')
     const init = capture(() => initRun(ctx(dir, ['--harness', 'claude,cursor', '--yes'])) as number)
@@ -184,7 +187,7 @@ describe('init and update report a per-file failure', () => {
     expect(init.out).toContain('EACCES')
   })
 
-  test.failing('update records one failed entry and still writes the other harness', () => {
+  test('update records one failed entry and still writes the other harness', () => {
     const seed = capture(
       () => initRun(ctx(dir, ['--harness', 'claude,cursor', '--yes'], true)) as number,
     )
@@ -213,5 +216,33 @@ describe('init and update report a per-file failure', () => {
     const retry = capture(() => updateRun(ctx(dir, [], false, 'update')) as number)
     expect(retry.code).toBe(0)
     expect(readFileSync(join(dir, stale[1]!), 'utf8')).not.toContain('generatedBy: 0.0.1')
+  })
+})
+
+describe('doctor does not hide a managed file it cannot read', () => {
+  let dir: string
+  beforeEach(() => {
+    dir = makeRepo()
+  })
+  afterEach(() => {
+    cleanup(dir)
+  })
+
+  test('a managed path that is a directory is an unreadable-file ERROR and exit 1', async () => {
+    const seed = capture(() => initRun(ctx(dir, ['--harness', 'claude', '--yes'])) as number)
+    expect(seed.code).toBe(0)
+    const command = join(dir, '.claude/commands/cospec/propose.md')
+    rmSync(command)
+    mkdirSync(command)
+
+    const { code, out } = await captureAsync(() => doctorRun(ctx(dir, [], true, 'doctor')))
+    const findings = (
+      JSON.parse(out) as { findings: { level: string; check: string; message: string }[] }
+    ).findings.filter((f) => f.check === 'unreadable-file')
+    expect(code).toBe(1)
+    expect(findings).toHaveLength(1)
+    expect(findings[0]!.level).toBe('ERROR')
+    expect(findings[0]!.message).toContain('.claude/commands/cospec/propose.md')
+    expect(findings[0]!.message).toContain('EISDIR')
   })
 })

@@ -22,6 +22,7 @@ import { canonFile } from '../canon/embedded.ts'
 import type { CommandContext } from '../cli.ts'
 import { openspecDir } from '../core/change.ts'
 import { flagSpelling, flagValue, hasFlag, type ParsedArgs } from '../core/command-table.ts'
+import { isolatedWriteFailure } from '../core/errno.ts'
 import { splitFrontmatter, type WriteResult } from '../core/managed-files.ts'
 import {
   adapterFor,
@@ -54,7 +55,7 @@ import {
   type SettingsMergeResult,
 } from '../harness/settings-merge.ts'
 import { availableHarnesses } from '../harness/shared-root.ts'
-import { emittedPaths, generate, migrationLines } from './update.ts'
+import { emittedPaths, type FailedWrite, failedLines, generate, migrationLines } from './update.ts'
 
 // --- repo state -------------------------------------------------------------
 
@@ -401,19 +402,36 @@ export function isLeftoverCandidate(
  * Nor does it ever follow a scan root (or the explicit `.agents/skills` walk) out of the
  * project: `isOutsideProject` is checked before `walk()` reads a root's directory, so a
  * symlinked `.claude`, `.agents`, or `.agents/skills` pointing elsewhere is never read.
+ *
+ * A directory that cannot be read for permission or path-type reasons is recorded in
+ * `unreadable` when the caller passes one, so it is reported rather than hidden; without it
+ * the error propagates. The walk reports it through `walkProjectFiles`' own callback.
  */
 export function leftoverScanFiles(
   cwd: string,
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
+  unreadable?: FailedWrite[],
 ): { relpath: string; text: string }[] {
   // Keyed by relpath: `.agents` (a harness dir) strictly contains `.agents/skills`, so
   // the two walk ranges overlap and an unguarded scan would list every file there twice.
   const out = new Map<string, { relpath: string; text: string }>()
-  walkProjectFiles(cwd, [...scanRoots(table), OPSX_SHARED_SKILL_ROOT], (relpath) => {
-    if (!out.has(relpath) && isLeftoverCandidate(relpath, table)) {
-      out.set(relpath, { relpath, text: readFileSync(join(cwd, relpath), 'utf8') })
-    }
-  })
+  walkProjectFiles(
+    cwd,
+    [...scanRoots(table), OPSX_SHARED_SKILL_ROOT],
+    (relpath) => {
+      if (!out.has(relpath) && isLeftoverCandidate(relpath, table)) {
+        out.set(relpath, { relpath, text: readFileSync(join(cwd, relpath), 'utf8') })
+      }
+    },
+    undefined,
+    unreadable === undefined
+      ? undefined
+      : (relpath, error) => {
+          const message = isolatedWriteFailure(error)
+          if (message === undefined) throw error
+          unreadable.push({ path: relpath, error: message })
+        },
+  )
   return [...out.values()]
 }
 
@@ -421,10 +439,11 @@ export function leftoverScanFiles(
 export function findOpsxFiles(
   cwd: string,
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
+  unreadable?: FailedWrite[],
 ): OpsxFile[] {
   // cospec writes its own `cospec-*` skills to `.agents/skills` too; the two prefixes
   // cannot collide, and `isOpsxMarkdown` excludes anything cospec authored.
-  return leftoverScanFiles(cwd, table)
+  return leftoverScanFiles(cwd, table, unreadable)
     .filter((f) => isOpsxMarkdown(f.relpath, f.text))
     .map(({ relpath }) => ({ relpath }))
     .toSorted((a, b) => a.relpath.localeCompare(b.relpath))
@@ -589,7 +608,7 @@ export function run(ctx: CommandContext): number {
   )
 
   // Schemas + harness files + manifest.
-  const { results, migration, skillWriters } = generate(target, { harnesses, force })
+  const { results, failed, migration, skillWriters } = generate(target, { harnesses, force })
   const emitted = emittedPaths(results)
   // After generation, so cospec's replacement exists before a legacy file moves.
   moves.push(
@@ -626,7 +645,11 @@ export function run(ctx: CommandContext): number {
   }
 
   // Opsx detection / removal.
-  const opsx = findOpsxFiles(target)
+  // A directory the scan cannot read is reported with the failed writes, unless a failed write
+  // under it already names it.
+  const unreadable: FailedWrite[] = []
+  const opsx = findOpsxFiles(target, undefined, unreadable)
+  failed.push(...unreadable.filter((u) => !failed.some((f) => f.path.startsWith(`${u.path}/`))))
   const opsxRemoved = opsx.length > 0 && (removeOpsx || yes)
   if (opsxRemoved) removeOpsxFiles(target, opsx)
   // Outside the project: only the explicit flag removes them, and only once this run wrote
@@ -669,13 +692,14 @@ export function run(ctx: CommandContext): number {
           },
           notGitTree,
           files: results,
+          failed,
           migration: [...migration, ...legacyMoveEntries(moves)],
         },
         null,
         2,
       )}\n`,
     )
-    return 0
+    return failed.length > 0 ? 1 : 0
   }
 
   printReceipt(target, {
@@ -683,6 +707,7 @@ export function run(ctx: CommandContext): number {
     harnesses,
     skillWriters,
     results,
+    failed,
     migration,
     moves,
     configWritten,
@@ -695,7 +720,7 @@ export function run(ctx: CommandContext): number {
     notGitTree,
     autoNote: selection.note,
   })
-  return 0
+  return failed.length > 0 ? 1 : 0
 }
 
 type TargetResolution = { ok: true; target: string } | { ok: false; error: string }
@@ -725,6 +750,7 @@ interface ReceiptData {
   harnesses: HarnessName[]
   skillWriters: ReadonlySet<string>
   results: WriteResult[]
+  failed: FailedWrite[]
   migration: WriteResult[]
   moves: LegacyToolMove[]
   configWritten: boolean
@@ -821,6 +847,10 @@ function printReceipt(target: string, d: ReceiptData): void {
   if (migrationReport.length > 0) {
     lines.push('')
     lines.push(...migrationReport)
+  }
+  if (d.failed.length > 0) {
+    lines.push('')
+    lines.push(...failedLines(d.failed))
   }
 
   if (d.opsx.length > 0) {

@@ -33,8 +33,8 @@
 
 ## 6. A write failure is isolated [critical]
 
-- [ ] 6.1 @e2e (agent) `.cursor` mode 000, `cospec init --harness claude,cursor --json` in a sandbox repo -> every `.claude/` file written, `failed` lists the `.cursor/` paths with `EACCES`, exit 1; after `chmod 755`, `cospec update` writes them and exits 0
-- [ ] 6.2 @unit (agent) `generate()` with a write stub throwing `ENOSPC` -> the error propagates, nothing is recorded as `failed`
+- [x] 6.1 @e2e (agent) `.cursor` mode 000, `cospec init --harness claude,cursor --json` in a sandbox repo -> every `.claude/` file written, `failed` lists the `.cursor/` paths with `EACCES`, exit 1; after `chmod 755`, `cospec update` writes them and exits 0 -> test/integration/write-failure.test.ts passes: exit 1, every `failed` path under `.cursor/` with an `EACCES:` error, `.claude/` written; after chmod `update` exits 0 and writes `.cursor/` (the manifest's `retry` ledger names the harness, since none of its files exist to be detected)
+- [x] 6.2 @unit (agent) `generate()` with a write stub throwing `ENOSPC` -> the error propagates, nothing is recorded as `failed` -> test/unit/errno-isolation.test.ts: `isolatedWriteFailure` returns nothing for `ENOSPC` (and `EMFILE`, `ENOENT`, `ELOOP`, `EBUSY`), which `generate()` rethrows; test/unit/init/write-failure.test.ts: a self-referencing `.cursor` symlink (`ELOOP`) throws out of `generate()`
 
 ## 7. The home skills root [critical]
 

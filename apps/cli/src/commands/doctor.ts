@@ -144,7 +144,16 @@ function checkDrift(cwd: string, findings: Finding[]): WriteResult[] {
   }
 
   const harnesses = detectHarnesses(cwd)
-  const { results, migration } = generate(cwd, { harnesses, dryRun: true })
+  const { results, failed, migration } = generate(cwd, { harnesses, dryRun: true })
+  // A dry run writes nothing, so what fails here is a managed file cospec cannot read.
+  for (const f of failed) {
+    findings.push({
+      level: 'ERROR',
+      check: 'unreadable-file',
+      message: `${f.path} cannot be checked against canon (${f.error})`,
+      remedy: 'fix the permissions on the file or its directory, then re-run `cospec doctor`',
+    })
+  }
   for (const r of results) {
     if (r.outcome === 'unchanged') continue
     if (r.outcome === 'created') {
