@@ -60,7 +60,7 @@ import {
 } from '../harness/adapters.ts'
 import { homeSkillsDir } from '../harness/home-root.ts'
 import { walkProjectFiles } from '../harness/scan-walk.ts'
-import { homeSkillLeftovers, isOpsxLeftover, leftoverScanFiles } from './init.ts'
+import { homeSkillLeftovers, leftoverScanFiles, opsxLeftoverFiles } from './init.ts'
 import { detectHarnesses, generate } from './update.ts'
 
 type Level = 'ERROR' | 'WARNING' | 'INFO'
@@ -384,18 +384,16 @@ export function checkOpsx(
       remedy: 'run `cospec init --remove-opsx` to delete provably openspec-generated files',
     })
   }
-  for (const f of leftoverScanFiles(cwd, table)) {
-    // Provenance-only, the one predicate init's removal uses (DESIGN §2.1/§6.6): flag a file
-    // only when its own content proves openspec wrote it. Path/name conventions alone are not
-    // provenance — never warn on user-authored files.
-    if (isOpsxLeftover(f.relpath, f.text, table)) {
-      findings.push({
-        level: 'WARNING',
-        check: 'opsx-leftover',
-        message: `leftover openspec (opsx) file: ${f.relpath} — two propose commands confuse agents`,
-        remedy: 'run `cospec init --remove-opsx` to delete provably openspec-generated files',
-      })
-    }
+  // Provenance-only, the one predicate init's removal uses (DESIGN §2.1/§6.6): flag a file
+  // only when its own content proves openspec wrote it. Path/name conventions alone are not
+  // provenance — never warn on user-authored files.
+  for (const f of opsxLeftoverFiles(leftoverScanFiles(cwd, table), table)) {
+    findings.push({
+      level: 'WARNING',
+      check: 'opsx-leftover',
+      message: `leftover openspec (opsx) file: ${f.relpath} — two propose commands confuse agents`,
+      remedy: 'run `cospec init --remove-opsx` to delete provably openspec-generated files',
+    })
   }
 }
 

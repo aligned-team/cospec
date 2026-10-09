@@ -349,6 +349,13 @@ function isOpenCodeOpsxCommand(relpath: string, frontmatter: unknown, body: stri
 
 const OPENCODE_COMMANDS_PREFIX = '.opencode/commands/'
 
+/**
+ * The ownership marker the pinned binary writes in a shared skills root: the id of the tool
+ * its own `openspec-*` skills were written for. cospec's marker is `.cospec-target`; this one
+ * is the binary's and means nothing once its skills are gone.
+ */
+export const OPSX_TARGET_MARKER = `${OPSX_SHARED_SKILL_ROOT}/.openspec-target`
+
 // The pinned binary's pre-opsx markers: every legacy slash command it wrote carries the pair.
 const OPENSPEC_MARKERS = { start: '<!-- OPENSPEC:START -->', end: '<!-- OPENSPEC:END -->' }
 
@@ -450,6 +457,7 @@ export function isLeftoverCandidate(
   relpath: string,
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): boolean {
+  if (relpath === OPSX_TARGET_MARKER) return true
   if (relpath.startsWith(`${OPSX_SHARED_SKILL_ROOT}/`) && relpath.endsWith(SKILL_EXTENSION)) {
     return true
   }
@@ -521,6 +529,34 @@ export function leftoverScanFiles(
   return [...out.values()]
 }
 
+/** A marker holds one tool id; anything else in that file is not the binary's. */
+const TARGET_MARKER_CONTENT = /^[a-z0-9][a-z0-9-]*\s*$/
+
+/**
+ * The scanned files that are openspec leftovers. `isOpsxLeftover` decides each file alone; the
+ * `.openspec-target` marker is the one file whose provenance is its path and shape, and it
+ * names the owner of the binary's `openspec-*` skills, so it goes only once none of those
+ * skills is left under the root for it to describe (one the user wrote stays, and keeps it).
+ */
+export function opsxLeftoverFiles(
+  files: readonly { relpath: string; text: string }[],
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): { relpath: string; text: string }[] {
+  const hits = files.filter(
+    (f) => f.relpath !== OPSX_TARGET_MARKER && isOpsxLeftover(f.relpath, f.text, table),
+  )
+  const marker = files.find((f) => f.relpath === OPSX_TARGET_MARKER)
+  if (marker === undefined || !TARGET_MARKER_CONTENT.test(marker.text)) return hits
+  const removed = new Set(hits.map((f) => f.relpath))
+  const skillsLeft = files.some(
+    (f) =>
+      f.relpath.startsWith(`${OPSX_SHARED_SKILL_ROOT}/openspec-`) &&
+      f.relpath.split('/').at(-1) === SKILL_FILE &&
+      !removed.has(f.relpath),
+  )
+  return skillsLeft ? hits : [...hits, marker]
+}
+
 /** `table` is a test seam for rows the shipped table does not carry. */
 export function findOpsxFiles(
   cwd: string,
@@ -529,8 +565,7 @@ export function findOpsxFiles(
 ): OpsxFile[] {
   // cospec writes its own `cospec-*` skills to `.agents/skills` too; the two prefixes
   // cannot collide, and `isOpsxLeftover` excludes anything cospec authored.
-  return leftoverScanFiles(cwd, table, unreadable)
-    .filter((f) => isOpsxLeftover(f.relpath, f.text, table))
+  return opsxLeftoverFiles(leftoverScanFiles(cwd, table, unreadable), table)
     .map(({ relpath }) => ({ relpath }))
     .toSorted((a, b) => a.relpath.localeCompare(b.relpath))
 }

@@ -6,7 +6,7 @@
 
 import { afterAll, describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import { type HarnessAdapter, HARNESS_NAMES, HARNESS_TABLE } from '../../src/harness/adapters.ts'
 import { cleanupAll, cospec, mkTempRepo, oracleEnv } from '../fixtures/support.ts'
@@ -28,12 +28,22 @@ function toolFiles(dir: string, rel = ''): string[] {
     .toSorted()
 }
 
-/** The pinned binary's `init --tools <id>` in its own sandbox; the project dir it wrote. */
-async function upstreamProject(tool: string): Promise<{ project: string; home: string }> {
+/**
+ * The pinned binary's `init --tools <id>` in its own sandbox; the project dir it wrote. `plant`
+ * is written into the project first, so the binary's legacy cleanup sees it.
+ */
+async function upstreamProject(
+  tool: string,
+  plant: Record<string, string> = {},
+): Promise<{ project: string; home: string }> {
   const sandbox = mkTempRepo()
   assertNoAncestorOpenspec(sandbox)
   const project = join(sandbox, 'project')
   mkdirSync(project)
+  for (const [rel, text] of Object.entries(plant)) {
+    mkdirSync(dirname(join(project, rel)), { recursive: true })
+    writeFileSync(join(project, rel), text)
+  }
   const env = oracleEnv(sandbox)
   const configDir = join(env.XDG_CONFIG_HOME!, 'openspec')
   mkdirSync(configDir, { recursive: true })
@@ -77,7 +87,7 @@ async function sweepRow(id: string): Promise<void> {
   const base = home ? upstream.home : project
   const wrote = home
     ? toolFiles(join(upstream.home, homeDir)).map((f) => join(homeDir, f))
-    : toolFiles(project).filter((f) => !f.endsWith('/.openspec-target'))
+    : toolFiles(project)
   const shown = (rel: string): string => (home ? join(base, rel) : rel)
   expect(wrote.length).toBeGreaterThan(0)
 
@@ -108,7 +118,7 @@ async function sweepRow(id: string): Promise<void> {
   if (!home) expect(doc.opsx.removed).toBe(true)
   for (const rel of wrote) expect(existsSync(join(base, rel))).toBe(false)
 
-  // What is left is cospec's own output and the shared-root marker, never a file the binary wrote.
+  // What is left is cospec's own output and its shared-root marker, never a file the binary wrote.
   if (home) {
     for (const name of readdirSync(join(upstream.home, homeDir, 'skills'))) {
       expect(name.startsWith('cospec-')).toBe(true)
@@ -130,4 +140,37 @@ describe("the leftover scan reads each row's upstream output", () => {
       120_000,
     )
   }
+})
+
+// A pre-opsx command at a `files` legacy pattern with no OPENSPEC markers: the pinned binary's
+// cleanup removes it by name (it re-checks markers only for a directory entry's files), while
+// cospec keeps it, because a same-named file without the markers is the user's. This is a
+// declared cospec opinion (design decision 12), held here so a pin bump that changes the
+// binary's side is noticed, and cospec's side is never changed by accident.
+describe('a marker-less file at a files-type legacy pattern', () => {
+  const FILE = '.cursor/commands/openspec-nomarker.md'
+  const TEXT = '# My own command\n\nNot written by OpenSpec.\n'
+
+  test('the binary removes it; cospec neither lists nor removes it', async () => {
+    const upstream = await upstreamProject('claude', { [FILE]: TEXT })
+    expect(existsSync(join(upstream.project, FILE))).toBe(false)
+
+    const dir = mkTempRepo({ git: true })
+    mkdirSync(join(dir, 'openspec'), { recursive: true })
+    writeFileSync(join(dir, 'openspec/config.yaml'), 'schema: feat\n')
+    mkdirSync(join(dir, '.cursor/commands'), { recursive: true })
+    writeFileSync(join(dir, FILE), TEXT)
+    const env = oracleEnv(mkTempRepo())
+    const run = await cospec(
+      ['init', '--harness', 'none', '--no-gate', '--remove-opsx', '--json'],
+      { cwd: dir, env },
+    )
+    expect(run.exitCode).toBe(0)
+    expect((JSON.parse(run.stdout) as { opsx: { found: string[] } }).opsx.found).toEqual([])
+    expect(readFileSync(join(dir, FILE), 'utf8')).toBe(TEXT)
+    const doctor = await cospec(['doctor', '--json'], { cwd: dir, env })
+    expect(
+      (JSON.parse(doctor.stdout) as DoctorJson).findings.filter((f) => f.check === 'opsx-leftover'),
+    ).toEqual([])
+  }, 120_000)
 })
