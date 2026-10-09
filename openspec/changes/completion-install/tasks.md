@@ -157,9 +157,9 @@
 
 ## 7. Verify and close out
 
-- [ ] 7.1 Run `mise run check` and fix every failure at its root; verify it
+- [x] 7.1 Run `mise run check` and fix every failure at its root; verify it
       exits 0.
-- [ ] 7.2 Fill in `verification.md`: mark each row `[x]` with the observed
+- [x] 7.2 Fill in `verification.md`: mark each row `[x]` with the observed
       result after `->`, every install and uninstall row run under a temporary
       `HOME`; verify `mise run cospec -- validate completion-install --strict`
       passes and no row is a bare `[ ]`.
