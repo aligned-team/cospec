@@ -531,4 +531,34 @@ Propose a new change - create the change and generate all artifacts in one step.
     checkOpsx(dir, findings)
     expect(findings).toEqual([])
   })
+
+  // Review finding: the id allowlist must carry the exclusion on its own. This user file
+  // carries the FULL guard lead sentence and the command reference, a hand-copied
+  // template, at an id the pinned dist never writes; only the id restriction rejects it.
+  test('a guard-carrying user command at an id the pinned dist never generates is never listed', () => {
+    put(
+      dir,
+      OPENCODE_USER_STATUS,
+      '---\ndescription: my copy of the openspec template\n---\n\n' +
+        '**Project check:** These steps expect a project that already uses OpenSpec.\n\n' +
+        'Run `openspec list --json` and give me a one-line summary of each change.\n',
+    )
+    expect(findOpsxFiles(dir)).toEqual([])
+    const findings: Finding[] = []
+    checkOpsx(dir, findings)
+    expect(findings).toEqual([])
+  })
+
+  // Control: the same body at a real dist id IS the leftover, so the test above rejects on
+  // the id alone, not on a fixture that nothing could ever match.
+  test('the same guard-carrying body at a real dist id is listed', () => {
+    put(
+      dir,
+      '.opencode/commands/opsx-propose.md',
+      '---\ndescription: my copy of the openspec template\n---\n\n' +
+        '**Project check:** These steps expect a project that already uses OpenSpec.\n\n' +
+        'Run `openspec list --json` and give me a one-line summary of each change.\n',
+    )
+    expect(findOpsxFiles(dir)).toEqual([{ relpath: '.opencode/commands/opsx-propose.md' }])
+  })
 })
