@@ -38,30 +38,30 @@
 
 ## 2. Rendering shapes (T9: `render.ts`, `adapters.ts`)
 
-- [ ] 2.1 Add `skill` and `prose` to `BodyDialect`, row fields `skillDialect`
+- [x] 2.1 Add `skill` and `prose` to `BodyDialect`, row fields `skillDialect`
       and `skillInvocationPrefix` (`/` | `/skill:`), and
       `workflowReferencePattern(row)`; switch doctor's reference check to it;
       verify unit tests on fixture rows through `RenderOptions.adapters` (skill,
       `/skill:`, prose, unknown id left verbatim, doctor finds a dangling
       `/skill:cospec-nope`) and the five existing render goldens unchanged
-- [ ] 2.2 Add the `markdown-header` and `plain` serializers with
+- [x] 2.2 Add the `markdown-header` and `plain` serializers with
       `frontmatter: null`, routed to the manifest by `generate()`; verify a
       fixture-row render's exact bytes
       (`# COSPEC: <title>\n\n<description>\n\n<body>`, bare body), manifest
       entries, a hand edit producing a `.cospec-new` sidecar, and
       `isHarnessDocument`/`removeOrphanMarkdown` ignoring them
-- [ ] 2.3 Change `injectArguments` to a placeholder value (`$ARGUMENTS` | `$@`)
+- [x] 2.3 Change `injectArguments` to a placeholder value (`$ARGUMENTS` | `$@`)
       and set the opencode row to `$ARGUMENTS`; verify a `$@` fixture row's
       command carries `**Provided arguments**: $@`, its skill does not, and the
       opencode golden is unchanged
-- [ ] 2.4 Add the shared frontmatter builders by key set (description;
+- [x] 2.4 Add the shared frontmatter builders by key set (description;
       description + `argument-hint`; name + description + `argument-hint`;
       name + description + category + tags; cursor's
       name/id/category/description; continue's name/description/`invokable`;
       name + description), each with cospec's `metadata`; verify one unit test
       per builder against the head of the matching `upstream-init` fixture with
       `opsx`→`cospec` respelled
-- [ ] 2.5 Add a `skillWriters` option to `renderHarnessFiles` that renders a
+- [x] 2.5 Add a `skillWriters` option to `renderHarnessFiles` that renders a
       shared skills root's skills only from its writer, and make
       `receiptHintLines` use the first row's skill dialect with the `prose`
       dialect's `ask <tool> to use …` form; verify fixture-row tests and the
@@ -115,66 +115,66 @@
 
 ## 6. Rows: skills-only (T1)
 
-- [ ] 6.1 Add the render goldens for `codeartsagent`, `forgecode`, `hermes`,
+- [x] 6.1 Add the render goldens for `codeartsagent`, `forgecode`, `hermes`,
       `kimi`, `minimax-code`, `vibe`, `rovodev`, `zed` (decision 14 layout) with
       their harness-render tests as `test.failing`; verify 8 expected failures
-- [ ] 6.2 Add rows `codeartsagent`, `forgecode`, `vibe` (skill dialect), remove
+- [x] 6.2 Add rows `codeartsagent`, `forgecode`, `vibe` (skill dialect), remove
       their `parity-pending.yaml` entries, flip their tests; verify
       `harness-matrix` rows and goldens pass and `mise run generate:check` is
       clean
-- [ ] 6.3 Add the `hermes` row with its setup note and detection paths; same
+- [x] 6.3 Add the `hermes` row with its setup note and detection paths; same
       verification, plus the receipt test for upstream's note
-- [ ] 6.4 Add the `kimi` row (`/skill:` prefix, `legacyToolRoots` `.kimi`); same
+- [x] 6.4 Add the `kimi` row (`/skill:` prefix, `legacyToolRoots` `.kimi`); same
       verification
-- [ ] 6.5 Add the `minimax-code` row (`globalSkillsDir: .minimax`); same
+- [x] 6.5 Add the `minimax-code` row (`globalSkillsDir: .minimax`); same
       verification, run under a temp `HOME`
-- [ ] 6.6 Add the `rovodev` row (prose dialect); same verification, plus its
+- [x] 6.6 Add the `rovodev` row (prose dialect); same verification, plus its
       prose receipt hint
-- [ ] 6.7 Add the `zed` row (shared dialect, `.agents` root); same verification,
+- [x] 6.7 Add the `zed` row (shared dialect, `.agents` root); same verification,
       plus the arbiter picking the marked writer
 
 ## 7. Rows: flat `<root>/commands/cospec-<command>` (T2)
 
-- [ ] 7.1 Add the render goldens for `auggie`, `bob`, `codeassistant`,
+- [x] 7.1 Add the render goldens for `auggie`, `bob`, `codeassistant`,
       `command-code`, `costrict`, `cursor`, `factory`, `iflow`, `junie`,
       `oh-my-pi`, `qwen`, `roocode`, `trae` as `test.failing`; verify 13
       expected failures
-- [ ] 7.2 Add rows `auggie`, `bob`, `factory`, `costrict`
+- [x] 7.2 Add rows `auggie`, `bob`, `factory`, `costrict`
       (`.cospec/openspec/commands`) with the argument-hint builder; remove their
       pending entries and flip their tests; verify as in 6.2
-- [ ] 7.3 Add rows `codeassistant`, `junie`, `qwen` (description builder) and
+- [x] 7.3 Add rows `codeassistant`, `junie`, `qwen` (description builder) and
       `trae`; same verification
-- [ ] 7.4 Add rows `cursor` and `iflow` (cursor builder); same verification
-- [ ] 7.5 Add the `oh-my-pi` row (`$@`); same verification
-- [ ] 7.6 Add the `command-code` row (`plain`, `$ARGUMENTS`); same verification,
+- [x] 7.4 Add rows `cursor` and `iflow` (cursor builder); same verification
+- [x] 7.5 Add the `oh-my-pi` row (`$@`); same verification
+- [x] 7.6 Add the `command-code` row (`plain`, `$ARGUMENTS`); same verification,
       plus its manifest entries
-- [ ] 7.7 Add the `roocode` row (`markdown-header`); same verification
+- [x] 7.7 Add the `roocode` row (`markdown-header`); same verification
 
 ## 8. Rows: other command layouts (T3)
 
-- [ ] 8.1 Add the render goldens for `amazon-q`, `antigravity`, `cline`,
+- [x] 8.1 Add the render goldens for `amazon-q`, `antigravity`, `cline`,
       `devin`, `kilocode`, `pi`, `codebuddy`, `crush`, `lingma`, `qoder`,
       `zcode`, `continue`, `kiro`, `gemini` as `test.failing`; verify 14
       expected failures
-- [ ] 8.2 Add the `amazon-q` row (`.amazonq/prompts`, `@`); same verification as
+- [x] 8.2 Add the `amazon-q` row (`.amazonq/prompts`, `@`); same verification as
       6.2
-- [ ] 8.3 Add the `antigravity` row (`.agents/workflows`, `.agents` skills,
+- [x] 8.3 Add the `antigravity` row (`.agents/workflows`, `.agents` skills,
       `legacySkillsDirs`/`legacyToolRoots` `.agent`); same verification, plus
       the four-row combination test against
       `upstream-init/combo-shared-agents.json`
-- [ ] 8.4 Add the `cline` row (`.clinerules/workflows`, `markdown-header`,
+- [x] 8.4 Add the `cline` row (`.clinerules/workflows`, `markdown-header`,
       skills under `.cline`); same verification
-- [ ] 8.5 Add the `devin` row (`.devin/workflows`, flat commands, skill-dialect
+- [x] 8.5 Add the `devin` row (`.devin/workflows`, flat commands, skill-dialect
       skills, `legacyToolRoots` `.windsurf` with consent) and remove the
       `windsurf` `tool-alias` pending entry; same verification, plus
       `--tools windsurf` writing exactly devin's files
-- [ ] 8.6 Add rows `kilocode` (`plain`) and `pi` (`.pi/prompts`, `$@`); same
+- [x] 8.6 Add rows `kilocode` (`plain`) and `pi` (`.pi/prompts`, `$@`); same
       verification
-- [ ] 8.7 Add the namespaced rows `codebuddy`, `crush`, `lingma`, `qoder`,
+- [x] 8.7 Add the namespaced rows `codebuddy`, `crush`, `lingma`, `qoder`,
       `zcode`; same verification
-- [ ] 8.8 Add rows `continue` (`.prompt`), `kiro` (`.prompt.md`) and `gemini`
+- [x] 8.8 Add rows `continue` (`.prompt`), `kiro` (`.prompt.md`) and `gemini`
       (TOML, manifest-tracked); same verification
-- [ ] 8.9 With every row in, verify `harness-matrix.test.ts` has no
+- [x] 8.9 With every row in, verify `harness-matrix.test.ts` has no
       `test.failing` left, `parity-pending.yaml` has no `tool-matrix` entry, the
       reachability suite passes with only `github-copilot` pending as a tool,
       and `init --harness all` against `upstream-init/combo-all.json` matches
@@ -190,7 +190,7 @@
       every row and asserts doctor names every file it wrote and `--remove-opsx`
       removes exactly those, plus pre-opsx fixtures for every
       `LEGACY_SLASH_COMMAND_PATHS` entry with a row
-- [ ] 9.2 Port `LEGACY_TOOL_ROOTS` moves into `legacy-skills.ts` (decision 9),
+- [x] 9.2 Port `LEGACY_TOOL_ROOTS` moves into `legacy-skills.ts` (decision 9),
       with `init` consent by selection and `update`'s TTY-only question; verify
       integration tests for `.kimi`, `.agent`, `.codex` and `.windsurf`
       (`update --json` migrates without asking; a user file stays; a differing
@@ -219,7 +219,7 @@
       helper, never a branch in `commands/`", name the shared-root marker, and
       say where the oracle fixtures live and how they are re-taken; run
       `mise run agents:sync`; verify `mise run agents:check` passes
-- [ ] 10.4 Let `e2e/eval/run.ts` render its skill bodies from the harness named
+- [x] 10.4 Let `e2e/eval/run.ts` render its skill bodies from the harness named
       by `COSPEC_EVAL_HARNESS` (default `claude`), reading each skill through
       the row's skill path instead of the literal `.claude/skills/`, refusing an
       id that is not a harness; verify `mise run typecheck` and `mise run lint`
@@ -232,7 +232,7 @@
       clean and the five pre-existing render golden directories unchanged
       against the task 1.1 baseline
       (`git diff --exit-code <baseline> HEAD -- apps/cli/test/unit/__golden__/harness-render/{claude,codex,opencode,agents,all}`)
-- [ ] 11.2 Record every verification row's observed result in `verification.md`
+- [x] 11.2 Record every verification row's observed result in `verification.md`
       and run `mise run cospec -- validate tool-matrix --strict`; verify it
       passes
 - [ ] 11.3 the archive commit follows this one
