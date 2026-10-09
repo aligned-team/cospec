@@ -268,6 +268,18 @@ expected exit codes, a stdout deny-list, and an observable post-condition. Trust
 filesystem/JSON post-conditions, never exit codes alone (OpenSpec aborts with
 exit 0). See docs/architecture.md.
 
+**Home-scoped writes** — cospec writes under the user's home only through
+`cospec completion install|uninstall` (the script, plus one rc block bracketed
+by `# COSPEC:START` and `# COSPEC:END`) and the one-time `completionTipSeen`
+flag in the global config. The installer is `core/completions/install.ts`; the
+tip is `core/completion-tip.ts`. cospec's completion names and markers are its
+own (`_cospec`, `cospec.fish`, `CospecCompletion.ps1`), never upstream's, so one
+tool's uninstall never touches the other's wiring. A test that spawns an install
+points HOME, XDG\_\*, ZDOTDIR, CODEX_HOME, USERPROFILE and PROFILE into a fresh
+temporary directory (the home sandbox helper, design §13 of completion-install),
+never the real home. Unit tests of `install.ts` take the home directory as a
+parameter.
+
 **Never bypass hk** — hooks are managed by hk (jdx/hk) via mise. If a hook
 fails, fix the root cause; never use `--no-verify`, `pre-commit`, or raw
 `.git/hooks/` scripts.
