@@ -596,16 +596,18 @@ describe('7. shell resolution from SHELL and PSModulePath', () => {
   test('7.1 an unsupported SHELL exits 1 for install, uninstall and the bare script, naming every shell, and writes nothing', async () => {
     const sb = sandbox()
     const env = { SHELL: '/bin/tcsh' }
-    for (const args of [
-      ['completion', 'install'],
-      ['completion', 'uninstall', '-y'],
-      ['completion'],
-    ]) {
+    const cases: [string[], string][] = [
+      [['completion', 'install'], 'cospec completion install <bash|zsh|fish|powershell>'],
+      [['completion', 'uninstall', '-y'], 'cospec completion uninstall <bash|zsh|fish|powershell>'],
+      [['completion'], 'cospec completion <bash|zsh|fish|powershell>'],
+    ]
+    for (const [args, explicit] of cases) {
       const result = await run(sb, args, { env })
       expect(result.exitCode).toBe(1)
       for (const name of ['bash', 'zsh', 'fish', 'powershell']) {
         expect(result.stderr).toContain(name)
       }
+      expect(result.stderr).toContain(explicit)
     }
     expect(filesUnder(sb.home)).toEqual([])
   })
