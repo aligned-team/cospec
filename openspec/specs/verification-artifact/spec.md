@@ -208,9 +208,13 @@ There SHALL be no lite variant of the artifact.
 `cospec status <slug> --json` SHALL emit a read-only `verification` block
 reporting
 `{ declared, total, verified, deferred, unresolved, ciUncatchable, blockedReasons }`
-derived from the same computation the archive gate uses. The block SHALL NOT be
-a gate, SHALL NOT introduce a new artifact, and SHALL carry no autonomy,
-exposure, or embargo governance state.
+derived from the same computation the archive gate uses, plus every
+`verification/*` ERROR that `cospec archive`'s validation raises on
+`verification.md`. The block SHALL NOT be a gate, SHALL NOT introduce a new
+artifact, and SHALL carry no autonomy, exposure, or embargo governance state.
+The `archiveReady` flag of `cospec status` and of `cospec list` SHALL be false
+whenever `blockedReasons` is non-empty, and the two commands SHALL report the
+same value for the same change.
 
 #### Scenario: status reports the verification block
 
@@ -225,3 +229,48 @@ exposure, or embargo governance state.
 - **WHEN** the `verification` block reports unresolved rows
 - **THEN** `cospec status` still exits successfully; only `cospec apply` and
   `cospec archive` gate on verification
+
+#### Scenario: unresolved or malformed rows make archiveReady false
+
+- **WHEN** `cospec status <slug> --json` or `cospec list --json` runs on a `fix`
+  change whose tasks are done, whose gate is clear and whose `verification.md`
+  has a bare `- [ ]` row or a row that does not parse
+- **THEN** `archiveReady` is `false` in both, and `status` lists the reason in
+  `verification.blockedReasons`
+
+#### Scenario: a ledger that archive's validation refuses makes archiveReady false
+
+- **WHEN** `cospec status <slug> --json` or `cospec list --json` runs on a `fix`
+  change whose tasks are done, whose gate is clear and whose `verification.md`
+  has a `[~]` row with no `defer: <reason>`, or a `## N.` group with no rows
+- **THEN** `archiveReady` is `false` in both, and `status` lists the
+  `verification/deferred-reason` or `verification/structure` reason in
+  `verification.blockedReasons`
+
+#### Scenario: resolved rows leave archiveReady true
+
+- **WHEN** every row of that `verification.md` is `[x] ... -> <evidence>` or
+  `[~] ... -> defer: <reason>`
+- **THEN** `archiveReady` is `true` in both commands, `blockedReasons` is empty,
+  and `cospec archive <slug>` does not refuse with
+  `archive/verification-incomplete`
+
+#### Scenario: grandfathered and verification-free changes are unaffected
+
+- **WHEN** the change is a v1 change with no `verification.md`, or its type
+  forbids `verification`, or does not require it and carries no
+  `verification.md`
+- **THEN** its `archiveReady` is decided by required artifacts, tasks and the
+  blocker gate alone
+
+#### Scenario: a present ledger on an unenforced type is still validated
+
+- **WHEN** `cospec status <slug> --json` or `cospec list --json` runs on a
+  `build`, `ci` or `revert` change, or a schemaVersion 1 `fix`/`feat`/`perf`/
+  `refactor` change, whose tasks are done, whose gate is clear and whose
+  `verification.md` has a `[~]` row with no `defer: <reason>` or a `## N.` group
+  with no rows
+- **THEN** `archiveReady` is `false` in both, `verification.declared` stays
+  `false`, and `status` lists the `verification/*` reason in
+  `verification.blockedReasons`, because `cospec archive` validates that ledger
+  and refuses it; a bare `- [ ]` row on such a change does not block

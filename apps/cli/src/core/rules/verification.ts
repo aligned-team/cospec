@@ -19,8 +19,8 @@ export interface VerificationRuleOptions {
 }
 
 export function verificationRules(
-  change: LoadedChange,
-  schema: SchemaInfo,
+  change: Pick<LoadedChange, 'id' | 'verificationText' | 'proposalText'>,
+  schema: Pick<SchemaInfo, 'name' | 'applyRequires'>,
   opts: VerificationRuleOptions,
 ): Issue[] {
   const issues: Issue[] = []

@@ -660,6 +660,7 @@ apps/cli/src/
 │   │                       its archive path)
 │   ├── tasks.ts / proposal.ts
 │   ├── verification.ts     verification.md parser (groups, rows, layer/owner/state)
+│   ├── verification-verdict.ts  the verdict status/list report (archive gate + ledger errors)
 │   ├── schema-compose.ts   canon → schema.yaml + templates per type
 │   └── rules/              one module per rule family
 ├── harness/                per-harness adapters, render, settings merge

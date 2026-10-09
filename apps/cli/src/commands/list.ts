@@ -38,9 +38,10 @@ import {
   type Root,
 } from '../core/openspec.ts'
 import { respellRemedies } from '../core/remedies.ts'
-import { TYPE_ARTIFACTS } from '../core/rules/type-facts.ts'
+import { enforcedApplyRequires, type CospecType } from '../core/rules/type-facts.ts'
 import { mergeUpstream, resolveRootOrDocument, type Identities } from '../core/upstream-keys.ts'
-import { artifactDone, computeGate, type Gate } from './apply.ts'
+import { readVerificationVerdict } from '../core/verification-verdict.ts'
+import { artifactDone, computeGate, isArchiveReady, type Gate } from './apply.ts'
 import {
   gateLabel,
   hasAnyArtifact,
@@ -254,9 +255,19 @@ function computeRow(
 
   let archiveReady = false
   if (cospec && !empty) {
-    const facts = TYPE_ARTIFACTS[schema as keyof typeof TYPE_ARTIFACTS]
-    const requiredDone = facts.applyRequires.every((a) => artifactDone(dir, a))
-    archiveReady = requiredDone && total > 0 && complete === total && gate.state === 'clear'
+    // The same required set `status` and the gates enforce: a grandfathered
+    // change is judged on its stamped `schemaVersion`, and its verification
+    // verdict is the archive gate's plus validation's ledger errors.
+    const applyRequires = enforcedApplyRequires(
+      schema as CospecType,
+      readOpenspecYaml(dir)?.schemaVersion ?? 1,
+    )
+    archiveReady = isArchiveReady({
+      requiredDone: applyRequires.every((a) => artifactDone(dir, a)),
+      tasks: { total, complete },
+      gate,
+      verdict: readVerificationVerdict(dir, { id, schema }, applyRequires),
+    })
   }
 
   return {

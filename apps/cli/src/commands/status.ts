@@ -45,8 +45,17 @@ import {
   rootOutput,
   type Identities,
 } from '../core/upstream-keys.ts'
-import { computeVerificationVerdict, type VerificationVerdict } from '../core/verification.ts'
-import { archiveMap, artifactDone, closest, computeGate, hasSpecFiles, type Gate } from './apply.ts'
+import { readVerificationVerdict } from '../core/verification-verdict.ts'
+import { type VerificationVerdict } from '../core/verification.ts'
+import {
+  archiveMap,
+  artifactDone,
+  closest,
+  computeGate,
+  hasSpecFiles,
+  isArchiveReady,
+  type Gate,
+} from './apply.ts'
 
 /** The `clear | soft-blocked (n) | blocked (n hard)` gate column (DESIGN §2.6). */
 export function gateLabel(gate: Gate): string {
@@ -268,17 +277,20 @@ export function computeStatus(
   const complete = parsedTasks.items.filter((t) => t.checked).length
 
   const requiredDone = artifacts.filter((a) => a.required).every((a) => a.done)
-  const tasksDone = total > 0 && complete === total
-  const archiveReady = requiredDone && tasksDone && gate.state === 'clear'
-
-  const verificationPath = join(change.dir, 'verification.md')
-  const verificationText = existsSync(verificationPath)
-    ? readFileSync(verificationPath, 'utf8')
-    : undefined
-  const verification = computeVerificationVerdict(
-    applyRequires.has('verification'),
-    verificationText,
+  // The verdict is the archive gate's own computation plus the ledger errors
+  // archive's validation raises, so the flag below cannot say ready while
+  // `cospec archive` would refuse on `verification.md`.
+  const verification = readVerificationVerdict(
+    change.dir,
+    { id: change.id, schema: change.schema },
+    [...applyRequires],
   )
+  const archiveReady = isArchiveReady({
+    requiredDone,
+    tasks: { total, complete },
+    gate,
+    verdict: verification,
+  })
 
   const next = resolveNext(
     cospecStates(type, done, change.skipSpecs === true),

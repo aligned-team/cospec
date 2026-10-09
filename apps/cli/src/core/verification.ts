@@ -233,10 +233,13 @@ export function isKnownLayer(layer: string, extraLayers: readonly string[] = [])
 }
 
 /**
- * The read-only `status --json` verification verdict (DESIGN §3.6) — shared
- * with the `archive/verification-incomplete` gate so both derive from the same
- * computation. Never a gate itself: `blockedReasons` names what would block
- * `cospec archive`, but this function has no opinion on exit codes.
+ * The read-only `status --json` verification verdict (DESIGN §3.6). The row
+ * tallies and the unresolved/unparseable `blockedReasons` below are the
+ * `archive/verification-incomplete` gate's own computation;
+ * `readVerificationVerdict` (./verification-verdict.ts) adds the validity
+ * errors archive's validation raises. Never a gate itself: `blockedReasons`
+ * names what would block `cospec archive`, but this function has no opinion on
+ * exit codes.
  */
 export interface VerificationVerdict {
   declared: boolean
