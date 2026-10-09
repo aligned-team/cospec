@@ -129,9 +129,11 @@ function installContext(deps: CompletionDeps): InstallContext {
 function askOnTerminal(question: string): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stdout })
   return new Promise((resolve) => {
+    // Resolve before closing: `close()` fires the listener below, which would
+    // otherwise settle the promise with '' first and reject every answer.
     rl.question(question, (answer) => {
-      rl.close()
       resolve(answer)
+      rl.close()
     })
     // A closed stdin (Ctrl-D) is a "no", not a hang.
     rl.once('close', () => resolve(''))
