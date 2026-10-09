@@ -235,7 +235,12 @@ over cospec's rows, and the equivalent is a table-invariant test, so a row that
   so a row adds no `render.ts` edit. With `both` or `commands` a body keeps the
   row's dialect. Without this, a Claude skill under `skills` delivery would say
   `/cospec:apply` and name a command file that no longer exists, which doctor
-  would flag.
+  would flag. Two binary overrides, recorded at implementation: the default is
+  `/<skill>` for every row, `@`-prefixed ones included, because upstream's
+  `transformToSkillReferences` hard-codes `/` (`utils/command-references.js`);
+  and `codeassistant`, which has commands but is in upstream's
+  `NATURAL_LANGUAGE_SKILL_TOOLS`, gets prose through an optional
+  `skillsOnlyDialect: 'prose'` row field, since `tool-matrix` gave it none.
 - **The other surface is removed.** A delivery switch removes the cospec-managed
   files of the surface no longer generated: skills under `commands`, commands
   under `skills`. `removeOrphanMarkdown` derives its sweep directories from the
