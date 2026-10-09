@@ -39,7 +39,7 @@ import {
 } from '../harness/adapters.ts'
 import { mergeMiseToml, type MiseMergeResult } from '../harness/mise-merge.ts'
 import { readWorkflowManifest, skillByWorkflowId } from '../harness/render.ts'
-import { walkProjectFiles, isOutsideProject } from '../harness/scan-walk.ts'
+import { isInsideNestedCheckout, isOutsideProject, walkProjectFiles } from '../harness/scan-walk.ts'
 import {
   COSPEC_PERMISSION,
   mergeClaudeSettings,
@@ -433,12 +433,23 @@ function removeOpsxFiles(cwd: string, files: OpsxFile[]): void {
   const dirs = new Set<string>()
   for (const f of files) {
     const abs = join(cwd, f.relpath)
-    if (existsSync(abs) && !isOutsideProject(cwdReal, abs)) rmSync(abs)
+    if (
+      existsSync(abs) &&
+      !isOutsideProject(cwdReal, abs) &&
+      !isInsideNestedCheckout(cwd, cwdReal, abs)
+    ) {
+      rmSync(abs)
+    }
     dirs.add(join(abs, '..'))
   }
   // Prune now-empty containing dirs (openspec-* skill dirs, opsx command dir).
   for (const dir of dirs) {
-    if (existsSync(dir) && !isOutsideProject(cwdReal, dir) && readdirSync(dir).length === 0) {
+    if (
+      existsSync(dir) &&
+      !isOutsideProject(cwdReal, dir) &&
+      !isInsideNestedCheckout(cwd, cwdReal, dir) &&
+      readdirSync(dir).length === 0
+    ) {
       rmSync(dir, { recursive: true })
     }
   }

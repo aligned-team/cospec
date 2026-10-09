@@ -260,6 +260,46 @@ describe('cospec init (DESIGN §2.1)', () => {
     }
   })
 
+  const OPENSPEC_SKILL =
+    '---\nname: openspec-propose\nmetadata:\n  author: openspec\n  generatedBy: "1.3.1"\n---\nbody\n'
+
+  const removeOpsx = (dir: string): { opsx: { found: string[]; removed: boolean } } =>
+    JSON.parse(
+      capture(
+        () =>
+          initRun(
+            ctx(dir, ['--harness', 'claude', '--no-gate', '--remove-opsx', '--yes'], true),
+          ) as number,
+      ).out,
+    ) as { opsx: { found: string[]; removed: boolean } }
+
+  test('a symlinked .agents/skills resolving into a nested worktree never deletes its files', () => {
+    const skill = join(dir, '.claude/worktrees/feat/.agents/skills/openspec-propose/SKILL.md')
+    mkdirSync(join(skill, '..'), { recursive: true })
+    writeFileSync(skill, OPENSPEC_SKILL)
+    // `git worktree add` writes `.git` as a file, a gitdir pointer.
+    writeFileSync(join(dir, '.claude/worktrees/feat/.git'), 'gitdir: /elsewhere/.git/worktrees/f\n')
+    mkdirSync(join(dir, '.agents'), { recursive: true })
+    symlinkSync(join(dir, '.claude/worktrees/feat/.agents/skills'), join(dir, '.agents/skills'))
+
+    const json = removeOpsx(dir)
+    expect(json.opsx.found).toEqual([])
+    expect(json.opsx.removed).toBe(false)
+    expect(existsSync(skill)).toBe(true)
+  })
+
+  test('an embedded clone at .claude is never scanned or deleted from', () => {
+    const skill = join(dir, '.claude/skills/openspec-propose/SKILL.md')
+    mkdirSync(join(skill, '..'), { recursive: true })
+    mkdirSync(join(dir, '.claude/.git'), { recursive: true })
+    writeFileSync(skill, OPENSPEC_SKILL)
+
+    const json = removeOpsx(dir)
+    expect(json.opsx.found).toEqual([])
+    expect(json.opsx.removed).toBe(false)
+    expect(existsSync(skill)).toBe(true)
+  })
+
   test('a bare `init --yes` (no --remove-opsx) never deletes unmarked user files', () => {
     const cmdDir = join(dir, '.opencode/commands/opsx')
     mkdirSync(cmdDir, { recursive: true })

@@ -340,6 +340,34 @@ describe('cospec doctor — scans stay inside the project', () => {
     expect(harnessMarkdownFiles(dir)).toEqual([])
   })
 
+  test('a .claude that is an embedded clone is never read for harness files', () => {
+    mkdirSync(join(dir, '.claude/.git'), { recursive: true })
+    mkdirSync(join(dir, '.claude/skills/cospec-propose'), { recursive: true })
+    writeFileSync(join(dir, '.claude/skills/cospec-propose/SKILL.md'), OLD_COPY)
+    expect(harnessMarkdownFiles(dir)).toEqual([])
+  })
+
+  test('a .claude symlinked into a nested worktree inside the project is never read', () => {
+    const wt = join(dir, 'wt/feat')
+    mkdirSync(join(wt, '.claude/skills/cospec-propose'), { recursive: true })
+    writeFileSync(join(wt, '.git'), 'gitdir: /elsewhere/.git/worktrees/feat\n')
+    writeFileSync(join(wt, '.claude/skills/cospec-propose/SKILL.md'), OLD_COPY)
+    symlinkSync(join(wt, '.claude'), join(dir, '.claude'))
+    expect(harnessMarkdownFiles(dir)).toEqual([])
+  })
+
+  test("an openspec symlinked into a nested worktree's openspec reports none of its sidecars", async () => {
+    seed(dir)
+    const wt = join(dir, '.claude/worktrees/feat')
+    mkdirSync(join(wt, 'openspec/changes/x'), { recursive: true })
+    writeFileSync(join(wt, '.git'), 'gitdir: /elsewhere/.git/worktrees/feat\n')
+    writeFileSync(join(wt, 'openspec/changes/x/proposal.md.cospec-new'), 'x\n')
+    rmSync(join(dir, 'openspec'), { recursive: true })
+    symlinkSync(join(wt, 'openspec'), join(dir, 'openspec'))
+    const { findings } = await doctorJson(dir)
+    expect(sidecars(findings)).toEqual([])
+  })
+
   test('the project own harness file is still read (control)', () => {
     mkdirSync(join(dir, '.claude/skills/cospec-propose'), { recursive: true })
     writeFileSync(join(dir, '.claude/skills/cospec-propose/SKILL.md'), OLD_COPY)
