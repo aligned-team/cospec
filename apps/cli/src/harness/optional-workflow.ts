@@ -89,6 +89,15 @@ export function resolveOptionalWorkflows(
 }
 
 /**
+ * The first optional-workflow marker still standing in `text`, whole (`[[opsx:if-workflow
+ * verify]]`) when it is closed on its line, or undefined: what `cospec doctor` reports in a
+ * file cospec wrote, where a marker means resolution was skipped.
+ */
+export function residualWorkflowMarker(text: string): string | undefined {
+  return /\[\[opsx:(?:if-workflow|else|end)[^\]\n]*(?:\]\])?/.exec(text)?.[0]
+}
+
+/**
  * Throws if `text` still carries a marker: at the end of resolution, and again at each write
  * point, so a body that skipped resolution never ships literal markers.
  */

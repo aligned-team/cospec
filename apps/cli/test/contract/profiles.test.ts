@@ -860,61 +860,47 @@ async function doctorFindings(s: Sandbox): Promise<DoctorFinding[]> {
 describe('doctor: the global profile and the installed set', () => {
   const OUTSIDE_CORE = ALL_IDS.filter((id) => !CORE_IDS.includes(id))
 
-  test.failing(
-    'an explicit core key over twelve workflows names the six outside it',
-    async () => {
-      const s = sandbox()
-      expect((await initIn(s)).exitCode).toBe(0)
-      setConfig(s, { profile: 'core' })
-      const findings = await doctorFindings(s)
-      const profile = findings.filter((f) => f.check === 'openspec-global-profile')
-      expect(profile.length).toBeGreaterThan(0)
-      expect(profile.every((f) => f.level === 'INFO')).toBe(true)
-      const text = profile.map((f) => f.message).join('\n')
-      expect(text).toContain('profile core')
-      for (const id of OUTSIDE_CORE) expect(text).toContain(id)
-      // The six inside the profile are not named as outside it.
-      const outside = profile.find((f) => f.message.includes('outside'))!
-      for (const id of CORE_IDS.filter((i) => i !== 'update')) {
-        expect(outside.message).not.toContain(` ${id},`)
-      }
-      expect(profile.some((f) => f.remedy?.includes('cospec config profile'))).toBe(true)
-      expect(findings.map((f) => `${f.message} ${f.remedy ?? ''}`).join('\n')).not.toContain(
-        'inert',
-      )
-      expect(findings.filter((f) => f.level !== 'INFO')).toEqual([])
-    },
-    120_000,
-  )
+  test('an explicit core key over twelve workflows names the six outside it', async () => {
+    const s = sandbox()
+    expect((await initIn(s)).exitCode).toBe(0)
+    setConfig(s, { profile: 'core' })
+    const findings = await doctorFindings(s)
+    const profile = findings.filter((f) => f.check === 'openspec-global-profile')
+    expect(profile.length).toBeGreaterThan(0)
+    expect(profile.every((f) => f.level === 'INFO')).toBe(true)
+    const text = profile.map((f) => f.message).join('\n')
+    expect(text).toContain('profile core')
+    for (const id of OUTSIDE_CORE) expect(text).toContain(id)
+    // The six inside the profile are not named as outside it.
+    const outside = profile.find((f) => f.message.includes('outside'))!
+    for (const id of CORE_IDS.filter((i) => i !== 'update')) {
+      expect(outside.message).not.toContain(` ${id},`)
+    }
+    expect(profile.some((f) => f.remedy?.includes('cospec config profile'))).toBe(true)
+    expect(findings.map((f) => `${f.message} ${f.remedy ?? ''}`).join('\n')).not.toContain('inert')
+    expect(findings.filter((f) => f.level !== 'INFO')).toEqual([])
+  }, 120_000)
 
-  test.failing(
-    'a custom profile is reported with its list, and so is an explicit delivery',
-    async () => {
-      const s = sandbox()
-      expect((await initIn(s)).exitCode).toBe(0)
-      setConfig(s, { profile: 'custom', workflows: ['verify', 'archive'], delivery: 'skills' })
-      const text = (await doctorFindings(s))
-        .filter((f) => f.check === 'openspec-global-profile')
-        .map((f) => f.message)
-        .join('\n')
-      expect(text).toContain('profile custom')
-      expect(text).toContain('delivery skills')
-      expect(text).toContain('sync-specs')
-    },
-    120_000,
-  )
+  test('a custom profile is reported with its list, and so is an explicit delivery', async () => {
+    const s = sandbox()
+    expect((await initIn(s)).exitCode).toBe(0)
+    setConfig(s, { profile: 'custom', workflows: ['verify', 'archive'], delivery: 'skills' })
+    const text = (await doctorFindings(s))
+      .filter((f) => f.check === 'openspec-global-profile')
+      .map((f) => f.message)
+      .join('\n')
+    expect(text).toContain('profile custom')
+    expect(text).toContain('delivery skills')
+    expect(text).toContain('sync-specs')
+  }, 120_000)
 
-  test.failing(
-    'a workflows key with no profile is not explicit, so it is silent',
-    async () => {
-      const s = sandbox()
-      expect((await initIn(s)).exitCode).toBe(0)
-      setConfig(s, { workflows: ['verify'] })
-      const checks = (await doctorFindings(s)).map((f) => f.check)
-      expect(checks).not.toContain('openspec-global-profile')
-    },
-    120_000,
-  )
+  test('a workflows key with no profile is not explicit, so it is silent', async () => {
+    const s = sandbox()
+    expect((await initIn(s)).exitCode).toBe(0)
+    setConfig(s, { workflows: ['verify'] })
+    const checks = (await doctorFindings(s)).map((f) => f.check)
+    expect(checks).not.toContain('openspec-global-profile')
+  }, 120_000)
 
   test('nothing explicit is silent', async () => {
     const s = sandbox()
@@ -941,42 +927,34 @@ describe('doctor: the global profile and the installed set', () => {
     expect(findings.some((f) => f.message.includes('verify'))).toBe(true)
   }, 120_000)
 
-  test.failing(
-    'a residual optional-workflow marker is a dangling-ref ERROR',
-    async () => {
-      const s = sandbox()
-      expect((await initIn(s)).exitCode).toBe(0)
-      const file = join(s.project, '.claude', 'skills', 'cospec-apply-change', 'SKILL.md')
-      writeFileSync(file, `${readFileSync(file, 'utf8')}\n[[opsx:if-workflow verify]]\n`)
-      const findings = (await doctorFindings(s)).filter((f) => f.check === 'dangling-ref')
-      expect(findings).toHaveLength(1)
-      expect(findings[0]!.level).toBe('ERROR')
-      expect(findings[0]!.message).toContain('.claude/skills/cospec-apply-change/SKILL.md')
-      expect(findings[0]!.message).toContain('[[opsx:if-workflow verify]]')
-    },
-    120_000,
-  )
+  test('a residual optional-workflow marker is a dangling-ref ERROR', async () => {
+    const s = sandbox()
+    expect((await initIn(s)).exitCode).toBe(0)
+    const file = join(s.project, '.claude', 'skills', 'cospec-apply-change', 'SKILL.md')
+    writeFileSync(file, `${readFileSync(file, 'utf8')}\n[[opsx:if-workflow verify]]\n`)
+    const findings = (await doctorFindings(s)).filter((f) => f.check === 'dangling-ref')
+    expect(findings).toHaveLength(1)
+    expect(findings[0]!.level).toBe('ERROR')
+    expect(findings[0]!.message).toContain('.claude/skills/cospec-apply-change/SKILL.md')
+    expect(findings[0]!.message).toContain('[[opsx:if-workflow verify]]')
+  }, 120_000)
 
-  test.failing(
-    'a root config file holding an OpenSpec block is an opsx-leftover',
-    async () => {
-      const s = sandbox()
-      expect((await initIn(s)).exitCode).toBe(0)
-      writeFileSync(
-        join(s.project, 'CLAUDE.md'),
-        '# Notes\n\n<!-- OPENSPEC:START -->\nOpenSpec instructions\n<!-- OPENSPEC:END -->\n',
-      )
-      const findings = (await doctorFindings(s)).filter((f) => f.check === 'opsx-leftover')
-      expect(findings.map((f) => f.message).join('\n')).toContain('CLAUDE.md')
-      expect(findings.every((f) => f.level === 'WARNING')).toBe(true)
-      const fix = await cospec(['init', '--harness', 'claude', '--no-gate', '--remove-opsx'], {
-        cwd: s.project,
-        env: s.env,
-      })
-      expect(fix.exitCode).toBe(0)
-      const after = (await doctorFindings(s)).filter((f) => f.check === 'opsx-leftover')
-      expect(after).toEqual([])
-    },
-    120_000,
-  )
+  test('a root config file holding an OpenSpec block is an opsx-leftover', async () => {
+    const s = sandbox()
+    expect((await initIn(s)).exitCode).toBe(0)
+    writeFileSync(
+      join(s.project, 'CLAUDE.md'),
+      '# Notes\n\n<!-- OPENSPEC:START -->\nOpenSpec instructions\n<!-- OPENSPEC:END -->\n',
+    )
+    const findings = (await doctorFindings(s)).filter((f) => f.check === 'opsx-leftover')
+    expect(findings.map((f) => f.message).join('\n')).toContain('CLAUDE.md')
+    expect(findings.every((f) => f.level === 'WARNING')).toBe(true)
+    const fix = await cospec(['init', '--harness', 'claude', '--no-gate', '--remove-opsx'], {
+      cwd: s.project,
+      env: s.env,
+    })
+    expect(fix.exitCode).toBe(0)
+    const after = (await doctorFindings(s)).filter((f) => f.check === 'opsx-leftover')
+    expect(after).toEqual([])
+  }, 120_000)
 })

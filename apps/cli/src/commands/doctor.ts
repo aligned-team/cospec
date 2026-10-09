@@ -15,7 +15,6 @@
 // each line of its stderr (config warnings) a WARNING finding.
 
 import { existsSync, readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import { parse as parseYaml } from 'yaml'
@@ -29,6 +28,7 @@ import {
   parseVerificationLayers,
   resolveSchema,
 } from '../core/change.ts'
+import { readGlobalProfile } from '../core/global-profile.ts'
 import {
   CURRENT_GENERATED_BY,
   readManifest,
@@ -49,6 +49,7 @@ import {
 import { respellRemedies } from '../core/remedies.ts'
 import { type ResolvedRoot, resolveRoot, RootSelectionError } from '../core/root.ts'
 import {
+  adapterFor,
   commandPath,
   HARNESS_TABLE,
   type HarnessAdapter,
@@ -61,9 +62,13 @@ import {
   workflowReferencePattern,
 } from '../harness/adapters.ts'
 import { homeSkillsDir } from '../harness/home-root.ts'
+import { findLegacyConfigBlocks } from '../harness/legacy-config-blocks.ts'
+import { residualWorkflowMarker } from '../harness/optional-workflow.ts'
+import { readWorkflowManifest } from '../harness/render.ts'
 import { walkProjectFiles } from '../harness/scan-walk.ts'
+import { profileWorkflows } from '../harness/workflow-set.ts'
 import { homeSkillLeftovers, leftoverScanFiles, opsxLeftoverFiles } from './init.ts'
-import { detectHarnesses, generate } from './update.ts'
+import { detectHarnesses, generate, installedWorkflowIds } from './update.ts'
 
 type Level = 'ERROR' | 'WARNING' | 'INFO'
 
@@ -296,6 +301,17 @@ export function checkDanglingRefs(
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): void {
   for (const f of files) {
+    // A marker still standing means the file skipped optional-workflow resolution, so it may
+    // name a workflow the install does not have; `update` rewrites it from canon.
+    const marker = residualWorkflowMarker(f.text)
+    if (marker !== undefined) {
+      findings.push({
+        level: 'ERROR',
+        check: 'dangling-ref',
+        message: `${f.relpath} carries an unresolved optional-workflow marker ${marker}`,
+        remedy: 'run `cospec update` to regenerate from canon',
+      })
+    }
     const row = owningRow(f.relpath, table)
     if (row === undefined) continue
     const harness = row.id
@@ -507,6 +523,20 @@ export function checkOpsx(
       check: 'opsx-leftover',
       message: `leftover openspec (opsx) file: ${f.relpath} — two propose commands confuse agents`,
       remedy: 'run `cospec init --remove-opsx` to delete provably openspec-generated files',
+    })
+  }
+  // The block OpenSpec's earlier versions wrote into a root config file: the same consent
+  // removes it, and the file is kept. One whose markers share a line with other text is
+  // reported but not removable, so its remedy is the hand edit.
+  for (const block of findLegacyConfigBlocks(cwd)) {
+    const removable = block.stripped !== block.text
+    findings.push({
+      level: 'WARNING',
+      check: 'opsx-leftover',
+      message: `leftover openspec marker block in ${block.relpath}`,
+      remedy: removable
+        ? 'run `cospec init --remove-opsx` to strip the block (the file is kept)'
+        : 'remove the OpenSpec markers by hand; they share a line with other text, so no command edits them',
     })
   }
 }
@@ -833,38 +863,49 @@ export async function checkOpenspecRelationship(
 }
 
 /**
- * INFO-level note when openspec's machine-global config (`~/.config/openspec/
- * config.json`) carries a `profile`/`workflows` block — the instruction-
- * generation model cospec's canon + harness supersede. Never a WARNING/ERROR:
- * it is inert under cospec, not a defect.
+ * INFO findings for the profile and delivery the user set in OpenSpec's machine-global config
+ * (`profile`, `workflows` and `delivery`, which `init` and `update` honour), and for every
+ * installed workflow a selected harness holds outside that profile: `update` never removes
+ * one, so it stays until the user deletes its files. Nothing is reported when no profile or
+ * delivery is set; a `workflows` list with no profile is not a choice (the profile defaults to
+ * core, which ignores it). Never a WARNING: an installed workflow outside the profile is the
+ * policy working, not a defect.
  */
-function checkGlobalProfile(findings: Finding[]): void {
-  const configPath = join(
-    process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'),
-    'openspec',
-    'config.json',
-  )
-  if (!existsSync(configPath)) return
-  let doc: unknown
-  try {
-    doc = JSON.parse(readFileSync(configPath, 'utf8'))
-  } catch {
-    return
+export async function checkGlobalProfile(cwd: string, findings: Finding[]): Promise<void> {
+  const global = await readGlobalProfile(cwd)
+  if (global.profile === undefined && global.delivery === undefined) return
+  const manifest = readWorkflowManifest()
+  const set =
+    global.profile === undefined
+      ? undefined
+      : profileWorkflows(global.profile, global.workflows, manifest)
+  const parts: string[] = []
+  if (global.profile !== undefined && set !== undefined) {
+    parts.push(`profile ${global.profile} (${set.length === 0 ? 'no workflows' : set.join(', ')})`)
   }
-  if (doc === null || typeof doc !== 'object') return
-  const record = doc as Record<string, unknown>
-  const hasProfile = typeof record.profile === 'string' && record.profile.length > 0
-  const hasWorkflows = Array.isArray(record.workflows) && record.workflows.length > 0
-  if (!hasProfile && !hasWorkflows) return
-  const blocks = [hasProfile ? 'profile' : undefined, hasWorkflows ? 'workflows' : undefined]
-    .filter((b): b is string => b !== undefined)
-    .join('/')
+  if (global.delivery !== undefined) parts.push(`delivery ${global.delivery}`)
   findings.push({
     level: 'INFO',
     check: 'openspec-global-profile',
-    message: `openspec's global config.json carries a ${blocks} block (superseded by cospec's canon-managed schemas/harness)`,
-    remedy: 'no action needed — cospec ignores openspec instruction-generation config',
+    message: `the global config sets ${parts.join('; ')}`,
+    remedy: 'run `cospec config profile` to change the profile',
   })
+  if (set === undefined) return
+  const inProfile = new Set(set)
+  const tracked = readManifest(cwd)?.files ?? {}
+  for (const id of detectHarnesses(cwd)) {
+    const outside = manifest.workflows
+      .map((w) => w.id)
+      .filter((w) => !inProfile.has(w) && installedWorkflowIds(cwd, adapterFor(id), tracked).has(w))
+    if (outside.length === 0) continue
+    findings.push({
+      level: 'INFO',
+      check: 'openspec-global-profile',
+      message: `${id} has ${outside.length} installed workflow(s) outside the profile: ${outside.join(', ')}`,
+      remedy:
+        '`cospec update` never removes an installed workflow; delete its skill and command files by hand to drop one, or add it to the profile with `cospec config profile`',
+    })
+  }
 }
 
 // --- command entrypoint -----------------------------------------------------
@@ -914,7 +955,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     checkChangeSchemas(base, findings)
     checkSchemaVersions(base, findings)
     checkGateHooks(base, findings)
-    checkGlobalProfile(findings)
+    await checkGlobalProfile(base, findings)
   }
 
   const relationship = await checkOpenspecRelationship(root, base, findings, initialized)

@@ -169,13 +169,13 @@ rows write the `config.json` under test into the sandbox's
 
 ## 7. T6 — doctor (`apps/cli/src/commands/doctor.ts`)
 
-- [ ] 7.1 Write the failing doctor rows: an explicit core key over twelve
+- [x] 7.1 Write the failing doctor rows: an explicit core key over twelve
       workflows reports an INFO `openspec-global-profile` finding naming the six
       outside the profile and no finding says "inert"; nothing explicit is
       silent; a narrowed install has no `dangling-ref`; a residual `[[opsx:`
       marker is a `dangling-ref` ERROR; and the check still flags a reference to
       an absent workflow, and verify they fail on the current `doctor`
-- [ ] 7.2 Replace `checkGlobalProfile` with a call to `core/global-profile.ts`,
+- [x] 7.2 Replace `checkGlobalProfile` with a call to `core/global-profile.ts`,
       report the explicit profile, delivery and installed-outside-profile
       workflows under the same check id, add the residual-marker ERROR to the
       dangling-reference check, route the root-file scan of 5.7 into
