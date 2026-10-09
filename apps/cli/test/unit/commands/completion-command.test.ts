@@ -131,13 +131,12 @@ describe('runInstall: output', () => {
   })
 
   test('the reload command per shell', async () => {
-    const reload: Record<(typeof SHELLS)[number], string> = {
+    const reload: Record<'bash' | 'zsh' | 'powershell', string> = {
       bash: 'exec bash',
       zsh: 'exec zsh',
-      fish: 'exec fish',
       powershell: '. $PROFILE',
     }
-    for (const shell of SHELLS) {
+    for (const shell of ['bash', 'zsh', 'powershell'] as const) {
       const home = mkHome()
       const out = await runInstall(
         shell,
@@ -147,6 +146,58 @@ describe('runInstall: output', () => {
       expect(out.exitCode).toBe(0)
       expect(out.stdout).toContain(`Restart your shell or run: ${reload[shell]}`)
     }
+  })
+
+  test('fish says completions are live: no restart, fresh and up to date', async () => {
+    const home = mkHome()
+    const fresh = await runInstall('fish', false, deps(home))
+    expect(fresh.stdout).toBe(
+      [
+        '✓ Completion script installed successfully for Fish',
+        '',
+        'Fish automatically loads completions from ~/.config/fish/completions/',
+        'Completions are available immediately - no shell restart needed.',
+        '',
+      ].join('\n'),
+    )
+    const again = await runInstall('fish', false, deps(home))
+    expect(again.stdout).toBe(
+      [
+        '✓ Completion script is already installed (up to date)',
+        '',
+        'The completion script is already installed and up to date.',
+        'Fish automatically loads completions - they should be available immediately.',
+        '',
+      ].join('\n'),
+    )
+    for (const out of [fresh, again]) {
+      expect(out.stdout).not.toContain('Restart your shell')
+      expect(out.stdout).not.toContain('exec fish')
+    }
+  })
+
+  test('an up-to-date script with its rc block removed reports the rc file it wrote back', async () => {
+    const home = mkHome()
+    await runInstall('zsh', false, deps(home))
+    const rc = join(home, '.zshrc')
+    writeFileSync(rc, '')
+    const again = await runInstall('zsh', false, deps(home))
+    expect(again.exitCode).toBe(0)
+    expect(readFileSync(rc, 'utf8')).toContain('# COSPEC:START')
+    expect(again.stdout).toBe(
+      [
+        '✓ Completion script is up to date and .zshrc configured successfully',
+        `  ${rc} configured automatically`,
+        '',
+        'Restart your shell or run: exec zsh',
+        '',
+      ].join('\n'),
+    )
+    expect(again.stdout).not.toContain('already installed')
+
+    const third = await runInstall('zsh', false, deps(home))
+    expect(third.stdout).toContain('✓ Completion script is already installed (up to date)')
+    expect(third.stdout).not.toContain('configured automatically')
   })
 
   test('--verbose adds the installed path and the rc file configured, plain does not', async () => {

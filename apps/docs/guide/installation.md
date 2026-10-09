@@ -151,7 +151,12 @@ What `install` does, and what `uninstall` undoes:
   before `install`.
 - When the script already exists with different bytes, `install` copies it to
   `<script>.backup-<timestamp>` before overwriting it. The rc file is not backed
-  up. When the script is already current, `install` changes nothing.
+  up. When both the script and the rc block are already current, `install`
+  changes nothing. When the script is current but the rc block is gone,
+  `install` writes the block back and says so.
+- `install` ends with the command that reloads your shell (`exec zsh`,
+  `exec bash`, `. $PROFILE`). Fish needs none: it loads the script as soon as it
+  exists, and `install` says so.
 - `uninstall` asks before it removes anything. Answer `y` or `yes` to remove;
   any other answer cancels. `-y` (`--yes`) skips the prompt. With no terminal
   and no `-y`, `uninstall` refuses and exits `1`, so a piped run never removes

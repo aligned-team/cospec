@@ -23,8 +23,9 @@ safe to run beside an OpenSpec install on the same machine.
   the shell's completions location, wires the shell's rc file (`~/.zshrc`,
   `~/.bashrc`, `$PROFILE`; fish autoloads, so it needs no rc edit), and reports
   the reload command. `--verbose` adds the installed and backup paths. A second
-  install of an unchanged script changes nothing. An install over a changed
-  script writes a timestamped backup first, as upstream's does.
+  install changes nothing when both the script and the rc block are already
+  current; if the block is gone it is written back and reported. An install over
+  a changed script writes a timestamped backup first, as upstream's does.
 - `cospec completion uninstall [shell] [-y]` removes the script and the rc
   block, confirming first unless `-y` is given.
 - `completion [powershell]` and `completion generate powershell` print a

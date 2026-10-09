@@ -133,8 +133,10 @@ as BOM-less UTF-8, so the generator emits ASCII only.
 ### 6. Backup convention
 
 On install, an existing script whose bytes equal the generated script is
-"already installed (up to date)": no write, no backup, no rc rewrite beyond the
-idempotent block, exit 0. A script that differs is an update: it is copied to
+"already installed (up to date)": no write, no backup, exit 0. The rc block is
+still checked: when it is present nothing is written, and when the user has
+removed it, it is written back and the output says so instead of "up to date". A
+script that differs is an update: it is copied to
 `<script>.backup-<ISO timestamp with ":" and "." replaced by "-">` before the
 overwrite, and `--verbose` prints that path. The rc file is never backed up, as
 upstream never backs it up; the block is a bounded span and uninstall restores
@@ -147,16 +149,20 @@ byte-exact removal makes it unnecessary.
 
 Success prints `✓ <message>` on stdout, then any warnings, then the manual
 instructions when the rc file was not wired, else
-`Restart your shell or run: <exec zsh|exec bash|exec fish|. $PROFILE>`.
-`--verbose` adds `Installed to:`, `Backup created:` and
-`<rc file> configured automatically`. Failure prints `✗ <message>` on stderr and
-exits 1: not installed (uninstall), a path that is not writable, an unsupported
-or undetected shell. There is no spinner, since a spinner is noise on a non-TTY
-and the operations are instant, and there is no `console.debug` line for a
-missing file: upstream prints
-`Unable to read existing completion file at <path>: ENOENT…` on every fresh
-install, which the probe confirmed. A missing script is an expected case and is
-handled without output.
+`Restart your shell or run: <exec zsh|exec bash|. $PROFILE>`. Fish, which
+autoloads its completions directory, gets upstream's two sentences instead (a
+fresh or updated install:
+`Fish automatically loads completions from ~/.config/fish/completions/` and
+`Completions are available immediately - no shell restart needed.`; an
+up-to-date one: `Fish automatically loads completions
+
+- they should be available
+  immediately.`), never a restart line. `--verbose`adds`Installed to:`, `Backup
+  created:`and`<rc file> configured automatically`. Failure prints `✗
+  <message>`on stderr and exits 1: not installed (uninstall), a path that is not writable, an unsupported or undetected shell. There is no spinner, since a spinner is noise on a non-TTY and the operations are instant, and there is no`console.debug`line for a missing file: upstream prints`Unable
+  to read existing completion file at <path>: ENOENT…` on every fresh install,
+  which the probe confirmed. A missing script is an expected case and is handled
+  without output.
 
 `uninstall` removes the script and the rc block independently and answers "not
 installed" (exit 1) only when neither exists. Upstream's zsh uninstaller does

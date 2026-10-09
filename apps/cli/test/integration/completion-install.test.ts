@@ -287,13 +287,45 @@ describe('2. idempotence, backups and verbose output', () => {
 
     const reloads: [string, string][] = [
       ['bash', 'exec bash'],
-      ['fish', 'exec fish'],
       ['powershell', '. $PROFILE'],
     ]
     for (const [shell, reload] of reloads) {
       const sb = sandbox()
       expect((await install(sb, shell)).stdout).toContain(reload)
     }
+  })
+
+  test('2.5 an up-to-date script whose rc block was removed is rewired and says so', async () => {
+    const sb = sandbox()
+    const p = paths(sb)
+    expect((await install(sb, 'zsh')).exitCode).toBe(0)
+    writeFileSync(p.zshRc, '')
+
+    const again = await install(sb, 'zsh')
+    expect(again.exitCode).toBe(0)
+    expect(readFileSync(p.zshRc, 'utf8').startsWith('# COSPEC:START')).toBe(true)
+    expect(again.stdout).not.toContain('already installed')
+    expect(again.stdout).toContain('.zshrc configured successfully')
+    expect(again.stdout).toContain(`${p.zshRc} configured automatically`)
+    expect(again.stdout).toContain('exec zsh')
+
+    const third = await install(sb, 'zsh')
+    expect(third.stdout).toContain('already installed (up to date)')
+    expect(third.stdout).not.toContain('configured automatically')
+  })
+
+  test('2.6 fish says completions are available at once, fresh and up to date', async () => {
+    const sb = sandbox()
+    const fresh = await install(sb, 'fish')
+    const again = await install(sb, 'fish')
+    for (const result of [fresh, again]) {
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain('Fish automatically loads completions')
+      expect(result.stdout).not.toContain('exec fish')
+      expect(result.stdout).not.toContain('Restart your shell')
+    }
+    expect(fresh.stdout).toContain('no shell restart needed')
+    expect(again.stdout).toContain('they should be available immediately')
   })
 })
 

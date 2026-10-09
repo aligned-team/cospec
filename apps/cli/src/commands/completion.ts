@@ -165,8 +165,12 @@ function fpathGuidance(dir: string): string[] {
   ]
 }
 
-function installMessage(result: InstallResult, wired: boolean): string {
-  if (result.status === 'unchanged') return 'Completion script is already installed (up to date)'
+function installMessage(result: InstallResult, wired: boolean, rcWritten: boolean): string {
+  if (result.status === 'unchanged') {
+    return rcWritten
+      ? `Completion script is up to date and ${RC_LABELS[result.shell]} configured successfully`
+      : 'Completion script is already installed (up to date)'
+  }
   if (result.status === 'updated') {
     return result.backupPath === undefined
       ? 'Completion script updated successfully'
@@ -196,17 +200,36 @@ function manualInstructions(result: InstallResult): string[] {
 
 function formatInstall(result: InstallResult, verbose: boolean): CommandOutcome {
   const wired = result.rc.some((rc) => rc.status === 'configured' || rc.status === 'unchanged')
-  const out: string[] = [`✓ ${installMessage(result, wired)}`]
+  // An up-to-date script does not mean an untouched rc file: a block the user
+  // removed is written back, and that edit is reported even without --verbose.
+  const rcWritten = result.rc.some((rc) => rc.status === 'configured')
+  const out: string[] = [`✓ ${installMessage(result, wired, rcWritten)}`]
   if (verbose) {
     out.push(`  Installed to: ${result.scriptPath}`)
     if (result.backupPath !== undefined) out.push(`  Backup created: ${result.backupPath}`)
+  }
+  if (verbose || (result.status === 'unchanged' && rcWritten)) {
     for (const rc of result.rc)
       if (rc.status === 'configured') out.push(`  ${rc.path} configured automatically`)
   }
   if (result.warnings.length > 0) out.push('', ...result.warnings)
 
   const reload = reloadCommand(result.shell)
-  if (result.status === 'unchanged' && (wired || result.rc.length === 0)) {
+  if (result.shell === 'fish') {
+    // Fish autoloads its completions directory: there is nothing to restart.
+    out.push(
+      '',
+      ...(result.status === 'unchanged'
+        ? [
+            'The completion script is already installed and up to date.',
+            'Fish automatically loads completions - they should be available immediately.',
+          ]
+        : [
+            'Fish automatically loads completions from ~/.config/fish/completions/',
+            'Completions are available immediately - no shell restart needed.',
+          ]),
+    )
+  } else if (result.status === 'unchanged' && !rcWritten && (wired || result.rc.length === 0)) {
     out.push(
       '',
       'The completion script is already installed and up to date.',
