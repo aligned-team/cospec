@@ -446,6 +446,9 @@ export function homeSandbox(): HomeSandbox {
       ZDOTDIR: home,
       PROFILE: join(home, '.config', 'powershell', 'Microsoft.PowerShell_profile.ps1'),
       SHELL: '/bin/zsh',
+      // Bun's transpiler cache otherwise lands under HOME (Library/Caches on
+      // macOS), where the file snapshots would see it.
+      BUN_RUNTIME_TRANSPILER_CACHE_PATH: join(root, 'bun-transpiler-cache'),
       ...dirs,
     },
     unset: HOME_UNSET,
@@ -460,7 +463,11 @@ function sandboxed(
   sandbox: HomeSandbox,
   extra: { env?: Record<string, string>; unset?: readonly string[] } = {},
 ): { env: Record<string, string>; unset: readonly string[] } {
-  const env = { ...sandbox.env, ...extra.env }
+  const env: Record<string, string> = { ...sandbox.env, ...extra.env }
+  // A caller's unset removes the sandbox's own value too (SHELL, say), so the
+  // child inherits neither; it is listed for `cospec()` to delete from the
+  // inherited environment as well.
+  for (const key of extra.unset ?? []) delete env[key]
   assertTempHome(env.HOME)
   const unset = [...sandbox.unset, ...(extra.unset ?? [])].filter((key) => !(key in env))
   return { env, unset }
@@ -490,23 +497,22 @@ export function homeOpenspec(
   return openspecRaw(args, opts.cwd, env)
 }
 
-/** Whether a pty can be simulated here: `script` on the PATH. */
+/**
+ * Whether a pseudo-terminal can be driven here. Bun's `terminal` spawn option
+ * is POSIX-only, so Windows hosts skip the pty rows.
+ */
 export function ptyAvailable(): boolean {
-  return Bun.which('script') !== null
-}
-
-/** Single-quote `word` for `sh -c` (util-linux `script -c` takes one string). */
-function shellWord(word: string): string {
-  return `'${word.replaceAll("'", `'\\''`)}'`
+  return process.platform !== 'win32'
 }
 
 /**
  * Run `cmd` under a pseudo-terminal, so the child sees a TTY on stdin, stdout
- * and stderr (the tip and the uninstall prompt both gate on one). `input`
- * lines are typed into the terminal. `script` treats a closed stdin as EOF
- * and types a `^D` first, so stdin stays open until the child exits. Output
- * merges stdout and stderr, as a terminal does, with CRLF folded to LF.
- * Skipped on hosts without `script` (see `ptyAvailable`).
+ * and stderr (the tip and the uninstall prompt both gate on one). Each
+ * `answers` pair types `reply` once `prompt` has appeared in the output, so an
+ * answer never lands before the child is reading (typed-ahead input can be
+ * dropped when the child switches the terminal into raw mode). Output is what
+ * the terminal received, stdout and stderr merged, with CRLF folded to LF.
+ * Skipped where `ptyAvailable()` is false.
  */
 export async function ptyRun(
   sandbox: HomeSandbox,
@@ -515,9 +521,9 @@ export async function ptyRun(
     cwd: string
     env?: Record<string, string>
     unset?: readonly string[]
-    input?: readonly string[]
+    answers?: readonly (readonly [prompt: string, reply: string])[]
   },
-): Promise<SpawnResult & { output: string }> {
+): Promise<{ output: string; exitCode: number }> {
   const { env, unset } = sandboxed(sandbox, opts)
   const childEnv: Record<string, string | undefined> = {
     ...envWithoutColorForcing(),
@@ -525,25 +531,32 @@ export async function ptyRun(
     ...env,
   }
   for (const key of unset) delete childEnv[key]
-  const argv =
-    process.platform === 'darwin'
-      ? ['script', '-q', '/dev/null', ...cmd]
-      : ['script', '-qec', cmd.map(shellWord).join(' '), '/dev/null']
-  const proc = Bun.spawn(argv, {
+  const chunks: Uint8Array[] = []
+  const answers = [...(opts.answers ?? [])]
+  let seen = ''
+  const decoder = new TextDecoder()
+  const proc = Bun.spawn(cmd, {
     cwd: opts.cwd,
-    stdin: 'pipe',
-    stdout: 'pipe',
-    stderr: 'pipe',
     env: childEnv,
+    terminal: {
+      cols: 100,
+      rows: 40,
+      data(terminal, chunk) {
+        chunks.push(chunk)
+        seen += decoder.decode(chunk, { stream: true })
+        const next = answers[0]
+        if (next !== undefined && seen.includes(next[0])) {
+          answers.shift()
+          terminal.write(next[1])
+        }
+      },
+    },
   })
-  for (const line of opts.input ?? []) proc.stdin.write(line)
-  await proc.stdin.flush()
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ])
-  proc.stdin.end()
-  const output = stdout.replaceAll('\r\n', '\n')
-  return { stdout: output, stderr, exitCode, output }
+  const exitCode = await proc.exited
+  proc.terminal?.close()
+  const output = Buffer.concat(chunks).toString('utf8').replaceAll('\r\n', '\n')
+  if (answers.length > 0) {
+    throw new Error(`the child exited before the prompt ${JSON.stringify(answers[0]?.[0])}`)
+  }
+  return { output, exitCode }
 }
