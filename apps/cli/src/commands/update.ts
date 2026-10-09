@@ -17,7 +17,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { openspecDir } from '../core/change.ts'
@@ -79,6 +79,11 @@ import {
   migrateLegacySkills,
   moveLegacyToolRoots,
 } from '../harness/legacy-skills.ts'
+import {
+  assertWorkflowConditionalsResolved,
+  commandWriteReason,
+  skillWriteReason,
+} from '../harness/optional-workflow.ts'
 import { readWorkflowManifest, renderHarnessFiles } from '../harness/render.ts'
 import {
   isSharedSkillTargetActive,
@@ -419,6 +424,15 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
     adapters: opts.adapters,
     skillWriters,
   })
+  // Checked over the whole rendered set before anything is written, so a body that skipped
+  // conditional resolution never reaches disk (design D6).
+  for (const file of rendered) {
+    if (file.kind === 'skill') {
+      assertWorkflowConditionalsResolved(file.body, skillWriteReason(basename(dirname(file.path))))
+    } else if (file.kind === 'command' && file.workflow !== null) {
+      assertWorkflowConditionalsResolved(file.body, commandWriteReason(file.workflow))
+    }
+  }
   // A home-scoped file (a row with `globalSkillsDir`) lives under the resolved home directory
   // and is reported by its absolute path, which no project path can equal. Skills are
   // self-describing markdown, so no home path is ever a manifest key.

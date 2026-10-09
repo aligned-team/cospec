@@ -70,7 +70,7 @@ rows write the `config.json` under test into the sandbox's
       needs no edit here; the shared-root rule; the zero-artifact line), add
       `harness/delivery.ts`, and verify the test passes against a fixture row of
       each capability
-- [ ] 3.4 Add `workflows` and `delivery` to `RenderOptions`; filter the emitted
+- [x] 3.4 Add `workflows` and `delivery` to `RenderOptions`; filter the emitted
       workflows; resolve conditionals on the raw body before `{{TYPE_TABLE}}`
       and `transformBody`; skip skills or commands per delivery; under `skills`,
       spell an adapter-backed row's skill bodies through

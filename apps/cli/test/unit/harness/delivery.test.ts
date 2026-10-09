@@ -88,7 +88,8 @@ describe('capability', () => {
 
   test('every row upstream knows has upstream capability', () => {
     for (const row of ROWS.filter((r) => UPSTREAM_IDS.has(r.id))) {
-      expect({ id: row.id, capability: commandSurfaceCapability(row) }).toEqual({
+      const capability: string = commandSurfaceCapability(row)
+      expect({ id: row.id, capability }).toEqual({
         id: row.id,
         capability: surface.resolveCommandSurfaceCapability(row.id),
       })
