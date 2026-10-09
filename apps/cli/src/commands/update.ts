@@ -304,8 +304,17 @@ export interface GenerateOptions {
   adapters?: readonly HarnessAdapter[]
 }
 
+/** One generated file `generate()` could not write, sidecar or remove (design decision 10). */
+export interface FailedWrite {
+  path: string
+  /** The errno failure's own message (`EACCES: permission denied, mkdir '…'`). */
+  error: string
+}
+
 export interface GenerateResult {
   results: WriteResult[]
+  /** Files left as they were because of a permission or path-type error. */
+  failed: FailedWrite[]
   /** Legacy-layout outcomes from the `.codex/skills` -> `.agents/skills` move. */
   migration: WriteResult[]
   /** The manifest that was (or would be) written. */
@@ -427,7 +436,7 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
   const migration = migrateLegacySkills(cwd, mdEmitted, writeOpts)
 
   if (!writeOpts.dryRun) writeManifest(cwd, newManifest)
-  return { results, migration, manifest: newManifest, skillWriters }
+  return { results, failed: [], migration, manifest: newManifest, skillWriters }
 }
 
 /** Scan the emitted harnesses' skill/command dirs for cospec markdown we no longer emit. */
