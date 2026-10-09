@@ -19,8 +19,11 @@
 // `parse: 'forward'` is the marker the reachability test reads: a forward
 // row's surfaces count as reached by delegation to the binary.
 //
-// This module imports nothing: `cli.ts` imports it, so any import back into the
-// dispatcher would be a cycle.
+// This module imports only the harness table (`harness/adapters.ts`, which imports no cospec
+// module): `cli.ts` imports it, so any import back into the dispatcher would be a cycle. The
+// table gives `init --harness` its value list, so a new row is never missing from the help.
+
+import { HARNESS_NAMES } from '../harness/adapters.ts'
 
 // --- shape -------------------------------------------------------------------
 
@@ -292,7 +295,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         name: '--harness',
         takesValue: true,
         placeholder: '<list>',
-        description: 'claude,codex,opencode,agents,all,none (comma-separate for multiple)',
+        description: `${HARNESS_NAMES.join(',')},all,none (comma-separate for multiple)`,
       }),
       cospec({
         name: '--gate',

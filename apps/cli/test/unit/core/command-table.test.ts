@@ -30,6 +30,15 @@ import {
   type PendingOwner,
   type TableCommandRow,
 } from '../../../src/core/command-table.ts'
+import { HARNESS_NAMES } from '../../../src/harness/adapters.ts'
+
+describe('init --harness values', () => {
+  test('the help lists every harness table id plus all and none, so a new row is never missing', () => {
+    const harness = tableRow('init').flags.find((f) => f.name === '--harness')
+    const listed = harness?.description.split(' ')[0]?.split(',')
+    expect(listed).toEqual([...HARNESS_NAMES, 'all', 'none'])
+  })
+})
 
 function tableRow(name: string): TableCommandRow {
   const row = commandRow(name)
