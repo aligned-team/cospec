@@ -41,7 +41,6 @@ import {
   type HarnessAdapter,
   type HarnessName,
   HARNESS_NAMES,
-  ideRestartLine,
   isHarnessName,
   isLegacyCommandPath,
   legacyCommandDirs,
@@ -66,7 +65,16 @@ import {
   persistCopilotCloudOptIn,
   resolveConfigFilePath,
 } from '../harness/copilot-cloud.ts'
-import { zeroArtifactLine } from '../harness/delivery.ts'
+import {
+  type Delivery,
+  generatesSurface,
+  hintSpelling,
+  ideRestartLine,
+  shouldGenerateCommands,
+  shouldGenerateSkills,
+  skillsRootGenerated,
+  zeroArtifactLine,
+} from '../harness/delivery.ts'
 import { homeSkillsDir } from '../harness/home-root.ts'
 import {
   findLegacyConfigBlocks,
@@ -631,17 +639,33 @@ function removeOpsxFiles(
 // --- receipt ----------------------------------------------------------------
 
 /**
- * The receipt's closing block: each selected row's `setupNote` in selection
- * order, then upstream's single IDE restart line when a selected row needs one.
- * `table` is a test seam for rows the shipped table does not carry.
+ * The receipt's closing block: each selected row's `setupNote` in selection order, then
+ * upstream's single IDE restart line when a selected row needs one. A note is dropped when
+ * `delivery` writes none of the surface it is about for that row (a commands note under
+ * delivery `skills`, a skills note when no row on its root gets skills), and the restart line
+ * follows the same rule. `table` is a test seam for rows the shipped table does not carry.
  */
 export function setupNoteLines(
   harnesses: readonly string[],
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
+  delivery: Delivery = 'both',
 ): string[] {
   const rows = harnesses.map((h) => adapterFor(h, table))
-  const lines = rows.flatMap((row) => (row.setupNote === undefined ? [] : [row.setupNote]))
-  const restart = ideRestartLine(rows)
+  const applies = (row: HarnessAdapter): boolean => {
+    if (row.setupNoteSurface === 'commands') return shouldGenerateCommands(row, delivery)
+    // Rows sharing a skills root share one tree, so a sibling that gets skills writes it.
+    const root = skillsRoot(row)
+    return rows.some((other) => {
+      const at = skillsRoot(other)
+      return (
+        at.root === root.root && at.scope === root.scope && shouldGenerateSkills(other, delivery)
+      )
+    })
+  }
+  const lines = rows.flatMap((row) =>
+    row.setupNote !== undefined && applies(row) ? [row.setupNote] : [],
+  )
+  const restart = ideRestartLine(rows, delivery)
   if (restart !== undefined) lines.push(restart)
   return lines
 }
@@ -651,13 +675,14 @@ export function setupNoteLines(
  * when any selected row writes there. It names every row on that root, in table
  * order, whether selected or not, and the one row the tree was written for
  * (`writers`, the arbiter's answer that `generate` returns; a configured owner kept beside
- * the selection counts). `table` is a
- * test seam.
+ * the selection counts). A root the `delivery` writes no skills into gets no line. `table` is
+ * a test seam.
  */
 export function sharedSkillsRootLines(
   harnesses: readonly string[],
   writers: ReadonlySet<string>,
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
+  delivery: Delivery = 'both',
 ): string[] {
   const byRoot = new Map<string, { root: string; ids: string[] }>()
   for (const row of table) {
@@ -669,6 +694,14 @@ export function sharedSkillsRootLines(
   }
   return [...byRoot.values()]
     .filter(({ ids }) => ids.length > 1 && ids.some((id) => harnesses.includes(id)))
+    .filter(({ ids }) =>
+      skillsRootGenerated(
+        ids
+          .filter((id) => harnesses.includes(id) || writers.has(id))
+          .map((id) => adapterFor(id, table)),
+        delivery,
+      ),
+    )
     .map(({ root, ids }) => {
       // The writer may be a configured owner kept beside the selection, so it need not be
       // selected itself.
@@ -679,20 +712,27 @@ export function sharedSkillsRootLines(
 }
 
 /**
- * The receipt's closing hint lines, spelled the way the first selected row invokes the
- * workflow they name: through that row's body dialect and invocation prefix, the respelling
- * its generated bodies get. The first selected row is the first id of an explicit list as
- * typed, else the first in table order; with none selected the canonical spelling stays.
+ * The receipt's closing hint lines, spelled the way the first selected row that generates
+ * something invokes the workflow they name: through that row's body dialect and invocation
+ * prefix, the respelling its generated bodies get (`hintSpelling` picks the surface the
+ * delivery leaves it). The first selected row is the first id of an explicit list as typed,
+ * else the first in table order; with none selected the canonical spelling stays. When rows
+ * are selected but the delivery generates nothing for any of them, there is no start hint:
+ * the zero-artifact line is the whole story, as in upstream.
  *
- * They name `propose` when the installed set holds it, else `new`, else point at
- * `config profile`, as upstream's receipt does (`workflows`: absent means every workflow).
- * `table` is a test seam for rows the shipped table does not carry.
+ * They name `propose` when the installed set holds it, else `new`, else the raw gated
+ * command `cospec new feat <slug>` and a pointer at `config profile` (`workflows`: absent
+ * means every workflow). `table` is a test seam for rows the shipped table does not carry.
  */
 export function receiptHintLines(
   harnesses: readonly string[],
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
   workflows?: ReadonlySet<string>,
+  delivery: Delivery = 'both',
 ): string[] {
+  const rows = harnesses.map((h) => adapterFor(h, table))
+  const row = rows.find((r) => generatesSurface(r, delivery))
+  if (rows.length > 0 && row === undefined) return []
   const has = (id: string): boolean => workflows === undefined || workflows.has(id)
   const lines = has('propose')
     ? [
@@ -701,12 +741,14 @@ export function receiptHintLines(
       ]
     : has('new')
       ? ['Try: /cospec:new "feat: <what you want to build>"']
-      : ["Done. Run 'cospec config profile' to configure your workflows."]
-  const first = harnesses[0]
-  if (first === undefined || lines.every((line) => !line.includes('/cospec:'))) return lines
-  const row = adapterFor(first, table)
+      : [
+          'Try: cospec new feat <slug>',
+          "Done. Run 'cospec config profile' to configure your workflows.",
+        ]
+  if (row === undefined || lines.every((line) => !line.includes('/cospec:'))) return lines
   const skillById = skillByWorkflowId(readWorkflowManifest())
-  return lines.map((line) => respellInvocationHint(line, row, skillById))
+  const spelling = hintSpelling(row, delivery)
+  return lines.map((line) => respellInvocationHint(line, row, skillById, spelling))
 }
 
 // --- command entrypoint -----------------------------------------------------
@@ -1049,7 +1091,9 @@ function printReceipt(target: string, d: ReceiptData): void {
 
   if (d.harnesses.length > 0) {
     lines.push(`Harness: ${d.harnesses.join(', ')}`)
-    lines.push(...sharedSkillsRootLines(d.harnesses, d.skillWriters))
+    lines.push(
+      ...sharedSkillsRootLines(d.harnesses, d.skillWriters, HARNESS_TABLE, d.workflows.delivery),
+    )
   } else {
     lines.push('Harness: none (schemas only)')
   }
@@ -1185,14 +1229,22 @@ function printReceipt(target: string, d: ReceiptData): void {
     lines.push(noArtifacts)
   }
 
-  const setup = setupNoteLines(d.harnesses)
+  const setup = setupNoteLines(d.harnesses, HARNESS_TABLE, d.workflows.delivery)
   if (setup.length > 0) {
     lines.push('')
     lines.push(...setup)
   }
 
-  lines.push('')
-  lines.push(...receiptHintLines(d.harnesses, HARNESS_TABLE, d.workflows.installed))
+  const hints = receiptHintLines(
+    d.harnesses,
+    HARNESS_TABLE,
+    d.workflows.installed,
+    d.workflows.delivery,
+  )
+  if (hints.length > 0) {
+    lines.push('')
+    lines.push(...hints)
+  }
 
   process.stdout.write(`${lines.join('\n')}\n`)
 }

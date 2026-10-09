@@ -139,6 +139,11 @@ export interface HarnessAdapter {
   readonly detectionPaths: readonly string[]
   /** The line the init receipt prints for this tool, in selection order. */
   readonly setupNote?: string
+  /**
+   * The generated surface `setupNote` is about; the receipt drops the note when the delivery
+   * writes none of that surface for the row. Absent means `skills`.
+   */
+  readonly setupNoteSurface?: 'commands' | 'skills'
   readonly searchAliases?: readonly string[]
 }
 
@@ -178,6 +183,7 @@ export const HARNESS_TABLE = [
     requiresIdeRestart: false,
     detectionPaths: ['.claude'],
     setupNote: 'Restart Claude Code to pick up /cospec commands.',
+    setupNoteSurface: 'commands',
   },
   {
     id: 'codex',
@@ -221,6 +227,7 @@ export const HARNESS_TABLE = [
     requiresIdeRestart: false,
     detectionPaths: ['.opencode'],
     setupNote: 'OpenCode: reload the project to pick up /cospec- commands.',
+    setupNoteSurface: 'commands',
   },
   {
     id: 'agents',
@@ -975,20 +982,6 @@ export function primaryRoot(row: HarnessAdapter): string | undefined {
 }
 
 /**
- * Upstream's single IDE restart line (`formatIdeRestart`), printed after the setup notes
- * when any of `rows` sets `requiresIdeRestart`; commands win over skills as in upstream's
- * `resolveIdeRestartSurface`. Undefined when no row needs a restart.
- */
-export function ideRestartLine(rows: readonly HarnessAdapter[]): string | undefined {
-  const flagged = rows.filter((row) => row.requiresIdeRestart)
-  if (flagged.some((row) => row.commands !== undefined)) {
-    return 'Restart your IDE to refresh commands.'
-  }
-  if (flagged.length > 0) return 'Restart your IDE to refresh skills.'
-  return undefined
-}
-
-/**
  * Top-level dirs to walk for leftovers, drift and sidecars. Two passes — each row's primary
  * root in table order, then any remaining roots — so the four rows derive today's `.<id>`
  * walk order; a single first-occurrence pass would put `.agents` before `.codex`.
@@ -1182,15 +1175,20 @@ export function commandSpelling(row: HarnessAdapter): {
 
 /**
  * Respell one `/cospec:<id>` invocation in a receipt hint the way the row's SKILLS are
- * referenced. A prose row has no invocation syntax, so the hint asks the tool by name:
+ * referenced, or the way `spelling` says when the receipt names another surface (the row's
+ * commands under delivery `commands`). A prose row has no invocation syntax, so the hint asks the tool by name:
  * `ask <tool> to use the cospec-<skill> skill with <arguments>`.
  */
 export function respellInvocationHint(
   line: string,
   row: HarnessAdapter,
   skillById: ReadonlyMap<string, string>,
+  spelling: {
+    dialect: BodyDialect
+    prefix: InvocationPrefix | SkillInvocationPrefix
+  } = skillSpelling(row),
 ): string {
-  const { dialect, prefix } = skillSpelling(row)
+  const { dialect, prefix } = spelling
   if (dialect !== 'prose') return transformBody(line, dialect, skillById, prefix)
   return line.replace(/\/cospec:([a-z][a-z0-9-]*) /, (whole, id: string) => {
     const skill = skillById.get(id)

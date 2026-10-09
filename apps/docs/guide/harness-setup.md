@@ -188,6 +188,14 @@ make init print one more line after the notes:
 only. `cospec update` prints the same line after any write when a detected
 harness's row sets the flag.
 
+A note prints only when the
+[delivery](/reference/configuration#installed-workflows-and-delivery) writes the
+surface it is about: the Claude Code and OpenCode notes are about commands, so
+delivery `skills` drops them; the Codex, agents and Hermes notes are about
+skills, so delivery `commands` drops them (Codex still gets its skills there).
+The restart line follows the surface written for the flagged row, in the same
+way.
+
 ### Receipt hint
 
 `cospec init`'s receipt ends with a `Try:` hint spelled for the first harness
@@ -197,6 +205,15 @@ Code gets `Try: /cospec:propose …`, OpenCode `Try: /cospec-propose …`, and C
 and the shared-root rows
 `Try: $cospec-propose (Codex) or /cospec-propose (other agents) …`. Rovo Dev
 asks by name. With `--harness none` the hint keeps `/cospec:propose`.
+
+The hint names only what was written. Under delivery `skills` a row that has
+command files gets its skill reference (`Try: /cospec-propose …`), and when no
+selected harness gets a skill or a command (delivery `commands` with only
+skills-only harnesses) the receipt prints the
+`No skills or commands were generated for …` line and no hint. When the profile
+leaves out `propose` the hint names `/cospec:new` if that workflow is installed,
+and otherwise `Try: cospec new feat <slug>` followed by a pointer at
+`cospec config profile`.
 
 ## The shared `.agents/skills` root
 

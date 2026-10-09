@@ -220,6 +220,81 @@ describe('init: the effective profile', () => {
   }, 60_000)
 })
 
+describe('init: the receipt names only what was written', () => {
+  const initHarness = (s: Sandbox, harness: string) =>
+    cospec(['init', '--harness', harness, '--no-gate'], { cwd: s.project, env: s.env })
+
+  test('delivery commands with only skills rows: nothing is written and nothing advertised', async () => {
+    const s = sandbox({ delivery: 'commands' })
+    const run = await initHarness(s, 'agents,hermes')
+    expect(run.exitCode).toBe(0)
+    expect(existsSync(join(s.project, '.agents'))).toBe(false)
+    expect(existsSync(join(s.project, '.hermes'))).toBe(false)
+    expect(run.stdout).toContain('No skills or commands were generated for')
+    for (const stale of [
+      'Try:',
+      'Lightweight change?',
+      'start a new session to load the skills',
+      'external_dirs',
+      'share the .agents/skills root',
+    ]) {
+      expect(run.stdout).not.toContain(stale)
+    }
+  }, 60_000)
+
+  test('delivery skills with claude: no command restart line, and a skill hint', async () => {
+    const s = sandbox({ delivery: 'skills' })
+    const run = await initHarness(s, 'claude')
+    expect(run.exitCode).toBe(0)
+    expect(existsSync(join(s.project, '.claude', 'commands'))).toBe(false)
+    expect(existsSync(join(s.project, '.claude', 'skills', 'cospec-propose', 'SKILL.md'))).toBe(
+      true,
+    )
+    expect(run.stdout).not.toContain('Restart Claude Code')
+    expect(run.stdout).not.toContain('/cospec:')
+    expect(run.stdout).toContain('Try: /cospec-propose "feat: <what you want to build>"')
+  }, 60_000)
+
+  test('delivery commands with claude keeps the command note and hint', async () => {
+    const s = sandbox({ delivery: 'commands' })
+    const run = await initHarness(s, 'claude')
+    expect(run.exitCode).toBe(0)
+    expect(existsSync(join(s.project, '.claude', 'skills'))).toBe(false)
+    expect(run.stdout).toContain('Restart Claude Code to pick up /cospec commands.')
+    expect(run.stdout).toContain('Try: /cospec:propose "feat: <what you want to build>"')
+  }, 60_000)
+
+  test('delivery commands with codex still writes skills, so its notes and hint stay', async () => {
+    const s = sandbox({ delivery: 'commands' })
+    const run = await initHarness(s, 'codex')
+    expect(run.exitCode).toBe(0)
+    expect(existsSync(join(s.project, '.agents', 'skills', 'cospec-propose', 'SKILL.md'))).toBe(
+      true,
+    )
+    expect(run.stdout).toContain('Codex: skills now live in .agents/skills')
+    expect(run.stdout).toContain('Try: $cospec-propose (Codex) or /cospec-propose (other agents)')
+  }, 60_000)
+
+  test('a profile without propose or new names the raw gated command, then config profile', async () => {
+    const s = sandbox({ profile: 'custom', workflows: ['archive'] })
+    const run = await initHarness(s, 'claude')
+    expect(run.exitCode).toBe(0)
+    const lines = run.stdout.split('\n')
+    const at = lines.indexOf('Try: cospec new feat <slug>')
+    expect(at).toBeGreaterThan(-1)
+    expect(lines[at + 1]).toBe("Done. Run 'cospec config profile' to configure your workflows.")
+    expect(run.stdout).not.toContain('/cospec:propose')
+  }, 60_000)
+
+  test('a profile with new but not propose names the new command', async () => {
+    const s = sandbox({ profile: 'custom', workflows: ['new'] })
+    const run = await initHarness(s, 'claude')
+    expect(run.exitCode).toBe(0)
+    expect(run.stdout).toContain('Try: /cospec:new "feat: <what you want to build>"')
+    expect(run.stdout).not.toContain('Try: cospec new feat')
+  }, 60_000)
+})
+
 describe('init: a global config file it cannot use', () => {
   test("is read as nothing set, with the binary's one warning line", async () => {
     const s = sandbox('{"profile": "core"')

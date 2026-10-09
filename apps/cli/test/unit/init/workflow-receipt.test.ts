@@ -71,12 +71,72 @@ describe('receiptHintLines against the installed set', () => {
     ])
   })
 
-  test('neither: the line points at config profile and is not respelled', () => {
-    expect(receiptHintLines(['claude'], undefined, set('apply'))).toEqual([
+  test('neither: the raw gated command, then the pointer at config profile, not respelled', () => {
+    const expected = [
+      'Try: cospec new feat <slug>',
       "Done. Run 'cospec config profile' to configure your workflows.",
-    ])
-    expect(receiptHintLines(['codex'], undefined, set())).toEqual([
-      "Done. Run 'cospec config profile' to configure your workflows.",
-    ])
+    ]
+    expect(receiptHintLines(['claude'], undefined, set('apply'))).toEqual(expected)
+    expect(receiptHintLines(['codex'], undefined, set())).toEqual(expected)
+    expect(receiptHintLines(['opencode'], undefined, set('archive'))).toEqual(expected)
+  })
+})
+
+describe('receiptHintLines under delivery', () => {
+  const HINT = 'Try: /cospec:propose "feat: <what you want to build>"'
+
+  test('both is what the hint has always said, so passing it changes nothing', () => {
+    for (const h of ['claude', 'opencode', 'codex', 'agents']) {
+      expect(receiptHintLines([h], undefined, undefined, 'both')).toEqual(receiptHintLines([h]))
+    }
+  })
+
+  test('skills: an adapter-backed row names its skill, not a command it did not get', () => {
+    expect(receiptHintLines(['claude'], undefined, undefined, 'skills')[0]).toBe(
+      'Try: /cospec-propose "feat: <what you want to build>"',
+    )
+    expect(receiptHintLines(['opencode'], undefined, undefined, 'skills')[0]).toBe(
+      'Try: /cospec-propose "feat: <what you want to build>"',
+    )
+    expect(receiptHintLines(['claude'], undefined, undefined, 'skills').join('\n')).not.toContain(
+      '/cospec:',
+    )
+  })
+
+  test('skills: a shared-root row keeps its dual spelling', () => {
+    expect(receiptHintLines(['codex'], undefined, undefined, 'skills')[0]).toBe(
+      'Try: $cospec-propose (Codex) or /cospec-propose (other agents) "feat: <what you want to build>"',
+    )
+  })
+
+  test('commands: a row with commands names its command', () => {
+    expect(receiptHintLines(['claude'], undefined, undefined, 'commands')[0]).toBe(HINT)
+    expect(receiptHintLines(['opencode'], undefined, undefined, 'commands')[0]).toBe(
+      'Try: /cospec-propose "feat: <what you want to build>"',
+    )
+  })
+
+  test('commands: a skills-only row generates nothing, so no hint prints', () => {
+    expect(receiptHintLines(['agents'], undefined, undefined, 'commands')).toEqual([])
+    expect(receiptHintLines(['agents', 'hermes'], undefined, undefined, 'commands')).toEqual([])
+  })
+
+  test('commands: Codex still gets skills, so its hint stays', () => {
+    expect(receiptHintLines(['codex'], undefined, undefined, 'commands')).toHaveLength(2)
+  })
+
+  test('the first row that generates something spells the hint', () => {
+    expect(receiptHintLines(['agents', 'claude'], undefined, undefined, 'commands')[0]).toBe(HINT)
+  })
+
+  test('no harness selected keeps the canonical hint whatever the delivery', () => {
+    expect(receiptHintLines([], undefined, undefined, 'commands')[0]).toBe(HINT)
+  })
+
+  test('the raw-command fallback prints under any delivery that generates something', () => {
+    expect(receiptHintLines(['claude'], undefined, new Set(['apply']), 'skills')[0]).toBe(
+      'Try: cospec new feat <slug>',
+    )
+    expect(receiptHintLines(['agents'], undefined, new Set(['apply']), 'commands')).toEqual([])
   })
 })

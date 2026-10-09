@@ -5,11 +5,8 @@
 import { describe, expect, test } from 'bun:test'
 
 import { updateRestartLine } from '../../../src/commands/update.ts'
-import {
-  HARNESS_TABLE,
-  type HarnessAdapter,
-  ideRestartLine,
-} from '../../../src/harness/adapters.ts'
+import { HARNESS_TABLE, type HarnessAdapter } from '../../../src/harness/adapters.ts'
+import { ideRestartLine } from '../../../src/harness/delivery.ts'
 
 const COMMANDS_LINE = 'Restart your IDE to refresh commands.'
 const SKILLS_LINE = 'Restart your IDE to refresh skills.'
@@ -57,5 +54,22 @@ describe('update receipt restart line', () => {
       (shipped as readonly string[]).includes(r.id),
     )
     expect(ideRestartLine(rows)).toBeUndefined()
+  })
+})
+
+describe('restart line under delivery', () => {
+  test('commands win only when the delivery writes commands for a flagged row', () => {
+    expect(updateRestartLine(['ide-cmds'], TABLE, 'both')).toBe(COMMANDS_LINE)
+    expect(updateRestartLine(['ide-cmds'], TABLE, 'commands')).toBe(COMMANDS_LINE)
+    expect(updateRestartLine(['ide-cmds'], TABLE, 'skills')).toBe(SKILLS_LINE)
+  })
+
+  test('a skills-only flagged row writes nothing under commands, so no line', () => {
+    expect(updateRestartLine(['ide-skills'], TABLE, 'commands')).toBeUndefined()
+    expect(updateRestartLine(['ide-skills'], TABLE, 'skills')).toBe(SKILLS_LINE)
+  })
+
+  test('a flagged row with commands is not outvoted by an unflagged one', () => {
+    expect(updateRestartLine(['claude', 'ide-skills'], TABLE, 'commands')).toBeUndefined()
   })
 })

@@ -5,6 +5,7 @@
 
 import {
   type BodyDialect,
+  commandSpelling,
   type HarnessAdapter,
   type InvocationPrefix,
   type SkillInvocationPrefix,
@@ -93,4 +94,45 @@ export function zeroArtifactLine(
     `${empty.length === 1 ? 'it supports' : 'they support'} only skills. ` +
     `Run 'cospec config set delivery both' to generate skills.`
   )
+}
+
+/** Whether the delivery writes a skill or a command for the row: it has something to invoke. */
+export function generatesSurface(row: HarnessAdapter, delivery: Delivery): boolean {
+  return shouldGenerateSkills(row, delivery) || shouldGenerateCommands(row, delivery)
+}
+
+/**
+ * How the receipt's start hint spells a workflow for the row it names: the row's commands
+ * under delivery `commands`, a skill reference when delivery `skills` leaves an adapter-backed
+ * row no command files, else the way its skills are spelled (what `both` has always printed).
+ */
+export function hintSpelling(
+  row: HarnessAdapter,
+  delivery: Delivery,
+): { dialect: BodyDialect; prefix: InvocationPrefix | SkillInvocationPrefix } {
+  if (delivery === 'commands' && shouldGenerateCommands(row, delivery)) return commandSpelling(row)
+  if (delivery === 'skills' && commandSurfaceCapability(row) === 'adapter-backed') {
+    return skillReferenceSpelling(row)
+  }
+  return skillSpelling(row)
+}
+
+/**
+ * Upstream's single IDE restart line (`formatIdeRestart`), printed after the setup notes
+ * when any of `rows` sets `requiresIdeRestart` and the delivery generates a surface for that
+ * same row; commands win over skills as in upstream's `resolveIdeRestartSurface`. Undefined
+ * when no row needs a restart.
+ */
+export function ideRestartLine(
+  rows: readonly HarnessAdapter[],
+  delivery: Delivery = 'both',
+): string | undefined {
+  const flagged = rows.filter((row) => row.requiresIdeRestart)
+  if (flagged.some((row) => shouldGenerateCommands(row, delivery))) {
+    return 'Restart your IDE to refresh commands.'
+  }
+  if (flagged.some((row) => shouldGenerateSkills(row, delivery))) {
+    return 'Restart your IDE to refresh skills.'
+  }
+  return undefined
 }

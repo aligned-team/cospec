@@ -144,6 +144,18 @@ rows write the `config.json` under test into the sandbox's
       second pass behind `--remove-opsx`/`--yes`, report the files in
       `opsx.found`, and verify the rows pass
 
+- [x] 5.8 Make the init receipt name only what the delivery wrote: pass
+      `delivery` into `setupNoteLines`, `receiptHintLines` and
+      `sharedSkillsRootLines`, add `setupNoteSurface` to the rows whose note is
+      about commands, move `ideRestartLine` into `harness/delivery.ts` taking
+      the delivery (`update` passes it too), print no start hint when no
+      selected row generates anything, and verify with the unit rows and the
+      `init: the receipt names only what was written` contract rows
+- [x] 5.9 Align the no-`propose` hint with the spec:
+      `Try: cospec new feat <slug>` then the `config profile` pointer when
+      neither `propose` nor `new` is installed, and verify the spec and design
+      state that ladder
+
 ## 6. T5 — update (`apps/cli/src/commands/update.ts`)
 
 - [x] 6.1 Write the failing `update` rows in `profiles.test.ts`: an explicit
@@ -227,6 +239,11 @@ rows write the `config.json` under test into the sandbox's
       where the one reader lives and the conditional grammar's differential
       test, then `mise run agents:sync` and verify `mise run agents:check`
       passes
+
+- [x] 9.6 Add `test/unit/docs/table-shape.test.ts`, which fails on any docs
+      table whose header and delimiter disagree on column count (an unescaped
+      `|` in a code span), and verify it fails on the pre-fix `commands.md`
+      `init` row
 
 ## 10. Close-out
 

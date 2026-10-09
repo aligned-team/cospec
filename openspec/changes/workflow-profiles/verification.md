@@ -37,6 +37,9 @@
 - [x] 5.4 @integration (agent) `delivery: commands` with `--harness agents`, and with `--harness codex`, and with both -> profiles.test.ts, render-delivery.test.ts and matrix -> agents alone under `commands` writes nothing (no marker either) and the receipt says `No skills or commands were generated for …`; codex keeps its skills and rules file; both selected keep the shared root
 - [x] 5.5 @equivalence (agent) delivery predicates against the pinned `core/command-surface.js` over a fixture row of each capability -> delivery.test.ts `each predicate equals the binary over every upstream row and delivery` -> same answers for all four predicates
 
+- [x] 5.6 @e2e (agent) `delivery: skills` with `--harness claude`, `delivery: commands` with `--harness agents,hermes`, `--harness claude` and `--harness codex` -> profiles.test.ts `init: the receipt names only what was written` plus setup-notes.test.ts, workflow-receipt.test.ts and update-restart.test.ts delivery rows -> skills prints a `/cospec-propose` hint and no Claude command restart line; agents and hermes under commands print the zero-artifact line and no `Try:`, setup note or shared-root line; claude and codex keep their notes and hints
+- [x] 5.7 @e2e (agent) custom `["archive"]` and custom `["new"]` with `--harness claude` -> profiles.test.ts `a profile without propose or new` and `a profile with new but not propose` -> `Try: cospec new feat <slug>` then the `config profile` line; `Try: /cospec:new …` and no raw command
+
 ## 6. A malformed marker fails with the binary's message [critical]
 
 - [x] 6.1 @equivalence (agent) cospec's `resolveOptionalWorkflows` and the pinned `core/templates/optional-workflow.js` over one matrix (nested, missing end, `end` before `if`, an unrecognised `[[opsx:` marker, a truncated block in the dropped branch, whole-line and inline, empty branch, an unknown id) -> optional-workflow-differential.test.ts -> 198 cells identical to the pinned module's output or thrown message
@@ -86,6 +89,8 @@
 - [x] 13.3 @integration (agent) `apps/docs/reference/commands.md` `init`, `update` and `doctor` rows and the BREAKING cases, each flag compared with `cospec init --help` -> commands.md init/update/doctor rows against `cospec init --help` in a sandbox -> `--yes --force --harness/--tools --gate/--no-gate --remove-opsx --language --profile --copilot-cloud/--no-copilot-cloud` all listed and described
 - [x] 13.4 @integration (agent) `docs/harness-integration.md`, `docs/architecture.md` and `apps/docs/concepts/how-it-relates-to-openspec.md` -> harness-integration.md, architecture.md and how-it-relates-to-openspec.md -> no statement that profiles are absent or inert; architecture names the grammar port, the one reader and the capability derivation
 - [x] 13.5 @integration (agent) `mise run agents:sync` then `mise run agents:check` -> `mise run agents:sync` then `agents:check` -> exit 0 (CLAUDE.md OK); shared.md states the explicit-only rule and the never-removes policy
+
+- [x] 13.6 @unit (agent) every table in `apps/docs` and `docs` -> table-shape.test.ts -> header and delimiter agree on column count and no row carries more cells than the header; the test fails on the pre-fix `commands.md` `init` row (`--profile core | custom`), which now reads `--profile core\|custom`
 
 ## 14. The whole gate
 

@@ -46,7 +46,6 @@ import {
   HARNESS_TABLE,
   type HarnessAdapter,
   type HarnessName,
-  ideRestartLine,
   legacySkillsRoots,
   removalRoots,
   SKILL_FILE,
@@ -69,7 +68,7 @@ import {
   implicitCopilotCloudDirective,
   isCopilotCloudPath,
 } from '../harness/copilot-cloud.ts'
-import { type Delivery, zeroArtifactLine } from '../harness/delivery.ts'
+import { type Delivery, ideRestartLine, zeroArtifactLine } from '../harness/delivery.ts'
 import { hasHomeSkillEvidence, resolveHomeDir } from '../harness/home-root.ts'
 import {
   canAskLegacyConsent,
@@ -908,7 +907,10 @@ export async function run(ctx: CommandContext): Promise<number> {
   })
   for (const line of cloudLines) process.stdout.write(`${line}\n`)
   // Upstream prints its restart line only when an update touched a tool's files.
-  const restart = check || drifted.length === 0 ? undefined : updateRestartLine(harnesses)
+  const restart =
+    check || drifted.length === 0
+      ? undefined
+      : updateRestartLine(harnesses, undefined, selection.delivery)
   if (restart !== undefined) process.stdout.write(`${restart}\n`)
   return exitCode
 }
@@ -943,8 +945,12 @@ function askOnTerminal(question: string, notice: string): boolean {
 export function updateRestartLine(
   harnesses: readonly string[],
   table?: readonly HarnessAdapter[],
+  delivery: Delivery = 'both',
 ): string | undefined {
-  return ideRestartLine(harnesses.map((h) => adapterFor(h, table)))
+  return ideRestartLine(
+    harnesses.map((h) => adapterFor(h, table)),
+    delivery,
+  )
 }
 
 /**

@@ -340,8 +340,13 @@ fallback removes the line. The fallback is the raw gated command:
 
 Both branches read correctly alone: the generated file holds one and no trace of
 the other. The init receipt's two hint lines (`Try: /cospec:propose …`) resolve
-the same way against the row's set, falling back to
-`Try: cospec new feat <slug>`.
+the same way against the row's set: `propose`, else `new`, else
+`Try: cospec new feat <slug>` and a pointer at `cospec config profile`. The
+receipt names only what the delivery wrote: it spells the hint for the first row
+that generates a skill or a command (a skill reference under `skills`, its
+command under `commands`), prints no hint when no selected row generates
+anything, drops a setup note whose surface the delivery does not write, and
+makes the IDE restart line and the shared-root line follow the same rule.
 
 **The default render does not move.** With all twelve installed, every
 conditional resolves to its first branch, which is today's text, so the rendered
