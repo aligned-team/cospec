@@ -1,8 +1,8 @@
 # feat — the full workflow (DESIGN §3.2/§3.4, binding schema output).
 type: feat
 description: A new feature — the full workflow
-summary: 'proposal → blocking-changes, specs (+ design) → tasks'
-schemaDescription: 'feat — a new feature. Full workflow: proposal → blocking-changes, specs (+ design) → tasks'
+summary: 'proposal → blocking-changes, specs (+ design) → verification → tasks'
+schemaDescription: 'feat — a new feature. Full workflow: proposal → blocking-changes, specs (+ design) → verification → tasks'
 proposal: full
 blocking: full
 surfaces: true

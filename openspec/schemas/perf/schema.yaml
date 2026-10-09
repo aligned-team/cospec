@@ -2,7 +2,7 @@
 # Customize via openspec/config.yaml (context, rules); full ownership: `cospec schema fork perf <name>`.
 name: perf
 version: 2
-description: 'perf — a performance change with identical behavior. Workflow: proposal (+ Benchmarks) → blocking-changes → tasks'
+description: 'perf — a performance change with identical behavior. Workflow: proposal (+ Benchmarks) → blocking-changes → verification → tasks'
 artifacts:
   - id: proposal
     generates: proposal.md

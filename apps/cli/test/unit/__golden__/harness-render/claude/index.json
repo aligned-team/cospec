@@ -46,7 +46,7 @@
     "kind": "command",
     "workflow": "new",
     "harness": "claude",
-    "contentHash": "sha256:82c924ccd2ffdfe3a23631cab3fb22cdb27bf3610b8b8a17f55940a01c19c0de"
+    "contentHash": "sha256:eff6d16b7161a3aaf80e831dfcf55a1c4816a0170d2b7844ec0864e766e686f8"
   },
   {
     "path": ".claude/commands/cospec/onboard.md",
@@ -60,7 +60,7 @@
     "kind": "command",
     "workflow": "propose",
     "harness": "claude",
-    "contentHash": "sha256:92dbc15f3d38b0b2fcaf8ef460a955c09925dc7d7d088a9a29ad285662280ff8"
+    "contentHash": "sha256:6abc44f41dbdcc3da24fb0dbb6767e3ea0ce0a4fe5292addae264c318dd8e7cd"
   },
   {
     "path": ".claude/commands/cospec/sync-specs.md",
@@ -130,7 +130,7 @@
     "kind": "skill",
     "workflow": "new",
     "harness": "claude",
-    "contentHash": "sha256:82c924ccd2ffdfe3a23631cab3fb22cdb27bf3610b8b8a17f55940a01c19c0de"
+    "contentHash": "sha256:eff6d16b7161a3aaf80e831dfcf55a1c4816a0170d2b7844ec0864e766e686f8"
   },
   {
     "path": ".claude/skills/cospec-onboard/SKILL.md",
@@ -144,7 +144,7 @@
     "kind": "skill",
     "workflow": "propose",
     "harness": "claude",
-    "contentHash": "sha256:92dbc15f3d38b0b2fcaf8ef460a955c09925dc7d7d088a9a29ad285662280ff8"
+    "contentHash": "sha256:6abc44f41dbdcc3da24fb0dbb6767e3ea0ce0a4fe5292addae264c318dd8e7cd"
   },
   {
     "path": ".claude/skills/cospec-sync-specs/SKILL.md",

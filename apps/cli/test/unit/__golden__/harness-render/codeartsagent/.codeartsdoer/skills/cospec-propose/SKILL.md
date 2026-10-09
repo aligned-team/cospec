@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:d58a4bfdafde05607a0f4237bf6308635e4baf0e71efc0c4fc84891b4874b014
+  contentHash: sha256:67c530236eede0969c6cf6922278782a4f324862eddc4510a2d7aa6194125267
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -68,10 +68,10 @@ The argument after the command is either `<type>: <free text>` (for example
 
 | Type | What it is for | Artifacts |
 | --- | --- | --- |
-| feat | A new feature — the full workflow | proposal → blocking-changes, specs (+ design) → tasks |
-| fix | A bug fix | proposal → blocking-changes (+ specs, design) → tasks |
-| perf | A performance change with identical behavior | proposal (+ Benchmarks) → blocking-changes → tasks |
-| refactor | A structure change with no behavior change | proposal → blocking-changes, design → tasks |
+| feat | A new feature — the full workflow | proposal → blocking-changes, specs (+ design) → verification → tasks |
+| fix | A bug fix | proposal → blocking-changes (+ specs, design) → verification → tasks |
+| perf | A performance change with identical behavior | proposal (+ Benchmarks) → blocking-changes → verification → tasks |
+| refactor | A structure change with no behavior change | proposal → blocking-changes, design → verification → tasks |
 | revert | Roll back a previously shipped change | proposal (+ Reverts) → blocking-changes → tasks |
 | build | Dependency or build-config change | proposal → blocking-changes → tasks (3 short artifacts) |
 | ci | CI configuration and automation pipeline change | proposal → blocking-changes → tasks (3 short artifacts) |

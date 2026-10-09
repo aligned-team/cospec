@@ -1,8 +1,8 @@
 # refactor — full workflow, design is the load-bearing required artifact (DESIGN §3.7).
 type: refactor
 description: A structure change with no behavior change
-summary: 'proposal → blocking-changes, design → tasks'
-schemaDescription: 'refactor — a structure change with no behavior change. Workflow: proposal → blocking-changes, design → tasks'
+summary: 'proposal → blocking-changes, design → verification → tasks'
+schemaDescription: 'refactor — a structure change with no behavior change. Workflow: proposal → blocking-changes, design → verification → tasks'
 proposal: full
 blocking: full
 surfaces: true

@@ -8,7 +8,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:58737496aefa0b8ba4882c7904368305465e898ee067bf902e8e55a4882cfd10
+  contentHash: sha256:8e664bbbc45ceeeb028208547d5a5ff0e941a60d3e58c7db842a47ed7011671d
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -70,10 +70,10 @@ The argument after the command is either `<type>: <free text>` (for example
 
 | Type | What it is for | Artifacts |
 | --- | --- | --- |
-| feat | A new feature — the full workflow | proposal → blocking-changes, specs (+ design) → tasks |
-| fix | A bug fix | proposal → blocking-changes (+ specs, design) → tasks |
-| perf | A performance change with identical behavior | proposal (+ Benchmarks) → blocking-changes → tasks |
-| refactor | A structure change with no behavior change | proposal → blocking-changes, design → tasks |
+| feat | A new feature — the full workflow | proposal → blocking-changes, specs (+ design) → verification → tasks |
+| fix | A bug fix | proposal → blocking-changes (+ specs, design) → verification → tasks |
+| perf | A performance change with identical behavior | proposal (+ Benchmarks) → blocking-changes → verification → tasks |
+| refactor | A structure change with no behavior change | proposal → blocking-changes, design → verification → tasks |
 | revert | Roll back a previously shipped change | proposal (+ Reverts) → blocking-changes → tasks |
 | build | Dependency or build-config change | proposal → blocking-changes → tasks (3 short artifacts) |
 | ci | CI configuration and automation pipeline change | proposal → blocking-changes → tasks (3 short artifacts) |

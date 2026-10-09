@@ -9,22 +9,22 @@ export const TYPE_TABLE: TypeTableEntry[] = [
   {
     type: 'feat',
     description: 'A new feature — the full workflow',
-    summary: 'proposal → blocking-changes, specs (+ design) → tasks',
+    summary: 'proposal → blocking-changes, specs (+ design) → verification → tasks',
   },
   {
     type: 'fix',
     description: 'A bug fix',
-    summary: 'proposal → blocking-changes (+ specs, design) → tasks',
+    summary: 'proposal → blocking-changes (+ specs, design) → verification → tasks',
   },
   {
     type: 'perf',
     description: 'A performance change with identical behavior',
-    summary: 'proposal (+ Benchmarks) → blocking-changes → tasks',
+    summary: 'proposal (+ Benchmarks) → blocking-changes → verification → tasks',
   },
   {
     type: 'refactor',
     description: 'A structure change with no behavior change',
-    summary: 'proposal → blocking-changes, design → tasks',
+    summary: 'proposal → blocking-changes, design → verification → tasks',
   },
   {
     type: 'revert',

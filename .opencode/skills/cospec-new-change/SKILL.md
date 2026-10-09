@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.10.0
-  contentHash: sha256:f2f85de333ba1c4c270e92f31a29c166fb8921c46f22c7a316ca5b5c1aa18b24
+  contentHash: sha256:b7815bd183b06a260efa8155083778aeabe7fd5a2b759462ab4c621d6233df53
 ---
 
 Scaffold a new openspec change and stop. This workflow creates the change and
@@ -30,10 +30,10 @@ The argument after the command is either `<type>: <free text>` (for example
 | chore | Maintenance not affecting src or tests | proposal → blocking-changes → tasks (3 short artifacts) |
 | ci | CI configuration and automation pipeline change | proposal → blocking-changes → tasks (3 short artifacts) |
 | docs | Documentation content only | proposal → blocking-changes → tasks (3 short artifacts) |
-| feat | A new feature — the full workflow | proposal → blocking-changes, specs (+ design) → tasks |
-| fix | A bug fix | proposal → blocking-changes (+ specs, design) → tasks |
-| perf | A performance change with identical behavior | proposal (+ Benchmarks) → blocking-changes → tasks |
-| refactor | A structure change with no behavior change | proposal → blocking-changes, design → tasks |
+| feat | A new feature — the full workflow | proposal → blocking-changes, specs (+ design) → verification → tasks |
+| fix | A bug fix | proposal → blocking-changes (+ specs, design) → verification → tasks |
+| perf | A performance change with identical behavior | proposal (+ Benchmarks) → blocking-changes → verification → tasks |
+| refactor | A structure change with no behavior change | proposal → blocking-changes, design → verification → tasks |
 | revert | Roll back a previously shipped change | proposal (+ Reverts) → blocking-changes → tasks |
 | style | Formatting or whitespace only | proposal → blocking-changes → tasks (3 short artifacts) |
 | test | Tests for already-specified behavior | proposal → blocking-changes → tasks (3 short artifacts) |

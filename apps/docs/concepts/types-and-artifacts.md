@@ -61,6 +61,12 @@ Each type declares each artifact in one of four states:
 | `style`    | R (lite) | R (lite)         | F     | F      | F            | R     |
 | `test`     | R (lite) | R (lite)         | F     | F      | F            | R     |
 
+The `Artifacts:` plan line `cospec new` prints, its `--json`
+`artifacts.summary`, and the type table in the generated propose and new skills
+all name every required (**R**) artifact in flow order — including
+`verification` before `tasks` for `feat`, `fix`, `perf` and `refactor`. Optional
+artifacts appear in parentheses (`+ design`).
+
 `tasks` is required everywhere and always tracked by `apply`. Optional artifacts
 never gate — you can still author them
 (`cospec instructions <artifact> --change <slug>` works for any declared

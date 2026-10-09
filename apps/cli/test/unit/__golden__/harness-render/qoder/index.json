@@ -58,9 +58,9 @@
     "kind": "command",
     "workflow": "new",
     "harness": "qoder",
-    "contentHash": "sha256:82c924ccd2ffdfe3a23631cab3fb22cdb27bf3610b8b8a17f55940a01c19c0de",
-    "bytes": 3290,
-    "sha256": "5709220c0a76e99bf71168628ae848bf0468ab24edd88d0d7801f8b8e6272781"
+    "contentHash": "sha256:eff6d16b7161a3aaf80e831dfcf55a1c4816a0170d2b7844ec0864e766e686f8",
+    "bytes": 3358,
+    "sha256": "0716856b20b2897ccb36079067993fd23295f5fa8430bbac8ef421d338404a90"
   },
   {
     "path": ".qoder/commands/cospec/onboard.md",
@@ -76,9 +76,9 @@
     "kind": "command",
     "workflow": "propose",
     "harness": "qoder",
-    "contentHash": "sha256:92dbc15f3d38b0b2fcaf8ef460a955c09925dc7d7d088a9a29ad285662280ff8",
-    "bytes": 6483,
-    "sha256": "9a8ff4cf02faf89e2bd15932e53e75eb64fb2d5fb82133e9dfc26403394c864a"
+    "contentHash": "sha256:6abc44f41dbdcc3da24fb0dbb6767e3ea0ce0a4fe5292addae264c318dd8e7cd",
+    "bytes": 6551,
+    "sha256": "8c828751777b2bd2f4b93bafde2665ce186e751c2e0c0088464a7e5f7df99c78"
   },
   {
     "path": ".qoder/commands/cospec/sync-specs.md",
@@ -166,9 +166,9 @@
     "kind": "skill",
     "workflow": "new",
     "harness": "qoder",
-    "contentHash": "sha256:82c924ccd2ffdfe3a23631cab3fb22cdb27bf3610b8b8a17f55940a01c19c0de",
-    "bytes": 3321,
-    "sha256": "d07922d05d6e31392b12c9675d60af45601b2e54c9affe8078a317bab6b33129"
+    "contentHash": "sha256:eff6d16b7161a3aaf80e831dfcf55a1c4816a0170d2b7844ec0864e766e686f8",
+    "bytes": 3389,
+    "sha256": "a125f3b46ce76c7684918ac2260bac92f26693f2707f6e21341f1ce29ddb4a5e"
   },
   {
     "path": ".qoder/skills/cospec-onboard/SKILL.md",
@@ -184,9 +184,9 @@
     "kind": "skill",
     "workflow": "propose",
     "harness": "qoder",
-    "contentHash": "sha256:92dbc15f3d38b0b2fcaf8ef460a955c09925dc7d7d088a9a29ad285662280ff8",
-    "bytes": 6507,
-    "sha256": "d1f77bd35dad90deaf9a06678d2319c63556525e8e9ed236fe89c40e0907fef0"
+    "contentHash": "sha256:6abc44f41dbdcc3da24fb0dbb6767e3ea0ce0a4fe5292addae264c318dd8e7cd",
+    "bytes": 6575,
+    "sha256": "a1605f91dd1bedc73f8745bfe58f0ac1eed325c9b840a7986363693d4fc28717"
   },
   {
     "path": ".qoder/skills/cospec-sync-specs/SKILL.md",

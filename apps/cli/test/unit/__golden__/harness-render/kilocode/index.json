@@ -58,9 +58,9 @@
     "kind": "skill",
     "workflow": "new",
     "harness": "kilocode",
-    "contentHash": "sha256:78f1b653ca9d27d8af2e463c0a895f76707888b3e2b502a3dc5e1ff0a2fe28ab",
-    "bytes": 3321,
-    "sha256": "5595390d9abe29013810da38a63fbd2836ef52e6d4e9c13ac7fb69d32e9eb497"
+    "contentHash": "sha256:689f8bdf14b69ca2d4c699526a4eaccb7f95e0b51de8889d16ed4e44b2d70f8f",
+    "bytes": 3389,
+    "sha256": "61de1e33ca74e359e9eda6115ff13661932d1a715cf1cde992280fa7d93146a7"
   },
   {
     "path": ".kilocode/skills/cospec-onboard/SKILL.md",
@@ -76,9 +76,9 @@
     "kind": "skill",
     "workflow": "propose",
     "harness": "kilocode",
-    "contentHash": "sha256:58737496aefa0b8ba4882c7904368305465e898ee067bf902e8e55a4882cfd10",
-    "bytes": 6507,
-    "sha256": "ff72643a64730c019c2a59c2470168bdb6c5716ca61f02b227a735df964b7fd9"
+    "contentHash": "sha256:8e664bbbc45ceeeb028208547d5a5ff0e941a60d3e58c7db842a47ed7011671d",
+    "bytes": 6575,
+    "sha256": "c3bb7123277ec5824367d3cd602ef20fd72cf0b8c3fcc4c47879f6611646c08a"
   },
   {
     "path": ".kilocode/skills/cospec-sync-specs/SKILL.md",
@@ -167,8 +167,8 @@
     "workflow": "new",
     "harness": "kilocode",
     "contentHash": null,
-    "bytes": 2905,
-    "sha256": "0e71111f52e943626389c26a5ad6dfb1bb3ec435862019c2a3b6f4f402952e40"
+    "bytes": 2973,
+    "sha256": "2eaf226e60a98767eb79352d4cf024614aed1e73c1983c0d73e352010fa3f683"
   },
   {
     "path": ".kilocode/workflows/cospec-onboard.md",
@@ -185,8 +185,8 @@
     "workflow": "propose",
     "harness": "kilocode",
     "contentHash": null,
-    "bytes": 6091,
-    "sha256": "87202a5d47c88a07173da76c1c37faded8273c1d091899ac89c1a2d668821044"
+    "bytes": 6159,
+    "sha256": "44bddc6792e080cf2d1fb779fc792559afafa77311fce0459e4c0ef1451f10fa"
   },
   {
     "path": ".kilocode/workflows/cospec-sync-specs.md",

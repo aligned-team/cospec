@@ -58,9 +58,9 @@
     "kind": "command",
     "workflow": "new",
     "harness": "amazon-q",
-    "contentHash": "sha256:707b99ed0d4ae89fc71b0f69b428e938a775d49f0e9152ee2e1bb223e886d9c4",
-    "bytes": 3221,
-    "sha256": "b102f1d09bfdd21f7a9e8278f3c1110978523ee5321c9981e5446694bd2e5539"
+    "contentHash": "sha256:8f9f792ee2588a2bb3fbd7c1a7967d9c3ad7b4a0e28ae7c5d8275f3d63e802d5",
+    "bytes": 3289,
+    "sha256": "579eccc05c140fbb7d0e87144a12ec40bf9062aa6833ed8941cda5260f3696cf"
   },
   {
     "path": ".amazonq/prompts/cospec-onboard.md",
@@ -76,9 +76,9 @@
     "kind": "command",
     "workflow": "propose",
     "harness": "amazon-q",
-    "contentHash": "sha256:d22328fbbe8d14296df6714bd56da679816eb48f7764c13d662c061b99377723",
-    "bytes": 6410,
-    "sha256": "a5f8513fac3c48817064eb9dcf93a8175d6646868adc67369f908fce9376d8b6"
+    "contentHash": "sha256:31d1bd2b7db27bb4af8296f26cb573e564dbec2927594f6b93b72fd79a23d811",
+    "bytes": 6478,
+    "sha256": "ced6e898464f18c844f76242e144db23f45de234f9b9365a39415d60aa08d235"
   },
   {
     "path": ".amazonq/prompts/cospec-sync-specs.md",
@@ -166,9 +166,9 @@
     "kind": "skill",
     "workflow": "new",
     "harness": "amazon-q",
-    "contentHash": "sha256:707b99ed0d4ae89fc71b0f69b428e938a775d49f0e9152ee2e1bb223e886d9c4",
-    "bytes": 3321,
-    "sha256": "334c25dcf0f86e263e4366ec4e78120162db7e79f31f22ed8258d17832f7f06d"
+    "contentHash": "sha256:8f9f792ee2588a2bb3fbd7c1a7967d9c3ad7b4a0e28ae7c5d8275f3d63e802d5",
+    "bytes": 3389,
+    "sha256": "15e1f3fec64310e52ea0ae17346b90cc18f2a2f494a86413e588078293cac8e2"
   },
   {
     "path": ".amazonq/skills/cospec-onboard/SKILL.md",
@@ -184,9 +184,9 @@
     "kind": "skill",
     "workflow": "propose",
     "harness": "amazon-q",
-    "contentHash": "sha256:d22328fbbe8d14296df6714bd56da679816eb48f7764c13d662c061b99377723",
-    "bytes": 6507,
-    "sha256": "7b80345b40c1c1d8f948eb23687ae933234557077e3c4f2c0226bda5b02f1d28"
+    "contentHash": "sha256:31d1bd2b7db27bb4af8296f26cb573e564dbec2927594f6b93b72fd79a23d811",
+    "bytes": 6575,
+    "sha256": "7d73231c5ce8f9fcc425e5c2078767013d2055bb60264a86da62ebdaa15a5800"
   },
   {
     "path": ".amazonq/skills/cospec-sync-specs/SKILL.md",

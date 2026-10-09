@@ -2,7 +2,7 @@
 # Customize via openspec/config.yaml (context, rules); full ownership: `cospec schema fork feat <name>`.
 name: feat
 version: 2
-description: 'feat — a new feature. Full workflow: proposal → blocking-changes, specs (+ design) → tasks'
+description: 'feat — a new feature. Full workflow: proposal → blocking-changes, specs (+ design) → verification → tasks'
 artifacts:
   - id: proposal
     generates: proposal.md

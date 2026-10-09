@@ -1,8 +1,8 @@
 # perf — full workflow, behavior-identical, requires ## Benchmarks (DESIGN §3.7).
 type: perf
 description: A performance change with identical behavior
-summary: 'proposal (+ Benchmarks) → blocking-changes → tasks'
-schemaDescription: 'perf — a performance change with identical behavior. Workflow: proposal (+ Benchmarks) → blocking-changes → tasks'
+summary: 'proposal (+ Benchmarks) → blocking-changes → verification → tasks'
+schemaDescription: 'perf — a performance change with identical behavior. Workflow: proposal (+ Benchmarks) → blocking-changes → verification → tasks'
 proposal: full
 blocking: full
 surfaces: true
