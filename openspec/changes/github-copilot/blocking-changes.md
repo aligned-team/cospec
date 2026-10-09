@@ -13,6 +13,9 @@
 - [x] `unknown-option-contract` — the command table whose `--copilot-cloud` and
       `--no-copilot-cloud` rows this change flips from pending to handled
       _(archived 2026-09-28)_
+- [x] `tool-matrix` — the full `HARNESS_TABLE` (every pinned tool id but
+      `github-copilot`), the `.prompt.md` command rows, per-file write failure
+      isolation and a row's `legacyCommandPaths` _(archived 2026-10-09)_
 
 ## Soft-blocked by
 

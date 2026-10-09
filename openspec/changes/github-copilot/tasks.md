@@ -12,7 +12,7 @@ its failing tests before its code.
       command paths, the failure-isolation seam, the order assertion). Verify
       `bun install --frozen-lockfile` and `mise run check` pass before any edit,
       and record any renamed seam in the verification ledger header.
-- [ ] 1.2 Add `tool-matrix` to `blocking-changes.md` under Blocked by, ticked
+- [x] 1.2 Add `tool-matrix` to `blocking-changes.md` under Blocked by, ticked
       and dated from its archive directory name. Verify
       `mise run cospec -- validate github-copilot --strict` is clean and
       `mise run cospec -- apply github-copilot` exits 0.
