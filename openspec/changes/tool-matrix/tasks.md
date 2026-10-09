@@ -91,7 +91,7 @@
       read/write) with a unit precedence matrix ported from upstream's cases
       plus cospec's pre-marker evidence (rules file, legacy `.codex/skills`);
       verify the matrix passes
-- [ ] 4.2 Wire `generate()` to pass the writer set to render and write the
+- [x] 4.2 Wire `generate()` to pass the writer set to render and write the
       `.cospec-target` marker (manifest-tracked); replace `detectHarnesses`'
       tie-break with decision 7's evidence and the receipt's shared-root line
       with decision 6's; update the `codex`, `agents` and `all` receipt goldens

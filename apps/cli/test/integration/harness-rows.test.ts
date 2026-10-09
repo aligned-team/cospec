@@ -153,3 +153,45 @@ describe('setup notes', () => {
     expect(existsSync(join(dir, '.hermes/skills/cospec-propose/SKILL.md'))).toBe(true)
   })
 })
+
+// The shared `.agents` root's acceptance rows (spec "selecting four shared-root harnesses
+// writes each file once", "the marker keeps the writer across runs"). The arbiter is proven
+// over synthetic rows in `test/unit/init/shared-root-generate.test.ts`; these drive the real
+// ids, so they fail until the `zed` (task 6.7) and `antigravity` (task 8.3) rows land.
+describe('the shared .agents skills root', () => {
+  test.failing(
+    'codex, agents, zed and antigravity write each shared file once and stamp codex (rows land in 6.7 and 8.3)',
+    async () => {
+      const { repo, stdout } = await initRepo('codex,agents,zed,antigravity')
+      const tracked = await manifestFiles(repo)
+      const all = [...new Bun.Glob('.agents/**/*').scanSync({ cwd: repo.dir, dot: true })]
+      expect(all.filter((p) => /^\.agents\/skills\/cospec-[^/]+\/SKILL\.md$/.test(p))).toHaveLength(
+        12,
+      )
+      expect(all.filter((p) => /^\.agents\/workflows\/cospec-[^/]+\.md$/.test(p))).toHaveLength(12)
+      expect(existsSync(join(repo.dir, '.codex/rules/cospec.rules'))).toBe(true)
+      expect(read(repo, '.agents/skills/.cospec-target')).toBe('codex\n')
+      expect(tracked).toContain('.agents/skills/.cospec-target')
+      expect(existsSync(join(repo.dir, '.agents/skills/.openspec-target'))).toBe(false)
+      expect(stdout).toContain(
+        'skills for codex/agents/antigravity/zed share the .agents/skills root (one tree, written for codex)',
+      )
+    },
+  )
+
+  test.failing(
+    'a marker naming agents keeps agents the writer, and update detects agents, not zed (row lands in 6.7)',
+    async () => {
+      const sandbox = mkTempRepo()
+      const dir = mkTempRepo({ git: true })
+      const env = oracleEnv(sandbox)
+      const first = await cospec(['init', '--harness', 'agents'], { cwd: dir, env })
+      expect(first.exitCode).toBe(0)
+      const init = await cospec(['init', '--harness', 'agents,zed'], { cwd: dir, env })
+      expect(init.exitCode).toBe(0)
+      expect(readFileSync(join(dir, '.agents/skills/.cospec-target'), 'utf8')).toBe('agents\n')
+      const check = await cospec(['update', '--check', '--json'], { cwd: dir, env })
+      expect((JSON.parse(check.stdout) as { harnesses: string[] }).harnesses).toEqual(['agents'])
+    },
+  )
+})

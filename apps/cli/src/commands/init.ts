@@ -476,11 +476,13 @@ export function setupNoteLines(
 /**
  * One receipt line per skills root that two or more rows resolve to, printed
  * when any selected row writes there. It names every row on that root, in table
- * order, whether selected or not: render's dedupe makes them write the same
- * files, which is what the line tells the user. `table` is a test seam.
+ * order, whether selected or not, and the one selected row the tree was written
+ * for (`writers`, the arbiter's answer that `generate` returns). `table` is a
+ * test seam.
  */
 export function sharedSkillsRootLines(
   harnesses: readonly string[],
+  writers: ReadonlySet<string>,
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): string[] {
   const byRoot = new Map<string, { root: string; ids: string[] }>()
@@ -493,10 +495,11 @@ export function sharedSkillsRootLines(
   }
   return [...byRoot.values()]
     .filter(({ ids }) => ids.length > 1 && ids.some((id) => harnesses.includes(id)))
-    .map(
-      ({ root, ids }) =>
-        `         skills for ${ids.join('/')} share the ${root} root (identical files)`,
-    )
+    .map(({ root, ids }) => {
+      const writer = ids.find((id) => harnesses.includes(id) && writers.has(id))
+      if (writer === undefined) throw new Error(`internal: no writer for the ${root} root`)
+      return `         skills for ${ids.join('/')} share the ${root} root (one tree, written for ${writer})`
+    })
 }
 
 /**
@@ -563,7 +566,7 @@ export function run(ctx: CommandContext): number {
   mkdirSync(join(target, 'openspec', 'changes', 'archive'), { recursive: true })
 
   // Schemas + harness files + manifest.
-  const { results, migration } = generate(target, { harnesses, force })
+  const { results, migration, skillWriters } = generate(target, { harnesses, force })
 
   // config.yaml — only if absent (never modified once present).
   const configPath = join(target, 'openspec', 'config.yaml')
@@ -632,6 +635,7 @@ export function run(ctx: CommandContext): number {
   printReceipt(target, {
     state,
     harnesses,
+    skillWriters,
     results,
     migration,
     configWritten,
@@ -670,6 +674,7 @@ function resolveTarget(cwd: string, parsed: ParsedArgs): TargetResolution {
 interface ReceiptData {
   state: RepoState
   harnesses: HarnessName[]
+  skillWriters: ReadonlySet<string>
   results: WriteResult[]
   migration: WriteResult[]
   configWritten: boolean
@@ -702,7 +707,7 @@ function printReceipt(target: string, d: ReceiptData): void {
 
   if (d.harnesses.length > 0) {
     lines.push(`Harness: ${d.harnesses.join(', ')}`)
-    lines.push(...sharedSkillsRootLines(d.harnesses))
+    lines.push(...sharedSkillsRootLines(d.harnesses, d.skillWriters))
   } else {
     lines.push('Harness: none (schemas only)')
   }

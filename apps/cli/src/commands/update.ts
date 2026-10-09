@@ -36,10 +36,11 @@ import {
 import { composeAllTypes, TYPE_TABLE } from '../core/schema-compose.ts'
 import {
   adapterFor,
+  carriesFrontmatter,
+  commandPath,
   HARNESS_TABLE,
   type HarnessAdapter,
   type HarnessName,
-  HARNESS_NAMES,
   ideRestartLine,
   legacySkillsRoots,
   removalRoots,
@@ -47,27 +48,18 @@ import {
   skillsRoot,
 } from '../harness/adapters.ts'
 import { LEGACY_CODEX_SKILL_ROOT, migrateLegacySkills } from '../harness/legacy-skills.ts'
-import { renderHarnessFiles } from '../harness/render.ts'
+import { readWorkflowManifest, renderHarnessFiles } from '../harness/render.ts'
+import {
+  isSharedSkillTargetActive,
+  resolveSharedSkillWriters,
+  sharedTargetMarkers,
+} from '../harness/shared-root.ts'
 
 // --- harness detection -----------------------------------------------------
 
-// Every root and marker below is read from the harness's HARNESS_TABLE row.
-// `codex` and `agents` share the vendor-neutral `.agents/skills` root and render
-// byte-identical files there; codex adds its `rulesPath` on top.
-
-/**
- * A non-skill file that proves a harness was configured here: the row's
- * `rulesPath`. Needed because `codex` and `agents` write the same skill tree:
- * without the marker an `agents`-only user would start getting a spurious
- * `.codex/rules/cospec.rules`.
- */
-function harnessMarker(h: HarnessName): string | undefined {
-  return adapterFor(h).rulesPath
-}
-
-function skillBase(h: HarnessName): string {
-  return skillsRoot(adapterFor(h)).root
-}
+// Every root and marker below is read from the harness's HARNESS_TABLE row. Rows that share
+// a skills root (`.agents/skills`) write it from one chosen writer (`harness/shared-root.ts`),
+// so that tree is evidence only for its writer.
 
 /** The sentinel skill every harness always emits — used for presence detection. */
 const SENTINEL_SKILL = 'cospec-propose'
@@ -111,37 +103,65 @@ function hasSentinel(cwd: string, base: string): boolean {
   return isCospecManagedMarkdown(readFileSync(path, 'utf8'))
 }
 
-/** Sentinel/marker evidence that this harness was configured in `cwd`. */
-function hasHarnessEvidence(cwd: string, h: HarnessName): boolean {
-  // A pre-migration install is detected by its LEGACY base alone — without that,
-  // a `.codex/skills` tree would stop being regenerated and never be cleaned up.
-  if (legacySkillsRoots(adapterFor(h)).some((base) => hasSentinel(cwd, base))) return true
-  if (!hasSentinel(cwd, skillBase(h))) return false
-  // A migrated codex install has no legacy tree left, so it is detected by the
-  // shared sentinel plus the codex-only rules file; the marker is what keeps an
-  // `agents`-only repo from acquiring a `.codex/` dir.
-  const marker = harnessMarker(h)
-  return marker === undefined || existsSync(join(cwd, marker))
+/**
+ * Whether the row's command surface holds cospec's command for the sentinel workflow: a
+ * markdown command by its frontmatter provenance, a frontmatter-less one by its manifest entry.
+ */
+function hasSentinelCommand(
+  cwd: string,
+  row: HarnessAdapter,
+  tracked: Readonly<Record<string, string>>,
+): boolean {
+  const workflow = readWorkflowManifest().workflows.find((w) => w.skill === SENTINEL_SKILL)
+  if (workflow === undefined) {
+    throw new Error(`internal: no workflow renders the sentinel skill ${SENTINEL_SKILL}`)
+  }
+  const relpath = commandPath(row, workflow.command)
+  if (relpath === undefined || !existsSync(join(cwd, relpath))) return false
+  if (!carriesFrontmatter(row.commands!.serializer)) return tracked[relpath] !== undefined
+  return isCospecManagedMarkdown(readFileSync(join(cwd, relpath), 'utf8'))
 }
 
 /**
- * Harnesses whose skill dir already holds a cospec-generated sentinel skill.
- *
- * `codex` and `agents` render the same `.agents/skills` tree, so that tree alone
- * cannot say which one was selected — only codex leaves further evidence (its
- * rules file). A marker-less harness is therefore reported only when no detected
- * marker-bearing harness already accounts for the shared root: otherwise every
- * codex-only repo would report `agents` too, and `detectHarnesses` — the only
- * record of what the user opted into — would invent a target from zero evidence.
- * Dropping `agents` from a repo that really did select both costs nothing today
- * (codex writes a superset of what agents writes, byte for byte).
+ * Evidence that this harness was configured in `cwd`: a cospec sentinel skill in its legacy
+ * root; or in its skills root when it is that root's writer; or its sentinel command; or its
+ * rules file.
  */
-export function detectHarnesses(cwd: string): HarnessName[] {
-  const detected = HARNESS_NAMES.filter((h) => hasHarnessEvidence(cwd, h))
-  const explainedBases = new Set(
-    detected.filter((h) => harnessMarker(h) !== undefined).map((h) => skillBase(h)),
-  )
-  return detected.filter((h) => harnessMarker(h) !== undefined || !explainedBases.has(skillBase(h)))
+function hasHarnessEvidence(
+  cwd: string,
+  row: HarnessAdapter,
+  table: readonly HarnessAdapter[],
+  tracked: Readonly<Record<string, string>>,
+): boolean {
+  // A pre-migration install is detected by its LEGACY base alone — without that,
+  // a `.codex/skills` tree would stop being regenerated and never be cleaned up.
+  if (legacySkillsRoots(row).some((base) => hasSentinel(cwd, base))) return true
+  const skills = skillsRoot(row)
+  if (
+    skills.scope === 'project' &&
+    hasSentinel(cwd, skills.root) &&
+    isSharedSkillTargetActive(cwd, row.id, table)
+  ) {
+    return true
+  }
+  if (hasSentinelCommand(cwd, row, tracked)) return true
+  return row.rulesPath !== undefined && existsSync(join(cwd, row.rulesPath))
+}
+
+/**
+ * The harnesses configured in `cwd`, in table order. A shared skills root is evidence only
+ * for the row that writes it, so a repo whose `.agents/skills` was written for codex does not
+ * report agents or zed as well; a row on that root is still reported through a surface of
+ * its own (a rules file, a command directory). `table` is a test seam.
+ */
+export function detectHarnesses(
+  cwd: string,
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): HarnessName[] {
+  const tracked = readManifest(cwd)?.files ?? {}
+  return table
+    .filter((row) => hasHarnessEvidence(cwd, row, table, tracked))
+    .map((row) => row.id as HarnessName)
 }
 
 // --- atomic write ----------------------------------------------------------
@@ -280,6 +300,8 @@ export interface GenerateResult {
   migration: WriteResult[]
   /** The manifest that was (or would be) written. */
   manifest: Manifest
+  /** The rows that wrote (or would write) each skills root; one per shared root. */
+  skillWriters: ReadonlySet<string>
 }
 
 interface FlatFile {
@@ -322,12 +344,16 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
     }
   }
 
-  // Harness files.
+  // Harness files. A shared skills root is rendered from its one writer, read from disk
+  // (marker, then evidence) before anything is written.
+  const table = opts.adapters ?? HARNESS_TABLE
+  const skillWriters = resolveSharedSkillWriters(cwd, opts.harnesses, table)
   const rendered = renderHarnessFiles({
     harnesses: opts.harnesses,
     typeTable: TYPE_TABLE,
     version,
     adapters: opts.adapters,
+    skillWriters,
   })
   // A home-relative path joined onto the repo would write outside the tool's
   // real location; no managed root covers the home directory yet. Refused
@@ -347,6 +373,14 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
     } else {
       md.push({ relpath: file.path, abspath: join(cwd, file.path), content: file.content })
     }
+  }
+  // The writer's id on each shared root it writes, manifest-tracked like any frontmatter-less file.
+  for (const marker of sharedTargetMarkers(skillWriters, table)) {
+    flat.push({
+      relpath: marker.relpath,
+      abspath: join(cwd, marker.relpath),
+      content: marker.content,
+    })
   }
 
   const results: WriteResult[] = []
@@ -374,7 +408,6 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
     const removed = removeFrontmatterless(abspath, relpath, prevFiles[relpath], writeOpts)
     if (removed) results.push(removed)
   }
-  const table = opts.adapters ?? HARNESS_TABLE
   for (const removed of removeOrphanMarkdown(cwd, rendered, mdEmitted, table, writeOpts)) {
     results.push(removed)
   }
@@ -384,7 +417,7 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
   const migration = migrateLegacySkills(cwd, mdEmitted, writeOpts)
 
   if (!writeOpts.dryRun) writeManifest(cwd, newManifest)
-  return { results, migration, manifest: newManifest }
+  return { results, migration, manifest: newManifest, skillWriters }
 }
 
 /** Scan the emitted harnesses' skill/command dirs for cospec markdown we no longer emit. */

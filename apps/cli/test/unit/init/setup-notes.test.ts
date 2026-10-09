@@ -116,8 +116,8 @@ describe('init receipt setup notes (verification 3.5)', () => {
   })
 })
 
-const SHARED_LINE =
-  '         skills for codex/agents share the .agents/skills root (identical files)'
+const sharedLine = (writer: string): string =>
+  `         skills for codex/agents share the .agents/skills root (one tree, written for ${writer})`
 
 /** A third tool reading the vendor-neutral `.agents/skills` root, as Zed does upstream. */
 const SHARED_FIXTURE: HarnessAdapter = {
@@ -130,35 +130,52 @@ const SHARED_FIXTURE: HarnessAdapter = {
   detectionPaths: ['.shared-fixture'],
 }
 
+const fixtureLine = (writer: string): string =>
+  `         skills for codex/agents/shared-fixture share the .agents/skills root (one tree, written for ${writer})`
+
 describe('init receipt shared skills root line', () => {
-  test("the four rows print today's line whenever codex or agents is selected", () => {
-    expect(sharedSkillsRootLines(['codex'])).toEqual([SHARED_LINE])
-    expect(sharedSkillsRootLines(['agents'])).toEqual([SHARED_LINE])
-    expect(sharedSkillsRootLines(['agents', 'codex'])).toEqual([SHARED_LINE])
-    expect(sharedSkillsRootLines([...HARNESS_NAMES])).toEqual([SHARED_LINE])
+  test('the shipped rows name every row on the root and the one it was written for', () => {
+    expect(sharedSkillsRootLines(['codex'], new Set(['codex']))).toEqual([sharedLine('codex')])
+    expect(sharedSkillsRootLines(['agents'], new Set(['agents']))).toEqual([sharedLine('agents')])
+    expect(sharedSkillsRootLines(['agents', 'codex'], new Set(['codex']))).toEqual([
+      sharedLine('codex'),
+    ])
+    expect(sharedSkillsRootLines([...HARNESS_NAMES], new Set(['claude', 'codex']))).toEqual([
+      sharedLine('codex'),
+    ])
   })
 
   test('rows whose skills root no other row shares print no line', () => {
-    expect(sharedSkillsRootLines(['claude'])).toEqual([])
-    expect(sharedSkillsRootLines(['opencode', 'claude'])).toEqual([])
-    expect(sharedSkillsRootLines([])).toEqual([])
+    expect(sharedSkillsRootLines(['claude'], new Set(['claude']))).toEqual([])
+    expect(sharedSkillsRootLines(['opencode', 'claude'], new Set(['opencode', 'claude']))).toEqual(
+      [],
+    )
+    expect(sharedSkillsRootLines([], new Set())).toEqual([])
   })
 
   test('a third row on the same resolved skills root joins the line, in table order', () => {
     const table = [...HARNESS_TABLE, SHARED_FIXTURE]
-    const line =
-      '         skills for codex/agents/shared-fixture share the .agents/skills root (identical files)'
-    expect(sharedSkillsRootLines(['shared-fixture'], table)).toEqual([line])
-    expect(sharedSkillsRootLines(['claude', 'codex'], table)).toEqual([line])
-    expect(sharedSkillsRootLines(['claude'], table)).toEqual([])
+    expect(sharedSkillsRootLines(['shared-fixture'], new Set(['shared-fixture']), table)).toEqual([
+      fixtureLine('shared-fixture'),
+    ])
+    expect(sharedSkillsRootLines(['claude', 'codex'], new Set(['claude', 'codex']), table)).toEqual(
+      [fixtureLine('codex')],
+    )
+    expect(sharedSkillsRootLines(['claude'], new Set(['claude']), table)).toEqual([])
   })
 
   test('two rows on another shared root print their own line, keyed on the root, not an id', () => {
     const left: HarnessAdapter = { ...SHARED_FIXTURE, id: 'left', skillsDir: '.pair' }
     const right: HarnessAdapter = { ...SHARED_FIXTURE, id: 'right', skillsDir: '.pair' }
-    expect(sharedSkillsRootLines(['right'], [left, right])).toEqual([
-      '         skills for left/right share the .pair/skills root (identical files)',
+    expect(sharedSkillsRootLines(['right'], new Set(['right']), [left, right])).toEqual([
+      '         skills for left/right share the .pair/skills root (one tree, written for right)',
     ])
+  })
+
+  test('a shared root selected with no writer named is an internal error', () => {
+    expect(() => sharedSkillsRootLines(['codex'], new Set())).toThrow(
+      /^internal: no writer for the \.agents\/skills root/,
+    )
   })
 })
 
