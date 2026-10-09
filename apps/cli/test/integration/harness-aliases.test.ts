@@ -32,84 +32,65 @@ function repo(): { dir: string; env: Record<string, string> } {
 
 describe('init: the unknown-tool fallback hint', () => {
   for (const spelling of ['--tools', '--harness']) {
-    test.failing(
-      `${spelling} universal is refused with both lines and writes nothing`,
-      async () => {
-        const r = repo()
-        const run = await cospec(['init', spelling, 'universal', '--no-gate', '--yes'], {
-          cwd: r.dir,
-          env: r.env,
-        })
-        expect(run.exitCode).toBe(1)
-        const lines = run.stderr.trimEnd().split('\n')
-        expect(lines).toHaveLength(2)
-        expect(lines[0]).toStartWith(`cospec: invalid ${spelling} 'universal'; valid values: `)
-        expect(lines[1]).toBe(HINT(spelling))
-        expect(tree(r.dir)).toEqual([])
-      },
-      60_000,
-    )
-  }
-
-  test.failing(
-    'a list holding one unknown value names the whole list and keeps the hint',
-    async () => {
+    test(`${spelling} universal is refused with both lines and writes nothing`, async () => {
       const r = repo()
-      const run = await cospec(['init', '--tools', 'claude,nope', '--no-gate', '--yes'], {
+      const run = await cospec(['init', spelling, 'universal', '--no-gate', '--yes'], {
         cwd: r.dir,
         env: r.env,
       })
       expect(run.exitCode).toBe(1)
-      expect(run.stderr).toContain("invalid --tools 'claude,nope'")
-      expect(run.stderr).toContain(HINT('--tools'))
+      const lines = run.stderr.trimEnd().split('\n')
+      expect(lines).toHaveLength(2)
+      expect(lines[0]).toStartWith(`cospec: invalid ${spelling} 'universal'; valid values: `)
+      expect(lines[1]).toBe(HINT(spelling))
       expect(tree(r.dir)).toEqual([])
-    },
-    60_000,
-  )
+    }, 60_000)
+  }
+
+  test('a list holding one unknown value names the whole list and keeps the hint', async () => {
+    const r = repo()
+    const run = await cospec(['init', '--tools', 'claude,nope', '--no-gate', '--yes'], {
+      cwd: r.dir,
+      env: r.env,
+    })
+    expect(run.exitCode).toBe(1)
+    expect(run.stderr).toContain("invalid --tools 'claude,nope'")
+    expect(run.stderr).toContain(HINT('--tools'))
+    expect(tree(r.dir)).toEqual([])
+  }, 60_000)
 })
 
 describe('init: the retired windsurf id', () => {
-  test.failing(
-    '--tools windsurf writes exactly what --harness devin writes',
-    async () => {
-      const a = repo()
-      const b = repo()
-      const viaAlias = await cospec(
-        ['init', '--tools', 'windsurf', '--no-gate', '--yes', '--json'],
-        {
-          cwd: a.dir,
-          env: a.env,
-        },
-      )
-      const viaId = await cospec(['init', '--harness', 'devin', '--no-gate', '--yes', '--json'], {
-        cwd: b.dir,
-        env: b.env,
-      })
-      expect(viaAlias.exitCode).toBe(0)
-      expect(viaId.exitCode).toBe(0)
-      expect((JSON.parse(viaAlias.stdout) as { harnesses: string[] }).harnesses).toEqual(['devin'])
-      const files = tree(a.dir)
-      expect(files).toEqual(tree(b.dir))
-      expect(files.some((f) => f.startsWith('.devin/'))).toBe(true)
-      expect(files.some((f) => f.startsWith('.windsurf/'))).toBe(false)
-      for (const f of files.filter((p) => p.startsWith('.devin/'))) {
-        expect(readFileSync(join(a.dir, f), 'utf8')).toBe(readFileSync(join(b.dir, f), 'utf8'))
-      }
-    },
-    120_000,
-  )
+  test('--tools windsurf writes exactly what --harness devin writes', async () => {
+    const a = repo()
+    const b = repo()
+    const viaAlias = await cospec(['init', '--tools', 'windsurf', '--no-gate', '--yes', '--json'], {
+      cwd: a.dir,
+      env: a.env,
+    })
+    const viaId = await cospec(['init', '--harness', 'devin', '--no-gate', '--yes', '--json'], {
+      cwd: b.dir,
+      env: b.env,
+    })
+    expect(viaAlias.exitCode).toBe(0)
+    expect(viaId.exitCode).toBe(0)
+    expect((JSON.parse(viaAlias.stdout) as { harnesses: string[] }).harnesses).toEqual(['devin'])
+    const files = tree(a.dir)
+    expect(files).toEqual(tree(b.dir))
+    expect(files.some((f) => f.startsWith('.devin/'))).toBe(true)
+    expect(files.some((f) => f.startsWith('.windsurf/'))).toBe(false)
+    for (const f of files.filter((p) => p.startsWith('.devin/'))) {
+      expect(readFileSync(join(a.dir, f), 'utf8')).toBe(readFileSync(join(b.dir, f), 'utf8'))
+    }
+  }, 120_000)
 
-  test.failing(
-    'windsurf and devin together select devin once, whatever the case',
-    async () => {
-      const r = repo()
-      const run = await cospec(
-        ['init', '--tools', ' Windsurf , devin', '--no-gate', '--yes', '--json'],
-        { cwd: r.dir, env: r.env },
-      )
-      expect(run.exitCode).toBe(0)
-      expect((JSON.parse(run.stdout) as { harnesses: string[] }).harnesses).toEqual(['devin'])
-    },
-    60_000,
-  )
+  test('windsurf and devin together select devin once, whatever the case', async () => {
+    const r = repo()
+    const run = await cospec(
+      ['init', '--tools', ' Windsurf , devin', '--no-gate', '--yes', '--json'],
+      { cwd: r.dir, env: r.env },
+    )
+    expect(run.exitCode).toBe(0)
+    expect((JSON.parse(run.stdout) as { harnesses: string[] }).harnesses).toEqual(['devin'])
+  }, 60_000)
 })

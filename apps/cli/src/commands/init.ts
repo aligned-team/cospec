@@ -36,7 +36,9 @@ import {
   scanRoots,
   SKILL_EXTENSION,
   skillsRoot,
+  resolveHarnessIdAlias,
   respellInvocationHint,
+  universalHarnessHint,
 } from '../harness/adapters.ts'
 import {
   findGlobalPromptLeftovers,
@@ -100,9 +102,9 @@ interface HarnessSelection {
 /**
  * The harnesses a `--harness`/`--tools` list selects, read as upstream's
  * `resolveToolsArg` reads `--tools`: the value trimmed, `all`/`none` and each
- * comma-separated name matched case-insensitively. An empty list is refused
- * with upstream's own sentence (naming the `spelling` the user typed), an
- * unknown name with cospec's list of the valid ones.
+ * comma-separated name matched case-insensitively, a retired id resolved first. An empty list
+ * is refused with upstream's own sentence (naming the `spelling` the user typed), an unknown
+ * name with cospec's list of the valid ones and upstream's pointer at `agents`.
  */
 function parseHarnessArg(
   value: string,
@@ -126,9 +128,16 @@ function parseHarnessArg(
     }
   const out: HarnessName[] = []
   for (const name of names) {
-    if (!isHarnessName(name))
-      return { error: `invalid ${spelling} '${value}'; ${VALID_HARNESS_MSG}` }
-    if (!out.includes(name)) out.push(name)
+    // A retired id resolves to its current tool before it is checked, as upstream's
+    // `resolveToolIdAlias` does, so a rebrand does not break a scripted `--harness windsurf`.
+    const resolved = resolveHarnessIdAlias(name)
+    if (!isHarnessName(resolved)) {
+      const hint = universalHarnessHint(spelling)
+      return {
+        error: `invalid ${spelling} '${value}'; ${VALID_HARNESS_MSG}${hint === undefined ? '' : `\n${hint}`}`,
+      }
+    }
+    if (!out.includes(resolved)) out.push(resolved)
   }
   return { harnesses: out }
 }

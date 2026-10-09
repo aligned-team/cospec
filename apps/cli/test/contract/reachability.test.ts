@@ -71,7 +71,7 @@ import {
   type SurfaceStatus,
 } from '../../src/core/command-table.ts'
 import { openspecPackageDir } from '../../src/core/openspec.ts'
-import { HARNESS_NAMES } from '../../src/harness/adapters.ts'
+import { HARNESS_ID_ALIASES, HARNESS_NAMES } from '../../src/harness/adapters.ts'
 import { cleanupAll, hashTree } from '../fixtures/support.ts'
 import { oracle, type OracleRun, scaffoldOracleRoot } from './support/upstream-oracle.ts'
 
@@ -349,6 +349,8 @@ interface Model {
   table: readonly CommandRow[]
   globalFlags: readonly string[]
   harnessNames: readonly string[]
+  /** `HARNESS_ID_ALIASES`: a retired upstream id and the harness it selects. */
+  harnessAliases: Readonly<Record<string, string>>
   canonWorkflows: readonly string[]
   pending: readonly PendingEntry[]
   aliases: readonly AliasEntry[]
@@ -408,8 +410,11 @@ function undeclaredOnForwardRows(model: Model): string[] {
 function cospecReaches(model: Model, entry: Entry): boolean {
   switch (entry.kind) {
     case 'tool':
-    case 'tool-alias':
       return model.harnessNames.includes(entry.id)
+    case 'tool-alias':
+      return (
+        model.harnessAliases[entry.id] === entry.target && model.harnessNames.includes(entry.target)
+      )
     case 'workflow':
       return model.canonWorkflows.includes(entry.id)
     default: {
@@ -897,6 +902,7 @@ beforeAll(async () => {
     table: COMMAND_TABLE,
     globalFlags: GLOBAL_FLAGS.map((f) => f.name),
     harnessNames: HARNESS_NAMES,
+    harnessAliases: HARNESS_ID_ALIASES,
     canonWorkflows: CANON_WORKFLOWS,
     pending: PENDING,
     aliases: ALIASES,

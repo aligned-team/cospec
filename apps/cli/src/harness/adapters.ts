@@ -725,6 +725,32 @@ export function isHarnessName(value: string): value is HarnessName {
   return (HARNESS_NAMES as readonly string[]).includes(value)
 }
 
+/**
+ * Retired tool ids that still resolve, upstream's `TOOL_ID_ALIASES`: Windsurf became Devin
+ * Desktop and its config directory moved, so `--harness windsurf` selects `devin`. An alias is
+ * never a row: it would write and detect a tool that no longer exists under that name.
+ */
+export const HARNESS_ID_ALIASES: Readonly<Record<string, HarnessName>> = { windsurf: 'devin' }
+
+/** `id` resolved through `HARNESS_ID_ALIASES`; a current id comes back untouched. */
+export function resolveHarnessIdAlias(id: string): string {
+  return Object.hasOwn(HARNESS_ID_ALIASES, id) ? HARNESS_ID_ALIASES[id]! : id
+}
+
+/**
+ * Upstream's `universalToolFallbackHint`, spelled for the flag the user typed: the scripted
+ * counterpart of the picker's empty-search hint. Undefined when the vendor-neutral `agents`
+ * row is not in `table`, so the hint never names a choice the caller cannot make.
+ */
+export function universalHarnessHint(
+  spelling: string,
+  table: readonly HarnessAdapter[] = HARNESS_TABLE,
+): string | undefined {
+  const universal = table.find((row) => row.id === 'agents')
+  if (universal === undefined) return undefined
+  return `Tool not listed? Use ${spelling} ${universal.id}: the vendor-neutral target that writes ${skillsRoot(universal).root}/ for any assistant.`
+}
+
 /** The row for `id` in `table`. An id the table does not declare is a programming error. */
 export function adapterFor(
   id: string,

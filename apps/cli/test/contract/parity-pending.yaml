@@ -20,7 +20,6 @@
 - { kind: tool, id: antigravity, owner: tool-matrix }
 - { kind: tool, id: minimax-code, owner: tool-matrix }
 - { kind: tool, id: zed, owner: tool-matrix }
-- { kind: tool-alias, id: windsurf, target: devin, owner: tool-matrix }
 
 # --- github-copilot ---------------------------------------------------------------
 - { kind: tool, id: github-copilot, owner: github-copilot }
