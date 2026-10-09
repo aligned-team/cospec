@@ -86,7 +86,7 @@
 
 ## 4. Shared skills root (T4: `harness/shared-root.ts`)
 
-- [ ] 4.1 Add `shared-root.ts` (`resolveSharedSkillWriters`,
+- [x] 4.1 Add `shared-root.ts` (`resolveSharedSkillWriters`,
       `reconcileSharedSkillTargets`, `isSharedSkillTargetActive`, marker
       read/write) with a unit precedence matrix ported from upstream's cases
       plus cospec's pre-marker evidence (rules file, legacy `.codex/skills`);
