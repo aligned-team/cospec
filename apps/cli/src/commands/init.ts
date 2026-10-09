@@ -634,7 +634,7 @@ export function run(ctx: CommandContext): number {
   const homeOpsx: HomeLeftover[] = findGlobalPromptLeftovers(harnesses).map((p) => {
     const removed = removeOpsx && emitted.has(p.replacement)
     if (removed) rmSync(p.path)
-    return { ...p, removed }
+    return { path: p.path, replacement: p.replacement, removed }
   })
 
   if (flags.json) {

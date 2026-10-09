@@ -195,7 +195,7 @@
       integration tests for `.kimi`, `.agent`, `.codex` and `.windsurf`
       (`update --json` migrates without asking; a user file stays; a differing
       destination is kept and reported)
-- [ ] 9.3 Port the Codex global prompt cleanup (decision 13); verify an
+- [x] 9.3 Port the Codex global prompt cleanup (decision 13); verify an
       integration test under a temp `CODEX_HOME` (allowlisted file removed after
       the replacement skill exists, a user prompt kept, nothing outside the temp
       dirs read) and one with codex not selected
