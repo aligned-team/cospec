@@ -146,7 +146,7 @@ function readManagedMeta(text: string): ManagedMeta {
 // scan reports them at their new location afterwards, and `--remove-opsx` removes them.
 
 /** Upstream's `WORKFLOW_TO_SKILL_DIR` values: the skill dirs OpenSpec writes. */
-const OPENSPEC_SKILL_DIRS = [
+export const OPENSPEC_SKILL_DIRS = [
   'openspec-explore',
   'openspec-new-change',
   'openspec-continue-change',

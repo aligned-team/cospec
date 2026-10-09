@@ -77,7 +77,7 @@
       (errno asserted through `test/fixtures/errno.ts`) and flip the tests;
       verify they pass and an unexpected error still propagates (unit test
       throwing `ENOSPC`)
-- [ ] 3.2 Land `test.failing` tests for a home-scoped fixture row under a temp
+- [x] 3.2 Land `test.failing` tests for a home-scoped fixture row under a temp
       `HOME` and under `USERPROFILE`, then make the resolved home skills root a
       managed root (write, dry-run read only, provenance-gated orphan removal,
       `resolveContainedPath` home containment) and remove the home-scope

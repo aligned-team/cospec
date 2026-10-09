@@ -69,7 +69,7 @@ describe('a home-relative skills root is a managed root', () => {
     for (const d of [dir, home, profile]) cleanup(d)
   })
 
-  test.failing('writes every skill under HOME when USERPROFILE is unset', () => {
+  test('writes every skill under HOME when USERPROFILE is unset', () => {
     const { results, failed } = generate(dir, OPTS)
     expect(failed).toEqual([])
     for (const skill of SKILLS) expect(existsSync(skillFile(home, skill))).toBe(true)
@@ -82,7 +82,7 @@ describe('a home-relative skills root is a managed root', () => {
     }
   })
 
-  test.failing('USERPROFILE wins over HOME', () => {
+  test('USERPROFILE wins over HOME', () => {
     process.env.USERPROFILE = profile
     generate(dir, OPTS)
     for (const skill of SKILLS) expect(existsSync(skillFile(profile, skill))).toBe(true)
@@ -90,7 +90,7 @@ describe('a home-relative skills root is a managed root', () => {
     expect(tree(dir).filter((p) => p.includes('.home-fixture'))).toEqual([])
   })
 
-  test.failing('a dry run reads the home root and writes nothing under it', () => {
+  test('a dry run reads the home root and writes nothing under it', () => {
     const before = generate(dir, { ...OPTS, dryRun: true })
     expect(before.results.filter((r) => r.path.includes('.home-fixture'))).toHaveLength(
       SKILLS.length,
@@ -108,33 +108,26 @@ describe('a home-relative skills root is a managed root', () => {
     expect(statSync(file).mtimeMs).toBe(old.getTime())
   })
 
-  test.failing(
-    'an orphaned cospec skill is removed, a user skill and a dry run keep theirs',
-    () => {
-      generate(dir, OPTS)
-      const retired = skillFile(home, 'cospec-retired')
-      const mine = skillFile(home, 'my-skill')
-      mkdirSync(join(retired, '..'), { recursive: true })
-      mkdirSync(join(mine, '..'), { recursive: true })
-      writeFileSync(retired, managedMarkdown('cospec-retired', 'gone from canon'))
-      writeFileSync(mine, '---\nname: my-skill\n---\nmy own skill\n')
+  test('an orphaned cospec skill is removed, a user skill and a dry run keep theirs', () => {
+    generate(dir, OPTS)
+    const retired = skillFile(home, 'cospec-retired')
+    const mine = skillFile(home, 'my-skill')
+    mkdirSync(join(retired, '..'), { recursive: true })
+    mkdirSync(join(mine, '..'), { recursive: true })
+    writeFileSync(retired, managedMarkdown('cospec-retired', 'gone from canon'))
+    writeFileSync(mine, '---\nname: my-skill\n---\nmy own skill\n')
 
-      const dry = generate(dir, { ...OPTS, dryRun: true })
-      expect(dry.results.filter((r) => r.outcome === 'removed').map((r) => r.path)).toEqual([
-        retired,
-      ])
-      expect(existsSync(retired)).toBe(true)
+    const dry = generate(dir, { ...OPTS, dryRun: true })
+    expect(dry.results.filter((r) => r.outcome === 'removed').map((r) => r.path)).toEqual([retired])
+    expect(existsSync(retired)).toBe(true)
 
-      const run = generate(dir, OPTS)
-      expect(run.results.filter((r) => r.outcome === 'removed').map((r) => r.path)).toEqual([
-        retired,
-      ])
-      expect(existsSync(retired)).toBe(false)
-      expect(readFileSync(mine, 'utf8')).toContain('my own skill')
-    },
-  )
+    const run = generate(dir, OPTS)
+    expect(run.results.filter((r) => r.outcome === 'removed').map((r) => r.path)).toEqual([retired])
+    expect(existsSync(retired)).toBe(false)
+    expect(readFileSync(mine, 'utf8')).toContain('my own skill')
+  })
 
-  test.failing('a hand-edited home skill is kept beside a sidecar, --force restores canon', () => {
+  test('a hand-edited home skill is kept beside a sidecar, --force restores canon', () => {
     generate(dir, OPTS)
     const file = skillFile(home, SKILLS[0]!)
     writeFileSync(file, `${readFileSync(file, 'utf8')}\nmy edit\n`)
@@ -150,7 +143,7 @@ describe('a home-relative skills root is a managed root', () => {
     expect(readFileSync(file, 'utf8')).not.toContain('my edit')
   })
 
-  test.failing('update detects the row from a cospec skill in the home root', () => {
+  test('update detects the row from a cospec skill in the home root', () => {
     expect(detectHarnesses(dir, [ROW])).toEqual([])
     mkdirSync(join(skillFile(home, 'my-skill'), '..'), { recursive: true })
     writeFileSync(skillFile(home, 'my-skill'), '---\nname: my-skill\n---\nmine\n')
@@ -159,24 +152,21 @@ describe('a home-relative skills root is a managed root', () => {
     expect(detectHarnesses(dir, [ROW])).toEqual([ROW.id as HarnessName])
   })
 
-  test.failing(
-    'init selects the row from a cospec- or OpenSpec-authored skill, not a user one',
-    () => {
-      const plant = (skill: string, author: string): void => {
-        mkdirSync(join(skillFile(home, skill), '..'), { recursive: true })
-        writeFileSync(
-          skillFile(home, skill),
-          `---\nname: ${skill}\nmetadata:\n  author: ${author}\n---\nbody\n`,
-        )
-      }
-      expect(availableHarnesses(dir, [ROW])).toEqual([])
-      plant('openspec-propose', 'someone-else')
-      expect(availableHarnesses(dir, [ROW])).toEqual([])
-      plant('openspec-propose', 'openspec')
-      expect(availableHarnesses(dir, [ROW])).toEqual([ROW.id])
-      cleanup(join(home, '.home-fixture'))
-      plant('cospec-propose', 'cospec')
-      expect(availableHarnesses(dir, [ROW])).toEqual([ROW.id])
-    },
-  )
+  test('init selects the row from a cospec- or OpenSpec-authored skill, not a user one', () => {
+    const plant = (skill: string, author: string): void => {
+      mkdirSync(join(skillFile(home, skill), '..'), { recursive: true })
+      writeFileSync(
+        skillFile(home, skill),
+        `---\nname: ${skill}\nmetadata:\n  author: ${author}\n---\nbody\n`,
+      )
+    }
+    expect(availableHarnesses(dir, [ROW])).toEqual([])
+    plant('openspec-propose', 'someone-else')
+    expect(availableHarnesses(dir, [ROW])).toEqual([])
+    plant('openspec-propose', 'openspec')
+    expect(availableHarnesses(dir, [ROW])).toEqual([ROW.id])
+    cleanup(join(home, '.home-fixture'))
+    plant('cospec-propose', 'cospec')
+    expect(availableHarnesses(dir, [ROW])).toEqual([ROW.id])
+  })
 })

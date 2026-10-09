@@ -9,6 +9,7 @@ import {
   SKILL_FILE,
   skillsRoot,
 } from './adapters.ts'
+import { hasHomeSkillEvidence } from './home-root.ts'
 import { readWorkflowManifest } from './render.ts'
 
 // One skills root can hold one rendered variant of each skill. When several rows resolve to
@@ -243,7 +244,11 @@ export function availableHarnesses(
   table: readonly HarnessAdapter[] = HARNESS_TABLE,
 ): string[] {
   const exists = (relpath: string): boolean => existsSync(join(cwd, relpath))
-  const available = table.filter((r) => r.detectionPaths.some(exists))
+  // A home-scoped row is available when its home skills directory holds a skill cospec or
+  // OpenSpec wrote, so it is selected in every project on the machine, as upstream's is.
+  const available = table.filter(
+    (r) => r.detectionPaths.some(exists) || hasHomeSkillEvidence(r, ['cospec', 'openspec']),
+  )
   const active = new Set(
     reconcileSharedSkillTargets(
       cwd,

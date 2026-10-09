@@ -43,6 +43,8 @@ export interface WriteResult {
   outcome: WriteOutcome
   /** Sidecar path written for `preserved-*` outcomes (`<path>.cospec-new`). */
   sidecar?: string
+  /** `home` when `path` is an absolute path under the user's home directory, not the project. */
+  scope?: 'home'
 }
 
 interface SplitResult {
@@ -220,21 +222,27 @@ export function writeManagedManifestFile(
  * absolute path, or a `foo/../../etc/hosts` traversal must never resolve to a
  * file outside the harness/openspec tree. Returns the absolute path when
  * `relpath` is an ordinary relative path contained by a root; otherwise
- * `undefined` (the caller must skip it, never join-and-delete).
+ * `undefined` (the caller must skip it, never join-and-delete). `absoluteRoots` are
+ * absolute directories outside the project (the resolved home skills directory); an absolute
+ * `relpath` inside one is contained, and no relative path ever is.
  */
 export function resolveContainedPath(
   cwd: string,
   relpath: string,
   roots: readonly string[],
+  absoluteRoots: readonly string[] = [],
 ): string | undefined {
-  // Reject absolutes and any traversal/degenerate segment up front, independent
-  // of what `resolve` would later collapse.
-  if (relpath === '' || isAbsolute(relpath)) return undefined
-  if (relpath.split(/[/\\]/).some((seg) => seg === '' || seg === '.' || seg === '..')) {
-    return undefined
-  }
+  if (relpath === '') return undefined
+  // An absolute path is one a home-scoped file is reported under: it resolves only inside an
+  // absolute root the caller names (the resolved home skills directory), never `roots`.
+  const absolute = isAbsolute(relpath)
+  if (absolute && absoluteRoots.length === 0) return undefined
+  // Reject any traversal/degenerate segment up front, independent of what `resolve` would
+  // later collapse.
+  const segments = absolute ? relpath.slice(sep.length).split(/[/\\]/) : relpath.split(/[/\\]/)
+  if (segments.some((seg) => seg === '' || seg === '.' || seg === '..')) return undefined
   const abs = resolve(cwd, relpath)
-  for (const root of roots) {
+  for (const root of absolute ? absoluteRoots : roots) {
     const rootAbs = resolve(cwd, root)
     // Must be a descendant of the root, never the root dir itself.
     if (abs !== rootAbs && abs.startsWith(rootAbs + sep)) return abs

@@ -49,6 +49,7 @@ import {
   SKILL_FILE,
   skillsRoot,
 } from '../harness/adapters.ts'
+import { hasHomeSkillEvidence, resolveHomeDir } from '../harness/home-root.ts'
 import {
   canAskLegacyConsent,
   consentLegacyMoves,
@@ -135,8 +136,8 @@ function hasSentinelCommand(
 
 /**
  * Evidence that this harness was configured in `cwd`: a cospec sentinel skill in its legacy
- * root; or in its skills root when it is that root's writer; or its sentinel command; or its
- * rules file.
+ * root; or in its skills root when it is that root's writer (for a home-scoped row, a cospec
+ * skill in the home skills directory); or its sentinel command; or its rules file.
  */
 function hasHarnessEvidence(
   cwd: string,
@@ -155,6 +156,8 @@ function hasHarnessEvidence(
   ) {
     return true
   }
+  // A home-scoped row has no project skills; its evidence is a cospec skill in the home root.
+  if (skills.scope === 'home' && hasHomeSkillEvidence(row, ['cospec'])) return true
   if (hasSentinelCommand(cwd, row, tracked)) return true
   return row.rulesPath !== undefined && existsSync(join(cwd, row.rulesPath))
 }
@@ -357,7 +360,7 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
   const prevFiles = prev?.files ?? {}
 
   const flat: FlatFile[] = []
-  const md: { relpath: string; abspath: string; content: string }[] = []
+  const md: { relpath: string; abspath: string; content: string; scope?: 'home' }[] = []
 
   // Schemas + templates (frontmatter-less).
   for (const composed of composeAllTypes()) {
@@ -387,23 +390,29 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
     adapters: opts.adapters,
     skillWriters,
   })
-  // A home-relative path joined onto the repo would write outside the tool's
-  // real location; no managed root covers the home directory yet. Refused
-  // before any write, so nothing lands on disk.
+  // A home-scoped file (a row with `globalSkillsDir`) lives under the resolved home directory
+  // and is reported by its absolute path, which no project path can equal. Skills are
+  // self-describing markdown, so no home path is ever a manifest key.
+  const home = resolveHomeDir()
   for (const file of rendered) {
-    if (file.scope === 'home') {
-      throw new Error(
-        `internal: ${file.harness} rendered home-scoped ${file.path}, which no managed root covers`,
-      )
-    }
-  }
-  for (const file of rendered) {
+    const isHome = file.scope === 'home'
+    const abspath = isHome ? join(home, file.path) : join(cwd, file.path)
     // Files with no frontmatter (the codex rules file, a TOML command) carry no
     // self-describing provenance, so the manifest tracks them.
     if (file.frontmatter === null) {
-      flat.push({ relpath: file.path, abspath: join(cwd, file.path), content: file.content })
+      if (isHome) {
+        throw new Error(
+          `internal: ${file.harness} rendered ${file.path} under the home directory with no frontmatter, which no manifest can track`,
+        )
+      }
+      flat.push({ relpath: file.path, abspath, content: file.content })
     } else {
-      md.push({ relpath: file.path, abspath: join(cwd, file.path), content: file.content })
+      md.push({
+        relpath: isHome ? abspath : file.path,
+        abspath,
+        content: file.content,
+        ...(isHome ? { scope: 'home' as const } : {}),
+      })
     }
   }
   // The writer's id on each shared root it writes, manifest-tracked like any frontmatter-less file.
@@ -448,7 +457,8 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
     const written = attempt(f.relpath, () =>
       writeMarkdown(f.abspath, f.relpath, f.content, writeOpts),
     )
-    if (written !== undefined) results.push(written)
+    if (written !== undefined)
+      results.push(f.scope === 'home' ? { ...written, scope: 'home' } : written)
   }
 
   // Removals: frontmatter-less files the previous manifest tracked that we no
@@ -471,12 +481,22 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
     }
     results.push(removed)
   }
-  for (const removed of removeOrphanMarkdown(cwd, rendered, mdEmitted, table, writeOpts, attempt)) {
+  for (const removed of removeOrphanMarkdown(
+    cwd,
+    home,
+    rendered,
+    mdEmitted,
+    table,
+    writeOpts,
+    attempt,
+  )) {
     results.push(removed)
   }
 
   // A harness with a file that failed is retried by the next `update`, however little of it exists.
-  const harnessOfPath = new Map(rendered.map((f) => [f.path, f.harness as string]))
+  const harnessOfPath = new Map(
+    rendered.map((f) => [f.scope === 'home' ? join(home, f.path) : f.path, f.harness as string]),
+  )
   const retry = new Set(
     (prev?.retry ?? []).filter((id) => !opts.harnesses.includes(id as HarnessName)),
   )
@@ -497,19 +517,20 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
 /** Scan the emitted harnesses' skill/command dirs for cospec markdown we no longer emit. */
 function removeOrphanMarkdown(
   cwd: string,
+  home: string,
   rendered: ReturnType<typeof renderHarnessFiles>,
   emitted: Set<string>,
   table: readonly HarnessAdapter[],
   opts: WriteOpts,
   attempt: Attempt,
 ): WriteResult[] {
-  const skillBases = new Set<string>()
+  const skillBases = new Map<string, 'project' | 'home'>()
   // Command dir -> the extensions its rows render markdown commands with. A
   // frontmatter-less (TOML) command is the manifest's to remove, so its dir is
   // not swept here.
   const commandDirs = new Map<string, Set<string>>()
   for (const f of rendered) {
-    if (f.kind === 'skill') skillBases.add(dirname(dirname(f.path)))
+    if (f.kind === 'skill') skillBases.set(dirname(dirname(f.path)), f.scope)
     else if (f.kind === 'command' && f.frontmatter !== null) {
       const extension = adapterFor(f.harness, table).commands?.extension
       if (extension === undefined) {
@@ -524,16 +545,22 @@ function removeOrphanMarkdown(
     }
   }
   const out: WriteResult[] = []
-  for (const base of skillBases) {
-    const abs = join(cwd, base)
-    if (!existsSync(abs)) continue
-    const entries = attempt(base, () => readdirSync(abs, { withFileTypes: true }))
+  for (const [base, scope] of skillBases) {
+    // A home-scoped base is swept at its absolute path; what it removes is contained in it.
+    const absBase = scope === 'home' ? join(home, base) : join(cwd, base)
+    const shown = scope === 'home' ? absBase : base
+    if (!existsSync(absBase)) continue
+    const entries = attempt(shown, () => readdirSync(absBase, { withFileTypes: true }))
     for (const entry of entries ?? []) {
       if (!entry.isDirectory()) continue
-      const relpath = `${base}/${entry.name}/${SKILL_FILE}`
+      const relpath = `${shown}/${entry.name}/${SKILL_FILE}`
       if (emitted.has(relpath)) continue
-      const removed = attempt(relpath, () => removeMarkdown(join(cwd, relpath), relpath, opts))
-      if (removed) out.push(removed)
+      const abspath = join(absBase, entry.name, SKILL_FILE)
+      if (scope === 'home' && resolveContainedPath(cwd, abspath, [], [absBase]) === undefined) {
+        continue
+      }
+      const removed = attempt(relpath, () => removeMarkdown(abspath, relpath, opts))
+      if (removed) out.push(scope === 'home' ? { ...removed, scope } : removed)
     }
   }
   for (const [dir, extensions] of commandDirs) {
