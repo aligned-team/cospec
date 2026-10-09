@@ -539,17 +539,18 @@ describe('fixture rows — scope', () => {
   })
 })
 
+const skillsOnly = (over: Partial<HarnessAdapter>): HarnessAdapter => ({
+  id: 'agents',
+  displayName: 'Fixture skills-only tool',
+  skillsDir: '.x',
+  invocationPrefix: '/',
+  bodyDialect: 'skill',
+  requiresIdeRestart: false,
+  detectionPaths: ['.x'],
+  ...over,
+})
+
 describe('fixture rows — skill and prose dialects', () => {
-  const skillsOnly = (over: Partial<HarnessAdapter>): HarnessAdapter => ({
-    id: 'agents',
-    displayName: 'Fixture skills-only tool',
-    skillsDir: '.x',
-    invocationPrefix: '/',
-    bodyDialect: 'skill',
-    requiresIdeRestart: false,
-    detectionPaths: ['.x'],
-    ...over,
-  })
   const sharedRef = /\$cospec-[a-z-]+ \(Codex\) or /
 
   test('the skill dialect spells `/cospec-<skill>`, which names a skill and no command', () => {

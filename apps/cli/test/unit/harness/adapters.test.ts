@@ -127,9 +127,11 @@ describe('transformBody — skill and prose dialects', () => {
   })
 })
 
+const refsIn = (row: HarnessAdapter, text: string): string[] =>
+  [...text.matchAll(workflowReferencePattern(row))].map((m) => m[1]!)
+
 describe('workflowReferencePattern', () => {
-  const refs = (row: HarnessAdapter, text: string): string[] =>
-    [...text.matchAll(workflowReferencePattern(row))].map((m) => m[1]!)
+  const refs = refsIn
   const text =
     'a /cospec:apply b /cospec-verify c @cospec-explore d /skill:cospec-onboard e the cospec-sync-specs skill f the cospec-manifest'
 
