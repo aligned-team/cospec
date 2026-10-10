@@ -12,6 +12,8 @@ authoritative template, per-type format, and project rules for each artifact.
 Trust that output: do NOT read `openspec/schemas/`, `openspec/config.yaml`, or
 other repo files to reverse-engineer an artifact's shape.
 
+{{ROOT_GUARD}}
+
 ## 1. Pick the change
 
 ```

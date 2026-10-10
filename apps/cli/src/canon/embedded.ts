@@ -33,6 +33,7 @@ import typeRefactor from './types/refactor.yaml' with { type: 'file' }
 import typeRevert from './types/revert.yaml' with { type: 'file' }
 import typeStyle from './types/style.yaml' with { type: 'file' }
 import typeTest from './types/test.yaml' with { type: 'file' }
+import workflowRootGuard from './workflows/_shared/root-guard.md' with { type: 'file' }
 import workflowApply from './workflows/apply.md' with { type: 'file' }
 import workflowArchive from './workflows/archive.md' with { type: 'file' }
 import workflowBulkArchive from './workflows/bulk-archive.md' with { type: 'file' }
@@ -72,6 +73,7 @@ const CANON_FILES: Record<string, string> = {
   'types/revert.yaml': typeRevert,
   'types/style.yaml': typeStyle,
   'types/test.yaml': typeTest,
+  'workflows/_shared/root-guard.md': workflowRootGuard,
   'workflows/apply.md': workflowApply,
   'workflows/archive.md': workflowArchive,
   'workflows/bulk-archive.md': workflowBulkArchive,

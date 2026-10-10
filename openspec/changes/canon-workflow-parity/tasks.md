@@ -35,24 +35,34 @@
 
 ## 2. T1 shared root-guard fragment
 
-- [ ] 2.1 Write `test/unit/canon-render.test.ts` rows first, as `test.failing`:
+- [x] 2.1 Write `test/unit/canon-render.test.ts` rows first, as `test.failing`:
       the `{{ROOT_GUARD}}` token is replaced by the fragment; a body missing it,
       repeating it or carrying an unregistered `{{NAME}}` makes the render throw
       naming the workflow; the fragment names no bare `openspec` command, no
       `/cospec:<id>` and no optional-workflow marker; interpolation runs before
       R12's resolver; `canonFile('workflows/_shared/root-guard.md')` resolves ->
       `bun test test/unit/canon-render.test.ts` shows the rows failing for the
-      right reasons.
-- [ ] 2.2 Write `canon/workflows/_shared/root-guard.md` (the lead-in check, the
+      right reasons. Observed: `test/unit/canon-render.test.ts` landed as 9
+      `test.failing` rows plus one plain regression guard; they failed on the
+      missing registry entry, the unreplaced token and the absent throws, not on
+      the harness.
+- [x] 2.2 Write `canon/workflows/_shared/root-guard.md` (the lead-in check, the
       carve-out, the auto-selected versus explicit branch, the picker; design D3
       and D4), register it in `canon/embedded.ts`, and add
       `interpolateFragments` and its `FRAGMENTS` registry to `harness/render.ts`
       as the first step of the pipeline -> the row set of 2.1 that does not need
-      the bodies passes and is flipped from `test.failing`.
-- [ ] 2.3 Confirm the compiled binary carries the fragment: `mise run build`
+      the bodies passes and is flipped from `test.failing`. Observed: all ten
+      rows pass and are flipped; `{{ROOT_GUARD}}` sits before the first heading
+      in all twelve bodies so the exactly-once throw holds for the real canon
+      (the prose each body keeps is replaced in group 8); render goldens and the
+      codex snapshot regenerated; `mise run test` 3036 pass / 0 fail,
+      `generate:check` clean.
+- [x] 2.3 Confirm the compiled binary carries the fragment: `mise run build`
       then render once from the built binary in a sandbox ->
       `mise run     test:pack` exits 0 and the built `cospec update` run writes
       bodies holding the fragment text.
+
+      Observed: `mise run build` then `mise run test:pack` exit 0 (2 pass); the built binary's `init` in a sandbox wrote bodies holding the fragment and `update --check` reported no drift.
 
 ## 3. T2 propose and ff inspect before drafting
 

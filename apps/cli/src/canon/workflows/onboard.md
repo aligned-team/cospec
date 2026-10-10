@@ -5,6 +5,8 @@ the user wants to.
 
 All work goes through `cospec`. Never call `openspec` directly.
 
+{{ROOT_GUARD}}
+
 ## 1. Preflight
 
 ```

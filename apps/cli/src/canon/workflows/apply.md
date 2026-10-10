@@ -2,6 +2,8 @@ Run the deterministic apply gate for a change, then implement its tasks. The
 gate is a command whose exit code you must obey — never re-derive it by reading
 `blocking-changes.md` yourself.
 
+{{ROOT_GUARD}}
+
 ## 1. Select the change
 
 If the user named one, use it. Otherwise run `cospec list --json`: if exactly

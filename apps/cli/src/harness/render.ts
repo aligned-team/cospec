@@ -209,10 +209,15 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
         ? skillReferenceSpelling(row)
         : skillSpelling(row)
     for (const w of workflows) {
+      // Fragments interpolate first, so the resolver and every later step read the final text.
       // Conditionals resolve on the raw canon body, before the type table and any respelling,
       // so no transformer ever sees a dropped branch.
       const rawBody = resolveOptionalWorkflows(
-        normalizeBody(readFileSync(workflowFile(`${w.id}.md`), 'utf8')),
+        interpolateFragments(
+          normalizeBody(readFileSync(workflowFile(`${w.id}.md`), 'utf8')),
+          w.id,
+          (name) => normalizeBody(readFileSync(workflowFile(name), 'utf8')),
+        ),
         installed,
       )
       const injected = w.injectTypeTable
@@ -445,6 +450,45 @@ function assemble(args: AssembleArgs): RenderedFile {
     contentHash: args.contentHash,
     content,
   }
+}
+
+/**
+ * The shared fragments a canon body names by token, each a canon file read once per render.
+ * `{{TYPE_TABLE}}` is injected separately, per workflow, so it is not here.
+ */
+export const FRAGMENTS: Readonly<Record<string, string>> = {
+  '{{ROOT_GUARD}}': '_shared/root-guard.md',
+}
+
+const TOKEN_PATTERN = /\{\{[^{}\n]*\}\}/g
+
+/**
+ * Replace each registered `{{NAME}}` token in a workflow body with its fragment's text. A body
+ * must carry every registered token exactly once, so a guard cannot be forgotten or doubled,
+ * and any other `{{NAME}}` token (bar `{{TYPE_TABLE}}`) is a typo that must not reach a user.
+ */
+export function interpolateFragments(
+  body: string,
+  workflow: string,
+  read: (fragment: string) => string,
+): string {
+  for (const token of body.match(TOKEN_PATTERN) ?? []) {
+    if (token !== '{{TYPE_TABLE}}' && FRAGMENTS[token] === undefined) {
+      throw new Error(
+        `workflow '${workflow}' carries the unregistered token ${token}; ` +
+          `registered fragments: ${Object.keys(FRAGMENTS).join(', ')}`,
+      )
+    }
+  }
+  let out = body
+  for (const [token, file] of Object.entries(FRAGMENTS)) {
+    const count = body.split(token).length - 1
+    if (count !== 1) {
+      throw new Error(`workflow '${workflow}' must carry ${token} exactly once, found ${count}`)
+    }
+    out = out.replace(token, () => read(file).replace(/\n$/, ''))
+  }
+  return out
 }
 
 function normalizeBody(raw: string): string {

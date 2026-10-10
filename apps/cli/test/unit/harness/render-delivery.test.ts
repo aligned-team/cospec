@@ -21,12 +21,16 @@ afterAll(() => {
   for (const d of dirs) rmSync(d, { recursive: true, force: true })
 })
 
-/** A copy of the canon workflows with `apply.md` replaced by `body`. */
+/**
+ * A copy of the canon workflows with `apply.md` replaced by `body`, behind the one fragment token
+ * every body must carry. The fragment is stubbed to `GUARD`, so a rendered body starts with it.
+ */
 function canonWithApply(body: string): string {
   const dir = mkdtempSync(join(tmpdir(), 'cospec-render-delivery-'))
   dirs.push(dir)
   cpSync(CANON, dir, { recursive: true })
-  writeFileSync(join(dir, 'apply.md'), body)
+  writeFileSync(join(dir, '_shared/root-guard.md'), 'GUARD\n')
+  writeFileSync(join(dir, 'apply.md'), `{{ROOT_GUARD}}\n\n${body}`)
   return dir
 }
 
@@ -54,14 +58,14 @@ describe('workflow set', () => {
       canonDir,
       workflows: new Set(['apply']),
     }).find((f) => f.workflow === 'apply' && f.kind === 'skill')
-    expect(withVerify?.body).toBe('# Apply\n\nThen run /cospec-verify.\nDone.\n')
-    expect(without?.body).toBe('# Apply\n\nDone.\n')
+    expect(withVerify?.body).toBe('GUARD\n\n# Apply\n\nThen run /cospec-verify.\nDone.\n')
+    expect(without?.body).toBe('GUARD\n\n# Apply\n\nDone.\n')
   })
 
   test('with no set, every workflow counts as installed', () => {
     const canonDir = canonWithApply('[[opsx:if-workflow verify]]yes[[opsx:else]]no[[opsx:end]]\n')
     const apply = render(['claude'], { canonDir }).find((f) => f.workflow === 'apply')
-    expect(apply?.body).toBe('yes\n')
+    expect(apply?.body).toBe('GUARD\n\nyes\n')
   })
 
   test('a malformed canon body fails before anything is emitted', () => {

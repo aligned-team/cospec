@@ -5,6 +5,8 @@ shows you its typed artifact plan — it does not author any artifact. Hand off 
 All work goes through `cospec`. Never call `openspec` directly, and never
 hand-edit the bookkeeping under `openspec/changes/`.
 
+{{ROOT_GUARD}}
+
 ## 1. Pick the type and slug
 
 The argument after the command is either `<type>: <free text>` (for example

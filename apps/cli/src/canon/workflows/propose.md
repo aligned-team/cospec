@@ -13,6 +13,8 @@ files to reverse-engineer an artifact's shape. Create the change first with
 `cospec new`, then let the instructions drive each artifact; every wasted
 exploration step is a turn you do not spend authoring.
 
+{{ROOT_GUARD}}
+
 ## 1. Ground yourself in the project
 
 Before you pick a type or a slug, run:

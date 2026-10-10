@@ -4,167 +4,167 @@
     "kind": "command",
     "workflow": "apply",
     "harness": "claude",
-    "contentHash": "sha256:7a8e6f62141f0dd909b84b2accfd01d21f7151e7bf568a6946e9cd8fac34b98e"
+    "contentHash": "sha256:7b5625a216a66b299eb5db1f5d240ea532fc4d520085f6ca6162c36871af481b"
   },
   {
     "path": ".claude/commands/cospec/archive.md",
     "kind": "command",
     "workflow": "archive",
     "harness": "claude",
-    "contentHash": "sha256:4ef8b0e5e83be85e5cf8f1c811e6947bbaeaec8a6df188fa96609d6a46aa220f"
+    "contentHash": "sha256:549a9dc61efc9e3ce35c9f782a2df813d9cfe3b86a9d1e719361ef773dc2c7fb"
   },
   {
     "path": ".claude/commands/cospec/bulk-archive.md",
     "kind": "command",
     "workflow": "bulk-archive",
     "harness": "claude",
-    "contentHash": "sha256:eb06828bc1c92dc2b4785adc3c3823e8c06dd4ea2afa3d07818c498043bf3fa5"
+    "contentHash": "sha256:7c6afc90c2cd28e6eabb077842d1275fd6eb383fb650a3d9ab6b2b339198e42b"
   },
   {
     "path": ".claude/commands/cospec/continue.md",
     "kind": "command",
     "workflow": "continue",
     "harness": "claude",
-    "contentHash": "sha256:2b7c61ad71a36a9dbe6e864a51a0c5e0ca2f115240ccb1abb1a38279e04869d4"
+    "contentHash": "sha256:34f5dbaf5ddd25e372751b6fc1bde8551dd7c7ca81612f44b3443bfe40c12254"
   },
   {
     "path": ".claude/commands/cospec/explore.md",
     "kind": "command",
     "workflow": "explore",
     "harness": "claude",
-    "contentHash": "sha256:3d08e2f260accffd6585f4cca53bf70ca5e12517105f346e84ae636da837b2c8"
+    "contentHash": "sha256:13f5452935dde040a0f1ab31fca9041d1d05f4435d84c3a762c3939f0966cd3f"
   },
   {
     "path": ".claude/commands/cospec/ff.md",
     "kind": "command",
     "workflow": "ff",
     "harness": "claude",
-    "contentHash": "sha256:297fcf956284a582d82fe043cbdc0091ade5810399cdc4f9b0417a9014a9938f"
+    "contentHash": "sha256:6bf4971b9d4fe4dca2f0b2aaf8a16e4bb214e4d71a003914400ac4e03bacff97"
   },
   {
     "path": ".claude/commands/cospec/new.md",
     "kind": "command",
     "workflow": "new",
     "harness": "claude",
-    "contentHash": "sha256:eff6d16b7161a3aaf80e831dfcf55a1c4816a0170d2b7844ec0864e766e686f8"
+    "contentHash": "sha256:5964354617469f507a1e21275420810b6213ff8fd4837393eb3adc439e6c1db2"
   },
   {
     "path": ".claude/commands/cospec/onboard.md",
     "kind": "command",
     "workflow": "onboard",
     "harness": "claude",
-    "contentHash": "sha256:c0acf01721c99e0b50950041c4080c330b709e81b07ef095b69784b1bedc7960"
+    "contentHash": "sha256:5e62b09f00b47734b039b7e05241c9d799b987a30a899127272c6e87911ea5ac"
   },
   {
     "path": ".claude/commands/cospec/propose.md",
     "kind": "command",
     "workflow": "propose",
     "harness": "claude",
-    "contentHash": "sha256:6abc44f41dbdcc3da24fb0dbb6767e3ea0ce0a4fe5292addae264c318dd8e7cd"
+    "contentHash": "sha256:5f58866bd2942ff90093cf386a5634b845d5040eada21b6f8eb0dc8181fc0fdd"
   },
   {
     "path": ".claude/commands/cospec/sync-specs.md",
     "kind": "command",
     "workflow": "sync-specs",
     "harness": "claude",
-    "contentHash": "sha256:c6671819783b5458bb4ceb83e6c0ea0716c94d919a1b813d5ef25fef16307d21"
+    "contentHash": "sha256:a0e373a36ee889608f8e7009aade5e60eded6a44135a17bf30f8adacb56520b4"
   },
   {
     "path": ".claude/commands/cospec/update.md",
     "kind": "command",
     "workflow": "update",
     "harness": "claude",
-    "contentHash": "sha256:071b20f1bf23bfa8cde1f211a9f3bb8dff8c6ffabd5f8e25be16304a15de7330"
+    "contentHash": "sha256:c59f8647de712bfc71ab4771d89fabd5c82c0a020f1cc6818470c5b22c86ccdb"
   },
   {
     "path": ".claude/commands/cospec/verify.md",
     "kind": "command",
     "workflow": "verify",
     "harness": "claude",
-    "contentHash": "sha256:d77817df123483dd7f40b93919041d8e5b09c2b55bc9681e503ffd5b63b9076a"
+    "contentHash": "sha256:3e2280e94a368f4b50e4f358f8246298eb56513c3f8194aa767d580f6fe25c82"
   },
   {
     "path": ".claude/skills/cospec-apply-change/SKILL.md",
     "kind": "skill",
     "workflow": "apply",
     "harness": "claude",
-    "contentHash": "sha256:7a8e6f62141f0dd909b84b2accfd01d21f7151e7bf568a6946e9cd8fac34b98e"
+    "contentHash": "sha256:7b5625a216a66b299eb5db1f5d240ea532fc4d520085f6ca6162c36871af481b"
   },
   {
     "path": ".claude/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "claude",
-    "contentHash": "sha256:4ef8b0e5e83be85e5cf8f1c811e6947bbaeaec8a6df188fa96609d6a46aa220f"
+    "contentHash": "sha256:549a9dc61efc9e3ce35c9f782a2df813d9cfe3b86a9d1e719361ef773dc2c7fb"
   },
   {
     "path": ".claude/skills/cospec-bulk-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "bulk-archive",
     "harness": "claude",
-    "contentHash": "sha256:eb06828bc1c92dc2b4785adc3c3823e8c06dd4ea2afa3d07818c498043bf3fa5"
+    "contentHash": "sha256:7c6afc90c2cd28e6eabb077842d1275fd6eb383fb650a3d9ab6b2b339198e42b"
   },
   {
     "path": ".claude/skills/cospec-continue-change/SKILL.md",
     "kind": "skill",
     "workflow": "continue",
     "harness": "claude",
-    "contentHash": "sha256:2b7c61ad71a36a9dbe6e864a51a0c5e0ca2f115240ccb1abb1a38279e04869d4"
+    "contentHash": "sha256:34f5dbaf5ddd25e372751b6fc1bde8551dd7c7ca81612f44b3443bfe40c12254"
   },
   {
     "path": ".claude/skills/cospec-explore/SKILL.md",
     "kind": "skill",
     "workflow": "explore",
     "harness": "claude",
-    "contentHash": "sha256:3d08e2f260accffd6585f4cca53bf70ca5e12517105f346e84ae636da837b2c8"
+    "contentHash": "sha256:13f5452935dde040a0f1ab31fca9041d1d05f4435d84c3a762c3939f0966cd3f"
   },
   {
     "path": ".claude/skills/cospec-ff-change/SKILL.md",
     "kind": "skill",
     "workflow": "ff",
     "harness": "claude",
-    "contentHash": "sha256:297fcf956284a582d82fe043cbdc0091ade5810399cdc4f9b0417a9014a9938f"
+    "contentHash": "sha256:6bf4971b9d4fe4dca2f0b2aaf8a16e4bb214e4d71a003914400ac4e03bacff97"
   },
   {
     "path": ".claude/skills/cospec-new-change/SKILL.md",
     "kind": "skill",
     "workflow": "new",
     "harness": "claude",
-    "contentHash": "sha256:eff6d16b7161a3aaf80e831dfcf55a1c4816a0170d2b7844ec0864e766e686f8"
+    "contentHash": "sha256:5964354617469f507a1e21275420810b6213ff8fd4837393eb3adc439e6c1db2"
   },
   {
     "path": ".claude/skills/cospec-onboard/SKILL.md",
     "kind": "skill",
     "workflow": "onboard",
     "harness": "claude",
-    "contentHash": "sha256:c0acf01721c99e0b50950041c4080c330b709e81b07ef095b69784b1bedc7960"
+    "contentHash": "sha256:5e62b09f00b47734b039b7e05241c9d799b987a30a899127272c6e87911ea5ac"
   },
   {
     "path": ".claude/skills/cospec-propose/SKILL.md",
     "kind": "skill",
     "workflow": "propose",
     "harness": "claude",
-    "contentHash": "sha256:6abc44f41dbdcc3da24fb0dbb6767e3ea0ce0a4fe5292addae264c318dd8e7cd"
+    "contentHash": "sha256:5f58866bd2942ff90093cf386a5634b845d5040eada21b6f8eb0dc8181fc0fdd"
   },
   {
     "path": ".claude/skills/cospec-sync-specs/SKILL.md",
     "kind": "skill",
     "workflow": "sync-specs",
     "harness": "claude",
-    "contentHash": "sha256:c6671819783b5458bb4ceb83e6c0ea0716c94d919a1b813d5ef25fef16307d21"
+    "contentHash": "sha256:a0e373a36ee889608f8e7009aade5e60eded6a44135a17bf30f8adacb56520b4"
   },
   {
     "path": ".claude/skills/cospec-update-change/SKILL.md",
     "kind": "skill",
     "workflow": "update",
     "harness": "claude",
-    "contentHash": "sha256:071b20f1bf23bfa8cde1f211a9f3bb8dff8c6ffabd5f8e25be16304a15de7330"
+    "contentHash": "sha256:c59f8647de712bfc71ab4771d89fabd5c82c0a020f1cc6818470c5b22c86ccdb"
   },
   {
     "path": ".claude/skills/cospec-verify-change/SKILL.md",
     "kind": "skill",
     "workflow": "verify",
     "harness": "claude",
-    "contentHash": "sha256:d77817df123483dd7f40b93919041d8e5b09c2b55bc9681e503ffd5b63b9076a"
+    "contentHash": "sha256:3e2280e94a368f4b50e4f358f8246298eb56513c3f8194aa767d580f6fe25c82"
   }
 ]

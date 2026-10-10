@@ -1,6 +1,8 @@
 Investigate a question about the codebase, a spec, or a proposed change — in
 thinking mode. Explore and explain; do not write implementation code.
 
+{{ROOT_GUARD}}
+
 ## Ground yourself first
 
 Three read-only commands, in this order:

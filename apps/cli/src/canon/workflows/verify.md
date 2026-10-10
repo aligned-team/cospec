@@ -5,6 +5,8 @@ evidence, and names the hard gates `[[opsx:if-workflow archive]]/cospec:archive[
 All work goes through `cospec`. Never call `openspec` directly, and never
 hand-edit the bookkeeping under `openspec/changes/`.
 
+{{ROOT_GUARD}}
+
 ## 1. Select the change
 
 If the user named one, use it. Otherwise run `cospec list --json`: if exactly

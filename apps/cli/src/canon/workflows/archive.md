@@ -2,6 +2,8 @@ Archive a completed change. `cospec archive` validates it, merges its spec
 deltas into the living specs, verifies the move actually happened, and fans
 blocker check-offs out to sibling changes — as one coupled step.
 
+{{ROOT_GUARD}}
+
 ## 1. Select the change
 
 If the user named one, use it. Otherwise run `cospec list --json`: if exactly

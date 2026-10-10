@@ -10,6 +10,8 @@ unrelated `cospec update` subcommand regenerates this repo's managed harness and
 schema files; it has nothing to do with a change's artifacts.) This workflow is
 built from `cospec status`, `cospec instructions`, and `cospec validate`.
 
+{{ROOT_GUARD}}
+
 ## 1. Select the change
 
 If the user named one, use it. Otherwise run `cospec list --json`. If exactly
