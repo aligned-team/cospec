@@ -1,11 +1,22 @@
 #!/usr/bin/env bash
-# Run `cospec update` over this repo's own managed files with an empty machine-global OpenSpec
-# config. `update` honours the `profile`/`workflows`/`delivery` keys of that config, so on a host
-# whose config says `profile: core` it renders and drift-checks only part of the twelve workflows
-# CLAUDE.md commits; an empty config dir keeps `generate` and `generate:check` host-independent.
+# Run `cospec update` over this repo's own managed files as if on a machine with nothing in its
+# home directory. `update` honours the `profile`/`workflows`/`delivery` keys of the machine-global
+# OpenSpec config, so on a host whose config says `profile: core` it renders and drift-checks only
+# part of the twelve workflows CLAUDE.md commits; it also reads and rewrites the home-scoped skills
+# roots (`~/.minimax/skills`, `~/.codex`) of the rows it is asked to maintain, so a host holding an
+# older cospec's skills there reports drift and has them rewritten. One empty temporary directory
+# stands in for HOME and every config/data/state/cache root, which keeps `generate` and
+# `generate:check` host-independent and writes nothing outside this repo.
 set -euo pipefail
 
-config_home="$(mktemp -d "${TMPDIR:-/tmp}/cospec-generate-config.XXXXXX")"
-trap 'rm -rf "$config_home"' EXIT
+empty_home="$(mktemp -d "${TMPDIR:-/tmp}/cospec-generate-home.XXXXXX")"
+trap 'rm -rf "$empty_home"' EXIT
 
-XDG_CONFIG_HOME="$config_home" bun run apps/cli/src/index.ts -- "$@"
+HOME="$empty_home" \
+  USERPROFILE="$empty_home" \
+  CODEX_HOME="$empty_home" \
+  XDG_CONFIG_HOME="$empty_home" \
+  XDG_DATA_HOME="$empty_home" \
+  XDG_STATE_HOME="$empty_home" \
+  XDG_CACHE_HOME="$empty_home" \
+  bun run apps/cli/src/index.ts -- "$@"

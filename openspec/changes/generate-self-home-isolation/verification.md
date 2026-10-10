@@ -1,0 +1,12 @@
+# Verification
+
+## 1. generate never touches the home directory [critical]
+
+- [x] 1.1 @regression (agent) scratch HOME holding twelve `.minimax/skills/cospec-*` stamped `cospec@0.9.0`, run `bash scripts/generate-self update --check` and then `update` with HOME, USERPROFILE, CODEX*HOME and XDG*\* at it -> before the change (1ac07ba7): check exit 1 with twelve `updated` rows under that HOME, and `update` exited 0 and rewrote all twelve (the HOME hash listing changed); after: check prints `cospec update --check: no drift`, `update` prints `cospec update: everything up to date`, and the HOME file listing and sha1s are identical before and after
+- [x] 1.2 @regression (agent) `test/integration/generate-self-home.test.ts` (stale `.minimax` skills plus a profile-core global config in a `homeSandbox()`) -> on the unfixed script 1 fail (`exitCode` 1, twelve `updated` rows under the scratch HOME); on the fixed script 1 pass, exit 0, `no drift`, scratch HOME snapshot (path, size, mtime, hash) unchanged
+- [x] 1.3 @integration (agent) `mise run generate` on the committed tree from the host's real HOME -> `cospec update: everything up to date`, `git status` identical before and after, `~/.minimax` still absent; `generate:check` inside `mise run check` printed `cospec update --check: no drift`
+
+## 2. Docs and gate
+
+- [x] 2.1 @manual (agent) `docs/self-hosting.md`, `docs/architecture.md`, `.agents/shared.md` and the `mise.toml` comment state that generate is isolated from the home directory and the global config; `apps/docs` and `apps/cli/src` untouched -> `git diff --stat origin/main -- apps/docs apps/cli/src` empty; `mise run agents:check` prints `All shared blocks are in sync.`
+- [x] 2.2 @manual (agent) `mise run check` exits 0 and `cospec validate generate-self-home-isolation --strict` is clean -> `mise run check` on the host's real HOME: unit 3120 pass, integration 395, contract 3231, bench 343, e2e 14, all 0 fail, generate:check and agents:check clean, exit 0; `cospec validate generate-self-home-isolation --strict` 0 errors, 0 warnings

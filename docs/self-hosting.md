@@ -48,12 +48,17 @@ regenerates the `generatedBy` frontmatter lines as part of the version-stamp
 task, in the same commit.
 
 `update` honours the `profile`, `workflows` and `delivery` keys of the
-machine-global OpenSpec config, so `generate` and `generate:check` run through
-`scripts/generate-self`, which points `XDG_CONFIG_HOME` at an empty directory
+machine-global OpenSpec config, and reads and rewrites the home-scoped skills
+roots (`~/.minimax/skills`) of the rows it maintains, so `generate` and
+`generate:check` run through `scripts/generate-self`, which points `HOME`,
+`USERPROFILE`, `CODEX_HOME` and the four XDG directories at one empty directory
 for the run. The committed files are the full twelve workflows on every host;
 without it, a host whose config says `profile: core` would regenerate and
 drift-check only the core set, hiding a missing non-core file and rewriting
-bodies that depend on which workflows are installed.
+bodies that depend on which workflows are installed, and a host holding an older
+cospec's skills under its real home would see drift there and have them
+rewritten by `generate`. `test/integration/generate-self-home.test.ts` guards it
+with a scratch HOME of stale skills and a profile-core config.
 
 ## The everyday loop
 
