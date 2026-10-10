@@ -9,7 +9,10 @@
 import { renderReferencedStoresSection, sanitizeInline } from './instructions-render.ts'
 import type { ApplyInstructionsJson } from './openspec.ts'
 
-/** What the printers read: the three optional keys of the relayed apply document. */
+/**
+ * What the printers read: the optional keys of the relayed apply document, or of the archive
+ * document (`context` and `operationGuidance`).
+ */
 type Inputs = Pick<ApplyInstructionsJson, 'context' | 'operationGuidance' | 'references'>
 
 /**
@@ -27,7 +30,9 @@ export function renderReferencesSection(instr: Inputs): string {
  * verbatim on purpose (the binary documents that escaping a leading `#` would also fire inside
  * fenced code); each guidance entry is one sanitized line.
  */
-export function renderOperationInputs(instr: Inputs): string {
+export function renderOperationInputs(
+  instr: Pick<Inputs, 'context' | 'operationGuidance'>,
+): string {
   let out = ''
   if (instr.context) {
     out += `### Project Context (required instruction input)\n${instr.context}\n\n`

@@ -48,6 +48,8 @@ import { hasFlag } from '../core/command-table.ts'
 import { parseLivingSpec, type DeltaOp } from '../core/deltas.ts'
 import { assertPathWithin } from '../core/glob.ts'
 import { spawnOpenspec, threadedArgv } from '../core/openspec.ts'
+import { renderOperationInputs } from '../core/operation-inputs.ts'
+import { readConfigOperationInputs } from '../core/project-config-read.ts'
 import { respellRemedies } from '../core/remedies.ts'
 import { renderHuman, renderJson } from '../core/report.ts'
 import { resolveRoot } from '../core/root.ts'
@@ -349,6 +351,31 @@ function spotCheckMiss(
   return undefined
 }
 
+/** The project's own inputs to this archive: the config's `context` and archive guidance. */
+interface ArchiveInputs {
+  context?: string
+  operationGuidance?: string[]
+}
+
+/**
+ * The archive inputs `openspec/config.yaml` gives, read as the pinned binary's
+ * `loadOperationInputs(readProjectConfig(root), 'archive')` does, and with the warnings it prints
+ * on the way. Read from the config rather than through a wrapped `instructions archive` call: a
+ * refusal that comes before the delegated archive spawns nothing, and the change is gone from
+ * `openspec/changes/` once the delegated archive has run.
+ */
+function archiveInputs(base: string): ArchiveInputs {
+  return readConfigOperationInputs(join(openspecDir(base), 'config.yaml'), 'archive', (line) =>
+    process.stderr.write(`${line}\n`),
+  )
+}
+
+/** The inputs' sections for the human transcript, after a blank line; nothing when none are set. */
+function printArchiveInputs(inputs: ArchiveInputs): void {
+  const text = renderOperationInputs(inputs)
+  if (text !== '') process.stdout.write(`\n${text.trimEnd()}\n`)
+}
+
 export async function run(ctx: CommandContext): Promise<number> {
   const { flags } = ctx
   const root = await resolveRoot(ctx)
@@ -363,6 +390,7 @@ export async function run(ctx: CommandContext): Promise<number> {
   // Every refusal below answers `--json` with exactly one document; text mode
   // keeps the prose each path writes to stderr.
   let type: string | undefined
+  let inputs: ArchiveInputs = {}
   const refuse = (
     reason: ArchiveRefusalReason,
     diagnostic: ArchiveDiagnostic,
@@ -381,6 +409,7 @@ export async function run(ctx: CommandContext): Promise<number> {
           ...(extra === undefined ? {} : { extra }),
         }),
       )
+    else printArchiveInputs(inputs)
     return EXIT.failure
   }
 
@@ -433,6 +462,10 @@ export async function run(ctx: CommandContext): Promise<number> {
     process.stderr.write(`cospec archive: ${diag.message}\n${diag.fix!}\n`)
     return refuse('namespace-folder', diag)
   }
+
+  // The project's own inputs, read once the change is a change: printed with the summary, or with
+  // the refusal, in text mode and carried by the success document under `--json`.
+  inputs = archiveInputs(base)
 
   const resolution = resolveSchema(base, change.schema)
 
@@ -711,6 +744,7 @@ export async function run(ctx: CommandContext): Promise<number> {
           retired,
           warnings,
           blockers: { checkedOff, nowUnblocked },
+          ...inputs,
           archive: {
             change: change.id,
             archivedAs: target,
@@ -740,6 +774,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     )
   for (const slug of nowUnblocked) lines.push(`Now unblocked: ${slug} → next: cospec apply ${slug}`)
   process.stdout.write(`${lines.join('\n')}\n`)
+  printArchiveInputs(inputs)
   return EXIT.success
 }
 

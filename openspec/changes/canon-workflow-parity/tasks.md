@@ -153,15 +153,44 @@
 
 ## 6. T5 archive consults the archive guidance
 
-- [ ] 6.1 Add rows first, as `test.failing`: the rendered `archive` body prints
+- [x] 6.1 Add rows first, as `test.failing`: the rendered `archive` body prints
       `cospec instructions archive --change "<slug>" --json` and states it is
       optional and non-blocking; a contract row extracts that command line from
       the rendered body, runs it in a sandbox project whose `config.yaml` sets
       `operations.archive.guidance`, and asserts the guidance is in the
       document; the precedence sentences match `archive-change.js` -> the rows
-      fail.
-- [ ] 6.2 Add the step-1 lookup and its precedence paragraph to `archive.md`
-      (design D8) -> the 6.1 rows pass and are flipped.
+      fail. Observed: the body rows (`canon-render.test.ts`: the lookup line
+      before the archive command with `--store <id>`, and each upstream
+      sentence) and the contract row (`operation-guidance.test.ts`: the line
+      extracted from the generated skill, run in a sandbox whose config sets
+      `operations.archive.guidance`) landed as `test.failing` on b9fe5316; the
+      integration check finds each sentence in the pinned `archive-change.js`.
+- [x] 6.2 Add the step-1 lookup and its precedence paragraph to `archive.md`
+      (design D8) -> the 6.1 rows pass and are flipped. Observed: step 1 of
+      `archive.md` carries the optional, non-blocking lookup and upstream's
+      precedence paragraph (landed with the regeneration on ac5a3c11);
+      `harness.yaml` records `archive-inputs-lookup` (`archive-change.js`, pin
+      1.13.1); the 6.1 rows pass and are flipped.
+
+- [x] 6.3 `cospec archive` prints the archive guidance (obligations R13, issue
+      #70; the design's Operational surface names only the apply transcript, so
+      this row records the addition). The inputs are read once the change
+      resolves, from `openspec/config.yaml` by `readConfigOperationInputs`
+      (`core/project-config-read.ts`: the binary's `loadOperationInputs` over
+      its `readProjectConfig`, warnings included), not through a wrapped
+      `instructions archive` call: `archive-refusals.test.ts` pins that a
+      refusal before the delegated archive spawns nothing, and the change is
+      gone from `openspec/changes/` once that archive has run. Printed in text
+      mode with the summary or with a refusal, carried as additive `context` and
+      `operationGuidance` keys on the `--json` success document, silent when
+      nothing is configured. Observed: the issue #70 repro script and the
+      `cospec archive` rows (`operation-guidance.test.ts`) landed as
+      `test.failing` and pass flipped; the inputs match the binary's own for
+      empty guidance entries, a whitespace-only context, a non-list guidance and
+      guidance under the other operation, warning lines included; an
+      unconfigured project archives with no new line; a refusal under `--json`
+      stays one failure document with no guidance keys; the archive, cli-surface
+      and unit command suites pass (622 tests, 0 fail).
 
 ## 7. T6 bulk-archive resolves collisions
 

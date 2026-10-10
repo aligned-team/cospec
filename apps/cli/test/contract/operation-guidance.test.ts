@@ -8,7 +8,7 @@
 // told an agent to read either. Each row below runs cospec and the pinned binary on one sandbox
 // project, so the sections cospec prints are compared with the binary's own, byte for byte.
 
-import { afterAll, describe, expect, test } from 'bun:test'
+import { afterAll, describe, expect, setDefaultTimeout, test } from 'bun:test'
 import { appendFileSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -16,6 +16,8 @@ import { cleanupAll, cospec, mkTempRepo, writeFiles } from '../fixtures/support.
 import { oracle, oracleJson } from './support/upstream-oracle.ts'
 
 afterAll(cleanupAll)
+// Each row drives several real processes: cospec, its wrapped binary, and the binary again as the oracle.
+setDefaultTimeout(120_000)
 
 const APPLY_MARKER = 'APPLY_GUIDANCE_MARKER: run focused tests first'
 const ARCHIVE_MARKER = 'ARCHIVE_GUIDANCE_MARKER: keep the summary short'
@@ -128,7 +130,7 @@ function markerLines(text: string, marker: string): string[] {
 }
 
 describe('issue #70: the configured guidance is visible in every listed form', () => {
-  test.failing('the repro script shows each marker in every form it lists', async () => {
+  test('the repro script shows each marker in every form it lists', async () => {
     const root = await project({ config: GUIDANCE_CONFIG })
     const forms: [string[], string][] = [
       [['apply', 'my-fix', '--json'], APPLY_MARKER],
@@ -249,7 +251,7 @@ describe('archive.md alone reaches the archive guidance (D8, verification 2)', (
 })
 
 describe('cospec archive prints the archive guidance (6.3, issue #70)', () => {
-  test.failing('on success, text mode prints the guidance after the summary', async () => {
+  test('on success, text mode prints the guidance after the summary', async () => {
     const root = await project({ config: GUIDANCE_CONFIG, verification: VERIFICATION_RESOLVED })
     const run = await cospec(['archive', 'my-fix'], { cwd: root })
     expect(run.exitCode).toBe(0)
@@ -258,7 +260,7 @@ describe('cospec archive prints the archive guidance (6.3, issue #70)', () => {
     expect(run.stdout.indexOf(ARCHIVE_MARKER)).toBeGreaterThan(archived)
   })
 
-  test.failing('on success, --json carries the guidance as additive keys', async () => {
+  test('on success, --json carries the guidance as additive keys', async () => {
     const root = await project({
       config: INPUTS_CONFIG,
       verification: VERIFICATION_RESOLVED,
@@ -271,15 +273,46 @@ describe('cospec archive prints the archive guidance (6.3, issue #70)', () => {
     expect(doc.context).toBe(CONTEXT + '\n')
   })
 
-  test.failing(
-    'on refusal, text mode prints the guidance, and the exit code is unchanged',
-    async () => {
-      const root = await project({ config: GUIDANCE_CONFIG })
-      const run = await cospec(['archive', 'my-fix'], { cwd: root })
-      expect(run.exitCode).toBe(1)
-      expect(`${run.stdout}\n${run.stderr}`).toContain(ARCHIVE_MARKER)
-    },
-  )
+  test('on refusal, text mode prints the guidance, and the exit code is unchanged', async () => {
+    const root = await project({ config: GUIDANCE_CONFIG })
+    const run = await cospec(['archive', 'my-fix'], { cwd: root })
+    expect(run.exitCode).toBe(1)
+    expect(`${run.stdout}\n${run.stderr}`).toContain(ARCHIVE_MARKER)
+  })
+
+  test("the inputs read are the binary's own, empty entries and bad shapes included", async () => {
+    const configs: [string, string][] = [
+      [
+        'empty guidance entries are dropped',
+        'operations:\n  archive:\n    guidance:\n      - ""\n      - keep\n      - ""\n',
+      ],
+      [
+        'a whitespace-only context is none',
+        'context: "   "\noperations:\n  archive:\n    guidance: [one]\n',
+      ],
+      [
+        "a guidance that is not a list is none, with the binary's warning",
+        'operations:\n  archive:\n    guidance: not-a-list\n',
+      ],
+      [
+        'guidance only under apply is none for archive',
+        'operations:\n  apply:\n    guidance: [elsewhere]\n',
+      ],
+    ]
+    for (const [label, config] of configs) {
+      const root = await project({ config: `\n${config}`, verification: VERIFICATION_RESOLVED })
+      const theirs = await oracle(['instructions', 'archive', '--change', 'my-fix', '--json'], root)
+      expect(theirs.exitCode, label).toBe(0)
+      const expected = JSON.parse(theirs.stdout) as Record<string, unknown>
+      const run = await cospec(['archive', 'my-fix', '--json'], { cwd: root })
+      expect(run.exitCode, label).toBe(0)
+      const doc = JSON.parse(run.stdout) as Record<string, unknown>
+      for (const key of ['context', 'operationGuidance'])
+        expect(doc[key], `${label}: ${key}`).toEqual(expected[key])
+      for (const line of theirs.stderr.split('\n').filter((l) => l.length > 0))
+        expect(run.stderr, label).toContain(line)
+    }
+  })
 
   test('on refusal, --json stays one failure document without the guidance keys', async () => {
     const root = await project({ config: GUIDANCE_CONFIG })
