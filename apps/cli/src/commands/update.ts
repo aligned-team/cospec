@@ -17,12 +17,13 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { openspecDir } from '../core/change.ts'
 import { hasFlag } from '../core/command-table.ts'
 import { isolatedWriteFailure } from '../core/errno.ts'
+import { readGlobalProfile } from '../core/global-profile.ts'
 import { isInteractive } from '../core/interactive.ts'
 import {
   computeContentHash,
@@ -45,7 +46,6 @@ import {
   HARNESS_TABLE,
   type HarnessAdapter,
   type HarnessName,
-  ideRestartLine,
   legacySkillsRoots,
   removalRoots,
   SKILL_FILE,
@@ -68,6 +68,7 @@ import {
   implicitCopilotCloudDirective,
   isCopilotCloudPath,
 } from '../harness/copilot-cloud.ts'
+import { type Delivery, ideRestartLine, zeroArtifactLine } from '../harness/delivery.ts'
 import { hasHomeSkillEvidence, resolveHomeDir } from '../harness/home-root.ts'
 import {
   canAskLegacyConsent,
@@ -79,21 +80,24 @@ import {
   migrateLegacySkills,
   moveLegacyToolRoots,
 } from '../harness/legacy-skills.ts'
+import {
+  assertWorkflowConditionalsResolved,
+  commandWriteReason,
+  skillWriteReason,
+} from '../harness/optional-workflow.ts'
 import { readWorkflowManifest, renderHarnessFiles } from '../harness/render.ts'
 import {
   isSharedSkillTargetActive,
   resolveSharedSkillWriters,
   sharedTargetMarkers,
 } from '../harness/shared-root.ts'
+import { selectWorkflows, workflowsLine } from '../harness/workflow-set.ts'
 
 // --- harness detection -----------------------------------------------------
 
 // Every root and marker below is read from the harness's HARNESS_TABLE row. Rows that share
 // a skills root (`.agents/skills`) write it from one chosen writer (`harness/shared-root.ts`),
 // so that tree is evidence only for its writer.
-
-/** The sentinel skill every harness always emits — used for presence detection. */
-const SENTINEL_SKILL = 'cospec-propose'
 
 /**
  * Directories cospec owns and is therefore allowed to delete manifest-tracked
@@ -128,35 +132,82 @@ function readManagedMeta(text: string): ManagedMeta | undefined {
   }
 }
 
-function hasSentinel(cwd: string, base: string): boolean {
-  const path = join(cwd, base, SENTINEL_SKILL, SKILL_FILE)
-  if (!existsSync(path)) return false
-  return isCospecManagedMarkdown(readFileSync(path, 'utf8'))
+/** Whether `abspath` is a markdown file cospec wrote (its frontmatter says so). */
+function isManagedFile(abspath: string): boolean {
+  return existsSync(abspath) && isCospecManagedMarkdown(readFileSync(abspath, 'utf8'))
+}
+
+/** Whether a cospec-managed skill of any workflow sits under `root` (a project-relative base). */
+function hasManagedSkill(root: string, base: string): boolean {
+  return readWorkflowManifest().workflows.some((w) =>
+    isManagedFile(join(root, base, w.skill, SKILL_FILE)),
+  )
 }
 
 /**
- * Whether the row's command surface holds cospec's command for the sentinel workflow: a
- * markdown command by its frontmatter provenance, a frontmatter-less one by its manifest entry.
+ * Whether the command file at `relpath` is cospec's: a markdown command by its frontmatter
+ * provenance, a frontmatter-less one by its manifest entry.
  */
-function hasSentinelCommand(
+function isManagedCommand(
   cwd: string,
   row: HarnessAdapter,
+  relpath: string,
   tracked: Readonly<Record<string, string>>,
 ): boolean {
-  const workflow = readWorkflowManifest().workflows.find((w) => w.skill === SENTINEL_SKILL)
-  if (workflow === undefined) {
-    throw new Error(`internal: no workflow renders the sentinel skill ${SENTINEL_SKILL}`)
-  }
-  const relpath = commandPath(row, workflow.command)
-  if (relpath === undefined || !existsSync(join(cwd, relpath))) return false
+  if (!existsSync(join(cwd, relpath))) return false
   if (!carriesFrontmatter(row.commands!.serializer)) return tracked[relpath] !== undefined
   return isCospecManagedMarkdown(readFileSync(join(cwd, relpath), 'utf8'))
 }
 
+/** Whether the row's command surface holds cospec's command for any workflow. */
+function hasManagedCommand(
+  cwd: string,
+  row: HarnessAdapter,
+  tracked: Readonly<Record<string, string>>,
+): boolean {
+  return readWorkflowManifest().workflows.some((w) => {
+    const relpath = commandPath(row, w.command)
+    return relpath !== undefined && isManagedCommand(cwd, row, relpath, tracked)
+  })
+}
+
 /**
- * Evidence that this harness was configured in `cwd`: a cospec sentinel skill in its legacy
- * root; or in its skills root when it is that root's writer (for a home-scoped row, a cospec
- * skill in the home skills directory); or its sentinel command; or its rules file.
+ * The workflow ids `row` already has installed in `cwd`: every one whose cospec-managed skill
+ * (in the row's skills root, or a legacy root it has not been moved out of) or command is on
+ * disk. Both surfaces count, whatever the delivery, so a workflow whose surface a delivery
+ * switch dropped stays installed and returns when the switch is undone. `update` renders
+ * these beside the profile's set: it never removes an installed workflow (design D4).
+ */
+export function installedWorkflowIds(
+  cwd: string,
+  row: HarnessAdapter,
+  tracked: Readonly<Record<string, string>>,
+  home: string = resolveHomeDir(),
+): Set<string> {
+  const skills = skillsRoot(row)
+  const skillBases: { root: string; base: string }[] = [
+    { root: skills.scope === 'home' ? home : cwd, base: skills.root },
+    ...legacySkillsRoots(row).map((base) => ({ root: cwd, base })),
+  ]
+  const ids = new Set<string>()
+  for (const w of readWorkflowManifest().workflows) {
+    const command = commandPath(row, w.command)
+    if (
+      skillBases.some(({ root, base }) => isManagedFile(join(root, base, w.skill, SKILL_FILE))) ||
+      (command !== undefined && isManagedCommand(cwd, row, command, tracked))
+    ) {
+      ids.add(w.id)
+    }
+  }
+  return ids
+}
+
+/**
+ * Evidence that this harness was configured in `cwd`: a cospec skill of any workflow in its
+ * legacy root; or in its skills root when it is that root's writer (for a home-scoped row, a
+ * cospec skill in the home skills directory); or a cospec command of any workflow; or its
+ * rules file. Any workflow counts, so a profile that leaves out `propose`, or a delivery that
+ * writes no skills, does not hide an installed harness.
  */
 function hasHarnessEvidence(
   cwd: string,
@@ -166,18 +217,18 @@ function hasHarnessEvidence(
 ): boolean {
   // A pre-migration install is detected by its LEGACY base alone — without that,
   // a `.codex/skills` tree would stop being regenerated and never be cleaned up.
-  if (legacySkillsRoots(row).some((base) => hasSentinel(cwd, base))) return true
+  if (legacySkillsRoots(row).some((base) => hasManagedSkill(cwd, base))) return true
   const skills = skillsRoot(row)
   if (
     skills.scope === 'project' &&
-    hasSentinel(cwd, skills.root) &&
+    hasManagedSkill(cwd, skills.root) &&
     isSharedSkillTargetActive(cwd, row.id, table)
   ) {
     return true
   }
   // A home-scoped row has no project skills; its evidence is a cospec skill in the home root.
   if (skills.scope === 'home' && hasHomeSkillEvidence(row, ['cospec'])) return true
-  if (hasSentinelCommand(cwd, row, tracked)) return true
+  if (hasManagedCommand(cwd, row, tracked)) return true
   return row.rulesPath !== undefined && existsSync(join(cwd, row.rulesPath))
 }
 
@@ -340,6 +391,12 @@ export interface GenerateOptions {
    * boolean, then a managed file on disk), as `update` and `doctor` need.
    */
   cloud?: CopilotCloudDirective
+  /**
+   * The workflow ids to install and the surfaces to write them to, forwarded to
+   * `renderHarnessFiles`. Absent, every workflow and both surfaces, as before a profile existed.
+   */
+  workflows?: ReadonlySet<string>
+  delivery?: Delivery
 }
 
 /** One generated file `generate()` could not write, sidecar or remove (design decision 10). */
@@ -412,17 +469,42 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
   // (marker, then evidence) before anything is written.
   const table = opts.adapters ?? HARNESS_TABLE
   const skillWriters = resolveSharedSkillWriters(cwd, opts.harnesses, table)
+  // A home-scoped file (a row with `globalSkillsDir`) lives under the resolved home directory
+  // and is reported by its absolute path, which no project path can equal. Skills are
+  // self-describing markdown, so no home path is ever a manifest key.
+  const home = resolveHomeDir()
+  // A profile selects what a row gets by default; it never takes away what the row already
+  // has (design D4). Each row renders the profile's set plus the workflows it has installed.
+  const workflowsByHarness =
+    opts.workflows === undefined
+      ? undefined
+      : new Map(
+          opts.harnesses.map((id) => [
+            id,
+            new Set([
+              ...opts.workflows!,
+              ...installedWorkflowIds(cwd, adapterFor(id, table), prevFiles, home),
+            ]),
+          ]),
+        )
   const rendered = renderHarnessFiles({
     harnesses: opts.harnesses,
     typeTable: TYPE_TABLE,
     version,
     adapters: opts.adapters,
     skillWriters,
+    workflowsByHarness,
+    delivery: opts.delivery,
   })
-  // A home-scoped file (a row with `globalSkillsDir`) lives under the resolved home directory
-  // and is reported by its absolute path, which no project path can equal. Skills are
-  // self-describing markdown, so no home path is ever a manifest key.
-  const home = resolveHomeDir()
+  // Checked over the whole rendered set before anything is written, so a body that skipped
+  // conditional resolution never reaches disk (design D6).
+  for (const file of rendered) {
+    if (file.kind === 'skill') {
+      assertWorkflowConditionalsResolved(file.body, skillWriteReason(basename(dirname(file.path))))
+    } else if (file.kind === 'command' && file.workflow !== null) {
+      assertWorkflowConditionalsResolved(file.body, commandWriteReason(file.workflow))
+    }
+  }
   for (const file of rendered) {
     const isHome = file.scope === 'home'
     const abspath = isHome ? join(home, file.path) : join(cwd, file.path)
@@ -445,7 +527,11 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
     }
   }
   // The writer's id on each shared root it writes, manifest-tracked like any frontmatter-less file.
+  // A root the delivery generates no skills into (`commands` with only `agents` selected) gets
+  // no marker either, so `init` and a later `update` agree that nothing is written there.
   for (const marker of sharedTargetMarkers(skillWriters, table)) {
+    const root = marker.relpath.slice(0, marker.relpath.lastIndexOf('/') + 1)
+    if (!rendered.some((f) => f.path.startsWith(root))) continue
     flat.push({
       relpath: marker.relpath,
       abspath: join(cwd, marker.relpath),
@@ -601,9 +687,8 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
   for (const removed of removeOrphanMarkdown(
     cwd,
     home,
-    rendered,
+    opts.harnesses.map((id) => adapterFor(id, table)),
     mdEmitted,
-    table,
     writeOpts,
     attempt,
   )) {
@@ -631,13 +716,16 @@ export function generate(cwd: string, opts: GenerateOptions): GenerateResult {
   return { results, failed, migration, manifest: newManifest, skillWriters, cloud, cloudDirective }
 }
 
-/** Scan the emitted harnesses' skill/command dirs for cospec markdown we no longer emit. */
+/**
+ * Scan the selected rows' skill and command dirs for cospec markdown we no longer emit. The
+ * dirs come from the rows, not from the rendered files, so a surface the delivery no longer
+ * generates (skills under `commands`, commands under `skills`) is swept too.
+ */
 function removeOrphanMarkdown(
   cwd: string,
   home: string,
-  rendered: ReturnType<typeof renderHarnessFiles>,
+  rows: readonly HarnessAdapter[],
   emitted: Set<string>,
-  table: readonly HarnessAdapter[],
   opts: WriteOpts,
   attempt: Attempt,
 ): WriteResult[] {
@@ -646,20 +734,16 @@ function removeOrphanMarkdown(
   // frontmatter-less (TOML) command is the manifest's to remove, so its dir is
   // not swept here.
   const commandDirs = new Map<string, Set<string>>()
-  for (const f of rendered) {
-    if (f.kind === 'skill') skillBases.set(dirname(dirname(f.path)), f.scope)
-    else if (f.kind === 'command' && f.frontmatter !== null) {
-      const extension = adapterFor(f.harness, table).commands?.extension
-      if (extension === undefined) {
-        throw new Error(
-          `internal: ${f.harness} rendered command ${f.path} but its row declares no commands`,
-        )
-      }
-      const dir = dirname(f.path)
-      const extensions = commandDirs.get(dir) ?? new Set<string>()
-      extensions.add(extension)
-      commandDirs.set(dir, extensions)
-    }
+  for (const row of rows) {
+    const skills = skillsRoot(row)
+    skillBases.set(skills.root, skills.scope)
+    const commands = row.commands
+    if (commands === undefined || !carriesFrontmatter(commands.serializer)) continue
+    // The directory a command lands in: a namespaced row's `file` pattern carries a subdirectory.
+    const dir = dirname(commandPath(row, 'workflow')!)
+    const extensions = commandDirs.get(dir) ?? new Set<string>()
+    extensions.add(commands.extension)
+    commandDirs.set(dir, extensions)
   }
   const out: WriteResult[] = []
   for (const [base, scope] of skillBases) {
@@ -707,7 +791,7 @@ const DRIFT_OUTCOMES = new Set<WriteResult['outcome']>([
   'removed',
 ])
 
-export function run(ctx: CommandContext): number {
+export async function run(ctx: CommandContext): Promise<number> {
   const { flags, parsed } = ctx
   // `update [path]`: the project the path names, as upstream's `update` takes it.
   const cwd = resolve(ctx.cwd, parsed!.positionals[0] ?? '.')
@@ -736,7 +820,17 @@ export function run(ctx: CommandContext): number {
   }
 
   const harnesses = detectHarnesses(cwd)
-  const generated = generate(cwd, { harnesses, force, dryRun: check })
+  // A profile or delivery applies only when the user set one in the machine-global config;
+  // upstream's built-in default is not a choice they made, so a repo that sets nothing keeps
+  // every workflow and both surfaces.
+  const selection = selectWorkflows(undefined, await readGlobalProfile(cwd, { warn: true }))
+  const generated = generate(cwd, {
+    harnesses,
+    force,
+    dryRun: check,
+    workflows: selection.installed,
+    delivery: selection.delivery,
+  })
   const { results, migration } = generated
   // The binary catches a failed cloud sync into one Warning and keeps the exit code; cospec does
   // the same for the failures it expects there (a profile conflict, a path guard, the errno set)
@@ -773,6 +867,8 @@ export function run(ctx: CommandContext): number {
           version: 1,
           mode: check ? 'check' : force ? 'force' : 'write',
           harnesses,
+          profile: selection.profile ?? null,
+          delivery: selection.delivery,
           files: results,
           failed,
           migration: [...migration, ...legacyMoveEntries(moves)],
@@ -791,6 +887,13 @@ export function run(ctx: CommandContext): number {
     movesPending: wouldMove,
     failed: failed.length > 0,
   })
+  const workflowsNote = workflowsLine(selection)
+  if (workflowsNote !== undefined) process.stdout.write(`${workflowsNote}\n`)
+  const noArtifacts = zeroArtifactLine(
+    harnesses.map((id) => adapterFor(id)),
+    selection.delivery,
+  )
+  if (noArtifacts !== undefined) process.stdout.write(`${noArtifacts}\n`)
   for (const line of migrationLines(migration, check)) process.stdout.write(`${line}\n`)
   for (const line of legacyMoveLines(moves, check)) process.stdout.write(`${line}\n`)
   for (const line of failedLines(failed)) process.stdout.write(`${line}\n`)
@@ -804,7 +907,10 @@ export function run(ctx: CommandContext): number {
   })
   for (const line of cloudLines) process.stdout.write(`${line}\n`)
   // Upstream prints its restart line only when an update touched a tool's files.
-  const restart = check || drifted.length === 0 ? undefined : updateRestartLine(harnesses)
+  const restart =
+    check || drifted.length === 0
+      ? undefined
+      : updateRestartLine(harnesses, undefined, selection.delivery)
   if (restart !== undefined) process.stdout.write(`${restart}\n`)
   return exitCode
 }
@@ -839,8 +945,12 @@ function askOnTerminal(question: string, notice: string): boolean {
 export function updateRestartLine(
   harnesses: readonly string[],
   table?: readonly HarnessAdapter[],
+  delivery: Delivery = 'both',
 ): string | undefined {
-  return ideRestartLine(harnesses.map((h) => adapterFor(h, table)))
+  return ideRestartLine(
+    harnesses.map((h) => adapterFor(h, table)),
+    delivery,
+  )
 }
 
 /**

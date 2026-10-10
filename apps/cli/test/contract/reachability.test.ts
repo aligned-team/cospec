@@ -956,6 +956,10 @@ describe('reachability: every pinned OpenSpec surface resolves exactly once', ()
 })
 
 describe('parity data files', () => {
+  test('parity-pending.yaml is empty: every pinned surface is reachable', () => {
+    expect(PENDING).toEqual([])
+  })
+
   test('every parity-pending.yaml entry carries a known owner slug', () => {
     const bad = PENDING.filter((pe) => pe.owner === undefined || !KNOWN_OWNERS.has(pe.owner))
     expect(bad.map((pe) => label(pe))).toEqual([])
@@ -1065,11 +1069,14 @@ describe('reachability: negative cases (ledger 4.1, 4.3, 4.5)', () => {
   })
 
   test('a pending entry whose owner disagrees with the table fails', () => {
-    const pending = PENDING.filter((pe) => !(pe.kind === 'flag' && pe.flag === '--language'))
-    pending.push({ kind: 'flag', path: ['init'], flag: '--language', owner: 'tool-matrix' })
-    const failures = checkReachability({ ...model, pending })
+    // No shipped surface is pending, so the table carries one fixture flag marked pending.
+    const table = withFlagStatus(['list'], '--specs', { pending: 'cli-surface-parity' })
+    const pendingEntries: PendingEntry[] = [
+      { kind: 'flag', path: ['list'], flag: '--specs', owner: 'archive-and-sync-parity' },
+    ]
+    const failures = checkReachability({ ...model, table, pending: pendingEntries })
     expect(failures).toContain(
-      "flag `init --language` is pending on 'tool-matrix' in parity-pending.yaml but on 'workflow-profiles' in the command table",
+      "flag `list --specs` is pending on 'archive-and-sync-parity' in parity-pending.yaml but on 'cli-surface-parity' in the command table",
     )
   })
 

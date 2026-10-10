@@ -116,6 +116,61 @@ describe('init receipt setup notes (verification 3.5)', () => {
   })
 })
 
+describe('init receipt setup notes under delivery', () => {
+  test('a commands note is dropped when delivery skills writes no commands for the row', () => {
+    expect(setupNoteLines(['claude'], HARNESS_TABLE, 'skills')).toEqual([])
+    expect(setupNoteLines(['opencode'], HARNESS_TABLE, 'skills')).toEqual([])
+  })
+
+  test('a skills note is dropped when delivery commands writes no skills for the row', () => {
+    expect(setupNoteLines(['agents', 'hermes', 'zed'], HARNESS_TABLE, 'commands')).toEqual([])
+  })
+
+  test('each note survives under the delivery that writes its surface', () => {
+    expect(setupNoteLines(['claude'], HARNESS_TABLE, 'commands')).toEqual([note('claude')])
+    expect(setupNoteLines(['claude'], HARNESS_TABLE, 'both')).toEqual([note('claude')])
+    expect(setupNoteLines(['agents', 'hermes'], HARNESS_TABLE, 'skills')).toEqual([
+      note('agents'),
+      note('hermes'),
+    ])
+  })
+
+  test('Codex writes skills under commands, so its note stays', () => {
+    expect(setupNoteLines(['codex'], HARNESS_TABLE, 'commands')).toEqual([note('codex')])
+  })
+
+  test('a row sharing its skills root with a row that gets skills keeps its note', () => {
+    expect(setupNoteLines(['agents', 'codex'], HARNESS_TABLE, 'commands')).toEqual([
+      note('agents'),
+      note('codex'),
+    ])
+  })
+
+  test('the restart line follows the surface the delivery writes for the flagged row', () => {
+    expect(setupNoteLines(['ide-cmds'], TABLE, 'skills')).toEqual([
+      IDE_WITH_COMMANDS.setupNote!,
+      SKILLS_LINE,
+    ])
+    expect(setupNoteLines(['ide-cmds'], TABLE, 'commands')).toEqual([COMMANDS_LINE])
+    expect(setupNoteLines(['ide-skills'], TABLE, 'commands')).toEqual([])
+  })
+
+  test('a note about commands belongs to a row that has commands', () => {
+    for (const row of HARNESS_TABLE as readonly HarnessAdapter[]) {
+      if (row.setupNoteSurface === 'commands') expect(row.commands).toBeDefined()
+    }
+  })
+
+  test('a shared root nothing writes into gets no line', () => {
+    expect(
+      sharedSkillsRootLines(['agents'], new Set(['agents']), HARNESS_TABLE, 'commands'),
+    ).toEqual([])
+    expect(
+      sharedSkillsRootLines(['agents', 'codex'], new Set(['codex']), HARNESS_TABLE, 'commands'),
+    ).toEqual([sharedLine('codex')])
+  })
+})
+
 const sharedLine = (writer: string): string =>
   `         skills for codex/agents/antigravity/zed share the .agents/skills root (one tree, written for ${writer})`
 

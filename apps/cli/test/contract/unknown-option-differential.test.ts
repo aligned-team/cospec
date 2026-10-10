@@ -379,21 +379,24 @@ const NATIVE_ROWS: readonly Row[] = [
 ]
 
 /**
- * Every flag, positional and subcommand the table marks pending on a `table`
- * command (ledger 5.2); `pendingFlag` is the token the refusal names.
+ * `init --language` and `init --profile` (change `workflow-profiles`): each was a pending row
+ * refused as not supported yet, and now parses as the binary's does. The fixture root already holds
+ * a config.yaml, so `--language` is refused by both (exit 1, the binary's own message), and
+ * `--profile` runs (exit 0).
  */
-const PENDING_ROWS: readonly Row[] = [
+const WORKFLOW_PROFILE_ROWS: readonly Row[] = [
   {
-    argv: ['init', '--language', 'fr', '.'],
+    argv: ['init', '--tools', 'claude', '--language', 'fr', '.'],
     command: 'init',
-    expect: 'pending',
-    pendingFlag: '--language',
+    expect: 'same',
+    exit: 1,
+    cospecStderr: '--language does not overwrite an existing OpenSpec config.',
   },
   {
-    argv: ['init', '--profile', 'core', '.'],
+    argv: ['init', '--tools', 'claude', '--profile', 'core', '.'],
     command: 'init',
-    expect: 'pending',
-    pendingFlag: '--profile',
+    expect: 'same',
+    exit: 0,
   },
 ]
 
@@ -827,8 +830,8 @@ describe('unknown-option differential: cospec-native table commands', () => {
   register(NATIVE_ROWS)
 })
 
-describe('unknown-option differential: pending flags', () => {
-  register(PENDING_ROWS)
+describe('unknown-option differential: workflow-profiles flags', () => {
+  register(WORKFLOW_PROFILE_ROWS)
 })
 
 describe('unknown-option differential: Copilot cloud flags', () => {

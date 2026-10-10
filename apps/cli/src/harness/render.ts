@@ -24,6 +24,19 @@ import {
   transformBody,
   type WorkflowDef,
 } from './adapters.ts'
+import {
+  commandSurfaceCapability,
+  type Delivery,
+  shouldGenerateCommands,
+  skillReferenceSpelling,
+  skillsRootGenerated,
+} from './delivery.ts'
+import {
+  assertWorkflowConditionalsResolved,
+  commandWriteReason,
+  resolveOptionalWorkflows,
+  skillWriteReason,
+} from './optional-workflow.ts'
 
 export { type BodyDialect, type HarnessName, HARNESS_NAMES, isHarnessName } from './adapters.ts'
 
@@ -62,6 +75,18 @@ export interface RenderOptions {
    * caller's bug and throws, rather than silently writing no skills.
    */
   skillWriters?: ReadonlySet<string>
+  /**
+   * The installed workflow ids: only these are emitted, and every optional-workflow
+   * conditional resolves against them. Absent, every manifest workflow is installed.
+   */
+  workflows?: ReadonlySet<string>
+  /**
+   * A row's own installed set, which replaces `workflows` for that row: `update` keeps every
+   * workflow a row already has installed, so rows of one run can hold different sets.
+   */
+  workflowsByHarness?: ReadonlyMap<string, ReadonlySet<string>>
+  /** Which surfaces each row generates (design D5). Absent, `both`. */
+  delivery?: Delivery
 }
 
 export interface RenderedFile {
@@ -114,7 +139,11 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
   const manifest = readWorkflowManifest(opts.canonDir)
   const table = opts.adapters ?? HARNESS_TABLE
 
+  // References are spelled over the whole manifest; a reference to a workflow outside the set
+  // is the canon's to wrap in a conditional, not render's to drop.
   const skillById = skillByWorkflowId(manifest)
+  const everyWorkflow = new Set(manifest.workflows.map((w) => w.id))
+  const delivery = opts.delivery ?? 'both'
 
   // Keyed by output path: `codex` and `agents` share the `.agents/skills` root and render
   // byte-identical files there, so selecting both must emit each file exactly once rather
@@ -147,11 +176,17 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
 
   for (const harness of opts.harnesses) {
     const row = adapterFor(harness, table)
+    const installed = opts.workflowsByHarness?.get(harness) ?? opts.workflows ?? everyWorkflow
+    const workflows = manifest.workflows.filter((w) => installed.has(w.id))
     const skills = skillsRoot(row)
+    const rootRows = (sharedRoots.get(skillsRootKey(row)) ?? [harness]).map((id) =>
+      adapterFor(id, table),
+    )
     const writesSkills =
-      opts.skillWriters === undefined ||
-      !sharedRoots.has(skillsRootKey(row)) ||
-      opts.skillWriters.has(harness)
+      skillsRootGenerated(rootRows, delivery) &&
+      (opts.skillWriters === undefined ||
+        !sharedRoots.has(skillsRootKey(row)) ||
+        opts.skillWriters.has(harness))
     const commands = row.commands
     if (commands?.serializer === 'markdown' && commands.frontmatter === undefined) {
       throw new Error(
@@ -168,12 +203,21 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
           'frontmatter, but declares a frontmatter builder',
       )
     }
-    for (const w of manifest.workflows) {
-      const rawBody = normalizeBody(readFileSync(workflowFile(`${w.id}.md`), 'utf8'))
+    // With no command files to point at, an adapter-backed row's skills name skills instead.
+    const skillSpell =
+      delivery === 'skills' && commandSurfaceCapability(row) === 'adapter-backed'
+        ? skillReferenceSpelling(row)
+        : skillSpelling(row)
+    for (const w of workflows) {
+      // Conditionals resolve on the raw canon body, before the type table and any respelling,
+      // so no transformer ever sees a dropped branch.
+      const rawBody = resolveOptionalWorkflows(
+        normalizeBody(readFileSync(workflowFile(`${w.id}.md`), 'utf8')),
+        installed,
+      )
       const injected = w.injectTypeTable
         ? rawBody.replace('{{TYPE_TABLE}}', renderTypeTable(opts.typeTable))
         : rawBody
-      const skillSpell = skillSpelling(row)
       const skillBody = transformBody(injected, skillSpell.dialect, skillById, skillSpell.prefix)
       // A row's commands spell references by `bodyDialect`, its skills by `skillDialect`
       // (Devin's differ), so a differing command body is respelled from the injected canon.
@@ -189,6 +233,8 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
         commands?.injectArguments !== undefined && w.takesArguments === true
           ? injectArgumentPlaceholder(spelled, commands.injectArguments)
           : spelled
+      assertWorkflowConditionalsResolved(skillBody, skillWriteReason(w.skill))
+      assertWorkflowConditionalsResolved(commandBody, commandWriteReason(w.id))
       const skillSection = `\n${skillBody}`
       const skillHash = hashBody(skillSection)
 
@@ -208,7 +254,7 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
         )
       }
 
-      const path = commandPath(row, w.command)
+      const path = shouldGenerateCommands(row, delivery) ? commandPath(row, w.command) : undefined
       if (
         commands !== undefined &&
         !carriesFrontmatter(commands.serializer) &&

@@ -1,10 +1,16 @@
-import { describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import pkg from '../../package.json'
 import { run } from '../../src/cli.ts'
+import {
+  COMMAND_TABLE,
+  pending,
+  type FlagSpec,
+  type TableCommandRow,
+} from '../../src/core/command-table.ts'
 import { respellRemedies } from '../../src/core/remedies.ts'
 import { RootSelectionError } from '../../src/core/root.ts'
 import { openspecRaw } from '../fixtures/support.ts'
@@ -53,6 +59,31 @@ async function dispatch(argv: string[]): Promise<{ code: number; out: string; er
     process.stdout.write = origOut
     process.stderr.write = origErr
   }
+}
+
+/**
+ * No shipped surface is pending any more (`parity-pending.yaml` is empty), so the describes
+ * that exercise the dispatcher's pending refusal give `init` a synthetic flag marked pending
+ * for their duration and take it away after. No real flag stands in for it.
+ */
+const PENDING_FIXTURE: FlagSpec = {
+  name: '--pending-fixture',
+  takesValue: true,
+  placeholder: '<value>',
+  description: 'a synthetic pending flag',
+  status: pending('workflow-profiles'),
+  origin: 'upstream',
+}
+
+function withPendingFixtureFlag(): void {
+  const row = COMMAND_TABLE.find((r) => r.name === 'init') as TableCommandRow
+  const flags = row.flags as FlagSpec[]
+  beforeAll(() => {
+    flags.push(PENDING_FIXTURE)
+  })
+  afterAll(() => {
+    flags.splice(flags.indexOf(PENDING_FIXTURE), 1)
+  })
 }
 
 describe('cli dispatcher: --store on a row that never reads it', () => {
@@ -234,6 +265,7 @@ describe('cli dispatcher: a -- right after the command name', () => {
 })
 
 describe('cli dispatcher: help renders from the command table', () => {
+  withPendingFixtureFlag()
   test('show --help lists --diff and --requirements, and --requirements-only as the deprecated alias', async () => {
     const r = await dispatch(['show', '--help'])
     expect(r.code).toBe(0)
@@ -245,7 +277,7 @@ describe('cli dispatcher: help renders from the command table', () => {
 
   test('pending flags never appear in help', async () => {
     const init = await dispatch(['init', '--help'])
-    for (const flag of ['--language', '--profile']) expect(init.out).not.toContain(flag)
+    for (const flag of ['--pending-fixture']) expect(init.out).not.toContain(flag)
     // `--copilot-cloud` and its negation are handled (change `github-copilot`).
     expect(init.out).toMatch(/^ {2}--copilot-cloud +Generate GitHub Copilot cloud/m)
     expect(init.out).toMatch(/^ {2}--no-copilot-cloud +Skip generating GitHub Copilot cloud/m)
@@ -280,7 +312,7 @@ describe('cli dispatcher: help renders from the command table', () => {
     expect(completion.out).toMatch(/^ {4}--verbose +Show detailed installation output$/m)
     expect(completion.out).toMatch(/^ {4}-y, --yes +Skip confirmation prompts$/m)
     const init = await dispatch(['init', '--help'])
-    expect(init.out).not.toContain('--language')
+    expect(init.out).not.toContain('--pending-fixture')
     // `update [path]` is handled (change `upstream-spellings`).
     const update = await dispatch(['update', '--help'])
     expect(update.out).toContain('Usage: cospec update [path] [options]')
@@ -288,6 +320,7 @@ describe('cli dispatcher: help renders from the command table', () => {
 })
 
 describe('cli dispatcher: table rows parse before the module loads', () => {
+  withPendingFixtureFlag()
   test('an unknown option is refused with exit 1 and a suggestion', async () => {
     const r = await dispatch(['status', '--schem', 'custom'])
     expect(r.code).toBe(1)
@@ -296,9 +329,9 @@ describe('cli dispatcher: table rows parse before the module loads', () => {
   })
 
   test('a pending flag is refused as not supported yet', async () => {
-    const r = await dispatch(['init', '--language', 'fr', '.'])
+    const r = await dispatch(['init', '--pending-fixture', 'fr', '.'])
     expect(r.code).toBe(1)
-    expect(r.err).toBe("cospec init: '--language' is not supported yet\n")
+    expect(r.err).toBe("cospec init: '--pending-fixture' is not supported yet\n")
   })
 
   test('a value-taking flag with no value is refused', async () => {
@@ -385,19 +418,32 @@ describe('cli dispatcher: --store-path is refused in every position', () => {
 })
 
 describe("cli dispatcher: a value-taking flag's space-form value is never intercepted", () => {
+  withPendingFixtureFlag()
   for (const [argv, err] of [
     // A help flag or a global there is the value: the pending flag is refused
     // with its value consumed, never help, never absorbed.
-    [['init', '--language', '--help'], "cospec init: '--language' is not supported yet\n"],
-    [['init', '--language', '--json'], "cospec init: '--language' is not supported yet\n"],
-    [['init', '--profile', '--store'], "cospec init: '--profile' is not supported yet\n"],
+    [
+      ['init', '--pending-fixture', '--help'],
+      "cospec init: '--pending-fixture' is not supported yet\n",
+    ],
+    [
+      ['init', '--pending-fixture', '--json'],
+      "cospec init: '--pending-fixture' is not supported yet\n",
+    ],
+    [
+      ['init', '--pending-fixture', '--store'],
+      "cospec init: '--pending-fixture' is not supported yet\n",
+    ],
     // Upstream's program level takes `--no-color` out first, wherever it sits
     // before the first `--`: the flag takes the next token or has none.
     [
-      ['init', '--language', '--no-color'],
-      "cospec init: option '--language <language>' argument missing\n",
+      ['init', '--pending-fixture', '--no-color'],
+      "cospec init: option '--pending-fixture <value>' argument missing\n",
     ],
-    [['init', '--language', '--no-color', 'x'], "cospec init: '--language' is not supported yet\n"],
+    [
+      ['init', '--pending-fixture', '--no-color', 'x'],
+      "cospec init: '--pending-fixture' is not supported yet\n",
+    ],
     [['list', '--store', '--no-color'], "cospec list: option '--store <id>' argument missing\n"],
     // Past a `--` taken as a value the program level has stopped: both tokens
     // are the command's unknown options.

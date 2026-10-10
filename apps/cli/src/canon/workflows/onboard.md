@@ -88,5 +88,5 @@ to sibling changes.
 ## 10. Wrap up
 
 Tell the user they have now run the full cospec loop once end to end, and point
-at `/cospec:propose` (or `/cospec:new` plus `/cospec:ff` or `/cospec:continue`)
+at `[[opsx:if-workflow propose]]/cospec:propose[[opsx:else]]cospec new <type> <slug>[[opsx:end]]` (or `[[opsx:if-workflow new]]/cospec:new[[opsx:else]]cospec new <type> <slug>[[opsx:end]]` plus `[[opsx:if-workflow ff]]/cospec:ff[[opsx:else]]cospec instructions <artifact> --change <slug>[[opsx:end]]` or `[[opsx:if-workflow continue]]/cospec:continue[[opsx:else]]cospec instructions <artifact> --change <slug>[[opsx:end]]`)
 for their next real change.

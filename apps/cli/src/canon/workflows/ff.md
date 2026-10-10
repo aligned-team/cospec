@@ -1,7 +1,7 @@
 Fast-forward an already-scaffolded change: author every remaining artifact in
-one pass, then validate. Use this after `/cospec:new` has already created the
+one pass, then validate. Use this after `[[opsx:if-workflow new]]/cospec:new[[opsx:else]]cospec new <type> <slug>[[opsx:end]]` has already created the
 change. Do NOT scaffold a new change here — if none exists yet, stop and point
-the user at `/cospec:new` instead.
+the user at `[[opsx:if-workflow new]]/cospec:new[[opsx:else]]cospec new <type> <slug>[[opsx:end]]` instead.
 
 All work goes through `cospec`. Never call `openspec` directly, and never
 hand-edit the bookkeeping under `openspec/changes/`.
@@ -70,5 +70,5 @@ the formatter over it before re-validating. Re-run until it is clean.
 ## 5. Hand off
 
 Tell the user the change is apply-ready and that the next step is
-`/cospec:apply` when they want to implement it. Do not start implementation
+`[[opsx:if-workflow apply]]/cospec:apply[[opsx:else]]cospec apply <slug>[[opsx:end]]` when they want to implement it. Do not start implementation
 here.

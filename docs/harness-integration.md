@@ -17,8 +17,11 @@ single-sourced in `canon/workflows/*.md` and rendered per harness. This is
 cospec's full opsx 1.13.1 parity set: every live opsx workflow (`propose`,
 `new`, `explore`, `continue`, `apply`, `ff`, `sync`, `archive`, `bulk-archive`,
 `verify`, `onboard`, `update`) has a cospec-adapted counterpart — `sync` maps to
-`sync-specs` (see below). cospec has no core/custom profile split: it always
-emits the full twelve to every configured harness.
+`sync-specs` (see below). By default every configured harness gets the full
+twelve. A narrower set (`core` or `custom`) and a `delivery` mode apply only
+when set explicitly, by `cospec init --profile` or a `profile` / `delivery` key
+present in the machine-global config; see
+[Harness setup](https://cospec.aligned.team/guide/harness-setup#choosing-the-workflow-set).
 
 The exact per-harness file tree each `cospec init` writes, the slash-syntax
 substitution, the restart/reload notes, and the smoke-test checklist are owned
@@ -42,7 +45,8 @@ nothing else keeps a copy of a layout fact. A row declares:
   bodies say), `skillDialect` (what its skill bodies say, when different), and
   `skillInvocationPrefix` (`/skill:` for Kimi).
 - **Install state.** `rulesPath` (Codex's prefix-rule allowlist),
-  `requiresIdeRestart`, `detectionPaths`, `setupNote`, `searchAliases`.
+  `requiresIdeRestart`, `detectionPaths`, `setupNote`, `setupNoteSurface`,
+  `searchAliases`.
 - **Migration.** `legacyToolRoots` (`root`, `needsConsent`, `timing`,
   `consentNotice`), `legacyCommandPaths` and `legacyGlobalPrompts`, which the
   leftover scan reads.
@@ -361,8 +365,12 @@ merged entry. If it does not parse, cospec prints the snippet and skips.
   prints upstream's single `Restart your IDE to refresh commands.` (or
   `skills.`) line whenever any selected row's `requiresIdeRestart` is set;
   `update` prints the same line after a write when a detected harness's row sets
-  it. `ideRestartLine` prefers the commands wording whenever a flagged row has
-  commands. cospec ships no hooks, so no `[features] hooks` config is needed.
+  it. `ideRestartLine` (in `harness/delivery.ts`) prefers the commands wording
+  whenever the delivery writes commands for a flagged row. A row's `setupNote`
+  prints only when the delivery writes the surface named by its
+  `setupNoteSurface` (`commands`, else `skills`), and the start hint is spelled
+  for the first row that generates anything, with none printed when no selected
+  row does. cospec ships no hooks, so no `[features] hooks` config is needed.
 
 ## Per-harness smoke checklist
 

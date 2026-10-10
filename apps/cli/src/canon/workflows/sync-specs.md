@@ -54,6 +54,6 @@ report a retirement, and give the user a way to recover the file.
 ## Afterwards
 
 The change is still active: finish its tasks and verification, then run
-`/cospec:archive`. Its merge finds the specs already in sync, and both hard
+`[[opsx:if-workflow archive]]/cospec:archive[[opsx:else]]cospec archive <slug>[[opsx:end]]`. Its merge finds the specs already in sync, and both hard
 archive gates still run. To sanity-check the living specs on their own, run
 `cospec validate --specs`.

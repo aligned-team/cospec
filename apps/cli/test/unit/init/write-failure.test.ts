@@ -20,7 +20,7 @@ import { run as initRun } from '../../../src/commands/init.ts'
 import { generate, run as updateRun } from '../../../src/commands/update.ts'
 import { readManifest } from '../../../src/core/managed-files.ts'
 import { errnoShape } from '../../fixtures/errno.ts'
-import { capture, captureAsync, cleanup, ctx, makeRepo } from './helpers.ts'
+import { captureAsync, cleanup, ctx, makeRepo } from './helpers.ts'
 
 const CODEX_RULES = '.codex/rules/cospec.rules'
 
@@ -160,11 +160,11 @@ describe('init and update report a per-file failure', () => {
     failed: { path: string; error: string }[]
   }
 
-  test('init lists the failures, exits 1, and update retries them', () => {
+  test('init lists the failures, exits 1, and update retries them', async () => {
     mkdirSync(join(dir, '.cursor'))
     lock('.cursor')
-    const init = capture(
-      () => initRun(ctx(dir, ['--harness', 'claude,cursor', '--yes'], true)) as number,
+    const init = await captureAsync(() =>
+      initRun(ctx(dir, ['--harness', 'claude,cursor', '--yes'], true)),
     )
     expect(init.code).toBe(1)
     const doc = JSON.parse(init.out) as FailedDoc
@@ -172,24 +172,26 @@ describe('init and update report a per-file failure', () => {
     expect(existsSync(join(dir, '.claude/skills/cospec-propose/SKILL.md'))).toBe(true)
 
     unlock('.cursor')
-    const update = capture(() => updateRun(ctx(dir, [], false, 'update')) as number)
+    const update = await captureAsync(() => updateRun(ctx(dir, [], false, 'update')))
     expect(update.code).toBe(0)
     for (const path of pathsOf('cursor', '.cursor/')) expect(existsSync(join(dir, path))).toBe(true)
   })
 
-  test('the human receipts print a Failed: block naming each path', () => {
+  test('the human receipts print a Failed: block naming each path', async () => {
     mkdirSync(join(dir, '.cursor'))
     lock('.cursor')
-    const init = capture(() => initRun(ctx(dir, ['--harness', 'claude,cursor', '--yes'])) as number)
+    const init = await captureAsync(() =>
+      initRun(ctx(dir, ['--harness', 'claude,cursor', '--yes'])),
+    )
     expect(init.code).toBe(1)
     expect(init.out).toContain('Failed:')
     expect(init.out).toContain('.cursor/skills/cospec-propose/SKILL.md')
     expect(init.out).toContain('EACCES')
   })
 
-  test('update records one failed entry and still writes the other harness', () => {
-    const seed = capture(
-      () => initRun(ctx(dir, ['--harness', 'claude,cursor', '--yes'], true)) as number,
+  test('update records one failed entry and still writes the other harness', async () => {
+    const seed = await captureAsync(() =>
+      initRun(ctx(dir, ['--harness', 'claude,cursor', '--yes'], true)),
     )
     expect(seed.code).toBe(0)
     const stale = [
@@ -205,7 +207,7 @@ describe('init and update report a per-file failure', () => {
     }
     lock('.cursor/skills/cospec-propose', 0o555)
 
-    const update = capture(() => updateRun(ctx(dir, [], true, 'update')) as number)
+    const update = await captureAsync(() => updateRun(ctx(dir, [], true, 'update')))
     expect(update.code).toBe(1)
     const doc = JSON.parse(update.out) as FailedDoc
     expect(doc.failed.map((f) => f.path)).toEqual(['.cursor/skills/cospec-propose/SKILL.md'])
@@ -213,7 +215,7 @@ describe('init and update report a per-file failure', () => {
     expect(readFileSync(join(dir, stale[0]!), 'utf8')).not.toContain('generatedBy: 0.0.1')
 
     unlock('.cursor/skills/cospec-propose')
-    const retry = capture(() => updateRun(ctx(dir, [], false, 'update')) as number)
+    const retry = await captureAsync(() => updateRun(ctx(dir, [], false, 'update')))
     expect(retry.code).toBe(0)
     expect(readFileSync(join(dir, stale[1]!), 'utf8')).not.toContain('generatedBy: 0.0.1')
   })
@@ -229,7 +231,7 @@ describe('doctor does not hide a managed file it cannot read', () => {
   })
 
   test('a managed path that is a directory is an unreadable-file ERROR and exit 1', async () => {
-    const seed = capture(() => initRun(ctx(dir, ['--harness', 'claude', '--yes'])) as number)
+    const seed = await captureAsync(() => initRun(ctx(dir, ['--harness', 'claude', '--yes'])))
     expect(seed.code).toBe(0)
     const command = join(dir, '.claude/commands/cospec/propose.md')
     rmSync(command)

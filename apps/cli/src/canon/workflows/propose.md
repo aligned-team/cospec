@@ -109,5 +109,5 @@ the formatter over it before re-validating. Re-run until it is clean.
 ## 6. Hand off
 
 Tell the user the change is apply-ready and that the next step is
-`/cospec:apply` when they want to implement it. Do not start implementation
+`[[opsx:if-workflow apply]]/cospec:apply[[opsx:else]]cospec apply <slug>[[opsx:end]]` when they want to implement it. Do not start implementation
 here.

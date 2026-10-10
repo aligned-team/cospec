@@ -1,6 +1,6 @@
 Revise a change's **existing** artifacts and keep them coherent with one
 another. This workflow never creates an artifact that does not exist yet (that
-is `/cospec:continue`) and never edits code (that is `/cospec:apply`).
+is `[[opsx:if-workflow continue]]/cospec:continue[[opsx:else]]cospec instructions <artifact> --change <slug>[[opsx:end]]`) and never edits code (that is `[[opsx:if-workflow apply]]/cospec:apply[[opsx:else]]cospec apply <slug>[[opsx:end]]`).
 
 All work goes through `cospec`. Never call `openspec` directly, and never
 hand-edit the bookkeeping under `openspec/changes/`.
@@ -14,7 +14,7 @@ built from `cospec status`, `cospec instructions`, and `cospec validate`.
 
 If the user named one, use it. Otherwise run `cospec list --json`. If exactly
 one active change exists, use it and announce `Using change: <slug>`, naming
-`/cospec:update <other-slug>` as the override. If more than one is plausible,
+`[[opsx:if-workflow update]]/cospec:update <other-slug>[[opsx:else]]cospec validate <other-slug> --strict[[opsx:end]]` as the override. If more than one is plausible,
 ask the user which one, showing each change's type and gate state.
 
 ## 2. Read what exists
@@ -24,7 +24,7 @@ cospec status --change <slug> --json
 ```
 
 Only artifacts reported `done` are in scope. Anything still missing is out of
-scope here — note it and point the user at `/cospec:continue`.
+scope here — note it and point the user at `[[opsx:if-workflow continue]]/cospec:continue[[opsx:else]]cospec instructions <artifact> --change <slug>[[opsx:end]]`.
 
 ## 3. Understand the request
 
@@ -55,7 +55,7 @@ Apply `context` and `rules` as constraints; never copy them into the artifact.
 `blocking-changes.md`, the `specs/**/spec.md` deltas, and `verification.md` are
 machine-parsed — keep the exact format. For the specs artifact, revise only the
 delta files already under `openspec/changes/<slug>/specs/`; adding a new
-capability file is `/cospec:continue`'s job.
+capability file is [[opsx:if-workflow continue]]`/cospec:continue`'s job[[opsx:else]]a job for `cospec instructions <artifact> --change <slug>`[[opsx:end]].
 
 ## 5. Confirm each edit
 
@@ -76,11 +76,11 @@ cospec validate <slug> --strict
 Fix every ERROR and every WARNING, re-running the formatter over anything you
 edit. Then name the next step:
 
-- artifacts still missing → `/cospec:continue`
-- apply-ready and not yet implemented → `/cospec:apply`
+- artifacts still missing → `[[opsx:if-workflow continue]]/cospec:continue[[opsx:else]]cospec instructions <artifact> --change <slug>[[opsx:end]]`
+- apply-ready and not yet implemented → `[[opsx:if-workflow apply]]/cospec:apply[[opsx:else]]cospec apply <slug>[[opsx:end]]`
 - already implemented, and the revision changed what should be built →
-  `/cospec:apply` again to carry the delta into code
-- everything done → `/cospec:verify`, then `/cospec:archive`
+  `[[opsx:if-workflow apply]]/cospec:apply[[opsx:else]]cospec apply <slug>[[opsx:end]]` again to carry the delta into code
+- everything done → `[[opsx:if-workflow verify]]/cospec:verify[[opsx:else]]cospec validate <slug> --strict[[opsx:end]]`, then `[[opsx:if-workflow archive]]/cospec:archive[[opsx:else]]cospec archive <slug>[[opsx:end]]`
 
 If the request changes the change's _intent_ rather than refining it, do not
-rewrite it in place — recommend `/cospec:new <type> <new-slug>` and stop.
+rewrite it in place — recommend `[[opsx:if-workflow new]]/cospec:new <type> <new-slug>[[opsx:else]]cospec new <type> <new-slug>[[opsx:end]]` and stop.

@@ -116,9 +116,9 @@ describe('buildCompletionSpec — matches COMMAND_TABLE', () => {
     ])
   })
 
-  test('init: pending flags (--language, --profile) absent, the Copilot cloud pair offered', () => {
+  test('init: --language, --profile and the Copilot cloud pair offered', () => {
     const init = spec.commands.find((c) => c.name === 'init')!
-    for (const flag of ['--language', '--profile']) expect(init.flags).not.toContain(flag)
+    for (const flag of ['--language', '--profile']) expect(init.flags).toContain(flag)
     for (const flag of ['--copilot-cloud', '--no-copilot-cloud']) expect(init.flags).toContain(flag)
     expect(init.flags).toContain('--no-animation')
     // An alias flag completes like any offered flag.

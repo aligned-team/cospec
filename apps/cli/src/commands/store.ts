@@ -149,7 +149,7 @@ interface Writer {
 }
 
 /** Run `fn` with `process.stdout.write` buffered instead of flushed, returning both. */
-function captureStdout(fn: () => number): { output: string; code: number } {
+async function captureStdout(fn: () => Promise<number>): Promise<{ output: string; code: number }> {
   const stream = process.stdout as unknown as Writer
   const original = stream.write.bind(stream)
   let buf = ''
@@ -158,7 +158,7 @@ function captureStdout(fn: () => number): { output: string; code: number } {
     return true
   }
   try {
-    const code = fn()
+    const code = await fn()
     return { output: buf, code }
   } finally {
     stream.write = original
@@ -172,7 +172,7 @@ function captureStdout(fn: () => number): { output: string; code: number } {
  * (not a second wrapped call — it is cospec's own command) and swallows its
  * receipt, folding a summary into this command's own output instead.
  */
-function autoCospecInit(root: string): CospecInitSummary {
+async function autoCospecInit(root: string): Promise<CospecInitSummary> {
   // `init` reads `ctx.parsed`, which `cli.ts` only builds for the dispatched
   // command, so parse this in-process call against init's own row.
   const args = [root, '--harness', 'none']
@@ -186,7 +186,7 @@ function autoCospecInit(root: string): CospecInitSummary {
     cwd: process.cwd(),
     parsed: result.parsed,
   }
-  const { output } = captureStdout(() => runInit(initCtx))
+  const { output } = await captureStdout(() => runInit(initCtx))
   let harnesses: string[] = []
   try {
     const parsed = JSON.parse(output) as { harnesses?: unknown }
@@ -428,7 +428,7 @@ async function runSetupOrRegister(
   const payload = spellPayload(JSON.parse(result.stdout) as MutationPayload, result.exitCode !== 0)
   if (result.exitCode !== 0) return printFailure(ctx, payload)
 
-  const init = noCospecInit ? undefined : autoCospecInit(payload.store!.root)
+  const init = noCospecInit ? undefined : await autoCospecInit(payload.store!.root)
   printMutation(ctx, sub === 'setup' ? 'Store ready' : 'Store registered', payload, init)
   return EXIT.success
 }
