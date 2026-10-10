@@ -4,215 +4,215 @@
     "kind": "command",
     "workflow": "apply",
     "harness": "qwen",
-    "contentHash": "sha256:0a592f8e240b1a1b70b0b40785fb1bb04f25702de3e264af0fff88b45b824635",
-    "bytes": 2164,
-    "sha256": "b852611bce24a1b354d8a7810a827e9a6e662b33023a673b02d0d7e4f15ce98d"
+    "contentHash": "sha256:f5c03071fbf4ca1f1ba3adca346d31f574ef54f0f97e90e24f0fc10f8e2830e7",
+    "bytes": 4841,
+    "sha256": "8def950761f8514d94e71f87a069988bbd647152c1daff788dbdbef84c2e01a5"
   },
   {
     "path": ".qwen/commands/cospec-archive.md",
     "kind": "command",
     "workflow": "archive",
     "harness": "qwen",
-    "contentHash": "sha256:1f0e3bc2a8cf332628b0a74650bb73691913e94445ae43074167315b946548f6",
-    "bytes": 2984,
-    "sha256": "54dfe3db251b403473702544d19109dcfcffee5d2b75a0f2fdd40b41ee85bc68"
+    "contentHash": "sha256:a20654e1f4ef2020e96be8c83efa02426b020e6c95ae10f81e7f7e70d1440745",
+    "bytes": 5661,
+    "sha256": "b84ba63465f8bfa47150bff31c06897a36abc3bf96a8c1b0f04415ae312de6ac"
   },
   {
     "path": ".qwen/commands/cospec-bulk-archive.md",
     "kind": "command",
     "workflow": "bulk-archive",
     "harness": "qwen",
-    "contentHash": "sha256:a530a027e099f802ba55426c09dae1bd579881a9647cf133108b6f176fe206c3",
-    "bytes": 2938,
-    "sha256": "5c068ef81cec3a1c1987da91df2f6c581029f6129b0585e2a4fa860ce342b210"
+    "contentHash": "sha256:fa64194d41fd6ad05cf6bfe274f3d0b3bf59c37a00bcb0c61a6a3d209c3f179c",
+    "bytes": 5615,
+    "sha256": "2f74e94651c1dbd20f09924769e36b9bd97df4a5f6b90cea8f14361ca120b214"
   },
   {
     "path": ".qwen/commands/cospec-continue.md",
     "kind": "command",
     "workflow": "continue",
     "harness": "qwen",
-    "contentHash": "sha256:5452d22965cf5216dc800c0fa52cb756ea521831e1b6063dba1a29ef3dea3daa",
-    "bytes": 2390,
-    "sha256": "c115471f06d8f2336fdd97a2d75cd9b1255fd4e8e9a9afc7db68b756d39e5bd2"
+    "contentHash": "sha256:ebd9a49f663c00343bdc6742a8dcf35cea5d02666c8d6152e624a659fc596c82",
+    "bytes": 5067,
+    "sha256": "810d0b809c9e02bf2dfff05229468b2da1640350bb273399cfac9d071372b13f"
   },
   {
     "path": ".qwen/commands/cospec-explore.md",
     "kind": "command",
     "workflow": "explore",
     "harness": "qwen",
-    "contentHash": "sha256:1918d6dc9bf5fe10b6f691e7144868bf8f14d2e17802474845e2e828e3cac108",
-    "bytes": 6612,
-    "sha256": "b22a758023af422049a1cfc23c23d0f67644f26ef07076eccaeae3c61f66a221"
+    "contentHash": "sha256:59536b110e1ba0dce3a8ae4af609b8ef3027afe05d6a8da14315b008ba5f10b7",
+    "bytes": 9643,
+    "sha256": "d42c1e1bc6a23d6eab6c518f039da42c08eb15db28b678a6a85423e96fe09d0a"
   },
   {
     "path": ".qwen/commands/cospec-ff.md",
     "kind": "command",
     "workflow": "ff",
     "harness": "qwen",
-    "contentHash": "sha256:9501c042a5736fef6a8d38123a71332849c5b14cf865c6bd119560b6b26f4747",
-    "bytes": 3432,
-    "sha256": "13b82269dfbaa02af3de15178378c3f4c649fee6aff31c032edcc5710ab33107"
+    "contentHash": "sha256:de695a7fecb5c6cbd6813c0102f51cac4c479ab607addb7b364a65a764ad86d6",
+    "bytes": 7388,
+    "sha256": "84cd3b21bd2a2ea9b1845d01bb59cc2ee5fdc807d311abae6e72093b21bfbcdd"
   },
   {
     "path": ".qwen/commands/cospec-new.md",
     "kind": "command",
     "workflow": "new",
     "harness": "qwen",
-    "contentHash": "sha256:689f8bdf14b69ca2d4c699526a4eaccb7f95e0b51de8889d16ed4e44b2d70f8f",
-    "bytes": 3289,
-    "sha256": "d28270897d780e5ec5f6c9cac7882e526cffb0972941ac1a9266fc969d1a6a06"
+    "contentHash": "sha256:9b1950cae259d0ee747cd16b2932abe5220b885eecefe0cceed707914db9ffcf",
+    "bytes": 5966,
+    "sha256": "66f8ef2678dc70945e433e7cd67c865300a475975b54080132c7fd6727bd0a1b"
   },
   {
     "path": ".qwen/commands/cospec-onboard.md",
     "kind": "command",
     "workflow": "onboard",
     "harness": "qwen",
-    "contentHash": "sha256:1c6874a1abb688f0e7dc04816ab881a811f3097d1ec25af822c8d322e0d42c76",
-    "bytes": 3077,
-    "sha256": "91dd13c9bf1a89348983a37063f849d6c7420b75677f3f7291bc1f1ec1ce3d74"
+    "contentHash": "sha256:d24bce8be6c66e266d4f5e83ab8d4ff054e4d5fa3df1190569490385bb49eea1",
+    "bytes": 5754,
+    "sha256": "fdf87fcde0d02a6002ca2528fcc60c1acaefd6422c921616f9d8badbea5f8de2"
   },
   {
     "path": ".qwen/commands/cospec-propose.md",
     "kind": "command",
     "workflow": "propose",
     "harness": "qwen",
-    "contentHash": "sha256:8e664bbbc45ceeeb028208547d5a5ff0e941a60d3e58c7db842a47ed7011671d",
-    "bytes": 6478,
-    "sha256": "00b7155cfdd45689204382a50e452e20fedb822494731518bca11085bbc0bf79"
+    "contentHash": "sha256:b0cace6d8ff2fec2f089ba1bf7374a7910e6a97895679d291e1d515e610303e1",
+    "bytes": 10456,
+    "sha256": "d12391022936e9b896ca7bed3c07cd33452eae13758fa8e726fc0c45f223b162"
   },
   {
     "path": ".qwen/commands/cospec-sync-specs.md",
     "kind": "command",
     "workflow": "sync-specs",
     "harness": "qwen",
-    "contentHash": "sha256:6557ec661d62b69c5956fe188cb2b2cd37639bfceb3fb7b6bb2330c0db9321ed",
-    "bytes": 2980,
-    "sha256": "c72a52882788e17e36f6e33fc3e5861d2718088824db51089493e2a889a73409"
+    "contentHash": "sha256:ac413fa02b1f434c90a30ef7d4984ae6819c23f8c347a453c9398b98a536c342",
+    "bytes": 5657,
+    "sha256": "c1452e4b62dbde52256e267b1df3bc597e07c483f04fde925eb3fc6043db0861"
   },
   {
     "path": ".qwen/commands/cospec-update.md",
     "kind": "command",
     "workflow": "update",
     "harness": "qwen",
-    "contentHash": "sha256:e59d8659510a3a7eee0f3c631f7cc6fe5cba9b8e625dec84d2e853637d72780b",
-    "bytes": 4165,
-    "sha256": "a41da89ff547ab9f15cad8e800496ab09f788928d661479e8ac5bbed11590de5"
+    "contentHash": "sha256:d1c69830577e9973772f027e4df65c1b96a69ceacd07e3be2bcef532b73639fa",
+    "bytes": 6842,
+    "sha256": "7c8955c968482d5909d80442c4008c9894940c8226d92825df9add37c3767e71"
   },
   {
     "path": ".qwen/commands/cospec-verify.md",
     "kind": "command",
     "workflow": "verify",
     "harness": "qwen",
-    "contentHash": "sha256:49d95e8ab9359318596fe9f22c83c17f8b7a12934127df8e746035c8a53d0d6a",
-    "bytes": 2526,
-    "sha256": "14683e08998d25b9936bb3d20cba1f9c81587eb6d5decc3c42abfe1850c300a8"
+    "contentHash": "sha256:5651f41f2bf2909e821f522abe668500e6c50f763f02c9864cebf2b266c4b565",
+    "bytes": 5203,
+    "sha256": "a4514cec4302492c7c35ae8b9bf8d4ba4bd1a24e4838b09cba9bb72640da170a"
   },
   {
     "path": ".qwen/skills/cospec-apply-change/SKILL.md",
     "kind": "skill",
     "workflow": "apply",
     "harness": "qwen",
-    "contentHash": "sha256:0a592f8e240b1a1b70b0b40785fb1bb04f25702de3e264af0fff88b45b824635",
-    "bytes": 2266,
-    "sha256": "5f59045b3237f47e00c3a59bd7f4f6d18b43ac2f3a9db73c5cd8d779a43bd5ae"
+    "contentHash": "sha256:f5c03071fbf4ca1f1ba3adca346d31f574ef54f0f97e90e24f0fc10f8e2830e7",
+    "bytes": 4943,
+    "sha256": "6901a602b5cd5f1632c2ecbc12796d659039f53a52a0d07d2d03fa6f1bcd74ef"
   },
   {
     "path": ".qwen/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "qwen",
-    "contentHash": "sha256:1f0e3bc2a8cf332628b0a74650bb73691913e94445ae43074167315b946548f6",
-    "bytes": 3088,
-    "sha256": "c2fe7067924480fddf0e59ec73a52b5822a7a1f79a7eefe2d962ee5fc855356d"
+    "contentHash": "sha256:a20654e1f4ef2020e96be8c83efa02426b020e6c95ae10f81e7f7e70d1440745",
+    "bytes": 5765,
+    "sha256": "c13d4fd5d99b8d61cfd797e81b087fbebdd69acd7fe550b0edb07e3cb7f0a267"
   },
   {
     "path": ".qwen/skills/cospec-bulk-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "bulk-archive",
     "harness": "qwen",
-    "contentHash": "sha256:a530a027e099f802ba55426c09dae1bd579881a9647cf133108b6f176fe206c3",
-    "bytes": 3047,
-    "sha256": "fc4d4cec6feb0b8ed2688980cf1b963688e6349f2327478deebce27e0165a0ee"
+    "contentHash": "sha256:fa64194d41fd6ad05cf6bfe274f3d0b3bf59c37a00bcb0c61a6a3d209c3f179c",
+    "bytes": 5724,
+    "sha256": "c75378eae0cd36db040bee5cacb8ed388be266a616739e6dba555a5a0514efec"
   },
   {
     "path": ".qwen/skills/cospec-continue-change/SKILL.md",
     "kind": "skill",
     "workflow": "continue",
     "harness": "qwen",
-    "contentHash": "sha256:5452d22965cf5216dc800c0fa52cb756ea521831e1b6063dba1a29ef3dea3daa",
-    "bytes": 2495,
-    "sha256": "dfd8b2aa5d57edcad5e743cde41ef1483c4f1eb1ba3604a530227b2ab3d9de6e"
+    "contentHash": "sha256:ebd9a49f663c00343bdc6742a8dcf35cea5d02666c8d6152e624a659fc596c82",
+    "bytes": 5172,
+    "sha256": "85960c414f720154f0807674fcb8aee3ea5a5d9ee3d4579c4c41e500132ce33a"
   },
   {
     "path": ".qwen/skills/cospec-explore/SKILL.md",
     "kind": "skill",
     "workflow": "explore",
     "harness": "qwen",
-    "contentHash": "sha256:1918d6dc9bf5fe10b6f691e7144868bf8f14d2e17802474845e2e828e3cac108",
-    "bytes": 6709,
-    "sha256": "171c2a1bd519a88b50976eec6513ae8dd82a042266dc2d66351d08ad41e13455"
+    "contentHash": "sha256:59536b110e1ba0dce3a8ae4af609b8ef3027afe05d6a8da14315b008ba5f10b7",
+    "bytes": 9740,
+    "sha256": "b440b63c121bc203adb78c224589b1d4fb0a95bb97bec41a5c3c2310ad42661f"
   },
   {
     "path": ".qwen/skills/cospec-ff-change/SKILL.md",
     "kind": "skill",
     "workflow": "ff",
     "harness": "qwen",
-    "contentHash": "sha256:9501c042a5736fef6a8d38123a71332849c5b14cf865c6bd119560b6b26f4747",
-    "bytes": 3531,
-    "sha256": "c8b7f404dc35e6586147c2911e4ef3de0068a2cee37680fde376241fa622ae1e"
+    "contentHash": "sha256:de695a7fecb5c6cbd6813c0102f51cac4c479ab607addb7b364a65a764ad86d6",
+    "bytes": 7487,
+    "sha256": "3532d4cc3374bcbe925355e2ec46f889f9d0da29d4cce5eb692982e440d20f0a"
   },
   {
     "path": ".qwen/skills/cospec-new-change/SKILL.md",
     "kind": "skill",
     "workflow": "new",
     "harness": "qwen",
-    "contentHash": "sha256:689f8bdf14b69ca2d4c699526a4eaccb7f95e0b51de8889d16ed4e44b2d70f8f",
-    "bytes": 3389,
-    "sha256": "61de1e33ca74e359e9eda6115ff13661932d1a715cf1cde992280fa7d93146a7"
+    "contentHash": "sha256:9b1950cae259d0ee747cd16b2932abe5220b885eecefe0cceed707914db9ffcf",
+    "bytes": 6066,
+    "sha256": "b516a9b054044f7ff6743b98da184fb5ff195d5c3476725c62a3fd095417d7fc"
   },
   {
     "path": ".qwen/skills/cospec-onboard/SKILL.md",
     "kind": "skill",
     "workflow": "onboard",
     "harness": "qwen",
-    "contentHash": "sha256:1c6874a1abb688f0e7dc04816ab881a811f3097d1ec25af822c8d322e0d42c76",
-    "bytes": 3174,
-    "sha256": "947cc906139259158f3e51699f62a3664492c54d8219347787f3bc12df03b2c2"
+    "contentHash": "sha256:d24bce8be6c66e266d4f5e83ab8d4ff054e4d5fa3df1190569490385bb49eea1",
+    "bytes": 5851,
+    "sha256": "5244dda13ef7d82e35acd9e690876fe6919f90642da89aed568418ee8ad62cd0"
   },
   {
     "path": ".qwen/skills/cospec-propose/SKILL.md",
     "kind": "skill",
     "workflow": "propose",
     "harness": "qwen",
-    "contentHash": "sha256:8e664bbbc45ceeeb028208547d5a5ff0e941a60d3e58c7db842a47ed7011671d",
-    "bytes": 6575,
-    "sha256": "c3bb7123277ec5824367d3cd602ef20fd72cf0b8c3fcc4c47879f6611646c08a"
+    "contentHash": "sha256:b0cace6d8ff2fec2f089ba1bf7374a7910e6a97895679d291e1d515e610303e1",
+    "bytes": 10553,
+    "sha256": "1aa493977cb69cce230c1c73b33284f6a4b4cff98e52b2c843a82641e0a66bb1"
   },
   {
     "path": ".qwen/skills/cospec-sync-specs/SKILL.md",
     "kind": "skill",
     "workflow": "sync-specs",
     "harness": "qwen",
-    "contentHash": "sha256:6557ec661d62b69c5956fe188cb2b2cd37639bfceb3fb7b6bb2330c0db9321ed",
-    "bytes": 3080,
-    "sha256": "27d23fe479118e4634b325a40c2992f2e94e41302e637f9e14108fa65c9b1391"
+    "contentHash": "sha256:ac413fa02b1f434c90a30ef7d4984ae6819c23f8c347a453c9398b98a536c342",
+    "bytes": 5757,
+    "sha256": "22f400c4bb31ae0f472e1369902e7c57f7dc50fadfc9b8f01f3f9b9a600ba4ef"
   },
   {
     "path": ".qwen/skills/cospec-update-change/SKILL.md",
     "kind": "skill",
     "workflow": "update",
     "harness": "qwen",
-    "contentHash": "sha256:e59d8659510a3a7eee0f3c631f7cc6fe5cba9b8e625dec84d2e853637d72780b",
-    "bytes": 4268,
-    "sha256": "52f5ab6dc37228ce67f57409d01a4faea5f3b6a17bbe6a23adec4508e052c592"
+    "contentHash": "sha256:d1c69830577e9973772f027e4df65c1b96a69ceacd07e3be2bcef532b73639fa",
+    "bytes": 6945,
+    "sha256": "a3305aab0a941a5a6b64febc61b12bb2eeecceeeda5403debd3c118adf8dbdff"
   },
   {
     "path": ".qwen/skills/cospec-verify-change/SKILL.md",
     "kind": "skill",
     "workflow": "verify",
     "harness": "qwen",
-    "contentHash": "sha256:49d95e8ab9359318596fe9f22c83c17f8b7a12934127df8e746035c8a53d0d6a",
-    "bytes": 2629,
-    "sha256": "6e392a3517b0ac18db6b6e8973c84a9c3596cf91d150f4a78f0132d5d7b7c417"
+    "contentHash": "sha256:5651f41f2bf2909e821f522abe668500e6c50f763f02c9864cebf2b266c4b565",
+    "bytes": 5306,
+    "sha256": "319399a79902d847ea1b52138e1358c45ccdd9bee968ebb85b8813f0ccaa40b7"
   }
 ]

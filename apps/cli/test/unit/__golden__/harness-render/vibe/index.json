@@ -4,107 +4,107 @@
     "kind": "skill",
     "workflow": "apply",
     "harness": "vibe",
-    "contentHash": "sha256:9e30e79f7dda83a89ae8adb885263f9eb5a10e7a385cc403f7d72c66fe521d4b",
-    "bytes": 2273,
-    "sha256": "0225d7bb3baa06b82ee76408433342b6e6ce8a26e0af6a9c6381f070aacbccf1"
+    "contentHash": "sha256:ea0efa9c20e26def5517aa4c5945d5ee93a6fbfc411fa35b5fce19229404baa8",
+    "bytes": 4950,
+    "sha256": "271436f73127d667385811ef9e66df96038f929828f9d93dd285f72b28d98351"
   },
   {
     "path": ".vibe/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "vibe",
-    "contentHash": "sha256:36e96e1d8f0c4ed338183b20d77114de85ce3b9ce8a98518de673d2d7bbf4dcb",
-    "bytes": 3095,
-    "sha256": "29374632ba97d190b58afb30f626d7e282e8ce043d19caf527583369c5b28f1f"
+    "contentHash": "sha256:6246076dd9a4c14c3a9761c33bbc9ce40ad29608efd76a8d5a929757235961c2",
+    "bytes": 5772,
+    "sha256": "197368b5f932a1df13d94af26f17d0bf53c30729d44f44f745a2bbaf19530714"
   },
   {
     "path": ".vibe/skills/cospec-bulk-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "bulk-archive",
     "harness": "vibe",
-    "contentHash": "sha256:80e856ac6307583b37a0f77e2a5621654cc5057220aa31aedf664481e4c3e7d0",
-    "bytes": 3054,
-    "sha256": "1bec7eba29b976f6a4b5276219d6ceab811ce6e9d3466ba1b601adaee3edeb12"
+    "contentHash": "sha256:311120cbe70bc6e8e012ebaf11532eb96e43399b89fed41ed0ec8e44976f03d5",
+    "bytes": 5731,
+    "sha256": "b22a47e458d98a340cfdbb5570e1eace1587f506d42218278bd5ca6f81d82098"
   },
   {
     "path": ".vibe/skills/cospec-continue-change/SKILL.md",
     "kind": "skill",
     "workflow": "continue",
     "harness": "vibe",
-    "contentHash": "sha256:4ba87d509fcfc8f6e1ad11de2e6ca229f06938814bd31d8beb051ff7c5a7d680",
-    "bytes": 2509,
-    "sha256": "36cfb147c75ca3cd2c71a75cc256cf54bccf51531de5c193e3ebb0c93d4c36cb"
+    "contentHash": "sha256:b004370ecefd1e61c9d0f511b9a856af586dccd1d867011bace2e11ce82f6d28",
+    "bytes": 5186,
+    "sha256": "69c7af260bf717bdefb00daf0e4b49691ac0efdc4607ee29c9d3cb387da22efe"
   },
   {
     "path": ".vibe/skills/cospec-explore/SKILL.md",
     "kind": "skill",
     "workflow": "explore",
     "harness": "vibe",
-    "contentHash": "sha256:c9ee139f903dee97f4e6e5ef4ac53fa6b1e203d7854e978103e79611be1a46a8",
-    "bytes": 6730,
-    "sha256": "fa63cfb67385c460b3d579f49cd8682042447f23634d58161738e8dbc559ba67"
+    "contentHash": "sha256:38a41e9feda9d9ab41dd1e98a7ee31d35ef54e430f0785e022ffc7290e257bfe",
+    "bytes": 9761,
+    "sha256": "9a9d415cf6296329ec31f4586dc84f64151693ab849c87a68916f3a9ec5d984f"
   },
   {
     "path": ".vibe/skills/cospec-ff-change/SKILL.md",
     "kind": "skill",
     "workflow": "ff",
     "harness": "vibe",
-    "contentHash": "sha256:4ca91cebbb6adc5ae14806635e66f2076c23ad6ca98e5c66c148c7c87417f966",
-    "bytes": 3552,
-    "sha256": "79336e99ae79974c638f92362a7a24db23fa22c45afa80e664c7c3c0c126acea"
+    "contentHash": "sha256:e91d63025c25c06717819eb59973315dbdb112374d4799c64b843f7fdfe60639",
+    "bytes": 7508,
+    "sha256": "80081be1979e6ccb4e981f1ad30358afca2f4e1de9b6c1af76a3310f526fc738"
   },
   {
     "path": ".vibe/skills/cospec-new-change/SKILL.md",
     "kind": "skill",
     "workflow": "new",
     "harness": "vibe",
-    "contentHash": "sha256:0da41614c61856433e4c942d51b99937ad0a44526fb12b30810ad31b328f211d",
-    "bytes": 3417,
-    "sha256": "6b56ab09ec87c50a4a9418cbf0f357294f5e3a1dff3e42058d337202c22287f0"
+    "contentHash": "sha256:2452dffe305e67c129647655e56748e85881cd1413142ee36e7acb22ecdee87b",
+    "bytes": 6094,
+    "sha256": "7005156e92050dc82a53f95c26bed34bf97d6be92ab45ce05cf6b2dac5227ef2"
   },
   {
     "path": ".vibe/skills/cospec-onboard/SKILL.md",
     "kind": "skill",
     "workflow": "onboard",
     "harness": "vibe",
-    "contentHash": "sha256:eab6ab2db9e5574f080925dfa56ae54d0f8e52036a7aaa2f1324cb9ba89508e1",
-    "bytes": 3195,
-    "sha256": "f982279ab89b21132728dd6e54243e90fcf04e18d2ef22df53beb473622fca47"
+    "contentHash": "sha256:e386a13dd90dfa381ee21f20016d04845ed028f38dca6f61e18dbd96f68a15c9",
+    "bytes": 5872,
+    "sha256": "9a3b3e7fee2e1655d90f552e9d0dc05ff7289d4030b7bb2ad85b172673db1b47"
   },
   {
     "path": ".vibe/skills/cospec-propose/SKILL.md",
     "kind": "skill",
     "workflow": "propose",
     "harness": "vibe",
-    "contentHash": "sha256:67c530236eede0969c6cf6922278782a4f324862eddc4510a2d7aa6194125267",
-    "bytes": 6582,
-    "sha256": "78e31d734f5d7acb596a848be161d7c7b01b8142a6b72ab16aaf72519a8c2685"
+    "contentHash": "sha256:c4d342c0b9bda6dff5fca95a2312be76452258401d2bba4d6286ef4323d54f2b",
+    "bytes": 10560,
+    "sha256": "bc8627aec5a6c6ff7292eafbd63e51faa41805dcbb73130199449aa79d5e38b3"
   },
   {
     "path": ".vibe/skills/cospec-sync-specs/SKILL.md",
     "kind": "skill",
     "workflow": "sync-specs",
     "harness": "vibe",
-    "contentHash": "sha256:3626f08c77d66e84d1331db25b0f989fdba7f8c0fc22816c49e12cf8b96f703f",
-    "bytes": 3087,
-    "sha256": "cd4d26f81efe6b9ec4551ab70d2aed1d53fd8e285947a77bd90d4e6b76085d4c"
+    "contentHash": "sha256:56ce038eb810ff020c5c564e45939040eac31d493e9cd14fb993fb131faaa5c6",
+    "bytes": 5764,
+    "sha256": "e9c544f89e4be9c19e695fd499fafc5f53f86527c236095e2cf552ab514189fe"
   },
   {
     "path": ".vibe/skills/cospec-update-change/SKILL.md",
     "kind": "skill",
     "workflow": "update",
     "harness": "vibe",
-    "contentHash": "sha256:6174310de78dd7a66b60ff088871dd23be3d8f220ac19c3e5e218edf5c115147",
-    "bytes": 4345,
-    "sha256": "d20038103a04c57d490b4f73ce2a9bbdb837dd94441c8a247cc64f5a3b5cdd1a"
+    "contentHash": "sha256:5edd82db09d36626ce3995d71d7fc628c60a3d6f7e72de30da163e4fe0717bbf",
+    "bytes": 7022,
+    "sha256": "4598e5a113399b1b956d8aa49a18e8a4fb897391fb743a768eb325e33f022bf7"
   },
   {
     "path": ".vibe/skills/cospec-verify-change/SKILL.md",
     "kind": "skill",
     "workflow": "verify",
     "harness": "vibe",
-    "contentHash": "sha256:dc92449f088f7b2e74596f5ef31fd51c7c8ae59ebf7ed5e803b7f4536b63a92c",
-    "bytes": 2650,
-    "sha256": "a67be9653be8bb05743a3eab8c4ef0b1534cdbb9649da9ccc2d39e7bc32da968"
+    "contentHash": "sha256:c6c7bbe29b933d8904c52b57733f984bd0dfc5e4ecc4d3cdf70f5e292fcd9b24",
+    "bytes": 5327,
+    "sha256": "3212a05539daaebc854148b044d9f4fed3b0986ebcfd95bb2f34c2e854d8946d"
   }
 ]

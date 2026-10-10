@@ -5,8 +5,8 @@
     "workflow": "apply",
     "harness": "gemini",
     "contentHash": null,
-    "bytes": 2039,
-    "sha256": "9a18d72d6c999c1957c01ed8fa2c0e8e176218d2f480fc75418c66dcb777ade1"
+    "bytes": 4716,
+    "sha256": "c995d30ea1188165ebbef757e72b89f47027ea90b8b035c404925c49fa52c37a"
   },
   {
     "path": ".gemini/commands/cospec/archive.toml",
@@ -14,8 +14,8 @@
     "workflow": "archive",
     "harness": "gemini",
     "contentHash": null,
-    "bytes": 2859,
-    "sha256": "00f6d352c85bd763522cb24ca191a25f3179fc55c572ff69ae49c50e47aae33d"
+    "bytes": 5536,
+    "sha256": "c4b222cf3abb6e699a70856c48a20b1012f767343fa10a9bc6968abf4a40bc93"
   },
   {
     "path": ".gemini/commands/cospec/bulk-archive.toml",
@@ -23,8 +23,8 @@
     "workflow": "bulk-archive",
     "harness": "gemini",
     "contentHash": null,
-    "bytes": 2817,
-    "sha256": "e48b2ee39955510216b6812b391015cbb604567557fc6ffc3f5e3cd1afe0b314"
+    "bytes": 5494,
+    "sha256": "85cb09f2ec23a6e7e65140d774d51203f5ef8c72fe0938d0b4f8b7548e9cbcd9"
   },
   {
     "path": ".gemini/commands/cospec/continue.toml",
@@ -32,8 +32,8 @@
     "workflow": "continue",
     "harness": "gemini",
     "contentHash": null,
-    "bytes": 2265,
-    "sha256": "143f9db5102b890e29c77940ca2285bda7d8cecf7b0b51348a6f7314f7b022ad"
+    "bytes": 4942,
+    "sha256": "a44b5716bdbb2c6013c4c2dbee5ef58f4458fa6fb51960c8d72bfd2d254d6841"
   },
   {
     "path": ".gemini/commands/cospec/explore.toml",
@@ -41,8 +41,8 @@
     "workflow": "explore",
     "harness": "gemini",
     "contentHash": null,
-    "bytes": 6487,
-    "sha256": "ca67212240d91970d6904719a1c7b606791de5af49c1e1136d2848df13e17f66"
+    "bytes": 9518,
+    "sha256": "91d9d9ea7985c5a3ba495a0c0c59a11bd57b932b466061e48898bc242bd8284e"
   },
   {
     "path": ".gemini/commands/cospec/ff.toml",
@@ -50,8 +50,8 @@
     "workflow": "ff",
     "harness": "gemini",
     "contentHash": null,
-    "bytes": 3309,
-    "sha256": "ca7d6be2ab7ecacb1d1355b170bf110921bdd5787114ed11790971a0648860c2"
+    "bytes": 7265,
+    "sha256": "85761f1ba7c72a454fdc7d7129cca945b59ec57ed07dcc9ca67f32f7f9e525bf"
   },
   {
     "path": ".gemini/commands/cospec/new.toml",
@@ -59,8 +59,8 @@
     "workflow": "new",
     "harness": "gemini",
     "contentHash": null,
-    "bytes": 3164,
-    "sha256": "2728922b604f4c773123599caea2c5ec8d7d01f400884522c4912c126d36cb87"
+    "bytes": 5841,
+    "sha256": "cf35ccbfe77288a4f19c07c8311741fefe3247b0561ab0c1f3bf2bbf4347d01d"
   },
   {
     "path": ".gemini/commands/cospec/onboard.toml",
@@ -68,8 +68,8 @@
     "workflow": "onboard",
     "harness": "gemini",
     "contentHash": null,
-    "bytes": 2952,
-    "sha256": "3d83bbcf2405c77808a209c88125d98c35e1e997fffc06ef0ff817424e5c95a8"
+    "bytes": 5629,
+    "sha256": "1e45829f4e98d0ddf6b0bee3fb4e53a736d8039ec44148c2ba19ea5ba4c266a8"
   },
   {
     "path": ".gemini/commands/cospec/propose.toml",
@@ -77,8 +77,8 @@
     "workflow": "propose",
     "harness": "gemini",
     "contentHash": null,
-    "bytes": 6353,
-    "sha256": "a80fbb6d4846c80d7588c08bd168ff29454734ffd124f495c5d38f458938937d"
+    "bytes": 10331,
+    "sha256": "d02a44dc61910cda767fb3af1c9d68bfaf2d957241106d9373a2fb878e1b6620"
   },
   {
     "path": ".gemini/commands/cospec/sync-specs.toml",
@@ -86,8 +86,8 @@
     "workflow": "sync-specs",
     "harness": "gemini",
     "contentHash": null,
-    "bytes": 2857,
-    "sha256": "4ef2a7e5b87ced91f0d927f9c4d5e6341ade7cd6cb6f36d186aaa0a2ebdd0dfd"
+    "bytes": 5534,
+    "sha256": "d8460083470a13b0ad0345b169df1b44dc95e5d85f8b3fe57e47ab05940bf241"
   },
   {
     "path": ".gemini/commands/cospec/update.toml",
@@ -95,8 +95,8 @@
     "workflow": "update",
     "harness": "gemini",
     "contentHash": null,
-    "bytes": 4042,
-    "sha256": "cc9b7315cd85cc014bf814f0787479958750cd909206df03f68f6e741ebd6542"
+    "bytes": 6719,
+    "sha256": "776bc0dcc060cbf1746cd270b7b4ec7e730ea17edf023a153170ef71003cacae"
   },
   {
     "path": ".gemini/commands/cospec/verify.toml",
@@ -104,115 +104,115 @@
     "workflow": "verify",
     "harness": "gemini",
     "contentHash": null,
-    "bytes": 2401,
-    "sha256": "1d9205758b3d58626bf379ee3ef8384ee9322f860537467cb28e3283ac2d8620"
+    "bytes": 5078,
+    "sha256": "14ee4d45d8bca84e74838ab34bc6c11b4e1771b1403f88585dd459a18a132971"
   },
   {
     "path": ".gemini/skills/cospec-apply-change/SKILL.md",
     "kind": "skill",
     "workflow": "apply",
     "harness": "gemini",
-    "contentHash": "sha256:7a8e6f62141f0dd909b84b2accfd01d21f7151e7bf568a6946e9cd8fac34b98e",
-    "bytes": 2266,
-    "sha256": "89abac5691e6b26e674efc823ef676c8b382d85935249c87752deda9d3504b5b"
+    "contentHash": "sha256:7b5625a216a66b299eb5db1f5d240ea532fc4d520085f6ca6162c36871af481b",
+    "bytes": 4943,
+    "sha256": "30024293c7a89091531118f7a7d4db3ba174f4454f0e4dd93edb563c44b6c3c5"
   },
   {
     "path": ".gemini/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "gemini",
-    "contentHash": "sha256:4ef8b0e5e83be85e5cf8f1c811e6947bbaeaec8a6df188fa96609d6a46aa220f",
-    "bytes": 3088,
-    "sha256": "97502af27f44d7eb6222d60b3d0ee74a84e3f2776c3b577d51a117632f6f851f"
+    "contentHash": "sha256:549a9dc61efc9e3ce35c9f782a2df813d9cfe3b86a9d1e719361ef773dc2c7fb",
+    "bytes": 5765,
+    "sha256": "40b15bc2c86d3197c5fdf6805f915627b49b84133f15dbd425ae564c16f734f1"
   },
   {
     "path": ".gemini/skills/cospec-bulk-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "bulk-archive",
     "harness": "gemini",
-    "contentHash": "sha256:eb06828bc1c92dc2b4785adc3c3823e8c06dd4ea2afa3d07818c498043bf3fa5",
-    "bytes": 3047,
-    "sha256": "1ecdcbc647cf6c153e2c32825d0e09f2233f956834b070ec26bfee64b9ea2029"
+    "contentHash": "sha256:7c6afc90c2cd28e6eabb077842d1275fd6eb383fb650a3d9ab6b2b339198e42b",
+    "bytes": 5724,
+    "sha256": "3de4fd64a6b7a64c16155080d6c698fc306870dab4d150094ef19d9022492d39"
   },
   {
     "path": ".gemini/skills/cospec-continue-change/SKILL.md",
     "kind": "skill",
     "workflow": "continue",
     "harness": "gemini",
-    "contentHash": "sha256:2b7c61ad71a36a9dbe6e864a51a0c5e0ca2f115240ccb1abb1a38279e04869d4",
-    "bytes": 2495,
-    "sha256": "fa4580648e44e6010590c479ecfd4e9e090bccd659b365dbe15c5d98431f7c9e"
+    "contentHash": "sha256:34f5dbaf5ddd25e372751b6fc1bde8551dd7c7ca81612f44b3443bfe40c12254",
+    "bytes": 5172,
+    "sha256": "20c9b7df5286d187d68c68862a4411d1dc951c461b4193415b0e14280405546c"
   },
   {
     "path": ".gemini/skills/cospec-explore/SKILL.md",
     "kind": "skill",
     "workflow": "explore",
     "harness": "gemini",
-    "contentHash": "sha256:3d08e2f260accffd6585f4cca53bf70ca5e12517105f346e84ae636da837b2c8",
-    "bytes": 6709,
-    "sha256": "4aabe66b0ad40e06e7b039db1e042774c3bcb9a7869b8d8c83a660e8c1e3e13c"
+    "contentHash": "sha256:c7662755f6f3b41cc0d35787704b0390c4f4c7f24cd5da5a44a5d9020c2de1c6",
+    "bytes": 9740,
+    "sha256": "2d44aaf8959e97f3da1db85c001998691d81ddcfff0e588918bff05cafe834ff"
   },
   {
     "path": ".gemini/skills/cospec-ff-change/SKILL.md",
     "kind": "skill",
     "workflow": "ff",
     "harness": "gemini",
-    "contentHash": "sha256:297fcf956284a582d82fe043cbdc0091ade5810399cdc4f9b0417a9014a9938f",
-    "bytes": 3531,
-    "sha256": "3fc8e8ac1718de49b3bbae25b402e300d36547d939b567a4add7f63bba2d8b79"
+    "contentHash": "sha256:36aa897458aa3590a8c78ef87f1df5c50a5610a9bc637276d3ed75bc98357723",
+    "bytes": 7487,
+    "sha256": "0a321580b85170c47421923ddcc5b9838d0c908e3818ce4552534544e60e55c8"
   },
   {
     "path": ".gemini/skills/cospec-new-change/SKILL.md",
     "kind": "skill",
     "workflow": "new",
     "harness": "gemini",
-    "contentHash": "sha256:eff6d16b7161a3aaf80e831dfcf55a1c4816a0170d2b7844ec0864e766e686f8",
-    "bytes": 3389,
-    "sha256": "a125f3b46ce76c7684918ac2260bac92f26693f2707f6e21341f1ce29ddb4a5e"
+    "contentHash": "sha256:5964354617469f507a1e21275420810b6213ff8fd4837393eb3adc439e6c1db2",
+    "bytes": 6066,
+    "sha256": "424d954f63b66e869d5d4333f0000ce33b09328e5ac5777bf013920c041d1b7e"
   },
   {
     "path": ".gemini/skills/cospec-onboard/SKILL.md",
     "kind": "skill",
     "workflow": "onboard",
     "harness": "gemini",
-    "contentHash": "sha256:c0acf01721c99e0b50950041c4080c330b709e81b07ef095b69784b1bedc7960",
-    "bytes": 3174,
-    "sha256": "12128b5f1da6a9d47c6509844b93ab9bff395504785fcb1d20fa78c4b108b6fc"
+    "contentHash": "sha256:5e62b09f00b47734b039b7e05241c9d799b987a30a899127272c6e87911ea5ac",
+    "bytes": 5851,
+    "sha256": "7f75acaa03a64acd720bc79f073e2ef9c24f11c2f17a3d5772ff3e41d3e61a83"
   },
   {
     "path": ".gemini/skills/cospec-propose/SKILL.md",
     "kind": "skill",
     "workflow": "propose",
     "harness": "gemini",
-    "contentHash": "sha256:6abc44f41dbdcc3da24fb0dbb6767e3ea0ce0a4fe5292addae264c318dd8e7cd",
-    "bytes": 6575,
-    "sha256": "a1605f91dd1bedc73f8745bfe58f0ac1eed325c9b840a7986363693d4fc28717"
+    "contentHash": "sha256:426f58110ef6b91e439a5431e405ebda58977d6a02f45608942e1ca487974128",
+    "bytes": 10553,
+    "sha256": "96dac9a10714762d3d465cc6577a65ea3e534b4f256ea62fe293de62b284953c"
   },
   {
     "path": ".gemini/skills/cospec-sync-specs/SKILL.md",
     "kind": "skill",
     "workflow": "sync-specs",
     "harness": "gemini",
-    "contentHash": "sha256:c6671819783b5458bb4ceb83e6c0ea0716c94d919a1b813d5ef25fef16307d21",
-    "bytes": 3080,
-    "sha256": "5d4a4f0f657cf3c653abfe3fc8264f8af0af92c391c180fde03d6b87d36f974c"
+    "contentHash": "sha256:a0e373a36ee889608f8e7009aade5e60eded6a44135a17bf30f8adacb56520b4",
+    "bytes": 5757,
+    "sha256": "ecc1355b823ff81cb9afbbfccffc9c72b4c23db9c43b15f0da40e11806eb1a0d"
   },
   {
     "path": ".gemini/skills/cospec-update-change/SKILL.md",
     "kind": "skill",
     "workflow": "update",
     "harness": "gemini",
-    "contentHash": "sha256:071b20f1bf23bfa8cde1f211a9f3bb8dff8c6ffabd5f8e25be16304a15de7330",
-    "bytes": 4268,
-    "sha256": "7019e02a77e8fbd5229ae36585477e6efe885383a06f8e7267285aa52a5d1399"
+    "contentHash": "sha256:c59f8647de712bfc71ab4771d89fabd5c82c0a020f1cc6818470c5b22c86ccdb",
+    "bytes": 6945,
+    "sha256": "6338c64b0daa26048c1c56a3adb1a0f340524a06c88b8cb20710c30534a2e2df"
   },
   {
     "path": ".gemini/skills/cospec-verify-change/SKILL.md",
     "kind": "skill",
     "workflow": "verify",
     "harness": "gemini",
-    "contentHash": "sha256:d77817df123483dd7f40b93919041d8e5b09c2b55bc9681e503ffd5b63b9076a",
-    "bytes": 2629,
-    "sha256": "d04fbb6394b78e29899c97aa3da16e873a378e4a829e806cebd1192d1aef7c8d"
+    "contentHash": "sha256:3e2280e94a368f4b50e4f358f8246298eb56513c3f8194aa767d580f6fe25c82",
+    "bytes": 5306,
+    "sha256": "49382f308a26e96e04a9a3b5cee6575e22dee0b6751fd4c5036bf0df7fa3866e"
   }
 ]
