@@ -14,6 +14,7 @@ import {
   readWorkflowManifest,
   renderHarnessFiles,
 } from '../../src/harness/render.ts'
+import { ASCII_DIAGRAMS, INSPECT_BEFORE_DRAFTING } from '../fixtures/ported-passages.ts'
 
 const CANON = join(import.meta.dir, '../../src/canon/workflows')
 const FRAGMENT_PATH = 'workflows/_shared/root-guard.md'
@@ -127,5 +128,71 @@ describe('fragment interpolation', () => {
     )
     expect(apply?.body).toContain('guard: N')
     expect(apply?.body).not.toContain('[[opsx:')
+  })
+})
+
+/** The rendered skill body of one workflow (the claude harness; every harness shares it). */
+function skillBody(workflow: string): string {
+  const body = render().find((f) => f.kind === 'skill' && f.workflow === workflow)?.body
+  if (body === undefined) throw new Error(`no skill rendered for '${workflow}'`)
+  return body
+}
+
+/** The body with every run of whitespace as one space, so a sentence wrapped at 80 columns still matches. */
+const flat = (text: string): string => text.replace(/\s+/g, ' ')
+
+describe('propose and ff inspect the project before drafting (design D5)', () => {
+  for (const workflow of ['propose', 'ff']) {
+    test.failing(
+      `${workflow} carries the inspection passage, verbatim from the pinned template`,
+      () => {
+        const body = flat(skillBody(workflow))
+        for (const sentence of INSPECT_BEFORE_DRAFTING.sentences) expect(body).toContain(sentence)
+      },
+    )
+
+    test.failing(`${workflow} inspects after re-reading dependencies and before writing`, () => {
+      const body = flat(skillBody(workflow))
+      const reread = body.indexOf('Re-read every completed dependency')
+      const inspect = body.indexOf('Inspect the relevant project before drafting')
+      const write = body.indexOf('Write the artifact at the path')
+      expect(reread).toBeGreaterThan(-1)
+      expect(inspect).toBeGreaterThan(reread)
+      expect(write).toBeGreaterThan(inspect)
+    })
+
+    test(`${workflow} never tells the agent to open openspec/config.yaml or openspec/schemas/`, () => {
+      // A paragraph naming either file may mention it; one that tells the agent to read or open
+      // it must be a prohibition.
+      const naming = skillBody(workflow)
+        .split(/\n\s*\n/)
+        .filter((p) => p.includes('openspec/config.yaml') || p.includes('openspec/schemas/'))
+      expect(naming.length).toBeGreaterThan(0)
+      const telling = naming.filter((p) => /\b(read|reads|open|opening|reading)\b/i.test(p))
+      expect(telling.length).toBeGreaterThan(0)
+      for (const paragraph of telling) expect(paragraph).toMatch(/\bNOT\b|\bnever\b/)
+    })
+
+    test(`${workflow} keeps the format rule: the template and format come from cospec instructions`, () => {
+      const body = flat(skillBody(workflow))
+      expect(body).toContain('cospec instructions <artifact> --change <slug> --json')
+      expect(body).toContain('authoritative template')
+    })
+  }
+})
+
+describe('explore draws diagrams in plain ASCII only (design D6)', () => {
+  test.failing(
+    'explore states the ASCII rule with its reason, verbatim from the pinned template',
+    () => {
+      const body = flat(skillBody('explore'))
+      for (const sentence of ASCII_DIAGRAMS.sentences) expect(body).toContain(sentence)
+    },
+  )
+
+  test('explore holds no box-drawing or arrow glyph (U+2190-U+21FF, U+2500-U+257F) in any rendered file', () => {
+    const files = render().filter((f) => f.workflow === 'explore')
+    expect(files.length).toBeGreaterThan(0)
+    for (const f of files) expect(f.content).not.toMatch(/[\u2190-\u21FF\u2500-\u257F]/)
   })
 })
