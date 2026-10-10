@@ -77,3 +77,36 @@ export const ARCHIVE_INPUTS_LOOKUP: PortedPassage = {
     'These are prompt-level behavior contracts, not enforceable checks.',
   ],
 }
+
+/** Ported into `bulk-archive` (design D8): the archive lookup, run once for the batch. */
+export const BULK_ARCHIVE_INPUTS_LOOKUP: PortedPassage = {
+  passage: 'archive-inputs-lookup',
+  files: ['bulk-archive-change.js'],
+  sentences: [
+    'This lookup is advisory and optional: it only supplies extra prompt inputs, so it must never block the batch.',
+    'continue the batch with no context and no operation guidance. Do not report an error and do not stop.',
+    'A valid response may omit `context` and `operationGuidance`.',
+    'Treat `context` as a required prompt-level input across the batch: read and consider it, and apply relevant project facts, conventions, and constraints.',
+    'Treat `operationGuidance` as optional additive advice: read and consider every entry, and follow entries that are applicable and compatible with the built-in batch workflow.',
+    'Keep both fields separate from conflict analysis, explicit user choices, resolved paths, CLI checks, and command contracts.',
+    'If context conflicts with one of those controlling inputs, report the conflict and preserve the controlling value.',
+    'If guidance is inapplicable or conflicts with a controlling input, do not follow it and explain why.',
+    'Do not infer skipped prompts, replacement paths, or flags from either field, and do not copy their text verbatim into specs, changes, or summaries.',
+    'These are prompt-level behavior contracts, not enforceable checks.',
+  ],
+}
+
+/** Ported into `bulk-archive` (design D9): conflict detection and the include/exclude decision. */
+export const COLLISION_RESOLUTION: PortedPassage = {
+  passage: 'collision-resolution',
+  files: ['bulk-archive-change.js'],
+  sentences: [
+    'A conflict exists when 2+ selected changes have delta specs for the exact same `<capability-path>`.',
+    'from each conflicting change to understand what each claims to add/modify',
+    'Look for code implementing requirements from each delta spec',
+    'Check for related files, functions, or tests',
+    'If both implemented -> apply in chronological order (older first, newer overwrites)',
+    'An inclusion or exclusion decision for every delta spec, keyed by change and `<capability-path>`',
+    'Rationale (what was found in codebase)',
+  ],
+}

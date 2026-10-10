@@ -11,6 +11,8 @@ import { openspecPackageDir } from '../../src/core/openspec.ts'
 import {
   ARCHIVE_INPUTS_LOOKUP,
   ASCII_DIAGRAMS,
+  BULK_ARCHIVE_INPUTS_LOOKUP,
+  COLLISION_RESOLUTION,
   INSPECT_BEFORE_DRAFTING,
   OPERATION_INPUTS_PRECEDENCE,
   type PortedPassage,
@@ -31,6 +33,8 @@ describe.each([
   ASCII_DIAGRAMS,
   OPERATION_INPUTS_PRECEDENCE,
   ARCHIVE_INPUTS_LOOKUP,
+  BULK_ARCHIVE_INPUTS_LOOKUP,
+  COLLISION_RESOLUTION,
 ])('ported passage $passage', (passage: PortedPassage) => {
   test.each([...passage.files])(
     'every controlling sentence is found in the pinned %s',

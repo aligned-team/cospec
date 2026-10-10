@@ -17,6 +17,8 @@ import {
 import {
   ARCHIVE_INPUTS_LOOKUP,
   ASCII_DIAGRAMS,
+  BULK_ARCHIVE_INPUTS_LOOKUP,
+  COLLISION_RESOLUTION,
   INSPECT_BEFORE_DRAFTING,
   OPERATION_INPUTS_PRECEDENCE,
 } from '../fixtures/ported-passages.ts'
@@ -229,5 +231,88 @@ describe('archive looks up the project inputs (design D8)', () => {
     const lookup = body.indexOf(LOOKUP)
     expect(lookup).toBeGreaterThan(-1)
     expect(body.slice(lookup, lookup + 300)).toContain('--store <id>')
+  })
+})
+
+describe('bulk-archive looks up the inputs once and resolves collisions (design D8, D9)', () => {
+  const LOOKUP = 'cospec instructions archive --change "<slug>" --json'
+
+  test.failing(
+    'runs the same lookup line as archive, once for the batch, with the store threaded',
+    () => {
+      const body = flat(skillBody('bulk-archive'))
+      const lookup = body.indexOf(LOOKUP)
+      expect(lookup).toBeGreaterThan(-1)
+      expect(body.indexOf(LOOKUP, lookup + 1)).toBe(-1)
+      expect(body.slice(lookup, lookup + 300)).toContain('--store <id>')
+      expect(lookup).toBeLessThan(body.indexOf('cospec archive <slug>'))
+    },
+  )
+
+  test.failing(
+    'carries the batch lookup paragraph and the collision passage, verbatim from upstream',
+    () => {
+      const body = flat(skillBody('bulk-archive'))
+      for (const sentence of BULK_ARCHIVE_INPUTS_LOOKUP.sentences) expect(body).toContain(sentence)
+      for (const sentence of COLLISION_RESOLUTION.sentences) expect(body).toContain(sentence)
+    },
+  )
+
+  test.failing('detects a conflict per capability path from the status document', () => {
+    const body = flat(skillBody('bulk-archive'))
+    expect(body).toContain('cospec status --change "<slug>" --json')
+    expect(body).toContain('artifactPaths.specs')
+    expect(body).toContain('`<capability-path>`')
+  })
+
+  test.failing('orders an included pair chronologically by `created:`, ties by slug', () => {
+    const body = flat(skillBody('bulk-archive'))
+    expect(body).toContain('`created:`')
+    expect(body).toContain('ties by slug')
+  })
+
+  test.failing(
+    "edits only the conflicting change's delta files: the MODIFIED retarget and the exclusion",
+    () => {
+      const body = flat(skillBody('bulk-archive'))
+      expect(body).toContain("only the conflicting change's delta files")
+      expect(body).toContain('`## MODIFIED Requirements`')
+      expect(body).toContain('full updated requirement')
+      expect(body).toContain('every scenario')
+      expect(body).toContain('remove its colliding `### Requirement:` blocks')
+    },
+  )
+
+  test.failing(
+    'one confirmation covers the batch and the edits; declined edits and archives nothing',
+    () => {
+      const body = flat(skillBody('bulk-archive'))
+      expect(body).toContain('one confirmation covers the batch and the edits')
+      expect(body).toContain('If the user declines, edit nothing and archive nothing')
+    },
+  )
+
+  test.failing('forbids main-spec writes, hand mv and every --force* flag', () => {
+    const body = flat(skillBody('bulk-archive'))
+    expect(body).toContain('Never write a main spec under `openspec/specs/`')
+    expect(body).toContain('never hand-`mv`')
+    expect(body).toContain('never pass a `--force*` flag')
+  })
+
+  test.failing(
+    'validates each edited change strictly, then archives each change through cospec archive',
+    () => {
+      const body = flat(skillBody('bulk-archive'))
+      const validate = body.indexOf('cospec validate <slug> --strict')
+      expect(validate).toBeGreaterThan(-1)
+      expect(validate).toBeLessThan(body.lastIndexOf('cospec archive <slug>'))
+      expect(body).toContain('archive/verification-incomplete')
+      expect(body).toContain('archive/scenario-preservation')
+    },
+  )
+
+  test('names no bare openspec command', () => {
+    const body = skillBody('bulk-archive')
+    expect(body.match(/`openspec\s+[a-z-]+/g)).toBeNull()
   })
 })
