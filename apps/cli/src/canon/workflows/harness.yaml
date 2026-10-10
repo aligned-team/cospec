@@ -26,6 +26,10 @@ workflows:
     injectTypeTable: true
     takesArguments: true
     core: true
+    ported:
+      - passage: inspect-before-drafting
+        file: dist/core/templates/workflows/propose.js
+        pin: 1.13.1
   - id: new
     command: new
     skill: cospec-new-change
@@ -51,6 +55,10 @@ workflows:
       Author every remaining artifact on an already-scaffolded change in one pass, then validate.
       Also use when the user says "cospec ff", "cospec fast-forward", or "openspec ff".
     takesArguments: true
+    ported:
+      - passage: inspect-before-drafting
+        file: dist/core/templates/workflows/ff-change.js
+        pin: 1.13.1
   - id: update
     command: update
     skill: cospec-update-change

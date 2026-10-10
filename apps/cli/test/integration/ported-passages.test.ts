@@ -24,10 +24,13 @@ function pinnedText(file: string): string {
 describe.each([INSPECT_BEFORE_DRAFTING, ASCII_DIAGRAMS])(
   'ported passage $passage',
   (passage: PortedPassage) => {
-    test.each(passage.files)('every controlling sentence is found in the pinned %s', (file) => {
-      const text = pinnedText(file)
-      for (const sentence of passage.sentences) expect(text).toContain(sentence)
-    })
+    test.each([...passage.files])(
+      'every controlling sentence is found in the pinned %s',
+      (file: string) => {
+        const text = pinnedText(file)
+        for (const sentence of passage.sentences) expect(text).toContain(sentence)
+      },
+    )
 
     test('the pinned template files exist', () => {
       for (const file of passage.files) {

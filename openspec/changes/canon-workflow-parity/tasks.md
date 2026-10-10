@@ -66,16 +66,25 @@
 
 ## 3. T2 propose and ff inspect before drafting
 
-- [ ] 3.1 Add `canon-render.test.ts` rows first, as `test.failing`: the rendered
+- [x] 3.1 Add `canon-render.test.ts` rows first, as `test.failing`: the rendered
       `propose` and `ff` bodies tell the agent to inspect implementation, tests,
       configuration and documentation outside `openspec/` in proportion to the
       change, to ask when the target is unclear, and neither instructs opening
       `openspec/config.yaml` or `openspec/schemas/`; each controlling sentence
       is found in the pinned `propose.js` and `ff-change.js` -> the rows fail.
-- [ ] 3.2 Add the passage to `propose.md` and `ff.md` and reword each body's "do
+      Observed: the four propose/ff passage rows were `test.failing` on
+      6c1f8fb8; the negative and format-rule guards are plain tests; the
+      integration check (`test/integration/ported-passages.test.ts`) finds every
+      sentence in both pinned templates. 25 targeted rows pass.
+- [x] 3.2 Add the passage to `propose.md` and `ff.md` and reword each body's "do
       not read repo files to reverse-engineer an artifact's shape" sentence to
       say it is about format, not subject matter (design D5) -> the 3.1 rows
-      pass and are flipped.
+      pass and are flipped. Observed: passage in the artifact loop (new step 3
+      in both bodies, later steps renumbered); format rule reworded;
+      `harness.yaml` `ported:` records `inspect-before-drafting` for propose and
+      ff; `mise run generate`, the harness-render goldens and the render
+      snapshot regenerated; the harness, render, full-set golden and canon
+      suites pass (557 tests, 0 fail); typecheck and lint exit 0.
 
 ## 4. T3 explore draws ASCII only
 

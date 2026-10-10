@@ -39,7 +39,7 @@
     "kind": "skill",
     "workflow": "ff",
     "harness": "codex",
-    "contentHash": "sha256:a760b58035a2b7838f95760e045e2b4a26cda18208020838f3346af3d143b7e9"
+    "contentHash": "sha256:8afc95693415d2f288efe40c1123673feb83cdb74af489d8da7b2dc226cc7240"
   },
   {
     "path": ".agents/skills/cospec-new-change/SKILL.md",
@@ -60,7 +60,7 @@
     "kind": "skill",
     "workflow": "propose",
     "harness": "codex",
-    "contentHash": "sha256:36551445cd81c8b99984296597a4b8d0009f982b61a1c2a300750412a6cf3172"
+    "contentHash": "sha256:3fb0299a3fd4eba8f97c80a329efc89216ee061134bf256855fccb9bca47e325"
   },
   {
     "path": ".agents/skills/cospec-sync-specs/SKILL.md",

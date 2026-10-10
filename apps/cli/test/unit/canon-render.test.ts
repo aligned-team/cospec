@@ -143,15 +143,12 @@ const flat = (text: string): string => text.replace(/\s+/g, ' ')
 
 describe('propose and ff inspect the project before drafting (design D5)', () => {
   for (const workflow of ['propose', 'ff']) {
-    test.failing(
-      `${workflow} carries the inspection passage, verbatim from the pinned template`,
-      () => {
-        const body = flat(skillBody(workflow))
-        for (const sentence of INSPECT_BEFORE_DRAFTING.sentences) expect(body).toContain(sentence)
-      },
-    )
+    test(`${workflow} carries the inspection passage, verbatim from the pinned template`, () => {
+      const body = flat(skillBody(workflow))
+      for (const sentence of INSPECT_BEFORE_DRAFTING.sentences) expect(body).toContain(sentence)
+    })
 
-    test.failing(`${workflow} inspects after re-reading dependencies and before writing`, () => {
+    test(`${workflow} inspects after re-reading dependencies and before writing`, () => {
       const body = flat(skillBody(workflow))
       const reread = body.indexOf('Re-read every completed dependency')
       const inspect = body.indexOf('Inspect the relevant project before drafting')
