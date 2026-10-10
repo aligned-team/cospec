@@ -3,10 +3,12 @@
 ## 1. Regression test first
 
 - [x] 1.1 Add `apps/cli/test/integration/generate-self-home.test.ts`: init a
-      scratch HOME's `.minimax` skills, stamp them stale, add a profile-core
-      global config, run `scripts/generate-self update --check`, assert exit 0,
-      "no drift" and an unchanged HOME snapshot -- verify it fails on the
-      current script (exit 1, twelve `updated` rows)
+      scratch HOME's `.minimax` skills, stamp them stale, add a
+      `delivery: commands` global config, run
+      `scripts/generate-self update --check`, assert exit 0, "no drift" and an
+      unchanged HOME snapshot; add a stand-in-`bun` test that all seven
+      variables name one empty scratch directory -- verify each fails on the
+      script with the matching assignment removed
 
 ## 2. Isolation
 
