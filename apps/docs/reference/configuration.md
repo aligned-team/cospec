@@ -78,6 +78,45 @@ three more keys: `operations:` (advisory guidance for `apply` and `archive`),
 `references:` (other stores this project reads). They are comments until you
 uncomment them.
 
+### `operations`: advisory guidance for `apply` and `archive`
+
+`operations` gives advice to the two workflows that gate and ship a change. Its
+keys are the operation ids, and there are exactly two: `apply` and `archive`.
+The two guidance keys are `operations.apply.guidance` and
+`operations.archive.guidance`. Each id maps to an object whose only field is
+`guidance`, a list of strings:
+
+```yaml
+operations:
+  apply:
+    guidance:
+      - Run the migration tests before marking a task done.
+  archive:
+    guidance:
+      - Keep the archive summary to one line.
+```
+
+Empty entries are dropped. Guidance is advisory and additive: it is prompt-level
+text the workflow weighs, never a check, and it never changes what `apply` or
+`archive` gates on or what their exit codes are. Where it reaches:
+
+- **`apply`** — `cospec apply <slug> --json` carries it as
+  `apply.operationGuidance` on a clear gate. The human transcript prints it
+  under `### Operation Guidance (advisory)` after the instruction.
+- **`archive`** — the workflow reads it from
+  `cospec instructions archive --change <slug> --json` (as `operationGuidance`),
+  and `cospec archive` prints it after its summary, or after a refusal in text
+  mode. A successful `--json` document carries it as a top-level
+  `operationGuidance` key.
+
+When `operations` is malformed, the reader warns and ignores the part it cannot
+use, and the rest of the file still applies. An unknown id (for example
+`applies`) is reported with the supported ids, `apply` and `archive`, and its
+guidance is ignored. An `operations` value that is not a mapping, an operation
+that is not a mapping, an unknown field inside one, or a `guidance` that is not
+a list of strings each produce one warning, with OpenSpec's wording. A project
+that configures no `operations` sees no change in output.
+
 One extra vocabulary lever lives here too: `verification.layers` lets you extend
 the closed set of `@<layer>` tokens (`@unit`, `@e2e`, `@manual`, and so on) that
 verification rows can cite — see

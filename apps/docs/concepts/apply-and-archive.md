@@ -101,6 +101,35 @@ and its document gains a top-level
 `"warnings": [{ "code": "archive_unreadable", "message": "…" }]` (a `Warning:`
 line on stderr in text). `archive` itself still refuses.
 
+### What `apply` prints from the project's config
+
+Two project inputs reach an agent that runs `apply`, both set in
+`openspec/config.yaml` and both absent by default:
+
+- **`context`** — the project's free-text context. A required prompt-level
+  input: the apply workflow reads it and follows the facts, conventions and
+  constraints that apply.
+- **`operations.apply.guidance`** — a list of strings. Optional, additive advice
+  for the apply workflow.
+
+On a clear gate (exit `0`) the `--json` document carries them under `apply` as
+`apply.context` and `apply.operationGuidance`, byte for byte. The human
+transcript prints them after the instruction, under
+`### Project Context (required instruction input)` and
+`### Operation Guidance (advisory)`. A project that configures neither sees no
+new line, so its output is the same as before. If `config.yaml` declares
+`references:` stores, the transcript also prints a `### Referenced Stores`
+section before the instruction, and the `--json` document carries
+`apply.references`; only the command fields in it (a store's `fetch` recipe and
+its status `fix`) are spelled `cospec`, while the project's own text passes
+through unchanged.
+
+Neither input changes the exit code or the gate. The apply workflow treats them
+as prompt-level: they are not evidence that a task is done, they never lift a
+blocked state, and they are not copied into implementation files. A conflict
+with the built-in instruction, an explicit user choice or a CLI-controlled value
+keeps the controlling value and is reported.
+
 ::: tip `--allow-soft` only waives **soft** blockers. Hard blockers have no
 override — the change they name has to actually land first. :::
 
@@ -310,6 +339,52 @@ always present, `[]` when nothing to report. Relayed text is spelled `cospec`.
 The JSON document also carries OpenSpec's own `archive` and `root` keys, and
 every refusal answers one document; both shapes are on
 [Command reference](/reference/commands).
+
+### The project's archive inputs
+
+`archive` reads the same two project inputs as `apply`, but for the archive
+step: `context`, and `operations.archive.guidance` (see
+[Configuration](/reference/configuration#operations-advisory-guidance-for-apply-and-archive)).
+Once the change resolves, the text summary prints them after its last line, and
+a text-mode refusal prints them after the refusal. A successful `--json`
+document carries them as top-level `context` and `operationGuidance` keys, only
+when configured; refusal documents carry neither. An unknown `operations` id, or
+a guidance value that is not a list of strings, is reported as a warning and
+ignored.
+
+The archive workflow looks these up before its own checks, with
+`cospec instructions archive --change <slug> --json`. The lookup is advisory: a
+non-zero exit or invalid JSON means the workflow continues with no inputs and
+reports nothing. Like `apply`'s inputs, they never override a built-in step, a
+resolved path, a CLI check or a command contract, and they never move an exit
+code. `archive`'s two hard gates are unchanged.
+
+### Bulk archive: one lookup and collision resolution
+
+The bulk-archive workflow runs the same lookup once for the whole batch. Its
+collision handling is a workflow procedure rather than a command, and it runs
+before anything is archived:
+
+1. **Detect.** Two or more selected changes with a delta for the exact same
+   capability path collide, whatever their operations. `archive` refuses one
+   case of this on its own, an `ADDED` requirement that the living spec already
+   has (`archive/added-exists`); the workflow catches every case first.
+2. **Resolve.** For each collision the workflow reads both deltas, searches the
+   codebase for implementation evidence, and records an include or exclude
+   decision with its reason. Only one implemented: keep that delta. Both:
+   archive in chronological order, so the newer one overwrites. Neither: exclude
+   both and warn.
+3. **Edit, and only the delta files.** An included newer `ADDED` that the older
+   change also adds moves to `MODIFIED`, carrying the whole updated requirement
+   with every scenario. An excluded change's colliding requirement blocks come
+   out of its delta, and the file is deleted when nothing is left in it. Main
+   specs are never written, and no `--force` flag is passed.
+4. **Confirm once.** One table shows each change, its status and each
+   collision's decision, and the batch is confirmed once. If the user declines,
+   nothing is edited and nothing is archived.
+5. **Validate, then archive, in order.** Each edited change runs
+   `cospec validate <slug> --strict` after the changes ahead of it have
+   archived, then `cospec archive <slug>`. A failure stops only that change.
 
 ### Capability retirement
 
