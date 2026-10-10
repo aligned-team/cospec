@@ -206,6 +206,16 @@ const livingAuth = (root: string): string =>
 describe('an unresolved ADDED collision (verification 6.1)', () => {
   test('the newer archive refuses with archive/added-exists and moves nothing', async () => {
     const root = await fixture()
+    // Step 3's detection source: each change's delta specs, from its status document.
+    const status = await run(root, ['status', '--change', NEWER, '--json'])
+    expect(status.exitCode).toBe(0)
+    const specs = (
+      JSON.parse(status.stdout) as {
+        artifactPaths: { specs: { existingOutputPaths: string[] } }
+      }
+    ).artifactPaths.specs.existingOutputPaths
+    expect(specs.some((p) => p.endsWith('specs/auth/spec.md'))).toBe(true)
+    expect(specs.some((p) => p.endsWith('specs/audit/spec.md'))).toBe(true)
     const first = await run(root, bodyArgv(root, ARCHIVE, OLDER))
     expect(first.exitCode).toBe(0)
     const living = livingAuth(root)

@@ -421,9 +421,13 @@ invalidity.
 **Confirmation.** The resolution table, each proposed edit and the final order
 are shown, and **one confirmation covers the batch and the edits**; declined
 means nothing is edited and nothing is archived (the living spec's declined
-branch). After the edits each edited change must pass
-`cospec validate <slug> --strict` before the loop; a failure is that change's
-failure and the batch continues.
+branch). Each edited change must pass `cospec validate <slug> --strict`; a
+failure is that change's failure and the batch continues. Binary contradicts
+this design's first wording ("before the loop"): validation reads the living
+specs as they stand, so a retargeted `MODIFIED` on a capability the older change
+creates is refused by `archive/new-spec-non-added` until that change archives.
+The body therefore validates each edited change inside the loop, after every
+change ahead of it has archived and right before its own `cospec archive`.
 
 **Archive.** Each change then goes through `cospec archive <slug>` in the
 resolved order (dependency order first, collision order within a capability), so

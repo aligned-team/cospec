@@ -286,10 +286,11 @@ The resolution SHALL edit only the conflicting change's delta files, SHALL
 require the user's confirmation of the resolution and each proposed edit before
 any edit is written (a declined confirmation edits and archives nothing), SHALL
 NOT write a main spec, move a change directory or edit any other artifact, and
-SHALL require each edited change to pass `cospec validate <slug> --strict`. Each
-change SHALL then be archived with `cospec archive <slug>` in the resolved
-order, so both archive hard gates run for each, and no `--force*` flag SHALL be
-suggested.
+SHALL require each edited change to pass `cospec validate <slug> --strict` after
+every change ahead of it in the resolved order has archived and before its own
+archive. Each change SHALL be archived with `cospec archive <slug>` in the
+resolved order, so both archive hard gates run for each, and no `--force*` flag
+SHALL be suggested to get past a collision.
 
 #### Scenario: a duplicate ADDED resolves through a delta edit and archives through the gates
 
