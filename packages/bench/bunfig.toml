@@ -1,0 +1,4 @@
+# `bun test` reads only the bunfig in its working directory, and the mise tasks run it from here,
+# so the machine-state isolation every test run shares is named here too. No run passes `--preload`.
+[test]
+preload = ["../../apps/cli/test/fixtures/isolate-machine-state.ts"]

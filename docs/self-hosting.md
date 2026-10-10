@@ -47,6 +47,14 @@ to a generated file fails the commit — the same pattern as the `agents:sync` /
 regenerates the `generatedBy` frontmatter lines as part of the version-stamp
 task, in the same commit.
 
+`update` honours the `profile`, `workflows` and `delivery` keys of the
+machine-global OpenSpec config, so `generate` and `generate:check` run through
+`scripts/generate-self`, which points `XDG_CONFIG_HOME` at an empty directory
+for the run. The committed files are the full twelve workflows on every host;
+without it, a host whose config says `profile: core` would regenerate and
+drift-check only the core set, hiding a missing non-core file and rewriting
+bodies that depend on which workflows are installed.
+
 ## The everyday loop
 
 ```bash

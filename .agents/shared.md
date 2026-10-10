@@ -374,10 +374,20 @@ Contract tests run the real pinned binary; a false archive PASS is a release
 blocker. The oracle (`test/contract/support/upstream-oracle.ts`) and
 `openspec()`/`openspecRaw()` (`test/fixtures/support.ts`) run it under Bun with
 cospec's wrapped env over a private HOME/XDG sandbox, as the product does and
-never against the real HOME; pass `{ runtime: 'node' }` (the tests-only
-`mise.toml` node pin) only for an argv that starts with `--`. Assert errno
-failures through `test/fixtures/errno.ts` (code, syscall, path), never the
-OS-specific sentence.
+never against the real HOME. Every `bun test` run — flags or none — loads
+`apps/cli/test/fixtures/isolate-machine-state.ts` through the `bunfig.toml` of
+the directory it runs from (the repo root, `apps/cli`, `packages/bench` and
+`e2e` each name it; Bun reads only the cwd's), which points HOME, USERPROFILE,
+`os.homedir()` (Bun does not follow a later `HOME` assignment) and the XDG/Codex
+dirs at a private sandbox, hands that environment to any `Bun.spawn` or
+`Bun.spawnSync` that passes no `env` (Bun would otherwise start the child with
+the real HOME), removes the sandbox after the last test, and fails any test
+whose global-config path lies under the real home;
+`test/unit/support-machine-isolation.test.ts` guards it, bunfig by bunfig. A
+test that wants a profile sets `XDG_CONFIG_HOME` itself. Pass
+`{ runtime: 'node' }` (the tests-only `mise.toml` node pin) only for an argv
+that starts with `--`. Assert errno failures through `test/fixtures/errno.ts`
+(code, syscall, path), never the OS-specific sentence.
 
 **Docs never drift** — zero drift between the published docs site and released
 behavior is non-negotiable. Any change that alters user-facing behavior —

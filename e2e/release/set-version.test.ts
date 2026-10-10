@@ -19,6 +19,8 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
+import { hostToolEnv } from '../../apps/cli/test/fixtures/machine-isolation.ts'
+
 // Absolute path to the script under test and the repo root it lives in.
 const SCRIPT = new URL('../../scripts/mise-tasks/release/set-version', import.meta.url).pathname
 const REPO_ROOT = new URL('../../', import.meta.url).pathname
@@ -66,7 +68,9 @@ async function runScript(
   const proc = Bun.spawn(['bash', SCRIPT, version, '--root', root], {
     stdout: 'pipe',
     stderr: 'pipe',
-    env: { ...process.env },
+    // The script runs host tools (`jq`, `oxfmt`), which a mise shim resolves through the real
+    // home; no cospec code runs here, so the sandbox the preload installs is stepped around.
+    env: hostToolEnv(),
   })
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),

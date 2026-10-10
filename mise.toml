@@ -161,13 +161,15 @@ run = ["bun run --filter '*' typecheck", "tsgo --noEmit -p e2e/tsconfig.json"]
 # Generate (canon -> managed files) + drift gate
 # ───────────────────────────────────────────────
 
+# Both run over an empty machine-global config (scripts/generate-self): the repo's managed files
+# are the full twelve whatever workflow profile the host's own config sets.
 [tasks.generate]
 description = "Regenerate managed files from canon (self-repo)"
-run = "mise run cospec -- update"
+run = "bash scripts/generate-self update"
 
 [tasks."generate:check"]
 description = "Fail if any managed file drifts from canon (CI/pre-commit gate)"
-run = "mise run cospec -- update --check"
+run = "bash scripts/generate-self update --check"
 
 [tasks."vendor:openspec"]
 description = "Regenerate the vendored self-contained openspec bundle the compiled binary embeds"
