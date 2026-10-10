@@ -342,6 +342,16 @@ pin bump, re-take the captures with
 table, run `mise run generate`; never hand-edit generated output. The
 `generate:check` drift gate blocks the commit otherwise.
 
+**Canon bodies share text and record their sources** — a workflow body in
+`apps/cli/src/canon/workflows/` takes shared text only through a registered
+`_shared/` fragment token (`FRAGMENTS` in `harness/render.ts`; every body
+carries `{{ROOT_GUARD}}` exactly once, before its first step). Each passage a
+body ports from the pinned OpenSpec dist is listed under that workflow's
+`ported:` in `canon/workflows/harness.yaml`, with its template file and pin, so
+provenance stays checkable. The tasks guidance in
+`canon/artifacts/tasks/meta.yaml` says archiving is not a task, so `tasks.md`
+never gets an archive row. No canon body carries a bare `openspec` command.
+
 **Error handling** — never silently swallow errors. Catch only specific expected
 cases; let unexpected exceptions propagate. Fixes must change observable
 behavior, not relabel exceptions.
