@@ -229,7 +229,7 @@ describe('cospec doctor (DESIGN §2.3)', () => {
 
   describe('verification.layers in the config', () => {
     const layerWarnings = async (config: string): Promise<JsonFinding[]> => {
-      seed(dir)
+      await seed(dir)
       writeFileSync(join(dir, 'openspec/config.yaml'), config)
       const { code, findings } = await doctorJson(dir)
       expect(code).toBe(0)

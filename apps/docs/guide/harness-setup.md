@@ -191,10 +191,10 @@ harness's row sets the flag.
 A note prints only when the
 [delivery](/reference/configuration#installed-workflows-and-delivery) writes the
 surface it is about: the Claude Code and OpenCode notes are about commands, so
-delivery `skills` drops them; the Codex, agents and Hermes notes are about
-skills, so delivery `commands` drops them (Codex still gets its skills there).
-The restart line follows the surface written for the flagged row, in the same
-way.
+delivery `skills` drops them; the agents and Hermes notes are about skills, so
+delivery `commands` drops them. Codex's note stays under delivery `commands`,
+because Codex has no commands surface and still gets its skills there. The
+restart line follows the surface written for the flagged row, in the same way.
 
 ### Receipt hint
 
