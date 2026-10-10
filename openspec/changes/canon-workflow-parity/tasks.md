@@ -2,24 +2,36 @@
 
 ## 1. Dependency gate and baseline
 
-- [ ] 1.1 Confirm `workflow-profiles` (R12) has merged: `git fetch origin` and
+- [x] 1.1 Confirm `workflow-profiles` (R12) has merged: `git fetch origin` and
       check that `git log origin/main` holds its archive commit and that
       `openspec/changes/archive/` on `origin/main` holds a `workflow-profiles`
       entry. Do not start group 2 until it does; this is the whole gate, since
       `blocking-changes.md` cannot hold the unmerged change (see its Phase
       Gates) -> `git log origin/main --oneline | grep -i workflow-profiles`
-      prints the merge and archive commits.
-- [ ] 1.2 Rebase onto that `main` (`--force-with-lease`, no merge commit), run
+      prints the merge and archive commits. Observed: `git log origin/main`
+      holds `feat(harness): add workflow profiles, delivery and init language`
+      (713941ca); `openspec/changes/archive/2026-10-09-workflow-profiles`
+      exists.
+- [x] 1.2 Rebase onto that `main` (`--force-with-lease`, no merge commit), run
       `bun install --frozen-lockfile`, add `workflow-profiles` to "Blocked by"
       in `blocking-changes.md` as an archived entry, re-read R12's merged
       `design.md` and the merged `render.ts`, `harness.yaml` and bodies, and
       record in this task what moved (the resolver's name and call site, the
       wrapped reference form, any difference from `design.md` D1) ->
       `cospec     validate canon-workflow-parity --strict` is clean and
-      `git log     main..HEAD` shows only this change's commits.
-- [ ] 1.3 Run the baseline `mise run test`, `mise run test:contract` and
+      `git log     main..HEAD` shows only this change's commits. Observed:
+      rebased onto 713941ca with no conflicts; `bun install --frozen-lockfile`
+      clean; `workflow-profiles` added to Blocked by as archived. The resolver
+      is `resolveOptionalWorkflows` (`harness/optional-workflow.ts`), called in
+      `renderHarnessFiles` on the `normalizeBody` text before `{{TYPE_TABLE}}`
+      injection and `transformBody`, and `renderHarnessFiles` takes `workflows`
+      and `delivery` options; this matches design D1, so no difference to
+      record. `validate --strict` clean, `apply` exits 0.
+- [x] 1.3 Run the baseline `mise run test`, `mise run test:contract` and
       `mise run generate:check` before any source edit -> all exit 0, so every
-      later red is this change's.
+      later red is this change's. Observed: `mise run test` 3026 pass / 0 fail;
+      `mise run test:contract` 3211 pass / 0 fail; `mise run generate:check`
+      exit 0.
 
 ## 2. T1 shared root-guard fragment
 

@@ -2,7 +2,11 @@
 
 ## Blocked by
 
-None.
+- [x] `workflow-profiles` — the optional-workflow conditional grammar, its
+      resolver `resolveOptionalWorkflows` in `harness/optional-workflow.ts`, and
+      the `[[opsx:if-workflow <id>]]` markers in every canon body, which this
+      change's fragment interpolates ahead of and whose bodies and `render.ts`
+      it edits _(archived 2026-10-09)_
 
 ## Soft-blocked by
 
