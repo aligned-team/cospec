@@ -162,8 +162,9 @@ run = ["bun run --filter '*' typecheck", "tsgo --noEmit -p e2e/tsconfig.json"]
 # ───────────────────────────────────────────────
 
 # Both run with HOME and the machine-global config at an empty directory (scripts/generate-self):
-# the repo's managed files are the full twelve whatever profile the host's config sets, and a
-# home-scoped skills root (~/.minimax) the host holds is neither drift-checked nor rewritten.
+# the repo's managed files are the same skills and commands whatever `delivery` the host's config
+# sets, and a home-scoped skills root (~/.minimax) the host holds is neither drift-checked nor
+# rewritten.
 [tasks.generate]
 description = "Regenerate managed files from canon (self-repo)"
 run = "bash scripts/generate-self update"

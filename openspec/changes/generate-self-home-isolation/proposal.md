@@ -23,8 +23,11 @@ opposite.
   comment names the home as well as the config.
 - A regression test, `apps/cli/test/integration/generate-self-home.test.ts`,
   runs `scripts/generate-self update --check` against a scratch HOME that holds
-  stale cospec-authored `.minimax` skills and a profile-core global config: it
-  reports no drift and the scratch HOME is byte-identical afterwards.
+  stale cospec-authored `.minimax` skills and a `delivery: commands` global
+  config (the key that changes what `update` renders; `profile` does not): it
+  reports no drift and the scratch HOME is byte-identical afterwards. A second
+  test runs the script around a stand-in `bun` and requires all seven variables
+  to name the one empty scratch directory, covering those no behaviour exposes.
 - `docs/self-hosting.md`, `docs/architecture.md` and `.agents/shared.md` (then
   `agents:sync`) say `generate` is isolated from the home directory as well as
   the machine-global config, which makes #81's host-independence statement true.

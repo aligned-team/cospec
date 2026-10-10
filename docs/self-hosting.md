@@ -52,13 +52,18 @@ machine-global OpenSpec config, and reads and rewrites the home-scoped skills
 roots (`~/.minimax/skills`) of the rows it maintains, so `generate` and
 `generate:check` run through `scripts/generate-self`, which points `HOME`,
 `USERPROFILE`, `CODEX_HOME` and the four XDG directories at one empty directory
-for the run. The committed files are the full twelve workflows on every host;
-without it, a host whose config says `profile: core` would regenerate and
-drift-check only the core set, hiding a missing non-core file and rewriting
-bodies that depend on which workflows are installed, and a host holding an older
-cospec's skills under its real home would see drift there and have them
-rewritten by `generate`. `test/integration/generate-self-home.test.ts` guards it
-with a scratch HOME of stale skills and a profile-core config.
+for the run. The committed files are the full twelve workflows, as skills and
+commands, on every host; without it, a host whose config says
+`delivery: commands` would have `generate` delete the committed skills and
+`generate:check` fail (`delivery: skills` does the same to the commands), and a
+host holding an older cospec's skills under its real home would see drift there
+and have them rewritten by `generate`. (A `profile` or `workflows` key only
+picks what a row gets by default and never removes an installed workflow, so it
+does not move the output.) `test/integration/generate-self-home.test.ts` guards
+it two ways: a run over a scratch HOME of stale skills and a
+`delivery: commands` config must report no drift and leave that HOME untouched,
+and a run around a stand-in `bun` must see all seven variables name the one
+empty directory.
 
 ## The everyday loop
 

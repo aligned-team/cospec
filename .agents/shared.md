@@ -342,9 +342,10 @@ pin bump, re-take the captures with
 table, run `mise run generate`; never hand-edit generated output. The
 `generate:check` drift gate blocks the commit otherwise. Both run through
 `scripts/generate-self`, which points HOME, USERPROFILE, `CODEX_HOME` and the
-XDG dirs at one empty directory, so a host's global profile or home-scoped
-skills (`~/.minimax`) never change or receive what they write
-(`test/integration/generate-self-home.test.ts` guards it).
+XDG dirs at one empty directory, so a host's global config (its `delivery`) or
+home-scoped skills (`~/.minimax`) never change or receive what they write
+(`test/integration/generate-self-home.test.ts` guards it, and records the seven
+variables the script sets).
 
 **Canon bodies share text and record their sources** — a workflow body in
 `apps/cli/src/canon/workflows/` takes shared text only through a registered

@@ -14,7 +14,13 @@ with twelve `updated` rows, `update` exit 0 and rewrote all twelve.
 
 This corrects the claim in the archived `test-home-isolation` design ("Generate
 stays host-independent by the task") and in `scripts/generate-self`'s comment
-and the docs: they were true of the profile only, not of the home.
+and the docs: they were true of the machine-global config (its `delivery` key)
+only, not of the home. They also named `profile: core` as the hazard; it is not
+one: a profile only picks what a row gets by default and never drops an
+installed workflow (verified: a host config of `profile: core` or a one-workflow
+custom profile leaves `update --check` at `no drift`, and a deleted non-core
+file is still reported `created`). `delivery: commands` is the key that moves
+the output, removing the committed skills.
 
 ## Decisions
 
@@ -33,6 +39,12 @@ and the docs: they were true of the profile only, not of the home.
   write-mode run in a test could rewrite the working tree of a developer
   mid-change. The write-mode defect is checked by hand in the verification
   ledger.
+- Variables `update` does not read today (`CODEX_HOME`, the XDG data/state/cache
+  roots, `HOME` while `USERPROFILE` is also set) leave no behavioural trace, so
+  a second test runs `scripts/generate-self` around a stand-in `bun` that
+  records its environment and requires all seven to name the one scratch
+  directory, empty, removed after the run. Removing any one assignment fails a
+  test (each of the seven was removed in turn to check).
 - The canary is a before/after snapshot (path, size, mtime, content hash) of the
   whole scratch HOME, not a drift message, so a future variable left unisolated
   that only writes (and reports nothing) still fails it.

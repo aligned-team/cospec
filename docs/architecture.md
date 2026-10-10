@@ -91,9 +91,10 @@ cospec spawns OpenSpec; it never imports it.
   kernel. The self-hosting tasks are isolated the same way from outside the test
   runner: `scripts/generate-self` (`mise run generate` and `generate:check`)
   runs `update` with HOME, USERPROFILE, `CODEX_HOME` and the XDG dirs at one
-  empty temporary directory, so neither the host's global profile nor a
-  home-scoped skills root under its real home reaches the run or is written by
-  it (`test/integration/generate-self-home.test.ts` guards it).
+  empty temporary directory, so neither the host's global config (its
+  `delivery`) nor a home-scoped skills root under its real home reaches the run
+  or is written by it (`test/integration/generate-self-home.test.ts` guards it,
+  and records the seven variables the script sets).
 
 ## The command table and the reachability test
 
