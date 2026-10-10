@@ -9,17 +9,22 @@
 # them rewritten. `CODEX_HOME` is set too although `update` never reads it: the script forwards any
 # subcommand, and `init` sweeps `$CODEX_HOME/prompts` for legacy prompts. One empty temporary
 # directory stands in for HOME and every config/data/state/cache root, which keeps `generate` and
-# `generate:check` host-independent and writes nothing outside this repo.
+# `generate:check` host-independent and writes nothing outside this repo. The first-run completion
+# tip finds oh-my-zsh through `$ZSH`/`$ZSH_CUSTOM` ahead of HOME, so a host's oh-my-zsh would still
+# stat its real `_cospec`; `ZSH` and `ZSH_CUSTOM` are unset and `OPENSPEC_NO_COMPLETIONS=1` (the
+# tip's documented suppression) is set so the run never looks at a host shell file.
 set -euo pipefail
 
 empty_home="$(mktemp -d "${TMPDIR:-/tmp}/cospec-generate-home.XXXXXX")"
 trap 'rm -rf "$empty_home"' EXIT
 
-HOME="$empty_home" \
+env -u ZSH -u ZSH_CUSTOM \
+  HOME="$empty_home" \
   USERPROFILE="$empty_home" \
   CODEX_HOME="$empty_home" \
   XDG_CONFIG_HOME="$empty_home" \
   XDG_DATA_HOME="$empty_home" \
   XDG_STATE_HOME="$empty_home" \
   XDG_CACHE_HOME="$empty_home" \
+  OPENSPEC_NO_COMPLETIONS=1 \
   bun run apps/cli/src/index.ts -- "$@"

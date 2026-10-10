@@ -94,7 +94,8 @@ cospec spawns OpenSpec; it never imports it.
   empty temporary directory, so neither the host's global config (its
   `delivery`) nor a home-scoped skills root under its real home reaches the run
   or is written by it (`test/integration/generate-self-home.test.ts` guards it,
-  and records the seven variables the script sets).
+  and records the seven variables the script sets plus its completion-tip
+  settings).
 
 ## The command table and the reachability test
 

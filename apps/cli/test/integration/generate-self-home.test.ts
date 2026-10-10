@@ -7,7 +7,9 @@
 // row's scratch HOME and global config are those hosts. A variable `update` does not read today
 // (`CODEX_HOME`, the XDG data/state/cache roots, `USERPROFILE` while `HOME` is also set) leaves no
 // behavioural trace, so the second row runs the script around a stand-in `bun` that records its
-// environment and requires every one of the seven to name the one scratch directory.
+// environment and requires every one of the seven to name the one scratch directory. The same
+// stand-in requires the first-run completion tip off (`OPENSPEC_NO_COMPLETIONS=1`) and `ZSH` and
+// `ZSH_CUSTOM` unset, so the tip never stats a `_cospec` under a host's oh-my-zsh.
 import { afterAll, describe, expect, test } from 'bun:test'
 import { createHash } from 'node:crypto'
 import {
@@ -128,6 +130,9 @@ describe('generate-self runs off the real home', () => {
           `  for name in ${ISOLATED.join(' ')}; do printf '%s=%s\\n' "$name" "\${!name-}"; done`,
           '  printf \'ENTRIES=%s\\n\' "$(ls -A "$HOME" | wc -l | tr -d \' \')"',
           '  printf \'ARGS=%s\\n\' "$*"',
+          '  printf \'OPENSPEC_NO_COMPLETIONS=%s\\n\' "${OPENSPEC_NO_COMPLETIONS-}"',
+          '  printf \'ZSH_SET=%s\\n\' "${ZSH+set}"',
+          '  printf \'ZSH_CUSTOM_SET=%s\\n\' "${ZSH_CUSTOM+set}"',
           '} > "$PROBE_OUT"',
           '',
         ].join('\n'),
@@ -141,6 +146,11 @@ describe('generate-self runs off the real home', () => {
           ...sandbox.env,
           PATH: `${bin}:${process.env.PATH ?? ''}`,
           PROBE_OUT: probe,
+          // Hostile values: the preloaded machine-state fixture exports `OPENSPEC_NO_COMPLETIONS=1`
+          // into `process.env`, so only the script itself can make these three come out right.
+          OPENSPEC_NO_COMPLETIONS: '0',
+          ZSH: join(sandbox.home, '.oh-my-zsh'),
+          ZSH_CUSTOM: join(sandbox.home, '.oh-my-zsh', 'custom'),
         },
         stdout: 'pipe',
         stderr: 'pipe',
@@ -168,6 +178,10 @@ describe('generate-self runs off the real home', () => {
       )
       expect(seen.ENTRIES).toBe('0')
       expect(seen.ARGS).toBe('run apps/cli/src/index.ts -- update --check')
+      // The completion tip is off, and no oh-my-zsh root from the host reaches the run.
+      expect(seen.OPENSPEC_NO_COMPLETIONS).toBe('1')
+      expect(seen.ZSH_SET).toBe('')
+      expect(seen.ZSH_CUSTOM_SET).toBe('')
       // And it does not outlive the run.
       expect(existsSync(scratch)).toBe(false)
     } finally {

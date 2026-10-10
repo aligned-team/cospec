@@ -349,7 +349,7 @@ table, run `mise run generate`; never hand-edit generated output. The
 XDG dirs at one empty directory, so a host's global config (its `delivery`) or
 home-scoped skills (`~/.minimax`) never change or receive what they write
 (`test/integration/generate-self-home.test.ts` guards it, and records the seven
-variables the script sets).
+variables the script sets plus its completion-tip settings).
 
 **Canon bodies share text and record their sources** — a workflow body in
 `apps/cli/src/canon/workflows/` takes shared text only through a registered

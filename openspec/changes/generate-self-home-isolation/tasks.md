@@ -15,6 +15,10 @@
 - [x] 2.1 Point `HOME`, `USERPROFILE`, `CODEX_HOME` and the XDG directories at
       the script's temporary directory and correct its header comment -- verify
       the new test passes and `mise run generate:check` still exits 0
+- [x] 2.2 Unset `ZSH` and `ZSH_CUSTOM` and set `OPENSPEC_NO_COMPLETIONS=1` for
+      the run, so cospec's first-run completion tip never stats a `_cospec`
+      under the host's oh-my-zsh; extend the stand-in-`bun` test to assert the
+      three -- verify each fails with its script line removed
 
 ## 3. Docs
 
