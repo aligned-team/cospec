@@ -4,18 +4,18 @@
     "kind": "command",
     "workflow": "apply",
     "harness": "junie",
-    "contentHash": "sha256:f5c03071fbf4ca1f1ba3adca346d31f574ef54f0f97e90e24f0fc10f8e2830e7",
-    "bytes": 4841,
-    "sha256": "8def950761f8514d94e71f87a069988bbd647152c1daff788dbdbef84c2e01a5"
+    "contentHash": "sha256:6285d73f7aa3179f2821c5521ed7ff9e3a3420cbc531034ffe45f42ad5d82553",
+    "bytes": 6062,
+    "sha256": "e77591b9b3ba3b8867e129d68e95a20cd61b06cef0ad4584466101b199b35804"
   },
   {
     "path": ".junie/commands/cospec-archive.md",
     "kind": "command",
     "workflow": "archive",
     "harness": "junie",
-    "contentHash": "sha256:a20654e1f4ef2020e96be8c83efa02426b020e6c95ae10f81e7f7e70d1440745",
-    "bytes": 5661,
-    "sha256": "b84ba63465f8bfa47150bff31c06897a36abc3bf96a8c1b0f04415ae312de6ac"
+    "contentHash": "sha256:6d76ad87a80685c2bbcb2430eece980a300bf8fc09e87d2a8a9efaef7c4685ba",
+    "bytes": 7141,
+    "sha256": "8f248ca01d510fa85cae5e108e197c1f8a48efed3514852e2d44f654c6c1dd2b"
   },
   {
     "path": ".junie/commands/cospec-bulk-archive.md",
@@ -112,18 +112,18 @@
     "kind": "skill",
     "workflow": "apply",
     "harness": "junie",
-    "contentHash": "sha256:f5c03071fbf4ca1f1ba3adca346d31f574ef54f0f97e90e24f0fc10f8e2830e7",
-    "bytes": 4943,
-    "sha256": "6901a602b5cd5f1632c2ecbc12796d659039f53a52a0d07d2d03fa6f1bcd74ef"
+    "contentHash": "sha256:6285d73f7aa3179f2821c5521ed7ff9e3a3420cbc531034ffe45f42ad5d82553",
+    "bytes": 6164,
+    "sha256": "095f635cab79ec3b48414aa6a53dffd3d6c24c3faf99c0b30bf3cee055b5dc79"
   },
   {
     "path": ".junie/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "junie",
-    "contentHash": "sha256:a20654e1f4ef2020e96be8c83efa02426b020e6c95ae10f81e7f7e70d1440745",
-    "bytes": 5765,
-    "sha256": "c13d4fd5d99b8d61cfd797e81b087fbebdd69acd7fe550b0edb07e3cb7f0a267"
+    "contentHash": "sha256:6d76ad87a80685c2bbcb2430eece980a300bf8fc09e87d2a8a9efaef7c4685ba",
+    "bytes": 7245,
+    "sha256": "7e832c3b5a8631782bb84ae08e1e23972495b9c7692cb61cb38498d37af6e762"
   },
   {
     "path": ".junie/skills/cospec-bulk-archive-change/SKILL.md",

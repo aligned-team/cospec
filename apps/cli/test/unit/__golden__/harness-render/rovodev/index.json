@@ -4,18 +4,18 @@
     "kind": "skill",
     "workflow": "apply",
     "harness": "rovodev",
-    "contentHash": "sha256:d310838f2a9760120006e87f138bbd2ff156b6b1cc358e877d76075131fde673",
-    "bytes": 4959,
-    "sha256": "cb03a4b90b98a4ec55e3c3255e9ca2d1e36b75a2e13f96fb4535fd8b31e50cd3"
+    "contentHash": "sha256:22c5b55955a018b2a213606cf6e3aa1b8ac5e2c3a43b8ca649f186ccde23390d",
+    "bytes": 6180,
+    "sha256": "054ceff9d73440db46b8225b408428ce4416e4196e4b9821d8e5b86418469ef9"
   },
   {
     "path": ".rovodev/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "rovodev",
-    "contentHash": "sha256:173d7ce79d4ef0de70a47b98bd3ab11fc3b63ef30a0a77275caff2e5779cd746",
-    "bytes": 5790,
-    "sha256": "4699f1f4b61e5a30c5de02af925fc26e85437d23334f7bf02f0116337ef724a3"
+    "contentHash": "sha256:6e4c417e581312807e0325a9e75c02028e80fb0df08fec33b24db1af9e305a00",
+    "bytes": 7270,
+    "sha256": "1c87af01a876921ee3667baf9b114a149c39e61489d9c0b45680bb923fffedee"
   },
   {
     "path": ".rovodev/skills/cospec-bulk-archive-change/SKILL.md",

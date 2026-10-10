@@ -53,24 +53,21 @@ describe('relayApplyInstructions carries the project inputs (5.1)', () => {
     expect(relayed.operationGuidance).toEqual(GUIDANCE)
   })
 
-  test.failing(
-    'references[].fetch and .status[].fix are spelled through cospec, nothing else',
-    () => {
-      const relayed = relayApplyInstructions(
-        payload({ references: [REFERENCE], context: 'openspec show x --type spec --store docs' }),
-        'my-fix',
-      ) as unknown as {
-        context: string
-        references: { fetch: string; status: { fix: string; message: string }[]; root: string }[]
-      }
-      const [reference] = relayed.references
-      expect(reference?.fetch).toBe('cospec show <spec-id> --type spec --store docs')
-      expect(reference?.status[0]?.fix).toBe('Run: cospec store doctor docs')
-      expect(reference?.status[0]?.message).toBe('The store is shallow.')
-      expect(reference?.root).toBe('/stores/docs')
-      expect(relayed.context).toBe('openspec show x --type spec --store docs')
-    },
-  )
+  test('references[].fetch and .status[].fix are spelled through cospec, nothing else', () => {
+    const relayed = relayApplyInstructions(
+      payload({ references: [REFERENCE], context: 'openspec show x --type spec --store docs' }),
+      'my-fix',
+    ) as unknown as {
+      context: string
+      references: { fetch: string; status: { fix: string; message: string }[]; root: string }[]
+    }
+    const [reference] = relayed.references
+    expect(reference?.fetch).toBe('cospec show <spec-id> --type spec --store docs')
+    expect(reference?.status[0]?.fix).toBe('Run: cospec store doctor docs')
+    expect(reference?.status[0]?.message).toBe('The store is shallow.')
+    expect(reference?.root).toBe('/stores/docs')
+    expect(relayed.context).toBe('openspec show x --type spec --store docs')
+  })
 
   test('a document with none of the three keeps none of them', () => {
     const relayed = relayApplyInstructions(payload(), 'my-fix')
@@ -80,7 +77,7 @@ describe('relayApplyInstructions carries the project inputs (5.1)', () => {
 })
 
 describe('renderReferencesSection and renderOperationInputs (5.1)', () => {
-  test.failing("the references section is the binary's `### Referenced Stores` block", () => {
+  test("the references section is the binary's `### Referenced Stores` block", () => {
     expect(renderReferencesSection(payload({ references: [REFERENCE] }))).toBe(
       [
         '### Referenced Stores',
@@ -99,39 +96,36 @@ describe('renderReferencesSection and renderOperationInputs (5.1)', () => {
     )
   })
 
-  test.failing('an unresolved store prints one `Store <id>: <message>` line per diagnostic', () => {
+  test('an unresolved store prints one `Store <id>: <message>` line per diagnostic', () => {
     const entry = { store_id: 'gone', status: [{ message: 'Not registered.', fix: 'Run: x' }] }
     expect(renderReferencesSection(payload({ references: [entry] }))).toContain(
       'Store gone: Not registered.\n  Fix: Run: x\n',
     )
   })
 
-  test.failing(
-    'context prints verbatim under its heading, guidance one sanitized line each',
-    () => {
-      const out = renderOperationInputs(
-        payload({
-          context: '# not a heading guard\nline two',
-          operationGuidance: ['first\nforged line', 'second'],
-        }),
-      )
-      expect(out).toBe(
-        [
-          '### Project Context (required instruction input)',
-          '# not a heading guard',
-          'line two',
-          '',
-          '### Operation Guidance (advisory)',
-          '- first forged line',
-          '- second',
-          '',
-          '',
-        ].join('\n'),
-      )
-    },
-  )
+  test('context prints verbatim under its heading, guidance one sanitized line each', () => {
+    const out = renderOperationInputs(
+      payload({
+        context: '# not a heading guard\nline two',
+        operationGuidance: ['first\nforged line', 'second'],
+      }),
+    )
+    expect(out).toBe(
+      [
+        '### Project Context (required instruction input)',
+        '# not a heading guard',
+        'line two',
+        '',
+        '### Operation Guidance (advisory)',
+        '- first forged line',
+        '- second',
+        '',
+        '',
+      ].join('\n'),
+    )
+  })
 
-  test.failing('guidance alone prints only its section', () => {
+  test('guidance alone prints only its section', () => {
     const out = renderOperationInputs(payload({ operationGuidance: ['only'] }))
     expect(out).toBe('### Operation Guidance (advisory)\n- only\n\n')
   })

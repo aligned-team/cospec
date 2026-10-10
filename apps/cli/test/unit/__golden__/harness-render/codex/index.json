@@ -4,14 +4,14 @@
     "kind": "skill",
     "workflow": "apply",
     "harness": "codex",
-    "contentHash": "sha256:e0faa1d1b195a3a6223325558e1f88b75d4144aed83621598097fff73d86a7e3"
+    "contentHash": "sha256:93bb0861c9a2fe83db7f48dcd8c0169aebe21eb27d9c8effcfc3c49bc5dbac1f"
   },
   {
     "path": ".agents/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "codex",
-    "contentHash": "sha256:c8364fb20d253ff61472f30c4ff9deb78bf4562b5425807c3db517ce7357a039"
+    "contentHash": "sha256:bde5d88c6a73ca5b2f82c6ec79baf36b3fafaedd58778d5cdd78674f8100eee8"
   },
   {
     "path": ".agents/skills/cospec-bulk-archive-change/SKILL.md",

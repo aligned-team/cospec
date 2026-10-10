@@ -104,7 +104,7 @@
 
 ## 5. T4 apply declares, prints and relays the project's inputs
 
-- [ ] 5.1 Write the failing rows first. Unit
+- [x] 5.1 Write the failing rows first. Unit
       (`test/unit/commands/apply*.test.ts`): `relayApplyInstructions` carries
       `context`, `operationGuidance` and `references` through, spells
       `references[].fetch` and `.status[].fix` and nothing else (a guidance
@@ -115,23 +115,41 @@
       `config.yaml` sets `context` and `operations.apply.guidance` gives the
       same sections as the pinned binary's `instructions apply`, on the
       clear-gate path and on `applyLegacy`, in text and `--json`, and the
-      unconfigured case prints nothing new -> the rows fail.
-- [ ] 5.2 Declare `context?`, `operationGuidance?` and `references?` on
+      unconfigured case prints nothing new -> the rows fail. Observed: unit rows
+      (`apply-operation-inputs.test.ts`) and contract rows
+      (`operation-guidance.test.ts`) landed as `test.failing` on b9fe5316; the
+      cases that already held (the `--json` carry, the unconfigured case) are
+      plain rows.
+- [x] 5.2 Declare `context?`, `operationGuidance?` and `references?` on
       `ApplyInstructionsJson` (`core/openspec.ts`), export `ReferenceEntry`,
       `renderReferencedStoresSection` and `sanitizeInline` from
       `core/instructions-render.ts`, and add `core/operation-inputs.ts` (design
       D7) -> `mise run typecheck` exits 0 and the unit rows of 5.1 pass.
-- [ ] 5.3 Wire the relay and both transcripts in `commands/apply.ts`: spell the
+      Observed: `ApplyInstructionsJson` declares the three keys;
+      `ReferenceEntry`, `renderReferencedStoresSection` and `sanitizeInline` are
+      exported from `instructions-render.ts`; `core/operation-inputs.ts` holds
+      the two renderers; typecheck exits 0 and the unit rows pass.
+- [x] 5.3 Wire the relay and both transcripts in `commands/apply.ts`: spell the
       `references` command fields in `relayApplyInstructions`, print the
       references section before the instruction and the context and guidance
       sections after it on the clear-gate path and in `applyLegacy` -> the
       contract rows of 5.1 pass and are flipped, and the existing apply unit and
-      integration suites pass unchanged.
-- [ ] 5.4 Add upstream's precedence paragraph to `apply.md`, reading `context`
+      integration suites pass unchanged. Observed: `relayApplyInstructions`
+      spells the references' command fields through
+      `respellInstructionsDocument`; both transcripts print the references
+      section before the instruction and the context and guidance sections after
+      it; the contract rows pass and are flipped, and the existing apply suites
+      pass unchanged.
+- [x] 5.4 Add upstream's precedence paragraph to `apply.md`, reading `context`
       and `operationGuidance` from the `apply` object of the gate's `--json`,
       with its `ported:` provenance recorded in group 8 -> the rendered body
       carries each controlling sentence and the differential row against
-      `apply-change.js` passes.
+      `apply-change.js` passes. Observed: the paragraph is in step 2's exit-0
+      branch of `apply.md`, reading `apply.context` and
+      `apply.operationGuidance`; `harness.yaml` records
+      `operation-inputs-precedence` (`apply-change.js`, pin 1.13.1); the
+      `canon-render` rows pass and the integration check finds each sentence in
+      the pinned template.
 
 ## 6. T5 archive consults the archive guidance
 

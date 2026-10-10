@@ -147,39 +147,33 @@ describe('issue #70: the configured guidance is visible in every listed form', (
     expect(missing).toEqual([])
   })
 
-  test.failing(
-    'the generated apply and archive skills mention the guidance and run the lookup',
-    async () => {
-      const root = await project({ config: GUIDANCE_CONFIG })
-      const apply = readFileSync(join(root, '.claude/skills/cospec-apply-change/SKILL.md'), 'utf8')
-      const archive = readFileSync(
-        join(root, '.claude/skills/cospec-archive-change/SKILL.md'),
-        'utf8',
-      )
-      expect(apply).toContain('apply.operationGuidance')
-      expect(archive).toContain('cospec instructions archive --change')
-    },
-  )
+  test('the generated apply and archive skills mention the guidance and run the lookup', async () => {
+    const root = await project({ config: GUIDANCE_CONFIG })
+    const apply = readFileSync(join(root, '.claude/skills/cospec-apply-change/SKILL.md'), 'utf8')
+    const archive = readFileSync(
+      join(root, '.claude/skills/cospec-archive-change/SKILL.md'),
+      'utf8',
+    )
+    expect(apply).toContain('apply.operationGuidance')
+    expect(archive).toContain('cospec instructions archive --change')
+  })
 })
 
 describe('cospec apply prints the sections the pinned binary prints (D7)', () => {
-  test.failing(
-    'clear-gate path: context and guidance follow the instruction, as the binary prints them',
-    async () => {
-      const root = await project({ config: INPUTS_CONFIG })
-      const ours = await cospec(['apply', 'my-fix'], { cwd: root })
-      expect(ours.exitCode).toBe(0)
-      const theirs = await oracle(['instructions', 'apply', '--change', 'my-fix'], root)
-      expect(theirs.exitCode).toBe(0)
-      const expected = inputsTail(theirs.stdout)
-      expect(expected).toContain(`- ${BARE_ENTRY}`)
-      expect(inputsTail(ours.stdout)).toBe(expected)
-      // From the heading to the end is only the sections: nothing of the instruction follows them.
-      expect(expected.startsWith('### Project Context')).toBe(true)
-    },
-  )
+  test('clear-gate path: context and guidance follow the instruction, as the binary prints them', async () => {
+    const root = await project({ config: INPUTS_CONFIG })
+    const ours = await cospec(['apply', 'my-fix'], { cwd: root })
+    expect(ours.exitCode).toBe(0)
+    const theirs = await oracle(['instructions', 'apply', '--change', 'my-fix'], root)
+    expect(theirs.exitCode).toBe(0)
+    const expected = inputsTail(theirs.stdout)
+    expect(expected).toContain(`- ${BARE_ENTRY}`)
+    expect(inputsTail(ours.stdout)).toBe(expected)
+    // From the heading to the end is only the sections: nothing of the instruction follows them.
+    expect(expected.startsWith('### Project Context')).toBe(true)
+  })
 
-  test.failing('applyLegacy path: the same sections follow the instruction', async () => {
+  test('applyLegacy path: the same sections follow the instruction', async () => {
     const root = await project({ config: INPUTS_CONFIG })
     expect((await cospec(['schema', 'fork', 'feat', 'forked'], { cwd: root })).exitCode).toBe(0)
     expect((await cospec(['new', 'forked', 'legacy-one'], { cwd: root })).exitCode).toBe(0)
@@ -242,22 +236,16 @@ describe('archive.md alone reaches the archive guidance (D8, verification 2)', (
     return command.replace('"<slug>"', slug).trim().split(/\s+/)
   }
 
-  test.failing(
-    'the lookup line extracted from the rendered body returns the guidance',
-    async () => {
-      const root = await project({ config: GUIDANCE_CONFIG })
-      const skill = readFileSync(
-        join(root, '.claude/skills/cospec-archive-change/SKILL.md'),
-        'utf8',
-      )
-      const argv = lookupArgv(skill, 'my-fix')
-      const run = await cospec(argv, { cwd: root })
-      expect(run.exitCode).toBe(0)
-      const doc = JSON.parse(run.stdout) as { changeName: string; operationGuidance: string[] }
-      expect(doc.changeName).toBe('my-fix')
-      expect(doc.operationGuidance).toEqual([ARCHIVE_MARKER])
-    },
-  )
+  test('the lookup line extracted from the rendered body returns the guidance', async () => {
+    const root = await project({ config: GUIDANCE_CONFIG })
+    const skill = readFileSync(join(root, '.claude/skills/cospec-archive-change/SKILL.md'), 'utf8')
+    const argv = lookupArgv(skill, 'my-fix')
+    const run = await cospec(argv, { cwd: root })
+    expect(run.exitCode).toBe(0)
+    const doc = JSON.parse(run.stdout) as { changeName: string; operationGuidance: string[] }
+    expect(doc.changeName).toBe('my-fix')
+    expect(doc.operationGuidance).toEqual([ARCHIVE_MARKER])
+  })
 })
 
 describe('cospec archive prints the archive guidance (6.3, issue #70)', () => {

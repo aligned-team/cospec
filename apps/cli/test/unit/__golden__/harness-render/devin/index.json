@@ -4,18 +4,18 @@
     "kind": "skill",
     "workflow": "apply",
     "harness": "devin",
-    "contentHash": "sha256:ea0efa9c20e26def5517aa4c5945d5ee93a6fbfc411fa35b5fce19229404baa8",
-    "bytes": 4950,
-    "sha256": "271436f73127d667385811ef9e66df96038f929828f9d93dd285f72b28d98351"
+    "contentHash": "sha256:3875c2cb30c4524c19b838afcfce48a6fa29a3a203bbf37545c40c4ed14cb25f",
+    "bytes": 6171,
+    "sha256": "0540d8743a960b7b342e8e5e80e2fb5d77b4b8e109dca7c6fc1d0ccee4679143"
   },
   {
     "path": ".devin/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "devin",
-    "contentHash": "sha256:6246076dd9a4c14c3a9761c33bbc9ce40ad29608efd76a8d5a929757235961c2",
-    "bytes": 5772,
-    "sha256": "197368b5f932a1df13d94af26f17d0bf53c30729d44f44f745a2bbaf19530714"
+    "contentHash": "sha256:e0eca70867fe487f6a66ad3d757103664ad2febb05f6b7e2c9f32d52509c75ce",
+    "bytes": 7252,
+    "sha256": "c2614b8957304480029a8cad0bf23f780d6d7877e32ca0a6c6fba2ca438b4b0d"
   },
   {
     "path": ".devin/skills/cospec-bulk-archive-change/SKILL.md",
@@ -112,18 +112,18 @@
     "kind": "command",
     "workflow": "apply",
     "harness": "devin",
-    "contentHash": "sha256:f5c03071fbf4ca1f1ba3adca346d31f574ef54f0f97e90e24f0fc10f8e2830e7",
-    "bytes": 4912,
-    "sha256": "0605bb3ceb03d4925961fb5ce844a96f282765136a833e934ea2390f5e26ea96"
+    "contentHash": "sha256:6285d73f7aa3179f2821c5521ed7ff9e3a3420cbc531034ffe45f42ad5d82553",
+    "bytes": 6133,
+    "sha256": "4c6104521d08b363db356979d19cf18017e2052c78d3316d37ca8b3770a61cd2"
   },
   {
     "path": ".devin/workflows/cospec-archive.md",
     "kind": "command",
     "workflow": "archive",
     "harness": "devin",
-    "contentHash": "sha256:a20654e1f4ef2020e96be8c83efa02426b020e6c95ae10f81e7f7e70d1440745",
-    "bytes": 5734,
-    "sha256": "cc79a19f4cf62c6c5fdc2712c0d259c6457fe4cf96714171e42379ea69159f35"
+    "contentHash": "sha256:6d76ad87a80685c2bbcb2430eece980a300bf8fc09e87d2a8a9efaef7c4685ba",
+    "bytes": 7214,
+    "sha256": "b2f68d3c687262d1fbb775927c38eb8bf360ec5ae0abd7fc687bea1751b3d58d"
   },
   {
     "path": ".devin/workflows/cospec-bulk-archive.md",

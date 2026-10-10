@@ -4,18 +4,18 @@
     "kind": "command",
     "workflow": "apply",
     "harness": "codebuddy",
-    "contentHash": "sha256:7b5625a216a66b299eb5db1f5d240ea532fc4d520085f6ca6162c36871af481b",
-    "bytes": 4900,
-    "sha256": "68cf827375483e8cdb0f96bbc820025e32e53fb7ee4542fa1929c771afcc3872"
+    "contentHash": "sha256:45d580b30cdae03a18689ca7232c92ffce8176dde1c4fe1409caae4cb6ee5d47",
+    "bytes": 6121,
+    "sha256": "f42cbcc028a813b3e0e87d2cb453b2bf5ecd9daad6dbecf98614b5886b77dd8b"
   },
   {
     "path": ".codebuddy/commands/cospec/archive.md",
     "kind": "command",
     "workflow": "archive",
     "harness": "codebuddy",
-    "contentHash": "sha256:549a9dc61efc9e3ce35c9f782a2df813d9cfe3b86a9d1e719361ef773dc2c7fb",
-    "bytes": 5722,
-    "sha256": "c8ce29aee2f7ccebed7969ece5ab9ebcd5c993c9486253bdccbc78bcd6d6c8ea"
+    "contentHash": "sha256:5049a9533b6142cb9ef32976a6aa556f01c58084950b33922ef7a871df539428",
+    "bytes": 7202,
+    "sha256": "1612704c5e100234e2b67694530a57c10f1d35e4362bbaa74b3b42953dc6c94a"
   },
   {
     "path": ".codebuddy/commands/cospec/bulk-archive.md",
@@ -112,18 +112,18 @@
     "kind": "skill",
     "workflow": "apply",
     "harness": "codebuddy",
-    "contentHash": "sha256:7b5625a216a66b299eb5db1f5d240ea532fc4d520085f6ca6162c36871af481b",
-    "bytes": 4943,
-    "sha256": "30024293c7a89091531118f7a7d4db3ba174f4454f0e4dd93edb563c44b6c3c5"
+    "contentHash": "sha256:45d580b30cdae03a18689ca7232c92ffce8176dde1c4fe1409caae4cb6ee5d47",
+    "bytes": 6164,
+    "sha256": "2d36b95d9010835b0e875a650dc42d5c63f90cfea971610bccf002829ded95ab"
   },
   {
     "path": ".codebuddy/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "codebuddy",
-    "contentHash": "sha256:549a9dc61efc9e3ce35c9f782a2df813d9cfe3b86a9d1e719361ef773dc2c7fb",
-    "bytes": 5765,
-    "sha256": "40b15bc2c86d3197c5fdf6805f915627b49b84133f15dbd425ae564c16f734f1"
+    "contentHash": "sha256:5049a9533b6142cb9ef32976a6aa556f01c58084950b33922ef7a871df539428",
+    "bytes": 7245,
+    "sha256": "709ed2ec20d5e6c1766901e2964bcc4af5f00450dbf1e23272d7f2bd4e8de108"
   },
   {
     "path": ".codebuddy/skills/cospec-bulk-archive-change/SKILL.md",

@@ -3,7 +3,7 @@ description: Run the apply gate for a change and implement its tasks, obeying th
 metadata:
   author: cospec
   generatedBy: cospec@0.10.0
-  contentHash: sha256:8797c892e85ff40d74d5ed1c553eb9bdcbf6d5733615e8dff3495a697b9c500c
+  contentHash: sha256:852339dc4f340365330bf05130689409283afae3fcfde05f5a5110697957dd27
 ---
 
 Run the deterministic apply gate for a change, then implement its tasks. The
@@ -77,6 +77,25 @@ Obey the exit code:
   task with its test/verification task. The `gate.synced` list shows blocker
   boxes the command auto-checked because their dependency is already archived —
   trust it over a manual read of the file.
+
+  The same `apply` object may carry `apply.context` and
+  `apply.operationGuidance`, the project's own inputs from its config. Treat
+  `context` as a required
+  prompt-level input. Read and consider it, and apply relevant project facts,
+  conventions, and constraints while implementing. Treat `operationGuidance` as
+  optional additive advice. Read and consider every entry, and follow entries
+  that are applicable and compatible with the built-in workflow.
+
+  Keep both fields separate from the gate, the returned state, tasks, progress,
+  `contextFiles`, and the built-in `instruction`. They are not evidence of task
+  completion, do not replace the built-in instruction, and do not permit
+  bypassing a blocked state. If context conflicts with the built-in instruction,
+  an explicit user choice, or a CLI-controlled value, report the conflict and
+  preserve the controlling value. If guidance is inapplicable or conflicts with
+  those controlling inputs, do not follow it and explain why. Do not copy
+  `context` or `operationGuidance` verbatim into implementation files or
+  planning artifacts unless the user separately asks for that content. These are
+  prompt-level behavior contracts, not enforceable checks.
 
   If a task needs work beyond what the specs and tasks describe, or you find
   yourself tempted to drop, narrow, defer, or carve an exception out of

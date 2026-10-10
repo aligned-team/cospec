@@ -4,18 +4,18 @@
     "kind": "command",
     "workflow": "apply",
     "harness": "pi",
-    "contentHash": "sha256:f24e20121ccabdc4f2d31888fa9315e992e235eb9661649a1c5ec0a2b6b2a7b9",
-    "bytes": 4869,
-    "sha256": "17b2fd262fa2cb3412eef9abe6e29bb6ece2b8fec2f8cad91df6bf027e810384"
+    "contentHash": "sha256:190de4d6947afbae0808fc78c654d60df2206ee3ca8df2c2255863223be95d7d",
+    "bytes": 6090,
+    "sha256": "c89c1045108511514bd88a0a2ba2a3854d68a51bf4dc5c929b7a60f4754fb551"
   },
   {
     "path": ".pi/prompts/cospec-archive.md",
     "kind": "command",
     "workflow": "archive",
     "harness": "pi",
-    "contentHash": "sha256:2951bb557c6d48930e46958622f4c491e5e1f74c73c478ea8f4a3b8de2c5484c",
-    "bytes": 5689,
-    "sha256": "c5c50b7171fd05f177dfc75e8b4396661463f3368cb58b013a9650236ec4df3f"
+    "contentHash": "sha256:9a57c760323a6fea248abc70d75e7c530493c1bb82e17912435d068199aef582",
+    "bytes": 7169,
+    "sha256": "f74b51b5672a0d8cadcda1236eb7c39fb60c4a874a256bf6c6dc67ca871d5357"
   },
   {
     "path": ".pi/prompts/cospec-bulk-archive.md",
@@ -112,18 +112,18 @@
     "kind": "skill",
     "workflow": "apply",
     "harness": "pi",
-    "contentHash": "sha256:f5c03071fbf4ca1f1ba3adca346d31f574ef54f0f97e90e24f0fc10f8e2830e7",
-    "bytes": 4943,
-    "sha256": "6901a602b5cd5f1632c2ecbc12796d659039f53a52a0d07d2d03fa6f1bcd74ef"
+    "contentHash": "sha256:6285d73f7aa3179f2821c5521ed7ff9e3a3420cbc531034ffe45f42ad5d82553",
+    "bytes": 6164,
+    "sha256": "095f635cab79ec3b48414aa6a53dffd3d6c24c3faf99c0b30bf3cee055b5dc79"
   },
   {
     "path": ".pi/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "pi",
-    "contentHash": "sha256:a20654e1f4ef2020e96be8c83efa02426b020e6c95ae10f81e7f7e70d1440745",
-    "bytes": 5765,
-    "sha256": "c13d4fd5d99b8d61cfd797e81b087fbebdd69acd7fe550b0edb07e3cb7f0a267"
+    "contentHash": "sha256:6d76ad87a80685c2bbcb2430eece980a300bf8fc09e87d2a8a9efaef7c4685ba",
+    "bytes": 7245,
+    "sha256": "7e832c3b5a8631782bb84ae08e1e23972495b9c7692cb61cb38498d37af6e762"
   },
   {
     "path": ".pi/skills/cospec-bulk-archive-change/SKILL.md",

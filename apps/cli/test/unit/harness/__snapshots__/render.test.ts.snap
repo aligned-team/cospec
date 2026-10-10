@@ -1594,7 +1594,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:7b5625a216a66b299eb5db1f5d240ea532fc4d520085f6ca6162c36871af481b
+  contentHash: sha256:45d580b30cdae03a18689ca7232c92ffce8176dde1c4fe1409caae4cb6ee5d47
 ---
 
 Run the deterministic apply gate for a change, then implement its tasks. The
@@ -1666,6 +1666,25 @@ Obey the exit code:
   task with its test/verification task. The \`gate.synced\` list shows blocker
   boxes the command auto-checked because their dependency is already archived —
   trust it over a manual read of the file.
+
+  The same \`apply\` object may carry \`apply.context\` and
+  \`apply.operationGuidance\`, the project's own inputs from its config. Treat
+  \`context\` as a required
+  prompt-level input. Read and consider it, and apply relevant project facts,
+  conventions, and constraints while implementing. Treat \`operationGuidance\` as
+  optional additive advice. Read and consider every entry, and follow entries
+  that are applicable and compatible with the built-in workflow.
+
+  Keep both fields separate from the gate, the returned state, tasks, progress,
+  \`contextFiles\`, and the built-in \`instruction\`. They are not evidence of task
+  completion, do not replace the built-in instruction, and do not permit
+  bypassing a blocked state. If context conflicts with the built-in instruction,
+  an explicit user choice, or a CLI-controlled value, report the conflict and
+  preserve the controlling value. If guidance is inapplicable or conflicts with
+  those controlling inputs, do not follow it and explain why. Do not copy
+  \`context\` or \`operationGuidance\` verbatim into implementation files or
+  planning artifacts unless the user separately asks for that content. These are
+  prompt-level behavior contracts, not enforceable checks.
 
   If a task needs work beyond what the specs and tasks describe, or you find
   yourself tempted to drop, narrow, defer, or carve an exception out of
@@ -1701,7 +1720,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:7b5625a216a66b299eb5db1f5d240ea532fc4d520085f6ca6162c36871af481b
+  contentHash: sha256:45d580b30cdae03a18689ca7232c92ffce8176dde1c4fe1409caae4cb6ee5d47
 ---
 
 Run the deterministic apply gate for a change, then implement its tasks. The
@@ -1773,6 +1792,25 @@ Obey the exit code:
   task with its test/verification task. The \`gate.synced\` list shows blocker
   boxes the command auto-checked because their dependency is already archived —
   trust it over a manual read of the file.
+
+  The same \`apply\` object may carry \`apply.context\` and
+  \`apply.operationGuidance\`, the project's own inputs from its config. Treat
+  \`context\` as a required
+  prompt-level input. Read and consider it, and apply relevant project facts,
+  conventions, and constraints while implementing. Treat \`operationGuidance\` as
+  optional additive advice. Read and consider every entry, and follow entries
+  that are applicable and compatible with the built-in workflow.
+
+  Keep both fields separate from the gate, the returned state, tasks, progress,
+  \`contextFiles\`, and the built-in \`instruction\`. They are not evidence of task
+  completion, do not replace the built-in instruction, and do not permit
+  bypassing a blocked state. If context conflicts with the built-in instruction,
+  an explicit user choice, or a CLI-controlled value, report the conflict and
+  preserve the controlling value. If guidance is inapplicable or conflicts with
+  those controlling inputs, do not follow it and explain why. Do not copy
+  \`context\` or \`operationGuidance\` verbatim into implementation files or
+  planning artifacts unless the user separately asks for that content. These are
+  prompt-level behavior contracts, not enforceable checks.
 
   If a task needs work beyond what the specs and tasks describe, or you find
   yourself tempted to drop, narrow, defer, or carve an exception out of
@@ -2052,7 +2090,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:549a9dc61efc9e3ce35c9f782a2df813d9cfe3b86a9d1e719361ef773dc2c7fb
+  contentHash: sha256:5049a9533b6142cb9ef32976a6aa556f01c58084950b33922ef7a871df539428
 ---
 
 Archive a completed change. \`cospec archive\` validates it, merges its spec
@@ -2108,6 +2146,34 @@ guess.
 If the user named one, use it. Otherwise run \`cospec list --json\`: if exactly
 one active change exists, use it and announce \`Using change: <slug>\`; if more
 than one is plausible, ask.
+
+**Load the project's archive inputs before the archive checks.** After the
+change is selected, run
+
+\`\`\`
+cospec instructions archive --change "<slug>" --json
+\`\`\`
+
+with \`--store <id>\` when a store is selected, as for every command here. This
+lookup is advisory and optional: it only supplies extra prompt inputs, so it
+must never block archiving. If it exits non-zero or returns invalid JSON,
+continue the archive workflow with no context and no operation guidance. Do not
+report an error and do not stop.
+
+A successful response may omit both optional fields. Treat \`context\` as a
+required prompt-level input: read and consider it, and apply relevant project
+facts, conventions, and constraints. Treat \`operationGuidance\` as optional
+additive advice: read and consider every entry, and follow entries that are
+applicable and compatible with the built-in archive workflow.
+
+Keep both fields separate from built-in steps, explicit user choices, resolved
+paths, CLI checks, and command contracts. If context conflicts with one of those
+controlling inputs, report the conflict and preserve the controlling value. If
+guidance is inapplicable or conflicts with a controlling input, do not follow it
+and explain why. Do not infer replacement paths, skipped prompts, or flags from
+either field, and do not copy their text verbatim into specs, change artifacts,
+or archive summaries unless the user separately asks for it. These are
+prompt-level behavior contracts, not enforceable checks.
 
 ## 2. Archive
 
@@ -2176,7 +2242,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:549a9dc61efc9e3ce35c9f782a2df813d9cfe3b86a9d1e719361ef773dc2c7fb
+  contentHash: sha256:5049a9533b6142cb9ef32976a6aa556f01c58084950b33922ef7a871df539428
 ---
 
 Archive a completed change. \`cospec archive\` validates it, merges its spec
@@ -2232,6 +2298,34 @@ guess.
 If the user named one, use it. Otherwise run \`cospec list --json\`: if exactly
 one active change exists, use it and announce \`Using change: <slug>\`; if more
 than one is plausible, ask.
+
+**Load the project's archive inputs before the archive checks.** After the
+change is selected, run
+
+\`\`\`
+cospec instructions archive --change "<slug>" --json
+\`\`\`
+
+with \`--store <id>\` when a store is selected, as for every command here. This
+lookup is advisory and optional: it only supplies extra prompt inputs, so it
+must never block archiving. If it exits non-zero or returns invalid JSON,
+continue the archive workflow with no context and no operation guidance. Do not
+report an error and do not stop.
+
+A successful response may omit both optional fields. Treat \`context\` as a
+required prompt-level input: read and consider it, and apply relevant project
+facts, conventions, and constraints. Treat \`operationGuidance\` as optional
+additive advice: read and consider every entry, and follow entries that are
+applicable and compatible with the built-in archive workflow.
+
+Keep both fields separate from built-in steps, explicit user choices, resolved
+paths, CLI checks, and command contracts. If context conflicts with one of those
+controlling inputs, report the conflict and preserve the controlling value. If
+guidance is inapplicable or conflicts with a controlling input, do not follow it
+and explain why. Do not infer replacement paths, skipped prompts, or flags from
+either field, and do not copy their text verbatim into specs, change artifacts,
+or archive summaries unless the user separately asks for it. These are
+prompt-level behavior contracts, not enforceable checks.
 
 ## 2. Archive
 
@@ -4234,7 +4328,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:e0faa1d1b195a3a6223325558e1f88b75d4144aed83621598097fff73d86a7e3
+  contentHash: sha256:93bb0861c9a2fe83db7f48dcd8c0169aebe21eb27d9c8effcfc3c49bc5dbac1f
 ---
 
 Run the deterministic apply gate for a change, then implement its tasks. The
@@ -4306,6 +4400,25 @@ Obey the exit code:
   task with its test/verification task. The \`gate.synced\` list shows blocker
   boxes the command auto-checked because their dependency is already archived —
   trust it over a manual read of the file.
+
+  The same \`apply\` object may carry \`apply.context\` and
+  \`apply.operationGuidance\`, the project's own inputs from its config. Treat
+  \`context\` as a required
+  prompt-level input. Read and consider it, and apply relevant project facts,
+  conventions, and constraints while implementing. Treat \`operationGuidance\` as
+  optional additive advice. Read and consider every entry, and follow entries
+  that are applicable and compatible with the built-in workflow.
+
+  Keep both fields separate from the gate, the returned state, tasks, progress,
+  \`contextFiles\`, and the built-in \`instruction\`. They are not evidence of task
+  completion, do not replace the built-in instruction, and do not permit
+  bypassing a blocked state. If context conflicts with the built-in instruction,
+  an explicit user choice, or a CLI-controlled value, report the conflict and
+  preserve the controlling value. If guidance is inapplicable or conflicts with
+  those controlling inputs, do not follow it and explain why. Do not copy
+  \`context\` or \`operationGuidance\` verbatim into implementation files or
+  planning artifacts unless the user separately asks for that content. These are
+  prompt-level behavior contracts, not enforceable checks.
 
   If a task needs work beyond what the specs and tasks describe, or you find
   yourself tempted to drop, narrow, defer, or carve an exception out of
@@ -4461,7 +4574,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:c8364fb20d253ff61472f30c4ff9deb78bf4562b5425807c3db517ce7357a039
+  contentHash: sha256:bde5d88c6a73ca5b2f82c6ec79baf36b3fafaedd58778d5cdd78674f8100eee8
 ---
 
 Archive a completed change. \`cospec archive\` validates it, merges its spec
@@ -4517,6 +4630,34 @@ guess.
 If the user named one, use it. Otherwise run \`cospec list --json\`: if exactly
 one active change exists, use it and announce \`Using change: <slug>\`; if more
 than one is plausible, ask.
+
+**Load the project's archive inputs before the archive checks.** After the
+change is selected, run
+
+\`\`\`
+cospec instructions archive --change "<slug>" --json
+\`\`\`
+
+with \`--store <id>\` when a store is selected, as for every command here. This
+lookup is advisory and optional: it only supplies extra prompt inputs, so it
+must never block archiving. If it exits non-zero or returns invalid JSON,
+continue the archive workflow with no context and no operation guidance. Do not
+report an error and do not stop.
+
+A successful response may omit both optional fields. Treat \`context\` as a
+required prompt-level input: read and consider it, and apply relevant project
+facts, conventions, and constraints. Treat \`operationGuidance\` as optional
+additive advice: read and consider every entry, and follow entries that are
+applicable and compatible with the built-in archive workflow.
+
+Keep both fields separate from built-in steps, explicit user choices, resolved
+paths, CLI checks, and command contracts. If context conflicts with one of those
+controlling inputs, report the conflict and preserve the controlling value. If
+guidance is inapplicable or conflicts with a controlling input, do not follow it
+and explain why. Do not infer replacement paths, skipped prompts, or flags from
+either field, and do not copy their text verbatim into specs, change artifacts,
+or archive summaries unless the user separately asks for it. These are
+prompt-level behavior contracts, not enforceable checks.
 
 ## 2. Archive
 
@@ -6697,7 +6838,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:f5c03071fbf4ca1f1ba3adca346d31f574ef54f0f97e90e24f0fc10f8e2830e7
+  contentHash: sha256:6285d73f7aa3179f2821c5521ed7ff9e3a3420cbc531034ffe45f42ad5d82553
 ---
 
 Run the deterministic apply gate for a change, then implement its tasks. The
@@ -6770,6 +6911,25 @@ Obey the exit code:
   boxes the command auto-checked because their dependency is already archived —
   trust it over a manual read of the file.
 
+  The same \`apply\` object may carry \`apply.context\` and
+  \`apply.operationGuidance\`, the project's own inputs from its config. Treat
+  \`context\` as a required
+  prompt-level input. Read and consider it, and apply relevant project facts,
+  conventions, and constraints while implementing. Treat \`operationGuidance\` as
+  optional additive advice. Read and consider every entry, and follow entries
+  that are applicable and compatible with the built-in workflow.
+
+  Keep both fields separate from the gate, the returned state, tasks, progress,
+  \`contextFiles\`, and the built-in \`instruction\`. They are not evidence of task
+  completion, do not replace the built-in instruction, and do not permit
+  bypassing a blocked state. If context conflicts with the built-in instruction,
+  an explicit user choice, or a CLI-controlled value, report the conflict and
+  preserve the controlling value. If guidance is inapplicable or conflicts with
+  those controlling inputs, do not follow it and explain why. Do not copy
+  \`context\` or \`operationGuidance\` verbatim into implementation files or
+  planning artifacts unless the user separately asks for that content. These are
+  prompt-level behavior contracts, not enforceable checks.
+
   If a task needs work beyond what the specs and tasks describe, or you find
   yourself tempted to drop, narrow, defer, or carve an exception out of
   specified behavior to make it fit: stop, name the added scope to the user, and
@@ -6799,7 +6959,7 @@ description: Run the apply gate for a change and implement its tasks, obeying th
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:8797c892e85ff40d74d5ed1c553eb9bdcbf6d5733615e8dff3495a697b9c500c
+  contentHash: sha256:852339dc4f340365330bf05130689409283afae3fcfde05f5a5110697957dd27
 ---
 
 Run the deterministic apply gate for a change, then implement its tasks. The
@@ -6873,6 +7033,25 @@ Obey the exit code:
   task with its test/verification task. The \`gate.synced\` list shows blocker
   boxes the command auto-checked because their dependency is already archived —
   trust it over a manual read of the file.
+
+  The same \`apply\` object may carry \`apply.context\` and
+  \`apply.operationGuidance\`, the project's own inputs from its config. Treat
+  \`context\` as a required
+  prompt-level input. Read and consider it, and apply relevant project facts,
+  conventions, and constraints while implementing. Treat \`operationGuidance\` as
+  optional additive advice. Read and consider every entry, and follow entries
+  that are applicable and compatible with the built-in workflow.
+
+  Keep both fields separate from the gate, the returned state, tasks, progress,
+  \`contextFiles\`, and the built-in \`instruction\`. They are not evidence of task
+  completion, do not replace the built-in instruction, and do not permit
+  bypassing a blocked state. If context conflicts with the built-in instruction,
+  an explicit user choice, or a CLI-controlled value, report the conflict and
+  preserve the controlling value. If guidance is inapplicable or conflicts with
+  those controlling inputs, do not follow it and explain why. Do not copy
+  \`context\` or \`operationGuidance\` verbatim into implementation files or
+  planning artifacts unless the user separately asks for that content. These are
+  prompt-level behavior contracts, not enforceable checks.
 
   If a task needs work beyond what the specs and tasks describe, or you find
   yourself tempted to drop, narrow, defer, or carve an exception out of
@@ -7149,7 +7328,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:a20654e1f4ef2020e96be8c83efa02426b020e6c95ae10f81e7f7e70d1440745
+  contentHash: sha256:6d76ad87a80685c2bbcb2430eece980a300bf8fc09e87d2a8a9efaef7c4685ba
 ---
 
 Archive a completed change. \`cospec archive\` validates it, merges its spec
@@ -7205,6 +7384,34 @@ guess.
 If the user named one, use it. Otherwise run \`cospec list --json\`: if exactly
 one active change exists, use it and announce \`Using change: <slug>\`; if more
 than one is plausible, ask.
+
+**Load the project's archive inputs before the archive checks.** After the
+change is selected, run
+
+\`\`\`
+cospec instructions archive --change "<slug>" --json
+\`\`\`
+
+with \`--store <id>\` when a store is selected, as for every command here. This
+lookup is advisory and optional: it only supplies extra prompt inputs, so it
+must never block archiving. If it exits non-zero or returns invalid JSON,
+continue the archive workflow with no context and no operation guidance. Do not
+report an error and do not stop.
+
+A successful response may omit both optional fields. Treat \`context\` as a
+required prompt-level input: read and consider it, and apply relevant project
+facts, conventions, and constraints. Treat \`operationGuidance\` as optional
+additive advice: read and consider every entry, and follow entries that are
+applicable and compatible with the built-in archive workflow.
+
+Keep both fields separate from built-in steps, explicit user choices, resolved
+paths, CLI checks, and command contracts. If context conflicts with one of those
+controlling inputs, report the conflict and preserve the controlling value. If
+guidance is inapplicable or conflicts with a controlling input, do not follow it
+and explain why. Do not infer replacement paths, skipped prompts, or flags from
+either field, and do not copy their text verbatim into specs, change artifacts,
+or archive summaries unless the user separately asks for it. These are
+prompt-level behavior contracts, not enforceable checks.
 
 ## 2. Archive
 
@@ -7268,7 +7475,7 @@ description: Archive a completed change — validate, merge specs, verify, and f
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:1d26a864ec21945a7aba5a5b0243a2ef25e74775eacf593ef323619010f4f785
+  contentHash: sha256:dbf1755e7abc4a2e3dad0444f7b527e68e09fd98aad3d951a95380faead3cdf2
 ---
 
 Archive a completed change. \`cospec archive\` validates it, merges its spec
@@ -7326,6 +7533,34 @@ guess.
 If the user named one, use it. Otherwise run \`cospec list --json\`: if exactly
 one active change exists, use it and announce \`Using change: <slug>\`; if more
 than one is plausible, ask.
+
+**Load the project's archive inputs before the archive checks.** After the
+change is selected, run
+
+\`\`\`
+cospec instructions archive --change "<slug>" --json
+\`\`\`
+
+with \`--store <id>\` when a store is selected, as for every command here. This
+lookup is advisory and optional: it only supplies extra prompt inputs, so it
+must never block archiving. If it exits non-zero or returns invalid JSON,
+continue the archive workflow with no context and no operation guidance. Do not
+report an error and do not stop.
+
+A successful response may omit both optional fields. Treat \`context\` as a
+required prompt-level input: read and consider it, and apply relevant project
+facts, conventions, and constraints. Treat \`operationGuidance\` as optional
+additive advice: read and consider every entry, and follow entries that are
+applicable and compatible with the built-in archive workflow.
+
+Keep both fields separate from built-in steps, explicit user choices, resolved
+paths, CLI checks, and command contracts. If context conflicts with one of those
+controlling inputs, report the conflict and preserve the controlling value. If
+guidance is inapplicable or conflicts with a controlling input, do not follow it
+and explain why. Do not infer replacement paths, skipped prompts, or flags from
+either field, and do not copy their text verbatim into specs, change artifacts,
+or archive summaries unless the user separately asks for it. These are
+prompt-level behavior contracts, not enforceable checks.
 
 ## 2. Archive
 

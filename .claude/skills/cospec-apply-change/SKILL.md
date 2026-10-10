@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.10.0
-  contentHash: sha256:7b5625a216a66b299eb5db1f5d240ea532fc4d520085f6ca6162c36871af481b
+  contentHash: sha256:45d580b30cdae03a18689ca7232c92ffce8176dde1c4fe1409caae4cb6ee5d47
 ---
 
 Run the deterministic apply gate for a change, then implement its tasks. The
@@ -78,6 +78,25 @@ Obey the exit code:
   task with its test/verification task. The `gate.synced` list shows blocker
   boxes the command auto-checked because their dependency is already archived —
   trust it over a manual read of the file.
+
+  The same `apply` object may carry `apply.context` and
+  `apply.operationGuidance`, the project's own inputs from its config. Treat
+  `context` as a required
+  prompt-level input. Read and consider it, and apply relevant project facts,
+  conventions, and constraints while implementing. Treat `operationGuidance` as
+  optional additive advice. Read and consider every entry, and follow entries
+  that are applicable and compatible with the built-in workflow.
+
+  Keep both fields separate from the gate, the returned state, tasks, progress,
+  `contextFiles`, and the built-in `instruction`. They are not evidence of task
+  completion, do not replace the built-in instruction, and do not permit
+  bypassing a blocked state. If context conflicts with the built-in instruction,
+  an explicit user choice, or a CLI-controlled value, report the conflict and
+  preserve the controlling value. If guidance is inapplicable or conflicts with
+  those controlling inputs, do not follow it and explain why. Do not copy
+  `context` or `operationGuidance` verbatim into implementation files or
+  planning artifacts unless the user separately asks for that content. These are
+  prompt-level behavior contracts, not enforceable checks.
 
   If a task needs work beyond what the specs and tasks describe, or you find
   yourself tempted to drop, narrow, defer, or carve an exception out of

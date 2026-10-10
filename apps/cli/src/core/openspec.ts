@@ -1,5 +1,6 @@
 import { dirname, join } from 'node:path'
 
+import type { ReferenceEntry } from './instructions-render.ts'
 import { extractEmbeddedOpenspec } from './openspec-embedded.ts'
 
 /**
@@ -662,6 +663,21 @@ export interface ApplyInstructionsJson {
    * `spec.md`, on top of the no-delta-specs/`skip_specs` warning.
    */
   warnings?: string[]
+  /**
+   * The project's `context` from `openspec/config.yaml`: a required prompt-level
+   * input (1.13.0), present only when set. The user's own text.
+   */
+  context?: string
+  /**
+   * `operations.apply.guidance` from the config: optional advisory entries
+   * (1.13.0), present only when set. The user's own text.
+   */
+  operationGuidance?: string[]
+  /**
+   * The stores the project's `references:` read (1.13.0), present only when it
+   * declares any. `fetch` and `status[].fix` are commands the binary spells.
+   */
+  references?: ReferenceEntry[]
   instruction: string
 }
 

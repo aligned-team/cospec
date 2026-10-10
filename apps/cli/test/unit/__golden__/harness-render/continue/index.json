@@ -4,18 +4,18 @@
     "kind": "command",
     "workflow": "apply",
     "harness": "continue",
-    "contentHash": "sha256:f5c03071fbf4ca1f1ba3adca346d31f574ef54f0f97e90e24f0fc10f8e2830e7",
-    "bytes": 4876,
-    "sha256": "d92428a60341f5f2937da77b55a16552ee5062a5c6bc80d65b19240464c2f921"
+    "contentHash": "sha256:6285d73f7aa3179f2821c5521ed7ff9e3a3420cbc531034ffe45f42ad5d82553",
+    "bytes": 6097,
+    "sha256": "5b0b248c8992623d5a2d893399afc88c08c2612db5ecf13cafe77eb758bf9476"
   },
   {
     "path": ".continue/prompts/cospec-archive.prompt",
     "kind": "command",
     "workflow": "archive",
     "harness": "continue",
-    "contentHash": "sha256:a20654e1f4ef2020e96be8c83efa02426b020e6c95ae10f81e7f7e70d1440745",
-    "bytes": 5698,
-    "sha256": "801663d24a41e6a6ea4df576b516bddf703937fb372406a2bdabcf6c7672dd6f"
+    "contentHash": "sha256:6d76ad87a80685c2bbcb2430eece980a300bf8fc09e87d2a8a9efaef7c4685ba",
+    "bytes": 7178,
+    "sha256": "f4a26be007a471488f1475bfd72e665b018b8d55fa67ef57b6f5515e41074c39"
   },
   {
     "path": ".continue/prompts/cospec-bulk-archive.prompt",
@@ -112,18 +112,18 @@
     "kind": "skill",
     "workflow": "apply",
     "harness": "continue",
-    "contentHash": "sha256:f5c03071fbf4ca1f1ba3adca346d31f574ef54f0f97e90e24f0fc10f8e2830e7",
-    "bytes": 4943,
-    "sha256": "6901a602b5cd5f1632c2ecbc12796d659039f53a52a0d07d2d03fa6f1bcd74ef"
+    "contentHash": "sha256:6285d73f7aa3179f2821c5521ed7ff9e3a3420cbc531034ffe45f42ad5d82553",
+    "bytes": 6164,
+    "sha256": "095f635cab79ec3b48414aa6a53dffd3d6c24c3faf99c0b30bf3cee055b5dc79"
   },
   {
     "path": ".continue/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "continue",
-    "contentHash": "sha256:a20654e1f4ef2020e96be8c83efa02426b020e6c95ae10f81e7f7e70d1440745",
-    "bytes": 5765,
-    "sha256": "c13d4fd5d99b8d61cfd797e81b087fbebdd69acd7fe550b0edb07e3cb7f0a267"
+    "contentHash": "sha256:6d76ad87a80685c2bbcb2430eece980a300bf8fc09e87d2a8a9efaef7c4685ba",
+    "bytes": 7245,
+    "sha256": "7e832c3b5a8631782bb84ae08e1e23972495b9c7692cb61cb38498d37af6e762"
   },
   {
     "path": ".continue/skills/cospec-bulk-archive-change/SKILL.md",

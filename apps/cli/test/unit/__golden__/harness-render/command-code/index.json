@@ -5,8 +5,8 @@
     "workflow": "apply",
     "harness": "command-code",
     "contentHash": null,
-    "bytes": 4563,
-    "sha256": "3a662dbff3a764736e63a9f6881511eebd338c003db02b7626304e98f4754dcc"
+    "bytes": 5784,
+    "sha256": "2df1dd85d807111df01837cd441fb3602ab9005f5e76418a051d7a433bc66a16"
   },
   {
     "path": ".commandcode/commands/cospec-archive.md",
@@ -14,8 +14,8 @@
     "workflow": "archive",
     "harness": "command-code",
     "contentHash": null,
-    "bytes": 5382,
-    "sha256": "8de2a211008300b9b5407fc33cded3ae536792fcc9ff6a27b8aeb48f1be07b0b"
+    "bytes": 6862,
+    "sha256": "2b340a3f26329ede9a078d6736c6be8e0bb917d8d561a3286871710a8093f650"
   },
   {
     "path": ".commandcode/commands/cospec-bulk-archive.md",
@@ -112,18 +112,18 @@
     "kind": "skill",
     "workflow": "apply",
     "harness": "command-code",
-    "contentHash": "sha256:f5c03071fbf4ca1f1ba3adca346d31f574ef54f0f97e90e24f0fc10f8e2830e7",
-    "bytes": 4943,
-    "sha256": "6901a602b5cd5f1632c2ecbc12796d659039f53a52a0d07d2d03fa6f1bcd74ef"
+    "contentHash": "sha256:6285d73f7aa3179f2821c5521ed7ff9e3a3420cbc531034ffe45f42ad5d82553",
+    "bytes": 6164,
+    "sha256": "095f635cab79ec3b48414aa6a53dffd3d6c24c3faf99c0b30bf3cee055b5dc79"
   },
   {
     "path": ".commandcode/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "command-code",
-    "contentHash": "sha256:a20654e1f4ef2020e96be8c83efa02426b020e6c95ae10f81e7f7e70d1440745",
-    "bytes": 5765,
-    "sha256": "c13d4fd5d99b8d61cfd797e81b087fbebdd69acd7fe550b0edb07e3cb7f0a267"
+    "contentHash": "sha256:6d76ad87a80685c2bbcb2430eece980a300bf8fc09e87d2a8a9efaef7c4685ba",
+    "bytes": 7245,
+    "sha256": "7e832c3b5a8631782bb84ae08e1e23972495b9c7692cb61cb38498d37af6e762"
   },
   {
     "path": ".commandcode/skills/cospec-bulk-archive-change/SKILL.md",

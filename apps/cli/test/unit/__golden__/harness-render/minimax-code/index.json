@@ -4,18 +4,18 @@
     "kind": "skill",
     "workflow": "apply",
     "harness": "minimax-code",
-    "contentHash": "sha256:ea0efa9c20e26def5517aa4c5945d5ee93a6fbfc411fa35b5fce19229404baa8",
-    "bytes": 4950,
-    "sha256": "271436f73127d667385811ef9e66df96038f929828f9d93dd285f72b28d98351"
+    "contentHash": "sha256:3875c2cb30c4524c19b838afcfce48a6fa29a3a203bbf37545c40c4ed14cb25f",
+    "bytes": 6171,
+    "sha256": "0540d8743a960b7b342e8e5e80e2fb5d77b4b8e109dca7c6fc1d0ccee4679143"
   },
   {
     "path": ".minimax/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "minimax-code",
-    "contentHash": "sha256:6246076dd9a4c14c3a9761c33bbc9ce40ad29608efd76a8d5a929757235961c2",
-    "bytes": 5772,
-    "sha256": "197368b5f932a1df13d94af26f17d0bf53c30729d44f44f745a2bbaf19530714"
+    "contentHash": "sha256:e0eca70867fe487f6a66ad3d757103664ad2febb05f6b7e2c9f32d52509c75ce",
+    "bytes": 7252,
+    "sha256": "c2614b8957304480029a8cad0bf23f780d6d7877e32ca0a6c6fba2ca438b4b0d"
   },
   {
     "path": ".minimax/skills/cospec-bulk-archive-change/SKILL.md",

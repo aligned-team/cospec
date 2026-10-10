@@ -4,18 +4,18 @@
     "kind": "skill",
     "workflow": "apply",
     "harness": "zed",
-    "contentHash": "sha256:e0faa1d1b195a3a6223325558e1f88b75d4144aed83621598097fff73d86a7e3",
-    "bytes": 4999,
-    "sha256": "1497346ff0c828e4e343b4485881b1228281e58cbb2a71d50538488f02308123"
+    "contentHash": "sha256:93bb0861c9a2fe83db7f48dcd8c0169aebe21eb27d9c8effcfc3c49bc5dbac1f",
+    "bytes": 6220,
+    "sha256": "9406800d07af1e7d969fc6cfa51667aca77afab7324cc6c132275539c804f75b"
   },
   {
     "path": ".agents/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "zed",
-    "contentHash": "sha256:c8364fb20d253ff61472f30c4ff9deb78bf4562b5425807c3db517ce7357a039",
-    "bytes": 5864,
-    "sha256": "ff91acab8784239457ecb48ce53a7defd4fc612fa4978c364c23c26b2a5aae32"
+    "contentHash": "sha256:bde5d88c6a73ca5b2f82c6ec79baf36b3fafaedd58778d5cdd78674f8100eee8",
+    "bytes": 7344,
+    "sha256": "2e267a98b57cfa9bfab7611dfe82e01a61414ce6d1876f7d96eb68ae9c7bfc72"
   },
   {
     "path": ".agents/skills/cospec-bulk-archive-change/SKILL.md",

@@ -80,6 +80,10 @@ workflows:
       Also use when the user says "cospec apply" or "openspec apply".
     takesArguments: true
     core: true
+    ported:
+      - passage: operation-inputs-precedence
+        file: dist/core/templates/workflows/apply-change.js
+        pin: 1.13.1
   - id: verify
     command: verify
     skill: cospec-verify-change
@@ -98,6 +102,10 @@ workflows:
       Also use when the user says "cospec archive" or "openspec archive".
     takesArguments: true
     core: true
+    ported:
+      - passage: archive-inputs-lookup
+        file: dist/core/templates/workflows/archive-change.js
+        pin: 1.13.1
   - id: bulk-archive
     command: bulk-archive
     skill: cospec-bulk-archive-change
