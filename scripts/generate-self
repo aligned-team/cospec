@@ -1,11 +1,30 @@
 #!/usr/bin/env bash
-# Run `cospec update` over this repo's own managed files with an empty machine-global OpenSpec
-# config. `update` honours the `profile`/`workflows`/`delivery` keys of that config, so on a host
-# whose config says `profile: core` it renders and drift-checks only part of the twelve workflows
-# CLAUDE.md commits; an empty config dir keeps `generate` and `generate:check` host-independent.
+# Run `cospec update` over this repo's own managed files as if on a machine with nothing in its
+# home directory. `update` honours the `delivery` key of the machine-global OpenSpec config, so on
+# a host whose config says `delivery: commands` (or `skills`) `generate` would delete the committed
+# skills (or commands) and `generate:check` would fail; its `profile`/`workflows` keys only pick
+# what a row gets by default and never drop an installed workflow, so they do not move the output.
+# `update` also reads and rewrites the home-scoped skills root of the rows it maintains
+# (`~/.minimax/skills`), so a host holding an older cospec's skills there reports drift and has
+# them rewritten. `CODEX_HOME` is set too although `update` never reads it: the script forwards any
+# subcommand, and `init` sweeps `$CODEX_HOME/prompts` for legacy prompts. One empty temporary
+# directory stands in for HOME and every config/data/state/cache root, which keeps `generate` and
+# `generate:check` host-independent and writes nothing outside this repo. The first-run completion
+# tip finds oh-my-zsh through `$ZSH`/`$ZSH_CUSTOM` ahead of HOME, so a host's oh-my-zsh would still
+# stat its real `_cospec`; `ZSH` and `ZSH_CUSTOM` are unset and `OPENSPEC_NO_COMPLETIONS=1` (the
+# tip's documented suppression) is set so the run never looks at a host shell file.
 set -euo pipefail
 
-config_home="$(mktemp -d "${TMPDIR:-/tmp}/cospec-generate-config.XXXXXX")"
-trap 'rm -rf "$config_home"' EXIT
+empty_home="$(mktemp -d "${TMPDIR:-/tmp}/cospec-generate-home.XXXXXX")"
+trap 'rm -rf "$empty_home"' EXIT
 
-XDG_CONFIG_HOME="$config_home" bun run apps/cli/src/index.ts -- "$@"
+env -u ZSH -u ZSH_CUSTOM \
+  HOME="$empty_home" \
+  USERPROFILE="$empty_home" \
+  CODEX_HOME="$empty_home" \
+  XDG_CONFIG_HOME="$empty_home" \
+  XDG_DATA_HOME="$empty_home" \
+  XDG_STATE_HOME="$empty_home" \
+  XDG_CACHE_HOME="$empty_home" \
+  OPENSPEC_NO_COMPLETIONS=1 \
+  bun run apps/cli/src/index.ts -- "$@"

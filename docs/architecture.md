@@ -88,7 +88,14 @@ cospec spawns OpenSpec; it never imports it.
   tests and CI only — cospec itself never runs Node. Errno failures are compared
   by errno code, syscall (`statx` read as `stat`) and path
   (`test/fixtures/errno.ts`), never by the sentence, which varies by runtime and
-  kernel.
+  kernel. The self-hosting tasks are isolated the same way from outside the test
+  runner: `scripts/generate-self` (`mise run generate` and `generate:check`)
+  runs `update` with HOME, USERPROFILE, `CODEX_HOME` and the XDG dirs at one
+  empty temporary directory, so neither the host's global config (its
+  `delivery`) nor a home-scoped skills root under its real home reaches the run
+  or is written by it (`test/integration/generate-self-home.test.ts` guards it,
+  and records the seven variables the script sets plus its completion-tip
+  settings).
 
 ## The command table and the reachability test
 
