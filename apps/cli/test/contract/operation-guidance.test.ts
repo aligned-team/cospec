@@ -9,7 +9,7 @@
 // project, so the sections cospec prints are compared with the binary's own, byte for byte.
 
 import { afterAll, describe, expect, setDefaultTimeout, test } from 'bun:test'
-import { appendFileSync, readFileSync } from 'node:fs'
+import { appendFileSync, readFileSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { cleanupAll, cospec, mkTempRepo, writeFiles } from '../fixtures/support.ts'
@@ -74,6 +74,8 @@ interface Options {
   /** What to append to `openspec/config.yaml`; none leaves the scaffold's own. */
   config?: string
   verification?: string
+  /** Rename the scaffold's `openspec/config.yaml` to `config.yml`, the binary's other spelling. */
+  ymlConfig?: boolean
 }
 
 /** The issue #70 repro project: a clear-gate `fix` change `my-fix` and its sandbox root. */
@@ -90,6 +92,8 @@ async function project(opts: Options = {}): Promise<string> {
     'openspec/changes/my-fix/tasks.md': TASKS_DONE,
   })
   if (opts.config !== undefined) appendFileSync(join(root, 'openspec/config.yaml'), opts.config)
+  if (opts.ymlConfig === true)
+    renameSync(join(root, 'openspec/config.yaml'), join(root, 'openspec/config.yml'))
   return root
 }
 
@@ -323,11 +327,64 @@ describe('cospec archive prints the archive guidance (6.3, issue #70)', () => {
     expect('operationGuidance' in doc).toBe(false)
   })
 
+  test('a project whose config is config.yml gets the same sections, in text and --json', async () => {
+    const text = await project({
+      config: INPUTS_CONFIG,
+      verification: VERIFICATION_RESOLVED,
+      ymlConfig: true,
+    })
+    const ran = await cospec(['archive', 'my-fix'], { cwd: text })
+    expect(ran.exitCode).toBe(0)
+    expect(ran.stdout).toContain('### Project Context')
+    expect(ran.stdout).toContain(`- ${ARCHIVE_MARKER}`)
+
+    const json = await project({
+      config: INPUTS_CONFIG,
+      verification: VERIFICATION_RESOLVED,
+      ymlConfig: true,
+    })
+    const theirs = await oracleJson(
+      ['instructions', 'archive', '--change', 'my-fix', '--json'],
+      json,
+    )
+    const doc = JSON.parse((await cospec(['archive', 'my-fix', '--json'], { cwd: json })).stdout)
+    expect(doc.operationGuidance).toEqual([ARCHIVE_MARKER])
+    expect(doc.operationGuidance).toEqual(
+      (theirs.json as Record<string, unknown>).operationGuidance,
+    )
+    expect(doc.context).toBe(CONTEXT + '\n')
+  })
+
   test('nothing configured archives with no new line', async () => {
     const root = await project({ verification: VERIFICATION_RESOLVED })
     const run = await cospec(['archive', 'my-fix'], { cwd: root })
     expect(run.exitCode).toBe(0)
     expect(run.stdout).not.toContain('Operation Guidance')
     expect(run.stdout).not.toContain('Project Context')
+  })
+})
+
+describe("cospec apply relays the binary's config warnings", () => {
+  const MALFORMED =
+    '\noperations:\n  applies:\n    guidance: [a]\n  apply:\n    guidance: not-a-list\n    extra: 1\n'
+
+  test('a malformed operations block warns on stderr, in text and --json, as the binary does', async () => {
+    const root = await project({ config: MALFORMED })
+    const theirs = await oracle(['instructions', 'apply', '--change', 'my-fix', '--json'], root)
+    const expected = theirs.stderr.split('\n').filter((l) => l.length > 0)
+    expect(expected.length).toBeGreaterThanOrEqual(3)
+    for (const argv of [
+      ['apply', 'my-fix'],
+      ['apply', 'my-fix', '--json'],
+    ]) {
+      const run = await cospec(argv, { cwd: root })
+      expect(run.exitCode, argv.join(' ')).toBe(0)
+      const lines = run.stderr.split('\n').filter((l) => l.length > 0)
+      for (const line of expected) expect(lines, argv.join(' ')).toContain(line)
+      // Printed once each: relaying must not double a warning another step already wrote.
+      expect(lines.filter((l) => l === expected[0]).length, argv.join(' ')).toBe(1)
+    }
+    const json = await cospec(['apply', 'my-fix', '--json'], { cwd: root })
+    expect(() => JSON.parse(json.stdout)).not.toThrow()
   })
 })

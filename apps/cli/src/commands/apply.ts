@@ -369,6 +369,9 @@ async function applyInstructions(
     const msg = err instanceof OpenspecCallError ? err.message : (err as Error).message
     return earlyExit(ctx, `cospec apply: ${msg}\n`, msg, undefined, warnings)
   }
+  // The binary's own config warnings (a malformed `operations` block, say) stay on stderr, as
+  // `cospec archive` relays them, so `--json` stdout remains the one document.
+  if (answer.stderr.length > 0) process.stderr.write(answer.stderr)
   if ('refused' in answer) return relayRefusal(ctx, answer.refused, warnings)
   return relayApplyInstructions(answer.instructions, change.id)
 }

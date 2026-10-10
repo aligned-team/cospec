@@ -40,6 +40,7 @@ import {
   listChangeDirs,
   listChanges,
   openspecDir,
+  projectConfigPath,
   resolveChange,
   resolveSchema,
   type Change,
@@ -358,14 +359,14 @@ interface ArchiveInputs {
 }
 
 /**
- * The archive inputs `openspec/config.yaml` gives, read as the pinned binary's
- * `loadOperationInputs(readProjectConfig(root), 'archive')` does, and with the warnings it prints
- * on the way. Read from the config rather than through a wrapped `instructions archive` call: a
+ * The archive inputs the project config (`config.yaml`, else `config.yml`) gives, read as the
+ * pinned binary's `loadOperationInputs(readProjectConfig(root), 'archive')` does, and with the
+ * warnings it prints on the way. Read from the config rather than through a wrapped `instructions archive` call: a
  * refusal that comes before the delegated archive spawns nothing, and the change is gone from
  * `openspec/changes/` once the delegated archive has run.
  */
 function archiveInputs(base: string): ArchiveInputs {
-  return readConfigOperationInputs(join(openspecDir(base), 'config.yaml'), 'archive', (line) =>
+  return readConfigOperationInputs(projectConfigPath(base), 'archive', (line) =>
     process.stderr.write(`${line}\n`),
   )
 }

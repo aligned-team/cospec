@@ -387,10 +387,11 @@ rendered body prints.
 `cospec archive` itself also prints the guidance, after the summary on success
 and with the refusal on a refusal, and its `--json` success document carries
 additive `context` and `operationGuidance` keys (issue #70). It reads
-`config.yaml` natively (`readConfigOperationInputs`) rather than through a
-wrapped `instructions archive` call: a refusal spawns nothing, and the change
-directory is gone once the delegated archive has run. A contract row compares
-the result with the binary's own, warning lines included.
+`config.yaml` (else `config.yml`, as the binary resolves it) natively
+(`readConfigOperationInputs`) rather than through a wrapped
+`instructions archive` call: a refusal spawns nothing, and the change directory
+is gone once the delegated archive has run. A contract row compares the result
+with the binary's own, warning lines included.
 
 ### D9. `bulk-archive` resolves collisions (T6)
 

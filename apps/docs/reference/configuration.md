@@ -109,13 +109,14 @@ text the workflow weighs, never a check, and it never changes what `apply` or
   mode. A successful `--json` document carries it as a top-level
   `operationGuidance` key.
 
-When `operations` is malformed, the reader warns and ignores the part it cannot
-use, and the rest of the file still applies. An unknown id (for example
-`applies`) is reported with the supported ids, `apply` and `archive`, and its
-guidance is ignored. An `operations` value that is not a mapping, an operation
-that is not a mapping, an unknown field inside one, or a `guidance` that is not
-a list of strings each produce one warning, with OpenSpec's wording. A project
-that configures no `operations` sees no change in output.
+When `operations` is malformed, the reader warns (on stderr, from `apply` and
+`archive` alike) and ignores the part it cannot use, and the rest of the file
+still applies. An unknown id (for example `applies`) is reported with the
+supported ids, `apply` and `archive`, and its guidance is ignored. An
+`operations` value that is not a mapping, an operation that is not a mapping, an
+unknown field inside one, or a `guidance` that is not a list of strings each
+produce one warning, with OpenSpec's wording. A project that configures no
+`operations` sees no change in output.
 
 One extra vocabulary lever lives here too: `verification.layers` lets you extend
 the closed set of `@<layer>` tokens (`@unit`, `@e2e`, `@manual`, and so on) that

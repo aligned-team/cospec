@@ -175,22 +175,25 @@
 - [x] 6.3 `cospec archive` prints the archive guidance (obligations R13, issue
       #70; the design's Operational surface names only the apply transcript, so
       this row records the addition). The inputs are read once the change
-      resolves, from `openspec/config.yaml` by `readConfigOperationInputs`
-      (`core/project-config-read.ts`: the binary's `loadOperationInputs` over
-      its `readProjectConfig`, warnings included), not through a wrapped
-      `instructions archive` call: `archive-refusals.test.ts` pins that a
-      refusal before the delegated archive spawns nothing, and the change is
-      gone from `openspec/changes/` once that archive has run. Printed in text
-      mode with the summary or with a refusal, carried as additive `context` and
-      `operationGuidance` keys on the `--json` success document, silent when
-      nothing is configured. Observed: the issue #70 repro script and the
-      `cospec archive` rows (`operation-guidance.test.ts`) landed as
-      `test.failing` and pass flipped; the inputs match the binary's own for
-      empty guidance entries, a whitespace-only context, a non-list guidance and
-      guidance under the other operation, warning lines included; an
-      unconfigured project archives with no new line; a refusal under `--json`
-      stays one failure document with no guidance keys; the archive, cli-surface
-      and unit command suites pass (622 tests, 0 fail).
+      resolves, from `openspec/config.yaml` (else `config.yml`) by
+      `readConfigOperationInputs` (`core/project-config-read.ts`: the binary's
+      `loadOperationInputs` over its `readProjectConfig`, warnings included),
+      not through a wrapped `instructions archive` call:
+      `archive-refusals.test.ts` pins that a refusal before the delegated
+      archive spawns nothing, and the change is gone from `openspec/changes/`
+      once that archive has run. Printed in text mode with the summary or with a
+      refusal, carried as additive `context` and `operationGuidance` keys on the
+      `--json` success document, silent when nothing is configured. Observed:
+      the issue #70 repro script and the `cospec archive` rows
+      (`operation-guidance.test.ts`) landed as `test.failing` and pass flipped;
+      the inputs match the binary's own for empty guidance entries, a
+      whitespace-only context, a non-list guidance and guidance under the other
+      operation, warning lines included; an unconfigured project archives with
+      no new line; a refusal under `--json` stays one failure document with no
+      guidance keys; the archive, cli-surface and unit command suites pass (622
+      tests, 0 fail). A `config.yml`-only project prints and carries the same
+      sections, and `cospec apply` relays the binary's config warnings for a
+      malformed `operations` block on stderr (`operation-guidance.test.ts`).
 
 ## 7. T6 bulk-archive resolves collisions
 
