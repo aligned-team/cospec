@@ -301,3 +301,139 @@ describe('bulk-archive looks up the inputs once and resolves collisions (design 
     expect(body.match(/`openspec\s+[a-z-]+/g)).toBeNull()
   })
 })
+
+const WORKFLOW_IDS = readWorkflowManifest().workflows.map((w) => w.id)
+/** Every workflow whose step 1 selects a change, so points at the fragment's picker. */
+const SELECTING = ['apply', 'archive', 'continue', 'ff', 'sync-specs', 'update', 'verify']
+
+describe('the fragment replaces each body’s own grounding (design D3, task 8.2)', () => {
+  test('one copy of the fragment and no leftover token or marker in all twelve bodies', () => {
+    expect(WORKFLOW_IDS).toHaveLength(12)
+    for (const id of WORKFLOW_IDS) {
+      const body = skillBody(id)
+      expect(body.split(fragment()).length - 1).toBe(1)
+      expect(body).not.toMatch(/\{\{[A-Z_]+\}\}/)
+      expect(body).not.toContain('[[opsx:')
+    }
+  })
+
+  test('the fragment follows the opening paragraph and precedes the first step', () => {
+    for (const id of WORKFLOW_IDS) {
+      const body = skillBody(id)
+      const at = body.indexOf(fragment())
+      expect(at).toBeGreaterThan(0)
+      expect(body.slice(0, at)).not.toMatch(/^## /m)
+    }
+  })
+
+  test('no body carries a bare openspec command', () => {
+    for (const id of WORKFLOW_IDS) {
+      const body = skillBody(id)
+      expect(body.match(/`openspec\s+[a-z-]+/g)).toBeNull()
+      expect(body.match(/^\s*openspec\s+[a-z-]+/gm)).toBeNull()
+    }
+  })
+
+  test.failing('no body keeps its own change-picker prose', () => {
+    for (const id of WORKFLOW_IDS) {
+      expect(flat(skillBody(id))).not.toMatch(/more than one is plausible/)
+    }
+  })
+
+  test.failing(
+    'every selecting body keeps sole-change auto-select and points to the picker',
+    () => {
+      for (const id of SELECTING) {
+        // The body's own step, before the fragment is interpolated, names the fragment's picker.
+        const step = flat(readFileSync(join(CANON, `${id}.md`), 'utf8'))
+        expect(step).toContain('Using change: <slug>')
+        expect(step).toContain('Choosing a change')
+      }
+    },
+  )
+
+  test.failing('propose delegates its stop-on-no-root text to the fragment', () => {
+    const body = flat(skillBody('propose'))
+    expect(body).toContain('cospec context --json')
+    expect(body).toContain('root.path')
+    expect(body).not.toContain('ask the user how they want to proceed')
+    expect(body).not.toContain('If it does not resolve a root, stop there')
+  })
+
+  test('propose and explore still read cospec context --json', () => {
+    for (const id of ['propose', 'explore']) {
+      expect(skillBody(id)).toContain('cospec context --json')
+    }
+  })
+})
+
+describe('ported provenance in harness.yaml (design D10, task 8.3)', () => {
+  const PINNED = '1.13.1'
+  const entry = (passage: string, file: string) => ({
+    passage,
+    file: `dist/core/templates/workflows/${file}`,
+    pin: PINNED,
+  })
+  const OWN: Record<string, string[][]> = {
+    propose: [['inspect-before-drafting', 'propose.js']],
+    ff: [['inspect-before-drafting', 'ff-change.js']],
+    explore: [['ascii-diagrams', 'explore.js']],
+    apply: [['operation-inputs-precedence', 'apply-change.js']],
+    archive: [['archive-inputs-lookup', 'archive-change.js']],
+    'bulk-archive': [
+      ['archive-inputs-lookup', 'bulk-archive-change.js'],
+      ['collision-resolution', 'bulk-archive-change.js'],
+    ],
+  }
+
+  test.failing('every workflow records the root-guard and change-picker passages', () => {
+    for (const w of readWorkflowManifest().workflows) {
+      expect(w.ported ?? []).toContainEqual(entry('root-guard', 'project-root.js'))
+      expect(w.ported ?? []).toContainEqual(entry('change-picker', 'continue-change.js'))
+    }
+  })
+
+  test('each passage of this change is recorded on the workflow that carries it', () => {
+    const byId = new Map(readWorkflowManifest().workflows.map((w) => [w.id, w.ported ?? []]))
+    for (const [id, own] of Object.entries(OWN)) {
+      for (const [passage = '', file = ''] of own) {
+        expect(byId.get(id)).toContainEqual(entry(passage, file))
+      }
+    }
+  })
+
+  test('no other workflow records a passage this change ports into a different body', () => {
+    const own = new Set(['root-guard', 'change-picker'])
+    for (const w of readWorkflowManifest().workflows) {
+      const expected = new Set<string | undefined>([...own, ...(OWN[w.id] ?? []).map(([p]) => p)])
+      for (const p of w.ported ?? []) expect(expected.has(p.passage)).toBe(true)
+    }
+  })
+
+  test('ported never reaches a generated file', () => {
+    for (const f of render()) {
+      expect(f.content).not.toMatch(/^ported:/m)
+      expect(f.content).not.toContain('project-root.js')
+      expect(f.content).not.toContain('dist/core/templates')
+    }
+  })
+
+  test.failing('a ported value that is not a list fails the read, naming the workflow', () => {
+    // `ported:` is already declared on propose; replace that whole block instead.
+    const yaml = readFileSync(join(CANON, 'harness.yaml'), 'utf8').replace(
+      /    ported:\n(?:      .*\n)+/,
+      '    ported: nope\n',
+    )
+    const dir = canonWith({ 'harness.yaml': yaml })
+    expect(() => readWorkflowManifest(dir)).toThrow(/'propose'.*ported/)
+  })
+
+  test.failing('an entry missing its file or pin fails the read, naming the workflow', () => {
+    const yaml = readFileSync(join(CANON, 'harness.yaml'), 'utf8').replace(
+      /        pin: 1\.13\.1\n/,
+      '',
+    )
+    const dir = canonWith({ 'harness.yaml': yaml })
+    expect(() => readWorkflowManifest(dir)).toThrow(/'propose'.*pin/)
+  })
+})

@@ -1111,6 +1111,21 @@ export interface WorkflowDef {
    * `true`; a profile without `custom` workflows installs exactly these.
    */
   core?: boolean
+  /**
+   * The upstream passages this workflow's body ports, each with the pinned template it was
+   * read from. Provenance only: read nowhere at render time and never written to a file.
+   */
+  ported?: PortedPassage[]
+}
+
+/** One passage ported from the pinned OpenSpec dist into a workflow body. */
+export interface PortedPassage {
+  /** A stable name for the passage, shared by every workflow that carries it. */
+  passage: string
+  /** The template file, relative to the `@fission-ai/openspec` package root. */
+  file: string
+  /** The OpenSpec version the passage was read at; the pinned dev/CI version. */
+  pin: string
 }
 
 const WORKFLOW_REF_RE = /\/cospec:([a-z][a-z0-9-]*)/g
