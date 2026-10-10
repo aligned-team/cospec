@@ -16,8 +16,8 @@ built from `cospec status`, `cospec instructions`, and `cospec validate`.
 
 If the user named one, use it. Otherwise run `cospec list --json`. If exactly
 one active change exists, use it and announce `Using change: <slug>`, naming
-`[[opsx:if-workflow update]]/cospec:update <other-slug>[[opsx:else]]cospec validate <other-slug> --strict[[opsx:end]]` as the override. If more than one is plausible,
-ask the user which one, showing each change's type and gate state.
+`[[opsx:if-workflow update]]/cospec:update <other-slug>[[opsx:else]]cospec validate <other-slug> --strict[[opsx:end]]` as the override. When several active changes exist,
+choose as **Choosing a change** above says.
 
 ## 2. Read what exists
 

@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:ac413fa02b1f434c90a30ef7d4984ae6819c23f8c347a453c9398b98a536c342
+  contentHash: sha256:5d452b2bc2b61597d8ef08c0522a5465e6be741de1fbb7f4c82a9486eb5f1818
 ---
 
 Merge a change's delta specs into the main specs under `openspec/specs/` without
@@ -63,8 +63,8 @@ guess.
 ## 1. Select the change
 
 If the user named one, use it. Otherwise run `cospec list --json`: if exactly
-one active change exists, use it and announce `Using change: <slug>`; if more
-than one is plausible, ask.
+one active change exists, use it and announce `Using change: <slug>`. When
+several active changes exist, choose as **Choosing a change** above says.
 
 ## 2. Preview the merge
 

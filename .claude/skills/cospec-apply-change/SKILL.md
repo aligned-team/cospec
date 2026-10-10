@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.10.0
-  contentHash: sha256:45d580b30cdae03a18689ca7232c92ffce8176dde1c4fe1409caae4cb6ee5d47
+  contentHash: sha256:623fd234d1f57a3a9313521daa82d7ecdc929d48f5bd7c0a3bca4071f413f5c0
 ---
 
 Run the deterministic apply gate for a change, then implement its tasks. The
@@ -60,8 +60,8 @@ guess.
 ## 1. Select the change
 
 If the user named one, use it. Otherwise run `cospec list --json`: if exactly
-one active change exists, use it and announce `Using change: <slug>`; if more
-than one is plausible, ask.
+one active change exists, use it and announce `Using change: <slug>`. When
+several active changes exist, choose as **Choosing a change** above says.
 
 ## 2. Run the gate
 

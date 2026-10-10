@@ -3,7 +3,7 @@ description: Archive a completed change — validate, merge specs, verify, and f
 metadata:
   author: cospec
   generatedBy: cospec@0.10.0
-  contentHash: sha256:dbf1755e7abc4a2e3dad0444f7b527e68e09fd98aad3d951a95380faead3cdf2
+  contentHash: sha256:dd9ae25d09df267b6d04cf8343e5138d9e547a0cd7fa1037539f18c0891cc58b
 ---
 
 Archive a completed change. `cospec archive` validates it, merges its spec
@@ -59,8 +59,8 @@ guess.
 ## 1. Select the change
 
 If the user named one, use it. Otherwise run `cospec list --json`: if exactly
-one active change exists, use it and announce `Using change: <slug>`; if more
-than one is plausible, ask.
+one active change exists, use it and announce `Using change: <slug>`. When
+several active changes exist, choose as **Choosing a change** above says.
 
 **Load the project's archive inputs before the archive checks.** After the
 change is selected, run

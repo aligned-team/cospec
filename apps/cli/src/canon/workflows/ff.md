@@ -23,8 +23,8 @@ cospec list --json
 ```
 
 If the user named a change, use it. If exactly one active change exists, use it
-and announce `Using change: <slug>`. If more than one is plausible, ask the user
-which one, showing each change's type and gate state.
+and announce `Using change: <slug>`. When several active changes exist, choose as
+**Choosing a change** above says.
 
 ## 2. Read the plan
 

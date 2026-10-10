@@ -4,18 +4,18 @@
     "kind": "skill",
     "workflow": "apply",
     "harness": "kilocode",
-    "contentHash": "sha256:6285d73f7aa3179f2821c5521ed7ff9e3a3420cbc531034ffe45f42ad5d82553",
-    "bytes": 6164,
-    "sha256": "095f635cab79ec3b48414aa6a53dffd3d6c24c3faf99c0b30bf3cee055b5dc79"
+    "contentHash": "sha256:beca9525bfb14e05457e411c750775c8c627bcb4f7a39dce5ece2f6606cd81bb",
+    "bytes": 6207,
+    "sha256": "e32e2cc1d8f5f077e359ec717aa70aceb0c660b413caea6c98b647b3a59d3230"
   },
   {
     "path": ".kilocode/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "kilocode",
-    "contentHash": "sha256:6d76ad87a80685c2bbcb2430eece980a300bf8fc09e87d2a8a9efaef7c4685ba",
-    "bytes": 7245,
-    "sha256": "7e832c3b5a8631782bb84ae08e1e23972495b9c7692cb61cb38498d37af6e762"
+    "contentHash": "sha256:6a557cabdefacf87f0dc0d81af1a83adf0bb1395e8a03609dbcc9d7a78b9c4b2",
+    "bytes": 7288,
+    "sha256": "08d10110a8ed8a972faefbd3453b2835961012141075d7b992f7e7cc727a5cb8"
   },
   {
     "path": ".kilocode/skills/cospec-bulk-archive-change/SKILL.md",
@@ -31,9 +31,9 @@
     "kind": "skill",
     "workflow": "continue",
     "harness": "kilocode",
-    "contentHash": "sha256:ebd9a49f663c00343bdc6742a8dcf35cea5d02666c8d6152e624a659fc596c82",
-    "bytes": 5172,
-    "sha256": "85960c414f720154f0807674fcb8aee3ea5a5d9ee3d4579c4c41e500132ce33a"
+    "contentHash": "sha256:1982b017073af0ee9e2fcf93d1603cfba8d7e423647314f60ea1f6a383b1e399",
+    "bytes": 5153,
+    "sha256": "c8195d967a50b0b428e606c1fdd5c2a171448c6c178018d81bfbae118ae79252"
   },
   {
     "path": ".kilocode/skills/cospec-explore/SKILL.md",
@@ -49,9 +49,9 @@
     "kind": "skill",
     "workflow": "ff",
     "harness": "kilocode",
-    "contentHash": "sha256:de695a7fecb5c6cbd6813c0102f51cac4c479ab607addb7b364a65a764ad86d6",
-    "bytes": 7487,
-    "sha256": "3532d4cc3374bcbe925355e2ec46f889f9d0da29d4cce5eb692982e440d20f0a"
+    "contentHash": "sha256:fd181273cbfd35a43472a5ce82adf8ecb551ca214128814431908827d90c9878",
+    "bytes": 7468,
+    "sha256": "fce656b5f175622387f6c90d67f6bfc177679d5f34ce1a08c5693b1f68265cbc"
   },
   {
     "path": ".kilocode/skills/cospec-new-change/SKILL.md",
@@ -76,36 +76,36 @@
     "kind": "skill",
     "workflow": "propose",
     "harness": "kilocode",
-    "contentHash": "sha256:b0cace6d8ff2fec2f089ba1bf7374a7910e6a97895679d291e1d515e610303e1",
-    "bytes": 10553,
-    "sha256": "1aa493977cb69cce230c1c73b33284f6a4b4cff98e52b2c843a82641e0a66bb1"
+    "contentHash": "sha256:e1d4365c02f4cdf229e041faee431076055a12cccd565940846c40987a4500b4",
+    "bytes": 10346,
+    "sha256": "c5d4cfa790634e3766f59e045080e1585d05a953cf8a5887fccf75c7285268f1"
   },
   {
     "path": ".kilocode/skills/cospec-sync-specs/SKILL.md",
     "kind": "skill",
     "workflow": "sync-specs",
     "harness": "kilocode",
-    "contentHash": "sha256:ac413fa02b1f434c90a30ef7d4984ae6819c23f8c347a453c9398b98a536c342",
-    "bytes": 5757,
-    "sha256": "22f400c4bb31ae0f472e1369902e7c57f7dc50fadfc9b8f01f3f9b9a600ba4ef"
+    "contentHash": "sha256:5d452b2bc2b61597d8ef08c0522a5465e6be741de1fbb7f4c82a9486eb5f1818",
+    "bytes": 5800,
+    "sha256": "c301ca5dcb6a6dbb5ed74ee23ecdcb1c05fc51154d3f88734379de618c2758fc"
   },
   {
     "path": ".kilocode/skills/cospec-update-change/SKILL.md",
     "kind": "skill",
     "workflow": "update",
     "harness": "kilocode",
-    "contentHash": "sha256:d1c69830577e9973772f027e4df65c1b96a69ceacd07e3be2bcef532b73639fa",
-    "bytes": 6945,
-    "sha256": "a3305aab0a941a5a6b64febc61b12bb2eeecceeeda5403debd3c118adf8dbdff"
+    "contentHash": "sha256:387d8cfcde216c42a943f9eec1e378f5b1728c4a5ed8a13ee693b55bdd2c64ac",
+    "bytes": 6926,
+    "sha256": "26e48327388fbb01f168e5cf01e78fbb03fa296a4462d1203579b29882fbb105"
   },
   {
     "path": ".kilocode/skills/cospec-verify-change/SKILL.md",
     "kind": "skill",
     "workflow": "verify",
     "harness": "kilocode",
-    "contentHash": "sha256:5651f41f2bf2909e821f522abe668500e6c50f763f02c9864cebf2b266c4b565",
-    "bytes": 5306,
-    "sha256": "319399a79902d847ea1b52138e1358c45ccdd9bee968ebb85b8813f0ccaa40b7"
+    "contentHash": "sha256:7e43ab522cae4feec756cdaa997e23255cf5f418cfdebbea8d03bb13771a1fde",
+    "bytes": 5349,
+    "sha256": "67bcc9ace49574fd3e03998e9f54f7cedc2d7f731f6702e2051ebfb93a14029d"
   },
   {
     "path": ".kilocode/workflows/cospec-apply.md",
@@ -113,8 +113,8 @@
     "workflow": "apply",
     "harness": "kilocode",
     "contentHash": null,
-    "bytes": 5748,
-    "sha256": "26163383f8f35d1ea2b7b3efe684150d007d21ae266087c746b906133eee6b7d"
+    "bytes": 5791,
+    "sha256": "f6aea4c90087587062b5fb2820be591af12c586c3d326401f00ae2cfbda94a7d"
   },
   {
     "path": ".kilocode/workflows/cospec-archive.md",
@@ -122,8 +122,8 @@
     "workflow": "archive",
     "harness": "kilocode",
     "contentHash": null,
-    "bytes": 6826,
-    "sha256": "6b5cc9d346b36f42ca7f63eba0bf72b1909be0a6e9beef55cee46a9265fbc510"
+    "bytes": 6869,
+    "sha256": "7a2eb4e4510dfeee8a67716ce8072f81a73028c63b60fd35ae6e1942e66ac8f2"
   },
   {
     "path": ".kilocode/workflows/cospec-bulk-archive.md",
@@ -140,8 +140,8 @@
     "workflow": "continue",
     "harness": "kilocode",
     "contentHash": null,
-    "bytes": 4766,
-    "sha256": "7ec4405f81c4acff4b5a785f211446b100c7313ac761ee2cebea15f65f24313e"
+    "bytes": 4747,
+    "sha256": "ad03729c701faeb58ad66b3c98fa6c63559cc0780b5988d3b0917cacf01cce72"
   },
   {
     "path": ".kilocode/workflows/cospec-explore.md",
@@ -158,8 +158,8 @@
     "workflow": "ff",
     "harness": "kilocode",
     "contentHash": null,
-    "bytes": 7051,
-    "sha256": "c8f11d35e515126e8d7f1f746deee3621d8ea962aa436201a707d3796cf2b616"
+    "bytes": 7032,
+    "sha256": "3ab87ab74e9524ee9822cbd163966a4c9ec20f411094d4ad13dd22148f539947"
   },
   {
     "path": ".kilocode/workflows/cospec-new.md",
@@ -185,8 +185,8 @@
     "workflow": "propose",
     "harness": "kilocode",
     "contentHash": null,
-    "bytes": 10137,
-    "sha256": "8fcb47ed47d98b572ddfbb3033194e3d827ea1c37e16844754568860ba11c21f"
+    "bytes": 9930,
+    "sha256": "9445fd3405d0b024a376d8d4eee598f9129ef0cc79b3dffa9b932d30d996e4f7"
   },
   {
     "path": ".kilocode/workflows/cospec-sync-specs.md",
@@ -194,8 +194,8 @@
     "workflow": "sync-specs",
     "harness": "kilocode",
     "contentHash": null,
-    "bytes": 5310,
-    "sha256": "0dee036b727d3d6337e207311dfd8e3afe245332852ff26ed4fb1cdfab33efc6"
+    "bytes": 5353,
+    "sha256": "e9e1aebd789970a860969e48ddbe1321d3aade087d0729da15e43acaccc763eb"
   },
   {
     "path": ".kilocode/workflows/cospec-update.md",
@@ -203,8 +203,8 @@
     "workflow": "update",
     "harness": "kilocode",
     "contentHash": null,
-    "bytes": 6305,
-    "sha256": "4fcc1ddff0d9917177c6e4b2f579658d6f7c51189f3545c2cce7c19bc4e77d54"
+    "bytes": 6286,
+    "sha256": "514d78dd9908970f2c42413e24cfa334676a0f5e015400adf63b103dd1e97eb8"
   },
   {
     "path": ".kilocode/workflows/cospec-verify.md",
@@ -212,7 +212,7 @@
     "workflow": "verify",
     "harness": "kilocode",
     "contentHash": null,
-    "bytes": 4847,
-    "sha256": "bb7e93b7828a39745b4d12cf8ed13a547f67baf8db407fd36b04f2b944ee5cb6"
+    "bytes": 4890,
+    "sha256": "90e0adba9f1392dd3bb8a9a327178413ed71832bc79d42e6dc634fd2bc517deb"
   }
 ]

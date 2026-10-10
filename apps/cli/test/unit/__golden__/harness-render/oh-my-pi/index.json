@@ -4,18 +4,18 @@
     "kind": "command",
     "workflow": "apply",
     "harness": "oh-my-pi",
-    "contentHash": "sha256:190de4d6947afbae0808fc78c654d60df2206ee3ca8df2c2255863223be95d7d",
-    "bytes": 6090,
-    "sha256": "c89c1045108511514bd88a0a2ba2a3854d68a51bf4dc5c929b7a60f4754fb551"
+    "contentHash": "sha256:20338d7799c34f469e11f69d8e8ee501b48a03a0eb2e057bc7806ef1f0d61c66",
+    "bytes": 6133,
+    "sha256": "cffb76c2c793a3b45ee0e8b4be6c8842006ae45c7874411f8c3e9a66fcd41ec5"
   },
   {
     "path": ".omp/commands/cospec-archive.md",
     "kind": "command",
     "workflow": "archive",
     "harness": "oh-my-pi",
-    "contentHash": "sha256:9a57c760323a6fea248abc70d75e7c530493c1bb82e17912435d068199aef582",
-    "bytes": 7169,
-    "sha256": "f74b51b5672a0d8cadcda1236eb7c39fb60c4a874a256bf6c6dc67ca871d5357"
+    "contentHash": "sha256:6f453637a39bef919b02ac3be8b42802c3d3fd1e66664777c3b4dc19ef7509c2",
+    "bytes": 7212,
+    "sha256": "8a835bfce237075fc75dc4df2148896c7c913d38415c11ed1dd6919c9809848d"
   },
   {
     "path": ".omp/commands/cospec-bulk-archive.md",
@@ -31,9 +31,9 @@
     "kind": "command",
     "workflow": "continue",
     "harness": "oh-my-pi",
-    "contentHash": "sha256:7a2f096a7efe4be4a3cec73049d1624fda1a232cdf2ff4a2466ac77f8049f4a7",
-    "bytes": 5095,
-    "sha256": "3b50602accdca4daf6c2565771a3710bb662aee65141ef71dd276e267c0c3123"
+    "contentHash": "sha256:cc210d676f162ae6b6b93706e5c4b49699f83add2ff5207f52750f215d9bb4c1",
+    "bytes": 5076,
+    "sha256": "054ed4321ccc100d247ed8be70e6ac85453758bf27034ebcac490113cef207a8"
   },
   {
     "path": ".omp/commands/cospec-explore.md",
@@ -49,9 +49,9 @@
     "kind": "command",
     "workflow": "ff",
     "harness": "oh-my-pi",
-    "contentHash": "sha256:47e30d80bb4999146015219b890345350a9d310f1163128e002637e38f2def3d",
-    "bytes": 7416,
-    "sha256": "30a12a0cd592f565ae9424e6143d920e49276c8ceed6f54ec586ad896a07a666"
+    "contentHash": "sha256:183c056dfe0329c8a5722a778a92e9937a6bf3b557c0a916d59d16fecd9db54e",
+    "bytes": 7397,
+    "sha256": "e0115dedae10711da819c15401bc61efe8e786a5450a470cdd371fe43c17b64e"
   },
   {
     "path": ".omp/commands/cospec-new.md",
@@ -76,54 +76,54 @@
     "kind": "command",
     "workflow": "propose",
     "harness": "oh-my-pi",
-    "contentHash": "sha256:9c5769685d5f72079ba6190d78bf72a432ed6e3a999a4a217da8bfc697a55b6e",
-    "bytes": 10484,
-    "sha256": "f1a3fece8c014d2247cdf2d201cdfa32e14218f2517dd55dec718377cd9eaf1c"
+    "contentHash": "sha256:807fe7bc9fb727a164eeaab14d743aa2c48cf62c91e81c4b9411a882b83095b5",
+    "bytes": 10277,
+    "sha256": "2d12e2491f560ba86b0dba281860f16895deb8407d52ecd120c39ccf78eac1e4"
   },
   {
     "path": ".omp/commands/cospec-sync-specs.md",
     "kind": "command",
     "workflow": "sync-specs",
     "harness": "oh-my-pi",
-    "contentHash": "sha256:93dc2e803b6acd4664f5206f94ca6b3dede9947b02b011fcfee15dad6d677d66",
-    "bytes": 5685,
-    "sha256": "f4856418a6a270f132fb1c3152c583f65678cfc97d6d4dbfaff71d19811da43b"
+    "contentHash": "sha256:327de15c939dff72d241eacddc913322919959bdb3380aa96b57fa8edf36e816",
+    "bytes": 5728,
+    "sha256": "34d1aeaa6e0434e7b4c812c620087dc720f9e27c9d116578ad2346992803a252"
   },
   {
     "path": ".omp/commands/cospec-update.md",
     "kind": "command",
     "workflow": "update",
     "harness": "oh-my-pi",
-    "contentHash": "sha256:79837e2598d0416a3ae209ace1f19c5fe135bef590dfbdea9e0a8e383c6ecced",
-    "bytes": 6870,
-    "sha256": "f35ed503607dedb25a4f0b6685327240bfb76d2c014451f9b1db9636095d8714"
+    "contentHash": "sha256:76becbffa7abad5f71acc2a223d28cb9db6a2bae19b42a334a0a3d309c67c65a",
+    "bytes": 6851,
+    "sha256": "ee761afa6cb1d92567ede0831d24f433726b4385f5f0157299405c7b17c9e351"
   },
   {
     "path": ".omp/commands/cospec-verify.md",
     "kind": "command",
     "workflow": "verify",
     "harness": "oh-my-pi",
-    "contentHash": "sha256:c8230d429a0228654cb20f55b76072de0eaea8b07dbc6d4f0f2937af3aff2565",
-    "bytes": 5231,
-    "sha256": "8524a00078c7b99f95934c7ff254af1c54b18a420e31aa1e55cf6b3ad0333f05"
+    "contentHash": "sha256:f19f47e5a53dd3940188606f7272e90b5e9b75102820343a44932ab6b2037dd4",
+    "bytes": 5274,
+    "sha256": "6294a07d42a37bc7ab2a6ae2a2b9ac9f0b2572b3e476864b3f1456b80353a536"
   },
   {
     "path": ".omp/skills/cospec-apply-change/SKILL.md",
     "kind": "skill",
     "workflow": "apply",
     "harness": "oh-my-pi",
-    "contentHash": "sha256:6285d73f7aa3179f2821c5521ed7ff9e3a3420cbc531034ffe45f42ad5d82553",
-    "bytes": 6164,
-    "sha256": "095f635cab79ec3b48414aa6a53dffd3d6c24c3faf99c0b30bf3cee055b5dc79"
+    "contentHash": "sha256:beca9525bfb14e05457e411c750775c8c627bcb4f7a39dce5ece2f6606cd81bb",
+    "bytes": 6207,
+    "sha256": "e32e2cc1d8f5f077e359ec717aa70aceb0c660b413caea6c98b647b3a59d3230"
   },
   {
     "path": ".omp/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "oh-my-pi",
-    "contentHash": "sha256:6d76ad87a80685c2bbcb2430eece980a300bf8fc09e87d2a8a9efaef7c4685ba",
-    "bytes": 7245,
-    "sha256": "7e832c3b5a8631782bb84ae08e1e23972495b9c7692cb61cb38498d37af6e762"
+    "contentHash": "sha256:6a557cabdefacf87f0dc0d81af1a83adf0bb1395e8a03609dbcc9d7a78b9c4b2",
+    "bytes": 7288,
+    "sha256": "08d10110a8ed8a972faefbd3453b2835961012141075d7b992f7e7cc727a5cb8"
   },
   {
     "path": ".omp/skills/cospec-bulk-archive-change/SKILL.md",
@@ -139,9 +139,9 @@
     "kind": "skill",
     "workflow": "continue",
     "harness": "oh-my-pi",
-    "contentHash": "sha256:ebd9a49f663c00343bdc6742a8dcf35cea5d02666c8d6152e624a659fc596c82",
-    "bytes": 5172,
-    "sha256": "85960c414f720154f0807674fcb8aee3ea5a5d9ee3d4579c4c41e500132ce33a"
+    "contentHash": "sha256:1982b017073af0ee9e2fcf93d1603cfba8d7e423647314f60ea1f6a383b1e399",
+    "bytes": 5153,
+    "sha256": "c8195d967a50b0b428e606c1fdd5c2a171448c6c178018d81bfbae118ae79252"
   },
   {
     "path": ".omp/skills/cospec-explore/SKILL.md",
@@ -157,9 +157,9 @@
     "kind": "skill",
     "workflow": "ff",
     "harness": "oh-my-pi",
-    "contentHash": "sha256:de695a7fecb5c6cbd6813c0102f51cac4c479ab607addb7b364a65a764ad86d6",
-    "bytes": 7487,
-    "sha256": "3532d4cc3374bcbe925355e2ec46f889f9d0da29d4cce5eb692982e440d20f0a"
+    "contentHash": "sha256:fd181273cbfd35a43472a5ce82adf8ecb551ca214128814431908827d90c9878",
+    "bytes": 7468,
+    "sha256": "fce656b5f175622387f6c90d67f6bfc177679d5f34ce1a08c5693b1f68265cbc"
   },
   {
     "path": ".omp/skills/cospec-new-change/SKILL.md",
@@ -184,35 +184,35 @@
     "kind": "skill",
     "workflow": "propose",
     "harness": "oh-my-pi",
-    "contentHash": "sha256:b0cace6d8ff2fec2f089ba1bf7374a7910e6a97895679d291e1d515e610303e1",
-    "bytes": 10553,
-    "sha256": "1aa493977cb69cce230c1c73b33284f6a4b4cff98e52b2c843a82641e0a66bb1"
+    "contentHash": "sha256:e1d4365c02f4cdf229e041faee431076055a12cccd565940846c40987a4500b4",
+    "bytes": 10346,
+    "sha256": "c5d4cfa790634e3766f59e045080e1585d05a953cf8a5887fccf75c7285268f1"
   },
   {
     "path": ".omp/skills/cospec-sync-specs/SKILL.md",
     "kind": "skill",
     "workflow": "sync-specs",
     "harness": "oh-my-pi",
-    "contentHash": "sha256:ac413fa02b1f434c90a30ef7d4984ae6819c23f8c347a453c9398b98a536c342",
-    "bytes": 5757,
-    "sha256": "22f400c4bb31ae0f472e1369902e7c57f7dc50fadfc9b8f01f3f9b9a600ba4ef"
+    "contentHash": "sha256:5d452b2bc2b61597d8ef08c0522a5465e6be741de1fbb7f4c82a9486eb5f1818",
+    "bytes": 5800,
+    "sha256": "c301ca5dcb6a6dbb5ed74ee23ecdcb1c05fc51154d3f88734379de618c2758fc"
   },
   {
     "path": ".omp/skills/cospec-update-change/SKILL.md",
     "kind": "skill",
     "workflow": "update",
     "harness": "oh-my-pi",
-    "contentHash": "sha256:d1c69830577e9973772f027e4df65c1b96a69ceacd07e3be2bcef532b73639fa",
-    "bytes": 6945,
-    "sha256": "a3305aab0a941a5a6b64febc61b12bb2eeecceeeda5403debd3c118adf8dbdff"
+    "contentHash": "sha256:387d8cfcde216c42a943f9eec1e378f5b1728c4a5ed8a13ee693b55bdd2c64ac",
+    "bytes": 6926,
+    "sha256": "26e48327388fbb01f168e5cf01e78fbb03fa296a4462d1203579b29882fbb105"
   },
   {
     "path": ".omp/skills/cospec-verify-change/SKILL.md",
     "kind": "skill",
     "workflow": "verify",
     "harness": "oh-my-pi",
-    "contentHash": "sha256:5651f41f2bf2909e821f522abe668500e6c50f763f02c9864cebf2b266c4b565",
-    "bytes": 5306,
-    "sha256": "319399a79902d847ea1b52138e1358c45ccdd9bee968ebb85b8813f0ccaa40b7"
+    "contentHash": "sha256:7e43ab522cae4feec756cdaa997e23255cf5f418cfdebbea8d03bb13771a1fde",
+    "bytes": 5349,
+    "sha256": "67bcc9ace49574fd3e03998e9f54f7cedc2d7f731f6702e2051ebfb93a14029d"
   }
 ]

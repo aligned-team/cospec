@@ -226,41 +226,66 @@
 
 ## 8. T7 callers, provenance and the ad hoc prose
 
-- [ ] 8.1 Add rows first, as `test.failing`: every body carries exactly one
+- [x] 8.1 Add rows first, as `test.failing`: every body carries exactly one
       `{{ROOT_GUARD}}` and, once rendered, one copy of the fragment; no body
       keeps its own grounding or picker prose; every workflow has a `ported:`
       list with the root-guard and change-picker entries and each passage of
       this change on the workflow that carries it; a contract row checks each
       `file` exists in the pinned dist and each `pin` is the pinned version and
       lists the entries to re-diff on a mismatch; `ported:` never reaches a
-      generated file -> the rows fail.
-- [ ] 8.2 Add the token to all twelve bodies after the opening paragraph and
+      generated file -> the rows fail. Observed: rows landed first as
+      `test.failing` in `test/unit/canon-render.test.ts` and
+      `test/contract/ported-provenance.test.ts` (commit `1c11a14f`); the
+      targeted run passed with every new row failing for the intended reason.
+- [x] 8.2 Add the token to all twelve bodies after the opening paragraph and
       replace each body's ad hoc grounding (`propose` step 1, the "Select the
       change" paragraphs of `apply`, `archive`, `sync-specs`, `verify`,
       `update`, `continue` and `ff`, `explore`'s context bullet), keeping
       sole-change auto-select and the `Using change:` announcement -> the 8.1
       body rows pass and the living `harness-workflows` scenarios for
       auto-select and for `explore` and `propose` reading
-      `cospec context --json` still hold.
-- [ ] 8.3 Add `ported:` to every workflow in `harness.yaml`, `PortedPassage` and
+      `cospec context --json` still hold. Observed: the token was already in all
+      twelve bodies from group 2; the ad hoc selection and no-root prose of
+      `apply`, `archive`, `sync-specs`, `verify`, `update`, `continue`, `ff` and
+      `propose` now points at the fragment, keeping `Using change: <slug>`;
+      `explore` keeps `cospec context --json` as a tool and is unchanged; the
+      8.1 body rows pass and the propose and explore `cospec context --json` row
+      still holds.
+- [x] 8.3 Add `ported:` to every workflow in `harness.yaml`, `PortedPassage` and
       `WorkflowDef.ported` to `harness/adapters.ts`, and a shape check in
       `readWorkflowManifest` -> the provenance rows pass and are flipped, and
-      `mise run typecheck` exits 0.
+      `mise run typecheck` exits 0. Observed: `harness.yaml` records
+      `root-guard` and `change-picker` on all twelve beside each workflow's own
+      passages; `PortedPassage` and `WorkflowDef.ported` are in
+      `harness/adapters.ts`; `readWorkflowManifest` refuses a non-list or an
+      entry without `passage`, `file` or `pin`, naming the workflow; the
+      provenance rows are flipped, `ported-provenance.test.ts` finds every
+      `file` in the pinned dist at pin 1.13.1, and `mise run typecheck` exits 0.
 
 ## 9. T8 render goldens
 
-- [ ] 9.1 Regenerate the render goldens on purpose with
+- [x] 9.1 Regenerate the render goldens on purpose with
       `COSPEC_GOLDEN_WRITE=1 bun test test/unit/harness-render.test.ts` and
       review the diff -> only the twelve bodies' text and the hashes that cover
       it moved, no path was added or removed, and the plain
-      `bun test test/unit/harness-render.test.ts` passes.
-- [ ] 9.2 Run `mise run generate` and `mise run generate:check` to regenerate
+      `bun test test/unit/harness-render.test.ts` passes. Observed:
+      `COSPEC_GOLDEN_WRITE=1 bun test test/unit/harness-render.test.ts` rewrote
+      the goldens; the diff moved only the picker-pointer prose of eight bodies
+      and the `contentHash` values that cover it, no path was added or removed,
+      and the plain run passes. The `harness/render.test.ts` snapshots and the
+      contract harness-matrix goldens moved the same way.
+- [x] 9.2 Run `mise run generate` and `mise run generate:check` to regenerate
       this repo's own managed harness files -> `generate:check` exits 0 and the
       regenerated `.claude/skills/cospec-*` bodies hold one copy of the
-      fragment.
-- [ ] 9.3 Flip every remaining `test.failing` row in the two T8 files and run
+      fragment. Observed: `mise run generate` regenerated the managed
+      `.claude/`, `.agents/` and `.opencode/` bodies and
+      `mise run generate:check` reports no drift; each body holds one copy of
+      the fragment.
+- [x] 9.3 Flip every remaining `test.failing` row in the two T8 files and run
       `mise run test` and `mise run test:contract` -> both exit 0 with no
-      `test.failing` left for this change.
+      `test.failing` left for this change. Observed: no `test.failing` is left
+      in the two T8 files; `mise run test` passes (3081 pass, 0 fail) and the
+      contract harness-matrix and provenance rows pass (46 pass, 0 fail).
 
 ## 10. T9 the tasks guidance never produces an archive task
 

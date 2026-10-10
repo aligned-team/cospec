@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.10.0
-  contentHash: sha256:5e30183c2866dd03790675de41c14e5a3c4c134fff90d08c122c3bfbfbadfc81
+  contentHash: sha256:a5eb53036fc16f028817f329f5ebfe06a90b321e43405660c0643c9429eedc99
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -69,8 +69,8 @@ cospec list --json
 
 If the user named a change, use it. If exactly one active change exists, use it
 and announce `Using change: <slug>`, naming `$cospec-continue-change (Codex) or /cospec-continue-change (other agents) <other-slug>` as
-the override. If more than one is plausible, ask the user which one, showing
-each change's type and gate state.
+the override. When several active changes exist, choose as **Choosing a change**
+above says.
 
 ## 2. Find what is missing
 

@@ -4,14 +4,14 @@
     "kind": "skill",
     "workflow": "apply",
     "harness": "codex",
-    "contentHash": "sha256:93bb0861c9a2fe83db7f48dcd8c0169aebe21eb27d9c8effcfc3c49bc5dbac1f"
+    "contentHash": "sha256:b93bac47347571b5aff31792b899f82ec83d47e693f72ec743fcbb468b723760"
   },
   {
     "path": ".agents/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "codex",
-    "contentHash": "sha256:bde5d88c6a73ca5b2f82c6ec79baf36b3fafaedd58778d5cdd78674f8100eee8"
+    "contentHash": "sha256:0056961a60fb49d8cb3633e04c2d805d6d1859825f71b6516b5ea4a6ef424cdc"
   },
   {
     "path": ".agents/skills/cospec-bulk-archive-change/SKILL.md",
@@ -25,7 +25,7 @@
     "kind": "skill",
     "workflow": "continue",
     "harness": "codex",
-    "contentHash": "sha256:5e30183c2866dd03790675de41c14e5a3c4c134fff90d08c122c3bfbfbadfc81"
+    "contentHash": "sha256:a5eb53036fc16f028817f329f5ebfe06a90b321e43405660c0643c9429eedc99"
   },
   {
     "path": ".agents/skills/cospec-explore/SKILL.md",
@@ -39,7 +39,7 @@
     "kind": "skill",
     "workflow": "ff",
     "harness": "codex",
-    "contentHash": "sha256:8afc95693415d2f288efe40c1123673feb83cdb74af489d8da7b2dc226cc7240"
+    "contentHash": "sha256:f8ee617d91393764b3df71ae897306792a81d0f19201bf9a34d0bc4e596c064e"
   },
   {
     "path": ".agents/skills/cospec-new-change/SKILL.md",
@@ -60,28 +60,28 @@
     "kind": "skill",
     "workflow": "propose",
     "harness": "codex",
-    "contentHash": "sha256:3fb0299a3fd4eba8f97c80a329efc89216ee061134bf256855fccb9bca47e325"
+    "contentHash": "sha256:21c04eeedd3e2e38696a65740fd35ec60140f3111a1a0d08c0c01e1b1324ffb7"
   },
   {
     "path": ".agents/skills/cospec-sync-specs/SKILL.md",
     "kind": "skill",
     "workflow": "sync-specs",
     "harness": "codex",
-    "contentHash": "sha256:a27eaf42cc9bb1fbb5328f94212f049af4369f8f65f0e3c181cbd88c212163c0"
+    "contentHash": "sha256:e73f549ac7f17e80a53ecf5dcbb778d72d4051a339f48ea82114792b593be9bb"
   },
   {
     "path": ".agents/skills/cospec-update-change/SKILL.md",
     "kind": "skill",
     "workflow": "update",
     "harness": "codex",
-    "contentHash": "sha256:dfc27a414737ed483c1fe993b7bba2589095007a86a1711a685037811e26bf2c"
+    "contentHash": "sha256:5c4c117b99666dcd017b9260add2d923750b4bac4db4fcf3319f9a0ebb3c737c"
   },
   {
     "path": ".agents/skills/cospec-verify-change/SKILL.md",
     "kind": "skill",
     "workflow": "verify",
     "harness": "codex",
-    "contentHash": "sha256:ceb3a636b7e30fea6864d98f4495af3911545dfa518688315cae94b244eb64e8"
+    "contentHash": "sha256:489ce69c23039933c59332ef8de073a9df743138744e929a5f120c4fec083941"
   },
   {
     "path": ".codex/rules/cospec.rules",

@@ -118,7 +118,26 @@ export interface WorkflowManifest {
 export function readWorkflowManifest(canonDir?: string): WorkflowManifest {
   const file =
     canonDir === undefined ? canonFile('workflows/harness.yaml') : join(canonDir, 'harness.yaml')
-  return parse(readFileSync(file, 'utf8')) as WorkflowManifest
+  const manifest = parse(readFileSync(file, 'utf8')) as WorkflowManifest
+  for (const w of manifest.workflows) checkPorted(w)
+  return manifest
+}
+
+/** A `ported:` list is provenance, so a malformed one is a canon bug the read refuses. */
+function checkPorted(w: WorkflowDef): void {
+  const ported: unknown = w.ported
+  if (ported === undefined) return
+  if (!Array.isArray(ported)) {
+    throw new Error(`workflow '${w.id}': ported must be a list of { passage, file, pin } entries`)
+  }
+  ported.forEach((entry: unknown, i) => {
+    for (const key of ['passage', 'file', 'pin'] as const) {
+      const value = (entry as Record<string, unknown> | null)?.[key]
+      if (typeof value !== 'string' || value === '') {
+        throw new Error(`workflow '${w.id}': ported[${i}] needs a non-empty string ${key}`)
+      }
+    }
+  })
 }
 
 /** Workflow id → skill dir name, the map `transformBody`'s shared dialect spells with. */

@@ -3,7 +3,7 @@ description: Run the apply gate for a change and implement its tasks, obeying th
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:852339dc4f340365330bf05130689409283afae3fcfde05f5a5110697957dd27
+  contentHash: sha256:9fe5d010a326b70a28a1be28aec1230c47324ed7341f53647ef959b87a0c244d
 ---
 
 Run the deterministic apply gate for a change, then implement its tasks. The
@@ -59,8 +59,8 @@ guess.
 ## 1. Select the change
 
 If the user named one, use it. Otherwise run `cospec list --json`: if exactly
-one active change exists, use it and announce `Using change: <slug>`; if more
-than one is plausible, ask.
+one active change exists, use it and announce `Using change: <slug>`. When
+several active changes exist, choose as **Choosing a change** above says.
 
 ## 2. Run the gate
 

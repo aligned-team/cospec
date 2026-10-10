@@ -8,7 +8,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@0.10.0
-  contentHash: sha256:36aa897458aa3590a8c78ef87f1df5c50a5610a9bc637276d3ed75bc98357723
+  contentHash: sha256:2463f2a0fbdaeb95f04ae1e5b6034352624171d465f9c027640838cdc13ffba2
 ---
 
 Fast-forward an already-scaffolded change: author every remaining artifact in
@@ -78,8 +78,8 @@ cospec list --json
 ```
 
 If the user named a change, use it. If exactly one active change exists, use it
-and announce `Using change: <slug>`. If more than one is plausible, ask the user
-which one, showing each change's type and gate state.
+and announce `Using change: <slug>`. When several active changes exist, choose as
+**Choosing a change** above says.
 
 ## 2. Read the plan
 

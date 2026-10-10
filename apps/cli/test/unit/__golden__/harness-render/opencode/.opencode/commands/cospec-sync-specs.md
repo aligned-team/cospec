@@ -3,7 +3,7 @@ description: Merge a change's delta specs into the main specs without archiving 
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:f6264d1d81246ebeb434e1b4532892070816937897fc92cc918dd50ad734564b
+  contentHash: sha256:e9b6e390f9cb617b136b81516e8f3426e47c34dfa069dfd8e233e528fda77033
 ---
 
 Merge a change's delta specs into the main specs under `openspec/specs/` without
@@ -62,8 +62,8 @@ guess.
 ## 1. Select the change
 
 If the user named one, use it. Otherwise run `cospec list --json`: if exactly
-one active change exists, use it and announce `Using change: <slug>`; if more
-than one is plausible, ask.
+one active change exists, use it and announce `Using change: <slug>`. When
+several active changes exist, choose as **Choosing a change** above says.
 
 ## 2. Preview the merge
 

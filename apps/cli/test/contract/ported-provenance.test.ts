@@ -16,7 +16,7 @@ const describeEntry = (e: (typeof entries)[number]): string =>
   `${e.workflow}: ${e.passage} (${e.file} @ ${e.pin})`
 
 describe('ported provenance against the pinned dist', () => {
-  test.failing('every workflow records at least its fragment passages', () => {
+  test('every workflow records at least its fragment passages', () => {
     for (const w of readWorkflowManifest().workflows) {
       const ids = (w.ported ?? []).map((p) => p.passage)
       expect(ids).toContain('root-guard')

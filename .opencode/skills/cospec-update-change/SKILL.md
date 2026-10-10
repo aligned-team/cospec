@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.10.0
-  contentHash: sha256:d1c69830577e9973772f027e4df65c1b96a69ceacd07e3be2bcef532b73639fa
+  contentHash: sha256:387d8cfcde216c42a943f9eec1e378f5b1728c4a5ed8a13ee693b55bdd2c64ac
 ---
 
 Revise a change's **existing** artifacts and keep them coherent with one
@@ -69,8 +69,8 @@ guess.
 
 If the user named one, use it. Otherwise run `cospec list --json`. If exactly
 one active change exists, use it and announce `Using change: <slug>`, naming
-`/cospec-update <other-slug>` as the override. If more than one is plausible,
-ask the user which one, showing each change's type and gate state.
+`/cospec-update <other-slug>` as the override. When several active changes exist,
+choose as **Choosing a change** above says.
 
 ## 2. Read what exists
 

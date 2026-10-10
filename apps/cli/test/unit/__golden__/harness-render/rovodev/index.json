@@ -4,18 +4,18 @@
     "kind": "skill",
     "workflow": "apply",
     "harness": "rovodev",
-    "contentHash": "sha256:22c5b55955a018b2a213606cf6e3aa1b8ac5e2c3a43b8ca649f186ccde23390d",
-    "bytes": 6180,
-    "sha256": "054ceff9d73440db46b8225b408428ce4416e4196e4b9821d8e5b86418469ef9"
+    "contentHash": "sha256:9ad04e8bcfe9a5819583bae5d3f3ef7fe13d1c82c2b27530c4cde393128a78b7",
+    "bytes": 6223,
+    "sha256": "b58da4f5f575681cd3e131aa2affea7bb5b02f9f8df5565155687da80e8f6b24"
   },
   {
     "path": ".rovodev/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "rovodev",
-    "contentHash": "sha256:6e4c417e581312807e0325a9e75c02028e80fb0df08fec33b24db1af9e305a00",
-    "bytes": 7270,
-    "sha256": "1c87af01a876921ee3667baf9b114a149c39e61489d9c0b45680bb923fffedee"
+    "contentHash": "sha256:8955fdd656d1c936af9ead772e070e68f53b0f5d596b95afbb4f71294d37d425",
+    "bytes": 7313,
+    "sha256": "a588ab77aef09ef4054ea5cc6e78885490c1d92506a8efe8c9074fbca754993b"
   },
   {
     "path": ".rovodev/skills/cospec-bulk-archive-change/SKILL.md",
@@ -31,9 +31,9 @@
     "kind": "skill",
     "workflow": "continue",
     "harness": "rovodev",
-    "contentHash": "sha256:1bdfd2ca34e961f9101dcc44d01f3969f16b36fe7373f094e0a95b3a0b2f7f76",
-    "bytes": 5213,
-    "sha256": "60fe6009df824bf7577d821fc6f4bd2dedcfe30ec17cedf66474fc3a20636e45"
+    "contentHash": "sha256:06bcbd9579c3c9fc8a32fe03794701382c96d46d3aca3ac5327a2b451a122dc3",
+    "bytes": 5194,
+    "sha256": "7290bfde6c9c69ba22f3adad1d0362e8bbf158e7e96c71794426669ef1e3bbaf"
   },
   {
     "path": ".rovodev/skills/cospec-explore/SKILL.md",
@@ -49,9 +49,9 @@
     "kind": "skill",
     "workflow": "ff",
     "harness": "rovodev",
-    "contentHash": "sha256:dd8e935b19aa4c4c4915d79d3509a0db36c0707f9f504f27184ac288df91db94",
-    "bytes": 7535,
-    "sha256": "f8b53b1c0cccc567237f13c404605f3f30543f8c08011de04cfd2c0cb507a117"
+    "contentHash": "sha256:b463259c8857313013e3d12209ff11cf4dda8aab20dc6743e18416a9efc78d92",
+    "bytes": 7516,
+    "sha256": "ba15b1249ca43fd63daa770157b4a90a245836720ca2c73ed5927399d6f25123"
   },
   {
     "path": ".rovodev/skills/cospec-new-change/SKILL.md",
@@ -76,35 +76,35 @@
     "kind": "skill",
     "workflow": "propose",
     "harness": "rovodev",
-    "contentHash": "sha256:f7b7c3ed1e67ae639ec9648acea97fe432a17e1a1d11db866e7ab22ce56e6a54",
-    "bytes": 10569,
-    "sha256": "06a793996b3971f36a136592a96a45390b252b8d5507846aaedf09502726668b"
+    "contentHash": "sha256:a2e52a571c059db2ee7491d41fb142c9ba1d66f03ad33efa0cbde9a3da9d5ccf",
+    "bytes": 10362,
+    "sha256": "96656462656a5849dd6c55714672c2205d0964c9f9fe0854a4019fc203c78fd3"
   },
   {
     "path": ".rovodev/skills/cospec-sync-specs/SKILL.md",
     "kind": "skill",
     "workflow": "sync-specs",
     "harness": "rovodev",
-    "contentHash": "sha256:da82e8990085297b76e037477b4e8a54959f4679ca9715dcc7d77854d024aeff",
-    "bytes": 5773,
-    "sha256": "73c7be11a2446c6edcb981dc4a637732ccd50ce43a1624362d6e53e7266f2004"
+    "contentHash": "sha256:d3618cae80897d463433b9ab7945e6e114d84e61b4c0d31a4ee06d27fd948635",
+    "bytes": 5816,
+    "sha256": "9091a6fa1e28e5d1cb386be1a3ce3cb881f2c70c84563c5dd1d887e71e05c8ae"
   },
   {
     "path": ".rovodev/skills/cospec-update-change/SKILL.md",
     "kind": "skill",
     "workflow": "update",
     "harness": "rovodev",
-    "contentHash": "sha256:746bf8c7bac28d03ad091d6b2a9555f8006dc25183a5fdd708ff38db6ddd36c8",
-    "bytes": 7121,
-    "sha256": "78f20f1b80f94b0337700f17b2757e258f6f8651cdfd9a82592ddbf0b713bf6d"
+    "contentHash": "sha256:bd24cde40dbfb183bba732df8925bb6fc19d43e46109fb456ade09679196c30b",
+    "bytes": 7102,
+    "sha256": "5f392c2878af2b2034058b6b31c2357ef0599ee0b042594a5d51737cc2047000"
   },
   {
     "path": ".rovodev/skills/cospec-verify-change/SKILL.md",
     "kind": "skill",
     "workflow": "verify",
     "harness": "rovodev",
-    "contentHash": "sha256:6ee2d1571e9423c30dadf6cec84d06ae15c5e3e2343c2020d5111ef30c8e7e39",
-    "bytes": 5354,
-    "sha256": "fd5cc6aabe7aaf2261651e234cba618bbcdb688eb82a59c5976cfffcd4be777f"
+    "contentHash": "sha256:0c6ba2099b5249dc2943753ecb782d9ec186c475f4e8da22c879eb727c2bc3a5",
+    "bytes": 5397,
+    "sha256": "230d4f6fb5e7ae05dc9e3a6924f598746f3a214cc72f1736c78aedc331f306b7"
   }
 ]

@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:8afc95693415d2f288efe40c1123673feb83cdb74af489d8da7b2dc226cc7240
+  contentHash: sha256:f8ee617d91393764b3df71ae897306792a81d0f19201bf9a34d0bc4e596c064e
 ---
 
 Fast-forward an already-scaffolded change: author every remaining artifact in
@@ -76,8 +76,8 @@ cospec list --json
 ```
 
 If the user named a change, use it. If exactly one active change exists, use it
-and announce `Using change: <slug>`. If more than one is plausible, ask the user
-which one, showing each change's type and gate state.
+and announce `Using change: <slug>`. When several active changes exist, choose as
+**Choosing a change** above says.
 
 ## 2. Read the plan
 

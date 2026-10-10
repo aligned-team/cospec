@@ -3,7 +3,7 @@ description: Propose a new change and generate every artifact its type requires,
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:9c5769685d5f72079ba6190d78bf72a432ed6e3a999a4a217da8bfc697a55b6e
+  contentHash: sha256:807fe7bc9fb727a164eeaab14d743aa2c48cf62c91e81c4b9411a882b83095b5
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -83,11 +83,8 @@ around looking for one. That output describes the project root and its
 registered stores — it never lists this project's own changes, so do not read it
 for what is in flight.
 
-If it does not resolve a root, stop there. Report what the command said and ask
-the user how they want to proceed. Do NOT run `cospec init` on your own, do NOT
-fall back to the current working directory, and do NOT run `cospec new` anyway —
-an `openspec/` tree must never appear as a side effect of a workflow the user
-asked for a proposal in.
+If it does not resolve a root, what happens next is the **Project check** above's
+call. Do not fall back to the current working directory.
 
 Then run:
 

@@ -3,7 +3,7 @@ description: Author every remaining artifact on an already-scaffolded change in 
 metadata:
   author: cospec
   generatedBy: cospec@0.10.0
-  contentHash: sha256:470e7c0fcd38dc03a0d3e8371c66c97b566ec9291d9eeaaf75c33f4e016085f9
+  contentHash: sha256:d56d5fe05f13e9b8809c7b008f846dd9b154ddf7a18af51957a14a865cadda35
 ---
 
 Fast-forward an already-scaffolded change: author every remaining artifact in
@@ -75,8 +75,8 @@ cospec list --json
 ```
 
 If the user named a change, use it. If exactly one active change exists, use it
-and announce `Using change: <slug>`. If more than one is plausible, ask the user
-which one, showing each change's type and gate state.
+and announce `Using change: <slug>`. When several active changes exist, choose as
+**Choosing a change** above says.
 
 ## 2. Read the plan
 

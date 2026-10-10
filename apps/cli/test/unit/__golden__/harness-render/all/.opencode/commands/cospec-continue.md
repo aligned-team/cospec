@@ -3,7 +3,7 @@ description: Resume a partially-built change and finish its remaining artifacts.
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:75dccc19699fc3da008688c4cc01ea6ccf1c639f1ab8f2895f1f315c933b7482
+  contentHash: sha256:962a94c85a74e73206c82be164882aa3f7a3c0f214657ece49e7bcc1572116ba
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -68,8 +68,8 @@ cospec list --json
 
 If the user named a change, use it. If exactly one active change exists, use it
 and announce `Using change: <slug>`, naming `/cospec-continue <other-slug>` as
-the override. If more than one is plausible, ask the user which one, showing
-each change's type and gate state.
+the override. When several active changes exist, choose as **Choosing a change**
+above says.
 
 ## 2. Find what is missing
 

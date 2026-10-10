@@ -3,7 +3,7 @@ description: Dress-rehearse a change before archiving — validate strictly, wal
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:93fa57ce891a3ff91236809878da4e7b0396f663744c7a8f666974f7531cea1d
+  contentHash: sha256:1c986f3864400ce5f9a8cc47eb82fb3535f056d985a9576be68c93fa3052eec6
 ---
 
 Dress-rehearse a change before archiving it. This workflow does not archive — it
@@ -62,8 +62,8 @@ guess.
 ## 1. Select the change
 
 If the user named one, use it. Otherwise run `cospec list --json`: if exactly
-one active change exists, use it and announce `Using change: <slug>`; if more
-than one is plausible, ask.
+one active change exists, use it and announce `Using change: <slug>`. When
+several active changes exist, choose as **Choosing a change** above says.
 
 ## 2. Validate
 

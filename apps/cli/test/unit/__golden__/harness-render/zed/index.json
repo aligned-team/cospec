@@ -4,18 +4,18 @@
     "kind": "skill",
     "workflow": "apply",
     "harness": "zed",
-    "contentHash": "sha256:93bb0861c9a2fe83db7f48dcd8c0169aebe21eb27d9c8effcfc3c49bc5dbac1f",
-    "bytes": 6220,
-    "sha256": "9406800d07af1e7d969fc6cfa51667aca77afab7324cc6c132275539c804f75b"
+    "contentHash": "sha256:b93bac47347571b5aff31792b899f82ec83d47e693f72ec743fcbb468b723760",
+    "bytes": 6263,
+    "sha256": "2fc7e0bba48edd761e9dbc4d8ff89dbc3a825aefa7e595a17e05ec0ff638ef33"
   },
   {
     "path": ".agents/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "zed",
-    "contentHash": "sha256:bde5d88c6a73ca5b2f82c6ec79baf36b3fafaedd58778d5cdd78674f8100eee8",
-    "bytes": 7344,
-    "sha256": "2e267a98b57cfa9bfab7611dfe82e01a61414ce6d1876f7d96eb68ae9c7bfc72"
+    "contentHash": "sha256:0056961a60fb49d8cb3633e04c2d805d6d1859825f71b6516b5ea4a6ef424cdc",
+    "bytes": 7387,
+    "sha256": "8637d58a2c1d5135ef5210ff71e78d4a2b0bf62aa9c4deea6e78e864a56ee0f3"
   },
   {
     "path": ".agents/skills/cospec-bulk-archive-change/SKILL.md",
@@ -31,9 +31,9 @@
     "kind": "skill",
     "workflow": "continue",
     "harness": "zed",
-    "contentHash": "sha256:5e30183c2866dd03790675de41c14e5a3c4c134fff90d08c122c3bfbfbadfc81",
-    "bytes": 5325,
-    "sha256": "ef6ee7c3316a47906c9918cff9ad25252717ef855f2d9fb6e4dfba16f0f76b92"
+    "contentHash": "sha256:a5eb53036fc16f028817f329f5ebfe06a90b321e43405660c0643c9429eedc99",
+    "bytes": 5306,
+    "sha256": "3934bb4dc24c07eb147a5bd4a570054c6f469be78bed66fecbc445bf81f582be"
   },
   {
     "path": ".agents/skills/cospec-explore/SKILL.md",
@@ -49,9 +49,9 @@
     "kind": "skill",
     "workflow": "ff",
     "harness": "zed",
-    "contentHash": "sha256:8afc95693415d2f288efe40c1123673feb83cdb74af489d8da7b2dc226cc7240",
-    "bytes": 7645,
-    "sha256": "d47ab9ccf70b482118384f505c3dfd87c36f6d7b2b6140d2bfe6248f5fd96cca"
+    "contentHash": "sha256:f8ee617d91393764b3df71ae897306792a81d0f19201bf9a34d0bc4e596c064e",
+    "bytes": 7626,
+    "sha256": "f13a783c7305f49e27dcb809cba81ca5ea9f9cd2f5b11ecd3c846c48a38c4169"
   },
   {
     "path": ".agents/skills/cospec-new-change/SKILL.md",
@@ -76,35 +76,35 @@
     "kind": "skill",
     "workflow": "propose",
     "harness": "zed",
-    "contentHash": "sha256:3fb0299a3fd4eba8f97c80a329efc89216ee061134bf256855fccb9bca47e325",
-    "bytes": 10607,
-    "sha256": "e294f1da51af54e78690691edef8077b9fd955a96e8ddd4ccd27c1f94d176d9c"
+    "contentHash": "sha256:21c04eeedd3e2e38696a65740fd35ec60140f3111a1a0d08c0c01e1b1324ffb7",
+    "bytes": 10400,
+    "sha256": "61ef620c22cd970b997c1442f3f14a330e952a13f2d315eb5caceb0b9f39797c"
   },
   {
     "path": ".agents/skills/cospec-sync-specs/SKILL.md",
     "kind": "skill",
     "workflow": "sync-specs",
     "harness": "zed",
-    "contentHash": "sha256:a27eaf42cc9bb1fbb5328f94212f049af4369f8f65f0e3c181cbd88c212163c0",
-    "bytes": 5813,
-    "sha256": "9bb3a0875b0cf0c79dddcb38370cff6cd1ee716d17647c70ae32e9738f8a1925"
+    "contentHash": "sha256:e73f549ac7f17e80a53ecf5dcbb778d72d4051a339f48ea82114792b593be9bb",
+    "bytes": 5856,
+    "sha256": "77aa0d1582db1b6110fe61b8a89cf3921b8d0d70be4f26700e3708beb3a2bd86"
   },
   {
     "path": ".agents/skills/cospec-update-change/SKILL.md",
     "kind": "skill",
     "workflow": "update",
     "harness": "zed",
-    "contentHash": "sha256:dfc27a414737ed483c1fe993b7bba2589095007a86a1711a685037811e26bf2c",
-    "bytes": 7553,
-    "sha256": "be87e1e3e2924adbd4d22238d9412418b09c5f31c618c80b44f7f05c29dc26a7"
+    "contentHash": "sha256:5c4c117b99666dcd017b9260add2d923750b4bac4db4fcf3319f9a0ebb3c737c",
+    "bytes": 7534,
+    "sha256": "a3fd9eed30c862daf77c996c75b56c42c051a8c5fae165a8be3ad7294edd8dd1"
   },
   {
     "path": ".agents/skills/cospec-verify-change/SKILL.md",
     "kind": "skill",
     "workflow": "verify",
     "harness": "zed",
-    "contentHash": "sha256:ceb3a636b7e30fea6864d98f4495af3911545dfa518688315cae94b244eb64e8",
-    "bytes": 5474,
-    "sha256": "5c6ed0e911733761ed7ffb6009bcc789d64b583f797635cf9afa5520b75e8281"
+    "contentHash": "sha256:489ce69c23039933c59332ef8de073a9df743138744e929a5f120c4fec083941",
+    "bytes": 5517,
+    "sha256": "64e671638e1cd50e58a145c70b78a3c197c387e6c181e841a1886b14712d4e15"
   }
 ]

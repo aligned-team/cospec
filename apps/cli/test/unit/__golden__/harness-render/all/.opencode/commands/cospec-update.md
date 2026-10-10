@@ -3,7 +3,7 @@ description: Revise an existing change's already-written artifacts and keep them
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:bc861bea0d42bf73dae19325f6d7a616ec7a307e20e564b7eb5743179757b579
+  contentHash: sha256:470ff5b08245444c207e0d840f1f8e9da31d788f89cda0ea78dd52cf99205463
 ---
 
 Revise a change's **existing** artifacts and keep them coherent with one
@@ -68,8 +68,8 @@ guess.
 
 If the user named one, use it. Otherwise run `cospec list --json`. If exactly
 one active change exists, use it and announce `Using change: <slug>`, naming
-`/cospec-update <other-slug>` as the override. If more than one is plausible,
-ask the user which one, showing each change's type and gate state.
+`/cospec-update <other-slug>` as the override. When several active changes exist,
+choose as **Choosing a change** above says.
 
 ## 2. Read what exists
 

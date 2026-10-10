@@ -8,7 +8,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@0.10.0
-  contentHash: sha256:c59f8647de712bfc71ab4771d89fabd5c82c0a020f1cc6818470c5b22c86ccdb
+  contentHash: sha256:c9515a44c9fc336666153213b26f25d157582d4760ed00319a119a33f9b81e76
 ---
 
 Revise a change's **existing** artifacts and keep them coherent with one
@@ -71,8 +71,8 @@ guess.
 
 If the user named one, use it. Otherwise run `cospec list --json`. If exactly
 one active change exists, use it and announce `Using change: <slug>`, naming
-`/cospec:update <other-slug>` as the override. If more than one is plausible,
-ask the user which one, showing each change's type and gate state.
+`/cospec:update <other-slug>` as the override. When several active changes exist,
+choose as **Choosing a change** above says.
 
 ## 2. Read what exists
 

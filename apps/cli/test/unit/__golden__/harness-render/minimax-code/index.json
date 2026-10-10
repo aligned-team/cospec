@@ -4,18 +4,18 @@
     "kind": "skill",
     "workflow": "apply",
     "harness": "minimax-code",
-    "contentHash": "sha256:3875c2cb30c4524c19b838afcfce48a6fa29a3a203bbf37545c40c4ed14cb25f",
-    "bytes": 6171,
-    "sha256": "0540d8743a960b7b342e8e5e80e2fb5d77b4b8e109dca7c6fc1d0ccee4679143"
+    "contentHash": "sha256:f63a84d30cae975d76c66398b115d8e1c3512057aea53a3c3a52a223e869b58e",
+    "bytes": 6214,
+    "sha256": "826ae326779b7a9abbad87427beb795b74ac5d4bbeaee64fa9c01ba8146a6db4"
   },
   {
     "path": ".minimax/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "minimax-code",
-    "contentHash": "sha256:e0eca70867fe487f6a66ad3d757103664ad2febb05f6b7e2c9f32d52509c75ce",
-    "bytes": 7252,
-    "sha256": "c2614b8957304480029a8cad0bf23f780d6d7877e32ca0a6c6fba2ca438b4b0d"
+    "contentHash": "sha256:64abc18f95a1a9a33d9c02a68e18f89fb88a99bcc0c8a3edd5a29a953f99b365",
+    "bytes": 7295,
+    "sha256": "65c10202a7d4068e148ad96e0a5974a6ff12cea7ede574fc9242d340538dd3d6"
   },
   {
     "path": ".minimax/skills/cospec-bulk-archive-change/SKILL.md",
@@ -31,9 +31,9 @@
     "kind": "skill",
     "workflow": "continue",
     "harness": "minimax-code",
-    "contentHash": "sha256:b004370ecefd1e61c9d0f511b9a856af586dccd1d867011bace2e11ce82f6d28",
-    "bytes": 5186,
-    "sha256": "69c7af260bf717bdefb00daf0e4b49691ac0efdc4607ee29c9d3cb387da22efe"
+    "contentHash": "sha256:e23bccd2b3bd223f628e9983e6cec1f6fa5254e196ef4f27a9b67f8ff80a159e",
+    "bytes": 5167,
+    "sha256": "d42a070d64f1d9cd34b5f11474c03883f866cc981c57fa7b21000afe4328653e"
   },
   {
     "path": ".minimax/skills/cospec-explore/SKILL.md",
@@ -49,9 +49,9 @@
     "kind": "skill",
     "workflow": "ff",
     "harness": "minimax-code",
-    "contentHash": "sha256:e91d63025c25c06717819eb59973315dbdb112374d4799c64b843f7fdfe60639",
-    "bytes": 7508,
-    "sha256": "80081be1979e6ccb4e981f1ad30358afca2f4e1de9b6c1af76a3310f526fc738"
+    "contentHash": "sha256:88327ec53e7fc3062cd3c3643fec5cbac4099d65b9b4ec3019b1140f9e6f036c",
+    "bytes": 7489,
+    "sha256": "dac5ec4f758cf21c0455905e60b3caf76f9a44b3ab1e2607de8e829ef436b814"
   },
   {
     "path": ".minimax/skills/cospec-new-change/SKILL.md",
@@ -76,35 +76,35 @@
     "kind": "skill",
     "workflow": "propose",
     "harness": "minimax-code",
-    "contentHash": "sha256:c4d342c0b9bda6dff5fca95a2312be76452258401d2bba4d6286ef4323d54f2b",
-    "bytes": 10560,
-    "sha256": "bc8627aec5a6c6ff7292eafbd63e51faa41805dcbb73130199449aa79d5e38b3"
+    "contentHash": "sha256:83a74cbb884b51a02a169b13aa0288fcb4daa343731fe6b01c73f106e7065366",
+    "bytes": 10353,
+    "sha256": "89456b7ac69057b2a4ddfdfc80f68b3a6872fce24508015342b8c64f9b92d652"
   },
   {
     "path": ".minimax/skills/cospec-sync-specs/SKILL.md",
     "kind": "skill",
     "workflow": "sync-specs",
     "harness": "minimax-code",
-    "contentHash": "sha256:56ce038eb810ff020c5c564e45939040eac31d493e9cd14fb993fb131faaa5c6",
-    "bytes": 5764,
-    "sha256": "e9c544f89e4be9c19e695fd499fafc5f53f86527c236095e2cf552ab514189fe"
+    "contentHash": "sha256:9cc123a3d5f4d9e9a7cb5cd72aaadd61b75a26cdd97b1f7370bb26295f50caf4",
+    "bytes": 5807,
+    "sha256": "bc8e2385499147c03b7ae738ec629eec9708b37064ff550582f4b3c33f129b40"
   },
   {
     "path": ".minimax/skills/cospec-update-change/SKILL.md",
     "kind": "skill",
     "workflow": "update",
     "harness": "minimax-code",
-    "contentHash": "sha256:5edd82db09d36626ce3995d71d7fc628c60a3d6f7e72de30da163e4fe0717bbf",
-    "bytes": 7022,
-    "sha256": "4598e5a113399b1b956d8aa49a18e8a4fb897391fb743a768eb325e33f022bf7"
+    "contentHash": "sha256:02de73b59d2e5e559df32e62f12e768199dea35cc8850574871ba91525e27181",
+    "bytes": 7003,
+    "sha256": "697310261c739bd9d8f7d894de4d25edbf865c0109f2cf3f9a766dc7aa99ccf8"
   },
   {
     "path": ".minimax/skills/cospec-verify-change/SKILL.md",
     "kind": "skill",
     "workflow": "verify",
     "harness": "minimax-code",
-    "contentHash": "sha256:c6c7bbe29b933d8904c52b57733f984bd0dfc5e4ecc4d3cdf70f5e292fcd9b24",
-    "bytes": 5327,
-    "sha256": "3212a05539daaebc854148b044d9f4fed3b0986ebcfd95bb2f34c2e854d8946d"
+    "contentHash": "sha256:21f419192053b92dd16e6150e0d4bdf99db60b7c3c655bfa9465e45a1850e2e0",
+    "bytes": 5370,
+    "sha256": "479ac99f0219e38ac78ae3887ffd6fff7398c5af3f1b8542752c2e3b78ab00a9"
   }
 ]

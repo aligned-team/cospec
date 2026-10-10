@@ -334,25 +334,22 @@ describe('the fragment replaces each body’s own grounding (design D3, task 8.2
     }
   })
 
-  test.failing('no body keeps its own change-picker prose', () => {
+  test('no body keeps its own change-picker prose', () => {
     for (const id of WORKFLOW_IDS) {
       expect(flat(skillBody(id))).not.toMatch(/more than one is plausible/)
     }
   })
 
-  test.failing(
-    'every selecting body keeps sole-change auto-select and points to the picker',
-    () => {
-      for (const id of SELECTING) {
-        // The body's own step, before the fragment is interpolated, names the fragment's picker.
-        const step = flat(readFileSync(join(CANON, `${id}.md`), 'utf8'))
-        expect(step).toContain('Using change: <slug>')
-        expect(step).toContain('Choosing a change')
-      }
-    },
-  )
+  test('every selecting body keeps sole-change auto-select and points to the picker', () => {
+    for (const id of SELECTING) {
+      // The body's own step, before the fragment is interpolated, names the fragment's picker.
+      const step = flat(readFileSync(join(CANON, `${id}.md`), 'utf8'))
+      expect(step).toContain('Using change: <slug>')
+      expect(step).toContain('Choosing a change')
+    }
+  })
 
-  test.failing('propose delegates its stop-on-no-root text to the fragment', () => {
+  test('propose delegates its stop-on-no-root text to the fragment', () => {
     const body = flat(skillBody('propose'))
     expect(body).toContain('cospec context --json')
     expect(body).toContain('root.path')
@@ -386,7 +383,7 @@ describe('ported provenance in harness.yaml (design D10, task 8.3)', () => {
     ],
   }
 
-  test.failing('every workflow records the root-guard and change-picker passages', () => {
+  test('every workflow records the root-guard and change-picker passages', () => {
     for (const w of readWorkflowManifest().workflows) {
       expect(w.ported ?? []).toContainEqual(entry('root-guard', 'project-root.js'))
       expect(w.ported ?? []).toContainEqual(entry('change-picker', 'continue-change.js'))
@@ -418,7 +415,7 @@ describe('ported provenance in harness.yaml (design D10, task 8.3)', () => {
     }
   })
 
-  test.failing('a ported value that is not a list fails the read, naming the workflow', () => {
+  test('a ported value that is not a list fails the read, naming the workflow', () => {
     // `ported:` is already declared on propose; replace that whole block instead.
     const yaml = readFileSync(join(CANON, 'harness.yaml'), 'utf8').replace(
       /    ported:\n(?:      .*\n)+/,
@@ -428,7 +425,7 @@ describe('ported provenance in harness.yaml (design D10, task 8.3)', () => {
     expect(() => readWorkflowManifest(dir)).toThrow(/'propose'.*ported/)
   })
 
-  test.failing('an entry missing its file or pin fails the read, naming the workflow', () => {
+  test('an entry missing its file or pin fails the read, naming the workflow', () => {
     const yaml = readFileSync(join(CANON, 'harness.yaml'), 'utf8').replace(
       /        pin: 1\.13\.1\n/,
       '',

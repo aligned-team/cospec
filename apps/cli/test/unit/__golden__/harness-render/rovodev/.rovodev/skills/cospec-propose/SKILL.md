@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:f7b7c3ed1e67ae639ec9648acea97fe432a17e1a1d11db866e7ab22ce56e6a54
+  contentHash: sha256:a2e52a571c059db2ee7491d41fb142c9ba1d66f03ad33efa0cbde9a3da9d5ccf
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -84,11 +84,8 @@ around looking for one. That output describes the project root and its
 registered stores — it never lists this project's own changes, so do not read it
 for what is in flight.
 
-If it does not resolve a root, stop there. Report what the command said and ask
-the user how they want to proceed. Do NOT run `cospec init` on your own, do NOT
-fall back to the current working directory, and do NOT run `cospec new` anyway —
-an `openspec/` tree must never appear as a side effect of a workflow the user
-asked for a proposal in.
+If it does not resolve a root, what happens next is the **Project check** above's
+call. Do not fall back to the current working directory.
 
 Then run:
 
