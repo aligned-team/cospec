@@ -7,6 +7,12 @@
 - [x] 1.3 @integration (agent) the full unit and integration suites pass under the profile-core HOME with no `--preload` flag -> `mise run check` on the host (real HOME, `profile: core`): unit 3111 pass / 0 fail (3115 tests, 4 skip), integration 394 pass / 0 fail
 - [x] 1.4 @integration (agent) the contract suite passes under the profile-core HOME -> contract 3231 pass / 0 fail in the same run, bench 343 pass, e2e release 14 pass
 
+## 1b. Children, other test roots and cleanup [critical]
+
+- [x] 1b.1 @regression (agent) a `Bun.spawnSync`/`Bun.spawn` with no `env` sees the sandbox HOME, one with `env` keeps its own -> `support-machine-isolation.test.ts` "a child process is off the real home" 4 pass; with the wrapper commented out 3 of them fail; `bun test test/integration` (394 pass) under a scratch HOME holding a canary leaves only the canary there (no `.bun`, no `.npm`; on the unwrapped preload both appeared)
+- [x] 1b.2 @regression (agent) a bare `bun test` from `.`, `apps/cli`, `packages/bench` and `e2e` runs over the sandbox -> 4 pass; with `packages/bench/bunfig.toml` removed that row fails, and `e2e` first failed on a wrong relative preload path
+- [x] 1b.3 @regression (agent) the sandbox directory is gone after a run -> each probe run leaves its private `TMPDIR` empty; with `process.on('exit')` in place of the `afterAll` all 4 rows fail
+
 ## 2. generate is host-independent [critical]
 
 - [x] 2.1 @regression (agent) delete `.claude/skills/cospec-verify-change/` and `.claude/commands/cospec/verify.md`, run `update --check` under a clean HOME and the profile-core HOME -> before: clean lists `created` for both files; profile-core lists no `created` row at all, two `updated` rows on `cospec-update-change` (skill and command) and the `Workflows: 6 of 12` line; after, `scripts/generate-self update --check` lists the same two `created` rows under both HOMEs and no Workflows line (tree restored with `git checkout .claude`)

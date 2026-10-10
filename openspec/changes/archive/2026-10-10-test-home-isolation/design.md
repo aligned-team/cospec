@@ -26,10 +26,11 @@ report no drift (a clean host reports both files `created`), and deleting
 ## Decisions
 
 - Isolation is a bunfig preload, not a flag. Bun reads only the bunfig in its
-  working directory, so the root one (CI runs from the root) and `apps/cli`'s
-  (the mise tasks run there) both name it. A second load, from a `--preload`
-  beside the bunfig, is a no-op through a `globalThis` symbol, so the sandbox is
-  never sandboxed twice.
+  working directory, so the root one (CI runs from the root), `apps/cli`'s,
+  `packages/bench`'s and `e2e`'s (the mise tasks run `bun test` from each) all
+  name it; the guard test runs a bare `bun test` from each of the four. A second
+  load, from a `--preload` beside the bunfig, is a no-op through a `globalThis`
+  symbol, so the sandbox is never sandboxed twice.
 - The preload sandboxes HOME and USERPROFILE as well as `XDG_CONFIG_HOME`, so a
   test that deletes the XDG variable to exercise the `HOME` fallback still lands
   in the sandbox. `os.homedir()` is replaced by `mock.module('node:os')` (ESM
@@ -37,6 +38,19 @@ report no drift (a clean host reports both files `created`), and deleting
   because neither alone covers both. `XDG_CACHE_HOME` stays real: the embedded
   openspec bundle is cached there and a fresh cache costs every run an
   extraction; it holds no config.
+- A child process gets the sandbox too. Bun starts a `Bun.spawn`/`Bun.spawnSync`
+  child with the environment the process started with, not the mutated
+  `process.env` (probed: `printf $HOME` after assigning `process.env.HOME`
+  prints the started one), so the preload wraps both and defaults an omitted
+  `env` to `{ ...process.env }`; a call that passes `env` keeps it. Without it
+  `bun add`, `bun build --compile`, `npm pack`, `git init` and the shell syntax
+  checks read the real `~/.npmrc`, `~/.bunfig.toml` and `~/.gitconfig` and
+  filled the real `~/.bun/install/cache` and `~/.npm`. No test file uses
+  `node:child_process`.
+- The sandbox is removed by a preload-level `afterAll`, not
+  `process.on('exit')`: `bun test` 1.3.14 never fires the handler (a probe
+  preload wrote nothing from it), so every run left a `cospec-test-machine-*`
+  directory behind.
 - The guard is two layers. A `beforeEach` registered in the preload fails the
   next test of any suite that leaves a global-config path under the real home
   (the suites that assign and delete these variables restore them). The
@@ -58,7 +72,8 @@ report no drift (a clean host reports both files `created`), and deleting
 - A test that needs the account's real git identity or Bun's transpiler cache
   under HOME now sees the sandbox; the suites ran green under both a clean and a
   profile-core HOME, and the test helpers already set `GIT_*` for their
-  children.
+  children. The pack tests' `bun add` starts from a cold package cache under the
+  sandbox HOME on every run.
 - Another tool that runs `bun test` with a different working directory (an IDE
   runner at the repo root) is covered by the root bunfig; one that passes
   `--config` is not, and fails the guard test by name rather than a

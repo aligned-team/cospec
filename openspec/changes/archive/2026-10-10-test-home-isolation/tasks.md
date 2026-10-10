@@ -27,10 +27,21 @@
       `.agents/shared.md`, then `mise run agents:sync` -- verify
       `mise run agents:check`
 
-## 5. Gate
+## 5. Review fixes
 
-- [x] 5.1 `mise run check` green under a clean HOME and a profile-core HOME --
+- [x] 5.1 Wrap `Bun.spawn`/`Bun.spawnSync` in the preload so an omitted `env` is
+      the sandboxed `process.env` -- verify a bare child prints the sandbox HOME
+      and the integration suite leaves a scratch HOME untouched
+- [x] 5.2 Add `packages/bench/bunfig.toml` and `e2e/bunfig.toml`, correct the
+      docs wording, and make the guard test run a bare `bun test` from each root
+      -- verify it fails without a bunfig
+- [x] 5.3 Remove the sandbox in an `afterAll` -- verify the temporary directory
+      is empty after a run
+
+## 6. Gate
+
+- [x] 6.1 `mise run check` green under a clean HOME and a profile-core HOME --
       verify by exit codes
-- [x] 5.2 `cospec validate test-home-isolation --strict` clean and every
+- [x] 6.2 `cospec validate test-home-isolation --strict` clean and every
       verification row `[x]` with an observed result -- the archive commit
       follows this one

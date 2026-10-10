@@ -9,6 +9,34 @@ import { basename, dirname, join, resolve, sep } from 'node:path'
 /** Where the preload leaves the real homes it found, for the guard test and its own hook. */
 export const REAL_HOMES_KEY = Symbol.for('cospec.test.real-homes')
 
+/** The variables the preload points at the sandbox, in the form they had when the run started. */
+export const STARTED_ENV_KEY = Symbol.for('cospec.test.started-env')
+
+export const SANDBOXED_KEYS = [
+  'HOME',
+  'USERPROFILE',
+  'XDG_CONFIG_HOME',
+  'XDG_DATA_HOME',
+  'XDG_STATE_HOME',
+  'CODEX_HOME',
+] as const
+
+/**
+ * The current environment with the sandboxed variables put back as the run started with them
+ * (unset stays unset). For a child that runs a HOST tool (`jq`, `oxfmt`, `git`) whose resolution
+ * depends on the real home: a mise shim finds its version and its trust list there. Pass it to
+ * nothing that is cospec's own code under test, which must stay over the sandbox.
+ */
+export function hostToolEnv(): Record<string, string | undefined> {
+  const started = (globalThis as { [STARTED_ENV_KEY]?: Record<string, string | undefined> })[
+    STARTED_ENV_KEY
+  ]
+  const env: Record<string, string | undefined> = { ...process.env }
+  if (started === undefined) return env
+  for (const key of SANDBOXED_KEYS) env[key] = started[key]
+  return env
+}
+
 /**
  * `path` with symlinks resolved. A path that does not exist resolves through its nearest
  * existing ancestor, since macOS `tmpdir()` (`/var/folders/...`) is `/private/var/...` for real.
