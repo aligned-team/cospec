@@ -2,7 +2,7 @@
 description: Archive a batch of completed changes in dependency order, one cospec archive call at a time. Also use for a plural archive request — "cospec bulk-archive", "openspec bulk-archive", "archive all these changes", or "archive everything".
 metadata:
   author: cospec
-  generatedBy: cospec@0.10.0
+  generatedBy: cospec@0.11.0
   contentHash: sha256:1d4f54560356771c3d882b3489da29e70abbc248990a1ffc49500d01b579e061
 ---
 

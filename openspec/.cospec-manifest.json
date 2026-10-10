@@ -1,5 +1,5 @@
 {
-  "cospecVersion": "cospec@0.10.0",
+  "cospecVersion": "cospec@0.11.0",
   "files": {
     "openspec/schemas/build/schema.yaml": "sha256:9854b4832e01a65359f7e298971eb27d3c2d49517447348fa7806138677b27ed",
     "openspec/schemas/build/templates/proposal.md": "sha256:977574f1ed101c6780d9514fab4b15ba45e27604f2f3b3cb8006c00ea9099b51",
@@ -61,7 +61,7 @@
     "openspec/schemas/test/templates/proposal.md": "sha256:e890af4a7d0491363953645b3a44b2cf43de3b8e9e5e353e464b94feff0eedc4",
     "openspec/schemas/test/templates/blocking-changes.md": "sha256:1ca785485ecf0b2e8373fda2d0afbdba927442a72077d8442fb867c20507bf31",
     "openspec/schemas/test/templates/tasks.md": "sha256:068e4983ebd23f48730fa2ca5b30a220287e832eb5e485f4bb5dbb9273ebd8a0",
-    ".codex/rules/cospec.rules": "sha256:c2c0a56a314aec0d38dca52eb62ce0ce6925cbfb46201730bdca3f242349d2dd",
+    ".codex/rules/cospec.rules": "sha256:76815de4979a6b3bcb25eb4074d753c94725341277455c2ff1e7e9e3d51c0b5b",
     ".agents/skills/.cospec-target": "sha256:243b0dc9b847e66c440dca985e10fe0ce9e29c379b018ddd5747ba8948f84cc8"
   }
 }

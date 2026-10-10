@@ -2,7 +2,7 @@
 description: Resume a partially-built change and finish its remaining artifacts. Also use when the user says "cospec continue" or "openspec continue".
 metadata:
   author: cospec
-  generatedBy: cospec@0.10.0
+  generatedBy: cospec@0.11.0
   contentHash: sha256:962a94c85a74e73206c82be164882aa3f7a3c0f214657ece49e7bcc1572116ba
 ---
 

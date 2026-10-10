@@ -2,7 +2,7 @@
 description: Revise an existing change's already-written artifacts and keep them coherent, without creating new artifacts or editing code. Also use when the user says "cospec update change", "update the change", or "openspec update change" — never for the unrelated `cospec update` CLI command, which regenerates this repo's managed harness and schema files, not a change's artifacts.
 metadata:
   author: cospec
-  generatedBy: cospec@0.10.0
+  generatedBy: cospec@0.11.0
   contentHash: sha256:470ff5b08245444c207e0d840f1f8e9da31d788f89cda0ea78dd52cf99205463
 ---
 

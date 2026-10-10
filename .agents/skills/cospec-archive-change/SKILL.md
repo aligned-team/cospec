@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
-  generatedBy: cospec@0.10.0
+  generatedBy: cospec@0.11.0
   contentHash: sha256:0056961a60fb49d8cb3633e04c2d805d6d1859825f71b6516b5ea4a6ef424cdc
 ---
 
