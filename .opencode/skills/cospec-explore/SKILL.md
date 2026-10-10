@@ -6,11 +6,55 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.10.0
-  contentHash: sha256:1918d6dc9bf5fe10b6f691e7144868bf8f14d2e17802474845e2e828e3cac108
+  contentHash: sha256:59536b110e1ba0dce3a8ae4af609b8ef3027afe05d6a8da14315b008ba5f10b7
 ---
 
 Investigate a question about the codebase, a spec, or a proposed change — in
 thinking mode. Explore and explain; do not write implementation code.
+
+**Project check:** These steps expect a project that already uses cospec. Before
+the first step that writes anything (`cospec new`, `cospec archive`,
+`cospec sync-specs`, or authoring an artifact file), confirm the project has a
+root: run `cospec list --json` (with `--store <id>` when a store is selected,
+since the store is then the root) and read `root`. A root object means the
+project is set up. `"root": null` means it is not — there is no `openspec/`
+directory here, and a write such as `cospec new` would create one as a side
+effect. The command also exits non-zero, which is that answer rather than a
+broken CLI, so read the JSON instead of retrying or working around it.
+
+One `"root": null` is not about setup: when a `status` entry's `message` starts
+with `Declared in` or `Invalid store declaration in` and names this project's
+`openspec/config.yaml` (or `config.yml`), the project does use cospec through a
+store it declares, which this machine cannot resolve (the store is not
+registered, or the `store:` line is malformed). Do not treat it as uninitialized
+and do not take either branch below: stop before writing and show the user that
+entry's `message` and `fix`.
+
+Otherwise, with no root, what happens next depends on how this workflow was
+reached:
+
+- **Auto-selected**: you chose this workflow yourself, without the user naming
+  cospec, naming this skill, or running its command. Stop using cospec and
+  answer the request normally, as you would with no cospec installed. Do not ask
+  them to set anything up and do not mention cospec setup.
+- **Explicit cospec request**: the user named cospec, named this skill, or ran
+  its command. Stop before writing and ask how to proceed: set this project up
+  (`cospec init`), target a store they already have (`--store <id>`), or
+  continue without cospec for this request. Wait for their answer.
+
+In both branches, never create the root as a side effect: do not run
+`cospec init` until the user asks for it, do not hand-create `openspec/` files,
+and do not let a command create it.
+
+**Choosing a change:** When a step asks you to choose among changes and the
+choice is not obvious, run `cospec list --json` (with `--store <id>` when a
+store is selected) and keep its order, which is most recently modified first.
+Never pass `--sort name`. Present the top 3-4 changes as options, each showing
+its name, its type, its gate state, its task progress (for example "0/5 tasks",
+"complete", or "no tasks"), and how recently it was modified, read from the
+`lastModified` field. Mark the first option "(Recommended)", since the most
+recently modified change is the likeliest one. Ask the user to pick, and never
+guess.
 
 ## Ground yourself first
 
@@ -75,6 +119,12 @@ so and ask only for the clarification you need to proceed.
   decisions from proposed defaults and open questions. Silence is not
   acceptance, and accepting an answer — or a batch of recommendations — is not
   permission to write. Write confirmation is its own step, below.
+- **Visual.** Use ASCII diagrams liberally when they'd help clarify thinking.
+
+**Draw with plain ASCII only** — borders `+` `-` `|`, arrows `-->` `<--` `^` `v`,
+markers `*` `x`. Unicode diagram glyphs can render at different widths across
+terminals, fonts, and locales, so padded boxes and aligned tables can drift. Keep
+every diagram character ASCII.
 
 Stop asking once the user has enough clarity. Let them pause, pivot, or defer a
 decision; do not exhaust every branch or force a proposal.

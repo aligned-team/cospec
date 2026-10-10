@@ -359,13 +359,21 @@ export function projectConfigSchema(base: string): string | undefined {
 }
 
 /**
+ * The root's project config file as the binary resolves it: `openspec/config.yaml` when that
+ * exists, else `openspec/config.yml` (whether or not it exists either).
+ */
+export function projectConfigPath(base: string): string {
+  const yaml = join(openspecDir(base), 'config.yaml')
+  return existsSync(yaml) ? yaml : join(openspecDir(base), 'config.yml')
+}
+
+/**
  * The root's `openspec/config.yaml` (else `config.yml`) parsed, or `undefined`
  * when there is none or it does not parse. Callers that need to tell a parse
  * failure from absence (`cospec doctor`) read the file themselves.
  */
 function readProjectConfig(base: string): unknown {
-  const yaml = join(openspecDir(base), 'config.yaml')
-  const path = existsSync(yaml) ? yaml : join(openspecDir(base), 'config.yml')
+  const path = projectConfigPath(base)
   if (!existsSync(path)) return undefined
   try {
     return parseYaml(readFileSync(path, 'utf8'))

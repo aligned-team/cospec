@@ -72,6 +72,14 @@ never gate — you can still author them
 (`cospec instructions <artifact> --change <slug>` works for any declared
 artifact), they just don't block `apply` or `archive` if left out.
 
+The guidance for writing `tasks.md` says archiving is not a task.
+`cospec archive` validates the change and moves it, and an archive row can only
+be ticked by the step that refuses it while the change is open. So the list ends
+at the last implementation or documentation task. Where the repo lands the
+archive as a commit after the last task, that task ends with "The archive commit
+follows this one", so it can be ticked before the archive. The templates
+themselves hold no archive row.
+
 ## `## Surfaces` — the soft-nudge block
 
 Every type except the four no-surface light types (`chore`, `docs`, `style`,

@@ -5,11 +5,13 @@ evidence, and names the hard gates `[[opsx:if-workflow archive]]/cospec:archive[
 All work goes through `cospec`. Never call `openspec` directly, and never
 hand-edit the bookkeeping under `openspec/changes/`.
 
+{{ROOT_GUARD}}
+
 ## 1. Select the change
 
 If the user named one, use it. Otherwise run `cospec list --json`: if exactly
-one active change exists, use it and announce `Using change: <slug>`; if more
-than one is plausible, ask.
+one active change exists, use it and announce `Using change: <slug>`. When
+several active changes exist, choose as **Choosing a change** above says.
 
 ## 2. Validate
 

@@ -6,6 +6,8 @@ remaining artifacts. All work goes through `cospec`.
 project rules for it. Trust that output — do NOT read `openspec/schemas/` or
 other repo files to reverse-engineer an artifact's shape.
 
+{{ROOT_GUARD}}
+
 ## 1. Pick the change
 
 ```
@@ -14,8 +16,8 @@ cospec list --json
 
 If the user named a change, use it. If exactly one active change exists, use it
 and announce `Using change: <slug>`, naming `[[opsx:if-workflow continue]]/cospec:continue <other-slug>[[opsx:else]]cospec instructions <artifact> --change <other-slug>[[opsx:end]]` as
-the override. If more than one is plausible, ask the user which one, showing
-each change's type and gate state.
+the override. When several active changes exist, choose as **Choosing a change**
+above says.
 
 ## 2. Find what is missing
 

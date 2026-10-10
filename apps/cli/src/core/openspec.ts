@@ -1,5 +1,6 @@
 import { dirname, join } from 'node:path'
 
+import type { ReferenceEntry } from './instructions-render.ts'
 import { extractEmbeddedOpenspec } from './openspec-embedded.ts'
 
 /**
@@ -662,6 +663,21 @@ export interface ApplyInstructionsJson {
    * `spec.md`, on top of the no-delta-specs/`skip_specs` warning.
    */
   warnings?: string[]
+  /**
+   * The project's `context` from `openspec/config.yaml`: a required prompt-level
+   * input (1.13.0), present only when set. The user's own text.
+   */
+  context?: string
+  /**
+   * `operations.apply.guidance` from the config: optional advisory entries
+   * (1.13.0), present only when set. The user's own text.
+   */
+  operationGuidance?: string[]
+  /**
+   * The stores the project's `references:` read (1.13.0), present only when it
+   * declares any. `fetch` and `status[].fix` are commands the binary spells.
+   */
+  references?: ReferenceEntry[]
   instruction: string
 }
 
@@ -718,9 +734,17 @@ export interface StatusDiagnostic {
  * The binary's answer to `instructions apply`: its payload, or — when it
  * refuses the change (a schema it cannot read, say) — its failure document.
  */
-export type ApplyInstructionsAnswer =
+type ApplyInstructionsPayload =
   | { instructions: ApplyInstructionsJson }
   | { refused: { status: StatusDiagnostic[] } & Record<string, unknown> }
+
+export type ApplyInstructionsAnswer = ApplyInstructionsPayload & {
+  /**
+   * What the binary wrote to stderr: the config warnings its `readProjectConfig` prints, which
+   * the caller relays. Lines `resolveRoot` already printed are dropped.
+   */
+  stderr: string
+}
 
 /**
  * Typed `openspec instructions apply --change <id> --json`: exit 0 with its
@@ -737,8 +761,8 @@ export async function openspecApplyInstructions(
     ['--change', changeId],
   )
   const label = wrappedCallLabel(argv)
-  let answer: ApplyInstructionsAnswer | undefined
-  await runOpenspec(argv, {
+  let answer: ApplyInstructionsPayload | undefined
+  const result = await runOpenspec(argv, {
     cwd: root.cwd,
     expect: {
       exitCodes: [0, 1],
@@ -761,7 +785,7 @@ export async function openspecApplyInstructions(
       },
     },
   })
-  return answer!
+  return { ...answer!, stderr: stripSuppressedStderr(result.stderr) }
 }
 
 /** Typed `openspec instructions <artifact> --change <id> --json`. */

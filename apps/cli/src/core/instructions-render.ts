@@ -39,7 +39,7 @@ export interface InstructionsDocument {
   unlocks: string[]
 }
 
-interface ReferenceEntry {
+export interface ReferenceEntry {
   store_id: string
   root?: string
   specs?: { id: string; summary: string }[]
@@ -189,6 +189,21 @@ function renderReferencedStoresBlock(entries: readonly ReferenceEntry[]): string
   return lines.join('\n')
 }
 
+/**
+ * The apply-instructions markdown section for `entries`, as the binary's
+ * `renderReferencedStoresSection` prints it (`dist/core/references.js`).
+ */
+export function renderReferencedStoresSection(entries: readonly ReferenceEntry[]): string {
+  const lines = [
+    '### Referenced Stores',
+    '',
+    'Read-only upstream context. Fetch what you need; cite what you use.',
+    '',
+  ]
+  for (const entry of entries) lines.push(...renderEntryLines(entry))
+  return lines.join('\n')
+}
+
 function renderEntryLines(entry: ReferenceEntry): string[] {
   const lines: string[] = []
   if (entry.root !== undefined) {
@@ -213,7 +228,7 @@ function specLine(spec: { id: string; summary: string }): string {
   return spec.summary ? `  - ${id}: ${spec.summary}` : `  - ${id}`
 }
 
-function sanitizeInline(value: string, maxLength = 300): string {
+export function sanitizeInline(value: string, maxLength = 300): string {
   // oxlint-disable-next-line no-control-regex -- the binary's own class, verbatim
   const flattened = value.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim()
   return flattened.length > maxLength ? `${flattened.slice(0, maxLength)}…` : flattened

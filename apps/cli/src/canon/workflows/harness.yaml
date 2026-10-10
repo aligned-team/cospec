@@ -11,6 +11,11 @@
 # injection in src/harness/adapters.ts — OpenCode drops whatever the user typed after
 # the slash command unless the command body names the placeholder.
 #
+# `ported:` records, per workflow, each passage ported from the pinned OpenSpec dist: the
+# passage name, the template `file` (relative to the @fission-ai/openspec package root) and
+# the `pin` it was read at. It is provenance only: read by the manifest shape check and
+# test/contract/ported-provenance.test.ts, never at render time, never in a generated file.
+#
 # `core: true` marks the six workflows upstream's core profile installs (CORE_WORKFLOWS in
 # the pinned binary, where `sync` is `sync-specs` here); test/unit/harness/core-workflows.test.ts
 # compares the set to the pinned dist.
@@ -26,6 +31,16 @@ workflows:
     injectTypeTable: true
     takesArguments: true
     core: true
+    ported:
+      - passage: root-guard
+        file: dist/core/templates/workflows/project-root.js
+        pin: 1.13.1
+      - passage: change-picker
+        file: dist/core/templates/workflows/continue-change.js
+        pin: 1.13.1
+      - passage: inspect-before-drafting
+        file: dist/core/templates/workflows/propose.js
+        pin: 1.13.1
   - id: new
     command: new
     skill: cospec-new-change
@@ -35,6 +50,13 @@ workflows:
       Also use when the user says "cospec new" or "openspec new".
     injectTypeTable: true
     takesArguments: true
+    ported:
+      - passage: root-guard
+        file: dist/core/templates/workflows/project-root.js
+        pin: 1.13.1
+      - passage: change-picker
+        file: dist/core/templates/workflows/continue-change.js
+        pin: 1.13.1
   - id: continue
     command: continue
     skill: cospec-continue-change
@@ -43,6 +65,13 @@ workflows:
       Resume a partially-built change and finish its remaining artifacts.
       Also use when the user says "cospec continue" or "openspec continue".
     takesArguments: true
+    ported:
+      - passage: root-guard
+        file: dist/core/templates/workflows/project-root.js
+        pin: 1.13.1
+      - passage: change-picker
+        file: dist/core/templates/workflows/continue-change.js
+        pin: 1.13.1
   - id: ff
     command: ff
     skill: cospec-ff-change
@@ -51,6 +80,16 @@ workflows:
       Author every remaining artifact on an already-scaffolded change in one pass, then validate.
       Also use when the user says "cospec ff", "cospec fast-forward", or "openspec ff".
     takesArguments: true
+    ported:
+      - passage: root-guard
+        file: dist/core/templates/workflows/project-root.js
+        pin: 1.13.1
+      - passage: change-picker
+        file: dist/core/templates/workflows/continue-change.js
+        pin: 1.13.1
+      - passage: inspect-before-drafting
+        file: dist/core/templates/workflows/ff-change.js
+        pin: 1.13.1
   - id: update
     command: update
     skill: cospec-update-change
@@ -63,6 +102,13 @@ workflows:
       files, not a change's artifacts.
     takesArguments: true
     core: true
+    ported:
+      - passage: root-guard
+        file: dist/core/templates/workflows/project-root.js
+        pin: 1.13.1
+      - passage: change-picker
+        file: dist/core/templates/workflows/continue-change.js
+        pin: 1.13.1
   - id: apply
     command: apply
     skill: cospec-apply-change
@@ -72,6 +118,16 @@ workflows:
       Also use when the user says "cospec apply" or "openspec apply".
     takesArguments: true
     core: true
+    ported:
+      - passage: root-guard
+        file: dist/core/templates/workflows/project-root.js
+        pin: 1.13.1
+      - passage: change-picker
+        file: dist/core/templates/workflows/continue-change.js
+        pin: 1.13.1
+      - passage: operation-inputs-precedence
+        file: dist/core/templates/workflows/apply-change.js
+        pin: 1.13.1
   - id: verify
     command: verify
     skill: cospec-verify-change
@@ -81,6 +137,13 @@ workflows:
       and name the hard archive gates. Also use when the user says "cospec verify" or
       "openspec verify".
     takesArguments: true
+    ported:
+      - passage: root-guard
+        file: dist/core/templates/workflows/project-root.js
+        pin: 1.13.1
+      - passage: change-picker
+        file: dist/core/templates/workflows/continue-change.js
+        pin: 1.13.1
   - id: archive
     command: archive
     skill: cospec-archive-change
@@ -90,6 +153,16 @@ workflows:
       Also use when the user says "cospec archive" or "openspec archive".
     takesArguments: true
     core: true
+    ported:
+      - passage: root-guard
+        file: dist/core/templates/workflows/project-root.js
+        pin: 1.13.1
+      - passage: change-picker
+        file: dist/core/templates/workflows/continue-change.js
+        pin: 1.13.1
+      - passage: archive-inputs-lookup
+        file: dist/core/templates/workflows/archive-change.js
+        pin: 1.13.1
   - id: bulk-archive
     command: bulk-archive
     skill: cospec-bulk-archive-change
@@ -98,6 +171,19 @@ workflows:
       Archive a batch of completed changes in dependency order, one cospec archive call at a time.
       Also use for a plural archive request — "cospec bulk-archive", "openspec bulk-archive",
       "archive all these changes", or "archive everything".
+    ported:
+      - passage: root-guard
+        file: dist/core/templates/workflows/project-root.js
+        pin: 1.13.1
+      - passage: change-picker
+        file: dist/core/templates/workflows/continue-change.js
+        pin: 1.13.1
+      - passage: archive-inputs-lookup
+        file: dist/core/templates/workflows/bulk-archive-change.js
+        pin: 1.13.1
+      - passage: collision-resolution
+        file: dist/core/templates/workflows/bulk-archive-change.js
+        pin: 1.13.1
   - id: sync-specs
     command: sync-specs
     skill: cospec-sync-specs
@@ -107,6 +193,13 @@ workflows:
       Also use when the user says "cospec sync specs", "sync the specs", or "openspec sync".
     takesArguments: true
     core: true
+    ported:
+      - passage: root-guard
+        file: dist/core/templates/workflows/project-root.js
+        pin: 1.13.1
+      - passage: change-picker
+        file: dist/core/templates/workflows/continue-change.js
+        pin: 1.13.1
   - id: explore
     command: explore
     skill: cospec-explore
@@ -116,6 +209,16 @@ workflows:
       Also use when the user says "cospec explore" or "openspec explore".
     takesArguments: true
     core: true
+    ported:
+      - passage: root-guard
+        file: dist/core/templates/workflows/project-root.js
+        pin: 1.13.1
+      - passage: change-picker
+        file: dist/core/templates/workflows/continue-change.js
+        pin: 1.13.1
+      - passage: ascii-diagrams
+        file: dist/core/templates/workflows/explore.js
+        pin: 1.13.1
   - id: onboard
     command: onboard
     skill: cospec-onboard
@@ -123,3 +226,10 @@ workflows:
     description: >-
       Walk a first-time user through one real cospec change end to end, narrating each step.
       Also use when the user says "cospec onboard" or "openspec onboard".
+    ported:
+      - passage: root-guard
+        file: dist/core/templates/workflows/project-root.js
+        pin: 1.13.1
+      - passage: change-picker
+        file: dist/core/templates/workflows/continue-change.js
+        pin: 1.13.1

@@ -174,7 +174,10 @@ and run `mise run format:fix`.
   never adds an artifact the type's plan forbids.
 - **apply** — run `cospec apply <c> --json` and obey the exit code (0 work the
   tasks, 2 stop and relay blockers, 3 confirm then `--allow-soft`). Never
-  re-derive the gate from files.
+  re-derive the gate from files. On exit 0 the `apply` object may carry the
+  project's `context` and `operationGuidance`, which the workflow reads as
+  prompt-level inputs (the contract is in
+  [Apply and archive](https://cospec.aligned.team/concepts/apply-and-archive)).
 - **verify** — the archive dress rehearsal: `cospec validate <c> --strict`, then
   walk `verification.md` recording an observed result after `->` for every row
   (`[x]` done, or `[~] defer: <reason>` — no bare `[ ]` may remain), confirm
@@ -183,13 +186,17 @@ and run `mise run format:fix`.
   `--force`) before handing off to `archive`.
 - **archive** — run `cospec archive <c>`, relay the summary; on exit 1 relay the
   error verbatim and **never** hand-`mv` the directory.
-- **bulk-archive** — archive a batch: `cospec list --json`, order
-  providers-before-consumers (read each change's `blocking-changes.md`, else
-  creation order), then loop `cospec archive <c>` — each call runs its own
-  per-change validation, hard gates, filesystem-verified move, and blocker
-  fan-out. A failure is reported and the loop continues; it is never fatal to
-  the batch. Never hand-`mkdir`/`mv`, and never `--force` a spec collision —
-  edit the later delta instead.
+- **bulk-archive** — archive a batch: `cospec list --json`, one archive-inputs
+  lookup for the batch, order providers-before-consumers (read each change's
+  `blocking-changes.md`, else creation order), resolve any capability collision
+  by editing only the colliding delta files (include, exclude or retarget a
+  requirement), then loop `cospec validate <c> --strict` (for an edited change)
+  and `cospec archive <c>` — each archive call runs its own per-change
+  validation, hard gates, filesystem-verified move, and blocker fan-out. A
+  failure is reported and the loop continues; it is never fatal to the batch.
+  Never hand-`mkdir`/`mv`, and never `--force` a spec collision. The procedure
+  is in
+  [Apply and archive](https://cospec.aligned.team/concepts/apply-and-archive).
 - **sync-specs** — merges a change's delta specs into the main specs without
   archiving it: preview with `cospec validate <c>` and the delta files, then run
   `cospec sync-specs <c>`, which runs the binary's own archive merge on a
@@ -222,6 +229,30 @@ and run `mise run format:fix`.
   parity. (Wrapping `openspec feedback` itself as a disciplined passthrough CLI
   surface, alongside `config` and `completion`, is a follow-up — see
   `proposal.md`'s non-goals.)
+
+## Canon bodies: the shared fragment and `ported:`
+
+The twelve workflow bodies in `apps/cli/src/canon/workflows/` are rendered per
+harness row, and two mechanisms keep their shared text in one place.
+
+- **Fragments.** A body may name a `_shared/` fragment with a registered token.
+  The registry is `FRAGMENTS` in `harness/render.ts`; it has one entry today,
+  `{{ROOT_GUARD}}`, which reads `_shared/root-guard.md` (the project check, the
+  store-declaration carve-out and the change picker). Every body carries that
+  token exactly once, after its opening paragraph and before its first step. A
+  body that lacks it, repeats it, or carries an unregistered `{{NAME}}` token
+  fails the render; `{{TYPE_TABLE}}` is the one other token, injected per
+  workflow.
+- **Order.** Fragments interpolate first, then the conditional
+  `[[opsx:if-workflow]]` resolver runs on the raw body, then the type table is
+  injected, and only then does the per-dialect transform run. A conditional
+  therefore sees fragment text, and fragment text is transformed like the rest
+  of its body.
+- **`ported:`.** Each workflow's entry in `canon/workflows/harness.yaml` lists
+  the upstream passages its text was ported from: the passage name, the template
+  `file` relative to the pinned `@fission-ai/openspec` package, and the `pin`.
+  It is provenance only. Manifest validation and the `ported-provenance`
+  contract test read it; render never does, and no generated file carries it.
 
 ## Provenance & the managed-file protocol
 

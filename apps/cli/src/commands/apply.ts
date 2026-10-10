@@ -26,6 +26,7 @@ import {
 } from '../core/change.ts'
 import { hasFlag } from '../core/command-table.ts'
 import { answeringErrno } from '../core/errno.ts'
+import { respellInstructionsDocument } from '../core/instructions-render.ts'
 import {
   openspecApplyInstructions,
   OpenspecCallError,
@@ -33,6 +34,7 @@ import {
   type Root,
   type StatusDiagnostic,
 } from '../core/openspec.ts'
+import { renderOperationInputs, renderReferencesSection } from '../core/operation-inputs.ts'
 import { respellRemedies } from '../core/remedies.ts'
 import { renderHuman, toJson, type ItemReport } from '../core/report.ts'
 import { surfaceUnmetConsequences } from '../core/rules/meta.ts'
@@ -254,13 +256,28 @@ export function relayApplyInstructions(
   changeId: string,
 ): ApplyInstructionsJson {
   return {
-    ...instr,
+    // Only the references' command fields are spelled here (`fetch` and `status[].fix`, each
+    // only when the whole value is an allowlisted remedy): `context` and `operationGuidance`
+    // are the user's own text and pass byte for byte, an entry that starts `openspec ` included.
+    ...respellInstructionsDocument(instr),
     instruction: relayThroughCospec(instr.instruction).replaceAll(
       APPLY_PLACEHOLDER,
       `cospec apply "${changeId}"`,
     ),
     ...(instr.warnings !== undefined ? { warnings: instr.warnings.map(relayThroughCospec) } : {}),
   }
+}
+
+/**
+ * The apply instruction and the project's inputs, as the human transcript prints them: the
+ * references section before the instruction, the context and guidance sections after it, each
+ * only when the project configures it. `lead` is what precedes the block (a blank line on the
+ * clear-gate path).
+ */
+function printInstruction(instr: ApplyInstructionsJson, lead: string): void {
+  process.stdout.write(`${lead}${renderReferencesSection(instr)}${instr.instruction}\n`)
+  const inputs = renderOperationInputs(instr)
+  if (inputs !== '') process.stdout.write(`\n${inputs.trimEnd()}\n`)
 }
 
 /** One `Warning:` line per relayed upstream warning, for the human transcript. */
@@ -352,6 +369,9 @@ async function applyInstructions(
     const msg = err instanceof OpenspecCallError ? err.message : (err as Error).message
     return earlyExit(ctx, `cospec apply: ${msg}\n`, msg, undefined, warnings)
   }
+  // The binary's own config warnings (a malformed `operations` block, say) stay on stderr, as
+  // `cospec archive` relays them, so `--json` stdout remains the one document.
+  if (answer.stderr.length > 0) process.stderr.write(answer.stderr)
   if ('refused' in answer) return relayRefusal(ctx, answer.refused, warnings)
   return relayApplyInstructions(answer.instructions, change.id)
 }
@@ -369,7 +389,7 @@ async function applyLegacy(change: Change, ctx: CommandContext, root: Root): Pro
       `note: '${change.schema}' is a legacy schema — cospec's blocker gate is not enforced; delegating to openspec.\n`,
     )
     printWarnings(instr)
-    process.stdout.write(`${instr.instruction}\n`)
+    printInstruction(instr, '')
   }
   return instr.state === 'blocked' ? EXIT.blocked : EXIT.success
 }
@@ -600,7 +620,7 @@ async function apply(ctx: CommandContext): Promise<number> {
       `${instr.progress.remaining} of ${instr.progress.total} task(s) remaining.\n`,
     )
     printWarnings(instr)
-    process.stdout.write(`\n${instr.instruction}\n`)
+    printInstruction(instr, '\n')
   }
   return EXIT.success
 }

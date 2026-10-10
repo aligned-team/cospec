@@ -118,7 +118,26 @@ export interface WorkflowManifest {
 export function readWorkflowManifest(canonDir?: string): WorkflowManifest {
   const file =
     canonDir === undefined ? canonFile('workflows/harness.yaml') : join(canonDir, 'harness.yaml')
-  return parse(readFileSync(file, 'utf8')) as WorkflowManifest
+  const manifest = parse(readFileSync(file, 'utf8')) as WorkflowManifest
+  for (const w of manifest.workflows) checkPorted(w)
+  return manifest
+}
+
+/** A `ported:` list is provenance, so a malformed one is a canon bug the read refuses. */
+function checkPorted(w: WorkflowDef): void {
+  const ported: unknown = w.ported
+  if (ported === undefined) return
+  if (!Array.isArray(ported)) {
+    throw new Error(`workflow '${w.id}': ported must be a list of { passage, file, pin } entries`)
+  }
+  ported.forEach((entry: unknown, i) => {
+    for (const key of ['passage', 'file', 'pin'] as const) {
+      const value = (entry as Record<string, unknown> | null)?.[key]
+      if (typeof value !== 'string' || value === '') {
+        throw new Error(`workflow '${w.id}': ported[${i}] needs a non-empty string ${key}`)
+      }
+    }
+  })
 }
 
 /** Workflow id → skill dir name, the map `transformBody`'s shared dialect spells with. */
@@ -209,10 +228,15 @@ export function renderHarnessFiles(opts: RenderOptions): RenderedFile[] {
         ? skillReferenceSpelling(row)
         : skillSpelling(row)
     for (const w of workflows) {
+      // Fragments interpolate first, so the resolver and every later step read the final text.
       // Conditionals resolve on the raw canon body, before the type table and any respelling,
       // so no transformer ever sees a dropped branch.
       const rawBody = resolveOptionalWorkflows(
-        normalizeBody(readFileSync(workflowFile(`${w.id}.md`), 'utf8')),
+        interpolateFragments(
+          normalizeBody(readFileSync(workflowFile(`${w.id}.md`), 'utf8')),
+          w.id,
+          (name) => normalizeBody(readFileSync(workflowFile(name), 'utf8')),
+        ),
         installed,
       )
       const injected = w.injectTypeTable
@@ -445,6 +469,45 @@ function assemble(args: AssembleArgs): RenderedFile {
     contentHash: args.contentHash,
     content,
   }
+}
+
+/**
+ * The shared fragments a canon body names by token, each a canon file read once per render.
+ * `{{TYPE_TABLE}}` is injected separately, per workflow, so it is not here.
+ */
+export const FRAGMENTS: Readonly<Record<string, string>> = {
+  '{{ROOT_GUARD}}': '_shared/root-guard.md',
+}
+
+const TOKEN_PATTERN = /\{\{[^{}\n]*\}\}/g
+
+/**
+ * Replace each registered `{{NAME}}` token in a workflow body with its fragment's text. A body
+ * must carry every registered token exactly once, so a guard cannot be forgotten or doubled,
+ * and any other `{{NAME}}` token (bar `{{TYPE_TABLE}}`) is a typo that must not reach a user.
+ */
+export function interpolateFragments(
+  body: string,
+  workflow: string,
+  read: (fragment: string) => string,
+): string {
+  for (const token of body.match(TOKEN_PATTERN) ?? []) {
+    if (token !== '{{TYPE_TABLE}}' && FRAGMENTS[token] === undefined) {
+      throw new Error(
+        `workflow '${workflow}' carries the unregistered token ${token}; ` +
+          `registered fragments: ${Object.keys(FRAGMENTS).join(', ')}`,
+      )
+    }
+  }
+  let out = body
+  for (const [token, file] of Object.entries(FRAGMENTS)) {
+    const count = body.split(token).length - 1
+    if (count !== 1) {
+      throw new Error(`workflow '${workflow}' must carry ${token} exactly once, found ${count}`)
+    }
+    out = out.replace(token, () => read(file).replace(/\n$/, ''))
+  }
+  return out
 }
 
 function normalizeBody(raw: string): string {

@@ -74,6 +74,88 @@ deleted and pruned paths are applied and re-read. The scratch directory is
 removed in a `finally`, so the binary's `.openspec-archive.lock` — or any
 partial write of a failed run — can only ever exist there.
 
+## The project's inputs: relay, respell and transcript order
+
+`context`, `operations.<id>.guidance` and `references` come from
+`openspec/config.yaml`. The wrapped `instructions apply --json` document carries
+them, so `apply` keeps them as its own: `ApplyInstructionsJson`
+(`core/openspec.ts`) declares `context?`, `operationGuidance?` and `references?`
+(`ReferenceEntry`, exported from `core/instructions-render.ts`). Before that
+declaration they rode along untyped on the `...instr` spread.
+
+`relayApplyInstructions` spells only the references' command fields, through
+`respellInstructionsDocument` (`references[].fetch` and
+`references[].status[].fix`, each only when the whole value is an allowlisted
+remedy). `context` and `operationGuidance` are the project's own text and pass
+byte for byte, an entry that starts `openspec ` included. This is the one narrow
+break: a `references` fetch command that printed `openspec show …` in
+`apply --json` now prints `cospec show …`.
+
+The human transcript is printed by `core/operation-inputs.ts`:
+`renderReferencesSection` and `renderOperationInputs` are ports of the binary's
+`renderReferencedStoresSection` and `printOperationInputsText` over the relayed
+document, sharing `renderReferencedStoresSection` and `sanitizeInline` from
+`instructions-render.ts`. One deliberate difference: when nothing is configured
+the binary prints `No project context or operation guidance configured.` and
+cospec prints nothing, so an unconfigured project's output is unchanged.
+
+Both `apply` output paths print in the same order, around the instruction:
+
+1. Clear gate (`apply.ts`, after the `N of M task(s) remaining.` line and the
+   `Warning:` lines): the `### Referenced Stores` section, the instruction, then
+   `### Project Context (required instruction input)` and
+   `### Operation Guidance (advisory)`.
+2. `applyLegacy` (after its warnings): the same three parts in the same order,
+   minus the progress line.
+
+`archive` reads the same inputs in `commands/archive.ts` (`archiveInputs` →
+`readConfigOperationInputs`, through the same config reader the binary uses),
+once the change resolves; refusals before that point print none of them. It does
+not go through a wrapped `instructions archive` call, because a refusal that
+comes before the delegated archive spawns nothing, and once the delegated
+archive has run the change is no longer under `openspec/changes/`. The text
+summary prints the sections after its last line; a text-mode refusal prints them
+after the refusal; the `--json` success document spreads them at the top level;
+failure documents carry none of them.
+
+The workflow bodies look the inputs up with
+`cospec instructions archive --change <slug> --json`, a forwarded read-only call
+with no code of its own (the contract test runs the very line the body prints).
+The archive workflow runs it once per change, and the bulk-archive workflow runs
+it once for the batch.
+
+## Bulk archive's lookup and collision edits
+
+`bulk-archive` is a workflow body, not a command, so its collision handling is
+prompt procedure over cospec primitives. The body detects a collision by
+capability path, not only by `ADDED` name:
+`cospec status --change <slug> --json` names each change's
+`artifactPaths.specs`, and the requirement names are the `### Requirement:`
+lines. Two `MODIFIED` deltas on one capability overwrite each other as silently
+as two `ADDED` ones, so the body treats both as collisions; only an `ADDED`
+requirement that already exists is what `cospec archive` refuses
+(`archive/added-exists`).
+
+The resolution edits only the conflicting change's delta files. "Newer" is the
+change that archives later (dependency first, then `created:`), so a provider is
+never the newer one however recent its date. A newer `ADDED` that the older
+change also adds moves to `MODIFIED` with the full requirement text and every
+scenario, because `archive/scenario-preservation` refuses a `MODIFIED` that
+drops one. Where both changes `MODIFIED` the same requirement, the newer block
+carries the older block's scenarios along with its own, for the same reason. An
+excluded change loses its colliding requirement blocks, and its delta file is
+deleted only when nothing is left in it and the change keeps another delta. A
+change left with no delta where its type requires specs is shown `Blocked`,
+never edited into invalidity. Main specs are never written by hand, and no
+`--force*` flag is passed.
+
+Each edited change runs `cospec validate <slug> --strict` only once every change
+ahead of it has archived, because validation reads the living specs as they
+stand. An unresolved collision needs no special handling: the later
+`cospec archive` refuses with `archive/added-exists` and moves nothing
+(`test/integration/bulk-archive-collision.test.ts` pins both the refusal and the
+delta-edit cases).
+
 ## Blocker sync
 
 `cospec sync-blockers [--check] [--change <id>] [--json]` is the standalone form

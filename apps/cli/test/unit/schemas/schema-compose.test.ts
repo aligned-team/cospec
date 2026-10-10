@@ -415,3 +415,31 @@ describe('perf / revert special sections are reachable in prose', () => {
     expect(composeSchema('revert').artifacts[0]!.instruction).toContain('## Reverts')
   })
 })
+
+// Whitespace-folded so the YAML block-scalar wrap points do not matter.
+const flat = (text: string): string => text.replace(/\s+/g, ' ')
+
+describe('the tasks instruction never asks for an archive row (design D11)', () => {
+  const PARAGRAPH = flat(
+    'Archiving is not a task: `cospec archive` validates the change and moves it, and a task ' +
+      'describing it can only be completed by the step that refuses it while the change is open. ' +
+      "End the list at the last implementation or documentation task. Where the repo's flow lands " +
+      'the archive as a commit after the last task, end that task\'s description with "The archive ' +
+      'commit follows this one" so it can be ticked before the archive.',
+  )
+  // A checkbox line whose text names archiving: the row the instruction must never ask for.
+  const ARCHIVE_ROW = /^\s*- \[[ x~]\] \d+\.\d+ .*\barchive/im
+
+  for (const type of COSPEC_TYPES) {
+    test(`${type}: the tasks instruction carries the archive paragraph verbatim`, () => {
+      const instruction = composeSchema(type).artifacts.find((a) => a.id === 'tasks')!.instruction
+      expect(flat(instruction)).toContain(PARAGRAPH)
+    })
+
+    test(`${type}: no tasks instruction or templateBody asks for an archive row`, () => {
+      const instruction = composeSchema(type).artifacts.find((a) => a.id === 'tasks')!.instruction
+      expect(instruction).not.toMatch(ARCHIVE_ROW)
+      expect(composeTemplates(type)['tasks.md']).not.toMatch(ARCHIVE_ROW)
+    })
+  }
+})

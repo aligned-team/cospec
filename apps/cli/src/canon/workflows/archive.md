@@ -2,11 +2,41 @@ Archive a completed change. `cospec archive` validates it, merges its spec
 deltas into the living specs, verifies the move actually happened, and fans
 blocker check-offs out to sibling changes — as one coupled step.
 
+{{ROOT_GUARD}}
+
 ## 1. Select the change
 
 If the user named one, use it. Otherwise run `cospec list --json`: if exactly
-one active change exists, use it and announce `Using change: <slug>`; if more
-than one is plausible, ask.
+one active change exists, use it and announce `Using change: <slug>`. When
+several active changes exist, choose as **Choosing a change** above says.
+
+**Load the project's archive inputs before the archive checks.** After the
+change is selected, run
+
+```
+cospec instructions archive --change "<slug>" --json
+```
+
+with `--store <id>` when a store is selected, as for every command here. This
+lookup is advisory and optional: it only supplies extra prompt inputs, so it
+must never block archiving. If it exits non-zero or returns invalid JSON,
+continue the archive workflow with no context and no operation guidance. Do not
+report an error and do not stop.
+
+A successful response may omit both optional fields. Treat `context` as a
+required prompt-level input: read and consider it, and apply relevant project
+facts, conventions, and constraints. Treat `operationGuidance` as optional
+additive advice: read and consider every entry, and follow entries that are
+applicable and compatible with the built-in archive workflow.
+
+Keep both fields separate from built-in steps, explicit user choices, resolved
+paths, CLI checks, and command contracts. If context conflicts with one of those
+controlling inputs, report the conflict and preserve the controlling value. If
+guidance is inapplicable or conflicts with a controlling input, do not follow it
+and explain why. Do not infer replacement paths, skipped prompts, or flags from
+either field, and do not copy their text verbatim into specs, change artifacts,
+or archive summaries unless the user separately asks for it. These are
+prompt-level behavior contracts, not enforceable checks.
 
 ## 2. Archive
 

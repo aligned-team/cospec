@@ -1,6 +1,8 @@
 Investigate a question about the codebase, a spec, or a proposed change — in
 thinking mode. Explore and explain; do not write implementation code.
 
+{{ROOT_GUARD}}
+
 ## Ground yourself first
 
 Three read-only commands, in this order:
@@ -64,6 +66,12 @@ so and ask only for the clarification you need to proceed.
   decisions from proposed defaults and open questions. Silence is not
   acceptance, and accepting an answer — or a batch of recommendations — is not
   permission to write. Write confirmation is its own step, below.
+- **Visual.** Use ASCII diagrams liberally when they'd help clarify thinking.
+
+**Draw with plain ASCII only** — borders `+` `-` `|`, arrows `-->` `<--` `^` `v`,
+markers `*` `x`. Unicode diagram glyphs can render at different widths across
+terminals, fonts, and locales, so padded boxes and aligned tables can drift. Keep
+every diagram character ASCII.
 
 Stop asking once the user has enough clarity. Let them pause, pivot, or defer a
 decision; do not exhaust every branch or force a proposal.

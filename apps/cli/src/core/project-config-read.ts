@@ -101,14 +101,15 @@ function ruleWarnings(raw: unknown, warn: (line: string) => void): void {
 }
 
 /**
- * The `context` the binary's `readProjectConfig` returns for the config at `configPath` (a
- * string within the size limit, else undefined), calling `warn` with each line it prints. A
- * file that cannot be read or parsed, or is not a YAML object, reads as no context.
+ * The config at `configPath` as the binary's `readProjectConfig` reads it: its `context` (a
+ * string within the size limit, else undefined) and the parsed document, calling `warn` with each
+ * line the binary prints. A file that cannot be read or parsed, or is not a YAML object, reads as
+ * no config.
  */
-export function readConfigContext(
+function readConfig(
   configPath: string,
   warn: (line: string) => void,
-): string | undefined {
+): { context: string | undefined; config: Record<string, unknown> } | undefined {
   if (!existsSync(configPath)) return undefined
   let raw: unknown
   try {
@@ -165,5 +166,42 @@ export function readConfigContext(
       warn(`Invalid 'githubCopilot' field in config (must be an object)`)
     }
   }
-  return context
+  return { context, config }
+}
+
+/**
+ * The `context` the binary's `readProjectConfig` returns for the config at `configPath` (a
+ * string within the size limit, else undefined), calling `warn` with each line it prints. A
+ * file that cannot be read or parsed, or is not a YAML object, reads as no context.
+ */
+export function readConfigContext(
+  configPath: string,
+  warn: (line: string) => void,
+): string | undefined {
+  return readConfig(configPath, warn)?.context
+}
+
+/**
+ * The project's inputs to `operationId`, as the binary's `loadOperationInputs` gives them for
+ * the config at `configPath`: `context` unless it is only whitespace, and the operation's
+ * `guidance` without its empty entries, each present only when it holds something. `warn` gets
+ * each line `readProjectConfig` prints on the way. A guidance that is not an array of strings
+ * reads as none.
+ */
+export function readConfigOperationInputs(
+  configPath: string,
+  operationId: string,
+  warn: (line: string) => void,
+): { context?: string; operationGuidance?: string[] } {
+  const read = readConfig(configPath, warn)
+  if (read === undefined) return {}
+  const { context, config } = read
+  const operations = config.operations
+  const operation = isRecord(operations) ? operations[operationId] : undefined
+  const guidance = isRecord(operation) ? operation.guidance : undefined
+  const entries = isStringArray(guidance) ? guidance.filter((entry) => entry.length > 0) : []
+  return {
+    ...(context !== undefined && context.trim().length > 0 ? { context } : {}),
+    ...(entries.length > 0 ? { operationGuidance: entries } : {}),
+  }
 }
