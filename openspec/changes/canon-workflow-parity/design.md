@@ -384,6 +384,14 @@ in every body. Each is recorded in `ported:` against its own upstream file.
 upstream command, and the contract test (verification 2) runs the very line the
 rendered body prints.
 
+`cospec archive` itself also prints the guidance, after the summary on success
+and with the refusal on a refusal, and its `--json` success document carries
+additive `context` and `operationGuidance` keys (issue #70). It reads
+`config.yaml` natively (`readConfigOperationInputs`) rather than through a
+wrapped `instructions archive` call: a refusal spawns nothing, and the change
+directory is gone once the delegated archive has run. A contract row compares
+the result with the binary's own, warning lines included.
+
 ### D9. `bulk-archive` resolves collisions (T6)
 
 Port `bulk-archive-change.js:100-165` through cospec's primitives, replacing
@@ -503,6 +511,11 @@ is free text, and `validate --strict` fails on warnings, so every false positive
 (a task that documents the archive command, as this very change's docs task
 does) would block a commit; a new stable rule ID is also public API. The
 guidance is the producer, and the unit test (D13) reads it.
+
+The paragraph lives in `meta.yaml`, and eight types (build, ci, fix, perf,
+refactor, revert, style, test) carry a `tasksInstruction` override that replaces
+the canon instruction wholesale (`schema-compose.ts`), so the paragraph is added
+to those eight as well and all eleven generated schemas change.
 
 ### D12. Registry, specs and docs
 
