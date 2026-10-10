@@ -2,10 +2,10 @@
 
 ## 1. operations.apply.guidance reaches both cospec apply paths [critical]
 
-- [ ] 1.1 @integration (agent) run `cospec apply` in a sandbox project whose `config.yaml` sets `context` and `operations.apply.guidance`, on a cospec-typed change and on a legacy-schema change, in text and `--json`, beside the pinned binary's `instructions apply` on the same fixture -> every output carries the context and each guidance entry, and the text sections equal the binary's own (`operation-guidance.test.ts`)
-- [ ] 1.2 @e2e (agent) drive the real `bun run apps/cli/src/index.ts apply <change>` in that fixture and read the transcript -> the references section precedes the instruction, the context and guidance sections follow it, and an unconfigured project prints none of them
-- [ ] 1.3 @unit (agent) `relayApplyInstructions` and `renderOperationInputs` over a document with `context`, `operationGuidance` and `references` -> user text is byte for byte (a guidance entry beginning `openspec list` is unchanged) and only the two reference command fields read `cospec ...`
-- [ ] 1.4 @integration (agent) render `apply` and compare its precedence paragraph with `apply-change.js` in the pinned dist -> every controlling sentence of the upstream paragraph is present
+- [x] 1.1 @integration (agent) run `cospec apply` in a sandbox project whose `config.yaml` sets `context` and `operations.apply.guidance`, on a cospec-typed change and on a legacy-schema change, in text and `--json`, beside the pinned binary's `instructions apply` on the same fixture -> every output carries the context and each guidance entry, and the text sections equal the binary's own (`operation-guidance.test.ts`) Observed: `test/contract/operation-guidance.test.ts` (clear-gate, `applyLegacy`, `--json`, unconfigured rows, each beside the binary's `instructions apply`) passes in the full `mise run check` (contract 3229 pass, 0 fail).
+- [x] 1.2 @e2e (agent) drive the real `bun run apps/cli/src/index.ts apply <change>` in that fixture and read the transcript -> the references section precedes the instruction, the context and guidance sections follow it, and an unconfigured project prints none of them Observed: sandbox project (`cospec init`, fix change, config with `context` and `operations.apply.guidance`), `bun run apps/cli/src/index.ts apply my-fix` -> the transcript ends with the instruction text, then `### Project Context (required instruction input)`, then `### Operation Guidance (advisory)` with the marker; unconfigured the same command prints neither section. A fix change carries no references, so the references-before-instruction order is held by the contract rows above.
+- [x] 1.3 @unit (agent) `relayApplyInstructions` and `renderOperationInputs` over a document with `context`, `operationGuidance` and `references` -> user text is byte for byte (a guidance entry beginning `openspec list` is unchanged) and only the two reference command fields read `cospec ...` Observed: `test/unit/commands/apply-operation-inputs.test.ts` (8 rows, byte-for-byte guidance entry beginning `openspec list`, only the two reference command fields respelled) passes in `mise run check` (unit 3103 pass, 0 fail).
+- [x] 1.4 @integration (agent) render `apply` and compare its precedence paragraph with `apply-change.js` in the pinned dist -> every controlling sentence of the upstream paragraph is present Observed: `test/integration/ported-passages.test.ts` apply rows (every controlling sentence of `apply-change.js` at 1.13.1) pass in `mise run check` (integration 389 pass, 0 fail).
 
 ## 2. operations.archive.guidance is reachable from archive.md alone [critical]
 
@@ -14,19 +14,19 @@
 
 ## 3. The fragment renders into all twelve bodies [critical]
 
-- [ ] 3.1 @unit (agent) render every workflow for every shipped harness row -> each of the twelve carries the fragment's text exactly once, none carries `{{ROOT_GUARD}}`, and no body keeps its own grounding or picker prose
-- [ ] 3.2 @integration (agent) run `cospec update` in a sandbox project and read a written skill and command file for each shipped harness -> each holds one copy of the fragment and `cospec doctor` reports no stale harness file
-- [ ] 3.3 @unit (agent) the fragment names the `Declared in` and `Invalid store declaration in` prefixes, both branches, and the `(Recommended)` picker; a body missing, repeating or adding a token fails the render -> every assertion holds
-- [ ] 3.4 @integration (agent) probe `cospec list --json` in a sandbox project with no root, with an unregistered declared store and with a malformed declaration -> `root: null`, exit 1, and a `status` message beginning `Declared in` for the last two, matching the fragment's wording
+- [x] 3.1 @unit (agent) render every workflow for every shipped harness row -> each of the twelve carries the fragment's text exactly once, none carries `{{ROOT_GUARD}}`, and no body keeps its own grounding or picker prose Observed: `test/unit/canon-render.test.ts` fragment rows (once per body for every harness row, no `{{ROOT_GUARD}}`, no body-owned grounding or picker prose) pass in `mise run check`.
+- [x] 3.2 @integration (agent) run `cospec update` in a sandbox project and read a written skill and command file for each shipped harness -> each holds one copy of the fragment and `cospec doctor` reports no stale harness file Observed: sandbox `cospec init --tools claude,codex,opencode` then `cospec update` -> `everything up to date`; 60 written skill and command files each hold exactly one copy of the fragment (`Invalid store declaration in` count 1), none holds `ROOT_GUARD` or `ported:`; `cospec doctor` reports 0 errors and no stale-harness finding (one unrelated `gate-hooks` warning, hooks not installed in the sandbox).
+- [x] 3.3 @unit (agent) the fragment names the `Declared in` and `Invalid store declaration in` prefixes, both branches, and the `(Recommended)` picker; a body missing, repeating or adding a token fails the render -> every assertion holds Observed: `test/unit/canon-render.test.ts` (fragment prefixes, both branches, `(Recommended)` picker, missing, repeated and extra token throws) passes in `mise run check`.
+- [x] 3.4 @integration (agent) probe `cospec list --json` in a sandbox project with no root, with an unregistered declared store and with a malformed declaration -> `root: null`, exit 1, and a `status` message beginning `Declared in` for the last two, matching the fragment's wording Observed: sandbox probes of `cospec list --json`: no root -> `root: null`, exit 1, code `no_openspec_root`; `store: ghost` unregistered -> `root: null`, exit 1, message `Declared in <config.yaml>: unknown store 'ghost' ...`; `store: [a, b]` -> `root: null`, exit 1, message `Invalid store declaration in <config.yaml>: the store key must be a single store id string.`; both prefixes are named in the fragment.
 
 ## 4. No body carries a bare openspec command
 
-- [ ] 4.1 @regression (agent) scan every rendered body and the fragment for a bare `openspec <command>` invocation -> none, and the existing living-spec scenario for it still passes
+- [x] 4.1 @regression (agent) scan every rendered body and the fragment for a bare `openspec <command>` invocation -> none, and the existing living-spec scenario for it still passes Observed: `test/unit/canon-render.test.ts` 'no body carries a bare openspec command' and the fragment row pass; the `change-progress-reporting` bare-`openspec` scenarios pass in `mise run check`.
 
 ## 5. Every ported entry names a template that exists in the pinned dist
 
-- [ ] 5.1 @integration (agent) check each `ported:` entry's `file` against `apps/cli/node_modules/@fission-ai/openspec` and its `pin` against the pinned version -> every file exists and every pin matches, and a forced mismatch lists the entry
-- [ ] 5.2 @unit (agent) render every harness file -> no generated file contains a `ported:` key or entry
+- [x] 5.1 @integration (agent) check each `ported:` entry's `file` against `apps/cli/node_modules/@fission-ai/openspec` and its `pin` against the pinned version -> every file exists and every pin matches, and a forced mismatch lists the entry Observed: `test/contract/ported-provenance.test.ts` (every entry's file exists in the pinned dist, every pin matches, a forced mismatch lists the entry) passes in `mise run check` (contract 3229 pass, 0 fail).
+- [x] 5.2 @unit (agent) render every harness file -> no generated file contains a `ported:` key or entry Observed: `test/unit/canon-render.test.ts` 'ported never reaches a generated file' passes; the 60 sandbox-written files hold no `ported:` entry.
 
 ## 6. bulk-archive resolves a collision through delta edits only [critical]
 
@@ -47,10 +47,10 @@
 
 ## 9. The tasks guidance never produces an archive task
 
-- [ ] 9.1 @unit (agent) read the generated schemas of all eleven types, the tasks `templateBody` and every type's tasks note -> each instruction states that archiving is not a task and gives the `The archive commit follows this one` wording, and no template or note offers an archive row
-- [ ] 9.2 @integration (agent) run `cospec instructions tasks --change <slug>` on a new change in a sandbox project -> the output carries the rule
+- [x] 9.1 @unit (agent) read the generated schemas of all eleven types, the tasks `templateBody` and every type's tasks note -> each instruction states that archiving is not a task and gives the `The archive commit follows this one` wording, and no template or note offers an archive row Observed: `test/unit/schemas/schema-compose.test.ts` (11 types, instruction, `templateBody`, notes; paragraph present, no archive row) passes in `mise run check`.
+- [x] 9.2 @integration (agent) run `cospec instructions tasks --change <slug>` on a new change in a sandbox project -> the output carries the rule Observed: `test/contract/tasks-archive-guidance.test.ts` (`cospec instructions tasks --change` for each type) passes in `mise run check`.
 
 ## 10. Agent context and the full gate
 
-- [ ] 10.1 @regression (agent) `mise run agents:check` -> exits 0 with `.agents/shared.md` carrying the fragment, `ported:` and tasks-guidance conventions
-- [ ] 10.2 @regression (agent) `mise run check` -> exits 0, with unit, integration, contract and bench suites green and `generate:check` clean
+- [x] 10.1 @regression (agent) `mise run agents:check` -> exits 0 with `.agents/shared.md` carrying the fragment, `ported:` and tasks-guidance conventions Observed: `mise run agents:check` (run inside `mise run check`) prints `All shared blocks are in sync.` and exits 0.
+- [x] 10.2 @regression (agent) `mise run check` -> exits 0, with unit, integration, contract and bench suites green and `generate:check` clean Observed: `env -u FORCE_COLOR -u NO_COLOR -u COLORTERM -u CLICOLOR mise run check` exit 0: unit 3103 pass, integration 389 pass, contract 3229 pass, bench 343 pass, e2e release 14 pass, 0 fail anywhere; `generate:check` no drift; `test.failing`/`test.todo`/`KNOWN_FAILING` empty.

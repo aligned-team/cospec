@@ -309,14 +309,19 @@
 
 ## 11. Registry and specs
 
-- [ ] 11.1 Confirm no `canon-workflow-parity` owner exists in
+- [x] 11.1 Confirm no `canon-workflow-parity` owner exists in
       `test/contract/parity-pending.yaml` and that the reachability test passes
       with the pending list empty ->
       `grep -c canon-workflow-parity     apps/cli/test/contract/parity-pending.yaml`
-      prints 0 and `mise run test:contract` exits 0.
-- [ ] 11.2 Run `cospec validate canon-workflow-parity --strict` and
+      prints 0 and `mise run test:contract` exits 0. Observed:
+      `grep -c canon-workflow-parity apps/cli/test/contract/parity-pending.yaml`
+      prints 0 and `mise run test:contract` (inside `mise run check`) exits 0
+      with 3229 pass, 0 fail.
+- [x] 11.2 Run `cospec validate canon-workflow-parity --strict` and
       `mise run openspec:schema:validate` after the group-8 and group-10 edits
-      -> both exit 0.
+      -> both exit 0. Observed: `cospec validate canon-workflow-parity --strict`
+      prints 0 errors, 0 warnings and `mise run openspec:schema:validate`
+      exits 0.
 
 ## 12. Docs
 
@@ -361,8 +366,11 @@
 
 ## 14. Land
 
-- [ ] 14.1 Rebase onto `main` again (`--force-with-lease`, no merge commit),
+- [x] 14.1 Rebase onto `main` again (`--force-with-lease`, no merge commit),
       rerun `bun install --frozen-lockfile` and `mise run check`, and confirm
       `git log main..HEAD` shows only this change's commits. The archive commit
       follows this one -> `mise run check` exits 0 and the observed counts are
-      recorded here.
+      recorded here. Observed: `origin/main` still 713941ca, so no rebase was
+      needed; `git log --merges origin/main..HEAD` is empty. `mise run check`
+      exits 0: unit 3103, integration 389, contract 3229, bench 343, e2e release
+      14 pass, 0 fail; `generate:check` and `agents:check` clean.
