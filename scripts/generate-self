@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Run `cospec update` over this repo's own managed files with an empty machine-global OpenSpec
+# config. `update` honours the `profile`/`workflows`/`delivery` keys of that config, so on a host
+# whose config says `profile: core` it renders and drift-checks only part of the twelve workflows
+# CLAUDE.md commits; an empty config dir keeps `generate` and `generate:check` host-independent.
+set -euo pipefail
+
+config_home="$(mktemp -d "${TMPDIR:-/tmp}/cospec-generate-config.XXXXXX")"
+trap 'rm -rf "$config_home"' EXIT
+
+XDG_CONFIG_HOME="$config_home" bun run apps/cli/src/index.ts -- "$@"

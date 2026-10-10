@@ -374,9 +374,15 @@ Contract tests run the real pinned binary; a false archive PASS is a release
 blocker. The oracle (`test/contract/support/upstream-oracle.ts`) and
 `openspec()`/`openspecRaw()` (`test/fixtures/support.ts`) run it under Bun with
 cospec's wrapped env over a private HOME/XDG sandbox, as the product does and
-never against the real HOME; pass `{ runtime: 'node' }` (the tests-only
-`mise.toml` node pin) only for an argv that starts with `--`. Assert errno
-failures through `test/fixtures/errno.ts` (code, syscall, path), never the
+never against the real HOME. Every `bun test` run — flags or none — loads
+`apps/cli/test/fixtures/isolate-machine-state.ts` through `bunfig.toml`, which
+points HOME, USERPROFILE, `os.homedir()` (Bun does not follow a later `HOME`
+assignment) and the XDG/Codex dirs at a private sandbox and fails any test whose
+global-config path lies under the real home;
+`test/unit/support-machine-isolation.test.ts` guards it. A test that wants a
+profile sets `XDG_CONFIG_HOME` itself. Pass `{ runtime: 'node' }` (the
+tests-only `mise.toml` node pin) only for an argv that starts with `--`. Assert
+errno failures through `test/fixtures/errno.ts` (code, syscall, path), never the
 OS-specific sentence.
 
 **Docs never drift** — zero drift between the published docs site and released

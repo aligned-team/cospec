@@ -1,0 +1,4 @@
+# `bun test` reads only the bunfig in its working directory, and the mise tasks run it from here,
+# so the root bunfig's preload is repeated for them. Neither run passes `--preload`.
+[test]
+preload = ["./test/fixtures/isolate-machine-state.ts"]

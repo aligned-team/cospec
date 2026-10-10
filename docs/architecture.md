@@ -74,10 +74,15 @@ cospec spawns OpenSpec; it never imports it.
   on the resolved bin, under `buildWrappedSpawnEnv` over a private HOME/XDG
   sandbox (`oracleEnv`), so both sides of a differential run in the runtime
   cospec's wrapped calls use and the binary never reads or writes the real HOME.
-  The one exception is `{ runtime: 'node' }` for an argv whose first token is
-  `--`, which Bun drops after the script path. That Node is the `mise.toml`
-  `node` pin, for tests and CI only — cospec itself never runs Node. Errno
-  failures are compared by errno code, syscall (`statx` read as `stat`) and path
+  In-process calls are covered by the bunfig preload
+  `test/fixtures/isolate-machine-state.ts`, which every `bun test` run loads: it
+  points HOME, USERPROFILE, the XDG and Codex dirs and `os.homedir()` at a
+  private sandbox and fails any test whose global-config path lies under the
+  real home (`test/unit/support-machine-isolation.test.ts` guards it). The one
+  exception is `{ runtime: 'node' }` for an argv whose first token is `--`,
+  which Bun drops after the script path. That Node is the `mise.toml` `node`
+  pin, for tests and CI only — cospec itself never runs Node. Errno failures are
+  compared by errno code, syscall (`statx` read as `stat`) and path
   (`test/fixtures/errno.ts`), never by the sentence, which varies by runtime and
   kernel.
 

@@ -9,6 +9,8 @@ shell = "bun"
 silent = false
 
 [test]
+# Every `bun test` run, with or without flags, loads the machine-state isolation first.
+preload = ["./apps/cli/test/fixtures/isolate-machine-state.ts"]
 coverage = false
 coverageThreshold = { line = 0.95, function = 0.95, branch = 0.80, statement = 0.95 }
 coverageSkipTestFiles = true
