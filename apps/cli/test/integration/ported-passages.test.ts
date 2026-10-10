@@ -9,33 +9,40 @@ import { join } from 'node:path'
 
 import { openspecPackageDir } from '../../src/core/openspec.ts'
 import {
+  ARCHIVE_INPUTS_LOOKUP,
   ASCII_DIAGRAMS,
   INSPECT_BEFORE_DRAFTING,
+  OPERATION_INPUTS_PRECEDENCE,
   type PortedPassage,
   WORKFLOW_TEMPLATES,
 } from '../fixtures/ported-passages.ts'
 
-/** The pinned template text as a reader sees it: the template literal's `\`` is a backtick. */
+/**
+ * The pinned template text as a reader sees it: the template literal's `\`` is a backtick, and a
+ * sentence the template wraps across lines is one run of single-spaced words.
+ */
 function pinnedText(file: string): string {
   const path = join(openspecPackageDir(), WORKFLOW_TEMPLATES, file)
-  return readFileSync(path, 'utf8').replaceAll('\\`', '`')
+  return readFileSync(path, 'utf8').replaceAll('\\`', '`').replace(/\s+/g, ' ')
 }
 
-describe.each([INSPECT_BEFORE_DRAFTING, ASCII_DIAGRAMS])(
-  'ported passage $passage',
-  (passage: PortedPassage) => {
-    test.each([...passage.files])(
-      'every controlling sentence is found in the pinned %s',
-      (file: string) => {
-        const text = pinnedText(file)
-        for (const sentence of passage.sentences) expect(text).toContain(sentence)
-      },
-    )
+describe.each([
+  INSPECT_BEFORE_DRAFTING,
+  ASCII_DIAGRAMS,
+  OPERATION_INPUTS_PRECEDENCE,
+  ARCHIVE_INPUTS_LOOKUP,
+])('ported passage $passage', (passage: PortedPassage) => {
+  test.each([...passage.files])(
+    'every controlling sentence is found in the pinned %s',
+    (file: string) => {
+      const text = pinnedText(file)
+      for (const sentence of passage.sentences) expect(text).toContain(sentence)
+    },
+  )
 
-    test('the pinned template files exist', () => {
-      for (const file of passage.files) {
-        expect(existsSync(join(openspecPackageDir(), WORKFLOW_TEMPLATES, file))).toBe(true)
-      }
-    })
-  },
-)
+  test('the pinned template files exist', () => {
+    for (const file of passage.files) {
+      expect(existsSync(join(openspecPackageDir(), WORKFLOW_TEMPLATES, file))).toBe(true)
+    }
+  })
+})

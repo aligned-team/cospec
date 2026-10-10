@@ -14,7 +14,12 @@ import {
   readWorkflowManifest,
   renderHarnessFiles,
 } from '../../src/harness/render.ts'
-import { ASCII_DIAGRAMS, INSPECT_BEFORE_DRAFTING } from '../fixtures/ported-passages.ts'
+import {
+  ARCHIVE_INPUTS_LOOKUP,
+  ASCII_DIAGRAMS,
+  INSPECT_BEFORE_DRAFTING,
+  OPERATION_INPUTS_PRECEDENCE,
+} from '../fixtures/ported-passages.ts'
 
 const CANON = join(import.meta.dir, '../../src/canon/workflows')
 const FRAGMENT_PATH = 'workflows/_shared/root-guard.md'
@@ -189,4 +194,46 @@ describe('explore draws diagrams in plain ASCII only (design D6)', () => {
     expect(files.length).toBeGreaterThan(0)
     for (const f of files) expect(f.content).not.toMatch(/[\u2190-\u21FF\u2500-\u257F]/)
   })
+})
+
+describe('apply reads the project inputs (design D7)', () => {
+  test.failing('apply carries the precedence paragraph, verbatim from the pinned template', () => {
+    const body = flat(skillBody('apply'))
+    for (const sentence of OPERATION_INPUTS_PRECEDENCE.sentences) expect(body).toContain(sentence)
+  })
+
+  test.failing('apply reads the inputs from the nested `apply` object of the gate document', () => {
+    const body = flat(skillBody('apply'))
+    expect(body).toContain('apply.context')
+    expect(body).toContain('apply.operationGuidance')
+  })
+})
+
+describe('archive looks up the project inputs (design D8)', () => {
+  const LOOKUP = 'cospec instructions archive --change "<slug>" --json'
+
+  test.failing('archive runs the lookup in step 1, before the archive command', () => {
+    const body = flat(skillBody('archive'))
+    const lookup = body.indexOf(LOOKUP)
+    expect(lookup).toBeGreaterThan(-1)
+    expect(lookup).toBeLessThan(body.indexOf('cospec archive <slug>'))
+  })
+
+  test.failing(
+    'archive states the lookup is optional and never blocks, verbatim from upstream',
+    () => {
+      const body = flat(skillBody('archive'))
+      for (const sentence of ARCHIVE_INPUTS_LOOKUP.sentences) expect(body).toContain(sentence)
+    },
+  )
+
+  test.failing(
+    'archive threads the selected store onto the lookup, as the other commands do',
+    () => {
+      const body = flat(skillBody('archive'))
+      const lookup = body.indexOf(LOOKUP)
+      expect(lookup).toBeGreaterThan(-1)
+      expect(body.slice(lookup, lookup + 300)).toContain('--store <id>')
+    },
+  )
 })
