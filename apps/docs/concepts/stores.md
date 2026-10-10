@@ -134,6 +134,15 @@ which root a command targets from any directory:
 `references:` is read-only context, never a root override at any step above — it
 does not change where a change is created or gated.
 
+`cospec init` applies the pointer rule at its target before it writes anything:
+when the nearest `openspec/` at or above the target is config-only and its
+`store:` line names a store, init refuses
+(`This repo's planning is externalized to store '<id>' …`) rather than scaffold
+a local root beside it, and a `store:` value that can't be read refuses the same
+way (`The store declaration in <path> is invalid …`). Remove the `store:` line
+first to turn the repo into a local root. The refusal comes before
+`--language`'s own check and before any legacy tool-root move.
+
 ### Store verification
 
 Every store selection above — by `--store`, by a `store:` pointer, or by

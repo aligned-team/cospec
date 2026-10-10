@@ -54,6 +54,10 @@
 - [x] 7.3 @equivalence (agent) `--language "  "`, a value with a control character, one with `U+200B`, and one over 50 KB, beside the binary -> profiles.test.ts -> blank, control character, U+200B and over-50KB values each refused with the binary's message, exit 1, nothing created
 - [x] 7.4 @integration (agent) `--language` with an unwritable `openspec/` destination -> profiles.test.ts -> `Cannot create openspec/config.yaml for --language: the destination is not writable.`
 
+- [x] 7.5 @equivalence (agent) `init` over a config-only `openspec/` whose `config.yaml` holds `store: team-plans`, `schema: [`, `store: 5`, or sits in `config.yml`, in the project and in a subdirectory, with and without `--language en`, beside the pinned binary -> profiles.test.ts `init: a config-only openspec dir that declares a store` -> both exit 1 with the same text (`openspec init` spelled `cospec init`), the pointer message wins over `--language`, and the project tree hash is unchanged (a legacy `.kimi` root is not moved); a real root with a `store:` line still initialises
+
+- [x] 7.6 @equivalence (agent) `init --language English` over a `config.yaml` that is a bare string, empty, `0`, unparseable, has a non-string or over-50KB `context`, and one with invalid `schema`, `rules`, `operations`, `references`, `store` and `githubCopilot` fields, beside the pinned binary -> profiles.test.ts `init --language` warning rows -> stderr identical line for line (the warnings, then the refusal), and a config that already carries the directive prints its warning once and exits 0
+
 ## 8. The pending list is empty
 
 - [x] 8.1 @integration (agent) `grep -c "owner: workflow-profiles" apps/cli/test/contract/parity-pending.yaml` before and after, and the reachability test inside `mise run test:contract` -> `grep -c "owner: workflow-profiles" parity-pending.yaml` -> 0 (the file is `[]`); reachability.test.ts resolves `--profile` and `--language` to the table alone; `mise run check` runs the contract suite, 3184 pass, 0 fail

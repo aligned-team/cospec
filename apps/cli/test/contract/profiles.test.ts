@@ -12,6 +12,7 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -445,6 +446,133 @@ describe('init --language', () => {
     await expectRefusal(['--language', 'English'], withConfig('schema: feat\n'))
   }, 60_000)
 
+  /** Every stderr line, with the refusal's prefix and the project's path made comparable. */
+  const stderrLines = (stderr: string, dirs: string[]): string[] =>
+    stderr
+      .split('\n')
+      .map((line) => line.replace(/^cospec: /, '').replace(/^✖ Error: /, ''))
+      .map((line) => {
+        let out = line
+        for (const dir of dirs)
+          out = out.replaceAll(realpathSync(dir), '<dir>').replaceAll(dir, '<dir>')
+        return out
+      })
+      .filter((line) => line.length > 0)
+
+  /**
+   * A config beside a `changes/` dir: a real root, so a `store:` line the binary could not
+   * follow is not a pointer to refuse, and its own field warnings are what prints.
+   */
+  const withRootConfig =
+    (yaml: string) =>
+    (dir: string): void => {
+      withConfig(yaml)(dir)
+      mkdirSync(join(dir, 'openspec', 'changes'))
+    }
+
+  /** The binary's warnings and refusal against cospec's, line for line, for one config. */
+  async function expectSameWarnings(
+    yaml: string,
+    lines: string[],
+    args = ['--language', 'English'],
+  ): Promise<void> {
+    const { s, upstream } = pair(withRootConfig(yaml))
+    const run = await initIn(s, args)
+    const bin = await upstreamInit(s.root, upstream, args)
+    const dirs = [s.project, upstream]
+    expect(run.exitCode).toBe(bin.exitCode)
+    expect(stderrLines(run.stderr, dirs)).toEqual(stderrLines(bin.stderr, dirs))
+    expect(stderrLines(bin.stderr, dirs)).toEqual(lines)
+  }
+
+  const REFUSAL =
+    '--language does not overwrite an existing OpenSpec config. Add the language instruction to its context field instead.'
+
+  test('a refusal carries the warnings the binary prints about the config it read', async () => {
+    await expectSameWarnings('schema: feat\ncontext: 5\n', [
+      "Invalid 'context' field in config (must be string)",
+      REFUSAL,
+    ])
+    await expectSameWarnings('just a string\n', [
+      'openspec/config.yaml is not a valid YAML object',
+      REFUSAL,
+    ])
+    await expectSameWarnings('', ['openspec/config.yaml is not a valid YAML object', REFUSAL])
+    await expectSameWarnings('0\n', ['openspec/config.yaml is not a valid YAML object', REFUSAL])
+  }, 240_000)
+
+  test("a config that does not parse is named with the first line of the parser's message", async () => {
+    const { s, upstream } = pair(withRootConfig('schema: [\n'))
+    const run = await initIn(s, ['--language', 'English'])
+    const bin = await upstreamInit(s.root, upstream, ['--language', 'English'])
+    const dirs = [s.project, upstream]
+    expect(stderrLines(run.stderr, dirs)).toEqual(stderrLines(bin.stderr, dirs))
+    expect(stderrLines(run.stderr, dirs)[0]).toMatch(
+      /^Warning: could not parse <dir>\/openspec\/config\.yaml \(.+\); ignoring it\.$/,
+    )
+  }, 60_000)
+
+  test("a context over the limit is dropped with the binary's two lines", async () => {
+    const size = ((52_000 + 'x'.length - 1) / 1024).toFixed(1)
+    await expectSameWarnings(`schema: feat\ncontext: ${'x'.repeat(52_000)}\n`, [
+      `Context too large (${size}KB, limit: 50KB)`,
+      'Ignoring context field',
+      REFUSAL,
+    ])
+  }, 60_000)
+
+  test('every other field the binary checks warns the same, in its order', async () => {
+    const yaml = [
+      'schema: 5',
+      'context: ok',
+      'rules:',
+      '  proposal: [a, ""]',
+      '  specs: nope',
+      'operations:',
+      '  apply:',
+      '    guidance: [x, ""]',
+      '    extra: 1',
+      '  verify: {}',
+      '  archive: 3',
+      'references: [a, 5, {id: b, remote: 1}]',
+      'store: [x]',
+      'githubCopilot:',
+      '  cloudAgent: maybe',
+      '',
+    ].join('\n')
+    const { s, upstream } = pair(withRootConfig(yaml))
+    const run = await initIn(s, ['--language', 'English'])
+    const bin = await upstreamInit(s.root, upstream, ['--language', 'English'])
+    const dirs = [s.project, upstream]
+    expect(stderrLines(run.stderr, dirs)).toEqual(stderrLines(bin.stderr, dirs))
+    expect(stderrLines(run.stderr, dirs).length).toBeGreaterThan(8)
+    for (const bad of ['rules: nope', 'operations: 3', 'references: x', 'githubCopilot: 1']) {
+      await expectSameWarnings(`schema: feat\n${bad}\n`, [
+        `Invalid '${bad.split(':')[0]}' field in config (must be ${
+          bad.startsWith('references')
+            ? 'an array of store ids'
+            : bad.startsWith('githubCopilot')
+              ? 'an object'
+              : 'object'
+        })`,
+        REFUSAL,
+      ])
+    }
+  }, 240_000)
+
+  test('a config that already carries the directive still prints its warnings once', async () => {
+    const yaml = `schema: 5\ncontext: |\n${DIRECTIVE('English').replace(/^/gm, '  ')}\n`
+    const { s, upstream } = pair(withConfig(yaml))
+    const run = await initIn(s, ['--language', 'English'])
+    const bin = await upstreamInit(s.root, upstream, ['--language', 'English'])
+    expect(run.exitCode).toBe(0)
+    expect(bin.exitCode).toBe(0)
+    const dirs = [s.project, upstream]
+    const warning = "Invalid 'schema' field in config (must be non-empty string)"
+    expect(stderrLines(bin.stderr, dirs).filter((l) => l === warning)).toHaveLength(1)
+    expect(stderrLines(run.stderr, dirs).filter((l) => l === warning)).toHaveLength(1)
+  }, 60_000)
+
   test('config.yml alone counts as a config, so no config.yaml is written beside it', async () => {
     await expectRefusal(['--language', 'English'], (dir) => {
       mkdirSync(join(dir, 'openspec'), { recursive: true })
@@ -541,6 +669,133 @@ describe('init --language', () => {
     expect(run.exitCode).toBe(1)
     expect(messageOf(run.stderr)).toBe('Invalid profile "bogus". Available profiles: core, custom')
     expect(readdirSync(s.project)).toEqual([])
+  }, 60_000)
+})
+
+describe('init: a config-only openspec dir that declares a store', () => {
+  const pointerConfig = (yaml: string) => (dir: string) => {
+    mkdirSync(join(dir, 'openspec'), { recursive: true })
+    writeFileSync(join(dir, 'openspec', 'config.yaml'), yaml)
+  }
+
+  /** The binary's message with its paths and its spelling of this command made comparable. */
+  const normalize = (message: string, dirs: string[]): string => {
+    let out = message.replaceAll('openspec init', 'cospec init')
+    for (const dir of dirs) out = out.replaceAll(realpathSync(dir), '<dir>')
+    return out
+  }
+
+  /** Both refuse with the same text and cospec writes nothing, whatever sits in `project`. */
+  async function expectBothRefuse(
+    setup: (dir: string) => void,
+    args: string[],
+    runIn: (s: Sandbox) => string = (s) => s.project,
+  ): Promise<string> {
+    const { s, upstream } = pair(setup)
+    const before = hashTree(s.project)
+    const mine = await cospec(['init', '--harness', 'claude', '--no-gate', ...args], {
+      cwd: runIn(s),
+      env: s.env,
+    })
+    const theirs = await oracle(['init', '--tools', 'claude', ...args], s.root, {
+      ...NODE,
+      cwd: runIn({ ...s, project: upstream }),
+    })
+    expect(theirs.exitCode).toBe(1)
+    expect(mine.exitCode).toBe(1)
+    expect(mine.stdout).toBe('')
+    const dirs = [s.project, upstream]
+    expect(normalize(messageOf(mine.stderr), dirs)).toBe(normalize(messageOf(theirs.stderr), dirs))
+    expect(hashTree(s.project)).toEqual(before)
+    return normalize(messageOf(mine.stderr), dirs)
+  }
+
+  test('a store declaration is refused, and nothing is written', async () => {
+    const message = await expectBothRefuse(
+      pointerConfig('schema: spec-driven\nstore: team-plans\n'),
+      [],
+    )
+    expect(message).toBe(
+      "This repo's planning is externalized to store 'team-plans' (<dir>/openspec/config.yaml). " +
+        'Remove the store: line first to convert this repo to a local OpenSpec root.',
+    )
+  }, 60_000)
+
+  test("a config that is not YAML is refused with the binary's store-declaration message", async () => {
+    const message = await expectBothRefuse(pointerConfig('schema: [\n'), [])
+    expect(message).toBe(
+      'The store declaration in <dir>/openspec/config.yaml is invalid ' +
+        '(the config file could not be read as YAML). ' +
+        'Fix or remove the store: line before running cospec init.',
+    )
+  }, 60_000)
+
+  test('a store key that is not a string is refused', async () => {
+    const message = await expectBothRefuse(pointerConfig('store: 5\n'), [])
+    expect(message).toContain('the store key must be a single store id string')
+  }, 60_000)
+
+  test('config.yml counts as the config', async () => {
+    await expectBothRefuse((dir) => {
+      mkdirSync(join(dir, 'openspec'), { recursive: true })
+      writeFileSync(join(dir, 'openspec', 'config.yml'), 'store: team-plans\n')
+    }, [])
+  }, 60_000)
+
+  test('the pointer is refused before --language, as the binary orders them', async () => {
+    const message = await expectBothRefuse(pointerConfig('schema: [\n'), ['--language', 'en'])
+    expect(message).toContain('is invalid (the config file could not be read as YAML)')
+    const declared = await expectBothRefuse(pointerConfig('store: team-plans\n'), [
+      '--language',
+      'en',
+    ])
+    expect(declared).toContain('externalized to store')
+  }, 120_000)
+
+  test('a bad --language value is still reported before the pointer', async () => {
+    const { s, upstream } = pair(pointerConfig('store: team-plans\n'))
+    const mine = await initIn(s, ['--language', ''])
+    const theirs = await upstreamInit(s.root, upstream, ['--language', ''])
+    expect(messageOf(mine.stderr)).toBe('The --language option requires a non-empty value.')
+    expect(messageOf(theirs.stderr)).toBe(messageOf(mine.stderr))
+  }, 60_000)
+
+  test('a subdirectory of the pointer repo is refused where it would grow a nested root', async () => {
+    await expectBothRefuse(
+      (dir) => {
+        pointerConfig('store: team-plans\n')(dir)
+        mkdirSync(join(dir, 'sub'))
+      },
+      [],
+      (s) => join(s.project, 'sub'),
+    )
+  }, 60_000)
+
+  test('a legacy tool root is not moved before the refusal', async () => {
+    await expectBothRefuse((dir) => {
+      pointerConfig('store: team-plans\n')(dir)
+      mkdirSync(join(dir, '.kimi', 'skills', 'openspec-propose'), { recursive: true })
+      writeFileSync(join(dir, '.kimi', 'skills', 'openspec-propose', 'SKILL.md'), 'x\n')
+    }, [])
+  }, 60_000)
+
+  test('a real root keeps its store line and init goes on, as the binary does', async () => {
+    const { s, upstream } = pair((dir) => {
+      pointerConfig('schema: spec-driven\nstore: team-plans\n')(dir)
+      mkdirSync(join(dir, 'openspec', 'changes'), { recursive: true })
+    })
+    const mine = await initIn(s)
+    const theirs = await upstreamInit(s.root, upstream, [])
+    expect(theirs.exitCode).toBe(0)
+    expect(mine.exitCode).toBe(0)
+    expect(readFileSync(join(s.project, 'openspec', 'config.yaml'), 'utf8')).toContain(
+      'store: team-plans',
+    )
+  }, 60_000)
+
+  test('a config-only dir with no store line is not a pointer', async () => {
+    const { s } = pair(pointerConfig('schema: spec-driven\n'))
+    expect((await initIn(s)).exitCode).toBe(0)
   }, 60_000)
 })
 

@@ -39,6 +39,13 @@ which root a command targets from any directory:
    (`no_root_with_registered_stores`); with none, the cwd is an **implicit**
    root, and each command's own missing-`openspec/` check reports it from there.
 
+`cospec init` ports the binary's pointer guard (`initPointerRefusal`,
+`core/root.ts`): at its target it finds the nearest `openspec/` at or above it,
+and when that directory is config-only (no planning shape) with a `store:`
+value, or a malformed one, it refuses with the binary's message spelled
+`cospec`, before the `--language` check, any legacy tool-root move or any write.
+A planning root's `store:` line is ignored, as everywhere else.
+
 Every store selection (steps 1, 3's pointer branch, and 4) is verified on disk —
 identity metadata, then root health — before it is used, and announced once on
 stderr in human mode by the store banner (never on `templates` or `schema`:

@@ -35,6 +35,7 @@ import { readGlobalProfile } from '../core/global-profile.ts'
 import { languageDirective, languageRefusal, normalizeLanguage } from '../core/init-language.ts'
 import { askLine, isInteractive } from '../core/interactive.ts'
 import { splitFrontmatter, type WriteResult } from '../core/managed-files.ts'
+import { initPointerRefusal } from '../core/root.ts'
 import {
   adapterFor,
   HARNESS_TABLE,
@@ -767,8 +768,9 @@ export async function run(ctx: CommandContext): Promise<number> {
   const removeOpsx = hasFlag(parsed, '--remove-opsx')
   const harnessArg = flagValue(parsed, '--harness')
 
-  // Refused before any write, in the binary's order: the language value, the language against
-  // the target, then the profile. The profile is explicit only when a flag or the global
+  // Refused before any write, in the binary's order: the language value, the store pointer
+  // (a config-only `openspec/` dir that declares, or malforms, a `store:` is not a root to
+  // extend), the language against the target, then the profile. The profile is explicit only when a flag or the global
   // file's own key says so.
   const languageArg = flagValue(parsed, '--language')
   let directive: string | undefined
@@ -779,6 +781,13 @@ export async function run(ctx: CommandContext): Promise<number> {
       return 1
     }
     directive = languageDirective(value.language)
+  }
+  const pointerRefusal = initPointerRefusal(target)
+  if (pointerRefusal !== undefined) {
+    process.stderr.write(`cospec: ${pointerRefusal}\n`)
+    return 1
+  }
+  if (directive !== undefined) {
     const refusal = languageRefusal(target, directive)
     if (refusal !== undefined) {
       process.stderr.write(`cospec: ${refusal}\n`)

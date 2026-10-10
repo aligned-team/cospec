@@ -156,6 +156,17 @@ rows write the `config.json` under test into the sandbox's
       neither `propose` nor `new` is installed, and verify the spec and design
       state that ladder
 
+- [x] 5.10 Port the binary's init pointer guard (`initPointerRefusal` in
+      `core/root.ts`) and run it in `init.run` after the `--language` value
+      check and before `languageRefusal`, `moveLegacyToolRoots` and every write,
+      then verify with the
+      `init: a config-only openspec dir that     declares a store` contract rows
+      beside the binary
+- [x] 5.11 Port `readProjectConfig`'s resilience warnings
+      (`core/project-config-read.ts`) and print them through `languageRefusal`
+      before it refuses or accepts, and verify with the line-for-line
+      differential rows in `profiles.test.ts` `init --language`
+
 ## 6. T5 — update (`apps/cli/src/commands/update.ts`)
 
 - [x] 6.1 Write the failing `update` rows in `profiles.test.ts`: an explicit

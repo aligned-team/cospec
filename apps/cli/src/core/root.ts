@@ -346,6 +346,41 @@ function hasPlanningShape(base: string): boolean {
 }
 
 /**
+ * `cospec init`'s pointer guard, a port of the binary's (`core/init.js`, which runs before
+ * its legacy cleanup, language check and every write): the nearest ancestor of `target`
+ * (itself included) with an `openspec/` directory, when that directory has no planning shape,
+ * is a config-only pointer dir. Init refuses it, rather than grow a root there or in a
+ * subdirectory of it. Returns the refusal's text, spelled `cospec`, or undefined when init may
+ * go on. A directory with a planning shape is a real root: its `store:` line is ignored.
+ */
+export function initPointerRefusal(target: string): string | undefined {
+  let dir = canonicalStart(target)
+  while (!isDirectory(join(dir, 'openspec'))) {
+    const parent = dirname(dir)
+    if (parent === dir) return undefined
+    dir = parent
+  }
+  if (hasPlanningShape(dir)) return undefined
+  const pointer = configStorePointer(dir)
+  if (pointer.filePath === null) return undefined
+  if (pointer.malformed !== undefined) {
+    const problem =
+      pointer.malformed === 'unparseable'
+        ? 'the config file could not be read as YAML'
+        : 'the store key must be a single store id string'
+    return (
+      `The store declaration in ${pointer.filePath} is invalid (${problem}). ` +
+      'Fix or remove the store: line before running cospec init.'
+    )
+  }
+  if (pointer.value === undefined) return undefined
+  return (
+    `This repo's planning is externalized to store '${pointer.value}' (${pointer.filePath}). ` +
+    'Remove the store: line first to convert this repo to a local OpenSpec root.'
+  )
+}
+
+/**
  * The nearest canonical ancestor of `cwd` whose `openspec/` directory has a
  * planning shape or a config file; `null` when none does.
  */

@@ -66,11 +66,17 @@ context: |
 ```
 
 `init` refuses, writing nothing, when a `config.yaml` (or `config.yml`) already
-exists and its `context` does not already hold that directive. A new file also
-carries commented examples of three more keys: `operations:` (advisory guidance
-for `apply` and `archive`), `store:` (the registered store that holds this
-repo's planning) and `references:` (other stores this project reads). They are
-comments until you uncomment them.
+exists and its `context` does not already hold that directive. Before it refuses
+(or accepts), it prints `openspec`'s own warnings about the config it read: a
+file that is not valid YAML or not a mapping, and each field that fails its
+check (`schema`, a `context` that is not a string or is over 50KB, `rules`,
+`operations`, `references`, `store` and `githubCopilot`), one line each on
+stderr. A config-only `openspec/` that declares a `store:` is refused first,
+before `--language`'s own check. A new file also carries commented examples of
+three more keys: `operations:` (advisory guidance for `apply` and `archive`),
+`store:` (the registered store that holds this repo's planning) and
+`references:` (other stores this project reads). They are comments until you
+uncomment them.
 
 One extra vocabulary lever lives here too: `verification.layers` lets you extend
 the closed set of `@<layer>` tokens (`@unit`, `@e2e`, `@manual`, and so on) that

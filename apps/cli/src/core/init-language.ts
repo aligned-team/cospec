@@ -3,16 +3,12 @@
 // against the target before anything is written. Every message is the binary's, verbatim; the
 // caller prefixes `cospec: `.
 
-import { accessSync, constants, existsSync, readFileSync, statSync } from 'node:fs'
+import { accessSync, constants, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
-import { parse as parseYaml, YAMLParseError } from 'yaml'
-
 import { resolveConfigFilePath } from '../harness/copilot-cloud.ts'
+import { MAX_CONTEXT_SIZE, readConfigContext } from './project-config-read.ts'
 import { assertPathWithin } from './spec-paths.ts'
-
-/** `MAX_CONTEXT_SIZE` in the pinned binary's `core/project-config.js`. */
-export const MAX_CONTEXT_SIZE = 50 * 1024
 
 /** Control and bidi-control characters, and the zero-width and line-separator format marks. */
 const INVISIBLE = new RegExp(
@@ -91,14 +87,26 @@ function canCreate(configPath: string): boolean {
   return existing !== null && writableByMode(existing)
 }
 
+/** A line the binary's config reader prints (`console.warn`): stderr, whole. */
+function warnOnStderr(line: string): void {
+  process.stderr.write(`${line}\n`)
+}
+
 /**
  * The binary's `assertLanguageCanBeApplied`: the message to refuse with, or undefined when the
  * directive can be applied. With no config file the destination must be a writable path inside
- * the project; with one, its `context` must already carry the directive.
+ * the project; with one, its `context` must already carry the directive. Reading an existing
+ * config prints the binary's own warnings through `warn`, as its `readProjectConfig` does,
+ * whether the check then passes or refuses.
  */
-export function languageRefusal(project: string, directive: string): string | undefined {
+export function languageRefusal(
+  project: string,
+  directive: string,
+  warn: (line: string) => void = warnOnStderr,
+): string | undefined {
   const configPath = join(project, 'openspec', 'config.yaml')
-  if (resolveConfigFilePath(project) === undefined) {
+  const existing = resolveConfigFilePath(project)
+  if (existing === undefined) {
     try {
       assertPathWithin(project, configPath)
     } catch (error) {
@@ -110,32 +118,8 @@ export function languageRefusal(project: string, directive: string): string | un
     }
     return undefined
   }
-  return existingContext(project)?.includes(directive) === true
+  return readConfigContext(existing, warn)?.includes(directive) === true
     ? undefined
     : '--language does not overwrite an existing OpenSpec config. ' +
         'Add the language instruction to its context field instead.'
-}
-
-/**
- * The config's `context`, as `readProjectConfig` reads it: a string within the size limit,
- * else nothing (a file that is not a YAML object, or a context of another type or over the
- * limit, reads as no context).
- */
-function existingContext(project: string): string | undefined {
-  const path = resolveConfigFilePath(project)
-  if (path === undefined || !existsSync(path)) return undefined
-  let raw: unknown
-  try {
-    raw = parseYaml(readFileSync(path, 'utf8'))
-  } catch (error) {
-    // The binary reads a config it cannot parse as having no context, and refuses on that.
-    if (error instanceof YAMLParseError) return undefined
-    throw error
-  }
-  if (raw === null || typeof raw !== 'object') return undefined
-  const { context } = raw as { context?: unknown }
-  if (typeof context !== 'string' || Buffer.byteLength(context, 'utf8') > MAX_CONTEXT_SIZE) {
-    return undefined
-  }
-  return context
 }
