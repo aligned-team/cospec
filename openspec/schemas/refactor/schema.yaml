@@ -2,7 +2,7 @@
 # Customize via openspec/config.yaml (context, rules); full ownership: `cospec schema fork refactor <name>`.
 name: refactor
 version: 2
-description: 'refactor — a structure change with no behavior change. Workflow: proposal → blocking-changes, design → tasks'
+description: 'refactor — a structure change with no behavior change. Workflow: proposal → blocking-changes, design → verification → tasks'
 artifacts:
   - id: proposal
     generates: proposal.md

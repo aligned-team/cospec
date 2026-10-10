@@ -2,7 +2,7 @@
 # Customize via openspec/config.yaml (context, rules); full ownership: `cospec schema fork fix <name>`.
 name: fix
 version: 2
-description: 'fix — a bug fix. Workflow: proposal → blocking-changes (+ specs, design) → tasks'
+description: 'fix — a bug fix. Workflow: proposal → blocking-changes (+ specs, design) → verification → tasks'
 artifacts:
   - id: proposal
     generates: proposal.md

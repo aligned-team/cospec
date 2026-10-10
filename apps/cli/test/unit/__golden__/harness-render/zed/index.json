@@ -58,9 +58,9 @@
     "kind": "skill",
     "workflow": "new",
     "harness": "zed",
-    "contentHash": "sha256:b2911d87515b0bc4bdc4f73e43ac9ed25f8f3b982da1d1500821d85cb5f595a5",
-    "bytes": 3537,
-    "sha256": "9ae5bd01229c7cb5dec6d3a764c0989f9047e446d2779ae64ffac91d300f0be7"
+    "contentHash": "sha256:90143e39fa00b849bfe56e7b934764b8b100c3bb52bedeef1af9e6e7ec92a008",
+    "bytes": 3605,
+    "sha256": "375888240497798885525c5a2bb4b72ec89d0a98d994f17ac28a3055f1841e5b"
   },
   {
     "path": ".agents/skills/cospec-onboard/SKILL.md",
@@ -76,9 +76,9 @@
     "kind": "skill",
     "workflow": "propose",
     "harness": "zed",
-    "contentHash": "sha256:35a20f653dd553f344767a8f9dd34889b64d22cb298ff758314c6f175e948a55",
-    "bytes": 6561,
-    "sha256": "d495fe5b0e23f275c84055feb2ad659114fed4bc2df44bd822efded6ab36ca92"
+    "contentHash": "sha256:a7fd3d1f3b5ed85efcf933f029beed10eb40054595fe8fd77d06ba227bed23f5",
+    "bytes": 6629,
+    "sha256": "0d58963e54fbc9f350a823d3cfebd8d2594e9ebe8cc07ea8bb9d897fa1abaef9"
   },
   {
     "path": ".agents/skills/cospec-sync-specs/SKILL.md",

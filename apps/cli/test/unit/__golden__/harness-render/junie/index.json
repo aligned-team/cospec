@@ -58,9 +58,9 @@
     "kind": "command",
     "workflow": "new",
     "harness": "junie",
-    "contentHash": "sha256:78f1b653ca9d27d8af2e463c0a895f76707888b3e2b502a3dc5e1ff0a2fe28ab",
-    "bytes": 3221,
-    "sha256": "44c0d639568e2b0f0a41433f1a61810c18f8f5fc647cc1058fa63cd52bd6b4bf"
+    "contentHash": "sha256:689f8bdf14b69ca2d4c699526a4eaccb7f95e0b51de8889d16ed4e44b2d70f8f",
+    "bytes": 3289,
+    "sha256": "d28270897d780e5ec5f6c9cac7882e526cffb0972941ac1a9266fc969d1a6a06"
   },
   {
     "path": ".junie/commands/cospec-onboard.md",
@@ -76,9 +76,9 @@
     "kind": "command",
     "workflow": "propose",
     "harness": "junie",
-    "contentHash": "sha256:58737496aefa0b8ba4882c7904368305465e898ee067bf902e8e55a4882cfd10",
-    "bytes": 6410,
-    "sha256": "76f2dcecf6390c75bbcf7d46848d467385b54c04a3ca94d243ae76ab5aaccbd7"
+    "contentHash": "sha256:8e664bbbc45ceeeb028208547d5a5ff0e941a60d3e58c7db842a47ed7011671d",
+    "bytes": 6478,
+    "sha256": "00b7155cfdd45689204382a50e452e20fedb822494731518bca11085bbc0bf79"
   },
   {
     "path": ".junie/commands/cospec-sync-specs.md",
@@ -166,9 +166,9 @@
     "kind": "skill",
     "workflow": "new",
     "harness": "junie",
-    "contentHash": "sha256:78f1b653ca9d27d8af2e463c0a895f76707888b3e2b502a3dc5e1ff0a2fe28ab",
-    "bytes": 3321,
-    "sha256": "5595390d9abe29013810da38a63fbd2836ef52e6d4e9c13ac7fb69d32e9eb497"
+    "contentHash": "sha256:689f8bdf14b69ca2d4c699526a4eaccb7f95e0b51de8889d16ed4e44b2d70f8f",
+    "bytes": 3389,
+    "sha256": "61de1e33ca74e359e9eda6115ff13661932d1a715cf1cde992280fa7d93146a7"
   },
   {
     "path": ".junie/skills/cospec-onboard/SKILL.md",
@@ -184,9 +184,9 @@
     "kind": "skill",
     "workflow": "propose",
     "harness": "junie",
-    "contentHash": "sha256:58737496aefa0b8ba4882c7904368305465e898ee067bf902e8e55a4882cfd10",
-    "bytes": 6507,
-    "sha256": "ff72643a64730c019c2a59c2470168bdb6c5716ca61f02b227a735df964b7fd9"
+    "contentHash": "sha256:8e664bbbc45ceeeb028208547d5a5ff0e941a60d3e58c7db842a47ed7011671d",
+    "bytes": 6575,
+    "sha256": "c3bb7123277ec5824367d3cd602ef20fd72cf0b8c3fcc4c47879f6611646c08a"
   },
   {
     "path": ".junie/skills/cospec-sync-specs/SKILL.md",

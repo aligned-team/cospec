@@ -1,8 +1,8 @@
 # fix — the mid-weight representative (DESIGN §3.2/§3.6, binding schema output).
 type: fix
 description: A bug fix
-summary: 'proposal → blocking-changes (+ specs, design) → tasks'
-schemaDescription: 'fix — a bug fix. Workflow: proposal → blocking-changes (+ specs, design) → tasks'
+summary: 'proposal → blocking-changes (+ specs, design) → verification → tasks'
+schemaDescription: 'fix — a bug fix. Workflow: proposal → blocking-changes (+ specs, design) → verification → tasks'
 proposal: full
 blocking: full
 surfaces: true

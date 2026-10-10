@@ -58,9 +58,9 @@
     "kind": "skill",
     "workflow": "new",
     "harness": "kimi",
-    "contentHash": "sha256:0016ac0d2a1e796bc693ad9eef86deec4746522b47605786b092a0e6883e9bfa",
-    "bytes": 3373,
-    "sha256": "b354987d62cf4bdeb7e08247e4e3263dd97d390acfe3c59d35bbe54ba0218a52"
+    "contentHash": "sha256:b115ef7f79cd68b54eeec03407bc881dde0320760a0a668872df9da55187e5b5",
+    "bytes": 3441,
+    "sha256": "17522ca4aa07526c1fc584b1a192ea1cb8aa9a142e3b549807415ffc9e48a970"
   },
   {
     "path": ".kimi-code/skills/cospec-onboard/SKILL.md",
@@ -76,9 +76,9 @@
     "kind": "skill",
     "workflow": "propose",
     "harness": "kimi",
-    "contentHash": "sha256:ca12c1a6153afe79c11cdd9aad1598b4940a13eff58161a2fa05b4eedefe5205",
-    "bytes": 6520,
-    "sha256": "6a0c0d0dd327bd0d8c283392258430cf81952a4c7dbc71d804940cd1c6946ddb"
+    "contentHash": "sha256:53d9bb488b495bd6545872ea872922f660abb5aa2a024cea1317784d38595d6c",
+    "bytes": 6588,
+    "sha256": "096034addb3ea74ac03661d5ebb521f651e63c85a15f42599b0e5031bf53114a"
   },
   {
     "path": ".kimi-code/skills/cospec-sync-specs/SKILL.md",

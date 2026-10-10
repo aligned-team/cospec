@@ -332,10 +332,22 @@ describe('type table (frozen export)', () => {
   test('descriptions and summaries match the canon type files', () => {
     const feat = getTypeInfo('feat')!
     expect(feat.description).toBe('A new feature — the full workflow')
-    expect(feat.summary).toBe('proposal → blocking-changes, specs (+ design) → tasks')
+    expect(feat.summary).toBe(
+      'proposal → blocking-changes, specs (+ design) → verification → tasks',
+    )
     const ci = getTypeInfo('ci')!
     expect(ci.description).toBe('CI configuration and automation pipeline change')
     expect(ci.summary).toBe('proposal → blocking-changes → tasks (3 short artifacts)')
+  })
+
+  test('every type summary names every artifact its apply_requires names', () => {
+    expect(TYPE_TABLE).toHaveLength(11)
+    for (const row of TYPE_TABLE) {
+      const info = getTypeInfo(row.type)!
+      for (const id of info.requiredArtifacts) {
+        expect(row.summary, `${row.type} summary omits required artifact ${id}`).toContain(id)
+      }
+    }
   })
 
   test('getTypeInfo returns undefined for a non-cospec type', () => {
