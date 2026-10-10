@@ -88,6 +88,11 @@ artifacts:
     instruction: |
       One group: revert the change, then verify (tests/build green). Use `## N.
       Group` and `- [ ] N.M task` exactly — the checkbox format is parsed.
+      Archiving is not a task: `cospec archive` validates the change and moves it, and a task
+      describing it can only be completed by the step that refuses it while the change is open.
+      End the list at the last implementation or documentation task. Where the repo's flow lands
+      the archive as a commit after the last task, end that task's description with "The archive
+      commit follows this one" so it can be ticked before the archive.
     requires: [proposal]
 apply:
   requires: [proposal, blocking-changes, tasks]

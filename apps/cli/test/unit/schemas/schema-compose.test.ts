@@ -431,7 +431,7 @@ describe('the tasks instruction never asks for an archive row (design D11)', () 
   const ARCHIVE_ROW = /^\s*- \[[ x~]\] \d+\.\d+ .*\barchive/im
 
   for (const type of COSPEC_TYPES) {
-    test.failing(`${type}: the tasks instruction carries the archive paragraph verbatim`, () => {
+    test(`${type}: the tasks instruction carries the archive paragraph verbatim`, () => {
       const instruction = composeSchema(type).artifacts.find((a) => a.id === 'tasks')!.instruction
       expect(flat(instruction)).toContain(PARAGRAPH)
     })

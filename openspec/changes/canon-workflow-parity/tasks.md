@@ -289,16 +289,23 @@
 
 ## 10. T9 the tasks guidance never produces an archive task
 
-- [ ] 10.1 Add rows first, as `test.failing`: the tasks `instruction` of all
+- [x] 10.1 Add rows first, as `test.failing`: the tasks `instruction` of all
       eleven generated schemas states that archiving is not a task and gives the
       `The archive commit follows this one` wording; the tasks `templateBody`
       and every type's note hold no archive row; a contract row runs
       `cospec instructions tasks --change <slug>` on a new change and finds the
-      rule -> the rows fail.
-- [ ] 10.2 Add the paragraph to the instruction in
+      rule -> the rows fail. Observed: the 11 paragraph rows and the 2 contract
+      rows failed on the missing paragraph (`test.failing`); the 11
+      no-archive-row rows pass; committed in bb0a57d3.
+- [x] 10.2 Add the paragraph to the instruction in
       `canon/artifacts/tasks/meta.yaml` (design D11), run `mise run generate`,
       and update the three schema goldens in `test/unit/schemas/golden/` -> the
       10.1 rows pass and are flipped and `mise run generate:check` exits 0.
+      Observed: the paragraph also goes in the eight `tasksInstruction`
+      overrides (build, ci, fix, perf, refactor, revert, style, test), which
+      replace the canon instruction wholesale (`schema-compose.ts`), so all
+      eleven goldens change, not three; `mise run generate` updates the eleven
+      schemas, `generate:check` exits 0, and the 10.1 rows pass flipped.
 
 ## 11. Registry and specs
 

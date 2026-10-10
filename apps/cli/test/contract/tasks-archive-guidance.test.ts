@@ -28,18 +28,15 @@ async function newChange(type: string, slug: string): Promise<string> {
 
 describe('cospec instructions tasks serves the archive paragraph (design D11, task 10.1)', () => {
   for (const type of ['feat', 'fix']) {
-    test.failing(
-      `${type}: the tasks instruction of a new change carries the paragraph`,
-      async () => {
-        const slug = `tasks-${type}`
-        const root = await newChange(type, slug)
-        const run = await cospec(['instructions', 'tasks', '--change', slug, '--json'], {
-          cwd: root,
-        })
-        expect(run.exitCode).toBe(0)
-        const doc = JSON.parse(run.stdout) as { instruction: string }
-        expect(doc.instruction.replace(/\s+/g, ' ')).toContain(PARAGRAPH)
-      },
-    )
+    test(`${type}: the tasks instruction of a new change carries the paragraph`, async () => {
+      const slug = `tasks-${type}`
+      const root = await newChange(type, slug)
+      const run = await cospec(['instructions', 'tasks', '--change', slug, '--json'], {
+        cwd: root,
+      })
+      expect(run.exitCode).toBe(0)
+      const doc = JSON.parse(run.stdout) as { instruction: string }
+      expect(doc.instruction.replace(/\s+/g, ' ')).toContain(PARAGRAPH)
+    })
   }
 })
