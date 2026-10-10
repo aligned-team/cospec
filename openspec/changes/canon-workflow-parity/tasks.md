@@ -88,11 +88,19 @@
 
 ## 4. T3 explore draws ASCII only
 
-- [ ] 4.1 Add `canon-render.test.ts` rows first, as `test.failing`: the rendered
+- [x] 4.1 Add `canon-render.test.ts` rows first, as `test.failing`: the rendered
       `explore` body states the plain-ASCII rule with its reason and holds no
-      character in U+2190-U+21FF or U+2500-U+257F -> the rows fail.
-- [ ] 4.2 Add the Visual bullet and the ASCII paragraph to `explore.md` (design
-      D6) -> the 4.1 rows pass and are flipped.
+      character in U+2190-U+21FF or U+2500-U+257F -> the rows fail. Observed:
+      the explore passage row was `test.failing` on 6c1f8fb8; the glyph guard is
+      a plain test over every rendered explore file and holds both before and
+      after the passage.
+- [x] 4.2 Add the Visual bullet and the ASCII paragraph to `explore.md` (design
+      D6) -> the 4.1 rows pass and are flipped. Observed: the Visual bullet
+      joins the Planning a change list and the ASCII paragraph follows it (canon
+      has no stance list; the wording is upstream's verbatim, not the design's
+      paraphrase, so the controlling-sentence check finds it); `harness.yaml`
+      `ported:` records `ascii-diagrams`; 557 targeted tests pass, 0 fail;
+      typecheck and lint exit 0.
 
 ## 5. T4 apply declares, prints and relays the project's inputs
 

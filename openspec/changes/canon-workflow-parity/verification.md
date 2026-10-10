@@ -42,8 +42,8 @@
 
 ## 8. propose, ff and explore carry the ported passages
 
-- [ ] 8.1 @unit (agent) render `propose`, `ff` and `explore` -> the first two carry the inspection passage and keep the format rule, the third states the ASCII rule with its reason and holds no glyph in U+2190-U+21FF or U+2500-U+257F
-- [ ] 8.2 @integration (agent) compare each controlling sentence with `propose.js`, `ff-change.js` and `explore.js` in the pinned dist -> every one is found
+- [x] 8.1 @unit (agent) render `propose`, `ff` and `explore` -> the first two carry the inspection passage and keep the format rule, the third states the ASCII rule with its reason and holds no glyph in U+2190-U+21FF or U+2500-U+257F Observed: the propose and ff inspection passage rows and the explore ASCII rows in `test/unit/canon-render.test.ts` pass (plain tests), with the format rule and the no-glyph guard.
+- [x] 8.2 @integration (agent) compare each controlling sentence with `propose.js`, `ff-change.js` and `explore.js` in the pinned dist -> every one is found Observed: `test/integration/ported-passages.test.ts` finds every controlling sentence of both passages in the pinned `propose.js`, `ff-change.js` and `explore.js`.
 
 ## 9. The tasks guidance never produces an archive task
 

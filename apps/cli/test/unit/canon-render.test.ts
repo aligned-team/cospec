@@ -179,13 +179,10 @@ describe('propose and ff inspect the project before drafting (design D5)', () =>
 })
 
 describe('explore draws diagrams in plain ASCII only (design D6)', () => {
-  test.failing(
-    'explore states the ASCII rule with its reason, verbatim from the pinned template',
-    () => {
-      const body = flat(skillBody('explore'))
-      for (const sentence of ASCII_DIAGRAMS.sentences) expect(body).toContain(sentence)
-    },
-  )
+  test('explore states the ASCII rule with its reason, verbatim from the pinned template', () => {
+    const body = flat(skillBody('explore'))
+    for (const sentence of ASCII_DIAGRAMS.sentences) expect(body).toContain(sentence)
+  })
 
   test('explore holds no box-drawing or arrow glyph (U+2190-U+21FF, U+2500-U+257F) in any rendered file', () => {
     const files = render().filter((f) => f.workflow === 'explore')

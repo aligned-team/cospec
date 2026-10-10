@@ -124,6 +124,10 @@ workflows:
       Also use when the user says "cospec explore" or "openspec explore".
     takesArguments: true
     core: true
+    ported:
+      - passage: ascii-diagrams
+        file: dist/core/templates/workflows/explore.js
+        pin: 1.13.1
   - id: onboard
     command: onboard
     skill: cospec-onboard

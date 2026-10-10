@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:c2690d74d6d3f109370278c51449984671e909de535d37d2d21be8cf2cc053ae
+  contentHash: sha256:d27460cd95944aef5141b0ab99f94ca1013ab153751efeba453a3c4ca19c8c0d
 ---
 
 Investigate a question about the codebase, a spec, or a proposed change — in
@@ -119,6 +119,12 @@ so and ask only for the clarification you need to proceed.
   decisions from proposed defaults and open questions. Silence is not
   acceptance, and accepting an answer — or a batch of recommendations — is not
   permission to write. Write confirmation is its own step, below.
+- **Visual.** Use ASCII diagrams liberally when they'd help clarify thinking.
+
+**Draw with plain ASCII only** — borders `+` `-` `|`, arrows `-->` `<--` `^` `v`,
+markers `*` `x`. Unicode diagram glyphs can render at different widths across
+terminals, fonts, and locales, so padded boxes and aligned tables can drift. Keep
+every diagram character ASCII.
 
 Stop asking once the user has enough clarity. Let them pause, pivot, or defer a
 decision; do not exhaust every branch or force a proposal.

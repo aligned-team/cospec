@@ -32,7 +32,7 @@
     "kind": "command",
     "workflow": "explore",
     "harness": "claude",
-    "contentHash": "sha256:13f5452935dde040a0f1ab31fca9041d1d05f4435d84c3a762c3939f0966cd3f"
+    "contentHash": "sha256:c7662755f6f3b41cc0d35787704b0390c4f4c7f24cd5da5a44a5d9020c2de1c6"
   },
   {
     "path": ".claude/commands/cospec/ff.md",
@@ -116,7 +116,7 @@
     "kind": "skill",
     "workflow": "explore",
     "harness": "claude",
-    "contentHash": "sha256:13f5452935dde040a0f1ab31fca9041d1d05f4435d84c3a762c3939f0966cd3f"
+    "contentHash": "sha256:c7662755f6f3b41cc0d35787704b0390c4f4c7f24cd5da5a44a5d9020c2de1c6"
   },
   {
     "path": ".claude/skills/cospec-ff-change/SKILL.md",

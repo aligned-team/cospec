@@ -8,7 +8,7 @@ tags:
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:13f5452935dde040a0f1ab31fca9041d1d05f4435d84c3a762c3939f0966cd3f
+  contentHash: sha256:c7662755f6f3b41cc0d35787704b0390c4f4c7f24cd5da5a44a5d9020c2de1c6
 ---
 
 Investigate a question about the codebase, a spec, or a proposed change — in
@@ -121,6 +121,12 @@ so and ask only for the clarification you need to proceed.
   decisions from proposed defaults and open questions. Silence is not
   acceptance, and accepting an answer — or a batch of recommendations — is not
   permission to write. Write confirmation is its own step, below.
+- **Visual.** Use ASCII diagrams liberally when they'd help clarify thinking.
+
+**Draw with plain ASCII only** — borders `+` `-` `|`, arrows `-->` `<--` `^` `v`,
+markers `*` `x`. Unicode diagram glyphs can render at different widths across
+terminals, fonts, and locales, so padded boxes and aligned tables can drift. Keep
+every diagram character ASCII.
 
 Stop asking once the user has enough clarity. Let them pause, pivot, or defer a
 decision; do not exhaust every branch or force a proposal.
