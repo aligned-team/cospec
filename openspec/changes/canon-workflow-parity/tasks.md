@@ -320,31 +320,44 @@
 
 ## 12. Docs
 
-- [ ] 12.1 Update `apps/docs/concepts/apply-and-archive.md` with the apply
+- [x] 12.1 Update `apps/docs/concepts/apply-and-archive.md` with the apply
       inputs (what prints, in which path, and that nothing prints when
       unconfigured), the archive lookup and bulk-archive's resolution procedure
       -> `mise run     docs:build` exits 0 and the page names
-      `operations.apply.guidance` and `operations.archive.guidance`.
-- [ ] 12.2 Update `docs/apply-archive.md` with the architecture of the same: the
+      `operations.apply.guidance` and `operations.archive.guidance`. Observed:
+      `mise run docs:build` exits 0 (no dead-link warning); the built
+      apply-and-archive page names both keys, the lookup and the bulk-archive
+      resolution.
+- [x] 12.2 Update `docs/apply-archive.md` with the architecture of the same: the
       relay and its respell, the transcript order, the lookup and the collision
       edits -> the page states each, checked by reading it against the code.
-- [ ] 12.3 Update `apps/docs/reference/configuration.md` with the `operations:`
+      Observed: read against `core/operation-inputs.ts`, `apply.ts` (lines
+      617-620, 388-389), `archive.ts` (archiveInputs, printArchiveInputs) and
+      the bodies; the page states each part once.
+- [x] 12.3 Update `apps/docs/reference/configuration.md` with the `operations:`
       keys: the two ids `apply` and `archive`, `guidance` as a list of strings,
       what each reaches and the binary's warnings for an unknown id ->
       `mise run     docs:build` exits 0 and the page documents both ids.
-- [ ] 12.4 Update `docs/harness-integration.md` (the fragment, the token, the
+      Observed: `mise run docs:build` exits 0; both ids and the unknown-id
+      warning are on the page.
+- [x] 12.4 Update `docs/harness-integration.md` (the fragment, the token, the
       order against the conditional resolver, `ported:`) and
       `apps/docs/concepts/types-and-artifacts.md` (the tasks guidance) -> both
-      pages state their fact once and link to the owner of the rest.
-- [ ] 12.5 Record the docs update in the verification ledger's docs rows -> rows
-      7.1 and 7.2 hold observed evidence.
+      pages state their fact once and link to the owner of the rest. Observed:
+      both pages state the fragment, token, render order, ported: and the tasks
+      rule once; the order is from `harness/render.ts` (fragments, then the
+      conditional resolver).
+- [x] 12.5 Record the docs update in the verification ledger's docs rows -> rows
+      7.1 and 7.2 hold observed evidence. Observed: see verification 7.1 and
+      7.2.
 
 ## 13. Shared agent context
 
-- [ ] 13.1 Update `.agents/shared.md` (canon bodies interpolate `_shared/`
+- [x] 13.1 Update `.agents/shared.md` (canon bodies interpolate `_shared/`
       fragments through registered tokens, every ported passage is recorded in
       `ported:`, the tasks guidance rule) and run `mise run agents:sync` ->
-      `mise run agents:check` exits 0.
+      `mise run agents:check` exits 0. Observed: `agents:sync` rewrote CLAUDE.md
+      and AGENTS.md; `agents:check` prints "All shared blocks are in sync."
 
 ## 14. Land
 

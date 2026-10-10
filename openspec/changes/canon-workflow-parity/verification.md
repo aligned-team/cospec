@@ -37,8 +37,8 @@
 
 ## 7. Docs name each changed fact on the page that owns it
 
-- [ ] 7.1 @integration (agent) `mise run docs:build` -> exits 0 and the built site names `operations.apply.guidance` and `operations.archive.guidance` on the configuration page and the lookup and resolution on the apply and archive page
-- [ ] 7.2 @regression (agent) grep `docs/apply-archive.md`, `docs/harness-integration.md` and `apps/docs/concepts/types-and-artifacts.md` for the relay and transcript order, the fragment and `ported:`, and the tasks guidance -> each page states its fact once, and the observed line numbers are recorded here
+- [x] 7.1 @integration (agent) `mise run docs:build` -> exits 0 and the built site names `operations.apply.guidance` and `operations.archive.guidance` on the configuration page and the lookup and resolution on the apply and archive page Observed: `mise run docs:build` exits 0 with no dead-link warning (run after the configuration fix); the built `reference/configuration.html` names `operations.apply.guidance` and `operations.archive.guidance`, and `concepts/apply-and-archive.html` names both, the lookup and the bulk-archive resolution section.
+- [x] 7.2 @regression (agent) grep `docs/apply-archive.md`, `docs/harness-integration.md` and `apps/docs/concepts/types-and-artifacts.md` for the relay and transcript order, the fragment and `ported:`, and the tasks guidance -> each page states its fact once, and the observed line numbers are recorded here Observed: `docs/apply-archive.md` 77 (relay and respell), 94 (transcript printers), 105 (transcript order: references, instruction, then context and guidance); `docs/harness-integration.md` 233 (fragment and render order), 251 (`ported:`), and the apply and bulk-archive bullets; `apps/docs/concepts/types-and-artifacts.md` 75-81 (the tasks guidance, no archive row). Each fact is stated once on its owning page.
 
 ## 8. propose, ff and explore carry the ported passages
 
