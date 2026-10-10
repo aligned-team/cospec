@@ -18,7 +18,7 @@
     "kind": "command",
     "workflow": "bulk-archive",
     "harness": "opencode",
-    "contentHash": "sha256:fa64194d41fd6ad05cf6bfe274f3d0b3bf59c37a00bcb0c61a6a3d209c3f179c"
+    "contentHash": "sha256:d6cad428bacd981d849422a1fd3465b71c880f9bcc485b62ff64b22b741ee000"
   },
   {
     "path": ".opencode/commands/cospec-continue.md",
@@ -102,7 +102,7 @@
     "kind": "skill",
     "workflow": "bulk-archive",
     "harness": "opencode",
-    "contentHash": "sha256:fa64194d41fd6ad05cf6bfe274f3d0b3bf59c37a00bcb0c61a6a3d209c3f179c"
+    "contentHash": "sha256:d6cad428bacd981d849422a1fd3465b71c880f9bcc485b62ff64b22b741ee000"
   },
   {
     "path": ".opencode/skills/cospec-continue-change/SKILL.md",

@@ -22,9 +22,9 @@
     "kind": "command",
     "workflow": "bulk-archive",
     "harness": "crush",
-    "contentHash": "sha256:7c6afc90c2cd28e6eabb077842d1275fd6eb383fb650a3d9ab6b2b339198e42b",
-    "bytes": 5693,
-    "sha256": "ccc52b4f12c61d19c832026a0b33535994ab9490426dc134aa1c20aeb5fbf4e4"
+    "contentHash": "sha256:4b9ecff15e18997941bb3cfddf558ee099c04d752724f75cf0f1dfb55a1af99d",
+    "bytes": 11763,
+    "sha256": "9e911d1d99e07c5691e2dcc78a9c36d9cacf41b449238ca3b3ef5dd3bc366e5c"
   },
   {
     "path": ".crush/commands/cospec/continue.md",
@@ -130,9 +130,9 @@
     "kind": "skill",
     "workflow": "bulk-archive",
     "harness": "crush",
-    "contentHash": "sha256:7c6afc90c2cd28e6eabb077842d1275fd6eb383fb650a3d9ab6b2b339198e42b",
-    "bytes": 5724,
-    "sha256": "3de4fd64a6b7a64c16155080d6c698fc306870dab4d150094ef19d9022492d39"
+    "contentHash": "sha256:4b9ecff15e18997941bb3cfddf558ee099c04d752724f75cf0f1dfb55a1af99d",
+    "bytes": 11794,
+    "sha256": "95717510f5c746e3ffcb57c94e8f232e93d6c45efc29860cebd950faf006f329"
   },
   {
     "path": ".crush/skills/cospec-continue-change/SKILL.md",

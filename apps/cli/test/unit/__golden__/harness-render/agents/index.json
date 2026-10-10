@@ -18,7 +18,7 @@
     "kind": "skill",
     "workflow": "bulk-archive",
     "harness": "agents",
-    "contentHash": "sha256:14b5f8bcf6f51fdc509be11abf426c19706bf1238663d873391c3ba1ae141cc3"
+    "contentHash": "sha256:3fa2911d10b7e9a2568eed971c941b9f402cdd6ab147089d8857dc9241ae4efa"
   },
   {
     "path": ".agents/skills/cospec-continue-change/SKILL.md",

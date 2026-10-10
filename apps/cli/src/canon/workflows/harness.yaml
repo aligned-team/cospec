@@ -114,6 +114,13 @@ workflows:
       Archive a batch of completed changes in dependency order, one cospec archive call at a time.
       Also use for a plural archive request — "cospec bulk-archive", "openspec bulk-archive",
       "archive all these changes", or "archive everything".
+    ported:
+      - passage: archive-inputs-lookup
+        file: dist/core/templates/workflows/bulk-archive-change.js
+        pin: 1.13.1
+      - passage: collision-resolution
+        file: dist/core/templates/workflows/bulk-archive-change.js
+        pin: 1.13.1
   - id: sync-specs
     command: sync-specs
     skill: cospec-sync-specs

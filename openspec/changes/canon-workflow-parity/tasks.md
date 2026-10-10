@@ -194,7 +194,7 @@
 
 ## 7. T6 bulk-archive resolves collisions
 
-- [ ] 7.1 Build the collision fixture and write the rows first, as
+- [x] 7.1 Build the collision fixture and write the rows first, as
       `test.failing`: two changes ADDing the same requirement to one capability;
       archiving both unresolved makes the second refuse with
       `archive/added-exists`; after the edit the body directs (the newer
@@ -204,11 +204,25 @@
       excludes a colliding requirement block and archives; a body row asserts
       the declined branch, the confirmation, the ban on main-spec writes, hand
       `mv` and `--force*`, and the batch-level archive lookup -> the rows fail.
-- [ ] 7.2 Rewrite `bulk-archive.md` (design D8, D9): the batch lookup,
+      Observed: `test/integration/bulk-archive-collision.test.ts` (inline
+      fixture, the repo's `writeFiles` pattern; the rows read the command lines
+      from the rendered skill) and the bulk-archive rows of
+      `test/unit/canon-render.test.ts` landed on 327dc8a8; the 11 `test.failing`
+      rows each failed because the skill printed no lookup, validate line or
+      edit; the unresolved row passes as written.
+- [x] 7.2 Rewrite `bulk-archive.md` (design D8, D9): the batch lookup,
       capability-path conflict detection, the include/exclude decision with
       chronological order, the confirmed delta-file edits,
       `cospec validate     --strict` per edited change, then `cospec archive`
       per change in resolved order -> the 7.1 rows pass and are flipped.
+      Observed: the body carries the batch lookup, `<capability-path>` detection
+      from `cospec status --json`, the decision and the delta-only edits;
+      `harness.yaml` records `archive-inputs-lookup` and `collision-resolution`
+      (`bulk-archive-change.js`, pin 1.13.1). The cospec CLI overrides "validate
+      before the loop": a retargeted `MODIFIED` on a new capability fails
+      `archive/new-spec-non-added` until the older change archives, so each
+      edited change is validated in the loop, right before its own archive. All
+      rows pass and are flipped.
 
 ## 8. T7 callers, provenance and the ad hoc prose
 

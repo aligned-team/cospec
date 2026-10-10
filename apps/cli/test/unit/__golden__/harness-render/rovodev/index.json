@@ -22,9 +22,9 @@
     "kind": "skill",
     "workflow": "bulk-archive",
     "harness": "rovodev",
-    "contentHash": "sha256:a95a9a0eab3d61dfe5d8a51baeb5c6b0cf69111da869470482035298630ca3e4",
-    "bytes": 5740,
-    "sha256": "80cb76c6e53bb2044de91cfda68ae49683fe4fe7424fb8d5b1adc48cc7827d01"
+    "contentHash": "sha256:a23d7ce547ca32b3dedb873cf025af22a2c7d167a4f6b7a520f0d3d1e75df19e",
+    "bytes": 11810,
+    "sha256": "44c54e0c763b6630b5658ad9c44c2e11ff78b639d0d5cc9ad68c883aa1c71559"
   },
   {
     "path": ".rovodev/skills/cospec-continue-change/SKILL.md",

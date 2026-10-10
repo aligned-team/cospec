@@ -23,8 +23,8 @@
     "workflow": "bulk-archive",
     "harness": "gemini",
     "contentHash": null,
-    "bytes": 5494,
-    "sha256": "85cb09f2ec23a6e7e65140d774d51203f5ef8c72fe0938d0b4f8b7548e9cbcd9"
+    "bytes": 11564,
+    "sha256": "7d2b4096f21d698381bbf89bca8325e7f2a833fcf0ed880f45da1e7222546f8b"
   },
   {
     "path": ".gemini/commands/cospec/continue.toml",
@@ -130,9 +130,9 @@
     "kind": "skill",
     "workflow": "bulk-archive",
     "harness": "gemini",
-    "contentHash": "sha256:7c6afc90c2cd28e6eabb077842d1275fd6eb383fb650a3d9ab6b2b339198e42b",
-    "bytes": 5724,
-    "sha256": "3de4fd64a6b7a64c16155080d6c698fc306870dab4d150094ef19d9022492d39"
+    "contentHash": "sha256:4b9ecff15e18997941bb3cfddf558ee099c04d752724f75cf0f1dfb55a1af99d",
+    "bytes": 11794,
+    "sha256": "95717510f5c746e3ffcb57c94e8f232e93d6c45efc29860cebd950faf006f329"
   },
   {
     "path": ".gemini/skills/cospec-continue-change/SKILL.md",

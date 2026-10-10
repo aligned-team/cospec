@@ -185,11 +185,16 @@ function changedPaths(before: Record<string, string>, after: Record<string, stri
   return [...keys].filter((k) => before[k] !== after[k]).toSorted()
 }
 
-/** Archive the older change, then the newer one, each through the body's archive line. */
+/**
+ * The body's loop over the resolved order: archive the older change, then validate the edited
+ * newer one against the living specs the older left, then archive it.
+ */
 async function archiveInOrder(root: string): Promise<void> {
   const older = await run(root, bodyArgv(root, ARCHIVE, OLDER))
   expect(older.exitCode).toBe(0)
   expect(existsSync(join(root, `openspec/changes/${OLDER}`))).toBe(false)
+  const validated = await run(root, bodyArgv(root, VALIDATE, NEWER))
+  expect(validated.exitCode).toBe(0)
   const newer = await run(root, bodyArgv(root, ARCHIVE, NEWER))
   expect(newer.exitCode).toBe(0)
   expect(existsSync(join(root, `openspec/changes/${NEWER}`))).toBe(false)
@@ -216,61 +221,52 @@ describe('an unresolved ADDED collision (verification 6.1)', () => {
 })
 
 describe("the resolution edits only the newer change's delta files (verification 6.2-6.3)", () => {
-  test.failing(
-    'both implemented: the newer ADDED becomes a full-content MODIFIED, then both archive in order',
-    async () => {
-      const root = await fixture()
-      bodyDirects(root, '`## MODIFIED Requirements`')
-      const before = hashTree(root)
-      writeFileSync(join(root, `openspec/changes/${NEWER}/specs/auth/spec.md`), NEWER_AUTH_MODIFIED)
-      const edited = changedPaths(before, hashTree(root))
-      expect(edited.length).toBeGreaterThan(0)
-      for (const p of edited) expect(p.startsWith(`openspec/changes/${NEWER}/specs/`)).toBe(true)
+  test('both implemented: the newer ADDED becomes a full-content MODIFIED, then both archive in order', async () => {
+    const root = await fixture()
+    bodyDirects(root, '`## MODIFIED Requirements`')
+    const before = hashTree(root)
+    writeFileSync(join(root, `openspec/changes/${NEWER}/specs/auth/spec.md`), NEWER_AUTH_MODIFIED)
+    const edited = changedPaths(before, hashTree(root))
+    expect(edited.length).toBeGreaterThan(0)
+    for (const p of edited) expect(p.startsWith(`openspec/changes/${NEWER}/specs/`)).toBe(true)
 
-      expect((await run(root, bodyArgv(root, VALIDATE, NEWER))).exitCode).toBe(0)
-      await archiveInOrder(root)
-      const living = livingAuth(root)
-      expect(living).toContain('signs in with a password or through SSO')
-      expect(living).toContain('Scenario: Password sign-in')
-      expect(living).toContain('Scenario: SSO sign-in')
-    },
-  )
+    await archiveInOrder(root)
+    const living = livingAuth(root)
+    expect(living).toContain('signs in with a password or through SSO')
+    expect(living).toContain('Scenario: Password sign-in')
+    expect(living).toContain('Scenario: SSO sign-in')
+  })
 
-  test.failing(
-    'the MODIFIED must carry every scenario: dropping the older one is refused by archive/scenario-preservation',
-    async () => {
-      const root = await fixture()
-      bodyDirects(root, 'every scenario')
-      writeFileSync(
-        join(root, `openspec/changes/${NEWER}/specs/auth/spec.md`),
-        NEWER_AUTH_MODIFIED_DROPPING,
-      )
-      expect((await run(root, bodyArgv(root, ARCHIVE, OLDER))).exitCode).toBe(0)
-      const refused = await run(root, bodyArgv(root, ARCHIVE, NEWER))
-      expect(refused.exitCode).not.toBe(0)
-      expect(`${refused.stdout}${refused.stderr}`).toContain('archive/scenario-preservation')
-      expect(existsSync(join(root, `openspec/changes/${NEWER}`))).toBe(true)
-    },
-  )
+  test('the MODIFIED must carry every scenario: dropping the older one is refused by archive/scenario-preservation', async () => {
+    const root = await fixture()
+    bodyDirects(root, 'every scenario')
+    writeFileSync(
+      join(root, `openspec/changes/${NEWER}/specs/auth/spec.md`),
+      NEWER_AUTH_MODIFIED_DROPPING,
+    )
+    expect((await run(root, bodyArgv(root, ARCHIVE, OLDER))).exitCode).toBe(0)
+    const refused = await run(root, bodyArgv(root, ARCHIVE, NEWER))
+    expect(refused.exitCode).not.toBe(0)
+    const said = `${refused.stdout}${refused.stderr}`
+    expect(said).toContain('scenario-preservation gate refused')
+    expect(said).toContain('missing: "Password sign-in"')
+    expect(existsSync(join(root, `openspec/changes/${NEWER}`))).toBe(true)
+  })
 
-  test.failing(
-    'only the older implemented: the newer colliding block is removed, then both archive',
-    async () => {
-      const root = await fixture()
-      bodyDirects(root, 'remove its colliding `### Requirement:` blocks')
-      const before = hashTree(root)
-      // The newer auth delta held only the colliding block, so its file goes; `audit` remains.
-      rmSync(join(root, `openspec/changes/${NEWER}/specs/auth`), { recursive: true })
-      const edited = changedPaths(before, hashTree(root))
-      expect(edited).toEqual([`openspec/changes/${NEWER}/specs/auth/spec.md`])
+  test('only the older implemented: the newer colliding block is removed, then both archive', async () => {
+    const root = await fixture()
+    bodyDirects(root, 'remove its colliding `### Requirement:` blocks')
+    const before = hashTree(root)
+    // The newer auth delta held only the colliding block, so its file goes; `audit` remains.
+    rmSync(join(root, `openspec/changes/${NEWER}/specs/auth`), { recursive: true })
+    const edited = changedPaths(before, hashTree(root))
+    expect(edited).toEqual([`openspec/changes/${NEWER}/specs/auth/spec.md`])
 
-      expect((await run(root, bodyArgv(root, VALIDATE, NEWER))).exitCode).toBe(0)
-      await archiveInOrder(root)
-      expect(livingAuth(root)).toContain('signs in with a password.')
-      expect(livingAuth(root)).not.toContain('SSO')
-      expect(readFileSync(join(root, 'openspec/specs/audit/spec.md'), 'utf8')).toContain(
-        'Login audit',
-      )
-    },
-  )
+    await archiveInOrder(root)
+    expect(livingAuth(root)).toContain('signs in with a password.')
+    expect(livingAuth(root)).not.toContain('SSO')
+    expect(readFileSync(join(root, 'openspec/specs/audit/spec.md'), 'utf8')).toContain(
+      'Login audit',
+    )
+  })
 })
