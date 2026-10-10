@@ -14,5 +14,5 @@
 
 ## 3. Docs and gate
 
-- [ ] 3.1 @manual (agent) `docs/self-hosting.md`, `docs/architecture.md` and `.agents/shared.md` state both rules, `agents:check` clean; `apps/docs` and `apps/cli/src` untouched -> `git diff --stat`
-- [ ] 3.2 @manual (agent) `mise run check` exits 0 under a clean HOME and under the profile-core HOME, and `cospec validate test-home-isolation --strict` is clean -> observed
+- [x] 3.1 @manual (agent) `docs/self-hosting.md`, `docs/architecture.md` and `.agents/shared.md` state both rules, `agents:check` clean; `apps/docs` and `apps/cli/src` untouched -> `git diff --stat origin/main -- apps/docs apps/cli/src` is empty; `mise run agents:check` prints `All shared blocks are in sync.`; `mise run check` runs it
+- [x] 3.2 @manual (agent) `mise run check` exits 0 under a clean HOME and under the profile-core HOME, and `cospec validate test-home-isolation --strict` is clean -> `mise run check` with the host's real profile-core HOME: unit 3111 pass, integration 394, contract 3231, bench 343, e2e 14, all 0 fail, generate:check and agents:check clean, exit 0; the same command with HOME, USERPROFILE, ZDOTDIR and XDG_CACHE_HOME in an empty scratch dir and XDG_CONFIG_HOME unset: the same counts, 0 fail, exit 0 (the host's `~/.config/openspec/config.json` unmodified); `cospec validate test-home-isolation --strict` `0 errors, 0 warnings`

@@ -29,8 +29,8 @@
 
 ## 5. Gate
 
-- [ ] 5.1 `mise run check` green under a clean HOME and a profile-core HOME --
+- [x] 5.1 `mise run check` green under a clean HOME and a profile-core HOME --
       verify by exit codes
-- [ ] 5.2 `cospec validate test-home-isolation --strict` clean and every
+- [x] 5.2 `cospec validate test-home-isolation --strict` clean and every
       verification row `[x]` with an observed result -- the archive commit
       follows this one
