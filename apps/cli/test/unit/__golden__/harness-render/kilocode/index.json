@@ -22,9 +22,9 @@
     "kind": "skill",
     "workflow": "bulk-archive",
     "harness": "kilocode",
-    "contentHash": "sha256:d6cad428bacd981d849422a1fd3465b71c880f9bcc485b62ff64b22b741ee000",
-    "bytes": 11794,
-    "sha256": "2b0be7149f3dd0ee4f0d5f2b02a6e4fd2a3ea2e0b8a3727b5c56d57169698ae8"
+    "contentHash": "sha256:1d4f54560356771c3d882b3489da29e70abbc248990a1ffc49500d01b579e061",
+    "bytes": 12567,
+    "sha256": "8cb56636ed828c18055dd33669a76b88f4ced8448a4f7606e86b97582569e83a"
   },
   {
     "path": ".kilocode/skills/cospec-continue-change/SKILL.md",
@@ -131,8 +131,8 @@
     "workflow": "bulk-archive",
     "harness": "kilocode",
     "contentHash": null,
-    "bytes": 11285,
-    "sha256": "5400deb7422c6ab425a459b79666055f761db1fc90f90bdbe18bdfb0244dcc41"
+    "bytes": 12058,
+    "sha256": "e08583917f8f3f6393ee16a168236b8958b0f7bbcf78f64a388dfeac0283217a"
   },
   {
     "path": ".kilocode/workflows/cospec-continue.md",

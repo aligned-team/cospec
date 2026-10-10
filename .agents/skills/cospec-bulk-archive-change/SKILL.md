@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.10.0
-  contentHash: sha256:3fa2911d10b7e9a2568eed971c941b9f402cdd6ab147089d8857dc9241ae4efa
+  contentHash: sha256:b8146b10da652523c00ce7dc4290ca2c21bc1d707679dac1bebb52adc1466297
 ---
 
 Archive a batch of completed changes, one at a time, in dependency order. Every
@@ -146,7 +146,10 @@ For each conflict, investigate the codebase:
    - If only one change is actually implemented -> include that one's delta and
      exclude the other's
    - If both implemented -> apply in chronological order (older first, newer
-     overwrites), by `created:`, ties by slug
+     overwrites), in the order step 3 fixed: dependency first, then `created:`,
+     ties by slug. "Newer" and "later" below mean the change that archives later
+     in that order, so a provider is never the newer one, however recent its
+     `created:` date
    - If neither implemented -> exclude both deltas and warn the user
 4. **Record the resolution:**
    - An inclusion or exclusion decision for every delta spec, keyed by change
@@ -165,6 +168,12 @@ artifact:
   updated requirement — its text and every scenario, the older change's
   scenarios included — so the later archive overwrites instead of refusing.
   `archive/scenario-preservation` refuses a `MODIFIED` that drops one.
+- **Included, newer, colliding on a requirement both changes modify with
+  `MODIFIED`:** the newer block replaces the whole requirement once the older
+  change has archived, so it too must carry every scenario the older change's
+  `MODIFIED` block carries, along with its own, and the text both changes mean
+  to keep. Edit that block in the newer change's delta; the later archive then
+  neither refuses nor drops the older change's scenarios.
 - **Excluded:** remove its colliding `### Requirement:` blocks from that
   change's delta file. When no operation is left in the file, delete the file,
   provided the change keeps another delta.
@@ -176,9 +185,10 @@ artifact:
 Present one table: each change, its artifacts, tasks, delta specs, conflicts and
 status (`Ready`, `Ready*` for a resolved conflict, `Warn` for incomplete
 artifacts or tasks, `Blocked`). Under it, show each conflict's resolution and
-rationale, each proposed delta edit, and the final archive order — dependency
-order first, collision order within a capability; report it when the two
-disagree, and keep the dependency order.
+rationale, each proposed delta edit, and the final archive order — step 3's order,
+dependency first and then `created:`. Where a dependency puts a change created
+later ahead of an older one, say so: the provider archives first, and the other
+change, the one that archives later, takes the edit.
 
 Ask once: one confirmation covers the batch and the edits. If the user declines, edit
 nothing and archive nothing — do not archive a subset, and do not re-ask with a
@@ -198,7 +208,7 @@ cospec validate <slug> --strict
 
 Validate it here, after every change ahead of it has archived, not before the
 loop: a retargeted `MODIFIED` names a requirement that reaches the living spec
-only when the older change archives, and validation reads the living specs as
+only when the earlier-archiving change archives, and validation reads the living specs as
 they stand (`archive/new-spec-non-added` refuses a `MODIFIED` on a capability
 with no living spec yet). A failure is that change's failure: report it, do not
 archive it, and continue with the rest of the batch.

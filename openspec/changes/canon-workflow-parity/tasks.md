@@ -225,7 +225,11 @@
       before the loop": a retargeted `MODIFIED` on a new capability fails
       `archive/new-spec-non-added` until the older change archives, so each
       edited change is validated in the loop, right before its own archive. All
-      rows pass and are flipped.
+      rows pass and are flipped. Review fixes: the body defines "newer" as the
+      change that archives later (dependency first, then `created:`), so the
+      retarget lands on the consumer when a dependency disagrees with the dates,
+      and a `MODIFIED`/`MODIFIED` collision on one requirement carries the older
+      block's scenarios into the later one (`bulk-archive-collision.test.ts`).
 
 ## 8. T7 callers, provenance and the ad hoc prose
 

@@ -22,9 +22,9 @@
     "kind": "command",
     "workflow": "bulk-archive",
     "harness": "continue",
-    "contentHash": "sha256:d6cad428bacd981d849422a1fd3465b71c880f9bcc485b62ff64b22b741ee000",
-    "bytes": 11727,
-    "sha256": "3565ab6a7596667bb450cd25d4e383f644f40495e1d4e435527215cad7eb1ccf"
+    "contentHash": "sha256:1d4f54560356771c3d882b3489da29e70abbc248990a1ffc49500d01b579e061",
+    "bytes": 12500,
+    "sha256": "063c8599b5fede7c5d5fae3d197f9910495e4522765168178cc3213fdda77a15"
   },
   {
     "path": ".continue/prompts/cospec-continue.prompt",
@@ -130,9 +130,9 @@
     "kind": "skill",
     "workflow": "bulk-archive",
     "harness": "continue",
-    "contentHash": "sha256:d6cad428bacd981d849422a1fd3465b71c880f9bcc485b62ff64b22b741ee000",
-    "bytes": 11794,
-    "sha256": "2b0be7149f3dd0ee4f0d5f2b02a6e4fd2a3ea2e0b8a3727b5c56d57169698ae8"
+    "contentHash": "sha256:1d4f54560356771c3d882b3489da29e70abbc248990a1ffc49500d01b579e061",
+    "bytes": 12567,
+    "sha256": "8cb56636ed828c18055dd33669a76b88f4ced8448a4f7606e86b97582569e83a"
   },
   {
     "path": ".continue/skills/cospec-continue-change/SKILL.md",

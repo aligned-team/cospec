@@ -22,9 +22,9 @@
     "kind": "skill",
     "workflow": "bulk-archive",
     "harness": "zed",
-    "contentHash": "sha256:3fa2911d10b7e9a2568eed971c941b9f402cdd6ab147089d8857dc9241ae4efa",
-    "bytes": 11848,
-    "sha256": "bac892ab0070be2d36839b07810392d9ddd30dc14027e0d26f63aac392529800"
+    "contentHash": "sha256:b8146b10da652523c00ce7dc4290ca2c21bc1d707679dac1bebb52adc1466297",
+    "bytes": 12621,
+    "sha256": "5598207640419e5690ebb1e783928a902458fa192e89441c0f8449c47811ad97"
   },
   {
     "path": ".agents/skills/cospec-continue-change/SKILL.md",

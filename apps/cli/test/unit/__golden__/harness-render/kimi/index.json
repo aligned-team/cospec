@@ -22,9 +22,9 @@
     "kind": "skill",
     "workflow": "bulk-archive",
     "harness": "kimi",
-    "contentHash": "sha256:335d657a62d7ba305003d04fd04a638ec6fd2d3f60b0de3c1dfc5840ec2dc5b8",
-    "bytes": 11807,
-    "sha256": "3bb11741cd5af7726ee8a080b03d8c9071b6654d00432c694ec79cadea7bfc41"
+    "contentHash": "sha256:caf5572ff0a5722728d17b2fd605cad6ba0ad6de3ab1a196673779ef2c090e2b",
+    "bytes": 12580,
+    "sha256": "d9ddcbebc97b0e237e9890f58d733bca40e088e47ce4e13181d1a9b80d408e58"
   },
   {
     "path": ".kimi-code/skills/cospec-continue-change/SKILL.md",

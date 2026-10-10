@@ -276,11 +276,14 @@ both are prompt-level only. Following `archive.md` alone SHALL reach
 The rendered `bulk-archive` body SHALL define a collision as two or more
 selected changes carrying a delta for the exact same `<capability-path>`, and
 SHALL instruct the agent to read each conflicting delta, search the codebase for
-implementation evidence, order the colliding changes chronologically by creation
-(older first), and record for each delta (a change and a capability path) an
-include or exclude decision with its rationale: only one change implemented
-includes that one, both implemented includes both with the newer overwriting,
-and neither excludes both with a warning.
+implementation evidence, order the colliding changes by the order they archive
+in (dependency first, then creation, older first), and record for each delta (a
+change and a capability path) an include or exclude decision with its rationale:
+only one change implemented includes that one, both implemented includes both
+with the change that archives later (the newer) overwriting, and neither
+excludes both with a warning. The retarget of a colliding `ADDED` to a
+`MODIFIED`, and the scenario carry-over for two changes that `MODIFIED` one
+requirement, SHALL fall on that later-archiving change.
 
 The resolution SHALL edit only the conflicting change's delta files, SHALL
 require the user's confirmation of the resolution and each proposed edit before
@@ -300,6 +303,23 @@ SHALL be suggested to get past a collision.
 - **THEN** only files under the newer change's `specs/` directory differ from
   before the edit, both `cospec archive` calls exit 0 with both hard gates run,
   and the living spec holds the newer change's requirement
+
+#### Scenario: two MODIFIED blocks on one requirement resolve through a scenario carry-over
+
+- **WHEN** two active changes both `MODIFIED` one living requirement, each
+  adding a scenario, and the later-archiving change's block is edited to carry
+  both scenarios as the body directs
+- **THEN** both `cospec archive` calls exit 0 and the living spec holds the
+  requirement with both scenarios, where unedited the second archive refuses
+  with `archive/scenario-preservation`
+
+#### Scenario: a provider created later than its consumer takes no retarget
+
+- **WHEN** a consumer created earlier lists a later-created provider as a
+  blocker and both `ADDED` one requirement on a new capability
+- **THEN** the consumer's `ADDED` is the one retargeted to `MODIFIED`, the
+  provider archives first and the consumer second, both exit 0, and retargeting
+  the provider instead is refused by `archive/new-spec-non-added`
 
 #### Scenario: the unresolved collision is the case the later archive refuses
 

@@ -372,13 +372,15 @@ before anything is archived:
 2. **Resolve.** For each collision the workflow reads both deltas, searches the
    codebase for implementation evidence, and records an include or exclude
    decision with its reason. Only one implemented: keep that delta. Both:
-   archive in chronological order, so the newer one overwrites. Neither: exclude
-   both and warn.
+   archive in order (dependency first, then creation date), so the change that
+   archives later, the newer one, overwrites. Neither: exclude both and warn.
 3. **Edit, and only the delta files.** An included newer `ADDED` that the older
    change also adds moves to `MODIFIED`, carrying the whole updated requirement
-   with every scenario. An excluded change's colliding requirement blocks come
-   out of its delta, and the file is deleted when nothing is left in it. Main
-   specs are never written, and no `--force` flag is passed.
+   with every scenario. When both changes `MODIFIED` the same requirement, the
+   newer block carries the older block's scenarios along with its own. An
+   excluded change's colliding requirement blocks come out of its delta, and the
+   file is deleted when nothing is left in it. Main specs are never written, and
+   no `--force` flag is passed.
 4. **Confirm once.** One table shows each change, its status and each
    collision's decision, and the batch is confirmed once. If the user declines,
    nothing is edited and nothing is archived.

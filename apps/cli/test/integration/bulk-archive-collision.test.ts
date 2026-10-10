@@ -130,12 +130,13 @@ function change(
   slug: string,
   created: string,
   specs: Record<string, string>,
+  blockers: string = BLOCKERS,
 ): Record<string, string> {
   const c = `openspec/changes/${slug}`
   const files: Record<string, string> = {
     [`${c}/.openspec.yaml`]: `schema: feat\ncreated: ${created}\nschemaVersion: 2\n`,
     [`${c}/proposal.md`]: proposal(Object.keys(specs)),
-    [`${c}/blocking-changes.md`]: BLOCKERS,
+    [`${c}/blocking-changes.md`]: blockers,
     [`${c}/verification.md`]: VERIFICATION,
     [`${c}/tasks.md`]: TASKS,
   }
@@ -278,5 +279,135 @@ describe("the resolution edits only the newer change's delta files (verification
     expect(readFileSync(join(root, 'openspec/specs/audit/spec.md'), 'utf8')).toContain(
       'Login audit',
     )
+  })
+})
+
+// Two collisions the ADDED/ADDED row above does not reach: both changes MODIFY one living
+// requirement, and a dependency that disagrees with the creation dates.
+
+const BASE_SCENARIO = `#### Scenario: Base sign-in
+
+- **WHEN** a user signs in
+- **THEN** a session is created`
+
+const LIVING_AUTH = `# auth Specification
+
+## Purpose
+
+How users sign in to the product and what a sign-in leaves behind in the system.
+
+## Requirements
+
+### Requirement: Session login
+
+The system SHALL create a session when a user signs in.
+
+${BASE_SCENARIO}
+`
+
+const modifiedAuth = (...scenarios: string[]): string => `## MODIFIED Requirements
+
+### Requirement: Session login
+
+The system SHALL create a session when a user signs in.
+
+${scenarios.join('\n\n')}
+`
+
+const blockedBy = (slug: string): string =>
+  `# Dependencies\n\n## Blocked by\n\n- [ ] \`${slug}\`\n\n## Soft-blocked by\n\nNone.\n`
+
+/** A project with `auth` already living, and the two changes the rows below MODIFY it with. */
+async function modifiedFixture(): Promise<string> {
+  const root = mkTempRepo({ fixture: 'fresh', git: true })
+  expect((await run(root, ['init', '--yes', '--harness', 'claude', '--no-gate'])).exitCode).toBe(0)
+  writeFiles(root, {
+    'openspec/specs/auth/spec.md': LIVING_AUTH,
+    ...change(OLDER, '2026-07-01', { auth: modifiedAuth(BASE_SCENARIO, PASSWORD_SCENARIO) }),
+    ...change(NEWER, '2026-07-02', { auth: modifiedAuth(BASE_SCENARIO, SSO_SCENARIO) }),
+  })
+  return root
+}
+
+describe('both changes MODIFY the same requirement (the MODIFIED/MODIFIED collision)', () => {
+  test('unresolved, the later archive is refused by archive/scenario-preservation', async () => {
+    const root = await modifiedFixture()
+    expect((await run(root, bodyArgv(root, ARCHIVE, OLDER))).exitCode).toBe(0)
+    const refused = await run(root, bodyArgv(root, ARCHIVE, NEWER))
+    expect(refused.exitCode).not.toBe(0)
+    expect(`${refused.stdout}${refused.stderr}`).toContain('missing: "Password sign-in"')
+    expect(existsSync(join(root, `openspec/changes/${NEWER}`))).toBe(true)
+  })
+
+  test('the body directs the edit that survives the gate: the newer MODIFIED carries both scenarios', async () => {
+    const root = await modifiedFixture()
+    bodyDirects(root, 'colliding on a requirement both changes modify with `MODIFIED`')
+    bodyDirects(root, 'carries, along with its own')
+    const before = hashTree(root)
+    writeFileSync(
+      join(root, `openspec/changes/${NEWER}/specs/auth/spec.md`),
+      modifiedAuth(BASE_SCENARIO, PASSWORD_SCENARIO, SSO_SCENARIO),
+    )
+    for (const p of changedPaths(before, hashTree(root)))
+      expect(p.startsWith(`openspec/changes/${NEWER}/specs/`)).toBe(true)
+
+    await archiveInOrder(root)
+    const living = livingAuth(root)
+    for (const name of ['Base sign-in', 'Password sign-in', 'SSO sign-in'])
+      expect(living).toContain(`Scenario: ${name}`)
+  })
+})
+
+describe('a dependency that disagrees with the creation dates (the retarget follows the archive order)', () => {
+  const PROVIDER = 'add-session-core'
+  const CONSUMER = 'add-session-ui'
+
+  /** The consumer is older by date, yet lists the newer provider as a blocker. */
+  async function disagreeing(): Promise<string> {
+    const root = mkTempRepo({ fixture: 'fresh', git: true })
+    expect((await run(root, ['init', '--yes', '--harness', 'claude', '--no-gate'])).exitCode).toBe(
+      0,
+    )
+    writeFiles(root, {
+      ...change(CONSUMER, '2026-10-01', { auth: NEWER_AUTH }, blockedBy(PROVIDER)),
+      ...change(PROVIDER, '2026-10-03', { auth: OLDER_AUTH }),
+    })
+    return root
+  }
+
+  test('the body defines newer as the change that archives later', async () => {
+    const root = await disagreeing()
+    bodyDirects(root, 'the change that archives later in that order')
+    bodyDirects(root, 'a provider is never the newer one')
+  })
+
+  test('retargeting the provider, which archives first, is refused by archive/new-spec-non-added', async () => {
+    const root = await disagreeing()
+    writeFileSync(
+      join(root, `openspec/changes/${PROVIDER}/specs/auth/spec.md`),
+      NEWER_AUTH_MODIFIED,
+    )
+    const refused = await run(root, ['validate', PROVIDER, '--strict'])
+    expect(refused.exitCode).not.toBe(0)
+    expect(`${refused.stdout}${refused.stderr}`).toContain('archive/new-spec-non-added')
+  })
+
+  test('retargeting the consumer, which archives second, archives both in dependency order', async () => {
+    const root = await disagreeing()
+    const before = hashTree(root)
+    writeFileSync(
+      join(root, `openspec/changes/${CONSUMER}/specs/auth/spec.md`),
+      NEWER_AUTH_MODIFIED,
+    )
+    for (const p of changedPaths(before, hashTree(root)))
+      expect(p.startsWith(`openspec/changes/${CONSUMER}/specs/`)).toBe(true)
+
+    expect((await run(root, bodyArgv(root, ARCHIVE, PROVIDER))).exitCode).toBe(0)
+    expect((await run(root, bodyArgv(root, VALIDATE, CONSUMER))).exitCode).toBe(0)
+    expect((await run(root, bodyArgv(root, ARCHIVE, CONSUMER))).exitCode).toBe(0)
+    expect(existsSync(join(root, `openspec/changes/${CONSUMER}`))).toBe(false)
+    const living = livingAuth(root)
+    expect(living).toContain('Scenario: Password sign-in')
+    expect(living).toContain('Scenario: SSO sign-in')
   })
 })

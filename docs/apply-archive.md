@@ -136,14 +136,18 @@ as two `ADDED` ones, so the body treats both as collisions; only an `ADDED`
 requirement that already exists is what `cospec archive` refuses
 (`archive/added-exists`).
 
-The resolution edits only the conflicting change's delta files. A newer `ADDED`
-that the older change also adds moves to `MODIFIED` with the full requirement
-text and every scenario, because `archive/scenario-preservation` refuses a
-`MODIFIED` that drops one. An excluded change loses its colliding requirement
-blocks, and its delta file is deleted only when nothing is left in it and the
-change keeps another delta. A change left with no delta where its type requires
-specs is shown `Blocked`, never edited into invalidity. Main specs are never
-written by hand, and no `--force*` flag is passed.
+The resolution edits only the conflicting change's delta files. "Newer" is the
+change that archives later (dependency first, then `created:`), so a provider is
+never the newer one however recent its date. A newer `ADDED` that the older
+change also adds moves to `MODIFIED` with the full requirement text and every
+scenario, because `archive/scenario-preservation` refuses a `MODIFIED` that
+drops one. Where both changes `MODIFIED` the same requirement, the newer block
+carries the older block's scenarios along with its own, for the same reason. An
+excluded change loses its colliding requirement blocks, and its delta file is
+deleted only when nothing is left in it and the change keeps another delta. A
+change left with no delta where its type requires specs is shown `Blocked`,
+never edited into invalidity. Main specs are never written by hand, and no
+`--force*` flag is passed.
 
 Each edited change runs `cospec validate <slug> --strict` only once every change
 ahead of it has archived, because validation reads the living specs as they

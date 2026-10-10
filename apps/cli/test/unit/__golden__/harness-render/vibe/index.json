@@ -22,9 +22,9 @@
     "kind": "skill",
     "workflow": "bulk-archive",
     "harness": "vibe",
-    "contentHash": "sha256:8d88437413d1d30dbf5cb959b4a461bdb58b3de6c4a2ac282a06d02884d8dd50",
-    "bytes": 11801,
-    "sha256": "71f4c9f85b31830e880f298de82501516aa8b6da7da52b62b7c99b770b7693d0"
+    "contentHash": "sha256:a94c1d1b723c0ed6b2b74ff9560c040048da07ef6c1a4d3fdc354b2e8129ebde",
+    "bytes": 12574,
+    "sha256": "869d3cd72338f1ac364ed520efa274f9c1c3628255d1443abbda133a31ec5823"
   },
   {
     "path": ".vibe/skills/cospec-continue-change/SKILL.md",

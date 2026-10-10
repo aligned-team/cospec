@@ -412,9 +412,15 @@ requirement name in both is the case the later `cospec archive` would refuse
 delta, searches the codebase for implementation evidence, and records for each
 delta (a change and a `<capability-path>`) include or exclude, with its
 rationale and the order: only one change implemented means include that one and
-exclude the other; both implemented means include both, **chronological order,
-older first** (the change's `created:` in `.openspec.yaml`, ties by slug), with
-the newer one overwriting; neither means exclude both and warn.
+exclude the other; both implemented means include both, **in archive order,
+earlier first** (dependency first, then the change's `created:` in
+`.openspec.yaml`, ties by slug), with the one that archives later, the "newer"
+one, overwriting; neither means exclude both and warn. "Newer" is the change
+that archives later, not the one with the later date: when a consumer is older
+by date than its provider, the provider archives first, and the retarget belongs
+on the consumer. Retargeting the provider's `ADDED` to a `MODIFIED` would make
+it the first archive on a capability with no living spec, which
+`archive/new-spec-non-added` refuses.
 
 **Edits.** The resolution edits **only the conflicting change's delta files**,
 nothing else: it never writes a main spec (cospec's `archive` does the merge),
@@ -423,8 +429,12 @@ delta's colliding requirement blocks are removed from its delta file (the file
 goes when no operation is left and the change keeps another delta). An included
 newer delta that `ADDED` a requirement an older included delta also adds becomes
 a `MODIFIED` of it, carrying the full updated requirement, so the later archive
-overwrites instead of refusing. A change that would be left with no deltas where
-its type requires specs is reported `Blocked` rather than edited into
+overwrites instead of refusing. When both changes `MODIFIED` the same living
+requirement, the later archive is refused by `archive/scenario-preservation`
+after the earlier one lands (the earlier change's added scenarios are missing
+from the later block), so the later block carries every scenario the earlier
+block carries as well as its own. A change that would be left with no deltas
+where its type requires specs is reported `Blocked` rather than edited into
 invalidity.
 
 **Confirmation.** The resolution table, each proposed edit and the final order
@@ -439,8 +449,9 @@ The body therefore validates each edited change inside the loop, after every
 change ahead of it has archived and right before its own `cospec archive`.
 
 **Archive.** Each change then goes through `cospec archive <slug>` in the
-resolved order (dependency order first, collision order within a capability), so
-both hard gates run per change; no `--force*` flag, no hand `mv`.
+resolved order (dependency first, then `created:`, the same order that decides
+which change is the newer), so both hard gates run per change; no `--force*`
+flag, no hand `mv`.
 
 **Rejected:** porting upstream's agent-driven main-spec merge (`sync` inline).
 It would let an agent write main specs and move directories, which the living
