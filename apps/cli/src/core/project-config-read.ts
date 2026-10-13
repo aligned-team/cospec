@@ -100,6 +100,49 @@ function ruleWarnings(raw: unknown, warn: (line: string) => void): void {
   }
 }
 
+/** A config file as the binary's `readProjectConfig` reads it, before any field check. */
+export type ConfigFileRead =
+  | { readonly doc: unknown }
+  | {
+      /** the first line of what the read or the parse threw, as the binary words it. */
+      readonly failure: string
+      /** the errno, when the read itself failed. */
+      readonly code?: string
+    }
+
+/**
+ * The YAML at `configPath`, parsed, or why it cannot be used; `undefined` when there is no file.
+ * Every reader of the project config takes this one read, so cospec, doctor and the binary's
+ * port classify a file the same way.
+ */
+export function readConfigFile(configPath: string): ConfigFileRead | undefined {
+  if (!existsSync(configPath)) return undefined
+  let text: string
+  try {
+    text = readFileSync(configPath, 'utf8')
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    if (typeof code !== 'string') throw error
+    return { failure: firstLine(error), code }
+  }
+  try {
+    return { doc: parseYaml(text) }
+  } catch (error) {
+    // All `parse` throws on a string is about the text: a syntax error, an unresolved alias or
+    // the alias limit (a plain `ReferenceError`). The binary's one `catch` takes all of it.
+    return { failure: firstLine(error) }
+  }
+}
+
+/** The binary's warning for a config it cannot read or parse, before ignoring it. */
+export function couldNotParseWarning(configPath: string, failure: string): string {
+  return `Warning: could not parse ${configPath} (${failure}); ignoring it.`
+}
+
+function firstLine(error: unknown): string {
+  return error instanceof Error ? (error.message.split('\n')[0] ?? '') : String(error)
+}
+
 /**
  * The config at `configPath` as the binary's `readProjectConfig` reads it: its `context` (a
  * string within the size limit, else undefined) and the parsed document, calling `warn` with each
@@ -110,17 +153,14 @@ function readConfig(
   configPath: string,
   warn: (line: string) => void,
 ): { context: string | undefined; config: Record<string, unknown> } | undefined {
-  if (!existsSync(configPath)) return undefined
-  let raw: unknown
-  try {
-    raw = parseYaml(readFileSync(configPath, 'utf8'))
-  } catch (error) {
-    // The binary catches whatever the read or the parse throws, names the first line of it
-    // and carries on with no config.
-    const detail = error instanceof Error ? (error.message.split('\n')[0] ?? '') : String(error)
-    warn(`Warning: could not parse ${configPath} (${detail}); ignoring it.`)
+  const read = readConfigFile(configPath)
+  if (read === undefined) return undefined
+  if ('failure' in read) {
+    // The binary names the first line of what it caught and carries on with no config.
+    warn(couldNotParseWarning(configPath, read.failure))
     return undefined
   }
+  const raw = read.doc
   if (!raw || typeof raw !== 'object') {
     warn('openspec/config.yaml is not a valid YAML object')
     return undefined

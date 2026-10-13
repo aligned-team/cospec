@@ -229,24 +229,49 @@ describe('status and list read the declaration as validate and archive do', () =
 /** How many times `text` carries the binary's could-not-parse warning. */
 const parseWarnings = (text: string): number => text.split('Warning: could not parse ').length - 1
 
-const BROKEN: [string, (root: string) => void][] = [
-  [
-    'does not parse',
-    (root) => appendFileSync(join(root, 'openspec/config.yaml'), 'broken: [oops\n'),
-  ],
+const CI_PROPOSAL = `# change
+
+## Why
+
+The pipeline is missing a step and we are adding it now.
+
+## What Changes
+
+- Add the step.
+
+## Impact
+
+- Config only; no application source touched.
+
+## Surfaces
+
+- [ ] interactive — a user-visible/interactive surface (UI, TUI, CLI UX)
+`
+
+const appendToConfig =
+  (text: string) =>
+  (root: string): void =>
+    appendFileSync(join(root, 'openspec/config.yaml'), text)
+
+/** A broken config: its name, how to break it, and what `cospec doctor` reports for it. */
+const BROKEN: [string, (root: string) => void, string][] = [
+  ['does not parse', appendToConfig('broken: [oops\n'), 'does not parse as YAML'],
+  // `yaml` throws a plain ReferenceError here, not a YAMLParseError.
+  ['has an unresolved alias', appendToConfig('broken: *nope\n'), 'does not parse as YAML'],
   [
     'is a directory',
     (root) => {
       rmSync(join(root, 'openspec/config.yaml'))
       mkdirSync(join(root, 'openspec/config.yaml'))
     },
+    'could not be read (EISDIR)',
   ],
 ]
 
 describe('a config that cannot be read or parsed fails loud', () => {
   test.each(BROKEN)(
-    'validate, archive, status and list name it when it %s',
-    async (_name, breakIt) => {
+    'every gate, status, list and doctor name it when it %s',
+    async (_name, breakIt, doctorSays) => {
       const root = await repoWith([BASE_ROW, UAT_ROW], 'verification:\n  layers: [uat]\n')
       breakIt(root)
 
@@ -276,14 +301,47 @@ describe('a config that cannot be read or parsed fails loud', () => {
       expect(row?.archiveReady).toBe(false)
       expect(parseWarnings(list.stderr)).toBe(1)
 
+      const apply = await cospec(['apply', 'my-fix'], { cwd: root })
+      expect(apply.exitCode).not.toBe(0)
+      expect(apply.stdout + apply.stderr).toContain('verification/config-unreadable')
+      expect(parseWarnings(apply.stderr)).toBe(1)
+
       const archive = await cospec(['archive', 'my-fix'], { cwd: root })
       expect(archive.exitCode).not.toBe(0)
       expect(archive.stdout + archive.stderr).toContain('verification/config-unreadable')
       expect(parseWarnings(archive.stderr)).toBe(1)
       expect(existsSync(join(root, C))).toBe(true)
+
+      const doctor = await cospec(['doctor', '--json'], { cwd: root })
+      const findings = (
+        JSON.parse(doctor.stdout) as {
+          findings: { level: string; check: string; message: string }[]
+        }
+      ).findings.filter((f) => f.check === 'config' && f.level === 'ERROR')
+      expect(findings.map((f) => f.message)).toEqual([`openspec/config.yaml ${doctorSays}`])
     },
-    60_000,
+    90_000,
   )
+
+  test('a change with no ledger still applies, with the warning once', async () => {
+    const root = await repoWith([BASE_ROW], 'verification:\n  layers: [uat]\n')
+    writeFiles(root, {
+      'openspec/changes/my-ci/.openspec.yaml':
+        'schema: ci\ncreated: 2026-07-06\nschemaVersion: 2\n',
+      'openspec/changes/my-ci/proposal.md': CI_PROPOSAL,
+      'openspec/changes/my-ci/blocking-changes.md': BLOCKERS_EMPTY,
+      'openspec/changes/my-ci/tasks.md': TASKS_DONE,
+    })
+    appendToConfig('broken: [oops\n')(root)
+    for (const args of [
+      ['apply', 'my-ci'],
+      ['apply', 'my-ci', '--json'],
+    ]) {
+      const res = await cospec(args, { cwd: root })
+      expect(res.exitCode).toBe(0)
+      expect(parseWarnings(res.stderr)).toBe(1)
+    }
+  }, 60_000)
 
   test('a hand-made change falls back to spec-driven with the warning, once', async () => {
     const root = await repoWith([BASE_ROW, UAT_ROW], 'verification:\n  layers: [uat]\n')

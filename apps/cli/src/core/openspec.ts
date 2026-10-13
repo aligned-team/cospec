@@ -929,6 +929,17 @@ export function suppressRelayedStderrLine(line: string): void {
   suppressedStderrLines.add(line)
 }
 
+/**
+ * Print a line cospec owns once per invocation, however many reads reach it (the binary prints
+ * a config warning once per read, an internal call count), and register it so a relayed wrapped
+ * call that prints it too does not print it again.
+ */
+export function printOwnStderrLineOnce(line: string): void {
+  if (suppressedStderrLines.has(line)) return
+  suppressRelayedStderrLine(line)
+  process.stderr.write(`${line}\n`)
+}
+
 /** Drop every whole line registered with `suppressRelayedStderrLine` (pure on the set). */
 export function stripSuppressedStderr(stderr: string): string {
   if (suppressedStderrLines.size === 0 || stderr.length === 0) return stderr

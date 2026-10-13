@@ -17,8 +17,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
-import { parse as parseYaml, YAMLError } from 'yaml'
-
 import type { CommandContext } from '../cli.ts'
 import {
   COSPEC_TYPES,
@@ -46,6 +44,7 @@ import {
   satisfiesOpenspecRange,
   type Root,
 } from '../core/openspec.ts'
+import { readConfigFile } from '../core/project-config-read.ts'
 import { respellRemedies } from '../core/remedies.ts'
 import { type ResolvedRoot, resolveRoot, RootSelectionError } from '../core/root.ts'
 import {
@@ -405,33 +404,27 @@ function projectConfigFile(cwd: string): string | undefined {
 async function checkConfig(root: Root, cwd: string, findings: Finding[]): Promise<void> {
   const rel = projectConfigFile(cwd)
   if (rel === undefined) return
-  let text: string
-  try {
-    text = readFileSync(join(cwd, rel), 'utf8')
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException | undefined)?.code
-    if (typeof code !== 'string') throw error
-    findings.push({
-      level: 'ERROR',
-      check: 'config',
-      message: `${rel} could not be read (${code})`,
-      remedy: 'make it a readable file, or remove it',
-    })
+  const read = readConfigFile(join(cwd, rel))
+  if (read === undefined) return
+  if ('failure' in read) {
+    findings.push(
+      read.code === undefined
+        ? {
+            level: 'ERROR',
+            check: 'config',
+            message: `${rel} does not parse as YAML`,
+            remedy: 'fix the YAML syntax',
+          }
+        : {
+            level: 'ERROR',
+            check: 'config',
+            message: `${rel} could not be read (${read.code})`,
+            remedy: 'make it a readable file, or remove it',
+          },
+    )
     return
   }
-  let doc: unknown
-  try {
-    doc = parseYaml(text)
-  } catch (error) {
-    if (!(error instanceof YAMLError)) throw error
-    findings.push({
-      level: 'ERROR',
-      check: 'config',
-      message: `${rel} does not parse as YAML`,
-      remedy: 'fix the YAML syntax',
-    })
-    return
-  }
+  const doc = read.doc
   await checkRuleKeys(root, rel, doc, findings)
   const schema =
     doc !== null && typeof doc === 'object' ? (doc as Record<string, unknown>).schema : undefined
@@ -696,15 +689,13 @@ function errorMessage(err: unknown): string {
 function hasReferencesConfig(cwd: string): boolean {
   const rel = projectConfigFile(cwd)
   if (rel === undefined) return false
-  try {
-    const doc = parseYaml(readFileSync(join(cwd, rel), 'utf8'))
-    if (doc === null || typeof doc !== 'object') return false
-    const refs = (doc as Record<string, unknown>).references
-    return Array.isArray(refs) && refs.length > 0
-  } catch {
-    // checkConfig already reports unparseable YAML
-    return false
-  }
+  const read = readConfigFile(join(cwd, rel))
+  // `checkConfig` reports a config that cannot be read or parsed.
+  if (read === undefined || 'failure' in read) return false
+  const { doc } = read
+  if (doc === null || typeof doc !== 'object') return false
+  const refs = (doc as Record<string, unknown>).references
+  return Array.isArray(refs) && refs.length > 0
 }
 
 /**

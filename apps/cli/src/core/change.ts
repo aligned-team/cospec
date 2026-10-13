@@ -1,12 +1,12 @@
 import { existsSync, readdirSync, readFileSync, statSync, type Dirent } from 'node:fs'
-import { join, relative, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 
-import { parse as parseYaml, YAMLError } from 'yaml'
+import { parse as parseYaml } from 'yaml'
 
 import { loadSchema, userSchemasDir } from './change-metadata.ts'
 import { artifactOutputExists } from './glob.ts'
-import { openspecPackageDir } from './openspec.ts'
-import { warnOnce } from './warn-once.ts'
+import { openspecPackageDir, printOwnStderrLineOnce } from './openspec.ts'
+import { couldNotParseWarning, readConfigFile } from './project-config-read.ts'
 
 /**
  * The 11 conventional-commit types cospec manages as schemas. This is the frozen
@@ -354,14 +354,9 @@ function hasAnyFileUnder(dir: string): boolean {
  * warning.
  */
 export function projectConfigSchema(base: string): string | undefined {
-  let doc: unknown
-  try {
-    doc = readProjectConfig(base)
-  } catch (error) {
-    if (!(error instanceof ProjectConfigError)) throw error
-    warnOnce(error.warning)
-    return undefined
-  }
+  const read = readProjectConfig(base)
+  if ('unreadable' in read) return undefined
+  const { doc } = read
   if (doc === null || typeof doc !== 'object') return undefined
   const schema = (doc as Record<string, unknown>).schema
   return typeof schema === 'string' && schema.length > 0 ? schema : undefined
@@ -376,50 +371,20 @@ export function projectConfigPath(base: string): string {
   return existsSync(yaml) ? yaml : join(openspecDir(base), 'config.yml')
 }
 
-/** The project config exists but cannot be read (an errno) or parsed as YAML. */
-export class ProjectConfigError extends Error {
-  constructor(
-    /** the config file, as `projectConfigPath` resolves it. */
-    readonly path: string,
-    /** the cause's first line, as upstream words it in its warning. */
-    readonly detail: string,
-  ) {
-    super(`could not parse ${path} (${detail})`)
-    this.name = 'ProjectConfigError'
-  }
-
-  /** upstream's own line for this config (its `readProjectConfig`'s `catch`). */
-  get warning(): string {
-    return `Warning: could not parse ${this.path} (${this.detail}); ignoring it.`
-  }
-}
-
 /**
- * The root's `openspec/config.yaml` (else `config.yml`) parsed, or `undefined`
- * when there is none. A file that exists but cannot be read or parsed throws a
- * `ProjectConfigError`, never reads as absent; each reader decides what that
- * costs. `cospec doctor` reads the file itself, to report the failure's kind.
+ * The root's `openspec/config.yaml` (else `config.yml`) as upstream's `readProjectConfig`
+ * reads it: its parsed document (`undefined` when there is none), or, for a file that exists
+ * but cannot be read or parsed, `unreadable` (`<file> (<cause>)`, root-relative) after
+ * upstream's own warning, printed once. Never reads a broken file as absent; each reader
+ * decides what that costs. `cospec doctor` takes `readConfigFile` itself, for the error code.
  */
-function readProjectConfig(base: string): unknown {
+function readProjectConfig(base: string): { doc: unknown } | { unreadable: string } {
   const path = projectConfigPath(base)
-  if (!existsSync(path)) return undefined
-  let text: string
-  try {
-    text = readFileSync(path, 'utf8')
-  } catch (error) {
-    if (typeof (error as NodeJS.ErrnoException | undefined)?.code !== 'string') throw error
-    throw new ProjectConfigError(path, firstLine(error as Error))
-  }
-  try {
-    return parseYaml(text)
-  } catch (error) {
-    if (!(error instanceof YAMLError)) throw error
-    throw new ProjectConfigError(path, firstLine(error))
-  }
-}
-
-function firstLine(error: Error): string {
-  return error.message.split('\n')[0] ?? ''
+  const read = readConfigFile(path)
+  if (read === undefined) return { doc: undefined }
+  if ('doc' in read) return read
+  printOwnStderrLineOnce(couldNotParseWarning(path, read.failure))
+  return { unreadable: `openspec/${basename(path)} (${read.failure})` }
 }
 
 export interface VerificationLayers {
@@ -482,13 +447,9 @@ export interface ProjectLayers {
  * read or parsed is `unreadable`, with upstream's warning, never no layers.
  */
 export function projectVerificationLayers(base: string): ProjectLayers {
-  try {
-    return { layers: parseVerificationLayers(readProjectConfig(base)).layers }
-  } catch (error) {
-    if (!(error instanceof ProjectConfigError)) throw error
-    warnOnce(error.warning)
-    return { layers: [], unreadable: `${relative(base, error.path)} (${error.detail})` }
-  }
+  const read = readProjectConfig(base)
+  if ('unreadable' in read) return { layers: [], unreadable: read.unreadable }
+  return { layers: parseVerificationLayers(read.doc).layers }
 }
 
 /**
