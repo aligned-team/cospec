@@ -3,8 +3,8 @@ import { describe, expect, test } from 'bun:test'
 import { verificationRules } from '../../../src/core/rules/verification.ts'
 import { cospecSchema, makeChange, rules } from './helpers.ts'
 
-const strict = { strict: true }
-const lax = { strict: false }
+const strict = { strict: true, extraLayers: [] }
+const lax = { strict: false, extraLayers: [] }
 
 /** A proposal.md whose ## Surfaces block checks the given flags. */
 function proposalWithSurfaces(...flags: string[]): string {
@@ -87,15 +87,13 @@ describe('grammar and vocabulary rules', () => {
     const change = makeChange({
       verificationText: '## 1. G [critical]\n- [ ] 1.1 @smoke run -> pass',
     })
-    const hintOf = (extraLayers?: readonly string[]): string | undefined =>
+    const hintOf = (extraLayers: readonly string[]): string | undefined =>
       verificationRules(change, feat, { strict: false, extraLayers }).find(
         (i) => i.rule === 'verification/layer-unknown',
       )?.hint
-    const bare = hintOf()
-    expect(bare).toBe(
+    expect(hintOf([])).toBe(
       'core layers: @unit @integration @e2e @manual @runtime @regression @equivalence @benchmark @eval — extend via openspec/config.yaml verification.layers',
     )
-    expect(hintOf([])).toBe(bare)
     expect(hintOf(['uat', 'staging'])).toBe(
       'core layers: @unit @integration @e2e @manual @runtime @regression @equivalence @benchmark @eval; project layers: @uat @staging — extend via openspec/config.yaml verification.layers',
     )

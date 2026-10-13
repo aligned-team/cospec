@@ -279,15 +279,16 @@ same value for the same change.
 
 cospec SHALL read `verification.layers` from the project's
 `openspec/config.yaml` (else `config.yml`) in every gate that validates
-verification rows — `validate`, `apply`, `archive` and `sync-specs` — and SHALL
-accept a row whose layer token is one of them. An entry MAY be spelled with or
-without a leading `@`. A missing or unparseable config, a `verification` that is
-not a mapping, a `layers` that is not a list, and an entry that is not a
-non-empty string without whitespace SHALL yield no extra layer for that entry
-and SHALL NOT fail the gate. `cospec doctor` SHALL emit a `config` WARNING when
-`verification.layers` is present but malformed in any of those ways. The
-`verification/layer-unknown` hint SHALL name the declared layers when there are
-any.
+verification rows — `validate`, `apply`, `archive` and `sync-specs` — and in the
+archive-readiness verdict `status` and `list` report (`archiveReady` and
+`verification.blockedReasons`), and SHALL accept a row whose layer token is one
+of them. An entry MAY be spelled with or without a leading `@`. A missing or
+unparseable config, a `verification` that is not a mapping, a `layers` that is
+not a list, and an entry that is not a non-empty string without whitespace SHALL
+yield no extra layer for that entry and SHALL NOT fail the gate. `cospec doctor`
+SHALL emit a `config` WARNING when `verification.layers` is present but
+malformed in any of those ways. The `verification/layer-unknown` hint SHALL name
+the declared layers when there are any.
 
 #### Scenario: A declared layer passes every gate, an undeclared one still fails
 
@@ -310,3 +311,15 @@ any.
   or scalar, or an entry is a number or contains whitespace
 - **THEN** gates add no layer for it and do not crash, and `cospec doctor`
   reports a `config` WARNING naming the malformed key
+
+#### Scenario: status and list agree with validate and archive on a declared layer
+
+- **WHEN** the config declares `verification.layers: [uat]` and a `fix` change
+  whose tasks are done and whose gate is clear has resolved rows only, one of
+  them a `[x]` or `[~] ... -> defer: <reason>` row naming `@uat`
+- **THEN** `cospec status <slug> --json` reports `archiveReady: true` with an
+  empty `verification.blockedReasons`, `cospec list --json` reports
+  `archiveReady: true` for the change, `cospec validate <slug> --strict` passes,
+  and `cospec archive <slug>` moves the change; without the declaration,
+  `status` and `list` report `archiveReady: false` and `status` names
+  `verification/layer-unknown` in `verification.blockedReasons`

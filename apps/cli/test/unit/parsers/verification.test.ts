@@ -188,12 +188,12 @@ describe('parseVerification — line endings', () => {
 
 describe('layer helpers', () => {
   test('the nine core layers are known', () => {
-    for (const layer of CORE_LAYERS) expect(isKnownLayer(layer)).toBe(true)
+    for (const layer of CORE_LAYERS) expect(isKnownLayer(layer, [])).toBe(true)
     expect(CORE_LAYERS).toHaveLength(9)
   })
 
   test('an unknown token is rejected unless project-extended', () => {
-    expect(isKnownLayer('smoke')).toBe(false)
+    expect(isKnownLayer('smoke', [])).toBe(false)
     expect(isKnownLayer('smoke', ['smoke'])).toBe(true)
   })
 

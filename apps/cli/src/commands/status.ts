@@ -24,6 +24,7 @@ import {
   findNestedChangesIn,
   isCospecType,
   listChanges,
+  projectVerificationLayers,
   resolveChange,
   type Change,
 } from '../core/change.ts'
@@ -240,14 +241,16 @@ export function readArchive(base: string): {
 /**
  * Full status for a cospec-typed change with at least one artifact. Assumes the
  * caller has excluded the empty-change and legacy cases. `archived` is the
- * archive index its gate reads (`readArchive`); read here when not given. An
- * unreadable `tasks.md` adds its warning to `warnings`.
+ * archive index its gate reads (`readArchive`) and `verificationLayers` the
+ * project's declared layers (`projectVerificationLayers`); each is read here
+ * when not given. An unreadable `tasks.md` adds its warning to `warnings`.
  */
 export function computeStatus(
   base: string,
   change: Change,
   archived?: Map<string, string>,
   warnings: ReadWarning[] = [],
+  verificationLayers?: readonly string[],
 ): ChangeStatus {
   const type = change.schema as CospecType
   const facts = TYPE_ARTIFACTS[type]
@@ -278,12 +281,14 @@ export function computeStatus(
 
   const requiredDone = artifacts.filter((a) => a.required).every((a) => a.done)
   // The verdict is the archive gate's own computation plus the ledger errors
-  // archive's validation raises, so the flag below cannot say ready while
-  // `cospec archive` would refuse on `verification.md`.
+  // archive's validation raises, with the project's declared layers that
+  // validation accepts, so the flag below cannot say ready while `cospec
+  // archive` would refuse on `verification.md`, nor not-ready while it accepts.
   const verification = readVerificationVerdict(
     change.dir,
     { id: change.id, schema: change.schema },
     [...applyRequires],
+    verificationLayers ?? projectVerificationLayers(base),
   )
   const archiveReady = isArchiveReady({
     requiredDone,
@@ -443,10 +448,11 @@ export function buildChangeEntry(
   upstream?: Record<string, unknown>,
   archived?: Map<string, string>,
   warnings: ReadWarning[] = [],
+  verificationLayers?: readonly string[],
 ): ChangeEntry {
   if (!isCospecType(change.schema)) return legacyChangeEntry(change, upstream)
   if (!hasAnyArtifact(change.dir)) return emptyChangeEntry(change, change.schema)
-  return computeStatus(base, change, archived, warnings)
+  return computeStatus(base, change, archived, warnings, verificationLayers)
 }
 
 /** An errno failure reading a change's files: its message, as the binary reports it. */
@@ -690,6 +696,7 @@ async function runAll(ctx: CommandContext, override: string | undefined): Promis
   const byName = upstream === undefined ? new Map() : sweepEntries(upstream)
 
   const { archived, warning } = readArchive(base)
+  const verificationLayers = projectVerificationLayers(base)
   const tasksWarnings = new Map<string, ReadWarning[]>()
   const entries: (ChangeEntry | ChangeEntryFailure)[] = changes.map((change) => {
     // A namespace folder is a failure entry carrying its explanation, as the
@@ -706,7 +713,14 @@ async function runAll(ctx: CommandContext, override: string | undefined): Promis
     }
     const own: ReadWarning[] = []
     try {
-      return buildChangeEntry(base, change, byName.get(change.id), archived, own)
+      return buildChangeEntry(
+        base,
+        change,
+        byName.get(change.id),
+        archived,
+        own,
+        verificationLayers,
+      )
     } catch (err) {
       return { change: change.id, error: (err as Error).message }
     } finally {

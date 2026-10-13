@@ -24,8 +24,11 @@ function layerHint(extraLayers: readonly string[]): string {
 
 export interface VerificationRuleOptions {
   strict: boolean
-  /** project-extended layers (openspec/config.yaml verification.layers). */
-  extraLayers?: readonly string[]
+  /**
+   * project-extended layers (openspec/config.yaml verification.layers). Required:
+   * an omitted list would reject every declared layer as unknown.
+   */
+  extraLayers: readonly string[]
 }
 
 export function verificationRules(
@@ -86,7 +89,7 @@ export function verificationRules(
     })
   }
 
-  const extraLayers = opts.extraLayers ?? []
+  const { extraLayers } = opts
   for (const row of parsed.rows) {
     // verification/layer-unknown (fail-closed)
     if (!isKnownLayer(row.layer, extraLayers)) {

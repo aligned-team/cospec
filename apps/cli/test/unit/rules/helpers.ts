@@ -44,7 +44,7 @@ export function makeChange(overrides: Partial<LoadedChange> = {}): LoadedChange 
 }
 
 export function ctx(overrides: Partial<ValidateContext> = {}): ValidateContext {
-  return { archiveSlugs: new Set(), activeSlugs: new Set(), ...overrides }
+  return { archiveSlugs: new Set(), activeSlugs: new Set(), verificationLayers: [], ...overrides }
 }
 
 export function rules(issues: { rule: string }[]): string[] {

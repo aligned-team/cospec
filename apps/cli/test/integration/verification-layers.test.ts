@@ -1,6 +1,7 @@
 // `verification.layers` in `openspec/config.yaml` (verification-artifact spec,
 // "Project-extended layer is accepted"): a declared layer passes every gate that
-// validates a change; an undeclared one still fails closed (#68).
+// validates a change; an undeclared one still fails closed (#68). `status` and
+// `list` read it for `archiveReady` as those gates do (#83).
 
 import { afterAll, describe, expect, test } from 'bun:test'
 import { appendFileSync, existsSync } from 'node:fs'
@@ -129,4 +130,95 @@ describe('a project-declared verification layer', () => {
     expect(res.exitCode).not.toBe(0)
     expect(res.stderr).not.toContain('TypeError')
   })
+})
+
+const UAT_DEFERRED_ROW =
+  '- [~] 1.4 @uat (human) try it on production -> defer: checked after the release'
+
+interface ReadyRow {
+  change: string
+  archiveReady: boolean
+}
+
+/**
+ * What `status` (one change, `--all`, text) and `list` (`--json`, text) say about my-fix. Every
+ * run must succeed and report the change, so "not archive-ready" is never a missing row.
+ */
+async function readiness(root: string) {
+  const runs = await Promise.all(
+    [
+      ['status', '--change', 'my-fix', '--json'],
+      ['status', '--all', '--json'],
+      ['status', '--change', 'my-fix'],
+      ['list', '--json'],
+      ['list'],
+    ].map((args) => cospec(args, { cwd: root })),
+  )
+  for (const run of runs) expect(run.exitCode).toBe(0)
+  const [one, all, statusText, list, listText] = runs.map((run) => run.stdout) as [
+    string,
+    string,
+    string,
+    string,
+    string,
+  ]
+  const doc = JSON.parse(one) as {
+    archiveReady: boolean
+    verification: { blockedReasons: string[] }
+  }
+  const allRow = (JSON.parse(all) as { changes: ReadyRow[] }).changes.find(
+    (c) => c.change === 'my-fix',
+  )
+  const listRow = (JSON.parse(list) as { changes: ReadyRow[] }).changes.find(
+    (c) => c.change === 'my-fix',
+  )
+  const listLine = listText.split('\n').find((l) => l.trim().split(/\s+/)[0] === 'my-fix')
+  expect(allRow).toBeDefined()
+  expect(listRow).toBeDefined()
+  expect(listLine).toBeDefined()
+  return {
+    status: doc.archiveReady,
+    blockedReasons: doc.verification.blockedReasons,
+    statusAll: allRow!.archiveReady,
+    statusText,
+    list: listRow!.archiveReady,
+    listText: listLine!.includes('archive-ready'),
+  }
+}
+
+describe('status and list read the declaration as validate and archive do', () => {
+  test('all four agree a change whose rows name only a declared layer is archive-ready', async () => {
+    const root = await repoWith(
+      [BASE_ROW, UAT_ROW, UAT_DEFERRED_ROW],
+      'verification:\n  layers: [uat]\n',
+    )
+    const validate = await cospec(['validate', 'my-fix', '--strict'], { cwd: root })
+    expect(validate.exitCode).toBe(0)
+
+    const ready = await readiness(root)
+    expect(ready.blockedReasons).toEqual([])
+    expect(ready.status).toBe(true)
+    expect(ready.statusAll).toBe(true)
+    expect(ready.statusText).toContain('archive-ready: yes')
+    expect(ready.list).toBe(true)
+    expect(ready.listText).toBe(true)
+
+    const archive = await cospec(['archive', 'my-fix'], { cwd: root })
+    expect(archive.exitCode).toBe(0)
+    expect(existsSync(join(root, C))).toBe(false)
+  }, 60_000)
+
+  test('without the declaration status and list report not archive-ready, naming the rule', async () => {
+    const root = await repoWith([BASE_ROW, UAT_ROW, UAT_DEFERRED_ROW])
+    const ready = await readiness(root)
+    expect(ready.blockedReasons).toEqual([
+      'verification/layer-unknown (line 4): @uat is not a known layer',
+      'verification/layer-unknown (line 5): @uat is not a known layer',
+    ])
+    expect(ready.status).toBe(false)
+    expect(ready.statusAll).toBe(false)
+    expect(ready.statusText).toContain('archive-ready: no')
+    expect(ready.list).toBe(false)
+    expect(ready.listText).toBe(false)
+  }, 60_000)
 })

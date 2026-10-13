@@ -228,7 +228,7 @@ export function parseVerification(text: string): ParsedVerification {
 }
 
 /** True when a layer token is in the core set or the project extension. */
-export function isKnownLayer(layer: string, extraLayers: readonly string[] = []): boolean {
+export function isKnownLayer(layer: string, extraLayers: readonly string[]): boolean {
   return (CORE_LAYERS as readonly string[]).includes(layer) || extraLayers.includes(layer)
 }
 
