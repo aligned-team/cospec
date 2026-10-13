@@ -34,12 +34,15 @@ export interface VerdictChange {
  * `schemaVersion` enforce; when it omits `verification` the verdict is
  * undeclared and the file is read only if the type still declares it, to name
  * the `verification/*` errors archive's validation would refuse on.
+ * `extraLayers` is the project's `verification.layers`
+ * (`projectVerificationLayers`), which archive's validation accepts; it has no
+ * default, so a caller cannot report a declared layer as unknown by omission.
  */
 export function readVerificationVerdict(
   changeDir: string,
   change: VerdictChange,
   applyRequires: readonly string[],
-  extraLayers: readonly string[] = [],
+  extraLayers: readonly string[],
 ): VerificationVerdict {
   const declared = applyRequires.includes('verification')
   const validated =

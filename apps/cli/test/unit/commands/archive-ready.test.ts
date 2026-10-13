@@ -3,7 +3,8 @@
 // because `cospec archive` would refuse it with `archive/verification-incomplete`.
 
 import { afterAll, describe, expect, test } from 'bun:test'
-import { rmSync } from 'node:fs'
+import { appendFileSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { isArchiveReady } from '../../../src/commands/apply.ts'
 import { computeStatus } from '../../../src/commands/status.ts'
@@ -229,6 +230,37 @@ describe('computeStatus: a declared-but-unenforced ledger is still validated lik
   })
 })
 
+// A row naming a layer the project declares under `verification.layers` (#83):
+// `status` reads the declaration as `validate` and `archive` do.
+const UAT = `# Verification
+
+## 1. Empty input is handled [critical]
+
+- [x] 1.1 @regression (agent) run the widget with empty input -> no crash after
+- [x] 1.2 @uat (human) try it on staging -> no crash shown
+- [~] 1.3 @uat (human) try it on production -> defer: checked after the release
+`
+
+describe('computeStatus: a project-declared verification layer', () => {
+  test('a resolved row on a declared layer is archive-ready', () => {
+    const cwd = repo()
+    appendFileSync(join(cwd, 'openspec', 'config.yaml'), 'verification:\n  layers: [uat]\n')
+    const status = computeStatus(cwd, fixChange(cwd, UAT))
+    expect(status.verification.blockedReasons).toEqual([])
+    expect(status.archiveReady).toBe(true)
+  })
+
+  test('without the declaration the layer is unknown and blocks', () => {
+    const cwd = repo()
+    const status = computeStatus(cwd, fixChange(cwd, UAT))
+    expect(status.archiveReady).toBe(false)
+    expect(status.verification.blockedReasons).toEqual([
+      'verification/layer-unknown (line 6): @uat is not a known layer',
+      'verification/layer-unknown (line 7): @uat is not a known layer',
+    ])
+  })
+})
+
 describe('isArchiveReady', () => {
   const clear = { state: 'clear' as const, hard: [], soft: [] }
   const blocked = { state: 'blocked' as const, hard: [{ slug: 'a', active: true }], soft: [] }
@@ -271,8 +303,19 @@ describe('readVerificationVerdict', () => {
     const cwd = repo()
     const { dir } = fixChange(cwd, UNRESOLVED)
     const change = { id: 'c', schema: 'fix' }
-    expect(readVerificationVerdict(dir, change, ['verification']).unresolved).toBe(1)
-    expect(readVerificationVerdict(dir, change, ['proposal']).declared).toBe(false)
-    expect(readVerificationVerdict(dir, change, ['proposal']).blockedReasons).toEqual([])
+    expect(readVerificationVerdict(dir, change, ['verification'], []).unresolved).toBe(1)
+    expect(readVerificationVerdict(dir, change, ['proposal'], []).declared).toBe(false)
+    expect(readVerificationVerdict(dir, change, ['proposal'], []).blockedReasons).toEqual([])
+  })
+
+  test('a row on one of the given layers is known; with none given it is not', () => {
+    const cwd = repo()
+    const { dir } = fixChange(cwd, UAT)
+    const change = { id: 'c', schema: 'fix' }
+    const reasons = (layers: string[]) =>
+      readVerificationVerdict(dir, change, ['verification'], layers).blockedReasons
+    expect(reasons(['uat'])).toEqual([])
+    expect(reasons([]).every((r) => r.startsWith('verification/layer-unknown'))).toBe(true)
+    expect(reasons([])).toHaveLength(2)
   })
 })

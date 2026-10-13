@@ -27,6 +27,7 @@ import {
   findNestedChangesIn,
   isCospecType,
   listChanges,
+  projectVerificationLayers,
   readOpenspecYaml,
 } from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
@@ -257,7 +258,8 @@ function computeRow(
   if (cospec && !empty) {
     // The same required set `status` and the gates enforce: a grandfathered
     // change is judged on its stamped `schemaVersion`, and its verification
-    // verdict is the archive gate's plus validation's ledger errors.
+    // verdict is the archive gate's plus validation's ledger errors, read with
+    // the project's declared layers as validation reads them.
     const applyRequires = enforcedApplyRequires(
       schema as CospecType,
       readOpenspecYaml(dir)?.schemaVersion ?? 1,
@@ -266,7 +268,12 @@ function computeRow(
       requiredDone: applyRequires.every((a) => artifactDone(dir, a)),
       tasks: { total, complete },
       gate,
-      verdict: readVerificationVerdict(dir, { id, schema }, applyRequires),
+      verdict: readVerificationVerdict(
+        dir,
+        { id, schema },
+        applyRequires,
+        projectVerificationLayers(base),
+      ),
     })
   }
 

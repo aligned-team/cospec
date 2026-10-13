@@ -24,6 +24,7 @@ import {
   findNestedChangesIn,
   isCospecType,
   listChanges,
+  projectVerificationLayers,
   resolveChange,
   type Change,
 } from '../core/change.ts'
@@ -278,12 +279,14 @@ export function computeStatus(
 
   const requiredDone = artifacts.filter((a) => a.required).every((a) => a.done)
   // The verdict is the archive gate's own computation plus the ledger errors
-  // archive's validation raises, so the flag below cannot say ready while
-  // `cospec archive` would refuse on `verification.md`.
+  // archive's validation raises, with the project's declared layers that
+  // validation accepts, so the flag below cannot say ready while `cospec
+  // archive` would refuse on `verification.md`, nor not-ready while it accepts.
   const verification = readVerificationVerdict(
     change.dir,
     { id: change.id, schema: change.schema },
     [...applyRequires],
+    projectVerificationLayers(base),
   )
   const archiveReady = isArchiveReady({
     requiredDone,
