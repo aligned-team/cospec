@@ -58,7 +58,7 @@ export function runChangeRules(
     issues.push(
       ...verificationRules(change, schema, {
         strict: opts.strict,
-        extraLayers: ctx.verificationLayers,
+        projectLayers: ctx.verificationLayers,
       }),
     )
   }

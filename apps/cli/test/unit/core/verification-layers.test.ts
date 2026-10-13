@@ -1,7 +1,8 @@
 // `verification.layers` in `openspec/config.yaml` extends the closed `@<layer>`
 // vocabulary (verification-artifact spec, "Project-extended layer is accepted").
 // The rule already honoured `ValidateContext.verificationLayers`; these rows pin
-// the config-to-context path nothing exercised before (#68).
+// the config-to-context path nothing exercised before (#68). A config that
+// exists but cannot be read or parsed is `unreadable`, never no layers (#98).
 
 import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -9,7 +10,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { readValidateContext } from '../../../src/commands/validate.ts'
-import { parseVerificationLayers, projectVerificationLayers } from '../../../src/core/change.ts'
+import {
+  parseVerificationLayers,
+  projectConfigSchema,
+  projectVerificationLayers,
+} from '../../../src/core/change.ts'
 
 const dirs: string[] = []
 afterEach(() => {
@@ -24,8 +29,11 @@ function repo(config?: string, file = 'config.yaml'): string {
   return dir
 }
 
-const layersOf = (base: string): readonly string[] | undefined =>
-  readValidateContext(base).ctx.verificationLayers
+const layersOf = (base: string): readonly string[] => {
+  const read = readValidateContext(base).ctx.verificationLayers
+  expect(read.unreadable).toBeUndefined()
+  return read.layers
+}
 
 describe('readValidateContext reads verification.layers from the config', () => {
   test.each([
@@ -49,12 +57,11 @@ describe('readValidateContext reads verification.layers from the config', () => 
     writeFileSync(join(dir, 'openspec', 'changes', 'archive'), 'not a directory')
     const { ctx, warning } = readValidateContext(dir)
     expect(warning?.code).toBe('archive_unreadable')
-    expect(ctx.verificationLayers).toEqual(['uat'])
+    expect(ctx.verificationLayers).toEqual({ layers: ['uat'] })
   })
 
   test.each([
     ['missing config', undefined],
-    ['unparseable YAML', 'verification: [unclosed\n  layers: {\n'],
     ['empty file', ''],
     ['a scalar document', 'just a string\n'],
     ['verification is a scalar', 'verification: uat\n'],
@@ -108,6 +115,39 @@ describe('projectVerificationLayers', () => {
   test('a config.yaml wins over config.yml, as projectConfigSchema reads them', () => {
     const dir = repo('verification:\n  layers: [from-yaml]\n')
     writeFileSync(join(dir, 'openspec', 'config.yml'), 'verification:\n  layers: [from-yml]\n')
-    expect(projectVerificationLayers(dir)).toEqual(['from-yaml'])
+    expect(projectVerificationLayers(dir)).toEqual({ layers: ['from-yaml'] })
+  })
+})
+
+describe('a config that exists but cannot be read or parsed', () => {
+  test('unparseable YAML is unreadable, naming the file and the parse error', () => {
+    const read = projectVerificationLayers(repo('verification: [unclosed\n  layers: {\n'))
+    expect(read.layers).toEqual([])
+    expect(read.unreadable).toStartWith('openspec/config.yaml (')
+    expect(read.unreadable).not.toContain('\n')
+  })
+
+  test('a directory is unreadable, naming the errno', () => {
+    const dir = repo()
+    mkdirSync(join(dir, 'openspec', 'config.yaml'))
+    expect(projectVerificationLayers(dir)).toEqual({
+      layers: [],
+      unreadable: 'openspec/config.yaml (EISDIR: illegal operation on a directory, read)',
+    })
+  })
+
+  test('readValidateContext carries it to every gate', () => {
+    const dir = repo()
+    mkdirSync(join(dir, 'openspec', 'config.yml'))
+    expect(readValidateContext(dir).ctx.verificationLayers.unreadable).toStartWith(
+      'openspec/config.yml (EISDIR',
+    )
+  })
+
+  test("the schema fallback stays upstream's: no schema, so the default applies", () => {
+    const dir = repo()
+    mkdirSync(join(dir, 'openspec', 'config.yaml'))
+    expect(projectConfigSchema(dir)).toBeUndefined()
+    expect(projectConfigSchema(repo('schema: [unclosed\n'))).toBeUndefined()
   })
 })

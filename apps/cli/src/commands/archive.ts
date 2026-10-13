@@ -48,7 +48,7 @@ import {
 import { hasFlag } from '../core/command-table.ts'
 import { parseLivingSpec, type DeltaOp } from '../core/deltas.ts'
 import { assertPathWithin } from '../core/glob.ts'
-import { spawnOpenspec, threadedArgv } from '../core/openspec.ts'
+import { printOwnStderrLineOnce, spawnOpenspec, threadedArgv } from '../core/openspec.ts'
 import { renderOperationInputs } from '../core/operation-inputs.ts'
 import { readConfigOperationInputs } from '../core/project-config-read.ts'
 import { respellRemedies } from '../core/remedies.ts'
@@ -366,9 +366,9 @@ interface ArchiveInputs {
  * `openspec/changes/` once the delegated archive has run.
  */
 function archiveInputs(base: string): ArchiveInputs {
-  return readConfigOperationInputs(projectConfigPath(base), 'archive', (line) =>
-    process.stderr.write(`${line}\n`),
-  )
+  // Once per invocation: the layer read after it (`readValidateContext`) prints the same
+  // could-not-parse line for a broken config.
+  return readConfigOperationInputs(projectConfigPath(base), 'archive', printOwnStderrLineOnce)
 }
 
 /** The inputs' sections for the human transcript, after a blank line; nothing when none are set. */

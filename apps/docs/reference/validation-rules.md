@@ -176,23 +176,24 @@ ERROR when verification is required at apply time for that type
 `deploy-real-layer` are soft, because a checked `## Surfaces` box only ever
 soft-promotes a requirement.
 
-| ID                                  | Level        | Check                                                                                                                                             |
-| ----------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `verification/missing`              | I / E-strict | `verification.md` is required at apply time and absent                                                                                            |
-| `verification/structure`            | E            | at least one `## N. behavior` group exists; every group has at least one row                                                                      |
-| `verification/row-grammar`          | E            | a checkbox-like line (same marker set as the `tasks/` family above) doesn't parse as `- [<state>] N.M @<layer> [(<owner>)] <probe> -> <result>`   |
-| `verification/layer-unknown`        | E            | `@<layer>` is outside the closed [layer vocabulary](/concepts/verification) and isn't extended via `openspec/config.yaml`'s `verification.layers` |
-| `verification/owner-unknown`        | E            | `(<owner>)` is present and is neither `(agent)` nor `(human)`                                                                                     |
-| `verification/evidence-required`    | E            | a `[x]` row's `-> <result>` is empty                                                                                                              |
-| `verification/deferred-reason`      | E            | a `[~]` row has no non-empty `defer: <reason>`                                                                                                    |
-| `verification/critical-real-layer`  | E            | `feat` only: a `[critical]` group has no row on a layer other than `@unit`                                                                        |
-| `verification/reproduces-bug`       | E            | `fix` only: no `@regression` row anywhere in the ledger                                                                                           |
-| `verification/equivalence`          | E            | `perf` only: missing a `@benchmark` row, an `@equivalence` row, or both                                                                           |
-| `verification/invariant`            | E            | `refactor` only: no `@equivalence` row                                                                                                            |
-| `verification/deploy-real-layer`    | W (E-strict) | `build`/`ci` only, `deploy` surface checked: no `@runtime` row                                                                                    |
-| `verification/interactive-required` | W (E-strict) | `interactive` surface checked: no `@manual` or `@e2e` row                                                                                         |
-| `verification/eval-check`           | W (E-strict) | `agent-behavior` surface checked: no `@eval` row                                                                                                  |
-| `verification/integration-check`    | W (E-strict) | `integration` surface checked: no `@integration` row                                                                                              |
+| ID                                  | Level        | Check                                                                                                                                                                                 |
+| ----------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `verification/missing`              | I / E-strict | `verification.md` is required at apply time and absent                                                                                                                                |
+| `verification/structure`            | E            | at least one `## N. behavior` group exists; every group has at least one row                                                                                                          |
+| `verification/row-grammar`          | E            | a checkbox-like line (same marker set as the `tasks/` family above) doesn't parse as `- [<state>] N.M @<layer> [(<owner>)] <probe> -> <result>`                                       |
+| `verification/layer-unknown`        | E            | `@<layer>` is outside the closed [layer vocabulary](/concepts/verification) and isn't extended via `openspec/config.yaml`'s `verification.layers`                                     |
+| `verification/config-unreadable`    | E            | `openspec/config.yaml` (or `config.yml`) exists but can't be read or parsed, so the project's `verification.layers` are unknown; replaces `verification/layer-unknown` for the ledger |
+| `verification/owner-unknown`        | E            | `(<owner>)` is present and is neither `(agent)` nor `(human)`                                                                                                                         |
+| `verification/evidence-required`    | E            | a `[x]` row's `-> <result>` is empty                                                                                                                                                  |
+| `verification/deferred-reason`      | E            | a `[~]` row has no non-empty `defer: <reason>`                                                                                                                                        |
+| `verification/critical-real-layer`  | E            | `feat` only: a `[critical]` group has no row on a layer other than `@unit`                                                                                                            |
+| `verification/reproduces-bug`       | E            | `fix` only: no `@regression` row anywhere in the ledger                                                                                                                               |
+| `verification/equivalence`          | E            | `perf` only: missing a `@benchmark` row, an `@equivalence` row, or both                                                                                                               |
+| `verification/invariant`            | E            | `refactor` only: no `@equivalence` row                                                                                                                                                |
+| `verification/deploy-real-layer`    | W (E-strict) | `build`/`ci` only, `deploy` surface checked: no `@runtime` row                                                                                                                        |
+| `verification/interactive-required` | W (E-strict) | `interactive` surface checked: no `@manual` or `@e2e` row                                                                                                                             |
+| `verification/eval-check`           | W (E-strict) | `agent-behavior` surface checked: no `@eval` row                                                                                                                                      |
+| `verification/integration-check`    | W (E-strict) | `integration` surface checked: no `@integration` row                                                                                                                                  |
 
 ## `design/`
 

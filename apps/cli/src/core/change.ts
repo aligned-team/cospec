@@ -1,11 +1,12 @@
 import { existsSync, readdirSync, readFileSync, statSync, type Dirent } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { basename, join, resolve } from 'node:path'
 
 import { parse as parseYaml } from 'yaml'
 
 import { loadSchema, userSchemasDir } from './change-metadata.ts'
 import { artifactOutputExists } from './glob.ts'
-import { openspecPackageDir } from './openspec.ts'
+import { openspecPackageDir, printOwnStderrLineOnce } from './openspec.ts'
+import { couldNotParseWarning, readConfigFile } from './project-config-read.ts'
 
 /**
  * The 11 conventional-commit types cospec manages as schemas. This is the frozen
@@ -349,10 +350,13 @@ function hasAnyFileUnder(dir: string): boolean {
 /**
  * The root's `openspec/config.yaml` (else `config.yml`) `schema:` — upstream's
  * `readProjectConfig(root)?.schema`. A config that cannot be read or parsed
- * names none, as upstream falls back to its default then.
+ * names none, as upstream falls back to its default then, with upstream's
+ * warning.
  */
 export function projectConfigSchema(base: string): string | undefined {
-  const doc = readProjectConfig(base)
+  const read = readProjectConfig(base)
+  if ('unreadable' in read) return undefined
+  const { doc } = read
   if (doc === null || typeof doc !== 'object') return undefined
   const schema = (doc as Record<string, unknown>).schema
   return typeof schema === 'string' && schema.length > 0 ? schema : undefined
@@ -368,18 +372,19 @@ export function projectConfigPath(base: string): string {
 }
 
 /**
- * The root's `openspec/config.yaml` (else `config.yml`) parsed, or `undefined`
- * when there is none or it does not parse. Callers that need to tell a parse
- * failure from absence (`cospec doctor`) read the file themselves.
+ * The root's `openspec/config.yaml` (else `config.yml`) as upstream's `readProjectConfig`
+ * reads it: its parsed document (`undefined` when there is none), or, for a file that exists
+ * but cannot be read or parsed, `unreadable` (`<file> (<cause>)`, root-relative) after
+ * upstream's own warning, printed once. Never reads a broken file as absent; each reader
+ * decides what that costs. `cospec doctor` takes `readConfigFile` itself, for the error code.
  */
-function readProjectConfig(base: string): unknown {
+function readProjectConfig(base: string): { doc: unknown } | { unreadable: string } {
   const path = projectConfigPath(base)
-  if (!existsSync(path)) return undefined
-  try {
-    return parseYaml(readFileSync(path, 'utf8'))
-  } catch {
-    return undefined
-  }
+  const read = readConfigFile(path)
+  if (read === undefined) return { doc: undefined }
+  if ('doc' in read) return read
+  printOwnStderrLineOnce(couldNotParseWarning(path, read.failure))
+  return { unreadable: `openspec/${basename(path)} (${read.failure})` }
 }
 
 export interface VerificationLayers {
@@ -424,13 +429,27 @@ export function parseVerificationLayers(doc: unknown): VerificationLayers {
   return { layers, problems }
 }
 
+/** The project's `verification.layers`, as every gate and verdict reads them. */
+export interface ProjectLayers {
+  /** the usable extra `@<layer>` tokens; none when undeclared or unreadable. */
+  layers: readonly string[]
+  /**
+   * why the config holding them cannot be read or parsed (`<file> (<detail>)`),
+   * so the vocabulary is unknown; absent when it was read or does not exist.
+   */
+  unreadable?: string
+}
+
 /**
  * The extra `@<layer>` tokens the root's config declares under
- * `verification.layers`; `[]` when there is no config, it does not parse, or the
- * declaration is unusable (see `parseVerificationLayers`).
+ * `verification.layers`; none when there is no config or the declaration is
+ * unusable (see `parseVerificationLayers`). A config that exists but cannot be
+ * read or parsed is `unreadable`, with upstream's warning, never no layers.
  */
-export function projectVerificationLayers(base: string): readonly string[] {
-  return parseVerificationLayers(readProjectConfig(base)).layers
+export function projectVerificationLayers(base: string): ProjectLayers {
+  const read = readProjectConfig(base)
+  if ('unreadable' in read) return { layers: [], unreadable: read.unreadable }
+  return { layers: parseVerificationLayers(read.doc).layers }
 }
 
 /**

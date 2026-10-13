@@ -4,6 +4,7 @@
 // change discovery and hands it to runCospecRules.
 
 import type { MarkerRead } from '../change-metadata.ts'
+import type { ProjectLayers } from '../change.ts'
 import type { LivingSpec } from '../deltas.ts'
 import { ARTIFACT_FILES, isCospecType, TYPE_FACTS, type TypeFacts } from './type-facts.ts'
 
@@ -132,5 +133,5 @@ export interface ValidateContext {
   archiveSlugs: Set<string>
   activeSlugs: Set<string>
   /** project-extended verification layers (openspec/config.yaml verification.layers). */
-  verificationLayers: readonly string[]
+  verificationLayers: ProjectLayers
 }

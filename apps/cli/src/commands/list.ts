@@ -29,6 +29,7 @@ import {
   listChanges,
   projectVerificationLayers,
   readOpenspecYaml,
+  type ProjectLayers,
 } from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
 import { artifactOutputExists } from '../core/glob.ts'
@@ -166,7 +167,7 @@ function nativeRow(
   id: string,
   archived: Map<string, string>,
   active: Set<string>,
-  verificationLayers: readonly string[],
+  verificationLayers: ProjectLayers,
   warnings: ReadWarning[],
 ): Row | FailedRow {
   try {
@@ -222,7 +223,7 @@ function computeRow(
   id: string,
   archived: Map<string, string>,
   active: Set<string>,
-  verificationLayers: readonly string[],
+  verificationLayers: ProjectLayers,
   warnings: ReadWarning[],
 ): Row {
   const dir = join(changesDir(base), id)
