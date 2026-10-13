@@ -43,7 +43,7 @@
 
 ## 5. Gate
 
-- [ ] 5.1 The PR's CI checks green and
+- [x] 5.1 The PR's CI checks green and
       `cospec validate status-list-verification-layers --strict` clean, every
       verification row `[x]` with an observed result -- verify by the exit codes
       and by reading the ledger. The archive commit follows this one.
