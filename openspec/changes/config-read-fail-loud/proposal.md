@@ -36,13 +36,18 @@ paths never read it), and prints its warning once per read when it does read it:
 
 ## What Changes
 
-1. `readProjectConfig` tells absent from broken: a missing file is still no
-   config; a file that exists but cannot be read (an errno) or does not parse as
-   YAML is a `ProjectConfigError` naming the path and the cause (the first line
-   of the error, as the binary words it). Anything else still propagates.
+1. One read, `readConfigFile` (in `core/project-config-read.ts`, beside the port
+   of the binary's config warnings), tells absent from broken for every reader —
+   cospec's, doctor's and the port's: a missing file is still no config; a file
+   that exists but cannot be read (an errno) or does not parse (anything the
+   YAML parse throws, as the binary's one `catch` takes it — a syntax error, an
+   unresolved alias) is a failure naming the cause (the first line of the error,
+   as the binary words it).
 2. Every cospec read of a broken config prints the binary's own line,
    `Warning: could not parse <path> (<detail>); ignoring it.`, on stderr, once
-   per invocation.
+   per invocation, through the set that already drops lines cospec printed from
+   a relayed wrapped call's stderr, so `apply` (which relays the binary's
+   `instructions apply`) does not print it twice.
 3. The schema fallback a bare change takes (`projectConfigSchema`) keeps the
    binary's behavior — `spec-driven` — now with that warning.
 4. The layer vocabulary fails loud: `projectVerificationLayers` returns the
@@ -81,15 +86,18 @@ None.
 
 ## Impact
 
-- `apps/cli/src/core/change.ts`: `ProjectConfigError`, `readProjectConfig`,
-  `projectConfigSchema`, `projectVerificationLayers` (now `ProjectLayers`), and
-  the once-per-invocation warning.
+- `apps/cli/src/core/project-config-read.ts`: `readConfigFile` and
+  `couldNotParseWarning`, which its own `readConfig` now uses.
+  `apps/cli/src/core/openspec.ts`: `printOwnStderrLineOnce`.
+- `apps/cli/src/core/change.ts`: `readProjectConfig`, `projectConfigSchema`,
+  `projectVerificationLayers` (now `ProjectLayers`).
 - `apps/cli/src/core/rules/verification.ts`, `core/rules/schema-info.ts`,
   `core/verification-verdict.ts`: the rules, `ValidateContext` and the verdict
   take `ProjectLayers`; the new `verification/config-unreadable` rule.
 - `apps/cli/src/commands/validate.ts`, `status.ts`, `list.ts`: pass the read's
   outcome through. `apps/cli/src/commands/doctor.ts`: `checkConfig` names a read
-  failure.
+  failure (and `hasReferencesConfig` takes the same read).
+  `apps/cli/src/commands/archive.ts`: its config warnings print once.
 - Exit codes do not change shape: a validated ledger under a broken config
   already failed (on `layer-unknown`) and now fails on the new rule. New output:
   the stderr warning line, one new rule ID, and doctor's read-failure message.

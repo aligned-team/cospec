@@ -48,8 +48,8 @@ a bare change prints the line once, `list` once per bare or nested candidate,
 1. **Split by who owns the fact.** Making `readProjectConfig` throw all the way
    out would refuse every command that enumerates changes (`listChanges` reads
    the default schema), in repos the binary lists with a warning — a parity
-   regression. So the read reports the failure as a typed `ProjectConfigError`
-   (path + first line of the cause), and each reader decides:
+   regression. So the read reports the failure as an outcome (`{ unreadable }`,
+   naming the file and the first line of the cause), and each reader decides:
    - `projectConfigSchema`, which mirrors upstream, falls back as upstream does
      and prints upstream's exact line. That is closer to parity than today's
      silence, and matches `cospec new`, whose spec already says "a config
@@ -71,20 +71,35 @@ a bare change prints the line once, `list` once per bare or nested candidate,
    be decided while the vocabulary is unreadable, and a broken config is a
    defect to fix, not to route around.
 3. **Warn once per invocation, upstream's words.** The line goes to stderr
-   through one helper with a per-path record, so `list` over N changes prints it
-   once rather than upstream's once-per-read (an internal call count, not a
-   contract). The path is the absolute config path, as upstream prints it. The
-   detail is the error's first line; for a read failure that is the errno
-   message (`EISDIR: illegal operation on a directory, read`), as upstream's
-   single `catch` words it.
-4. **What counts as broken.** An errno from `readFileSync` on an existing path,
-   or a `YAMLParseError` from `parseYaml`. Anything else (a programming error)
-   propagates, per the repo's error-handling rule. A document that parses but is
-   not a mapping stays "no config" for the schema and "no layers" for the
-   vocabulary, as today; doctor already reports it.
-5. **Doctor.** `checkConfig` keeps its own read (it needs the parse error's
-   kind), and now reports an errno as `<file> could not be read (<code>)` with a
-   remedy to fix its permissions or replace it, and a parse failure as before.
+   through `printOwnStderrLineOnce`, which records it in the set
+   `suppressRelayedStderrLine` already keeps of lines cospec printed itself. So
+   `list` over N changes prints it once rather than upstream's once-per-read (an
+   internal call count, not a contract), and a command that relays the wrapped
+   binary's stderr (`apply`, through `instructions apply`) drops the binary's
+   copy instead of printing it a second time. `archive`'s port of upstream's
+   config warnings prints through the same function. The path is the absolute
+   config path, as upstream prints it. The detail is the error's first line; for
+   a read failure that is the errno message
+   (`EISDIR: illegal operation on a directory, read`), as upstream's single
+   `catch` words it.
+4. **What counts as broken, in one place.** `readConfigFile` is the one read
+   cospec's readers, doctor and the binary's port all take, so they cannot
+   classify a file differently. An errno from `readFileSync` on an existing path
+   is a failure carrying its code; a `readFileSync` error with no errno
+   propagates. Everything `parseYaml` throws on the text is a failure: a
+   `YAMLParseError`, but also the plain `ReferenceError` the library throws for
+   an unresolved alias or its alias limit — the binary's one `catch` takes all
+   of it, and narrowing to `YAMLError` crashed every command on `foo: *nope`. A
+   document that parses but is not a mapping stays "no config" for the schema
+   and "no layers" for the vocabulary, as today; doctor already reports it.
+5. **Doctor.** `checkConfig` takes the same read and reports an errno as
+   `<file> could not be read (<code>)` with a remedy to make it a readable file
+   or remove it, and any parse failure as "does not parse as YAML", as before.
+6. **The rule's path.** `verification/config-unreadable` is reported on
+   `verification.md`, the ledger that cannot be validated: issue paths are
+   change-relative, and the config sits outside the change. The message names
+   the config by its root-relative POSIX path (`openspec/config.yaml`), on every
+   platform.
 
 ## Where the fact is owned in docs
 

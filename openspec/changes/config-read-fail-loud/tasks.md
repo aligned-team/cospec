@@ -22,10 +22,11 @@
 
 ## 3. Fix
 
-- [x] 3.1 Add `ProjectConfigError` and the once-per-invocation warning; make
-      `readProjectConfig` throw it for an errno or a YAML parse error,
-      `projectConfigSchema` warn and fall back, and `projectVerificationLayers`
-      return `ProjectLayers` -- verify the read rows pass
+- [x] 3.1 Add `readConfigFile` (one read for every config reader) and
+      `printOwnStderrLineOnce`; make `readProjectConfig` report an errno or any
+      parse failure as unreadable with upstream's warning, `projectConfigSchema`
+      fall back, and `projectVerificationLayers` return `ProjectLayers` --
+      verify the read rows pass
 - [x] 3.2 Thread `ProjectLayers` through `ValidateContext`, `verificationRules`,
       `readVerificationVerdict`, `status` and `list`, and add
       `verification/config-unreadable` -- verify the rule and integration rows
