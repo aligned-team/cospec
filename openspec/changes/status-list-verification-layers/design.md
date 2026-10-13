@@ -18,8 +18,9 @@ so the verdict rejects every declared layer with `verification/layer-unknown`.
 
 - `status`'s and `list`'s `archiveReady` and `verification.blockedReasons` agree
   with `validate`, `apply` and `archive` for a row naming a declared layer.
-- No caller of `readVerificationVerdict` can omit the project's layers again
-  without the typechecker refusing it.
+- No caller of `readVerificationVerdict`, `verificationRules` or `isKnownLayer`,
+  and no `ValidateContext`, can omit the project's layers again without the
+  typechecker refusing it.
 
 **Non-Goals:**
 
@@ -35,15 +36,19 @@ so the verdict rejects every declared layer with `verification/layer-unknown`.
    `projectVerificationLayers(base)` — the function `readValidateContext` calls
    — so the verdict and the gates can never disagree on what a declared layer
    is, including on a malformed declaration, which both read as no extra layers.
-2. **Read per change, not threaded.** `computeRow` already reads the project
-   config per row (`defaultProjectSchema(base)`) and `computeStatus` is the one
-   function every `status` path (one change, `--all`) reaches, so each reads the
-   layers itself. Threading the list through `buildChangeEntry` and `nativeRow`
-   would widen four signatures to save one small file read per change.
-3. **Make the parameter required.** Dropping `extraLayers`' `[]` default turns
-   the omission that caused this bug into a type error. The other call sites in
-   the codebase already pass it (the rule's `extraLayers` comes from
-   `ValidateContext`, which `readValidateContext` always fills).
+2. **Read once per invocation, as `archived` is.** `list` reads the layers once
+   beside `readArchive` and passes them through `nativeRow` to `computeRow`;
+   `status --all` reads them once and passes them through `buildChangeEntry` to
+   `computeStatus`, which, like its `archived`, reads them from `base` itself
+   when a caller (one change, a test) does not pass them. That default reads the
+   config, never `[]`, so an omission there is still correct.
+3. **No "omitted means none" default anywhere in the chain.** The bug was an
+   omitted list silently read as `[]`, and #68 was the same omission one level
+   down (a `ValidateContext` with no `verificationLayers`). So
+   `readVerificationVerdict`'s `extraLayers`, `VerificationRuleOptions`'
+   `extraLayers`, `isKnownLayer`'s second parameter and
+   `ValidateContext.verificationLayers` are all required: an omission is a type
+   error, and a caller that means "no project layers" says `[]`.
 
 ## Where the fact is owned in docs
 

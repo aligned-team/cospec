@@ -28,8 +28,12 @@ reports `archiveReady: false`, text `status` prints `archive-ready: no`, and
    (`projectVerificationLayers(base)`, the reader `readValidateContext` uses) to
    `readVerificationVerdict`, so a declared layer is known to the verdict and
    `archiveReady` agrees with `validate`, `apply` and `archive`.
-2. `readVerificationVerdict`'s `extraLayers` parameter becomes required (no `[]`
-   default), so a future caller cannot silently omit the project's layers.
+2. The project's layers become required wherever the chain took them as
+   optional: `readVerificationVerdict`'s `extraLayers` (no `[]` default),
+   `verificationRules`' `extraLayers` option, `isKnownLayer`'s second parameter
+   and `ValidateContext.verificationLayers`, so a future caller cannot silently
+   omit them, as `status` and `list` did here and `readValidateContext` did in
+   #68. `list` and `status --all` read the layers once per invocation.
 3. An undeclared layer still fails closed: with no declaration, the same row
    keeps `archiveReady` false with a `verification/layer-unknown` reason.
 
@@ -50,10 +54,14 @@ None.
 
 ## Impact
 
-- `apps/cli/src/core/verification-verdict.ts`: `extraLayers` is required.
-- `apps/cli/src/commands/status.ts` (`computeStatus`) and
-  `apps/cli/src/commands/list.ts` (`computeRow`): pass
-  `projectVerificationLayers(base)`.
+- `apps/cli/src/core/verification-verdict.ts`, `core/rules/verification.ts`,
+  `core/verification.ts` and `core/rules/schema-info.ts`: the layers are
+  required (`extraLayers`, `isKnownLayer`,
+  `ValidateContext.verificationLayers`).
+- `apps/cli/src/commands/status.ts` (`computeStatus`, `buildChangeEntry`, the
+  `--all` sweep) and `apps/cli/src/commands/list.ts` (`nativeRow`,
+  `computeRow`): pass `projectVerificationLayers(base)`, read once per
+  invocation.
 - No flag, schema, exit-code or JSON-key change. For a project that declares
   layers, a change whose only blocker was a declared-layer row now reports
   `archiveReady: true` (text `archive-ready: yes`) with an empty

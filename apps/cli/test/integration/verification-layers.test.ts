@@ -140,28 +140,49 @@ interface ReadyRow {
   archiveReady: boolean
 }
 
-/** What `status` (one change, `--all`, text) and `list` (`--json`, text) say about my-fix. */
+/**
+ * What `status` (one change, `--all`, text) and `list` (`--json`, text) say about my-fix. Every
+ * run must succeed and report the change, so "not archive-ready" is never a missing row.
+ */
 async function readiness(root: string) {
-  const one = JSON.parse(
-    (await cospec(['status', '--change', 'my-fix', '--json'], { cwd: root })).stdout,
-  ) as { archiveReady: boolean; verification: { blockedReasons: string[] } }
-  const all = JSON.parse((await cospec(['status', '--all', '--json'], { cwd: root })).stdout) as {
-    changes: ReadyRow[]
+  const runs = await Promise.all(
+    [
+      ['status', '--change', 'my-fix', '--json'],
+      ['status', '--all', '--json'],
+      ['status', '--change', 'my-fix'],
+      ['list', '--json'],
+      ['list'],
+    ].map((args) => cospec(args, { cwd: root })),
+  )
+  for (const run of runs) expect(run.exitCode).toBe(0)
+  const [one, all, statusText, list, listText] = runs.map((run) => run.stdout) as [
+    string,
+    string,
+    string,
+    string,
+    string,
+  ]
+  const doc = JSON.parse(one) as {
+    archiveReady: boolean
+    verification: { blockedReasons: string[] }
   }
-  const list = JSON.parse((await cospec(['list', '--json'], { cwd: root })).stdout) as {
-    changes: ReadyRow[]
-  }
-  const listLine =
-    (await cospec(['list'], { cwd: root })).stdout
-      .split('\n')
-      .find((l) => l.trim().split(/\s+/)[0] === 'my-fix') ?? ''
+  const allRow = (JSON.parse(all) as { changes: ReadyRow[] }).changes.find(
+    (c) => c.change === 'my-fix',
+  )
+  const listRow = (JSON.parse(list) as { changes: ReadyRow[] }).changes.find(
+    (c) => c.change === 'my-fix',
+  )
+  const listLine = listText.split('\n').find((l) => l.trim().split(/\s+/)[0] === 'my-fix')
+  expect(allRow).toBeDefined()
+  expect(listRow).toBeDefined()
+  expect(listLine).toBeDefined()
   return {
-    status: one.archiveReady,
-    blockedReasons: one.verification.blockedReasons,
-    statusAll: all.changes.find((c) => c.change === 'my-fix')?.archiveReady,
-    statusText: (await cospec(['status', '--change', 'my-fix'], { cwd: root })).stdout,
-    list: list.changes.find((c) => c.change === 'my-fix')?.archiveReady,
-    listText: listLine.includes('archive-ready'),
+    status: doc.archiveReady,
+    blockedReasons: doc.verification.blockedReasons,
+    statusAll: allRow!.archiveReady,
+    statusText,
+    list: listRow!.archiveReady,
+    listText: listLine!.includes('archive-ready'),
   }
 }
 

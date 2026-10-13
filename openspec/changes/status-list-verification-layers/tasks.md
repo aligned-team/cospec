@@ -24,10 +24,12 @@
 
 ## 3. Fix
 
-- [x] 3.1 Make `readVerificationVerdict`'s `extraLayers` required and pass
-      `projectVerificationLayers(base)` from `computeStatus` (`status.ts`) and
-      `computeRow` (`list.ts`) -- verify the 2.1 and 2.2 rows pass and
-      `mise run typecheck` is clean
+- [x] 3.1 Make the project's layers required throughout the chain
+      (`readVerificationVerdict`'s and `verificationRules`' `extraLayers`,
+      `isKnownLayer`, `ValidateContext.verificationLayers`) and pass
+      `projectVerificationLayers(base)`, read once per invocation, from `status`
+      (`computeStatus`, the `--all` sweep) and `list` (`computeRow`) -- verify
+      the 2.1 and 2.2 rows pass and `mise run typecheck` is clean
 
 ## 4. Docs
 

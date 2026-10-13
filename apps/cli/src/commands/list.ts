@@ -166,10 +166,11 @@ function nativeRow(
   id: string,
   archived: Map<string, string>,
   active: Set<string>,
+  verificationLayers: readonly string[],
   warnings: ReadWarning[],
 ): Row | FailedRow {
   try {
-    return computeRow(base, id, archived, active, warnings)
+    return computeRow(base, id, archived, active, verificationLayers, warnings)
   } catch (error) {
     const code = (error as NodeJS.ErrnoException | undefined)?.code
     if (!(error instanceof Error) || typeof code !== 'string') throw error
@@ -221,6 +222,7 @@ function computeRow(
   id: string,
   archived: Map<string, string>,
   active: Set<string>,
+  verificationLayers: readonly string[],
   warnings: ReadWarning[],
 ): Row {
   const dir = join(changesDir(base), id)
@@ -268,12 +270,7 @@ function computeRow(
       requiredDone: applyRequires.every((a) => artifactDone(dir, a)),
       tasks: { total, complete },
       gate,
-      verdict: readVerificationVerdict(
-        dir,
-        { id, schema },
-        applyRequires,
-        projectVerificationLayers(base),
-      ),
+      verdict: readVerificationVerdict(dir, { id, schema }, applyRequires, verificationLayers),
     })
   }
 
@@ -389,9 +386,17 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   const { archived, warning } = readArchive(base)
   const active = new Set(listChanges(base).map((c) => c.id))
+  const verificationLayers = projectVerificationLayers(base)
   const warnings: ReadWarning[] = warning === undefined ? [] : [warning]
   const rows = upstreamRows.map((upRow) => {
-    const native = nativeRow(base, String(upRow.name), archived, active, warnings)
+    const native = nativeRow(
+      base,
+      String(upRow.name),
+      archived,
+      active,
+      verificationLayers,
+      warnings,
+    )
     return mergeUpstream(native, upRow).value
   })
   const failed = rows.some(isFailedRow)

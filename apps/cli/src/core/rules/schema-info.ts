@@ -132,5 +132,5 @@ export interface ValidateContext {
   archiveSlugs: Set<string>
   activeSlugs: Set<string>
   /** project-extended verification layers (openspec/config.yaml verification.layers). */
-  verificationLayers?: readonly string[]
+  verificationLayers: readonly string[]
 }

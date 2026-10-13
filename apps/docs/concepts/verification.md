@@ -63,9 +63,9 @@ verification:
 ```
 
 A row tagged `@uat` or `@staging` then passes `verification/layer-unknown` in
-`validate`, `apply`, `archive` and `sync-specs`, and no longer holds `status`'s
-or `list`'s `archiveReady` false; any other token still fails closed, and the
-error's hint names the layers your config declares. An entry may
+`validate`, `apply`, `archive` and `sync-specs`, and counts as known for
+`status`'s and `list`'s `archiveReady`; any other token still fails closed, and
+the error's hint names the layers your config declares. An entry may
 be written with or without a leading `@` (`"@uat"`), and one that repeats a core
 layer is harmless. Each entry must be a single token without spaces.
 

@@ -9,5 +9,5 @@
 
 ## 2. Docs and gate
 
-- [x] 2.1 @manual (agent) `apps/docs/concepts/verification.md` names `status`'s and `list`'s archive-readiness among the places a declared layer is accepted -> "Extending the layer vocabulary" now says a declared-layer row "no longer holds `status`'s or `list`'s `archiveReady` false"; the `cospec status`/`cospec list` rows of `reference/commands.md` ("an unknown layer") stay accurate; `mise run docs:build` exit 0 (build complete)
+- [x] 2.1 @manual (agent) `apps/docs/concepts/verification.md` names `status`'s and `list`'s archive-readiness among the places a declared layer is accepted -> "Extending the layer vocabulary" now says a declared-layer row "counts as known for `status`'s and `list`'s `archiveReady`"; the `cospec status`/`cospec list` rows of `reference/commands.md` ("an unknown layer") stay accurate; `mise run docs:build` exit 0 (build complete)
 - [ ] 2.2 @manual (agent) the PR's CI checks (the `mise run check` gate) are green and `cospec validate status-list-verification-layers --strict` is clean -> every check passes and validate exits 0
