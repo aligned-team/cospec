@@ -18,4 +18,4 @@
 ## 4. Docs and gate
 
 - [x] 4.1 @manual (agent) `concepts/verification.md`, `reference/validation-rules.md` and the `cospec status`/`cospec doctor` rows of `reference/commands.md` state the new behavior -> the concept page separates a missing, an unreadable/unparseable and a malformed config; the rules table gains `verification/config-unreadable`; the `status` row names the `spec-driven` fallback with the warning and the `doctor` row the read-failure ERROR; `mise run docs:build` exit 0
-- [ ] 4.2 @manual (agent) the PR's CI checks are green and `cospec validate config-read-fail-loud --strict` is clean -> every check passes and validate exits 0
+- [x] 4.2 @manual (agent) the PR's CI checks are green and `cospec validate config-read-fail-loud --strict` is clean -> CI run 38449971521 on a52ebec8: `ci-bun` (lint, format, typecheck, generate/agents drift, unit, integration, contract, bench, e2e) pass in 1h9m3s, `ci-docs`, `ci-openspec` and `ci-gate` pass, CodeQL and the PR-title lint pass; `cospec validate config-read-fail-loud --strict` `0 errors, 0 warnings — validation passed`
