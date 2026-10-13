@@ -282,13 +282,21 @@ cospec SHALL read `verification.layers` from the project's
 verification rows — `validate`, `apply`, `archive` and `sync-specs` — and in the
 archive-readiness verdict `status` and `list` report (`archiveReady` and
 `verification.blockedReasons`), and SHALL accept a row whose layer token is one
-of them. An entry MAY be spelled with or without a leading `@`. A missing or
-unparseable config, a `verification` that is not a mapping, a `layers` that is
-not a list, and an entry that is not a non-empty string without whitespace SHALL
-yield no extra layer for that entry and SHALL NOT fail the gate. `cospec doctor`
-SHALL emit a `config` WARNING when `verification.layers` is present but
-malformed in any of those ways. The `verification/layer-unknown` hint SHALL name
-the declared layers when there are any.
+of them. An entry MAY be spelled with or without a leading `@`. A missing config
+SHALL yield no extra layer. A config that exists but cannot be read or does not
+parse as YAML SHALL NOT be read as no config: cospec SHALL print the wrapped
+binary's own `Warning: could not parse <path> (<detail>); ignoring it.` line on
+stderr once per invocation, and every ledger those gates and that verdict
+validate SHALL fail with a `verification/config-unreadable` ERROR naming the
+file and the cause, in place of any `verification/layer-unknown` (the vocabulary
+is unknown, so no row is judged outside it). A `verification` that is not a
+mapping, a `layers` that is not a list, and an entry that is not a non-empty
+string without whitespace SHALL yield no extra layer for that entry and SHALL
+NOT fail the gate. `cospec doctor` SHALL emit a `config` WARNING when
+`verification.layers` is present but malformed in any of those ways, and SHALL
+report a config it cannot read as unreadable, naming the error code, rather than
+as one that does not parse. The `verification/layer-unknown` hint SHALL name the
+declared layers when there are any.
 
 #### Scenario: A declared layer passes every gate, an undeclared one still fails
 
@@ -323,3 +331,20 @@ the declared layers when there are any.
   and `cospec archive <slug>` moves the change; without the declaration,
   `status` and `list` report `archiveReady: false` and `status` names
   `verification/layer-unknown` in `verification.blockedReasons`
+
+#### Scenario: A config that cannot be read or parsed fails loud
+
+- **WHEN** `openspec/config.yaml` declares `verification.layers: [uat]` but does
+  not parse as YAML, or `openspec/config.yaml` is a directory, and a `fix`
+  change whose tasks are done and whose gate is clear has a resolved row naming
+  `@uat`
+- **THEN** stderr carries
+  `Warning: could not parse <path> (<detail>); ignoring it.`,
+  `cospec validate <slug> --strict` exits 1 with
+  `verification/config-unreadable` naming the file and no
+  `verification/layer-unknown`, `cospec archive <slug>` refuses and leaves the
+  change in place, `cospec status <slug> --json` reports `archiveReady: false`
+  with the `verification/config-unreadable` reason in
+  `verification.blockedReasons`, `cospec list --json` reports
+  `archiveReady: false`, and `cospec doctor` reports the directory as a config
+  it could not read (`EISDIR`)

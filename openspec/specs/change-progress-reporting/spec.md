@@ -274,7 +274,10 @@ document into cospec's `{change, type, legacy: true}` entry. The command SHALL
 exit with the binary's outcome: an unknown schema exits 1 in both modes. A
 change directory without `.openspec.yaml` SHALL take its schema as the binary
 does, from the root's `config.yaml` `schema:` and else `spec-driven`, at
-`schemaVersion` 1. No output SHALL name a bare `openspec` command.
+`schemaVersion` 1; where that config exists but cannot be read or parsed, it
+SHALL take `spec-driven` as the binary does and print the binary's
+`Warning: could not parse <path> (<detail>); ignoring it.` line on stderr once.
+No output SHALL name a bare `openspec` command.
 
 #### Scenario: A forked schema gets real status
 
@@ -296,6 +299,14 @@ does, from the root's `config.yaml` `schema:` and else `spec-driven`, at
   only `proposal.md` in a root whose `config.yaml` says `schema: feat`
 - **THEN** the entry is a `feat` change graded at `schemaVersion` 1, and its
   `schemaName` is `feat` as the binary reports
+
+#### Scenario: A hand-made change under a broken config falls back with the binary's warning
+
+- **WHEN** `cospec status --change bare-dir` runs on a directory holding only
+  `proposal.md` in a root whose `config.yaml` does not parse as YAML
+- **THEN** the change is reported on `spec-driven`, as the binary reports it,
+  stderr carries `Warning: could not parse <path> (<detail>); ignoring it.`
+  once, and the command exits 0
 
 ### Requirement: Status answers an unreadable tasks file as the binary does
 
