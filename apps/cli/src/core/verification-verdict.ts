@@ -16,6 +16,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import type { ProjectLayers } from './change.ts'
 import { isCospecType, TYPE_ARTIFACTS } from './rules/type-facts.ts'
 import { verificationRules } from './rules/verification.ts'
 import { computeVerificationVerdict, type VerificationVerdict } from './verification.ts'
@@ -34,15 +35,16 @@ export interface VerdictChange {
  * `schemaVersion` enforce; when it omits `verification` the verdict is
  * undeclared and the file is read only if the type still declares it, to name
  * the `verification/*` errors archive's validation would refuse on.
- * `extraLayers` is the project's `verification.layers`
- * (`projectVerificationLayers`), which archive's validation accepts; it has no
- * default, so a caller cannot report a declared layer as unknown by omission.
+ * `projectLayers` is the project's `verification.layers`
+ * (`projectVerificationLayers`), which archive's validation accepts, or why its
+ * config is unreadable; it has no default, so a caller cannot report a declared
+ * layer as unknown by omission.
  */
 export function readVerificationVerdict(
   changeDir: string,
   change: VerdictChange,
   applyRequires: readonly string[],
-  extraLayers: readonly string[],
+  projectLayers: ProjectLayers,
 ): VerificationVerdict {
   const declared = applyRequires.includes('verification')
   const validated =
@@ -60,7 +62,7 @@ export function readVerificationVerdict(
   const issues = verificationRules(
     { id: change.id, verificationText: text, proposalText: undefined },
     { name: change.schema, applyRequires: [...applyRequires] },
-    { strict: false, extraLayers },
+    { strict: false, projectLayers },
   ).filter((i) => i.level === 'ERROR' && i.rule !== 'verification/row-grammar')
   return {
     ...verdict,

@@ -27,6 +27,7 @@ import {
   projectVerificationLayers,
   resolveChange,
   type Change,
+  type ProjectLayers,
 } from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
 import { answeringErrno } from '../core/errno.ts'
@@ -250,7 +251,7 @@ export function computeStatus(
   change: Change,
   archived?: Map<string, string>,
   warnings: ReadWarning[] = [],
-  verificationLayers?: readonly string[],
+  verificationLayers?: ProjectLayers,
 ): ChangeStatus {
   const type = change.schema as CospecType
   const facts = TYPE_ARTIFACTS[type]
@@ -448,7 +449,7 @@ export function buildChangeEntry(
   upstream?: Record<string, unknown>,
   archived?: Map<string, string>,
   warnings: ReadWarning[] = [],
-  verificationLayers?: readonly string[],
+  verificationLayers?: ProjectLayers,
 ): ChangeEntry {
   if (!isCospecType(change.schema)) return legacyChangeEntry(change, upstream)
   if (!hasAnyArtifact(change.dir)) return emptyChangeEntry(change, change.schema)

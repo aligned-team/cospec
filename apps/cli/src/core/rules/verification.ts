@@ -4,6 +4,7 @@
 // are fail-closed ERRORs; surface-driven rows are soft (WARNING, ERROR under
 // --strict) because they are promoted by an author-declared `## Surfaces` flag.
 
+import type { ProjectLayers } from '../change.ts'
 import { checkedSurfaces } from '../proposal.ts'
 import { isKnownLayer, parseVerification } from '../verification.ts'
 import type { Issue } from './issue.ts'
@@ -25,10 +26,11 @@ function layerHint(extraLayers: readonly string[]): string {
 export interface VerificationRuleOptions {
   strict: boolean
   /**
-   * project-extended layers (openspec/config.yaml verification.layers). Required:
-   * an omitted list would reject every declared layer as unknown.
+   * project-extended layers (openspec/config.yaml verification.layers), or why
+   * the config holding them is unreadable. Required: an omitted list would
+   * reject every declared layer as unknown.
    */
-  extraLayers: readonly string[]
+  projectLayers: ProjectLayers
 }
 
 export function verificationRules(
@@ -89,10 +91,22 @@ export function verificationRules(
     })
   }
 
-  const { extraLayers } = opts
+  // verification/config-unreadable — the config holding the layer vocabulary
+  // exists but cannot be read or parsed, so no row can be judged against it:
+  // fail the ledger on the real cause instead of `layer-unknown` per row.
+  const { layers: extraLayers, unreadable } = opts.projectLayers
+  if (unreadable !== undefined) {
+    issues.push({
+      level: 'ERROR',
+      rule: 'verification/config-unreadable',
+      path: FILE,
+      message: `the project's verification.layers are unknown: ${unreadable} could not be read or parsed`,
+      hint: 'fix or remove the config; `cospec doctor` reports it too',
+    })
+  }
   for (const row of parsed.rows) {
     // verification/layer-unknown (fail-closed)
-    if (!isKnownLayer(row.layer, extraLayers)) {
+    if (unreadable === undefined && !isKnownLayer(row.layer, extraLayers)) {
       issues.push({
         level: 'ERROR',
         rule: 'verification/layer-unknown',

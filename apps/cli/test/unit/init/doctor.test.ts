@@ -227,6 +227,30 @@ describe('cospec doctor (DESIGN §2.3)', () => {
     })
   })
 
+  describe('a config doctor cannot use', () => {
+    const configFindings = async (): Promise<JsonFinding[]> => {
+      const { findings } = await doctorJson(dir)
+      return findings.filter((f) => f.check === 'config' && f.level === 'ERROR')
+    }
+
+    test('a directory is reported as unreadable, naming the errno (#98)', async () => {
+      await seed(dir)
+      rmSync(join(dir, 'openspec/config.yaml'))
+      mkdirSync(join(dir, 'openspec/config.yaml'))
+      const found = await configFindings()
+      expect(found).toHaveLength(1)
+      expect(found[0]?.message).toBe('openspec/config.yaml could not be read (EISDIR)')
+    })
+
+    test('unparseable YAML is still reported as not parsing', async () => {
+      await seed(dir)
+      writeFileSync(join(dir, 'openspec/config.yaml'), 'schema: [unclosed\n')
+      const found = await configFindings()
+      expect(found).toHaveLength(1)
+      expect(found[0]?.message).toBe('openspec/config.yaml does not parse as YAML')
+    })
+  })
+
   describe('verification.layers in the config', () => {
     const layerWarnings = async (config: string): Promise<JsonFinding[]> => {
       await seed(dir)

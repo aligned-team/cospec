@@ -17,7 +17,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
-import { parse as parseYaml } from 'yaml'
+import { parse as parseYaml, YAMLError } from 'yaml'
 
 import type { CommandContext } from '../cli.ts'
 import {
@@ -405,10 +405,25 @@ function projectConfigFile(cwd: string): string | undefined {
 async function checkConfig(root: Root, cwd: string, findings: Finding[]): Promise<void> {
   const rel = projectConfigFile(cwd)
   if (rel === undefined) return
+  let text: string
+  try {
+    text = readFileSync(join(cwd, rel), 'utf8')
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | undefined)?.code
+    if (typeof code !== 'string') throw error
+    findings.push({
+      level: 'ERROR',
+      check: 'config',
+      message: `${rel} could not be read (${code})`,
+      remedy: 'make it a readable file, or remove it',
+    })
+    return
+  }
   let doc: unknown
   try {
-    doc = parseYaml(readFileSync(join(cwd, rel), 'utf8'))
-  } catch {
+    doc = parseYaml(text)
+  } catch (error) {
+    if (!(error instanceof YAMLError)) throw error
     findings.push({
       level: 'ERROR',
       check: 'config',

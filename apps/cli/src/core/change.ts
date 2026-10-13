@@ -1,11 +1,12 @@
 import { existsSync, readdirSync, readFileSync, statSync, type Dirent } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 
-import { parse as parseYaml } from 'yaml'
+import { parse as parseYaml, YAMLError } from 'yaml'
 
 import { loadSchema, userSchemasDir } from './change-metadata.ts'
 import { artifactOutputExists } from './glob.ts'
 import { openspecPackageDir } from './openspec.ts'
+import { warnOnce } from './warn-once.ts'
 
 /**
  * The 11 conventional-commit types cospec manages as schemas. This is the frozen
@@ -349,10 +350,18 @@ function hasAnyFileUnder(dir: string): boolean {
 /**
  * The root's `openspec/config.yaml` (else `config.yml`) `schema:` — upstream's
  * `readProjectConfig(root)?.schema`. A config that cannot be read or parsed
- * names none, as upstream falls back to its default then.
+ * names none, as upstream falls back to its default then, with upstream's
+ * warning.
  */
 export function projectConfigSchema(base: string): string | undefined {
-  const doc = readProjectConfig(base)
+  let doc: unknown
+  try {
+    doc = readProjectConfig(base)
+  } catch (error) {
+    if (!(error instanceof ProjectConfigError)) throw error
+    warnOnce(error.warning)
+    return undefined
+  }
   if (doc === null || typeof doc !== 'object') return undefined
   const schema = (doc as Record<string, unknown>).schema
   return typeof schema === 'string' && schema.length > 0 ? schema : undefined
@@ -367,19 +376,50 @@ export function projectConfigPath(base: string): string {
   return existsSync(yaml) ? yaml : join(openspecDir(base), 'config.yml')
 }
 
+/** The project config exists but cannot be read (an errno) or parsed as YAML. */
+export class ProjectConfigError extends Error {
+  constructor(
+    /** the config file, as `projectConfigPath` resolves it. */
+    readonly path: string,
+    /** the cause's first line, as upstream words it in its warning. */
+    readonly detail: string,
+  ) {
+    super(`could not parse ${path} (${detail})`)
+    this.name = 'ProjectConfigError'
+  }
+
+  /** upstream's own line for this config (its `readProjectConfig`'s `catch`). */
+  get warning(): string {
+    return `Warning: could not parse ${this.path} (${this.detail}); ignoring it.`
+  }
+}
+
 /**
  * The root's `openspec/config.yaml` (else `config.yml`) parsed, or `undefined`
- * when there is none or it does not parse. Callers that need to tell a parse
- * failure from absence (`cospec doctor`) read the file themselves.
+ * when there is none. A file that exists but cannot be read or parsed throws a
+ * `ProjectConfigError`, never reads as absent; each reader decides what that
+ * costs. `cospec doctor` reads the file itself, to report the failure's kind.
  */
 function readProjectConfig(base: string): unknown {
   const path = projectConfigPath(base)
   if (!existsSync(path)) return undefined
+  let text: string
   try {
-    return parseYaml(readFileSync(path, 'utf8'))
-  } catch {
-    return undefined
+    text = readFileSync(path, 'utf8')
+  } catch (error) {
+    if (typeof (error as NodeJS.ErrnoException | undefined)?.code !== 'string') throw error
+    throw new ProjectConfigError(path, firstLine(error as Error))
   }
+  try {
+    return parseYaml(text)
+  } catch (error) {
+    if (!(error instanceof YAMLError)) throw error
+    throw new ProjectConfigError(path, firstLine(error))
+  }
+}
+
+function firstLine(error: Error): string {
+  return error.message.split('\n')[0] ?? ''
 }
 
 export interface VerificationLayers {
@@ -424,13 +464,31 @@ export function parseVerificationLayers(doc: unknown): VerificationLayers {
   return { layers, problems }
 }
 
+/** The project's `verification.layers`, as every gate and verdict reads them. */
+export interface ProjectLayers {
+  /** the usable extra `@<layer>` tokens; none when undeclared or unreadable. */
+  layers: readonly string[]
+  /**
+   * why the config holding them cannot be read or parsed (`<file> (<detail>)`),
+   * so the vocabulary is unknown; absent when it was read or does not exist.
+   */
+  unreadable?: string
+}
+
 /**
  * The extra `@<layer>` tokens the root's config declares under
- * `verification.layers`; `[]` when there is no config, it does not parse, or the
- * declaration is unusable (see `parseVerificationLayers`).
+ * `verification.layers`; none when there is no config or the declaration is
+ * unusable (see `parseVerificationLayers`). A config that exists but cannot be
+ * read or parsed is `unreadable`, with upstream's warning, never no layers.
  */
-export function projectVerificationLayers(base: string): readonly string[] {
-  return parseVerificationLayers(readProjectConfig(base)).layers
+export function projectVerificationLayers(base: string): ProjectLayers {
+  try {
+    return { layers: parseVerificationLayers(readProjectConfig(base)).layers }
+  } catch (error) {
+    if (!(error instanceof ProjectConfigError)) throw error
+    warnOnce(error.warning)
+    return { layers: [], unreadable: `${relative(base, error.path)} (${error.detail})` }
+  }
 }
 
 /**

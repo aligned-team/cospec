@@ -3,7 +3,7 @@
 // because `cospec archive` would refuse it with `archive/verification-incomplete`.
 
 import { afterAll, describe, expect, test } from 'bun:test'
-import { appendFileSync, rmSync } from 'node:fs'
+import { appendFileSync, mkdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { isArchiveReady } from '../../../src/commands/apply.ts'
@@ -250,6 +250,18 @@ describe('computeStatus: a project-declared verification layer', () => {
     expect(status.archiveReady).toBe(true)
   })
 
+  test('a config that cannot be read blocks on the config, not on the layer (#98)', () => {
+    const cwd = repo()
+    rmSync(join(cwd, 'openspec', 'config.yaml'))
+    mkdirSync(join(cwd, 'openspec', 'config.yaml'))
+    const status = computeStatus(cwd, fixChange(cwd, UAT))
+    expect(status.archiveReady).toBe(false)
+    expect(status.verification.blockedReasons).toHaveLength(1)
+    expect(status.verification.blockedReasons[0]).toStartWith(
+      "verification/config-unreadable: the project's verification.layers are unknown: openspec/config.yaml (EISDIR",
+    )
+  })
+
   test('without the declaration the layer is unknown and blocks', () => {
     const cwd = repo()
     const status = computeStatus(cwd, fixChange(cwd, UAT))
@@ -303,9 +315,10 @@ describe('readVerificationVerdict', () => {
     const cwd = repo()
     const { dir } = fixChange(cwd, UNRESOLVED)
     const change = { id: 'c', schema: 'fix' }
-    expect(readVerificationVerdict(dir, change, ['verification'], []).unresolved).toBe(1)
-    expect(readVerificationVerdict(dir, change, ['proposal'], []).declared).toBe(false)
-    expect(readVerificationVerdict(dir, change, ['proposal'], []).blockedReasons).toEqual([])
+    const none = { layers: [] }
+    expect(readVerificationVerdict(dir, change, ['verification'], none).unresolved).toBe(1)
+    expect(readVerificationVerdict(dir, change, ['proposal'], none).declared).toBe(false)
+    expect(readVerificationVerdict(dir, change, ['proposal'], none).blockedReasons).toEqual([])
   })
 
   test('a row on one of the given layers is known; with none given it is not', () => {
@@ -313,7 +326,7 @@ describe('readVerificationVerdict', () => {
     const { dir } = fixChange(cwd, UAT)
     const change = { id: 'c', schema: 'fix' }
     const reasons = (layers: string[]) =>
-      readVerificationVerdict(dir, change, ['verification'], layers).blockedReasons
+      readVerificationVerdict(dir, change, ['verification'], { layers }).blockedReasons
     expect(reasons(['uat'])).toEqual([])
     expect(reasons([]).every((r) => r.startsWith('verification/layer-unknown'))).toBe(true)
     expect(reasons([])).toHaveLength(2)

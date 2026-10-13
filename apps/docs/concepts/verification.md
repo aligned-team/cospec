@@ -69,11 +69,20 @@ the error's hint names the layers your config declares. An entry may
 be written with or without a leading `@` (`"@uat"`), and one that repeats a core
 layer is harmless. Each entry must be a single token without spaces.
 
-The setting is read leniently, so a typo never crashes a gate: a missing or
-unparseable config, a `verification` that is not a mapping, a `layers` that is
-not a list, or an entry that is not a non-empty string adds no layer for it.
-Since that fails closed as `verification/layer-unknown`, `cospec doctor` reports
-a malformed `verification.layers` as a `config` warning.
+A missing config declares no layers. A config that exists but can't be read
+(a permissions error, a directory in its place) or doesn't parse as YAML is
+never read as no config: cospec prints OpenSpec's own
+`Warning: could not parse <path> (<detail>); ignoring it.` once, and every
+ledger `validate`, `apply`, `archive`, `sync-specs`, `status` or `list` checks
+fails with `verification/config-unreadable`, naming the file and the cause,
+instead of reporting a declared layer as unknown. `cospec doctor` reports such
+a config too.
+
+A malformed declaration in a config that does parse is read leniently: a
+`verification` that is not a mapping, a `layers` that is not a list, or an
+entry that is not a non-empty string adds no layer for it. Since that fails
+closed as `verification/layer-unknown`, `cospec doctor` reports a malformed
+`verification.layers` as a `config` warning.
 
 ## Per-type required rows
 

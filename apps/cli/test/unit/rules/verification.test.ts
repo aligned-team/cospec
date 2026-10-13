@@ -3,8 +3,8 @@ import { describe, expect, test } from 'bun:test'
 import { verificationRules } from '../../../src/core/rules/verification.ts'
 import { cospecSchema, makeChange, rules } from './helpers.ts'
 
-const strict = { strict: true, extraLayers: [] }
-const lax = { strict: false, extraLayers: [] }
+const strict = { strict: true, projectLayers: { layers: [] } }
+const lax = { strict: false, projectLayers: { layers: [] } }
 
 /** A proposal.md whose ## Surfaces block checks the given flags. */
 function proposalWithSurfaces(...flags: string[]): string {
@@ -78,17 +78,45 @@ describe('grammar and vocabulary rules', () => {
     const issues = verificationRules(
       makeChange({ verificationText: '## 1. G [critical]\n- [ ] 1.1 @smoke run -> pass' }),
       feat,
-      { strict: false, extraLayers: ['smoke'] },
+      { strict: false, projectLayers: { layers: ['smoke'] } },
     )
     expect(rules(issues)).not.toContain('verification/layer-unknown')
+  })
+
+  test('an unreadable config fails the ledger once on the real cause, never layer-unknown', () => {
+    const unreadable = 'openspec/config.yaml (EISDIR: illegal operation on a directory, read)'
+    const issues = verificationRules(
+      makeChange({
+        verificationText:
+          '## 1. G [critical]\n- [ ] 1.1 @smoke run -> pass\n- [ ] 1.2 @unit run -> pass',
+      }),
+      feat,
+      { strict: false, projectLayers: { layers: [], unreadable } },
+    )
+    expect(rules(issues)).not.toContain('verification/layer-unknown')
+    const found = issues.filter((i) => i.rule === 'verification/config-unreadable')
+    expect(found).toHaveLength(1)
+    expect(found[0]?.level).toBe('ERROR')
+    expect(found[0]?.message).toBe(
+      `the project's verification.layers are unknown: ${unreadable} could not be read or parsed`,
+    )
+  })
+
+  test('a readable config raises no config-unreadable', () => {
+    const issues = verificationRules(
+      makeChange({ verificationText: '## 1. G [critical]\n- [ ] 1.1 @unit run -> pass' }),
+      feat,
+      lax,
+    )
+    expect(rules(issues)).not.toContain('verification/config-unreadable')
   })
 
   test('the layer-unknown hint names the declared layers, and is unchanged with none', () => {
     const change = makeChange({
       verificationText: '## 1. G [critical]\n- [ ] 1.1 @smoke run -> pass',
     })
-    const hintOf = (extraLayers: readonly string[]): string | undefined =>
-      verificationRules(change, feat, { strict: false, extraLayers }).find(
+    const hintOf = (layers: readonly string[]): string | undefined =>
+      verificationRules(change, feat, { strict: false, projectLayers: { layers } }).find(
         (i) => i.rule === 'verification/layer-unknown',
       )?.hint
     expect(hintOf([])).toBe(

@@ -64,6 +64,7 @@ import {
 import { parseTasks } from '../core/tasks.ts'
 import { rootOutput } from '../core/upstream-keys.ts'
 import { computeVerificationVerdict, parseVerification } from '../core/verification.ts'
+import { warnOnce } from '../core/warn-once.ts'
 import { archiveMap, atomicWrite, closest, computeGate } from './apply.ts'
 import { readValidateContext, validateChange } from './validate.ts'
 
@@ -366,9 +367,8 @@ interface ArchiveInputs {
  * `openspec/changes/` once the delegated archive has run.
  */
 function archiveInputs(base: string): ArchiveInputs {
-  return readConfigOperationInputs(projectConfigPath(base), 'archive', (line) =>
-    process.stderr.write(`${line}\n`),
-  )
+  // Once per invocation: the layer read before it prints the same could-not-parse line.
+  return readConfigOperationInputs(projectConfigPath(base), 'archive', warnOnce)
 }
 
 /** The inputs' sections for the human transcript, after a blank line; nothing when none are set. */
