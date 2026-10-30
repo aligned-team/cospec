@@ -21,3 +21,16 @@ and optional-workflow differential suites SHALL pass against that pin with
 - **WHEN** the reachability test runs against the 1.15.0 dist
 - **THEN** every command, flag, tool id and workflow resolves to the command
   table, an alias, or the single exception, and `parity-pending.yaml` is `[]`
+
+### Requirement: Glob port follows the pin's glob stack
+
+`core/glob.ts` SHALL match artifact paths as the pinned binary does. With 1.15.0
+resolving globs through `tinyglobby`, `picomatch`, and `brace-expansion` instead
+of `fast-glob`, cospec's exact glob devDependencies SHALL move to the versions
+the pin resolves, and `test/contract/glob.test.ts` SHALL agree with the binary.
+
+#### Scenario: Glob differential
+
+- **WHEN** `test/contract/glob.test.ts` runs at the 1.15.0 pin
+- **THEN** every pattern in its matrix matches the same paths in cospec and in
+  the binary

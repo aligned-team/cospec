@@ -37,11 +37,24 @@ when tasks span several files.
 ### Requirement: Completed tasks lead to verify, not archive
 
 When every tracked task is checked, `cospec apply` and `cospec status` SHALL say
-the tracked tasks are complete and name `/cospec:verify` (and
-`cospec validate <slug> --strict`) as the next step, and SHALL NOT call the
+the tracked tasks are complete and name the verify workflow, spelled for the
+harness (for example `/cospec:verify` in Claude Code), and
+`cospec validate <slug> --strict` as the next step, and SHALL NOT call the
 change ready to archive until the verification ledger also passes.
 
 #### Scenario: Ledger still open
 
 - **WHEN** all tasks are checked but a verification row is bare `[ ]`
 - **THEN** the next step names verification and `archiveReady` is `false`
+
+### Requirement: Archive task gate is schema-aware
+
+`cospec archive`'s incomplete-task gate SHALL read every file the change's
+schema tracks through `apply.tracks` (path or glob), the same resolver `status`
+and `apply` use, instead of a fixed `tasks.md`.
+
+#### Scenario: Unchecked task in a second tracked file
+
+- **WHEN** a schema tracks `tasks/*.md` and only `tasks/b.md` holds an unchecked
+  task
+- **THEN** `cospec archive` refuses on incomplete tasks naming `tasks/b.md`

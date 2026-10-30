@@ -16,21 +16,29 @@
 
 - [ ] 3.1 @integration (agent) `cospec validate --strict` on fixtures with a 620-character ADDED requirement, a `## Notes` section in a delta, a `skip_design` key, and `x-goal` -> the first three fail with their stable rule IDs, and `x-goal` passes
 - [ ] 3.2 @equivalence (agent) the same fixtures through the pinned `openspec validate --strict` -> identical pass/fail verdict per fixture
-- [ ] 3.3 @unit (agent) `rules/views.test.ts` -> every new rule has a view-proving fixture
+- [ ] 3.3 @unit (agent) `rules/views.test.ts` -> `specs/requirement-too-long` and `deltas/dropped-text` each have a view-proving fixture; the YAML rules have their own unit fixtures
+- [ ] 3.4 @equivalence (agent) `cospec validate --strict` and the pinned `openspec validate --strict` on a change stamped `schemaVersion: 2`, then `cospec archive` on it -> no unknown-key issue from either, and archive succeeds
+- [ ] 3.5 @integration (agent) `cospec validate --strict` on a 620-character MODIFIED requirement, a "Todo el…" Purpose under `specs/purpose-tbd`, a renamed MODIFIED scenario, and an unquoted `- Use: tabs` rules item -> the long requirement fails with its rule ID, the Purpose passes, the scenario-loss message names counts and both scenarios, and the rules warning names the index and the quoted form
+- [ ] 3.6 @unit (agent) glob tests for a 17-level nested brace and a 1025-path expansion in `generates` -> both rejected with an error naming the artifact and the limit, no stack overflow
 
 ## 4. New and extended commands
 
-- [ ] 4.1 @integration (agent) key oracle rows for `version --json`, `list --archived --json`, `list --all --json`, and `show --json` -> no missing upstream key, and cospec keys present
-- [ ] 4.2 @e2e (agent) `cospec version --check --json` online and with the registry unreachable -> `updateAvailable` reported online; offline gives `check: unavailable` and exit 0
-- [ ] 4.3 @e2e (agent) `cospec update --dry-run --json` on a stale fixture tree -> the pending list is non-empty and `git status --porcelain` is empty afterwards
+- [ ] 4.1 @integration (agent) key oracle rows for `version --json`, `version --check --json`, `update --dry-run --json`, `list --archived --json`, `list --all --json`, and `show --json` -> no missing upstream key, and cospec keys present
+- [ ] 4.2 @integration (agent) `cospec version --check --json` against a local registry fixture answering newer, equal, malformed, timing out, unreachable, and with `COSPEC_NO_UPDATE_CHECK=1` -> `update.status` is `available`, `current`, `offline`, `offline`, `offline`, `disabled` and every run exits 0
+- [ ] 4.3 @e2e (agent) `cospec update --dry-run --json`, then `cospec update --check`, on a stale fixture tree, plus a dry run with no resolvable root -> `changes[]` non-empty with `row`/`reason`, `git status --porcelain` empty, `--check` exits 1, and the rootless run carries `status`/`failures` with a nonzero exit
 - [ ] 4.4 @manual (human) run `cospec view` in a real terminal on this repo and on a fixture with 40 archived changes -> only active changes in the main section, aligned bars, and gate, ledger and archive-ready columns readable
-- [ ] 4.5 @integration (agent) `cospec validate --all` under a zero-columns pty (`script -qec`) with `CI` unset -> completes in under 30 s with plain output
+- [ ] 4.5 @integration (agent) `cospec validate --all` under a Bun-spawned PTY sized to zero columns with `CI` unset, on macOS and Linux -> the child reports `columns === 0`, and the run completes in under 30 s with plain output
+- [ ] 4.6 @integration (agent) `cospec list --all --sort name` and `cospec --version` -> active and archived rows interleave in name order each marked, and `--version` prints only the bare version
+- [ ] 4.7 @integration (agent) `cospec archive --json` with retirement cleanup forced to fail -> exactly one human-mode delegated archive call, move verified on disk, blocker sync fanned out, nonzero exit carrying `archive_retirement_cleanup_failed`
+- [ ] 4.8 @unit (agent) `cospec feedback "crash on view"` with `gh` absent -> body sections match `.github/ISSUE_TEMPLATE/bug_report.yml` headings in order, and the printed `?template=bug_report.yml` URL prefills message, cospec and OpenSpec versions, and environment
+- [ ] 4.9 @unit (agent) `cospec version` install-type detection for npm launcher, npx, bunx, mise, standalone and source layouts -> each reports its own type, not `standalone`
 
 ## 5. Harness targets [critical]
 
 - [ ] 5.1 @integration (agent) `cospec init --tools` for each of the ten new ids in a temp repo -> files land at the 1.15.0 paths, and skills-only tools get no commands
 - [ ] 5.2 @integration (agent) `cospec update` on a tree with `.kilocode/workflows/` holding generated files and `my-notes.md` -> generated files removed, `my-notes.md` kept, commands under `.kilo/command/`
-- [ ] 5.3 @regression (agent) `mise run generate:check` -> no drift after regeneration
+- [ ] 5.3 @integration (agent) render AtomCode commands -> input-reading workflows declare `args: optional` with `$ARGUMENTS`, the rest `args: none`
+- [ ] 5.4 @regression (agent) `mise run generate:check` -> no drift after regeneration
 
 ## 6. Canon ports reach the agents
 
@@ -39,14 +47,18 @@
 
 ## 7. Standalone install [critical]
 
-- [ ] 7.1 @e2e (agent) run `install.sh` in `alpine` and `ubuntu` containers against a release-candidate asset set -> `cospec version` reports `standalone` with the right libc
+- [ ] 7.1 @e2e (agent) run `install.sh` in `alpine` and `ubuntu` containers against a release-candidate asset set -> it selects `linux-x64-musl` and `linux-x64` respectively, the checksum matches `SHA256SUMS`, and the installed `cospec version` reports `standalone`
 - [ ] 7.2 @e2e (agent) run `install.sh` with a corrupted archive -> nonzero exit and no binary written
-- [ ] 7.3 @manual (human) run `install.ps1` on Windows x64 -> `cospec version` runs from a new shell
-- [ ] 7.4 @integration (agent) `nix run .# -- --version` -> prints the pinned release version
+- [ ] 7.3 @integration (agent) Pester tests for `install.ps1` with x64 and arm64 architectures and a corrupted archive -> the right asset is selected for each, and a checksum mismatch exits nonzero leaving any existing binary untouched
+- [ ] 7.4 @manual (human) run `install.ps1` on Windows x64 -> `cospec version` runs from a new shell
+- [ ] 7.5 @integration (agent) `nix run .# -- --version`, then `nix build` of a consumer flake that applies `overlays.default` and runs `pkgs.cospec --version` -> both print the pinned release version
 
 ## 8. Robustness and completion
 
 - [ ] 8.1 @integration (agent) `cospec archive` on a CRLF living spec and on a symlinked `openspec/specs` inside the project -> CRLF preserved, link accepted, and an out-of-project link refused
-- [ ] 8.2 @unit (agent) zsh install/uninstall round trip on a `.zshrc` with leading blank lines -> byte-identical
+- [ ] 8.2 @unit (agent) `cospec init` legacy-block removal on a CRLF `CLAUDE.md` and a CRLF `.bashrc` -> every line ending in the result is CRLF
 - [ ] 8.3 @benchmark (agent) `mise run bench:smoke` timing `cospec __complete changes` -> median recorded under the budget (advisory)
 - [ ] 8.4 @integration (agent) store-backed `cospec status --json` inside a declaring repo -> `allowedEditRoots` lists the repo and the store
+- [ ] 8.5 @equivalence (agent) `cospec init --tools claude` and the pinned `openspec init` at a store-only repo root -> both install integrations, the config is byte-identical, and no planning dirs are created
+- [ ] 8.6 @integration (agent) `cospec archive` on a glob-tracked fixture whose only unchecked task sits in the second matched file -> archive refuses naming that file
+- [ ] 8.7 @equivalence (agent) `test/contract/glob.test.ts` at the 1.15.0 pin -> cospec and the binary match identical paths for every pattern

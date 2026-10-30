@@ -45,14 +45,25 @@ This design covers the constraints that shape how the work lands:
 2. **`cospec version` is native, not a passthrough.** It reports facts only
    cospec knows (its own install type, embedded vs package resolution), then
    merges `openspec version --json` keys through `mergeUpstream` from one
-   delegated call. Install type is detected from `process.execPath` and the
-   package path: the compiled binary, `node_modules/.bin` under a global prefix,
-   the npx/bunx cache, a mise install dir, or a source checkout. `--check` reads
-   `https://registry.npmjs.org/@aligned-team/cospec/latest` with a 3 s timeout.
-   _Rejected:_ the GitHub releases API, whose unauthenticated rate limit fails
-   in CI and on shared NAT.
+   delegated call. The document keeps upstream's `schemaVersion`/`version`/
+   `install`/`update` shape describing cospec, and puts wrapped-binary facts
+   under a separate `openspec` key. Install type is detected from
+   `process.execPath` and the package path: the compiled binary,
+   `node_modules/.bin` under a global prefix, the npx/bunx cache, a mise install
+   dir, or a source checkout. Every install except source runs the same compiled
+   binary (the npm launcher spawns it from the platform package, and mise
+   fetches the release archive), so `process.execPath` alone cannot tell them
+   apart: the npm launcher marks its spawn with an environment variable, the
+   mise and npm-cache cases are matched by path prefix, and `standalone` is only
+   the fallback. `--check` reads
+   `https://registry.npmjs.org/@aligned-team/cospec/latest` with a 3 s timeout,
+   through an endpoint override (`COSPEC_REGISTRY_URL`) so tests drive a local
+   fixture instead of the live registry. _Rejected:_ the GitHub releases API,
+   whose unauthenticated rate limit fails in CI and on shared NAT.
 
-3. **`cospec view` becomes a native renderer.** It builds from one
+3. **`cospec view` becomes a native renderer.** This replaces the living "Show
+   and view are disciplined read-only passthroughs" requirement's view clause
+   through a MODIFIED delta; `show` stays a passthrough. It builds from one
    `status --all --json`-equivalent pass, which already holds gate,
    verification, and `archiveReady`, plus one delegated `list --json` for the
    archived section. Rows use a fixed 48-column name field. _Rejected:_
@@ -65,17 +76,20 @@ This design covers the constraints that shape how the work lands:
    `###`, fenced). A disagreement is a false PASS or BLOCK at archive, so the
    test is a release gate.
 
-5. **New rules use stable IDs on the verbatim view.**
-   `specs/requirement-too-long`, `deltas/dropped-text`,
-   `change/unknown-metadata-key`, and `config/rules-item-type` all register in
-   `rules/views.ts` with fixtures. Requirement length is measured on the
-   description text the binary measures, which excludes scenarios.
+5. **New rules use stable IDs.** The document rules `specs/requirement-too-long`
+   and `deltas/dropped-text` register in `rules/views.ts` on the verbatim view
+   with fixtures. `change/unknown-metadata-key` and `config/rules-item-type`
+   read YAML, not a spec view, so they get ordinary unit and contract fixtures
+   instead. Requirement length is measured on the description text the binary
+   measures, which excludes scenarios.
 
 6. **Each tool is a table row; each dialect is a `harness/` serializer.**
    EasyCode's TOML commands and AtomCode's `args:` frontmatter become
-   serializers or dialects. Skills-only tools (`dsh`, `grok`, `warp`, `gsd`,
-   `veai`) set no commands root. Amp shares `.agents/skills` through the
-   existing `.cospec-target` single-writer rule. The Kilo move uses the row's
+   serializers or dialects. A tool is skills-only exactly when the 1.15.0 dist
+   registers no command adapter for it (`dsh` and `grok` per the proposal;
+   `warp`, `gsd` and `veai` are re-probed in task 6.1), and such a row sets no
+   commands root. Amp shares `.agents/skills` through the existing
+   `.cospec-target` single-writer rule. The Kilo move uses the row's
    `legacyCommandPaths` with name-matched patterns only.
 
 7. **Installers are POSIX `sh` and PowerShell with no dependencies.** They
@@ -89,20 +103,35 @@ This design covers the constraints that shape how the work lands:
    with Bun inside the Nix sandbox, which needs network for dependency
    resolution and gives up reproducibility.
 
-9. **The completion budget is advisory.** It is measured by the bench harness
-   and reported in CI, never a gate, because wall-clock budgets on shared
-   runners are noisy. The functional guarantee (no telemetry, lazy modules) is a
-   unit test.
+9. **The archive task gate uses the schema-aware resolver.** Archive reads
+   tracked task files through the same `apply.tracks` resolver as `status` and
+   `apply`, replacing the fixed `tasks.md` path, so a custom glob cannot let an
+   unchecked task archive.
+
+10. **Glob stack follows the pin.** 1.15.0 replaces `fast-glob` with
+    `tinyglobby`, `picomatch`, and `brace-expansion`. `core/glob.ts` is
+    re-ported over the same packages at the versions the pin resolves, and
+    `test/contract/glob.test.ts` is the gate. CLAUDE.md's `fast-glob` rule is
+    updated in the same commit.
+
+11. **The completion budget is advisory.** It is measured by the bench harness
+    and reported in CI, never a gate, because wall-clock budgets on shared
+    runners are noisy. The functional guarantee (no telemetry, lazy modules) is
+    a unit test.
 
 ## Operational surface
 
-- **Binaries and architectures:** releases go from six to eight standalone
-  archives (darwin x64/arm64, linux glibc x64/arm64, linux musl x64/arm64,
-  windows x64/arm64). musl builds use Bun's `bun-linux-*-musl` compile targets
-  and are smoke-run in an `alpine` container job.
+- **Binaries and architectures:** releases go from seven to eight standalone
+  archives (macos x64/arm64, linux glibc x64/arm64, linux musl x64/arm64,
+  windows x64/arm64). The musl archives already ship (`bun-linux-*-musl`) but
+  are never executed in CI today; they gain a smoke run in an `alpine` container
+  job. Windows arm64 needs Bun's `bun-windows-arm64` compile target (confirmed
+  on the pinned Bun before task 8.2), a new `win32-arm64` npm platform package,
+  and its own trusted-publisher entry on npm.
 - **CI runtime:** the musl smoke job runs in a container on the existing Linux
-  runner. No new secrets are needed. Release keeps OIDC trusted publishing and
-  only adds the installer scripts as assets.
+  runner. No new secrets are needed. Release keeps OIDC trusted publishing; it
+  adds the Windows arm64 archive, its npm platform package, and the installer
+  scripts as assets.
 - **Installer runtime:** needs network to `github.com` release assets only. It
   binds no ports and stores no credentials.
 - **`version --check`:** one outbound HTTPS GET to the npm registry, 3 s
@@ -117,10 +146,12 @@ This design covers the constraints that shape how the work lands:
 - **Wrapped OpenSpec 1.15.0:** cospec consumes `version --json`,
   `list --archived|--all --json`, `instructions apply --json` (`tasks[]`
   `sourcePath`/`line`, the tasks-complete guidance), `status --json`
-  (`actionContext.allowedEditRoots`), `show --json` (`name`), and
-  `archive --json` (`archive_retirement_cleanup_failed`). Every key is
-  oracle-checked. Collisions go into `NAMED_COLLISIONS` with a reason, and only
-  where cospec's value must win (`version`).
+  (`actionContext.allowedEditRoots`), and `show --json` (`name`). Archive keeps
+  its single human-mode delegation: `archive_retirement_cleanup_failed` is
+  classified from that call's output plus the verified on-disk move and emitted
+  in cospec's own archive document. Every consumed key is oracle-checked.
+  Collisions go into `NAMED_COLLISIONS` with a reason, and only where cospec's
+  value must win (`version`).
 - **Remedy text:** new 1.14/1.15 sentences naming `openspec <command>` are
   classified in `remedies.ts` (respelled) or `remedy-sources.ts`.
 - **npm registry:** `GET /@aligned-team/cospec/latest`, reading `version` only.

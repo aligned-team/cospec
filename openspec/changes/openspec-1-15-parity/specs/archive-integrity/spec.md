@@ -16,9 +16,11 @@ and SHALL write a new spec with LF.
 
 ### Requirement: Retirement cleanup failure is reported precisely
 
-When the delegated archive moves a change but capability-retirement cleanup
-fails, `cospec archive` SHALL report that the change was archived and cleanup
-did not complete, and `--json` SHALL carry `archive_retirement_cleanup_failed`.
+When the delegated human-mode archive moves a change but capability-retirement
+cleanup fails, `cospec archive` SHALL classify it from that call's output plus
+the move verified on disk, report that the change was archived and cleanup did
+not complete, and carry `archive_retirement_cleanup_failed` in its own `--json`
+document. The single human-mode delegation SHALL be kept.
 
 #### Scenario: Cleanup failure
 

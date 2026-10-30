@@ -7,7 +7,7 @@
 `cospec version` SHALL print cospec's version, its install type (`npm-global`,
 `npx`, `bunx`, `standalone`, `mise`, or `source`), and the wrapped OpenSpec
 version with how it was resolved (`embedded` or `package`). It SHALL exit 0 and
-never spawn a network request without `--check`.
+SHALL make no network request without `--check`.
 
 #### Scenario: Plain version report
 
@@ -20,35 +20,44 @@ never spawn a network request without `--check`.
 - **WHEN** a user runs `cospec --version`
 - **THEN** it still prints only cospec's bare version string
 
-### Requirement: Version JSON document is additive over upstream
+### Requirement: Version JSON keeps upstream's document shape
 
-`cospec version --json` SHALL emit one JSON document carrying every key
-`openspec version --json` emits for the same facts, plus cospec's own keys
-`openspec.version`, `openspec.source`, and `openspec.inRange`.
+`cospec version --json` SHALL emit one document with upstream's `schemaVersion`,
+`version`, and `install` keys, and with `--check` also its `update` object
+(`status` of `available|current|disabled|offline`, `latest`, `command`,
+`canSelfUpgrade`), describing cospec. cospec-only facts SHALL sit under a
+non-colliding `openspec` key: `version`, `source`, `inRange`.
 
-#### Scenario: Key oracle
+#### Scenario: Key oracle without check
 
-- **WHEN** the key oracle compares `cospec version --json` with
-  `openspec version --json` from the pinned binary
-- **THEN** no upstream key is missing and the cospec-only keys are present
+- **WHEN** the key oracle compares `cospec version --json` with the pinned
+  `openspec version --json`
+- **THEN** no upstream key is missing and `openspec` carries the wrapped facts
+
+#### Scenario: Key oracle with check
+
+- **WHEN** the key oracle compares `cospec version --check --json` with
+  `openspec version --check --json`
+- **THEN** `update` carries every upstream key with upstream's status vocabulary
 
 ### Requirement: Version check reports update availability
 
-`cospec version --check` SHALL query the latest published cospec release and
-report `current`, `latest`, and `updateAvailable`. A network failure SHALL be
-reported as `check: unavailable` with exit 0, never as an error that hides the
-local report.
+`cospec version --check` SHALL read the latest cospec release from the npm
+registry through an injectable endpoint, report `update.status` and an upgrade
+`command` spelled for the detected install type, and SHALL degrade to `offline`
+(unreachable, timeout, malformed answer) or `disabled`
+(`COSPEC_NO_UPDATE_CHECK=1`) with exit 0.
 
 #### Scenario: Update available
 
-- **WHEN** the latest release is newer than the running version
-- **THEN** `--check --json` reports `updateAvailable: true` and an upgrade
-  command spelled for the detected install type
+- **WHEN** the registry fixture answers with a newer version
+- **THEN** `update.status` is `available` and `command` matches the install type
 
 #### Scenario: Offline
 
-- **WHEN** the release lookup fails
-- **THEN** the local report still prints and the check is marked unavailable
+- **WHEN** the registry fixture times out or answers malformed JSON
+- **THEN** the local report still prints, `update.status` is `offline`, and the
+  exit code is 0
 
 #### Scenario: Wrapped binary out of range
 

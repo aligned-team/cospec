@@ -47,17 +47,6 @@ requirement in ADDED or MODIFIED.
 - **THEN** validate warns that the section will not reach the main spec and
   `--strict` fails
 
-### Requirement: Placeholder purpose follows upstream case rules
-
-`TBD`/`TODO` in capitals SHALL mark a placeholder Purpose whatever follows; any
-other casing SHALL count only when followed by the end of the Purpose, a line
-break, or marker punctuation.
-
-#### Scenario: Spanish purpose
-
-- **WHEN** a spec's Purpose begins "Todo el flujo de pago…"
-- **THEN** no placeholder-purpose issue is reported
-
 ### Requirement: Scenario-loss message names what changed
 
 When the MODIFIED scenario-loss guard fires, the message SHALL state the

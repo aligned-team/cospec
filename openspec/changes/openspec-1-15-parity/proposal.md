@@ -53,24 +53,27 @@ and the embedded OpenSpec version.
 - **Ten new harness targets** as `HARNESS_TABLE` rows: Code Studio
   (`codestudio`), DeepSeek Harness (`dsh`, skills-only), GigaCode, AtomCode
   (`args: optional|none` frontmatter), GSD, Amp (shared `.agents/skills`),
-  EasyCode (TOML commands), Veai, Grok Build (skills-only), and Warp. The Kilo
-  Code commands directory moves from `.kilocode/workflows/` to `.kilo/command/`
-  with a legacy cleanup that matches files by name only. `bob` displays as "IBM
-  Bob".
+  EasyCode (TOML commands), Veai, Grok Build (skills-only), and Warp (each
+  skills-only exactly when the 1.15.0 dist has no command adapter for it). The
+  Kilo Code commands directory moves from `.kilocode/workflows/` to
+  `.kilo/command/` with a legacy cleanup that matches files by name only. `bob`
+  displays as "IBM Bob".
 - **Validation parity** — a requirement description over 500 characters is a
-  WARNING, and ADDED requirements in a change are covered too. Text that archive
-  would drop from a delta spec is a WARNING: a foreign `## ` section, a
-  preamble, or prose before the first requirement. `PURPOSE_IS_PLACEHOLDER`
-  follows upstream's case rule, so "Todo el…" passes. The MODIFIED scenario-loss
-  message names counts and up to three introduced scenarios. A non-string
-  `rules:` item is reported by index.
+  WARNING, and ADDED and MODIFIED requirements in a change are covered too. Text
+  that archive would drop from a delta spec is a WARNING: a foreign `## `
+  section, a preamble, or prose before the first requirement.
+  `specs/purpose-tbd` follows upstream's case rule, so "Todo el…" passes. The
+  MODIFIED scenario-loss message names counts and up to three introduced
+  scenarios. A non-string `rules:` item is reported by index.
 - **Change metadata** — keys starting with a lowercase `x-` are user extension
   metadata. Every other unrecognized `.openspec.yaml` key is named by `status`,
   `validate`, and `archive`, and fails `validate --strict`.
 - **Task tracking parity** — a `## Workflow follow-up` section in `tasks.md` is
-  not tracked by cospec's apply/archive gates. `cospec apply --json` relays each
-  task's `sourcePath` and `line`. Once every tracked task is checked, apply's
-  next step is to verify the change (`/cospec:verify`), not to archive it.
+  not tracked by cospec's apply/archive gates, and the archive task gate reads
+  every file the schema tracks instead of a fixed `tasks.md`.
+  `cospec apply --json` relays each task's `sourcePath` and `line`. Once every
+  tracked task is checked, apply's next step is to verify the change (the verify
+  workflow, spelled per harness, e.g. `/cospec:verify`), not to archive it.
 - **Archive and sync robustness** — symlinked `openspec/`, `changes/`, `specs/`
   and spec files inside the project are accepted, and a link that resolves
   outside the project is still refused. `sync-specs` preserves a spec's existing
@@ -79,14 +82,16 @@ and the embedded OpenSpec version.
   paths are rejected with a clear error.
 - **Store edit scope** — `cospec status --json`'s
   `actionContext.allowedEditRoots` lists the declaring project alongside a
-  store, matching 1.14.0.
+  store, and `cospec init` works at the root of a store-only repository without
+  touching its pointer, matching 1.14.0.
 - **`show --json`** — each requirement and scenario carries its `name`.
-- **Feedback** — `cospec feedback` bodies use cospec's bug-form headings, and
-  the manual-submission link opens the bug form prefilled with message, version,
-  and environment.
-- **Completion** — `cospec completion uninstall zsh` returns `.zshrc` exactly as
-  install found it, leading blank lines included. `cospec __complete` stays
-  inside a startup budget enforced in CI.
+- **Feedback** — a new `.github/ISSUE_TEMPLATE/bug_report.yml` form;
+  `cospec feedback` bodies use its headings, and the manual-submission link
+  opens it prefilled with message, version, and environment.
+- **Legacy cleanup line endings** — removing a legacy OpenSpec marker block
+  keeps the file's dominant line ending (1.13.2).
+- **Completion** — `cospec __complete` stays inside a startup budget tracked by
+  an advisory CI benchmark (never a gate).
 - **Robust terminals** — no spinner or progress redraw runs on a zero-width TTY
   or under `CI` / `OPEN_SPEC_INTERACTIVE=0`, so `cospec validate --all` cannot
   hang under a hook runner.
@@ -106,9 +111,10 @@ and the embedded OpenSpec version.
     context; a backup warning before legacy cleanup.
 - **Single-file install** — `install.sh` (macOS/Linux) and `install.ps1`
   (Windows) download the matching standalone binary from the GitHub release and
-  verify it against `SHA256SUMS` before installing. Releases add Linux musl
-  builds on x64 and arm64. A Nix flake exposes `overlays.default` and
-  `packages.default`.
+  verify it against `SHA256SUMS` before installing. Releases already ship Linux
+  musl x64/arm64 archives; this adds Windows arm64 (`bun-windows-arm64` and its
+  npm platform package) so every upstream binary platform is covered. A Nix
+  flake exposes `overlays.default` and `packages.default`.
 
 ## Capabilities
 
@@ -117,31 +123,35 @@ and the embedded OpenSpec version.
 - `version-report`: `cospec version` — install-type and wrapped-binary
   reporting, `--check` update information, and the JSON document.
 - `standalone-install`: the checksum-verified `install.sh`/`install.ps1`
-  installers, musl release targets, and the Nix flake overlay.
+  installers, the Windows arm64 release target, and the Nix flake overlay.
 
 ### Modified Capabilities
 
-- `embedded-openspec`: pin moves to 1.15.0; the embedded bundle and contract
-  suite are re-probed.
+- `embedded-openspec`: pin moves to 1.15.0; the embedded bundle, contract suite,
+  and glob port (now over `tinyglobby`/`picomatch`/`brace-expansion`) are
+  re-probed.
 - `change-metadata-keys`: `x-` extension keys accepted; other unknown keys
   reported and strict-failing.
 - `change-progress-reporting`: `## Workflow follow-up` exclusion, task
-  `sourcePath`/`line`, and the verify-before-archive next step.
+  `sourcePath`/`line`, the verify-before-archive next step, and the schema-aware
+  archive task gate.
 - `openspec-list-validate-extensions`: `list --archived`/`--all`, requirement
-  length, dropped-delta-text and placeholder rules, the scenario-loss detail,
-  and zero-width TTY safety.
+  length and dropped-delta-text rules, the scenario-loss detail, and zero-width
+  TTY safety.
 - `openspec-read-passthroughs`: the workflow-aware `view` dashboard and named
-  requirements/scenarios in `show --json`.
-- `spec-parsing-and-discovery`: symlinked layouts and the brace-nesting /
-  expansion guards.
+  requirements/scenarios in `show --json` (MODIFIES the show/view passthrough
+  requirement: `view` becomes native).
+- `spec-parsing-and-discovery`: symlinked layouts, the brace-nesting / expansion
+  guards, and the placeholder-Purpose case rule (MODIFIED).
 - `archive-integrity`: line-ending preservation and the retirement-cleanup
   failure code.
-- `store-awareness`: `allowedEditRoots` includes the declaring project.
+- `store-awareness`: `allowedEditRoots` includes the declaring project; init
+  works at a store-only repository root.
 - `harness-workflows`: the ten new targets, the Kilo path move,
-  `update --dry-run`, and the 1.13.2–1.15.0 canon ports.
-- `cospec-feedback`: bug-form body and prefilled bug-form link.
-- `cospec-shell-completion`: zsh round-trip fidelity and the `__complete`
-  startup budget.
+  `update --dry-run`, legacy marker removal line endings, and the 1.13.2–1.15.0
+  canon ports.
+- `cospec-feedback`: bug-form body and prefilled bug-form link (MODIFIED).
+- `cospec-shell-completion`: the `__complete` startup budget.
 
 ## Impact
 
@@ -150,18 +160,24 @@ and the embedded OpenSpec version.
   `mise run vendor:openspec`), and `EXPECTED_OPENSPEC_VERSION`.
 - `apps/cli/src/core/command-table.ts`, `apps/cli/src/cli.ts` (`version` command
   module),
-  `apps/cli/src/commands/{version,list,view,update,status,apply, show,feedback,complete}.ts`.
-- `apps/cli/src/core/{change-metadata,tasks,glob,spec-paths,lines,remedies, upstream-keys}.ts`
-  and `apps/cli/src/core/rules/{specs,deltas}.ts` (new rule IDs registered in
-  `rules/views.ts`).
+  `apps/cli/src/commands/{version,list,view,update,status,apply,archive,init,show,feedback,complete}.ts`.
+- `apps/cli/src/core/{change-metadata,tasks,glob,spec-paths,lines,remedies,upstream-keys,root}.ts`
+  and `apps/cli/src/core/rules/{specs,deltas}.ts` (the two document rules
+  registered in `rules/views.ts`);
+  `apps/cli/src/harness/legacy-config-blocks.ts`.
+- Glob devDependencies move from `fast-glob` to the `tinyglobby`/`picomatch`/
+  `brace-expansion` versions the pin resolves; the CLAUDE.md dependency rule is
+  updated to match.
 - `apps/cli/src/harness/adapters.ts` (ten rows, Kilo path, IBM Bob) and the
   canon workflow bodies under `apps/cli/src/canon/`. Regenerated managed files
   follow from `mise run generate`.
 - `apps/cli/test/contract/{parity-pending.yaml,remedy-sources.ts}`,
   `apps/cli/src/canon/parity/aliases.yaml`, plus new contract and integration
   tests for every command change.
-- `.github/workflows/release.yml` (musl targets, installer assets), new
-  `scripts/install/install.sh` and `install.ps1`, and a new `flake.nix`.
+- New `.github/ISSUE_TEMPLATE/bug_report.yml`.
+- `.github/workflows/release.yml` (Windows arm64 target and npm platform
+  package, alpine smoke job, installer assets), new `scripts/install/install.sh`
+  and `install.ps1`, and a new `flake.nix`.
 - `docs/` and `apps/docs/` pages that own the pin, the harness list, and the
   command reference; the `CLAUDE.md`/`AGENTS.md` shared block via
   `mise run agents:sync` (the pin moves to 1.15.0).

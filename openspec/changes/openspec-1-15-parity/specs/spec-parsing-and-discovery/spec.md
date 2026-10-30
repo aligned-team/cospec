@@ -1,5 +1,39 @@
 # Spec Delta
 
+## MODIFIED Requirements
+
+### Requirement: Placeholder Purpose is flagged
+
+The `specs/purpose-tbd` rule SHALL fire both for the archive-generated
+`TBD - created by archiving` text and for a `## Purpose` section whose first
+non-blank line opens with a placeholder marker: `TBD`/`TODO` in capitals
+whatever follows, or any other casing only when followed by the end of the
+Purpose, a line break, or marker punctuation. Rule id, severity, empty-Purpose
+handling, and single reporting SHALL be unchanged.
+
+#### Scenario: Leading TODO purpose is flagged
+
+- **WHEN** a capability spec's `## Purpose` begins with `TODO: describe this`
+- **THEN** `cospec validate` emits `specs/purpose-tbd` as a WARNING, and as an
+  ERROR under `--strict`
+
+#### Scenario: Archive placeholder still fires once
+
+- **WHEN** a `## Purpose` carries the archive-generated
+  `TBD - created by archiving` text
+- **THEN** `specs/purpose-tbd` fires exactly once for that spec
+
+#### Scenario: Empty purpose is unchanged
+
+- **WHEN** a capability spec's `## Purpose` section is empty
+- **THEN** the issues reported for that spec are unchanged from before this
+  change
+
+#### Scenario: Ordinary word Todo is not a marker
+
+- **WHEN** a spec's Purpose begins "Todo el flujo de pago…" or "Todo o fluxo…"
+- **THEN** `specs/purpose-tbd` does not fire, while `todo -` and `tbd.` still do
+
 ## ADDED Requirements
 
 ### Requirement: Symlinked layouts inside the project are accepted

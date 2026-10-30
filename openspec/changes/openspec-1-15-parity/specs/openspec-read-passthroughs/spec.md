@@ -1,5 +1,37 @@
 # Spec Delta
 
+## MODIFIED Requirements
+
+### Requirement: Show and view are disciplined read-only passthroughs
+
+`cospec show <item>` SHALL wrap `openspec show` for both changes and specs,
+forwarding `--type`/`--json`/`--deltas-only`/`--requirements`/
+`--no-scenarios`/`-r` and `--store`. On `--json`, the command SHALL verify the
+wrapped call emitted exactly one parseable JSON document before returning
+success. `cospec view` SHALL be cospec's native dashboard (see "View dashboard
+shows workflow and gate state"), not a passthrough, and SHALL exit 1 if no
+`openspec/` root resolves.
+
+#### Scenario: Show a change as JSON
+
+- **WHEN** `cospec show <change> --json` runs on an existing change
+- **THEN** stdout is exactly one JSON document containing at least `id` and
+  `deltas`
+
+#### Scenario: Show a spec's requirements
+
+- **WHEN** `cospec show <spec> --json --requirements` runs on an existing
+  capability spec
+- **THEN** stdout is exactly one JSON document containing that spec's
+  requirements
+
+#### Scenario: Ambiguous or unknown item surfaces exit 1
+
+- **WHEN** `cospec show <name>` is given a name that does not resolve to exactly
+  one change or spec
+- **THEN** the command exits 1 and does not emit a malformed or partial JSON
+  document on `--json`
+
 ## ADDED Requirements
 
 ### Requirement: View dashboard shows workflow and gate state

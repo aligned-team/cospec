@@ -36,15 +36,40 @@ file there.
 
 ### Requirement: Update dry run
 
-`cospec update --dry-run` SHALL report every managed file an update would add,
-change, or delete, each with its harness row and reason, and SHALL write
-nothing. `--json` SHALL emit the same report as one document.
+`cospec update --dry-run` SHALL write nothing and report what an update would
+do. `--json` SHALL emit upstream's document (`changes[]` of
+`{path, action, tool}`, `notes`, `failures`, and `status` on an early failure,
+which exits nonzero), with cospec's `row` and `reason` added to each change. The
+existing `update --check` drift gate SHALL keep its own exit-1-on-drift
+semantics.
 
 #### Scenario: Nothing written
 
 - **WHEN** a user runs `cospec update --dry-run --json` on a stale tree
-- **THEN** the document lists the pending changes and `git status` shows no
+- **THEN** `changes[]` lists the pending writes and `git status` shows no
   modification
+
+#### Scenario: Early failure
+
+- **WHEN** the dry run cannot resolve a project root
+- **THEN** the document carries `status` and `failures` and the exit code is
+  nonzero
+
+#### Scenario: Check and dry run differ
+
+- **WHEN** a stale tree is run through `--check` and then `--dry-run`
+- **THEN** `--check` exits 1 and `--dry-run` exits 0, and neither writes
+
+### Requirement: Legacy marker removal keeps line endings
+
+Removing a legacy OpenSpec marker block from `CLAUDE.md`, `AGENTS.md`, or an rc
+file SHALL rewrite the file with its dominant line ending, including the
+separator left by the blank-line collapse, so a CRLF file stays CRLF.
+
+#### Scenario: CRLF CLAUDE.md
+
+- **WHEN** `cospec init` removes a legacy OpenSpec block from a CRLF `CLAUDE.md`
+- **THEN** every line ending in the result is CRLF
 
 ### Requirement: Canon ports through OpenSpec 1.15.0
 
