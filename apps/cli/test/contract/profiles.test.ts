@@ -710,14 +710,41 @@ describe('init: a config-only openspec dir that declares a store', () => {
     return normalize(messageOf(mine.stderr), dirs)
   }
 
-  test('a store declaration is refused, and nothing is written', async () => {
-    const message = await expectBothRefuse(
+  /**
+   * 1.15.0 resolves a valid pointer at the repo root before installing integrations, so an
+   * unregistered store refuses there. cospec's unknown-store sentence is its own (`resolveStore`),
+   * so the two are held to the same origin prefix and store id rather than to one text.
+   */
+  async function expectBothRefuseUnknownStore(
+    setup: (dir: string) => void,
+    args: string[],
+  ): Promise<void> {
+    const { s, upstream } = pair(setup)
+    const before = hashTree(s.project)
+    const mine = await cospec(['init', '--harness', 'claude', '--no-gate', ...args], {
+      cwd: s.project,
+      env: s.env,
+    })
+    const theirs = await oracle(['init', '--tools', 'claude', ...args], s.root, {
+      ...NODE,
+      cwd: upstream,
+    })
+    expect(theirs.exitCode).toBe(1)
+    expect(mine.exitCode).toBe(1)
+    expect(mine.stdout).toBe('')
+    const dirs = [s.project, upstream]
+    for (const message of [messageOf(mine.stderr), messageOf(theirs.stderr)]) {
+      const normalized = normalize(message, dirs)
+      expect(normalized).toMatch(/^Declared in <dir>\/openspec\/config\.ya?ml: /)
+      expect(normalized.toLowerCase()).toContain("unknown store 'team-plans'")
+    }
+    expect(hashTree(s.project)).toEqual(before)
+  }
+
+  test('a store declaration naming no registered store is refused, and nothing is written', async () => {
+    await expectBothRefuseUnknownStore(
       pointerConfig('schema: spec-driven\nstore: team-plans\n'),
       [],
-    )
-    expect(message).toBe(
-      "This repo's planning is externalized to store 'team-plans' (<dir>/openspec/config.yaml). " +
-        'Remove the store: line first to convert this repo to a local OpenSpec root.',
     )
   }, 60_000)
 
@@ -736,7 +763,7 @@ describe('init: a config-only openspec dir that declares a store', () => {
   }, 60_000)
 
   test('config.yml counts as the config', async () => {
-    await expectBothRefuse((dir) => {
+    await expectBothRefuseUnknownStore((dir) => {
       mkdirSync(join(dir, 'openspec'), { recursive: true })
       writeFileSync(join(dir, 'openspec', 'config.yml'), 'store: team-plans\n')
     }, [])
@@ -745,11 +772,7 @@ describe('init: a config-only openspec dir that declares a store', () => {
   test('the pointer is refused before --language, as the binary orders them', async () => {
     const message = await expectBothRefuse(pointerConfig('schema: [\n'), ['--language', 'en'])
     expect(message).toContain('is invalid (the config file could not be read as YAML)')
-    const declared = await expectBothRefuse(pointerConfig('store: team-plans\n'), [
-      '--language',
-      'en',
-    ])
-    expect(declared).toContain('externalized to store')
+    await expectBothRefuseUnknownStore(pointerConfig('store: team-plans\n'), ['--language', 'en'])
   }, 120_000)
 
   test('a bad --language value is still reported before the pointer', async () => {
@@ -772,7 +795,7 @@ describe('init: a config-only openspec dir that declares a store', () => {
   }, 60_000)
 
   test('a legacy tool root is not moved before the refusal', async () => {
-    await expectBothRefuse((dir) => {
+    await expectBothRefuseUnknownStore((dir) => {
       pointerConfig('store: team-plans\n')(dir)
       mkdirSync(join(dir, '.kimi', 'skills', 'openspec-propose'), { recursive: true })
       writeFileSync(join(dir, '.kimi', 'skills', 'openspec-propose', 'SKILL.md'), 'x\n')
@@ -1060,7 +1083,7 @@ describe('init: OpenSpec blocks in root-level config files', () => {
     const lf = `a\n\n\n\n${START}\nx\n${END}\n\n\nb\n`
     const { ours, theirs } = await strippedBoth({ 'QWEN.md': crlf, 'QODER.md': lf })
     expect(ours).toEqual(theirs)
-    expect(ours['QWEN.md']).toBe('a\n\nb\r\n')
+    expect(ours['QWEN.md']).toBe('a\r\n\r\nb\r\n')
   }, 60_000)
 
   test('without --remove-opsx or --yes the files are listed and nothing changes', async () => {

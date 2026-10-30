@@ -13,27 +13,13 @@ the same change is the binary's early-sync no-op.
 
 ### Requirement: Sync-specs merges a change's delta specs without archiving it
 
-`cospec sync-specs <change>` SHALL run these steps in order, and SHALL stop at
-the first one that refuses, writing nothing to the real tree:
-
-1. Resolve the root and the change as `cospec archive` does. A namespace folder
-   SHALL be refused with the binary's explanation, as archive refuses it.
-2. Run archive's pre-merge checks on the change: the archive-precondition
-   validation `cospec archive` runs, then the shared scenario-preservation
-   helper. A refusal SHALL print the same report or gate message archive prints
-   and exit 1.
-3. Run the pinned binary's `archive <change> -y` on a scratch copy of the root
-   (see "The scratch run never touches the real tree").
-4. Copy back into the real `openspec/specs/` only the files that run created,
-   changed or deleted, and prune a directory the binary's run left empty there.
-5. Verify on disk that every copied file's bytes equal the scratch file's, that
-   every deleted file is absent, and that no other file under `openspec/specs/`
-   changed.
-
-The change SHALL stay active: its directory, its artifacts, `tasks.md` and
-`verification.md` SHALL be byte-identical after the command, and nothing SHALL
-be written under `openspec/changes/archive/`. The tasks gate and
-`archive/verification-incomplete` SHALL NOT run, because nothing is archived.
+`cospec sync-specs <change>` SHALL, in order, stopping at the first refusal with
+nothing written to the real tree: resolve the root and change as archive does;
+run archive's pre-merge checks; run the binary's `archive <change> -y` on a
+scratch copy of the root; copy back only what that run changed; verify on disk.
+The change SHALL stay active and byte-identical, nothing SHALL be written under
+`openspec/changes/archive/`, and the tasks gate and
+`archive/verification-incomplete` SHALL NOT run.
 
 #### Scenario: A MODIFIED delta is synced and the change stays active
 
@@ -49,18 +35,32 @@ be written under `openspec/changes/archive/`. The tasks gate and
 - **THEN** the command prints the `archive/scenario-preservation` refusal, exits
   1, and no file under `openspec/` changes
 
+#### Scenario: Resolution and pre-merge checks refuse as archive does
+
+- **WHEN** `cospec sync-specs` targets a namespace folder, or a change that
+  fails the archive-precondition validation `cospec archive` runs or the shared
+  scenario-preservation helper
+- **THEN** it refuses with the binary's namespace-folder explanation, or prints
+  the same report or gate message archive prints, and exits 1
+
+#### Scenario: Only the run's own changes are copied back and verified
+
+- **WHEN** the scratch run succeeds
+- **THEN** only the files it created, changed or deleted are copied into the
+  real `openspec/specs/`, a directory it left empty is pruned there, and the
+  command verifies on disk that every copied file's bytes equal the scratch
+  file's, every deleted file is absent, and no other file under
+  `openspec/specs/` changed
+
 ### Requirement: The synced main specs are byte-identical to archive's
 
-For every delta shape (ADDED on an existing or a new capability, MODIFIED,
-REMOVED, RENAMED, and a REMOVED that retires a capability under
-`retire_capabilities: true`) the files `cospec sync-specs` leaves under
-`openspec/specs/` SHALL be byte-identical to the ones
-`openspec archive <change> -y` writes on a copy of the same tree, including a
-retired capability's deleted `spec.md` and its pruned directory. Because they
-are, a following `cospec archive <change>` SHALL see every operation as the
-early-sync no-op the binary performs (an identical ADDED, an absent REMOVED, an
-applied RENAMED, an identical MODIFIED, a retired capability) and SHALL archive
-the change with both hard gates run and no further change to `openspec/specs/`.
+For every delta shape (ADDED on an existing or new capability, MODIFIED,
+REMOVED, RENAMED, a REMOVED retiring a capability under
+`retire_capabilities: true`) the files `cospec sync-specs` leaves in
+`openspec/specs/` SHALL be byte-identical to what `openspec archive <change> -y`
+writes on a copy of the tree, a retired capability's `spec.md` deleted and
+directory pruned. A later `cospec archive` SHALL see only early-sync no-ops and
+archive with both hard gates and no further spec change.
 
 #### Scenario: Each delta shape matches the binary's archive
 
@@ -91,29 +91,22 @@ the change with both hard gates run and no further change to `openspec/specs/`.
 - **THEN** `cospec archive` refuses it with `archive/verification-incomplete`
   and exits 1
 
+#### Scenario: Early-sync no-ops are the binary's
+
+- **WHEN** `cospec archive <change>` runs after `cospec sync-specs <change>`
+- **THEN** it treats an identical ADDED, an absent REMOVED, an applied RENAMED,
+  an identical MODIFIED and a retired capability as the early-sync no-op the
+  binary performs
+
 ### Requirement: The scratch run never touches the real tree
 
-The binary's run SHALL happen in a fresh directory created under the OS temp
-directory, holding `openspec/config.yaml` or `openspec/config.yml` if present,
-`openspec/schemas/`, `openspec/specs/`, `openspec/changes/<change>/` and an
-empty `openspec/changes/archive/`, with the binary spawned there with that
-directory as its working directory. Every other file and directory under the
-real `openspec/`, including sibling changes and the real
-`openspec/changes/archive/`, SHALL NOT be copied. The binary SHALL be spawned
-with no `--store`, so its nearest-root walk resolves the scratch directory. The
-command SHALL confirm that resolution from the run's own observable output
-before copying anything back. A symbolic link in the copied subtree that leads
-outside it SHALL be refused before the run, naming the link, because the binary
-would write through it into the real tree. A symbolic link inside it, absolute
-or relative, SHALL be copied pointing at the scratch copy of its target, so the
-run never writes through a link into the real tree. A file or directory under
-the copied subtree that the command cannot read SHALL NOT fail the command: the
-binary's archive reads no main spec but a delta's target, so an unrelated
-unreadable spec SHALL leave the sync answering as `cospec archive` answers. The
-scratch directory SHALL be removed when the command ends, whether the run
-succeeded or failed. A failed run SHALL leave the real tree byte-identical, with
-no `.openspec-archive.lock` and no other new file anywhere under it, and SHALL
-relay the binary's reason with its remedies spelled `cospec`.
+The binary SHALL run with no `--store` in a fresh OS-temp working directory
+holding only `openspec/config.yaml` or `config.yml` if present,
+`openspec/schemas/`, `openspec/specs/`, `openspec/changes/<change>/`, and an
+empty `openspec/changes/archive/`; the command SHALL confirm from the run's
+output that it resolved there before copying back, and remove the directory when
+it ends. A failed run SHALL leave the real tree byte-identical and relay the
+binary's reason with remedies spelled `cospec`.
 
 #### Scenario: A refused scratch run leaves nothing behind
 
@@ -142,26 +135,35 @@ relay the binary's reason with its remedies spelled `cospec`.
 - **THEN** the scratch run succeeds and only `openspec/specs/` files change in
   the real tree
 
+#### Scenario: Symbolic links never lead the run into the real tree
+
+- **WHEN** the copied subtree holds a symbolic link
+- **THEN** one leading outside the subtree is refused before the run, naming the
+  link, and one inside it, absolute or relative, is copied pointing at the
+  scratch copy of its target
+
+#### Scenario: An unreadable unrelated spec does not fail the sync
+
+- **WHEN** a file or directory under the copied subtree cannot be read
+- **THEN** the command does not fail on that account, since the binary's archive
+  reads no main spec but a delta's target, and the sync answers as
+  `cospec archive` answers
+
+#### Scenario: A failed run leaves no lock or new file
+
+- **WHEN** the scratch run fails
+- **THEN** no `.openspec-archive.lock` and no other new file exists anywhere
+  under the real tree, and the scratch directory is removed
+
 ### Requirement: Sync-specs reports what it changed
 
-In text mode, `cospec sync-specs` SHALL print one line per main-spec file it
-wrote or deleted, then a summary carrying the binary's own applied totals. When
-the binary reported the specs already in sync, it SHALL say so and write
-nothing. When the change's schema has no specs artifact, it SHALL print that
-there is nothing to sync and why, run nothing, and exit 0. When the change has
-no delta specs or declares `skip_specs: true`, it SHALL first run archive's
-revalidation and refuse what it refuses, so a delta kept in a file the merge
-never reads (a `spec.md` at the root of the change's `specs/`, a
-`specs/<capability>.md`, a note beside a capability's `spec.md`) is refused as
-archive refuses it; otherwise it SHALL print that there is nothing to sync and
-why, run no merge, and exit 0. The binary's merge warnings SHALL be relayed,
-respelled. Under `--json` it SHALL print one document:
+In text mode `cospec sync-specs` SHALL print one line per main-spec file it
+wrote or deleted, then a summary with the binary's applied totals, saying so and
+writing nothing when the binary reported the specs already in sync. The binary's
+merge warnings SHALL be relayed, respelled. `--store` SHALL be accepted, syncing
+the selected store's specs. Under `--json` it SHALL print one document,
 `{change, type, synced, totals, files: {written, deleted}, warnings, root}` on
-success, and on any refusal
-`{change, synced: false, status: [{severity, code, message, fix?}]}` with the
-binary's diagnostic code for a scratch-run refusal, the code archive's document
-uses for a pre-merge refusal, and exit 1. `--store` SHALL be accepted, and the
-synced specs are then the selected store's.
+success.
 
 #### Scenario: An already-synced change writes nothing
 
@@ -181,3 +183,26 @@ synced specs are then the selected store's.
   `specs/widgets/notes.md`
 - **THEN** it prints the revalidation report `cospec archive` prints for the
   same change, exits 1, and writes nothing
+
+#### Scenario: A schema with no specs artifact has nothing to sync
+
+- **WHEN** the change's schema has no specs artifact
+- **THEN** it prints that there is nothing to sync and why, runs nothing, and
+  exits 0
+
+#### Scenario: No delta specs are revalidated before nothing is synced
+
+- **WHEN** the change has no delta specs or declares `skip_specs: true`
+- **THEN** it first runs archive's revalidation and refuses what it refuses, so
+  a delta in a file the merge never reads (a `spec.md` at the root of the
+  change's `specs/`, a `specs/<capability>.md`, a note beside a capability's
+  `spec.md`) is refused as archive refuses it, and otherwise prints that there
+  is nothing to sync and why, runs no merge, and exits 0
+
+#### Scenario: A JSON refusal is one status document
+
+- **WHEN** `cospec sync-specs --json` refuses
+- **THEN** stdout is
+  `{change, synced: false, status: [{severity, code, message, fix?}]}` with the
+  binary's diagnostic code for a scratch-run refusal or the code archive's
+  document uses for a pre-merge refusal, and the exit code is 1

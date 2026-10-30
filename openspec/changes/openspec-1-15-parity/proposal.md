@@ -12,14 +12,14 @@ cospec today loses reachable surface, and that breaks the project's own parity
 promise ("there is never a reason to call bare `openspec`").
 
 Several of the upstream moves are gate-parity issues as well as missing
-features. 1.14.1 stops counting a `## Workflow follow-up` section as tracked
-tasks, makes an over-long requirement a strict-mode WARNING, and 1.14.0 warns on
-unknown `.openspec.yaml` keys while exempting `x-` extension keys. If cospec's
-own parsers disagree with the binary on any of these, `cospec validate --strict`
-and `cospec apply`/`archive` reach different verdicts than the delegated
-archive. That is the false-PASS / false-BLOCK shape CLAUDE.md treats as a
-release blocker. The reachability test already makes a pin bump fail until every
-new surface is resolved, so the bump and the parity work have to land together.
+features. 1.14.1 makes an over-long requirement a strict-mode WARNING, and
+1.14.0 warns on unknown `.openspec.yaml` keys while exempting `x-` extension
+keys. If cospec's own parsers disagree with the binary on any of these,
+`cospec validate --strict` and `cospec apply`/`archive` reach different verdicts
+than the delegated archive. That is the false-PASS / false-BLOCK shape CLAUDE.md
+treats as a release blocker. The reachability test already makes a pin bump fail
+until every new surface is resolved, so the bump and the parity work have to
+land together.
 
 cospec should also exceed upstream where it owns the facts. Its `view`,
 `version`, `list --archived` and `update --dry-run` can report what only cospec
@@ -65,15 +65,18 @@ and the embedded OpenSpec version.
   `specs/purpose-tbd` follows upstream's case rule, so "Todo el…" passes. The
   MODIFIED scenario-loss message names counts and up to three introduced
   scenarios. A non-string `rules:` item is reported by index.
+- **Change stamp rename** — cospec writes `x-cospec-schema-version` instead of
+  `schemaVersion`, which 1.15.0 reports as unknown.
 - **Change metadata** — keys starting with a lowercase `x-` are user extension
   metadata. Every other unrecognized `.openspec.yaml` key is named by `status`,
   `validate`, and `archive`, and fails `validate --strict`.
-- **Task tracking parity** — a `## Workflow follow-up` section in `tasks.md` is
-  not tracked by cospec's apply/archive gates, and the archive task gate reads
-  every file the schema tracks instead of a fixed `tasks.md`.
-  `cospec apply --json` relays each task's `sourcePath` and `line`. Once every
-  tracked task is checked, apply's next step is to verify the change (the verify
-  workflow, spelled per harness, e.g. `/cospec:verify`), not to archive it.
+- **Task tracking parity** — post-archive steps go in a plain-bullet
+  `## Workflow follow-up` section that no gate counts (counts stay equal to the
+  binary's), and the archive task gate reads every file the schema tracks
+  instead of a fixed `tasks.md`. `cospec apply --json` relays each task's
+  `sourcePath` and `line`. Once every tracked task is checked, apply's next step
+  is to verify the change (the verify workflow, spelled per harness, e.g.
+  `/cospec:verify`), not to archive it.
 - **Archive and sync robustness** — symlinked `openspec/`, `changes/`, `specs/`
   and spec files inside the project are accepted, and a link that resolves
   outside the project is still refused. `sync-specs` preserves a spec's existing
@@ -127,14 +130,17 @@ and the embedded OpenSpec version.
 
 ### Modified Capabilities
 
+- `schema-versioning`: the change stamp moves to `x-cospec-schema-version`
+  (legacy `schemaVersion` read as fallback, rewritten by `migrate`), so bare
+  `openspec validate --strict` passes on cospec changes.
 - `embedded-openspec`: pin moves to 1.15.0; the embedded bundle, contract suite,
   and glob port (now over `tinyglobby`/`picomatch`/`brace-expansion`) are
   re-probed.
 - `change-metadata-keys`: `x-` extension keys accepted; other unknown keys
   reported and strict-failing.
-- `change-progress-reporting`: `## Workflow follow-up` exclusion, task
-  `sourcePath`/`line`, the verify-before-archive next step, and the schema-aware
-  archive task gate.
+- `change-progress-reporting`: binary-equal task counts with plain-bullet
+  `## Workflow follow-up` steps, task `sourcePath`/`line`, the
+  verify-before-archive next step, and the schema-aware archive task gate.
 - `openspec-list-validate-extensions`: `list --archived`/`--all`, requirement
   length and dropped-delta-text rules, the scenario-loss detail, and zero-width
   TTY safety.

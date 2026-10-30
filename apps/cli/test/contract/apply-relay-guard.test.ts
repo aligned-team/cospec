@@ -136,7 +136,7 @@ describe('bare-`openspec` relay guard (OpenSpec 1.13.1)', () => {
     // Step 3 clears while the binary's own apply.requires still names it.
     writeFileSync(
       join(root, `openspec/changes/${name}/.openspec.yaml`),
-      'schema: feat\ncreated: 2026-09-22\nschemaVersion: 1\n',
+      'schema: feat\ncreated: 2026-09-22\nx-cospec-schema-version: 1\n',
     )
 
     const json = await cospec(['apply', name, '--json'], { cwd: root })
@@ -229,7 +229,7 @@ describe('bare-`openspec` relay guard (OpenSpec 1.13.1)', () => {
     // On a cospec type the same change never reaches the relay.
     writeFileSync(
       join(root, `openspec/changes/${name}/.openspec.yaml`),
-      'schema: feat\ncreated: 2026-09-22\nschemaVersion: 2\n',
+      'schema: feat\ncreated: 2026-09-22\nx-cospec-schema-version: 2\n',
     )
     const typed = await cospec(['apply', name], { cwd: root })
     expect(typed.exitCode).toBe(1)

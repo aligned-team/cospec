@@ -1,0 +1,68 @@
+# The bug form. `cospec feedback` mirrors it: its issue body uses these field
+# labels as `###` headings, in this order, and its manual-submission link opens
+# this form with `what_happened`, `version`, `openspec_version` and
+# `environment` prefilled by id (apps/cli/src/commands/feedback.ts). Rename a
+# field id or label only together with that file.
+name: Bug report
+description: Something in cospec does not work as documented
+title: 'Bug: '
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Thanks for filing. `cospec version --json` prints the version and
+        environment details asked for below.
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: What happened
+      description: What you did, and what went wrong.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Minimal steps to reproduce
+      description: The shortest steps that reproduce it from a fresh project.
+      placeholder: |
+        1. cospec init --harness claude
+        2. cospec new feat my-change
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the full output, and the exit code if it matters.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: cospec version
+      placeholder: 0.12.0
+    validations:
+      required: true
+  - type: input
+    id: openspec_version
+    attributes:
+      label: OpenSpec version
+      description: The wrapped OpenSpec and where it resolved from.
+      placeholder: 1.15.0 (embedded)
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS and architecture, and how cospec was installed.
+      placeholder: darwin arm64, standalone
+    validations:
+      required: true

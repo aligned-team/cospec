@@ -5,7 +5,7 @@ commit type. `feat` gets the full treatment; `ci` takes two minutes.
 
 `cospec` wraps
 [`@fission-ai/openspec`](https://www.npmjs.com/package/@fission-ai/openspec)
-`1.13.1` (pinned for dev/CI; any `>=1.0.0 <2.0.0` accepted at runtime) and adds
+`1.15.0` (pinned for dev/CI; any `>=1.0.0 <2.0.0` accepted at runtime) and adds
 typed change schemas (one per conventional-commit type), real validation, a
 gated `apply`, a machine-parsed `verification` evidence ledger with hard archive
 gates, a verified `archive`, and blocker sync — plus generated skills/commands
@@ -16,6 +16,16 @@ root read by Codex, Zed, Antigravity, and other AGENTS.md-aware assistants.
 
 cospec ships as standalone executables (one per platform), so it runs with no JS
 runtime required and installs cleanly on Node, Deno, or Bun.
+
+Via the install script (verifies the download against the release's
+`SHA256SUMS`; see the
+[installation guide](https://cospec.aligned.team/guide/installation) for version
+pinning, Nix, and the platform list):
+
+```bash
+curl -fsSL https://github.com/aligned-team/cospec/releases/latest/download/install.sh | sh   # macOS, Linux
+irm https://github.com/aligned-team/cospec/releases/latest/download/install.ps1 | iex       # Windows
+```
 
 Via mise (no JS runtime needed):
 

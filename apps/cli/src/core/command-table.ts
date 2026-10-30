@@ -362,6 +362,10 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
     flags: [
       cospec({ name: '--check', description: 'Drift gate: exit nonzero on drift, write nothing' }),
       upstream({ name: '--force', description: 'Overwrite conflicting managed files' }),
+      upstream({
+        name: '--dry-run',
+        description: 'Report what the update would change without writing anything',
+      }),
     ],
   },
   {
@@ -539,7 +543,7 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
   },
   {
     name: 'list',
-    summary: 'List active changes',
+    summary: 'List changes (active by default) or specs',
     hidden: false,
     parse: 'table',
     json: 'accepted',
@@ -561,6 +565,8 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         values: ['recent', 'name'],
         description: 'Sort order: "recent" (default) or "name"',
       }),
+      upstream({ name: '--archived', description: 'Show only archived changes' }),
+      upstream({ name: '--all', description: 'Show both active and archived changes' }),
     ],
   },
   {
@@ -851,13 +857,14 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
   },
   {
     name: 'view',
-    summary: 'Show the OpenSpec dashboard',
+    summary: 'Show the dashboard: active changes, gate and ledger state, archive',
     hidden: false,
     parse: 'table',
     json: 'refused',
     store: 'accepted',
     declaresStorePath: true,
-    jsonRefusalMessage: 'cospec view renders a text dashboard and cannot emit JSON',
+    jsonRefusalMessage:
+      'cospec view renders a text dashboard and cannot emit JSON (use cospec status --all --json)',
     positionals: [],
     flags: [],
   },
@@ -1066,6 +1073,41 @@ export const COMMAND_TABLE: readonly CommandRow[] = [
         description: 'File at Fission-AI/OpenSpec instead of aligned-team/cospec',
       }),
     ],
+  },
+  {
+    name: 'version',
+    summary: "Report cospec's version and install, the wrapped OpenSpec, and updates",
+    hidden: false,
+    parse: 'table',
+    json: 'accepted',
+    store: 'refused',
+    positionals: [],
+    flags: [
+      upstream({
+        name: '--check',
+        description:
+          'Check the npm registry for a newer cospec (COSPEC_NO_UPDATE_CHECK=1 disables)',
+      }),
+    ],
+  },
+  {
+    // Upstream's `install` installs its own standalone build; cospec's installs cospec's,
+    // through the same release installer its docs give (`scripts/install/`).
+    name: 'install',
+    summary: 'Install the standalone cospec binary (latest release unless [version] is given)',
+    hidden: false,
+    parse: 'table',
+    json: 'refused',
+    store: 'refused',
+    jsonRefusalMessage: 'cospec install runs the release installer and cannot emit JSON',
+    positionals: [
+      upstreamArg({
+        name: 'version',
+        required: false,
+        description: 'A release version (1.2.3); default: the latest release',
+      }),
+    ],
+    flags: [],
   },
   {
     // Commander's implicit program-level `help [command]`, last in upstream's

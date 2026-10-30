@@ -24,7 +24,7 @@ node = "22.23.2"
 # The OpenSpec CLI cospec wraps. This mise entry is a dev/probe convenience; the
 # runtime copy is the pinned `@fission-ai/openspec` package dependency of
 # apps/cli, resolved by path (never $PATH) — see docs/architecture.md.
-"npm:@fission-ai/openspec" = "1.13.1"
+"npm:@fission-ai/openspec" = "1.15.0"
 "npm:@typescript/native-preview" = "7.0.0-dev.20260624.1"
 "npm:oxlint" = "1.71.0"
 "npm:oxfmt" = "0.56.0"
@@ -125,6 +125,10 @@ run = "mise run //packages/bench:bench"
 description = "Single cheap bench cell: ci scenario, sonnet-5/high, cospec arm (advisory, never gates CI)"
 run = "mise run //packages/bench:smoke"
 
+[tasks."bench:complete"]
+description = "Time `cospec __complete changes` against its recorded budget (advisory, always exits 0)"
+run = "mise run //packages/bench:complete"
+
 [tasks."test:bench"]
 description = "Unit tests for the packages/bench harness (matrix, mechanical, report, judge, scenario registry) — no auth/network required"
 run = "mise run //packages/bench:test"
@@ -223,6 +227,30 @@ run = 'printf "%s\n" "$PR_TITLE" | bunx commitlint'
 description = "Stamp ONE release version (semver) into apps/cli/package.json and its bun.lock workspace entry. Idempotent. Usage: mise run release:set-version -- 1.2.3"
 run = "bash scripts/mise-tasks/release/set-version"
 
+[tasks."release:flake-pin"]
+description = "Pin the Nix flake (nix/release.json) to a published release's SHA256SUMS. Usage: mise run release:flake-pin -- 1.2.3"
+run = "bash scripts/mise-tasks/release/flake-pin"
+
+# ───────────────────────────────────────────────
+# Installers + Nix flake
+# ───────────────────────────────────────────────
+
+[tasks."test:install"]
+description = "install.sh end-to-end against a fake on-disk release (asset selection, pinning, checksum refusal)"
+run = "sh scripts/install/test/install-sh.test.sh"
+
+[tasks."test:install:ps1"]
+description = "Pester tests for install.ps1 (asset selection, checksum refusal); needs pwsh + Pester 5"
+run = "pwsh -NoProfile -Command 'Invoke-Pester -Path scripts/install/test/install-ps1.Tests.ps1 -CI'"
+
+[tasks."test:flake"]
+description = "Build the flake package and a consumer flake that applies overlays.default; needs nix"
+run = [
+  "nix build .#default --no-link --print-out-paths",
+  "nix run . -- --version",
+  "nix build ./nix/test/consumer --override-input cospec \"git+file://$PWD?shallow=1\" --no-write-lock-file --no-link",
+]
+
 # ───────────────────────────────────────────────
 # Composed CI gate
 # ───────────────────────────────────────────────
@@ -238,6 +266,7 @@ depends = [
   "//apps/cli:test:integration",
   "//packages/bench:test",
   "//e2e:release-test",
+  "test:install",
   "generate:check",
   "vendor:openspec:check",
   "agents:check",

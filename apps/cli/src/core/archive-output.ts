@@ -4,7 +4,7 @@
 // binary refuses the same input, and the reader of the binary's fixed
 // human-mode lines a successful wrapped archive printed.
 
-import type { ScenarioDrop } from './deltas.ts'
+import { describeScenarioBalance, type ScenarioDrop } from './deltas.ts'
 import { respellRemedies } from './remedies.ts'
 import type { ResolvedRoot } from './root.ts'
 import { rootOutput } from './upstream-keys.ts'
@@ -37,6 +37,7 @@ export const ARCHIVE_REFUSAL_REASONS = [
   'scratch-run',
   'specs-changed',
   'symlink-escape',
+  'retirement-cleanup-failed',
 ] as const
 
 export type ArchiveRefusalReason = (typeof ARCHIVE_REFUSAL_REASONS)[number]
@@ -114,7 +115,7 @@ export const diagnostics = {
     const names = first.missingNames.map((n) => `"${n}"`).join(', ')
     return diagnostic(
       'archive_spec_update_failed',
-      `${first.capability} MODIFIED failed for header "### Requirement: ${first.name}" - current spec contains scenario(s) not present in the modified block: ${names}. Refresh the change spec before archiving to avoid dropping scenarios.`,
+      `${first.capability} MODIFIED failed for header "### Requirement: ${first.name}" - current spec contains scenario(s) not present in the modified block: ${names}. ${describeScenarioBalance(first)} Refresh the change spec before archiving to avoid dropping scenarios.`,
       'Fix the change delta specs and rerun. No files were changed.',
     )
   },
@@ -122,6 +123,16 @@ export const diagnostics = {
     diagnostic(
       'archive_path_outside_root',
       `Refusing to archive through a path outside the OpenSpec root: ${dir}`,
+    ),
+  /**
+   * The binary's `RetirementCleanupError` diagnostic: the change moved, but a
+   * retirement backup was not finalized. `message` is the binary's own.
+   */
+  retirementCleanupFailed: (message: string): ArchiveDiagnostic =>
+    diagnostic(
+      'archive_retirement_cleanup_failed',
+      message,
+      'Inspect the archived change and all recovery paths in this diagnostic; preserve any needed content before cleanup.',
     ),
   /** The binary's code for a failure it does not classify. */
   error: (message: string): ArchiveDiagnostic => diagnostic('archive_error', message),

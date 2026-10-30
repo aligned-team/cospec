@@ -113,6 +113,8 @@ interface Case {
   build(cwd: string): string
   /** What the stubbed binary does with `archive <id> -y`; absent = never spawned. */
   binary?: (cwd: string, id: string) => number
+  /** What the stubbed binary prints on stderr. */
+  stderr?: string
 }
 
 const ADDED_NEW = `## ADDED Requirements\n\n${REQUIREMENT(RENDER)}`
@@ -198,6 +200,22 @@ const CASES: Record<string, Case> = {
       return 0
     },
   },
+  'retirement-cleanup-failed': {
+    build(cwd) {
+      feat(cwd, 'c', ADDED_NEW)
+      return 'c'
+    },
+    binary(cwd, id) {
+      // The binary moved the change, then could not finalize a retirement backup.
+      renameSync(
+        join(cwd, 'openspec/changes', id),
+        join(cwd, 'openspec/changes/archive', `${formatLocalDate()}-${id}`),
+      )
+      return 1
+    },
+    stderr:
+      'The change was archived, but retirement cleanup did not complete. Backups remain at openspec/.retire-backup.\n',
+  },
   'spec-verification-failed': {
     build(cwd) {
       feat(cwd, 'c', ADDED_NEW)
@@ -215,7 +233,12 @@ const CASES: Record<string, Case> = {
 }
 
 /** Run `archive <id> --json` in-process, the binary answered by `binary`. */
-async function archiveJson(cwd: string, id: string, binary: Case['binary']) {
+async function archiveJson(
+  cwd: string,
+  id: string,
+  binary: Case['binary'],
+  stderr: Case['stderr'] = '',
+) {
   const originalSpawn = Bun.spawn
   let spawned = 0
   // @ts-expect-error — test-only override of Bun.spawn's overloaded signature.
@@ -228,7 +251,7 @@ async function archiveJson(cwd: string, id: string, binary: Case['binary']) {
     const exitCode = version ? 0 : (binary?.(cwd, id) ?? 0)
     return {
       stdout: new Response(version ? `${PINNED_OPENSPEC_VERSION}\n` : '').body,
-      stderr: new Response('').body,
+      stderr: new Response(version ? '' : stderr).body,
       exited: Promise.resolve(exitCode),
     }
   }
@@ -256,7 +279,7 @@ describe('2.5 every archive refusal under --json is one document', () => {
     test(`${reason}: one document on stdout, exit 1`, async () => {
       const cwd = repo()
       const id = c.build(cwd)
-      const r = await archiveJson(cwd, id, c.binary)
+      const r = await archiveJson(cwd, id, c.binary, c.stderr)
       expect(r.code).toBe(1)
       expect(r.spawned).toBe(c.binary === undefined ? 0 : 1)
       const doc = JSON.parse(r.out) as Record<string, unknown>

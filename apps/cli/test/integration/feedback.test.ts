@@ -73,7 +73,15 @@ describe('cospec feedback (native, aligned-team/cospec)', () => {
     expect(res.stdout).toContain('GitHub CLI not found')
     expect(res.stdout).toContain('FORMATTED FEEDBACK')
     expect(res.stdout).toContain('Title: Feedback: the thing broke')
-    expect(res.stdout).toContain('https://github.com/aligned-team/cospec/issues/new?title=')
+    expect(res.stdout).toContain(
+      'https://github.com/aligned-team/cospec/issues/new?template=bug_report.yml&title=',
+    )
+    // The bug form's fields, prefilled by id.
+    expect(res.stdout).toContain('what_happened=the+thing+broke')
+    expect(res.stdout).toMatch(/&version=[^&\s]+&openspec_version=[^&\s]+&environment=/)
+    // The body's sections are the form's headings, the missing repro steps said so.
+    expect(res.stdout).toContain('### Minimal steps to reproduce')
+    expect(res.stdout).toContain('_Not provided — filed with `cospec feedback`.')
     expect(res.stdout).not.toContain('Fission-AI')
   })
 

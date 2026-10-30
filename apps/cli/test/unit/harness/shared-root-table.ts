@@ -39,4 +39,6 @@ export const SHARED_ROOT_TABLE: readonly HarnessAdapter[] = [
     },
   }),
   row('zed', { detectionPaths: ['.zed', '.agents/skills'] }),
+  row('amp', { detectionPaths: ['.amp', '.agents/skills'] }),
+  row('gsd', { bodyDialect: 'prose', detectionPaths: ['.gsd'] }),
 ]

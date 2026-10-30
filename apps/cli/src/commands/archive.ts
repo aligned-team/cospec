@@ -17,7 +17,7 @@ import {
   statSync,
   type Dirent,
 } from 'node:fs'
-import { join } from 'node:path'
+import { join, relative, sep } from 'node:path'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
@@ -32,6 +32,10 @@ import {
 } from '../core/archive-output.ts'
 import { parseBlockers, syncBlockers } from '../core/blockers.ts'
 import {
+  readUnknownChangeMetadataKeys,
+  unknownMetadataKeysMessage,
+} from '../core/change-metadata.ts'
+import {
   archiveDir,
   changesDir,
   describeNestedChange,
@@ -43,11 +47,12 @@ import {
   projectConfigPath,
   resolveChange,
   resolveSchema,
+  trackedTaskFiles,
   type Change,
 } from '../core/change.ts'
 import { hasFlag } from '../core/command-table.ts'
 import { parseLivingSpec, type DeltaOp } from '../core/deltas.ts'
-import { assertPathWithin } from '../core/glob.ts'
+import { archiveManagedDirOutsideRoot } from '../core/glob.ts'
 import { printOwnStderrLineOnce, spawnOpenspec, threadedArgv } from '../core/openspec.ts'
 import { renderOperationInputs } from '../core/operation-inputs.ts'
 import { readConfigOperationInputs } from '../core/project-config-read.ts'
@@ -196,30 +201,6 @@ function slotTaken(path: string): boolean | string {
 
 function isErrno(error: unknown): error is NodeJS.ErrnoException {
   return typeof (error as NodeJS.ErrnoException | undefined)?.code === 'string'
-}
-
-/**
- * The binary's first step (`ArchiveCommand.run`): each managed directory must
- * resolve inside its parent, through the runtime's `realpath`. A directory the
- * runtime cannot canonicalize (macOS's `realpath` on a mode-000 directory)
- * fails it, as it fails the binary's.
- */
-function managedDirOutsideRoot(base: string): string | undefined {
-  const changes = changesDir(base)
-  const pairs: [string, string][] = [
-    [base, changes],
-    [changes, archiveDir(base)],
-    [base, join(openspecDir(base), 'specs')],
-  ]
-  for (const [allowed, managed] of pairs) {
-    try {
-      assertPathWithin(allowed, managed)
-    } catch (error) {
-      if (!(error instanceof Error)) throw error
-      return managed
-    }
-  }
-  return undefined
 }
 
 function escapeRegExp(s: string): string {
@@ -418,7 +399,12 @@ export async function run(ctx: CommandContext): Promise<number> {
   if (noValidate) process.stderr.write(NO_VALIDATE_BANNER)
 
   // Step 0: the binary's root confinement, before anything is read.
-  const outside = managedDirOutsideRoot(base)
+  const outside = archiveManagedDirOutsideRoot({
+    projectRoot: base,
+    changesDir: changesDir(base),
+    archiveDir: archiveDir(base),
+    specsDir: join(openspecDir(base), 'specs'),
+  })
   if (outside !== undefined) {
     const diag = diagnostics.pathOutsideRoot(outside)
     process.stderr.write(`cospec archive: ${diag.message}\n`)
@@ -463,6 +449,14 @@ export async function run(ctx: CommandContext): Promise<number> {
     process.stderr.write(`cospec archive: ${diag.message}\n${diag.fix!}\n`)
     return refuse('namespace-folder', diag)
   }
+
+  // `change/unknown-metadata-key`: named before anything runs, as the binary
+  // warns, and carried by the success document. Never a refusal.
+  const unknownKeys = readUnknownChangeMetadataKeys(change.dir)
+  const metadataWarning =
+    unknownKeys.length === 0 ? undefined : unknownMetadataKeysMessage(unknownKeys)
+  if (metadataWarning !== undefined && !flags.json)
+    process.stderr.write(`Warning: ${metadataWarning}\n`)
 
   // The project's own inputs, read once the change is a change: printed with the summary, or with
   // the refusal, in text mode and carried by the success document under `--json`.
@@ -510,17 +504,15 @@ export async function run(ctx: CommandContext): Promise<number> {
     return refuse('validation', diagnostics.validationFailed(change.id, root), reportDoc)
   }
 
-  // Step 3: tasks gate (stricter than openspec — -y alone does not waive).
-  const tasksPath = join(change.dir, 'tasks.md')
-  const parsedTasks = existsSync(tasksPath)
-    ? parseTasks(readFileSync(tasksPath, 'utf8'))
-    : { items: [], malformed: [], groups: [] }
-  const incomplete = parsedTasks.items.filter((t) => !t.checked)
+  // Step 3: tasks gate (stricter than openspec — -y alone does not waive),
+  // over every file the schema's `apply.tracks` resolves, as the binary counts.
+  const incomplete = incompleteTrackedTasks(base, change)
   if (incomplete.length > 0 && !forceIncomplete) {
     process.stderr.write(
       `cospec archive: ${incomplete.length} incomplete task(s) — refusing to archive:\n`,
     )
-    for (const t of incomplete) process.stderr.write(`  - [ ] ${t.text}\n`)
+    for (const t of incomplete)
+      process.stderr.write(`  - [ ] ${t.text}${t.file === 'tasks.md' ? '' : ` (${t.file})`}\n`)
     process.stderr.write('re-run with --force-incomplete to archive anyway.\n')
     return refuse('tasks-incomplete', diagnostics.tasksIncomplete(change.id, incomplete.length))
   }
@@ -638,6 +630,35 @@ export async function run(ctx: CommandContext): Promise<number> {
   const abortedOutput = ABORTED_RE.test(res.stdout) || CANCELLED_RE.test(res.stdout)
   const success = res.exitCode === 0 && !abortedOutput && moved && targetHasYaml
 
+  // The binary moved the change but could not finalize a capability
+  // retirement's backup: archived, with cleanup left to the user. Its own
+  // words say so; the move is what the disk shows.
+  if (
+    !success &&
+    target !== undefined &&
+    isRetirementCleanupFailure(`${res.stdout}\n${res.stderr}`, { moved, targetHasYaml })
+  ) {
+    const reason = relayedReason(`${res.stdout}\n${res.stderr}`)
+    const fanned = fanOutBlockers(base)
+    if (!flags.json) {
+      process.stderr.write(
+        `cospec archive: '${change.id}' was archived to openspec/changes/archive/${target}/, ` +
+          'but capability-retirement cleanup did not complete:\n',
+      )
+      process.stderr.write(`    ${respellRemedies(reason)}\n`)
+      process.stderr.write(
+        'Inspect the archived change and every recovery path above; preserve any needed content before cleanup.\n',
+      )
+      printBlockerFanOut(fanned)
+    }
+    return refuse(
+      'retirement-cleanup-failed',
+      diagnostics.retirementCleanupFailed(reason),
+      { target, blockers: fanned, openspecExit: res.exitCode },
+      true,
+    )
+  }
+
   if (!success) {
     const aborted = reportArchiveFailure(change, res, {
       moved,
@@ -693,21 +714,7 @@ export async function run(ctx: CommandContext): Promise<number> {
   }
 
   // Step 11: blocker fan-out across the remaining active changes.
-  const archivedAfter = archiveMap(base)
-  const remaining = listChanges(base)
-  const activeAfter = new Set(remaining.map((c) => c.id))
-  const checkedOff: string[] = []
-  const nowUnblocked: string[] = []
-  for (const other of remaining) {
-    const p = join(other.dir, 'blocking-changes.md')
-    if (!existsSync(p)) continue
-    const sync = syncBlockers(readFileSync(p, 'utf8'), archivedAfter, activeAfter, { fix: true })
-    if (sync.changed) atomicWrite(p, sync.output)
-    if (sync.synced.length > 0) {
-      checkedOff.push(other.id)
-      if (sync.fullyUnblocked) nowUnblocked.push(other.id)
-    }
-  }
+  const { checkedOff, nowUnblocked } = fanOutBlockers(base)
 
   // Step 12: flywheel summary. What the binary applied comes from its own
   // `Totals:` and in-sync lines; a binary in range that prints neither leaves
@@ -743,7 +750,8 @@ export async function run(ctx: CommandContext): Promise<number> {
           specs: skipSpecs ? 'skipped' : counts,
           ...(skipReason === undefined ? {} : { specsSkipReason: skipReason }),
           retired,
-          warnings,
+          // Text mode printed the metadata warning before delegating.
+          warnings: metadataWarning === undefined ? warnings : [metadataWarning, ...warnings],
           blockers: { checkedOff, nowUnblocked },
           ...inputs,
           archive: {
@@ -769,14 +777,97 @@ export async function run(ctx: CommandContext): Promise<number> {
   ]
   if (retired.length > 0) lines.push(`Retired:  ${retired.join(', ')} (spec files deleted)`)
   for (const w of warnings) lines.push(`Warning:  ${w}`)
+  lines.push(...blockerFanOutLines({ checkedOff, nowUnblocked }))
+  process.stdout.write(`${lines.join('\n')}\n`)
+  printArchiveInputs(inputs)
+  return EXIT.success
+}
+
+/** The binary's closing sentence of a `RetirementCleanupError` (`dist/core/archive.js`, 1.15.0). */
+const RETIREMENT_CLEANUP_RE = /The change was archived, but retirement cleanup did not complete\./
+
+/**
+ * Whether a failed delegated archive is the binary's retirement-cleanup
+ * failure: it said the change was archived but cleanup did not complete, and
+ * the disk agrees the change moved with its metadata. Its words alone never
+ * count — a move the disk does not show is still a half-state.
+ */
+export function isRetirementCleanupFailure(
+  output: string,
+  disk: { moved: boolean; targetHasYaml: boolean },
+): boolean {
+  return disk.moved && disk.targetHasYaml && RETIREMENT_CLEANUP_RE.test(output)
+}
+
+interface BlockerFanOut {
+  checkedOff: string[]
+  nowUnblocked: string[]
+}
+
+/** Check archived blockers off across every remaining active change (step 11). */
+function fanOutBlockers(base: string): BlockerFanOut {
+  const archivedAfter = archiveMap(base)
+  const remaining = listChanges(base)
+  const activeAfter = new Set(remaining.map((c) => c.id))
+  const checkedOff: string[] = []
+  const nowUnblocked: string[] = []
+  for (const other of remaining) {
+    const p = join(other.dir, 'blocking-changes.md')
+    if (!existsSync(p)) continue
+    const sync = syncBlockers(readFileSync(p, 'utf8'), archivedAfter, activeAfter, { fix: true })
+    if (sync.changed) atomicWrite(p, sync.output)
+    if (sync.synced.length > 0) {
+      checkedOff.push(other.id)
+      if (sync.fullyUnblocked) nowUnblocked.push(other.id)
+    }
+  }
+  return { checkedOff, nowUnblocked }
+}
+
+function blockerFanOutLines({ checkedOff, nowUnblocked }: BlockerFanOut): string[] {
+  const lines: string[] = []
   if (checkedOff.length > 0)
     lines.push(
       `Blockers: checked off in ${checkedOff.length} change(s): ${checkedOff.map((s) => `\`${s}\``).join(', ')}`,
     )
   for (const slug of nowUnblocked) lines.push(`Now unblocked: ${slug} → next: cospec apply ${slug}`)
-  process.stdout.write(`${lines.join('\n')}\n`)
-  printArchiveInputs(inputs)
-  return EXIT.success
+  return lines
+}
+
+function printBlockerFanOut(fanned: BlockerFanOut): void {
+  const lines = blockerFanOutLines(fanned)
+  if (lines.length > 0) process.stdout.write(`${lines.join('\n')}\n`)
+}
+
+/** An unchecked tracked task and the change-relative file it sits in. */
+interface IncompleteTask {
+  text: string
+  file: string
+}
+
+/**
+ * Every unchecked task across the files `trackedTaskFiles` resolves, in file
+ * order. A tracked file that vanished is no tasks, as the binary's
+ * `countTaskFile` reads it.
+ */
+function incompleteTrackedTasks(base: string, change: Change): IncompleteTask[] {
+  const canonicalDir = realpathSync(change.dir)
+  const out: IncompleteTask[] = []
+  for (const path of trackedTaskFiles(base, change)) {
+    let text: string
+    try {
+      text = readFileSync(path, 'utf8')
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') continue
+      throw error
+    }
+    const rel = path.startsWith(change.dir)
+      ? relative(change.dir, path)
+      : relative(canonicalDir, path)
+    const file = rel.split(sep).join('/')
+    for (const t of parseTasks(text).items) if (!t.checked) out.push({ text: t.text, file })
+  }
+  return out
 }
 
 interface VerifyState {

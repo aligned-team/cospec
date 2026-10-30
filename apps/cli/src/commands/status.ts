@@ -14,7 +14,10 @@ import {
   changeMetadataRefused,
   listSchemas,
   loadSchema,
+  readUnknownChangeMetadataKeys,
   schemaDir,
+  unknownMetadataKeysMessage,
+  UPSTREAM_UNKNOWN_KEYS_RE,
 } from '../core/change-metadata.ts'
 import {
   archiveDir,
@@ -56,6 +59,8 @@ import {
   computeGate,
   hasSpecFiles,
   isArchiveReady,
+  tasksCompleteGuidance,
+  tasksCompleteNext,
   type Gate,
 } from './apply.ts'
 
@@ -178,7 +183,29 @@ export interface SchemaWarning {
   message: string
 }
 
-export type ReadWarning = ArchiveWarning | TasksWarning | SchemaWarning
+/**
+ * `change/unknown-metadata-key`: top-level `.openspec.yaml` keys nothing reads
+ * (`readUnknownChangeMetadataKeys`). It replaces the binary's own
+ * `warnings[]` string for the same keys, which also names cospec's legacy stamp.
+ */
+export interface MetadataWarning {
+  code: 'unknown_metadata_key'
+  rule: 'change/unknown-metadata-key'
+  message: string
+}
+
+export type ReadWarning = ArchiveWarning | TasksWarning | SchemaWarning | MetadataWarning
+
+/** The unknown-key warning for a change, pushed onto `warnings` when it has such keys. */
+export function pushMetadataWarning(change: Change, warnings: ReadWarning[]): void {
+  const keys = readUnknownChangeMetadataKeys(change.dir)
+  if (keys.length === 0) return
+  warnings.push({
+    code: 'unknown_metadata_key',
+    rule: 'change/unknown-metadata-key',
+    message: `${change.id}: ${unknownMetadataKeysMessage(keys)}`,
+  })
+}
 
 const NO_TASKS: ParsedTasks = { items: [], malformed: [], groups: [] }
 
@@ -298,11 +325,18 @@ export function computeStatus(
     verdict: verification,
   })
 
-  const next = resolveNext(
+  const resolved = resolveNext(
     cospecStates(type, done, change.skipSpecs === true),
     applyRequires,
     change.id,
   )
+  // Every tracked task checked once the gate is reachable: verification is
+  // next, never archive (OpenSpec 1.15.0's apply guidance).
+  const tasksComplete = total > 0 && complete === total
+  const next =
+    tasksComplete && resolved === `cospec apply ${change.id}`
+      ? tasksCompleteNext(change.id)
+      : resolved
   return {
     change: change.id,
     type: change.schema,
@@ -336,7 +370,9 @@ function renderHuman(status: ChangeStatus): string {
       `  verification:  ${v.verified}/${v.total} verified, ${v.deferred} deferred, ${v.unresolved} unresolved`,
     )
   }
-  if (status.next !== undefined) lines.push(`Next: ${status.next}`)
+  if (status.next !== undefined && status.next === tasksCompleteNext(status.change))
+    lines.push(tasksCompleteGuidance(status.change, status.archiveReady))
+  else if (status.next !== undefined) lines.push(`Next: ${status.next}`)
   return `${lines.join('\n')}\n`
 }
 
@@ -451,6 +487,7 @@ export function buildChangeEntry(
   warnings: ReadWarning[] = [],
   verificationLayers?: ProjectLayers,
 ): ChangeEntry {
+  pushMetadataWarning(change, warnings)
   if (!isCospecType(change.schema)) return legacyChangeEntry(change, upstream)
   if (!hasAnyArtifact(change.dir)) return emptyChangeEntry(change, change.schema)
   return computeStatus(base, change, archived, warnings, verificationLayers)
@@ -856,7 +893,14 @@ function respellEntry(entry: unknown): unknown {
       }
     : {}
   const status = Array.isArray(entry.status) ? { status: respellDiagnostics(entry.status) } : {}
-  return { ...entry, ...steps, ...status }
+  const { warnings, ...rest } = entry
+  // The binary's unknown-key warning is cospec's `unknown_metadata_key` entry.
+  const kept = Array.isArray(warnings)
+    ? warnings.filter((w) => !(typeof w === 'string' && UPSTREAM_UNKNOWN_KEYS_RE.test(w)))
+    : warnings
+  const relayed =
+    kept === undefined || (Array.isArray(kept) && kept.length === 0) ? {} : { warnings: kept }
+  return { ...rest, ...relayed, ...steps, ...status }
 }
 
 /** The binary's document, single or sweep, its remedies spelled through cospec. */
@@ -996,11 +1040,15 @@ async function status(ctx: CommandContext): Promise<number> {
     const upstream = await delegatedStatus(root, ['--change', change.id, ...schemaArgs(override)])
     const failure = upstreamFailure(upstream)
     const entry = legacyChangeEntry(change, upstream)
+    const metadataWarnings: ReadWarning[] = []
+    pushMetadataWarning(change, metadataWarnings)
     if (flags.json) {
-      process.stdout.write(`${JSON.stringify(mergedEntry(root, entry, upstream), null, 2)}\n`)
+      const doc = mergedEntry(root, { ...entry, ...warningsKey(metadataWarnings) }, upstream)
+      process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`)
     } else if (failure !== undefined) {
       for (const s of failure) process.stderr.write(`cospec status: ${s.message}\n`)
     } else {
+      printWarnings(metadataWarnings)
       process.stdout.write(renderUpstreamHuman(upstream, entry.next))
     }
     return failure === undefined ? EXIT.success : EXIT.failure

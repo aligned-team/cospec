@@ -1,0 +1,25 @@
+{
+  "name": "@aligned-team/cospec-win32-arm64",
+  "version": "0.11.2",
+  "description": "The cospec standalone binary for win32 arm64. Installed automatically as an optional dependency of @aligned-team/cospec; not used directly.",
+  "homepage": "https://github.com/aligned-team/cospec",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aligned-team/cospec.git",
+    "directory": "apps/cli/npm/win32-arm64"
+  },
+  "files": [
+    "bin/cospec.exe",
+    "THIRD-PARTY-LICENSES.md"
+  ],
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:1d4f54560356771c3d882b3489da29e70abbc248990a1ffc49500d01b579e061
+  contentHash: sha256:69a6350022266dd121571d2488bcc5231ad176883e37cab3e59601e957cbc9c8
 ---
 
 Archive a batch of completed changes, one at a time, in dependency order. Every
@@ -106,8 +106,16 @@ For each selected change, run
 cospec status --change "<slug>" --json
 ```
 
-and read its artifact states, its tasks file, and its delta specs from
-`artifactPaths.specs` (the existing output paths). Each delta spec's
+and read its artifact states and its delta specs from `artifactPaths.specs`
+(the existing output paths). For task progress, run `cospec list --json` once
+for the batch and find each selected change's `changes` entry by exact `name`:
+incomplete tasks are `totalTasks - completedTasks`, counted over every file the
+change's schema tracks, and a `totalTasks` of zero reads "No tasks". Do not
+infer completion from artifact status or from whether a top-level `tasks.md`
+exists. If the lookup fails, returns invalid JSON, omits or duplicates a
+selected change, or returns counts that are not nonnegative integers with
+`completedTasks <= totalTasks`, report the problem and stop before archiving
+any of the batch. Each delta spec's
 `<capability-path>` is its path relative to the change's `specs/`; its
 requirement names are its `### Requirement: <name>` lines. A change with no
 `specs` entry, or an empty list, has no delta specs — never infer deltas from
@@ -243,6 +251,10 @@ not understand:
 - Incomplete tasks block the archive — finish them, or re-run with
   `--force-incomplete` only after the user confirms the remaining tasks are
   intentionally abandoned.
+- A blocking condition in the spec merge (for example a capability retirement it
+  could not complete) is a failed sync: that change stays in place with nothing
+  moved. Record it as Failed with the condition, never finish its move by hand,
+  and continue with the next change.
 - A cross-change collision step 4 missed (two changes in the batch add the same
   spec requirement) is caught by the later archive's own spec guard,
   `archive/added-exists`. Resolve it as step 5 does, by editing that change's

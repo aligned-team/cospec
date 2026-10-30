@@ -5,15 +5,12 @@
 ### Requirement: Recognized change metadata keys
 
 `.openspec.yaml`'s `skip_specs` and `retire_capabilities` keys SHALL be
-recognized boolean members of the loaded change metadata, exposed to commands
-and rules rather than silently ignored as unknown keys. A non-boolean value for
-either key SHALL be an ERROR naming the key. A key beginning with a lowercase
-`x-` followed by at least one character SHALL be user extension metadata and
-never reported. cospec's own `schemaVersion` key and every key the pinned
-binary's change-metadata schema recognizes SHALL count as recognized, and no
-`schemaVersion` warning from the delegated binary SHALL turn a cospec verdict or
-a delegated archive red. Any other unrecognized key SHALL still load but be
-named as a WARNING by `status`, `validate`, and `archive`.
+recognized booleans in the loaded change metadata; a non-boolean value for
+either SHALL be an ERROR naming the key. A key of lowercase `x-` plus at least
+one character SHALL be extension metadata, never reported. `schemaVersion` and
+every key the pinned binary's metadata schema recognizes SHALL count as
+recognized. Any other key SHALL still load but be named as a WARNING by
+`status`, `validate`, and `archive`.
 
 #### Scenario: Keys load as booleans
 
@@ -44,3 +41,37 @@ named as a WARNING by `status`, `validate`, and `archive`.
   bare `x-` key
 - **THEN** the change still loads, `status`, `validate`, and `archive` name each
   key as ignored, and `cospec validate --strict` exits nonzero
+
+#### Scenario: A delegated schemaVersion warning turns nothing red
+
+- **WHEN** the delegated binary warns about a change's `schemaVersion` key
+- **THEN** neither the cospec verdict nor a delegated archive fails because of
+  that warning
+
+### Requirement: retire_capabilities and the post-archive spot check
+
+`cospec archive`'s post-archive spot check SHALL treat a capability whose living
+`spec.md` the wrapped archive removed as an intentional retirement when the
+change declares `retire_capabilities: true` and its deltas remove the
+capability's last requirement; cospec SHALL then neither report the capability
+missing nor print its invariant-breach "please file a bug" message. Without the
+marker, cospec SHALL relay the wrapped binary's refusal unchanged.
+
+#### Scenario: Declared retirement archives cleanly
+
+- **WHEN** a change whose `REMOVED` delta takes a capability's last requirement
+  declares `retire_capabilities: true` and is archived
+- **THEN** `cospec archive` succeeds and prints no invariant-breach message for
+  the retired capability
+
+#### Scenario: Undeclared retirement relays the wrapped refusal
+
+- **WHEN** the same change is archived without the marker
+- **THEN** cospec relays the wrapped binary's refusal and does not claim a
+  cospec/openspec invariant breach
+
+#### Scenario: Spot check still catches a real miss
+
+- **WHEN** a `MODIFIED` delta names a requirement absent from the living spec
+  after archive, on a capability that was not retired
+- **THEN** the spot check reports the miss exactly as it does today

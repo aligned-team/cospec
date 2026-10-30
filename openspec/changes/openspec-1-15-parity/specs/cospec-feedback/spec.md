@@ -4,14 +4,12 @@
 
 ### Requirement: Feedback files against cospec's own tracker by default
 
-`cospec feedback "<message>" [--body <text>]` SHALL file against
-`aligned-team/cospec`, never OpenSpec's tracker, titled `Feedback: <message>`
-(whitespace collapsed, grapheme-safe truncation at 72). The body SHALL use the
-headings of `.github/ISSUE_TEMPLATE/bug_report.yml`, carrying `--body` as
-details and stating that reproduction steps are missing, plus a footer naming
-cospec version, OpenSpec source and version, platform, and ISO timestamp.
-Submission SHALL use `gh issue create` with array argv, `shell: false`, and no
-`--label`.
+`cospec feedback "<message>" [--body <text>]` SHALL file at
+`aligned-team/cospec`, not OpenSpec's tracker, titled `Feedback: <message>`
+(whitespace collapsed, grapheme-safe cut at 72). The body SHALL use the
+`.github/ISSUE_TEMPLATE/bug_report.yml` headings, carry `--body` as details, say
+reproduction steps are missing, and end with an environment footer. Submission
+SHALL use `gh issue create`, array argv, `shell: false`, no `--label`.
 
 #### Scenario: Title truncation is grapheme-safe
 
@@ -38,6 +36,12 @@ Submission SHALL use `gh issue create` with array argv, `shell: false`, and no
 - **WHEN** an issue body is generated without reproduction steps
 - **THEN** its sections are the bug form's headings in order and the
   reproduction section says the steps are missing
+
+#### Scenario: The footer names the environment
+
+- **WHEN** an issue body is generated
+- **THEN** its footer names the cospec version, the OpenSpec source and version,
+  the platform, and an ISO timestamp
 
 ### Requirement: Missing or unauthenticated gh is a supported path, not a failure
 
@@ -67,3 +71,32 @@ with gh's status, or 1 when gh reports none.
 - **THEN** stdout is exactly one JSON document carrying `version`, `command`, a
   `submitted` boolean, a `url` that is a string or null, the `title`, and a
   `repo` of `aligned-team/cospec`
+
+### Requirement: Upstream feedback is an explicit, version-asserted verbatim relay
+
+`cospec feedback --upstream` SHALL relay the invocation to the wrapped
+`openspec feedback`, which files at `Fission-AI/OpenSpec`, after one stderr note
+naming that destination. The relay SHALL assert the wrapped binary's version,
+spawn it piped, and relay stdout, stderr, and exit code verbatim. It SHALL
+declare no `expect.exitCodes` allow-list — the documented exception, since
+upstream propagates gh's arbitrary exit status.
+
+#### Scenario: The destination is named before relaying
+
+- **WHEN** `cospec feedback --upstream "<message>"` runs
+- **THEN** a stderr note states that the issue is being filed at
+  `Fission-AI/OpenSpec` rather than `aligned-team/cospec`, and the wrapped
+  `openspec feedback` is invoked
+
+#### Scenario: The child's exit code survives the relay
+
+- **WHEN** the wrapped `openspec feedback` exits with a code the shared
+  passthrough allow-list would reject
+- **THEN** `cospec feedback --upstream` exits with exactly that code and relays
+  the wrapped stdout and stderr unchanged
+
+#### Scenario: The upstream relay needs no terminal
+
+- **WHEN** `cospec feedback --upstream "<message>"` runs with no TTY attached
+- **THEN** the wrapped `openspec feedback` is spawned piped, prompts for
+  nothing, and its `gh auth status` check still runs

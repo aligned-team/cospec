@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@test
-  contentHash: sha256:c7662755f6f3b41cc0d35787704b0390c4f4c7f24cd5da5a44a5d9020c2de1c6
+  contentHash: sha256:8b0a369418d8566478c6afc3e25e6d63f52d9f5ad8622d515cb6b53fa57f35be
 ---
 
 Investigate a question about the codebase, a spec, or a proposed change — in
@@ -144,6 +144,12 @@ not re-ask for what they just asked for, and do ask before anything beyond it.
 This holds only when the request is theirs. A "yes" to an offer you made
 confirms only the scope your offer named, so name the change and the artifacts
 in the offer.
+
+Offer only artifacts the change's type defines — read them from
+`cospec status --change <slug> --json` (`artifactPaths`) once the change
+exists. Capture each insight in whichever of those artifacts fits it and name
+that artifact in your offer; never offer or create a file, such as `design.md`
+or a `specs/` delta, that the type does not have.
 
 Every other confirmation covers only the scope you described. Ask again before
 widening it. Answering a design or clarifying question is never consent to

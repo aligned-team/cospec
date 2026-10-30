@@ -1,0 +1,97 @@
+#!/usr/bin/env -S usage bash
+# shellcheck shell=bash
+#USAGE name "release:flake-pin"
+#USAGE arg "<version>" help="Released cospec version to pin the Nix flake to (e.g. 0.12.0)"
+#USAGE flag "--sums <file>" help="Read this SHA256SUMS instead of downloading it from the GitHub release"
+#USAGE flag "--root <root>" help="Repo root to write nix/release.json under (default: this repo)"
+
+# Pins the Nix flake (flake.nix → nix/release.json) to one published release:
+# the version plus, per Nix system, the release archive name and its SHA-256
+# taken verbatim from the release's SHA256SUMS. The flake's fetchurl calls use
+# these hashes, so `nix build` refuses any archive that differs from what the
+# release published.
+#
+# Run by release.yml's `pin-flake` job after a release is live; also runnable by
+# hand (`mise run release:flake-pin -- 0.12.0`). Idempotent.
+
+set -euo pipefail
+
+VERSION=""
+SUMS=""
+ROOT=""
+PREV=""
+for arg in "$@"; do
+  if [[ -n "$PREV" ]]; then
+    case "$PREV" in
+      --sums) SUMS="$arg" ;;
+      --root) ROOT="$arg" ;;
+    esac
+    PREV=""
+    continue
+  fi
+  case "$arg" in
+    --sums | --root) PREV="$arg" ;;
+    --sums=*) SUMS="${arg#--sums=}" ;;
+    --root=*) ROOT="${arg#--root=}" ;;
+    -*)
+      echo "ERROR: unknown flag: $arg" >&2
+      exit 2
+      ;;
+    *)
+      if [[ -z "$VERSION" ]]; then
+        VERSION="${arg#v}"
+      else
+        echo "ERROR: unexpected extra argument: $arg" >&2
+        exit 2
+      fi
+      ;;
+  esac
+done
+
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+  echo "ERROR: '$VERSION' is not a release semver (e.g. 0.12.0)" >&2
+  exit 2
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="${ROOT:-$(cd "$SCRIPT_DIR/../../.." && pwd)}"
+OUT="$ROOT/nix/release.json"
+
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+if [[ -z "$SUMS" ]]; then
+  SUMS="$TMP/SHA256SUMS"
+  curl -fsSL --proto '=https' -o "$SUMS" \
+    "https://github.com/aligned-team/cospec/releases/download/v${VERSION}/SHA256SUMS"
+fi
+
+# Nix system → release asset token. Linux uses the glibc build (the flake
+# patches its interpreter for the Nix store).
+declare -A ASSET=(
+  [x86_64-linux]="linux-x64"
+  [aarch64-linux]="linux-arm64"
+  [x86_64-darwin]="macos-x64"
+  [aarch64-darwin]="macos-arm64"
+)
+
+ASSETS_JSON='{}'
+for system in aarch64-darwin aarch64-linux x86_64-darwin x86_64-linux; do
+  name="cospec-${VERSION}-${ASSET[$system]}.tar.gz"
+  hash="$(awk -v n="$name" '{ f = $2; sub(/^\*/, "", f) } f == n { print $1 }' "$SUMS")"
+  if [[ ! "$hash" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "ERROR: $name has no SHA-256 in SHA256SUMS" >&2
+    exit 1
+  fi
+  ASSETS_JSON="$(jq --arg s "$system" --arg n "$name" --arg h "$hash" \
+    '.[$s] = { name: $n, sha256: $h }' <<<"$ASSETS_JSON")"
+done
+
+mkdir -p "$(dirname "$OUT")"
+jq -n --indent 2 --arg v "$VERSION" --argjson a "$ASSETS_JSON" \
+  '{ version: $v, assets: $a }' >"$TMP/release.json"
+if [[ -f "$OUT" ]] && cmp -s "$TMP/release.json" "$OUT"; then
+  echo "  unchanged: nix/release.json ($VERSION)"
+else
+  mv "$TMP/release.json" "$OUT"
+  echo "  updated:   nix/release.json ($VERSION)"
+fi

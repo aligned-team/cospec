@@ -488,5 +488,9 @@ Two boolean keys, recognized on `LoadedChange.openspecYaml`:
   archive-time behavior this key unlocks.
 
 A key present but not a boolean is `meta/skip-specs-type` /
-`meta/retire-capabilities-type` (E). A delta at `specs/spec.md` (no capability
-directory) is `deltas/spec-at-specs-root` (E).
+`meta/retire-capabilities-type` (E). A key starting with a lowercase `x-` is
+extension metadata — cospec's own stamp, `x-cospec-schema-version`, is one — and
+every other unrecognized key is `change/unknown-metadata-key` (W); see the
+[registry](https://cospec.aligned.team/reference/validation-rules#meta) for the
+exact rule. A delta at `specs/spec.md` (no capability directory) is
+`deltas/spec-at-specs-root` (E).

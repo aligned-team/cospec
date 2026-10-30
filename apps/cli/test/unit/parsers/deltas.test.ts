@@ -1,9 +1,14 @@
 import { describe, expect, test } from 'bun:test'
+import { join } from 'node:path'
 
 import {
+  describeScenarioBalance,
+  describeUnappliedContent,
   findScenarioDrops,
+  findUnappliedContent,
   foldRequirementName,
   type LivingSpec,
+  type UnappliedContent,
   maskHtmlComments,
   normalizeBlockRaw,
   normalizeRequirementName,
@@ -15,6 +20,7 @@ import {
   scenarioDropMessage,
   scenarioNameFromHeader,
 } from '../../../src/core/deltas.ts'
+import { openspecPackageDir } from '../../../src/core/openspec.ts'
 
 describe('parseDeltaSpec', () => {
   test('parses an ADDED requirement with SHALL and a scenario', () => {
@@ -261,6 +267,9 @@ The system SHALL render.
         deltaCount: 1,
         livingCount: 2,
         missingNames: ['b'],
+        introducedNames: [],
+        deltaNameCount: 1,
+        livingNameCount: 2,
         noted: false,
       },
     ])
@@ -299,6 +308,9 @@ The system SHALL render.
         deltaCount: 1,
         livingCount: 2,
         missingNames: ['b'],
+        introducedNames: [],
+        deltaNameCount: 1,
+        livingNameCount: 2,
         noted: true,
       },
     ])
@@ -404,6 +416,9 @@ The system SHALL render.
         deltaCount: 2,
         livingCount: 2,
         missingNames: ['b'],
+        introducedNames: ['c'],
+        deltaNameCount: 2,
+        livingNameCount: 2,
         noted: false,
       },
     ])
@@ -444,6 +459,9 @@ The system SHALL render.
         deltaCount: 3,
         livingCount: 2,
         missingNames: ['b'],
+        introducedNames: ['c', 'd'],
+        deltaNameCount: 3,
+        livingNameCount: 2,
         noted: false,
       },
     ])
@@ -479,6 +497,9 @@ The system SHALL render.
         deltaCount: 2,
         livingCount: 2,
         missingNames: ['b'],
+        introducedNames: ['B'],
+        deltaNameCount: 2,
+        livingNameCount: 2,
         noted: false,
       },
     ])
@@ -546,6 +567,9 @@ The system SHALL render.
         deltaCount: 3,
         livingCount: 3,
         missingNames: ['a'],
+        introducedNames: ['c'],
+        deltaNameCount: 3,
+        livingNameCount: 3,
         noted: false,
       },
     ])
@@ -620,23 +644,74 @@ The system SHALL render.
         deltaCount: 1,
         livingCount: 2,
         missingNames: [],
+        introducedNames: [],
+        deltaNameCount: 1,
+        livingNameCount: 1,
         noted: false,
       },
     ])
     // With no names to print, the message keeps its original count wording.
     expect(scenarioDropMessage(drops[0]!)).toBe(
-      'MODIFIED "Widget rendering" drops scenario count from 2 to 1',
+      'MODIFIED "Widget rendering" drops scenario count from 2 to 1. The modified block has 1 scenario; the current spec has 1 scenario. It adds none.',
     )
   })
 })
 
 describe('scenarioDropMessage', () => {
-  const base = { capability: 'widgets', name: 'Widget rendering', noted: false }
+  const base = {
+    capability: 'widgets',
+    name: 'Widget rendering',
+    noted: false,
+    introducedNames: [] as string[],
+    deltaNameCount: 2,
+    livingNameCount: 2,
+  }
 
   test('names every dropped scenario and keeps the living/delta counts', () => {
     expect(
-      scenarioDropMessage({ ...base, deltaCount: 2, livingCount: 3, missingNames: ['a', 'b'] }),
-    ).toBe('MODIFIED "Widget rendering" drops scenario(s) "a", "b" (living 3 -> delta 2)')
+      scenarioDropMessage({
+        ...base,
+        deltaCount: 2,
+        livingCount: 3,
+        missingNames: ['a', 'b'],
+        livingNameCount: 3,
+      }),
+    ).toBe(
+      'MODIFIED "Widget rendering" drops scenario(s) "a", "b" (living 3 -> delta 2). The modified block has 2 scenarios; the current spec has 3 scenarios. It adds none.',
+    )
+  })
+
+  // 1.14.2's scenario balance: a rename reads as a rename.
+  test('a rename names the omitted and introduced scenario with both counts', () => {
+    expect(
+      scenarioDropMessage({
+        ...base,
+        deltaCount: 1,
+        livingCount: 1,
+        missingNames: ['Old'],
+        introducedNames: ['New'],
+        deltaNameCount: 1,
+        livingNameCount: 1,
+      }),
+    ).toBe(
+      'MODIFIED "Widget rendering" drops scenario(s) "Old" (living 1 -> delta 1). The modified block has 1 scenario; the current spec has 1 scenario. It adds 1 scenario not in the current spec: "New".',
+    )
+  })
+
+  test('at most three introduced scenarios are named, the rest counted', () => {
+    expect(
+      describeScenarioBalance({
+        ...base,
+        deltaCount: 5,
+        livingCount: 1,
+        missingNames: ['a'],
+        introducedNames: ['b', 'c', 'd', 'e', 'f'],
+        deltaNameCount: 5,
+        livingNameCount: 1,
+      }),
+    ).toBe(
+      'The modified block has 5 scenarios; the current spec has 1 scenario. It adds 5 scenarios not in the current spec: "b", "c", "d" and 2 more.',
+    )
   })
 
   // The prefix `validate.ts` keys its delegated-duplicate suppressor on.
@@ -1841,7 +1916,9 @@ describe('bodyless scenario headers', () => {
     // The name arm sees both names on both sides; the count arm is what refuses.
     expect(drops).toHaveLength(1)
     expect(drops[0]!.missingNames).toEqual([])
-    expect(scenarioDropMessage(drops[0]!)).toBe('MODIFIED "X" drops scenario count from 2 to 1')
+    expect(scenarioDropMessage(drops[0]!)).toBe(
+      'MODIFIED "X" drops scenario count from 2 to 1. The modified block has 2 scenarios; the current spec has 2 scenarios. It adds none.',
+    )
   })
 
   test('a delta reproducing a bodyless living header is not a phantom loss', () => {
@@ -2198,5 +2275,66 @@ describe('parseLivingSpec: two views of one scan', () => {
     expect(spec.archive.structureIssues).toEqual([
       { kind: 'delta-header', line: 24, name: '## REMOVED Requirements' },
     ])
+  })
+})
+
+// openspec 1.14.2's `findUnappliedContent`: text the archive's merge never reads.
+describe('findUnappliedContent', () => {
+  const REQ =
+    '### Requirement: R\n\nThe system SHALL r.\n\n#### Scenario: s\n\n- **WHEN** a\n- **THEN** b\n'
+
+  test('a foreign section with prose is reported at its header', () => {
+    const found = findUnappliedContent(`## ADDED Requirements\n\n${REQ}\n## Notes\n\nSome prose.\n`)
+    expect(found).toEqual([{ section: 'Notes', line: 12 }])
+    expect(describeUnappliedContent(found[0]!, true)).toBe('Section "## Notes"')
+  })
+
+  test('a preamble above the first section is reported; a `# ` title is not', () => {
+    expect(
+      findUnappliedContent(`# Title\n\nIntro text.\n\n## ADDED Requirements\n\n${REQ}`),
+    ).toEqual([{ section: null, line: 3 }])
+    expect(findUnappliedContent(`# Title\n\n## ADDED Requirements\n\n${REQ}`)).toEqual([])
+  })
+
+  test('prose before the first ADDED/MODIFIED requirement is reported; a stray ### is not', () => {
+    expect(findUnappliedContent(`## MODIFIED Requirements\n\nWhy.\n\n${REQ}`)).toEqual([
+      { section: 'MODIFIED Requirements', line: 3 },
+    ])
+    expect(findUnappliedContent(`## ADDED Requirements\n\n### Divider\n\n${REQ}`)).toEqual([])
+  })
+
+  test('comments, an empty foreign section, a visible Purpose and REMOVED bodies are not', () => {
+    expect(
+      findUnappliedContent(
+        `<!-- note -->\n## Purpose\n\nWhy.\n\n## Empty\n\n## ADDED Requirements\n\n<!-- aside -->\n${REQ}\n## REMOVED Requirements\n\n- \`### Requirement: Old\`\n\n**Reason**: gone\n`,
+      ),
+    ).toEqual([])
+  })
+
+  test("every fixture answers as the pinned binary's parseDeltaSpec", async () => {
+    const upstream = (await import(
+      join(openspecPackageDir(), 'dist/core/parsers/requirement-blocks.js')
+    )) as { parseDeltaSpec: (text: string) => { unappliedContent: UnappliedContent[] } }
+    for (const text of [
+      `## ADDED Requirements\n\n${REQ}\n## Notes\n\nSome prose.\n`,
+      `# Title\n\nIntro text.\n\n## ADDED Requirements\n\n${REQ}`,
+      `## MODIFIED Requirements\n\nWhy.\n\n${REQ}`,
+      `## ADDED Requirements\n\n### Divider\n\n${REQ}`,
+      `<!-- note -->\n## Purpose\n\nWhy.\n\n## Empty\n\n## ADDED Requirements\n\n<!-- aside -->\n${REQ}`,
+      `<!--\n## Purpose\n-->\nWhy.\n\n## ADDED Requirements\n\n${REQ}`,
+      `## ADDED Requirements\n\n\`\`\`\n## Fenced\n\`\`\`\n${REQ}`,
+      `\uFEFFIntro\r\n## ADDED Requirements\r\n\r\n${REQ}`,
+      'No sections at all.\n',
+      '',
+    ])
+      expect({ text, found: findUnappliedContent(text) }).toEqual({
+        text,
+        found: upstream.parseDeltaSpec(text).unappliedContent,
+      })
+  })
+
+  test('a CRLF delta reports the same lines as its LF form', () => {
+    const lf = `## ADDED Requirements\n\n${REQ}\n## Notes\n\nSome prose.\n`
+    expect(findUnappliedContent(lf.replace(/\n/g, '\r\n'))).toEqual(findUnappliedContent(lf))
   })
 })

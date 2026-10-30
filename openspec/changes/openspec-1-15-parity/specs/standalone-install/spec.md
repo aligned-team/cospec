@@ -49,3 +49,15 @@ The repository SHALL expose a Nix flake with `packages.default` and
 - **WHEN** a flake applies `cospec.overlays.default`
 - **THEN** `pkgs.cospec` is available and `cospec --version` matches the flake's
   pinned release
+
+### Requirement: Install command runs the release installer
+
+`cospec install [version]` SHALL download the release's `install.sh` (or
+`install.ps1` on Windows) and run it with `COSPEC_VERSION` and
+`COSPEC_INSTALL_DIR` passed through, so it is reachable wherever OpenSpec
+1.15.0's `install` command is.
+
+#### Scenario: Pinned install
+
+- **WHEN** a user runs `cospec install 0.12.0`
+- **THEN** the release installer runs with `COSPEC_VERSION=0.12.0`

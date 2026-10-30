@@ -25,7 +25,7 @@ cospec adds typed schemas, a real gate, and a verified archive on top.
 cospec accepts OpenSpec **`>=1.0.0 <2.0.0`** at runtime — that range is asserted
 the first time cospec calls out to it in a process, and an out-of-range binary
 is refused outright. cospec's own dev and CI pin one exact build inside that
-range, **`1.13.1`**, which is the version its contract test suite runs against.
+range, **`1.15.0`**, which is the version its contract test suite runs against.
 Those two numbers are meant to drift apart over time (the accepted range is
 wide; the pin is narrow and load-bearing, and the floor is deliberately not
 raised just because the pin moved) but never to fall out of sync with each other
@@ -94,6 +94,17 @@ and the current pin:
   text — passes `openspec validate` and aborts `openspec archive`. cospec
   rebuilds the spec the same way and runs the same validation, so
   `archive/rebuilt-spec-invalid` refuses those changes at validate time instead.
+- **From 1.14.0, an unknown `.openspec.yaml` key is a warning** and a key with a
+  lowercase `x-` prefix is extension metadata. cospec reports the same keys as
+  `change/unknown-metadata-key`, so `cospec validate --strict` fails on them as
+  `openspec validate --strict` does, and it stamps its own schema version as
+  `x-cospec-schema-version` so bare OpenSpec never flags a cospec change (see
+  [Schema versioning](/concepts/types-and-artifacts#schema-versioning-and-grandfathering)).
+- **From 1.14.1, a `## Workflow follow-up` section in `tasks.md` is not tracked
+  and a requirement over 500 characters is a strict-mode warning.** cospec's
+  task parser and its `specs/requirement-too-long` rule follow suit, so
+  `cospec apply`, `cospec archive` and the delegated archive reach the same
+  verdict (see [Validation rules](/reference/validation-rules)).
 
 ## cospec is an opinionated implementation of OpenSpec
 
@@ -143,13 +154,22 @@ mechanics and the full split of what each CLI owns.
 Every OpenSpec capability has a cospec counterpart — a passthrough, a mirror, or
 an improved version — so any OpenSpec user can switch with zero regressions: the
 change lifecycle, `store`/`context`/`workset`, `show`/`view`/`schemas`/`schema`/
-`templates`, the machine-global `config` (`cospec config <sub>`), native shell
-`completion`, and `feedback`. `init` and `update` stay cospec-native by design —
-passing them through would write the opsx files cospec's own leftover scan flags
-— so there is never a reason to call bare `openspec`. See
+`templates`, `list --archived`/`--all`, `version`, the machine-global `config`
+(`cospec config <sub>`), native shell `completion`, and `feedback`. `init` and
+`update` (`--dry-run` included) stay cospec-native by design — passing them
+through would write the opsx files cospec's own leftover scan flags — so there
+is never a reason to call bare `openspec`. See
 [Configuration](/reference/configuration#machine-global-openspec-config) for
 `config`, and [Installation](/guide/installation#shell-completion) for
 `completion`.
+
+Where cospec owns the facts, its counterpart reports more than upstream's:
+`view` is a native dashboard that adds each change's gate state,
+verification-ledger progress and archive readiness; `version` reports cospec and
+the wrapped OpenSpec (embedded or package) in one document; each
+`list --archived` row carries its commit type and archive date; and each
+`update --dry-run` entry names its harness row and the reason. See
+[Commands](/reference/commands) for each.
 
 <script setup>
 import { data as parity } from '../.vitepress/parity.data.ts'

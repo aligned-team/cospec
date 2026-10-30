@@ -3,7 +3,7 @@ description: Propose a new change and generate every artifact its type requires,
 metadata:
   author: cospec
   generatedBy: cospec@0.11.2
-  contentHash: sha256:90c88c30348b7aaba72a681a7797c19dbae0edd04dace9560b8286c99daf44ba
+  contentHash: sha256:a1c82f94d4f3199616e222840d411395a22c06192597cae79c5f900e89c2b538
 ---
 
 Propose a new openspec change and drive it to apply-ready in one pass — every
@@ -171,6 +171,11 @@ Loop until every artifact in the type's `apply.requires` is written:
 4. Write the artifact at the path the instructions name, following the format
    exactly. `blocking-changes.md`, the `specs/**/spec.md` deltas, and
    `verification.md` are machine-parsed — small deviations fail validation.
+   Choose the path before creating anything: when the named path is a glob,
+   choose a concrete path inside the change directory that matches it, and check
+   it stays there after resolving symlinks; if it does not, stop and tell the
+   user. If the `instruction` delegates creation to a skill or command, use it
+   only if it can write to that checked path.
 5. Repeat.
 
 For `blocking-changes.md`, scan the other active changes and the archive as the

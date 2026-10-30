@@ -4,54 +4,54 @@
     "kind": "command",
     "workflow": "apply",
     "harness": "kiro",
-    "contentHash": "sha256:beca9525bfb14e05457e411c750775c8c627bcb4f7a39dce5ece2f6606cd81bb",
-    "bytes": 6105,
-    "sha256": "e7189dc5ecfbcda518f5b2313b0d81d62306bb1b31a1d749b95428efde75ec31"
+    "contentHash": "sha256:cd03b86b4c63bd3088a00cf111bc5ec06a30de927d4c40e9072d38e222d5b3eb",
+    "bytes": 6329,
+    "sha256": "1c30aead1d7e5ff76334b49f3db72e4671b800e64cf5e1bfe9d728f5a897671d"
   },
   {
     "path": ".kiro/prompts/cospec-archive.prompt.md",
     "kind": "command",
     "workflow": "archive",
     "harness": "kiro",
-    "contentHash": "sha256:6a557cabdefacf87f0dc0d81af1a83adf0bb1395e8a03609dbcc9d7a78b9c4b2",
-    "bytes": 7184,
-    "sha256": "affd9177720ce314173baef94aa44dff7ad270c57514fa2848cc51d6dcb6d021"
+    "contentHash": "sha256:eb03158edfae964ba6662a16b94d5fdc388cf86b02be4ca2a18b73c728f338d8",
+    "bytes": 8338,
+    "sha256": "d45b62d4e482e8148b13f5d26ccf7e5eda1a8cda28bee55f5c4ca6daa60191cd"
   },
   {
     "path": ".kiro/prompts/cospec-bulk-archive.prompt.md",
     "kind": "command",
     "workflow": "bulk-archive",
     "harness": "kiro",
-    "contentHash": "sha256:1d4f54560356771c3d882b3489da29e70abbc248990a1ffc49500d01b579e061",
-    "bytes": 12458,
-    "sha256": "524433abcc5c6b5252b70d198d7801c4ffdde8f91d57cfaa220e66a32052db3f"
+    "contentHash": "sha256:69a6350022266dd121571d2488bcc5231ad176883e37cab3e59601e957cbc9c8",
+    "bytes": 13322,
+    "sha256": "5be0ec83071de4a10ffacc1485a1a1436b6e5d588b2ea9591a7114421e610653"
   },
   {
     "path": ".kiro/prompts/cospec-continue.prompt.md",
     "kind": "command",
     "workflow": "continue",
     "harness": "kiro",
-    "contentHash": "sha256:1982b017073af0ee9e2fcf93d1603cfba8d7e423647314f60ea1f6a383b1e399",
-    "bytes": 5048,
-    "sha256": "3c0f1b75dcef8c1f8fe1ba4822775fd809ce1a7b841140b2ec8a4c71c1be0fc9"
+    "contentHash": "sha256:531a28ebfd11763bf2e6fe4e3f04d0206da8191ec23e0d2b22be07324b513b3e",
+    "bytes": 6093,
+    "sha256": "014342bd10a7b43bd217c8d4d555e00f811bdece09b51d6de4fa0e7351c9624e"
   },
   {
     "path": ".kiro/prompts/cospec-explore.prompt.md",
     "kind": "command",
     "workflow": "explore",
     "harness": "kiro",
-    "contentHash": "sha256:59536b110e1ba0dce3a8ae4af609b8ef3027afe05d6a8da14315b008ba5f10b7",
-    "bytes": 9643,
-    "sha256": "d42c1e1bc6a23d6eab6c518f039da42c08eb15db28b678a6a85423e96fe09d0a"
+    "contentHash": "sha256:d5ccf8e47a1ae1d9b9077e2e90eed5afbf260101343aabb9cc56e531e704265e",
+    "bytes": 9990,
+    "sha256": "32dcee1edd730cf3f25cd2a92989328dacf136cc1f836be9ccce256d77d16aeb"
   },
   {
     "path": ".kiro/prompts/cospec-ff.prompt.md",
     "kind": "command",
     "workflow": "ff",
     "harness": "kiro",
-    "contentHash": "sha256:fd181273cbfd35a43472a5ce82adf8ecb551ca214128814431908827d90c9878",
-    "bytes": 7369,
-    "sha256": "1316e74d1790c9a22cd82307ffaf248756d86589cf5d8494cbd2083987da4fa4"
+    "contentHash": "sha256:45677d9ea78ac10ec4888b5704df01bd6334dd09164a060fe335864a75943eb3",
+    "bytes": 7923,
+    "sha256": "5e9220e570bb935eebf70937fefdd64b3506df911b5c3f123a3946a66d615d55"
   },
   {
     "path": ".kiro/prompts/cospec-new.prompt.md",
@@ -67,18 +67,18 @@
     "kind": "command",
     "workflow": "onboard",
     "harness": "kiro",
-    "contentHash": "sha256:d24bce8be6c66e266d4f5e83ab8d4ff054e4d5fa3df1190569490385bb49eea1",
-    "bytes": 5754,
-    "sha256": "fdf87fcde0d02a6002ca2528fcc60c1acaefd6422c921616f9d8badbea5f8de2"
+    "contentHash": "sha256:82bce48a4578c0133c9a152200160994493756ea909e61b5b4f12912ee86465d",
+    "bytes": 6167,
+    "sha256": "2599ba3b79979cf367765f0ca36a51c3010a316fd597825610a6c9a9b787f953"
   },
   {
     "path": ".kiro/prompts/cospec-propose.prompt.md",
     "kind": "command",
     "workflow": "propose",
     "harness": "kiro",
-    "contentHash": "sha256:e1d4365c02f4cdf229e041faee431076055a12cccd565940846c40987a4500b4",
-    "bytes": 10249,
-    "sha256": "c6868d2dd58fbef21baa1e51da200d4fe9074cdd65ff23aa4e6e6f07cfb1a051"
+    "contentHash": "sha256:01d95f06409f0c2be3dd83454a1ebb9a5251269282c2d4e4d013c133bd7d2dd8",
+    "bytes": 10609,
+    "sha256": "9aa12c2169f4d75a2420dba18ccdc717b48ded66be209be04a32c4e18ee95118"
   },
   {
     "path": ".kiro/prompts/cospec-sync-specs.prompt.md",
@@ -94,72 +94,72 @@
     "kind": "command",
     "workflow": "update",
     "harness": "kiro",
-    "contentHash": "sha256:387d8cfcde216c42a943f9eec1e378f5b1728c4a5ed8a13ee693b55bdd2c64ac",
-    "bytes": 6823,
-    "sha256": "146e0632355cabb08e8c252da880d0c006aa6f21137187bf71a11664bd30b5f6"
+    "contentHash": "sha256:5400252751e6cbdb1d01f2f81a6f82ab1dd3e9f60a87f1cac15a6db06701415d",
+    "bytes": 8322,
+    "sha256": "ea82ce5e6e13aa25d7fdd627ad05d7091d5c248562adebd8b2c82e6f180e3627"
   },
   {
     "path": ".kiro/prompts/cospec-verify.prompt.md",
     "kind": "command",
     "workflow": "verify",
     "harness": "kiro",
-    "contentHash": "sha256:7e43ab522cae4feec756cdaa997e23255cf5f418cfdebbea8d03bb13771a1fde",
-    "bytes": 5246,
-    "sha256": "da8aba23c4bfd4f27503446b009c6e1b0bd6e8b8c2ffac02da416d5433fd0d8c"
+    "contentHash": "sha256:4a6bdd47ec9a00d80a6925c4a39d0527e78be868fff38ed637f85e04a8621c5a",
+    "bytes": 9403,
+    "sha256": "b0af2e7d0a8dd31f213d4836c72fe9fe1e6bae5c87c7652feb41a02379638e66"
   },
   {
     "path": ".kiro/skills/cospec-apply-change/SKILL.md",
     "kind": "skill",
     "workflow": "apply",
     "harness": "kiro",
-    "contentHash": "sha256:beca9525bfb14e05457e411c750775c8c627bcb4f7a39dce5ece2f6606cd81bb",
-    "bytes": 6207,
-    "sha256": "e32e2cc1d8f5f077e359ec717aa70aceb0c660b413caea6c98b647b3a59d3230"
+    "contentHash": "sha256:cd03b86b4c63bd3088a00cf111bc5ec06a30de927d4c40e9072d38e222d5b3eb",
+    "bytes": 6431,
+    "sha256": "1e7e88cae29a346d8927522c24605017f9c3549a535d56681c0088f3b24f137b"
   },
   {
     "path": ".kiro/skills/cospec-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "archive",
     "harness": "kiro",
-    "contentHash": "sha256:6a557cabdefacf87f0dc0d81af1a83adf0bb1395e8a03609dbcc9d7a78b9c4b2",
-    "bytes": 7288,
-    "sha256": "08d10110a8ed8a972faefbd3453b2835961012141075d7b992f7e7cc727a5cb8"
+    "contentHash": "sha256:eb03158edfae964ba6662a16b94d5fdc388cf86b02be4ca2a18b73c728f338d8",
+    "bytes": 8442,
+    "sha256": "dfd413c24d4ae89d95a00a2c6f5338c2d153dcc67ed30415fcc772d5bdf36576"
   },
   {
     "path": ".kiro/skills/cospec-bulk-archive-change/SKILL.md",
     "kind": "skill",
     "workflow": "bulk-archive",
     "harness": "kiro",
-    "contentHash": "sha256:1d4f54560356771c3d882b3489da29e70abbc248990a1ffc49500d01b579e061",
-    "bytes": 12567,
-    "sha256": "8cb56636ed828c18055dd33669a76b88f4ced8448a4f7606e86b97582569e83a"
+    "contentHash": "sha256:69a6350022266dd121571d2488bcc5231ad176883e37cab3e59601e957cbc9c8",
+    "bytes": 13431,
+    "sha256": "7ed7b7e026bffaa4fe193d260d3a5ba494d7a926473058c3ce515a90640e72f6"
   },
   {
     "path": ".kiro/skills/cospec-continue-change/SKILL.md",
     "kind": "skill",
     "workflow": "continue",
     "harness": "kiro",
-    "contentHash": "sha256:1982b017073af0ee9e2fcf93d1603cfba8d7e423647314f60ea1f6a383b1e399",
-    "bytes": 5153,
-    "sha256": "c8195d967a50b0b428e606c1fdd5c2a171448c6c178018d81bfbae118ae79252"
+    "contentHash": "sha256:531a28ebfd11763bf2e6fe4e3f04d0206da8191ec23e0d2b22be07324b513b3e",
+    "bytes": 6198,
+    "sha256": "0b8f6a1b04a938e82265382faa5024a90a4329fc8ca7aec08dc6ebf45019fa00"
   },
   {
     "path": ".kiro/skills/cospec-explore/SKILL.md",
     "kind": "skill",
     "workflow": "explore",
     "harness": "kiro",
-    "contentHash": "sha256:59536b110e1ba0dce3a8ae4af609b8ef3027afe05d6a8da14315b008ba5f10b7",
-    "bytes": 9740,
-    "sha256": "b440b63c121bc203adb78c224589b1d4fb0a95bb97bec41a5c3c2310ad42661f"
+    "contentHash": "sha256:d5ccf8e47a1ae1d9b9077e2e90eed5afbf260101343aabb9cc56e531e704265e",
+    "bytes": 10087,
+    "sha256": "9668130bb14bf44785ae9a246e6206f3b8339d6ffac6cc88f52bfa832bd32826"
   },
   {
     "path": ".kiro/skills/cospec-ff-change/SKILL.md",
     "kind": "skill",
     "workflow": "ff",
     "harness": "kiro",
-    "contentHash": "sha256:fd181273cbfd35a43472a5ce82adf8ecb551ca214128814431908827d90c9878",
-    "bytes": 7468,
-    "sha256": "fce656b5f175622387f6c90d67f6bfc177679d5f34ce1a08c5693b1f68265cbc"
+    "contentHash": "sha256:45677d9ea78ac10ec4888b5704df01bd6334dd09164a060fe335864a75943eb3",
+    "bytes": 8022,
+    "sha256": "f63c93d1ce5de3161e25cd1c14fd38eef7008f1446b8df900f417a1f6a9ed9ed"
   },
   {
     "path": ".kiro/skills/cospec-new-change/SKILL.md",
@@ -175,18 +175,18 @@
     "kind": "skill",
     "workflow": "onboard",
     "harness": "kiro",
-    "contentHash": "sha256:d24bce8be6c66e266d4f5e83ab8d4ff054e4d5fa3df1190569490385bb49eea1",
-    "bytes": 5851,
-    "sha256": "5244dda13ef7d82e35acd9e690876fe6919f90642da89aed568418ee8ad62cd0"
+    "contentHash": "sha256:82bce48a4578c0133c9a152200160994493756ea909e61b5b4f12912ee86465d",
+    "bytes": 6264,
+    "sha256": "360b3b9ed6eb98696b89cd3a0e879e68bfd6d8c81e3dc4d82e2317822d3c75c5"
   },
   {
     "path": ".kiro/skills/cospec-propose/SKILL.md",
     "kind": "skill",
     "workflow": "propose",
     "harness": "kiro",
-    "contentHash": "sha256:e1d4365c02f4cdf229e041faee431076055a12cccd565940846c40987a4500b4",
-    "bytes": 10346,
-    "sha256": "c5d4cfa790634e3766f59e045080e1585d05a953cf8a5887fccf75c7285268f1"
+    "contentHash": "sha256:01d95f06409f0c2be3dd83454a1ebb9a5251269282c2d4e4d013c133bd7d2dd8",
+    "bytes": 10706,
+    "sha256": "0cebe3c7214c7bdd09dd04a2db2ed925b4af79367d74ad52038fcdc761587a48"
   },
   {
     "path": ".kiro/skills/cospec-sync-specs/SKILL.md",
@@ -202,17 +202,17 @@
     "kind": "skill",
     "workflow": "update",
     "harness": "kiro",
-    "contentHash": "sha256:387d8cfcde216c42a943f9eec1e378f5b1728c4a5ed8a13ee693b55bdd2c64ac",
-    "bytes": 6926,
-    "sha256": "26e48327388fbb01f168e5cf01e78fbb03fa296a4462d1203579b29882fbb105"
+    "contentHash": "sha256:5400252751e6cbdb1d01f2f81a6f82ab1dd3e9f60a87f1cac15a6db06701415d",
+    "bytes": 8425,
+    "sha256": "ea5381d7c10f8a58bc690b4cafd845d8f469cad6e3826b75df04e741182c5551"
   },
   {
     "path": ".kiro/skills/cospec-verify-change/SKILL.md",
     "kind": "skill",
     "workflow": "verify",
     "harness": "kiro",
-    "contentHash": "sha256:7e43ab522cae4feec756cdaa997e23255cf5f418cfdebbea8d03bb13771a1fde",
-    "bytes": 5349,
-    "sha256": "67bcc9ace49574fd3e03998e9f54f7cedc2d7f731f6702e2051ebfb93a14029d"
+    "contentHash": "sha256:4a6bdd47ec9a00d80a6925c4a39d0527e78be868fff38ed637f85e04a8621c5a",
+    "bytes": 9506,
+    "sha256": "290c158980fdd42f104eba51654377ad25a602aeab3148ef71cac4e310106e9b"
   }
 ]

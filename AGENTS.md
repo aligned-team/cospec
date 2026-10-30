@@ -12,7 +12,7 @@ Claude-specific guidance.
 ## Project context
 
 cospec (conventional openspec) is an opinionated superset of, and drop-in
-replacement for, OpenSpec 1.13.1 that sizes the spec-driven workflow to your
+replacement for, OpenSpec 1.15.0 that sizes the spec-driven workflow to your
 conventional-commit type. `feat` gets the full treatment — proposal,
 blocking-changes, specs, verification, tasks; `refactor` additionally requires
 design; `ci`/`chore`/`docs` and their siblings take two minutes with three short
@@ -20,7 +20,7 @@ artifacts. It ships as `@aligned-team/cospec` with one bin, `cospec`.
 
 cospec is an opinionated implementation of OpenSpec, functionally a drop-in
 replacement with compatibility upheld: it wraps the real binary (resolved by
-path, never `$PATH`, accepting `>=1.0.0 <2.0.0`, pinned to 1.13.1 for dev/CI)
+path, never `$PATH`, accepting `>=1.0.0 <2.0.0`, pinned to 1.15.0 for dev/CI)
 and adds: 11 typed schemas that map 1:1 to the conventional-commit types, real
 change validation with stable rule IDs, a deterministic `apply` gate, a
 filesystem-verified `archive`, a machine-parsed `verification` evidence ledger
@@ -35,7 +35,7 @@ self-hosts: this repo's own `openspec/` tree is managed by cospec.
 | ------------- | ---------------------------------------------------------------- |
 | Runtime       | Bun 1.3                                                          |
 | Language      | TypeScript 7 via `@typescript/native-preview`; `tsgo --noEmit`   |
-| Wrapped tool  | `@fission-ai/openspec` 1.13.1 (pin; `>=1.0.0 <2.0.0` accepted)   |
+| Wrapped tool  | `@fission-ai/openspec` 1.15.0 (pin; `>=1.0.0 <2.0.0` accepted)   |
 | CLI           | `cospec` — Bun entry at `apps/cli/src/index.ts`                  |
 | Lint + format | oxlint + oxfmt (no ESLint, no Prettier)                          |
 | Git hooks     | hk (jdx/hk) via mise                                             |
@@ -170,7 +170,7 @@ to the current `schemaVersion`; `cospec doctor` lists changes still on v1.
 **Route through cospec** — all agent-facing OpenSpec access goes through the
 `cospec` CLI. Generated skills and this repo's docs never call bare `openspec`.
 The wrapped binary is spawned by resolved path and version-asserted to the
-accepted range `>=1.0.0 <2.0.0` (dev/CI pins 1.13.1). Every OpenSpec capability
+accepted range `>=1.0.0 <2.0.0` (dev/CI pins 1.15.0). Every OpenSpec capability
 has a cospec counterpart — a passthrough, a mirror, or an improved version — so
 any OpenSpec user can switch with zero regressions: the change lifecycle, plus
 `store` (`setup`/`register` auto-run `cospec init`), `context`, `workset`,
@@ -371,12 +371,13 @@ out-of-scope issues as a proposed follow-up, not a silent fix.
 **Dependencies** — pin exact versions in `package.json`; regenerate the lockfile
 after editing the manifest. The OpenSpec pin is load-bearing: bumping it means
 running the contract suite and re-probing before updating
-`EXPECTED_OPENSPEC_VERSION`, and moving the exact `fast-glob` devDependency to
-the version the new pin resolves (`core/glob.ts` ports the binary's glob
-matching over it; `test/contract/glob.test.ts` fails until they agree). Tool
-pins in `mise.toml` are lockfile-backed — bump a version and regenerate
-`mise.lock` in the same commit; CI's "mise lockfile drift gate" step
-(`mise install` then `git diff --exit-code mise.lock`) fails the PR otherwise.
+`EXPECTED_OPENSPEC_VERSION`, and moving the exact `tinyglobby`, `picomatch` and
+`brace-expansion` devDependencies to the versions the new pin resolves
+(`core/glob.ts` ports the binary's glob matching over them;
+`test/contract/glob.test.ts` fails until they agree). Tool pins in `mise.toml`
+are lockfile-backed — bump a version and regenerate `mise.lock` in the same
+commit; CI's "mise lockfile drift gate" step (`mise install` then
+`git diff --exit-code mise.lock`) fails the PR otherwise.
 
 **Tests** — every command change lands with a contract or integration test.
 Contract tests run the real pinned binary; a false archive PASS is a release

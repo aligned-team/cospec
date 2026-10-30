@@ -70,11 +70,12 @@ This design covers the constraints that shape how the work lands:
    post-processing upstream's text dashboard. That means respelling free text,
    which `remedies.ts` forbids, and it cannot add columns safely.
 
-4. **The `## Workflow follow-up` exclusion is a port, proven by differential.**
-   `core/tasks.ts` ports the binary's section rule. A differential test runs
-   both parsers over a fixture matrix (follow-up first, last, repeated, nested
-   `###`, fenced). A disagreement is a false PASS or BLOCK at archive, so the
-   test is a release gate.
+4. **Task counts stay the binary's, proven by differential.** The 1.15.0 binary
+   counts every checkbox; 1.14.1 keeps post-archive steps out of the count by
+   writing them as plain bullets under `## Workflow follow-up`, not by a parser
+   rule. cospec's parser is unchanged and a differential test runs both parsers
+   over a fixture matrix that includes that section. A disagreement is a false
+   PASS or BLOCK at archive, so the test is a release gate.
 
 5. **New rules use stable IDs.** The document rules `specs/requirement-too-long`
    and `deltas/dropped-text` register in `rules/views.ts` on the verbatim view

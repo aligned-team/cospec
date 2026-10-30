@@ -90,7 +90,7 @@ describe('cospec view', () => {
     const repo = seedRepo()
     const res = await cospec(['view'], { cwd: repo })
     expect(res.exitCode).toBe(0)
-    expect(res.stdout).toContain('OpenSpec Dashboard')
+    expect(res.stdout).toContain('cospec Dashboard')
   })
 
   test('exits 1 when there is no openspec/ directory', async () => {

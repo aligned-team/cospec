@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.11.2
-  contentHash: sha256:a5eb53036fc16f028817f329f5ebfe06a90b321e43405660c0643c9429eedc99
+  contentHash: sha256:d3b216a9c2336cb53049490926212df05460d914f565d4c1837fcf1c264023f7
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -81,11 +81,26 @@ cospec status --change <slug> --json
 Read which `apply.requires` artifacts are still missing and which are ready to
 write next.
 
+**First, finish a partly written artifact.** A glob artifact (the
+`specs/**/*.md` deltas) reads `done` as soon as one matching file exists, so a
+run interrupted while writing its files leaves it `done` with some still
+missing. For each such `done` artifact, get its instructions and read the
+dependencies that say which files it should have — for the specs, the proposal's
+capabilities, one `specs/<capability-path>/spec.md` each — and compare them with
+`artifactPaths.<id>.existingOutputPaths`. Write only the missing files, each at
+a path you have checked stays inside the change directory after resolving
+symlinks, before moving on to any other artifact. If you cannot tell whether a
+capability was left out on purpose, ask the user.
+
 ## 3. Finish the artifacts
 
 Run the same loop as `$cospec-propose (Codex) or /cospec-propose (other agents)` step 3: for each ready artifact, call
 `cospec instructions <artifact> --change <slug> --json`, write it to the named
-path, and repeat until every required artifact exists. Apply `context` and
+path, and repeat until every required artifact exists. When the named path is a
+glob, choose a concrete path inside the change directory that matches it, and
+check it stays there after resolving symlinks; if it does not, stop and tell the
+user. If the `instruction` delegates creation to a skill or command, use it only
+if it can write to that checked path. Apply `context` and
 `rules` as constraints, never copy them into the output. Re-read every completed
 dependency artifact from disk before writing against it — this change was
 started in an earlier session, so nothing you remember about its artifacts is

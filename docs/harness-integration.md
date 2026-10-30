@@ -14,7 +14,7 @@ marketplace plugin could be layered later without changing this contract.
 Twelve workflows — `propose`, `new`, `continue`, `ff`, `apply`, `verify`,
 `archive`, `bulk-archive`, `sync-specs`, `explore`, `onboard`, `update` —
 single-sourced in `canon/workflows/*.md` and rendered per harness. This is
-cospec's full opsx 1.13.1 parity set: every live opsx workflow (`propose`,
+cospec's full opsx 1.15.0 parity set: every live opsx workflow (`propose`,
 `new`, `explore`, `continue`, `apply`, `ff`, `sync`, `archive`, `bulk-archive`,
 `verify`, `onboard`, `update`) has a cospec-adapted counterpart — `sync` maps to
 `sync-specs` (see below). By default every configured harness gets the full
@@ -55,10 +55,10 @@ Dialects (`BodyDialect`): `canonical` writes `/cospec:<id>`, `flat` writes
 `/cospec-<id>`, `shared` writes `$cospec-<id>` in Codex and `/cospec-<id>`
 elsewhere, `skill` names the skill with `skillInvocationPrefix`, and `prose`
 asks the tool by skill name. Serializers (`CommandSerializer`): `markdown`
-carries YAML provenance frontmatter; `toml` (Gemini), `markdown-header` (Cline,
-Zoo Code) and `plain` (Command Code, Kilo Code) carry none, so they are tracked
-in `openspec/.cospec-manifest.json` like `.cospec-target` and the Codex rules
-file.
+carries YAML provenance frontmatter; `toml` (Gemini, EasyCode),
+`markdown-header` (Cline, Zoo Code) and `plain` (Command Code, Kilo Code) carry
+none, so they are tracked in `openspec/.cospec-manifest.json` like
+`.cospec-target` and the Codex rules file.
 
 `init` (the `--harness` value list and its aliases, detection paths, leftover
 scan roots, setup notes, the receipt line naming the rows that share one skills

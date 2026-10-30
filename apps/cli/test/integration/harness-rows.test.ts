@@ -91,14 +91,14 @@ describe('frontmatter-less commands', () => {
     expect(tracked.filter((p) => p.startsWith('.cline/skills/'))).toEqual([])
   })
 
-  test('a hand-edited kilocode workflow is kept, its regeneration sidecarred, and --check fails', async () => {
+  test('a hand-edited kilocode command is kept, its regeneration sidecarred, and --check fails', async () => {
     const { repo } = await initRepo('kilocode')
-    const path = '.kilocode/workflows/cospec-propose.md'
+    const path = '.kilo/command/cospec-propose.md'
     const generated = read(repo, path)
     expect(generated.startsWith('---')).toBe(false)
-    expect(
-      (await manifestFiles(repo)).filter((p) => p.startsWith('.kilocode/workflows/')),
-    ).toHaveLength(12)
+    expect((await manifestFiles(repo)).filter((p) => p.startsWith('.kilo/command/'))).toHaveLength(
+      12,
+    )
     writeFileSync(join(repo.dir, path), `${generated}\nmy note\n`)
 
     const check = await cospec(['update', '--check'], { cwd: repo.dir, env: repo.env })
@@ -172,7 +172,7 @@ describe('the shared .agents skills root', () => {
     expect(tracked).toContain('.agents/skills/.cospec-target')
     expect(existsSync(join(repo.dir, '.agents/skills/.openspec-target'))).toBe(false)
     expect(stdout).toContain(
-      'skills for codex/agents/antigravity/zed share the .agents/skills root (one tree, written for codex)',
+      'skills for codex/agents/amp/antigravity/gsd/zed share the .agents/skills root (one tree, written for codex)',
     )
   })
 
@@ -197,7 +197,7 @@ describe('the shared .agents skills root', () => {
     expect(next.exitCode).toBe(0)
     expect(readFileSync(join(dir, '.agents/skills/.cospec-target'), 'utf8')).toBe('agents\n')
     expect(next.stdout).toContain(
-      'skills for codex/agents/antigravity/zed share the .agents/skills root (one tree, written for agents)',
+      'skills for codex/agents/amp/antigravity/gsd/zed share the .agents/skills root (one tree, written for agents)',
     )
     const check = await cospec(['update', '--check', '--json'], { cwd: dir, env })
     expect((JSON.parse(check.stdout) as { harnesses: string[] }).harnesses).toEqual([

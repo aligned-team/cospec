@@ -35,7 +35,7 @@ import { readGlobalProfile } from '../core/global-profile.ts'
 import { languageDirective, languageRefusal, normalizeLanguage } from '../core/init-language.ts'
 import { askLine, isInteractive } from '../core/interactive.ts'
 import { splitFrontmatter, type WriteResult } from '../core/managed-files.ts'
-import { initPointerRefusal } from '../core/root.ts'
+import { initPointerCheck, RootSelectionError } from '../core/root.ts'
 import {
   adapterFor,
   HARNESS_TABLE,
@@ -239,8 +239,10 @@ schema: feat
 
 // `--language` writes the directive as the context, as the binary's own scaffold does.
 const CONFIG_CONTEXT_EXAMPLE = `# context: injected into every artifact's authoring instructions.
+# Add only constraints an agent cannot infer by reading the code; keep general
+# project documentation and discoverable codebase facts out.
 # context: |
-#   One or two sentences of project-wide context for the agent.
+#   Designs and tasks must cover Windows, macOS, and Linux
 
 `
 
@@ -782,9 +784,27 @@ export async function run(ctx: CommandContext): Promise<number> {
     }
     directive = languageDirective(value.language)
   }
-  const pointerRefusal = initPointerRefusal(target)
-  if (pointerRefusal !== undefined) {
-    process.stderr.write(`cospec: ${pointerRefusal}\n`)
+  let pointer
+  try {
+    pointer = await initPointerCheck(target)
+  } catch (error) {
+    // The declared store must resolve before integrations go in, as the binary requires.
+    if (!(error instanceof RootSelectionError)) throw error
+    process.stderr.write(`cospec: ${error.message}\n`)
+    return 1
+  }
+  if (pointer.refusal !== undefined) {
+    process.stderr.write(`cospec: ${pointer.refusal}\n`)
+    return 1
+  }
+  // A store-only repo root: harness integrations only. Its pointer config and
+  // the store's planning tree stay untouched, and no local planning root grows.
+  const integrationsOnly = pointer.integrationsOnly
+  if (integrationsOnly && directive !== undefined) {
+    process.stderr.write(
+      'cospec: --language cannot update an external store through a pointer repo. ' +
+        'Run init in the store root, or edit the store config directly.\n',
+    )
     return 1
   }
   if (directive !== undefined) {
@@ -852,8 +872,10 @@ export async function run(ctx: CommandContext): Promise<number> {
   }
 
   // Scaffold the tree.
-  mkdirSync(join(target, 'openspec', 'specs'), { recursive: true })
-  mkdirSync(join(target, 'openspec', 'changes', 'archive'), { recursive: true })
+  if (!integrationsOnly) {
+    mkdirSync(join(target, 'openspec', 'specs'), { recursive: true })
+    mkdirSync(join(target, 'openspec', 'changes', 'archive'), { recursive: true })
+  }
 
   // Selecting a renamed tool is consent to leave its former root (`.windsurf`).
   moves.push(
@@ -890,7 +912,7 @@ export async function run(ctx: CommandContext): Promise<number> {
   // config.yaml — only if neither config file exists (never modified once present). A
   // config.yml-only repo already has its config; a config.yaml beside it would shadow it.
   let configWritten = false
-  if (resolveConfigFilePath(target) === undefined) {
+  if (!integrationsOnly && resolveConfigFilePath(target) === undefined) {
     writeFileSync(join(target, 'openspec', 'config.yaml'), configYaml(directive))
     configWritten = true
   }
@@ -898,7 +920,9 @@ export async function run(ctx: CommandContext): Promise<number> {
   // Only a decision made this run is remembered (a flag or an answered confirm), and only once
   // config.yaml exists, so a later `update`, which never asks, honors it.
   const cloudPersisted =
-    cloudDecision.persist !== undefined && persistCopilotCloudOptIn(target, cloudDecision.persist)
+    !integrationsOnly &&
+    cloudDecision.persist !== undefined &&
+    persistCopilotCloudOptIn(target, cloudDecision.persist)
       ? cloudDecision.persist
       : null
   const cloudReport = cloud ?? emptyCopilotCloudReport()
@@ -927,11 +951,12 @@ export async function run(ctx: CommandContext): Promise<number> {
   // A directory the scan cannot read is reported with the failed writes, unless a failed write
   // under it already names it.
   const unreadable: FailedWrite[] = []
-  const opsx = findOpsxFiles(target, undefined, unreadable)
+  // A pointer repo keeps its local files untouched: the binary skips its legacy cleanup there.
+  const opsx = integrationsOnly ? [] : findOpsxFiles(target, undefined, unreadable)
   failed.push(...unreadable.filter((u) => !failed.some((f) => f.path.startsWith(`${u.path}/`))))
   // The pre-opsx block in a root config file (CLAUDE.md, AGENTS.md, ...) is stripped under the
   // same consent, and the file is never deleted, as the binary's cleanup never deletes it.
-  const legacyBlocks = findLegacyConfigBlocks(target)
+  const legacyBlocks = integrationsOnly ? [] : findLegacyConfigBlocks(target)
   const opsxRemoved = (opsx.length > 0 || legacyBlocks.length > 0) && (removeOpsx || yes)
   const legacyStripped = new Set<string>()
   if (opsxRemoved) {
@@ -1021,6 +1046,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     legacyStripped,
     homeOpsx,
     removeOpsx,
+    projectMd: existsSync(join(target, 'openspec', 'project.md')),
     notGitTree,
     autoNote: selection.note,
     workflows: workflowSel,
@@ -1051,6 +1077,24 @@ function resolveTarget(cwd: string, parsed: ParsedArgs): TargetResolution {
   return { ok: true, target: pathArg !== undefined ? resolve(cwd, pathArg) : cwd }
 }
 
+/** OpenSpec 1.14.0's `formatProjectMdMigrationHint`, without its colour. */
+const PROJECT_MD_MIGRATION_HINT = [
+  'Needs your attention',
+  '  • openspec/project.md',
+  "    We won't delete this file. It may contain useful project context.",
+  '',
+  '    Ask your AI assistant:',
+  '',
+  '    Review openspec/project.md and migrate its useful content to',
+  '    openspec/config.yaml. Keep context concise: include only project-wide',
+  '    facts needed during artifact creation, apply, and archive. Move',
+  '    artifact-specific guidance into rules for the matching artifacts.',
+  '    Move guidance for apply or archive into the matching operations entry.',
+  '    Leave out generic, outdated, or verbose material. Do not delete project.md.',
+  '',
+  '    Review config.yaml, then delete project.md when ready.',
+]
+
 interface ReceiptData {
   state: RepoState
   harnesses: HarnessName[]
@@ -1069,6 +1113,8 @@ interface ReceiptData {
   legacyStripped: ReadonlySet<string>
   homeOpsx: HomeLeftover[]
   removeOpsx: boolean
+  /** A legacy `openspec/project.md` still awaits migration into `config.yaml`. */
+  projectMd: boolean
   notGitTree: boolean
   autoNote?: string
   workflows: WorkflowSelection
@@ -1182,7 +1228,15 @@ function printReceipt(target: string, d: ReceiptData): void {
       lines.push(
         'Re-run with --remove-opsx to delete them (only provably openspec-generated files).',
       )
+      lines.push(
+        'These files will be deleted entirely. Back up any custom content before proceeding.',
+      )
     }
+  }
+
+  if (d.projectMd) {
+    lines.push('')
+    lines.push(...PROJECT_MD_MIGRATION_HINT)
   }
 
   if (d.legacyBlocks.length > 0) {

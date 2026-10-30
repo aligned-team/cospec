@@ -1,7 +1,8 @@
 // `cospec migrate <slug>` (DESIGN §5) — the opt-in, never-automatic v1→v2
 // retrofit. Scaffolds a fully-deferred `verification.md` from the change's type
 // template (when the type declares one) and bumps the change's stamped
-// `schemaVersion` to 2. atlas retro-gated ~20 in-flight changes by bumping a
+// `x-cospec-schema-version` to 2; a current change still stamped under the
+// legacy `schemaVersion` key has only its key rewritten. atlas retro-gated ~20 in-flight changes by bumping a
 // LIVE `apply.requires`; cospec keys on change-creation version instead, and
 // this command is the only thing that ever moves that version forward for an
 // existing change.
@@ -13,7 +14,13 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
 import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
-import { isCospecType, listChanges, resolveChange } from '../core/change.ts'
+import {
+  isCospecType,
+  LEGACY_SCHEMA_VERSION_KEY,
+  listChanges,
+  resolveChange,
+  SCHEMA_VERSION_KEY,
+} from '../core/change.ts'
 import { resolveRoot } from '../core/root.ts'
 import { composeTemplates } from '../core/schema-compose.ts'
 import { closest } from './apply.ts'
@@ -34,6 +41,24 @@ export function scaffoldDeferredVerification(templateBody: string): string {
       return m === null ? line : `- [~] ${m[1]} -> defer: ${DEFER_REASON}`
     })
     .join('\n')
+}
+
+/**
+ * Write `x-cospec-schema-version: <version>` into a change's `.openspec.yaml`,
+ * in the legacy `schemaVersion` key's place when it carries one (that key is
+ * dropped), else after every other key.
+ */
+function rewriteStamp(changeDir: string, version: number): void {
+  const yamlPath = join(changeDir, '.openspec.yaml')
+  const doc = (parseYaml(readFileSync(yamlPath, 'utf8')) ?? {}) as Record<string, unknown>
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(doc)) {
+    if (key === SCHEMA_VERSION_KEY) continue
+    if (key === LEGACY_SCHEMA_VERSION_KEY) out[SCHEMA_VERSION_KEY] = version
+    else out[key] = value
+  }
+  out[SCHEMA_VERSION_KEY] = version
+  writeFileSync(yamlPath, stringifyYaml(out, { lineWidth: 0 }))
 }
 
 /** The one `--json` document both outcomes print; `migrated: false` is the already-current no-op. */
@@ -70,6 +95,16 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   const currentVersion = change.schemaVersion ?? 1
   if (currentVersion >= 2) {
+    if (change.legacyStamp === true) {
+      // Already current, but stamped under the legacy key: only the key moves.
+      rewriteStamp(change.dir, currentVersion)
+      if (ctx.flags.json) process.stdout.write(migrateJson(change.id, currentVersion, true, false))
+      else
+        process.stdout.write(
+          `Rewrote '${change.id}' stamp to ${SCHEMA_VERSION_KEY}: ${currentVersion}.\n`,
+        )
+      return EXIT.success
+    }
     if (ctx.flags.json) process.stdout.write(migrateJson(change.id, currentVersion, false, false))
     else
       process.stdout.write(
@@ -88,10 +123,7 @@ export async function run(ctx: CommandContext): Promise<number> {
     }
   }
 
-  const yamlPath = join(change.dir, '.openspec.yaml')
-  const doc = (parseYaml(readFileSync(yamlPath, 'utf8')) ?? {}) as Record<string, unknown>
-  doc.schemaVersion = 2
-  writeFileSync(yamlPath, stringifyYaml(doc, { lineWidth: 0 }))
+  rewriteStamp(change.dir, 2)
 
   if (ctx.flags.json) {
     process.stdout.write(migrateJson(change.id, 2, true, scaffolded))

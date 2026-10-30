@@ -138,7 +138,7 @@ The system SHALL render a widget when requested.
     // and an archive that merges nothing.
     writeFileSync(
       join(root, `openspec/changes/${name}/.openspec.yaml`),
-      'schema: feat\ncreated: 2026-09-22\nschemaVersion: 2\n',
+      'schema: feat\ncreated: 2026-09-22\nx-cospec-schema-version: 2\n',
     )
     const typed = await cospec(['apply', name, '--json'], { cwd: root })
     expect(typed.exitCode).toBe(1)

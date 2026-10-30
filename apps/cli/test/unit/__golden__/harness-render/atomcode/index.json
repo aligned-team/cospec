@@ -1,0 +1,218 @@
+[
+  {
+    "path": ".atomcode/commands/cospec-apply.md",
+    "kind": "command",
+    "workflow": "apply",
+    "harness": "atomcode",
+    "contentHash": "sha256:1172221c5f2d1d68f5ce6fa433835656559ad62399c7f05199bb17ea8eb3df01",
+    "bytes": 6399,
+    "sha256": "a8eaa69f303819839d2f02a14b617bd77539a181543e657ba62d5cd24fe0d9d1"
+  },
+  {
+    "path": ".atomcode/commands/cospec-archive.md",
+    "kind": "command",
+    "workflow": "archive",
+    "harness": "atomcode",
+    "contentHash": "sha256:81bc698b58bad21f63c7c69411f44ae72fe3bc08cd36eb2c40173aec4f2bdd90",
+    "bytes": 8410,
+    "sha256": "21b0e8086ee9566217b159745914e8bd66050336aef3cba0538a9238d7e4f54b"
+  },
+  {
+    "path": ".atomcode/commands/cospec-bulk-archive.md",
+    "kind": "command",
+    "workflow": "bulk-archive",
+    "harness": "atomcode",
+    "contentHash": "sha256:69a6350022266dd121571d2488bcc5231ad176883e37cab3e59601e957cbc9c8",
+    "bytes": 13359,
+    "sha256": "eac7792b9e4c6dbe422604db8b14d800c05398e668e8ccfde4e183bcdc62034a"
+  },
+  {
+    "path": ".atomcode/commands/cospec-continue.md",
+    "kind": "command",
+    "workflow": "continue",
+    "harness": "atomcode",
+    "contentHash": "sha256:b52ab2afec85c3202839b712d83cfd0add9c169194b9cec2909719c7457d74c0",
+    "bytes": 6166,
+    "sha256": "a6158223e8c80bc1ecc92d051920e15771931b487c4e98ec6fea366a9a66d8fb"
+  },
+  {
+    "path": ".atomcode/commands/cospec-explore.md",
+    "kind": "command",
+    "workflow": "explore",
+    "harness": "atomcode",
+    "contentHash": "sha256:351a90febcbc0aafbaf8074e5dda854bb872d48634dc6e7a0689b30998badcf5",
+    "bytes": 10062,
+    "sha256": "76debbe2d72ad9a8f631a39fcac72cf619b0a71350c14c89ed3a35b11f253686"
+  },
+  {
+    "path": ".atomcode/commands/cospec-ff.md",
+    "kind": "command",
+    "workflow": "ff",
+    "harness": "atomcode",
+    "contentHash": "sha256:7dee7768b57c53bf4cbabfb179dc8d70c9d8e76da28f582955f9f24cf4a7d574",
+    "bytes": 7990,
+    "sha256": "e616d3b2901493663f62b20ab1e3dd03bf1cd2195d2e9c5db448bac935f8bd53"
+  },
+  {
+    "path": ".atomcode/commands/cospec-new.md",
+    "kind": "command",
+    "workflow": "new",
+    "harness": "atomcode",
+    "contentHash": "sha256:8e4476f30b1509c99d7260847d0cce61a981e9216fe195a3d1b83425b354525a",
+    "bytes": 6034,
+    "sha256": "32ea5d019a35ea1da2f8d758be597acf11f7cbc2856a20135ea8bf21a15363ef"
+  },
+  {
+    "path": ".atomcode/commands/cospec-onboard.md",
+    "kind": "command",
+    "workflow": "onboard",
+    "harness": "atomcode",
+    "contentHash": "sha256:82bce48a4578c0133c9a152200160994493756ea909e61b5b4f12912ee86465d",
+    "bytes": 6199,
+    "sha256": "48610096c135daa8a112cdb889cf1c84e7c60a8cc6658d9291ac911b8583ebce"
+  },
+  {
+    "path": ".atomcode/commands/cospec-propose.md",
+    "kind": "command",
+    "workflow": "propose",
+    "harness": "atomcode",
+    "contentHash": "sha256:fc4ccb691b80aa16f30402645e4d4475d9c2d16776cfbcc5f7f9c3a1e89f2e2b",
+    "bytes": 10681,
+    "sha256": "65955ad5cf0bce866e001c36b9437be013cb13bb0296a738c617cebbf9032244"
+  },
+  {
+    "path": ".atomcode/commands/cospec-sync-specs.md",
+    "kind": "command",
+    "workflow": "sync-specs",
+    "harness": "atomcode",
+    "contentHash": "sha256:e9b6e390f9cb617b136b81516e8f3426e47c34dfa069dfd8e233e528fda77033",
+    "bytes": 5775,
+    "sha256": "b571a592021488b10472ac2b06ab24a64ba7e299ec052a2853a5f049511d6c4f"
+  },
+  {
+    "path": ".atomcode/commands/cospec-update.md",
+    "kind": "command",
+    "workflow": "update",
+    "harness": "atomcode",
+    "contentHash": "sha256:79eef8427d9c6d60247e4e2d62641ea145abf9220b18a31bff7082da44657435",
+    "bytes": 8393,
+    "sha256": "bb47af545dc54e842f7228476bac76e212a7044a04e68c2d4e867407731705ce"
+  },
+  {
+    "path": ".atomcode/commands/cospec-verify.md",
+    "kind": "command",
+    "workflow": "verify",
+    "harness": "atomcode",
+    "contentHash": "sha256:f901db074a5113cc17fdf0df9aec43307581576e35d3d973ad52714113f60df8",
+    "bytes": 9474,
+    "sha256": "061e56a2365989e3967f5772e6924cd5988b7dce90ea2d7dd103a50510d49c77"
+  },
+  {
+    "path": ".atomcode/skills/cospec-apply-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "apply",
+    "harness": "atomcode",
+    "contentHash": "sha256:cd03b86b4c63bd3088a00cf111bc5ec06a30de927d4c40e9072d38e222d5b3eb",
+    "bytes": 6431,
+    "sha256": "1e7e88cae29a346d8927522c24605017f9c3549a535d56681c0088f3b24f137b"
+  },
+  {
+    "path": ".atomcode/skills/cospec-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "archive",
+    "harness": "atomcode",
+    "contentHash": "sha256:eb03158edfae964ba6662a16b94d5fdc388cf86b02be4ca2a18b73c728f338d8",
+    "bytes": 8442,
+    "sha256": "dfd413c24d4ae89d95a00a2c6f5338c2d153dcc67ed30415fcc772d5bdf36576"
+  },
+  {
+    "path": ".atomcode/skills/cospec-bulk-archive-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "bulk-archive",
+    "harness": "atomcode",
+    "contentHash": "sha256:69a6350022266dd121571d2488bcc5231ad176883e37cab3e59601e957cbc9c8",
+    "bytes": 13431,
+    "sha256": "7ed7b7e026bffaa4fe193d260d3a5ba494d7a926473058c3ce515a90640e72f6"
+  },
+  {
+    "path": ".atomcode/skills/cospec-continue-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "continue",
+    "harness": "atomcode",
+    "contentHash": "sha256:531a28ebfd11763bf2e6fe4e3f04d0206da8191ec23e0d2b22be07324b513b3e",
+    "bytes": 6198,
+    "sha256": "0b8f6a1b04a938e82265382faa5024a90a4329fc8ca7aec08dc6ebf45019fa00"
+  },
+  {
+    "path": ".atomcode/skills/cospec-explore/SKILL.md",
+    "kind": "skill",
+    "workflow": "explore",
+    "harness": "atomcode",
+    "contentHash": "sha256:d5ccf8e47a1ae1d9b9077e2e90eed5afbf260101343aabb9cc56e531e704265e",
+    "bytes": 10087,
+    "sha256": "9668130bb14bf44785ae9a246e6206f3b8339d6ffac6cc88f52bfa832bd32826"
+  },
+  {
+    "path": ".atomcode/skills/cospec-ff-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "ff",
+    "harness": "atomcode",
+    "contentHash": "sha256:45677d9ea78ac10ec4888b5704df01bd6334dd09164a060fe335864a75943eb3",
+    "bytes": 8022,
+    "sha256": "f63c93d1ce5de3161e25cd1c14fd38eef7008f1446b8df900f417a1f6a9ed9ed"
+  },
+  {
+    "path": ".atomcode/skills/cospec-new-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "new",
+    "harness": "atomcode",
+    "contentHash": "sha256:9b1950cae259d0ee747cd16b2932abe5220b885eecefe0cceed707914db9ffcf",
+    "bytes": 6066,
+    "sha256": "b516a9b054044f7ff6743b98da184fb5ff195d5c3476725c62a3fd095417d7fc"
+  },
+  {
+    "path": ".atomcode/skills/cospec-onboard/SKILL.md",
+    "kind": "skill",
+    "workflow": "onboard",
+    "harness": "atomcode",
+    "contentHash": "sha256:82bce48a4578c0133c9a152200160994493756ea909e61b5b4f12912ee86465d",
+    "bytes": 6264,
+    "sha256": "360b3b9ed6eb98696b89cd3a0e879e68bfd6d8c81e3dc4d82e2317822d3c75c5"
+  },
+  {
+    "path": ".atomcode/skills/cospec-propose/SKILL.md",
+    "kind": "skill",
+    "workflow": "propose",
+    "harness": "atomcode",
+    "contentHash": "sha256:01d95f06409f0c2be3dd83454a1ebb9a5251269282c2d4e4d013c133bd7d2dd8",
+    "bytes": 10706,
+    "sha256": "0cebe3c7214c7bdd09dd04a2db2ed925b4af79367d74ad52038fcdc761587a48"
+  },
+  {
+    "path": ".atomcode/skills/cospec-sync-specs/SKILL.md",
+    "kind": "skill",
+    "workflow": "sync-specs",
+    "harness": "atomcode",
+    "contentHash": "sha256:5d452b2bc2b61597d8ef08c0522a5465e6be741de1fbb7f4c82a9486eb5f1818",
+    "bytes": 5800,
+    "sha256": "c301ca5dcb6a6dbb5ed74ee23ecdcb1c05fc51154d3f88734379de618c2758fc"
+  },
+  {
+    "path": ".atomcode/skills/cospec-update-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "update",
+    "harness": "atomcode",
+    "contentHash": "sha256:5400252751e6cbdb1d01f2f81a6f82ab1dd3e9f60a87f1cac15a6db06701415d",
+    "bytes": 8425,
+    "sha256": "ea5381d7c10f8a58bc690b4cafd845d8f469cad6e3826b75df04e741182c5551"
+  },
+  {
+    "path": ".atomcode/skills/cospec-verify-change/SKILL.md",
+    "kind": "skill",
+    "workflow": "verify",
+    "harness": "atomcode",
+    "contentHash": "sha256:4a6bdd47ec9a00d80a6925c4a39d0527e78be868fff38ed637f85e04a8621c5a",
+    "bytes": 9506,
+    "sha256": "290c158980fdd42f104eba51654377ad25a602aeab3148ef71cac4e310106e9b"
+  }
+]

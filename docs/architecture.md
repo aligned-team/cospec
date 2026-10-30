@@ -2,7 +2,7 @@
 
 cospec is a wrapper. It owns no spec-format logic of its own that OpenSpec
 already implements correctly — it constrains, validates, and verifies OpenSpec
-`1.13.1`, and closes the specific failure modes that make raw OpenSpec unsafe to
+`1.15.0`, and closes the specific failure modes that make raw OpenSpec unsafe to
 hand to an agent.
 
 ## The wrapping boundary
@@ -57,7 +57,7 @@ cospec spawns OpenSpec; it never imports it.
   a refusal message naming the range and a `COSPEC_ALLOW_OPENSPEC_DRIFT=1`
   override for the brave (which makes cospec version-blind but does not make an
   out-of-range binary safe to wrap). Separately, the repo pins one exact build
-  for dev/CI — `PINNED_OPENSPEC_VERSION` (`1.13.1`), the version the contract
+  for dev/CI — `PINNED_OPENSPEC_VERSION` (`1.15.0`), the version the contract
   suite is probed against. The dep pin, the `mise.toml` pin, that constant, and
   the live binary are held coherent by the version tripwire contract test (the
   pin is exact and in range; the binary reports it and satisfies the range), so
@@ -549,8 +549,8 @@ because a real breach there must not compute as a clean archive:
   through `REMOVED` carries no MODIFIED op, so the gate never sees it. This is
   the gate that would have caught the archive-time thinning `openspec archive`
   itself waves through at exit 0. It ships with a contract test against the real
-  pinned openspec 1.13.1 binary proving cospec refuses even though openspec
-  would happily merge the delta — a false PASS here is a release blocker, same
+  pinned openspec binary proving cospec refuses even though openspec would
+  happily merge the delta — a false PASS here is a release blocker, same
   discipline as the rest of the archive-precondition family. As of upstream
   1.8.0, `openspec archive` also runs its own overlapping scenario-loss check,
   so cospec's gate is defence-in-depth on 1.8.0+ runtimes and is the **sole**
@@ -629,9 +629,10 @@ drifting apart:
    also pays for the test that ends that risk class.
 2. **`schemaVersion` grandfathering, not content-derived promotion.** The
    composer stamps `version: 2` into every schema; `cospec new` stamps the
-   change's `.openspec.yaml` with `schemaVersion: 2` (a change with no stamp is
-   treated as `schemaVersion: 1`). `enforcedApplyRequires(type, schemaVersion)`
-   filters the static matrix down to artifacts whose
+   change's `.openspec.yaml` with `x-cospec-schema-version: 2` (legacy changes
+   carry it as `schemaVersion:`, still read; a change with no stamp is treated
+   as `schemaVersion: 1`). `enforcedApplyRequires(type, schemaVersion)` filters
+   the static matrix down to artifacts whose
    `introducedAt(artifact, type) <= schemaVersion` — a uniform, monotonic
    version filter applied identically at `apply` and `archive`. `verification`
    is `introducedAt = 2` for feat/fix/perf/refactor; every other (artifact,

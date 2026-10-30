@@ -83,17 +83,95 @@ export function assertPathWithin(allowedDirectory: string, targetPath: string): 
     throw new Error(`Path is outside the allowed directory: ${targetPath}`)
 }
 
-function assertDiscoveredSpecPath(
-  specsRoot: string,
-  capabilityDir: string,
+/**
+ * The binary's `findProjectRoot` (`utils/spec-path-containment.js`): the project a
+ * specs root belongs to — the parent of the `openspec` directory whose child on the
+ * way down is `specs` or `changes` — or `null` when it cannot be named (a store
+ * given by path), where containment stays at the specs root.
+ */
+function findProjectRoot(specsRoot: string): string | null {
+  let current = resolve(specsRoot)
+  let below: string | null = null
+  for (;;) {
+    const parent = dirname(current)
+    if (parent === current) return null
+    if (basename(current) === 'openspec' && (below === 'specs' || below === 'changes'))
+      return parent
+    below = basename(current)
+    current = parent
+  }
+}
+
+/** Path-segment containment on the paths as written, without resolving links. */
+function isLexicallyWithin(allowedDirectory: string, targetPath: string): boolean {
+  return isPathWithin(resolve(allowedDirectory), resolve(targetPath))
+}
+
+/**
+ * The binary's `assertLinkedSpecFileInProject`: a `spec.md` that is itself a link
+ * may point anywhere inside the project (beside the docs it belongs to), never
+ * outside it. `outsideError` is rethrown for a file that is not a link at all.
+ */
+function assertLinkedSpecFileInProject(
+  root: string,
   specFile: string,
+  outsideError: unknown,
 ): void {
+  const projectRoot = findProjectRoot(root)
+  if (projectRoot === null) throw outsideError
+  const resolvedFile = resolve(specFile)
+  let isLink = false
+  try {
+    isLink = lstatSync(resolvedFile).isSymbolicLink()
+  } catch {
+    // The binary's bare `catch`: an unreadable entry is not a link.
+    isLink = false
+  }
+  if (!isLink) throw outsideError
+  // Only where the link points is the project's choice; the directory holding it
+  // must still be reached from inside the root.
+  assertPathWithin(root, dirname(resolvedFile))
+  // Canonicalizes through the link: a target outside the project is refused, and
+  // a dangling link, which cannot be proven contained, fails loudly.
+  assertPathWithin(projectRoot, resolvedFile)
+}
+
+/**
+ * The binary's `assertSpecFileWithin`: a `spec.md` under a trust root already
+ * established for it — inside the root, or a link out of it that stays inside the
+ * project. Used to recheck a path right before it is read or written, so a
+ * capability directory swapped for a link since discovery is refused.
+ */
+export function assertSpecFileWithin(root: string, specFile: string): void {
+  try {
+    assertPathWithin(root, specFile)
+  } catch (err) {
+    assertLinkedSpecFileInProject(root, specFile, err)
+  }
+}
+
+/**
+ * The binary's `assertDiscoveredSpecFile`: containment for a `spec.md` as it is
+ * discovered, where the capability directory may deliberately be a link into
+ * another repository and is then the file's own trust root.
+ */
+export function assertDiscoveredSpecFile(specsRoot: string, specFile: string): void {
+  const capabilityDir = dirname(resolve(specFile))
   try {
     assertPathWithin(specsRoot, specFile)
-  } catch {
-    // A capability directory may deliberately be an external monorepo link.
-    // In that case confine the file to the capability directory itself.
-    assertPathWithin(capabilityDir, specFile)
+    return
+  } catch (err) {
+    // The capability directory is the file's own trust root only while it is
+    // addressed from inside the specs root: a `..` out of the root is not.
+    if (isLexicallyWithin(specsRoot, capabilityDir)) {
+      try {
+        assertPathWithin(capabilityDir, specFile)
+        return
+      } catch {
+        // Not a file of its own capability either; the link rule decides.
+      }
+    }
+    assertLinkedSpecFileInProject(specsRoot, specFile, err)
   }
 }
 
@@ -101,9 +179,10 @@ function assertDiscoveredSpecPath(
  * Every `spec.md` under a specs root, flat and nested layouts alike, sorted by id.
  *
  * - Dot-directories are skipped and symlinked *directories* are not followed.
- * - An in-capability symlinked `spec.md` IS resolved — the artifact graph's globs
- *   count it as content, so dropping it here would lose the delta on archive.
- *   A link resolving outside its capability is rejected; a dangling link is skipped.
+ * - A symlinked `spec.md` IS resolved — the artifact graph's globs count it as
+ *   content, so dropping it here would lose the delta on archive. It may point
+ *   anywhere inside the project (`assertDiscoveredSpecFile`); one resolving
+ *   outside the project is refused, and a dangling link is skipped.
  * - A `spec.md` sitting directly in the root is ignored: specs live in a
  *   capability folder, and openspec 1.7.0 blocks the root-level form outright.
  * - A missing root (ENOENT) yields an empty list, but any other read failure
@@ -138,7 +217,7 @@ export function discoverSpecFiles(
       const specFile = join(dir, entry.name)
       if (entry.isFile()) {
         try {
-          assertDiscoveredSpecPath(specsRoot, dir, specFile)
+          assertDiscoveredSpecFile(specsRoot, specFile)
         } catch (err) {
           const code = errorCode(err)
           if (opts.reportUnreadable !== true || code === undefined || code === 'ENOENT') throw err
@@ -156,7 +235,7 @@ export function discoverSpecFiles(
           continue
         }
         if (!target.isFile()) continue
-        assertDiscoveredSpecPath(specsRoot, dir, specFile)
+        assertDiscoveredSpecFile(specsRoot, specFile)
         results.push({ id: segments.join('/'), specFile })
       }
     }

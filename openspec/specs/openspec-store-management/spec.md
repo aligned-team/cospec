@@ -16,12 +16,11 @@ two-step footgun.
 ### Requirement: Store lifecycle wrapped with typed post-conditions
 
 `cospec store setup|register|unregister|remove|list|ls|doctor` SHALL wrap the
-corresponding `openspec store *` subcommand via the disciplined passthrough
-runner, threading `--path`/`--remote`/`--id`/`--yes`/`--json`/`--no-init-git`
-unchanged. Each subcommand SHALL verify its effect against a typed JSON
-post-condition — `store.root` present on disk after `setup`/`register`,
-`registry.removed` reflected in the store registry after `remove`/ `unregister`
-— and SHALL NOT treat a zero exit code alone as success.
+matching `openspec store *` subcommand via the disciplined passthrough runner,
+threading `--path`/`--remote`/`--id`/`--yes`/`--json`/`--no-init-git` unchanged,
+and SHALL verify each effect against a typed JSON post-condition — `store.root`
+on disk after `setup`/`register`, `registry.removed` reflected in the registry
+after `remove`/`unregister` — never a zero exit alone.
 
 #### Scenario: Setup creates and registers a store
 
@@ -87,20 +86,13 @@ delegated store's git facts and metadata diagnostics without repairing them.
 
 ### Requirement: Store group refusals and diagnostics are the binary's, spelled through cospec
 
-`cospec store` with a missing, unknown or option-shaped subcommand, or a
-subcommand after a `--`, SHALL delegate the user's argv (the `--` kept) to the
-wrapped `openspec store`, threading `--json` when the caller asked for it, and
-SHALL relay the binary's answer with its sentences spelled through cospec from
-the pinned binary's allowlist: under `--json`, exactly one document whose
-`status[0]` is the binary's `unknown_store_subcommand` diagnostic; otherwise the
-binary's `Error: …` text, its lifecycle example spelled as the cospec command of
-the same shape. Every diagnostic `cospec store` prints from a wrapped call's
-document — the `status[]` of a mutation, cleanup, list or doctor payload and
-each `stores[].status[]` — SHALL have its `fix` spelled through cospec, and on a
-failed call its `message` too, in the text rendering and in the relayed `--json`
-document alike, every other field unchanged. A `--cwd` that is not a directory
-SHALL be answered with the resolver's `directory not found` refusal before
-anything is spawned.
+`cospec store` with a missing, unknown or option-shaped subcommand, or one after
+`--`, SHALL delegate the argv (`--` kept, `--json` threaded when asked) to the
+wrapped `openspec store` and relay its answer respelled via the pinned
+allowlist. Each diagnostic printed from a wrapped document SHALL have its `fix`,
+and on failure its `message`, spelled through cospec in text and `--json` alike.
+A non-directory `--cwd` SHALL get the resolver's `directory not found` refusal
+before any spawn.
 
 #### Scenario: An unknown store subcommand is one document
 
@@ -128,3 +120,18 @@ anything is spawned.
 - **WHEN** `cospec store list --cwd <path>` runs and `<path>` does not exist
 - **THEN** stderr is `cospec: directory not found: <path>`, the exit code is 1,
   and no wrapped call is made
+
+#### Scenario: The unknown-subcommand relay shapes
+
+- **WHEN** `cospec store bogus` runs with and without `--json`
+- **THEN** under `--json` stdout is exactly one document whose `status[0]` is
+  the binary's `unknown_store_subcommand` diagnostic, and otherwise the binary's
+  `Error: …` text is printed with its lifecycle example spelled as the cospec
+  command of the same shape
+
+#### Scenario: Every wrapped status array is respelled
+
+- **WHEN** a wrapped mutation, cleanup, list or doctor payload carries
+  diagnostics in its `status[]` or in any `stores[].status[]`
+- **THEN** each such diagnostic's `fix` is spelled through cospec and every
+  field other than `fix` and `message` is unchanged

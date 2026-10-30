@@ -2,7 +2,7 @@
 // Runtime-agnostic launcher for the `cospec` bin.
 //
 // The npm package ships NO runtime source: `@aligned-team/cospec` is a thin
-// launcher plus seven `optionalDependencies`, one per platform
+// launcher plus eight `optionalDependencies`, one per platform
 // (`@aligned-team/cospec-<platform>`), each carrying a single standalone
 // `bun build --compile` executable. npm/pnpm/bun install only the platform
 // package whose `os`/`cpu`/`libc` match the host, so exactly one binary lands
@@ -17,6 +17,7 @@
 // stdio, and propagates the child's exit code and terminating signal.
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 
 const require = createRequire(import.meta.url)
 
@@ -47,15 +48,15 @@ function platformPackage() {
   if (platform === 'darwin' && (arch === 'x64' || arch === 'arm64')) {
     return `@aligned-team/cospec-darwin-${arch}`
   }
-  if (platform === 'win32' && arch === 'x64') {
-    return '@aligned-team/cospec-win32-x64'
+  if (platform === 'win32' && (arch === 'x64' || arch === 'arm64')) {
+    return `@aligned-team/cospec-win32-${arch}`
   }
   return undefined
 }
 
 const SUPPORTED =
   'linux-x64-gnu, linux-x64-musl, linux-arm64-gnu, linux-arm64-musl, ' +
-  'darwin-x64, darwin-arm64, win32-x64'
+  'darwin-x64, darwin-arm64, win32-x64, win32-arm64'
 
 function resolveBinary() {
   const pkg = platformPackage()
@@ -88,7 +89,13 @@ try {
   process.exit(1)
 }
 
-const result = spawnSync(binary, process.argv.slice(2), { stdio: 'inherit' })
+// The binary cannot tell an npm install from a standalone one by its own path
+// (both run the same compiled executable), so the launcher names itself:
+// `cospec version` reads this to report npm-global, npx or bunx.
+const result = spawnSync(binary, process.argv.slice(2), {
+  stdio: 'inherit',
+  env: { ...process.env, COSPEC_NPM_LAUNCHER: fileURLToPath(import.meta.url) },
+})
 
 if (result.error !== undefined && result.error !== null) {
   process.stderr.write(`cospec: failed to launch ${binary}: ${result.error.message}\n`)

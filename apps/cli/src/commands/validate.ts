@@ -11,7 +11,11 @@ import { join, relative, sep } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 
 import type { CommandContext } from '../cli.ts'
-import { readRetireCapabilitiesMarker } from '../core/change-metadata.ts'
+import {
+  readRetireCapabilitiesMarker,
+  unknownChangeMetadataKeys,
+  UPSTREAM_UNKNOWN_KEYS_RE,
+} from '../core/change-metadata.ts'
 import {
   archiveDir,
   changesDir,
@@ -21,6 +25,7 @@ import {
   listChanges,
   openspecDir,
   projectVerificationLayers,
+  rawSchemaVersionStamp,
   resolveSchema,
 } from '../core/change.ts'
 import { flagValue, hasFlag } from '../core/command-table.ts'
@@ -46,6 +51,7 @@ import {
   type ItemReport,
 } from '../core/report.ts'
 import { type ResolvedRoot, RootSelectionError, rootSelectionDocument } from '../core/root.ts'
+import { DELTAS_DELEGATED_TWINS } from '../core/rules/deltas.ts'
 import { runChangeRules, specsRules } from '../core/rules/index.ts'
 import type { Issue, IssueLevel } from '../core/rules/issue.ts'
 import {
@@ -63,6 +69,7 @@ import {
   type SchemaInfo,
   type ValidateContext,
 } from '../core/rules/schema-info.ts'
+import { SPECS_DELEGATED_TWINS } from '../core/rules/specs.ts'
 import {
   ARTIFACT_GENERATES,
   enforcedApplyRequires,
@@ -181,7 +188,7 @@ function loadOpenspecYaml(changeDir: string, reader: ChangeReader): LoadedChange
   const record = doc as Record<string, unknown>
   const schema = typeof record.schema === 'string' ? record.schema : undefined
   const created = typeof record.created === 'string' ? record.created : undefined
-  const rawSchemaVersion = record.schemaVersion
+  const rawSchemaVersion = rawSchemaVersionStamp(record).value
   // A present-but-non-positive-integer schemaVersion is reported via
   // schemaVersionInvalid (meta/openspec-yaml) but must not flow through as a
   // usable version — otherwise `?? 1` would keep the garbage and mis-filter
@@ -205,6 +212,7 @@ function loadOpenspecYaml(changeDir: string, reader: ChangeReader): LoadedChange
     skipSpecsInvalid: rawSkipSpecs !== undefined && typeof rawSkipSpecs !== 'boolean',
     retireCapabilities: typeof rawRetire === 'boolean' ? rawRetire : undefined,
     retireCapabilitiesInvalid: rawRetire !== undefined && typeof rawRetire !== 'boolean',
+    unknownKeys: unknownChangeMetadataKeys(record),
   }
 }
 
@@ -795,6 +803,8 @@ const DUPLICATE_CLASSES: readonly DuplicateClass[] = [
       /^Archive would refuse this delta: .*ADDED failed for header "### Requirement: (.+?)" - "### Requirement: .*" already exists and differs only in case or spacing/,
     nativeKey: /^ADDED "(.+)" differs only in case or spacing/,
   },
+  ...SPECS_DELEGATED_TWINS,
+  ...DELTAS_DELEGATED_TWINS,
 ]
 
 /**
@@ -880,9 +890,14 @@ function delegatedIssues(answer: Delegated, id: string, deltaPaths: boolean): Is
       message: respellRemedies(d.message),
       ...(d.fix === undefined ? {} : { hint: respellRemedies(d.fix) }),
     }))
-  return answer.items
-    .filter((item) => item.id === id)
-    .flatMap((item) => item.issues.map((i) => mapDelegated(i, deltaPaths)))
+  return (
+    answer.items
+      .filter((item) => item.id === id)
+      .flatMap((item) => item.issues.map((i) => mapDelegated(i, deltaPaths)))
+      // cospec names the same keys under `change/unknown-metadata-key` (minus its
+      // own legacy stamp), so the binary's copy is never a second finding.
+      .filter((i) => !(deltaPaths && UPSTREAM_UNKNOWN_KEYS_RE.test(i.message)))
+  )
 }
 
 // --- per-item validation ---------------------------------------------------

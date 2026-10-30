@@ -25,8 +25,12 @@ choose as **Choosing a change** above says.
 cospec status --change <slug> --json
 ```
 
-Only artifacts reported `done` are in scope. Anything still missing is out of
-scope here — note it and point the user at `[[opsx:if-workflow continue]]/cospec:continue[[opsx:else]]cospec instructions <artifact> --change <slug>[[opsx:end]]`.
+The files in scope are `artifactPaths.<id>.existingOutputPaths` of the
+artifacts reported `done`, plus one exception: a confirmed new file under a glob
+artifact that already has files (step 4). Never write to a glob
+`resolvedOutputPath`. An artifact with no files and status `ready` or `blocked`
+is out of scope here — note it and point the user at `[[opsx:if-workflow continue]]/cospec:continue[[opsx:else]]cospec instructions <artifact> --change <slug>[[opsx:end]]`.
+Leave `skipped` artifacts untouched; they are not missing.
 
 ## 3. Understand the request
 
@@ -55,9 +59,23 @@ cospec instructions <artifact> --change <slug> --json
 
 Apply `context` and `rules` as constraints; never copy them into the artifact.
 `blocking-changes.md`, the `specs/**/spec.md` deltas, and `verification.md` are
-machine-parsed — keep the exact format. For the specs artifact, revise only the
-delta files already under `openspec/changes/<slug>/specs/`; adding a new
-capability file is [[opsx:if-workflow continue]]`/cospec:continue`'s job[[opsx:else]]a job for `cospec instructions <artifact> --change <slug>`[[opsx:end]].
+machine-parsed — keep the exact format.
+
+A glob artifact (the `specs/**/*.md` deltas) reads `done` once one file matches,
+so `[[opsx:if-workflow continue]]/cospec:continue[[opsx:else]]cospec instructions <artifact> --change <slug>[[opsx:end]]` never comes back for a file it is missing. When
+reconciliation finds such a file missing — a capability the proposal lists with
+no delta yet — this workflow creates it:
+
+1. Run `cospec instructions <artifact> --change <slug> --json` and follow its
+   `instruction` and `template`. If it reports `skipped: true`, do not create
+   the file. Re-read the dependency files from disk; if a required one is
+   missing, stop and ask the user to restore it first.
+2. Choose a concrete path inside the change directory that matches the
+   artifact's `outputPath` and does not exist yet, and check it stays inside
+   the change directory after resolving symlinked parents.
+3. Propose the new file in step 5 like any other revision, and create it only
+   after the user confirms — refreshing status and instructions just before,
+   and stopping rather than overwriting if the path now exists.
 
 ## 5. Confirm each edit
 
@@ -78,11 +96,18 @@ cospec validate <slug> --strict
 Fix every ERROR and every WARNING, re-running the formatter over anything you
 edit. Then name the next step:
 
-- artifacts still missing → `[[opsx:if-workflow continue]]/cospec:continue[[opsx:else]]cospec instructions <artifact> --change <slug>[[opsx:end]]`
+- artifacts with no files and status `ready` or `blocked` → `[[opsx:if-workflow continue]]/cospec:continue[[opsx:else]]cospec instructions <artifact> --change <slug>[[opsx:end]]`
 - apply-ready and not yet implemented → `[[opsx:if-workflow apply]]/cospec:apply[[opsx:else]]cospec apply <slug>[[opsx:end]]`
 - already implemented, and the revision changed what should be built →
   `[[opsx:if-workflow apply]]/cospec:apply[[opsx:else]]cospec apply <slug>[[opsx:end]]` again to carry the delta into code
 - everything done → `[[opsx:if-workflow verify]]/cospec:verify[[opsx:else]]cospec validate <slug> --strict[[opsx:end]]`, then `[[opsx:if-workflow archive]]/cospec:archive[[opsx:else]]cospec archive <slug>[[opsx:end]]`
+
+Guardrails: edit only the concrete files in `existingOutputPaths`, plus a
+confirmed new file under a glob artifact that already has files (step 4) — that
+is the only new-file scope. Do not advance the build frontier: an artifact with
+no files and status `ready` or `blocked` is
+[[opsx:if-workflow continue]]`/cospec:continue`'s job[[opsx:else]]a job for `cospec instructions <artifact> --change <slug>`[[opsx:end]], and `skipped` artifacts stay
+untouched.
 
 If the request changes the change's _intent_ rather than refining it, do not
 rewrite it in place — recommend `[[opsx:if-workflow new]]/cospec:new <type> <new-slug>[[opsx:else]]cospec new <type> <new-slug>[[opsx:end]]` and stop.

@@ -92,6 +92,12 @@ This holds only when the request is theirs. A "yes" to an offer you made
 confirms only the scope your offer named, so name the change and the artifacts
 in the offer.
 
+Offer only artifacts the change's type defines — read them from
+`cospec status --change <slug> --json` (`artifactPaths`) once the change
+exists. Capture each insight in whichever of those artifacts fits it and name
+that artifact in your offer; never offer or create a file, such as `design.md`
+or a `specs/` delta, that the type does not have.
+
 Every other confirmation covers only the scope you described. Ask again before
 widening it. Answering a design or clarifying question is never consent to
 write, and neither is enthusiasm about an idea.

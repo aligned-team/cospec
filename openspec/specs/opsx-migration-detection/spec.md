@@ -32,24 +32,12 @@ another tool, or by hand.
 
 ### Requirement: Leftover scan shares the agents skills root
 
-cospec SHALL scan `.agents/skills/` for leftover vanilla-openspec artifacts, in
-addition to the `.claude`, `.codex`, and `.opencode` harness directories,
-because OpenSpec has written its shared skills there since 1.8.0. The scan
-behind `cospec init --remove-opsx` and `cospec doctor`'s `opsx-leftover` finding
-is the same scan and covers the root together.
-
-`.agents/skills/` is now also a cospec generation target: cospec's own
-`cospec-*` skills and openspec's `openspec-*` leftovers coexist in that one
-root. Removal SHALL therefore stay decided by a file's authored shape and SHALL
-never touch a file cospec generated. Because the `agents` harness directory
-strictly contains the shared skills root, the two walk ranges overlap; the scan
-SHALL deduplicate by path so a leftover under `.agents/skills/` is reported
-exactly once by `cospec doctor` and counted exactly once in
-`cospec init --json`'s `opsx.found`.
-
-This requirement replaces "Leftover scan covers the shared agents skills root",
-whose claim that cospec never generates into `.agents/` this change falsifies.
-Its two surviving scenarios are carried over verbatim below.
+cospec SHALL scan `.agents/skills/` for leftover vanilla-openspec artifacts,
+alongside the `.claude`, `.codex`, and `.opencode` harness directories, since
+OpenSpec writes its shared skills there from 1.8.0; `cospec init --remove-opsx`
+and `cospec doctor`'s `opsx-leftover` finding share that scan. As cospec's own
+`cospec-*` skills also live there, removal SHALL stay decided by a file's
+authored shape and SHALL never touch a file cospec generated.
 
 #### Scenario: Doctor sees an opsx skill under .agents
 
@@ -77,17 +65,22 @@ Its two surviving scenarios are carried over verbatim below.
 - **THEN** each reports that file exactly once, despite `.agents` and
   `.agents/skills` both being walked
 
+#### Scenario: The overlapping agents walk is deduplicated by path
+
+- **WHEN** the `agents` harness directory walk and the shared `.agents/skills/`
+  walk both reach the same leftover
+- **THEN** the scan deduplicates by path, so `cospec doctor` reports it once and
+  `cospec init --json`'s `opsx.found` counts it once
+
 ### Requirement: Leftover scan does not cross a nested worktree boundary
 
 The opsx leftover scan (behind `cospec init --remove-opsx`, `init --json`'s
 `opsx.found`, and `cospec doctor`'s `opsx-leftover` finding) SHALL NOT descend
-into a nested git working tree distinct from the project's own — a directory
-whose own `.git` entry exists, whether a worktree checkout (`.git` as a file) or
-an embedded clone (`.git` as a directory). A file inside such a directory SHALL
-NOT be listed in `opsx.found`, SHALL NOT produce an `opsx-leftover` finding, and
-SHALL NOT be removed by `--remove-opsx`, even when it would otherwise match the
-scan's shape. Only the scan's walk boundary is affected; its acceptance of a
-file inside the project's own tree is unchanged.
+into a nested git working tree distinct from the project's own: a directory with
+its own `.git` entry, file (worktree) or directory (embedded clone). A file
+inside one SHALL NOT be listed, reported, or removed, whatever its shape. Only
+the walk boundary is affected; accepting a file in the project's own tree is
+unchanged.
 
 #### Scenario: A nested worktree's own leftover is left for its own scan
 
@@ -106,14 +99,12 @@ file inside the project's own tree is unchanged.
 
 ### Requirement: Leftover scan never follows a symlinked scan root outside the project
 
-The opsx leftover scan SHALL NOT read or remove a file that resolves (symlinks
-followed) outside the project's own directory tree. Before reading a scan root's
-directory — any `scanRoots` entry (`.claude`, `.agents`, …) or the explicit
-shared `.agents/skills` walk — the scan SHALL resolve that path and skip it
-unless the resolved path stays inside the project's own resolved directory;
-`--remove-opsx` SHALL re-check the same containment immediately before deleting
-each file or pruning each now-empty directory. A symlink that resolves back
-inside the project is unaffected and is still walked normally.
+The opsx leftover scan SHALL NOT read or remove a file that resolves, symlinks
+followed, outside the project's own tree. Before reading a scan root (any
+`scanRoots` entry such as `.claude` or `.agents`, or the shared `.agents/skills`
+walk) it SHALL resolve it and skip it unless it stays inside the project's
+resolved directory; `--remove-opsx` SHALL re-check containment just before each
+delete or prune. A symlink resolving inside the project is walked normally.
 
 #### Scenario: A symlinked `.claude` outside the project is never read or removed
 
@@ -167,24 +158,13 @@ that resolves outside it.
 
 ### Requirement: OpenCode command leftovers are detected by their own shape
 
-The pinned OpenCode command adapter writes `.opencode/commands/opsx-<id>.md`
-with frontmatter carrying `description` only — no `name`, no `metadata` — so
-neither of the scan's existing provenance markers (skill
-`metadata.author: openspec`, command `name: "OPSX: …"`) can ever match it. The
-leftover scan SHALL also treat a file as an openspec-authored leftover when all
-of the following hold: its path matches `.opencode/commands/opsx-<id>.md` where
-`<id>` is one of the 12 workflow ids the pinned dist's command-generation module
-ever writes (`propose`, `explore`, `new`, `continue`, `apply`, `update`, `ff`,
-`sync`, `archive`, `bulk-archive`, `verify`, `onboard`); its frontmatter has no
-key but `description`; and its body contains both the pinned dist's
-`PROJECT_ROOT_GUARD` template's literal lead sentence,
-`**Project check:** These steps expect a project that already uses OpenSpec.`,
-and the literal, backtick-quoted `` `openspec list --json` `` command reference
-every opsx workflow body carries. This detection SHALL NOT fire on path shape,
-frontmatter shape, or the bare command reference alone — an id outside the 12,
-or a body missing the guard's lead sentence, is never enough — so a hand-written
-file at a lookalike path, including one whose own prose happens to mention or
-invoke the same command, is never matched.
+The leftover scan SHALL also treat as openspec-authored a file at
+`.opencode/commands/opsx-<id>.md`, `<id>` one of the 12 workflow ids the pinned
+dist writes, whose frontmatter has only `description` and whose body holds both
+the pinned `PROJECT_ROOT_GUARD` lead sentence
+`**Project check:** These steps expect a project that already uses OpenSpec.`
+and the backtick-quoted `` `openspec list --json` ``. Path shape, frontmatter
+shape, or the command reference alone SHALL never suffice.
 
 #### Scenario: A real OpenCode opsx leftover is detected and removed
 
@@ -221,28 +201,23 @@ invoke the same command, is never matched.
 - **THEN** that file is not listed in `opsx.found`, produces no `opsx-leftover`
   finding, and is not removed
 
+#### Scenario: The twelve ids are the pinned dist's
+
+- **WHEN** the OpenCode command shape is checked
+- **THEN** `<id>` must be one of `propose`, `explore`, `new`, `continue`,
+  `apply`, `update`, `ff`, `sync`, `archive`, `bulk-archive`, `verify`,
+  `onboard`, because the pinned adapter writes `description`-only frontmatter
+  that neither the skill `metadata.author: openspec` nor the command
+  `name: "OPSX: …"` marker can match
+
 ### Requirement: Leftovers are found for every tool
 
-The leftover scan behind `cospec init --remove-opsx`, `cospec init --json`'s
-`opsx.found` and `cospec doctor`'s `opsx-leftover` finding SHALL read, for every
-harness row, the location the pinned OpenSpec binary writes that tool's commands
-to (its `opsx-<id>` or `opsx/<id>` files, with whatever extension that tool
-uses: `.md`, `.toml`, `.prompt` or `.prompt.md`) and that tool's project skills
-root; for a selected harness whose skills root is home-relative it SHALL also
-read that home skills root, listing each match with its absolute path and
-`scope: "home"`; and it SHALL read every location in the binary's
-`LEGACY_SLASH_COMMAND_PATHS` that belongs to a harness row, including
-directory-scoped entries and their `managedFileNames`. A file SHALL be a
-leftover only when its content proves OpenSpec wrote it: an opsx-era file
-carries the pinned binary's root-guard reference to `` `openspec list --json` ``
-or the existing skill and command markers, and a pre-opsx file carries the
-`<!-- OPENSPEC:START -->`/`<!-- OPENSPEC:END -->` markers (for a file-pattern
-entry this is stricter than the pinned binary, which removes a file that matches
-by name; a same-named file without the markers is the user's). The one exception
-is the binary's shared-root ownership marker `.agents/skills/.openspec-target`:
-a file at exactly that path holding one tool id SHALL be a leftover once no
-`openspec-*` skill that is not itself a leftover remains under `.agents/skills`.
-A directory-scoped legacy folder SHALL be removed only once it is empty.
+The leftover scan SHALL read, per harness row, where the pinned binary writes
+that tool's commands (`opsx-<id>` or `opsx/<id>`, with its `.md`, `.toml`,
+`.prompt` or `.prompt.md` extension), its project skills root, and its
+`LEGACY_SLASH_COMMAND_PATHS` entries, directory-scoped ones and their
+`managedFileNames` included. A file SHALL be a leftover only when its content
+proves OpenSpec wrote it. A legacy folder SHALL be removed only once empty.
 
 #### Scenario: a Gemini TOML leftover is found and removed
 
@@ -286,15 +261,36 @@ A directory-scoped legacy folder SHALL be removed only once it is empty.
   `cospec init --remove-opsx` runs
 - **THEN** only the three OpenSpec files are removed and the folder stays
 
+#### Scenario: A selected home-relative skills root is scanned
+
+- **WHEN** a selected harness's skills root is home-relative
+- **THEN** that home skills root is also read and each match is listed with its
+  absolute path and `scope: "home"`
+
+#### Scenario: Content markers prove authorship
+
+- **WHEN** a candidate file is examined
+- **THEN** an opsx-era file is a leftover only when it carries the pinned
+  root-guard reference to `` `openspec list --json` `` or the existing skill and
+  command markers, and a pre-opsx file only with the
+  `<!-- OPENSPEC:START -->`/`<!-- OPENSPEC:END -->` markers, a same-named file
+  without them being the user's, stricter than the binary's by-name removal
+
+#### Scenario: The shared-root ownership marker is the one exception
+
+- **WHEN** `.agents/skills/.openspec-target` holds one tool id
+- **THEN** it is a leftover once no non-leftover `openspec-*` skill remains
+  under `.agents/skills`
+
 ### Requirement: OpenSpec-written Codex global prompts are cleaned up
 
-When the `codex` harness is selected, the leftover scan SHALL read the Codex
-global prompts directory (`$CODEX_HOME/prompts` when `CODEX_HOME` is set and
-non-empty, else `<home>/.codex/prompts`) for the twelve file names the pinned
-binary allowlists (`opsx-<workflow>.md`), SHALL list each match with its
-absolute path and `scope: "home"`, and SHALL delete a match only under
-`--remove-opsx`, after the replacement Codex skills have been written in the
-same run. Any other file in that directory SHALL be left alone.
+With the `codex` harness selected, the leftover scan SHALL read the Codex global
+prompts directory (`$CODEX_HOME/prompts` when `CODEX_HOME` is non-empty, else
+`<home>/.codex/prompts`) for the twelve names the pinned binary allowlists
+(`opsx-<workflow>.md`), list each match with its absolute path and
+`scope: "home"`, and delete a match only under `--remove-opsx`, after the
+replacement Codex skills are written in the same run. Any other file there SHALL
+be left alone.
 
 #### Scenario: CODEX_HOME is honoured
 
@@ -313,19 +309,13 @@ same run. Any other file in that directory SHALL be left alone.
 
 ### Requirement: Root-level legacy config files are swept for OpenSpec blocks
 
-The leftover scan behind `cospec init --remove-opsx`, `cospec init --json`'s
-`opsx.found` and `cospec doctor`'s `opsx-leftover` finding SHALL also read the
-eight root-level files in the pinned OpenSpec's `LEGACY_CONFIG_FILES`:
-`CLAUDE.md`, `CLINE.md`, `CODEBUDDY.md`, `COSTRICT.md`, `QODER.md`, `IFLOW.md`,
-`AGENTS.md` and `QWEN.md`. A file SHALL be reported when it contains both
+The leftover scan SHALL also read the eight root files in the pinned
+`LEGACY_CONFIG_FILES` (`CLAUDE.md`, `CLINE.md`, `CODEBUDDY.md`, `COSTRICT.md`,
+`QODER.md`, `IFLOW.md`, `AGENTS.md`, `QWEN.md`), reporting one holding both
 `<!-- OPENSPEC:START -->` and `<!-- OPENSPEC:END -->`. With `--remove-opsx` or
-`--yes`, cospec SHALL remove the block exactly as the pinned binary's
-`removeMarkerBlock` does: only a marker alone on its line counts, the lines from
-the start marker's line through the end marker's line are removed, runs of three
-or more line breaks become two, trailing whitespace is trimmed and the file's
-line-ending style is kept. The file SHALL NOT be deleted: a file with nothing
-but the block is written empty. A file's other content SHALL be byte-preserved.
-Without consent the files SHALL be listed and left untouched.
+`--yes` it SHALL remove the block as the binary's `removeMarkerBlock` does,
+never deleting the file, keeping other content byte-for-byte. Without consent
+they SHALL only be listed.
 
 #### Scenario: A block is stripped and the rest kept
 
@@ -358,6 +348,14 @@ Without consent the files SHALL be listed and left untouched.
 
 - **WHEN** a root file with `\r\n` line endings carries a block and removal runs
 - **THEN** the remaining lines end in `\r\n`
+
+#### Scenario: Block removal follows removeMarkerBlock
+
+- **WHEN** a block is removed
+- **THEN** only a marker alone on its line counts, the lines from the start
+  marker's through the end marker's are removed, runs of three or more line
+  breaks become two, trailing whitespace is trimmed, the line-ending style is
+  kept, and a file holding only the block is written empty
 
 ### Requirement: The eight legacy filenames follow the pinned binary
 

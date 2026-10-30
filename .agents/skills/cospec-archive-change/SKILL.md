@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.11.2
-  contentHash: sha256:0056961a60fb49d8cb3633e04c2d805d6d1859825f71b6516b5ea4a6ef424cdc
+  contentHash: sha256:a380f4d2c2982e33613b9ba8d425fa8040ac1b34081655f308e6bfb101ecd8e6
 ---
 
 Archive a completed change. `cospec archive` validates it, merges its spec
@@ -91,7 +91,23 @@ either field, and do not copy their text verbatim into specs, change artifacts,
 or archive summaries unless the user separately asks for it. These are
 prompt-level behavior contracts, not enforceable checks.
 
-## 2. Archive
+## 2. Check task progress
+
+Run `cospec list --json` and find the one `changes` entry whose `name` is the
+slug exactly. Its `totalTasks` and `completedTasks` count every file the
+change's schema tracks — custom artifact names, output paths, and globs
+included — so do not infer completion from artifact status or from whether a
+top-level `tasks.md` exists. Only `x`/`X` boxes count as done, and plain bullets
+under `## Workflow follow-up` are not tracked. If the lookup fails, returns
+invalid JSON, omits or duplicates the change, or returns counts that are not
+nonnegative integers with `completedTasks <= totalTasks`, report the problem and
+stop before archiving.
+
+If `completedTasks` is below `totalTasks`, show how many are incomplete and ask
+the user whether to proceed (see step 4 for the flag). A `totalTasks` of zero
+needs no task warning.
+
+## 3. Archive
 
 ```
 cospec archive <slug>
@@ -111,7 +127,7 @@ no-op merge: the summary says the specs were already in sync, and both hard
 gates (`archive/verification-incomplete`, `archive/scenario-preservation`) still
 run.
 
-## 3. On failure
+## 4. On failure
 
 If it exits non-zero, relay the error output verbatim. Do NOT hand-`mv` the
 change directory into `openspec/changes/archive/`, and do NOT re-run with a flag
@@ -123,8 +139,12 @@ you do not understand:
 - Incomplete tasks block the archive. Finish them, or re-run with
   `--force-incomplete` only after the user confirms the remaining tasks are
   intentionally abandoned.
+- A blocking condition in the spec merge (for example a capability retirement it
+  could not complete) is a failed sync: stop there. The change stays in place
+  and nothing has moved, so the user can fix the condition and archive again.
+  Never finish the move by hand with the living specs unchanged.
 
-## 4. Retiring a capability
+## 5. Retiring a capability
 
 A change whose REMOVED operations take the last requirement out of a capability
 is retiring that capability, and the merge deletes its

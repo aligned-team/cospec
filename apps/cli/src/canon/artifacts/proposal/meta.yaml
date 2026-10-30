@@ -2,6 +2,8 @@
 # live in canon/types/<type>.yaml; only the two template variants are shared here.
 # `surfacesBlock` is appended to proposal.md by the composer for every type whose
 # canon sets `surfaces: true` (all but chore/docs/style/test) — the §1.2 trigger.
+# Ported at OpenSpec 1.15.0 from schemas/spec-driven/templates/proposal.md: durable,
+# behaviour-based capability names in the New Capabilities comment.
 id: proposal
 generates: proposal.md
 template: proposal.md
@@ -29,7 +31,7 @@ templates:
     ## Capabilities
 
     ### New Capabilities
-    <!-- Each becomes specs/<capability-path>/spec.md. A capability path is relative to specs/: kebab-case per segment, one segment on a flat layout (user-auth), nested only where the project already nests (identity/user-auth). -->
+    <!-- Each becomes specs/<capability-path>/spec.md. Name each for a durable system behavior that can own related requirements as the system evolves (user-auth), not for this change's work (add-login-endpoint) or a proposal section, and avoid broad catch-all names. A capability path is relative to specs/: kebab-case per segment, one segment on a flat layout (user-auth), nested only where the project already nests (identity/user-auth). -->
     - `<capability-path>`: <what this capability covers>
 
     ### Modified Capabilities

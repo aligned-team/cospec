@@ -15,12 +15,17 @@
 //   - The provenance footer records the wrapped OpenSpec resolution
 //     (`project` vs `embedded`, plus version) — the single most useful field in
 //     a cospec bug report.
-// Kept from upstream: the grapheme-aware 72-char title, the Summary/Details
-// body, an array argv (never a shell — the message is free text), and exit 0
-// for the manual-submission fallback, which is not a failure.
+// Kept from upstream (1.15.0): the grapheme-aware 72-char title, a body whose
+// `###` headings are the bug form's labels (`.github/ISSUE_TEMPLATE/
+// bug_report.yml`, `BUG_FORM_FIELDS`) so a CLI-filed issue reads like one filed
+// through the form — `gh issue create --body` cannot fill a form, so the
+// reproduction section says the steps are missing instead of being left
+// silently empty — a manual link that opens that form prefilled by field id,
+// an array argv (never a shell — the message is free text), and exit 0 for the
+// manual-submission fallback, which is not a failure.
 
 import { readFileSync } from 'node:fs'
-import { platform } from 'node:os'
+import { arch, platform } from 'node:os'
 import { join } from 'node:path'
 
 import pkg from '../../package.json'
@@ -28,6 +33,7 @@ import type { CommandContext } from '../cli.ts'
 import { EXIT } from '../cli.ts'
 import { flagValue, hasFlag, type ParsedArgs } from '../core/command-table.ts'
 import { resolveOpenspec, spawnOpenspec, threadedArgv } from '../core/openspec.ts'
+import { currentInstall } from './version.ts'
 
 /** cospec's own tracker (`apps/cli/package.json` `bugs`). */
 export const COSPEC_REPO = 'aligned-team/cospec'
@@ -89,16 +95,95 @@ export function provenanceFooter(now: Date, openspec: string): string {
   ].join('\n')
 }
 
-export function formatBody(message: string, details: string | undefined, footer: string): string {
-  const parts = ['## Summary', '', message]
-  if (details !== undefined && details.length > 0) parts.push('', '## Details', '', details)
-  parts.push('', footer)
+/**
+ * The bug form's fields, in its order: each `id` is the form's field id (how a
+ * link prefills it) and each `label` its heading. Must match
+ * `.github/ISSUE_TEMPLATE/bug_report.yml`; a unit test reads the form.
+ */
+export const BUG_FORM_FIELDS = [
+  { id: 'what_happened', label: 'What happened' },
+  { id: 'steps', label: 'Minimal steps to reproduce' },
+  { id: 'expected', label: 'Expected behavior' },
+  { id: 'actual', label: 'Actual behavior' },
+  { id: 'version', label: 'cospec version' },
+  { id: 'openspec_version', label: 'OpenSpec version' },
+  { id: 'environment', label: 'Environment' },
+] as const
+
+export const BUG_FORM_TEMPLATE = 'bug_report.yml'
+
+/** The reproduction section of a CLI-filed report, which only the reporter can fill. */
+export const REPRO_MISSING =
+  '_Not provided — filed with `cospec feedback`. If this is a bug, please add the shortest steps that reproduce it from a fresh project._'
+const NOT_PROVIDED = '_Not provided._'
+
+/** What the form asks that cospec knows: its version, the wrapped OpenSpec, and the environment. */
+export interface BugFacts {
+  version: string
+  openspec: string
+  environment: string
+}
+
+/** The facts of this process: cospec's version, the wrapped OpenSpec, OS, arch and install type. */
+export function currentFacts(): BugFacts {
+  return {
+    version: pkg.version,
+    openspec: wrappedOpenspecDescription(),
+    environment: `${platform()} ${arch()}, ${currentInstall().type}`,
+  }
+}
+
+/** The message, then `--body` as its details: the form's `what_happened` field. */
+function whatHappened(message: string, details: string | undefined): string {
+  return details !== undefined && details.length > 0 ? `${message}\n\n${details}` : message
+}
+
+/**
+ * The issue body: one `###` section per bug-form field, in the form's order —
+ * the message (and `--body`) under What happened, the missing reproduction
+ * steps said so, the facts cospec knows filled in — then the provenance footer.
+ */
+export function formatBody(
+  message: string,
+  details: string | undefined,
+  facts: BugFacts,
+  footer: string,
+): string {
+  const values: Record<(typeof BUG_FORM_FIELDS)[number]['id'], string> = {
+    what_happened: whatHappened(message, details),
+    steps: REPRO_MISSING,
+    expected: NOT_PROVIDED,
+    actual: NOT_PROVIDED,
+    version: facts.version,
+    openspec_version: facts.openspec,
+    environment: facts.environment,
+  }
+  const parts = BUG_FORM_FIELDS.flatMap((field) => [`### ${field.label}`, '', values[field.id], ''])
+  parts.push(footer)
   return parts.join('\n')
 }
 
-/** The prefilled issue URL used whenever `gh` cannot submit. No `labels`. */
-export function manualUrl(repo: string, title: string, body: string): string {
-  return `https://github.com/${repo}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`
+/**
+ * The link used whenever `gh` cannot submit: the bug form, its message,
+ * version and environment fields prefilled by field id. No `labels` (the form
+ * sets its own).
+ */
+export function manualUrl(
+  repo: string,
+  title: string,
+  message: string,
+  details: string | undefined,
+  facts: BugFacts,
+): string {
+  const params = new URLSearchParams({
+    template: BUG_FORM_TEMPLATE,
+    title,
+    what_happened: whatHappened(message, details),
+    version: facts.version,
+    openspec_version: facts.openspec,
+    environment: facts.environment,
+  })
+  return `https://github.com/${repo}/issues/new?${params.toString()}`
 }
 
 /**
@@ -212,12 +297,9 @@ export async function run(ctx: CommandContext): Promise<number> {
 
   const message = parsed.message!
   const title = formatTitle(message)
-  const body = formatBody(
-    message,
-    parsed.body,
-    provenanceFooter(new Date(), wrappedOpenspecDescription()),
-  )
-  const url = manualUrl(COSPEC_REPO, title, body)
+  const facts = currentFacts()
+  const body = formatBody(message, parsed.body, facts, provenanceFooter(new Date(), facts.openspec))
+  const url = manualUrl(COSPEC_REPO, title, message, parsed.body, facts)
 
   const gh = Bun.which('gh')
   const authenticated =

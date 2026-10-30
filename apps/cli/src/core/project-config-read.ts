@@ -85,6 +85,46 @@ function referenceWarnings(raw: unknown, warn: (line: string) => void): void {
   }
 }
 
+/** The binary's `describeYamlType`: a YAML value's shape in a warning ("a mapping", "a number"). */
+export function describeYamlType(value: unknown): string {
+  if (value === null) return 'null'
+  if (Array.isArray(value)) return 'a nested list'
+  return typeof value === 'object' ? 'a mapping' : `a ${typeof value}`
+}
+
+/** A `rules:` item that is not a string: where it sits and what YAML made of it. */
+export interface RuleItemTypeError {
+  artifactId: string
+  index: number
+  value: unknown
+}
+
+/** Every non-string item of an artifact's `rules:` list, in order (none for a non-list). */
+export function nonStringRuleItems(artifactId: string, rules: unknown): RuleItemTypeError[] {
+  if (!Array.isArray(rules)) return []
+  return rules
+    .map((value: unknown, index) => ({ artifactId, index, value }))
+    .filter(({ value }) => typeof value !== 'string')
+}
+
+/**
+ * The binary's `describeRulesShapeError` (1.14.x): every offending index with its shape, and
+ * the quoting hint when one of them is a mapping (an unquoted ": ").
+ */
+function describeRulesShapeError(artifactId: string, rules: unknown): string {
+  const base = `Rules for '${artifactId}' must be an array of strings, ignoring this artifact's rules`
+  if (!Array.isArray(rules)) return `${base}. rules.${artifactId} is ${describeYamlType(rules)}`
+  const bad = nonStringRuleItems(artifactId, rules)
+  if (bad.length === 0) return base
+  const details = bad
+    .map(({ index, value }) => `rules.${artifactId}[${index}] is ${describeYamlType(value)}`)
+    .join('; ')
+  const hint = bad.some(({ value }) => isRecord(value))
+    ? ' — an unquoted ": " makes YAML read the item as a key/value pair; quote the whole scalar to keep it a string.'
+    : ''
+  return `${base}. ${details}${hint}`
+}
+
 function ruleWarnings(raw: unknown, warn: (line: string) => void): void {
   if (raw === undefined) return
   if (!isRecord(raw)) {
@@ -93,7 +133,7 @@ function ruleWarnings(raw: unknown, warn: (line: string) => void): void {
   }
   for (const [artifactId, rules] of Object.entries(raw)) {
     if (!isStringArray(rules)) {
-      warn(`Rules for '${artifactId}' must be an array of strings, ignoring this artifact's rules`)
+      warn(describeRulesShapeError(artifactId, rules))
     } else if (rules.some((rule) => rule.length === 0)) {
       warn(`Some rules for '${artifactId}' are empty strings, ignoring them`)
     }

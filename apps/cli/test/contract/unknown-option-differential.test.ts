@@ -87,7 +87,7 @@ function addChangeNamedChange(root: string): void {
   mkdirSync(dir, { recursive: true })
   writeFileSync(
     join(dir, '.openspec.yaml'),
-    'schema: chore\ncreated: 2026-09-25\nschemaVersion: 2\n',
+    'schema: chore\ncreated: 2026-09-25\nx-cospec-schema-version: 2\n',
   )
   writeFileSync(
     join(dir, 'proposal.md'),

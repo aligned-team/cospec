@@ -1,6 +1,7 @@
 import { dirname, join } from 'node:path'
 
 import type { ReferenceEntry } from './instructions-render.ts'
+import { noRedrawEnv, type DrawTarget } from './interactive.ts'
 import { extractEmbeddedOpenspec } from './openspec-embedded.ts'
 
 /**
@@ -8,7 +9,7 @@ import { extractEmbeddedOpenspec } from './openspec-embedded.ts'
  * `package.json` dependency and the `mise.toml` tool). The contract suite runs
  * against exactly this build; the version tripwire holds it equal to the pin.
  */
-export const PINNED_OPENSPEC_VERSION = '1.13.1'
+export const PINNED_OPENSPEC_VERSION = '1.15.0'
 
 /** Inclusive floor of the accepted runtime range. */
 export const OPENSPEC_VERSION_FLOOR = '1.0.0'
@@ -241,10 +242,13 @@ export const COLOR_FORCING_ENV_KEYS: readonly string[] = [
  */
 export function buildWrappedSpawnEnv(
   parentEnv: Readonly<Record<string, string | undefined>> = process.env,
+  stdout: DrawTarget = process.stdout,
 ): Record<string, string | undefined> {
   const out: Record<string, string | undefined> = { ...parentEnv }
   for (const key of COLOR_FORCING_ENV_KEYS) delete out[key]
-  return { ...out, ...WRAPPED_ENV }
+  // `CI` and `OPEN_SPEC_INTERACTIVE` ride through with the parent's env; a
+  // zero-width terminal becomes `OPEN_SPEC_INTERACTIVE=0`, so no child redraws.
+  return { ...out, ...noRedrawEnv(stdout, parentEnv), ...WRAPPED_ENV }
 }
 
 /**
@@ -629,6 +633,10 @@ export interface ApplyTask {
   id: string
   description: string
   done: boolean
+  /** The tracked file the task sits in, as the binary resolved it (1.15.0). */
+  sourcePath?: string
+  /** The task's 1-based line in `sourcePath` (1.15.0). */
+  line?: number
 }
 
 /**

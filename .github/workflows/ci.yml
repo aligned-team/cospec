@@ -26,6 +26,8 @@ jobs:
       shell: ${{ steps.filter.outputs.shell || steps.all.outputs.all }}
       actions: ${{ steps.filter.outputs.actions || steps.all.outputs.all }}
       docs: ${{ steps.filter.outputs.docs || steps.all.outputs.all }}
+      install: ${{ steps.filter.outputs.install || steps.all.outputs.all }}
+      nix: ${{ steps.filter.outputs.nix || steps.all.outputs.all }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - id: all
@@ -55,6 +57,8 @@ jobs:
             openspec_schemas: ['openspec/schemas/**', 'mise.toml', '.github/workflows/ci.yml']
             shell: ['scripts/**', '.github/workflows/ci.yml', '.github/actions/**']
             actions: ['.github/workflows/**', '.github/actions/**']
+            install: ['scripts/install/**', '.github/workflows/ci.yml']
+            nix: ['flake.nix', 'flake.lock', 'nix/**', '.github/workflows/ci.yml']
             docs:
               - 'apps/docs/**'
               - '.github/workflows/release.yml'
@@ -139,7 +143,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: ./.github/actions/setup-mise
       - name: ShellCheck hook + task scripts
-        run: mise exec -- shellcheck -x scripts/hooks/check-commit-msg scripts/hooks/pre-push-gate scripts/mise-tasks/agents/sync scripts/mise-tasks/vendor/openspec
+        run: mise exec -- shellcheck -x scripts/hooks/check-commit-msg scripts/hooks/pre-push-gate scripts/mise-tasks/agents/sync scripts/mise-tasks/vendor/openspec scripts/mise-tasks/release/flake-pin scripts/install/install.sh scripts/install/test/install-sh.test.sh
 
   ci-actions-lint:
     needs: detect-changes
@@ -169,9 +173,85 @@ jobs:
       - name: Build docs
         run: mise run docs:build
 
+  # Advisory: times `cospec __complete changes` against its recorded budget and
+  # writes the result to the step summary. Never gates — not in ci-gate's needs,
+  # and the script always exits 0 (shared-runner wall-clock is too noisy).
+  ci-bench-complete:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.bun == 'true'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: ./.github/actions/setup-mise
+      - run: bun install --frozen-lockfile
+      - name: __complete startup timing (advisory)
+        run: mise run bench:complete
+
+  # install.sh end-to-end against a fake on-disk release, once per libc: the
+  # same test file asserts glibc selection on ubuntu and musl selection on
+  # Alpine (real host detection, no overrides).
+  ci-install-sh:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.install == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: install.sh on Ubuntu (glibc)
+        run: EXPECT_ASSET=linux-x64 sh scripts/install/test/install-sh.test.sh
+      # Alpine 3.22, pinned by its multi-arch index digest.
+      - name: install.sh on Alpine (musl)
+        run: |
+          docker run --rm -v "${PWD}:/work:ro" -e EXPECT_ASSET=linux-x64-musl \
+            alpine@sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f \
+            sh -c 'apk add --no-cache curl >/dev/null && sh /work/scripts/install/test/install-sh.test.sh'
+
+  ci-install-ps1:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.install == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Pester tests for install.ps1
+        shell: pwsh
+        run: |
+          Install-Module Pester -RequiredVersion 5.7.1 -Scope CurrentUser -Force -SkipPublisherCheck
+          Import-Module Pester -RequiredVersion 5.7.1
+          Invoke-Pester -Path scripts/install/test/install-ps1.Tests.ps1 -CI
+
+  # Builds the flake's package (fetching the pinned release archive by hash),
+  # runs it, and builds a consumer flake that only uses overlays.default.
+  ci-nix:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.nix == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
+      - name: nix flake check
+        run: nix flake check
+      - name: nix run . -- --version
+        run: |
+          ACTUAL=$(nix run . -- --version)
+          EXPECTED=$(jq -r .version nix/release.json)
+          [ "${ACTUAL}" = "${EXPECTED}" ] || { echo "::error::flake cospec reports ${ACTUAL}, expected ${EXPECTED}"; exit 1; }
+      - name: Consumer flake applying overlays.default
+        run: nix build ./nix/test/consumer --override-input cospec "git+file://${PWD}?shallow=1" --no-write-lock-file -L
+
   ci-gate:
     if: always()
-    needs: [detect-changes, ci-bun, ci-openspec, ci-shell, ci-actions-lint, ci-docs]
+    needs:
+      [
+        detect-changes,
+        ci-bun,
+        ci-openspec,
+        ci-shell,
+        ci-actions-lint,
+        ci-docs,
+        ci-install-sh,
+        ci-install-ps1,
+        ci-nix,
+      ]
     runs-on: ubuntu-latest
     steps:
       - name: Check upstream job results
@@ -182,11 +262,14 @@ jobs:
           SHELL_JOB: ${{ needs.ci-shell.result }}
           ACTIONS: ${{ needs.ci-actions-lint.result }}
           DOCS: ${{ needs.ci-docs.result }}
+          INSTALL_SH: ${{ needs.ci-install-sh.result }}
+          INSTALL_PS1: ${{ needs.ci-install-ps1.result }}
+          NIX: ${{ needs.ci-nix.result }}
         run: |
           if [[ "$DETECT" != "success" ]]; then
             echo "detect-changes did not succeed: $DETECT — gate fails"; exit 1
           fi
-          for r in "$BUN" "$OPENSPEC" "$SHELL_JOB" "$ACTIONS" "$DOCS"; do
+          for r in "$BUN" "$OPENSPEC" "$SHELL_JOB" "$ACTIONS" "$DOCS" "$INSTALL_SH" "$INSTALL_PS1" "$NIX"; do
             if [[ "$r" == "failure" || "$r" == "cancelled" ]]; then
               echo "Job result '$r' — gate fails"; exit 1
             fi

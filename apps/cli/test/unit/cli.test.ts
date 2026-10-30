@@ -348,7 +348,8 @@ describe('cli dispatcher: table rows parse before the module loads', () => {
       version: 1,
       command: 'view',
       ok: false,
-      message: 'cospec view renders a text dashboard and cannot emit JSON',
+      message:
+        'cospec view renders a text dashboard and cannot emit JSON (use cospec status --all --json)',
     })
     expect(r.out.trimEnd().split('\n')).toHaveLength(1)
   })

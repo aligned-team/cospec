@@ -6,7 +6,7 @@ compatibility: Requires the cospec CLI (@aligned-team/cospec).
 metadata:
   author: cospec
   generatedBy: cospec@0.11.2
-  contentHash: sha256:ecae7c09271255c1170c8f365badf52ff7bf0b4be954f9c2ffaaee8e6cc26f0a
+  contentHash: sha256:08ee523699165cb0044aa2b0321cacc534805b6f8f721e0604b80ff619e1e1df
 ---
 
 Resume a change that was started but is not yet apply-ready, and finish its
@@ -81,11 +81,26 @@ cospec status --change <slug> --json
 Read which `apply.requires` artifacts are still missing and which are ready to
 write next.
 
+**First, finish a partly written artifact.** A glob artifact (the
+`specs/**/*.md` deltas) reads `done` as soon as one matching file exists, so a
+run interrupted while writing its files leaves it `done` with some still
+missing. For each such `done` artifact, get its instructions and read the
+dependencies that say which files it should have — for the specs, the proposal's
+capabilities, one `specs/<capability-path>/spec.md` each — and compare them with
+`artifactPaths.<id>.existingOutputPaths`. Write only the missing files, each at
+a path you have checked stays inside the change directory after resolving
+symlinks, before moving on to any other artifact. If you cannot tell whether a
+capability was left out on purpose, ask the user.
+
 ## 3. Finish the artifacts
 
 Run the same loop as `/cospec:propose` step 3: for each ready artifact, call
 `cospec instructions <artifact> --change <slug> --json`, write it to the named
-path, and repeat until every required artifact exists. Apply `context` and
+path, and repeat until every required artifact exists. When the named path is a
+glob, choose a concrete path inside the change directory that matches it, and
+check it stays there after resolving symlinks; if it does not, stop and tell the
+user. If the `instruction` delegates creation to a skill or command, use it only
+if it can write to that checked path. Apply `context` and
 `rules` as constraints, never copy them into the output. Re-read every completed
 dependency artifact from disk before writing against it — this change was
 started in an earlier session, so nothing you remember about its artifacts is

@@ -1,4 +1,4 @@
-// Every line of the pinned dist (`@fission-ai/openspec` 1.13.1) that names a
+// Every line of the pinned dist (`@fission-ai/openspec` 1.15.0) that names a
 // bare `openspec <command>`, keyed by module and trimmed source line (never by
 // line number, so a pin that only shifts lines passes and one that adds or
 // rewords a remedy fails), with where its text goes: the id of the
@@ -48,6 +48,14 @@ export const notRelayed = {
     "`validateChangeExists`'s fallback hint, used only when a caller passes none: every caller (`instructions` three times, `status`) passes its own `newChangeHint`, allowlisted on its own line, and `templates` never calls it (`templates.js` validates only the schema; probed `templates` with no schema, `--schema nope` in text and `--json`, `-- x`, `x`, `--bogus`, `--json` and `--store <id>` under node, in a planning root and in a rootless directory with a store registered, none printing a `Create one with` sentence)",
   COMPLETION:
     "`cospec completion` is native (`commands/completion.ts`) and never spawns the binary's `completion`",
+  VERSION_REPORT:
+    "`cospec version` is native (`commands/version.ts`) and never spawns the binary's `version`; the wrapped binary is never the standalone build (it runs from a package or the embedded bundle), so its upgrade command is never `install`, and `update`, the other caller, is never spawned (`cospec update` is native)",
+  INSTALL:
+    "`cospec install` is native (`commands/install.ts`): it runs cospec's own release installer and never spawns the binary's `install`",
+  STANDALONE_TIP:
+    'upstream prints its standalone tip only after `openspec update` (`maybeShowStandaloneTip`); cospec never spawns `update` (`cospec update` is native)',
+  FEEDBACK_UPSTREAM:
+    "the issue body `cospec feedback --upstream` files at OpenSpec's own tracker (relayed verbatim in its manual-submission block): it truthfully names the command that filed a report about OpenSpec, so it stays unspelled; cospec's own feedback body is native (`commands/feedback.ts`)",
 } as const
 
 /** Whole module trees no cospec relay prints from, and why. */
@@ -95,12 +103,12 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
   ],
   [
     'core/update.js',
-    'console.log(chalk.dim(`Re-run "openspec update" and accept the move to ${migration.to}/ to resume updates.`));',
+    'this.log(chalk.dim(`Re-run "openspec update" and accept the move to ${migration.to}/ to resume updates.`));',
     notRelayed.UPDATE,
   ],
   [
     'core/update.js',
-    'console.log(chalk.dim(\'Run "openspec init" to set up tools.\'));',
+    'this.log(chalk.dim(\'Run "openspec init" to set up tools.\'));',
     notRelayed.UPDATE,
   ],
   [
@@ -110,22 +118,22 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
   ],
   [
     'core/update.js',
-    'console.log(chalk.dim("GitHub Copilot cloud coding-agent files are available (opt-in). Enable with \'openspec init --copilot-cloud\'."));',
+    'this.log(chalk.dim("GitHub Copilot cloud coding-agent files are available (opt-in). Enable with \'openspec init --copilot-cloud\'."));',
     notRelayed.UPDATE,
   ],
   [
     'core/update.js',
-    "console.log(chalk.yellow(`Detected new ${toolNoun}: ${newToolNames.join(', ')}. Run 'openspec init' to add ${pronoun}.`));",
+    "this.log(chalk.yellow(`Detected new ${toolNoun}: ${newToolNames.join(', ')}. Run 'openspec init' to add ${pronoun}.`));",
     notRelayed.UPDATE,
   ],
   [
     'core/update.js',
-    'console.log(chalk.dim(`Note: ${extraWorkflows.length} extra workflows not in profile (use \\`openspec config profile\\` to manage)`));',
+    'this.log(chalk.dim(`Note: ${extraWorkflows.length} extra workflows not in profile (use \\`openspec config profile\\` to manage)`));',
     notRelayed.UPDATE,
   ],
   [
     'core/update.js',
-    'console.log(chalk.dim(`Run \\`openspec config profile\\` to add ${pronoun}, or \\`openspec config profile core\\` to use the core set.`));',
+    'this.log(chalk.dim(`Run \\`openspec config profile\\` to add ${pronoun}, or \\`openspec config profile core\\` to use the core set.`));',
     notRelayed.UPDATE,
   ],
   [
@@ -582,7 +590,7 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
     'schema/use-with',
   ],
   [
-    'commands/spec.js',
+    'cli/commands/spec.js',
     'console.error(\'Warning: The "openspec spec ..." commands are deprecated. Prefer verb-first commands (e.g., "openspec show", "openspec validate --specs").\');',
     notRelayed.NOUN_SPEC,
   ],
@@ -658,37 +666,37 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
     'store/register-example',
   ],
   [
-    'commands/store.js',
+    'cli/commands/store.js',
     "? `Unknown command '${attempted[0]}' for 'openspec store'. Store subcommands: ${storeSubcommandsLine}.`",
     'store/unknown-subcommand',
   ],
   [
-    'commands/store.js',
+    'cli/commands/store.js',
     ": `Missing subcommand for 'openspec store'. Store subcommands: ${storeSubcommandsLine}.`;",
     'store/missing-subcommand',
   ],
   [
-    'commands/store.js',
+    'cli/commands/store.js',
     "let example = 'openspec new change <change-id> --store <id>';",
     'store/lifecycle-example',
   ],
   [
-    'commands/store.js',
+    'cli/commands/store.js',
     'example = `openspec new change ${changeId} --store <id>`;',
     'store/lifecycle-example-new',
   ],
   [
-    'commands/store.js',
+    'cli/commands/store.js',
     "example = `openspec ${attempted.join(' ')} --store <id>`;",
     'store/lifecycle-example-other',
   ],
   [
-    'commands/store.js',
+    'cli/commands/store.js',
     "? `Error: unknown command '${attempted[0]}' for 'openspec store'.`",
     'store/unknown-subcommand-error',
   ],
   [
-    'commands/store.js',
+    'cli/commands/store.js',
     ': "Error: missing subcommand for \'openspec store\'.");',
     'store/missing-subcommand-error',
   ],
@@ -830,12 +838,12 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
   ],
   ['commands/workset.js', 'fix: `openspec workset remove ${name} --yes`,', 'workset/remove-yes'],
   [
-    'commands/workset.js',
+    'cli/commands/workset.js',
     "? `Unknown command '${attempted[0]}' for 'openspec workset'. Workset subcommands: ${subcommandsLine}.`",
     'workset/unknown-subcommand',
   ],
   [
-    'commands/workset.js',
+    'cli/commands/workset.js',
     ": `Missing subcommand for 'openspec workset'. Workset subcommands: ${subcommandsLine}.`;",
     'workset/missing-subcommand',
   ],
@@ -843,6 +851,32 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
     'telemetry/index.js',
     "console.error('Note: OpenSpec collects anonymous usage stats. Opt out: OPENSPEC_TELEMETRY=0 or openspec config set telemetry.enabled false');",
     notRelayed.TELEMETRY,
+  ],
+  [
+    'core/init.js',
+    "'Run openspec init from the pointer repo root to install integrations.');",
+    notRelayed.INIT,
+  ],
+  ['core/version-check.js', "return 'openspec install';", notRelayed.VERSION_REPORT],
+  [
+    'core/standalone-tip.js',
+    'export const STANDALONE_TIP_MESSAGE = "Tip: OpenSpec also comes as a standalone app that runs without Node.js. To switch, run \'openspec install\'.";',
+    notRelayed.STANDALONE_TIP,
+  ],
+  [
+    'commands/install-standalone.js',
+    "console.log('openspec now runs the standalone copy.');",
+    notRelayed.INSTALL,
+  ],
+  [
+    'commands/install-standalone.js',
+    'console.log(chalk.dim("Check with \'openspec version\'; it shows (standalone)."));',
+    notRelayed.INSTALL,
+  ],
+  [
+    'commands/feedback.js',
+    "const REPRO_PROMPT = '_Not provided — filed with `openspec feedback`. If this is a bug, please add the shortest steps that reproduce it from a fresh project._';",
+    notRelayed.FEEDBACK_UPSTREAM,
   ],
   // The built-in `spec-driven` schema's own instruction text and proposal
   // template (`schemas/spec-driven/schema.yaml`, `templates/proposal.md`),
@@ -893,6 +927,11 @@ export const REMEDY_SOURCES: readonly (readonly [file: string, line: string, whe
     'schemas/spec-driven/schema.yaml',
     'directly. `planningHome.root` comes from the `openspec instructions ...',
     'spec-driven/specs-planning-home',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    "- Keep each requirement's description (the text between `### Requirement:` and its first scenario) to 500 characters or fewer. `openspec validate` flags longer descriptions in ADDED requirements and in the main spec. This is a warning: normal validation still passes, but `openspec validate --strict` fails on it. When writing a new requirement, state one behavior per requirement: move examples and edge cases into scenarios, and split a requirement that covers several behaviors into separate `### Requirement:` blocks, each with its own scenarios. Under MODIFIED, keep the existing requirement block whole; never split, trim or rewrite existing text just to meet the length. Split an existing long requirement only when the user asks for it, in a change made for that purpose: under MODIFIED, keep its header and every scenario and cut its description down to one behavior without changing its meaning, then add each behavior you removed as its own ADDED requirement with its own scenarios.",
+    'spec-driven/specs-requirement-length',
   ],
   [
     'schemas/spec-driven/templates/proposal.md',
@@ -999,6 +1038,12 @@ export const REACHABLE_OWNED: readonly (readonly [
   [
     'schemas/spec-driven/schema.yaml',
     'directly. `planningHome.root` comes from the `openspec instructions ...',
+    'instructions',
+    'upstream-spellings',
+  ],
+  [
+    'schemas/spec-driven/schema.yaml',
+    "- Keep each requirement's description (the text between `### Requirement:` and its first scenario) to 500 characters or fewer. `openspec validate` flags longer descriptions in ADDED requirements and in the main spec. This is a warning: normal validation still passes, but `openspec validate --strict` fails on it. When writing a new requirement, state one behavior per requirement: move examples and edge cases into scenarios, and split a requirement that covers several behaviors into separate `### Requirement:` blocks, each with its own scenarios. Under MODIFIED, keep the existing requirement block whole; never split, trim or rewrite existing text just to meet the length. Split an existing long requirement only when the user asks for it, in a change made for that purpose: under MODIFIED, keep its header and every scenario and cut its description down to one behavior without changing its meaning, then add each behavior you removed as its own ADDED requirement with its own scenarios.",
     'instructions',
     'upstream-spellings',
   ],

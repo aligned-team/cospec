@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
+  assertDiscoveredSpecFile,
+  assertSpecFileWithin,
   capabilityForDeltaFile,
   discoverSpecFiles,
   isDeltaSpecFile,
@@ -141,6 +143,31 @@ describe('discoverSpecFiles', () => {
     symlinkSync(outside, join(capability, 'spec.md'))
 
     expect(() => discoverSpecFiles(specs)).toThrow(/outside the allowed directory/)
+  })
+
+  test('accepts a spec.md linked elsewhere inside the project (1.14.3)', () => {
+    const project = makeRoot()
+    const specs = join(project, 'openspec', 'specs')
+    mkdirSync(join(specs, 'auth'), { recursive: true })
+    mkdirSync(join(project, 'docs'), { recursive: true })
+    writeFileSync(join(project, 'docs', 'auth-spec.md'), '# Spec\n')
+    symlinkSync('../../../docs/auth-spec.md', join(specs, 'auth', 'spec.md'))
+
+    expect(discoverSpecFiles(specs).map((s) => s.id)).toEqual(['auth'])
+    expect(() => assertSpecFileWithin(specs, join(specs, 'auth', 'spec.md'))).not.toThrow()
+  })
+
+  test('refuses a spec.md link resolving outside the project, naming the path', () => {
+    const project = makeRoot()
+    const specs = join(project, 'openspec', 'specs')
+    mkdirSync(join(specs, 'auth'), { recursive: true })
+    const outside = join(makeRoot(), 'auth-spec.md')
+    writeFileSync(outside, '# Elsewhere\n')
+    const link = join(specs, 'auth', 'spec.md')
+    symlinkSync(outside, link)
+
+    expect(() => discoverSpecFiles(specs)).toThrow(`outside the allowed directory: ${link}`)
+    expect(() => assertDiscoveredSpecFile(specs, link)).toThrow(link)
   })
 
   test('does not follow a symlinked capability directory', () => {
